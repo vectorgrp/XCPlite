@@ -82,12 +82,8 @@ unsigned long ApplXcpTimer(void) {
 // Transmit a message
 void ApplXcpSend(vuint8 len, MEMORY_ROM BYTEPTR msg) {
 
-    if (udpServerSendPacket(len, msg)) {
-        XcpSendCallBack();
-    }
-    else {
-        printf("Error: ApplXcpSend failed\n");
-    }
+    udpServerSendPacket(len, msg);
+    XcpSendCallBack();    
 }
 
 

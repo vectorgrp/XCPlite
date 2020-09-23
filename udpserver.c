@@ -21,27 +21,24 @@
 #include "udpserver.h"
 #include "xcpLite.h"
 
-
-
     
 #define UDP_MTU (1500-20-8)  // IPv4 1500 ETH - 28 IP - 8 UDP, RaspberryPi does not support Jumbo Frame
-unsigned char gDTOBuffer[UDP_MTU];
-unsigned int gDTOBufferSize = 0;
+static unsigned char gDTOBuffer[UDP_MTU];
+static unsigned int gDTOBufferSize = 0;
 
-unsigned char gCROBuffer[kXcpMaxCTO+4]; // Max DTO size + transport layer header
+static unsigned short gLastCmdCtr = 0;
+static unsigned short gLastResCtr = 0;
 
-unsigned short gLastCmdCtr = 0;
-unsigned short gLastResCtr = 0;
+static int gSock = 0;
+static struct sockaddr_in gServerAddr, gClientAddr;
+static socklen_t gClientAddrLen = 0;
 
-int gSock = 0;
-struct sockaddr_in gServerAddr, gClientAddr;
-socklen_t gClientAddrLen = 0;
-
-
+static pthread_mutex_t gMutex = PTHREAD_MUTEX_INITIALIZER;
 
 
-// Transmit a UDP datagramm (multiple XCP messages)
-int udpServerSendDatagram(unsigned int n, const unsigned char* data) {
+
+// Transmit a UDP datagramm (contains multiple XCP messages)
+static int udpServerSendDatagram(unsigned int n, const unsigned char* data) {
     
     int r;
 
@@ -49,7 +46,6 @@ int udpServerSendDatagram(unsigned int n, const unsigned char* data) {
         printf("Error: sendto failed !\n");
         return 0;
     }
-
 
     // Respond to last client received from, same port
     // gRemoteAddr.sin_port = htons(9001);
@@ -65,30 +61,49 @@ int udpServerSendDatagram(unsigned int n, const unsigned char* data) {
 // Flush the XCP message buffer
 int udpServerFlush(void) {
 
-    unsigned int n = gDTOBufferSize;
+    unsigned int n;
+    int r;
+    
+    pthread_mutex_lock(&gMutex);
+
+    n = gDTOBufferSize;
     if (n > 0) {
         gDTOBufferSize = 0;
-        return udpServerSendDatagram(n, gDTOBuffer);
+        r = udpServerSendDatagram(n, gDTOBuffer);
     }
-    return 1;
+    else {
+        r = 1;
+    }
+
+    pthread_mutex_unlock(&gMutex);
+
+    return r;
 }
 
-// Transmit DTO packet, copy to 
+// Transmit DTO packet, copy to XCP message buffer
 int udpServerSendPacket(unsigned int size, const unsigned char* packet) {
 
-    int n;
+    int n,r;
+
+    pthread_mutex_lock(&gMutex);
 
     // Flush message buffer when full 
-    if (size == 0 || gDTOBufferSize + size + XCP_PACKET_HEADER_SIZE > UDP_MTU) {
-        if (udpServerFlush()==0) return 0;
+    if (gDTOBufferSize + size + XCP_PACKET_HEADER_SIZE > UDP_MTU) {
+        r = udpServerSendDatagram(gDTOBufferSize, gDTOBuffer);
+        gDTOBufferSize = 0;
+    }
+    else {
+        r = 1;
     }
 
-    // Build XCP message (ctr+dlc+packet)
+    // Build XCP message (ctr+dlc+packet) and store in DTO buffer
     XCP_MESSAGE* p = (XCP_MESSAGE*)&gDTOBuffer[gDTOBufferSize];
-    p->ctr = ++gLastResCtr;
+    p->ctr = gLastResCtr++;
     p->dlc = (short unsigned int)size;
     memcpy(&(p->data), packet, size);
     gDTOBufferSize += size + 4;
+
+    pthread_mutex_unlock(&gMutex);
 
     if (gDebugLevel >= 2) {
         printf("TX DTO: CTR %04X,", p->ctr);
@@ -98,7 +113,7 @@ int udpServerSendPacket(unsigned int size, const unsigned char* packet) {
         printf("\n");
     }
 
-    return 1;
+    return r;
 }
 
 
@@ -108,6 +123,8 @@ int udpServerInit(unsigned short serverPort)
     struct timeval timeout;
 
     gDTOBufferSize = 0;
+    gLastCmdCtr = 0;
+    gLastResCtr = 0;
 
     //Create a socket
     gSock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -137,6 +154,11 @@ int udpServerInit(unsigned short serverPort)
         fprintf(stderr, "Bind on UDP port %d.\n", serverPort);
         fprintf(stderr, "UDP MTU = %d.\n", UDP_MTU);
     }
+
+    // Create a mutex for packet transmission
+    pthread_mutexattr_t a;
+    pthread_mutexattr_init(&a);
+    pthread_mutex_init(&gMutex, &a);
 
     return 0;
 }

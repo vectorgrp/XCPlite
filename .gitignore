@@ -11,11 +11,7 @@
 *.sln.DotSettings
 *.sln.DotSettings.user 
 
-
-
 bin/
 obj/
 *.[oa]
-*.vcxproj.user
-/xcps.c
-/xcps.h
+
