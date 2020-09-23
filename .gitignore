@@ -1,0 +1,21 @@
+.vs/
+
+
+# Visual Studio specific files and folders
+*.suo
+*.sdf
+*.opensdf
+*.vspscc
+*.csproj.user
+.vscode/
+*.sln.DotSettings
+*.sln.DotSettings.user 
+
+
+
+bin/
+obj/
+*.[oa]
+*.vcxproj.user
+/xcps.c
+/xcps.h
