@@ -96,9 +96,7 @@
 
 /* XCP protocol data acquisition parameters (DAQ) */
  
-  #if !defined(XCP_ENABLE_SEND_QUEUE) && !defined(XCP_DISABLE_SEND_QUEUE)
-    #define XCP_ENABLE_SEND_QUEUE
-  #endif
+  
   #if !defined(kXcpDaqMemSize)
     #define kXcpDaqMemSize 256
   #endif

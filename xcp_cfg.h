@@ -110,10 +110,8 @@ extern int udpServerFlush(void);
 
 /* Synchronous Data Acquisition (DAQ) */
 
-#define kXcpDaqMemSize 64000u  // Memory space reserved for DAQ tables and queue
+#define kXcpDaqMemSize 60000u  // Memory space reserved for DAQ tables
 
-#define XCP_ENABLE_SEND_QUEUE
-#define kXcpSendQueueMinSize 100
 
 // DAQ features
 #define XCP_DISABLE_DAQ_PRESCALER

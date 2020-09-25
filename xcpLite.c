@@ -125,14 +125,9 @@ V_MEMROM0 const vuint8 kXcpReleaseVersion = (vuint8)(CP_XCP_RELEASE_VERSION);
 /* Local data                                                               */
 /****************************************************************************/
 
-
 RAM tXcpData xcp; 
 
-#if defined ( XCP_ENABLE_SEND_QUEUE )
-#else
 static tXcpDto dto;
-#endif
-
 
 #if defined ( XCP_ENABLE_TESTMODE )
 vuint8 gDebugLevel;
@@ -153,10 +148,6 @@ static void XcpMemClr( BYTEPTR p, vuint16 n );
 #endif
 
 
-#if defined ( XCP_ENABLE_SEND_QUEUE )
-static vuint8 XcpSendDtoFromQueue( void );
-static void XcpQueueInit( void );
-#endif
 
 
 static void XcpFreeDaq( void );
@@ -267,34 +258,7 @@ void XcpMemCpy( DAQBYTEPTR dest, const DAQBYTEPTR src, vuint8 n )
 ******************************************************************************/
 void XcpSendCrm( void )
 {
-  
-#if defined ( XCP_ENABLE_SEND_QUEUE )
-
-  ApplXcpInterruptDisable();
-
-  if ( (xcp.SendStatus & (vuint8)XCP_SEND_PENDING) != 0 )
-  {
-    if ( (xcp.SendStatus & (vuint8)XCP_CRM_REQUEST) != 0 )
-    {
-      XCP_ASSERT(0);
-      xcp.SessionStatus |= (SessionStatusType)SS_ERROR; 
-    }
-    xcp.SendStatus |= (vuint8)XCP_CRM_REQUEST;
-  } 
-  else
-  {
-    xcp.SendStatus |= (vuint8)XCP_CRM_PENDING;
-    ApplXcpSend(xcp.CrmLen,&xcp.Crm.b[0]);
-  }
-
-  ApplXcpInterruptEnable();
-
-#else
-
   ApplXcpSend(xcp.CrmLen,&xcp.Crm.b[0]);
-
-#endif
-
   ApplXcpSendFlush();
   
 }
@@ -322,60 +286,10 @@ void XcpSendDto( const tXcpDto *dto )
 
 
 
-#if defined ( XCP_ENABLE_SEND_QUEUE )
-/*****************************************************************************
-| NAME:             XcpSendDtoFromQueue
-| CALLED BY:        XcpEvent, XcpSendCallBack
-| PRECONDITIONS:    none
-| INPUT PARAMETERS: none
-| RETURN VALUES:    0 : DTO has NOT been transmitted from queue. 
-|                   1 : DTO has been transmitted from queue. 
-| DESCRIPTION:      Send a DTO from the queue.
-******************************************************************************/
-static vuint8 XcpSendDtoFromQueue( void )
-{
-  ApplXcpInterruptDisable();
-  if ( ( (xcp.SendStatus & (vuint8)XCP_SEND_PENDING) == 0 ) && ( xcp.QueueLen != 0 ))
-  {
-    xcp.SendStatus |= (vuint8)XCP_DTO_PENDING;
-    XcpSendDto(&xcp.pQueue[xcp.QueueRp]);
-    xcp.QueueRp++;
-    if ( xcp.QueueRp >= xcp.QueueSize )
-    {
-      xcp.QueueRp = (vuint16)0u;
-    }
-    xcp.QueueLen--;
-    ApplXcpInterruptEnable();
-    return (vuint8)1u;
-  }
-  ApplXcpInterruptEnable();
-  return (vuint8)0u;
- 
-}
-#endif /* XCP_ENABLE_SEND_QUEUE */
 
 
-/****************************************************************************/
-/* Transmit Queue */
-/****************************************************************************/
 
-#if defined ( XCP_ENABLE_SEND_QUEUE )
 
-/*****************************************************************************
-| NAME:             XcpQueueInit
-| CALLED BY:        XcpFreeDaq, XcpStopDaq, XcpStopAllDaq
-| PRECONDITIONS:    none
-| INPUT PARAMETERS: none
-| RETURN VALUES:    none 
-| DESCRIPTION:      Initialize the transmit queue.
-******************************************************************************/
-static void XcpQueueInit(void)
-{
-  xcp.QueueLen = (vuint16)0u;
-  xcp.QueueRp = (vuint16)0u;
-}
-
-#endif /* XCP_ENABLE_SEND_QUEUE */
 
 
 /****************************************************************************/
@@ -502,9 +416,7 @@ static void XcpFreeDaq( void )
   XcpMemClr((BYTEPTR)&xcp.Daq.u.b[0], (vuint16)kXcpDaqMemSize);  /* Deviation of MISRA rule 44. */
   
 
-  #if defined ( XCP_ENABLE_SEND_QUEUE )
-  XcpQueueInit();
-  #endif
+  
 }
 
 /*****************************************************************************
@@ -541,34 +453,13 @@ static vuint8 XcpAllocMemory( void )
   xcp.pOdtEntryAddr = (DAQBYTEPTR*)&xcp.pOdt[xcp.Daq.OdtCount];
   xcp.pOdtEntrySize = (vuint8*)&xcp.pOdtEntryAddr[xcp.Daq.OdtEntryCount]; 
   
-  #if defined ( XCP_ENABLE_SEND_QUEUE )
   
-  xcp.pQueue = (tXcpDto*)&xcp.pOdtEntrySize[xcp.Daq.OdtEntryCount];
-    
-
-  xcp.QueueSize = (vuint16)((vuint16)kXcpDaqMemSize - s) / (vuint16)sizeof(tXcpDto);
-
-    #if defined ( kXcpSendQueueMinSize )
-  if (xcp.QueueSize<(vuint16)kXcpSendQueueMinSize)
-  {
-    return (vuint8)CRC_MEMORY_OVERFLOW;
-  }
-    #else
-  /* At least one queue entry per odt */
-  if (xcp.QueueSize<xcp.Daq.OdtCount)
-  {
-    return (vuint8)CRC_MEMORY_OVERFLOW;
-  }
-    #endif
-  #endif /* XCP_ENABLE_SEND_QUEUE */
 
   #if defined ( XCP_ENABLE_TESTMODE )
   if ( gDebugLevel != 0)
   {
     ApplXcpPrint("[XcpAllocMemory] %u/%u Bytes used\n",s,kXcpDaqMemSize );
-    #if defined ( XCP_ENABLE_SEND_QUEUE )
-    ApplXcpPrint("[XcpAllocMemory] Queuesize=%u\n",xcp.QueueSize );
-    #endif
+    
   }
   #endif
 
@@ -745,9 +636,7 @@ static void XcpStopDaq( vuint8 daq )
 
   xcp.SessionStatus &= (SessionStatusType)(~SS_DAQ & 0x00FFu);
 
-  #if defined ( XCP_ENABLE_SEND_QUEUE )
-  XcpQueueInit();
-  #endif
+  
   
 }
 
@@ -792,9 +681,7 @@ static void XcpStopAllDaq( void )
 
   xcp.SessionStatus &= (SessionStatusType)(~SS_DAQ & 0x00FFu);
 
-  #if defined ( XCP_ENABLE_SEND_QUEUE )
-  XcpQueueInit();
-  #endif
+  
 }
 
 
@@ -862,36 +749,15 @@ vuint8 XcpEventExt(vuint8 event, BYTEPTR offset)
 
       for (odt=DaqListFirstOdt(daq);odt<=DaqListLastOdt(daq);odt++)
       {
-#if defined ( XCP_ENABLE_SEND_QUEUE )
-        vuint16 qs;
-#endif
+
         status |= (vuint8)XCP_EVENT_DAQ;
 
 
         ApplXcpInterruptDisable(); /* The following code is not reentrant */
 
-  #if defined ( XCP_ENABLE_SEND_QUEUE )
-        /* Check if there is space in the queue for this ODT */
-        if (xcp.QueueLen>=xcp.QueueSize)
-        {
-          status |= (vuint8)XCP_EVENT_DAQ_OVERRUN; /* Queue overflow */
-          DaqListFlags(daq) |= (vuint8)DAQ_FLAG_OVERRUN;
-          goto next_odt; 
-        }
-
-        qs = (vuint16)(xcp.QueueRp + xcp.QueueLen);
-        if(qs >= xcp.QueueSize)
-        {
-          qs = (vuint16)(qs-xcp.QueueSize);
-        }
-
-        dtop = &xcp.pQueue[qs];
-    #if defined ( XCP_SEND_QUEUE_SAMPLE_ODT )
-        xcp.QueueLen++;
-    #endif
-  #else
+  
         dtop = &dto;
-  #endif /* XCP_ENABLE_SEND_QUEUE */
+  
 
           /* ODT,DAQ */
         dtop->b[0] = (vuint8)(odt-DaqListFirstOdt(daq)); /* Relative odt number */
@@ -900,7 +766,7 @@ vuint8 XcpEventExt(vuint8 event, BYTEPTR offset)
 
 
         /* Use BIT7 of PID or ODT to indicate overruns */
-  #if defined ( XCP_ENABLE_SEND_QUEUE )
+  
     #if defined ( XCP_ENABLE_DAQ_OVERRUN_INDICATION )
         if ( (DaqListFlags(daq) & (vuint8)DAQ_FLAG_OVERRUN) != 0 )
         {
@@ -908,7 +774,7 @@ vuint8 XcpEventExt(vuint8 event, BYTEPTR offset)
           DaqListFlags(daq) &= (vuint8)(~DAQ_FLAG_OVERRUN & 0xFFu);
         }
     #endif
-  #endif
+  
 
         /* Timestamp */
         if (odt==DaqListFirstOdt(daq))
@@ -940,33 +806,16 @@ vuint8 XcpEventExt(vuint8 event, BYTEPTR offset)
         dtop->l = (vuint8)(d-(&dtop->b[0]) );
         XCP_ASSERT(dtop->l<=kXcpMaxDTO);
 
-        /* Queue or transmit the DTO */
-  #if defined ( XCP_ENABLE_SEND_QUEUE )
-    #if defined ( XCP_SEND_QUEUE_SAMPLE_ODT )
-        /* No action yet */
-    #else
-        if ( (xcp.SendStatus & (vuint8)XCP_SEND_PENDING) != 0 )
-        {
-          xcp.QueueLen++;
-        }
-        else
-        {
-          xcp.SendStatus |= (vuint8)XCP_DTO_PENDING;
-          XcpSendDto(dtop);
-        }
-    #endif
-  #else
+        
         XcpSendDto(&dto);
-  #endif /* XCP_ENABLE_SEND_QUEUE */
+  
         next_odt:
 
         ApplXcpInterruptEnable();
 
       } /* odt */
 
-  #if defined ( XCP_ENABLE_SEND_QUEUE ) && defined ( XCP_SEND_QUEUE_SAMPLE_ODT )
-      (void)XcpSendDtoFromQueue();
-  #endif
+  
 
 
   #if defined ( XCP_ENABLE_DAQ_PRESCALER )
@@ -1050,9 +899,7 @@ void XcpCommand( const vuint32* pCommand )
     if ( (xcp.SessionStatus & (SessionStatusType)SS_RESUME) == 0 )
     {
       XcpFreeDaq();
-  #if defined ( XCP_ENABLE_SEND_QUEUE )
-      xcp.SendStatus = 0; /* Clear all transmission flags */
-  #endif
+  
     }
 
 
@@ -1105,16 +952,6 @@ void XcpCommand( const vuint32* pCommand )
     if ( (xcp.SessionStatus & (SessionStatusType)SS_CONNECTED) != 0 )
     {
       /* Ignore commands if the previous command sequence has not been completed */
-#if defined ( XCP_ENABLE_SEND_QUEUE )
-      if ( (xcp.SendStatus & (vuint8)(XCP_CRM_PENDING|XCP_CRM_REQUEST)) != 0 )
-      {
-        xcp.SessionStatus |= (SessionStatusType)SS_ERROR; 
-        END_PROFILE(1); /* Timingtest */
-
-        /* No response */
-        return;
-      }
-#endif
 
       #if defined ( XCP_ENABLE_GET_SESSION_STATUS_API )
         xcp.SessionStatus |= (SessionStatusType)SS_POLLING;
@@ -1937,55 +1774,7 @@ no_response:
 /****************************************************************************/
 
 
-/*****************************************************************************
-| NAME:             XcpSendCallBack
-| CALLED BY:        XCP Transport Layer
-| PRECONDITIONS:    none
-| INPUT PARAMETERS: none
-| RETURN VALUES:    0 : if the XCP Protocol Layer is idle (no transmit messages are pending)
-| DESCRIPTION:      Notifies the XCP Protocol Layer about the successful
-|                   transmission of a XCP packet.
-******************************************************************************/
-vuint8 XcpSendCallBack( void )
-{
-  BEGIN_PROFILE(2); /* Timingtest */
 
-  #if defined ( XCP_ENABLE_SEND_QUEUE )
-
-  /* Clear all pending flags */
-  /* A pending flag indicates that ApplXcpSend() is in progress */
-  xcp.SendStatus &= (vuint8)(~XCP_SEND_PENDING & 0xFFu);
-
-  /* Now check if there is another transmit request */
- 
-  /* Send a RES or ERR (CRM) message */
-  if ( (xcp.SendStatus & (vuint8)XCP_CRM_REQUEST) != 0 )
-  {
-    xcp.SendStatus &= (vuint8)(~XCP_CRM_REQUEST & 0xFFu);
-    XcpSendCrm();
-    END_PROFILE(2); /* Timingtest */
-    return (vuint8)0x01u;
-  }
-
-  
-
-  /* Send a DAQ message from the queue or from the buffer */
-  if ( (xcp.SessionStatus & (SessionStatusType)SS_DAQ) != 0 )
-  {
-    if ( XcpSendDtoFromQueue() != 0 )
-    {
-      END_PROFILE(2); /* Timingtest */
-      return (vuint8)0x01u;
-    }
-  }
-#endif /* XCP_ENABLE_SEND_QUEUE */
-
-  /* Continue a pending block upload command */
-
-  END_PROFILE(2); /* Timingtest */
-  return (vuint8)0x00u;
-  
-}
 
 
 /****************************************************************************/
@@ -2015,11 +1804,7 @@ void XcpInit( void )
   /* Initialize the session status */
   xcp.SessionStatus = (SessionStatusType)0u;
 
-  #if defined ( XCP_ENABLE_SEND_QUEUE)
-    /* Initialize the transmit queue  */
-    xcp.SendStatus = (vuint8)0u;
-  #endif
-
+  
   
 }
 

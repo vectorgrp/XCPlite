@@ -1243,12 +1243,6 @@
     #error "Please define kXcpDaqMemSize"
   #endif
 
-/* Use send queue as default
-*/
-  #if defined ( XCP_ENABLE_SEND_QUEUE ) || defined ( XCP_DISABLE_SEND_QUEUE )
-  #else
-    #define XCP_ENABLE_SEND_QUEUE
-  #endif 
 
 /*
   Max. size of an object referenced by an ODT entry
@@ -1425,19 +1419,7 @@ typedef struct {
   DAQBYTEPTR    *pOdtEntryAddr;
   vuint8        *pOdtEntrySize;
   
-  /* Transmit Queue */
-  #if defined ( XCP_ENABLE_SEND_QUEUE )
-  tXcpDto *pQueue;
-  vuint16  QueueSize;
-  vuint16  QueueLen;
-  vuint16  QueueRp;
-  #endif
-
-  /* Transmit Status */
-  #if defined ( XCP_ENABLE_SEND_QUEUE)
-  volatile vuint8 SendStatus;
-  #endif
-
+  
   /* Pointer for SET_DAQ_PTR */
   vuint16 DaqListPtr;           
         
@@ -1641,22 +1623,6 @@ extern void XcpPrintDaqList( vuint8 daq );
 /*****************************************************************************/
 
 
-
-
-
-
-/* Check consistency of send queue */
-
-#if defined ( XCP_ENABLE_SEND_QUEUE ) && defined ( XCP_DISABLE_SEND_QUEUE )
-  #error "XCP consistency error: Send queue must be either enabled or disabled."
-#endif
-#if defined ( XCP_ENABLE_SEND_QUEUE ) || defined ( XCP_DISABLE_SEND_QUEUE )
-#else
-  #error "XCP consistency error: Send queue must be enabled or disabled."
-#endif
-#if defined ( XCP_ENABLE_SEND_QUEUE ) && defined ( XCP_DISABLE_DAQ )
-  #error "XCP consistency error: Send queue cannot be used without DAQ."
-#endif
 
 /* Check consistency of communictaion mode info */
 

@@ -8,8 +8,6 @@
 |   Linux (Raspberry Pi) Version
  ----------------------------------------------------------------------------*/
 
-
-
 // XCP driver
 #include "xcpLite.h"
 
@@ -17,8 +15,6 @@
 #include "xcp.h"
 
 // UDP server
-// V1.0 23.9.2020
-
 #include "udpserver.h"
 
 
@@ -83,7 +79,7 @@ unsigned long ApplXcpTimer(void) {
 void ApplXcpSend(vuint8 len, MEMORY_ROM BYTEPTR msg) {
 
     udpServerSendPacket(len, msg);
-    XcpSendCallBack();    
+     
 }
 
 
