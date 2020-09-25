@@ -486,6 +486,8 @@
 #define CRO_CMD                                         CRO_BYTE(0)
 #define CRM_CMD                                         CRM_BYTE(0)
 #define CRM_ERR                                         CRM_BYTE(1)
+
+
 /* CONNECT */
 
 #define CRO_CONNECT_LEN                                 2
@@ -548,6 +550,7 @@
 #define CRM_GET_ID_LENGTH_WRITE(len)                    CRM_DWORD_WRITE(1, len)
 #define CRM_GET_ID_DATA                                 (&CRM_BYTE(8))
 
+
 /* SET_REQUEST */
 
 #define CRO_SET_REQUEST_LEN                             4
@@ -606,7 +609,7 @@
 
 #define CRM_SHORT_UPLOAD_MAX_SIZE                       ((vuint8)(kXcpMaxCTO-1))
 
-#define CRM_SHORT_UPLOAD_LEN                            1 /* +CRO_SHORT_UPLOAD_SIZE */
+#define CRM_SHORT_UPLOAD_LEN                            1u /* +CRO_SHORT_UPLOAD_SIZE */
 #define CRM_SHORT_UPLOAD_DATA                           (&CRM_BYTE(1))
 
 
@@ -1231,7 +1234,7 @@
   #error "kXcpMaxDTO must be > 0x07"
 #endif
 
-#if defined ( XCP_ENABLE_DAQ )
+
 
 /* kXcpDaqMemSize must be defined 
 */
@@ -1253,15 +1256,12 @@
 */
   #if defined ( XCP_MAX_ODT_ENTRY_SIZE )
   #else
-    #if defined ( XCP_ENABLE_DAQ_HDR_ODT_DAQ )
+    
       #define XCP_MAX_ODT_ENTRY_SIZE (kXcpMaxDTO-2)
-    #else
-      #define XCP_MAX_ODT_ENTRY_SIZE (kXcpMaxDTO-1)
-    #endif
+    
   #endif
 
-#else /* XCP_ENABLE_DAQ */
-#endif /* XCP_ENABLE_DAQ */
+
 
 
 
@@ -1289,40 +1289,23 @@ typedef union {
    - Adressextensions are not used for DAQ
 */
 
-#if defined ( XCP_ENABLE_DAQ )
 
 /* ODT */
 /* Size must be even !!! */
 typedef struct {
-
   vuint16 firstOdtEntry;       /* Absolute */
   vuint16 lastOdtEntry;        /* Absolute */
-
-
 } tXcpOdt;
 
-#if defined( XCP_ENABLE_ODT_SIZE_WORD )
-typedef vuint16 tXcpOdtIdx;
-typedef vuint16 tXcpOdtCnt;
-#else
-typedef vuint8 tXcpOdtIdx;
-typedef vuint8 tXcpOdtCnt;
-#endif
 
 /* DAQ list */
 typedef struct {
 
-  tXcpOdtIdx lastOdt;             /* Absolute */
-  tXcpOdtIdx firstOdt;            /* Absolute */
-
+  vuint16 lastOdt;             /* Absolute */
+  vuint16 firstOdt;            /* Absolute */
   vuint8 flags;        
-
-  #if defined ( kXcpMaxEvent ) && ! defined ( XCP_ENABLE_DAQ_PRESCALER )
-  /* Event-Daq association array used */
-  #else
   vuint8 eventChannel; 
-  #endif
-
+  
   #if defined ( XCP_ENABLE_DAQ_PRESCALER )
   vuint8 prescaler;  
   vuint8 cycle;     
@@ -1330,53 +1313,30 @@ typedef struct {
 
 } tXcpDaqList;
 
-#endif /* XCP_ENABLE_DAQ */
+
 
 /* Dynamic DAQ list structures */
 typedef struct {
 
   vuint8 ActiveTl;                /* Active Transport Layer */
 
-#if defined ( XCP_ENABLE_DAQ )    /* Data Acquisition */
+
 
   vuint8          DaqCount;
-  tXcpOdtCnt      OdtCount;       /* Absolute count */
+  vuint16      OdtCount;       /* Absolute count */
   vuint16         OdtEntryCount;  /* Absolute count */
-
-  /* Session configuration id for resume mode */
-
-  /* Event-Daq association array */ 
-  #if defined ( kXcpMaxEvent ) && ! defined ( XCP_ENABLE_DAQ_PRESCALER )
-  vuint8 EventDaq[kXcpMaxEvent];
-  #endif
 
   union { 
     vuint8        b[kXcpDaqMemSize];
     tXcpDaqList   DaqList[kXcpDaqMemSize/sizeof(tXcpDaqList)]; /* ESCAN00096039 */
   } u;
 
-#endif /* XCP_ENABLE_DAQ */
+
 
 } tXcpDaq;
 
 typedef vuint16 SessionStatusType;
 
-#if defined ( XCP_ENABLE_DAQ )            /* Data Acquisition */
-
-#if defined ( XCP_ENABLE_DAQ_TIMESTAMP )
-  #if ( kXcpDaqTimestampSize == DAQ_TIMESTAMP_BYTE )
-    typedef vuint8 XcpDaqTimestampType;
-    #define XcpDaqTimestampSize 1
-  #elif ( kXcpDaqTimestampSize == DAQ_TIMESTAMP_WORD )
-    typedef vuint16 XcpDaqTimestampType;
-    #define XcpDaqTimestampSize 2
-  #elif ( kXcpDaqTimestampSize == DAQ_TIMESTAMP_DWORD )
-    typedef vuint32 XcpDaqTimestampType;
-    #define XcpDaqTimestampSize 4
-  #else
-    #error "kXcpDaqTimestampSize not defined. Please define a valid timestamp type!"
-  #endif
-#endif
 
 
   /* Shortcuts */
@@ -1402,7 +1362,7 @@ typedef vuint16 SessionStatusType;
   #define DaqListCycle(i)         xcp.Daq.u.DaqList[i].cycle
 
 
-#endif /* XCP_ENABLE_DAQ */
+
 
 
 
@@ -1461,9 +1421,6 @@ typedef struct {
   */
   tXcpDaq Daq;
 
-
-#if defined ( XCP_ENABLE_DAQ )            /* Data Acquisition */
-
   tXcpOdt       *pOdt;
   DAQBYTEPTR    *pOdtEntryAddr;
   vuint8        *pOdtEntrySize;
@@ -1483,9 +1440,7 @@ typedef struct {
 
   /* Pointer for SET_DAQ_PTR */
   vuint16 DaqListPtr;           
-    
-    
-#endif /* XCP_ENABLE_DAQ */
+        
 
 } tXcpData;
 
@@ -1641,47 +1596,16 @@ extern void XcpMemCpy( DAQBYTEPTR dest, const DAQBYTEPTR src, vuint8 n );
 extern void XcpMemSet( BYTEPTR p, vuint16 n, vuint8 b );
 #endif
 
-/* Send a DTO */
-/* Can be redefined to meet DMA requirements */
-#if defined ( XCP_ENABLE_DAQ )
-  #if defined ( XcpSendDto )
-  /* XcpSendDto is redefined */
-  #else
-extern void XcpSendDto( const tXcpDto *dto );
-  #endif
-#endif
 
 
-/* Check addresses for valid write access */
-/* Returns 0 (false) if access denied */
-/* Used only, if write protection of memory areas is required */
-
-/* Check addresses for valid read access */
-/* Returns 0 (false) if access denied */
-/* Used only, if read protection of memory areas is required */
-
-/* Check addresses for valid read/write access */
-/* Returns 0 (false) if access denied */
-/* Used only, if DAQ protection of memory areas is required */
-#if defined ( XCP_ENABLE_DAQ )
-#endif
-
-
-
-/* Check addresses for valid programming access */
-/* Returns 0 (false) if access denied */
-/* Used only, if programming protection of memory areas is required */
-
-/* DAQ resume */
 
 /* DAQ Timestamp */
-#if defined ( XCP_ENABLE_DAQ_TIMESTAMP )
   #if defined ( ApplXcpGetTimestamp )
   /* ApplXcpGetTimestamp is redefined */
   #else
 extern XcpDaqTimestampType ApplXcpGetTimestamp( void );
   #endif
-#endif
+
 
 
 #if defined ( XCP_ENABLE_GET_SESSION_STATUS_API )
@@ -1717,15 +1641,9 @@ extern void XcpPrintDaqList( vuint8 daq );
 /*****************************************************************************/
 
 
-/* Check consistency of DAQ switch */
 
-#if defined ( XCP_ENABLE_DAQ ) && defined ( XCP_DISABLE_DAQ )
-  #error "XCP consistency error: DAQ must be either enabled or disabled."
-#endif
-#if defined ( XCP_ENABLE_DAQ ) || defined ( XCP_DISABLE_DAQ )
-#else
-  #error "XCP consistency error: DAQ must be enabled or disabled."
-#endif
+
+
 
 /* Check consistency of send queue */
 
@@ -1751,17 +1669,6 @@ extern void XcpPrintDaqList( vuint8 daq );
 #endif
 
 
-/* Check consistency of DAQ header ODT */
-#if defined(XCP_ENABLE_DAQ) 
-  #if defined ( XCP_ENABLE_DAQ_HDR_ODT_DAQ ) && defined ( XCP_DISABLE_DAQ_HDR_ODT_DAQ )
-    #error "XCP consistency error: DAQ_HDR_ODT_DAQ must be either enabled or disabled."
-  #endif
-  #if defined ( XCP_ENABLE_DAQ_HDR_ODT_DAQ ) || defined ( XCP_DISABLE_DAQ_HDR_ODT_DAQ )
-  #else
-    #error "XCP consistency error: DAQ_HDR_ODT_DAQ must be enabled or disabled."
-  #endif
-#endif
-
 
 
 /* Check range of kXcpStationIdLength */
@@ -1775,7 +1682,7 @@ extern void XcpPrintDaqList( vuint8 daq );
 /* Check range of kXcpStimOdtCount */
 
 
-#if defined ( XCP_ENABLE_DAQ )
+
 
   /* Check range of kXcpDaqMemSize */
 
@@ -1793,51 +1700,30 @@ extern void XcpPrintDaqList( vuint8 daq );
     #endif
   #endif
 
-  /* Check range of kXcpMaxEvent */
-  #if defined ( kXcpMaxEvent ) 
-    #if ( kXcpMaxEvent > 0xFF )
-      #error "XCP error: kXcpMaxEvent must be <= 0xFF."
-    #endif
-  #endif
-
-  /* Check XCP_ENABLE_ODT_SIZE_WORD in combination with XCP_ENABLE_DAQ_HDR_ODT_DAQ */
-  #if defined ( XCP_ENABLE_ODT_SIZE_WORD ) 
-    #if defined ( XCP_ENABLE_DAQ_HDR_ODT_DAQ )
-    #else
-      #error "XCP error: If XCP_ENABLE_ODT_SIZE_WORD is enabled, XCP_ENABLE_DAQ_HDR_ODT_DAQ must be enabled as well."
-    #endif
-  #endif
-
-#endif /* defined ( XCP_ENABLE_DAQ ) */
+  
+  
 
 
 
-#if defined ( XCP_ENABLE_DAQ_TIMESTAMP )
 
-  /* Check configuration of kXcpDaqTimestampUnit. */
 
-  #if defined ( kXcpDaqTimestampUnit )
-    #if ( (kXcpDaqTimestampUnit >> 4) > 9 ) || ( (kXcpDaqTimestampUnit & 0x0F) > 0 )
-      #error "XCP error: the value of kXcpDaqTimestampUnit is not valid."
-    #endif
-  #endif
-
-  /* Check configuration of kXcpDaqTimestampTicksPerUnit. */
-
-  #if defined ( kXcpDaqTimestampTicksPerUnit )
-    #if ( (kXcpDaqTimestampTicksPerUnit > 0xFFFF) || (kXcpDaqTimestampTicksPerUnit == 0) )
-      #error "XCP error: illegal range of kXcpDaqTimestampTicksPerUnit: 0 < kXcpDaqTimestampTicksPerUnit <= 0xFFFF."
-    #endif
-  #endif
-
-  /* Check for configuration of kXcpDaqTimestampSize */
-  #if defined ( kXcpDaqTimestampSize )
-    #if ( kXcpDaqTimestampSize != DAQ_TIMESTAMP_BYTE ) && ( kXcpDaqTimestampSize != DAQ_TIMESTAMP_WORD ) && ( kXcpDaqTimestampSize != DAQ_TIMESTAMP_DWORD )
-      #error "XCP error: Please define kXcpDaqTimestampSize to either DAQ_TIMESTAMP_BYTE, DAQ_TIMESTAMP_WORD or DAQ_TIMESTAMP_DWORD"
-    #endif
-  #endif
-
+/* Check configuration of kXcpDaqTimestampUnit. */
+#if defined ( kXcpDaqTimestampUnit )
+#if ( (kXcpDaqTimestampUnit >> 4) > 9 ) || ( (kXcpDaqTimestampUnit & 0x0F) > 0 )
+    #error "XCP error: the value of kXcpDaqTimestampUnit is not valid."
 #endif
+#endif
+
+/* Check configuration of kXcpDaqTimestampTicksPerUnit. */
+#if defined ( kXcpDaqTimestampTicksPerUnit )
+#if ( (kXcpDaqTimestampTicksPerUnit > 0xFFFF) || (kXcpDaqTimestampTicksPerUnit == 0) )
+    #error "XCP error: illegal range of kXcpDaqTimestampTicksPerUnit: 0 < kXcpDaqTimestampTicksPerUnit <= 0xFFFF."
+#endif
+#endif
+
+
+
+
 
 
 

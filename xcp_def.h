@@ -41,11 +41,6 @@
 #endif
 
 
-/* Alignment requirements */
-/* Specify, whether the microcontroller allows unaligned memory access or not */
-#if !defined(XCP_ENABLE_UNALIGNED_MEM_ACCESS) && !defined(XCP_DISABLE_UNALIGNED_MEM_ACCESS)
-  #define XCP_DISABLE_UNALIGNED_MEM_ACCESS
-#endif
 
 /* General settings */
 #if !defined(XCP_ENABLE_PARAMETER_CHECK) && !defined(XCP_DISABLE_PARAMETER_CHECK)
@@ -100,17 +95,9 @@
 #endif
 
 /* XCP protocol data acquisition parameters (DAQ) */
-#if defined(XCP_DISABLE_DAQ)
-  #define XCP_DISABLE_SEND_QUEUE
-#else
-  #if !defined(XCP_ENABLE_DAQ) && !defined(XCP_DISABLE_DAQ)
-    #define XCP_ENABLE_DAQ
-  #endif
+ 
   #if !defined(XCP_ENABLE_SEND_QUEUE) && !defined(XCP_DISABLE_SEND_QUEUE)
     #define XCP_ENABLE_SEND_QUEUE
-  #endif
-  #if !defined(XCP_ENABLE_DAQ_HDR_ODT_DAQ) && !defined(XCP_DISABLE_DAQ_HDR_ODT_DAQ)
-    #define XCP_DISABLE_DAQ_HDR_ODT_DAQ
   #endif
   #if !defined(kXcpDaqMemSize)
     #define kXcpDaqMemSize 256
@@ -133,16 +120,12 @@
   #if !defined(XCP_ENABLE_DAQ_RESUME) && !defined(XCP_DISABLE_DAQ_RESUME)
     #define XCP_DISABLE_DAQ_RESUME
   #endif
-  #if !defined(XCP_ENABLE_DAQ_TIMESTAMP) && !defined(XCP_DISABLE_DAQ_TIMESTAMP)
-    #define XCP_DISABLE_DAQ_TIMESTAMP
-  #endif
+  
   #if !defined(XCP_ENABLE_DAQ_EVENT_INFO) && !defined(XCP_DISABLE_DAQ_EVENT_INFO)
     #define XCP_DISABLE_DAQ_EVENT_INFO
   #endif
-#endif
-#if !defined(XCP_ENABLE_STIM) && !defined(XCP_DISABLE_STIM)
-  #define XCP_DISABLE_STIM
-#endif
+
+
 
 /* XCP slave device identification (optional) */
 #define kXcpStationIdLength 5    /* Slave device identification length */

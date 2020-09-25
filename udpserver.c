@@ -83,7 +83,7 @@ int udpServerFlush(void) {
 // Transmit DTO packet, copy to XCP message buffer
 int udpServerSendPacket(unsigned int size, const unsigned char* packet) {
 
-    int n,r;
+    int r;
 
     pthread_mutex_lock(&gMutex);
 

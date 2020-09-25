@@ -74,11 +74,9 @@ extern int udpServerFlush(void);
 
 #define XCP_ENABLE_TESTMODE
 #ifdef XCP_ENABLE_TESTMODE
-
   #define ApplXcpPrint printf
   #define XCP_ASSERT(x) if (!(x)) ApplXcpPrint("Assertion failed\n");
-  #define XCP_PARAMETER_CHECKS
-
+  #define XCP_ENABLE_PARAMETER_CHECK
 #endif
 
 
@@ -111,30 +109,21 @@ extern int udpServerFlush(void);
 
 
 /* Synchronous Data Acquisition (DAQ) */
-#define XCP_ENABLE_DAQ  
 
 #define kXcpDaqMemSize 64000u  // Memory space reserved for DAQ tables and queue
 
-// DAQ performance optimizations
-#define XCP_ENABLE_DAQ_HDR_ODT_DAQ      // DAQ Header PID or ODT+DAQ
-#define XCP_ENABLE_ODT_SIZE_WORD        // For XCP on ETH, numer of ODTs per DAQ list may be larger than 256
-#define XCP_ENABLE_UNALIGNED_MEM_ACCESS 
 #define XCP_ENABLE_SEND_QUEUE
-#define XCP_DISABLE_SEND_BUFFER
+#define kXcpSendQueueMinSize 100
 
 // DAQ features
 #define XCP_DISABLE_DAQ_PRESCALER
 #define XCP_ENABLE_DAQ_OVERRUN_INDICATION
-#define XCP_DISABLE_DAQ_PRIORITY
 #define XCP_ENABLE_DAQ_PROCESSOR_INFO
 #define XCP_ENABLE_DAQ_RESOLUTION_INFO
-#define XCP_ENABLE_WRITE_DAQ_MULTIPLE
+#define XCP_ENABLE_WRITE_DAQ_MULTIPLE  // Not implemented
 
 /* DAQ timestamp */
-#define XCP_ENABLE_DAQ_TIMESTAMP
-#ifdef XCP_ENABLE_DAQ_TIMESTAMP 
-#define XCP_DISABLE_DAQ_TIMESTAMP_FIXED
-#define kXcpDaqTimestampSize 4u
+#define kXcpDaqTimestampSize 4
 #define kXcpDaqTimestampUnit DAQ_TIMESTAMP_UNIT_1NS
 #define kXcpDaqTimestampTicksPerUnit 1  
 typedef vuint32 XcpDaqTimestampType;
@@ -142,7 +131,7 @@ extern XcpDaqTimestampType ApplXcpTimer(void);
 extern int ApplXcpTimerInit(void);
 #define ApplXcpGetTimestamp()                    (XcpDaqTimestampType)ApplXcpTimer()
 #define ApplXcpDaqGetTimestamp()                 (XcpDaqTimestampType)ApplXcpTimer()
-#endif
+
 
 /* A mutex may be used to synchronize access to XCP driver from several tasks
  * If the XCP driver has queued some packets, functions to transmit data may be called
