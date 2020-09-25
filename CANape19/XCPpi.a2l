@@ -907,7 +907,6 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
         GRANULARITY_ODT_ENTRY_SIZE_DAQ_BYTE
         0xF8
         OVERLOAD_INDICATION_PID
-        PRESCALER_SUPPORTED
         /begin TIMESTAMP_SUPPORTED
           0x01
           SIZE_DWORD

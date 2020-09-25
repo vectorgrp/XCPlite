@@ -11,7 +11,7 @@
     <property name="$DockLayoutManager" iskey="true" value="DockLayoutManager">
       <property name="EnableWin32Compatibility">true</property>
       <property name="FloatingMode">Desktop</property>
-      <property name="Items" iskey="true" value="8">
+      <property name="Items" iskey="true" value="12">
         <property name="Item1" isnull="true" iskey="true">
           <property name="DestroyOnClosingChildren">false</property>
           <property name="Orientation">Horizontal</property>
@@ -118,11 +118,67 @@
           <property name="ParentCollectionName" isnull="true" />
           <property name="Name">RightLayoutGroup</property>
         </property>
+        <property name="Item9" isnull="true" iskey="true">
+          <property name="DockType">Left</property>
+          <property name="DestroyOnClosingChildren">false</property>
+          <property name="Orientation">Vertical</property>
+          <property name="SerializableSelectedTabPageIndex">-1</property>
+          <property name="AllowDrag">false</property>
+          <property name="ItemWidth">300</property>
+          <property name="SerializableDockSituation" iskey="true" value="0" />
+          <property name="SerializationInfo" isnull="true" iskey="true" />
+          <property name="TypeName">AutoHideGroup</property>
+          <property name="ParentName" isnull="true" />
+          <property name="ParentCollectionName">$AutoHideGroups</property>
+          <property name="Name">LeftAutoHideGroup</property>
+        </property>
+        <property name="Item10" isnull="true" iskey="true">
+          <property name="DockType">Right</property>
+          <property name="DestroyOnClosingChildren">false</property>
+          <property name="Orientation">Vertical</property>
+          <property name="SerializableSelectedTabPageIndex">-1</property>
+          <property name="AllowDrag">false</property>
+          <property name="ItemWidth">300</property>
+          <property name="SerializableDockSituation" iskey="true" value="0" />
+          <property name="SerializationInfo" isnull="true" iskey="true" />
+          <property name="TypeName">AutoHideGroup</property>
+          <property name="ParentName" isnull="true" />
+          <property name="ParentCollectionName">$AutoHideGroups</property>
+          <property name="Name">RightAutoHideGroup</property>
+        </property>
+        <property name="Item11" isnull="true" iskey="true">
+          <property name="DockType">Top</property>
+          <property name="DestroyOnClosingChildren">false</property>
+          <property name="Orientation">Horizontal</property>
+          <property name="SerializableSelectedTabPageIndex">-1</property>
+          <property name="AllowDrag">false</property>
+          <property name="ItemWidth">300</property>
+          <property name="SerializableDockSituation" iskey="true" value="0" />
+          <property name="SerializationInfo" isnull="true" iskey="true" />
+          <property name="TypeName">AutoHideGroup</property>
+          <property name="ParentName" isnull="true" />
+          <property name="ParentCollectionName">$AutoHideGroups</property>
+          <property name="Name">TopAutoHideGroup</property>
+        </property>
+        <property name="Item12" isnull="true" iskey="true">
+          <property name="DockType">Bottom</property>
+          <property name="DestroyOnClosingChildren">false</property>
+          <property name="Orientation">Horizontal</property>
+          <property name="SerializableSelectedTabPageIndex">-1</property>
+          <property name="AllowDrag">false</property>
+          <property name="ItemWidth">300</property>
+          <property name="SerializableDockSituation" iskey="true" value="0" />
+          <property name="SerializationInfo" isnull="true" iskey="true" />
+          <property name="TypeName">AutoHideGroup</property>
+          <property name="ParentName" isnull="true" />
+          <property name="ParentCollectionName">$AutoHideGroups</property>
+          <property name="Name">BottomAutoHideGroup</property>
+        </property>
       </property>
       <property name="ManualClosedPanelsBarVisibility">false</property>
       <property name="RedrawContentWhenResizing">false</property>
       <property name="ShowFloatWindowsInTaskbar">false</property>
-      <property name="RestoreLayoutOptions.FloatPanelsRestoreOffset" OwnerType="DevExpress.Xpf.Docking.RestoreLayoutOptions" DependencyPropertyType="System.Windows.Point">109.333333333333,166</property>
+      <property name="RestoreLayoutOptions.FloatPanelsRestoreOffset" OwnerType="DevExpress.Xpf.Docking.RestoreLayoutOptions" DependencyPropertyType="System.Windows.Point">2.66666666666667,144</property>
     </property>
   </XtraSerializer>
 </Root>

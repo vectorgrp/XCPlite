@@ -243,7 +243,6 @@ void XcpMemCpy( DAQBYTEPTR dest, const DAQBYTEPTR src, vuint8 n )
 {
   for ( ; n > 0; n-- )
   {
-    /* ESCAN00092933 */
     XCP_WRITE_BYTE_2_ADDR( dest, XCP_READ_BYTE_FROM_ADDR(src) );
     dest++; 
     src++; 
