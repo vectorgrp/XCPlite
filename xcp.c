@@ -18,11 +18,20 @@
 #include "udpserver.h"
 
 
+/**************************************************************************/
+// 
+// Platform and implementation specific globals for the XCP driver
+// 
+/**************************************************************************/
 
-// Globals
-V_MEMROM0 vuint8 MEMORY_ROM kXcpStationId[] = "XCPpi"; // Name of the A2L file for auto detection
+
+vuint8 MEMORY_ROM kXcpStationId[] = "XCPpi"; // Name of the A2L file for auto detection
+
+#ifdef XCP_ENABLE_TESTMODE
+  vuint8 gDebugLevel = 1; // Debug output verbosity level 
+#endif
+
 pthread_mutex_t gXcpMutex;  // Mutex for multithreaded DAQ
-vuint8 gDebugLevel = 1; // Debug output verbosity level 
 
 
 
@@ -68,10 +77,8 @@ unsigned long ApplXcpTimer(void) {
 /**************************************************************************/
 // ApplXcpSend()
 // ApplXcpSendFlush()
-// ApplXcpGetPointer() 
-// ApplXcpGetSeed()
-// ApplXcpUnlock()
 // Platform and implementation specific functions for the XCP driver
+// Transmit XCP messages
 /**************************************************************************/
 
 
@@ -82,6 +89,9 @@ void ApplXcpSend(vuint8 len, MEMORY_ROM BYTEPTR msg) {
      
 }
 
+// Flush the tranmit buffer
+void ApplXcpSendFlush(void) {
 
-
+    udpServerFlush();
+}
 

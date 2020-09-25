@@ -13,15 +13,18 @@
 |
 |     Limitations of the Lite version
 |
-|     - Motorola byte sex (big endian) is not supported
+|     - Only suitable for XCP on Ethernet on 32 bit Microcontrollers !!
 |     - Platform must support unaligned word and dword memory access
 |     - 8 bit and 16 bit CPUs are not supported
 |     - Daq and Event numbers are BYTE
+|     - No transmit queue
+|     - Fixed DAQ+ODT header
+|     - Fixed 32 bit time stamp
 |     - Only dynamic DAQ list allocation supported
 |     - MAX_DTO is limited to max. 255
 |     - Resume is not supported
 |     - Overload indication by event is not supported
-|     - DAQ does not support address extensions
+|     - DAQ does not support address extensions and prescaler
 |     - DAQ-list and event channel prioritization is not supported
 |     - Event channels contain one DAQ-list
 |     - ODT optimization not supported
@@ -33,7 +36,7 @@
 |     - Event messages (SERV_TEXT) are not supported
 |     - User commands are not supported
 |
-|       All these feature are available in the basic version available free of charge from
+|       More features are available in the basic version available free of charge from
 |       Vector Informatik GmbH
 |
 |Limitations of the XCP basic version:
@@ -70,23 +73,9 @@
 #include "xcpLite.h"
 
 
-/***************************************************************************/
-/* Version check                                                           */
-/***************************************************************************/
-#if ( CP_XCP_VERSION != 0x0130u )
-  #error "Source and Header file are inconsistent!"
-#endif
-#if ( CP_XCP_RELEASE_VERSION != 0x04u )
-  #error "Source and Header file are inconsistent!"
-#endif
-
 /****************************************************************************/
 /* Macros                                                                   */
 /****************************************************************************/
-
-/* Definition of macros that have to be used within the context of XcpCommand. */
-/* They have to be declared global Due to MISRA rule 91. */
-
 
 #define error(e) { err=(e); goto negative_response; }
 #define check_error(e) { err=(e); if (err!=0) { goto negative_response; } }
@@ -94,32 +83,9 @@
 #define error2(e,b1,b2) { err=(e); CRM_BYTE(2)=(b1); CRM_BYTE(3)=(b2); xcp.CrmLen=4; goto negative_response1; }
 
 
-#if defined ( XCP_ENABLE_MEM_ACCESS_BY_APPL )
-  #define XCP_WRITE_BYTE_2_ADDR(addr, data)           ApplXcpWrite( (vuint32)(addr), (vuint8)(data) ) 
-  #define XCP_READ_BYTE_FROM_ADDR(addr)               ApplXcpRead ( (vuint32)(addr) ) 
+#define XCP_WRITE_BYTE_2_ADDR(addr, data)           *(addr) = (data) 
+#define XCP_READ_BYTE_FROM_ADDR(addr)               *(addr) 
   
-#else
-  #define XCP_WRITE_BYTE_2_ADDR(addr, data)           *(addr) = (data) 
-  #define XCP_READ_BYTE_FROM_ADDR(addr)               *(addr) 
-  
-#endif
-
-
-  
-/****************************************************************************/
-/* Constants                                                                */
-/****************************************************************************/
-
-/****************************************************************************/
-/* 8 Bit Constants for export                                               */
-/****************************************************************************/
-
-/* Global constants with XCP Protocol Layer main and subversion */
-V_MEMROM0 const vuint8 kXcpMainVersion    = (vuint8)(CP_XCP_VERSION >> 8);
-V_MEMROM0 const vuint8 kXcpSubVersion     = (vuint8)(CP_XCP_VERSION & 0x00ff);
-V_MEMROM0 const vuint8 kXcpReleaseVersion = (vuint8)(CP_XCP_RELEASE_VERSION);
-
-
 
 /****************************************************************************/
 /* Local data                                                               */
@@ -141,15 +107,6 @@ vuint8 gDebugLevel;
 
 static vuint8 XcpWriteMta( vuint8 size, const BYTEPTR data );
 static vuint8 XcpReadMta( vuint8 size, BYTEPTR data );
-
-#if defined ( XcpMemClr )
-#else
-static void XcpMemClr( BYTEPTR p, vuint16 n );
-#endif
-
-
-
-
 static void XcpFreeDaq( void );
 static vuint8 XcpAllocMemory( void );
 static vuint8 XcpAllocDaq( vuint8 daqCount );
@@ -162,82 +119,6 @@ static void XcpStopAllSelectedDaq( void );
 static void XcpStopAllDaq( void );
 
 
-
-
-/*****************************************************************************
-| NAME:             XcpMemSet
-| CALLED BY:        XcpFreeDaq
-| PRECONDITIONS:    none
-| INPUT PARAMETERS: p : pointer to start address.
-|                   n : number of data bytes.
-|                   d : data byte to initialize with.
-| RETURN VALUES:    none 
-| DESCRIPTION:      Initialize n bytes starting from address p with b.
-******************************************************************************/
-                                 
-#if defined ( XcpMemSet )
- /* XcpMemSet is overwritten */
-#else
-void XcpMemSet( BYTEPTR p, vuint16 n, vuint8 b )
-{
-  for ( ; n > 0; n-- )
-  {
-    *p = b;
-    p++; 
-  }
-}                
-#endif
-
-/*****************************************************************************
-| NAME:             XcpMemClr
-| CALLED BY:        XcpFreeDaq, XcpInit
-| PRECONDITIONS:    none
-| INPUT PARAMETERS: p : pointer to start address.
-|                   n : number of data bytes.
-| RETURN VALUES:    none 
-| DESCRIPTION:      Initialize n bytes starting from address p 0.
-******************************************************************************/
-
-#if defined ( XcpMemClr )
- /* XcpMemClr is overwritten */
-#else
-/* A macro would be more efficient. Due to MISRA rule 96 violations a function is implemented. */
-static void XcpMemClr( BYTEPTR p, vuint16 n )
-{
-  XcpMemSet( p, n, (vuint8)0u);
-}
-#endif
-
-/*****************************************************************************
-| NAME:             XcpMemCpy
-| CALLED BY:        XcpEvent
-| PRECONDITIONS:    none
-| INPUT PARAMETERS: dest : pointer to destination address.
-|                   src  : pointer to source address.
-|                   n    : number of data bytes to copy.
-| RETURN VALUES:    none 
-| DESCRIPTION:      Copy n bytes from src to dest.
-|                   A maximum of 255 Bytes can be copied at once.
-******************************************************************************/
-
-/* Optimize this function !
-   High impact on performance
-   It is used in the inner loop of XcpEvent for data acquisition sampling 
-*/
-
-#if defined ( XcpMemCpy ) 
- /* XcpMemCpy is overwritten */
-#else
-void XcpMemCpy( DAQBYTEPTR dest, const DAQBYTEPTR src, vuint8 n )
-{
-  for ( ; n > 0; n-- )
-  {
-    XCP_WRITE_BYTE_2_ADDR( dest, XCP_READ_BYTE_FROM_ADDR(src) );
-    dest++; 
-    src++; 
-  }
-}
-#endif
 
 
 
@@ -264,9 +145,6 @@ void XcpSendCrm( void )
 }
 
 
-
-
-
 /*****************************************************************************
 | NAME:             XcpSendDto
 | CALLED BY:        XcpSendDtoFromQueue, XcpEvent, XcpSendCallBack
@@ -275,19 +153,11 @@ void XcpSendCrm( void )
 | RETURN VALUES:    none 
 | DESCRIPTION:      Send a DTO.
 ******************************************************************************/
-  #if defined ( XcpSendDto )
-  /* XcpSendDto is redefined */
-  #else
+
 void XcpSendDto( const tXcpDto *dto )
 {
   ApplXcpSend( dto->l, &dto->b[0] );
 }
-  #endif
-
-
-
-
-
 
 
 
@@ -296,11 +166,8 @@ void XcpSendDto( const tXcpDto *dto )
 /* Handle Mta (Memory-Transfer-Address) */
 /****************************************************************************/
 
-/* Assign a pointer to a Mta */
-#if defined ( XcpSetMta )
-#else
-    #define XcpSetMta(p,e) (xcp.Mta = (p)) 
-#endif
+#define XcpSetMta(p,e) (xcp.Mta = (p)) 
+
 
 /*****************************************************************************
 | NAME:             XcpWriteMta
@@ -314,22 +181,8 @@ void XcpSendDto( const tXcpDto *dto )
 ******************************************************************************/
 static vuint8 XcpWriteMta( vuint8 size, const BYTEPTR data )
 {
-#if defined ( XCP_ENABLE_CALIBRATION_MEM_ACCESS_BY_APPL )
-  vuint8 r;
-#endif
-
-  /* DPRAM Client */
-
-  /* Checked ram memory write access */
-
-  /* EEPROM write access */
 
   /* Standard RAM memory write access */
-#if defined ( XCP_ENABLE_CALIBRATION_MEM_ACCESS_BY_APPL ) && !defined ( XCP_ENABLE_MEM_ACCESS_BY_APPL )
-  r = ApplXcpCalibrationWrite(xcp.Mta, size, data);
-  xcp.Mta += size; 
-  return r;
-#else
   while ( size > (vuint8)0u ) 
   {
     XCP_WRITE_BYTE_2_ADDR( xcp.Mta, *data );
@@ -338,7 +191,6 @@ static vuint8 XcpWriteMta( vuint8 size, const BYTEPTR data )
     size--;
   }
   return (vuint8)XCP_CMD_OK;
-#endif
   
 }
 
@@ -354,35 +206,17 @@ static vuint8 XcpWriteMta( vuint8 size, const BYTEPTR data )
 ******************************************************************************/
 static vuint8 XcpReadMta( vuint8 size, BYTEPTR data )
 {
-#if defined ( XCP_ENABLE_CALIBRATION_MEM_ACCESS_BY_APPL )
-  vuint8 r;
-#endif
 
-  /* DPRAM Client */
-
-  /* Checked ram memory read access */
-
-  /* EEPROM read access */
-
-#if defined ( XCP_ENABLE_CALIBRATION_MEM_ACCESS_BY_APPL ) && !defined ( XCP_ENABLE_MEM_ACCESS_BY_APPL )
-  r = ApplXcpCalibrationRead(xcp.Mta, size, data);
-  xcp.Mta += size; 
-  return r;
-#else
   /* Standard RAM memory read access */
   while (size > 0)
   {
-    /* 
-       Compiler bug Tasking
-       *(data++) = *(xcp.Mta++);
-    */
     *(data) = XCP_READ_BYTE_FROM_ADDR( xcp.Mta );
     data++; 
     xcp.Mta++; 
     size--;
   }
   return (vuint8)XCP_CMD_OK;
-#endif
+
   
 }
 
@@ -390,7 +224,6 @@ static vuint8 XcpReadMta( vuint8 size, BYTEPTR data )
 /****************************************************************************/
 /* Data Aquisition Setup                                                    */
 /****************************************************************************/
-
 
 
 /*****************************************************************************
@@ -413,9 +246,7 @@ static void XcpFreeDaq( void )
   xcp.pOdtEntryAddr = 0;
   xcp.pOdtEntrySize = 0;
 
-  XcpMemClr((BYTEPTR)&xcp.Daq.u.b[0], (vuint16)kXcpDaqMemSize);  /* Deviation of MISRA rule 44. */
-  
-
+  memset((BYTEPTR)&xcp.Daq.u.b[0], 0, (vuint16)kXcpDaqMemSize);  
   
 }
 
@@ -431,36 +262,22 @@ static void XcpFreeDaq( void )
 static vuint8 XcpAllocMemory( void )
 {
   vuint16 s;
-  #if defined ( XCP_ENABLE_NO_P2INT_CAST  )
-  vuint8* p;
-  vuint8  i;
-  #endif
-
+  
   /* Check memory overflow */
   s = (vuint16)( ( xcp.Daq.DaqCount      *   (vuint8)sizeof(tXcpDaqList)                           ) + 
                  ( xcp.Daq.OdtCount      *  (vuint16)sizeof(tXcpOdt)                               ) + 
                  ( xcp.Daq.OdtEntryCount * ( (vuint8)sizeof(DAQBYTEPTR) + (vuint8)sizeof(vuint8) ) )
                );
   
-
-  if (s>=(vuint16)kXcpDaqMemSize) 
-  {
-    return (vuint8)CRC_MEMORY_OVERFLOW;
-  }
-
+  if (s>=(vuint16)kXcpDaqMemSize) return (vuint8)CRC_MEMORY_OVERFLOW;
   
   xcp.pOdt = (tXcpOdt*)&xcp.Daq.u.DaqList[xcp.Daq.DaqCount];
   xcp.pOdtEntryAddr = (DAQBYTEPTR*)&xcp.pOdt[xcp.Daq.OdtCount];
   xcp.pOdtEntrySize = (vuint8*)&xcp.pOdtEntryAddr[xcp.Daq.OdtEntryCount]; 
   
-  
 
   #if defined ( XCP_ENABLE_TESTMODE )
-  if ( gDebugLevel != 0)
-  {
-    ApplXcpPrint("[XcpAllocMemory] %u/%u Bytes used\n",s,kXcpDaqMemSize );
-    
-  }
+  if ( gDebugLevel != 0) ApplXcpPrint("[XcpAllocMemory] %u/%u Bytes used\n",s,kXcpDaqMemSize );
   #endif
 
   return (vuint8)0u;
@@ -581,10 +398,6 @@ static void XcpStartDaq( vuint8 daq )
 {
   /* Initialize the DAQ list */
   DaqListFlags(daq) |= (vuint8)DAQ_FLAG_RUNNING;
-  #if defined ( XCP_ENABLE_DAQ_PRESCALER )
-  DaqListCycle(daq) = 1;
-  #endif
-
   xcp.SessionStatus |= (SessionStatusType)SS_DAQ;
 }
 
@@ -724,7 +537,6 @@ vuint8 XcpEventExt(vuint8 event, BYTEPTR offset)
     return (vuint8)XCP_EVENT_NOP;
   }
 
-  
 
   BEGIN_PROFILE(4); /* Timingtest */
   for (daq=0; daq<xcp.Daq.DaqCount; daq++)
@@ -738,15 +550,7 @@ vuint8 XcpEventExt(vuint8 event, BYTEPTR offset)
       continue; 
     }
 
-  #if defined ( XCP_ENABLE_DAQ_PRESCALER )
-    DaqListCycle(daq)--;
-    if ( DaqListCycle(daq) == (vuint8)0 )
-    {
-      DaqListCycle(daq) = DaqListPrescaler(daq);
-  #endif
-
   
-
       for (odt=DaqListFirstOdt(daq);odt<=DaqListLastOdt(daq);odt++)
       {
 
@@ -799,7 +603,7 @@ vuint8 XcpEventExt(vuint8 event, BYTEPTR offset)
         while (e<=el) { // inner DAQ loop
           n = OdtEntrySize(e);
           if (n == 0) break;
-          XcpMemCpy((DAQBYTEPTR)d, offset+(vuint32)OdtEntryAddr(e), n);
+          memcpy((DAQBYTEPTR)d, offset+(vuint32)OdtEntryAddr(e), n);
           d += n; 
           e++;
         }
@@ -814,14 +618,7 @@ vuint8 XcpEventExt(vuint8 event, BYTEPTR offset)
         ApplXcpInterruptEnable();
 
       } /* odt */
-
-  
-
-
-  #if defined ( XCP_ENABLE_DAQ_PRESCALER )
-    }
-  #endif
-  
+        
   } /* daq */
 
   END_PROFILE(4); /* Timingtest */
@@ -871,7 +668,6 @@ void XcpCommand( const vuint32* pCommand )
   vuint8 err;
 
   
-    
   /* XCP Command Handler */
 
   BEGIN_PROFILE(1); /* Timingtest */
@@ -890,21 +686,10 @@ void XcpCommand( const vuint32* pCommand )
       ApplXcpPrint("\n-> CONNECT mode=%u\n",CRO_CONNECT_MODE);
     }
 #endif
-
-    
-    
+        
     /* Reset DAQ */
-    /* Do not reset DAQ if in resume mode */ 
-
-    if ( (xcp.SessionStatus & (SessionStatusType)SS_RESUME) == 0 )
-    {
-      XcpFreeDaq();
+    XcpFreeDaq();
   
-    }
-
-
-
-
     /* Reset Session Status */
     xcp.SessionStatus = (SessionStatusType)SS_CONNECTED;
 
@@ -1112,8 +897,7 @@ void XcpCommand( const vuint32* pCommand )
                 ApplXcpPrint("\n");
               }
 #endif
-
-             
+  
               size = CRO_DOWNLOAD_SIZE;
               if (size>CRO_DOWNLOAD_MAX_SIZE)
               {
@@ -1163,8 +947,7 @@ void XcpCommand( const vuint32* pCommand )
                 ApplXcpPrint("\n");
               }
   #endif
-
-             
+                        
               err = XcpWriteMta(CRO_DOWNLOAD_MAX_MAX_SIZE,CRO_DOWNLOAD_MAX_DATA);
               if (err==(vuint8)XCP_CMD_PENDING)
               {
@@ -1190,8 +973,6 @@ void XcpCommand( const vuint32* pCommand )
 #endif /* !defined ( XCP_ENABLE_CALIBRATION ) */
             }
             break;
-
-
 
           case CC_UPLOAD:
             {
@@ -1276,8 +1057,6 @@ void XcpCommand( const vuint32* pCommand )
             }
             break;
 
-
-
   #if defined ( XCP_ENABLE_DAQ_PROCESSOR_INFO )
 
           case CC_GET_DAQ_PROCESSOR_INFO: 
@@ -1296,9 +1075,6 @@ void XcpCommand( const vuint32* pCommand )
               CRM_GET_DAQ_PROCESSOR_INFO_MAX_EVENT_WRITE(0x00); /* Unknown */    
               CRM_GET_DAQ_PROCESSOR_INFO_DAQ_KEY_BYTE = (vuint8)DAQ_HDR_ODT_DAQB; /* DTO identification field type: Relative ODT number, absolute list number (BYTE) */
               CRM_GET_DAQ_PROCESSOR_INFO_PROPERTIES = (vuint8)( DAQ_PROPERTY_CONFIG_TYPE | DAQ_PROPERTY_TIMESTAMP
-    #if defined ( XCP_ENABLE_DAQ_PRESCALER )
-                | DAQ_PROPERTY_PRESCALER
-    #endif
     #if defined ( XCP_ENABLE_DAQ_OVERRUN_INDICATION ) /* DAQ_PROPERTY_OVERLOAD_INDICATION */
                 | DAQ_OVERLOAD_INDICATION_PID
     #endif
@@ -1468,14 +1244,8 @@ void XcpCommand( const vuint32* pCommand )
           
               xcp.CrmLen = CRM_GET_DAQ_LIST_MODE_LEN;
               CRM_GET_DAQ_LIST_MODE_MODE = DaqListFlags(daq);
-  #if defined ( XCP_ENABLE_DAQ_PRESCALER )
-              CRM_GET_DAQ_LIST_MODE_PRESCALER = DaqListPrescaler(daq);
-  #else
               CRM_GET_DAQ_LIST_MODE_PRESCALER = 1;
-  #endif
-  
               CRM_GET_DAQ_LIST_MODE_EVENTCHANNEL_WRITE(DaqListEventChannel(daq));
-  
               CRM_GET_DAQ_LIST_MODE_PRIORITY = 0;  /* DAQ-list prioritization is not supported. */
 
   #if defined ( XCP_ENABLE_TESTMODE )
@@ -1491,16 +1261,13 @@ void XcpCommand( const vuint32* pCommand )
           case CC_SET_DAQ_LIST_MODE:
             {
               vuint8 daq = (vuint8)CRO_SET_DAQ_LIST_MODE_DAQ;
-  #if defined ( XCP_ENABLE_TESTMODE ) || defined ( XCP_ENABLE_DAQ_PRESCALER ) || ( !defined ( XCP_ENABLE_DAQ_PRESCALER ) && defined ( XCP_ENABLE_PARAMETER_CHECK ) )
-              vuint8 xcpPrescaler = CRO_SET_DAQ_LIST_MODE_PRESCALER;
-  #endif
               vuint8 event = (vuint8)(CRO_SET_DAQ_LIST_MODE_EVENTCHANNEL&0xFFu);
  
   #if defined ( XCP_ENABLE_TESTMODE )
               if ( gDebugLevel != 0)
               {
-                ApplXcpPrint("-> SET_DAQ_LIST_MODE daq=%u, mode=%02Xh, prescaler=%u, eventchannel=%u\n",
-                  daq,CRO_SET_DAQ_LIST_MODE_MODE,xcpPrescaler,event);
+                ApplXcpPrint("-> SET_DAQ_LIST_MODE daq=%u, mode=%02Xh, eventchannel=%u\n",
+                  daq,CRO_SET_DAQ_LIST_MODE_MODE,event);
               }
   #endif
 
@@ -1509,27 +1276,12 @@ void XcpCommand( const vuint32* pCommand )
               {
                 error(CRC_OUT_OF_RANGE) 
               } 
-    
-    #if !defined ( XCP_ENABLE_DAQ_PRESCALER )
-              if (xcpPrescaler!=1)
-              {
-                error(CRC_OUT_OF_RANGE) 
-              }
-    #endif
               if (CRO_SET_DAQ_LIST_MODE_PRIORITY!=0)   /* Priorization is not supported */
               {
                 error(CRC_OUT_OF_RANGE) 
               } 
   #endif
-
-  #if defined ( XCP_ENABLE_DAQ_PRESCALER )
-              if (xcpPrescaler==0)
-              {
-                xcpPrescaler = 1;
-              }
-              DaqListPrescaler(daq) = xcpPrescaler;
-  #endif
-  
+              
               DaqListEventChannel(daq) = event;
               DaqListFlags(daq) = CRO_SET_DAQ_LIST_MODE_MODE;
 
@@ -1769,18 +1521,6 @@ no_response:
 }
 
 
-/****************************************************************************/
-/* Send notification callback                                               */
-/****************************************************************************/
-
-
-
-
-
-/****************************************************************************/
-/* Initialization / de-initialization                                       */
-/****************************************************************************/
-
 
 /*****************************************************************************
 | NAME:             XcpInit
@@ -1794,52 +1534,20 @@ no_response:
 ******************************************************************************/
 void XcpInit( void )
 {
-
-  /* Application specific initialization function. */
-  ApplXcpInit();
-
   /* Initialize all XCP variables to zero */
-  XcpMemClr((BYTEPTR)&xcp,(vuint16)sizeof(xcp)); 
+  memset((BYTEPTR)&xcp,0,(vuint16)sizeof(xcp)); 
    
   /* Initialize the session status */
   xcp.SessionStatus = (SessionStatusType)0u;
 
-  
-  
 }
-
-
-
-#if defined ( XCP_ENABLE_GET_SESSION_STATUS_API )
-/*****************************************************************************
-| NAME:             XcpGetSessionStatus
-| CALLED BY:        -
-| PRECONDITIONS:    none
-| INPUT PARAMETERS: none
-| RETURN VALUES:    Xcp session state
-| DESCRIPTION:      Get the session state of the XCP Protocol Layer
-******************************************************************************/
-SessionStatusType XcpGetSessionStatus( void )
-{
-  SessionStatusType result;
-
-  result = xcp.SessionStatus;
-  /* Reset the polling state */
-  xcp.SessionStatus &= (SessionStatusType)(~SS_POLLING);
-  return(result);
-} 
-#endif
-
 
 
 /****************************************************************************/
 /* Test                                                                     */
-/* Some screen output functions for test and diagnostics                    */
 /****************************************************************************/
 
-
 #if defined ( XCP_ENABLE_TESTMODE )
-  
 
 /*****************************************************************************
 | NAME:             XcpPrintDaqList
@@ -1854,17 +1562,10 @@ void XcpPrintDaqList( vuint8 daq )
   int i;
   vuint16 e;
     
-  if (daq>=xcp.Daq.DaqCount)
-  {
-    return;
-  }
+  if (daq>=xcp.Daq.DaqCount) return;
 
   ApplXcpPrint("DAQ %u:\n",daq);
   ApplXcpPrint(" eventchannel=%04Xh,",DaqListEventChannel(daq));
-    
-  #if defined (XCP_ENABLE_DAQ_PRESCALER )
-  ApplXcpPrint(" prescaler=%u,",DaqListPrescaler(daq));
-  #endif
   ApplXcpPrint(" firstOdt=%u,",DaqListFirstOdt(daq));
   ApplXcpPrint(" lastOdt=%u,",DaqListLastOdt(daq));
   ApplXcpPrint(" flags=%02Xh\n",DaqListFlags(daq));
@@ -1879,7 +1580,7 @@ void XcpPrintDaqList( vuint8 daq )
       ApplXcpPrint("   [%08Xh,%u]\n",OdtEntryAddr(e),OdtEntrySize(e));
     }
   } /* j */
-} /* Deviation of MISRA rule 82 (more than one return path). */
+} 
 
   
 #endif /* XCP_ENABLE_TESTMODE */

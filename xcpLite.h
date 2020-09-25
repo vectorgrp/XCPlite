@@ -1294,30 +1294,19 @@ typedef struct {
 
 /* DAQ list */
 typedef struct {
-
   vuint16 lastOdt;             /* Absolute */
   vuint16 firstOdt;            /* Absolute */
   vuint8 flags;        
   vuint8 eventChannel; 
-  
-  #if defined ( XCP_ENABLE_DAQ_PRESCALER )
-  vuint8 prescaler;  
-  vuint8 cycle;     
-  #endif
-
 } tXcpDaqList;
 
 
 
 /* Dynamic DAQ list structures */
 typedef struct {
-
-  vuint8 ActiveTl;                /* Active Transport Layer */
-
-
-
+      
   vuint8          DaqCount;
-  vuint16      OdtCount;       /* Absolute count */
+  vuint16         OdtCount;       /* Absolute count */
   vuint16         OdtEntryCount;  /* Absolute count */
 
   union { 
@@ -1326,41 +1315,32 @@ typedef struct {
   } u;
 
 
-
 } tXcpDaq;
 
 typedef vuint16 SessionStatusType;
 
 
+/* Shortcuts */
 
-  /* Shortcuts */
+/* j is absolute odt number */
+#define DaqListOdtEntryCount(j) ((xcp.pOdt[j].lastOdtEntry-xcp.pOdt[j].firstOdtEntry)+1)
+#define DaqListOdtLastEntry(j)  (xcp.pOdt[j].lastOdtEntry)
+#define DaqListOdtFirstEntry(j) (xcp.pOdt[j].firstOdtEntry)
+#define DaqListOdtStimBuffer(j) (xcp.pOdt[j].pStimBuffer)
 
-  /* j is absolute odt number */
-  #define DaqListOdtEntryCount(j) ((xcp.pOdt[j].lastOdtEntry-xcp.pOdt[j].firstOdtEntry)+1)
-  #define DaqListOdtLastEntry(j)  (xcp.pOdt[j].lastOdtEntry)
-  #define DaqListOdtFirstEntry(j) (xcp.pOdt[j].firstOdtEntry)
-  #define DaqListOdtStimBuffer(j) (xcp.pOdt[j].pStimBuffer)
+/* n is absolute odtEntry number */
+#define OdtEntrySize(n)         (xcp.pOdtEntrySize[n])
+#define OdtEntryAddr(n)         (xcp.pOdtEntryAddr[n])
 
-  /* n is absolute odtEntry number */
-  #define OdtEntrySize(n)         (xcp.pOdtEntrySize[n])
-  #define OdtEntryAddr(n)         (xcp.pOdtEntryAddr[n])
-
-   /* i is daq number */
-  #define DaqListOdtCount(i)      ((xcp.Daq.u.DaqList[i].lastOdt-xcp.Daq.u.DaqList[i].firstOdt)+1)
-  #define DaqListLastOdt(i)       xcp.Daq.u.DaqList[i].lastOdt
-  #define DaqListFirstOdt(i)      xcp.Daq.u.DaqList[i].firstOdt
-  #define DaqListFirstPid(i)      xcp.Daq.u.DaqList[i].firstOdt
-  #define DaqListFlags(i)         xcp.Daq.u.DaqList[i].flags
-  #define DaqListEventChannel(i)  xcp.Daq.u.DaqList[i].eventChannel
-  #define DaqListPrescaler(i)     xcp.Daq.u.DaqList[i].prescaler 
-  #define DaqListCycle(i)         xcp.Daq.u.DaqList[i].cycle
-
-
-
-
-
-
-
+/* i is daq number */
+#define DaqListOdtCount(i)      ((xcp.Daq.u.DaqList[i].lastOdt-xcp.Daq.u.DaqList[i].firstOdt)+1)
+#define DaqListLastOdt(i)       xcp.Daq.u.DaqList[i].lastOdt
+#define DaqListFirstOdt(i)      xcp.Daq.u.DaqList[i].firstOdt
+#define DaqListFirstPid(i)      xcp.Daq.u.DaqList[i].firstOdt
+#define DaqListFlags(i)         xcp.Daq.u.DaqList[i].flags
+#define DaqListEventChannel(i)  xcp.Daq.u.DaqList[i].eventChannel
+#define DaqListPrescaler(i)     xcp.Daq.u.DaqList[i].prescaler 
+#define DaqListCycle(i)         xcp.Daq.u.DaqList[i].cycle
 
 
 
@@ -1432,13 +1412,15 @@ typedef struct {
 /***************************************************************************/
 
 extern RAM tXcpData xcp;
+
+
 /*******************************************************************************
 * External 8 Bit Constants
 *******************************************************************************/
 
-V_MEMROM0 extern const  vuint8 kXcpMainVersion;
-V_MEMROM0 extern const  vuint8 kXcpSubVersion;
-V_MEMROM0 extern const  vuint8 kXcpReleaseVersion;
+extern const  vuint8 kXcpMainVersion;
+extern const  vuint8 kXcpSubVersion;
+extern const  vuint8 kXcpReleaseVersion;
 
 
 
@@ -1446,10 +1428,8 @@ V_MEMROM0 extern const  vuint8 kXcpReleaseVersion;
 /* Prototypes                                                               */
 /****************************************************************************/
 
-
-/* Important external functions of xcp.c */
+/* API functions of xcp.c */
 /*-----------------------------------------*/
-
 
 /* Initialization and deinitialization functions for the XCP Protocol Layer. */
 extern void XcpInit( void );
@@ -1460,141 +1440,52 @@ extern void XcpExit( void );
 extern vuint8 XcpEvent(vuint8 event); 
 extern vuint8 XcpEventExt(vuint8 event, BYTEPTR offset);
 
-/* Check if a XCP stimulation event can perform or delete the buffers */
-/* Returns 1 (TRUE) if new stimulation data is available */
-
 /* Call the XCP command processor. */
 extern void XcpCommand( const vuint32* pCommand );
-
-/* Transmit Notification */
-/* Confirmation of the transmit request by ApplXcpSend(). */
-/* Returns 0 when the XCP driver is idle */
-extern vuint8 XcpSendCallBack( void );
-
-/* Background Loop */
-/* Return 1 (TRUE) if anything is still pending */
-/* Used only if Checksum Calculation or EEPROM Programming is required */
-extern vuint8 XcpBackground( void );
 
 
 /*-----------------------------------------------------------------------------------*/
 /* Functions or Macros that have to be provided externally to the XCP Protocol Layer */
 /*-----------------------------------------------------------------------------------*/
 
-
-#if defined ( XCP_TRANSPORT_LAYER_TYPE_CAN )
-    #define ApplXcpSend(len, msg)  XcpCanSend(len, msg)
-    #if defined ( ApplXcpSendFlush )
-    #else
-      #define ApplXcpSendFlush()
-    #endif
-    #define ApplXcpInit()          XcpCanInit()
-    #define ApplXcpBackground()    XcpCanBackground()
-#endif
-
  
 /* Transmission Request for a XCP Packet */
 #if defined ( ApplXcpSend )
 #else
-extern void ApplXcpSend( vuint8 len, const BYTEPTR msg );
+  extern void ApplXcpSend( vuint8 len, const BYTEPTR msg );
 #endif
 
 /* Flush the transmit buffer if there is one implemented in ApplXcpSend() */
 #if defined ( ApplXcpSendFlush )
 #else
-extern void ApplXcpSendFlush( void );
+  extern void ApplXcpSendFlush( void );
 #endif
 
 /* Generate a native pointer from XCP address extension and address */
 #if defined ( ApplXcpGetPointer )
 #else
-extern MTABYTEPTR ApplXcpGetPointer( vuint8 addr_ext, vuint32 addr );
-#endif
-
-#if defined ( XCP_ENABLE_MEM_ACCESS_BY_APPL )
-extern vuint8 ApplXcpRead( vuint32 addr );
-extern void XCP_FAR ApplXcpWrite( vuint32 addr, vuint8 data );
-#endif
-
-
-
-#if defined ( XCP_ENABLE_CALIBRATION_MEM_ACCESS_BY_APPL ) && !defined ( XCP_ENABLE_MEM_ACCESS_BY_APPL )
-extern vuint8 ApplXcpCalibrationWrite(MTABYTEPTR addr, vuint8 size, const BYTEPTR data);
-extern vuint8 ApplXcpCalibrationRead(MTABYTEPTR addr, vuint8 size, BYTEPTR data);
-#endif
-
-/* Application specific initialization function (called by XcpInit() ). */
-#if defined ( ApplXcpInit )
-#else
-extern void ApplXcpInit( void );
-#endif
-
-/* Application specific background ground loop (called by XcpBackground() ). */
-#if defined ( ApplXcpBackground )
-#else
-extern void ApplXcpBackground( void );
+  extern MTABYTEPTR ApplXcpGetPointer( vuint8 addr_ext, vuint32 addr );
 #endif
 
 /* Enable interrupts */
 #if defined ( ApplXcpInterruptEnable )
 #else
-extern void ApplXcpInterruptEnable( void );
+  extern void ApplXcpInterruptEnable( void );
 #endif
 
 /* Disable interrupts */
 #if defined ( ApplXcpInterruptDisable )
 #else
-extern void ApplXcpInterruptDisable( void );
+  extern void ApplXcpInterruptDisable( void );
 #endif
 
 
-/* Some available utility functions */
-/*----------------------------------*/
-
-/* Force a XCP disconnect */
-extern void XcpDisconnect( void );
-
-/* Send a pending XCP response packet (RES). */
-/* To be used after a XCP_CMD_PENDING from EEPROM or FLASH programming. */
-extern void XcpSendCrm( void );
-
-
-
-/* Functions that may have be provided externally depending on options */
-/*---------------------------------------------------------------------*/
-
-/* Utility functions from xcp.c */
-/*------------------------------*/
-
-/* Override option for the memory transfer function */
-/* May be used for optimization */
-/* #define XcpMemCpy, #define XcpMemSet to disable the implementation in xcp.c */
-#if defined ( XcpMemCpy ) 
-#else
-extern void XcpMemCpy( DAQBYTEPTR dest, const DAQBYTEPTR src, vuint8 n );
-#endif
-#if defined ( XcpMemSet )
-#else
-extern void XcpMemSet( BYTEPTR p, vuint16 n, vuint8 b );
-#endif
-
-
-
-
-/* DAQ Timestamp */
-  #if defined ( ApplXcpGetTimestamp )
+/* Get DAQ Timestamp from free runing application clock */
+#if defined ( ApplXcpGetTimestamp )
   /* ApplXcpGetTimestamp is redefined */
-  #else
-extern XcpDaqTimestampType ApplXcpGetTimestamp( void );
-  #endif
-
-
-
-#if defined ( XCP_ENABLE_GET_SESSION_STATUS_API )
-/* Get the session state of the XCP Protocol Layer */
-extern SessionStatusType XcpGetSessionStatus( void );
+#else
+  extern XcpDaqTimestampType ApplXcpGetTimestamp( void );
 #endif
-
 
 
 
@@ -1606,15 +1497,15 @@ extern SessionStatusType XcpGetSessionStatus( void );
 
 extern vuint8 gDebugLevel;
 
-  #if defined ( ApplXcpPrint )
- /* ApplXcpPrint is a macro */
-  #else
+#if defined ( ApplXcpPrint )
+/* ApplXcpPrint is a macro */
+#else
 extern void ApplXcpPrint( const vsint8 *str, ... );
-  #endif
+#endif
 
 extern void XcpPrintDaqList( vuint8 daq );
-#endif /* XCP_ENABLE_TESTMODE */
 
+#endif /* XCP_ENABLE_TESTMODE */
 
 
 
@@ -1623,9 +1514,7 @@ extern void XcpPrintDaqList( vuint8 daq );
 /*****************************************************************************/
 
 
-
-/* Check consistency of communictaion mode info */
-
+/* Check consistency of communication mode info */
 #if defined ( XCP_ENABLE_COMM_MODE_INFO ) && defined ( XCP_DISABLE_COMM_MODE_INFO )
   #error "XCP consistency error: Communictaion mode info must be either enabled or disabled."
 #endif
@@ -1634,44 +1523,19 @@ extern void XcpPrintDaqList( vuint8 daq );
   #error "XCP consistency error: Communictaion mode info must be enabled or disabled."
 #endif
 
-
-
-
 /* Check range of kXcpStationIdLength */
-
 #if defined ( kXcpStationIdLength )
   #if ( kXcpStationIdLength > 0xFF )
     #error "XCP error: kXcpStationIdLength must be < 256."
   #endif
 #endif
 
-/* Check range of kXcpStimOdtCount */
-
-
-
-
-  /* Check range of kXcpDaqMemSize */
-
-  #if defined ( kXcpDaqMemSize )
-    #if ( kXcpDaqMemSize > 0xFFFF )
-      #error "XCP error: kXcpDaqMemSize must be <= 0xFFFF."
-    #endif
-  #endif
-
-  /* Check range of kXcpSendQueueMinSize. */
-
-  #if defined ( kXcpSendQueueMinSize ) 
-    #if ( kXcpSendQueueMinSize > 0xFF )
-      #error "XCP error: kXcpSendQueueMinSize must be <= 0xFF."
-    #endif
-  #endif
-
-  
-  
-
-
-
-
+/* Check range of kXcpDaqMemSize */
+#if defined ( kXcpDaqMemSize )
+#if ( kXcpDaqMemSize > 0xFFFF )
+    #error "XCP error: kXcpDaqMemSize must be <= 0xFFFF."
+#endif
+#endif
 
 /* Check configuration of kXcpDaqTimestampUnit. */
 #if defined ( kXcpDaqTimestampUnit )
@@ -1686,13 +1550,6 @@ extern void XcpPrintDaqList( vuint8 daq );
     #error "XCP error: illegal range of kXcpDaqTimestampTicksPerUnit: 0 < kXcpDaqTimestampTicksPerUnit <= 0xFFFF."
 #endif
 #endif
-
-
-
-
-
-
-
 
 
 

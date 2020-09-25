@@ -5,7 +5,7 @@
 |
 | Project:
 |   Konfiguration file for XCP basic driver
-|   Linux XCP on UDP demo (Tested on Raspberrypi4)
+|   Linux XCP on UDP demo (Tested on RaspberryPi4)
  ----------------------------------------------------------------------------*/
 
 #if defined ( __XCP_CFG_H__ )
@@ -28,15 +28,15 @@
 /*----------------------------------------------------------------------------*/
 /* Platform specific definitions */
 
-  /* 8-Bit qualifier */
+  /* 8-Bit  */
 typedef unsigned char  vuint8;
 typedef signed char    vsint8;
 
-/* 16-Bit qualifier */
+/* 16-Bit  */
 typedef unsigned short vuint16;
 typedef signed short   vsint16;
 
-/* 32-Bit qualifier */
+/* 32-Bit  */
 typedef unsigned long  vuint32;
 typedef signed long    vsint32;
 
@@ -48,23 +48,12 @@ typedef signed long    vsint32;
 #define MEMORY_ROM const
 
 
-
 /*----------------------------------------------------------------------------*/
 /* XCP Driver Callbacks as macros */
-
-// Copy and init memory blocks
-#define XcpMemCpy memcpy
-#define XcpMemSet memset
 
 // Convert a XCP (BYTE addrExt, DWORD addr from A2L) address to a C pointer to unsigned byte
 // BYTEPTR ApplXcpGetPointer(vuint8 addr_ext, vuint32 addr)
 #define ApplXcpGetPointer(e,a) ((BYTEPTR)((a)))
-
-// Flush the tranmit queue
-// void ApplXcpSendFlush(void)
-extern int udpServerFlush(void);
-#define ApplXcpSendFlush() udpServerFlush();
-
 
 
 /*----------------------------------------------------------------------------*/
@@ -88,10 +77,7 @@ extern int udpServerFlush(void);
 #define kXcpMaxCTO     250      /* Maximum CTO Message Lenght */
 #define kXcpMaxDTO     250      /* Maximum DTO and CRM Message Lenght */
 
-#define XCP_DISABLE_PARAMETER_CHECK
-
 #define XCP_ENABLE_CALIBRATION
-
 #define XCP_DISABLE_WRITE_PROTECTION
 #define XCP_DISABLE_READ_PROTECTION
 #define XCP_ENABLE_GET_SESSION_STATUS_API
@@ -111,7 +97,6 @@ extern int udpServerFlush(void);
 /* Synchronous Data Acquisition (DAQ) */
 
 #define kXcpDaqMemSize 60000u  // Memory space reserved for DAQ tables
-
 
 // DAQ features
 #define XCP_DISABLE_DAQ_PRESCALER
@@ -138,9 +123,6 @@ extern int ApplXcpTimerInit(void);
 extern pthread_mutex_t gXcpMutex;
 #define ApplXcpInterruptDisable() pthread_mutex_lock( & gXcpMutex )
 #define ApplXcpInterruptEnable() pthread_mutex_unlock( & gXcpMutex )
-
-
-
 
 
 #include "xcp_def.h" // Set remaining default
