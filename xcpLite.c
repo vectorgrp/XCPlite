@@ -662,6 +662,16 @@ void XcpDisconnect( void )
 | RETURN VALUES:    none
 | DESCRIPTION:      
 ******************************************************************************/
+
+#if defined ( XCP_ENABLE_TESTMODE )
+static void XcpPrintCmd(const tXcpCto* pCmd);
+#define debugPrintCmd() if (gDebugLevel!=0) XcpPrintCmd(pCmd);
+static void XcpPrintRes(const tXcpCto* pCmd);
+#define debugPrintRes() if (gDebugLevel!=0) XcpPrintRes(pCmd);
+#else
+  #define debugPrintCmd()
+#endif
+
 void XcpCommand( const vuint32* pCommand )
 {
   const tXcpCto* pCmd = (const tXcpCto*) pCommand; 
@@ -745,6 +755,8 @@ void XcpCommand( const vuint32* pCommand )
       /* Prepare the default response */
       CRM_CMD = 0xFF; /* No Error */
       xcp.CrmLen = 1; /* Length = 1 */
+
+      debugPrintCmd();
 
       switch (CRO_CMD)
       {
@@ -841,41 +853,15 @@ void XcpCommand( const vuint32* pCommand )
             {
               xcp.CrmLen = CRM_GET_STATUS_LEN;
               CRM_GET_STATUS_STATUS = (vuint8)xcp.SessionStatus;
-
               CRM_GET_STATUS_PROTECTION = 0;
-
-
-              /* Session configuration ID not available. */
-              CRM_GET_STATUS_CONFIG_ID_WRITE(0x00);
-
-#if defined ( XCP_ENABLE_TESTMODE )
-              if ( gDebugLevel != 0)
-              {
-                ApplXcpPrint("-> GET_STATUS\n");
-                ApplXcpPrint("<- 0xFF sessionstatus=%02Xh, protectionstatus=%02X\n",CRM_GET_STATUS_STATUS,CRM_GET_STATUS_PROTECTION);
-              }
-#endif
+              CRM_GET_STATUS_CONFIG_ID_WRITE(0x00); /* Session configuration ID not available. */
             }
             break;
 
 
           case CC_SET_MTA:
             {
-#if defined ( XCP_ENABLE_TESTMODE )
-              if ( gDebugLevel != 0)
-              {
-                ApplXcpPrint("-> SET_MTA addr=%08Xh, addrext=%02Xh\n",CRO_SET_MTA_ADDR,CRO_SET_MTA_EXT);
-              }
-#endif
               XcpSetMta(ApplXcpGetPointer(CRO_SET_MTA_EXT,CRO_SET_MTA_ADDR),CRO_SET_MTA_EXT);
-
-
-#if defined ( XCP_ENABLE_TESTMODE )
-              if ( gDebugLevel != 0)
-              {
-                ApplXcpPrint("<- 0xFF\n");
-              }
-#endif
             }
             break;
 
@@ -1501,7 +1487,6 @@ void XcpCommand( const vuint32* pCommand )
 negative_response:
   xcp.CrmLen = 2;
 
-
   CRM_CMD = (vuint8)PID_ERR;
   CRM_ERR = (vuint8)err;
 #if defined ( XCP_ENABLE_TESTMODE )
@@ -1512,6 +1497,7 @@ negative_response:
 #endif
  
 positive_response:
+  debugPrintRes();
   XcpSendCrm();
 
 no_response:
@@ -1548,6 +1534,358 @@ void XcpInit( void )
 /****************************************************************************/
 
 #if defined ( XCP_ENABLE_TESTMODE )
+
+static void XcpPrintCmd(const tXcpCto * pCmd) {
+
+    switch (CRO_CMD) {
+
+        case CC_GET_STATUS:
+            ApplXcpPrint("-> GET_STATUS\n");
+            break;
+
+        case CC_SET_MTA:
+            ApplXcpPrint("-> SET_MTA addr=%08Xh, addrext=%02Xh\n", CRO_SET_MTA_ADDR, CRO_SET_MTA_EXT);
+            break;
+       
+
+    }
+
+
+            case CC_SYNC:
+                    ApplXcpPrint("-> SYNC\n");
+ 
+            break;
+
+
+
+            case CC_GET_COMM_MODE_INFO:
+            
+                    ApplXcpPrint("-> GET_COMM_MODE_INFO\n");
+                 
+            break;
+
+            case CC_DISCONNECT:
+                   ApplXcpPrint("-> DISCONNECT\n");
+                   
+            break;
+
+
+
+            case CC_GET_ID:
+            
+                    ApplXcpPrint("-> GET_ID type=%u\n", CRO_GET_ID_TYPE);
+                   
+            break;
+
+
+            case CC_GET_STATUS:
+            
+            break;
+
+
+            case CC_SET_MTA:
+            
+            break;
+
+
+            case CC_DOWNLOAD:
+
+                if ((CRO_CMD != CC_DOWNLOAD_NEXT))
+                {
+                    vuint16 i;
+                    ApplXcpPrint("-> DOWNLOAD size=%u, data=", CRO_DOWNLOAD_SIZE);
+                    for (i = 0; (i < CRO_DOWNLOAD_SIZE) && (i < CRO_DOWNLOAD_MAX_SIZE); i++)
+                    {
+                        ApplXcpPrint("%02X ", CRO_DOWNLOAD_DATA[i]);
+                    }
+                    ApplXcpPrint("\n");
+                }
+
+
+            case CC_DOWNLOAD_MAX:
+           
+                    
+                    ApplXcpPrint("DOWNLOAD_MAX data=");
+                    for (int i = 0; i < CRO_DOWNLOAD_MAX_MAX_SIZE; i++)
+                    {
+                        ApplXcpPrint("%02X ", CRO_DOWNLOAD_MAX_DATA[i]);
+                    }
+                    ApplXcpPrint("\n");
+         
+            break;
+
+            case CC_UPLOAD:
+            
+                    ApplXcpPrint("-> UPLOAD size=%u\n", CRO_UPLOAD_SIZE);
+               
+            break;
+
+            case CC_SHORT_UPLOAD:
+           
+                    ApplXcpPrint("-> SHORT_UPLOAD addr=%08Xh, addrext=%02Xh, size=%u\n", CRO_SHORT_UPLOAD_ADDR, CRO_SHORT_UPLOAD_EXT, CRO_SHORT_UPLOAD_SIZE);
+               
+            break;
+
+
+            case CC_GET_DAQ_PROCESSOR_INFO:
+            
+                    ApplXcpPrint("-> GET_DAQ_PROCESSOR_INFO\n");
+               
+            break;
+
+
+            case CC_GET_DAQ_RESOLUTION_INFO:
+
+                    ApplXcpPrint("-> GET_DAQ_RESOLUTION_INFO\n");
+ 
+            break;
+
+
+            case CC_FREE_DAQ:
+     
+                    ApplXcpPrint("-> FREE_DAQ\n");
+              
+            break;
+
+            case CC_ALLOC_DAQ:
+           
+                    ApplXcpPrint("-> ALLOC_DAQ count=%u\n", count);
+               
+            break;
+
+            case CC_ALLOC_ODT:
+            {
+              
+                    ApplXcpPrint("-> ALLOC_ODT daq=%u, count=%u\n", CRO_ALLOC_ODT_DAQ, CRO_ALLOC_ODT_COUNT);
+             
+            break;
+
+            case CC_ALLOC_ODT_ENTRY:
+
+                    ApplXcpPrint("-> ALLOC_ODT_ENTRY daq=%u, odt=%u, count=%u\n", CRO_ALLOC_ODT_ENTRY_DAQ, CRO_ALLOC_ODT_ENTRY_ODT, CRO_ALLOC_ODT_ENTRY_COUNT);
+           
+            break;
+
+            case CC_GET_DAQ_LIST_MODE:
+           
+                    ApplXcpPrint("-> GET_DAQ_LIST_MODE daq=%u\n",CRO_GET_DAQ_LIST_MODE_DAQ );
+              
+            break;
+
+            case CC_SET_DAQ_LIST_MODE:
+           
+                    ApplXcpPrint("-> SET_DAQ_LIST_MODE daq=%u, mode=%02Xh, eventchannel=%u\n",
+                        CRO_SET_DAQ_LIST_MODE_DAQ, CRO_SET_DAQ_LIST_MODE_MODE, CRO_SET_DAQ_LIST_MODE_EVENTCHANNEL);
+               
+                break;
+            }
+
+
+            case CC_SET_DAQ_PTR:
+            {
+                vuint8 daq = (vuint8)(CRO_SET_DAQ_PTR_DAQ & 0xFFu);
+                vuint8 odt = CRO_SET_DAQ_PTR_ODT;
+                vuint8 idx = CRO_SET_DAQ_PTR_IDX;
+                vuint16 odt0 = (vuint16)(DaqListFirstOdt(daq) + odt); /* Absolute odt number */
+
+#if defined ( XCP_ENABLE_TESTMODE )
+                if (gDebugLevel != 0)
+                {
+                    ApplXcpPrint("-> SET_DAQ_PTR daq=%u,odt=%u,idx=%u\n", daq, odt, idx);
+                }
+#endif
+
+#if defined ( XCP_ENABLE_PARAMETER_CHECK )
+                if ((daq >= xcp.Daq.DaqCount) || (odt >= (vuint8)DaqListOdtCount(daq)) || (idx >= (vuint8)DaqListOdtEntryCount(odt0)))
+                {
+                    error(CRC_OUT_OF_RANGE)
+                }
+#endif
+
+                xcp.CrmLen = CRM_SET_DAQ_PTR_LEN;
+                xcp.DaqListPtr = (vuint16)(DaqListOdtFirstEntry(odt0) + idx);
+#if defined ( XCP_ENABLE_TESTMODE )
+                if (gDebugLevel != 0)
+                {
+                    ApplXcpPrint("<- 0xFF \n");
+                }
+#endif
+            }
+            break;
+
+            case CC_WRITE_DAQ: /* Write DAQ entry */
+            {
+                DAQBYTEPTR addr;
+#if defined ( XCP_ENABLE_TESTMODE )
+                if (gDebugLevel != 0)
+                {
+                    ApplXcpPrint("-> WRITE_DAQ size=%u,addr=%08Xh,%02Xh\n", CRO_WRITE_DAQ_SIZE, CRO_WRITE_DAQ_ADDR, CRO_WRITE_DAQ_EXT);
+                }
+#endif
+
+
+#if defined ( XCP_ENABLE_PARAMETER_CHECK )
+                if (((vuint8)CRO_WRITE_DAQ_SIZE == (vuint8)0u) || (CRO_WRITE_DAQ_SIZE > (vuint8)XCP_MAX_ODT_ENTRY_SIZE))
+                {
+                    error(CRC_OUT_OF_RANGE)
+                }
+                if ((0u == xcp.Daq.DaqCount) || (0u == xcp.Daq.OdtCount) || (0u == xcp.Daq.OdtEntryCount))
+                {
+                    error(CRC_DAQ_CONDIF)
+                }
+#endif
+                addr = (DAQBYTEPTR)ApplXcpGetPointer(CRO_WRITE_DAQ_EXT, CRO_WRITE_DAQ_ADDR);
+
+                xcp.CrmLen = CRM_WRITE_DAQ_LEN;
+                OdtEntrySize(xcp.DaqListPtr) = CRO_WRITE_DAQ_SIZE;
+                OdtEntryAddr(xcp.DaqListPtr) = addr;
+
+                xcp.DaqListPtr++; /* Autoincrement */
+
+#if defined ( XCP_ENABLE_TESTMODE )
+                if (gDebugLevel != 0)
+                {
+                    ApplXcpPrint("<- 0xFF\n");
+                }
+#endif
+            }
+            break;
+
+            case CC_START_STOP_DAQ_LIST:
+            {
+                vuint8 daq = (vuint8)(CRO_START_STOP_DAQ & 0xFFu);
+
+
+#if defined ( XCP_ENABLE_PARAMETER_CHECK )
+                if (daq >= xcp.Daq.DaqCount)
+                {
+                    error(CRC_OUT_OF_RANGE)
+                }
+#endif
+
+                if ((CRO_START_STOP_MODE == 1) || (CRO_START_STOP_MODE == 2))
+                {
+                    DaqListFlags(daq) |= (vuint8)DAQ_FLAG_SELECTED;
+#if defined ( XCP_ENABLE_TESTMODE )
+                    if (gDebugLevel != 0)
+                    {
+                        XcpPrintDaqList((vuint8)(CRO_START_STOP_DAQ) & 0xFFu);
+                        ApplXcpPrint("-> START_STOP mode=%02Xh, daq=%u\n", CRO_START_STOP_MODE, CRO_START_STOP_DAQ);
+                    }
+#endif
+                    if (CRO_START_STOP_MODE == (vuint8)1u)
+                    {
+                        XcpStartDaq(daq);
+                    }
+                    xcp.CrmLen = CRM_START_STOP_LEN;
+                    CRM_START_STOP_FIRST_PID = 0; // Absolute DAQ, Relative ODT - DaqListFirstPid(daq);
+                }
+                else
+                {
+                    XcpStopDaq(daq);
+#if defined ( XCP_ENABLE_TESTMODE )
+                    if (gDebugLevel != 0)
+                    {
+                        ApplXcpPrint("-> START_STOP mode=%02Xh\n", CRO_START_STOP_MODE);
+                    }
+#endif
+                }
+
+#if defined ( XCP_ENABLE_TESTMODE )
+                if (gDebugLevel != 0)
+                {
+                    ApplXcpPrint("<- 0xFF\n");
+                }
+#endif
+            }
+            break;
+
+            case CC_START_STOP_SYNCH:
+            {
+#if defined ( XCP_ENABLE_TESTMODE )
+                if (gDebugLevel != 0)
+                {
+                    ApplXcpPrint("-> CC_START_STOP_SYNCH mode=%02Xh\n", CRO_START_STOP_MODE);
+                }
+#endif
+
+
+                if ((0 == xcp.Daq.DaqCount) || (0 == xcp.Daq.OdtCount) || (0 == xcp.Daq.OdtEntryCount))
+                {
+                    error(CRC_DAQ_CONDIF)
+                }
+
+                if (CRO_START_STOP_MODE == 2) /* stop selected */
+                {
+                    XcpStopAllSelectedDaq();
+                }
+                else
+                {
+                    if (CRO_START_STOP_MODE == 1) /* start selected */
+                    {
+                        XcpStartAllSelectedDaq();
+                    }
+                    else
+                    {
+                        /* CRO_START_STOP_MODE==0 : stop all */
+                        XcpStopAllDaq();
+                    }
+                }
+#if defined ( XCP_ENABLE_TESTMODE )
+                if (gDebugLevel != 0)
+                {
+                    ApplXcpPrint("<- 0xFF\n");
+                }
+#endif
+            }
+            break;
+
+
+            case CC_GET_DAQ_CLOCK:
+            {
+                xcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN;
+
+                CRM_GET_DAQ_CLOCK_TIME_WRITE((vuint32)ApplXcpGetTimestamp());
+
+#if defined ( XCP_ENABLE_TESTMODE )
+                if (gDebugLevel != 0)
+                {
+                    ApplXcpPrint("-> GET_DAQ_CLOCK\n");
+                    ApplXcpPrint("<- 0xFF time=%04Xh\n", CRM_GET_DAQ_CLOCK_TIME);
+                }
+#endif
+            }
+            break;
+
+
+
+
+            default: /* unknown */
+            {
+#if defined ( XCP_ENABLE_TESTMODE )
+                if (gDebugLevel != 0)
+                {
+                    ApplXcpPrint("-> UNKNOWN COMMAND %02X\n", CRO_CMD);
+                }
+#endif
+                error(CRC_CMD_UNKNOWN)
+            }
+
+} /* switch */
+}
+
+static void XcpPrintRes(const tXcpCto* pCmd) {
+
+    switch (CRO_CMD) {
+    
+        case CC_GET_STATUS:
+            ApplXcpPrint("<- 0xFF sessionstatus=%02Xh, protectionstatus=%02X\n", CRM_GET_STATUS_STATUS, CRM_GET_STATUS_PROTECTION);
+            break;
+    }
+}
+
+
+
 
 /*****************************************************************************
 | NAME:             XcpPrintDaqList
