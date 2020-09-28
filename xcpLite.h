@@ -21,52 +21,22 @@
 #include "xcp_cfg.h"
   
 
-
 /***************************************************************************/
 /* Version                                                                 */
 /***************************************************************************/
 
 /* BCD coded version number of XCP module */
-#define CP_XCP_VERSION         0x0130u
-#define CP_XCP_RELEASE_VERSION 0x04u
-
-/* Version of the XCP Protocol Layer Specification V1.0 */
-#if ! defined ( XCP_VERSION )
-  #define XCP_VERSION 0x0100
-#endif
+#define XCP_VERSION         0x0130u
+#define XCP_RELEASE_VERSION 0x04u
 
 #define XCP_VENDOR_ID   30u
 #define XCP_MODULE_ID   26u
 
 
-/****************************************************************************/
-/* Definitions                                                              */
-/****************************************************************************/
-
-/* Definition of endianess. */
-#if defined ( XCP_CPUTYPE_BIGENDIAN ) || defined ( XCP_CPUTYPE_LITTLEENDIAN )
-#else
-  #if defined ( C_CPUTYPE_BIGENDIAN )
-    #define XCP_CPUTYPE_BIGENDIAN
-  #endif
-  #if defined ( C_CPUTYPE_LITTLEENDIAN )
-    #define XCP_CPUTYPE_LITTLEENDIAN
-  #endif
-  #if defined ( CPU_BYTE_ORDER )
-    #if ( CPU_BYTE_ORDER == HIGH_BYTE_FIRST )
-      #define XCP_CPUTYPE_BIGENDIAN
-    #endif
-    #if ( CPU_BYTE_ORDER == LOW_BYTE_FIRST )
-      #define XCP_CPUTYPE_LITTLEENDIAN
-    #endif
-  #endif
-#endif
-
 
 /***************************************************************************/
 /* Commands                                                                */
 /***************************************************************************/
-
 
 /*-------------------------------------------------------------------------*/
 /* Standard Commands */
@@ -146,7 +116,6 @@
 #define CC_PROGRAM_CLEAR                  0xD1
 #define CC_PROGRAM                        0xD0
 #define CC_PROGRAM_RESET                  0xCF
-
 #define CC_GET_PGM_PROCESSOR_INFO         0xCE
 #define CC_GET_SECTOR_INFO                0xCD
 #define CC_PROGRAM_PREPARE                0xCC
@@ -157,9 +126,13 @@
 
 
 /*-------------------------------------------------------------------------*/
-/* Customer specific commands */
+/* XCP V1.1 specific commands */
+# define CC_WRITE_DAQ_MULTIPLE            0xC7
 
-#define CC_WRITE_DAQ_MULTIPLE             0x81
+/*-------------------------------------------------------------------------*/
+/* XCP V1.2 specific commands */
+# define CC_TIME_CORRELATION_PROPERTIES   0xC6
+
 
 
 /*-------------------------------------------------------------------------*/
@@ -470,13 +443,6 @@
 #define PGM_NON_SEQ_SUPPORTED             (1<<6)
 #define PGM_NON_SEQ_REQUIRED              (3<<6)
 
-/* Compatibility defines */
-
-#if defined ( XCP_TRANSPORT_LAYER_TYPE_CAN )
-  #define kXcpMaxCTO kCanXcpMaxCTO
-  #define kXcpMaxDTO kCanXcpMaxDTO
-#endif
-
 
 /***************************************************************************/
 /* XCP Commands and Responces, Type Definition */
@@ -489,7 +455,6 @@
 
 
 /* CONNECT */
-
 #define CRO_CONNECT_LEN                                 2
 #define CRO_CONNECT_MODE                                CRO_BYTE(1)
 #define CRM_CONNECT_LEN                                 8
@@ -502,14 +467,12 @@
 #define CRM_CONNECT_TRANSPORT_VERSION                   CRM_BYTE(7)
 
 
-/* DISCONNECT */
-                                        
+/* DISCONNECT */                                     
 #define CRO_DISCONNECT_LEN                              1
 #define CRM_DISCONNECT_LEN                              1
 
 
 /* GET_STATUS */                                        
-
 #define CRO_GET_STATUS_LEN                              1
 
 #define CRM_GET_STATUS_LEN                              6
@@ -519,8 +482,7 @@
 #define CRM_GET_STATUS_CONFIG_ID_WRITE(id)              CRM_WORD_WRITE(2, id)
 
 
-/* SYNCH */
-                                        
+/* SYNCH */                                       
 #define CRO_SYNCH_LEN                                   1
 
 #define CRM_SYNCH_LEN                                   2
@@ -528,7 +490,6 @@
                                                  
                                                        
 /* GET_COMM_MODE_INFO */
-
 #define CRO_GET_COMM_MODE_INFO_LEN                      1
 
 #define CRM_GET_COMM_MODE_INFO_LEN                      8
@@ -539,8 +500,7 @@
 #define CRM_GET_COMM_MODE_INFO_DRIVER_VERSION           CRM_BYTE(7)
 
 
-/* GET_ID */
-                                            
+/* GET_ID */                                            
 #define CRO_GET_ID_LEN                                  2
 #define CRO_GET_ID_TYPE                                 CRO_BYTE(1)
 
@@ -552,7 +512,6 @@
 
 
 /* SET_REQUEST */
-
 #define CRO_SET_REQUEST_LEN                             4
 #define CRO_SET_REQUEST_MODE                            CRO_BYTE(1)
 #define CRO_SET_REQUEST_CONFIG_ID                       CRO_WORD(1)
@@ -560,8 +519,7 @@
 #define CRM_SET_REQUEST_LEN                             1
 
                                                         
-/* GET_SEED */
-                                          
+/* GET_SEED */                                          
 #define CRO_GET_SEED_LEN                                3
 #define CRO_GET_SEED_MODE                               CRO_BYTE(1)
 #define CRO_GET_SEED_RESOURCE                           CRO_BYTE(2)
@@ -571,8 +529,7 @@
 #define CRM_GET_SEED_DATA                               (&CRM_BYTE(2))
 
                                                         
-/* UNLOCK */
-                                            
+/* UNLOCK */                                            
 #define CRO_UNLOCK_LEN                                  8
 #define CRO_UNLOCK_LENGTH                               CRO_BYTE(1)
 #define CRO_UNLOCK_KEY                                  (&CRO_BYTE(2))
@@ -582,7 +539,6 @@
 
                                                         
 /* SET_MTA */
-
 #define CRO_SET_MTA_LEN                                 8
 #define CRO_SET_MTA_EXT                                 CRO_BYTE(3)
 #define CRO_SET_MTA_ADDR                                CRO_DWORD(1)
@@ -590,8 +546,7 @@
 #define CRM_SET_MTA_LEN                                 1
 
 
-/* UPLOAD */
-                                            
+/* UPLOAD */                                            
 #define CRM_UPLOAD_MAX_SIZE                             ((vuint8)(kXcpMaxCTO-1))
 #define CRO_UPLOAD_LEN                                  2
 #define CRO_UPLOAD_SIZE                                 CRO_BYTE(1)
@@ -601,7 +556,6 @@
 
 
 /* SHORT_UPLOAD */
-
 #define CRO_SHORT_UPLOAD_LEN                            8
 #define CRO_SHORT_UPLOAD_SIZE                           CRO_BYTE(1)
 #define CRO_SHORT_UPLOAD_EXT                            CRO_BYTE(3)
@@ -614,7 +568,6 @@
 
 
 /* BUILD_CHECKSUM */
-
 #define CRO_BUILD_CHECKSUM_LEN                          8
 #define CRO_BUILD_CHECKSUM_SIZE                         CRO_DWORD(1)
 
@@ -624,8 +577,7 @@
 #define CRM_BUILD_CHECKSUM_RESULT_WRITE(result)         CRM_DWORD_WRITE(1, result)
 
        
-/* DOWNLOAD */
-                                            
+/* DOWNLOAD */                                           
 #define CRO_DOWNLOAD_MAX_SIZE                           ((vuint8)(kXcpMaxCTO-2))
 
 #define CRO_DOWNLOAD_LEN                                2 /* + CRO_DOWNLOAD_SIZE */
@@ -635,8 +587,7 @@
 #define CRM_DOWNLOAD_LEN                                1
 
 
-/* DOWNLOAD_NEXT */
-                                            
+/* DOWNLOAD_NEXT */                                          
 #define CRO_DOWNLOAD_NEXT_MAX_SIZE                      ((vuint8)(kXcpMaxCTO-2))
 
 #define CRO_DOWNLOAD_NEXT_LEN                           2 /* + size */
@@ -647,7 +598,6 @@
 
                                                         
 /* DOWNLOAD_MAX */
-
 #define CRO_DOWNLOAD_MAX_MAX_SIZE                       ((vuint8)(kXcpMaxCTO-1))
 #define CRO_DOWNLOAD_MAX_DATA                           (&CRO_BYTE(1))
 
@@ -655,7 +605,6 @@
 
 
 /* SHORT_DOWNLOAD */
-
 #define CRO_SHORT_DOWNLOAD_LEN                          8
 #define CRO_SHORT_DOWNLOAD_SIZE                         CRO_BYTE(1)
 #define CRO_SHORT_DOWNLOAD_EXT                          CRO_BYTE(3)
@@ -667,7 +616,6 @@
 
                                                         
 /* MODIFY_BITS */
-
 #define CRO_MODIFY_BITS_LEN                             6
 #define CRO_MODIFY_BITS_SHIFT                           CRO_BYTE(1)
 #define CRO_MODIFY_BITS_AND                             CRO_WORD(1)
@@ -676,8 +624,7 @@
 #define CRM_MODIFY_BITS_LEN                             1
 
                                                         
-/* SET_CAL_PAGE */
-                                      
+/* SET_CAL_PAGE */                                    
 #define CRO_SET_CAL_PAGE_LEN                            4
 #define CRO_SET_CAL_PAGE_MODE                           CRO_BYTE(1)
 #define CRO_SET_CAL_PAGE_SEGMENT                        CRO_BYTE(2)
@@ -686,8 +633,7 @@
 #define CRM_SET_CAL_PAGE_LEN                            1
 
                                                         
-/* GET_CAL_PAGE */
-                                      
+/* GET_CAL_PAGE */                                      
 #define CRO_GET_CAL_PAGE_LEN                            3
 #define CRO_GET_CAL_PAGE_MODE                           CRO_BYTE(1)
 #define CRO_GET_CAL_PAGE_SEGMENT                        CRO_BYTE(2)
@@ -697,7 +643,6 @@
 
 
 /* GET_PAG_PROCESSOR_INFO */
-
 #define CRO_GET_PAG_PROCESSOR_INFO_LEN                  1
 
 #define CRM_GET_PAG_PROCESSOR_INFO_LEN                  3
@@ -706,7 +651,6 @@
 
 
 /* GET_SEGMENT_INFO */
-
 #define CRO_GET_SEGMENT_INFO_LEN                        5
 #define CRO_GET_SEGMENT_INFO_MODE                       CRO_BYTE(1)
 #define CRO_GET_SEGMENT_INFO_NUMBER                     CRO_BYTE(2)
@@ -723,7 +667,6 @@
 
 
 /* GET_PAGE_INFO */
-
 #define CRO_GET_PAGE_INFO_LEN                           4
 #define CRO_GET_PAGE_INFO_SEGMENT_NUMBER                CRO_BYTE(2)
 #define CRO_GET_PAGE_INFO_PAGE_NUMBER                   CRO_BYTE(3)
@@ -734,7 +677,6 @@
 
 
 /* SET_SEGMENT_MODE */
-
 #define CRO_SET_SEGMENT_MODE_LEN                        3
 #define CRO_SET_SEGMENT_MODE_MODE                       CRO_BYTE(1)
 #define CRO_SET_SEGMENT_MODE_SEGMENT                    CRO_BYTE(2)
@@ -743,7 +685,6 @@
 
 
 /* GET_SEGMENT_MODE */
-
 #define CRO_GET_SEGMENT_MODE_LEN                        3
 #define CRO_GET_SEGMENT_MODE_SEGMENT                    CRO_BYTE(2)
 
@@ -752,7 +693,6 @@
 
 
 /* COPY_CAL_PAGE */
-
 #define CRO_COPY_CAL_PAGE_LEN                           5
 #define CRO_COPY_CAL_PAGE_SRC_SEGMENT                   CRO_BYTE(1)
 #define CRO_COPY_CAL_PAGE_SRC_PAGE                      CRO_BYTE(2)
@@ -763,7 +703,6 @@
 
 
 /* CLEAR_DAQ_LIST */
-
 #define CRO_CLEAR_DAQ_LIST_LEN                          4
 #define CRO_CLEAR_DAQ_LIST_DAQ                          CRO_WORD(1)
 
@@ -771,7 +710,6 @@
 
                                                         
 /* SET_DAQ_PTR */
-
 #define CRO_SET_DAQ_PTR_LEN                             6
 #define CRO_SET_DAQ_PTR_DAQ                             CRO_WORD(1)
 #define CRO_SET_DAQ_PTR_ODT                             CRO_BYTE(4)
@@ -781,7 +719,6 @@
 
 
 /* WRITE_DAQ */
-
 #define CRO_WRITE_DAQ_LEN                               8
 #define CRO_WRITE_DAQ_BITOFFSET                         CRO_BYTE(1)
 #define CRO_WRITE_DAQ_SIZE                              CRO_BYTE(2)
@@ -793,18 +730,16 @@
 
 /* WRITE_DAQ_MULTIPLE */
 #define CRO_WRITE_DAQ_MULTIPLE_LEN                      8
-#define CRO_WRITE_DAQ_MULTIPLE_COMMAND                  CRO_BYTE(1)
-#define CRO_WRITE_DAQ_MULTIPLE_NODAQ                    CRO_BYTE(2)
-#define CRO_WRITE_DAQ_MULTIPLE_BITOFFSET(i)             CRO_BYTE(8 + (8*(i)))
-#define CRO_WRITE_DAQ_MULTIPLE_SIZE(i)                  CRO_BYTE(9 + (8*(i)))
-#define CRO_WRITE_DAQ_MULTIPLE_EXT(i)                   CRO_BYTE(10 + (8*(i)))
+#define CRO_WRITE_DAQ_MULTIPLE_NODAQ                    CRO_BYTE(1)
+#define CRO_WRITE_DAQ_MULTIPLE_BITOFFSET(i)             CRO_BYTE(2 + (8*(i)))
+#define CRO_WRITE_DAQ_MULTIPLE_SIZE(i)                  CRO_BYTE(3 + (8*(i)))
 #define CRO_WRITE_DAQ_MULTIPLE_ADDR(i)                  CRO_DWORD(1 + (2*(i)))
+#define CRO_WRITE_DAQ_MULTIPLE_EXT(i)                   CRO_BYTE(8 + (8*(i)))
 
 #define CRM_WRITE_DAQ_MULTIPLE_LEN                      1
 
 
 /* SET_DAQ_LIST_MODE */
-
 #define CRO_SET_DAQ_LIST_MODE_LEN                       8
 #define CRO_SET_DAQ_LIST_MODE_MODE                      CRO_BYTE(1)
 #define CRO_SET_DAQ_LIST_MODE_DAQ                       CRO_WORD(1)
@@ -816,7 +751,6 @@
 
 
 /* GET_DAQ_LIST_MODE */
-
 #define CRO_GET_DAQ_LIST_MODE_LEN                       4
 #define CRO_GET_DAQ_LIST_MODE_DAQ                       CRO_WORD(1)
 
@@ -828,8 +762,7 @@
 #define CRM_GET_DAQ_LIST_MODE_PRIORITY                  CRM_BYTE(7)
 
 
-/* START_STOP_DAQ_LIST */
-                                        
+/* START_STOP_DAQ_LIST */                                     
 #define CRO_START_STOP_LEN                              4
 #define CRO_START_STOP_MODE                             CRO_BYTE(1)
 #define CRO_START_STOP_DAQ                              CRO_WORD(1)
@@ -838,8 +771,7 @@
 #define CRM_START_STOP_FIRST_PID                        CRM_BYTE(1)
 
 
-/* START_STOP_SYNCH */
-  
+/* START_STOP_SYNCH */  
 #define CRO_START_STOP_SYNC_LEN                         2
 #define CRO_START_STOP_SYNC_MODE                        CRO_BYTE(1)
 
@@ -847,7 +779,6 @@
 
 
 /* GET_DAQ_CLOCK */
-
 #define CRO_GET_DAQ_CLOCK_LEN                           1
 
 #define CRM_GET_DAQ_CLOCK_LEN                           8
@@ -856,7 +787,6 @@
 
 
 /* READ_DAQ */
-
 #define CRO_READ_DAQ_LEN                                1
 
 #define CRM_READ_DAQ_LEN                                8
@@ -867,7 +797,6 @@
 
 
 /* GET_DAQ_PROCESSOR_INFO */
-
 #define CRO_GET_DAQ_PROCESSOR_INFO_LEN                  1
 
 #define CRM_GET_DAQ_PROCESSOR_INFO_LEN                  8
@@ -880,8 +809,7 @@
 #define CRM_GET_DAQ_PROCESSOR_INFO_DAQ_KEY_BYTE         CRM_BYTE(7)
 
 
-/* GET_DAQ_RESOLUTION_INFO */
-                                
+/* GET_DAQ_RESOLUTION_INFO */                               
 #define CRO_GET_DAQ_RESOLUTION_INFO_LEN                 1
 
 #define CRM_GET_DAQ_RESOLUTION_INFO_LEN                 8
@@ -895,7 +823,6 @@
 
                                                         
 /* GET_DAQ_LIST_INFO */
-
 #define CRO_GET_DAQ_LIST_INFO_LEN                       4
 #define CRO_GET_DAQ_LIST_INFO_DAQ                       CRO_WORD(1)
 
@@ -907,7 +834,6 @@
 
 
 /* GET_DAQ_EVENT_INFO */
-
 #define CRO_GET_DAQ_EVENT_INFO_LEN                      4
 #define CRO_GET_DAQ_EVENT_INFO_EVENT                    CRO_WORD(1)
 
@@ -921,14 +847,12 @@
 
 
 /* FREE_DAQ */
-
 #define CRO_FREE_DAQ_LEN                                1
 
 #define CRM_FREE_DAQ_LEN                                1
 
 
 /* ALLOC_DAQ */
-
 #define CRO_ALLOC_DAQ_LEN                               4
 #define CRO_ALLOC_DAQ_COUNT                             CRO_WORD(1)
 
@@ -936,7 +860,6 @@
 
 
 /* ALLOC_ODT */
-
 #define _CRO_ALLOC_ODT_LEN                              3
 #define _CRO_ALLOC_ODT_DAQ                              CRO_WORD(1)
 #define _CRO_ALLOC_ODT_COUNT                            CRO_BYTE(1)
@@ -949,7 +872,6 @@
 
 
 /* ALLOC_ODT_ENTRY */
-
 #define CRO_ALLOC_ODT_ENTRY_LEN                         6
 #define CRO_ALLOC_ODT_ENTRY_DAQ                         CRO_WORD(1)
 #define CRO_ALLOC_ODT_ENTRY_ODT                         CRO_BYTE(4)
@@ -958,8 +880,7 @@
 #define CRM_ALLOC_ODT_ENTRY_LEN                         1
 
 
-/* PROGRAM_START */
-                                     
+/* PROGRAM_START */                                    
 #define CRO_PROGRAM_START_LEN                           1
 
 #define CRM_PROGRAM_START_LEN                           7
@@ -970,8 +891,7 @@
 #define CRM_PROGRAM_QUEUE_SIZE_PGM                      CRM_BYTE(6) 
 
                                                         
-/* PROGRAM_CLEAR */
-                                     
+/* PROGRAM_CLEAR */                                    
 #define CRO_PROGRAM_CLEAR_LEN                           8
 #define CRO_PROGRAM_CLEAR_MODE                          CRO_BYTE(1)
 #define CRO_PROGRAM_CLEAR_SIZE                          CRO_DWORD(1)
@@ -980,7 +900,6 @@
 
                                                         
 /* PROGRAM */
-
 #define CRO_PROGRAM_MAX_SIZE                            ((vuint8)(kXcpMaxCTO-2))
                                            
 #define CRO_PROGRAM_LEN                                 2 /* + CRO_PROGRAM_SIZE */ 
@@ -991,14 +910,12 @@
 
 
 /* PROGRAM RESET */
-
 #define CRO_PROGRAM_RESET_LEN                           1
 
 #define CRM_PROGRAM_RESET_LEN                           1
 
                                                         
-/*GET_PGM_PROCESSOR_INFO*/
-
+/* GET_PGM_PROCESSOR_INFO*/
 #define CRO_GET_PGM_PROCESSOR_INFO_LEN                  1
 
 #define CRM_GET_PGM_PROCESSOR_INFO_LEN                  3
@@ -1007,7 +924,6 @@
 
  
 /* GET_SECTOR_INFO */
-
 #define CRO_PROGRAM_GET_SECTOR_INFO_LEN                 3
 #define CRO_PROGRAM_GET_SECTOR_INFO_MODE                CRO_BYTE(1)
 #define CRO_PROGRAM_GET_SECTOR_INFO_NUMBER              CRO_BYTE(2)
@@ -1020,8 +936,7 @@
 #define CRM_PROGRAM_GET_SECTOR_SECTOR_INFO_WRITE(info)  CRM_DWORD_WRITE(1, info)
 
 
-/* PROGRAM_PREPARE */
-                                   
+/* PROGRAM_PREPARE */                                   
 #define CRO_PROGRAM_PREPARE_LEN                         4
 #define CRO_PROGRAM_PREPARE_SIZE                        CRO_WORD(1)
 
@@ -1029,7 +944,6 @@
 
 
 /* PROGRAM_FORMAT */
-
 #define CRO_PROGRAM_FORMAT_LEN                          5
 #define CRO_PROGRAM_FORMAT_COMPRESSION_METHOD           CRO_BYTE(1)
 #define CRO_PROGRAM_FORMAT_ENCRYPTION_METHOD            CRO_BYTE(2)
@@ -1040,7 +954,6 @@
 
 
 /* PROGRAM_NEXT */
-
 #define CRO_PROGRAM_NEXT_MAX_SIZE                       ((vuint8)(kXcpMaxCTO-2))
 
 #define CRO_PROGRAM_NEXT_LEN                            2 /* + size */
@@ -1053,7 +966,6 @@
 
 
 /* PROGRAM_MAX */
-
 #define CRO_PROGRAM_MAX_MAX_SIZE                        ((vuint8)(kXcpMaxCTO-1))
 #define CRO_PROGRAM_MAX_DATA                            (&CRO_BYTE(1))
 
@@ -1061,7 +973,6 @@
 
 
 /* PROGRAM_VERIFY */
-
 #define CRO_PROGRAM_VERIFY_LEN                          8
 #define CRO_PROGRAM_VERIFY_MODE                         CRO_BYTE(1)
 #define CRO_PROGRAM_VERIFY_TYPE                         CRO_WORD(1)
@@ -1071,7 +982,6 @@
 
 
 /* GET_SLAVE_ID */
-
 #define CRO_GET_SLAVE_ID_LEN                            6
 #define CRO_GET_SLAVE_ID_SUB_CODE                       CRO_BYTE(1)
 #define CRO_GET_SLAVE_ID_X                              CRO_BYTE(2)
@@ -1086,8 +996,7 @@
 #define CRM_GET_SLAVE_ID_CAN_ID_CMD_STIM                CRM_DWORD(1)
 
                                                         
-/* GET_DAQ_ID */
-                                   
+/* GET_DAQ_ID */                                  
 #define CRO_GET_DAQ_ID_LEN                              3
 #define CRO_GET_DAQ_ID_SUB_CODE                         CRO_BYTE(1)
 #define CRO_GET_DAQ_ID_DAQ                              CRO_WORD(1)
@@ -1097,8 +1006,7 @@
 #define CRM_GET_DAQ_ID_ID                               CRM_DWORD(1)
 
 
-/* SET_DAQ_ID */
-                                   
+/* SET_DAQ_ID */                                 
 #define CRO_SET_DAQ_ID_LEN                              8
 #define CRO_SET_DAQ_ID_SUB_CODE                         CRO_BYTE(1)
 #define CRO_SET_DAQ_ID_DAQ                              CRO_WORD(1)
@@ -1107,17 +1015,12 @@
 #define CRM_SET_DAQ_ID_LEN                              1
 
 /* SET_SLAVE_PORT */
-
 #define CRO_SET_SLAVE_PORT_LEN                          4
 #define CRO_SET_SLAVE_PORT_SUB_CODE                     CRO_BYTE(1)
 #define CRO_SET_SLAVE_PORT_PORT                         CRO_WORD(1)
 
 #define CRM_SET_SLAVE_PORT                              1  
 
-#if defined ( XCP_ENABLE_GET_CONNECTION_STATE ) || defined ( XCP_ENABLE_GET_SESSION_STATUS_API )
-  #define XCP_DISCONNECTED                              0u
-  #define XCP_CONNECTED                                 1u
-#endif
 
 
 /****************************************************************************/
@@ -1125,18 +1028,16 @@
 /****************************************************************************/
   
   #define CRO_BYTE(x)             (pCmd->b[x])
-  #define CRM_BYTE(x)             (xcp.Crm.b[x])
-
-#if defined ( XCP_ENABLE_USE_BYTE_ACCESS )
-#error
-#else
   #define CRO_WORD(x)               (pCmd->w[x])
   #define CRO_DWORD(x)              (pCmd->dw[x])
+
+  #define CRM_BYTE(x)             (xcp.Crm.b[x])
   #define CRM_WORD(x)               (xcp.Crm.w[x])
-  #define CRM_WORD_WRITE(x, d)      (xcp.Crm.w[x] = (d))
   #define CRM_DWORD(x)              (xcp.Crm.dw[x])
+
+  #define CRM_WORD_WRITE(x, d)      (xcp.Crm.w[x] = (d))
   #define CRM_DWORD_WRITE(x, d)     (xcp.Crm.dw[x] = (d))
-#endif
+
 
 
 
@@ -1205,19 +1106,7 @@
 /* Checks and default values                                                */
 /****************************************************************************/
 
-/* Turn off test instrumentation, if not used */
-#if !defined(XCP_ASSERT)
-  #define XCP_ASSERT(x) 
-#endif
-#if !defined(XCP_PRINT)
-  #define XCP_PRINT(x) 
-#endif
-#if !defined(BEGIN_PROFILE)
-  #define BEGIN_PROFILE(i)
-#endif
-#if !defined(END_PROFILE)
-  #define END_PROFILE(i)
-#endif
+
 
 /* Check limits of the XCP imnplementation
 */
@@ -1256,9 +1145,6 @@
   #endif
 
 
-
-
-
 /****************************************************************************/
 /* XCP Packet Type Definition                                               */
 /****************************************************************************/
@@ -1275,13 +1161,10 @@ typedef union {
   vuint32 dw[ ((kXcpMaxCTO + 3) & 0xFFC) / 4 ];
 } tXcpCto;
 
-/****************************************************************************/
-/* DAQ Lists, Type Definition                                               */
-/****************************************************************************/
 
-/* Note:
-   - Adressextensions are not used for DAQ
-*/
+/****************************************************************************/
+/* DAQ Type Definition                                               */
+/****************************************************************************/
 
 
 /* ODT */
@@ -1342,12 +1225,6 @@ typedef vuint16 SessionStatusType;
 #define DaqListPrescaler(i)     xcp.Daq.u.DaqList[i].prescaler 
 #define DaqListCycle(i)         xcp.Daq.u.DaqList[i].cycle
 
-
-
-/****************************************************************************/
-/* XCP Driver Variables, Type Definition                                    */
-/****************************************************************************/
-
 /* Return values */
 #define XCP_CMD_DENIED              0
 #define XCP_CMD_OK                  1
@@ -1379,6 +1256,11 @@ typedef vuint16 SessionStatusType;
 #define XCP_EVT_PENDING             0x40u
 #define XCP_SEND_PENDING            (XCP_DTO_PENDING|XCP_CRM_PENDING|XCP_EVT_PENDING)
 
+
+/****************************************************************************/
+/* XCP data strucure                                                        */
+/****************************************************************************/
+
 typedef struct {
   /* Crm has to be the first object of this structure !! (refer to XcpInit()) */
 
@@ -1407,20 +1289,8 @@ typedef struct {
 } tXcpData;
 
 
-/***************************************************************************/
-/* External Declarations                                                   */
-/***************************************************************************/
-
 extern RAM tXcpData xcp;
 
-
-/*******************************************************************************
-* External 8 Bit Constants
-*******************************************************************************/
-
-extern const  vuint8 kXcpMainVersion;
-extern const  vuint8 kXcpSubVersion;
-extern const  vuint8 kXcpReleaseVersion;
 
 
 
@@ -1431,16 +1301,14 @@ extern const  vuint8 kXcpReleaseVersion;
 /* API functions of xcp.c */
 /*-----------------------------------------*/
 
-/* Initialization and deinitialization functions for the XCP Protocol Layer. */
+/* Initialization for the XCP Protocol Layer. */
 extern void XcpInit( void );
-extern void XcpExit( void );
 
 /* Trigger a XCP data acquisition or stimulation event */
-/* Returns an error status XCP_EVENT_xxxx */
-extern vuint8 XcpEvent(vuint8 event); 
-extern vuint8 XcpEventExt(vuint8 event, BYTEPTR offset);
+extern void XcpEvent(vuint8 event); 
+extern void XcpEventExt(vuint8 event, BYTEPTR offset);
 
-/* Call the XCP command processor. */
+/* XCP command processor. */
 extern void XcpCommand( const vuint32* pCommand );
 
 
@@ -1479,7 +1347,6 @@ extern void XcpCommand( const vuint32* pCommand );
   extern void ApplXcpInterruptDisable( void );
 #endif
 
-
 /* Get DAQ Timestamp from free runing application clock */
 #if defined ( ApplXcpGetTimestamp )
   /* ApplXcpGetTimestamp is redefined */
@@ -1489,11 +1356,19 @@ extern void XcpCommand( const vuint32* pCommand );
 
 
 
-#if defined ( XCP_ENABLE_TESTMODE )
+
 
 /****************************************************************************/
 /* Test                                                                     */
 /****************************************************************************/
+
+/* Turn off test instrumentation, if not used */
+#if !defined(XCP_ASSERT)
+#define XCP_ASSERT(x) 
+#endif
+
+
+#if defined ( XCP_ENABLE_TESTMODE )
 
 extern vuint8 gDebugLevel;
 
@@ -1513,15 +1388,6 @@ extern void XcpPrintDaqList( vuint8 daq );
 /* Consistency and limit checks ( XCP Protocol Layer specific )              */
 /*****************************************************************************/
 
-
-/* Check consistency of communication mode info */
-#if defined ( XCP_ENABLE_COMM_MODE_INFO ) && defined ( XCP_DISABLE_COMM_MODE_INFO )
-  #error "XCP consistency error: Communictaion mode info must be either enabled or disabled."
-#endif
-#if defined ( XCP_ENABLE_COMM_MODE_INFO ) || defined ( XCP_DISABLE_COMM_MODE_INFO )
-#else
-  #error "XCP consistency error: Communictaion mode info must be enabled or disabled."
-#endif
 
 /* Check range of kXcpStationIdLength */
 #if defined ( kXcpStationIdLength )

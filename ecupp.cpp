@@ -34,9 +34,8 @@ ecu::ecu() {
 	byte = 0;
 	word = 0;
 	dword = 0;
-
-	cout << "ecu() constructor\n";	
 	
+	cout << "Start ecupp task\n";
 }
 
 // Cyclic task

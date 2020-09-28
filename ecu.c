@@ -235,10 +235,6 @@ unsigned short CALRAM_LAST = 0xAAAA;
 
 void ecuInit( void ) {
 
-    printf("ecuInit()\n");
-    printf("CALRAM_ADDR  = 0x%08X\n", &CALRAM_START);
-    printf("CALRAM_SIZE  = 0x%08X\n", &CALRAM_LAST - &CALRAM_START + 1);
-
     timer  = 0;
     channel1 = 0;
     channel2 = 0;

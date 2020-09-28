@@ -41,9 +41,10 @@ typedef unsigned long  vuint32;
 typedef signed long    vsint32;
 
 /* Byte order */
-//#define C_CPUTYPE_BIGENDIAN  /* Motorola */
-#define C_CPUTYPE_LITTLEENDIAN /* Intel */
+//#define XCP_CPUTYPE_BIGENDIAN  /* Motorola */
+#define XCP_CPUTYPE_LITTLEENDIAN /* Intel */
 
+/* Memory qualifiers */
 #define MEMORY_CONST const
 #define MEMORY_ROM const
 
@@ -59,7 +60,7 @@ typedef signed long    vsint32;
 /*----------------------------------------------------------------------------*/
 /* Test instrumentation */
 
-/* Turn on screen logging and assertions */
+/* Turn on screen logging, assertions and parameter checks */
 
 #define XCP_ENABLE_TESTMODE
 #ifdef XCP_ENABLE_TESTMODE
@@ -97,13 +98,6 @@ typedef signed long    vsint32;
 /* Synchronous Data Acquisition (DAQ) */
 
 #define kXcpDaqMemSize 60000u  // Memory space reserved for DAQ tables
-
-// DAQ features
-#define XCP_DISABLE_DAQ_PRESCALER
-#define XCP_ENABLE_DAQ_OVERRUN_INDICATION
-#define XCP_ENABLE_DAQ_PROCESSOR_INFO
-#define XCP_ENABLE_DAQ_RESOLUTION_INFO
-#define XCP_ENABLE_WRITE_DAQ_MULTIPLE  // Not implemented
 
 /* DAQ timestamp */
 #define kXcpDaqTimestampSize 4

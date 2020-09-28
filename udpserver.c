@@ -105,6 +105,7 @@ int udpServerSendPacket(unsigned int size, const unsigned char* packet) {
 
     pthread_mutex_unlock(&gMutex);
 
+#if defined ( XCP_ENABLE_TESTMODE )
     if (gDebugLevel >= 2) {
         printf("TX DTO: CTR %04X,", p->ctr);
         printf(" LEN %04X,", p->dlc);
@@ -112,6 +113,7 @@ int udpServerSendPacket(unsigned int size, const unsigned char* packet) {
         for (int i = 0; i < p->dlc; i++) printf("%00X,", p->data[i]);
         printf("\n");
     }
+#endif
 
     return r;
 }
@@ -150,10 +152,12 @@ int udpServerInit(unsigned short serverPort)
         return SOCK_BIND_ERR;
     }
 
+#if defined ( XCP_ENABLE_TESTMODE )
     if (gDebugLevel >= 1) {
         fprintf(stderr, "Bind on UDP port %d.\n", serverPort);
         fprintf(stderr, "UDP MTU = %d.\n", UDP_MTU);
     }
+#endif
 
     // Create a mutex for packet transmission
     pthread_mutexattr_t a;
@@ -179,17 +183,18 @@ int udpServerHandleXCPCommands( void ) {
             return SOCK_READ_ERR;
         }
         else { // Socket timeout
-            if (gDebugLevel >= 2) {
-                printf(".\n");
-            }
+            
         }
     }
     else if (n == 0) { // UDP datagramm with zero bytes received
+#if defined ( XCP_ENABLE_TESTMODE )
         if (gDebugLevel >= 1) {
             printf("RX: 0 bytes\n");
         }
+#endif
     }
     else if (n > 0) { // Socket data received
+#if defined ( XCP_ENABLE_TESTMODE )
         if (gDebugLevel >= 2) {
             printf("RX: CTR %02X", buffer.ctr);
             printf(" LEN %02X", buffer.dlc);
@@ -197,6 +202,7 @@ int udpServerHandleXCPCommands( void ) {
             for (i = 0; i < buffer.dlc; i++) printf("%00X,", buffer.data[i]);
             //printf("\n");
         }
+#endif
         gLastCmdCtr = buffer.ctr;
         XcpCommand((const vuint32*)&buffer.data[0]);
     }
