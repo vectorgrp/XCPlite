@@ -138,7 +138,11 @@ int udpServerInit(unsigned short serverPort)
     // Set socket timeout
     timeout.tv_sec = 0;
     timeout.tv_usec = 50000; // 50ms
-    setsockopt(gSock, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));
+    setsockopt(gSock, SOL_SOCKET, SO_RCVTIMEO, (void*)&timeout, sizeof(timeout));
+
+    // Set socket transmit buffer size
+    int buffer = 1000000;
+    setsockopt(gSock, SOL_SOCKET, SO_SNDBUF, (void*)&buffer, sizeof(buffer));
 
     // Bind the socket
     bzero((char*)&gServerAddr, sizeof(gServerAddr));
