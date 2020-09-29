@@ -18,22 +18,6 @@
 #include "udpserver.h"
 
 
-/**************************************************************************/
-// 
-// Platform and implementation specific globals for the XCP driver
-// 
-/**************************************************************************/
-
-
-vuint8 MEMORY_ROM kXcpStationId[] = "XCPpi"; // Name of the A2L file for auto detection
-
-#ifdef XCP_ENABLE_TESTMODE
-  vuint8 gDebugLevel = 1; // Debug output verbosity level 
-#endif
-
-pthread_mutex_t gXcpMutex;  // Mutex for multithreaded DAQ
-
-
 
 /**************************************************************************/
 // ApplXcpTimer()
@@ -67,7 +51,7 @@ unsigned long ApplXcpTimer(void) {
     struct timespec ts; 
     unsigned long long t;
     clock_gettime(CLOCK_REALTIME, &ts);
-    t = ((unsigned long long)ts.tv_sec * 1000000000L) + (unsigned long long)ts.tv_nsec;
+    t = ((unsigned long long)ts.tv_sec * 1000000000LL) + (unsigned long long)ts.tv_nsec;
     return (unsigned long)t;
 
 }
@@ -82,16 +66,24 @@ unsigned long ApplXcpTimer(void) {
 /**************************************************************************/
 
 
-// Transmit a message
-void ApplXcpSend(vuint8 len, MEMORY_ROM BYTEPTR msg) {
+// Transmit a CRM (Command Responce) message
+void ApplXcpSendCrm(vuint8 len, MEMORY_ROM BYTEPTR msg) {
 
     udpServerSendPacket(len, msg);
-     
-}
-
-// Flush the tranmit buffer
-void ApplXcpSendFlush(void) {
-
     udpServerFlush();
 }
+
+// Get buffer space for a DTO message
+vuint8 * ApplXcpGetDtoBuffer(vuint8 len) {
+
+    return udpServerGetPacketBuffer(len);
+}
+
+// Commit a DTO message
+void ApplXcpCommitDtoBuffer(vuint8 *buf) {
+
+    udpServerCommitPacketBuffer(buf);
+}
+
+
 

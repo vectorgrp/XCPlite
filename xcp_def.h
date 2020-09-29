@@ -57,15 +57,6 @@
 #endif
 
 
-/* Disable/Enable Interrupts */
-/* Has to be defined only if xcpSendCallBack may interrupt xcpEvent */
-#if !defined(ApplXcpInterruptDisable)
-  #define ApplXcpInterruptDisable()
-#endif
-#if !defined(ApplXcpInterruptEnable)
-  #define ApplXcpInterruptEnable()
-#endif
-
 
 /* XCP protocol data acquisition parameters (DAQ) */
   

@@ -99,6 +99,9 @@ typedef signed long    vsint32;
 
 #define kXcpDaqMemSize 60000u  // Memory space reserved for DAQ tables
 
+#define XCP_SEND_BUFFER
+
+
 /* DAQ timestamp */
 #define kXcpDaqTimestampSize 4
 #define kXcpDaqTimestampUnit DAQ_TIMESTAMP_UNIT_1NS
@@ -108,15 +111,6 @@ extern XcpDaqTimestampType ApplXcpTimer(void);
 extern int ApplXcpTimerInit(void);
 #define ApplXcpGetTimestamp()                    (XcpDaqTimestampType)ApplXcpTimer()
 #define ApplXcpDaqGetTimestamp()                 (XcpDaqTimestampType)ApplXcpTimer()
-
-
-/* A mutex may be used to synchronize access to XCP driver from several tasks
- * If the XCP driver has queued some packets, functions to transmit data may be called
- * recursively. That's why a recursive mutex is required here.
- */
-extern pthread_mutex_t gXcpMutex;
-#define ApplXcpInterruptDisable() pthread_mutex_lock( & gXcpMutex )
-#define ApplXcpInterruptEnable() pthread_mutex_unlock( & gXcpMutex )
 
 
 #include "xcp_def.h" // Set remaining default

@@ -233,7 +233,6 @@
 #define SS_CONNECTED           0x0020u /* Internal */
 #define SS_DAQ                 0x0040u
 #define SS_RESUME              0x0080u
-#define SS_POLLING             0x0100u /* Internal */
 
 
 /*-------------------------------------------------------------------------*/
@@ -1027,11 +1026,11 @@
 /* Implementation                                                           */
 /****************************************************************************/
   
-  #define CRO_BYTE(x)             (pCmd->b[x])
+  #define CRO_BYTE(x)               (pCmd->b[x])
   #define CRO_WORD(x)               (pCmd->w[x])
   #define CRO_DWORD(x)              (pCmd->dw[x])
 
-  #define CRM_BYTE(x)             (xcp.Crm.b[x])
+  #define CRM_BYTE(x)               (xcp.Crm.b[x])
   #define CRM_WORD(x)               (xcp.Crm.w[x])
   #define CRM_DWORD(x)              (xcp.Crm.dw[x])
 
@@ -1154,6 +1153,7 @@ typedef struct {
   vuint8 l;
 } tXcpDto;
 
+
 typedef union { 
   /* There might be a loss of up to 3 bytes. */
   vuint8  b[ ((kXcpMaxCTO + 3) & 0xFFC)      ];
@@ -1163,7 +1163,7 @@ typedef union {
 
 
 /****************************************************************************/
-/* DAQ Type Definition                                               */
+/* DAQ Type Definition                                                      */
 /****************************************************************************/
 
 
@@ -1172,6 +1172,7 @@ typedef union {
 typedef struct {
   vuint16 firstOdtEntry;       /* Absolute */
   vuint16 lastOdtEntry;        /* Absolute */
+  vuint8 size;                 /* Bytes */
 } tXcpOdt;
 
 
@@ -1187,18 +1188,15 @@ typedef struct {
 
 /* Dynamic DAQ list structures */
 typedef struct {
-      
   vuint8          DaqCount;
   vuint16         OdtCount;       /* Absolute count */
   vuint16         OdtEntryCount;  /* Absolute count */
-
   union { 
     vuint8        b[kXcpDaqMemSize];
     tXcpDaqList   DaqList[kXcpDaqMemSize/sizeof(tXcpDaqList)]; /* ESCAN00096039 */
   } u;
-
-
 } tXcpDaq;
+
 
 typedef vuint16 SessionStatusType;
 
@@ -1209,7 +1207,7 @@ typedef vuint16 SessionStatusType;
 #define DaqListOdtEntryCount(j) ((xcp.pOdt[j].lastOdtEntry-xcp.pOdt[j].firstOdtEntry)+1)
 #define DaqListOdtLastEntry(j)  (xcp.pOdt[j].lastOdtEntry)
 #define DaqListOdtFirstEntry(j) (xcp.pOdt[j].firstOdtEntry)
-#define DaqListOdtStimBuffer(j) (xcp.pOdt[j].pStimBuffer)
+#define DaqListOdtSize(j)       (xcp.pOdt[j].size)
 
 /* n is absolute odtEntry number */
 #define OdtEntrySize(n)         (xcp.pOdtEntrySize[n])
@@ -1257,6 +1255,8 @@ typedef vuint16 SessionStatusType;
 #define XCP_SEND_PENDING            (XCP_DTO_PENDING|XCP_CRM_PENDING|XCP_EVT_PENDING)
 
 
+
+
 /****************************************************************************/
 /* XCP data strucure                                                        */
 /****************************************************************************/
@@ -1282,24 +1282,22 @@ typedef struct {
   vuint8        *pOdtEntrySize;
   
   
-  /* Pointer for SET_DAQ_PTR */
-  vuint16 DaqListPtr;           
-        
+  /* Pointers for WRITE_DAQ from SET_DAQ_PTR */
+  vuint16 DaqListPtr;
+  vuint16 OdtPtr;
+
 
 } tXcpData;
 
 
-extern RAM tXcpData xcp;
-
-
 
 
 /****************************************************************************/
-/* Prototypes                                                               */
+/* API Prototypes                                                           */
 /****************************************************************************/
 
-/* API functions of xcp.c */
-/*-----------------------------------------*/
+/* API functions of xcpLite.c */
+
 
 /* Initialization for the XCP Protocol Layer. */
 extern void XcpInit( void );
@@ -1316,50 +1314,53 @@ extern void XcpCommand( const vuint32* pCommand );
 /* Functions or Macros that have to be provided externally to the XCP Protocol Layer */
 /*-----------------------------------------------------------------------------------*/
 
- 
-/* Transmission Request for a XCP Packet */
-#if defined ( ApplXcpSend )
+/* Callback functions for xcpLite.c */
+/* All functions must be thread save */
+
+/* Transmission of a single XCP CRM Packet (for a command resonse message ) */
+#if defined ( ApplXcpSendCrm )
+  // defined as macro
 #else
-  extern void ApplXcpSend( vuint8 len, const BYTEPTR msg );
+extern void ApplXcpSendCrm(vuint8 len, const BYTEPTR msg);
+#endif
+
+/* Get and commit a transmit buffer for a single XCP DTO Packet (for a data transfer message) */
+#if defined ( ApplXcpGetDtoBuffer )
+  // defined as macro
+#else
+unsigned char* ApplXcpGetDtoBuffer(vuint8 len);
+#endif
+#if defined ( ApplXcpCommitDtoBuffer )
+// defined as macro
+#else
+void ApplXcpCommitDtoBuffer(vuint8 *buf);
 #endif
 
 /* Flush the transmit buffer if there is one implemented in ApplXcpSend() */
 #if defined ( ApplXcpSendFlush )
+  // defined as macro
 #else
   extern void ApplXcpSendFlush( void );
 #endif
 
 /* Generate a native pointer from XCP address extension and address */
 #if defined ( ApplXcpGetPointer )
+  // defined as macro
 #else
   extern MTABYTEPTR ApplXcpGetPointer( vuint8 addr_ext, vuint32 addr );
 #endif
 
-/* Enable interrupts */
-#if defined ( ApplXcpInterruptEnable )
-#else
-  extern void ApplXcpInterruptEnable( void );
-#endif
-
-/* Disable interrupts */
-#if defined ( ApplXcpInterruptDisable )
-#else
-  extern void ApplXcpInterruptDisable( void );
-#endif
-
 /* Get DAQ Timestamp from free runing application clock */
 #if defined ( ApplXcpGetTimestamp )
-  /* ApplXcpGetTimestamp is redefined */
+  // defined as macro
 #else
   extern XcpDaqTimestampType ApplXcpGetTimestamp( void );
 #endif
 
 
 
-
-
 /****************************************************************************/
-/* Test                                                                     */
+/* Test and debug                                                           */
 /****************************************************************************/
 
 /* Turn off test instrumentation, if not used */
@@ -1385,7 +1386,7 @@ extern void XcpPrintDaqList( vuint8 daq );
 
 
 /*****************************************************************************/
-/* Consistency and limit checks ( XCP Protocol Layer specific )              */
+/* Consistency and limit checks for xcp_cfg.h parameters                     */
 /*****************************************************************************/
 
 
