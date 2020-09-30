@@ -50,6 +50,7 @@ unsigned char byteArray13[1400];
 unsigned char byteArray14[1400];
 unsigned char byteArray15[1400];
 unsigned char byteArray16[1400];
+
 unsigned long longArray1[1024];
 unsigned long longArray2[1024];
 unsigned long longArray3[1024];
@@ -279,6 +280,24 @@ void ecuInit( void ) {
     bitstruct1.s2 = 9;
     bitstruct1.s3 = 0;
   
+    for (int i = 0; i < 1400; i++) {
+        byteArray1[i] = i & 0xff;
+        byteArray2[i] = i & 0xff;
+        byteArray3[i] = i & 0xff;
+        byteArray4[i] = i & 0xff;
+        byteArray5[i] = i & 0xff;
+        byteArray6[i] = i & 0xff;
+        byteArray7[i] = i & 0xff;
+        byteArray8[i] = i & 0xff;
+        byteArray9[i] = i & 0xff;
+        byteArray10[i] = i & 0xff;
+        byteArray11[i] = i & 0xff;
+        byteArray12[i] = i & 0xff;
+        byteArray13[i] = i & 0xff;
+        byteArray14[i] = i & 0xff;
+        byteArray15[i] = i & 0xff;
+        byteArray16[i] = i & 0xff;
+    }
 }
 
 

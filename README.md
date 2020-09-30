@@ -1,15 +1,16 @@
 
 XCPlite
-28.9.2020
+V1.2 28.9.2020
+Copyright 2020 RainerZ
 
-
-Raspberry Pi 4 XCP demo
-
-Based on a very lite implementation of an ASAM standard XCP driver (1000 lines of code)
+Simple and light implementation of the ASAM XCP Protocol Layer V1.1 (1000 lines of code)
 Inspired by the original free sources from Vector Informatik GmbH
-List of restrictions compared to Vectors xcpBasic see xcpLite.c
+List of restrictions compared to Vectors xcpBasic see source file xcpLite.c
 
-Reduced Misra compliance for better readability of the source code
+Optimized for XCP on Ethernet, multi threaded, no thread lock and zero copy data acquisition
+C and C++ target support
+
+Demo visual Studio and CANape project included for Raspberry Pi 4 
 
 C and C++ measurement demo variables and code (ecu.c and ecupp.cpp)
 Measure global variables and dynamic instances of structs and classes

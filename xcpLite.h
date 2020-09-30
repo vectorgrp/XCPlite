@@ -233,7 +233,6 @@
 #define SS_CONNECTED           0x0020u /* Internal */
 #define SS_DAQ                 0x0040u
 #define SS_RESUME              0x0080u
-#define SS_POLLING             0x0100u /* Internal */
 
 
 /*-------------------------------------------------------------------------*/
@@ -462,7 +461,6 @@
 #define CRM_CONNECT_COMM_BASIC                          CRM_BYTE(2)
 #define CRM_CONNECT_MAX_CTO_SIZE                        CRM_BYTE(3)
 #define CRM_CONNECT_MAX_DTO_SIZE                        CRM_WORD(2)
-#define CRM_CONNECT_MAX_DTO_SIZE_WRITE(size)            CRM_WORD_WRITE(2, size)
 #define CRM_CONNECT_PROTOCOL_VERSION                    CRM_BYTE(6)
 #define CRM_CONNECT_TRANSPORT_VERSION                   CRM_BYTE(7)
 
@@ -479,8 +477,6 @@
 #define CRM_GET_STATUS_STATUS                           CRM_BYTE(1)
 #define CRM_GET_STATUS_PROTECTION                       CRM_BYTE(2)
 #define CRM_GET_STATUS_CONFIG_ID                        CRM_WORD(2)
-#define CRM_GET_STATUS_CONFIG_ID_WRITE(id)              CRM_WORD_WRITE(2, id)
-
 
 /* SYNCH */                                       
 #define CRO_SYNCH_LEN                                   1
@@ -507,7 +503,6 @@
 #define CRM_GET_ID_LEN                                  8
 #define CRM_GET_ID_MODE                                 CRM_BYTE(1)
 #define CRM_GET_ID_LENGTH                               CRM_DWORD(1)
-#define CRM_GET_ID_LENGTH_WRITE(len)                    CRM_DWORD_WRITE(1, len)
 #define CRM_GET_ID_DATA                                 (&CRM_BYTE(8))
 
 
@@ -574,7 +569,6 @@
 #define CRM_BUILD_CHECKSUM_LEN                          8
 #define CRM_BUILD_CHECKSUM_TYPE                         CRM_BYTE(1)
 #define CRM_BUILD_CHECKSUM_RESULT                       CRM_DWORD(1)
-#define CRM_BUILD_CHECKSUM_RESULT_WRITE(result)         CRM_DWORD_WRITE(1, result)
 
        
 /* DOWNLOAD */                                           
@@ -757,7 +751,6 @@
 #define CRM_GET_DAQ_LIST_MODE_LEN                       8
 #define CRM_GET_DAQ_LIST_MODE_MODE                      CRM_BYTE(1)
 #define CRM_GET_DAQ_LIST_MODE_EVENTCHANNEL              CRM_WORD(2)
-#define CRM_GET_DAQ_LIST_MODE_EVENTCHANNEL_WRITE(ch)    CRM_WORD_WRITE(2, ch)
 #define CRM_GET_DAQ_LIST_MODE_PRESCALER                 CRM_BYTE(6)
 #define CRM_GET_DAQ_LIST_MODE_PRIORITY                  CRM_BYTE(7)
 
@@ -783,7 +776,6 @@
 
 #define CRM_GET_DAQ_CLOCK_LEN                           8
 #define CRM_GET_DAQ_CLOCK_TIME                          CRM_DWORD(1)
-#define CRM_GET_DAQ_CLOCK_TIME_WRITE(time)              CRM_DWORD_WRITE(1, time)
 
 
 /* READ_DAQ */
@@ -802,9 +794,7 @@
 #define CRM_GET_DAQ_PROCESSOR_INFO_LEN                  8
 #define CRM_GET_DAQ_PROCESSOR_INFO_PROPERTIES           CRM_BYTE(1)
 #define CRM_GET_DAQ_PROCESSOR_INFO_MAX_DAQ              CRM_WORD(1)
-#define CRM_GET_DAQ_PROCESSOR_INFO_MAX_DAQ_WRITE(ndaq)  CRM_WORD_WRITE(1, ndaq)
 #define CRM_GET_DAQ_PROCESSOR_INFO_MAX_EVENT            CRM_WORD(2)
-#define CRM_GET_DAQ_PROCESSOR_INFO_MAX_EVENT_WRITE(evt) CRM_WORD_WRITE(2, evt)
 #define CRM_GET_DAQ_PROCESSOR_INFO_MIN_DAQ              CRM_BYTE(6)
 #define CRM_GET_DAQ_PROCESSOR_INFO_DAQ_KEY_BYTE         CRM_BYTE(7)
 
@@ -1027,20 +1017,15 @@
 /* Implementation                                                           */
 /****************************************************************************/
   
-  #define CRO_BYTE(x)             (pCmd->b[x])
+  #define CRO_BYTE(x)               (pCmd->b[x])
   #define CRO_WORD(x)               (pCmd->w[x])
   #define CRO_DWORD(x)              (pCmd->dw[x])
 
-  #define CRM_BYTE(x)             (xcp.Crm.b[x])
+  #define CRM_BYTE(x)               (xcp.Crm.b[x])
   #define CRM_WORD(x)               (xcp.Crm.w[x])
   #define CRM_DWORD(x)              (xcp.Crm.dw[x])
 
-  #define CRM_WORD_WRITE(x, d)      (xcp.Crm.w[x] = (d))
-  #define CRM_DWORD_WRITE(x, d)     (xcp.Crm.dw[x] = (d))
-
-
-
-
+  
 
 /****************************************************************************/
 /* Default data type definitions                                            */
@@ -1111,16 +1096,16 @@
 /* Check limits of the XCP imnplementation
 */
 #if ( kXcpMaxCTO > 255 )
-  #error "kXcpMaxCTO must be < 256"
+  #error "kXcpMaxCTO too large"
 #endif
 #if ( kXcpMaxCTO < 0x08 )
-  #error "kXcpMaxCTO must be > 0x07"
+  #error "kXcpMaxCTO must be > 7"
 #endif
-#if ( kXcpMaxDTO > 255 )
-  #error "kXcpMaxDTO must be < 256"
+#if ( kXcpMaxDTO > (1500-4) )
+  #error "kXcpMaxDTO too large"
 #endif
 #if ( kXcpMaxDTO < 0x08 )
-  #error "kXcpMaxDTO must be > 0x07"
+  #error "kXcpMaxDTO must be > 7"
 #endif
 
 
@@ -1139,9 +1124,7 @@
 */
   #if defined ( XCP_MAX_ODT_ENTRY_SIZE )
   #else
-    
-      #define XCP_MAX_ODT_ENTRY_SIZE (kXcpMaxDTO-2)
-    
+          #define XCP_MAX_ODT_ENTRY_SIZE (kXcpMaxDTO-6)
   #endif
 
 
@@ -1154,6 +1137,7 @@ typedef struct {
   vuint8 l;
 } tXcpDto;
 
+
 typedef union { 
   /* There might be a loss of up to 3 bytes. */
   vuint8  b[ ((kXcpMaxCTO + 3) & 0xFFC)      ];
@@ -1163,22 +1147,23 @@ typedef union {
 
 
 /****************************************************************************/
-/* DAQ Type Definition                                               */
+/* DAQ Type Definition                                                      */
 /****************************************************************************/
 
 
 /* ODT */
 /* Size must be even !!! */
 typedef struct {
-  vuint16 firstOdtEntry;       /* Absolute */
-  vuint16 lastOdtEntry;        /* Absolute */
+  vuint16 firstOdtEntry;       /* Absolute odt entry number */
+  vuint16 lastOdtEntry;        /* Absolute odt entry number */
+  vuint16 size;                /* Number of bytes */
 } tXcpOdt;
 
 
 /* DAQ list */
 typedef struct {
-  vuint16 lastOdt;             /* Absolute */
-  vuint16 firstOdt;            /* Absolute */
+  vuint16 lastOdt;             /* Absolute odt number */
+  vuint16 firstOdt;            /* Absolute odt number */
   vuint8 flags;        
   vuint8 eventChannel; 
 } tXcpDaqList;
@@ -1187,18 +1172,15 @@ typedef struct {
 
 /* Dynamic DAQ list structures */
 typedef struct {
-      
   vuint8          DaqCount;
   vuint16         OdtCount;       /* Absolute count */
   vuint16         OdtEntryCount;  /* Absolute count */
-
   union { 
     vuint8        b[kXcpDaqMemSize];
     tXcpDaqList   DaqList[kXcpDaqMemSize/sizeof(tXcpDaqList)]; /* ESCAN00096039 */
   } u;
-
-
 } tXcpDaq;
+
 
 typedef vuint16 SessionStatusType;
 
@@ -1209,7 +1191,7 @@ typedef vuint16 SessionStatusType;
 #define DaqListOdtEntryCount(j) ((xcp.pOdt[j].lastOdtEntry-xcp.pOdt[j].firstOdtEntry)+1)
 #define DaqListOdtLastEntry(j)  (xcp.pOdt[j].lastOdtEntry)
 #define DaqListOdtFirstEntry(j) (xcp.pOdt[j].firstOdtEntry)
-#define DaqListOdtStimBuffer(j) (xcp.pOdt[j].pStimBuffer)
+#define DaqListOdtSize(j)       (xcp.pOdt[j].size)
 
 /* n is absolute odtEntry number */
 #define OdtEntrySize(n)         (xcp.pOdtEntrySize[n])
@@ -1257,11 +1239,14 @@ typedef vuint16 SessionStatusType;
 #define XCP_SEND_PENDING            (XCP_DTO_PENDING|XCP_CRM_PENDING|XCP_EVT_PENDING)
 
 
+
+
 /****************************************************************************/
 /* XCP data strucure                                                        */
 /****************************************************************************/
 
 typedef struct {
+
   /* Crm has to be the first object of this structure !! (refer to XcpInit()) */
 
   tXcpCto Crm;                           /* RES,ERR Message buffer */
@@ -1281,32 +1266,28 @@ typedef struct {
   DAQBYTEPTR    *pOdtEntryAddr;
   vuint8        *pOdtEntrySize;
   
-  
-  /* Pointer for SET_DAQ_PTR */
-  vuint16 DaqListPtr;           
-        
+  /* Pointers for WRITE_DAQ from SET_DAQ_PTR */
+  vuint16 DaqListPtr;
+  vuint16 OdtPtr;
 
 } tXcpData;
 
 
-extern RAM tXcpData xcp;
-
-
 
 
 /****************************************************************************/
-/* Prototypes                                                               */
+/* API Prototypes                                                           */
 /****************************************************************************/
 
-/* API functions of xcp.c */
-/*-----------------------------------------*/
+/* API functions of xcpLite.c */
+
 
 /* Initialization for the XCP Protocol Layer. */
 extern void XcpInit( void );
 
 /* Trigger a XCP data acquisition or stimulation event */
-extern void XcpEvent(vuint8 event); 
-extern void XcpEventExt(vuint8 event, BYTEPTR offset);
+extern void XcpEvent(unsigned int event); 
+extern void XcpEventExt(unsigned int event, BYTEPTR offset);
 
 /* XCP command processor. */
 extern void XcpCommand( const vuint32* pCommand );
@@ -1316,50 +1297,53 @@ extern void XcpCommand( const vuint32* pCommand );
 /* Functions or Macros that have to be provided externally to the XCP Protocol Layer */
 /*-----------------------------------------------------------------------------------*/
 
- 
-/* Transmission Request for a XCP Packet */
-#if defined ( ApplXcpSend )
+/* Callback functions for xcpLite.c */
+/* All functions must be thread save */
+
+/* Transmission of a single XCP CRM Packet (for a command resonse message ) */
+#if defined ( ApplXcpSendCrm )
+  // defined as macro
 #else
-  extern void ApplXcpSend( vuint8 len, const BYTEPTR msg );
+extern void ApplXcpSendCrm(vuint8 len, const BYTEPTR msg);
+#endif
+
+/* Get and commit a transmit buffer for a single XCP DTO Packet (for a data transfer message) */
+#if defined ( ApplXcpGetDtoBuffer )
+  // defined as macro
+#else
+unsigned char* ApplXcpGetDtoBuffer(vuint8 len);
+#endif
+#if defined ( ApplXcpCommitDtoBuffer )
+// defined as macro
+#else
+void ApplXcpCommitDtoBuffer(vuint8 *buf);
 #endif
 
 /* Flush the transmit buffer if there is one implemented in ApplXcpSend() */
 #if defined ( ApplXcpSendFlush )
+  // defined as macro
 #else
   extern void ApplXcpSendFlush( void );
 #endif
 
 /* Generate a native pointer from XCP address extension and address */
 #if defined ( ApplXcpGetPointer )
+  // defined as macro
 #else
   extern MTABYTEPTR ApplXcpGetPointer( vuint8 addr_ext, vuint32 addr );
 #endif
 
-/* Enable interrupts */
-#if defined ( ApplXcpInterruptEnable )
-#else
-  extern void ApplXcpInterruptEnable( void );
-#endif
-
-/* Disable interrupts */
-#if defined ( ApplXcpInterruptDisable )
-#else
-  extern void ApplXcpInterruptDisable( void );
-#endif
-
 /* Get DAQ Timestamp from free runing application clock */
 #if defined ( ApplXcpGetTimestamp )
-  /* ApplXcpGetTimestamp is redefined */
+  // defined as macro
 #else
   extern XcpDaqTimestampType ApplXcpGetTimestamp( void );
 #endif
 
 
 
-
-
 /****************************************************************************/
-/* Test                                                                     */
+/* Test and debug                                                           */
 /****************************************************************************/
 
 /* Turn off test instrumentation, if not used */
@@ -1385,7 +1369,7 @@ extern void XcpPrintDaqList( vuint8 daq );
 
 
 /*****************************************************************************/
-/* Consistency and limit checks ( XCP Protocol Layer specific )              */
+/* Consistency and limit checks for xcp_cfg.h parameters                     */
 /*****************************************************************************/
 
 

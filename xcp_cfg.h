@@ -53,8 +53,14 @@ typedef signed long    vsint32;
 /* XCP Driver Callbacks as macros */
 
 // Convert a XCP (BYTE addrExt, DWORD addr from A2L) address to a C pointer to unsigned byte
-// BYTEPTR ApplXcpGetPointer(vuint8 addr_ext, vuint32 addr)
+// extern BYTEPTR ApplXcpGetPointer(vuint8 addr_ext, vuint32 addr)
 #define ApplXcpGetPointer(e,a) ((BYTEPTR)((a)))
+
+// Get and commit buffer space for a DTO message
+extern unsigned char* udpServerGetPacketBuffer(unsigned int size, void** par);
+extern void udpServerCommitPacketBuffer(void* par);
+#define ApplXcpGetDtoBuffer udpServerGetPacketBuffer
+#define ApplXcpCommitDtoBuffer udpServerCommitPacketBuffer
 
 
 /*----------------------------------------------------------------------------*/
@@ -73,10 +79,11 @@ typedef signed long    vsint32;
 /*----------------------------------------------------------------------------*/
 /* XCP protocol parameters */
 
+#define XCP_UDP_MTU (1500-20-8)  // IPv4 1500 ETH - 28 IP - 8 UDP
 
 /* XCP message length */
-#define kXcpMaxCTO     250      /* Maximum CTO Message Lenght */
-#define kXcpMaxDTO     250      /* Maximum DTO and CRM Message Lenght */
+#define kXcpMaxCTO     250      /* Maximum CTO and CRM Message Lenght */
+#define kXcpMaxDTO     (XCP_UDP_MTU-4)      /* Maximum DTO Message Lenght UDP_MTU - Transport Layer Header */
 
 #define XCP_ENABLE_CALIBRATION
 #define XCP_DISABLE_WRITE_PROTECTION
@@ -99,6 +106,9 @@ typedef signed long    vsint32;
 
 #define kXcpDaqMemSize 60000u  // Memory space reserved for DAQ tables
 
+#define XCP_SEND_BUFFER
+
+
 /* DAQ timestamp */
 #define kXcpDaqTimestampSize 4
 #define kXcpDaqTimestampUnit DAQ_TIMESTAMP_UNIT_1NS
@@ -106,17 +116,7 @@ typedef signed long    vsint32;
 typedef vuint32 XcpDaqTimestampType;
 extern XcpDaqTimestampType ApplXcpTimer(void);
 extern int ApplXcpTimerInit(void);
-#define ApplXcpGetTimestamp()                    (XcpDaqTimestampType)ApplXcpTimer()
-#define ApplXcpDaqGetTimestamp()                 (XcpDaqTimestampType)ApplXcpTimer()
-
-
-/* A mutex may be used to synchronize access to XCP driver from several tasks
- * If the XCP driver has queued some packets, functions to transmit data may be called
- * recursively. That's why a recursive mutex is required here.
- */
-extern pthread_mutex_t gXcpMutex;
-#define ApplXcpInterruptDisable() pthread_mutex_lock( & gXcpMutex )
-#define ApplXcpInterruptEnable() pthread_mutex_unlock( & gXcpMutex )
+#define ApplXcpGetTimestamp() (XcpDaqTimestampType)ApplXcpTimer()
 
 
 #include "xcp_def.h" // Set remaining default
