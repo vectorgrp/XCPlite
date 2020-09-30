@@ -41,7 +41,7 @@ extern "C" {
 
     // Statics
     static volatile unsigned long gClock = 0;
-    static unsigned long gTaskTimerCMD = 0;
+    //static unsigned long gTaskTimerCMD = 0;
     static unsigned long gTaskTimerECU = 0;
     static unsigned long gTaskTimerECUpp = 0;
 
@@ -51,7 +51,7 @@ extern "C" {
         printf("Start XCP server\n");
         udpServerInit(5555);
 
-        // 10ms task */
+        // Server loop
         for (;;) {
 
 #if 0
@@ -88,7 +88,7 @@ extern "C" {
             timeout.tv_nsec = 100000;
             nanosleep(&timeout, &timerem);
 
-            gClock = ApplXcpDaqGetTimestamp();
+            gClock = ApplXcpGetTimestamp();
 
             /* 1ms C task */
             if (gClock - gTaskTimerECU > gTaskCycleTimerECU) {
@@ -115,7 +115,7 @@ extern "C" {
             timeout.tv_nsec = 100000;
             nanosleep(&timeout, &timerem);
 
-            gClock = ApplXcpDaqGetTimestamp();
+            gClock = ApplXcpGetTimestamp();
 
             /* 1ms C++ task */
             if (gClock - gTaskTimerECUpp > gTaskCycleTimerECUpp) {
@@ -150,7 +150,7 @@ int main(void)
 
     // Initialize XCP driver
     XcpInit();
-    gDebugLevel = 2;
+    gDebugLevel = 4;
 
     // Initialize ECU demo (C)
     ecuInit();

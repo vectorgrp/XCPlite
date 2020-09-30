@@ -22,12 +22,7 @@
 #if !defined(XCP_TRANSPORT_LAYER_VERSION)
   #define XCP_TRANSPORT_LAYER_VERSION 0x0100
 #endif
-#if !defined(kXcpMaxCTO)
-  #define kXcpMaxCTO 8      /* Maximum CTO Message Lenght */
-#endif
-#if !defined(kXcpMaxDTO)
-  #define kXcpMaxDTO 8      /* Maximum DTO Message Lenght */
-#endif
+
 
 /* ROM memory qualifiers */
 #if !defined(MEMORY_ROM)

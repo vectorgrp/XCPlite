@@ -53,7 +53,6 @@ unsigned long ApplXcpTimer(void) {
     clock_gettime(CLOCK_REALTIME, &ts);
     t = ((unsigned long long)ts.tv_sec * 1000000000LL) + (unsigned long long)ts.tv_nsec;
     return (unsigned long)t;
-
 }
 
 
@@ -69,21 +68,9 @@ unsigned long ApplXcpTimer(void) {
 // Transmit a CRM (Command Responce) message
 void ApplXcpSendCrm(vuint8 len, MEMORY_ROM BYTEPTR msg) {
 
-    udpServerSendPacket(len, msg);
-    udpServerFlush();
+    udpServerSendCrmPacket(len, msg);
 }
 
-// Get buffer space for a DTO message
-vuint8 * ApplXcpGetDtoBuffer(vuint8 len) {
-
-    return udpServerGetPacketBuffer(len);
-}
-
-// Commit a DTO message
-void ApplXcpCommitDtoBuffer(vuint8 *buf) {
-
-    udpServerCommitPacketBuffer(buf);
-}
 
 
 

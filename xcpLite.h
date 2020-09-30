@@ -461,7 +461,6 @@
 #define CRM_CONNECT_COMM_BASIC                          CRM_BYTE(2)
 #define CRM_CONNECT_MAX_CTO_SIZE                        CRM_BYTE(3)
 #define CRM_CONNECT_MAX_DTO_SIZE                        CRM_WORD(2)
-#define CRM_CONNECT_MAX_DTO_SIZE_WRITE(size)            CRM_WORD_WRITE(2, size)
 #define CRM_CONNECT_PROTOCOL_VERSION                    CRM_BYTE(6)
 #define CRM_CONNECT_TRANSPORT_VERSION                   CRM_BYTE(7)
 
@@ -478,8 +477,6 @@
 #define CRM_GET_STATUS_STATUS                           CRM_BYTE(1)
 #define CRM_GET_STATUS_PROTECTION                       CRM_BYTE(2)
 #define CRM_GET_STATUS_CONFIG_ID                        CRM_WORD(2)
-#define CRM_GET_STATUS_CONFIG_ID_WRITE(id)              CRM_WORD_WRITE(2, id)
-
 
 /* SYNCH */                                       
 #define CRO_SYNCH_LEN                                   1
@@ -506,7 +503,6 @@
 #define CRM_GET_ID_LEN                                  8
 #define CRM_GET_ID_MODE                                 CRM_BYTE(1)
 #define CRM_GET_ID_LENGTH                               CRM_DWORD(1)
-#define CRM_GET_ID_LENGTH_WRITE(len)                    CRM_DWORD_WRITE(1, len)
 #define CRM_GET_ID_DATA                                 (&CRM_BYTE(8))
 
 
@@ -573,7 +569,6 @@
 #define CRM_BUILD_CHECKSUM_LEN                          8
 #define CRM_BUILD_CHECKSUM_TYPE                         CRM_BYTE(1)
 #define CRM_BUILD_CHECKSUM_RESULT                       CRM_DWORD(1)
-#define CRM_BUILD_CHECKSUM_RESULT_WRITE(result)         CRM_DWORD_WRITE(1, result)
 
        
 /* DOWNLOAD */                                           
@@ -756,7 +751,6 @@
 #define CRM_GET_DAQ_LIST_MODE_LEN                       8
 #define CRM_GET_DAQ_LIST_MODE_MODE                      CRM_BYTE(1)
 #define CRM_GET_DAQ_LIST_MODE_EVENTCHANNEL              CRM_WORD(2)
-#define CRM_GET_DAQ_LIST_MODE_EVENTCHANNEL_WRITE(ch)    CRM_WORD_WRITE(2, ch)
 #define CRM_GET_DAQ_LIST_MODE_PRESCALER                 CRM_BYTE(6)
 #define CRM_GET_DAQ_LIST_MODE_PRIORITY                  CRM_BYTE(7)
 
@@ -782,7 +776,6 @@
 
 #define CRM_GET_DAQ_CLOCK_LEN                           8
 #define CRM_GET_DAQ_CLOCK_TIME                          CRM_DWORD(1)
-#define CRM_GET_DAQ_CLOCK_TIME_WRITE(time)              CRM_DWORD_WRITE(1, time)
 
 
 /* READ_DAQ */
@@ -801,9 +794,7 @@
 #define CRM_GET_DAQ_PROCESSOR_INFO_LEN                  8
 #define CRM_GET_DAQ_PROCESSOR_INFO_PROPERTIES           CRM_BYTE(1)
 #define CRM_GET_DAQ_PROCESSOR_INFO_MAX_DAQ              CRM_WORD(1)
-#define CRM_GET_DAQ_PROCESSOR_INFO_MAX_DAQ_WRITE(ndaq)  CRM_WORD_WRITE(1, ndaq)
 #define CRM_GET_DAQ_PROCESSOR_INFO_MAX_EVENT            CRM_WORD(2)
-#define CRM_GET_DAQ_PROCESSOR_INFO_MAX_EVENT_WRITE(evt) CRM_WORD_WRITE(2, evt)
 #define CRM_GET_DAQ_PROCESSOR_INFO_MIN_DAQ              CRM_BYTE(6)
 #define CRM_GET_DAQ_PROCESSOR_INFO_DAQ_KEY_BYTE         CRM_BYTE(7)
 
@@ -1034,12 +1025,7 @@
   #define CRM_WORD(x)               (xcp.Crm.w[x])
   #define CRM_DWORD(x)              (xcp.Crm.dw[x])
 
-  #define CRM_WORD_WRITE(x, d)      (xcp.Crm.w[x] = (d))
-  #define CRM_DWORD_WRITE(x, d)     (xcp.Crm.dw[x] = (d))
-
-
-
-
+  
 
 /****************************************************************************/
 /* Default data type definitions                                            */
@@ -1110,16 +1096,16 @@
 /* Check limits of the XCP imnplementation
 */
 #if ( kXcpMaxCTO > 255 )
-  #error "kXcpMaxCTO must be < 256"
+  #error "kXcpMaxCTO too large"
 #endif
 #if ( kXcpMaxCTO < 0x08 )
-  #error "kXcpMaxCTO must be > 0x07"
+  #error "kXcpMaxCTO must be > 7"
 #endif
-#if ( kXcpMaxDTO > 255 )
-  #error "kXcpMaxDTO must be < 256"
+#if ( kXcpMaxDTO > (1500-4) )
+  #error "kXcpMaxDTO too large"
 #endif
 #if ( kXcpMaxDTO < 0x08 )
-  #error "kXcpMaxDTO must be > 0x07"
+  #error "kXcpMaxDTO must be > 7"
 #endif
 
 
@@ -1138,9 +1124,7 @@
 */
   #if defined ( XCP_MAX_ODT_ENTRY_SIZE )
   #else
-    
-      #define XCP_MAX_ODT_ENTRY_SIZE (kXcpMaxDTO-2)
-    
+          #define XCP_MAX_ODT_ENTRY_SIZE (kXcpMaxDTO-6)
   #endif
 
 
@@ -1170,16 +1154,16 @@ typedef union {
 /* ODT */
 /* Size must be even !!! */
 typedef struct {
-  vuint16 firstOdtEntry;       /* Absolute */
-  vuint16 lastOdtEntry;        /* Absolute */
-  vuint8 size;                 /* Bytes */
+  vuint16 firstOdtEntry;       /* Absolute odt entry number */
+  vuint16 lastOdtEntry;        /* Absolute odt entry number */
+  vuint16 size;                /* Number of bytes */
 } tXcpOdt;
 
 
 /* DAQ list */
 typedef struct {
-  vuint16 lastOdt;             /* Absolute */
-  vuint16 firstOdt;            /* Absolute */
+  vuint16 lastOdt;             /* Absolute odt number */
+  vuint16 firstOdt;            /* Absolute odt number */
   vuint8 flags;        
   vuint8 eventChannel; 
 } tXcpDaqList;
@@ -1262,6 +1246,7 @@ typedef vuint16 SessionStatusType;
 /****************************************************************************/
 
 typedef struct {
+
   /* Crm has to be the first object of this structure !! (refer to XcpInit()) */
 
   tXcpCto Crm;                           /* RES,ERR Message buffer */
@@ -1281,11 +1266,9 @@ typedef struct {
   DAQBYTEPTR    *pOdtEntryAddr;
   vuint8        *pOdtEntrySize;
   
-  
   /* Pointers for WRITE_DAQ from SET_DAQ_PTR */
   vuint16 DaqListPtr;
   vuint16 OdtPtr;
-
 
 } tXcpData;
 
@@ -1303,8 +1286,8 @@ typedef struct {
 extern void XcpInit( void );
 
 /* Trigger a XCP data acquisition or stimulation event */
-extern void XcpEvent(vuint8 event); 
-extern void XcpEventExt(vuint8 event, BYTEPTR offset);
+extern void XcpEvent(unsigned int event); 
+extern void XcpEventExt(unsigned int event, BYTEPTR offset);
 
 /* XCP command processor. */
 extern void XcpCommand( const vuint32* pCommand );

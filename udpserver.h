@@ -40,11 +40,12 @@ typedef struct {
 #define XCP_PACKET_HEADER_SIZE (2*sizeof(unsigned short))
 
 
-extern int udpServerSendPacket(unsigned int n, const unsigned char* data);
-extern int udpServerFlush(void);
 
-extern unsigned char* udpServerGetPacketBuffer(unsigned int size);
-void udpServerCommitPacketBuffer(unsigned char*);
+extern int udpServerSendCrmPacket(unsigned int n, const unsigned char* data);
+
+
+extern unsigned char* udpServerGetPacketBuffer(unsigned int size, void **par);
+extern void udpServerCommitPacketBuffer(void* par);
 
 extern int udpServerHandleXCPCommands(void);
 

@@ -43,25 +43,16 @@
 |
 |  Limitations of the XCP basic version:
 |
-|     - Stimulation (Bypassing) is not available
-|         XCP_ENABLE_STIM
+|     - Stimulation (Bypassing) is not available|         
 |     - Bit stimulation is not available
-|         XCP_ENABLE_STIM_BIT
-|     - SHORT_DOWNLOAD is not available
-|         XCP_ENABLE_SHORT_DOWNLOAD
-|     - MODIFY_BITS is not available
-|         XCP_ENABLE_MODIFY_BITS
-|     - FLASH and EEPROM Programming is not available
-|         XCP_ENABLE_PROGRAM, XCP_ENABLE_BOOTLOADER_DOWNLOAD, XCP_ENABLE_READ_EEPROM, XCP_ENABLE_WRITE_EEPROM
-|     - Block mode for UPLOAD, DOWNLOAD and PROGRAM is not available
-|         XCP_ENABLE_BLOCK_UPLOAD, XCP_ENABLE_BLOCK_DOWNLOAD
-|     - Resume mode is not available
-|         XCP_ENABLE_DAQ_RESUME
-|     - Memory write and read protection is not supported
-|         XCP_ENABLE_WRITE_PROTECTION
-|         XCP_ENABLE_READ_PROTECTION
+|     - SHORT_DOWNLOAD is not implemented
+|     - MODIFY_BITS is not available|
+|     - FLASH and EEPROM Programming is not available|         
+|     - Block mode for UPLOAD, DOWNLOAD and PROGRAM is not available         
+|     - Resume mode is not available|         
+|     - Memory write and read protection is not supported         
 |     - Checksum calculation with AUTOSAR CRC module is not supported
-|         XCP_ENABLE_AUTOSAR_CRC_MODULE
+|        
 |     
 |       All these feature are available in the full version available from
 |       Vector Informatik GmbH
@@ -317,7 +308,7 @@ static vuint8 XcpAllocOdt( vuint8 daq, vuint8 odtCount )
 ******************************************************************************/
 static vuint8 XcpAllocOdtEntry( vuint8 daq, vuint8 odt, vuint8 odtEntryCount )
 {
-  vuint16 xcpFirstOdt;
+  int xcpFirstOdt;
 
   #if defined ( XCP_ENABLE_PARAMETER_CHECK )
   if ( (xcp.Daq.DaqCount==0) || (xcp.Daq.OdtCount==0) )
@@ -462,17 +453,17 @@ static void XcpStopAllDaq( void )
 | DESCRIPTION:      Handling of data acquisition channel.
 ******************************************************************************/
 
-void XcpEvent(vuint8 event) {
+void XcpEvent(unsigned int event) {
 
   XcpEventExt(event, 0);
 }
 
-void XcpEventExt(vuint8 event, BYTEPTR offset)
+void XcpEventExt(unsigned int event, BYTEPTR offset)
 {
   BYTEPTR d;
   BYTEPTR d0;
-  vuint16 e,el,odt;
-  vuint8 n,daq,hs;
+  void* p0;
+  unsigned int e,el,odt,daq,hs,n;
   
   if ( (xcp.SessionStatus & (SessionStatusType)SS_DAQ) == 0 ) return; // DAQ not running
 
@@ -484,14 +475,14 @@ void XcpEventExt(vuint8 event, BYTEPTR offset)
       for (hs=6,odt=DaqListFirstOdt(daq);odt<=DaqListLastOdt(daq);hs=2,odt++)  { 
                       
         // Get DTO buffer , overrun if not available
-        if ((d0 = ApplXcpGetDtoBuffer((vuint8)(DaqListOdtSize(odt)+hs))) == NULL) {
+        if ((d0 = ApplXcpGetDtoBuffer(DaqListOdtSize(odt)+hs,&p0)) == NULL) {
             DaqListFlags(daq) |= DAQ_FLAG_OVERRUN;
             return;
         }
   
         /* ODT,DAQ header */
         d0[0] = (vuint8)(odt-DaqListFirstOdt(daq)); /* Relative odt number */
-        d0[1] = daq;
+        d0[1] = (vuint8)daq;
         
         /* Use BIT7 of PID or ODT to indicate overruns */  
         if ( (DaqListFlags(daq) & DAQ_FLAG_OVERRUN) != 0 ) {
@@ -501,7 +492,7 @@ void XcpEventExt(vuint8 event, BYTEPTR offset)
   
         /* Timestamp */
         if (hs==6)  {
-            *(XcpDaqTimestampType*)&d0[2] = ApplXcpGetTimestamp();
+            *((XcpDaqTimestampType*)&d0[2]) = ApplXcpGetTimestamp();
         }
 
         /* Copy data */
@@ -519,7 +510,7 @@ void XcpEventExt(vuint8 event, BYTEPTR offset)
             } // ODT entry
         }
 
-        ApplXcpCommitDtoBuffer(d0);
+        ApplXcpCommitDtoBuffer(p0);
                
       } /* odt */
   } /* daq */
@@ -598,7 +589,7 @@ void XcpCommand( const vuint32* pCommand )
     CRM_CONNECT_PROTOCOL_VERSION =  (vuint8)( (vuint16)XCP_VERSION >> 8 );
 
     CRM_CONNECT_MAX_CTO_SIZE = kXcpMaxCTO;
-    CRM_CONNECT_MAX_DTO_SIZE_WRITE(kXcpMaxDTO); 
+    CRM_CONNECT_MAX_DTO_SIZE = kXcpMaxDTO; 
     CRM_CONNECT_RESOURCE = 0x00;                  /* Reset resource mask */
     CRM_CONNECT_RESOURCE |= (vuint8)RM_DAQ;       /* Data Acquisition */
     CRM_CONNECT_COMM_BASIC = 0;
@@ -663,10 +654,10 @@ void XcpCommand( const vuint32* pCommand )
             {
               xcp.CrmLen = CRM_GET_ID_LEN;
               CRM_GET_ID_MODE = 0;
-              CRM_GET_ID_LENGTH_WRITE(0x00); 
+              CRM_GET_ID_LENGTH = 0; 
               if ( CRO_GET_ID_TYPE == IDT_ASAM_NAME )   /* Type = ASAM MC2 */
               {
-                CRM_GET_ID_LENGTH_WRITE((vuint32)kXcpStationIdLength); 
+                CRM_GET_ID_LENGTH = kXcpStationIdLength; 
                 XcpSetMta( ApplXcpGetPointer(0xFF, (vuint32)(&kXcpStationId[0])), 0xFF); 
               }    
             }
@@ -677,7 +668,7 @@ void XcpCommand( const vuint32* pCommand )
               xcp.CrmLen = CRM_GET_STATUS_LEN;
               CRM_GET_STATUS_STATUS = (vuint8)xcp.SessionStatus;
               CRM_GET_STATUS_PROTECTION = 0;
-              CRM_GET_STATUS_CONFIG_ID_WRITE(0x00); /* Session configuration ID not available. */
+              CRM_GET_STATUS_CONFIG_ID = 0; /* Session configuration ID not available. */
             }
             break;
 
@@ -742,8 +733,8 @@ void XcpCommand( const vuint32* pCommand )
     
               xcp.CrmLen = CRM_GET_DAQ_PROCESSOR_INFO_LEN;
               CRM_GET_DAQ_PROCESSOR_INFO_MIN_DAQ = 0;          
-              CRM_GET_DAQ_PROCESSOR_INFO_MAX_DAQ_WRITE(xcp.Daq.DaqCount); /* dynamic or static */ 
-              CRM_GET_DAQ_PROCESSOR_INFO_MAX_EVENT_WRITE(0x00); /* Unknown */    
+              CRM_GET_DAQ_PROCESSOR_INFO_MAX_DAQ = (xcp.Daq.DaqCount); /* dynamic or static */ 
+              CRM_GET_DAQ_PROCESSOR_INFO_MAX_EVENT = (0x00); /* Unknown */    
               CRM_GET_DAQ_PROCESSOR_INFO_DAQ_KEY_BYTE = (vuint8)DAQ_HDR_ODT_DAQB; /* DTO identification field type: Relative ODT number, absolute list number (BYTE) */
               CRM_GET_DAQ_PROCESSOR_INFO_PROPERTIES = (vuint8)( DAQ_PROPERTY_CONFIG_TYPE | DAQ_PROPERTY_TIMESTAMP | DAQ_OVERLOAD_INDICATION_PID );
             }
@@ -757,7 +748,7 @@ void XcpCommand( const vuint32* pCommand )
                 CRM_GET_DAQ_RESOLUTION_INFO_MAX_SIZE_DAQ  = (vuint8)XCP_MAX_ODT_ENTRY_SIZE;
                 CRM_GET_DAQ_RESOLUTION_INFO_MAX_SIZE_STIM = (vuint8)XCP_MAX_ODT_ENTRY_SIZE;
                 CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_MODE = kXcpDaqTimestampUnit | (vuint8)kXcpDaqTimestampSize | DAQ_TIMESTAMP_FIXED;
-                CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_TICKS_WRITE(kXcpDaqTimestampTicksPerUnit);  /* BCD coded */ 
+                CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_TICKS = (kXcpDaqTimestampTicksPerUnit);  
               }
               break;
   
@@ -806,7 +797,7 @@ void XcpCommand( const vuint32* pCommand )
               xcp.CrmLen = CRM_GET_DAQ_LIST_MODE_LEN;
               CRM_GET_DAQ_LIST_MODE_MODE = DaqListFlags(daq);
               CRM_GET_DAQ_LIST_MODE_PRESCALER = 1;
-              CRM_GET_DAQ_LIST_MODE_EVENTCHANNEL_WRITE(DaqListEventChannel(daq));
+              CRM_GET_DAQ_LIST_MODE_EVENTCHANNEL = (DaqListEventChannel(daq));
               CRM_GET_DAQ_LIST_MODE_PRIORITY = 0;  /* DAQ-list prioritization is not supported. */
             }
             break;
@@ -843,13 +834,13 @@ void XcpCommand( const vuint32* pCommand )
             {
                 DAQBYTEPTR addr;
 #if defined ( XCP_ENABLE_PARAMETER_CHECK )
-                if (((vuint8)CRO_WRITE_DAQ_SIZE == (vuint8)0u) || (CRO_WRITE_DAQ_SIZE > (vuint8)XCP_MAX_ODT_ENTRY_SIZE)) error(CRC_OUT_OF_RANGE);
+                if ((CRO_WRITE_DAQ_SIZE == 0) || (CRO_WRITE_DAQ_SIZE > XCP_MAX_ODT_ENTRY_SIZE)) error(CRC_OUT_OF_RANGE);
                 if ((0u == xcp.Daq.DaqCount) || (0u == xcp.Daq.OdtCount) || (0u == xcp.Daq.OdtEntryCount)) error(CRC_DAQ_CONDIF);
 #endif
                 addr = (DAQBYTEPTR)ApplXcpGetPointer(CRO_WRITE_DAQ_EXT, CRO_WRITE_DAQ_ADDR);
                 OdtEntrySize(xcp.DaqListPtr) = CRO_WRITE_DAQ_SIZE;
                 OdtEntryAddr(xcp.DaqListPtr) = addr;
-                DaqListOdtSize(xcp.OdtPtr) = (vuint8)(DaqListOdtSize(xcp.OdtPtr)+CRO_WRITE_DAQ_SIZE);
+                DaqListOdtSize(xcp.OdtPtr) = (vuint16)(DaqListOdtSize(xcp.OdtPtr)+CRO_WRITE_DAQ_SIZE);
                 xcp.DaqListPtr++; /* Autoincrement to next ODT entry*/
             }
             break;
@@ -859,13 +850,14 @@ void XcpCommand( const vuint32* pCommand )
                  DAQBYTEPTR addr;
                  for (int i = 0; i < CRO_WRITE_DAQ_MULTIPLE_NODAQ; i++) {
 #if defined ( XCP_ENABLE_PARAMETER_CHECK )
-                      if (((vuint8)CRO_WRITE_DAQ_MULTIPLE_SIZE(i) == (vuint8)0u) || (CRO_WRITE_DAQ_MULTIPLE_SIZE(i) > (vuint8)XCP_MAX_ODT_ENTRY_SIZE)) error(CRC_OUT_OF_RANGE);
+                      if ((CRO_WRITE_DAQ_MULTIPLE_SIZE(i) == 0) || (CRO_WRITE_DAQ_MULTIPLE_SIZE(i) > XCP_MAX_ODT_ENTRY_SIZE)) error(CRC_OUT_OF_RANGE);
                       if (CRO_WRITE_DAQ_MULTIPLE_BITOFFSET(i)!=0xFF) error(CRC_OUT_OF_RANGE);
                       if ((0u == xcp.Daq.DaqCount) || (0u == xcp.Daq.OdtCount) || (0u == xcp.Daq.OdtEntryCount)) error(CRC_DAQ_CONDIF);
 #endif
                       addr = (DAQBYTEPTR)ApplXcpGetPointer(CRO_WRITE_DAQ_MULTIPLE_EXT(i), CRO_WRITE_DAQ_MULTIPLE_ADDR(i));
                       OdtEntrySize(xcp.DaqListPtr) = CRO_WRITE_DAQ_MULTIPLE_SIZE(i);
                       OdtEntryAddr(xcp.DaqListPtr) = addr;
+                      DaqListOdtSize(xcp.OdtPtr) = (vuint16)(DaqListOdtSize(xcp.OdtPtr) + CRO_WRITE_DAQ_MULTIPLE_SIZE(i));
                       xcp.DaqListPtr++; /* Autoincrement */
                   }
               }
@@ -920,7 +912,7 @@ void XcpCommand( const vuint32* pCommand )
           case CC_GET_DAQ_CLOCK:
             {
               xcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN;
-              CRM_GET_DAQ_CLOCK_TIME_WRITE((vuint32)ApplXcpGetTimestamp()); 
+              CRM_GET_DAQ_CLOCK_TIME = ApplXcpGetTimestamp(); 
             }
             break;
                
@@ -1107,7 +1099,7 @@ static void XcpPrintCmd(const tXcpCto * pCmd) {
             break;
 
      case CC_GET_DAQ_CLOCK:
-            ApplXcpPrint("-> GET_DAQ_CLOCK\n");
+            ApplXcpPrint("-> GET_DAQ_CLOCK time=%u\n", CRM_GET_DAQ_CLOCK_TIME);
             break;
 
      default: /* unknown */
@@ -1147,7 +1139,7 @@ static void XcpPrintRes(const tXcpCto* pCmd) {
         switch (CRO_CMD) {
 
         case CC_CONNECT:
-            ApplXcpPrint("<- 0xFF version=%02Xh/%02Xh, maxcro=%02Xh, maxdto=%02Xh, resource=%02X, mode=%02X\n",
+            ApplXcpPrint("<- 0xFF version=%02Xh/%02Xh, maxcro=%u, maxdto=%u, resource=%02X, mode=%u\n",
                 CRM_CONNECT_PROTOCOL_VERSION,
                 CRM_CONNECT_TRANSPORT_VERSION,
                 CRM_CONNECT_MAX_CTO_SIZE,
@@ -1184,6 +1176,10 @@ static void XcpPrintRes(const tXcpCto* pCmd) {
             ApplXcpPrint("<- 0xFF , mode=%02Xh, , ticks=%02Xh\n", CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_MODE, CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_TICKS);
             break;
 
+        case CC_GET_DAQ_CLOCK:
+            ApplXcpPrint("<- 0xFF clock=%u\n", CRM_GET_DAQ_CLOCK_TIME);
+            break;
+
         default:
             ApplXcpPrint("<- 0xFF\n");
             break;
@@ -1196,8 +1192,7 @@ static void XcpPrintRes(const tXcpCto* pCmd) {
 
 void XcpPrintDaqList( vuint8 daq )
 {
-  int i;
-  vuint16 e;
+  int i,e;
     
   if (daq>=xcp.Daq.DaqCount) return;
 
