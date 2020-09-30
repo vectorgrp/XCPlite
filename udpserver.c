@@ -142,13 +142,10 @@ unsigned char *udpServerGetPacketBuffer(unsigned int size, void **par) {
 
     pthread_mutex_lock(&gMutex);
 
-        // Flush message buffer when full and completely commited
+    // Flush message buffer when full and completely commited
     if (dto_buffer->size + size + XCP_PACKET_HEADER_SIZE > XCP_UDP_MTU ) {
-        // if (dto_buffer->uncommited == 0) 
-        { 
-            udpServerSendDatagram(dto_buffer->size, dto_buffer->data);
-            dto_buffer->size = 0;
-        }
+        udpServerSendDatagram(dto_buffer->size, dto_buffer->data);
+        dto_buffer->size = 0;
     }
 
     // Build XCP message (ctr+dlc+packet) and store in DTO buffer
@@ -178,8 +175,8 @@ void udpServerCommitPacketBuffer(void *par) {
     pthread_mutex_lock(&gMutex); 
         
     p->uncommited--;
-    udpServerSendDatagram(p->size, &p->data[0]);
-    p->size = 0;
+    //udpServerSendDatagram(p->size, &p->data[0]);
+    //p->size = 0;
     
     pthread_mutex_unlock(&gMutex);
   
