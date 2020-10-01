@@ -25,11 +25,12 @@ extern "C" {
 #include "ecu.h"
 
 // Task cycles
-volatile unsigned long gTaskCycleTimerECU = (1000000);
-volatile unsigned long gTaskCycleTimerECUpp = (1000000);
+volatile unsigned long gTaskCycleTimerECU = 1000000; // 1ms
+volatile unsigned long gTaskCycleTimerECUpp = 1000000; // 1ms
 
-volatile unsigned short gSocketPort = (5555); // UDP port
-volatile unsigned int gSocketTimeout = (50000); // Receive timeout, determines the polling rate of transmit queue
+volatile unsigned short gSocketPort = 5555; // UDP port
+
+volatile unsigned int gSocketTimeout = 0; // Receive timeout, determines the polling rate of transmit queue
 
 
 }
@@ -90,7 +91,7 @@ extern "C" {
             //gClock = ApplXcpTimer();
 
             /* 1ms C task */
-            //if (gClock - gTaskTimerECU > gTaskCycleTimerECU) {
+            // if (gClock - gTaskTimerECU > gTaskCycleTimerECU) {
             //    gTaskTimerECU = gClock;
 
                 // C demo
@@ -113,7 +114,7 @@ extern "C" {
             //gClock = ApplXcpTimer();
 
             /* 1ms C++ task */
-            //if (gClock - gTaskTimerECUpp > gTaskCycleTimerECUpp) {
+            // if (gClock - gTaskTimerECUpp > gTaskCycleTimerECUpp) {
             //    gTaskTimerECUpp = gClock;
 
                 // C++ demo

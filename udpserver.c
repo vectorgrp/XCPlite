@@ -23,6 +23,10 @@
 #include "xcpLite.h"
 
 
+#define DTO_SEND_QUEUE
+
+
+
  //------------------------------------------------------------------------------
 
 static unsigned short gLastCmdCtr = 0;
@@ -74,7 +78,7 @@ static int udpServerSendDatagram(unsigned int n, const unsigned char* data) {
 #ifdef DTO_SEND_QUEUE
 
 #define DTO_BUFFER_LEN XCP_UDP_MTU
-#define DTO_QUEUE_SIZE 16
+#define DTO_QUEUE_SIZE 32
 
 typedef struct dto_buffer {
     unsigned int size;
@@ -88,22 +92,24 @@ static unsigned int dto_queue_len; // rp+len = write index (the next free entry)
 static DTO_BUFFER* dto_buffer; // current incomplete or not fully commited entry
 
 // Not thread save
-static DTO_BUFFER *getDtoBuffer(void) {
+static void getDtoBuffer(void) {
 
     DTO_BUFFER* b;
 
     /* Check if there is space in the queue */
     if (dto_queue_len >= DTO_QUEUE_SIZE) {
         /* Queue overflow */
-        return NULL;
+        dto_buffer = NULL;
     }
-    unsigned int i = dto_queue_rp + dto_queue_len;
-    if (i >= DTO_QUEUE_SIZE) i -= DTO_QUEUE_SIZE;
-    b = &dto_queue[i];
-    b->size = 0;
-    b->uncommited = 0;
-    dto_queue_len++;
-    return b;
+    else {
+        unsigned int i = dto_queue_rp + dto_queue_len;
+        if (i >= DTO_QUEUE_SIZE) i -= DTO_QUEUE_SIZE;
+        b = &dto_queue[i];
+        b->size = 0;
+        b->uncommited = 0;
+        dto_buffer = b;
+        dto_queue_len++;
+    }
 }
 
 // Not thread save
@@ -111,7 +117,7 @@ static void initDtoBufferQueue(void) {
 
     dto_queue_rp = 0;
     dto_queue_len = 0;
-    dto_buffer = getDtoBuffer();
+    getDtoBuffer();
     assert(dto_buffer);
 }
 
@@ -177,8 +183,8 @@ unsigned char *udpServerGetPacketBuffer(unsigned int size, void **par) {
     pthread_mutex_lock(&gMutex);
 
     // Get another message buffer from queue, when active buffer ist full, overrun or after time condition
-    if (dto_buffer==NULL || dto_buffer->size>0 || dto_buffer->size + size + XCP_PACKET_HEADER_SIZE > XCP_UDP_MTU ) {
-        dto_buffer = getDtoBuffer();
+    if (dto_buffer==NULL || dto_buffer->size + size + XCP_PACKET_HEADER_SIZE > XCP_UDP_MTU ) {
+        getDtoBuffer();
     }
 
     if (dto_buffer != NULL) {
@@ -232,18 +238,40 @@ unsigned char* udpServerGetPacketBuffer(unsigned int size, void** par) {
         dto_buffer_size = 0;
     }
 
-
     XCP_DTO_MESSAGE* p = (XCP_DTO_MESSAGE*)&dto_buffer_data[dto_buffer_size];
     p->ctr = gLastResCtr++;
     p->dlc = (short unsigned int)size;
     dto_buffer_size += size + 4;
 
     pthread_mutex_unlock(&gMutex);
+    *par = p;
     return p->data;
 }
 
 
-void udpServerCommitPacketBuffer(void* par) {}
+void udpServerCommitPacketBuffer(void* par) {
+
+#if defined ( XCP_ENABLE_TESTMODE )
+    if (gDebugLevel >= 4) {
+        XCP_DTO_MESSAGE* p = par;
+        static vuint32 lastTime = 0, time = 0;
+        printf("Commit CTR = %u, LEN = %u\n", p->ctr, p->dlc);
+        for (int i = 0; i < p->dlc; i++) printf("%00X ", p->data[i]);
+        printf("\n");
+        printf(" ODT = %u,", p->data[0]);
+        printf(" DAQ = %u,", p->data[1]);
+        time = *(vuint32*)&p->data[2];
+        printf(" TIME = %u <- %u dt=%d", time,lastTime,time-lastTime);
+        lastTime = time;
+        printf("\n");
+    }
+#endif
+
+}
+
+
+
+
 void udpServerHandleTransmitQueue(void) {}
 
 
@@ -338,9 +366,12 @@ int udpServerInit(unsigned short serverPort, unsigned int socketTimeout)
     }
 
     // Set socket timeout
-    //timeout.tv_sec = 0;
-    //timeout.tv_usec = (long int)socketTimeout; 
-    //setsockopt(gSock, SOL_SOCKET, SO_RCVTIMEO, (void*)&timeout, sizeof(timeout));
+    if (socketTimeout) {
+        struct timeval timeout;
+        timeout.tv_sec = 0;
+        timeout.tv_usec = (long int)socketTimeout;
+        setsockopt(gSock, SOL_SOCKET, SO_RCVTIMEO, (void*)&timeout, sizeof(timeout));
+    }
 
     // Set socket transmit buffer size
     int buffer = 1000000;
@@ -369,9 +400,7 @@ int udpServerInit(unsigned short serverPort, unsigned int socketTimeout)
     pthread_mutexattr_t a;
     pthread_mutexattr_init(&a);
     pthread_mutex_init(&gMutex, &a);
-
-    
-
+     
     return 0;
 }
 

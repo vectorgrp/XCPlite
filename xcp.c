@@ -51,8 +51,9 @@ unsigned long ApplXcpTimer(void) {
     struct timespec ts; 
     unsigned long long t;
     clock_gettime(CLOCK_REALTIME, &ts);
-    t = ((unsigned long long)ts.tv_sec * 1000000000LL) + (unsigned long long)(ts.tv_nsec);
+    t = ((unsigned long long)ts.tv_sec * 1000000000L) + (unsigned long long)(ts.tv_nsec);
     return (unsigned long)t;
+       
 }
 
 
