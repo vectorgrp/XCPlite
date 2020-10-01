@@ -14,8 +14,7 @@
 // XCP handler
 #include "xcp.h"
 
-// UDP server
-#include "udpserver.h"
+
 
 
 
@@ -45,32 +44,17 @@ int ApplXcpTimerInit( void )
     return 0;
 }
 
-// Free runing clock with 1ns tick
+// Free runing clock with 10ns tick
+// 1ns with overflow every 4s is critical for CANape measurement start time offset calculation
 unsigned long ApplXcpTimer(void) {
 
     struct timespec ts; 
     unsigned long long t;
     clock_gettime(CLOCK_REALTIME, &ts);
-    t = ((unsigned long long)ts.tv_sec * 1000000000LL) + (unsigned long long)ts.tv_nsec;
+    t = ((unsigned long long)ts.tv_sec * 1000000000L) + (unsigned long long)(ts.tv_nsec);
     return (unsigned long)t;
+       
 }
-
-
-
-/**************************************************************************/
-// ApplXcpSend()
-// ApplXcpSendFlush()
-// Platform and implementation specific functions for the XCP driver
-// Transmit XCP messages
-/**************************************************************************/
-
-
-// Transmit a CRM (Command Responce) message
-void ApplXcpSendCrm(vuint8 len, MEMORY_ROM BYTEPTR msg) {
-
-    udpServerSendCrmPacket(len, msg);
-}
-
 
 
 

@@ -42,14 +42,13 @@ typedef struct {
 
 
 extern int udpServerSendCrmPacket(unsigned int n, const unsigned char* data);
-
-
 extern unsigned char* udpServerGetPacketBuffer(unsigned int size, void **par);
 extern void udpServerCommitPacketBuffer(void* par);
 
+extern void udpServerHandleTransmitQueue(void);
 extern int udpServerHandleXCPCommands(void);
 
-extern int udpServerInit(unsigned short serverPort);
+extern int udpServerInit(unsigned short serverPort, unsigned int socketTimeout);
 extern int udpServerShutdown(void);
 
 

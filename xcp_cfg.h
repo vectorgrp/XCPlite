@@ -52,16 +52,20 @@ typedef signed long    vsint32;
 /*----------------------------------------------------------------------------*/
 /* XCP Driver Callbacks as macros */
 
+extern int udpServerSendCrmPacket(unsigned int n, const unsigned char* data);
+extern unsigned char* udpServerGetPacketBuffer(unsigned int size, void** par);
+extern void udpServerCommitPacketBuffer(void* par);
+
 // Convert a XCP (BYTE addrExt, DWORD addr from A2L) address to a C pointer to unsigned byte
 // extern BYTEPTR ApplXcpGetPointer(vuint8 addr_ext, vuint32 addr)
 #define ApplXcpGetPointer(e,a) ((BYTEPTR)((a)))
 
 // Get and commit buffer space for a DTO message
-extern unsigned char* udpServerGetPacketBuffer(unsigned int size, void** par);
-extern void udpServerCommitPacketBuffer(void* par);
 #define ApplXcpGetDtoBuffer udpServerGetPacketBuffer
 #define ApplXcpCommitDtoBuffer udpServerCommitPacketBuffer
 
+// Send a CRM message
+#define ApplXcpSendCrm udpServerSendCrmPacket
 
 /*----------------------------------------------------------------------------*/
 /* Test instrumentation */
@@ -71,7 +75,6 @@ extern void udpServerCommitPacketBuffer(void* par);
 #define XCP_ENABLE_TESTMODE
 #ifdef XCP_ENABLE_TESTMODE
   #define ApplXcpPrint printf
-  #define XCP_ASSERT(x) if (!(x)) ApplXcpPrint("Assertion failed\n");
   #define XCP_ENABLE_PARAMETER_CHECK
 #endif
 
@@ -104,19 +107,16 @@ extern void udpServerCommitPacketBuffer(void* par);
 
 /* Synchronous Data Acquisition (DAQ) */
 
-#define kXcpDaqMemSize 60000u  // Memory space reserved for DAQ tables
+#define kXcpDaqMemSize 60000u  // Memory space reserved for DAQ tables (XCP needs 5 bytes (addr+len) per odt entry)
 
 #define XCP_SEND_BUFFER
 
 
-/* DAQ timestamp */
-#define kXcpDaqTimestampSize 4
+/* DAQ timestamp settings */
 #define kXcpDaqTimestampUnit DAQ_TIMESTAMP_UNIT_1NS
 #define kXcpDaqTimestampTicksPerUnit 1  
-typedef vuint32 XcpDaqTimestampType;
-extern XcpDaqTimestampType ApplXcpTimer(void);
-extern int ApplXcpTimerInit(void);
-#define ApplXcpGetTimestamp() (XcpDaqTimestampType)ApplXcpTimer()
+extern vuint32 ApplXcpTimer(void);
+#define ApplXcpGetTimestamp() ApplXcpTimer()
 
 
 #include "xcp_def.h" // Set remaining default

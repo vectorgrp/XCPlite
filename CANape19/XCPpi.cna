@@ -10,8 +10,8 @@ PrgDate=16.09.2020
 Description=
 CreationTime=14:27
 CreationDate=09/08/2020 ; Month/Day/Year
-ModificationTime=23:11
-ModificationDate=09/30/2020 ; Month/Day/Year
+ModificationTime=00:50
+ModificationDate=10/02/2020 ; Month/Day/Year
 Protected=0
 
 [ANALYSISPROFILE_MDF_LIST]
@@ -41,12 +41,12 @@ EditFormat=2
 ShowWorkingPoint=0
 FollowWorkingPoint=0
 Module=XCPpi
-Name=gTaskCycleTimerCMD
+Name=gSocketTimeout
 StimMode=0
 IsFallback=0
 
 [CALIBRATION_OBJECT_3]
-EditOffset=100000
+EditOffset=10000
 EditFactor=2
 EditFormat=2
 ShowWorkingPoint=0
@@ -105,7 +105,7 @@ Count=0
 Name=
 Comment=
 Maximized=0
-ActiveWindow=10
+ActiveWindow=1
 IsReportPage=0
 TimeAxisSynchronized=0
 PrintLayout=Default
@@ -309,8 +309,7 @@ Count=0
 
 [MEASUREMENT_LIST]
 Count=27
-OfflineFileName=MeasurementData\Rekorder_2020-09-30_23-09-44.mf4
-OfflineFileCount=1
+OfflineFileCount=0
 MeaCfgLabellistName=
 
 [MEASUREMENT_OBJECT_1]
@@ -333,7 +332,7 @@ Module=XCPpi
 Name=byteArray1[0002]
 Mode=2147483649
 Rate=1
-Disabled=0
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -834,7 +833,7 @@ Module=XCPpi
 Name=byteArray13
 Mode=2147483649
 Rate=1
-Disabled=0
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -854,7 +853,7 @@ Module=XCPpi
 Name=byteArray14
 Mode=2147483649
 Rate=1
-Disabled=0
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -874,7 +873,7 @@ Module=XCPpi
 Name=byteArray15
 Mode=2147483649
 Rate=1
-Disabled=0
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -894,7 +893,7 @@ Module=XCPpi
 Name=byteArray16
 Mode=2147483649
 Rate=1
-Disabled=0
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -946,7 +945,7 @@ LineWidth=1
 Precision=-2
 Digits=6
 Enabled=1
-StoredFocused=0
+StoredFocused=1
 SublMask=1
 MeaSublMask=3
 LockScaling=0
@@ -1002,7 +1001,7 @@ LineWidth=1
 Precision=-2
 Digits=6
 Enabled=1
-StoredFocused=1
+StoredFocused=0
 SublMask=1
 MeaSublMask=3
 LockScaling=0
@@ -1026,7 +1025,7 @@ Module=XCPpi
 Name=longArray1
 Mode=2147483649
 Rate=1
-Disabled=0
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -1046,7 +1045,7 @@ Module=XCPpi
 Name=longArray2
 Mode=2147483649
 Rate=1
-Disabled=0
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -1066,7 +1065,7 @@ Module=XCPpi
 Name=longArray3
 Mode=2147483649
 Rate=1
-Disabled=0
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -1086,7 +1085,7 @@ Module=XCPpi
 Name=longArray4
 Mode=2147483649
 Rate=1
-Disabled=0
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -1106,7 +1105,7 @@ Module=XCPpi
 Name=byteArray1[0000]
 Mode=2147483649
 Rate=1
-Disabled=0
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -1165,7 +1164,7 @@ Module=XCPpi
 Name=byteArray1[0001]
 Mode=2147483649
 Rate=1
-Disabled=0
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -1300,7 +1299,7 @@ NoCpuThrottle=0
 ShowFileSignalsDuringMeasurement=0
 CreateInternalSignalsOnDemand=0
 LiveMeasurementRate=1000
-EditCommentAfterSaveSignals=1
+EditCommentAfterSaveSignals=0
 ShowRejectFileMsg=0
 TaraMeasurementDurationMS=5000
 TaraMeasurementForerunMS=2000
@@ -1336,8 +1335,8 @@ WindowTextExtended=1
 WindowTextExtendedNew=1
 WindowSymbols=1
 GlobalCursor=1
-GlobalCursorTime=57284
-MainWindowPos=1, 66, 55, 2758, 1604 ;cmd, x, y, w, h
+GlobalCursorTime=0
+MainWindowPos=1, 14, 13, 2766, 1600 ;cmd, x, y, w, h
 
 [PAR_COMMENT]
 1="Name",""
@@ -1432,7 +1431,7 @@ SplitEvCount=0
 BusLogNetworkKeyListCount=0
 IsFallback=0
 EditComment=1
-SaveMeasurementComment=1
+SaveMeasurementComment=0
 SaveCalibrationHistory=0
 SaveWriteWindowText=0
 SaveCalibrationCommands=0
@@ -1523,12 +1522,12 @@ FocusID=2004
 ActiveTab=0
 FilterNodeID=All\Devices\XCPpi
 TreeExpand_0=@All
-TreeExpand_1=All\Devices\XCPpi\XCPpi.a2l\Software structure
-TreeExpand_2=All\Devices
-TreeExpand_3=All\Devices\XCPpi
-TreeExpand_4=All\Devices\XCPpi\XCPpi.a2l
-TreeExpand_5=All\Devices\XCPpi\XCPpi.a2l\Parameters\Test_Parameters
-TreeExpand_6=All\Devices\XCPpi\XCPpi.a2l\Measure
+TreeExpand_1=All\Devices\XCPpi\XCPpi.a2l\Measure
+TreeExpand_2=All\Devices\XCPpi\XCPpi.a2l\Parameters\Test_Parameters
+TreeExpand_3=All\Devices\XCPpi\XCPpi.a2l
+TreeExpand_4=All\Devices\XCPpi
+TreeExpand_5=All\Devices
+TreeExpand_6=All\Devices\XCPpi\XCPpi.a2l\Software structure
 TreeExpand_7=$All\Devices
 TreeExpand_8=#All\Devices
 TreeExpand_9=@All\Devices\XCPpi
@@ -1621,8 +1620,8 @@ DisplayMask=1 ; pages 1
 
 [WINDOW_3]
 XLen=2422
-XMin=56828
-XMax=57741
+XMin=0
+XMax=48529
 Grid=1
 Mark=1
 YValue=1
@@ -1651,7 +1650,7 @@ YAxisDynScaleEnabled=0
 YAxisDynScaleEnlarge=25
 TimeStickToZero=0
 XYModeRedrawEnabled=0
-MARKER_TIME_1=57284974385
+MARKER_TIME_1=0
 MARKER_TIME_2=2832547085
 OscilloscopeEnabled=0
 OsciEventCount=0
@@ -1677,7 +1676,7 @@ DisplayMask=1 ; pages 1
 [WINDOW_3_LEG_COLUMNS]
 ScreenDPIinSection=144
 COUNT=2
-COL_0=31, 199
+COL_0=31, 220
 COL_1=1048578, 132
 
 [WINDOW_4]
@@ -1748,7 +1747,7 @@ AxisTemplate=
 
 [WINDOW_4_OBJECT_2]
 Type=2
-Name=gTaskCycleTimerCMD
+Name=gTaskCycleTimerECU
 Module=XCPpi
 Window=4
 Index=1
@@ -1793,7 +1792,7 @@ AxisTemplate=
 
 [WINDOW_4_OBJECT_3]
 Type=2
-Name=gTaskCycleTimerECU
+Name=gTaskCycleTimerECUpp
 Module=XCPpi
 Window=4
 Index=2
@@ -1838,7 +1837,7 @@ AxisTemplate=
 
 [WINDOW_4_OBJECT_4]
 Type=2
-Name=gTaskCycleTimerECUpp
+Name=gSocketTimeout
 Module=XCPpi
 Window=4
 Index=3
@@ -1883,8 +1882,8 @@ AxisTemplate=
 
 [WINDOW_5]
 XLen=2422
-XMin=56828
-XMax=57741
+XMin=0
+XMax=48529
 Grid=1
 Mark=1
 YValue=1
@@ -1903,7 +1902,7 @@ AbsoluteTimeMode=0
 YAxisWidth=115
 RightYAxisWidth=0
 ObjectMode=0
-DisplayMode=1
+DisplayMode=2
 ShowSignalMode=0
 AxisScrollPos2=0
 LegendScrollPos=0
@@ -1913,7 +1912,7 @@ YAxisDynScaleEnabled=0
 YAxisDynScaleEnlarge=25
 TimeStickToZero=0
 XYModeRedrawEnabled=0
-MARKER_TIME_1=57284974385
+MARKER_TIME_1=0
 MARKER_TIME_2=2832547085
 OscilloscopeEnabled=0
 OsciEventCount=0
@@ -1939,7 +1938,7 @@ DisplayMask=1 ; pages 1
 [WINDOW_5_LEG_COLUMNS]
 ScreenDPIinSection=144
 COUNT=2
-COL_0=31, 199
+COL_0=31, 220
 COL_1=1048578, 132
 
 [WINDOW_6]
@@ -1947,7 +1946,7 @@ ProgID=CNPTRACE.TraceCtrl.1
 PROPERTIES_COUNT=21
 PROPERTY_1=DeviceItems={"CaptureEvents":"1","ShowEvents":"1","NodeCount":"2","Node0":{"DeviceName":"XCPpi","CaptureEvents":"0","ShowEvents":"0","NodeCount":"3","Node0":{"Channel":"2","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node1":{"Channel":"3","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node2":{"Channel":"4","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"}},"Node1":{"DeviceName":"ETH_Monitor","CaptureEvents":"0","ShowEvents":"0","NodeCount":"1","Node0":{"Channel":"12","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"}}}
 PROPERTY_2=NetworkItems={"Items":"2","Item0":{"DeviceType":"18","Protocol":"11","BusChannel":"1","DisplayColor":{"Color":"0","UseColor":"false"},"State0":{"CaptureEvents":"1","ShowEvents":"1"},"State1":{"CaptureEvents":"1","ShowEvents":"1"},"State2":{"CaptureEvents":"1","ShowEvents":"1"},"State3":{"CaptureEvents":"1","ShowEvents":"1"},"State4":{"CaptureEvents":"1","ShowEvents":"1"}},"Item1":{"DeviceType":"18","Protocol":"11","BusChannel":"33","DisplayColor":{"Color":"0","UseColor":"false"},"State0":{"CaptureEvents":"0","ShowEvents":"0"},"State1":{"CaptureEvents":"1","ShowEvents":"1"},"State2":{"CaptureEvents":"1","ShowEvents":"1"},"State3":{"CaptureEvents":"1","ShowEvents":"1"},"State4":{"CaptureEvents":"1","ShowEvents":"1"}}}
-PROPERTY_3=ColumnConfigs={"ConfigCount":"1","Config0":{"Layout":"1","Name":"User","Column0":{"Width":"157","Position":"0","Name":"Time","IsDefaultName":"1"},"Column5":{"Width":"58","Position":"1","Name":"Dir","IsDefaultName":"1"},"Column6":{"Width":"93","Position":"2","Name":"Length","IsDefaultName":"1"},"Column7":{"Width":"3840","Position":"4","Name":"Data","IsDefaultName":"1"},"Column52":{"Width":"570","Position":"3","Name":"Interpretation","IsDefaultName":"1"}},"Active":"0"}
+PROPERTY_3=ColumnConfigs={"ConfigCount":"1","Config0":{"Layout":"1","Name":"User","Column0":{"Width":"157","Position":"0","Name":"Time","IsDefaultName":"1"},"Column5":{"Width":"58","Position":"1","Name":"Dir","IsDefaultName":"1"},"Column6":{"Width":"128","Position":"2","Name":"Length","IsDefaultName":"1"},"Column7":{"Width":"3840","Position":"4","Name":"Data","IsDefaultName":"1"},"Column52":{"Width":"570","Position":"3","Name":"Interpretation","IsDefaultName":"1"}},"Active":"0"}
 PROPERTY_4=PinningEvents={"EventCount":"0"}
 PROPERTY_5=ExpandedEvents={"EventCount":"0"}
 PROPERTY_6=AnalysisGroups={"GroupCount":"1","Group0":{"Enabled":"1","Expanded":"1","Name":"Filtergruppe 0","FilterCount":"2","Filter0":{"Stop":"1","Enabled":"1","ConditionCount":"0"},"Filter1":{"Stop":"0","Enabled":"0","ConditionCount":"0"}}}
@@ -1955,7 +1954,7 @@ PROPERTY_7=AnalysisDataChangeFilter=0
 PROPERTY_8=SearchPatterns={"EventCount":"0"}
 PROPERTY_9=ExplorerConfig={"VSplitPos":"201","VSplitExpanded":"true","HSplitPos":"290","HSplitExpanded":"false","ActiveExplorerView":"1","ActiveSearchType":"0"}
 PROPERTY_10=ContinuousMode=1
-PROPERTY_11=AbsoluteTimeMode=0
+PROPERTY_11=AbsoluteTimeMode=1
 PROPERTY_12=HighPrioritySBClient=0
 PROPERTY_13=EventFading=0
 PROPERTY_14=ByteFading=0
@@ -1973,17 +1972,17 @@ TraceChannelCount=0
 ColumnCount=5
 Column_0=0, 157
 Column_1=1, 58
-Column_2=2, 93
+Column_2=2, 128
 Column_3=513, 570
 Column_4=3, 3840
-DeltaTimeEnabled=1
+DeltaTimeEnabled=0
 Title=Trace-Fenster {DISPLAYED_FILENAME}
 Type=16384
 Comment=ActiveX Window
 Number=6
 ScreenDPIinSection=144
-Position=0, 1293, 9, 1057, 774 ;cmd, x, y, w, h
-Position_Page01=0, 1293, 9, 1057, 774 ;cmd, x, y, w, h
+Position=0, 1289, 9, 1061, 774 ;cmd, x, y, w, h
+Position_Page01=0, 1289, 9, 1061, 774 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
 DisplayMask=1 ; pages 1
