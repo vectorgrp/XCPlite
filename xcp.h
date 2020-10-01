@@ -3,4 +3,5 @@
 
 #include "xcpLite.h"
 
-
+extern int ApplXcpTimerInit(void);
+extern unsigned long ApplXcpTimer(void);

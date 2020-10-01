@@ -1346,11 +1346,6 @@ void ApplXcpCommitDtoBuffer(vuint8 *buf);
 /* Test and debug                                                           */
 /****************************************************************************/
 
-/* Turn off test instrumentation, if not used */
-#if !defined(XCP_ASSERT)
-#define XCP_ASSERT(x) 
-#endif
-
 
 #if defined ( XCP_ENABLE_TESTMODE )
 

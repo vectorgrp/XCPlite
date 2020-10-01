@@ -474,10 +474,10 @@ void XcpEventExt(unsigned int event, BYTEPTR offset)
 
       for (hs=6,odt=DaqListFirstOdt(daq);odt<=DaqListLastOdt(daq);hs=2,odt++)  { 
                       
-        // Get DTO buffer , overrun if not available
+        // Get DTO buffer, overrun if not available
         if ((d0 = ApplXcpGetDtoBuffer(DaqListOdtSize(odt)+hs,&p0)) == NULL) {
             DaqListFlags(daq) |= DAQ_FLAG_OVERRUN;
-            return;
+            return; // Skip rest of this event on queue overrun
         }
   
         /* ODT,DAQ header */
@@ -492,7 +492,7 @@ void XcpEventExt(unsigned int event, BYTEPTR offset)
   
         /* Timestamp */
         if (hs==6)  {
-            *((XcpDaqTimestampType*)&d0[2]) = ApplXcpGetTimestamp();
+            *((vuint32*)&d0[2]) = ApplXcpGetTimestamp();
         }
 
         /* Copy data */
@@ -747,7 +747,7 @@ void XcpCommand( const vuint32* pCommand )
                 CRM_GET_DAQ_RESOLUTION_INFO_GRANULARITY_STIM = 1;
                 CRM_GET_DAQ_RESOLUTION_INFO_MAX_SIZE_DAQ  = (vuint8)XCP_MAX_ODT_ENTRY_SIZE;
                 CRM_GET_DAQ_RESOLUTION_INFO_MAX_SIZE_STIM = (vuint8)XCP_MAX_ODT_ENTRY_SIZE;
-                CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_MODE = kXcpDaqTimestampUnit | (vuint8)kXcpDaqTimestampSize | DAQ_TIMESTAMP_FIXED;
+                CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_MODE = kXcpDaqTimestampUnit | DAQ_TIMESTAMP_FIXED | (vuint8)sizeof(vuint32);
                 CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_TICKS = (kXcpDaqTimestampTicksPerUnit);  
               }
               break;
@@ -1099,7 +1099,7 @@ static void XcpPrintCmd(const tXcpCto * pCmd) {
             break;
 
      case CC_GET_DAQ_CLOCK:
-            ApplXcpPrint("-> GET_DAQ_CLOCK time=%u\n", CRM_GET_DAQ_CLOCK_TIME);
+            ApplXcpPrint("-> GET_DAQ_CLOCK\n");
             break;
 
      default: /* unknown */
@@ -1177,7 +1177,7 @@ static void XcpPrintRes(const tXcpCto* pCmd) {
             break;
 
         case CC_GET_DAQ_CLOCK:
-            ApplXcpPrint("<- 0xFF clock=%u\n", CRM_GET_DAQ_CLOCK_TIME);
+            ApplXcpPrint("<- 0xFF t=%u (%gs)\n", CRM_GET_DAQ_CLOCK_TIME, (double)CRM_GET_DAQ_CLOCK_TIME/1000000000.0);
             break;
 
         default:

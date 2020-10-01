@@ -28,7 +28,7 @@ extern "C" {
 volatile unsigned long gTaskCycleTimerECU = (1000000);
 volatile unsigned long gTaskCycleTimerECUpp = (1000000);
 
-volatile unsigned int gSocketPort = (5555); // UDP port
+volatile unsigned short gSocketPort = (5555); // UDP port
 volatile unsigned int gSocketTimeout = (50000); // Receive timeout, determines the polling rate of transmit queue
 
 
@@ -42,11 +42,19 @@ ecu* gEcu = 0;
 
 extern "C" {
 
-    // Statics
-    static volatile unsigned long gClock = 0;
-    //static unsigned long gTaskTimerCMD = 0;
-    static unsigned long gTaskTimerECU = 0;
-    static unsigned long gTaskTimerECUpp = 0;
+    
+    volatile unsigned long gClock = 0;
+
+    //static unsigned long gTaskTimerECU = 0;
+    //static unsigned long gTaskTimerECUpp = 0;
+
+    static void sleepns(unsigned int ns) {
+        struct timespec timeout, timerem;
+        timeout.tv_sec = 0;
+        timeout.tv_nsec = ns;
+        nanosleep(&timeout, &timerem);
+    }
+    
 
     // XCP command handler task
     void* xcpServer(void* par) {
@@ -59,6 +67,7 @@ extern "C" {
 
             if (udpServerHandleXCPCommands() < 0) break;  // Handle XCP commands
             udpServerHandleTransmitQueue();
+            sleepns(10000);
 
         } // for (;;)
 
@@ -77,20 +86,16 @@ extern "C" {
 
         for (;;) {
 
-            struct timespec timeout, timerem;
-            timeout.tv_sec = 0;
-            timeout.tv_nsec = 100000;
-            nanosleep(&timeout, &timerem);
-
-            gClock = ApplXcpGetTimestamp();
+            sleepns(gTaskCycleTimerECU);
+            //gClock = ApplXcpTimer();
 
             /* 1ms C task */
-            if (gClock - gTaskTimerECU > gTaskCycleTimerECU) {
-                gTaskTimerECU = gClock;
+            //if (gClock - gTaskTimerECU > gTaskCycleTimerECU) {
+            //    gTaskTimerECU = gClock;
 
                 // C demo
                 ecuCyclic();
-            }
+            //}
 
         }
         return 0;
@@ -104,20 +109,16 @@ extern "C" {
 
         for (;;) {
 
-            struct timespec timeout, timerem;
-            timeout.tv_sec = 0;
-            timeout.tv_nsec = 100000;
-            nanosleep(&timeout, &timerem);
-
-            gClock = ApplXcpGetTimestamp();
+            sleepns(gTaskCycleTimerECUpp);
+            //gClock = ApplXcpTimer();
 
             /* 1ms C++ task */
-            if (gClock - gTaskTimerECUpp > gTaskCycleTimerECUpp) {
-                gTaskTimerECUpp = gClock;
+            //if (gClock - gTaskTimerECUpp > gTaskCycleTimerECUpp) {
+            //    gTaskTimerECUpp = gClock;
 
                 // C++ demo
                 gEcu->task();
-            }
+            //}
 
         }
         return 0;

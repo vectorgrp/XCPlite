@@ -42,8 +42,6 @@ typedef struct {
 
 
 extern int udpServerSendCrmPacket(unsigned int n, const unsigned char* data);
-
-
 extern unsigned char* udpServerGetPacketBuffer(unsigned int size, void **par);
 extern void udpServerCommitPacketBuffer(void* par);
 
