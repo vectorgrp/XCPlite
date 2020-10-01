@@ -24,10 +24,13 @@ extern "C" {
 // ECU simulation (C demo)
 #include "ecu.h"
 
-// Parameters
-volatile unsigned long gTaskCycleTimerCMD = 10000000; // XCP handler task cycle time in ns
+// Task cycles
 volatile unsigned long gTaskCycleTimerECU = (1000000);
 volatile unsigned long gTaskCycleTimerECUpp = (1000000);
+
+volatile unsigned int gSocketPort = (5555); // UDP port
+volatile unsigned int gSocketTimeout = (50000); // Receive timeout, determines the polling rate of transmit queue
+
 
 }
 
@@ -49,22 +52,13 @@ extern "C" {
     void* xcpServer(void* par) {
 
         printf("Start XCP server\n");
-        udpServerInit(5555);
+        udpServerInit(gSocketPort,gSocketTimeout);
 
         // Server loop
         for (;;) {
 
-#if 0
-            gClock = ApplXcpDaqGetTimestamp();
-            if (gClock - gTaskTimerCMD > gTaskCycleTimerCMD) {
-                gTaskTimerCMD = gClock;
-                if (udpServerHandleXCPCommands() < 0) break;  // Handle XCP commands
-
-
-            }
-#else
             if (udpServerHandleXCPCommands() < 0) break;  // Handle XCP commands
-#endif
+            udpServerHandleTransmitQueue();
 
         } // for (;;)
 

@@ -22,51 +22,7 @@
 #include "xcpLite.h"
 
 
-
-//------------------------------------------------------------------------------
-// DTO buffer queue
-
-#define DTO_BUFFER_LEN XCP_UDP_MTU
-#define DTO_QUEUE_SIZE 16
-
-typedef struct dto_buffer {
-    unsigned int size;
-    unsigned int uncommited;
-    unsigned char data[DTO_BUFFER_LEN];
-} DTO_BUFFER;
-
-DTO_BUFFER dto_queue[DTO_QUEUE_SIZE];
-unsigned int dto_queue_rp;
-unsigned int dto_queue_len;
-DTO_BUFFER* dto_buffer;
-
-DTO_BUFFER *getDtoBuffer(void) {
-
-    DTO_BUFFER* b;
-
-    /* Check if there is space in the queue */
-    if (dto_queue_len >= DTO_QUEUE_SIZE) {
-        /* Queue overflow */
-        return NULL;
-    }
-    unsigned int i = dto_queue_rp + dto_queue_len;
-    if (i >= DTO_QUEUE_SIZE) i -= DTO_QUEUE_SIZE;
-    b = &dto_queue[i];
-    b->size = 0;
-    b->uncommited = 0;
-    return b;
-}
-
-void initDtoBufferQueue(void) {
-
-    dto_queue_rp = 0;
-    dto_queue_len = 0;
-    dto_buffer = getDtoBuffer();
-}
-
-
-
-//------------------------------------------------------------------------------
+ //------------------------------------------------------------------------------
 
 static unsigned short gLastCmdCtr = 0;
 static unsigned short gLastResCtr = 0;
@@ -76,9 +32,10 @@ static socklen_t gClientAddrLen = 0;
 static pthread_mutex_t gMutex = PTHREAD_MUTEX_INITIALIZER;
 
 
+
 // Transmit a UDP datagramm (contains multiple XCP messages)
 static int udpServerSendDatagram(unsigned int n, const unsigned char* data) {
-    
+
     int r;
 
     if (gSock == 0 || gClientAddrLen == 0) {
@@ -96,14 +53,84 @@ static int udpServerSendDatagram(unsigned int n, const unsigned char* data) {
 
     // Respond to last client received from, same port
     // gRemoteAddr.sin_port = htons(9001);
-     r = sendto(gSock, data, n, 0, (struct sockaddr*)&gClientAddr, gClientAddrLen);
-     if (r != n) {
-         printf("Error: sendto failed (result=%d, errno=%d)\n", r, errno);
-         return 0;
+    r = sendto(gSock, data, n, 0, (struct sockaddr*)&gClientAddr, gClientAddrLen);
+    if (r != n) {
+        printf("Error: sendto failed (result=%d, errno=%d)\n", r, errno);
+        return 0;
     }
 
     return 1;
 }
+
+
+
+//------------------------------------------------------------------------------
+// UDP packet queue (DTO buffers)
+
+#define DTO_BUFFER_LEN XCP_UDP_MTU
+#define DTO_QUEUE_SIZE 16
+
+typedef struct dto_buffer {
+    unsigned int size;
+    unsigned int uncommited;
+    unsigned char data[DTO_BUFFER_LEN];
+} DTO_BUFFER;
+
+static DTO_BUFFER dto_queue[DTO_QUEUE_SIZE];
+static unsigned int dto_queue_rp; // rp = read index
+static unsigned int dto_queue_len; // rp+len = write index (the next free entry), len=0 ist empty, len=DTO_QUEUE_SIZE is full
+static DTO_BUFFER* dto_buffer; // current incomplete or not fully commited entry
+
+static DTO_BUFFER *getDtoBuffer(void) {
+
+    DTO_BUFFER* b;
+
+    /* Check if there is space in the queue */
+    if (dto_queue_len >= DTO_QUEUE_SIZE) {
+        /* Queue overflow */
+        return NULL;
+    }
+    unsigned int i = dto_queue_rp + dto_queue_len;
+    if (i >= DTO_QUEUE_SIZE) i -= DTO_QUEUE_SIZE;
+    b = &dto_queue[i];
+    b->size = 0;
+    b->uncommited = 0;
+    return b;
+}
+
+static void initDtoBufferQueue(void) {
+
+    dto_queue_rp = 0;
+    dto_queue_len = 0;
+    dto_buffer = getDtoBuffer();
+}
+
+void udpServerHandleTransmitQueue(void) {
+
+    DTO_BUFFER* b;
+
+    while (dto_queue_len > 0) {
+
+            
+        b = &dto_queue[dto_queue_rp];
+        if (b->uncommited > 0 || b->size == 0) break;
+
+        udpServerSendDatagram(b->size, &b->data[0]);
+        b->size = 0;
+
+        pthread_mutex_lock(&gMutex);
+        dto_queue_rp++;
+        if (dto_queue_rp >= DTO_QUEUE_SIZE) dto_queue_rp -= DTO_QUEUE_SIZE;
+        dto_queue_len--;
+        pthread_mutex_unlock(&gMutex);
+
+    }
+}
+
+//------------------------------------------------------------------------------
+
+
+
 
 
 // Transmit XCP packet, copy to XCP message buffer
@@ -142,23 +169,29 @@ unsigned char *udpServerGetPacketBuffer(unsigned int size, void **par) {
 
     pthread_mutex_lock(&gMutex);
 
-    // Flush message buffer when full and completely commited
+    // Get another message buffer from queue, when active buffer ist full
     if (dto_buffer->size + size + XCP_PACKET_HEADER_SIZE > XCP_UDP_MTU ) {
-        udpServerSendDatagram(dto_buffer->size, dto_buffer->data);
-        dto_buffer->size = 0;
+        dto_buffer = getDtoBuffer();
+        
+        //udpServerSendDatagram(dto_buffer->size, dto_buffer->data);
+        //dto_buffer->size = 0;
     }
 
-    // Build XCP message (ctr+dlc+packet) and store in DTO buffer
-    p = (XCP_DTO_MESSAGE*)&dto_buffer->data[dto_buffer->size];
-    p->ctr = gLastResCtr++;
-    p->dlc = (short unsigned int)size;
-    dto_buffer->size += size + 4;
+    if (dto_buffer != NULL) {
 
-    *((DTO_BUFFER**)par) = dto_buffer;
-    dto_buffer->uncommited++;
+        // Build XCP message (ctr+dlc+packet) and store in DTO buffer
+        p = (XCP_DTO_MESSAGE*)&dto_buffer->data[dto_buffer->size];
+        p->ctr = gLastResCtr++;
+        p->dlc = (short unsigned int)size;
+        dto_buffer->size += size + 4;
+
+        *((DTO_BUFFER**)par) = dto_buffer;
+        dto_buffer->uncommited++;
+    }
 
     pthread_mutex_unlock(&gMutex);
 
+    if (dto_buffer == NULL) return NULL;
     return &p->data[0];
 }
 
@@ -166,24 +199,27 @@ void udpServerCommitPacketBuffer(void *par) {
 
     DTO_BUFFER* p = (DTO_BUFFER*)par;
 
+    if (par != NULL) {
+
 #if defined ( XCP_ENABLE_TESTMODE )
-    if (gDebugLevel >= 3) {
-        printf("CommitPacketBuffer() c=%u,s=%u\n", p->uncommited, p->size);
-    }
+        if (gDebugLevel >= 3) {
+            printf("CommitPacketBuffer() c=%u,s=%u\n", p->uncommited, p->size);
+        }
 #endif   
 
-    pthread_mutex_lock(&gMutex); 
+        pthread_mutex_lock(&gMutex);
+
+        p->uncommited--;
         
-    p->uncommited--;
-    //udpServerSendDatagram(p->size, &p->data[0]);
-    //p->size = 0;
-    
-    pthread_mutex_unlock(&gMutex);
-  
+        //udpServerSendDatagram(p->size, &p->data[0]);
+        //p->size = 0;
+
+        pthread_mutex_unlock(&gMutex);
+    }
 }
 
 
-int udpServerInit(unsigned short serverPort)
+int udpServerInit(unsigned short serverPort, unsigned int socketTimeout)
 {
     struct timeval timeout;
 
@@ -202,7 +238,7 @@ int udpServerInit(unsigned short serverPort)
 
     // Set socket timeout
     timeout.tv_sec = 0;
-    timeout.tv_usec = 50000; // 50ms
+    timeout.tv_usec = (long int)socketTimeout; 
     setsockopt(gSock, SOL_SOCKET, SO_RCVTIMEO, (void*)&timeout, sizeof(timeout));
 
     // Set socket transmit buffer size
