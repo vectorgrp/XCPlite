@@ -24,12 +24,16 @@ extern "C" {
 // ECU simulation (C demo)
 #include "ecu.h"
 
-// Task cycles
-volatile unsigned long gTaskCycleTimerECU = 1000000; // 1ms
-volatile unsigned long gTaskCycleTimerECUpp = 1000000; // 1ms
+
+
+// Parameters
+
+// Cycles times
+volatile vuint32 gTaskCycleTimerECU = 1* kApplXcpDaqTimestampTicksPerMs; // 1ms
+volatile vuint32 gTaskCycleTimerECUpp = 1 * kApplXcpDaqTimestampTicksPerMs; // 1ms
+volatile vuint32 gFlushCycle = 100 * kApplXcpDaqTimestampTicksPerMs; // 100ms send a DTO packet at least every 100ms
 
 volatile unsigned short gSocketPort = 5555; // UDP port
-
 volatile unsigned int gSocketTimeout = 0; // Receive timeout, determines the polling rate of transmit queue
 
 
@@ -43,12 +47,7 @@ ecu* gEcu = 0;
 
 extern "C" {
 
-    
-    volatile unsigned long gClock = 0;
-
-    //static unsigned long gTaskTimerECU = 0;
-    //static unsigned long gTaskTimerECUpp = 0;
-
+       
     static void sleepns(unsigned int ns) {
         struct timespec timeout, timerem;
         timeout.tv_sec = 0;
@@ -60,6 +59,8 @@ extern "C" {
     // XCP command handler task
     void* xcpServer(void* par) {
 
+        static vuint32 gFlushTimer = 0;
+
         printf("Start XCP server\n");
         udpServerInit(gSocketPort,gSocketTimeout);
 
@@ -69,6 +70,13 @@ extern "C" {
             if (udpServerHandleXCPCommands() < 0) break;  // Handle XCP commands
             udpServerHandleTransmitQueue();
             sleepns(10000);
+
+            // Cyclic flush of the transmit queue to keep tool visualizations up to date
+            ApplXcpTimer();
+            if (gTimer - gFlushTimer > gFlushCycle) {
+              gFlushTimer = gTimer;
+              udpServerFlushTransmitQueue();
+            }
 
         } // for (;;)
 
@@ -88,16 +96,10 @@ extern "C" {
         for (;;) {
 
             sleepns(gTaskCycleTimerECU);
-            //gClock = ApplXcpTimer();
-
-            /* 1ms C task */
-            // if (gClock - gTaskTimerECU > gTaskCycleTimerECU) {
-            //    gTaskTimerECU = gClock;
-
-                // C demo
+            
+            // C demo
                 ecuCyclic();
-            //}
-
+            
         }
         return 0;
     }
@@ -111,16 +113,10 @@ extern "C" {
         for (;;) {
 
             sleepns(gTaskCycleTimerECUpp);
-            //gClock = ApplXcpTimer();
-
-            /* 1ms C++ task */
-            // if (gClock - gTaskTimerECUpp > gTaskCycleTimerECUpp) {
-            //    gTaskTimerECUpp = gClock;
-
-                // C++ demo
-                gEcu->task();
-            //}
-
+            
+            // C++ demo
+            gEcu->task();
+            
         }
         return 0;
     }

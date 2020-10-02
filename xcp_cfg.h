@@ -24,6 +24,7 @@
 #include <sys/time.h>
 #include <time.h>
 #include <pthread.h> // link with -lpthread
+#include <assert.h>
 
 /*----------------------------------------------------------------------------*/
 /* Platform specific definitions */
@@ -113,9 +114,12 @@ extern void udpServerCommitPacketBuffer(void* par);
 
 
 /* DAQ timestamp settings */
-#define kXcpDaqTimestampUnit DAQ_TIMESTAMP_UNIT_1NS
-#define kXcpDaqTimestampTicksPerUnit 1  
+
+#define kApplXcpDaqTimestampTicksPerMs 1000
 extern vuint32 ApplXcpTimer(void);
+
+#define kXcpDaqTimestampUnit DAQ_TIMESTAMP_UNIT_1US
+#define kXcpDaqTimestampTicksPerUnit 1  
 #define ApplXcpGetTimestamp() ApplXcpTimer()
 
 
