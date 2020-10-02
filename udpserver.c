@@ -124,7 +124,8 @@ static void initDtoBufferQueue(void) {
 
 //------------------------------------------------------------------------------
 
-void udpServerHandleTransmitQueue(void) {
+// Transmit all completed and fully commited UDP frames
+void udpServerHandleTransmitQueue( void ) {
 
     DTO_BUFFER* b;
 
@@ -135,15 +136,13 @@ void udpServerHandleTransmitQueue(void) {
 #endif
 
     while (dto_queue_len > 1) {
-     
-        b = &dto_queue[dto_queue_rp];
-        assert(b->size > 0);
         
-        assert(dto_buffer != b); 
-        assert(dto_queue_len <= DTO_QUEUE_SIZE);
-        assert(dto_queue_rp <= DTO_QUEUE_SIZE);
-
-        if (b->uncommited > 0) break; // Wait until fully commited
+        pthread_mutex_lock(&gMutex);
+        b = &dto_queue[dto_queue_rp];
+        assert(b != dto_buffer);
+        if (b->size == 0 || b->uncommited > 0) b = NULL;
+        pthread_mutex_unlock(&gMutex);
+        if (b == NULL) break;
 
         // Send this frame
         udpServerSendDatagram(b->size, &b->data[0]);
@@ -158,6 +157,19 @@ void udpServerHandleTransmitQueue(void) {
     }
 }
 
+
+// Transmit all committed DTOs
+void udpServerFlushTransmitQueue(void) {
+    
+    // Complete the current buffer if non empty
+    pthread_mutex_lock(&gMutex);
+    if (dto_buffer->size>0) getDtoBuffer();
+    pthread_mutex_unlock(&gMutex);
+
+    udpServerHandleTransmitQueue();
+}
+
+
 //------------------------------------------------------------------------------
 
 
@@ -166,7 +178,7 @@ void udpServerHandleTransmitQueue(void) {
 // Flush the transmit buffer, if no space left
 unsigned char *udpServerGetPacketBuffer(unsigned int size, void **par) {
 
-    XCP_DTO_MESSAGE* p;
+    XCP_DTO_MESSAGE* p = NULL;
 
  #if defined ( XCP_ENABLE_TESTMODE )
     if (gDebugLevel >= 3) {

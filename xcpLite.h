@@ -1182,8 +1182,6 @@ typedef struct {
 } tXcpDaq;
 
 
-typedef vuint16 SessionStatusType;
-
 
 /* Shortcuts */
 
@@ -1252,7 +1250,7 @@ typedef struct {
   tXcpCto Crm;                           /* RES,ERR Message buffer */
   vuint8  CrmLen;                        /* RES,ERR Message length */
    
-  SessionStatusType SessionStatus;
+  vuint8 SessionStatus;
 
   MTABYTEPTR Mta;                        /* Memory Transfer Address */
 
@@ -1357,7 +1355,7 @@ extern vuint8 gDebugLevel;
 extern void ApplXcpPrint( const vsint8 *str, ... );
 #endif
 
-extern void XcpPrintDaqList( vuint8 daq );
+extern void XcpPrintDaqList( vuint16 daq );
 
 #endif /* XCP_ENABLE_TESTMODE */
 

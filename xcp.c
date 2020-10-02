@@ -8,13 +8,11 @@
 |   Linux (Raspberry Pi) Version
  ----------------------------------------------------------------------------*/
 
-// XCP driver
-#include "xcpLite.h"
-
-// XCP handler
 #include "xcp.h"
 
 
+// Wall clock updated at every AppXcpTimer
+volatile vuint32 gTimer = 0;
 
 
 
@@ -28,7 +26,7 @@
 /* Compile with:   -lrt */
 
 
-int ApplXcpTimerInit( void )
+void ApplXcpTimerInit( void )
 {
     struct timespec clock_resolution;
     clock_getres(CLOCK_REALTIME, &clock_resolution);
@@ -41,19 +39,18 @@ int ApplXcpTimerInit( void )
         
     }
 #endif
-    return 0;
+    assert(sizeof(long long) == 8);
 }
 
 // Free runing clock with 10ns tick
 // 1ns with overflow every 4s is critical for CANape measurement start time offset calculation
-unsigned long ApplXcpTimer(void) {
+vuint32 ApplXcpTimer(void) {
 
     struct timespec ts; 
-    unsigned long long t;
+    
     clock_gettime(CLOCK_REALTIME, &ts);
-    t = ((unsigned long long)ts.tv_sec * 1000000000L) + (unsigned long long)(ts.tv_nsec);
-    return (unsigned long)t;
-       
+    gTimer = (vuint32)((((unsigned long long)ts.tv_sec * 1000000000L) + (unsigned long long)(ts.tv_nsec))/1000);
+    return gTimer;  
 }
 
 
