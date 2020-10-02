@@ -22,6 +22,14 @@ Achieves 50 MByte/s UDP on a Raspberry Pi 4 with 50% CPU load
 TCP not implemented
 
 
+CANape Linker Map Type ELF extended
+Compile with -O2
+Link with -lrt -lpthread
+
+
+
+
+
 
 
 

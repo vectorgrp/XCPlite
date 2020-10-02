@@ -374,7 +374,7 @@ int udpServerInit(unsigned short serverPort, unsigned int socketTimeout)
     }
 
     // Set socket transmit buffer size
-    int buffer = 1000000;
+    int buffer = 2000000;
     setsockopt(gSock, SOL_SOCKET, SO_SNDBUF, (void*)&buffer, sizeof(buffer));
 
     // Bind the socket
