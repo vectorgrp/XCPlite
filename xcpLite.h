@@ -1274,11 +1274,10 @@ typedef struct {
 
 
 /****************************************************************************/
-/* API Prototypes                                                           */
+/* API                                                                      */
 /****************************************************************************/
 
-/* API functions of xcpLite.c */
-
+extern tXcpData xcp;
 
 /* Initialization for the XCP Protocol Layer. */
 extern void XcpInit( void );

@@ -83,7 +83,7 @@ extern void udpServerCommitPacketBuffer(void* par);
 /*----------------------------------------------------------------------------*/
 /* XCP protocol parameters */
 
-#define XCP_UDP_MTU (1500-20-8)  // IPv4 1500 ETH - 28 IP - 8 UDP
+#define XCP_UDP_MTU (1500-32)  // IPv4 1500 ETH - 28 IP - 8 UDP
 
 /* XCP message length */
 #define kXcpMaxCTO     250      /* Maximum CTO and CRM Message Lenght */

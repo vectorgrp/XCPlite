@@ -78,6 +78,7 @@
     <ClCompile Include="ecu.c" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="ecupp.cpp" />
+    <ClCompile Include="udpraw.c" />
     <ClCompile Include="udpserver.c" />
     <ClCompile Include="xcpLite.c" />
     <ClCompile Include="xcp.c" />
@@ -85,6 +86,7 @@
   <ItemGroup>
     <ClInclude Include="ecu.h" />
     <ClInclude Include="ecupp.hpp" />
+    <ClInclude Include="udpraw.h" />
     <ClInclude Include="udpserver.h" />
     <ClInclude Include="xcpLite.h" />
     <ClInclude Include="xcp.h" />

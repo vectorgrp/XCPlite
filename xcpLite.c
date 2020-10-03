@@ -84,7 +84,7 @@
 /* Local data                                                               */
 /****************************************************************************/
 
-static tXcpData xcp; 
+tXcpData xcp; 
 
 const vuint8 MEMORY_ROM kXcpStationId[kXcpStationIdLength] = kXcpStationIdString; // Name of the A2L file for auto detection
 
@@ -187,7 +187,7 @@ static void XcpFreeDaq( void )
 {
   xcp.SessionStatus &= (vuint8)(~SS_DAQ);
 #if defined ( XCP_ENABLE_TESTMODE )
-  if (gDebugLevel != 0) ApplXcpPrint("sessionStatus = %02Xh\n", xcp.SessionStatus);
+  if (gDebugLevel != 0 && xcp.SessionStatus & SS_CONNECTED) ApplXcpPrint("sessionStatus = %02Xh\n", xcp.SessionStatus);
 #endif
   xcp.Daq.DaqCount = 0;
   xcp.Daq.OdtCount = 0;
@@ -352,7 +352,7 @@ static void XcpStartDaq( vuint16 daq )
   DaqListFlags(daq) |= (vuint8)DAQ_FLAG_RUNNING;
   xcp.SessionStatus |= (vuint8)SS_DAQ;
 #if defined ( XCP_ENABLE_TESTMODE )
-  if (gDebugLevel != 0) ApplXcpPrint("sessionStatus = %02Xh\n", xcp.SessionStatus);
+  if (gDebugLevel != 0 && xcp.SessionStatus & SS_CONNECTED) ApplXcpPrint("sessionStatus = %02Xh\n", xcp.SessionStatus);
 #endif
 }
 
@@ -405,7 +405,7 @@ static void XcpStopDaq( vuint16 daq )
 
   xcp.SessionStatus &= (vuint8)(~SS_DAQ);
 #if defined ( XCP_ENABLE_TESTMODE )
-  if (gDebugLevel != 0) ApplXcpPrint("sessionStatus = %02Xh\n", xcp.SessionStatus);
+  if (gDebugLevel != 0 && xcp.SessionStatus & SS_CONNECTED) ApplXcpPrint("sessionStatus = %02Xh\n", xcp.SessionStatus);
 #endif
 }
 
@@ -445,7 +445,7 @@ static void XcpStopAllDaq( void )
 
   xcp.SessionStatus &= (vuint8)(~SS_DAQ);  
 #if defined ( XCP_ENABLE_TESTMODE )
-  if (gDebugLevel != 0) ApplXcpPrint("sessionStatus = %02Xh\n", xcp.SessionStatus);
+  if (gDebugLevel != 0 && xcp.SessionStatus&SS_CONNECTED) ApplXcpPrint("sessionStatus = %02Xh\n", xcp.SessionStatus);
 #endif
 }
 
@@ -546,7 +546,7 @@ void XcpDisconnect( void )
 {
   xcp.SessionStatus &= (vuint8)(~SS_CONNECTED);
 #if defined ( XCP_ENABLE_TESTMODE )
-  if (gDebugLevel != 0) ApplXcpPrint("sessionStatus = %02Xh\n", xcp.SessionStatus);
+  if (gDebugLevel >= 0) ApplXcpPrint("sessionStatus = %02Xh\n", xcp.SessionStatus);
 #endif
   XcpStopAllDaq();
 }

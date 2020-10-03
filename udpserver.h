@@ -4,8 +4,42 @@
 #ifndef __UDPSERVER_H
 #define __UDPSERVER_H
 
-#include "xcpLite.h"
+#include <stdio.h>
+#include <string.h>
+#include <strings.h>
+#include <stdbool.h>
+#include <assert.h>
 
+#include <sys/types.h>
+#include <errno.h>
+
+#include <sys/time.h>
+
+#include <sys/socket.h>
+
+#include <netinet/in.h>
+#include <linux/ip.h>
+#include <linux/udp.h>
+#include <arpa/inet.h>
+
+
+#define DTO_SEND_QUEUE
+#define DTO_SEND_RAW
+
+#include "xcpLite.h"
+#ifdef DTO_SEND_RAW
+  #include "udpraw.h"
+#endif
+
+
+
+extern unsigned short gLastCmdCtr;
+extern unsigned short gLastResCtr;
+extern int gSock;
+extern struct sockaddr_in gServerAddr;
+extern struct sockaddr_in gClientAddr;
+extern socklen_t gClientAddrLen;
+extern pthread_mutex_t gMutex;
 
 
 #define USAGE_ERR			-1

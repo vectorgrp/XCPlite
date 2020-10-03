@@ -20,6 +20,7 @@ extern "C" {
 
 // UDP server
 #include "udpserver.h"
+#include "udpraw.h"
 
 // ECU simulation (C demo)
 #include "ecu.h"
@@ -98,7 +99,7 @@ extern "C" {
             sleepns(gTaskCycleTimerECU);
             
             // C demo
-                ecuCyclic();
+            ecuCyclic();
             
         }
         return 0;
@@ -124,6 +125,55 @@ extern "C" {
 }
 
 
+extern "C" {
+
+
+#if 0
+    void testraw(void) {
+
+
+        int n, i;
+        unsigned char buffer[2000];;
+
+        printf("testraw\n");
+
+        struct sockaddr_in src;
+        src.sin_family = AF_INET;
+        src.sin_port = htons(5555);
+        inet_pton(AF_INET, "172.31.31.194", &src.sin_addr);
+
+        char tmp[32];
+        inet_ntop(AF_INET, &src.sin_addr, tmp, sizeof(tmp));
+        printf("src = sin_family=%u, addr=%s, port=%u\n", src.sin_family, tmp, ntohs(src.sin_port));
+        
+        udpRawInit(&src);
+
+        for (;;) {
+            
+            if (xcp.SessionStatus & SS_CONNECTED) {
+
+                unsigned char buf[] = { 0xFE,0x00 };
+                udpRawSend(&gClientAddr,buf,2);
+                
+            }
+            else {
+                //printf("wait connect\n");
+            }
+
+            struct timespec timeout, timerem;
+            timeout.tv_sec = 1;
+            timeout.tv_nsec = 0;
+            nanosleep(&timeout, &timerem);
+
+        }
+
+    }
+#endif
+
+}
+
+
+
 
 // C++ main
 int main(void)
@@ -136,7 +186,7 @@ int main(void)
         "V1.0\n"
         "Build " __DATE__ " " __TIME__ "\n"
         );
-
+      
     // Initialize clock for DAQ event time stamps
     ApplXcpTimerInit();
 
@@ -154,6 +204,8 @@ int main(void)
     pthread_create(&t1, NULL, xcpServer, (void*)&a1);
     pthread_create(&t2, NULL, ecuTask, (void*)&a2); 
     //pthread_create(&t3, NULL, ecuppTask, (void*)&a3);
+
+    // testraw();
 
     pthread_join(t1, NULL); // xcpServer may fail, join here 
     pthread_cancel(t2); // and stop the other tasks
