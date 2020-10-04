@@ -9,8 +9,8 @@
 |                 Don't change this file !
 |***************************************************************************/
 
-#if !defined ( __XCP_H_ )
-#define __XCP_H_
+#if !defined ( __XCPLITE_H_ )
+#define __XCPLITE_H_
 
 
 /***************************************************************************/
@@ -1021,9 +1021,9 @@
   #define CRO_WORD(x)               (pCmd->w[x])
   #define CRO_DWORD(x)              (pCmd->dw[x])
 
-  #define CRM_BYTE(x)               (xcp.Crm.b[x])
-  #define CRM_WORD(x)               (xcp.Crm.w[x])
-  #define CRM_DWORD(x)              (xcp.Crm.dw[x])
+  #define CRM_BYTE(x)               (gXcp.Crm.b[x])
+  #define CRM_WORD(x)               (gXcp.Crm.w[x])
+  #define CRM_DWORD(x)              (gXcp.Crm.dw[x])
 
   
 
@@ -1075,7 +1075,7 @@
   #define MTABYTEPTR vuint8 XCP_MEMORY_FAR *
 #endif
 
-/* Pointer type used to point into the xcp structure */
+/* Pointer type used to point into the gXcp structure */
 #if defined ( BYTEPTR )
 #else
   #define BYTEPTR vuint8 *
@@ -1186,24 +1186,24 @@ typedef struct {
 /* Shortcuts */
 
 /* j is absolute odt number */
-#define DaqListOdtEntryCount(j) ((xcp.pOdt[j].lastOdtEntry-xcp.pOdt[j].firstOdtEntry)+1)
-#define DaqListOdtLastEntry(j)  (xcp.pOdt[j].lastOdtEntry)
-#define DaqListOdtFirstEntry(j) (xcp.pOdt[j].firstOdtEntry)
-#define DaqListOdtSize(j)       (xcp.pOdt[j].size)
+#define DaqListOdtEntryCount(j) ((gXcp.pOdt[j].lastOdtEntry-gXcp.pOdt[j].firstOdtEntry)+1)
+#define DaqListOdtLastEntry(j)  (gXcp.pOdt[j].lastOdtEntry)
+#define DaqListOdtFirstEntry(j) (gXcp.pOdt[j].firstOdtEntry)
+#define DaqListOdtSize(j)       (gXcp.pOdt[j].size)
 
 /* n is absolute odtEntry number */
-#define OdtEntrySize(n)         (xcp.pOdtEntrySize[n])
-#define OdtEntryAddr(n)         (xcp.pOdtEntryAddr[n])
+#define OdtEntrySize(n)         (gXcp.pOdtEntrySize[n])
+#define OdtEntryAddr(n)         (gXcp.pOdtEntryAddr[n])
 
 /* i is daq number */
-#define DaqListOdtCount(i)      ((xcp.Daq.u.DaqList[i].lastOdt-xcp.Daq.u.DaqList[i].firstOdt)+1)
-#define DaqListLastOdt(i)       xcp.Daq.u.DaqList[i].lastOdt
-#define DaqListFirstOdt(i)      xcp.Daq.u.DaqList[i].firstOdt
-#define DaqListFirstPid(i)      xcp.Daq.u.DaqList[i].firstOdt
-#define DaqListFlags(i)         xcp.Daq.u.DaqList[i].flags
-#define DaqListEventChannel(i)  xcp.Daq.u.DaqList[i].eventChannel
-#define DaqListPrescaler(i)     xcp.Daq.u.DaqList[i].prescaler 
-#define DaqListCycle(i)         xcp.Daq.u.DaqList[i].cycle
+#define DaqListOdtCount(i)      ((gXcp.Daq.u.DaqList[i].lastOdt-gXcp.Daq.u.DaqList[i].firstOdt)+1)
+#define DaqListLastOdt(i)       gXcp.Daq.u.DaqList[i].lastOdt
+#define DaqListFirstOdt(i)      gXcp.Daq.u.DaqList[i].firstOdt
+#define DaqListFirstPid(i)      gXcp.Daq.u.DaqList[i].firstOdt
+#define DaqListFlags(i)         gXcp.Daq.u.DaqList[i].flags
+#define DaqListEventChannel(i)  gXcp.Daq.u.DaqList[i].eventChannel
+#define DaqListPrescaler(i)     gXcp.Daq.u.DaqList[i].prescaler 
+#define DaqListCycle(i)         gXcp.Daq.u.DaqList[i].cycle
 
 /* Return values */
 #define XCP_CMD_DENIED              0
@@ -1227,7 +1227,7 @@ typedef struct {
 #define XCP_EVENT_STIM              0x08u   /* STIM active */
 #define XCP_EVENT_STIM_OVERRUN      0x10u   /* STIM data not available */
 
-/* Bitmasks for xcp.SendStatus */
+/* Bitmasks for gXcp.SendStatus */
 #define XCP_CRM_REQUEST             0x01u
 #define XCP_DTO_REQUEST             0x02u
 #define XCP_EVT_REQUEST             0x04u
@@ -1277,7 +1277,7 @@ typedef struct {
 /* API                                                                      */
 /****************************************************************************/
 
-extern tXcpData xcp;
+extern tXcpData gXcp;
 
 /* Initialization for the XCP Protocol Layer. */
 extern void XcpInit( void );
@@ -1346,7 +1346,7 @@ void ApplXcpCommitDtoBuffer(vuint8 *buf);
 
 #if defined ( XCP_ENABLE_TESTMODE )
 
-extern vuint8 gDebugLevel;
+extern vuint8 gXcpDebugLevel;
 
 #if defined ( ApplXcpPrint )
 /* ApplXcpPrint is a macro */

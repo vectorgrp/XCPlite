@@ -192,7 +192,7 @@ int main(void)
 
     // Initialize XCP driver
     XcpInit();
-    gDebugLevel = 1;
+    gXcpDebugLevel = 1;
 
     // Initialize ECU demo (C)
     ecuInit();

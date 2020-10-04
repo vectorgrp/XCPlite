@@ -80,6 +80,6 @@
 /* XCP slave device identification (optional) */
 #define kXcpStationIdLength 5    /* Slave device identification length */
 #define kXcpStationIdString "xcpPi"  /* Slave device identification */
-extern vuint8 MEMORY_ROM kXcpStationId[];
+extern vuint8 MEMORY_ROM gXcpStationId[];
 
 #endif

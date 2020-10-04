@@ -9,15 +9,8 @@
 |
  ----------------------------------------------------------------------------*/
 
-#include <stdio.h>
-#include <math.h>
-#include <stdarg.h>
-#include <stdlib.h>
-
 #include "ecu.h"
 
-// XCP driver
-#include "xcpLite.h"
 
 
 /**************************************************************************/

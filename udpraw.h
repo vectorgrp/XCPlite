@@ -1,25 +1,20 @@
-#pragma once
 
-#include <stdlib.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <string.h>
+#ifndef __UDPRAW_H_
+#define __UDPRAW_H_
 
-#include <sys/types.h>
-#include <errno.h>
+#include "xcpLite.h"
 
-#include <sys/time.h>
+#ifdef DTO_SEND_RAW
 
-#include <sys/socket.h>
+extern int gRawSock;
 
-#include <netinet/in.h>
-#include <linux/ip.h>
-#include <linux/udp.h>
-#include <arpa/inet.h>
+void udpRawInitIpHeader(struct iphdr *ip, struct sockaddr_in *src, struct sockaddr_in *dst);
+void udpRawInitUdpHeader(struct udphdr *udp, struct sockaddr_in *src, struct sockaddr_in *dst);
 
+int udpRawSend(DTO_BUFFER *buf);
+int udpRawInit(struct sockaddr_in *src, struct sockaddr_in* dst );
 
-int udpRawSend(struct sockaddr_in* dst, unsigned char * buf, unsigned int len);
-int udpRawInit(struct sockaddr_in* src);
-
+#endif
+#endif
 
 

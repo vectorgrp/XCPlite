@@ -11,6 +11,7 @@
 #include "udpserver.h"
 
 
+
 unsigned short gLastCmdCtr = 0;
 unsigned short gLastResCtr = 0;
 
@@ -37,7 +38,7 @@ static int udpServerSendDatagram(unsigned int n, const unsigned char* data) {
     }
 
 #if defined ( XCP_ENABLE_TESTMODE )
-    if (gDebugLevel >= 3) {
+    if (gXcpDebugLevel >= 3) {
         printf("TX: ");
         for (int i = 0; i < n; i++) printf("%00X ", data[i]);
         printf("\n");
@@ -60,24 +61,15 @@ static int udpServerSendDatagram(unsigned int n, const unsigned char* data) {
 //------------------------------------------------------------------------------
 // XCP (UDP) transport layer packet queue (DTO buffers)
 
-#define DTO_BUFFER_LEN XCP_UDP_MTU
+
 
 
 #ifdef DTO_SEND_QUEUE
 
-#define DTO_BUFFER_LEN XCP_UDP_MTU
-#define DTO_QUEUE_SIZE 32
-
-typedef struct dto_buffer {
-    unsigned int size;
-    unsigned int uncommited;
-    unsigned char data[DTO_BUFFER_LEN];
-} DTO_BUFFER;
-
 static DTO_BUFFER dto_queue[DTO_QUEUE_SIZE];
 static unsigned int dto_queue_rp; // rp = read index
 static unsigned int dto_queue_len; // rp+len = write index (the next free entry), len=0 ist empty, len=DTO_QUEUE_SIZE is full
-static DTO_BUFFER* dto_buffer; // current incomplete or not fully commited entry
+static DTO_BUFFER* dto_buffer_ptr; // current incomplete or not fully commited entry
 
 // Not thread save
 static void getDtoBuffer(void) {
@@ -87,15 +79,15 @@ static void getDtoBuffer(void) {
     /* Check if there is space in the queue */
     if (dto_queue_len >= DTO_QUEUE_SIZE) {
         /* Queue overflow */
-        dto_buffer = NULL;
+        dto_buffer_ptr = NULL;
     }
     else {
         unsigned int i = dto_queue_rp + dto_queue_len;
         if (i >= DTO_QUEUE_SIZE) i -= DTO_QUEUE_SIZE;
         b = &dto_queue[i];
-        b->size = 0;
-        b->uncommited = 0;
-        dto_buffer = b;
+        b->xcp_size = 0;
+        b->xcp_uncommited = 0;
+        dto_buffer_ptr = b;
         dto_queue_len++;
     }
 }
@@ -105,8 +97,16 @@ static void initDtoBufferQueue(void) {
 
     dto_queue_rp = 0;
     dto_queue_len = 0;
+    dto_buffer_ptr = NULL;
+    memset(dto_queue, 0, sizeof(dto_queue));
+#ifdef DTO_SEND_RAW
+    for (int i = 0; i < DTO_QUEUE_SIZE; i++) {
+        udpRawInitIpHeader(&dto_queue[i].ip,0,0);
+        udpRawInitUdpHeader(&dto_queue[i].udp,0,0);
+    }
+#endif
     getDtoBuffer();
-    assert(dto_buffer);
+    assert(dto_buffer_ptr);
 }
 
 
@@ -118,7 +118,7 @@ void udpServerHandleTransmitQueue( void ) {
     DTO_BUFFER* b;
 
 #if defined ( XCP_ENABLE_TESTMODE )
-    if (gDebugLevel >= 3 && dto_queue_len>1) {
+    if (gXcpDebugLevel >= 3 && dto_queue_len>1) {
         printf("* rp = %u, len = %u\n", dto_queue_rp, dto_queue_len);
     }
 #endif
@@ -127,16 +127,16 @@ void udpServerHandleTransmitQueue( void ) {
         
         pthread_mutex_lock(&gMutex);
         b = &dto_queue[dto_queue_rp];
-        assert(b != dto_buffer);
-        if (b->size == 0 || b->uncommited > 0) b = NULL;
+        assert(b != dto_buffer_ptr);
+        if (b->xcp_size == 0 || b->xcp_uncommited > 0) b = NULL;
         pthread_mutex_unlock(&gMutex);
         if (b == NULL) break;
 
         // Send this frame
 #ifdef DTO_SEND_RAW
-        udpRawSend((struct sockaddr*)&gClientAddr, &b->data[0], b->size);
+        udpRawSend(b);
 #else
-        udpServerSendDatagram(b->size, &b->data[0]);
+        udpServerSendDatagram(b->xcp_size, &b->xcp[0]);
 #endif
         
         // Free this buffer
@@ -155,7 +155,7 @@ void udpServerFlushTransmitQueue(void) {
     
     // Complete the current buffer if non empty
     pthread_mutex_lock(&gMutex);
-    if (dto_buffer->size>0) getDtoBuffer();
+    if (dto_buffer_ptr->xcp_size>0) getDtoBuffer();
     pthread_mutex_unlock(&gMutex);
 
     udpServerHandleTransmitQueue();
@@ -173,13 +173,13 @@ unsigned char *udpServerGetPacketBuffer(unsigned int size, void **par) {
     XCP_DTO_MESSAGE* p = NULL;
 
  #if defined ( XCP_ENABLE_TESTMODE )
-    if (gDebugLevel >= 3) {
+    if (gXcpDebugLevel >= 3) {
         printf("GetPacketBuffer(%u)\n", size);
-        if (dto_buffer) {
-            printf("  dto_buffer s=%u, c=%u\n", dto_buffer->size, dto_buffer->uncommited);
+        if (dto_buffer_ptr) {
+            printf("  dto_buffer_ptr s=%u, c=%u\n", dto_buffer_ptr->xcp_size, dto_buffer_ptr->xcp_uncommited);
         }
         else {
-            printf("  dto_buffer = NULL\n");
+            printf("  dto_buffer_ptr = NULL\n");
         }
     }
 #endif
@@ -187,25 +187,25 @@ unsigned char *udpServerGetPacketBuffer(unsigned int size, void **par) {
     pthread_mutex_lock(&gMutex);
 
     // Get another message buffer from queue, when active buffer ist full, overrun or after time condition
-    if (dto_buffer==NULL || dto_buffer->size + size + XCP_PACKET_HEADER_SIZE > XCP_UDP_MTU ) {
+    if (dto_buffer_ptr==NULL || dto_buffer_ptr->xcp_size + size + XCP_PACKET_HEADER_SIZE > XCP_UDP_MTU ) {
         getDtoBuffer();
     }
 
-    if (dto_buffer != NULL) {
+    if (dto_buffer_ptr != NULL) {
 
         // Build XCP message (ctr+dlc+packet) and store in DTO buffer
-        p = (XCP_DTO_MESSAGE*)&dto_buffer->data[dto_buffer->size];
+        p = (XCP_DTO_MESSAGE*)&dto_buffer_ptr->xcp[dto_buffer_ptr->xcp_size];
         p->ctr = gLastResCtr++;
         p->dlc = (short unsigned int)size;
-        dto_buffer->size += size + 4;
+        dto_buffer_ptr->xcp_size += size + 4;
 
-        *((DTO_BUFFER**)par) = dto_buffer;
-        dto_buffer->uncommited++;
+        *((DTO_BUFFER**)par) = dto_buffer_ptr;
+        dto_buffer_ptr->xcp_uncommited++;
     }
 
     pthread_mutex_unlock(&gMutex);
 
-    if (dto_buffer == NULL) return NULL;
+    if (dto_buffer_ptr == NULL) return NULL;
     return &p->data[0];
 }
 
@@ -216,13 +216,13 @@ void udpServerCommitPacketBuffer(void *par) {
     if (par != NULL) {
 
 #if defined ( XCP_ENABLE_TESTMODE )
-        if (gDebugLevel >= 3) {
-            printf("CommitPacketBuffer() c=%u,s=%u\n", p->uncommited, p->size);
+        if (gXcpDebugLevel >= 3) {
+            printf("CommitPacketBuffer() c=%u,s=%u\n", p->xcp_uncommited, p->xcp_size);
         }
 #endif   
 
         pthread_mutex_lock(&gMutex);
-        p->uncommited--;
+        p->xcp_uncommited--;
         pthread_mutex_unlock(&gMutex);
     }
 }
@@ -294,7 +294,7 @@ int udpServerSendCrmPacket(unsigned int size, const unsigned char* packet) {
     memcpy(p.data, packet, size);
 
 #if defined ( XCP_ENABLE_TESTMODE )
-    if (gDebugLevel >= 3) {
+    if (gXcpDebugLevel >= 3) {
         printf("SendPacket() CTR = %04X,", p.ctr);
         printf(" LEN = %04X,", p.dlc);
         printf(" DATA = ");
@@ -329,21 +329,21 @@ int udpServerHandleXCPCommands(void) {
     }
     else if (n == 0) { // UDP datagramm with zero bytes received
 #if defined ( XCP_ENABLE_TESTMODE )
-        if (gDebugLevel >= 1) {
+        if (gXcpDebugLevel >= 1) {
             printf("RX: 0 bytes\n");
         }
 #endif
     }
     else if (n > 0) { // Socket data received
 #ifdef XCP_ENABLE_TESTMODE
-        if (gDebugLevel >= 1) {
+        if (gXcpDebugLevel >= 1) {
             if (!gClientAddrValid) {
                 unsigned char tmp[32];
                 inet_ntop(AF_INET, &gClientAddr.sin_addr, tmp, sizeof(tmp));
                 printf("Connected: ClientAddr = sin_family=%u, addr=%s, port=%u\n", gClientAddr.sin_family, tmp, ntohs(gClientAddr.sin_port));
             }
         }
-        if (gDebugLevel >= 3) {
+        if (gXcpDebugLevel >= 3) {
             printf("RX: CTR %04X", buffer.ctr);
             printf(" LEN %04X", buffer.dlc);
             printf(" DATA = ");
@@ -351,7 +351,7 @@ int udpServerHandleXCPCommands(void) {
             printf("\n");
         }
 #endif
-        if (gClientAddrValid && xcp.SessionStatus&SS_CONNECTED) {
+        if (gClientAddrValid && gXcp.SessionStatus&SS_CONNECTED) {
             // Todo: Ignore command packets from other masters
         }
         gClientAddrValid = 1; // Master connected
@@ -405,18 +405,20 @@ int udpServerInit(unsigned short serverPort, unsigned int socketTimeout)
     }
 
 #if defined ( XCP_ENABLE_TESTMODE )
-    if (gDebugLevel >= 1) {
+    if (gXcpDebugLevel >= 1) {
         fprintf(stderr, "Bind on UDP port %d.\n", serverPort);
         fprintf(stderr, "UDP MTU = %d.\n", XCP_UDP_MTU);
     }
 #endif
 
+
+    // ????????????????????
 #ifdef DTO_SEND_RAW
     struct sockaddr_in src;
     src.sin_family = AF_INET;
     src.sin_port = htons(5555);
     inet_pton(AF_INET, "172.31.31.194", &src.sin_addr);
-    if (!udpRawInit(&src)) {
+    if (!udpRawInit(00,00)) {
         printf("Cannot initialize raw socket\n");
         shutdown(gSock, SHUT_RDWR);
         return SOCK_BIND_ERR;

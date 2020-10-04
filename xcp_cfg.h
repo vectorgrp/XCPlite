@@ -15,16 +15,34 @@
 
 // General includes
 #define _POSIX_C_SOURCE 200809L
+
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
+
 #include <sys/types.h>
 #include <sys/time.h>
 #include <time.h>
+
 #include <pthread.h> // link with -lpthread
+
 #include <assert.h>
+
+#include <errno.h>
+#include <sys/socket.h>
+
+#include <netinet/in.h>
+#include <linux/ip.h>
+#include <linux/udp.h>
+#include <arpa/inet.h>
+
+
+#include "udpserver.h"
+#ifdef DTO_SEND_RAW
+  #include "udpraw.h"
+#endif
 
 /*----------------------------------------------------------------------------*/
 /* Platform specific definitions */
@@ -84,6 +102,13 @@ extern void udpServerCommitPacketBuffer(void* par);
 /* XCP protocol parameters */
 
 #define XCP_UDP_MTU (1500-32)  // IPv4 1500 ETH - 28 IP - 8 UDP
+#define DTO_SEND_QUEUE
+#define DTO_QUEUE_SIZE 32
+#define DTO_SEND_RAW
+
+
+
+
 
 /* XCP message length */
 #define kXcpMaxCTO     250      /* Maximum CTO and CRM Message Lenght */
