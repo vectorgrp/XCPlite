@@ -8,8 +8,7 @@
 |   Linux XCP on UDP demo (Tested on RaspberryPi4)
  ----------------------------------------------------------------------------*/
 
-#if defined ( __XCP_CFG_H__ )
-#else
+#if !defined ( __XCP_CFG_H__ )
 #define __XCP_CFG_H__
 
 
@@ -39,11 +38,6 @@
 #include <arpa/inet.h>
 
 
-#include "udpserver.h"
-#ifdef DTO_SEND_RAW
-  #include "udpraw.h"
-#endif
-
 /*----------------------------------------------------------------------------*/
 /* Platform specific definitions */
 
@@ -71,8 +65,8 @@ typedef signed long    vsint32;
 /*----------------------------------------------------------------------------*/
 /* XCP Driver Callbacks as macros */
 
-extern int udpServerSendCrmPacket(unsigned int n, const unsigned char* data);
-extern unsigned char* udpServerGetPacketBuffer(unsigned int size, void** par);
+extern int udpServerSendCrmPacket(const unsigned char* data, unsigned int n);
+extern unsigned char* udpServerGetPacketBuffer(void** par, unsigned int size);
 extern void udpServerCommitPacketBuffer(void* par);
 
 // Convert a XCP (BYTE addrExt, DWORD addr from A2L) address to a C pointer to unsigned byte
@@ -105,8 +99,6 @@ extern void udpServerCommitPacketBuffer(void* par);
 #define DTO_SEND_QUEUE
 #define DTO_QUEUE_SIZE 32
 #define DTO_SEND_RAW
-
-
 
 
 

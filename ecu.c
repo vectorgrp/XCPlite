@@ -10,8 +10,9 @@
  ----------------------------------------------------------------------------*/
 
 #include "ecu.h"
+#include "xcpLite.h"
 
-
+#include <math.h>
 
 /**************************************************************************/
 /* ECU Measurement RAM */
@@ -274,22 +275,22 @@ void ecuInit( void ) {
     bitstruct1.s3 = 0;
   
     for (int i = 0; i < 1400; i++) {
-        byteArray1[i] = i & 0xff;
-        byteArray2[i] = i & 0xff;
-        byteArray3[i] = i & 0xff;
-        byteArray4[i] = i & 0xff;
-        byteArray5[i] = i & 0xff;
-        byteArray6[i] = i & 0xff;
-        byteArray7[i] = i & 0xff;
-        byteArray8[i] = i & 0xff;
-        byteArray9[i] = i & 0xff;
-        byteArray10[i] = i & 0xff;
-        byteArray11[i] = i & 0xff;
-        byteArray12[i] = i & 0xff;
-        byteArray13[i] = i & 0xff;
-        byteArray14[i] = i & 0xff;
-        byteArray15[i] = i & 0xff;
-        byteArray16[i] = i & 0xff;
+        byteArray1[i] = (unsigned char)i;
+        byteArray2[i] = (unsigned char)i;
+        byteArray3[i] = (unsigned char)i;
+        byteArray4[i] = (unsigned char)i;
+        byteArray5[i] = (unsigned char)i;
+        byteArray6[i] = (unsigned char)i;
+        byteArray7[i] = (unsigned char)i;
+        byteArray8[i] = (unsigned char)i;
+        byteArray9[i] = (unsigned char)i;
+        byteArray10[i] = (unsigned char)i;
+        byteArray11[i] = (unsigned char)i;
+        byteArray12[i] = (unsigned char)i;
+        byteArray13[i] = (unsigned char)i;
+        byteArray14[i] = (unsigned char)i;
+        byteArray15[i] = (unsigned char)i;
+        byteArray16[i] = (unsigned char)i;
     }
 }
 
@@ -340,13 +341,13 @@ void ecuCyclic( void )
   /* Test map1_8_8_uc */
   if (++ti>map1Counter) {
    ti = 0;
-   map1InputX += xi;
-   if (map1InputX>=7||map1InputX<=0) {
-     xi *= -1;
+   map1InputX++;
+    if (map1InputX>=7||map1InputX<=0) {
+        map1InputX = 0;
    }
-   map1InputY += yi;
+   map1InputY++;
    if (map1InputY>=7||map1InputY<=0) {
-     yi *= -1;
+       map1InputY = 0;
    }
   }
   map1Output = map1_8_8_uc[map1InputY][map1InputX];
@@ -361,10 +362,8 @@ void ecuCyclic( void )
   if (sbyteTriangle>=50) sbyteTriangleSlope = -1;
   if (sbyteTriangle<=-50) sbyteTriangleSlope = 1;
   if (sbyteTriangle>sbytePWMLevel) {
-    
     bytePWM = 100;
   } else {
-    
     bytePWM = 0;
   }
   bytePWMFiltered = (bytePWMFilter*bytePWMFiltered+(100-bytePWMFilter)*bytePWM)/100;
@@ -378,15 +377,15 @@ void ecuCyclic( void )
   sdwordCounter++;
 
   /* Shifters */
-  byteShift <<=1; if (byteShift==0) byteShift=1;
-  wordShift <<=1; if (wordShift==0) wordShift=1;
+  byteShift <<= 1; if (byteShift==0) byteShift=1;
+  wordShift <<= 1; if (wordShift==0) wordShift=1;
 
 
   // Filter example
     if (c==0) {
       v = 0;
     } else {
-      v = (a*vin + b*v)/c;
+      v = (unsigned short)((a*vin + b*v)/c);
     }
 
   

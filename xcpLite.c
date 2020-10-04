@@ -485,7 +485,7 @@ void XcpEventExt(unsigned int event, BYTEPTR offset)
       for (hs=6,odt=DaqListFirstOdt(daq);odt<=DaqListLastOdt(daq);hs=2,odt++)  { 
                       
         // Get DTO buffer, overrun if not available
-        if ((d0 = ApplXcpGetDtoBuffer(DaqListOdtSize(odt)+hs,&p0)) == NULL) {
+        if ((d0 = ApplXcpGetDtoBuffer(&p0, DaqListOdtSize(odt)+hs)) == NULL) {
             DaqListFlags(daq) |= DAQ_FLAG_OVERRUN;
             return; // Skip rest of this event on queue overrun
         }
@@ -957,7 +957,7 @@ positive_response:
 #if defined ( XCP_ENABLE_TESTMODE )
   debugPrintRes();
 #endif
-  ApplXcpSendCrm(gXcp.CrmLen, &gXcp.Crm.b[0]);
+  ApplXcpSendCrm(&gXcp.Crm.b[0],gXcp.CrmLen);
 
 no_response:
    return;

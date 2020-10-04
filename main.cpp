@@ -69,14 +69,21 @@ extern "C" {
         for (;;) {
 
             if (udpServerHandleXCPCommands() < 0) break;  // Handle XCP commands
-            udpServerHandleTransmitQueue();
+            
             sleepns(10000);
 
-            // Cyclic flush of the transmit queue to keep tool visualizations up to date
-            ApplXcpTimer();
-            if (gTimer - gFlushTimer > gFlushCycle) {
-              gFlushTimer = gTimer;
-              udpServerFlushTransmitQueue();
+            if (gXcp.SessionStatus & SS_DAQ) {
+
+                // Transmit completed UDP packets from the transmit queue
+                udpServerHandleTransmitQueue();
+
+                // Cyclic flush of incomlete packets from transmit queue to keep tool visualizations up to date
+                // No priorisation of events implemented, no latency optimizations
+                ApplXcpTimer();
+                if (gTimer - gFlushTimer > gFlushCycle) {
+                    gFlushTimer = gTimer;
+                    udpServerFlushTransmitQueue();
+                }
             }
 
         } // for (;;)
@@ -200,15 +207,16 @@ int main(void)
     // Initialize ECU demo (C++)
     gEcu = new ecu();
             
+
     // Create the CMD and the ECU threads
-    pthread_create(&t1, NULL, xcpServer, (void*)&a1);
-    pthread_create(&t2, NULL, ecuTask, (void*)&a2); 
+    //pthread_create(&t1, NULL, xcpServer, (void*)&a1);
+    //pthread_create(&t2, NULL, ecuTask, (void*)&a2); 
     //pthread_create(&t3, NULL, ecuppTask, (void*)&a3);
 
-    // testraw();
+    xcpServer(0);
 
-    pthread_join(t1, NULL); // xcpServer may fail, join here 
-    pthread_cancel(t2); // and stop the other tasks
+    //pthread_join(t1, NULL); // xcpServer may fail, join here 
+    //pthread_cancel(t2); // and stop the other tasks
     //pthread_cancel(t3);
 
     return 0;

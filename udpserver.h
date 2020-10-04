@@ -1,35 +1,20 @@
-// udpserver.h
-// V1.0 23.9.2020
-
-#ifndef __UDPSERVER_H
-#define __UDPSERVER_H
-
+#ifndef __UDPSERVER_H__
+#define __UDPSERVER_H__
 
 
 #include "xcpLite.h"
 
+extern struct sockaddr_in gServerAddr;
+extern struct sockaddr_in gClientAddr;
+extern int gClientAddrValid;
 
+extern int gSock;
 
 extern unsigned short gLastCmdCtr;
 extern unsigned short gLastResCtr;
-extern int gSock;
-extern struct sockaddr_in gServerAddr;
-extern struct sockaddr_in gClientAddr;
-extern socklen_t gClientAddrLen;
+
 extern pthread_mutex_t gMutex;
 
-
-#define USAGE_ERR			-1
-#define BAD_PORT_NUM_ERR 	-2
-#define SOCK_OPEN_ERR		-3
-#define SOCK_BIND_ERR		-4
-#define ACC_CONN_ERR		-5
-#define SOCK_READ_ERR		-6
-#define SOCK_WRITE_ERR		-7
-#define	FILE_WRITE_ERR		-8
-#define FILE_APP_ERR		-9
-#define FILE_RCV_ERR		-10
-#define UNKNOWN_HOST_ERR	-13
 
 
 typedef struct {
@@ -69,8 +54,8 @@ typedef struct dto_buffer {
 
 
 
-extern int udpServerSendCrmPacket(unsigned int n, const unsigned char* data);
-extern unsigned char* udpServerGetPacketBuffer(unsigned int size, void **par);
+extern int udpServerSendCrmPacket(const unsigned char* data, unsigned int n);
+extern unsigned char* udpServerGetPacketBuffer(void **par, unsigned int size);
 extern void udpServerCommitPacketBuffer(void* par);
 
 extern void udpServerFlushTransmitQueue(void); 
