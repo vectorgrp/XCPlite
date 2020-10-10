@@ -20,6 +20,7 @@
 
 //make sure all of these variables go into RAM
 
+unsigned short counter = 0;
 
 
 float timer;
@@ -58,14 +59,6 @@ signed char sbyteCounter;
 signed short swordCounter;
 signed long sdwordCounter;
 
-unsigned char byteShift;
-unsigned short wordShift;
-
-unsigned char map1InputX;
-unsigned char map1InputY;
-unsigned char map1Output;
-unsigned char curveInput;
-unsigned char curveOutput;
 
 signed char sbyteTriangleSlope;
 signed char sbyteTriangle;
@@ -86,22 +79,6 @@ unsigned char testbyte0;
 unsigned short vin;
 unsigned short vdiff;
 unsigned short v;
-
-unsigned char ti;
-unsigned char xi;
-unsigned char yi;
-
-struct bitStruct {
-  unsigned int s0 : 1;
-  unsigned int s1 : 5;
-  unsigned int s2 : 9;
-  unsigned int s3 : 1;
-};
-
-struct bitStruct bitstruct1; /* = { 0, 5, 9, 0 }; */
-struct bitStruct bitstruct2; /* = 0x4082 */
-
-
 
 char testString[] = "TestString"; 
 
@@ -198,26 +175,7 @@ volatile unsigned char map5_82_uc[82] =
 };
 
 
-volatile unsigned char curve1_8_uc[8] =
-  {1,2,3,4,5,6,8,12};
-
-volatile unsigned short curve2_8_ui[8] =
-  {11,12,13,14,15,16,18,22};
-
-volatile unsigned char curve4_17_uc[17] =
-  {
-   8, 0,1,2,3,4,5,6,7,	/* X-count, X-coordinates */
-      0,1,1,2,3,4,5,7
-  };
-
-volatile unsigned char curve5_16_uc[16] =
-  {1,11,2,12,3,13,4,14,5,15,6,16,7,17,8,18};
-
-
 unsigned long CALRAM_SIGN = 0x0055AAFF;
-
-
-
 unsigned short CALRAM_LAST = 0xAAAA;
 
 
@@ -229,6 +187,8 @@ unsigned short CALRAM_LAST = 0xAAAA;
 
 
 void ecuInit( void ) {
+
+    counter = 0;
 
     timer  = 0;
     channel1 = 0;
@@ -243,13 +203,7 @@ void ecuInit( void ) {
     sbyteCounter	= 0;
     swordCounter = 0;
     sdwordCounter = 0;
-    byteShift  = 1;
-    wordShift = 1;
-    map1InputX = 2;
-    map1InputY = 4;
-    map1Output = 0;
-    curveInput = 0;
-    curveOutput = 0;
+    
     sbyteTriangleSlope = 1;
     sbyteTriangle = 0;
     bytePWM = 0;
@@ -266,13 +220,7 @@ void ecuInit( void ) {
     testbyte0 = 100;
     vin = vdiff = 0;
     v = 0;
-    ti = 0;
-    xi = 1;
-    yi = 1;
-    bitstruct1.s0 = 0;
-    bitstruct1.s1 = 5;
-    bitstruct1.s2 = 9;
-    bitstruct1.s3 = 0;
+    
   
     for (int i = 0; i < 1400; i++) {
         byteArray1[i] = (unsigned char)i;
@@ -300,7 +248,7 @@ void ecuInit( void ) {
 /* 10ms Raster */
 void ecuCyclic( void )
 {
-
+    counter++;
 
   /* Floatingpoint sine signals */
   if (period>0.01||period<-0.01) {
@@ -337,26 +285,7 @@ void ecuCyclic( void )
   byteArray16[1] ++; byteArray16[0] = 16;
 
 
-  /* Working point example */
-  /* Test map1_8_8_uc */
-  if (++ti>map1Counter) {
-   ti = 0;
-   map1InputX++;
-    if (map1InputX>=7||map1InputX<=0) {
-        map1InputX = 0;
-   }
-   map1InputY++;
-   if (map1InputY>=7||map1InputY<=0) {
-       map1InputY = 0;
-   }
-  }
-  map1Output = map1_8_8_uc[map1InputY][map1InputX];
-
-  /* Test curve5_16_uc */
-  curveOutput  = curve5_16_uc[(curveInput)>>4];
-  curveInput++;
-
-
+  
   /* PWM Example */
   sbyteTriangle += sbyteTriangleSlope;
   if (sbyteTriangle>=50) sbyteTriangleSlope = -1;
@@ -376,10 +305,7 @@ void ecuCyclic( void )
   swordCounter++;
   sdwordCounter++;
 
-  /* Shifters */
-  byteShift <<= 1; if (byteShift==0) byteShift=1;
-  wordShift <<= 1; if (wordShift==0) wordShift=1;
-
+  
 
   // Filter example
     if (c==0) {
