@@ -96,9 +96,9 @@ extern void udpServerCommitPacketBuffer(void* par);
 /* XCP protocol parameters */
 
 #define XCP_UDP_MTU (1500-32)  // IPv4 1500 ETH - 28 IP - 8 UDP
-#define DTO_SEND_QUEUE
-#define DTO_QUEUE_SIZE 32
-#define DTO_SEND_RAW
+//#define DTO_SEND_QUEUE
+//#define DTO_QUEUE_SIZE 32
+//#define DTO_SEND_RAW
 
 
 

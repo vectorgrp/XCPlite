@@ -2,8 +2,6 @@
 #ifndef __UDPRAW_H_
 #define __UDPRAW_H_
 
-#include "xcpLite.h"
-
 #ifdef DTO_SEND_RAW
 
 extern int gRawSock;

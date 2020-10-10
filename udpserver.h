@@ -1,7 +1,6 @@
 #ifndef __UDPSERVER_H__
 #define __UDPSERVER_H__
 
-
 #include "xcpLite.h"
 
 extern struct sockaddr_in gServerAddr;
@@ -16,29 +15,24 @@ extern unsigned short gLastResCtr;
 extern pthread_mutex_t gMutex;
 
 
-
 typedef struct {
-
     unsigned short dlc;               /* BYTE 1,2 lenght */
     unsigned short ctr;               /* BYTE 3,4 packet counter */
     unsigned char  data[kXcpMaxCTO];  /* BYTE[] data */
-
 } XCP_CTO_MESSAGE;
 
 
 typedef struct {
-
     unsigned short dlc;               /* BYTE 1,2 lenght */
     unsigned short ctr;               /* BYTE 3,4 packet counter */
     unsigned char  data[kXcpMaxDTO];  /* BYTE[] data */
-
 } XCP_DTO_MESSAGE;
 
 #define XCP_PACKET_HEADER_SIZE (2*sizeof(unsigned short))
-
-
-
 #define DTO_BUFFER_LEN XCP_UDP_MTU
+
+
+#ifdef DTO_SEND_QUEUE
 
 typedef struct dto_buffer {
 
@@ -52,18 +46,24 @@ typedef struct dto_buffer {
 
 } DTO_BUFFER;
 
+#endif
 
 
 extern int udpServerSendCrmPacket(const unsigned char* data, unsigned int n);
-extern unsigned char* udpServerGetPacketBuffer(void **par, unsigned int size);
+extern int udpServerInit(unsigned short serverPort, unsigned int socketTimeout);
+extern int udpServerHandleXCPCommands(void);
+extern int udpServerShutdown(void);
+
+extern unsigned char* udpServerGetPacketBuffer(void** par, unsigned int size);
 extern void udpServerCommitPacketBuffer(void* par);
 
+#ifdef DTO_SEND_QUEUE
 extern void udpServerFlushTransmitQueue(void); 
 extern void udpServerHandleTransmitQueue(void);
-extern int udpServerHandleXCPCommands(void);
+#else
+extern void udpServerFlushPacketBuffer(void);
+#endif
 
-extern int udpServerInit(unsigned short serverPort, unsigned int socketTimeout);
-extern int udpServerShutdown(void);
 
 
 

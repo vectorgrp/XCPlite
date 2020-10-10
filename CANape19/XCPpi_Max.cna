@@ -1,19 +1,3 @@
-[FILE_INFO]
-Identification=CANape-Configuration-File
-FileName=XCPpi.cna
-FileNameAbsolute=D:\USR\RaspberryPi\xcpLite\CANape19\XCPpi.cna
-WorkingDirectory=D:\USR\RaspberryPi\xcpLite\CANape19
-ProjectId=07e4-0009-0006-0016-001c-0015-0000
-FileVersion=1200
-PrgVersion=Version 19.0.0.655 VC24
-PrgDate=06.10.2020
-Description=
-CreationTime=14:27
-CreationDate=09/08/2020 ; Month/Day/Year
-ModificationTime=12:48
-ModificationDate=10/10/2020 ; Month/Day/Year
-Protected=0
-
 [ANALYSISPROFILE_MDF_LIST]
 Count=1
 
@@ -130,6 +114,22 @@ Count=0
 4="Subject",""
 5="Comment",""
 Count=5
+
+[FILE_INFO]
+Identification=CANape-Configuration-File
+FileName=XCPpi_Max.cna
+FileNameAbsolute=D:\USR\RaspberryPi\xcpLite\CANape19\XCPpi_Max.cna
+WorkingDirectory=D:\USR\RaspberryPi\xcpLite\CANape19
+ProjectId=07e4-0009-0006-0016-001c-0015-0000
+FileVersion=1200
+PrgVersion=Version 19.0.0.655 VC24
+PrgDate=06.10.2020
+Description=
+CreationTime=12:48
+CreationDate=10/10/2020 ; Month/Day/Year
+ModificationTime=12:48
+ModificationDate=10/10/2020 ; Month/Day/Year
+Protected=0
 
 [FUNCTION_1]
 NAME=Dt

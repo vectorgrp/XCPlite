@@ -11,6 +11,7 @@
 
 #include "udpserver.h"
 #include "udpraw.h"
+#include "xcpLite.h"
 
 
 unsigned short gLastCmdCtr = 0;
@@ -28,6 +29,7 @@ pthread_mutex_t gMutex = PTHREAD_MUTEX_INITIALIZER;
 
 
 // Transmit a UDP datagramm (contains multiple XCP messages)
+// Must be thread safe
 static int udpServerSendDatagram(const unsigned char* data, unsigned int size ) {
 
     int r;
@@ -224,7 +226,6 @@ void udpServerCommitPacketBuffer(void *par) {
 unsigned int dto_buffer_size = 0;
 unsigned char dto_buffer_data[DTO_BUFFER_LEN];
 
-
 unsigned char* udpServerGetPacketBuffer(void** par, unsigned int size) {
 
     pthread_mutex_lock(&gMutex);
@@ -239,7 +240,6 @@ unsigned char* udpServerGetPacketBuffer(void** par, unsigned int size) {
     p->dlc = (short unsigned int)size;
     dto_buffer_size += size + 4;
 
-    pthread_mutex_unlock(&gMutex);
     *par = p;
     return p->data;
 }
@@ -247,29 +247,21 @@ unsigned char* udpServerGetPacketBuffer(void** par, unsigned int size) {
 
 void udpServerCommitPacketBuffer(void* par) {
 
-#if defined ( XCP_ENABLE_TESTMODE )
-    if (gDebugLevel >= 4) {
-        XCP_DTO_MESSAGE* p = par;
-        static vuint32 lastTime = 0, time = 0;
-        printf("Commit CTR = %u, LEN = %u\n", p->ctr, p->dlc);
-        for (int i = 0; i < p->dlc; i++) printf("%00X ", p->data[i]);
-        printf("\n");
-        printf(" ODT = %u,", p->data[0]);
-        printf(" DAQ = %u,", p->data[1]);
-        time = *(vuint32*)&p->data[2];
-        printf(" TIME = %u <- %u dt=%d", time,lastTime,time-lastTime);
-        lastTime = time;
-        printf("\n");
-    }
-#endif
-
+    pthread_mutex_unlock(&gMutex);
 }
 
+void udpServerFlushPacketBuffer(void) {
 
+    pthread_mutex_lock(&gMutex);
 
+    if (dto_buffer_size>0) {
+        udpServerSendDatagram(dto_buffer_data, dto_buffer_size);
+        dto_buffer_size = 0;
+    }
 
-void udpServerHandleTransmitQueue(void) {}
+    pthread_mutex_unlock(&gMutex);
 
+}
 
 #endif
 
@@ -284,17 +276,6 @@ int udpServerSendCrmPacket(const unsigned char* packet, unsigned int size) {
     p.ctr = ++gLastCmdCtr;
     p.dlc = (short unsigned int)size;
     memcpy(p.data, packet, size);
-
-#if defined ( XCP_ENABLE_TESTMODE )
-    if (gXcpDebugLevel >= 3) {
-        printf("SendPacket() CTR = %04X,", p.ctr);
-        printf(" LEN = %04X,", p.dlc);
-        printf(" DATA = ");
-        for (int i = 0; i < p.dlc; i++) printf("%00X ", p.data[i]);
-        printf("\n");
-    }
-#endif
-
     return udpServerSendDatagram((unsigned char*)&p, size + 4);
 }
 
@@ -329,8 +310,8 @@ int udpServerHandleXCPCommands(void) {
 #endif
     }
     else if (n > 0) { // Socket data received
+
 #ifdef XCP_ENABLE_TESTMODE
-  
         if (gXcpDebugLevel >= 3) {
             printf("RX: CTR %04X", buffer.ctr);
             printf(" LEN %04X", buffer.dlc);
@@ -346,7 +327,7 @@ int udpServerHandleXCPCommands(void) {
             XcpCommand((const vuint32*)&buffer.data[0]);
         }
         else {
-            if (buffer.dlc == 2) { // Accept dlc for CONNECT comand only
+            if (buffer.dlc == 2) { // Accept dlc=2 for CONNECT command only
                 gClientAddr = src;
                 gClientAddrValid = 1;
                 XcpCommand((const vuint32*)&buffer.data[0]);
@@ -356,6 +337,7 @@ int udpServerHandleXCPCommands(void) {
 
         // Connect successfull
         if (!connected && gXcp.SessionStatus & SS_CONNECTED) {
+
 #ifdef XCP_ENABLE_TESTMODE
             if (gXcpDebugLevel >= 1) {
                 unsigned char tmp[32];
@@ -366,6 +348,8 @@ int udpServerHandleXCPCommands(void) {
                 printf("  Server addr=%s, port=%u\n", tmp, ntohs(gServerAddr.sin_port));
             }
 #endif
+
+#ifdef DTO_SEND_QUEUE
 #ifdef DTO_SEND_RAW
             if (!udpRawInit(&gServerAddr, &gClientAddr)) {
                 printf("Cannot initialize raw socket\n");
@@ -374,6 +358,7 @@ int udpServerHandleXCPCommands(void) {
             }
 #endif
             initDtoBufferQueue(); // Build all UDP and IP headers according to server and client address 
+#endif
         } // connected
     }
 
@@ -423,6 +408,7 @@ int udpServerInit(unsigned short serverPort, unsigned int socketTimeout)
         shutdown(gSock, SHUT_RDWR);
         return 0;
     }
+
 #if defined ( XCP_ENABLE_TESTMODE )
     if (gXcpDebugLevel >= 1) {
         char tmp[32];
@@ -432,12 +418,13 @@ int udpServerInit(unsigned short serverPort, unsigned int socketTimeout)
     }
 #endif
 
-    // Create a mutex for packet transmission
+    // Create a mutex needed for multithreaded event data packet transmissions
     pthread_mutexattr_t a;
     pthread_mutexattr_init(&a);
+    // pthread_mutexattr_settype(&a, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&gMutex, &a);
      
-    return 1;
+       return 1;
 }
 
 
@@ -449,4 +436,16 @@ int udpServerShutdown( void ) {
 }
 
 
+#if defined ( XCP_ENABLE_TESTMODE )
 
+void udpServerPrintPacket( XCP_DTO_MESSAGE* p ) {
+   
+    printf("CTR = %u, LEN = %u\n", p->ctr, p->dlc);
+    for (int i = 0; i < p->dlc; i++) printf("%00X ", p->data[i]);
+    printf("\n");
+    printf(" ODT = %u,", p->data[0]);
+    printf(" DAQ = %u,", p->data[1]);
+    printf("\n");
+}
+
+#endif

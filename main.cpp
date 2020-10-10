@@ -30,8 +30,8 @@ extern "C" {
 // Parameters
 
 // Cycles times
-volatile vuint32 gTaskCycleTimerECU = 1* kApplXcpDaqTimestampTicksPerMs; // 1ms
-volatile vuint32 gTaskCycleTimerECUpp = 1 * kApplXcpDaqTimestampTicksPerMs; // 1ms
+volatile vuint32 gTaskCycleTimerECU = 1000000; // ns
+volatile vuint32 gTaskCycleTimerECUpp = 1000000; // ns
 volatile vuint32 gFlushCycle = 100 * kApplXcpDaqTimestampTicksPerMs; // 100ms send a DTO packet at least every 100ms
 
 volatile unsigned short gSocketPort = 5555; // UDP port
@@ -60,7 +60,7 @@ extern "C" {
     // XCP command handler task
     void* xcpServer(void* par) {
 
-        static vuint32 gFlushTimer = 0;
+        
 
         printf("Start XCP server\n");
         udpServerInit(gSocketPort,gSocketTimeout);
@@ -73,16 +73,22 @@ extern "C" {
             sleepns(10000);
 
             if (gXcp.SessionStatus & SS_DAQ) {
-
+                
+#ifdef DTO_SEND_QUEUE                
                 // Transmit completed UDP packets from the transmit queue
                 udpServerHandleTransmitQueue();
-
-                // Cyclic flush of incomlete packets from transmit queue to keep tool visualizations up to date
+#endif
+                // Cyclic flush of incomlete packets from transmit queue or transmit buffer to keep tool visualizations up to date
                 // No priorisation of events implemented, no latency optimizations
+                static vuint32 gFlushTimer = 0;
                 ApplXcpTimer();
                 if (gTimer - gFlushTimer > gFlushCycle) {
                     gFlushTimer = gTimer;
+#ifdef DTO_SEND_QUEUE  
                     udpServerFlushTransmitQueue();
+#else
+
+#endif
                 }
             }
 
@@ -135,47 +141,6 @@ extern "C" {
 extern "C" {
 
 
-#if 0
-    void testraw(void) {
-
-
-        int n, i;
-        unsigned char buffer[2000];;
-
-        printf("testraw\n");
-
-        struct sockaddr_in src;
-        src.sin_family = AF_INET;
-        src.sin_port = htons(5555);
-        inet_pton(AF_INET, "172.31.31.194", &src.sin_addr);
-
-        char tmp[32];
-        inet_ntop(AF_INET, &src.sin_addr, tmp, sizeof(tmp));
-        printf("src = sin_family=%u, addr=%s, port=%u\n", src.sin_family, tmp, ntohs(src.sin_port));
-        
-        udpRawInit(&src);
-
-        for (;;) {
-            
-            if (xcp.SessionStatus & SS_CONNECTED) {
-
-                unsigned char buf[] = { 0xFE,0x00 };
-                udpRawSend(&gClientAddr,buf,2);
-                
-            }
-            else {
-                //printf("wait connect\n");
-            }
-
-            struct timespec timeout, timerem;
-            timeout.tv_sec = 1;
-            timeout.tv_nsec = 0;
-            nanosleep(&timeout, &timerem);
-
-        }
-
-    }
-#endif
 
 }
 
@@ -184,10 +149,7 @@ extern "C" {
 
 // C++ main
 int main(void)
-{
-    int a1, a2, a3;
-    pthread_t t1, t2, t3;
-    
+{  
     printf(
         "\nRaspberryPi XCP on UDP Demo (Lite Version) \n"
         "V1.0\n"
@@ -199,25 +161,36 @@ int main(void)
 
     // Initialize XCP driver
     XcpInit();
-    gXcpDebugLevel = 1;
+#if defined ( XCP_ENABLE_TESTMODE )
+    if (gXcpDebugLevel >= 0) {
+        printf("gXcpDebugLevel = %u\n", gXcpDebugLevel);
+    }
+#endif
 
     // Initialize ECU demo (C)
     ecuInit();
     
     // Initialize ECU demo (C++)
     gEcu = new ecu();
-            
+      
+    
+    pthread_t t2;
+    int a2;
+    pthread_create(&t2, NULL, ecuTask, (void*)&a2);
+
+    pthread_t t3;
+    int a3;
+    pthread_create(&t3, NULL, ecuppTask, (void*)&a3);
 
     // Create the CMD and the ECU threads
+    //pthread_t t1;
+    //int a1
     //pthread_create(&t1, NULL, xcpServer, (void*)&a1);
-    //pthread_create(&t2, NULL, ecuTask, (void*)&a2); 
-    //pthread_create(&t3, NULL, ecuppTask, (void*)&a3);
+    //pthread_join(t1, NULL); // t1 may fail
+    xcpServer(0); // Run the XCP server here
 
-    xcpServer(0);
-
-    //pthread_join(t1, NULL); // xcpServer may fail, join here 
-    //pthread_cancel(t2); // and stop the other tasks
-    //pthread_cancel(t3);
+    pthread_cancel(t2);
+    pthread_cancel(t3);
 
     return 0;
 }
