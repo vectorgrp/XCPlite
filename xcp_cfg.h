@@ -8,23 +8,35 @@
 |   Linux XCP on UDP demo (Tested on RaspberryPi4)
  ----------------------------------------------------------------------------*/
 
-#if defined ( __XCP_CFG_H__ )
-#else
+#if !defined ( __XCP_CFG_H__ )
 #define __XCP_CFG_H__
 
 
 // General includes
 #define _POSIX_C_SOURCE 200809L
+
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
+
 #include <sys/types.h>
 #include <sys/time.h>
 #include <time.h>
+
 #include <pthread.h> // link with -lpthread
+
 #include <assert.h>
+
+#include <errno.h>
+#include <sys/socket.h>
+
+#include <netinet/in.h>
+#include <linux/ip.h>
+#include <linux/udp.h>
+#include <arpa/inet.h>
+
 
 /*----------------------------------------------------------------------------*/
 /* Platform specific definitions */
@@ -53,8 +65,8 @@ typedef signed long    vsint32;
 /*----------------------------------------------------------------------------*/
 /* XCP Driver Callbacks as macros */
 
-extern int udpServerSendCrmPacket(unsigned int n, const unsigned char* data);
-extern unsigned char* udpServerGetPacketBuffer(unsigned int size, void** par);
+extern int udpServerSendCrmPacket(const unsigned char* data, unsigned int n);
+extern unsigned char* udpServerGetPacketBuffer(void** par, unsigned int size);
 extern void udpServerCommitPacketBuffer(void* par);
 
 // Convert a XCP (BYTE addrExt, DWORD addr from A2L) address to a C pointer to unsigned byte
@@ -83,7 +95,12 @@ extern void udpServerCommitPacketBuffer(void* par);
 /*----------------------------------------------------------------------------*/
 /* XCP protocol parameters */
 
-#define XCP_UDP_MTU (1500-20-8)  // IPv4 1500 ETH - 28 IP - 8 UDP
+#define XCP_UDP_MTU (1500-32)  // IPv4 1500 ETH - 28 IP - 8 UDP
+//#define DTO_SEND_QUEUE
+//#define DTO_QUEUE_SIZE 32
+//#define DTO_SEND_RAW
+
+
 
 /* XCP message length */
 #define kXcpMaxCTO     250      /* Maximum CTO and CRM Message Lenght */

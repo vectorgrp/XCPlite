@@ -30,12 +30,10 @@ extern "C" {
 ecu::ecu() {
 
 	counter = 0;
-	pCounter = &counter;
+	
 	byte = 0;
 	word = 0;
 	dword = 0;
-	
-	cout << "Start ecupp task\n";
 }
 
 // Cyclic task

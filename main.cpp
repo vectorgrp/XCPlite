@@ -20,6 +20,7 @@ extern "C" {
 
 // UDP server
 #include "udpserver.h"
+#include "udpraw.h"
 
 // ECU simulation (C demo)
 #include "ecu.h"
@@ -29,8 +30,8 @@ extern "C" {
 // Parameters
 
 // Cycles times
-volatile vuint32 gTaskCycleTimerECU = 1* kApplXcpDaqTimestampTicksPerMs; // 1ms
-volatile vuint32 gTaskCycleTimerECUpp = 1 * kApplXcpDaqTimestampTicksPerMs; // 1ms
+volatile vuint32 gTaskCycleTimerECU = 1000000; // ns
+volatile vuint32 gTaskCycleTimerECUpp = 1000000; // ns
 volatile vuint32 gFlushCycle = 100 * kApplXcpDaqTimestampTicksPerMs; // 100ms send a DTO packet at least every 100ms
 
 volatile unsigned short gSocketPort = 5555; // UDP port
@@ -59,7 +60,7 @@ extern "C" {
     // XCP command handler task
     void* xcpServer(void* par) {
 
-        static vuint32 gFlushTimer = 0;
+        
 
         printf("Start XCP server\n");
         udpServerInit(gSocketPort,gSocketTimeout);
@@ -68,14 +69,27 @@ extern "C" {
         for (;;) {
 
             if (udpServerHandleXCPCommands() < 0) break;  // Handle XCP commands
-            udpServerHandleTransmitQueue();
+            
             sleepns(10000);
 
-            // Cyclic flush of the transmit queue to keep tool visualizations up to date
-            ApplXcpTimer();
-            if (gTimer - gFlushTimer > gFlushCycle) {
-              gFlushTimer = gTimer;
-              udpServerFlushTransmitQueue();
+            if (gXcp.SessionStatus & SS_DAQ) {
+                
+#ifdef DTO_SEND_QUEUE                
+                // Transmit completed UDP packets from the transmit queue
+                udpServerHandleTransmitQueue();
+#endif
+                // Cyclic flush of incomlete packets from transmit queue or transmit buffer to keep tool visualizations up to date
+                // No priorisation of events implemented, no latency optimizations
+                static vuint32 gFlushTimer = 0;
+                ApplXcpTimer();
+                if (gTimer - gFlushTimer > gFlushCycle) {
+                    gFlushTimer = gTimer;
+#ifdef DTO_SEND_QUEUE  
+                    udpServerFlushTransmitQueue();
+#else
+
+#endif
+                }
             }
 
         } // for (;;)
@@ -98,7 +112,7 @@ extern "C" {
             sleepns(gTaskCycleTimerECU);
             
             // C demo
-                ecuCyclic();
+            ecuCyclic();
             
         }
         return 0;
@@ -124,40 +138,59 @@ extern "C" {
 }
 
 
+extern "C" {
+
+
+
+}
+
+
+
 
 // C++ main
 int main(void)
-{
-    int a1, a2, a3;
-    pthread_t t1, t2, t3;
-    
+{  
     printf(
         "\nRaspberryPi XCP on UDP Demo (Lite Version) \n"
         "V1.0\n"
         "Build " __DATE__ " " __TIME__ "\n"
         );
-
+      
     // Initialize clock for DAQ event time stamps
     ApplXcpTimerInit();
 
     // Initialize XCP driver
     XcpInit();
-    gDebugLevel = 1;
+#if defined ( XCP_ENABLE_TESTMODE )
+    if (gXcpDebugLevel >= 0) {
+        printf("gXcpDebugLevel = %u\n", gXcpDebugLevel);
+    }
+#endif
 
     // Initialize ECU demo (C)
     ecuInit();
     
     // Initialize ECU demo (C++)
     gEcu = new ecu();
-            
-    // Create the CMD and the ECU threads
-    pthread_create(&t1, NULL, xcpServer, (void*)&a1);
-    pthread_create(&t2, NULL, ecuTask, (void*)&a2); 
-    //pthread_create(&t3, NULL, ecuppTask, (void*)&a3);
+      
+    
+    pthread_t t2;
+    int a2;
+    pthread_create(&t2, NULL, ecuTask, (void*)&a2);
 
-    pthread_join(t1, NULL); // xcpServer may fail, join here 
-    pthread_cancel(t2); // and stop the other tasks
-    //pthread_cancel(t3);
+    pthread_t t3;
+    int a3;
+    pthread_create(&t3, NULL, ecuppTask, (void*)&a3);
+
+    // Create the CMD and the ECU threads
+    //pthread_t t1;
+    //int a1
+    //pthread_create(&t1, NULL, xcpServer, (void*)&a1);
+    //pthread_join(t1, NULL); // t1 may fail
+    xcpServer(0); // Run the XCP server here
+
+    pthread_cancel(t2);
+    pthread_cancel(t3);
 
     return 0;
 }

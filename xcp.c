@@ -32,7 +32,7 @@ void ApplXcpTimerInit( void )
     clock_getres(CLOCK_REALTIME, &clock_resolution);
 
 #if defined ( XCP_ENABLE_TESTMODE )
-    if (gDebugLevel >= 1) {
+    if (gXcpDebugLevel >= 1) {
         printf("clock resolution %lds,%ldns\n", clock_resolution.tv_sec, clock_resolution.tv_nsec);
         //XcpAssert(clock_resolution.tv_sec == 0);
         //XcpAssert(clock_resolution.tv_nsec == 1);
