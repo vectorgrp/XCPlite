@@ -34,8 +34,6 @@ ecu::ecu() {
 	byte = 0;
 	word = 0;
 	dword = 0;
-	
-	cout << "Start ecupp task\n";
 }
 
 // Cyclic task

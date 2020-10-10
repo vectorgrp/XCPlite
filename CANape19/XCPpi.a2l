@@ -954,52 +954,280 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       /end XCP_ON_UDP_IP
     /end IF_DATA
 
+    /begin TYPEDEF_MEASUREMENT LongPointer_Measurement_UByte ""
+      UBYTE NO_COMPU_METHOD 0 0 0 255
+      ADDRESS_TYPE PLONG
+    /end TYPEDEF_MEASUREMENT
+
+    /begin TYPEDEF_MEASUREMENT Measurement_UByte_Copy1 ""
+      UBYTE NO_COMPU_METHOD 0 0 0 255
+    /end TYPEDEF_MEASUREMENT
+
+    /begin TYPEDEF_MEASUREMENT Measurement_ULong ""
+      ULONG NO_COMPU_METHOD 0 0 0 4294967295
+    /end TYPEDEF_MEASUREMENT
+
+    /begin TYPEDEF_MEASUREMENT Measurement_UWord ""
+      UWORD NO_COMPU_METHOD 0 0 0 65535
+    /end TYPEDEF_MEASUREMENT
+
+    /begin TYPEDEF_CHARACTERISTIC Parameter_UByte ""
+      VALUE __UByte_Value 0 NO_COMPU_METHOD 0 255
+    /end TYPEDEF_CHARACTERISTIC
+
+    /begin TYPEDEF_CHARACTERISTIC Parameter_ULong ""
+      VALUE __ULong_Value 0 NO_COMPU_METHOD 0 4294967295
+    /end TYPEDEF_CHARACTERISTIC
+
+    /begin TYPEDEF_CHARACTERISTIC Parameter_UWord ""
+      VALUE __UWord_Value 0 NO_COMPU_METHOD 0 65535
+    /end TYPEDEF_CHARACTERISTIC
+
     /begin TYPEDEF_MEASUREMENT _uint64 ""
       A_UINT64 NO_COMPU_METHOD 0 0 0 1.84467440737E+19
     /end TYPEDEF_MEASUREMENT
+
+    /begin TYPEDEF_STRUCTURE _unnamed_struct_ ""
+      0xEB7C
+      SYMBOL_TYPE_LINK "<unnamed-struct>{CompileUnit:xcpLite_c}{Namespace:Global}"
+      /begin STRUCTURE_COMPONENT
+        Crm tXcpCto
+        0
+        SYMBOL_TYPE_LINK "Crm"
+      /end STRUCTURE_COMPONENT
+      /begin STRUCTURE_COMPONENT
+        CrmLen Measurement_UByte_Copy1
+        252
+        SYMBOL_TYPE_LINK "CrmLen"
+      /end STRUCTURE_COMPONENT
+      /begin STRUCTURE_COMPONENT
+        SessionStatus Measurement_UByte_Copy1
+        253
+        SYMBOL_TYPE_LINK "SessionStatus"
+      /end STRUCTURE_COMPONENT
+      /begin STRUCTURE_COMPONENT
+        Mta Measurement_UByte_Copy1
+        256
+        ADDRESS_TYPE PLONG
+        SYMBOL_TYPE_LINK "Mta"
+      /end STRUCTURE_COMPONENT
+      /begin STRUCTURE_COMPONENT
+        Daq tXcpDaq
+        260
+        SYMBOL_TYPE_LINK "Daq"
+      /end STRUCTURE_COMPONENT
+      /begin STRUCTURE_COMPONENT
+        pOdt tXcpOdt
+        60268
+        ADDRESS_TYPE PLONG
+        SYMBOL_TYPE_LINK "pOdt"
+      /end STRUCTURE_COMPONENT
+      /begin STRUCTURE_COMPONENT
+        pOdtEntryAddr LongPointer_Measurement_UByte
+        60272
+        ADDRESS_TYPE PLONG
+        SYMBOL_TYPE_LINK "pOdtEntryAddr"
+      /end STRUCTURE_COMPONENT
+      /begin STRUCTURE_COMPONENT
+        pOdtEntrySize Measurement_UByte_Copy1
+        60276
+        ADDRESS_TYPE PLONG
+        SYMBOL_TYPE_LINK "pOdtEntrySize"
+      /end STRUCTURE_COMPONENT
+      /begin STRUCTURE_COMPONENT
+        DaqListPtr Measurement_UWord
+        60280
+        SYMBOL_TYPE_LINK "DaqListPtr"
+      /end STRUCTURE_COMPONENT
+      /begin STRUCTURE_COMPONENT
+        OdtPtr Measurement_UWord
+        60282
+        SYMBOL_TYPE_LINK "OdtPtr"
+      /end STRUCTURE_COMPONENT
+    /end TYPEDEF_STRUCTURE
+
+    /begin TYPEDEF_STRUCTURE _unnamed_union_ ""
+      0xFC
+      SYMBOL_TYPE_LINK "<unnamed-union>{CompileUnit:xcpLite_c}{Namespace:Global}"
+      /begin STRUCTURE_COMPONENT
+        b Measurement_UByte_Copy1
+        0
+        SYMBOL_TYPE_LINK "b"
+        MATRIX_DIM 252
+      /end STRUCTURE_COMPONENT
+      /begin STRUCTURE_COMPONENT
+        dw Measurement_ULong
+        0
+        SYMBOL_TYPE_LINK "dw"
+        MATRIX_DIM 63
+      /end STRUCTURE_COMPONENT
+      /begin STRUCTURE_COMPONENT
+        w Measurement_UWord
+        0
+        SYMBOL_TYPE_LINK "w"
+        MATRIX_DIM 126
+      /end STRUCTURE_COMPONENT
+    /end TYPEDEF_STRUCTURE
 
     /begin TYPEDEF_STRUCTURE ecu ""
       0x10
       SYMBOL_TYPE_LINK "ecu"
       /begin STRUCTURE_COMPONENT
-        counter uint32
+        counter Measurement_ULong
         0
         SYMBOL_TYPE_LINK "counter"
       /end STRUCTURE_COMPONENT
       /begin STRUCTURE_COMPONENT
-        pCounter uint32
+        pCounter Measurement_ULong
         4
         ADDRESS_TYPE PLONG
         SYMBOL_TYPE_LINK "pCounter"
       /end STRUCTURE_COMPONENT
       /begin STRUCTURE_COMPONENT
-        byte ubyte
+        byte Measurement_UByte_Copy1
         8
         SYMBOL_TYPE_LINK "byte"
       /end STRUCTURE_COMPONENT
       /begin STRUCTURE_COMPONENT
-        word ushort
+        word Measurement_UWord
         10
         SYMBOL_TYPE_LINK "word"
       /end STRUCTURE_COMPONENT
       /begin STRUCTURE_COMPONENT
-        dword uint32
+        dword Measurement_ULong
         12
         SYMBOL_TYPE_LINK "dword"
       /end STRUCTURE_COMPONENT
     /end TYPEDEF_STRUCTURE
 
-    /begin TYPEDEF_MEASUREMENT ubyte ""
-      UBYTE NO_COMPU_METHOD 0 0 0 255
-    /end TYPEDEF_MEASUREMENT
+    /begin TYPEDEF_STRUCTURE in_addr ""
+      0x4
+      SYMBOL_TYPE_LINK "in_addr"
+      /begin STRUCTURE_COMPONENT
+        s_addr Parameter_ULong
+        0
+        SYMBOL_TYPE_LINK "s_addr"
+      /end STRUCTURE_COMPONENT
+    /end TYPEDEF_STRUCTURE
 
-    /begin TYPEDEF_MEASUREMENT uint32 ""
-      ULONG NO_COMPU_METHOD 0 0 0 4294967295
-    /end TYPEDEF_MEASUREMENT
+    /begin TYPEDEF_STRUCTURE sockaddr_in ""
+      0x10
+      SYMBOL_TYPE_LINK "sockaddr_in"
+      /begin STRUCTURE_COMPONENT
+        sin_family Parameter_UWord
+        0
+        SYMBOL_TYPE_LINK "sin_family"
+      /end STRUCTURE_COMPONENT
+      /begin STRUCTURE_COMPONENT
+        sin_port Parameter_UWord
+        2
+        SYMBOL_TYPE_LINK "sin_port"
+      /end STRUCTURE_COMPONENT
+      /begin STRUCTURE_COMPONENT
+        sin_addr in_addr
+        4
+        SYMBOL_TYPE_LINK "sin_addr"
+      /end STRUCTURE_COMPONENT
+      /begin STRUCTURE_COMPONENT
+        sin_zero Parameter_UByte
+        8
+        SYMBOL_TYPE_LINK "sin_zero"
+        MATRIX_DIM 8
+      /end STRUCTURE_COMPONENT
+    /end TYPEDEF_STRUCTURE
 
-    /begin TYPEDEF_MEASUREMENT ushort ""
-      UWORD NO_COMPU_METHOD 0 0 0 65535
-    /end TYPEDEF_MEASUREMENT
+    /begin TYPEDEF_STRUCTURE tXcpCto ""
+      0xFC
+      SYMBOL_TYPE_LINK "tXcpCto"
+      /begin STRUCTURE_COMPONENT
+        b Measurement_UByte_Copy1
+        0
+        SYMBOL_TYPE_LINK "b"
+        MATRIX_DIM 252
+      /end STRUCTURE_COMPONENT
+      /begin STRUCTURE_COMPONENT
+        dw Measurement_ULong
+        0
+        SYMBOL_TYPE_LINK "dw"
+        MATRIX_DIM 63
+      /end STRUCTURE_COMPONENT
+      /begin STRUCTURE_COMPONENT
+        w Measurement_UWord
+        0
+        SYMBOL_TYPE_LINK "w"
+        MATRIX_DIM 126
+      /end STRUCTURE_COMPONENT
+    /end TYPEDEF_STRUCTURE
+
+    /begin TYPEDEF_STRUCTURE tXcpDaq ""
+      0xEA66
+      SYMBOL_TYPE_LINK "tXcpDaq"
+      /begin STRUCTURE_COMPONENT
+        DaqCount Measurement_UByte_Copy1
+        0
+        SYMBOL_TYPE_LINK "DaqCount"
+      /end STRUCTURE_COMPONENT
+      /begin STRUCTURE_COMPONENT
+        OdtCount Measurement_UWord
+        2
+        SYMBOL_TYPE_LINK "OdtCount"
+      /end STRUCTURE_COMPONENT
+      /begin STRUCTURE_COMPONENT
+        OdtEntryCount Measurement_UWord
+        4
+        SYMBOL_TYPE_LINK "OdtEntryCount"
+      /end STRUCTURE_COMPONENT
+      /begin STRUCTURE_COMPONENT
+        u _unnamed_union_
+        6
+        SYMBOL_TYPE_LINK "u"
+      /end STRUCTURE_COMPONENT
+    /end TYPEDEF_STRUCTURE
+
+    /begin TYPEDEF_STRUCTURE tXcpDaqList ""
+      0x6
+      SYMBOL_TYPE_LINK "tXcpDaqList"
+      /begin STRUCTURE_COMPONENT
+        lastOdt Measurement_UWord
+        0
+        SYMBOL_TYPE_LINK "lastOdt"
+      /end STRUCTURE_COMPONENT
+      /begin STRUCTURE_COMPONENT
+        firstOdt Measurement_UWord
+        2
+        SYMBOL_TYPE_LINK "firstOdt"
+      /end STRUCTURE_COMPONENT
+      /begin STRUCTURE_COMPONENT
+        flags Measurement_UByte_Copy1
+        4
+        SYMBOL_TYPE_LINK "flags"
+      /end STRUCTURE_COMPONENT
+      /begin STRUCTURE_COMPONENT
+        eventChannel Measurement_UByte_Copy1
+        5
+        SYMBOL_TYPE_LINK "eventChannel"
+      /end STRUCTURE_COMPONENT
+    /end TYPEDEF_STRUCTURE
+
+    /begin TYPEDEF_STRUCTURE tXcpOdt ""
+      0x6
+      SYMBOL_TYPE_LINK "tXcpOdt"
+      /begin STRUCTURE_COMPONENT
+        firstOdtEntry Measurement_UWord
+        0
+        SYMBOL_TYPE_LINK "firstOdtEntry"
+      /end STRUCTURE_COMPONENT
+      /begin STRUCTURE_COMPONENT
+        lastOdtEntry Measurement_UWord
+        2
+        SYMBOL_TYPE_LINK "lastOdtEntry"
+      /end STRUCTURE_COMPONENT
+      /begin STRUCTURE_COMPONENT
+        size Measurement_UWord
+        4
+        SYMBOL_TYPE_LINK "size"
+      /end STRUCTURE_COMPONENT
+    /end TYPEDEF_STRUCTURE
 
     /begin MEASUREMENT BitSlice "Testsignal: 4 Bit on a byte boundary"
       UWORD BitSlice.CONVERSION 0 0 0 15
@@ -1058,7 +1286,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end MEASUREMENT
 
     /begin CHARACTERISTIC CALRAM_LAST ""
-      VALUE 0x25070 __UWORD_S._Copy1 0 NO_COMPU_METHOD 0 65535
+      VALUE 0x25070 __UWord_Value 0 NO_COMPU_METHOD 0 65535
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 65535
       FORMAT "%.15"
@@ -1071,7 +1299,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC CALRAM_SIGN ""
-      VALUE 0x25074 __ULONG_S._Copy1 0 NO_COMPU_METHOD 0 4294967295
+      VALUE 0x25074 __ULong_Value 0 NO_COMPU_METHOD 0 4294967295
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 4294967295
       FORMAT "%.15"
@@ -1084,7 +1312,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC CALRAM_START ""
-      VALUE 0x251C4 __UWORD_S._Copy1 0 NO_COMPU_METHOD 0 65535
+      VALUE 0x251C4 __UWord_Value 0 NO_COMPU_METHOD 0 65535
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 65535
       FORMAT "%.15"
@@ -1157,7 +1385,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end MEASUREMENT
 
     /begin AXIS_PTS Curve1 "Curve used as axis"
-      0x2509C NO_INPUT_QUANTITY SSV__UBYTE_S._Copy1 0 BitSlice.CONVERSION 8 0 255
+      0x2509C NO_INPUT_QUANTITY __UByte_Value 0 BitSlice.CONVERSION 8 0 255
       BYTE_ORDER MSB_LAST
       DEPOSIT ABSOLUTE
       ECU_ADDRESS_EXTENSION 0x0
@@ -1200,7 +1428,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end MEASUREMENT
 
     /begin CHARACTERISTIC KF2 "8*8 BYTE shared axis Curve1/Curve1"
-      MAP 0x25018 __UBYTE_Z._Copy1 0 BitSlice.CONVERSION 0 255
+      MAP 0x25018 MapX8Y8V88ub 0 BitSlice.CONVERSION 0 255
       /begin AXIS_DESCR
         COM_AXIS NO_INPUT_QUANTITY BitSlice.CONVERSION 8 0 255
         AXIS_PTS_REF Curve1
@@ -1208,7 +1436,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
         FORMAT "%.3"
       /end AXIS_DESCR
       /begin AXIS_DESCR
-        FIX_AXIS NO_INPUT_QUANTITY KF2_Y_AXIS.CONVERSION 8 0 7
+        FIX_AXIS NO_INPUT_QUANTITY sbytePWMLevel.CONVERSION 8 0 7
         EXTENDED_LIMITS 0 7
         FIX_AXIS_PAR_DIST 0 1 8
         FORMAT "%.2"
@@ -1226,7 +1454,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC KF3 "8*6 BYTE no axis"
-      MAP 0x25018 __UBYTE_Z._Copy1 0 BitSlice.CONVERSION 0 255
+      MAP 0x25018 MapX8Y8V88ub 0 BitSlice.CONVERSION 0 255
       /begin AXIS_DESCR
         FIX_AXIS NO_INPUT_QUANTITY BitSlice.CONVERSION 8 0 7
         EXTENDED_LIMITS 0 7
@@ -1252,7 +1480,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC KF4 "8*6 BYTE shared axis Curve1"
-      MAP 0x25018 __UBYTE_Z._Copy1 0 BitSlice.CONVERSION 0 255
+      MAP 0x25018 MapX8Y8V88ub 0 BitSlice.CONVERSION 0 255
       /begin AXIS_DESCR
         COM_AXIS NO_INPUT_QUANTITY BitSlice.CONVERSION 8 0 255
         AXIS_PTS_REF Curve1
@@ -1306,7 +1534,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC KF6 "8*8 BYTE no axis"
-      MAP 0x25018 __UBYTE_Z._Copy1 0 BitSlice.CONVERSION 0 255
+      MAP 0x25018 MapV88ub 0 BitSlice.CONVERSION 0 255
       /begin AXIS_DESCR
         FIX_AXIS NO_INPUT_QUANTITY BitSlice.CONVERSION 8 0 7
         EXTENDED_LIMITS 0 7
@@ -1340,7 +1568,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
         FORMAT "%.3"
       /end AXIS_DESCR
       /begin AXIS_DESCR
-        FIX_AXIS NO_INPUT_QUANTITY KF2_Y_AXIS.CONVERSION 6 0 5
+        FIX_AXIS NO_INPUT_QUANTITY sbytePWMLevel.CONVERSION 6 0 5
         EXTENDED_LIMITS 0 5
         FIX_AXIS_PAR_DIST 0 1 6
         FORMAT "%.2"
@@ -1358,7 +1586,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC KL1 "16 BYTE curve"
-      VAL_BLK 0x25058 __UBYTE_Z._Copy1 0 BitSlice.CONVERSION 0 255
+      VAL_BLK 0x25058 __UByte_Value 0 BitSlice.CONVERSION 0 255
       BYTE_ORDER MSB_LAST
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
@@ -1387,7 +1615,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end MEASUREMENT
 
     /begin CHARACTERISTIC KL2 "8 BYTE shared axis Curve2"
-      VAL_BLK 0x2509C __UBYTE_Z._Copy1 0 BitSlice.CONVERSION 0 255
+      VAL_BLK 0x2509C __UByte_Value 0 BitSlice.CONVERSION 0 255
       BYTE_ORDER MSB_LAST
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
@@ -1589,7 +1817,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end MEASUREMENT
 
     /begin CHARACTERISTIC a0 "Digital Filter v=(vin*a0+v*b0)/c0"
-      VALUE 0x2506C __UWORD_S._Copy1 0 DigitalFilterConversion 0 1
+      VALUE 0x2506C __UWord_Value 0 DigitalFilterConversion 0 1
       BYTE_ORDER MSB_LAST
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 1
@@ -1618,7 +1846,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end MEASUREMENT
 
     /begin CHARACTERISTIC b0 "Digital Filter v=(vin*a0+v*b0)/c0"
-      VALUE 0x2506E __UWORD_S._Copy1 0 DigitalFilterConversion 0 1
+      VALUE 0x2506E __UWord_Value 0 DigitalFilterConversion 0 1
       BYTE_ORDER MSB_LAST
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 1
@@ -1706,7 +1934,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end MEASUREMENT
 
     /begin CHARACTERISTIC byteArray1 ""
-      VAL_BLK 0x272B4 __UBYTE_S._Copy1 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x272B4 __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1720,7 +1948,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray10 ""
-      VAL_BLK 0x2A33C __UBYTE_S._Copy1 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x2A33C __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1734,7 +1962,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray11 ""
-      VAL_BLK 0x25240 __UBYTE_S._Copy1 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x25240 __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1748,7 +1976,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray12 ""
-      VAL_BLK 0x26D3C __UBYTE_S._Copy1 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x26D3C __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1762,7 +1990,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray13 ""
-      VAL_BLK 0x2D9A0 __UBYTE_S._Copy1 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x2D9A0 __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1776,7 +2004,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray14 ""
-      VAL_BLK 0x2DF28 __UBYTE_S._Copy1 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x2DF28 __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1790,7 +2018,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray15 ""
-      VAL_BLK 0x2BE38 __UBYTE_S._Copy1 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x2BE38 __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1804,7 +2032,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray16 ""
-      VAL_BLK 0x2C92C __UBYTE_S._Copy1 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x2C92C __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1818,7 +2046,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray2 ""
-      VAL_BLK 0x2C3B0 __UBYTE_S._Copy1 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x2C3B0 __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1832,7 +2060,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray3 ""
-      VAL_BLK 0x2A8B4 __UBYTE_S._Copy1 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x2A8B4 __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1846,7 +2074,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray4 ""
-      VAL_BLK 0x2D428 __UBYTE_S._Copy1 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x2D428 __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1860,7 +2088,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray5 ""
-      VAL_BLK 0x2CEA4 __UBYTE_S._Copy1 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x2CEA4 __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1874,7 +2102,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray6 ""
-      VAL_BLK 0x257B8 __UBYTE_S._Copy1 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x257B8 __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1888,7 +2116,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray7 ""
-      VAL_BLK 0x2E4A0 __UBYTE_S._Copy1 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x2E4A0 __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1902,7 +2130,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray8 ""
-      VAL_BLK 0x28DBC __UBYTE_S._Copy1 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x28DBC __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1916,7 +2144,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray9 ""
-      VAL_BLK 0x2782C __UBYTE_S._Copy1 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x2782C __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1959,7 +2187,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end MEASUREMENT
 
     /begin CHARACTERISTIC c0 "Digital Filter v=(vin*a0+v*b0)/c0"
-      VALUE 0x2506A __UWORD_S._Copy1 0 DigitalFilterConversion 0 1
+      VALUE 0x2506A __UWord_Value 0 DigitalFilterConversion 0 1
       BYTE_ORDER MSB_LAST
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 1
@@ -2042,7 +2270,18 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end MEASUREMENT
 
     /begin INSTANCE ecu ""
-      ecu 0x0
+      ecu 0x251FC
+      SYMBOL_LINK "gEcu" 0
+    /end INSTANCE
+
+    /begin INSTANCE gClientAddr ""
+      sockaddr_in 0x2EA18
+      SYMBOL_LINK "gClientAddr" 0
+    /end INSTANCE
+
+    /begin INSTANCE gServerAddr ""
+      sockaddr_in 0x2EA28
+      SYMBOL_LINK "gServerAddr" 0
     /end INSTANCE
 
     /begin CHARACTERISTIC gSocketTimeout ""
@@ -2063,6 +2302,16 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       SYMBOL_LINK "gTaskCycleTimerECUpp" 0
     /end CHARACTERISTIC
 
+    /begin INSTANCE gXcp ""
+      _unnamed_struct_ 0x2EFF4
+      SYMBOL_LINK "gXcp" 0
+    /end INSTANCE
+
+    /begin CHARACTERISTIC gXcpDebugLevel ""
+      VALUE 0x251E4 __UByte_Value 0 NO_COMPU_METHOD 0 255
+      SYMBOL_LINK "gXcpDebugLevel" 0
+    /end CHARACTERISTIC
+
     /begin MEASUREMENT limit "Limit for channel1"
       FLOAT32_IEEE BitSlice.CONVERSION 0 0 -1E+12 1E+12
       BYTE_ORDER MSB_LAST
@@ -2079,7 +2328,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end MEASUREMENT
 
     /begin CHARACTERISTIC longArray1 ""
-      VAL_BLK 0x2AE38 __ULONG_S._Copy1 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x2AE38 __ULong_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -2093,7 +2342,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC longArray2 ""
-      VAL_BLK 0x29338 __ULONG_S._Copy1 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x29338 __ULong_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -2107,7 +2356,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC longArray3 ""
-      VAL_BLK 0x27DB4 __ULONG_S._Copy1 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x27DB4 __ULong_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -2121,7 +2370,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC longArray4 ""
-      VAL_BLK 0x25D3C __ULONG_S._Copy1 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x25D3C __ULong_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -2135,7 +2384,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC map1 "8*8 BYTE shared axis Curve1/Curve1"
-      MAP 0x25018 __UBYTE_Z._Copy1 0 map1Conversion 0 2550
+      MAP 0x25018 MapV88ub 0 map1Conversion 0 2550
       /begin AXIS_DESCR
         FIX_AXIS map1InputX map1Input_Conversion 8 -12.8 12.7
         EXTENDED_LIMITS -12.8 12.7
@@ -2161,7 +2410,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC map1Counter ""
-      VALUE 0x25014 __UBYTE_S._Copy1 0 BitSlice.CONVERSION 0 255
+      VALUE 0x25014 __UByte_Value 0 BitSlice.CONVERSION 0 255
       BYTE_ORDER MSB_LAST
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
@@ -2215,6 +2464,32 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
         DISPLAY 0x0 0 255
       /end IF_DATA
     /end MEASUREMENT
+
+    /begin CHARACTERISTIC map2 "8*8 BYTE shared axis Curve1/Curve1"
+      MAP 0x25018 MapV88ub 0 map1Conversion 0 2550
+      /begin AXIS_DESCR
+        FIX_AXIS map1InputX map1Input_Conversion 8 -12.8 12.7
+        EXTENDED_LIMITS -12.8 12.7
+        FIX_AXIS_PAR_DIST 0 1 8
+        FORMAT "%.3"
+      /end AXIS_DESCR
+      /begin AXIS_DESCR
+        FIX_AXIS map1InputY map1Input_Conversion 8 -12.8 12.7
+        EXTENDED_LIMITS -12.8 12.7
+        FIX_AXIS_PAR_DIST 0 1 8
+        FORMAT "%.3"
+      /end AXIS_DESCR
+      BYTE_ORDER MSB_LAST
+      ECU_ADDRESS_EXTENSION 0x0
+      EXTENDED_LIMITS 0 2550
+      FORMAT "%.3"
+      SYMBOL_LINK "map2_8_8_uc" 0
+      /begin IF_DATA CANAPE_EXT
+        100
+        LINK_MAP "map2_8_8_uc" 0x25018 0 0 0 1 0x87 0
+        DISPLAY 0x0 0 255
+      /end IF_DATA
+    /end CHARACTERISTIC
 
     /begin CHARACTERISTIC map4_80_uc "8*8 BYTE memory layout map4_80_uc"
       MAP 0x250F8 MapX8Y8V88ub 0 BitSlice.CONVERSION 0 255
@@ -2288,7 +2563,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end MEASUREMENT
 
     /begin CHARACTERISTIC testString "vcv"
-      ASCII 0x251C8 __UBYTE_Z._Copy1 0 NO_COMPU_METHOD 0 255
+      ASCII 0x251C8 __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       NUMBER 10
@@ -2377,10 +2652,6 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       COMPU_TAB_REF HighLow
     /end COMPU_METHOD
 
-    /begin COMPU_METHOD KF2_Y_AXIS.CONVERSION ""
-      IDENTICAL "%6.2" ""
-    /end COMPU_METHOD
-
     /begin COMPU_METHOD KF8_Conversion ""
       LINEAR "%3.1" "1/min"
       COEFFS_LINEAR 0.1 0
@@ -2441,47 +2712,40 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /begin RECORD_LAYOUT CurveNxVub
       AXIS_PTS_X 1 UBYTE INDEX_INCR DIRECT
       FNC_VALUES 2 UBYTE ROW_DIR DIRECT
-      ALIGNMENT_INT64 8
     /end RECORD_LAYOUT
 
     /begin RECORD_LAYOUT CurveNxXVub
       NO_AXIS_PTS_X 1 UBYTE
       AXIS_PTS_X 2 UBYTE INDEX_INCR DIRECT
       FNC_VALUES 3 UBYTE ROW_DIR DIRECT
-      ALIGNMENT_INT64 8
     /end RECORD_LAYOUT
 
     /begin RECORD_LAYOUT CurveV8ub
       FNC_VALUES 1 UBYTE ROW_DIR DIRECT
       FIX_NO_AXIS_PTS_X 8
-      ALIGNMENT_INT64 8
     /end RECORD_LAYOUT
 
     /begin RECORD_LAYOUT CurveX8V8ub
       AXIS_PTS_X 1 UBYTE INDEX_INCR DIRECT
       FNC_VALUES 2 UBYTE ROW_DIR DIRECT
       FIX_NO_AXIS_PTS_X 8
-      ALIGNMENT_INT64 8
     /end RECORD_LAYOUT
 
     /begin RECORD_LAYOUT CurveX8V8ubAlternate
       AXIS_PTS_X 1 UWORD INDEX_INCR DIRECT
       FNC_VALUES 2 UWORD ALTERNATE_WITH_X DIRECT
       FIX_NO_AXIS_PTS_X 8
-      ALIGNMENT_INT64 8
     /end RECORD_LAYOUT
 
     /begin RECORD_LAYOUT CurveX8ub
       AXIS_PTS_X 1 UBYTE INDEX_INCR DIRECT
       FIX_NO_AXIS_PTS_X 8
-      ALIGNMENT_INT64 8
     /end RECORD_LAYOUT
 
     /begin RECORD_LAYOUT MapNxNyVub
       NO_AXIS_PTS_X 1 UBYTE
       NO_AXIS_PTS_Y 2 UBYTE
       FNC_VALUES 3 UBYTE ROW_DIR DIRECT
-      ALIGNMENT_INT64 8
     /end RECORD_LAYOUT
 
     /begin RECORD_LAYOUT MapNxNyXYVsb
@@ -2491,11 +2755,6 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       AXIS_PTS_Y 4 SBYTE INDEX_INCR DIRECT
       FNC_VALUES 5 SBYTE ROW_DIR DIRECT
       ALIGNMENT_BYTE 1
-      ALIGNMENT_WORD 1
-      ALIGNMENT_LONG 1
-      ALIGNMENT_FLOAT32_IEEE 1
-      ALIGNMENT_FLOAT64_IEEE 1
-      ALIGNMENT_INT64 8
     /end RECORD_LAYOUT
 
     /begin RECORD_LAYOUT MapNxNyXYVub
@@ -2504,7 +2763,6 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       AXIS_PTS_X 3 UBYTE INDEX_INCR DIRECT
       AXIS_PTS_Y 4 UBYTE INDEX_INCR DIRECT
       FNC_VALUES 5 UBYTE ROW_DIR DIRECT
-      ALIGNMENT_INT64 8
     /end RECORD_LAYOUT
 
     /begin RECORD_LAYOUT MapNxXNyYVuc
@@ -2513,14 +2771,18 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       NO_AXIS_PTS_Y 3 UBYTE
       AXIS_PTS_Y 4 UBYTE INDEX_INCR DIRECT
       FNC_VALUES 5 UBYTE ROW_DIR DIRECT
-      ALIGNMENT_INT64 8
     /end RECORD_LAYOUT
 
     /begin RECORD_LAYOUT MapV86ub
       FNC_VALUES 1 UBYTE ROW_DIR DIRECT
       FIX_NO_AXIS_PTS_X 8
       FIX_NO_AXIS_PTS_Y 6
-      ALIGNMENT_INT64 8
+    /end RECORD_LAYOUT
+
+    /begin RECORD_LAYOUT MapV88ub
+      FNC_VALUES 1 UBYTE ROW_DIR DIRECT
+      FIX_NO_AXIS_PTS_X 8
+      FIX_NO_AXIS_PTS_Y 8
     /end RECORD_LAYOUT
 
     /begin RECORD_LAYOUT MapX8Y6V86ub
@@ -2529,7 +2791,6 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       FNC_VALUES 3 UBYTE ROW_DIR DIRECT
       FIX_NO_AXIS_PTS_X 8
       FIX_NO_AXIS_PTS_Y 6
-      ALIGNMENT_INT64 8
     /end RECORD_LAYOUT
 
     /begin RECORD_LAYOUT MapX8Y8V88ub
@@ -2538,257 +2799,24 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       FNC_VALUES 3 UBYTE ROW_DIR DIRECT
       FIX_NO_AXIS_PTS_X 8
       FIX_NO_AXIS_PTS_Y 8
-      ALIGNMENT_INT64 8
     /end RECORD_LAYOUT
 
     /begin RECORD_LAYOUT MapXYVub
       AXIS_PTS_X 1 UBYTE INDEX_INCR DIRECT
       AXIS_PTS_Y 2 UBYTE INDEX_INCR DIRECT
       FNC_VALUES 3 UBYTE ROW_DIR DIRECT
-      ALIGNMENT_INT64 8
     /end RECORD_LAYOUT
 
-    /begin RECORD_LAYOUT SSV__A_INT64_S
-      AXIS_PTS_X 1 A_INT64 INDEX_INCR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT SSV__A_UINT64_S
-      AXIS_PTS_X 1 A_UINT64 INDEX_INCR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT SSV__FLOAT32_IEEE_S
-      AXIS_PTS_X 1 FLOAT32_IEEE INDEX_INCR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT SSV__FLOAT32_IEEE_S._Copy1
-      AXIS_PTS_X 1 FLOAT32_IEEE INDEX_INCR DIRECT
-      ALIGNMENT_INT64 8
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT SSV__FLOAT64_IEEE_S
-      AXIS_PTS_X 1 FLOAT64_IEEE INDEX_INCR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT SSV__FLOAT64_IEEE_S._Copy1
-      AXIS_PTS_X 1 FLOAT64_IEEE INDEX_INCR DIRECT
-      ALIGNMENT_INT64 8
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT SSV__SBYTE_S
-      AXIS_PTS_X 1 SBYTE INDEX_INCR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT SSV__SBYTE_S._Copy1
-      AXIS_PTS_X 1 SBYTE INDEX_INCR DIRECT
-      ALIGNMENT_INT64 8
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT SSV__SLONG_S
-      AXIS_PTS_X 1 SLONG INDEX_INCR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT SSV__SLONG_S._Copy1
-      AXIS_PTS_X 1 SLONG INDEX_INCR DIRECT
-      ALIGNMENT_INT64 8
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT SSV__SWORD_S
-      AXIS_PTS_X 1 SWORD INDEX_INCR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT SSV__SWORD_S._Copy1
-      AXIS_PTS_X 1 SWORD INDEX_INCR DIRECT
-      ALIGNMENT_INT64 8
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT SSV__UBYTE_S
-      AXIS_PTS_X 1 UBYTE INDEX_INCR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT SSV__UBYTE_S._Copy1
-      AXIS_PTS_X 1 UBYTE INDEX_INCR DIRECT
-      ALIGNMENT_INT64 8
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT SSV__ULONG_S
-      AXIS_PTS_X 1 ULONG INDEX_INCR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT SSV__ULONG_S._Copy1
-      AXIS_PTS_X 1 ULONG INDEX_INCR DIRECT
-      ALIGNMENT_INT64 8
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT SSV__UWORD_S
-      AXIS_PTS_X 1 UWORD INDEX_INCR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT SSV__UWORD_S._Copy1
-      AXIS_PTS_X 1 UWORD INDEX_INCR DIRECT
-      ALIGNMENT_INT64 8
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __A_INT64_S
-      FNC_VALUES 1 A_INT64 COLUMN_DIR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __A_INT64_Z
-      FNC_VALUES 1 A_INT64 ROW_DIR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __A_UINT64_S
-      FNC_VALUES 1 A_UINT64 COLUMN_DIR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __A_UINT64_Z
-      FNC_VALUES 1 A_UINT64 ROW_DIR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __FLOAT32_IEEE_S
-      FNC_VALUES 1 FLOAT32_IEEE COLUMN_DIR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __FLOAT32_IEEE_S._Copy1
-      FNC_VALUES 1 FLOAT32_IEEE COLUMN_DIR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __FLOAT32_IEEE_Z
-      FNC_VALUES 1 FLOAT32_IEEE ROW_DIR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __FLOAT32_IEEE_Z._Copy1
-      FNC_VALUES 1 FLOAT32_IEEE ROW_DIR DIRECT
-      ALIGNMENT_INT64 8
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __FLOAT64_IEEE_S
-      FNC_VALUES 1 FLOAT64_IEEE COLUMN_DIR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __FLOAT64_IEEE_S._Copy1
-      FNC_VALUES 1 FLOAT64_IEEE COLUMN_DIR DIRECT
-      ALIGNMENT_INT64 8
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __FLOAT64_IEEE_Z
-      FNC_VALUES 1 FLOAT64_IEEE ROW_DIR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __FLOAT64_IEEE_Z._Copy1
-      FNC_VALUES 1 FLOAT64_IEEE ROW_DIR DIRECT
-      ALIGNMENT_INT64 8
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __SBYTE_S
-      FNC_VALUES 1 SBYTE COLUMN_DIR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __SBYTE_S._Copy1
-      FNC_VALUES 1 SBYTE COLUMN_DIR DIRECT
-      ALIGNMENT_INT64 8
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __SBYTE_Z
-      FNC_VALUES 1 SBYTE ROW_DIR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __SBYTE_Z._Copy1
-      FNC_VALUES 1 SBYTE ROW_DIR DIRECT
-      ALIGNMENT_INT64 8
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __SLONG_S
-      FNC_VALUES 1 SLONG COLUMN_DIR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __SLONG_S._Copy1
-      FNC_VALUES 1 SLONG COLUMN_DIR DIRECT
-      ALIGNMENT_INT64 8
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __SLONG_Z
-      FNC_VALUES 1 SLONG ROW_DIR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __SLONG_Z._Copy1
-      FNC_VALUES 1 SLONG ROW_DIR DIRECT
-      ALIGNMENT_INT64 8
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __SWORD_S
-      FNC_VALUES 1 SWORD COLUMN_DIR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __SWORD_S._Copy1
-      FNC_VALUES 1 SWORD COLUMN_DIR DIRECT
-      ALIGNMENT_INT64 8
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __SWORD_Z
-      FNC_VALUES 1 SWORD ROW_DIR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __SWORD_Z._Copy1
-      FNC_VALUES 1 SWORD ROW_DIR DIRECT
-      ALIGNMENT_INT64 8
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __UBYTE_S
-      FNC_VALUES 1 UBYTE COLUMN_DIR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __UBYTE_S._Copy1
-      FNC_VALUES 1 UBYTE COLUMN_DIR DIRECT
-      ALIGNMENT_INT64 8
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __UBYTE_Z
+    /begin RECORD_LAYOUT __UByte_Value
       FNC_VALUES 1 UBYTE ROW_DIR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __UBYTE_Z._Copy1
-      FNC_VALUES 1 UBYTE ROW_DIR DIRECT
-      ALIGNMENT_INT64 8
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __ULONG_S
-      FNC_VALUES 1 ULONG COLUMN_DIR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __ULONG_S._Copy1
-      FNC_VALUES 1 ULONG COLUMN_DIR DIRECT
-      ALIGNMENT_INT64 8
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __ULONG_Z
-      FNC_VALUES 1 ULONG ROW_DIR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __ULONG_Z._Copy1
-      FNC_VALUES 1 ULONG ROW_DIR DIRECT
-      ALIGNMENT_INT64 8
     /end RECORD_LAYOUT
 
     /begin RECORD_LAYOUT __ULong_Value
       FNC_VALUES 1 ULONG ROW_DIR DIRECT
     /end RECORD_LAYOUT
 
-    /begin RECORD_LAYOUT __UWORD_S
-      FNC_VALUES 1 UWORD COLUMN_DIR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __UWORD_S._Copy1
-      FNC_VALUES 1 UWORD COLUMN_DIR DIRECT
-      ALIGNMENT_INT64 8
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __UWORD_Z
+    /begin RECORD_LAYOUT __UWord_Value
       FNC_VALUES 1 UWORD ROW_DIR DIRECT
-    /end RECORD_LAYOUT
-
-    /begin RECORD_LAYOUT __UWORD_Z._Copy1
-      FNC_VALUES 1 UWORD ROW_DIR DIRECT
-      ALIGNMENT_INT64 8
     /end RECORD_LAYOUT
 
     /begin GROUP Axis "Shared Axis for Calibration Maps"
