@@ -487,7 +487,7 @@ void XcpEventExt(unsigned int event, BYTEPTR offset)
         // Get DTO buffer, overrun if not available
         if ((d0 = ApplXcpGetDtoBuffer(&p0, DaqListOdtSize(odt)+hs)) == NULL) {
 #if defined ( XCP_ENABLE_TESTMODE )
-            if (gXcpDebugLevel >= 0) ApplXcpPrint("DAQ queue overflow! Event skipped\n");
+            if (gXcpDebugLevel >= 2) ApplXcpPrint("DAQ queue overflow! Event skipped\n");
 #endif
             DaqListFlags(daq) |= DAQ_FLAG_OVERRUN;
             return; // Skip rest of this event on queue overrun
