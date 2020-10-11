@@ -514,6 +514,8 @@ void XcpEventExt(unsigned int event, BYTEPTR offset)
             while (e <= el) { // inner DAQ loop
                 n = OdtEntrySize(e);
                 if (n == 0) break;
+                //assert(d != NULL);
+                //assert(offset+(vuint32)OdtEntryAddr(e) != NULL);
                 memcpy((DAQBYTEPTR)d, offset + (vuint32)OdtEntryAddr(e), n);
                 d += n;
                 e++;
@@ -918,7 +920,9 @@ void XcpCommand( const vuint32* pCommand )
           case CC_GET_DAQ_CLOCK:
             {
               gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN;
-              CRM_GET_DAQ_CLOCK_TIME = ApplXcpGetTimestamp(); 
+              CRM_GET_DAQ_CLOCK_RES1 = 0x00;
+              CRM_GET_DAQ_CLOCK_RES2 = 0xCCDA;
+              CRM_GET_DAQ_CLOCK_TIME = ApplXcpGetTimestamp();
             }
             break;
                
@@ -1186,7 +1190,8 @@ static void XcpPrintRes(const tXcpCto* pCmd) {
             break;
 
         case CC_GET_DAQ_CLOCK:
-            ApplXcpPrint("<- 0xFF t=%u (%gs)\n", CRM_GET_DAQ_CLOCK_TIME, (double)CRM_GET_DAQ_CLOCK_TIME/1000000000.0);
+            ApplXcpPrint("<- 0xFF t=%u (%gs)\n", CRM_GET_DAQ_CLOCK_TIME, (double)CRM_GET_DAQ_CLOCK_TIME/(1000.0*kApplXcpDaqTimestampTicksPerMs));
+            ApplXcpPrint("\n");
             break;
 
         default:

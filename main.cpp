@@ -28,15 +28,22 @@ extern "C" {
 
 
 // Parameters
+volatile unsigned short gSocketPort = 5555; // UDP port
+volatile unsigned int gSocketTimeout = 0; // General socket timeout
 
-// Cycles times
+// Task delays
 volatile vuint32 gTaskCycleTimerECU = 1000000; // ns
 volatile vuint32 gTaskCycleTimerECUpp = 1000000; // ns
+volatile vuint32 gTaskCycleTimerServer = 10000; // ns
+
+// Cycles times
 volatile vuint32 gFlushCycle = 100 * kApplXcpDaqTimestampTicksPerMs; // 100ms send a DTO packet at least every 100ms
+volatile vuint32 gCmdCycle = 10 * kApplXcpDaqTimestampTicksPerMs; 
+volatile vuint32 gTaskCycle = 1 * kApplXcpDaqTimestampTicksPerMs; 
 
-volatile unsigned short gSocketPort = 5555; // UDP port
-volatile unsigned int gSocketTimeout = 0; // Receive timeout, determines the polling rate of transmit queue
-
+static vuint32 gFlushTimer = 0;
+static vuint32 gCmdTimer = 0;
+static vuint32 gTaskTimer = 0;
 
 }
 
@@ -60,41 +67,47 @@ extern "C" {
     // XCP command handler task
     void* xcpServer(void* par) {
 
-        
-
         printf("Start XCP server\n");
         udpServerInit(gSocketPort,gSocketTimeout);
 
         // Server loop
         for (;;) {
 
-            if (udpServerHandleXCPCommands() < 0) break;  // Handle XCP commands
-            
-            sleepns(10000);
+            ApplXcpTimer();
+            sleepns(gTaskCycleTimerServer);
+
+            if (gTimer - gCmdTimer > gCmdCycle) {
+                gCmdTimer = gTimer;
+                if (udpServerHandleXCPCommands() < 0) break;  // Handle XCP commands
+            }
+
+            if (gTimer - gTaskTimer > gTaskCycle) {
+                gTaskTimer = gTimer;
+                ecuCyclic();
+            }
 
             if (gXcp.SessionStatus & SS_DAQ) {
-                
+
 #ifdef DTO_SEND_QUEUE                
                 // Transmit completed UDP packets from the transmit queue
                 udpServerHandleTransmitQueue();
 #endif
+            
                 // Cyclic flush of incomlete packets from transmit queue or transmit buffer to keep tool visualizations up to date
                 // No priorisation of events implemented, no latency optimizations
-                static vuint32 gFlushTimer = 0;
-                ApplXcpTimer();
-                if (gTimer - gFlushTimer > gFlushCycle) {
+                if (gTimer - gFlushTimer > gFlushCycle && gFlushTimer>0) {
                     gFlushTimer = gTimer;
 #ifdef DTO_SEND_QUEUE  
                     udpServerFlushTransmitQueue();
 #else
-
+                    udpServerFlushPacketBuffer();
 #endif
-                }
-            }
+                } // Flush
+
+            } // DAQ
 
         } // for (;;)
 
-        printf("XCP server shutdown\n");
         udpServerShutdown();
         return 0;
     }
@@ -174,13 +187,13 @@ int main(void)
     gEcu = new ecu();
       
     
-    pthread_t t2;
-    int a2;
-    pthread_create(&t2, NULL, ecuTask, (void*)&a2);
+    //pthread_t t2;
+    //int a2;
+    //pthread_create(&t2, NULL, ecuTask, (void*)&a2);
 
-    pthread_t t3;
-    int a3;
-    pthread_create(&t3, NULL, ecuppTask, (void*)&a3);
+    //pthread_t t3;
+    //int a3;
+    //pthread_create(&t3, NULL, ecuppTask, (void*)&a3);
 
     // Create the CMD and the ECU threads
     //pthread_t t1;
@@ -189,8 +202,8 @@ int main(void)
     //pthread_join(t1, NULL); // t1 may fail
     xcpServer(0); // Run the XCP server here
 
-    pthread_cancel(t2);
-    pthread_cancel(t3);
+    //pthread_cancel(t2);
+    //pthread_cancel(t3);
 
     return 0;
 }

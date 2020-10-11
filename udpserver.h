@@ -3,16 +3,16 @@
 
 #include "xcpLite.h"
 
-extern struct sockaddr_in gServerAddr;
-extern struct sockaddr_in gClientAddr;
-extern int gClientAddrValid;
+typedef  struct XcpTlData {
+    int Sock;
+    unsigned short LastCmdCtr;
+    unsigned short LastResCtr;
+    struct sockaddr_in ServerAddr;
+    struct sockaddr_in ClientAddr;
+    int ClientAddrValid;
+} tXcpTlData;
 
-extern int gSock;
-
-extern unsigned short gLastCmdCtr;
-extern unsigned short gLastResCtr;
-
-extern pthread_mutex_t gMutex;
+extern tXcpTlData gXcpTl;
 
 
 typedef struct {
@@ -28,7 +28,8 @@ typedef struct {
     unsigned char  data[kXcpMaxDTO];  /* BYTE[] data */
 } XCP_DTO_MESSAGE;
 
-#define XCP_PACKET_HEADER_SIZE (2*sizeof(unsigned short))
+#define XCP_MESSAGE_HEADER_SIZE (2*sizeof(unsigned short))  // Transport Layer Header
+
 #define DTO_BUFFER_LEN XCP_UDP_MTU
 
 
