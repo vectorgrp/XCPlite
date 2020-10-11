@@ -66,6 +66,7 @@
 #include "xcpLite.h"
 
 
+
 /****************************************************************************/
 /* Macros                                                                   */
 /****************************************************************************/
@@ -75,10 +76,11 @@
 #define error1(e,b1) { err=(e); CRM_BYTE(2)=(b1); gXcp.CrmLen=3; goto negative_response1; }
 #define error2(e,b1,b2) { err=(e); CRM_BYTE(2)=(b1); CRM_BYTE(3)=(b2); gXcp.CrmLen=4; goto negative_response1; }
 
-
 #define XCP_WRITE_BYTE_2_ADDR(addr, data)           *(addr) = (data) 
 #define XCP_READ_BYTE_FROM_ADDR(addr)               *(addr) 
   
+#define XcpSetMta(p,e) (gXcp.Mta = (p)) 
+
 
 /****************************************************************************/
 /* Global data                                                               */
@@ -109,13 +111,11 @@ static void XcpStartAllSelectedDaq( void );
 static void XcpStopDaq( vuint16 daq );
 static void XcpStopAllSelectedDaq( void );
 static void XcpStopAllDaq( void );
+#if defined ( XCP_ENABLE_TESTMODE )
+static void XcpPrintCmd(const tXcpCto* pCmd);
+static void XcpPrintRes(const tXcpCto* pCmd);
+#endif
 
-
-/****************************************************************************/
-/* Handle Mta (Memory-Transfer-Address) */
-/****************************************************************************/
-
-#define XcpSetMta(p,e) (gXcp.Mta = (p)) 
 
 
 /*****************************************************************************
@@ -486,6 +486,9 @@ void XcpEventExt(unsigned int event, BYTEPTR offset)
                       
         // Get DTO buffer, overrun if not available
         if ((d0 = ApplXcpGetDtoBuffer(&p0, DaqListOdtSize(odt)+hs)) == NULL) {
+#if defined ( XCP_ENABLE_TESTMODE )
+            if (gXcpDebugLevel >= 0) ApplXcpPrint("DAQ queue overflow! Event skipped\n");
+#endif
             DaqListFlags(daq) |= DAQ_FLAG_OVERRUN;
             return; // Skip rest of this event on queue overrun
         }
@@ -514,6 +517,8 @@ void XcpEventExt(unsigned int event, BYTEPTR offset)
             while (e <= el) { // inner DAQ loop
                 n = OdtEntrySize(e);
                 if (n == 0) break;
+                //assert(d != NULL);
+                //assert(offset+(vuint32)OdtEntryAddr(e) != NULL);
                 memcpy((DAQBYTEPTR)d, offset + (vuint32)OdtEntryAddr(e), n);
                 d += n;
                 e++;
@@ -561,15 +566,6 @@ void XcpDisconnect( void )
 | DESCRIPTION:      
 ******************************************************************************/
 
-#if defined ( XCP_ENABLE_TESTMODE )
-    static void XcpPrintCmd(const tXcpCto* pCmd);
-    #define debugPrintCmd() if (gXcpDebugLevel!=0) XcpPrintCmd(pCmd);
-    static void XcpPrintRes(const tXcpCto* pCmd);
-    #define debugPrintRes() if (gXcpDebugLevel!=0) XcpPrintRes(pCmd);
-#else
-    #define debugPrintCmd()
-#endif
-
 void XcpCommand( const vuint32* pCommand )
 {
   const tXcpCto* pCmd = (const tXcpCto*) pCommand; 
@@ -613,10 +609,7 @@ void XcpCommand( const vuint32* pCommand )
     CRM_CONNECT_COMM_BASIC |= (vuint8)PI_MOTOROLA;
 #endif
 
-
-
     goto positive_response; 
-
   }
 
   /* Handle other commands only if connected */
@@ -629,7 +622,9 @@ void XcpCommand( const vuint32* pCommand )
       CRM_CMD = 0xFF; /* No Error */
       gXcp.CrmLen = 1; /* Length = 1 */
 
-      debugPrintCmd();
+#ifdef XCP_ENABLE_TESTMODE
+      if (gXcpDebugLevel != 0) XcpPrintCmd(pCmd);
+#endif
 
       switch (CRO_CMD)
       {
@@ -696,11 +691,7 @@ void XcpCommand( const vuint32* pCommand )
             {
               vuint8 size;
               size = CRO_DOWNLOAD_SIZE;
-              if (size>CRO_DOWNLOAD_MAX_SIZE)
-              {
-                error(CRC_OUT_OF_RANGE)
-              }
-
+              if (size>CRO_DOWNLOAD_MAX_SIZE) error(CRC_OUT_OF_RANGE)
               err = XcpWriteMta(size,CRO_DOWNLOAD_DATA);
               if (err==(vuint8)XCP_CMD_PENDING) goto no_response;
               if (err == (vuint8)XCP_CMD_DENIED) error(CRC_WRITE_PROTECTED);
@@ -918,7 +909,9 @@ void XcpCommand( const vuint32* pCommand )
           case CC_GET_DAQ_CLOCK:
             {
               gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN;
-              CRM_GET_DAQ_CLOCK_TIME = ApplXcpGetTimestamp(); 
+              CRM_GET_DAQ_CLOCK_RES1 = 0x00;
+              CRM_GET_DAQ_CLOCK_RES2 = 0xCCDA;
+              CRM_GET_DAQ_CLOCK_TIME = ApplXcpGetTimestamp();
             }
             break;
                
@@ -955,8 +948,9 @@ negative_response:
 positive_response:
 
 #if defined ( XCP_ENABLE_TESTMODE )
-  debugPrintRes();
+  if (gXcpDebugLevel != 0) XcpPrintRes(pCmd);
 #endif
+
   ApplXcpSendCrm(&gXcp.Crm.b[0],gXcp.CrmLen);
 
 no_response:
@@ -1186,7 +1180,8 @@ static void XcpPrintRes(const tXcpCto* pCmd) {
             break;
 
         case CC_GET_DAQ_CLOCK:
-            ApplXcpPrint("<- 0xFF t=%u (%gs)\n", CRM_GET_DAQ_CLOCK_TIME, (double)CRM_GET_DAQ_CLOCK_TIME/1000000000.0);
+            ApplXcpPrint("<- 0xFF t=%u (%gs)\n", CRM_GET_DAQ_CLOCK_TIME, (double)CRM_GET_DAQ_CLOCK_TIME/(1000.0*kApplXcpDaqTimestampTicksPerMs));
+            ApplXcpPrint("\n");
             break;
 
         default:

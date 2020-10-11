@@ -1,5 +1,5 @@
-// xcp.h
-// V1.0 23.9.2020
+// xcpAppl.h
+
 
 #if !defined ( __XCP_H_ )
 #define __XCP_H_

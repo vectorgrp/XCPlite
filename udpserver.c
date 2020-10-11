@@ -13,19 +13,18 @@
 #include "udpraw.h"
 #include "xcpLite.h"
 
+// XCP on UDP Transport Layer data
+tXcpTlData gXcpTl;
 
-unsigned short gLastCmdCtr = 0;
-unsigned short gLastResCtr = 0;
+pthread_mutex_t gXcpTlMutex = PTHREAD_MUTEX_INITIALIZER;
 
-int gSock = 0;
 
-struct sockaddr_in gServerAddr;
-
-struct sockaddr_in gClientAddr;
-int gClientAddrValid = 0;
-
-pthread_mutex_t gMutex = PTHREAD_MUTEX_INITIALIZER;
-
+#ifdef DTO_SEND_QUEUE
+static DTO_BUFFER dto_queue[DTO_QUEUE_SIZE];
+static unsigned int dto_queue_rp; // rp = read index
+static unsigned int dto_queue_len; // rp+len = write index (the next free entry), len=0 ist empty, len=DTO_QUEUE_SIZE is full
+static DTO_BUFFER* dto_buffer_ptr; // current incomplete or not fully commited entry
+#endif
 
 
 // Transmit a UDP datagramm (contains multiple XCP messages)
@@ -43,7 +42,7 @@ static int udpServerSendDatagram(const unsigned char* data, unsigned int size ) 
 #endif
 
     // Respond to active client, same port    // option gRemoteAddr.sin_port = htons(9001);
-    r = sendto(gSock, data, size, 0, (struct sockaddr*)&gClientAddr, sizeof(struct sockaddr));
+    r = sendto(gXcpTl.Sock, data, size, 0, (struct sockaddr*)&gXcpTl.ClientAddr, sizeof(struct sockaddr));
     if (r != size) {
         perror("udpServerSendDatagram() sendto failed");
         printf("(result=%d, errno=%d)\n", r, errno);
@@ -62,11 +61,6 @@ static int udpServerSendDatagram(const unsigned char* data, unsigned int size ) 
 
 
 #ifdef DTO_SEND_QUEUE
-
-static DTO_BUFFER dto_queue[DTO_QUEUE_SIZE];
-static unsigned int dto_queue_rp; // rp = read index
-static unsigned int dto_queue_len; // rp+len = write index (the next free entry), len=0 ist empty, len=DTO_QUEUE_SIZE is full
-static DTO_BUFFER* dto_buffer_ptr; // current incomplete or not fully commited entry
 
 // Not thread save
 static void getDtoBuffer(void) {
@@ -118,26 +112,26 @@ void udpServerHandleTransmitQueue( void ) {
             DTO_BUFFER* b;
 
             // Check
-            pthread_mutex_lock(&gMutex);
+            pthread_mutex_lock(&gXcpTlMutex);
             b = &dto_queue[dto_queue_rp];
             assert(b != dto_buffer_ptr);
             if (b->xcp_size == 0 || b->xcp_uncommited > 0) b = NULL;
-            pthread_mutex_unlock(&gMutex);
+            pthread_mutex_unlock(&gXcpTlMutex);
             if (b == NULL) break;
 
             // Send this frame
 #ifdef DTO_SEND_RAW
-            udpRawSend(b, &gClientAddr);
+            udpRawSend(b, &gXcpTl.ClientAddr);
 #else
-            udpServerSendDatagram(b->xcp_size, &b->xcp[0]);
+            udpServerSendDatagram(&b->xcp[0], b->xcp_size);
 #endif
 
             // Free this buffer
-            pthread_mutex_lock(&gMutex);
+            pthread_mutex_lock(&gXcpTlMutex);
             dto_queue_rp++;
             if (dto_queue_rp >= DTO_QUEUE_SIZE) dto_queue_rp -= DTO_QUEUE_SIZE;
             dto_queue_len--;
-            pthread_mutex_unlock(&gMutex);
+            pthread_mutex_unlock(&gXcpTlMutex);
 
         }
     }
@@ -148,9 +142,9 @@ void udpServerHandleTransmitQueue( void ) {
 void udpServerFlushTransmitQueue(void) {
     
     // Complete the current buffer if non empty
-    pthread_mutex_lock(&gMutex);
+    pthread_mutex_lock(&gXcpTlMutex);
     if (dto_buffer_ptr->xcp_size>0) getDtoBuffer();
-    pthread_mutex_unlock(&gMutex);
+    pthread_mutex_unlock(&gXcpTlMutex);
 
     udpServerHandleTransmitQueue();
 }
@@ -178,10 +172,10 @@ unsigned char *udpServerGetPacketBuffer(void **par, unsigned int size) {
     }
 #endif
 
-    pthread_mutex_lock(&gMutex);
+    pthread_mutex_lock(&gXcpTlMutex);
 
     // Get another message buffer from queue, when active buffer ist full, overrun or after time condition
-    if (dto_buffer_ptr==NULL || dto_buffer_ptr->xcp_size + size + XCP_PACKET_HEADER_SIZE > XCP_UDP_MTU ) {
+    if (dto_buffer_ptr==NULL || dto_buffer_ptr->xcp_size + size + XCP_MESSAGE_HEADER_SIZE > XCP_UDP_MTU ) {
         getDtoBuffer();
     }
 
@@ -189,15 +183,15 @@ unsigned char *udpServerGetPacketBuffer(void **par, unsigned int size) {
 
         // Build XCP message (ctr+dlc+packet) and store in DTO buffer
         p = (XCP_DTO_MESSAGE*)&dto_buffer_ptr->xcp[dto_buffer_ptr->xcp_size];
-        p->ctr = gLastResCtr++;
+        p->ctr = gXcpTl.LastResCtr++;
         p->dlc = (short unsigned int)size;
-        dto_buffer_ptr->xcp_size += size + 4;
+        dto_buffer_ptr->xcp_size += size + XCP_MESSAGE_HEADER_SIZE;
 
         *((DTO_BUFFER**)par) = dto_buffer_ptr;
         dto_buffer_ptr->xcp_uncommited++;
     }
 
-    pthread_mutex_unlock(&gMutex);
+    pthread_mutex_unlock(&gXcpTlMutex);
 
     if (dto_buffer_ptr == NULL) return NULL;
     return &p->data[0];
@@ -215,9 +209,9 @@ void udpServerCommitPacketBuffer(void *par) {
         }
 #endif   
 
-        pthread_mutex_lock(&gMutex);
+        pthread_mutex_lock(&gXcpTlMutex);
         p->xcp_uncommited--;
-        pthread_mutex_unlock(&gMutex);
+        pthread_mutex_unlock(&gXcpTlMutex);
     }
 }
 
@@ -228,7 +222,7 @@ unsigned char dto_buffer_data[DTO_BUFFER_LEN];
 
 unsigned char* udpServerGetPacketBuffer(void** par, unsigned int size) {
 
-    pthread_mutex_lock(&gMutex);
+    pthread_mutex_lock(&gXcpTl.Mutex);
 
     if (dto_buffer_size + size + XCP_PACKET_HEADER_SIZE > XCP_UDP_MTU) {
         udpServerSendDatagram(dto_buffer_data, dto_buffer_size);
@@ -236,9 +230,9 @@ unsigned char* udpServerGetPacketBuffer(void** par, unsigned int size) {
     }
 
     XCP_DTO_MESSAGE* p = (XCP_DTO_MESSAGE*)&dto_buffer_data[dto_buffer_size];
-    p->ctr = gLastResCtr++;
+    p->ctr = gXcpTl.LastResCtr++;
     p->dlc = (short unsigned int)size;
-    dto_buffer_size += size + 4;
+    dto_buffer_size += size + XCP_MESSAGE_HEADER_SIZE;
 
     *par = p;
     return p->data;
@@ -247,19 +241,19 @@ unsigned char* udpServerGetPacketBuffer(void** par, unsigned int size) {
 
 void udpServerCommitPacketBuffer(void* par) {
 
-    pthread_mutex_unlock(&gMutex);
+    pthread_mutex_unlock(&gXcpTl.Mutex);
 }
 
 void udpServerFlushPacketBuffer(void) {
 
-    pthread_mutex_lock(&gMutex);
+    pthread_mutex_lock(&gXcpTl.Mutex);
 
     if (dto_buffer_size>0) {
         udpServerSendDatagram(dto_buffer_data, dto_buffer_size);
         dto_buffer_size = 0;
     }
 
-    pthread_mutex_unlock(&gMutex);
+    pthread_mutex_unlock(&gXcpTl.Mutex);
 
 }
 
@@ -271,12 +265,23 @@ void udpServerFlushPacketBuffer(void) {
 // Transmit XCP packet, copy to XCP message buffer
 int udpServerSendCrmPacket(const unsigned char* packet, unsigned int size) {
 
+    int r; 
+
+    assert(packet != NULL);
+    assert(size>0);
+
+    pthread_mutex_lock(&gXcpTlMutex);
+
     // Build XCP CTO message (ctr+dlc+packet)
     XCP_CTO_MESSAGE p;
-    p.ctr = ++gLastCmdCtr;
+    p.ctr = ++gXcpTl.LastCmdCtr;
     p.dlc = (short unsigned int)size;
     memcpy(p.data, packet, size);
-    return udpServerSendDatagram((unsigned char*)&p, size + 4);
+    r = udpServerSendDatagram((unsigned char*)&p, size + XCP_MESSAGE_HEADER_SIZE);
+
+    pthread_mutex_unlock(&gXcpTlMutex);
+
+    return r;
 }
 
 int udpServerHandleXCPCommands(void) {
@@ -289,7 +294,7 @@ int udpServerHandleXCPCommands(void) {
     // No Blocking
     struct sockaddr_in src;
     socklen_t srclen = sizeof(src);
-    n = recvfrom(gSock, &buffer, sizeof(buffer), MSG_DONTWAIT, (struct sockaddr*)&src, &srclen);
+    n = recvfrom(gXcpTl.Sock, &buffer, sizeof(buffer), MSG_DONTWAIT, (struct sockaddr*)&src, &srclen);
     if (n < 0) {
         if (errno != EAGAIN) { // Socket error
 #if defined ( XCP_ENABLE_TESTMODE )
@@ -321,15 +326,15 @@ int udpServerHandleXCPCommands(void) {
         }
 #endif
         
-        gLastCmdCtr = buffer.ctr;
+        gXcpTl.LastCmdCtr = buffer.ctr;
         connected = (gXcp.SessionStatus & SS_CONNECTED);
         if (connected) {
             XcpCommand((const vuint32*)&buffer.data[0]);
         }
         else {
             if (buffer.dlc == 2) { // Accept dlc=2 for CONNECT command only
-                gClientAddr = src;
-                gClientAddrValid = 1;
+                gXcpTl.ClientAddr = src;
+                gXcpTl.ClientAddrValid = 1;
                 XcpCommand((const vuint32*)&buffer.data[0]);
             }
         }
@@ -342,16 +347,16 @@ int udpServerHandleXCPCommands(void) {
             if (gXcpDebugLevel >= 1) {
                 unsigned char tmp[32];
                 printf("XCP client connected:\n");
-                inet_ntop(AF_INET, &gClientAddr.sin_addr, tmp, sizeof(tmp));
-                printf("  Client addr=%s, port=%u\n", tmp, ntohs(gClientAddr.sin_port));
-                inet_ntop(AF_INET, &gServerAddr.sin_addr, tmp, sizeof(tmp));
-                printf("  Server addr=%s, port=%u\n", tmp, ntohs(gServerAddr.sin_port));
+                inet_ntop(AF_INET, &gXcpTl.ClientAddr.sin_addr, tmp, sizeof(tmp));
+                printf("  Client addr=%s, port=%u\n", tmp, ntohs(gXcpTl.ClientAddr.sin_port));
+                inet_ntop(AF_INET, &gXcpTl.ServerAddr.sin_addr, tmp, sizeof(tmp));
+                printf("  Server addr=%s, port=%u\n", tmp, ntohs(gXcpTl.ServerAddr.sin_port));
             }
 #endif
 
 #ifdef DTO_SEND_QUEUE
 #ifdef DTO_SEND_RAW
-            if (!udpRawInit(&gServerAddr, &gClientAddr)) {
+            if (!udpRawInit(&gXcpTl.ServerAddr, &gXcpTl.ClientAddr)) {
                 printf("Cannot initialize raw socket\n");
                 shutdown(gSock, SHUT_RDWR);
                 return 0;
@@ -368,15 +373,13 @@ int udpServerHandleXCPCommands(void) {
 
 int udpServerInit(unsigned short serverPort, unsigned int socketTimeout)
 {
-    assert(gSock == 0);
-
-    gLastCmdCtr = 0;
-    gLastResCtr = 0;
-    gClientAddrValid = 0;
-
+    gXcpTl.LastCmdCtr = 0;
+    gXcpTl.LastResCtr = 0;
+    gXcpTl.ClientAddrValid = 0;
+    
     //Create a socket
-    gSock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (gSock < 0) {
+    gXcpTl.Sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (gXcpTl.Sock < 0) {
         perror("Cannot open socket");
         return -1;
     }
@@ -386,58 +389,59 @@ int udpServerInit(unsigned short serverPort, unsigned int socketTimeout)
         struct timeval timeout;
         timeout.tv_sec = 0;
         timeout.tv_usec = (long int)socketTimeout;
-        setsockopt(gSock, SOL_SOCKET, SO_RCVTIMEO, (void*)&timeout, sizeof(timeout));
+        setsockopt(gXcpTl.Sock, SOL_SOCKET, SO_RCVTIMEO, (void*)&timeout, sizeof(timeout));
     }
 
     // Set socket transmit buffer size
     int buffer = 2000000;
-    setsockopt(gSock, SOL_SOCKET, SO_SNDBUF, (void*)&buffer, sizeof(buffer));
+    setsockopt(gXcpTl.Sock, SOL_SOCKET, SO_SNDBUF, (void*)&buffer, sizeof(buffer));
 
     // Avoid "Address already in use" error message
     int yes = 1;
-    setsockopt(gSock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+    setsockopt(gXcpTl.Sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
     
     // Bind the socket
-    gServerAddr.sin_family = AF_INET;
-    gServerAddr.sin_addr.s_addr = inet_addr("172.31.31.194"); // htonl(INADDR_ANY);
-    gServerAddr.sin_port = htons(serverPort);
-    memset(gServerAddr.sin_zero, '\0', sizeof(gServerAddr.sin_zero));
+    gXcpTl.ServerAddr.sin_family = AF_INET;
+    gXcpTl.ServerAddr.sin_addr.s_addr = inet_addr("172.31.31.194"); // htonl(INADDR_ANY);
+    gXcpTl.ServerAddr.sin_port = htons(serverPort);
+    memset(gXcpTl.ServerAddr.sin_zero, '\0', sizeof(gXcpTl.ServerAddr.sin_zero));
 
-    if (bind(gSock, (struct sockaddr*)&gServerAddr, sizeof(gServerAddr)) < 0) {
+    if (bind(gXcpTl.Sock, (struct sockaddr*)&gXcpTl.ServerAddr, sizeof(gXcpTl.ServerAddr)) < 0) {
         perror("Cannot bind on UDP port");
-        shutdown(gSock, SHUT_RDWR);
+        shutdown(gXcpTl.Sock, SHUT_RDWR);
         return 0;
     }
 
 #if defined ( XCP_ENABLE_TESTMODE )
     if (gXcpDebugLevel >= 1) {
         char tmp[32];
-        inet_ntop(AF_INET, &gServerAddr.sin_addr, tmp, sizeof(tmp));
-        printf("Bind sin_family=%u, addr=%s, port=%u\n", gServerAddr.sin_family, tmp, ntohs(gServerAddr.sin_port));
+        inet_ntop(AF_INET, &gXcpTl.ServerAddr.sin_addr, tmp, sizeof(tmp));
+        printf("Bind sin_family=%u, addr=%s, port=%u\n", gXcpTl.ServerAddr.sin_family, tmp, ntohs(gXcpTl.ServerAddr.sin_port));
         fprintf(stderr, "UDP MTU = %d.\n", XCP_UDP_MTU);
     }
 #endif
 
     // Create a mutex needed for multithreaded event data packet transmissions
-    pthread_mutexattr_t a;
-    pthread_mutexattr_init(&a);
-    // pthread_mutexattr_settype(&a, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&gMutex, &a);
-     
-       return 1;
+    //pthread_mutexattr_t a;
+    //pthread_mutexattr_init(&a);
+    //pthread_mutexattr_settype(&a, PTHREAD_MUTEX_RECURSIVE);
+    //pthread_mutex_init(&gXcpTl.Mutex, &a);
+    //pthread_mutex_init(&gXcpTlMutex, NULL);
+
+    return 1;
 }
 
 
 
 int udpServerShutdown( void ) {
 
-    shutdown(gSock, SHUT_RDWR);
+    pthread_mutex_destroy(&gXcpTlMutex);
+    shutdown(gXcpTl.Sock, SHUT_RDWR);
     return 1;
 }
 
 
 #if defined ( XCP_ENABLE_TESTMODE )
-
 void udpServerPrintPacket( XCP_DTO_MESSAGE* p ) {
    
     printf("CTR = %u, LEN = %u\n", p->ctr, p->dlc);

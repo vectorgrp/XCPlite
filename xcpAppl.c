@@ -1,19 +1,18 @@
 /*----------------------------------------------------------------------------
 | File:
-|   xcp.cpp
-|   XCP callbacks
+|   xcpAppl.cpp
+|   XCP application callbacks
 |
 | Project:
 |   Demo for XCP on Ethernet (UDP)
 |   Linux (Raspberry Pi) Version
  ----------------------------------------------------------------------------*/
 
-#include "xcp.h"
+#include "xcpAppl.h"
 
 
 // Wall clock updated at every AppXcpTimer
 volatile vuint32 gTimer = 0;
-
 
 
 /**************************************************************************/

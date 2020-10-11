@@ -62,6 +62,7 @@ typedef signed long    vsint32;
 #define MEMORY_ROM const
 
 
+
 /*----------------------------------------------------------------------------*/
 /* XCP Driver Callbacks as macros */
 
@@ -80,6 +81,7 @@ extern void udpServerCommitPacketBuffer(void* par);
 // Send a CRM message
 #define ApplXcpSendCrm udpServerSendCrmPacket
 
+
 /*----------------------------------------------------------------------------*/
 /* Test instrumentation */
 
@@ -93,54 +95,42 @@ extern void udpServerCommitPacketBuffer(void* par);
 
 
 /*----------------------------------------------------------------------------*/
-/* XCP protocol parameters */
+/* XCP protocol and transport layer parameters */
 
-#define XCP_UDP_MTU (1500-32)  // IPv4 1500 ETH - 28 IP - 8 UDP
-//#define DTO_SEND_QUEUE
-//#define DTO_QUEUE_SIZE 32
-//#define DTO_SEND_RAW
+/* Transport layer */
+#define XCP_UDP_MTU (1400)  // IPv4 1500 ETH - 28 IP - 8 UDP ???
+#define XCP_TRANSPORT_LAYER_VERSION 0x0100
 
+/* XCP slave device identification (optional) */
+#define kXcpStationIdLength 5    /* Slave device identification length */
+#define kXcpStationIdString "xcpPi"  /* Slave device identification */
+extern vuint8 MEMORY_ROM gXcpStationId[];
 
-
-/* XCP message length */
+/* XCP protocol message sizes */
 #define kXcpMaxCTO     250      /* Maximum CTO and CRM Message Lenght */
 #define kXcpMaxDTO     (XCP_UDP_MTU-4)      /* Maximum DTO Message Lenght UDP_MTU - Transport Layer Header */
 
-#define XCP_ENABLE_CALIBRATION
-#define XCP_DISABLE_WRITE_PROTECTION
-#define XCP_DISABLE_READ_PROTECTION
-#define XCP_ENABLE_GET_SESSION_STATUS_API
-#define XCP_DISABLE_GET_XCP_DATA_POINTER
-#define XCP_DISABLE_MEM_MAPPING
+/* Transmit queue (DAQ) */
+#define DTO_SEND_QUEUE
+#define DTO_QUEUE_SIZE 32
+//#define DTO_SEND_RAW
 
-/* Standard commands */
-#define XCP_ENABLE_COMM_MODE_INFO
-#define XCP_DISABLE_MODIFY_BITS
-#define XCP_DISABLE_USER_COMMAND
-#define XCP_ENABLE_SHORT_DOWNLOAD
-#define XCP_ENABLE_SHORT_UPLOAD
-#define XCP_ENABLE_BLOCK_UPLOAD
-#define XCP_ENABLE_BLOCK_DOWNLOAD
-
-
-/* Synchronous Data Acquisition (DAQ) */
-
-#define kXcpDaqMemSize 60000u  // Memory space reserved for DAQ tables (XCP needs 5 bytes (addr+len) per odt entry)
-
-#define XCP_SEND_BUFFER
-
+/* DAQ table size */
+#define kXcpDaqMemSize 60000u  // Memory space reserved for DAQ tables (XCP needs 5 bytes (addr+len) per memory region (odt entry)
 
 /* DAQ timestamp settings */
-
-#define kApplXcpDaqTimestampTicksPerMs 1000
+#define kApplXcpDaqTimestampTicksPerMs 1000 
 extern vuint32 ApplXcpTimer(void);
-
 #define kXcpDaqTimestampUnit DAQ_TIMESTAMP_UNIT_1US
 #define kXcpDaqTimestampTicksPerUnit 1  
 #define ApplXcpGetTimestamp() ApplXcpTimer()
 
 
-#include "xcp_def.h" // Set remaining default
+/*----------------------------------------------------------------------------*/
+/* XCP protocol features */
+
+#define XCP_ENABLE_CALIBRATION
+
 
 
 #endif

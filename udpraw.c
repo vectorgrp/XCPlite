@@ -7,17 +7,7 @@
 
 #ifdef DTO_SEND_RAW
 
-#ifdef TEST
-#define PCKT_LEN 8192
-char buffer[PCKT_LEN];
-struct iphdr* ip = (struct iphdr*)buffer;
-struct udphdr* udp = (struct udphdr*)(buffer + sizeof(struct iphdr));
-unsigned char* rxcp = (XCP_DTO_MESSAGE*)(buffer + sizeof(struct iphdr) + sizeof(struct udphdr));
-#endif
-
-
 int gRawSock = 0;
-
 
 #ifdef UDPRAW_CHECKSUM
 static unsigned short csum(unsigned short *buf, int nwords)

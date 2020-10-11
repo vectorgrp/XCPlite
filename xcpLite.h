@@ -774,6 +774,8 @@
 #define CRO_GET_DAQ_CLOCK_LEN                           1
 
 #define CRM_GET_DAQ_CLOCK_LEN                           8
+#define CRM_GET_DAQ_CLOCK_RES1                          CRM_BYTE(1)
+#define CRM_GET_DAQ_CLOCK_RES2                          CRM_WORD(1)
 #define CRM_GET_DAQ_CLOCK_TIME                          CRM_DWORD(1)
 
 

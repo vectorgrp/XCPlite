@@ -81,7 +81,7 @@
     <ClCompile Include="udpraw.c" />
     <ClCompile Include="udpserver.c" />
     <ClCompile Include="xcpLite.c" />
-    <ClCompile Include="xcp.c" />
+    <ClCompile Include="xcpAppl.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ecu.h" />
@@ -89,9 +89,8 @@
     <ClInclude Include="udpraw.h" />
     <ClInclude Include="udpserver.h" />
     <ClInclude Include="xcpLite.h" />
-    <ClInclude Include="xcp.h" />
+    <ClInclude Include="xcpAppl.h" />
     <ClInclude Include="xcp_cfg.h" />
-    <ClInclude Include="xcp_def.h" />
   </ItemGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
     <Link>
