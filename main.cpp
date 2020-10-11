@@ -16,7 +16,7 @@ extern "C" {
 #include "xcpLite.h"
 
 // XCP handler
-#include "xcp.h"
+#include "xcpAppl.h"
 
 // UDP server
 #include "udpserver.h"
@@ -26,6 +26,9 @@ extern "C" {
 #include "ecu.h"
 
 
+#define THREAD_ECU
+#define THREAD_ECUPP
+#define THREAD_SERVER
 
 // Parameters
 volatile unsigned short gSocketPort = 5555; // UDP port
@@ -65,7 +68,7 @@ extern "C" {
     
 
     // XCP command handler task
-    void* xcpServer(void* par) {
+    void* xcpServer(void* __par) {
 
         printf("Start XCP server\n");
         udpServerInit(gSocketPort,gSocketTimeout);
@@ -81,10 +84,12 @@ extern "C" {
                 if (udpServerHandleXCPCommands() < 0) break;  // Handle XCP commands
             }
 
+#ifndef THREAD_ECU
             if (gTimer - gTaskTimer > gTaskCycle) {
                 gTaskTimer = gTimer;
                 ecuCyclic();
             }
+#endif
 
             if (gXcp.SessionStatus & SS_DAQ) {
 
@@ -186,25 +191,37 @@ int main(void)
     // Initialize ECU demo (C++)
     gEcu = new ecu();
       
+    // Create the ECU threads
+#ifdef THREAD_ECU
+    pthread_t t2;
+    int a2 = 0;
+    pthread_create(&t2, NULL, ecuTask, (void*)&a2);
+#endif
+
+#ifdef THREAD_ECUPP
+    pthread_t t3;
+    int a3 = 0;
+    pthread_create(&t3, NULL, ecuppTask, (void*)&a3);
+#endif
+
+    // Create the XCP server thread
+#ifdef THREAD_SERVER
+    pthread_t t1;
+    int a1 = 0;
+    pthread_create(&t1, NULL, xcpServer, (void*)&a1);
+    pthread_join(t1, NULL); // t1 may fail
+#else
+    xcpServer(NULL); // Run the XCP server here
+#endif
+
+
+#ifdef THREAD_ECU
+    pthread_cancel(t2);
+#endif
+#ifdef THREAD_ECU
+    pthread_cancel(t3);
+#endif
     
-    //pthread_t t2;
-    //int a2;
-    //pthread_create(&t2, NULL, ecuTask, (void*)&a2);
-
-    //pthread_t t3;
-    //int a3;
-    //pthread_create(&t3, NULL, ecuppTask, (void*)&a3);
-
-    // Create the CMD and the ECU threads
-    //pthread_t t1;
-    //int a1
-    //pthread_create(&t1, NULL, xcpServer, (void*)&a1);
-    //pthread_join(t1, NULL); // t1 may fail
-    xcpServer(0); // Run the XCP server here
-
-    //pthread_cancel(t2);
-    //pthread_cancel(t3);
-
     return 0;
 }
 
