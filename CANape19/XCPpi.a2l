@@ -1594,7 +1594,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC gXcpStationId ""
-      VALUE 0x13FF8 __UByte_Value 0 NO_COMPU_METHOD 0 255
+      VALUE 0x14008 __UByte_Value 0 NO_COMPU_METHOD 0 255
       SYMBOL_LINK "gXcpStationId" 0
     /end CHARACTERISTIC
 
