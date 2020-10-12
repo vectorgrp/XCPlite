@@ -36,14 +36,13 @@ volatile unsigned short gSocketPort = 5555; // UDP port
 volatile unsigned int gSocketTimeout = 0; // General socket timeout
 
 // Task delays
-volatile vuint32 gTaskCycleTimerECU = 1000000; // ns
-volatile vuint32 gTaskCycleTimerECUpp = 1000000; // ns
-volatile vuint32 gTaskCycleTimerServer = 10000; // ns
+volatile vuint32 gTaskCycleTimerECU    = 1000000; // ns
+volatile vuint32 gTaskCycleTimerECUpp  = 1000000; // ns
+volatile vuint32 gTaskCycleTimerServer =   10000; // ns
 
 // Cycles times
-volatile vuint32 gFlushCycle = 100 * kApplXcpDaqTimestampTicksPerMs; // 100ms send a DTO packet at least every 100ms
-volatile vuint32 gCmdCycle = 10 * kApplXcpDaqTimestampTicksPerMs; 
-volatile vuint32 gTaskCycle = 1 * kApplXcpDaqTimestampTicksPerMs; 
+volatile vuint32 gFlushCycle = 100 * kApplXcpDaqTimestampTicksPerMs; // send a DTO packet at least every 100ms
+volatile vuint32 gCmdCycle =    10 * kApplXcpDaqTimestampTicksPerMs; // check for commands every 10ms
 
 static vuint32 gFlushTimer = 0;
 static vuint32 gCmdTimer = 0;
@@ -103,7 +102,7 @@ extern "C" {
             
                 // Cyclic flush of incomlete packets from transmit queue or transmit buffer to keep tool visualizations up to date
                 // No priorisation of events implemented, no latency optimizations
-                if (gTimer - gFlushTimer > gFlushCycle && gFlushTimer>0) {
+                if (gTimer - gFlushTimer > gFlushCycle && gFlushCycle>0) {
                     gFlushTimer = gTimer;
 #ifdef DTO_SEND_QUEUE  
                     udpServerFlushTransmitQueue();

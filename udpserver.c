@@ -91,8 +91,8 @@ static void initDtoBufferQueue(void) {
     memset(dto_queue, 0, sizeof(dto_queue));
 #ifdef DTO_SEND_RAW
     for (int i = 0; i < DTO_QUEUE_SIZE; i++) {
-        udpRawInitIpHeader(&dto_queue[i].ip,0,0);
-        udpRawInitUdpHeader(&dto_queue[i].udp,0,0);
+        udpRawInitIpHeader(&dto_queue[i].ip, &gXcpTl.ServerAddr, &gXcpTl.ClientAddr);
+        udpRawInitUdpHeader(&dto_queue[i].udp, &gXcpTl.ServerAddr, &gXcpTl.ClientAddr);
     }
 #endif
     getDtoBuffer();
@@ -358,7 +358,7 @@ int udpServerHandleXCPCommands(void) {
 #ifdef DTO_SEND_RAW
             if (!udpRawInit(&gXcpTl.ServerAddr, &gXcpTl.ClientAddr)) {
                 printf("Cannot initialize raw socket\n");
-                shutdown(gSock, SHUT_RDWR);
+                shutdown(gRawSock, SHUT_RDWR);
                 return 0;
             }
 #endif

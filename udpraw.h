@@ -1,7 +1,4 @@
 
-#ifndef __UDPRAW_H_
-#define __UDPRAW_H_
-
 /* udpraw.h */
 
 #ifndef __UDPRAW_H_
@@ -17,7 +14,6 @@ void udpRawInitUdpHeader(struct udphdr *udp, struct sockaddr_in *src, struct soc
 int udpRawSend(DTO_BUFFER* buf, struct sockaddr_in* dst);
 int udpRawInit(struct sockaddr_in *src, struct sockaddr_in* dst );
 
-#endif
 #endif
 
 #endif

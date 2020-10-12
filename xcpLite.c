@@ -87,7 +87,7 @@ tXcpData gXcp;
 const vuint8 MEMORY_ROM gXcpStationId[kXcpStationIdLength] = kXcpStationIdString; // Name of the A2L file for auto detection
 
 #if defined ( XCP_ENABLE_TESTMODE )
-vuint8 gXcpDebugLevel = 1;
+vuint8 gXcpDebugLevel = XCP_DEBUG_LEVEL;
 #endif
 
 
