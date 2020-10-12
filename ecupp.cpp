@@ -1,12 +1,11 @@
 /*----------------------------------------------------------------------------
 | File:
 |   ecupp.cpp
-|   V1.0 23.9.2020
 |
 | Description:
-|   Measurement and Calibration variables for XCP demo
-|   C++ language
-|
+|   Test Measurement and Calibration variables for XCP demo
+|   C++ language, Classes and Structures, dynamic memory
+|   Experimental for new XCP features
  ----------------------------------------------------------------------------*/
 
 

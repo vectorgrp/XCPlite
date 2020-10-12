@@ -1,9 +1,9 @@
-// ecu.hpp
-// V1.0 23.9.2020
+/* ecu.hpp */
 
+#ifndef __ECUPP_H_
+#define __ECUPP_H_
 
 class ecu {
-
 
 public:
 	
@@ -23,3 +23,4 @@ public:
 
 extern ecu* gEcu;
 
+#endif

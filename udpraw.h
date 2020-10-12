@@ -2,6 +2,11 @@
 #ifndef __UDPRAW_H_
 #define __UDPRAW_H_
 
+/* udpraw.h */
+
+#ifndef __UDPRAW_H_
+#define __UDPRAW_H_
+
 #ifdef DTO_SEND_RAW
 
 extern int gRawSock;
@@ -15,4 +20,5 @@ int udpRawInit(struct sockaddr_in *src, struct sockaddr_in* dst );
 #endif
 #endif
 
+#endif
 

@@ -1,11 +1,10 @@
 /*----------------------------------------------------------------------------
 | File:
 |   udpserver.c
-|   V1.3 30.9.2020
 |
-| Project:
+| Description:
 |   XCP on UDP transport layer
-|
+|   Linux (Raspberry Pi) Version
  ----------------------------------------------------------------------------*/
 
 
@@ -270,6 +269,7 @@ int udpServerSendCrmPacket(const unsigned char* packet, unsigned int size) {
     assert(packet != NULL);
     assert(size>0);
 
+    // ToDo: Eliminate this lock, this has impact on xcpEvent runtime !!!!
     pthread_mutex_lock(&gXcpTlMutex);
 
     // Build XCP CTO message (ctr+dlc+packet)

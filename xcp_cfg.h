@@ -1,15 +1,14 @@
 /*----------------------------------------------------------------------------
 | File:
 |   XCP_CFG.H
-|   V1.0 23.9.2020
 |
-| Project:
-|   Konfiguration file for XCP basic driver
-|   Linux XCP on UDP demo (Tested on RaspberryPi4)
+| Description:
+|   Konfiguration file for XCP lite protocol and transport layer
+|   Linux (Raspberry Pi) Version
  ----------------------------------------------------------------------------*/
 
-#if !defined ( __XCP_CFG_H__ )
-#define __XCP_CFG_H__
+#ifndef __XCP_CFG_H_
+#define __XCP_CFG_H_
 
 
 // General includes
@@ -103,7 +102,7 @@ extern void udpServerCommitPacketBuffer(void* par);
 
 /* XCP slave device identification (optional) */
 #define kXcpStationIdLength 5    /* Slave device identification length */
-#define kXcpStationIdString "xcpPi"  /* Slave device identification */
+#define kXcpStationIdString "xcpPi"  /* Slave device identification for auto detection of A2L file */
 extern vuint8 MEMORY_ROM gXcpStationId[];
 
 /* XCP protocol message sizes */
@@ -111,9 +110,9 @@ extern vuint8 MEMORY_ROM gXcpStationId[];
 #define kXcpMaxDTO     (XCP_UDP_MTU-4)      /* Maximum DTO Message Lenght UDP_MTU - Transport Layer Header */
 
 /* Transmit queue (DAQ) */
-#define DTO_SEND_QUEUE
-#define DTO_QUEUE_SIZE 32
-//#define DTO_SEND_RAW
+#define DTO_SEND_QUEUE       /* Enable DTO packet queue, decouples xcpEvent from sendto, results in almost deterministic runtime of xcpEvent */
+#define DTO_QUEUE_SIZE 32    /* Transmit queue size in DAQ UDP packets, should at least be able to hold all data produced by the largest event */
+//#define DTO_SEND_RAW         /* Activate UDP on RAW socket for DAQ transmission */
 
 /* DAQ table size */
 #define kXcpDaqMemSize 60000u  // Memory space reserved for DAQ tables (XCP needs 5 bytes (addr+len) per memory region (odt entry)

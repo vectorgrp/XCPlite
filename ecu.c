@@ -1,10 +1,9 @@
 /*----------------------------------------------------------------------------
 | File:
 |   ecu.c
-|   V1.0 23.9.2020
 |
 | Description:
-|   Measurement and Calibration variables for XCP demo
+|   Test Measurement and Calibration variables for XCP demo
 |   C language
 |
  ----------------------------------------------------------------------------*/

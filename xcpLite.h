@@ -1,20 +1,8 @@
-/*****************************************************************************
-| Project Name:   XCP Protocol Layer
-|    File Name:   xcpLite.h
-|    V1.0 23.9.2020
-|
-|  Description:   Header of XCP Protocol Layer
-|                 XCP V1.0 slave device driver
-|                 Lite Version
-|                 Don't change this file !
-|***************************************************************************/
+/* xcpLite.h */
 
-#if !defined ( __XCPLITE_H_ )
+#ifndef __XCPLITE_H_ 
 #define __XCPLITE_H_
 
-/***************************************************************************/
-/* Include                                                                 */
-/***************************************************************************/
 
 /* Protocol parameters and options */
 #include "xcp_cfg.h"
@@ -24,13 +12,8 @@
 /* Version                                                                 */
 /***************************************************************************/
 
-/* BCD coded version number of XCP module */
+/* BCD coded version number of XCP  */
 #define XCP_VERSION         0x0130u
-#define XCP_RELEASE_VERSION 0x04u
-
-#define XCP_VENDOR_ID   30u
-#define XCP_MODULE_ID   26u
-
 
 
 /***************************************************************************/

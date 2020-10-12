@@ -1,20 +1,17 @@
 
 
 /*****************************************************************************
-| Project Name:   XCP Protocol Layer
-|    File Name:   xcpLite.c
-|    V1.0 23.9.2020
+| File: 
+|   xcpLite.c
 |
-|  Description:   Implementation of the ASAM XCP Protocol Layer 
-|                 XCP V1.1 slave device
-|                 Optimized for XCP on Ethernet, multi threaded, no thread lock and zero copy data acquisition
-|                 C and C++ target support
-|                 Lite Version (see feature list below)
-|                 Don't change this file !
-|
+|  Description:   
+|    Implementation of the ASAM XCP Protocol Layer 
+|    XCP V1.1 slave 
+|    Optimized for XCP on Ethernet, multi threaded, no thread lock and zero copy data acquisition
+|    C and C++ target support
+|    Lite Version (see feature list below)
 |
 |  Limitations of the Lite version:
-|
 |     - Only suitable for XCP on Ethernet on 32 bit Microcontrollers !!
 |     - Platform must support unaligned word and dword memory access
 |     - 8 bit and 16 bit CPUs are not supported
@@ -42,7 +39,6 @@
 |       Vector Informatik GmbH
 |
 |  Limitations of the XCP basic version:
-|
 |     - Stimulation (Bypassing) is not available|         
 |     - Bit stimulation is not available
 |     - SHORT_DOWNLOAD is not implemented

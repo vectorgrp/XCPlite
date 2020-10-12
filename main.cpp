@@ -1,10 +1,11 @@
 ﻿/*----------------------------------------------------------------------------
 | File:
 |   main.cpp
-|   V1.0 23.9.2020
 |
-| Project:
-|   Demo for XCP on Ethernet (UDP)
+| Description:
+|   Demo main for XCP on Ethernet (UDP)
+|   XCP server thread
+|   Demo threads in C and C++ to emulate ECU tasks with measurement data acquisistion
 |   Linux (Raspberry Pi) Version
  ----------------------------------------------------------------------------*/
 
@@ -46,7 +47,9 @@ volatile vuint32 gTaskCycle = 1 * kApplXcpDaqTimestampTicksPerMs;
 
 static vuint32 gFlushTimer = 0;
 static vuint32 gCmdTimer = 0;
+#ifndef THREAD_ECU
 static vuint32 gTaskTimer = 0;
+#endif
 
 }
 

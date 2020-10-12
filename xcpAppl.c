@@ -1,9 +1,10 @@
 /*----------------------------------------------------------------------------
 | File:
 |   xcpAppl.cpp
-|   XCP application callbacks
 |
-| Project:
+| Description:
+|   XCP protocol layer application callbacks
+|   DAQ clock, all other callbacks are implemented as macros
 |   Demo for XCP on Ethernet (UDP)
 |   Linux (Raspberry Pi) Version
  ----------------------------------------------------------------------------*/

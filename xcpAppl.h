@@ -1,7 +1,7 @@
-// xcpAppl.h
+/* xcpAppl.h */
 
 
-#if !defined ( __XCP_H_ )
+#ifndef __XCP_H_ 
 #define __XCP_H_
 
 #include "xcpLite.h"

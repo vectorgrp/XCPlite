@@ -1,5 +1,7 @@
 // ecu.h 
-// V1.0 23.9.2020
+
+#ifndef __ECU_H_
+#define __ECU_H_
 
 extern unsigned short CALRAM_START;
 extern unsigned short CALRAM_LAST;
@@ -10,3 +12,4 @@ extern unsigned short CALRAM_LAST;
 extern void ecuCyclic( void );
 extern void ecuInit( void );
 
+#endif
