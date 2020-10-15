@@ -18,8 +18,9 @@ Demo visual Studio and CANape project included for Raspberry Pi 4.
 C and C++ measurement demo variables and code (ecu.c and ecupp.cpp).
 Measure global variables and dynamic instances of structs and classes.
 
-Achieves above 50 MByte/s UDP on a Raspberry Pi 4 with 50% CPU load.
-Up to 1ns measurement timestamp resolution.
+Achieves up to 80 MByte/s throughput on a Raspberry Pi 4 demo.
+3% single thread cpu time in event copy routine for 40MByte/s transfer rate. 
+1us measurement timestamp resolution.
 
 UDP only.
 
