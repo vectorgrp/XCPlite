@@ -25,21 +25,24 @@ volatile vuint32 gTimer = 0;
 
 /* Compile with:   -lrt */
 
+static struct timespec gts0;
+static struct timespec gtr;
 
 void ApplXcpTimerInit( void )
-{
-    struct timespec clock_resolution;
-    clock_getres(CLOCK_REALTIME, &clock_resolution);
+{    
+    assert(sizeof(long long) == 8);
+    clock_getres(CLOCK_REALTIME, &gtr);
+    assert(gtr.tv_sec == 0);
+    assert(gtr.tv_nsec == 1);
+    clock_gettime(CLOCK_REALTIME, &gts0);
 
 #if defined ( XCP_ENABLE_TESTMODE )
     if (gXcpDebugLevel >= 1) {
-        printf("clock resolution %lds,%ldns\n", clock_resolution.tv_sec, clock_resolution.tv_nsec);
-        //XcpAssert(clock_resolution.tv_sec == 0);
-        //XcpAssert(clock_resolution.tv_nsec == 1);
-        
+        printf("clock resolution %lds,%ldns\n", gtr.tv_sec, gtr.tv_nsec);
+        printf("clock %lds,%ldns\n", gts0.tv_sec, gts0.tv_nsec);
     }
 #endif
-    assert(sizeof(long long) == 8);
+
 }
 
 // Free runing clock with 10ns tick
@@ -49,7 +52,7 @@ vuint32 ApplXcpTimer(void) {
     struct timespec ts; 
     
     clock_gettime(CLOCK_REALTIME, &ts);
-    gTimer = (vuint32)((((unsigned long long)ts.tv_sec * 1000000000L) + (unsigned long long)(ts.tv_nsec))/1000);
+    gTimer = (vuint32)( ( (unsigned long long)(ts.tv_sec-gts0.tv_sec) * 1000000L ) + (ts.tv_nsec/1000) ); // us
     return gTimer;  
 }
 

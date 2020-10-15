@@ -472,11 +472,15 @@ void XcpEventExt(unsigned int event, BYTEPTR offset)
   unsigned int e,el,odt,daq,hs,n;
   
   if ( (gXcp.SessionStatus & (vuint8)SS_DAQ) == 0 ) return; // DAQ not running
-
+  
   for (daq=0; daq<gXcp.Daq.DaqCount; daq++) {
 
       if ((DaqListFlags(daq) & (vuint8)DAQ_FLAG_RUNNING) == 0) continue; // DAQ list not active
       if ( DaqListEventChannel(daq) != event ) continue; // DAQ list not associated with this event
+
+#if defined ( XCP_ENABLE_TESTMODE )
+      digitalWrite(PI_IO_1, HIGH);
+#endif
 
       for (hs=6,odt=DaqListFirstOdt(daq);odt<=DaqListLastOdt(daq);hs=2,odt++)  { 
                       
@@ -524,6 +528,11 @@ void XcpEventExt(unsigned int event, BYTEPTR offset)
         ApplXcpCommitDtoBuffer(p0);
                
       } /* odt */
+
+#if defined ( XCP_ENABLE_TESTMODE )
+      digitalWrite(PI_IO_1, LOW);
+#endif
+
   } /* daq */
   
 }

@@ -88,9 +88,16 @@ extern void udpServerCommitPacketBuffer(void* par);
 
 #define XCP_ENABLE_TESTMODE
 #ifdef XCP_ENABLE_TESTMODE
-  #define XCP_DEBUG_LEVEL 4
+  #define XCP_DEBUG_LEVEL 1
   #define ApplXcpPrint printf
   #define XCP_ENABLE_PARAMETER_CHECK
+
+  #include <wiringPi.h>
+  #define PI_IO_1	17
+  #define ApplXcpDbgPin(x) digitalWrite(PI_IO_1,x);
+
+#else
+  ApplXcpDbgPin(x)
 #endif
 
 
@@ -113,7 +120,7 @@ extern vuint8 MEMORY_ROM gXcpStationId[];
 /* Transmit queue (DAQ) */
 #define DTO_SEND_QUEUE       /* Enable DTO packet queue, decouples xcpEvent from sendto, results in almost deterministic runtime of xcpEvent */
 #define DTO_QUEUE_SIZE 32    /* Transmit queue size in DAQ UDP packets, should at least be able to hold all data produced by the largest event */
-#define DTO_SEND_RAW         /* Activate UDP on RAW socket for DAQ transmission */
+//#define DTO_SEND_RAW         /* Activate UDP on RAW socket for DAQ transmission */
 
 /* DAQ table size */
 #define kXcpDaqMemSize 60000u  // Memory space reserved for DAQ tables (XCP needs 5 bytes (addr+len) per memory region (odt entry)

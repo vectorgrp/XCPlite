@@ -10,7 +10,6 @@
  ----------------------------------------------------------------------------*/
 
 
-
 extern "C" {
 
 // XCP driver
@@ -51,6 +50,7 @@ static vuint32 gTaskTimer = 0;
 #endif
 
 }
+
 
 
 
@@ -158,26 +158,31 @@ extern "C" {
 }
 
 
-extern "C" {
-
-
-
-}
-
-
-
 
 // C++ main
 int main(void)
 {  
     printf(
         "\nRaspberryPi XCP on UDP Demo (Lite Version) \n"
-        "V1.0\n"
         "Build " __DATE__ " " __TIME__ "\n"
         );
       
+
     // Initialize clock for DAQ event time stamps
     ApplXcpTimerInit();
+
+#if defined ( XCP_ENABLE_TESTMODE )
+    wiringPiSetupSys();
+    pinMode(PI_IO_1, OUTPUT);
+    /*
+    for (;;) {
+        digitalWrite(PI_IO_1, HIGH);
+        sleepns(1000000);
+        digitalWrite(PI_IO_1, LOW);
+        sleepns(1000000);
+    }
+    */
+#endif
 
     // Initialize XCP driver
     XcpInit();
