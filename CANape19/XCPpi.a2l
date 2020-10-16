@@ -899,13 +899,13 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       /begin DAQ
         DYNAMIC
         0x00
-        0x02
+        0x03
         0x00
         OPTIMISATION_TYPE_DEFAULT
         ADDRESS_EXTENSION_FREE
         IDENTIFICATION_FIELD_TYPE_RELATIVE_BYTE
         GRANULARITY_ODT_ENTRY_SIZE_DAQ_BYTE
-        0x6E
+        0xF8
         OVERLOAD_INDICATION_PID
         /begin TIMESTAMP_SUPPORTED
           0x01
@@ -927,6 +927,16 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
           "Event2"
           "Event2"
           0x02
+          DAQ
+          0xFF
+          0x01
+          0x06
+          0x00
+        /end EVENT
+        /begin EVENT
+          "Event3"
+          "Event3"
+          0x03
           DAQ
           0xFF
           0x01
@@ -991,55 +1001,16 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       /end STRUCTURE_COMPONENT
     /end TYPEDEF_STRUCTURE
 
-    /begin CHARACTERISTIC CALRAM_LAST ""
-      VALUE 0x2501C __UWord_Value 0 NO_COMPU_METHOD 0 65535
-      ECU_ADDRESS_EXTENSION 0x0
-      EXTENDED_LIMITS 0 65535
-      FORMAT "%.15"
-      SYMBOL_LINK "CALRAM_LAST" 0
-      /begin IF_DATA CANAPE_EXT
-        100
-        LINK_MAP "CALRAM_LAST" 0x2501C 0 0 0 1 0x8F 0
-        DISPLAY 0x0 0 65535
-      /end IF_DATA
-    /end CHARACTERISTIC
-
-    /begin CHARACTERISTIC CALRAM_SIGN ""
-      VALUE 0x25020 __ULong_Value 0 NO_COMPU_METHOD 0 4294967295
-      ECU_ADDRESS_EXTENSION 0x0
-      EXTENDED_LIMITS 0 4294967295
-      FORMAT "%.15"
-      SYMBOL_LINK "CALRAM_SIGN" 0
-      /begin IF_DATA CANAPE_EXT
-        100
-        LINK_MAP "CALRAM_SIGN" 0x25020 0 0 0 1 0x9F 0
-        DISPLAY 0x0 0 4294967295
-      /end IF_DATA
-    /end CHARACTERISTIC
-
-    /begin CHARACTERISTIC CALRAM_START ""
-      VALUE 0x25188 __UWord_Value 0 NO_COMPU_METHOD 0 65535
-      ECU_ADDRESS_EXTENSION 0x0
-      EXTENDED_LIMITS 0 65535
-      FORMAT "%.15"
-      SYMBOL_LINK "CALRAM_START" 0
-      /begin IF_DATA CANAPE_EXT
-        100
-        LINK_MAP "CALRAM_START" 0x25188 0 0 0 1 0x8F 0
-        DISPLAY 0x0 0 65535
-      /end IF_DATA
-    /end CHARACTERISTIC
-
     /begin MEASUREMENT PWM "Pulse width signal from PWM_level and Triangle"
       UBYTE HighLow 0 0 0 255
       BYTE_ORDER MSB_LAST
-      ECU_ADDRESS 0x32D76
+      ECU_ADDRESS 0x32D86
       ECU_ADDRESS_EXTENSION 0x0
       FORMAT "%.0"
       SYMBOL_LINK "bytePWM" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "bytePWM" 0x32D76 0 0 0 1 0x87 0
+        LINK_MAP "bytePWM" 0x32D86 0 0 0 1 0x87 0
         DISPLAY 0x0 0 100
       /end IF_DATA
     /end MEASUREMENT
@@ -1047,13 +1018,13 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /begin MEASUREMENT PWMFiltered "Low pass filtered PWM signal"
       UBYTE BitSlice.CONVERSION 0 0 0 255
       BYTE_ORDER MSB_LAST
-      ECU_ADDRESS 0x342FD
+      ECU_ADDRESS 0x3430D
       ECU_ADDRESS_EXTENSION 0x0
       FORMAT "%.3"
       SYMBOL_LINK "bytePWMFiltered" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "bytePWMFiltered" 0x342FD 0 0 0 1 0x87 0
+        LINK_MAP "bytePWMFiltered" 0x3430D 0 0 0 1 0x87 0
         DISPLAY 0x0 0 100
       /end IF_DATA
     /end MEASUREMENT
@@ -1076,13 +1047,13 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /begin MEASUREMENT Triangle "Triangle test signal used for PWM output PWM"
       SBYTE BitSlice.CONVERSION 0 0 -50 50
       BYTE_ORDER MSB_LAST
-      ECU_ADDRESS 0x30D02
+      ECU_ADDRESS 0x30D12
       ECU_ADDRESS_EXTENSION 0x0
       FORMAT "%.3"
       SYMBOL_LINK "sbyteTriangle" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "sbyteTriangle" 0x30D02 0 0 0 1 0xC7 0
+        LINK_MAP "sbyteTriangle" 0x30D12 0 0 0 1 0xC7 0
         DISPLAY 0x0 -50 50
       /end IF_DATA
     /end MEASUREMENT
@@ -1191,7 +1162,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end MEASUREMENT
 
     /begin CHARACTERISTIC byteArray1 ""
-      VAL_BLK 0x32284 __UByte_Value 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x32294 __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1199,13 +1170,13 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       SYMBOL_LINK "byteArray1" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "byteArray1" 0x32284 0 0 0 1 0x87 0
+        LINK_MAP "byteArray1" 0x32294 0 0 0 1 0x87 0
         DISPLAY 0x0 0 255
       /end IF_DATA
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray10 ""
-      VAL_BLK 0x35300 __UByte_Value 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x35310 __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1213,13 +1184,13 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       SYMBOL_LINK "byteArray10" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "byteArray10" 0x35300 0 0 0 1 0x87 0
+        LINK_MAP "byteArray10" 0x35310 0 0 0 1 0x87 0
         DISPLAY 0x0 0 255
       /end IF_DATA
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray11 ""
-      VAL_BLK 0x30210 __UByte_Value 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x30220 __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1227,13 +1198,13 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       SYMBOL_LINK "byteArray11" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "byteArray11" 0x30210 0 0 0 1 0x87 0
+        LINK_MAP "byteArray11" 0x30220 0 0 0 1 0x87 0
         DISPLAY 0x0 0 255
       /end IF_DATA
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray12 ""
-      VAL_BLK 0x31D0C __UByte_Value 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x31D1C __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1241,13 +1212,13 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       SYMBOL_LINK "byteArray12" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "byteArray12" 0x31D0C 0 0 0 1 0x87 0
+        LINK_MAP "byteArray12" 0x31D1C 0 0 0 1 0x87 0
         DISPLAY 0x0 0 255
       /end IF_DATA
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray13 ""
-      VAL_BLK 0x38960 __UByte_Value 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x38970 __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1255,13 +1226,13 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       SYMBOL_LINK "byteArray13" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "byteArray13" 0x38960 0 0 0 1 0x87 0
+        LINK_MAP "byteArray13" 0x38970 0 0 0 1 0x87 0
         DISPLAY 0x0 0 255
       /end IF_DATA
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray14 ""
-      VAL_BLK 0x38EE8 __UByte_Value 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x38EF8 __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1269,13 +1240,13 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       SYMBOL_LINK "byteArray14" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "byteArray14" 0x38EE8 0 0 0 1 0x87 0
+        LINK_MAP "byteArray14" 0x38EF8 0 0 0 1 0x87 0
         DISPLAY 0x0 0 255
       /end IF_DATA
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray15 ""
-      VAL_BLK 0x36DFC __UByte_Value 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x36E0C __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1283,13 +1254,13 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       SYMBOL_LINK "byteArray15" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "byteArray15" 0x36DFC 0 0 0 1 0x87 0
+        LINK_MAP "byteArray15" 0x36E0C 0 0 0 1 0x87 0
         DISPLAY 0x0 0 255
       /end IF_DATA
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray16 ""
-      VAL_BLK 0x378F0 __UByte_Value 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x37900 __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1297,13 +1268,13 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       SYMBOL_LINK "byteArray16" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "byteArray16" 0x378F0 0 0 0 1 0x87 0
+        LINK_MAP "byteArray16" 0x37900 0 0 0 1 0x87 0
         DISPLAY 0x0 0 255
       /end IF_DATA
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray2 ""
-      VAL_BLK 0x37374 __UByte_Value 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x37384 __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1311,13 +1282,13 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       SYMBOL_LINK "byteArray2" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "byteArray2" 0x37374 0 0 0 1 0x87 0
+        LINK_MAP "byteArray2" 0x37384 0 0 0 1 0x87 0
         DISPLAY 0x0 0 255
       /end IF_DATA
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray3 ""
-      VAL_BLK 0x35878 __UByte_Value 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x35888 __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1325,13 +1296,13 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       SYMBOL_LINK "byteArray3" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "byteArray3" 0x35878 0 0 0 1 0x87 0
+        LINK_MAP "byteArray3" 0x35888 0 0 0 1 0x87 0
         DISPLAY 0x0 0 255
       /end IF_DATA
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray4 ""
-      VAL_BLK 0x383E8 __UByte_Value 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x383F8 __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1339,13 +1310,13 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       SYMBOL_LINK "byteArray4" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "byteArray4" 0x383E8 0 0 0 1 0x87 0
+        LINK_MAP "byteArray4" 0x383F8 0 0 0 1 0x87 0
         DISPLAY 0x0 0 255
       /end IF_DATA
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray5 ""
-      VAL_BLK 0x37E68 __UByte_Value 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x37E78 __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1353,13 +1324,13 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       SYMBOL_LINK "byteArray5" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "byteArray5" 0x37E68 0 0 0 1 0x87 0
+        LINK_MAP "byteArray5" 0x37E78 0 0 0 1 0x87 0
         DISPLAY 0x0 0 255
       /end IF_DATA
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray6 ""
-      VAL_BLK 0x30788 __UByte_Value 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x30798 __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1367,13 +1338,13 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       SYMBOL_LINK "byteArray6" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "byteArray6" 0x30788 0 0 0 1 0x87 0
+        LINK_MAP "byteArray6" 0x30798 0 0 0 1 0x87 0
         DISPLAY 0x0 0 255
       /end IF_DATA
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray7 ""
-      VAL_BLK 0x39460 __UByte_Value 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x39470 __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1381,13 +1352,13 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       SYMBOL_LINK "byteArray7" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "byteArray7" 0x39460 0 0 0 1 0x87 0
+        LINK_MAP "byteArray7" 0x39470 0 0 0 1 0x87 0
         DISPLAY 0x0 0 255
       /end IF_DATA
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray8 ""
-      VAL_BLK 0x33D84 __UByte_Value 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x33D94 __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1395,13 +1366,13 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       SYMBOL_LINK "byteArray8" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "byteArray8" 0x33D84 0 0 0 1 0x87 0
+        LINK_MAP "byteArray8" 0x33D94 0 0 0 1 0x87 0
         DISPLAY 0x0 0 255
       /end IF_DATA
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC byteArray9 ""
-      VAL_BLK 0x327FC __UByte_Value 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x3280C __UByte_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1409,7 +1380,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       SYMBOL_LINK "byteArray9" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "byteArray9" 0x327FC 0 0 0 1 0x87 0
+        LINK_MAP "byteArray9" 0x3280C 0 0 0 1 0x87 0
         DISPLAY 0x0 0 255
       /end IF_DATA
     /end CHARACTERISTIC
@@ -1417,13 +1388,13 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /begin MEASUREMENT byteCounter "Demo signal (byte, incrementing)"
       UBYTE NO_COMPU_METHOD 0 0 0 255
       BYTE_ORDER MSB_LAST
-      ECU_ADDRESS 0x3020C
+      ECU_ADDRESS 0x3021C
       ECU_ADDRESS_EXTENSION 0x0
       FORMAT "%.3"
       SYMBOL_LINK "byteCounter" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "byteCounter" 0x3020C 0 0 0 1 0x87 0
+        LINK_MAP "byteCounter" 0x3021C 0 0 0 1 0x87 0
         DISPLAY 0x0 0 255
       /end IF_DATA
     /end MEASUREMENT
@@ -1460,13 +1431,13 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /begin MEASUREMENT channel1 "FLOAT demo signal (sine wave)"
       FLOAT32_IEEE NO_COMPU_METHOD 0 0 -1E+12 1E+12
       BYTE_ORDER MSB_LAST
-      ECU_ADDRESS 0x35DF4
+      ECU_ADDRESS 0x35E04
       ECU_ADDRESS_EXTENSION 0x0
       FORMAT "%.3"
       SYMBOL_LINK "channel1" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "channel1" 0x35DF4 0 0 0 1 0x1 0
+        LINK_MAP "channel1" 0x35E04 0 0 0 1 0x1 0
         DISPLAY 0x0 -100 100
       /end IF_DATA
     /end MEASUREMENT
@@ -1474,13 +1445,13 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /begin MEASUREMENT channel2 "FLOAT demo signal (sine wave)"
       FLOAT32_IEEE NO_COMPU_METHOD 0 0 -1E+12 1E+12
       BYTE_ORDER MSB_LAST
-      ECU_ADDRESS 0x38EDC
+      ECU_ADDRESS 0x38EEC
       ECU_ADDRESS_EXTENSION 0x0
       FORMAT "%.3"
       SYMBOL_LINK "channel2" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "channel2" 0x38EDC 0 0 0 1 0x1 0
+        LINK_MAP "channel2" 0x38EEC 0 0 0 1 0x1 0
         DISPLAY 0x0 -100 100
       /end IF_DATA
     /end MEASUREMENT
@@ -1488,26 +1459,26 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /begin MEASUREMENT channel3 "FLOAT demo signal (sine wave)"
       FLOAT32_IEEE NO_COMPU_METHOD 0 0 -100 100
       BYTE_ORDER MSB_LAST
-      ECU_ADDRESS 0x383E4
+      ECU_ADDRESS 0x383F4
       ECU_ADDRESS_EXTENSION 0x0
       FORMAT "%.3"
       SYMBOL_LINK "channel3" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "channel3" 0x383E4 0 0 0 1 0x1 0
+        LINK_MAP "channel3" 0x383F4 0 0 0 1 0x1 0
         DISPLAY 0x0 -100 100
       /end IF_DATA
     /end MEASUREMENT
 
     /begin MEASUREMENT channel4 ""
       FLOAT32_IEEE NO_COMPU_METHOD 0 0 -3.40282346639E+38 3.40282346639E+38
-      ECU_ADDRESS 0x30D08
+      ECU_ADDRESS 0x30D18
       ECU_ADDRESS_EXTENSION 0x0
       FORMAT "%.15"
       SYMBOL_LINK "channel4" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "channel4" 0x30D08 0 0 0 1 0x1 0
+        LINK_MAP "channel4" 0x30D18 0 0 0 1 0x1 0
         DISPLAY 0x0 -3.40282346639E+38 3.40282346639E+38
       /end IF_DATA
     /end MEASUREMENT
@@ -1527,7 +1498,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
 
     /begin MEASUREMENT dto_queue_len ""
       ULONG NO_COMPU_METHOD 0 0 0 4294967295
-      ECU_ADDRESS 0x251E4
+      ECU_ADDRESS 0x251FC
       SYMBOL_LINK "dto_queue_len" 0
     /end MEASUREMENT
 
@@ -1540,13 +1511,13 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /begin MEASUREMENT dwordCounter "Demo signal (dword, incrementing)"
       ULONG BitSlice.CONVERSION 0 0 0 255
       BYTE_ORDER MSB_LAST
-      ECU_ADDRESS 0x32D78
+      ECU_ADDRESS 0x32D88
       ECU_ADDRESS_EXTENSION 0x0
       FORMAT "%.3"
       SYMBOL_LINK "dwordCounter" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "dwordCounter" 0x32D78 0 0 0 1 0x9F 0
+        LINK_MAP "dwordCounter" 0x32D88 0 0 0 1 0x9F 0
         DISPLAY 0x0 0 255
       /end IF_DATA
     /end MEASUREMENT
@@ -1560,15 +1531,9 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       SYMBOL_LINK "gCmdCycle" 0
     /end CHARACTERISTIC
 
-    /begin CHARACTERISTIC gSocketTimeout ""
-      VALUE 0x251D0 __ULong_Value 0 NO_COMPU_METHOD 0 4294967295
-      EXTENDED_LIMITS 0 4294967295
-      SYMBOL_LINK "gSocketTimeout" 0
-    /end CHARACTERISTIC
-
-    /begin CHARACTERISTIC gTaskCycle ""
-      VALUE 0x251B0 __ULong_Value 0 NO_COMPU_METHOD 0 4294967295
-      SYMBOL_LINK "gTaskCycle" 0
+    /begin CHARACTERISTIC gFlushCycle ""
+      VALUE 0x251A4 __ULong_Value 0 NO_COMPU_METHOD 0 4294967295
+      SYMBOL_LINK "gFlushCycle" 0
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC gTaskCycleTimerECU ""
@@ -1589,12 +1554,12 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC gXcpDebugLevel ""
-      VALUE 0x251B4 __UByte_Value 0 NO_COMPU_METHOD 0 255
+      VALUE 0x251B0 __UByte_Value 0 NO_COMPU_METHOD 0 255
       SYMBOL_LINK "gXcpDebugLevel" 0
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC gXcpStationId ""
-      VALUE 0x14008 __UByte_Value 0 NO_COMPU_METHOD 0 255
+      VALUE 0x140A8 __UByte_Value 0 NO_COMPU_METHOD 0 255
       SYMBOL_LINK "gXcpStationId" 0
     /end CHARACTERISTIC
 
@@ -1614,7 +1579,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end MEASUREMENT
 
     /begin CHARACTERISTIC longArray1 ""
-      VAL_BLK 0x35DFC __ULong_Value 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x35E0C __ULong_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1622,13 +1587,13 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       SYMBOL_LINK "longArray1" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "longArray1" 0x35DFC 0 0 0 1 0x9F 0
+        LINK_MAP "longArray1" 0x35E0C 0 0 0 1 0x9F 0
         DISPLAY 0x0 0 255
       /end IF_DATA
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC longArray2 ""
-      VAL_BLK 0x34300 __ULong_Value 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x34310 __ULong_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1636,13 +1601,13 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       SYMBOL_LINK "longArray2" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "longArray2" 0x34300 0 0 0 1 0x9F 0
+        LINK_MAP "longArray2" 0x34310 0 0 0 1 0x9F 0
         DISPLAY 0x0 0 255
       /end IF_DATA
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC longArray3 ""
-      VAL_BLK 0x32D80 __ULong_Value 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x32D90 __ULong_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1650,13 +1615,13 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       SYMBOL_LINK "longArray3" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "longArray3" 0x32D80 0 0 0 1 0x9F 0
+        LINK_MAP "longArray3" 0x32D90 0 0 0 1 0x9F 0
         DISPLAY 0x0 0 255
       /end IF_DATA
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC longArray4 ""
-      VAL_BLK 0x30D0C __ULong_Value 0 NO_COMPU_METHOD 0 255
+      VAL_BLK 0x30D1C __ULong_Value 0 NO_COMPU_METHOD 0 255
       ECU_ADDRESS_EXTENSION 0x0
       EXTENDED_LIMITS 0 255
       FORMAT "%.15"
@@ -1664,7 +1629,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
       SYMBOL_LINK "longArray4" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "longArray4" 0x30D0C 0 0 0 1 0x9F 0
+        LINK_MAP "longArray4" 0x30D1C 0 0 0 1 0x9F 0
         DISPLAY 0x0 0 255
       /end IF_DATA
     /end CHARACTERISTIC
@@ -1780,14 +1745,14 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /begin MEASUREMENT v "Digital Filter Outputvalue"
       UWORD DigitalFilterConversion 0 0 0 1
       BYTE_ORDER MSB_LAST
-      ECU_ADDRESS 0x32D7C
+      ECU_ADDRESS 0x32D8C
       ECU_ADDRESS_EXTENSION 0x0
       FORMAT "%.3"
       READ_WRITE
       SYMBOL_LINK "v" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "v" 0x32D7C 0 0 0 1 0x8F 0
+        LINK_MAP "v" 0x32D8C 0 0 0 1 0x8F 0
         DISPLAY 0x0 0 1
       /end IF_DATA
     /end MEASUREMENT
@@ -1795,14 +1760,14 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /begin MEASUREMENT vin "Digital Filter Inputvalue"
       UWORD DigitalFilterConversion 0 0 0 1
       BYTE_ORDER MSB_LAST
-      ECU_ADDRESS 0x33D80
+      ECU_ADDRESS 0x33D90
       ECU_ADDRESS_EXTENSION 0x0
       FORMAT "%.3"
       READ_WRITE
       SYMBOL_LINK "vin" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "vin" 0x33D80 0 0 0 1 0x8F 0
+        LINK_MAP "vin" 0x33D90 0 0 0 1 0x8F 0
         DISPLAY 0x0 0 1
       /end IF_DATA
     /end MEASUREMENT
@@ -1810,13 +1775,13 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /begin MEASUREMENT wordCounter "Demo signal (word, incrementing)"
       UWORD NO_COMPU_METHOD 0 0 0 65535
       BYTE_ORDER MSB_LAST
-      ECU_ADDRESS 0x383E0
+      ECU_ADDRESS 0x383F0
       ECU_ADDRESS_EXTENSION 0x0
       FORMAT "%.3"
       SYMBOL_LINK "wordCounter" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "wordCounter" 0x383E0 0 0 0 1 0x8F 0
+        LINK_MAP "wordCounter" 0x383F0 0 0 0 1 0x8F 0
         DISPLAY 0x0 0 255
       /end IF_DATA
     /end MEASUREMENT
@@ -2074,8 +2039,9 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
 
     /begin GROUP Test_Parameters "Test Parameters, BYTE"
       /begin REF_CHARACTERISTIC
-        CALRAM_LAST CALRAM_SIGN CALRAM_START gCmdCycle gDebugLevel gSocketTimeout gTaskCycle
-        gTaskCycleTimerCMD gTaskCycleTimerDAQ gTaskCycleTimerECU gTaskCycleTimerECUpp gTaskCycleTimerServer gXcpDebugLevel gXcpDebugLevel_Copy1 gXcpStationId
+        CALRAM_LAST CALRAM_SIGN CALRAM_START gCmdCycle gDebugLevel gFlushCycle gSocketTimeout
+        gTaskCycle gTaskCycleTimerCMD gTaskCycleTimerDAQ gTaskCycleTimerECU gTaskCycleTimerECUpp gTaskCycleTimerServer gXcpDebugLevel gXcpDebugLevel_Copy1
+        gXcpStationId
       /end REF_CHARACTERISTIC
     /end GROUP
 

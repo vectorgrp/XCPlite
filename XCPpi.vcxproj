@@ -94,11 +94,15 @@
   </ItemGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
     <Link>
-      <AdditionalOptions>-g -lrt -lpthread</AdditionalOptions>
+      <AdditionalOptions>-g</AdditionalOptions>
+      <LibraryDependencies>pthread;wiringPi;rt;%(LibraryDependencies)</LibraryDependencies>
     </Link>
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
     </ClCompile>
+    <RemotePostBuildEvent>
+      <Message>gpio export 17 out</Message>
+    </RemotePostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
     <Link>

@@ -39,11 +39,11 @@ int udpRawSend( DTO_BUFFER *buf, struct sockaddr_in *dst) {
   // Checksums are not calculated and filled in, for performance reasons
 
   // IP header
-  buf->ip.tot_len = (unsigned short)(sizeof(struct iphdr) + sizeof(struct udphdr) + 4 + buf->xcp_size); // Total Length
+  buf->ip.tot_len = (unsigned short)(sizeof(struct iphdr) + sizeof(struct udphdr) + buf->xcp_size); // Total Length
   //ip->check = 0; //  csum((unsigned short*)ip, sizeof(struct iphdr) / 2);
   
   // UDP header
-  buf->udp.len = htons( (sizeof(struct udphdr) + 4 + 1 + buf->xcp_size)&0xFFFE ); // UDP packet length must be even
+  buf->udp.len = htons( (sizeof(struct udphdr) + 1 + buf->xcp_size)&0xFFFE ); // UDP packet length must be even
   // udp->check = 0;
 
 #if defined ( XCP_ENABLE_TESTMODE )
@@ -56,13 +56,28 @@ int udpRawSend( DTO_BUFFER *buf, struct sockaddr_in *dst) {
       printf("xcp_len = %u, tot_len = %u\n", buf->xcp_size, buf->ip.tot_len);
   }
 #endif
+#if defined ( XCP_ENABLE_TESTMODE )
+  if (gXcpDebugLevel >= 3) {
+      printf("TX (IP): ");
+      for (int i = 0; i < sizeof(struct iphdr); i++) printf("%00X ", ((unsigned char*)&buf->ip)[i]);
+      printf("\n");
+      printf("TX (UDP): ");
+      for (int i = 0; i < sizeof(struct udphdr); i++) printf("%00X ", ((unsigned char*)&buf->udp)[i]);
+      printf("\n");
+      printf("TX (XCP): ");
+      for (int i = 0; i < buf->xcp_size; i++) printf("%00X ", buf->xcp[i]);
+      printf("\n");
+  }
+#endif
       
   // Send layer 3 packet
+ 
   if (sendto(gRawSock, &buf->ip, buf->ip.tot_len, 0, (struct sockaddr*)dst, sizeof(struct sockaddr_in)) <= 0)  {
     perror("udpRawSend() sendto() failed");
     return 0;
   }
-     
+  
+
   return 1;
 }
 
@@ -97,8 +112,6 @@ void udpRawInitUdpHeader(struct udphdr *udp, struct sockaddr_in* src, struct soc
 }
 
 int udpRawInit(struct sockaddr_in *src, struct sockaddr_in *dst) {
-
-    if (gRawSock) return 1;
 
 #ifdef XCP_ENABLE_TESTMODE
     if (gXcpDebugLevel >= 1) {

@@ -88,8 +88,16 @@ extern void udpServerCommitPacketBuffer(void* par);
 
 #define XCP_ENABLE_TESTMODE
 #ifdef XCP_ENABLE_TESTMODE
+  #define XCP_DEBUG_LEVEL 1
   #define ApplXcpPrint printf
   #define XCP_ENABLE_PARAMETER_CHECK
+
+  #include <wiringPi.h>
+  #define PI_IO_1	17
+  #define ApplXcpDbgPin(x) digitalWrite(PI_IO_1,x);
+
+#else
+  ApplXcpDbgPin(x)
 #endif
 
 
@@ -116,6 +124,9 @@ extern vuint8 MEMORY_ROM gXcpStationId[];
 
 /* DAQ table size */
 #define kXcpDaqMemSize 60000u  // Memory space reserved for DAQ tables (XCP needs 5 bytes (addr+len) per memory region (odt entry)
+
+/* Maximum ODT entry size */
+  #define XCP_MAX_ODT_ENTRY_SIZE 248 // mod 4 = 0 to optimize DAQ copy granularity
 
 /* DAQ timestamp settings */
 #define kApplXcpDaqTimestampTicksPerMs 1000 

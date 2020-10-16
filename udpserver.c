@@ -91,8 +91,8 @@ static void initDtoBufferQueue(void) {
     memset(dto_queue, 0, sizeof(dto_queue));
 #ifdef DTO_SEND_RAW
     for (int i = 0; i < DTO_QUEUE_SIZE; i++) {
-        udpRawInitIpHeader(&dto_queue[i].ip,0,0);
-        udpRawInitUdpHeader(&dto_queue[i].udp,0,0);
+        udpRawInitIpHeader(&dto_queue[i].ip, &gXcpTl.ServerAddr, &gXcpTl.ClientAddr);
+        udpRawInitUdpHeader(&dto_queue[i].udp, &gXcpTl.ServerAddr, &gXcpTl.ClientAddr);
     }
 #endif
     getDtoBuffer();
@@ -105,35 +105,37 @@ static void initDtoBufferQueue(void) {
 // Transmit all completed and fully commited UDP frames
 void udpServerHandleTransmitQueue( void ) {
 
-    {
-        while (dto_queue_len > 1) {
+    DTO_BUFFER* b;
 
-            DTO_BUFFER* b;
+    for (;;) {
 
-            // Check
-            pthread_mutex_lock(&gXcpTlMutex);
+        // Check
+        pthread_mutex_lock(&gXcpTlMutex);
+        if (dto_queue_len > 1) {
             b = &dto_queue[dto_queue_rp];
-            assert(b != dto_buffer_ptr);
-            if (b->xcp_size == 0 || b->xcp_uncommited > 0) b = NULL;
-            pthread_mutex_unlock(&gXcpTlMutex);
-            if (b == NULL) break;
+            if (b->xcp_uncommited > 0) b = NULL; 
+        }
+        else {
+            b = NULL;
+        }
+        pthread_mutex_unlock(&gXcpTlMutex);
+        if (b == NULL) break;
 
-            // Send this frame
+        // Send this frame
 #ifdef DTO_SEND_RAW
-            udpRawSend(b, &gXcpTl.ClientAddr);
+        udpRawSend(b, &gXcpTl.ClientAddr);
 #else
-            udpServerSendDatagram(&b->xcp[0], b->xcp_size);
+        udpServerSendDatagram(&b->xcp[0], b->xcp_size);
 #endif
 
-            // Free this buffer
-            pthread_mutex_lock(&gXcpTlMutex);
-            dto_queue_rp++;
-            if (dto_queue_rp >= DTO_QUEUE_SIZE) dto_queue_rp -= DTO_QUEUE_SIZE;
-            dto_queue_len--;
-            pthread_mutex_unlock(&gXcpTlMutex);
+        // Free this buffer
+        pthread_mutex_lock(&gXcpTlMutex);
+        dto_queue_rp++;
+        if (dto_queue_rp >= DTO_QUEUE_SIZE) dto_queue_rp -= DTO_QUEUE_SIZE;
+        dto_queue_len--;
+        pthread_mutex_unlock(&gXcpTlMutex);
 
-        }
-    }
+    } // for (;;)
 }
 
 
@@ -142,7 +144,7 @@ void udpServerFlushTransmitQueue(void) {
     
     // Complete the current buffer if non empty
     pthread_mutex_lock(&gXcpTlMutex);
-    if (dto_buffer_ptr->xcp_size>0) getDtoBuffer();
+    if (dto_buffer_ptr!=NULL && dto_buffer_ptr->xcp_size>0) getDtoBuffer();
     pthread_mutex_unlock(&gXcpTlMutex);
 
     udpServerHandleTransmitQueue();
@@ -157,7 +159,7 @@ void udpServerFlushTransmitQueue(void) {
 // Flush the transmit buffer, if no space left
 unsigned char *udpServerGetPacketBuffer(void **par, unsigned int size) {
 
-    XCP_DTO_MESSAGE* p = NULL;
+    XCP_DTO_MESSAGE* p;
 
  #if defined ( XCP_ENABLE_TESTMODE )
     if (gXcpDebugLevel >= 3) {
@@ -180,7 +182,7 @@ unsigned char *udpServerGetPacketBuffer(void **par, unsigned int size) {
 
     if (dto_buffer_ptr != NULL) {
 
-        // Build XCP message (ctr+dlc+packet) and store in DTO buffer
+        // Build XCP message header (ctr+dlc) and store in DTO buffer
         p = (XCP_DTO_MESSAGE*)&dto_buffer_ptr->xcp[dto_buffer_ptr->xcp_size];
         p->ctr = gXcpTl.LastResCtr++;
         p->dlc = (short unsigned int)size;
@@ -189,11 +191,13 @@ unsigned char *udpServerGetPacketBuffer(void **par, unsigned int size) {
         *((DTO_BUFFER**)par) = dto_buffer_ptr;
         dto_buffer_ptr->xcp_uncommited++;
     }
+    else {
+        p = NULL; // Overflow
+    }
 
     pthread_mutex_unlock(&gXcpTlMutex);
-
-    if (dto_buffer_ptr == NULL) return NULL;
-    return &p->data[0];
+        
+    return p!=NULL ? &p->data[0] : NULL; // return pointer to XCP message DTO data
 }
 
 void udpServerCommitPacketBuffer(void *par) {
@@ -358,7 +362,7 @@ int udpServerHandleXCPCommands(void) {
 #ifdef DTO_SEND_RAW
             if (!udpRawInit(&gXcpTl.ServerAddr, &gXcpTl.ClientAddr)) {
                 printf("Cannot initialize raw socket\n");
-                shutdown(gSock, SHUT_RDWR);
+                shutdown(gRawSock, SHUT_RDWR);
                 return 0;
             }
 #endif
