@@ -60,6 +60,10 @@ typedef signed long    vsint32;
 #define MEMORY_CONST const
 #define MEMORY_ROM const
 
+/* Pointers */
+#define DAQBYTEPTR vuint8 *
+#define MTABYTEPTR vuint8 *
+#define BYTEPTR vuint8 *
 
 
 /*----------------------------------------------------------------------------*/
@@ -106,7 +110,7 @@ extern void udpServerCommitPacketBuffer(void* par);
 
 /* Transport layer */
 #define XCP_UDP_MTU (1400)  // IPv4 1500 ETH - 28 IP - 8 UDP ???
-#define XCP_TRANSPORT_LAYER_VERSION 0x0100
+
 
 /* XCP slave device identification (optional) */
 #define kXcpStationIdLength 5    /* Slave device identification length */

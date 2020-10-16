@@ -600,9 +600,9 @@ void XcpCommand( const vuint32* pCommand )
 #endif
     gXcp.CrmLen = CRM_CONNECT_LEN;
 
-    /* Versions of the XCP Protocol Layer and Transport Layer Specifications. */
+    /* Major versions of the XCP Protocol Layer and Transport Layer Specifications. */
     CRM_CONNECT_TRANSPORT_VERSION = (vuint8)( (vuint16)XCP_TRANSPORT_LAYER_VERSION >> 8 );
-    CRM_CONNECT_PROTOCOL_VERSION =  (vuint8)( (vuint16)XCP_VERSION >> 8 );
+    CRM_CONNECT_PROTOCOL_VERSION =  (vuint8)( (vuint16)XCP_PROTOCOL_LAYER_VERSION >> 8 );
 
     CRM_CONNECT_MAX_CTO_SIZE = kXcpMaxCTO;
     CRM_CONNECT_MAX_DTO_SIZE = kXcpMaxDTO; 
@@ -646,10 +646,7 @@ void XcpCommand( const vuint32* pCommand )
         case CC_GET_COMM_MODE_INFO:
           {
             gXcp.CrmLen = CRM_GET_COMM_MODE_INFO_LEN;
-            /* Transmit the version of the XCP Protocol Layer implementation.    */
-            /* The higher nibble is the main version, the lower the sub version. */
-            /* The lower nibble overflows, if the sub version is greater than 15.*/
-            CRM_GET_COMM_MODE_INFO_DRIVER_VERSION = (vuint8)( ((XCP_VERSION & 0x0F00) >> 4) | (XCP_VERSION & 0x000F) );
+            CRM_GET_COMM_MODE_INFO_DRIVER_VERSION = XCP_VERSION;
             CRM_GET_COMM_MODE_INFO_COMM_OPTIONAL = 0;
             CRM_GET_COMM_MODE_INFO_QUEUE_SIZE = 0;
             CRM_GET_COMM_MODE_INFO_MAX_BS = 0;
@@ -668,12 +665,21 @@ void XcpCommand( const vuint32* pCommand )
             {
               gXcp.CrmLen = CRM_GET_ID_LEN;
               CRM_GET_ID_MODE = 0;
-              CRM_GET_ID_LENGTH = 0; 
-              if ( CRO_GET_ID_TYPE == IDT_ASAM_NAME )   /* Type = ASAM MC2 */
-              {
-                CRM_GET_ID_LENGTH = kXcpStationIdLength; 
-                XcpSetMta( ApplXcpGetPointer(0xFF, (vuint32)(&gXcpStationId[0])), 0xFF); 
-              }    
+              CRM_GET_ID_LENGTH = 0;
+              switch (CRO_GET_ID_TYPE) {
+                  case IDT_ASCII:
+                  case IDT_ASAM_NAME:
+                      CRM_GET_ID_LENGTH = kXcpStationIdLength;
+                      XcpSetMta(ApplXcpGetPointer(0xFF, (vuint32)(&gXcpStationId[0])), 0xFF);
+                      break;
+                  case IDT_ASAM_PATH:
+                  case IDT_ASAM_URL:
+                  case IDT_ASAM_UPLOAD:
+                      CRM_GET_ID_LENGTH = 0;     // No error, just return length=0, INCA always polls ID_TYPE 0-4
+                      break;
+                  default:
+                      error(CRC_OUT_OF_RANGE);
+              }
             }
             break;                    
 
@@ -919,15 +925,111 @@ void XcpCommand( const vuint32* pCommand )
               CRM_GET_DAQ_CLOCK_TIME = ApplXcpGetTimestamp();
             }
             break;
-               
-          default: /* unknown */
+           
+#if 0
+          case CC_TIME_CORRELATION_PROPERTIES:
             {
+              if (CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES & TIME_SYNC_SET_PROPERTIES_RESP_FORMAT_MASK) {
+                  switch (CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES & TIME_SYNC_SET_PROPERTIES_RESP_FORMAT_MASK) {
+                  case 1:
+                      break;
+                  case 2:
+                      break;
+                  default:
+                      break;
+                  }
 
-#if defined ( XCP_ENABLE_TESTMODE )
-              if ( gXcpDebugLevel != 0) {
-                ApplXcpPrint("-> UNKNOWN COMMAND %02X\n", CRO_CMD);
+                  timeCorrelationProperties.slaveConfiguration = timeCorrelationProperties.slaveConfiguration & (~TIME_SYNC_SET_PROPERTIES_RESP_FORMAT_MASK)  | (CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES & TIME_SYNC_SET_PROPERTIES_RESP_FORMAT_MASK);
+                  ApplXcpPrint("Changed properties for slave %d to 0x%x\n",  timeCorrelationProperties.slaveConfiguration));
               }
+
+              if (CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES & TIME_SYNC_SET_PROPERTIES_CLUSTER_AFFILIATION_MASK) {
+                  timeCorrelationProperties.clusterAffiliation = CRO_TIME_SYNC_PROPERTIES_CLUSTER_AFFILIATION;
+                  ApplXcpPrint("Assigned XCP slave %d to cluster %d\n", timeCorrelationProperties.clusterAffiliation);
+              }
+
+              // Time sync bride is not supported
+              if (CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES & TIME_SYNC_SET_PROPERTIES_TIME_SYNC_BRIDGE_MASK) {
+                  ApplXcpPrint("XCP Master tried to change timesyncbridge settings. Feature not supported yet.\n");
+              }
+
+              // generation of the response
+              pXcp->CrmLen = CRM_TIME_SYNC_PROPERTIES_LEN;
+              CRM_TIME_SYNC_PROPERTIES_SLV_CONFIG = timeCorrelationProperties.slaveConfiguration;
+              CRM_TIME_SYNC_PROPERTIES_OBSERVABLE_CLOCKS = timeCorrelationProperties.observableClocks;
+              CRM_TIME_SYNC_PROPERTIES_SYNC_STATE = timeCorrelationProperties.syncState;
+              CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO = timeCorrelationProperties.clockInfo;
+              CRM_TIME_SYNC_PROPERTIES_RESERVED = 0x0;
+              CRM_TIME_SYNC_PROPERTIES_CLUSTER_AFFILIATION = timeCorrelationProperties.clusterAffiliation;
+
+              // check whether MTA is requested
+              if (CRO_TIME_SYNC_PROPERTIES_GET_PROPERTIES & 0x01) {
+                  unsigned char mtaRequired = 0;
+
+                  if (CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO & TIME_SYNC_GET_PROPERTIES_SLV_CLK_INFO) {
+                      ApplXcpPrint("SLV CLK info to MTA\n");
+                      mtaRequired |= 1;
+                      memcpy(pMtaBufStartAddr, timeCorrelationProperties.slaveClock, sizeof(T_CLOCK_INFORMATION));
+                      pMtaBufStartAddr += sizeof(T_CLOCK_INFORMATION);
+                  }
+
+                  if (CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO & TIME_SYNC_GET_PROPERTIES_GRANDM_CLK_INFO) {
+                      ApplXcpPrint("GRANDM CLK info to MTA\n");
+                      mtaRequired |= 1;
+                      memcpy(pMtaBufStartAddr, pXcp->timeCorrelationProperties.grandmasterClock, sizeof(T_CLOCK_INFORMATION_GRANDM));
+                      pMtaBufStartAddr += sizeof(T_CLOCK_INFORMATION_GRANDM);
+                  }
+
+                  if (CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO & TIME_SYNC_GET_PROPERTIES_CLK_RELATION) {
+                      ApplXcpPrint("CLK Offset to MTA\n");
+                      mtaRequired |= 1;
+                      memcpy(pMtaBufStartAddr, pXcp->timeCorrelationProperties.slvGrandmClkRelation, sizeof(T_CLOCK_RELATION));
+                      pMtaBufStartAddr += sizeof(T_CLOCK_RELATION);
+                  }
+
+                  if (CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO & TIME_SYNC_GET_PROPERTIES_ECU_CLK_INFO) {
+                      ApplXcpPrint("ECU CLK info to MTA\n");
+                      mtaRequired |= 1;
+                      memcpy(pMtaBufStartAddr, pXcp->timeCorrelationProperties.ecuClock, sizeof(T_CLOCK_INFORMATION));
+                      pMtaBufStartAddr += sizeof(T_CLOCK_INFORMATION);
+                  }
+
+                  if (CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO & TIME_SYNC_GET_PROPERTIES_ECU_GRANDM_CLK_INFO) {
+                      ApplXcpPrint("ECU GRANDM CLK info to MTA\n");
+                      mtaRequired |= 1;
+                      memcpy(pMtaBufStartAddr, pXcp->timeCorrelationProperties.ecuGrandmasterClock, sizeof(T_CLOCK_INFORMATION_ECU_GRANDM));
+                      pMtaBufStartAddr += sizeof(T_CLOCK_INFORMATION_ECU_GRANDM);
+                  }
+
+                  if (mtaRequired) {
+                      pMtaBufStartAddr = &pXcp->timeCorrelationProperties.mtaBuffer[0];
+                      XcpSetMta((MTABYTEPTR)pMtaBufStartAddr, GLOB_DFLT_XCP_PROPERTIES_ADDR_EXT);
+                  }
+              }
+            }
+            break; 
 #endif
+
+          case CC_LEVEL_1_COMMAND:
+              switch (CRO_LEVEL_1_COMMAND_CODE) {
+
+              /* Major and minor versions */
+              case CC_GET_VERSION:
+                  gXcp.CrmLen = CRM_GET_VERSION_LEN;
+                  CRM_GET_VERSION_RESERVED = 0;
+                  CRM_GET_VERSION_PROTOCOL_VERSION_MAJOR = (vuint8)((vuint16)XCP_PROTOCOL_LAYER_VERSION >> 8);
+                  CRM_GET_VERSION_PROTOCOL_VERSION_MINOR = (vuint8)(XCP_PROTOCOL_LAYER_VERSION & 0xFF);
+                  CRM_GET_VERSION_TRANSPORT_VERSION_MAJOR = (vuint8)((vuint16)XCP_TRANSPORT_LAYER_VERSION >> 8);
+                  CRM_GET_VERSION_TRANSPORT_VERSION_MINOR = (vuint8)(XCP_TRANSPORT_LAYER_VERSION & 0xFF);
+                  break;
+
+              default: /* unknown command */
+                  error(CRC_CMD_UNKNOWN);
+              }
+              break;
+
+          default: /* unknown command */
+            {
               error(CRC_CMD_UNKNOWN) 
             }
 
@@ -1110,7 +1212,22 @@ static void XcpPrintCmd(const tXcpCto * pCmd) {
             ApplXcpPrint("-> GET_DAQ_CLOCK\n");
             break;
 
-     default: /* unknown */
+     case CC_TIME_CORRELATION_PROPERTIES:
+         ApplXcpPrint("-> GET_TIME_CORRELATION_PROPERTIES set=%02Xh, get=%02Xh, cluster_affiliation=%04Xh\n", CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES, CRO_TIME_SYNC_PROPERTIES_GET_PROPERTIES, CRO_TIME_SYNC_PROPERTIES_CLUSTER_AFFILIATION );
+         break;
+
+     case CC_LEVEL_1_COMMAND:
+         switch (CRO_LEVEL_1_COMMAND_CODE) {
+           case CC_GET_VERSION:
+               ApplXcpPrint("-> GET_VERSION\n");
+               break;
+           default:
+               ApplXcpPrint("-> UNKNOWN LEVEL 1 COMMAND %02X\n", CRO_LEVEL_1_COMMAND_CODE);
+               break;
+         }
+         break;
+
+     default:
             ApplXcpPrint("-> UNKNOWN COMMAND %02X\n", CRO_CMD);
          
     } /* switch */
@@ -1148,12 +1265,12 @@ static void XcpPrintRes(const tXcpCto* pCmd) {
 
         case CC_CONNECT:
             ApplXcpPrint("<- 0xFF version=%02Xh/%02Xh, maxcro=%u, maxdto=%u, resource=%02X, mode=%u\n",
-                CRM_CONNECT_PROTOCOL_VERSION,
-                CRM_CONNECT_TRANSPORT_VERSION,
-                CRM_CONNECT_MAX_CTO_SIZE,
-                CRM_CONNECT_MAX_DTO_SIZE,
-                CRM_CONNECT_RESOURCE,
-                CRM_CONNECT_COMM_BASIC);
+                CRM_CONNECT_PROTOCOL_VERSION, CRM_CONNECT_TRANSPORT_VERSION, CRM_CONNECT_MAX_CTO_SIZE, CRM_CONNECT_MAX_DTO_SIZE, CRM_CONNECT_RESOURCE,  CRM_CONNECT_COMM_BASIC);
+            break;
+
+        case CC_GET_COMM_MODE_INFO:
+            ApplXcpPrint("<- 0xFF version=%02Xh, opt=%u, queue=%u, max_bs=%u, min_st=%u\n",
+                CRM_GET_COMM_MODE_INFO_DRIVER_VERSION, CRM_GET_COMM_MODE_INFO_COMM_OPTIONAL, CRM_GET_COMM_MODE_INFO_QUEUE_SIZE, CRM_GET_COMM_MODE_INFO_MAX_BS, CRM_GET_COMM_MODE_INFO_MIN_ST);
             break;
 
         case CC_GET_STATUS:
@@ -1188,6 +1305,17 @@ static void XcpPrintRes(const tXcpCto* pCmd) {
             ApplXcpPrint("<- 0xFF t=%u (%gs)\n", CRM_GET_DAQ_CLOCK_TIME, (double)CRM_GET_DAQ_CLOCK_TIME/(1000.0*kApplXcpDaqTimestampTicksPerMs));
             ApplXcpPrint("\n");
             break;
+
+        case CC_LEVEL_1_COMMAND:
+            switch (CRO_LEVEL_1_COMMAND_CODE) {
+            case CC_GET_VERSION:
+                ApplXcpPrint("<- 0xFF protocol layer version: major=%02Xh/minor=%02Xh, transport layer version: major=%02Xh/minor=%02Xh\n",
+                    CRM_GET_VERSION_PROTOCOL_VERSION_MAJOR,
+                    CRM_GET_VERSION_PROTOCOL_VERSION_MINOR,
+                    CRM_GET_VERSION_TRANSPORT_VERSION_MAJOR,
+                    CRM_GET_VERSION_TRANSPORT_VERSION_MINOR);
+                    break;
+            }
 
         default:
             ApplXcpPrint("<- 0xFF\n");

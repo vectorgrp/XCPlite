@@ -9,11 +9,13 @@
   
 
 /***************************************************************************/
-/* Version                                                                 */
+/* Version info                                                            */
 /***************************************************************************/
 
-/* BCD coded version number of XCP  */
-#define XCP_VERSION         0x0130u
+/* BCD coded version numbers  */
+#define XCP_VERSION 0x01 // CC_CONNECT
+#define XCP_TRANSPORT_LAYER_VERSION 0x0100 // CC_GET_VERSION
+#define XCP_PROTOCOL_LAYER_VERSION 0x0140 // CC_GET_VERSION
 
 
 /***************************************************************************/
@@ -112,9 +114,16 @@
 # define CC_WRITE_DAQ_MULTIPLE            0xC7
 
 /*-------------------------------------------------------------------------*/
-/* XCP V1.2 specific commands */
+/* XCP V1.3 specific commands */
 # define CC_TIME_CORRELATION_PROPERTIES   0xC6
 
+/*-------------------------------------------------------------------------*/
+/* XCP V1.4 specific commands */
+
+/* Level 1 Commands */
+#define CC_LEVEL_1_COMMAND                    0xC0
+#define CC_GET_VERSION                        0x00          /* GET_VERSION --> Standard command */
+#define CC_SW_DBG_OVER_XCP                    0xFC          /* software debugging over XCP */
 
 
 /*-------------------------------------------------------------------------*/
@@ -129,11 +138,9 @@
 /* Command Return Codes */
 
 #define CRC_CMD_SYNCH           0x00
-
 #define CRC_CMD_BUSY            0x10
 #define CRC_DAQ_ACTIVE          0x11
 #define CRC_PRM_ACTIVE          0x12
-
 #define CRC_CMD_UNKNOWN         0x20
 #define CRC_CMD_SYNTAX          0x21
 #define CRC_OUT_OF_RANGE        0x22
@@ -145,10 +152,12 @@
 #define CRC_SEGMENT_NOT_VALID   0x28
 #define CRC_SEQUENCE            0x29
 #define CRC_DAQ_CONDIF          0x2A
-
-#define CRC_MEMORY_OVERFLOW     0x30
-#define CRC_GENERIC             0x31
-#define CRC_VERIFY              0x32
+#define CRC_MEMORY_OVERFLOW                     0x30
+#define CRC_GENERIC                             0x31
+#define CRC_VERIFY                              0x32
+#define CRC_RESOURCE_TEMPORARY_NOT_ACCESSIBLE   0x33
+#define CRC_SUBCMD_UNKNOWN                      0x34
+#define CRC_TIMECORR_STATE_CHANGE               0x35
 
 
 /*-------------------------------------------------------------------------*/
@@ -165,6 +174,12 @@
 #define EVC_TRANSPORT          0xFF
 
 
+/*-------------------------------------------------------------------------*/
+/* Service Request Codes */
+
+#define SERV_RESET                            0x00 /* Slave requesting to be reset */
+#define SERV_TEXT                             0x01 /* Plain ASCII text null terminated */
+
 
 
 
@@ -179,6 +194,7 @@
 #define RM_DAQ                      0x04
 #define RM_STIM                     0x08
 #define RM_PGM                      0x10
+#define RM_DBG                      0x20
 
 
 /*-------------------------------------------------------------------------*/
@@ -225,7 +241,9 @@
 #define IDT_ASAM_PATH          2
 #define IDT_ASAM_URL           3
 #define IDT_ASAM_UPLOAD        4
-#define IDT_VECTOR_MAPNAMES    0xDB
+#define IDT_ASAM_EPK           5
+#define IDT_ASAM_ECU           6
+#define IDT_ASAM_SYSID         7
 
 /*-------------------------------------------------------------------------*/
 /* Checksum Types (BUILD_CHECKSUM) */
@@ -293,6 +311,8 @@
 
 #define DAQ_FLAG_SELECTED                 0x01u /* */
 #define DAQ_FLAG_DIRECTION                0x02u /* Data Stimulation Mode */
+
+#define DAQ_FLAG_CMPL_DAQ_CH              0x04u  /* Complementary DAQ channel */
 
 #define DAQ_FLAG_TIMESTAMP                0x10u /* Timestamps */
 #define DAQ_FLAG_NO_PID                   0x20u /* No PID */
@@ -995,6 +1015,126 @@
 
 #define CRM_SET_SLAVE_PORT                              1  
 
+/* Level 1 commands */
+#define CRO_LEVEL_1_COMMAND_LEN                             2
+#define CRO_LEVEL_1_COMMAND_CODE                            CRO_BYTE(1)
+
+/* GET_VERSION */
+#define CRO_GET_VERSION_LEN                                 2
+
+#define CRM_GET_VERSION_LEN                                 6
+#define CRM_GET_VERSION_RESERVED                            CRM_BYTE(1)
+#define CRM_GET_VERSION_PROTOCOL_VERSION_MAJOR              CRM_BYTE(2)
+#define CRM_GET_VERSION_PROTOCOL_VERSION_MINOR              CRM_BYTE(3)
+#define CRM_GET_VERSION_TRANSPORT_VERSION_MAJOR             CRM_BYTE(4)
+#define CRM_GET_VERSION_TRANSPORT_VERSION_MINOR             CRM_BYTE(5)
+
+   /* TIME SYNCHRONIZATION PROPERTIES*/
+#define CRO_TIME_SYNC_PROPERTIES_LEN                        6
+#define CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES             CRO_BYTE(1)
+#define CRO_TIME_SYNC_PROPERTIES_GET_PROPERTIES             CRO_BYTE(2)
+#define CRO_TIME_SYNC_PROPERTIES_CLUSTER_AFFILIATION        CRO_WORD(2)
+
+#define CRM_TIME_SYNC_PROPERTIES_LEN                        8
+#define CRM_TIME_SYNC_PROPERTIES_SLV_CONFIG                 CRM_BYTE(1)
+#define CRM_TIME_SYNC_PROPERTIES_OBSERVABLE_CLOCKS          CRM_BYTE(2)
+#define CRM_TIME_SYNC_PROPERTIES_SYNC_STATE                 CRM_BYTE(3)
+#define CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO                 CRM_BYTE(4)
+#define CRM_TIME_SYNC_PROPERTIES_RESERVED                   CRM_BYTE(5)
+#define CRM_TIME_SYNC_PROPERTIES_CLUSTER_AFFILIATION        CRM_WORD(3)
+
+#define TIME_SYNC_SET_PROPERTIES_RESP_FORMAT_MASK           (3 << 0)
+#define TIME_SYNC_SET_PROPERTIES_TIME_SYNC_BRIDGE_MASK      (3 << 2)
+#define TIME_SYNC_SET_PROPERTIES_CLUSTER_AFFILIATION_MASK   (1 << 4)
+
+#define TIME_SYNC_GET_PROPERTIES_SLV_CLK_INFO               (1 << 0)
+#define TIME_SYNC_GET_PROPERTIES_GRANDM_CLK_INFO            (1 << 1)
+#define TIME_SYNC_GET_PROPERTIES_CLK_RELATION               (1 << 2)
+#define TIME_SYNC_GET_PROPERTIES_ECU_CLK_INFO               (1 << 3)
+#define TIME_SYNC_GET_PROPERTIES_ECU_GRANDM_CLK_INFO        (1 << 4)
+
+
+#define EV_TIME_SYNC_RESPONSE_FMT_LEGACY                    0UL
+#define EV_TIME_SYNC_RESPONSE_FMT_TRIGGER_SUBSET            1UL
+#define EV_TIME_SYNC_RESPONSE_FMT_TRIGGER_ALL               2UL
+
+#define DAQ_TSTAMP_RELATION_SLAVE_CLOCK                     0UL
+#define DAQ_TSTAMP_RELATION_ECU_CLOCK                       1UL
+
+#define TIME_SYNC_BRIDGE_NOT_AVAILABLE                      0UL
+#define TIME_SYNC_BRIDGE_DISABLED                           1UL
+#define TIME_SYNC_BRIDGE_ENABLED                            2UL
+
+#define OBSERVABLE_CLOCK_XCP_SLV_CLK_FREE_RUNNING           0UL
+#define OBSERVABLE_CLOCK_XCP_SLV_CLK_SYNCED                 1UL
+#define OBSERVABLE_CLOCK_XCP_SLV_NOT_AVAILABLE              2UL
+
+#define OBSERVABLE_CLOCK_DEDICATED_GRANDM_CLK_NOT_AVAILABLE 0UL
+#define OBSERVABLE_CLOCK_DEDICATED_GRANDM_CLK_RANDOM_ACCESS 1UL
+#define OBSERVABLE_CLOCK_DEDICATED_GRANDM_CLK_SELF_TRIGGER  2UL
+
+#define OBSERVABLE_CLOCK_ECU_CLK_NOT_AVAILABLE              0UL
+#define OBSERVABLE_CLOCK_ECU_CLK_RANDOM_ACCESS              1UL
+#define OBSERVABLE_CLOCK_ECU_CLK_SELF_TRIGGER               2UL
+#define OBSERVABLE_CLOCK_ECU_CLK_NOT_READABLE               3UL
+
+#define SLV_CLK_SYNC_STATE_SYNCHRONIZATION_IN_PROGRESS      0UL
+#define SLV_CLK_SYNC_STATE_SYNCHRONIZED                     1UL
+#define SLV_CLK_SYNC_STATE_SYNTONIZATION_IN_PROGRESS        2UL
+#define SLV_CLK_SYNC_STATE_SYNTONIZED                       3UL
+#define SLV_CLK_SYNC_STATE_SYNTONIZATION_NOT_AVAILABLE      7UL
+#define DEDICATED_GRANDM_CLK_SYNCHRONIZATION_IN_PROGRESS    0UL
+#define DEDICATED_GRANDM_CLK_SYNCHRONIZED                   1UL
+#define ECU_CLK_NOT_SYNCHRONIZED_TO_GRANDMASTER             0UL
+#define ECU_CLK_SYNCHRONIZED_TO_GRANDMASTER                 1UL
+#define ECU_CLK_SYNCHRONIZATION_STATE_UNKNOWN               2UL
+
+#define SYNC_STATE_NO_SYNC_SUPPORT                          ((SLV_CLK_SYNC_STATE_SYNTONIZATION_NOT_AVAILABLE << 0) | (DEDICATED_GRANDM_CLK_SYNCHRONIZATION_IN_PROGRESS << 3) | (ECU_CLK_SYNCHRONIZATION_STATE_UNKNOWN << 4))
+
+#define TRIG_INITIATOR_SYNC_LINE                            0UL
+#define TRIG_INITIATOR_XCP_INDEPENDENT                      1UL
+#define TRIG_INITIATOR_MULTICAST                            2UL
+#define TRIG_INITIATOR_MULTICAST_TS_BRIDGE                  3UL
+#define TRIG_INITIATOR_SYNC_STATE_CHANGE                    4UL
+#define TRIG_INITIATOR_LEAP_SECOND                          5UL
+#define TRIG_INITIATOR_ECU_RESET_RELEASE                    6UL
+#define TRIG_INITIATOR_RESERVED                             7UL
+
+#define TIME_OF_TS_SAMPLING_PROTOCOL_PROCESSOR              0UL
+#define TIME_OF_TS_SAMPLING_LOW_JITTER                      1UL
+#define TIME_OF_TS_SAMPLING_PHY_TRANSMISSION                2UL
+#define TIME_OF_TS_SAMPLING_PHY_RECEPTION                   3UL
+
+#define EV_TIME_SYNC_PAYLOAD_FMT_DWORD                      1UL
+#define EV_TIME_SYNC_PAYLOAD_FMT_DLONG                      2UL
+
+/* Transport Layer commands */
+#define CC_TL_GET_SLAVE_ID                                  0xFF
+#define CC_TL_GET_SLAVE_ID_EXTENDED                         0xFD
+#define CC_TL_SET_SLAVE_IP                                  0xFC
+#define CC_TL_GET_DAQ_CLK_MULTICAST                         0xFA
+#define CRO_TL_SUBCOMMAND                                   CRO_BYTE(1)
+/* GET_SLAVE_ID */
+#define CRO_TL_SLV_DETECT_PORT                              CRO_WORD(1)
+#define CRO_TL_SLV_DETECT_MCAST_IP_ADDR                     CRO_DWORD(1)
+
+#define TL_SLV_DETECT_STATUS_PROTOCOL_TCP                   0
+#define TL_SLV_DETECT_STATUS_PROTOCOL_UDP                   1
+#define TL_SLV_DETECT_STATUS_PROTOCOL_TCP_UDP               2
+#define TL_SLV_DETECT_STATUS_PROTOCOL_RESERVED              3
+#define TL_SLV_DETECT_STATUS_IP_VERSION_IPV4                (0)
+#define TL_SLV_DETECT_STATUS_IP_VERSION_RESERVED            (1<<2)
+#define TL_SLV_DETECT_STATUS_SLV_AVAILABILITY_BUSY          (1<<3)
+#define TL_SLV_DETECT_STATUS_SLV_ID_EXT_SUPPORTED           (1<<4)
+
+/* GET_SLAVE_ID_EXTENDED */
+#define TL_SLV_DETECT_STATUS_SLV_ID_EXT_RADAR_DATA          (1<<0)
+#define TL_SLV_DETECT_STATUS_SLV_ID_EXT_XCP_ON_PCIE         (1<<1)
+
+/* GET_DAQ_CLOCK_MULTICAST */
+#define CRO_TL_DAQ_CLK_MCAST_CLUSTER_IDENTIFIER             CRO_WORD(1)
+#define CRO_TL_DAQ_CLK_MCAST_COUNTER                        CRO_BYTE(4)
+
 
 
 /****************************************************************************/
@@ -1012,70 +1152,8 @@
   
 
 /****************************************************************************/
-/* Default data type definitions                                            */
-/****************************************************************************/
-
-/* Pointer to far memory */
-#if defined ( XCP_MEMORY_FAR )
-#else
-  #if defined ( MEMORY_FAR )
-    #define XCP_MEMORY_FAR MEMORY_FAR
-  #else
-    #if defined ( V_MEMRAM2_FAR )
-      #define XCP_MEMORY_FAR  V_MEMRAM2_FAR
-    #else
-      #define XCP_MEMORY_FAR
-    #endif
-  #endif
-#endif
-
-/* Far memory qualifier for functions. */
-#if defined ( XCP_FAR )
-#else
-   #define XCP_FAR
-#endif
-
-/* RAM */
-#if defined ( RAM )
-#else
-  #define RAM
-#endif
-
-
-/*
-   DAQBYTEPTR and MTABYTEPTR may be defined different to BYTEPTR to save memory
-   Example:
-     #define BYTEPTR     unsigned char *
-     #define MTABYTEPTR  huge unsigned char *
-     #define DAQBYTEPTR  unsigned char *
-*/
-#if defined ( DAQBYTEPTR )
-#else
-  #define DAQBYTEPTR vuint8 XCP_MEMORY_FAR *
-#endif
-
-#if defined ( MTABYTEPTR )
-#else
-  #define MTABYTEPTR vuint8 XCP_MEMORY_FAR *
-#endif
-
-/* Pointer type used to point into the gXcp structure */
-#if defined ( BYTEPTR )
-#else
-  #define BYTEPTR vuint8 *
-#endif
-
-#if defined ( ROMBYTEPTR )
-#else
-  #define ROMBYTEPTR vuint8 const *
-#endif
-
-
-/****************************************************************************/
 /* Checks and default values                                                */
 /****************************************************************************/
-
-
 
 /* Check limits of the XCP imnplementation
 */
@@ -1091,7 +1169,6 @@
 #if ( kXcpMaxDTO < 0x08 )
   #error "kXcpMaxDTO must be > 7"
 #endif
-
 
 
 /* kXcpDaqMemSize must be defined 
@@ -1115,12 +1192,6 @@
 /****************************************************************************/
 /* XCP Packet Type Definition                                               */
 /****************************************************************************/
-
-typedef struct {
-  vuint8 b[kXcpMaxDTO];
-  vuint8 l;
-} tXcpDto;
-
 
 typedef union { 
   /* There might be a loss of up to 3 bytes. */
@@ -1200,8 +1271,8 @@ typedef struct {
 #define XCP_MODE_NOT_VALID          7
 #define XCP_CMD_ERROR               0xFF
 
-#define XCP_OK                      0
-#define XCP_NOT_OK                  1
+//#define XCP_OK                      0
+//#define XCP_NOT_OK                  1
 
 /* Return values for XcpEvent() */
 #define XCP_EVENT_NOP               0x00u   /* Inactive (DAQ not running, Event not configured) */

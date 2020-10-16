@@ -28,7 +28,7 @@ ASAP2_VERSION 1 71
         };
 
         struct Protocol_Layer {
-          uint;  /* XCP protocol layer version, currently 0x101*/
+          uint;  /* XCP protocol layer version, currently 0x103 */
           uint;  /* T1 [ms] Time-out of the standard CTO, for example CONNECT*/
           uint;  /* T2 [ms] Time-out of the checksum calculation*/
           uint;  /* T3 [ms] Time-out of the non-volatile memory programming: PROGRAM_START, PROGRAM_VERIFY, PROGRAM_PREPARE*/
@@ -36,8 +36,8 @@ ASAP2_VERSION 1 71
           uint;  /* T5 [ms] Time-out of the non-volatile memory programming: PROGRAM, PROGRAM_RESET, PROGRAM_MAX*/
           uint;  /* T6 [ms] Time-out of the command CONNECT(USER_DEFINED)*/
           uint;  /* T7 [ms] Time-out of the pre-action*/
-          uchar;  /* MAX_CTO: Indicates the maximum length of a CTO packet in bytes. */
-          uint;  /* MAX_DTO: Indicates the maximum length of a DTO packet in bytes. */
+          uchar;  /* MAX_CTO: Indicates the maximum length of a CTO packet in bytes.*/
+          uint;  /* MAX_DTO: Indicates the maximum length of a DTO packet in bytes.*/
           enum {
             "BYTE_ORDER_MSB_LAST" = 0,
             "BYTE_ORDER_MSB_FIRST" = 1
@@ -101,7 +101,9 @@ ASAP2_VERSION 1 71
               "PROGRAM_NEXT" = 202,
               "PROGRAM_MAX" = 201,
               "PROGRAM_VERIFY" = 200,
-              "WRITE_DAQ_MULTIPLE" = 199
+              "WRITE_DAQ_MULTIPLE" = 199,
+              "TIME_CORRELATION_PROPERTIES" = 198,
+              "DTO_CTR_PROPERTIES" = 197
             })*;  /* XCP-Code of optional command supported by the slave*/
             "COMMUNICATION_MODE_SUPPORTED" taggedunion {
               "BLOCK" taggedstruct {
@@ -114,6 +116,43 @@ ASAP2_VERSION 1 71
               "INTERLEAVED" uchar;  /* QUEUE_SIZE: indicates the maximum number of consecutive command packets the master can send to the receipt queue of the slave*/
             };
             "SEED_AND_KEY_EXTERNAL_FUNCTION" char[256];  /* Name of the Seed&Key function*/
+            "MAX_DTO_STIM" uint;  /* overrules MAX_DTO see above for STIM use case */
+            block "ECU_STATES" taggedstruct {
+              (block "STATE" struct {
+                uchar;  /* STATE_NUMBER */
+                char[100];  /* STATE_NAME */
+                enum {
+                  "NOT_ACTIVE" = 0,
+                  "ACTIVE" = 1
+                };
+                enum {
+                  "NOT_ACTIVE" = 0,
+                  "ACTIVE" = 1
+                };  /* DAQ RESOURCE */
+                enum {
+                  "NOT_ACTIVE" = 0,
+                  "ACTIVE" = 1
+                };  /* STIM RESOURCE */
+                enum {
+                  "NOT_ACTIVE" = 0,
+                  "ACTIVE" = 1
+                };  /* PGM RESOURCE */
+                taggedstruct {
+                  (block "MEMORY_ACCESS" struct {
+                    uchar;  /* SEGMENT_NUMBER */
+                    uchar;  /* PAGE_NUMBER */
+                    enum {
+                      "READ_ACCESS_NOT_ALLOWED" = 0,
+                      "READ_ACCESS_ALLOWED" = 1
+                    };
+                    enum {
+                      "WRITE_ACCESS_NOT_ALLOWED" = 0,
+                      "WRITE_ACCESS_ALLOWED" = 1
+                    };
+                  })*;
+                };
+              })*;
+            };
           };
         };
 
@@ -122,9 +161,9 @@ ASAP2_VERSION 1 71
             "STATIC" = 0,
             "DYNAMIC" = 1
           };  /*The flag indicates whether the DAQ lists that are not PREDEFINED shall be configured statically or dynamically*/
-          uint;  /* MAX_DAQ: Total number of available DAQ lists */
+          uint;  /* MAX_DAQ: Total number of available DAQ lists*/
           uint;  /* MAX_EVENT_CHANNEL: Total number of available event channels*/
-          uchar;  /* MIN_DAQ: Total number of predefined DAQ lists */
+          uchar;  /* MIN_DAQ: Total number of predefined DAQ lists*/
           enum {
             "OPTIMISATION_TYPE_DEFAULT" = 0,
             "OPTIMISATION_TYPE_ODT_TYPE_16" = 1,
@@ -137,7 +176,7 @@ ASAP2_VERSION 1 71
             "ADDRESS_EXTENSION_FREE" = 0,
             "ADDRESS_EXTENSION_ODT" = 1,
             "ADDRESS_EXTENSION_DAQ" = 3
-          };  /*The flag indicates whether the address extension of all entries within one ODT or within one DAQ must be the same. */
+          };  /*The flag indicates whether the address extension of all entries within one ODT or within one DAQ must be the same.*/
           enum {
             "IDENTIFICATION_FIELD_TYPE_ABSOLUTE" = 0,
             "IDENTIFICATION_FIELD_TYPE_RELATIVE_BYTE" = 1,
@@ -149,8 +188,8 @@ ASAP2_VERSION 1 71
             "GRANULARITY_ODT_ENTRY_SIZE_DAQ_WORD" = 2,
             "GRANULARITY_ODT_ENTRY_SIZE_DAQ_DWORD" = 4,
             "GRANULARITY_ODT_ENTRY_SIZE_DAQ_DLONG" = 8
-          };  /* Granularity for size of ODT entry */
-          uchar;  /* MAX_ODT_ENTRY_SIZE_DAQ Maximum size of ODT entry (DIRECTION = DAQ) */
+          };  /* Granularity for size of ODT entry*/
+          uchar;  /* MAX_ODT_ENTRY_SIZE_DAQ Maximum size of ODT entry (DIRECTION = DAQ)*/
           enum {
             "NO_OVERLOAD_INDICATION" = 0,
             "OVERLOAD_INDICATION_PID" = 1,
@@ -160,8 +199,9 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
           taggedstruct {
             "DAQ_ALTERNATING_SUPPORTED" uint;  /*This flag selects the alternating display mode.*/
             "PRESCALER_SUPPORTED" ;  /*This flag indicates that all DAQ lists support the prescaler for reducing the transmission period.*/
-            "RESUME_SUPPORTED" ;  /*This  flag indicates that all DAQ lists can be put in RESUME mode. */
-            "STORE_DAQ_SUPPORTED" ;  /*This flag indicates that the slave can store DAQ configurations. */
+            "RESUME_SUPPORTED" ;  /*This  flag indicates that all DAQ lists can be put in RESUME mode.*/
+            "STORE_DAQ_SUPPORTED" ;  /*This flag indicates that the slave can store DAQ configurations.*/
+            "DTO_CTR_FIELD_SUPPORTED" ;
             block "STIM" struct {
               enum {
                 "GRANULARITY_ODT_ENTRY_SIZE_STIM_BYTE" = 1,
@@ -176,7 +216,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
               };
             };
             block "TIMESTAMP_SUPPORTED" struct {
-              uint;  /*The timestamp will increment by TIMESTAMP_TICKS per unit and wrap around if an overflow occurs. */
+              uint;  /*The timestamp will increment by TIMESTAMP_TICKS per unit and wrap around if an overflow occurs.*/
               enum {
                 "NO_TIME_STAMP" = 0,
                 "SIZE_BYTE" = 1,
@@ -200,33 +240,58 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
               };  /*Ticks per unit*/
               taggedstruct {
                 "TIMESTAMP_FIXED" ;
-              };  /* TIMESTAMP_FIXED flag indicates that the Slave always will send DTO Packets in time stamped mode. */
+              };  /* TIMESTAMP_FIXED flag indicates that the Slave always will send DTO Packets in time stamped mode.*/
             };
-            "PID_OFF_SUPPORTED" ;  /*Flag in DAQ_PROPERTIES indicates that transfer of DTO Packets without Identification Field is possible. */
+            "PID_OFF_SUPPORTED" ;  /*Flag in DAQ_PROPERTIES indicates that transfer of DTO Packets without Identification Field is possible.*/
+            "MAX_DAQ_TOTAL" uint;
+            "MAX_ODT_TOTAL" uint;
+            "MAX_ODT_DAQ_TOTAL" uint;
+            "MAX_ODT_STIM_TOTAL" uint;
+            "MAX_ODT_ENTRIES_TOTAL" uint;
+            "MAX_ODT_ENTRIES_DAQ_TOTAL" uint;
+            "MAX_ODT_ENTRIES_STIM_TOTAL" uint;
+            "CPU_LOAD_MAX_TOTAL" float;
+            "CORE_LOAD_MAX_TOTAL" float;  /* max load of all cores */
+            (block "CORE_LOAD_MAX" struct {
+              uint;  /* CORE_NR: core reference number */
+              float;  /* CORE_LOAD_MAX: max load of core(CORE_NR) */
+            })*;
+            block "DAQ_MEMORY_CONSUMPTION" struct {
+              ulong;  /* "DAQ_MEMORY_LIMIT"*/
+              uint;  /* "DAQ_SIZE" : Bytes pro DAQ-Liste*/
+              uint;  /* "ODT_SIZE" : Bytes pro ODT*/
+              uint;  /* "ODT_ENTRY_SIZE" : Bytes pro ODT_Entry*/
+              uint;  /* "ODT_DAQ_BUFFER_FACTOR"  : Nutzbytes * Faktor = Bytes f?r Sendepuffer*/
+              uint;  /* "ODT_STIM_BUFFER_FACTOR" : Nutzbytes * Faktor = Bytes f?r Empfangspuffer*/
+              taggedstruct {
+                block "BUFFER_RESERVE" struct {
+                  uchar;  /* ODT_DAQ_BUFFER_ELEMENT_RESERVE  in % of ODT_DAQ_BUFFER_ELEMENT_SIZE */
+                  uchar;  /* ODT_STIM_BUFFER_ELEMENT_RESERVE in % of ODT_STIM_BUFFER_ELEMENT_SIZE */
+                };
+              };
+            };
             (block "DAQ_LIST" struct {
-              uint;  /* DAQ_LIST_NUMBER  is in the range [0,1,..MIN_DAQ-1]. */
+              uint;  /* DAQ_LIST_NUMBER  is in the range [0,1,..MIN_DAQ-1].*/
               taggedstruct {
                 "DAQ_LIST_TYPE" enum {
                   "DAQ" = 1,
                   "STIM" = 2,
                   "DAQ_STIM" = 3
-                };  /* DAQ: DIRECTION = DAQ only 
- STIM: DIRECTION = STIM only 
- DAQ_STIM: both directions are possible */
-                "MAX_ODT" uchar;  /*Number of ODTs in this DAQ list */
+                };  /* DAQ: DIRECTION = DAQ only, STIM: DIRECTION = STIM only, DAQ_STIM: both directions are possible*/
+                "MAX_ODT" uchar;  /*Number of ODTs in this DAQ list*/
                 "MAX_ODT_ENTRIES" uchar;  /*Maximum number of entries in an ODT*/
                 "FIRST_PID" uchar;  /*FIRST_PID: Is the PID in the DTO Packet of the first ODT transferred by this DAQ list.*/
-                "EVENT_FIXED" uint;  /*The flag indicates that the Event Channel for this DAQ list can not be changed. */
+                "EVENT_FIXED" uint;  /*The flag indicates that the Event Channel for this DAQ list can not be changed.*/
                 block "PREDEFINED" taggedstruct {
                   (block "ODT" struct {
-                    uchar;  /* ODT number */
+                    uchar;  /* ODT number*/
                     taggedstruct {
                       ("ODT_ENTRY" struct {
-                        uchar;  /* ODT_ENTRY number */
-                        ulong;  /* address of element */
-                        uchar;  /* address extension of element */
-                        uchar;  /* size of element [AG] */
-                        uchar;  /* BIT_OFFSET */
+                        uchar;  /* ODT_ENTRY number*/
+                        ulong;  /* address of element*/
+                        uchar;  /* address extension of element*/
+                        uchar;  /* size of element [AG]*/
+                        uchar;  /* BIT_OFFSET*/
                       })*;
                     };
                   })*;
@@ -241,19 +306,90 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
                 "DAQ" = 1,
                 "STIM" = 2,
                 "DAQ_STIM" = 3
-              };  /* DAQ: only DAQ_LISTs with DIRECTION = DAQ
- STIM: only DAQ_LISTs with DIRECTION = STIM
- DAQ_STIM both kind of DAQ_LISTs*/
+              };  /* DAQ: only DAQ_LISTs with DIRECTION = DAQ, STIM: only DAQ_LISTs with DIRECTION = STIM, DAQ_STIM both kind of DAQ_LISTs*/
               uchar;  /* MAX_DAQ_LIST:Maximum number of DAQ lists in this event channel*/
               uchar;  /* TIME_CYCLE: Event channel time cycle*/
               uchar;  /* TIME_UNIT: Event channel time unit*/
-              uchar;  /* PRIORITY:The event channel with event channel priority = FF has the highest priority */
+              uchar;  /* PRIORITY:The event channel with event channel priority = FF has the highest priority*/
               taggedstruct {
                 "COMPLEMENTARY_BYPASS_EVENT_CHANNEL_NUMBER" uint;  /*This keyword is used to make a combination of two event channels building a bypassing raster.*/
                 "CONSISTENCY" enum {
                   "DAQ" = 0,
                   "EVENT" = 1
                 };  /*With this keyword, the slave can indicate what kind of data consistency exists when data are processed within this Event.*/
+                "EVENT_COUNTER_PRESENT" ;
+                "RELATED_EVENT_CHANNEL_NUMBER" uint;
+                "RELATED_EVENT_CHANNEL_NUMBER_FIXED" ;  /* RELATED_EVENT_CHANNEL_NUMBER can not be modified. */
+                "DTO_CTR_DAQ_MODE" enum {
+                  "INSERT_COUNTER" = 0,
+                  "INSERT_STIM_COUNTER_COPY" = 1
+                };
+                "DTO_CTR_DAQ_MODE_FIXED" ;  /* DTO_CTR_DAQ_MODE properties can not be modified. */
+                "DTO_CTR_STIM_MODE" enum {
+                  "DO_NOT_CHECK_COUNTER" = 0,
+                  "CHECK_COUNTER" = 1
+                };
+                "DTO_CTR_STIM_MODE_FIXED" ;  /* DTO_CTR_STIM_MODE properties can not be modified */
+                "STIM_DTO_CTR_COPY_PRESENT" ;  /* DTO CTR can be saved for later reference */
+                block "MIN_CYCLE_TIME" struct {
+                  uchar;  /* EVENT_CHANNEL_TIME_CYCLE */
+                  uchar;  /* EVENT_CHANNEL_TIME_UNIT  */
+                };
+                block "BUFFER_RESERVE_EVENT" struct {
+                  uchar;  /* ODT_DAQ_BUFFER_ELEMENT_RESERVE  in % of ODT_DAQ_BUFFER_ELEMENT_SIZE */
+                  uchar;  /* ODT_STIM_BUFFER_ELEMENT_RESERVE in % of ODT_STIM_BUFFER_ELEMENT_SIZE */
+                };
+                "CPU_LOAD_MAX" float;
+                block "CPU_LOAD_CONSUMPTION_DAQ" struct {
+                  float;  /* "DAQ_FACTOR"*/
+                  float;  /* "ODT_FACTOR"*/
+                  float;  /* "ODT_ENTRY_FACTOR"*/
+                  taggedstruct {
+                    (block "ODT_ENTRY_SIZE_FACTOR_TABLE" struct {
+                      uint;  /*"SIZE"*/
+                      float;  /* "SIZE_FACTOR"*/
+                    })*;
+                    block "CORE_LOAD_EP" struct {
+                      uint;  /* CORE_NR: core reference number */
+                      float;  /* CORE_LOAD_EP_MAX: max load of this event part */
+                    };
+                  };
+                };
+                block "CPU_LOAD_CONSUMPTION_STIM" struct {
+                  float;  /* "DAQ_FACTOR"*/
+                  float;  /* "ODT_FACTOR"*/
+                  float;  /* "ODT_ENTRY_FACTOR"*/
+                  taggedstruct {
+                    (block "ODT_ENTRY_SIZE_FACTOR_TABLE" struct {
+                      uint;  /*"SIZE"*/
+                      float;  /*"SIZE_FACTOR"*/
+                    })*;
+                    block "CORE_LOAD_EP" struct {
+                      uint;  /* CORE_NR: core reference number */
+                      float;  /* CORE_LOAD_EP_MAX: max load of this event part */
+                    };
+                  };
+                };
+                block "CPU_LOAD_CONSUMPTION_QUEUE" struct {
+                  float;  /* "ODT_FACTOR"*/
+                  float;  /* "ODT_LENGTH_FACTOR",length in elements[AG]*/
+                  taggedstruct {
+                    block "CORE_LOAD_EP" struct {
+                      uint;  /* CORE_NR: core reference number */
+                      float;  /* CORE_LOAD_EP_MAX: max load of this event part */
+                    };
+                  };
+                };
+                block "CPU_LOAD_CONSUMPTION_QUEUE_STIM" struct {
+                  float;  /* ODT_FACTOR */
+                  float;  /* ODT_ELEMENT_LOAD: length in elements[AG] */
+                  taggedstruct {
+                    block "CORE_LOAD_EP" struct {
+                      uint;  /* CORE_NR: core reference number */
+                      float;  /* CORE_LOAD_EP_MAX: max load of this event part */
+                    };
+                  };
+                };  /* overrules CPU_LOAD_CONSUMPTION_QUEUE for STIM QUEUE */
               };
             })*;
           };
@@ -276,7 +412,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
         struct Pag {
           uchar;  /* MAX_SEGMENTS: Is the total number of segments in the slave device*/
           taggedstruct {
-            "FREEZE_SUPPORTED" ;  /*This flag indicates that all SEGMENTS can be put in FREEZE */
+            "FREEZE_SUPPORTED" ;  /*This flag indicates that all SEGMENTS can be put in FREEZE*/
           };
         };
 
@@ -285,26 +421,26 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
             "PGM_MODE_ABSOLUTE" = 1,
             "PGM_MODE_FUNCTIONAL" = 2,
             "PGM_MODE_ABSOLUTE_AND_FUNCTIONAL" = 3
-          };  /*The  ABSOLUTE_MODE  and  FUNCTIONAL_MODE  flags  indicate  the  clear/programming mode that can be used */
-          uchar;  /* MAX_SECTORS: Total number of available sectors */
-          uchar;  /* MAX_CTO_PGM: Maximum CTO size for PGM */
+          };  /*The  ABSOLUTE_MODE  and  FUNCTIONAL_MODE  flags  indicate  the  clear/programming mode that can be used*/
+          uchar;  /* MAX_SECTORS: Total number of available sectors*/
+          uchar;  /* MAX_CTO_PGM: Maximum CTO size for PGM*/
           taggedstruct {
             (block "SECTOR" struct {
-              char[101];  /* SECTOR_NAME */
+              char[101];  /* SECTOR_NAME*/
               uchar;  /* SECTOR_NUMBER*/
-              ulong;  /* Start address for this SECTOR */
-              ulong;  /* Length of this SECTOR [AG] */
+              ulong;  /* Start address for this SECTOR*/
+              ulong;  /* Length of this SECTOR [AG]*/
               uchar;  /* CLEAR_SEQUENCE_NUMBER: The Clear Sequence Number describe, in which subsequential order the master has to clear and program flash memory sectors.*/
               uchar;  /* PROGRAM_SEQUENCE_NUMBER: The Program Sequence Number describe, in which subsequential order the master has to clear and program flash memory sectors.*/
               uchar;  /* PROGRAM_METHOD: The work flow depends on mode  absolute access or functional access*/
             })*;
             "COMMUNICATION_MODE_SUPPORTED" taggedunion {
               "BLOCK" taggedstruct {
-                "SLAVE" ;  /*This flag indicates whether the Slave Block Mode is available during Programming. */
+                "SLAVE" ;  /*This flag indicates whether the Slave Block Mode is available during Programming.*/
                 "MASTER" struct {
                   uchar;  /* MAX_BS_PGM:MAX_BS: indicates the maximum allowed block size as the number of consecutive command packets in a block sequence*/
                   uchar;  /* MIN_ST_PGM ndicates the required minimum separation time between the packets of a block transfer from the master device to the slave device in units of 100 ms*/
-                };  /*This flag indicates whether the Master Block Mode is available */
+                };  /*This flag indicates whether the Master Block Mode is available*/
               };
               "INTERLEAVED" uchar;  /* QUEUE_SIZE_PGM: This value describe the total count of bytes for this queue*/
             };
@@ -313,7 +449,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
 
         struct Segment {
           uchar;  /* SEGMENT_NUMBER: Logical data segment number*/
-          uchar;  /* Total number of available pages */
+          uchar;  /* Total number of available pages*/
           uchar;  /* ADDRESS_EXTENSION: Address extension for this SEGMENT*/
           uchar;  /* COMPRESSION_METHOD: The COMPRESSION_x flags indicate which compression state of the incoming data the slave can process*/
           uchar;  /* ENCRYPTION_METHOD: The  ENCRYPTION_x flags indicate which encryption state of the incoming data the slave can process.*/
@@ -332,8 +468,9 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
                 "XCP_USER_DEFINED" = 255
               };  /* Checksum type*/
               taggedstruct {
-                "MAX_BLOCK_SIZE" ulong;  /* Maximum block size for checksum calculation */
-                "EXTERNAL_FUNCTION" char[256];  /* Name of the Checksum.DLL */
+                "MAX_BLOCK_SIZE" ulong;  /* Maximum block size for checksum calculation*/
+                "EXTERNAL_FUNCTION" char[256];  /* Name of the Checksum.DLL*/
+                "MTA_BLOCK_SIZE_ALIGN" uint;  /* required alignment of MTA and block size */
               };
             };
             (block "PAGE" struct {
@@ -357,20 +494,86 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
                 "XCP_WRITE_ACCESS_DONT_CARE" = 3
               };  /*The XCP_WRITE_ACCESS_x flags indicate whether the  X CP master can write to this PAGE*/
               taggedstruct {
-                "INIT_SEGMENT" uchar;  /* references segment that initialises this page */
+                "INIT_SEGMENT" uchar;  /* references segment that initialises this page*/
               };
-            })*;  /* PAGES for this SEGMENT */
+            })*;  /* PAGES for this SEGMENT*/
             (block "ADDRESS_MAPPING" struct {
-              ulong;  /* source address */
-              ulong;  /* destination address */
-              ulong;  /* length */
+              ulong;  /* source address*/
+              ulong;  /* destination address*/
+              ulong;  /* length*/
             })*;
-            "PGM_VERIFY" ulong;  /* verification value for PGM */
+            "PGM_VERIFY" ulong;  /* verification value for PGM*/
           };
-        };  /*Settings for MEMORY_SEGMENT */
+        };  /*Settings for MEMORY_SEGMENT*/
+
+        taggedstruct Time_Correlation {
+          "DAQ_TIMESTAMPS_RELATE_TO" enum {
+            "XCP_SLAVE_CLOCK" = 0,
+            "ECU_CLOCK" = 1
+          };
+          (block "CLOCK" struct {
+            char;  /* globally unique clock identifier (UUID/EUI), 1st octet (most significant byte)*/
+            char;  /* globally unique clock identifier (UUID/EUI), 2nd octet */
+            char;  /* globally unique clock identifier (UUID/EUI), 3rd octet */
+            char;  /* globally unique clock identifier (UUID/EUI), 4th octet */
+            char;  /* globally unique clock identifier (UUID/EUI), 5th octet */
+            char;  /* globally unique clock identifier (UUID/EUI), 6th octet */
+            char;  /* globally unique clock identifier (UUID/EUI), 7th octet */
+            char;  /* globally unique clock identifier (UUID/EUI), 8th octet (least significant byte)*/
+            enum {
+              "XCP_SLAVE_CLOCK" = 0,
+              "ECU_CLOCK" = 1,
+              "XCP_SLAVE_GRANDMASTER_CLOCK" = 2,
+              "ECU_GRANDMASTER_CLOCK" = 3
+            };  /* clock enumerator */
+            enum {
+              "RANDOMLY_READABLE" = 0,
+              "LIMITED_READABLE" = 1,
+              "NOT_READABLE" = 2
+            };  /* readability */
+            enum {
+              "SYN_UNSUPPORTED" = 0,
+              "SYNCHRONIZATION_ONLY" = 1,
+              "SYNTONIZATION_ONLY" = 2,
+              "SYN_ALL" = 3
+            };
+            uchar;  /* clock quality, stratum level */
+            taggedstruct {
+              block "TIMESTAMP_CHARACTERIZATION" struct {
+                uint;  /* TIMESTAMP_TICKS */
+                enum {
+                  "UNIT_1NS" = 0,
+                  "UNIT_10NS" = 1,
+                  "UNIT_100NS" = 2,
+                  "UNIT_1US" = 3,
+                  "UNIT_10US" = 4,
+                  "UNIT_100US" = 5,
+                  "UNIT_1MS" = 6,
+                  "UNIT_10MS" = 7,
+                  "UNIT_100MS" = 8,
+                  "UNIT_1S" = 9,
+                  "UNIT_1PS" = 10,
+                  "UNIT_10PS" = 11,
+                  "UNIT_100PS" = 12
+                };  /* RESOLUTION OF TIMESTAMP */
+                enum {
+                  "SIZE_FOUR_BYTE" = 4,
+                  "SIZE_EIGHT_BYTE" = 8
+                };  /* NATIVE TIMESTAMP SIZE */
+              };
+            };
+            uint64;  /* MAX_TIMESTAMP_VALUE_BEFORE_WRAP_AROUND */
+            enum {
+              "ATOMIC_TIME" = 0,
+              "UNIVERSAL_COORDINATED_TIME" = 1,
+              "ARBITRARY" = 2
+            };
+          })*;
+        };
 
         taggedstruct Common_Parameters {
           block "PROTOCOL_LAYER" struct Protocol_Layer;
+          block "TIME_CORRELATION" taggedstruct Time_Correlation;
           block "SEGMENT" struct Segment;
           block "DAQ" struct Daq;
           block "PAG" struct Pag;
@@ -379,39 +582,74 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
         };
 
         struct CAN_Parameters {
-          uint;  /* XCP on CAN version, currently 0x0101 */
+          uint;  /* XCP on CAN version, currently 0x0103*/
           taggedstruct {
-            "CAN_ID_BROADCAST" ulong;  /* Auto-detection CAN-ID */
-            "CAN_ID_MASTER" ulong;  /* CMD/STIM CAN-ID */
+            "CAN_ID_BROADCAST" ulong;  /* Auto-detection CAN-ID*/
+            "CAN_ID_MASTER" ulong;  /* CMD/STIM CAN-ID*/
             "CAN_ID_MASTER_INCREMENTAL" ;  /* Master uses range of CAN-IDs. Start of range = CAN_ID_MASTER*/
-            "CAN_ID_SLAVE" ulong;  /* RES/ERR/EV/SERV/DAQ CAN-ID */
-            "BAUDRATE" ulong;  /* Baudrate in Hz */
-            "SAMPLE_POINT" uchar;  /* Sample point in % of bit time */
+            "CAN_ID_SLAVE" ulong;  /* RES/ERR/EV/SERV/DAQ CAN-ID*/
+            "CAN_ID_GET_DAQ_CLOCK_MULTICAST" ulong;  /* Only to be used for GET_DAQ_CLOCK_MULTICAST*/
+            "BAUDRATE" ulong;  /* Baudrate in Hz*/
+            "SAMPLE_POINT" uchar;  /* Sample point in % of bit time*/
             "SAMPLE_RATE" enum {
               "SINGLE" = 1,
               "TRIPLE" = 3
-            };  /* Sample per bit */
-            "BTL_CYCLES" uchar;  /* slots per bit time */
-            "SJW" uchar;  /*Length synchr. segment */
+            };  /* Sample per bit*/
+            "BTL_CYCLES" uchar;  /* slots per bit time*/
+            "SJW" uchar;  /*Length synchr. segment*/
             "SYNC_EDGE" enum {
               "SINGLE" = 1,
               "DUAL" = 2
             };  /* SINGLE: on falling edge only
- DUAL: on falling and rising edge*/
+DUAL: on falling and rising edge*/
             "MAX_DLC_REQUIRED" ;  /* master to slave frames always to have DLC = MAX_DLC = 8*/
             (block "DAQ_LIST_CAN_ID" struct {
-              uint;  /* reference to DAQ_LIST_NUMBER */
+              uint;  /* reference to DAQ_LIST_NUMBER*/
               taggedstruct {
                 "VARIABLE" ;
-                "FIXED" ulong;  /* this DAQ_LIST always on this CAN_ID */
-              };  /* exclusive tags: either VARIABLE or FIXED */
+                "FIXED" ulong;  /* this DAQ_LIST always on this CAN_ID*/
+              };  /* exclusive tags: either VARIABLE or FIXED*/
+            })*;
+            (block "EVENT_CAN_ID_LIST" struct {
+              uint;  /* reference to EVENT_NUMBER*/
+              taggedstruct {
+                ("FIXED" ulong)*;  /* this Event always on this IDs*/
+              };
+            })*;
+            "MAX_BUS_LOAD" ulong;  /* maximum available bus in bit/s*/
+            block "CAN_FD" struct {
+              taggedstruct {
+                "MAX_DLC" uint;  /* 8, 12, 16, 20, 24, 32, 48 or 64*/
+                "CAN_FD_DATA_TRANSFER_BAUDRATE" ulong;  /* BAUDRATE [Hz]*/
+                "SAMPLE_POINT" uchar;  /* sample point receiver [% complete bit time]*/
+                "BTL_CYCLES" uchar;  /* BTL_CYCLES [slots per bit time]*/
+                "SJW" uchar;  /* length synchr. segment [BTL_CYCLES]*/
+                "SYNC_EDGE" enum {
+                  "SINGLE" = 1,
+                  "DUAL" = 2
+                };
+                "MAX_DLC_REQUIRED" ;  /* master to slave frames always to have DLC = MAX_DLC_for CAN-FD*/
+                "SECONDARY_SAMPLE_POINT" uchar;  /* sender sample point [% complete bit time]*/
+                "TRANSCEIVER_DELAY_COMPENSATION" enum {
+                  "OFF" = 0,
+                  "ON" = 1
+                };
+              };
+            };
+          };
+          taggedstruct {
+            ("OPTIONAL_TL_SUBCMD" enum {
+              "GET_SLAVE_ID" = 255,
+              "GET_DAQ_ID" = 254,
+              "SET_DAQ_ID" = 253,
+              "GET_DAQ_CLOCK_MULTICAST" = 250
             })*;
           };
         };
 
         struct SxI_Parameters {
-          uint;  /* XCP on SxI version, currently 0x0101 */
-          ulong;  /* BAUDRATE [Hz] */
+          uint;  /* XCP on SxI version, currently 0x0103*/
+          ulong;  /* BAUDRATE [Hz]*/
           taggedstruct {
             "ASYNCH_FULL_DUPLEX_MODE" struct {
               enum {
@@ -444,7 +682,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
             "HEADER_LEN_WORD" = 3,
             "HEADER_LEN_CTR_WORD" = 4,
             "HEADER_LEN_FILL_WORD" = 5
-          };  /* XCP packet header */
+          };  /* XCP packet header*/
           enum {
             "NO_CHECKSUM" = 0,
             "CHECKSUM_BYTE" = 1,
@@ -453,20 +691,42 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
         };
 
         struct TCP_IP_Parameters {
-          uint;  /* XCP on TCP_IP version, currently 0x0100 */
+          uint;  /* XCP on TCP_IP version, currently 0x0103 */
           uint;  /* PORT */
           taggedunion {
             "HOST_NAME" char[256];  /*Name of the host like localhost*/
             "ADDRESS" char[15];  /* IP address like 127.0.0.1*/
+            "IPV6" char[39];
+          };
+          taggedstruct {
+            "MAX_BUS_LOAD" ulong;  /* maximum available bus load in percent */
+            "MAX_BIT_RATE" ulong;  /* Network speed which is the base for MAX_BUS_LOAD in Mbit*/
+          };
+          taggedstruct {
+            ("OPTIONAL_TL_SUBCMD" enum {
+              "GET_SLAVE_ID" = 255,
+              "GET_DAQ_CLOCK_MULTICAST" = 250
+            })*;  /* XCP-Code of optional transport layer */
           };
         };
 
         struct UDP_IP_Parameters {
-          uint;  /* XCP on UDP version, currently 0x0100 */
+          uint;  /* XCP on UDP version, currently 0x0103 */
           uint;  /* PORT */
           taggedunion {
             "HOST_NAME" char[256];  /*Name of the host like localhost*/
             "ADDRESS" char[15];  /* IP address like 127.0.0.1*/
+            "IPV6" char[39];
+          };
+          taggedstruct {
+            "MAX_BUS_LOAD" ulong;  /* maximum available bus load in percent */
+            "MAX_BIT_RATE" ulong;  /* Network speed which is the base for MAX_BUS_LOAD in Mbit*/
+          };
+          taggedstruct {
+            ("OPTIONAL_TL_SUBCMD" enum {
+              "GET_SLAVE_ID" = 255,
+              "GET_DAQ_CLOCK_MULTICAST" = 250
+            })*;  /* XCP-Code of optional transport layer */
           };
         };
 
@@ -476,17 +736,13 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
             "BULK_TRANSFER" = 2,
             "INTERRUPT_TRANSFER" = 3
           };
-          uint;  /* wMaxPacketSize: Maximum packet  
- size of endpoint in bytes       */
+          uint;  /* wMaxPacketSize: Maximum packet  size of endpoint in bytes */
           uchar;  /* bInterval: polling of endpoint  */
           enum {
             "MESSAGE_PACKING_SINGLE" = 0,
             "MESSAGE_PACKING_MULTIPLE" = 1,
             "MESSAGE_PACKING_STREAMING" = 2
-          };  /* Packing of XCP Messages         
- SINGLE: Single per USB data packet    
- MULTIPLE: Multiple per USB data packet  
- STREAMING: No restriction by packet sizes*/
+          };  /* Packing of XCP Messages, SINGLE: Single per USB data packet, MULTIPLE: Multiple per USB data packet, STREAMING: No restriction by packet sizes*/
           enum {
             "ALIGNMENT_8_BIT" = 0,
             "ALIGNMENT_16_BIT" = 1,
@@ -494,15 +750,12 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
             "ALIGNMENT_64_BIT" = 3
           };  /* Alignment mandatory for all packing types*/
           taggedstruct {
-            "RECOMMENDED_HOST_BUFSIZE" uint;  /* Recommended size for the host 
- buffer size. The size is defined
- as multiple of wMaxPacketSize.  */
+            "RECOMMENDED_HOST_BUFSIZE" uint;  /* Recommended size for the host buffer size. The size is defined as multiple of wMaxPacketSize.  */
           };
         };
 
         struct USB_Parameters {
-          uint;  /* XCP on USB version  
- e.g. "1.0" = 0x0100 */
+          uint;  /* XCP on USB version e.g. 1.3 = 0x0103 */
           uint;  /* Vendor ID                       */
           uint;  /* Product ID                      */
           uchar;  /* Number of interface             */
@@ -513,31 +766,33 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
             "HEADER_LEN_WORD" = 3,
             "HEADER_LEN_CTR_WORD" = 4,
             "HEADER_LEN_FILL_WORD" = 5
-          };  /* XCP packet header */
+          };  /* XCP packet header*/
           taggedunion {
             block "OUT_EP_CMD_STIM" struct ep_parameters;  /* OUT-EP for CMD and STIM (if not specified otherwise)*/
           };
           taggedunion {
-            block "IN_EP_RESERR_DAQ_EVSERV" struct ep_parameters;  /* IN-EP for RES/ERR, 
- DAQ (if not specified otherwise) and  
- EV/SERV (if not specified otherwise)  */
+            block "IN_EP_RESERR_DAQ_EVSERV" struct ep_parameters;  /* IN-EP for RES/ERR, DAQ (if not specified otherwise) and EV/SERV (if not specified otherwise)  */
           };
           taggedstruct {
             "ALTERNATE_SETTING_NO" uchar;  /* Number of alternate setting   */
             "INTERFACE_STRING_DESCRIPTOR" char[101];  /* String Descriptor of XCP interface*/
-            (block "OUT_EP_ONLY_STIM" struct ep_parameters)*;  /* multiple OUT-EP's for STIM */
+            (block "OUT_EP_ONLY_STIM" struct ep_parameters)*;  /* multiple OUT-EP's for STIM*/
             (block "IN_EP_ONLY_DAQ" struct ep_parameters)*;  /* multiple IN-EP's for DAQ*/
             block "IN_EP_ONLY_EVSERV" struct ep_parameters;  /* only one IN-EP for EV/SERV*/
             (block "DAQ_LIST_USB_ENDPOINT" struct {
-              uint;  /* reference to DAQ_LIST_NUMBER          */
+              uint;  /* reference to DAQ_LIST_NUMBER */
               taggedstruct {
-                "FIXED_IN" uchar;  /* this DAQ list always                
- ENDPOINT_NUMBER, not endpoint address */
-                "FIXED_OUT" uchar;  /* this STIM list always               
- ENDPOINT_NUMBER, not endpoint address */
+                "FIXED_IN" uchar;  /* this DAQ list always ENDPOINT_NUMBER, not endpoint address */
+                "FIXED_OUT" uchar;  /* this STIM list always ENDPOINT_NUMBER, not endpoint address */
               };
             })*;
           };
+          taggedstruct {
+            ("OPTIONAL_TL_SUBCMD" enum {
+              "GET_DAQ_EP" = 255,
+              "SET_DAQ_EP" = 254
+            })*;  /* XCP-Code of optional transport layer */
+          };  /* end of optional */
         };
 
         enum packet_assignment_type {
@@ -551,7 +806,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
           uchar;  /* Buffer number*/
           taggedstruct {
             "MAX_FLX_LEN_BUF" taggedunion {
-              "FIXED" uchar;  /* constant value, can't be modified on runtime */
+              "FIXED" uchar;  /* constant value, can't be modified on runtime*/
               "VARIABLE" uchar;  /* initial value, can be modified on runtime*/
             };  /* maximal size of the buffer [byte]*/
             block "LPDU_ID" taggedstruct {
@@ -592,15 +847,14 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
               "EV_SERV" enum packet_assignment_type;
               "DAQ" enum packet_assignment_type;
               "STIM" enum packet_assignment_type;
+              "MULTICAST" enum packet_assignment_type;
             };  /* XCP packet type*/
           };
         };
 
         struct FLX_Parameters {
-          uint;  /* XCP on FlexRay version
- e.g. "1.0" = 0x0100*/
-          uint;  /* T1_FLX [ms] Time-out while waiting for an XCP on FlexRay response
- e.g. FLX_ASSIGN*/
+          uint;  /* XCP on FlexRay version e.g. "1.3" = 0x0103*/
+          uint;  /* T1_FLX [ms] Time-out while waiting for an XCP on FlexRay response e.g. FLX_ASSIGN*/
           char[256];  /* FIBEX-file with extension and without path, including CHI information*/
           char[256];  /* cluster-ID, id attribute of the FIBEX cluster*/
           uchar;  /* NAX, node address of the ECU*/
@@ -629,6 +883,16 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
           taggedstruct {
             (block "POOL_BUFFER" struct buffer)*;
           };  /* XCP dedicated buffer(s) used for XCP-DAQ, -STIM and -EV/SERV*/
+          taggedstruct {
+            ("OPTIONAL_TL_SUBCMD" enum {
+              "FLX_ASSIGN" = 255,
+              "FLX_ACTIVATE" = 254,
+              "FLX_DEACTIVATE" = 253,
+              "GET_DAQ_FLX_BUF" = 252,
+              "SET_DAQ_FLX_BUF" = 251,
+              "GET_DAQ_CLOCK_MULTICAST" = 250
+            })*;
+          };  /* XCP-Code of optional transport layer specific subcommand supported by the slave*/
         };
       block "IF_DATA" taggedunion {
         "CANAPE_EXT" struct {
@@ -865,7 +1129,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
 
     /begin IF_DATA XCP
       /begin PROTOCOL_LAYER
-        0x0101
+        0x0103
         0x03E8
         0x2710
         0x00
@@ -1559,7 +1823,7 @@ OVERLOAD_INDICATION_EVENT: This means an event is set, when an overload occurs*/
     /end CHARACTERISTIC
 
     /begin CHARACTERISTIC gXcpStationId ""
-      VALUE 0x140A8 __UByte_Value 0 NO_COMPU_METHOD 0 255
+      VALUE 0x14120 __UByte_Value 0 NO_COMPU_METHOD 0 255
       SYMBOL_LINK "gXcpStationId" 0
     /end CHARACTERISTIC
 
