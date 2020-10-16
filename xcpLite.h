@@ -1108,7 +1108,7 @@
 */
   #if defined ( XCP_MAX_ODT_ENTRY_SIZE )
   #else
-          #define XCP_MAX_ODT_ENTRY_SIZE (kXcpMaxDTO-6)
+    #error "Please define XCP_MAX_ODT_ENTRY_SIZE"
   #endif
 
 
