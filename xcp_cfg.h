@@ -92,7 +92,7 @@ extern void udpServerCommitPacketBuffer(void* par);
 
 #define XCP_ENABLE_TESTMODE
 #ifdef XCP_ENABLE_TESTMODE
-  #define XCP_DEBUG_LEVEL 1
+  #define XCP_DEBUG_LEVEL 0
   #define ApplXcpPrint printf
   #define XCP_ENABLE_PARAMETER_CHECK
 

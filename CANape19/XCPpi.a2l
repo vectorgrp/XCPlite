@@ -1224,7 +1224,7 @@ DUAL: on falling and rising edge*/
       /begin XCP_ON_UDP_IP
         0x0100
         0x15B3
-        ADDRESS "172.31.31.194"
+        ADDRESS "172.31.31.195"
       /end XCP_ON_UDP_IP
     /end IF_DATA
 
@@ -1296,14 +1296,14 @@ DUAL: on falling and rising edge*/
     /begin MEASUREMENT PWM_Level ""
       SBYTE BitSlice.CONVERSION 0 0 -50 50
       BYTE_ORDER MSB_LAST
-      ECU_ADDRESS 0x251C8
+      ECU_ADDRESS 0x251C0
       ECU_ADDRESS_EXTENSION 0x0
       FORMAT "%.0"
       READ_WRITE
       SYMBOL_LINK "sbytePWMLevel" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "sbytePWMLevel" 0x251C8 0 0 0 1 0xC7 0
+        LINK_MAP "sbytePWMLevel" 0x251C0 0 0 0 1 0xC7 0
         DISPLAY 0x0 -50 50
       /end IF_DATA
     /end MEASUREMENT
@@ -1749,30 +1749,30 @@ DUAL: on falling and rising edge*/
 
     /begin MEASUREMENT counter ""
       UWORD NO_COMPU_METHOD 0 0 0 65535
-      ECU_ADDRESS 0x251C0
+      ECU_ADDRESS 0x251B8
       SYMBOL_LINK "counter" 0
     /end MEASUREMENT
 
     /begin MEASUREMENT dto_buffer_ptr ""
       UBYTE NO_COMPU_METHOD 0 0 0 255
       ADDRESS_TYPE PLONG
-      ECU_ADDRESS 0x25204
+      ECU_ADDRESS 0x25200
       SYMBOL_LINK "dto_buffer_ptr" 0
     /end MEASUREMENT
 
     /begin MEASUREMENT dto_queue_len ""
       ULONG NO_COMPU_METHOD 0 0 0 4294967295
-      ECU_ADDRESS 0x251FC
+      ECU_ADDRESS 0x251F8
       SYMBOL_LINK "dto_queue_len" 0
     /end MEASUREMENT
 
     /begin MEASUREMENT dto_queue_rp ""
       ULONG NO_COMPU_METHOD 0 0 0 4294967295
-      ECU_ADDRESS 0x25200
+      ECU_ADDRESS 0x251FC
       SYMBOL_LINK "dto_queue_rp" 0
     /end MEASUREMENT
 
-    /begin MEASUREMENT dwordCounter "Demo signal (dword, incrementing)"
+    /begin MEASUREMENT dwordCounter "Demo ECU task cacle counter"
       ULONG BitSlice.CONVERSION 0 0 0 255
       BYTE_ORDER MSB_LAST
       ECU_ADDRESS 0x32D88
@@ -1790,40 +1790,50 @@ DUAL: on falling and rising edge*/
       ecu 0x0
     /end INSTANCE
 
-    /begin CHARACTERISTIC gCmdCycle ""
+    /begin CHARACTERISTIC gCmdCycle "Command handler cycle time"
       VALUE 0x251A0 __ULong_Value 0 NO_COMPU_METHOD 0 4294967295
+      PHYS_UNIT "us"
       SYMBOL_LINK "gCmdCycle" 0
     /end CHARACTERISTIC
 
-    /begin CHARACTERISTIC gFlushCycle ""
+    /begin CHARACTERISTIC gExit "Terminate application"
+      VALUE 0x251CC __UByte_Value 0 NO_COMPU_METHOD 0 255
+      SYMBOL_LINK "gExit" 0
+    /end CHARACTERISTIC
+
+    /begin CHARACTERISTIC gFlushCycle "Flush cycle time"
       VALUE 0x251A4 __ULong_Value 0 NO_COMPU_METHOD 0 4294967295
+      PHYS_UNIT "us"
       SYMBOL_LINK "gFlushCycle" 0
     /end CHARACTERISTIC
 
-    /begin CHARACTERISTIC gTaskCycleTimerECU ""
+    /begin CHARACTERISTIC gTaskCycleTimerECU "ECU cycle time (ns delay)"
       VALUE 0x251A8 __ULong_Value 0 NO_COMPU_METHOD 0 4294967295
       EXTENDED_LIMITS 0 4294967295
+      PHYS_UNIT "ns"
       SYMBOL_LINK "gTaskCycleTimerECU" 0
     /end CHARACTERISTIC
 
-    /begin CHARACTERISTIC gTaskCycleTimerECUpp ""
+    /begin CHARACTERISTIC gTaskCycleTimerECUpp "ECU cycle time (ns delay)"
       VALUE 0x251AC __ULong_Value 0 NO_COMPU_METHOD 0 4294967295
       EXTENDED_LIMITS 0 4294967295
+      PHYS_UNIT "ns"
       SYMBOL_LINK "gTaskCycleTimerECUpp" 0
     /end CHARACTERISTIC
 
-    /begin CHARACTERISTIC gTaskCycleTimerServer ""
+    /begin CHARACTERISTIC gTaskCycleTimerServer "Server loop cycle time (ns delay)"
       VALUE 0x2519C __ULong_Value 0 NO_COMPU_METHOD 0 4294967295
+      PHYS_UNIT "ns"
       SYMBOL_LINK "gTaskCycleTimerServer" 0
     /end CHARACTERISTIC
 
-    /begin CHARACTERISTIC gXcpDebugLevel ""
-      VALUE 0x251B0 __UByte_Value 0 NO_COMPU_METHOD 0 255
+    /begin CHARACTERISTIC gXcpDebugLevel "Debug verbosity"
+      VALUE 0x30204 __UByte_Value 0 NO_COMPU_METHOD 0 255
       SYMBOL_LINK "gXcpDebugLevel" 0
     /end CHARACTERISTIC
 
-    /begin CHARACTERISTIC gXcpStationId ""
-      VALUE 0x14120 __UByte_Value 0 NO_COMPU_METHOD 0 255
+    /begin CHARACTERISTIC gXcpStationId "A2L filename"
+      VALUE 0x14160 __UByte_Value 0 NO_COMPU_METHOD 0 255
       SYMBOL_LINK "gXcpStationId" 0
     /end CHARACTERISTIC
 
@@ -1953,14 +1963,14 @@ DUAL: on falling and rising edge*/
     /begin MEASUREMENT offset "Offset for channel1"
       FLOAT32_IEEE NO_COMPU_METHOD 0 0 -1E+12 1E+12
       BYTE_ORDER MSB_LAST
-      ECU_ADDRESS 0x251C4
+      ECU_ADDRESS 0x251BC
       ECU_ADDRESS_EXTENSION 0x0
       FORMAT "%.3"
       READ_WRITE
       SYMBOL_LINK "offset" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "offset" 0x251C4 0 0 0 1 0x1 0
+        LINK_MAP "offset" 0x251BC 0 0 0 1 0x1 0
         DISPLAY 0x0 0 100
       /end IF_DATA
     /end MEASUREMENT
@@ -1982,13 +1992,13 @@ DUAL: on falling and rising edge*/
 
     /begin MEASUREMENT sbytePWMLevel ""
       SBYTE sbytePWMLevel.CONVERSION 0 0 0 255
-      ECU_ADDRESS 0x251C8
+      ECU_ADDRESS 0x251C0
       ECU_ADDRESS_EXTENSION 0x0
       FORMAT "%.15"
       SYMBOL_LINK "sbytePWMLevel" 0
       /begin IF_DATA CANAPE_EXT
         100
-        LINK_MAP "sbytePWMLevel" 0x251C8 0 0 0 1 0xC7 0
+        LINK_MAP "sbytePWMLevel" 0x251C0 0 0 0 1 0xC7 0
         DISPLAY 0x0 0 255
       /end IF_DATA
     /end MEASUREMENT
@@ -2303,9 +2313,9 @@ DUAL: on falling and rising edge*/
 
     /begin GROUP Test_Parameters "Test Parameters, BYTE"
       /begin REF_CHARACTERISTIC
-        CALRAM_LAST CALRAM_SIGN CALRAM_START gCmdCycle gDebugLevel gFlushCycle gSocketTimeout
-        gTaskCycle gTaskCycleTimerCMD gTaskCycleTimerDAQ gTaskCycleTimerECU gTaskCycleTimerECUpp gTaskCycleTimerServer gXcpDebugLevel gXcpDebugLevel_Copy1
-        gXcpStationId
+        CALRAM_LAST CALRAM_SIGN CALRAM_START gCmdCycle gDebugLevel gExit gFlushCycle
+        gSocketTimeout gTaskCycle gTaskCycleTimerCMD gTaskCycleTimerDAQ gTaskCycleTimerECU gTaskCycleTimerECUpp gTaskCycleTimerServer gXcpDebugLevel
+        gXcpDebugLevel_Copy1 gXcpStationId
       /end REF_CHARACTERISTIC
     /end GROUP
 

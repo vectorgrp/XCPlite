@@ -44,7 +44,7 @@ static int udpServerSendDatagram(const unsigned char* data, unsigned int size ) 
     r = sendto(gXcpTl.Sock, data, size, 0, (struct sockaddr*)&gXcpTl.ClientAddr, sizeof(struct sockaddr));
     if (r != size) {
         perror("udpServerSendDatagram() sendto failed");
-        printf("(result=%d, errno=%d)\n", r, errno);
+        fprintf(stderr,"(result=%d, errno=%d)\n", r, errno);
         return 0;
     }
 
@@ -301,10 +301,8 @@ int udpServerHandleXCPCommands(void) {
     n = recvfrom(gXcpTl.Sock, &buffer, sizeof(buffer), MSG_DONTWAIT, (struct sockaddr*)&src, &srclen);
     if (n < 0) {
         if (errno != EAGAIN) { // Socket error
-#if defined ( XCP_ENABLE_TESTMODE )
-            printf("recvfrom failed (result=%d,errno=%d)\n", n, errno);
+            fprintf(stderr, "recvfrom failed (result=%d,errno=%d)\n", n, errno);
             perror("error");
-#endif
             return 0;
         }
         else { // Socket timeout
@@ -406,7 +404,7 @@ int udpServerInit(unsigned short serverPort, unsigned int socketTimeout)
     
     // Bind the socket
     gXcpTl.ServerAddr.sin_family = AF_INET;
-    gXcpTl.ServerAddr.sin_addr.s_addr = inet_addr("172.31.31.194"); // htonl(INADDR_ANY);
+    gXcpTl.ServerAddr.sin_addr.s_addr = htonl(INADDR_ANY); // inet_addr("172.31.31.195");
     gXcpTl.ServerAddr.sin_port = htons(serverPort);
     memset(gXcpTl.ServerAddr.sin_zero, '\0', sizeof(gXcpTl.ServerAddr.sin_zero));
 

@@ -313,9 +313,16 @@ void ecuCyclic( void )
       v = (unsigned short)((a*vin + b*v)/c);
     }
 
-  
+#if defined ( XCP_ENABLE_TESTMODE )
+    digitalWrite(PI_IO_1, HIGH);
+#endif
+
     XcpEvent(1); // Trigger measurement date aquisition event 1
 
+#if defined ( XCP_ENABLE_TESTMODE )
+    digitalWrite(PI_IO_1, LOW);
+#endif
+    
 }
 
 

@@ -49,6 +49,9 @@ static vuint32 gCmdTimer = 0;
 static vuint32 gTaskTimer = 0;
 #endif
 
+// Quit application
+volatile vuint8 gExit = 0;
+
 }
 
 
@@ -78,9 +81,10 @@ extern "C" {
         // Server loop
         for (;;) {
 
-            ApplXcpTimer();
+            if (gExit) break; // Terminate application
             sleepns(gTaskCycleTimerServer);
 
+            ApplXcpTimer();
             if (gTimer - gCmdTimer > gCmdCycle) {
                 gCmdTimer = gTimer;
                 if (udpServerHandleXCPCommands() < 0) break;  // Handle XCP commands
@@ -115,6 +119,7 @@ extern "C" {
 
         } // for (;;)
 
+        sleepns(100000000);
         udpServerShutdown();
         return 0;
     }
@@ -129,6 +134,7 @@ extern "C" {
 
         for (;;) {
 
+            if (gExit) break; // Terminate application
             sleepns(gTaskCycleTimerECU);
             
             // C demo
@@ -146,6 +152,7 @@ extern "C" {
 
         for (;;) {
 
+            if (gExit) break; // Terminate application
             sleepns(gTaskCycleTimerECUpp);
             
             // C++ demo
@@ -166,28 +173,20 @@ int main(void)
         "\nRaspberryPi XCP on UDP Demo (Lite Version) \n"
         "Build " __DATE__ " " __TIME__ "\n"
         );
-      
-
+     
     // Initialize clock for DAQ event time stamps
     ApplXcpTimerInit();
 
+    // Initialize digital io
 #if defined ( XCP_ENABLE_TESTMODE )
     wiringPiSetupSys();
     pinMode(PI_IO_1, OUTPUT);
-    /*
-    for (;;) {
-        digitalWrite(PI_IO_1, HIGH);
-        sleepns(1000000);
-        digitalWrite(PI_IO_1, LOW);
-        sleepns(1000000);
-    }
-    */
 #endif
 
     // Initialize XCP driver
     XcpInit();
 #if defined ( XCP_ENABLE_TESTMODE )
-    if (gXcpDebugLevel >= 0) {
+    if (gXcpDebugLevel > 0) {
         printf("gXcpDebugLevel = %u\n", gXcpDebugLevel);
     }
 #endif
@@ -216,7 +215,7 @@ int main(void)
     pthread_t t1;
     int a1 = 0;
     pthread_create(&t1, NULL, xcpServer, (void*)&a1);
-    pthread_join(t1, NULL); // t1 may fail
+    pthread_join(t1, NULL); // t1 may fail ot terminate
 #else
     xcpServer(NULL); // Run the XCP server here
 #endif
