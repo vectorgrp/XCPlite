@@ -1224,7 +1224,7 @@ DUAL: on falling and rising edge*/
       /begin XCP_ON_UDP_IP
         0x0100
         0x15B3
-        ADDRESS "172.31.31.195"
+        ADDRESS "172.31.31.194"
       /end XCP_ON_UDP_IP
     /end IF_DATA
 
