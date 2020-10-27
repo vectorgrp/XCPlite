@@ -1,8 +1,8 @@
 [FILE_INFO]
 Identification=CANape-Configuration-File
 FileName=XCPpi.cna
-FileNameAbsolute=D:\USR\RaspberryPi\xcpLite\CANape19\XCPpi.cna
-WorkingDirectory=D:\USR\RaspberryPi\xcpLite\CANape19
+FileNameAbsolute=D:\USR\RaspberryPi\XCPlite\CANape19\XCPpi.cna
+WorkingDirectory=D:\USR\RaspberryPi\XCPlite\CANape19
 ProjectId=07e4-0009-0006-0016-001c-0015-0000
 FileVersion=1200
 PrgVersion=Version 19.0.0.655 VC24
@@ -10,8 +10,8 @@ PrgDate=06.10.2020
 Description=
 CreationTime=14:27
 CreationDate=09/08/2020 ; Month/Day/Year
-ModificationTime=21:17
-ModificationDate=10/20/2020 ; Month/Day/Year
+ModificationTime=22:04
+ModificationDate=10/26/2020 ; Month/Day/Year
 Protected=0
 
 [ANALYSISPROFILE_MDF_LIST]
@@ -174,42 +174,6 @@ COUNT=5
 4=  return diffTime(x);
 5=}
 
-[FUNCTION_2]
-NAME=DtECU2CSM
-COMMENT=
-COUNT=21
-1=function DtECU2CSM ( a )
-2={
-3=  static int s = 0;
-4=  double dt;
-5=
-6=  dt = 0;
-7=  if (a>2.0) {
-8=    if (s==0) 
-9=    {
-10=      dt = 1; // time(a)-time(e);
-11=    }
-12=    s = 1;
-13=  }
-14=  else if (a<1.0) {
-15=    s = 0;
-16=  }
-17=
-18=  if (dt==0) cancel;
-19=  //return time(a) - time(c);
-20=  return dt;
-21=}
-
-[FUNCTION_3]
-NAME=Dt2
-COMMENT=
-COUNT=5
-1=function Dt2 (a,b)
-2={
-3=  // Add your code here
-4=  return time(a) - time(b);
-5=}
-
 [FUNCTION_OBJECT_1]
 LPcount=0
 FromLibrary=0
@@ -221,7 +185,7 @@ Unit=s
 DataType=2
 Precision=-1
 ObjectType=1
-Number=5
+Number=6
 TextFormula=Dt
 NumberOfInputSignals=1
 Formula=10
@@ -327,187 +291,11 @@ SymbolName=x
 IsParameterFunctionResult=0
 Module=XCPpi
 
-[FUNCTION_OBJECT_2]
-LPcount=0
-FromLibrary=0
-BlockPropertyCount=1
-BlockProperty0=BLOCK,DtECU2CSM,225.666666666667,105,260.473333333333,134,0
-TimeSeriesSaveMode=0
-Components=0
-Comment=
-Unit=
-DataType=2
-Precision=-1
-ObjectType=1
-Number=6
-TextFormula=DtECU2CSM
-NumberOfInputSignals=2
-Formula=0
-StimMode=0
-Name=DtECU2CSM
-Mode=10
-Rate=0
-Disabled=1
-ArchivBy_1=Rekorder
-IsFallback=0
-DisplayCount=1
-
-[FUNCTION_OBJECT_2_DISPLAY_1]
-Window=8
-Index=2
-Color=65280
-ColorFunction=0
-ColorFunctionScope=1
-LineTyp=2
-YMinHome=-0.105168689355
-YMaxHome=0.222511310645
-YMin=-0.105168689355
-YMax=0.222511310645
-XOffsetNS=0
-XOffset=0
-ValueFormat=3
-BitMask=1
-ShowYAxis=1
-Width=10
-LineStyle=1
-MarkerType=1
-LineWidth=1
-Precision=-2
-Digits=6
-Enabled=1
-StoredFocused=1
-SublMask=1
-MeaSublMask=3
-LockScaling=0
-RightAxis=0
-MapMode=2
-OverlayGridColor=0
-ShadingMode=3
-EditOffset=1
-EditFactor=2
-WAxisLabel=
-XAxisLabel=
-YAxisLabel=
-AxisCaption=
-Row=0
-Col=0
-YAxis_ID=0
-AxisTemplate=
-
-[FUNCTION_OBJECT_2_INPUTSIG_1]
-ObjectType=8
-Name=ADMMEC_20385_A01
-FormatPhy=1
-SymbolName=a
-IsParameterFunctionResult=0
-Module=CSM
-
-[FUNCTION_OBJECT_2_INPUTSIG_2]
-ObjectType=102
-Name=New
-FormatPhy=1
-SymbolName=FunctionResult
-IsParameterFunctionResult=0
-BlockConnectorFromTarget=DtECU2CSM.FunctionResult
-BlockConnectorToTarget=Dt2.a
-BlockConnectorRows=1
-BlockConnectorColumns=1
-BlockConnectorInitValue=0
-Module=
-
-[FUNCTION_OBJECT_3]
-LPcount=0
-FromLibrary=0
-BlockPropertyCount=1
-BlockProperty0=BLOCK,Dt2,711.666666666667,83,0,0,0
-TimeSeriesSaveMode=2
-Components=0
-Comment=
-Unit=
-DataType=2
-Precision=-1
-ObjectType=1
-Number=7
-TextFormula=Dt2
-NumberOfInputSignals=2
-Formula=0
-StimMode=0
-Name=Dt2
-Mode=10
-Rate=0
-Disabled=1
-ArchivBy_1=Rekorder
-IsFallback=0
-DisplayCount=1
-
-[FUNCTION_OBJECT_3_DISPLAY_1]
-Window=8
-Index=0
-Color=65535
-ColorFunction=0
-ColorFunctionScope=1
-LineTyp=2
-YMinHome=0
-YMaxHome=255
-YMin=0
-YMax=255
-XOffsetNS=0
-XOffset=0
-ValueFormat=3
-BitMask=1
-ShowYAxis=1
-Width=10
-LineStyle=1
-MarkerType=1
-LineWidth=1
-Precision=-2
-Digits=6
-Enabled=1
-StoredFocused=0
-SublMask=1
-MeaSublMask=3
-LockScaling=0
-RightAxis=0
-MapMode=2
-OverlayGridColor=0
-ShadingMode=3
-EditOffset=1
-EditFactor=2
-WAxisLabel=
-XAxisLabel=
-YAxisLabel=
-AxisCaption=
-Row=0
-Col=0
-YAxis_ID=0
-AxisTemplate=
-
-[FUNCTION_OBJECT_3_INPUTSIG_1]
-ObjectType=102
-Name=New
-FormatPhy=1
-SymbolName=a
-IsParameterFunctionResult=0
-BlockConnectorFromTarget=DtECU2CSM.FunctionResult
-BlockConnectorToTarget=Dt2.a
-BlockConnectorRows=1
-BlockConnectorColumns=1
-BlockConnectorInitValue=0
-Module=
-
-[FUNCTION_OBJECT_3_INPUTSIG_2]
-ObjectType=8
-Name=counter
-FormatPhy=1
-SymbolName=b
-IsParameterFunctionResult=0
-Module=XCPpi
-
 [FUNCTION_OBJECT_LIST]
-count=3
+count=1
 
 [FUNCTIONS]
-COUNT=3
+COUNT=1
 COUNT_LIBRARY=0
 
 [JOB_LIST]
@@ -523,7 +311,7 @@ SubConfigsCount=0
 Count=0
 
 [MEASUREMENT_LIST]
-Count=21
+Count=22
 OfflineFileCount=0
 MeaCfgLabellistName=
 
@@ -543,10 +331,10 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_10]
 Module=XCPpi
-Name=byteArray5
+Name=byteArray4
 Mode=2147483649
 Rate=1
-Disabled=1
+Disabled=0
 Row=0
 Column=0
 MeaReferenced=1
@@ -563,7 +351,7 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_11]
 Module=XCPpi
-Name=byteArray6
+Name=byteArray5
 Mode=2147483649
 Rate=1
 Disabled=1
@@ -583,7 +371,7 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_12]
 Module=XCPpi
-Name=byteArray7
+Name=byteArray6
 Mode=2147483649
 Rate=1
 Disabled=1
@@ -603,7 +391,7 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_13]
 Module=XCPpi
-Name=byteArray8
+Name=byteArray7
 Mode=2147483649
 Rate=1
 Disabled=1
@@ -623,7 +411,7 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_14]
 Module=XCPpi
-Name=byteArray9
+Name=byteArray8
 Mode=2147483649
 Rate=1
 Disabled=1
@@ -643,7 +431,7 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_15]
 Module=XCPpi
-Name=byteArray10
+Name=byteArray9
 Mode=2147483649
 Rate=1
 Disabled=1
@@ -663,7 +451,7 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_16]
 Module=XCPpi
-Name=byteArray11
+Name=byteArray10
 Mode=2147483649
 Rate=1
 Disabled=1
@@ -683,7 +471,7 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_17]
 Module=XCPpi
-Name=byteArray12
+Name=byteArray11
 Mode=2147483649
 Rate=1
 Disabled=1
@@ -703,7 +491,7 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_18]
 Module=XCPpi
-Name=byteArray13
+Name=byteArray12
 Mode=2147483649
 Rate=1
 Disabled=1
@@ -723,7 +511,7 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_19]
 Module=XCPpi
-Name=byteArray14
+Name=byteArray13
 Mode=2147483649
 Rate=1
 Disabled=1
@@ -757,7 +545,7 @@ DisplayCount=2
 
 [MEASUREMENT_OBJECT_20]
 Module=XCPpi
-Name=byteArray15
+Name=byteArray14
 Mode=2147483649
 Rate=1
 Disabled=1
@@ -776,6 +564,26 @@ HasManagedDisplay=0
 DisplayCount=0
 
 [MEASUREMENT_OBJECT_21]
+Module=XCPpi
+Name=byteArray15
+Mode=2147483649
+Rate=1
+Disabled=1
+Row=0
+Column=0
+MeaReferenced=1
+MeasureWorkingPoint=0
+ShowWorkingPoint=0
+FollowWorkingPoint=0
+Array=1
+Rows=1
+Columns=1400
+ArchivBy_1=Rekorder
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=0
+
+[MEASUREMENT_OBJECT_22]
 Module=XCPpi
 Name=byteArray16
 Mode=2147483649
@@ -818,7 +626,7 @@ LineWidth=1
 Precision=-2
 Digits=6
 Enabled=1
-StoredFocused=0
+StoredFocused=1
 SublMask=1
 MeaSublMask=3
 LockScaling=0
@@ -972,7 +780,7 @@ LineWidth=1
 Precision=-2
 Digits=6
 Enabled=1
-StoredFocused=1
+StoredFocused=0
 SublMask=1
 MeaSublMask=3
 LockScaling=0
@@ -1028,7 +836,7 @@ LineWidth=1
 Precision=-2
 Digits=6
 Enabled=1
-StoredFocused=0
+StoredFocused=1
 SublMask=1
 MeaSublMask=3
 LockScaling=0
@@ -1048,31 +856,67 @@ YAxis_ID=0
 AxisTemplate=
 
 [MEASUREMENT_OBJECT_6]
+Module=CSM
+Name=ADMMEC_20385_A02
+Mode=2147483677
+Rate=0
+Disabled=0
+Row=0
+Column=0
+MeaReferenced=1
+ArchivBy_1=Rekorder
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=1
+
+[MEASUREMENT_OBJECT_6_DISPLAY_1]
+Window=8
+Index=0
+Color=65280
+ColorFunction=0
+ColorFunctionScope=1
+LineTyp=2
+YMinHome=-5
+YMaxHome=5
+YMin=-5
+YMax=5
+XOffsetNS=0
+XOffset=0
+ValueFormat=3
+BitMask=1
+ShowYAxis=1
+Width=10
+LineStyle=1
+MarkerType=1
+LineWidth=1
+Precision=-2
+Digits=6
+Enabled=1
+StoredFocused=0
+SublMask=1
+MeaSublMask=3
+LockScaling=0
+RightAxis=0
+MapMode=2
+OverlayGridColor=0
+ShadingMode=3
+EditOffset=1
+EditFactor=2
+WAxisLabel=
+XAxisLabel=
+YAxisLabel=
+AxisCaption=
+Row=0
+Col=0
+YAxis_ID=0
+AxisTemplate=
+
+[MEASUREMENT_OBJECT_7]
 Module=XCPpi
 Name=byteArray1
 Mode=2147483649
 Rate=1
-Disabled=1
-Row=0
-Column=0
-MeaReferenced=1
-MeasureWorkingPoint=0
-ShowWorkingPoint=0
-FollowWorkingPoint=0
-Array=1
-Rows=1
-Columns=1400
-ArchivBy_1=Rekorder
-IsFallback=0
-HasManagedDisplay=0
-DisplayCount=0
-
-[MEASUREMENT_OBJECT_7]
-Module=XCPpi
-Name=byteArray2
-Mode=2147483649
-Rate=1
-Disabled=1
+Disabled=0
 Row=0
 Column=0
 MeaReferenced=1
@@ -1089,10 +933,10 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_8]
 Module=XCPpi
-Name=byteArray3
+Name=byteArray2
 Mode=2147483649
 Rate=1
-Disabled=1
+Disabled=0
 Row=0
 Column=0
 MeaReferenced=1
@@ -1109,10 +953,10 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_9]
 Module=XCPpi
-Name=byteArray4
+Name=byteArray3
 Mode=2147483649
 Rate=1
-Disabled=1
+Disabled=0
 Row=0
 Column=0
 MeaReferenced=1
@@ -1202,7 +1046,7 @@ WindowTextExtended=1
 WindowTextExtendedNew=1
 WindowSymbols=1
 GlobalCursor=0
-GlobalCursorTime=1424
+GlobalCursorTime=0
 MainWindowPos=1, 232, 49, 2526, 1832 ;cmd, x, y, w, h
 
 [PAR_COMMENT]
@@ -1389,28 +1233,32 @@ FocusID=2004
 ActiveTab=0
 FilterNodeID=All
 TreeExpand_0=@All
-TreeExpand_1=All\Devices\XCPpi\XCPpi.a2l\Test_Parameters
-TreeExpand_2=All\Devices\XCPpi\XCPpi.a2l
-TreeExpand_3=All\Devices\XCPpi
-TreeExpand_4=All\Measurements\FILE2\Signals
-TreeExpand_5=All\Measurements\FILE2
-TreeExpand_6=All\Measurement list
-TreeExpand_7=All\Devices\XCPpi\XCPpi.a2l\Software structure
+TreeExpand_1=All\Devices\CSM\CSM.a2l\EtherCAT\ADMMEC_20385
+TreeExpand_2=All\Devices\CSM\CSM.a2l\EtherCAT
+TreeExpand_3=All\Devices\CSM\CSM.a2l
+TreeExpand_4=All\Devices\CSM
+TreeExpand_5=All\Devices
+TreeExpand_6=All\Devices\XCPpi\XCPpi.a2l\Test_Signals
+TreeExpand_7=All\Measurement list\Algorithms\Functions
 TreeExpand_8=All\Measurement list\Algorithms
-TreeExpand_9=All\Measurement list\Algorithms\Functions
-TreeExpand_10=All\Devices\XCPpi\XCPpi.a2l\Test_Signals
-TreeExpand_11=All\Devices
-TreeExpand_12=$All\Devices
-TreeExpand_13=#All\Devices\XCPpi\XCPpi.a2l\Test_Parameters\gExit
-TreeExpand_14=@All\Devices
-TreeExpand_15=$All\Devices\Environment
-TreeExpand_16=#All\Devices\XCPpi
-TreeExpand_17=@All\Devices\XCPpi
-TreeExpand_18=$All\Devices\XCPpi\XCPpi.a2l
-TreeExpand_19=#All\Devices\XCPpi\XCPpi.a2l
-TreeExpand_20=@All\Measurement list
-TreeExpand_21=$All\Measurement list\All signals
-TreeExpand_22=#All\Measurement list\CSM
+TreeExpand_9=All\Devices\XCPpi\XCPpi.a2l\Software structure
+TreeExpand_10=All\Measurement list
+TreeExpand_11=All\Measurements\FILE2
+TreeExpand_12=All\Measurements\FILE2\Signals
+TreeExpand_13=All\Devices\XCPpi
+TreeExpand_14=All\Devices\XCPpi\XCPpi.a2l
+TreeExpand_15=All\Devices\XCPpi\XCPpi.a2l\Test_Parameters
+TreeExpand_16=$All\Devices
+TreeExpand_17=#All\Devices\CSM\CSM.a2l\EtherCAT\ADMMEC_20385\ADMMEC_20385_A02
+TreeExpand_18=@All\Devices
+TreeExpand_19=$All\Devices\Environment
+TreeExpand_20=#All\Devices\XCPpi
+TreeExpand_21=@All\Devices\XCPpi
+TreeExpand_22=$All\Devices\XCPpi\XCPpi.a2l
+TreeExpand_23=#All\Devices\XCPpi\XCPpi.a2l
+TreeExpand_24=@All\Measurement list
+TreeExpand_25=$All\Measurement list\All signals
+TreeExpand_26=#All\Measurement list\CSM
 TextSearchCaseSensitive=0
 TextSearchUseMode=1
 TextSearchSearchFullText=1
@@ -1463,8 +1311,8 @@ ClearStart=1
 AbsoluteTimeEnabled=0
 ShowGridLines=0
 ColumnCount=3
-Column_0=21, 37
-Column_0_dpi96=21, 25
+Column_0=21, 93
+Column_0_dpi96=21, 62
 Column_1=22, 150
 Column_1_dpi96=22, 100
 Column_2=23, 1530
@@ -1499,15 +1347,15 @@ DisplayMask=1 ; pages 1
 
 [WINDOW_3]
 XLen=877
-XMin=0
-XMax=1485
+XMin=1889
+XMax=1895
 Grid=1
 Mark=1
 YValue=1
 ShowLegend=2
 ShowLegendHeader=1
-LegendPixWidth=324
-LegendPixWidth_dpi96=216
+LegendPixWidth=363
+LegendPixWidth_dpi96=242
 LegendPixHeight=152
 LegendPixHeight_dpi96=101
 LegendPos=2
@@ -1561,8 +1409,8 @@ DisplayMask=1 ; pages 1
 [WINDOW_3_LEG_COLUMNS]
 ScreenDPIinSection=144
 COUNT=2
-COL_0=31, 220
-COL_0_dpi96=31, 147
+COL_0=31, 264
+COL_0_dpi96=31, 176
 COL_1=1048578, 132
 COL_1_dpi96=1048578, 88
 
@@ -1911,15 +1759,15 @@ AxisTemplate=
 
 [WINDOW_5]
 XLen=877
-XMin=0
-XMax=1485
+XMin=1889
+XMax=1895
 Grid=1
 Mark=1
 YValue=1
 ShowLegend=2
 ShowLegendHeader=1
-LegendPixWidth=324
-LegendPixWidth_dpi96=216
+LegendPixWidth=363
+LegendPixWidth_dpi96=242
 LegendPixHeight=152
 LegendPixHeight_dpi96=101
 LegendPos=2
@@ -1973,8 +1821,8 @@ DisplayMask=1 ; pages 1
 [WINDOW_5_LEG_COLUMNS]
 ScreenDPIinSection=144
 COUNT=2
-COL_0=31, 220
-COL_0_dpi96=31, 147
+COL_0=31, 264
+COL_0_dpi96=31, 176
 COL_1=1048578, 132
 COL_1_dpi96=1048578, 88
 
@@ -2019,7 +1867,7 @@ COL_0_dpi96=31, 91
 ScaleFont=1
 ShowLegend=1
 ShowLegendHeader=0
-LegendPixWidth=136
+LegendPixWidth=137
 LegendPixWidth_dpi96=91
 GridStyle=0
 DisplayColors=1
@@ -2049,20 +1897,20 @@ DisplayMask=1 ; pages 1
 [WINDOW_7_LEG_COLUMNS]
 ScreenDPIinSection=144
 COUNT=1
-COL_0=31, 136
+COL_0=31, 137
 COL_0_dpi96=31, 91
 
 [WINDOW_8]
 XLen=877
-XMin=0
-XMax=1485
+XMin=1889
+XMax=1895
 Grid=1
 Mark=1
 YValue=1
 ShowLegend=2
 ShowLegendHeader=1
-LegendPixWidth=324
-LegendPixWidth_dpi96=216
+LegendPixWidth=363
+LegendPixWidth_dpi96=242
 LegendPixHeight=152
 LegendPixHeight_dpi96=101
 LegendPos=2
@@ -2078,7 +1926,7 @@ YAxisWidth_dpi96=77
 RightYAxisWidth=0
 RightYAxisWidth_dpi96=0
 ObjectMode=0
-DisplayMode=2
+DisplayMode=1
 ShowSignalMode=0
 AxisScrollPos2=0
 LegendScrollPos=0
@@ -2116,8 +1964,8 @@ DisplayMask=1 ; pages 1
 [WINDOW_8_LEG_COLUMNS]
 ScreenDPIinSection=144
 COUNT=2
-COL_0=31, 220
-COL_0_dpi96=31, 147
+COL_0=31, 264
+COL_0_dpi96=31, 176
 COL_1=1048578, 132
 COL_1_dpi96=1048578, 88
 

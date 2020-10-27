@@ -1,5 +1,5 @@
 ﻿ASAP2_VERSION 1 70
-/begin PROJECT CSM "D:\\USR\\RaspberryPi\\xcpLite\\CANape19\\CSM.a2l"
+/begin PROJECT CSM "D:\\USR\\RaspberryPi\\XCPlite\\CANape19\\CSM.a2l"
   /begin MODULE XCPGateway "XCPGateway"
     /begin A2ML
       /***********************************************************/
@@ -2343,6 +2343,12 @@
       /begin BUS "ECAT1" 0x03
         BUS_ETHERCAT
       /end BUS
+      /begin BUS "CAN1" 0x00
+        BUS_CAN CAN_11BIT 500000 66 0x00 "" 0
+      /end BUS
+      /begin BUS "CAN2" 0x00
+        BUS_CAN CAN_11BIT 500000 66 0x00 "" 0
+      /end BUS
       /begin DEVICE "ADMMEC_20385" "ADMMEC_20385"
         "ECAT1" 20385 "" 3002 23
         0x03 4 50402
@@ -2723,6 +2729,24 @@
       /end REF_MEASUREMENT
     /end GROUP
     
+    
+    // <MEASUREMENTS_CAN1>
+    
+    /begin GROUP CAN1 "CAN1 measurements"
+      ROOT
+      /begin REF_MEASUREMENT
+        // <GROUP_REF_MEASUREMENTS_CAN1>
+      /end REF_MEASUREMENT
+    /end GROUP
+    
+    // <MEASUREMENTS_CAN2>
+    
+    /begin GROUP CAN2 "CAN2 measurements"
+      ROOT
+      /begin REF_MEASUREMENT
+        // <GROUP_REF_MEASUREMENTS_CAN2>
+      /end REF_MEASUREMENT
+    /end GROUP
     
   /end MODULE
 /end PROJECT

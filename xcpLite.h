@@ -1401,7 +1401,7 @@ void ApplXcpCommitDtoBuffer(vuint8 *buf);
 
 #if defined ( XCP_ENABLE_TESTMODE )
 
-extern vuint8 gXcpDebugLevel;
+extern volatile vuint8 gXcpDebugLevel;
 
 #if defined ( ApplXcpPrint )
 /* ApplXcpPrint is a macro */

@@ -84,10 +84,13 @@
 
 tXcpData gXcp; 
 
-const vuint8 MEMORY_ROM gXcpStationId[kXcpStationIdLength] = kXcpStationIdString; // Name of the A2L file for auto detection
+const vuint8 MEMORY_ROM gXcpSlaveId[kXcpSlaveIdLength] = kXcpSlaveIdString; // Name of the A2L file on local PC for auto detection
+const vuint8 MEMORY_ROM gXcpA2LFilename[kXcpA2LFilenameLength] = kXcpA2LFilenameString; // Name of the A2L file on slave device for upload
+vuint8* gXcpA2L = NULL; // A2L file content
+vuint32 gXcpA2LLength = 0; // A2L file length
 
 #if defined ( XCP_ENABLE_TESTMODE )
-vuint8 gXcpDebugLevel = XCP_DEBUG_LEVEL;
+volatile vuint8 gXcpDebugLevel = XCP_DEBUG_LEVEL;
 #endif
 
 
@@ -182,9 +185,11 @@ static vuint8 XcpReadMta( vuint8 size, BYTEPTR data )
 static void XcpFreeDaq( void )
 {
   gXcp.SessionStatus &= (vuint8)(~SS_DAQ);
+
 #if defined ( XCP_ENABLE_TESTMODE )
   if (gXcpDebugLevel != 0 && gXcp.SessionStatus & SS_CONNECTED) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
 #endif
+
   gXcp.Daq.DaqCount = 0;
   gXcp.Daq.OdtCount = 0;
   gXcp.Daq.OdtEntryCount = 0;
@@ -661,12 +666,29 @@ void XcpCommand( const vuint32* pCommand )
               switch (CRO_GET_ID_TYPE) {
                   case IDT_ASCII:
                   case IDT_ASAM_NAME:
-                      CRM_GET_ID_LENGTH = kXcpStationIdLength;
-                      XcpSetMta(ApplXcpGetPointer(0xFF, (vuint32)(&gXcpStationId[0])), 0xFF);
+                      CRM_GET_ID_LENGTH = kXcpSlaveIdLength;
+                      XcpSetMta(ApplXcpGetPointer(0x00, (vuint32)(&gXcpSlaveId[0])), 0x00);
                       break;
+                  case IDT_ASAM_UPLOAD:
+                    if (gXcpA2L==NULL) {
+                      FILE* fd;
+                      fd = fopen(kXcpA2LFilenameString, "r");
+                      if (fd != NULL) {
+                          struct stat fdstat;
+                          stat(kXcpA2LFilenameString, &fdstat);
+                          gXcpA2L = malloc((size_t)(fdstat.st_size + 1));
+                          gXcpA2LLength = fread(gXcpA2L, sizeof(char), (size_t)fdstat.st_size, fd);
+                          fclose(fd);
+#if defined ( XCP_ENABLE_TESTMODE )
+                          if (gXcpDebugLevel != 0) ApplXcpPrint("A2L file %s ready for upload, size %u\n", kXcpA2LFilenameString, gXcpA2LLength);
+#endif
+                      }
+                    }
+                    CRM_GET_ID_LENGTH = gXcpA2LLength;
+                    XcpSetMta(ApplXcpGetPointer(0x00, (vuint32)gXcpA2L), 0x00);
+                    break;
                   case IDT_ASAM_PATH:
                   case IDT_ASAM_URL:
-                  case IDT_ASAM_UPLOAD:
                       CRM_GET_ID_LENGTH = 0;     // No error, just return length=0, INCA always polls ID_TYPE 0-4
                       break;
                   default:

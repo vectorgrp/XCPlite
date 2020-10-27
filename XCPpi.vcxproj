@@ -75,6 +75,7 @@
   <ImportGroup Label="PropertySheets" />
   <PropertyGroup Label="UserMacros" />
   <ItemGroup>
+    <ClCompile Include="A2L.c" />
     <ClCompile Include="ecu.c" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="ecupp.cpp" />
@@ -84,6 +85,7 @@
     <ClCompile Include="xcpAppl.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="A2L.h" />
     <ClInclude Include="ecu.h" />
     <ClInclude Include="ecupp.hpp" />
     <ClInclude Include="udpraw.h" />

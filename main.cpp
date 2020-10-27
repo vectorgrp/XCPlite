@@ -22,6 +22,8 @@ extern "C" {
 #include "udpserver.h"
 #include "udpraw.h"
 
+#include "A2L.h"
+
 // ECU simulation (C demo)
 #include "ecu.h"
 
@@ -53,8 +55,6 @@ static vuint32 gTaskTimer = 0;
 volatile vuint8 gExit = 0;
 
 }
-
-
 
 
 // ECU simulation (C++ demo)
@@ -164,6 +164,8 @@ extern "C" {
 
 }
 
+#include <typeinfo>
+
 
 
 // C++ main
@@ -191,12 +193,23 @@ int main(void)
     }
 #endif
 
-    // Initialize ECU demo (C)
+    // Create A2L file header
+    A2lInit();
+    A2lCreateEvent("ECU");
+    A2lCreateEvent("ECUPP");
+    A2lHeader();
+ 
+    // Initialize ECU demo (C) variables and add to A2L
+    A2lSetEvent(1);
     ecuInit();
     
-    // Initialize ECU demo (C++)
+    // Initialize ECU demo (C++) variables and add to A2L 
+    A2lSetEvent(2);
     gEcu = new ecu();
       
+    // Finish A2L
+    A2lClose();
+
     // Create the ECU threads
 #ifdef THREAD_ECU
     pthread_t t2;

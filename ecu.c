@@ -10,6 +10,7 @@
 
 #include "ecu.h"
 #include "xcpLite.h"
+#include "A2L.h"
 
 #include <math.h>
 
@@ -188,6 +189,7 @@ unsigned short CALRAM_LAST = 0xAAAA;
 void ecuInit( void ) {
 
     counter = 0;
+    A2lCreateMeasurement(counter);
 
     timer  = 0;
     channel1 = 0;
