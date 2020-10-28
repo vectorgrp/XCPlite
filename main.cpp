@@ -172,7 +172,7 @@ extern "C" {
 int main(void)
 {  
     printf(
-        "\nRaspberryPi XCP on UDP Demo (Lite Version) \n"
+        "\nRaspberryPi XCP on UDP Demo (Lite Version with A2L generation) \n"
         "Build " __DATE__ " " __TIME__ "\n"
         );
      
@@ -193,20 +193,16 @@ int main(void)
     }
 #endif
 
+    // Create A2L
+#ifdef XCP_ENABLE_A2L
+
     // Create A2L file header
     A2lInit(kXcpA2LFilenameString);
-    A2lCreateEvent("ECU");
-    A2lCreateEvent("ECUPP");
+    A2lCreateEvent("ECU");     // 1: Standard event triggered in ecuTask
+    A2lCreateEvent("ECUPP");   // 2: Standard event triggered in ecuppTask
+    A2lCreateEvent("ECUPPEXT");// 3: Extended event (relative address objects) triggered in ecuppTask
     A2lHeader();
- 
-    // Initialize ECU demo (C) variables and add to A2L
-    A2lSetEvent(1);
-    ecuInitAndCreateA2l();
-    
-    // Initialize ECU demo (C++) variables and add to A2L 
-    A2lSetEvent(2);
-    gEcu = new ecu();
-      
+
     // Test parameters
     A2lCreateParameter(gCmdCycle, "us", "Command handler cycle time");
     A2lCreateParameter(gFlushCycle, "us", "Flush cycle time");
@@ -217,8 +213,18 @@ int main(void)
     A2lCreateParameter(gExit, "", "Quit application");
     A2lCreateGroup("Test_Parameters", 7, "gCmdCycle", "gFlushCycle", "gTaskCycleTimerECU", "gTaskCycleTimerECUpp", "gTaskCycleTimerServer", "gXcpDebugLevel", "gExit");
 
+#endif
+
+    // Initialize ECU demo (C) variables and add them to A2L
+    ecuInit();
+
+    // Initialize ECU demo (C++) variables and add them to A2L 
+    gEcu = new ecu();
+
     // Finish A2L
+#ifdef XCP_ENABLE_A2L
     A2lClose();
+#endif
 
     // Create the ECU threads
 #ifdef THREAD_ECU
@@ -226,7 +232,6 @@ int main(void)
     int a2 = 0;
     pthread_create(&t2, NULL, ecuTask, (void*)&a2);
 #endif
-
 #ifdef THREAD_ECUPP
     pthread_t t3;
     int a3 = 0;

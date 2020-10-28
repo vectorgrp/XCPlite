@@ -93,6 +93,7 @@ static const char* getTypeMin(int size) {
 	case -2: min = "-32768"; break;
 	case -4: min = "-2147483648";  break;
 	case -8: min = "-1E12"; break;
+	case 8: min = "1E12"; break;
 	default: min = "0";
 	}
 	return min;
@@ -149,6 +150,18 @@ void A2lSetEvent(unsigned int event) {
 
 	gA2lEvent = event;
 }
+
+
+void A2lCreateMeasurementType_(const char* name, int size, const char* comment) {
+
+	fprintf(gA2lFile,
+		"/begin TYPEDEF_STRUCTURE %s \"%s\" 0x%X SYMBOL_TYPE_LINK \"%s\"\n"
+		"  /begin STRUCTURE_COMPONENT dummy_structure_component _ULONG 0 SYMBOL_TYPE_LINK \"dummy_symbol_type_link\" /end STRUCTURE_COMPONENT\n"
+		"/end TYPEDEF_STRUCTURE\n"
+			, name, comment, size, name);
+
+}
+
 
 
 void A2lCreateMeasurement_(const char* name, int size, unsigned long addr, double factor, double offset, const char* unit, const char* comment) {
@@ -217,9 +230,16 @@ void A2lCreateGroup(const char* name, int count, ...) {
 
 void A2lClose(void) {
 
+	// Create standard record layouts for elementary types
 	for (int i = -8; i <= +8; i++) {
 		const char* t = getMeaType(i);
 		if (t != NULL) fprintf(gA2lFile, "/begin RECORD_LAYOUT _%s FNC_VALUES 1 %s ROW_DIR DIRECT /end RECORD_LAYOUT\n", t, t);
+	}
+
+	// Create standard typedefs for elementary types
+	for (int i = -8; i <= +8; i++) {
+		const char* t = getMeaType(i);
+		if (t != NULL) fprintf(gA2lFile, "/begin TYPEDEF_MEASUREMENT _%s \"\" %s NO_COMPU_METHOD 0 0 %s %s /end TYPEDEF_MEASUREMENT\n",t,t,getTypeMin(i),getTypeMax(i));
 	}
 
 	fprintf(gA2lFile, gA2lFooter);

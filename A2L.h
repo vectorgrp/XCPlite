@@ -18,7 +18,11 @@ extern void A2lHeader(void);
 void A2lSetEvent(unsigned int event);
 
 // Create measurements and parameters
+#define A2lCreateMeasurementType(name,comment) A2lCreateMeasurementType_(name,(int)sizeof(name),comment)
+void A2lCreateMeasurementType_(const char* name, int size, const char* comment);
 #define A2lCreateMeasurement_s(name) A2lCreateMeasurement_(#name,-(int)sizeof(name),(unsigned long)&name,0.0,0.0,NULL,"")
+#define A2lCreateMeasurement_abs(instance,name) A2lCreateMeasurement_(instance "." #name,sizeof(name),(unsigned long)&name,0.0,0.0,NULL,"")
+#define A2lCreateMeasurement_rel(instance,name) A2lCreateMeasurement_(instance "." #name,sizeof(name),0,0.0,0.0,NULL,"")
 #define A2lCreateMeasurement(name) A2lCreateMeasurement_(#name,sizeof(name),(unsigned long)&name,0.0,0.0,NULL,"")
 #define A2lCreatePhysMeasurement(name,factor,offset,unit,comment) A2lCreateMeasurement_(#name,sizeof(name),(unsigned long)&name,factor,offset,unit,comment)
 extern void A2lCreateMeasurement_(const char* name, int size, unsigned long addr, double factor, double offset, const char* unit, const char* comment);

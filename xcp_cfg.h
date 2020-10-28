@@ -88,6 +88,16 @@ extern void udpServerCommitPacketBuffer(void* par);
 
 
 /*----------------------------------------------------------------------------*/
+/* A2L creator */
+
+#define XCP_ENABLE_A2L
+
+#ifdef XCP_ENABLE_A2L
+
+#endif
+
+
+/*----------------------------------------------------------------------------*/
 /* Test instrumentation */
 
 /* Turn on screen logging, assertions and parameter checks */

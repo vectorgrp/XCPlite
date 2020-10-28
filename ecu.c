@@ -20,7 +20,7 @@
 /* ECU Measurements */
 /**************************************************************************/
 
-unsigned short counter = 0;
+unsigned short ecuCounter = 0;
 
 double timer;
 double channel1;
@@ -57,6 +57,7 @@ signed long sdwordCounter;
 char testString[] = "TestString"; 
 
 
+
 /**************************************************************************/
 /* ECU Parameters */
 /**************************************************************************/
@@ -87,22 +88,12 @@ volatile unsigned char curve1_32[32] =
 /* ECU Demo Example */
 /**************************************************************************/
 
-void ecuInitAndCreateA2l( void ) {
+void ecuInit( void ) {
 
-    counter = 0;
-    A2lCreateMeasurement(counter);
+    ecuCounter = 0;
 
     timer  = 0;
     channel1 = 0;
-    A2lCreatePhysMeasurement(timer, 1.0, 0.0, "s", "Time in s");
-    A2lCreatePhysMeasurement(channel1, 1.0, 1.0, "Volt", "Demo floating point signal");
-    period = 5;
-    ampl = 50;
-    A2lCreateParameter(ampl, "V", "Amplitude");
-    A2lCreateParameter(period, "s", "Period");
-
-    A2lCreateMap(map1_8_8, 8, 8, "", "8*8 byte calibration array");
-    A2lCreateCurve(curve1_32, 32,"", "32 byte calibration array");
 
     byteCounter  = 0;
     wordCounter = 0;
@@ -110,12 +101,6 @@ void ecuInitAndCreateA2l( void ) {
     sbyteCounter	= 0;
     swordCounter = 0;
     sdwordCounter = 0;
-    A2lCreateMeasurement(byteCounter);
-    A2lCreateMeasurement(wordCounter);
-    A2lCreateMeasurement(dwordCounter);
-    A2lCreateMeasurement_s(sbyteCounter);
-    A2lCreateMeasurement_s(swordCounter);
-    A2lCreateMeasurement_s(sdwordCounter);
 
     for (int i = 0; i < 1400; i++) {
         byteArray1[i] = (unsigned char)i;
@@ -136,6 +121,33 @@ void ecuInitAndCreateA2l( void ) {
         byteArray16[i] = (unsigned char)i;
     }
 
+    for (unsigned int i = 0; i < 1024; i++) {
+        longArray1[i] = i;
+        longArray2[i] = i;
+        longArray3[i] = i;
+        longArray4[i] = i;
+    }
+
+    // Create A2L File
+#ifdef XCP_ENABLE_A2L
+
+    A2lSetEvent(1); // Associate event 1 to the variables below
+        
+    A2lCreateMeasurement(ecuCounter);
+    A2lCreatePhysMeasurement(timer, 1.0, 0.0, "s", "Time in s");
+    A2lCreatePhysMeasurement(channel1, 1.0, 1.0, "Volt", "Demo floating point signal");
+    A2lCreateParameter(ampl, "V", "Amplitude");
+    A2lCreateParameter(period, "s", "Period");
+    A2lCreateMap(map1_8_8, 8, 8, "", "8*8 byte calibration array");
+    A2lCreateCurve(curve1_32, 32, "", "32 byte calibration array");
+
+    A2lCreateMeasurement(byteCounter);
+    A2lCreateMeasurement(wordCounter);
+    A2lCreateMeasurement(dwordCounter);
+    A2lCreateMeasurement_s(sbyteCounter);
+    A2lCreateMeasurement_s(swordCounter);
+    A2lCreateMeasurement_s(sdwordCounter);
+
     A2lCreateMeasurementArray(byteArray1);
     A2lCreateMeasurementArray(byteArray2);
     A2lCreateMeasurementArray(byteArray3);
@@ -153,13 +165,6 @@ void ecuInitAndCreateA2l( void ) {
     A2lCreateMeasurementArray(byteArray15);
     A2lCreateMeasurementArray(byteArray16);
     
-    for (unsigned int i = 0; i < 1024; i++) {
-        longArray1[i] = i;
-        longArray2[i] = i;
-        longArray3[i] = i;
-        longArray4[i] = i;
-    }
-
     A2lCreateMeasurementArray(longArray1);
     A2lCreateMeasurementArray(longArray2);
     A2lCreateMeasurementArray(longArray3);
@@ -168,6 +173,7 @@ void ecuInitAndCreateA2l( void ) {
     A2lCreateGroup("Arrays", 20, 
         "byteArray1", "byteArray2", "byteArray3", "byteArray4", "byteArray5", "byteArray6", "byteArray7", "byteArray8", "byteArray9", "byteArray10", 
         "byteArray11", "byteArray12", "byteArray13", "byteArray14", "byteArray15", "byteArray16", "longArray1", "longArray2", "longArray3", "longArray4");
+#endif
 
 }
 
@@ -177,7 +183,7 @@ void ecuInitAndCreateA2l( void ) {
 /* 10ms Raster */
 void ecuCyclic( void )
 {
-    counter++;
+    ecuCounter++;
 
   /* Floatingpoint signal */
   if (period>0.01||period<-0.01) {
