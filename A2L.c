@@ -181,11 +181,22 @@ void A2lCreateMeasurementArray_(const char* name, int size, int dim, unsigned lo
 }
 
 
-void A2lCreateParameter_(const char* name, int size, unsigned long addr, const char *comment, const char *unit) {
+void A2lCreateParameter_(const char* name, int size, unsigned long addr, const char* comment, const char* unit) {
 
 	fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" VALUE 0x%X %s 0 NO_COMPU_METHOD %s %s PHYS_UNIT \"%s\" /end CHARACTERISTIC\n",
 		name, comment, addr, getParType(size), getTypeMin(size), getTypeMax(size), unit);
 }
+
+void A2lCreateMap_(const char* name, int size, unsigned long addr, unsigned int xdim, unsigned int ydim, const char* comment, const char* unit) {
+
+	fprintf(gA2lFile, 
+		"/begin CHARACTERISTIC %s \"%s\" MAP 0x%X %s 0 NO_COMPU_METHOD %s %s"
+		" /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD  %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR"
+		" /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD  %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR"
+		" PHYS_UNIT \"%s\" /end CHARACTERISTIC",
+		name, comment, addr, getParType(size), getTypeMin(size), getTypeMax(size), xdim, xdim-1, xdim, ydim, ydim-1, ydim, unit);
+}
+
 
 
 void A2lCreateGroup(const char* name, int count, ...) {

@@ -10,6 +10,6 @@ extern unsigned short CALRAM_LAST;
 #define CALRAM_SIZE  ((unsigned char*)&CALRAM_LAST-(unsigned char*)&CALRAM_START)
 
 extern void ecuCyclic( void );
-extern void ecuInit( void );
+extern void ecuInitAndCreateA2l( void );
 
 #endif

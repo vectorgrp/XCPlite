@@ -62,32 +62,32 @@ char testString[] = "TestString";
 /**************************************************************************/
 
 
-volatile float period = 5;	 
-volatile float ampl   = 6;
+volatile double period = 5;	 
+volatile double ampl   = 50;
 
-
-volatile unsigned char map1_8_8_uc[8][8] =
-  {{0,0,0,0,0,0,1,2},
-   {0,0,0,0,0,0,2,3},
-   {0,0,0,0,1,1,2,3},
-   {0,0,0,1,1,2,3,4},
-   {0,1,1,2,3,4,5,7},
-   {1,1,1,2,4,6,8,9},
-   {1,1,2,4,5,8,9,10},
-   {1,1,3,5,8,9,10,10}
+volatile unsigned char map1_8_8[8][8] =
+{ {0,0,0,0,0,0,1,2},
+ {0,0,0,0,0,0,2,3},
+ {0,0,0,0,1,1,2,3},
+ {0,0,0,1,1,2,3,4},
+ {0,1,1,2,3,4,5,7},
+ {1,1,1,2,4,6,8,9},
+ {1,1,2,4,5,8,9,10},
+ {1,1,3,5,8,9,10,10}
 };
 
+volatile unsigned char curve1_32[32] =
+{ 0,1,3,6,9,15,20,30,38,42,44,46,48,50,48,45,40,33,25,15,5,4,3,2,1,0,0,1,4,8,4,0};
+
 
 
 
 
 /**************************************************************************/
-/* ECU Demo */
+/* ECU Demo Example */
 /**************************************************************************/
 
-
-
-void ecuInit( void ) {
+void ecuInitAndCreateA2l( void ) {
 
     counter = 0;
     A2lCreateMeasurement(counter);
@@ -96,6 +96,13 @@ void ecuInit( void ) {
     channel1 = 0;
     A2lCreatePhysMeasurement(timer, 1.0, 0.0, "s", "Time in s");
     A2lCreatePhysMeasurement(channel1, 1.0, 1.0, "Volt", "Demo floating point signal");
+    period = 5;
+    ampl = 50;
+    A2lCreateParameter(ampl, "V", "Amplitude");
+    A2lCreateParameter(period, "s", "Period");
+
+    A2lCreateMap(map1_8_8, 8, 8, "", "8*8 byte calibration array");
+    A2lCreateCurve(curve1_32, 32,"", "32 byte calibration array");
 
     byteCounter  = 0;
     wordCounter = 0;
@@ -145,9 +152,23 @@ void ecuInit( void ) {
     A2lCreateMeasurementArray(byteArray14);
     A2lCreateMeasurementArray(byteArray15);
     A2lCreateMeasurementArray(byteArray16);
-    A2lCreateGroup("Arrays",16,"byteArray1","byteArray2","byteArray3","byteArray4","byteArray5","byteArray6","byteArray7","byteArray8","byteArray9","byteArray10","byteArray11","byteArray12","byteArray13","byteArray14","byteArray15","byteArray16");
+    
+    for (unsigned int i = 0; i < 1024; i++) {
+        longArray1[i] = i;
+        longArray2[i] = i;
+        longArray3[i] = i;
+        longArray4[i] = i;
+    }
 
-        
+    A2lCreateMeasurementArray(longArray1);
+    A2lCreateMeasurementArray(longArray2);
+    A2lCreateMeasurementArray(longArray3);
+    A2lCreateMeasurementArray(longArray4);
+
+    A2lCreateGroup("Arrays", 20, 
+        "byteArray1", "byteArray2", "byteArray3", "byteArray4", "byteArray5", "byteArray6", "byteArray7", "byteArray8", "byteArray9", "byteArray10", 
+        "byteArray11", "byteArray12", "byteArray13", "byteArray14", "byteArray15", "byteArray16", "longArray1", "longArray2", "longArray3", "longArray4");
+
 }
 
 
@@ -160,7 +181,7 @@ void ecuCyclic( void )
 
   /* Floatingpoint signal */
   if (period>0.01||period<-0.01) {
-	channel1  = (float)(sin(6.283185307*timer/period*1)*ampl);
+	channel1  = (float)(sin(6.283185307*timer/period)*ampl);
   }
   timer = (float)(timer + gTaskCycleTimerECU/1.0E9);
  

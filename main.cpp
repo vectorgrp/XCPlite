@@ -201,20 +201,20 @@ int main(void)
  
     // Initialize ECU demo (C) variables and add to A2L
     A2lSetEvent(1);
-    ecuInit();
+    ecuInitAndCreateA2l();
     
     // Initialize ECU demo (C++) variables and add to A2L 
     A2lSetEvent(2);
     gEcu = new ecu();
       
     // Test parameters
-    A2lCreateParameter(gCmdCycle, "Command handler cycle time", "us");
-    A2lCreateParameter(gFlushCycle, "Flush cycle time", "us");
-    A2lCreateParameter(gTaskCycleTimerECU, "ECU cycle time (ns delay)", "ns");
-    A2lCreateParameter(gTaskCycleTimerECUpp, "ECU cycle time (ns delay)", "ns");
-    A2lCreateParameter(gTaskCycleTimerServer, "Server loop cycle time (ns delay)", "ns");
-    A2lCreateParameter(gXcpDebugLevel, "Debug verbosity", "");
-    A2lCreateParameter(gExit, "Quit application", "");
+    A2lCreateParameter(gCmdCycle, "us", "Command handler cycle time");
+    A2lCreateParameter(gFlushCycle, "us", "Flush cycle time");
+    A2lCreateParameter(gTaskCycleTimerECU, "ns", "ECU cycle time (ns delay)");
+    A2lCreateParameter(gTaskCycleTimerECUpp, "ns", "ECU cycle time (ns delay)");
+    A2lCreateParameter(gTaskCycleTimerServer, "ns", "Server loop cycle time (ns delay)");
+    A2lCreateParameter(gXcpDebugLevel, "", "Debug verbosity");
+    A2lCreateParameter(gExit, "", "Quit application");
     A2lCreateGroup("Test_Parameters", 7, "gCmdCycle", "gFlushCycle", "gTaskCycleTimerECU", "gTaskCycleTimerECUpp", "gTaskCycleTimerServer", "gXcpDebugLevel", "gExit");
 
     // Finish A2L
