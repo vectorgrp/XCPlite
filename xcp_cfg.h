@@ -23,6 +23,8 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <time.h>
+#include <sys/stat.h>
+
 
 #include <pthread.h> // link with -lpthread
 
@@ -92,7 +94,7 @@ extern void udpServerCommitPacketBuffer(void* par);
 
 #define XCP_ENABLE_TESTMODE
 #ifdef XCP_ENABLE_TESTMODE
-  #define XCP_DEBUG_LEVEL 0
+  #define XCP_DEBUG_LEVEL 1
   #define ApplXcpPrint printf
   #define XCP_ENABLE_PARAMETER_CHECK
 
@@ -103,7 +105,9 @@ extern void udpServerCommitPacketBuffer(void* par);
 #else
   ApplXcpDbgPin(x)
 #endif
-
+	  
+extern volatile vuint32 gTaskCycleTimerECU;
+extern volatile vuint32 gTaskCycleTimerECUpp;
 
 /*----------------------------------------------------------------------------*/
 /* XCP protocol and transport layer parameters */
@@ -112,10 +116,14 @@ extern void udpServerCommitPacketBuffer(void* par);
 #define XCP_UDP_MTU (1400)  // IPv4 1500 ETH - 28 IP - 8 UDP ???
 
 
-/* XCP slave device identification (optional) */
-#define kXcpStationIdLength 5    /* Slave device identification length */
-#define kXcpStationIdString "xcpPi"  /* Slave device identification for auto detection of A2L file */
-extern vuint8 MEMORY_ROM gXcpStationId[];
+/* XCP slave device and A2L file identification (optional) */
+#define kXcpSlaveIdLength 5    /* Slave device identification length */
+#define kXcpSlaveIdString "XCPpi"  /* Slave device identification */
+extern vuint8 MEMORY_ROM gXcpSlaveId[];
+#define kXcpA2LFilenameLength 9    /* Length of A2L filename */
+#define kXcpA2LFilenameString "XCPpi.A2L"  /* A2L filename */
+extern vuint8 MEMORY_ROM gXcpA2LFilename[];
+
 
 /* XCP protocol message sizes */
 #define kXcpMaxCTO     250      /* Maximum CTO and CRM Message Lenght */

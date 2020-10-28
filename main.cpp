@@ -22,6 +22,8 @@ extern "C" {
 #include "udpserver.h"
 #include "udpraw.h"
 
+#include "A2L.h"
+
 // ECU simulation (C demo)
 #include "ecu.h"
 
@@ -53,8 +55,6 @@ static vuint32 gTaskTimer = 0;
 volatile vuint8 gExit = 0;
 
 }
-
-
 
 
 // ECU simulation (C++ demo)
@@ -164,6 +164,8 @@ extern "C" {
 
 }
 
+#include <typeinfo>
+
 
 
 // C++ main
@@ -191,12 +193,33 @@ int main(void)
     }
 #endif
 
-    // Initialize ECU demo (C)
-    ecuInit();
+    // Create A2L file header
+    A2lInit(kXcpA2LFilenameString);
+    A2lCreateEvent("ECU");
+    A2lCreateEvent("ECUPP");
+    A2lHeader();
+ 
+    // Initialize ECU demo (C) variables and add to A2L
+    A2lSetEvent(1);
+    ecuInitAndCreateA2l();
     
-    // Initialize ECU demo (C++)
+    // Initialize ECU demo (C++) variables and add to A2L 
+    A2lSetEvent(2);
     gEcu = new ecu();
       
+    // Test parameters
+    A2lCreateParameter(gCmdCycle, "us", "Command handler cycle time");
+    A2lCreateParameter(gFlushCycle, "us", "Flush cycle time");
+    A2lCreateParameter(gTaskCycleTimerECU, "ns", "ECU cycle time (ns delay)");
+    A2lCreateParameter(gTaskCycleTimerECUpp, "ns", "ECU cycle time (ns delay)");
+    A2lCreateParameter(gTaskCycleTimerServer, "ns", "Server loop cycle time (ns delay)");
+    A2lCreateParameter(gXcpDebugLevel, "", "Debug verbosity");
+    A2lCreateParameter(gExit, "", "Quit application");
+    A2lCreateGroup("Test_Parameters", 7, "gCmdCycle", "gFlushCycle", "gTaskCycleTimerECU", "gTaskCycleTimerECUpp", "gTaskCycleTimerServer", "gXcpDebugLevel", "gExit");
+
+    // Finish A2L
+    A2lClose();
+
     // Create the ECU threads
 #ifdef THREAD_ECU
     pthread_t t2;
