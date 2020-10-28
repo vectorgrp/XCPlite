@@ -10,8 +10,8 @@ PrgDate=06.10.2020
 Description=
 CreationTime=14:27
 CreationDate=09/08/2020 ; Month/Day/Year
-ModificationTime=22:04
-ModificationDate=10/26/2020 ; Month/Day/Year
+ModificationTime=16:04
+ModificationDate=10/28/2020 ; Month/Day/Year
 Protected=0
 
 [ANALYSISPROFILE_MDF_LIST]
@@ -185,7 +185,7 @@ Unit=s
 DataType=2
 Precision=-1
 ObjectType=1
-Number=6
+Number=5
 TextFormula=Dt
 NumberOfInputSignals=1
 Formula=10
@@ -311,7 +311,7 @@ SubConfigsCount=0
 Count=0
 
 [MEASUREMENT_LIST]
-Count=22
+Count=21
 OfflineFileCount=0
 MeaCfgLabellistName=
 
@@ -331,26 +331,6 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_10]
 Module=XCPpi
-Name=byteArray4
-Mode=2147483649
-Rate=1
-Disabled=0
-Row=0
-Column=0
-MeaReferenced=1
-MeasureWorkingPoint=0
-ShowWorkingPoint=0
-FollowWorkingPoint=0
-Array=1
-Rows=1
-Columns=1400
-ArchivBy_1=Rekorder
-IsFallback=0
-HasManagedDisplay=0
-DisplayCount=0
-
-[MEASUREMENT_OBJECT_11]
-Module=XCPpi
 Name=byteArray5
 Mode=2147483649
 Rate=1
@@ -369,7 +349,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=0
 
-[MEASUREMENT_OBJECT_12]
+[MEASUREMENT_OBJECT_11]
 Module=XCPpi
 Name=byteArray6
 Mode=2147483649
@@ -389,7 +369,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=0
 
-[MEASUREMENT_OBJECT_13]
+[MEASUREMENT_OBJECT_12]
 Module=XCPpi
 Name=byteArray7
 Mode=2147483649
@@ -409,7 +389,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=0
 
-[MEASUREMENT_OBJECT_14]
+[MEASUREMENT_OBJECT_13]
 Module=XCPpi
 Name=byteArray8
 Mode=2147483649
@@ -429,7 +409,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=0
 
-[MEASUREMENT_OBJECT_15]
+[MEASUREMENT_OBJECT_14]
 Module=XCPpi
 Name=byteArray9
 Mode=2147483649
@@ -449,7 +429,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=0
 
-[MEASUREMENT_OBJECT_16]
+[MEASUREMENT_OBJECT_15]
 Module=XCPpi
 Name=byteArray10
 Mode=2147483649
@@ -469,7 +449,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=0
 
-[MEASUREMENT_OBJECT_17]
+[MEASUREMENT_OBJECT_16]
 Module=XCPpi
 Name=byteArray11
 Mode=2147483649
@@ -489,7 +469,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=0
 
-[MEASUREMENT_OBJECT_18]
+[MEASUREMENT_OBJECT_17]
 Module=XCPpi
 Name=byteArray12
 Mode=2147483649
@@ -509,9 +489,29 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=0
 
-[MEASUREMENT_OBJECT_19]
+[MEASUREMENT_OBJECT_18]
 Module=XCPpi
 Name=byteArray13
+Mode=2147483649
+Rate=1
+Disabled=1
+Row=0
+Column=0
+MeaReferenced=1
+MeasureWorkingPoint=0
+ShowWorkingPoint=0
+FollowWorkingPoint=0
+Array=1
+Rows=1
+Columns=1400
+ArchivBy_1=Rekorder
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=0
+
+[MEASUREMENT_OBJECT_19]
+Module=XCPpi
+Name=byteArray14
 Mode=2147483649
 Rate=1
 Disabled=1
@@ -545,26 +545,6 @@ DisplayCount=2
 
 [MEASUREMENT_OBJECT_20]
 Module=XCPpi
-Name=byteArray14
-Mode=2147483649
-Rate=1
-Disabled=1
-Row=0
-Column=0
-MeaReferenced=1
-MeasureWorkingPoint=0
-ShowWorkingPoint=0
-FollowWorkingPoint=0
-Array=1
-Rows=1
-Columns=1400
-ArchivBy_1=Rekorder
-IsFallback=0
-HasManagedDisplay=0
-DisplayCount=0
-
-[MEASUREMENT_OBJECT_21]
-Module=XCPpi
 Name=byteArray15
 Mode=2147483649
 Rate=1
@@ -583,7 +563,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=0
 
-[MEASUREMENT_OBJECT_22]
+[MEASUREMENT_OBJECT_21]
 Module=XCPpi
 Name=byteArray16
 Mode=2147483649
@@ -605,7 +585,7 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_2_DISPLAY_1]
 Window=3
-Index=2
+Index=1
 Color=65535
 ColorFunction=0
 ColorFunctionScope=1
@@ -626,7 +606,7 @@ LineWidth=1
 Precision=-2
 Digits=6
 Enabled=1
-StoredFocused=1
+StoredFocused=0
 SublMask=1
 MeaSublMask=3
 LockScaling=0
@@ -689,7 +669,7 @@ AxisTemplate=
 
 [MEASUREMENT_OBJECT_3]
 Module=XCPpi
-Name=Triangle
+Name=channel1
 Mode=2147483649
 Rate=1
 Disabled=0
@@ -704,62 +684,6 @@ DisplayCount=1
 [MEASUREMENT_OBJECT_3_DISPLAY_1]
 Window=3
 Index=0
-Color=255
-ColorFunction=0
-ColorFunctionScope=1
-LineTyp=2
-YMinHome=-50
-YMaxHome=50
-YMin=-50
-YMax=50
-XOffsetNS=0
-XOffset=0
-ValueFormat=3
-BitMask=255
-ShowYAxis=1
-Width=10
-LineStyle=1
-MarkerType=1
-LineWidth=1
-Precision=-2
-Digits=6
-Enabled=1
-StoredFocused=0
-SublMask=1
-MeaSublMask=3
-LockScaling=0
-RightAxis=0
-MapMode=2
-OverlayGridColor=0
-ShadingMode=3
-EditOffset=1
-EditFactor=2
-WAxisLabel=
-XAxisLabel=
-YAxisLabel=
-AxisCaption=
-Row=0
-Col=0
-YAxis_ID=0
-AxisTemplate=
-
-[MEASUREMENT_OBJECT_4]
-Module=XCPpi
-Name=channel1
-Mode=2147483649
-Rate=1
-Disabled=0
-Row=0
-Column=0
-MeaReferenced=1
-ArchivBy_1=Rekorder
-IsFallback=0
-HasManagedDisplay=0
-DisplayCount=1
-
-[MEASUREMENT_OBJECT_4_DISPLAY_1]
-Window=3
-Index=1
 Color=65280
 ColorFunction=0
 ColorFunctionScope=1
@@ -780,7 +704,7 @@ LineWidth=1
 Precision=-2
 Digits=6
 Enabled=1
-StoredFocused=0
+StoredFocused=1
 SublMask=1
 MeaSublMask=3
 LockScaling=0
@@ -799,7 +723,7 @@ Col=0
 YAxis_ID=0
 AxisTemplate=
 
-[MEASUREMENT_OBJECT_5]
+[MEASUREMENT_OBJECT_4]
 Module=CSM
 Name=ADMMEC_20385_A01
 Mode=2147483677
@@ -813,7 +737,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_5_DISPLAY_1]
+[MEASUREMENT_OBJECT_4_DISPLAY_1]
 Window=8
 Index=1
 Color=255
@@ -855,7 +779,7 @@ Col=0
 YAxis_ID=0
 AxisTemplate=
 
-[MEASUREMENT_OBJECT_6]
+[MEASUREMENT_OBJECT_5]
 Module=CSM
 Name=ADMMEC_20385_A02
 Mode=2147483677
@@ -869,7 +793,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_6_DISPLAY_1]
+[MEASUREMENT_OBJECT_5_DISPLAY_1]
 Window=8
 Index=0
 Color=65280
@@ -911,7 +835,7 @@ Col=0
 YAxis_ID=0
 AxisTemplate=
 
-[MEASUREMENT_OBJECT_7]
+[MEASUREMENT_OBJECT_6]
 Module=XCPpi
 Name=byteArray1
 Mode=2147483649
@@ -931,7 +855,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=0
 
-[MEASUREMENT_OBJECT_8]
+[MEASUREMENT_OBJECT_7]
 Module=XCPpi
 Name=byteArray2
 Mode=2147483649
@@ -951,9 +875,29 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=0
 
-[MEASUREMENT_OBJECT_9]
+[MEASUREMENT_OBJECT_8]
 Module=XCPpi
 Name=byteArray3
+Mode=2147483649
+Rate=1
+Disabled=0
+Row=0
+Column=0
+MeaReferenced=1
+MeasureWorkingPoint=0
+ShowWorkingPoint=0
+FollowWorkingPoint=0
+Array=1
+Rows=1
+Columns=1400
+ArchivBy_1=Rekorder
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=0
+
+[MEASUREMENT_OBJECT_9]
+Module=XCPpi
+Name=byteArray4
 Mode=2147483649
 Rate=1
 Disabled=0
@@ -1233,21 +1177,21 @@ FocusID=2004
 ActiveTab=0
 FilterNodeID=All
 TreeExpand_0=@All
-TreeExpand_1=All\Devices\CSM\CSM.a2l\EtherCAT\ADMMEC_20385
-TreeExpand_2=All\Devices\CSM\CSM.a2l\EtherCAT
-TreeExpand_3=All\Devices\CSM\CSM.a2l
-TreeExpand_4=All\Devices\CSM
-TreeExpand_5=All\Devices
-TreeExpand_6=All\Devices\XCPpi\XCPpi.a2l\Test_Signals
-TreeExpand_7=All\Measurement list\Algorithms\Functions
+TreeExpand_1=All\Devices\XCPpi\XCPpi.a2l\Test_Parameters
+TreeExpand_2=All\Devices\XCPpi\XCPpi.a2l
+TreeExpand_3=All\Devices\XCPpi
+TreeExpand_4=All\Measurements\FILE2\Signals
+TreeExpand_5=All\Measurements\FILE2
+TreeExpand_6=All\Measurement list
+TreeExpand_7=All\Devices\XCPpi\XCPpi.a2l\Software structure
 TreeExpand_8=All\Measurement list\Algorithms
-TreeExpand_9=All\Devices\XCPpi\XCPpi.a2l\Software structure
-TreeExpand_10=All\Measurement list
-TreeExpand_11=All\Measurements\FILE2
-TreeExpand_12=All\Measurements\FILE2\Signals
-TreeExpand_13=All\Devices\XCPpi
-TreeExpand_14=All\Devices\XCPpi\XCPpi.a2l
-TreeExpand_15=All\Devices\XCPpi\XCPpi.a2l\Test_Parameters
+TreeExpand_9=All\Measurement list\Algorithms\Functions
+TreeExpand_10=All\Devices\XCPpi\XCPpi.a2l\Test_Signals
+TreeExpand_11=All\Devices
+TreeExpand_12=All\Devices\CSM
+TreeExpand_13=All\Devices\CSM\CSM.a2l
+TreeExpand_14=All\Devices\CSM\CSM.a2l\EtherCAT
+TreeExpand_15=All\Devices\CSM\CSM.a2l\EtherCAT\ADMMEC_20385
 TreeExpand_16=$All\Devices
 TreeExpand_17=#All\Devices\CSM\CSM.a2l\EtherCAT\ADMMEC_20385\ADMMEC_20385_A02
 TreeExpand_18=@All\Devices

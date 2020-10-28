@@ -194,7 +194,7 @@ int main(void)
 #endif
 
     // Create A2L file header
-    A2lInit();
+    A2lInit(kXcpA2LFilenameString);
     A2lCreateEvent("ECU");
     A2lCreateEvent("ECUPP");
     A2lHeader();
@@ -207,6 +207,16 @@ int main(void)
     A2lSetEvent(2);
     gEcu = new ecu();
       
+    // Test parameters
+    A2lCreateParameter(gCmdCycle, "Command handler cycle time", "us");
+    A2lCreateParameter(gFlushCycle, "Flush cycle time", "us");
+    A2lCreateParameter(gTaskCycleTimerECU, "ECU cycle time (ns delay)", "ns");
+    A2lCreateParameter(gTaskCycleTimerECUpp, "ECU cycle time (ns delay)", "ns");
+    A2lCreateParameter(gTaskCycleTimerServer, "Server loop cycle time (ns delay)", "ns");
+    A2lCreateParameter(gXcpDebugLevel, "Debug verbosity", "");
+    A2lCreateParameter(gExit, "Quit application", "");
+    A2lCreateGroup("Test_Parameters", 7, "gCmdCycle", "gFlushCycle", "gTaskCycleTimerECU", "gTaskCycleTimerECUpp", "gTaskCycleTimerServer", "gXcpDebugLevel", "gExit");
+
     // Finish A2L
     A2lClose();
 

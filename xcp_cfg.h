@@ -105,7 +105,9 @@ extern void udpServerCommitPacketBuffer(void* par);
 #else
   ApplXcpDbgPin(x)
 #endif
-
+	  
+extern volatile vuint32 gTaskCycleTimerECU;
+extern volatile vuint32 gTaskCycleTimerECUpp;
 
 /*----------------------------------------------------------------------------*/
 /* XCP protocol and transport layer parameters */
