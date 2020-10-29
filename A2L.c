@@ -55,8 +55,8 @@ char* gA2lIfData2 =
 "/begin PGM\n"
 "PGM_MODE_ABSOLUTE 0x00 0x00\n"
 "/end PGM\n"
-"/begin XCP_ON_TCP_IP 0x0100 0x15B3 ADDRESS \"172.31.31.194\" /end XCP_ON_TCP_IP\n"
-"/begin XCP_ON_UDP_IP 0x0103 0x15B3 ADDRESS \"172.31.31.194\" /end XCP_ON_UDP_IP\n"
+//"/begin XCP_ON_TCP_IP 0x0100 0x15B3 ADDRESS \"172.31.31.194\" /end XCP_ON_TCP_IP\n"
+"/begin XCP_ON_UDP_IP 0x0103 0x15B3 ADDRESS \"172.31.31.195\" /end XCP_ON_UDP_IP\n"
 "/end IF_DATA\n"
 ;
 
@@ -93,7 +93,7 @@ static const char* getTypeMin(int size) {
 	case -2: min = "-32768"; break;
 	case -4: min = "-2147483648";  break;
 	case -8: min = "-1E12"; break;
-	case 8: min = "1E12"; break;
+	case 8: min = "-1E12"; break;
 	default: min = "0";
 	}
 	return min;
