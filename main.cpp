@@ -84,15 +84,15 @@ extern "C" {
             if (gExit) break; // Terminate application
             sleepns(gTaskCycleTimerServer);
 
-            ApplXcpTimer();
-            if (gTimer - gCmdTimer > gCmdCycle) {
-                gCmdTimer = gTimer;
+            ApplXcpGetClock();
+            if (gClock - gCmdTimer > gCmdCycle) {
+                gCmdTimer = gClock;
                 if (udpServerHandleXCPCommands() < 0) break;  // Handle XCP commands
             }
 
 #ifndef THREAD_ECU
-            if (gTimer - gTaskTimer > gTaskCycle) {
-                gTaskTimer = gTimer;
+            if (gClock - gTaskTimer > gTaskCycle) {
+                gTaskTimer = gClock;
                 ecuCyclic();
             }
 #endif
@@ -106,8 +106,8 @@ extern "C" {
             
                 // Cyclic flush of incomlete packets from transmit queue or transmit buffer to keep tool visualizations up to date
                 // No priorisation of events implemented, no latency optimizations
-                if (gTimer - gFlushTimer > gFlushCycle && gFlushCycle>0) {
-                    gFlushTimer = gTimer;
+                if (gClock - gFlushTimer > gFlushCycle && gFlushCycle>0) {
+                    gFlushTimer = gClock;
 #ifdef DTO_SEND_QUEUE  
                     udpServerFlushTransmitQueue();
 #else
@@ -177,7 +177,7 @@ int main(void)
         );
      
     // Initialize clock for DAQ event time stamps
-    ApplXcpTimerInit();
+    ApplXcpClockInit();
 
     // Initialize digital io
 #if defined ( XCP_ENABLE_TESTMODE )

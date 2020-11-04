@@ -404,7 +404,7 @@ int udpServerInit(unsigned short serverPort, unsigned int socketTimeout)
     
     // Bind the socket
     gXcpTl.ServerAddr.sin_family = AF_INET;
-    gXcpTl.ServerAddr.sin_addr.s_addr = htonl(INADDR_ANY); // inet_addr("172.31.31.195");
+    gXcpTl.ServerAddr.sin_addr.s_addr = htonl(INADDR_ANY); // inet_addr(SLAVE_IP); 
     gXcpTl.ServerAddr.sin_port = htons(serverPort);
     memset(gXcpTl.ServerAddr.sin_zero, '\0', sizeof(gXcpTl.ServerAddr.sin_zero));
 

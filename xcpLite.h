@@ -13,9 +13,9 @@
 /***************************************************************************/
 
 /* BCD coded version numbers  */
-#define XCP_VERSION 0x01 // CC_CONNECT
-#define XCP_TRANSPORT_LAYER_VERSION 0x0100 // CC_GET_VERSION
-#define XCP_PROTOCOL_LAYER_VERSION 0x0140 // CC_GET_VERSION
+#define XCP_VERSION 0x01 // CC_CONNECT major version
+#define XCP_TRANSPORT_LAYER_VERSION 0x0100 // CC_GET_VERSION major and minor version
+#define XCP_PROTOCOL_LAYER_VERSION 0x0130 // CC_GET_VERSION major and minor version
 
 
 /***************************************************************************/
@@ -227,7 +227,7 @@
 #define SS_BLOCK_UPLOAD        0x0002u /* Internal */
 #define SS_STORE_DAQ_REQ       0x0004u
 #define SS_CLEAR_DAQ_REQ       0x0008u
-#define SS_ERROR               0x0010u /* Internal */
+#define SS_LEGACY_MODE         0x0010u /* Internal XCP 1.3 legacy mode */
 #define SS_CONNECTED           0x0020u /* Internal */
 #define SS_DAQ                 0x0040u
 #define SS_RESUME              0x0080u
@@ -446,7 +446,7 @@
 
 
 /***************************************************************************/
-/* XCP Commands and Responces, Type Definition */
+/* XCP Protocol Commands and Responces, Type Definition */
 /***************************************************************************/
 
 /* Protocol command structure definition */
@@ -778,8 +778,10 @@
 
 #define CRM_GET_DAQ_CLOCK_LEN                           8
 #define CRM_GET_DAQ_CLOCK_RES1                          CRM_BYTE(1)
-#define CRM_GET_DAQ_CLOCK_RES2                          CRM_WORD(1)
+#define CRM_GET_DAQ_CLOCK_TRIGGER_INFO                  CRM_BYTE(2)
+#define CRM_GET_DAQ_CLOCK_PAYLOAD_FMT                   CRM_BYTE(3)
 #define CRM_GET_DAQ_CLOCK_TIME                          CRM_DWORD(1)
+#define CRM_GET_DAQ_CLOCK_TIME64                        CRM_DDWORD(1)
 
 
 /* READ_DAQ */
@@ -1029,7 +1031,7 @@
 #define CRM_GET_VERSION_TRANSPORT_VERSION_MAJOR             CRM_BYTE(4)
 #define CRM_GET_VERSION_TRANSPORT_VERSION_MINOR             CRM_BYTE(5)
 
-   /* TIME SYNCHRONIZATION PROPERTIES*/
+/* TIME SYNCHRONIZATION PROPERTIES*/
 #define CRO_TIME_SYNC_PROPERTIES_LEN                        6
 #define CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES             CRO_BYTE(1)
 #define CRO_TIME_SYNC_PROPERTIES_GET_PROPERTIES             CRO_BYTE(2)
@@ -1108,12 +1110,21 @@
 #define EV_TIME_SYNC_PAYLOAD_FMT_DWORD                      1UL
 #define EV_TIME_SYNC_PAYLOAD_FMT_DLONG                      2UL
 
+
+
+/***************************************************************************/
+/* XCP Transport Layer Commands and Responces, Type Definition */
+/***************************************************************************/
+
+
 /* Transport Layer commands */
 #define CC_TL_GET_SLAVE_ID                                  0xFF
 #define CC_TL_GET_SLAVE_ID_EXTENDED                         0xFD
 #define CC_TL_SET_SLAVE_IP                                  0xFC
 #define CC_TL_GET_DAQ_CLK_MULTICAST                         0xFA
 #define CRO_TL_SUBCOMMAND                                   CRO_BYTE(1)
+
+
 /* GET_SLAVE_ID */
 #define CRO_TL_SLV_DETECT_PORT                              CRO_WORD(1)
 #define CRO_TL_SLV_DETECT_MCAST_IP_ADDR                     CRO_DWORD(1)
@@ -1148,6 +1159,7 @@
   #define CRM_BYTE(x)               (gXcp.Crm.b[x])
   #define CRM_WORD(x)               (gXcp.Crm.w[x])
   #define CRM_DWORD(x)              (gXcp.Crm.dw[x])
+  #define CRM_DDWORD(x)             (*(vuint64*)&gXcp.Crm.dw[x])
 
   
 
@@ -1293,6 +1305,37 @@ typedef struct {
 
 
 
+/****************************************************************************/
+/* XCP clock information                                                    */
+/****************************************************************************/
+
+typedef struct _T_CLOCK_INFORMATION {
+    unsigned char      UUID[8];
+    unsigned short     timestampTicks;
+    unsigned char      timestampUnit;
+    unsigned char      stratumLevel;
+    unsigned char      nativeTimestampSize;
+    unsigned char      fill[3]; // for alignment (8 byte) of structure
+    unsigned long long valueBeforeWrapAround;
+} T_CLOCK_INFORMATION;
+
+typedef struct _T_CLOCK_INFORMATION_GRANDM {
+    unsigned char      UUID[8];
+    unsigned short     timestampTicks;
+    unsigned char      timestampUnit;
+    unsigned char      stratumLevel;
+    unsigned char      nativeTimestampSize;
+    unsigned char      epochOfGrandmaster;
+    unsigned char      fill[2]; // for alignment (8 byte) of structure
+    unsigned long long valueBeforeWrapAround;
+} T_CLOCK_INFORMATION_GRANDM;
+
+typedef struct _T_CLOCK_RELATION {
+    unsigned long long timestampOrigin;
+    unsigned long long timestampLocal;
+} T_CLOCK_RELATION;
+
+
 
 /****************************************************************************/
 /* XCP data strucure                                                        */
@@ -1322,6 +1365,12 @@ typedef struct {
   /* Pointers for WRITE_DAQ from SET_DAQ_PTR */
   vuint16 DaqListPtr;
   vuint16 OdtPtr;
+
+  /* XCP slave and master clock info and clock relation info */
+  vuint16 ClusterId;
+  T_CLOCK_INFORMATION XcpSlaveClockInfo;
+  T_CLOCK_INFORMATION_GRANDM GrandmasterClockInfo;
+  T_CLOCK_RELATION SlvGrandmClkRelationInfo;
 
 } tXcpData;
 
@@ -1383,13 +1432,6 @@ void ApplXcpCommitDtoBuffer(vuint8 *buf);
   // defined as macro
 #else
   extern MTABYTEPTR ApplXcpGetPointer( vuint8 addr_ext, vuint32 addr );
-#endif
-
-/* Get DAQ Timestamp from free runing application clock */
-#if defined ( ApplXcpGetTimestamp )
-  // defined as macro
-#else
-  extern XcpDaqTimestampType ApplXcpGetTimestamp( void );
 #endif
 
 

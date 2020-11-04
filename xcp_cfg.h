@@ -39,6 +39,22 @@
 #include <arpa/inet.h>
 
 
+
+/*----------------------------------------------------------------------------*/
+
+#define XCP_SLAVE2
+
+#ifdef XCP_SLAVE2
+#define SLAVE_IP "172.31.31.195"
+#define SLAVE_MAC {0xdc,0xa6,0x32,0x2e,0x7d,0xe0}
+#define SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x2e,0x7d,0xe0}
+#else
+#define SLAVE_IP "172.31.31.194"
+#define SLAVE_MAC {0xdc,0xa6,0x32,0x7e,0x66,0xdc}
+#define SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc}
+#endif
+
+
 /*----------------------------------------------------------------------------*/
 /* Platform specific definitions */
 
@@ -53,6 +69,10 @@ typedef signed short   vsint16;
 /* 32-Bit  */
 typedef unsigned long  vuint32;
 typedef signed long    vsint32;
+
+/* 64-Bit  */
+typedef unsigned long long  vuint64;
+typedef signed long long vsint64;
 
 /* Byte order */
 //#define XCP_CPUTYPE_BIGENDIAN  /* Motorola */
@@ -151,17 +171,19 @@ extern vuint8 MEMORY_ROM gXcpA2LFilename[];
   #define XCP_MAX_ODT_ENTRY_SIZE 248 // mod 4 = 0 to optimize DAQ copy granularity
 
 /* DAQ timestamp settings */
+extern vuint32 ApplXcpGetClock(void);
+extern vuint64 ApplXcpGetClock64(void);
 #define kApplXcpDaqTimestampTicksPerMs 1000 
-extern vuint32 ApplXcpTimer(void);
 #define kXcpDaqTimestampUnit DAQ_TIMESTAMP_UNIT_1US
 #define kXcpDaqTimestampTicksPerUnit 1  
-#define ApplXcpGetTimestamp() ApplXcpTimer()
 
 
 /*----------------------------------------------------------------------------*/
 /* XCP protocol features */
 
 #define XCP_ENABLE_CALIBRATION
+
+#define XCP_ENABLE_PTP
 
 
 

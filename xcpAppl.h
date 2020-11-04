@@ -6,10 +6,12 @@
 
 #include "xcpLite.h"
 
-extern volatile vuint32 gTimer;
+extern volatile vuint32 gClock;
+extern volatile vuint64 gClock64;
 
-extern void ApplXcpTimerInit(void);
-extern vuint32 ApplXcpTimer(void);
+extern void ApplXcpClockInit(void);
+extern vuint32 ApplXcpGetClock(void);
+extern vuint64 ApplXcpGetClock64(void);
+
 
 #endif
-
