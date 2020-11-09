@@ -63,7 +63,8 @@ char testString[] = "TestString";
 /**************************************************************************/
 
 
-volatile double period = 5;	 
+volatile double offset = 0;
+volatile double period = 5;
 volatile double ampl   = 50;
 
 volatile unsigned char map1_8_8[8][8] =
@@ -137,6 +138,7 @@ void ecuInit( void ) {
     A2lCreatePhysMeasurement(timer, 1.0, 0.0, "s", "Time in s");
     A2lCreatePhysMeasurement(channel1, 1.0, 1.0, "Volt", "Demo floating point signal");
     A2lCreateParameter(ampl, "V", "Amplitude");
+    A2lCreateParameter(offset, "V", "Offset");
     A2lCreateParameter(period, "s", "Period");
     A2lCreateMap(map1_8_8, 8, 8, "", "8*8 byte calibration array");
     A2lCreateCurve(curve1_32, 32, "", "32 byte calibration array");

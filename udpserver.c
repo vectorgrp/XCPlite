@@ -40,7 +40,7 @@ static int udpServerSendDatagram(const unsigned char* data, unsigned int size ) 
     }
 #endif
 
-    // Respond to active client, same port    // option gRemoteAddr.sin_port = htons(9001);
+    // Respond to active connect client, same port    // option gRemoteAddr.sin_port = htons(9001);
     r = sendto(gXcpTl.Sock, data, size, 0, (struct sockaddr*)&gXcpTl.ClientAddr, sizeof(struct sockaddr));
     if (r != size) {
         perror("udpServerSendDatagram() sendto failed");
@@ -334,9 +334,11 @@ int udpServerHandleXCPCommands(void) {
             XcpCommand((const vuint32*)&buffer.data[0]);
         }
         else {
-            if (buffer.dlc == 2) { // Accept dlc=2 for CONNECT command only
+            /* CONNECT ? */
+            const tXcpCto* pCmd = (const tXcpCto*)&buffer.data[0];
+            if (buffer.dlc == 2 && CRO_CMD == CC_CONNECT) { // Accept CONNECT command only
                 gXcpTl.ClientAddr = src;
-                gXcpTl.ClientAddrValid = 1;
+                gXcpTl.ClientAddrValid = 1;             
                 XcpCommand((const vuint32*)&buffer.data[0]);
             }
         }

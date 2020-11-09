@@ -108,22 +108,15 @@
 #define CC_PROGRAM_MAX                    0xC9
 #define CC_PROGRAM_VERIFY                 0xC8
 
-
 /*-------------------------------------------------------------------------*/
-/* XCP V1.1 specific commands */
-# define CC_WRITE_DAQ_MULTIPLE            0xC7
+/* XCP >= V1.7 Commands */
 
-/*-------------------------------------------------------------------------*/
-/* XCP V1.3 specific commands */
-# define CC_TIME_CORRELATION_PROPERTIES   0xC6
+# define CC_WRITE_DAQ_MULTIPLE            0xC7 /* XCP V1.1 specific commands */
+# define CC_TIME_CORRELATION_PROPERTIES   0xC6 /* XCP V1.3 specific commands */
 
-/*-------------------------------------------------------------------------*/
-/* XCP V1.4 specific commands */
-
-/* Level 1 Commands */
-#define CC_LEVEL_1_COMMAND                    0xC0
-#define CC_GET_VERSION                        0x00          /* GET_VERSION --> Standard command */
-#define CC_SW_DBG_OVER_XCP                    0xFC          /* software debugging over XCP */
+#define CC_LEVEL_1_COMMAND                0xC0 /* XCP V1.4 Level 1 Commands: */
+#define CC_GET_VERSION                    0x00  
+#define CC_SW_DBG_OVER_XCP                0xFC  
 
 
 /*-------------------------------------------------------------------------*/
@@ -783,7 +776,6 @@
 #define CRM_GET_DAQ_CLOCK_TIME                          CRM_DWORD(1)
 #define CRM_GET_DAQ_CLOCK_TIME64                        CRM_DDWORD(1)
 
-
 /* READ_DAQ */
 #define CRO_READ_DAQ_LEN                                1
 
@@ -1110,7 +1102,15 @@
 #define EV_TIME_SYNC_PAYLOAD_FMT_DWORD                      1UL
 #define EV_TIME_SYNC_PAYLOAD_FMT_DLONG                      2UL
 
-
+/* TRIGGER_INITIATOR:
+    0 = HW trigger, i.e.Vector Syncline
+    1 = Event derived from XCP - independent time synchronization event – e.g.globally synchronized pulse per second signal
+    2 = GET_DAQ_CLOCK_MULTICAST
+    3 = GET_DAQ_CLOCK_MULTICAST via Time Sync Bridge
+    4 = State change in syntonization / synchronization to grandmaster clock(either established or lost, additional information is provided by the SYNC_STATE field - see Table 236)
+    5 = Leap second occurred on grandmaster clock
+    6 = release of ECU reset
+*/
 
 /***************************************************************************/
 /* XCP Transport Layer Commands and Responces, Type Definition */
@@ -1121,9 +1121,8 @@
 #define CC_TL_GET_SLAVE_ID                                  0xFF
 #define CC_TL_GET_SLAVE_ID_EXTENDED                         0xFD
 #define CC_TL_SET_SLAVE_IP                                  0xFC
-#define CC_TL_GET_DAQ_CLK_MULTICAST                         0xFA
+#define CC_TL_GET_DAQ_CLOCK_MULTICAST                       0xFA
 #define CRO_TL_SUBCOMMAND                                   CRO_BYTE(1)
-
 
 /* GET_SLAVE_ID */
 #define CRO_TL_SLV_DETECT_PORT                              CRO_WORD(1)
@@ -1143,8 +1142,9 @@
 #define TL_SLV_DETECT_STATUS_SLV_ID_EXT_XCP_ON_PCIE         (1<<1)
 
 /* GET_DAQ_CLOCK_MULTICAST */
-#define CRO_TL_DAQ_CLK_MCAST_CLUSTER_IDENTIFIER             CRO_WORD(1)
-#define CRO_TL_DAQ_CLK_MCAST_COUNTER                        CRO_BYTE(4)
+#define CRO_TL_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER             CRO_WORD(1)
+#define CRO_TL_DAQ_CLOCK_MCAST_COUNTER                        CRO_BYTE(4)
+
 
 
 

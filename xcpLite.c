@@ -724,17 +724,6 @@ void XcpCommand( const vuint32* pCommand )
             }
             break;        
           
-#if 0
-          case CC_DOWNLOAD_MAX:
-            {
-              err = XcpWriteMta(CRO_DOWNLOAD_MAX_MAX_SIZE,CRO_DOWNLOAD_MAX_DATA);
-              if (err==(vuint8)XCP_CMD_PENDING) return;
-              if (err == (vuint8)XCP_CMD_DENIED) error(CRC_WRITE_PROTECTED);
-              if (err == (vuint8)XCP_CMD_SYNTAX) error(CRC_CMD_SYNTAX);
-            }
-            break;
-#endif
-
           case CC_UPLOAD:
             {
               vuint8 size = CRO_UPLOAD_SIZE;
@@ -913,11 +902,13 @@ void XcpCommand( const vuint32* pCommand )
             }
             break;
 
-  
+          get_daq_clock:
           case CC_GET_DAQ_CLOCK:
           {
               CRM_GET_DAQ_CLOCK_RES1 = 0x00;
               CRM_GET_DAQ_CLOCK_TRIGGER_INFO = 0x00;
+              gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN;
+#ifdef TIMESTAMP_DLONG
               if (gXcp.SessionStatus & SS_LEGACY_MODE) {
                   // Legacy format
                   gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN;
@@ -930,18 +921,25 @@ void XcpCommand( const vuint32* pCommand )
                   CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = 0x2;// FMT_XCP_SLV = size of payload is DLONG
                   CRM_GET_DAQ_CLOCK_TIME64 = ApplXcpGetClock64();
               }
+#else
+              CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = 0x01; // FMT_XCP_SLV = size of payload is DWORD
+              CRM_GET_DAQ_CLOCK_TIME = ApplXcpGetClock();
+#endif
+
           }
             break;
            
 
           case CC_TIME_CORRELATION_PROPERTIES:
             {
+#ifdef TIMESTAMP_DLONG
               if ((CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES & TIME_SYNC_SET_PROPERTIES_RESP_FORMAT_MASK) >= 1) {
 #if defined ( XCP_ENABLE_TESTMODE )
-                ApplXcpPrint("Timesync extended mode activated\n");
+                  if (gXcpDebugLevel != 0) ApplXcpPrint("Timesync extended mode activated\n");
 #endif                 
                 gXcp.SessionStatus = (vuint8)(gXcp.SessionStatus & ~SS_LEGACY_MODE);
               }
+#endif
               
               if (CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES & TIME_SYNC_SET_PROPERTIES_CLUSTER_AFFILIATION_MASK) {
                 gXcp.ClusterId = CRO_TIME_SYNC_PROPERTIES_CLUSTER_AFFILIATION;
@@ -949,16 +947,14 @@ void XcpCommand( const vuint32* pCommand )
 
               // Time sync bride is not supported
               if (CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES & TIME_SYNC_SET_PROPERTIES_TIME_SYNC_BRIDGE_MASK) {
-#if defined ( XCP_ENABLE_TESTMODE )
-                  ApplXcpPrint("XCP Master tried to change timesyncbridge settings. Feature not supported!\n");
-#endif
                   error(CRC_OUT_OF_RANGE);
               }
 
               // Response
               gXcp.CrmLen = CRM_TIME_SYNC_PROPERTIES_LEN;
-              CRM_TIME_SYNC_PROPERTIES_SLV_CONFIG = 0; // TIME_SYNC_BRIDGE = 0, DAQ_TS_RELATION = 0 XCP slave clock, RESPONSE_FMT = 0 - EV_TIME_SYNC and GET_DAQ_CLOCK_MULTICAST not supported
-              //CRM_TIME_SYNC_PROPERTIES_SLV_CONFIG = 1; // TIME_SYNC_BRIDGE = 0, DAQ_TS_RELATION = 0 - XCP slave clock, RESPONSE_FMT = 1 - EV_TIME_SYNC and GET_DAQ_CLOCK_MULTICAST supported
+              
+              //CRM_TIME_SYNC_PROPERTIES_SLV_CONFIG = 0; // TIME_SYNC_BRIDGE = 0, DAQ_TS_RELATION = 0 XCP slave clock, RESPONSE_FMT = 0 - GET_DAQ_CLOCK response is always in legacy mode
+              CRM_TIME_SYNC_PROPERTIES_SLV_CONFIG = 1; // TIME_SYNC_BRIDGE = 0, DAQ_TS_RELATION = 0 - XCP slave clock, RESPONSE_FMT = 1 - GET_DAQ_CLOCK response in extended format, GET_DAQ_CLOCK_MULTICAST response with EV_TIME_SYNC extended format
               //CRM_TIME_SYNC_PROPERTIES_OBSERVABLE_CLOCKS = 0; // XCP_SLV_CLK = 0 - free running observable, GRANDM_CLK = 0, ECU_CLK = 0
               CRM_TIME_SYNC_PROPERTIES_OBSERVABLE_CLOCKS = 1; // XCP_SLV_CLK = 1 - slave clock synchronized and observable, GRANDM_CLK = 0, ECU_CLK = 0
               CRM_TIME_SYNC_PROPERTIES_SYNC_STATE = 0x01; // SLV_CLK_SYNC_STATE = 1 - slave clock synchronised to grandmaster
@@ -969,26 +965,20 @@ void XcpCommand( const vuint32* pCommand )
 
               // check whether MTA based upload is requested
               if (CRO_TIME_SYNC_PROPERTIES_GET_PROPERTIES & TIME_SYNC_GET_PROPERTIES_SLV_CLK_INFO) {
-                  unsigned char mtaRequired = 0;
                   static unsigned char buf[sizeof(T_CLOCK_INFORMATION) + sizeof(T_CLOCK_RELATION) + sizeof(T_CLOCK_INFORMATION_GRANDM)];
                   unsigned char* p = &buf[0];
                   if (CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO & TIME_SYNC_GET_PROPERTIES_SLV_CLK_INFO) {
                       ApplXcpPrint("SLV CLK info to MTA\n");
-                      mtaRequired |= 1;
                       memcpy(p, (unsigned char*)&gXcp.XcpSlaveClockInfo, sizeof(T_CLOCK_INFORMATION));
                       p += sizeof(T_CLOCK_INFORMATION);
                   }
 
                   if (CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO & TIME_SYNC_GET_PROPERTIES_GRANDM_CLK_INFO) {
-                      ApplXcpPrint("GRANDM CLK info to MTA\n");
-                      mtaRequired |= 1;
                       memcpy(p, (unsigned char*)&gXcp.GrandmasterClockInfo, sizeof(T_CLOCK_INFORMATION_GRANDM));
                       p += sizeof(T_CLOCK_INFORMATION_GRANDM);
                   }
 
                   if (CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO & TIME_SYNC_GET_PROPERTIES_CLK_RELATION) {
-                      ApplXcpPrint("CLK Offset to MTA\n");
-                      mtaRequired |= 1;
                       ApplXcpGetClock();
                       gXcp.SlvGrandmClkRelationInfo.timestampLocal = ApplXcpGetClock64();
                       gXcp.SlvGrandmClkRelationInfo.timestampOrigin = gXcp.SlvGrandmClkRelationInfo.timestampLocal;
@@ -997,23 +987,32 @@ void XcpCommand( const vuint32* pCommand )
                   }
 
                   if (CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO & TIME_SYNC_GET_PROPERTIES_ECU_CLK_INFO) {
-                      ApplXcpPrint("ECU CLK info to MTA\n");
                       error(CRC_OUT_OF_RANGE)
                   }
 
                   if (CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO & TIME_SYNC_GET_PROPERTIES_ECU_GRANDM_CLK_INFO) {
-                      ApplXcpPrint("ECU GRANDM CLK info to MTA\n");
                       error(CRC_OUT_OF_RANGE)
                   }
 
-                  if (mtaRequired) {
-                      XcpSetMta((MTABYTEPTR)buf, 0);
-                  }
+                  XcpSetMta((MTABYTEPTR)buf, 0);
               }
             }
             break; 
 
 
+          case CC_TRANSPORT_LAYER_CMD:
+              switch (CRO_TL_SUBCOMMAND) {
+                                
+              case CC_TL_GET_DAQ_CLOCK_MULTICAST:
+                 goto get_daq_clock;
+
+              case CC_TL_GET_SLAVE_ID:
+              default: /* unknown transport layer command */
+                  error(CRC_CMD_UNKNOWN);
+              }
+              break;
+             
+          
           case CC_LEVEL_1_COMMAND:
               switch (CRO_LEVEL_1_COMMAND_CODE) {
 
@@ -1059,7 +1058,7 @@ negative_response:
 positive_response:
 
 #if defined ( XCP_ENABLE_TESTMODE )
-  if (gXcpDebugLevel != 0) XcpPrintRes(pCmd);
+  if (gXcpDebugLevel >= 1) XcpPrintRes(pCmd);
 #endif
 
   ApplXcpSendCrm(&gXcp.Crm.b[0],gXcp.CrmLen);
@@ -1087,27 +1086,25 @@ void XcpInit( void )
   memset((BYTEPTR)&gXcp,0,(vuint16)sizeof(gXcp)); 
    
   // UUID is contructed will be updated to match the MAC address of the XCP slave
-  unsigned char uuid[8] = SLAVE_UUID;
-  memcpy(&gXcp.XcpSlaveClockInfo.UUID[0], &uuid[0], 8);
+  unsigned char uuid1[8] = SLAVE_UUID;
+  memcpy(&gXcp.XcpSlaveClockInfo.UUID[0], &uuid1[0], 8);
   gXcp.XcpSlaveClockInfo.timestampTicks = kXcpDaqTimestampTicksPerUnit;
   gXcp.XcpSlaveClockInfo.timestampUnit = kXcpDaqTimestampUnit;
   gXcp.XcpSlaveClockInfo.stratumLevel = 255UL; // STRATUM_LEVEL_UNKNOWN;
+#if TIMESTAMP_DLONG
   gXcp.XcpSlaveClockInfo.nativeTimestampSize = 8UL; // NATIVE_TIMESTAMP_SIZE_DLONG;
   gXcp.XcpSlaveClockInfo.valueBeforeWrapAround = 0xFFFFFFFFFFFFFFFFULL;
+#else
+  gXcp.XcpSlaveClockInfo.nativeTimestampSize = 4UL; // NATIVE_TIMESTAMP_SIZE_LONG;
+  gXcp.XcpSlaveClockInfo.valueBeforeWrapAround = 0xFFFFFFFFULL;
+#endif
 
   // Grandmaster clock description:
-  // UUID == 0 means unavailable clock
   // UUID will later be updated with the details received from the PTP grandmaster
-  gXcp.GrandmasterClockInfo.UUID[0] = 0;
-  gXcp.GrandmasterClockInfo.UUID[1] = 0;
-  gXcp.GrandmasterClockInfo.UUID[2] = 0;
-  gXcp.GrandmasterClockInfo.UUID[3] = 0;
-  gXcp.GrandmasterClockInfo.UUID[4] = 0;
-  gXcp.GrandmasterClockInfo.UUID[5] = 0;
-  gXcp.GrandmasterClockInfo.UUID[6] = 0;
-  gXcp.GrandmasterClockInfo.UUID[7] = 0;
-  gXcp.GrandmasterClockInfo.timestampTicks = 1;
-  gXcp.GrandmasterClockInfo.timestampUnit = DAQ_TIMESTAMP_UNIT_1NS;
+  unsigned char uuid2[8] = MASTER_UUID;
+  memcpy(&gXcp.XcpSlaveClockInfo.UUID[0], &uuid2[0], 8);
+  gXcp.GrandmasterClockInfo.timestampTicks = kXcpDaqTimestampTicksPerUnit;
+  gXcp.GrandmasterClockInfo.timestampUnit = kXcpDaqTimestampUnit;
   gXcp.GrandmasterClockInfo.stratumLevel = 0; // GPS
   gXcp.GrandmasterClockInfo.nativeTimestampSize = 8UL; // NATIVE_TIMESTAMP_SIZE_DLONG;
   gXcp.GrandmasterClockInfo.valueBeforeWrapAround = 0xFFFFFFFFFFFFFFFFULL;
@@ -1138,63 +1135,66 @@ static void XcpPrintCmd(const tXcpCto * pCmd) {
     switch (CRO_CMD) {
 
     case CC_SYNC:
-            ApplXcpPrint("-> SYNC\n");
+            ApplXcpPrint("SYNC\n");
             break;
             
     case CC_GET_COMM_MODE_INFO:
-            ApplXcpPrint("-> GET_COMM_MODE_INFO\n");
+            ApplXcpPrint("GET_COMM_MODE_INFO\n");
             break;
 
     case CC_DISCONNECT:
-            ApplXcpPrint("-> DISCONNECT\n");
+            ApplXcpPrint("DISCONNECT\n");
             break;
 
     case CC_GET_ID:
-            ApplXcpPrint("-> GET_ID type=%u\n", CRO_GET_ID_TYPE);
+            ApplXcpPrint("GET_ID type=%u\n", CRO_GET_ID_TYPE);
             break;
 
     case CC_GET_STATUS:
-            ApplXcpPrint("-> GET_STATUS\n");
+            ApplXcpPrint("GET_STATUS\n");
             break;
 
     case CC_SET_MTA:
-            ApplXcpPrint("-> SET_MTA addr=%08Xh, addrext=%02Xh\n", CRO_SET_MTA_ADDR, CRO_SET_MTA_EXT);
+            if (gXcpDebugLevel >= 2) {
+                ApplXcpPrint("SET_MTA addr=%08Xh, addrext=%02Xh\n", CRO_SET_MTA_ADDR, CRO_SET_MTA_EXT);
+            }
+            else {
+                ApplXcpPrint("S,");
+            }
             break;
 
      case CC_DOWNLOAD:
-            if ((CRO_CMD != CC_DOWNLOAD_NEXT)) {
+         if (gXcpDebugLevel >= 2) {
                 vuint16 i;
-                ApplXcpPrint("-> DOWNLOAD size=%u, data=", CRO_DOWNLOAD_SIZE);
+                ApplXcpPrint("DOWNLOAD size=%u, data=", CRO_DOWNLOAD_SIZE);
                 for (i = 0; (i < CRO_DOWNLOAD_SIZE) && (i < CRO_DOWNLOAD_MAX_SIZE); i++)
                 {
                     ApplXcpPrint("%02X ", CRO_DOWNLOAD_DATA[i]);
                 }
                 ApplXcpPrint("\n");
+            } else {
+             ApplXcpPrint("D,");
             }
-            break;
-
-     case CC_DOWNLOAD_MAX:
-            ApplXcpPrint("DOWNLOAD_MAX data=");
-            for (int i = 0; i < CRO_DOWNLOAD_MAX_MAX_SIZE; i++) {
-                ApplXcpPrint("%02X ", CRO_DOWNLOAD_MAX_DATA[i]);
-            }
-            ApplXcpPrint("\n");
             break;
 
      case CC_UPLOAD:
-            ApplXcpPrint("-> UPLOAD size=%u\n", CRO_UPLOAD_SIZE);
+            if (gXcpDebugLevel >= 2) {
+                 ApplXcpPrint("UPLOAD size=%u\n", CRO_UPLOAD_SIZE);
+            } else {
+                ApplXcpPrint("U,");
+            }
             break;
 
      case CC_SHORT_UPLOAD:
-            ApplXcpPrint("-> SHORT_UPLOAD addr=%08Xh, addrext=%02Xh, size=%u\n", CRO_SHORT_UPLOAD_ADDR, CRO_SHORT_UPLOAD_EXT, CRO_SHORT_UPLOAD_SIZE);
+            ApplXcpPrint("SHORT_UPLOAD addr=%08Xh, addrext=%02Xh, size=%u\n", CRO_SHORT_UPLOAD_ADDR, CRO_SHORT_UPLOAD_EXT, CRO_SHORT_UPLOAD_SIZE);
             break;
 
      case CC_GET_DAQ_PROCESSOR_INFO:
-            ApplXcpPrint("-> GET_DAQ_PROCESSOR_INFO\n");
+            ApplXcpPrint("GET_DAQ_PROCESSOR_INFO\n");
             break;
 
      case CC_GET_DAQ_RESOLUTION_INFO:
-            ApplXcpPrint("-> GET_DAQ_RESOLUTION_INFO\n");
+            ApplXcpPrint("GET_DAQ_RESOLUTION_INFO\n");
             break;
 
      case CC_FREE_DAQ:
@@ -1202,69 +1202,69 @@ static void XcpPrintCmd(const tXcpCto * pCmd) {
             break;
 
      case CC_ALLOC_DAQ:
-            ApplXcpPrint("-> ALLOC_DAQ count=%u\n", CRO_ALLOC_DAQ_COUNT);
+            ApplXcpPrint("ALLOC_DAQ count=%u\n", CRO_ALLOC_DAQ_COUNT);
             break;
 
      case CC_ALLOC_ODT:
-            ApplXcpPrint("-> ALLOC_ODT daq=%u, count=%u\n", CRO_ALLOC_ODT_DAQ, CRO_ALLOC_ODT_COUNT);
+            ApplXcpPrint("ALLOC_ODT daq=%u, count=%u\n", CRO_ALLOC_ODT_DAQ, CRO_ALLOC_ODT_COUNT);
             break;
 
      case CC_ALLOC_ODT_ENTRY:
-            ApplXcpPrint("-> ALLOC_ODT_ENTRY daq=%u, odt=%u, count=%u\n", CRO_ALLOC_ODT_ENTRY_DAQ, CRO_ALLOC_ODT_ENTRY_ODT, CRO_ALLOC_ODT_ENTRY_COUNT);
+            ApplXcpPrint("ALLOC_ODT_ENTRY daq=%u, odt=%u, count=%u\n", CRO_ALLOC_ODT_ENTRY_DAQ, CRO_ALLOC_ODT_ENTRY_ODT, CRO_ALLOC_ODT_ENTRY_COUNT);
             break;
 
      case CC_GET_DAQ_LIST_MODE:
-            ApplXcpPrint("-> GET_DAQ_LIST_MODE daq=%u\n",CRO_GET_DAQ_LIST_MODE_DAQ );
+            ApplXcpPrint("GET_DAQ_LIST_MODE daq=%u\n",CRO_GET_DAQ_LIST_MODE_DAQ );
             break;
 
      case CC_SET_DAQ_LIST_MODE:
-            ApplXcpPrint("-> SET_DAQ_LIST_MODE daq=%u, mode=%02Xh, eventchannel=%u\n",CRO_SET_DAQ_LIST_MODE_DAQ, CRO_SET_DAQ_LIST_MODE_MODE, CRO_SET_DAQ_LIST_MODE_EVENTCHANNEL);
+            ApplXcpPrint("SET_DAQ_LIST_MODE daq=%u, mode=%02Xh, eventchannel=%u\n",CRO_SET_DAQ_LIST_MODE_DAQ, CRO_SET_DAQ_LIST_MODE_MODE, CRO_SET_DAQ_LIST_MODE_EVENTCHANNEL);
             break;
            
      case CC_SET_DAQ_PTR:
-            ApplXcpPrint("-> SET_DAQ_PTR daq=%u,odt=%u,idx=%u\n", CRO_SET_DAQ_PTR_DAQ, CRO_SET_DAQ_PTR_ODT, CRO_SET_DAQ_PTR_IDX);
+            ApplXcpPrint("SET_DAQ_PTR daq=%u,odt=%u,idx=%u\n", CRO_SET_DAQ_PTR_DAQ, CRO_SET_DAQ_PTR_ODT, CRO_SET_DAQ_PTR_IDX);
             break;
 
      case CC_WRITE_DAQ: /* Write DAQ entry */
-            ApplXcpPrint("-> WRITE_DAQ size=%u,addr=%08Xh,%02Xh\n", CRO_WRITE_DAQ_SIZE, CRO_WRITE_DAQ_ADDR, CRO_WRITE_DAQ_EXT);
+            ApplXcpPrint("WRITE_DAQ size=%u,addr=%08Xh,%02Xh\n", CRO_WRITE_DAQ_SIZE, CRO_WRITE_DAQ_ADDR, CRO_WRITE_DAQ_EXT);
             break;
 
      case CC_WRITE_DAQ_MULTIPLE: /* Write multiple DAQ entries */
-         ApplXcpPrint("-> WRITE_MULTIPLE_DAQ count=%u\n", CRO_WRITE_DAQ_MULTIPLE_NODAQ);
+         ApplXcpPrint("WRITE_MULTIPLE_DAQ count=%u\n", CRO_WRITE_DAQ_MULTIPLE_NODAQ);
          for (int i = 0; i < CRO_WRITE_DAQ_MULTIPLE_NODAQ; i++) {
                 ApplXcpPrint("   %u: size=%u,addr=%08Xh,%02Xh\n", i, CRO_WRITE_DAQ_MULTIPLE_SIZE(i), CRO_WRITE_DAQ_MULTIPLE_ADDR(i), CRO_WRITE_DAQ_MULTIPLE_EXT(i));
             }
             break;
 
      case CC_START_STOP_DAQ_LIST:
-            ApplXcpPrint("-> START_STOP mode=%02Xh, daq=%u\n", CRO_START_STOP_MODE, CRO_START_STOP_DAQ);
+            ApplXcpPrint("START_STOP mode=%02Xh, daq=%u\n", CRO_START_STOP_MODE, CRO_START_STOP_DAQ);
             break;
 
      case CC_START_STOP_SYNCH:
-            ApplXcpPrint("-> CC_START_STOP_SYNCH mode=%02Xh\n", CRO_START_STOP_MODE);
+            ApplXcpPrint("CC_START_STOP_SYNCH mode=%02Xh\n", CRO_START_STOP_MODE);
             break;
 
      case CC_GET_DAQ_CLOCK:
-            ApplXcpPrint("-> GET_DAQ_CLOCK\n");
+            ApplXcpPrint("GET_DAQ_CLOCK\n");
             break;
 
      case CC_TIME_CORRELATION_PROPERTIES:
-         ApplXcpPrint("-> GET_TIME_CORRELATION_PROPERTIES set=%02Xh, get=%02Xh, clusterId=%04Xh\n", CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES, CRO_TIME_SYNC_PROPERTIES_GET_PROPERTIES, CRO_TIME_SYNC_PROPERTIES_CLUSTER_AFFILIATION );
+         ApplXcpPrint("GET_TIME_CORRELATION_PROPERTIES set=%02Xh, get=%02Xh, clusterId=%04Xh\n", CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES, CRO_TIME_SYNC_PROPERTIES_GET_PROPERTIES, CRO_TIME_SYNC_PROPERTIES_CLUSTER_AFFILIATION );
          break;
 
      case CC_LEVEL_1_COMMAND:
          switch (CRO_LEVEL_1_COMMAND_CODE) {
            case CC_GET_VERSION:
-               ApplXcpPrint("-> GET_VERSION\n");
+               ApplXcpPrint("GET_VERSION\n");
                break;
            default:
-               ApplXcpPrint("-> UNKNOWN LEVEL 1 COMMAND %02X\n", CRO_LEVEL_1_COMMAND_CODE);
+               ApplXcpPrint("UNKNOWN LEVEL 1 COMMAND %02X\n", CRO_LEVEL_1_COMMAND_CODE);
                break;
          }
          break;
 
      default:
-            ApplXcpPrint("-> UNKNOWN COMMAND %02X\n", CRO_CMD);
+            ApplXcpPrint("UNKNOWN COMMAND %02X\n", CRO_CMD);
          
     } /* switch */
 }
@@ -1294,62 +1294,70 @@ static void XcpPrintRes(const tXcpCto* pCmd) {
                 case  CRC_VERIFY: e = "CRC_VERIFY"; break;
                 default: e = "Unknown errorcode";
         }
-        ApplXcpPrint("<- 0xFE error %02Xh - %s\n", CRM_ERR, e );
+        ApplXcpPrint("<- Error: %02Xh - %s\n", CRM_ERR, e );
     }
     else {
         switch (CRO_CMD) {
 
         case CC_CONNECT:
-            ApplXcpPrint("<- 0xFF version=%02Xh/%02Xh, maxcro=%u, maxdto=%u, resource=%02X, mode=%u\n",
+            ApplXcpPrint("<- version=%02Xh/%02Xh, maxcro=%u, maxdto=%u, resource=%02X, mode=%u\n",
                 CRM_CONNECT_PROTOCOL_VERSION, CRM_CONNECT_TRANSPORT_VERSION, CRM_CONNECT_MAX_CTO_SIZE, CRM_CONNECT_MAX_DTO_SIZE, CRM_CONNECT_RESOURCE,  CRM_CONNECT_COMM_BASIC);
             break;
 
         case CC_GET_COMM_MODE_INFO:
-            ApplXcpPrint("<- 0xFF version=%02Xh, opt=%u, queue=%u, max_bs=%u, min_st=%u\n",
+            ApplXcpPrint("<- version=%02Xh, opt=%u, queue=%u, max_bs=%u, min_st=%u\n",
                 CRM_GET_COMM_MODE_INFO_DRIVER_VERSION, CRM_GET_COMM_MODE_INFO_COMM_OPTIONAL, CRM_GET_COMM_MODE_INFO_QUEUE_SIZE, CRM_GET_COMM_MODE_INFO_MAX_BS, CRM_GET_COMM_MODE_INFO_MIN_ST);
             break;
 
         case CC_GET_STATUS:
-            ApplXcpPrint("<- 0xFF sessionstatus=%02Xh, protectionstatus=%02Xh\n", CRM_GET_STATUS_STATUS, CRM_GET_STATUS_PROTECTION);
+            ApplXcpPrint("<- sessionstatus=%02Xh, protectionstatus=%02Xh\n", CRM_GET_STATUS_STATUS, CRM_GET_STATUS_PROTECTION);
             break;
 
         case CC_GET_ID:
-            ApplXcpPrint("<- 0xFF mode=%u,len=%u\n", CRM_GET_ID_MODE, CRM_GET_ID_LENGTH);
+            ApplXcpPrint("<- mode=%u,len=%u\n", CRM_GET_ID_MODE, CRM_GET_ID_LENGTH);
             break;
 
         case CC_UPLOAD:
-            ApplXcpPrint("<- 0xFF data=");
-            for (int i = 0; i < CRO_UPLOAD_SIZE; i++) {
-                ApplXcpPrint("%02Xh ", CRM_UPLOAD_DATA[i]);
+            if (gXcpDebugLevel >= 2) {
+                ApplXcpPrint("<- data=");
+                for (int i = 0; i < CRO_UPLOAD_SIZE; i++) {
+                    ApplXcpPrint("%02Xh ", CRM_UPLOAD_DATA[i]);
+                }
+                ApplXcpPrint("\n");
             }
-            ApplXcpPrint("\n");
             break;
 
         case CC_SHORT_UPLOAD:
-            ApplXcpPrint("<- 0xFF data=");
-            for (int i = 0; i < (vuint16)CRO_SHORT_UPLOAD_SIZE; i++) {
-                ApplXcpPrint("%02Xh ", CRM_SHORT_UPLOAD_DATA[i]);
+            if (gXcpDebugLevel >= 2) {
+                ApplXcpPrint("<- data=");
+                for (int i = 0; i < (vuint16)CRO_SHORT_UPLOAD_SIZE; i++) {
+                    ApplXcpPrint("%02Xh ", CRM_SHORT_UPLOAD_DATA[i]);
+                }
+                ApplXcpPrint("\n");
             }
-            ApplXcpPrint("\n");
             break;
 
         case CC_GET_DAQ_RESOLUTION_INFO:
-            ApplXcpPrint("<- 0xFF , mode=%02Xh, , ticks=%02Xh\n", CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_MODE, CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_TICKS);
+            ApplXcpPrint("<- mode=%02Xh, , ticks=%02Xh\n", CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_MODE, CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_TICKS);
             break;
 
         case CC_GET_DAQ_CLOCK:
+#ifdef TIMESTAMP_DLONG
             if (gXcp.SessionStatus & SS_LEGACY_MODE) {
-                ApplXcpPrint("<- 0xFF t=%ul (%gs)\n", CRM_GET_DAQ_CLOCK_TIME, (double)CRM_GET_DAQ_CLOCK_TIME / (1000.0 * kApplXcpDaqTimestampTicksPerMs));
+                ApplXcpPrint("<- t=%ul (%gs)\n", CRM_GET_DAQ_CLOCK_TIME, (double)CRM_GET_DAQ_CLOCK_TIME / (1000.0 * kApplXcpDaqTimestampTicksPerMs));
             }
             else {
-                ApplXcpPrint("<- 0xFF t=%llull (%gs)\n", CRM_GET_DAQ_CLOCK_TIME64, (double)CRM_GET_DAQ_CLOCK_TIME64 / (1000.0 * kApplXcpDaqTimestampTicksPerMs));
+                ApplXcpPrint("<- t=%llull (%gs)\n", CRM_GET_DAQ_CLOCK_TIME64, (double)CRM_GET_DAQ_CLOCK_TIME64 / (1000.0 * kApplXcpDaqTimestampTicksPerMs));
             }
+#else
+            ApplXcpPrint("<- t=%ul (%gs)\n", CRM_GET_DAQ_CLOCK_TIME, (double)CRM_GET_DAQ_CLOCK_TIME / (1000.0 * kApplXcpDaqTimestampTicksPerMs));
+#endif
             break;
 
         case CC_LEVEL_1_COMMAND:
             switch (CRO_LEVEL_1_COMMAND_CODE) {
             case CC_GET_VERSION:
-                ApplXcpPrint("<- 0xFF protocol layer version: major=%02Xh/minor=%02Xh, transport layer version: major=%02Xh/minor=%02Xh\n",
+                ApplXcpPrint("<- protocol layer version: major=%02Xh/minor=%02Xh, transport layer version: major=%02Xh/minor=%02Xh\n",
                     CRM_GET_VERSION_PROTOCOL_VERSION_MAJOR,
                     CRM_GET_VERSION_PROTOCOL_VERSION_MINOR,
                     CRM_GET_VERSION_TRANSPORT_VERSION_MAJOR,
@@ -1358,7 +1366,9 @@ static void XcpPrintRes(const tXcpCto* pCmd) {
             }
 
         default:
-            ApplXcpPrint("<- 0xFF\n");
+            if (gXcpDebugLevel >= 2) {
+                ApplXcpPrint("<- OK\n");
+            }
             break;
 
 
