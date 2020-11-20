@@ -6,7 +6,10 @@
 
 /* Protocol parameters and options */
 #include "xcp_cfg.h"
-  
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /***************************************************************************/
 /* Version info                                                            */
@@ -1448,7 +1451,9 @@ extern void XcpPrintDaqList( vuint16 daq );
 #endif
 #endif
 
-
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* ! defined ( __XCP_H_ ) */
 

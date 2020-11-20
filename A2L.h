@@ -6,6 +6,10 @@
 
 #include "xcpLite.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Start A2L generation
 extern int A2lInit(const char *filename);
 
@@ -40,5 +44,8 @@ void A2lCreateGroup(const char* name, int count, ...);
 // Finish A2L generation
 extern void A2lClose(void);
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif

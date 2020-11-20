@@ -9,9 +9,6 @@
 |   Linux (Raspberry Pi) Version
  ----------------------------------------------------------------------------*/
 
-
-extern "C" {
-
 // XCP driver
 #include "xcpLite.h"
 
@@ -53,8 +50,6 @@ static vuint32 gTaskTimer = 0;
 
 // Quit application
 volatile vuint8 gExit = 0;
-
-}
 
 
 // ECU simulation (C++ demo)
@@ -180,7 +175,7 @@ int main(void)
     ApplXcpTimerInit();
 
     // Initialize digital io
-#if defined ( XCP_ENABLE_TESTMODE )
+#if defined ( TEST_WIRINING_PI )
     wiringPiSetupSys();
     pinMode(PI_IO_1, OUTPUT);
 #endif

@@ -38,6 +38,9 @@
 #include <linux/udp.h>
 #include <arpa/inet.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*----------------------------------------------------------------------------*/
 /* Platform specific definitions */
@@ -164,6 +167,9 @@ extern vuint32 ApplXcpTimer(void);
 #define XCP_ENABLE_CALIBRATION
 
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif
 

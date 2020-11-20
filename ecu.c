@@ -221,13 +221,13 @@ void ecuCyclic( void )
   swordCounter++;
   sdwordCounter++;
   
-#if defined ( XCP_ENABLE_TESTMODE )
+#if defined ( TEST_WIRINING_PI )
     digitalWrite(PI_IO_1, HIGH);
 #endif
 
     XcpEvent(1); // Trigger measurement date aquisition event 1
 
-#if defined ( XCP_ENABLE_TESTMODE )
+#if defined ( TEST_WIRINING_PI )
     digitalWrite(PI_IO_1, LOW);
 #endif
     
