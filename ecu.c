@@ -52,7 +52,7 @@ unsigned short wordCounter;
 unsigned long dwordCounter;
 signed char sbyteCounter;
 signed short swordCounter;
-signed long sdwordCounter;
+signed int sdwordCounter;
 
 char testString[] = "TestString"; 
 

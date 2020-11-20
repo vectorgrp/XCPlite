@@ -87,7 +87,7 @@ tXcpData gXcp;
 const vuint8 MEMORY_ROM gXcpSlaveId[kXcpSlaveIdLength] = kXcpSlaveIdString; // Name of the A2L file on local PC for auto detection
 const vuint8 MEMORY_ROM gXcpA2LFilename[kXcpA2LFilenameLength] = kXcpA2LFilenameString; // Name of the A2L file on slave device for upload
 vuint8* gXcpA2L = NULL; // A2L file content
-vuint32 gXcpA2LLength = 0; // A2L file length
+size_t gXcpA2LLength = 0; // A2L file length
 
 #if defined ( XCP_ENABLE_TESTMODE )
 volatile vuint8 gXcpDebugLevel = XCP_DEBUG_LEVEL;
@@ -520,7 +520,7 @@ void XcpEventExt(unsigned int event, BYTEPTR offset)
                 if (n == 0) break;
                 //assert(d != NULL);
                 //assert(offset+(vuint32)OdtEntryAddr(e) != NULL);
-                memcpy((DAQBYTEPTR)d, offset + (vuint32)OdtEntryAddr(e), n);
+                memcpy((DAQBYTEPTR)d, offset + (size_t) OdtEntryAddr(e), n);
                 d += n;
                 e++;
             } // ODT entry
@@ -667,7 +667,7 @@ void XcpCommand( const vuint32* pCommand )
                   case IDT_ASCII:
                   case IDT_ASAM_NAME:
                       CRM_GET_ID_LENGTH = kXcpSlaveIdLength;
-                      XcpSetMta(ApplXcpGetPointer(0x00, (vuint32)(&gXcpSlaveId[0])), 0x00);
+                      XcpSetMta((BYTEPTR)&gXcpSlaveId[0], 0x00);
                       break;
                   case IDT_ASAM_UPLOAD:
                     if (gXcpA2L==NULL) {
@@ -676,8 +676,8 @@ void XcpCommand( const vuint32* pCommand )
                       if (fd != NULL) {
                           struct stat fdstat;
                           stat(kXcpA2LFilenameString, &fdstat);
-                          gXcpA2L = malloc((size_t)(fdstat.st_size + 1));
-                          gXcpA2LLength = fread(gXcpA2L, sizeof(char), (size_t)fdstat.st_size, fd);
+                          gXcpA2L = malloc(fdstat.st_size + 1);
+                          gXcpA2LLength = fread(gXcpA2L, sizeof(char), fdstat.st_size, fd);
                           fclose(fd);
 #if defined ( XCP_ENABLE_TESTMODE )
                           if (gXcpDebugLevel != 0) ApplXcpPrint("A2L file %s ready for upload, size %u\n", kXcpA2LFilenameString, gXcpA2LLength);
@@ -685,7 +685,7 @@ void XcpCommand( const vuint32* pCommand )
                       }
                     }
                     CRM_GET_ID_LENGTH = gXcpA2LLength;
-                    XcpSetMta(ApplXcpGetPointer(0x00, (vuint32)gXcpA2L), 0x00);
+                    XcpSetMta(gXcpA2L, 0x00);
                     break;
                   case IDT_ASAM_PATH:
                   case IDT_ASAM_URL:
@@ -1357,7 +1357,7 @@ void XcpPrintDaqList( vuint16 daq )
     ApplXcpPrint("  ODT %u (%u):",i-DaqListFirstOdt(daq),i);
     ApplXcpPrint(" firstOdtEntry=%u, lastOdtEntry=%u, size=%u:\n", DaqListOdtFirstEntry(i), DaqListOdtLastEntry(i),DaqListOdtSize(i));
     for (e=DaqListOdtFirstEntry(i);e<=DaqListOdtLastEntry(i);e++) {
-      ApplXcpPrint("   %08Xh-%08Xh,%u\n",OdtEntryAddr(e), OdtEntryAddr(e)+OdtEntrySize(e)-1,OdtEntrySize(e));
+      ApplXcpPrint("   %zXh-%zXh,%u\n",OdtEntryAddr(e), OdtEntryAddr(e)+OdtEntrySize(e)-1,OdtEntrySize(e));
     }
   } /* j */
 } 

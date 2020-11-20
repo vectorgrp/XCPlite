@@ -54,8 +54,8 @@ typedef unsigned short vuint16;
 typedef signed short   vsint16;
 
 /* 32-Bit  */
-typedef unsigned long  vuint32;
-typedef signed long    vsint32;
+typedef unsigned int   vuint32;
+typedef signed int     vsint32;
 
 /* Byte order */
 //#define XCP_CPUTYPE_BIGENDIAN  /* Motorola */
