@@ -174,6 +174,8 @@ int main(void)
     // Initialize clock for DAQ event time stamps
     ApplXcpTimerInit();
 
+    ApplXcpInitBaseAddressList();
+
     // Initialize digital io
 #if defined ( TEST_WIRINING_PI )
     wiringPiSetupSys();

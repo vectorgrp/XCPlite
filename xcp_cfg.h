@@ -79,8 +79,13 @@ extern unsigned char* udpServerGetPacketBuffer(void** par, unsigned int size);
 extern void udpServerCommitPacketBuffer(void* par);
 
 // Convert a XCP (BYTE addrExt, DWORD addr from A2L) address to a C pointer to unsigned byte
-// extern BYTEPTR ApplXcpGetPointer(vuint8 addr_ext, vuint32 addr)
-#define ApplXcpGetPointer(e,a) ((BYTEPTR)((a)))
+extern BYTEPTR ApplXcpGetPointer(vuint8 addr_ext, vuint32 addr);
+// #define ApplXcpGetPointer(e,a) ((BYTEPTR)((a)))
+
+// Convert a pointer to XCP (DWORD address from A2L) address
+extern vuint32 ApplXcpGetAddr(BYTEPTR addr);
+
+extern void ApplXcpInitBaseAddressList();
 
 // Get and commit buffer space for a DTO message
 #define ApplXcpGetDtoBuffer udpServerGetPacketBuffer
