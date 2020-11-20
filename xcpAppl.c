@@ -76,12 +76,7 @@ vuint8 ApplXcpGetExt(BYTEPTR addr)
 vuint32 ApplXcpGetAddr(BYTEPTR addr)
 {
     vuint8 addr_ext = ApplXcpGetExt(addr);
-    union {
-       BYTEPTR ptr;
-       vuint32 i;
-    } rawAddr;
-    rawAddr.ptr = (BYTEPTR) (addr - gModuleProperties[addr_ext].baseAddr);
-    return rawAddr.i;
+    return (vuint32) (addr - gModuleProperties[addr_ext].baseAddr);
 }
 
 BYTEPTR ApplXcpGetPointer(vuint8 addr_ext, vuint32 addr)
@@ -103,8 +98,6 @@ int dump_phdr(struct dl_phdr_info* pinfo, size_t size, void* data)
   );
 #endif
 
-  const char prefix[] = "lib";
-  const size_t prefixlen = strlen(prefix);
   if (0 < strlen(pinfo->dlpi_name))
   {
     // Here we could remember module information or something like that
