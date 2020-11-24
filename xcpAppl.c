@@ -11,6 +11,8 @@
 
 #include "xcpAppl.h"
 
+#include <linux/ptp_clock.h>
+
 
 // Wall clock updated at every AppXcpTimer
 volatile vuint32 gClock = 0; 

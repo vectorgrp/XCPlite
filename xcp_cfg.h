@@ -188,7 +188,7 @@ extern vuint64 ApplXcpGetClock64(void);
 #define XCP_ENABLE_CALIBRATION
 
 #define XCP_ENABLE_PTP
-
+//#define TIMESTAMP_DLONG
 
 
 #endif

@@ -5,13 +5,13 @@ FileNameAbsolute=D:\USR\RaspberryPi\XCPlite\XCPlite\XCPpi.cna
 WorkingDirectory=D:\USR\RaspberryPi\XCPlite\XCPlite
 ProjectId=07e4-0009-0006-0016-001c-0015-0000
 FileVersion=1200
-PrgVersion=Version 19.0.0.711 RC2-CodeCov
-PrgDate=03.11.2020
+PrgVersion=Version 19.0.0.770 RC3
+PrgDate=18.11.2020
 Description=
 CreationTime=14:27
 CreationDate=09/08/2020 ; Month/Day/Year
-ModificationTime=00:21
-ModificationDate=11/10/2020 ; Month/Day/Year
+ModificationTime=09:27
+ModificationDate=11/24/2020 ; Month/Day/Year
 Protected=0
 
 [ANALYSISPROFILE_MDF_LIST]
@@ -188,7 +188,7 @@ Count=0
 Name=
 Comment=
 Maximized=0
-ActiveWindow=10
+ActiveWindow=7
 IsReportPage=0
 TimeAxisSynchronized=0
 PrintLayout=Default
@@ -196,8 +196,20 @@ PrintLayout=Default
 [DISPLAY_PAGE_1_DisplayElements]
 Count=0
 
+[DISPLAY_PAGE_2]
+Name=Trace
+Comment=
+Maximized=0
+ActiveWindow=10
+IsReportPage=0
+TimeAxisSynchronized=0
+PrintLayout=Default
+
+[DISPLAY_PAGE_2_DisplayElements]
+Count=0
+
 [DISPLAY_PAGES]
-Count=1
+Count=2
 Active=0
 
 [DYNAMIC_COLUMNS]
@@ -590,8 +602,8 @@ ColorFunctionScope=1
 LineTyp=2
 YMinHome=-100
 YMaxHome=100
-YMin=-100
-YMax=100
+YMin=7.1170481806
+YMax=13.3068851678
 XOffsetNS=0
 XOffset=0
 ValueFormat=3
@@ -955,7 +967,7 @@ WindowTextExtendedNew=1
 WindowSymbols=1
 GlobalCursor=0
 GlobalCursorTime=0
-MainWindowPos=1, 337, 16, 2673, 1772 ;cmd, x, y, w, h
+MainWindowPos=1, 597, 45, 2683, 1785 ;cmd, x, y, w, h
 
 [PAR_COMMENT]
 1="Name",""
@@ -1139,13 +1151,10 @@ Count=0
 [SIGNSELWND]
 FocusID=2004
 ActiveTab=0
-FilterNodeID=Alle
-TreeExpand_0=@Alle
-TreeExpand_1=Alle\Geräte\XCPpi\XCPpi_autodetect.A2L
-TreeExpand_2=Alle\Geräte\XCPpi
-TreeExpand_3=Alle\Geräte
-TreeExpand_4=$Alle\Geräte
-TreeExpand_5=#Alle\Geräte\XCPpi\XCPpi_autodetect.A2L
+FilterNodeID=All
+TreeExpand_0=@All
+TreeExpand_1=$All\Devices
+TreeExpand_2=#
 TextSearchCaseSensitive=0
 TextSearchUseMode=1
 TextSearchSearchFullText=1
@@ -1171,7 +1180,7 @@ Column_2=23, 1021
 Column_2_dpi96=23, 681
 Title=Write
 Type=128
-Comment=Write-Fenster
+Comment=Write Window
 Number=1
 ScreenDPIinSection=144
 Position=0, 12, 970, 1279, 498 ;cmd, x, y, w, h
@@ -1185,9 +1194,9 @@ DisplayMask=1 ; pages 1
 [WINDOW_10]
 ProgID=CNPTRACE.TraceCtrl.1
 PROPERTIES_COUNT=21
-PROPERTY_1=DeviceItems={"CaptureEvents":"1","ShowEvents":"1","NodeCount":"2","Node0":{"DeviceName":"Analog","CaptureEvents":"0","ShowEvents":"0","NodeCount":"3","Node0":{"Channel":"2","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node1":{"Channel":"3","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node2":{"Channel":"4","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"}},"Node1":{"DeviceName":"XCPpi","CaptureEvents":"1","ShowEvents":"1","NodeCount":"3","Node0":{"Channel":"2","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node1":{"Channel":"3","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node2":{"Channel":"4","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"}}}
+PROPERTY_1=DeviceItems={"CaptureEvents":"1","ShowEvents":"1","NodeCount":"2","Node0":{"DeviceName":"Analog","CaptureEvents":"0","ShowEvents":"0","NodeCount":"3","Node0":{"Channel":"2","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node1":{"Channel":"3","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node2":{"Channel":"4","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"}},"Node1":{"DeviceName":"XCPpi","CaptureEvents":"0","ShowEvents":"0","NodeCount":"3","Node0":{"Channel":"2","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node1":{"Channel":"3","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node2":{"Channel":"4","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"}}}
 PROPERTY_2=NetworkItems={"Items":"0"}
-PROPERTY_3=ColumnConfigs={"ConfigCount":"1","Config0":{"Layout":"1","Name":"Initial","Column0":{"Width":"158","Position":"0","Name":"Time","IsDefaultName":"1"},"Column1":{"Width":"137","Position":"1","Name":"Channel","IsDefaultName":"1"},"Column2":{"Width":"45","Position":"2","Name":"ID","IsDefaultName":"1"},"Column3":{"Width":"268","Position":"3","Name":"Name","IsDefaultName":"1"},"Column5":{"Width":"45","Position":"5","Name":"Dir","IsDefaultName":"1"},"Column6":{"Width":"75","Position":"6","Name":"Length","IsDefaultName":"1"},"Column7":{"Width":"606","Position":"7","Name":"Data","IsDefaultName":"1"},"Column16":{"Width":"113","Position":"4","Name":"Type","IsDefaultName":"1"},"Column52":{"Width":"1554","Position":"8","Name":"Interpretation","IsDefaultName":"1"}},"Active":"0"}
+PROPERTY_3=ColumnConfigs={"ConfigCount":"1","Config0":{"Layout":"1","Name":"Initial","Column0":{"Width":"158","Position":"0","Name":"Time","IsDefaultName":"1"},"Column1":{"Width":"137","Position":"1","Name":"Channel","IsDefaultName":"1"},"Column2":{"Width":"45","Position":"2","Name":"ID","IsDefaultName":"1"},"Column3":{"Width":"121","Position":"3","Name":"Name","IsDefaultName":"1"},"Column5":{"Width":"45","Position":"5","Name":"Dir","IsDefaultName":"1"},"Column6":{"Width":"75","Position":"6","Name":"Length","IsDefaultName":"1"},"Column7":{"Width":"606","Position":"8","Name":"Data","IsDefaultName":"1"},"Column16":{"Width":"113","Position":"4","Name":"Type","IsDefaultName":"1"},"Column52":{"Width":"1554","Position":"7","Name":"Interpretation","IsDefaultName":"1"}},"Active":"0"}
 PROPERTY_4=PinningEvents={"EventCount":"0"}
 PROPERTY_5=ExpandedEvents={"EventCount":"0"}
 PROPERTY_6=AnalysisGroups={"GroupCount":"1","Group0":{"Enabled":"1","Expanded":"1","Name":"Filtergruppe 0","FilterCount":"2","Filter0":{"Stop":"1","Enabled":"1","ConditionCount":"0"},"Filter1":{"Stop":"0","Enabled":"0","ConditionCount":"0"}}}
@@ -1209,48 +1218,36 @@ PROPERTY_21=LoggingOverwriteOnConfigLoad=false
 OBJECTS_COUNT=0
 ObjectCount=0
 HiddenDisplayCount=0
-TraceChannelCount=2
+TraceChannelCount=0
 ColumnCount=9
 Column_0=0, 158
 Column_1=256, 137
 Column_2=257, 45
-Column_3=4, 268
+Column_3=4, 121
 Column_4=1281, 113
 Column_5=1, 45
 Column_6=2, 75
-Column_7=3, 606
-Column_8=513, 1554
+Column_7=513, 1554
+Column_8=3, 606
 DeltaTimeEnabled=0
 Title=Trace-Fenster {DISPLAYED_FILENAME}
 Type=16384
-Comment=ActiveX-Fenster
+Comment=ActiveX Window
 Number=10
 ScreenDPIinSection=144
-Position=0, 79, 136, 2050, 717 ;cmd, x, y, w, h
-Position_dpi96=0, 53, 91, 1367, 478 ;cmd, x, y, w, h
-Position_Page01=0, 79, 136, 2050, 717 ;cmd, x, y, w, h
-Position_Page01_dpi96=0, 53, 91, 1367, 478 ;cmd, x, y, w, h
+Position=0, 66, 69, 2161, 1363 ;cmd, x, y, w, h
+Position_dpi96=0, 44, 46, 1441, 909 ;cmd, x, y, w, h
+Position_Page02=0, 66, 69, 2161, 1363 ;cmd, x, y, w, h
+Position_Page02_dpi96=0, 44, 46, 1441, 909 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
-DisplayMask=1 ; pages 1
-
-[WINDOW_10_CHANNEL_1]
-Module=XCPpi
-Channel=0
-CustomColorFlag=0
-Color=0
-
-[WINDOW_10_CHANNEL_2]
-Module=XCPpi
-Channel=1
-CustomColorFlag=0
-Color=0
+DisplayMask=2 ; pages 2
 
 [WINDOW_2]
 ComponentCount=2
 Title=
 Type=65536
-Comment=Multi-View-Fenster
+Comment=Multi view window
 Number=2
 ScreenDPIinSection=144
 Position=0, 12, 340, 1279, 610 ;cmd, x, y, w, h
@@ -1263,8 +1260,8 @@ DisplayMask=1 ; pages 1
 
 [WINDOW_3]
 XLen=33205
-XMin=-5983
-XMax=5160
+XMin=21216
+XMax=21256
 Grid=1
 Mark=1
 YValue=1
@@ -1305,7 +1302,7 @@ EventCompareModeEnabled=0
 ObjectCount=0
 Title=Grafik {DISPLAYED_FILENAME}
 Type=1
-Comment=Grafik-Fenster
+Comment=Graphic Window
 Number=3
 ScreenDPIinSection=144
 Position=0, 0, 0, 0, 0 ;cmd, x, y, w, h
@@ -1332,8 +1329,8 @@ COL_1_dpi96=1048578, 88
 
 [WINDOW_4]
 XLen=33205
-XMin=-5983
-XMax=5160
+XMin=21216
+XMax=21256
 Grid=1
 Mark=1
 YValue=1
@@ -1374,7 +1371,7 @@ EventCompareModeEnabled=0
 ObjectCount=0
 Title=Grafik {DISPLAYED_FILENAME}
 Type=1
-Comment=Grafik-Fenster
+Comment=Graphic Window
 Number=4
 ScreenDPIinSection=144
 Position=0, 97, 97, 498, 198 ;cmd, x, y, w, h
@@ -1417,7 +1414,7 @@ DotLinePos=115
 ObjectCount=0
 Title=Numerisch {DISPLAYED_FILENAME}
 Type=4
-Comment=Ziffern-Fenster
+Comment=Numeric Window
 Number=5
 ScreenDPIinSection=144
 Position=0, 874, 9, 633, 100 ;cmd, x, y, w, h
@@ -1439,7 +1436,7 @@ COL_0_dpi96=31, 153
 [WINDOW_6]
 Title=
 Type=16
-Comment=Kennfeld-/Kennlinien-Fenster
+Comment=Map/Curve Window
 Number=6
 ScreenDPIinSection=144
 Position=0, 1320, 853, 952, 613 ;cmd, x, y, w, h
@@ -1567,7 +1564,7 @@ ValueFormat=3
 [WINDOW_7]
 Title=
 Type=16
-Comment=Kennfeld-/Kennlinien-Fenster
+Comment=Map/Curve Window
 Number=7
 ScreenDPIinSection=144
 Position=0, 1320, 471, 952, 382 ;cmd, x, y, w, h
@@ -1695,7 +1692,7 @@ ValueFormat=3
 [WINDOW_8]
 ProgID=
 PROPERTIES_COUNT=1
-PROPERTY_1={"Version":"1.0.0.0","Configuration":{"ShowCalibrationBar":true,"ShowHorizontalChartLines":false,"ShowVerticalChartLines":false,"NonSelectedIntersectionLineTransparency":0.100000024,"FocusedValueSymbol":"","ValueObjectConfigurations":[{"Symbol":"DEVICE:\"XCPpi\":\"gCmdCycle\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ViewMode":0,"AxisViewModes":[],"IsActive":true,"CurrentChartViewType":2,"ShowPointMarker":true},{"Symbol":"DEVICE:\"XCPpi\":\"gExit\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ViewMode":0,"AxisViewModes":[],"IsActive":true,"CurrentChartViewType":2,"ShowPointMarker":true},{"Symbol":"DEVICE:\"XCPpi\":\"gFlushCycle\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ViewMode":0,"AxisViewModes":[],"IsActive":true,"CurrentChartViewType":2,"ShowPointMarker":true},{"Symbol":"DEVICE:\"XCPpi\":\"gTaskCycleTimerECU\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ViewMode":0,"AxisViewModes":[],"IsActive":true,"CurrentChartViewType":2,"ShowPointMarker":true},{"Symbol":"DEVICE:\"XCPpi\":\"gTaskCycleTimerECUpp\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ViewMode":0,"AxisViewModes":[],"IsActive":true,"CurrentChartViewType":2,"ShowPointMarker":true},{"Symbol":"DEVICE:\"XCPpi\":\"gTaskCycleTimerServer\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ViewMode":0,"AxisViewModes":[],"IsActive":true,"CurrentChartViewType":2,"ShowPointMarker":true},{"Symbol":"DEVICE:\"XCPpi\":\"gXcpDebugLevel\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ViewMode":0,"AxisViewModes":[],"IsActive":true,"CurrentChartViewType":2,"ShowPointMarker":true}],"NumericGraphicControlPosition":1,"GraphicControlPosition":5,"Height2DXControl":1,"Height2DYControl":1,"Height3DControl":2,"HeightNumericControl":1,"HeightChartControl":1,"Width2DXControl":1,"Width2DYControl":1,"Width3DControl":2,"WidthNumericControl":2,"WidthChartControl":2,"SerializationWorkingPointColor":{"R":238,"G":130,"B":238,"A":255},"LegendPosition":0,"LegendViewType":0,"LegendTableColumnAttributes":[],"LegendTabItemAttributes":[],"FlipAxes":false,"ReversedAxis":[false,false],"ShowUnits":false,"SortDescending":false,"SortAttributeId":null,"ShowWorkingPointHistory":false,"NumericViewValueObjectDisplayOption":1,"ValueColumnWidth":120,"ParameterGroup":"","ModuleName":"","GroupIsFunction":false,"NumericControlAxisAttributes":[],"NumericControlColumnAttributes":[{"TypeId":"31","Size":305}],"ChartViewValueObjectDisplayOption":1,"SerializationCameraPosition":{"X":1,"Y":1,"Z":-1},"SerializationCameraTarget":{"X":0,"Y":0.5,"Z":0},"BarThickness":1,"WorkingPointMarker":0,"SerializationWorkingPointMarkerColor":{"R":0,"G":255,"B":255,"A":255},"LinearWorkingPointInterpolation":true,"ShowAllIntersectionLines":false,"IsValueAxisIndependent":true,"ShowBoundarySurface":true,"ShowBoundarySurfaceGradient":false,"ShowCursorAsCrosshair":false,"SerializationCursorCrosshairColor":{"R":0,"G":0,"B":0,"A":255},"AlignBarToZero":false}}
+PROPERTY_1={"Version":"1.0.0.0","Configuration":{"ShowCalibrationBar":true,"ShowHorizontalChartLines":false,"ShowVerticalChartLines":false,"NonSelectedIntersectionLineTransparency":0.100000024,"FocusedValueSymbol":"","ValueObjectConfigurations":[{"Symbol":"DEVICE:\"XCPpi\":\"gCmdCycle\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ViewMode":0,"AxisViewModes":[],"IsActive":true,"CurrentChartViewType":2,"ShowPointMarker":true},{"Symbol":"DEVICE:\"XCPpi\":\"gExit\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ViewMode":0,"AxisViewModes":[],"IsActive":true,"CurrentChartViewType":2,"ShowPointMarker":true},{"Symbol":"DEVICE:\"XCPpi\":\"gFlushCycle\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ViewMode":0,"AxisViewModes":[],"IsActive":true,"CurrentChartViewType":2,"ShowPointMarker":true},{"Symbol":"DEVICE:\"XCPpi\":\"gTaskCycleTimerECU\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ViewMode":0,"AxisViewModes":[],"IsActive":true,"CurrentChartViewType":2,"ShowPointMarker":true},{"Symbol":"DEVICE:\"XCPpi\":\"gTaskCycleTimerECUpp\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ViewMode":0,"AxisViewModes":[],"IsActive":true,"CurrentChartViewType":2,"ShowPointMarker":true},{"Symbol":"DEVICE:\"XCPpi\":\"gTaskCycleTimerServer\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ViewMode":0,"AxisViewModes":[],"IsActive":true,"CurrentChartViewType":2,"ShowPointMarker":true},{"Symbol":"DEVICE:\"XCPpi\":\"gXcpDebugLevel\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ViewMode":0,"AxisViewModes":[],"IsActive":true,"CurrentChartViewType":2,"ShowPointMarker":true}],"NumericGraphicControlPosition":1,"GraphicControlPosition":5,"Height2DXControl":1,"Height2DYControl":1,"Height3DControl":2,"HeightNumericControl":1,"HeightChartControl":1,"Width2DXControl":1,"Width2DYControl":1,"Width3DControl":2,"WidthNumericControl":2,"WidthChartControl":2,"SerializationWorkingPointColor":{"R":238,"G":130,"B":238,"A":255},"LegendPosition":0,"LegendViewType":0,"LegendTableColumnAttributes":[],"LegendTabItemAttributes":[],"FlipAxes":false,"ReversedAxis":[false,false],"ShowUnits":false,"SortDescending":false,"SortAttributeId":null,"ShowWorkingPointHistory":false,"NumericViewValueObjectDisplayOption":1,"ValueColumnWidth":145,"ParameterGroup":"","ModuleName":"","GroupIsFunction":false,"NumericControlAxisAttributes":[],"NumericControlColumnAttributes":[{"TypeId":"31","Size":305}],"ChartViewValueObjectDisplayOption":1,"SerializationCameraPosition":{"X":1,"Y":1,"Z":-1},"SerializationCameraTarget":{"X":0,"Y":0.5,"Z":0},"BarThickness":1,"WorkingPointMarker":0,"SerializationWorkingPointMarkerColor":{"R":0,"G":255,"B":255,"A":255},"LinearWorkingPointInterpolation":true,"ShowAllIntersectionLines":false,"IsValueAxisIndependent":true,"ShowBoundarySurface":true,"ShowBoundarySurfaceGradient":false,"ShowCursorAsCrosshair":false,"SerializationCursorCrosshairColor":{"R":0,"G":0,"B":0,"A":255},"AlignBarToZero":false}}
 OBJECTS_COUNT=0
 ObjectCount=0
 HiddenDisplayCount=0
@@ -1704,10 +1701,10 @@ Type=137438953472
 Comment=Parameter
 Number=8
 ScreenDPIinSection=144
-Position=0, 12, 9, 835, 316 ;cmd, x, y, w, h
-Position_dpi96=0, 8, 6, 557, 211 ;cmd, x, y, w, h
-Position_Page01=0, 12, 9, 835, 316 ;cmd, x, y, w, h
-Position_Page01_dpi96=0, 8, 6, 557, 211 ;cmd, x, y, w, h
+Position=0, 12, 9, 714, 316 ;cmd, x, y, w, h
+Position_dpi96=0, 8, 6, 476, 211 ;cmd, x, y, w, h
+Position_Page01=0, 12, 9, 714, 316 ;cmd, x, y, w, h
+Position_Page01_dpi96=0, 8, 6, 476, 211 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
 DisplayMask=1 ; pages 1
@@ -1724,10 +1721,10 @@ Type=137438953472
 Comment=Parameter
 Number=9
 ScreenDPIinSection=144
-Position=0, 1320, 268, 346, 193 ;cmd, x, y, w, h
-Position_dpi96=0, 880, 179, 231, 129 ;cmd, x, y, w, h
-Position_Page01=0, 1320, 268, 346, 193 ;cmd, x, y, w, h
-Position_Page01_dpi96=0, 880, 179, 231, 129 ;cmd, x, y, w, h
+Position=0, 1312, 244, 361, 211 ;cmd, x, y, w, h
+Position_dpi96=0, 875, 163, 241, 141 ;cmd, x, y, w, h
+Position_Page01=0, 1312, 244, 361, 211 ;cmd, x, y, w, h
+Position_Page01_dpi96=0, 875, 163, 241, 141 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
 DisplayMask=1 ; pages 1

@@ -902,44 +902,15 @@ void XcpCommand( const vuint32* pCommand )
             }
             break;
 
-          get_daq_clock:
-          case CC_GET_DAQ_CLOCK:
-          {
-              CRM_GET_DAQ_CLOCK_RES1 = 0x00;
-              CRM_GET_DAQ_CLOCK_TRIGGER_INFO = 0x00;
-              gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN;
-#ifdef TIMESTAMP_DLONG
-              if (gXcp.SessionStatus & SS_LEGACY_MODE) {
-                  // Legacy format
-                  gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN;
-                  CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = 0x01; // FMT_XCP_SLV = size of payload is DWORD
-                  CRM_GET_DAQ_CLOCK_TIME = ApplXcpGetClock();
-              }
-              else {
-                  // Extended format
-                  gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN+4;
-                  CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = 0x2;// FMT_XCP_SLV = size of payload is DLONG
-                  CRM_GET_DAQ_CLOCK_TIME64 = ApplXcpGetClock64();
-              }
-#else
-              CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = 0x01; // FMT_XCP_SLV = size of payload is DWORD
-              CRM_GET_DAQ_CLOCK_TIME = ApplXcpGetClock();
-#endif
-
-          }
-            break;
-           
 
           case CC_TIME_CORRELATION_PROPERTIES:
             {
-#ifdef TIMESTAMP_DLONG
               if ((CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES & TIME_SYNC_SET_PROPERTIES_RESP_FORMAT_MASK) >= 1) {
 #if defined ( XCP_ENABLE_TESTMODE )
                   if (gXcpDebugLevel != 0) ApplXcpPrint("Timesync extended mode activated\n");
 #endif                 
                 gXcp.SessionStatus = (vuint8)(gXcp.SessionStatus & ~SS_LEGACY_MODE);
               }
-#endif
               
               if (CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES & TIME_SYNC_SET_PROPERTIES_CLUSTER_AFFILIATION_MASK) {
                 gXcp.ClusterId = CRO_TIME_SYNC_PROPERTIES_CLUSTER_AFFILIATION;
@@ -1002,15 +973,48 @@ void XcpCommand( const vuint32* pCommand )
 
           case CC_TRANSPORT_LAYER_CMD:
               switch (CRO_TL_SUBCOMMAND) {
-                                
+
               case CC_TL_GET_DAQ_CLOCK_MULTICAST:
-                 goto get_daq_clock;
+                  CRM_GET_DAQ_CLOCK_TRIGGER_INFO = 0x18 + 0x02; // TIME_OF_SAMPLING (Bitmask 0x18, 3 - Sampled on reception) + TRIGGER_INITIATOR ( Bitmask 0x07, 2 - GET_DAQ_CLOCK_MULTICAST)
+                  goto get_daq_clock_multicast;
 
               case CC_TL_GET_SLAVE_ID:
               default: /* unknown transport layer command */
                   error(CRC_CMD_UNKNOWN);
               }
               break;
+
+          case CC_GET_DAQ_CLOCK:
+          {
+              CRM_GET_DAQ_CLOCK_TRIGGER_INFO = 0x18; // TIME_OF_SAMPLING (Bitmask 0x18, 3 - Sampled on reception) 
+              get_daq_clock_multicast:
+              CRM_GET_DAQ_CLOCK_RES1 = 0x00;
+              gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN;
+              if (gXcp.SessionStatus & SS_LEGACY_MODE) {
+                  // Legacy format
+                  gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN;
+                  CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = 0x01; // FMT_XCP_SLV = size of payload is DWORD
+                  CRM_GET_DAQ_CLOCK_TIME = ApplXcpGetClock();
+              }
+              else {
+                  // Extended format
+#ifdef TIMESTAMP_DLONG
+                  gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN + 5;
+                  CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = 0x2;// FMT_XCP_SLV = size of payload is DLONG
+                  CRM_GET_DAQ_CLOCK_TIME64 = ApplXcpGetClock64();
+                  CRM_GET_DAQ_CLOCK_SYNC_STATE64 = 1;
+#else
+                  gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN + 1;
+                  CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = 0x01; // FMT_XCP_SLV = size of payload is DWORD
+                  CRM_GET_DAQ_CLOCK_TIME = ApplXcpGetClock();
+                  CRM_GET_DAQ_CLOCK_SYNC_STATE = 1;
+#endif
+              }
+
+          }
+          break;
+
+
              
           
           case CC_LEVEL_1_COMMAND:
@@ -1090,8 +1094,8 @@ void XcpInit( void )
   memcpy(&gXcp.XcpSlaveClockInfo.UUID[0], &uuid1[0], 8);
   gXcp.XcpSlaveClockInfo.timestampTicks = kXcpDaqTimestampTicksPerUnit;
   gXcp.XcpSlaveClockInfo.timestampUnit = kXcpDaqTimestampUnit;
-  gXcp.XcpSlaveClockInfo.stratumLevel = 255UL; // STRATUM_LEVEL_UNKNOWN;
-#if TIMESTAMP_DLONG
+  gXcp.XcpSlaveClockInfo.stratumLevel = 255UL; // STRATUM_LEVEL_UNKNOWN
+#ifdef TIMESTAMP_DLONG
   gXcp.XcpSlaveClockInfo.nativeTimestampSize = 8UL; // NATIVE_TIMESTAMP_SIZE_DLONG;
   gXcp.XcpSlaveClockInfo.valueBeforeWrapAround = 0xFFFFFFFFFFFFFFFFULL;
 #else
@@ -1342,16 +1346,17 @@ static void XcpPrintRes(const tXcpCto* pCmd) {
             break;
 
         case CC_GET_DAQ_CLOCK:
-#ifdef TIMESTAMP_DLONG
             if (gXcp.SessionStatus & SS_LEGACY_MODE) {
                 ApplXcpPrint("<- t=%ul (%gs)\n", CRM_GET_DAQ_CLOCK_TIME, (double)CRM_GET_DAQ_CLOCK_TIME / (1000.0 * kApplXcpDaqTimestampTicksPerMs));
             }
             else {
-                ApplXcpPrint("<- t=%llull (%gs)\n", CRM_GET_DAQ_CLOCK_TIME64, (double)CRM_GET_DAQ_CLOCK_TIME64 / (1000.0 * kApplXcpDaqTimestampTicksPerMs));
+                if (CRM_GET_DAQ_CLOCK_PAYLOAD_FMT == 0x01) {
+                    ApplXcpPrint("<- t=%ul (%gs) %u\n", CRM_GET_DAQ_CLOCK_TIME, (double)CRM_GET_DAQ_CLOCK_TIME / (1000.0 * kApplXcpDaqTimestampTicksPerMs), CRM_GET_DAQ_CLOCK_SYNC_STATE);
+                }
+                else {
+                    ApplXcpPrint("<- t=%llull (%gs) %u\n", CRM_GET_DAQ_CLOCK_TIME64, (double)CRM_GET_DAQ_CLOCK_TIME64 / (1000.0 * kApplXcpDaqTimestampTicksPerMs), CRM_GET_DAQ_CLOCK_SYNC_STATE64);
+                }
             }
-#else
-            ApplXcpPrint("<- t=%ul (%gs)\n", CRM_GET_DAQ_CLOCK_TIME, (double)CRM_GET_DAQ_CLOCK_TIME / (1000.0 * kApplXcpDaqTimestampTicksPerMs));
-#endif
             break;
 
         case CC_LEVEL_1_COMMAND:

@@ -774,7 +774,9 @@
 #define CRM_GET_DAQ_CLOCK_TRIGGER_INFO                  CRM_BYTE(2)
 #define CRM_GET_DAQ_CLOCK_PAYLOAD_FMT                   CRM_BYTE(3)
 #define CRM_GET_DAQ_CLOCK_TIME                          CRM_DWORD(1)
-#define CRM_GET_DAQ_CLOCK_TIME64                        CRM_DDWORD(1)
+#define CRM_GET_DAQ_CLOCK_TIME64                        CRM_DDWORD(1) // Byte number is 4
+#define CRM_GET_DAQ_CLOCK_SYNC_STATE                    CRM_BYTE(8)
+#define CRM_GET_DAQ_CLOCK_SYNC_STATE64                  CRM_BYTE(12)
 
 /* READ_DAQ */
 #define CRO_READ_DAQ_LEN                                1
