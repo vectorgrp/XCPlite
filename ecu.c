@@ -83,12 +83,11 @@ volatile unsigned char curve1_32[32] =
 
 
 
-
-
 /**************************************************************************/
-/* ECU Demo Example */
+/* ECU Demo Code */
 /**************************************************************************/
 
+// Init
 void ecuInit( void ) {
 
     ecuCounter = 0;
@@ -182,18 +181,20 @@ void ecuInit( void ) {
 
 
 
-/* 10ms Raster */
+// Cyclic demo task
 void ecuCyclic( void )
 {
-    ecuCounter++;
-
-  /* Floatingpoint signal */
+  // Cycle counter
+  ecuCounter++;
+    
+  // Sine wave
   if (period>0.01||period<-0.01) {
-	channel1  = (float)(sin(6.283185307*timer/period)*ampl);
+      channel1 = sin(6.283185307 * timer / period);
+      channel1 = offset + ( ampl * channel1 );
   }
-  timer = (float)(timer + gTaskCycleTimerECU/1.0E9);
+  timer = (timer + gTaskCycleTimerECU/1.0E9);
  
-  // Measurement Arrays 
+  // Arrays
   longArray1[0] ++;
   longArray2[0] ++;
   longArray3[0] ++;
@@ -215,7 +216,7 @@ void ecuCyclic( void )
   byteArray15[0] ++;
   byteArray16[0] ++;
     
-  /* Counters of different type */
+  // Counters of different type
   byteCounter++;
   wordCounter++;
   dwordCounter++;

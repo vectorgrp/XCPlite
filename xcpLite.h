@@ -1311,6 +1311,8 @@ typedef struct {
 /* XCP clock information                                                    */
 /****************************************************************************/
 
+#ifdef XCP_ENABLE_PTP
+
 typedef struct _T_CLOCK_INFORMATION {
     unsigned char      UUID[8];
     unsigned short     timestampTicks;
@@ -1337,7 +1339,7 @@ typedef struct _T_CLOCK_RELATION {
     unsigned long long timestampLocal;
 } T_CLOCK_RELATION;
 
-
+#endif
 
 /****************************************************************************/
 /* XCP data strucure                                                        */
@@ -1368,11 +1370,15 @@ typedef struct {
   vuint16 DaqListPtr;
   vuint16 OdtPtr;
 
+#ifdef XCP_ENABLE_PTP
+
   /* XCP slave and master clock info and clock relation info */
   vuint16 ClusterId;
   T_CLOCK_INFORMATION XcpSlaveClockInfo;
   T_CLOCK_INFORMATION_GRANDM GrandmasterClockInfo;
   T_CLOCK_RELATION SlvGrandmClkRelationInfo;
+
+#endif
 
 } tXcpData;
 
@@ -1445,7 +1451,8 @@ void ApplXcpCommitDtoBuffer(vuint8 *buf);
 
 #if defined ( XCP_ENABLE_TESTMODE )
 
-extern volatile vuint8 gXcpDebugLevel;
+  extern volatile vuint8 gXcpDebugLevel;
+  extern volatile vuint8 gXcpDebugLevelVerbose;
 
 #if defined ( ApplXcpPrint )
 /* ApplXcpPrint is a macro */

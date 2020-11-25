@@ -91,6 +91,7 @@ vuint32 gXcpA2LLength = 0; // A2L file length
 
 #if defined ( XCP_ENABLE_TESTMODE )
 volatile vuint8 gXcpDebugLevel = XCP_DEBUG_LEVEL;
+volatile vuint8 gXcpDebugLevelVerbose = XCP_DEBUG_LEVEL;
 #endif
 
 
@@ -154,18 +155,14 @@ static vuint8 XcpWriteMta( vuint8 size, const BYTEPTR data )
 ******************************************************************************/
 static vuint8 XcpReadMta( vuint8 size, BYTEPTR data )
 {
-
   /* Standard RAM memory read access */
-  while (size > 0)
-  {
+  while (size > 0)  {
     *(data) = XCP_READ_BYTE_FROM_ADDR( gXcp.Mta );
     data++; 
     gXcp.Mta++; 
     size--;
   }
   return (vuint8)XCP_CMD_OK;
-
-  
 }
 
 
@@ -187,7 +184,7 @@ static void XcpFreeDaq( void )
   gXcp.SessionStatus &= (vuint8)(~SS_DAQ);
 
 #if defined ( XCP_ENABLE_TESTMODE )
-  if (gXcpDebugLevel != 0 && gXcp.SessionStatus & SS_CONNECTED) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
+  if (gXcpDebugLevel >= 1 && gXcp.SessionStatus & SS_CONNECTED) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
 #endif
 
   gXcp.Daq.DaqCount = 0;
@@ -199,7 +196,6 @@ static void XcpFreeDaq( void )
   gXcp.pOdtEntrySize = 0;
 
   memset((BYTEPTR)&gXcp.Daq.u.b[0], 0, (vuint16)kXcpDaqMemSize);  
-  
 }
 
 /*****************************************************************************
@@ -229,14 +225,11 @@ static vuint8 XcpAllocMemory( void )
   
 
   #if defined ( XCP_ENABLE_TESTMODE )
-    if ( gXcpDebugLevel != 0) ApplXcpPrint("[XcpAllocMemory] %u/%u Bytes used\n",s,kXcpDaqMemSize );
+    if ( gXcpDebugLevel >= 1) ApplXcpPrint("[XcpAllocMemory] %u/%u Bytes used\n",s,kXcpDaqMemSize );
   #endif
 
   return (vuint8)0u;
-  
 }
-
-
 
 /*****************************************************************************
 | NAME:             XcpAllocDaq
@@ -288,14 +281,11 @@ static vuint8 XcpAllocOdt( vuint8 daq, vuint8 odtCount )
   }
   #endif
 
-  
-
   gXcp.Daq.u.DaqList[daq].firstOdt = gXcp.Daq.OdtCount;
   gXcp.Daq.OdtCount = (vuint16)(gXcp.Daq.OdtCount+odtCount);
   gXcp.Daq.u.DaqList[daq].lastOdt = (vuint16)(gXcp.Daq.OdtCount-1);
 
   return XcpAllocMemory();
-  
 }
 
 /*****************************************************************************
@@ -336,7 +326,6 @@ static vuint8 XcpAllocOdtEntry( vuint8 daq, vuint8 odt, vuint8 odtEntryCount )
   gXcp.pOdt[xcpFirstOdt + odt].size = 0;
 
   return XcpAllocMemory();
-  
 }
 
 /*****************************************************************************
@@ -353,7 +342,7 @@ static void XcpStartDaq( vuint16 daq )
   DaqListFlags(daq) |= (vuint8)DAQ_FLAG_RUNNING;
   gXcp.SessionStatus |= (vuint8)SS_DAQ;
 #if defined ( XCP_ENABLE_TESTMODE )
-  if (gXcpDebugLevel != 0 && gXcp.SessionStatus & SS_CONNECTED) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
+  if (gXcpDebugLevel >= 1 && gXcp.SessionStatus & SS_CONNECTED) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
 #endif
 }
 
@@ -406,7 +395,7 @@ static void XcpStopDaq( vuint16 daq )
 
   gXcp.SessionStatus &= (vuint8)(~SS_DAQ);
 #if defined ( XCP_ENABLE_TESTMODE )
-  if (gXcpDebugLevel != 0 && gXcp.SessionStatus & SS_CONNECTED) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
+  if (gXcpDebugLevel >= 2 && gXcp.SessionStatus & SS_CONNECTED) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
 #endif
 }
 
@@ -446,7 +435,7 @@ static void XcpStopAllDaq( void )
 
   gXcp.SessionStatus &= (vuint8)(~SS_DAQ);  
 #if defined ( XCP_ENABLE_TESTMODE )
-  if (gXcpDebugLevel != 0 && gXcp.SessionStatus&SS_CONNECTED) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
+  if (gXcpDebugLevel >= 2 && gXcp.SessionStatus&SS_CONNECTED) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
 #endif
 }
 
@@ -553,7 +542,7 @@ void XcpDisconnect( void )
 {
   gXcp.SessionStatus &= (vuint8)(~SS_CONNECTED);
 #if defined ( XCP_ENABLE_TESTMODE )
-  if (gXcpDebugLevel >= 0) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
+  if (gXcpDebugLevel >= 1) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
 #endif
   XcpStopAllDaq();
 }
@@ -573,34 +562,31 @@ void XcpCommand( const vuint32* pCommand )
   const tXcpCto* pCmd = (const tXcpCto*) pCommand; 
   vuint8 err;
 
-  /* CONNECT */
-  if (CRO_CMD==CC_CONNECT)
+  // Prepare the default response
+  CRM_CMD = 0xFF; /* No Error */
+  gXcp.CrmLen = 1; /* Length = 1 */
+
+  // CONNECT ?
+  if (CRO_CMD==CC_CONNECT) 
   {
-
-    /* Prepare the default response */
-    CRM_CMD = 0xFF; /* No Error */
-    gXcp.CrmLen = 1; /* Length = 1 */
-
 #if defined ( XCP_ENABLE_TESTMODE )
-    if ( gXcpDebugLevel != 0) {
-      ApplXcpPrint("\n-> CONNECT mode=%u\n",CRO_CONNECT_MODE);
-    }
+      if (gXcpDebugLevel >= 1) {
+          ApplXcpPrint("\n-> CONNECT mode=%u\n", CRO_CONNECT_MODE);
+          if (gXcpDebugLevel >= 2) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
+          if (gXcp.SessionStatus & SS_CONNECTED) ApplXcpPrint("  Already connected! DAQ setup cleared! Legacy mode activated!\n");
+      }
 #endif
-        
+
+    // Set Session Status
+    gXcp.SessionStatus = (vuint8)(SS_CONNECTED | SS_LEGACY_MODE);
+
     /* Reset DAQ */
     XcpFreeDaq();
-  
-    /* Reset Session Status */
-    gXcp.SessionStatus = (vuint8)(SS_CONNECTED|SS_LEGACY_MODE);
-#if defined ( XCP_ENABLE_TESTMODE )
-    if (gXcpDebugLevel != 0) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
-#endif
+
+    // Response
     gXcp.CrmLen = CRM_CONNECT_LEN;
-
-    /* Major versions of the XCP Protocol Layer and Transport Layer Specifications. */
-    CRM_CONNECT_TRANSPORT_VERSION = (vuint8)( (vuint16)XCP_TRANSPORT_LAYER_VERSION >> 8 );
+    CRM_CONNECT_TRANSPORT_VERSION = (vuint8)( (vuint16)XCP_TRANSPORT_LAYER_VERSION >> 8 ); /* Major versions of the XCP Protocol Layer and Transport Layer Specifications. */
     CRM_CONNECT_PROTOCOL_VERSION =  (vuint8)( (vuint16)XCP_PROTOCOL_LAYER_VERSION >> 8 );
-
     CRM_CONNECT_MAX_CTO_SIZE = kXcpMaxCTO;
     CRM_CONNECT_MAX_DTO_SIZE = kXcpMaxDTO; 
     CRM_CONNECT_RESOURCE = 0x00;                  /* Reset resource mask */
@@ -611,21 +597,20 @@ void XcpCommand( const vuint32* pCommand )
     CRM_CONNECT_COMM_BASIC |= (vuint8)PI_MOTOROLA;
 #endif
 
-    goto positive_response; 
   }
 
-  /* Handle other commands only if connected */
-  else /* CC_CONNECT */
-  {
-    if ( gXcp.SessionStatus & SS_CONNECTED ) {
-      /* Ignore commands if the previous command sequence has not been completed */
+  // Handle other all other commands 
+  else {
 
-      /* Prepare the default response */
-      CRM_CMD = 0xFF; /* No Error */
-      gXcp.CrmLen = 1; /* Length = 1 */
+      if (!(gXcp.SessionStatus & SS_CONNECTED)) { // Must be connected
+#ifdef XCP_ENABLE_TESTMODE
+          if (gXcpDebugLevel >= 1) ApplXcpPrint("Command ignored because not in connected state, no response sent!\n");
+#endif
+          return;
+      }
 
 #ifdef XCP_ENABLE_TESTMODE
-      if (gXcpDebugLevel != 0) XcpPrintCmd(pCmd);
+      if (gXcpDebugLevel >= 1) XcpPrintCmd(pCmd);
 #endif
 
       switch (CRO_CMD)
@@ -635,8 +620,8 @@ void XcpCommand( const vuint32* pCommand )
           {
             /* Always return a negative response with the error code ERR_CMD_SYNCH. */
             gXcp.CrmLen = CRM_SYNCH_LEN;
-            CRM_CMD    = PID_ERR;
-            CRM_ERR    = CRC_CMD_SYNCH;
+            CRM_CMD = PID_ERR;
+            CRM_ERR = CRC_CMD_SYNCH;
            }
           break;
 
@@ -669,6 +654,7 @@ void XcpCommand( const vuint32* pCommand )
                       CRM_GET_ID_LENGTH = kXcpSlaveIdLength;
                       XcpSetMta(ApplXcpGetPointer(0x00, (vuint32)(&gXcpSlaveId[0])), 0x00);
                       break;
+#ifdef XCP_ENABLE_A2L
                   case IDT_ASAM_UPLOAD:
                     if (gXcpA2L==NULL) {
                       FILE* fd;
@@ -679,14 +665,18 @@ void XcpCommand( const vuint32* pCommand )
                           gXcpA2L = malloc((size_t)(fdstat.st_size + 1));
                           gXcpA2LLength = fread(gXcpA2L, sizeof(char), (size_t)fdstat.st_size, fd);
                           fclose(fd);
-#if defined ( XCP_ENABLE_TESTMODE )
-                          if (gXcpDebugLevel != 0) ApplXcpPrint("A2L file %s ready for upload, size %u\n", kXcpA2LFilenameString, gXcpA2LLength);
-#endif
+  #if defined ( XCP_ENABLE_TESTMODE )
+                          if (gXcpDebugLevel >= 1) {
+                              ApplXcpPrint("A2L file %s ready for upload, size=%u, mta=%Xh\n", kXcpA2LFilenameString, gXcpA2LLength, (vuint32)gXcpA2L);
+                              if (gXcpDebugLevel == 1) gXcpDebugLevelVerbose = 0; // Tempory stop of debug output
+                          }
+  #endif
                       }
                     }
                     CRM_GET_ID_LENGTH = gXcpA2LLength;
                     XcpSetMta(ApplXcpGetPointer(0x00, (vuint32)gXcpA2L), 0x00);
                     break;
+#endif
                   case IDT_ASAM_PATH:
                   case IDT_ASAM_URL:
                       CRM_GET_ID_LENGTH = 0;     // No error, just return length=0, INCA always polls ID_TYPE 0-4
@@ -718,7 +708,7 @@ void XcpCommand( const vuint32* pCommand )
               size = CRO_DOWNLOAD_SIZE;
               if (size>CRO_DOWNLOAD_MAX_SIZE) error(CRC_OUT_OF_RANGE)
               err = XcpWriteMta(size,CRO_DOWNLOAD_DATA);
-              if (err==(vuint8)XCP_CMD_PENDING) goto no_response;
+              if (err == (vuint8)XCP_CMD_PENDING) return; // No response
               if (err == (vuint8)XCP_CMD_DENIED) error(CRC_WRITE_PROTECTED);
               if (err == (vuint8)XCP_CMD_SYNTAX) error(CRC_CMD_SYNTAX);
             }
@@ -730,7 +720,7 @@ void XcpCommand( const vuint32* pCommand )
               if (size > (vuint8)CRM_UPLOAD_MAX_SIZE) error(CRC_OUT_OF_RANGE);
               err = XcpReadMta(size,CRM_UPLOAD_DATA);
               gXcp.CrmLen = (vuint8)(CRM_UPLOAD_LEN+size);
-              if (err==(vuint8)XCP_CMD_PENDING) goto no_response; 
+              if (err == (vuint8)XCP_CMD_PENDING) return; // No response
               if (err == (vuint8)XCP_CMD_DENIED) error(CRC_ACCESS_DENIED);
             }
             break;
@@ -741,7 +731,7 @@ void XcpCommand( const vuint32* pCommand )
               XcpSetMta(ApplXcpGetPointer(CRO_SHORT_UPLOAD_EXT,CRO_SHORT_UPLOAD_ADDR),CRO_SHORT_UPLOAD_EXT);
               err = XcpReadMta(CRO_SHORT_UPLOAD_SIZE,CRM_SHORT_UPLOAD_DATA);
               gXcp.CrmLen = (vuint8)(CRM_SHORT_UPLOAD_LEN+CRO_SHORT_UPLOAD_SIZE);
-              if (err==(vuint8)XCP_CMD_PENDING) goto no_response; 
+              if (err == (vuint8)XCP_CMD_PENDING) return; // No response
               if (err == (vuint8)XCP_CMD_DENIED) error(CRC_ACCESS_DENIED);
             }
             break;
@@ -902,12 +892,12 @@ void XcpCommand( const vuint32* pCommand )
             }
             break;
 
-
-          case CC_TIME_CORRELATION_PROPERTIES:
+#ifdef XCP_ENABLE_PTP
+            case CC_TIME_CORRELATION_PROPERTIES:
             {
               if ((CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES & TIME_SYNC_SET_PROPERTIES_RESP_FORMAT_MASK) >= 1) {
 #if defined ( XCP_ENABLE_TESTMODE )
-                  if (gXcpDebugLevel != 0) ApplXcpPrint("Timesync extended mode activated\n");
+                  if (gXcpDebugLevel >= 1) ApplXcpPrint("Timesync extended mode activated\n");
 #endif                 
                 gXcp.SessionStatus = (vuint8)(gXcp.SessionStatus & ~SS_LEGACY_MODE);
               }
@@ -969,8 +959,9 @@ void XcpCommand( const vuint32* pCommand )
               }
             }
             break; 
+#endif
 
-
+#ifdef XCP_ENABLE_MULTICAST
           case CC_TRANSPORT_LAYER_CMD:
               switch (CRO_TL_SUBCOMMAND) {
 
@@ -983,17 +974,18 @@ void XcpCommand( const vuint32* pCommand )
                   error(CRC_CMD_UNKNOWN);
               }
               break;
+#endif
 
           case CC_GET_DAQ_CLOCK:
           {
               CRM_GET_DAQ_CLOCK_TRIGGER_INFO = 0x18; // TIME_OF_SAMPLING (Bitmask 0x18, 3 - Sampled on reception) 
-              get_daq_clock_multicast:
               CRM_GET_DAQ_CLOCK_RES1 = 0x00;
+              CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = 0x01; // FMT_XCP_SLV = size of payload is DWORD
               gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN;
+#ifdef XCP_ENABLE_PTP
               if (gXcp.SessionStatus & SS_LEGACY_MODE) {
                   // Legacy format
                   gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN;
-                  CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = 0x01; // FMT_XCP_SLV = size of payload is DWORD
                   CRM_GET_DAQ_CLOCK_TIME = ApplXcpGetClock();
               }
               else {
@@ -1010,12 +1002,12 @@ void XcpCommand( const vuint32* pCommand )
                   CRM_GET_DAQ_CLOCK_SYNC_STATE = 1;
 #endif
               }
-
+#else
+              gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN;
+              CRM_GET_DAQ_CLOCK_TIME = ApplXcpGetClock();
+#endif
           }
-          break;
-
-
-             
+          break; 
           
           case CC_LEVEL_1_COMMAND:
               switch (CRO_LEVEL_1_COMMAND_CODE) {
@@ -1040,36 +1032,26 @@ void XcpCommand( const vuint32* pCommand )
               error(CRC_CMD_UNKNOWN) 
             }
 
-      } /* switch */
+      } // switch()
+  } 
 
-      goto positive_response; 
-    }
-
-    /* Not connected */
-    else
-    {
-      goto no_response; 
-    }
-  } /* CC_CONNECT */
-
-
-negative_response:
-
-  gXcp.CrmLen = 2;
-  CRM_CMD = (vuint8)PID_ERR;
-  CRM_ERR = (vuint8)err;
- 
-positive_response:
-
+  // Transmit command response
 #if defined ( XCP_ENABLE_TESTMODE )
   if (gXcpDebugLevel >= 1) XcpPrintRes(pCmd);
 #endif
+  ApplXcpSendCrm(&gXcp.Crm.b[0], gXcp.CrmLen);
+  return;
 
-  ApplXcpSendCrm(&gXcp.Crm.b[0],gXcp.CrmLen);
-
-no_response:
-   return;
-  
+  // Transmit error response
+  negative_response:
+  gXcp.CrmLen = 2;
+  CRM_CMD = (vuint8)PID_ERR;
+  CRM_ERR = (vuint8)err;
+#if defined ( XCP_ENABLE_TESTMODE )
+  if (gXcpDebugLevel >= 1) XcpPrintRes(pCmd);
+#endif
+  ApplXcpSendCrm(&gXcp.Crm.b[0], gXcp.CrmLen);
+  return;
 }
 
 
@@ -1089,6 +1071,8 @@ void XcpInit( void )
   /* Initialize all XCP variables to zero */
   memset((BYTEPTR)&gXcp,0,(vuint16)sizeof(gXcp)); 
    
+#ifdef XCP_ENABLE_PTP
+
   // UUID is contructed will be updated to match the MAC address of the XCP slave
   unsigned char uuid1[8] = SLAVE_UUID;
   memcpy(&gXcp.XcpSlaveClockInfo.UUID[0], &uuid1[0], 8);
@@ -1118,11 +1102,12 @@ void XcpInit( void )
   // Timestamps will be updated to the current value pair
   gXcp.SlvGrandmClkRelationInfo.timestampLocal = 0;
   gXcp.SlvGrandmClkRelationInfo.timestampOrigin = 0;
+#endif
 
   /* Initialize the session status */
   gXcp.SessionStatus = 0;
-#if defined ( XCP_ENABLE_TESTMODE )
-  if (gXcpDebugLevel != 0) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
+#ifdef XCP_ENABLE_TESTMODE
+  if (gXcpDebugLevel >= 1) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
 #endif
 
 }
@@ -1135,6 +1120,51 @@ void XcpInit( void )
 #if defined ( XCP_ENABLE_TESTMODE )
 
 static void XcpPrintCmd(const tXcpCto * pCmd) {
+
+    switch (CRO_CMD) {
+
+    case CC_SET_MTA:
+        if (gXcpDebugLevel >= 1) {
+            if (gXcpDebugLevelVerbose >= 1) {
+              ApplXcpPrint("SET_MTA addr=%08Xh, addrext=%02Xh\n", CRO_SET_MTA_ADDR, CRO_SET_MTA_EXT);
+            }
+            else {
+                ApplXcpPrint("S");
+            }
+        }
+        break;
+
+    case CC_DOWNLOAD:
+        if (gXcpDebugLevel >= 1) {
+            if (gXcpDebugLevelVerbose >= 1) {
+                vuint16 i;
+                ApplXcpPrint("DOWNLOAD size=%u, data=", CRO_DOWNLOAD_SIZE);
+                for (i = 0; (i < CRO_DOWNLOAD_SIZE) && (i < CRO_DOWNLOAD_MAX_SIZE); i++)
+                {
+                    ApplXcpPrint("%02X ", CRO_DOWNLOAD_DATA[i]);
+                }
+                ApplXcpPrint("\n");
+            }
+            else {
+                ApplXcpPrint("D");
+            }
+        }
+        break;
+
+    case CC_UPLOAD:
+        if (gXcpDebugLevel >= 1) {
+            if (gXcpDebugLevelVerbose >= 1) {
+                ApplXcpPrint("UPLOAD size=%u\n", CRO_UPLOAD_SIZE);
+            }
+            else {
+                ApplXcpPrint("U");
+            }
+        }
+        break;
+
+      default:
+          gXcpDebugLevelVerbose = gXcpDebugLevel;
+    }
 
     switch (CRO_CMD) {
 
@@ -1158,36 +1188,6 @@ static void XcpPrintCmd(const tXcpCto * pCmd) {
             ApplXcpPrint("GET_STATUS\n");
             break;
 
-    case CC_SET_MTA:
-            if (gXcpDebugLevel >= 2) {
-                ApplXcpPrint("SET_MTA addr=%08Xh, addrext=%02Xh\n", CRO_SET_MTA_ADDR, CRO_SET_MTA_EXT);
-            }
-            else {
-                ApplXcpPrint("S,");
-            }
-            break;
-
-     case CC_DOWNLOAD:
-         if (gXcpDebugLevel >= 2) {
-                vuint16 i;
-                ApplXcpPrint("DOWNLOAD size=%u, data=", CRO_DOWNLOAD_SIZE);
-                for (i = 0; (i < CRO_DOWNLOAD_SIZE) && (i < CRO_DOWNLOAD_MAX_SIZE); i++)
-                {
-                    ApplXcpPrint("%02X ", CRO_DOWNLOAD_DATA[i]);
-                }
-                ApplXcpPrint("\n");
-            } else {
-             ApplXcpPrint("D,");
-            }
-            break;
-
-     case CC_UPLOAD:
-            if (gXcpDebugLevel >= 2) {
-                 ApplXcpPrint("UPLOAD size=%u\n", CRO_UPLOAD_SIZE);
-            } else {
-                ApplXcpPrint("U,");
-            }
-            break;
 
      case CC_SHORT_UPLOAD:
             ApplXcpPrint("SHORT_UPLOAD addr=%08Xh, addrext=%02Xh, size=%u\n", CRO_SHORT_UPLOAD_ADDR, CRO_SHORT_UPLOAD_EXT, CRO_SHORT_UPLOAD_SIZE);
@@ -1266,9 +1266,6 @@ static void XcpPrintCmd(const tXcpCto * pCmd) {
                break;
          }
          break;
-
-     default:
-            ApplXcpPrint("UNKNOWN COMMAND %02X\n", CRO_CMD);
          
     } /* switch */
 }

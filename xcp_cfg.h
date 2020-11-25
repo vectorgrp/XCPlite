@@ -25,7 +25,6 @@
 #include <time.h>
 #include <sys/stat.h>
 
-
 #include <pthread.h> // link with -lpthread
 
 #include <assert.h>
@@ -37,26 +36,6 @@
 #include <linux/ip.h>
 #include <linux/udp.h>
 #include <arpa/inet.h>
-
-
-
-/*----------------------------------------------------------------------------*/
-
-#define XCP_SLAVE2
-
-#ifdef XCP_SLAVE2
-#define SLAVE_IP "172.31.31.195"
-#define SLAVE_MAC {0xdc,0xa6,0x32,0x2e,0x7d,0xe0}
-#define SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x2e,0x7d,0xe0}
-#else
-#define SLAVE_IP "172.31.31.194"
-#define SLAVE_MAC {0xdc,0xa6,0x32,0x7e,0x66,0xdc}
-#define SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc}
-#endif
-
-//dca632.fffe.79a251
-#define MASTER_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x79,0xa2,0x51}
-
 
 
 /*----------------------------------------------------------------------------*/
@@ -95,24 +74,23 @@ typedef signed long long vsint64;
 /*----------------------------------------------------------------------------*/
 /* XCP Driver Callbacks as macros */
 
-extern int udpServerSendCrmPacket(const unsigned char* data, unsigned int n);
-extern unsigned char* udpServerGetPacketBuffer(void** par, unsigned int size);
-extern void udpServerCommitPacketBuffer(void* par);
-
 // Convert a XCP (BYTE addrExt, DWORD addr from A2L) address to a C pointer to unsigned byte
 // extern BYTEPTR ApplXcpGetPointer(vuint8 addr_ext, vuint32 addr)
 #define ApplXcpGetPointer(e,a) ((BYTEPTR)((a)))
 
 // Get and commit buffer space for a DTO message
+extern unsigned char* udpServerGetPacketBuffer(void** par, unsigned int size);
+extern void udpServerCommitPacketBuffer(void* par);
 #define ApplXcpGetDtoBuffer udpServerGetPacketBuffer
 #define ApplXcpCommitDtoBuffer udpServerCommitPacketBuffer
 
 // Send a CRM message
+extern int udpServerSendCrmPacket(const unsigned char* data, unsigned int n);
 #define ApplXcpSendCrm udpServerSendCrmPacket
 
 
 /*----------------------------------------------------------------------------*/
-/* A2L creator */
+/* A2L creator and upload */
 
 #define XCP_ENABLE_A2L
 
@@ -128,20 +106,22 @@ extern void udpServerCommitPacketBuffer(void* par);
 
 #define XCP_ENABLE_TESTMODE
 #ifdef XCP_ENABLE_TESTMODE
-  #define XCP_DEBUG_LEVEL 1
-  #define ApplXcpPrint printf
-  #define XCP_ENABLE_PARAMETER_CHECK
-
-  #include <wiringPi.h>
-  #define PI_IO_1	17
-  #define ApplXcpDbgPin(x) digitalWrite(PI_IO_1,x);
-
+	#define XCP_DEBUG_LEVEL 1
+	#define ApplXcpPrint printf
+	#define XCP_ENABLE_PARAMETER_CHECK
+    #define XCP_ENABLE_WIRINGPI
+#endif
+#ifdef XCP_ENABLE_WIRINGPI
+	#include <wiringPi.h>
+	#define PI_IO_1	17
+	#define ApplXcpDbgPin(x) digitalWrite(PI_IO_1,x);
 #else
   ApplXcpDbgPin(x)
 #endif
 	  
 extern volatile vuint32 gTaskCycleTimerECU;
 extern volatile vuint32 gTaskCycleTimerECUpp;
+
 
 /*----------------------------------------------------------------------------*/
 /* XCP protocol and transport layer parameters */
@@ -174,21 +154,33 @@ extern vuint8 MEMORY_ROM gXcpA2LFilename[];
 /* Maximum ODT entry size */
   #define XCP_MAX_ODT_ENTRY_SIZE 248 // mod 4 = 0 to optimize DAQ copy granularity
 
-/* DAQ timestamp settings */
+/* DAQ time stamping */
+// #define XCP_ENABLE_PTP
 extern vuint32 ApplXcpGetClock(void);
-extern vuint64 ApplXcpGetClock64(void);
+#ifdef XCP_ENABLE_PTP // Experimental -  UUIDs hardcoded
+   #define TIMESTAMP_DLONG
+
+	#define XCP_SLAVE2
+
+	#ifdef XCP_SLAVE2
+	#define SLAVE_IP "172.31.31.195"
+	#define SLAVE_MAC {0xdc,0xa6,0x32,0x2e,0x7d,0xe0}
+	#define SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x2e,0x7d,0xe0}
+	#else
+	#define SLAVE_IP "172.31.31.194"
+	#define SLAVE_MAC {0xdc,0xa6,0x32,0x7e,0x66,0xdc}
+	#define SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc}
+	#endif
+
+	//dca632.fffe.79a251
+	#define MASTER_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x79,0xa2,0x51}
+    extern vuint64 ApplXcpGetClock64(void);
+#endif
 #define kApplXcpDaqTimestampTicksPerMs 1000 
 #define kXcpDaqTimestampUnit DAQ_TIMESTAMP_UNIT_1US
 #define kXcpDaqTimestampTicksPerUnit 1  
 
-
-/*----------------------------------------------------------------------------*/
-/* XCP protocol features */
-
-#define XCP_ENABLE_CALIBRATION
-
-#define XCP_ENABLE_PTP
-//#define TIMESTAMP_DLONG
+	
 
 
 #endif

@@ -3,12 +3,14 @@
 |   A2L.c
 |
 | Description:
-|   Generate A2L file
+|   Generate A2L file for upload with GET_ID
 |   Linux (Raspberry Pi) Version
  ----------------------------------------------------------------------------*/
 
 
 #include "A2L.h"
+
+#ifdef XCP_ENABLE_A2L
 
 #define MAX_EVENT 256
 
@@ -41,7 +43,6 @@ char* gA2lIfData1 =
 "0x0103 0x03E8 0x2710 0x00 0x00 0x00 0x00 0x00 0xFA 0x0574 BYTE_ORDER_MSB_LAST ADDRESS_GRANULARITY_BYTE\n"
 "OPTIONAL_CMD GET_COMM_MODE_INFO\n"
 "OPTIONAL_CMD GET_ID\n"
-//"OPTIONAL_CMD GET_STATUS\n"
 "OPTIONAL_CMD SET_MTA\n"
 "OPTIONAL_CMD UPLOAD\n"
 "OPTIONAL_CMD SHORT_UPLOAD\n"
@@ -61,7 +62,9 @@ char* gA2lIfData1 =
 "OPTIONAL_CMD START_STOP_SYNCH\n"
 "OPTIONAL_CMD START_STOP_DAQ_LIST\n"
 "OPTIONAL_CMD GET_DAQ_CLOCK\n"
+#ifdef XCP_ENABLE_PTP
 "OPTIONAL_CMD TIME_CORRELATION_PROPERTIES\n"
+#endif
 "OPTIONAL_LEVEL1_CMD GET_VERSION\n"
 "/end PROTOCOL_LAYER\n"
 "/begin DAQ\n"
@@ -78,7 +81,6 @@ char* gA2lIfData2 =
 "/begin PGM\n"
 "PGM_MODE_ABSOLUTE 0x00 0x00\n"
 "/end PGM\n"
-//"/begin XCP_ON_TCP_IP 0x0100 0x15B3 ADDRESS \"172.31.31.194\" /end XCP_ON_TCP_IP\n"
 "/begin XCP_ON_UDP_IP 0x0103 0x15B3 ADDRESS \"172.31.31.195\" /end XCP_ON_UDP_IP\n"
 "/end IF_DATA\n"
 ;
@@ -268,3 +270,6 @@ void A2lClose(void) {
 	fprintf(gA2lFile, gA2lFooter);
 	fclose(gA2lFile);
 }
+
+#endif
+

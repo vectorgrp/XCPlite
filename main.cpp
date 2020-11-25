@@ -188,8 +188,9 @@ int main(void)
     // Initialize XCP driver
     XcpInit();
 #if defined ( XCP_ENABLE_TESTMODE )
-    if (gXcpDebugLevel > 0) {
+    if (gXcpDebugLevel >= 1) {
         printf("gXcpDebugLevel = %u\n", gXcpDebugLevel);
+        printf("&gXcpDebugLevel = %0Xh\n", &gXcpDebugLevel);
     }
 #endif
 
