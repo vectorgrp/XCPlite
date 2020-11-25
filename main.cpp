@@ -9,9 +9,6 @@
 |   Linux (Raspberry Pi) Version
  ----------------------------------------------------------------------------*/
 
-
-extern "C" {
-
 // XCP driver
 #include "xcpLite.h"
 
@@ -53,8 +50,6 @@ static vuint32 gTaskTimer = 0;
 
 // Quit application
 volatile vuint8 gExit = 0;
-
-}
 
 
 // ECU simulation (C++ demo)
@@ -179,8 +174,13 @@ int main(void)
     // Initialize clock for DAQ event time stamps
     ApplXcpClockInit();
 
+    // Initialize module load addresses
+#ifdef XCP_ENABLE_SO
+    ApplXcpInitBaseAddressList();
+#endif
+
     // Initialize digital io
-#if defined ( XCP_ENABLE_TESTMODE )
+#ifdef XCP_ENABLE_WIRINGPI
     wiringPiSetupSys();
     pinMode(PI_IO_1, OUTPUT);
 #endif

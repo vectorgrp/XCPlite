@@ -5,6 +5,10 @@
 
 #include "xcpLite.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef  struct XcpTlData {
     int Sock;
     unsigned short LastCmdCtr;
@@ -67,7 +71,8 @@ extern void udpServerHandleTransmitQueue(void);
 extern void udpServerFlushPacketBuffer(void);
 #endif
 
-
-
+#ifdef __cplusplus
+}
+#endif
 
 #endif

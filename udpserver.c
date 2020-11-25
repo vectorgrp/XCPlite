@@ -290,7 +290,7 @@ int udpServerSendCrmPacket(const unsigned char* packet, unsigned int size) {
 
 int udpServerHandleXCPCommands(void) {
 
-    int n, i;
+    int n;
     int connected;
     XCP_CTO_MESSAGE buffer;
 
@@ -326,7 +326,7 @@ int udpServerHandleXCPCommands(void) {
             printf("RX: CTR %04X", buffer.ctr);
             printf(" LEN %04X", buffer.dlc);
             printf(" DATA = ");
-            for (i = 0; i < buffer.dlc; i++) printf("%00X ", buffer.data[i]);
+            for (int i = 0; i < buffer.dlc; i++) printf("%00X ", buffer.data[i]);
             printf("\n");
         }
 #endif

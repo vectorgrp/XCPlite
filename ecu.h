@@ -3,6 +3,10 @@
 #ifndef __ECU_H_
 #define __ECU_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern unsigned short CALRAM_START;
 extern unsigned short CALRAM_LAST;
 
@@ -11,5 +15,9 @@ extern unsigned short CALRAM_LAST;
 
 extern void ecuCyclic( void );
 extern void ecuInit( void );
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

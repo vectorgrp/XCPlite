@@ -52,7 +52,7 @@ unsigned short wordCounter;
 unsigned long dwordCounter;
 signed char sbyteCounter;
 signed short swordCounter;
-signed long sdwordCounter;
+signed int sdwordCounter;
 
 char testString[] = "TestString"; 
 
@@ -224,13 +224,13 @@ void ecuCyclic( void )
   swordCounter++;
   sdwordCounter++;
   
-#if defined ( XCP_ENABLE_TESTMODE )
+#if defined ( XCP_ENABLE_WIRINGPI )
     digitalWrite(PI_IO_1, HIGH);
 #endif
 
     XcpEvent(1); // Trigger measurement date aquisition event 1
 
-#if defined ( XCP_ENABLE_TESTMODE )
+#if defined ( XCP_ENABLE_WIRINGPI )
     digitalWrite(PI_IO_1, LOW);
 #endif
     

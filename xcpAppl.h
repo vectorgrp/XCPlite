@@ -6,12 +6,24 @@
 
 #include "xcpLite.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 extern volatile vuint32 gClock;
 extern volatile vuint64 gClock64;
 
 extern void ApplXcpClockInit(void);
 extern vuint32 ApplXcpGetClock(void);
 extern vuint64 ApplXcpGetClock64(void);
+
+
+
+#ifdef __cplusplus
+}
+#endif
+
 
 
 #endif
