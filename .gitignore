@@ -1,4 +1,18 @@
-/bin/
-/obj/
+
+bin/
+obj/
+*.[oa]
+
+
+
+# Visual Studio specific files and folders
 .vs/
+*.suo
+*.sdf
+*.opensdf
+*.vspscc
+*.csproj.user
+.vscode/
+*.sln.DotSettings
+*.sln.DotSettings.user 
 
