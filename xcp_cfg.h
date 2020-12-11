@@ -56,7 +56,7 @@ extern "C" {
 // #define XCP_ENABLE_PTP // Enable PTP synchronized DAQ time stamps
 
 #define XCP_ENABLE_TESTMODE // Enable debug console prints
-#define XCP_ENABLE_WIRINGPI // Enable digital io 
+// #define XCP_ENABLE_WIRINGPI // Enable digital io 
 
 
 
