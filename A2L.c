@@ -3,12 +3,14 @@
 |   A2L.c
 |
 | Description:
-|   Generate A2L file
+|   Generate A2L file for upload with GET_ID
 |   Linux (Raspberry Pi) Version
  ----------------------------------------------------------------------------*/
 
 
 #include "A2L.h"
+
+#ifdef XCP_ENABLE_A2L
 
 #define MAX_EVENT 256
 
@@ -40,6 +42,30 @@ char* gA2lIfData1 =
 "/begin PROTOCOL_LAYER\n"
 "0x0103 0x03E8 0x2710 0x00 0x00 0x00 0x00 0x00 0xFA 0x0574 BYTE_ORDER_MSB_LAST ADDRESS_GRANULARITY_BYTE\n"
 "OPTIONAL_CMD GET_COMM_MODE_INFO\n"
+"OPTIONAL_CMD GET_ID\n"
+"OPTIONAL_CMD SET_MTA\n"
+"OPTIONAL_CMD UPLOAD\n"
+"OPTIONAL_CMD SHORT_UPLOAD\n"
+"OPTIONAL_CMD DOWNLOAD\n"
+"OPTIONAL_CMD SHORT_UPLOAD\n"
+"OPTIONAL_CMD GET_DAQ_RESOLUTION_INFO\n"
+"OPTIONAL_CMD GET_DAQ_PROCESSOR_INFO\n"
+"OPTIONAL_CMD FREE_DAQ\n"
+"OPTIONAL_CMD ALLOC_DAQ\n"
+"OPTIONAL_CMD ALLOC_ODT\n"
+"OPTIONAL_CMD ALLOC_ODT_ENTRY\n"
+"OPTIONAL_CMD SET_DAQ_PTR\n"
+"OPTIONAL_CMD WRITE_DAQ\n"
+"OPTIONAL_CMD WRITE_DAQ_MULTIPLE\n"
+"OPTIONAL_CMD GET_DAQ_LIST_MODE\n"
+"OPTIONAL_CMD SET_DAQ_LIST_MODE\n"
+"OPTIONAL_CMD START_STOP_SYNCH\n"
+"OPTIONAL_CMD START_STOP_DAQ_LIST\n"
+"OPTIONAL_CMD GET_DAQ_CLOCK\n"
+#ifdef XCP_ENABLE_PTP
+"OPTIONAL_CMD TIME_CORRELATION_PROPERTIES\n"
+#endif
+"OPTIONAL_LEVEL1_CMD GET_VERSION\n"
 "/end PROTOCOL_LAYER\n"
 "/begin DAQ\n"
 "DYNAMIC 0x00 0x03 0x00 OPTIMISATION_TYPE_DEFAULT ADDRESS_EXTENSION_FREE IDENTIFICATION_FIELD_TYPE_RELATIVE_BYTE GRANULARITY_ODT_ENTRY_SIZE_DAQ_BYTE 0xF8 OVERLOAD_INDICATION_PID\n"
@@ -55,8 +81,7 @@ char* gA2lIfData2 =
 "/begin PGM\n"
 "PGM_MODE_ABSOLUTE 0x00 0x00\n"
 "/end PGM\n"
-"/begin XCP_ON_TCP_IP 0x0100 0x15B3 ADDRESS \"172.31.31.194\" /end XCP_ON_TCP_IP\n"
-"/begin XCP_ON_UDP_IP 0x0103 0x15B3 ADDRESS \"172.31.31.194\" /end XCP_ON_UDP_IP\n"
+"/begin XCP_ON_UDP_IP 0x0103 0x15B3 ADDRESS \"172.31.31.195\" /end XCP_ON_UDP_IP\n"
 "/end IF_DATA\n"
 ;
 
@@ -93,6 +118,7 @@ static const char* getTypeMin(int size) {
 	case -2: min = "-32768"; break;
 	case -4: min = "-2147483648";  break;
 	case -8: min = "-1E12"; break;
+	case 8: min = "-1E12"; break;
 	default: min = "0";
 	}
 	return min;
@@ -149,6 +175,18 @@ void A2lSetEvent(unsigned int event) {
 
 	gA2lEvent = event;
 }
+
+
+void A2lCreateMeasurementType_(const char* name, int size, const char* comment) {
+
+	fprintf(gA2lFile,
+		"/begin TYPEDEF_STRUCTURE %s \"%s\" 0x%X SYMBOL_TYPE_LINK \"%s\"\n"
+		"  /begin STRUCTURE_COMPONENT dummy_structure_component _ULONG 0 SYMBOL_TYPE_LINK \"dummy_symbol_type_link\" /end STRUCTURE_COMPONENT\n"
+		"/end TYPEDEF_STRUCTURE\n"
+			, name, comment, size, name);
+
+}
+
 
 
 void A2lCreateMeasurement_(const char* name, int size, unsigned long addr, double factor, double offset, const char* unit, const char* comment) {
@@ -217,11 +255,21 @@ void A2lCreateGroup(const char* name, int count, ...) {
 
 void A2lClose(void) {
 
+	// Create standard record layouts for elementary types
 	for (int i = -8; i <= +8; i++) {
 		const char* t = getMeaType(i);
 		if (t != NULL) fprintf(gA2lFile, "/begin RECORD_LAYOUT _%s FNC_VALUES 1 %s ROW_DIR DIRECT /end RECORD_LAYOUT\n", t, t);
 	}
 
+	// Create standard typedefs for elementary types
+	for (int i = -8; i <= +8; i++) {
+		const char* t = getMeaType(i);
+		if (t != NULL) fprintf(gA2lFile, "/begin TYPEDEF_MEASUREMENT _%s \"\" %s NO_COMPU_METHOD 0 0 %s %s /end TYPEDEF_MEASUREMENT\n",t,t,getTypeMin(i),getTypeMax(i));
+	}
+
 	fprintf(gA2lFile, gA2lFooter);
 	fclose(gA2lFile);
 }
+
+#endif
+

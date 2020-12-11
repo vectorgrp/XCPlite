@@ -28,7 +28,6 @@
 #include <time.h>
 #include <sys/stat.h>
 
-
 #include <pthread.h> // link with -lpthread
 
 #include <assert.h>
@@ -41,11 +40,33 @@
 #include <linux/udp.h>
 #include <arpa/inet.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+
+/*----------------------------------------------------------------------------*/
+// Protocol and debugging options
+// Other settings see further below
+
+// #define XCP_ENABLE_64 // Enable 64 bit platform support, otherwise assume 32 bit plattform
+	
+// #define XCP_ENABLE_A2L // Enable A2L creator and A2L upload to host
+
+// #define XCP_ENABLE_SO // Enable measurement and calibration of shared objects
+
+// #define XCP_ENABLE_PTP // Enable PTP synchronized DAQ time stamps
+
+#define XCP_ENABLE_TESTMODE // Enable debug console prints
+// #define XCP_ENABLE_WIRINGPI // Enable digital io 
+
+
 
 /*----------------------------------------------------------------------------*/
 /* Platform specific definitions */
 
-  /* 8-Bit  */
+/* 8-Bit  */
 typedef unsigned char  vuint8;
 typedef signed char    vsint8;
 
@@ -54,8 +75,12 @@ typedef unsigned short vuint16;
 typedef signed short   vsint16;
 
 /* 32-Bit  */
-typedef unsigned long  vuint32;
-typedef signed long    vsint32;
+typedef unsigned int   vuint32;
+typedef signed int     vsint32;
+
+/* 64-Bit  */
+typedef unsigned long long  vuint64;
+typedef signed long long vsint64;
 
 /* Byte order */
 //#define XCP_CPUTYPE_BIGENDIAN  /* Motorola */
@@ -72,22 +97,44 @@ typedef signed long    vsint32;
 
 
 /*----------------------------------------------------------------------------*/
-/* XCP Driver Callbacks as macros */
+/* XCP Driver Callbacks for pointer/address conversions */
 
-extern int udpServerSendCrmPacket(const unsigned char* data, unsigned int n);
-extern unsigned char* udpServerGetPacketBuffer(void** par, unsigned int size);
-extern void udpServerCommitPacketBuffer(void* par);
+#ifdef XCP_ENABLE_SO
+
+#define XCP_MAX_MODULE 1
 
 // Convert a XCP (BYTE addrExt, DWORD addr from A2L) address to a C pointer to unsigned byte
-// extern BYTEPTR ApplXcpGetPointer(vuint8 addr_ext, vuint32 addr)
+extern BYTEPTR ApplXcpGetPointer(vuint8 addr_ext, vuint32 addr);
+
+// Convert a pointer to XCP (DWORD address from A2L) address
+extern vuint32 ApplXcpGetAddr(BYTEPTR addr);
+
+// Init module base address list
+extern void ApplXcpInitBaseAddressList();
+
+#else
+
 #define ApplXcpGetPointer(e,a) ((BYTEPTR)((a)))
+#define ApplXcpGetAddr(p) ((vuint32)((p)))
+
+#endif
+
+
+/*----------------------------------------------------------------------------*/
+/* XCP Driver Transport Layer Callbacks as macros */
 
 // Get and commit buffer space for a DTO message
+extern unsigned char* udpServerGetPacketBuffer(void** par, unsigned int size);
+extern void udpServerCommitPacketBuffer(void* par);
 #define ApplXcpGetDtoBuffer udpServerGetPacketBuffer
 #define ApplXcpCommitDtoBuffer udpServerCommitPacketBuffer
 
 // Send a CRM message
+extern int udpServerSendCrmPacket(const unsigned char* data, unsigned int n);
 #define ApplXcpSendCrm udpServerSendCrmPacket
+
+
+
 
 
 /*----------------------------------------------------------------------------*/
@@ -95,22 +142,24 @@ extern void udpServerCommitPacketBuffer(void* par);
 
 /* Turn on screen logging, assertions and parameter checks */
 
-#define XCP_ENABLE_TESTMODE
 #ifdef XCP_ENABLE_TESTMODE
-  #define XCP_DEBUG_LEVEL 1
-  #define ApplXcpPrint printf
-  #define XCP_ENABLE_PARAMETER_CHECK
+	#define XCP_DEBUG_LEVEL 1
+	#define ApplXcpPrint printf
+	#define XCP_ENABLE_PARAMETER_CHECK
+    
+#endif
 
-  #include <wiringPi.h>
-  #define PI_IO_1	17
-  #define ApplXcpDbgPin(x) digitalWrite(PI_IO_1,x);
-
+#ifdef XCP_ENABLE_WIRINGPI
+	#include <wiringPi.h>
+	#define PI_IO_1	17
+	#define ApplXcpDbgPin(x) digitalWrite(PI_IO_1,x);
 #else
-  ApplXcpDbgPin(x)
+    #define ApplXcpDbgPin(x)
 #endif
 	  
 extern volatile vuint32 gTaskCycleTimerECU;
 extern volatile vuint32 gTaskCycleTimerECUpp;
+
 
 /*----------------------------------------------------------------------------*/
 /* XCP protocol and transport layer parameters */
@@ -143,20 +192,37 @@ extern vuint8 MEMORY_ROM gXcpA2LFilename[];
 /* Maximum ODT entry size */
   #define XCP_MAX_ODT_ENTRY_SIZE 248 // mod 4 = 0 to optimize DAQ copy granularity
 
-/* DAQ timestamp settings */
+/* DAQ time stamping */
+extern vuint32 ApplXcpGetClock(void);
+
+#ifdef XCP_ENABLE_PTP // Experimental -  UUIDs hardcoded
+   #define TIMESTAMP_DLONG
+
+	#define XCP_SLAVE2
+
+	#ifdef XCP_SLAVE2
+	#define SLAVE_IP "172.31.31.195"
+	#define SLAVE_MAC {0xdc,0xa6,0x32,0x2e,0x7d,0xe0}
+	#define SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x2e,0x7d,0xe0}
+	#else
+	#define SLAVE_IP "172.31.31.194"
+	#define SLAVE_MAC {0xdc,0xa6,0x32,0x7e,0x66,0xdc}
+	#define SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc}
+	#endif
+
+	//dca632.fffe.79a251
+	#define MASTER_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x79,0xa2,0x51}
+    extern vuint64 ApplXcpGetClock64(void);
+#endif
 #define kApplXcpDaqTimestampTicksPerMs 1000 
-extern vuint32 ApplXcpTimer(void);
 #define kXcpDaqTimestampUnit DAQ_TIMESTAMP_UNIT_1US
 #define kXcpDaqTimestampTicksPerUnit 1  
-#define ApplXcpGetTimestamp() ApplXcpTimer()
 
+	
 
-/*----------------------------------------------------------------------------*/
-/* XCP protocol features */
-
-#define XCP_ENABLE_CALIBRATION
-
-
+#ifdef __cplusplus
+}
+#endif
 
 #endif
 

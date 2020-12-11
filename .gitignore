@@ -1,7 +1,12 @@
-.vs/
+
+bin/
+obj/
+*.[oa]
+
 
 
 # Visual Studio specific files and folders
+.vs/
 *.suo
 *.sdf
 *.opensdf
@@ -10,8 +15,4 @@
 .vscode/
 *.sln.DotSettings
 *.sln.DotSettings.user 
-
-bin/
-obj/
-*.[oa]
 

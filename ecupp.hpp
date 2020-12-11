@@ -7,11 +7,14 @@ class ecu {
 
 public:
 	
-	unsigned short counter;
+	unsigned short ecuppCounter;
 
 	unsigned char byte;
 	unsigned short word;
 	unsigned long dword;
+	
+	signed short sword;
+
 
 	ecu();
 

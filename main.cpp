@@ -9,9 +9,6 @@
 |   Linux (Raspberry Pi) Version
  ----------------------------------------------------------------------------*/
 
-
-extern "C" {
-
 // XCP driver
 #include "xcpLite.h"
 
@@ -54,8 +51,6 @@ static vuint32 gTaskTimer = 0;
 // Quit application
 volatile vuint8 gExit = 0;
 
-}
-
 
 // ECU simulation (C++ demo)
 #include "ecupp.hpp"
@@ -84,15 +79,15 @@ extern "C" {
             if (gExit) break; // Terminate application
             sleepns(gTaskCycleTimerServer);
 
-            ApplXcpTimer();
-            if (gTimer - gCmdTimer > gCmdCycle) {
-                gCmdTimer = gTimer;
+            ApplXcpGetClock();
+            if (gClock - gCmdTimer > gCmdCycle) {
+                gCmdTimer = gClock;
                 if (udpServerHandleXCPCommands() < 0) break;  // Handle XCP commands
             }
 
 #ifndef THREAD_ECU
-            if (gTimer - gTaskTimer > gTaskCycle) {
-                gTaskTimer = gTimer;
+            if (gClock - gTaskTimer > gTaskCycle) {
+                gTaskTimer = gClock;
                 ecuCyclic();
             }
 #endif
@@ -106,8 +101,8 @@ extern "C" {
             
                 // Cyclic flush of incomlete packets from transmit queue or transmit buffer to keep tool visualizations up to date
                 // No priorisation of events implemented, no latency optimizations
-                if (gTimer - gFlushTimer > gFlushCycle && gFlushCycle>0) {
-                    gFlushTimer = gTimer;
+                if (gClock - gFlushTimer > gFlushCycle && gFlushCycle>0) {
+                    gFlushTimer = gClock;
 #ifdef DTO_SEND_QUEUE  
                     udpServerFlushTransmitQueue();
 #else
@@ -172,15 +167,20 @@ extern "C" {
 int main(void)
 {  
     printf(
-        "\nRaspberryPi XCP on UDP Demo (Lite Version) \n"
+        "\nRaspberryPi XCP on UDP Demo (Lite Version with A2L generation) \n"
         "Build " __DATE__ " " __TIME__ "\n"
         );
      
     // Initialize clock for DAQ event time stamps
-    ApplXcpTimerInit();
+    ApplXcpClockInit();
+
+    // Initialize module load addresses
+#ifdef XCP_ENABLE_SO
+    ApplXcpInitBaseAddressList();
+#endif
 
     // Initialize digital io
-#if defined ( XCP_ENABLE_TESTMODE )
+#ifdef XCP_ENABLE_WIRINGPI
     wiringPiSetupSys();
     pinMode(PI_IO_1, OUTPUT);
 #endif
@@ -188,25 +188,22 @@ int main(void)
     // Initialize XCP driver
     XcpInit();
 #if defined ( XCP_ENABLE_TESTMODE )
-    if (gXcpDebugLevel > 0) {
+    if (gXcpDebugLevel >= 1) {
         printf("gXcpDebugLevel = %u\n", gXcpDebugLevel);
+        printf("&gXcpDebugLevel = %0Xh\n", &gXcpDebugLevel);
     }
 #endif
 
+    // Create A2L
+#ifdef XCP_ENABLE_A2L
+
     // Create A2L file header
     A2lInit(kXcpA2LFilenameString);
-    A2lCreateEvent("ECU");
-    A2lCreateEvent("ECUPP");
+    A2lCreateEvent("ECU");     // 1: Standard event triggered in ecuTask
+    A2lCreateEvent("ECUPP");   // 2: Standard event triggered in ecuppTask
+    A2lCreateEvent("ECUPPEXT");// 3: Extended event (relative address objects) triggered in ecuppTask
     A2lHeader();
- 
-    // Initialize ECU demo (C) variables and add to A2L
-    A2lSetEvent(1);
-    ecuInitAndCreateA2l();
-    
-    // Initialize ECU demo (C++) variables and add to A2L 
-    A2lSetEvent(2);
-    gEcu = new ecu();
-      
+
     // Test parameters
     A2lCreateParameter(gCmdCycle, "us", "Command handler cycle time");
     A2lCreateParameter(gFlushCycle, "us", "Flush cycle time");
@@ -217,8 +214,18 @@ int main(void)
     A2lCreateParameter(gExit, "", "Quit application");
     A2lCreateGroup("Test_Parameters", 7, "gCmdCycle", "gFlushCycle", "gTaskCycleTimerECU", "gTaskCycleTimerECUpp", "gTaskCycleTimerServer", "gXcpDebugLevel", "gExit");
 
+#endif
+
+    // Initialize ECU demo (C) variables and add them to A2L
+    ecuInit();
+
+    // Initialize ECU demo (C++) variables and add them to A2L 
+    gEcu = new ecu();
+
     // Finish A2L
+#ifdef XCP_ENABLE_A2L
     A2lClose();
+#endif
 
     // Create the ECU threads
 #ifdef THREAD_ECU
@@ -226,7 +233,6 @@ int main(void)
     int a2 = 0;
     pthread_create(&t2, NULL, ecuTask, (void*)&a2);
 #endif
-
 #ifdef THREAD_ECUPP
     pthread_t t3;
     int a3 = 0;

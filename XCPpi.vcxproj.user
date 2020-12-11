@@ -1,6 +1,15 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
-    <RemoteTarget>-1295725817;172.31.31.194 (username=, port=22, authentication=Password)</RemoteTarget>
+    <RemoteTarget>-699637981;172.31.31.194 (username=, port=22, authentication=Password)</RemoteTarget>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
+    <RemoteTarget>-699637981;172.31.31.194 (username=, port=22, authentication=Password)</RemoteTarget>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
+    <RemoteTarget>-699637981;172.31.31.194 (username=, port=22, authentication=Password)</RemoteTarget>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
+    <RemoteTarget>-699637981;172.31.31.194 (username=, port=22, authentication=Password)</RemoteTarget>
   </PropertyGroup>
 </Project>

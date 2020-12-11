@@ -15,11 +15,10 @@ using namespace std;
 
 #include "ecupp.hpp"
 
-
+// XCP 
 extern "C" {
-
-	// XCP driver - XcpEventExt
 	#include "xcpLite.h"
+    #include "A2L.h"
 }
 
 
@@ -28,23 +27,47 @@ extern "C" {
 // Constructor 
 ecu::ecu() {
 
-	counter = 0;
+	ecuppCounter = 0;
 	
-	byte = 0;
-	word = 0;
-	dword = 0;
+	byte = 1;
+	word = 1;
+	dword = 1;
+	sword = -1;
+
+#ifdef XCP_ENABLE_A2L
+
+	//A2lBeginGroup("ECUPP");
+
+	A2lCreateMeasurementType("ecu","class ecu");
+
+	A2lSetEvent(2);
+	A2lCreateMeasurement_abs("gEcu", ecuppCounter);
+
+	A2lSetEvent(3);
+	A2lCreateMeasurement_rel("ecu", ecuppCounter);
+	A2lCreateMeasurement_rel("ecu", byte);
+	A2lCreateMeasurement_rel("ecu", word);
+	A2lCreateMeasurement_rel("ecu", dword);
+	
+	//A2lEndGroup("ECUPP");
+
+#endif
+
+
 }
 
 // Cyclic task
 void ecu::task() {
 
-	counter++;
+	ecuppCounter++;
 
 	byte++;
 	word++;
 	dword++;
 
-	XcpEventExt(2, (BYTEPTR)this); // Trigger measurement data aquisition event 2
+	XcpEventExt(3, (BYTEPTR)this); // Trigger measurement data aquisition event 2
+	XcpEvent(2); 
+	
 }
 
 

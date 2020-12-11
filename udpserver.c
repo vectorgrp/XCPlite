@@ -40,7 +40,7 @@ static int udpServerSendDatagram(const unsigned char* data, unsigned int size ) 
     }
 #endif
 
-    // Respond to active client, same port    // option gRemoteAddr.sin_port = htons(9001);
+    // Respond to active connect client, same port    // option gRemoteAddr.sin_port = htons(9001);
     r = sendto(gXcpTl.Sock, data, size, 0, (struct sockaddr*)&gXcpTl.ClientAddr, sizeof(struct sockaddr));
     if (r != size) {
         perror("udpServerSendDatagram() sendto failed");
@@ -290,7 +290,7 @@ int udpServerSendCrmPacket(const unsigned char* packet, unsigned int size) {
 
 int udpServerHandleXCPCommands(void) {
 
-    int n, i;
+    int n;
     int connected;
     XCP_CTO_MESSAGE buffer;
 
@@ -318,55 +318,72 @@ int udpServerHandleXCPCommands(void) {
     }
     else if (n > 0) { // Socket data received
 
+        gXcpTl.LastCmdCtr = buffer.ctr;
+        connected = (gXcp.SessionStatus & SS_CONNECTED);
+
 #ifdef XCP_ENABLE_TESTMODE
-        if (gXcpDebugLevel >= 3) {
+        if (gXcpDebugLevel >= 3 || (!connected && gXcpDebugLevel >= 1)) {
             printf("RX: CTR %04X", buffer.ctr);
             printf(" LEN %04X", buffer.dlc);
             printf(" DATA = ");
-            for (i = 0; i < buffer.dlc; i++) printf("%00X ", buffer.data[i]);
+            for (int i = 0; i < buffer.dlc; i++) printf("%00X ", buffer.data[i]);
             printf("\n");
         }
 #endif
-        
-        gXcpTl.LastCmdCtr = buffer.ctr;
-        connected = (gXcp.SessionStatus & SS_CONNECTED);
+        /* Connected */
         if (connected) {
-            XcpCommand((const vuint32*)&buffer.data[0]);
+            XcpCommand((const vuint32*)&buffer.data[0]); // Handle XCP command
         }
+        /* Not connected yet */
         else {
-            if (buffer.dlc == 2) { // Accept dlc=2 for CONNECT command only
-                gXcpTl.ClientAddr = src;
-                gXcpTl.ClientAddrValid = 1;
-                XcpCommand((const vuint32*)&buffer.data[0]);
+            /* Check for CONNECT command ? */
+            const tXcpCto* pCmd = (const tXcpCto*)&buffer.data[0];
+            if (buffer.dlc == 2 && CRO_CMD == CC_CONNECT) { 
+                gXcpTl.ClientAddr = src; // Save client address here , so XcpCommand can send the CONNECT response
+                gXcpTl.ClientAddrValid = 1;             
+                XcpCommand((const vuint32*)&buffer.data[0]); // Handle CONNECT command
             }
+#ifdef XCP_ENABLE_TESTMODE
+            else if (gXcpDebugLevel >= 1) {
+                printf("RX: ignored, no valid CONNECT command\n");
+            }
+#endif
+
         }
        
 
-        // Connect successfull
-        if (!connected && gXcp.SessionStatus & SS_CONNECTED) {
+        // Actions after successfull connect
+        if (!connected) {
+            if (gXcp.SessionStatus & SS_CONNECTED) { // Is in connected state
 
 #ifdef XCP_ENABLE_TESTMODE
-            if (gXcpDebugLevel >= 1) {
-                unsigned char tmp[32];
-                printf("XCP client connected:\n");
-                inet_ntop(AF_INET, &gXcpTl.ClientAddr.sin_addr, tmp, sizeof(tmp));
-                printf("  Client addr=%s, port=%u\n", tmp, ntohs(gXcpTl.ClientAddr.sin_port));
-                inet_ntop(AF_INET, &gXcpTl.ServerAddr.sin_addr, tmp, sizeof(tmp));
-                printf("  Server addr=%s, port=%u\n", tmp, ntohs(gXcpTl.ServerAddr.sin_port));
-            }
+                if (gXcpDebugLevel >= 1) {
+                    unsigned char tmp[32];
+                    printf("XCP client connected:\n");
+                    inet_ntop(AF_INET, &gXcpTl.ClientAddr.sin_addr, tmp, sizeof(tmp));
+                    printf("  Client addr=%s, port=%u\n", tmp, ntohs(gXcpTl.ClientAddr.sin_port));
+                    inet_ntop(AF_INET, &gXcpTl.ServerAddr.sin_addr, tmp, sizeof(tmp));
+                    printf("  Server addr=%s, port=%u\n", tmp, ntohs(gXcpTl.ServerAddr.sin_port));
+                }
 #endif
 
 #ifdef DTO_SEND_QUEUE
-#ifdef DTO_SEND_RAW
-            if (!udpRawInit(&gXcpTl.ServerAddr, &gXcpTl.ClientAddr)) {
-                printf("Cannot initialize raw socket\n");
-                shutdown(gRawSock, SHUT_RDWR);
-                return 0;
-            }
+  #ifdef DTO_SEND_RAW
+                // Initialize UDP raw socket for DAQ data transmission
+                if (!udpRawInit(&gXcpTl.ServerAddr, &gXcpTl.ClientAddr)) {
+                    printf("Cannot initialize raw socket\n");
+                    shutdown(gRawSock, SHUT_RDWR);
+                    return 0;
+                }
+  #endif
+                // Inititialize the DAQ message queue
+                initDtoBufferQueue(); // In RAW mode: Build all UDP and IP headers according to server and client address 
 #endif
-            initDtoBufferQueue(); // Build all UDP and IP headers according to server and client address 
-#endif
-        } // connected
+            } // Success 
+            else { // Is not in connected state
+                gXcpTl.ClientAddrValid = 0; // Any client can connect
+            } // !Su
+        } // !connected before
     }
 
     return 0;
@@ -404,7 +421,7 @@ int udpServerInit(unsigned short serverPort, unsigned int socketTimeout)
     
     // Bind the socket
     gXcpTl.ServerAddr.sin_family = AF_INET;
-    gXcpTl.ServerAddr.sin_addr.s_addr = htonl(INADDR_ANY); // inet_addr("172.31.31.195");
+    gXcpTl.ServerAddr.sin_addr.s_addr = htonl(INADDR_ANY); // inet_addr(SLAVE_IP); 
     gXcpTl.ServerAddr.sin_port = htons(serverPort);
     memset(gXcpTl.ServerAddr.sin_zero, '\0', sizeof(gXcpTl.ServerAddr.sin_zero));
 
