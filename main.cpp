@@ -167,9 +167,27 @@ extern "C" {
 int main(void)
 {  
     printf(
-        "\nRaspberryPi XCP on UDP Demo (Lite Version with A2L generation) \n"
+        "\nRaspberryPi XCP Lite on UDP Demo\n"
         "Build " __DATE__ " " __TIME__ "\n"
-        );
+#ifdef XCP_ENABLE_A2L
+        "  Option A2L\n"
+#endif
+#ifdef XCP_ENABLE_SO
+        "  Option SO\n"
+#endif
+#ifdef XCP_ENABLE_PTP
+        "  Option PTP\n"
+#endif
+#ifdef XCP_ENABLE_64
+        "  Option 64\n"
+#endif
+#ifdef XCP_ENABLE_TESTMODE
+        "  Option TEST\n"
+#endif
+#ifdef XCP_ENABLE_WIRINGPI
+        "  Option WIRINGPI\n"
+#endif
+    );
      
     // Initialize clock for DAQ event time stamps
     ApplXcpClockInit();
