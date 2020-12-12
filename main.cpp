@@ -181,6 +181,12 @@ int main(void)
 #ifdef XCP_ENABLE_64
         "  Option 64\n"
 #endif
+#ifdef DTO_SEND_QUEUE
+        "  Option SEND_QUEUE\n"
+#endif
+#ifdef DTO_SEND_RAW
+        "  Option SEND_RAW\n"
+#endif
 #ifdef XCP_ENABLE_TESTMODE
         "  Option TEST\n"
 #endif

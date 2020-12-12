@@ -54,7 +54,7 @@ extern "C" {
 
 // #define XCP_ENABLE_64 // Enable 64 bit platform support, otherwise assume 32 bit plattform
 	
-// #define XCP_ENABLE_A2L // Enable A2L creator and A2L upload to host
+#define XCP_ENABLE_A2L // Enable A2L creator and A2L upload to host
 
 // #define XCP_ENABLE_SO // Enable measurement and calibration of shared objects
 
