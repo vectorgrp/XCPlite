@@ -1,10 +1,9 @@
 
 XCPlite
-12.10.2020
-Copyright 2020 RainerZ
+17.2.2021
+Copyright 2021 Vector Informatik GmbH, RainerZ
 
 Simple and light implementation of the ASAM XCP Protocol Layer V1.1 (1000 lines of code).
-Inspired by the original free sources from Vector Informatik GmbH.
 
 List of restrictions compared to Vectors xcpBasic see source file xcpLite.c.
 
