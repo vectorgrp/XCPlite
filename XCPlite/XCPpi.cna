@@ -5,13 +5,13 @@ FileNameAbsolute=D:\USR\RaspberryPi\XCPlite\XCPlite\XCPpi.cna
 WorkingDirectory=D:\USR\RaspberryPi\XCPlite\XCPlite
 ProjectId=07e4-0009-0006-0016-001c-0015-0000
 FileVersion=1200
-PrgVersion=Version 19.0.0.791 RC4
-PrgDate=25.11.2020
+PrgVersion=Version 19.0.0.862
+PrgDate=17.12.2020
 Description=
 CreationTime=14:27
 CreationDate=09/08/2020 ; Month/Day/Year
-ModificationTime=00:28
-ModificationDate=11/26/2020 ; Month/Day/Year
+ModificationTime=21:15
+ModificationDate=12/17/2020 ; Month/Day/Year
 Protected=0
 
 [ANALYSISPROFILE_MDF_LIST]
@@ -21,56 +21,9 @@ Count=1
 Count=0
 
 [CALIBRATION_LIST]
-Count=12
+Count=9
 
 [CALIBRATION_OBJECT_1]
-EditOffset=1
-EditFactor=2
-EditFormat=2
-ShowWorkingPoint=0
-FollowWorkingPoint=0
-Module=XCPpi
-Name=ampl
-StimMode=0
-IsFallback=0
-
-[CALIBRATION_OBJECT_10]
-EditOffset=1
-EditFactor=2
-EditFormat=2
-ShowWorkingPoint=0
-FollowWorkingPoint=0
-Module=XCPpi
-Name=map1_8_8
-Array=1
-Rows=8
-Columns=8
-StimMode=0
-IsFallback=0
-
-[CALIBRATION_OBJECT_11]
-EditOffset=1
-EditFactor=2
-EditFormat=2
-ShowWorkingPoint=0
-FollowWorkingPoint=0
-Module=XCPpi
-Name=offset
-StimMode=0
-IsFallback=0
-
-[CALIBRATION_OBJECT_12]
-EditOffset=1
-EditFactor=2
-EditFormat=2
-ShowWorkingPoint=0
-FollowWorkingPoint=0
-Module=XCPpi
-Name=period
-StimMode=0
-IsFallback=0
-
-[CALIBRATION_OBJECT_2]
 EditOffset=1
 EditFactor=2
 EditFormat=2
@@ -84,7 +37,7 @@ Columns=32
 StimMode=0
 IsFallback=0
 
-[CALIBRATION_OBJECT_3]
+[CALIBRATION_OBJECT_2]
 EditOffset=1
 EditFactor=2
 EditFormat=2
@@ -95,7 +48,7 @@ Name=gCmdCycle
 StimMode=0
 IsFallback=0
 
-[CALIBRATION_OBJECT_4]
+[CALIBRATION_OBJECT_3]
 EditOffset=1
 EditFactor=2
 EditFormat=2
@@ -106,7 +59,7 @@ Name=gExit
 StimMode=0
 IsFallback=0
 
-[CALIBRATION_OBJECT_5]
+[CALIBRATION_OBJECT_4]
 EditOffset=1
 EditFactor=2
 EditFormat=2
@@ -117,7 +70,7 @@ Name=gFlushCycle
 StimMode=0
 IsFallback=0
 
-[CALIBRATION_OBJECT_6]
+[CALIBRATION_OBJECT_5]
 EditOffset=1
 EditFactor=2
 EditFormat=2
@@ -128,7 +81,7 @@ Name=gTaskCycleTimerECU
 StimMode=0
 IsFallback=0
 
-[CALIBRATION_OBJECT_7]
+[CALIBRATION_OBJECT_6]
 EditOffset=1
 EditFactor=2
 EditFormat=2
@@ -139,7 +92,7 @@ Name=gTaskCycleTimerECUpp
 StimMode=0
 IsFallback=0
 
-[CALIBRATION_OBJECT_8]
+[CALIBRATION_OBJECT_7]
 EditOffset=1
 EditFactor=2
 EditFormat=2
@@ -150,7 +103,7 @@ Name=gTaskCycleTimerServer
 StimMode=0
 IsFallback=0
 
-[CALIBRATION_OBJECT_9]
+[CALIBRATION_OBJECT_8]
 EditOffset=1
 EditFactor=2
 EditFormat=2
@@ -158,6 +111,20 @@ ShowWorkingPoint=0
 FollowWorkingPoint=0
 Module=XCPpi
 Name=gXcpDebugLevel
+StimMode=0
+IsFallback=0
+
+[CALIBRATION_OBJECT_9]
+EditOffset=1
+EditFactor=2
+EditFormat=2
+ShowWorkingPoint=0
+FollowWorkingPoint=0
+Module=XCPpi
+Name=map1_8_8
+Array=1
+Rows=8
+Columns=8
 StimMode=0
 IsFallback=0
 
@@ -613,8 +580,8 @@ ColorFunctionScope=1
 LineTyp=2
 YMinHome=-100
 YMaxHome=100
-YMin=-100
-YMax=100
+YMin=-85.534591195
+YMax=77.9874213836
 XOffsetNS=0
 XOffset=0
 ValueFormat=3
@@ -979,9 +946,9 @@ WindowSymbols=1
 GlobalCursor=0
 GlobalCursorTime=0
 GlobalTimeAxis=1
-GlobalTimeAxisStartTime=0
-GlobalTimeAxisEndTime=12045455601
-MainWindowPos=1, 150, 244, 2684, 1782 ;cmd, x, y, w, h
+GlobalTimeAxisStartTime=16764424993
+GlobalTimeAxisEndTime=32521799721
+MainWindowPos=1, 150, 251, 2685, 1782 ;cmd, x, y, w, h
 
 [PAR_COMMENT]
 1="Name",""
@@ -1076,7 +1043,7 @@ SplitEvCount=0
 BusLogNetworkKeyListCount=0
 IsFallback=0
 EditComment=1
-SaveMeasurementComment=0
+SaveMeasurementComment=1
 SaveCalibrationHistory=0
 SaveWriteWindowText=0
 SaveCalibrationCommands=0
@@ -1167,11 +1134,11 @@ FocusID=2004
 ActiveTab=0
 FilterNodeID=All
 TreeExpand_0=@All
-TreeExpand_1=All\Devices
+TreeExpand_1=All\Devices\XCPpi\XCPpi.a2l
 TreeExpand_2=All\Devices\XCPpi
-TreeExpand_3=All\Devices\XCPpi\XCPpi.a2l
+TreeExpand_3=All\Devices
 TreeExpand_4=$All\Devices
-TreeExpand_5=#All\Devices\XCPpi\XCPpi.a2l\offset
+TreeExpand_5=#All\Devices\XCPpi
 TextSearchCaseSensitive=0
 TextSearchUseMode=1
 TextSearchSearchFullText=1
@@ -1208,71 +1175,6 @@ FloatingWindow=0
 ShowSignalComments=1
 DisplayMask=1 ; pages 1
 
-[WINDOW_10]
-ProgID=CNPTRACE.TraceCtrl.1
-PROPERTIES_COUNT=21
-PROPERTY_1=DeviceItems={"CaptureEvents":"1","ShowEvents":"1","NodeCount":"2","Node0":{"DeviceName":"Analog","CaptureEvents":"0","ShowEvents":"0","NodeCount":"3","Node0":{"Channel":"2","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node1":{"Channel":"3","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node2":{"Channel":"4","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"}},"Node1":{"DeviceName":"XCPpi","CaptureEvents":"1","ShowEvents":"1","NodeCount":"3","Node0":{"Channel":"2","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node1":{"Channel":"3","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node2":{"Channel":"4","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"}}}
-PROPERTY_2=NetworkItems={"Items":"0"}
-PROPERTY_3=ColumnConfigs={"ConfigCount":"2","Config0":{"Layout":"1","Name":"Initial","Column0":{"Width":"158","Position":"0","Name":"Time","IsDefaultName":"1"},"Column1":{"Width":"137","Position":"1","Name":"Channel","IsDefaultName":"1"},"Column2":{"Width":"45","Position":"2","Name":"ID","IsDefaultName":"1"},"Column3":{"Width":"121","Position":"3","Name":"Name","IsDefaultName":"1"},"Column5":{"Width":"45","Position":"5","Name":"Dir","IsDefaultName":"1"},"Column6":{"Width":"75","Position":"6","Name":"Length","IsDefaultName":"1"},"Column7":{"Width":"606","Position":"8","Name":"Data","IsDefaultName":"1"},"Column16":{"Width":"113","Position":"4","Name":"Type","IsDefaultName":"1"},"Column52":{"Width":"1554","Position":"7","Name":"Interpretation","IsDefaultName":"1"}},"Config1":{"Layout":"25","Name":"XCP\/CCP Layout 1","Column0":{"Width":"195","Position":"0","Name":"Time","IsDefaultName":"1"},"Column1":{"Width":"180","Position":"1","Name":"Channel","IsDefaultName":"1"},"Column2":{"Width":"75","Position":"2","Name":"ID","IsDefaultName":"1"},"Column3":{"Width":"75","Position":"3","Name":"Name","IsDefaultName":"1"},"Column5":{"Width":"54","Position":"4","Name":"Dir","IsDefaultName":"1"},"Column6":{"Width":"66","Position":"7","Name":"Length","IsDefaultName":"1"},"Column7":{"Width":"228","Position":"6","Name":"Data","IsDefaultName":"1"},"Column16":{"Width":"106","Position":"9","Name":"Packet Type","IsDefaultName":"1"},"Column52":{"Width":"818","Position":"5","Name":"Interpretation","IsDefaultName":"1"},"Column79":{"Width":"66","Position":"8","Name":"Source","IsDefaultName":"1"}},"Active":"1"}
-PROPERTY_4=PinningEvents={"EventCount":"0"}
-PROPERTY_5=ExpandedEvents={"EventCount":"0"}
-PROPERTY_6=AnalysisGroups={"GroupCount":"1","Group0":{"Enabled":"1","Expanded":"1","Name":"Filtergruppe 0","FilterCount":"2","Filter0":{"Stop":"1","Enabled":"1","ConditionCount":"0"},"Filter1":{"Stop":"0","Enabled":"0","ConditionCount":"0"}}}
-PROPERTY_7=AnalysisDataChangeFilter=0
-PROPERTY_8=SearchPatterns={"EventCount":"0"}
-PROPERTY_9=ExplorerConfig={"VSplitPos":"225","VSplitExpanded":"true","HSplitPos":"435","HSplitExpanded":"false","ActiveExplorerView":"1","ActiveSearchType":"0"}
-PROPERTY_10=ContinuousMode=1
-PROPERTY_11=AbsoluteTimeMode=1
-PROPERTY_12=HighPrioritySBClient=0
-PROPERTY_13=EventFading=0
-PROPERTY_14=ByteFading=0
-PROPERTY_15=BufferEntries=10000
-PROPERTY_16=ClearStart=true
-PROPERTY_17=OnlyMeasurement=false
-PROPERTY_18=CopyColumnTitles=true
-PROPERTY_19=LoggingEnabled=false
-PROPERTY_20=LoggingFilePath=
-PROPERTY_21=LoggingOverwriteOnConfigLoad=false
-OBJECTS_COUNT=0
-ObjectCount=0
-HiddenDisplayCount=0
-TraceChannelCount=2
-ColumnCount=10
-Column_0=0, 195
-Column_1=256, 180
-Column_2=257, 75
-Column_3=4, 75
-Column_4=1, 54
-Column_5=513, 818
-Column_6=3, 228
-Column_7=2, 66
-Column_8=5, 66
-Column_9=1281, 106
-DeltaTimeEnabled=0
-Title=Trace-Fenster {DISPLAYED_FILENAME}
-Type=16384
-Comment=ActiveX Window
-Number=10
-ScreenDPIinSection=144
-Position=0, 66, 69, 2161, 1363 ;cmd, x, y, w, h
-Position_dpi96=0, 44, 46, 1441, 909 ;cmd, x, y, w, h
-Position_Page02=0, 66, 69, 2161, 1363 ;cmd, x, y, w, h
-Position_Page02_dpi96=0, 44, 46, 1441, 909 ;cmd, x, y, w, h
-FloatingWindow=0
-ShowSignalComments=1
-DisplayMask=2 ; pages 2
-
-[WINDOW_10_CHANNEL_1]
-Module=XCPpi
-Channel=0
-CustomColorFlag=0
-Color=0
-
-[WINDOW_10_CHANNEL_2]
-Module=XCPpi
-Channel=1
-CustomColorFlag=0
-Color=0
-
 [WINDOW_2]
 ComponentCount=2
 Title=
@@ -1290,8 +1192,8 @@ DisplayMask=1 ; pages 1
 
 [WINDOW_3]
 XLen=33205
-XMin=0
-XMax=12045
+XMin=16764
+XMax=32521
 Grid=1
 Mark=1
 YValue=1
@@ -1359,8 +1261,8 @@ COL_1_dpi96=1048578, 88
 
 [WINDOW_4]
 XLen=33205
-XMin=0
-XMax=12045
+XMin=16764
+XMax=32521
 Grid=1
 Mark=1
 YValue=1
@@ -1447,9 +1349,9 @@ Type=4
 Comment=Numeric Window
 Number=5
 ScreenDPIinSection=144
-Position=0, 724, 16, 710, 100 ;cmd, x, y, w, h
+Position=0, 724, 16, 709, 100 ;cmd, x, y, w, h
 Position_dpi96=0, 483, 11, 473, 67 ;cmd, x, y, w, h
-Position_Page01=0, 724, 16, 710, 100 ;cmd, x, y, w, h
+Position_Page01=0, 724, 16, 709, 100 ;cmd, x, y, w, h
 Position_Page01_dpi96=0, 483, 11, 473, 67 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
@@ -1633,7 +1535,7 @@ GridX=0
 GridY=0
 InterpolateWorkingPoint=0
 LastFocus=CalBar_5326
-LeftCol=11
+LeftCol=1
 LegendWindowSelectionMode=0
 LegendWindowSizeInPercent=0.206303724928
 LegendWindowVerticalSizeInPixel=72
@@ -1708,7 +1610,7 @@ XAxisLabel=
 YAxisLabel=
 AxisCaption=
 Row=0
-Col=10
+Col=0
 YAxis_ID=0
 AxisTemplate=
 MarkerSettingValid=1
@@ -1720,47 +1622,412 @@ ValueFormat=3
 ValueFormat=3
 
 [WINDOW_8]
-ProgID=
-PROPERTIES_COUNT=1
-PROPERTY_1={"Version":"1.0.0.0","Configuration":{"ShowCalibrationBar":true,"ShowHorizontalChartLines":false,"ShowVerticalChartLines":false,"NonSelectedIntersectionLineTransparency":0.100000024,"FocusedValueSymbol":"","ValueObjectConfigurations":[{"Symbol":"DEVICE:\"XCPpi\":\"gCmdCycle\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ValueFormat":0,"AxisValueFormats":[],"NumericFormat":null,"IsActive":true,"CurrentChartViewType":2,"ShowPointMarker":true},{"Symbol":"DEVICE:\"XCPpi\":\"gExit\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ValueFormat":0,"AxisValueFormats":[],"NumericFormat":null,"IsActive":true,"CurrentChartViewType":2,"ShowPointMarker":true},{"Symbol":"DEVICE:\"XCPpi\":\"gFlushCycle\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ValueFormat":1,"AxisValueFormats":[],"NumericFormat":"","IsActive":true,"CurrentChartViewType":2,"ShowPointMarker":true},{"Symbol":"DEVICE:\"XCPpi\":\"gTaskCycleTimerECU\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ValueFormat":0,"AxisValueFormats":[],"NumericFormat":null,"IsActive":true,"CurrentChartViewType":2,"ShowPointMarker":true},{"Symbol":"DEVICE:\"XCPpi\":\"gTaskCycleTimerECUpp\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ValueFormat":0,"AxisValueFormats":[],"NumericFormat":null,"IsActive":true,"CurrentChartViewType":2,"ShowPointMarker":true},{"Symbol":"DEVICE:\"XCPpi\":\"gTaskCycleTimerServer\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ValueFormat":1,"AxisValueFormats":[],"NumericFormat":"","IsActive":true,"CurrentChartViewType":2,"ShowPointMarker":true},{"Symbol":"DEVICE:\"XCPpi\":\"gXcpDebugLevel\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ValueFormat":0,"AxisValueFormats":[],"NumericFormat":null,"IsActive":true,"CurrentChartViewType":2,"ShowPointMarker":true}],"NumericGraphicControlPosition":1,"GraphicControlPosition":5,"Height2DXControl":1,"Height2DYControl":1,"Height3DControl":2,"HeightNumericControl":1,"HeightChartControl":1,"Width2DXControl":1,"Width2DYControl":1,"Width3DControl":2,"WidthNumericControl":2,"WidthChartControl":2,"SerializationWorkingPointColor":{"R":136,"G":0,"B":136,"A":255},"LegendPosition":0,"LegendViewType":0,"LegendTableColumnAttributes":[],"LegendTabItemAttributes":[],"FlipAxes":false,"ReversedAxis":[false,false],"ShowUnits":false,"SortDescending":false,"SortAttributeId":null,"ShowWorkingPointHistory":false,"NumericViewValueObjectDisplayOption":1,"ValueColumnWidth":125,"ParameterGroup":"","ModuleName":"","GroupIsFunction":false,"NumericControlAxisAttributes":[],"NumericControlColumnAttributes":[{"TypeId":"31","Size":238},{"TypeId":"1","Size":149}],"ChartViewValueObjectDisplayOption":1,"SerializationCameraPosition":{"X":1,"Y":1,"Z":-1},"SerializationCameraTarget":{"X":0,"Y":0.5,"Z":0},"BarThickness":1,"WorkingPointMarker":0,"SerializationWorkingPointMarkerColor":{"R":0,"G":255,"B":255,"A":255},"LinearWorkingPointInterpolation":true,"ShowAllIntersectionLines":false,"IsValueAxisIndependent":true,"ShowBoundarySurface":true,"ShowBoundarySurfaceGradient":false,"ShowCursorAsCrosshair":false,"SerializationCursorCrosshairColor":{"R":0,"G":0,"B":0,"A":255},"AlignBarToZero":false}}
+ProgID=CNPTRACE.TraceCtrl.1
+PROPERTIES_COUNT=21
+PROPERTY_1=DeviceItems={"CaptureEvents":"1","ShowEvents":"1","NodeCount":"2","Node0":{"DeviceName":"Analog","CaptureEvents":"0","ShowEvents":"0","NodeCount":"3","Node0":{"Channel":"2","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node1":{"Channel":"3","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node2":{"Channel":"4","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"}},"Node1":{"DeviceName":"XCPpi","CaptureEvents":"1","ShowEvents":"1","NodeCount":"3","Node0":{"Channel":"2","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node1":{"Channel":"3","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node2":{"Channel":"4","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"}}}
+PROPERTY_2=NetworkItems={"Items":"0"}
+PROPERTY_3=ColumnConfigs={"ConfigCount":"2","Config0":{"Layout":"1","Name":"Initial","Column0":{"Width":"158","Position":"0","Name":"Time","IsDefaultName":"1"},"Column1":{"Width":"137","Position":"1","Name":"Channel","IsDefaultName":"1"},"Column2":{"Width":"45","Position":"2","Name":"ID","IsDefaultName":"1"},"Column3":{"Width":"121","Position":"3","Name":"Name","IsDefaultName":"1"},"Column5":{"Width":"45","Position":"5","Name":"Dir","IsDefaultName":"1"},"Column6":{"Width":"75","Position":"6","Name":"Length","IsDefaultName":"1"},"Column7":{"Width":"606","Position":"8","Name":"Data","IsDefaultName":"1"},"Column16":{"Width":"113","Position":"4","Name":"Type","IsDefaultName":"1"},"Column52":{"Width":"1554","Position":"7","Name":"Interpretation","IsDefaultName":"1"}},"Config1":{"Layout":"25","Name":"XCP\/CCP Layout 1","Column0":{"Width":"195","Position":"0","Name":"Time","IsDefaultName":"1"},"Column1":{"Width":"180","Position":"1","Name":"Channel","IsDefaultName":"1"},"Column2":{"Width":"75","Position":"2","Name":"ID","IsDefaultName":"1"},"Column3":{"Width":"75","Position":"3","Name":"Name","IsDefaultName":"1"},"Column5":{"Width":"54","Position":"4","Name":"Dir","IsDefaultName":"1"},"Column6":{"Width":"66","Position":"7","Name":"Length","IsDefaultName":"1"},"Column7":{"Width":"228","Position":"6","Name":"Data","IsDefaultName":"1"},"Column16":{"Width":"106","Position":"9","Name":"Packet Type","IsDefaultName":"1"},"Column52":{"Width":"818","Position":"5","Name":"Interpretation","IsDefaultName":"1"},"Column79":{"Width":"66","Position":"8","Name":"Source","IsDefaultName":"1"}},"Active":"1"}
+PROPERTY_4=PinningEvents={"EventCount":"0"}
+PROPERTY_5=ExpandedEvents={"EventCount":"0"}
+PROPERTY_6=AnalysisGroups={"GroupCount":"1","Group0":{"Enabled":"1","Expanded":"1","Name":"Filtergruppe 0","FilterCount":"2","Filter0":{"Stop":"1","Enabled":"1","ConditionCount":"0"},"Filter1":{"Stop":"0","Enabled":"0","ConditionCount":"0"}}}
+PROPERTY_7=AnalysisDataChangeFilter=0
+PROPERTY_8=SearchPatterns={"EventCount":"0"}
+PROPERTY_9=ExplorerConfig={"VSplitPos":"225","VSplitExpanded":"true","HSplitPos":"435","HSplitExpanded":"false","ActiveExplorerView":"1","ActiveSearchType":"0"}
+PROPERTY_10=ContinuousMode=1
+PROPERTY_11=AbsoluteTimeMode=1
+PROPERTY_12=HighPrioritySBClient=0
+PROPERTY_13=EventFading=0
+PROPERTY_14=ByteFading=0
+PROPERTY_15=BufferEntries=10000
+PROPERTY_16=ClearStart=true
+PROPERTY_17=OnlyMeasurement=false
+PROPERTY_18=CopyColumnTitles=true
+PROPERTY_19=LoggingEnabled=false
+PROPERTY_20=LoggingFilePath=
+PROPERTY_21=LoggingOverwriteOnConfigLoad=false
 OBJECTS_COUNT=0
 ObjectCount=0
 HiddenDisplayCount=0
-Title=Parameter
-Type=137438953472
-Comment=Parameter
+TraceChannelCount=2
+ColumnCount=10
+Column_0=0, 195
+Column_1=256, 180
+Column_2=257, 75
+Column_3=4, 75
+Column_4=1, 54
+Column_5=513, 818
+Column_6=3, 228
+Column_7=2, 66
+Column_8=5, 66
+Column_9=1281, 106
+DeltaTimeEnabled=0
+Title=Trace-Fenster {DISPLAYED_FILENAME}
+Type=16384
+Comment=ActiveX Window
 Number=8
 ScreenDPIinSection=144
-Position=0, 12, 9, 697, 369 ;cmd, x, y, w, h
-Position_dpi96=0, 8, 6, 465, 246 ;cmd, x, y, w, h
-Position_Page01=0, 12, 9, 697, 369 ;cmd, x, y, w, h
-Position_Page01_dpi96=0, 8, 6, 465, 246 ;cmd, x, y, w, h
+Position=0, 66, 69, 2161, 1363 ;cmd, x, y, w, h
+Position_dpi96=0, 44, 46, 1441, 909 ;cmd, x, y, w, h
+Position_Page02=0, 66, 69, 2161, 1363 ;cmd, x, y, w, h
+Position_Page02_dpi96=0, 44, 46, 1441, 909 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
-DisplayMask=1 ; pages 1
+DisplayMask=2 ; pages 2
+
+[WINDOW_8_CHANNEL_1]
+Module=XCPpi
+Channel=0
+CustomColorFlag=0
+Color=0
+
+[WINDOW_8_CHANNEL_2]
+Module=XCPpi
+Channel=1
+CustomColorFlag=0
+Color=0
 
 [WINDOW_9]
-ProgID=
-PROPERTIES_COUNT=1
-PROPERTY_1={"Version":"1.0.0.0","Configuration":{"ShowCalibrationBar":true,"ShowHorizontalChartLines":false,"ShowVerticalChartLines":false,"NonSelectedIntersectionLineTransparency":0.100000024,"FocusedValueSymbol":"","ValueObjectConfigurations":[{"Symbol":"DEVICE:\"XCPpi\":\"ampl\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ValueFormat":0,"AxisValueFormats":[],"NumericFormat":null,"IsActive":true,"CurrentChartViewType":2,"ShowPointMarker":true},{"Symbol":"DEVICE:\"XCPpi\":\"period\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ValueFormat":0,"AxisValueFormats":[],"NumericFormat":null,"IsActive":true,"CurrentChartViewType":2,"ShowPointMarker":true},{"Symbol":"DEVICE:\"XCPpi\":\"offset\":P","SerializationColor":{"R":0,"G":255,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ValueFormat":0,"AxisValueFormats":[],"NumericFormat":null,"IsActive":true,"CurrentChartViewType":2,"ShowPointMarker":true}],"NumericGraphicControlPosition":1,"GraphicControlPosition":5,"Height2DXControl":1,"Height2DYControl":1,"Height3DControl":2,"HeightNumericControl":1,"HeightChartControl":1,"Width2DXControl":1,"Width2DYControl":1,"Width3DControl":2,"WidthNumericControl":2,"WidthChartControl":2,"SerializationWorkingPointColor":{"R":136,"G":0,"B":136,"A":255},"LegendPosition":0,"LegendViewType":0,"LegendTableColumnAttributes":[],"LegendTabItemAttributes":[],"FlipAxes":false,"ReversedAxis":[false,false],"ShowUnits":false,"SortDescending":false,"SortAttributeId":null,"ShowWorkingPointHistory":false,"NumericViewValueObjectDisplayOption":1,"ValueColumnWidth":217,"ParameterGroup":"","ModuleName":"","GroupIsFunction":false,"NumericControlAxisAttributes":[],"NumericControlColumnAttributes":[{"TypeId":"31","Size":160}],"ChartViewValueObjectDisplayOption":1,"SerializationCameraPosition":{"X":1,"Y":1,"Z":-1},"SerializationCameraTarget":{"X":0,"Y":0.5,"Z":0},"BarThickness":1,"WorkingPointMarker":0,"SerializationWorkingPointMarkerColor":{"R":0,"G":255,"B":255,"A":255},"LinearWorkingPointInterpolation":true,"ShowAllIntersectionLines":false,"IsValueAxisIndependent":true,"ShowBoundarySurface":true,"ShowBoundarySurfaceGradient":false,"ShowCursorAsCrosshair":false,"SerializationCursorCrosshairColor":{"R":0,"G":0,"B":0,"A":255},"AlignBarToZero":false}}
-OBJECTS_COUNT=0
-ObjectCount=0
-HiddenDisplayCount=0
-Title=Parameter
-Type=137438953472
-Comment=Parameter
-Number=9
 ScreenDPIinSection=144
-Position=0, 1320, 195, 595, 249 ;cmd, x, y, w, h
-Position_dpi96=0, 880, 130, 397, 166 ;cmd, x, y, w, h
-Position_Page01=0, 1320, 195, 595, 249 ;cmd, x, y, w, h
-Position_Page01_dpi96=0, 880, 130, 397, 166 ;cmd, x, y, w, h
+DISPLAY_COUNT=2
+DISPLAY_ID_00=31
+DISPLAY_WIDTH_00=281
+DISPLAY_WIDTH_00_dpi96=187
+DISPLAY_ID_01=65608
+DISPLAY_WIDTH_01=150
+DISPLAY_WIDTH_01_dpi96=100
+ColumnWidth=281 150 -150 -150
+Group=0
+Sorted=0
+ObjectCount=7
+Title=Parameter
+Type=8
+Comment=Parameter Window
+Number=9
+Position=0, 12, 16, 678, 343 ;cmd, x, y, w, h
+Position_dpi96=0, 8, 11, 452, 229 ;cmd, x, y, w, h
+Position_Page01=0, 12, 16, 678, 343 ;cmd, x, y, w, h
+Position_Page01_dpi96=0, 8, 11, 452, 229 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
 DisplayMask=1 ; pages 1
 
+[WINDOW_9_OBJECT_1]
+Type=2
+Name=gCmdCycle
+Module=XCPpi
+Window=9
+Index=0
+Color=0
+ColorFunction=0
+ColorFunctionScope=1
+LineTyp=2
+YMinHome=0
+YMaxHome=100
+YMin=0
+YMax=100
+XOffsetNS=0
+XOffset=0
+ValueFormat=3
+BitMask=1
+ShowYAxis=1
+Width=10
+LineStyle=1
+MarkerType=1
+LineWidth=1
+Precision=-2
+Digits=6
+Enabled=1
+StoredFocused=0
+SublMask=0
+MeaSublMask=0
+LockScaling=0
+RightAxis=0
+MapMode=2
+OverlayGridColor=0
+ShadingMode=3
+EditOffset=1
+EditFactor=2
+WAxisLabel=
+XAxisLabel=
+YAxisLabel=
+AxisCaption=
+Row=0
+Col=0
+YAxis_ID=0
+AxisTemplate=
+
+[WINDOW_9_OBJECT_2]
+Type=2
+Name=gExit
+Module=XCPpi
+Window=9
+Index=1
+Color=0
+ColorFunction=0
+ColorFunctionScope=1
+LineTyp=2
+YMinHome=0
+YMaxHome=100
+YMin=0
+YMax=100
+XOffsetNS=0
+XOffset=0
+ValueFormat=3
+BitMask=1
+ShowYAxis=1
+Width=10
+LineStyle=1
+MarkerType=1
+LineWidth=1
+Precision=-2
+Digits=6
+Enabled=1
+StoredFocused=0
+SublMask=0
+MeaSublMask=0
+LockScaling=0
+RightAxis=0
+MapMode=2
+OverlayGridColor=0
+ShadingMode=3
+EditOffset=1
+EditFactor=2
+WAxisLabel=
+XAxisLabel=
+YAxisLabel=
+AxisCaption=
+Row=0
+Col=0
+YAxis_ID=0
+AxisTemplate=
+
+[WINDOW_9_OBJECT_3]
+Type=2
+Name=gFlushCycle
+Module=XCPpi
+Window=9
+Index=2
+Color=0
+ColorFunction=0
+ColorFunctionScope=1
+LineTyp=2
+YMinHome=0
+YMaxHome=100
+YMin=0
+YMax=100
+XOffsetNS=0
+XOffset=0
+ValueFormat=3
+BitMask=1
+ShowYAxis=1
+Width=10
+LineStyle=1
+MarkerType=1
+LineWidth=1
+Precision=-2
+Digits=6
+Enabled=1
+StoredFocused=0
+SublMask=0
+MeaSublMask=0
+LockScaling=0
+RightAxis=0
+MapMode=2
+OverlayGridColor=0
+ShadingMode=3
+EditOffset=1
+EditFactor=2
+WAxisLabel=
+XAxisLabel=
+YAxisLabel=
+AxisCaption=
+Row=0
+Col=0
+YAxis_ID=0
+AxisTemplate=
+
+[WINDOW_9_OBJECT_4]
+Type=2
+Name=gTaskCycleTimerECU
+Module=XCPpi
+Window=9
+Index=3
+Color=0
+ColorFunction=0
+ColorFunctionScope=1
+LineTyp=2
+YMinHome=0
+YMaxHome=100
+YMin=0
+YMax=100
+XOffsetNS=0
+XOffset=0
+ValueFormat=3
+BitMask=1
+ShowYAxis=1
+Width=10
+LineStyle=1
+MarkerType=1
+LineWidth=1
+Precision=-2
+Digits=6
+Enabled=1
+StoredFocused=0
+SublMask=0
+MeaSublMask=0
+LockScaling=0
+RightAxis=0
+MapMode=2
+OverlayGridColor=0
+ShadingMode=3
+EditOffset=1
+EditFactor=2
+WAxisLabel=
+XAxisLabel=
+YAxisLabel=
+AxisCaption=
+Row=0
+Col=0
+YAxis_ID=0
+AxisTemplate=
+
+[WINDOW_9_OBJECT_5]
+Type=2
+Name=gTaskCycleTimerECUpp
+Module=XCPpi
+Window=9
+Index=4
+Color=0
+ColorFunction=0
+ColorFunctionScope=1
+LineTyp=2
+YMinHome=0
+YMaxHome=100
+YMin=0
+YMax=100
+XOffsetNS=0
+XOffset=0
+ValueFormat=3
+BitMask=1
+ShowYAxis=1
+Width=10
+LineStyle=1
+MarkerType=1
+LineWidth=1
+Precision=-2
+Digits=6
+Enabled=1
+StoredFocused=0
+SublMask=0
+MeaSublMask=0
+LockScaling=0
+RightAxis=0
+MapMode=2
+OverlayGridColor=0
+ShadingMode=3
+EditOffset=1
+EditFactor=2
+WAxisLabel=
+XAxisLabel=
+YAxisLabel=
+AxisCaption=
+Row=0
+Col=0
+YAxis_ID=0
+AxisTemplate=
+
+[WINDOW_9_OBJECT_6]
+Type=2
+Name=gTaskCycleTimerServer
+Module=XCPpi
+Window=9
+Index=5
+Color=0
+ColorFunction=0
+ColorFunctionScope=1
+LineTyp=2
+YMinHome=0
+YMaxHome=100
+YMin=0
+YMax=100
+XOffsetNS=0
+XOffset=0
+ValueFormat=3
+BitMask=1
+ShowYAxis=1
+Width=10
+LineStyle=1
+MarkerType=1
+LineWidth=1
+Precision=-2
+Digits=6
+Enabled=1
+StoredFocused=0
+SublMask=0
+MeaSublMask=0
+LockScaling=0
+RightAxis=0
+MapMode=2
+OverlayGridColor=0
+ShadingMode=3
+EditOffset=1
+EditFactor=2
+WAxisLabel=
+XAxisLabel=
+YAxisLabel=
+AxisCaption=
+Row=0
+Col=0
+YAxis_ID=0
+AxisTemplate=
+
+[WINDOW_9_OBJECT_7]
+Type=2
+Name=gXcpDebugLevel
+Module=XCPpi
+Window=9
+Index=6
+Color=0
+ColorFunction=0
+ColorFunctionScope=1
+LineTyp=2
+YMinHome=0
+YMaxHome=100
+YMin=0
+YMax=100
+XOffsetNS=0
+XOffset=0
+ValueFormat=3
+BitMask=1
+ShowYAxis=1
+Width=10
+LineStyle=1
+MarkerType=1
+LineWidth=1
+Precision=-2
+Digits=6
+Enabled=1
+StoredFocused=0
+SublMask=0
+MeaSublMask=0
+LockScaling=0
+RightAxis=0
+MapMode=2
+OverlayGridColor=0
+ShadingMode=3
+EditOffset=1
+EditFactor=2
+WAxisLabel=
+XAxisLabel=
+YAxisLabel=
+AxisCaption=
+Row=0
+Col=0
+YAxis_ID=0
+AxisTemplate=
+
 [WINDOWS]
-Count=10
+Count=9
 
 [Y_COMMON_AXIS_LIST]
 Count=0
