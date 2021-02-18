@@ -22,36 +22,38 @@ A A2L with reduced featureset is generated through code instrumentation during r
 C and C++ measurement demo variables and code example in ecu.c and ecupp.cpp.
 Measure global variables and dynamic instances of structs and classes.
 
+##Code Instrumentation:
+
 Only simple code instrumentation needed for event triggering and data copy, event definition and data object definition.
 
 Example:
 
-Definition:
+###Definition:
 ```
-	double channel1 = 0;
+  double channel1 = 0;
 ```
 
-Initialisation:
+###Initialisation and A2L info generation:
 
 ```
   A2lCreateEvent("ECU"); // Create event
-  channel = 0;
+  channel1 = 0;
   A2lSetEvent("ECU"); // Define event ....
   A2lCreatePhysMeasurement(channel1, 1.0, 1.0, "Volt", "Demo floating point signal"); // Create signal
 ```
 
 
-Measurement:
+###Measurement data acquisition event:
 
 ```
   channel1 += 0.6;
-  XcpEvent(1); // Trigger event and copy measurement data
+  XcpEvent(1); // Trigger event, timestamp and copy measurement data
 ```
 
 Demo visual Studio and CANape project included for Raspberry Pi 4. 
 
 
-Note:
+##Note:
 CANape Linker Map Type ELF extended
 Compile with -O2
 Link with -lrt -lpthread
