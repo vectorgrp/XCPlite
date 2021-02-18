@@ -28,7 +28,7 @@ Example:
 
 Definition:
 
-  double channel1 = 0;
+	double channel1 = 0;
 
 Initialisation:
 
@@ -36,14 +36,14 @@ Initialisation:
 
   channel = 0;
 
-  A2lSetEvent("ECU"); // Define event
+  A2lSetEvent("ECU"); // Define event ....
 
   A2lCreatePhysMeasurement(channel1, 1.0, 1.0, "Volt", "Demo floating point signal"); // Create signal
 
 
 Measurement:
 
-  channel1 += 0.5;
+  channel1 += 0.6;
 
   XcpEvent(1); // Trigger event and copy measurement data
 

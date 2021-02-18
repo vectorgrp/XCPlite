@@ -217,13 +217,13 @@ void ecuCyclic( void )
   byteArray16[0] ++;
     
   // Counters of different type
-  byteCounter++;
-  wordCounter++;
-  dwordCounter++;
   sbyteCounter++;
   swordCounter++;
   sdwordCounter++;
-  
+  byteCounter++;
+  wordCounter++;
+  dwordCounter++;
+
 #if defined ( XCP_ENABLE_WIRINGPI )
     digitalWrite(PI_IO_1, HIGH);
 #endif
