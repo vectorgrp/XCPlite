@@ -3,11 +3,18 @@
 #ifndef __ECUPP_H_
 #define __ECUPP_H_
 
-class ecu {
+
+extern "C" {
+	extern unsigned int gXcpEvent_EcuTasks;
+}
+
+class EcuTask {
 
 public:
 	
-	unsigned short ecuppCounter;
+	unsigned int taskId;
+
+	unsigned short counter;
 
 	unsigned char byte;
 	unsigned short word;
@@ -16,14 +23,17 @@ public:
 	signed short sword;
 
 
-	ecu();
+	EcuTask( unsigned int taskId );
 
-	void task();
+	void run();
 
+#ifdef XCP_ENABLE_A2L
+	void CreateA2lClassDescription( int eventCount, const unsigned int eventList[] );
+#endif
 };
 
 
 
-extern ecu* gEcu;
+
 
 #endif

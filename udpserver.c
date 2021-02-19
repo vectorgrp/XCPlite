@@ -19,10 +19,10 @@ pthread_mutex_t gXcpTlMutex = PTHREAD_MUTEX_INITIALIZER;
 
 
 #ifdef DTO_SEND_QUEUE
-static DTO_BUFFER dto_queue[DTO_QUEUE_SIZE];
+static tXcpDtoBuffer dto_queue[XCP_DAQ_QUEUE_SIZE];
 static unsigned int dto_queue_rp; // rp = read index
-static unsigned int dto_queue_len; // rp+len = write index (the next free entry), len=0 ist empty, len=DTO_QUEUE_SIZE is full
-static DTO_BUFFER* dto_buffer_ptr; // current incomplete or not fully commited entry
+static unsigned int dto_queue_len; // rp+len = write index (the next free entry), len=0 ist empty, len=XCP_DAQ_QUEUE_SIZE is full
+static tXcpDtoBuffer* dto_buffer_ptr; // current incomplete or not fully commited entry
 #endif
 
 
@@ -64,16 +64,16 @@ static int udpServerSendDatagram(const unsigned char* data, unsigned int size ) 
 // Not thread save
 static void getDtoBuffer(void) {
 
-    DTO_BUFFER* b;
+    tXcpDtoBuffer* b;
 
     /* Check if there is space in the queue */
-    if (dto_queue_len >= DTO_QUEUE_SIZE) {
+    if (dto_queue_len >= XCP_DAQ_QUEUE_SIZE) {
         /* Queue overflow */
         dto_buffer_ptr = NULL;
     }
     else {
         unsigned int i = dto_queue_rp + dto_queue_len;
-        if (i >= DTO_QUEUE_SIZE) i -= DTO_QUEUE_SIZE;
+        if (i >= XCP_DAQ_QUEUE_SIZE) i -= XCP_DAQ_QUEUE_SIZE;
         b = &dto_queue[i];
         b->xcp_size = 0;
         b->xcp_uncommited = 0;
@@ -90,7 +90,7 @@ static void initDtoBufferQueue(void) {
     dto_buffer_ptr = NULL;
     memset(dto_queue, 0, sizeof(dto_queue));
 #ifdef DTO_SEND_RAW
-    for (int i = 0; i < DTO_QUEUE_SIZE; i++) {
+    for (int i = 0; i < XCP_DAQ_QUEUE_SIZE; i++) {
         udpRawInitIpHeader(&dto_queue[i].ip, &gXcpTl.ServerAddr, &gXcpTl.ClientAddr);
         udpRawInitUdpHeader(&dto_queue[i].udp, &gXcpTl.ServerAddr, &gXcpTl.ClientAddr);
     }
@@ -105,7 +105,7 @@ static void initDtoBufferQueue(void) {
 // Transmit all completed and fully commited UDP frames
 void udpServerHandleTransmitQueue( void ) {
 
-    DTO_BUFFER* b;
+    tXcpDtoBuffer* b;
 
     for (;;) {
 
@@ -131,7 +131,7 @@ void udpServerHandleTransmitQueue( void ) {
         // Free this buffer
         pthread_mutex_lock(&gXcpTlMutex);
         dto_queue_rp++;
-        if (dto_queue_rp >= DTO_QUEUE_SIZE) dto_queue_rp -= DTO_QUEUE_SIZE;
+        if (dto_queue_rp >= XCP_DAQ_QUEUE_SIZE) dto_queue_rp -= XCP_DAQ_QUEUE_SIZE;
         dto_queue_len--;
         pthread_mutex_unlock(&gXcpTlMutex);
 
@@ -176,7 +176,7 @@ unsigned char *udpServerGetPacketBuffer(void **par, unsigned int size) {
     pthread_mutex_lock(&gXcpTlMutex);
 
     // Get another message buffer from queue, when active buffer ist full, overrun or after time condition
-    if (dto_buffer_ptr==NULL || dto_buffer_ptr->xcp_size + size + XCP_MESSAGE_HEADER_SIZE > XCP_UDP_MTU ) {
+    if (dto_buffer_ptr==NULL || dto_buffer_ptr->xcp_size + size + XCP_MESSAGE_HEADER_SIZE > kXcpMaxMTU ) {
         getDtoBuffer();
     }
 
@@ -188,7 +188,7 @@ unsigned char *udpServerGetPacketBuffer(void **par, unsigned int size) {
         p->dlc = (short unsigned int)size;
         dto_buffer_ptr->xcp_size += size + XCP_MESSAGE_HEADER_SIZE;
 
-        *((DTO_BUFFER**)par) = dto_buffer_ptr;
+        *((tXcpDtoBuffer**)par) = dto_buffer_ptr;
         dto_buffer_ptr->xcp_uncommited++;
     }
     else {
@@ -202,7 +202,7 @@ unsigned char *udpServerGetPacketBuffer(void **par, unsigned int size) {
 
 void udpServerCommitPacketBuffer(void *par) {
 
-    DTO_BUFFER* p = (DTO_BUFFER*)par;
+    tXcpDtoBuffer* p = (tXcpDtoBuffer*)par;
 
     if (par != NULL) {
 
@@ -227,7 +227,7 @@ unsigned char* udpServerGetPacketBuffer(void** par, unsigned int size) {
 
     pthread_mutex_lock(&gXcpTl.Mutex);
 
-    if (dto_buffer_size + size + XCP_PACKET_HEADER_SIZE > XCP_UDP_MTU) {
+    if (dto_buffer_size + size + XCP_PACKET_HEADER_SIZE > kXcpMaxMTU) {
         udpServerSendDatagram(dto_buffer_data, dto_buffer_size);
         dto_buffer_size = 0;
     }
@@ -436,7 +436,7 @@ int udpServerInit(unsigned short serverPort, unsigned int socketTimeout)
         char tmp[32];
         inet_ntop(AF_INET, &gXcpTl.ServerAddr.sin_addr, tmp, sizeof(tmp));
         printf("Bind sin_family=%u, addr=%s, port=%u\n", gXcpTl.ServerAddr.sin_family, tmp, ntohs(gXcpTl.ServerAddr.sin_port));
-        fprintf(stderr, "UDP MTU = %d.\n", XCP_UDP_MTU);
+        //fprintf(stderr, "UDP MTU = %d.\n", kXcpMaxMTU);
     }
 #endif
 

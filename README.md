@@ -22,36 +22,53 @@ A A2L with reduced featureset is generated through code instrumentation during r
 C and C++ measurement demo variables and code example in ecu.c and ecupp.cpp.
 Measure global variables and dynamic instances of structs and classes.
 
+## Code Instrumentation:
+
 Only simple code instrumentation needed for event triggering and data copy, event definition and data object definition.
 
 Example:
 
-Definition:
+### Definition:
+```
+  double channel1;
+```
 
-  double channel1 = 0;
+### Initialisation and A2L info generation:
 
-Initialisation:
-
-  A2lCreateEvent("ECU"); // Create event
-
-  channel = 0;
-
-  A2lSetEvent("ECU"); // Define event
-
-  A2lCreatePhysMeasurement(channel1, 1.0, 1.0, "Volt", "Demo floating point signal"); // Create signal
+```
+  channel1 = 0;
+  
+  A2lCreateEvent("ECU"); // Create a new event with name "ECU""
+  A2lSetEvent("ECU"); // Set event "ECU" to be associated to following measurement definitions
+  A2lCreatePhysMeasurement(channel1, 2.0, 1.0, "Volt", "Demo floating point signal"); // Create a new measurement signal "channel1" with linear conversion rule (factor,offset) and unit "Volt"
+```
 
 
-Measurement:
+### Measurement data acquisition event:
 
-  channel1 += 0.5;
-
-  XcpEvent(1); // Trigger event and copy measurement data
-
+```
+  channel1 += 0.6;
+  XcpEvent(1); // Trigger event here, timestamp and copy measurement data
+```
 
 Demo visual Studio and CANape project included for Raspberry Pi 4. 
 
 
-Note:
+## Konfiguration Options:
+
+All settings and parameters for the XCP protocol handler are in xcp_cfg.h
+
+Basis compile options for the XCPlite demo are:
+```
+#define XCP_ENABLE_64       // Enable 64 bit platform support, otherwise assume 32 bit plattform
+#define XCP_ENABLE_A2L      // Enable A2L creator and A2L upload to host
+#define XCP_ENABLE_SO       // Enable measurement and calibration of shared objects
+#define XCP_ENABLE_PTP      // Enable PTP synchronized DAQ time stamps
+#define XCP_ENABLE_TESTMODE // Enable debug console prints
+#define XCP_ENABLE_WIRINGPI // Enable digital io for timing measurements
+```
+
+## Note:
 CANape Linker Map Type ELF extended
 Compile with -O2
 Link with -lrt -lpthread

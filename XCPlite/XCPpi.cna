@@ -10,8 +10,8 @@ PrgDate=17.12.2020
 Description=
 CreationTime=14:27
 CreationDate=09/08/2020 ; Month/Day/Year
-ModificationTime=21:15
-ModificationDate=12/17/2020 ; Month/Day/Year
+ModificationTime=21:09
+ModificationDate=02/19/2021 ; Month/Day/Year
 Protected=0
 
 [ANALYSISPROFILE_MDF_LIST]
@@ -166,7 +166,7 @@ Count=0
 Name=
 Comment=
 Maximized=0
-ActiveWindow=1
+ActiveWindow=10
 IsReportPage=0
 TimeAxisSynchronized=0
 PrintLayout=Default
@@ -225,18 +225,16 @@ Unit=s
 DataType=2
 Precision=-1
 ObjectType=1
-Number=2
+Number=3
 TextFormula=Dt
 NumberOfInputSignals=1
 Formula=10
 Version=100
 StimMode=0
 Name=DtECU
-Mode=5
+Mode=10
 Rate=0
 Disabled=0
-ModeModule=XCPpi
-ModeName=1,"ECU" "XCPpi"
 ArchivBy_1=Rekorder
 IsFallback=0
 DisplayCount=2
@@ -353,7 +351,7 @@ SubConfigsCount=0
 Count=0
 
 [MEASUREMENT_LIST]
-Count=22
+Count=23
 OfflineFileCount=0
 MeaCfgLabellistName=
 
@@ -373,7 +371,7 @@ DisplayCount=1
 
 [MEASUREMENT_OBJECT_10]
 Module=XCPpi
-Name=byteArray8
+Name=byteArray7
 Mode=2147483649
 Rate=1
 Disabled=1
@@ -393,7 +391,7 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_11]
 Module=XCPpi
-Name=byteArray9
+Name=byteArray8
 Mode=2147483649
 Rate=1
 Disabled=1
@@ -413,7 +411,7 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_12]
 Module=XCPpi
-Name=byteArray10
+Name=byteArray9
 Mode=2147483649
 Rate=1
 Disabled=1
@@ -433,7 +431,7 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_13]
 Module=XCPpi
-Name=byteArray11
+Name=byteArray10
 Mode=2147483649
 Rate=1
 Disabled=1
@@ -453,7 +451,7 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_14]
 Module=XCPpi
-Name=byteArray12
+Name=byteArray11
 Mode=2147483649
 Rate=1
 Disabled=1
@@ -473,7 +471,7 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_15]
 Module=XCPpi
-Name=byteArray13
+Name=byteArray12
 Mode=2147483649
 Rate=1
 Disabled=1
@@ -493,7 +491,7 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_16]
 Module=XCPpi
-Name=byteArray14
+Name=byteArray13
 Mode=2147483649
 Rate=1
 Disabled=1
@@ -513,7 +511,7 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_17]
 Module=XCPpi
-Name=byteArray15
+Name=byteArray14
 Mode=2147483649
 Rate=1
 Disabled=1
@@ -533,7 +531,7 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_18]
 Module=XCPpi
-Name=byteArray16
+Name=byteArray15
 Mode=2147483649
 Rate=1
 Disabled=1
@@ -553,10 +551,10 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_19]
 Module=XCPpi
-Name=longArray1
+Name=byteArray16
 Mode=2147483649
 Rate=1
-Disabled=0
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -565,7 +563,7 @@ ShowWorkingPoint=0
 FollowWorkingPoint=0
 Array=1
 Rows=1
-Columns=1024
+Columns=1400
 ArchivBy_1=Rekorder
 IsFallback=0
 HasManagedDisplay=0
@@ -580,124 +578,8 @@ ColorFunctionScope=1
 LineTyp=2
 YMinHome=-100
 YMaxHome=100
-YMin=-85.534591195
-YMax=77.9874213836
-XOffsetNS=0
-XOffset=0
-ValueFormat=3
-BitMask=1
-ShowYAxis=1
-Width=10
-LineStyle=1
-MarkerType=1
-LineWidth=1
-Precision=-2
-Digits=6
-Enabled=1
-StoredFocused=1
-SublMask=1
-MeaSublMask=3
-LockScaling=0
-RightAxis=0
-MapMode=2
-OverlayGridColor=0
-ShadingMode=3
-EditOffset=1
-EditFactor=2
-WAxisLabel=
-XAxisLabel=
-YAxisLabel=
-AxisCaption=
-Row=0
-Col=0
-YAxis_ID=0
-AxisTemplate=
-
-[MEASUREMENT_OBJECT_2]
-Module=XCPpi
-Name=ecuCounter
-Mode=2147483649
-Rate=1
-Disabled=0
-Row=0
-Column=0
-MeaReferenced=1
-ArchivBy_1=Rekorder
-IsFallback=0
-HasManagedDisplay=0
-DisplayCount=1
-
-[MEASUREMENT_OBJECT_20]
-Module=XCPpi
-Name=longArray2
-Mode=2147483649
-Rate=1
-Disabled=1
-Row=0
-Column=0
-MeaReferenced=1
-MeasureWorkingPoint=0
-ShowWorkingPoint=0
-FollowWorkingPoint=0
-Array=1
-Rows=1
-Columns=1024
-ArchivBy_1=Rekorder
-IsFallback=0
-HasManagedDisplay=0
-DisplayCount=0
-
-[MEASUREMENT_OBJECT_21]
-Module=XCPpi
-Name=longArray3
-Mode=2147483649
-Rate=1
-Disabled=1
-Row=0
-Column=0
-MeaReferenced=1
-MeasureWorkingPoint=0
-ShowWorkingPoint=0
-FollowWorkingPoint=0
-Array=1
-Rows=1
-Columns=1024
-ArchivBy_1=Rekorder
-IsFallback=0
-HasManagedDisplay=0
-DisplayCount=0
-
-[MEASUREMENT_OBJECT_22]
-Module=XCPpi
-Name=longArray4
-Mode=2147483649
-Rate=1
-Disabled=1
-Row=0
-Column=0
-MeaReferenced=1
-MeasureWorkingPoint=0
-ShowWorkingPoint=0
-FollowWorkingPoint=0
-Array=1
-Rows=1
-Columns=1024
-ArchivBy_1=Rekorder
-IsFallback=0
-HasManagedDisplay=0
-DisplayCount=0
-
-[MEASUREMENT_OBJECT_2_DISPLAY_1]
-Window=3
-Index=1
-Color=16776960
-ColorFunction=0
-ColorFunctionScope=1
-LineTyp=2
-YMinHome=0
-YMaxHome=65535
-YMin=0
-YMax=65535
+YMin=-100
+YMax=100
 XOffsetNS=0
 XOffset=0
 ValueFormat=3
@@ -729,12 +611,26 @@ Col=0
 YAxis_ID=0
 AxisTemplate=
 
-[MEASUREMENT_OBJECT_3]
+[MEASUREMENT_OBJECT_2]
 Module=XCPpi
-Name=byteArray1
-Mode=2147483649
+Name=EcuTask.counter
+Mode=2147483651
 Rate=1
 Disabled=0
+Row=0
+Column=0
+MeaReferenced=1
+ArchivBy_1=Rekorder
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=1
+
+[MEASUREMENT_OBJECT_20]
+Module=XCPpi
+Name=longArray1
+Mode=2147483649
+Rate=1
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -743,18 +639,176 @@ ShowWorkingPoint=0
 FollowWorkingPoint=0
 Array=1
 Rows=1
-Columns=1400
+Columns=1024
 ArchivBy_1=Rekorder
 IsFallback=0
 HasManagedDisplay=0
 DisplayCount=0
 
-[MEASUREMENT_OBJECT_4]
+[MEASUREMENT_OBJECT_21]
 Module=XCPpi
-Name=byteArray2
+Name=longArray2
+Mode=2147483649
+Rate=1
+Disabled=1
+Row=0
+Column=0
+MeaReferenced=1
+MeasureWorkingPoint=0
+ShowWorkingPoint=0
+FollowWorkingPoint=0
+Array=1
+Rows=1
+Columns=1024
+ArchivBy_1=Rekorder
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=0
+
+[MEASUREMENT_OBJECT_22]
+Module=XCPpi
+Name=longArray3
+Mode=2147483649
+Rate=1
+Disabled=1
+Row=0
+Column=0
+MeaReferenced=1
+MeasureWorkingPoint=0
+ShowWorkingPoint=0
+FollowWorkingPoint=0
+Array=1
+Rows=1
+Columns=1024
+ArchivBy_1=Rekorder
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=0
+
+[MEASUREMENT_OBJECT_23]
+Module=XCPpi
+Name=longArray4
+Mode=2147483649
+Rate=1
+Disabled=1
+Row=0
+Column=0
+MeaReferenced=1
+MeasureWorkingPoint=0
+ShowWorkingPoint=0
+FollowWorkingPoint=0
+Array=1
+Rows=1
+Columns=1024
+ArchivBy_1=Rekorder
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=0
+
+[MEASUREMENT_OBJECT_2_DISPLAY_1]
+Window=10
+Index=0
+Color=65280
+ColorFunction=0
+ColorFunctionScope=1
+LineTyp=2
+YMinHome=0
+YMaxHome=100
+YMin=0
+YMax=100
+XOffsetNS=0
+XOffset=0
+ValueFormat=3
+BitMask=1
+ShowYAxis=1
+Width=10
+LineStyle=1
+MarkerType=1
+LineWidth=1
+Precision=-2
+Digits=6
+Enabled=1
+StoredFocused=1
+SublMask=1
+MeaSublMask=0
+LockScaling=0
+RightAxis=0
+MapMode=2
+OverlayGridColor=0
+ShadingMode=3
+EditOffset=1
+EditFactor=2
+WAxisLabel=
+XAxisLabel=
+YAxisLabel=
+AxisCaption=
+Row=0
+Col=0
+YAxis_ID=0
+AxisTemplate=
+
+[MEASUREMENT_OBJECT_3]
+Module=XCPpi
+Name=ecuCounter
 Mode=2147483649
 Rate=1
 Disabled=0
+Row=0
+Column=0
+MeaReferenced=1
+ArchivBy_1=Rekorder
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=1
+
+[MEASUREMENT_OBJECT_3_DISPLAY_1]
+Window=3
+Index=1
+Color=16776960
+ColorFunction=0
+ColorFunctionScope=1
+LineTyp=2
+YMinHome=0
+YMaxHome=65535
+YMin=0
+YMax=65535
+XOffsetNS=0
+XOffset=0
+ValueFormat=3
+BitMask=1
+ShowYAxis=1
+Width=10
+LineStyle=1
+MarkerType=1
+LineWidth=1
+Precision=-2
+Digits=6
+Enabled=1
+StoredFocused=1
+SublMask=1
+MeaSublMask=3
+LockScaling=0
+RightAxis=0
+MapMode=2
+OverlayGridColor=0
+ShadingMode=3
+EditOffset=1
+EditFactor=2
+WAxisLabel=
+XAxisLabel=
+YAxisLabel=
+AxisCaption=
+Row=0
+Col=0
+YAxis_ID=0
+AxisTemplate=
+
+[MEASUREMENT_OBJECT_4]
+Module=XCPpi
+Name=byteArray1
+Mode=2147483649
+Rate=1
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -771,10 +825,10 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_5]
 Module=XCPpi
-Name=byteArray3
+Name=byteArray2
 Mode=2147483649
 Rate=1
-Disabled=0
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -791,10 +845,10 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_6]
 Module=XCPpi
-Name=byteArray4
+Name=byteArray3
 Mode=2147483649
 Rate=1
-Disabled=0
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -811,7 +865,7 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_7]
 Module=XCPpi
-Name=byteArray5
+Name=byteArray4
 Mode=2147483649
 Rate=1
 Disabled=1
@@ -831,7 +885,7 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_8]
 Module=XCPpi
-Name=byteArray6
+Name=byteArray5
 Mode=2147483649
 Rate=1
 Disabled=1
@@ -851,7 +905,7 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_9]
 Module=XCPpi
-Name=byteArray7
+Name=byteArray6
 Mode=2147483649
 Rate=1
 Disabled=1
@@ -946,9 +1000,9 @@ WindowSymbols=1
 GlobalCursor=0
 GlobalCursorTime=0
 GlobalTimeAxis=1
-GlobalTimeAxisStartTime=16764424993
-GlobalTimeAxisEndTime=32521799721
-MainWindowPos=1, 150, 251, 2685, 1782 ;cmd, x, y, w, h
+GlobalTimeAxisStartTime=0
+GlobalTimeAxisEndTime=24003514092
+MainWindowPos=1, 150, 250, 2685, 1782 ;cmd, x, y, w, h
 
 [PAR_COMMENT]
 1="Name",""
@@ -1132,13 +1186,17 @@ Count=0
 [SIGNSELWND]
 FocusID=2004
 ActiveTab=0
-FilterNodeID=All
+FilterNodeID=All\Measurement list
 TreeExpand_0=@All
 TreeExpand_1=All\Devices\XCPpi\XCPpi.a2l
 TreeExpand_2=All\Devices\XCPpi
 TreeExpand_3=All\Devices
-TreeExpand_4=$All\Devices
-TreeExpand_5=#All\Devices\XCPpi
+TreeExpand_4=All\Measurement list\All signals
+TreeExpand_5=$All\Devices
+TreeExpand_6=#All\Devices\XCPpi
+TreeExpand_7=@All\Measurement list
+TreeExpand_8=$All\Measurement list\All signals
+TreeExpand_9=#All\Measurement list\All signals\EcuTask.counter
 TextSearchCaseSensitive=0
 TextSearchUseMode=1
 TextSearchSearchFullText=1
@@ -1175,6 +1233,43 @@ FloatingWindow=0
 ShowSignalComments=1
 DisplayMask=1 ; pages 1
 
+[WINDOW_10]
+ScaleFont=1
+ShowLegend=1
+ShowLegendHeader=0
+LegendPixWidth=203
+LegendPixWidth_dpi96=135
+GridStyle=0
+DisplayColors=1
+LegendFont=0
+Alignment=0
+DotLineProp=0.3
+ShowActivity=0
+ExceedLimitWarning=0
+LegendScrollPos=0
+DotLinePos=103
+ObjectCount=0
+Title=Numeric {DISPLAYED_FILENAME}
+Type=4
+Comment=Numeric Window
+Number=10
+ScreenDPIinSection=144
+Position=0, 763, 124, 567, 252 ;cmd, x, y, w, h
+Position_dpi96=0, 509, 83, 378, 168 ;cmd, x, y, w, h
+Position_Page01=0, 763, 124, 567, 252 ;cmd, x, y, w, h
+Position_Page01_dpi96=0, 509, 83, 378, 168 ;cmd, x, y, w, h
+FloatingWindow=0
+ShowSignalComments=1
+LEGEND_HSCROLL_POS=0
+LEGEND_SHARED_COLUMNS=1
+DisplayMask=1 ; pages 1
+
+[WINDOW_10_LEG_COLUMNS]
+ScreenDPIinSection=144
+COUNT=1
+COL_0=31, 203
+COL_0_dpi96=31, 135
+
 [WINDOW_2]
 ComponentCount=2
 Title=
@@ -1192,8 +1287,8 @@ DisplayMask=1 ; pages 1
 
 [WINDOW_3]
 XLen=33205
-XMin=16764
-XMax=32521
+XMin=0
+XMax=24003
 Grid=1
 Mark=1
 YValue=1
@@ -1261,8 +1356,8 @@ COL_1_dpi96=1048578, 88
 
 [WINDOW_4]
 XLen=33205
-XMin=16764
-XMax=32521
+XMin=0
+XMax=24003
 Grid=1
 Mark=1
 YValue=1
@@ -1349,10 +1444,10 @@ Type=4
 Comment=Numeric Window
 Number=5
 ScreenDPIinSection=144
-Position=0, 724, 16, 709, 100 ;cmd, x, y, w, h
-Position_dpi96=0, 483, 11, 473, 67 ;cmd, x, y, w, h
-Position_Page01=0, 724, 16, 709, 100 ;cmd, x, y, w, h
-Position_Page01_dpi96=0, 483, 11, 473, 67 ;cmd, x, y, w, h
+Position=0, 763, 16, 709, 100 ;cmd, x, y, w, h
+Position_dpi96=0, 509, 11, 473, 67 ;cmd, x, y, w, h
+Position_Page01=0, 763, 16, 709, 100 ;cmd, x, y, w, h
+Position_Page01_dpi96=0, 509, 11, 473, 67 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
 LEGEND_HSCROLL_POS=0
@@ -1406,7 +1501,7 @@ GridTitleHeight=5
 GridX=0
 GridY=0
 InterpolateWorkingPoint=0
-LastFocus=3D
+LastFocus=CalBar_5325
 LeftCol=1
 LegendWindowSelectionMode=0
 LegendWindowSizeInPercent=0.124137931034
@@ -1534,7 +1629,7 @@ GridTitleHeight=5
 GridX=0
 GridY=0
 InterpolateWorkingPoint=0
-LastFocus=CalBar_5326
+LastFocus=3D
 LeftCol=1
 LegendWindowSelectionMode=0
 LegendWindowSizeInPercent=0.206303724928
@@ -2027,7 +2122,7 @@ YAxis_ID=0
 AxisTemplate=
 
 [WINDOWS]
-Count=9
+Count=10
 
 [Y_COMMON_AXIS_LIST]
 Count=0
