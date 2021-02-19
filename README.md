@@ -66,7 +66,6 @@ Basis compile options for the XCPlite demo are:
 #define XCP_ENABLE_A2L      // Enable A2L creator and A2L upload to host
 #define XCP_ENABLE_SO       // Enable measurement and calibration of shared objects
 #define XCP_ENABLE_PTP      // Enable PTP synchronized DAQ time stamps
-
 ```
 
 ## Note:
