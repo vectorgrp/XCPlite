@@ -1,7 +1,7 @@
 
 # XCPlite
-17.2.2021
-Copyright 2021 Vector Informatik GmbH, RainerZ
+
+Copyright 2021 Vector Informatik GmbH
 
 Simple and light implementation of the ASAM XCP Protocol Layer V1.1 (1000 lines of code).
 
