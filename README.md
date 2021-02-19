@@ -22,7 +22,7 @@ A A2L with reduced featureset is generated through code instrumentation during r
 C and C++ measurement demo variables and code example in ecu.c and ecupp.cpp.
 Measure global variables and dynamic instances of structs and classes.
 
-## Code Instrumentation:
+## Code instrumentation:
 
 Only simple code instrumentation needed for event triggering and data copy, event definition and data object definition.
 
@@ -54,7 +54,7 @@ Example:
 Demo visual Studio and CANape project included for Raspberry Pi 4. 
 
 
-## Konfiguration Options:
+## Configuration options:
 
 All settings and parameters for the XCP protocol handler are in xcp_cfg.h
 
