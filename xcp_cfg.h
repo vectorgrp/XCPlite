@@ -11,11 +11,6 @@
 #ifndef __XCP_CFG_H_
 #define __XCP_CFG_H_
 
-// 1
-
-
-
-
 // General includes
 #define _POSIX_C_SOURCE 200809L
 
@@ -49,8 +44,8 @@ extern "C" {
 
 
 /*----------------------------------------------------------------------------*/
-// Protocol and debugging options
-// Other settings see further below
+/* Protocol and debugging options */
+
 
 // #define XCP_ENABLE_64 // Enable 64 bit platform support, otherwise assume 32 bit plattform
 	
@@ -60,9 +55,55 @@ extern "C" {
 
 // #define XCP_ENABLE_PTP // Enable PTP synchronized DAQ time stamps
 
+
 #define XCP_ENABLE_TESTMODE // Enable debug console prints
+#define XCP_DEBUG_LEVEL 1
+
 // #define XCP_ENABLE_WIRINGPI // Enable digital io 
 
+
+/*----------------------------------------------------------------------------*/
+/* Important Protocol settings and parameters */
+	
+// XCP slave IP address
+#define XCP_SLAVE_IP "172.31.31.194"  // IP is hardcode yet, should be improved in future versions
+
+// XCP slave device and A2L file identification (optional)
+#define kXcpSlaveIdLength 5    /* Slave device identification length */
+#define kXcpSlaveIdString "XCPpi"  /* Slave device identification */
+#define kXcpA2LFilenameLength 9    /* Length of A2L filename */
+#define kXcpA2LFilenameString "XCPpi.A2L"  /* A2L filename */
+
+// The following parameters are dependant on the amount of measurement signals supported, they have significant impact on memory consumption
+#define XCP_DAQ_QUEUE_SIZE 32   // Transmit queue size in DAQ UDP packets (MTU=1400), should at least be able to hold all data produced by the largest event
+#define XCP_DAQ_MEM_SIZE 60000u // Amount of memory for DAQ tables, each ODT entries needs 5 bytes
+
+// Transmit mode
+#define DTO_SEND_QUEUE       /* Enable DTO packet queue, decouples xcpEvent from sendto, results in almost deterministic runtime of xcpEvent */
+//#define DTO_SEND_RAW       /* Activate build in UDP stack on RAW sockets for DAQ transmission */
+
+
+/*----------------------------------------------------------------------------*/
+/* Test instrumentation */
+
+/* Turn on screen logging, assertions and parameter checks */
+
+#ifdef XCP_ENABLE_TESTMODE
+#define ApplXcpPrint printf
+#define XCP_ENABLE_PARAMETER_CHECK
+
+#endif
+
+#ifdef XCP_ENABLE_WIRINGPI
+#include <wiringPi.h>
+#define PI_IO_1	17
+#define ApplXcpDbgPin(x) digitalWrite(PI_IO_1,x);
+#else
+#define ApplXcpDbgPin(x)
+#endif
+
+//	extern volatile vuint32 gTaskCycleTimerECU;
+//	extern volatile vuint32 gTaskCycleTimerECUpp;
 
 
 /*----------------------------------------------------------------------------*/
@@ -136,63 +177,18 @@ extern int udpServerSendCrmPacket(const unsigned char* data, unsigned int n);
 #define ApplXcpSendCrm udpServerSendCrmPacket
 
 
-
-
-
-/*----------------------------------------------------------------------------*/
-/* Test instrumentation */
-
-/* Turn on screen logging, assertions and parameter checks */
-
-#ifdef XCP_ENABLE_TESTMODE
-	#define XCP_DEBUG_LEVEL 1
-	#define ApplXcpPrint printf
-	#define XCP_ENABLE_PARAMETER_CHECK
-    
-#endif
-
-#ifdef XCP_ENABLE_WIRINGPI
-	#include <wiringPi.h>
-	#define PI_IO_1	17
-	#define ApplXcpDbgPin(x) digitalWrite(PI_IO_1,x);
-#else
-    #define ApplXcpDbgPin(x)
-#endif
-	  
-extern volatile vuint32 gTaskCycleTimerECU;
-extern volatile vuint32 gTaskCycleTimerECUpp;
-
-
 /*----------------------------------------------------------------------------*/
 /* XCP protocol and transport layer parameters */
 
 /* Transport layer */
-#define XCP_UDP_MTU (1400)  // IPv4 1500 ETH - 28 IP - 8 UDP ???
-
-
-/* XCP slave device and A2L file identification (optional) */
-#define kXcpSlaveIdLength 5    /* Slave device identification length */
-#define kXcpSlaveIdString "XCPpi"  /* Slave device identification */
-extern vuint8 MEMORY_ROM gXcpSlaveId[];
-#define kXcpA2LFilenameLength 9    /* Length of A2L filename */
-#define kXcpA2LFilenameString "XCPpi.A2L"  /* A2L filename */
-extern vuint8 MEMORY_ROM gXcpA2LFilename[];
-
+#define kXcpMaxMTU (1400)  // IPv4 1500 ETH - 28 IP - 8 UDP ???
 
 /* XCP protocol message sizes */
 #define kXcpMaxCTO     250      /* Maximum CTO and CRM Message Lenght */
-#define kXcpMaxDTO     (XCP_UDP_MTU-4)      /* Maximum DTO Message Lenght UDP_MTU - Transport Layer Header */
-
-/* Transmit queue (DAQ) */
-#define DTO_SEND_QUEUE       /* Enable DTO packet queue, decouples xcpEvent from sendto, results in almost deterministic runtime of xcpEvent */
-#define DTO_QUEUE_SIZE 32    /* Transmit queue size in DAQ UDP packets, should at least be able to hold all data produced by the largest event */
-//#define DTO_SEND_RAW         /* Activate UDP on RAW socket for DAQ transmission */
-
-/* DAQ table size */
-#define kXcpDaqMemSize 60000u  // Memory space reserved for DAQ tables (XCP needs 5 bytes (addr+len) per memory region (odt entry)
+#define kXcpMaxDTO     (kXcpMaxMTU-4)      /* Maximum DTO Message Lenght UDP_MTU - Transport Layer Header */
 
 /* Maximum ODT entry size */
-  #define XCP_MAX_ODT_ENTRY_SIZE 248 // mod 4 = 0 to optimize DAQ copy granularity
+#define kXcpMaxOdtEntrySize 248 // mod 4 = 0 to optimize DAQ copy granularity
 
 /* DAQ time stamping */
 extern vuint32 ApplXcpGetClock(void);
@@ -221,7 +217,6 @@ extern vuint32 ApplXcpGetClock(void);
 #define kXcpDaqTimestampTicksPerUnit 1  
 
 	
-
 #ifdef __cplusplus
 }
 #endif

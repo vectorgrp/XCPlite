@@ -38,6 +38,13 @@ volatile vuint32 gTaskCycleTimerECU    = 1000000; // ns
 volatile vuint32 gTaskCycleTimerECUpp  = 1000000; // ns
 volatile vuint32 gTaskCycleTimerServer =   10000; // ns
 
+// Task measurement data acquisition event numbers
+extern "C" {
+    unsigned int gXcpEvent_EcuCyclic = 0;
+    unsigned int gXcpEvent_EcuTask1 = 0;
+    unsigned int gXcpEvent_EcuTask2 = 0;
+}
+
 // Cycles times
 volatile vuint32 gFlushCycle = 100 * kApplXcpDaqTimestampTicksPerMs; // send a DTO packet at least every 100ms
 volatile vuint32 gCmdCycle =    10 * kApplXcpDaqTimestampTicksPerMs; // check for commands every 10ms
@@ -54,7 +61,8 @@ volatile vuint8 gExit = 0;
 
 // ECU simulation (C++ demo)
 #include "ecupp.hpp"
-ecu* gEcu = 0;
+EcuTask* gEcuTask1 = 0;
+EcuTask* gEcuTask2 = 0;
 
 extern "C" {
 
@@ -143,7 +151,7 @@ extern "C" {
     // Calls C++ ECU demo code
     void* ecuppTask(void* par) {
 
-        printf("Start ecuppTask\n");
+        printf("Start EcuTask1/EcuTask2\n");
 
         for (;;) {
 
@@ -151,8 +159,10 @@ extern "C" {
             sleepns(gTaskCycleTimerECUpp);
             
             // C++ demo
-            gEcu->task();
-            
+            gEcuTask1->run();
+            gEcuTask2->run(); // Task 2 runs twice per cycle to be able to see diffences between the 2 instances
+            gEcuTask2->run();
+
         }
         return 0;
     }
@@ -167,7 +177,7 @@ extern "C" {
 int main(void)
 {  
     printf(
-        "\nRaspberryPi XCP Lite on UDP Demo\n"
+        "\nRaspberryPi XCPlite: XCP on UDP Demo\n"
         "Build " __DATE__ " " __TIME__ "\n"
 #ifdef XCP_ENABLE_A2L
         "  Option A2L\n"
@@ -214,21 +224,47 @@ int main(void)
 #if defined ( XCP_ENABLE_TESTMODE )
     if (gXcpDebugLevel >= 1) {
         printf("gXcpDebugLevel = %u\n", gXcpDebugLevel);
-        printf("&gXcpDebugLevel = %0Xh\n", &gXcpDebugLevel);
+        //printf("&gXcpDebugLevel = %0Xh\n", &gXcpDebugLevel);
     }
 #endif
 
-    // Create A2L
+    //----------------------------------------------------------------------------------
+    // Create A2L header and events
 #ifdef XCP_ENABLE_A2L
-
-    // Create A2L file header
     A2lInit(kXcpA2LFilenameString);
-    A2lCreateEvent("ECU");     // 1: Standard event triggered in ecuTask
-    A2lCreateEvent("ECUPP");   // 2: Standard event triggered in ecuppTask
-    A2lCreateEvent("ECUPPEXT");// 3: Extended event (relative address objects) triggered in ecuppTask
+    gXcpEvent_EcuCyclic = A2lCreateEvent("EcuCyclic");   // Standard event triggered in C ecuTask
+    gXcpEvent_EcuTask1 = A2lCreateEvent("EcuTask1");     // Extended event (relative address objects) triggered by C++ ecuTask1 instance
+    gXcpEvent_EcuTask2 = A2lCreateEvent("EcuTask2");     // Extended event (relative address objects) triggered by C++ ecuTask2 instance
+    // Events must be all defined before A2lHeader(), measurements and parameters have to defined afterwards
     A2lHeader();
+#endif
 
-    // Test parameters
+
+    //----------------------------------------------------------------------------------
+    // C++ demo
+
+    // Initialize ECU demo runnables (C++)
+    // Instances are associated to events
+    gEcuTask1 = new EcuTask(gXcpEvent_EcuTask1);
+    gEcuTask2 = new EcuTask(gXcpEvent_EcuTask2);
+
+    // Create A2L measurement variables for all known EcuTask instances and generic for the class itself
+    unsigned int eventList[] = { gXcpEvent_EcuTask1,gXcpEvent_EcuTask2 };
+    gEcuTask1->CreateA2lClassDescription(2,eventList);
+    
+
+
+    //----------------------------------------------------------------------------------
+    // C demo
+
+    // Initialize ECU demo task (C) 
+    ecuInit();
+    ecuCreateA2lDescription();
+
+
+    //----------------------------------------------------------------------------------
+    // Create additional A2L parameters to control the demo
+#ifdef XCP_ENABLE_A2L
     A2lCreateParameter(gCmdCycle, "us", "Command handler cycle time");
     A2lCreateParameter(gFlushCycle, "us", "Flush cycle time");
     A2lCreateParameter(gTaskCycleTimerECU, "ns", "ECU cycle time (ns delay)");
@@ -237,20 +273,14 @@ int main(void)
     A2lCreateParameter(gXcpDebugLevel, "", "Debug verbosity");
     A2lCreateParameter(gExit, "", "Quit application");
     A2lCreateGroup("Test_Parameters", 7, "gCmdCycle", "gFlushCycle", "gTaskCycleTimerECU", "gTaskCycleTimerECUpp", "gTaskCycleTimerServer", "gXcpDebugLevel", "gExit");
-
 #endif
-
-    // Initialize ECU demo (C) variables and add them to A2L
-    ecuInit();
-
-    // Initialize ECU demo (C++) variables and add them to A2L 
-    gEcu = new ecu();
 
     // Finish A2L
 #ifdef XCP_ENABLE_A2L
     A2lClose();
 #endif
 
+    //----------------------------------------------------------------------------------
     // Create the ECU threads
 #ifdef THREAD_ECU
     pthread_t t2;
@@ -263,6 +293,7 @@ int main(void)
     pthread_create(&t3, NULL, ecuppTask, (void*)&a3);
 #endif
 
+    //----------------------------------------------------------------------------------
     // Create the XCP server thread
 #ifdef THREAD_SERVER
     pthread_t t1;

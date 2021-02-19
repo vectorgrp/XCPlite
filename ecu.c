@@ -88,17 +88,17 @@ volatile unsigned char curve1_32[32] =
 /**************************************************************************/
 
 // Init
-void ecuInit( void ) {
+void ecuInit(void) {
 
     ecuCounter = 0;
 
-    timer  = 0;
+    timer = 0;
     channel1 = 0;
 
-    byteCounter  = 0;
+    byteCounter = 0;
     wordCounter = 0;
     dwordCounter = 0;
-    sbyteCounter	= 0;
+    sbyteCounter = 0;
     swordCounter = 0;
     sdwordCounter = 0;
 
@@ -127,11 +127,14 @@ void ecuInit( void ) {
         longArray3[i] = i;
         longArray4[i] = i;
     }
+}
 
-    // Create A2L File
+
+// Create A2L File content
 #ifdef XCP_ENABLE_A2L
+void ecuCreateA2lDescription( void) {
 
-    A2lSetEvent(1); // Associate event 1 to the variables below
+    A2lSetEvent(gXcpEvent_EcuCyclic); // Associate XCP event "EcuCyclic" to the variables below
         
     A2lCreateMeasurement(ecuCounter);
     A2lCreatePhysMeasurement(timer, 1.0, 0.0, "s", "Time in s");
@@ -192,7 +195,7 @@ void ecuCyclic( void )
       channel1 = sin(6.283185307 * timer / period);
       channel1 = offset + ( ampl * channel1 );
   }
-  timer = (timer + gTaskCycleTimerECU/1.0E9);
+  timer = (timer + 0.001);
  
   // Arrays
   longArray1[0] ++;
@@ -228,7 +231,7 @@ void ecuCyclic( void )
     digitalWrite(PI_IO_1, HIGH);
 #endif
 
-    XcpEvent(1); // Trigger measurement date aquisition event 1
+    XcpEvent(gXcpEvent_EcuCyclic); // Trigger measurement date aquisition event 1
 
 #if defined ( XCP_ENABLE_WIRINGPI )
     digitalWrite(PI_IO_1, LOW);

@@ -1188,9 +1188,9 @@ extern "C" {
 #endif
 
 
-/* kXcpDaqMemSize must be defined 
+/* XCP_DAQ_MEM_SIZE must be defined 
 */
-  #if defined ( kXcpDaqMemSize )
+  #if defined ( XCP_DAQ_MEM_SIZE )
   #else
     #error "Please define kXcpDaqMemSize"
   #endif
@@ -1198,9 +1198,9 @@ extern "C" {
 
 /*
   Max. size of an object referenced by an ODT entry
-  XCP_MAX_ODT_ENTRY_SIZE may be limited 
+  kXcpMaxOdtEntrySize may be limited 
 */
-  #if defined ( XCP_MAX_ODT_ENTRY_SIZE )
+  #if defined ( kXcpMaxOdtEntrySize )
   #else
     #error "Please define XCP_MAX_ODT_ENTRY_SIZE"
   #endif
@@ -1248,8 +1248,8 @@ typedef struct {
   vuint16         OdtCount;       /* Absolute count */
   vuint16         OdtEntryCount;  /* Absolute count */
   union { 
-    vuint8        b[kXcpDaqMemSize];
-    tXcpDaqList   DaqList[kXcpDaqMemSize/sizeof(tXcpDaqList)]; /* ESCAN00096039 */
+    vuint8        b[XCP_DAQ_MEM_SIZE];
+    tXcpDaqList   DaqList[XCP_DAQ_MEM_SIZE/sizeof(tXcpDaqList)]; 
   } u;
 } tXcpDaq;
 
@@ -1389,7 +1389,7 @@ typedef struct {
 
 
 /****************************************************************************/
-/* API                                                                      */
+/* Interface                                                                      */
 /****************************************************************************/
 
 extern tXcpData gXcp;
@@ -1404,10 +1404,15 @@ extern void XcpEventExt(unsigned int event, BYTEPTR offset);
 /* XCP command processor. */
 extern void XcpCommand( const vuint32* pCommand );
 
+/* Info */
+extern vuint8 MEMORY_ROM gXcpSlaveId[];
+extern vuint8 MEMORY_ROM gXcpA2LFilename[];
+
 
 /*-----------------------------------------------------------------------------------*/
 /* Functions or Macros that have to be provided externally to the XCP Protocol Layer */
 /*-----------------------------------------------------------------------------------*/
+
 
 /* Callback functions for xcpLite.c */
 /* All functions must be thread save */
@@ -1481,9 +1486,9 @@ extern void XcpPrintDaqList( vuint16 daq );
   #endif
 #endif
 
-/* Check range of kXcpDaqMemSize */
-#if defined ( kXcpDaqMemSize )
-#if ( kXcpDaqMemSize > 0xFFFF )
+/* Check range of XCP_DAQ_MEM_SIZE */
+#if defined ( XCP_DAQ_MEM_SIZE )
+#if ( XCP_DAQ_MEM_SIZE > 0xFFFF )
     #error "XCP error: kXcpDaqMemSize must be <= 0xFFFF."
 #endif
 #endif

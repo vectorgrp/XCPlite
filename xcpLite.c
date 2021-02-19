@@ -195,7 +195,7 @@ static void XcpFreeDaq( void )
   gXcp.pOdtEntryAddr = 0;
   gXcp.pOdtEntrySize = 0;
 
-  memset((BYTEPTR)&gXcp.Daq.u.b[0], 0, (vuint16)kXcpDaqMemSize);  
+  memset((BYTEPTR)&gXcp.Daq.u.b[0], 0, (vuint16)XCP_DAQ_MEM_SIZE);  
 }
 
 /*****************************************************************************
@@ -217,7 +217,7 @@ static vuint8 XcpAllocMemory( void )
                  ( gXcp.Daq.OdtEntryCount * ( (vuint8)sizeof(DAQBYTEPTR) + (vuint8)sizeof(vuint8) ) )
                );
   
-  if (s>=(vuint16)kXcpDaqMemSize) return (vuint8)CRC_MEMORY_OVERFLOW;
+  if (s>=(vuint16)XCP_DAQ_MEM_SIZE) return (vuint8)CRC_MEMORY_OVERFLOW;
   
   gXcp.pOdt = (tXcpOdt*)&gXcp.Daq.u.DaqList[gXcp.Daq.DaqCount];
   gXcp.pOdtEntryAddr = (DAQBYTEPTR*)&gXcp.pOdt[gXcp.Daq.OdtCount];
@@ -225,7 +225,7 @@ static vuint8 XcpAllocMemory( void )
   
 
   #if defined ( XCP_ENABLE_TESTMODE )
-    if ( gXcpDebugLevel >= 1) ApplXcpPrint("[XcpAllocMemory] %u/%u Bytes used\n",s,kXcpDaqMemSize );
+    if ( gXcpDebugLevel >= 1) ApplXcpPrint("[XcpAllocMemory] %u/%u Bytes used\n",s,XCP_DAQ_MEM_SIZE );
   #endif
 
   return (vuint8)0u;
@@ -753,8 +753,8 @@ void XcpCommand( const vuint32* pCommand )
                 gXcp.CrmLen = CRM_GET_DAQ_RESOLUTION_INFO_LEN;
                 CRM_GET_DAQ_RESOLUTION_INFO_GRANULARITY_DAQ = 1;
                 CRM_GET_DAQ_RESOLUTION_INFO_GRANULARITY_STIM = 1;
-                CRM_GET_DAQ_RESOLUTION_INFO_MAX_SIZE_DAQ  = (vuint8)XCP_MAX_ODT_ENTRY_SIZE;
-                CRM_GET_DAQ_RESOLUTION_INFO_MAX_SIZE_STIM = (vuint8)XCP_MAX_ODT_ENTRY_SIZE;
+                CRM_GET_DAQ_RESOLUTION_INFO_MAX_SIZE_DAQ  = (vuint8)kXcpMaxOdtEntrySize;
+                CRM_GET_DAQ_RESOLUTION_INFO_MAX_SIZE_STIM = (vuint8)kXcpMaxOdtEntrySize;
                 CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_MODE = kXcpDaqTimestampUnit | DAQ_TIMESTAMP_FIXED | (vuint8)sizeof(vuint32);
                 CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_TICKS = (kXcpDaqTimestampTicksPerUnit);  
               }
@@ -831,7 +831,7 @@ void XcpCommand( const vuint32* pCommand )
           case CC_WRITE_DAQ: /* Write ODT entry */
             {
                 DAQBYTEPTR addr;
-                if ((CRO_WRITE_DAQ_SIZE == 0) || (CRO_WRITE_DAQ_SIZE > XCP_MAX_ODT_ENTRY_SIZE)) error(CRC_OUT_OF_RANGE);
+                if ((CRO_WRITE_DAQ_SIZE == 0) || (CRO_WRITE_DAQ_SIZE > kXcpMaxOdtEntrySize)) error(CRC_OUT_OF_RANGE);
                 if ((0u == gXcp.Daq.DaqCount) || (0u == gXcp.Daq.OdtCount) || (0u == gXcp.Daq.OdtEntryCount)) error(CRC_DAQ_CONDIF);
                 addr = (DAQBYTEPTR)ApplXcpGetPointer(CRO_WRITE_DAQ_EXT, CRO_WRITE_DAQ_ADDR);
                 OdtEntrySize(gXcp.DaqListPtr) = CRO_WRITE_DAQ_SIZE;
@@ -845,7 +845,7 @@ void XcpCommand( const vuint32* pCommand )
               {
                  DAQBYTEPTR addr;
                  for (int i = 0; i < CRO_WRITE_DAQ_MULTIPLE_NODAQ; i++) {
-                      if ((CRO_WRITE_DAQ_MULTIPLE_SIZE(i) == 0) || (CRO_WRITE_DAQ_MULTIPLE_SIZE(i) > XCP_MAX_ODT_ENTRY_SIZE)) error(CRC_OUT_OF_RANGE);
+                      if ((CRO_WRITE_DAQ_MULTIPLE_SIZE(i) == 0) || (CRO_WRITE_DAQ_MULTIPLE_SIZE(i) > kXcpMaxOdtEntrySize)) error(CRC_OUT_OF_RANGE);
                       if (CRO_WRITE_DAQ_MULTIPLE_BITOFFSET(i)!=0xFF) error(CRC_OUT_OF_RANGE);
                       if ((0u == gXcp.Daq.DaqCount) || (0u == gXcp.Daq.OdtCount) || (0u == gXcp.Daq.OdtEntryCount)) error(CRC_DAQ_CONDIF);
                       addr = (DAQBYTEPTR)ApplXcpGetPointer(CRO_WRITE_DAQ_MULTIPLE_EXT(i), CRO_WRITE_DAQ_MULTIPLE_ADDR(i));

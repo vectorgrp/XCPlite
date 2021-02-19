@@ -8,8 +8,6 @@
  ----------------------------------------------------------------------------*/
 
 
-
-
 #include "udpserver.h"
 #include "udpraw.h"
 
@@ -32,7 +30,7 @@ static unsigned short csum(unsigned short *buf, int nwords)
 
 
 
-int udpRawSend( DTO_BUFFER *buf, struct sockaddr_in *dst) {
+int udpRawSend( tXcpDtoBuffer *buf, struct sockaddr_in *dst) {
 
   // Assume dst saddr and sin_port are already set in the ip and udp headers
   // Just fill in the acual sizes of ip and udp 

@@ -12,62 +12,63 @@
 #include <iostream>
 using namespace std;
 
-
-#include "ecupp.hpp"
-
 // XCP 
 extern "C" {
 	#include "xcpLite.h"
     #include "A2L.h"
 }
+#include "ecupp.hpp"
 
-
-
-
-// Constructor 
-ecu::ecu() {
-
-	ecuppCounter = 0;
-	
-	byte = 1;
-	word = 1;
-	dword = 1;
-	sword = -1;
 
 #ifdef XCP_ENABLE_A2L
 
-	//A2lBeginGroup("ECUPP");
+// Static method to create A2L description of this class (instanceName==NULL) or this instance
+void EcuTask::CreateA2lClassDescription( int eventCount, const unsigned int eventList[] ) {
 
-	A2lCreateMeasurementType("ecu","class ecu");
-
-	A2lSetEvent(2);
-	A2lCreateMeasurement_abs("gEcu", ecuppCounter);
-
-	A2lSetEvent(3);
-	A2lCreateMeasurement_rel("ecu", ecuppCounter);
-	A2lCreateMeasurement_rel("ecu", byte);
-	A2lCreateMeasurement_rel("ecu", word);
-	A2lCreateMeasurement_rel("ecu", dword);
+	// Create class variables and a typedef
 	
-	//A2lEndGroup("ECUPP");
+		 // Todo: Create a typedef
+		// A2lCreateMeasurementType("ecu", "structure typedef for class ecu"); // Create a A2L typedef for class ecu
 
+	// Todo: EventList
+		
+        #define offsetOf(x) ((int)&x - (int)this)
+		
+		A2lCreateMeasurement_rel("EcuTask", "counter", counter, offsetOf(counter)); // Create measurement signal ecuppCounter with relative adressing on any given dynamic instance of class ecu
+		A2lCreateMeasurement_rel("EcuTask", "byte", byte, offsetOf(byte));
+		A2lCreateMeasurement_rel("EcuTask", "word", word, offsetOf(word));
+		A2lCreateMeasurement_rel("EcuTask", "dword", dword, offsetOf(dword));
+		A2lCreateMeasurement_rel("EcuTask", "taskId", taskId, offsetOf(taskId));
+
+	
+}
 #endif
 
 
+// Constructor 
+EcuTask::EcuTask( unsigned int id ) {
+
+	taskId = id;
+
+	counter = 0;
+	
+	byte = 0;
+	word = 0;
+	dword = 0;
+	sword = 0;
 }
 
 // Cyclic task
-void ecu::task() {
+void EcuTask::run() {
 
-	ecuppCounter++;
+	counter++;
 
 	byte++;
 	word++;
 	dword++;
+	sword++;
 
-	XcpEventExt(3, (BYTEPTR)this); // Trigger measurement data aquisition event 2
-	XcpEvent(2); 
-	
+	XcpEventExt(taskId, (BYTEPTR)this); // Trigger measurement data aquisition event for this task, relative addressing to this
 }
 
 

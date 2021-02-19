@@ -15,6 +15,7 @@
 #define MAX_EVENT 256
 
 FILE* gA2lFile = 0;
+
 unsigned int gA2lEvent = 0;
 unsigned int gA2lEventCount = 0;
 char* gA2lEventList[MAX_EVENT];
@@ -81,7 +82,7 @@ char* gA2lIfData2 =
 "/begin PGM\n"
 "PGM_MODE_ABSOLUTE 0x00 0x00\n"
 "/end PGM\n"
-"/begin XCP_ON_UDP_IP 0x0103 0x15B3 ADDRESS \"172.31.31.195\" /end XCP_ON_UDP_IP\n"
+"/begin XCP_ON_UDP_IP 0x0103 0x15B3 ADDRESS \"172.31.31.194\" /end XCP_ON_UDP_IP\n"
 "/end IF_DATA\n"
 ;
 
@@ -155,19 +156,20 @@ int A2lInit(const char *filename) {
 void A2lHeader(void) {
 
   assert(gA2lFile);
+  assert(gA2lEvent == 0); // Definitions of events must be completed before first A2lSetEvent and A2lHeader
   fprintf(gA2lFile, gA2lHeader);
   fprintf(gA2lFile, gA2lIfData1);
-  for (int i =0; i<gA2lEventCount; i++) fprintf(gA2lFile, "/begin EVENT \"%s\" \"%s\" 0x%X DAQ 0xFF 0x01 0x06 0x00 /end EVENT\n", gA2lEventList[i], gA2lEventList[i], i+1);
+  for (int i=0; i<gA2lEventCount; i++) fprintf(gA2lFile, "/begin EVENT \"%s\" \"%s\" 0x%X DAQ 0xFF 0x01 0x06 0x00 /end EVENT\n", gA2lEventList[i], gA2lEventList[i], i+1);
   fprintf(gA2lFile, gA2lIfData2);
 }
 
 
-void A2lCreateEvent(const char* name) {
+unsigned int A2lCreateEvent(const char* name) {
 	
-	assert(gA2lEvent == 0);
-	if (gA2lEventCount >= MAX_EVENT) return;
-	gA2lEventList[gA2lEventCount] = (char*)name;
-	gA2lEventCount++;
+	assert(gA2lEvent == 0); // Definitions of events must be completed before first A2lSetEvent and A2lHeader
+	if (gA2lEventCount >= MAX_EVENT) return 0; // Event 0 ist undefined
+	gA2lEventList[gA2lEventCount++] = (char*)name;
+	return gA2lEventCount;
 }
 
 
@@ -189,14 +191,19 @@ void A2lCreateMeasurementType_(const char* name, int size, const char* comment) 
 
 
 
-void A2lCreateMeasurement_(const char* name, int size, unsigned long addr, double factor, double offset, const char* unit, const char* comment) {
+void A2lCreateMeasurement_(const char* instanceName, const char* name, int size, unsigned long addr, double factor, double offset, const char* unit, const char* comment) {
 
 	const char *conv = "NO";
 	if (factor != 0.0 || offset != 0.0) {
 		fprintf(gA2lFile, "/begin COMPU_METHOD %s_COMPU_METHOD \"\" LINEAR \"%6.3\" \"%s\" COEFFS_LINEAR %g %g /end COMPU_METHOD\n", name, unit!=NULL?unit:"", factor,offset);
 		conv = name;
 	}
-	fprintf(gA2lFile,"/begin MEASUREMENT %s \"%s\" %s %s_COMPU_METHOD 0 0 %s %s ECU_ADDRESS 0x%X", name, comment, getMeaType(size), conv, getTypeMin(size), getTypeMax(size), addr);
+	if (instanceName) {
+		fprintf(gA2lFile, "/begin MEASUREMENT %s.%s \"%s\" %s %s_COMPU_METHOD 0 0 %s %s ECU_ADDRESS 0x%X", instanceName, name, comment, getMeaType(size), conv, getTypeMin(size), getTypeMax(size), addr);
+	}
+	else {
+		fprintf(gA2lFile, "/begin MEASUREMENT %s \"%s\" %s %s_COMPU_METHOD 0 0 %s %s ECU_ADDRESS 0x%X", name, comment, getMeaType(size), conv, getTypeMin(size), getTypeMax(size), addr);
+	}
 	if (unit != NULL) fprintf(gA2lFile, " PHYS_UNIT \"%s\"", unit);
 	if (gA2lEvent > 0) {
 		fprintf(gA2lFile," /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x%X /end DAQ_EVENT /end IF_DATA", gA2lEvent);
@@ -205,11 +212,14 @@ void A2lCreateMeasurement_(const char* name, int size, unsigned long addr, doubl
 }
 
 
-void A2lCreateMeasurementArray_(const char* name, int size, int dim, unsigned long addr) {
+void A2lCreateMeasurementArray_(const char* instanceName, const char* name, int size, int dim, unsigned long addr) {
 
-	fprintf(gA2lFile,
-		"/begin CHARACTERISTIC %s \"\" VAL_BLK 0x%X %s 0 NO_COMPU_METHOD %s %s MATRIX_DIM %u",
-		name, addr, getParType(size), getTypeMin(size), getTypeMax(size), dim);
+	if (instanceName) {
+		fprintf(gA2lFile, "/begin CHARACTERISTIC %s.%s \"\" VAL_BLK 0x%X %s 0 NO_COMPU_METHOD %s %s MATRIX_DIM %u", instanceName, name, addr, getParType(size), getTypeMin(size), getTypeMax(size), dim);
+	}
+	else {
+		fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"\" VAL_BLK 0x%X %s 0 NO_COMPU_METHOD %s %s MATRIX_DIM %u", name, addr, getParType(size), getTypeMin(size), getTypeMax(size), dim);
+	}
 	if (gA2lEvent > 0) {
 		fprintf(gA2lFile,
 			" /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x%X /end DAQ_EVENT /end IF_DATA",
