@@ -1,5 +1,5 @@
 
-XCPlite
+# XCPlite
 17.2.2021
 Copyright 2021 Vector Informatik GmbH, RainerZ
 
@@ -54,6 +54,8 @@ Example:
 Demo visual Studio and CANape project included for Raspberry Pi 4. 
 
 
+
+
 ## Configuration options:
 
 All settings and parameters for the XCP protocol handler are in xcp_cfg.h
@@ -64,8 +66,7 @@ Basis compile options for the XCPlite demo are:
 #define XCP_ENABLE_A2L      // Enable A2L creator and A2L upload to host
 #define XCP_ENABLE_SO       // Enable measurement and calibration of shared objects
 #define XCP_ENABLE_PTP      // Enable PTP synchronized DAQ time stamps
-#define XCP_ENABLE_TESTMODE // Enable debug console prints
-#define XCP_ENABLE_WIRINGPI // Enable digital io for timing measurements
+
 ```
 
 ## Note:
