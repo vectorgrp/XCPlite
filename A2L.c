@@ -191,7 +191,11 @@ void A2lTypedefEnd_() {
 }
 
 void A2lCreateTypedefInstance(const char* instanceName, const char* typeName, unsigned long addr, const char* comment) {
-	fprintf(gA2lFile, "  /begin INSTANCE %s \"%s\" %s 0x%X /end INSTANCE\n", instanceName, comment, typeName, addr);
+	fprintf(gA2lFile, "  /begin INSTANCE %s \"%s\" %s 0x%X\n", instanceName, comment, typeName, addr);
+	if (gA2lEvent > 0) {
+		fprintf(gA2lFile, " /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x%X /end DAQ_EVENT /end IF_DATA", gA2lEvent);
+	}
+	fprintf(gA2lFile, "  /end INSTANCE\n", instanceName, comment, typeName, addr);
 }
 
 

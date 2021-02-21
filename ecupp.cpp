@@ -39,7 +39,7 @@ void EcuTask::createA2lClassDescription() {
 
 
 void EcuTask::createA2lClassInstance(const char* instanceName, const char* comment) {
-
+	A2lSetEvent(taskId);
 	A2lCreateTypedefInstance(instanceName, "EcuTask", (unsigned long)this, comment);
 }
 #endif
