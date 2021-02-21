@@ -33,8 +33,13 @@ extern void A2lCreateMeasurementArray_(const char* instanceName, const char* nam
 #define A2lCreateMeasurementArray_s(name) A2lCreateMeasurementArray_(NULL,#name,-(int)sizeof(name[0]),sizeof(name)/sizeof(name[0]),ApplXcpGetAddr((BYTEPTR)&name[0])) // signed integer (8/16/32) or double array
 
 // Create typedefs
-#define A2lCreateMeasurementType(name,comment) A2lCreateMeasurementType_(name,(int)sizeof(name),comment)
-void A2lCreateMeasurementType_(const char* name, int size, const char* comment);
+void A2lTypedefBegin_(const char* name, int size, const char* comment);
+void A2lTypedefComponent_(const char* name, int size, int offset);
+void A2lTypedefEnd_();
+#define A2lTypedefBegin(name,comment) A2lTypedefBegin_(#name,(int)sizeof(name),comment)
+#define A2lTypedefComponent(name,offset) A2lTypedefComponent_(#name,sizeof(name),offset)
+#define A2lTypedefEnd() A2lTypedefEnd_()
+void A2lCreateTypedefInstance(const char* instanceName, const char* typeName, unsigned long addr, const char* comment);
 
 // Create measurements for c++ class instance variables
 #define A2lCreateMeasurement_abs(instanceName,name,variable) A2lCreateMeasurement_(instanceName,name,sizeof(variable),ApplXcpGetAddr((BYTEPTR)&(name)),0.0,0.0,NULL,"") // specific instances
@@ -49,7 +54,8 @@ void A2lCreateMap_(const char* name, int size, unsigned long addr, unsigned int 
 #define A2lCreateMap(name,xdim,ydim,comment,unit) A2lCreateMap_(#name,sizeof(name[0][0]),ApplXcpGetAddr((BYTEPTR)&name),xdim,ydim,unit,comment)
 
 // Create groups
-void A2lCreateGroup(const char* name, int count, ...);
+void A2lParameterGroup(const char* name, int count, ...);
+void A2lMeasurementGroup(const char* name, int count, ...);
 
 // Finish A2L generation
 extern void A2lClose(void);

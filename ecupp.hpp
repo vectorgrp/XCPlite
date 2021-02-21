@@ -28,7 +28,8 @@ public:
 	void run();
 
 #ifdef XCP_ENABLE_A2L
-	void CreateA2lClassDescription( int eventCount, const unsigned int eventList[] );
+	void createA2lClassDescription();
+	void createA2lClassInstance(const char* instanceName, const char* comment);
 #endif
 };
 

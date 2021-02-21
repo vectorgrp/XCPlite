@@ -159,7 +159,7 @@ void udpServerFlushTransmitQueue(void) {
 // Flush the transmit buffer, if no space left
 unsigned char *udpServerGetPacketBuffer(void **par, unsigned int size) {
 
-    XCP_DTO_MESSAGE* p;
+    tXcpDtoMessage* p;
 
  #if defined ( XCP_ENABLE_TESTMODE )
     if (gXcpDebugLevel >= 3) {
@@ -183,7 +183,7 @@ unsigned char *udpServerGetPacketBuffer(void **par, unsigned int size) {
     if (dto_buffer_ptr != NULL) {
 
         // Build XCP message header (ctr+dlc) and store in DTO buffer
-        p = (XCP_DTO_MESSAGE*)&dto_buffer_ptr->xcp[dto_buffer_ptr->xcp_size];
+        p = (tXcpDtoMessage*)&dto_buffer_ptr->xcp[dto_buffer_ptr->xcp_size];
         p->ctr = gXcpTl.LastResCtr++;
         p->dlc = (short unsigned int)size;
         dto_buffer_ptr->xcp_size += size + XCP_MESSAGE_HEADER_SIZE;
@@ -232,7 +232,7 @@ unsigned char* udpServerGetPacketBuffer(void** par, unsigned int size) {
         dto_buffer_size = 0;
     }
 
-    XCP_DTO_MESSAGE* p = (XCP_DTO_MESSAGE*)&dto_buffer_data[dto_buffer_size];
+    tXcpDtoMessage* p = (tXcpDtoMessage*)&dto_buffer_data[dto_buffer_size];
     p->ctr = gXcpTl.LastResCtr++;
     p->dlc = (short unsigned int)size;
     dto_buffer_size += size + XCP_MESSAGE_HEADER_SIZE;
@@ -277,7 +277,7 @@ int udpServerSendCrmPacket(const unsigned char* packet, unsigned int size) {
     pthread_mutex_lock(&gXcpTlMutex);
 
     // Build XCP CTO message (ctr+dlc+packet)
-    XCP_CTO_MESSAGE p;
+    tXcpCtoMessage p;
     p.ctr = ++gXcpTl.LastCmdCtr;
     p.dlc = (short unsigned int)size;
     memcpy(p.data, packet, size);
@@ -292,7 +292,7 @@ int udpServerHandleXCPCommands(void) {
 
     int n;
     int connected;
-    XCP_CTO_MESSAGE buffer;
+    tXcpCtoMessage buffer;
 
     // Receive UDP datagramm
     // No Blocking
@@ -461,7 +461,7 @@ int udpServerShutdown( void ) {
 
 
 #if defined ( XCP_ENABLE_TESTMODE )
-void udpServerPrintPacket( XCP_DTO_MESSAGE* p ) {
+void udpServerPrintPacket( tXcpDtoMessage* p ) {
    
     printf("CTR = %u, LEN = %u\n", p->ctr, p->dlc);
     for (int i = 0; i < p->dlc; i++) printf("%00X ", p->data[i]);

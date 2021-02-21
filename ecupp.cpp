@@ -23,24 +23,24 @@ extern "C" {
 #ifdef XCP_ENABLE_A2L
 
 // Static method to create A2L description of this class (instanceName==NULL) or this instance
-void EcuTask::CreateA2lClassDescription( int eventCount, const unsigned int eventList[] ) {
+void EcuTask::createA2lClassDescription() {
 
-	// Create class variables and a typedef
-	
-		 // Todo: Create a typedef
-		// A2lCreateMeasurementType("ecu", "structure typedef for class ecu"); // Create a A2L typedef for class ecu
+#define offsetOf(x) ((int)&x - (int)this)
 
-	// Todo: EventList
-		
-        #define offsetOf(x) ((int)&x - (int)this)
-		
-		A2lCreateMeasurement_rel("EcuTask", "counter", counter, offsetOf(counter)); // Create measurement signal ecuppCounter with relative adressing on any given dynamic instance of class ecu
-		A2lCreateMeasurement_rel("EcuTask", "byte", byte, offsetOf(byte));
-		A2lCreateMeasurement_rel("EcuTask", "word", word, offsetOf(word));
-		A2lCreateMeasurement_rel("EcuTask", "dword", dword, offsetOf(dword));
-		A2lCreateMeasurement_rel("EcuTask", "taskId", taskId, offsetOf(taskId));
+	// Create class typedef
+	A2lTypedefBegin(EcuTask, "TYPEDEF for class EcuTask");
+	A2lTypedefComponent(taskId, offsetOf(taskId));
+	A2lTypedefComponent(counter, offsetOf(counter));
+	A2lTypedefComponent(byte, offsetOf(byte));
+	A2lTypedefComponent(word, offsetOf(word));
+	A2lTypedefComponent(dword, offsetOf(dword));
+	A2lTypedefEnd();
+}
 
-	
+
+void EcuTask::createA2lClassInstance(const char* instanceName, const char* comment) {
+
+	A2lCreateTypedefInstance(instanceName, "EcuTask", (unsigned long)this, comment);
 }
 #endif
 
@@ -68,7 +68,7 @@ void EcuTask::run() {
 	dword++;
 	sword++;
 
-	XcpEventExt(taskId, (BYTEPTR)this); // Trigger measurement data aquisition event for this task, relative addressing to this
+	XcpEvent(taskId); // Trigger measurement data aquisition event for this task
 }
 
 

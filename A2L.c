@@ -174,19 +174,24 @@ unsigned int A2lCreateEvent(const char* name) {
 
 
 void A2lSetEvent(unsigned int event) {
-
 	gA2lEvent = event;
 }
 
 
-void A2lCreateMeasurementType_(const char* name, int size, const char* comment) {
+void A2lTypedefBegin_(const char* name, int size, const char* comment) {
+	fprintf(gA2lFile,"/begin TYPEDEF_STRUCTURE %s \"%s\" 0x%X SYMBOL_TYPE_LINK \"%s\"\n", name, comment, size, name);
+}
 
-	fprintf(gA2lFile,
-		"/begin TYPEDEF_STRUCTURE %s \"%s\" 0x%X SYMBOL_TYPE_LINK \"%s\"\n"
-		"  /begin STRUCTURE_COMPONENT dummy_structure_component _ULONG 0 SYMBOL_TYPE_LINK \"dummy_symbol_type_link\" /end STRUCTURE_COMPONENT\n"
-		"/end TYPEDEF_STRUCTURE\n"
-			, name, comment, size, name);
+void A2lTypedefComponent_(const char* name, int size, int offset) {
+	fprintf(gA2lFile,"  /begin STRUCTURE_COMPONENT %s %s 0x%X SYMBOL_TYPE_LINK \"%s\" /end STRUCTURE_COMPONENT\n", name, getParType(size), offset, name);
+}
 
+void A2lTypedefEnd_() {
+	fprintf(gA2lFile,"/end TYPEDEF_STRUCTURE\n");
+}
+
+void A2lCreateTypedefInstance(const char* instanceName, const char* typeName, unsigned long addr, const char* comment) {
+	fprintf(gA2lFile, "  /begin INSTANCE %s \"%s\" %s 0x%X /end INSTANCE\n", instanceName, comment, typeName, addr);
 }
 
 
@@ -247,11 +252,11 @@ void A2lCreateMap_(const char* name, int size, unsigned long addr, unsigned int 
 
 
 
-void A2lCreateGroup(const char* name, int count, ...) {
+void A2lParameterGroup(const char* name, int count, ...) {
 
 	va_list ap;
 
-	fprintf(gA2lFile, "/begin GROUP %s \"\"",name);
+	fprintf(gA2lFile, "/begin GROUP %s \"\"", name);
 	fprintf(gA2lFile, " /begin REF_CHARACTERISTIC");
 	va_start(ap, count);
 	for (int i = 0; i < count; i++) {
@@ -259,6 +264,21 @@ void A2lCreateGroup(const char* name, int count, ...) {
 	}
 	va_end(ap);
 	fprintf(gA2lFile, " /end REF_CHARACTERISTIC");
+	fprintf(gA2lFile, " /end GROUP\n");
+}
+
+void A2lMeasurementGroup(const char* name, int count, ...) {
+
+	va_list ap;
+
+	fprintf(gA2lFile, "/begin GROUP %s \"\"", name);
+	fprintf(gA2lFile, " /begin REF_MEASUREMENT");
+	va_start(ap, count);
+	for (int i = 0; i < count; i++) {
+		fprintf(gA2lFile, " %s", va_arg(ap, char*));
+	}
+	va_end(ap);
+	fprintf(gA2lFile, " /end REF_MEASUREMENT");
 	fprintf(gA2lFile, " /end GROUP\n");
 }
 

@@ -248,11 +248,10 @@ int main(void)
     gEcuTask1 = new EcuTask(gXcpEvent_EcuTask1);
     gEcuTask2 = new EcuTask(gXcpEvent_EcuTask2);
 
-    // Create A2L measurement variables for all known EcuTask instances and generic for the class itself
-    unsigned int eventList[] = { gXcpEvent_EcuTask1,gXcpEvent_EcuTask2 };
-    gEcuTask1->CreateA2lClassDescription(2,eventList);
-    
-
+    // Create A2L typedef for the class and the 2 instances
+    gEcuTask1->createA2lClassDescription();
+    gEcuTask1->createA2lClassInstance("gEcuTask1","");
+    gEcuTask2->createA2lClassInstance("gEcuTask2","");
 
     //----------------------------------------------------------------------------------
     // C demo
@@ -272,7 +271,7 @@ int main(void)
     A2lCreateParameter(gTaskCycleTimerServer, "ns", "Server loop cycle time (ns delay)");
     A2lCreateParameter(gXcpDebugLevel, "", "Debug verbosity");
     A2lCreateParameter(gExit, "", "Quit application");
-    A2lCreateGroup("Test_Parameters", 7, "gCmdCycle", "gFlushCycle", "gTaskCycleTimerECU", "gTaskCycleTimerECUpp", "gTaskCycleTimerServer", "gXcpDebugLevel", "gExit");
+    A2lParameterGroup("Test_Parameters", 7, "gCmdCycle", "gFlushCycle", "gTaskCycleTimerECU", "gTaskCycleTimerECUpp", "gTaskCycleTimerServer", "gXcpDebugLevel", "gExit");
 #endif
 
     // Finish A2L

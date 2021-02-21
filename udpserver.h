@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-typedef  struct {
+typedef struct {
     int Sock;
     unsigned short LastCmdCtr;
     unsigned short LastResCtr;
@@ -25,14 +25,14 @@ typedef struct {
     unsigned short dlc;               /* BYTE 1,2 lenght */
     unsigned short ctr;               /* BYTE 3,4 packet counter */
     unsigned char  data[kXcpMaxCTO];  /* BYTE[] data */
-} XCP_CTO_MESSAGE;
+} tXcpCtoMessage;
 
 
 typedef struct {
     unsigned short dlc;               /* BYTE 1,2 lenght */
     unsigned short ctr;               /* BYTE 3,4 packet counter */
     unsigned char  data[kXcpMaxDTO];  /* BYTE[] data */
-} XCP_DTO_MESSAGE;
+} tXcpDtoMessage;
 
 #define XCP_MESSAGE_HEADER_SIZE (2*sizeof(unsigned short))  // Transport Layer Header
 
@@ -41,7 +41,7 @@ typedef struct {
 
 #ifdef DTO_SEND_QUEUE
 
-typedef struct dto_buffer {
+typedef struct {
 
     unsigned int xcp_size;             // Number of overall bytes in XCP DTO messages
     unsigned int xcp_uncommited;       // Number of uncommited XCP DTO messages
