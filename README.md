@@ -53,6 +53,8 @@ Example:
 
 Demo visual Studio and CANape project included for Raspberry Pi 4. 
 
+![CANape](Screenshot.png)
+
 
 
 
@@ -67,9 +69,6 @@ Basis compile options for the XCPlite demo are:
 #define XCP_ENABLE_SO       // Enable measurement and calibration of shared objects
 #define XCP_ENABLE_PTP      // Enable PTP synchronized DAQ time stamps
 ```
-
-![CANape](Screenshot.png)
-
 
 ## Notes:
 if A2L generation and upload disabled, use CANape Linker Map Type ELF extended for a.out format
