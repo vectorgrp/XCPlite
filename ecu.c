@@ -133,9 +133,7 @@ void ecuInit(void) {
 // Create A2L File content
 #ifdef XCP_ENABLE_A2L
 void ecuCreateA2lDescription( void) {
-
-    A2lSetEvent(gXcpEvent_EcuCyclic); // Associate XCP event "EcuCyclic" to the variables below
-        
+      
     A2lCreateMeasurement(ecuCounter);
     A2lCreatePhysMeasurement(timer, 1.0, 0.0, "s", "Time in s");
     A2lCreatePhysMeasurement(channel1, 1.0, 1.0, "Volt", "Demo floating point signal");
@@ -227,16 +225,7 @@ void ecuCyclic( void )
   wordCounter++;
   dwordCounter++;
 
-#if defined ( XCP_ENABLE_WIRINGPI )
-    digitalWrite(PI_IO_1, HIGH);
-#endif
 
-    XcpEvent(gXcpEvent_EcuCyclic); // Trigger measurement date aquisition event 1
-
-#if defined ( XCP_ENABLE_WIRINGPI )
-    digitalWrite(PI_IO_1, LOW);
-#endif
-    
 }
 
 

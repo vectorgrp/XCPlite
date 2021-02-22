@@ -36,10 +36,13 @@ extern void A2lCreateMeasurementArray_(const char* instanceName, const char* nam
 void A2lTypedefBegin_(const char* name, int size, const char* comment);
 void A2lTypedefComponent_(const char* name, int size, int offset);
 void A2lTypedefEnd_();
+void A2lCreateTypedefInstance_(const char* instanceName, const char* typeName, unsigned long addr, const char* comment);
 #define A2lTypedefBegin(name,comment) A2lTypedefBegin_(#name,(int)sizeof(name),comment)
 #define A2lTypedefComponent(name,offset) A2lTypedefComponent_(#name,sizeof(name),offset)
 #define A2lTypedefEnd() A2lTypedefEnd_()
-void A2lCreateTypedefInstance(const char* instanceName, const char* typeName, unsigned long addr, const char* comment);
+#define A2lCreateTypedefInstance(instanceName, typeName, addr, comment) A2lCreateTypedefInstance_(instanceName, typeName, addr, comment)
+#define A2lCreateDynamicTypedefInstance(instanceName, typeName, comment) A2lCreateTypedefInstance_(instanceName, typeName, 0, comment)
+
 
 // Create measurements for c++ class instance variables
 #define A2lCreateMeasurement_abs(instanceName,name,variable) A2lCreateMeasurement_(instanceName,name,sizeof(variable),ApplXcpGetAddr((BYTEPTR)&(name)),0.0,0.0,NULL,"") // specific instances

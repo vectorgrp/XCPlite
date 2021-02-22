@@ -68,8 +68,11 @@ Basis compile options for the XCPlite demo are:
 #define XCP_ENABLE_PTP      // Enable PTP synchronized DAQ time stamps
 ```
 
-## Note:
-CANape Linker Map Type ELF extended
+![CANape](Screenshot.png)
+
+
+## Notes:
+if A2L generation and upload disabled, use CANape Linker Map Type ELF extended for a.out format
 Compile with -O2
 Link with -lrt -lpthread
 

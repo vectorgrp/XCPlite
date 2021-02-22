@@ -190,7 +190,7 @@ void A2lTypedefEnd_() {
 	fprintf(gA2lFile,"/end TYPEDEF_STRUCTURE\n");
 }
 
-void A2lCreateTypedefInstance(const char* instanceName, const char* typeName, unsigned long addr, const char* comment) {
+void A2lCreateTypedefInstance_(const char* instanceName, const char* typeName, unsigned long addr, const char* comment) {
 	fprintf(gA2lFile, "  /begin INSTANCE %s \"%s\" %s 0x%X\n", instanceName, comment, typeName, addr);
 	if (gA2lEvent > 0) {
 		fprintf(gA2lFile, " /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x%X /end DAQ_EVENT /end IF_DATA", gA2lEvent);

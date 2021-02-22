@@ -91,7 +91,7 @@ size_t gXcpA2LLength = 0; // A2L file length
 
 #if defined ( XCP_ENABLE_TESTMODE )
 volatile vuint8 gXcpDebugLevel = XCP_DEBUG_LEVEL;
-volatile vuint8 gXcpDebugLevelVerbose = XCP_DEBUG_LEVEL;
+volatile vuint8 gXcpDebugLevelVerbose = 1;
 #endif
 
 
@@ -1162,8 +1162,8 @@ static void XcpPrintCmd(const tXcpCto * pCmd) {
         }
         break;
 
-      default:
-          gXcpDebugLevelVerbose = gXcpDebugLevel;
+    default:
+        gXcpDebugLevelVerbose = gXcpDebugLevel;
     }
 
     switch (CRO_CMD) {

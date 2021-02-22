@@ -9,8 +9,79 @@
 |   Linux (Raspberry Pi) Version
  ----------------------------------------------------------------------------*/
 
+
 #include "xcpAppl.h"
 
+// UDP server
+#include "udpserver.h"
+#include "udpraw.h"
+
+
+ /**************************************************************************/
+ // XCP server
+ /**************************************************************************/
+
+// Parameters
+static unsigned short gSocketPort = 5555; // UDP port
+static unsigned int gSocketTimeout = 0; // General socket timeout
+static unsigned int gFlushCycle = 100 * kApplXcpDaqTimestampTicksPerMs; // send a DTO packet at least every 100ms
+static unsigned int gCmdCycle = 10 * kApplXcpDaqTimestampTicksPerMs; // check for commands every 10ms
+
+static unsigned int gFlushTimer = 0;
+static unsigned int gCmdTimer = 0;
+
+static int gTaskCycleTimerServer = 10000; // ns
+
+void sleepns(int ns) {
+    struct timespec timeout, timerem;
+    timeout.tv_sec = 0;
+    timeout.tv_nsec = ns;
+    nanosleep(&timeout, &timerem);
+}
+
+
+// XCP command handler task
+void* xcpServer(void* __par) {
+
+    printf("Start XCP server\n");
+    udpServerInit(gSocketPort, gSocketTimeout);
+
+    // Server loop
+    for (;;) {
+        sleepns(gTaskCycleTimerServer);
+
+        ApplXcpGetClock();
+        if (gClock - gCmdTimer > gCmdCycle) {
+            gCmdTimer = gClock;
+            if (udpServerHandleXCPCommands() < 0) break;  // Handle XCP commands
+        }
+
+        if (gXcp.SessionStatus & SS_DAQ) {
+
+#ifdef DTO_SEND_QUEUE                
+            // Transmit completed UDP packets from the transmit queue
+            udpServerHandleTransmitQueue();
+#endif
+
+            // Cyclic flush of incomlete packets from transmit queue or transmit buffer to keep tool visualizations up to date
+            // No priorisation of events implemented, no latency optimizations
+            if (gClock - gFlushTimer > gFlushCycle && gFlushCycle > 0) {
+                gFlushTimer = gClock;
+#ifdef DTO_SEND_QUEUE  
+                udpServerFlushTransmitQueue();
+#else
+                udpServerFlushPacketBuffer();
+#endif
+            } // Flush
+
+        } // DAQ
+
+    } // for (;;)
+
+    sleepns(100000000);
+    udpServerShutdown();
+    return 0;
+}
 
 
 /**************************************************************************/
