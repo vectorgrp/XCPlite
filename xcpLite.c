@@ -448,9 +448,9 @@ static void XcpStopAllDaq( void )
 /*****************************************************************************
 | NAME:             XcpEvent,XcpEventExt
 | CALLED BY:        application, thread save
-| PRECONDITIONS:    The XCP is initialized and in connected state.
+| PRECONDITIONS:    XCP is initialized 
 | INPUT PARAMETERS: event : event channel number to process
-| DESCRIPTION:      Handling of data acquisition channel.
+| DESCRIPTION:      Measurement data acquisition, sample and transmit measurement date associated to event
 ******************************************************************************/
 
 void XcpEvent(unsigned int event) {
@@ -531,12 +531,10 @@ void XcpEventExt(unsigned int event, BYTEPTR offset)
 /*****************************************************************************
 | NAME:             XcpDisconnect
 | CALLED BY:        XcpCommand
-| PRECONDITIONS:    XCP is initialized and in connected state.
+| PRECONDITIONS:    XCP is initialized
 | INPUT PARAMETERS: none 
 | RETURN VALUES:    none
-| DESCRIPTION:      If the XCP slave is connected to a XCP master a call of this
-|                   function discontinues the connection (transition to disconnected state).
-|                   If the XCP slave is not connected this function performs no action.
+| DESCRIPTION:      Stops DAQ and goes to disconnected state
 ******************************************************************************/
 void XcpDisconnect( void )
 {
@@ -550,11 +548,11 @@ void XcpDisconnect( void )
 
 /*****************************************************************************
 | NAME:             XcpCommand
-| CALLED BY:        XcpSendCallBack, XCP Transport Layer
-| PRECONDITIONS:    none
-| INPUT PARAMETERS: pCmd : data of received CTO message.
+| CALLED BY:        XCP Transport Layer
+| PRECONDITIONS:    XCP initialized
+| INPUT PARAMETERS: pCmd : data of received transport layer CTO message.
 | RETURN VALUES:    none
-| DESCRIPTION:      
+| DESCRIPTION:      Handles incoming XCP commands
 ******************************************************************************/
 
 void XcpCommand( const vuint32* pCommand )
@@ -1059,12 +1057,10 @@ void XcpCommand( const vuint32* pCommand )
 /*****************************************************************************
 | NAME:             XcpInit
 | CALLED BY:        application
-| PRECONDITIONS:    the data link layer has to be initialized.
+| PRECONDITIONS:    none
 | INPUT PARAMETERS: none
 | RETURN VALUES:    none
 | DESCRIPTION:      Initialization of the XCP Protocol Layer
-|                   Application specific initialization
-|                    ( e.g. Vector XCP on CAN Transport Layer )
 ******************************************************************************/
 void XcpInit( void )
 {

@@ -11,6 +11,7 @@
 
 
 #include "xcpAppl.h"
+#include "A2L.h"
 
 // UDP server
 #include "udpserver.h"
@@ -24,13 +25,18 @@
 // Parameters
 static unsigned short gSocketPort = 5555; // UDP port
 static unsigned int gSocketTimeout = 0; // General socket timeout
-static unsigned int gFlushCycle = 100 * kApplXcpDaqTimestampTicksPerMs; // send a DTO packet at least every 100ms
-static unsigned int gCmdCycle = 10 * kApplXcpDaqTimestampTicksPerMs; // check for commands every 10ms
+static unsigned int gFlushCycle = 100 * kApplXcpDaqTimestampTicksPerMs; // ms, send a DTO packet at least every 100ms
+static unsigned int gCmdCycle = 10 * kApplXcpDaqTimestampTicksPerMs; // ms, check for commands every 10ms
+static unsigned int gTransmitCycle = 500 * (kApplXcpDaqTimestampTicksPerMs/1000); // us, check for new transmit data in transmit queue every 500us
+// Max transmit rate is approximtly limited to XCP_DAQ_QUEUE_SIZE * MTU%MAX_DTO * 1000000/gTransmitCycle = 2000*32*1250 = 80MByte/s
 
+static unsigned int gTaskCycleTimerServer = 50000; // ns, sleep time of server thread
+
+static unsigned int gTransmitTimer = 0;
 static unsigned int gFlushTimer = 0;
 static unsigned int gCmdTimer = 0;
 
-static int gTaskCycleTimerServer = 10000; // ns
+
 
 void sleepns(int ns) {
     struct timespec timeout, timerem;
@@ -40,30 +46,54 @@ void sleepns(int ns) {
 }
 
 
-// XCP command handler task
-void* xcpServer(void* __par) {
+// XCP server task init
+void xcpServerInit(void) {
+
+    // Create A2L parameters to control the XCP server
+#ifdef XCP_ENABLE_A2L
+    A2lCreateParameter(gFlushCycle, "us", "DAQ queue flush cycle time");
+    A2lCreateParameter(gCmdCycle, "us", "XCP command handler cycle time");
+    A2lCreateParameter(gTransmitCycle, "us", "DAQ transmit cycle time");
+    A2lCreateParameter(gTaskCycleTimerServer, "ns", "Server thread sleep time");
+    A2lParameterGroup("Server_Parameters", 4, "gFlushCycle", "gCmdCycle", "gTransmitCycle", "gTaskCycleTimerServer");
+#endif
+
+    printf("Init XCP server\n");
+    udpServerInit(gSocketPort, gSocketTimeout);
+
+}
+
+// XCP server task
+// Handle command, transmit data, flush data server thread
+void* xcpServerThread(void* __par) {
 
     printf("Start XCP server\n");
-    udpServerInit(gSocketPort, gSocketTimeout);
+    printf("  cmd cycle = %u, transmit cycle = %d, flush cycle = %d\n", gCmdCycle, gTransmitCycle, gFlushCycle);
 
     // Server loop
     for (;;) {
-        sleepns(gTaskCycleTimerServer);
 
+        sleepns(gTaskCycleTimerServer);
         ApplXcpGetClock();
+
+        // Handle XCP commands every gCmdCycle time period
         if (gClock - gCmdTimer > gCmdCycle) {
             gCmdTimer = gClock;
-            if (udpServerHandleXCPCommands() < 0) break;  // Handle XCP commands
-        }
+            if (udpServerHandleXCPCommands() < 0) break;  
+        } // Handle
 
+        // If DAQ measurement is running
         if (gXcp.SessionStatus & SS_DAQ) {
 
 #ifdef DTO_SEND_QUEUE                
-            // Transmit completed UDP packets from the transmit queue
-            udpServerHandleTransmitQueue();
+            // Transmit all completed UDP packets from the transmit queue every gTransmitCycle time period
+            if (gClock - gTransmitTimer > gTransmitCycle) {
+                gTransmitTimer = gClock;
+                udpServerHandleTransmitQueue();
+            } // Transmit
 #endif
-
-            // Cyclic flush of incomlete packets from transmit queue or transmit buffer to keep tool visualizations up to date
+            // Every gFlushCycle time period
+            // Cyclic flush of incomplete packets from transmit queue or transmit buffer to keep tool visualizations up to date
             // No priorisation of events implemented, no latency optimizations
             if (gClock - gFlushTimer > gFlushCycle && gFlushCycle > 0) {
                 gFlushTimer = gClock;

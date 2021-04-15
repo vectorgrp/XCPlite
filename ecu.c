@@ -21,7 +21,6 @@
 /**************************************************************************/
 
 unsigned short ecuCounter = 0;
-
 double timer;
 double channel1;
 
@@ -63,9 +62,9 @@ char testString[] = "TestString";
 /**************************************************************************/
 
 
-volatile double offset = 0;
-volatile double period = 5;
-volatile double ampl   = 50;
+volatile double offset = 0.0;
+volatile double period = 5.0;
+volatile double ampl   = 50.0;
 
 volatile unsigned char map1_8_8[8][8] =
 { {0,0,0,0,0,0,1,2},
@@ -135,11 +134,11 @@ void ecuInit(void) {
 void ecuCreateA2lDescription( void) {
       
     A2lCreateMeasurement(ecuCounter);
-    A2lCreatePhysMeasurement(timer, 1.0, 0.0, "s", "Time in s");
-    A2lCreatePhysMeasurement(channel1, 1.0, 1.0, "Volt", "Demo floating point signal");
-    A2lCreateParameter(ampl, "V", "Amplitude");
-    A2lCreateParameter(offset, "V", "Offset");
-    A2lCreateParameter(period, "s", "Period");
+    A2lCreatePhysMeasurement(timer, "Time in s", 1.0, 0.0, "s");
+    A2lCreatePhysMeasurement(channel1, "Demo sine wave signal", 1.0, 0.0, "V");
+    A2lCreateParameterWithLimits(ampl, "Amplitude", "V", 0, 100);
+    A2lCreateParameterWithLimits(offset, "Offset", "V", -50, +50);
+    A2lCreateParameterWithLimits(period, "Period", "s", 0, 10);
     A2lCreateMap(map1_8_8, 8, 8, "", "8*8 byte calibration array");
     A2lCreateCurve(curve1_32, 32, "", "32 byte calibration array");
 

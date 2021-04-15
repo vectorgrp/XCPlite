@@ -238,6 +238,12 @@ void A2lCreateMeasurementArray_(const char* instanceName, const char* name, int 
 }
 
 
+void A2lCreateParameterWithLimits_(const char* name, int size, unsigned long addr, const char* comment, const char* unit, double min, double max) {
+
+	fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" VALUE 0x%X %s 0 NO_COMPU_METHOD %g %g PHYS_UNIT \"%s\" /end CHARACTERISTIC\n",
+		name, comment, addr, getParType(size), min, max, unit);
+}
+
 void A2lCreateParameter_(const char* name, int size, unsigned long addr, const char* comment, const char* unit) {
 
 	fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" VALUE 0x%X %s 0 NO_COMPU_METHOD %s %s PHYS_UNIT \"%s\" /end CHARACTERISTIC\n",

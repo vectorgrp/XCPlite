@@ -435,8 +435,8 @@ int udpServerInit(unsigned short serverPort, unsigned int socketTimeout)
     if (gXcpDebugLevel >= 1) {
         char tmp[32];
         inet_ntop(AF_INET, &gXcpTl.ServerAddr.sin_addr, tmp, sizeof(tmp));
-        printf("Bind sin_family=%u, addr=%s, port=%u\n", gXcpTl.ServerAddr.sin_family, tmp, ntohs(gXcpTl.ServerAddr.sin_port));
-        //fprintf(stderr, "UDP MTU = %d.\n", kXcpMaxMTU);
+        printf("  Bind sin_family=%u, addr=%s, port=%u\n", gXcpTl.ServerAddr.sin_family, tmp, ntohs(gXcpTl.ServerAddr.sin_port));
+        printf("  MTU = %d\n", kXcpMaxMTU);
     }
 #endif
 

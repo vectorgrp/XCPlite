@@ -75,7 +75,7 @@ extern "C" {
 #define kXcpA2LFilenameString "XCPpi.A2L"  /* A2L filename */
 
 // The following parameters are dependant on the amount of measurement signals supported, they have significant impact on memory consumption
-#define XCP_DAQ_QUEUE_SIZE 32   // Transmit queue size in DAQ UDP packets (MTU=1400), should at least be able to hold all data produced by the largest event
+#define XCP_DAQ_QUEUE_SIZE 64   // Transmit queue size in DAQ UDP packets (MTU=1400), should at least be able to hold all data produced by the largest event
 #define XCP_DAQ_MEM_SIZE 60000u // Amount of memory for DAQ tables, each ODT entries needs 5 bytes
 
 // Transmit mode
