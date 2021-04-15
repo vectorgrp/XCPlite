@@ -84,8 +84,8 @@
 
 tXcpData gXcp; 
 
-const vuint8 MEMORY_ROM gXcpSlaveId[kXcpSlaveIdLength] = kXcpSlaveIdString; // Name of the A2L file on local PC for auto detection
-const vuint8 MEMORY_ROM gXcpA2LFilename[kXcpA2LFilenameLength] = kXcpA2LFilenameString; // Name of the A2L file on slave device for upload
+const vuint8 gXcpSlaveId[kXcpSlaveIdLength] = kXcpSlaveIdString; // Name of the A2L file on local PC for auto detection
+const vuint8 gXcpA2LFilename[kXcpA2LFilenameLength] = kXcpA2LFilenameString; // Name of the A2L file on slave device for upload
 vuint8* gXcpA2L = NULL; // A2L file content
 size_t gXcpA2LLength = 0; // A2L file length
 
@@ -1398,21 +1398,5 @@ void XcpPrintDaqList( vuint16 daq )
 
   
 #endif /* XCP_ENABLE_TESTMODE */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 

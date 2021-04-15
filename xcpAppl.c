@@ -37,15 +37,6 @@ static unsigned int gFlushTimer = 0;
 static unsigned int gCmdTimer = 0;
 
 
-
-void sleepns(int ns) {
-    struct timespec timeout, timerem;
-    timeout.tv_sec = 0;
-    timeout.tv_nsec = ns;
-    nanosleep(&timeout, &timerem);
-}
-
-
 // XCP server task init
 void xcpServerInit(void) {
 
@@ -73,7 +64,7 @@ void* xcpServerThread(void* __par) {
     // Server loop
     for (;;) {
 
-        sleepns(gTaskCycleTimerServer);
+        ApplXcpSleepNs(gTaskCycleTimerServer);
         ApplXcpGetClock();
 
         // Handle XCP commands every gCmdCycle time period
@@ -108,7 +99,7 @@ void* xcpServerThread(void* __par) {
 
     } // for (;;)
 
-    sleepns(100000000);
+    ApplXcpSleepNs(100000000);
     udpServerShutdown();
     return 0;
 }
@@ -124,6 +115,7 @@ void* xcpServerThread(void* __par) {
 volatile vuint32 gClock = 0;
 volatile vuint64 gClock64 = 0;
 
+#ifndef XCP_WI
 
 static struct timespec gts0;
 static struct timespec gtr;
@@ -170,6 +162,33 @@ vuint64 ApplXcpGetClock64(void) {
     return gClock64;
 }
 
+void ApplXcpSleepNs(unsigned int ns) {
+    struct timespec timeout, timerem;
+    timeout.tv_sec = 0;
+    timeout.tv_nsec = (long)ns;
+    nanosleep(&timeout, &timerem);
+}
+
+#else
+
+void ApplXcpClockInit(void)
+{
+}
+
+// Free runing clock with 10ns tick
+// 1ns with overflow every 4s is critical for CANape measurement start time offset calculation
+vuint32 ApplXcpGetClock(void) {
+    return gClock;
+}
+
+vuint64 ApplXcpGetClock64(void) {
+    return gClock64;
+}
+
+void ApplXcpSleepNs(unsigned int ns) {
+}
+
+#endif
 
 
 /**************************************************************************/

@@ -46,15 +46,13 @@ static EcuTask* gActiveEcuTask = NULL;
 
 extern "C" {
 
-    extern void sleepns(int ns);
-
     // ECU cyclic (1ms) demo task 
     // Calls C ECU demo code
     void* ecuTask(void* par) {
 
         printf("Start C demo task ( ecuCyclic() called  every %dns, event = %d )\n", gTaskCycleTimerECU, gXcpEvent_EcuCyclic);
         for (;;) {
-            sleepns(gTaskCycleTimerECU);
+            ApplXcpSleepNs(gTaskCycleTimerECU);
             ecuCyclic();
 
 #if defined ( XCP_ENABLE_WIRINGPI )
@@ -76,7 +74,7 @@ extern "C" {
 
         printf("Start C++ demo task ( gActiveEcuTask->run() called every %dns, event = %d )\n", gTaskCycleTimerECUpp, gXcpEvent_ActiveEcuTask);
         for (;;) {
-            sleepns(gTaskCycleTimerECUpp);
+            ApplXcpSleepNs(gTaskCycleTimerECUpp);
             // Run the currently active ecu task
             gActiveEcuTask = gActiveEcuTaskId==gXcpEvent_EcuTask1 ? gEcuTask1: gActiveEcuTaskId==gXcpEvent_EcuTask2 ? gEcuTask2 : NULL;
             if (gActiveEcuTask != NULL) {
@@ -94,7 +92,7 @@ extern "C" {
 int main(void)
 {  
     printf(
-        "\nRaspberryPi XCPlite: XCP on UDP Demo\n"
+        "\nXCPlite: XCP on UDP Demo\n"
         "Build " __DATE__ " " __TIME__ "\n"
 #ifdef XCP_ENABLE_A2L
         "  Option A2L\n"
@@ -167,19 +165,23 @@ int main(void)
     gEcuTask2 = new EcuTask(gXcpEvent_EcuTask2);
 
     // Create A2L typedef for the class and example static and dynamic instances
+#ifdef XCP_ENABLE_A2L
     gEcuTask1->createA2lClassDefinition(); // use any instance of a class to create its typedef
     gEcuTask1->createA2lStaticClassInstance("ecuTask1", "");
     gEcuTask2->createA2lStaticClassInstance("ecuTask2","");
     A2lSetEvent(gXcpEvent_ActiveEcuTask);
     A2lCreateDynamicTypedefInstance("activeEcuTask", "EcuTask", "");
+#endif
     gActiveEcuTaskId = gXcpEvent_EcuTask1;
 
 
     // C demo
     // Initialize ECU demo task (C) 
     ecuInit();
+#ifdef XCP_ENABLE_A2L
     A2lSetEvent(gXcpEvent_EcuCyclic); // Associate XCP event "EcuCyclic" to the variables created below
     ecuCreateA2lDescription();
+#endif
 
     // Create additional A2L parameters to control the demo tasks 
 #ifdef XCP_ENABLE_A2L
@@ -193,6 +195,8 @@ int main(void)
 #ifdef XCP_ENABLE_A2L
     A2lClose();
 #endif
+
+#ifndef XCP_WI
 
     //----------------------------------------------------------------------------------
     // Create the ECU threads
@@ -213,6 +217,9 @@ int main(void)
     pthread_join(t1, NULL); // wait here, t1 may fail or terminate
     pthread_cancel(t2);
     pthread_cancel(t3);
+
+#endif
+
     return 0;
 }
 

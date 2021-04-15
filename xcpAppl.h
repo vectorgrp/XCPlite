@@ -19,7 +19,7 @@ extern volatile vuint64 gClock64;
 extern void ApplXcpClockInit(void);
 extern vuint32 ApplXcpGetClock(void);
 extern vuint64 ApplXcpGetClock64(void);
-
+extern void ApplXcpSleepNs(unsigned int ns);
 
 
 #ifdef __cplusplus

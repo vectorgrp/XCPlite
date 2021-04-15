@@ -52,6 +52,7 @@ EcuTask::EcuTask( unsigned int id ) {
 	taskId = id;
 
 	counter = 0;
+	timer = 0;
 	squarewave = (id==2);
 	channel1 = 0.0;
 	offset = 0;
