@@ -1405,8 +1405,8 @@ extern void XcpEventExt(unsigned int event, BYTEPTR offset);
 extern void XcpCommand( const vuint32* pCommand );
 
 /* Info */
-extern vuint8 MEMORY_ROM gXcpSlaveId[];
-extern vuint8 MEMORY_ROM gXcpA2LFilename[];
+extern const vuint8 gXcpSlaveId[];
+extern const vuint8 gXcpA2LFilename[];
 
 
 /*-----------------------------------------------------------------------------------*/

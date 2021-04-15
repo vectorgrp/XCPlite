@@ -10,12 +10,26 @@
 
 #include "udpserver.h"
 #include "udpraw.h"
+
 #include "xcpLite.h"
 
 // XCP on UDP Transport Layer data
 tXcpTlData gXcpTl;
 
+#ifndef XCP_WI
 pthread_mutex_t gXcpTlMutex = PTHREAD_MUTEX_INITIALIZER;
+#define LOCK() pthread_mutex_lock(&gXcpTlMutex)
+#define UNLOCK() pthread_mutex_unlock(&gXcpTlMutex)
+#define DESTROY() pthread_mutex_destroy(&gXcpTlMutex)
+#else
+#define LOCK() 
+#define UNLOCK() 
+#define DESTROY()
+#define socklen_t int
+#define MSG_DONTWAIT 0
+#define shutdown(a,b)
+#define SHUT_RDWR 0
+#endif
 
 
 #ifdef DTO_SEND_QUEUE
@@ -35,7 +49,7 @@ static int udpServerSendDatagram(const unsigned char* data, unsigned int size ) 
 #if defined ( XCP_ENABLE_TESTMODE )
     if (gXcpDebugLevel >= 3) {
         printf("TX: ");
-        for (int i = 0; i < size; i++) printf("%00X ", data[i]);
+        for (unsigned int i = 0; i < size; i++) printf("%00X ", data[i]);
         printf("\n");
     }
 #endif
@@ -110,7 +124,7 @@ void udpServerHandleTransmitQueue( void ) {
     for (;;) {
 
         // Check
-        pthread_mutex_lock(&gXcpTlMutex);
+        LOCK();
         if (dto_queue_len > 1) {
             b = &dto_queue[dto_queue_rp];
             if (b->xcp_uncommited > 0) b = NULL; 
@@ -118,7 +132,7 @@ void udpServerHandleTransmitQueue( void ) {
         else {
             b = NULL;
         }
-        pthread_mutex_unlock(&gXcpTlMutex);
+        UNLOCK();
         if (b == NULL) break;
 
         // Send this frame
@@ -129,11 +143,11 @@ void udpServerHandleTransmitQueue( void ) {
 #endif
 
         // Free this buffer
-        pthread_mutex_lock(&gXcpTlMutex);
+        LOCK();
         dto_queue_rp++;
         if (dto_queue_rp >= XCP_DAQ_QUEUE_SIZE) dto_queue_rp -= XCP_DAQ_QUEUE_SIZE;
         dto_queue_len--;
-        pthread_mutex_unlock(&gXcpTlMutex);
+        UNLOCK();
 
     } // for (;;)
 }
@@ -143,9 +157,9 @@ void udpServerHandleTransmitQueue( void ) {
 void udpServerFlushTransmitQueue(void) {
     
     // Complete the current buffer if non empty
-    pthread_mutex_lock(&gXcpTlMutex);
+    LOCK();
     if (dto_buffer_ptr!=NULL && dto_buffer_ptr->xcp_size>0) getDtoBuffer();
-    pthread_mutex_unlock(&gXcpTlMutex);
+    UNLOCK();
 
     udpServerHandleTransmitQueue();
 }
@@ -173,7 +187,7 @@ unsigned char *udpServerGetPacketBuffer(void **par, unsigned int size) {
     }
 #endif
 
-    pthread_mutex_lock(&gXcpTlMutex);
+    LOCK();
 
     // Get another message buffer from queue, when active buffer ist full, overrun or after time condition
     if (dto_buffer_ptr==NULL || dto_buffer_ptr->xcp_size + size + XCP_MESSAGE_HEADER_SIZE > kXcpMaxMTU ) {
@@ -195,7 +209,7 @@ unsigned char *udpServerGetPacketBuffer(void **par, unsigned int size) {
         p = NULL; // Overflow
     }
 
-    pthread_mutex_unlock(&gXcpTlMutex);
+    UNLOCK();
         
     return p!=NULL ? &p->data[0] : NULL; // return pointer to XCP message DTO data
 }
@@ -212,9 +226,9 @@ void udpServerCommitPacketBuffer(void *par) {
         }
 #endif   
 
-        pthread_mutex_lock(&gXcpTlMutex);
+        LOCK();
         p->xcp_uncommited--;
-        pthread_mutex_unlock(&gXcpTlMutex);
+        UNLOCK();
     }
 }
 
@@ -274,7 +288,7 @@ int udpServerSendCrmPacket(const unsigned char* packet, unsigned int size) {
     assert(size>0);
 
     // ToDo: Eliminate this lock, this has impact on xcpEvent runtime !!!!
-    pthread_mutex_lock(&gXcpTlMutex);
+    LOCK();
 
     // Build XCP CTO message (ctr+dlc+packet)
     tXcpCtoMessage p;
@@ -283,7 +297,7 @@ int udpServerSendCrmPacket(const unsigned char* packet, unsigned int size) {
     memcpy(p.data, packet, size);
     r = udpServerSendDatagram((unsigned char*)&p, size + XCP_MESSAGE_HEADER_SIZE);
 
-    pthread_mutex_unlock(&gXcpTlMutex);
+    UNLOCK();
 
     return r;
 }
@@ -454,7 +468,7 @@ int udpServerInit(unsigned short serverPort, unsigned int socketTimeout)
 
 int udpServerShutdown( void ) {
 
-    pthread_mutex_destroy(&gXcpTlMutex);
+    DESTROY();
     shutdown(gXcpTl.Sock, SHUT_RDWR);
     return 1;
 }

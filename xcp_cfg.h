@@ -4,43 +4,50 @@
 |
 | Description:
 |   Konfiguration file for XCP lite protocol and transport layer
-|   Linux (Raspberry Pi) Version
+|   XCP_PI = Linux (Raspberry Pi) Version
+|   XCP_WI = Windows Version
  ----------------------------------------------------------------------------*/
-
 
 #ifndef __XCP_CFG_H_
 #define __XCP_CFG_H_
 
-// General includes
+//#define XCP_WI
+#define XCP_PI
+
+
 #define _POSIX_C_SOURCE 200809L
 
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
-#include <unistd.h>
 #include <stdlib.h>
+#include <assert.h>
+#include <errno.h>
 
+#ifndef XCP_WI
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/time.h>
 #include <time.h>
 #include <sys/stat.h>
-
 #include <pthread.h> // link with -lpthread
-
-#include <assert.h>
-
-#include <errno.h>
 #include <sys/socket.h>
-
 #include <netinet/in.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
 #include <arpa/inet.h>
+#else 
+#include <ctype.h>
+#include <io.h>
+#include <conio.h>
+#include <dos.h>
+#include <winsock2.h>
+#endif
+
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 
 /*----------------------------------------------------------------------------*/
@@ -54,7 +61,6 @@ extern "C" {
 // #define XCP_ENABLE_SO // Enable measurement and calibration of shared objects
 
 // #define XCP_ENABLE_PTP // Enable PTP synchronized DAQ time stamps
-
 
 #define XCP_ENABLE_TESTMODE // Enable debug console prints
 #define XCP_DEBUG_LEVEL 1
@@ -102,9 +108,6 @@ extern "C" {
 #define ApplXcpDbgPin(x)
 #endif
 
-//	extern volatile vuint32 gTaskCycleTimerECU;
-//	extern volatile vuint32 gTaskCycleTimerECUpp;
-
 
 /*----------------------------------------------------------------------------*/
 /* Platform specific definitions */
@@ -125,13 +128,11 @@ typedef signed int     vsint32;
 typedef unsigned long long  vuint64;
 typedef signed long long vsint64;
 
+
 /* Byte order */
 //#define XCP_CPUTYPE_BIGENDIAN  /* Motorola */
 #define XCP_CPUTYPE_LITTLEENDIAN /* Intel */
 
-/* Memory qualifiers */
-#define MEMORY_CONST const
-#define MEMORY_ROM const
 
 /* Pointers */
 #define DAQBYTEPTR vuint8 *
