@@ -148,7 +148,7 @@ int A2lInit(const char *filename) {
 	gA2lFile = 0;
 	gA2lEvent = 0;
 	gA2lEventCount = 0;
-	gA2lFile = fopen(filename, "w");
+	fopen_s(&gA2lFile,filename, "w");
 	return gA2lFile != 0;
 }
 
@@ -159,7 +159,7 @@ void A2lHeader(void) {
   assert(gA2lEvent == 0); // Definitions of events must be completed before first A2lSetEvent and A2lHeader
   fprintf(gA2lFile, gA2lHeader);
   fprintf(gA2lFile, gA2lIfData1);
-  for (int i=0; i<gA2lEventCount; i++) fprintf(gA2lFile, "/begin EVENT \"%s\" \"%s\" 0x%X DAQ 0xFF 0x01 0x06 0x00 /end EVENT\n", gA2lEventList[i], gA2lEventList[i], i+1);
+  for (unsigned int i=0; i<gA2lEventCount; i++) fprintf(gA2lFile, "/begin EVENT \"%s\" \"%s\" 0x%X DAQ 0xFF 0x01 0x06 0x00 /end EVENT\n", gA2lEventList[i], gA2lEventList[i], i+1);
   fprintf(gA2lFile, gA2lIfData2);
 }
 
@@ -195,7 +195,7 @@ void A2lCreateTypedefInstance_(const char* instanceName, const char* typeName, u
 	if (gA2lEvent > 0) {
 		fprintf(gA2lFile, " /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x%X /end DAQ_EVENT /end IF_DATA", gA2lEvent);
 	}
-	fprintf(gA2lFile, "  /end INSTANCE\n", instanceName, comment, typeName, addr);
+	fprintf(gA2lFile, "  /end INSTANCE\n");
 }
 
 
@@ -204,7 +204,7 @@ void A2lCreateMeasurement_(const char* instanceName, const char* name, int size,
 
 	const char *conv = "NO";
 	if (factor != 0.0 || offset != 0.0) {
-		fprintf(gA2lFile, "/begin COMPU_METHOD %s_COMPU_METHOD \"\" LINEAR \"%6.3\" \"%s\" COEFFS_LINEAR %g %g /end COMPU_METHOD\n", name, unit!=NULL?unit:"", factor,offset);
+		fprintf(gA2lFile, "/begin COMPU_METHOD %s_COMPU_METHOD \"\" LINEAR \"%%6.3\" \"%s\" COEFFS_LINEAR %g %g /end COMPU_METHOD\n", name, unit!=NULL?unit:"", factor,offset);
 		conv = name;
 	}
 	if (instanceName) {

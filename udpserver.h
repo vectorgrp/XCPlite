@@ -9,8 +9,18 @@
 extern "C" {
 #endif
 
+// Small differences windows and linux
+#ifndef _WIN // Linux
+#define SOCKET int
+#define RECV_FLAGS MSG_DONTWAIT
+#else // Windows
+#define socklen_t int
+#define RECV_FLAGS 0
+#endif
+
+
 typedef struct {
-    int Sock;
+    SOCKET Sock;
     unsigned short LastCmdCtr;
     unsigned short LastResCtr;
     struct sockaddr_in ServerAddr;
@@ -57,9 +67,9 @@ typedef struct {
 
 
 extern int udpServerSendCrmPacket(const unsigned char* data, unsigned int n);
-extern int udpServerInit(unsigned short serverPort, unsigned int socketTimeout);
+extern int udpServerInit(unsigned short serverPort);
 extern int udpServerHandleXCPCommands(void);
-extern int udpServerShutdown(void);
+extern void udpServerShutdown(void);
 
 extern unsigned char* udpServerGetPacketBuffer(void** par, unsigned int size);
 extern void udpServerCommitPacketBuffer(void* par);
