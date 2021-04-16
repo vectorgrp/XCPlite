@@ -49,7 +49,7 @@ void xcpServerInit(void) {
     A2lParameterGroup("Server_Parameters", 4, "gFlushCycle", "gCmdCycle", "gTransmitCycle", "gTaskCycleTimerServer");
 #endif
 
-    printf("Init XCP server\n");
+    printf("Init XCP on UDP server\n");
     udpServerInit(gSocketPort, gSocketTimeout);
 
 }

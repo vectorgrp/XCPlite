@@ -4,26 +4,24 @@
 |
 | Description:
 |   Konfiguration file for XCP lite protocol and transport layer
-|   XCP_PI = Linux (Raspberry Pi) Version
-|   XCP_WI = Windows Version
+|   Linux (Raspberry Pi) version or define XCP_WI for Windows version
  ----------------------------------------------------------------------------*/
 
 #ifndef __XCP_CFG_H_
 #define __XCP_CFG_H_
 
-#define XCP_WI
-//#define XCP_PI
+#define XCP_WI // Windows
+
+
+#ifndef XCP_WI // Linux
 
 #define _POSIX_C_SOURCE 200809L
-
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <errno.h>
-
-#ifndef XCP_WI
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/time.h>
@@ -35,12 +33,20 @@
 #include <linux/ip.h>
 #include <linux/udp.h>
 #include <arpa/inet.h>
-#else 
-#include <ctype.h>
-#include <io.h>
-#include <conio.h>
-#include <dos.h>
+
+#else // Windows
+
+#define WIN32_LEAN_AND_MEAN
+
+#include <windows.h>
 #include <winsock2.h>
+#include <ws2tcpip.h>
+#include <stdio.h>
+#include <assert.h>
+
+// Need to link with Ws2_32.lib
+#pragma comment(lib, "ws2_32.lib")
+
 #endif
 
 
@@ -60,7 +66,6 @@ extern "C" {
 // #define XCP_ENABLE_SO // Enable measurement and calibration of shared objects
 
 // #define XCP_ENABLE_PTP // Enable PTP synchronized DAQ time stamps
-
 
 #define XCP_ENABLE_TESTMODE // Enable debug console prints
 #define XCP_DEBUG_LEVEL 1
@@ -107,9 +112,6 @@ extern "C" {
 #else
 #define ApplXcpDbgPin(x)
 #endif
-
-//	extern volatile vuint32 gTaskCycleTimerECU;
-//	extern volatile vuint32 gTaskCycleTimerECUpp;
 
 
 /*----------------------------------------------------------------------------*/

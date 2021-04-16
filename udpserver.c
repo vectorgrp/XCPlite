@@ -404,6 +404,11 @@ int udpServerHandleXCPCommands(void) {
 }
 
 
+
+
+
+#ifndef XCP_WI // Linux
+
 int udpServerInit(unsigned short serverPort, unsigned int socketTimeout)
 {
     gXcpTl.LastCmdCtr = 0;
@@ -455,23 +460,55 @@ int udpServerInit(unsigned short serverPort, unsigned int socketTimeout)
 #endif
 
     // Create a mutex needed for multithreaded event data packet transmissions
-    //pthread_mutexattr_t a;
-    //pthread_mutexattr_init(&a);
-    //pthread_mutexattr_settype(&a, PTHREAD_MUTEX_RECURSIVE);
-    //pthread_mutex_init(&gXcpTl.Mutex, &a);
-    //pthread_mutex_init(&gXcpTlMutex, NULL);
+    pthread_mutexattr_t a;
+    pthread_mutexattr_init(&a);
+    pthread_mutexattr_settype(&a, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&gXcpTl.Mutex, &a);
+    pthread_mutex_init(&gXcpTlMutex, NULL);
 
     return 1;
 }
 
-
-
-int udpServerShutdown( void ) {
+int udpServerShutdown(void) {
 
     DESTROY();
     shutdown(gXcpTl.Sock, SHUT_RDWR);
     return 1;
 }
+
+#else // Windows
+
+int udpServerInit(unsigned short serverPort, unsigned int socketTimeout)
+{
+    WORD wVersionRequested;
+    WSADATA wsaData;
+    int err;
+        
+    wVersionRequested = MAKEWORD(2, 2);
+    err = WSAStartup(wVersionRequested, &wsaData);
+    if (err != 0) {
+        printf("Error: WSAStartup failed with error: %d\n", err);
+        return 0;
+    }
+
+    /* Confirm that the WinSock DLL supports 2.2.*/
+    if (LOBYTE(wsaData.wVersion) != 2 || HIBYTE(wsaData.wVersion) != 2) {
+        printf("Error: Could not find a usable version of Winsock.dll\n");
+        WSACleanup();
+        return 0;
+    }
+    
+    return 1;
+}
+
+int udpServerShutdown(void) {
+    
+    WSACleanup(); 
+    return 1;
+}
+
+#endif
+
 
 
 #if defined ( XCP_ENABLE_TESTMODE )
