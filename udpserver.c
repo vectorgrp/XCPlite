@@ -463,7 +463,6 @@ int udpServerInit(unsigned short serverPort, unsigned int socketTimeout)
     pthread_mutexattr_t a;
     pthread_mutexattr_init(&a);
     pthread_mutexattr_settype(&a, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&gXcpTl.Mutex, &a);
     pthread_mutex_init(&gXcpTlMutex, NULL);
 
     return 1;

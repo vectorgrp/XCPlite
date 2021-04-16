@@ -183,10 +183,6 @@ static void XcpFreeDaq( void )
 {
   gXcp.SessionStatus &= (vuint8)(~SS_DAQ);
 
-#if defined ( XCP_ENABLE_TESTMODE )
-  if (gXcpDebugLevel >= 1 && gXcp.SessionStatus & SS_CONNECTED) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
-#endif
-
   gXcp.Daq.DaqCount = 0;
   gXcp.Daq.OdtCount = 0;
   gXcp.Daq.OdtEntryCount = 0;
@@ -341,9 +337,6 @@ static void XcpStartDaq( vuint16 daq )
   /* Initialize the DAQ list */
   DaqListFlags(daq) |= (vuint8)DAQ_FLAG_RUNNING;
   gXcp.SessionStatus |= (vuint8)SS_DAQ;
-#if defined ( XCP_ENABLE_TESTMODE )
-  if (gXcpDebugLevel >= 1 && gXcp.SessionStatus & SS_CONNECTED) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
-#endif
 }
 
 /*****************************************************************************
@@ -394,9 +387,6 @@ static void XcpStopDaq( vuint16 daq )
   }
 
   gXcp.SessionStatus &= (vuint8)(~SS_DAQ);
-#if defined ( XCP_ENABLE_TESTMODE )
-  if (gXcpDebugLevel >= 2 && gXcp.SessionStatus & SS_CONNECTED) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
-#endif
 }
 
 /*****************************************************************************
@@ -434,9 +424,6 @@ static void XcpStopAllDaq( void )
   }
 
   gXcp.SessionStatus &= (vuint8)(~SS_DAQ);  
-#if defined ( XCP_ENABLE_TESTMODE )
-  if (gXcpDebugLevel >= 2 && gXcp.SessionStatus&SS_CONNECTED) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
-#endif
 }
 
 
@@ -539,9 +526,6 @@ void XcpEventExt(unsigned int event, BYTEPTR offset)
 void XcpDisconnect( void )
 {
   gXcp.SessionStatus &= (vuint8)(~SS_CONNECTED);
-#if defined ( XCP_ENABLE_TESTMODE )
-  if (gXcpDebugLevel >= 1) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
-#endif
   XcpStopAllDaq();
 }
 
@@ -570,7 +554,6 @@ void XcpCommand( const vuint32* pCommand )
 #if defined ( XCP_ENABLE_TESTMODE )
       if (gXcpDebugLevel >= 1) {
           ApplXcpPrint("\n-> CONNECT mode=%u\n", CRO_CONNECT_MODE);
-          if (gXcpDebugLevel >= 2) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
           if (gXcp.SessionStatus & SS_CONNECTED) ApplXcpPrint("  Already connected! DAQ setup cleared! Legacy mode activated!\n");
       }
 #endif
@@ -1102,9 +1085,6 @@ void XcpInit( void )
 
   /* Initialize the session status */
   gXcp.SessionStatus = 0;
-#ifdef XCP_ENABLE_TESTMODE
-  if (gXcpDebugLevel >= 1) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
-#endif
 
 }
 

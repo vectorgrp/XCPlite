@@ -59,7 +59,7 @@ void xcpServerInit(void) {
 void* xcpServerThread(void* __par) {
 
     printf("Start XCP server\n");
-    printf("  cmd cycle = %u, transmit cycle = %d, flush cycle = %d\n", gCmdCycle, gTransmitCycle, gFlushCycle);
+    printf("  cmd cycle = %uus, transmit cycle = %dus, flush cycle = %dus\n", gCmdCycle, gTransmitCycle, gFlushCycle);
 
     // Server loop
     for (;;) {
@@ -132,7 +132,7 @@ void ApplXcpClockInit( void )
 
 #ifdef XCP_ENABLE_TESTMODE
     if (gXcpDebugLevel >= 1) {
-        printf("clock resolution = %lds,%ldns\n", gtr.tv_sec, gtr.tv_nsec);
+        printf("system realtime clock resolution = %lds,%ldns\n", gtr.tv_sec, gtr.tv_nsec);
         //printf("clock now = %lds+%ldns\n", gts0.tv_sec, gts0.tv_nsec);
         //printf("clock year = %u\n", 1970 + gts0.tv_sec / 3600 / 24 / 365 );
         //printf("gClock64 = %lluus %llxh, gClock = %xh\n", gts0.tv_sec, gts0.tv_nsec, gClock64, gClock64, gClock);

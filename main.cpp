@@ -103,9 +103,6 @@ int main(void)
 #ifdef XCP_ENABLE_PTP
         "  Option PTP\n"
 #endif
-#ifdef XCP_ENABLE_64
-        "  Option 64\n"
-#endif
 #ifdef DTO_SEND_QUEUE
         "  Option SEND_QUEUE\n"
 #endif
@@ -138,7 +135,7 @@ int main(void)
     XcpInit();
 #if defined ( XCP_ENABLE_TESTMODE )
     if (gXcpDebugLevel >= 1) {
-        printf("gXcpDebugLevel = %u\n", gXcpDebugLevel);
+        printf("debug level = %u\n", gXcpDebugLevel);
     }
 #endif
 

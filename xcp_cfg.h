@@ -10,7 +10,7 @@
 #ifndef __XCP_CFG_H_
 #define __XCP_CFG_H_
 
-#define XCP_WI // Windows
+// #define XCP_WI // Windows
 
 
 #ifndef XCP_WI // Linux
@@ -58,10 +58,7 @@ extern "C" {
 /*----------------------------------------------------------------------------*/
 /* Protocol and debugging options */
 
-
-// #define XCP_ENABLE_64 // Enable 64 bit platform support, otherwise assume 32 bit plattform
-	
-// #define XCP_ENABLE_A2L // Enable A2L creator and A2L upload to host
+#define XCP_ENABLE_A2L // Enable A2L creator and A2L upload to host
 
 // #define XCP_ENABLE_SO // Enable measurement and calibration of shared objects
 
