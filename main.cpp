@@ -5,10 +5,12 @@
 | Description:
 |   Demo main for XCP on Ethernet (UDP)
 |   Demo threads in C and C++ to emulate ECU tasks with measurement data acquisistion
-|   Linux (Raspberry Pi) Version
+|   Linux (Raspberry Pi) or Windows (x64) Version
  ----------------------------------------------------------------------------*/
 
 #include <typeinfo>
+#include <thread>
+
 
 // XCP driver
 #include "xcpLite.h"
@@ -28,12 +30,12 @@ volatile vuint32 gTaskCycleTimerECUpp  = 1000000; // ns  Cycle time of the C++ t
 volatile unsigned int gActiveEcuTaskId = 0; // Task id of the active C++ task
 
 
-// Measurement data acquisition event numbers
 
-    static unsigned int gXcpEvent_EcuCyclic = 0;
-    static unsigned int gXcpEvent_EcuTask1 = 0;
-    static unsigned int gXcpEvent_EcuTask2 = 0;
-    static unsigned int gXcpEvent_ActiveEcuTask = 0;
+// Measurement data acquisition event numbers
+static unsigned int gXcpEvent_EcuCyclic = 0;
+static unsigned int gXcpEvent_EcuTask1 = 0;
+static unsigned int gXcpEvent_EcuTask2 = 0;
+static unsigned int gXcpEvent_ActiveEcuTask = 0;
 
 
 // C++ task instances
@@ -118,7 +120,7 @@ int main(void)
     );
      
     // Initialize clock for DAQ event time stamps
-    ApplXcpClockInit();
+    if (!ApplXcpClockInit()) return 1;
 
     // Initialize module load addresses
 #ifdef XCP_ENABLE_SO
@@ -135,7 +137,8 @@ int main(void)
     XcpInit();
 #if defined ( XCP_ENABLE_TESTMODE )
     if (gXcpDebugLevel >= 1) {
-        printf("debug level = %u\n", gXcpDebugLevel);
+        printf("gXcpDebugLevel = %u\n", gXcpDebugLevel);
+        printf("&gXcpDebugLevel = 0x%llX\n", (vuint64)&gXcpDebugLevel);
     }
 #endif
 
@@ -152,8 +155,7 @@ int main(void)
 #endif
 
     // Initialize the XCP server
-    xcpServerInit();
-
+    if (!xcpServerInit()) return 1;
 
     // C++ demo
     // Initialize ECU demo runnables (C++)
@@ -185,7 +187,8 @@ int main(void)
     A2lCreateParameter(gActiveEcuTaskId, "", "Active ecu task id control");
     A2lCreateParameter(gTaskCycleTimerECU, "ns", "ECU cycle time (ns delay)");
     A2lCreateParameter(gTaskCycleTimerECUpp, "ns", "ECU cycle time (ns delay)");
-    A2lParameterGroup("Demo_Parameters", 3, "gActiveEcuTaskId", "gTaskCycleTimerECU", "gTaskCycleTimerECUpp");
+    A2lCreateParameter(gXcpDebugLevel, "", "Console output verbosity");
+    A2lParameterGroup("Demo_Parameters", 4, "gActiveEcuTaskId", "gTaskCycleTimerECU", "gTaskCycleTimerECUpp", "gXcpDebugLevel");
 #endif
 
     // Finalize A2L
@@ -193,7 +196,7 @@ int main(void)
     A2lClose();
 #endif
 
-#ifndef XCP_WI
+#ifndef _WIN // Linux
 
     //----------------------------------------------------------------------------------
     // Create the ECU threads
@@ -215,6 +218,13 @@ int main(void)
     pthread_cancel(t2);
     pthread_cancel(t3);
 
+#else
+ 
+    std::thread t2([]() { ecuTask(0); });
+    std::thread t3([]() { ecuppTask(0); });
+    std::thread t1([]() { xcpServerThread(0); });
+    t1.join();
+    
 #endif
 
     return 0;

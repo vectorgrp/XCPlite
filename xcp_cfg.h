@@ -3,17 +3,21 @@
 |   XCP_CFG.H
 |
 | Description:
-|   Konfiguration file for XCP lite protocol and transport layer
-|   Linux (Raspberry Pi) version or define XCP_WI for Windows version
+|   Konfiguration file for XCP lite protocol and transport layer parameters
+|   Linux (Raspberry Pi) or Windows version
  ----------------------------------------------------------------------------*/
 
 #ifndef __XCP_CFG_H_
 #define __XCP_CFG_H_
 
-// #define XCP_WI // Windows
+#ifdef _WIN32
+#define _WIN
+#endif
+#ifdef _WIN64
+#error WIN64 not implemented yet
+#endif
 
-
-#ifndef XCP_WI // Linux
+#ifndef _WIN // Linux
 
 #define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
@@ -37,7 +41,6 @@
 #else // Windows
 
 #define WIN32_LEAN_AND_MEAN
-
 #include <windows.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -58,6 +61,8 @@ extern "C" {
 /*----------------------------------------------------------------------------*/
 /* Protocol and debugging options */
 
+//#define XCP_ENABLE_64 // Enable 64 bit address space
+	
 #define XCP_ENABLE_A2L // Enable A2L creator and A2L upload to host
 
 // #define XCP_ENABLE_SO // Enable measurement and calibration of shared objects
@@ -128,7 +133,7 @@ typedef signed int     vsint32;
 
 /* 64-Bit  */
 typedef unsigned long long  vuint64;
-typedef signed long long vsint64;
+typedef signed long long    vsint64;
 
 
 /* Byte order */
@@ -161,7 +166,7 @@ extern void ApplXcpInitBaseAddressList();
 #else
 
 #define ApplXcpGetPointer(e,a) ((BYTEPTR)((a)))
-#define ApplXcpGetAddr(p) ((vuint32)((p)))
+#define ApplXcpGetAddr(p) ((unsigned int)((p)))
 
 #endif
 

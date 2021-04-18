@@ -13,25 +13,23 @@
 
 #include "xcpLite.h"
 
-// XCP on UDP Transport Layer data
-tXcpTlData gXcpTl;
-
-#ifndef XCP_WI
+// Mutex (recursive)
+#ifndef _WIN // Linux
 pthread_mutex_t gXcpTlMutex = PTHREAD_MUTEX_INITIALIZER;
 #define LOCK() pthread_mutex_lock(&gXcpTlMutex)
 #define UNLOCK() pthread_mutex_unlock(&gXcpTlMutex)
 #define DESTROY() pthread_mutex_destroy(&gXcpTlMutex)
-#else
-#define LOCK() 
-#define UNLOCK() 
+#else // Windows
+CRITICAL_SECTION gXcpCs;
+#define LOCK() EnterCriticalSection(&gXcpCs)
+#define UNLOCK() LeaveCriticalSection(&gXcpCs);
 #define DESTROY()
-#define socklen_t int
-#define MSG_DONTWAIT 0
-#define shutdown(a,b)
-#define SHUT_RDWR 0
 #endif
 
+// XCP on UDP Transport Layer data
+tXcpTlData gXcpTl;
 
+// Transmit queue
 #ifdef DTO_SEND_QUEUE
 static tXcpDtoBuffer dto_queue[XCP_DAQ_QUEUE_SIZE];
 static unsigned int dto_queue_rp; // rp = read index
@@ -57,8 +55,7 @@ static int udpServerSendDatagram(const unsigned char* data, unsigned int size ) 
     // Respond to active connect client, same port    // option gRemoteAddr.sin_port = htons(9001);
     r = sendto(gXcpTl.Sock, data, size, 0, (struct sockaddr*)&gXcpTl.ClientAddr, sizeof(struct sockaddr));
     if (r != size) {
-        perror("udpServerSendDatagram() sendto failed");
-        fprintf(stderr,"(result=%d, errno=%d)\n", r, errno);
+        printf("error: sento failed (result=%d, errno=%d)!\n", r, errno);
         return 0;
     }
 
@@ -304,29 +301,36 @@ int udpServerSendCrmPacket(const unsigned char* packet, unsigned int size) {
 
 int udpServerHandleXCPCommands(void) {
 
-    int n;
-    int connected;
+    int n,connected;
     tXcpCtoMessage buffer;
 
-    // Receive UDP datagramm
-    // No Blocking
+    // Receive a UDP datagramm
+    // No blocking and no partial messages assumed
     struct sockaddr_in src;
     socklen_t srclen = sizeof(src);
-    n = recvfrom(gXcpTl.Sock, &buffer, sizeof(buffer), MSG_DONTWAIT, (struct sockaddr*)&src, &srclen);
+    n = recvfrom(gXcpTl.Sock, (char*)&buffer, sizeof(buffer), RECV_FLAGS, (struct sockaddr*)&src, &srclen);
     if (n < 0) {
+        
+#ifndef _WIN // Linux
         if (errno != EAGAIN) { // Socket error
-            fprintf(stderr, "recvfrom failed (result=%d,errno=%d)\n", n, errno);
-            perror("error");
+            printf("error: recvfrom failed (result=%d,errno=%d)!\n", n, errno);
             return 0;
         }
+#else
+        int err = WSAGetLastError();
+        if (err != WSAEWOULDBLOCK) { // Socket error
+            printf("error: recvfrom failed (result=%d,error=%d)!\n", n, err);
+            return 0;
+        }
+#endif
         else { // Socket timeout
-
+            // continue
         }
     }
     else if (n == 0) { // UDP datagramm with zero bytes received
 #if defined ( XCP_ENABLE_TESTMODE )
         if (gXcpDebugLevel >= 1) {
-            printf("RX: 0 bytes\n");
+            printf("ignored: 0 bytes received\n");
         }
 #endif
     }
@@ -359,13 +363,12 @@ int udpServerHandleXCPCommands(void) {
             }
 #ifdef XCP_ENABLE_TESTMODE
             else if (gXcpDebugLevel >= 1) {
-                printf("RX: ignored, no valid CONNECT command\n");
+                printf("ignored: no valid CONNECT command\n");
             }
 #endif
 
         }
        
-
         // Actions after successfull connect
         if (!connected) {
             if (gXcp.SessionStatus & SS_CONNECTED) { // Is in connected state
@@ -385,7 +388,7 @@ int udpServerHandleXCPCommands(void) {
   #ifdef DTO_SEND_RAW
                 // Initialize UDP raw socket for DAQ data transmission
                 if (!udpRawInit(&gXcpTl.ServerAddr, &gXcpTl.ClientAddr)) {
-                    printf("Cannot initialize raw socket\n");
+                    printf("error: cannot initialize raw socket!\n");
                     shutdown(gRawSock, SHUT_RDWR);
                     return 0;
                 }
@@ -396,33 +399,34 @@ int udpServerHandleXCPCommands(void) {
             } // Success 
             else { // Is not in connected state
                 gXcpTl.ClientAddrValid = 0; // Any client can connect
-            } // !Su
+            } 
         } // !connected before
     }
 
-    return 0;
+    return 1;
 }
 
 
 
 
 
-#ifndef XCP_WI // Linux
+#ifndef _WIN // Linux
 
-int udpServerInit(unsigned short serverPort, unsigned int socketTimeout)
+int udpServerInit(unsigned short serverPort)
 {
     gXcpTl.LastCmdCtr = 0;
     gXcpTl.LastResCtr = 0;
     gXcpTl.ClientAddrValid = 0;
     
-    //Create a socket
+    // Create a socket
     gXcpTl.Sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (gXcpTl.Sock < 0) {
-        perror("Cannot open socket");
-        return -1;
+        printf("error: cannot open socket!\n");
+        return 0;
     }
 
-    // Set socket timeout
+    // Set socket receive timeout
+    int socketTimeout = 0; // @@@@ TODO
     if (socketTimeout) {
         struct timeval timeout;
         timeout.tv_sec = 0;
@@ -431,22 +435,23 @@ int udpServerInit(unsigned short serverPort, unsigned int socketTimeout)
     }
 
     // Set socket transmit buffer size
-    int buffer = 2000000;
-    setsockopt(gXcpTl.Sock, SOL_SOCKET, SO_SNDBUF, (void*)&buffer, sizeof(buffer));
+    int socketTxBufferSize = 2000000;   // @@@@ TODO
+    if (socketTxBufferSize) {
+        setsockopt(gXcpTl.Sock, SOL_SOCKET, SO_SNDBUF, (void*)&socketTxBufferSize, sizeof(socketTxBufferSize));
+    }
 
     // Avoid "Address already in use" error message
     int yes = 1;
     setsockopt(gXcpTl.Sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
     
-    // Bind the socket
+    // Bind the socket to any address and the specified port
     gXcpTl.ServerAddr.sin_family = AF_INET;
     gXcpTl.ServerAddr.sin_addr.s_addr = htonl(INADDR_ANY); // inet_addr(SLAVE_IP); 
     gXcpTl.ServerAddr.sin_port = htons(serverPort);
     memset(gXcpTl.ServerAddr.sin_zero, '\0', sizeof(gXcpTl.ServerAddr.sin_zero));
-
     if (bind(gXcpTl.Sock, (struct sockaddr*)&gXcpTl.ServerAddr, sizeof(gXcpTl.ServerAddr)) < 0) {
-        perror("Cannot bind on UDP port");
-        shutdown(gXcpTl.Sock, SHUT_RDWR);
+        printf("error: Cannot bind on UDP port!\n");
+        udpServerShutdown();
         return 0;
     }
 
@@ -468,42 +473,77 @@ int udpServerInit(unsigned short serverPort, unsigned int socketTimeout)
     return 1;
 }
 
-int udpServerShutdown(void) {
+void udpServerShutdown(void) {
 
     DESTROY();
     shutdown(gXcpTl.Sock, SHUT_RDWR);
-    return 1;
 }
 
 #else // Windows
 
-int udpServerInit(unsigned short serverPort, unsigned int socketTimeout)
+int udpServerInit(unsigned short serverPort)
 {
-    WORD wVersionRequested;
+    WORD wsaVersionRequested;
     WSADATA wsaData;
     int err;
         
-    wVersionRequested = MAKEWORD(2, 2);
-    err = WSAStartup(wVersionRequested, &wsaData);
+    // Create a critical section needed for multithreaded event data packet transmissions
+    InitializeCriticalSection(&gXcpCs);
+    
+    // Init Winsock2
+    wsaVersionRequested = MAKEWORD(2, 2);
+    err = WSAStartup(wsaVersionRequested, &wsaData);
     if (err != 0) {
-        printf("Error: WSAStartup failed with error: %d\n", err);
+        printf("error: WSAStartup failed with error: %d!\n", err);
         return 0;
     }
-
-    /* Confirm that the WinSock DLL supports 2.2.*/
-    if (LOBYTE(wsaData.wVersion) != 2 || HIBYTE(wsaData.wVersion) != 2) {
-        printf("Error: Could not find a usable version of Winsock.dll\n");
+    if (LOBYTE(wsaData.wVersion) != 2 || HIBYTE(wsaData.wVersion) != 2) { // Confirm that the WinSock DLL supports 2.2
+        printf("error: could not find a usable version of Winsock.dll!\n");
         WSACleanup();
         return 0;
     }
-    
+
+    // Create a socket
+    gXcpTl.Sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (gXcpTl.Sock == INVALID_SOCKET) {
+        printf("error: could not create socket!\n");
+        WSACleanup();
+        return 0;
+    }
+
+    // Sets the timeout, in milliseconds, for non blocking receive calls
+    /*
+    struct timeval read_timeout;
+    read_timeout.tv_sec = 0;
+    read_timeout.tv_usec = 1000;
+    setsockopt(gXcpTl.Sock, SOL_SOCKET, SO_RCVTIMEO, &read_timeout, sizeof(read_timeout));
+    */
+
+    unsigned long mode = 1;
+    if (NO_ERROR != ioctlsocket(gXcpTl.Sock, FIONBIO, &mode)) {
+        printf("error: could not set non blocking mode!\n");
+        WSACleanup();
+        return 0;
+    }
+
+
+    // Bind the socket to any address and the specified port
+    gXcpTl.ServerAddr.sin_family = AF_INET;
+    gXcpTl.ServerAddr.sin_addr.s_addr = htonl(INADDR_ANY); // inet_addr(SLAVE_IP); 
+    gXcpTl.ServerAddr.sin_port = htons(serverPort);
+    if (bind(gXcpTl.Sock, (struct sockaddr*)&gXcpTl.ServerAddr, sizeof(gXcpTl.ServerAddr)) < 0) {
+        printf("error: cannot bind on UDP port!\n");
+        udpServerShutdown();
+        return 0;
+    }
+
     return 1;
 }
 
-int udpServerShutdown(void) {
-    
+void udpServerShutdown(void) {
+
+    closesocket(gXcpTl.Sock);
     WSACleanup(); 
-    return 1;
 }
 
 #endif
