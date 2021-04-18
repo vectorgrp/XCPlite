@@ -3,58 +3,49 @@
 |   XCP_CFG.H
 |
 | Description:
-|   Konfiguration file for XCP lite protocol and transport layer
-|   Linux (Raspberry Pi) Version
+|   Konfiguration file for XCP lite protocol and transport layer parameters
+|   Linux (Raspberry Pi) or Windows version
  ----------------------------------------------------------------------------*/
-
 
 #ifndef __XCP_CFG_H_
 #define __XCP_CFG_H_
 
-// General includes
-#define _POSIX_C_SOURCE 200809L
 
+#define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
-#include <unistd.h>
 #include <stdlib.h>
-
+#include <assert.h>
+#include <errno.h>
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/time.h>
 #include <time.h>
 #include <sys/stat.h>
-
 #include <pthread.h> // link with -lpthread
-
-#include <assert.h>
-
-#include <errno.h>
 #include <sys/socket.h>
-
 #include <netinet/in.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
 #include <arpa/inet.h>
+
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 
-
 /*----------------------------------------------------------------------------*/
 /* Protocol and debugging options */
 
-
-// #define XCP_ENABLE_64 // Enable 64 bit platform support, otherwise assume 32 bit plattform
+//#define XCP_ENABLE_64 // Enable 64 bit address space
 	
 #define XCP_ENABLE_A2L // Enable A2L creator and A2L upload to host
 
 // #define XCP_ENABLE_SO // Enable measurement and calibration of shared objects
 
 // #define XCP_ENABLE_PTP // Enable PTP synchronized DAQ time stamps
-
 
 #define XCP_ENABLE_TESTMODE // Enable debug console prints
 #define XCP_DEBUG_LEVEL 1
@@ -102,9 +93,6 @@ extern "C" {
 #define ApplXcpDbgPin(x)
 #endif
 
-//	extern volatile vuint32 gTaskCycleTimerECU;
-//	extern volatile vuint32 gTaskCycleTimerECUpp;
-
 
 /*----------------------------------------------------------------------------*/
 /* Platform specific definitions */
@@ -123,15 +111,13 @@ typedef signed int     vsint32;
 
 /* 64-Bit  */
 typedef unsigned long long  vuint64;
-typedef signed long long vsint64;
+typedef signed long long    vsint64;
+
 
 /* Byte order */
 //#define XCP_CPUTYPE_BIGENDIAN  /* Motorola */
 #define XCP_CPUTYPE_LITTLEENDIAN /* Intel */
 
-/* Memory qualifiers */
-#define MEMORY_CONST const
-#define MEMORY_ROM const
 
 /* Pointers */
 #define DAQBYTEPTR vuint8 *
@@ -158,7 +144,7 @@ extern void ApplXcpInitBaseAddressList();
 #else
 
 #define ApplXcpGetPointer(e,a) ((BYTEPTR)((a)))
-#define ApplXcpGetAddr(p) ((vuint32)((p)))
+#define ApplXcpGetAddr(p) ((unsigned int)((p)))
 
 #endif
 

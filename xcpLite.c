@@ -60,6 +60,7 @@
 /***************************************************************************/
 
 #include "xcpLite.h"
+#include "xcpAppl.h"
 
 
 
@@ -84,10 +85,7 @@
 
 tXcpData gXcp; 
 
-const vuint8 MEMORY_ROM gXcpSlaveId[kXcpSlaveIdLength] = kXcpSlaveIdString; // Name of the A2L file on local PC for auto detection
-const vuint8 MEMORY_ROM gXcpA2LFilename[kXcpA2LFilenameLength] = kXcpA2LFilenameString; // Name of the A2L file on slave device for upload
-vuint8* gXcpA2L = NULL; // A2L file content
-size_t gXcpA2LLength = 0; // A2L file length
+const vuint8 gXcpSlaveId[kXcpSlaveIdLength] = kXcpSlaveIdString; // Name of the A2L file on local PC for auto detection
 
 #if defined ( XCP_ENABLE_TESTMODE )
 volatile vuint8 gXcpDebugLevel = XCP_DEBUG_LEVEL;
@@ -182,10 +180,6 @@ static vuint8 XcpReadMta( vuint8 size, BYTEPTR data )
 static void XcpFreeDaq( void )
 {
   gXcp.SessionStatus &= (vuint8)(~SS_DAQ);
-
-#if defined ( XCP_ENABLE_TESTMODE )
-  if (gXcpDebugLevel >= 1 && gXcp.SessionStatus & SS_CONNECTED) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
-#endif
 
   gXcp.Daq.DaqCount = 0;
   gXcp.Daq.OdtCount = 0;
@@ -341,9 +335,6 @@ static void XcpStartDaq( vuint16 daq )
   /* Initialize the DAQ list */
   DaqListFlags(daq) |= (vuint8)DAQ_FLAG_RUNNING;
   gXcp.SessionStatus |= (vuint8)SS_DAQ;
-#if defined ( XCP_ENABLE_TESTMODE )
-  if (gXcpDebugLevel >= 1 && gXcp.SessionStatus & SS_CONNECTED) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
-#endif
 }
 
 /*****************************************************************************
@@ -394,9 +385,6 @@ static void XcpStopDaq( vuint16 daq )
   }
 
   gXcp.SessionStatus &= (vuint8)(~SS_DAQ);
-#if defined ( XCP_ENABLE_TESTMODE )
-  if (gXcpDebugLevel >= 2 && gXcp.SessionStatus & SS_CONNECTED) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
-#endif
 }
 
 /*****************************************************************************
@@ -434,9 +422,6 @@ static void XcpStopAllDaq( void )
   }
 
   gXcp.SessionStatus &= (vuint8)(~SS_DAQ);  
-#if defined ( XCP_ENABLE_TESTMODE )
-  if (gXcpDebugLevel >= 2 && gXcp.SessionStatus&SS_CONNECTED) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
-#endif
 }
 
 
@@ -539,9 +524,6 @@ void XcpEventExt(unsigned int event, BYTEPTR offset)
 void XcpDisconnect( void )
 {
   gXcp.SessionStatus &= (vuint8)(~SS_CONNECTED);
-#if defined ( XCP_ENABLE_TESTMODE )
-  if (gXcpDebugLevel >= 1) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
-#endif
   XcpStopAllDaq();
 }
 
@@ -570,7 +552,6 @@ void XcpCommand( const vuint32* pCommand )
 #if defined ( XCP_ENABLE_TESTMODE )
       if (gXcpDebugLevel >= 1) {
           ApplXcpPrint("\n-> CONNECT mode=%u\n", CRO_CONNECT_MODE);
-          if (gXcpDebugLevel >= 2) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
           if (gXcp.SessionStatus & SS_CONNECTED) ApplXcpPrint("  Already connected! DAQ setup cleared! Legacy mode activated!\n");
       }
 #endif
@@ -654,26 +635,14 @@ void XcpCommand( const vuint32* pCommand )
                       break;
 #ifdef XCP_ENABLE_A2L
                   case IDT_ASAM_UPLOAD:
-                    if (gXcpA2L==NULL) {
-                      FILE* fd;
-                      fd = fopen(kXcpA2LFilenameString, "r");
-                      if (fd != NULL) {
-                          struct stat fdstat;
-                          stat(kXcpA2LFilenameString, &fdstat);
-                          gXcpA2L = malloc((size_t)(fdstat.st_size + 1));
-                          gXcpA2LLength = fread(gXcpA2L, sizeof(char), (size_t)fdstat.st_size, fd);
-                          fclose(fd);
-  #if defined ( XCP_ENABLE_TESTMODE )
-                          if (gXcpDebugLevel >= 1) {
-                              ApplXcpPrint("A2L file %s ready for upload, size=%u, mta=%Xh\n", kXcpA2LFilenameString, gXcpA2LLength, (vuint32)gXcpA2L);
-                              if (gXcpDebugLevel == 1) gXcpDebugLevelVerbose = 0; // Tempory stop of debug output
-                          }
-  #endif
+                      {
+                        char* p;
+                        unsigned int n;
+                        if (!ApplXcpReadA2LFile(&p, &n)) error(CRC_ACCESS_DENIED);
+                        CRM_GET_ID_LENGTH = n;
+                        XcpSetMta(p, 0x00);
                       }
-                    }
-                    CRM_GET_ID_LENGTH = gXcpA2LLength;
-                    XcpSetMta(gXcpA2L, 0x00);
-                    break;
+                      break;
 #endif
                   case IDT_ASAM_PATH:
                   case IDT_ASAM_URL:
@@ -1102,9 +1071,6 @@ void XcpInit( void )
 
   /* Initialize the session status */
   gXcp.SessionStatus = 0;
-#ifdef XCP_ENABLE_TESTMODE
-  if (gXcpDebugLevel >= 1) ApplXcpPrint("sessionStatus = %02Xh\n", gXcp.SessionStatus);
-#endif
 
 }
 
@@ -1391,28 +1357,12 @@ void XcpPrintDaqList( vuint16 daq )
     ApplXcpPrint("  ODT %u (%u):",i-DaqListFirstOdt(daq),i);
     ApplXcpPrint(" firstOdtEntry=%u, lastOdtEntry=%u, size=%u:\n", DaqListOdtFirstEntry(i), DaqListOdtLastEntry(i),DaqListOdtSize(i));
     for (e=DaqListOdtFirstEntry(i);e<=DaqListOdtLastEntry(i);e++) {
-      ApplXcpPrint("   %zXh-%zXh,%u\n",OdtEntryAddr(e), OdtEntryAddr(e)+OdtEntrySize(e)-1,OdtEntrySize(e));
+      ApplXcpPrint("   0x%llX-0x%llX,%u\n",(vuint64)OdtEntryAddr(e), (vuint64)(OdtEntryAddr(e)+OdtEntrySize(e)-1),OdtEntrySize(e));
     }
   } /* j */
 } 
 
   
 #endif /* XCP_ENABLE_TESTMODE */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 

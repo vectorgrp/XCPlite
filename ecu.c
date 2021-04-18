@@ -174,9 +174,8 @@ void ecuCreateA2lDescription( void) {
     A2lParameterGroup("Arrays", 20, 
         "byteArray1", "byteArray2", "byteArray3", "byteArray4", "byteArray5", "byteArray6", "byteArray7", "byteArray8", "byteArray9", "byteArray10", 
         "byteArray11", "byteArray12", "byteArray13", "byteArray14", "byteArray15", "byteArray16", "longArray1", "longArray2", "longArray3", "longArray4");
-#endif
-
 }
+#endif
 
 
 

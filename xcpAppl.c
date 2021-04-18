@@ -24,7 +24,6 @@
 
 // Parameters
 static unsigned short gSocketPort = 5555; // UDP port
-static unsigned int gSocketTimeout = 0; // General socket timeout
 static unsigned int gFlushCycle = 100 * kApplXcpDaqTimestampTicksPerMs; // ms, send a DTO packet at least every 100ms
 static unsigned int gCmdCycle = 10 * kApplXcpDaqTimestampTicksPerMs; // ms, check for commands every 10ms
 static unsigned int gTransmitCycle = 500 * (kApplXcpDaqTimestampTicksPerMs/1000); // us, check for new transmit data in transmit queue every 500us
@@ -37,17 +36,8 @@ static unsigned int gFlushTimer = 0;
 static unsigned int gCmdTimer = 0;
 
 
-
-void sleepns(int ns) {
-    struct timespec timeout, timerem;
-    timeout.tv_sec = 0;
-    timeout.tv_nsec = ns;
-    nanosleep(&timeout, &timerem);
-}
-
-
 // XCP server task init
-void xcpServerInit(void) {
+int xcpServerInit(void) {
 
     // Create A2L parameters to control the XCP server
 #ifdef XCP_ENABLE_A2L
@@ -58,28 +48,27 @@ void xcpServerInit(void) {
     A2lParameterGroup("Server_Parameters", 4, "gFlushCycle", "gCmdCycle", "gTransmitCycle", "gTaskCycleTimerServer");
 #endif
 
-    printf("Init XCP server\n");
-    udpServerInit(gSocketPort, gSocketTimeout);
-
+    printf("Init XCP on UDP server\n");
+    return udpServerInit(gSocketPort);
 }
 
 // XCP server task
 // Handle command, transmit data, flush data server thread
-void* xcpServerThread(void* __par) {
+void* xcpServerThread(void* par) {
 
     printf("Start XCP server\n");
-    printf("  cmd cycle = %u, transmit cycle = %d, flush cycle = %d\n", gCmdCycle, gTransmitCycle, gFlushCycle);
+    printf("  cmd cycle = %uus, transmit cycle = %dus, flush cycle = %dus\n", gCmdCycle, gTransmitCycle, gFlushCycle);
 
     // Server loop
     for (;;) {
 
-        sleepns(gTaskCycleTimerServer);
+        ApplXcpSleepNs(gTaskCycleTimerServer);
         ApplXcpGetClock();
-
+        
         // Handle XCP commands every gCmdCycle time period
         if (gClock - gCmdTimer > gCmdCycle) {
             gCmdTimer = gClock;
-            if (udpServerHandleXCPCommands() < 0) break;  
+            if (!udpServerHandleXCPCommands()) break;  
         } // Handle
 
         // If DAQ measurement is running
@@ -108,7 +97,7 @@ void* xcpServerThread(void* __par) {
 
     } // for (;;)
 
-    sleepns(100000000);
+    ApplXcpSleepNs(100000000);
     udpServerShutdown();
     return 0;
 }
@@ -125,10 +114,11 @@ volatile vuint32 gClock = 0;
 volatile vuint64 gClock64 = 0;
 
 
+
 static struct timespec gts0;
 static struct timespec gtr;
 
-void ApplXcpClockInit( void )
+int ApplXcpClockInit( void )
 {    
     assert(sizeof(long long) == 8);
     clock_getres(CLOCK_REALTIME, &gtr);
@@ -140,17 +130,17 @@ void ApplXcpClockInit( void )
 
 #ifdef XCP_ENABLE_TESTMODE
     if (gXcpDebugLevel >= 1) {
-        printf("clock resolution = %lds,%ldns\n", gtr.tv_sec, gtr.tv_nsec);
+        printf("system realtime clock resolution = %lds,%ldns\n", gtr.tv_sec, gtr.tv_nsec);
         //printf("clock now = %lds+%ldns\n", gts0.tv_sec, gts0.tv_nsec);
         //printf("clock year = %u\n", 1970 + gts0.tv_sec / 3600 / 24 / 365 );
         //printf("gClock64 = %lluus %llxh, gClock = %xh\n", gts0.tv_sec, gts0.tv_nsec, gClock64, gClock64, gClock);
     }
 #endif
 
+    return 1;
 }
 
-// Free runing clock with 10ns tick
-// 1ns with overflow every 4s is critical for CANape measurement start time offset calculation
+// Free running clock with 1us tick
 vuint32 ApplXcpGetClock(void) {
 
     struct timespec ts; 
@@ -162,13 +152,57 @@ vuint32 ApplXcpGetClock(void) {
 }
 
 vuint64 ApplXcpGetClock64(void) {
-    struct timespec ts;
 
-    clock_gettime(CLOCK_REALTIME, &ts);
-    gClock64 = (((vuint64)(ts.tv_sec/*-gts0.tv_sec*/) * 1000000ULL) + (vuint64)(ts.tv_nsec / 1000)); // us
-    gClock = (vuint32)gClock64;
+    ApplXcpGetClock();
     return gClock64;
 }
+
+void ApplXcpSleepNs(unsigned int ns) {
+    struct timespec timeout, timerem;
+    timeout.tv_sec = 0;
+    timeout.tv_nsec = (long)ns;
+    nanosleep(&timeout, &timerem);
+}
+
+
+
+/**************************************************************************/
+// Read A2L to memory accessible by XCP
+/**************************************************************************/
+
+#ifdef XCP_ENABLE_A2L
+
+char* gXcpA2L = NULL; // A2L file content
+unsigned int gXcpA2LLength = 0; // A2L file length
+
+int ApplXcpReadA2LFile(char** p, unsigned int* n) {
+
+    if (gXcpA2L == NULL) {
+
+        FILE* fd;
+        fd = fopen(kXcpA2LFilenameString, "r");
+        if (fd == NULL) return 0;
+        struct stat fdstat;
+        stat(kXcpA2LFilenameString, &fdstat);
+        gXcpA2L = malloc((size_t)(fdstat.st_size + 1));
+        gXcpA2LLength = fread(gXcpA2L, sizeof(char), (size_t)fdstat.st_size, fd);
+        fclose(fd);
+
+        //free(gXcpA2L);
+
+#if defined ( XCP_ENABLE_TESTMODE )
+            if (gXcpDebugLevel >= 1) {
+                ApplXcpPrint("A2L file %s ready for upload, size=%u, mta=0x%llX\n", kXcpA2LFilenameString, gXcpA2LLength, (vuint64)gXcpA2L);
+                //if (gXcpDebugLevel == 1) gXcpDebugLevelVerbose = 0; // Tempory stop of debug output
+            }
+#endif
+        
+    }
+    *n = gXcpA2LLength;
+    *p = gXcpA2L;
+    return 1;
+}
+#endif
 
 
 
