@@ -148,7 +148,11 @@ int A2lInit(const char *filename) {
 	gA2lFile = 0;
 	gA2lEvent = 0;
 	gA2lEventCount = 0;
+#ifndef _WIN // Linux
+	gA2lFile = fopen(filename, "w");
+#else
 	fopen_s(&gA2lFile,filename, "w");
+#endif
 	return gA2lFile != 0;
 }
 

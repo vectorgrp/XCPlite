@@ -138,7 +138,7 @@ int main(void)
 #if defined ( XCP_ENABLE_TESTMODE )
     if (gXcpDebugLevel >= 1) {
         printf("gXcpDebugLevel = %u\n", gXcpDebugLevel);
-        printf("&gXcpDebugLevel = 0x%I64X\n", (vuint64)&gXcpDebugLevel);
+        printf("&gXcpDebugLevel = 0x%llX\n", (vuint64)&gXcpDebugLevel);
     }
 #endif
 

@@ -635,12 +635,14 @@ void XcpCommand( const vuint32* pCommand )
                       break;
 #ifdef XCP_ENABLE_A2L
                   case IDT_ASAM_UPLOAD:
-                    char* p;
-                    int n;
-                    if (!ApplXcpReadA2LFile(&p, &n)) error(CRC_ACCESS_DENIED);
-                    CRM_GET_ID_LENGTH = n;
-                    XcpSetMta(p,0x00);
-                    break;
+                      {
+                        char* p;
+                        int n;
+                        if (!ApplXcpReadA2LFile(&p, &n)) error(CRC_ACCESS_DENIED);
+                        CRM_GET_ID_LENGTH = n;
+                        XcpSetMta(p, 0x00);
+                      }
+                      break;
 #endif
                   case IDT_ASAM_PATH:
                   case IDT_ASAM_URL:
@@ -1355,7 +1357,7 @@ void XcpPrintDaqList( vuint16 daq )
     ApplXcpPrint("  ODT %u (%u):",i-DaqListFirstOdt(daq),i);
     ApplXcpPrint(" firstOdtEntry=%u, lastOdtEntry=%u, size=%u:\n", DaqListOdtFirstEntry(i), DaqListOdtLastEntry(i),DaqListOdtSize(i));
     for (e=DaqListOdtFirstEntry(i);e<=DaqListOdtLastEntry(i);e++) {
-      ApplXcpPrint("   0x%I64X-0x%I64X,%u\n",(vuint64)OdtEntryAddr(e), (vuint64)(OdtEntryAddr(e)+OdtEntrySize(e)-1),OdtEntrySize(e));
+      ApplXcpPrint("   0x%llX-0x%llX,%u\n",(vuint64)OdtEntryAddr(e), (vuint64)(OdtEntryAddr(e)+OdtEntrySize(e)-1),OdtEntrySize(e));
     }
   } /* j */
 } 

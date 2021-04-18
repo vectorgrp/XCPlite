@@ -22,7 +22,7 @@ extern vuint64 ApplXcpGetClock64(void);
 extern void ApplXcpSleepNs(unsigned int ns);
 
 #ifdef XCP_ENABLE_A2L
-extern int ApplXcpReadA2LFile(char** p, int* n);
+extern int ApplXcpReadA2LFile(char** p, unsigned int* n);
 #endif
 
 #ifdef __cplusplus

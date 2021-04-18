@@ -118,7 +118,7 @@ volatile vuint64 gClock64 = 0;
 static struct timespec gts0;
 static struct timespec gtr;
 
-void ApplXcpClockInit( void )
+int ApplXcpClockInit( void )
 {    
     assert(sizeof(long long) == 8);
     clock_getres(CLOCK_REALTIME, &gtr);
@@ -137,6 +137,7 @@ void ApplXcpClockInit( void )
     }
 #endif
 
+    return 1;
 }
 
 // Free running clock with 1us tick
@@ -232,18 +233,18 @@ void ApplXcpSleepNs(unsigned int ns) {
 #ifdef XCP_ENABLE_A2L
 
 char* gXcpA2L = NULL; // A2L file content
-int gXcpA2LLength = 0; // A2L file length
+unsigned int gXcpA2LLength = 0; // A2L file length
 
-int ApplXcpReadA2LFile(char** p, int* n) {
+int ApplXcpReadA2LFile(char** p, unsigned int* n) {
 
     if (gXcpA2L == NULL) {
 
 #ifndef _WIN // Linux
         FILE* fd;
-        fd = fopen(filename, "r");
+        fd = fopen(kXcpA2LFilenameString, "r");
         if (fd == NULL) return 0;
         struct stat fdstat;
-        stat(filename, &fdstat);
+        stat(kXcpA2LFilenameString, &fdstat);
         gXcpA2L = malloc((size_t)(fdstat.st_size + 1));
         gXcpA2LLength = fread(gXcpA2L, sizeof(char), (size_t)fdstat.st_size, fd);
         fclose(fd);
@@ -264,7 +265,7 @@ int ApplXcpReadA2LFile(char** p, int* n) {
 #endif
 #if defined ( XCP_ENABLE_TESTMODE )
             if (gXcpDebugLevel >= 1) {
-                ApplXcpPrint("A2L file %s ready for upload, size=%u, mta=0x%I64X\n", kXcpA2LFilenameString, gXcpA2LLength, (vuint64)gXcpA2L);
+                ApplXcpPrint("A2L file %s ready for upload, size=%u, mta=0x%llX\n", kXcpA2LFilenameString, gXcpA2LLength, (vuint64)gXcpA2L);
                 //if (gXcpDebugLevel == 1) gXcpDebugLevelVerbose = 0; // Tempory stop of debug output
             }
 #endif

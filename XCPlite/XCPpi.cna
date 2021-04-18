@@ -10,7 +10,7 @@ PrgDate=19.03.2021
 Description=
 CreationTime=14:27
 CreationDate=09/08/2020 ; Month/Day/Year
-ModificationTime=21:41
+ModificationTime=22:59
 ModificationDate=04/18/2021 ; Month/Day/Year
 Protected=0
 
@@ -96,7 +96,7 @@ StimMode=0
 IsFallback=0
 
 [CALIBRATION_OBJECT_4]
-EditOffset=1
+EditOffset=10000
 EditFactor=2
 EditFormat=2
 ShowWorkingPoint=0
@@ -107,7 +107,7 @@ StimMode=0
 IsFallback=0
 
 [CALIBRATION_OBJECT_5]
-EditOffset=1
+EditOffset=10000
 EditFactor=2
 EditFormat=2
 ShowWorkingPoint=0
@@ -118,7 +118,7 @@ StimMode=0
 IsFallback=0
 
 [CALIBRATION_OBJECT_6]
-EditOffset=10000
+EditOffset=100000
 EditFactor=2
 EditFormat=2
 ShowWorkingPoint=0
@@ -129,7 +129,7 @@ StimMode=0
 IsFallback=0
 
 [CALIBRATION_OBJECT_7]
-EditOffset=1
+EditOffset=100000
 EditFactor=2
 EditFormat=2
 ShowWorkingPoint=0
@@ -140,7 +140,7 @@ StimMode=0
 IsFallback=0
 
 [CALIBRATION_OBJECT_8]
-EditOffset=1
+EditOffset=100000
 EditFactor=2
 EditFormat=2
 ShowWorkingPoint=0
@@ -151,7 +151,7 @@ StimMode=0
 IsFallback=0
 
 [CALIBRATION_OBJECT_9]
-EditOffset=1
+EditOffset=100
 EditFactor=2
 EditFormat=2
 ShowWorkingPoint=0
@@ -1134,8 +1134,8 @@ GlobalCursor=0
 GlobalCursorTime=0
 GlobalTimeAxis=1
 GlobalTimeAxisStartTime=0
-GlobalTimeAxisEndTime=36262518751
-MainWindowPos=1, 48, 83, 2555, 1602 ;cmd, x, y, w, h
+GlobalTimeAxisEndTime=88139503086
+MainWindowPos=1, 94, 368, 2555, 1602 ;cmd, x, y, w, h
 
 [PAR_COMMENT]
 1="Name",""
@@ -1414,7 +1414,7 @@ DisplayMask=1 ; pages 1
 [WINDOW_3]
 XLen=40604
 XMin=0
-XMax=36262
+XMax=88139
 Grid=1
 Mark=1
 YValue=1
@@ -1483,7 +1483,7 @@ COL_1_dpi96=1048578, 88
 [WINDOW_4]
 XLen=40604
 XMin=0
-XMax=36262
+XMax=88139
 Grid=1
 Mark=1
 YValue=1
