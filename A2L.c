@@ -76,13 +76,11 @@ char* gA2lIfData1 =
 
 char* gA2lIfData2 = 
 "/end DAQ\n"
-"/begin PAG\n"
-"0x00\n"
-"/end PAG\n"
-"/begin PGM\n"
-"PGM_MODE_ABSOLUTE 0x00 0x00\n"
-"/end PGM\n"
-"/begin XCP_ON_UDP_IP 0x0103 0x15B3 ADDRESS \"172.31.31.194\" /end XCP_ON_UDP_IP\n"
+#ifndef _WIN // Linux
+"/begin XCP_ON_UDP_IP 0x0103 5555 ADDRESS \"172.31.31.194\" /end XCP_ON_UDP_IP\n"
+#else
+"/begin XCP_ON_UDP_IP 0x0103 5555 ADDRESS \"127.0.0.1\" /end XCP_ON_UDP_IP\n"
+#endif
 "/end IF_DATA\n"
 ;
 

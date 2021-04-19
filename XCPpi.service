@@ -1,0 +1,16 @@
+[Unit]
+Description=XCPlite
+After=network.target
+
+[Service]
+ExecStartPre=gpio export 17 out
+ExecStart=/home/pi/projects/XCPpi/bin/ARM/Debug/XCPpi.out
+WorkingDirectory=/home/pi
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=XCPpi
+Restart=no
+User=pi
+
+[Install]
+WantedBy=multi-user.target

@@ -82,10 +82,10 @@ extern "C" {
 #define XCP_SLAVE_IP "172.31.31.194"  // IP is hardcode yet, should be improved in future versions
 
 // XCP slave device and A2L file identification (optional)
-#define kXcpSlaveIdLength 5    /* Slave device identification length */
-#define kXcpSlaveIdString "XCPpi"  /* Slave device identification */
-#define kXcpA2LFilenameLength 9    /* Length of A2L filename */
-#define kXcpA2LFilenameString "XCPpi.A2L"  /* A2L filename */
+#define kXcpSlaveIdLength 7    /* Slave device identification length */
+#define kXcpSlaveIdString "XCPlite"  /* Slave device identification */
+#define kXcpA2LFilenameLength 11    /* Length of A2L filename */
+#define kXcpA2LFilenameString "XCPlite.A2L"  /* A2L filename */
 
 // The following parameters are dependant on the amount of measurement signals supported, they have significant impact on memory consumption
 #define XCP_DAQ_QUEUE_SIZE 64   // Transmit queue size in DAQ UDP packets (MTU=1400), should at least be able to hold all data produced by the largest event
