@@ -1,3 +1,19 @@
+[FILE_INFO]
+Identification=CANape-Configuration-File
+FileName=XCPlite.cna
+FileNameAbsolute=D:\USR\RaspberryPi\XCPlite\XCPlite\XCPlite.cna
+WorkingDirectory=D:\USR\RaspberryPi\XCPlite\XCPlite
+ProjectId=07e4-0009-0006-0016-001c-0015-0000
+FileVersion=1200
+PrgVersion=Version 19.0.10.111
+PrgDate=19.03.2021
+Description=
+CreationTime=23:25
+CreationDate=04/18/2021 ; Month/Day/Year
+ModificationTime=23:40
+ModificationDate=04/19/2021 ; Month/Day/Year
+Protected=0
+
 [ANALYSISPROFILE_MDF_LIST]
 Count=1
 
@@ -5,7 +21,7 @@ Count=1
 Count=0
 
 [CALIBRATION_LIST]
-Count=12
+Count=11
 
 [CALIBRATION_OBJECT_1]
 EditOffset=5
@@ -19,20 +35,6 @@ StimMode=0
 IsFallback=0
 
 [CALIBRATION_OBJECT_10]
-EditOffset=1
-EditFactor=2
-EditFormat=2
-ShowWorkingPoint=0
-FollowWorkingPoint=0
-Module=XCPpi
-Name=map1_8_8
-Array=1
-Rows=8
-Columns=8
-StimMode=0
-IsFallback=0
-
-[CALIBRATION_OBJECT_11]
 EditOffset=10
 EditFactor=2
 EditFormat=2
@@ -43,7 +45,7 @@ Name=offset
 StimMode=0
 IsFallback=0
 
-[CALIBRATION_OBJECT_12]
+[CALIBRATION_OBJECT_11]
 EditOffset=1
 EditFactor=2
 EditFormat=2
@@ -86,23 +88,23 @@ EditFormat=2
 ShowWorkingPoint=0
 FollowWorkingPoint=0
 Module=XCPpi
-Name=gCmdCycle
+Name=gFlushCycle
 StimMode=0
 IsFallback=0
 
 [CALIBRATION_OBJECT_5]
-EditOffset=10000
+EditOffset=1
 EditFactor=2
 EditFormat=2
 ShowWorkingPoint=0
 FollowWorkingPoint=0
 Module=XCPpi
-Name=gFlushCycle
+Name=gServerWaitTimeout
 StimMode=0
 IsFallback=0
 
 [CALIBRATION_OBJECT_6]
-EditOffset=100000
+EditOffset=100
 EditFactor=2
 EditFormat=2
 ShowWorkingPoint=0
@@ -113,7 +115,7 @@ StimMode=0
 IsFallback=0
 
 [CALIBRATION_OBJECT_7]
-EditOffset=100000
+EditOffset=100
 EditFactor=2
 EditFormat=2
 ShowWorkingPoint=0
@@ -124,24 +126,27 @@ StimMode=0
 IsFallback=0
 
 [CALIBRATION_OBJECT_8]
-EditOffset=100000
+EditOffset=1
 EditFactor=2
 EditFormat=2
 ShowWorkingPoint=0
 FollowWorkingPoint=0
 Module=XCPpi
-Name=gTaskCycleTimerServer
+Name=gXcpDebugLevel
 StimMode=0
 IsFallback=0
 
 [CALIBRATION_OBJECT_9]
-EditOffset=100
+EditOffset=1
 EditFactor=2
 EditFormat=2
 ShowWorkingPoint=0
 FollowWorkingPoint=0
 Module=XCPpi
-Name=gTransmitCycle
+Name=map1_8_8
+Array=1
+Rows=8
+Columns=8
 StimMode=0
 IsFallback=0
 
@@ -183,7 +188,7 @@ Count=0
 Name=XCPlite
 Comment=
 Maximized=0
-ActiveWindow=11
+ActiveWindow=1
 IsReportPage=0
 TimeAxisSynchronized=0
 PrintLayout=Default
@@ -221,22 +226,6 @@ Count=0
 5="Comment",""
 Count=5
 
-[FILE_INFO]
-Identification=CANape-Configuration-File
-FileName=XCPlite.cna
-FileNameAbsolute=D:\USR\RaspberryPi\XCPlite\XCPlite\XCPlite.cna
-WorkingDirectory=D:\USR\RaspberryPi\XCPlite\XCPlite
-ProjectId=07e4-0009-0006-0016-001c-0015-0000
-FileVersion=1200
-PrgVersion=Version 19.0.10.111
-PrgDate=19.03.2021
-Description=
-CreationTime=23:25
-CreationDate=04/18/2021 ; Month/Day/Year
-ModificationTime=23:25
-ModificationDate=04/18/2021 ; Month/Day/Year
-Protected=0
-
 [FUNCTION_1]
 NAME=Dt
 COMMENT=
@@ -258,7 +247,7 @@ Unit=s
 DataType=2
 Precision=-1
 ObjectType=1
-Number=2
+Number=3
 TextFormula=Dt
 NumberOfInputSignals=1
 Formula=10
@@ -384,7 +373,7 @@ SubConfigsCount=0
 Count=0
 
 [MEASUREMENT_LIST]
-Count=23
+Count=24
 OfflineFileCount=0
 MeaCfgLabellistName=
 
@@ -392,7 +381,7 @@ MeaCfgLabellistName=
 Module=XCPpi
 Name=channel1
 Mode=2147483649
-Rate=1
+Rate=2
 Disabled=0
 Row=0
 Column=0
@@ -404,10 +393,10 @@ DisplayCount=1
 
 [MEASUREMENT_OBJECT_10]
 Module=XCPpi
-Name=byteArray7
+Name=byteArray6
 Mode=2147483649
-Rate=1
-Disabled=0
+Rate=2
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -424,10 +413,10 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_11]
 Module=XCPpi
-Name=byteArray8
+Name=byteArray7
 Mode=2147483649
-Rate=1
-Disabled=0
+Rate=2
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -444,10 +433,10 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_12]
 Module=XCPpi
-Name=byteArray9
+Name=byteArray8
 Mode=2147483649
-Rate=1
-Disabled=0
+Rate=2
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -464,10 +453,10 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_13]
 Module=XCPpi
-Name=byteArray10
+Name=byteArray9
 Mode=2147483649
-Rate=1
-Disabled=0
+Rate=2
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -484,10 +473,10 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_14]
 Module=XCPpi
-Name=byteArray11
+Name=byteArray10
 Mode=2147483649
-Rate=1
-Disabled=0
+Rate=2
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -504,10 +493,10 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_15]
 Module=XCPpi
-Name=byteArray12
+Name=byteArray11
 Mode=2147483649
-Rate=1
-Disabled=0
+Rate=2
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -524,10 +513,10 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_16]
 Module=XCPpi
-Name=byteArray13
+Name=byteArray12
 Mode=2147483649
-Rate=1
-Disabled=0
+Rate=2
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -544,10 +533,10 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_17]
 Module=XCPpi
-Name=byteArray14
+Name=byteArray13
 Mode=2147483649
-Rate=1
-Disabled=0
+Rate=2
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -564,10 +553,10 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_18]
 Module=XCPpi
-Name=byteArray15
+Name=byteArray14
 Mode=2147483649
-Rate=1
-Disabled=0
+Rate=2
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -584,10 +573,10 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_19]
 Module=XCPpi
-Name=byteArray16
+Name=byteArray15
 Mode=2147483649
-Rate=1
-Disabled=0
+Rate=2
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -604,7 +593,7 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_1_DISPLAY_1]
 Window=3
-Index=1
+Index=2
 Color=255
 ColorFunction=0
 ColorFunctionScope=1
@@ -613,6 +602,162 @@ YMinHome=-50
 YMaxHome=50
 YMin=-50
 YMax=50
+XOffsetNS=0
+XOffset=0
+ValueFormat=3
+BitMask=1
+ShowYAxis=1
+Width=10
+LineStyle=1
+MarkerType=1
+LineWidth=1
+Precision=-2
+Digits=6
+Enabled=1
+StoredFocused=0
+SublMask=1
+MeaSublMask=3
+LockScaling=0
+RightAxis=0
+MapMode=2
+OverlayGridColor=0
+ShadingMode=3
+EditOffset=1
+EditFactor=2
+WAxisLabel=
+XAxisLabel=
+YAxisLabel=
+AxisCaption=
+Row=0
+Col=0
+YAxis_ID=0
+AxisTemplate=
+
+[MEASUREMENT_OBJECT_2]
+Module=XCPpi
+Name=channel1p[0]
+Mode=2147483653
+Rate=2
+Disabled=0
+Row=0
+Column=0
+MeaReferenced=1
+ArchivBy_1=Rekorder
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=1
+
+[MEASUREMENT_OBJECT_20]
+Module=XCPpi
+Name=byteArray16
+Mode=2147483649
+Rate=2
+Disabled=1
+Row=0
+Column=0
+MeaReferenced=1
+MeasureWorkingPoint=0
+ShowWorkingPoint=0
+FollowWorkingPoint=0
+Array=1
+Rows=1
+Columns=1400
+ArchivBy_1=Rekorder
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=0
+
+[MEASUREMENT_OBJECT_21]
+Module=XCPpi
+Name=longArray1
+Mode=2147483649
+Rate=2
+Disabled=1
+Row=0
+Column=0
+MeaReferenced=1
+MeasureWorkingPoint=0
+ShowWorkingPoint=0
+FollowWorkingPoint=0
+Array=1
+Rows=1
+Columns=1024
+ArchivBy_1=Rekorder
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=0
+
+[MEASUREMENT_OBJECT_22]
+Module=XCPpi
+Name=longArray2
+Mode=2147483649
+Rate=2
+Disabled=1
+Row=0
+Column=0
+MeaReferenced=1
+MeasureWorkingPoint=0
+ShowWorkingPoint=0
+FollowWorkingPoint=0
+Array=1
+Rows=1
+Columns=1024
+ArchivBy_1=Rekorder
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=0
+
+[MEASUREMENT_OBJECT_23]
+Module=XCPpi
+Name=longArray3
+Mode=2147483649
+Rate=2
+Disabled=1
+Row=0
+Column=0
+MeaReferenced=1
+MeasureWorkingPoint=0
+ShowWorkingPoint=0
+FollowWorkingPoint=0
+Array=1
+Rows=1
+Columns=1024
+ArchivBy_1=Rekorder
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=0
+
+[MEASUREMENT_OBJECT_24]
+Module=XCPpi
+Name=longArray4
+Mode=2147483649
+Rate=2
+Disabled=1
+Row=0
+Column=0
+MeaReferenced=1
+MeasureWorkingPoint=0
+ShowWorkingPoint=0
+FollowWorkingPoint=0
+Array=1
+Rows=1
+Columns=1024
+ArchivBy_1=Rekorder
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=0
+
+[MEASUREMENT_OBJECT_2_DISPLAY_1]
+Window=3
+Index=0
+Color=65535
+ColorFunction=0
+ColorFunctionScope=1
+LineTyp=2
+YMinHome=-1e+12
+YMaxHome=1e+12
+YMin=-1e+12
+YMax=1e+12
 XOffsetNS=0
 XOffset=0
 ValueFormat=3
@@ -644,11 +789,11 @@ Col=0
 YAxis_ID=0
 AxisTemplate=
 
-[MEASUREMENT_OBJECT_2]
+[MEASUREMENT_OBJECT_3]
 Module=XCPpi
 Name=ecuCounter
 Mode=2147483649
-Rate=1
+Rate=2
 Disabled=0
 Row=0
 Column=0
@@ -658,89 +803,9 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_20]
-Module=XCPpi
-Name=longArray1
-Mode=2147483649
-Rate=1
-Disabled=0
-Row=0
-Column=0
-MeaReferenced=1
-MeasureWorkingPoint=0
-ShowWorkingPoint=0
-FollowWorkingPoint=0
-Array=1
-Rows=1
-Columns=1024
-ArchivBy_1=Rekorder
-IsFallback=0
-HasManagedDisplay=0
-DisplayCount=0
-
-[MEASUREMENT_OBJECT_21]
-Module=XCPpi
-Name=longArray2
-Mode=2147483649
-Rate=1
-Disabled=0
-Row=0
-Column=0
-MeaReferenced=1
-MeasureWorkingPoint=0
-ShowWorkingPoint=0
-FollowWorkingPoint=0
-Array=1
-Rows=1
-Columns=1024
-ArchivBy_1=Rekorder
-IsFallback=0
-HasManagedDisplay=0
-DisplayCount=0
-
-[MEASUREMENT_OBJECT_22]
-Module=XCPpi
-Name=longArray3
-Mode=2147483649
-Rate=1
-Disabled=0
-Row=0
-Column=0
-MeaReferenced=1
-MeasureWorkingPoint=0
-ShowWorkingPoint=0
-FollowWorkingPoint=0
-Array=1
-Rows=1
-Columns=1024
-ArchivBy_1=Rekorder
-IsFallback=0
-HasManagedDisplay=0
-DisplayCount=0
-
-[MEASUREMENT_OBJECT_23]
-Module=XCPpi
-Name=longArray4
-Mode=2147483649
-Rate=1
-Disabled=0
-Row=0
-Column=0
-MeaReferenced=1
-MeasureWorkingPoint=0
-ShowWorkingPoint=0
-FollowWorkingPoint=0
-Array=1
-Rows=1
-Columns=1024
-ArchivBy_1=Rekorder
-IsFallback=0
-HasManagedDisplay=0
-DisplayCount=0
-
-[MEASUREMENT_OBJECT_2_DISPLAY_1]
+[MEASUREMENT_OBJECT_3_DISPLAY_1]
 Window=3
-Index=2
+Index=3
 Color=16776960
 ColorFunction=0
 ColorFunctionScope=1
@@ -780,12 +845,12 @@ Col=0
 YAxis_ID=0
 AxisTemplate=
 
-[MEASUREMENT_OBJECT_3]
+[MEASUREMENT_OBJECT_4]
 Components=3
 Module=XCPpi
 Name=$activeEcuTask$
 Mode=2147483652
-Rate=1
+Rate=0
 Disabled=0
 Row=0
 Column=0
@@ -795,14 +860,14 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=0
 
-[MEASUREMENT_OBJECT_3_CO1]
+[MEASUREMENT_OBJECT_4_CO1]
 Name=$activeEcuTask$activeEcuTask.channel1
 IsFallback=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_3_CO1_DISPLAY_1]
+[MEASUREMENT_OBJECT_4_CO1_DISPLAY_1]
 Window=3
-Index=0
+Index=1
 Color=65280
 ColorFunction=0
 ColorFunctionScope=1
@@ -822,7 +887,7 @@ MarkerType=1
 LineWidth=1
 Precision=-2
 Digits=6
-Enabled=0
+Enabled=1
 StoredFocused=0
 SublMask=1
 MeaSublMask=3
@@ -842,12 +907,12 @@ Col=0
 YAxis_ID=0
 AxisTemplate=
 
-[MEASUREMENT_OBJECT_3_CO2]
+[MEASUREMENT_OBJECT_4_CO2]
 Name=$activeEcuTask$activeEcuTask.counter
 IsFallback=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_3_CO2_DISPLAY_1]
+[MEASUREMENT_OBJECT_4_CO2_DISPLAY_1]
 Window=10
 Index=1
 Color=65280
@@ -889,12 +954,12 @@ Col=0
 YAxis_ID=0
 AxisTemplate=
 
-[MEASUREMENT_OBJECT_3_CO3]
+[MEASUREMENT_OBJECT_4_CO3]
 Name=$activeEcuTask$activeEcuTask.taskId
 IsFallback=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_3_CO3_DISPLAY_1]
+[MEASUREMENT_OBJECT_4_CO3_DISPLAY_1]
 Window=10
 Index=0
 Color=255
@@ -936,32 +1001,12 @@ Col=0
 YAxis_ID=0
 AxisTemplate=
 
-[MEASUREMENT_OBJECT_4]
+[MEASUREMENT_OBJECT_5]
 Module=XCPpi
 Name=byteArray1
 Mode=2147483649
-Rate=1
-Disabled=0
-Row=0
-Column=0
-MeaReferenced=1
-MeasureWorkingPoint=0
-ShowWorkingPoint=0
-FollowWorkingPoint=0
-Array=1
-Rows=1
-Columns=1400
-ArchivBy_1=Rekorder
-IsFallback=0
-HasManagedDisplay=0
-DisplayCount=0
-
-[MEASUREMENT_OBJECT_5]
-Module=XCPpi
-Name=byteArray2
-Mode=2147483649
-Rate=1
-Disabled=0
+Rate=2
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -978,10 +1023,10 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_6]
 Module=XCPpi
-Name=byteArray3
+Name=byteArray2
 Mode=2147483649
-Rate=1
-Disabled=0
+Rate=2
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -998,10 +1043,10 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_7]
 Module=XCPpi
-Name=byteArray4
+Name=byteArray3
 Mode=2147483649
-Rate=1
-Disabled=0
+Rate=2
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -1018,10 +1063,10 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_8]
 Module=XCPpi
-Name=byteArray5
+Name=byteArray4
 Mode=2147483649
-Rate=1
-Disabled=0
+Rate=2
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -1038,10 +1083,10 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_9]
 Module=XCPpi
-Name=byteArray6
+Name=byteArray5
 Mode=2147483649
-Rate=1
-Disabled=0
+Rate=2
+Disabled=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -1133,9 +1178,9 @@ WindowSymbols=1
 GlobalCursor=0
 GlobalCursorTime=0
 GlobalTimeAxis=1
-GlobalTimeAxisStartTime=0
-GlobalTimeAxisEndTime=4410060174
-MainWindowPos=1, 94, 368, 2555, 1602 ;cmd, x, y, w, h
+GlobalTimeAxisStartTime=3907248177
+GlobalTimeAxisEndTime=3965967783
+MainWindowPos=1, 9, 13, 2580, 1626 ;cmd, x, y, w, h
 
 [PAR_COMMENT]
 1="Name",""
@@ -1319,10 +1364,20 @@ Count=0
 [SIGNSELWND]
 FocusID=2004
 ActiveTab=0
-FilterNodeID=Alle
+FilterNodeID=Alle\Messliste
 TreeExpand_0=@Alle
-TreeExpand_1=$Alle\Geräte
-TreeExpand_2=#Alle\Geräte
+TreeExpand_1=Alle\Geräte
+TreeExpand_2=Alle\Geräte\XCPpi
+TreeExpand_3=Alle\Geräte\XCPpi\XCPpi_autodetect.a2l
+TreeExpand_4=Alle\Messliste\XCPpi
+TreeExpand_5=$Alle\Geräte
+TreeExpand_6=#Alle\Geräte
+TreeExpand_7=@Alle\Geräte
+TreeExpand_8=$Alle\Geräte\Environment
+TreeExpand_9=#
+TreeExpand_10=@Alle\Messliste
+TreeExpand_11=$Alle\Messliste\Alle Signale
+TreeExpand_12=#Alle\Messliste\XCPpi\channel1p[0]
 TextSearchCaseSensitive=0
 TextSearchUseMode=1
 TextSearchSearchFullText=1
@@ -1351,10 +1406,10 @@ Type=128
 Comment=Write-Fenster
 Number=1
 ScreenDPIinSection=144
-Position=0, 12, 1015, 1279, 298 ;cmd, x, y, w, h
-Position_dpi96=0, 8, 677, 853, 199 ;cmd, x, y, w, h
-Position_Page01=0, 12, 1015, 1279, 298 ;cmd, x, y, w, h
-Position_Page01_dpi96=0, 8, 677, 853, 199 ;cmd, x, y, w, h
+Position=0, 12, 999, 1279, 298 ;cmd, x, y, w, h
+Position_dpi96=0, 8, 666, 853, 199 ;cmd, x, y, w, h
+Position_Page01=0, 12, 999, 1279, 298 ;cmd, x, y, w, h
+Position_Page01_dpi96=0, 8, 666, 853, 199 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
 DisplayMask=1 ; pages 1
@@ -1373,17 +1428,17 @@ DotLineProp=0.3
 ShowActivity=0
 ExceedLimitWarning=0
 LegendScrollPos=0
-DotLinePos=115
+DotLinePos=98
 ObjectCount=0
 Title=Numeric {DISPLAYED_FILENAME}
 Type=4
 Comment=Ziffern-Fenster
 Number=10
 ScreenDPIinSection=144
-Position=0, 682, 133, 607, 232 ;cmd, x, y, w, h
-Position_dpi96=0, 455, 89, 405, 155 ;cmd, x, y, w, h
-Position_Page01=0, 682, 133, 607, 232 ;cmd, x, y, w, h
-Position_Page01_dpi96=0, 455, 89, 405, 155 ;cmd, x, y, w, h
+Position=0, 739, 117, 550, 211 ;cmd, x, y, w, h
+Position_dpi96=0, 493, 78, 367, 141 ;cmd, x, y, w, h
+Position_Page01=0, 739, 117, 550, 211 ;cmd, x, y, w, h
+Position_Page01_dpi96=0, 493, 78, 367, 141 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
 LEGEND_HSCROLL_POS=0
@@ -1403,18 +1458,18 @@ Type=65536
 Comment=Multi-View-Fenster
 Number=2
 ScreenDPIinSection=144
-Position=0, 12, 412, 1279, 588 ;cmd, x, y, w, h
-Position_dpi96=0, 8, 275, 853, 392 ;cmd, x, y, w, h
-Position_Page01=0, 12, 412, 1279, 588 ;cmd, x, y, w, h
-Position_Page01_dpi96=0, 8, 275, 853, 392 ;cmd, x, y, w, h
+Position=0, 12, 382, 1279, 601 ;cmd, x, y, w, h
+Position_dpi96=0, 8, 255, 853, 401 ;cmd, x, y, w, h
+Position_Page01=0, 12, 382, 1279, 601 ;cmd, x, y, w, h
+Position_Page01_dpi96=0, 8, 255, 853, 401 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
 DisplayMask=1 ; pages 1
 
 [WINDOW_3]
-XLen=40604
-XMin=0
-XMax=4410
+XLen=32216
+XMin=3907
+XMax=3965
 Grid=1
 Mark=1
 YValue=1
@@ -1447,8 +1502,8 @@ YAxisDynScaleEnabled=0
 YAxisDynScaleEnlarge=25
 TimeStickToZero=0
 XYModeRedrawEnabled=0
-MARKER_TIME_1=117493172527
-MARKER_TIME_2=4995538268
+MARKER_TIME_1=11066514500
+MARKER_TIME_2=11068524500
 OscilloscopeEnabled=0
 OsciEventCount=0
 EventCompareModeEnabled=0
@@ -1481,9 +1536,9 @@ COL_1=1048578, 132
 COL_1_dpi96=1048578, 88
 
 [WINDOW_4]
-XLen=40604
-XMin=0
-XMax=4410
+XLen=32216
+XMin=3907
+XMax=3965
 Grid=1
 Mark=1
 YValue=1
@@ -1516,8 +1571,8 @@ YAxisDynScaleEnabled=0
 YAxisDynScaleEnlarge=25
 TimeStickToZero=0
 XYModeRedrawEnabled=0
-MARKER_TIME_1=117493172527
-MARKER_TIME_2=4995538268
+MARKER_TIME_1=11066514500
+MARKER_TIME_2=11068524500
 OscilloscopeEnabled=0
 OsciEventCount=0
 EventCompareModeEnabled=0
@@ -1563,17 +1618,17 @@ DotLineProp=0.3
 ShowActivity=0
 ExceedLimitWarning=0
 LegendScrollPos=0
-DotLinePos=116
+DotLinePos=99
 ObjectCount=0
 Title=Numerisch {DISPLAYED_FILENAME}
 Type=4
 Comment=Ziffern-Fenster
 Number=5
 ScreenDPIinSection=144
-Position=0, 682, 16, 607, 108 ;cmd, x, y, w, h
-Position_dpi96=0, 455, 11, 405, 72 ;cmd, x, y, w, h
-Position_Page01=0, 682, 16, 607, 108 ;cmd, x, y, w, h
-Position_Page01_dpi96=0, 455, 11, 405, 72 ;cmd, x, y, w, h
+Position=0, 739, 7, 550, 87 ;cmd, x, y, w, h
+Position_dpi96=0, 493, 5, 367, 58 ;cmd, x, y, w, h
+Position_Page01=0, 739, 7, 550, 87 ;cmd, x, y, w, h
+Position_Page01_dpi96=0, 493, 5, 367, 58 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
 LEGEND_HSCROLL_POS=0
@@ -1592,10 +1647,10 @@ Type=16
 Comment=Kennfeld-/Kennlinien-Fenster
 Number=6
 ScreenDPIinSection=144
-Position=0, 1309, 559, 877, 585 ;cmd, x, y, w, h
-Position_dpi96=0, 873, 373, 585, 390 ;cmd, x, y, w, h
-Position_Page01=0, 1309, 559, 877, 585 ;cmd, x, y, w, h
-Position_Page01_dpi96=0, 873, 373, 585, 390 ;cmd, x, y, w, h
+Position=0, 1309, 543, 877, 585 ;cmd, x, y, w, h
+Position_dpi96=0, 873, 362, 585, 390 ;cmd, x, y, w, h
+Position_Page01=0, 1309, 543, 877, 585 ;cmd, x, y, w, h
+Position_Page01_dpi96=0, 873, 362, 585, 390 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
 2DCutSplitFactor=0.5
@@ -1720,10 +1775,10 @@ Type=16
 Comment=Kennfeld-/Kennlinien-Fenster
 Number=7
 ScreenDPIinSection=144
-Position=0, 1309, 16, 877, 528 ;cmd, x, y, w, h
-Position_dpi96=0, 873, 11, 585, 352 ;cmd, x, y, w, h
-Position_Page01=0, 1309, 16, 877, 528 ;cmd, x, y, w, h
-Position_Page01_dpi96=0, 873, 11, 585, 352 ;cmd, x, y, w, h
+Position=0, 1309, 15, 877, 528 ;cmd, x, y, w, h
+Position_dpi96=0, 873, 10, 585, 352 ;cmd, x, y, w, h
+Position_Page01=0, 1309, 15, 877, 528 ;cmd, x, y, w, h
+Position_Page01_dpi96=0, 873, 10, 585, 352 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
 2DCutSplitFactor=0.5
@@ -1847,7 +1902,7 @@ ProgID=CNPTRACE.TraceCtrl.1
 PROPERTIES_COUNT=21
 PROPERTY_1=DeviceItems={"CaptureEvents":"1","ShowEvents":"1","NodeCount":"2","Node0":{"DeviceName":"Analog","CaptureEvents":"0","ShowEvents":"0","NodeCount":"3","Node0":{"Channel":"2","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node1":{"Channel":"3","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node2":{"Channel":"4","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"}},"Node1":{"DeviceName":"XCPpi","CaptureEvents":"1","ShowEvents":"1","NodeCount":"3","Node0":{"Channel":"2","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node1":{"Channel":"3","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node2":{"Channel":"4","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"}}}
 PROPERTY_2=NetworkItems={"Items":"0"}
-PROPERTY_3=ColumnConfigs={"ConfigCount":"2","Config0":{"Layout":"1","Name":"Initial","Column0":{"Width":"158","Position":"0","Name":"Time","IsDefaultName":"1"},"Column1":{"Width":"137","Position":"1","Name":"Channel","IsDefaultName":"1"},"Column2":{"Width":"45","Position":"2","Name":"ID","IsDefaultName":"1"},"Column3":{"Width":"121","Position":"3","Name":"Name","IsDefaultName":"1"},"Column5":{"Width":"45","Position":"5","Name":"Dir","IsDefaultName":"1"},"Column6":{"Width":"75","Position":"6","Name":"Length","IsDefaultName":"1"},"Column7":{"Width":"606","Position":"8","Name":"Data","IsDefaultName":"1"},"Column16":{"Width":"113","Position":"4","Name":"Type","IsDefaultName":"1"},"Column52":{"Width":"1554","Position":"7","Name":"Interpretation","IsDefaultName":"1"}},"Config1":{"Layout":"25","Name":"XCP\/CCP Layout 1","Column0":{"Width":"195","Position":"0","Name":"Time","IsDefaultName":"1"},"Column1":{"Width":"180","Position":"1","Name":"Channel","IsDefaultName":"1"},"Column2":{"Width":"75","Position":"2","Name":"ID","IsDefaultName":"1"},"Column3":{"Width":"75","Position":"3","Name":"Name","IsDefaultName":"1"},"Column5":{"Width":"54","Position":"4","Name":"Dir","IsDefaultName":"1"},"Column6":{"Width":"66","Position":"7","Name":"Length","IsDefaultName":"1"},"Column7":{"Width":"228","Position":"6","Name":"Data","IsDefaultName":"1"},"Column16":{"Width":"106","Position":"9","Name":"Packet Type","IsDefaultName":"1"},"Column52":{"Width":"659","Position":"5","Name":"Interpretation","IsDefaultName":"1"},"Column79":{"Width":"66","Position":"8","Name":"Source","IsDefaultName":"1"}},"Active":"1"}
+PROPERTY_3=ColumnConfigs={"ConfigCount":"2","Config0":{"Layout":"1","Name":"Initial","Column0":{"Width":"158","Position":"0","Name":"Time","IsDefaultName":"1"},"Column1":{"Width":"137","Position":"1","Name":"Channel","IsDefaultName":"1"},"Column2":{"Width":"45","Position":"2","Name":"ID","IsDefaultName":"1"},"Column3":{"Width":"121","Position":"3","Name":"Name","IsDefaultName":"1"},"Column5":{"Width":"45","Position":"5","Name":"Dir","IsDefaultName":"1"},"Column6":{"Width":"75","Position":"6","Name":"Length","IsDefaultName":"1"},"Column7":{"Width":"606","Position":"8","Name":"Data","IsDefaultName":"1"},"Column16":{"Width":"113","Position":"4","Name":"Type","IsDefaultName":"1"},"Column52":{"Width":"1554","Position":"7","Name":"Interpretation","IsDefaultName":"1"}},"Config1":{"Layout":"25","Name":"XCP\/CCP Layout 1","Column0":{"Width":"195","Position":"0","Name":"Time","IsDefaultName":"1"},"Column1":{"Width":"180","Position":"1","Name":"Channel","IsDefaultName":"1"},"Column2":{"Width":"75","Position":"2","Name":"ID","IsDefaultName":"1"},"Column3":{"Width":"75","Position":"3","Name":"Name","IsDefaultName":"1"},"Column5":{"Width":"54","Position":"4","Name":"Dir","IsDefaultName":"1"},"Column6":{"Width":"66","Position":"7","Name":"Length","IsDefaultName":"1"},"Column7":{"Width":"312","Position":"6","Name":"Data","IsDefaultName":"1"},"Column16":{"Width":"106","Position":"9","Name":"Packet Type","IsDefaultName":"1"},"Column52":{"Width":"659","Position":"5","Name":"Interpretation","IsDefaultName":"1"},"Column79":{"Width":"66","Position":"8","Name":"Source","IsDefaultName":"1"}},"Active":"1"}
 PROPERTY_4=PinningEvents={"EventCount":"0"}
 PROPERTY_5=ExpandedEvents={"EventCount":"0"}
 PROPERTY_6=AnalysisGroups={"GroupCount":"1","Group0":{"Enabled":"1","Expanded":"1","Name":"Filtergruppe 0","FilterCount":"2","Filter0":{"Stop":"1","Enabled":"1","ConditionCount":"0"},"Filter1":{"Stop":"0","Enabled":"0","ConditionCount":"0"}}}
@@ -1877,7 +1932,7 @@ Column_2=257, 75
 Column_3=4, 75
 Column_4=1, 54
 Column_5=513, 659
-Column_6=3, 228
+Column_6=3, 312
 Column_7=2, 66
 Column_8=5, 66
 Column_9=1281, 106
@@ -1914,23 +1969,23 @@ DISPLAY_ID_00=31
 DISPLAY_WIDTH_00=236
 DISPLAY_WIDTH_00_dpi96=157
 DISPLAY_ID_01=65608
-DISPLAY_WIDTH_01=125
-DISPLAY_WIDTH_01_dpi96=83
+DISPLAY_WIDTH_01=123
+DISPLAY_WIDTH_01_dpi96=82
 DISPLAY_ID_02=3
-DISPLAY_WIDTH_02=284
-DISPLAY_WIDTH_02_dpi96=189
-ColumnWidth=236 125 -150 284
+DISPLAY_WIDTH_02=342
+DISPLAY_WIDTH_02_dpi96=228
+ColumnWidth=236 123 -150 342
 Group=0
 Sorted=0
-ObjectCount=10
+ObjectCount=9
 Title=Parameter
 Type=8
 Comment=Parameter-Fenster
 Number=9
-Position=0, 12, 16, 652, 385 ;cmd, x, y, w, h
-Position_dpi96=0, 8, 11, 435, 257 ;cmd, x, y, w, h
-Position_Page01=0, 12, 16, 652, 385 ;cmd, x, y, w, h
-Position_Page01_dpi96=0, 8, 11, 435, 257 ;cmd, x, y, w, h
+Position=0, 12, 7, 712, 373 ;cmd, x, y, w, h
+Position_dpi96=0, 8, 5, 475, 249 ;cmd, x, y, w, h
+Position_Page01=0, 12, 7, 712, 373 ;cmd, x, y, w, h
+Position_Page01_dpi96=0, 8, 5, 475, 249 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
 DisplayMask=1 ; pages 1
@@ -1949,51 +2004,6 @@ YMinHome=0
 YMaxHome=100
 YMin=0
 YMax=1
-XOffsetNS=0
-XOffset=0
-ValueFormat=3
-BitMask=1
-ShowYAxis=1
-Width=10
-LineStyle=1
-MarkerType=1
-LineWidth=1
-Precision=-2
-Digits=6
-Enabled=1
-StoredFocused=0
-SublMask=0
-MeaSublMask=0
-LockScaling=0
-RightAxis=0
-MapMode=2
-OverlayGridColor=0
-ShadingMode=3
-EditOffset=1
-EditFactor=2
-WAxisLabel=
-XAxisLabel=
-YAxisLabel=
-AxisCaption=
-Row=0
-Col=0
-YAxis_ID=0
-AxisTemplate=
-
-[WINDOW_9_OBJECT_10]
-Type=2
-Name=gCmdCycle
-Module=XCPpi
-Window=9
-Index=9
-Color=0
-ColorFunction=0
-ColorFunctionScope=1
-LineTyp=2
-YMinHome=0
-YMaxHome=100
-YMin=0
-YMax=100
 XOffsetNS=0
 XOffset=0
 ValueFormat=3
@@ -2252,7 +2262,7 @@ AxisTemplate=
 
 [WINDOW_9_OBJECT_7]
 Type=2
-Name=gTransmitCycle
+Name=gFlushCycle
 Module=XCPpi
 Window=9
 Index=6
@@ -2297,7 +2307,7 @@ AxisTemplate=
 
 [WINDOW_9_OBJECT_8]
 Type=2
-Name=gTaskCycleTimerServer
+Name=gServerWaitTimeout
 Module=XCPpi
 Window=9
 Index=7
@@ -2342,7 +2352,7 @@ AxisTemplate=
 
 [WINDOW_9_OBJECT_9]
 Type=2
-Name=gFlushCycle
+Name=gXcpDebugLevel
 Module=XCPpi
 Window=9
 Index=8

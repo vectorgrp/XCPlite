@@ -37,6 +37,9 @@ static unsigned int dto_queue_len; // rp+len = write index (the next free entry)
 static tXcpDtoBuffer* dto_buffer_ptr; // current incomplete or not fully commited entry
 #endif
 
+#ifdef _WIN
+static HANDLE gEvent = 0;
+#endif
 
 // Transmit a UDP datagramm (contains multiple XCP messages)
 // Must be thread safe
@@ -473,6 +476,11 @@ int udpServerInit(unsigned short serverPort)
     return 1;
 }
 
+// Wait for io or timeout after <timeout> ns
+void udpServerWaitForEvent(vuint32 timeout_us) {
+    ApplXcpSleepNs(timeout*1000UL);
+}
+
 void udpServerShutdown(void) {
 
     DESTROY();
@@ -511,21 +519,13 @@ int udpServerInit(unsigned short serverPort)
         return 0;
     }
 
-    // Sets the timeout, in milliseconds, for non blocking receive calls
-    /*
-    struct timeval read_timeout;
-    read_timeout.tv_sec = 0;
-    read_timeout.tv_usec = 1000;
-    setsockopt(gXcpTl.Sock, SOL_SOCKET, SO_RCVTIMEO, &read_timeout, sizeof(read_timeout));
-    */
-
+    // Set socket to non blocking receive 
     unsigned long mode = 1;
     if (NO_ERROR != ioctlsocket(gXcpTl.Sock, FIONBIO, &mode)) {
         printf("error: could not set non blocking mode!\n");
         WSACleanup();
         return 0;
     }
-
 
     // Bind the socket to any address and the specified port
     gXcpTl.ServerAddr.sin_family = AF_INET;
@@ -537,7 +537,20 @@ int udpServerInit(unsigned short serverPort)
         return 0;
     }
 
+    // Create an event triggered by receive and send activities
+    gEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+    WSAEventSelect(gXcpTl.Sock, gEvent, FD_READ | FD_WRITE);
+
     return 1;
+}
+
+// Wait for io or timeout after <timeout> us
+void udpServerWaitForEvent(unsigned int timeout_us) {
+
+    HANDLE event_array[1];
+    event_array[0] = gEvent;
+    if (WaitForMultipleObjects(1, event_array, FALSE, 1 /* ms */) == WAIT_TIMEOUT) {
+    }
 }
 
 void udpServerShutdown(void) {

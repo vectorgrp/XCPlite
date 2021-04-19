@@ -14,7 +14,7 @@ extern "C" {
 extern int A2lInit(const char *filename);
 
 // Create a measurement event (must be called before A2lHeader() 
-unsigned int A2lCreateEvent(const char* name);
+unsigned int A2lCreateEvent(const char* name, unsigned int rate, unsigned int sampleCount);
 
 extern void A2lHeader(void);
 

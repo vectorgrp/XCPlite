@@ -23,6 +23,7 @@
 unsigned short ecuCounter = 0;
 double timer;
 double channel1;
+double channel1p[100];
 
 unsigned char byteArray1[1400];
 unsigned char byteArray2[1400];
@@ -93,6 +94,7 @@ void ecuInit(void) {
 
     timer = 0;
     channel1 = 0;
+    for (int i = 0; i < 100; i++) channel1p[i] = i / 100.0; // Packed mode example, 100 samples
 
     byteCounter = 0;
     wordCounter = 0;
@@ -133,6 +135,10 @@ void ecuInit(void) {
 #ifdef XCP_ENABLE_A2L
 void ecuCreateA2lDescription( void) {
       
+    A2lSetEvent(gXcpEvent_EcuCyclic_packed); // Associate XCP event "EcuCyclic" to the variables created below
+    A2lCreatePhysMeasurement(channel1p[0], "Demo triangle time series packet, 100 samples", 1.0, 0.0, "V");
+    
+    A2lSetEvent(gXcpEvent_EcuCyclic); // Associate XCP event "EcuCyclic" to the variables created below
     A2lCreateMeasurement(ecuCounter);
     A2lCreatePhysMeasurement(timer, "Time in s", 1.0, 0.0, "s");
     A2lCreatePhysMeasurement(channel1, "Demo sine wave signal", 1.0, 0.0, "V");

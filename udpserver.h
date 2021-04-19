@@ -68,6 +68,7 @@ typedef struct {
 
 extern int udpServerSendCrmPacket(const unsigned char* data, unsigned int n);
 extern int udpServerInit(unsigned short serverPort);
+extern void udpServerWaitForEvent(unsigned int timeout_us);
 extern int udpServerHandleXCPCommands(void);
 extern void udpServerShutdown(void);
 

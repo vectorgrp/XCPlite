@@ -7,6 +7,9 @@
 extern "C" {
 #endif
 
+extern unsigned int gXcpEvent_EcuCyclic;
+extern unsigned int gXcpEvent_EcuCyclic_packed;
+
 extern void ecuInit(void);
 extern void ecuCreateA2lDescription(void);
 extern void ecuCyclic(void);

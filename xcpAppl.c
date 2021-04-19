@@ -24,16 +24,20 @@
 
 // Parameters
 static unsigned short gSocketPort = 5555; // UDP port
-static unsigned int gFlushCycle = 100 * kApplXcpDaqTimestampTicksPerMs; // ms, send a DTO packet at least every 100ms
-static unsigned int gCmdCycle = 10 * kApplXcpDaqTimestampTicksPerMs; // ms, check for commands every 10ms
+static unsigned int gFlushCycle = 100; // 100ms, send a DTO packet at least every 100ms
+static unsigned int gServerWaitTimeout = 500; // 500 us, sleep timeout of server thread
+
+#ifndef _WIN
+// @@@@ TODO Change to event triggered
+static unsigned int gCmdCycle = 10 * kApplXcpDaqTimestampTicksPerMs; // 10ms, check for commands every 10ms
 static unsigned int gTransmitCycle = 500 * (kApplXcpDaqTimestampTicksPerMs/1000); // us, check for new transmit data in transmit queue every 500us
 // Max transmit rate is approximtly limited to XCP_DAQ_QUEUE_SIZE * MTU%MAX_DTO * 1000000/gTransmitCycle = 2000*32*1250 = 80MByte/s
-
-static unsigned int gTaskCycleTimerServer = 50000; // ns, sleep time of server thread
+#endif
 
 static unsigned int gTransmitTimer = 0;
 static unsigned int gFlushTimer = 0;
 static unsigned int gCmdTimer = 0;
+
 
 
 // XCP server task init
@@ -41,11 +45,13 @@ int xcpServerInit(void) {
 
     // Create A2L parameters to control the XCP server
 #ifdef XCP_ENABLE_A2L
-    A2lCreateParameter(gFlushCycle, "us", "DAQ queue flush cycle time");
+    A2lCreateParameter(gFlushCycle, "ms", "DAQ queue flush cycle time");
+#ifndef _WIN
     A2lCreateParameter(gCmdCycle, "us", "XCP command handler cycle time");
     A2lCreateParameter(gTransmitCycle, "us", "DAQ transmit cycle time");
-    A2lCreateParameter(gTaskCycleTimerServer, "ns", "Server thread sleep time");
-    A2lParameterGroup("Server_Parameters", 4, "gFlushCycle", "gCmdCycle", "gTransmitCycle", "gTaskCycleTimerServer");
+#endif
+    A2lCreateParameter(gServerWaitTimeout, "us", "Server thread sleep and wait timeout");
+    A2lParameterGroup("Server_Parameters", 2, "gFlushCycle", "gServerWaitTimeout");
 #endif
 
     printf("Init XCP on UDP server\n");
@@ -57,34 +63,41 @@ int xcpServerInit(void) {
 void* xcpServerThread(void* par) {
 
     printf("Start XCP server\n");
-    printf("  cmd cycle = %uus, transmit cycle = %dus, flush cycle = %dus\n", gCmdCycle, gTransmitCycle, gFlushCycle);
 
     // Server loop
     for (;;) {
 
-        ApplXcpSleepNs(gTaskCycleTimerServer);
+        udpServerWaitForEvent(gServerWaitTimeout);
         ApplXcpGetClock();
         
+#ifndef _WIN
         // Handle XCP commands every gCmdCycle time period
         if (gClock - gCmdTimer > gCmdCycle) {
             gCmdTimer = gClock;
             if (!udpServerHandleXCPCommands()) break;  
-        } // Handle
+        } 
+#else
+        if (!udpServerHandleXCPCommands()) break;
+#endif
 
         // If DAQ measurement is running
         if (gXcp.SessionStatus & SS_DAQ) {
 
-#ifdef DTO_SEND_QUEUE                
+#ifdef DTO_SEND_QUEUE 
+#ifndef _WIN
             // Transmit all completed UDP packets from the transmit queue every gTransmitCycle time period
-            if (gClock - gTransmitTimer > gTransmitCycle) {
+            if (gClock-gTransmitTimer>gTransmitCycle) {
                 gTransmitTimer = gClock;
                 udpServerHandleTransmitQueue();
-            } // Transmit
+            }
+#else
+            udpServerHandleTransmitQueue();
 #endif
-            // Every gFlushCycle time period
+#endif
+            // Every gFlushCycle in us time period
             // Cyclic flush of incomplete packets from transmit queue or transmit buffer to keep tool visualizations up to date
             // No priorisation of events implemented, no latency optimizations
-            if (gClock - gFlushTimer > gFlushCycle && gFlushCycle > 0) {
+            if (gFlushCycle>0 && gClock-gFlushTimer>gFlushCycle*1000) {
                 gFlushTimer = gClock;
 #ifdef DTO_SEND_QUEUE  
                 udpServerFlushTransmitQueue();
@@ -210,6 +223,7 @@ vuint32 ApplXcpGetClock(void) {
     return gClock;
 }
 
+// Free running clock with 1us in int64 which never overflows :-)
 vuint64 ApplXcpGetClock64(void) {
 
     ApplXcpGetClock();
@@ -218,8 +232,27 @@ vuint64 ApplXcpGetClock64(void) {
 
 
 void ApplXcpSleepNs(unsigned int ns) {
-    
-    Sleep(ns / 1000000UL);
+
+    vuint64 t1, t2;
+    t1 = t2 = ApplXcpGetClock64();
+
+    vuint32 us = ns / 1000;
+    vuint32 ms = us / 1000;
+
+    // Start sleeping at 1800us, shorter sleeps are more precise but need significant CPU time
+    if (us >= 1800) { 
+        if (ms >= 2) ms--; // PC always sleeps +1 ms  ????
+        Sleep(ms);  
+    }
+    // Busy wait
+    else {
+        vuint64 te = t1 + us;
+        for (;;) {
+            t2 = ApplXcpGetClock64();
+            if (t2 >= te) break;
+            if (te - t2 > 0) Sleep(0);  
+        }
+    }
 }
 
 

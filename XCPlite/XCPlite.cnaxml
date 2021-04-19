@@ -221,7 +221,7 @@
       <property name="ManualClosedPanelsBarVisibility">false</property>
       <property name="RedrawContentWhenResizing">false</property>
       <property name="ShowFloatWindowsInTaskbar">false</property>
-      <property name="RestoreLayoutOptions.FloatPanelsRestoreOffset" OwnerType="DevExpress.Xpf.Docking.RestoreLayoutOptions" DependencyPropertyType="System.Windows.Point">64,386</property>
+      <property name="RestoreLayoutOptions.FloatPanelsRestoreOffset" OwnerType="DevExpress.Xpf.Docking.RestoreLayoutOptions" DependencyPropertyType="System.Windows.Point">7.33333333333333,149.333333333333</property>
     </property>
   </XtraSerializer>
 </Root>
