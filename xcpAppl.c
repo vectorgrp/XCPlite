@@ -19,7 +19,7 @@
 
 
  /**************************************************************************/
- // XCP server
+ // XCP transport layer
  /**************************************************************************/
 
 // Parameters
@@ -40,8 +40,10 @@ static unsigned int gCmdTimer = 0;
 
 
 
-// XCP server task init
-int xcpServerInit(void) {
+// XCP transport layer task init
+int xcpTransportLayerInit(void) {
+
+    printf("Init XCP on UDP transport layer (UDP MTU = %u, DTO queue size is %u (%uKiB))\n", kXcpMaxMTU, XCP_DAQ_QUEUE_SIZE, sizeof(tXcpDtoBuffer) * XCP_DAQ_QUEUE_SIZE / 1024);
 
     // Create A2L parameters to control the XCP server
 #ifdef XCP_ENABLE_A2L
@@ -54,13 +56,12 @@ int xcpServerInit(void) {
     A2lParameterGroup("Server_Parameters", 2, "gFlushCycle", "gServerWaitTimeout");
 #endif
 
-    printf("Init XCP on UDP server\n");
     return udpServerInit(gSocketPort);
 }
 
-// XCP server task
-// Handle command, transmit data, flush data server thread
-void* xcpServerThread(void* par) {
+// XCP transport layer task
+// Handle commands, transmit data, flush data
+void* xcpTransportLayerThread(void* par) {
 
     printf("Start XCP server\n");
 
@@ -298,8 +299,8 @@ int ApplXcpReadA2LFile(char** p, unsigned int* n) {
 #endif
 #if defined ( XCP_ENABLE_TESTMODE )
             if (gXcpDebugLevel >= 1) {
-                ApplXcpPrint("A2L file %s ready for upload, size=%u, mta=0x%llX\n", kXcpA2LFilenameString, gXcpA2LLength, (vuint64)gXcpA2L);
-                //if (gXcpDebugLevel == 1) gXcpDebugLevelVerbose = 0; // Tempory stop of debug output
+                ApplXcpPrint("A2L file %s ready for upload, size=%u, mta=%p\n", kXcpA2LFilenameString, gXcpA2LLength, gXcpA2L);
+                if (gXcpDebugLevel == 1) gXcpDebugLevelVerbose = 0; // Tempory stop of debug output
             }
 #endif
         

@@ -10,8 +10,8 @@
 extern "C" {
 #endif
 
-extern int xcpServerInit(void);
-extern void* xcpServerThread(void* par);
+extern int xcpTransportLayerInit(void);
+extern void* xcpTransportLayerThread(void* par);
 
 extern volatile vuint32 gClock;
 extern volatile vuint64 gClock64;

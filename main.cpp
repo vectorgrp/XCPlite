@@ -157,7 +157,7 @@ int main(void)
 #endif
 
     // Initialize the XCP server
-    if (!xcpServerInit()) return 1;
+    if (!xcpTransportLayerInit()) return 1;
 
     // C++ demo
     // Initialize ECU demo runnables (C++)
@@ -212,7 +212,7 @@ int main(void)
     // Create the XCP server thread
     pthread_t t1;
     int a1 = 0;
-    pthread_create(&t1, NULL, xcpServerThread, (void*)&a1);
+    pthread_create(&t1, NULL, xcpTransportLayerThread, (void*)&a1);
 
     // Exit
     pthread_join(t1, NULL); // wait here, t1 may fail or terminate
@@ -223,7 +223,7 @@ int main(void)
  
     std::thread t2([]() { ecuTask(0); });
     std::thread t3([]() { ecuppTask(0); });
-    std::thread t1([]() { xcpServerThread(0); });
+    std::thread t1([]() { xcpTransportLayerThread(0); });
     t1.join();
     
 #endif

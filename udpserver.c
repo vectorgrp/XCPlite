@@ -4,14 +4,14 @@
 |
 | Description:
 |   XCP on UDP transport layer
-|   Linux (Raspberry Pi) Version
+|   Linux (Raspberry Pi) and Windows version
  ----------------------------------------------------------------------------*/
-
 
 #include "udpserver.h"
 #include "udpraw.h"
 
 #include "xcpLite.h"
+#include "xcpAppl.h"
 
 // Mutex (recursive)
 #ifndef _WIN // Linux
@@ -27,9 +27,9 @@ CRITICAL_SECTION gXcpCs;
 #endif
 
 // XCP on UDP Transport Layer data
-tXcpTlData gXcpTl;
+static tXcpTlData gXcpTl;
 
-// Transmit queue
+// Transmit queue (size defined in xcp_cfg.h)
 #ifdef DTO_SEND_QUEUE
 static tXcpDtoBuffer dto_queue[XCP_DAQ_QUEUE_SIZE];
 static unsigned int dto_queue_rp; // rp = read index
@@ -40,6 +40,7 @@ static tXcpDtoBuffer* dto_buffer_ptr; // current incomplete or not fully commite
 #ifdef _WIN
 static HANDLE gEvent = 0;
 #endif
+
 
 // Transmit a UDP datagramm (contains multiple XCP messages)
 // Must be thread safe
@@ -55,7 +56,7 @@ static int udpServerSendDatagram(const unsigned char* data, unsigned int size ) 
     }
 #endif
 
-    // Respond to active connect client, same port    // option gRemoteAddr.sin_port = htons(9001);
+    // Respond to active connect client, same port
     r = sendto(gXcpTl.Sock, data, size, 0, (struct sockaddr*)&gXcpTl.ClientAddr, sizeof(struct sockaddr));
     if (r != size) {
         printf("error: sento failed (result=%d, errno=%d)!\n", r, errno);
@@ -66,13 +67,8 @@ static int udpServerSendDatagram(const unsigned char* data, unsigned int size ) 
 }
 
 
-
 //------------------------------------------------------------------------------
 // XCP (UDP) transport layer packet queue (DTO buffers)
-
-
-
-
 #ifdef DTO_SEND_QUEUE
 
 // Not thread save
@@ -113,9 +109,6 @@ static void initDtoBufferQueue(void) {
     assert(dto_buffer_ptr);
 }
 
-
-//------------------------------------------------------------------------------
-
 // Transmit all completed and fully commited UDP frames
 void udpServerHandleTransmitQueue( void ) {
 
@@ -139,7 +132,7 @@ void udpServerHandleTransmitQueue( void ) {
 #ifdef DTO_SEND_RAW
         udpRawSend(b, &gXcpTl.ClientAddr);
 #else
-        udpServerSendDatagram(&b->xcp[0], b->xcp_size);
+        if (!udpServerSendDatagram(&b->xcp[0], b->xcp_size)) return;
 #endif
 
         // Free this buffer
@@ -152,7 +145,6 @@ void udpServerHandleTransmitQueue( void ) {
     } // for (;;)
 }
 
-
 // Transmit all committed DTOs
 void udpServerFlushTransmitQueue(void) {
     
@@ -163,11 +155,6 @@ void udpServerFlushTransmitQueue(void) {
 
     udpServerHandleTransmitQueue();
 }
-
-
-//------------------------------------------------------------------------------
-
-
 
 // Reserve space for a DTO packet in a DTO buffer and return a pointer to data and a pointer to the buffer for commit reference
 // Flush the transmit buffer, if no space left
@@ -232,14 +219,14 @@ void udpServerCommitPacketBuffer(void *par) {
     }
 }
 
-#else
+#else // DTO_SEND_QUEUE
 
 unsigned int dto_buffer_size = 0;
 unsigned char dto_buffer_data[DTO_BUFFER_LEN];
 
 unsigned char* udpServerGetPacketBuffer(void** par, unsigned int size) {
 
-    pthread_mutex_lock(&gXcpTl.Mutex);
+    LOCK();
 
     if (dto_buffer_size + size + XCP_PACKET_HEADER_SIZE > kXcpMaxMTU) {
         udpServerSendDatagram(dto_buffer_data, dto_buffer_size);
@@ -258,20 +245,19 @@ unsigned char* udpServerGetPacketBuffer(void** par, unsigned int size) {
 
 void udpServerCommitPacketBuffer(void* par) {
 
-    pthread_mutex_unlock(&gXcpTl.Mutex);
+    UNLOCK();
 }
 
 void udpServerFlushPacketBuffer(void) {
 
-    pthread_mutex_lock(&gXcpTl.Mutex);
+    LOCK();
 
     if (dto_buffer_size>0) {
         udpServerSendDatagram(dto_buffer_data, dto_buffer_size);
         dto_buffer_size = 0;
     }
 
-    pthread_mutex_unlock(&gXcpTl.Mutex);
-
+    UNLOCK();
 }
 
 #endif
@@ -298,7 +284,6 @@ int udpServerSendCrmPacket(const unsigned char* packet, unsigned int size) {
     r = udpServerSendDatagram((unsigned char*)&p, size + XCP_MESSAGE_HEADER_SIZE);
 
     UNLOCK();
-
     return r;
 }
 
@@ -410,9 +395,6 @@ int udpServerHandleXCPCommands(void) {
 }
 
 
-
-
-
 #ifndef _WIN // Linux
 
 int udpServerInit(unsigned short serverPort)
@@ -463,7 +445,6 @@ int udpServerInit(unsigned short serverPort)
         char tmp[32];
         inet_ntop(AF_INET, &gXcpTl.ServerAddr.sin_addr, tmp, sizeof(tmp));
         printf("  Bind sin_family=%u, addr=%s, port=%u\n", gXcpTl.ServerAddr.sin_family, tmp, ntohs(gXcpTl.ServerAddr.sin_port));
-        printf("  MTU = %d\n", kXcpMaxMTU);
     }
 #endif
 
@@ -477,8 +458,9 @@ int udpServerInit(unsigned short serverPort)
 }
 
 // Wait for io or timeout after <timeout> ns
+// TODO @@@@: Change to event triggered
 void udpServerWaitForEvent(vuint32 timeout_us) {
-    ApplXcpSleepNs(timeout*1000UL);
+    ApplXcpSleepNs(timeout_us*1000UL);
 }
 
 void udpServerShutdown(void) {
@@ -547,9 +529,12 @@ int udpServerInit(unsigned short serverPort)
 // Wait for io or timeout after <timeout> us
 void udpServerWaitForEvent(unsigned int timeout_us) {
 
+    unsigned int timeout = timeout_us / 1000; /* ms */
+    if (timeout == 0) timeout = 1;
     HANDLE event_array[1];
     event_array[0] = gEvent;
-    if (WaitForMultipleObjects(1, event_array, FALSE, 1 /* ms */) == WAIT_TIMEOUT) {
+    if (WaitForMultipleObjects(1, event_array, FALSE, timeout) == WAIT_TIMEOUT) {
+        
     }
 }
 
@@ -561,17 +546,3 @@ void udpServerShutdown(void) {
 
 #endif
 
-
-
-#if defined ( XCP_ENABLE_TESTMODE )
-void udpServerPrintPacket( tXcpDtoMessage* p ) {
-   
-    printf("CTR = %u, LEN = %u\n", p->ctr, p->dlc);
-    for (int i = 0; i < p->dlc; i++) printf("%00X ", p->data[i]);
-    printf("\n");
-    printf(" ODT = %u,", p->data[0]);
-    printf(" DAQ = %u,", p->data[1]);
-    printf("\n");
-}
-
-#endif

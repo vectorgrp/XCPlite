@@ -86,7 +86,7 @@ static const char* gA2lIfData2 =
 
 static const char* gA2lFooter =
 "/end MODULE\n"
-"/end PROJECT\n"
+"/end PROJECT\n\n\n"
 ;
 
 static const char* getParType(int size) {
@@ -162,7 +162,7 @@ void A2lHeader(void) {
   fprintf(gA2lFile, gA2lHeader); 
   fprintf(gA2lFile, gA2lIfData1);
   for (unsigned int i = 0; i < gA2lEventCount; i++) {
-	  unsigned char timeUnit = gA2lEventList[i].rate / 1000; // ms
+	  unsigned char timeUnit = (unsigned char)(gA2lEventList[i].rate / 1000); // ms
 	  unsigned char timeCycle = 0x06; // ms
 	  fprintf(gA2lFile, "/begin EVENT \"%s\" \"%s\" 0x%X DAQ 0xFF 0x%X 0x%X 0x00 CONSISTENCY EVENT", gA2lEventList[i].name, gA2lEventList[i].name, i + 1, timeUnit, timeCycle);
 	  if (gA2lEventList[i].sampleCount!=0) {

@@ -491,7 +491,7 @@ void XcpEventExt(unsigned int event, BYTEPTR offset)
         // Get DTO buffer, overrun if not available
         if ((d0 = ApplXcpGetDtoBuffer(&p0, DaqListOdtSize(odt)+hs)) == NULL) {
 #if defined ( XCP_ENABLE_TESTMODE )
-            if (gXcpDebugLevel >= 2) ApplXcpPrint("DAQ queue overflow! Event skipped\n");
+            if (gXcpDebugLevel >= 1) ApplXcpPrint("DAQ queue overflow! Event %u skipped\n", event);
 #endif
             DaqListFlags(daq) |= DAQ_FLAG_OVERRUN;
             return; // Skip rest of this event on queue overrun
@@ -664,9 +664,9 @@ void XcpCommand( const vuint32* pCommand )
                   case IDT_ASAM_UPLOAD:
                       {
                         char* p;
-                        int n;
+                        unsigned int n;
                         if (!ApplXcpReadA2LFile(&p, &n)) error(CRC_ACCESS_DENIED);
-                        CRM_GET_ID_LENGTH = n;
+                        CRM_GET_ID_LENGTH = (vuint32)n;
                         XcpSetMta(p, 0x00);
                       }
                       break;
@@ -1403,7 +1403,7 @@ void XcpPrintDaqList( vuint16 daq )
     ApplXcpPrint("  ODT %u (%u):",i-DaqListFirstOdt(daq),i);
     ApplXcpPrint(" firstOdtEntry=%u, lastOdtEntry=%u, size=%u:\n", DaqListOdtFirstEntry(i), DaqListOdtLastEntry(i),DaqListOdtSize(i));
     for (e=DaqListOdtFirstEntry(i);e<=DaqListOdtLastEntry(i);e++) {
-      ApplXcpPrint("   0x%llX-0x%llX,%u\n",(vuint64)OdtEntryAddr(e), (vuint64)(OdtEntryAddr(e)+OdtEntrySize(e)-1),OdtEntrySize(e));
+      ApplXcpPrint("   %p-%p,%u\n",OdtEntryAddr(e), OdtEntryAddr(e)+OdtEntrySize(e)-1,OdtEntrySize(e));
     }
   } /* j */
 } 

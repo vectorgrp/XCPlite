@@ -88,7 +88,11 @@ extern "C" {
 #define kXcpA2LFilenameString "XCPlite.A2L"  /* A2L filename */
 
 // The following parameters are dependant on the amount of measurement signals supported, they have significant impact on memory consumption
-#define XCP_DAQ_QUEUE_SIZE 64   // Transmit queue size in DAQ UDP packets (MTU=1400), should at least be able to hold all data produced by the largest event
+#ifndef _WIN
+  #define XCP_DAQ_QUEUE_SIZE 64   // Transmit queue size in DAQ UDP packets (MTU=1400), should at least be able to hold all data produced by the largest event
+#else
+#define XCP_DAQ_QUEUE_SIZE 256   // Transmit queue size in DAQ UDP packets (MTU=1400), should at least be able to hold all data produced by the largest event
+#endif
 #define XCP_DAQ_MEM_SIZE 60000u // Amount of memory for DAQ tables, each ODT entries needs 5 bytes
 
 // Transmit mode
@@ -220,6 +224,7 @@ extern vuint32 ApplXcpGetClock(void);
 	#define MASTER_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x79,0xa2,0x51}
     extern vuint64 ApplXcpGetClock64(void);
 #endif
+
 #define kApplXcpDaqTimestampTicksPerMs 1000 
 #define kXcpDaqTimestampUnit DAQ_TIMESTAMP_UNIT_1US
 #define kXcpDaqTimestampTicksPerUnit 1  
