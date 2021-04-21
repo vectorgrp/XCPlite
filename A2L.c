@@ -306,6 +306,18 @@ void A2lMeasurementGroup(const char* name, int count, ...) {
 }
 
 
+void A2lMeasurementGroupFromList(const char *name, const char* names[], unsigned int count) {
+
+	fprintf(gA2lFile, "/begin GROUP %s \"\" \n", name);
+	fprintf(gA2lFile, " /begin REF_MEASUREMENT");
+	for (unsigned int i1 = 0; i1 < count; i1++) {
+		fprintf(gA2lFile, " %s", names[i1]);
+	}
+	fprintf(gA2lFile, " /end REF_MEASUREMENT");
+	fprintf(gA2lFile, " /end GROUP\n");
+}
+
+
 void A2lClose(void) {
 
 	// Create standard record layouts for elementary types

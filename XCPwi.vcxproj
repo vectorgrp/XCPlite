@@ -142,6 +142,7 @@
     <ClCompile Include="A2L.c" />
     <ClCompile Include="ecu.c" />
     <ClCompile Include="ecupp.cpp" />
+    <ClCompile Include="ecustress.c" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="udpraw.c" />
     <ClCompile Include="udpserver.c" />
@@ -152,6 +153,7 @@
     <ClInclude Include="A2L.h" />
     <ClInclude Include="ecu.h" />
     <ClInclude Include="ecupp.hpp" />
+    <ClInclude Include="ecustress.h" />
     <ClInclude Include="main.h" />
     <ClInclude Include="udpraw.h" />
     <ClInclude Include="udpserver.h" />

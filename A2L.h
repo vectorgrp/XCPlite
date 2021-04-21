@@ -10,6 +10,7 @@
 extern "C" {
 #endif
 
+
 // Start A2L generation
 extern int A2lInit(const char *filename);
 
@@ -61,6 +62,7 @@ void A2lCreateMap_(const char* name, int size, unsigned long addr, unsigned int 
 // Create groups
 void A2lParameterGroup(const char* name, int count, ...);
 void A2lMeasurementGroup(const char* name, int count, ...);
+void A2lMeasurementGroupFromList(const char *name, const char* names[], unsigned int count);
 
 // Finish A2L generation
 extern void A2lClose(void);

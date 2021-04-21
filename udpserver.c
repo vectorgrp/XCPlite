@@ -308,7 +308,7 @@ int udpServerHandleXCPCommands(void) {
         int err = WSAGetLastError();
         if (err != WSAEWOULDBLOCK) { // Socket error
             printf("error: recvfrom failed (result=%d,error=%d)!\n", n, err);
-            return 0;
+            //return 0;
         }
 #endif
         else { // Socket timeout

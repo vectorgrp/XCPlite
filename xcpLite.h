@@ -1457,16 +1457,16 @@ void ApplXcpCommitDtoBuffer(vuint8 *buf);
 
 /* Flush the transmit buffer if there is one implemented in ApplXcpSend() */
 #if defined ( ApplXcpSendFlush )
-  // defined as macro
+// defined as macro
 #else
-  extern void ApplXcpSendFlush( void );
+extern void ApplXcpSendFlush( void );
 #endif
 
 /* Generate a native pointer from XCP address extension and address */
 #if defined ( ApplXcpGetPointer )
-  // defined as macro
+// defined as macro
 #else
-  extern MTABYTEPTR ApplXcpGetPointer( vuint8 addr_ext, vuint32 addr );
+extern MTABYTEPTR ApplXcpGetPointer( vuint8 addr_ext, vuint32 addr );
 #endif
 
 
@@ -1478,8 +1478,8 @@ void ApplXcpCommitDtoBuffer(vuint8 *buf);
 
 #if defined ( XCP_ENABLE_TESTMODE )
 
-  extern volatile vuint8 gXcpDebugLevel;
-  extern volatile vuint8 gXcpDebugLevelVerbose;
+extern volatile vuint8 gXcpDebugLevel;
+  
 
 #if defined ( ApplXcpPrint )
 /* ApplXcpPrint is a macro */

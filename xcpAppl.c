@@ -300,7 +300,6 @@ int ApplXcpReadA2LFile(char** p, unsigned int* n) {
 #if defined ( XCP_ENABLE_TESTMODE )
             if (gXcpDebugLevel >= 1) {
                 ApplXcpPrint("A2L file %s ready for upload, size=%u, mta=%p\n", kXcpA2LFilenameString, gXcpA2LLength, gXcpA2L);
-                if (gXcpDebugLevel == 1) gXcpDebugLevelVerbose = 0; // Tempory stop of debug output
             }
 #endif
         

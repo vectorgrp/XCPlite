@@ -45,6 +45,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <assert.h>
 
 // Need to link with Ws2_32.lib
@@ -65,6 +66,8 @@ extern "C" {
 	
 #define XCP_ENABLE_A2L // Enable A2L creator and A2L upload to host
 
+#define XCP_ENABLE_STRESSTEST // Enable measurement stress generator
+	
 // #define XCP_ENABLE_SO // Enable measurement and calibration of shared objects
 
 // #define XCP_ENABLE_PTP // Enable PTP synchronized DAQ time stamps

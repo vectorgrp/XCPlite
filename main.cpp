@@ -20,14 +20,17 @@
 // ECU simulation (C demo)
 #include "ecu.h"
 
-// Calibration Parameters
+// ECU simulation (C++ demo)
+#include "ecupp.hpp"
+static EcuTask* gEcuTask1 = NULL; // C++ task instances
+static EcuTask* gEcuTask2 = NULL;
+static EcuTask* gActiveEcuTask = NULL;
+volatile unsigned int gActiveEcuTaskId = 0; // Task id of the active C++ task
+
 
 // Task delays
 volatile vuint32 gTaskCycleTimerECU    = 2000; // 2ms Cycle time of the C task
 volatile vuint32 gTaskCycleTimerECUpp  = 2000; // 2ms  Cycle time of the C++ task
-
-// Active task
-volatile unsigned int gActiveEcuTaskId = 0; // Task id of the active C++ task
 
 
 // Measurement data acquisition event numbers
@@ -37,18 +40,18 @@ unsigned int gXcpEvent_EcuTask1 = 0;
 unsigned int gXcpEvent_EcuTask2 = 0;
 unsigned int gXcpEvent_ActiveEcuTask = 0;
 
-
-// C++ task instances
-#include "ecupp.hpp"
-static EcuTask* gEcuTask1 = NULL;
-static EcuTask* gEcuTask2 = NULL;
-static EcuTask* gActiveEcuTask = NULL;
+// Stresstest
+#ifdef XCP_ENABLE_STRESSTEST // Enable measurement stress generator
+#include "ecustress.h"  
+volatile vuint32 gTaskCycleTimerStress = 2000; // 2ms  Cycle time of the C++ task
+unsigned int gXcpEvent_EcuStress = 0;
+#endif
 
 
 
 extern "C" {
 
-    // ECU cyclic (1ms) demo task 
+    // ECU cyclic (2ms default) demo task 
     // Calls C ECU demo code
     void* ecuTask(void* par) {
 
@@ -62,7 +65,7 @@ extern "C" {
         return 0;
     }
     
-    // ECU cyclic (1ms) demo task 
+    // ECU cyclic (2ms default) demo task 
     // Calls C++ ECU demo code
     void* ecuppTask(void* par) {
 
@@ -79,6 +82,22 @@ extern "C" {
         return 0;
     }
 
+    // Stresstest
+#ifdef XCP_ENABLE_STRESSTEST // Enable measurement stress generator
+
+    // ECU cyclic (2ms default) stress generator task 
+    void* ecuStressTask(void* par) {
+
+        printf("Start stress task ( ecuStress() called  every %dus, event = %d )\n", gTaskCycleTimerStress, gXcpEvent_EcuStress);
+        for (;;) {
+            ApplXcpSleepNs(gTaskCycleTimerStress * 1000);
+            ecuStressCyclic();
+            XcpEvent(gXcpEvent_EcuStress);
+        }
+        return 0;
+    }
+#endif
+
 } // C
 
 
@@ -92,6 +111,9 @@ int main(void)
         " for Linux ARM32\n"
 #else
         " for Windows x86\n"
+#endif
+#ifdef XCP_ENABLE_STRESS
+        "  Option STRESS\n"
 #endif
 #ifdef XCP_ENABLE_A2L
         "  Option A2L\n"
@@ -149,6 +171,7 @@ int main(void)
     gXcpEvent_EcuTask2 = A2lCreateEvent("EcuTask2", 2000, 0);     // Standard event triggered by C++ ecuTask2 instance
     gXcpEvent_ActiveEcuTask = A2lCreateEvent("activeEcuTask", 0, 0);     // Extended event (relative address objects) triggered by C++ main task
     gXcpEvent_EcuCyclic_packed = A2lCreateEvent("EcuCyclicP", 2000, 100);   // Packed event triggered in C ecuTask
+    gXcpEvent_EcuStress = A2lCreateEvent("EcuStress", 2000, 0);   
 #endif
 
     // Create A2L header
@@ -192,6 +215,13 @@ int main(void)
     A2lParameterGroup("Demo_Parameters", 4, "gActiveEcuTaskId", "gTaskCycleTimerECU", "gTaskCycleTimerECUpp", "gXcpDebugLevel");
 #endif
 
+    // Stress
+#ifdef XCP_ENABLE_STRESSTEST // Enable measurement stress generator
+    A2lCreateParameterWithLimits(gTaskCycleTimerStress, "ECUstress task cycle time", "us", 50, 1000000);
+    ecuStressInit();
+    ecuStressCreateA2lDescription();
+#endif
+
     // Finalize A2L
 #ifdef XCP_ENABLE_A2L
     A2lClose();
@@ -220,7 +250,10 @@ int main(void)
     pthread_cancel(t3);
 
 #else
- 
+
+#ifdef XCP_ENABLE_STRESSTEST // Enable measurement stress generator
+    std::thread t4([]() { ecuStressTask(0); });
+#endif
     std::thread t2([]() { ecuTask(0); });
     std::thread t3([]() { ecuppTask(0); });
     std::thread t1([]() { xcpTransportLayerThread(0); });

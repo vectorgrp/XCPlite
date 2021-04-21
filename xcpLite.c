@@ -96,7 +96,6 @@ const vuint8 gXcpSlaveId[kXcpSlaveIdLength] = kXcpSlaveIdString; // Name of the 
 
 #if defined ( XCP_ENABLE_TESTMODE )
 volatile vuint8 gXcpDebugLevel = XCP_DEBUG_LEVEL;
-volatile vuint8 gXcpDebugLevelVerbose = 1;
 #endif
 
 
@@ -225,7 +224,7 @@ static vuint8 XcpAllocMemory( void )
   
 
   #if defined ( XCP_ENABLE_TESTMODE )
-    if ( gXcpDebugLevel >= 1) ApplXcpPrint("[XcpAllocMemory] %u/%u Bytes used\n",s,XCP_DAQ_MEM_SIZE );
+    if ( gXcpDebugLevel >= 2) ApplXcpPrint("[XcpAllocMemory] %u/%u Bytes used\n",s,XCP_DAQ_MEM_SIZE );
   #endif
 
   return (vuint8)0u;
@@ -378,7 +377,7 @@ static void XcpStartAllSelectedDaq(void)
       XcpStartDaq(daq);
       DaqListFlags(daq) &= (vuint8)(~DAQ_FLAG_SELECTED);
 #if defined ( XCP_ENABLE_TESTMODE )
-      if (gXcpDebugLevel >= 1) {
+      if (gXcpDebugLevel >= 2) {
           XcpPrintDaqList(daq);
       }
 #endif
@@ -1123,49 +1122,26 @@ static void XcpPrintCmd(const tXcpCto * pCmd) {
     switch (CRO_CMD) {
 
     case CC_SET_MTA:
-        if (gXcpDebugLevel >= 1) {
-            if (gXcpDebugLevelVerbose >= 1) {
-              ApplXcpPrint("SET_MTA addr=%08Xh, addrext=%02Xh\n", CRO_SET_MTA_ADDR, CRO_SET_MTA_EXT);
-            }
-            else {
-                ApplXcpPrint("S");
-            }
-        }
+        ApplXcpPrint("SET_MTA addr=%08Xh, addrext=%02Xh\n", CRO_SET_MTA_ADDR, CRO_SET_MTA_EXT);
         break;
 
     case CC_DOWNLOAD:
-        if (gXcpDebugLevel >= 1) {
-            if (gXcpDebugLevelVerbose >= 1) {
-                vuint16 i;
-                ApplXcpPrint("DOWNLOAD size=%u, data=", CRO_DOWNLOAD_SIZE);
-                for (i = 0; (i < CRO_DOWNLOAD_SIZE) && (i < CRO_DOWNLOAD_MAX_SIZE); i++)
-                {
-                    ApplXcpPrint("%02X ", CRO_DOWNLOAD_DATA[i]);
-                }
-                ApplXcpPrint("\n");
+        {
+            vuint16 i;
+            ApplXcpPrint("DOWNLOAD size=%u, data=", CRO_DOWNLOAD_SIZE);
+            for (i = 0; (i < CRO_DOWNLOAD_SIZE) && (i < CRO_DOWNLOAD_MAX_SIZE); i++)
+            {
+                ApplXcpPrint("%02X ", CRO_DOWNLOAD_DATA[i]);
             }
-            else {
-                ApplXcpPrint("D");
-            }
+            ApplXcpPrint("\n");
         }
         break;
 
     case CC_UPLOAD:
-        if (gXcpDebugLevel >= 1) {
-            if (gXcpDebugLevelVerbose >= 1) {
-                ApplXcpPrint("UPLOAD size=%u\n", CRO_UPLOAD_SIZE);
-            }
-            else {
-                ApplXcpPrint("U");
-            }
+        if (gXcpDebugLevel >= 2 || gXcpDebugLevel >= 1 && CRO_UPLOAD_SIZE <= 8) {
+            ApplXcpPrint("UPLOAD size=%u\n", CRO_UPLOAD_SIZE);
         }
         break;
-
-    default:
-        gXcpDebugLevelVerbose = gXcpDebugLevel;
-    }
-
-    switch (CRO_CMD) {
 
     case CC_SYNC:
             ApplXcpPrint("SYNC\n");
@@ -1186,7 +1162,6 @@ static void XcpPrintCmd(const tXcpCto * pCmd) {
     case CC_GET_STATUS:
             ApplXcpPrint("GET_STATUS\n");
             break;
-
 
      case CC_SHORT_UPLOAD:
             ApplXcpPrint("SHORT_UPLOAD addr=%08Xh, addrext=%02Xh, size=%u\n", CRO_SHORT_UPLOAD_ADDR, CRO_SHORT_UPLOAD_EXT, CRO_SHORT_UPLOAD_SIZE);
@@ -1213,8 +1188,10 @@ static void XcpPrintCmd(const tXcpCto * pCmd) {
             break;
 
      case CC_ALLOC_ODT_ENTRY:
-            ApplXcpPrint("ALLOC_ODT_ENTRY daq=%u, odt=%u, count=%u\n", CRO_ALLOC_ODT_ENTRY_DAQ, CRO_ALLOC_ODT_ENTRY_ODT, CRO_ALLOC_ODT_ENTRY_COUNT);
-            break;
+         if (gXcpDebugLevel >= 2) {
+             ApplXcpPrint("ALLOC_ODT_ENTRY daq=%u, odt=%u, count=%u\n", CRO_ALLOC_ODT_ENTRY_DAQ, CRO_ALLOC_ODT_ENTRY_ODT, CRO_ALLOC_ODT_ENTRY_COUNT);
+         }
+          break;
 
      case CC_GET_DAQ_LIST_MODE:
             ApplXcpPrint("GET_DAQ_LIST_MODE daq=%u\n",CRO_GET_DAQ_LIST_MODE_DAQ );
@@ -1234,10 +1211,12 @@ static void XcpPrintCmd(const tXcpCto * pCmd) {
 
      case CC_WRITE_DAQ_MULTIPLE: /* Write multiple DAQ entries */
          ApplXcpPrint("WRITE_MULTIPLE_DAQ count=%u\n", CRO_WRITE_DAQ_MULTIPLE_NODAQ);
-         for (int i = 0; i < CRO_WRITE_DAQ_MULTIPLE_NODAQ; i++) {
-                ApplXcpPrint("   %u: size=%u,addr=%08Xh,%02Xh\n", i, CRO_WRITE_DAQ_MULTIPLE_SIZE(i), CRO_WRITE_DAQ_MULTIPLE_ADDR(i), CRO_WRITE_DAQ_MULTIPLE_EXT(i));
-            }
-            break;
+         if (gXcpDebugLevel >= 2) {
+             for (int i = 0; i < CRO_WRITE_DAQ_MULTIPLE_NODAQ; i++) {
+                 ApplXcpPrint("   %u: size=%u,addr=%08Xh,%02Xh\n", i, CRO_WRITE_DAQ_MULTIPLE_SIZE(i), CRO_WRITE_DAQ_MULTIPLE_ADDR(i), CRO_WRITE_DAQ_MULTIPLE_EXT(i));
+             }
+         }
+         break;
 
      case CC_START_STOP_DAQ_LIST:
             ApplXcpPrint("START_STOP mode=%02Xh, daq=%u\n", CRO_START_STOP_MODE, CRO_START_STOP_DAQ);
