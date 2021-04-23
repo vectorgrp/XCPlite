@@ -10,8 +10,8 @@ PrgDate=19.03.2021
 Description=
 CreationTime=23:25
 CreationDate=04/18/2021 ; Month/Day/Year
-ModificationTime=19:50
-ModificationDate=04/21/2021 ; Month/Day/Year
+ModificationTime=18:21
+ModificationDate=04/23/2021 ; Month/Day/Year
 Protected=0
 
 [ANALYSISPROFILE_MDF_LIST]
@@ -188,7 +188,7 @@ Count=0
 Name=XCPlite
 Comment=
 Maximized=0
-ActiveWindow=9
+ActiveWindow=11
 IsReportPage=0
 TimeAxisSynchronized=0
 PrintLayout=Default
@@ -593,7 +593,7 @@ DisplayCount=0
 
 [MEASUREMENT_OBJECT_1_DISPLAY_1]
 Window=3
-Index=2
+Index=1
 Color=255
 ColorFunction=0
 ColorFunctionScope=1
@@ -614,7 +614,7 @@ LineWidth=1
 Precision=-2
 Digits=6
 Enabled=1
-StoredFocused=1
+StoredFocused=0
 SublMask=1
 MeaSublMask=3
 LockScaling=0
@@ -637,8 +637,8 @@ AxisTemplate=
 Module=XCPpi
 Name=channel1p[0]
 Mode=2147483653
-Rate=2
-Disabled=1
+Rate=0
+Disabled=0
 Row=0
 Column=0
 MeaReferenced=1
@@ -748,7 +748,7 @@ HasManagedDisplay=0
 DisplayCount=0
 
 [MEASUREMENT_OBJECT_2_DISPLAY_1]
-Window=3
+Window=11
 Index=0
 Color=65535
 ColorFunction=0
@@ -763,14 +763,14 @@ XOffset=0
 ValueFormat=3
 BitMask=1
 ShowYAxis=1
-Width=10
+Width=27
 LineStyle=1
 MarkerType=1
 LineWidth=1
 Precision=-2
 Digits=6
 Enabled=1
-StoredFocused=0
+StoredFocused=1
 SublMask=1
 MeaSublMask=3
 LockScaling=0
@@ -805,7 +805,7 @@ DisplayCount=1
 
 [MEASUREMENT_OBJECT_3_DISPLAY_1]
 Window=3
-Index=3
+Index=2
 Color=16776960
 ColorFunction=0
 ColorFunctionScope=1
@@ -826,7 +826,7 @@ LineWidth=1
 Precision=-2
 Digits=6
 Enabled=1
-StoredFocused=0
+StoredFocused=1
 SublMask=1
 MeaSublMask=3
 LockScaling=0
@@ -867,7 +867,7 @@ DisplayCount=1
 
 [MEASUREMENT_OBJECT_4_CO1_DISPLAY_1]
 Window=3
-Index=1
+Index=0
 Color=65280
 ColorFunction=0
 ColorFunctionScope=1
@@ -1176,10 +1176,10 @@ WindowTextExtended=1
 WindowTextExtendedNew=1
 WindowSymbols=1
 GlobalCursor=0
-GlobalCursorTime=0
+GlobalCursorTime=9958
 GlobalTimeAxis=1
 GlobalTimeAxisStartTime=0
-GlobalTimeAxisEndTime=34011008535
+GlobalTimeAxisEndTime=19419683479
 MainWindowPos=1, 49, 27, 2581, 1626 ;cmd, x, y, w, h
 
 [PAR_COMMENT]
@@ -1366,10 +1366,10 @@ FocusID=2002
 ActiveTab=0
 FilterNodeID=Alle\Messliste
 TreeExpand_0=@Alle
-TreeExpand_1=Alle\Messliste\Algorithmen
-TreeExpand_2=Alle\Geräte\XCPpi\XCPpi_autodetect.a2l
-TreeExpand_3=Alle\Geräte\XCPpi
-TreeExpand_4=Alle\Geräte
+TreeExpand_1=Alle\Geräte
+TreeExpand_2=Alle\Geräte\XCPpi
+TreeExpand_3=Alle\Geräte\XCPpi\XCPpi_autodetect.a2l
+TreeExpand_4=Alle\Messliste\Algorithmen
 TreeExpand_5=$Alle\Geräte
 TreeExpand_6=#Alle\Geräte
 TreeExpand_7=@Alle\Geräte
@@ -1451,6 +1451,29 @@ COUNT=1
 COL_0=31, 203
 COL_0_dpi96=31, 135
 
+[WINDOW_11]
+XMin=18411
+ShowTime=1
+Grid=1
+HDspOffset=0
+TimeColWidth=10
+LegendHeight=26
+LegendHeight_dpi96=17
+AbsoluteTimeMode=0
+ObjectCount=0
+Title=Text {DISPLAYED_FILENAME}
+Type=32
+Comment=Text-Fenster
+Number=11
+ScreenDPIinSection=144
+Position=0, 1362, 223, 750, 696 ;cmd, x, y, w, h
+Position_dpi96=0, 908, 149, 500, 464 ;cmd, x, y, w, h
+Position_Page01=0, 1362, 223, 750, 696 ;cmd, x, y, w, h
+Position_Page01_dpi96=0, 908, 149, 500, 464 ;cmd, x, y, w, h
+FloatingWindow=0
+ShowSignalComments=1
+DisplayMask=1 ; pages 1
+
 [WINDOW_2]
 ComponentCount=2
 Title=
@@ -1469,7 +1492,7 @@ DisplayMask=1 ; pages 1
 [WINDOW_3]
 XLen=32216
 XMin=0
-XMax=34011
+XMax=19419
 Grid=1
 Mark=1
 YValue=1
@@ -1491,7 +1514,7 @@ YAxisWidth=116
 YAxisWidth_dpi96=77
 RightYAxisWidth=0
 RightYAxisWidth_dpi96=0
-ObjectMode=0
+ObjectMode=1
 DisplayMode=1
 ShowSignalMode=0
 AxisScrollPos2=0
@@ -1502,8 +1525,8 @@ YAxisDynScaleEnabled=0
 YAxisDynScaleEnlarge=25
 TimeStickToZero=0
 XYModeRedrawEnabled=0
-MARKER_TIME_1=1087768409
-MARKER_TIME_2=1085688373
+MARKER_TIME_1=1033039050
+MARKER_TIME_2=1039569156
 OscilloscopeEnabled=0
 OsciEventCount=0
 EventCompareModeEnabled=0
@@ -1538,7 +1561,7 @@ COL_1_dpi96=1048578, 88
 [WINDOW_4]
 XLen=32216
 XMin=0
-XMax=34011
+XMax=19419
 Grid=1
 Mark=1
 YValue=1
@@ -1560,7 +1583,7 @@ YAxisWidth=116
 YAxisWidth_dpi96=77
 RightYAxisWidth=0
 RightYAxisWidth_dpi96=0
-ObjectMode=0
+ObjectMode=1
 DisplayMode=2
 ShowSignalMode=0
 AxisScrollPos2=0
@@ -1571,8 +1594,8 @@ YAxisDynScaleEnabled=0
 YAxisDynScaleEnlarge=25
 TimeStickToZero=0
 XYModeRedrawEnabled=0
-MARKER_TIME_1=1087768409
-MARKER_TIME_2=1085688373
+MARKER_TIME_1=1033039050
+MARKER_TIME_2=1039569156
 OscilloscopeEnabled=0
 OsciEventCount=0
 EventCompareModeEnabled=0
@@ -1900,7 +1923,7 @@ ValueFormat=3
 [WINDOW_8]
 ProgID=CNPTRACE.TraceCtrl.1
 PROPERTIES_COUNT=21
-PROPERTY_1=DeviceItems={"CaptureEvents":"1","ShowEvents":"1","NodeCount":"2","Node0":{"DeviceName":"Analog","CaptureEvents":"0","ShowEvents":"0","NodeCount":"3","Node0":{"Channel":"2","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node1":{"Channel":"3","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node2":{"Channel":"4","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"}},"Node1":{"DeviceName":"XCPpi","CaptureEvents":"0","ShowEvents":"0","NodeCount":"3","Node0":{"Channel":"2","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node1":{"Channel":"3","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node2":{"Channel":"4","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"}}}
+PROPERTY_1=DeviceItems={"CaptureEvents":"1","ShowEvents":"1","NodeCount":"2","Node0":{"DeviceName":"Analog","CaptureEvents":"0","ShowEvents":"0","NodeCount":"3","Node0":{"Channel":"2","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node1":{"Channel":"3","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node2":{"Channel":"4","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"}},"Node1":{"DeviceName":"XCPpi","CaptureEvents":"1","ShowEvents":"1","NodeCount":"3","Node0":{"Channel":"2","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node1":{"Channel":"3","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node2":{"Channel":"4","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"}}}
 PROPERTY_2=NetworkItems={"Items":"0"}
 PROPERTY_3=ColumnConfigs={"ConfigCount":"2","Config0":{"Layout":"1","Name":"Initial","Column0":{"Width":"158","Position":"0","Name":"Time","IsDefaultName":"1"},"Column1":{"Width":"137","Position":"1","Name":"Channel","IsDefaultName":"1"},"Column2":{"Width":"45","Position":"2","Name":"ID","IsDefaultName":"1"},"Column3":{"Width":"121","Position":"3","Name":"Name","IsDefaultName":"1"},"Column5":{"Width":"45","Position":"5","Name":"Dir","IsDefaultName":"1"},"Column6":{"Width":"75","Position":"6","Name":"Length","IsDefaultName":"1"},"Column7":{"Width":"606","Position":"8","Name":"Data","IsDefaultName":"1"},"Column16":{"Width":"113","Position":"4","Name":"Type","IsDefaultName":"1"},"Column52":{"Width":"1554","Position":"7","Name":"Interpretation","IsDefaultName":"1"}},"Config1":{"Layout":"25","Name":"XCP\/CCP Layout 1","Column0":{"Width":"195","Position":"0","Name":"Time","IsDefaultName":"1"},"Column1":{"Width":"180","Position":"1","Name":"Channel","IsDefaultName":"1"},"Column2":{"Width":"75","Position":"2","Name":"ID","IsDefaultName":"1"},"Column3":{"Width":"75","Position":"3","Name":"Name","IsDefaultName":"1"},"Column5":{"Width":"54","Position":"4","Name":"Dir","IsDefaultName":"1"},"Column6":{"Width":"66","Position":"7","Name":"Length","IsDefaultName":"1"},"Column7":{"Width":"3840","Position":"6","Name":"Data","IsDefaultName":"1"},"Column16":{"Width":"106","Position":"9","Name":"Packet Type","IsDefaultName":"1"},"Column52":{"Width":"303","Position":"5","Name":"Interpretation","IsDefaultName":"1"},"Column79":{"Width":"66","Position":"8","Name":"Source","IsDefaultName":"1"}},"Active":"1"}
 PROPERTY_4=PinningEvents={"EventCount":"0"}
@@ -1924,7 +1947,7 @@ PROPERTY_21=LoggingOverwriteOnConfigLoad=false
 OBJECTS_COUNT=0
 ObjectCount=0
 HiddenDisplayCount=0
-TraceChannelCount=0
+TraceChannelCount=2
 ColumnCount=10
 Column_0=0, 195
 Column_1=256, 180
@@ -1949,6 +1972,18 @@ Position_Page02_dpi96=0, 0, 0, 1449, 773 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
 DisplayMask=2 ; pages 2
+
+[WINDOW_8_CHANNEL_1]
+Module=XCPpi
+Channel=0
+CustomColorFlag=0
+Color=0
+
+[WINDOW_8_CHANNEL_2]
+Module=XCPpi
+Channel=1
+CustomColorFlag=0
+Color=0
 
 [WINDOW_9]
 ScreenDPIinSection=144
@@ -2384,7 +2419,7 @@ YAxis_ID=0
 AxisTemplate=
 
 [WINDOWS]
-Count=10
+Count=11
 
 [Y_COMMON_AXIS_LIST]
 Count=0

@@ -162,9 +162,17 @@ void A2lHeader(void) {
   fprintf(gA2lFile, gA2lHeader); 
   fprintf(gA2lFile, gA2lIfData1);
   for (unsigned int i = 0; i < gA2lEventCount; i++) {
-	  unsigned char timeUnit = (unsigned char)(gA2lEventList[i].rate / 1000); // ms
-	  unsigned char timeCycle = 0x06; // ms
-	  fprintf(gA2lFile, "/begin EVENT \"%s\" \"%s\" 0x%X DAQ 0xFF 0x%X 0x%X 0x00 CONSISTENCY EVENT", gA2lEventList[i].name, gA2lEventList[i].name, i + 1, timeUnit, timeCycle);
+
+	  // RESOLUTION OF TIMESTAMP "UNIT_1US" = 3,"UNIT_10US" = 4,"UNIT_100US" = 5,"UNIT_1MS" = 6,"UNIT_10MS" = 7,"UNIT_100MS" = 8, 
+	  unsigned int rate = gA2lEventList[i].rate; // ms
+	  unsigned char timeCycle = 3; 
+	  while (rate >= 256) {
+		  rate /= 10;
+		  timeCycle++;
+	  }
+	  unsigned char timeUnit = (unsigned char)rate;
+
+	  fprintf(gA2lFile, "/begin EVENT \"%s\" \"%s\" 0x%X DAQ 0xFF 0x%X 0x%X 0x00 CONSISTENCY DAQ", gA2lEventList[i].name, gA2lEventList[i].name, i + 1, timeUnit, timeCycle);
 	  if (gA2lEventList[i].sampleCount!=0) {
 		  fprintf(gA2lFile, "/begin DAQ_PACKED_MODE ELEMENT_GROUPED STS_LAST MANDATORY %u /end DAQ_PACKED_MODE",gA2lEventList[i].sampleCount);
 	  }
@@ -179,7 +187,7 @@ unsigned int A2lCreateEvent(const char* name, unsigned int rate, unsigned int sa
 	assert(gA2lEvent == 0); // Definitions of events must be completed before first A2lSetEvent and A2lHeader
 	if (gA2lEventCount >= MAX_EVENT) return 0; // Out of memory 
 	gA2lEventList[gA2lEventCount].name = name;
-	gA2lEventList[gA2lEventCount].rate = rate;
+	gA2lEventList[gA2lEventCount].rate = rate; // us
 	gA2lEventList[gA2lEventCount].sampleCount = sampleCount;
 	gA2lEventCount++;
 	return gA2lEventCount; // Return XCP event number, event 0 is not used

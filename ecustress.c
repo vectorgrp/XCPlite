@@ -25,7 +25,7 @@ static unsigned int random16() {
 
 unsigned short ecuStressCounter = 0;
 
-#define MEM_SIZE (1024*16)
+#define MEM_SIZE (1024*8)
 double mem[MEM_SIZE];
 char* names[MEM_SIZE];
 

@@ -578,7 +578,7 @@ void XcpCommand( const vuint32* pCommand )
   {
 #if defined ( XCP_ENABLE_TESTMODE )
       if (gXcpDebugLevel >= 1) {
-          ApplXcpPrint("\n-> CONNECT mode=%u\n", CRO_CONNECT_MODE);
+          ApplXcpPrint("-> CONNECT mode=%u\n", CRO_CONNECT_MODE);
           if (gXcp.SessionStatus & SS_CONNECTED) ApplXcpPrint("  Already connected! DAQ setup cleared! Legacy mode activated!\n");
       }
 #endif

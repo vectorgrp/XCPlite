@@ -170,7 +170,7 @@ int main(void)
     gXcpEvent_EcuTask1 = A2lCreateEvent("EcuTask1", 2000, 0);     // Standard event triggered by C++ ecuTask1 instance
     gXcpEvent_EcuTask2 = A2lCreateEvent("EcuTask2", 2000, 0);     // Standard event triggered by C++ ecuTask2 instance
     gXcpEvent_ActiveEcuTask = A2lCreateEvent("activeEcuTask", 0, 0);     // Extended event (relative address objects) triggered by C++ main task
-    gXcpEvent_EcuCyclic_packed = A2lCreateEvent("EcuCyclicP", 2000, 100);   // Packed event triggered in C ecuTask
+    gXcpEvent_EcuCyclic_packed = A2lCreateEvent("EcuCyclicP", 20, 100);   // Packed event triggered in C ecuTask 100 samples in 2ms = 20us rate
     gXcpEvent_EcuStress = A2lCreateEvent("EcuStress", 2000, 0);   
 #endif
 
