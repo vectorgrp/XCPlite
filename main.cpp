@@ -172,8 +172,8 @@ int main(void)
     // Create additional A2L parameters to control the demo  
 #ifdef XCP_ENABLE_A2L
     A2lCreateParameterWithLimits(gActiveEcuTaskId,"Active ecu task object id","",2,3);
-    A2lCreateParameterWithLimits(gTaskCycleTimerECU,"ECU task cycle time","us",50,1000000);
-    A2lCreateParameterWithLimits(gTaskCycleTimerECUpp,"ECUpp task cycle time","us",50,1000000);
+    A2lCreateParameterWithLimits(gTaskCycleTimerECU,"ECU task cycle time","us",200,1000000);
+    A2lCreateParameterWithLimits(gTaskCycleTimerECUpp,"ECUpp task cycle time","us",200,1000000);
     A2lCreateParameterWithLimits(gXcpDebugLevel,"Console output verbosity","us",0,4);
     A2lParameterGroup("Demo_Parameters", 4, "gActiveEcuTaskId", "gTaskCycleTimerECU", "gTaskCycleTimerECUpp", "gXcpDebugLevel");
 #endif

@@ -3,7 +3,9 @@
 
 Copyright 2021 Vector Informatik GmbH
 
-Simple and light implementation of the ASAM XCP Protocol Layer V1.1 (1000 lines of code).
+Lightweight implementation of the ASAM XCP Protocol Layer V1.4 (1000 lines of code in XCPlite.c).
+
+Demos for Linux and Windows (Winsock and XL-API V3 (VN5xxx) with buildin UDP stack)
 
 List of restrictions compared to Vectors xcpBasic and xcpProf see below or in source file xcpLite.c.
 
@@ -13,8 +15,6 @@ C and C++ target support.
 Achieves up to 80 MByte/s throughput on a Raspberry Pi 4.
 3% single thread cpu time in event copy routine for 40MByte/s transfer rate. 
 1us measurement timestamp resolution.
-
-Experimental UDP on RAW socket optimization.
 
 No A2L (ASAP2 ECU description) required. 
 A A2L with reduced featureset is generated through code instrumentation during runtime on target system and automatically uploaded by XCP.
@@ -60,14 +60,14 @@ Demo visual Studio and CANape project included for Raspberry Pi 4.
 
 ## Configuration options:
 
-All settings and parameters for the XCP protocol handler are in xcp_cfg.h
+All settings and parameters for the XCP protocol and transport layer are located in xcp_cfg.h
 
-Basis compile options for the XCPlite demo are:
+Basis compile options for the XCPlite demos are:
 ```
-#define XCP_ENABLE_64       // Enable 64 bit platform support, otherwise assume 32 bit plattform
 #define XCP_ENABLE_A2L      // Enable A2L creator and A2L upload to host
 #define XCP_ENABLE_SO       // Enable measurement and calibration of shared objects
-#define XCP_ENABLE_PTP      // Enable PTP synchronized DAQ time stamps
+#define XCP_ENABLE_PTP      // Enable PTP synchronized DAQ time stamps 
+#define XCP_ENABLE_XLAPI    // Enable Vector XL-API V3 and buildin UDP for Windows (virtual port in NET1)
 ```
 
 ## Notes:
