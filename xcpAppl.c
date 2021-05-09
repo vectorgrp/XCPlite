@@ -15,76 +15,88 @@
 
 // UDP server
 #include "udpserver.h"
-#include "udpraw.h"
 
 
  /**************************************************************************/
- // XCP server
+ // XCP transport layer
  /**************************************************************************/
 
 // Parameters
-static unsigned short gSocketPort = 5555; // UDP port
-static unsigned int gFlushCycle = 100 * kApplXcpDaqTimestampTicksPerMs; // ms, send a DTO packet at least every 100ms
-static unsigned int gCmdCycle = 10 * kApplXcpDaqTimestampTicksPerMs; // ms, check for commands every 10ms
+static unsigned int gFlushCycle = 100; // 100ms, send a DTO packet at least every 100ms
+static unsigned int gServerWaitTimeout = 500; // 500 us, sleep timeout of server thread
+
+#ifndef _WIN
+// @@@@ TODO Change to event triggered
+static unsigned int gCmdCycle = 10 * kApplXcpDaqTimestampTicksPerMs; // 10ms, check for commands every 10ms
 static unsigned int gTransmitCycle = 500 * (kApplXcpDaqTimestampTicksPerMs/1000); // us, check for new transmit data in transmit queue every 500us
 // Max transmit rate is approximtly limited to XCP_DAQ_QUEUE_SIZE * MTU%MAX_DTO * 1000000/gTransmitCycle = 2000*32*1250 = 80MByte/s
-
-static unsigned int gTaskCycleTimerServer = 50000; // ns, sleep time of server thread
+#endif
 
 static unsigned int gTransmitTimer = 0;
 static unsigned int gFlushTimer = 0;
 static unsigned int gCmdTimer = 0;
 
 
-// XCP server task init
-int xcpServerInit(void) {
+
+// XCP transport layer task init
+int xcpTransportLayerInit(void) {
+
+    printf("Init XCP on UDP transport layer (UDP MTU = %u, DTO queue size is %u (%uKiB))\n", kXcpMaxMTU, XCP_DAQ_QUEUE_SIZE, sizeof(tXcpDtoBuffer) * XCP_DAQ_QUEUE_SIZE / 1024);
 
     // Create A2L parameters to control the XCP server
 #ifdef XCP_ENABLE_A2L
-    A2lCreateParameter(gFlushCycle, "us", "DAQ queue flush cycle time");
+    A2lCreateParameter(gFlushCycle, "ms", "DAQ queue flush cycle time");
+#ifndef _WIN
     A2lCreateParameter(gCmdCycle, "us", "XCP command handler cycle time");
     A2lCreateParameter(gTransmitCycle, "us", "DAQ transmit cycle time");
-    A2lCreateParameter(gTaskCycleTimerServer, "ns", "Server thread sleep time");
-    A2lParameterGroup("Server_Parameters", 4, "gFlushCycle", "gCmdCycle", "gTransmitCycle", "gTaskCycleTimerServer");
+#endif
+    A2lCreateParameter(gServerWaitTimeout, "us", "Server thread sleep and wait timeout");
+    A2lParameterGroup("Server_Parameters", 2, "gFlushCycle", "gServerWaitTimeout");
 #endif
 
-    printf("Init XCP on UDP server\n");
-    return udpServerInit(gSocketPort);
+    return udpServerInit();
 }
 
-// XCP server task
-// Handle command, transmit data, flush data server thread
-void* xcpServerThread(void* par) {
+// XCP transport layer task
+// Handle commands, transmit data, flush data
+void* xcpTransportLayerThread(void* par) {
 
     printf("Start XCP server\n");
-    printf("  cmd cycle = %uus, transmit cycle = %dus, flush cycle = %dus\n", gCmdCycle, gTransmitCycle, gFlushCycle);
 
     // Server loop
     for (;;) {
 
-        ApplXcpSleepNs(gTaskCycleTimerServer);
+        udpServerWaitForEvent(gServerWaitTimeout);
         ApplXcpGetClock();
         
+#ifndef _WIN
         // Handle XCP commands every gCmdCycle time period
         if (gClock - gCmdTimer > gCmdCycle) {
             gCmdTimer = gClock;
             if (!udpServerHandleXCPCommands()) break;  
-        } // Handle
+        } 
+#else
+        if (!udpServerHandleXCPCommands()) break;
+#endif
 
         // If DAQ measurement is running
         if (gXcp.SessionStatus & SS_DAQ) {
 
-#ifdef DTO_SEND_QUEUE                
+#ifdef DTO_SEND_QUEUE 
+#ifndef _WIN
             // Transmit all completed UDP packets from the transmit queue every gTransmitCycle time period
-            if (gClock - gTransmitTimer > gTransmitCycle) {
+            if (gClock-gTransmitTimer>gTransmitCycle) {
                 gTransmitTimer = gClock;
                 udpServerHandleTransmitQueue();
-            } // Transmit
+            }
+#else
+            udpServerHandleTransmitQueue();
 #endif
-            // Every gFlushCycle time period
+#endif
+            // Every gFlushCycle in us time period
             // Cyclic flush of incomplete packets from transmit queue or transmit buffer to keep tool visualizations up to date
             // No priorisation of events implemented, no latency optimizations
-            if (gClock - gFlushTimer > gFlushCycle && gFlushCycle > 0) {
+            if (gFlushCycle>0 && gClock-gFlushTimer>gFlushCycle*1000) {
                 gFlushTimer = gClock;
 #ifdef DTO_SEND_QUEUE  
                 udpServerFlushTransmitQueue();
@@ -113,7 +125,7 @@ void* xcpServerThread(void* par) {
 volatile vuint32 gClock = 0;
 volatile vuint64 gClock64 = 0;
 
-
+#ifndef _WIN // Linux
 
 static struct timespec gts0;
 static struct timespec gtr;
@@ -164,6 +176,86 @@ void ApplXcpSleepNs(unsigned int ns) {
     nanosleep(&timeout, &timerem);
 }
 
+#else
+
+static __int64 sFactor = 1;
+static __int64 sOffset = 0;
+
+int ApplXcpClockInit(void) {
+
+    LARGE_INTEGER tF, tC;
+
+    if (QueryPerformanceFrequency(&tF)) {
+        if (tF.u.HighPart) {
+            printf("error: Unexpected Performance Counter frequency\n");
+            return 0;
+        }
+        sFactor = tF.u.LowPart; // Ticks pro s
+        QueryPerformanceCounter(&tC);
+        sOffset = (((__int64)tC.u.HighPart) << 32) | (__int64)tC.u.LowPart;
+        ApplXcpGetClock64();
+#ifdef XCP_ENABLE_TESTMODE
+        if (gXcpDebugLevel >= 1) {
+            printf("system realtime clock resolution = %I64u ticks per s\n", sFactor);
+            printf("gClock64 = %I64u, gClock = %u\n", gClock64, gClock);
+        }
+#endif
+
+    }
+    else {
+        printf("error: Performance Counter not available\n");
+        return 0;
+    }
+    return 1;
+}
+
+// Free running clock with 1us tick
+vuint32 ApplXcpGetClock(void) {
+   
+    LARGE_INTEGER t;
+    __int64 td;
+
+    QueryPerformanceCounter(&t);
+    td = (((__int64)t.u.HighPart) << 32) | (__int64)t.u.LowPart;
+    gClock64 = (vuint64)(((td - sOffset) * 1000000UL) / sFactor);
+    gClock = (vuint32)gClock64; 
+    return gClock;
+}
+
+// Free running clock with 1us in int64 which never overflows :-)
+vuint64 ApplXcpGetClock64(void) {
+
+    ApplXcpGetClock();
+    return gClock64;
+}
+
+
+void ApplXcpSleepNs(unsigned int ns) {
+
+    vuint64 t1, t2;
+    t1 = t2 = ApplXcpGetClock64();
+
+    vuint32 us = ns / 1000;
+    vuint32 ms = us / 1000;
+
+    // Start sleeping at 1800us, shorter sleeps are more precise but need significant CPU time
+    if (us >= 1800) { 
+        if (ms >= 2) ms--; // PC always sleeps +1 ms  ????
+        Sleep(ms);  
+    }
+    // Busy wait
+    else {
+        vuint64 te = t1 + us;
+        for (;;) {
+            t2 = ApplXcpGetClock64();
+            if (t2 >= te) break;
+            if (te - t2 > 0) Sleep(0);  
+        }
+    }
+}
+
+
+#endif
 
 
 /**************************************************************************/
@@ -179,6 +271,7 @@ int ApplXcpReadA2LFile(char** p, unsigned int* n) {
 
     if (gXcpA2L == NULL) {
 
+#ifndef _WIN // Linux
         FILE* fd;
         fd = fopen(kXcpA2LFilenameString, "r");
         if (fd == NULL) return 0;
@@ -189,11 +282,22 @@ int ApplXcpReadA2LFile(char** p, unsigned int* n) {
         fclose(fd);
 
         //free(gXcpA2L);
+#else
+        HANDLE hFile, hFileMapping;
+        hFile = CreateFile(TEXT(kXcpA2LFilenameString), GENERIC_READ|GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (hFile == INVALID_HANDLE_VALUE) return 0;
+        gXcpA2LLength = GetFileSize(hFile, NULL);
+        hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, gXcpA2LLength + sizeof(WCHAR), NULL);
+        gXcpA2L = MapViewOfFile(hFileMapping, FILE_MAP_READ, 0, 0, 0);
+        if (gXcpA2L == NULL) return 0;
 
+        //UnmapViewOfFile(gXcpA2L);
+        //CloseHandle(hFileMapping);
+        //CloseHandle(hFile);
+#endif
 #if defined ( XCP_ENABLE_TESTMODE )
             if (gXcpDebugLevel >= 1) {
-                ApplXcpPrint("A2L file %s ready for upload, size=%u, mta=0x%llX\n", kXcpA2LFilenameString, gXcpA2LLength, (vuint64)gXcpA2L);
-                //if (gXcpDebugLevel == 1) gXcpDebugLevelVerbose = 0; // Tempory stop of debug output
+                ApplXcpPrint("A2L file %s ready for upload, size=%u, mta=%p\n", kXcpA2LFilenameString, gXcpA2LLength, gXcpA2L);
             }
 #endif
         

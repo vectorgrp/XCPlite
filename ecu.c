@@ -8,11 +8,12 @@
 |
  ----------------------------------------------------------------------------*/
 
-#include "ecu.h"
 #include "xcpLite.h"
+#include "xcpAppl.h"
 #include "A2L.h"
 
 #include <math.h>
+#include "ecu.h"
 
 
 
@@ -21,8 +22,11 @@
 /**************************************************************************/
 
 unsigned short ecuCounter = 0;
-double timer;
+
+double time1; // clock as double in s
 double channel1;
+double channel2;
+double channel3;
 
 unsigned char byteArray1[1400];
 unsigned char byteArray2[1400];
@@ -61,10 +65,13 @@ char testString[] = "TestString";
 /* ECU Parameters */
 /**************************************************************************/
 
+#define PI2 6.28318530718
 
+volatile double period = 4.0;
 volatile double offset = 0.0;
-volatile double period = 5.0;
-volatile double ampl   = 50.0;
+volatile double phase = PI2 / 2;
+volatile double threshold = 0;
+volatile double ampl = 400.0;
 
 volatile unsigned char map1_8_8[8][8] =
 { {0,0,0,0,0,0,1,2},
@@ -91,9 +98,11 @@ void ecuInit(void) {
 
     ecuCounter = 0;
 
-    timer = 0;
     channel1 = 0;
-
+    channel2 = 0;
+    channel3 = 0;
+    time1 = 0; 
+    
     byteCounter = 0;
     wordCounter = 0;
     dwordCounter = 0;
@@ -106,18 +115,6 @@ void ecuInit(void) {
         byteArray2[i] = (unsigned char)i;
         byteArray3[i] = (unsigned char)i;
         byteArray4[i] = (unsigned char)i;
-        byteArray5[i] = (unsigned char)i;
-        byteArray6[i] = (unsigned char)i;
-        byteArray7[i] = (unsigned char)i;
-        byteArray8[i] = (unsigned char)i;
-        byteArray9[i] = (unsigned char)i;
-        byteArray10[i] = (unsigned char)i;
-        byteArray11[i] = (unsigned char)i;
-        byteArray12[i] = (unsigned char)i;
-        byteArray13[i] = (unsigned char)i;
-        byteArray14[i] = (unsigned char)i;
-        byteArray15[i] = (unsigned char)i;
-        byteArray16[i] = (unsigned char)i;
     }
 
     for (unsigned int i = 0; i < 1024; i++) {
@@ -133,15 +130,23 @@ void ecuInit(void) {
 #ifdef XCP_ENABLE_A2L
 void ecuCreateA2lDescription( void) {
       
+    A2lCreateParameterWithLimits(ampl, "Amplitude", "V", 0, 800);
+    A2lCreateParameterWithLimits(offset, "Offset of channel 1", "V", -200, +200);
+    A2lCreateParameterWithLimits(phase, "Phase of channel 1", "", 0, PI2);
+    A2lCreateParameterWithLimits(threshold, "Threshold for channel 3", "", -400, 400);
+    A2lCreateParameterWithLimits(period, "Period", "", 0.01, 10);
+    A2lParameterGroup("Parameters", 5, "period", "ampl", "offset", "phase", "threshold");
+
+
+    A2lSetEvent(gXcpEvent_EcuCyclic); // Associate XCP event "EcuCyclic" to the variables created below
     A2lCreateMeasurement(ecuCounter);
-    A2lCreatePhysMeasurement(timer, "Time in s", 1.0, 0.0, "s");
-    A2lCreatePhysMeasurement(channel1, "Demo sine wave signal", 1.0, 0.0, "V");
-    A2lCreateParameterWithLimits(ampl, "Amplitude", "V", 0, 100);
-    A2lCreateParameterWithLimits(offset, "Offset", "V", -50, +50);
-    A2lCreateParameterWithLimits(period, "Period", "s", 0, 10);
+    A2lCreatePhysMeasurement(channel1, "Demo signal 1", 1.0, 0.0, "");
+    A2lCreatePhysMeasurement(channel2, "Demo signal 2", 1.0, 0.0, "");
+    A2lCreatePhysMeasurement(channel3, "Demo signal 3", 1.0, 0.0, "");
+
     A2lCreateMap(map1_8_8, 8, 8, "", "8*8 byte calibration array");
     A2lCreateCurve(curve1_32, 32, "", "32 byte calibration array");
-
+    
     A2lCreateMeasurement(byteCounter);
     A2lCreateMeasurement(wordCounter);
     A2lCreateMeasurement(dwordCounter);
@@ -153,46 +158,32 @@ void ecuCreateA2lDescription( void) {
     A2lCreateMeasurementArray(byteArray2);
     A2lCreateMeasurementArray(byteArray3);
     A2lCreateMeasurementArray(byteArray4);
-    A2lCreateMeasurementArray(byteArray5);
-    A2lCreateMeasurementArray(byteArray6);
-    A2lCreateMeasurementArray(byteArray7);
-    A2lCreateMeasurementArray(byteArray8);
-    A2lCreateMeasurementArray(byteArray9);
-    A2lCreateMeasurementArray(byteArray10);
-    A2lCreateMeasurementArray(byteArray11);
-    A2lCreateMeasurementArray(byteArray12);
-    A2lCreateMeasurementArray(byteArray13);
-    A2lCreateMeasurementArray(byteArray14);
-    A2lCreateMeasurementArray(byteArray15);
-    A2lCreateMeasurementArray(byteArray16);
     
     A2lCreateMeasurementArray(longArray1);
     A2lCreateMeasurementArray(longArray2);
     A2lCreateMeasurementArray(longArray3);
     A2lCreateMeasurementArray(longArray4);
 
-    A2lParameterGroup("Arrays", 20, 
-        "byteArray1", "byteArray2", "byteArray3", "byteArray4", "byteArray5", "byteArray6", "byteArray7", "byteArray8", "byteArray9", "byteArray10", 
-        "byteArray11", "byteArray12", "byteArray13", "byteArray14", "byteArray15", "byteArray16", "longArray1", "longArray2", "longArray3", "longArray4");
+    A2lParameterGroup("Arrays", 8, "byteArray1", "byteArray2", "byteArray3", "byteArray4", "longArray1", "longArray2", "longArray3", "longArray4");
 }
 #endif
 
 
 
 
-// Cyclic demo task
+
+// Cyclic demo task (default 2ms cycle time)
 void ecuCyclic( void )
 {
   // Cycle counter
   ecuCounter++;
-    
-  // Sine wave
-  if (period>0.01||period<-0.01) {
-      channel1 = sin(6.283185307 * timer / period);
-      channel1 = offset + ( ampl * channel1 );
-  }
-  timer = (timer + 0.001);
- 
+
+  // channel 1-6 demo signals
+  channel1 = offset + ampl * sin(PI2 * time1 / period + phase);
+  channel2 = ampl * sin(PI2 * time1 / period );
+  channel3 = (channel1 > threshold) * ampl;
+  time1 = time1 + 0.001; 
+
   // Arrays
   longArray1[0] ++;
   longArray2[0] ++;
@@ -223,7 +214,7 @@ void ecuCyclic( void )
   wordCounter++;
   dwordCounter++;
 
-
+  XcpEvent(gXcpEvent_EcuCyclic); // Trigger measurement data aquisition event for ecuCyclic() task
 }
 
 

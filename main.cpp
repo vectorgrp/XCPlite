@@ -20,74 +20,59 @@
 // ECU simulation (C demo)
 #include "ecu.h"
 
-// Calibration Parameters
-
-// Task delays
-volatile vuint32 gTaskCycleTimerECU    = 1000000; // ns  Cycle time of the C task
-volatile vuint32 gTaskCycleTimerECUpp  = 1000000; // ns  Cycle time of the C++ task
-
-// Active task
+// ECU simulation (C++ demo)
+#include "ecupp.hpp"
+static EcuTask* gEcuTask1 = NULL; // C++ task instances
+static EcuTask* gEcuTask2 = NULL;
+static EcuTask* gActiveEcuTask = NULL;
 volatile unsigned int gActiveEcuTaskId = 0; // Task id of the active C++ task
 
 
+// Task delays
+volatile vuint32 gTaskCycleTimerECU    = 2000; // 2ms Cycle time of the C task
+volatile vuint32 gTaskCycleTimerECUpp  = 2000; // 2ms  Cycle time of the C++ task
+
 
 // Measurement data acquisition event numbers
-static unsigned int gXcpEvent_EcuCyclic = 0;
-static unsigned int gXcpEvent_EcuTask1 = 0;
-static unsigned int gXcpEvent_EcuTask2 = 0;
-static unsigned int gXcpEvent_ActiveEcuTask = 0;
-
-
-// C++ task instances
-#include "ecupp.hpp"
-static EcuTask* gEcuTask1 = NULL;
-static EcuTask* gEcuTask2 = NULL;
-static EcuTask* gActiveEcuTask = NULL;
+unsigned int gXcpEvent_EcuCyclic = 0;
+unsigned int gXcpEvent_EcuTask1 = 0;
+unsigned int gXcpEvent_EcuTask2 = 0;
+unsigned int gXcpEvent_ActiveEcuTask = 0;
 
 
 
 extern "C" {
 
-    // ECU cyclic (1ms) demo task 
+    // ECU cyclic (2ms default) demo task 
     // Calls C ECU demo code
     void* ecuTask(void* par) {
 
-        printf("Start C demo task ( ecuCyclic() called  every %dns, event = %d )\n", gTaskCycleTimerECU, gXcpEvent_EcuCyclic);
+        printf("Start C demo task ( ecuCyclic() called  every %dus, event = %d )\n", gTaskCycleTimerECU, gXcpEvent_EcuCyclic);
         for (;;) {
-            ApplXcpSleepNs(gTaskCycleTimerECU);
+            ApplXcpSleepNs(gTaskCycleTimerECU*1000);
             ecuCyclic();
-
-#if defined ( XCP_ENABLE_WIRINGPI )
-            digitalWrite(PI_IO_1, HIGH);
-#endif
-
-            XcpEvent(gXcpEvent_EcuCyclic); // Trigger measurement date aquisition event for ecuCyclic() task
-
-#if defined ( XCP_ENABLE_WIRINGPI )
-            digitalWrite(PI_IO_1, LOW);
-#endif
         }
         return 0;
     }
     
-    // ECU cyclic (1ms) demo task 
+    // ECU cyclic (2ms default) demo task 
     // Calls C++ ECU demo code
     void* ecuppTask(void* par) {
 
-        printf("Start C++ demo task ( gActiveEcuTask->run() called every %dns, event = %d )\n", gTaskCycleTimerECUpp, gXcpEvent_ActiveEcuTask);
+        printf("Start C++ demo task ( gActiveEcuTask->run() called every %dus, event = %d )\n", gTaskCycleTimerECUpp, gXcpEvent_ActiveEcuTask);
         for (;;) {
-            ApplXcpSleepNs(gTaskCycleTimerECUpp);
+            ApplXcpSleepNs(gTaskCycleTimerECUpp*1000);
             // Run the currently active ecu task
             gActiveEcuTask = gActiveEcuTaskId==gXcpEvent_EcuTask1 ? gEcuTask1: gActiveEcuTaskId==gXcpEvent_EcuTask2 ? gEcuTask2 : NULL;
             if (gActiveEcuTask != NULL) {
                 gActiveEcuTask->run();
-
                 XcpEventExt(gXcpEvent_ActiveEcuTask, (BYTEPTR)gActiveEcuTask); // Trigger measurement date aquisition event for currently active task
             }
         }
         return 0;
     }
-}
+
+} // C
 
 
 // C++ main
@@ -95,7 +80,16 @@ int main(void)
 {  
     printf(
         "\nXCPlite: XCP on UDP Demo\n"
-        "Build " __DATE__ " " __TIME__ "\n"
+        "Build " __DATE__ " " __TIME__ 
+#ifndef _WIN
+        " for Linux ARM32\n"
+#else
+#ifdef XCP_ENABLE_XLAPI
+        " for Windows x86 XL-API V3\n"
+#else
+        " for Windows x86 Winsock\n"
+#endif
+#endif
 #ifdef XCP_ENABLE_A2L
         "  Option A2L\n"
 #endif
@@ -108,15 +102,10 @@ int main(void)
 #ifdef DTO_SEND_QUEUE
         "  Option SEND_QUEUE\n"
 #endif
-#ifdef DTO_SEND_RAW
-        "  Option SEND_RAW\n"
-#endif
 #ifdef XCP_ENABLE_TESTMODE
         "  Option TEST\n"
 #endif
-#ifdef XCP_ENABLE_WIRINGPI
-        "  Option WIRINGPI\n"
-#endif
+
     );
      
     // Initialize clock for DAQ event time stamps
@@ -127,11 +116,6 @@ int main(void)
     ApplXcpInitBaseAddressList();
 #endif
 
-    // Initialize digital io
-#ifdef XCP_ENABLE_WIRINGPI
-    wiringPiSetupSys();
-    pinMode(PI_IO_1, OUTPUT);
-#endif
 
     // Initialize XCP driver
     XcpInit();
@@ -143,19 +127,23 @@ int main(void)
 #endif
 
 
-    // Create A2L header and events
+    // Create A2L events
+    // Events must be all defined before A2lHeader(), measurements and parameters have to defined afterwards
 #ifdef XCP_ENABLE_A2L
     A2lInit(kXcpA2LFilenameString);
-    gXcpEvent_EcuCyclic = A2lCreateEvent("EcuCyclic");   // Standard event triggered in C ecuTask
-    gXcpEvent_EcuTask1 = A2lCreateEvent("EcuTask1");     // Standard event triggered by C++ ecuTask1 instance
-    gXcpEvent_EcuTask2 = A2lCreateEvent("EcuTask2");     // Standard event triggered by C++ ecuTask2 instance
-    gXcpEvent_ActiveEcuTask = A2lCreateEvent("activeEcuTask");     // Extended event (relative address objects) triggered by C++ main task
-    // Events must be all defined before A2lHeader(), measurements and parameters have to defined afterwards
+    gXcpEvent_EcuCyclic = A2lCreateEvent("EcuCyclic",2000,0);   // Standard event triggered in C ecuTask
+    gXcpEvent_EcuTask1 = A2lCreateEvent("EcuTask1", 2000, 0);     // Standard event triggered by C++ ecuTask1 instance
+    gXcpEvent_EcuTask2 = A2lCreateEvent("EcuTask2", 2000, 0);     // Standard event triggered by C++ ecuTask2 instance
+    gXcpEvent_ActiveEcuTask = A2lCreateEvent("activeEcuTask", 0, 0);     // Extended event (relative address objects) triggered by C++ main task
+#endif
+
+    // Create A2L header
+#ifdef XCP_ENABLE_A2L
     A2lHeader();
 #endif
 
     // Initialize the XCP server
-    if (!xcpServerInit()) return 1;
+    if (!xcpTransportLayerInit()) return 1;
 
     // C++ demo
     // Initialize ECU demo runnables (C++)
@@ -178,25 +166,26 @@ int main(void)
     // Initialize ECU demo task (C) 
     ecuInit();
 #ifdef XCP_ENABLE_A2L
-    A2lSetEvent(gXcpEvent_EcuCyclic); // Associate XCP event "EcuCyclic" to the variables created below
     ecuCreateA2lDescription();
 #endif
 
-    // Create additional A2L parameters to control the demo tasks 
+    // Create additional A2L parameters to control the demo  
 #ifdef XCP_ENABLE_A2L
-    A2lCreateParameter(gActiveEcuTaskId, "", "Active ecu task id control");
-    A2lCreateParameter(gTaskCycleTimerECU, "ns", "ECU cycle time (ns delay)");
-    A2lCreateParameter(gTaskCycleTimerECUpp, "ns", "ECU cycle time (ns delay)");
-    A2lCreateParameter(gXcpDebugLevel, "", "Console output verbosity");
+    A2lCreateParameterWithLimits(gActiveEcuTaskId,"Active ecu task object id","",2,3);
+    A2lCreateParameterWithLimits(gTaskCycleTimerECU,"ECU task cycle time","us",50,1000000);
+    A2lCreateParameterWithLimits(gTaskCycleTimerECUpp,"ECUpp task cycle time","us",50,1000000);
+    A2lCreateParameterWithLimits(gXcpDebugLevel,"Console output verbosity","us",0,4);
     A2lParameterGroup("Demo_Parameters", 4, "gActiveEcuTaskId", "gTaskCycleTimerECU", "gTaskCycleTimerECUpp", "gXcpDebugLevel");
 #endif
 
     // Finalize A2L
 #ifdef XCP_ENABLE_A2L
     A2lClose();
+    printf("A2L file %s generated\n", kXcpA2LFilenameString);
+
 #endif
 
-
+#ifndef _WIN // Linux
 
     //----------------------------------------------------------------------------------
     // Create the ECU threads
@@ -211,12 +200,21 @@ int main(void)
     // Create the XCP server thread
     pthread_t t1;
     int a1 = 0;
-    pthread_create(&t1, NULL, xcpServerThread, (void*)&a1);
+    pthread_create(&t1, NULL, xcpTransportLayerThread, (void*)&a1);
 
     // Exit
     pthread_join(t1, NULL); // wait here, t1 may fail or terminate
     pthread_cancel(t2);
     pthread_cancel(t3);
+
+#else
+
+    std::thread t2([]() { ecuTask(0); });
+    std::thread t3([]() { ecuppTask(0); });
+    std::thread t1([]() { xcpTransportLayerThread(0); });
+    t1.join();
+    
+#endif
 
     return 0;
 }

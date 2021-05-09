@@ -10,7 +10,32 @@
 #ifndef __XCP_CFG_H_
 #define __XCP_CFG_H_
 
+#ifdef _WIN32
+#define _WIN
+#endif
+#ifdef _WIN64
+#error WIN64 not implemented yet
+#endif
 
+ /*----------------------------------------------------------------------------*/
+ /* Protocol and debugging options */
+
+#define XCP_ENABLE_A2L // Enable A2L creator and A2L upload to host
+
+#ifdef _WIN // Windows
+   #define XCP_ENABLE_XLAPI // Enable Vector XLAPI instead of Winsock Network Adapter
+#endif
+#ifndef _WIN // Linus
+// #define XCP_ENABLE_SO // Enable measurement and calibration of shared objects
+// #define XCP_ENABLE_PTP // Enable PTP synchronized DAQ time stamps
+#endif
+
+#define XCP_ENABLE_TESTMODE // Enable debug console prints
+#define XCP_DEBUG_LEVEL 1
+
+#ifndef _WIN // Linux
+
+#define _LINUX
 #define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <stdarg.h>
@@ -28,7 +53,32 @@
 #include <netinet/in.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
+//#include <linux/arp.h>
 #include <arpa/inet.h>
+
+#else // Windows
+
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <assert.h>
+
+#ifdef XCP_ENABLE_XLAPI
+
+// Need to link with vxlapi.lib
+#pragma comment(lib, "vxlapi.lib")
+#include "vxlapi.h"
+
+#else
+
+// Need to link with Ws2_32.lib
+#pragma comment(lib, "ws2_32.lib")
+#include <winsock2.h>
+#include <ws2tcpip.h>
+
+#endif
+#endif
 
 
 #ifdef __cplusplus
@@ -36,62 +86,66 @@ extern "C" {
 #endif
 
 
-/*----------------------------------------------------------------------------*/
-/* Protocol and debugging options */
-
-//#define XCP_ENABLE_64 // Enable 64 bit address space
-	
-#define XCP_ENABLE_A2L // Enable A2L creator and A2L upload to host
-
-// #define XCP_ENABLE_SO // Enable measurement and calibration of shared objects
-
-// #define XCP_ENABLE_PTP // Enable PTP synchronized DAQ time stamps
-
-#define XCP_ENABLE_TESTMODE // Enable debug console prints
-#define XCP_DEBUG_LEVEL 1
-
-// #define XCP_ENABLE_WIRINGPI // Enable digital io 
 
 
 /*----------------------------------------------------------------------------*/
 /* Important Protocol settings and parameters */
-	
-// XCP slave IP address
-#define XCP_SLAVE_IP "172.31.31.194"  // IP is hardcode yet, should be improved in future versions
+
+#ifndef _WIN // Linux
+  #define XCP_SLAVE_IP_S "172.31.31.194" // Only for A2L generator
+  #define XCP_SLAVE_PORT 5555
+  #define XCP_SLAVE_PORT_S "5555"
+#else // Windows
+#ifdef XCP_ENABLE_XLAPI // Enable Vector XLAPI as Network Adapter
+  #define XCP_SLAVE_NET "NET1" // V3 Network
+  #define XCP_SLAVE_SEG "SEG1" // V3 Segment
+  #define XCP_SLAVE_NAME "XCPlite" // V3 Application Name
+  #define XCP_SLAVE_IP_S "172.31.31.194" // V3 Ethernet Adapter IP
+  #define XCP_SLAVE_IP {172,31,31,194} // V3 Ethernet Adapter IP
+  #define XCP_SLAVE_MAC {0xdc,0xa6,0x32,0x7e,0x66,0xdc} // V3 Ethernet Adapter MAC
+  #define XCP_SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc} // V3 PTP UUID
+#define XCP_SLAVE_PORT 5555
+#define XCP_SLAVE_PORT_S "5555"
+#else
+  #define XCP_SLAVE_IP_S "127.0.0.1" // Localhost default for winsock
+  #define XCP_SLAVE_IP {127,0,0,1} 
+#define XCP_SLAVE_PORT 5555
+#define XCP_SLAVE_PORT_S "5555"
+#endif
+#endif
+
+#define XCP_SLAVE_PORT 5555
+#define XCP_SLAVE_PORT_S "5555"
+
 
 // XCP slave device and A2L file identification (optional)
-#define kXcpSlaveIdLength 5    /* Slave device identification length */
-#define kXcpSlaveIdString "XCPpi"  /* Slave device identification */
-#define kXcpA2LFilenameLength 9    /* Length of A2L filename */
-#define kXcpA2LFilenameString "XCPpi.A2L"  /* A2L filename */
+#define kXcpSlaveIdLength 7    /* Slave device identification length */
+#define kXcpSlaveIdString "XCPlite"  /* Slave device identification */
+#define kXcpA2LFilenameLength 11    /* Length of A2L filename */
+#define kXcpA2LFilenameString "XCPlite.A2L"  /* A2L filename */
 
 // The following parameters are dependant on the amount of measurement signals supported, they have significant impact on memory consumption
-#define XCP_DAQ_QUEUE_SIZE 64   // Transmit queue size in DAQ UDP packets (MTU=1400), should at least be able to hold all data produced by the largest event
-#define XCP_DAQ_MEM_SIZE 60000u // Amount of memory for DAQ tables, each ODT entries needs 5 bytes
+#ifndef _WIN // Windows needs much larger buffers to achieve more performance
+  #define XCP_DAQ_QUEUE_SIZE 64   // Transmit queue size in DAQ UDP packets (MTU=1400), should at least be able to hold all data produced by the largest event
+  #define XCP_DAQ_MEM_SIZE (32*1024) // Amount of memory for DAQ tables, each ODT entry needs 5 bytes
+#else
+#define XCP_DAQ_QUEUE_SIZE (4*1024)   // Transmit queue size in DAQ UDP packets (MTU=1400), should at least be able to hold all data produced by the largest event
+#define XCP_DAQ_MEM_SIZE (64*1024-1) // Amount of memory for DAQ tables, each ODT entry needs 5 bytes
+#endif
 
 // Transmit mode
 #define DTO_SEND_QUEUE       /* Enable DTO packet queue, decouples xcpEvent from sendto, results in almost deterministic runtime of xcpEvent */
-//#define DTO_SEND_RAW       /* Activate build in UDP stack on RAW sockets for DAQ transmission */
 
 
 /*----------------------------------------------------------------------------*/
 /* Test instrumentation */
 
 /* Turn on screen logging, assertions and parameter checks */
-
 #ifdef XCP_ENABLE_TESTMODE
-#define ApplXcpPrint printf
-#define XCP_ENABLE_PARAMETER_CHECK
-
+  #define ApplXcpPrint printf
+  #define XCP_ENABLE_PARAMETER_CHECK
 #endif
 
-#ifdef XCP_ENABLE_WIRINGPI
-#include <wiringPi.h>
-#define PI_IO_1	17
-#define ApplXcpDbgPin(x) digitalWrite(PI_IO_1,x);
-#else
-#define ApplXcpDbgPin(x)
-#endif
 
 
 /*----------------------------------------------------------------------------*/
@@ -181,23 +235,11 @@ extern vuint32 ApplXcpGetClock(void);
 
 #ifdef XCP_ENABLE_PTP // Experimental -  UUIDs hardcoded
    #define TIMESTAMP_DLONG
-
-	#define XCP_SLAVE2
-
-	#ifdef XCP_SLAVE2
-	#define SLAVE_IP "172.31.31.195"
-	#define SLAVE_MAC {0xdc,0xa6,0x32,0x2e,0x7d,0xe0}
-	#define SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x2e,0x7d,0xe0}
-	#else
-	#define SLAVE_IP "172.31.31.194"
-	#define SLAVE_MAC {0xdc,0xa6,0x32,0x7e,0x66,0xdc}
-	#define SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc}
-	#endif
-
 	//dca632.fffe.79a251
 	#define MASTER_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x79,0xa2,0x51}
     extern vuint64 ApplXcpGetClock64(void);
 #endif
+
 #define kApplXcpDaqTimestampTicksPerMs 1000 
 #define kXcpDaqTimestampUnit DAQ_TIMESTAMP_UNIT_1US
 #define kXcpDaqTimestampTicksPerUnit 1  
