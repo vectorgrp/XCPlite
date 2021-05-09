@@ -10,7 +10,7 @@ PrgDate=19.03.2021
 Description=
 CreationTime=14:27
 CreationDate=09/08/2020 ; Month/Day/Year
-ModificationTime=18:40
+ModificationTime=20:01
 ModificationDate=05/09/2021 ; Month/Day/Year
 Protected=0
 
@@ -21,7 +21,7 @@ Count=1
 Count=0
 
 [CALIBRATION_LIST]
-Count=13
+Count=14
 
 [CALIBRATION_OBJECT_1]
 EditOffset=10
@@ -35,6 +35,20 @@ StimMode=0
 IsFallback=0
 
 [CALIBRATION_OBJECT_10]
+EditOffset=1
+EditFactor=2
+EditFormat=2
+ShowWorkingPoint=0
+FollowWorkingPoint=0
+Module=XCPpi
+Name=map1_8_8
+Array=1
+Rows=8
+Columns=8
+StimMode=0
+IsFallback=0
+
+[CALIBRATION_OBJECT_11]
 EditOffset=10
 EditFactor=2
 EditFormat=2
@@ -45,7 +59,7 @@ Name=offset
 StimMode=0
 IsFallback=0
 
-[CALIBRATION_OBJECT_11]
+[CALIBRATION_OBJECT_12]
 EditOffset=1
 EditFactor=2
 EditFormat=2
@@ -56,7 +70,7 @@ Name=period
 StimMode=0
 IsFallback=0
 
-[CALIBRATION_OBJECT_12]
+[CALIBRATION_OBJECT_13]
 EditOffset=0.1
 EditFactor=2
 EditFormat=2
@@ -67,7 +81,7 @@ Name=phase
 StimMode=0
 IsFallback=0
 
-[CALIBRATION_OBJECT_13]
+[CALIBRATION_OBJECT_14]
 EditOffset=10
 EditFactor=2
 EditFormat=2
@@ -165,10 +179,7 @@ EditFormat=2
 ShowWorkingPoint=0
 FollowWorkingPoint=0
 Module=XCPpi
-Name=map1_8_8
-Array=1
-Rows=8
-Columns=8
+Name=gXcpDebugLevel
 StimMode=0
 IsFallback=0
 
@@ -1019,7 +1030,7 @@ GlobalCursor=0
 GlobalCursorTime=0
 GlobalTimeAxis=1
 GlobalTimeAxisStartTime=0
-GlobalTimeAxisEndTime=39285644227
+GlobalTimeAxisEndTime=2923241322
 MainWindowPos=1, 48, 83, 2615, 1577 ;cmd, x, y, w, h
 
 [PAR_COMMENT]
@@ -1206,13 +1217,14 @@ FocusID=2004
 ActiveTab=0
 FilterNodeID=Alle
 TreeExpand_0=@Alle
-TreeExpand_1=Alle\Geräte\XCPpi\XCPpi_autodetect.a2l
-TreeExpand_2=Alle\Geräte
-TreeExpand_3=Alle\Geräte\XCPpi\XCPpi_autodetect.a2l\Demo_Parameters
-TreeExpand_4=Alle\Geräte\XCPpi\XCPpi_autodetect.a2l\Parameters
-TreeExpand_5=Alle\Geräte\XCPpi\XCPpi_autodetect.a2l\Server_Parameters
-TreeExpand_6=$Alle\Geräte
-TreeExpand_7=#Alle\Geräte\XCPpi
+TreeExpand_1=Alle\Geräte\XCPpi
+TreeExpand_2=Alle\Geräte\XCPpi\XCPpi_autodetect.a2l\Server_Parameters
+TreeExpand_3=Alle\Geräte\XCPpi\XCPpi_autodetect.a2l\Parameters
+TreeExpand_4=Alle\Geräte\XCPpi\XCPpi_autodetect.a2l\Demo_Parameters
+TreeExpand_5=Alle\Geräte
+TreeExpand_6=Alle\Geräte\XCPpi\XCPpi_autodetect.a2l
+TreeExpand_7=$Alle\Geräte
+TreeExpand_8=#Alle\Geräte\XCPpi\XCPpi_autodetect.a2l\Demo_Parameters\gXcpDebugLevel
 TextSearchCaseSensitive=0
 TextSearchUseMode=1
 TextSearchSearchFullText=1
@@ -1562,7 +1574,7 @@ DisplayMask=1 ; pages 1
 [WINDOW_3]
 XLen=8554
 XMin=0
-XMax=39285
+XMax=2923
 Grid=1
 Mark=1
 YValue=1
@@ -1631,7 +1643,7 @@ COL_1_dpi96=1048578, 88
 [WINDOW_4]
 XLen=8554
 XMin=0
-XMax=39285
+XMax=2923
 Grid=1
 Mark=1
 YValue=1
@@ -2033,15 +2045,15 @@ DISPLAY_WIDTH_02_dpi96=189
 ColumnWidth=236 125 -150 284
 Group=0
 Sorted=0
-ObjectCount=5
+ObjectCount=6
 Title=Parameter
 Type=8
 Comment=Parameter-Fenster
 Number=8
-Position=0, 12, 16, 658, 240 ;cmd, x, y, w, h
-Position_dpi96=0, 8, 11, 439, 160 ;cmd, x, y, w, h
-Position_Page01=0, 12, 16, 658, 240 ;cmd, x, y, w, h
-Position_Page01_dpi96=0, 8, 11, 439, 160 ;cmd, x, y, w, h
+Position=0, 12, 16, 658, 247 ;cmd, x, y, w, h
+Position_dpi96=0, 8, 11, 439, 165 ;cmd, x, y, w, h
+Position_Page01=0, 12, 16, 658, 247 ;cmd, x, y, w, h
+Position_Page01_dpi96=0, 8, 11, 439, 165 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
 DisplayMask=1 ; pages 1
@@ -2183,7 +2195,7 @@ AxisTemplate=
 
 [WINDOW_8_OBJECT_4]
 Type=2
-Name=gTransmitCycle
+Name=gXcpDebugLevel
 Module=XCPpi
 Window=8
 Index=3
@@ -2228,10 +2240,55 @@ AxisTemplate=
 
 [WINDOW_8_OBJECT_5]
 Type=2
-Name=gCmdCycle
+Name=gTransmitCycle
 Module=XCPpi
 Window=8
 Index=4
+Color=0
+ColorFunction=0
+ColorFunctionScope=1
+LineTyp=2
+YMinHome=0
+YMaxHome=100
+YMin=0
+YMax=100
+XOffsetNS=0
+XOffset=0
+ValueFormat=3
+BitMask=1
+ShowYAxis=1
+Width=10
+LineStyle=1
+MarkerType=1
+LineWidth=1
+Precision=-2
+Digits=6
+Enabled=1
+StoredFocused=0
+SublMask=0
+MeaSublMask=0
+LockScaling=0
+RightAxis=0
+MapMode=2
+OverlayGridColor=0
+ShadingMode=3
+EditOffset=1
+EditFactor=2
+WAxisLabel=
+XAxisLabel=
+YAxisLabel=
+AxisCaption=
+Row=0
+Col=0
+YAxis_ID=0
+AxisTemplate=
+
+[WINDOW_8_OBJECT_6]
+Type=2
+Name=gCmdCycle
+Module=XCPpi
+Window=8
+Index=5
 Color=0
 ColorFunction=0
 ColorFunctionScope=1

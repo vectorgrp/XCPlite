@@ -51,7 +51,7 @@ static int udpServerSendDatagram(const unsigned char* data, unsigned int size ) 
     int r;
         
 #if defined ( XCP_ENABLE_TESTMODE )
-    if (gXcpDebugLevel >= 3) {
+    if (gXcpDebugLevel >= 4) {
         printf("TX: ");
         for (unsigned int i = 0; i < size; i++) printf("%00X ", data[i]);
         printf("\n");
@@ -155,7 +155,7 @@ unsigned char *udpServerGetPacketBuffer(void **par, unsigned int size) {
     tXcpDtoMessage* p;
 
  #if defined ( XCP_ENABLE_TESTMODE )
-    if (gXcpDebugLevel >= 3) {
+    if (gXcpDebugLevel >= 5) {
         printf("GetPacketBuffer(%u)\n", size);
         if (dto_buffer_ptr) {
             printf("  dto_buffer_ptr s=%u, c=%u\n", dto_buffer_ptr->xcp_size, dto_buffer_ptr->xcp_uncommited);
@@ -200,7 +200,7 @@ void udpServerCommitPacketBuffer(void *par) {
     if (par != NULL) {
 
 #if defined ( XCP_ENABLE_TESTMODE )
-        if (gXcpDebugLevel >= 3) {
+        if (gXcpDebugLevel >= 5) {
             printf("CommitPacketBuffer() c=%u,s=%u\n", p->xcp_uncommited, p->xcp_size);
         }
 #endif   
@@ -311,7 +311,7 @@ int udpServerHandleXCPCommands(void) {
         connected = (gXcp.SessionStatus & SS_CONNECTED);
 
 #ifdef XCP_ENABLE_TESTMODE
-        if (gXcpDebugLevel >= 3 || (!connected && gXcpDebugLevel >= 1)) {
+        if (gXcpDebugLevel >= 4 || (!connected && gXcpDebugLevel >= 1)) {
             printf("RX: CTR %04X", buffer.ctr);
             printf(" LEN %04X", buffer.dlc);
             printf(" DATA = ");

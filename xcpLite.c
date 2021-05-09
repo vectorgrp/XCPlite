@@ -70,21 +70,16 @@
 #include "xcpAppl.h"
 
 
-
 /****************************************************************************/
 /* Macros                                                                   */
 /****************************************************************************/
 
 #define error(e) { err=(e); goto negative_response; }
 #define check_error(e) { err=(e); if (err!=0) { goto negative_response; } }
-#define error1(e,b1) { err=(e); CRM_BYTE(2)=(b1); gXcp.CrmLen=3; goto negative_response1; }
-#define error2(e,b1,b2) { err=(e); CRM_BYTE(2)=(b1); CRM_BYTE(3)=(b2); gXcp.CrmLen=4; goto negative_response1; }
 
-#define XCP_WRITE_BYTE_2_ADDR(addr, data)           *(addr) = (data) 
-#define XCP_READ_BYTE_FROM_ADDR(addr)               *(addr) 
-  
 #define XcpSetMta(p,e) (gXcp.Mta = (p)) 
-
+#define XCP_WRITE_BYTE_TO_ADDR(addr, data) *(addr) = (data) 
+#define XCP_READ_BYTE_FROM_ADDR(addr) *(addr) 
 
 /****************************************************************************/
 /* Global data                                                               */
@@ -97,7 +92,6 @@ const vuint8 gXcpSlaveId[kXcpSlaveIdLength] = kXcpSlaveIdString; // Name of the 
 #if defined ( XCP_ENABLE_TESTMODE )
 volatile vuint8 gXcpDebugLevel = XCP_DEBUG_LEVEL;
 #endif
-
 
 /***************************************************************************/
 /* Prototypes for local functions                                          */
@@ -120,8 +114,6 @@ static void XcpPrintCmd(const tXcpCto* pCmd);
 static void XcpPrintRes(const tXcpCto* pCmd);
 #endif
 
-
-
 /*****************************************************************************
 | NAME:             XcpWriteMta
 | CALLED BY:        XcpCommand
@@ -137,7 +129,7 @@ static vuint8 XcpWriteMta( vuint8 size, const BYTEPTR data )
 
   /* Standard RAM memory write access */
   while ( size > 0 )  {
-    XCP_WRITE_BYTE_2_ADDR( gXcp.Mta, *data );
+    XCP_WRITE_BYTE_TO_ADDR( gXcp.Mta, *data );
     gXcp.Mta++; 
     data++; 
     size--;
@@ -172,7 +164,6 @@ static vuint8 XcpReadMta( vuint8 size, BYTEPTR data )
 /****************************************************************************/
 /* Data Aquisition Setup                                                    */
 /****************************************************************************/
-
 
 /*****************************************************************************
 | NAME:             XcpFreeDaq
@@ -449,7 +440,6 @@ static void XcpStopAllDaq( void )
 /****************************************************************************/
 /* Data Aquisition Processor                                                */
 /****************************************************************************/
-
 
 /*****************************************************************************
 | NAME:             XcpEvent,XcpEventExt
