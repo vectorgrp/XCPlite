@@ -1,30 +1,24 @@
 /*----------------------------------------------------------------------------
 | File:
-|   udpserver.c
+|   udp.c
 |
 | Description:
-|   XCP on UDP transport layer
-|   Linux (Raspberry Pi) and Windows version
+|   Vector XL-API for Ethernet V3 UDP stack
  ----------------------------------------------------------------------------*/
 
-#include "xcpLite.h"
-#include "xcpAppl.h"
-
+#include "main.h"
 #include "udp.h"
 
 
 #ifdef _WIN 
-#ifdef XCP_ENABLE_XLAPI
 
-static tUdpSock udpSock;
-
-#define HTONS(x) ((((x)&0x00ff) << 8) | (((x)&0xff00) >> 8))
 
 #define IPV4 0x0800
 #define ARP  0x0806
 #define IPV6 0x86dd
 #define UDP  17
 
+// 8 bytes
 struct udphdr
 {
     vuint16 source;
@@ -33,6 +27,7 @@ struct udphdr
     vuint16 check;
 };
 
+// 14 bytes
 struct iphdr
 {
     vuint16 ver_ihl_dscp_ecn; // unsigned int version : 4;  unsigned int ihl : 4; unsigned int dscp : 6; unsigned int ecn : 2;
@@ -64,6 +59,96 @@ struct arp
 };
 
 
+#if 1
+
+
+static int printFrame(const unsigned char* d, const unsigned char* s, const unsigned char* data, unsigned short dataLen, unsigned int fcs, XLuint64 timeStamp) {
+    printf("%llu: dest=%02X:%02X:%02X:%02X:%02X:%02X\n", timeStamp, d[0], d[1], d[2], d[3], d[4], d[5]);
+    return 1;
+}
+
+static int printIPV4Frame(const char* dir, const T_XL_ETH_FRAMEDATA* frameData, unsigned int frameLen) {
+
+    if (frameData->ethFrame.etherType == HTONS(IPV4)) { // IPv4
+
+        struct iphdr* ip = (struct iphdr*) & frameData->ethFrame.payload[0];
+        printf("%s l=%u: IPv4 l=%u ", dir, frameLen, HTONS(ip->tot_len));
+        printf("%u.%u.%u.%u->", ip->saddr[0], ip->saddr[1], ip->saddr[2], ip->saddr[3]);
+        printf("%u.%u.%u.%u ", ip->daddr[0], ip->daddr[1], ip->daddr[2], ip->daddr[3]);
+        if (ip->protocol == UDP) { // UDP
+            struct udphdr* udp = (struct udphdr*) & frameData->ethFrame.payload[sizeof(struct iphdr)];
+            printf("UDP udpl=%u %u->%u s=%u ", (vuint32)(HTONS(udp->len) - sizeof(struct udphdr)), HTONS(udp->source), HTONS(udp->dest), HTONS(udp->check));
+            if (gDebugLevel >= 2) {
+                for (unsigned int byte = 0; byte < HTONS(udp->len) - sizeof(struct udphdr); byte++) {
+                    printf("%02X ", frameData->ethFrame.payload[sizeof(struct iphdr) + sizeof(struct udphdr) + byte]);
+                }
+            }
+        }
+        printf("\n");
+        return 1;
+    }
+
+    return 0;
+}
+
+static int printARPFrame(const char* dir, const T_XL_ETH_FRAMEDATA* frameData, unsigned int frameLen) {
+
+    if (frameData->ethFrame.etherType == HTONS(ARP)) { // ARP
+        struct arp* arp = (struct arp*) & frameData->ethFrame.payload[0];
+        printf("%s: ARP %u 0x%04X %u/%u %s", dir, HTONS(arp->hrd), HTONS(arp->pro), arp->hln, arp->pln, (1 == arp->op) ? "Req " : "Res ");
+        printf("sha 0x%02X:0x%02X:0x%02X:0x%02X:0x%02X:0x%02X ", arp->sha[0], arp->sha[1], arp->sha[2], arp->sha[3], arp->sha[4], arp->sha[5]);
+        printf("spa %u.%u.%u.%u ", arp->spa[0], arp->spa[1], arp->spa[2], arp->spa[3]);
+        printf("tha 0x%02X:0x%02X:0x%02X:0x%02X:0x%02X:0x%02X ", arp->tha[0], arp->tha[1], arp->tha[2], arp->tha[3], arp->tha[4], arp->tha[5]);
+        printf("tpa %u.%u.%u.%u\n", arp->tpa[0], arp->tpa[1], arp->tpa[2], arp->tpa[3]);
+        return 1;
+    }
+    return 0;
+}
+
+static void printRxFrame(XLuint64 timestamp, const T_XL_NET_ETH_DATAFRAME_RX* frame) {
+
+
+    if (!printARPFrame("RX", &frame->frameData, frame->dataLen)) {
+        if (!printIPV4Frame("RX", &frame->frameData, frame->dataLen)) {
+            printFrame(frame->destMAC, frame->sourceMAC, frame->frameData.rawData, frame->dataLen, frame->fcs, timestamp);
+        }
+    }
+}
+
+
+static int printEvent(const T_XL_NET_ETH_EVENT* pRxEvent) {
+
+    switch (pRxEvent->tag) {
+    case XL_ETH_EVENT_TAG_FRAMERX_ERROR_MEASUREMENT:
+        printf("XL_ETH_EVENT_TAG_FRAMERX_ERROR_MEASUREMENT \n");
+        break;
+    case XL_ETH_EVENT_TAG_FRAMETX_ERROR_MEASUREMENT:
+        printf("XL_ETH_EVENT_TAG_FRAMETX_ERROR_MEASUREMENT \n");
+        break;
+    case XL_ETH_EVENT_TAG_FRAMERX_MEASUREMENT:
+        printf("XL_ETH_EVENT_TAG_FRAMERX_MEASUREMENT \n");
+        break;
+    case XL_ETH_EVENT_TAG_FRAMETX_MEASUREMENT:
+        printf("XL_ETH_EVENT_TAG_FRAMETX_MEASUREMENT \n");
+        break; 
+    case XL_ETH_EVENT_TAG_FRAMETX_ACK_SIMULATION:
+        printf("XL_ETH_EVENT_TAG_FRAMETX_ACK_SIMULATION \n");
+        break;
+    case XL_ETH_EVENT_TAG_LOSTEVENT:
+        printf("XL_ETH_EVENT_TAG_LOSTEVENT \n");
+        break;
+    case XL_ETH_EVENT_TAG_ERROR:
+        printf("XL_ETH_EVENT_TAG_ERROR \n");
+        break;
+    case XL_ETH_EVENT_TAG_CHANNEL_STATUS:
+        printf("LINK %s\n", (unsigned int)pRxEvent->tagData.channelStatus.link == XL_ETH_STATUS_LINK_UP ? "UP" : "DOWN");
+        return 1;
+    }
+    return 0;
+}
+
+#endif
+
 
 static unsigned short ipChecksum(unsigned short* buf, int nwords) {
 
@@ -92,132 +177,15 @@ static void udpInitIpHdr(struct iphdr* ip, vuint8* src, vuint8* dst) {
 static void udpInitUdpHdr(struct udphdr* udp, vuint16 src, vuint16 dst) {
 
     // UDP header (8 byte)
-    udp->source = HTONS(src);         // Source Port
-    udp->dest = HTONS(dst);           // Destination Port 
+    udp->source = src;         // Source Port
+    udp->dest = dst;           // Destination Port 
     udp->len = HTONS(sizeof(struct udphdr));    // Length: 8
     udp->check = 0; // Checsum not calculated                         
 
 }
 
 
-
-static int printIPv4Frame(const char* dir, const T_XL_ETH_FRAMEDATA* frameData, unsigned int frameLen) {
-
-    if (frameData->ethFrame.etherType == HTONS(IPV4)) { // IPv4
-        struct iphdr* ip = (struct iphdr*)&frameData->ethFrame.payload[0];
-        unsigned short s = ipChecksum((unsigned short*)ip, 10);
-        printf("%s: IPv4 %04X l=%u id=%u, fo=%u, ttl=%u, proto=%u, csum=%u %s ", dir, HTONS(ip->ver_ihl_dscp_ecn), HTONS(ip->tot_len), HTONS(ip->id), HTONS(ip->frag_off), ip->ttl, ip->protocol, HTONS(ip->check), s != 0 ? "NOK!" : "OK");
-        printf("srcIP %u.%u.%u.%u ", ip->saddr[0], ip->saddr[1], ip->saddr[2], ip->saddr[3]);
-        printf("dstIP %u.%u.%u.%u ", ip->daddr[0], ip->daddr[1], ip->daddr[2], ip->daddr[3]);
-        if (ip->protocol == UDP) { // UDP
-            struct udphdr* udp = (struct udphdr*)&frameData->ethFrame.payload[sizeof(struct iphdr)];
-            printf("UDP l=%u %u->%u s=%u ", HTONS(udp->len), HTONS(udp->source), HTONS(udp->dest), HTONS(udp->check));
-            for (unsigned int byte = 0; byte < HTONS(udp->len)-sizeof(struct udphdr); byte++) {
-                printf("%02X ", frameData->ethFrame.payload[sizeof(struct iphdr) + sizeof(struct udphdr) + byte]);
-            }
-            printf("\n");
-
-        }
-        return 1;
-    }
-    return 0;
-}
-
-static int printARPFrame(const char *dir, const T_XL_ETH_FRAMEDATA* frameData, unsigned int frameLen) {
-    if (frameData->ethFrame.etherType == HTONS(ARP)) { // ARP
-        struct arp* arp = (struct arp*)&frameData->ethFrame.payload[0];
-        printf("%s: ARP %u 0x%04X %u/%u %s", dir, HTONS(arp->hrd), HTONS(arp->pro), arp->hln, arp->pln, (1 == arp->op) ? "Req " : "Res ");
-        printf("sha 0x%02X:0x%02X:0x%02X:0x%02X:0x%02X:0x%02X ", arp->sha[0], arp->sha[1], arp->sha[2], arp->sha[3], arp->sha[4], arp->sha[5]);
-        printf("spa %u.%u.%u.%u ", arp->spa[0], arp->spa[1], arp->spa[2], arp->spa[3]);
-        printf("tha 0x%02X:0x%02X:0x%02X:0x%02X:0x%02X:0x%02X ", arp->tha[0], arp->tha[1], arp->tha[2], arp->tha[3], arp->tha[4], arp->tha[5]);
-        printf("tpa %u.%u.%u.%u\n", arp->tpa[0], arp->tpa[1], arp->tpa[2], arp->tpa[3]);
-        return 1;
-    }
-    return 0;
-}
-
-
-static void printEthFrame(const T_XL_ETH_FRAMEDATA* frameData, unsigned int frameLen) {
-
-    printf(" : ");
-    for (unsigned int byte = 0; byte < frameLen; byte++) {
-        printf("0x%02X ", frameData->ethFrame.payload[byte]);
-        if (byte % 16 == 15) printf("\n");
-    }
-    printf("\n");
-}
-
-
-
-static void printEthRxFrame(const T_XL_NET_ETH_DATAFRAME_RX* frame) {
-
-    if (!printARPFrame("RX",&frame->frameData, frame->dataLen)) {
-        if (!printIPv4Frame("RX",&frame->frameData, frame->dataLen)) {
-            printf("TX: %u err=%u type=0x%04X: ", frame->dataLen, frame->errorFlags, HTONS(frame->frameData.ethFrame.etherType));
-            printf("srcMAC 0x%02X:0x%02X:0x%02X:0x%02X:0x%02X:0x%02X ", frame->sourceMAC[0], frame->sourceMAC[1], frame->sourceMAC[2], frame->sourceMAC[3], frame->sourceMAC[4], frame->sourceMAC[5]);
-            printf("dstMAC 0x%02X:0x%02X:0x%02X:0x%02X:0x%02X:0x%02X  ", frame->destMAC[0], frame->destMAC[1], frame->destMAC[2], frame->destMAC[3], frame->destMAC[4], frame->destMAC[5]);
-            if (gXcpDebugLevel >= 4)
-                printEthFrame(&frame->frameData, frame->dataLen);
-            else
-                printf("\n");
-        }
-    }
-}
-
-static void printEthTxFrame(const T_XL_NET_ETH_DATAFRAME_TX* frame) {
-
-    if (!printARPFrame("TX",&frame->frameData, frame->dataLen)) {
-        if (!printIPv4Frame("TX", &frame->frameData, frame->dataLen)) {
-            printf("TX: %u type=0x%04X: ", frame->dataLen, HTONS(frame->frameData.ethFrame.etherType));
-            printf("srcMAC 0x%02X:0x%02X:0x%02X:0x%02X:0x%02X:0x%02X ", frame->sourceMAC[0], frame->sourceMAC[1], frame->sourceMAC[2], frame->sourceMAC[3], frame->sourceMAC[4], frame->sourceMAC[5]);
-            printf("dstMAC 0x%02X:0x%02X:0x%02X:0x%02X:0x%02X:0x%02X  ", frame->destMAC[0], frame->destMAC[1], frame->destMAC[2], frame->destMAC[3], frame->destMAC[4], frame->destMAC[5]);
-            if (gXcpDebugLevel >= 4)
-                printEthFrame(&frame->frameData, frame->dataLen);
-            else
-                printf("\n");
-        }
-    }
-}
-
-
-static void printEthernetEvent(const T_XL_NET_ETH_EVENT* pRxEvent) {
-
-    switch (pRxEvent->tag) {
-    case XL_ETH_EVENT_TAG_FRAMERX_ERROR_SIMULATION:
-        printf("XL_ETH_EVENT_TAG_FRAMERX_ERROR_SIMULATION \n");
-        break;
-    case XL_ETH_EVENT_TAG_FRAMETX_ERROR_SIMULATION:
-        printf("XL_ETH_EVENT_TAG_FRAMETX_ERROR_SIMULATION \n");
-        break;
-    case XL_ETH_EVENT_TAG_FRAMETX_ACK_SIMULATION:
-        printf("TX Ack %llu\n",pRxEvent->timeStampSync);
-        break;
-    case XL_ETH_EVENT_TAG_FRAMERX_SIMULATION:
-        printEthRxFrame(&pRxEvent->tagData.frameMeasureRx);
-        break;
-    case XL_ETH_EVENT_TAG_FRAMERX_ERROR_MEASUREMENT:
-        printf("XL_ETH_EVENT_TAG_FRAMERX_ERROR_MEASUREMENT \n");
-        break;
-    case XL_ETH_EVENT_TAG_FRAMETX_ERROR_MEASUREMENT:
-        printf("XL_ETH_EVENT_TAG_FRAMETX_ERROR_MEASUREMENT \n");
-        break;
-    case XL_ETH_EVENT_TAG_FRAMETX_MEASUREMENT:
-        printf("XL_ETH_EVENT_TAG_FRAMETX_MEASUREMENT \n");
-        break;
-    case XL_ETH_EVENT_TAG_FRAMERX_MEASUREMENT:
-        printf("XL_ETH_EVENT_TAG_FRAMERX_MEASUREMENT\n");
-        break;
-    case XL_ETH_EVENT_TAG_CHANNEL_STATUS:
-        printf("LINK %s\n", (unsigned int)pRxEvent->tagData.channelStatus.link == XL_ETH_STATUS_LINK_UP ? "UP" : "DOWN");
-        break;
-    default:
-        printf("Unknown Event\n");
-        break;
-    }
-}
-
-
-static int udpSendARPResponse(tUdpSock* sock, unsigned char sha[], unsigned char spa[]) {
+static int udpSendARPResponse(tUdpSockXl* sock, unsigned char sha[], unsigned char spa[]) {
 
     XLstatus err;
     T_XL_NET_ETH_DATAFRAME_TX frame;
@@ -225,7 +193,7 @@ static int udpSendARPResponse(tUdpSock* sock, unsigned char sha[], unsigned char
     memset(&frame, 0, sizeof(T_XL_NET_ETH_DATAFRAME_TX));
     // header
     frame.dataLen = XL_ETH_PAYLOAD_SIZE_MIN + 2; // payload length +2 (with ethertype) 28 or XL_ETH_PAYLOAD_SIZE_MIN ???
-    frame.flags |= XL_ETH_DATAFRAME_FLAGS_USE_SOURCE_MAC;
+    frame.flags |= XL_ETH_DATAFRAME_FLAGS_USE_SOURCE_MAC | XL_ETH_DATAFRAME_FLAGS_NO_TX_EVENT_GEN;
     memcpy(&frame.sourceMAC, sock->localAddr.sin_mac, sizeof(frame.sourceMAC));
     memcpy(&frame.destMAC, sha, sizeof(frame.destMAC));
     frame.frameData.ethFrame.etherType = HTONS(ARP);
@@ -241,26 +209,26 @@ static int udpSendARPResponse(tUdpSock* sock, unsigned char sha[], unsigned char
     memcpy(arp->tha, sha, 6);
     memcpy(arp->tpa, spa, 4);
 
-    if (gXcpDebugLevel >=2) {
-        ApplXcpPrint("Send ARP response\n");
-        if (gXcpDebugLevel >= 3) printEthTxFrame(&frame);
+    if (gDebugLevel >= 1) {
+        printf("Send ARP response\n");
     }
     if (XL_SUCCESS != (err = xlNetEthSend(sock->networkHandle, sock->portHandle, (XLuserHandle)1, &frame))) {
-        printf("error : xlNetEthSend failed with error: %s (%d)!\n", xlGetErrorString(err), err);
+        printf("ERROR: xlNetEthSend failed with error: %s (%d)!\n", xlGetErrorString(err), err);
         return 0;
     }
-
+#ifdef XCPSIM_ENABLE_PCAP
+    if (gOptionPCAP) pcapWriteFrameTx(0,&frame);
+#endif
     return 1;
 }
 
 
-int udpRecvFrom(tUdpSock *sock, unsigned char* data, unsigned int size, int mode, tUdpSockAddr* addr, int* socket_addr_size) {
+int udpRecvFrom(tUdpSockXl *sock, unsigned char* data, unsigned int size, tUdpSockAddrXl* addr ) {
 
     XLstatus err;
     T_XL_NET_ETH_EVENT rxEvent;
     XLrxHandle rxHandles[128];
     unsigned int rxCount = 128;
-    static unsigned int rxEventCount = 0;
 
     for (;;) {
 
@@ -271,19 +239,17 @@ int udpRecvFrom(tUdpSock *sock, unsigned char* data, unsigned int size, int mode
         case XL_ERR_QUEUE_IS_EMPTY:
             return 0;
         case XL_ERR_INSUFFICIENT_BUFFER:
-            printf("error: insufficient receive buffer!\n");
+            printf("ERROR: insufficient receive buffer!\n");
             return -1;
         default:
-            printf("xlNetEthReceive failed with error :x%x\n", err);
+            printf("ERROR: xlNetEthReceive failed with error: x%x\n", err);
             return -1;
         }
 
-        rxEventCount++;
         if (rxEvent.flagsChip & XL_ETH_QUEUE_OVERFLOW) {
-            printf("error: receive buffer overflow! flags=%X %u\n", rxEvent.flagsChip,rxEventCount);
-            xlNetFlushReceiveQueue(sock->networkHandle);
+            printf("ERROR: receive buffer overflow!\n");
         }
-        if (gXcpDebugLevel >= 3) printEthernetEvent(&rxEvent);
+
 
         if (rxEvent.tag == XL_ETH_EVENT_TAG_FRAMERX_SIMULATION) {
 
@@ -295,7 +261,11 @@ int udpRecvFrom(tUdpSock *sock, unsigned char* data, unsigned int size, int mode
                 struct arp* arp = (struct arp*)&frameRx->frameData.ethFrame.payload[0];
                 if (arp->hrd == HTONS(ARPHRD_ETHER) && arp->pro == HTONS(0x0800) && arp->op == HTONS(ARPOP_REQUEST)) { // Request
                     if (memcmp(arp->tpa, sock->localAddr.sin_addr, 4) == 0) {
+#ifdef XCPSIM_ENABLE_PCAP
+                        if (gOptionPCAP) pcapWriteFrameRx(0,frameRx);
+#endif
                         udpSendARPResponse(sock,arp->sha,arp->spa);
+                        return 0;
                     }
                 }
             }
@@ -303,30 +273,68 @@ int udpRecvFrom(tUdpSock *sock, unsigned char* data, unsigned int size, int mode
             // IPV4
             else if (frameRx->frameData.ethFrame.etherType == HTONS(IPV4))
             {
-                struct iphdr* ip = (struct iphdr*)&frameRx->frameData.ethFrame.payload[0];
+                struct iphdr* ip = (struct iphdr*) & frameRx->frameData.ethFrame.payload[0];
                 if (memcmp(ip->daddr, sock->localAddr.sin_addr, 4) == 0) { // for us
                     if (ip->protocol == UDP) {
-                        struct udphdr* udp = (struct udphdr*)&frameRx->frameData.ethFrame.payload[sizeof(struct iphdr)];
-                        if (HTONS(udp->dest) == sock->localAddr.sin_port) { // for us
+                        struct udphdr* udp = (struct udphdr*) & frameRx->frameData.ethFrame.payload[sizeof(struct iphdr)];
+                        if (udp->dest == sock->localAddr.sin_port) { // for us
+#ifdef XCPSIM_ENABLE_PCAP
+                            if (gOptionPCAP) pcapWriteFrameRx(rxEvent.timeStampSync, frameRx);
+#endif
                             // return payload
                             if ((unsigned int)HTONS(udp->len) < size) size = HTONS(udp->len);
-                            memcpy(data, &frameRx->frameData.ethFrame.payload[sizeof(struct iphdr) + sizeof(struct udphdr)], size); 
+                            memcpy(data, &frameRx->frameData.ethFrame.payload[sizeof(struct iphdr) + sizeof(struct udphdr)], size);
                             // return remote addr
-                            memcpy(addr->sin_mac, frameRx->sourceMAC, 6); 
+                            
+                            memset(addr, 0, sizeof(tUdpSockAddrXl));
+                            addr->sin_family = AF_INET;
+                            memcpy(addr->sin_mac, frameRx->sourceMAC, 6);
                             memcpy(addr->sin_addr, ip->saddr, 4);
-                            addr->sin_port = HTONS(udp->source);
-                            return size;
+                            addr->sin_port = udp->source;
+                            return size; // Receive
                         }
                     }
                 }
+#ifdef XCP_ENABLE_MULTICAST
+                if (sock->multicastAddr.sin_port!=0 && memcmp(ip->daddr, sock->multicastAddr.sin_addr, 2) == 0) { // multicast
+                    if (ip->protocol == UDP) {
+                        struct udphdr* udp = (struct udphdr*) & frameRx->frameData.ethFrame.payload[sizeof(struct iphdr)];
+                        if (HTONS(udp->dest) == sock->multicastAddr.sin_port) { // for us
+                            if (gOptionPCAP) pcapWriteFrameRx(rxEvent.timeStampSync, frameRx);
+                            // return payload
+                            if ((unsigned int)HTONS(udp->len) < size) size = HTONS(udp->len);
+                            memcpy(data, &frameRx->frameData.ethFrame.payload[sizeof(struct iphdr) + sizeof(struct udphdr)], size);
+                            // return remote addr
+                            memset(addr, 0, sizeof(tUdpSockAddrXl));
+                            addr->sin_family = AF_INET;
+                            memcpy(addr->sin_mac, frameRx->sourceMAC, 6);
+                            memcpy(addr->sin_addr, ip->saddr, 4);
+                            addr->sin_port = udp->source;
+                            return size; // Receive multicast
+                        }
+                    }
+                }
+#endif
+
             }
+
+            // Other XL-API RX frames
+            printRxFrame(rxEvent.timeStampSync, frameRx);
+#ifdef XCPSIM_ENABLE_PCAP
+            if (gOptionPCAP) pcapWriteFrameRx(rxEvent.timeStampSync, frameRx);
+#endif
         }
+
+        else { // Other XL-API events 
+            if (!printEvent(&rxEvent)) printf("ERROR: xlNetEthReceive unexpected event tag %u!\n", rxEvent.tag);
+        }
+
     }
 
     return 0;
 }
 
-int udpSendTo(tUdpSock *sock, const unsigned char* data, unsigned int size, int mode, tUdpSockAddr* addr, int addr_size) {
+int udpSendTo(tUdpSockXl *sock, const unsigned char* data, unsigned int size, int mode, tUdpSockAddrXl* addr, int addr_size) {
 
         XLstatus err;
         T_XL_NET_ETH_DATAFRAME_TX frame;
@@ -335,7 +343,7 @@ int udpSendTo(tUdpSock *sock, const unsigned char* data, unsigned int size, int 
         memset(&frame, 0, sizeof(T_XL_NET_ETH_DATAFRAME_TX));
         
         // header
-        frame.flags |= XL_ETH_DATAFRAME_FLAGS_USE_SOURCE_MAC;
+        frame.flags |= XL_ETH_DATAFRAME_FLAGS_USE_SOURCE_MAC | XL_ETH_DATAFRAME_FLAGS_NO_TX_EVENT_GEN;
         memcpy(&frame.sourceMAC, sock->localAddr.sin_mac, sizeof(frame.sourceMAC));
         memcpy(&frame.destMAC, addr->sin_mac, sizeof(frame.destMAC));
         frame.frameData.ethFrame.etherType = HTONS(IPV4);
@@ -351,11 +359,10 @@ int udpSendTo(tUdpSock *sock, const unsigned char* data, unsigned int size, int 
         ip->tot_len = HTONS(iplen);
         ip->check = 0;
         unsigned short s = ipChecksum((unsigned short*)ip, 10);
-        ip->check = s; // HTONS(s);
+        ip->check = s; 
 
         // UDP header
-        //udplen = (sizeof(struct udphdr) + 1 + size) & 0xFFFE; // UDP packet length must be even
-        udplen = (sizeof(struct udphdr) + size); 
+        udplen = (unsigned short)(sizeof(struct udphdr) + size); 
         udp->len = HTONS(udplen);
         udp->check = 0;
 
@@ -364,78 +371,77 @@ int udpSendTo(tUdpSock *sock, const unsigned char* data, unsigned int size, int 
 
         frame.dataLen = 2 + sizeof(struct iphdr) + udplen; // XL-API frame len = payload length + 2 for ethertype 
         if (frame.dataLen < XL_ETH_PAYLOAD_SIZE_MIN + 2) frame.dataLen = XL_ETH_PAYLOAD_SIZE_MIN + 2; 
-        if (gXcpDebugLevel >= 4) printEthTxFrame(&frame);
         if (XL_SUCCESS != (err = xlNetEthSend(sock->networkHandle, sock->portHandle, (XLuserHandle)1, &frame))) {
-            printf("error : xlNetEthSend failed with error: %s (%d)!\n", xlGetErrorString(err), err);
+            printf("ERROR: xlNetEthSend failed with ERROR: %s (%d)!\n", xlGetErrorString(err), err);
             return 0;
         }
-
+#ifdef XCPSIM_ENABLE_PCAP
+        if (gOptionPCAP) pcapWriteFrameTx(0,&frame);
+#endif
         return size;
-}
-
-int udpGetLastError() {
-    return 0;
 }
 
 
 // appname, net, seg, ipaddr, port -> netHandle, vpHandle, event
-int udpInit(tUdpSock** pSock, XLhandle* pEvent, tUdpSockAddr* addr) {
+int udpInit(tUdpSockXl** pSock, XLhandle* pEvent, tUdpSockAddrXl* addr, tUdpSockAddrXl* multicastAddr) {
 
     XLstatus err = XL_SUCCESS;
     
-    tUdpSock* sock;
-    sock = malloc(sizeof(tUdpSock));
+    tUdpSockXl* sock;
+    sock = (tUdpSockXl *)malloc(sizeof(tUdpSockXl));
+    if (sock == NULL) return 0;
     sock->localAddr = *addr;
+    if (multicastAddr!=NULL) sock->multicastAddr = *multicastAddr;
 
     if (XL_SUCCESS != (err = xlOpenDriver())) {
-        printf("error: xlOpenDriver failed with error: %s (%d)!\n", xlGetErrorString(err), err);
+        printf("ERROR: xlOpenDriver failed with ERROR: %s (%d)!\n", xlGetErrorString(err), err);
         return 0;
     }
     
-    if (XL_SUCCESS != (err = xlNetEthOpenNetwork(XCP_SLAVE_NET, &sock->networkHandle, XCP_SLAVE_NAME, XL_ACCESS_TYPE_RELIABLE, 64UL*102UL*1024UL))) {
-        printf("error: xlNetEthOpenNetwork(NET1) failed with error: %s (%d)!\n", xlGetErrorString(err), err);
+    if (XL_SUCCESS != (err = xlNetEthOpenNetwork(gOptionsXlSlaveNet, &sock->networkHandle, XCPSIM_SLAVE_ID, XL_ACCESS_TYPE_RELIABLE, 8 * 1024 * 1024))) {
+        printf("ERROR: xlNetEthOpenNetwork(NET1) failed with ERROR: %s (%d)!\n", xlGetErrorString(err), err);
         return 0;
     }
 
-    if (XL_SUCCESS != (err = xlNetAddVirtualPort(sock->networkHandle, XCP_SLAVE_SEG, XCP_SLAVE_NAME, &sock->portHandle, 1))) {
-        printf("error : xlNetAddVirtualPort SEG1 failed with error: %s (%d)!\n", xlGetErrorString(err), err);
+    if (XL_SUCCESS != (err = xlNetAddVirtualPort(sock->networkHandle, gOptionsXlSlaveSeg, XCPSIM_SLAVE_ID, &sock->portHandle, 1))) {
+        printf("ERROR: xlNetAddVirtualPort SEG1 failed with ERROR: %s (%d)!\n", xlGetErrorString(err), err);
         return 0;
     }
 
     // Set notification handle (required to use event handling via WaitForMultipleObjects)
     if (XL_SUCCESS != (err = xlNetSetNotification(sock->networkHandle, pEvent, 1))) { // (1) - Notify for each single event in queue
-        printf("error : xlNetSetNotification failed with error: %s (%d)!\n", xlGetErrorString(err), err);
+        printf("ERROR: xlNetSetNotification failed with ERROR: %s (%d)!\n", xlGetErrorString(err), err);
         return 0;
     }
 
     if (XL_SUCCESS != (err = xlNetActivateNetwork(sock->networkHandle))) {
-        printf("error: xlNetActivateNetwork failed: %s (%d)\n", xlGetErrorString(err), err);
+        printf("ERROR: xlNetActivateNetwork failed: %s (%d)\n", xlGetErrorString(err), err);
         return 0;
     }
 
-    printf("Init socket on virtual port " XCP_SLAVE_NET "-" XCP_SLAVE_SEG " with IP " XCP_SLAVE_IP_S " on UDP port %u \n", XCP_SLAVE_PORT);
+    printf("Init socket on virtual port %s-%s with IP %u.%u.%u.%u on UDP port %u \n", gOptionsXlSlaveNet, gOptionsXlSlaveSeg, addr->sin_addr[0], addr->sin_addr[1], addr->sin_addr[2], addr->sin_addr[3], addr->sin_port);
 
     *pSock = sock;
     return 1;
 }
 
 
-void udpShutdown(tUdpSock* sock) {
+void udpShutdown(tUdpSockXl* sock) {
 
     XLstatus err = XL_SUCCESS;
 
     if (XL_SUCCESS != (err = xlNetCloseNetwork(sock->networkHandle))) {
-        printf("error: xlNetCloseNetwork failed: %s (%d)\n", xlGetErrorString(err), err);
+        printf("ERROR: xlNetCloseNetwork failed: %s (%d)\n", xlGetErrorString(err), err);
     }
 
     free(sock);
 
     if (XL_SUCCESS != (err = xlCloseDriver())) {
-        printf("error: xlCloseDriver failed: %s (%d)\n", xlGetErrorString(err), err);
+        printf("ERROR: xlCloseDriver failed: %s (%d)\n", xlGetErrorString(err), err);
     }
 }
 
 
 #endif
-#endif
+
 

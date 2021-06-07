@@ -3046,6 +3046,7 @@ typedef struct s_xl_kline_set_com_ecu {
 // T_XL_ETH_DATAFRAME_TXACK_OTHERAPP.flags
 // T_XL_ETH_DATAFRAME_TXACK_SW.flags
 #define XL_ETH_DATAFRAME_FLAGS_USE_SOURCE_MAC         (unsigned int) 0x00000001 /* Use the given source MAC address (not set by hardware) */
+#define XL_ETH_DATAFRAME_FLAGS_NO_TX_EVENT_GEN        (unsigned int) 0x00000040 /* Do not generate a Tx event for this send request*/
 
 
 // Bypass values
@@ -3271,8 +3272,6 @@ typedef struct s_xl_net_eth_dataframe_rx {
   unsigned char      sourceMAC[XL_ETH_MACADDR_OCTETS];          /* Source MAC address */
   T_XL_ETH_FRAMEDATA frameData;
 } T_XL_NET_ETH_DATAFRAME_RX;
-
-
 
 typedef struct s_xl_net_eth_dataframe_rx_error {
   unsigned int       frameDuration;         /* Transmit duration of the Ethernet frame, in nanoseconds */

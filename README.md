@@ -1,18 +1,18 @@
 
-# XCPlite
+# XCPlite V2
 
 Copyright 2021 Vector Informatik GmbH
 
 Lightweight implementation of the ASAM XCP Protocol Layer V1.4 (1000 lines of code in XCPlite.c).
 
-Demos for Linux and Windows (Winsock and XL-API V3 (VN5xxx) with buildin UDP stack)
+Demos for Linux and Windows (Winsock and XL-API V3 (VN5xxx) with simple buildin UDP stack)
 
-List of restrictions compared to Vectors xcpBasic and xcpProf see below or in source file xcpLite.c.
+List of restrictions compared to Vectors xcpBasic and xcpProf in source file xcpLite.c.
 
 Optimized for XCP on Ethernet (UDP), multi threaded, no thread lock and zero copy data acquisition.
 C and C++ target support.
 
-Achieves up to 80 MByte/s throughput on a Raspberry Pi 4.
+Achieves up to 40 MByte/s throughput on a Raspberry Pi 4, more than 100 MByte/s on a PC.
 3% single thread cpu time in event copy routine for 40MByte/s transfer rate. 
 1us measurement timestamp resolution.
 
@@ -60,14 +60,11 @@ Demo visual Studio and CANape project included for Raspberry Pi 4.
 
 ## Configuration options:
 
-All settings and parameters for the XCP protocol and transport layer are located in xcp_cfg.h
+All settings and parameters for the XCP protocol and transport layer are located in xcp_cfg.h and xcptl_cfg.h
 
-Basis compile options for the XCPlite demos are:
+Compile options for the XCPlite demo are main.h:
 ```
-#define XCP_ENABLE_A2L      // Enable A2L creator and A2L upload to host
-#define XCP_ENABLE_SO       // Enable measurement and calibration of shared objects
-#define XCP_ENABLE_PTP      // Enable PTP synchronized DAQ time stamps 
-#define XCP_ENABLE_XLAPI    // Enable Vector XL-API V3 and buildin UDP for Windows (virtual port in NET1)
+#define XCPSIM_ENABLE_A2L_GEN  // Enable A2L creator and A2L upload to host
 ```
 
 ## Notes:
@@ -77,69 +74,7 @@ Link with -lrt -lpthread
 
 
 
-## XCPlite.c
-```
-/*****************************************************************************
-| File: 
-|   xcpLite.c
-|
-|  Description:   
-|    Implementation of the ASAM XCP Protocol Layer V1.4
-|    
-|    C and C++ target support
-|    Lite Version (see feature list and restrictions below)
-|
-|  Features:
-|     - XCP on UDP only
-|     - Optimized transmit queue for multi threaded, no thread lock and zero copy data acquisition
-|     - Supports DAQ_PACKED_MODE ELEMENT_GROUPED STS_LAST MANDATORY
-|     - Supports PTP
-|     - Optional integrated UDP stack
-|     - Optional integrated A2L generator
-|
-|  Limitations:
-|     - Only XCP on UDP on 32 bit x86 Linux and Windows platforms
-|     - 8 bit and 16 bit CPUs are not supported
-|     - No misra compliance
-|     - Number of events limited to 255
-|     - Number of DAQ lists limited to 256
-|     - Overall number of ODTs limited to 64K
-|     - No jumbo frame support, MAX_DTO < MTU < 1400
-|     - Fixed DAQ+ODT 2 byte DTO header
-|     - Fixed 32 bit time stamp
-|     - Only dynamic DAQ list allocation supported
-|     - Resume is not supported
-|     - Overload indication by event is not supported
-|     - DAQ does not support address extensions and prescaler
-|     - DAQ list and event channel prioritization is not supported
-|     - ODT optimization not supported
-|     - Interleaved communication mode is not supported
-|     - Seed & key is not supported
-|     - Flash programming is not supported
-|     - Calibration pages are not supported
-|     - Checksum is not supported
-|     - Event messages (SERV_TEXT) are not supported
-|     - User commands are not supported
-|
-|  More features, more transport layer (CAN, FlexRay) and platform support, misra compliance 
-|  by the free XCP basic version available from Vector Informatik GmbH at www.vector.com
-|
-|  Limitations of the XCP basic version:
-|     - Stimulation (Bypassing) is not available|         
-|     - Bit stimulation is not available
-|     - SHORT_DOWNLOAD is not implemented
-|     - MODIFY_BITS is not available|
-|     - FLASH and EEPROM Programming is not available|         
-|     - Block mode for UPLOAD, DOWNLOAD and PROGRAM is not available         
-|     - Resume mode is not available|         
-|     - Memory write and read protection is not supported         
-|     - Checksum calculation with AUTOSAR CRC module is not supported
-|        
-|     
-|  No limitations and full compliance are available with the commercial version 
-|  from Vector Informatik GmbH, please contact Vector
-|***************************************************************************/
-```
+
 
 
 

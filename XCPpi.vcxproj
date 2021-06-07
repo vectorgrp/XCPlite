@@ -80,16 +80,22 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="ecupp.cpp" />
     <ClCompile Include="udpserver.c" />
+    <ClCompile Include="util.c" />
     <ClCompile Include="xcpLite.c" />
     <ClCompile Include="xcpAppl.c" />
+    <ClCompile Include="xcpSlave.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="A2L.h" />
     <ClInclude Include="ecu.h" />
     <ClInclude Include="ecupp.hpp" />
+    <ClInclude Include="main.h" />
     <ClInclude Include="udpserver.h" />
+    <ClInclude Include="util.h" />
     <ClInclude Include="xcpLite.h" />
     <ClInclude Include="xcpAppl.h" />
+    <ClInclude Include="xcpSlave.h" />
+    <ClInclude Include="xcptl_cfg.h" />
     <ClInclude Include="xcp_cfg.h" />
   </ItemGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">

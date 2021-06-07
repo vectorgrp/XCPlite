@@ -145,8 +145,10 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="udp.c" />
     <ClCompile Include="udpserver.c" />
+    <ClCompile Include="util.c" />
     <ClCompile Include="xcpAppl.c" />
     <ClCompile Include="xcpLite.c" />
+    <ClCompile Include="xcpSlave.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="A2L.h" />
@@ -155,8 +157,12 @@
     <ClInclude Include="main.h" />
     <ClInclude Include="udp.h" />
     <ClInclude Include="udpserver.h" />
+    <ClInclude Include="util.h" />
+    <ClInclude Include="vxlapi.h" />
     <ClInclude Include="xcpAppl.h" />
     <ClInclude Include="xcpLite.h" />
+    <ClInclude Include="xcpSlave.h" />
+    <ClInclude Include="xcptl_cfg.h" />
     <ClInclude Include="xcp_cfg.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

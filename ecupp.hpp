@@ -1,20 +1,15 @@
-/* ecu.hpp */
+/* ecupp.hpp */
 
-#ifndef __ECUPP_H_
-#define __ECUPP_H_
+#ifndef __ECUPP_HPP_
+#define __ECUPP_HPP_
 
-#include <math.h>
-
-extern "C" {
-	extern unsigned int gXcpEvent_EcuTasks;
-}
+#ifdef __cplusplus
 
 class EcuTask {
 
 public:
 	
-	unsigned int taskId;
-
+	unsigned short taskId;
 
 	unsigned short counter;
 	double timer;
@@ -35,18 +30,18 @@ public:
 	double float64;
 
 
-	EcuTask( unsigned int taskId );
+	EcuTask( unsigned short taskId );
 
 	void run();
 
-#ifdef XCP_ENABLE_A2L
+#ifdef XCPSIM_ENABLE_A2L_GEN
 	void createA2lClassDefinition();
-	void createA2lStaticClassInstance(const char* instanceName, const char* comment);
+	void createA2lClassInstance(const char* instanceName, const char* comment);
 #endif
 };
 
 
-
+#endif
 
 
 #endif

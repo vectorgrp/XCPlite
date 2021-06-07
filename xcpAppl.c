@@ -1,282 +1,164 @@
 /*----------------------------------------------------------------------------
 | File:
-|   xcpAppl.cpp
+|   xcpAppl.c
 |
 | Description:
-|   Platform and implementation specific functions for the XCP driver
-|   All other callbacks are implemented as macros
-|   Demo for XCP on Ethernet (UDP)
-|   Linux (Raspberry Pi) Version
+|   Externals for xcpLite 
+|   Platform and implementation specific functions
+|   All other callbacks/dependencies are implemented as macros in xcpAppl.h
  ----------------------------------------------------------------------------*/
 
-
-#include "xcpAppl.h"
-#include "A2L.h"
-
-// UDP server
-#include "udpserver.h"
+#include "main.h"
 
 
- /**************************************************************************/
- // XCP transport layer
- /**************************************************************************/
+// 64 Bit platform pointer to XCP/A2L address conversions
+// XCP memory access is limited to a 4GB address range
+#if defined(_WIN64) || defined(_LINUX64)
 
-// Parameters
-static unsigned int gFlushCycle = 100; // 100ms, send a DTO packet at least every 100ms
-static unsigned int gServerWaitTimeout = 500; // 500 us, sleep timeout of server thread
+vuint64 __dataSeg;
+vuint64 __dataSegInit = 1;
 
-#ifndef _WIN
-// @@@@ TODO Change to event triggered
-static unsigned int gCmdCycle = 10 * kApplXcpDaqTimestampTicksPerMs; // 10ms, check for commands every 10ms
-static unsigned int gTransmitCycle = 500 * (kApplXcpDaqTimestampTicksPerMs/1000); // us, check for new transmit data in transmit queue every 500us
-// Max transmit rate is approximtly limited to XCP_DAQ_QUEUE_SIZE * MTU%MAX_DTO * 1000000/gTransmitCycle = 2000*32*1250 = 80MByte/s
-#endif
+vuint8* baseAddr = NULL;
 
-static unsigned int gTransmitTimer = 0;
-static unsigned int gFlushTimer = 0;
-static unsigned int gCmdTimer = 0;
+vuint8* ApplXcpGetPointer(vuint8 addr_ext, vuint32 addr) {
 
-
-
-// XCP transport layer task init
-int xcpTransportLayerInit(void) {
-
-    printf("Init XCP on UDP transport layer (UDP MTU = %u, DTO queue size is %u (%uKiB))\n", kXcpMaxMTU, XCP_DAQ_QUEUE_SIZE, sizeof(tXcpDtoBuffer) * XCP_DAQ_QUEUE_SIZE / 1024);
-
-    // Create A2L parameters to control the XCP server
-#ifdef XCP_ENABLE_A2L
-    A2lCreateParameter(gFlushCycle, "ms", "DAQ queue flush cycle time");
-#ifndef _WIN
-    A2lCreateParameter(gCmdCycle, "us", "XCP command handler cycle time");
-    A2lCreateParameter(gTransmitCycle, "us", "DAQ transmit cycle time");
-#endif
-    A2lCreateParameter(gServerWaitTimeout, "us", "Server thread sleep and wait timeout");
-    A2lParameterGroup("Server_Parameters", 2, "gFlushCycle", "gServerWaitTimeout");
-#endif
-
-    return udpServerInit();
+    return ApplXcpGetBaseAddr() + addr;
 }
 
-// XCP transport layer task
-// Handle commands, transmit data, flush data
-void* xcpTransportLayerThread(void* par) {
+vuint32 ApplXcpGetAddr(vuint8* p) {
 
-    printf("Start XCP server\n");
-
-    // Server loop
-    for (;;) {
-
-        udpServerWaitForEvent(gServerWaitTimeout);
-        ApplXcpGetClock();
-        
-#ifndef _WIN
-        // Handle XCP commands every gCmdCycle time period
-        if (gClock - gCmdTimer > gCmdCycle) {
-            gCmdTimer = gClock;
-            if (!udpServerHandleXCPCommands()) break;  
-        } 
-#else
-        if (!udpServerHandleXCPCommands()) break;
-#endif
-
-        // If DAQ measurement is running
-        if (gXcp.SessionStatus & SS_DAQ) {
-
-#ifdef DTO_SEND_QUEUE 
-#ifndef _WIN
-            // Transmit all completed UDP packets from the transmit queue every gTransmitCycle time period
-            if (gClock-gTransmitTimer>gTransmitCycle) {
-                gTransmitTimer = gClock;
-                udpServerHandleTransmitQueue();
-            }
-#else
-            udpServerHandleTransmitQueue();
-#endif
-#endif
-            // Every gFlushCycle in us time period
-            // Cyclic flush of incomplete packets from transmit queue or transmit buffer to keep tool visualizations up to date
-            // No priorisation of events implemented, no latency optimizations
-            if (gFlushCycle>0 && gClock-gFlushTimer>gFlushCycle*1000) {
-                gFlushTimer = gClock;
-#ifdef DTO_SEND_QUEUE  
-                udpServerFlushTransmitQueue();
-#else
-                udpServerFlushPacketBuffer();
-#endif
-            } // Flush
-
-        } // DAQ
-
-    } // for (;;)
-
-    ApplXcpSleepNs(100000000);
-    udpServerShutdown();
-    return 0;
+    if (!((vuint8*)(((vuint64)p) & 0xFFFFFFFF00000000UL) == ApplXcpGetBaseAddr())) {
+        assert(0);
+    }
+    return (vuint64)p & 0xFFFFFFFF;
 }
+
+// Get base pointer for the XCP address range
+vuint8 *ApplXcpGetBaseAddr() {
+
+    if (baseAddr == NULL) {
+        assert((((vuint64)&__dataSeg) & 0xFFFFFFFF00000000ULL) == (((vuint64)&__dataSegInit) & 0xFFFFFFFF00000000ULL));
+        baseAddr = (vuint8*)(((vuint64)&__dataSeg) & 0xFFFFFFFF00000000ULL);
+#if defined ( XCP_ENABLE_TESTMODE )
+        if (gDebugLevel >= 1) ApplXcpPrint("ApplXcpGetBaseAddr() = 0x%llX\n", (vuint64)baseAddr);
+#endif
+    }
+
+    return baseAddr;
+}
+
+#endif
 
 
 /**************************************************************************/
-// DAQ clock
+// Eventlist
 /**************************************************************************/
 
-/* Compile with:   -lrt */
+#ifdef XCP_ENABLE_DAQ_EVENT_LIST
 
-// Wall clock updated at every AppXcpTimer
-volatile vuint32 gClock = 0;
-volatile vuint64 gClock64 = 0;
+vuint16 ApplXcpEventCount = 0;
+tXcpEvent ApplXcpEventList[XCP_MAX_EVENT];
 
-#ifndef _WIN // Linux
 
-static struct timespec gts0;
-static struct timespec gtr;
+// Create event, <rate> in us, 0 = sporadic 
+vuint16 XcpCreateEvent(const char* name, vuint16 cycleTime /*ms */, vuint16 sampleCount, vuint32 size) {
 
-int ApplXcpClockInit( void )
-{    
-    assert(sizeof(long long) == 8);
-    clock_getres(CLOCK_REALTIME, &gtr);
-    assert(gtr.tv_sec == 0);
-    assert(gtr.tv_nsec == 1);
-    clock_gettime(CLOCK_REALTIME, &gts0);
-
-    ApplXcpGetClock64();
-
-#ifdef XCP_ENABLE_TESTMODE
-    if (gXcpDebugLevel >= 1) {
-        printf("system realtime clock resolution = %lds,%ldns\n", gtr.tv_sec, gtr.tv_nsec);
-        //printf("clock now = %lds+%ldns\n", gts0.tv_sec, gts0.tv_nsec);
-        //printf("clock year = %u\n", 1970 + gts0.tv_sec / 3600 / 24 / 365 );
-        //printf("gClock64 = %lluus %llxh, gClock = %xh\n", gts0.tv_sec, gts0.tv_nsec, gClock64, gClock64, gClock);
+    // Convert to ASAM coding time cycle and time unit
+    // RESOLUTION OF TIMESTAMP "UNIT_1US" = 3,"UNIT_10US" = 4,"UNIT_100US" = 5,"UNIT_1MS" = 6,"UNIT_10MS" = 7,"UNIT_100MS" = 8, 
+    vuint8 timeUnit = 3;
+    while (cycleTime >= 256) {
+        cycleTime /= 10;
+        timeUnit++;
     }
+
+    if (ApplXcpEventCount >= XCP_MAX_EVENT) return (vuint16)0xFFFF; // Out of memory 
+    ApplXcpEventList[ApplXcpEventCount].name = name;
+    ApplXcpEventList[ApplXcpEventCount].timeUnit = timeUnit;
+    ApplXcpEventList[ApplXcpEventCount].timeCycle = (vuint8)cycleTime;
+    ApplXcpEventList[ApplXcpEventCount].sampleCount = sampleCount;
+    ApplXcpEventList[ApplXcpEventCount].size = size;
+
+#if defined ( XCP_ENABLE_TESTMODE )
+    if (gDebugLevel>=1) ApplXcpPrint("Event %u: %s unit=%u cycle=%u samplecount=%u\n", ApplXcpEventCount, ApplXcpEventList[ApplXcpEventCount].name, ApplXcpEventList[ApplXcpEventCount].timeUnit, ApplXcpEventList[ApplXcpEventCount].timeCycle, ApplXcpEventList[ApplXcpEventCount].sampleCount);
 #endif
 
-    return 1;
+    return ApplXcpEventCount++; // Return XCP event number
 }
 
-// Free running clock with 1us tick
-vuint32 ApplXcpGetClock(void) {
-
-    struct timespec ts; 
-    
-    clock_gettime(CLOCK_REALTIME, &ts);
-    gClock64 = ( ( (vuint64)(ts.tv_sec/*-gts0.tv_sec*/) * 1000000ULL ) + (vuint64)(ts.tv_nsec / 1000) ); // us
-    gClock = (vuint32)gClock64;
-    return gClock;  
-}
-
-vuint64 ApplXcpGetClock64(void) {
-
-    ApplXcpGetClock();
-    return gClock64;
-}
-
-void ApplXcpSleepNs(unsigned int ns) {
-    struct timespec timeout, timerem;
-    timeout.tv_sec = 0;
-    timeout.tv_nsec = (long)ns;
-    nanosleep(&timeout, &timerem);
-}
-
-#else
-
-static __int64 sFactor = 1;
-static __int64 sOffset = 0;
-
-int ApplXcpClockInit(void) {
-
-    LARGE_INTEGER tF, tC;
-
-    if (QueryPerformanceFrequency(&tF)) {
-        if (tF.u.HighPart) {
-            printf("error: Unexpected Performance Counter frequency\n");
-            return 0;
-        }
-        sFactor = tF.u.LowPart; // Ticks pro s
-        QueryPerformanceCounter(&tC);
-        sOffset = (((__int64)tC.u.HighPart) << 32) | (__int64)tC.u.LowPart;
-        ApplXcpGetClock64();
-#ifdef XCP_ENABLE_TESTMODE
-        if (gXcpDebugLevel >= 1) {
-            printf("system realtime clock resolution = %I64u ticks per s\n", sFactor);
-            printf("gClock64 = %I64u, gClock = %u\n", gClock64, gClock);
-        }
 #endif
 
-    }
-    else {
-        printf("error: Performance Counter not available\n");
-        return 0;
-    }
-    return 1;
-}
-
-// Free running clock with 1us tick
-vuint32 ApplXcpGetClock(void) {
-   
-    LARGE_INTEGER t;
-    __int64 td;
-
-    QueryPerformanceCounter(&t);
-    td = (((__int64)t.u.HighPart) << 32) | (__int64)t.u.LowPart;
-    gClock64 = (vuint64)(((td - sOffset) * 1000000UL) / sFactor);
-    gClock = (vuint32)gClock64; 
-    return gClock;
-}
-
-// Free running clock with 1us in int64 which never overflows :-)
-vuint64 ApplXcpGetClock64(void) {
-
-    ApplXcpGetClock();
-    return gClock64;
-}
-
-
-void ApplXcpSleepNs(unsigned int ns) {
-
-    vuint64 t1, t2;
-    t1 = t2 = ApplXcpGetClock64();
-
-    vuint32 us = ns / 1000;
-    vuint32 ms = us / 1000;
-
-    // Start sleeping at 1800us, shorter sleeps are more precise but need significant CPU time
-    if (us >= 1800) { 
-        if (ms >= 2) ms--; // PC always sleeps +1 ms  ????
-        Sleep(ms);  
-    }
-    // Busy wait
-    else {
-        vuint64 te = t1 + us;
-        for (;;) {
-            t2 = ApplXcpGetClock64();
-            if (t2 >= te) break;
-            if (te - t2 > 0) Sleep(0);  
-        }
-    }
-}
-
-
-#endif
 
 
 /**************************************************************************/
 // Read A2L to memory accessible by XCP
 /**************************************************************************/
 
-#ifdef XCP_ENABLE_A2L
+#ifdef XCP_ENABLE_A2L_NAME // Enable GET_ID A2L name upload to host
 
-char* gXcpA2L = NULL; // A2L file content
-unsigned int gXcpA2LLength = 0; // A2L file length
+// A2L base name for GET_ID 
+static char gA2LFilename[FILENAME_MAX] = "XCPpi"; // Name without extension
+char gA2LPathname[MAX_PATH + FILENAME_MAX] = "XCPpi.A2L"; // Full path name extension
 
-int ApplXcpReadA2LFile(char** p, unsigned int* n) {
+
+vuint8 ApplXcpGetA2LFilename(vuint8** p, vuint32* n, int path) {
+
+    // Create a unique A2L file name for this version. Used for generation and for GET_ID A2L name
+#ifdef _WIN
+    sprintf_s(gA2LFilename, sizeof(gA2LFilename), "XCPsim-%08X", (vuint32)((vuint64)&gDebugLevel + (vuint64)&channel1)); // Generate version specific unique A2L file name
+    sprintf_s(gA2LPathname, sizeof(gA2LPathname), "%s%s.A2L", gOptionA2L_Path, gA2LFilename);
+
+#ifdef XCPSIM_ENABLE_A2L_GEN
+    // If A2L name ist requested, generate if not exists
+    FILE* f;
+    if (fopen_s(&f, gA2LPathname, "r")) {
+        // Create A2L file if not existing
+        createA2L(gA2LPathname);
+    }
+    else {
+        if (f != NULL) fclose(f);
+    }
+#endif
+
+#endif
+
+    if (path) {
+        if (p != NULL) *p = gA2LPathname;
+        if (n != NULL) *n = (vuint32)strlen(gA2LPathname);
+    }
+    else {
+        if (p != NULL) *p = gA2LFilename;
+        if (n != NULL) *n = (vuint32)strlen(gA2LFilename);
+    }
+    return 1;
+}
+
+#endif
+
+
+#ifdef XCP_ENABLE_A2L_UPLOAD // Enable GET_ID A2L content upload to host
+
+static vuint8* gXcpA2L = NULL; // A2L file content
+static vuint32 gXcpA2LLength = 0; // A2L file length
+
+vuint8 ApplXcpReadA2LFile(vuint8** p, vuint32* n) {
 
     if (gXcpA2L == NULL) {
 
-#ifndef _WIN // Linux
+#ifdef _WIN
+#ifdef XCPSIM_ENABLE_A2L_GEN
+        ApplXcpGetA2LFilename(NULL,NULL,0); // Generate if not yet exists
+#endif
+#endif
+
+#ifdef _LINUX // Linux
         FILE* fd;
-        fd = fopen(kXcpA2LFilenameString, "r");
-        if (fd == NULL) return 0;
+        fd = fopen(gA2LPathname, "r");
+        if (fd == NULL) {
+            ApplXcpPrint("A2L file %s not found! Use -a2l to generate\n", gA2LPathname);
+            return 0;
+        }
         struct stat fdstat;
-        stat(kXcpA2LFilenameString, &fdstat);
+        stat(gA2LPathname, &fdstat);
         gXcpA2L = malloc((size_t)(fdstat.st_size + 1));
         gXcpA2LLength = fread(gXcpA2L, sizeof(char), (size_t)fdstat.st_size, fd);
         fclose(fd);
@@ -284,10 +166,16 @@ int ApplXcpReadA2LFile(char** p, unsigned int* n) {
         //free(gXcpA2L);
 #else
         HANDLE hFile, hFileMapping;
-        hFile = CreateFile(TEXT(kXcpA2LFilenameString), GENERIC_READ|GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-        if (hFile == INVALID_HANDLE_VALUE) return 0;
-        gXcpA2LLength = GetFileSize(hFile, NULL);
-        hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, gXcpA2LLength + sizeof(WCHAR), NULL);
+        wchar_t filename[256] = { 0 };
+        MultiByteToWideChar(0, 0, gA2LPathname, strlen(gA2LPathname), filename, strlen(gA2LPathname));
+        hFile = CreateFile(filename, GENERIC_READ|GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (hFile == INVALID_HANDLE_VALUE) {
+            ApplXcpPrint("A2L file %s not found! Use -a2l to generate\n", gA2LPathname);
+            return 0;
+        }
+        gXcpA2LLength = GetFileSize(hFile, NULL)-2;
+        hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, gXcpA2LLength, NULL);
+        if (hFileMapping == NULL) return 0;
         gXcpA2L = MapViewOfFile(hFileMapping, FILE_MAP_READ, 0, 0, 0);
         if (gXcpA2L == NULL) return 0;
 
@@ -296,9 +184,7 @@ int ApplXcpReadA2LFile(char** p, unsigned int* n) {
         //CloseHandle(hFile);
 #endif
 #if defined ( XCP_ENABLE_TESTMODE )
-            if (gXcpDebugLevel >= 1) {
-                ApplXcpPrint("A2L file %s ready for upload, size=%u, mta=%p\n", kXcpA2LFilenameString, gXcpA2LLength, gXcpA2L);
-            }
+            if (gDebugLevel >= 1) ApplXcpPrint("A2L file %s ready for upload, size=%u, mta=%p\n", gA2LPathname, gXcpA2LLength, gXcpA2L);
 #endif
         
     }
@@ -306,15 +192,16 @@ int ApplXcpReadA2LFile(char** p, unsigned int* n) {
     *p = gXcpA2L;
     return 1;
 }
+
 #endif
 
 
 
 /**************************************************************************/
-// Pointer to XCP address conversions
+// Pointer to XCP address conversions for LINUX shared objects
 /**************************************************************************/
 
-#ifdef XCP_ENABLE_SO
+#ifdef XCPSIM_ENABLE_SO
 
 #define __USE_GNU
 #include <link.h>
@@ -326,32 +213,32 @@ int ApplXcpReadA2LFile(char** p, unsigned int* n) {
 static struct
 {
     const char* name;
-    BYTEPTR baseAddr;
+    vuint8* baseAddr;
 } 
 gModuleProperties[XCP_MAX_MODULE] = { {} };
 
 
-vuint8 ApplXcpGetExt(BYTEPTR addr)
+vuint8 ApplXcpGetExt(vuint8* addr)
 {
     // Here we have the possibility to loop over the modules and find out the extension
     (void)addr;
     return 0;
 }
 
-vuint32 ApplXcpGetAddr(BYTEPTR addr)
+vuint32 ApplXcpGetAddr(vuint8* addr)
 {
     vuint8 addr_ext = ApplXcpGetExt(addr);
     union {
-        BYTEPTR ptr;
+        vuint8* ptr;
         vuint32 i;
     } rawAddr;
-    rawAddr.ptr = (BYTEPTR)(addr - gModuleProperties[addr_ext].baseAddr);
+    rawAddr.ptr = (vuint8*)(addr - gModuleProperties[addr_ext].baseAddr);
     return rawAddr.i;
 }
 
-BYTEPTR ApplXcpGetPointer(vuint8 addr_ext, vuint32 addr)
+vuint8* ApplXcpGetPointer(vuint8 addr_ext, vuint32 addr)
 {
-    BYTEPTR baseAddr = 0;
+    vuint8* baseAddr = 0;
     if (addr_ext < XCP_MAX_MODULE) {
         baseAddr = gModuleProperties[addr_ext].baseAddr;
     }
@@ -362,8 +249,8 @@ BYTEPTR ApplXcpGetPointer(vuint8 addr_ext, vuint32 addr)
 static int dump_phdr(struct dl_phdr_info* pinfo, size_t size, void* data)
 {
 #ifdef XCP_ENABLE_TESTMODE
-    if (gXcpDebugLevel >= 1) {
-        printf("0x%zX %s 0x%X %d %d %d %d 0x%X\n",
+    if (gDebugLevel >= 1) {
+        ApplXcpPrint("0x%zX %s 0x%X %d %d %d %d 0x%X\n",
             pinfo->dlpi_addr, pinfo->dlpi_name, pinfo->dlpi_phdr, pinfo->dlpi_phnum,
             pinfo->dlpi_adds, pinfo->dlpi_subs, pinfo->dlpi_tls_modid,
             pinfo->dlpi_tls_data);
@@ -379,12 +266,12 @@ static int dump_phdr(struct dl_phdr_info* pinfo, size_t size, void* data)
   else  {
 
 #ifdef XCP_ENABLE_TESTMODE
-      if (gXcpDebugLevel >= 1) {
-          printf("Application base addr = 0x%zx\n", pinfo->dlpi_addr);
+      if (gDebugLevel >= 1) {
+          ApplXcpPrint("Application base addr = 0x%zx\n", pinfo->dlpi_addr);
       }
 #endif
 
-    gModuleProperties[0].baseAddr = (BYTEPTR) pinfo->dlpi_addr;
+    gModuleProperties[0].baseAddr = (vuint8*) pinfo->dlpi_addr;
   }
 
   (void)size;
@@ -395,11 +282,13 @@ static int dump_phdr(struct dl_phdr_info* pinfo, size_t size, void* data)
 void ApplXcpInitBaseAddressList()
 {
 #ifdef XCP_ENABLE_TESTMODE
-    if (gXcpDebugLevel >= 1) printf ("Module List:\n");
+    if (gDebugLevel >= 1) ApplXcpPrint("Module List:\n");
 #endif
 
     dl_iterate_phdr(dump_phdr, NULL);
 }
 
 #endif
+
+
 

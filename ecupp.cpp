@@ -5,27 +5,19 @@
 | Description:
 |   Test Measurement and Calibration variables for XCP demo
 |   C++ language, Classes and Structures, dynamic memory
-|   Experimental for new XCP features
  ----------------------------------------------------------------------------*/
 
 
-#include <iostream>
-using namespace std;
-
-// XCP 
-extern "C" {
-	#include "xcpLite.h"
-    #include "A2L.h"
-}
+#include "main.h"
 #include "ecupp.hpp"
 
 
-#ifdef XCP_ENABLE_A2L
+#ifdef XCPSIM_ENABLE_A2L_GEN
 
-// Static method to create A2L description of this class (instanceName==NULL) or this instance
+// Create A2L description of this class 
 void EcuTask::createA2lClassDefinition() {
 
-#define offsetOf(x) ((int)&x - (int)this)
+#define offsetOf(x) (unsigned int)((vuint8*)&x - (vuint8*)this)
 
 	// Create class typedef
 	A2lTypedefBegin(EcuTask, "TYPEDEF for class EcuTask");
@@ -38,16 +30,16 @@ void EcuTask::createA2lClassDefinition() {
 	A2lTypedefEnd();
 }
 
-
-void EcuTask::createA2lStaticClassInstance(const char* instanceName, const char* comment) {
+// Create a dynamic instance (base addr = 0, event ext) of the class
+void EcuTask::createA2lClassInstance(const char* instanceName, const char* comment) {
 	A2lSetEvent(taskId);
-	A2lCreateTypedefInstance(instanceName, "EcuTask", (unsigned long)this, comment);
+	A2lCreateTypedefInstance(instanceName, "EcuTask", 0, comment);
 }
 #endif
 
 
 // Constructor 
-EcuTask::EcuTask( unsigned int id ) {
+EcuTask::EcuTask( unsigned short id ) {
 
 	taskId = id;
 
@@ -93,7 +85,7 @@ void EcuTask::run() {
 	float32 += 0.1f;
 	float64 += 0.1;
 
-	XcpEvent(taskId); // Trigger measurement data aquisition event for this task
+	XcpEventExt(taskId, (vuint8*)this); // Trigger measurement data aquisition event for this task
 }
 
 

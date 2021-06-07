@@ -7,7 +7,11 @@
 extern "C" {
 #endif
 
-extern unsigned int gXcpEvent_EcuCyclic;
+extern double channel1; // Test
+extern unsigned short ecuCounter;
+
+extern unsigned short gXcpEvent_EcuCyclic;
+
 
 extern void ecuInit(void);
 extern void ecuCreateA2lDescription(void);
