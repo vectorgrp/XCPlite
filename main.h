@@ -89,7 +89,7 @@
 #ifdef _WIN // Windows
 
 #define XCPSIM_DEBUG_LEVEL 1
-//#define XCPSIM_ENABLE_XLAPI_V3
+#define XCPSIM_ENABLE_XLAPI_V3
 
 #define XCPSIM_SLAVE_PORT 5555 // Default UDP port
 #define XCPSIM_SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc} // Default slave clock UUID
@@ -125,6 +125,12 @@
 #endif // Windows
 
 
+//-----------------------------------------------------------------------------------------------------
+
+
+#ifdef XCPSIM_ENABLE_XLAPI_V3
+#include "vxlapi.h"
+#endif
 
 //-----------------------------------------------------------------------------------------------------
 
@@ -149,12 +155,6 @@ extern "C" {
 #endif
 
 
-//-----------------------------------------------------------------------------------------------------
-
-
-#ifdef XCPSIM_ENABLE_XLAPI_V3
-#include "vxlapi.h"
-#endif
 
 
 //-----------------------------------------------------------------------------------------------------

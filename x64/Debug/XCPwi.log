@@ -1,0 +1,13 @@
+﻿  A2L.c
+  ecu.c
+  udp.c
+  udpserver.c
+  util.c
+  xcpAppl.c
+  xcpLite.c
+  xcpSlave.c
+  Generating Code...
+  ecupp.cpp
+  main.cpp
+  Generating Code...
+  XCPwi.vcxproj -> D:\USR\XCPlite\x64\Debug\XCPwi.exe
