@@ -15,7 +15,7 @@
   #endif
 #endif
 
-#ifndef _WIN // Linux
+#ifdef _LINUX // Linux
 
 #define _LINUX
 #define _POSIX_C_SOURCE 200809L
@@ -40,7 +40,8 @@
 #define sprintf_s sprintf
 #define MAX_PATH 256
 
-#else // Windows
+#endif // Linux
+#ifdef _WIN // Windows
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -54,22 +55,13 @@
 #include <thread>
 #endif
 
-// Need to link with vxlapi.lib
-#ifdef _WIN64
-#pragma comment(lib, "vxlapi64.lib")
-#else
-#ifdef _WIN32
-#pragma comment(lib, "vxlapi.lib")
-#endif
-#endif
-#include "vxlapi.h"
 
 // Need to link with Ws2_32.lib
 #pragma comment(lib, "ws2_32.lib")
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
-#endif
+#endif // Windows
 
 
 //-----------------------------------------------------------------------------------------------------
@@ -97,19 +89,38 @@
 #ifdef _WIN // Windows
 
 #define XCPSIM_DEBUG_LEVEL 1
+//#define XCPSIM_ENABLE_XLAPI_V3
 
 #define XCPSIM_SLAVE_PORT 5555 // Default UDP port
 #define XCPSIM_SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc} // Default slave clock UUID
-#define getA2lSlaveIP() ((gOptionUseXLAPI)?XCPSIM_SLAVE_XL_IP_S:"127.0.0.1") // A2L IP address
+#ifdef XCPSIM_ENABLE_XLAPI_V3
+#else
+#endif
 #define getA2lSlavePort() XCPSIM_SLAVE_PORT // for A2L generation
 #define XCPSIM_MULTI_THREAD_SLAVE // Receive and transmit in seperate threads
 
 // XL-API UDP stack parameters
+#ifdef XCPSIM_ENABLE_XLAPI_V3
 #define XCPSIM_SLAVE_XL_NET "NET1" // Default V3 Network name
 #define XCPSIM_SLAVE_XL_SEG "SEG1" // Default V3 Segment name
 #define XCPSIM_SLAVE_XL_MAC {0xdc,0xa6,0x32,0x7e,0x66,0xdc} // Default V3 Ethernet Adapter MAC
 #define XCPSIM_SLAVE_XL_IP_S "172.31.31.194" // Default V3 Ethernet Adapter IP as string
 #define XCPSIM_SLAVE_XL_IP {172,31,31,194} // Default V3 Ethernet Adapter IP
+#define getA2lSlaveIP() ((gOptionUseXLAPI)?XCPSIM_SLAVE_XL_IP_S:"127.0.0.1") // A2L IP address
+
+// Need to link with vxlapi.lib
+#ifdef _WIN64
+#pragma comment(lib, "vxlapi64.lib")
+#endif
+#ifdef _WIN32
+#pragma comment(lib, "vxlapi.lib")
+#endif
+
+#else
+
+#define getA2lSlaveIP() ("127.0.0.1") // A2L IP address
+
+#endif
 
 #endif // Windows
 
@@ -140,18 +151,26 @@ extern "C" {
 
 //-----------------------------------------------------------------------------------------------------
 
+
+#ifdef XCPSIM_ENABLE_XLAPI_V3
+#include "vxlapi.h"
+#endif
+
+
+//-----------------------------------------------------------------------------------------------------
+
 // Options
 extern volatile unsigned int gDebugLevel;
 extern int gOptionJumbo;
 extern uint16_t gOptionsSlavePort;
 extern int gOptionA2L;
 extern char gOptionA2L_Path[MAX_PATH];
-
 #ifdef _WIN
+#ifdef XCPSIM_ENABLE_XLAPI_V3
 extern int gOptionUseXLAPI;
 extern char gOptionsXlSlaveNet[32];
 extern char gOptionsXlSlaveSeg[32];
-
+#endif
 #endif // _WIN
 
 

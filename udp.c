@@ -10,6 +10,7 @@
 #include "udp.h"
 
 #ifdef _WIN 
+#ifdef XCPSIM_ENABLE_XLAPI_V3
 
 #define IPV4 0x0800
 #define ARP  0x0806
@@ -190,7 +191,7 @@ static int udpSendARPResponse(tUdpSockXl* sock, unsigned char sha[], unsigned ch
     memset(&frame, 0, sizeof(T_XL_NET_ETH_DATAFRAME_TX));
     // header
     frame.dataLen = XL_ETH_PAYLOAD_SIZE_MIN + 2; // payload length +2 (with ethertype) 28 or XL_ETH_PAYLOAD_SIZE_MIN ???
-    frame.flags |= XL_ETH_DATAFRAME_FLAGS_USE_SOURCE_MAC|XL_ETH_DATAFRAME_FLAGS_NO_TX_EVENT_GEN;
+    frame.flags |= XL_ETH_DATAFRAME_FLAGS_USE_SOURCE_MAC; // | XL_ETH_DATAFRAME_FLAGS_NO_TX_EVENT_GEN;
     memcpy(&frame.sourceMAC, sock->localAddr.sin_mac, sizeof(frame.sourceMAC));
     memcpy(&frame.destMAC, sha, sizeof(frame.destMAC));
     frame.frameData.ethFrame.etherType = HTONS(ARP);
@@ -336,7 +337,7 @@ int udpSendTo(tUdpSockXl *sock, const unsigned char* data, unsigned int size, in
         memset(&frame, 0, sizeof(T_XL_NET_ETH_DATAFRAME_TX));
         
         // header
-        frame.flags |= XL_ETH_DATAFRAME_FLAGS_USE_SOURCE_MAC|XL_ETH_DATAFRAME_FLAGS_NO_TX_EVENT_GEN;
+        frame.flags |= XL_ETH_DATAFRAME_FLAGS_USE_SOURCE_MAC; // | XL_ETH_DATAFRAME_FLAGS_NO_TX_EVENT_GEN;
         memcpy(&frame.sourceMAC, sock->localAddr.sin_mac, sizeof(frame.sourceMAC));
         memcpy(&frame.destMAC, addr->sin_mac, sizeof(frame.destMAC));
         frame.frameData.ethFrame.etherType = HTONS(IPV4);
@@ -440,6 +441,7 @@ void udpShutdown(tUdpSockXl* sock) {
 }
 
 
+#endif
 #endif
 
 

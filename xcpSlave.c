@@ -70,7 +70,11 @@ int xcpSlaveRestart(void) {
 #ifdef _LINUX
     return xcpSlaveInit(NULL, (unsigned char*)&gXcpTl.SlaveAddr.addr.sin_addr.s_addr, gXcpTl.SlaveAddr.addr.sin_port, 0);
 #else
+#ifdef XCPSIM_ENABLE_XLAPI_V3
     return xcpSlaveInit(gXcpTl.SlaveAddr.addrXl.sin_mac, (unsigned char*)&gXcpTl.SlaveAddr.addr.sin_addr, gXcpTl.SlaveAddr.addr.sin_port, gXcpTl.SlaveMTU);
+#else
+    return xcpSlaveInit(NULL, (unsigned char*)&gXcpTl.SlaveAddr.addr.sin_addr, gXcpTl.SlaveAddr.addr.sin_port, gXcpTl.SlaveMTU);
+#endif
 #endif
 }
 
@@ -87,7 +91,7 @@ void* xcpSlaveCMDThread(void* par) {
 
 #ifndef XCPSIM_SINGLE_THREAD_SLAVE // Multi thread mode
 
-#ifdef _WIN
+#ifdef XCPSIM_ENABLE_XLAPI_V3
         // XL-API V3 has no blocking mode, always use the registered event for receive
         if (gOptionUseXLAPI) udpTlWaitForReceiveEvent(10000/*us*/);
 #endif

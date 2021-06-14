@@ -27,8 +27,11 @@ extern "C" {
 
 #endif 
 #ifdef _WIN // Windows sockets or XL-API
-
+#ifdef XCPSIM_ENABLE_XLAPI_V3
 #define udpSendtoWouldBlock(r) (gOptionUseXLAPI ? (r==0) : (WSAGetLastError()==WSAEWOULDBLOCK))
+#else
+#define udpSendtoWouldBlock(r) ((WSAGetLastError()==WSAEWOULDBLOCK))
+#endif
 #define udpRecvWouldBlock() ((WSAGetLastError()) == WSAEWOULDBLOCK)
 #define udpGetLastError() (WSAGetLastError())
 
@@ -64,14 +67,15 @@ typedef struct {
 
 typedef union {
     SOCKADDR_IN addr;
-#ifdef _WIN
+    //-----------------------------------------------------------------------------------------------------
+#ifdef XCPSIM_ENABLE_XLAPI_V3
     tUdpSockAddrXl addrXl;
 #endif
 } tUdpSockAddr;
 
 typedef union {
     SOCKET sock; // Winsock or Linux
-#ifdef _WIN
+#ifdef XCPSIM_ENABLE_XLAPI_V3
     tUdpSockXl *sockXl; // XL-API
 #endif
 } tUdpSock;

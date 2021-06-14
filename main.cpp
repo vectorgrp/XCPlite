@@ -16,13 +16,14 @@ extern "C" {
 }
 
 // Commandline Options amd Defaults
-#ifdef _WIN 
+#ifdef _WIN
+#ifdef XCPSIM_ENABLE_XLAPI_V3
 unsigned char gOptionsSlaveMac[6] = XCPSIM_SLAVE_XL_MAC;
 unsigned char gOptionsSlaveAddr[4] = XCPSIM_SLAVE_XL_IP;
 int gOptionUseXLAPI = 0; 
 char gOptionsXlSlaveNet[32] = XCPSIM_SLAVE_XL_NET;
 char gOptionsXlSlaveSeg[32] = XCPSIM_SLAVE_XL_SEG;
-
+#endif
 #endif // _WIN
 #ifdef _LINUX
 unsigned char gOptionsSlaveMac[6] = { 0,0,0,0,0,0 };
@@ -205,7 +206,7 @@ int main(int argc, char* argv[])
             gOptionJumbo = TRUE;
         }
 
-#ifdef _WIN
+#ifdef XCPSIM_ENABLE_XLAPI_V3
         else if (strcmp(argv[i], "-v3") == 0) {
             gOptionUseXLAPI = TRUE;
             printf("Using XL-API V3\n");
@@ -225,7 +226,7 @@ int main(int argc, char* argv[])
             }
         }
 
-#endif // _WIN
+#endif 
         else {
             usage();
             exit(0);
@@ -238,8 +239,12 @@ int main(int argc, char* argv[])
     if (!clockInit()) return 1;
 
     // Initialize the XCP slave
+#ifdef XCPSIM_ENABLE_XLAPI_V3
     if (!xcpSlaveInit(gOptionsSlaveMac, gOptionsSlaveAddr, gOptionsSlavePort, gOptionJumbo )) return 1;
-    
+#else
+    if (!xcpSlaveInit(NULL, NULL, gOptionsSlavePort, gOptionJumbo)) return 1;
+#endif
+
     // C demo
     // Initialize ECU demo task (C) 
     ecuInit();

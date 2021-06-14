@@ -41,7 +41,7 @@ static int sendDatagram(const unsigned char* data, unsigned int size ) {
         printf("ERROR: invalid master address!\n");
         return 0;
     }
-#ifdef _WIN // Windows XL-API 
+#ifdef XCPSIM_ENABLE_XLAPI_V3
     if (gOptionUseXLAPI) {
         r = udpSendTo(gXcpTl.Sock.sockXl, data, size, 0, &gXcpTl.MasterAddr.addrXl, sizeof(gXcpTl.MasterAddr.addrXl));
     }
@@ -264,7 +264,7 @@ int udpTlHandleXCPCommands(void) {
     // Receive a UDP datagramm
     // No no partial messages assumed
 
-#ifdef _WIN // Windows XL-API 
+#ifdef XCPSIM_ENABLE_XLAPI_V3
     if (gOptionUseXLAPI) {
         srclen = sizeof(src.addrXl);
         n = udpRecvFrom(gXcpTl.Sock.sockXl, (char*)&buffer, sizeof(buffer), &src.addrXl);
@@ -472,6 +472,7 @@ int udpTlInit(unsigned char *slaveMac, unsigned char *slaveAddr, uint16_t slaveP
     gXcpTl.CrmCtr = 0;
     gXcpTl.MasterAddrValid = 0;
 
+#ifdef XCPSIM_ENABLE_XLAPI_V3
     if (gOptionUseXLAPI) {
 
         printf("  (IP=%u.%u.%u.%u port=%u)\n", slaveAddr[0], slaveAddr[1], slaveAddr[2], slaveAddr[3], slavePort);
@@ -492,7 +493,9 @@ int udpTlInit(unsigned char *slaveMac, unsigned char *slaveAddr, uint16_t slaveP
         return udpInit(&gXcpTl.Sock.sockXl, &gEvent, &gXcpTl.SlaveAddr.addrXl, &gXcpTl.SlaveMulticastAddr.addrXl);
 
     }
-    else {
+    else 
+#endif
+    {
 
         WORD wsaVersionRequested;
         WSADATA wsaData;
@@ -592,10 +595,13 @@ void udpTlWaitForTransmitData(unsigned int timeout_us) {
 
 void udpTlShutdown(void) {
 
+#ifdef XCPSIM_ENABLE_XLAPI_V3
     if (gOptionUseXLAPI) {
         udpShutdown(gXcpTl.Sock.sockXl);
     }
-    else {
+    else 
+#endif
+    {
         closesocket(gXcpTl.Sock.sock);
         WSACleanup();
     }

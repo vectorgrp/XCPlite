@@ -3,6 +3,8 @@
 #ifndef __UDP_H__
 #define __UDP_H__
 
+#ifdef XCPSIM_ENABLE_XLAPI_V3
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -25,8 +27,10 @@ typedef struct {
 
 
 typedef struct {
+#ifdef XCPSIM_ENABLE_XLAPI_V3
    XLnetworkHandle networkHandle; // Network handle
    XLethPortHandle portHandle; // VP handle
+#endif
    tUdpSockAddrXl localAddr; // Local socket address 
    tUdpSockAddrXl multicastAddr; // Local socket address for Multicast
 } tUdpSockXl;
@@ -43,4 +47,5 @@ int udpGetLastError(tUdpSockXl*socket);
 }
 #endif
 
+#endif
 #endif
