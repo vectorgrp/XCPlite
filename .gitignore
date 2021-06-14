@@ -1,8 +1,9 @@
 
+x64/
+Win32/
 bin/
 obj/
 *.[oa]
-
 
 
 # Visual Studio specific files and folders
@@ -15,4 +16,19 @@ obj/
 .vscode/
 *.sln.DotSettings
 *.sln.DotSettings.user 
+*.vcxproj.user
 
+*.iobj
+*.ipdb
+*.pdb
+*.exe
+*.tlog
+*.obj
+*.dll
+*.xml
+*.lib
+
+
+*.pcap
+*.mdf
+*.a2L
