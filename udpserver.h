@@ -13,7 +13,7 @@ extern "C" {
 #define SOCKADDR struct sockaddr
 #define SOCKET int
 
-#define udpSendtoWouldBlock() (errno == EAGAIN)
+#define udpSendtoWouldBlock(r) (errno == EAGAIN)
 #define udpRecvWouldBlock() (errno == EAGAIN)
 #define udpGetLastError() errno
 
@@ -28,7 +28,7 @@ extern "C" {
 #endif 
 #ifdef _WIN // Windows sockets or XL-API
 
-#define udpSendtoWouldBlock() ((WSAGetLastError()) == WSAEWOULDBLOCK)
+#define udpSendtoWouldBlock(r) (gOptionUseXLAPI ? (r==0) : (WSAGetLastError()==WSAEWOULDBLOCK))
 #define udpRecvWouldBlock() ((WSAGetLastError()) == WSAEWOULDBLOCK)
 #define udpGetLastError() (WSAGetLastError())
 
@@ -43,14 +43,14 @@ extern "C" {
 #endif
 
 typedef struct {
-    unsigned short dlc;               /* BYTE 1,2 lenght */
-    unsigned short ctr;               /* BYTE 3,4 packet counter */
+    uint16_t dlc;               /* BYTE 1,2 lenght */
+    uint16_t ctr;               /* BYTE 3,4 packet counter */
     unsigned char  data[XCPTL_CTO_SIZE];  /* BYTE[] data */
 } tXcpCtoMessage;
 
 typedef struct {
-    unsigned short dlc;               /* BYTE 1,2 lenght */
-    unsigned short ctr;               /* BYTE 3,4 packet counter */
+    uint16_t dlc;               /* BYTE 1,2 lenght */
+    uint16_t ctr;               /* BYTE 3,4 packet counter */
     unsigned char  data[XCPTL_DTO_SIZE];  /* BYTE[] data */
 } tXcpDtoMessage;
 
@@ -58,7 +58,7 @@ typedef struct {
 typedef struct {
     unsigned int xcp_size;             // Number of overall bytes in XCP DTO messages
     unsigned int xcp_uncommited;       // Number of uncommited XCP DTO messages
-    unsigned char xcp[XCPTL_SOCKET_MTU_SIZE]; // Contains concatenated messages
+    unsigned char xcp[XCPTL_SOCKET_JUMBO_MTU_SIZE]; // Contains concatenated messages
 } tXcpDtoBuffer;
 
 
@@ -91,14 +91,13 @@ typedef struct {
     unsigned int dto_queue_rp; // rp = read index
     unsigned int dto_queue_len; // rp+len = write index (the next free entry), len=0 ist empty, len=XCPTL_DTO_QUEUE_SIZE is full
     tXcpDtoBuffer* dto_buffer_ptr; // current incomplete or not fully commited entry
-    unsigned long long dto_bytes_written;
 
     // CTO command transfer object counters (CRM,CRO)
-    unsigned short LastCroCtr; // Last CRO command receive object message packet counter received
-    unsigned short CrmCtr; // next CRM command response message packet counter
+    uint16_t LastCroCtr; // Last CRO command receive object message packet counter received
+    uint16_t CrmCtr; // next CRM command response message packet counter
 
     // DTO data transfer object counter (DAQ,STIM)
-    unsigned short DtoCtr; // next DAQ DTO data transmit message packet counter 
+    uint16_t DtoCtr; // next DAQ DTO data transmit message packet counter 
 
 #ifdef _WIN 
     CRITICAL_SECTION cs;
@@ -107,9 +106,10 @@ typedef struct {
 } tXcpTlData;
 
 
+
 extern tXcpTlData gXcpTl;
 
-extern int udpTlInit(unsigned char slaveMac[6], unsigned char slaveAddr[4], unsigned short slavePort, unsigned int MTU);
+extern int udpTlInit(unsigned char *slaveMac, unsigned char *slaveAddr, uint16_t slavePort, unsigned int slaveMTU);
 extern void udpTlShutdown(void);
 
 extern void udpTlWaitForReceiveEvent(unsigned int timeout_us);

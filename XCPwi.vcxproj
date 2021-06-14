@@ -158,7 +158,6 @@
     <ClInclude Include="udp.h" />
     <ClInclude Include="udpserver.h" />
     <ClInclude Include="util.h" />
-    <ClInclude Include="vxlapi.h" />
     <ClInclude Include="xcpAppl.h" />
     <ClInclude Include="xcpLite.h" />
     <ClInclude Include="xcpSlave.h" />

@@ -11,7 +11,7 @@ extern volatile unsigned int gFlushCycleMs;
 extern volatile int gXcpSlaveCMDThreadRunning;
 extern volatile int gXcpSlaveDAQThreadRunning;
 
-extern int xcpSlaveInit(unsigned char *slaveMac, unsigned char *slaveAddr, unsigned short slavePort, unsigned int MTU);
+extern int xcpSlaveInit(unsigned char *slaveMac, unsigned char *slaveAddr, uint16_t slavePort, unsigned int jumbo);
 extern int xcpSlaveRestart(void);
 extern void* xcpSlaveCMDThread(void* par);
 extern void* xcpSlaveDAQThread(void* par);

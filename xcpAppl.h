@@ -6,12 +6,13 @@
 #ifndef __XCPAPPL_H_ 
 #define __XCPAPPL_H_
 
+#include "main.h"
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "main.h"
-	
 /*----------------------------------------------------------------------------*/
 // Debug prints
 

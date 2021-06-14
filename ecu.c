@@ -8,15 +8,19 @@
  ----------------------------------------------------------------------------*/
 
 #include "main.h"
+#include <math.h>
 #include "ecu.h"
-
 
 
 /**************************************************************************/
 /* ECU Measurements */
 /**************************************************************************/
 
-unsigned short ecuCounter = 0;
+// Events
+uint16_t gXcpEvent_EcuCyclic = 0;
+
+
+uint16_t ecuCounter = 0;
 
 double channel1;
 double channel2;
@@ -44,29 +48,29 @@ unsigned char byteArray14[1024];
 unsigned char byteArray15[1024];
 unsigned char byteArray16[1024];
 
-unsigned long longArray1[1024];
-unsigned long longArray2[1024];
-unsigned long longArray3[1024];
-unsigned long longArray4[1024];
-unsigned long longArray5[1024];
-unsigned long longArray6[1024];
-unsigned long longArray7[1024];
-unsigned long longArray8[1024];
-unsigned long longArray9[1024];
-unsigned long longArray10[1024];
-unsigned long longArray11[1024];
-unsigned long longArray12[1024];
-unsigned long longArray13[1024];
-unsigned long longArray14[1024];
-unsigned long longArray15[1024];
-unsigned long longArray16[1024];
+uint32_t longArray1[1024];
+uint32_t longArray2[1024];
+uint32_t longArray3[1024];
+uint32_t longArray4[1024];
+uint32_t longArray5[1024];
+uint32_t longArray6[1024];
+uint32_t longArray7[1024];
+uint32_t longArray8[1024];
+uint32_t longArray9[1024];
+uint32_t longArray10[1024];
+uint32_t longArray11[1024];
+uint32_t longArray12[1024];
+uint32_t longArray13[1024];
+uint32_t longArray14[1024];
+uint32_t longArray15[1024];
+uint32_t longArray16[1024];
 
-unsigned char byteCounter;
-unsigned short wordCounter;
-unsigned long dwordCounter;
-signed char sbyteCounter;
-signed short swordCounter;
-signed int sdwordCounter;
+uint8_t  byteCounter;
+uint16_t wordCounter;
+uint32_t dwordCounter;
+int8_t  sbyteCounter;
+int16_t swordCounter;
+int32_t sdwordCounter;
 
 char testString[] = "TestString"; 
 
@@ -76,42 +80,33 @@ char testString[] = "TestString";
 /* ECU Parameters */
 /**************************************************************************/
 
-#define PI2 6.28318530718
 
-volatile double period = 3.0;
-volatile double offset1 = 0.0;
-volatile double offset2 = 0.0;
-volatile double offset3 = 0.0;
-volatile double offset4 = 50.0;
-volatile double offset5 = 50.0;
-volatile double offset6 = 50.0;
-volatile double phase1 = 0;
-volatile double phase2 = PI2 / 3;
-volatile double phase3 = 2 * PI2 / 3;
-volatile double phase4 = 0;
-volatile double phase5 = PI2 / 3;
-volatile double phase6 = 2 * PI2 / 3;
-volatile double ampl1 = 400.0;
-volatile double ampl2 = 300.0;
-volatile double ampl3 = 200.0;
-volatile double ampl4 = 100.0;
-volatile double ampl5 = 75.0;
-volatile double ampl6 = 50.0;
+volatile struct ecuPar ecuPar;
 
+const struct ecuPar ecuRomPar = {
+    
+    (uint32_t)sizeof(struct ecuPar),
 
-volatile unsigned char map1_8_8[8][8] =
-{ {0,0,0,0,0,0,1,2},
- {0,0,0,0,0,0,2,3},
- {0,0,0,0,1,1,2,3},
- {0,0,0,1,1,2,3,4},
- {0,1,1,2,3,4,5,7},
- {1,1,1,2,4,6,8,9},
- {1,1,2,4,5,8,9,10},
- {1,1,3,5,8,9,10,10}
+    2000,
+    3.0,
+
+    0.0, 0.0, 0.0, 50.0, 50.0, 50.0,
+    0, PI2 / 3, 2 * PI2 / 3, 0, PI2 / 3, 2 * PI2 / 3,
+    400.0,300.0,200.0, 50.0,50.0,50.0,
+
+    { {0,0,0,0,0,0,1,2},
+     {0,0,0,0,0,0,2,3},
+     {0,0,0,0,1,1,2,3},
+     {0,0,0,1,1,2,3,4},
+     {0,1,1,2,3,4,5,7},
+     {1,1,1,2,4,6,8,9},
+     {1,1,2,4,5,8,9,10},
+     {1,1,3,5,8,9,10,10}
+    },
+
+    { 0,1,3,6,9,15,20,30,38,42,44,46,48,50,48,45,40,33,25,15,5,4,3,2,1,0,0,1,4,8,4,0}
+
 };
-
-volatile unsigned char curve1_32[32] =
-{ 0,1,3,6,9,15,20,30,38,42,44,46,48,50,48,45,40,33,25,15,5,4,3,2,1,0,0,1,4,8,4,0};
 
 
 
@@ -120,8 +115,15 @@ volatile unsigned char curve1_32[32] =
 /* ECU Demo Code */
 /**************************************************************************/
 
+static void ecuParInit(void) {
+
+    ecuPar = ecuRomPar;
+}
+
 // Init
 void ecuInit(void) {
+
+    ecuParInit();
 
     ecuCounter = 0;
 
@@ -176,6 +178,13 @@ void ecuInit(void) {
         longArray15[i] = i;
         longArray16[i] = i;
     }
+
+    // Create XCP events
+    // Events must be all defined before A2lHeader() is called, measurements and parameters have to be defined after all events have been defined !!
+    // Character count should be <=8 to keep the A2L short names unique !
+#ifdef XCP_ENABLE_DAQ_EVENT_LIST
+    gXcpEvent_EcuCyclic = XcpCreateEvent("Cyclic", 2000, 0, 0);                               // Standard event triggered in C ecuTask
+#endif
 }
 
 
@@ -183,34 +192,45 @@ void ecuInit(void) {
 #ifdef XCPSIM_ENABLE_A2L_GEN
 void ecuCreateA2lDescription(void) {
 
+    A2lCreateParameter(ecuPar.CALRAM_SIZE, "", "ECU CALRAM size");
 
-    A2lCreateParameterWithLimits(ampl1, "Amplitude of U1p", "V", 0, 800);
-    A2lCreateParameterWithLimits(offset1, "Offset of U1p", "V", -200, +200);
-    A2lCreateParameterWithLimits(phase1, "Phase of U1P", "", 0, PI2);
-    A2lCreateParameterWithLimits(ampl2, "Amplitude of U2p", "V", 0, 800);
-    A2lCreateParameterWithLimits(offset2, "Offset of U2p", "V", -200, +200);
-    A2lCreateParameterWithLimits(phase2, "Phase of U2p", "", 0, PI2);
-    A2lCreateParameterWithLimits(ampl3, "Amplitude of U3p", "V", 0, 800);
-    A2lCreateParameterWithLimits(offset3, "Offset of U3p", "V", -200, +200);
-    A2lCreateParameterWithLimits(phase3, "Phase of U3p", "", 0, PI2);
-    A2lCreateParameterWithLimits(ampl4, "Amplitude of I1p", "A", 0, 800);
-    A2lCreateParameterWithLimits(offset4, "Offset of I1p", "A", -200, +200);
-    A2lCreateParameterWithLimits(phase4, "Phase of I1p", "", 0, PI2);
-    A2lCreateParameterWithLimits(ampl5, "Amplitude of I2p", "A", 0, 800);
-    A2lCreateParameterWithLimits(offset5, "Offset of I2p", "A", -200, +200);
-    A2lCreateParameterWithLimits(phase5, "Phase of I2p", "", 0, PI2);
-    A2lCreateParameterWithLimits(ampl6, "Amplitude of I3p", "A", 0, 800);
-    A2lCreateParameterWithLimits(offset6, "Offset of I3p", "A", -200, +200);
-    A2lCreateParameterWithLimits(phase6, "Phase of I3p", "", 0, PI2);
-    A2lCreateParameterWithLimits(period, "Period", "s", 0, 10);
-    A2lParameterGroup("eMobParameters", 6*3+1, "period", "ampl1", "offset1", "phase1", "ampl2", "offset2", "phase2", "ampl3", "offset3", "phase3", "ampl4", "offset4", "phase4", "ampl5", "offset5", "phase5", "ampl6", "offset6", "phase6");
+    A2lCreateParameterWithLimits(ecuPar.ampl1, "Amplitude", "V", 0, 800);
+    A2lCreateParameterWithLimits(ecuPar.offset1, "Offset", "V", -200, +200);
+    A2lCreateParameterWithLimits(ecuPar.phase1, "Phase", "", 0, PI2);
+    A2lCreateParameterWithLimits(ecuPar.ampl2, "Amplitude", "V", 0, 800);
+    A2lCreateParameterWithLimits(ecuPar.offset2, "Offset", "V", -200, +200);
+    A2lCreateParameterWithLimits(ecuPar.phase2, "Phase", "", 0, PI2);
+    A2lCreateParameterWithLimits(ecuPar.ampl3, "Amplitude", "V", 0, 800);
+    A2lCreateParameterWithLimits(ecuPar.offset3, "Offset", "V", -200, +200);
+    A2lCreateParameterWithLimits(ecuPar.phase3, "Phase", "", 0, PI2);
+    A2lCreateParameterWithLimits(ecuPar.ampl4, "Amplitude", "A", 0, 800);
+    A2lCreateParameterWithLimits(ecuPar.offset4, "Offset", "A", -200, +200);
+    A2lCreateParameterWithLimits(ecuPar.phase4, "Phase", "", 0, PI2);
+    A2lCreateParameterWithLimits(ecuPar.ampl5, "Amplitude", "A", 0, 800);
+    A2lCreateParameterWithLimits(ecuPar.offset5, "Offset", "A", -200, +200);
+    A2lCreateParameterWithLimits(ecuPar.phase5, "Phase", "", 0, PI2);
+    A2lCreateParameterWithLimits(ecuPar.ampl6, "Amplitude", "A", 0, 800);
+    A2lCreateParameterWithLimits(ecuPar.offset6, "Offset", "A", -200, +200);
+    A2lCreateParameterWithLimits(ecuPar.phase6, "Phase", "", 0, PI2);
+    A2lCreateParameterWithLimits(ecuPar.period, "Period", "s", 0, 10);
+    A2lCreateMap(ecuPar.map1_8_8, 8, 8, "", "8*8 byte calibration array");
+    A2lCreateCurve(ecuPar.curve1_32, 32, "", "32 byte calibration array");
 
+    A2lCreateParameterWithLimits(ecuPar.cycleTime, "ECU task cycle time", "us", 50, 1000000);
 
-    A2lCreateMap(map1_8_8, 8, 8, "", "8*8 byte calibration array");
-    A2lCreateCurve(curve1_32, 32, "", "32 byte calibration array");
-    A2lParameterGroup("EcuTaskParameters", 2, "map1_8_8", "curve1_32");
+    A2lParameterGroup("ecuPar", 5 + 6 * 3,
+        "ecuPar.CALRAM_SIZE",
+        "ecuPar.cycleTime",
+        "ecuPar.map1_8_8", "ecuPar.curve1_32",
+        "ecuPar.period",
+        "ecuPar.ampl1", "ecuPar.offset1", "ecuPar.phase1",
+        "ecuPar.ampl2", "ecuPar.offset2", "ecuPar.phase2",
+        "ecuPar.ampl3", "ecuPar.offset3", "ecuPar.phase3",
+        "ecuPar.ampl4", "ecuPar.offset4", "ecuPar.phase4",
+        "ecuPar.ampl5", "ecuPar.offset5", "ecuPar.phase5",
+        "ecuPar.ampl6", "ecuPar.offset6", "ecuPar.phase6");
 
-
+       
     A2lSetEvent(gXcpEvent_EcuCyclic); // Associate XCP event "EcuCyclic" to the variables created below
     A2lCreateMeasurement(ecuCounter);
     A2lCreatePhysMeasurement(channel1, "Demo signal 1", 1.0, 0.0, "");
@@ -227,7 +247,8 @@ void ecuCreateA2lDescription(void) {
     A2lCreateMeasurement_s(swordCounter);
     A2lCreateMeasurement_s(sdwordCounter);
 
-    A2lMeasurementGroup("EcuTaskSignals", 13, "ecuCounter", "channel1", "channel2", "channel3", "channel4", "channel5", "channel6", "byteCounter", "wordCounter", "dwordCounter", "sbyteCounter", "swordCounter", "sdwordCounter");
+    A2lMeasurementGroup("EcuTaskSignals", 13, 
+        "ecuCounter", "channel1", "channel2", "channel3", "channel4", "channel5", "channel6", "byteCounter", "wordCounter", "dwordCounter", "sbyteCounter", "swordCounter", "sdwordCounter");
 
     A2lCreateMeasurementArray(byteArray1);
     A2lCreateMeasurementArray(byteArray2);
@@ -279,15 +300,14 @@ void ecuCyclic( void )
   ecuCounter++;
 
   // channel 1-6 demo signals
-  channel1 = offset1 + ampl1 * sin(PI2 * sTime / period + phase1);
-  channel2 = offset2 + ampl2 * sin(PI2 * sTime / period + phase2);
-  channel3 = offset3 + ampl3 * sin(PI2 * sTime / period + phase3);
-  channel4 = offset4 + ampl4 * sin(PI2 * sTime / period + phase4);
-  channel5 = offset5 + ampl5 * sin(PI2 * sTime / period + phase5);
-  channel6 = offset6 + ampl6 * sin(PI2 * sTime / period + phase6);
-
-  sTime = sTime + 0.002; // time in s + 2ms
-
+  double x = PI2 * sTime / ecuPar.period;
+  channel1 = ecuPar.offset1 + ecuPar.ampl1 * sin(x + ecuPar.phase1);
+  channel2 = ecuPar.offset2 + ecuPar.ampl2 * sin(x + ecuPar.phase2);
+  channel3 = ecuPar.offset3 + ecuPar.ampl3 * sin(x + ecuPar.phase3);
+  channel4 = ecuPar.offset4 + ecuPar.ampl4 * sin(x);
+  channel5 = ecuPar.offset5 + ecuPar.ampl5 * sin(x);
+  channel6 = ecuPar.offset6 + ecuPar.ampl6 * sin(x);
+  sTime += 0.002;
 
   // Arrays
   longArray1[0] ++;
@@ -312,4 +332,14 @@ void ecuCyclic( void )
 }
 
 
+// ECU cyclic (2ms default) demo task 
+    // Calls C ECU demo code
+void* ecuTask(void* p) {
 
+    printf("Start C demo task (cycle = %dus, event = %d)\n", ecuPar.cycleTime, gXcpEvent_EcuCyclic);
+    for (;;) {
+        sleepNs(ecuPar.cycleTime * 1000);
+        ecuCyclic();
+    }
+    return 0;
+}

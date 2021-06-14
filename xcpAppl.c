@@ -11,6 +11,11 @@
 #include "main.h"
 
 
+ /**************************************************************************/
+ // Pointer - Address conversion
+ /**************************************************************************/
+
+
 // 64 Bit platform pointer to XCP/A2L address conversions
 // XCP memory access is limited to a 4GB address range
 #if defined(_WIN64) || defined(_LINUX64)
@@ -40,13 +45,31 @@ vuint8 *ApplXcpGetBaseAddr() {
         assert((((vuint64)&__dataSeg) & 0xFFFFFFFF00000000ULL) == (((vuint64)&__dataSegInit) & 0xFFFFFFFF00000000ULL));
         baseAddr = (vuint8*)(((vuint64)&__dataSeg) & 0xFFFFFFFF00000000ULL);
 #if defined ( XCP_ENABLE_TESTMODE )
-        if (gDebugLevel >= 1) ApplXcpPrint("ApplXcpGetBaseAddr() = 0x%llX\n", (vuint64)baseAddr);
+        if (gDebugLevel >= 1) ApplXcpPrint("  ApplXcpGetBaseAddr() = 0x%llX\n", (vuint64)baseAddr);
 #endif
     }
 
     return baseAddr;
 }
 
+#endif
+
+/**************************************************************************/
+// Calibration page handling
+/**************************************************************************/
+
+#ifdef XCP_ENABLE_CAL_PAGE
+
+vuint8 calPage = 0; // RAM = 0, FLASH = 1
+
+vuint8 ApplXcpGetCalPage(vuint8 segment, vuint8 mode) {
+    return calPage;
+}
+
+vuint8 ApplXcpSetCalPage(vuint8 segment, vuint8 page, vuint8 mode) {
+    calPage = page;
+    return 0;
+  }
 #endif
 
 
@@ -96,15 +119,15 @@ vuint16 XcpCreateEvent(const char* name, vuint16 cycleTime /*ms */, vuint16 samp
 #ifdef XCP_ENABLE_A2L_NAME // Enable GET_ID A2L name upload to host
 
 // A2L base name for GET_ID 
-static char gA2LFilename[FILENAME_MAX] = "XCPpi"; // Name without extension
-char gA2LPathname[MAX_PATH + FILENAME_MAX] = "XCPpi.A2L"; // Full path name extension
+static char gA2LFilename[FILENAME_MAX] = "XCPlite"; // Name without extension
+static char gA2LPathname[MAX_PATH + FILENAME_MAX] = "XCPlite.A2L"; // Full path name extension
 
 
 vuint8 ApplXcpGetA2LFilename(vuint8** p, vuint32* n, int path) {
 
     // Create a unique A2L file name for this version. Used for generation and for GET_ID A2L name
 #ifdef _WIN
-    sprintf_s(gA2LFilename, sizeof(gA2LFilename), "XCPsim-%08X", (vuint32)((vuint64)&gDebugLevel + (vuint64)&channel1)); // Generate version specific unique A2L file name
+    sprintf_s(gA2LFilename, sizeof(gA2LFilename), "XCPlite-%08X", (vuint32)((vuint64)&gDebugLevel + (vuint64)&channel1)+ gOptionsSlavePort); // Generate version specific unique A2L file name
     sprintf_s(gA2LPathname, sizeof(gA2LPathname), "%s%s.A2L", gOptionA2L_Path, gA2LFilename);
 
 #ifdef XCPSIM_ENABLE_A2L_GEN
@@ -150,6 +173,10 @@ vuint8 ApplXcpReadA2LFile(vuint8** p, vuint32* n) {
 #endif
 #endif
 
+#if defined ( XCP_ENABLE_TESTMODE )
+        if (gDebugLevel >= 1) ApplXcpPrint("Load A2L %s\n", gA2LPathname);
+#endif
+
 #ifdef _LINUX // Linux
         FILE* fd;
         fd = fopen(gA2LPathname, "r");
@@ -167,8 +194,8 @@ vuint8 ApplXcpReadA2LFile(vuint8** p, vuint32* n) {
 #else
         HANDLE hFile, hFileMapping;
         wchar_t filename[256] = { 0 };
-        MultiByteToWideChar(0, 0, gA2LPathname, strlen(gA2LPathname), filename, strlen(gA2LPathname));
-        hFile = CreateFile(filename, GENERIC_READ|GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        MultiByteToWideChar(0, 0, gA2LPathname, (int)strlen(gA2LPathname), filename, (int)strlen(gA2LPathname));
+        hFile = CreateFile(filename, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
         if (hFile == INVALID_HANDLE_VALUE) {
             ApplXcpPrint("A2L file %s not found! Use -a2l to generate\n", gA2LPathname);
             return 0;
@@ -184,7 +211,7 @@ vuint8 ApplXcpReadA2LFile(vuint8** p, vuint32* n) {
         //CloseHandle(hFile);
 #endif
 #if defined ( XCP_ENABLE_TESTMODE )
-            if (gDebugLevel >= 1) ApplXcpPrint("A2L file %s ready for upload, size=%u, mta=%p\n", gA2LPathname, gXcpA2LLength, gXcpA2L);
+            if (gDebugLevel >= 1) ApplXcpPrint("  A2L file ready for upload, size=%u, mta=%p\n\n", gXcpA2LLength, gXcpA2L);
 #endif
         
     }

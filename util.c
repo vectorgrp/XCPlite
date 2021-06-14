@@ -17,8 +17,8 @@
 /* Compile with:   -lrt */
 
 // Last clock values updated on queries
-volatile vuint32 gClock32 = 0;
-volatile vuint64 gClock64 = 0;
+volatile uint32_t gClock32 = 0;
+volatile uint64_t gClock64 = 0;
 
 #ifndef _WIN // Linux
 
@@ -27,7 +27,6 @@ static struct timespec gtr;
 
 int clockInit( void )
 {    
-    assert(sizeof(long long) == 8);
     clock_getres(CLOCK_REALTIME, &gtr);
     assert(gtr.tv_sec == 0);
     assert(gtr.tv_nsec == 1);
@@ -36,8 +35,9 @@ int clockInit( void )
     getClock64();
 
 #ifdef XCP_ENABLE_TESTMODE
-    if (gDebugLevel >= 1) {
-        printf("system realtime clock resolution = %lds,%ldns\n", gtr.tv_sec, gtr.tv_nsec);
+    if (gDebugLevel >= 2) {
+        printf("Init clock \n");
+        printf("  System realtime clock resolution = %lds,%ldns\n", gtr.tv_sec, gtr.tv_nsec);
         //printf("clock now = %lds+%ldns\n", gts0.tv_sec, gts0.tv_nsec);
         //printf("clock year = %u\n", 1970 + gts0.tv_sec / 3600 / 24 / 365 );
         //printf("gClock64 = %lluus %llxh, gClock32 = %xh\n", gts0.tv_sec, gts0.tv_nsec, gClock64, gClock64, gClock32);
@@ -48,17 +48,17 @@ int clockInit( void )
 }
 
 // Free running clock with 1us tick
-vuint32 getClock32(void) {
+uint32_t getClock32(void) {
 
     struct timespec ts; 
     
     clock_gettime(CLOCK_REALTIME, &ts);
-    gClock64 = ( ( (vuint64)(ts.tv_sec/*-gts0.tv_sec*/) * 1000000ULL ) + (vuint64)(ts.tv_nsec / 1000) ); // us
-    gClock32 = (vuint32)gClock64;
+    gClock64 = ( ( (uint64_t)(ts.tv_sec/*-gts0.tv_sec*/) * 1000000ULL ) + (uint64_t)(ts.tv_nsec / 1000) ); // us
+    gClock32 = (uint32_t)gClock64;
     return gClock32;  
 }
 
-vuint64 getClock64(void) {
+uint64_t getClock64(void) {
 
     getClock32();
     return gClock64;
@@ -67,14 +67,14 @@ vuint64 getClock64(void) {
 void sleepNs(unsigned int ns) {
     struct timespec timeout, timerem;
     timeout.tv_sec = 0;
-    timeout.tv_nsec = (long)ns;
+    timeout.tv_nsec = (int32_t)ns;
     nanosleep(&timeout, &timerem);
 }
 
 #else
 
-static __int64 sFactor = 1;
-static __int64 sOffset = 0;
+static uint64_t sFactor = 1;
+static uint64_t sOffset = 0;
 
 int clockInit(void) {
 
@@ -90,7 +90,7 @@ int clockInit(void) {
         sOffset = (((__int64)tC.u.HighPart) << 32) | (__int64)tC.u.LowPart;
         getClock64();
 #ifdef XCP_ENABLE_TESTMODE
-        if (gDebugLevel >= 2) {
+        if (gDebugLevel >= 3) {
             printf("system realtime clock resolution = %I64u ticks per s\n", sFactor);
             printf("gClock64 = %I64u, gClock32 = %u\n", gClock64, gClock32);
         }
@@ -105,20 +105,25 @@ int clockInit(void) {
 }
 
 // Free running clock with 1us tick
-vuint32 getClock32(void) {
+uint32_t getClock32(void) {
    
     LARGE_INTEGER t;
-    __int64 td;
+    uint64_t td;
 
     QueryPerformanceCounter(&t);
-    td = (((__int64)t.u.HighPart) << 32) | (__int64)t.u.LowPart;
-    gClock64 = (vuint64)(((td - sOffset) * 1000000UL) / sFactor);
-    gClock32 = (vuint32)gClock64; 
+    td = (((uint64_t)t.u.HighPart) << 32) | (uint64_t)t.u.LowPart;
+    if (sFactor == 1) {
+        gClock64 = (uint64_t)(((td - sOffset) * 1000000UL));
+    }
+    else {
+      gClock64 = (uint64_t)(((td - sOffset) * 1000000UL) / sFactor);
+    }
+    gClock32 = (uint32_t)gClock64;
     return gClock32;
 }
 
 // Free running clock with 1us in int64 which never overflows :-)
-unsigned long long getClock64(void) {
+uint64_t getClock64(void) {
 
     getClock32();
     return gClock64;
@@ -150,27 +155,6 @@ void sleepNs(unsigned int ns) {
 
 
 #endif
-
-
-
-
-/**************************************************************************/
-// Pseudo random
-/**************************************************************************/
-
-
-// Pseudo random unsigned int 0-15
-static unsigned int r = 0;
-
-
-void seed16(unsigned int seed) {
-    r = seed;
-}
-
-unsigned int random16() {
-    r = 36969 * (r & 65535) + (r >> 16);
-    return r & 0xF;
-}
 
 
 

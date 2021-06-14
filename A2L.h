@@ -9,9 +9,6 @@
 extern "C" {
 #endif
 
-extern char gA2LPathname[MAX_PATH + FILENAME_MAX];
-
-
 // Init A2L generation
 extern int A2lInit(const char *filename);
 
@@ -19,14 +16,16 @@ extern int A2lInit(const char *filename);
 extern void A2lHeader(void);
 
 // Set fixed event for all following creates
-void A2lSetEvent(unsigned short event);
+void A2lSetEvent(uint16_t event);
 
 
 // Create measurements
-extern void A2lCreateMeasurement_(const char* instanceName, const char* name, int size, vuint32 addr, double factor, double offset, const char* unit, const char* comment);
-extern void A2lCreateMeasurementArray_(const char* instanceName, const char* name, int size, int dim, vuint32 addr);
-#define A2lCreateMeasurement(name) A2lCreateMeasurement_(NULL,#name,sizeof(name),ApplXcpGetAddr((vuint8*)&(name)),1.0,0.0,NULL,"")
-#define A2lCreateMeasurement_s(name) A2lCreateMeasurement_(NULL,#name,-(int)sizeof(name),ApplXcpGetAddr((vuint8*)&(name)),1.0,0.0,NULL,"") // signed integer (8/16/32) or double
+extern void A2lCreateMeasurement_(const char* instanceName, const char* name, int size, uint32_t addr, double factor, double offset, const char* unit, const char* comment);
+extern void A2lCreateMeasurementArray_(const char* instanceName, const char* name, int size, int dim, uint32_t addr);
+#define A2lCreateMeasurement(name) A2lCreateMeasurement_(NULL,#name,sizeof(name),ApplXcpGetAddr((vuint8*)&(name)),1.0,0.0,NULL,NULL)
+#define A2lCreateMeasurement_64(name) A2lCreateMeasurement_(NULL,#name,sizeof(name)+2,ApplXcpGetAddr((vuint8*)&(name)),1.0,0.0,NULL,NULL)
+#define A2lCreateMeasurement_s64(name) A2lCreateMeasurement_(NULL,#name,-sizeof(name)-2,ApplXcpGetAddr((vuint8*)&(name)),1.0,0.0,NULL,NULL)
+#define A2lCreateMeasurement_s(name) A2lCreateMeasurement_(NULL,#name,-(int)sizeof(name),ApplXcpGetAddr((vuint8*)&(name)),1.0,0.0,NULL,NULL) // signed integer (8/16/32) or double
 #define A2lCreatePhysMeasurement(name,comment,factor,offset,unit) A2lCreateMeasurement_(NULL,#name,sizeof(name),ApplXcpGetAddr((vuint8*)&name),factor,offset,unit,comment) // unsigned integer (8/16/32) with linear physical conversion rule
 #define A2lCreatePhysMeasurement_s(name,comment,factor,offset,unit) A2lCreateMeasurement_(NULL,#name,-(int)sizeof(name),ApplXcpGetAddr((vuint8*)&name),factor,offset,unit,comment) // signed integer (8/16/32) with linear physical conversion rule
 #define A2lCreatePhysMeasurementExt(name,var,comment,factor,offset,unit) A2lCreateMeasurement_(NULL,name,sizeof(var),ApplXcpGetAddr((vuint8*)&var),factor,offset,unit,comment) // named unsigned integer (8/16/32) with linear physical conversion rule
@@ -36,9 +35,9 @@ extern void A2lCreateMeasurementArray_(const char* instanceName, const char* nam
 
 // Create typedefs
 void A2lTypedefBegin_(const char* name, int size, const char* comment);
-void A2lTypedefComponent_(const char* name, int size, vuint32 offset);
+void A2lTypedefComponent_(const char* name, int size, uint32_t offset);
 void A2lTypedefEnd_();
-void A2lCreateTypedefInstance_(const char* instanceName, const char* typeName, vuint32 addr, const char* comment);
+void A2lCreateTypedefInstance_(const char* instanceName, const char* typeName, uint32_t addr, const char* comment);
 #define A2lTypedefBegin(name,comment) A2lTypedefBegin_(#name,(int)sizeof(name),comment)
 #define A2lTypedefComponent(name,offset) A2lTypedefComponent_(#name,(int)sizeof(name),offset)
 #define A2lTypedefEnd() A2lTypedefEnd_()
@@ -50,9 +49,9 @@ void A2lCreateTypedefInstance_(const char* instanceName, const char* typeName, v
 #define A2lCreateMeasurement_rel(instanceName,name,variable,offset) A2lCreateMeasurement_(instanceName,name,sizeof(variable),offset,0.0,0.0,NULL,"") // dynamic instances with XcpEventExt
 
 // Create parameters
-void A2lCreateParameter_(const char* name, int size, vuint32 addr, const char* comment, const char* unit);
-void A2lCreateParameterWithLimits_(const char* name, int size, vuint32 addr, const char* comment, const char* unit, double min, double max);
-void A2lCreateMap_(const char* name, int size, vuint32 addr, unsigned int xdim, unsigned int ydim, const char* comment, const char* unit);
+void A2lCreateParameter_(const char* name, int size, uint32_t addr, const char* comment, const char* unit);
+void A2lCreateParameterWithLimits_(const char* name, int size, uint32_t addr, const char* comment, const char* unit, double min, double max);
+void A2lCreateMap_(const char* name, int size, uint32_t addr, uint32_t xdim, uint32_t ydim, const char* comment, const char* unit);
 #define A2lCreateParameter(name,comment,unit) A2lCreateParameter_(#name,sizeof(name),ApplXcpGetAddr((vuint8*)&name),unit,comment)
 #define A2lCreateParameterWithLimits(name,comment,unit,min,max) A2lCreateParameterWithLimits_(#name,sizeof(name),ApplXcpGetAddr((vuint8*)&name),comment,unit,min,max)
 #define A2lCreateCurve(name,xdim,comment,unit) A2lCreateMap_(#name,sizeof(name[0]),ApplXcpGetAddr((vuint8*)&name),xdim,1,unit,comment)

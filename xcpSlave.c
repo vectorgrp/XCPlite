@@ -12,15 +12,16 @@
 
  
 // Parameters
-volatile unsigned int gFlushCycleMs = 100; // 100ms, send a DTO packet at least every 100ms
+volatile unsigned int gFlushCycleMs = 200; // 100ms, send a DTO packet at least every 200ms
 static unsigned int gFlushTimer = 0;
 
 volatile int gXcpSlaveCMDThreadRunning = 0;
+#ifndef XCPSIM_SINGLE_THREAD_SLAVE
 volatile int gXcpSlaveDAQThreadRunning = 0;
-
+#endif
 
 // XCP transport layer init
-int xcpSlaveInit(unsigned char slaveMac[6], unsigned char slaveAddr[4], unsigned short slavePort, unsigned int MTU ) {
+int xcpSlaveInit(unsigned char *slaveMac, unsigned char *slaveAddr, uint16_t slavePort, unsigned int jumbo ) {
 
     // Initialize XCP protocoll driver
     printf("Init XCP protocol layer\n");
@@ -49,13 +50,19 @@ int xcpSlaveInit(unsigned char slaveMac[6], unsigned char slaveAddr[4], unsigned
 #ifdef XCP_ENABLE_A2L_UPLOAD // Enable A2L upload to host
     printf("XCP_ENABLE_A2L_UPLOAD,");
 #endif
+#ifdef XCP_ENABLE_DAQ_EVENT_LIST // Enable A2L upload to host
+    printf("XCP_ENABLE_DAQ_EVENT_LIST,");
+#endif
+#ifdef XCP_ENABLE_DAQ_EVENT_INFO // Enable A2L upload to host
+    printf("XCP_ENABLE_DAQ_EVENT_INFO,");
+#endif
     printf(")\n");
     
     XcpInit();
 
     // Initialize XCP transport layer
-    printf("Init UDP transport layer\n  (MTU = %u, DTO_QUEUE_SIZE = %u )\n", MTU, XCPTL_DTO_QUEUE_SIZE);
-    return udpTlInit(slaveMac,slaveAddr,slavePort, MTU);
+    unsigned int mtu = jumbo ? XCPTL_SOCKET_JUMBO_MTU_SIZE : XCPTL_SOCKET_MTU_SIZE;
+    return udpTlInit(slaveMac,slaveAddr,slavePort,mtu);
 }
 
 // Restart the XCP transport layer
@@ -63,7 +70,7 @@ int xcpSlaveRestart(void) {
 #ifdef _LINUX
     return xcpSlaveInit(NULL, (unsigned char*)&gXcpTl.SlaveAddr.addr.sin_addr.s_addr, gXcpTl.SlaveAddr.addr.sin_port, 0);
 #else
-    return xcpSlaveInit(gXcpTl.SlaveAddr.addrXl.sin_mac, &gXcpTl.SlaveAddr.addr.sin_addr.S_un, gXcpTl.SlaveAddr.addr.sin_port, gXcpTl.SlaveMTU);
+    return xcpSlaveInit(gXcpTl.SlaveAddr.addrXl.sin_mac, (unsigned char*)&gXcpTl.SlaveAddr.addr.sin_addr, gXcpTl.SlaveAddr.addr.sin_port, gXcpTl.SlaveMTU);
 #endif
 }
 
@@ -73,31 +80,54 @@ int xcpSlaveRestart(void) {
 void* xcpSlaveCMDThread(void* par) {
 
     gXcpSlaveCMDThreadRunning = 1;
-    printf("Start XCP server\n");
+    printf("Start XCP server thread\n");
 
     // Server loop
     for (;;) {
 
-        // Handle XCP commands
-        udpTlWaitForReceiveEvent(1000/*us*/);
-        if (!udpTlHandleXCPCommands()) {
+#ifndef XCPSIM_SINGLE_THREAD_SLAVE // Multi thread mode
+
+#ifdef _WIN
+        // XL-API V3 has no blocking mode, always use the registered event for receive
+        if (gOptionUseXLAPI) udpTlWaitForReceiveEvent(10000/*us*/);
+#endif
+
+        // Check the DAQ queue thread is running, break and fail if not, should not happen
+        if (!gXcpSlaveDAQThreadRunning) {
+            break; // exit
+        }
+
+#endif
+
+        // Handle incoming XCP commands
+        if (!udpTlHandleXCPCommands()) { // must be in nonblocking mode in single thread version, blocking mode with timeout in dual thread version
             printf("ERROR: udpTlHandleXCPCommands failed, shutdown and restart\n"); // Error
             xcpSlaveShutdown();
             xcpSlaveRestart();
         }
 
+#ifdef XCPSIM_SINGLE_THREAD_SLAVE // Single thread mode, handle DAQ queue here
+
         // Handle DAQ queue
-#ifdef _WIN
-        if (!udpTlHandleTransmitQueue()) {
+        if (!udpTlHandleTransmitQueue()) { // must be in non blocking mode with timeout
             printf("ERROR: udpTlHandleTransmitQueue failed, DAQ stopped, XCP disconnect!\n"); // Error
             XcpDisconnect();
         }
-#endif
 
-        // Check DAQ thread is ok
-        if (!gXcpSlaveDAQThreadRunning) {
-            break; // exit
+        // Every gFlushCycle in us time period
+        // Cyclic flush of incomplete packets from transmit queue or transmit buffer to keep tool visualizations up to date
+        // No priorisation of events implemented, no latency optimizations
+        // If DAQ measurement is running
+        if (XcpIsDaqRunning()) {
+            if (gFlushCycleMs > 0 && gClock32 - gFlushTimer > gFlushCycleMs* XCP_TIMESTAMP_TICKS_MS) {
+                gFlushTimer = gClock32;
+                udpTlFlushTransmitQueue();
+            }
         }
+
+        udpTlWaitForReceiveEvent(10000/*us*/);
+
+#endif
 
     } // for (;;)
 
@@ -105,6 +135,9 @@ void* xcpSlaveCMDThread(void* par) {
     printf("Error: xcpSlaveCMDThread terminated!\n");
     return 0;
 }
+
+
+#ifndef XCPSIM_SINGLE_THREAD_SLAVE
 
 // XCP DAQ queue thread
 // Transmit DAQ data, flush DAQ data
@@ -120,29 +153,26 @@ void* xcpSlaveDAQThread(void* par) {
         // If DAQ measurement is running
         if (XcpIsDaqRunning()) {
 
+            // Wait for transmit data available, time out at least for required flush cycle
+            udpTlWaitForTransmitData(1000/*us*/);
+
             // Transmit all completed UDP packets from the transmit queue 
-#ifdef _LINUX
-            int result = udpTlHandleTransmitQueue();
-            if (result == 0) break; // Error
-            udpTlWaitForTransmitData(10000/*us*/);
+            if (!udpTlHandleTransmitQueue()) { // Must be in blocking mode with timeout
+                printf("ERROR: udpTlHandleTransmitQueue failed, DAQ stopped, XCP disconnect!\n"); // Error
+                XcpDisconnect();
+            }
 
             // Every gFlushCycle in us time period
             // Cyclic flush of incomplete packets from transmit queue or transmit buffer to keep tool visualizations up to date
             // No priorisation of events implemented, no latency optimizations
-            vuint32 clock = getClock32();
-            if (gFlushCycleMs > 0 && clock - gFlushTimer > gFlushCycleMs* XCP_TIMESTAMP_TICKS_MS) {
-                gFlushTimer = clock;
+            if (gFlushCycleMs > 0 && gClock32 - gFlushTimer > gFlushCycleMs* XCP_TIMESTAMP_TICKS_MS) {
+                gFlushTimer = gClock32;
                 udpTlFlushTransmitQueue();
             }
-#endif
-#ifdef _WIN
-            Sleep(100);
-#endif
-
 
         } // DAQ
         else {
-            sleepNs(10000000/*10ms*/);
+            sleepNs(100000000/*100ms*/);
         }
 
     } // for (;;)
@@ -152,6 +182,7 @@ void* xcpSlaveDAQThread(void* par) {
     return 0;
 }
 
+#endif
 
 int xcpSlaveShutdown(void) {
 

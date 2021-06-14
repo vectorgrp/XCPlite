@@ -9,26 +9,29 @@
 #ifndef __XCP_CFG_H_
 #define __XCP_CFG_H_
 
+
  /*----------------------------------------------------------------------------*/
- /* Platform specific type definitions */
+ /* Platform specific type definitions for xcpLite.c */
+
+#include <stdint.h>
 
  /* 8-Bit  */
-typedef unsigned char  vuint8;
-typedef signed char    vsint8;
+typedef uint8_t  vuint8;
+typedef int8_t    vsint8;
 
 /* 16-Bit  */
-typedef unsigned short vuint16;
-typedef signed short   vsint16;
+typedef uint16_t vuint16;
+typedef int16_t   vsint16;
 
 /* 32-Bit  */
-typedef unsigned int   vuint32;
-typedef signed int     vsint32;
+typedef uint32_t   vuint32;
+typedef int32_t     vsint32;
 
 /* 64-Bit  */
-typedef unsigned long long  vuint64;
-typedef signed long long    vsint64;
+typedef uint64_t  vuint64;
+typedef int64_t    vsint64;
 
-typedef unsigned char  vbool;
+typedef uint8_t  vbool;
 #define TRUE 1
 #define FALSE 0
 
@@ -58,6 +61,7 @@ typedef unsigned char  vbool;
 #define XCP_MAX_EVENT 256 // Maximum number of events, size of event table
 
 #define XCP_ENABLE_CHECKSUM // Enable checksum calculation command
+#define XCP_ENABLE_CAL_PAGE // Enable cal page switch
 
 #define XCP_ENABLE_A2L_UPLOAD // Enable GET_ID A2L content upload to host
 #define XCP_ENABLE_A2L_NAME // Enable GET_ID A2L name upload to host
@@ -66,7 +70,7 @@ typedef unsigned char  vbool;
 //#define XCP_ENABLE_MULTICAST // Enable GET_DAQ_CLOCK_MULTICAST
 //#define XCP_DAQ_CLOCK_64BIT  // Use 64 Bit time stamps
 //#define XCP_ENABLE_PTP // Enable emulation of PTP synchronized slave DAQ time stamps
-
+//#define XCP_ENABLE_PACKED_MODE // Enable packed mode emulation
 
 // XCP V1.6
 

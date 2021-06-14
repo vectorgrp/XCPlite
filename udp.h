@@ -16,8 +16,8 @@ extern "C" {
 
 // Compatibel to WinSock SOCKADDR_IN, holds MAC for XL-API UDP stack
 typedef struct {
-    unsigned short sin_family; // AF_INET = 2
-    unsigned short sin_port; // Port is in Network byteorder
+    uint16_t sin_family; // AF_INET = 2
+    uint16_t sin_port; // Port is in Network byteorder
     unsigned char sin_addr[4];
     unsigned char sin_zero[2];
     unsigned char sin_mac[6];

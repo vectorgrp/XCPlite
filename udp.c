@@ -9,9 +9,7 @@
 #include "main.h"
 #include "udp.h"
 
-
 #ifdef _WIN 
-
 
 #define IPV4 0x0800
 #define ARP  0x0806
@@ -59,10 +57,9 @@ struct arp
 };
 
 
-#if 1
+#ifdef XCP_ENABLE_TESTMODE
 
-
-static int printFrame(const unsigned char* d, const unsigned char* s, const unsigned char* data, unsigned short dataLen, unsigned int fcs, XLuint64 timeStamp) {
+static int printFrame(const unsigned char* d, const unsigned char* s, const unsigned char* data, uint16_t dataLen, unsigned int fcs, XLuint64 timeStamp) {
     printf("%llu: dest=%02X:%02X:%02X:%02X:%02X:%02X\n", timeStamp, d[0], d[1], d[2], d[3], d[4], d[5]);
     return 1;
 }
@@ -78,7 +75,7 @@ static int printIPV4Frame(const char* dir, const T_XL_ETH_FRAMEDATA* frameData, 
         if (ip->protocol == UDP) { // UDP
             struct udphdr* udp = (struct udphdr*) & frameData->ethFrame.payload[sizeof(struct iphdr)];
             printf("UDP udpl=%u %u->%u s=%u ", (vuint32)(HTONS(udp->len) - sizeof(struct udphdr)), HTONS(udp->source), HTONS(udp->dest), HTONS(udp->check));
-            if (gDebugLevel >= 2) {
+            if (gDebugLevel >= 3) {
                 for (unsigned int byte = 0; byte < HTONS(udp->len) - sizeof(struct udphdr); byte++) {
                     printf("%02X ", frameData->ethFrame.payload[sizeof(struct iphdr) + sizeof(struct udphdr) + byte]);
                 }
@@ -91,11 +88,11 @@ static int printIPV4Frame(const char* dir, const T_XL_ETH_FRAMEDATA* frameData, 
     return 0;
 }
 
-static int printARPFrame(const char* dir, const T_XL_ETH_FRAMEDATA* frameData, unsigned int frameLen) {
+static int printARPFrame(const char* d, const T_XL_ETH_FRAMEDATA* frameData, unsigned int frameLen) {
 
     if (frameData->ethFrame.etherType == HTONS(ARP)) { // ARP
         struct arp* arp = (struct arp*) & frameData->ethFrame.payload[0];
-        printf("%s: ARP %u 0x%04X %u/%u %s", dir, HTONS(arp->hrd), HTONS(arp->pro), arp->hln, arp->pln, (1 == arp->op) ? "Req " : "Res ");
+        printf("%s: ARP %u 0x%04X %u/%u %s", d, HTONS(arp->hrd), HTONS(arp->pro), arp->hln, arp->pln, (1 == arp->op) ? "Req " : "Res ");
         printf("sha 0x%02X:0x%02X:0x%02X:0x%02X:0x%02X:0x%02X ", arp->sha[0], arp->sha[1], arp->sha[2], arp->sha[3], arp->sha[4], arp->sha[5]);
         printf("spa %u.%u.%u.%u ", arp->spa[0], arp->spa[1], arp->spa[2], arp->spa[3]);
         printf("tha 0x%02X:0x%02X:0x%02X:0x%02X:0x%02X:0x%02X ", arp->tha[0], arp->tha[1], arp->tha[2], arp->tha[3], arp->tha[4], arp->tha[5]);
@@ -105,11 +102,11 @@ static int printARPFrame(const char* dir, const T_XL_ETH_FRAMEDATA* frameData, u
     return 0;
 }
 
-static void printRxFrame(XLuint64 timestamp, const T_XL_NET_ETH_DATAFRAME_RX* frame) {
+static void printRxFrame(const char* d, XLuint64 timestamp, const T_XL_NET_ETH_DATAFRAME_RX* frame) {
 
 
-    if (!printARPFrame("RX", &frame->frameData, frame->dataLen)) {
-        if (!printIPV4Frame("RX", &frame->frameData, frame->dataLen)) {
+    if (!printARPFrame(d, &frame->frameData, frame->dataLen)) {
+        if (!printIPV4Frame(d, &frame->frameData, frame->dataLen)) {
             printFrame(frame->destMAC, frame->sourceMAC, frame->frameData.rawData, frame->dataLen, frame->fcs, timestamp);
         }
     }
@@ -147,15 +144,15 @@ static int printEvent(const T_XL_NET_ETH_EVENT* pRxEvent) {
     return 0;
 }
 
-#endif
+#endif // TESTMODE
 
 
-static unsigned short ipChecksum(unsigned short* buf, int nwords) {
+static uint16_t ipChecksum(uint16_t* buf, int nwords) {
 
-    unsigned long sum;
+    uint32_t sum;
     for (sum = 0; nwords > 0; nwords--) sum += *buf++; // No HTONS here, one complement sum is independant from Motorola or Intel format
     while (sum >> 16) sum = (sum & 0xffff) + (sum >> 16);
-    return (unsigned short)(~sum);
+    return (uint16_t)(~sum);
 }
 
 
@@ -193,7 +190,7 @@ static int udpSendARPResponse(tUdpSockXl* sock, unsigned char sha[], unsigned ch
     memset(&frame, 0, sizeof(T_XL_NET_ETH_DATAFRAME_TX));
     // header
     frame.dataLen = XL_ETH_PAYLOAD_SIZE_MIN + 2; // payload length +2 (with ethertype) 28 or XL_ETH_PAYLOAD_SIZE_MIN ???
-    frame.flags |= XL_ETH_DATAFRAME_FLAGS_USE_SOURCE_MAC | XL_ETH_DATAFRAME_FLAGS_NO_TX_EVENT_GEN;
+    frame.flags |= XL_ETH_DATAFRAME_FLAGS_USE_SOURCE_MAC|XL_ETH_DATAFRAME_FLAGS_NO_TX_EVENT_GEN;
     memcpy(&frame.sourceMAC, sock->localAddr.sin_mac, sizeof(frame.sourceMAC));
     memcpy(&frame.destMAC, sha, sizeof(frame.destMAC));
     frame.frameData.ethFrame.etherType = HTONS(ARP);
@@ -209,21 +206,19 @@ static int udpSendARPResponse(tUdpSockXl* sock, unsigned char sha[], unsigned ch
     memcpy(arp->tha, sha, 6);
     memcpy(arp->tpa, spa, 4);
 
-    if (gDebugLevel >= 1) {
-        printf("Send ARP response\n");
+    if (gDebugLevel >= 3) {
+        printARPFrame("SendARPResponse:", &frame.frameData, frame.dataLen); //T_XL_ETH_FRAMEDATA
     }
     if (XL_SUCCESS != (err = xlNetEthSend(sock->networkHandle, sock->portHandle, (XLuserHandle)1, &frame))) {
         printf("ERROR: xlNetEthSend failed with error: %s (%d)!\n", xlGetErrorString(err), err);
         return 0;
     }
-#ifdef XCPSIM_ENABLE_PCAP
-    if (gOptionPCAP) pcapWriteFrameTx(0,&frame);
-#endif
+
     return 1;
 }
 
 
-int udpRecvFrom(tUdpSockXl *sock, unsigned char* data, unsigned int size, tUdpSockAddrXl* addr ) {
+int udpRecvFrom(tUdpSockXl* sock, unsigned char* data, unsigned int size, tUdpSockAddrXl* addr) {
 
     XLstatus err;
     T_XL_NET_ETH_EVENT rxEvent;
@@ -254,17 +249,17 @@ int udpRecvFrom(tUdpSockXl *sock, unsigned char* data, unsigned int size, tUdpSo
         if (rxEvent.tag == XL_ETH_EVENT_TAG_FRAMERX_SIMULATION) {
 
             T_XL_NET_ETH_DATAFRAME_RX* frameRx = &rxEvent.tagData.frameSimRx;
+            
+            if (gDebugLevel >= 3) printRxFrame("udpRecvFrom", rxEvent.timeStampSync, frameRx);
 
             // ARP
             if (frameRx->frameData.ethFrame.etherType == HTONS(ARP)) {
 
-                struct arp* arp = (struct arp*)&frameRx->frameData.ethFrame.payload[0];
+                struct arp* arp = (struct arp*) & frameRx->frameData.ethFrame.payload[0];
                 if (arp->hrd == HTONS(ARPHRD_ETHER) && arp->pro == HTONS(0x0800) && arp->op == HTONS(ARPOP_REQUEST)) { // Request
                     if (memcmp(arp->tpa, sock->localAddr.sin_addr, 4) == 0) {
-#ifdef XCPSIM_ENABLE_PCAP
-                        if (gOptionPCAP) pcapWriteFrameRx(0,frameRx);
-#endif
-                        udpSendARPResponse(sock,arp->sha,arp->spa);
+
+                        udpSendARPResponse(sock, arp->sha, arp->spa);
                         return 0;
                     }
                 }
@@ -278,14 +273,12 @@ int udpRecvFrom(tUdpSockXl *sock, unsigned char* data, unsigned int size, tUdpSo
                     if (ip->protocol == UDP) {
                         struct udphdr* udp = (struct udphdr*) & frameRx->frameData.ethFrame.payload[sizeof(struct iphdr)];
                         if (udp->dest == sock->localAddr.sin_port) { // for us
-#ifdef XCPSIM_ENABLE_PCAP
-                            if (gOptionPCAP) pcapWriteFrameRx(rxEvent.timeStampSync, frameRx);
-#endif
+
                             // return payload
                             if ((unsigned int)HTONS(udp->len) < size) size = HTONS(udp->len);
                             memcpy(data, &frameRx->frameData.ethFrame.payload[sizeof(struct iphdr) + sizeof(struct udphdr)], size);
                             // return remote addr
-                            
+
                             memset(addr, 0, sizeof(tUdpSockAddrXl));
                             addr->sin_family = AF_INET;
                             memcpy(addr->sin_mac, frameRx->sourceMAC, 6);
@@ -296,7 +289,7 @@ int udpRecvFrom(tUdpSockXl *sock, unsigned char* data, unsigned int size, tUdpSo
                     }
                 }
 #ifdef XCP_ENABLE_MULTICAST
-                if (sock->multicastAddr.sin_port!=0 && memcmp(ip->daddr, sock->multicastAddr.sin_addr, 2) == 0) { // multicast
+                if (sock->multicastAddr.sin_port != 0 && memcmp(ip->daddr, sock->multicastAddr.sin_addr, 2) == 0) { // multicast
                     if (ip->protocol == UDP) {
                         struct udphdr* udp = (struct udphdr*) & frameRx->frameData.ethFrame.payload[sizeof(struct iphdr)];
                         if (HTONS(udp->dest) == sock->multicastAddr.sin_port) { // for us
@@ -319,10 +312,9 @@ int udpRecvFrom(tUdpSockXl *sock, unsigned char* data, unsigned int size, tUdpSo
             }
 
             // Other XL-API RX frames
-            printRxFrame(rxEvent.timeStampSync, frameRx);
-#ifdef XCPSIM_ENABLE_PCAP
-            if (gOptionPCAP) pcapWriteFrameRx(rxEvent.timeStampSync, frameRx);
-#endif
+            if (gDebugLevel<3) printRxFrame("udpRecvFrom", rxEvent.timeStampSync, frameRx);
+
+
         }
 
         else { // Other XL-API events 
@@ -334,16 +326,17 @@ int udpRecvFrom(tUdpSockXl *sock, unsigned char* data, unsigned int size, tUdpSo
     return 0;
 }
 
+// Returns <0 on error, 0 on would block, size when ok
 int udpSendTo(tUdpSockXl *sock, const unsigned char* data, unsigned int size, int mode, tUdpSockAddrXl* addr, int addr_size) {
 
         XLstatus err;
         T_XL_NET_ETH_DATAFRAME_TX frame;
-        unsigned short iplen,udplen;
+        uint16_t iplen,udplen;
 
         memset(&frame, 0, sizeof(T_XL_NET_ETH_DATAFRAME_TX));
         
         // header
-        frame.flags |= XL_ETH_DATAFRAME_FLAGS_USE_SOURCE_MAC | XL_ETH_DATAFRAME_FLAGS_NO_TX_EVENT_GEN;
+        frame.flags |= XL_ETH_DATAFRAME_FLAGS_USE_SOURCE_MAC|XL_ETH_DATAFRAME_FLAGS_NO_TX_EVENT_GEN;
         memcpy(&frame.sourceMAC, sock->localAddr.sin_mac, sizeof(frame.sourceMAC));
         memcpy(&frame.destMAC, addr->sin_mac, sizeof(frame.destMAC));
         frame.frameData.ethFrame.etherType = HTONS(IPV4);
@@ -355,14 +348,14 @@ int udpSendTo(tUdpSockXl *sock, const unsigned char* data, unsigned int size, in
         udpInitUdpHdr(udp, sock->localAddr.sin_port,addr->sin_port);
 
         // IP header
-        iplen = (unsigned short)(sizeof(struct iphdr) + sizeof(struct udphdr) + size); // Total Length
+        iplen = (uint16_t)(sizeof(struct iphdr) + sizeof(struct udphdr) + size); // Total Length
         ip->tot_len = HTONS(iplen);
         ip->check = 0;
-        unsigned short s = ipChecksum((unsigned short*)ip, 10);
+        uint16_t s = ipChecksum((uint16_t*)ip, 10);
         ip->check = s; 
 
         // UDP header
-        udplen = (unsigned short)(sizeof(struct udphdr) + size); 
+        udplen = (uint16_t)(sizeof(struct udphdr) + size); 
         udp->len = HTONS(udplen);
         udp->check = 0;
 
@@ -371,13 +364,18 @@ int udpSendTo(tUdpSockXl *sock, const unsigned char* data, unsigned int size, in
 
         frame.dataLen = 2 + sizeof(struct iphdr) + udplen; // XL-API frame len = payload length + 2 for ethertype 
         if (frame.dataLen < XL_ETH_PAYLOAD_SIZE_MIN + 2) frame.dataLen = XL_ETH_PAYLOAD_SIZE_MIN + 2; 
-        if (XL_SUCCESS != (err = xlNetEthSend(sock->networkHandle, sock->portHandle, (XLuserHandle)1, &frame))) {
-            printf("ERROR: xlNetEthSend failed with ERROR: %s (%d)!\n", xlGetErrorString(err), err);
-            return 0;
+        if (gDebugLevel >= 3) {
+            printIPV4Frame("udpSendTo", &frame.frameData, frame.dataLen); //T_XL_ETH_FRAMEDATA
         }
-#ifdef XCPSIM_ENABLE_PCAP
-        if (gOptionPCAP) pcapWriteFrameTx(0,&frame);
-#endif
+
+        if (XL_SUCCESS != (err = xlNetEthSend(sock->networkHandle, sock->portHandle, (XLuserHandle)1, &frame))) {
+            if (err == XL_ERR_QUEUE_IS_FULL) {
+                return 0;
+            }
+            printf("ERROR: xlNetEthSend failed with ERROR: %s (%d)!\n", xlGetErrorString(err), err);
+            return -err;
+        }
+
         return size;
 }
 
@@ -419,7 +417,7 @@ int udpInit(tUdpSockXl** pSock, XLhandle* pEvent, tUdpSockAddrXl* addr, tUdpSock
         return 0;
     }
 
-    printf("Init socket on virtual port %s-%s with IP %u.%u.%u.%u on UDP port %u \n", gOptionsXlSlaveNet, gOptionsXlSlaveSeg, addr->sin_addr[0], addr->sin_addr[1], addr->sin_addr[2], addr->sin_addr[3], addr->sin_port);
+    printf("Init socket on virtual port %s-%s with IP %u.%u.%u.%u on UDP port %u \n", gOptionsXlSlaveNet, gOptionsXlSlaveSeg, addr->sin_addr[0], addr->sin_addr[1], addr->sin_addr[2], addr->sin_addr[3], htons(addr->sin_port));
 
     *pSock = sock;
     return 1;

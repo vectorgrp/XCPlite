@@ -5,13 +5,17 @@
 
 #ifdef __cplusplus
 
+extern "C" {
+	void* ecuppTask(void* p);
+}
+
 class EcuTask {
 
 public:
 	
-	unsigned short taskId;
+	uint16_t taskId;
 
-	unsigned short counter;
+	uint16_t counter;
 	double timer;
 	double channel1;
 	bool squarewave;
@@ -20,17 +24,17 @@ public:
 	volatile double period = 5;
 	volatile double ampl = 50;
 
-	unsigned char byte;
-	unsigned short word;
-	unsigned long dword;
-	signed char sbyte;
-	signed short sword;
-	signed long sdword;
+	uint8_t  byte;
+	uint16_t word;
+	uint32_t dword;
+	int8_t  sbyte;
+	int16_t sword;
+	int32_t sdword;
 	float float32;
 	double float64;
 
 
-	EcuTask( unsigned short taskId );
+	EcuTask( uint16_t taskId );
 
 	void run();
 
@@ -40,8 +44,20 @@ public:
 #endif
 };
 
+#endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void ecuppInit(void);
+void ecuppCreateA2lDescription(void);
+void* ecuppTask(void* p);
+
+#ifdef __cplusplus
+}
 #endif
 
 
 #endif
+

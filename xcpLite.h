@@ -1373,31 +1373,31 @@ typedef struct {
 
 
 typedef struct _T_CLOCK_INFORMATION {
-    unsigned char      UUID[8];
-    unsigned short     timestampTicks;
-    unsigned char      timestampUnit;
-    unsigned char      stratumLevel;
-    unsigned char      nativeTimestampSize;
-    unsigned char      fill[3]; // for alignment (8 byte) of structure
-    unsigned long long valueBeforeWrapAround;
+    vuint8      UUID[8];
+    vuint16     timestampTicks;
+    vuint8      timestampUnit;
+    vuint8      stratumLevel;
+    vuint8      nativeTimestampSize;
+    vuint8      fill[3]; // for alignment (8 byte) of structure
+    vuint64     valueBeforeWrapAround;
 } T_CLOCK_INFORMATION;
 
 #ifdef XCP_ENABLE_PTP
 
 typedef struct _T_CLOCK_INFORMATION_GRANDM {
-    unsigned char      UUID[8];
-    unsigned short     timestampTicks;
-    unsigned char      timestampUnit;
-    unsigned char      stratumLevel;
-    unsigned char      nativeTimestampSize;
-    unsigned char      epochOfGrandmaster;
-    unsigned char      fill[2]; // for alignment (8 byte) of structure
-    unsigned long long valueBeforeWrapAround;
+    vuint8     UUID[8];
+    vuint16    timestampTicks;
+    vuint8     timestampUnit;
+    vuint8     stratumLevel;
+    vuint8     nativeTimestampSize;
+    vuint8     epochOfGrandmaster;
+    vuint8     fill[2]; // for alignment (8 byte) of structure
+    vuint64    valueBeforeWrapAround;
 } T_CLOCK_INFORMATION_GRANDM;
 
 typedef struct _T_CLOCK_RELATION {
-    unsigned long long timestampOrigin;
-    unsigned long long timestampLocal;
+    vuint64  timestampOrigin;
+    vuint64  timestampLocal;
 } T_CLOCK_RELATION;
 
 #endif
@@ -1447,8 +1447,6 @@ typedef struct {
 #endif
 
 } tXcpData;
-
-
 
 
 /****************************************************************************/
@@ -1550,6 +1548,11 @@ extern vuint32 ApplXcpGetAddr(vuint8* p);
 // defined as macro
 #else
 extern vuint8 *ApplXcpGetBaseAddr();
+#endif
+
+#ifdef XCP_ENABLE_CAL_PAGE
+extern vuint8 ApplXcpGetCalPage(vuint8 segment, vuint8 mode);
+extern vuint8 ApplXcpSetCalPage(vuint8 segment, vuint8 page, vuint8 mode);
 #endif
 
 // DAQ clock provided by application

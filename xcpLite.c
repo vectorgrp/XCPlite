@@ -3,21 +3,35 @@
 /*****************************************************************************
 | File: 
 |   xcpLite.c
-|   Version 2.0 7.6.2021
 |
 |  Description:   
-|    Partial and leightweight implementation of the ASAM XCP Protocol Layer V1.4
+|    Implementation of the ASAM XCP Protocol Layer V1.4
+|    
 |    C and C++ target support
+|    Lite Version (see feature list and restrictions below)
+|
+|  Features:
+|     - XCP on UDP only
+|     - Optimized transmit queue for multi threaded, no thread lock and zero copy data acquisition
+|     - Supports DAQ_PACKED_MODE ELEMENT_GROUPED STS_LAST MANDATORY
+|     - Supports PTP
+|     - Optional integrated UDP stack
+|     - Optional integrated A2L generator
 |
 |  Limitations:
-|     - Only XCP on UDP on 32/64 bit Intel platforms (no 8 bit and 16 bit CPUs, no Motorola)
-|     - No misra compliance, warning free on VS 2019
+|     - Only XCP on UDP on 32 bit x86 Linux and Windows platforms
+|     - 8 bit and 16 bit CPUs are not supported
+|     - No Motorola byte sex
+|     - No misra compliance
+|     - Number of events limited to 255
+|     - Number of DAQ lists limited to 256
 |     - Overall number of ODTs limited to 64K
 |     - Overall number of ODT entries is limited to 64K
+|     - Jumbo frame support, MAX_DTO < MTU < 8000
 |     - Fixed DAQ+ODT 2 byte DTO header
-|     - Fixed 32 bit DAQ time stamp
+|     - Fixed 32 bit time stamp
 |     - Only dynamic DAQ list allocation supported
-|     - Resume not supported
+|     - Resume is not supported
 |     - Overload indication by event is not supported
 |     - DAQ does not support address extensions and prescaler
 |     - DAQ list and event channel prioritization is not supported
@@ -25,10 +39,9 @@
 |     - Interleaved communication mode is not supported
 |     - Seed & key is not supported
 |     - Flash programming is not supported
-|     - Calibration pages are not supported
 
 |
-|  More features, more transport layers (CAN, FlexRay) and platform support, misra compliance 
+|  More features, more transport layer (CAN, FlexRay) and platform support, misra compliance 
 |  by the free XCP basic version available from Vector Informatik GmbH at www.vector.com
 |
 |  Limitations of the XCP basic version:
@@ -171,7 +184,7 @@ vuint8  XcpAllocMemory( void )
   
 
   #if defined ( XCP_ENABLE_TESTMODE )
-    if ( ApplXcpDebugLevel >= 2) ApplXcpPrint("[XcpAllocMemory] %u of %u Bytes used\n",s,XCP_DAQ_MEM_SIZE );
+    if ( ApplXcpDebugLevel >= 3) ApplXcpPrint("[XcpAllocMemory] %u of %u Bytes used\n",s,XCP_DAQ_MEM_SIZE );
   #endif
 
   return 0;
@@ -634,6 +647,22 @@ void  XcpCommand( const vuint32* pCommand )
             }
             break;
 
+#ifdef XCP_ENABLE_CAL_PAGE
+          case CC_SET_CAL_PAGE:
+          {
+              check_error(ApplXcpSetCalPage(CRO_SET_CAL_PAGE_SEGMENT, CRO_SET_CAL_PAGE_PAGE, CRO_SET_CAL_PAGE_MODE));
+          }
+          break;
+
+          case CC_GET_CAL_PAGE:
+          {
+              gXcp.CrmLen = CRM_GET_CAL_PAGE_LEN;
+              CRM_GET_CAL_PAGE_PAGE = ApplXcpGetCalPage(CRO_GET_CAL_PAGE_SEGMENT, CRO_GET_CAL_PAGE_MODE);
+          }
+          break;
+#endif
+
+
 #if defined ( XCP_ENABLE_CHECKSUM )
           case CC_BUILD_CHECKSUM: /* Build Checksum */
           {
@@ -645,9 +674,10 @@ void  XcpCommand( const vuint32* pCommand )
               for (i = 0; i < n; i++) { XcpReadMta(4, (vuint8*)&d); s += d; }
               CRM_BUILD_CHECKSUM_RESULT = s;
               CRM_BUILD_CHECKSUM_TYPE = XCP_CHECKSUM_TYPE_ADD44;
+              gXcp.CrmLen = CRM_BUILD_CHECKSUM_LEN;
           }
-
-#endif /* XCP_ENABLE_CHECKSUM */
+          break;
+#endif
 
 
             case CC_GET_DAQ_PROCESSOR_INFO: 
@@ -926,7 +956,7 @@ void  XcpCommand( const vuint32* pCommand )
               case CC_TL_GET_DAQ_CLOCK_MULTICAST: 
               {
                   vuint16 clusterId = CRO_TL_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER;
-                  vuint8 counter = CRO_TL_DAQ_CLOCK_MCAST_COUNTER;
+                  //vuint8 counter = CRO_TL_DAQ_CLOCK_MCAST_COUNTER;
                   if (gXcp.ClusterId != clusterId) {
 #if defined ( XCP_ENABLE_TESTMODE )
                       if (ApplXcpDebugLevel >= 1) ApplXcpPrint("  GET_DAQ_CLOCK_MULTICAST from cluster id %u ignored\n",clusterId);
@@ -1128,7 +1158,7 @@ static void  XcpPrintCmd(const tXcpCto * pCmd) {
         break;
 
     case CC_SHORT_DOWNLOAD:
-        {
+        if (ApplXcpDebugLevel >= 2) {
             vuint16 i;
             ApplXcpPrint("SHORT_DOWNLOAD addr=%08Xh, addrext=%02Xh, size=%u, data=", CRO_SHORT_DOWNLOAD_ADDR, CRO_SHORT_DOWNLOAD_EXT, CRO_SHORT_DOWNLOAD_SIZE);
             for (i = 0; (i < CRO_SHORT_DOWNLOAD_SIZE) && (i < CRO_SHORT_DOWNLOAD_MAX_SIZE); i++) {
@@ -1150,7 +1180,17 @@ static void  XcpPrintCmd(const tXcpCto * pCmd) {
         }
         break;
 
-#if defined ( XCP_ENABLE_CHECKSUM )
+#ifdef XCP_ENABLE_CAL_PAGE
+    case CC_SET_CAL_PAGE:
+        ApplXcpPrint("SET_CAL_PAGE segment=%u,page =%u,mode=%02Xh\n", CRO_SET_CAL_PAGE_SEGMENT, CRO_SET_CAL_PAGE_PAGE, CRO_SET_CAL_PAGE_MODE);
+        break;
+
+    case CC_GET_CAL_PAGE:
+        ApplXcpPrint("GET_CAL_PAGE Segment=%u, Mode=%u\n", CRO_GET_CAL_PAGE_SEGMENT, CRO_GET_CAL_PAGE_MODE);
+        break;
+#endif
+
+#ifdef XCP_ENABLE_CHECKSUM
     case CC_BUILD_CHECKSUM: /* Build Checksum */
         ApplXcpPrint("BUILD_CHECKSUM size=%u\n", CRO_BUILD_CHECKSUM_SIZE);
         break;
@@ -1332,7 +1372,7 @@ static void  XcpPrintRes(const tXcpCto* pCmd) {
             break;
 
         case CC_UPLOAD:
-            if (ApplXcpDebugLevel >= 2) {
+            if (ApplXcpDebugLevel >= 3) {
                 ApplXcpPrint("<- data=");
                 for (int i = 0; i < CRO_UPLOAD_SIZE; i++) {
                     ApplXcpPrint("%02Xh ", CRM_UPLOAD_DATA[i]);
@@ -1342,7 +1382,7 @@ static void  XcpPrintRes(const tXcpCto* pCmd) {
             break;
 
         case CC_SHORT_UPLOAD:
-            if (ApplXcpDebugLevel >= 2) {
+            if (ApplXcpDebugLevel >= 3) {
                 ApplXcpPrint("<- data=");
                 for (int i = 0; i < (vuint16)CRO_SHORT_UPLOAD_SIZE; i++) {
                     ApplXcpPrint("%02Xh ", CRM_SHORT_UPLOAD_DATA[i]);
@@ -1351,7 +1391,13 @@ static void  XcpPrintRes(const tXcpCto* pCmd) {
             }
             break;
 
-#if defined ( XCP_ENABLE_CHECKSUM )
+#ifdef XCP_ENABLE_CAL_PAGE
+        case CC_GET_CAL_PAGE:
+            ApplXcpPrint("<- page=%u\n", CRM_GET_CAL_PAGE_PAGE);
+            break;
+#endif
+
+#ifdef XCP_ENABLE_CHECKSUM 
         case CC_BUILD_CHECKSUM:
             ApplXcpPrint("<- sum=%08Xh\n", CRM_BUILD_CHECKSUM_RESULT);
             break;

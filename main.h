@@ -23,20 +23,15 @@
 #include <stdarg.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <math.h>
 #include <assert.h>
 #include <errno.h>
-#include <unistd.h>
-#include <sys/types.h>
 #include <sys/time.h>
 #include <time.h>
 #include <sys/stat.h>
 #include <pthread.h> // link with -lpthread
 #include <sys/socket.h>
-#include <netinet/in.h>
-#include <linux/ip.h>
-#include <linux/udp.h>
-//#include <linux/arp.h>
 #include <arpa/inet.h>
 
 #define strncpy_s(a,b,c,d) strncpy(a,c,d)
@@ -51,18 +46,12 @@
 #include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <assert.h>
-#include <malloc.h>
-#include <string.h>
 #include <time.h>
-#include <math.h>
 #include <conio.h>
-
 #ifdef __cplusplus
-#include <iostream>
-#include <chrono>
 #include <thread>
-#include <typeinfo>
 #endif
 
 // Need to link with vxlapi.lib
@@ -87,45 +76,46 @@
 // Application configuration:
 // XCP configuration is in xcp_cfg.h and xcptl_cfg.h
 
+// XCP slave name
+#define XCPSIM_SLAVE_ID_LEN       7    /* Slave device identification length */
+#define XCPSIM_SLAVE_ID          "XCPlite"  /* Slave device identification */
+
+#define XCPSIM_ENABLE_A2L_GEN // Enable A2L generation
+
 #ifdef _LINUX // Linux
 
-// Config 
-#define XCPSIM_DEBUG_LEVEL 1
-#define XCPSIM_ENABLE_A2L_GEN // Enable A2L generation
+#define XCPSIM_DEBUG_LEVEL 0
 
-#define XCPSIM_SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc} // Default slave clock UUID
 #define XCPSIM_SLAVE_PORT 5555 // Default UDP port
-
+#define XCPSIM_SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc} // Default slave clock UUID
+#define getA2lSlaveIP() ("172.31.31.194")  // A2L IP address
 #define getA2lSlavePort() XCPSIM_SLAVE_PORT // for A2L generation
-#define getA2lSlaveIP() ("172.31.31.194")
+#define XCPSIM_MULTI_THREAD_SLAVE // Receive and transmit in seperate threads
 
-#endif
+#endif // Linux
+
 #ifdef _WIN // Windows
 
-// Config 
 #define XCPSIM_DEBUG_LEVEL 1
 
-#define XCPSIM_ENABLE_A2L_GEN // Enable A2L generation
+#define XCPSIM_SLAVE_PORT 5555 // Default UDP port
+#define XCPSIM_SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc} // Default slave clock UUID
+#define getA2lSlaveIP() ((gOptionUseXLAPI)?XCPSIM_SLAVE_XL_IP_S:"127.0.0.1") // A2L IP address
+#define getA2lSlavePort() XCPSIM_SLAVE_PORT // for A2L generation
+#define XCPSIM_MULTI_THREAD_SLAVE // Receive and transmit in seperate threads
 
-
-// XL-API UDP stack
+// XL-API UDP stack parameters
 #define XCPSIM_SLAVE_XL_NET "NET1" // Default V3 Network name
 #define XCPSIM_SLAVE_XL_SEG "SEG1" // Default V3 Segment name
-#define XCPSIM_SLAVE_XL_MAC {0xdc,0xa6,0x32,0x7e,0x66,0xdc} // Default Ethernet Adapter MAC
+#define XCPSIM_SLAVE_XL_MAC {0xdc,0xa6,0x32,0x7e,0x66,0xdc} // Default V3 Ethernet Adapter MAC
 #define XCPSIM_SLAVE_XL_IP_S "172.31.31.194" // Default V3 Ethernet Adapter IP as string
 #define XCPSIM_SLAVE_XL_IP {172,31,31,194} // Default V3 Ethernet Adapter IP
 
-#define XCPSIM_SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc} // Default slave clock UUID
-#define XCPSIM_SLAVE_PORT 5555 // Default UDP port
+#endif // Windows
 
-#define getA2lSlavePort() XCPSIM_SLAVE_PORT // for A2L generation
-#define getA2lSlaveIP() ((gOptionUseXLAPI)?XCPSIM_SLAVE_XL_IP_S:"127.0.0.1")
 
-#endif
 
-// Slave name
-#define XCPSIM_SLAVE_ID_LEN       7    /* Slave device identification length */
-#define XCPSIM_SLAVE_ID          "XCPlite"  /* Slave device identification */
+//-----------------------------------------------------------------------------------------------------
 
 #include "xcpLite.h"
 #include "util.h" 
@@ -148,20 +138,24 @@ extern "C" {
 #endif
 
 
+//-----------------------------------------------------------------------------------------------------
+
 // Options
 extern volatile unsigned int gDebugLevel;
+extern int gOptionJumbo;
+extern uint16_t gOptionsSlavePort;
+extern int gOptionA2L;
+extern char gOptionA2L_Path[MAX_PATH];
 
+#ifdef _WIN
 extern int gOptionUseXLAPI;
 extern char gOptionsXlSlaveNet[32];
 extern char gOptionsXlSlaveSeg[32];
 
-extern int gOptionA2L;
-extern char gOptionA2L_Path[MAX_PATH];
+#endif // _WIN
 
 
-// Externals
 extern int createA2L(const char* path_name);
-
 
 #ifdef __cplusplus
 }

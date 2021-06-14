@@ -6,18 +6,19 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-extern volatile vuint64 gClock64;
-extern volatile vuint32 gClock32;
+	
+extern volatile uint64_t gClock64; // Win
+extern volatile uint32_t gClock32;
 
 extern int clockInit(void);
-extern vuint32 getClock32(void);
-extern vuint64 getClock64(void);
+extern uint32_t getClock32(void);
+extern uint64_t getClock64(void);
 
 extern void sleepNs(unsigned int ns);
 
-extern void seed16(unsigned int seed);
-extern unsigned int random16();
+
+#define PI2 6.28318530718
+#define PI (PI2/2)
 
 
 #ifdef __cplusplus
