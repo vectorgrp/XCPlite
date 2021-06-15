@@ -6,28 +6,27 @@
 |
 |  Description:   
 |    Implementation of the ASAM XCP Protocol Layer V1.4
-|    
-|    C and C++ target support
-|    Lite Version (see feature list and restrictions below)
+|    Lite Version (see feature list and limitations)
 |
-|  Features:
-|     - XCP on UDP only
-|     - Optimized transmit queue for multi threaded, no thread lock and zero copy data acquisition
-|     - Supports DAQ_PACKED_MODE ELEMENT_GROUPED STS_LAST MANDATORY
-|     - Supports PTP
-|     - Optional integrated UDP stack
-|     - Optional integrated A2L generator
+|
+|  Supported commands:
+|   GET_COMM_MODE_INFO GET_ID
+|   SET_MTA UPLOAD SHORT_UPLOAD DOWNLOAD SHORT_DOWNLOAD
+|   GET_CAL_PAGE SET_CAL_PAGE BUILD_CHECKSUM
+|   GET_DAQ_RESOLUTION_INFO GET_DAQ_PROCESSOR_INFO GET_DAQ_EVENT_INFO GET_DAQ_LIST_INFO
+|   FREE_DAQ ALLOC_DAQ ALLOC_ODT ALLOC_ODT_ENTRY SET_DAQ_PTR WRITE_DAQ WRITE_DAQ_MULTIPLE
+|   GET_DAQ_LIST_MODE SET_DAQ_LIST_MODE START_STOP_SYNCH START_STOP_DAQ_LIST
+|   GET_DAQ_CLOCK TIME_CORRELATION_PROPERTIES
+|   GET_VERSION
 |
 |  Limitations:
-|     - Only XCP on UDP on 32 bit x86 Linux and Windows platforms
+|     - Testet on 32 bit or 64 bit Linux and Windows platforms
 |     - 8 bit and 16 bit CPUs are not supported
 |     - No Motorola byte sex
 |     - No misra compliance
-|     - Number of events limited to 255
-|     - Number of DAQ lists limited to 256
 |     - Overall number of ODTs limited to 64K
 |     - Overall number of ODT entries is limited to 64K
-|     - Jumbo frame support, MAX_DTO < MTU < 8000
+|     - Jumbo frame support
 |     - Fixed DAQ+ODT 2 byte DTO header
 |     - Fixed 32 bit time stamp
 |     - Only dynamic DAQ list allocation supported

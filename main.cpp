@@ -110,10 +110,14 @@ static void usage(void) {
     printf(
         "\n"
         "Usage:\n"
-#ifdef _WIN
-        "  XCPwi [options]\n"
-#else
-        "  XCPpi [options]\n"
+#ifdef _WIN64
+        "  XCPlite64 [options]\n"
+#endif
+#ifdef _WIN32
+        "  XCPlite32 [options]\n"
+#endif
+#ifdef _LINUX
+        "  XCPlite [options]\n"
 #endif
 
         "\n"
@@ -151,10 +155,17 @@ int main(int argc, char* argv[])
     );
      
     // Print activated application options
-    printf("Options =");
+    printf("Options:\n");
 #ifdef XCPSIM_SINGLE_THREAD_SLAVE
     printf(" XCPSIM_SINGLE_THREAD_SLAVE");
 #endif
+#ifdef XCPSIM_ENABLE_XLAPI_V3
+    printf(" XCPSIM_ENABLE_XLAPI_V3");
+#endif
+#ifdef XCPSIM_SINGLE_THREAD_SLAVE
+    printf(" XCPSIM_SINGLE_THREAD_SLAVE");
+#endif
+    
 #ifdef XCPSIM_ENABLE_A2L_GEN 
     printf(" XCPSIM_ENABLE_A2L_GEN");
 #endif
