@@ -3,17 +3,12 @@
 |   main.cpp
 |
 | Description:
-|   Demo main for XCP on Ethernet (UDP) XCPsim demo
+|   Demo main for XCP on Ethernet (UDP) demo
 |   Demo threads in C and C++ to emulate ECU tasks with measurement data acquisistion
-|   Windows 32 and 64 Bit Version
+|   Windows and Linux 32 and 64 Bit Version
  ----------------------------------------------------------------------------*/
 
 #include "main.h"
-
-extern "C" {
-    extern tXcpData gXcp;
-    extern tXcpTlData gXcpTl;
-}
 
 // Commandline Options amd Defaults
 #ifdef _WIN
@@ -49,16 +44,12 @@ int createA2L( const char *path_name ) {
     else {
         A2lHeader();
     }
-    
     ecuCreateA2lDescription();
     ecuppCreateA2lDescription();
-
     A2lCreateParameterWithLimits(gDebugLevel, "Console output verbosity", "", 0, 4);
     A2lCreateParameterWithLimits(gFlushCycleMs, "DAQ flush cycle time, 0 = off", "", 0, 1000);
-
-    // Finalize A2L description
     A2lClose();
-    
+ 
     return 1;
 }
 #endif
@@ -83,16 +74,10 @@ static int handleKey(int key) {
     return 0;
 }
 
-extern "C" {
-    extern tXcpData gXcp;
-}
 
 // Main task
 void mainTask(void *p) {
-    static uint64_t b0 = 0;
-    static uint64_t bl = 0;
-    static uint64_t t0 = 0;
-    static uint64_t tl = 0;
+    
     for (;;) {
         Sleep(500);
 
@@ -125,10 +110,10 @@ static void usage(void) {
     printf(
         "\n"
         "Usage:\n"
-#ifdef _WIN64
-        "  XCPlite64 [options]\n"
+#ifdef _WIN
+        "  XCPwi [options]\n"
 #else
-        "  XCPlite [options]\n"
+        "  XCPpi [options]\n"
 #endif
 
         "\n"
@@ -160,7 +145,7 @@ static void usage(void) {
 int main(int argc, char* argv[])
 {  
     printf(
-        "\nXCPlite ECU Simulator with XCP on Ethernet\n"
+        "\nXCPlite Demo - ECU Simulator with XCP on Ethernet (UDP)\n"
         "Vector Informatik GmbH 2021\n"
         "Build " __DATE__ " " __TIME__ "\n\n"
     );
@@ -331,7 +316,6 @@ int main(int argc, char* argv[])
     printf("Shutdown\n");
     xcpSlaveShutdown();
         
-
     return 0;
 }
 

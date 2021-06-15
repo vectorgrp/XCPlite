@@ -1,8 +1,8 @@
 [FILE_INFO]
 Identification=CANape-Configuration-File
 FileName=XCPlite.cna
-FileNameAbsolute=D:\USR\RaspberryPi\XCPlite\CANape\XCPlite.cna
-WorkingDirectory=D:\USR\RaspberryPi\XCPlite\CANape
+FileNameAbsolute=D:\USR\XCPlite\CANape\XCPlite.cna
+WorkingDirectory=D:\USR\XCPlite\CANape
 ProjectId=07e4-0009-0006-0016-001c-0015-0000
 FileVersion=1200
 PrgVersion=Version 19.0.11.112
@@ -10,7 +10,7 @@ PrgDate=23.03.2021
 Description=
 CreationTime=14:27
 CreationDate=09/08/2020 ; Month/Day/Year
-ModificationTime=17:33
+ModificationTime=19:58
 ModificationDate=06/14/2021 ; Month/Day/Year
 Protected=0
 
@@ -74,7 +74,7 @@ StimMode=0
 IsFallback=0
 
 [CALIBRATION_OBJECT_5]
-EditOffset=1
+EditOffset=10
 EditFactor=2
 EditFormat=2
 ShowWorkingPoint=0
@@ -195,12 +195,11 @@ Count=5
 [FUNCTION_1]
 NAME=Dt
 COMMENT=
-COUNT=5
+COUNT=4
 1=function Dt (x)
 2={
-3=  // Geben Sie hier den Code ein
-4=  return diffTime(x);
-5=}
+3=  return diffTime(x);
+4=}
 
 [FUNCTION_OBJECT_1]
 LPcount=0
@@ -960,8 +959,8 @@ GlobalCursor=0
 GlobalCursorTime=0
 GlobalTimeAxis=1
 GlobalTimeAxisStartTime=0
-GlobalTimeAxisEndTime=3695381924
-MainWindowPos=1, 524, 201, 2615, 1577 ;cmd, x, y, w, h
+GlobalTimeAxisEndTime=3325755838
+MainWindowPos=1, 524, 201, 2218, 1462 ;cmd, x, y, w, h
 
 [PAR_COMMENT]
 1="Name",""
@@ -1096,10 +1095,10 @@ FocusID=2004
 ActiveTab=0
 FilterNodeID=All
 TreeExpand_0=@All
-TreeExpand_1=All\Devices\XCPpi\XCPpi_autodetect.a2l\ecuPar
-TreeExpand_2=All\Devices\XCPpi
-TreeExpand_3=All\Devices
-TreeExpand_4=All\Devices\XCPpi\XCPpi_autodetect.a2l
+TreeExpand_1=All\Devices\XCPpi\XCPpi_autodetect.a2l
+TreeExpand_2=All\Devices
+TreeExpand_3=All\Devices\XCPpi
+TreeExpand_4=All\Devices\XCPpi\XCPpi_autodetect.a2l\ecuPar
 TreeExpand_5=$All\Devices
 TreeExpand_6=#All\Devices\XCPpi\XCPpi_autodetect.a2l\ecuPar\ecuPar.curve1_32
 TextSearchCaseSensitive=0
@@ -1156,7 +1155,7 @@ DisplayMask=1 ; pages 1
 [WINDOW_3]
 XLen=8554
 XMin=0
-XMax=3695
+XMax=3325
 Grid=1
 Mark=1
 YValue=1
@@ -1225,7 +1224,7 @@ COL_1_dpi96=1048578, 88
 [WINDOW_4]
 XLen=8554
 XMin=0
-XMax=3695
+XMax=3325
 Grid=1
 Mark=1
 YValue=1
@@ -1332,12 +1331,12 @@ GridTitleHeight=5
 GridX=0
 GridY=0
 InterpolateWorkingPoint=0
-LastFocus=SpreadSheet
+LastFocus=Lw
 LeftCol=5
 LegendWindowSelectionMode=0
 LegendWindowSizeInPercent=0.181360201511
 LegendWindowVerticalSizeInPixel=72
-LwColumns=<Id:1048594,W:60><Id:1048576,W:180><Id:3,W:375><Id:16,W:105><Id:1048627,W:150><Id:1048631,W:150><Id:1048634,W:150>
+LwColumns=<Id:1048594,W:60><Id:1048576,W:306><Id:3,W:375>
 LwScrollPos=H:0,V:0
 markerMaxX=0
 markerMaxY=0
@@ -1407,8 +1406,8 @@ WAxisLabel=
 XAxisLabel=
 YAxisLabel=
 AxisCaption=
-Row=4
-Col=4
+Row=0
+Col=0
 YAxis_ID=0
 AxisTemplate=
 MarkerSettingValid=1
@@ -1465,7 +1464,7 @@ LeftCol=1
 LegendWindowSelectionMode=0
 LegendWindowSizeInPercent=0.145454545455
 LegendWindowVerticalSizeInPixel=72
-LwColumns=<Id:1048594,W:60><Id:1048576,W:180><Id:3,W:375><Id:16,W:105><Id:1048627,W:150><Id:1048631,W:150><Id:1048634,W:150>
+LwColumns=<Id:1048594,W:60><Id:1048576,W:297><Id:3,W:375>
 LwScrollPos=H:0,V:0
 markerMaxX=0
 markerMaxY=0

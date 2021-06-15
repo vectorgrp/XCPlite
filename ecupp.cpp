@@ -124,6 +124,7 @@ extern "C" {
 		gActiveEcuTaskId = gXcpEvent_EcuTask1;
 	}
 
+#ifdef XCPSIM_ENABLE_A2L_GEN
 	void ecuppCreateA2lDescription(void) {
 		assert(gEcuTask1 != NULL);
 		assert(gEcuTask2 != NULL);
@@ -134,6 +135,7 @@ extern "C" {
 		A2lCreateDynamicTypedefInstance("activeEcuTask", "EcuTask", "");
 		A2lCreateParameterWithLimits(gActiveEcuTaskId, "Active ecu task object id", "", 1, 2);
 	}
+#endif
 
 	// ECU cyclic (2ms default) demo task 
 	// Calls C++ ECU demo code

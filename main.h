@@ -1,4 +1,4 @@
-// main.h 
+/* main.h */
 
 #ifndef __MAIN_H_
 #define __MAIN_H_
@@ -93,14 +93,12 @@
 
 #define XCPSIM_SLAVE_PORT 5555 // Default UDP port
 #define XCPSIM_SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc} // Default slave clock UUID
-#ifdef XCPSIM_ENABLE_XLAPI_V3
-#else
-#endif
 #define getA2lSlavePort() XCPSIM_SLAVE_PORT // for A2L generation
 #define XCPSIM_MULTI_THREAD_SLAVE // Receive and transmit in seperate threads
 
 // XL-API UDP stack parameters
 #ifdef XCPSIM_ENABLE_XLAPI_V3
+
 #define XCPSIM_SLAVE_XL_NET "NET1" // Default V3 Network name
 #define XCPSIM_SLAVE_XL_SEG "SEG1" // Default V3 Segment name
 #define XCPSIM_SLAVE_XL_MAC {0xdc,0xa6,0x32,0x7e,0x66,0xdc} // Default V3 Ethernet Adapter MAC
@@ -127,7 +125,6 @@
 
 //-----------------------------------------------------------------------------------------------------
 
-
 #ifdef XCPSIM_ENABLE_XLAPI_V3
 #include "vxlapi.h"
 #endif
@@ -153,8 +150,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-
 
 
 //-----------------------------------------------------------------------------------------------------

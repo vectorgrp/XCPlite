@@ -1,4 +1,4 @@
-// ecu.h 
+/* ecu.h */
 
 #ifndef __ECU_H_
 #define __ECU_H_
