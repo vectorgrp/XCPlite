@@ -4,6 +4,10 @@
 |
 | Description:
 |   Vector XL-API for Ethernet V3 UDP stack
+|
+| Copyright (c) Vector Informatik GmbH. All rights reserved.
+| Licensed under the MIT license. See LICENSE file in the project root for details.
+|
  ----------------------------------------------------------------------------*/
 
 #include "main.h"
