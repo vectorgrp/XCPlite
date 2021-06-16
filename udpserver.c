@@ -6,6 +6,10 @@
 |   XCP on UDP transport layer
 |   Linux (Raspberry Pi) and Windows version
 |   Supports Winsock, Linux Sockets and Vector XL-API V3
+|
+| Copyright (c) Vector Informatik GmbH. All rights reserved.
+| Licensed under the MIT license. See LICENSE file in the project root for details.
+|
  ----------------------------------------------------------------------------*/
 
 #include "main.h"

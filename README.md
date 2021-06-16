@@ -9,18 +9,19 @@ Demos for Linux and Windows (Winsock and XL-API V3 (VN5xxx) with simple buildin 
 
 List of restrictions compared to Vectors xcpBasic and xcpProf in source file xcpLite.c.
 
-Optimized for XCP on Ethernet (UDP), multi threaded, no thread lock and zero copy data acquisition.
+Optimized for XCP on Ethernet (UDP), thread safe, minimal thread lock and zero copy data acquisition.
 C and C++ target support.
 
-Achieves up to 40 MByte/s throughput on a Raspberry Pi 4, more than 100 MByte/s on a PC.
-3% single thread cpu time in event copy routine for 40MByte/s transfer rate. 
+Achieves up to 80 MByte/s throughput on a Raspberry Pi 4, more than 100 MByte/s on a PC (option -jumbo).
+3% single thread raspi cpu time in event copy routine for 40MByte/s transfer rate. 
 1us measurement timestamp resolution.
 
 No A2L (ASAP2 ECU description) required. 
-A A2L with reduced featureset is generated through code instrumentation during runtime on target system and automatically uploaded by XCP.
+A A2L with reduced featureset is generated through code instrumentation during runtime on target system 
+and automatically uploaded by XCP (option -a2l).
 
 C and C++ measurement demo variables and code example in ecu.c and ecupp.cpp.
-Measure global variables and dynamic instances of structs and classes.
+Demo how to measure global variables and dynamic instances of structs and classes.
 
 ## Code instrumentation:
 
@@ -51,7 +52,7 @@ Example:
   XcpEvent(1); // Trigger event here, timestamp and copy measurement data
 ```
 
-Demo visual Studio and CANape project included for Raspberry Pi 4. 
+Demo visual Studio solution and CANape project included for Raspberry Pi 4 and Windows 32/64. 
 
 ![CANape](Screenshot.png)
 
@@ -65,12 +66,18 @@ All settings and parameters for the XCP protocol and transport layer are located
 Compile options for the XCPlite demo are main.h:
 ```
 #define XCPSIM_ENABLE_A2L_GEN  // Enable A2L creator and A2L upload to host
+#define XCPSIM_ENABLE_XLAPI_V3  // Enable Vector XL-API stack (option -v3)
 ```
 
 ## Notes:
-if A2L generation and upload disabled, use CANape Linker Map Type ELF extended for a.out format
-Compile with -O2
-Link with -lrt -lpthread
+- If A2L generation and upload is disabled, use CANape address update with Linker Map Type ELF extended for a.out format or PDB for .exe 
+- The A2L generator creates a unique file name for the A2L, for convinience use name detection (GET_ID 1) 
+- Linux Compile with -O2, Link with -lrt -lpthread
+- Jumbo frames are disables by default
+- 64 bit version needs all objects within on 4 GByte data segment  
+- Multicast time syncronisation, multicast device detection, PTP master clock emulation, TCP transport layer may be future features
+
+
 
 
 

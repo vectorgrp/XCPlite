@@ -54,7 +54,10 @@
 |     - Memory write and read protection is not supported         
 |     - Checksum calculation with AUTOSAR CRC module is not supported
 |        
-|     
+|
+| Copyright (c) Vector Informatik GmbH. All rights reserved.
+| Licensed under the MIT license. See LICENSE file in the project root for details.
+|
 |  No limitations and full compliance are available with the commercial version 
 |  from Vector Informatik GmbH, please contact Vector
 |***************************************************************************/

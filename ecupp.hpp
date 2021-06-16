@@ -1,5 +1,8 @@
 /* ecupp.hpp */
 
+/* Copyright(c) Vector Informatik GmbH.All rights reserved.
+   Licensed under the MIT license.See LICENSE file in the project root for details. */
+
 #ifndef __ECUPP_HPP_
 #define __ECUPP_HPP_
 

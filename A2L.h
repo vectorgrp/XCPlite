@@ -1,5 +1,8 @@
 /* A2L.h */
 
+/* Copyright(c) Vector Informatik GmbH.All rights reserved.
+   Licensed under the MIT license.See LICENSE file in the project root for details. */
+
 #ifndef __A2L_H_ 
 #define __A2L_H_
 

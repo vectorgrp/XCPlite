@@ -1,5 +1,8 @@
 /* util.h */
 
+/* Copyright(c) Vector Informatik GmbH.All rights reserved.
+   Licensed under the MIT license.See LICENSE file in the project root for details. */
+
 #ifndef __UTIL_H_ 
 #define __UTIL_H_
 

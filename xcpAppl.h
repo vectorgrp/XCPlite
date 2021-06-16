@@ -1,6 +1,7 @@
 /* xcpAppl.h */
 
-/* Externals dependencies for xcpLite.c */
+/* Copyright(c) Vector Informatik GmbH.All rights reserved.
+   Licensed under the MIT license.See LICENSE file in the project root for details. */
 
 
 #ifndef __XCPAPPL_H_ 

@@ -6,6 +6,10 @@
 |   Demo main for XCP on Ethernet (UDP) demo
 |   Demo threads in C and C++ to emulate ECU tasks with measurement data acquisistion
 |   Windows and Linux 32 and 64 Bit Version
+|
+| Copyright (c) Vector Informatik GmbH. All rights reserved.
+| Licensed under the MIT license. See LICENSE file in the project root for details.
+|
  ----------------------------------------------------------------------------*/
 
 #include "main.h"

@@ -6,6 +6,9 @@
 |   Konfiguration file for XCP protocol layer parameters
  ----------------------------------------------------------------------------*/
 
+ /* Copyright(c) Vector Informatik GmbH.All rights reserved.
+    Licensed under the MIT license.See LICENSE file in the project root for details. */
+
 #ifndef __XCP_CFG_H_
 #define __XCP_CFG_H_
 

@@ -6,6 +6,10 @@
 |   Externals for xcpLite 
 |   Platform and implementation specific functions
 |   All other callbacks/dependencies are implemented as macros in xcpAppl.h
+|
+| Copyright (c) Vector Informatik GmbH. All rights reserved.
+| Licensed under the MIT license. See LICENSE file in the project root for details.
+|
  ----------------------------------------------------------------------------*/
 
 #include "main.h"
