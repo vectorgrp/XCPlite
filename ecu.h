@@ -41,6 +41,10 @@ extern void ecuCreateA2lDescription(void);
 
 void* ecuTask(void* p);
 
+
+#define PI2 6.28318530718
+#define PI (PI2/2)
+
 #ifdef __cplusplus
 }
 #endif

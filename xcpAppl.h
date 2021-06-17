@@ -35,7 +35,7 @@ extern "C" {
 /*----------------------------------------------------------------------------*/
 // Address conversions XCP/A2L (32 bit unsigned int <-> pointer)
 
-#ifdef _WIN64
+#ifdef _WIN
 	/* functions in xcpAppl.c */
 #else
 #define ApplXcpGetBaseAddr() ((vuint8*)0)

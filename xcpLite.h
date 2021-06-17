@@ -1250,13 +1250,6 @@
 #error "Please define XCP_TIMESTAMP_TICKS"
 #endif
 
-/* Check configuration of kXcpDaqTimestampTicksPerUnit. */
-#if defined ( XCP_TIMESTAMP_TICKS_MS )
-#else
-#error "Please define XCP_TIMESTAMP_TICKS_MS"
-#endif
-
-
 
 /****************************************************************************/
 /* XCP Packet Type Definition                                               */

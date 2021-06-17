@@ -15,19 +15,48 @@
 #include "main.h"
 
 
- /**************************************************************************/
- // Pointer - Address conversion
- /**************************************************************************/
+#include <stdint.h>
+
+ /* 8-Bit  */
+typedef uint8_t  vuint8;
+typedef int8_t    vsint8;
+
+/* 16-Bit  */
+typedef uint16_t vuint16;
+typedef int16_t   vsint16;
+
+/* 32-Bit  */
+typedef uint32_t   vuint32;
+typedef int32_t     vsint32;
+
+/* 64-Bit  */
+typedef uint64_t  vuint64;
+typedef int64_t    vsint64;
+
+typedef uint8_t  vbool;
+#define TRUE 1
+#define FALSE 0
 
 
-// 64 Bit platform pointer to XCP/A2L address conversions
-// XCP memory access is limited to a 4GB address range
-#if defined(_WIN64) || defined(_LINUX64)
 
-vuint64 __dataSeg;
-vuint64 __dataSegInit = 1;
+ 
+/**************************************************************************/
+// Pointer - Address conversion
+/**************************************************************************/
+
+
+ // 64 Bit and 32 Bit platform pointer to XCP/A2L address conversions
+ // XCP memory access is limited to a 4GB address range
+
+ // The XCP addresses for Win32 and Win64 versions of XCPlite are defined as relative to the load address of the main module
+ // This allows using Microsoft linker PDB files for address update
+ // In Microsoft Visual Studio set option "Generate Debug Information" to "optimized for sharing and publishing (/DEBUG:FULL)"
+ // In CANape select "Microsoft PDB extented"
+
+#ifdef _WIN
 
 vuint8* baseAddr = NULL;
+vuint8 baseAddrValid = FALSE;
 
 vuint8* ApplXcpGetPointer(vuint8 addr_ext, vuint32 addr) {
 
@@ -36,27 +65,30 @@ vuint8* ApplXcpGetPointer(vuint8 addr_ext, vuint32 addr) {
 
 vuint32 ApplXcpGetAddr(vuint8* p) {
 
-    if (!((vuint8*)(((vuint64)p) & 0xFFFFFFFF00000000UL) == ApplXcpGetBaseAddr())) {
-        assert(0);
-    }
-    return (vuint64)p & 0xFFFFFFFF;
+    assert(p >= ApplXcpGetBaseAddr());
+#ifdef _WIN64
+    assert(((vuint64)p - (vuint64)ApplXcpGetBaseAddr()) <= 0xffffffff); // be sure that XCP address range is sufficient
+#endif
+    return (vuint32)(p - ApplXcpGetBaseAddr());
 }
 
 // Get base pointer for the XCP address range
-vuint8 *ApplXcpGetBaseAddr() {
+// This function is time sensitive, as it is called once on every XCP event
+vuint8* ApplXcpGetBaseAddr() {
 
-    if (baseAddr == NULL) {
-        assert((((vuint64)&__dataSeg) & 0xFFFFFFFF00000000ULL) == (((vuint64)&__dataSegInit) & 0xFFFFFFFF00000000ULL));
-        baseAddr = (vuint8*)(((vuint64)&__dataSeg) & 0xFFFFFFFF00000000ULL);
+    if (!baseAddrValid) {
+        baseAddr = (vuint8*)GetModuleHandle(NULL);
+        baseAddrValid = TRUE;
 #if defined ( XCP_ENABLE_TESTMODE )
-        if (gDebugLevel >= 1) ApplXcpPrint("  ApplXcpGetBaseAddr() = 0x%llX\n", (vuint64)baseAddr);
+        if (gDebugLevel >= 1) ApplXcpPrint("  ApplXcpGetBaseAddr() = 0x%I64X\n", (vuint64)baseAddr);
 #endif
     }
-
     return baseAddr;
 }
 
 #endif
+
+ 
 
 /**************************************************************************/
 // Calibration page handling

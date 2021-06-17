@@ -86,7 +86,7 @@ typedef uint8_t  vbool;
 // Specify ApplXcpGetClock and ApplXcpGetClock64 resolution for DAQ time stamps
 #define XCP_TIMESTAMP_UNIT DAQ_TIMESTAMP_UNIT_1US // unit DAQ_TIMESTAMP_UNIT_xxx
 #define XCP_TIMESTAMP_TICKS 1  // ticks per unit
-#define XCP_TIMESTAMP_TICKS_MS 1000 // ticks per millisecond
+#define XCP_TIMESTAMP_TICKS_S 1000000 // ticks per millisecond
 
 
 #endif

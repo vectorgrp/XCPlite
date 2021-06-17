@@ -174,7 +174,7 @@ void* xcpSlaveDAQThread(void* par) {
             // Every gFlushCycle in us time period
             // Cyclic flush of incomplete packets from transmit queue or transmit buffer to keep tool visualizations up to date
             // No priorisation of events implemented, no latency optimizations
-            if (gFlushCycleMs > 0 && gClock32 - gFlushTimer > gFlushCycleMs* XCP_TIMESTAMP_TICKS_MS) {
+            if (gFlushCycleMs > 0 && gClock32 - gFlushTimer > gFlushCycleMs * CLOCK_TICKS_PER_MS) {
                 gFlushTimer = gClock32;
                 udpTlFlushTransmitQueue();
             }

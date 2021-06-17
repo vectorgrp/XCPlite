@@ -9,12 +9,12 @@
 
 #ifdef _WIN64
   #define _WIN
+  #undef _WIN32
 #else
   #ifdef _WIN32
     #define _WIN
   #else
     #define _LINUX
-    #define LINUX
   #endif
 #endif
 
@@ -135,7 +135,9 @@
 //-----------------------------------------------------------------------------------------------------
 
 #include "xcpLite.h"
-#include "util.h" 
+
+#define CLOCK_USE_APP_TIME_US
+#include "clock.h" 
 
 #ifdef _WIN 
 #include "udp.h" // UDP stack for Vector XL-API V3 

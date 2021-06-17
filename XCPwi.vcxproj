@@ -152,24 +152,24 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="A2L.c" />
+    <ClCompile Include="clock.c" />
     <ClCompile Include="ecu.c" />
     <ClCompile Include="ecupp.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="udp.c" />
     <ClCompile Include="udpserver.c" />
-    <ClCompile Include="util.c" />
     <ClCompile Include="xcpAppl.c" />
     <ClCompile Include="xcpLite.c" />
     <ClCompile Include="xcpSlave.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="A2L.h" />
+    <ClInclude Include="clock.h" />
     <ClInclude Include="ecu.h" />
     <ClInclude Include="ecupp.hpp" />
     <ClInclude Include="main.h" />
     <ClInclude Include="udp.h" />
     <ClInclude Include="udpserver.h" />
-    <ClInclude Include="util.h" />
     <ClInclude Include="xcpAppl.h" />
     <ClInclude Include="xcpLite.h" />
     <ClInclude Include="xcpSlave.h" />

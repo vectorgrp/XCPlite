@@ -63,9 +63,7 @@
 |***************************************************************************/
 
 #include "xcpLite.h"
-
-/* External dependencies */
-#include "xcpAppl.h"
+#include "xcpAppl.h"  /* External dependencies */
 
 
 /***************************************************************************/
@@ -282,7 +280,7 @@ vuint8  XcpAddOdtEntry(vuint32 addr, vuint8 ext, vuint8 size) {
     if ((size == 0) || size > XCP_MAX_ODT_ENTRY_SIZE) return CRC_OUT_OF_RANGE;
     if (0 == gXcp.Daq.DaqCount || 0 == gXcp.Daq.OdtCount || 0 == gXcp.Daq.OdtEntryCount) return CRC_DAQ_CONFIG;
     OdtEntrySize(gXcp.WriteDaqOdtEntry) = size;
-    OdtEntryAddr(gXcp.WriteDaqOdtEntry) = addr;
+    OdtEntryAddr(gXcp.WriteDaqOdtEntry) = addr; // Holds A2L/XCP address
     XcpAdjustOdtSize(gXcp.WriteDaqDaq, gXcp.WriteDaqOdt, size);
     gXcp.WriteDaqOdtEntry++; // Autoincrement to next ODT entry, no autoincrementing over ODTs
     return 0;
@@ -1425,14 +1423,14 @@ static void  XcpPrintRes(const tXcpCto* pCmd) {
         getDaqClockMulticast:
             if (ApplXcpDebugLevel >= 2) {
                 if (gXcp.SessionStatus & SS_LEGACY_MODE) {
-                    ApplXcpPrint("<- t=%ul (%gs)", CRM_GET_DAQ_CLOCK_TIME, (double)CRM_GET_DAQ_CLOCK_TIME / (1000.0 * XCP_TIMESTAMP_TICKS_MS));
+                    ApplXcpPrint("<- t=%ul (%gs)", CRM_GET_DAQ_CLOCK_TIME, (double)CRM_GET_DAQ_CLOCK_TIME / XCP_TIMESTAMP_TICKS_S);
                 }
                 else {
                     if (CRM_GET_DAQ_CLOCK_PAYLOAD_FMT == 0x01) { // CRM_GET_DAQ_CLOCK_PAYLOAD_FMT
-                        ApplXcpPrint("<- t=%ul (32B %gs) %u", CRM_GET_DAQ_CLOCK_TIME, (double)CRM_GET_DAQ_CLOCK_TIME / (1000.0 * XCP_TIMESTAMP_TICKS_MS), CRM_GET_DAQ_CLOCK_SYNC_STATE);
+                        ApplXcpPrint("<- t=%ul (32B %gs) %u", CRM_GET_DAQ_CLOCK_TIME, (double)CRM_GET_DAQ_CLOCK_TIME / XCP_TIMESTAMP_TICKS_S, CRM_GET_DAQ_CLOCK_SYNC_STATE);
                     }
                     else {
-                        ApplXcpPrint("<- t=%llull (64B %gs) %u", CRM_GET_DAQ_CLOCK_TIME64, (double)CRM_GET_DAQ_CLOCK_TIME64 / (1000.0 * XCP_TIMESTAMP_TICKS_MS), CRM_GET_DAQ_CLOCK_SYNC_STATE64);
+                        ApplXcpPrint("<- t=%llull (64B %gs) %u", CRM_GET_DAQ_CLOCK_TIME64, (double)CRM_GET_DAQ_CLOCK_TIME64 / XCP_TIMESTAMP_TICKS_S, CRM_GET_DAQ_CLOCK_SYNC_STATE64);
                     }
                 }
                 if (CRM_CMD == PID_EV) {
@@ -1452,13 +1450,15 @@ static void  XcpPrintRes(const tXcpCto* pCmd) {
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0140
         case CC_LEVEL_1_COMMAND:
             switch (CRO_LEVEL_1_COMMAND_CODE) {
+
             case CC_GET_VERSION:
                 ApplXcpPrint("<- protocol layer version: major=%02Xh/minor=%02Xh, transport layer version: major=%02Xh/minor=%02Xh\n",
                     CRM_GET_VERSION_PROTOCOL_VERSION_MAJOR,
                     CRM_GET_VERSION_PROTOCOL_VERSION_MINOR,
                     CRM_GET_VERSION_TRANSPORT_VERSION_MAJOR,
                     CRM_GET_VERSION_TRANSPORT_VERSION_MINOR);
-                    break;
+                break;
+
 #ifdef XCP_ENABLE_PACKED_MODE
             case CC_GET_DAQ_LIST_PACKED_MODE:
                 ApplXcpPrint("<- mode = %u\n", CRM_GET_DAQ_LIST_PACKED_MODE_MODE);
@@ -1475,9 +1475,10 @@ static void  XcpPrintRes(const tXcpCto* pCmd) {
             case CC_TL_GET_SLAVE_ID:
                 break;
             }
+            break;
 
         case CC_START_STOP_SYNCH:
-            ApplXcpPrint("<- OK (DaqStartClock=%gs)\n", (double)gXcp.DaqStartClock64 / (1000.0 * XCP_TIMESTAMP_TICKS_MS));
+            ApplXcpPrint("<- OK (DaqStartClock = %gs)\n", (double)gXcp.DaqStartClock64 / XCP_TIMESTAMP_TICKS_S);
             break;
 
         default:
