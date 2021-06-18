@@ -77,9 +77,12 @@
 
 #define XCPSIM_ENABLE_A2L_GEN // Enable A2L generation
 
+//#define CLOCK_USE_APP_TIME_US // Use us timestamps relative to application start
+#define CLOCK_USE_UTC_TIME_NS // Use ns timestamps relative to 1.1.1970
+
 #ifdef _LINUX // Linux
 
-#define XCPSIM_DEBUG_LEVEL 0
+#define XCPSIM_DEBUG_LEVEL 1
 
 #define XCPSIM_SLAVE_PORT 5555 // Default UDP port
 #define XCPSIM_SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc} // Default slave clock UUID
@@ -136,7 +139,6 @@
 
 #include "xcpLite.h"
 
-#define CLOCK_USE_APP_TIME_US
 #include "clock.h" 
 
 #ifdef _WIN 

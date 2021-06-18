@@ -20,28 +20,47 @@
 volatile uint32_t gClock32 = 0;
 volatile uint64_t gClock64 = 0;
 
-
-
 #ifdef _LINUX // Linux
 
 static struct timespec gts0;
 static struct timespec gtr;
 
+char* clockGetString(char* s, unsigned int cs, int64_t c) {
+
+#ifdef CLOCK_USE_APP_TIME_US
+    sprintf_s(s, (size_t)cs, "%gs", (double)c / CLOCK_TICKS_PER_S);
+#else
+    time_t t = (time_t)(c / CLOCK_TICKS_PER_S); // s since 1.1.1970
+    struct tm tm;
+    gmtime_r(&t, &tm);
+    int64_t fs = c % CLOCK_TICKS_PER_S;
+    sprintf(s, "%u.%u.%u %02u:%02u:%02u +%llu", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec, fs);
+#endif
+    return s;
+}
+
+
 int clockInit( void )
 {    
     clock_getres(CLOCK_REALTIME, &gtr);
-    assert(gtr.tv_sec == 0);
-    assert(gtr.tv_nsec == 1);
+    if (gtr.tv_sec != 0 || gtr.tv_nsec != 1) {
+      printf("ERROR: Unexpected real time clock frequency!\n");
+      return 0;
+    }
     clock_gettime(CLOCK_REALTIME, &gts0);
-
     getClock64();
 
-    if (gDebugLevel >= 2) {
+    if (gDebugLevel >= 1) {
+        int64_t t1, t2;
+        char s[64];
         printf("Init clock \n");
         printf("  System realtime clock resolution = %lds,%ldns\n", gtr.tv_sec, gtr.tv_nsec);
-        //printf("clock now = %lds+%ldns\n", gts0.tv_sec, gts0.tv_nsec);
-        //printf("clock year = %u\n", 1970 + gts0.tv_sec / 3600 / 24 / 365 );
-        //printf("gClock64 = %lluus %llxh, gClock32 = %xh\n", gts0.tv_sec, gts0.tv_nsec, gClock64, gClock64, gClock32);
+        t1 = getClock64();
+        sleepNs(100000);
+        t2 = getClock64();
+        printf("  +0us:   %llu  %s\n", t1, clockGetString(s, sizeof(s), t1));
+        printf("  +100us: %llu  %s\n", t2, clockGetString(s, sizeof(s), t2));
+        printf("\n");
     }
 
     return 1;
@@ -51,9 +70,14 @@ int clockInit( void )
 uint32_t getClock32(void) {
 
     struct timespec ts; 
-    
     clock_gettime(CLOCK_REALTIME, &ts);
-    gClock64 = ( ( (uint64_t)(ts.tv_sec/*-gts0.tv_sec*/) * 1000000ULL ) + (uint64_t)(ts.tv_nsec / 1000) ); // us
+#if defined(CLOCK_USE_UTC_TIME_NS) // ns since 1.1.1970
+    gClock64 = (((uint64_t)(ts.tv_sec) * 1000000000ULL) + (uint64_t)(ts.tv_nsec)); // ns
+#elif defined(CLOCK_USE_UTC_TIME_US) // us since 1.1.1970
+    gClock64 = (((uint64_t)(ts.tv_sec) * 1000000ULL) + (uint64_t)(ts.tv_nsec / 1000)); // us
+#else // us since init
+    gClock64 = (((uint64_t)(ts.tv_sec-gts0.tv_sec) * 1000000ULL) + (uint64_t)(ts.tv_nsec / 1000)); // us
+#endif
     gClock32 = (uint32_t)gClock64;
     return gClock32;  
 }
@@ -88,11 +112,10 @@ char *clockGetString(char* s, unsigned int cs, int64_t c) {
     struct tm tm;
     gmtime_s(&tm, &t);
     int64_t fs = c % CLOCK_TICKS_PER_S; 
-    sprintf_s(s, (size_t)cs, "%u.%u.%u %02u:%02u:%02u +%llu ticks", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec, fs);
+    sprintf_s(s, (size_t)cs, "%u.%u.%u %02u:%02u:%02u +%llu", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec, fs);
 #endif
     return s;
 }
-
 
 
 int clockInit(void) {
@@ -102,13 +125,7 @@ int clockInit(void) {
 
     // Get current UTC time in ns since 1.1.1970
     time_t t;
-    struct tm tm;
     _time64(&t); // s since 1.1.1970
-    _gmtime64_s(&tm, &t);
-    if (gDebugLevel >= 1) {
-        printf("UTC time = %llus since 1.1.1970 ", t);
-        printf("%u.%u.%u %u:%u:%u\n", tm.tm_mday, tm.tm_mon+1, tm.tm_year+1900, (tm.tm_hour+2)%24, tm.tm_min, tm.tm_sec);
-    }
 #endif
 
     // Get current performance counter
@@ -146,23 +163,21 @@ int clockInit(void) {
     getClock64();
 
     if (gDebugLevel >= 1) {
+        struct tm tm;
+        _gmtime64_s(&tm, &t);
+        printf("Init clock \n");
+        printf("  UTC time = %llus since 1.1.1970 ", t);
+        printf("  %u.%u.%u %u:%u:%u\n", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec);
+
        int64_t t1, t2;
        char s[64];
        t1 = getClock64();
        sleepNs(100000);
        t2 = getClock64();
-       printf("XCP clock resolution = %u Hz, system resolution = %u Hz, conversion %c= %I64u\n", CLOCK_TICKS_PER_S, tF.u.LowPart, sDivide?'/':'*', sFactor);
-       printf("+0us:   %I64u  %s\n", t1, clockGetString(s, sizeof(s), t1));
-       printf("+100us: %I64u  %s\n", t2, clockGetString(s, sizeof(s), t2));
+       printf("  XCP clock resolution = %u Hz, system resolution = %u Hz, conversion %c= %I64u\n", CLOCK_TICKS_PER_S, tF.u.LowPart, sDivide?'/':'*', sFactor);
+       printf("  +0us:   %I64u  %s\n", t1, clockGetString(s, sizeof(s), t1));
+       printf("  +100us: %I64u  %s\n", t2, clockGetString(s, sizeof(s), t2));
        printf("\n");
-
-       /*
-       for (;;) {
-           t1 = getClock64();
-           sleepNs(100000000);
-           printf("%I64u  %s      \r", t1, clockGetString(s, sizeof(s), t1));
-       }
-       */
     }
 
     return 1;

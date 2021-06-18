@@ -62,8 +62,8 @@
 |  from Vector Informatik GmbH, please contact Vector
 |***************************************************************************/
 
-#include "xcpLite.h"
 #include "xcpAppl.h"  /* External dependencies */
+#include "xcpLite.h"
 
 
 /***************************************************************************/

@@ -161,17 +161,22 @@ int main(int argc, char* argv[])
     // Print activated application options
     printf("Options:\n");
 #ifdef XCPSIM_SINGLE_THREAD_SLAVE
-    printf(" XCPSIM_SINGLE_THREAD_SLAVE");
+    printf("XCPSIM_SINGLE_THREAD_SLAVE,");
 #endif
 #ifdef XCPSIM_ENABLE_XLAPI_V3
-    printf(" XCPSIM_ENABLE_XLAPI_V3");
+    printf("XCPSIM_ENABLE_XLAPI_V3,");
 #endif
 #ifdef XCPSIM_SINGLE_THREAD_SLAVE
-    printf(" XCPSIM_SINGLE_THREAD_SLAVE");
-#endif
-    
+    printf("XCPSIM_SINGLE_THREAD_SLAVE,");
+#endif 
 #ifdef XCPSIM_ENABLE_A2L_GEN 
-    printf(" XCPSIM_ENABLE_A2L_GEN");
+    printf("XCPSIM_ENABLE_A2L_GEN,");
+#endif
+#ifdef CLOCK_USE_APP_TIME_US 
+    printf("CLOCK_USE_APP_TIME_US");
+#endif
+#ifdef CLOCK_USE_UTC_TIME_NS 
+    printf("CLOCK_USE_UTC_TIME_NS");
 #endif
     printf("\n");
 
