@@ -142,7 +142,7 @@ static const char* gA2lFooter =
 ;
 
 static const char* getParType(int size) {
-	char* type;
+	const char* type;
 	switch (size) {
 	case -1: type = "_SBYTE";  break;
 	case -2: type = "_SWORD";  break;
@@ -165,7 +165,7 @@ static const char* getMeaType(int size) {
 }
 
 static const char* getTypeMin(int size) {
-	char* min;
+	const char* min;
 	switch (size) {
 	case -1: min = "-128";  break;
 	case -2: min = "-32768"; break;
@@ -178,7 +178,7 @@ static const char* getTypeMin(int size) {
 }
 
 static const char* getTypeMax(int size) {
-	char* max;
+	const char* max;
 	switch (size) {
 	case -1: max = "127";  break;
 	case -2: max = "32767";  break;
@@ -403,7 +403,7 @@ void A2lClose(void) {
 		if (t != NULL) fprintf(gA2lFile, "/begin TYPEDEF_MEASUREMENT _%s \"\" %s NO_COMPU_METHOD 0 0 %s %s /end TYPEDEF_MEASUREMENT\n",t,t,getTypeMin(i),getTypeMax(i));
 	}
 
-	fprintf(gA2lFile, gA2lFooter);
+	fprintf(gA2lFile, "%s", gA2lFooter);
 	fclose(gA2lFile);
 	printf("  (%u meas, %u pars, %u typedefs, %u components, %u instances, %u conversions)\n\n",
 		gA2lMeasurements, gA2lParameters, gA2lTypedefs, gA2lComponents, gA2lInstances, gA2lConversions);

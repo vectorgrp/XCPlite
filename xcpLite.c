@@ -1326,7 +1326,7 @@ static void  XcpPrintCmd(const tXcpCto * pCmd) {
 static void  XcpPrintRes(const tXcpCto* pCmd) {
 
     if (CRM_CMD == PID_ERR) {
-        char* e;
+        const char* e;
         switch (CRM_ERR) {
                 case  CRC_CMD_SYNCH: e = "CRC_CMD_SYNCH"; break;
                 case  CRC_CMD_BUSY: e = "CRC_CMD_BUSY"; break;
@@ -1423,14 +1423,14 @@ static void  XcpPrintRes(const tXcpCto* pCmd) {
         getDaqClockMulticast:
             if (ApplXcpDebugLevel >= 2) {
                 if (gXcp.SessionStatus & SS_LEGACY_MODE) {
-                    ApplXcpPrint("<- t=%ul (%gs)", CRM_GET_DAQ_CLOCK_TIME, (double)CRM_GET_DAQ_CLOCK_TIME / XCP_TIMESTAMP_TICKS_S);
+                    ApplXcpPrint("<- t=%u", CRM_GET_DAQ_CLOCK_TIME);
                 }
                 else {
                     if (CRM_GET_DAQ_CLOCK_PAYLOAD_FMT == 0x01) { // CRM_GET_DAQ_CLOCK_PAYLOAD_FMT
-                        ApplXcpPrint("<- t=%ul (32B %gs) %u", CRM_GET_DAQ_CLOCK_TIME, (double)CRM_GET_DAQ_CLOCK_TIME / XCP_TIMESTAMP_TICKS_S, CRM_GET_DAQ_CLOCK_SYNC_STATE);
+                        ApplXcpPrint("<- t=%u %u", CRM_GET_DAQ_CLOCK_TIME, CRM_GET_DAQ_CLOCK_SYNC_STATE);
                     }
                     else {
-                        ApplXcpPrint("<- t=%llull (64B %gs) %u", CRM_GET_DAQ_CLOCK_TIME64, (double)CRM_GET_DAQ_CLOCK_TIME64 / XCP_TIMESTAMP_TICKS_S, CRM_GET_DAQ_CLOCK_SYNC_STATE64);
+                        ApplXcpPrint("<- t=%08X.%08X %u", (vuint32)(CRM_GET_DAQ_CLOCK_TIME64>>32), (vuint32)(CRM_GET_DAQ_CLOCK_TIME64), CRM_GET_DAQ_CLOCK_SYNC_STATE64);
                     }
                 }
                 if (CRM_CMD == PID_EV) {

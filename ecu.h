@@ -28,7 +28,7 @@ extern "C" {
     };
 
 
-    extern volatile struct ecuPar ecuPar;
+    extern struct ecuPar ecuPar;
 
 
 extern double channel1; // Test

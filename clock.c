@@ -25,7 +25,7 @@ volatile uint64_t gClock64 = 0;
 static struct timespec gts0;
 static struct timespec gtr;
 
-char* clockGetString(char* s, unsigned int cs, int64_t c) {
+char* clockGetString(char* s, unsigned int cs, uint64_t c) {
 
 #ifdef CLOCK_USE_APP_TIME_US
     sprintf_s(s, (size_t)cs, "%gs", (double)c / CLOCK_TICKS_PER_S);
@@ -33,8 +33,8 @@ char* clockGetString(char* s, unsigned int cs, int64_t c) {
     time_t t = (time_t)(c / CLOCK_TICKS_PER_S); // s since 1.1.1970
     struct tm tm;
     gmtime_r(&t, &tm);
-    int64_t fs = c % CLOCK_TICKS_PER_S;
-    sprintf(s, "%u.%u.%u %02u:%02u:%02u +%llu", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec, fs);
+    uint64_t fs = c % CLOCK_TICKS_PER_S;
+    sprintf(s, "%u.%u.%u %02u:%02u:%02u +%lu", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec, fs);
 #endif
     return s;
 }
@@ -51,15 +51,15 @@ int clockInit( void )
     getClock64();
 
     if (gDebugLevel >= 1) {
-        int64_t t1, t2;
-        char s[64];
+        uint64_t t1, t2;
+        char s[128];
         printf("Init clock \n");
         printf("  System realtime clock resolution = %lds,%ldns\n", gtr.tv_sec, gtr.tv_nsec);
         t1 = getClock64();
         sleepNs(100000);
         t2 = getClock64();
-        printf("  +0us:   %llu  %s\n", t1, clockGetString(s, sizeof(s), t1));
-        printf("  +100us: %llu  %s\n", t2, clockGetString(s, sizeof(s), t2));
+        printf("  +0us:   %s\n", clockGetString(s, sizeof(s), t1));
+        printf("  +100us: %s\n", clockGetString(s, sizeof(s), t2));
         printf("\n");
     }
 
@@ -103,7 +103,7 @@ static uint8_t sDivide = 0; // divide or multiply
 static uint64_t sOffset = 0; // offset
 
 
-char *clockGetString(char* s, unsigned int cs, int64_t c) {
+char *clockGetString(char* s, unsigned int cs, uint64_t c) {
 
 #ifdef CLOCK_USE_APP_TIME_US
     sprintf_s(s, (size_t)cs, "%gs", (double)c / CLOCK_TICKS_PER_S);
@@ -169,7 +169,7 @@ int clockInit(void) {
         printf("  UTC time = %llus since 1.1.1970 ", t);
         printf("  %u.%u.%u %u:%u:%u\n", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec);
 
-       int64_t t1, t2;
+       uint64_t t1, t2;
        char s[64];
        t1 = getClock64();
        sleepNs(100000);

@@ -72,7 +72,7 @@ Compile options for the XCPlite demo are main.h:
 ## Notes:
 - If A2L generation and upload is disabled, use CANape address update with Linker Map Type ELF extended for a.out format or PDB for .exe 
 - The A2L generator creates a unique file name for the A2L, for convinience use name detection (GET_ID 1) 
-- Linux Compile with -O2, Link with -lrt -lpthread
+- Linux Compile with -O2, Link with -pthread
 - Jumbo frames are disables by default
 - 64 bit version needs all objects within on 4 GByte data segment  
 - Multicast time syncronisation, multicast device detection, PTP master clock emulation, TCP transport layer may be future features

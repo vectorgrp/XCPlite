@@ -85,7 +85,7 @@ char testString[] = "TestString";
 /**************************************************************************/
 
 
-volatile struct ecuPar ecuPar;
+struct ecuPar ecuPar;
 
 const struct ecuPar ecuRomPar = {
     
@@ -121,7 +121,7 @@ const struct ecuPar ecuRomPar = {
 
 static void ecuParInit(void) {
 
-    ecuPar = ecuRomPar;
+    memcpy(&ecuPar,&ecuRomPar,sizeof(ecuPar));
 }
 
 // Init

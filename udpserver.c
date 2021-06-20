@@ -35,7 +35,7 @@ static int sendDatagram(const unsigned char* data, unsigned int size ) {
 #if defined ( XCP_ENABLE_TESTMODE )
     if (gDebugLevel >= 3) {
         printf("TX: size=%u ",size);
-        for (unsigned int i = 0; i < size; i++) printf("%00X ", data[i]);
+        for (unsigned int i = 0; i < size; i++) printf("%0X ", data[i]);
         printf("\n");
     }
 #endif
@@ -263,7 +263,7 @@ int udpTlHandleXCPCommands(void) {
     int n,connected;
     tXcpCtoMessage buffer;
     tUdpSockAddr src;
-    int srclen;
+    socklen_t srclen;
 
     // Receive a UDP datagramm
     // No no partial messages assumed
@@ -302,7 +302,7 @@ int udpTlHandleXCPCommands(void) {
 #ifdef XCP_ENABLE_TESTMODE
         if (gDebugLevel >= 4 || (!connected && gDebugLevel >= 1)) {
             printf("RX: CTR %04X LEN %04X DATA = ", buffer.ctr,buffer.dlc);
-            for (int i = 0; i < buffer.dlc; i++) printf("%00X ", buffer.data[i]);
+            for (int i = 0; i < buffer.dlc; i++) printf("%0X ", buffer.data[i]);
             printf("\n");
         }
 #endif
@@ -346,7 +346,7 @@ int udpTlHandleXCPCommands(void) {
 
 #ifdef XCP_ENABLE_TESTMODE
                 {
-                    unsigned char tmp[32];
+                    char tmp[32];
                     inet_ntop(AF_INET, &gXcpTl.MasterAddr.addr.sin_addr, tmp, sizeof(tmp));
                     printf("XCP master connected: addr=%s, port=%u\n", tmp, htons(gXcpTl.MasterAddr.addr.sin_port));
                 }

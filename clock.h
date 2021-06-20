@@ -39,7 +39,7 @@ extern volatile uint32_t gClock32;
 extern int clockInit(void);
 extern uint32_t getClock32(void);
 extern uint64_t getClock64(void);
-extern char* clockGetString(char* s, unsigned int cs, int64_t c);
+extern char* clockGetString(char* s, unsigned int cs, uint64_t c);
 extern void sleepNs(unsigned int ns);
 
 #ifdef __cplusplus

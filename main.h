@@ -14,6 +14,11 @@
   #ifdef _WIN32
     #define _WIN
   #else
+    #if defined (_ix64_) || defined (__x86_64__)
+      #define _LINUX64
+    #else
+      #define _LINUX32
+    #endif
     #define _LINUX
   #endif
 #endif
@@ -33,14 +38,13 @@
 #include <sys/time.h>
 #include <time.h>
 #include <sys/stat.h>
-#include <pthread.h> // link with -lpthread
+#include <pthread.h> 
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
 #define strncpy_s(a,b,c,d) strncpy(a,c,d)
 #define strcpy_s strcpy
 #define sscanf_s sscanf
-#define sprintf_s sprintf
 #define MAX_PATH 256
 
 #endif // Linux

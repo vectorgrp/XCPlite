@@ -101,7 +101,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
     <Link>
       <AdditionalOptions>-g</AdditionalOptions>
-      <LibraryDependencies>pthread;wiringPi;rt;%(LibraryDependencies)</LibraryDependencies>
+      <LibraryDependencies>pthread;%(LibraryDependencies)</LibraryDependencies>
     </Link>
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
@@ -117,7 +117,8 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
     <Link>
-      <AdditionalOptions>-g -lrt -lpthread</AdditionalOptions>
+      <AdditionalOptions>-g</AdditionalOptions>
+      <LibraryDependencies>pthread;%(LibraryDependencies)</LibraryDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">

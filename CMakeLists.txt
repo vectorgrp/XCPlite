@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.1.0)
 project(xcpLite)
 
-set(SOURCES main.cpp ecupp.cpp ecu.c udpserver.c udp.c xcpAppl.c xcpLite.c A2L.c xcpSlave.c util.c)
+set(SOURCES main.cpp ecupp.cpp ecu.c udpserver.c udp.c xcpAppl.c xcpLite.c A2L.c xcpSlave.c clock.c)
 set(CMAKE_BUILD_TYPE Debug)
 
 add_executable(xcpLite ${SOURCES})

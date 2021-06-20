@@ -38,9 +38,13 @@ extern "C" {
 #ifdef _WIN
 	/* functions in xcpAppl.c */
 #else
-#define ApplXcpGetBaseAddr() ((vuint8*)0)
-#define ApplXcpGetAddr(p) ((vuint32)((p)))
+#ifdef _LINUX32
+#define ApplXcpGetBaseAddr()   ((vuint8*)0)
+#define ApplXcpGetAddr(p)      ((vuint32)(p))
 #define ApplXcpGetPointer(e,a) ((vuint8*)(a))
+#else
+	/* functions in xcpAppl.c */
+#endif
 #endif
 
 
