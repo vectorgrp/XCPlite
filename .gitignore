@@ -13,7 +13,6 @@ obj/
 *.opensdf
 *.vspscc
 *.csproj.user
-.vscode/
 *.sln.DotSettings
 *.sln.DotSettings.user 
 *.vcxproj.user
@@ -27,7 +26,6 @@ obj/
 *.dll
 *.xml
 *.lib
-
 
 *.pcap
 *.mdf

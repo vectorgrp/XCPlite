@@ -375,6 +375,79 @@ int udpTlHandleXCPCommands(void) {
 
 #ifdef _LINUX // Linux
 
+#if 0
+#include<netdb.h>
+#include<ifaddrs.h>
+#define NI_MAXHOST      1025
+
+static int udpTlGetDefaultIP( void ) {
+
+    FILE *f;
+    char line[100] , *p , *c;
+    
+    f = fopen("/proc/net/route" , "r");
+    while(fgets(line , 100 , f))
+    {
+		p = strtok(line , " \t");
+		c = strtok(NULL , " \t");
+		
+		if(p!=NULL && c!=NULL)
+		{
+			if(strcmp(c , "00000000") == 0)
+			{
+				printf("Default interface is : %s \n" , p);
+				break;
+			}
+		}
+	}
+    
+    //which family do we require , AF_INET or AF_INET6
+    int fm = AF_INET;
+    struct ifaddrs *ifaddr, *ifa;
+	int family , s;
+	char host[NI_MAXHOST];
+
+	if (getifaddrs(&ifaddr) == -1) 
+	{
+		return 0;
+	}
+
+	//Walk through linked list, maintaining head pointer so we can free list later
+	for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) 
+	{
+		if (ifa->ifa_addr == NULL)
+		{
+			continue;
+		}
+
+		family = ifa->ifa_addr->sa_family;
+
+		if(strcmp( ifa->ifa_name , p) == 0)
+		{
+			if (family == fm) 
+			{
+				s = getnameinfo( ifa->ifa_addr, (family == AF_INET) ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6) , host , NI_MAXHOST , NULL , 0 , 0);
+				
+				if (s != 0) 
+				{
+					printf("getnameinfo() failed: %s\n", gai_strerror(s));
+					return 0;
+				}
+				
+				printf("address: %s", host );
+			}
+			printf("\n");
+		}
+	}
+
+	freeifaddrs(ifaddr);
+	
+	return 1;
+
+}
+#endif
+
+
 int udpTlInit(unsigned char slaveMac[6], unsigned char slaveAddr[4], uint16_t slavePort, unsigned int MTU)
 {
     gXcpTl.SlaveMTU = MTU;
@@ -382,6 +455,8 @@ int udpTlInit(unsigned char slaveMac[6], unsigned char slaveAddr[4], uint16_t sl
     gXcpTl.DtoCtr = 0;
     gXcpTl.CrmCtr = 0;
     gXcpTl.MasterAddrValid = 0;
+
+    //udpTlGetDefaultIP();
 
     // Create a socket
     gXcpTl.Sock.sock = socket(AF_INET, SOCK_DGRAM, 0);

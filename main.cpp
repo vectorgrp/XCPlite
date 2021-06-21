@@ -188,7 +188,11 @@ int main(int argc, char* argv[])
             usage();
             exit(0);
         }
+        #ifdef _LINUX
+        else if (sscanf(argv[i], "-t%c", &c) == 1) {
+        #else
         else if (sscanf_s(argv[i], "-t%c", &c, 1) == 1) {
+            #endif
             gDebugLevel = c - '0';
             printf("Set screen output verbosity to %u\n", gDebugLevel);
         }

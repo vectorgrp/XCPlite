@@ -31,7 +31,7 @@ static const char* gA2lHeader =
 "/begin PROJECT XCPlite \"\"\n"
 "/begin HEADER \"\" VERSION \"1.0\" /end HEADER\n"
 "/begin MODULE XCPlite \"\"\n"
-"/include \"XCP_104.aml\"\n"
+"/include \"XCP_104.aml\"\n\n"
 
 "/begin MOD_PAR \"\"\n"
 "/begin MEMORY_SEGMENT\n"
@@ -44,7 +44,7 @@ static const char* gA2lHeader =
 "/end SEGMENT\n"
 "/end IF_DATA\n"
 "/end MEMORY_SEGMENT\n"
-"/end MOD_PAR\n"
+"/end MOD_PAR\n\n"
 
 "/begin MOD_COMMON \"\"\n"
 "BYTE_ORDER MSB_LAST\n"
@@ -55,9 +55,9 @@ static const char* gA2lHeader =
 "ALIGNMENT_FLOAT32_IEEE 1\n"
 "ALIGNMENT_FLOAT64_IEEE 1\n"
 "ALIGNMENT_INT64 1\n"
-"/end MOD_COMMON\n";
+"/end MOD_COMMON\n\n";
 
-static const char* gA2lIfData1 = // Parameters %04X version, %u max cto, %u max dto, %u max event
+static const char* gA2lIfData1 = // Parameters %04X version, %u max cto, %u max dto, %u max event, %s timestamp unit
 "/begin IF_DATA XCP\n"
 
 "/begin PROTOCOL_LAYER\n"
@@ -127,13 +127,13 @@ static const char* gA2lIfData1 = // Parameters %04X version, %u max cto, %u max 
 "/begin DAQ\n" // DAQ
 "DYNAMIC 0 %u 0 OPTIMISATION_TYPE_DEFAULT ADDRESS_EXTENSION_FREE IDENTIFICATION_FIELD_TYPE_RELATIVE_BYTE GRANULARITY_ODT_ENTRY_SIZE_DAQ_BYTE 0xF8 OVERLOAD_INDICATION_PID\n"
 "/begin TIMESTAMP_SUPPORTED\n"
-"0x01 SIZE_DWORD UNIT_1US TIMESTAMP_FIXED\n"
+"0x01 SIZE_DWORD %s TIMESTAMP_FIXED\n"
 "/end TIMESTAMP_SUPPORTED\n"; // ... Event list follows
 
 static const char* gA2lIfData2 = // Parameter %u port and %s ip address string
 "/end DAQ\n"
 "/begin XCP_ON_UDP_IP 0x%04X %u ADDRESS \"%s\" /end XCP_ON_UDP_IP\n" // Transport Layer
-"/end IF_DATA\n"
+"/end IF_DATA\n\n"
 ;
 
 static const char* gA2lFooter =
@@ -227,7 +227,15 @@ void A2lHeader(void) {
   printf("\nCreate A2L %s\n", gA2lFilename);
 
   fprintf(gA2lFile, gA2lHeader, (unsigned int)ApplXcpGetAddr((vuint8 *)&ecuPar), (unsigned int)sizeof(ecuPar)); 
-  fprintf(gA2lFile, gA2lIfData1, protocolLayerVersion, XCPTL_CTO_SIZE, XCPTL_DTO_SIZE, ApplXcpEventCount);
+
+#if (XCP_TIMESTAMP_UNIT==DAQ_TIMESTAMP_UNIT_1NS)
+  #define XCP_TIMESTAMP_UNIT_S "UNIT_1NS"
+#elif (XCP_TIMESTAMP_UNIT==DAQ_TIMESTAMP_UNIT_1US)
+  #define XCP_TIMESTAMP_UNIT_S "UNIT_1US"
+#else
+  #error
+#endif
+  fprintf(gA2lFile, gA2lIfData1, protocolLayerVersion, XCPTL_CTO_SIZE, XCPTL_DTO_SIZE, ApplXcpEventCount, XCP_TIMESTAMP_UNIT_S);
 
   // Event list
 #if defined( XCP_ENABLE_DAQ_EVENT_LIST ) && !defined ( XCP_ENABLE_DAQ_EVENT_INFO )

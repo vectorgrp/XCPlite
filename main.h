@@ -42,9 +42,9 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
+#define sscanf_s scanf
 #define strncpy_s(a,b,c,d) strncpy(a,c,d)
 #define strcpy_s strcpy
-#define sscanf_s sscanf
 #define MAX_PATH 256
 
 #endif // Linux
