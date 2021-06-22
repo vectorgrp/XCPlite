@@ -6,21 +6,19 @@
 #ifndef __MAIN_H_
 #define __MAIN_H_
 
-
-#ifdef _WIN64
+// Windows or Linux ?
+#if defined(_WIN32) || defined(_WIN64)
   #define _WIN
-  #undef _WIN32
-#else
-  #ifdef _WIN32
-    #define _WIN
-  #else
-    #if defined (_ix64_) || defined (__x86_64__)
-      #define _LINUX64
-    #else
-      #define _LINUX32
-    #endif
-    #define _LINUX
+  #if defined(_WIN32) && defined(_WIN64)
+    #undef _WIN32
   #endif
+#else
+  #if defined (_ix64_) || defined (__x86_64__)
+    #define _LINUX64
+  #else
+    #define _LINUX32
+  #endif
+  #define _LINUX
 #endif
 
 #ifdef _LINUX // Linux

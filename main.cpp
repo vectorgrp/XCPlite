@@ -114,16 +114,7 @@ static void usage(void) {
     printf(
         "\n"
         "Usage:\n"
-#ifdef _WIN64
-        "  XCPlite64 [options]\n"
-#endif
-#ifdef _WIN32
-        "  XCPlite32 [options]\n"
-#endif
-#ifdef _LINUX
         "  XCPlite [options]\n"
-#endif
-
         "\n"
         "  Options:\n"
         "    -tx              Set output verbosity to x (default: 1)\n"
@@ -154,6 +145,9 @@ int main(int argc, char* argv[])
 {  
     printf(
         "\nXCPlite Demo - ECU Simulator with XCP on Ethernet (UDP)\n"
+#if defined(_WIN64) || defined(_LINUX64)
+        "64 Bit Version\n"
+#endif
         "Vector Informatik GmbH 2021\n"
         "Build " __DATE__ " " __TIME__ "\n\n"
     );
@@ -163,12 +157,12 @@ int main(int argc, char* argv[])
 #ifdef XCPSIM_SINGLE_THREAD_SLAVE
     printf("XCPSIM_SINGLE_THREAD_SLAVE,");
 #endif
+#ifdef XCPSIM_MULTI_THREAD_SLAVE
+    printf("XCPSIM_MULTI_THREAD_SLAVE,");
+#endif 
 #ifdef XCPSIM_ENABLE_XLAPI_V3
     printf("XCPSIM_ENABLE_XLAPI_V3,");
 #endif
-#ifdef XCPSIM_SINGLE_THREAD_SLAVE
-    printf("XCPSIM_SINGLE_THREAD_SLAVE,");
-#endif 
 #ifdef XCPSIM_ENABLE_A2L_GEN 
     printf("XCPSIM_ENABLE_A2L_GEN,");
 #endif
@@ -177,6 +171,9 @@ int main(int argc, char* argv[])
 #endif
 #ifdef CLOCK_USE_UTC_TIME_NS 
     printf("CLOCK_USE_UTC_TIME_NS");
+#endif
+#ifdef CLOCK_USE_APP_TIME_US 
+    printf(" CLOCK_USE_APP_TIME_US");
 #endif
     printf("\n");
 
@@ -188,11 +185,11 @@ int main(int argc, char* argv[])
             usage();
             exit(0);
         }
-        #ifdef _LINUX
+#ifdef _LINUX
         else if (sscanf(argv[i], "-t%c", &c) == 1) {
-        #else
+#else
         else if (sscanf_s(argv[i], "-t%c", &c, 1) == 1) {
-            #endif
+#endif
             gDebugLevel = c - '0';
             printf("Set screen output verbosity to %u\n", gDebugLevel);
         }

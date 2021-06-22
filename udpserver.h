@@ -70,7 +70,6 @@ typedef struct {
 
 typedef union {
     SOCKADDR_IN addr;
-    //-----------------------------------------------------------------------------------------------------
 #ifdef XCPSIM_ENABLE_XLAPI_V3
     tUdpSockAddrXl addrXl;
 #endif
