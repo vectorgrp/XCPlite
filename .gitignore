@@ -1,6 +1,8 @@
 
 x64/
+x32/
 Win32/
+x64/
 bin/
 obj/
 *.[oa]
@@ -16,7 +18,6 @@ obj/
 *.sln.DotSettings
 *.sln.DotSettings.user 
 *.vcxproj.user
-
 *.iobj
 *.ipdb
 *.pdb
@@ -26,7 +27,18 @@ obj/
 *.dll
 *.xml
 *.lib
+*.ilk
+*.idb
+*.log
+*.vcxproj.FileListAbsolute.txt
 
+
+# CANape specific
 *.pcap
 *.mdf
+*.mf4
 *.a2L
+*.HEX
+*.par
+*.cnaxml
+Environment

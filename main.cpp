@@ -185,17 +185,13 @@ int main(int argc, char* argv[])
             usage();
             exit(0);
         }
-#ifdef _LINUX
         else if (sscanf(argv[i], "-t%c", &c) == 1) {
-#else
-        else if (sscanf_s(argv[i], "-t%c", &c, 1) == 1) {
-#endif
             gDebugLevel = c - '0';
             printf("Set screen output verbosity to %u\n", gDebugLevel);
         }
         else if (strcmp(argv[i], "-port") == 0) {
             if (++i < argc) {
-                if (sscanf_s(argv[i], "%hu", &gOptionsSlavePort) == 1) {
+                if (sscanf(argv[i], "%hu", &gOptionsSlavePort) == 1) {
                     printf("Set port to %u\n", gOptionsSlavePort);
                 }
             }
@@ -203,7 +199,7 @@ int main(int argc, char* argv[])
         else if (strcmp(argv[i], "-a2l") == 0) {
             gOptionA2L = TRUE;
             if (i + 1 < argc && argv[i + 1][0] != '-') {
-                strcpy_s(gOptionA2L_Path, argv[++i]);
+                strcpy(gOptionA2L_Path, argv[++i]);
             }
             printf("Generate A2L file at %s\n", gOptionA2L_Path);
         }

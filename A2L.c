@@ -141,18 +141,19 @@ static const char* gA2lFooter =
 "/end PROJECT\n\n\n\n\n\n"
 ;
 
+
 static const char* getParType(int size) {
 	const char* type;
 	switch (size) {
-	case -1: type = "_SBYTE";  break;
-	case -2: type = "_SWORD";  break;
-	case -4: type = "_SLONG";  break;
-	case -10: type = "_A_INT64";  break;
-	case 1: type = "_UBYTE";   break;
-	case 2: type = "_UWORD";   break;
-	case 4: type = "_ULONG";   break;
-	case 8: type = "_FLOAT64_IEEE";  break;
-	case 10: type = "_A_UINT64";  break;
+	case A2L_TYPE_INT8:    type = "_SBYTE";  break;
+	case A2L_TYPE_INT16:   type = "_SWORD";  break;
+	case A2L_TYPE_INT32:   type = "_SLONG";  break;
+	case A2L_TYPE_INT64:   type = "_A_INT64";  break;
+	case A2L_TYPE_UINT8:   type = "_UBYTE";  break;
+	case A2L_TYPE_UINT16:  type = "_UWORD";  break;
+	case A2L_TYPE_UINT32:  type = "_ULONG";  break;
+	case A2L_TYPE_UINT64:  type = "_A_UINT64";  break;
+	case A2L_TYPE_DOUBLE:  type = "_FLOAT64_IEEE";  break;
 	default: type = NULL;
 	}
 	return type;
@@ -161,18 +162,18 @@ static const char* getParType(int size) {
 static const char* getMeaType(int size) {
 	const char* type = getParType(size);
 	if (type == NULL) return NULL;
-	return &type[1];
+	return &type[1]; // no "_"
 }
 
 static const char* getTypeMin(int size) {
 	const char* min;
 	switch (size) {
-	case -1: min = "-128";  break;
-	case -2: min = "-32768"; break;
-	case -4: min = "-2147483648";  break;
-	case -8: 
-	case -10: min = "-1E12"; break;
-	default: min = "0";
+	case A2L_TYPE_INT8:		min = "-128"; break; 
+	case A2L_TYPE_INT16:	min = "-32768"; break; 
+	case A2L_TYPE_INT32:	min = "-2147483648"; break; 
+	case A2L_TYPE_INT64:	min = "-1E12"; break; 
+	case A2L_TYPE_DOUBLE:	min = "-1E12"; break; 
+	default:                min = "0";
 	}
 	return min;
 }
@@ -180,17 +181,13 @@ static const char* getTypeMin(int size) {
 static const char* getTypeMax(int size) {
 	const char* max;
 	switch (size) {
-	case -1: max = "127";  break;
-	case -2: max = "32767";  break;
-	case -4: max = "2147483647";  break;
-	case -10:
-	case -8: max = "1E12"; break;
-	case 1: max = "255";  break;
-	case 2: max = "65535";  break;
-	case 4: max = "4294967295";  break;
-	case 10:
-	case 8: max = "1E12"; break;
-	default: max = "1E12";
+	case A2L_TYPE_INT8:	   max = "127"; break;
+	case A2L_TYPE_INT16:   max = "32767"; break;
+	case A2L_TYPE_INT32:   max = "2147483647"; break;
+	case A2L_TYPE_UINT8:   max = "255"; break;
+	case A2L_TYPE_UINT16:  max = "65535"; break;
+	case A2L_TYPE_UINT32:  max = "4294967295"; break;
+	default:               max = "1E12";
 	}
 	return max;
 }
@@ -203,12 +200,7 @@ int A2lInit(const char *filename) {
 	gA2lEvent = -1;
 	gA2lMeasurements = gA2lParameters = gA2lTypedefs = gA2lInstances = gA2lConversions = gA2lComponents = 0;
 	gA2lFilename = filename;
-
-#ifndef _WIN // Linux
 	gA2lFile = fopen(filename, "w");
-#else
-	fopen_s(&gA2lFile,filename, "w");
-#endif
 	if (gA2lFile == 0) {
 		printf("ERROR: Could not create A2L file %s!\n", filename);
 		return 0;
@@ -241,7 +233,7 @@ void A2lHeader(void) {
 #if defined( XCP_ENABLE_DAQ_EVENT_LIST ) && !defined ( XCP_ENABLE_DAQ_EVENT_INFO )
   for (unsigned int i = 0; i < ApplXcpEventCount; i++) {
 	  char shortName[9];
-	  strncpy_s(shortName, 9, ApplXcpEventList[i].name, 8);
+	  strncpy(shortName, ApplXcpEventList[i].name, 8);
 	  fprintf(gA2lFile, "/begin EVENT \"%s\" \"%s\" 0x%X DAQ 0xFF 0x%X 0x%X 0x00 CONSISTENCY DAQ", ApplXcpEventList[i].name, shortName, i, ApplXcpEventList[i].timeCycle, ApplXcpEventList[i].timeUnit );
 #ifdef XCP_ENABLE_PACKED_MODE
 	  if (ApplXcpEventList[i].sampleCount!=0) {
@@ -347,7 +339,7 @@ void A2lCreateMap_(const char* name, int size, uint32_t addr, uint32_t xdim, uin
 		"/begin CHARACTERISTIC %s \"%s\" MAP 0x%X %s 0 NO_COMPU_METHOD %s %s"
 		" /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD  %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR"
 		" /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD  %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR"
-		" PHYS_UNIT \"%s\" /end CHARACTERISTIC",
+		" PHYS_UNIT \"%s\" /end CHARACTERISTIC\n",
 		name, comment, addr, getParType(size), getTypeMin(size), getTypeMax(size), xdim, xdim-1, xdim, ydim, ydim-1, ydim, unit);
 	gA2lParameters++;
 }

@@ -12,6 +12,17 @@
 extern "C" {
 #endif
 
+#define A2L_TYPE_UINT8   1
+#define A2L_TYPE_UINT16  2
+#define A2L_TYPE_UINT32  4
+#define A2L_TYPE_UINT64  10
+#define A2L_TYPE_INT8    -1
+#define A2L_TYPE_INT16   -2
+#define A2L_TYPE_INT32   -4
+#define A2L_TYPE_INT64   -10
+#define A2L_TYPE_DOUBLE  8
+
+
 // Init A2L generation
 extern int A2lInit(const char *filename);
 

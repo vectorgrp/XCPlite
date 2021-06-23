@@ -40,15 +40,13 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
-#define sscanf_s scanf
-#define strncpy_s(a,b,c,d) strncpy(a,c,d)
-#define strcpy_s strcpy
 #define MAX_PATH 256
 
 #endif // Linux
 #ifdef _WIN // Windows
 
 #define WIN32_LEAN_AND_MEAN
+#define _CRT_SECURE_NO_WARNINGS // to simplify Linux and Windows single source
 #include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -97,12 +95,13 @@
 #ifdef _WIN // Windows
 
 #define XCPSIM_DEBUG_LEVEL 1
-//#define XCPSIM_ENABLE_XLAPI_V3
 
 #define XCPSIM_SLAVE_PORT 5555 // Default UDP port
 #define XCPSIM_SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc} // Default slave clock UUID
 #define getA2lSlavePort() XCPSIM_SLAVE_PORT // for A2L generation
 #define XCPSIM_MULTI_THREAD_SLAVE // Receive and transmit in seperate threads
+
+// #define XCPSIM_ENABLE_XLAPI_V3
 
 // XL-API UDP stack parameters
 #ifdef XCPSIM_ENABLE_XLAPI_V3
@@ -133,35 +132,28 @@
 
 //-----------------------------------------------------------------------------------------------------
 
-#ifdef XCPSIM_ENABLE_XLAPI_V3
-#include "vxlapi.h"
-#endif
-
-//-----------------------------------------------------------------------------------------------------
-
-#include "xcpLite.h"
-
-#include "clock.h" 
-
+#include "xcpLite.h" // XCP protocoll layer
+#include "clock.h" // DAQ clock
 #ifdef _WIN 
-#include "udp.h" // UDP stack for Vector XL-API V3 
+  #ifdef XCPSIM_ENABLE_XLAPI_V3
+    #include "vxlapi.h" // Vector XL-API V3
+  #endif
+  #include "udp.h" // UDP stack for Vector XL-API V3 
 #endif
-#include "udpserver.h" // XCP on UDP server
-#include "xcpSlave.h" // XCP on UDP transport layer
-
-#ifdef XCPSIM_ENABLE_A2L_GEN // Enable A2L generator
-#include "A2L.h"
+#include "xcpTl.h" // XCP on UDP transport layer
+#include "xcpSlave.h" // XCP slave
+#ifdef XCPSIM_ENABLE_A2L_GEN 
+#include "A2L.h" // A2L generator
 #endif
-
 #include "ecu.h" // Demo measurement task C
 #include "ecupp.hpp" // Demo measurement task C++
+
+
+//-----------------------------------------------------------------------------------------------------
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-
-//-----------------------------------------------------------------------------------------------------
 
 // Options
 extern volatile unsigned int gDebugLevel;
