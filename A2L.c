@@ -204,11 +204,7 @@ int A2lInit(const char *filename) {
 	gA2lMeasurements = gA2lParameters = gA2lTypedefs = gA2lInstances = gA2lConversions = gA2lComponents = 0;
 	gA2lFilename = filename;
 
-#ifndef _WIN // Linux
 	gA2lFile = fopen(filename, "w");
-#else
-	fopen_s(&gA2lFile,filename, "w");
-#endif
 	if (gA2lFile == 0) {
 		printf("ERROR: Could not create A2L file %s!\n", filename);
 		return 0;
@@ -241,7 +237,7 @@ void A2lHeader(void) {
 #if defined( XCP_ENABLE_DAQ_EVENT_LIST ) && !defined ( XCP_ENABLE_DAQ_EVENT_INFO )
   for (unsigned int i = 0; i < ApplXcpEventCount; i++) {
 	  char shortName[9];
-	  strncpy_s(shortName, 9, ApplXcpEventList[i].name, 8);
+	  strncpy(shortName, ApplXcpEventList[i].name, 8);
 	  fprintf(gA2lFile, "/begin EVENT \"%s\" \"%s\" 0x%X DAQ 0xFF 0x%X 0x%X 0x00 CONSISTENCY DAQ", ApplXcpEventList[i].name, shortName, i, ApplXcpEventList[i].timeCycle, ApplXcpEventList[i].timeUnit );
 #ifdef XCP_ENABLE_PACKED_MODE
 	  if (ApplXcpEventList[i].sampleCount!=0) {

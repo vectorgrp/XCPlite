@@ -40,15 +40,13 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
-#define sscanf_s scanf
-#define strncpy_s(a,b,c,d) strncpy(a,c,d)
-#define strcpy_s strcpy
 #define MAX_PATH 256
 
 #endif // Linux
 #ifdef _WIN // Windows
 
 #define WIN32_LEAN_AND_MEAN
+#define _CRT_SECURE_NO_WARNINGS // to simplify Linux and Windows single source
 #include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
