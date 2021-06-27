@@ -90,34 +90,47 @@ vuint8* ApplXcpGetBaseAddr() {
 
 #ifdef _LINUX64
 
+
+
 vuint8* baseAddr = NULL;
 vuint8 baseAddrValid = FALSE;
 
+static int dump_phdr(struct dl_phdr_info* pinfo, size_t size, void* data)
+{
+  // printf("name=%s (%d segments)\n", pinfo->dlpi_name, pinfo->dlpi_phnum);
+
+  // Application modules has no name
+  if (0 == strlen(pinfo->dlpi_name)) {
+    baseAddr = (vuint8*)pinfo->dlpi_addr;
+  }
+
+  (void)size;
+  (void)data;
+  return 0;
+}
+
 vuint8* ApplXcpGetBaseAddr() {
   
+  if (!baseAddrValid) {
+    dl_iterate_phdr(dump_phdr, NULL);
+    assert(baseAddr!=NULL);
+    baseAddrValid = TRUE;
+    ApplXcpPrint("BaseAddr = %lX\n",(vuint64)baseAddr);
+  }
+
   return baseAddr;
 }
 
 vuint32 ApplXcpGetAddr(vuint8* p)
 {
-  vuint32 a = (vuint64)p & 0xFFFFFFFF;
-  if (baseAddrValid) {
-assert(baseAddr == (vuint8*)((vuint64)p & 0xFFFFFFFF00000000));
-
-} else {
-    baseAddr = (vuint8*)((vuint64)p & 0xFFFFFFFF00000000);
-    baseAddrValid = TRUE;
-    ApplXcpPrint("BaseAddr = %lX\n",(vuint64)baseAddr);
-
-}
-
-return a;
-
+  ApplXcpGetBaseAddr();
+  return p - baseAddr;
 }
 
 vuint8* ApplXcpGetPointer(vuint8 addr_ext, vuint32 addr)
 {
-    return baseAddr + addr;
+  ApplXcpGetBaseAddr();
+  return baseAddr + addr;
 }
 
 
@@ -219,6 +232,7 @@ void ApplXcpInitBaseAddressList()
 
 
 
+
 /**************************************************************************/
 // Calibration page handling
 /**************************************************************************/
@@ -291,7 +305,7 @@ static char gA2LPathname[MAX_PATH+100+4] = "XCPlite.A2L"; // Full path name exte
 vuint8 ApplXcpGetA2LFilename(vuint8** p, vuint32* n, int path) {
 
     // Create a unique A2L file name for this build
-    sprintf(gA2LFilename, "XCPlite-%08X", (vuint32)((vuint64)&gDebugLevel + (vuint64)&channel1)+ gOptionSlavePort); // Generate version specific unique A2L file name
+    sprintf(gA2LFilename, "XCPlite-%08X", ApplXcpGetAddr((vuint8*)&gDebugLevel) + ApplXcpGetAddr((vuint8*)&channel1) + gOptionSlavePort); // Generate version specific unique A2L file name
     sprintf(gA2LPathname, "%s%s.A2L", gOptionA2L_Path, gA2LFilename);
 
 #ifdef XCPSIM_ENABLE_A2L_GEN

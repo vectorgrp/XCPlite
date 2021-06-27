@@ -24,12 +24,15 @@
 #ifdef _LINUX // Linux
 
   #define _LINUX
-  #define _POSIX_C_SOURCE 200809L
-  #include <stdio.h>
-  #include <stdarg.h>
-  #include <string.h>
+  
+  //#define _POSIX_C_SOURCE 200809L
+  //#define _GNU_SOURCE
+  #include <link.h>
   #include <stdlib.h>
+  #include <stdio.h>
+  #include <string.h>
   #include <stdint.h>
+  #include <stdarg.h>
   #include <math.h>
   #include <assert.h>
   #include <errno.h>
