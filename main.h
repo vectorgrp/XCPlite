@@ -23,46 +23,46 @@
 
 #ifdef _LINUX // Linux
 
-#define _LINUX
-#define _POSIX_C_SOURCE 200809L
-#include <stdio.h>
-#include <stdarg.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <math.h>
-#include <assert.h>
-#include <errno.h>
-#include <sys/time.h>
-#include <time.h>
-#include <sys/stat.h>
-#include <pthread.h> 
-#include <sys/socket.h>
-#include <arpa/inet.h>
+  #define _LINUX
+  #define _POSIX_C_SOURCE 200809L
+  #include <stdio.h>
+  #include <stdarg.h>
+  #include <string.h>
+  #include <stdlib.h>
+  #include <stdint.h>
+  #include <math.h>
+  #include <assert.h>
+  #include <errno.h>
+  #include <sys/time.h>
+  #include <time.h>
+  #include <sys/stat.h>
+  #include <pthread.h> 
+  #include <sys/socket.h>
+  #include <arpa/inet.h>
 
-#define MAX_PATH 256
+  #define MAX_PATH 256
 
 #endif // Linux
 #ifdef _WIN // Windows
 
-#define WIN32_LEAN_AND_MEAN
-#define _CRT_SECURE_NO_WARNINGS // to simplify Linux and Windows single source
-#include <windows.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <assert.h>
-#include <time.h>
-#include <conio.h>
-#ifdef __cplusplus
-#include <thread>
-#endif
+  #define WIN32_LEAN_AND_MEAN
+  #define _CRT_SECURE_NO_WARNINGS // to simplify Linux and Windows single source
+  #include <windows.h>
+  #include <stdio.h>
+  #include <stdlib.h>
+  #include <stdint.h>
+  #include <assert.h>
+  #include <time.h>
+  #include <conio.h>
+  #ifdef __cplusplus
+  #include <thread>
+  #endif
 
 
-// Need to link with Ws2_32.lib
-#pragma comment(lib, "ws2_32.lib")
-#include <winsock2.h>
-#include <ws2tcpip.h>
+  // Need to link with Ws2_32.lib
+  #pragma comment(lib, "ws2_32.lib")
+  #include <winsock2.h>
+  #include <ws2tcpip.h>
 
 #endif // Windows
 
@@ -80,54 +80,77 @@
 //#define CLOCK_USE_APP_TIME_US // Use us timestamps relative to application start
 #define CLOCK_USE_UTC_TIME_NS // Use ns timestamps relative to 1.1.1970
 
+#define XCPSIM_DEFAULT_DEBUGLEVEL 1
+
+#define XCPSIM_MULTI_THREAD_SLAVE // Receive and transmit in seperate threads
+
 #ifdef _LINUX // Linux
 
-#define XCPSIM_DEBUG_LEVEL 1
+  #define XCPSIM_SLAVE_PORT 5555 // Default UDP port
+  #define XCPSIM_SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc} // Default slave clock UUID
 
-#define XCPSIM_SLAVE_PORT 5555 // Default UDP port
-#define XCPSIM_SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc} // Default slave clock UUID
-#define getA2lSlaveIP() ("172.31.31.194")  // A2L IP address
-#define getA2lSlavePort() XCPSIM_SLAVE_PORT // for A2L generation
-#define XCPSIM_MULTI_THREAD_SLAVE // Receive and transmit in seperate threads
+  // Option defaults
+  #define XCPSIM_DEFAULT_A2L 1
+  #define XCPSIM_DEFAULT_A2L_PATH "./"
+  #define XCPSIM_DEFAULT_JUMBO 1
+
+  // A2L defaults
+  #ifdef _LINUX64
+    #define getA2lSlaveIP() ("172.31.31.84")  // A2L IP address
+  #else
+   #define getA2lSlaveIP() ("172.31.31.194")  // A2L IP address
+  #endif
+  #define getA2lSlavePort() XCPSIM_SLAVE_PORT // for A2L generation
 
 #endif // Linux
 
 #ifdef _WIN // Windows
 
-#define XCPSIM_DEBUG_LEVEL 1
+  // Option defaults
+  #define XCPSIM_DEFAULT_A2L 1
+  #define XCPSIM_DEFAULT_A2L_PATH "./CANape"
 
-#define XCPSIM_SLAVE_PORT 5555 // Default UDP port
-#define XCPSIM_SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc} // Default slave clock UUID
-#define getA2lSlavePort() XCPSIM_SLAVE_PORT // for A2L generation
-#define XCPSIM_MULTI_THREAD_SLAVE // Receive and transmit in seperate threads
+  #define XCPSIM_SLAVE_PORT 5555 // Default UDP port
+  #define XCPSIM_SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc} // Default slave clock UUID
 
-#define XCPSIM_ENABLE_XLAPI_V3
+  #define XCPSIM_ENABLE_XLAPI_V3
+  #ifdef XCPSIM_ENABLE_XLAPI_V3
 
-// XL-API UDP stack parameters
-#ifdef XCPSIM_ENABLE_XLAPI_V3
+    #define XCPSIM_DEFAULT_JUMBO 0
 
-#define XCPSIM_SLAVE_XL_NET "NET1" // Default V3 Network name
-#define XCPSIM_SLAVE_XL_SEG "SEG1" // Default V3 Segment name
-#define XCPSIM_SLAVE_XL_MAC {0xdc,0xa6,0x32,0x7e,0x66,0xdc} // Default V3 Ethernet Adapter MAC
-#define XCPSIM_SLAVE_XL_IP_S "172.31.31.194" // Default V3 Ethernet Adapter IP as string
-#define XCPSIM_SLAVE_XL_IP {172,31,31,194} // Default V3 Ethernet Adapter IP
-#define getA2lSlaveIP() ((gOptionUseXLAPI)?XCPSIM_SLAVE_XL_IP_S:"127.0.0.1") // A2L IP address
+    // XL-API UDP stack parameters
+    #define XCPSIM_SLAVE_XL_NET "NET1" // Default V3 Network name
+    #define XCPSIM_SLAVE_XL_SEG "SEG1" // Default V3 Segment name
+    #define XCPSIM_SLAVE_XL_MAC {0xdc,0xa6,0x32,0x7e,0x66,0xdc} // Default V3 Ethernet Adapter MAC
+    #define XCPSIM_SLAVE_XL_IP_S "172.31.31.194" // Default V3 Ethernet Adapter IP as string
+    #define XCPSIM_SLAVE_XL_IP {172,31,31,194} // Default V3 Ethernet Adapter IP
 
-// Need to link with vxlapi.lib
-#ifdef _WIN64
-#pragma comment(lib, "vxlapi64.lib")
-#endif
-#ifdef _WIN32
-#pragma comment(lib, "vxlapi.lib")
-#endif
+    // A2L defaults
+    #define getA2lSlavePort() XCPSIM_SLAVE_PORT // for A2L generation
+    #define getA2lSlaveIP() ((gOptionUseXLAPI)?XCPSIM_SLAVE_XL_IP_S:"127.0.0.1") // A2L IP address
 
-#else
+    // Need to link with vxlapi.lib
+    #ifdef _WIN64
+    #pragma comment(lib, "vxlapi64.lib")
+    #endif
+    #ifdef _WIN32
+    #pragma comment(lib, "vxlapi.lib")
+    #endif
 
-#define getA2lSlaveIP() ("127.0.0.1") // A2L IP address
+  #else
 
-#endif
+    #define XCPSIM_DEFAULT_JUMBO 1
+
+    // A2L defaults
+    #define getA2lSlavePort() XCPSIM_SLAVE_PORT // for A2L generation
+    #define getA2lSlaveIP() ("127.0.0.1") // A2L IP address
+
+  #endif
 
 #endif // Windows
+
+
+
 
 
 //-----------------------------------------------------------------------------------------------------

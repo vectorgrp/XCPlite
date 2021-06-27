@@ -284,29 +284,24 @@ vuint16 XcpCreateEvent(const char* name, vuint16 cycleTime /*ms */, vuint16 samp
 #ifdef XCP_ENABLE_A2L_NAME // Enable GET_ID A2L name upload to host
 
 // A2L base name for GET_ID 
-static char gA2LFilename[FILENAME_MAX] = "XCPlite"; // Name without extension
-static char gA2LPathname[MAX_PATH + FILENAME_MAX] = "XCPlite.A2L"; // Full path name extension
+static char gA2LFilename[100] = "XCPlite"; // Name without extension
+static char gA2LPathname[MAX_PATH+100+4] = "XCPlite.A2L"; // Full path name extension
 
 
 vuint8 ApplXcpGetA2LFilename(vuint8** p, vuint32* n, int path) {
 
-    // Create a unique A2L file name for this version. Used for generation and for GET_ID A2L name
-#ifdef _WIN
-    sprintf_s(gA2LFilename, sizeof(gA2LFilename), "XCPlite-%08X", (vuint32)((vuint64)&gDebugLevel + (vuint64)&channel1)+ gOptionSlavePort); // Generate version specific unique A2L file name
-    sprintf_s(gA2LPathname, sizeof(gA2LPathname), "%s%s.A2L", gOptionA2L_Path, gA2LFilename);
+    // Create a unique A2L file name for this build
+    sprintf(gA2LFilename, "XCPlite-%08X", (vuint32)((vuint64)&gDebugLevel + (vuint64)&channel1)+ gOptionSlavePort); // Generate version specific unique A2L file name
+    sprintf(gA2LPathname, "%s%s.A2L", gOptionA2L_Path, gA2LFilename);
 
 #ifdef XCPSIM_ENABLE_A2L_GEN
     // If A2L name ist requested, generate if not exists
-    FILE* f;
-    if (fopen_s(&f, gA2LPathname, "r")) {
-        // Create A2L file if not existing
+    FILE* f = fopen(gA2LPathname, "r");
+    if (f==NULL) {
         createA2L(gA2LPathname);
+    } else {
+        fclose(f);
     }
-    else {
-        if (f != NULL) fclose(f);
-    }
-#endif
-
 #endif
 
     if (path) {

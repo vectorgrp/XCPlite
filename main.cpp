@@ -30,11 +30,12 @@ unsigned char gOptionSlaveAddr[4] = { 127,0,0,1 };
 #endif // _LINUX
 
 
-int gOptionA2L = 0;
-char gOptionA2L_Path[MAX_PATH] = "./";
-int gOptionJumbo = 0;
+int gOptionJumbo = XCPSIM_DEFAULT_JUMBO;
+
+int gOptionA2L = XCPSIM_DEFAULT_A2L;
+char gOptionA2L_Path[MAX_PATH] = XCPSIM_DEFAULT_A2L_PATH;
 uint16_t gOptionSlavePort = XCPSIM_SLAVE_PORT;
-volatile unsigned int gDebugLevel = XCPSIM_DEBUG_LEVEL;
+volatile unsigned int gDebugLevel = XCPSIM_DEFAULT_DEBUGLEVEL;
 
 
 // Create A2L file
@@ -188,7 +189,6 @@ int main(int argc, char* argv[])
         }
         else if (sscanf(argv[i], "-t%c", &c) == 1) {
             gDebugLevel = c - '0';
-            printf("Set screen output verbosity to %u\n", gDebugLevel);
         }
         else if (strcmp(argv[i], "-port") == 0) {
             if (++i < argc) {
@@ -202,17 +202,14 @@ int main(int argc, char* argv[])
             if (i + 1 < argc && argv[i + 1][0] != '-') {
                 strcpy(gOptionA2L_Path, argv[++i]);
             }
-            printf("Generate A2L file at %s\n", gOptionA2L_Path);
         }
         else if (strcmp(argv[i], "-jumbo") == 0) {
-            printf("Enable Jumbo Frames\n");
             gOptionJumbo = TRUE;
         }
 
 #ifdef XCPSIM_ENABLE_XLAPI_V3
         else if (strcmp(argv[i], "-v3") == 0) {
             gOptionUseXLAPI = TRUE;
-            printf("Using XL-API V3\n");
         }
         else if (strcmp(argv[i], "-ip") == 0) {
             if (++i < argc) {
@@ -235,10 +232,16 @@ int main(int argc, char* argv[])
         }
 
     }
+if (gDebugLevel) printf("Set screen output verbosity to %u\n", gDebugLevel);
+if (gOptionJumbo) printf("Using Jumbo Frames\n");
+if (gOptionA2L) printf("Generate A2L file at %s\n", gOptionA2L_Path);
 #ifdef XCPSIM_ENABLE_XLAPI_V3
     if (gOptionUseXLAPI) {
-        printf("WARNING: XLAPI does not support jumbo frames! Jumbo frames disabled!\n");
-        gOptionJumbo = FALSE;
+        printf("Using XL-API V3\n");
+        if (gOptionJumbo) {
+            printf("WARNING: XLAPI does not support jumbo frames! Jumbo frames disabled!\n");
+            gOptionJumbo = FALSE;
+        }
     }
 #endif
     printf("\n");
@@ -262,13 +265,13 @@ int main(int argc, char* argv[])
     ecuppInit();
     
 
-#ifdef _LINUX
-
-    { // Always in Linux Version
-        char* p;
-        ApplXcpGetA2LFilename((vuint8**)&p, NULL, 1);
-        createA2L(p);
+    // Generate A2L file
+    if (gOptionA2L) {
+        ApplXcpGetA2LFilename(NULL, NULL, 0);
     }
+    printf("\n");
+
+#ifdef _LINUX
 
     // Demo threads
     pthread_t t3;
@@ -301,13 +304,6 @@ int main(int argc, char* argv[])
 
 #endif // _LINUX
 #ifdef _WIN
-
-    // Generate A2L file
-    if (gOptionA2L) {
-        ApplXcpGetA2LFilename(NULL, NULL, 0);
-    }
-    printf("\n");
-
 
     // Demo threads
     std::thread t2([]() { ecuTask(0); });
