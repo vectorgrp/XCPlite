@@ -264,6 +264,7 @@ int udpTlHandleXCPCommands(void) {
     tXcpCtoMessage buffer;
     tUdpSockAddr src;
     socklen_t srclen;
+    unsigned int flags = 0;
 
     // Receive a UDP datagramm
     // No no partial messages assumed
@@ -271,7 +272,7 @@ int udpTlHandleXCPCommands(void) {
 #ifdef XCPSIM_ENABLE_XLAPI_V3
     if (gOptionUseXLAPI) {
         srclen = sizeof(src.addrXl);
-        n = udpRecvFrom(gXcpTl.Sock.sockXl, (char*)&buffer, sizeof(buffer), &src.addrXl);
+        n = udpRecvFrom(gXcpTl.Sock.sockXl, (char*)&buffer, sizeof(buffer), &src.addrXl, &flags);
         if (n <= 0) {
             if (n == 0) return 1; // Ok, no command pending
             if (udpRecvWouldBlock()) return 1; // Ok, no command pending
@@ -309,17 +310,19 @@ int udpTlHandleXCPCommands(void) {
 
         /* Connected */
         if (connected) {
-            // Check master ip address, ignore source port
-            assert(gXcpTl.MasterAddrValid);
-            if (memcmp(&gXcpTl.MasterAddr.addr.sin_addr, &src.addr.sin_addr, sizeof(src.addr.sin_addr)) != 0) {
-                printf("WARNING: message from different master ignored\n");
-                return 1; // Ignore
-            }
-            if (gXcpTl.MasterAddr.addr.sin_port != src.addr.sin_port) {
-                printf("WARNING: master port changed from %u to %u, disconnecting!\n", htons(gXcpTl.MasterAddr.addr.sin_port), htons(src.addr.sin_port));
-                XcpDisconnect();
-                gXcpTl.MasterAddrValid = 0;
-                return 1; // Disconnect
+            // Check unicast master ip address and port
+            if (flags & REVC_FLAGS_UNICAST) {
+                assert(gXcpTl.MasterAddrValid);
+                if (memcmp(&gXcpTl.MasterAddr.addr.sin_addr, &src.addr.sin_addr, sizeof(src.addr.sin_addr)) != 0) {
+                    printf("WARNING: message from different master ignored\n");
+                    return 1; // Ignore
+                }
+                if (gXcpTl.MasterAddr.addr.sin_port != src.addr.sin_port) {
+                    printf("WARNING: master port changed from %u to %u, disconnecting!\n", htons(gXcpTl.MasterAddr.addr.sin_port), htons(src.addr.sin_port));
+                    XcpDisconnect();
+                    gXcpTl.MasterAddrValid = 0;
+                    return 1; // Disconnect
+                }
             }
             XcpCommand((const vuint32*)&buffer.data[0]); // Handle command
         }
@@ -355,7 +358,7 @@ int udpTlHandleXCPCommands(void) {
                 // Inititialize the DAQ message queue
                 udpTlInitTransmitQueue(); 
 
-            } // Success 
+            }  
             else { // Is not in connected state
                 gXcpTl.MasterAddrValid = 0; // Any client can connect
             } 
@@ -534,8 +537,6 @@ void udpTlShutdown(void) {
 
 #endif
 #ifdef _WIN 
-
-#include "udp.h"
 
 static HANDLE gEvent = 0;
 

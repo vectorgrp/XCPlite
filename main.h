@@ -101,7 +101,7 @@
 #define getA2lSlavePort() XCPSIM_SLAVE_PORT // for A2L generation
 #define XCPSIM_MULTI_THREAD_SLAVE // Receive and transmit in seperate threads
 
-// #define XCPSIM_ENABLE_XLAPI_V3
+#define XCPSIM_ENABLE_XLAPI_V3
 
 // XL-API UDP stack parameters
 #ifdef XCPSIM_ENABLE_XLAPI_V3
@@ -158,14 +158,14 @@ extern "C" {
 // Options
 extern volatile unsigned int gDebugLevel;
 extern int gOptionJumbo;
-extern uint16_t gOptionsSlavePort;
+extern uint16_t gOptionSlavePort;
 extern int gOptionA2L;
 extern char gOptionA2L_Path[MAX_PATH];
 #ifdef _WIN
 #ifdef XCPSIM_ENABLE_XLAPI_V3
 extern int gOptionUseXLAPI;
-extern char gOptionsXlSlaveNet[32];
-extern char gOptionsXlSlaveSeg[32];
+extern char gOptionXlSlaveNet[32];
+extern char gOptionXlSlaveSeg[32];
 #endif
 #endif // _WIN
 

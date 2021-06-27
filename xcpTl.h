@@ -21,6 +21,11 @@ extern "C" {
 #define udpGetLastError() errno
 
 #define RECV_FLAGS 0 // Blocking receive (no MSG_DONTWAIT)
+
+#define REVC_FLAGS_UNICAST   0x01
+#define REVC_FLAGS_MULTICAST 0x02
+#define REVC_FLAGS_CDC       0x04
+
 #define SENDTO_FLAGS 0 // Blocking transmit (no MSG_DONTWAIT)
 #define SEND_RETRIES 10 // Retry when send CRM would block
 

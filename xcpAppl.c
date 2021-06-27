@@ -292,7 +292,7 @@ vuint8 ApplXcpGetA2LFilename(vuint8** p, vuint32* n, int path) {
 
     // Create a unique A2L file name for this version. Used for generation and for GET_ID A2L name
 #ifdef _WIN
-    sprintf_s(gA2LFilename, sizeof(gA2LFilename), "XCPlite-%08X", (vuint32)((vuint64)&gDebugLevel + (vuint64)&channel1)+ gOptionsSlavePort); // Generate version specific unique A2L file name
+    sprintf_s(gA2LFilename, sizeof(gA2LFilename), "XCPlite-%08X", (vuint32)((vuint64)&gDebugLevel + (vuint64)&channel1)+ gOptionSlavePort); // Generate version specific unique A2L file name
     sprintf_s(gA2LPathname, sizeof(gA2LPathname), "%s%s.A2L", gOptionA2L_Path, gA2LFilename);
 
 #ifdef XCPSIM_ENABLE_A2L_GEN

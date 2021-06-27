@@ -17,23 +17,23 @@
 // Commandline Options amd Defaults
 #ifdef _WIN
 #ifdef XCPSIM_ENABLE_XLAPI_V3
-unsigned char gOptionsSlaveMac[6] = XCPSIM_SLAVE_XL_MAC;
-unsigned char gOptionsSlaveAddr[4] = XCPSIM_SLAVE_XL_IP;
+unsigned char gOptionSlaveMac[6] = XCPSIM_SLAVE_XL_MAC;
+unsigned char gOptionSlaveAddr[4] = XCPSIM_SLAVE_XL_IP;
 int gOptionUseXLAPI = 0; 
-char gOptionsXlSlaveNet[32] = XCPSIM_SLAVE_XL_NET;
-char gOptionsXlSlaveSeg[32] = XCPSIM_SLAVE_XL_SEG;
+char gOptionXlSlaveNet[32] = XCPSIM_SLAVE_XL_NET;
+char gOptionXlSlaveSeg[32] = XCPSIM_SLAVE_XL_SEG;
 #endif
 #endif // _WIN
 #ifdef _LINUX
-unsigned char gOptionsSlaveMac[6] = { 0,0,0,0,0,0 };
-unsigned char gOptionsSlaveAddr[4] = { 127,0,0,1 };
+unsigned char gOptionSlaveMac[6] = { 0,0,0,0,0,0 };
+unsigned char gOptionSlaveAddr[4] = { 127,0,0,1 };
 #endif // _LINUX
 
 
 int gOptionA2L = 0;
 char gOptionA2L_Path[MAX_PATH] = "./";
 int gOptionJumbo = 0;
-uint16_t gOptionsSlavePort = XCPSIM_SLAVE_PORT;
+uint16_t gOptionSlavePort = XCPSIM_SLAVE_PORT;
 volatile unsigned int gDebugLevel = XCPSIM_DEBUG_LEVEL;
 
 
@@ -123,11 +123,12 @@ static void usage(void) {
         "    -jumbo           Enable Jumbo Frames\n"
 
 #ifdef _WIN
+#ifdef XCPSIM_ENABLE_XLAPI_V3
         "    -v3              Use XL-API V3 (default is WINSOCK port 5555)\n"
         "    -net <netname>   V3 network (default: NET1)\n"
         "    -seg <segname>   V3 segment (default: SEG1)\n"
         "    -ip <ipaddr>     V3 socket IP address (default: 172.31.31.194)\n"
-
+#endif
 #endif // _WIN
 
         "\n"
@@ -191,8 +192,8 @@ int main(int argc, char* argv[])
         }
         else if (strcmp(argv[i], "-port") == 0) {
             if (++i < argc) {
-                if (sscanf(argv[i], "%hu", &gOptionsSlavePort) == 1) {
-                    printf("Set port to %u\n", gOptionsSlavePort);
+                if (sscanf(argv[i], "%hu", &gOptionSlavePort) == 1) {
+                    printf("Set port to %u\n", gOptionSlavePort);
                 }
             }
         }
@@ -215,7 +216,7 @@ int main(int argc, char* argv[])
         }
         else if (strcmp(argv[i], "-ip") == 0) {
             if (++i < argc) {
-                if (inet_pton(AF_INET, argv[i], &gOptionsSlaveAddr)) {
+                if (inet_pton(AF_INET, argv[i], &gOptionSlaveAddr)) {
                     printf("Set ip addr to %s\n", argv[i]);
                 }
             }
@@ -223,11 +224,10 @@ int main(int argc, char* argv[])
         else if (strcmp(argv[i], "-net") == 0) {
             gOptionUseXLAPI = TRUE;
             if (i + 1 < argc && argv[i + 1][0] != '-') {
-                strcpy_s(gOptionsXlSlaveNet, argv[++i]);
+                strcpy_s(gOptionXlSlaveNet, argv[++i]);
                 printf("Set net to %s\n", argv[i]);
             }
         }
-
 #endif 
         else {
             usage();
@@ -235,6 +235,12 @@ int main(int argc, char* argv[])
         }
 
     }
+#ifdef XCPSIM_ENABLE_XLAPI_V3
+    if (gOptionUseXLAPI) {
+        printf("WARNING: XLAPI does not support jumbo frames! Jumbo frames disabled!\n");
+        gOptionJumbo = FALSE;
+    }
+#endif
     printf("\n");
 
 
@@ -242,9 +248,9 @@ int main(int argc, char* argv[])
 
     // Initialize the XCP slave
 #ifdef XCPSIM_ENABLE_XLAPI_V3
-    if (!xcpSlaveInit(gOptionsSlaveMac, gOptionsSlaveAddr, gOptionsSlavePort, gOptionJumbo )) return 1;
+    if (!xcpSlaveInit(gOptionSlaveMac, gOptionSlaveAddr, gOptionSlavePort, gOptionJumbo )) return 1;
 #else
-    if (!xcpSlaveInit(NULL, NULL, gOptionsSlavePort, gOptionJumbo)) return 1;
+    if (!xcpSlaveInit(NULL, NULL, gOptionSlavePort, gOptionJumbo)) return 1;
 #endif
 
     // C demo

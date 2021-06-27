@@ -70,7 +70,7 @@ typedef uint8_t  vbool;
 #define XCP_ENABLE_A2L_NAME // Enable GET_ID 1 A2L name upload to host
 
 // XCP V1.4
-//#define XCP_ENABLE_MULTICAST // Enable GET_DAQ_CLOCK_MULTICAST
+#define XCP_ENABLE_MULTICAST // Enable GET_DAQ_CLOCK_MULTICAST
 #define XCP_DAQ_CLOCK_64BIT  // Use 64 Bit time stamps
 //#define XCP_ENABLE_PTP // Enable emulation of PTP synchronized slave DAQ time stamps
 
