@@ -14,28 +14,31 @@
 
 #include "main.h"
 
-// Commandline Options amd Defaults
-#ifdef _WIN
-#ifdef XCPSIM_ENABLE_XLAPI_V3
-unsigned char gOptionSlaveMac[6] = XCPSIM_SLAVE_XL_MAC;
-unsigned char gOptionSlaveAddr[4] = XCPSIM_SLAVE_XL_IP;
-int gOptionUseXLAPI = 0; 
-char gOptionXlSlaveNet[32] = XCPSIM_SLAVE_XL_NET;
-char gOptionXlSlaveSeg[32] = XCPSIM_SLAVE_XL_SEG;
-#endif
-#endif // _WIN
-#ifdef _LINUX
-unsigned char gOptionSlaveMac[6] = { 0,0,0,0,0,0 };
-unsigned char gOptionSlaveAddr[4] = { 127,0,0,1 };
-#endif // _LINUX
 
+ // Commandline Options amd Defaults
 
 int gOptionJumbo = XCPSIM_DEFAULT_JUMBO;
 
 int gOptionA2L = XCPSIM_DEFAULT_A2L;
 char gOptionA2L_Path[MAX_PATH] = XCPSIM_DEFAULT_A2L_PATH;
-uint16_t gOptionSlavePort = XCPSIM_SLAVE_PORT;
+
+uint16_t gOptionSlavePort = XCPSIM_DEFAULT_SLAVE_PORT;
+unsigned char gOptionSlaveAddr[4] = XCPSIM_DEFAULT_SLAVE_IP;
+char gOptionSlaveAddr_s[64] = XCPSIM_DEFAULT_SLAVE_IP_S;
+
 volatile unsigned int gDebugLevel = XCPSIM_DEFAULT_DEBUGLEVEL;
+
+
+#ifdef _WIN
+#ifdef XCPSIM_ENABLE_XLAPI_V3
+int gOptionUseXLAPI = 0;
+unsigned char gOptionSlaveMac[6] = XCPSIM_SLAVE_XL_MAC;
+char gOptionXlSlaveNet[32] = XCPSIM_SLAVE_XL_NET;
+char gOptionXlSlaveSeg[32] = XCPSIM_SLAVE_XL_SEG;
+#endif
+#endif // _WIN
+
+
 
 
 // Create A2L file
@@ -120,6 +123,7 @@ static void usage(void) {
         "  Options:\n"
         "    -tx              Set output verbosity to x (default: 1)\n"
         "    -port <portname> Slave port (default: 5555)\n"
+        "    -ip <ipaddr>     V3 socket IP address (default: 172.31.31.194)\n"
         "    -a2l [path]      Generate A2L file\n"
         "    -jumbo           Enable Jumbo Frames\n"
 
@@ -128,7 +132,6 @@ static void usage(void) {
         "    -v3              Use XL-API V3 (default is WINSOCK port 5555)\n"
         "    -net <netname>   V3 network (default: NET1)\n"
         "    -seg <segname>   V3 segment (default: SEG1)\n"
-        "    -ip <ipaddr>     V3 socket IP address (default: 172.31.31.194)\n"
 #endif
 #endif // _WIN
 
@@ -197,6 +200,14 @@ int main(int argc, char* argv[])
                 }
             }
         }
+        else if (strcmp(argv[i], "-ip") == 0) {
+            if (++i < argc) {
+                if (inet_pton(AF_INET, argv[i], &gOptionSlaveAddr)) {
+                    strcpy(gOptionSlaveAddr_s, argv[i]);
+                    printf("Set ip addr to %s\n", argv[i]);
+                }
+            }
+        }
         else if (strcmp(argv[i], "-a2l") == 0) {
             gOptionA2L = TRUE;
             if (i + 1 < argc && argv[i + 1][0] != '-') {
@@ -210,13 +221,6 @@ int main(int argc, char* argv[])
 #ifdef XCPSIM_ENABLE_XLAPI_V3
         else if (strcmp(argv[i], "-v3") == 0) {
             gOptionUseXLAPI = TRUE;
-        }
-        else if (strcmp(argv[i], "-ip") == 0) {
-            if (++i < argc) {
-                if (inet_pton(AF_INET, argv[i], &gOptionSlaveAddr)) {
-                    printf("Set ip addr to %s\n", argv[i]);
-                }
-            }
         }
         else if (strcmp(argv[i], "-net") == 0) {
             gOptionUseXLAPI = TRUE;

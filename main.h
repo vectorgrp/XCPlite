@@ -82,6 +82,7 @@
 #define XCPSIM_SLAVE_ID          "XCPlite"  /* Slave device identification */
 
 #define XCPSIM_ENABLE_A2L_GEN // Enable A2L generation
+#define XCPSIM_DEFAULT_A2L 1 // Generate A2L on application start
 
 //#define CLOCK_USE_APP_TIME_US // Use us timestamps relative to application start
 #define CLOCK_USE_UTC_TIME_NS // Use ns timestamps relative to 1.1.1970
@@ -90,50 +91,41 @@
 
 #define XCPSIM_MULTI_THREAD_SLAVE // Receive and transmit in seperate threads
 
+#define XCPSIM_DEFAULT_JUMBO 1 // Enable jumbo frames
+
 #ifdef _LINUX // Linux
 
-  #define XCPSIM_SLAVE_PORT 5555 // Default UDP port
-  #define XCPSIM_SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc} // Default slave clock UUID
-
   // Option defaults
-  #define XCPSIM_DEFAULT_A2L 1
   #define XCPSIM_DEFAULT_A2L_PATH "./"
-  #define XCPSIM_DEFAULT_JUMBO 1
 
-  // A2L defaults
   #ifdef _LINUX64
-    #define getA2lSlaveIP() ("172.31.31.84")  // A2L IP address
+    #define XCPSIM_DEFAULT_SLAVE_IP   {172,31,31,84}
+    #define XCPSIM_DEFAULT_SLAVE_IP_S "172.31.31.84"
   #else
-   #define getA2lSlaveIP() ("172.31.31.194")  // A2L IP address
+    #define XCPSIM_DEFAULT_SLAVE_IP   {172,31,31,194}
+    #define XCPSIM_DEFAULT_SLAVE_IP_S "172.31.31.194"
   #endif
-  #define getA2lSlavePort() XCPSIM_SLAVE_PORT // for A2L generation
+  #define XCPSIM_DEFAULT_SLAVE_PORT 5555 // Default UDP port
+
 
 #endif // Linux
 
 #ifdef _WIN // Windows
 
   // Option defaults
-  #define XCPSIM_DEFAULT_A2L 1
   #define XCPSIM_DEFAULT_A2L_PATH ".\\CANape\\"
 
-  #define XCPSIM_SLAVE_PORT 5555 // Default UDP port
-  #define XCPSIM_SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc} // Default slave clock UUID
+  #define XCPSIM_DEFAULT_SLAVE_IP   {127,0,0,1}
+  #define XCPSIM_DEFAULT_SLAVE_IP_S "127.0.0.1"
+  #define XCPSIM_DEFAULT_SLAVE_PORT 5555 // Default UDP port
 
   //#define XCPSIM_ENABLE_XLAPI_V3
   #ifdef XCPSIM_ENABLE_XLAPI_V3
-
-    #define XCPSIM_DEFAULT_JUMBO 0
 
     // XL-API UDP stack parameters
     #define XCPSIM_SLAVE_XL_NET "NET1" // Default V3 Network name
     #define XCPSIM_SLAVE_XL_SEG "SEG1" // Default V3 Segment name
     #define XCPSIM_SLAVE_XL_MAC {0xdc,0xa6,0x32,0x7e,0x66,0xdc} // Default V3 Ethernet Adapter MAC
-    #define XCPSIM_SLAVE_XL_IP_S "172.31.31.194" // Default V3 Ethernet Adapter IP as string
-    #define XCPSIM_SLAVE_XL_IP {172,31,31,194} // Default V3 Ethernet Adapter IP
-
-    // A2L defaults
-    #define getA2lSlavePort() XCPSIM_SLAVE_PORT // for A2L generation
-    #define getA2lSlaveIP() ((gOptionUseXLAPI)?XCPSIM_SLAVE_XL_IP_S:"127.0.0.1") // A2L IP address
 
     // Need to link with vxlapi.lib
     #ifdef _WIN64
@@ -143,20 +135,15 @@
     #pragma comment(lib, "vxlapi.lib")
     #endif
 
-  #else
-
-    #define XCPSIM_DEFAULT_JUMBO 1
-
-    // A2L defaults
-    #define getA2lSlavePort() XCPSIM_SLAVE_PORT // for A2L generation
-    #define getA2lSlaveIP() ("127.0.0.1") // A2L IP address
-
   #endif
 
 #endif // Windows
 
+#define XCPSIM_SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc} // Default slave clock UUID
 
-
+// A2L generation info
+#define getA2lSlaveIP() gOptionSlaveAddr_s // A2L IP address string
+#define getA2lSlavePort() gOptionSlavePort // for A2L generation
 
 
 //-----------------------------------------------------------------------------------------------------
@@ -166,8 +153,8 @@
 #ifdef _WIN 
   #ifdef XCPSIM_ENABLE_XLAPI_V3
     #include "vxlapi.h" // Vector XL-API V3
+    #include "udp.h" // UDP stack for Vector XL-API V3 
   #endif
-  #include "udp.h" // UDP stack for Vector XL-API V3 
 #endif
 #include "xcpTl.h" // XCP on UDP transport layer
 #include "xcpSlave.h" // XCP slave
@@ -188,6 +175,9 @@ extern "C" {
 extern volatile unsigned int gDebugLevel;
 extern int gOptionJumbo;
 extern uint16_t gOptionSlavePort;
+extern unsigned char gOptionSlaveAddr[4];
+extern char gOptionSlaveAddr_s[64];
+
 extern int gOptionA2L;
 extern char gOptionA2L_Path[MAX_PATH];
 #ifdef _WIN
