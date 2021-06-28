@@ -6,6 +6,7 @@
 #ifndef __MAIN_H_
 #define __MAIN_H_
 
+
 // Windows or Linux ?
 #if defined(_WIN32) || defined(_WIN64)
   #define _WIN
@@ -25,9 +26,11 @@
 
   #define _LINUX
   
-  //#define _POSIX_C_SOURCE 200809L
-  //#define _GNU_SOURCE
-  #include <link.h>
+  #define _POSIX_C_SOURCE 200809L
+  #ifdef _LINUX64
+    //#define _GNU_SOURCE
+    #include <link.h>
+  #endif
   #include <stdlib.h>
   #include <stdio.h>
   #include <string.h>
@@ -111,12 +114,12 @@
 
   // Option defaults
   #define XCPSIM_DEFAULT_A2L 1
-  #define XCPSIM_DEFAULT_A2L_PATH "./CANape"
+  #define XCPSIM_DEFAULT_A2L_PATH ".\\CANape\\"
 
   #define XCPSIM_SLAVE_PORT 5555 // Default UDP port
   #define XCPSIM_SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc} // Default slave clock UUID
 
-  #define XCPSIM_ENABLE_XLAPI_V3
+  //#define XCPSIM_ENABLE_XLAPI_V3
   #ifdef XCPSIM_ENABLE_XLAPI_V3
 
     #define XCPSIM_DEFAULT_JUMBO 0

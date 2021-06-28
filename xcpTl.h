@@ -10,48 +10,51 @@
 extern "C" {
 #endif
 
+
 #ifdef _LINUX // Linux sockets
 
-#define SOCKADDR_IN struct sockaddr_in
-#define SOCKADDR struct sockaddr
-#define SOCKET int
+    #define SOCKADDR_IN struct sockaddr_in
+    #define SOCKADDR struct sockaddr
+    #define SOCKET int
 
-#define udpSendtoWouldBlock(r) (errno == EAGAIN)
-#define udpRecvWouldBlock() (errno == EAGAIN)
-#define udpGetLastError() errno
+    #define udpSendtoWouldBlock(r) (errno == EAGAIN)
+    #define udpRecvWouldBlock() (errno == EAGAIN)
+    #define udpGetLastError() errno
 
-#define RECV_FLAGS 0 // Blocking receive (no MSG_DONTWAIT)
+    #define RECV_FLAGS 0 // Blocking receive (no MSG_DONTWAIT)
+
+    #define SENDTO_FLAGS 0 // Blocking transmit (no MSG_DONTWAIT)
+    #define SEND_RETRIES 10 // Retry when send CRM would block
+
+    #define LOCK() pthread_mutex_lock(&gXcpTlMutex)
+    #define UNLOCK() pthread_mutex_unlock(&gXcpTlMutex)
+    #define DESTROY() pthread_mutex_destroy(&gXcpTlMutex)
+
+#endif 
+
+#ifdef _WIN // Windows sockets or XL-API
+
+#ifdef XCPSIM_ENABLE_XLAPI_V3
+        #define udpSendtoWouldBlock(r) (gOptionUseXLAPI ? (r==0) : (WSAGetLastError()==WSAEWOULDBLOCK))
+    #else
+        #define udpSendtoWouldBlock(r) ((WSAGetLastError()==WSAEWOULDBLOCK))
+    #endif
+    #define udpRecvWouldBlock() ((WSAGetLastError()) == WSAEWOULDBLOCK)
+    #define udpGetLastError() (WSAGetLastError())
+
+    #define RECV_FLAGS 0
+    #define SENDTO_FLAGS 0
+    #define SEND_RETRIES 10 // Retry when send CRM would block
+
+    #define LOCK() EnterCriticalSection(&gXcpTl.cs)
+    #define UNLOCK() LeaveCriticalSection(&gXcpTl.cs);
+    #define DESTROY()
+    
+#endif
 
 #define REVC_FLAGS_UNICAST   0x01
 #define REVC_FLAGS_MULTICAST 0x02
 #define REVC_FLAGS_CDC       0x04
-
-#define SENDTO_FLAGS 0 // Blocking transmit (no MSG_DONTWAIT)
-#define SEND_RETRIES 10 // Retry when send CRM would block
-
-#define LOCK() pthread_mutex_lock(&gXcpTlMutex)
-#define UNLOCK() pthread_mutex_unlock(&gXcpTlMutex)
-#define DESTROY() pthread_mutex_destroy(&gXcpTlMutex)
-
-#endif 
-#ifdef _WIN // Windows sockets or XL-API
-#ifdef XCPSIM_ENABLE_XLAPI_V3
-#define udpSendtoWouldBlock(r) (gOptionUseXLAPI ? (r==0) : (WSAGetLastError()==WSAEWOULDBLOCK))
-#else
-#define udpSendtoWouldBlock(r) ((WSAGetLastError()==WSAEWOULDBLOCK))
-#endif
-#define udpRecvWouldBlock() ((WSAGetLastError()) == WSAEWOULDBLOCK)
-#define udpGetLastError() (WSAGetLastError())
-
-#define RECV_FLAGS 0
-#define SENDTO_FLAGS 0
-#define SEND_RETRIES 10 // Retry when send CRM would block
-
-#define LOCK() EnterCriticalSection(&gXcpTl.cs)
-#define UNLOCK() LeaveCriticalSection(&gXcpTl.cs);
-#define DESTROY()
-    
-#endif
 
 typedef struct {
     uint16_t dlc;               /* BYTE 1,2 lenght */
@@ -116,8 +119,6 @@ typedef struct {
 
 } tXcpTlData;
 
-
-
 extern tXcpTlData gXcpTl;
 
 extern int udpTlInit(unsigned char *slaveMac, unsigned char *slaveAddr, uint16_t slavePort, unsigned int slaveMTU);
@@ -133,7 +134,6 @@ extern void udpTlFlushTransmitQueue(void);
 extern int udpTlHandleTransmitQueue(void);
 extern void udpTlInitTransmitQueue(void);
 extern void udpTlWaitForTransmitData(unsigned int timeout_us);
-
 
 #ifdef __cplusplus
 }

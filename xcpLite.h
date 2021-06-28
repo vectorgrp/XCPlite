@@ -372,16 +372,17 @@
 /*-------------------------------------------------------------------------*/
 /* GET_DAQ_RESOLUTION_INFO */
 
-/* TIMESTAMP_MODE */
-#define DAQ_TIMESTAMP_SIZE  0x07
+/* TIMESTAMP_MODE Bitmasks */
+#define DAQ_TIMESTAMP_TYPE  0x07
 #define DAQ_TIMESTAMP_FIXED 0x08
 #define DAQ_TIMESTAMP_UNIT  0xF0
 
-/* DAQ Timestamp Size */
+/* DAQ Timestamp Type */
 #define DAQ_TIMESTAMP_OFF         (0<<0)
 #define DAQ_TIMESTAMP_BYTE        (1<<0)
 #define DAQ_TIMESTAMP_WORD        (2<<0)
 #define DAQ_TIMESTAMP_DWORD       (4<<0)
+#define DAQ_TIMESTAMP_QWORD       (7<<0) // @@@@ XCP V1.6 64 bit DAQ DTO timestamp
 
 /* DAQ Timestamp Unit */
 #define DAQ_TIMESTAMP_UNIT_1NS    (0<<4)
@@ -1461,7 +1462,7 @@ extern void XcpDisconnect(void);
 /* Trigger a XCP data acquisition or stimulation event */
 extern void XcpEvent(vuint16 event); 
 extern void XcpEventExt(vuint16 event, vuint8* base);
-extern void XcpEventAt(vuint16 event, vuint32 clock );
+extern void XcpEventAt(vuint16 event, vuint64 clock );
 
 /* XCP command processor */
 extern void XcpCommand( const vuint32* pCommand );
@@ -1511,10 +1512,12 @@ extern void ApplXcpDaqStop();
 #endif
 
 /* Set cluster id */
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0130
 #if defined ( ApplXcpSetClusterId )
   // defined as macro
 #else
 extern void ApplXcpSetClusterId( vuint16 clusterId );
+#endif
 #endif
 
 /* Get and commit a transmit buffer for a single XCP DTO Packet (for a data transfer message) */

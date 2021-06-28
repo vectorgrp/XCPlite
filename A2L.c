@@ -32,7 +32,8 @@ static const char* gA2lHeader =
 "/begin HEADER \"\" VERSION \"1.0\" /end HEADER\n"
 "/begin MODULE XCPlite \"\"\n"
 "/include \"XCP_104.aml\"\n\n"
-
+"/begin IF_DATA CNP_CREATE_INI /begin TP_BLOB 0x0100 PARAMETER \"canape.ini\" \"$CNP_DVC_SCTN$\" \"TIME_CORR_MULTICAST\" \"0\" /end TP_BLOB /end IF_DATA\n" // CANape option multicast off
+"/begin IF_DATA CNP_CREATE_INI /begin TP_BLOB 0x0100 PARAMETER \"canape.ini\" \"$CNP_DVC_SCTN$\" \"DAQ_COUNTER_HANDLING\" \"0\" /end TP_BLOB /end IF_DATA\n" // CANape option exclude command response
 "/begin MOD_PAR \"\"\n"
 "/begin MEMORY_SEGMENT\n"
 "CALRAM \"\" DATA FLASH INTERN 0x%08X 0x%08X - 1 - 1 - 1 - 1 - 1\n" // CALRAM_START, CALRAM_SIZE
@@ -335,12 +336,22 @@ void A2lCreateParameter_(const char* name, int size, uint32_t addr, const char* 
 
 void A2lCreateMap_(const char* name, int size, uint32_t addr, uint32_t xdim, uint32_t ydim, const char* comment, const char* unit) {
 
-	fprintf(gA2lFile, 
+	fprintf(gA2lFile,
 		"/begin CHARACTERISTIC %s \"%s\" MAP 0x%X %s 0 NO_COMPU_METHOD %s %s"
 		" /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD  %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR"
 		" /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD  %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR"
 		" PHYS_UNIT \"%s\" /end CHARACTERISTIC\n",
-		name, comment, addr, getParType(size), getTypeMin(size), getTypeMax(size), xdim, xdim-1, xdim, ydim, ydim-1, ydim, unit);
+		name, comment, addr, getParType(size), getTypeMin(size), getTypeMax(size), xdim, xdim-1, xdim,  ydim, ydim-1, ydim,  unit);
+	gA2lParameters++;
+}
+
+void A2lCreateCurve_(const char* name, int size, uint32_t addr, uint32_t xdim, const char* comment, const char* unit) {
+
+	fprintf(gA2lFile,
+		"/begin CHARACTERISTIC %s \"%s\" CURVE 0x%X %s 0 NO_COMPU_METHOD %s %s"
+		" /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD  %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR"
+		" PHYS_UNIT \"%s\" /end CHARACTERISTIC\n",
+		name, comment, addr, getParType(size), getTypeMin(size), getTypeMax(size),  xdim, xdim-1, xdim,  unit);
 	gA2lParameters++;
 }
 

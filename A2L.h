@@ -66,9 +66,10 @@ void A2lCreateTypedefInstance_(const char* instanceName, const char* typeName, u
 void A2lCreateParameter_(const char* name, int size, uint32_t addr, const char* comment, const char* unit);
 void A2lCreateParameterWithLimits_(const char* name, int size, uint32_t addr, const char* comment, const char* unit, double min, double max);
 void A2lCreateMap_(const char* name, int size, uint32_t addr, uint32_t xdim, uint32_t ydim, const char* comment, const char* unit);
+void A2lCreateCurve_(const char* name, int size, uint32_t addr, uint32_t xdim, const char* comment, const char* unit);
 #define A2lCreateParameter(name,comment,unit) A2lCreateParameter_(#name,sizeof(name),ApplXcpGetAddr((vuint8*)&name),unit,comment)
 #define A2lCreateParameterWithLimits(name,comment,unit,min,max) A2lCreateParameterWithLimits_(#name,sizeof(name),ApplXcpGetAddr((vuint8*)&name),comment,unit,min,max)
-#define A2lCreateCurve(name,xdim,comment,unit) A2lCreateMap_(#name,sizeof(name[0]),ApplXcpGetAddr((vuint8*)&name),xdim,1,unit,comment)
+#define A2lCreateCurve(name,xdim,comment,unit) A2lCreateCurve_(#name,sizeof(name[0]),ApplXcpGetAddr((vuint8*)&name),xdim,unit,comment)
 #define A2lCreateMap(name,xdim,ydim,comment,unit) A2lCreateMap_(#name,sizeof(name[0][0]),ApplXcpGetAddr((vuint8*)&name),xdim,ydim,unit,comment)
 
 // Create groups

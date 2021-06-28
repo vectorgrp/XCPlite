@@ -48,8 +48,8 @@ typedef uint8_t  vbool;
  // 64 Bit and 32 Bit platform pointer to XCP/A2L address conversions
  // XCP memory access is limited to a 4GB address range
 
- // The XCP addresses for Win32 and Win64 versions of XCPlite are defined as relative to the load address of the main module
- // This allows using Microsoft linker PDB files for address update
+ // The XCP addresses for Win32, Win64 and Linux64 versions of XCPlite are defined as relative to the load address of the main module
+ // This allows using Microsoft linker PDB files or 64 Bit ELF for address update
  // In Microsoft Visual Studio set option "Generate Debug Information" to "optimized for sharing and publishing (/DEBUG:FULL)"
  // In CANape select "Microsoft PDB extented"
 
@@ -89,8 +89,6 @@ vuint8* ApplXcpGetBaseAddr() {
 #endif
 
 #ifdef _LINUX64
-
-
 
 vuint8* baseAddr = NULL;
 vuint8 baseAddrValid = FALSE;

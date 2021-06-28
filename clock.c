@@ -28,7 +28,7 @@ static struct timespec gtr;
 char* clockGetString(char* s, unsigned int cs, uint64_t c) {
 
 #ifdef CLOCK_USE_APP_TIME_US
-    sprintf_s(s, (size_t)cs, "%gs", (double)c / CLOCK_TICKS_PER_S);
+    sprintf(s, "%gs", (double)c / CLOCK_TICKS_PER_S);
 #else
     time_t t = (time_t)(c / CLOCK_TICKS_PER_S); // s since 1.1.1970
     struct tm tm;
@@ -106,13 +106,13 @@ static uint64_t sOffset = 0; // offset
 char *clockGetString(char* s, unsigned int cs, uint64_t c) {
 
 #ifdef CLOCK_USE_APP_TIME_US
-    sprintf_s(s, (size_t)cs, "%gs", (double)c / CLOCK_TICKS_PER_S);
+    sprintf(s, "%gs", (double)c / CLOCK_TICKS_PER_S);
 #else
     time_t t = c / CLOCK_TICKS_PER_S; // s
     struct tm tm;
     gmtime_s(&tm, &t);
     int64_t fs = c % CLOCK_TICKS_PER_S; 
-    sprintf_s(s, (size_t)cs, "%u.%u.%u %02u:%02u:%02u +%llu", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec, fs);
+    sprintf(s, "%u.%u.%u %02u:%02u:%02u +%llu", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec, fs);
 #endif
     return s;
 }
@@ -163,12 +163,13 @@ int clockInit(void) {
     getClock64();
 
     if (gDebugLevel >= 1) {
+#ifndef CLOCK_USE_APP_TIME_US
         struct tm tm;
         _gmtime64_s(&tm, &t);
         printf("Init clock \n");
         printf("  UTC time = %llus since 1.1.1970 ", t);
         printf("  %u.%u.%u %u:%u:%u\n", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec);
-
+#endif
        uint64_t t1, t2;
        char s[64];
        t1 = getClock64();

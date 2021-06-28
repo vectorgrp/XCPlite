@@ -172,9 +172,9 @@ vuint8  XcpAllocMemory( void )
   vuint32 s;
   
   /* Check memory overflow */
-  s = ( gXcp.Daq.DaqCount * sizeof(tXcpDaqList ) + 
-      ( gXcp.Daq.OdtCount *sizeof(tXcpOdt) ) + 
-      ( gXcp.Daq.OdtEntryCount * ( sizeof(vuint8*) + sizeof(vuint8) ) ) );
+  s = ( gXcp.Daq.DaqCount * (vuint32)sizeof(tXcpDaqList ) + 
+      ( gXcp.Daq.OdtCount * (vuint32)sizeof(tXcpOdt) ) +
+      ( gXcp.Daq.OdtEntryCount * ((vuint32)sizeof(vuint8*) + (vuint32)sizeof(vuint8) ) ) );
   
   if (s>=XCP_DAQ_MEM_SIZE) return CRC_MEMORY_OVERFLOW;
   
@@ -376,7 +376,7 @@ void  XcpStopAllDaq( void )
 
 // Measurement data acquisition, sample and transmit measurement date associated to event
 
-static void XcpEvent_(unsigned int event, vuint8* base, unsigned int clock)
+static void XcpEvent_(vuint16 event, vuint8* base, vuint64 clock)
 {
   vuint8* d;
   vuint8* d0;
@@ -393,7 +393,7 @@ static void XcpEvent_(unsigned int event, vuint8* base, unsigned int clock)
 #ifdef XCP_ENABLE_PACKED_MODE
       sc = DaqListSampleCount(daq); // Packed mode sample count, 0 if not packed
 #endif
-      for (hs=6,odt=DaqListFirstOdt(daq);odt<=DaqListLastOdt(daq);hs=2,odt++)  { 
+      for (hs=2+XCP_TIMESTAMP_SIZE,odt=DaqListFirstOdt(daq);odt<=DaqListLastOdt(daq);hs=2,odt++)  { 
                       
         // Get DTO buffer, overrun if not available
         if ((d0 = ApplXcpGetDtoBuffer(&p0, DaqListOdtSize(odt)+hs)) == 0) {
@@ -416,9 +416,11 @@ static void XcpEvent_(unsigned int event, vuint8* base, unsigned int clock)
         }
   
         /* Timestamp */
-        if (hs==6)  {
-            *((vuint32*)&d0[2]) = clock;
-        }
+#if (XCP_TIMESTAMP_SIZE==8) // @@@@ XCP V1.6
+        if (hs==10) *((vuint64*)&d0[2]) = clock;
+#else
+        if (hs==6) *((vuint32*)&d0[2]) = (vuint32)clock;
+#endif
 
         /* Copy data */
         /* This is the inner loop, optimize here */
@@ -446,19 +448,19 @@ static void XcpEvent_(unsigned int event, vuint8* base, unsigned int clock)
   
 }
 
-void XcpEventAt(vuint16 event, vuint32 clock) {
+void XcpEventAt(vuint16 event, vuint64 clock) {
     if ((gXcp.SessionStatus & (vuint8)SS_DAQ) == 0) return; // DAQ not running
     XcpEvent_(event, ApplXcpGetBaseAddr(), clock);
 }
 
 void XcpEventExt(vuint16 event, vuint8* base) {
     if ((gXcp.SessionStatus & (vuint8)SS_DAQ) == 0) return; // DAQ not running
-    XcpEvent_(event, base, ApplXcpGetClock());
+    XcpEvent_(event, base, ApplXcpGetClock64());
 }
 
 void XcpEvent(vuint16 event) {
     if ((gXcp.SessionStatus & (vuint8)SS_DAQ) == 0) return; // DAQ not running
-    XcpEvent_(event, ApplXcpGetBaseAddr(), ApplXcpGetClock());
+    XcpEvent_(event, ApplXcpGetBaseAddr(), ApplXcpGetClock64());
 }
 
 /****************************************************************************/
@@ -702,7 +704,11 @@ void  XcpCommand( const vuint32* pCommand )
                 CRM_GET_DAQ_RESOLUTION_INFO_GRANULARITY_STIM = 1;
                 CRM_GET_DAQ_RESOLUTION_INFO_MAX_SIZE_DAQ  = (vuint8)XCP_MAX_ODT_ENTRY_SIZE;
                 CRM_GET_DAQ_RESOLUTION_INFO_MAX_SIZE_STIM = (vuint8)XCP_MAX_ODT_ENTRY_SIZE;
-                CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_MODE = XCP_TIMESTAMP_UNIT | DAQ_TIMESTAMP_FIXED | (vuint8)sizeof(vuint32);
+#if (XCP_TIMESTAMP_SIZE==8) // @@@@ XCP V1.6
+                CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_MODE = XCP_TIMESTAMP_UNIT | DAQ_TIMESTAMP_FIXED | DAQ_TIMESTAMP_QWORD;
+#else
+                CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_MODE = XCP_TIMESTAMP_UNIT | DAQ_TIMESTAMP_FIXED | DAQ_TIMESTAMP_DWORD;
+#endif
                 CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_TICKS = (XCP_TIMESTAMP_TICKS);  
               }
               break;
@@ -948,7 +954,8 @@ void  XcpCommand( const vuint32* pCommand )
             break; 
 #endif
 
-          case CC_TRANSPORT_LAYER_CMD:
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0130
+            case CC_TRANSPORT_LAYER_CMD:
 
               switch (CRO_TL_SUBCOMMAND) {
 
@@ -975,9 +982,11 @@ void  XcpCommand( const vuint32* pCommand )
                   error(CRC_CMD_UNKNOWN);
               }
               break;
+#endif
 
           case CC_GET_DAQ_CLOCK:
           {
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0130
               CRM_GET_DAQ_CLOCK_RES1 = 0x00; // Placeholder for event code
               CRM_GET_DAQ_CLOCK_TRIGGER_INFO = 0x18; // TIME_OF_SAMPLING (Bitmask 0x18, 3 - Sampled on reception) 
 #ifdef XCP_ENABLE_MULTICAST
@@ -1004,6 +1013,10 @@ void  XcpCommand( const vuint32* pCommand )
                   CRM_GET_DAQ_CLOCK_SYNC_STATE = 1;
 #endif
               }
+#else
+              gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN;
+              CRM_GET_DAQ_CLOCK_TIME = ApplXcpGetClock();
+#endif
           }
           break; 
 
@@ -1287,9 +1300,11 @@ static void  XcpPrintCmd(const tXcpCto * pCmd) {
             }
             break;
 
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0130
      case CC_TIME_CORRELATION_PROPERTIES:
          ApplXcpPrint("GET_TIME_CORRELATION_PROPERTIES set=%02Xh, request=%u, clusterId=%u\n", CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES, CRO_TIME_SYNC_PROPERTIES_GET_PROPERTIES_REQUEST, CRO_TIME_SYNC_PROPERTIES_CLUSTER_ID );
          break;
+#endif
 
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0140
      case CC_LEVEL_1_COMMAND:
@@ -1419,6 +1434,7 @@ static void  XcpPrintRes(const tXcpCto* pCmd) {
 #endif
             break;
 
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0130
         case CC_GET_DAQ_CLOCK:
         getDaqClockMulticast:
             if (ApplXcpDebugLevel >= 2) {
@@ -1446,6 +1462,7 @@ static void  XcpPrintRes(const tXcpCto* pCmd) {
             ApplXcpPrint("<- config=%02Xh, clocks=%02Xh, state=%02Xh, info=%02Xh, clusterId=%u\n", 
                 CRM_TIME_SYNC_PROPERTIES_SLAVE_CONFIG, CRM_TIME_SYNC_PROPERTIES_OBSERVABLE_CLOCKS, CRM_TIME_SYNC_PROPERTIES_SYNC_STATE, CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO, CRM_TIME_SYNC_PROPERTIES_CLUSTER_ID );
             break;
+#endif
 
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0140
         case CC_LEVEL_1_COMMAND:
@@ -1470,10 +1487,12 @@ static void  XcpPrintRes(const tXcpCto* pCmd) {
 
         case CC_TRANSPORT_LAYER_CMD:
             switch (CRO_TL_SUBCOMMAND) {
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0130
             case CC_TL_GET_DAQ_CLOCK_MULTICAST:
                 goto getDaqClockMulticast;
             case CC_TL_GET_SLAVE_ID:
                 break;
+#endif
             }
             break;
 
