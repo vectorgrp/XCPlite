@@ -1473,6 +1473,7 @@ extern void XcpSendEvent(vuint8 evc, const vuint8* d, vuint8 l);
 /* Check status */
 extern vuint8 XcpIsConnected(void);
 extern vuint8 XcpIsDaqRunning(void);
+extern vuint8 XcpIsDaqPacked(void);
 
 
 /*-----------------------------------------------------------------------------------*/

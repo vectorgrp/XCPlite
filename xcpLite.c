@@ -93,8 +93,8 @@ tXcpData gXcp;
 #define error(e) { err=(e); goto negative_response; }
 #define check_error(e) { err=(e); if (err!=0) { goto negative_response; } }
 
-#define isConnected() (gXcp.SessionStatus& SS_CONNECTED)
-#define isDaqRunning() (gXcp.SessionStatus& SS_DAQ)
+#define isConnected() (gXcp.SessionStatus & SS_CONNECTED)
+#define isDaqRunning() (gXcp.SessionStatus & SS_DAQ)
 
 
 
@@ -108,6 +108,15 @@ vuint8 XcpIsConnected(void) {
 
 vuint8 XcpIsDaqRunning(void) {
     return isDaqRunning();
+}
+
+vuint8 XcpIsDaqPacked(void) {
+#ifdef XCP_ENABLE_PACKED_MODE
+    for (vuint16 daq = 0; daq < gXcp.Daq.DaqCount; daq++) {
+        if (DaqListSampleCount(daq) > 1) return 1;
+    }
+#endif
+    return 0;
 }
 
 

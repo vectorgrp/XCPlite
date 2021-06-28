@@ -72,7 +72,6 @@ typedef uint8_t  vbool;
 // XCP V1.3 only
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0130
   #define XCP_ENABLE_MULTICAST // Enable GET_DAQ_CLOCK_MULTICAST
-  #define XCP_DAQ_CLOCK_64BIT  // Use 64 Bit time stamps
   //#define XCP_ENABLE_PTP // Enable emulation of PTP synchronized slave DAQ time stamps
 #endif
 
@@ -89,18 +88,20 @@ typedef uint8_t  vbool;
 // Some masters might have problems with ns timestamp, because overflow of 32 bit DAQ timestamp is every 4.3 s
 
 #ifdef CLOCK_USE_APP_TIME_US // Use us timestamps relative to application start
+//#define XCP_DAQ_CLOCK_64BIT  // Use 64 Bit time stamps in GET_DAQ_CLOCK
 #define XCP_TIMESTAMP_SIZE 4 // size of DAQ timestamp in DTO message
 #define XCP_TIMESTAMP_UNIT DAQ_TIMESTAMP_UNIT_1US // unit DAQ_TIMESTAMP_UNIT_xxx
 #define XCP_TIMESTAMP_TICKS 1  // ticks per unit
-#define XCP_TIMESTAMP_TICKS_S 1000000 // ticks per s
 #endif
 
 #ifdef CLOCK_USE_UTC_TIME_NS // Use ns timestamps relative to 1.1.1970
-#define XCP_TIMESTAMP_SIZE 4 // size of DAQ timestamp in DTO message
+#define XCP_DAQ_CLOCK_64BIT  // Use 64 Bit time stamps in GET_DAQ_CLOCK
+#define XCP_TIMESTAMP_SIZE 4 // Use 32 Bit time stamps in DAQ DTO
 #define XCP_TIMESTAMP_UNIT DAQ_TIMESTAMP_UNIT_1NS // unit DAQ_TIMESTAMP_UNIT_xxx
 #define XCP_TIMESTAMP_TICKS 1  // ticks per unit
-#define XCP_TIMESTAMP_TICKS_S 1000000000 // ticks per s
 #endif
+
+#define XCP_TIMESTAMP_TICKS_S CLOCK_TICKS_PER_S // ticks per s (for debug output)
 
 #endif
 
