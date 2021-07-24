@@ -80,7 +80,7 @@ vuint8* ApplXcpGetBaseAddr() {
         baseAddr = (vuint8*)GetModuleHandle(NULL);
         baseAddrValid = TRUE;
 #if defined ( XCP_ENABLE_TESTMODE )
-        if (gDebugLevel >= 1) ApplXcpPrint("  ApplXcpGetBaseAddr() = 0x%I64X\n", (vuint64)baseAddr);
+        if (gDebugLevel >= 1) ApplXcpPrint("ApplXcpGetBaseAddr() = 0x%I64X\n", (vuint64)baseAddr);
 #endif
     }
     return baseAddr;
@@ -89,6 +89,8 @@ vuint8* ApplXcpGetBaseAddr() {
 #endif
 
 #ifdef _LINUX64
+
+
 
 vuint8* baseAddr = NULL;
 vuint8 baseAddrValid = FALSE;
@@ -300,22 +302,12 @@ static char gA2LFilename[100] = "XCPlite"; // Name without extension
 static char gA2LPathname[MAX_PATH+100+4] = "XCPlite.A2L"; // Full path name extension
 
 
-vuint8 ApplXcpGetA2LFilename(vuint8** p, vuint32* n, int path) {
+vuint8 ApplXcpGetA2LFilename(char** p, vuint32* n, int path) {
 
     // Create a unique A2L file name for this build
-    sprintf(gA2LFilename, "XCPlite-%08X", ApplXcpGetAddr((vuint8*)&gDebugLevel) + ApplXcpGetAddr((vuint8*)&channel1) + gOptionSlavePort); // Generate version specific unique A2L file name
+    sprintf(gA2LFilename, "XCPsim-%08X-%u", ApplXcpGetAddr((vuint8*)&gDebugLevel) + ApplXcpGetAddr((vuint8*)&channel1),gOptionSlavePort); // Generate version specific unique A2L file name
     sprintf(gA2LPathname, "%s%s.A2L", gOptionA2L_Path, gA2LFilename);
-
-#ifdef XCPSIM_ENABLE_A2L_GEN
-    // If A2L name ist requested, generate if not exists
-    FILE* f = fopen(gA2LPathname, "r");
-    if (f==NULL) {
-        createA2L(gA2LPathname);
-    } else {
-        fclose(f);
-    }
-#endif
-
+    
     if (path) {
         if (p != NULL) *p = (vuint8*)gA2LPathname;
         if (n != NULL) *n = (vuint32)strlen(gA2LPathname);
@@ -332,63 +324,59 @@ vuint8 ApplXcpGetA2LFilename(vuint8** p, vuint32* n, int path) {
 
 #ifdef XCP_ENABLE_A2L_UPLOAD // Enable GET_ID A2L content upload to host
 
-static vuint8* gXcpA2L = NULL; // A2L file content
-static vuint32 gXcpA2LLength = 0; // A2L file length
-
-vuint8 ApplXcpReadA2LFile(vuint8** p, vuint32* n) {
-
-    if (gXcpA2L == NULL) {
-
+static vuint8* gXcpFile = NULL; // file content
+static vuint32 gXcpFileLength = 0; // file length
 #ifdef _WIN
-#ifdef XCPSIM_ENABLE_A2L_GEN
-        ApplXcpGetA2LFilename(NULL,NULL,0); // Generate if not yet exists
+static HANDLE hFile, hFileMapping;
 #endif
-#endif
+
+vuint8 ApplXcpReadFile(vuint8 type, vuint8** p, vuint32* n) {
+
+    char* filename = gA2LPathname;
 
 #if defined ( XCP_ENABLE_TESTMODE )
-        if (gDebugLevel >= 1) ApplXcpPrint("Load A2L %s\n", gA2LPathname);
+        if (gDebugLevel >= 1) ApplXcpPrint("Load %s\n", filename);
 #endif
 
 #ifdef _LINUX // Linux
+        if (gXcpFile) free(gXcpFile);
         FILE* fd;
-        fd = fopen(gA2LPathname, "r");
+        fd = fopen(filename, "r");
         if (fd == NULL) {
-            ApplXcpPrint("A2L file %s not found! Use -a2l to generate\n", gA2LPathname);
+            ApplXcpPrint("ERROR: file %s not found!\n", filename);
             return 0;
         }
         struct stat fdstat;
-        stat(gA2LPathname, &fdstat);
-        gXcpA2L = (vuint8*)malloc((size_t)(fdstat.st_size + 1));
-        gXcpA2LLength = fread(gXcpA2L, sizeof(char), (size_t)fdstat.st_size, fd);
+        stat(filename, &fdstat);
+        gXcpFile = (vuint8*)malloc((size_t)(fdstat.st_size + 1));
+        gXcpFileLength = (vuint32)fread(gXcpFile, 1, (uint32_t)fdstat.st_size, fd);
         fclose(fd);
-
-        //free(gXcpA2L);
 #else
-        HANDLE hFile, hFileMapping;
-        wchar_t filename[256] = { 0 };
-        MultiByteToWideChar(0, 0, gA2LPathname, (int)strlen(gA2LPathname), filename, (int)strlen(gA2LPathname));
-        hFile = CreateFile(filename, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        wchar_t wcfilename[256] = { 0 };
+        if (gXcpFile) {
+            UnmapViewOfFile(gXcpFile);
+            CloseHandle(hFileMapping);
+            CloseHandle(hFile);
+        }
+        MultiByteToWideChar(0, 0, filename, (int)strlen(filename), wcfilename, (int)strlen(filename));
+        hFile = CreateFile(wcfilename, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
         if (hFile == INVALID_HANDLE_VALUE) {
-            ApplXcpPrint("A2L file %s not found! Use -a2l to generate\n", gA2LPathname);
+            ApplXcpPrint("file %s not found!\n", filename);
             return 0;
         }
-        gXcpA2LLength = GetFileSize(hFile, NULL)-2;
-        hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, gXcpA2LLength, NULL);
+        gXcpFileLength = (vuint32)GetFileSize(hFile, NULL)-2;
+        hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, gXcpFileLength, NULL);
         if (hFileMapping == NULL) return 0;
-        gXcpA2L = MapViewOfFile(hFileMapping, FILE_MAP_READ, 0, 0, 0);
-        if (gXcpA2L == NULL) return 0;
-
-        //UnmapViewOfFile(gXcpA2L);
-        //CloseHandle(hFileMapping);
-        //CloseHandle(hFile);
+        gXcpFile = MapViewOfFile(hFileMapping, FILE_MAP_READ, 0, 0, 0);
+        if (gXcpFile == NULL) return 0;
 #endif
 #if defined ( XCP_ENABLE_TESTMODE )
-            if (gDebugLevel >= 1) ApplXcpPrint("  A2L file ready for upload, size=%u, mta=%p\n\n", gXcpA2LLength, gXcpA2L);
+            if (gDebugLevel >= 1) ApplXcpPrint("  file %s ready for upload, size=%u, mta=%p\n\n", filename, gXcpFileLength, gXcpFile);
 #endif
         
-    }
-    *n = gXcpA2LLength;
-    *p = gXcpA2L;
+    
+    *n = gXcpFileLength;
+    *p = gXcpFile;
     return 1;
 }
 

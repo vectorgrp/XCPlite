@@ -236,7 +236,7 @@ void ecuCreateA2lDescription(void) {
 
        
     A2lSetEvent(gXcpEvent_EcuCyclic); // Associate XCP event "EcuCyclic" to the variables created below
-    A2lCreateMeasurement(ecuCounter);
+    A2lCreateMeasurement(ecuCounter,"");
     A2lCreatePhysMeasurement(channel1, "Demo signal 1", 1.0, 0.0, "");
     A2lCreatePhysMeasurement(channel2, "Demo signal 2", 1.0, 0.0, "");
     A2lCreatePhysMeasurement(channel3, "Demo signal 3", 1.0, 0.0, "");
@@ -244,12 +244,12 @@ void ecuCreateA2lDescription(void) {
     A2lCreatePhysMeasurement(channel5, "Demo signal 5", 1.0, 0.0, "");
     A2lCreatePhysMeasurement(channel6, "Demo signal 6", 1.0, 0.0, "");
 
-    A2lCreateMeasurement(byteCounter);
-    A2lCreateMeasurement(wordCounter);
-    A2lCreateMeasurement(dwordCounter);
-    A2lCreateMeasurement_s(sbyteCounter);
-    A2lCreateMeasurement_s(swordCounter);
-    A2lCreateMeasurement_s(sdwordCounter);
+    A2lCreateMeasurement(byteCounter, "");
+    A2lCreateMeasurement(wordCounter, "");
+    A2lCreateMeasurement(dwordCounter, "");
+    A2lCreateMeasurement_s(sbyteCounter, "");
+    A2lCreateMeasurement_s(swordCounter, "");
+    A2lCreateMeasurement_s(sdwordCounter, "");
 
     A2lMeasurementGroup("EcuTaskSignals", 13, 
         "ecuCounter", "channel1", "channel2", "channel3", "channel4", "channel5", "channel6", "byteCounter", "wordCounter", "dwordCounter", "sbyteCounter", "swordCounter", "sdwordCounter");

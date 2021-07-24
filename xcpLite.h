@@ -111,13 +111,13 @@
 
 /*-------------------------------------------------------------------------*/
 /* XCP >= V1.3 Commands */
-#if XCP_PROTOCOL_LAYER_VERSION >= 0x0130
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
 # define CC_TIME_CORRELATION_PROPERTIES   0xC6 /* XCP V1.3 specific commands */
 #endif
 
 /*-------------------------------------------------------------------------*/
 /* XCP >= V1.4 Commands */
-#if XCP_PROTOCOL_LAYER_VERSION >= 0x0140
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0104
 #define CC_LEVEL_1_COMMAND                0xC0 /* XCP V1.4 Level 1 Commands: */
 #define CC_GET_VERSION                    0x00  
 #define CC_SET_DAQ_LIST_PACKED_MODE       0x01
@@ -248,6 +248,9 @@
 #define IDT_ASAM_EPK           5
 #define IDT_ASAM_ECU           6
 #define IDT_ASAM_SYSID         7
+
+#define IDT_VECTOR_MDI         0xDC
+#define IDT_VECTOR_MAPNAMES    0xDB
 
 /*-------------------------------------------------------------------------*/
 /* Checksum Types (BUILD_CHECKSUM) */
@@ -749,7 +752,7 @@
 /* GET_DAQ_CLOCK */
 #define CRO_GET_DAQ_CLOCK_LEN                           1
 #define CRM_GET_DAQ_CLOCK_LEN                           8
-#if XCP_PROTOCOL_LAYER_VERSION >= 0x0130
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
 #define CRM_GET_DAQ_CLOCK_RES1                          CRM_BYTE(1)
 #define CRM_GET_DAQ_CLOCK_TRIGGER_INFO                  CRM_BYTE(2)
 #define CRM_GET_DAQ_CLOCK_PAYLOAD_FMT                   CRM_BYTE(3)
@@ -760,6 +763,17 @@
 #else
 #define CRM_GET_DAQ_CLOCK_TIME                          CRM_DWORD(1)
 #endif
+
+/* GET_DAQ_CLOCK_MULTICAST */
+#define CRO_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER          CRO_WORD(1)
+#define CRO_DAQ_CLOCK_MCAST_COUNTER                     CRO_BYTE(4)
+#define CRM_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER          CRM_WORD(4)
+#define CRM_DAQ_CLOCK_MCAST_COUNTER                     CRM_BYTE(10)
+#define CRM_DAQ_CLOCK_MCAST_SYNC_STATE                  CRM_BYTE(11)
+#define CRM_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER64        CRM_WORD(6)
+#define CRM_DAQ_CLOCK_MCAST_COUNTER64                   CRM_BYTE(14)
+#define CRM_DAQ_CLOCK_MCAST_SYNC_STATE64                CRM_BYTE(15)
+
 
 /* READ_DAQ */
 #define CRO_READ_DAQ_LEN                                1
@@ -805,7 +819,7 @@
 /* GET_DAQ_EVENT_INFO */
 #define CRO_GET_DAQ_EVENT_INFO_LEN                      4
 #define CRO_GET_DAQ_EVENT_INFO_EVENT                    CRO_WORD(1)
-#if XCP_PROTOCOL_LAYER_VERSION >= 0x0160
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0106
 #define CRM_GET_DAQ_EVENT_INFO_LEN                      12
 #else
 #define CRM_GET_DAQ_EVENT_INFO_LEN                      7
@@ -1169,11 +1183,6 @@
 #define TL_SLV_DETECT_STATUS_SLV_ID_EXT_RADAR_DATA          (1<<0)
 #define TL_SLV_DETECT_STATUS_SLV_ID_EXT_XCP_ON_PCIE         (1<<1)
 
-/* GET_DAQ_CLOCK_MULTICAST */
-#define CRO_TL_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER             CRO_WORD(1)
-#define CRO_TL_DAQ_CLOCK_MCAST_COUNTER                        CRO_BYTE(4)
-
-
 
 
 /****************************************************************************/
@@ -1379,7 +1388,8 @@ typedef struct _T_CLOCK_INFORMATION {
     vuint64     valueBeforeWrapAround;
 } T_CLOCK_INFORMATION;
 
-#ifdef XCP_ENABLE_PTP
+
+#ifdef XCP_ENABLE_PTP_GRANDMASTER
 
 typedef struct _T_CLOCK_INFORMATION_GRANDM {
     vuint8     UUID[8];
@@ -1431,11 +1441,11 @@ typedef struct {
     vuint16 WriteDaqOdt;
     vuint16 WriteDaqDaq;
 
-#if XCP_PROTOCOL_LAYER_VERSION >= 0x0130
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
     vuint16 ClusterId;
     T_CLOCK_INFORMATION SlaveClockInfo;
 
-#ifdef XCP_ENABLE_PTP
+#ifdef XCP_ENABLE_PTP_GRANDMASTER
   T_CLOCK_INFORMATION_GRANDM GrandmasterClockInfo;
   T_CLOCK_RELATION SlvGrandmClkRelationInfo;
 
@@ -1457,7 +1467,7 @@ extern "C" {
 
 /* Initialization for the XCP Protocol Layer */
 extern void XcpInit( void );
-extern void XcpDisconnect(void);
+extern void XcpDisconnect();
 
 /* Trigger a XCP data acquisition or stimulation event */
 extern void XcpEvent(vuint16 event); 
@@ -1471,10 +1481,19 @@ extern void XcpCommand( const vuint32* pCommand );
 extern void XcpSendEvent(vuint8 evc, const vuint8* d, vuint8 l);
 
 /* Check status */
-extern vuint8 XcpIsConnected(void);
-extern vuint8 XcpIsDaqRunning(void);
-extern vuint8 XcpIsDaqPacked(void);
+extern vuint8 XcpIsConnected();
+extern vuint8 XcpIsDaqRunning();
+extern vuint8 XcpIsDaqPacked();
 
+/* Time synchronisation */
+extern vuint16 XcpGetClusterId();
+
+#define XCP_EPOCH_TAI 0 // Atomic Time(TAI)
+#define XCP_EPOCH_UTC 1 // Universal Coordinated Time(UTC)
+#define XCP_EPOCH_ARB 2 // arbitrary(unknown)
+#define XCP_STRATUM_LEVEL_UNKNOWN 255
+#define XCP_STRATUM_LEVEL_GPS     0
+extern void XcpSetGrandmasterClockInfo(uint8_t* id, uint8_t epoch, uint8_t stratumLevel);
 
 /*-----------------------------------------------------------------------------------*/
 /* Functions or Macros that have to be provided externally to the XCP Protocol Layer */
@@ -1489,6 +1508,13 @@ extern vuint8 XcpIsDaqPacked(void);
   // defined as macro
 #else
 extern void ApplXcpSendCrm(vuint8 len, const vuint8* msg);
+#endif
+
+/* Prepare data acquisition */
+#if defined ( ApplXcpPrepareDaq )
+  // defined as macro
+#else
+extern void ApplXcpPrepareDaq();
 #endif
 
 /* Prepare start of data acquisition */
@@ -1513,13 +1539,14 @@ extern void ApplXcpDaqStop();
 #endif
 
 /* Set cluster id */
-#if XCP_PROTOCOL_LAYER_VERSION >= 0x0130
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
 #if defined ( ApplXcpSetClusterId )
   // defined as macro
 #else
 extern void ApplXcpSetClusterId( vuint16 clusterId );
 #endif
 #endif
+
 
 /* Get and commit a transmit buffer for a single XCP DTO Packet (for a data transfer message) */
 #if defined ( ApplXcpGetDtoBuffer )
@@ -1559,12 +1586,17 @@ extern vuint8 ApplXcpSetCalPage(vuint8 segment, vuint8 page, vuint8 mode);
 #if defined ( ApplXcpGetClock )
 // defined as macro
 #else
-extern vuint32 ApplXcpGetClock(void);
+extern vuint32 ApplXcpGetClock();
 #endif
 #if defined ( ApplXcpGetClock64 )
 // defined as macro
 #else
-extern vuint64 ApplXcpGetClock64(void);
+extern vuint64 ApplXcpGetClock64();
+#endif
+#if defined ( ApplXcpGetClockId )
+// defined as macro
+#else
+extern void ApplXcpGetClockId(uint8_t *id);
 #endif
 
 /* Info for GET_EVENT_INFO*/
@@ -1595,13 +1627,13 @@ extern const vuint8 ApplXcpSlaveId[];
 
 /* Info for GET_ID "a2l file name" (without extension) provided by application*/
 #if defined ( XCP_ENABLE_A2L_NAME )
-extern vuint8 ApplXcpGetA2LFilename(vuint8** p, vuint32* n, int path);
+extern vuint8 ApplXcpGetA2LFilename(char** p, vuint32* n, int path);
 #endif
 
 
-/* Info for GET_ID 4, A2L upload */
+/* Info for GET_ID uploads */
 #if defined ( XCP_ENABLE_A2L_UPLOAD )
-extern vuint8 ApplXcpReadA2LFile(vuint8** p, vuint32* n);
+extern vuint8 ApplXcpReadFile(vuint8 type, vuint8** p, vuint32* n);
 #endif
 
 

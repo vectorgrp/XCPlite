@@ -16,7 +16,6 @@
 #ifdef XCPSIM_ENABLE_A2L_GEN
 
 static FILE* gA2lFile = NULL;
-static const char *gA2lFilename = NULL;
 static int gA2lEvent = 0;
 
 unsigned int gA2lMeasurements;
@@ -32,8 +31,9 @@ static const char* gA2lHeader =
 "/begin HEADER \"\" VERSION \"1.0\" /end HEADER\n"
 "/begin MODULE XCPlite \"\"\n"
 "/include \"XCP_104.aml\"\n\n"
-"/begin IF_DATA CNP_CREATE_INI /begin TP_BLOB 0x0100 PARAMETER \"canape.ini\" \"$CNP_DVC_SCTN$\" \"TIME_CORR_MULTICAST\" \"0\" /end TP_BLOB /end IF_DATA\n" // CANape option multicast off
-"/begin IF_DATA CNP_CREATE_INI /begin TP_BLOB 0x0100 PARAMETER \"canape.ini\" \"$CNP_DVC_SCTN$\" \"DAQ_COUNTER_HANDLING\" \"0\" /end TP_BLOB /end IF_DATA\n" // CANape option exclude command response
+//"/begin IF_DATA CNP_CREATE_INI /begin TP_BLOB 0x0100 PARAMETER \"canape.ini\" \"$CNP_DVC_SCTN$\" \"TIME_CORR_MULTICAST\" \"0\" /end TP_BLOB /end IF_DATA\n" // CANape option multicast off
+//"/begin IF_DATA CNP_CREATE_INI /begin TP_BLOB 0x0100 PARAMETER \"canape.ini\" \"$CNP_DVC_SCTN$\" \"DAQ_COUNTER_HANDLING\" \"0\" /end TP_BLOB /end IF_DATA\n" // CANape option exclude command response
+//"/begin IF_DATA CNP_CREATE_INI /begin TP_BLOB 0x0100 PARAMETER \"canape.ini\" \"$CNP_DVC_SCTN$\" \"LOCAL_PORT\" \"9001\" /end TP_BLOB /end IF_DATA\n" // CANape option exclude command response
 "/begin MOD_PAR \"\"\n"
 "/begin MEMORY_SEGMENT\n"
 "CALRAM \"\" DATA FLASH INTERN 0x%08X 0x%08X - 1 - 1 - 1 - 1 - 1\n" // CALRAM_START, CALRAM_SIZE
@@ -102,12 +102,12 @@ static const char* gA2lIfData1 = // Parameters %04X version, %u max cto, %u max 
 "OPTIONAL_CMD START_STOP_DAQ_LIST\n"
 "OPTIONAL_CMD GET_DAQ_CLOCK\n"
 "OPTIONAL_CMD WRITE_DAQ_MULTIPLE\n"
-#if XCP_PROTOCOL_LAYER_VERSION >= 0x0130
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
 "OPTIONAL_CMD TIME_CORRELATION_PROPERTIES\n"
 //"OPTIONAL_CMD DTO_CTR_PROPERTIES\n"
 "OPTIONAL_LEVEL1_CMD GET_VERSION\n"
 #endif
-#if XCP_PROTOCOL_LAYER_VERSION >= 0x0140
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0104
 #ifdef XCP_ENABLE_PACKED_MODE
 "OPTIONAL_LEVEL1_CMD SET_DAQ_PACKED_MODE\n"
 "OPTIONAL_LEVEL1_CMD GET_DAQ_PACKED_MODE\n"
@@ -118,7 +118,7 @@ static const char* gA2lIfData1 = // Parameters %04X version, %u max cto, %u max 
 //"OPTIONAL_LEVEL1_CMD POD_COMMAND_SPACE\n"
 #endif
 "/end PROTOCOL_LAYER\n"
-#if XCP_PROTOCOL_LAYER_VERSION >= 0x0130
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
 /*
 "/begin TIME_CORRELATION\n" // TIME
 "/end TIME_CORRELATION\n"
@@ -197,10 +197,10 @@ static const char* getTypeMax(int size) {
 
 int A2lInit(const char *filename) {
 
+	printf("Create A2L %s\n", filename);
 	gA2lFile = 0;
 	gA2lEvent = -1;
 	gA2lMeasurements = gA2lParameters = gA2lTypedefs = gA2lInstances = gA2lConversions = gA2lComponents = 0;
-	gA2lFilename = filename;
 	gA2lFile = fopen(filename, "w");
 	if (gA2lFile == 0) {
 		printf("ERROR: Could not create A2L file %s!\n", filename);
@@ -210,14 +210,9 @@ int A2lInit(const char *filename) {
 }
 
 
-void A2lHeader(void) {
-
-  unsigned int protocolLayerVersion = (XCP_PROTOCOL_LAYER_VERSION & 0xFF00) | ((XCP_PROTOCOL_LAYER_VERSION >> 4) & 0x000F); // Protocol and A2L have different coding
-  unsigned int transportLayerVersion = (XCP_TRANSPORT_LAYER_VERSION & 0xFF00) | ((XCP_TRANSPORT_LAYER_VERSION >> 4) & 0x000F); 
+void A2lHeader() {
 
   assert(gA2lFile);
-
-  printf("\nCreate A2L %s\n", gA2lFilename);
 
   fprintf(gA2lFile, gA2lHeader, (unsigned int)ApplXcpGetAddr((vuint8 *)&ecuPar), (unsigned int)sizeof(ecuPar)); 
 
@@ -228,7 +223,7 @@ void A2lHeader(void) {
 #else
   #error
 #endif
-  fprintf(gA2lFile, gA2lIfData1, protocolLayerVersion, XCPTL_CTO_SIZE, XCPTL_DTO_SIZE, ApplXcpEventCount, XCP_TIMESTAMP_UNIT_S);
+  fprintf(gA2lFile, gA2lIfData1, XCP_PROTOCOL_LAYER_VERSION, XCPTL_CTO_SIZE, XCPTL_DTO_SIZE, ApplXcpEventCount, XCP_TIMESTAMP_UNIT_S);
 
   // Event list
 #if defined( XCP_ENABLE_DAQ_EVENT_LIST ) && !defined ( XCP_ENABLE_DAQ_EVENT_INFO )
@@ -245,7 +240,7 @@ void A2lHeader(void) {
   }
 #endif
 
-fprintf(gA2lFile, gA2lIfData2, transportLayerVersion, getA2lSlavePort(), getA2lSlaveIP());
+fprintf(gA2lFile, gA2lIfData2, XCP_TRANSPORT_LAYER_VERSION, getA2lSlavePort(), getA2lSlaveIP());
 }
 
 
@@ -400,7 +395,7 @@ void A2lMeasurementGroupFromList(const char *name, const char* names[], unsigned
 }
 
 
-void A2lClose(void) {
+void A2lClose() {
 
 	// Create standard record layouts for elementary types
 	for (int i = -8; i <= +8; i++) {
@@ -416,7 +411,7 @@ void A2lClose(void) {
 
 	fprintf(gA2lFile, "%s", gA2lFooter);
 	fclose(gA2lFile);
-	printf("  (%u meas, %u pars, %u typedefs, %u components, %u instances, %u conversions)\n\n",
+	printf("  A2L: %u measurements, %u params, %u typedefs, %u components, %u instances, %u conversions\n",
 		gA2lMeasurements, gA2lParameters, gA2lTypedefs, gA2lComponents, gA2lInstances, gA2lConversions);
 }
 

@@ -11,50 +11,37 @@ extern "C" {
 #endif
 
 
+#define RECV_FLAGS_UNICAST   0x01
+#define RECV_FLAGS_MULTICAST 0x02
+
 #ifdef _LINUX // Linux sockets
 
-    #define SOCKADDR_IN struct sockaddr_in
-    #define SOCKADDR struct sockaddr
-    #define SOCKET int
-
-    #define udpSendtoWouldBlock(r) (errno == EAGAIN)
-    #define udpRecvWouldBlock() (errno == EAGAIN)
-    #define udpGetLastError() errno
-
     #define RECV_FLAGS 0 // Blocking receive (no MSG_DONTWAIT)
-
     #define SENDTO_FLAGS 0 // Blocking transmit (no MSG_DONTWAIT)
     #define SEND_RETRIES 10 // Retry when send CRM would block
 
-    #define LOCK() pthread_mutex_lock(&gXcpTlMutex)
-    #define UNLOCK() pthread_mutex_unlock(&gXcpTlMutex)
-    #define DESTROY() pthread_mutex_destroy(&gXcpTlMutex)
+    #define LOCK() pthread_mutex_lock(&gXcpTl.Mutex)
+    #define UNLOCK() pthread_mutex_unlock(&gXcpTl.Mutex)
+    #define DESTROY() pthread_mutex_destroy(&gXcpTl.Mutex)
 
 #endif 
 
 #ifdef _WIN // Windows sockets or XL-API
 
-#ifdef XCPSIM_ENABLE_XLAPI_V3
-        #define udpSendtoWouldBlock(r) (gOptionUseXLAPI ? (r==0) : (WSAGetLastError()==WSAEWOULDBLOCK))
-    #else
-        #define udpSendtoWouldBlock(r) ((WSAGetLastError()==WSAEWOULDBLOCK))
+    #ifdef XCPSIM_ENABLE_XLAPI_V3
+      #undef udpSendtoWouldBlock
+      #define udpSendtoWouldBlock(r) (gOptionUseXLAPI ? (r==0) : (WSAGetLastError()==WSAEWOULDBLOCK))
     #endif
-    #define udpRecvWouldBlock() ((WSAGetLastError()) == WSAEWOULDBLOCK)
-    #define udpGetLastError() (WSAGetLastError())
 
     #define RECV_FLAGS 0
     #define SENDTO_FLAGS 0
     #define SEND_RETRIES 10 // Retry when send CRM would block
 
-    #define LOCK() EnterCriticalSection(&gXcpTl.cs)
-    #define UNLOCK() LeaveCriticalSection(&gXcpTl.cs);
+    #define LOCK() EnterCriticalSection(&gXcpTl.CriticalSection)
+    #define UNLOCK() LeaveCriticalSection(&gXcpTl.CriticalSection);
     #define DESTROY()
     
 #endif
-
-#define REVC_FLAGS_UNICAST   0x01
-#define REVC_FLAGS_MULTICAST 0x02
-#define REVC_FLAGS_CDC       0x04
 
 typedef struct {
     uint16_t dlc;               /* BYTE 1,2 lenght */
@@ -93,9 +80,9 @@ typedef union {
 typedef struct {
     
     tUdpSock Sock;
-    tUdpSockAddr SlaveAddr;
-    tUdpSockAddr SlaveMulticastAddr;
+
     unsigned int SlaveMTU;
+    tUdpSockAddr SlaveAddr;
 
     tUdpSockAddr MasterAddr;
     int MasterAddrValid;
@@ -113,26 +100,40 @@ typedef struct {
     // DTO data transfer object counter (DAQ,STIM)
     uint16_t DtoCtr; // next DAQ DTO data transmit message packet counter 
 
+#ifdef XCPSIM_ENABLE_MULTICAST
+#ifdef XCPSIM_ENABLE_XLAPI_V3
+    tUdpSockAddr MulticastAddrXl;
+#endif
+    tXcpThread MulticastThreadHandle;
+    SOCKET MulticastSock;
+#endif 
+
 #ifdef _WIN 
-    CRITICAL_SECTION cs;
+    CRITICAL_SECTION CriticalSection;
+    HANDLE Event;
+#else
+    pthread_mutex_t Mutex;
 #endif
 
 } tXcpTlData;
 
 extern tXcpTlData gXcpTl;
 
-extern int udpTlInit(unsigned char *slaveMac, unsigned char *slaveAddr, uint16_t slavePort, unsigned int slaveMTU);
-extern void udpTlShutdown(void);
+extern int networkInit(uint8_t* slaveAddr, uint16_t slavePort);
+extern void networkShutdown();
+
+extern int udpTlInit(uint8_t*slaveAddr, uint16_t slavePort, uint16_t slaveMTU);
+extern void udpTlShutdown();
 
 extern void udpTlWaitForReceiveEvent(unsigned int timeout_us);
-extern int udpTlHandleXCPCommands(void);
-extern int udpTlSendCrmPacket(const unsigned char* data, unsigned int n);
+extern int udpTlHandleCommands();
+extern int udpTlSendCrmPacket(const uint8_t* data, unsigned int n);
 
-extern unsigned char* udpTlGetPacketBuffer(void** par, unsigned int size);
+extern uint8_t* udpTlGetPacketBuffer(void** par, unsigned int size);
 extern void udpTlCommitPacketBuffer(void* par);
-extern void udpTlFlushTransmitQueue(void);
-extern int udpTlHandleTransmitQueue(void);
-extern void udpTlInitTransmitQueue(void);
+extern void udpTlFlushTransmitQueue();
+extern int udpTlHandleTransmitQueue();
+extern void udpTlInitTransmitQueue();
 extern void udpTlWaitForTransmitData(unsigned int timeout_us);
 
 #ifdef __cplusplus

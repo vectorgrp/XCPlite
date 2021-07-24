@@ -27,7 +27,7 @@ extern "C" {
 extern int A2lInit(const char *filename);
 
 // Start A2L generation
-extern void A2lHeader(void);
+extern void A2lHeader();
 
 // Set fixed event for all following creates
 void A2lSetEvent(uint16_t event);
@@ -36,12 +36,14 @@ void A2lSetEvent(uint16_t event);
 // Create measurements
 extern void A2lCreateMeasurement_(const char* instanceName, const char* name, int size, uint32_t addr, double factor, double offset, const char* unit, const char* comment);
 extern void A2lCreateMeasurementArray_(const char* instanceName, const char* name, int size, int dim, uint32_t addr);
-#define A2lCreateMeasurement(name) A2lCreateMeasurement_(NULL,#name,sizeof(name),ApplXcpGetAddr((vuint8*)&(name)),1.0,0.0,NULL,NULL)
-#define A2lCreateMeasurement_64(name) A2lCreateMeasurement_(NULL,#name,sizeof(name)+2,ApplXcpGetAddr((vuint8*)&(name)),1.0,0.0,NULL,NULL)
-#define A2lCreateMeasurement_s64(name) A2lCreateMeasurement_(NULL,#name,-sizeof(name)-2,ApplXcpGetAddr((vuint8*)&(name)),1.0,0.0,NULL,NULL)
-#define A2lCreateMeasurement_s(name) A2lCreateMeasurement_(NULL,#name,-(int)sizeof(name),ApplXcpGetAddr((vuint8*)&(name)),1.0,0.0,NULL,NULL) // signed integer (8/16/32) or double
+#define A2lCreateMeasurement(name,comment) A2lCreateMeasurement_(NULL,#name,sizeof(name),ApplXcpGetAddr((vuint8*)&(name)),1.0,0.0,NULL,comment)
+#define A2lCreateMeasurement_64(name,comment) A2lCreateMeasurement_(NULL,#name,A2L_TYPE_UINT64,ApplXcpGetAddr((vuint8*)&(name)),1.0,0.0,NULL,comment)
+#define A2lCreateMeasurement_s64(name,comment) A2lCreateMeasurement_(NULL,#name,A2L_TYPE_INT64,ApplXcpGetAddr((vuint8*)&(name)),1.0,0.0,NULL,comment)
+#define A2lCreateMeasurement_s(name,comment) A2lCreateMeasurement_(NULL,#name,-(int)sizeof(name),ApplXcpGetAddr((vuint8*)&(name)),1.0,0.0,NULL,comment) // signed integer (8/16/32) or double
 #define A2lCreatePhysMeasurement(name,comment,factor,offset,unit) A2lCreateMeasurement_(NULL,#name,sizeof(name),ApplXcpGetAddr((vuint8*)&name),factor,offset,unit,comment) // unsigned integer (8/16/32) with linear physical conversion rule
 #define A2lCreatePhysMeasurement_s(name,comment,factor,offset,unit) A2lCreateMeasurement_(NULL,#name,-(int)sizeof(name),ApplXcpGetAddr((vuint8*)&name),factor,offset,unit,comment) // signed integer (8/16/32) with linear physical conversion rule
+#define A2lCreatePhysMeasurement_64(name,comment,factor,offset,unit) A2lCreateMeasurement_(NULL,#name,A2L_TYPE_UINT64,ApplXcpGetAddr((vuint8*)&name),factor,offset,unit,comment) // unsigned integer (8/16/32) with linear physical conversion rule
+#define A2lCreatePhysMeasurement_s64(name,comment,factor,offset,unit) A2lCreateMeasurement_(NULL,#name,A2L_TYPE_INT64,ApplXcpGetAddr((vuint8*)&name),factor,offset,unit,comment) // signed integer (8/16/32) with linear physical conversion rule
 #define A2lCreatePhysMeasurementExt(name,var,comment,factor,offset,unit) A2lCreateMeasurement_(NULL,name,sizeof(var),ApplXcpGetAddr((vuint8*)&var),factor,offset,unit,comment) // named unsigned integer (8/16/32) with linear physical conversion rule
 #define A2lCreatePhysMeasurementExt_s(name,var,comment,factor,offset,unit) A2lCreateMeasurement_(NULL,name,-(int)sizeof(var),ApplXcpGetAddr((vuint8*)&var),factor,offset,unit,comment) // named signed integer (8/16/32) with linear physical conversion rule
 #define A2lCreateMeasurementArray(name) A2lCreateMeasurementArray_(NULL,#name,sizeof(name[0]),sizeof(name)/sizeof(name[0]),ApplXcpGetAddr((vuint8*)&name[0])) // unsigned integer (8/16/32) or double array
@@ -78,7 +80,7 @@ void A2lMeasurementGroup(const char* name, int count, ...);
 void A2lMeasurementGroupFromList(const char *name, const char* names[], unsigned int count);
 
 // Finish A2L generation
-extern void A2lClose(void);
+extern void A2lClose();
 
 #ifdef __cplusplus
 }

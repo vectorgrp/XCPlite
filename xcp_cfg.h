@@ -50,59 +50,65 @@ typedef uint8_t  vbool;
 #define XCP_DRIVER_VERSION 0x01
 
 // Protocol layer version 
-//#define XCP_PROTOCOL_LAYER_VERSION 0x0110  
-//#define XCP_PROTOCOL_LAYER_VERSION 0x0130  // GET_DAQ_CLOCK_MULTICAST, GET_TIME_CORRELATION_PROPERTIES
-#define XCP_PROTOCOL_LAYER_VERSION 0x0140  // PACKED_MODE, CC_START_STOP_SYNCH prepare
-//#define XCP_PROTOCOL_LAYER_VERSION 0x0160  // Experimental changes marked with @@@@ V1.6
+// #define XCP_PROTOCOL_LAYER_VERSION 0x0101 
+// #define XCP_PROTOCOL_LAYER_VERSION 0x0103  // GET_DAQ_CLOCK_MULTICAST, GET_TIME_CORRELATION_PROPERTIES
+#define XCP_PROTOCOL_LAYER_VERSION 0x0104  // PACKED_MODE, CC_START_STOP_SYNCH prepare
+// #define XCP_PROTOCOL_LAYER_VERSION 0x0106  // Experimental, changes marked with @@@@ V1.6
+
+
 
 
 /*----------------------------------------------------------------------------*/
  /* Protocol features */
 
-#define XCP_ENABLE_DAQ_EVENT_LIST // Enable event list (needed for A2L generator and DAQ_EVENT_INFO)
-#define XCP_MAX_EVENT 256 // Maximum number of events (size of event table)
 // #define XCP_ENABLE_DAQ_EVENT_INFO // Enable XCP_GET_EVENT_INFO, if this is enabled, A2L file event information will be ignored
 
-#define XCP_ENABLE_CHECKSUM // Enable checksum calculation command
-#define XCP_ENABLE_CAL_PAGE // Enable cal page switch command
+#define XCP_ENABLE_DAQ_EVENT_LIST // Enable event list
+#define XCP_MAX_EVENT 256 // Maximum number of events, size of event table
 
-#define XCP_ENABLE_A2L_UPLOAD // Enable GET_ID 4 A2L content upload to host
-#define XCP_ENABLE_A2L_NAME // Enable GET_ID 1 A2L name upload to host
+//#define XCP_ENABLE_CHECKSUM // Enable checksum calculation command
+//#define XCP_ENABLE_CAL_PAGE // Enable cal page switch
 
-// XCP V1.3 only
-#if XCP_PROTOCOL_LAYER_VERSION >= 0x0130
-  #define XCP_ENABLE_MULTICAST // Enable GET_DAQ_CLOCK_MULTICAST
-  //#define XCP_ENABLE_PTP // Enable emulation of PTP synchronized slave DAQ time stamps
-#endif
+#define XCP_ENABLE_A2L_UPLOAD // Enable GET_ID A2L content upload to host
+#define XCP_ENABLE_A2L_NAME // Enable GET_ID A2L name upload to host
+
+// XCP V1.4
+//#define XCP_ENABLE_MULTICAST // Enable GET_DAQ_CLOCK_MULTICAST
+
 
 
 /*----------------------------------------------------------------------------*/
 /* Settings and parameters */
 
-// Amount of memory for DAQ tables, each ODT entry needs 5 bytes
-#define XCP_DAQ_MEM_SIZE (5*100000) 
+#define XCP_DAQ_MEM_SIZE (5*100000) // Amount of memory for DAQ tables, each ODT entry needs 5 bytes
 
 
-// Specify ApplXcpGetClock and ApplXcpGetClock64 resolution for DAQ time stamps and GET_DAQ_CLOCK
-// There are options for clock behaviour available (defined in main.h)
-// Some masters might have problems with ns timestamp, because overflow of 32 bit DAQ timestamp is every 4.3 s
+// Clock type defined in main.h
+#ifdef CLOCK_USE_UTC_TIME_NS
 
-#ifdef CLOCK_USE_APP_TIME_US // Use us timestamps relative to application start
-//#define XCP_DAQ_CLOCK_64BIT  // Use 64 Bit time stamps in GET_DAQ_CLOCK
-#define XCP_TIMESTAMP_SIZE 4 // size of DAQ timestamp in DTO message
-#define XCP_TIMESTAMP_UNIT DAQ_TIMESTAMP_UNIT_1US // unit DAQ_TIMESTAMP_UNIT_xxx
-#define XCP_TIMESTAMP_TICKS 1  // ticks per unit
-#endif
-
-#ifdef CLOCK_USE_UTC_TIME_NS // Use ns timestamps relative to 1.1.1970
+// Slave clock (mandatory)
+// Specify ApplXcpGetClock and ApplXcpGetClock64 resolution for DAQ time stamps 
 #define XCP_DAQ_CLOCK_64BIT  // Use 64 Bit time stamps in GET_DAQ_CLOCK
+#define XCP_DAQ_CLOCK_UUID  {0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc} // Slave clock UUID
 #define XCP_TIMESTAMP_SIZE 4 // Use 32 Bit time stamps in DAQ DTO
 #define XCP_TIMESTAMP_UNIT DAQ_TIMESTAMP_UNIT_1NS // unit DAQ_TIMESTAMP_UNIT_xxx
-#define XCP_TIMESTAMP_TICKS 1  // ticks per unit
+#define XCP_TIMESTAMP_TICKS CLOCK_TICKS_PER_NS  // ticks per unit
+
+#endif
+#ifdef CLOCK_USE_APP_TIME_US
+
+#define XCP_TIMESTAMP_SIZE 4 // Use 32 Bit time stamps in DAQ DTO
+#define XCP_TIMESTAMP_UNIT DAQ_TIMESTAMP_UNIT_1US // unit DAQ_TIMESTAMP_UNIT_xxx
+#define XCP_TIMESTAMP_TICKS CLOCK_TICKS_PER_US  // ticks per unit
+
 #endif
 
 #define XCP_TIMESTAMP_TICKS_S CLOCK_TICKS_PER_S // ticks per s (for debug output)
 
+
+
+
 #endif
+
 
 

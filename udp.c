@@ -22,6 +22,12 @@
 #define IPV6 0x86dd
 #define UDP  17
 
+#ifdef _WIN
+#include <pshpack1.h>
+#else
+#pragma pack(1) 
+#endif
+
 // 8 bytes
 struct udphdr
 {
@@ -62,6 +68,12 @@ struct arp
     vuint8 tpa[4];	/* target protocol address */
 };
 
+#ifdef _WIN
+#include <poppack.h>
+#else
+#pragma pack() 
+#endif
+
 
 #ifdef XCP_ENABLE_TESTMODE
 
@@ -72,15 +84,38 @@ static int printFrame(const unsigned char* d, const unsigned char* s, const unsi
 
 static int printIPV4Frame(const char* dir, const T_XL_ETH_FRAMEDATA* frameData, unsigned int frameLen) {
 
-    if (frameData->ethFrame.etherType == HTONS(IPV4)) { // IPv4
+    // IPv4
+    if (frameData->ethFrame.etherType == HTONS(IPV4)) { 
 
         struct iphdr* ip = (struct iphdr*) & frameData->ethFrame.payload[0];
         printf("%s l=%u: IPv4 l=%u ", dir, frameLen, HTONS(ip->tot_len));
         printf("%u.%u.%u.%u->", ip->saddr[0], ip->saddr[1], ip->saddr[2], ip->saddr[3]);
         printf("%u.%u.%u.%u ", ip->daddr[0], ip->daddr[1], ip->daddr[2], ip->daddr[3]);
-        if (ip->protocol == UDP) { // UDP
+        
+        // UDP
+        if (ip->protocol == UDP) { 
             struct udphdr* udp = (struct udphdr*) & frameData->ethFrame.payload[sizeof(struct iphdr)];
             printf("UDP udpl=%u %u->%u s=%u ", (vuint32)(HTONS(udp->len) - sizeof(struct udphdr)), HTONS(udp->source), HTONS(udp->dest), HTONS(udp->check));
+            
+            // UDP MULTICAST
+            if ((ip->daddr[0] >> 4) == 0x0E) {
+                printf("MULTICAST ");
+
+#ifdef XCPSIM_ENABLE_PTP
+                // PTP
+                if (HTONS(udp->source) == 319 || HTONS(udp->source) == 320) {
+                    struct ptphdr* ptp = (struct ptphdr*) & frameData->ethFrame.payload[sizeof(struct iphdr) + sizeof(struct udphdr)];
+                    const char* types = "";
+                    switch (ptp->type) {
+                    case 0x0: types = "SYNC"; break;
+                    case 0x8: types = "FOLLOWUP"; break;
+                    case 0xB: types = "ANNOUNCE"; break;
+                    }
+                    printf("PTP %s (%04X), domain=%u, corr_ns=%llu, time_s=%u, time_ns=%u", types, ptp->type, ptp->domain, htonll(ptp->correction)>>16, htonl(ptp->timestamp.timestamp_s), htonl(ptp->timestamp.timestamp_ns));
+                }
+#endif
+            }
+
             if (gDebugLevel >= 3) {
                 for (unsigned int byte = 0; byte < HTONS(udp->len) - sizeof(struct udphdr); byte++) {
                     printf("%02X ", frameData->ethFrame.payload[sizeof(struct iphdr) + sizeof(struct udphdr) + byte]);
@@ -107,6 +142,7 @@ static int printARPFrame(const char* d, const T_XL_ETH_FRAMEDATA* frameData, uns
     }
     return 0;
 }
+
 
 static void printRxFrame(const char* d, XLuint64 timestamp, const T_XL_NET_ETH_DATAFRAME_RX* frame) {
 
@@ -286,13 +322,27 @@ int udpRecvFrom(tUdpSockXl* sock, unsigned char* data, unsigned int size, tUdpSo
                     l -= sizeof(struct udphdr);
                     if (l < size) size = l;
 
-#ifdef XCP_ENABLE_MULTICAST
-                    if (memcmp(ip->daddr, sock->multicastAddr.sin_addr, 2)==0 && udp->dest==sock->multicastAddr.sin_port) {  //  XCP multicast addr
-                        *flags |= REVC_FLAGS_MULTICAST;
+                    // Multicast
+#ifdef XCPSIM_ENABLE_MULTICAST
+                    if ((ip->daddr[0] >> 4) == 0x0E) {
+
+#ifdef XCPSIM_ENABLE_PTP
+                        // PTP
+                        if (HTONS(udp->source) == 319 || HTONS(udp->source) == 320) {
+                            struct ptphdr* ptp = (struct ptphdr*)&frameRx->frameData.ethFrame.payload[sizeof(struct iphdr) + sizeof(struct udphdr)];
+                            ptpHandleFrame(size, ptp, ip->saddr);
+                        }
+#endif
+                        //  XCP multicast addr
+                        if (memcmp(ip->daddr, sock->multicastAddr.sin_addr, 2) == 0 && udp->dest == sock->multicastAddr.sin_port) {  
+                            *flags |= RECV_FLAGS_MULTICAST;
+                        }
                     }
 #endif
+
+                    // Unicast
                     if (memcmp(ip->daddr, sock->localAddr.sin_addr, 4)==0 && udp->dest==sock->localAddr.sin_port) { // XCP slave addr
-                        *flags |= REVC_FLAGS_UNICAST;
+                        *flags |= RECV_FLAGS_UNICAST;
                     }
 
                     if (*flags) {
@@ -328,6 +378,7 @@ int udpSendTo(tUdpSockXl *sock, const unsigned char* data, unsigned int size, in
         T_XL_NET_ETH_DATAFRAME_TX frame;
         uint16_t iplen,udplen;
 
+        assert(size <= gXcpTl.SlaveMTU);
         memset(&frame, 0, sizeof(T_XL_NET_ETH_DATAFRAME_TX));
         
         // header
@@ -370,9 +421,7 @@ int udpSendTo(tUdpSockXl *sock, const unsigned char* data, unsigned int size, in
             printf("ERROR: xlNetEthSend failed with ERROR: %s (%d)!\n", xlGetErrorString(err), err);
             return -err;
         }
-#ifdef XCPSIM_ENABLE_PCAP
-        if (gOptionPCAP) pcapWriteFrameTx(0,&frame);
-#endif
+
         return size;
 }
 

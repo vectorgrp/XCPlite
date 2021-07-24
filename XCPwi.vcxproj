@@ -157,6 +157,7 @@
     <ClCompile Include="ecupp.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="udp.c" />
+    <ClCompile Include="util.c" />
     <ClCompile Include="xcpAppl.c" />
     <ClCompile Include="xcpLite.c" />
     <ClCompile Include="xcpSlave.c" />
@@ -169,6 +170,7 @@
     <ClInclude Include="ecupp.hpp" />
     <ClInclude Include="main.h" />
     <ClInclude Include="udp.h" />
+    <ClInclude Include="util.h" />
     <ClInclude Include="vxlapi.h" />
     <ClInclude Include="xcpAppl.h" />
     <ClInclude Include="xcpLite.h" />

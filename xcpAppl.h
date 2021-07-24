@@ -68,8 +68,8 @@ extern vuint16 XcpCreateEvent(const char* name, vuint16 timeCycle /*ms */, vuint
 /*----------------------------------------------------------------------------*/
 // DAQ clock provided to xcpLite.c as macros
 
-#define ApplXcpGetClock getClock32
-#define ApplXcpGetClock64 getClock64
+#define ApplXcpGetClock getLocalClock32
+#define ApplXcpGetClock64 getLocalClock64
 	
 	   
 /*----------------------------------------------------------------------------*/
@@ -79,7 +79,9 @@ extern vuint16 XcpCreateEvent(const char* name, vuint16 timeCycle /*ms */, vuint
 #define ApplXcpPrepareDaqStart()
 
 // Set cluster id for multi cast reception not used yet
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
 #define ApplXcpSetClusterId(id) 
+#endif
 
 // Get and commit buffer space for a DAQ DTO message
 #define ApplXcpGetDtoBuffer udpTlGetPacketBuffer

@@ -6,14 +6,11 @@
 |   Konfiguration file for XCP transport layer parameters
  ----------------------------------------------------------------------------*/
 
-/* Copyright(c) Vector Informatik GmbH.All rights reserved.
-   Licensed under the MIT license.See LICENSE file in the project root for details. */
-
 #ifndef __XCPTL_CFG_H_
 #define __XCPTL_CFG_H_
 
  // Transport layer version 
- #define XCP_TRANSPORT_LAYER_VERSION 0x0140 
+ #define XCP_TRANSPORT_LAYER_VERSION 0x0104 
 
  // UDP socket MTU
 #define XCPTL_SOCKET_MTU_SIZE 1400

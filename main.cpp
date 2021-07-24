@@ -251,13 +251,13 @@ if (gOptionA2L) printf("Generate A2L file at %s\n", gOptionA2L_Path);
     printf("\n");
 
 
-    if (!clockInit()) return 1;
+    if (!clockInit(0,0)) return 1;
 
     // Initialize the XCP slave
 #ifdef XCPSIM_ENABLE_XLAPI_V3
     if (!xcpSlaveInit(gOptionSlaveMac, gOptionSlaveAddr, gOptionSlavePort, gOptionJumbo )) return 1;
 #else
-    if (!xcpSlaveInit(NULL, NULL, gOptionSlavePort, gOptionJumbo)) return 1;
+    if (!xcpSlaveInit(gOptionSlaveAddr, gOptionSlavePort, gOptionJumbo)) return 1;
 #endif
 
     // C demo

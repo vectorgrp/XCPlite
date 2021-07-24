@@ -139,8 +139,6 @@
 
 #endif // Windows
 
-#define XCPSIM_SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc} // Default slave clock UUID
-
 // A2L generation info
 #define getA2lSlaveIP() gOptionSlaveAddr_s // A2L IP address string
 #define getA2lSlavePort() gOptionSlavePort // for A2L generation
@@ -148,8 +146,10 @@
 
 //-----------------------------------------------------------------------------------------------------
 
+#include "util.h" 
+#include "clock.h" 
+
 #include "xcpLite.h" // XCP protocoll layer
-#include "clock.h" // DAQ clock
 #ifdef _WIN 
   #ifdef XCPSIM_ENABLE_XLAPI_V3
     #include "vxlapi.h" // Vector XL-API V3
