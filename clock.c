@@ -16,8 +16,8 @@
 
 // Last clock values updated on all clock queries (getLocalClockXx())
 // May be used as wall clock
-volatile uint32_t gLocalClock32 = 0;
-volatile uint64_t gLocalClock64 = 0;
+volatile uint32_t gClock32 = 0;
+volatile uint64_t gClock64 = 0;
 
 
 
@@ -31,46 +31,44 @@ Linux clock type
 #define CLOCK_TYPE CLOCK_TAI
 
 static struct timespec gtr;
-#ifdef CLOCK_USE_APP_TIME_US
+#ifndef CLOCK_USE_UTC_TIME_NS
   static struct timespec gts0;
 #endif
 
-char* clockGetString(char* s, unsigned int cs, uint64_t c) {
+  char* clockGetString(char* s, unsigned int cs, uint64_t c) {
 
-#ifdef CLOCK_USE_APP_TIME_US
+#ifndef CLOCK_USE_UTC_TIME_NS
     sprintf(s, "%gs", (double)c / CLOCK_TICKS_PER_S);
 #else
     time_t t = (time_t)(c / CLOCK_TICKS_PER_S); // s since 1.1.1970
     struct tm tm;
     gmtime_r(&t, &tm);
-    uint64_t fs = c % CLOCK_TICKS_PER_S;
-    sprintf(s, "%u.%u.%u %02u:%02u:%02u +%luns", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec, fs);
+    uint64_t fns = c % CLOCK_TICKS_PER_S;
+    uint32_t tai_s = (uint32_t)((c % CLOCK_TICKS_PER_M) / CLOCK_TICKS_PER_S);
+    sprintf(s, "%u.%u.%u %02u:%02u:%02u/%02u +%luns", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec, tai_s, fns);
 #endif
     return s;
 }
 
 
-int clockInit(int ptpEnable, uint8_t ptpDomain)
+int clockInit()
 {    
 
-    printf("Init clock\n");
-
+    printf("Init clock\n  (");
 #ifdef CLOCK_USE_UTC_TIME_US 
     #error "CLOCK_USE_UTC_TIME_US is deprecated!");
 #endif
-#ifdef CLOCK_USE_APP_TIME_US 
-    printf(" CLOCK_USE_APP_TIME_US\n");
-#endif
 #ifdef CLOCK_USE_UTC_TIME_NS 
-    printf(" CLOCK_USE_UTC_TIME_NS\n");
+    printf("CLOCK_USE_UTC_TIME_NS,");
 #endif
 
 #if CLOCK_TYPE == CLOCK_TAI 
-    printf(" CLOCK_TYPE_TAI\n");
+    printf("CLOCK_TYPE_TAI,");
 #endif
 #if CLOCK_TYPE == CLOCK_REALTIME
-    printf(" CLOCK_TYPE_REALTIME\n");
+    printf("CLOCK_TYPE_REALTIME,");
 #endif
+    printf(")\n");
 
     clock_getres(CLOCK_TYPE, &gtr);
     if (gtr.tv_sec != 0 || gtr.tv_nsec != 1) {
@@ -78,12 +76,12 @@ int clockInit(int ptpEnable, uint8_t ptpDomain)
         return 0;
     }
 
-#ifdef CLOCK_USE_APP_TIME_US
+#ifndef CLOCK_USE_UTC_TIME_NS
     clock_gettime(CLOCK_TYPE, &gts0);
 #endif
-    getLocalClock64();
+    clockGet64();
 
-    if (gDebugLevel >= 1) {
+    if (gDebugLevel >= 2) {
         uint64_t t1, t2;
         char s[128];
         struct timespec gts_TAI;
@@ -96,9 +94,9 @@ int clockInit(int ptpEnable, uint8_t ptpDomain)
         clock_gettime(CLOCK_REALTIME, &gts_REALTIME);
         printf("  CLOCK_TAI=%us CLOCK_REALTIME=%us time=%u timeofday=%u\n", gts_TAI.tv_sec, gts_REALTIME.tv_sec, now, ptm.tv_sec);
         // Check 
-        t1 = getLocalClock64();
-        sleepMs(1);
-        t2 = getLocalClock64();
+        t1 = clockGet64();
+        sleepNs(100000);
+        t2 = clockGet64();
         printf("  +0us:   %s\n", clockGetString(s, sizeof(s), t1));
         printf("  +100us: %s (%u)\n", clockGetString(s, sizeof(s), t2), (uint32_t)(t2-t1));
         printf("\n");
@@ -107,24 +105,30 @@ int clockInit(int ptpEnable, uint8_t ptpDomain)
     return 1;
 }
 
+void clockShutdown() {
+#ifdef CLOCK_ENABLE_PTP
+    ptpShutdown();
+#endif
+}
+
 // Free running clock with 1us tick
-uint32_t getLocalClock32() {
+uint32_t clockGet32() {
 
     struct timespec ts; 
     clock_gettime(CLOCK_TYPE, &ts);
 #ifdef CLOCK_USE_UTC_TIME_NS // ns since 1.1.1970
-    gLocalClock64 = (((uint64_t)(ts.tv_sec) * 1000000000ULL) + (uint64_t)(ts.tv_nsec)); // ns
+    gClock64 = (((uint64_t)(ts.tv_sec) * 1000000000ULL) + (uint64_t)(ts.tv_nsec)); // ns
 #else // us since init
-    gLocalClock64 = (((uint64_t)(ts.tv_sec-gts0.tv_sec) * 1000000ULL) + (uint64_t)(ts.tv_nsec / 1000)); // us
+    gClock64 = (((uint64_t)(ts.tv_sec-gts0.tv_sec) * 1000000ULL) + (uint64_t)(ts.tv_nsec / 1000)); // us
 #endif
-    gLocalClock32 = (uint32_t)gLocalClock64;
-    return gLocalClock32;  
+    gClock32 = (uint32_t)gClock64;
+    return gClock32;  
 }
 
-uint64_t getLocalClock64() {
+uint64_t clockGet64() {
 
-    getLocalClock32();
-    return gLocalClock64;
+    clockGet32();
+    return gClock64;
 }
 
 void sleepNs(uint32_t ns) {
@@ -152,28 +156,26 @@ static uint64_t sOffset = 0; // offset
 
 char *clockGetString(char* s, unsigned int cs, uint64_t c) {
 
-#ifdef CLOCK_USE_APP_TIME_US
+#ifndef CLOCK_USE_UTC_TIME_NS
     sprintf(s, "%gs", (double)c / CLOCK_TICKS_PER_S);
 #else
     time_t t = c / CLOCK_TICKS_PER_S; // s
     struct tm tm;
     gmtime_s(&tm, &t);
-    int64_t fs = c % CLOCK_TICKS_PER_S; 
-    sprintf(s, "%u.%u.%u %02u:%02u:%02u +%lluns", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec, fs);
+    uint64_t fns = c % CLOCK_TICKS_PER_S;
+    uint32_t tai_s = (c % CLOCK_TICKS_PER_M) / CLOCK_TICKS_PER_S;
+    sprintf(s, "%u.%u.%u %02u:%02u:%02u/%02u +%lluns", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec, tai_s, fns);
 #endif
     return s;
 }
 
 #include <sys/timeb.h>
 
-int clockInit(int ptpEnable, uint8_t ptpDomain) {
+int clockInit() {
 
     printf("Init clock\n");
 #ifdef CLOCK_USE_UTC_TIME_NS 
-    printf(" CLOCK_USE_UTC_TIME_NS\n");
-#endif
-#ifdef CLOCK_USE_APP_TIME_US 
-    printf(" CLOCK_USE_APP_TIME_US\n");
+    printf("  CLOCK_USE_UTC_TIME_NS\n");
 #endif
 
     // Get current performance counter frequency
@@ -188,7 +190,7 @@ int clockInit(int ptpEnable, uint8_t ptpDomain) {
          printf("ERROR: Unexpected performance counter frequency!\n");
          return 0;
     }
-#ifdef CLOCK_USE_APP_TIME_US
+#ifndef CLOCK_USE_UTC_TIME_NS
     sFactor = tF.u.LowPart / CLOCK_TICKS_PER_S;
     sDivide = 1;
 #else
@@ -203,7 +205,7 @@ int clockInit(int ptpEnable, uint8_t ptpDomain) {
 #endif
 
     // Get current performance counter to absolute time relation
-#ifndef CLOCK_USE_APP_TIME_US
+#ifdef CLOCK_USE_UTC_TIME_NS
 
     // Set time zone from TZ environment variable. If TZ is not set, the operating system is queried
     _tzset();
@@ -218,43 +220,32 @@ int clockInit(int ptpEnable, uint8_t ptpDomain) {
     //_time64(&t); // s since 1.1.1970
 #endif
 
-    // Calculate factor and offset for getLocalClock64/32
+    // Calculate factor and offset for clockGet64/32
     QueryPerformanceCounter(&tC);
     tp = (((int64_t)tC.u.HighPart) << 32) | (int64_t)tC.u.LowPart;
-#ifdef CLOCK_USE_APP_TIME_US
+#ifndef CLOCK_USE_UTC_TIME_NS
     // Reset clock now
     sOffset = tp; 
 #else
-    // set initial offset from local clock value t
-    // this is inaccurate up to 1 s, but irrelevant because system clock UTC offset is also not more accurate
+    // set  offset from local clock UTC value t
+    // this is inaccurate up to 1 s, but irrelevant because system clock UTC offset is also not accurate
     sOffset = (uint64_t)t * CLOCK_TICKS_PER_S  + t_ms * CLOCK_TICKS_PER_MS - tp * sFactor; 
-
-    printf("  Current time = %I64uus + %ums\n", t, t_ms);
-    printf("  Zone difference in minutes from UTC: %d\n", tstruct.timezone);
-    printf("  Time zone: %s\n", _tzname[0]);
-    printf("  Daylight saving: %s\n", tstruct.dstflag ? "YES" : "NO");
 #endif
 
-    getLocalClock64();
+    clockGet64();
 
     // Test
     if (gDebugLevel >= 1) {
-#ifndef CLOCK_USE_APP_TIME_US
-        struct tm tm;
-        _gmtime64_s(&tm, &t);
-        printf("  UTC time = %llus since 1.1.1970 ", t);
-        printf("  %u.%u.%u %u:%u:%u\n", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec);
-#endif
        uint64_t t1, t2;
        char s[64];
-       t1 = getLocalClock64();
+       t1 = clockGet64();
        sleepNs(100000);
-       t2 = getLocalClock64();
-       printf("  XCP clock resolution = %u Hz, system resolution = %u Hz, conversion %c%I64u-%I64u\n", CLOCK_TICKS_PER_S, tF.u.LowPart,  sDivide?'/':'*', sFactor, sOffset );
+       t2 = clockGet64();
+       printf("  Desired resolution = %u Hz, system resolution = %u Hz, conversion = %c%I64u+%I64u\n", CLOCK_TICKS_PER_S, tF.u.LowPart,  sDivide?'/':'*', sFactor, sOffset );
        printf("  +0us:   %I64u  %s\n", t1, clockGetString(s, sizeof(s), t1));
        printf("  +100us: %I64u  %s\n", t2, clockGetString(s, sizeof(s), t2));
        printf("\n");
-    }
+    } // Test
 
     return 1;
 }
@@ -262,7 +253,7 @@ int clockInit(int ptpEnable, uint8_t ptpDomain) {
 
 
 // Clock 64 Bit (UTC or ARB)
-uint64_t getLocalClock64() {
+uint64_t clockGet64() {
    
     LARGE_INTEGER tp;
     uint64_t t;
@@ -276,15 +267,15 @@ uint64_t getLocalClock64() {
         t = t * sFactor + sOffset;
     }
 
-    gLocalClock64 = t;
-    gLocalClock32 = (uint32_t)t;
+    gClock64 = t;
+    gClock32 = (uint32_t)t;
     return t;
 }
 
 // Clock 32 Bit
-uint32_t getLocalClock32() {
+uint32_t clockGet32() {
 
-    return (uint32_t)getLocalClock64();
+    return (uint32_t)clockGet64();
 }
 
 
@@ -301,10 +292,10 @@ void sleepNs(unsigned int ns) {
     }
     // Busy wait
     else {
-        t1 = t2 = getLocalClock64();
+        t1 = t2 = clockGet64();
         vuint64 te = t1 + us * CLOCK_TICKS_PER_US;
         for (;;) {
-            t2 = getLocalClock64();
+            t2 = clockGet64();
             if (t2 >= te) break;
             if (te - t2 > 0) Sleep(0);
         }

@@ -5,18 +5,16 @@
 | Description:
 |   Test Measurement and Calibration variables for XCP demo
 |   C++ language, Classes and Structures, dynamic memory
-|
-| Copyright (c) Vector Informatik GmbH. All rights reserved.
-| Licensed under the MIT license. See LICENSE file in the project root for details.
-|
  ----------------------------------------------------------------------------*/
+ /*
+ | Code released into public domain, no attribution required
+ */
 
 
 #include "main.h"
 #include "ecupp.hpp"
 
-
-#ifdef XCPSIM_ENABLE_A2L_GEN
+#ifdef APP_ENABLE_A2L_GEN
 
 // Create A2L description of this class 
 void EcuTask::createA2lClassDefinition() {
@@ -97,7 +95,7 @@ void EcuTask::run() {
 extern "C" {
 
 	// Demo tasks, cycle times and measurement data acquisition event numbers
-	volatile vuint32 gTaskCycleTimerECUpp = 2000; // 2ms  Cycle time of the C++ task
+	volatile vuint32 gTaskCycleTimerECUpp = 4000; // 4ms  Cycle time of the C++ task
 	EcuTask* gEcuTask1 = NULL;
 	EcuTask* gEcuTask2 = NULL;
 	EcuTask* gActiveEcuTask = NULL;
@@ -109,15 +107,15 @@ extern "C" {
 	vuint16 gXcpEvent_ActiveEcuTask = 3;
 
 
-	void ecuppInit(void) {
+	void ecuppInit() {
 
 		// Create XCP events
         // Events must be all defined before A2lHeader() is called, measurements and parameters have to be defined after all events have been defined !!
         // Character count should be <=8 to keep the A2L short names unique !
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
-		gXcpEvent_EcuTask1 = XcpCreateEvent("Task1", 2000, 0, sizeof(EcuTask));                   // Extended event triggered by C++ ecuTask1 instance
-		gXcpEvent_EcuTask2 = XcpCreateEvent("Task2", 2000, 0, sizeof(EcuTask));                   // Extended event triggered by C++ ecuTask2 instance
-		gXcpEvent_ActiveEcuTask = XcpCreateEvent("TaskAct", 0, 0, sizeof(class EcuTask));      // Extended event triggered by C++ main task for a pointer to an EcuTask instance
+		gXcpEvent_EcuTask1 = XcpCreateEvent("ecuTask1", 2000, 0, sizeof(EcuTask));                   // Extended event triggered by C++ ecuTask1 instance
+		gXcpEvent_EcuTask2 = XcpCreateEvent("ecuTask2", 2000, 0, sizeof(EcuTask));                   // Extended event triggered by C++ ecuTask2 instance
+		gXcpEvent_ActiveEcuTask = XcpCreateEvent("ecuTaskA", 0, 0, sizeof(class EcuTask));      // Extended event triggered by C++ main task for a pointer to an EcuTask instance
 #endif
 
 		// C++ demo
@@ -128,18 +126,16 @@ extern "C" {
 		gActiveEcuTaskId = gXcpEvent_EcuTask1;
 	}
 
-#ifdef XCPSIM_ENABLE_A2L_GEN
-	void ecuppCreateA2lDescription(void) {
+	void ecuppCreateA2lDescription() {
 		assert(gEcuTask1 != NULL);
 		assert(gEcuTask2 != NULL);
 		gEcuTask1->createA2lClassDefinition(); // use any instance of a class to create its typedef
-		gEcuTask1->createA2lClassInstance("ecuTask1", "ecu task 1");
-		gEcuTask2->createA2lClassInstance("ecuTask2", "ecu task 2");
+		gEcuTask1->createA2lClassInstance("ecuTask1", "ecupp task number 1");
+		gEcuTask2->createA2lClassInstance("ecuTask2", "ecu task number 2");
 		A2lSetEvent(gXcpEvent_ActiveEcuTask);
-		A2lCreateDynamicTypedefInstance("activeEcuTask", "EcuTask", "");
-		A2lCreateParameterWithLimits(gActiveEcuTaskId, "Active ecu task object id", "", 1, 2);
+		A2lCreateDynamicTypedefInstance("activeEcuTask" /* instanceName */, "EcuTask" /* typeName*/, "pointer to active ecu task");
+		A2lCreateParameterWithLimits(gActiveEcuTaskId, "select active ecu task (object id)", "", 1, 2);
 	}
-#endif
 
 	// ECU cyclic (2ms default) demo task 
 	// Calls C++ ECU demo code

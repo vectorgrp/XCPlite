@@ -7,8 +7,11 @@
 #define __XCPLITE_H_
 
 /***************************************************************************/
-/* Configuration                                                           */
+/* Include configuration headers                                           */
 /***************************************************************************/
+
+// Transport layer header size
+#define XCPTL_TRANSPORT_LAYER_HEADER_SIZE 4
 
 #include "xcptl_cfg.h"  // Transport layer configuration
 #include "xcp_cfg.h" // Protocol layer configuration
@@ -67,7 +70,7 @@
 
 
 /*-------------------------------------------------------------------------*/
-/* DATA Acquisition and Stimulation Commands (DAQ/STIM) */
+/* Data acquisition and Stimulation Commands (DAQ/STIM) */
                                           
 #define CC_CLEAR_DAQ_LIST                 0xE3
 #define CC_SET_DAQ_PTR                    0xE2
@@ -1030,12 +1033,17 @@
 #define CRO_TIME_SYNC_PROPERTIES_CLUSTER_ID                 CRO_WORD(2)
 
 /* CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES: */
-#define TIME_SYNC_SET_PROPERTIES_RESPONSE_FMT       (3 << 0)
-#define TIME_SYNC_SET_PROPERTIES_TIME_SYNC_BRIDGE   (3 << 2)
-#define TIME_SYNC_SET_PROPERTIES_CLUSTER_ID         (1 << 4)
+#define TIME_SYNC_SET_PROPERTIES_RESPONSE_FMT              (3 << 0)
+#define TIME_SYNC_SET_PROPERTIES_TIME_SYNC_BRIDGE          (3 << 2)
+#define TIME_SYNC_SET_PROPERTIES_CLUSTER_ID                (1 << 4)
+
+#define TIME_SYNC_RESPONSE_FMT_LEGACY                      0
+#define TIME_SYNC_RESPONSE_FMT_TRIGGER_SUBSET              1
+#define TIME_SYNC_RESPONSE_FMT_TRIGGER_ALL                 2
 
 /* CRO_TIME_SYNC_PROPERTIES_GET_PROPERTIES_REQUEST: */
-#define TIME_SYNC_GET_PROPERTIES_GET_CLK_INFO       (1 << 0)
+#define TIME_SYNC_GET_PROPERTIES_GET_CLK_INFO             (1 << 0)
+
 
 #define CRM_TIME_SYNC_PROPERTIES_LEN                        8
 #define CRM_TIME_SYNC_PROPERTIES_SLAVE_CONFIG               CRM_BYTE(1)
@@ -1053,21 +1061,26 @@
 #define SLAVE_CONFIG_TIME_SYNC_BRIDGE_NONE                  (0 << 3)
 
 /* CRM_TIME_SYNC_PROPERTIES_OBSERVABLE_CLOCKS: */
-#define SLAVE_CLOCK_FREE_RUNNING     (0<<0)
+#define SLAVE_CLOCK_FREE_RUNNING    (0<<0)
 #define SLAVE_CLOCK_SYNCED          (1<<0)
 #define SLAVE_CLOCK_NONE            (2<<0)
 #define SLAVE_GRANDM_CLOCK_NONE     (0<<2)
 #define SLAVE_GRANDM_CLOCK_READABLE (1<<2)
 #define SLAVE_GRANDM_CLOCK_EVENT    (2<<2)
-#define ECU_CLOCK_NONE        (0<<4)
-#define ECU_CLOCK_READABLE    (1<<4)
-#define ECU_CLOCK_EVENT       (2<<4)
-#define ECU_CLOCK_NOTREADABLE (2<<4)
+#define ECU_CLOCK_NONE              (0<<4)
+#define ECU_CLOCK_READABLE          (1<<4)
+#define ECU_CLOCK_EVENT             (2<<4)
+#define ECU_CLOCK_NOTREADABLE       (3<<4)
 
 /* CRM_TIME_SYNC_PROPERTIES_SYNC_STATE: */
-#define SLAVE_CLOCK_STATE_FREE_RUNNING  (7<<0)
-#define GRANDM_CLOCK_STATE_SYNC        (1<<3)  
-#define ECU_CLOCK_STATE_SYNC           (1<<4)
+#define SLAVE_CLOCK_STATE_SYNCH_IN_PROGRESS       (0 << 0)
+#define SLAVE_CLOCK_STATE_SYNCH                   (1 << 0)
+#define SLAVE_CLOCK_STATE_SYNT_IN_PROGRESS        (2 << 0)
+#define SLAVE_CLOCK_STATE_SYNT                    (3 << 0)
+#define SLAVE_CLOCK_STATE_FREE_RUNNING            (7 << 0)
+#define GRANDM_CLOCK_STATE_SYNC_IN_PROGRESS       (0 << 3)  
+#define GRANDM_CLOCK_STATE_SYNC                   (1 << 3)  
+
 
 /* CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO: */
 #define CLOCK_INFO_SLAVE            (1<<0)
@@ -1075,74 +1088,6 @@
 #define CLOCK_INFO_RELATION         (1<<2)
 #define CLOCK_INFO_ECU              (1<<3)
 #define CLOCK_INFO_ECU_GRANDM       (1<<4)
-
-
-
-#define SLAVE_CLOCK_FREE_RUNNING     (0<<0)
-#define OBSERVABLE_CLOCKS_GRANDM    (3<<2)
-#define OBSERVABLE_CLOCKS_ECU       (3<<4)
-
-
-
-#define TIME_SYNC_GET_PROPERTIES_SLV_CLK_INFO               (1 << 0)
-#define TIME_SYNC_GET_PROPERTIES_GRANDM_CLK_INFO            (1 << 1)
-#define TIME_SYNC_GET_PROPERTIES_CLK_RELATION               (1 << 2)
-#define TIME_SYNC_GET_PROPERTIES_ECU_CLK_INFO               (1 << 3)
-#define TIME_SYNC_GET_PROPERTIES_ECU_GRANDM_CLK_INFO        (1 << 4)
-
-#define EV_TIME_SYNC_RESPONSE_FMT_LEGACY                    0UL
-#define EV_TIME_SYNC_RESPONSE_FMT_TRIGGER_SUBSET            1UL
-#define EV_TIME_SYNC_RESPONSE_FMT_TRIGGER_ALL               2UL
-
-#define DAQ_TSTAMP_RELATION_SLAVE_CLOCK                     0UL
-#define DAQ_TSTAMP_RELATION_ECU_CLOCK                       1UL
-
-#define TIME_SYNC_BRIDGE_NOT_AVAILABLE                      0UL
-#define TIME_SYNC_BRIDGE_DISABLED                           1UL
-#define TIME_SYNC_BRIDGE_ENABLED                            2UL
-
-#define OBSERVABLE_CLOCK_XCP_SLV_CLK_FREE_RUNNING           0UL
-#define OBSERVABLE_CLOCK_XCP_SLV_CLK_SYNCED                 1UL
-#define OBSERVABLE_CLOCK_XCP_SLV_NOT_AVAILABLE              2UL
-
-#define OBSERVABLE_CLOCK_DEDICATED_GRANDM_CLK_NOT_AVAILABLE 0UL
-#define OBSERVABLE_CLOCK_DEDICATED_GRANDM_CLK_RANDOM_ACCESS 1UL
-#define OBSERVABLE_CLOCK_DEDICATED_GRANDM_CLK_SELF_TRIGGER  2UL
-
-#define OBSERVABLE_CLOCK_ECU_CLK_NOT_AVAILABLE              0UL
-#define OBSERVABLE_CLOCK_ECU_CLK_RANDOM_ACCESS              1UL
-#define OBSERVABLE_CLOCK_ECU_CLK_SELF_TRIGGER               2UL
-#define OBSERVABLE_CLOCK_ECU_CLK_NOT_READABLE               3UL
-
-#define SLV_CLK_SYNC_STATE_SYNCHRONIZATION_IN_PROGRESS      0UL
-#define SLV_CLK_SYNC_STATE_SYNCHRONIZED                     1UL
-#define SLV_CLK_SYNC_STATE_SYNTONIZATION_IN_PROGRESS        2UL
-#define SLV_CLK_SYNC_STATE_SYNTONIZED                       3UL
-#define SLV_CLK_SYNC_STATE_SYNTONIZATION_NOT_AVAILABLE      7UL
-#define DEDICATED_GRANDM_CLK_SYNCHRONIZATION_IN_PROGRESS    0UL
-#define DEDICATED_GRANDM_CLK_SYNCHRONIZED                   1UL
-#define ECU_CLK_NOT_SYNCHRONIZED_TO_GRANDMASTER             0UL
-#define ECU_CLK_SYNCHRONIZED_TO_GRANDMASTER                 1UL
-#define ECU_CLK_SYNCHRONIZATION_STATE_UNKNOWN               2UL
-
-#define SYNC_STATE_NO_SYNC_SUPPORT                          ((SLV_CLK_SYNC_STATE_SYNTONIZATION_NOT_AVAILABLE << 0) | (DEDICATED_GRANDM_CLK_SYNCHRONIZATION_IN_PROGRESS << 3) | (ECU_CLK_SYNCHRONIZATION_STATE_UNKNOWN << 4))
-
-#define TRIG_INITIATOR_SYNC_LINE                            0UL
-#define TRIG_INITIATOR_XCP_INDEPENDENT                      1UL
-#define TRIG_INITIATOR_MULTICAST                            2UL
-#define TRIG_INITIATOR_MULTICAST_TS_BRIDGE                  3UL
-#define TRIG_INITIATOR_SYNC_STATE_CHANGE                    4UL
-#define TRIG_INITIATOR_LEAP_SECOND                          5UL
-#define TRIG_INITIATOR_ECU_RESET_RELEASE                    6UL
-#define TRIG_INITIATOR_RESERVED                             7UL
-
-#define TIME_OF_TS_SAMPLING_PROTOCOL_PROCESSOR              0UL
-#define TIME_OF_TS_SAMPLING_LOW_JITTER                      1UL
-#define TIME_OF_TS_SAMPLING_PHY_TRANSMISSION                2UL
-#define TIME_OF_TS_SAMPLING_PHY_RECEPTION                   3UL
-
-#define EV_TIME_SYNC_PAYLOAD_FMT_DWORD                      1UL
-#define EV_TIME_SYNC_PAYLOAD_FMT_DLONG                      2UL
 
 /* TRIGGER_INITIATOR:
     0 = HW trigger, i.e.Vector Syncline
@@ -1153,6 +1098,21 @@
     5 = Leap second occurred on grandmaster clock
     6 = release of ECU reset
 */
+#define TRIG_INITIATOR_SYNC_LINE                            0UL
+#define TRIG_INITIATOR_XCP_INDEPENDENT                      1UL
+#define TRIG_INITIATOR_MULTICAST                            2UL
+#define TRIG_INITIATOR_MULTICAST_TS_BRIDGE                  3UL
+#define TRIG_INITIATOR_SYNC_STATE_CHANGE                    4UL
+#define TRIG_INITIATOR_LEAP_SECOND                          5UL
+#define TRIG_INITIATOR_ECU_RESET_RELEASE                    6UL
+#define TRIG_INITIATOR_RESERVED                             7UL
+
+
+#define TIME_OF_TS_SAMPLING_PROTOCOL_PROCESSOR              0UL
+#define TIME_OF_TS_SAMPLING_LOW_JITTER                      1UL
+#define TIME_OF_TS_SAMPLING_PHY_TRANSMISSION                2UL
+#define TIME_OF_TS_SAMPLING_PHY_RECEPTION                   3UL
+
 
 /***************************************************************************/
 /* XCP Transport Layer Commands and Responces, Type Definition */
@@ -1377,8 +1337,11 @@ typedef struct {
 /* XCP clock information                                                    */
 /****************************************************************************/
 
+#define XCP_STRATUM_LEVEL_UNKNOWN   255
+#define XCP_STRATUM_LEVEL_ARB       16   // unsychronized
+#define XCP_STRATUM_LEVEL_UTC       0    // Atomic reference clock
 
-typedef struct _T_CLOCK_INFORMATION {
+typedef struct {
     vuint8      UUID[8];
     vuint16     timestampTicks;
     vuint8      timestampUnit;
@@ -1386,12 +1349,16 @@ typedef struct _T_CLOCK_INFORMATION {
     vuint8      nativeTimestampSize;
     vuint8      fill[3]; // for alignment (8 byte) of structure
     vuint64     valueBeforeWrapAround;
-} T_CLOCK_INFORMATION;
+} T_CLOCK_INFO_SLAVE;
 
 
-#ifdef XCP_ENABLE_PTP_GRANDMASTER
+#ifdef XCP_ENABLE_GRANDMASTER_CLOCK_INFO
 
-typedef struct _T_CLOCK_INFORMATION_GRANDM {
+#define XCP_EPOCH_TAI 0 // Atomic monotonic time since 1.1.1970 (TAI)
+#define XCP_EPOCH_UTC 1 // Universal Coordinated Time (with leap seconds) since 1.1.1970 (UTC)
+#define XCP_EPOCH_ARB 2 // Arbitrary (unknown)
+
+typedef struct {
     vuint8     UUID[8];
     vuint16    timestampTicks;
     vuint8     timestampUnit;
@@ -1400,12 +1367,12 @@ typedef struct _T_CLOCK_INFORMATION_GRANDM {
     vuint8     epochOfGrandmaster;
     vuint8     fill[2]; // for alignment (8 byte) of structure
     vuint64    valueBeforeWrapAround;
-} T_CLOCK_INFORMATION_GRANDM;
+} T_CLOCK_INFO_GRANDMASTER;
 
-typedef struct _T_CLOCK_RELATION {
+typedef struct {
     vuint64  timestampOrigin;
     vuint64  timestampLocal;
-} T_CLOCK_RELATION;
+} T_CLOCK_INFO_RELATION;
 
 #endif
 
@@ -1442,14 +1409,14 @@ typedef struct {
     vuint16 WriteDaqDaq;
 
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
+
     vuint16 ClusterId;
-    T_CLOCK_INFORMATION SlaveClockInfo;
+    T_CLOCK_INFO_SLAVE SlaveClockInfo;
 
-#ifdef XCP_ENABLE_PTP_GRANDMASTER
-  T_CLOCK_INFORMATION_GRANDM GrandmasterClockInfo;
-  T_CLOCK_RELATION SlvGrandmClkRelationInfo;
-
-#endif
+    #ifdef XCP_ENABLE_GRANDMASTER_CLOCK_INFO
+    T_CLOCK_INFO_GRANDMASTER GrandmasterClockInfo;
+    T_CLOCK_INFO_RELATION ClockRelationInfo;
+    #endif
 
 #endif
 
@@ -1488,12 +1455,9 @@ extern vuint8 XcpIsDaqPacked();
 /* Time synchronisation */
 extern vuint16 XcpGetClusterId();
 
-#define XCP_EPOCH_TAI 0 // Atomic Time(TAI)
-#define XCP_EPOCH_UTC 1 // Universal Coordinated Time(UTC)
-#define XCP_EPOCH_ARB 2 // arbitrary(unknown)
-#define XCP_STRATUM_LEVEL_UNKNOWN 255
-#define XCP_STRATUM_LEVEL_GPS     0
-extern void XcpSetGrandmasterClockInfo(uint8_t* id, uint8_t epoch, uint8_t stratumLevel);
+extern void XcpSetGrandmasterClockInfo(vuint8* id, vuint8 epoch, vuint8 stratumLevel);
+
+
 
 /*-----------------------------------------------------------------------------------*/
 /* Functions or Macros that have to be provided externally to the XCP Protocol Layer */
@@ -1547,7 +1511,6 @@ extern void ApplXcpSetClusterId( vuint16 clusterId );
 #endif
 #endif
 
-
 /* Get and commit a transmit buffer for a single XCP DTO Packet (for a data transfer message) */
 #if defined ( ApplXcpGetDtoBuffer )
   // defined as macro
@@ -1582,6 +1545,10 @@ extern vuint8 ApplXcpGetCalPage(vuint8 segment, vuint8 mode);
 extern vuint8 ApplXcpSetCalPage(vuint8 segment, vuint8 page, vuint8 mode);
 #endif
 
+#ifdef XCP_ENABLE_GRANDMASTER_CLOCK_INFO
+extern vuint8 ApplXcpGetClockInfo(T_CLOCK_INFO_SLAVE* s,T_CLOCK_INFO_GRANDMASTER* g);
+#endif
+
 // DAQ clock provided by application
 #if defined ( ApplXcpGetClock )
 // defined as macro
@@ -1593,11 +1560,7 @@ extern vuint32 ApplXcpGetClock();
 #else
 extern vuint64 ApplXcpGetClock64();
 #endif
-#if defined ( ApplXcpGetClockId )
-// defined as macro
-#else
-extern void ApplXcpGetClockId(uint8_t *id);
-#endif
+
 
 /* Info for GET_EVENT_INFO*/
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
@@ -1631,8 +1594,8 @@ extern vuint8 ApplXcpGetA2LFilename(char** p, vuint32* n, int path);
 #endif
 
 
-/* Info for GET_ID uploads */
-#if defined ( XCP_ENABLE_A2L_UPLOAD )
+/* Info for GET_ID 4, A2L upload */
+#if defined ( XCP_ENABLE_FILE_UPLOAD )
 extern vuint8 ApplXcpReadFile(vuint8 type, vuint8** p, vuint32* n);
 #endif
 

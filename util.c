@@ -12,9 +12,6 @@
 #include "util.h"
 
 
- 
-
-
 
 /**************************************************************************/
 // Keyboard
@@ -55,6 +52,44 @@ int _kbhit() {
 #endif
 
 
+/**************************************************************************/
+// Mutex
+/**************************************************************************/
+
+#ifdef _LINUX
+
+void mutexInit(MUTEX* m, int recursive, uint32_t spinCount) {
+
+    if (recursive) {
+        pthread_mutexattr_t ma;
+        pthread_mutexattr_init(&ma);
+        pthread_mutexattr_settype(&ma, PTHREAD_MUTEX_RECURSIVE);
+        pthread_mutex_init(m, &ma);
+    }
+    else {
+        pthread_mutex_init(m, NULL);
+    }
+}
+
+void mutexDestroy(MUTEX* m) {
+
+    pthread_mutex_destroy(m);
+}
+
+#else 
+
+void mutexInit(MUTEX* m, int recursive, uint32_t spinCount) {
+    // Window critical sections are always recursive
+    InitializeCriticalSectionAndSpinCount(m,spinCount);
+}
+
+void mutexDestroy(MUTEX* m) {
+
+    DeleteCriticalSection(m);
+}
+
+#endif
+
 
 /**************************************************************************/
 // Sockets
@@ -70,13 +105,6 @@ int socketOpen(SOCKET* sp, int nonBlocking, int reuseaddr) {
         printf("ERROR: cannot open socket!\n");
         return 0;
     }
-
-    // Set socket transmit buffer size
-    // No need for large buffer if DTO queue is enabled
-    /*
-    unsigned int txBufferSize = XCPTL_SOCKET_BUFFER_SIZE;
-    setsockopt(gXcpTl.Sock.sock, SOL_SOCKET, SO_SNDBUF, (void*)&txBufferSize, sizeof(txBufferSize));
-    */
 
     if (reuseaddr) {
         int yes = 1;
@@ -215,5 +243,6 @@ int socketRecv(SOCKET sock, uint8_t* buffer, uint16_t bufferSize) {
 
     return socketRecvFrom(sock, buffer, bufferSize, NULL, NULL);
 }
+
 
 

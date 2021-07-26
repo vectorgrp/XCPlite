@@ -1,11 +1,10 @@
-/* main.h */
+// main.h 
 
 /* Copyright(c) Vector Informatik GmbH.All rights reserved.
    Licensed under the MIT license.See LICENSE file in the project root for details. */
 
 #ifndef __MAIN_H_
 #define __MAIN_H_
-
 
 // Windows or Linux ?
 #if defined(_WIN32) || defined(_WIN64)
@@ -14,7 +13,7 @@
     #undef _WIN32
   #endif
 #else
-  #if defined (_ix64_) || defined (__x86_64__)
+  #if defined (_ix64_) || defined (__x86_64__) || defined (__aarch64__)
     #define _LINUX64
   #else
     #define _LINUX32
@@ -22,126 +21,135 @@
   #define _LINUX
 #endif
 
-#ifdef _LINUX // Linux
 
-  #define _LINUX
-  
-  #define _POSIX_C_SOURCE 200809L
-  #ifdef _LINUX64
-    //#define _GNU_SOURCE
-    #include <link.h>
-  #endif
-  #include <stdlib.h>
-  #include <stdio.h>
-  #include <string.h>
-  #include <stdint.h>
-  #include <stdarg.h>
-  #include <math.h>
-  #include <assert.h>
-  #include <errno.h>
-  #include <sys/time.h>
-  #include <time.h>
-  #include <sys/stat.h>
-  #include <pthread.h> 
-  #include <sys/socket.h>
-  #include <arpa/inet.h>
+#ifndef _WIN // Linux
 
-  #define MAX_PATH 256
+#define _DEFAULT_SOURCE
 
-#endif // Linux
-#ifdef _WIN // Windows
+#include <stdio.h>
+#include <stdarg.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdint.h>
+#define M_2PI (2*M_PI)
+#define M_PI (M_2PI/2)
+#include <math.h>
+#include <assert.h>
+#include <errno.h>
 
-  #define WIN32_LEAN_AND_MEAN
-  #define _CRT_SECURE_NO_WARNINGS // to simplify Linux and Windows single source
-  #include <windows.h>
-  #include <stdio.h>
-  #include <stdlib.h>
-  #include <stdint.h>
-  #include <assert.h>
-  #include <time.h>
-  #include <conio.h>
-  #ifdef __cplusplus
-  #include <thread>
-  #endif
+#include <sys/time.h>
+#include <time.h>
+#include <sys/stat.h>
+#include <pthread.h> 
 
+#include <ifaddrs.h>
+#include <fcntl.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
 
-  // Need to link with Ws2_32.lib
-  #pragma comment(lib, "ws2_32.lib")
-  #include <winsock2.h>
-  #include <ws2tcpip.h>
+#define MAX_PATH 256
 
-#endif // Windows
+#else // Windows
+
+#define WIN32_LEAN_AND_MEAN
+#define _CRT_SECURE_NO_WARNINGS
+#include <windows.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <assert.h>
+#include <time.h>
+#include <conio.h>
+#define M_2PI 6.28318530718
+#define M_PI (M_2PI/2)
+#include <math.h>
+#ifdef __cplusplus
+#include <thread>
+#endif
+
+// Need to link with Ws2_32.lib
+#pragma comment(lib, "ws2_32.lib")
+#include <winsock2.h>
+#include <ws2tcpip.h>
+
+#endif
 
 
 //-----------------------------------------------------------------------------------------------------
 // Application configuration:
 // XCP configuration is in xcp_cfg.h and xcptl_cfg.h
 
-// XCP slave name
-#define XCPSIM_SLAVE_ID_LEN       7    /* Slave device identification length */
-#define XCPSIM_SLAVE_ID          "XCPlite"  /* Slave device identification */
 
-#define XCPSIM_ENABLE_A2L_GEN // Enable A2L generation
-#define XCPSIM_DEFAULT_A2L 1 // Generate A2L on application start
+#define APP_XCPLITE
+#define APP_NAME "XCPlite"
+#define APP_NAME_LEN 7
+#define APP_VERSION "3.0.0"
 
-//#define CLOCK_USE_APP_TIME_US // Use us timestamps relative to application start
-#define CLOCK_USE_UTC_TIME_NS // Use ns timestamps relative to 1.1.1970
+#define APP_DEFAULT_DEBUGLEVEL 1
 
-#define XCPSIM_DEFAULT_DEBUGLEVEL 1
+#define APP_ENABLE_A2L_GEN // Enable A2L generation
 
-#define XCPSIM_MULTI_THREAD_SLAVE // Receive and transmit in seperate threads
+// #define APP_ENABLE_CAL_SEGMENT // Enable calibration memory segment 
 
-#define XCPSIM_DEFAULT_JUMBO 1 // Enable jumbo frames
+//#define CLOCK_USE_UTC_TIME_NS // Use ns timestamps relative to 1.1.1970 (TAI monotonic - no backward jumps) 
+#define CLOCK_USE_APP_TIME_US // Use unsynchronized us timestamps from local relative to application start
+
+#define APP_DEFAULT_JUMBO 0 // Disable jumbo frames
+
+#define APP_DEFAULT_SLAVE_PORT 5555 // Default UDP port, overwritten by commandline option 
+#define APP_DEFAULT_SLAVE_IP {172,31,31,194} // Default Ethernet Adapter IP, overwritten by commandline option
+#define APP_DEFAULT_SLAVE_MAC {0xdc,0xa6,0x32,0x7e,0x66,0xdc} // XL_API option Ethernet Adapter MAC
+#define APP_DEFAULT_SLAVE_UUID {0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc} // Slave clock UUID 
+
+// Multicast (GET_DAQ_CLOCK_MULTICAST)
+// Use multicast time synchronisation to improve synchronisation of multiple XCP slaves
+// This is standard in XCP V1.3, but it needs to create an additional thread and socket for multicast reception
+// Adjust CANape setting in device/protocol/event/TIME_CORRELATION_GETDAQCLOCK from "multicast" to "extended response" if this is not desired 
+//#define APP_ENABLE_MULTICAST 
+#ifdef APP_ENABLE_MULTICAST
+    // XCP default cluster id (multicast addr 239,255,0,1, group 127,0,1 (mac 01-00-5E-7F-00-01)
+    // #define XCP_MULTICAST_CLUSTER_ID 1
+    // #define XCP_MULTICAST_PORT 5557
+    #define XCP_DEFAULT_MULTICAST_MAC {0x01,0x00,0x5E,0x7F,0x00,0x01}
+#endif
+
+// XCP slave name 
+#define APP_SLAVE_ID_LEN      APP_NAME_LEN  /* Slave device identification length */
+#define APP_SLAVE_ID          APP_NAME  /* Slave device identification */
+
 
 #ifdef _LINUX // Linux
 
-  // Option defaults
-  #define XCPSIM_DEFAULT_A2L_PATH "./"
+    #define APP_DEFAULT_A2L_PATH "./"
 
-  #ifdef _LINUX64
-    #define XCPSIM_DEFAULT_SLAVE_IP   {172,31,31,84}
-    #define XCPSIM_DEFAULT_SLAVE_IP_S "172.31.31.84"
-  #else
-    #define XCPSIM_DEFAULT_SLAVE_IP   {172,31,31,194}
-    #define XCPSIM_DEFAULT_SLAVE_IP_S "172.31.31.194"
-  #endif
-  #define XCPSIM_DEFAULT_SLAVE_PORT 5555 // Default UDP port
+#else // Windows
+
+    #define APP_DEFAULT_A2L_PATH ".\\"
+
+    // Enable XL-API ethernet adapter and UDP stack
+    //#define APP_ENABLE_XLAPI_V3 
+    #ifdef APP_ENABLE_XLAPI_V3
+
+        // XL-API V3 UDP stack parameters
+        #define APP_DEFAULT_SLAVE_XL_NET "NET1" // XL_API Network name, overwritten by commandline option
+        #define APP_DEFAULT_SLAVE_XL_SEG "SEG1" // XL_API Segment name, overwritten by commandline option
+
+        // Need to link with vxlapi.lib
+        #ifdef _WIN64
+            #pragma comment(lib, "vxlapi64.lib")
+        #else
+        #ifdef _WIN32
+            #pragma comment(lib, "vxlapi.lib")
+        #endif
+        #endif
+        #include "vxlapi.h"
 
 
-#endif // Linux
+    #endif 
 
-#ifdef _WIN // Windows
-
-  // Option defaults
-  #define XCPSIM_DEFAULT_A2L_PATH ".\\CANape\\"
-
-  #define XCPSIM_DEFAULT_SLAVE_IP   {127,0,0,1}
-  #define XCPSIM_DEFAULT_SLAVE_IP_S "127.0.0.1"
-  #define XCPSIM_DEFAULT_SLAVE_PORT 5555 // Default UDP port
-
-  //#define XCPSIM_ENABLE_XLAPI_V3
-  #ifdef XCPSIM_ENABLE_XLAPI_V3
-
-    // XL-API UDP stack parameters
-    #define XCPSIM_SLAVE_XL_NET "NET1" // Default V3 Network name
-    #define XCPSIM_SLAVE_XL_SEG "SEG1" // Default V3 Segment name
-    #define XCPSIM_SLAVE_XL_MAC {0xdc,0xa6,0x32,0x7e,0x66,0xdc} // Default V3 Ethernet Adapter MAC
-
-    // Need to link with vxlapi.lib
-    #ifdef _WIN64
-    #pragma comment(lib, "vxlapi64.lib")
-    #endif
-    #ifdef _WIN32
-    #pragma comment(lib, "vxlapi.lib")
-    #endif
-
-  #endif
-
-#endif // Windows
-
-// A2L generation info
-#define getA2lSlaveIP() gOptionSlaveAddr_s // A2L IP address string
-#define getA2lSlavePort() gOptionSlavePort // for A2L generation
+#endif 
 
 
 //-----------------------------------------------------------------------------------------------------
@@ -149,21 +157,21 @@
 #include "util.h" 
 #include "clock.h" 
 
-#include "xcpLite.h" // XCP protocoll layer
+#include "xcpLite.h"
+
 #ifdef _WIN 
-  #ifdef XCPSIM_ENABLE_XLAPI_V3
-    #include "vxlapi.h" // Vector XL-API V3
-    #include "udp.h" // UDP stack for Vector XL-API V3 
-  #endif
+#include "udp.h" // UDP stack for Vector XL-API V3 
 #endif
+
 #include "xcpTl.h" // XCP on UDP transport layer
 #include "xcpSlave.h" // XCP slave
-#ifdef XCPSIM_ENABLE_A2L_GEN 
-#include "A2L.h" // A2L generator
+
+#ifdef APP_ENABLE_A2L_GEN // Enable A2L generator
+#include "A2L.h"
 #endif
+
 #include "ecu.h" // Demo measurement task C
 #include "ecupp.hpp" // Demo measurement task C++
-
 
 //-----------------------------------------------------------------------------------------------------
 
@@ -171,25 +179,26 @@
 extern "C" {
 #endif
 
+
 // Options
 extern volatile unsigned int gDebugLevel;
 extern int gOptionJumbo;
 extern uint16_t gOptionSlavePort;
 extern unsigned char gOptionSlaveAddr[4];
-extern char gOptionSlaveAddr_s[64];
-
-extern int gOptionA2L;
 extern char gOptionA2L_Path[MAX_PATH];
-#ifdef _WIN
-#ifdef XCPSIM_ENABLE_XLAPI_V3
 extern int gOptionUseXLAPI;
-extern char gOptionXlSlaveNet[32];
-extern char gOptionXlSlaveSeg[32];
+
+#ifdef APP_ENABLE_XLAPI_V3
+    extern char gOptionXlSlaveNet[32];
+    extern char gOptionXlSlaveSeg[32];
 #endif
-#endif // _WIN
 
-
-extern int createA2L(const char* path_name);
+// Create the A2L file
+#ifdef APP_ENABLE_A2L_GEN // Enable A2L generator
+    extern int createA2L(const char* a2l_path_name, const char* mdi_path_name);
+    extern char* getA2lSlaveIP(); // Info needed by createA2L()
+    extern uint16_t getA2lSlavePort();
+#endif
 
 #ifdef __cplusplus
 }

@@ -1,11 +1,34 @@
 /* util.h */
+/*
+| Code released into public domain, no attribution required
+*/
 
 #ifndef __UTIL_H_ 
 #define __UTIL_H_
 
-#ifdef __cplusplus
-extern "C" {
+//-------------------------------------------------------------------------------
+// Mutex
+
+
+#ifdef _LINUX
+
+#define MUTEX pthread_mutex_t
+#define MUTEX_INTIALIZER PTHREAD_MUTEX_INITIALIZER
+#define mutexLock pthread_mutex_lock
+#define mutexUnlock pthread_mutex_unlock
+
+#else 
+
+#define MUTEX CRITICAL_SECTION
+#define MUTEX_INTIALIZER 0
+#define mutexLock EnterCriticalSection
+#define mutexUnlock LeaveCriticalSection
+
 #endif
+
+void mutexInit(MUTEX* m, int recursive, uint32_t spinCount);
+void mutexDestroy(MUTEX* m);
+
 
 //-------------------------------------------------------------------------------
 // Threads
@@ -38,6 +61,7 @@ extern "C" {
 
 #define htonll(val) ((((uint64_t)htonl((uint32_t)val)) << 32) + htonl((uint32_t)(val >> 32)))
 #endif 
+
 #ifdef _WIN // Windows sockets or XL-API
 
 #define socketGetLastError() (WSAGetLastError())
@@ -54,9 +78,9 @@ extern int socketRecvFrom(SOCKET sock, uint8_t* buffer, uint16_t bufferSize, uin
 extern int socketClose(SOCKET *sp);
 
 
-
-
 //-------------------------------------------------------------------------------
+// Keyboard
+
 #ifdef _LINUX
 
 #include <termios.h>
@@ -66,11 +90,5 @@ extern int _kbhit();
 
 #endif
 
-
-//-------------------------------------------------------------------------------
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

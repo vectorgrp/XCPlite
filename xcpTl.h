@@ -10,25 +10,18 @@
 extern "C" {
 #endif
 
-
-#define RECV_FLAGS_UNICAST   0x01
-#define RECV_FLAGS_MULTICAST 0x02
-
 #ifdef _LINUX // Linux sockets
 
     #define RECV_FLAGS 0 // Blocking receive (no MSG_DONTWAIT)
     #define SENDTO_FLAGS 0 // Blocking transmit (no MSG_DONTWAIT)
     #define SEND_RETRIES 10 // Retry when send CRM would block
 
-    #define LOCK() pthread_mutex_lock(&gXcpTl.Mutex)
-    #define UNLOCK() pthread_mutex_unlock(&gXcpTl.Mutex)
-    #define DESTROY() pthread_mutex_destroy(&gXcpTl.Mutex)
 
 #endif 
 
 #ifdef _WIN // Windows sockets or XL-API
 
-    #ifdef XCPSIM_ENABLE_XLAPI_V3
+    #ifdef APP_ENABLE_XLAPI_V3
       #undef udpSendtoWouldBlock
       #define udpSendtoWouldBlock(r) (gOptionUseXLAPI ? (r==0) : (WSAGetLastError()==WSAEWOULDBLOCK))
     #endif
@@ -37,10 +30,6 @@ extern "C" {
     #define SENDTO_FLAGS 0
     #define SEND_RETRIES 10 // Retry when send CRM would block
 
-    #define LOCK() EnterCriticalSection(&gXcpTl.CriticalSection)
-    #define UNLOCK() LeaveCriticalSection(&gXcpTl.CriticalSection);
-    #define DESTROY()
-    
 #endif
 
 typedef struct {
@@ -65,14 +54,14 @@ typedef struct {
 
 typedef union {
     SOCKADDR_IN addr;
-#ifdef XCPSIM_ENABLE_XLAPI_V3
+#ifdef APP_ENABLE_XLAPI_V3
     tUdpSockAddrXl addrXl;
 #endif
 } tUdpSockAddr;
 
 typedef union {
     SOCKET sock; // Winsock or Linux
-#ifdef XCPSIM_ENABLE_XLAPI_V3
+#ifdef APP_ENABLE_XLAPI_V3
     tUdpSockXl *sockXl; // XL-API
 #endif
 } tUdpSock;
@@ -80,10 +69,10 @@ typedef union {
 typedef struct {
     
     tUdpSock Sock;
-
     unsigned int SlaveMTU;
     tUdpSockAddr SlaveAddr;
-
+    uint8_t SlaveMAC[6];
+    uint8_t SlaveUUID[8];
     tUdpSockAddr MasterAddr;
     int MasterAddrValid;
 
@@ -100,32 +89,29 @@ typedef struct {
     // DTO data transfer object counter (DAQ,STIM)
     uint16_t DtoCtr; // next DAQ DTO data transmit message packet counter 
 
-#ifdef XCPSIM_ENABLE_MULTICAST
-#ifdef XCPSIM_ENABLE_XLAPI_V3
-    tUdpSockAddr MulticastAddrXl;
-#endif
+    // Multicast
+#ifdef APP_ENABLE_MULTICAST
     tXcpThread MulticastThreadHandle;
     SOCKET MulticastSock;
+    // XL-API
+    #ifdef APP_ENABLE_XLAPI_V3
+        tUdpSockAddr MulticastAddrXl;
+    #endif
 #endif 
 
-#ifdef _WIN 
-    CRITICAL_SECTION CriticalSection;
-    HANDLE Event;
-#else
-    pthread_mutex_t Mutex;
-#endif
+    MUTEX Mutex_Queue;
+    MUTEX Mutex_Send;
 
 } tXcpTlData;
 
 extern tXcpTlData gXcpTl;
 
-extern int networkInit(uint8_t* slaveAddr, uint16_t slavePort);
+extern int networkInit();
 extern void networkShutdown();
 
 extern int udpTlInit(uint8_t*slaveAddr, uint16_t slavePort, uint16_t slaveMTU);
 extern void udpTlShutdown();
 
-extern void udpTlWaitForReceiveEvent(unsigned int timeout_us);
 extern int udpTlHandleCommands();
 extern int udpTlSendCrmPacket(const uint8_t* data, unsigned int n);
 

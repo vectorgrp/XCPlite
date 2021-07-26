@@ -3,11 +3,8 @@
 |   xcp_cfg.h
 |
 | Description:
-|   Konfiguration file for XCP protocol layer parameters
+|   User configuration file for XCP protocol layer parameters
  ----------------------------------------------------------------------------*/
-
- /* Copyright(c) Vector Informatik GmbH.All rights reserved.
-    Licensed under the MIT license.See LICENSE file in the project root for details. */
 
 #ifndef __XCP_CFG_H_
 #define __XCP_CFG_H_
@@ -56,8 +53,6 @@ typedef uint8_t  vbool;
 // #define XCP_PROTOCOL_LAYER_VERSION 0x0106  // Experimental, changes marked with @@@@ V1.6
 
 
-
-
 /*----------------------------------------------------------------------------*/
  /* Protocol features */
 
@@ -66,42 +61,45 @@ typedef uint8_t  vbool;
 #define XCP_ENABLE_DAQ_EVENT_LIST // Enable event list
 #define XCP_MAX_EVENT 256 // Maximum number of events, size of event table
 
-//#define XCP_ENABLE_CHECKSUM // Enable checksum calculation command
-//#define XCP_ENABLE_CAL_PAGE // Enable cal page switch
+#ifdef APP_ENABLE_CAL_SEGMENT
+  #define XCP_ENABLE_CHECKSUM // Enable checksum calculation command
+  #define XCP_ENABLE_CAL_PAGE // Enable cal page switching co
+#endif
 
-#define XCP_ENABLE_A2L_UPLOAD // Enable GET_ID A2L content upload to host
+#define XCP_ENABLE_FILE_UPLOAD // Enable GET_ID A2L content upload to host
 #define XCP_ENABLE_A2L_NAME // Enable GET_ID A2L name upload to host
 
 // XCP V1.4
-//#define XCP_ENABLE_MULTICAST // Enable GET_DAQ_CLOCK_MULTICAST
-
-
+// #define XCP_ENABLE_DAQ_CLOCK_MULTICAST // Enable GET_DAQ_CLOCK_MULTICAST
 
 /*----------------------------------------------------------------------------*/
 /* Settings and parameters */
 
-#define XCP_DAQ_MEM_SIZE (5*100000) // Amount of memory for DAQ tables, each ODT entry needs 5 bytes
+#define XCP_DAQ_MEM_SIZE (5*10000) // Amount of memory for DAQ tables, each ODT entry needs 5 bytes
 
 
-// Clock type defined in main.h
-#ifdef CLOCK_USE_UTC_TIME_NS
+#ifdef CLOCK_USE_UTC_TIME_NS  // Clock type defined in main.h
 
-// Slave clock (mandatory)
-// Specify ApplXcpGetClock and ApplXcpGetClock64 resolution for DAQ time stamps 
-#define XCP_DAQ_CLOCK_64BIT  // Use 64 Bit time stamps in GET_DAQ_CLOCK
-#define XCP_DAQ_CLOCK_UUID  {0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc} // Slave clock UUID
-#define XCP_TIMESTAMP_SIZE 4 // Use 32 Bit time stamps in DAQ DTO
-#define XCP_TIMESTAMP_UNIT DAQ_TIMESTAMP_UNIT_1NS // unit DAQ_TIMESTAMP_UNIT_xxx
-#define XCP_TIMESTAMP_TICKS CLOCK_TICKS_PER_NS  // ticks per unit
+    // Slave clock (mandatory)
+    // Specify ApplXcpGetClock and ApplXcpGetClock64 resolution for DAQ time stamps 
+    #define XCP_DAQ_CLOCK_64BIT  // Use 64 Bit time stamps in GET_DAQ_CLOCK
+    #define XCP_DAQ_CLOCK_EPOCH XCP_EPOCH_TAI
+    #define XCP_TIMESTAMP_SIZE 4 // Use 32 Bit time stamps in DAQ DTO
+    #define XCP_TIMESTAMP_UNIT DAQ_TIMESTAMP_UNIT_1NS // unit DAQ_TIMESTAMP_UNIT_xxx
+    #define XCP_TIMESTAMP_TICKS CLOCK_TICKS_PER_NS  // ticks per unit
+
+    // Grandmaster clock (optional, needs to use XcpSetGrandmasterClockInfo, ApplXcpGetClockInfo) 
+    #define XCP_ENABLE_GRANDMASTER_CLOCK_INFO
+
+#else
+
+    #define XCP_DAQ_CLOCK_EPOCH XCP_EPOCH_ARB
+    #define XCP_TIMESTAMP_SIZE 4 // Use 32 Bit time stamps in DAQ DTO
+    #define XCP_TIMESTAMP_UNIT DAQ_TIMESTAMP_UNIT_1US // unit DAQ_TIMESTAMP_UNIT_xxx
+    #define XCP_TIMESTAMP_TICKS CLOCK_TICKS_PER_US  // ticks per unit
 
 #endif
-#ifdef CLOCK_USE_APP_TIME_US
 
-#define XCP_TIMESTAMP_SIZE 4 // Use 32 Bit time stamps in DAQ DTO
-#define XCP_TIMESTAMP_UNIT DAQ_TIMESTAMP_UNIT_1US // unit DAQ_TIMESTAMP_UNIT_xxx
-#define XCP_TIMESTAMP_TICKS CLOCK_TICKS_PER_US  // ticks per unit
-
-#endif
 
 #define XCP_TIMESTAMP_TICKS_S CLOCK_TICKS_PER_S // ticks per s (for debug output)
 

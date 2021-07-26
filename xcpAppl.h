@@ -28,8 +28,8 @@ extern "C" {
 /*----------------------------------------------------------------------------*/
 /* Info for GET_ID "slave name" */
 
-#define ApplXcpSlaveIdLen XCPSIM_SLAVE_ID_LEN
-#define ApplXcpSlaveId XCPSIM_SLAVE_ID
+#define ApplXcpSlaveIdLen APP_SLAVE_ID_LEN
+#define ApplXcpSlaveId APP_SLAVE_ID
 	   
 
 /*----------------------------------------------------------------------------*/
@@ -68,15 +68,20 @@ extern vuint16 XcpCreateEvent(const char* name, vuint16 timeCycle /*ms */, vuint
 /*----------------------------------------------------------------------------*/
 // DAQ clock provided to xcpLite.c as macros
 
-#define ApplXcpGetClock getLocalClock32
-#define ApplXcpGetClock64 getLocalClock64
-	
+// Get slave clock
+// XCP slave clock timestamp resolution defined in xcp_cfg.h
+// Clock must be monotonic !!!
+
+#define ApplXcpGetClock()     clockGet32()
+#define ApplXcpGetClock64()   clockGet64()
+#define ApplXcpPrepareDaq()   1 /* not used */  
+
 	   
 /*----------------------------------------------------------------------------*/
 // XCP Driver Transport Layer Callbacks as macros 
 
 // Prepare start of DAQ not used
-#define ApplXcpPrepareDaqStart()
+#define ApplXcpPrepareDaqStart() /* not used */
 
 // Set cluster id for multi cast reception not used yet
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0103

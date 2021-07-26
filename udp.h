@@ -6,7 +6,7 @@
 #ifndef __UDP_H__
 #define __UDP_H__
 
-#ifdef XCPSIM_ENABLE_XLAPI_V3
+#ifdef APP_ENABLE_XLAPI_V3
 
 #ifdef __cplusplus
 extern "C" {
@@ -43,20 +43,17 @@ typedef struct {
    XLethPortHandle portHandle; // VP handle
    tUdpSockAddrXl localAddr; // Local socket address 
    tUdpSockAddrXl multicastAddr; // Local socket address for Multicast
+   XLhandle event; // Notofication event
 } tUdpSockXl;
 
 
 #define RECV_FLAGS_UNICAST   0x01
 #define RECV_FLAGS_MULTICAST 0x02
 
-
 int udpRecvFrom(tUdpSockXl*socket, unsigned char *data, unsigned int size, tUdpSockAddrXl*socket_addr, unsigned int *flags);
-
 int udpSendTo(tUdpSockXl*socket, const unsigned char* data, unsigned int size, int mode, tUdpSockAddrXl*socket_addr, int socket_addr_size);
-
-int udpInit(tUdpSockXl**socket, XLhandle *pEvent, tUdpSockAddrXl*socket_addr, tUdpSockAddrXl* multicast_addr );
+int udpInit(tUdpSockXl**socket, tUdpSockAddrXl*socket_addr, tUdpSockAddrXl* multicast_addr );
 void udpShutdown(tUdpSockXl*socket);
-//int udpGetLastError(tUdpSockXl*socket);
 
 
 #ifdef __cplusplus

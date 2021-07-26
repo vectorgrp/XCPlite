@@ -586,7 +586,8 @@ void  XcpCommand( const vuint32* pCommand )
                       if (!ApplXcpGetA2LFilename((char**)&gXcp.Mta, &CRM_GET_ID_LENGTH,0)) error(CRC_OUT_OF_RANGE);
                       break;
 #endif
-#ifdef XCP_ENABLE_A2L_UPLOAD
+#ifdef XCP_ENABLE_FILE_UPLOAD
+                  case IDT_VECTOR_MDI:
                   case IDT_ASAM_UPLOAD:
                       if (!ApplXcpReadFile(CRO_GET_ID_TYPE, &gXcp.Mta, &CRM_GET_ID_LENGTH)) error(CRC_ACCESS_DENIED);
                       break;
@@ -752,6 +753,9 @@ void  XcpCommand( const vuint32* pCommand )
             case CC_FREE_DAQ: 
             {
                 XcpFreeDaq();
+#ifdef XCP_ENABLE_GRANDMASTER_CLOCK_INFO // Check if clock status allows to start DAQ
+                if (!ApplXcpPrepareDaq()) error(CRC_TIMECORR_STATE_CHANGE);;
+#endif
 
             }
             break;
@@ -881,7 +885,7 @@ void  XcpCommand( const vuint32* pCommand )
             {
               if ((CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES & TIME_SYNC_SET_PROPERTIES_RESPONSE_FMT) >= 1) { // set extended format
                   #if defined ( XCP_ENABLE_TESTMODE )
-                  if (ApplXcpDebugLevel >= 2) ApplXcpPrint("  Timesync extended mode activated\n");
+                  if (ApplXcpDebugLevel >= 2) ApplXcpPrint("  Timesync extended mode activated (RESPONSE_FMT=%u)\n", CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES & TIME_SYNC_SET_PROPERTIES_RESPONSE_FMT);
                   #endif                 
                 gXcp.SessionStatus = (vuint8)(gXcp.SessionStatus & ~SS_LEGACY_MODE); 
               }
@@ -900,60 +904,46 @@ void  XcpCommand( const vuint32* pCommand )
 
               gXcp.CrmLen = CRM_TIME_SYNC_PROPERTIES_LEN;
               
-#if !defined(XCP_ENABLE_PTP_GRANDMASTER)
-
-              CRM_TIME_SYNC_PROPERTIES_SLAVE_CONFIG = SLAVE_CONFIG_RESPONSE_FMT_ADVANCED | SLAVE_CONFIG_DAQ_TS_SLAVE | SLAVE_CONFIG_TIME_SYNC_BRIDGE_NONE;  // SLAVE_CONFIG_RESPONSE_FMT_LEGACY | SLAVE_CONFIG_DAQ_TS_SLAVE | SLAVE_CONFIG_TIME_SYNC_BRIDGE_NONE;
+#ifndef XCP_ENABLE_GRANDMASTER_CLOCK_INFO
+              CRM_TIME_SYNC_PROPERTIES_SLAVE_CONFIG = SLAVE_CONFIG_RESPONSE_FMT_ADVANCED | SLAVE_CONFIG_DAQ_TS_SLAVE | SLAVE_CONFIG_TIME_SYNC_BRIDGE_NONE;  // SLAVE_CONFIG_RESPONSE_FMT_LEGACY
               CRM_TIME_SYNC_PROPERTIES_OBSERVABLE_CLOCKS = SLAVE_CLOCK_FREE_RUNNING | SLAVE_GRANDM_CLOCK_NONE | ECU_CLOCK_NONE;
               CRM_TIME_SYNC_PROPERTIES_SYNC_STATE = SLAVE_CLOCK_STATE_FREE_RUNNING;
-              CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO = CLOCK_INFO_SLAVE; // | CLOCK_INFO_SLAVE_GRANDM | CLOCK_INFO_RELATION | CLOCK_INFO_ECU | CLOCK_INFO_ECU_GRANDM;
+              CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO = CLOCK_INFO_SLAVE; 
               CRM_TIME_SYNC_PROPERTIES_RESERVED = 0x0;
               CRM_TIME_SYNC_PROPERTIES_CLUSTER_ID = gXcp.ClusterId;
               if (CRO_TIME_SYNC_PROPERTIES_GET_PROPERTIES_REQUEST & TIME_SYNC_GET_PROPERTIES_GET_CLK_INFO) { // check whether MTA based upload is requested
-                  if (ApplXcpDebugLevel >= 2) ApplXcpPrint("  SLAVE CLOCK info on MTA\n");
-                 gXcp.Mta = (vuint8*)&gXcp.SlaveClockInfo;
+                  if (ApplXcpDebugLevel >= 1) ApplXcpPrint("  SLAVE CLOCK info on MTA\n");
+                  gXcp.Mta = (vuint8*)&gXcp.SlaveClockInfo;
               }
-
 #else
-
-              //CRM_TIME_SYNC_PROPERTIES_SLAVE_CONFIG = 0; // TIME_SYNC_BRIDGE = 0, DAQ_TS_RELATION = 0 XCP slave clock, RESPONSE_FMT = 0 - GET_DAQ_CLOCK response is always in legacy mode
-              CRM_TIME_SYNC_PROPERTIES_SLAVE_CONFIG = 1; // TIME_SYNC_BRIDGE = 0, DAQ_TS_RELATION = 0 - XCP slave clock, RESPONSE_FMT = 1 - GET_DAQ_CLOCK response in extended format, GET_DAQ_CLOCK_MULTICAST response with EV_TIME_SYNC extended format
-              //CRM_TIME_SYNC_PROPERTIES_OBSERVABLE_CLOCKS = 0; // XCP_SLV_CLK = 0 - free running observable, GRANDM_CLK = 0, ECU_CLK = 0
-              CRM_TIME_SYNC_PROPERTIES_OBSERVABLE_CLOCKS = 1; // XCP_SLV_CLK = 1 - slave clock synchronized and observable, GRANDM_CLK = 0, ECU_CLK = 0
-              CRM_TIME_SYNC_PROPERTIES_SYNC_STATE = 0x01; // SLV_CLK_SYNC_STATE = 1 - slave clock synchronised to grandmaster
-              //CRM_TIME_SYNC_PROPERTIES_SYNC_STATE = 0x00; // SLV_CLK_SYNC_STATE = 0 - slave synchronising in progress to grandmaster
-              CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO = 0x01 | 0x02 | 0x04; // SLC_CLK_INFO = 1 - info available in upload, GRANM_CLK_INFO = 1 - available, CLK_RELATION = 1 - available
+              CRM_TIME_SYNC_PROPERTIES_SLAVE_CONFIG = SLAVE_CONFIG_RESPONSE_FMT_ADVANCED | SLAVE_CONFIG_DAQ_TS_SLAVE | SLAVE_CONFIG_TIME_SYNC_BRIDGE_NONE;  // SLAVE_CONFIG_RESPONSE_FMT_LEGACY
+              CRM_TIME_SYNC_PROPERTIES_OBSERVABLE_CLOCKS = SLAVE_CLOCK_SYNCED | SLAVE_GRANDM_CLOCK_READABLE | ECU_CLOCK_NONE;
+              CRM_TIME_SYNC_PROPERTIES_SYNC_STATE = SLAVE_CLOCK_STATE_SYNCH;
+              CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO = CLOCK_INFO_SLAVE | CLOCK_INFO_SLAVE_GRANDM | CLOCK_INFO_RELATION;
               CRM_TIME_SYNC_PROPERTIES_RESERVED = 0x0;
-              CRM_TIME_SYNC_PROPERTIES_CLUSTER_AFFILIATION = gXcp.ClusterId; // clusterAffiliation;
-              // check whether MTA based upload is requested
-              if (CRO_TIME_SYNC_PROPERTIES_GET_PROPERTIES & TIME_SYNC_GET_PROPERTIES_SLV_CLK_INFO) {
-                  unsigned char buf[sizeof(T_CLOCK_INFORMATION) + sizeof(T_CLOCK_RELATION) + sizeof(T_CLOCK_INFORMATION_GRANDM)];
+              CRM_TIME_SYNC_PROPERTIES_CLUSTER_ID = gXcp.ClusterId;
+              if (CRO_TIME_SYNC_PROPERTIES_GET_PROPERTIES_REQUEST & TIME_SYNC_GET_PROPERTIES_GET_CLK_INFO) { // check whether MTA based upload is requested
+                  static unsigned char buf[sizeof(T_CLOCK_INFO_SLAVE) + sizeof(T_CLOCK_INFO_RELATION) + sizeof(T_CLOCK_INFO_GRANDMASTER)];
                   unsigned char* p = &buf[0];
-                  if (CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO & TIME_SYNC_GET_PROPERTIES_SLV_CLK_INFO) {
-                      ApplXcpPrint("  -> SLV CLK info on MTA\n");
-                      memcpy(p, (unsigned char*)&gXcp.XcpSlaveClockInfo, sizeof(T_CLOCK_INFORMATION));
-                      p += sizeof(T_CLOCK_INFORMATION);
+                  ApplXcpGetClockInfo(&gXcp.SlaveClockInfo, &gXcp.GrandmasterClockInfo);
+                  if (CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO & CLOCK_INFO_SLAVE) {
+                      if (ApplXcpDebugLevel >= 1) ApplXcpPrint("  -> SLAVE CLOCK info on MTA\n");
+                      memcpy(p, (unsigned char*)&gXcp.SlaveClockInfo, sizeof(T_CLOCK_INFO_SLAVE));
+                      p += sizeof(T_CLOCK_INFO_SLAVE);
                   }
 
-                  if (CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO & TIME_SYNC_GET_PROPERTIES_GRANDM_CLK_INFO) {
-                      ApplXcpPrint("  -> GRANDM CLK info on MTA\n");
-                      memcpy(p, (unsigned char*)&gXcp.GrandmasterClockInfo, sizeof(T_CLOCK_INFORMATION_GRANDM));
-                      p += sizeof(T_CLOCK_INFORMATION_GRANDM);
+                  if (CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO & CLOCK_INFO_SLAVE_GRANDM) {
+                      if (ApplXcpDebugLevel >= 1) ApplXcpPrint("  -> GRANDMASTER CLK info on MTA\n");
+                      memcpy(p, (unsigned char*)&gXcp.GrandmasterClockInfo, sizeof(T_CLOCK_INFO_GRANDMASTER));
+                      p += sizeof(T_CLOCK_INFO_GRANDMASTER);
                   }
 
-                  if (CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO & TIME_SYNC_GET_PROPERTIES_CLK_RELATION) {
-                      ApplXcpPrint("  -> CLK RELATION info on MTA\n");
-                      gXcp.SlvGrandmClkRelationInfo.timestampLocal = ApplXcpGetClock64();
-                      gXcp.SlvGrandmClkRelationInfo.timestampOrigin = gXcp.SlvGrandmClkRelationInfo.timestampLocal;
-                      memcpy(p, (unsigned char*)&gXcp.SlvGrandmClkRelationInfo, sizeof(T_CLOCK_RELATION));
-                      p += sizeof(T_CLOCK_RELATION);
-                  }
-
-                  if (CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO & TIME_SYNC_GET_PROPERTIES_ECU_CLK_INFO) {
-                      error(CRC_OUT_OF_RANGE)
-                  }
-
-                  if (CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO & TIME_SYNC_GET_PROPERTIES_ECU_GRANDM_CLK_INFO) {
-                      error(CRC_OUT_OF_RANGE)
+                  if (CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO & CLOCK_INFO_RELATION) {
+                      if (ApplXcpDebugLevel >= 1) ApplXcpPrint("  -> CLOCK RELATION info on MTA\n");
+                      gXcp.ClockRelationInfo.timestampLocal = ApplXcpGetClock64();
+                      gXcp.ClockRelationInfo.timestampOrigin = gXcp.ClockRelationInfo.timestampLocal;
+                      memcpy(p, (unsigned char*)&gXcp.ClockRelationInfo, sizeof(T_CLOCK_INFO_RELATION));
+                      p += sizeof(T_CLOCK_INFO_RELATION);
                   }
 
                   gXcp.Mta = (vuint8*)buf;
@@ -969,7 +959,7 @@ void  XcpCommand( const vuint32* pCommand )
 
               switch (CRO_TL_SUBCOMMAND) {
 
-#ifdef XCP_ENABLE_MULTICAST
+#ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
               case CC_TL_GET_DAQ_CLOCK_MULTICAST: 
               {
                   vuint16 clusterId = CRO_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER;
@@ -1008,7 +998,7 @@ void  XcpCommand( const vuint32* pCommand )
               CRM_GET_DAQ_CLOCK_TRIGGER_INFO = 0x18; // TIME_OF_SAMPLING (Bitmask 0x18, 3 - Sampled on reception) 
               CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = 0x01; // FMT_XCP_SLV = size of payload is DWORD
               gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN;
-  #ifdef XCP_ENABLE_MULTICAST
+  #ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
     #ifdef XCP_DAQ_CLOCK_64BIT
               gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN + 5;
               CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = 0x2;// FMT_XCP_SLV = size of payload is DLONG
@@ -1124,41 +1114,51 @@ void  XcpInit( void )
 
   gXcp.ClusterId = 1;  // XCP default cluster id (multicast addr 239,255,0,1, group 127,0,1 (mac 01-00-5E-7F-00-01)
 
-  // XCP slave clock description
-  unsigned char uuid[8] = XCP_DAQ_CLOCK_UUID;
-  memcpy(&gXcp.SlaveClockInfo.UUID[0], &uuid[0], 8);
+  // XCP slave clock default description
   gXcp.SlaveClockInfo.timestampTicks = XCP_TIMESTAMP_TICKS;
   gXcp.SlaveClockInfo.timestampUnit = XCP_TIMESTAMP_UNIT;
-  gXcp.SlaveClockInfo.stratumLevel = 255UL; // STRATUM_LEVEL_UNKNOWN
+  gXcp.SlaveClockInfo.stratumLevel = XCP_STRATUM_LEVEL_ARB;
 #ifdef XCP_DAQ_CLOCK_64BIT
-  gXcp.SlaveClockInfo.nativeTimestampSize = 8UL; // NATIVE_TIMESTAMP_SIZE_DLONG;
+  gXcp.SlaveClockInfo.nativeTimestampSize = 8; // NATIVE_TIMESTAMP_SIZE_DLONG;
   gXcp.SlaveClockInfo.valueBeforeWrapAround = 0xFFFFFFFFFFFFFFFFULL;
 #else
-  gXcp.SlaveClockInfo.nativeTimestampSize = 4UL; // NATIVE_TIMESTAMP_SIZE_LONG;
+  gXcp.SlaveClockInfo.nativeTimestampSize = 4; // NATIVE_TIMESTAMP_SIZE_LONG;
   gXcp.SlaveClockInfo.valueBeforeWrapAround = 0xFFFFFFFFULL;
 #endif
 
-#ifdef XCP_ENABLE_PTP_GRANDMASTER
+#ifdef XCP_ENABLE_GRANDMASTER_CLOCK_INFO
 
-  // XCP grandmaster clock description
-  ApplXcpGetMasterClockId(&gXcp.GrandmasterClockInfo.UUID[0]);
+  // XCP grandmaster clock default description
   gXcp.GrandmasterClockInfo.timestampTicks = XCP_TIMESTAMP_TICKS;
   gXcp.GrandmasterClockInfo.timestampUnit = XCP_TIMESTAMP_UNIT;
-  gXcp.GrandmasterClockInfo.stratumLevel = 0; // GPS
-  gXcp.GrandmasterClockInfo.nativeTimestampSize = 8UL; // NATIVE_TIMESTAMP_SIZE_DLONG;
+  gXcp.GrandmasterClockInfo.stratumLevel = XCP_STRATUM_LEVEL_ARB; 
+  gXcp.GrandmasterClockInfo.nativeTimestampSize = 8; // NATIVE_TIMESTAMP_SIZE_DLONG;
   gXcp.GrandmasterClockInfo.valueBeforeWrapAround = 0xFFFFFFFFFFFFFFFFULL;
-  gXcp.GrandmasterClockInfo.epochOfGrandmaster = 0UL; // EPOCH_TAI;
+  gXcp.GrandmasterClockInfo.epochOfGrandmaster = XCP_DAQ_CLOCK_EPOCH;
+  ApplXcpGetClockInfo(&gXcp.SlaveClockInfo, &gXcp.GrandmasterClockInfo);
 
   // If the slave clock is PTP synchronized, both origin and local timestamps are considered to be the same.
   // Timestamps will be updated to the current value pair
-  gXcp.SlvGrandmClkRelationInfo.timestampLocal = 0;
-  gXcp.SlvGrandmClkRelationInfo.timestampOrigin = 0;
+  gXcp.ClockRelationInfo.timestampLocal = 0;
+  gXcp.ClockRelationInfo.timestampOrigin = 0;
 #endif
 #endif
 
   /* Initialize the session status */
   gXcp.SessionStatus = 0;
 }
+
+
+#ifdef XCP_ENABLE_GRANDMASTER_CLOCK_INFO
+void XcpSetGrandmasterClockInfo(vuint8* id, vuint8 epoch, vuint8 stratumLevel) {
+
+    memcpy(gXcp.SlaveClockInfo.UUID, id, 8);
+    memcpy(gXcp.GrandmasterClockInfo.UUID, id, 8);
+    gXcp.SlaveClockInfo.stratumLevel = gXcp.GrandmasterClockInfo.stratumLevel = stratumLevel;
+    gXcp.GrandmasterClockInfo.epochOfGrandmaster = epoch;
+
+}
+#endif
 
 
 /****************************************************************************/

@@ -13,6 +13,7 @@ extern "C" {
 
 #if defined(CLOCK_USE_UTC_TIME_NS) // ns since 1.1.1970
 
+#define CLOCK_TICKS_PER_M  (1000000000ULL*60) 
 #define CLOCK_TICKS_PER_S  1000000000 
 #define CLOCK_TICKS_PER_MS 1000000 
 #define CLOCK_TICKS_PER_US 1000
@@ -26,15 +27,14 @@ extern "C" {
 
 #endif
 
-extern volatile uint64_t gLocalClock64;
-extern volatile uint32_t gLocalClock32;
+extern volatile uint64_t gClock64;
+extern volatile uint32_t gClock32;
 
-extern int clockInit(int ptpEnable, uint8_t ptpDomain);
+extern int clockInit();
 extern char* clockGetString(char* s, unsigned int cs, uint64_t c);
-extern void clockShutdown();
 
-extern uint32_t getLocalClock32();
-extern uint64_t getLocalClock64();
+extern uint32_t clockGet32();
+extern uint64_t clockGet64();
 
 extern void sleepNs(uint32_t ns);
 extern void sleepMs(uint32_t ms);

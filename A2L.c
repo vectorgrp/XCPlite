@@ -13,7 +13,7 @@
 #include "main.h"
 #include "A2L.h"
 
-#ifdef XCPSIM_ENABLE_A2L_GEN
+#ifdef APP_ENABLE_A2L_GEN
 
 static FILE* gA2lFile = NULL;
 static int gA2lEvent = 0;
@@ -31,9 +31,13 @@ static const char* gA2lHeader =
 "/begin HEADER \"\" VERSION \"1.0\" /end HEADER\n"
 "/begin MODULE XCPlite \"\"\n"
 "/include \"XCP_104.aml\"\n\n"
+
 //"/begin IF_DATA CNP_CREATE_INI /begin TP_BLOB 0x0100 PARAMETER \"canape.ini\" \"$CNP_DVC_SCTN$\" \"TIME_CORR_MULTICAST\" \"0\" /end TP_BLOB /end IF_DATA\n" // CANape option multicast off
 //"/begin IF_DATA CNP_CREATE_INI /begin TP_BLOB 0x0100 PARAMETER \"canape.ini\" \"$CNP_DVC_SCTN$\" \"DAQ_COUNTER_HANDLING\" \"0\" /end TP_BLOB /end IF_DATA\n" // CANape option exclude command response
 //"/begin IF_DATA CNP_CREATE_INI /begin TP_BLOB 0x0100 PARAMETER \"canape.ini\" \"$CNP_DVC_SCTN$\" \"LOCAL_PORT\" \"9001\" /end TP_BLOB /end IF_DATA\n" // CANape option exclude command response
+
+//----------------------------------------------------------------------------------
+#ifdef APP_ENABLE_CAL_SEGMENT
 "/begin MOD_PAR \"\"\n"
 "/begin MEMORY_SEGMENT\n"
 "CALRAM \"\" DATA FLASH INTERN 0x%08X 0x%08X - 1 - 1 - 1 - 1 - 1\n" // CALRAM_START, CALRAM_SIZE
@@ -46,7 +50,9 @@ static const char* gA2lHeader =
 "/end IF_DATA\n"
 "/end MEMORY_SEGMENT\n"
 "/end MOD_PAR\n\n"
+#endif
 
+//----------------------------------------------------------------------------------
 "/begin MOD_COMMON \"\"\n"
 "BYTE_ORDER MSB_LAST\n"
 "ALIGNMENT_BYTE 1\n"
@@ -61,6 +67,7 @@ static const char* gA2lHeader =
 static const char* gA2lIfData1 = // Parameters %04X version, %u max cto, %u max dto, %u max event, %s timestamp unit
 "/begin IF_DATA XCP\n"
 
+//----------------------------------------------------------------------------------
 "/begin PROTOCOL_LAYER\n"
 " 0x%04X" // XCP_PROTOCOL_LAYER_VERSION
 " 1000 2000 0 0 0 0 0" // Timeouts T1-T7
@@ -108,16 +115,18 @@ static const char* gA2lIfData1 = // Parameters %04X version, %u max cto, %u max 
 "OPTIONAL_LEVEL1_CMD GET_VERSION\n"
 #endif
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0104
-#ifdef XCP_ENABLE_PACKED_MODE
+  #ifdef XCP_ENABLE_PACKED_MODE
 "OPTIONAL_LEVEL1_CMD SET_DAQ_PACKED_MODE\n"
 "OPTIONAL_LEVEL1_CMD GET_DAQ_PACKED_MODE\n"
-#endif
+  #endif
 #endif
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0150
 //"OPTIONAL_LEVEL1_CMD SW_DBG_COMMAND_SPACE\n"
 //"OPTIONAL_LEVEL1_CMD POD_COMMAND_SPACE\n"
 #endif
 "/end PROTOCOL_LAYER\n"
+
+//----------------------------------------------------------------------------------
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
 /*
 "/begin TIME_CORRELATION\n" // TIME
@@ -125,6 +134,7 @@ static const char* gA2lIfData1 = // Parameters %04X version, %u max cto, %u max 
 */
 #endif
 
+//----------------------------------------------------------------------------------
 "/begin DAQ\n" // DAQ
 "DYNAMIC 0 %u 0 OPTIMISATION_TYPE_DEFAULT ADDRESS_EXTENSION_FREE IDENTIFICATION_FIELD_TYPE_RELATIVE_BYTE GRANULARITY_ODT_ENTRY_SIZE_DAQ_BYTE 0xF8 OVERLOAD_INDICATION_PID\n"
 "/begin TIMESTAMP_SUPPORTED\n"
@@ -133,7 +143,15 @@ static const char* gA2lIfData1 = // Parameters %04X version, %u max cto, %u max 
 
 static const char* gA2lIfData2 = // Parameter %u port and %s ip address string
 "/end DAQ\n"
-"/begin XCP_ON_UDP_IP 0x%04X %u ADDRESS \"%s\" /end XCP_ON_UDP_IP\n" // Transport Layer
+"/begin XCP_ON_UDP_IP\n"
+"  0x%04X %u ADDRESS \"%s\"\n"
+//"OPTIONAL_TL_SUBCMD GET_SLAVE_ID\n"
+//"OPTIONAL_TL_SUBCMD GET_DAQ_ID\n"
+//"OPTIONAL_TL_SUBCMD SET_DAQ_ID\n"
+#if defined(APP_ENABLE_MULTICAST) && defined(XCP_ENABLE_DAQ_CLOCK_MULTICAST)
+"  OPTIONAL_TL_SUBCMD GET_DAQ_CLOCK_MULTICAST\n"
+#endif
+"/end XCP_ON_UDP_IP\n" // Transport Layer
 "/end IF_DATA\n\n"
 ;
 
@@ -214,7 +232,12 @@ void A2lHeader() {
 
   assert(gA2lFile);
 
+#ifdef APP_ENABLE_CAL_SEGMENT
   fprintf(gA2lFile, gA2lHeader, (unsigned int)ApplXcpGetAddr((vuint8 *)&ecuPar), (unsigned int)sizeof(ecuPar)); 
+#else
+  fprintf(gA2lFile, gA2lHeader);
+#endif
+
 
 #if (XCP_TIMESTAMP_UNIT==DAQ_TIMESTAMP_UNIT_1NS)
   #define XCP_TIMESTAMP_UNIT_S "UNIT_1NS"
@@ -246,6 +269,10 @@ fprintf(gA2lFile, gA2lIfData2, XCP_TRANSPORT_LAYER_VERSION, getA2lSlavePort(), g
 
 void A2lSetEvent(uint16_t event) {
 	gA2lEvent = event;
+
+#ifdef APP_ENABLE_MDF
+	mdfCreateChannelGroup(event/*=recordId*/);
+#endif
 }
 
 
@@ -296,6 +323,10 @@ void A2lCreateMeasurement_(const char* instanceName, const char* name, int size,
 	}
 	fprintf(gA2lFile, " /end MEASUREMENT\n");
 	gA2lMeasurements++;
+
+#ifdef APP_ENABLE_MDF
+	mdfCreateChannel(name, size /*type*/, 1 /* dim */, factor, offset, unit);
+#endif
 }
 
 
@@ -312,6 +343,9 @@ void A2lCreateMeasurementArray_(const char* instanceName, const char* name, int 
 	}
 	fprintf(gA2lFile, " /end CHARACTERISTIC\n");
 	gA2lMeasurements++;
+#ifdef APP_ENABLE_MDF
+	mdfCreateChannel(name, size /*type*/, dim /* dim */, 1.0, 0.0, "");
+#endif
 }
 
 

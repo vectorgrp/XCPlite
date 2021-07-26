@@ -13,7 +13,7 @@
 #include "main.h"
 
 #ifdef _WIN 
-#ifdef XCPSIM_ENABLE_XLAPI_V3
+#ifdef APP_ENABLE_XLAPI_V3
 
 #include "udp.h"
 
@@ -101,7 +101,7 @@ static int printIPV4Frame(const char* dir, const T_XL_ETH_FRAMEDATA* frameData, 
             if ((ip->daddr[0] >> 4) == 0x0E) {
                 printf("MULTICAST ");
 
-#ifdef XCPSIM_ENABLE_PTP
+#ifdef APP_ENABLE_PTP
                 // PTP
                 if (HTONS(udp->source) == 319 || HTONS(udp->source) == 320) {
                     struct ptphdr* ptp = (struct ptphdr*) & frameData->ethFrame.payload[sizeof(struct iphdr) + sizeof(struct udphdr)];
@@ -268,6 +268,12 @@ int udpRecvFrom(tUdpSockXl* sock, unsigned char* data, unsigned int size, tUdpSo
     unsigned int rxCount = 128;
     *flags = 0;
 
+    // Blocking
+    HANDLE event_array[1];
+    event_array[0] = sock->event;
+    WaitForMultipleObjects(1, event_array, FALSE, 100);
+
+    // Read queue until empty
     for (;;) {
 
         err = xlNetEthReceive(sock->networkHandle, &rxEvent, &rxCount, rxHandles);
@@ -323,14 +329,15 @@ int udpRecvFrom(tUdpSockXl* sock, unsigned char* data, unsigned int size, tUdpSo
                     if (l < size) size = l;
 
                     // Multicast
-#ifdef XCPSIM_ENABLE_MULTICAST
+#ifdef APP_ENABLE_MULTICAST
                     if ((ip->daddr[0] >> 4) == 0x0E) {
 
-#ifdef XCPSIM_ENABLE_PTP
+#ifdef APP_ENABLE_PTP
                         // PTP
                         if (HTONS(udp->source) == 319 || HTONS(udp->source) == 320) {
                             struct ptphdr* ptp = (struct ptphdr*)&frameRx->frameData.ethFrame.payload[sizeof(struct iphdr) + sizeof(struct udphdr)];
                             ptpHandleFrame(size, ptp, ip->saddr);
+                            return 0;
                         }
 #endif
                         //  XCP multicast addr
@@ -427,7 +434,7 @@ int udpSendTo(tUdpSockXl *sock, const unsigned char* data, unsigned int size, in
 
 
 // appname, net, seg, ipaddr, port -> netHandle, vpHandle, event
-int udpInit(tUdpSockXl** pSock, XLhandle* pEvent, tUdpSockAddrXl* addr, tUdpSockAddrXl* multicastAddr) {
+int udpInit(tUdpSockXl** pSock, tUdpSockAddrXl* addr, tUdpSockAddrXl* multicastAddr) {
 
     XLstatus err = XL_SUCCESS;
     
@@ -442,18 +449,19 @@ int udpInit(tUdpSockXl** pSock, XLhandle* pEvent, tUdpSockAddrXl* addr, tUdpSock
         return 0;
     }
     
-    if (XL_SUCCESS != (err = xlNetEthOpenNetwork(gOptionXlSlaveNet, &sock->networkHandle, XCPSIM_SLAVE_ID, XL_ACCESS_TYPE_RELIABLE, 8 * 1024 * 1024))) {
+    if (XL_SUCCESS != (err = xlNetEthOpenNetwork(gOptionXlSlaveNet, &sock->networkHandle, APP_SLAVE_ID, XL_ACCESS_TYPE_RELIABLE, 8 * 1024 * 1024))) {
         printf("ERROR: xlNetEthOpenNetwork(NET1) failed with ERROR: %s (%d)!\n", xlGetErrorString(err), err);
         return 0;
     }
 
-    if (XL_SUCCESS != (err = xlNetAddVirtualPort(sock->networkHandle, gOptionXlSlaveSeg, XCPSIM_SLAVE_ID, &sock->portHandle, 1))) {
+    if (XL_SUCCESS != (err = xlNetAddVirtualPort(sock->networkHandle, gOptionXlSlaveSeg, APP_SLAVE_ID, &sock->portHandle, 1))) {
         printf("ERROR: xlNetAddVirtualPort SEG1 failed with ERROR: %s (%d)!\n", xlGetErrorString(err), err);
         return 0;
     }
 
     // Set notification handle (required to use event handling via WaitForMultipleObjects)
-    if (XL_SUCCESS != (err = xlNetSetNotification(sock->networkHandle, pEvent, 1))) { // (1) - Notify for each single event in queue
+    sock->event = CreateEvent(NULL, FALSE, FALSE, NULL);
+    if (XL_SUCCESS != (err = xlNetSetNotification(sock->networkHandle, &sock->event, 1))) { // (1) - Notify for each single event in queue
         printf("ERROR: xlNetSetNotification failed with ERROR: %s (%d)!\n", xlGetErrorString(err), err);
         return 0;
     }

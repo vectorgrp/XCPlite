@@ -1,7 +1,7 @@
 /* ecupp.hpp */
-
-/* Copyright(c) Vector Informatik GmbH.All rights reserved.
-   Licensed under the MIT license.See LICENSE file in the project root for details. */
+/*
+| Code released into public domain, no attribution required
+*/
 
 #ifndef __ECUPP_HPP_
 #define __ECUPP_HPP_
@@ -41,7 +41,7 @@ public:
 
 	void run();
 
-#ifdef XCPSIM_ENABLE_A2L_GEN
+#ifdef APP_ENABLE_A2L_GEN
 	void createA2lClassDefinition();
 	void createA2lClassInstance(const char* instanceName, const char* comment);
 #endif
@@ -53,8 +53,8 @@ public:
 extern "C" {
 #endif
 
-void ecuppInit(void);
-void ecuppCreateA2lDescription(void);
+void ecuppInit();
+void ecuppCreateA2lDescription();
 void* ecuppTask(void* p);
 
 #ifdef __cplusplus

@@ -6,7 +6,7 @@
 #ifndef __A2L_H_ 
 #define __A2L_H_
 
-#ifdef XCPSIM_ENABLE_A2L_GEN
+#ifdef APP_ENABLE_A2L_GEN
 
 #ifdef __cplusplus
 extern "C" {
