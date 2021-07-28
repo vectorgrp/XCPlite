@@ -1,29 +1,31 @@
 
-# XCPlite V2
+# XCPlite V3
 
 Copyright 2021 Vector Informatik GmbH
 
 Lightweight implementation of the ASAM XCP Protocol Layer V1.4 (1000 lines of code in XCPlite.c).
 
-Demos for Linux and Windows (Winsock and XL-API V3 (VN5xxx) with simple buildin UDP stack)
+Supports Linux 32/64 Bit and Windows 32/64 Bit 
+Posix and Windows Sockets or Vector VN5xxx automotive Ethernet devices
+100-Base-T1 or 1000-Base-T1 BroadrReach, XL-API V3 network based access
 
-List of restrictions compared to Vectors xcpBasic and xcpProf in source file xcpLite.c.
+List of restrictions compared to Vectors free xcpBasic and commercial xcpProf in source file xcpLite.c.
 
-Optimized for XCP on Ethernet (UDP), thread safe, minimal thread lock and zero copy data acquisition.
+Supports only XCP on Ethernet
+Thread safe, minimal thread lock and zero copy data acquisition.
 C and C++ target support.
 
-Achieves up to 80 MByte/s throughput on a Raspberry Pi 4, more than 100 MByte/s on a PC (option -jumbo).
-3% single thread raspi cpu time in event copy routine for 40MByte/s transfer rate. 
-1us measurement timestamp resolution.
+Achieves 40 MByte/s throughput on a Raspberry Pi 4 (jumbo frames enabled) with 3% cpu time in event copy routine
 
-No A2L (ASAP2 ECU description) required. 
-A A2L with reduced featureset is generated through code instrumentation during runtime on target system 
-and automatically uploaded by XCP (option -a2l).
+Quick start with no A2L (ASAP2 ECU description) required. 
+An A2L with reduced featureset is generated through code instrumentation during runtime on target system 
+and automatically uploaded by XCP).
 
 C and C++ measurement demo variables and code example in ecu.c and ecupp.cpp.
 Demo how to measure global variables and dynamic instances of structs and classes.
 
-## Code instrumentation:
+
+## Code instrumentation for measurement:
 
 Only simple code instrumentation needed for event triggering and data copy, event definition and data object definition.
 
@@ -63,19 +65,20 @@ Demo visual Studio solution and CANape project included for Raspberry Pi 4 and W
 
 All settings and parameters for the XCP protocol and transport layer are located in xcp_cfg.h and xcptl_cfg.h
 
-Compile options for the XCPlite demo are main.h:
+Compile options for the XCPlite demo are located in main.h:
 ```
 #define XCPSIM_ENABLE_A2L_GEN  // Enable A2L creator and A2L upload to host
-#define XCPSIM_ENABLE_XLAPI_V3  // Enable Vector XL-API stack (option -v3)
+#define XCPSIM_ENABLE_XLAPI_V3  // Enable Vector XL-API stack (option -v3) for BroadrReach xxx-Base-T1
+#define APP_ENABLE_MULTICAST  // Enable multicast time synchronisation (GET_DAQ_CLOCK_MULTICAST)
+
 ```
 
 ## Notes:
 - If A2L generation and upload is disabled, use CANape address update with Linker Map Type ELF extended for a.out format or PDB for .exe 
 - The A2L generator creates a unique file name for the A2L, for convinience use name detection (GET_ID 1) 
 - Linux Compile with -O2, Link with -pthread
-- Jumbo frames are disables by default
-- 64 bit version needs all objects within on 4 GByte data segment  
-- Multicast time syncronisation, multicast device detection, PTP master clock emulation, TCP transport layer may be future features
+- Jumbo frames are disabled by default
+- 64 bit version needs all objects within one 4 GByte data segment  
 
 
 

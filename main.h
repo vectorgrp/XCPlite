@@ -85,7 +85,7 @@
 #define APP_XCPLITE
 #define APP_NAME "XCPlite"
 #define APP_NAME_LEN 7
-#define APP_VERSION "3.0.0"
+#define APP_VERSION "3.0.1"
 
 #define APP_DEFAULT_DEBUGLEVEL 1
 

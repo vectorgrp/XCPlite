@@ -6,6 +6,12 @@
 #ifndef __UTIL_H_ 
 #define __UTIL_H_
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+       
 //-------------------------------------------------------------------------------
 // Mutex
 
@@ -91,4 +97,9 @@ extern int _kbhit();
 #endif
 
 
+#endif
+
+
+#ifdef __cplusplus
+}
 #endif

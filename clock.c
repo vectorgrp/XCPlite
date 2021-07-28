@@ -61,6 +61,9 @@ int clockInit()
 #ifdef CLOCK_USE_UTC_TIME_NS 
     printf("CLOCK_USE_UTC_TIME_NS,");
 #endif
+#ifdef CLOCK_USE_APP_TIME_US 
+    printf("CLOCK_USE_APP_TIME_US,");
+#endif
 
 #if CLOCK_TYPE == CLOCK_TAI 
     printf("CLOCK_TYPE_TAI,");
