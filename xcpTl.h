@@ -71,7 +71,6 @@ typedef struct {
     tUdpSock Sock;
     unsigned int SlaveMTU;
     tUdpSockAddr SlaveAddr;
-    uint8_t SlaveMAC[6];
     uint8_t SlaveUUID[8];
     tUdpSockAddr MasterAddr;
     int MasterAddrValid;
@@ -101,7 +100,7 @@ typedef struct {
 
     MUTEX Mutex_Queue;
     MUTEX Mutex_Send;
-
+       
 } tXcpTlData;
 
 extern tXcpTlData gXcpTl;

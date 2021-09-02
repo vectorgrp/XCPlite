@@ -100,20 +100,6 @@ static int printIPV4Frame(const char* dir, const T_XL_ETH_FRAMEDATA* frameData, 
             // UDP MULTICAST
             if ((ip->daddr[0] >> 4) == 0x0E) {
                 printf("MULTICAST ");
-
-#ifdef APP_ENABLE_PTP
-                // PTP
-                if (HTONS(udp->source) == 319 || HTONS(udp->source) == 320) {
-                    struct ptphdr* ptp = (struct ptphdr*) & frameData->ethFrame.payload[sizeof(struct iphdr) + sizeof(struct udphdr)];
-                    const char* types = "";
-                    switch (ptp->type) {
-                    case 0x0: types = "SYNC"; break;
-                    case 0x8: types = "FOLLOWUP"; break;
-                    case 0xB: types = "ANNOUNCE"; break;
-                    }
-                    printf("PTP %s (%04X), domain=%u, corr_ns=%llu, time_s=%u, time_ns=%u", types, ptp->type, ptp->domain, htonll(ptp->correction)>>16, htonl(ptp->timestamp.timestamp_s), htonl(ptp->timestamp.timestamp_ns));
-                }
-#endif
             }
 
             if (gDebugLevel >= 3) {
@@ -331,15 +317,6 @@ int udpRecvFrom(tUdpSockXl* sock, unsigned char* data, unsigned int size, tUdpSo
                     // Multicast
 #ifdef APP_ENABLE_MULTICAST
                     if ((ip->daddr[0] >> 4) == 0x0E) {
-
-#ifdef APP_ENABLE_PTP
-                        // PTP
-                        if (HTONS(udp->source) == 319 || HTONS(udp->source) == 320) {
-                            struct ptphdr* ptp = (struct ptphdr*)&frameRx->frameData.ethFrame.payload[sizeof(struct iphdr) + sizeof(struct udphdr)];
-                            ptpHandleFrame(size, ptp, ip->saddr);
-                            return 0;
-                        }
-#endif
                         //  XCP multicast addr
                         if (memcmp(ip->daddr, sock->multicastAddr.sin_addr, 2) == 0 && udp->dest == sock->multicastAddr.sin_port) {  
                             *flags |= RECV_FLAGS_MULTICAST;
@@ -441,6 +418,7 @@ int udpInit(tUdpSockXl** pSock, tUdpSockAddrXl* addr, tUdpSockAddrXl* multicastA
     tUdpSockXl* sock;
     sock = (tUdpSockXl *)malloc(sizeof(tUdpSockXl));
     if (sock == NULL) return 0;
+    memset(sock, 0, sizeof(tUdpSockXl));
     sock->localAddr = *addr;
     if (multicastAddr!=NULL) sock->multicastAddr = *multicastAddr;
 
@@ -482,12 +460,14 @@ void udpShutdown(tUdpSockXl* sock) {
 
     XLstatus err = XL_SUCCESS;
 
-    if (XL_SUCCESS != (err = xlNetCloseNetwork(sock->networkHandle))) {
-        printf("ERROR: xlNetCloseNetwork failed: %s (%d)\n", xlGetErrorString(err), err);
+    if (sock != NULL) {
+        if (sock->networkHandle) {
+            if (XL_SUCCESS != (err = xlNetCloseNetwork(sock->networkHandle))) {
+                printf("ERROR: xlNetCloseNetwork failed: %s (%d)\n", xlGetErrorString(err), err);
+            }
+        }
+        free(sock);
     }
-
-    free(sock);
-
     if (XL_SUCCESS != (err = xlCloseDriver())) {
         printf("ERROR: xlCloseDriver failed: %s (%d)\n", xlGetErrorString(err), err);
     }

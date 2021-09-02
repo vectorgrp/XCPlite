@@ -112,13 +112,13 @@ static const char* gA2lIfData1 = // Parameters %04X version, %u max cto, %u max 
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
 "OPTIONAL_CMD TIME_CORRELATION_PROPERTIES\n"
 //"OPTIONAL_CMD DTO_CTR_PROPERTIES\n"
-"OPTIONAL_LEVEL1_CMD GET_VERSION\n"
 #endif
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0104
-  #ifdef XCP_ENABLE_PACKED_MODE
+"OPTIONAL_LEVEL1_CMD GET_VERSION\n"
+#ifdef XCP_ENABLE_PACKED_MODE
 "OPTIONAL_LEVEL1_CMD SET_DAQ_PACKED_MODE\n"
 "OPTIONAL_LEVEL1_CMD GET_DAQ_PACKED_MODE\n"
-  #endif
+#endif
 #endif
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0150
 //"OPTIONAL_LEVEL1_CMD SW_DBG_COMMAND_SPACE\n"
@@ -253,6 +253,7 @@ void A2lHeader() {
   for (unsigned int i = 0; i < ApplXcpEventCount; i++) {
 	  char shortName[9];
 	  strncpy(shortName, ApplXcpEventList[i].name, 8);
+	  shortName[8] = 0;
 	  fprintf(gA2lFile, "/begin EVENT \"%s\" \"%s\" 0x%X DAQ 0xFF 0x%X 0x%X 0x00 CONSISTENCY DAQ", ApplXcpEventList[i].name, shortName, i, ApplXcpEventList[i].timeCycle, ApplXcpEventList[i].timeUnit );
 #ifdef XCP_ENABLE_PACKED_MODE
 	  if (ApplXcpEventList[i].sampleCount!=0) {
@@ -269,10 +270,6 @@ fprintf(gA2lFile, gA2lIfData2, XCP_TRANSPORT_LAYER_VERSION, getA2lSlavePort(), g
 
 void A2lSetEvent(uint16_t event) {
 	gA2lEvent = event;
-
-#ifdef APP_ENABLE_MDF
-	mdfCreateChannelGroup(event/*=recordId*/);
-#endif
 }
 
 
@@ -323,10 +320,6 @@ void A2lCreateMeasurement_(const char* instanceName, const char* name, int size,
 	}
 	fprintf(gA2lFile, " /end MEASUREMENT\n");
 	gA2lMeasurements++;
-
-#ifdef APP_ENABLE_MDF
-	mdfCreateChannel(name, size /*type*/, 1 /* dim */, factor, offset, unit);
-#endif
 }
 
 
@@ -343,9 +336,6 @@ void A2lCreateMeasurementArray_(const char* instanceName, const char* name, int 
 	}
 	fprintf(gA2lFile, " /end CHARACTERISTIC\n");
 	gA2lMeasurements++;
-#ifdef APP_ENABLE_MDF
-	mdfCreateChannel(name, size /*type*/, dim /* dim */, 1.0, 0.0, "");
-#endif
 }
 
 

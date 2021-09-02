@@ -69,8 +69,11 @@ typedef uint8_t  vbool;
 #define XCP_ENABLE_FILE_UPLOAD // Enable GET_ID A2L content upload to host
 #define XCP_ENABLE_A2L_NAME // Enable GET_ID A2L name upload to host
 
-// XCP V1.4
-// #define XCP_ENABLE_DAQ_CLOCK_MULTICAST // Enable GET_DAQ_CLOCK_MULTICAST
+// XCP V1.3
+#ifdef APP_ENABLE_MULTICAST
+  #define XCP_ENABLE_DAQ_CLOCK_MULTICAST // Enable GET_DAQ_CLOCK_MULTICAST
+#endif
+
 
 /*----------------------------------------------------------------------------*/
 /* Settings and parameters */

@@ -22,6 +22,10 @@ static void xcpTlInitDefaults();
 tXcpTlData gXcpTl;
 
 
+#ifdef APP_ENABLE_MULTICAST
+static int udpTlHandleXcpMulticast(int n, tXcpCtoMessage* p);
+#endif
+
 
 // Transmit a UDP datagramm (contains multiple XCP DTO messages or a single CRM message)
 // Must be thread safe, because it is called from CMD and from DAQ thread
@@ -99,7 +103,6 @@ void udpTlInitTransmitQueue() {
     gXcpTl.dto_queue_rp = 0;
     gXcpTl.dto_queue_len = 0;
     gXcpTl.dto_buffer_ptr = NULL;
-
     getDtoBuffer();
     mutexUnlock(&gXcpTl.Mutex_Queue);
     assert(gXcpTl.dto_buffer_ptr);
@@ -194,7 +197,6 @@ unsigned char *udpTlGetPacketBuffer(void **par, unsigned int size) {
 
         *((tXcpDtoBuffer**)par) = gXcpTl.dto_buffer_ptr;
         gXcpTl.dto_buffer_ptr->xcp_uncommited++;
-
     }
     else {
         p = NULL; // Overflow
@@ -365,10 +367,11 @@ int udpTlHandleCommands() {
             printf("ERROR %u: recvfrom failed (result=%d)!\n", socketGetLastError(), n);
            return 0; // Error
         }
+#ifdef APP_ENABLE_MULTICAST
         if (flags & RECV_FLAGS_MULTICAST) {
             return udpTlHandleXcpMulticast(n, (tXcpCtoMessage*)buffer);
         }
-
+#endif
     }
     else 
 #endif
@@ -625,7 +628,7 @@ uint32_t GetLocalIPAddr( uint8_t *mac ) {
 int networkInit() {
 
     int err;
-    
+
     printf("Init Network\n");
 
 #ifdef APP_ENABLE_XLAPI_V3
@@ -679,10 +682,14 @@ int udpTlInit(uint8_t *slaveAddr, uint16_t slavePort, uint16_t slaveMTU) {
         // XCP multicast IP-addr and port
         uint16_t cid = XcpGetClusterId();
         uint8_t cip[4] = { 239,255,(uint8_t)(cid >> 8),(uint8_t)(cid) };
+#ifdef APP_ENABLE_MULTICAST
         memset((void*)&gXcpTl.MulticastAddrXl.addrXl, 0, sizeof(gXcpTl.MulticastAddrXl.addrXl));
         memcpy(gXcpTl.MulticastAddrXl.addrXl.sin_addr, cip, 4);
         gXcpTl.MulticastAddrXl.addrXl.sin_port = HTONS(5557);
         return udpInit(&gXcpTl.Sock.sockXl, &gXcpTl.SlaveAddr.addrXl, &gXcpTl.MulticastAddrXl.addrXl);
+#else
+        return udpInit(&gXcpTl.Sock.sockXl, &gXcpTl.SlaveAddr.addrXl, NULL);
+#endif
     }
     else 
 #endif
@@ -743,11 +750,10 @@ static void xcpTlInitDefaults() {
         // MAC, Unicast IP-addr and port
         uint8_t mac[8] = APP_DEFAULT_SLAVE_MAC;
         memset((void*)&gXcpTl.SlaveAddr.addrXl, 0, sizeof(gXcpTl.SlaveAddr.addrXl));
-        memcpy(gXcpTl.SlaveAddr.addrXl.sin_mac, gXcpTl.SlaveMAC, 6);
+        memcpy(gXcpTl.SlaveAddr.addrXl.sin_mac, mac, 6);
         memcpy(gXcpTl.SlaveAddr.addrXl.sin_addr, gOptionSlaveAddr, 4);
         gXcpTl.SlaveAddr.addrXl.sin_port = HTONS(gOptionSlavePort);
         memcpy(&gXcpTl.SlaveUUID, uuid, 8);
-        memcpy(&gXcpTl.SlaveUUID, mac, 6);
     }
     else
 #endif
@@ -759,13 +765,11 @@ static void xcpTlInitDefaults() {
         if (a == 0) {
             memcpy(&gXcpTl.SlaveAddr.addr.sin_addr, gOptionSlaveAddr, 4);
             gXcpTl.SlaveAddr.addr.sin_port = htons(gOptionSlavePort);
-            memset(&gXcpTl.SlaveMAC, 0, 6);
             memcpy(&gXcpTl.SlaveUUID, uuid, 8);
         }
         else {
             memcpy(&gXcpTl.SlaveAddr.addr.sin_addr, &a, 4);
             gXcpTl.SlaveAddr.addr.sin_port = htons(gOptionSlavePort);
-            memcpy(gXcpTl.SlaveMAC, m, 6);
             memcpy(&gXcpTl.SlaveUUID[0], &m[0], 3);
             gXcpTl.SlaveUUID[3] = 0xFF; gXcpTl.SlaveUUID[4] = 0xFE;
             memcpy(&gXcpTl.SlaveUUID[5], &m[3], 3);

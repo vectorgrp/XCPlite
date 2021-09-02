@@ -85,7 +85,7 @@
 #define APP_XCPLITE
 #define APP_NAME "XCPlite"
 #define APP_NAME_LEN 7
-#define APP_VERSION "3.0.1"
+#define APP_VERSION "3.2"
 
 #define APP_DEFAULT_DEBUGLEVEL 1
 
@@ -128,7 +128,8 @@
 
     #define APP_DEFAULT_A2L_PATH ".\\"
 
-    // Enable XL-API ethernet adapter and UDP stack
+    // Enable XL-API ethernet adapter and UDP stack for Windows PC with Vector Automotive Ethernet Adapter Hardware
+    // Use case is emulation of an ECU with automotive Ethernet 1000-Base-t1 or 100-Base-t1 (BroadrReach)
     //#define APP_ENABLE_XLAPI_V3 
     #ifdef APP_ENABLE_XLAPI_V3
 
