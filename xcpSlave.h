@@ -10,21 +10,19 @@
 extern "C" {
 #endif
 	   
-extern volatile int gXcpSlaveCMDThreadRunning;
-extern volatile int gXcpSlaveDAQThreadRunning;
-
-extern int xcpSlaveInit();
-extern int xcpSlaveShutdown();
+extern int XcpSlaveInit(uint16_t port, uint16_t mtu, uint16_t flushCycleMs);
+extern int XcpSlaveShutdown();
+extern int XcpSlaveStatus();
 
 #ifdef _WIN
-DWORD WINAPI xcpSlaveCMDThread(LPVOID lpParameter);
+DWORD WINAPI XcpSlaveCMDThread(LPVOID lpParameter);
 #else
-extern void* xcpSlaveCMDThread(void* par);
+extern void* XcpSlaveCMDThread(void* par);
 #endif
 #ifdef _WIN
-DWORD WINAPI xcpSlaveDAQThread(LPVOID lpParameter);
+DWORD WINAPI XcpSlaveDAQThread(LPVOID lpParameter);
 #else
-extern void* xcpSlaveDAQThread(void* par);
+extern void* XcpSlaveDAQThread(void* par);
 #endif
 
 

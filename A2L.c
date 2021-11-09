@@ -10,7 +10,10 @@
 |
  ----------------------------------------------------------------------------*/
 
-#include "main.h"
+#include "platform.h"
+#include "main_cfg.h"
+#include "xcpLite.h"
+#include "ecu.h"
 #include "A2L.h"
 
 #ifdef APP_ENABLE_A2L_GEN
@@ -18,12 +21,12 @@
 static FILE* gA2lFile = NULL;
 static int gA2lEvent = 0;
 
-unsigned int gA2lMeasurements;
-unsigned int gA2lParameters;
-unsigned int gA2lTypedefs;
-unsigned int gA2lComponents;
-unsigned int gA2lInstances;
-unsigned int gA2lConversions;
+static unsigned int gA2lMeasurements;
+static unsigned int gA2lParameters;
+static unsigned int gA2lTypedefs;
+static unsigned int gA2lComponents;
+static unsigned int gA2lInstances;
+static unsigned int gA2lConversions;
 
 static const char* gA2lHeader =
 "ASAP2_VERSION 1 71\n"
@@ -118,7 +121,7 @@ static const char* gA2lIfData1 = // Parameters %04X version, %u max cto, %u max 
 #ifdef XCP_ENABLE_PACKED_MODE
 "OPTIONAL_LEVEL1_CMD SET_DAQ_PACKED_MODE\n"
 "OPTIONAL_LEVEL1_CMD GET_DAQ_PACKED_MODE\n"
-#endif
+  #endif
 #endif
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0150
 //"OPTIONAL_LEVEL1_CMD SW_DBG_COMMAND_SPACE\n"
@@ -148,7 +151,7 @@ static const char* gA2lIfData2 = // Parameter %u port and %s ip address string
 //"OPTIONAL_TL_SUBCMD GET_SLAVE_ID\n"
 //"OPTIONAL_TL_SUBCMD GET_DAQ_ID\n"
 //"OPTIONAL_TL_SUBCMD SET_DAQ_ID\n"
-#if defined(APP_ENABLE_MULTICAST) && defined(XCP_ENABLE_DAQ_CLOCK_MULTICAST)
+#if defined(XCPTL_ENABLE_MULTICAST) && defined(XCP_ENABLE_DAQ_CLOCK_MULTICAST)
 "  OPTIONAL_TL_SUBCMD GET_DAQ_CLOCK_MULTICAST\n"
 #endif
 "/end XCP_ON_UDP_IP\n" // Transport Layer
@@ -230,14 +233,15 @@ int A2lInit(const char *filename) {
 
 void A2lHeader() {
 
-  assert(gA2lFile);
-
-#ifdef APP_ENABLE_CAL_SEGMENT
-  fprintf(gA2lFile, gA2lHeader, (unsigned int)ApplXcpGetAddr((vuint8 *)&ecuPar), (unsigned int)sizeof(ecuPar)); 
-#else
-  fprintf(gA2lFile, gA2lHeader);
+  uint16_t eventCount = 0;
+	
+#if defined( XCP_ENABLE_DAQ_EVENT_LIST ) && !defined ( XCP_ENABLE_DAQ_EVENT_INFO )
+  tXcpEvent* eventList = XcpGetEventList(&eventCount);
 #endif
 
+  assert(gA2lFile);
+
+  fprintf(gA2lFile, gA2lHeader, (unsigned int)ApplXcpGetAddr((uint8_t *)&ecuPar), (unsigned int)sizeof(ecuPar)); 
 
 #if (XCP_TIMESTAMP_UNIT==DAQ_TIMESTAMP_UNIT_1NS)
   #define XCP_TIMESTAMP_UNIT_S "UNIT_1NS"
@@ -246,25 +250,27 @@ void A2lHeader() {
 #else
   #error
 #endif
-  fprintf(gA2lFile, gA2lIfData1, XCP_PROTOCOL_LAYER_VERSION, XCPTL_CTO_SIZE, XCPTL_DTO_SIZE, ApplXcpEventCount, XCP_TIMESTAMP_UNIT_S);
+
+
+  fprintf(gA2lFile, gA2lIfData1, XCP_PROTOCOL_LAYER_VERSION, XCPTL_CTO_SIZE, XCPTL_DTO_SIZE, eventCount, XCP_TIMESTAMP_UNIT_S);
 
   // Event list
 #if defined( XCP_ENABLE_DAQ_EVENT_LIST ) && !defined ( XCP_ENABLE_DAQ_EVENT_INFO )
-  for (unsigned int i = 0; i < ApplXcpEventCount; i++) {
+  for (unsigned int i = 0; i < eventCount; i++) {
 	  char shortName[9];
-	  strncpy(shortName, ApplXcpEventList[i].name, 8);
+	  strncpy(shortName, eventList[i].name, 8);
 	  shortName[8] = 0;
-	  fprintf(gA2lFile, "/begin EVENT \"%s\" \"%s\" 0x%X DAQ 0xFF 0x%X 0x%X 0x00 CONSISTENCY DAQ", ApplXcpEventList[i].name, shortName, i, ApplXcpEventList[i].timeCycle, ApplXcpEventList[i].timeUnit );
+	  fprintf(gA2lFile, "/begin EVENT \"%s\" \"%s\" 0x%X DAQ 0xFF 0x%X 0x%X 0x00 CONSISTENCY DAQ", eventList[i].name, shortName, i, eventList[i].timeCycle, eventList[i].timeUnit );
 #ifdef XCP_ENABLE_PACKED_MODE
-	  if (ApplXcpEventList[i].sampleCount!=0) {
-		  fprintf(gA2lFile, " /begin DAQ_PACKED_MODE ELEMENT_GROUPED STS_LAST MANDATORY %u /end DAQ_PACKED_MODE",ApplXcpEventList[i].sampleCount);
+	  if (eventList[i].sampleCount!=0) {
+		  fprintf(gA2lFile, " /begin DAQ_PACKED_MODE ELEMENT_GROUPED STS_LAST MANDATORY %u /end DAQ_PACKED_MODE",eventList[i].sampleCount);
 	  }
 #endif
 	  fprintf(gA2lFile, " /end EVENT\n");
   }
 #endif
 
-fprintf(gA2lFile, gA2lIfData2, XCP_TRANSPORT_LAYER_VERSION, getA2lSlavePort(), getA2lSlaveIP());
+fprintf(gA2lFile, gA2lIfData2, XCP_TRANSPORT_LAYER_VERSION, XcpTlGetSlavePort(), XcpTlGetSlaveIP());
 }
 
 
@@ -278,7 +284,7 @@ void A2lTypedefBegin_(const char* name, int size, const char* comment) {
 	gA2lTypedefs++;
 }
 
-void A2lTypedefComponent_(const char* name, int size, vuint32 offset) {
+void A2lTypedefComponent_(const char* name, int size, uint32_t offset) {
 	fprintf(gA2lFile,"  /begin STRUCTURE_COMPONENT %s %s 0x%X SYMBOL_TYPE_LINK \"%s\" /end STRUCTURE_COMPONENT\n", name, getParType(size), offset, name);
 	gA2lComponents++;
 }

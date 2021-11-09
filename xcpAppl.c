@@ -12,22 +12,40 @@
 |
  ----------------------------------------------------------------------------*/
 
-#include "main.h"
+#include "platform.h"
+#include "main_cfg.h"
+#include "clock.h"
+#include "xcpLite.h"
+#include "ecu.h"
+
+
+
+/**************************************************************************/
+// Clock
+// Get clock for DAQ timestamps
+/**************************************************************************/
+
+// XCP slave clock timestamp resolution defined in xcp_cfg.h
+// Clock must be monotonic !!!
+
+
+
+uint32_t ApplXcpGetClock() { return clockGet32(); }
+uint64_t ApplXcpGetClock64() { return clockGet64(); }
+int ApplXcpPrepareDaq() { return 1; }
+
+
+
 
 #ifdef XCP_ENABLE_GRANDMASTER_CLOCK_INFO
 
+uint8_t ApplXcpGetClockInfo(T_CLOCK_INFO_SLAVE* s, T_CLOCK_INFO_GRANDMASTER* m) {
 
- /**************************************************************************/
- // Clock
- /**************************************************************************/
+    uint8_t uuid[8] = APP_DEFAULT_CLOCK_UUID;
 
-vuint8 ApplXcpGetClockInfo(T_CLOCK_INFO_SLAVE* s, T_CLOCK_INFO_GRANDMASTER* m) {
-       
-    vuint8 res = 0;
     
-     {
-        memcpy(s->UUID, gXcpTl.SlaveUUID, 8);
-        memcpy(m->UUID, gXcpTl.SlaveUUID, 8);
+        memcpy(s->UUID, uuid, 8);
+        memcpy(m->UUID, uuid, 8);
 #ifdef CLOCK_USE_UTC_TIME_NS
         s->stratumLevel = XCP_STRATUM_LEVEL_UTC;
         m->stratumLevel = XCP_STRATUM_LEVEL_UTC;
@@ -37,13 +55,16 @@ vuint8 ApplXcpGetClockInfo(T_CLOCK_INFO_SLAVE* s, T_CLOCK_INFO_GRANDMASTER* m) {
         m->stratumLevel = XCP_STRATUM_LEVEL_UNSYNC;
         m->epochOfGrandmaster = XCP_EPOCH_ARB;
 #endif
-    }
+    
+
 
     if (gDebugLevel >= 1) {
-        ApplXcpPrint("  Slave-UUID=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X Grandmaster-UUID=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X\n",
+        printf("  Slave-UUID=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X Grandmaster-UUID=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X\n",
             s->UUID[0], s->UUID[1], s->UUID[2], s->UUID[3], s->UUID[4], s->UUID[5], s->UUID[6], s->UUID[7],
             m->UUID[0], m->UUID[1], m->UUID[2], m->UUID[3], m->UUID[4], m->UUID[5], m->UUID[6], m->UUID[7]);
     }
+
+    return 1;
 }
 
 #endif
@@ -64,32 +85,32 @@ vuint8 ApplXcpGetClockInfo(T_CLOCK_INFO_SLAVE* s, T_CLOCK_INFO_GRANDMASTER* m) {
 
 #ifdef _WIN
 
-vuint8* baseAddr = NULL;
-vuint8 baseAddrValid = FALSE;
+uint8_t* baseAddr = NULL;
+uint8_t baseAddrValid = 0;
 
-vuint8* ApplXcpGetPointer(vuint8 addr_ext, vuint32 addr) {
+uint8_t* ApplXcpGetPointer(uint8_t addr_ext, uint32_t addr) {
 
     return ApplXcpGetBaseAddr() + addr;
 }
 
-vuint32 ApplXcpGetAddr(vuint8* p) {
+uint32_t ApplXcpGetAddr(uint8_t* p) {
 
     assert(p >= ApplXcpGetBaseAddr());
 #ifdef _WIN64
-    assert(((vuint64)p - (vuint64)ApplXcpGetBaseAddr()) <= 0xffffffff); // be sure that XCP address range is sufficient
+    assert(((uint64_t)p - (uint64_t)ApplXcpGetBaseAddr()) <= 0xffffffff); // be sure that XCP address range is sufficient
 #endif
-    return (vuint32)(p - ApplXcpGetBaseAddr());
+    return (uint32_t)(p - ApplXcpGetBaseAddr());
 }
 
 // Get base pointer for the XCP address range
 // This function is time sensitive, as it is called once on every XCP event
-vuint8* ApplXcpGetBaseAddr() {
+uint8_t* ApplXcpGetBaseAddr() {
 
     if (!baseAddrValid) {
-        baseAddr = (vuint8*)GetModuleHandle(NULL);
-        baseAddrValid = TRUE;
-#if defined ( XCP_ENABLE_TESTMODE )
-        if (gDebugLevel >= 1) ApplXcpPrint("ApplXcpGetBaseAddr() = 0x%I64X\n", (vuint64)baseAddr);
+        baseAddr = (uint8_t*)GetModuleHandle(NULL);
+        baseAddrValid = 1;
+#ifdef XCP_ENABLE_TESTMODE
+        if (gDebugLevel >= 1) printf("ApplXcpGetBaseAddr() = 0x%I64X\n", (uint64_t)baseAddr);
 #endif
     }
     return baseAddr;
@@ -102,8 +123,8 @@ vuint8* ApplXcpGetBaseAddr() {
 #define __USE_GNU
 #include <link.h>
 
-vuint8* baseAddr = NULL;
-vuint8 baseAddrValid = FALSE;
+uint8_t* baseAddr = NULL;
+uint8_t baseAddrValid = 0;
 
 static int dump_phdr(struct dl_phdr_info* pinfo, size_t size, void* data)
 {
@@ -111,7 +132,7 @@ static int dump_phdr(struct dl_phdr_info* pinfo, size_t size, void* data)
 
   // Application modules has no name
   if (0 == strlen(pinfo->dlpi_name)) {
-    baseAddr = (vuint8*)pinfo->dlpi_addr;
+    baseAddr = (uint8_t*)pinfo->dlpi_addr;
   }
 
   (void)size;
@@ -119,34 +140,52 @@ static int dump_phdr(struct dl_phdr_info* pinfo, size_t size, void* data)
   return 0;
 }
 
-vuint8* ApplXcpGetBaseAddr() {
+uint8_t* ApplXcpGetBaseAddr() {
   
   if (!baseAddrValid) {
     dl_iterate_phdr(dump_phdr, NULL);
     assert(baseAddr!=NULL);
-    baseAddrValid = TRUE;
-    ApplXcpPrint("BaseAddr = %lX\n",(vuint64)baseAddr);
+    baseAddrValid = 1;
+    printf("BaseAddr = %lX\n",(uint64_t)baseAddr);
   }
 
   return baseAddr;
 }
 
-vuint32 ApplXcpGetAddr(vuint8* p)
+uint32_t ApplXcpGetAddr(uint8_t* p)
 {
   ApplXcpGetBaseAddr();
-  return (vuint32)(p - baseAddr);
+  return (uint32_t)(p - baseAddr);
 }
 
-vuint8* ApplXcpGetPointer(vuint8 addr_ext, vuint32 addr)
+uint8_t* ApplXcpGetPointer(uint8_t addr_ext, uint32_t addr)
 {
   ApplXcpGetBaseAddr();
   return baseAddr + addr;
 }
 
-
 #endif
 
 
+#ifdef _LINUX32
+
+uint8_t* ApplXcpGetBaseAddr() 
+{
+
+    return ((uint8_t*)0);
+}
+
+uint32_t ApplXcpGetAddr(uint8_t* p)
+{
+    return ((uint32_t)(p));
+}
+
+uint8_t* ApplXcpGetPointer(uint8_t addr_ext, uint32_t addr)
+{
+    return ((uint8_t*)(addr));
+}
+
+#endif
 
 
 
@@ -156,55 +195,34 @@ vuint8* ApplXcpGetPointer(vuint8 addr_ext, vuint32 addr)
 
 #ifdef XCP_ENABLE_CAL_PAGE
 
-vuint8 calPage = 0; // RAM = 0, FLASH = 1
+uint8_t calPage = 0; // RAM = 0, FLASH = 1
 
-vuint8 ApplXcpGetCalPage(vuint8 segment, vuint8 mode) {
+uint8_t ApplXcpGetCalPage(uint8_t segment, uint8_t mode) {
+
     return calPage;
 }
 
-vuint8 ApplXcpSetCalPage(vuint8 segment, vuint8 page, vuint8 mode) {
+uint8_t ApplXcpSetCalPage(uint8_t segment, uint8_t page, uint8_t mode) {
+    // Calibration page switch code here
     calPage = page;
     return 0;
   }
 #endif
 
 
+
+
+
 /**************************************************************************/
-// Eventlist
+// Infos for GET_ID
 /**************************************************************************/
 
-#ifdef XCP_ENABLE_DAQ_EVENT_LIST
+uint8_t ApplXcpGetSlaveId(char** p, uint32_t* n) {
 
-vuint16 ApplXcpEventCount = 0;
-tXcpEvent ApplXcpEventList[XCP_MAX_EVENT];
-
-
-// Create event, <rate> in us, 0 = sporadic 
-vuint16 XcpCreateEvent(const char* name, vuint16 cycleTime /*ms */, vuint16 sampleCount, vuint32 size) {
-
-    // Convert to ASAM coding time cycle and time unit
-    // RESOLUTION OF TIMESTAMP "UNIT_1US" = 3,"UNIT_10US" = 4,"UNIT_100US" = 5,"UNIT_1MS" = 6,"UNIT_10MS" = 7,"UNIT_100MS" = 8, 
-    vuint8 timeUnit = 3;
-    while (cycleTime >= 256) {
-        cycleTime /= 10;
-        timeUnit++;
-    }
-
-    if (ApplXcpEventCount >= XCP_MAX_EVENT) return (vuint16)0xFFFF; // Out of memory 
-    ApplXcpEventList[ApplXcpEventCount].name = name;
-    ApplXcpEventList[ApplXcpEventCount].timeUnit = timeUnit;
-    ApplXcpEventList[ApplXcpEventCount].timeCycle = (vuint8)cycleTime;
-    ApplXcpEventList[ApplXcpEventCount].sampleCount = sampleCount;
-    ApplXcpEventList[ApplXcpEventCount].size = size;
-
-#if defined ( XCP_ENABLE_TESTMODE )
-    if (gDebugLevel>=1) ApplXcpPrint("Event %u: %s unit=%u cycle=%u samplecount=%u\n", ApplXcpEventCount, ApplXcpEventList[ApplXcpEventCount].name, ApplXcpEventList[ApplXcpEventCount].timeUnit, ApplXcpEventList[ApplXcpEventCount].timeCycle, ApplXcpEventList[ApplXcpEventCount].sampleCount);
-#endif
-
-    return ApplXcpEventCount++; // Return XCP event number
+    *p = APP_NAME;
+    *n = APP_NAME_LEN;
+    return 1;
 }
-
-#endif
 
 
 
@@ -220,19 +238,19 @@ static char gA2LFilename[100]; // Name without extension
 static char gA2LPathname[MAX_PATH + 100 + 4]; // Full path + name +extension
 
 
-vuint8 ApplXcpGetA2LFilename(char** p, vuint32* n, int path) {
+uint8_t ApplXcpGetA2LFilename(char** p, uint32_t* n, int path) {
 
     // Create a unique A2L file name for this build
-    sprintf(gA2LFilename, APP_NAME "-%08X-%u", ApplXcpGetAddr((vuint8*)&ecuPar),gOptionSlavePort); // Generate version specific unique A2L file name
-    sprintf(gA2LPathname, "%s%s.A2L", gOptionA2L_Path, gA2LFilename);
+    sprintf(gA2LFilename, APP_NAME "-%08X-%u", ApplXcpGetAddr((uint8_t*)&ecuPar), XcpTlGetSlavePort()); // Generate version specific unique A2L file name
+    sprintf(gA2LPathname, "%s.A2L", gA2LFilename);
 
     if (path) {
-        if (p != NULL) *p = (vuint8*)gA2LPathname;
-        if (n != NULL) *n = (vuint32)strlen(gA2LPathname);
+        if (p != NULL) *p = (uint8_t*)gA2LPathname;
+        if (n != NULL) *n = (uint32_t)strlen(gA2LPathname);
     }
     else {
-        if (p != NULL) *p = (vuint8*)gA2LFilename;
-        if (n != NULL) *n = (vuint32)strlen(gA2LFilename);
+        if (p != NULL) *p = (uint8_t*)gA2LFilename;
+        if (n != NULL) *n = (uint32_t)strlen(gA2LFilename);
     }
     return 1;
 }
@@ -242,18 +260,25 @@ vuint8 ApplXcpGetA2LFilename(char** p, vuint32* n, int path) {
 
 #ifdef XCP_ENABLE_FILE_UPLOAD // Enable GET_ID A2L content upload to host
 
-static vuint8* gXcpFile = NULL; // file content
-static vuint32 gXcpFileLength = 0; // file length
+static uint8_t* gXcpFile = NULL; // file content
+static uint32_t gXcpFileLength = 0; // file length
 #ifdef _WIN
 static HANDLE hFile, hFileMapping;
 #endif
 
-vuint8 ApplXcpReadFile(vuint8 type, vuint8** p, vuint32* n) {
+uint8_t ApplXcpReadFile(uint8_t type, uint8_t** p, uint32_t* n) {
 
-    const char* filename = gA2LPathname;
+    const char* filename = NULL;
 
-#if defined ( XCP_ENABLE_TESTMODE )
-        if (gDebugLevel >= 1) ApplXcpPrint("Load %s\n", filename);
+    switch (type) {
+    case IDT_ASAM_UPLOAD:
+        filename = gA2LPathname; break;
+
+    default: return 0;
+    }
+
+#ifdef XCP_ENABLE_TESTMODE
+        if (gDebugLevel >= 1) printf("Load %s\n", filename);
 #endif
 
 #ifdef _LINUX // Linux
@@ -261,13 +286,13 @@ vuint8 ApplXcpReadFile(vuint8 type, vuint8** p, vuint32* n) {
         FILE* fd;
         fd = fopen(filename, "r");
         if (fd == NULL) {
-            ApplXcpPrint("ERROR: file %s not found!\n", filename);
+            printf("ERROR: file %s not found!\n", filename);
             return 0;
         }
         struct stat fdstat;
         stat(filename, &fdstat);
-        gXcpFile = (vuint8*)malloc((size_t)(fdstat.st_size + 1));
-        gXcpFileLength = (vuint32)fread(gXcpFile, 1, (uint32_t)fdstat.st_size, fd);
+        gXcpFile = (uint8_t*)malloc((size_t)(fdstat.st_size + 1));
+        gXcpFileLength = (uint32_t)fread(gXcpFile, 1, (uint32_t)fdstat.st_size, fd);
         fclose(fd);
 #else
         wchar_t wcfilename[256] = { 0 };
@@ -279,17 +304,17 @@ vuint8 ApplXcpReadFile(vuint8 type, vuint8** p, vuint32* n) {
         MultiByteToWideChar(0, 0, filename, (int)strlen(filename), wcfilename, (int)strlen(filename));
         hFile = CreateFile(wcfilename, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
         if (hFile == INVALID_HANDLE_VALUE) {
-            ApplXcpPrint("file %s not found!\n", filename);
+            printf("file %s not found!\n", filename);
             return 0;
         }
-        gXcpFileLength = (vuint32)GetFileSize(hFile, NULL)-2;
+        gXcpFileLength = (uint32_t)GetFileSize(hFile, NULL)-2;
         hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, gXcpFileLength, NULL);
         if (hFileMapping == NULL) return 0;
         gXcpFile = MapViewOfFile(hFileMapping, FILE_MAP_READ, 0, 0, 0);
         if (gXcpFile == NULL) return 0;
 #endif
-#if defined ( XCP_ENABLE_TESTMODE )
-            if (gDebugLevel >= 1) ApplXcpPrint("  file %s ready for upload, size=%u, mta=%p\n\n", filename, gXcpFileLength, gXcpFile);
+#ifdef XCP_ENABLE_TESTMODE
+            if (gDebugLevel >= 1) printf("  file %s ready for upload, size=%u, mta=%p\n\n", filename, gXcpFileLength, gXcpFile);
 #endif
         
     

@@ -10,8 +10,13 @@
  | Code released into public domain, no attribution required
  */
 
-
-#include "main.h"
+#include "platform.h"
+#include "main_cfg.h"
+#include "clock.h"
+#ifdef APP_ENABLE_A2L_GEN
+#include "A2L.h"
+#endif
+#include "xcpLite.h"
 #include "ecupp.hpp"
 
 #ifdef APP_ENABLE_A2L_GEN
@@ -19,7 +24,7 @@
 // Create A2L description of this class 
 void EcuTask::createA2lClassDefinition() {
 
-#define offsetOf(x) (unsigned int)((vuint8*)&x - (vuint8*)this)
+#define offsetOf(x) (unsigned int)((uint8_t*)&x - (uint8_t*)this)
 
 	// Create class typedef
 	A2lTypedefBegin(EcuTask, "TYPEDEF for class EcuTask");
@@ -88,23 +93,23 @@ void EcuTask::run() {
 	float32 += 0.1f;
 	float64 += 0.1;
 
-	XcpEventExt(taskId, (vuint8*)this); // Trigger measurement data aquisition event for this task
+	XcpEventExt(taskId, (uint8_t*)this); // Trigger measurement data aquisition event for this task
 }
 
 
 extern "C" {
 
 	// Demo tasks, cycle times and measurement data acquisition event numbers
-	volatile vuint32 gTaskCycleTimerECUpp = 4000; // 4ms  Cycle time of the C++ task
+	volatile uint32_t gTaskCycleTimerECUpp = 2000; // 4ms  Cycle time of the C++ task
 	EcuTask* gEcuTask1 = NULL;
 	EcuTask* gEcuTask2 = NULL;
 	EcuTask* gActiveEcuTask = NULL;
 	volatile unsigned int gActiveEcuTaskId = 1; // Task id of the active C++ task
 	
 	// Events
-	vuint16 gXcpEvent_EcuTask1 = 1;
-	vuint16 gXcpEvent_EcuTask2 = 2;
-	vuint16 gXcpEvent_ActiveEcuTask = 3;
+	uint16_t gXcpEvent_EcuTask1 = 1;
+	uint16_t gXcpEvent_EcuTask2 = 2;
+	uint16_t gXcpEvent_ActiveEcuTask = 3;
 
 
 	void ecuppInit() {
@@ -141,14 +146,14 @@ extern "C" {
 	// Calls C++ ECU demo code
 	void* ecuppTask(void* p) {
 
-		printf("Start C++ demo task (cycle = %uus, ext event = %d, size = %u )\n", gTaskCycleTimerECUpp, gXcpEvent_ActiveEcuTask, (vuint32)sizeof(class EcuTask));
+		printf("Start C++ demo task (cycle = %uus, ext event = %d, size = %u )\n", gTaskCycleTimerECUpp, gXcpEvent_ActiveEcuTask, (uint32_t)sizeof(class EcuTask));
 		for (;;) {
 			sleepNs(gTaskCycleTimerECUpp * 1000);
 			// Run the currently active ecu task
 			gActiveEcuTask = gActiveEcuTaskId == gXcpEvent_EcuTask1 ? gEcuTask1 : gActiveEcuTaskId == gXcpEvent_EcuTask2 ? gEcuTask2 : NULL;
 			if (gActiveEcuTask != NULL) {
 				gActiveEcuTask->run();
-				XcpEventExt(gXcpEvent_ActiveEcuTask, (vuint8*)gActiveEcuTask); // Trigger measurement date aquisition event for currently active task
+				XcpEventExt(gXcpEvent_ActiveEcuTask, (uint8_t*)gActiveEcuTask); // Trigger measurement date aquisition event for currently active task
 			}
 		}
 		return 0;

@@ -10,7 +10,14 @@
  | Code released into public domain, no attribution required
  */
 
-#include "main.h"
+#include "platform.h"
+#include "main_cfg.h"
+#include "clock.h"
+#include "util.h"
+#ifdef APP_ENABLE_A2L_GEN
+#include "A2L.h"
+#endif
+#include "xcpLite.h"
 #include "ecu.h"
 
 
@@ -86,13 +93,13 @@ const struct ecuPar ecuRomPar = {
     
     (uint32_t)sizeof(struct ecuPar),
 
-    4000, // Default cycle time in us
+    2000, // Default cycle time in us
 
     3.0,
 
-    0.0, 0.0, 0.0, 
-    0, M_2PI / 3, 2 * M_2PI / 3, 
-    400.0,300.0,200.0, 
+    0.0, 0.0, 0.0, 50.0, 50.0, 50.0,
+    0, M_2PI / 3, 2 * M_2PI / 3, 0, M_2PI / 3, 2 * M_2PI / 3,
+    400.0,300.0,200.0, 50.0,50.0,50.0,
 
     { {0,0,0,0,0,0,1,2},
      {0,0,0,0,0,0,2,3},
@@ -130,6 +137,7 @@ void ecuInit() {
     ecuCounter = 0;
     ecuCycleCounter = 0;
     channel1 = channel2 = channel3 = 0;
+
     byteCounter = 0;
     wordCounter = 0;
     dwordCounter = 0;
@@ -165,14 +173,24 @@ void ecuCreateA2lDescription() {
     A2lCreateParameter(ecuPar.CALRAM_SIZE, "", "ECU CALRAM size");
 
     A2lCreateParameterWithLimits(ecuPar.ampl1, "Amplitude", "V", 0, 800);
-    A2lCreateParameterWithLimits(ecuPar.offset1, "Offset", "V", -200, +200);
+    A2lCreateParameterWithLimits(ecuPar.offset1, "RefOffset", "V", -200, +200);
     A2lCreateParameterWithLimits(ecuPar.phase1, "Phase", "", 0, M_2PI);
     A2lCreateParameterWithLimits(ecuPar.ampl2, "Amplitude", "V", 0, 800);
-    A2lCreateParameterWithLimits(ecuPar.offset2, "Offset", "V", -200, +200);
+    A2lCreateParameterWithLimits(ecuPar.offset2, "RefOffset", "V", -200, +200);
     A2lCreateParameterWithLimits(ecuPar.phase2, "Phase", "", 0, M_2PI);
     A2lCreateParameterWithLimits(ecuPar.ampl3, "Amplitude", "V", 0, 800);
-    A2lCreateParameterWithLimits(ecuPar.offset3, "Offset", "V", -200, +200);
+    A2lCreateParameterWithLimits(ecuPar.offset3, "RefOffset", "V", -200, +200);
     A2lCreateParameterWithLimits(ecuPar.phase3, "Phase", "", 0, M_2PI);
+    A2lCreateParameterWithLimits(ecuPar.ampl4, "Amplitude", "A", 0, 800);
+    A2lCreateParameterWithLimits(ecuPar.offset4, "RefOffset", "A", -200, +200);
+    A2lCreateParameterWithLimits(ecuPar.phase4, "Phase", "", 0, M_2PI);
+    A2lCreateParameterWithLimits(ecuPar.ampl5, "Amplitude", "A", 0, 800);
+    A2lCreateParameterWithLimits(ecuPar.offset5, "RefOffset", "A", -200, +200);
+    A2lCreateParameterWithLimits(ecuPar.phase5, "Phase", "", 0, M_2PI);
+    A2lCreateParameterWithLimits(ecuPar.ampl6, "Amplitude", "A", 0, 800);
+    A2lCreateParameterWithLimits(ecuPar.offset6, "RefOffset", "A", -200, +200);
+    A2lCreateParameterWithLimits(ecuPar.phase6, "Phase", "", 0, M_2PI);
+
     A2lCreateParameterWithLimits(ecuPar.period, "Period in s (XCP slave time)", "s", 0, 10);
 
     A2lCreateMap(ecuPar.map1_8_8, 8, 8, "", "8*8 byte calibration array");
@@ -180,25 +198,28 @@ void ecuCreateA2lDescription() {
 
     A2lCreateParameterWithLimits(ecuPar.cycleTime, "ECU task cycle time (task sleep duration) in us", "us", 50, 1000000);
 
-    A2lParameterGroup("Parameters", 5 + 3 * 3,
+    A2lParameterGroup("Parameters", 5 + 6 * 3,
         "ecuPar.CALRAM_SIZE",
         "ecuPar.cycleTime",
         "ecuPar.map1_8_8", "ecuPar.curve1_32",
         "ecuPar.period",
         "ecuPar.ampl1", "ecuPar.offset1", "ecuPar.phase1",
         "ecuPar.ampl2", "ecuPar.offset2", "ecuPar.phase2",
-        "ecuPar.ampl3", "ecuPar.offset3", "ecuPar.phase3"
-        );
+        "ecuPar.ampl3", "ecuPar.offset3", "ecuPar.phase3",
+        "ecuPar.ampl4", "ecuPar.offset4", "ecuPar.phase4",
+        "ecuPar.ampl5", "ecuPar.offset5", "ecuPar.phase5",
+        "ecuPar.ampl6", "ecuPar.offset6", "ecuPar.phase6");
        
     A2lSetEvent(gXcpEvent_EcuCyclic); // Associate XCP event "EcuCyclic" to the variables created below
     
-    A2lCreateMeasurement(ecuCounter, "16 bit counter incrementing ");
+    A2lCreateMeasurement(ecuCounter, "16 bit counter incrementing exactly every 100us in XCP slave time");
     A2lCreateMeasurement(ecuCycleCounter, "16 bit counter incrementing every task cycle (event cyclic)");
-    
+    A2lCreateMeasurement(ecuTime, "XCP event time as double in s since 10.7.2021 15:14:03");
+
     A2lCreatePhysMeasurement(channel1, "Sinus signal 1 with period, ampl1, phase1", 1.0, 0.0, "");
     A2lCreatePhysMeasurement(channel2, "Sinus signal 2 with period, ampl2, phase2", 1.0, 0.0, "");
     A2lCreatePhysMeasurement(channel3, "Sinus signal 3 with period, ampl3, phase3", 1.0, 0.0, "");
-    
+
     A2lCreateMeasurement(byteCounter, "");
     A2lCreateMeasurement(wordCounter, "");
     A2lCreateMeasurement(dwordCounter, "");
@@ -206,8 +227,8 @@ void ecuCreateA2lDescription() {
     A2lCreateMeasurement_s(swordCounter, "");
     A2lCreateMeasurement_s(sdwordCounter, "");
 
-    A2lMeasurementGroup("EcuTaskSignals", 12, 
-        "ecuCounter", "ecuCycleCounter", "ecuTime", "channel1", "channel2", "channel3", "byteCounter", "wordCounter", "dwordCounter", "sbyteCounter", "swordCounter", "sdwordCounter");
+    A2lMeasurementGroup("EcuTaskSignals", 15, 
+        "ecuCounter", "ecuCycleCounter", "ecuTime", "channel1", "channel2", "channel3", "channel4", "channel5", "channel6", "byteCounter", "wordCounter", "dwordCounter", "sbyteCounter", "swordCounter", "sdwordCounter");
 
     A2lCreateMeasurementArray(byteArray1);
     A2lCreateMeasurementArray(byteArray2);
@@ -257,7 +278,6 @@ void ecuCyclic( void )
 {
     // Cycle counter
     ecuCycleCounter++;
-    ecuCounter++;
 
     // Counters of different type
     sbyteCounter++;
@@ -278,6 +298,10 @@ void ecuCyclic( void )
     byteArray3[i] ++;
     byteArray4[i] ++;
 
+
+    
+    ecuCounter++;
+
     // channel 1-6 demo signals
     double x = M_2PI * ecuTime / ecuPar.period;
     channel1 = ecuPar.offset1 + ecuPar.ampl1 * sin(x + ecuPar.phase1);
@@ -286,6 +310,9 @@ void ecuCyclic( void )
     ecuTime += 0.002;
 
     XcpEvent(gXcpEvent_EcuCyclic); // Trigger measurement data aquisition event for ecuCyclic() task
+
+
+
 }
 
 

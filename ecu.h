@@ -18,9 +18,9 @@ struct ecuPar {
     unsigned int cycleTime;
 
     double period;
-    double offset1, offset2, offset3;
-    double phase1, phase2, phase3;
-    double ampl1, ampl2, ampl3;
+    double offset1, offset2, offset3, offset4, offset5, offset6;
+    double phase1, phase2, phase3, phase4, phase5, phase6;
+    double ampl1, ampl2, ampl3, ampl4, ampl5, ampl6;
 
     unsigned char map1_8_8[8][8];
 
@@ -31,6 +31,7 @@ struct ecuPar {
 extern volatile struct ecuPar ecuPar;
 
 extern uint16_t gXcpEvent_EcuCyclic;
+
 
 extern void ecuInit();
 extern void ecuCreateA2lDescription();

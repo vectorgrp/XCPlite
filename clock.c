@@ -10,15 +10,22 @@
 | Code released into public domain, no attribution required
  ----------------------------------------------------------------------------*/
 
-#include "main.h"
+#include "platform.h"
+#include "main_cfg.h"
 #include "clock.h"
 
 
-// Last clock values updated on all clock queries (getLocalClockXx())
-// May be used as wall clock
-volatile uint32_t gClock32 = 0;
-volatile uint64_t gClock64 = 0;
+// Clock values from last query (clockGet)
+static volatile uint32_t gClock32 = 0;
+static volatile uint64_t gClock64 = 0;
 
+uint32_t clockGetLast32() {
+    return gClock32;
+}
+
+uint64_t clockGetLast64() {
+    return gClock64;
+}
 
 
 #ifdef _LINUX // Linux
@@ -32,10 +39,10 @@ Linux clock type
 
 static struct timespec gtr;
 #ifndef CLOCK_USE_UTC_TIME_NS
-  static struct timespec gts0;
+static struct timespec gts0;
 #endif
 
-  char* clockGetString(char* s, unsigned int cs, uint64_t c) {
+char* clockGetString(char* s, unsigned int cs, uint64_t c) {
 
 #ifndef CLOCK_USE_UTC_TIME_NS
     sprintf(s, "%gs", (double)c / CLOCK_TICKS_PER_S);
@@ -54,7 +61,7 @@ static struct timespec gtr;
 int clockInit()
 {    
 
-    printf("Init clock\n  (");
+    printf("\nInit clock\n  (");
 #ifdef CLOCK_USE_UTC_TIME_US 
     #error "CLOCK_USE_UTC_TIME_US is deprecated!");
 #endif
@@ -109,9 +116,7 @@ int clockInit()
 }
 
 void clockShutdown() {
-#ifdef CLOCK_ENABLE_PTP
-    ptpShutdown();
-#endif
+
 }
 
 // Free running clock with 1us tick
@@ -166,7 +171,7 @@ char *clockGetString(char* s, unsigned int cs, uint64_t c) {
     struct tm tm;
     gmtime_s(&tm, &t);
     uint64_t fns = c % CLOCK_TICKS_PER_S;
-    uint32_t tai_s = (c % CLOCK_TICKS_PER_M) / CLOCK_TICKS_PER_S;
+    uint32_t tai_s = (uint32_t)((c % CLOCK_TICKS_PER_M) / CLOCK_TICKS_PER_S);
     sprintf(s, "%u.%u.%u %02u:%02u:%02u/%02u +%lluns", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec, tai_s, fns);
 #endif
     return s;
@@ -176,7 +181,7 @@ char *clockGetString(char* s, unsigned int cs, uint64_t c) {
 
 int clockInit() {
 
-    printf("Init clock\n");
+    printf("\nInit clock\n");
 #ifdef CLOCK_USE_UTC_TIME_NS 
     printf("  CLOCK_USE_UTC_TIME_NS\n");
 #endif
@@ -239,15 +244,17 @@ int clockInit() {
 
     // Test
     if (gDebugLevel >= 1) {
+
        uint64_t t1, t2;
        char s[64];
        t1 = clockGet64();
        sleepNs(100000);
        t2 = clockGet64();
-       printf("  Desired resolution = %u Hz, system resolution = %u Hz, conversion = %c%I64u+%I64u\n", CLOCK_TICKS_PER_S, tF.u.LowPart,  sDivide?'/':'*', sFactor, sOffset );
-       printf("  +0us:   %I64u  %s\n", t1, clockGetString(s, sizeof(s), t1));
-       printf("  +100us: %I64u  %s\n", t2, clockGetString(s, sizeof(s), t2));
-       printf("\n");
+       printf("  Resolution = %u Hz, system resolution = %u Hz, conversion = %c%I64u+%I64u\n", CLOCK_TICKS_PER_S, tF.u.LowPart,  sDivide?'/':'*', sFactor, sOffset );
+       if (gDebugLevel >= 2) {
+           printf("  +0us:   %I64u  %s\n", t1, clockGetString(s, sizeof(s), t1));
+           printf("  +100us: %I64u  %s\n", t2, clockGetString(s, sizeof(s), t2));
+       }
     } // Test
 
     return 1;
@@ -285,9 +292,9 @@ uint32_t clockGet32() {
 
 void sleepNs(unsigned int ns) {
 
-    vuint64 t1, t2;
-    vuint32 us = ns / 1000;
-    vuint32 ms = us / 1000;
+    uint64_t t1, t2;
+    uint32_t us = ns / 1000;
+    uint32_t ms = us / 1000;
 
     // Start sleeping at 1800us, shorter sleeps are more precise but need significant CPU time
     if (us >= 2000) {
@@ -296,7 +303,7 @@ void sleepNs(unsigned int ns) {
     // Busy wait
     else {
         t1 = t2 = clockGet64();
-        vuint64 te = t1 + us * CLOCK_TICKS_PER_US;
+        uint64_t te = t1 + us * CLOCK_TICKS_PER_US;
         for (;;) {
             t2 = clockGet64();
             if (t2 >= te) break;

@@ -3,12 +3,14 @@
 /* Copyright(c) Vector Informatik GmbH.All rights reserved.
    Licensed under the MIT license.See LICENSE file in the project root for details. */
 
-#ifndef __UDPSERVER_H__
-#define __UDPSERVER_H__
+#ifndef __XCPTL_H__
+#define __XCPTL_H__
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include "xcptl_cfg.h"  // Transport layer configuration
 
 #ifdef _LINUX // Linux sockets
 
@@ -20,11 +22,6 @@ extern "C" {
 #endif 
 
 #ifdef _WIN // Windows sockets or XL-API
-
-    #ifdef APP_ENABLE_XLAPI_V3
-      #undef udpSendtoWouldBlock
-      #define udpSendtoWouldBlock(r) (gOptionUseXLAPI ? (r==0) : (WSAGetLastError()==WSAEWOULDBLOCK))
-    #endif
 
     #define RECV_FLAGS 0
     #define SENDTO_FLAGS 0
@@ -54,72 +51,41 @@ typedef struct {
 
 typedef union {
     SOCKADDR_IN addr;
-#ifdef APP_ENABLE_XLAPI_V3
-    tUdpSockAddrXl addrXl;
-#endif
 } tUdpSockAddr;
 
 typedef union {
     SOCKET sock; // Winsock or Linux
-#ifdef APP_ENABLE_XLAPI_V3
-    tUdpSockXl *sockXl; // XL-API
-#endif
 } tUdpSock;
 
-typedef struct {
-    
-    tUdpSock Sock;
-    unsigned int SlaveMTU;
-    tUdpSockAddr SlaveAddr;
-    uint8_t SlaveUUID[8];
-    tUdpSockAddr MasterAddr;
-    int MasterAddrValid;
 
-    // Transmit queue 
-    tXcpDtoBuffer dto_queue[XCPTL_DTO_QUEUE_SIZE];
-    unsigned int dto_queue_rp; // rp = read index
-    unsigned int dto_queue_len; // rp+len = write index (the next free entry), len=0 ist empty, len=XCPTL_DTO_QUEUE_SIZE is full
-    tXcpDtoBuffer* dto_buffer_ptr; // current incomplete or not fully commited entry
+extern int XcpTlInit(uint16_t slavePort, uint16_t slaveMTU);
+extern void XcpTlShutdown();
 
-    // CTO command transfer object counters (CRM,CRO)
-    uint16_t LastCroCtr; // Last CRO command receive object message packet counter received
-    uint16_t CrmCtr; // next CRM command response message packet counter
+extern int XcpTlGetSlaveMAC(uint8_t* mac);
+extern const char* XcpTlGetSlaveIP();
+extern uint16_t XcpTlGetSlavePort();
 
-    // DTO data transfer object counter (DAQ,STIM)
-    uint16_t DtoCtr; // next DAQ DTO data transmit message packet counter 
+extern int XcpTlHandleCommands();
+extern int XcpTlSendCrm(const uint8_t* data, unsigned int n);
 
-    // Multicast
-#ifdef APP_ENABLE_MULTICAST
-    tXcpThread MulticastThreadHandle;
-    SOCKET MulticastSock;
-    // XL-API
-    #ifdef APP_ENABLE_XLAPI_V3
-        tUdpSockAddr MulticastAddrXl;
-    #endif
-#endif 
+extern uint8_t* XcpTlGetDtoBuffer(void** par, unsigned int size);
+extern void XcpTlCommitDtoBuffer(void* par);
+extern void XcpTlFlushTransmitQueue();
+extern int XcpTlHandleTransmitQueue();
+extern void XcpTlInitTransmitQueue();
+extern void XcpTlWaitForTransmitData(unsigned int timeout_us);
 
-    MUTEX Mutex_Queue;
-    MUTEX Mutex_Send;
-       
-} tXcpTlData;
+/* Set cluster id */
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
+extern void XcpTlSetClusterId(uint16_t clusterId);
+#endif
 
-extern tXcpTlData gXcpTl;
+// Test instrumentation
+#ifdef APP_ENABLE_A2L_GEN
+void XcpTlCreateA2lDescription();
+#endif
+extern uint64_t XcpTlGetBytesWritten();
 
-extern int networkInit();
-extern void networkShutdown();
-
-extern int udpTlInit(uint8_t*slaveAddr, uint16_t slavePort, uint16_t slaveMTU);
-extern void udpTlShutdown();
-
-extern int udpTlHandleCommands();
-extern int udpTlSendCrmPacket(const uint8_t* data, unsigned int n);
-
-extern uint8_t* udpTlGetPacketBuffer(void** par, unsigned int size);
-extern void udpTlCommitPacketBuffer(void* par);
-extern void udpTlFlushTransmitQueue();
-extern int udpTlHandleTransmitQueue();
-extern void udpTlInitTransmitQueue();
-extern void udpTlWaitForTransmitData(unsigned int timeout_us);
 
 #ifdef __cplusplus
 }
