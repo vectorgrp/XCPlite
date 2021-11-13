@@ -245,11 +245,11 @@ uint8_t ApplXcpGetA2LFilename(char** p, uint32_t* n, int path) {
     sprintf(gA2LPathname, "%s.A2L", gA2LFilename);
 
     if (path) {
-        if (p != NULL) *p = (uint8_t*)gA2LPathname;
+        if (p != NULL) *p = gA2LPathname;
         if (n != NULL) *n = (uint32_t)strlen(gA2LPathname);
     }
     else {
-        if (p != NULL) *p = (uint8_t*)gA2LFilename;
+        if (p != NULL) *p = gA2LFilename;
         if (n != NULL) *n = (uint32_t)strlen(gA2LFilename);
     }
     return 1;
