@@ -64,14 +64,7 @@ Demo visual Studio solution and CANape project included for Raspberry Pi 4 and W
 ## Configuration options:
 
 All settings and parameters for the XCP protocol and transport layer are located in xcp_cfg.h and xcptl_cfg.h
-
-Compile options for the XCPlite demo are located in main.h:
-```
-#define XCPSIM_ENABLE_A2L_GEN  // Enable A2L creator and A2L upload to host
-#define XCPSIM_ENABLE_XLAPI_V3  // Enable Vector XL-API stack (option -v3) for BroadrReach xxx-Base-T1
-#define APP_ENABLE_MULTICAST  // Enable multicast time synchronisation (GET_DAQ_CLOCK_MULTICAST)
-
-```
+Compile options for the XCPlite demo are located in main_cfg.h:
 
 ## Notes:
 - If A2L generation and upload is disabled, use CANape address update with Linker Map Type ELF extended for a.out format or PDB for .exe 
