@@ -35,23 +35,16 @@ int gOptionJumbo = APP_DEFAULT_JUMBO;
 uint16_t gOptionSlavePort = APP_DEFAULT_SLAVE_PORT; 
 unsigned char gOptionSlaveAddr[4] = APP_DEFAULT_SLAVE_ADDR;
 
-static uint16_t gXcpEvent_EcuTest = 0;
-
 // Create A2L file
 #ifdef APP_ENABLE_A2L_GEN
 
 int createA2L(const char* a2l_path_name) {
 
     if (!A2lInit(a2l_path_name)) return 0;
-
     A2lHeader();
-
     ecuCreateA2lDescription();
     ecuppCreateA2lDescription();
-
     A2lCreateParameterWithLimits(gDebugLevel, "Console output verbosity", "", 0, 100);
-
-    // Finalize A2L description
     A2lClose();
     return 1;
 }
@@ -68,8 +61,7 @@ extern void* mainTask(void* par)
 
     for (;;) {
 
-        XcpEvent(gXcpEvent_EcuTest);
-        sleepMs(10);
+        sleepMs(100);
 
         // Check if the XCP slave is running
         int err = XcpSlaveStatus();
@@ -177,10 +169,8 @@ int main(int argc, char* argv[]) {
                 // Initialize ECU demo tasks (C++) 
                 ecuppInit();
 
-                gXcpEvent_EcuTest = XcpCreateEvent("Test", 10000, 0, 0);
-
 #ifdef APP_ENABLE_A2L_GEN
-                // Create A2L/MDI names and generate A2L file
+                // Create A2L name and generate A2L file
                 printf("\n");
                 char* filepath; // Full path + name +extension
                 ApplXcpGetA2LFilename(&filepath, NULL, 1);

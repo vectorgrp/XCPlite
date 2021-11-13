@@ -11,7 +11,7 @@ Posix and Windows Sockets or Vector VN5xxx automotive Ethernet devices
 
 List of restrictions compared to Vectors free xcpBasic and commercial xcpProf in source file xcpLite.c.
 
-Supports only XCP on Ethernet
+Supports only XCP on Ethernet/UDP
 Thread safe, minimal thread lock and zero copy data acquisition.
 C and C++ target support.
 
@@ -77,8 +77,14 @@ Compile options for the XCPlite demo are located in main.h:
 - If A2L generation and upload is disabled, use CANape address update with Linker Map Type ELF extended for a.out format or PDB for .exe 
 - The A2L generator creates a unique file name for the A2L, for convinience use name detection (GET_ID 1) 
 - Linux Compile with -O2, Link with -pthread
-- Jumbo frames are disabled by default
 - 64 bit version needs all objects within one 4 GByte data segment  
+
+## Version History
+Version 4:
+- Refactoring to minimize dependencies
+- All dependencies to UDP socket library in platform.h/.c
+- Support for Vector XL-API removed
+
 
 
 
