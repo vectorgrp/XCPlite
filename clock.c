@@ -115,9 +115,6 @@ int clockInit()
     return 1;
 }
 
-void clockShutdown() {
-
-}
 
 // Free running clock with 1us tick
 uint32_t clockGet32() {
@@ -244,7 +241,6 @@ int clockInit() {
 
     // Test
     if (gDebugLevel >= 1) {
-
        uint64_t t1, t2;
        char s[64];
        t1 = clockGet64();
@@ -318,6 +314,6 @@ void sleepMs(unsigned int ms) {
 }
 
 
-#endif
+#endif // Windows
 
 

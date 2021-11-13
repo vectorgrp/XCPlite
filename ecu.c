@@ -36,7 +36,6 @@ double channel1 = 0;
 double channel2 = 0;
 double channel3 = 0;
 
-
 unsigned char byteArray1[1024];
 unsigned char byteArray2[1024];
 unsigned char byteArray3[1024];
@@ -137,7 +136,6 @@ void ecuInit() {
     ecuCounter = 0;
     ecuCycleCounter = 0;
     channel1 = channel2 = channel3 = 0;
-
     byteCounter = 0;
     wordCounter = 0;
     dwordCounter = 0;
@@ -219,7 +217,6 @@ void ecuCreateA2lDescription() {
     A2lCreatePhysMeasurement(channel1, "Sinus signal 1 with period, ampl1, phase1", 1.0, 0.0, "");
     A2lCreatePhysMeasurement(channel2, "Sinus signal 2 with period, ampl2, phase2", 1.0, 0.0, "");
     A2lCreatePhysMeasurement(channel3, "Sinus signal 3 with period, ampl3, phase3", 1.0, 0.0, "");
-
     A2lCreateMeasurement(byteCounter, "");
     A2lCreateMeasurement(wordCounter, "");
     A2lCreateMeasurement(dwordCounter, "");
@@ -297,8 +294,6 @@ void ecuCyclic( void )
     byteArray2[i] ++;
     byteArray3[i] ++;
     byteArray4[i] ++;
-
-
     
     ecuCounter++;
 
@@ -310,9 +305,6 @@ void ecuCyclic( void )
     ecuTime += 0.002;
 
     XcpEvent(gXcpEvent_EcuCyclic); // Trigger measurement data aquisition event for ecuCyclic() task
-
-
-
 }
 
 

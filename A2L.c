@@ -250,8 +250,6 @@ void A2lHeader() {
 #else
   #error
 #endif
-
-
   fprintf(gA2lFile, gA2lIfData1, XCP_PROTOCOL_LAYER_VERSION, XCPTL_CTO_SIZE, XCPTL_DTO_SIZE, eventCount, XCP_TIMESTAMP_UNIT_S);
 
   // Event list
@@ -270,7 +268,8 @@ void A2lHeader() {
   }
 #endif
 
-fprintf(gA2lFile, gA2lIfData2, XCP_TRANSPORT_LAYER_VERSION, XcpTlGetSlavePort(), XcpTlGetSlaveIP());
+  printf("  A2L: addr = %s:%u\n", XcpTlGetSlaveAddrString(), XcpTlGetSlavePort());
+  fprintf(gA2lFile, gA2lIfData2, XCP_TRANSPORT_LAYER_VERSION, XcpTlGetSlavePort(), XcpTlGetSlaveAddrString());
 }
 
 

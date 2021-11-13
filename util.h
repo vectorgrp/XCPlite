@@ -7,6 +7,5 @@
 #define __UTIL_H_
 
 
-
 #endif
 

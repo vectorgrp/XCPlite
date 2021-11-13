@@ -41,7 +41,7 @@ int XcpSlaveStatus() {
 
 
 // XCP slave init
-int XcpSlaveInit( uint16_t port, uint16_t mtu, uint16_t flushCycleMs) {
+int XcpSlaveInit( uint8_t *addr, uint16_t port, uint16_t mtu, uint16_t flushCycleMs) {
 
     int r;
 
@@ -91,21 +91,21 @@ int XcpSlaveInit( uint16_t port, uint16_t mtu, uint16_t flushCycleMs) {
     XcpInit();
 
     // Initialize XCP transport layer
-    r = XcpTlInit(port, mtu);
+    r = XcpTlInit(addr, port, mtu);
     if (!r) return 0;
 
-    // Create threads
+    // Start XCP protocol layer
+    printf("Start XCP protocol layer\n");
+    XcpStart();
+
     create_thread(&gXcpSlave.DAQThreadHandle, XcpSlaveDAQThread);
     create_thread(&gXcpSlave.CMDThreadHandle, XcpSlaveCMDThread);
-    sleepMs(200UL); 
-
     return 1;
 }
 
 int XcpSlaveShutdown() {
 
     XcpDisconnect();
-
     cancel_thread(gXcpSlave.DAQThreadHandle);
     cancel_thread(gXcpSlave.CMDThreadHandle);
     XcpTlShutdown();
@@ -188,7 +188,4 @@ extern void* XcpSlaveDAQThread(void* par)
     printf("ERROR: XcpSlaveDAQThread terminated!\n");
     return 0;
 }
-
-
-
 

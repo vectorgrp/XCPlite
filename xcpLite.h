@@ -123,7 +123,8 @@ extern "C" {
 
 
 /* Initialization for the XCP Protocol Layer */
-extern void XcpInit( void );
+extern void XcpInit(void);
+extern void XcpStart(void);
 extern void XcpDisconnect();
 
 /* Trigger a XCP data acquisition or stimulation event */
@@ -138,6 +139,7 @@ extern void XcpCommand( const uint32_t* pCommand );
 extern void XcpSendEvent(uint8_t evc, const uint8_t* d, uint8_t l);
 
 /* Check status */
+extern uint8_t XcpIsStarted();
 extern uint8_t XcpIsConnected();
 extern uint8_t XcpIsDaqRunning();
 extern uint8_t XcpIsDaqPacked();

@@ -205,9 +205,9 @@ typedef struct {
 
     tXcpCto Crm;                           /* RES,ERR Message buffer */
     uint8_t CrmLen;                        /* RES,ERR Message length */
-
     uint8_t SessionStatus;
-
+    uint8_t SessionStarted;
+    uint8_t reserved1;
     uint8_t* Mta;                        /* Memory Transfer Address */
 
     /*
@@ -238,7 +238,10 @@ typedef struct {
 
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
 
+#ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
     uint16_t ClusterId;
+#endif
+
     T_CLOCK_INFO_SLAVE SlaveClockInfo;
 
 #ifdef XCP_ENABLE_GRANDMASTER_CLOCK_INFO
@@ -292,6 +295,10 @@ void XcpCreateA2lDescription() {
 /* Status                                                                   */
 /****************************************************************************/
 
+uint8_t XcpIsStarted() {
+  return gXcp.SessionStarted;
+}
+
 uint8_t XcpIsConnected() {
     return isConnected();
 }
@@ -300,9 +307,11 @@ uint8_t XcpIsDaqRunning() {
     return isDaqRunning();
 }
 
+#ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
 uint16_t XcpGetClusterId() {
     return gXcp.ClusterId;
 }
+#endif
 
 uint8_t XcpIsDaqPacked() {
 #ifdef XCP_ENABLE_PACKED_MODE
@@ -607,7 +616,7 @@ static void XcpEvent_(uint16_t event, uint8_t* base, uint64_t clock)
       for (hs=2+XCP_TIMESTAMP_SIZE,odt=DaqListFirstOdt(daq);odt<=DaqListLastOdt(daq);hs=2,odt++)  { 
                       
         // Get DTO buffer, overrun if not available
-        if ((d0 = XcpTlGetDtoBuffer(&p0, DaqListOdtSize(odt)+hs)) == 0) {
+        if ((d0 = XcpTlGetDtoBuffer(&p0, (uint16_t)(DaqListOdtSize(odt)+hs))) == 0) {
 #ifdef XCP_ENABLE_TESTMODE
             if (ApplXcpGetDebugLevel() >= 2) printf("DAQ queue overflow! Event %u skipped\n", event);
 #endif
@@ -682,6 +691,8 @@ void XcpEvent(uint16_t event) {
 // Stops DAQ and goes to disconnected state
 void XcpDisconnect( void )
 {
+  if (!gXcp.SessionStarted) return;
+
   gXcp.SessionStatus &= (uint8_t)(~SS_CONNECTED);
   XcpStopAllDaq();
 }
@@ -690,8 +701,11 @@ void XcpDisconnect( void )
 //  Handles incoming XCP commands
 void XcpCommand( const uint32_t* pCommand )
 {
-  const tXcpCto* pCmd = (const tXcpCto*) pCommand; 
+  if (!gXcp.SessionStarted) return;
+    
+  const tXcpCto* pCmd = (const tXcpCto*) pCommand;
   uint8_t err = 0;
+
 
   // Prepare the default response
   CRM_CMD = PID_RES; /* Response, no error */
@@ -1093,6 +1107,7 @@ void XcpCommand( const uint32_t* pCommand )
                 gXcp.SessionStatus = (uint8_t)(gXcp.SessionStatus & ~SS_LEGACY_MODE); 
               }
               
+#ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
               if (CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES & TIME_SYNC_SET_PROPERTIES_CLUSTER_ID) { // set cluster id
                   #ifdef XCP_ENABLE_TESTMODE
                   if (ApplXcpGetDebugLevel() >= 2) printf("  Cluster id set to %u\n", CRO_TIME_SYNC_PROPERTIES_CLUSTER_ID);
@@ -1100,6 +1115,7 @@ void XcpCommand( const uint32_t* pCommand )
                   gXcp.ClusterId = CRO_TIME_SYNC_PROPERTIES_CLUSTER_ID; // Set cluster id
                   XcpTlSetClusterId(gXcp.ClusterId);
               }
+#endif
 
               if (CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES & TIME_SYNC_SET_PROPERTIES_TIME_SYNC_BRIDGE) { // set time sync bride is not supported -> error
                   error(CRC_OUT_OF_RANGE);
@@ -1126,7 +1142,11 @@ void XcpCommand( const uint32_t* pCommand )
               CRM_TIME_SYNC_PROPERTIES_SYNC_STATE = SLAVE_CLOCK_STATE_SYNCH;
               CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO = CLOCK_INFO_SLAVE | CLOCK_INFO_SLAVE_GRANDM | CLOCK_INFO_RELATION;
               CRM_TIME_SYNC_PROPERTIES_RESERVED = 0x0;
+#ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
               CRM_TIME_SYNC_PROPERTIES_CLUSTER_ID = gXcp.ClusterId;
+#else
+              CRM_TIME_SYNC_PROPERTIES_CLUSTER_ID = 1;
+#endif
               if (CRO_TIME_SYNC_PROPERTIES_GET_PROPERTIES_REQUEST & TIME_SYNC_GET_PROPERTIES_GET_CLK_INFO) { // check whether MTA based upload is requested
                   static unsigned char buf[sizeof(T_CLOCK_INFO_SLAVE) + sizeof(T_CLOCK_INFO_RELATION) + sizeof(T_CLOCK_INFO_GRANDMASTER)];
                   unsigned char* p = &buf[0];
@@ -1316,6 +1336,7 @@ void XcpSendEvent(uint8_t evc, const uint8_t* d, uint8_t l)
 /*****************************************************************************
 | Initialization of the XCP Protocol Layer
 ******************************************************************************/
+
 void XcpInit( void )
 {
   /* Initialize all XCP variables to zero */
@@ -1323,7 +1344,10 @@ void XcpInit( void )
    
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
 
-  gXcp.ClusterId = XCPTL_MULTICAST_CLUSTER_ID;  // XCP default cluster id (multicast addr 239,255,0,1, group 127,0,1 (mac 01-00-5E-7F-00-01)
+#ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
+  gXcp.ClusterId = XCP_MULTICAST_CLUSTER_ID;  // XCP default cluster id (multicast addr 239,255,0,1, group 127,0,1 (mac 01-00-5E-7F-00-01)
+  XcpTlSetClusterId(gXcp.ClusterId);
+#endif
 
   // XCP slave clock default description
   gXcp.SlaveClockInfo.timestampTicks = XCP_TIMESTAMP_TICKS;
@@ -1346,17 +1370,27 @@ void XcpInit( void )
   gXcp.GrandmasterClockInfo.nativeTimestampSize = 8; // NATIVE_TIMESTAMP_SIZE_DLONG;
   gXcp.GrandmasterClockInfo.valueBeforeWrapAround = 0xFFFFFFFFFFFFFFFFULL;
   gXcp.GrandmasterClockInfo.epochOfGrandmaster = XCP_DAQ_CLOCK_EPOCH;
-  ApplXcpGetClockInfo(&gXcp.SlaveClockInfo, &gXcp.GrandmasterClockInfo);
-
+ 
   // If the slave clock is PTP synchronized, both origin and local timestamps are considered to be the same.
   // Timestamps will be updated to the current value pair
   gXcp.ClockRelationInfo.timestampLocal = 0;
   gXcp.ClockRelationInfo.timestampOrigin = 0;
 #endif
+
 #endif
 
   /* Initialize the session status */
   gXcp.SessionStatus = 0;
+}
+
+void XcpStart(void)
+{
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
+#ifdef XCP_ENABLE_GRANDMASTER_CLOCK_INFO
+    ApplXcpGetClockInfo(&gXcp.SlaveClockInfo, &gXcp.GrandmasterClockInfo);
+#endif
+#endif
+    gXcp.SessionStarted = 1;
 }
 
 
@@ -1367,7 +1401,6 @@ void XcpSetGrandmasterClockInfo(uint8_t* id, uint8_t epoch, uint8_t stratumLevel
     memcpy(gXcp.GrandmasterClockInfo.UUID, id, 8);
     gXcp.SlaveClockInfo.stratumLevel = gXcp.GrandmasterClockInfo.stratumLevel = stratumLevel;
     gXcp.GrandmasterClockInfo.epochOfGrandmaster = epoch;
-
 }
 #endif
 

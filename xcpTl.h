@@ -12,63 +12,38 @@ extern "C" {
 
 #include "xcptl_cfg.h"  // Transport layer configuration
 
-#ifdef _LINUX // Linux sockets
-
-    #define RECV_FLAGS 0 // Blocking receive (no MSG_DONTWAIT)
-    #define SENDTO_FLAGS 0 // Blocking transmit (no MSG_DONTWAIT)
-    #define SEND_RETRIES 10 // Retry when send CRM would block
-
-
-#endif 
-
-#ifdef _WIN // Windows sockets or XL-API
-
-    #define RECV_FLAGS 0
-    #define SENDTO_FLAGS 0
-    #define SEND_RETRIES 10 // Retry when send CRM would block
-
-#endif
-
 typedef struct {
     uint16_t dlc;               /* BYTE 1,2 lenght */
     uint16_t ctr;               /* BYTE 3,4 packet counter */
-    unsigned char  data[XCPTL_CTO_SIZE];  /* BYTE[] data */
+    uint8_t data[XCPTL_CTO_SIZE];  /* BYTE[] data */
 } tXcpCtoMessage;
 
 typedef struct {
     uint16_t dlc;               /* BYTE 1,2 lenght */
     uint16_t ctr;               /* BYTE 3,4 packet counter */
-    unsigned char  data[XCPTL_DTO_SIZE];  /* BYTE[] data */
+    uint8_t data[XCPTL_DTO_SIZE];  /* BYTE[] data */
 } tXcpDtoMessage;
 
 
 typedef struct {
-    unsigned int xcp_size;             // Number of overall bytes in XCP DTO messages
-    unsigned int xcp_uncommited;       // Number of uncommited XCP DTO messages
-    unsigned char xcp[XCPTL_SOCKET_JUMBO_MTU_SIZE]; // Contains concatenated messages
+    uint16_t xcp_size;             // Number of overall bytes in XCP DTO messages
+    uint16_t xcp_uncommited;       // Number of uncommited XCP DTO messages
+    uint8_t xcp[XCPTL_SOCKET_JUMBO_MTU_SIZE]; // Contains concatenated messages
 } tXcpDtoBuffer;
 
 
-typedef union {
-    SOCKADDR_IN addr;
-} tUdpSockAddr;
 
-typedef union {
-    SOCKET sock; // Winsock or Linux
-} tUdpSock;
-
-
-extern int XcpTlInit(uint16_t slavePort, uint16_t slaveMTU);
+extern int XcpTlInit(uint8_t* slaveAddr, uint16_t slavePort, uint16_t slaveMTU);
 extern void XcpTlShutdown();
 
-extern int XcpTlGetSlaveMAC(uint8_t* mac);
-extern const char* XcpTlGetSlaveIP();
+extern const char* XcpTlGetSlaveAddrString();
 extern uint16_t XcpTlGetSlavePort();
+extern int XcpTlGetSlaveMAC(uint8_t* mac);
 
 extern int XcpTlHandleCommands();
-extern int XcpTlSendCrm(const uint8_t* data, unsigned int n);
+extern int XcpTlSendCrm(const uint8_t* data, uint16_t n);
 
-extern uint8_t* XcpTlGetDtoBuffer(void** par, unsigned int size);
+extern uint8_t* XcpTlGetDtoBuffer(void** par, uint16_t size);
 extern void XcpTlCommitDtoBuffer(void* par);
 extern void XcpTlFlushTransmitQueue();
 extern int XcpTlHandleTransmitQueue();

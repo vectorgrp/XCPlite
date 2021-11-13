@@ -28,7 +28,6 @@
 // #define XCP_PROTOCOL_LAYER_VERSION 0x0101 
 // #define XCP_PROTOCOL_LAYER_VERSION 0x0103  // GET_DAQ_CLOCK_MULTICAST, GET_TIME_CORRELATION_PROPERTIES
 #define XCP_PROTOCOL_LAYER_VERSION 0x0104  // PACKED_MODE, CC_START_STOP_SYNCH prepare
-// #define XCP_PROTOCOL_LAYER_VERSION 0x0106  // Experimental, changes marked with @@@@ V1.6
 
 
 /*----------------------------------------------------------------------------*/
@@ -54,6 +53,10 @@
 
 // XCP V1.4
 #define XCP_ENABLE_DAQ_CLOCK_MULTICAST // Enable GET_DAQ_CLOCK_MULTICAST
+#ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
+    // XCP default cluster id (multicast addr 239,255,0,1, group 127,0,1 (mac 01-00-5E-7F-00-01)
+    #define XCP_MULTICAST_CLUSTER_ID 1
+#endif
 
 
 #define XCP_DAQ_MEM_SIZE (5*100000) // Amount of memory for DAQ tables, each ODT entry needs 5 bytes

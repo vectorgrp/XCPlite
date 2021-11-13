@@ -26,12 +26,14 @@
 
 static struct {
 
-    tUdpSock Sock;
+    SOCKET Sock;
 
     unsigned int SlaveMTU;
+    uint8_t SlaveAddr[4];
     uint16_t SlavePort;
 
-    tUdpSockAddr MasterAddr;
+    uint8_t MasterAddr[4];
+    uint16_t MasterPort;
     int MasterAddrValid;
 
     // Transmit queue 
@@ -52,17 +54,12 @@ static struct {
 #ifdef XCPTL_ENABLE_MULTICAST
     tXcpThread MulticastThreadHandle;
     SOCKET MulticastSock;
-    // XL-API
-#ifdef APP_ENABLE_XLAPI_V3
-    tUdpSockAddr MulticastAddrXl;
-#endif
 #endif 
 
     MUTEX Mutex_Queue;
     MUTEX Mutex_Send;
 
 } gXcpTl;
-
 
 
 uint64_t XcpTlGetBytesWritten() {
@@ -79,7 +76,7 @@ static int handleXcpMulticast(int n, tXcpCtoMessage* p);
 // Transmit a UDP datagramm (contains multiple XCP DTO messages or a single CRM message)
 // Must be thread safe, because it is called from CMD and from DAQ thread
 // Returns -1 on would block, 1 if ok, 0 on error
-static int sendDatagram(const unsigned char* data, unsigned int size ) {
+static int sendDatagram(const uint8_t *data, uint16_t size ) {
 
     int r;
         
@@ -96,11 +93,10 @@ static int sendDatagram(const unsigned char* data, unsigned int size ) {
         printf("ERROR: invalid master address!\n");
         return 0;
     }
-    {
-        mutexLock(&gXcpTl.Mutex_Send);
-        r = (int)sendto(gXcpTl.Sock.sock, data, size, SENDTO_FLAGS, (SOCKADDR*)&gXcpTl.MasterAddr.addr, (uint16_t)sizeof(gXcpTl.MasterAddr.addr));
-        mutexUnlock(&gXcpTl.Mutex_Send);
-    }
+
+    mutexLock(&gXcpTl.Mutex_Send);
+    r = socketSendTo(gXcpTl.Sock, data, size, gXcpTl.MasterAddr, gXcpTl.MasterPort);
+    mutexUnlock(&gXcpTl.Mutex_Send);
     if (r != size) {
         if (socketGetLastError()==SOCKET_ERROR_WBLOCK) {
             return -1; // Would block
@@ -146,6 +142,7 @@ void XcpTlInitTransmitQueue() {
     gXcpTl.dto_queue_rp = 0;
     gXcpTl.dto_queue_len = 0;
     gXcpTl.dto_buffer_ptr = NULL;
+    gXcpTl.dto_bytes_written = 0;
     getDtoBuffer();
     mutexUnlock(&gXcpTl.Mutex_Queue);
     assert(gXcpTl.dto_buffer_ptr);
@@ -156,7 +153,6 @@ void XcpTlInitTransmitQueue() {
 int XcpTlHandleTransmitQueue( void ) {
 
     tXcpDtoBuffer* b;
-    int result;
 
     for (;;) {
 
@@ -173,8 +169,9 @@ int XcpTlHandleTransmitQueue( void ) {
         if (b == NULL) break;
 
         // Send this frame
-        result = sendDatagram(&b->xcp[0], b->xcp_size);
-        if (result != 1) return result; // return on errors or if would block
+        int r = sendDatagram(&b->xcp[0], b->xcp_size);
+        if (r != 1) return r; // return on errors or if would block
+        gXcpTl.dto_bytes_written += b->xcp_size;
 
         // Free this buffer when succesfully sent
         mutexLock(&gXcpTl.Mutex_Queue);
@@ -207,7 +204,7 @@ void XcpTlFlushTransmitQueue() {
 
 // Reserve space for a DTO packet in a DTO buffer and return a pointer to data and a pointer to the buffer for commit reference
 // Flush the transmit buffer, if no space left
-unsigned char *XcpTlGetDtoBuffer(void **par, unsigned int size) {
+uint8_t *XcpTlGetDtoBuffer(void **par, uint16_t size) {
 
     tXcpDtoMessage* p;
 
@@ -226,7 +223,7 @@ unsigned char *XcpTlGetDtoBuffer(void **par, unsigned int size) {
     mutexLock(&gXcpTl.Mutex_Queue);
         
     // Get another message buffer from queue, when active buffer ist full, overrun or after time condition
-    if (gXcpTl.dto_buffer_ptr==NULL || gXcpTl.dto_buffer_ptr->xcp_size + size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE > gXcpTl.SlaveMTU /*XCPTL_SOCKET_MTU_SIZE*/) {
+    if (gXcpTl.dto_buffer_ptr==NULL || (uint16_t)(gXcpTl.dto_buffer_ptr->xcp_size + size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE) > gXcpTl.SlaveMTU /*XCPTL_SOCKET_MTU_SIZE*/) {
         getDtoBuffer();
     }
 
@@ -236,11 +233,10 @@ unsigned char *XcpTlGetDtoBuffer(void **par, unsigned int size) {
         p = (tXcpDtoMessage*)&gXcpTl.dto_buffer_ptr->xcp[gXcpTl.dto_buffer_ptr->xcp_size];
         p->ctr = gXcpTl.DtoCtr++;
         p->dlc = (uint16_t)size;
-        gXcpTl.dto_buffer_ptr->xcp_size += size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE;
-
+        gXcpTl.dto_buffer_ptr->xcp_size = (uint16_t)(gXcpTl.dto_buffer_ptr->xcp_size + size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE);
         *((tXcpDtoBuffer**)par) = gXcpTl.dto_buffer_ptr;
         gXcpTl.dto_buffer_ptr->xcp_uncommited++;
-
+        
     }
     else {
         p = NULL; // Overflow
@@ -276,10 +272,8 @@ void XcpTlCommitDtoBuffer(void *par) {
 
 // Transmit XCP response or event packet
 // Returns 0 error, 1 ok, -1 would block
-int XcpTlSendCrm(const unsigned char* packet, unsigned int size) {
+int XcpTlSendCrm(const uint8_t *packet, uint16_t size) {
 
-    int result;
-    unsigned int retries = SEND_RETRIES;
     assert(packet != NULL);
     assert(size>0);
 
@@ -288,16 +282,11 @@ int XcpTlSendCrm(const unsigned char* packet, unsigned int size) {
     p.ctr = gXcpTl.LastCroCtr++;
     p.dlc = (uint16_t)size;
     memcpy(p.data, packet, size);
-    do {
-        result = sendDatagram((unsigned char*)&p, size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE);
-        if (result != -1) break; // break on success or error, retry on would block (-1)
-        sleepNs(1000);
-    } while (--retries > 0);
-    return result;
+    return sendDatagram((unsigned char*)&p, (uint16_t)(size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE));
 }
 
     
-static int handleXcpCommands(int n, tXcpCtoMessage * p, tUdpSockAddr * src) {
+static int handleXcpCommands(uint16_t n, tXcpCtoMessage * p, uint8_t *srcAddr, uint16_t srcPort) {
 
     int connected;
 
@@ -319,25 +308,21 @@ static int handleXcpCommands(int n, tXcpCtoMessage * p, tUdpSockAddr * src) {
             
             // Check src addr 
             assert(gXcpTl.MasterAddrValid);
-            if (src != NULL) {
 
-                // Check unicast ip address, not allowed to change 
-                if (memcmp(&gXcpTl.MasterAddr.addr.sin_addr, &src->addr.sin_addr, sizeof(src->addr.sin_addr)) != 0) { // Message from different master received
-                    char tmp[32];
-                    inet_ntop(AF_INET, &src->addr.sin_addr, tmp, sizeof(tmp));
-                    printf("WARNING: message from unknown new master %s, disconnecting!\n", tmp);
-                    XcpDisconnect();
-                    gXcpTl.MasterAddrValid = 0;
-                    return 1; // Disconnect
-                }
+            // Check unicast ip address, not allowed to change 
+            if (memcmp(&gXcpTl.MasterAddr, srcAddr, sizeof(gXcpTl.MasterAddr)) != 0) { // Message from different master received
+                printf("WARNING: message from unknown new master %u.%u.%u.%u, disconnecting!\n", srcAddr[0], srcAddr[1], srcAddr[2], srcAddr[3]);
+                XcpDisconnect();
+                gXcpTl.MasterAddrValid = 0;
+                return 1; // Disconnect
+            }
 
-                // Check unicast master udp port, not allowed to change 
-                if (gXcpTl.MasterAddr.addr.sin_port != src->addr.sin_port) {
-                    printf("WARNING: master port changed from %u to %u, disconnecting!\n", htons(gXcpTl.MasterAddr.addr.sin_port), htons(src->addr.sin_port));
-                    XcpDisconnect();
-                    gXcpTl.MasterAddrValid = 0;
-                    return 1; // Disconnect
-                }
+            // Check unicast master udp port, not allowed to change 
+            if (gXcpTl.MasterPort != srcPort) {
+                printf("WARNING: master port changed from %u to %u, disconnecting!\n", gXcpTl.MasterPort, srcPort);
+                XcpDisconnect();
+                gXcpTl.MasterAddrValid = 0;
+                return 1; // Disconnect
             }
 
             XcpCommand((const uint32_t*)&p->data[0]); // Handle command
@@ -348,7 +333,8 @@ static int handleXcpCommands(int n, tXcpCtoMessage * p, tUdpSockAddr * src) {
             /* Check for CONNECT command ? */
             const tXcpCto* pCmd = (const tXcpCto*)&p->data[0];
             if (p->dlc == 2 && CRO_CMD == CC_CONNECT) { 
-                gXcpTl.MasterAddr = *src; // Save master address, so XcpCommand can send the CONNECT response
+                memcpy(gXcpTl.MasterAddr,srcAddr,sizeof(gXcpTl.MasterAddr)); // Save master address, so XcpCommand can send the CONNECT response
+                gXcpTl.MasterPort = srcPort;
                 gXcpTl.MasterAddrValid = 1;
                 XcpCommand((const uint32_t*)&p->data[0]); // Handle CONNECT command
             }
@@ -362,13 +348,8 @@ static int handleXcpCommands(int n, tXcpCtoMessage * p, tUdpSockAddr * src) {
         // Actions after successfull connect
         if (!connected) {
             if (XcpIsConnected()) { // Is in connected state
-
 #ifdef XCP_ENABLE_TESTMODE
-                {
-                    char tmp[32];
-                    inet_ntop(AF_INET, &gXcpTl.MasterAddr.addr.sin_addr, tmp, sizeof(tmp));
-                    printf("XCP master connected: addr=%s, port=%u\n", tmp, htons(gXcpTl.MasterAddr.addr.sin_port));
-                }
+                printf("XCP master connected: addr=%u.%u.%u.%u, port=%u\n", gXcpTl.MasterAddr[0], gXcpTl.MasterAddr[1], gXcpTl.MasterAddr[2], gXcpTl.MasterAddr[3], gXcpTl.MasterPort);
 #endif
 
                 // Inititialize the DAQ message queue
@@ -394,27 +375,24 @@ static int handleXcpCommands(int n, tXcpCtoMessage * p, tUdpSockAddr * src) {
 int XcpTlHandleCommands() {
 
     uint8_t buffer[XCPTL_TRANSPORT_LAYER_HEADER_SIZE + XCPTL_CTO_SIZE];
-    tUdpSockAddr src;
-    socklen_t srclen;
-    int n;
+    uint16_t srcPort;
+    uint8_t srcAddr[4];
+    int16_t n;
 
     // Receive a UDP datagramm
     // No no partial messages assumed
-
-    {
-        srclen = sizeof(src.addr);
-        n = (int)recvfrom(gXcpTl.Sock.sock, (char*)&buffer, (uint16_t)sizeof(buffer), 0, (SOCKADDR*)&src.addr, &srclen); // recv blocking
-        if (n <= 0) {
-            if (n == 0) return 1; // Ok, no command pending
-            if (socketGetLastError() == SOCKET_ERROR_WBLOCK) {
-                return 1; // Ok, no command pending
-            }
-                printf("ERROR %u: recvfrom failed (result=%d)!\n", socketGetLastError(), n);
-            return 0; // Error           
+    n = socketRecvFrom(gXcpTl.Sock, buffer, (uint16_t)sizeof(buffer), srcAddr, &srcPort); // recv blocking
+    if (n <= 0) {
+        if (n == 0) return 1; // Ok, no command pending
+        if (socketGetLastError() == SOCKET_ERROR_WBLOCK) {
+            return 1; // Ok, no command pending
         }
+        printf("ERROR %u: recvfrom failed (result=%d)!\n", socketGetLastError(), n);
+        return 0; // Error           
     }
-
-    return handleXcpCommands(n, (tXcpCtoMessage*)buffer, &src);
+    else {
+        return handleXcpCommands((uint16_t)n, (tXcpCtoMessage*)buffer, srcAddr, srcPort);
+    }
 }
 
 
@@ -439,17 +417,7 @@ extern void* XcpTlMulticastThread(void* par)
 #endif
 {
     uint8_t buffer[256];
-    int n;
-    char tmp[32];
-    uint16_t cid = XcpGetClusterId();
-    uint8_t cip[4] = { 239,255,(uint8_t)(cid >> 8),(uint8_t)(cid) };
-
-    printf("Start XCP multicast thread\n");
-    if (!socketOpen(&gXcpTl.MulticastSock, 0 /*nonblocking*/, 1 /*reusable*/)) return 0;
-    if (!socketBind(gXcpTl.MulticastSock, XCPTL_MULTICAST_PORT)) return 0;
-    if (!socketJoin(gXcpTl.MulticastSock, cip)) return 0;
-    inet_ntop(AF_INET, cip, tmp, sizeof(tmp));
-    printf("  Listening on %s port=%u\n\n", tmp, XCPTL_MULTICAST_PORT);
+    int16_t n;
     for (;;) {
         n = socketRecv(gXcpTl.MulticastSock, (char*)&buffer, (uint16_t)sizeof(buffer));
         if (n < 0) break; // Terminate on error (socket close is used to terminate thread)
@@ -466,47 +434,51 @@ void XcpTlSetClusterId(uint16_t clusterId) {
 
 }
 
+int XcpTlInit(uint8_t* slaveAddr, uint16_t slavePort, uint16_t slaveMTU) {
 
-//-------------------------------------------------------------------------------------------------------
-
-#ifdef _LINUX // Linux
-
-int XcpTlInit(uint16_t slavePort, uint16_t slaveMTU)
-{
     printf("\nInit XCP on UDP transport layer\n  (MTU=%u, DTO_QUEUE_SIZE=%u)\n", slaveMTU, XCPTL_DTO_QUEUE_SIZE);
     gXcpTl.SlaveMTU = slaveMTU;
-    gXcpTl.SlavePort = slavePort;
     if (gXcpTl.SlaveMTU > XCPTL_SOCKET_JUMBO_MTU_SIZE) gXcpTl.SlaveMTU = XCPTL_SOCKET_JUMBO_MTU_SIZE;
+    if (slaveAddr != 0 && slaveAddr[0] != 255 ) {  // Bind to given addr or ANY (0.0.0.0)
+        memcpy(gXcpTl.SlaveAddr, slaveAddr, 4);
+    }
+    else { // Bind to the first adapter addr found
+        socketGetLocalAddr(NULL, gXcpTl.SlaveAddr);
+    }
+    gXcpTl.SlavePort = slavePort;
     gXcpTl.LastCroCtr = 0;
     gXcpTl.DtoCtr = 0;
     gXcpTl.CrmCtr = 0;
     gXcpTl.MasterAddrValid = 0;
 
-    if (!socketOpen(&gXcpTl.Sock.sock, 0, 0)) return 0;
-    if (!socketBind(gXcpTl.Sock.sock, slavePort)) return 0;
-    printf("  Listening on UDP port %u\n\n", slavePort);
+    mutexInit(&gXcpTl.Mutex_Send, 0, 0);
+    mutexInit(&gXcpTl.Mutex_Queue, 0, 1000);
 
-    mutexInit(&gXcpTl.Mutex_Send,0,0);
-    mutexInit(&gXcpTl.Mutex_Queue,0,1000);
+    // Unicast commands
+    if (!socketOpen(&gXcpTl.Sock, 0 /*nonblocking*/, 0 /*reusable*/)) return 0;
+    printf("  Bind XCP socket to %u.%u.%u.%u\n", gXcpTl.SlaveAddr[0], gXcpTl.SlaveAddr[1], gXcpTl.SlaveAddr[2], gXcpTl.SlaveAddr[3]);
+    if (!socketBind(gXcpTl.Sock, gXcpTl.SlaveAddr, gXcpTl.SlavePort)) return 0; // Bind to ANY, when slaveAddr=255.255.255.255
+    printf("  Listening for XCP commands on UDP port %u\n\n", gXcpTl.SlavePort);
 
-    // Create multicast thread
+    // Multicast commands
 #ifdef XCPTL_ENABLE_MULTICAST
-    create_thread(&gXcpTl.MulticastThreadHandle, XcpTlMulticastThread);
-    sleepMs(50);
-#endif
 
-    printf("\n");
+    uint16_t cid = XcpGetClusterId();
+    uint8_t cip[4] = { 239,255,(uint8_t)(cid >> 8),(uint8_t)(cid) };
+
+    printf("Start XCP multicast thread\n");
+    if (!socketOpen(&gXcpTl.MulticastSock, 0 /*nonblocking*/, 1 /*reusable*/)) return 0;
+    printf("  Bind XCP multicast socket to %u.%u.%u.%u\n", gXcpTl.SlaveAddr[0], gXcpTl.SlaveAddr[1], gXcpTl.SlaveAddr[2], gXcpTl.SlaveAddr[3]);
+    if (!socketBind(gXcpTl.MulticastSock, gXcpTl.SlaveAddr, XCPTL_MULTICAST_PORT)) return 0; // Bind to ANY, when slaveAddr=255.255.255.255
+    if (!socketJoin(gXcpTl.MulticastSock, cip)) return 0;
+    printf("  Listening for XCP multicast from %u.%u.%u.%u:%u\n\n", cip[0], cip[1], cip[2], cip[3], XCPTL_MULTICAST_PORT);
+
+
+    create_thread(&gXcpTl.MulticastThreadHandle, XcpTlMulticastThread);
+#endif
     return 1;
 }
 
-// Wait for outgoing data or timeout after timeout_us
-void XcpTlWaitForTransmitData(unsigned int timeout_us) {
-
-    if (gXcpTl.dto_queue_len <= 1) {
-        sleepNs(timeout_us * 1000);
-    }
-    return; 
-}
 
 void XcpTlShutdown() {
 
@@ -517,96 +489,54 @@ void XcpTlShutdown() {
 #endif
     mutexDestroy(&gXcpTl.Mutex_Send);
     mutexDestroy(&gXcpTl.Mutex_Queue);
-    socketClose(&gXcpTl.Sock.sock);
+    socketClose(&gXcpTl.Sock);
 }
 
 
-#endif
 
-#ifdef _WIN 
-
-int XcpTlInit(uint16_t slavePort, uint16_t slaveMTU) {
-
-    printf("\nInit XCP on UDP transport layer\n  (MTU=%u, DTO_QUEUE_SIZE=%u)\n", slaveMTU, XCPTL_DTO_QUEUE_SIZE);
-
-    gXcpTl.SlaveMTU = slaveMTU;
-    if (gXcpTl.SlaveMTU > XCPTL_SOCKET_JUMBO_MTU_SIZE) gXcpTl.SlaveMTU = XCPTL_SOCKET_JUMBO_MTU_SIZE;
-    gXcpTl.SlavePort = slavePort;
-    gXcpTl.LastCroCtr = 0;
-    gXcpTl.DtoCtr = 0;
-    gXcpTl.CrmCtr = 0;
-    gXcpTl.MasterAddrValid = 0;
-
-    mutexInit(&gXcpTl.Mutex_Send,0,0);
-    mutexInit(&gXcpTl.Mutex_Queue,0,1000);
-
-    {
-        if (!socketOpen(&gXcpTl.Sock.sock, 0, 0)) return 0;
-        if (!socketBind(gXcpTl.Sock.sock,slavePort)) return 0;
-        printf("  Listening on UDP port %u\n\n", slavePort);
-#ifdef XCPTL_ENABLE_MULTICAST
-        create_thread(&gXcpTl.MulticastThreadHandle, XcpTlMulticastThread);
-#endif
-        return 1;
-    }
-}
-
-
+// Wait for outgoing data or timeout after timeout_us
 void XcpTlWaitForTransmitData(unsigned int timeout_us) {
 
     if (gXcpTl.dto_queue_len <= 1) {
-        assert(timeout_us >= 1000);
-        Sleep(timeout_us/1000);
+        sleepNs(timeout_us*1000);
     }
-    return;
-
+    return; 
 }
 
 
-void XcpTlShutdown() {
-
-    {
-#ifdef XCPTL_ENABLE_MULTICAST
-        socketClose(&gXcpTl.MulticastSock);
-        sleepMs(500);
-        cancel_thread(gXcpTl.MulticastThreadHandle);
-#endif
-        socketClose(&gXcpTl.Sock.sock);
-    }
-}
-
-#endif
 
 //-------------------------------------------------------------------------------------------------------
 
 
-const char* XcpTlGetSlaveIP() {
+// Info used to generate A2L
+const char* XcpTlGetSlaveAddrString() {
 
-    uint32_t a;
-    uint8_t m[6];
     static char tmp[32];
-    a = socketGetLocalAddr(m);
-    if (a == 0) {
-        return "127.0.0.1";
+    uint8_t addr[4],*a;
+    if (gXcpTl.SlaveAddr[0] != 0) {
+        a = gXcpTl.SlaveAddr;
+    }
+    else if (socketGetLocalAddr(NULL, addr)) {
+        a = addr;
     }
     else {
-        inet_ntop(AF_INET, &a, tmp, sizeof(tmp));
+        return "127.0.0.1";
     }
+    sprintf(tmp, "%u.%u.%u.%u", a[0], a[1], a[2], a[3]);
     return tmp;
 }
 
+// Info used to generate A2L
 uint16_t XcpTlGetSlavePort() {
 
     return gXcpTl.SlavePort;
 }
 
+// Info used to generate clock UUID
 int XcpTlGetSlaveMAC(uint8_t *mac) {
 
-    uint32_t a;
-    a = socketGetLocalAddr(mac);
-    return (a != 0);
+    return socketGetLocalAddr(mac,NULL);
 }
-
 
 
 

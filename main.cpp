@@ -32,13 +32,12 @@
 volatile unsigned int gDebugLevel = APP_DEFAULT_DEBUGLEVEL;
 char gOptionA2L_Path[MAX_PATH] = APP_DEFAULT_A2L_PATH;
 int gOptionJumbo = APP_DEFAULT_JUMBO;
-uint16_t gOptionSlavePort = APP_DEFAULT_SLAVE_PORT;
+uint16_t gOptionSlavePort = APP_DEFAULT_SLAVE_PORT; 
+unsigned char gOptionSlaveAddr[4] = APP_DEFAULT_SLAVE_ADDR;
 
 static uint16_t gXcpEvent_EcuTest = 0;
 
-
 // Create A2L file
-// Create MDF header for all measurements
 #ifdef APP_ENABLE_A2L_GEN
 
 int createA2L(const char* a2l_path_name) {
@@ -79,7 +78,6 @@ extern void* mainTask(void* par)
             break;
         }
 
-       
         // Check keyboard
         if (_kbhit()) {
             int c = _getch();
@@ -103,6 +101,7 @@ static void usage() {
         "\n"
         "  Options:\n"
         "    -tx              Set output verbosity to x (default: 1)\n"
+        "    -addr <ipaddr>   IP address (default: ANY)\n"
         "    -port <portname> Slave port (default: 5555)\n"
         "    -jumbo           Disable Jumbo Frames\n"
         "    -a2l [path]      Generate A2L file\n"
@@ -129,6 +128,13 @@ int main(int argc, char* argv[]) {
         }
         else if (sscanf(argv[i], "-t%c", &c) == 1) {
             gDebugLevel = c - '0';
+        }
+        else if (strcmp(argv[i], "-addr") == 0) {
+            if (++i < argc) {
+                if (inet_pton(AF_INET, argv[i], &gOptionSlaveAddr)) {
+                    printf("Set ip addr to %s\n", argv[i]);
+                }
+            }
         }
         else if (strcmp(argv[i], "-port") == 0) {
             if (++i < argc) {
@@ -160,7 +166,10 @@ int main(int argc, char* argv[]) {
         if (clockInit()) {
 
             // Initialize the XCP slave
-            if (XcpSlaveInit(gOptionSlavePort, gOptionJumbo ? XCPTL_SOCKET_JUMBO_MTU_SIZE : XCPTL_SOCKET_MTU_SIZE, 200)) {
+            if (XcpSlaveInit(gOptionSlaveAddr, gOptionSlavePort, gOptionJumbo ? XCPTL_SOCKET_JUMBO_MTU_SIZE : XCPTL_SOCKET_MTU_SIZE, 200)) {
+                
+                sleepMs(200UL); // Not needed, just to get the debug printing complete
+                printf("\n");
 
                 // Initialize ECU demo task (C) 
                 ecuInit();
@@ -208,7 +217,7 @@ int main(int argc, char* argv[]) {
                 std::thread t3([]() { ecuppTask(0); });
 
                 // Main loop
-                Sleep(100); // give everything a chance to be up and running
+                sleepMs(100); // give everything a chance to be up and running
                 printf("\nPress ESC to stop\n");
                 std::thread t0([]() { mainTask(0); });
 
@@ -222,7 +231,6 @@ int main(int argc, char* argv[]) {
                 XcpSlaveShutdown();
 
             }
-
         }
 
         socketShutdown();

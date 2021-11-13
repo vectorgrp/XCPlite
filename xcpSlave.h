@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 	   
-extern int XcpSlaveInit(uint16_t port, uint16_t mtu, uint16_t flushCycleMs);
+extern int XcpSlaveInit(uint8_t *addr, uint16_t port, uint16_t mtu, uint16_t flushCycleMs);
 extern int XcpSlaveShutdown();
 extern int XcpSlaveStatus();
 
