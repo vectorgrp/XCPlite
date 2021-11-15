@@ -31,13 +31,15 @@ extern "C" {
 
 #endif
 
-	extern int clockInit();
+extern int clockInit();
 extern char* clockGetString(char* s, unsigned int cs, uint64_t c);
 
 extern uint32_t clockGet32();
 extern uint64_t clockGet64();
 extern uint32_t clockGetLast32();
 extern uint64_t clockGetLast64();
+
+
 
 extern void sleepNs(uint32_t ns);
 extern void sleepMs(uint32_t ms);

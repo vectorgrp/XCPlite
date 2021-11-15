@@ -13,7 +13,6 @@
 #include "platform.h"
 #include "main_cfg.h"
 #include "clock.h"
-#include "util.h"
 #ifdef APP_ENABLE_A2L_GEN
 #include "A2L.h"
 #endif

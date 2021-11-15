@@ -169,7 +169,6 @@
     <ClInclude Include="ecupp.hpp" />
     <ClInclude Include="main_cfg.h" />
     <ClInclude Include="platform.h" />
-    <ClInclude Include="util.h" />
     <ClInclude Include="xcpAppl.h" />
     <ClInclude Include="xcpLite.h" />
     <ClInclude Include="xcpSlave.h" />

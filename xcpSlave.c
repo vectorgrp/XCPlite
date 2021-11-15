@@ -13,7 +13,6 @@
 -----------------------------------------------------------------------------*/
 
 #include "platform.h"
-#include "util.h"
 #include "clock.h"
 #include "xcpTl.h"
 #include "xcpLite.h"

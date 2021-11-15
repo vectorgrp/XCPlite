@@ -4,7 +4,7 @@ project(xcpLite)
 set(CMAKE_C_COMPILER "g++")
 set(CMAKE_CXX_COMPILER "g++")
 
-set(SOURCES main.cpp ecupp.cpp ecu.c xcpAppl.c xcpLite.c xcpTl.c util.c A2L.c xcpSlave.c clock.c)
+set(SOURCES main.cpp ecupp.cpp ecu.c xcpAppl.c xcpLite.c xcpTl.c A2L.c xcpSlave.c clock.c platform.c)
 set(CMAKE_BUILD_TYPE Debug)
 
 add_executable(xcpLite ${SOURCES})
