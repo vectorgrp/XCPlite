@@ -85,19 +85,22 @@ Version 4:
 $ sudo apt-get install cmake g++ clang cmake ninja-build
 
 #### Release Build
+```
 $ cd XcpLite
 $ mkdir build_release
 $ cd build_release
 $ cmake -GNinja -DCMAKE_BUILD_TYPE=Release ..
 $ ninja
+```
 
 #### Debug Build
+```
 $ cd XcpLite
 $ mkdir build_debug
 $ cd build_debug
 $ cmake -GNinja ..
 $ ninja
-
+```
 ### Windows x86_64
 
 Use the Visual Studio projects or CMake.
@@ -105,21 +108,24 @@ Use the Visual Studio projects or CMake.
 For the CMake setup, prepare your command line environment.
 Set compiler to Microsoft x64 cl.exe and make sure the system finds cmake.exe and ninja.exe.
 You can also use the Windows clang compiler.
-
+```
 > call "C:\Program Files (x86)\Microsoft Visual Studio 15.0\VC\Auxiliary\Build\vcvars64.bat"
 > set PATH=C:\Tools\ninja;%PATH%
 > set PATH=C:\Tools\cmake_3.17.2.0\bin;%PATH%
-
+```
 #### Release Build
+```
 > cd XcpLite
 > mkdir build_release
 > cd build_release
 > cmake.exe -GNinja -DCMAKE_BUILD_TYPE=Release ..
 > ninja.exe
-
+```
 #### Debug Build
+```
 > cd XcpLite
 > mkdir build_debug
 > cd build_debug
 > cmake.exe -GNinja ..
 > ninja.exe
+```
