@@ -30,7 +30,7 @@ uint64_t clockGetLast64() {
 
 #ifdef _LINUX // Linux
 
-/* 
+/*
 Linux clock type
   CLOCK_REALTIME  This clock is affected by incremental adjustments performed by NTP
   CLOCK_TAI       This clock does not experience discontinuities and backwards jumps caused by NTP inserting leap seconds as CLOCK_REALTIME does.
@@ -59,20 +59,20 @@ char* clockGetString(char* s, unsigned int cs, uint64_t c) {
 
 
 int clockInit()
-{    
+{
 
     printf("\nInit clock\n  (");
-#ifdef CLOCK_USE_UTC_TIME_US 
+#ifdef CLOCK_USE_UTC_TIME_US
     #error "CLOCK_USE_UTC_TIME_US is deprecated!");
 #endif
-#ifdef CLOCK_USE_UTC_TIME_NS 
+#ifdef CLOCK_USE_UTC_TIME_NS
     printf("CLOCK_USE_UTC_TIME_NS,");
 #endif
-#ifdef CLOCK_USE_APP_TIME_US 
+#ifdef CLOCK_USE_APP_TIME_US
     printf("CLOCK_USE_APP_TIME_US,");
 #endif
 
-#if CLOCK_TYPE == CLOCK_TAI 
+#if CLOCK_TYPE == CLOCK_TAI
     printf("CLOCK_TYPE_TAI,");
 #endif
 #if CLOCK_TYPE == CLOCK_REALTIME
@@ -102,8 +102,8 @@ int clockInit()
         gettimeofday(&ptm, NULL);
         clock_gettime(CLOCK_TAI, &gts_TAI);
         clock_gettime(CLOCK_REALTIME, &gts_REALTIME);
-        printf("  CLOCK_TAI=%us CLOCK_REALTIME=%us time=%u timeofday=%u\n", gts_TAI.tv_sec, gts_REALTIME.tv_sec, now, ptm.tv_sec);
-        // Check 
+        printf("  CLOCK_TAI=%lu CLOCK_REALTIME=%lu time=%lu timeofday=%lu\n", gts_TAI.tv_sec, gts_REALTIME.tv_sec, now, ptm.tv_sec);
+        // Check
         t1 = clockGet64();
         sleepNs(100000);
         t2 = clockGet64();
@@ -119,7 +119,7 @@ int clockInit()
 // Free running clock with 1us tick
 uint32_t clockGet32() {
 
-    struct timespec ts; 
+    struct timespec ts;
     clock_gettime(CLOCK_TYPE, &ts);
 #ifdef CLOCK_USE_UTC_TIME_NS // ns since 1.1.1970
     gClock64 = (((uint64_t)(ts.tv_sec) * 1000000000ULL) + (uint64_t)(ts.tv_nsec)); // ns
@@ -127,7 +127,7 @@ uint32_t clockGet32() {
     gClock64 = (((uint64_t)(ts.tv_sec-gts0.tv_sec) * 1000000ULL) + (uint64_t)(ts.tv_nsec / 1000)); // us
 #endif
     gClock32 = (uint32_t)gClock64;
-    return gClock32;  
+    return gClock32;
 }
 
 uint64_t clockGet64() {
@@ -153,7 +153,7 @@ void sleepMs(uint32_t ms) {
 
 #else // Windows
 
-// Performance counter to clock conversion 
+// Performance counter to clock conversion
 static uint64_t sFactor = 0; // ticks per us
 static uint8_t sDivide = 0; // divide or multiply
 static uint64_t sOffset = 0; // offset
@@ -179,7 +179,7 @@ char *clockGetString(char* s, unsigned int cs, uint64_t c) {
 int clockInit() {
 
     printf("\nInit clock\n");
-#ifdef CLOCK_USE_UTC_TIME_NS 
+#ifdef CLOCK_USE_UTC_TIME_NS
     printf("  CLOCK_USE_UTC_TIME_NS\n");
 #endif
 
@@ -230,11 +230,11 @@ int clockInit() {
     tp = (((int64_t)tC.u.HighPart) << 32) | (int64_t)tC.u.LowPart;
 #ifndef CLOCK_USE_UTC_TIME_NS
     // Reset clock now
-    sOffset = tp; 
+    sOffset = tp;
 #else
     // set  offset from local clock UTC value t
     // this is inaccurate up to 1 s, but irrelevant because system clock UTC offset is also not accurate
-    sOffset = (uint64_t)t * CLOCK_TICKS_PER_S  + t_ms * CLOCK_TICKS_PER_MS - tp * sFactor; 
+    sOffset = (uint64_t)t * CLOCK_TICKS_PER_S  + t_ms * CLOCK_TICKS_PER_MS - tp * sFactor;
 #endif
 
     clockGet64();
@@ -260,7 +260,7 @@ int clockInit() {
 
 // Clock 64 Bit (UTC or ARB)
 uint64_t clockGet64() {
-   
+
     LARGE_INTEGER tp;
     uint64_t t;
 
@@ -315,5 +315,3 @@ void sleepMs(unsigned int ms) {
 
 
 #endif // Windows
-
-
