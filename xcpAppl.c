@@ -3,7 +3,7 @@
 |   xcpAppl.c
 |
 | Description:
-|   Externals for xcpLite 
+|   Externals for xcpLite
 |   Platform and implementation specific functions
 |   All other callbacks/dependencies are implemented as macros in xcpAppl.h
 |
@@ -43,7 +43,7 @@ uint8_t ApplXcpGetClockInfo(T_CLOCK_INFO_SLAVE* s, T_CLOCK_INFO_GRANDMASTER* m) 
 
     uint8_t uuid[8] = APP_DEFAULT_CLOCK_UUID;
 
-    
+
         memcpy(s->UUID, uuid, 8);
         memcpy(m->UUID, uuid, 8);
 #ifdef CLOCK_USE_UTC_TIME_NS
@@ -55,7 +55,7 @@ uint8_t ApplXcpGetClockInfo(T_CLOCK_INFO_SLAVE* s, T_CLOCK_INFO_GRANDMASTER* m) 
         m->stratumLevel = XCP_STRATUM_LEVEL_UNSYNC;
         m->epochOfGrandmaster = XCP_EPOCH_ARB;
 #endif
-    
+
 
 
     if (gDebugLevel >= 1) {
@@ -141,7 +141,7 @@ static int dump_phdr(struct dl_phdr_info* pinfo, size_t size, void* data)
 }
 
 uint8_t* ApplXcpGetBaseAddr() {
-  
+
   if (!baseAddrValid) {
     dl_iterate_phdr(dump_phdr, NULL);
     assert(baseAddr!=NULL);
@@ -169,7 +169,7 @@ uint8_t* ApplXcpGetPointer(uint8_t addr_ext, uint32_t addr)
 
 #ifdef _LINUX32
 
-uint8_t* ApplXcpGetBaseAddr() 
+uint8_t* ApplXcpGetBaseAddr()
 {
 
     return ((uint8_t*)0);
@@ -234,7 +234,7 @@ uint8_t ApplXcpGetSlaveId(char** p, uint32_t* n) {
 
 static char gA2LFilename[100]; // Name without extension
 
-// A2L base name for GET_ID 
+// A2L base name for GET_ID
 static char gA2LPathname[MAX_PATH + 100 + 4]; // Full path + name +extension
 
 
@@ -302,7 +302,7 @@ uint8_t ApplXcpReadFile(uint8_t type, uint8_t** p, uint32_t* n) {
             CloseHandle(hFile);
         }
         MultiByteToWideChar(0, 0, filename, (int)strlen(filename), wcfilename, (int)strlen(filename));
-        hFile = CreateFile(wcfilename, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        hFile = CreateFileW((wchar_t*)wcfilename, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
         if (hFile == INVALID_HANDLE_VALUE) {
             printf("file %s not found!\n", filename);
             return 0;
@@ -316,15 +316,11 @@ uint8_t ApplXcpReadFile(uint8_t type, uint8_t** p, uint32_t* n) {
 #ifdef XCP_ENABLE_TESTMODE
             if (gDebugLevel >= 1) printf("  file %s ready for upload, size=%u, mta=%p\n\n", filename, gXcpFileLength, gXcpFile);
 #endif
-        
-    
+
+
     *n = gXcpFileLength;
     *p = gXcpFile;
     return 1;
 }
 
 #endif
-
-
-
-
