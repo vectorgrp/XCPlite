@@ -44,7 +44,7 @@ BOOL ApplXcpStopDaq() {
 // Get clock for DAQ timestamps
 /**************************************************************************/
 
-// XCP slave clock timestamp resolution defined in xcp_cfg.h
+// XCP server clock timestamp resolution defined in xcp_cfg.h
 // Clock must be monotonic !!!
 
 

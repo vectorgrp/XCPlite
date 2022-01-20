@@ -47,13 +47,13 @@ static struct {
 } sXcpServer;
 
 
-// Check XCP slave status
+// Check XCP server status
 int XcpServerStatus() {
     return !sXcpServer.TransmitThreadRunning || !sXcpServer.ReceiveThreadRunning;
 }
 
 
-// XCP slave init
+// XCP  init
 int XcpServerInit( const uint8_t *addr, uint16_t port, BOOL useTCP) {
 
     int r;
@@ -88,7 +88,7 @@ int XcpServerShutdown() {
 }
 
 
-// XCP slave unicast command receive thread
+// XCP unicast command receive thread
 #ifdef _WIN
 DWORD WINAPI XcpServerReveiveThread(LPVOID par)
 #else
@@ -115,7 +115,7 @@ extern void* XcpServerReveiveThread(void* par)
 }
 
 
-// XCP slave transmit thread
+// XCP transmit thread
 #ifdef _WIN
 DWORD WINAPI XcpServerTransmitThread(LPVOID par)
 #else

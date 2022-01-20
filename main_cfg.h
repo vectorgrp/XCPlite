@@ -11,7 +11,7 @@
 
 #define APP_XCPLITE
 #define APP_NAME "XCPlite"
-#define APP_VERSION 2.07
+#define APP_VERSION 5.00
 
 
 //-----------------------------------------------------------------------------------------------------

@@ -57,9 +57,9 @@ Drawbacks:
 #define XCPTL_TRANSPORT_LAYER_HEADER_SIZE 4
 
 // Multicast (GET_DAQ_CLOCK_MULTICAST)
-// Use multicast time synchronisation to improve synchronisation of multiple XCP slaves
+// Use multicast time synchronisation to improve synchronisation of multiple XCP servers
 // This is standard in XCP V1.3, but it needs to create an additional thread and socket for multicast reception
-// Has no benefit with PTP time synchronized slave and is just unnesserary effort
+// Has no benefit with PTP time synchronized server and is just unnesserary effort
 // CANape expects this by default -> adjust setting in device/protocol/event/TIME_CORRELATION_GETDAQCLOCK from "multicast" to "extended response" to switch it of
 #define XCPTL_ENABLE_MULTICAST
 #ifdef XCPTL_ENABLE_MULTICAST

@@ -682,7 +682,7 @@ int XcpTlInit(const uint8_t* addr, uint16_t port, BOOL useTCP) {
     gXcpTl.ListenSock = INVALID_SOCKET;
     if (useTCP) { // TCP
         if (!socketOpen(&gXcpTl.ListenSock, 1 /* useTCP */, 0 /*nonblocking*/, 1 /*reuseAddr*/)) return 0;
-        if (!socketBind(gXcpTl.ListenSock, gXcpTl.ServerAddr, gXcpTl.ServerPort)) return 0; // Bind on ANY, when slaveAddr=255.255.255.255
+        if (!socketBind(gXcpTl.ListenSock, gXcpTl.ServerAddr, gXcpTl.ServerPort)) return 0; // Bind on ANY, when 255.255.255.255
         if (!socketListen(gXcpTl.ListenSock)) return 0; // Put socket in listen mode
 #ifdef XCP_ENABLE_TESTMODE
         printf("  Listening for TCP connections on %u.%u.%u.%u port %u\n", gXcpTl.ServerAddr[0], gXcpTl.ServerAddr[1], gXcpTl.ServerAddr[2], gXcpTl.ServerAddr[3], gXcpTl.ServerPort);
@@ -692,7 +692,7 @@ int XcpTlInit(const uint8_t* addr, uint16_t port, BOOL useTCP) {
 #endif
     { // UDP
         if (!socketOpen(&gXcpTl.Sock, 0 /* useTCP */, 0 /*nonblocking*/, 1 /*reuseAddr*/)) return 0;
-        if (!socketBind(gXcpTl.Sock, gXcpTl.ServerAddr, gXcpTl.ServerPort)) return 0; // Bind on ANY, when slaveAddr=255.255.255.255
+        if (!socketBind(gXcpTl.Sock, gXcpTl.ServerAddr, gXcpTl.ServerPort)) return 0; // Bind on ANY, when 255.255.255.255
 #ifdef XCP_ENABLE_TESTMODE
         printf("  Listening for XCP commands on UDP %u.%u.%u.%u port %u\n\n", gXcpTl.ServerAddr[0], gXcpTl.ServerAddr[1], gXcpTl.ServerAddr[2], gXcpTl.ServerAddr[3], gXcpTl.ServerPort);
 #endif
@@ -705,7 +705,7 @@ int XcpTlInit(const uint8_t* addr, uint16_t port, BOOL useTCP) {
 #ifdef XCP_ENABLE_TESTMODE
     printf("  Bind XCP multicast socket to %u.%u.%u.%u\n", gXcpTl.ServerAddr[0], gXcpTl.ServerAddr[1], gXcpTl.ServerAddr[2], gXcpTl.ServerAddr[3]);
 #endif
-    if (!socketBind(gXcpTl.MulticastSock, gXcpTl.ServerAddr, XCPTL_MULTICAST_PORT)) return 0; // Bind to ANY, when slaveAddr=255.255.255.255
+    if (!socketBind(gXcpTl.MulticastSock, gXcpTl.ServerAddr, XCPTL_MULTICAST_PORT)) return 0; // Bind to ANY, when 255.255.255.255
 
     uint16_t cid = XcpGetClusterId();
     uint8_t maddr[4] = { 239,255,0,0 }; // 0xEFFFiiii

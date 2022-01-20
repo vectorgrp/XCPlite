@@ -235,7 +235,7 @@ typedef struct {
 
     #pragma pack(push, 1)
     struct {
-        T_CLOCK_INFO slave;
+        T_CLOCK_INFO local;
 #ifdef XCP_ENABLE_PTP
         T_CLOCK_INFO_GRANDMASTER grandmaster;
         T_CLOCK_INFO_RELATION relation;
@@ -951,7 +951,7 @@ void XcpCommand( const uint32_t* pCommand )
                 CRM_GET_DAQ_RESOLUTION_INFO_GRANULARITY_STIM = 1;
                 CRM_GET_DAQ_RESOLUTION_INFO_MAX_SIZE_DAQ  = (uint8_t)XCP_MAX_ODT_ENTRY_SIZE;
                 CRM_GET_DAQ_RESOLUTION_INFO_MAX_SIZE_STIM = (uint8_t)XCP_MAX_ODT_ENTRY_SIZE;
-                CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_MODE = gXcp.ClockInfo.slave.timestampUnit | DAQ_TIMESTAMP_FIXED | DAQ_TIMESTAMP_DWORD;
+                CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_MODE = gXcp.ClockInfo.local.timestampUnit | DAQ_TIMESTAMP_FIXED | DAQ_TIMESTAMP_DWORD;
                 CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_TICKS = (XCP_TIMESTAMP_TICKS);
               }
               break;
@@ -1155,7 +1155,7 @@ void XcpCommand( const uint32_t* pCommand )
               }
 #endif // XCP_ENABLE_PTP
               if (CRO_TIME_SYNC_PROPERTIES_GET_PROPERTIES_REQUEST & TIME_SYNC_GET_PROPERTIES_GET_CLK_INFO) { // check whether MTA based upload is requested
-                  gXcp.Mta = (uint8_t*)&gXcp.ClockInfo.slave;
+                  gXcp.Mta = (uint8_t*)&gXcp.ClockInfo.local;
               }
             }
             break;
@@ -1345,7 +1345,7 @@ void XcpInit( void )
 #ifdef XCP_DAQ_CLOCK_64BIT  // Use 64 Bit time stamps
   printf("DAQ_CLK_64BIT,");
 #endif
-#ifdef XCP_ENABLE_PTP // Enable slave clock synchronized to PTP grandmaster clock
+#ifdef XCP_ENABLE_PTP // Enable local clock synchronized to PTP grandmaster clock
   printf("GM_CLK_INFO,");
 #endif
 #ifdef XCP_ENABLE_PACKED_MODE  // Enable packed DAQ events
@@ -1378,25 +1378,25 @@ void XcpStart(void)
 {
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
 
-    // XCP slave clock default description
-    gXcp.ClockInfo.slave.timestampTicks = XCP_TIMESTAMP_TICKS;
-    gXcp.ClockInfo.slave.timestampUnit = XCP_TIMESTAMP_UNIT;
-    gXcp.ClockInfo.slave.stratumLevel = XCP_STRATUM_LEVEL_ARB;
+    // Local clock default description
+    gXcp.ClockInfo.local.timestampTicks = XCP_TIMESTAMP_TICKS;
+    gXcp.ClockInfo.local.timestampUnit = XCP_TIMESTAMP_UNIT;
+    gXcp.ClockInfo.local.stratumLevel = XCP_STRATUM_LEVEL_ARB;
 #ifdef XCP_DAQ_CLOCK_64BIT
-    gXcp.ClockInfo.slave.nativeTimestampSize = 8; // NATIVE_TIMESTAMP_SIZE_DLONG;
-    gXcp.ClockInfo.slave.valueBeforeWrapAround = 0xFFFFFFFFFFFFFFFFULL;
+    gXcp.ClockInfo.local.nativeTimestampSize = 8; // NATIVE_TIMESTAMP_SIZE_DLONG;
+    gXcp.ClockInfo.local.valueBeforeWrapAround = 0xFFFFFFFFFFFFFFFFULL;
 #else
-    gXcp.ClockInfo.slave.nativeTimestampSize = 4; // NATIVE_TIMESTAMP_SIZE_LONG;
-    gXcp.ClockInfo.slave.valueBeforeWrapAround = 0xFFFFFFFFULL;
+    gXcp.ClockInfo.local.nativeTimestampSize = 4; // NATIVE_TIMESTAMP_SIZE_LONG;
+    gXcp.ClockInfo.local.valueBeforeWrapAround = 0xFFFFFFFFULL;
 #endif
     uint8_t uuid[8] = XCP_DAQ_CLOCK_UIID;
-    memcpy(gXcp.ClockInfo.slave.UUID,uuid,8);
+    memcpy(gXcp.ClockInfo.local.UUID,uuid,8);
 
     #ifdef XCP_ENABLE_TESTMODE
     if (ApplXcpGetDebugLevel() >= 1) {
-        uint8_t* s = gXcp.ClockInfo.slave.UUID;
+        uint8_t* s = gXcp.ClockInfo.local.UUID;
         printf("\nStart XCP protocol layer\n");
-        printf("  ServerClock: ticks=%u, unit=%s, size=%u, UUID=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X\n\n", gXcp.ClockInfo.slave.timestampTicks, (gXcp.ClockInfo.slave.timestampUnit == DAQ_TIMESTAMP_UNIT_1NS) ? "ns" : "us", gXcp.ClockInfo.slave.nativeTimestampSize, s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7]);
+        printf("  ServerClock: ticks=%u, unit=%s, size=%u, UUID=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X\n\n", gXcp.ClockInfo.local.timestampTicks, (gXcp.ClockInfo.local.timestampUnit == DAQ_TIMESTAMP_UNIT_1NS) ? "ns" : "us", gXcp.ClockInfo.local.nativeTimestampSize, s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7]);
     }
     #endif
 
@@ -1408,7 +1408,7 @@ void XcpStart(void)
 	gXcp.ClockInfo.grandmaster.nativeTimestampSize = 8; // NATIVE_TIMESTAMP_SIZE_DLONG;
 	gXcp.ClockInfo.grandmaster.valueBeforeWrapAround = 0xFFFFFFFFFFFFFFFFULL;
     
-	// If the slave clock is PTP synchronized, both origin and local timestamps are considered to be the same.
+	// If the local clock is PTP synchronized, both origin and local timestamps are considered to be the same.
 	// Timestamps will be updated to the current value pair
 	gXcp.ClockInfo.relation.timestampLocal = 0;
 	gXcp.ClockInfo.relation.timestampOrigin = 0;
@@ -1441,7 +1441,7 @@ void XcpStart(void)
 void XcpSetGrandmasterClockInfo(uint8_t* id, uint8_t epoch, uint8_t stratumLevel) {
 
 	memcpy(gXcp.ClockInfo.grandmaster.UUID, id, 8);
-	gXcp.ClockInfo.slave.stratumLevel = gXcp.ClockInfo.grandmaster.stratumLevel = stratumLevel;
+	gXcp.ClockInfo.local.stratumLevel = gXcp.ClockInfo.grandmaster.stratumLevel = stratumLevel;
 	gXcp.ClockInfo.grandmaster.epochOfGrandmaster = epoch;
 }
 #endif

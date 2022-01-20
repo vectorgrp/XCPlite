@@ -91,7 +91,7 @@ extern void* mainTask(void* par)
 
         sleepMs(100);
 
-        // Check if the XCP slave is running
+        // Check if the XCP server is running
         BOOL err = XcpServerStatus();
         if (err) {
             printf("\nXCP Server failed (err==%u)\n", err);

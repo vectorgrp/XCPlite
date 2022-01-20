@@ -154,7 +154,7 @@ void ecuCreateA2lDescription() {
     A2lCreateParameterWithLimits(ecuRamPar.ampl3, "Amplitude", "V", 0, 800);
     A2lCreateParameterWithLimits(ecuRamPar.offset3, "RefOffset", "V", -200, +200);
     A2lCreateParameterWithLimits(ecuRamPar.phase3, "Phase", "", 0, M_2PI);
-    A2lCreateParameterWithLimits(ecuRamPar.period, "Period in s (XCP slave time)", "s", 0, 10);
+    A2lCreateParameterWithLimits(ecuRamPar.period, "Period in s (XCP server time)", "s", 0, 10);
     A2lCreateMap(ecuRamPar.map1_8_8, 8, 8, "", "8*8 byte calibration array");
     A2lCreateCurve(ecuRamPar.curve1_32, 32, "", "32 byte calibration array");
     A2lCreateParameterWithLimits(ecuRamPar.cycleTime, "ECU task cycle time (task sleep duration) in us", "us", 50, 1000000);

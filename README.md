@@ -1,25 +1,25 @@
 
-# XCPlite V4
+# XCPlite V5
 
-Copyright 2021 Vector Informatik GmbH
+Copyright 2022 Vector Informatik GmbH
 
-Lightweight implementation of the ASAM XCP Protocol Layer V1.4 (1000 lines of code in XCPlite.c).
+Lightweight implementation of the ASAM XCP Protocol Layer V1.4 (XCPlite.c).
 
 Supports Linux 32/64 Bit and Windows 32/64 Bit
-Posix and Windows Sockets or Vector VN5xxx automotive Ethernet devices
-100-Base-T1 or 1000-Base-T1 BroadrReach, XL-API V3 network based access
+Posix and Windows Sockets 
+Windows XP-API sockets for BroadrReach available on request
 
 List of restrictions compared to Vectors free xcpBasic and commercial xcpProf in source file xcpLite.c.
 
-Supports only XCP on Ethernet/UDP
+Supports only XCP on Ethernet, UDP or TCP
 Thread safe, minimal thread lock and zero copy data acquisition.
 C and C++ target support.
 
-Achieves 40 MByte/s throughput on a Raspberry Pi 4 (jumbo frames enabled) with 3% cpu time in event copy routine
+Achieves 100 MByte/s throughput on a Raspberry Pi 4 (jumbo frames enabled) with low cpu time in event copy routine
 
-Quick start with no A2L (ASAP2 ECU description) required.
+No A2L (ASAP2 ECU description) required.
 An A2L with reduced featureset is generated through code instrumentation during runtime on target system
-and automatically uploaded by XCP).
+and automatically uploaded by XCP.
 
 C and C++ measurement demo variables and code example in ecu.c and ecupp.cpp.
 Demo how to measure global variables and dynamic instances of structs and classes.
@@ -73,6 +73,11 @@ Compile options for the XCPlite demo are located in main_cfg.h:
 - 64 bit version needs all objects within one 4 GByte data segment
 
 ## Version History
+
+Version 5:
+- TCP support
+- "Slave" renamed to "Server""
+
 Version 4:
 - Refactoring to minimize dependencies
 - All dependencies to UDP socket library in platform.h/.c

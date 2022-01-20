@@ -13,9 +13,9 @@ extern int XcpTlInit(const uint8_t* addr, uint16_t port, BOOL useTCP); // Start 
 extern void XcpTlShutdown(); // Stop transport layer
 extern int XcpTlGetLastError(); // Get last error code
 
-extern const char* XcpTlGetServerAddrString(); // Get slave addr as string
-extern uint16_t XcpTlGetServerPort(); // Get slave port
-extern int XcpTlGetServerMAC(uint8_t* mac); // Get slave MAC
+extern const char* XcpTlGetServerAddrString(); // Get server addr as string
+extern uint16_t XcpTlGetServerPort(); // Get server port
+extern int XcpTlGetServerMAC(uint8_t* mac); // Get server MAC
 extern uint64_t XcpTlGetBytesWritten(); // Get the number of bytes send
 
 extern int XcpTlHandleCommands(); // Handle incoming XCP commands
