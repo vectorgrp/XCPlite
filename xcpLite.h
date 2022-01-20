@@ -1,33 +1,49 @@
+#pragma once
+
 /* xcpLite.h */
 
 /* Copyright(c) Vector Informatik GmbH.All rights reserved.
    Licensed under the MIT license.See LICENSE file in the project root for details. */
 
-#ifndef __XCPLITE_H_ 
-#define __XCPLITE_H_
-
 #include "xcp_cfg.h"    // Protocol layer configuration
+#include "xcptl_cfg.h"  // Transport layer configuration
 #include "xcp.h"        // XCP protocol defines
 #include "xcpTl.h"      // Transport layer interface
 #include "xcpAppl.h"    // Protocol layer external dependencies
 
 
-/****************************************************************************/
-/* XCP Packet Type Definition                                               */
-/****************************************************************************/
 
-typedef union {
-    /* There might be a loss of up to 3 bytes. */
-    uint8_t  b[((XCPTL_CTO_SIZE + 3) & 0xFFC)];
-    uint16_t w[((XCPTL_CTO_SIZE + 3) & 0xFFC) / 2];
-    uint32_t dw[((XCPTL_CTO_SIZE + 3) & 0xFFC) / 4];
-} tXcpCto;
 
 
 
 /****************************************************************************/
-/* XCP Commands                                                             */
+/* DAQ event information                                                    */
 /****************************************************************************/
+
+#ifdef XCP_ENABLE_DAQ_EVENT_LIST
+
+typedef struct {
+    const char* name;
+    uint32_t size; // ext event size
+    uint8_t timeUnit; // timeCycle unit, 1us = 3, 10us = 4, 100us = 5, 1ms = 6, 10ms = 7, ...
+    uint8_t timeCycle; // cycletime in units, 0 = sporadic or unknown
+    uint16_t sampleCount; // packed event sample count
+    uint16_t daqList; // associated DAQ list
+    uint8_t priority; // priority 0 = queued, 1 = pushing, 2 = realtime
+} tXcpEvent;
+
+#endif
+
+
+
+/****************************************************************************/
+/* Protocol layer interface                                                 */
+/****************************************************************************/
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
 /* Return values */
 #define XCP_CMD_DENIED              0
@@ -41,96 +57,16 @@ typedef union {
 #define XCP_CMD_ERROR               0xFF
 
 
-
-/* Bitmasks for gXcp.SendStatus */
-#define XCP_CRM_REQUEST             0x01u
-#define XCP_DTO_REQUEST             0x02u
-#define XCP_EVT_REQUEST             0x04u
-#define XCP_CRM_PENDING             0x10u
-#define XCP_DTO_PENDING             0x20u
-#define XCP_EVT_PENDING             0x40u
-#define XCP_SEND_PENDING            (XCP_DTO_PENDING|XCP_CRM_PENDING|XCP_EVT_PENDING)
-
-
-
-/****************************************************************************/
-/* DAQ event information                                                    */
-/****************************************************************************/
-
-#ifdef XCP_ENABLE_DAQ_EVENT_LIST
-
-typedef struct {
-    const char* name;
-    uint8_t timeUnit;
-    uint8_t timeCycle;
-    uint16_t sampleCount; // packed event sample count
-    uint32_t size; // ext event size
-} tXcpEvent;
-
-#endif
-
-/****************************************************************************/
-/* XCP clock information                                                    */
-/****************************************************************************/
-
-#define XCP_STRATUM_LEVEL_UNKNOWN   255
-#define XCP_STRATUM_LEVEL_ARB       16   // unsychronized
-#define XCP_STRATUM_LEVEL_UTC       0    // Atomic reference clock
-
-#define XCP_EPOCH_TAI 0 // Atomic monotonic time since 1.1.1970 (TAI)
-#define XCP_EPOCH_UTC 1 // Universal Coordinated Time (with leap seconds) since 1.1.1970 (UTC)
-#define XCP_EPOCH_ARB 2 // Arbitrary (unknown)
-
-typedef struct {
-    uint8_t      UUID[8];
-    uint16_t     timestampTicks;
-    uint8_t      timestampUnit;
-    uint8_t      stratumLevel;
-    uint8_t      nativeTimestampSize;
-    uint8_t      fill[3]; // for alignment (8 byte) of structure
-    uint64_t     valueBeforeWrapAround;
-} T_CLOCK_INFO_SLAVE;
-
-
-#ifdef XCP_ENABLE_GRANDMASTER_CLOCK_INFO
-
-typedef struct {
-    uint8_t     UUID[8];
-    uint16_t    timestampTicks;
-    uint8_t     timestampUnit;
-    uint8_t     stratumLevel;
-    uint8_t     nativeTimestampSize;
-    uint8_t     epochOfGrandmaster;
-    uint8_t     fill[2]; // for alignment (8 byte) of structure
-    uint64_t    valueBeforeWrapAround;
-} T_CLOCK_INFO_GRANDMASTER;
-
-typedef struct {
-    uint64_t  timestampOrigin;
-    uint64_t  timestampLocal;
-} T_CLOCK_INFO_RELATION;
-
-#endif
-
-
-/****************************************************************************/
-/* Protocol layer interface                                                 */
-/****************************************************************************/
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-
 /* Initialization for the XCP Protocol Layer */
 extern void XcpInit(void);
 extern void XcpStart(void);
 extern void XcpDisconnect();
 
 /* Trigger a XCP data acquisition or stimulation event */
-extern void XcpEvent(uint16_t event); 
+extern void XcpEvent(uint16_t event);
 extern void XcpEventExt(uint16_t event, uint8_t* base);
-extern void XcpEventAt(uint16_t event, uint64_t clock );
+extern void XcpEventAt(uint16_t event, uint64_t clock);
+extern void XcpEventExtAt(uint16_t event, uint8_t* base, uint64_t clock);
 
 /* XCP command processor */
 extern void XcpCommand( const uint32_t* pCommand );
@@ -147,18 +83,23 @@ extern uint64_t XcpGetDaqStartTime();
 extern uint32_t XcpGetDaqOverflowCount();
 
 /* Time synchronisation */
+#ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
 extern uint16_t XcpGetClusterId();
+#endif
+#ifdef XCP_ENABLE_PTP
 extern void XcpSetGrandmasterClockInfo(uint8_t* id, uint8_t epoch, uint8_t stratumLevel);
-
-// Add a measurement event to event list, return event number (0..MAX_EVENT-1)
-#ifdef XCP_ENABLE_DAQ_EVENT_LIST
-extern uint16_t XcpCreateEvent(const char* name, uint16_t timeCycle /*ms */, uint16_t sampleCount, uint32_t size);
-extern tXcpEvent* XcpGetEventList(uint16_t* eventCount);
 #endif
 
-// Test instrumentation
-#ifdef APP_ENABLE_A2L_GEN
-void XcpCreateA2lDescription();
+// Event list
+#ifdef XCP_ENABLE_DAQ_EVENT_LIST
+// Clear event list
+extern void XcpClearEventList();
+// Add a measurement event to event list, return event number (0..MAX_EVENT-1)
+extern uint16_t XcpCreateEvent(const char* name, uint32_t cycleTime /* us */, uint8_t priority /* 0-normal, >=1 realtime*/, uint16_t sampleCount, uint32_t size);
+// Get event list
+extern tXcpEvent* XcpGetEventList(uint16_t* eventCount);
+// Lookup event
+extern tXcpEvent* XcpGetEvent(uint16_t event);
 #endif
 
 
@@ -168,46 +109,40 @@ void XcpCreateA2lDescription();
 
 // All functions must be thread save
 
+/* Callbacks */
+extern BOOL ApplXcpConnect();
+extern BOOL ApplXcpPrepareDaq();
+extern BOOL ApplXcpStartDaq();
+extern BOOL ApplXcpStopDaq();
 
 /* Generate a native pointer from XCP address extension and address */
 extern uint8_t* ApplXcpGetPointer(uint8_t addr_ext, uint32_t addr);
 extern uint32_t ApplXcpGetAddr(uint8_t* p);
 extern uint8_t *ApplXcpGetBaseAddr();
 
+/* Switch calibration page */
 #ifdef XCP_ENABLE_CAL_PAGE
 extern uint8_t ApplXcpGetCalPage(uint8_t segment, uint8_t mode);
 extern uint8_t ApplXcpSetCalPage(uint8_t segment, uint8_t page, uint8_t mode);
 #endif
 
-#ifdef XCP_ENABLE_GRANDMASTER_CLOCK_INFO
-extern uint8_t ApplXcpGetClockInfo(T_CLOCK_INFO_SLAVE* s,T_CLOCK_INFO_GRANDMASTER* g);
-#endif
-
-// DAQ clock provided by application
-extern uint32_t ApplXcpGetClock();
+/* DAQ clock */
 extern uint64_t ApplXcpGetClock64();
-extern int ApplXcpPrepareDaq();
-
-
-/* Info for GET_ID IDT_ASCII - ECU identification */
-extern uint8_t ApplXcpGetSlaveId(char** p, uint32_t* n);
-
-/* Info for GET_ID IDT_ASAM_NAME - a2l file name without extension */
-#if defined ( XCP_ENABLE_A2L_NAME )
-extern uint8_t ApplXcpGetA2LFilename(char** p, uint32_t* n, int path);
+extern uint8_t ApplXcpGetClockState();
+#ifdef XCP_ENABLE_PTP
+extern BOOL ApplXcpGetClockInfoGrandmaster(uint8_t* uuid, uint8_t* epoch, uint8_t* stratum);
 #endif
 
-/* Info for GET_ID IDT_ASAM_NAME - A2L upload */
-#if defined ( XCP_ENABLE_FILE_UPLOAD )
-extern uint8_t ApplXcpReadFile(uint8_t type, uint8_t** p, uint32_t* n);
+/* Info */
+#ifdef XCP_ENABLE_IDT_A2L_NAME // Enable GET_ID: A2L filename without extension
+extern const char* ApplXcpGetA2lName();
+extern const char* ApplXcpGetA2lFileName();
 #endif
-
+#ifdef XCP_ENABLE_IDT_A2L_UPLOAD // Enable GET_ID: A2L content upload to host
+extern uint8_t ApplXcpGetA2lUpload(uint8_t** p, uint32_t* n);
+#endif
+extern const char* ApplXcpGetName();
 
 #ifdef __cplusplus
 }
 #endif
-
-
-
-#endif
-

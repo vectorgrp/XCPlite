@@ -1,3 +1,5 @@
+#pragma once
+
 /* xcp.h */
 
 /* Copyright(c) Vector Informatik GmbH.All rights reserved.
@@ -69,7 +71,7 @@
 #define CC_GET_DAQ_CLOCK                  0xDC
 #define CC_READ_DAQ                       0xDB
 #define CC_GET_DAQ_PROCESSOR_INFO         0xDA
-#define CC_GET_DAQ_RESOLUTION_INFO        0xD9 
+#define CC_GET_DAQ_RESOLUTION_INFO        0xD9
 #define CC_GET_DAQ_LIST_INFO              0xD8
 #define CC_GET_DAQ_EVENT_INFO             0xD7
 
@@ -89,7 +91,7 @@
 #define CC_GET_PGM_PROCESSOR_INFO         0xCE
 #define CC_GET_SECTOR_INFO                0xCD
 #define CC_PROGRAM_PREPARE                0xCC
-#define CC_PROGRAM_FORMAT                 0xCB 
+#define CC_PROGRAM_FORMAT                 0xCB
 #define CC_PROGRAM_NEXT                   0xCA
 #define CC_PROGRAM_MAX                    0xC9
 #define CC_PROGRAM_VERIFY                 0xC8
@@ -108,14 +110,14 @@
 /* XCP >= V1.4 Commands */
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0104
 #define CC_LEVEL_1_COMMAND                0xC0 /* XCP V1.4 Level 1 Commands: */
-#define CC_GET_VERSION                    0x00  
+#define CC_GET_VERSION                    0x00
 #define CC_SET_DAQ_LIST_PACKED_MODE       0x01
 #define CC_GET_DAQ_LIST_PACKED_MODE       0x02
-#define CC_SW_DBG_OVER_XCP                0xFC  
+#define CC_SW_DBG_OVER_XCP                0xFC
 #endif
 
 /*-------------------------------------------------------------------------*/
-/* Packet Identifiers Slave -> Master */
+/* Packet Identifiers Server -> Master */
 #define PID_RES                           0xFF   /* response packet        */
 #define PID_ERR                           0xFE   /* error packet           */
 #define PID_EV                            0xFD   /* event packet           */
@@ -158,9 +160,9 @@
 #define EVC_CMD_PENDING        0x05
 #define EVC_DAQ_OVERLOAD       0x06
 #define EVC_SESSION_TERMINATED 0x07
-#define EVC_TIME_SYNC          0x08 
-#define EVC_STIM_TIMEOUT       0x09 
-#define EVC_SLEEP              0x0A 
+#define EVC_TIME_SYNC          0x08
+#define EVC_STIM_TIMEOUT       0x09
+#define EVC_SLEEP              0x0A
 #define EVC_WAKEUP             0x0B
 #define EVC_ECU_STATE          0x0C
 #define EVC_USER               0xFE
@@ -170,7 +172,7 @@
 /*-------------------------------------------------------------------------*/
 /* Service Request Codes */
 
-#define SERV_RESET                            0x00 /* Slave requesting to be reset */
+#define SERV_RESET                            0x00 /* Server requesting to be reset */
 #define SERV_TEXT                             0x01 /* Plain ASCII text null terminated */
 
 
@@ -197,7 +199,7 @@
 
 #define CMB_BYTE_ORDER                (0x01u<<0)
 #define CMB_ADDRESS_GRANULARITY       (0x03u<<1)
-#define CMB_SLAVE_BLOCK_MODE          (0x01u<<6)
+#define CMB_SERVER_BLOCK_MODE          (0x01u<<6)
 #define CMB_OPTIONAL                  (0x01u<<7)
 
 #define CMB_ADDRESS_GRANULARITY_BYTE  (0<<1)
@@ -210,20 +212,20 @@
 /* Protocol Info (GET_COMM_MODE_INFO - COMM_OPTIONAL) */
 
 #define CMO_MASTER_BLOCK_MODE  0x01
-#define CMO_INTERLEAVED_MODE   0x02   
+#define CMO_INTERLEAVED_MODE   0x02
 
 
 /*-------------------------------------------------------------------------*/
 /* Session Status (GET_STATUS and SET_REQUEST) */
 
-#define SS_STORE_CAL_REQ       0x0001u 
-#define SS_BLOCK_UPLOAD        0x0002u /* Internal */
-#define SS_STORE_DAQ_REQ       0x0004u
-#define SS_CLEAR_DAQ_REQ       0x0008u
-#define SS_LEGACY_MODE         0x0010u /* Internal XCP 1.3 legacy mode */
-#define SS_CONNECTED           0x0020u /* Internal */
-#define SS_DAQ                 0x0040u
-#define SS_RESUME              0x0080u
+#define SS_STORE_CAL_REQ       ((uint8_t)0x01)
+#define SS_BLOCK_UPLOAD        ((uint8_t)0x02) /* Internal */
+#define SS_STORE_DAQ_REQ       ((uint8_t)0x04)
+#define SS_CLEAR_DAQ_REQ       ((uint8_t)0x08)
+#define SS_LEGACY_MODE         ((uint8_t)0x10) /* Internal XCP 1.3 legacy mode */
+#define SS_CONNECTED           ((uint8_t)0x20) /* Internal */
+#define SS_DAQ                 ((uint8_t)0x40)
+#define SS_RESUME              ((uint8_t)0x80)
 
 
 /*-------------------------------------------------------------------------*/
@@ -238,9 +240,6 @@
 #define IDT_ASAM_ECU           6
 #define IDT_ASAM_SYSID         7
 
-#define IDT_VECTOR_MDI         0xDC
-#define IDT_VECTOR_MAPNAMES    0xDB
-
 /*-------------------------------------------------------------------------*/
 /* Checksum Types (BUILD_CHECKSUM) */
 
@@ -248,7 +247,7 @@
 #define XCP_CHECKSUM_TYPE_ADD12      0x02  /* Add BYTE into a WORD checksum, ignore overflows */
 #define XCP_CHECKSUM_TYPE_ADD14      0x03  /* Add BYTE into a DWORD checksum, ignore overflows */
 #define XCP_CHECKSUM_TYPE_ADD22      0x04  /* Add WORD into a WORD checksum, ignore overflows, blocksize must be modulo 2 */
-#define XCP_CHECKSUM_TYPE_ADD24      0x05  /* Add WORD into a DWORD checksum, ignore overflows, blocksize must be modulo 2 */ 
+#define XCP_CHECKSUM_TYPE_ADD24      0x05  /* Add WORD into a DWORD checksum, ignore overflows, blocksize must be modulo 2 */
 #define XCP_CHECKSUM_TYPE_ADD44      0x06  /* Add DWORD into DWORD, ignore overflows, blocksize must be modulo 4 */
 #define XCP_CHECKSUM_TYPE_CRC16      0x07  /* See CRC error detection algorithms */
 #define XCP_CHECKSUM_TYPE_CRC16CCITT 0x08  /* See CRC error detection algorithms */
@@ -259,9 +258,9 @@
 /*-------------------------------------------------------------------------*/
 /* Page Mode (SET_CAL_PAGE) */
 
-#define CAL_ECU                0x01
-#define CAL_XCP                0x02
-#define CAL_ALL                0x80        /* not supported */
+#define CAL_PAGE_MODE_ECU                0x01
+#define CAL_PAGE_MODE_XCP                0x02
+#define CAL_PAGE_MODE_ALL                0x80
 
 
 /*-------------------------------------------------------------------------*/
@@ -305,18 +304,15 @@
 /*-------------------------------------------------------------------------*/
 /* DAQ_LIST_MODE (GET_DAQ_LIST_MODE, SET_DAQ_LIST_MODE) */
 
-#define DAQ_FLAG_SELECTED                 0x01u /* */
-#define DAQ_FLAG_DIRECTION                0x02u /* Data Stimulation Mode */
-
-#define DAQ_FLAG_CMPL_DAQ_CH              0x04u  /* Complementary DAQ channel */
-
-#define DAQ_FLAG_TIMESTAMP                0x10u /* Timestamps */
-#define DAQ_FLAG_NO_PID                   0x20u /* No PID */
-#define DAQ_FLAG_RUNNING                  0x40u /* Is started */
-#define DAQ_FLAG_RESUME                   0x80u /* Resume Mode */
-
-#define DAQ_FLAG_RESERVED                 0x08u 
-#define DAQ_FLAG_OVERRUN                  0x08u /* Overun (Internal Use) */
+#define DAQ_FLAG_SELECTED                 ((uint8_t)0x01) /* */
+#define DAQ_FLAG_DIRECTION                ((uint8_t)0x02) /* Data Stimulation Mode */
+#define DAQ_FLAG_CMPL_DAQ_CH              ((uint8_t)0x04) /* Complementary DAQ channel */
+#define DAQ_FLAG_TIMESTAMP                ((uint8_t)0x10) /* Timestamps */
+#define DAQ_FLAG_NO_PID                   ((uint8_t)0x20) /* No PID */
+#define DAQ_FLAG_RUNNING                  ((uint8_t)0x40) /* Is started */
+#define DAQ_FLAG_RESUME                   ((uint8_t)0x80) /* Resume Mode */
+#define DAQ_FLAG_RESERVED                 ((uint8_t)0x08)
+#define DAQ_FLAG_OVERRUN                  ((uint8_t)0x08) /* Overun (Internal Use) */
 
 
 /*-------------------------------------------------------------------------*/
@@ -374,14 +370,13 @@
 #define DAQ_TIMESTAMP_BYTE        (1<<0)
 #define DAQ_TIMESTAMP_WORD        (2<<0)
 #define DAQ_TIMESTAMP_DWORD       (4<<0)
-#define DAQ_TIMESTAMP_QWORD       (7<<0) // @@@@ XCP V1.6 64 bit DAQ DTO timestamp
 
 /* DAQ Timestamp Unit */
 #define DAQ_TIMESTAMP_UNIT_1NS    (0<<4)
 #define DAQ_TIMESTAMP_UNIT_10NS   (1<<4)
 #define DAQ_TIMESTAMP_UNIT_100NS  (2<<4)
 #define DAQ_TIMESTAMP_UNIT_1US    (3<<4)
-#define DAQ_TIMESTAMP_UNIT_10US   (4<<4)  
+#define DAQ_TIMESTAMP_UNIT_10US   (4<<4)
 #define DAQ_TIMESTAMP_UNIT_100US  (5<<4)
 #define DAQ_TIMESTAMP_UNIT_1MS    (6<<4)
 #define DAQ_TIMESTAMP_UNIT_10MS   (7<<4)
@@ -411,7 +406,7 @@
 /* Comm mode programming parameter (PROGRAM_START) */
 
 #define PI_PGM_BLOCK_DOWNLOAD      0x01
-#define PI_PGM_BLOCK_UPLOAD        0x40   
+#define PI_PGM_BLOCK_UPLOAD        0x40
 
 
 /*-------------------------------------------------------------------------*/
@@ -536,7 +531,7 @@
 
 
 /* UPLOAD */
-#define CRM_UPLOAD_MAX_SIZE                             ((uint8_t)(XCPTL_CTO_SIZE-1))
+#define CRM_UPLOAD_MAX_SIZE                             ((uint8_t)(XCPTL_MAX_CTO_SIZE-1))
 #define CRO_UPLOAD_LEN                                  2
 #define CRO_UPLOAD_SIZE                                 CRO_BYTE(1)
 #define CRM_UPLOAD_LEN                                  1 /* +CRO_UPLOAD_SIZE */
@@ -548,7 +543,7 @@
 #define CRO_SHORT_UPLOAD_SIZE                           CRO_BYTE(1)
 #define CRO_SHORT_UPLOAD_EXT                            CRO_BYTE(3)
 #define CRO_SHORT_UPLOAD_ADDR                           CRO_DWORD(1)
-#define CRM_SHORT_UPLOAD_MAX_SIZE                       ((uint8_t)(XCPTL_CTO_SIZE-1))
+#define CRM_SHORT_UPLOAD_MAX_SIZE                       ((uint8_t)(XCPTL_MAX_CTO_SIZE-1))
 #define CRM_SHORT_UPLOAD_LEN                            1u /* +CRO_SHORT_UPLOAD_SIZE */
 #define CRM_SHORT_UPLOAD_DATA                           (&CRM_BYTE(1))
 
@@ -562,7 +557,7 @@
 
 
 /* DOWNLOAD */
-#define CRO_DOWNLOAD_MAX_SIZE                           ((uint8_t)(XCPTL_CTO_SIZE-2))
+#define CRO_DOWNLOAD_MAX_SIZE                           ((uint8_t)(XCPTL_MAX_CTO_SIZE-2))
 #define CRO_DOWNLOAD_LEN                                2 /* + CRO_DOWNLOAD_SIZE */
 #define CRO_DOWNLOAD_SIZE                               CRO_BYTE(1)
 #define CRO_DOWNLOAD_DATA                               (&CRO_BYTE(2))
@@ -570,7 +565,7 @@
 
 
 /* DOWNLOAD_NEXT */
-#define CRO_DOWNLOAD_NEXT_MAX_SIZE                      ((uint8_t)(XCPTL_CTO_SIZE-2))
+#define CRO_DOWNLOAD_NEXT_MAX_SIZE                      ((uint8_t)(XCPTL_MAX_CTO_SIZE-2))
 #define CRO_DOWNLOAD_NEXT_LEN                           2 /* + size */
 #define CRO_DOWNLOAD_NEXT_SIZE                          CRO_BYTE(1)
 #define CRO_DOWNLOAD_NEXT_DATA                          (&CRO_BYTE(2))
@@ -578,13 +573,13 @@
 
 
 /* DOWNLOAD_MAX */
-#define CRO_DOWNLOAD_MAX_MAX_SIZE                       ((uint8_t)(XCPTL_CTO_SIZE-1))
+#define CRO_DOWNLOAD_MAX_MAX_SIZE                       ((uint8_t)(XCPTL_MAX_CTO_SIZE-1))
 #define CRO_DOWNLOAD_MAX_DATA                           (&CRO_BYTE(1))
 #define CRM_DOWNLOAD_MAX_LEN                            1
 
 
 /* SHORT_DOWNLOAD */
-#define CRO_SHORT_DOWNLOAD_MAX_SIZE                     ((uint8_t)(XCPTL_CTO_SIZE-8))
+#define CRO_SHORT_DOWNLOAD_MAX_SIZE                     ((uint8_t)(XCPTL_MAX_CTO_SIZE-8))
 #define CRO_SHORT_DOWNLOAD_LEN                          8
 #define CRO_SHORT_DOWNLOAD_SIZE                         CRO_BYTE(1)
 #define CRO_SHORT_DOWNLOAD_EXT                          CRO_BYTE(3)
@@ -741,28 +736,41 @@
 /* GET_DAQ_CLOCK */
 #define CRO_GET_DAQ_CLOCK_LEN                           1
 #define CRM_GET_DAQ_CLOCK_LEN                           8
+
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
-#define CRM_GET_DAQ_CLOCK_RES1                          CRM_BYTE(1)
-#define CRM_GET_DAQ_CLOCK_TRIGGER_INFO                  CRM_BYTE(2)
-#define CRM_GET_DAQ_CLOCK_PAYLOAD_FMT                   CRM_BYTE(3)
-#define CRM_GET_DAQ_CLOCK_TIME                          CRM_DWORD(1)
-#define CRM_GET_DAQ_CLOCK_TIME64                        CRM_DDWORD(1) // Byte number is 4
-#define CRM_GET_DAQ_CLOCK_SYNC_STATE                    CRM_BYTE(8)
-#define CRM_GET_DAQ_CLOCK_SYNC_STATE64                  CRM_BYTE(12)
+#define CRM_GET_DAQ_CLOCK_RES1                          CRM_BYTE(1)   // 1
+#define CRM_GET_DAQ_CLOCK_TRIGGER_INFO                  CRM_BYTE(2)   // 2
+#define CRM_GET_DAQ_CLOCK_PAYLOAD_FMT                   CRM_BYTE(3)   // 3
+
+#define CRM_GET_DAQ_CLOCK_TIME                          CRM_DWORD(1)  // 4
+#define CRM_GET_DAQ_CLOCK_SYNC_STATE                    CRM_BYTE(8)   // 8
+
+#define CRM_GET_DAQ_CLOCK_TIME64_LOW                    CRM_DWORD(1) // 4
+#define CRM_GET_DAQ_CLOCK_TIME64_HIGH                   CRM_DWORD(2) // 8
+#define CRM_GET_DAQ_CLOCK_SYNC_STATE64                  CRM_BYTE(12)  // 12
 #else
-#define CRM_GET_DAQ_CLOCK_TIME                          CRM_DWORD(1)
+#define CRM_GET_DAQ_CLOCK_TIME                          CRM_DWORD(1)  // 4
 #endif
 
 /* GET_DAQ_CLOCK_MULTICAST */
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
 #define CRO_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER          CRO_WORD(1)
 #define CRO_DAQ_CLOCK_MCAST_COUNTER                     CRO_BYTE(4)
-#define CRM_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER          CRM_WORD(4)
-#define CRM_DAQ_CLOCK_MCAST_COUNTER                     CRM_BYTE(10)
-#define CRM_DAQ_CLOCK_MCAST_SYNC_STATE                  CRM_BYTE(11)
-#define CRM_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER64        CRM_WORD(6)
-#define CRM_DAQ_CLOCK_MCAST_COUNTER64                   CRM_BYTE(14)
-#define CRM_DAQ_CLOCK_MCAST_SYNC_STATE64                CRM_BYTE(15)
 
+#define CRM_GET_DAQ_CLOCK_MCAST_TRIGGER_INFO            CRM_BYTE(2)   // 2
+#define CRM_GET_DAQ_CLOCK_MCAST_PAYLOAD_FMT             CRM_BYTE(3)   // 3
+
+#define CRM_GET_DAQ_CLOCK_MCAST_TIME                    CRM_DWORD(1)  // 4
+#define CRM_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER          CRM_WORD(4)   // 8
+#define CRM_DAQ_CLOCK_MCAST_COUNTER                     CRM_BYTE(10)  // 10
+#define CRM_DAQ_CLOCK_MCAST_SYNC_STATE                  CRM_BYTE(11)  // 11
+
+#define CRM_GET_DAQ_CLOCK_MCAST_TIME64_LOW              CRM_DWORD(1) // 4
+#define CRM_GET_DAQ_CLOCK_MCAST_TIME64_HIGH             CRM_DWORD(2) // 8
+#define CRM_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER64        CRM_WORD(6)   // 12
+#define CRM_DAQ_CLOCK_MCAST_COUNTER64                   CRM_BYTE(14)  // 14
+#define CRM_DAQ_CLOCK_MCAST_SYNC_STATE64                CRM_BYTE(15)  // 15
+#endif
 
 /* READ_DAQ */
 #define CRO_READ_DAQ_LEN                                1
@@ -808,24 +816,18 @@
 /* GET_DAQ_EVENT_INFO */
 #define CRO_GET_DAQ_EVENT_INFO_LEN                      4
 #define CRO_GET_DAQ_EVENT_INFO_EVENT                    CRO_WORD(1)
-#if XCP_PROTOCOL_LAYER_VERSION >= 0x0106
-#define CRM_GET_DAQ_EVENT_INFO_LEN                      12
-#else
 #define CRM_GET_DAQ_EVENT_INFO_LEN                      7
-#endif
 #define CRM_GET_DAQ_EVENT_INFO_PROPERTIES               CRM_BYTE(1)
 #define CRM_GET_DAQ_EVENT_INFO_MAX_DAQ_LIST             CRM_BYTE(2)
 #define CRM_GET_DAQ_EVENT_INFO_NAME_LENGTH              CRM_BYTE(3)
 #define CRM_GET_DAQ_EVENT_INFO_TIME_CYCLE               CRM_BYTE(4)
 #define CRM_GET_DAQ_EVENT_INFO_TIME_UNIT                CRM_BYTE(5)
 #define CRM_GET_DAQ_EVENT_INFO_PRIORITY                 CRM_BYTE(6)
-#define CRM_GET_DAQ_EVENT_INFO_SIZE                     CRM_WORD(4)  // @@@@ XCP V1.6 ext event full data size
-#define CRM_GET_DAQ_EVENT_INFO_SAMPLECOUNT              CRM_WORD(5)  // @@@@ XCP V1.6 packed sample count  
+
 
 #define DAQ_EVENT_PROPERTIES_DAQ      0x04
 #define DAQ_EVENT_PROPERTIES_STIM     0x08
 #define DAQ_EVENT_PROPERTIES_PACKED   0x10
-#define DAQ_EVENT_PROPERTIES_EXT      0x20 // @@@@ XCP V1.6
 #define DAQ_EVENT_PROPERTIES_EVENT_CONSISTENCY  0x80
 
 
@@ -861,11 +863,11 @@
 /* PROGRAM_START */
 #define CRO_PROGRAM_START_LEN                           1
 #define CRM_PROGRAM_START_LEN                           7
-#define CRM_PROGRAM_COMM_MODE_PGM                       CRM_BYTE(2) 
-#define CRM_PROGRAM_MAX_CTO_PGM                         CRM_BYTE(3) 
-#define CRM_PROGRAM_MAX_BS_PGM                          CRM_BYTE(4) 
-#define CRM_PROGRAM_MIN_ST_PGM                          CRM_BYTE(5) 
-#define CRM_PROGRAM_QUEUE_SIZE_PGM                      CRM_BYTE(6) 
+#define CRM_PROGRAM_COMM_MODE_PGM                       CRM_BYTE(2)
+#define CRM_PROGRAM_MAX_CTO_PGM                         CRM_BYTE(3)
+#define CRM_PROGRAM_MAX_BS_PGM                          CRM_BYTE(4)
+#define CRM_PROGRAM_MIN_ST_PGM                          CRM_BYTE(5)
+#define CRM_PROGRAM_QUEUE_SIZE_PGM                      CRM_BYTE(6)
 
 
 /* PROGRAM_CLEAR */
@@ -876,8 +878,8 @@
 
 
 /* PROGRAM */
-#define CRO_PROGRAM_MAX_SIZE                            ((uint8_t)(XCPTL_CTO_SIZE-2))
-#define CRO_PROGRAM_LEN                                 2 /* + CRO_PROGRAM_SIZE */ 
+#define CRO_PROGRAM_MAX_SIZE                            ((uint8_t)(XCPTL_MAX_CTO_SIZE-2))
+#define CRO_PROGRAM_LEN                                 2 /* + CRO_PROGRAM_SIZE */
 #define CRO_PROGRAM_SIZE                                CRO_BYTE(1)
 #define CRO_PROGRAM_DATA                                (&CRO_BYTE(2))
 #define CRM_PROGRAM_LEN                                 1
@@ -923,7 +925,7 @@
 
 
 /* PROGRAM_NEXT */
-#define CRO_PROGRAM_NEXT_MAX_SIZE                       ((uint8_t)(XCPTL_CTO_SIZE-2))
+#define CRO_PROGRAM_NEXT_MAX_SIZE                       ((uint8_t)(XCPTL_MAX_CTO_SIZE-2))
 #define CRO_PROGRAM_NEXT_LEN                            2 /* + size */
 #define CRO_PROGRAM_NEXT_SIZE                           CRO_BYTE(1)
 #define CRO_PROGRAM_NEXT_DATA                           (&CRO_BYTE(2))
@@ -933,7 +935,7 @@
 
 
 /* PROGRAM_MAX */
-#define CRO_PROGRAM_MAX_MAX_SIZE                        ((uint8_t)(XCPTL_CTO_SIZE-1))
+#define CRO_PROGRAM_MAX_MAX_SIZE                        ((uint8_t)(XCPTL_MAX_CTO_SIZE-1))
 #define CRO_PROGRAM_MAX_DATA                            (&CRO_BYTE(1))
 #define CRM_PROGRAM_MAX_LEN                             1
 
@@ -946,18 +948,18 @@
 #define CRM_PROGRAM_VERIFY_LEN                          1
 
 
-/* GET_SLAVE_ID */
-#define CRO_GET_SLAVE_ID_LEN                            6
-#define CRO_GET_SLAVE_ID_SUB_CODE                       CRO_BYTE(1)
-#define CRO_GET_SLAVE_ID_X                              CRO_BYTE(2)
-#define CRO_GET_SLAVE_ID_C                              CRO_BYTE(3)
-#define CRO_GET_SLAVE_ID_P                              CRO_BYTE(4)
-#define CRO_GET_SLAVE_ID_MODE                           CRO_BYTE(5)
-#define CRM_GET_SLAVE_ID_LEN                            8
-#define CRM_GET_SLAVE_ID_X                              CRM_BYTE(1)
-#define CRM_GET_SLAVE_ID_C                              CRM_BYTE(2)
-#define CRM_GET_SLAVE_ID_P                              CRM_BYTE(3)
-#define CRM_GET_SLAVE_ID_CAN_ID_CMD_STIM                CRM_DWORD(1)
+/* GET_SERVER_ID */
+#define CRO_GET_SERVER_ID_LEN                            6
+#define CRO_GET_SERVER_ID_SUB_CODE                       CRO_BYTE(1)
+#define CRO_GET_SERVER_ID_X                              CRO_BYTE(2)
+#define CRO_GET_SERVER_ID_C                              CRO_BYTE(3)
+#define CRO_GET_SERVER_ID_P                              CRO_BYTE(4)
+#define CRO_GET_SERVER_ID_MODE                           CRO_BYTE(5)
+#define CRM_GET_SERVER_ID_LEN                            8
+#define CRM_GET_SERVER_ID_X                              CRM_BYTE(1)
+#define CRM_GET_SERVER_ID_C                              CRM_BYTE(2)
+#define CRM_GET_SERVER_ID_P                              CRM_BYTE(3)
+#define CRM_GET_SERVER_ID_CAN_ID_CMD_STIM                CRM_DWORD(1)
 
 
 /* GET_DAQ_ID */
@@ -977,11 +979,11 @@
 #define CRM_SET_DAQ_ID_LEN                              1
 
 
-/* SET_SLAVE_PORT */
-#define CRO_SET_SLAVE_PORT_LEN                          4
-#define CRO_SET_SLAVE_PORT_SUB_CODE                     CRO_BYTE(1)
-#define CRO_SET_SLAVE_PORT_PORT                         CRO_WORD(1)
-#define CRM_SET_SLAVE_PORT                              1  
+/* SET_SERVER_PORT */
+#define CRO_SET_SERVER_PORT_LEN                          4
+#define CRO_SET_SERVER_PORT_SUB_CODE                     CRO_BYTE(1)
+#define CRO_SET_SERVER_PORT_PORT                         CRO_WORD(1)
+#define CRM_SET_SERVER_PORT                              1
 
 
 /* Level 1 commands */
@@ -1032,52 +1034,52 @@
 
 
 #define CRM_TIME_SYNC_PROPERTIES_LEN                        8
-#define CRM_TIME_SYNC_PROPERTIES_SLAVE_CONFIG               CRM_BYTE(1)
+#define CRM_TIME_SYNC_PROPERTIES_SERVER_CONFIG               CRM_BYTE(1)
 #define CRM_TIME_SYNC_PROPERTIES_OBSERVABLE_CLOCKS          CRM_BYTE(2)
 #define CRM_TIME_SYNC_PROPERTIES_SYNC_STATE                 CRM_BYTE(3)
 #define CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO                 CRM_BYTE(4)
 #define CRM_TIME_SYNC_PROPERTIES_RESERVED                   CRM_BYTE(5)
 #define CRM_TIME_SYNC_PROPERTIES_CLUSTER_ID                 CRM_WORD(3)
 
-/* CRM_TIME_SYNC_PROPERTIES_SLAVE_CONFIG: */
-#define SLAVE_CONFIG_RESPONSE_FMT_LEGACY                    (0)
-#define SLAVE_CONFIG_RESPONSE_FMT_ADVANCED                  (2)
-#define SLAVE_CONFIG_DAQ_TS_ECU                             (1 << 2)
-#define SLAVE_CONFIG_DAQ_TS_SLAVE                           (0 << 2)
-#define SLAVE_CONFIG_TIME_SYNC_BRIDGE_NONE                  (0 << 3)
+/* CRM_TIME_SYNC_PROPERTIES_SERVER_CONFIG: */
+#define SERVER_CONFIG_RESPONSE_FMT_LEGACY                    (0)
+#define SERVER_CONFIG_RESPONSE_FMT_ADVANCED                  (2)
+#define SERVER_CONFIG_DAQ_TS_ECU                             (1 << 2)
+#define SERVER_CONFIG_DAQ_TS_SERVER                           (0 << 2)
+#define SERVER_CONFIG_TIME_SYNC_BRIDGE_NONE                  (0 << 3)
 
 /* CRM_TIME_SYNC_PROPERTIES_OBSERVABLE_CLOCKS: */
-#define SLAVE_CLOCK_FREE_RUNNING    (0<<0)
-#define SLAVE_CLOCK_SYNCED          (1<<0)
-#define SLAVE_CLOCK_NONE            (2<<0)
-#define SLAVE_GRANDM_CLOCK_NONE     (0<<2)
-#define SLAVE_GRANDM_CLOCK_READABLE (1<<2)
-#define SLAVE_GRANDM_CLOCK_EVENT    (2<<2)
+#define LOCAL_CLOCK_FREE_RUNNING    (0<<0)
+#define LOCAL_CLOCK_SYNCED          (1<<0)
+#define LOCAL_CLOCK_NONE            (2<<0)
+#define GRANDM_CLOCK_NONE     (0<<2)
+#define GRANDM_CLOCK_READABLE (1<<2)
+#define GRANDM_CLOCK_EVENT    (2<<2)
 #define ECU_CLOCK_NONE              (0<<4)
 #define ECU_CLOCK_READABLE          (1<<4)
 #define ECU_CLOCK_EVENT             (2<<4)
 #define ECU_CLOCK_NOTREADABLE       (3<<4)
 
 /* CRM_TIME_SYNC_PROPERTIES_SYNC_STATE: */
-#define SLAVE_CLOCK_STATE_SYNCH_IN_PROGRESS       (0 << 0)
-#define SLAVE_CLOCK_STATE_SYNCH                   (1 << 0)
-#define SLAVE_CLOCK_STATE_SYNT_IN_PROGRESS        (2 << 0)
-#define SLAVE_CLOCK_STATE_SYNT                    (3 << 0)
-#define SLAVE_CLOCK_STATE_FREE_RUNNING            (7 << 0)
-#define GRANDM_CLOCK_STATE_SYNC_IN_PROGRESS       (0 << 3)  
-#define GRANDM_CLOCK_STATE_SYNC                   (1 << 3)  
+#define LOCAL_CLOCK_STATE_SYNCH_IN_PROGRESS       (0 << 0)
+#define LOCAL_CLOCK_STATE_SYNCH                   (1 << 0)
+#define LOCAL_CLOCK_STATE_SYNT_IN_PROGRESS        (2 << 0)
+#define LOCAL_CLOCK_STATE_SYNT                    (3 << 0)
+#define LOCAL_CLOCK_STATE_FREE_RUNNING            (7 << 0)
+#define GRANDM_CLOCK_STATE_SYNC_IN_PROGRESS       (0 << 3)
+#define GRANDM_CLOCK_STATE_SYNC                   (1 << 3)
 
 
 /* CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO: */
-#define CLOCK_INFO_SLAVE            (1<<0)
-#define CLOCK_INFO_SLAVE_GRANDM     (1<<1)
+#define CLOCK_INFO_SERVER            (1<<0)
+#define CLOCK_INFO_GRANDM     (1<<1)
 #define CLOCK_INFO_RELATION         (1<<2)
 #define CLOCK_INFO_ECU              (1<<3)
 #define CLOCK_INFO_ECU_GRANDM       (1<<4)
 
 /* TRIGGER_INITIATOR:
     0 = HW trigger, i.e.Vector Syncline
-    1 = Event derived from XCP - independent time synchronization event – e.g.globally synchronized pulse per second signal
+    1 = Event derived from XCP - independent time synchronization event - e.g.globally synchronized pulse per second signal
     2 = GET_DAQ_CLOCK_MULTICAST
     3 = GET_DAQ_CLOCK_MULTICAST via Time Sync Bridge
     4 = State change in syntonization / synchronization to grandmaster clock(either established or lost, additional information is provided by the SYNC_STATE field - see Table 236)
@@ -1100,19 +1102,66 @@
 #define TIME_OF_TS_SAMPLING_PHY_RECEPTION                   3UL
 
 
+/****************************************************************************/
+/* XCP clock information                                                    */
+/****************************************************************************/
+
+#define XCP_STRATUM_LEVEL_UNKNOWN   255
+#define XCP_STRATUM_LEVEL_ARB       16   // unsychronized
+#define XCP_STRATUM_LEVEL_UTC       0    // Atomic reference clock
+
+#define XCP_EPOCH_TAI 0 // Atomic monotonic time since 1.1.1970 (TAI)
+#define XCP_EPOCH_UTC 1 // Universal Coordinated Time (with leap seconds) since 1.1.1970 (UTC)
+#define XCP_EPOCH_ARB 2 // Arbitrary (unknown)
+
+#pragma pack(push, 1)
+
+typedef struct {
+    uint8_t      UUID[8];
+    uint16_t     timestampTicks;
+    uint8_t      timestampUnit;
+    uint8_t      stratumLevel;
+    uint8_t      nativeTimestampSize;
+    uint8_t      fill[3]; // for alignment (8 byte) of structure
+    uint64_t     valueBeforeWrapAround;
+} T_CLOCK_INFO;
+
+
+#ifdef XCP_ENABLE_PTP
+
+typedef struct {
+    uint8_t     UUID[8];
+    uint16_t    timestampTicks;
+    uint8_t     timestampUnit;
+    uint8_t     stratumLevel;
+    uint8_t     nativeTimestampSize;
+    uint8_t     epochOfGrandmaster;
+    uint8_t     fill[2]; // for alignment (8 byte) of structure
+    uint64_t    valueBeforeWrapAround;
+} T_CLOCK_INFO_GRANDMASTER;
+
+typedef struct {
+    uint64_t  timestampOrigin;
+    uint64_t  timestampLocal;
+} T_CLOCK_INFO_RELATION;
+
+#endif
+
+#pragma pack(pop)
+
 /***************************************************************************/
 /* XCP Transport Layer Commands and Responces, Type Definition */
 /***************************************************************************/
 
 
 /* Transport Layer commands */
-#define CC_TL_GET_SLAVE_ID                                  0xFF
-#define CC_TL_GET_SLAVE_ID_EXTENDED                         0xFD
-#define CC_TL_SET_SLAVE_IP                                  0xFC
+#define CC_TL_GET_SERVER_ID                                  0xFF
+#define CC_TL_GET_SERVER_ID_EXTENDED                         0xFD
+#define CC_TL_SET_SERVER_IP                                  0xFC
 #define CC_TL_GET_DAQ_CLOCK_MULTICAST                       0xFA
 #define CRO_TL_SUBCOMMAND                                   CRO_BYTE(1)
 
-/* GET_SLAVE_ID */
+/* GET_SERVER_ID */
 #define CRO_TL_SLV_DETECT_PORT                              CRO_WORD(1)
 #define CRO_TL_SLV_DETECT_MCAST_IP_ADDR                     CRO_DWORD(1)
 
@@ -1125,24 +1174,8 @@
 #define TL_SLV_DETECT_STATUS_SLV_AVAILABILITY_BUSY          (1<<3)
 #define TL_SLV_DETECT_STATUS_SLV_ID_EXT_SUPPORTED           (1<<4)
 
-/* GET_SLAVE_ID_EXTENDED */
+/* GET_SERVER_ID_EXTENDED */
 #define TL_SLV_DETECT_STATUS_SLV_ID_EXT_RADAR_DATA          (1<<0)
 #define TL_SLV_DETECT_STATUS_SLV_ID_EXT_XCP_ON_PCIE         (1<<1)
-
-
-
-/****************************************************************************/
-/* Implementation                                                           */
-/****************************************************************************/
-
-#define CRO_BYTE(x)               (pCmd->b[x])
-#define CRO_WORD(x)               (pCmd->w[x])
-#define CRO_DWORD(x)              (pCmd->dw[x])
-
-#define CRM_BYTE(x)               (gXcp.Crm.b[x])
-#define CRM_WORD(x)               (gXcp.Crm.w[x])
-#define CRM_DWORD(x)              (gXcp.Crm.dw[x])
-#define CRM_DDWORD(x)             (*(uint64_t*)&gXcp.Crm.dw[x])
-
 
 

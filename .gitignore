@@ -2,7 +2,6 @@
 x64/
 x32/
 Win32/
-x64/
 bin/
 obj/
 *.[oa]
@@ -42,3 +41,6 @@ obj/
 *.par
 *.cnaxml
 Environment
+*.soc
+/CANape20/CustomProperties.json
+*.out

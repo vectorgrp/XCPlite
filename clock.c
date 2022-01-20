@@ -10,22 +10,9 @@
 | Code released into public domain, no attribution required
  ----------------------------------------------------------------------------*/
 
+#include "main.h"
 #include "platform.h"
-#include "main_cfg.h"
 #include "clock.h"
-
-
-// Clock values from last query (clockGet)
-static volatile uint32_t gClock32 = 0;
-static volatile uint64_t gClock64 = 0;
-
-uint32_t clockGetLast32() {
-    return gClock32;
-}
-
-uint64_t clockGetLast64() {
-    return gClock64;
-}
 
 
 #ifdef _LINUX // Linux
@@ -34,8 +21,10 @@ uint64_t clockGetLast64() {
 Linux clock type
   CLOCK_REALTIME  This clock is affected by incremental adjustments performed by NTP
   CLOCK_TAI       This clock does not experience discontinuities and backwards jumps caused by NTP inserting leap seconds as CLOCK_REALTIME does.
+                  Not available on WSL
 */
-#define CLOCK_TYPE CLOCK_TAI
+#define CLOCK_TYPE CLOCK_REALTIME
+/// #define CLOCK_TYPE CLOCK_TAI
 
 static struct timespec gtr;
 #ifndef CLOCK_USE_UTC_TIME_NS
@@ -43,7 +32,7 @@ static struct timespec gts0;
 #endif
 
 char* clockGetString(char* s, unsigned int cs, uint64_t c) {
-
+    (void)cs;
 #ifndef CLOCK_USE_UTC_TIME_NS
     sprintf(s, "%gs", (double)c / CLOCK_TICKS_PER_S);
 #else
@@ -81,10 +70,7 @@ int clockInit()
     printf(")\n");
 
     clock_getres(CLOCK_TYPE, &gtr);
-    if (gtr.tv_sec != 0 || gtr.tv_nsec != 1) {
-        printf("ERROR: Unexpected clock frequency %lds,%ldns!\n", gtr.tv_sec, gtr.tv_nsec);
-        return 0;
-    }
+    printf("Clock resolution is %lds,%ldns!\n", gtr.tv_sec, gtr.tv_nsec);
 
 #ifndef CLOCK_USE_UTC_TIME_NS
     clock_gettime(CLOCK_TYPE, &gts0);
@@ -102,7 +88,7 @@ int clockInit()
         gettimeofday(&ptm, NULL);
         clock_gettime(CLOCK_TAI, &gts_TAI);
         clock_gettime(CLOCK_REALTIME, &gts_REALTIME);
-        printf("  CLOCK_TAI=%lu CLOCK_REALTIME=%lu time=%lu timeofday=%lu\n", gts_TAI.tv_sec, gts_REALTIME.tv_sec, now, ptm.tv_sec);
+        printf("  CLOCK_TAI=%lus CLOCK_REALTIME=%lus time=%lu timeofday=%lu\n", gts_TAI.tv_sec, gts_REALTIME.tv_sec, now, ptm.tv_sec);
         // Check
         t1 = clockGet64();
         sleepNs(100000);
@@ -117,38 +103,15 @@ int clockInit()
 
 
 // Free running clock with 1us tick
-uint32_t clockGet32() {
+uint64_t clockGet64() {
 
     struct timespec ts;
     clock_gettime(CLOCK_TYPE, &ts);
 #ifdef CLOCK_USE_UTC_TIME_NS // ns since 1.1.1970
-    gClock64 = (((uint64_t)(ts.tv_sec) * 1000000000ULL) + (uint64_t)(ts.tv_nsec)); // ns
+    return (((uint64_t)(ts.tv_sec) * 1000000000ULL) + (uint64_t)(ts.tv_nsec)); // ns
 #else // us since init
-    gClock64 = (((uint64_t)(ts.tv_sec-gts0.tv_sec) * 1000000ULL) + (uint64_t)(ts.tv_nsec / 1000)); // us
+    return (((uint64_t)(ts.tv_sec-gts0.tv_sec) * 1000000ULL) + (uint64_t)(ts.tv_nsec / 1000)); // us
 #endif
-    gClock32 = (uint32_t)gClock64;
-    return gClock32;
-}
-
-uint64_t clockGet64() {
-
-    clockGet32();
-    return gClock64;
-}
-
-void sleepNs(uint32_t ns) {
-    struct timespec timeout, timerem;
-    assert(ns < 1000000000UL);
-    timeout.tv_sec = 0;
-    timeout.tv_nsec = (int32_t)ns;
-    nanosleep(&timeout, &timerem);
-}
-
-void sleepMs(uint32_t ms) {
-    struct timespec timeout, timerem;
-    timeout.tv_sec = (int32_t)ms/1000;
-    timeout.tv_nsec = (int32_t)(ms%1000)*1000000;
-    nanosleep(&timeout, &timerem);
 }
 
 #else // Windows
@@ -160,16 +123,16 @@ static uint64_t sOffset = 0; // offset
 
 
 char *clockGetString(char* s, unsigned int cs, uint64_t c) {
-
+    (void)cs;
 #ifndef CLOCK_USE_UTC_TIME_NS
     sprintf(s, "%gs", (double)c / CLOCK_TICKS_PER_S);
 #else
-    time_t t = c / CLOCK_TICKS_PER_S; // s
+    time_t t = (time_t)(c / CLOCK_TICKS_PER_S); // s
     struct tm tm;
     gmtime_s(&tm, &t);
     uint64_t fns = c % CLOCK_TICKS_PER_S;
     uint32_t tai_s = (uint32_t)((c % CLOCK_TICKS_PER_M) / CLOCK_TICKS_PER_S);
-    sprintf(s, "%u.%u.%u %02u:%02u:%02u/%02u +%lluns", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec, tai_s, fns);
+    sprintf(s, "%u.%u.%u %02u:%02u:%02u/%02u +%" PRIu64 "s", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec, tai_s, fns);
 #endif
     return s;
 }
@@ -234,31 +197,16 @@ int clockInit() {
 #else
     // set  offset from local clock UTC value t
     // this is inaccurate up to 1 s, but irrelevant because system clock UTC offset is also not accurate
-    sOffset = (uint64_t)t * CLOCK_TICKS_PER_S  + t_ms * CLOCK_TICKS_PER_MS - tp * sFactor;
+    sOffset = t * CLOCK_TICKS_PER_S  + (uint64_t)t_ms * CLOCK_TICKS_PER_MS - tp * sFactor; 
 #endif
 
     clockGet64();
-
-    // Test
-    if (gDebugLevel >= 1) {
-       uint64_t t1, t2;
-       char s[64];
-       t1 = clockGet64();
-       sleepNs(100000);
-       t2 = clockGet64();
-       printf("  Resolution = %u Hz, system resolution = %u Hz, conversion = %c%I64u+%I64u\n", CLOCK_TICKS_PER_S, tF.u.LowPart,  sDivide?'/':'*', sFactor, sOffset );
-       if (gDebugLevel >= 2) {
-           printf("  +0us:   %I64u  %s\n", t1, clockGetString(s, sizeof(s), t1));
-           printf("  +100us: %I64u  %s\n", t2, clockGetString(s, sizeof(s), t2));
-       }
-    } // Test
 
     return 1;
 }
 
 
-
-// Clock 64 Bit (UTC or ARB)
+// Clock 64 Bit (UTC or ARB) 
 uint64_t clockGet64() {
 
     LARGE_INTEGER tp;
@@ -273,45 +221,9 @@ uint64_t clockGet64() {
         t = t * sFactor + sOffset;
     }
 
-    gClock64 = t;
-    gClock32 = (uint32_t)t;
     return t;
-}
-
-// Clock 32 Bit
-uint32_t clockGet32() {
-
-    return (uint32_t)clockGet64();
-}
-
-
-
-void sleepNs(unsigned int ns) {
-
-    uint64_t t1, t2;
-    uint32_t us = ns / 1000;
-    uint32_t ms = us / 1000;
-
-    // Start sleeping at 1800us, shorter sleeps are more precise but need significant CPU time
-    if (us >= 2000) {
-        Sleep(ms - 1);
-    }
-    // Busy wait
-    else {
-        t1 = t2 = clockGet64();
-        uint64_t te = t1 + us * CLOCK_TICKS_PER_US;
-        for (;;) {
-            t2 = clockGet64();
-            if (t2 >= te) break;
-            if (te - t2 > 0) Sleep(0);
-        }
-    }
-}
-
-void sleepMs(unsigned int ms) {
-
-    Sleep(ms);
 }
 
 
 #endif // Windows
+

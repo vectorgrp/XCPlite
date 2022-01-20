@@ -3,8 +3,7 @@
 |   xcpAppl.c
 |
 | Description:
-|   Externals for xcpLite
-|   Platform and implementation specific functions
+|   Application specific functions for xcpLite
 |   All other callbacks/dependencies are implemented as macros in xcpAppl.h
 |
 | Copyright (c) Vector Informatik GmbH. All rights reserved.
@@ -12,12 +11,32 @@
 |
  ----------------------------------------------------------------------------*/
 
+#include "main.h"
 #include "platform.h"
-#include "main_cfg.h"
 #include "clock.h"
 #include "xcpLite.h"
-#include "ecu.h"
 
+
+ /**************************************************************************/
+ // General Callbacks
+ /**************************************************************************/
+
+BOOL ApplXcpConnect() { 
+    return TRUE; 
+}
+
+BOOL ApplXcpPrepareDaq() { 
+    return TRUE;
+
+}
+
+BOOL ApplXcpStartDaq() { 
+    return TRUE; 
+}
+
+BOOL ApplXcpStopDaq() { 
+    return TRUE; 
+}
 
 
 /**************************************************************************/
@@ -29,44 +48,18 @@
 // Clock must be monotonic !!!
 
 
-
-uint32_t ApplXcpGetClock() { return clockGet32(); }
-uint64_t ApplXcpGetClock64() { return clockGet64(); }
-int ApplXcpPrepareDaq() { return 1; }
-
-
-
-
-#ifdef XCP_ENABLE_GRANDMASTER_CLOCK_INFO
-
-uint8_t ApplXcpGetClockInfo(T_CLOCK_INFO_SLAVE* s, T_CLOCK_INFO_GRANDMASTER* m) {
-
-    uint8_t uuid[8] = APP_DEFAULT_CLOCK_UUID;
-
-
-        memcpy(s->UUID, uuid, 8);
-        memcpy(m->UUID, uuid, 8);
-#ifdef CLOCK_USE_UTC_TIME_NS
-        s->stratumLevel = XCP_STRATUM_LEVEL_UTC;
-        m->stratumLevel = XCP_STRATUM_LEVEL_UTC;
-        m->epochOfGrandmaster = XCP_EPOCH_TAI;
-#else
-        s->stratumLevel = XCP_STRATUM_LEVEL_UNSYNC;
-        m->stratumLevel = XCP_STRATUM_LEVEL_UNSYNC;
-        m->epochOfGrandmaster = XCP_EPOCH_ARB;
-#endif
-
-
-
-    if (gDebugLevel >= 1) {
-        printf("  Slave-UUID=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X Grandmaster-UUID=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X\n",
-            s->UUID[0], s->UUID[1], s->UUID[2], s->UUID[3], s->UUID[4], s->UUID[5], s->UUID[6], s->UUID[7],
-            m->UUID[0], m->UUID[1], m->UUID[2], m->UUID[3], m->UUID[4], m->UUID[5], m->UUID[6], m->UUID[7]);
-    }
-
-    return 1;
+uint64_t ApplXcpGetClock64() {
+     return clockGet64();
 }
 
+uint8_t ApplXcpGetClockState() {
+    return LOCAL_CLOCK_STATE_FREE_RUNNING;
+}
+
+#ifdef XCP_ENABLE_PTP
+BOOL ApplXcpGetClockInfoGrandmaster(uint8_t* uuid, uint8_t* epoch, uint8_t* stratum) {
+    return FALSE;
+}
 #endif
 
 
@@ -74,6 +67,9 @@ uint8_t ApplXcpGetClockInfo(T_CLOCK_INFO_SLAVE* s, T_CLOCK_INFO_GRANDMASTER* m) 
 // Pointer - Address conversion
 /**************************************************************************/
 
+#ifdef XCP_ENABLE_CAL_PAGE
+#include "ecu.h"
+#endif
 
  // 64 Bit and 32 Bit platform pointer to XCP/A2L address conversions
  // XCP memory access is limited to a 4GB address range
@@ -83,15 +79,20 @@ uint8_t ApplXcpGetClockInfo(T_CLOCK_INFO_SLAVE* s, T_CLOCK_INFO_GRANDMASTER* m) 
  // In Microsoft Visual Studio set option "Generate Debug Information" to "optimized for sharing and publishing (/DEBUG:FULL)"
  // In CANape select "Microsoft PDB extented"
 
+uint8_t* ApplXcpGetPointer(uint8_t addr_ext, uint32_t addr) {
+    (void)addr_ext;
+#ifdef XCP_ENABLE_CAL_PAGE
+    return ecuParAddrMapping(ApplXcpGetBaseAddr() + addr);
+#else
+    return ApplXcpGetBaseAddr() + addr;
+#endif
+}
+
+
 #ifdef _WIN
 
 uint8_t* baseAddr = NULL;
 uint8_t baseAddrValid = 0;
-
-uint8_t* ApplXcpGetPointer(uint8_t addr_ext, uint32_t addr) {
-
-    return ApplXcpGetBaseAddr() + addr;
-}
 
 uint32_t ApplXcpGetAddr(uint8_t* p) {
 
@@ -102,6 +103,7 @@ uint32_t ApplXcpGetAddr(uint8_t* p) {
     return (uint32_t)(p - ApplXcpGetBaseAddr());
 }
 
+
 // Get base pointer for the XCP address range
 // This function is time sensitive, as it is called once on every XCP event
 uint8_t* ApplXcpGetBaseAddr() {
@@ -110,7 +112,7 @@ uint8_t* ApplXcpGetBaseAddr() {
         baseAddr = (uint8_t*)GetModuleHandle(NULL);
         baseAddrValid = 1;
 #ifdef XCP_ENABLE_TESTMODE
-        if (gDebugLevel >= 1) printf("ApplXcpGetBaseAddr() = 0x%I64X\n", (uint64_t)baseAddr);
+        if (ApplXcpGetDebugLevel() >= 1) printf("ApplXcpGetBaseAddr() = 0x%I64X\n", (uint64_t)baseAddr);
 #endif
     }
     return baseAddr;
@@ -120,7 +122,9 @@ uint8_t* ApplXcpGetBaseAddr() {
 
 #ifdef _LINUX64
 
+#ifndef __USE_GNU
 #define __USE_GNU
+#endif
 #include <link.h>
 
 uint8_t* baseAddr = NULL;
@@ -158,12 +162,6 @@ uint32_t ApplXcpGetAddr(uint8_t* p)
   return (uint32_t)(p - baseAddr);
 }
 
-uint8_t* ApplXcpGetPointer(uint8_t addr_ext, uint32_t addr)
-{
-  ApplXcpGetBaseAddr();
-  return baseAddr + addr;
-}
-
 #endif
 
 
@@ -171,7 +169,6 @@ uint8_t* ApplXcpGetPointer(uint8_t addr_ext, uint32_t addr)
 
 uint8_t* ApplXcpGetBaseAddr()
 {
-
     return ((uint8_t*)0);
 }
 
@@ -180,12 +177,102 @@ uint32_t ApplXcpGetAddr(uint8_t* p)
     return ((uint32_t)(p));
 }
 
+#endif
+
+
+
+
+
+/**************************************************************************/
+// Pointer to XCP address conversions for LINUX shared objects
+/**************************************************************************/
+
+#ifdef XCP_ENABLE_SO
+
+// Address information of loaded modules for XCP (application and shared libraries)
+// Index is XCP address extension
+// Index 0 is application
+
+static struct
+{
+    const char* name;
+    uint8_t* baseAddr;
+}
+gModuleProperties[XCP_MAX_MODULE] = { {} };
+
+
+uint8_t ApplXcpGetExt(uint8_t* addr)
+{
+    // Here we have the possibility to loop over the modules and find out the extension
+    ()addr;
+    return 0;
+}
+
+uint32_t ApplXcpGetAddr(uint8_t* addr)
+{
+    uint8_t addr_ext = ApplXcpGetExt(addr);
+    union {
+        uint8_t* ptr;
+        uint32_t i;
+    } rawAddr;
+    rawAddr.ptr = (uint8_t*)(addr - gModuleProperties[addr_ext].baseAddr);
+    return rawAddr.i;
+}
+
 uint8_t* ApplXcpGetPointer(uint8_t addr_ext, uint32_t addr)
 {
-    return ((uint8_t*)(addr));
+    uint8_t* baseAddr = 0;
+    if (addr_ext < XCP_MAX_MODULE) {
+        baseAddr = gModuleProperties[addr_ext].baseAddr;
+    }
+    return baseAddr + addr;
+}
+
+
+static int dump_phdr(struct dl_phdr_info* pinfo, size_t size, void* data)
+{
+#ifdef XCP_ENABLE_TESTMODE
+    if (gDebugLevel >= 1) {
+        printf("0x%zX %s 0x%X %d %d %d %d 0x%X\n",
+            pinfo->dlpi_addr, pinfo->dlpi_name, pinfo->dlpi_phdr, pinfo->dlpi_phnum,
+            pinfo->dlpi_adds, pinfo->dlpi_subs, pinfo->dlpi_tls_modid,
+            pinfo->dlpi_tls_data);
+    }
+#endif
+
+  // Modules
+  if (0 < strlen(pinfo->dlpi_name)) {
+    // Here we could remember module information or something like that
+  }
+
+  // Application
+  else  {
+
+#ifdef XCP_ENABLE_TESTMODE
+      if (gDebugLevel >= 1) {
+          printf("Application base addr = 0x%zx\n", pinfo->dlpi_addr);
+      }
+#endif
+
+    gModuleProperties[0].baseAddr = (uint8_t*) pinfo->dlpi_addr;
+  }
+
+  ()size;
+  ()data;
+  return 0;
+}
+
+void ApplXcpInitBaseAddressList()
+{
+#ifdef XCP_ENABLE_TESTMODE
+    if (gDebugLevel >= 1) printf("Module List:\n");
+#endif
+
+    dl_iterate_phdr(dump_phdr, NULL);
 }
 
 #endif
+
 
 
 
@@ -195,70 +282,54 @@ uint8_t* ApplXcpGetPointer(uint8_t addr_ext, uint32_t addr)
 
 #ifdef XCP_ENABLE_CAL_PAGE
 
-uint8_t calPage = 0; // RAM = 0, FLASH = 1
+// segment = 0
+// RAM = page 0, FLASH = page 1
 
 uint8_t ApplXcpGetCalPage(uint8_t segment, uint8_t mode) {
-
-    return calPage;
+    (void)mode;
+    if (segment > 0) return CRC_PAGE_NOT_VALID;
+    return ecuParGetCalPage();
 }
 
 uint8_t ApplXcpSetCalPage(uint8_t segment, uint8_t page, uint8_t mode) {
-    // Calibration page switch code here
-    calPage = page;
+    if (segment > 0) return CRC_SEGMENT_NOT_VALID;
+    if (page > 1) return CRC_PAGE_NOT_VALID;
+    if ((mode & (CAL_PAGE_MODE_ECU | CAL_PAGE_MODE_XCP)) != (CAL_PAGE_MODE_ECU | CAL_PAGE_MODE_XCP)) return CRC_PAGE_MODE_NOT_VALID;
+    ecuParSetCalPage(page);
     return 0;
-  }
+}
+
 #endif
-
-
-
 
 
 /**************************************************************************/
 // Infos for GET_ID
 /**************************************************************************/
 
-uint8_t ApplXcpGetSlaveId(char** p, uint32_t* n) {
+#ifdef XCP_ENABLE_IDT_A2L_NAME // Enable GET_ID A2L filename without extension
 
-    *p = APP_NAME;
-    *n = APP_NAME_LEN;
-    return 1;
+const char* ApplXcpGetA2lName() {
+    return ApplXcpGetName();
 }
 
 
+const char* ApplXcpGetA2lFileName() {
+    static char a2lPath[MAX_PATH + 100 + 4]; // Full path + name + extension
+    sprintf(a2lPath, "%s.a2l", ApplXcpGetA2lName());
+    return a2lPath;
+}
+#endif
+
+const char* ApplXcpGetName() {
+
+        return (char*)"XCPlite";
+}
 
 /**************************************************************************/
 // Read A2L to memory accessible by XCP
 /**************************************************************************/
 
-#ifdef XCP_ENABLE_A2L_NAME // Enable GET_ID A2L name upload to host
-
-static char gA2LFilename[100]; // Name without extension
-
-// A2L base name for GET_ID
-static char gA2LPathname[MAX_PATH + 100 + 4]; // Full path + name +extension
-
-
-uint8_t ApplXcpGetA2LFilename(char** p, uint32_t* n, int path) {
-
-    // Create a unique A2L file name for this build
-    sprintf(gA2LFilename, APP_NAME "-%08X-%u", ApplXcpGetAddr((uint8_t*)&ecuPar), XcpTlGetSlavePort()); // Generate version specific unique A2L file name
-    sprintf(gA2LPathname, "%s.A2L", gA2LFilename);
-
-    if (path) {
-        if (p != NULL) *p = gA2LPathname;
-        if (n != NULL) *n = (uint32_t)strlen(gA2LPathname);
-    }
-    else {
-        if (p != NULL) *p = gA2LFilename;
-        if (n != NULL) *n = (uint32_t)strlen(gA2LFilename);
-    }
-    return 1;
-}
-
-#endif
-
-
-#ifdef XCP_ENABLE_FILE_UPLOAD // Enable GET_ID A2L content upload to host
+#ifdef XCP_ENABLE_IDT_A2L_UPLOAD // Enable GET_ID A2L content upload to host
 
 static uint8_t* gXcpFile = NULL; // file content
 static uint32_t gXcpFileLength = 0; // file length
@@ -266,19 +337,12 @@ static uint32_t gXcpFileLength = 0; // file length
 static HANDLE hFile, hFileMapping;
 #endif
 
-uint8_t ApplXcpReadFile(uint8_t type, uint8_t** p, uint32_t* n) {
+uint8_t ApplXcpGetA2lUpload(uint8_t** p, uint32_t* n) {
 
-    const char* filename = NULL;
-
-    switch (type) {
-    case IDT_ASAM_UPLOAD:
-        filename = gA2LPathname; break;
-
-    default: return 0;
-    }
-
+    const char *filename = ApplXcpGetA2lFileName();
+   
 #ifdef XCP_ENABLE_TESTMODE
-        if (gDebugLevel >= 1) printf("Load %s\n", filename);
+        if (ApplXcpGetDebugLevel() >= 1) printf("Load %s\n", filename);
 #endif
 
 #ifdef _LINUX // Linux
@@ -310,11 +374,11 @@ uint8_t ApplXcpReadFile(uint8_t type, uint8_t** p, uint32_t* n) {
         gXcpFileLength = (uint32_t)GetFileSize(hFile, NULL)-2;
         hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, gXcpFileLength, NULL);
         if (hFileMapping == NULL) return 0;
-        gXcpFile = MapViewOfFile(hFileMapping, FILE_MAP_READ, 0, 0, 0);
+        gXcpFile = (uint8_t*)MapViewOfFile(hFileMapping, FILE_MAP_READ, 0, 0, 0);
         if (gXcpFile == NULL) return 0;
 #endif
 #ifdef XCP_ENABLE_TESTMODE
-            if (gDebugLevel >= 1) printf("  file %s ready for upload, size=%u, mta=%p\n\n", filename, gXcpFileLength, gXcpFile);
+            if (ApplXcpGetDebugLevel() >= 1) printf("  file %s ready for upload, size=%u\n\n", filename, gXcpFileLength);
 #endif
 
 

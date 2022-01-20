@@ -1,6 +1,6 @@
 /*----------------------------------------------------------------------------
 | File:
-|   A2L.c
+|   a2l.c
 |
 | Description:
 |   Create A2L file 
@@ -10,13 +10,13 @@
 |
  ----------------------------------------------------------------------------*/
 
+#include "main.h"
 #include "platform.h"
-#include "main_cfg.h"
 #include "xcpLite.h"
+#ifdef XCP_ENABLE_CAL_PAGE
 #include "ecu.h"
+#endif
 #include "A2L.h"
-
-#ifdef APP_ENABLE_A2L_GEN
 
 static FILE* gA2lFile = NULL;
 static int gA2lEvent = 0;
@@ -30,17 +30,13 @@ static unsigned int gA2lConversions;
 
 static const char* gA2lHeader =
 "ASAP2_VERSION 1 71\n"
-"/begin PROJECT XCPlite \"\"\n"
+"/begin PROJECT %s \"\"\n"
 "/begin HEADER \"\" VERSION \"1.0\" /end HEADER\n"
-"/begin MODULE XCPlite \"\"\n"
+"/begin MODULE %s \"\"\n"
 "/include \"XCP_104.aml\"\n\n"
 
-//"/begin IF_DATA CNP_CREATE_INI /begin TP_BLOB 0x0100 PARAMETER \"canape.ini\" \"$CNP_DVC_SCTN$\" \"TIME_CORR_MULTICAST\" \"0\" /end TP_BLOB /end IF_DATA\n" // CANape option multicast off
-//"/begin IF_DATA CNP_CREATE_INI /begin TP_BLOB 0x0100 PARAMETER \"canape.ini\" \"$CNP_DVC_SCTN$\" \"DAQ_COUNTER_HANDLING\" \"0\" /end TP_BLOB /end IF_DATA\n" // CANape option exclude command response
-//"/begin IF_DATA CNP_CREATE_INI /begin TP_BLOB 0x0100 PARAMETER \"canape.ini\" \"$CNP_DVC_SCTN$\" \"LOCAL_PORT\" \"9001\" /end TP_BLOB /end IF_DATA\n" // CANape option exclude command response
-
 //----------------------------------------------------------------------------------
-#ifdef APP_ENABLE_CAL_SEGMENT
+#ifdef XCP_ENABLE_CAL_PAGE
 "/begin MOD_PAR \"\"\n"
 "/begin MEMORY_SEGMENT\n"
 "CALRAM \"\" DATA FLASH INTERN 0x%08X 0x%08X - 1 - 1 - 1 - 1 - 1\n" // CALRAM_START, CALRAM_SIZE
@@ -86,6 +82,12 @@ static const char* gA2lIfData1 = // Parameters %04X version, %u max cto, %u max 
 #ifdef XCP_ENABLE_CAL_PAGE
 "OPTIONAL_CMD GET_CAL_PAGE\n"
 "OPTIONAL_CMD SET_CAL_PAGE\n"
+//"OPTIONAL_CMD CC_GET_PAG_PROCESSOR_INFO\n"    
+//"OPTIONAL_CMD CC_GET_SEGMENT_INFO\n"          
+//"OPTIONAL_CMD CC_GET_PAGE_INFO\n"             
+//"OPTIONAL_CMD CC_SET_SEGMENT_MODE\n"          
+//"OPTIONAL_CMD CC_GET_SEGMENT_MODE\n"          
+//"OPTIONAL_CMD CC_COPY_CAL_PAGE\n"             
 #endif
 #ifdef XCP_ENABLE_CHECKSUM
 "OPTIONAL_CMD BUILD_CHECKSUM\n"
@@ -144,17 +146,19 @@ static const char* gA2lIfData1 = // Parameters %04X version, %u max cto, %u max 
 "0x01 SIZE_DWORD %s TIMESTAMP_FIXED\n"
 "/end TIMESTAMP_SUPPORTED\n"; // ... Event list follows
 
-static const char* gA2lIfData2 = // Parameter %u port and %s ip address string
+static const char* gA2lIfData2 = // Parameter %s TCP or UDP, %04X tl version, %u port, %s ip address string, %s TCP or UDP
 "/end DAQ\n"
-"/begin XCP_ON_UDP_IP\n"
+
+"/begin XCP_ON_%s_IP\n" // Transport Layer
 "  0x%04X %u ADDRESS \"%s\"\n"
-//"OPTIONAL_TL_SUBCMD GET_SLAVE_ID\n"
+//"OPTIONAL_TL_SUBCMD GET_SERVER_ID\n"
 //"OPTIONAL_TL_SUBCMD GET_DAQ_ID\n"
 //"OPTIONAL_TL_SUBCMD SET_DAQ_ID\n"
 #if defined(XCPTL_ENABLE_MULTICAST) && defined(XCP_ENABLE_DAQ_CLOCK_MULTICAST)
 "  OPTIONAL_TL_SUBCMD GET_DAQ_CLOCK_MULTICAST\n"
 #endif
-"/end XCP_ON_UDP_IP\n" // Transport Layer
+"/end XCP_ON_%s_IP\n" // Transport Layer
+
 "/end IF_DATA\n\n"
 ;
 
@@ -214,10 +218,11 @@ static const char* getTypeMax(int size) {
 	return max;
 }
 
+uint32_t(*A2lGetAddr)(uint8_t* p) = NULL;
 
+int A2lInit(const char *filename, uint32_t(*fp)(uint8_t*)) {
 
-int A2lInit(const char *filename) {
-
+	A2lGetAddr = fp;
 	printf("Create A2L %s\n", filename);
 	gA2lFile = 0;
 	gA2lEvent = -1;
@@ -231,17 +236,18 @@ int A2lInit(const char *filename) {
 }
 
 
-void A2lHeader() {
+void A2lHeader(const char *projectName, BOOL tcp, const uint8_t *addr, uint16_t port) {
 
-  uint16_t eventCount = 0;
-	
-#if defined( XCP_ENABLE_DAQ_EVENT_LIST ) && !defined ( XCP_ENABLE_DAQ_EVENT_INFO )
-  tXcpEvent* eventList = XcpGetEventList(&eventCount);
+	tXcpEvent* eventList;
+	uint16_t eventCount = 0;
+
+	assert(gA2lFile);
+
+#ifdef XCP_ENABLE_CAL_PAGE
+  fprintf(gA2lFile, gA2lHeader, projectName, projectName, (unsigned int)A2lGetAddr((uint8_t *)&ecuRamPar), (unsigned int)sizeof(ecuRamPar));
+#else
+  fprintf(gA2lFile, gA2lHeader, projectName, projectName );
 #endif
-
-  assert(gA2lFile);
-
-  fprintf(gA2lFile, gA2lHeader, (unsigned int)ApplXcpGetAddr((uint8_t *)&ecuPar), (unsigned int)sizeof(ecuPar)); 
 
 #if (XCP_TIMESTAMP_UNIT==DAQ_TIMESTAMP_UNIT_1NS)
   #define XCP_TIMESTAMP_UNIT_S "UNIT_1NS"
@@ -250,15 +256,22 @@ void A2lHeader() {
 #else
   #error
 #endif
-  fprintf(gA2lFile, gA2lIfData1, XCP_PROTOCOL_LAYER_VERSION, XCPTL_CTO_SIZE, XCPTL_DTO_SIZE, eventCount, XCP_TIMESTAMP_UNIT_S);
 
-  // Event list
-#if defined( XCP_ENABLE_DAQ_EVENT_LIST ) && !defined ( XCP_ENABLE_DAQ_EVENT_INFO )
+  // Event list in A2L file (if event info by XCP is not active)
+#if defined( XCP_ENABLE_DAQ_EVENT_LIST ) && !defined( XCP_ENABLE_DAQ_EVENT_INFO )
+  eventList = XcpGetEventList(&eventCount);
+#endif
+
+  fprintf(gA2lFile, gA2lIfData1, XCP_PROTOCOL_LAYER_VERSION, XCPTL_MAX_CTO_SIZE, XCPTL_MAX_DTO_SIZE, eventCount, XCP_TIMESTAMP_UNIT_S);
+
   for (unsigned int i = 0; i < eventCount; i++) {
+
+	  // Shortened name
 	  char shortName[9];
 	  strncpy(shortName, eventList[i].name, 8);
 	  shortName[8] = 0;
-	  fprintf(gA2lFile, "/begin EVENT \"%s\" \"%s\" 0x%X DAQ 0xFF 0x%X 0x%X 0x00 CONSISTENCY DAQ", eventList[i].name, shortName, i, eventList[i].timeCycle, eventList[i].timeUnit );
+
+	  fprintf(gA2lFile, "/begin EVENT \"%s\" \"%s\" 0x%X DAQ 0xFF %u %u %u CONSISTENCY DAQ", eventList[i].name, shortName, i, eventList[i].timeCycle, eventList[i].timeUnit, eventList[i].priority);
 #ifdef XCP_ENABLE_PACKED_MODE
 	  if (eventList[i].sampleCount!=0) {
 		  fprintf(gA2lFile, " /begin DAQ_PACKED_MODE ELEMENT_GROUPED STS_LAST MANDATORY %u /end DAQ_PACKED_MODE",eventList[i].sampleCount);
@@ -266,15 +279,28 @@ void A2lHeader() {
 #endif
 	  fprintf(gA2lFile, " /end EVENT\n");
   }
-#endif
 
-  printf("  A2L: addr = %s:%u\n", XcpTlGetSlaveAddrString(), XcpTlGetSlavePort());
-  fprintf(gA2lFile, gA2lIfData2, XCP_TRANSPORT_LAYER_VERSION, XcpTlGetSlavePort(), XcpTlGetSlaveAddrString());
+  // Transport Layer info ipaddr, port, protocol, version
+  uint8_t addr0[] = { 127,0,0,1 }; // Use localhost if no other option
+  if (addr != NULL && addr[0] != 0) {
+	memcpy(addr0, addr, 4);
+  }
+  else {
+	socketGetLocalAddr(NULL, addr0);
+  }
+  char addrs[17];
+  sprintf(addrs, "%u.%u.%u.%u", addr0[0], addr0[1], addr0[2], addr0[3]);
+  char* prot = tcp ? (char*)"TCP" : (char*)"UDP";
+  fprintf(gA2lFile, gA2lIfData2, prot, XCP_TRANSPORT_LAYER_VERSION, port, addrs, prot);
 }
 
 
 void A2lSetEvent(uint16_t event) {
 	gA2lEvent = event;
+}
+
+void A2lRstEvent() {
+	gA2lEvent = -1;
 }
 
 
@@ -305,6 +331,8 @@ void A2lCreateTypedefInstance_(const char* instanceName, const char* typeName, u
 
 void A2lCreateMeasurement_(const char* instanceName, const char* name, int size, uint32_t addr, double factor, double offset, const char* unit, const char* comment) {
 
+	if (ApplXcpGetDebugLevel()>=2) printf("%s %s - %08X\n", name, getMeaType(size), addr);
+	
 	if (unit == NULL) unit = "";
 	if (comment == NULL) comment = "";
 	const char *conv = "NO";
@@ -412,7 +440,7 @@ void A2lMeasurementGroup(const char* name, int count, ...) {
 }
 
 
-void A2lMeasurementGroupFromList(const char *name, const char* names[], unsigned int count) {
+void A2lMeasurementGroupFromList(const char *name, char* names[], unsigned int count) {
 
 	fprintf(gA2lFile, "/begin GROUP %s \"\" \n", name);
 	fprintf(gA2lFile, " /begin REF_MEASUREMENT");
@@ -445,5 +473,5 @@ void A2lClose() {
 }
 
 
-#endif
+
 

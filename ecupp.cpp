@@ -10,18 +10,19 @@
  | Code released into public domain, no attribution required
  */
 
+#include "main.h"
 #include "platform.h"
-#include "main_cfg.h"
 #include "clock.h"
+#include "xcpLite.h"
 #ifdef APP_ENABLE_A2L_GEN
 #include "A2L.h"
 #endif
-#include "xcpLite.h"
+#include "ecu.h"
 #include "ecupp.hpp"
 
 #ifdef APP_ENABLE_A2L_GEN
 
-// Create A2L description of this class 
+// Create A2L description of this class
 void EcuTask::createA2lClassDefinition() {
 
 #define offsetOf(x) (unsigned int)((uint8_t*)&x - (uint8_t*)this)
@@ -31,9 +32,14 @@ void EcuTask::createA2lClassDefinition() {
 	A2lTypedefComponent(taskId, offsetOf(taskId));
 	A2lTypedefComponent(counter, offsetOf(counter));
 	A2lTypedefComponent(channel1, offsetOf(channel1));
+	A2lTypedefComponent(time, offsetOf(time));
 	A2lTypedefComponent(byte, offsetOf(byte));
 	A2lTypedefComponent(word, offsetOf(word));
 	A2lTypedefComponent(dword, offsetOf(dword));
+	A2lTypedefComponent_s(sbyte, offsetOf(sbyte));
+	A2lTypedefComponent_s(sword, offsetOf(sword));
+	A2lTypedefComponent_s(sdword, offsetOf(sdword));
+	A2lTypedefComponent(float64, offsetOf(float64));
 	A2lTypedefEnd();
 }
 
@@ -46,17 +52,15 @@ void EcuTask::createA2lClassInstance(const char* instanceName, const char* comme
 #endif
 
 
-// Constructor 
+// Constructor
 EcuTask::EcuTask( uint16_t id ) {
 
 	taskId = id;
 
 	counter = 0;
-	timer = 0;
-	squarewave = (id==2);
+	time = 0;
 	channel1 = 0.0;
 	offset = 0;
-	period = 5.0;
 	ampl = 50.0;
 
 	byte = 0;
@@ -65,7 +69,6 @@ EcuTask::EcuTask( uint16_t id ) {
 	sbyte = 0;
 	sword = 0;
 	sdword = 0;
-	float32 = 0.0;
 	float64 = 0.0;
 }
 
@@ -75,14 +78,15 @@ void EcuTask::run() {
 	counter++;
 
 	// Sine wave or square wave depending on instance
-	if (period > 0.01 || period < -0.01) {
-		channel1 = sin(6.283185307 * timer / period);
-		if (squarewave) {
-			channel1 = (channel1 >= 0.0);
-		}
-		channel1 = offset + (ampl * channel1);
+	switch (taskId) {
+	case 2:
+		offset = ecuPar->offset2; ampl = ecuPar->ampl2; break;
+	default:
+	case 1:
+		offset = ecuPar->offset1; ampl = ecuPar->ampl1; break;
 	}
-	timer = (timer + 0.001);
+    channel1 = offset + (ampl * sin(6.283185307 * time / ecuPar->period));
+	time += 0.002;
 
 	byte++;
 	sbyte++;
@@ -90,7 +94,6 @@ void EcuTask::run() {
 	sword++;
 	dword++;
 	sdword++;
-	float32 += 0.1f;
 	float64 += 0.1;
 
 	XcpEventExt(taskId, (uint8_t*)this); // Trigger measurement data aquisition event for this task
@@ -105,11 +108,11 @@ extern "C" {
 	EcuTask* gEcuTask2 = NULL;
 	EcuTask* gActiveEcuTask = NULL;
 	volatile unsigned int gActiveEcuTaskId = 1; // Task id of the active C++ task
-	
+
 	// Events
-	uint16_t gXcpEvent_EcuTask1 = 1;
-	uint16_t gXcpEvent_EcuTask2 = 2;
-	uint16_t gXcpEvent_ActiveEcuTask = 3;
+	uint16_t gXcpEvent_EcuTask1 = 1; // EVNO
+	uint16_t gXcpEvent_EcuTask2 = 2; // EVNO
+	uint16_t gXcpEvent_ActiveEcuTask = 3; // EVNO
 
 
 	void ecuppInit() {
@@ -118,9 +121,9 @@ extern "C" {
         // Events must be all defined before A2lHeader() is called, measurements and parameters have to be defined after all events have been defined !!
         // Character count should be <=8 to keep the A2L short names unique !
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
-		gXcpEvent_EcuTask1 = XcpCreateEvent("ecuTask1", 2000, 0, sizeof(EcuTask));                   // Extended event triggered by C++ ecuTask1 instance
-		gXcpEvent_EcuTask2 = XcpCreateEvent("ecuTask2", 2000, 0, sizeof(EcuTask));                   // Extended event triggered by C++ ecuTask2 instance
-		gXcpEvent_ActiveEcuTask = XcpCreateEvent("ecuTaskA", 0, 0, sizeof(class EcuTask));      // Extended event triggered by C++ main task for a pointer to an EcuTask instance
+		gXcpEvent_EcuTask1 = XcpCreateEvent("ecuTask1", 2000, 0, 0, sizeof(EcuTask));              // Extended event triggered by C++ ecuTask1 instance
+		gXcpEvent_EcuTask2 = XcpCreateEvent("ecuTask2", 2000, 0, 0, sizeof(EcuTask));              // Extended event triggered by C++ ecuTask2 instance
+		gXcpEvent_ActiveEcuTask = XcpCreateEvent("ecuTaskA", 0, 0, 0, sizeof(class EcuTask));      // Extended event triggered by C++ main task for a pointer to an EcuTask instance
 #endif
 
 		// C++ demo
@@ -131,6 +134,7 @@ extern "C" {
 		gActiveEcuTaskId = gXcpEvent_EcuTask1;
 	}
 
+#ifdef APP_ENABLE_A2L_GEN
 	void ecuppCreateA2lDescription() {
 		assert(gEcuTask1 != NULL);
 		assert(gEcuTask2 != NULL);
@@ -141,12 +145,14 @@ extern "C" {
 		A2lCreateDynamicTypedefInstance("activeEcuTask" /* instanceName */, "EcuTask" /* typeName*/, "pointer to active ecu task");
 		A2lCreateParameterWithLimits(gActiveEcuTaskId, "select active ecu task (object id)", "", 1, 2);
 	}
+#endif
 
-	// ECU cyclic (2ms default) demo task 
+	// ECU cyclic (2ms default) demo task
 	// Calls C++ ECU demo code
 	void* ecuppTask(void* p) {
 
-		printf("Start C++ demo task (cycle = %uus, ext event = %d, size = %u )\n", gTaskCycleTimerECUpp, gXcpEvent_ActiveEcuTask, (uint32_t)sizeof(class EcuTask));
+		(void)p;
+		printf("Start C++ demo task (cycle = %uus, XCP event = %d (ext), size = %u )\n", gTaskCycleTimerECUpp, gXcpEvent_ActiveEcuTask, (uint32_t)sizeof(class EcuTask));
 		for (;;) {
 			sleepNs(gTaskCycleTimerECUpp * 1000);
 			// Run the currently active ecu task
@@ -156,8 +162,6 @@ extern "C" {
 				XcpEventExt(gXcpEvent_ActiveEcuTask, (uint8_t*)gActiveEcuTask); // Trigger measurement date aquisition event for currently active task
 			}
 		}
-		return 0;
 	}
 
 } // C
-

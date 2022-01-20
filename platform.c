@@ -8,7 +8,13 @@
 |   Code released into public domain, no attribution required
  ----------------------------------------------------------------------------*/
 
+#include "main.h"
+#include "clock.h"
 #include "platform.h"
+
+#ifdef _WIN // Windows needs to link with Ws2_32.lib
+#pragma comment(lib, "ws2_32.lib")
+#endif
 
 
 /**************************************************************************/
@@ -51,13 +57,68 @@ int _kbhit() {
 
 
 /**************************************************************************/
+// Sleep
+/**************************************************************************/
+
+#ifdef _LINUX // Linux
+
+void sleepNs(uint32_t ns) {
+    struct timespec timeout, timerem;
+    assert(ns < 1000000000UL);
+    timeout.tv_sec = 0;
+    timeout.tv_nsec = (int32_t)ns;
+    nanosleep(&timeout, &timerem);
+}
+
+void sleepMs(uint32_t ms) {
+    struct timespec timeout, timerem;
+    timeout.tv_sec = (int32_t)ms / 1000;
+    timeout.tv_nsec = (int32_t)(ms % 1000) * 1000000;
+    nanosleep(&timeout, &timerem);
+}
+
+#else
+
+
+void sleepNs(uint32_t ns) {
+
+    uint64_t t1, t2;
+    uint32_t us = ns / 1000;
+    uint32_t ms = us / 1000;
+
+    // Start sleeping at 1800us, shorter sleeps are more precise but need significant CPU time
+    if (us >= 2000) {
+        Sleep(ms - 1);
+    }
+    // Busy wait
+    else {
+        t1 = t2 = clockGet64();
+        uint64_t te = t1 + us * (uint64_t)CLOCK_TICKS_PER_US;
+        for (;;) {
+            t2 = clockGet64();
+            if (t2 >= te) break;
+            if (te - t2 > 0) Sleep(0);
+        }
+    }
+}
+
+void sleepMs(uint32_t ms) {
+
+    Sleep(ms);
+}
+
+
+#endif // Windows
+
+
+/**************************************************************************/
 // Mutex
 /**************************************************************************/
 
 #ifdef _LINUX
 
 void mutexInit(MUTEX* m, int recursive, uint32_t spinCount) {
-
+    (void)spinCount;
     if (recursive) {
         pthread_mutexattr_t ma;
         pthread_mutexattr_init(&ma);
@@ -74,11 +135,12 @@ void mutexDestroy(MUTEX* m) {
     pthread_mutex_destroy(m);
 }
 
-#else 
+#else
 
 void mutexInit(MUTEX* m, int recursive, uint32_t spinCount) {
+    (void) recursive;
     // Window critical sections are always recursive
-    InitializeCriticalSectionAndSpinCount(m,spinCount);
+    (void)InitializeCriticalSectionAndSpinCount(m,spinCount);
 }
 
 void mutexDestroy(MUTEX* m) {
@@ -100,14 +162,14 @@ int socketStartup() {
     return 1;
 }
 
-void socketShutdown() {
+void socketCleanup() {
 
 }
 
-int socketOpen(SOCKET* sp, int nonBlocking, int reuseaddr) {
-
+int socketOpen(SOCKET* sp, BOOL useTCP, BOOL nonBlocking, BOOL reuseaddr) {
+    (void)nonBlocking;
     // Create a socket
-    *sp = socket(AF_INET, SOCK_DGRAM, 0);
+    *sp = socket(AF_INET, useTCP ?SOCK_STREAM:SOCK_DGRAM , 0);
     if (*sp < 0) {
         printf("ERROR: cannot open socket!\n");
         return 0;
@@ -134,7 +196,7 @@ int socketBind(SOCKET sock, uint8_t* addr, uint16_t port) {
     }
     a.sin_port = htons(port);
     if (bind(sock, (SOCKADDR*)&a, sizeof(a)) < 0) {
-        printf("ERROR %u: cannot bind on UDP port %u!\n", socketGetLastError(), port);
+        printf("ERROR %u: cannot bind on %u.%u.%u.%u port %u!\n", socketGetLastError(), addr[0], addr[1], addr[2], addr[3], port);
         return 0;
     }
 
@@ -142,9 +204,16 @@ int socketBind(SOCKET sock, uint8_t* addr, uint16_t port) {
 }
 
 
+int socketShutdown(SOCKET sock) {
+    if (sock != INVALID_SOCKET) {
+        shutdown(sock, SHUT_RDWR);
+    }
+    return 1;
+}
+
 int socketClose(SOCKET *sp) {
     if (*sp != INVALID_SOCKET) {
-        shutdown(*sp, SHUT_RDWR);
+        close(*sp);
         *sp = INVALID_SOCKET;
     }
     return 1;
@@ -220,7 +289,7 @@ int socketGetLocalAddr(uint8_t* mac, uint8_t* addr) {
 
 #ifdef _WIN
 
-int socketStartup() {
+BOOL socketStartup() {
 
     int err;
 
@@ -232,44 +301,49 @@ int socketStartup() {
     err = WSAStartup(wsaVersionRequested, &wsaData);
     if (err != 0) {
         printf("ERROR: WSAStartup failed with ERROR: %d!\n", err);
-        return 0;
+        return FALSE;
     }
     if (LOBYTE(wsaData.wVersion) != 2 || HIBYTE(wsaData.wVersion) != 2) { // Confirm that the WinSock DLL supports 2.2
         printf("ERROR: could not find a usable version of Winsock.dll!\n");
         WSACleanup();
-        return 0;
+        return FALSE;
     }
 
-    return 1;
+    return TRUE;
 }
 
 
-void socketShutdown(void) {
+void socketCleanup(void) {
 
     WSACleanup();
 }
 
 
-int socketOpen(SOCKET* sp, int nonBlocking, int reuseaddr) {
-    
+BOOL socketOpen(SOCKET* sp, int useTCP, int nonBlocking, int reuseaddr) {
+
     // Create a socket
-    *sp = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (!useTCP) {
+        *sp = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+
+        // Avoid send to UDP nowhere problem (ignore ICMP host unreachable - server has no open socket on master port) (stack-overflow 34242622)
+        #define SIO_UDP_CONNRESET _WSAIOW(IOC_VENDOR, 12)
+        BOOL bNewBehavior = FALSE;
+        DWORD dwBytesReturned = 0;
+        WSAIoctl(*sp, SIO_UDP_CONNRESET, &bNewBehavior, sizeof bNewBehavior, NULL, 0, &dwBytesReturned, NULL, NULL);
+    }
+    else {
+        *sp = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    }
     if (*sp == INVALID_SOCKET) {
         printf("ERROR %u: could not create socket!\n", socketGetLastError());
-        return 0;
+        return FALSE;
     }
-    
-    // Avoid send to UDP nowhere problem (server has no open socket on master port) (stack-overlow 34242622)
-    #define SIO_UDP_CONNRESET _WSAIOW(IOC_VENDOR, 12)
-    BOOL bNewBehavior = FALSE;
-    DWORD dwBytesReturned = 0;
-    WSAIoctl(*sp, SIO_UDP_CONNRESET, &bNewBehavior, sizeof bNewBehavior, NULL, 0, &dwBytesReturned, NULL, NULL);
 
-    // Set nonblocking mode 
-    uint32_t b = nonBlocking ? 1:0;
+    // Set nonblocking mode
+    u_long b = nonBlocking ? 1:0;
     if (NO_ERROR != ioctlsocket(*sp, FIONBIO, &b)) {
         printf("ERROR %u: could not set non blocking mode!\n", socketGetLastError());
-        return 0;
+        return FALSE;
     }
 
     // Make addr reusable
@@ -278,11 +352,11 @@ int socketOpen(SOCKET* sp, int nonBlocking, int reuseaddr) {
         setsockopt(*sp, SOL_SOCKET, SO_REUSEADDR, (const char*)&one, sizeof(one));
     }
 
-    return 1;
+    return TRUE;
 }
 
 
-int socketBind(SOCKET sock, uint8_t *addr, uint16_t port) {
+BOOL socketBind(SOCKET sock, uint8_t *addr, uint16_t port) {
 
     // Bind the socket to any address and the specified port
     SOCKADDR_IN a;
@@ -299,20 +373,29 @@ int socketBind(SOCKET sock, uint8_t *addr, uint16_t port) {
             printf("ERROR: Port is already in use!\n");
         }
         else {
-            printf("ERROR %u: cannot bind on UDP port %u!\n", socketGetLastError(), port);
+            printf("ERROR %u: cannot bind on port %u!\n", socketGetLastError(), port);
         }
-        return 0;
+        return FALSE;
     }
-    return 1;
+    return TRUE;
 }
 
-int socketClose(SOCKET *sock) {
 
-    if (*sock != INVALID_SOCKET) {
-        closesocket(*sock);
-        *sock = INVALID_SOCKET;
+BOOL socketShutdown(SOCKET sock) {
+
+    if (sock != INVALID_SOCKET) {
+        shutdown(sock,SD_BOTH);
     }
-    return 1;
+    return TRUE;
+}
+
+BOOL socketClose(SOCKET* sockp) {
+
+    if (*sockp != INVALID_SOCKET) {
+        closesocket(*sockp);
+        *sockp = INVALID_SOCKET;
+    }
+    return TRUE;
 }
 
 
@@ -320,12 +403,10 @@ int socketClose(SOCKET *sock) {
 #pragma comment(lib, "IPHLPAPI.lib")
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 
-int socketGetLocalAddr(uint8_t* mac, uint8_t* addr) {
+BOOL socketGetLocalAddr(uint8_t* mac, uint8_t* addr) {
 
     static uint8_t addr1[4] = { 0,0,0,0 };
     static uint8_t mac1[6] = { 0,0,0,0,0,0 };
-    uint32_t index1 = 0;
-    PIP_ADAPTER_INFO pAdapter1 = NULL;
     uint32_t a;
     PIP_ADAPTER_INFO pAdapterInfo;
     PIP_ADAPTER_INFO pAdapter = NULL;
@@ -348,7 +429,7 @@ int socketGetLocalAddr(uint8_t* mac, uint8_t* addr) {
                 if (pAdapter->Type == MIB_IF_TYPE_ETHERNET) {
                     inet_pton(AF_INET, pAdapter->IpAddressList.IpAddress.String, &a);
                     if (a!=0) {
-                        printf("  Ethernet adapter %d:", pAdapter->Index);
+                        printf("  Ethernet adapter %" PRIu32 ":", (uint32_t) pAdapter->Index);
                         //printf(" %s", pAdapter->AdapterName);
                         printf(" %s", pAdapter->Description);
                         printf(" %02X-%02X-%02X-%02X-%02X-%02X", pAdapter->Address[0], pAdapter->Address[1], pAdapter->Address[2], pAdapter->Address[3], pAdapter->Address[4], pAdapter->Address[5]);
@@ -357,11 +438,9 @@ int socketGetLocalAddr(uint8_t* mac, uint8_t* addr) {
                         //printf(" Gateway: %s", pAdapter->GatewayList.IpAddress.String);
                         //if (pAdapter->DhcpEnabled) printf(" DHCP");
                         printf("\n");
-                        if (addr1[0] == 0 ) { 
-                            index1 = pAdapter->Index;
+                        if (addr1[0] == 0 ) {
                             memcpy(addr1, (uint8_t*)&a, 4);
                             memcpy(mac1, pAdapter->Address, 6);
-                            pAdapter1 = pAdapter;
                         }
                     }
                 }
@@ -374,18 +453,37 @@ int socketGetLocalAddr(uint8_t* mac, uint8_t* addr) {
     if (addr1[0] != 0) {
         if (mac) memcpy(mac, mac1, 6);
         if (addr) memcpy(addr, addr1, 4);
-        return 1;
+        return TRUE;
     }
-    return 0;
+    return FALSE;
 }
 
 #endif // _WIN
 
 
-int socketJoin(SOCKET sock, uint8_t* addr) {
+BOOL socketListen(SOCKET sock) {
+
+    if (listen(sock, 5)) {
+        printf("ERROR %u: listen failed!\n", socketGetLastError());
+        return 0;
+    }
+    return 1;
+}
+
+SOCKET socketAccept(SOCKET sock, uint8_t addr[]) {
+
+    struct sockaddr_in sa;
+    socklen_t sa_size = sizeof(sa);
+    SOCKET s = accept(sock, (struct sockaddr*) & sa, &sa_size);
+    *(uint32_t*)addr = sa.sin_addr.s_addr;
+    return s;
+}
+
+
+BOOL socketJoin(SOCKET sock, uint8_t* maddr) {
 
     struct ip_mreq group;
-    group.imr_multiaddr.s_addr = *(uint32_t*)addr;
+    group.imr_multiaddr.s_addr = *(uint32_t*)maddr;
     group.imr_interface.s_addr = htonl(INADDR_ANY);
     if (0 > setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const char*)&group, sizeof(group))) {
         printf("ERROR %u: Failed to set multicast socket option IP_ADD_MEMBERSHIP!\n", socketGetLastError());
@@ -395,14 +493,17 @@ int socketJoin(SOCKET sock, uint8_t* addr) {
 }
 
 
-
+// Receive from a UDP socket
+// Return number of bytes received, 0 when TCP socket closed or empty UDP packet received, -1 on error
 int16_t socketRecvFrom(SOCKET sock, uint8_t* buffer, uint16_t bufferSize, uint8_t *addr, uint16_t *port) {
 
     SOCKADDR_IN src;
     socklen_t srclen = sizeof(src);
-    int16_t n = (int16_t)recvfrom(sock, buffer, bufferSize, 0, (SOCKADDR*)&src, &srclen);
-    if (n == 0) return 0;
-    if (n < 0) {
+    int16_t n = (int16_t)recvfrom(sock, (char*)buffer, bufferSize, 0, (SOCKADDR*)&src, &srclen);
+    if (n == 0) {
+        return 0;
+    }
+    else if (n < 0) {
         if (socketGetLastError() == SOCKET_ERROR_WBLOCK) return 0;
         if (socketGetLastError() == SOCKET_ERROR_CLOSED) {
             printf("Socket closed\n");
@@ -415,14 +516,28 @@ int16_t socketRecvFrom(SOCKET sock, uint8_t* buffer, uint16_t bufferSize, uint8_
     return n;
 }
 
-int16_t socketRecv(SOCKET sock, uint8_t* buffer, uint16_t bufferSize) {
+// Receive from TCP socket
+int16_t socketRecv(SOCKET sock, uint8_t* buffer, uint16_t size) {
 
-    return socketRecvFrom(sock, buffer, bufferSize, NULL, NULL);
+    int16_t n = (int16_t)recv(sock, (char*)buffer, size, MSG_WAITALL);
+    if (n == 0) {
+        return 0;
+    }
+    else if (n < 0) {
+        if (socketGetLastError() == SOCKET_ERROR_WBLOCK) return 0;
+        if (socketGetLastError() == SOCKET_ERROR_CLOSED) {
+            printf("Socket closed\n");
+            return -1; // Socket closed
+        }
+        printf("ERROR %u: recvfrom failed (result=%d)!\n", socketGetLastError(), n);
+    }
+    return n;
 }
 
 
-
-int socketSendTo(SOCKET sock, const uint8_t* buffer, uint16_t bufferSize, const uint8_t* addr, uint16_t port) {
+// Send datagram on socket
+// Must be thread save
+int16_t socketSendTo(SOCKET sock, const uint8_t* buffer, uint16_t size, const uint8_t* addr, uint16_t port) {
 
     SOCKADDR_IN sa;
     sa.sin_family = AF_INET;
@@ -432,7 +547,14 @@ int socketSendTo(SOCKET sock, const uint8_t* buffer, uint16_t bufferSize, const 
     memcpy(&sa.sin_addr.s_addr, addr, 4);
 #endif
     sa.sin_port = htons(port);
-    return (int)sendto(sock, buffer, bufferSize, 0, (SOCKADDR*)&sa, (uint16_t)sizeof(sa));
+    return (int16_t)sendto(sock, (const char*)buffer, size, 0, (SOCKADDR*)&sa, (uint16_t)sizeof(sa));
+}
+
+// Send datagram on socket
+// Must be thread save
+int16_t socketSend(SOCKET sock, const uint8_t* buffer, uint16_t size) {
+
+    return (int16_t)send(sock, (const char *)buffer, size, 0);
 }
 
 

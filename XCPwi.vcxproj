@@ -124,7 +124,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
+      <WarningLevel>Level4</WarningLevel>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
@@ -159,7 +159,7 @@
     <ClCompile Include="platform.c" />
     <ClCompile Include="xcpAppl.c" />
     <ClCompile Include="xcpLite.c" />
-    <ClCompile Include="xcpSlave.c" />
+    <ClCompile Include="xcpServer.c" />
     <ClCompile Include="xcpTl.c" />
   </ItemGroup>
   <ItemGroup>
@@ -167,11 +167,12 @@
     <ClInclude Include="clock.h" />
     <ClInclude Include="ecu.h" />
     <ClInclude Include="ecupp.hpp" />
+    <ClInclude Include="main.h" />
     <ClInclude Include="main_cfg.h" />
     <ClInclude Include="platform.h" />
     <ClInclude Include="xcpAppl.h" />
     <ClInclude Include="xcpLite.h" />
-    <ClInclude Include="xcpSlave.h" />
+    <ClInclude Include="xcpServer.h" />
     <ClInclude Include="xcpTl.h" />
     <ClInclude Include="xcptl_cfg.h" />
     <ClInclude Include="xcp_cfg.h" />

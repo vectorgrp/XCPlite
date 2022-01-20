@@ -1,45 +1,44 @@
-// ecu.h 
+#pragma once
+
+// ecu.h
 /*
 | Code released into public domain, no attribution required
 */
-
-#ifndef __ECU_H_
-#define __ECU_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 
-struct ecuPar {
+/**************************************************************************/
+/* ECU Parameters */
+/**************************************************************************/
 
-    unsigned int CALRAM_SIZE;
-
-    unsigned int cycleTime;
-
-    double period;
-    double offset1, offset2, offset3, offset4, offset5, offset6;
-    double phase1, phase2, phase3, phase4, phase5, phase6;
-    double ampl1, ampl2, ampl3, ampl4, ampl5, ampl6;
-
-    unsigned char map1_8_8[8][8];
-
-    unsigned char curve1_32[32];
-};
-
-
-extern volatile struct ecuPar ecuPar;
-
-extern uint16_t gXcpEvent_EcuCyclic;
+    struct ecuPar {
+        unsigned int CALRAM_SIZE;
+        unsigned int cycleTime;
+        double period;
+        double offset1, offset2, offset3;
+        double phase1, phase2, phase3;
+        double ampl1, ampl2, ampl3;
+        unsigned char map1_8_8[8][8];
+        unsigned char curve1_32[32];
+    };
 
 
+extern volatile struct ecuPar *ecuPar;
+extern volatile struct ecuPar ecuRamPar;
+extern struct ecuPar ecuRomPar;
+
+#ifdef XCP_ENABLE_CAL_PAGE
+extern uint8_t ecuParGetCalPage();
+extern void ecuParSetCalPage(uint8_t page);
+extern uint8_t* ecuParAddrMapping(uint8_t* a);
+#endif
 extern void ecuInit();
 extern void ecuCreateA2lDescription();
-
-void* ecuTask(void* p);
+extern void* ecuTask(void* p);
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

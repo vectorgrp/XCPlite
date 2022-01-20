@@ -1,69 +1,37 @@
+#pragma once
+
 /* xcpTl.h */
 
 /* Copyright(c) Vector Informatik GmbH.All rights reserved.
    Licensed under the MIT license.See LICENSE file in the project root for details. */
 
-#ifndef __XCPTL_H__
-#define __XCPTL_H__
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "xcptl_cfg.h"  // Transport layer configuration
+extern int XcpTlInit(const uint8_t* addr, uint16_t port, BOOL useTCP); // Start transport layer
+extern void XcpTlShutdown(); // Stop transport layer
+extern int XcpTlGetLastError(); // Get last error code
 
-typedef struct {
-    uint16_t dlc;               /* BYTE 1,2 lenght */
-    uint16_t ctr;               /* BYTE 3,4 packet counter */
-    uint8_t data[XCPTL_CTO_SIZE];  /* BYTE[] data */
-} tXcpCtoMessage;
+extern const char* XcpTlGetServerAddrString(); // Get slave addr as string
+extern uint16_t XcpTlGetServerPort(); // Get slave port
+extern int XcpTlGetServerMAC(uint8_t* mac); // Get slave MAC
+extern uint64_t XcpTlGetBytesWritten(); // Get the number of bytes send
 
-typedef struct {
-    uint16_t dlc;               /* BYTE 1,2 lenght */
-    uint16_t ctr;               /* BYTE 3,4 packet counter */
-    uint8_t data[XCPTL_DTO_SIZE];  /* BYTE[] data */
-} tXcpDtoMessage;
+extern int XcpTlHandleCommands(); // Handle incoming XCP commands
+extern void XcpTlSendCrm(const uint8_t* data, uint16_t n); // Send or queue (depending on XCPTL_QUEUED_CRM) a command response
 
+extern uint8_t* XcpTlGetTransmitBuffer(void** par, uint16_t size); // Get a buffer for a message with size
+extern void XcpTlCommitTransmitBuffer(void* par); // Commit a buffer from XcpTlGetTransmitBuffer
+extern void XcpTlFlushTransmitBuffer(); // Finalize the current transmit packet
+extern void XcpTlFlushTransmitQueue(); // Empty the transmit queue
+extern void XcpTlWaitForTransmitQueue(); // Wait (sleep) until transmit queue is ready for immediate response
+extern int XcpTlHandleTransmitQueue(); // Send all full packets in the transmit queue
+extern void XcpTlInitTransmitQueue(); // Initialize the transmit queue
+extern void XcpTlWaitForTransmitData(uint32_t timeout_ms); // Wait until packets are ready to send
 
-typedef struct {
-    uint16_t xcp_size;             // Number of overall bytes in XCP DTO messages
-    uint16_t xcp_uncommited;       // Number of uncommited XCP DTO messages
-    uint8_t xcp[XCPTL_SOCKET_JUMBO_MTU_SIZE]; // Contains concatenated messages
-} tXcpDtoBuffer;
-
-
-
-extern int XcpTlInit(uint8_t* slaveAddr, uint16_t slavePort, uint16_t slaveMTU);
-extern void XcpTlShutdown();
-
-extern const char* XcpTlGetSlaveAddrString();
-extern uint16_t XcpTlGetSlavePort();
-extern int XcpTlGetSlaveMAC(uint8_t* mac);
-
-extern int XcpTlHandleCommands();
-extern int XcpTlSendCrm(const uint8_t* data, uint16_t n);
-
-extern uint8_t* XcpTlGetDtoBuffer(void** par, uint16_t size);
-extern void XcpTlCommitDtoBuffer(void* par);
-extern void XcpTlFlushTransmitQueue();
-extern int XcpTlHandleTransmitQueue();
-extern void XcpTlInitTransmitQueue();
-extern void XcpTlWaitForTransmitData(unsigned int timeout_us);
-
-/* Set cluster id */
-#if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
-extern void XcpTlSetClusterId(uint16_t clusterId);
-#endif
-
-// Test instrumentation
-#ifdef APP_ENABLE_A2L_GEN
-void XcpTlCreateA2lDescription();
-#endif
-extern uint64_t XcpTlGetBytesWritten();
-
+extern void XcpTlSetClusterId(uint16_t clusterId); // Set cluster id for GET_DAQ_CLOCK_MULTICAST reception
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif
