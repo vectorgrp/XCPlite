@@ -7,19 +7,20 @@ Lightweight implementation of the ASAM XCP Protocol Layer V1.4 (XCPlite.c).
 
 Supports Linux 32/64 Bit and Windows 32/64 Bit
 Posix and Windows Sockets 
-Windows XP-API sockets for BroadrReach available on request
+Windows XL-API sockets for BroadrReach available on request
 
 List of restrictions compared to Vectors free xcpBasic and commercial xcpProf in source file xcpLite.c.
 
-Supports only XCP on Ethernet, UDP or TCP
-Thread safe, minimal thread lock and zero copy data acquisition.
+Supports only XCP on Ethernet, UDP or TCP / IPv4
 C and C++ target support.
 
+Thread safe, minimal thread lock and zero copy data acquisition (DAQ).
 Achieves 100 MByte/s throughput on a Raspberry Pi 4 (jumbo frames enabled) with low cpu time in event copy routine
 
-No A2L (ASAP2 ECU description) required.
+Simple, single calibration page example (CAL).
+
 An A2L with reduced featureset is generated through code instrumentation during runtime on target system
-and automatically uploaded by XCP.
+and can be uploaded by XCP.
 
 C and C++ measurement demo variables and code example in ecu.c and ecupp.cpp.
 Demo how to measure global variables and dynamic instances of structs and classes.
@@ -84,6 +85,20 @@ Version 4:
 - Support for Vector XL-API removed
 
 ## Build
+
+Source:
+xcpLite.c     XCP Protocol Layer 
+xcpTl.c       XCP Transport Layer XCP on Ethernet (IPv4 - TCP or UDP)
+xcpServer.c   XPC implementation (Receive and Transmit Threads)
+xcpAppl.c     Platform and feature specific functions (timestamp clock, address conversion, calibration page handling, ...)
+clock.c       64 bit ns resolution, monotonic realtime clock (1ns since 1.1.1970)
+platform.c    Operating system abtraction for Windows/Linux Mutex, Thread and Socket
+A2L.c Simple  ASAM A2L file writer (reduced feature set)
+
+main.cpp, ecupp.cpp, ecu.c     Demo application code 
+
+
+
 
 ### Linux x86_64
 
