@@ -1,28 +1,28 @@
 
-# XCPlite V4
+# XCPlite V5
 
 Copyright 2021 Vector Informatik GmbH
 
-Lightweight implementation of the ASAM XCP Protocol Layer V1.4 (1000 lines of code in XCPlite.c).
+Lightweight implementation of the ASAM XCP Protocol Layer V1.4.
 
-Supports Linux 32/64 Bit and Windows 32/64 Bit
-Posix and Windows Sockets or Vector VN5xxx automotive Ethernet devices
-100-Base-T1 or 1000-Base-T1 BroadrReach, XL-API V3 network based access
+Supports Linux 32/64 Bit and Windows 32/64 Bit.
+Posix and Windows Sockets or Vector VN5xxx automotive Ethernet devices.
+100-Base-T1 or 1000-Base-T1 BroadrReach, XL-API V3 network based access.
 
 List of restrictions compared to Vectors free xcpBasic and commercial xcpProf in source file xcpLite.c.
 
-Supports only XCP on Ethernet/UDP
+Supports only XCP on Ethernet, TCP or UDP
 Thread safe, minimal thread lock and zero copy data acquisition.
 C and C++ target support.
 
-Achieves 40 MByte/s throughput on a Raspberry Pi 4 (jumbo frames enabled) with 3% cpu time in event copy routine
+Achieves up to 100 MByte/s throughput on a Raspberry Pi 4 (jumbo frames enabled).
 
 Quick start with no A2L (ASAP2 ECU description) required.
 An A2L with reduced featureset is generated through code instrumentation during runtime on target system
 and automatically uploaded by XCP).
 
-C and C++ measurement demo variables and code example in ecu.c and ecupp.cpp.
-Demo how to measure global variables and dynamic instances of structs and classes.
+C and C++ measurement demo C_DEMO / CPP_Demo.
+Calibrate and measure global variables and dynamic instances of classes.
 
 
 ## Code instrumentation for measurement:
@@ -51,14 +51,21 @@ Example:
 
 ```
   channel1 += 0.6;
-  XcpEvent(1); // Trigger event here, timestamp and copy measurement data
+  XcpEvent(1); // Trigger event, timestamp and copy measurement data
 ```
-
-Demo visual Studio solution and CANape project included for Raspberry Pi 4 and Windows 32/64.
 
 ![CANape](Screenshot.png)
 
 
+## Changes in V5:
+
+C and C++ Demo code seperated
+UDP or TCP support for sockets, UDP support for XL-API (Vector VN56xx Ethernet Interfaces)
+XL-API DLLs not included, download from Vector Website required
+Refactoring to reduce and clarify dependencies, platform.c and xcpAppl.c
+Improved cmake support
+XCP server implementation as a C++ class 
+Improved runtime type generation for A2L generator when compiled as C++
 
 
 ## Configuration options:

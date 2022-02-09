@@ -1,0 +1,46 @@
+#pragma once
+
+// main_cfg.h.in
+// C_Demo
+
+/* Copyright(c) Vector Informatik GmbH.All rights reserved.
+   Licensed under the MIT license.See LICENSE file in the project root for details. */
+
+
+#define APP_NAME "C_Demo"
+#define APP_VERSION_MAJOR @C_Demo_VERSION_MAJOR@
+#define APP_VERSION_MINOR @C_Demo_VERSION_MINOR@
+
+
+//-----------------------------------------------------------------------------------------------------
+// Application configuration:
+// XCP configuration is in xcp_cfg.h (Protocol Layer) and xcptl_cfg.h (Transport Layer)
+
+#define ON 1
+#define OFF 0
+
+#define OPTION_DEBUG_LEVEL @OPTION_DEBUG_LEVEL@ 
+
+// A2L generation
+#define OPTION_ENABLE_A2L_GEN @OPTION_ENABLE_A2L_GEN@ // Enable A2L generation
+
+// Default ip addr and port
+#define OPTION_ENABLE_TCP @OPTION_ENABLE_TCP@ 
+#define OPTION_SERVER_PORT @OPTION_SERVER_PORT@ // Default UDP port, overwritten by commandline option
+#define OPTION_SERVER_ADDR @OPTION_SERVER_ADDR@ // Default IP addr, 0.0.0.0 = ANY, 255.255.255.255 = first adapter addr, overwritten by commandline option
+
+// Calibration segment
+#define OPTION_ENABLE_CAL_SEGMENT @OPTION_ENABLE_CAL_SEGMENT@
+
+#define OPTION_ENABLE_XLAPI_V3 @OPTION_ENABLE_XLAPI_V3@ 
+#if OPTION_ENABLE_XLAPI_V3
+
+#define OPTION_USE_XLAPI_V3 @OPTION_USE_XLAPI_V3@ // Use XL-API by default
+#define OPTION_SERVER_XL_ADDR @OPTION_SERVER_XL_ADDR@ // XL_API Ethernet Adapter IP
+#define OPTION_SERVER_XL_MAC @OPTION_SERVER_XL_MAC@ // XL_API Ethernet Adapter MAC
+#define OPTION_SERVER_XL_NET "@OPTION_SERVER_XL_NET@" // XL_API Network name
+#define OPTION_SERVER_XL_SEG "@OPTION_SERVER_XL_SEG@" // XL_API Segment name
+
+#endif
+
+
