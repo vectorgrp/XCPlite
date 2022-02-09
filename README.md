@@ -57,8 +57,21 @@ Example:
 ![CANape](Screenshot.png)
 
 
-## Changes in V5:
+## Configuration options:
 
+All settings and parameters for the XCP protocol and transport layer are located in xcp_cfg.h and xcptl_cfg.h
+Compile options for the XCPlite demos are located in main_cfg.h:
+
+## Notes:
+- If A2L generation and upload is disabled, use CANape address update with Linker Map Type ELF extended for a.out format or PDB for .exe
+- Linux Compile with -O2, Link with -pthread
+- 64 bit version needs all objects within one 4 GByte data segment
+
+
+
+## Version History
+
+Version 5:
 C and C++ Demo code seperated
 UDP or TCP support for sockets, UDP support for XL-API (Vector VN56xx Ethernet Interfaces)
 XL-API DLLs not included, download from Vector Website required
@@ -67,23 +80,11 @@ Improved cmake support
 XCP server implementation as a C++ class 
 Improved runtime type generation for A2L generator when compiled as C++
 
-
-## Configuration options:
-
-All settings and parameters for the XCP protocol and transport layer are located in xcp_cfg.h and xcptl_cfg.h
-Compile options for the XCPlite demo are located in main_cfg.h:
-
-## Notes:
-- If A2L generation and upload is disabled, use CANape address update with Linker Map Type ELF extended for a.out format or PDB for .exe
-- The A2L generator creates a unique file name for the A2L, for convinience use name detection (GET_ID 1)
-- Linux Compile with -O2, Link with -pthread
-- 64 bit version needs all objects within one 4 GByte data segment
-
-## Version History
 Version 4:
 - Refactoring to minimize dependencies
 - All dependencies to UDP socket library in platform.h/.c
 - Support for Vector XL-API removed
+
 
 ## Build
 
