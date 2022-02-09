@@ -13,53 +13,6 @@
 #include "../src/platform.h"
 #include "../src/util.h"
 
-#if OPTION_ENABLE_A2L_GEN
-#include "../src/xcpLite.h"
-#include "../src/A2L.h"
-#endif
-
-
-
-
-/**************************************************************************/
-// Pseudo random
-/**************************************************************************/
-
-
-// Pseudo random unsigned int 0-15
-static unsigned int r = 0;
-
-
-void seed16(unsigned int seed) {
-    r = seed;
-}
-
-unsigned int random16() {
-    r = 36969 * (r & 65535) + (r >> 16);
-    return r & 0xF;
-}
-
-
-
-
-/**************************************************************************/
-// fast Math functions
-/**************************************************************************/
-
-#define TAB_SIZE (3141)
-static double sinTab[TAB_SIZE] = { 0 };
-
-
-void fastMathInit() {
-    for (unsigned int i = 0; i < TAB_SIZE; i++) {
-        sinTab[i] = sin(((double)i / TAB_SIZE) * M_2PI);
-        
-    }
-}
-
-double fastSin(double x) {
-    return sinTab[(unsigned int)(fmod(x, M_2PI) / M_2PI * TAB_SIZE)];
-}
 
 
 
@@ -228,7 +181,7 @@ BOOL cmdline_parser(int argc, char* argv[]) {
 #endif
 #if OPTION_ENABLE_XLAPI_V3
     if (gOptionUseXLAPI) {
-        printf("Using XL-API V3 with %u.%u.%u.%u:%u\n", gOptionAddr[0], gOptionAddr[1], gOptionAddr[2], gOptionAddr[3], gOptionPort);
+        printf("Using XL-API V3 with %u.%u.%u.%u:%u\n", gOptionXlServerAddr[0], gOptionXlServerAddr[1], gOptionXlServerAddr[2], gOptionXlServerAddr[3], gOptionPort);
     }
 #endif
     return TRUE;

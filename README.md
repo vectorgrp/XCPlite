@@ -66,21 +66,23 @@ Compile options for the XCPlite demos are located in main_cfg.h:
 - If A2L generation and upload is disabled, use CANape address update with Linker Map Type ELF extended for a.out format or PDB for .exe
 - Linux Compile with -O2, Link with -pthread
 - 64 bit version needs all objects within one 4 GByte data segment
+- Enable XL-API on command line: C_Demo -v3 -addr 172.31.31.1 -port 5555
 
 
 
 ## Version History
 
 Version 5:
-C and C++ Demo code seperated
-UDP or TCP support for sockets, UDP support for XL-API (Vector VN56xx Ethernet Interfaces)
-XL-API DLLs not included, download from Vector Website required
-Refactoring to reduce and clarify dependencies, platform.c and xcpAppl.c
-Improved cmake support
-XCP server implementation as a C++ class 
-Improved runtime type generation for A2L generator when compiled as C++
+- C and C++ Demo code seperated
+- UDP or TCP support for sockets, UDP support for XL-API (Vector VN56xx Ethernet Interfaces)
+- XL-API DLLs not included, download from Vector Website required
+- Refactoring to reduce and clarify dependencies, platform.c and xcpAppl.c
+- Improved cmake support
+- XCP server implementation as a C++ class 
+- Improved runtime type generation for A2L generator when compiled as C++
 
 Version 4:
+
 - Refactoring to minimize dependencies
 - All dependencies to UDP socket library in platform.h/.c
 - Support for Vector XL-API removed
