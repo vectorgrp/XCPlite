@@ -6,12 +6,12 @@
    Licensed under the MIT license.See LICENSE file in the project root for details. */
 
 
-   /***************************************************************************/
-   /* Commands                                                                */
-   /***************************************************************************/
+/***************************************************************************/
+/* Commands                                                                */
+/***************************************************************************/
 
-   /*-------------------------------------------------------------------------*/
-   /* Standard Commands */
+/*-------------------------------------------------------------------------*/
+/* Standard Commands */
 
 #define CC_CONNECT                        0xFF
 #define CC_DISCONNECT                     0xFE
@@ -504,7 +504,7 @@
 #define CRM_GET_ID_MODE                                 CRM_BYTE(1)
 #define CRM_GET_ID_LENGTH                               CRM_DWORD(1)
 #define CRM_GET_ID_DATA                                 (&CRM_BYTE(8))
-
+#define CRM_GET_ID_DATA_MAX_LEN                         (sizeof(CRM)-8)
 
 /* SET_REQUEST */
 #define CRO_SET_REQUEST_LEN                             4
@@ -1041,7 +1041,7 @@
 
 
 #define CRM_TIME_SYNC_PROPERTIES_LEN                        8
-#define CRM_TIME_SYNC_PROPERTIES_SERVER_CONFIG               CRM_BYTE(1)
+#define CRM_TIME_SYNC_PROPERTIES_SERVER_CONFIG              CRM_BYTE(1)
 #define CRM_TIME_SYNC_PROPERTIES_OBSERVABLE_CLOCKS          CRM_BYTE(2)
 #define CRM_TIME_SYNC_PROPERTIES_SYNC_STATE                 CRM_BYTE(3)
 #define CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO                 CRM_BYTE(4)
@@ -1052,16 +1052,16 @@
 #define SERVER_CONFIG_RESPONSE_FMT_LEGACY                    (0)
 #define SERVER_CONFIG_RESPONSE_FMT_ADVANCED                  (2)
 #define SERVER_CONFIG_DAQ_TS_ECU                             (1 << 2)
-#define SERVER_CONFIG_DAQ_TS_SERVER                           (0 << 2)
+#define SERVER_CONFIG_DAQ_TS_SERVER                          (0 << 2)
 #define SERVER_CONFIG_TIME_SYNC_BRIDGE_NONE                  (0 << 3)
 
 /* CRM_TIME_SYNC_PROPERTIES_OBSERVABLE_CLOCKS: */
 #define LOCAL_CLOCK_FREE_RUNNING    (0<<0)
 #define LOCAL_CLOCK_SYNCED          (1<<0)
 #define LOCAL_CLOCK_NONE            (2<<0)
-#define GRANDM_CLOCK_NONE     (0<<2)
-#define GRANDM_CLOCK_READABLE (1<<2)
-#define GRANDM_CLOCK_EVENT    (2<<2)
+#define GRANDM_CLOCK_NONE           (0<<2)
+#define GRANDM_CLOCK_READABLE       (1<<2)
+#define GRANDM_CLOCK_EVENT          (2<<2)
 #define ECU_CLOCK_NONE              (0<<4)
 #define ECU_CLOCK_READABLE          (1<<4)
 #define ECU_CLOCK_EVENT             (2<<4)
@@ -1078,8 +1078,8 @@
 
 
 /* CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO: */
-#define CLOCK_INFO_SERVER            (1<<0)
-#define CLOCK_INFO_GRANDM     (1<<1)
+#define CLOCK_INFO_SERVER           (1<<0)
+#define CLOCK_INFO_GRANDM           (1<<1)
 #define CLOCK_INFO_RELATION         (1<<2)
 #define CLOCK_INFO_ECU              (1<<3)
 #define CLOCK_INFO_ECU_GRANDM       (1<<4)
@@ -1162,9 +1162,9 @@ typedef struct {
 
 
 /* Transport Layer commands */
-#define CC_TL_GET_SERVER_ID                                  0xFF
-#define CC_TL_GET_SERVER_ID_EXTENDED                         0xFD
-#define CC_TL_SET_SERVER_IP                                  0xFC
+#define CC_TL_GET_SERVER_ID                                 0xFF
+#define CC_TL_GET_SERVER_ID_EXTENDED                        0xFD
+#define CC_TL_SET_SERVER_IP                                 0xFC
 #define CC_TL_GET_DAQ_CLOCK_MULTICAST                       0xFA
 #define CRO_TL_SUBCOMMAND                                   CRO_BYTE(1)
 

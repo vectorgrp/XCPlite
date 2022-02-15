@@ -13,8 +13,14 @@
 #define A2L_TYPE_INT16   -2
 #define A2L_TYPE_INT32   -4
 #define A2L_TYPE_INT64   -8
+
 #define A2L_TYPE_FLOAT   -9
 #define A2L_TYPE_DOUBLE  -10
+
+#define A2L_TYPE_REAL(size) ((size==4)?A2L_TYPE_FLOAT:A2L_TYPE_DOUBLE)
+#define A2L_TYPE_UINT(size) (size)
+#define A2L_TYPE_INT(size) -(size)
+
 
 #ifndef __cplusplus
 #error

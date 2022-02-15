@@ -3,7 +3,6 @@
   <ItemGroup>
     <ClCompile Include="ecu.c" />
     <ClCompile Include="main.c" />
-    <ClCompile Include="xcpAppl.c" />
     <ClCompile Include="..\src\A2L.c">
       <Filter>src</Filter>
     </ClCompile>
@@ -26,6 +25,9 @@
       <Filter>xlapi</Filter>
     </ClCompile>
     <ClCompile Include="..\src\util.c">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\xcpAppl.c">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
@@ -62,7 +64,9 @@
     <ClInclude Include="..\src\util.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="xcpAppl.h" />
+    <ClInclude Include="..\src\xcpAppl.h">
+      <Filter>src</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="src">

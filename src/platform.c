@@ -19,12 +19,14 @@
 #include "platform.h"
 #include "util.h"
 
+#ifdef _WIN // Windows needs to link with Ws2_32.lib
+
 #if OPTION_ENABLE_XLAPI_V3
-#include "../xlapi/xl_udp.h"
+#include "xl_udp.h"
 #endif
 
-#ifdef _WIN // Windows needs to link with Ws2_32.lib
 #pragma comment(lib, "ws2_32.lib")
+
 #endif
 
 

@@ -23,6 +23,8 @@
 
 // A2L generation
 #define OPTION_ENABLE_A2L_GEN ON // Enable A2L generation
+#define OPTION_A2L_FILE_NAME APP_NAME ".a2l" // A2L full filename (with path)
+#define OPTION_A2L_PROJECT_NAME "Demo" // A2L project name
 
 // Default ip addr and port
 #define OPTION_ENABLE_TCP ON 
@@ -32,7 +34,8 @@
 // Calibration segment
 #define OPTION_ENABLE_CAL_SEGMENT ON
 
-#define OPTION_ENABLE_XLAPI_V3 ON 
+#ifdef _WIN
+#define OPTION_ENABLE_XLAPI_V3 OFF 
 #if OPTION_ENABLE_XLAPI_V3
 
 #define OPTION_USE_XLAPI_V3  // Use XL-API by default
@@ -42,5 +45,5 @@
 #define OPTION_SERVER_XL_SEG "SEG1" // XL_API Segment name
 
 #endif
-
+#endif
 

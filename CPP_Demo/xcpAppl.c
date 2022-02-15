@@ -144,27 +144,6 @@ uint8_t* ApplXcpGetPointer(uint8_t addr_ext, uint32_t addr) {
 #endif
 
 
-/**************************************************************************/
-// Infos for GET_ID
-/**************************************************************************/
-
-#ifdef XCP_ENABLE_IDT_A2L_NAME // Enable GET_ID A2L filename without extension
-
-const char* ApplXcpGetName() {
-    return (char*)"CPP_Demo";
-}
-
-const char* ApplXcpGetA2lName() {
-    return ApplXcpGetName();
-}
-
-const char* ApplXcpGetA2lFileName() {
-    static char a2lPath[MAX_PATH + 100 + 4]; // Full path + name + extension
-    sprintf(a2lPath, "%s.a2l", ApplXcpGetA2lName());
-    return a2lPath;
-}
-#endif
-
 
 /**************************************************************************/
 // Read A2L to memory accessible by XCP
@@ -178,9 +157,9 @@ static uint32_t gXcpFileLength = 0; // file length
 static HANDLE hFile, hFileMapping;
 #endif
 
-BOOL ApplXcpGetA2lUpload(uint8_t** p, uint32_t* n) {
+static BOOL loadA2L() {
 
-    const char* filename = ApplXcpGetA2lFileName();
+    const char* filename = OPTION_A2L_FILE_NAME;
 
 #ifdef XCP_ENABLE_DEBUG_PRINTS
     if (ApplXcpGetDebugLevel() >= 1) printf("Load %s\n", filename);
@@ -222,11 +201,69 @@ BOOL ApplXcpGetA2lUpload(uint8_t** p, uint32_t* n) {
     if (ApplXcpGetDebugLevel() >= 1) printf("  file %s ready for upload, size=%u\n\n", filename, gXcpFileLength);
 #endif
 
-
-    * n = gXcpFileLength;
-    *p = gXcpFile;
-    return 1;
+    return TRUE;
 }
 
+BOOL ApplXcpReadA2L(uint8_t size, uint32_t addr, uint8_t* data) {
+    if (addr + size > gXcpFileLength) return FALSE;
+    memcpy(data, gXcpFile + addr, size);
+    return TRUE;
+}
 #endif
+
+
+/**************************************************************************/
+// Infos for GET_ID
+/**************************************************************************/
+
+uint32_t ApplXcpGetId(uint8_t id, uint8_t* buf, uint32_t bufLen) {
+
+    uint32_t len = 0;
+    switch (id) {
+
+    case IDT_ASCII:
+    case IDT_ASAM_NAME:
+        len = (uint32_t)strlen(APP_NAME);
+        if (buf) {
+            if (len > bufLen) return 0; // Insufficient buffer space
+            strncpy((char*)buf, APP_NAME, len);
+        }
+        break;
+
+    case IDT_ASAM_PATH:
+        len = (uint32_t)strlen(OPTION_A2L_FILE_NAME);
+        if (buf) {
+            if (len > bufLen) return 0; // Insufficient buffer space
+            strncpy((char*)buf, OPTION_A2L_FILE_NAME, len);
+        }
+        break;
+
+    case IDT_ASAM_EPK:
+        // Not implemented
+        break;
+
+#ifdef XCP_ENABLE_IDT_A2L_UPLOAD
+    case IDT_ASAM_UPLOAD:
+        if (!loadA2L()) return 0;
+        len = gXcpFileLength;
+        break;
+#endif
+
+#ifdef XCP_ENABLE_IDT_A2L_HTTP_GET
+    case IDT_ASAM_URL:
+        if (buf) {
+            uint8_t addr[4];
+            if (socketGetLocalAddr(NULL, addr)) {
+                sprintf_s((char*)buf, bufLen, "http://%u.%u.%u.%u:%u/A2L", addr[0], addr[1], addr[2], addr[3], 8080);
+                len = (uint32_t)strlen((char*)buf);
+            }
+        }
+        break;
+#endif
+
+    }
+    return len;
+}
+
+
 

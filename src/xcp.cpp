@@ -48,14 +48,16 @@ Xcp::Xcp() : useTCP(FALSE), usePTP(FALSE), port(0), addr(), a2lFile(NULL) {
 
 }
 
+Xcp::~Xcp() {}
 
 
-BOOL Xcp::init(const uint8_t* addr, uint16_t port, BOOL useTCP, BOOL usePTP) {
 
-    this->addr = addr;
-    this->port = port;
-    this->useTCP = useTCP;
-    this->usePTP = usePTP;
+BOOL Xcp::init(const uint8_t* addr0, uint16_t port0, BOOL useTCP0, BOOL usePTP0) {
+
+    addr = addr0;
+    port = port0;
+    useTCP = useTCP0;
+    usePTP = usePTP0;
     a2lFile = NULL;
 
     // Init network
@@ -164,13 +166,13 @@ uint32_t Xcp::getA2lAddr(uint8_t* p) { // Get A2L addr from pointer
 }
 
 const char* Xcp::getA2lFileName() {
-    return ApplXcpGetA2lFileName();
+    return OPTION_A2L_FILE_NAME;
 }
 
 A2L* Xcp::createA2L(const char* projectName) {
 
     if (a2lFile) return a2lFile;
-    a2lFile = new A2L(ApplXcpGetA2lFileName());
+    a2lFile = new A2L(OPTION_A2L_FILE_NAME);
     if (!a2lFile->open(projectName)) return NULL;
 #ifdef OPTION_ENABLE_CAL_SEGMENT
     void create_MOD_PAR(uint32_t startAddr, uint32_t size);

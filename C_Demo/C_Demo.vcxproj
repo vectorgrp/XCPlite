@@ -95,7 +95,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\C_Demo\;$(SolutionDir)\src\;$(SolutionDir)\xlapi\</AdditionalIncludeDirectories>
       <CompileAs>CompileAsC</CompileAs>
     </ClCompile>
     <Link>
@@ -109,12 +109,12 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)\C_Demo\</AdditionalIncludeDirectories>
-      <CompileAs>CompileAsC</CompileAs>
+      <AdditionalIncludeDirectories>$(SolutionDir)\C_Demo\;$(SolutionDir)\src\;$(SolutionDir)\xlapi\</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>$(SolutionDir)\xlapi\</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -125,8 +125,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)\C_Demo\</AdditionalIncludeDirectories>
-      <CompileAs>CompileAsC</CompileAs>
+      <AdditionalIncludeDirectories>$(SolutionDir)\C_Demo\;$(SolutionDir)\src\;$(SolutionDir)\xlapi\</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -143,7 +142,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\C_Demo\;$(SolutionDir)\src\;$(SolutionDir)\xlapi\</AdditionalIncludeDirectories>
       <CompileAs>CompileAsC</CompileAs>
     </ClCompile>
     <Link>
@@ -157,6 +156,7 @@
     <ClCompile Include="..\src\A2L.c" />
     <ClCompile Include="..\src\platform.c" />
     <ClCompile Include="..\src\util.c" />
+    <ClCompile Include="..\src\xcpAppl.c" />
     <ClCompile Include="..\src\xcpLite.c" />
     <ClCompile Include="..\src\xcpServer.c" />
     <ClCompile Include="..\src\xcpTl.c" />
@@ -164,13 +164,13 @@
     <ClCompile Include="..\xlapi\xl_udp.c" />
     <ClCompile Include="ecu.c" />
     <ClCompile Include="main.c" />
-    <ClCompile Include="xcpAppl.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\A2L.h" />
     <ClInclude Include="..\src\platform.h" />
     <ClInclude Include="..\src\util.h" />
     <ClInclude Include="..\src\xcp.h" />
+    <ClInclude Include="..\src\xcpAppl.h" />
     <ClInclude Include="..\src\xcpLite.h" />
     <ClInclude Include="..\src\xcpServer.h" />
     <ClInclude Include="..\src\xcpTl.h" />
@@ -179,7 +179,6 @@
     <ClInclude Include="ecu.h" />
     <ClInclude Include="main.h" />
     <ClInclude Include="main_cfg.h" />
-    <ClInclude Include="xcpAppl.h" />
     <ClInclude Include="xcptl_cfg.h" />
     <ClInclude Include="xcp_cfg.h" />
   </ItemGroup>

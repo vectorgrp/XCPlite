@@ -4,7 +4,8 @@
 /* Copyright(c) Vector Informatik GmbH.All rights reserved.
    Licensed under the MIT license.See LICENSE file in the project root for details. */
 
-#include "main_cfg.h" // Transport Layer configuration
+#include "main_cfg.h" 
+#include "platform.h" 
 #include "xcptl_cfg.h" // Transport Layer configuration
 #include "xcp_cfg.h" // Protocoll Layer configuration
 
@@ -27,14 +28,14 @@ private:
 	A2L* a2lFile;
 #endif	
 
+protected:
+
 	static MUTEX mutex;
 	static Xcp* instance;
 
-protected:
-
 	Xcp();
 	Xcp(const Xcp&) = delete; 
-	~Xcp() = delete;
+	~Xcp();
 
 	static void lock() { ::mutexLock(&mutex); };
 	static void unlock() { ::mutexUnlock(&mutex); };
@@ -119,7 +120,7 @@ protected:
 	const char* instanceName;
 
 	// Create components (A2L STRUCTURE_COMPONENTS) components of inheriting classes
-	virtual void a2lCreateTypedefComponents(A2L* a2l) {};
+	virtual void a2lCreateTypedefComponents(A2L* a2l) { (void)a2l; };
 
 public:
 

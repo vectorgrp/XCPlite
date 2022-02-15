@@ -11,14 +11,14 @@
 
 #include "main.h"
 #include "main_cfg.h"
-#include "../src/platform.h"
-#include "../src/util.h"
+#include "platform.h"
+#include "util.h"
 
 #include "xcp_cfg.h"
 #include "xcptl_cfg.h"
-#include "../src/xcp.hpp"
+#include "xcp.hpp"
 
-#include "../src/A2L.hpp"
+#include "A2L.hpp"
 
 
 
@@ -79,12 +79,12 @@ public:
         t = new thread([this]() { task(); });
     }
          
-    void calcMinMax(double value) { // track the task with current minimum and maximum value
+    void calcMinMax(double v) { // track the task with current minimum and maximum value
         
-        if (pMaxSigGen==NULL || (pMaxSigGen != this && pMaxSigGen->value < value)) {
+        if (pMaxSigGen==NULL || (pMaxSigGen != this && pMaxSigGen->value < v)) {
             pMaxSigGen = this;
         }
-        if (pMinSigGen==NULL || (pMinSigGen != this && pMinSigGen->value > value)) {
+        if (pMinSigGen==NULL || (pMinSigGen != this && pMinSigGen->value > v)) {
             pMinSigGen = this;
         }
         maxSigGenEvent->xcpEvent((uint8_t*)pMaxSigGen);
@@ -104,7 +104,7 @@ public:
             // Trigger the XCP instance event
             xcpEvent();
         }
-        printf("\nECU task %s stopped\n", instanceName);
+        //printf("\nECU task %s stopped\n", instanceName);
     }
 
     ~SigGen() {

@@ -91,11 +91,11 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
+      <WarningLevel>Level4</WarningLevel>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\CPP_Demo\;$(SolutionDir)\src\;$(SolutionDir)\xlapi\</AdditionalIncludeDirectories>
       <CompileAs>CompileAsCpp</CompileAs>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
     </ClCompile>
@@ -110,12 +110,13 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)\CPP_Demo\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\C_Demo\;$(SolutionDir)\src\;$(SolutionDir)\xlapi\</AdditionalIncludeDirectories>
       <CompileAs>CompileAsCpp</CompileAs>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>$(SolutionDir)\xlapi\</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -126,7 +127,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)\CPP_Demo\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\C_Demo\;$(SolutionDir)\src\;$(SolutionDir)\xlapi\</AdditionalIncludeDirectories>
       <CompileAs>CompileAsCpp</CompileAs>
     </ClCompile>
     <Link>
@@ -144,7 +145,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\CPP_Demo\;$(SolutionDir)\src\;$(SolutionDir)\xlapi\</AdditionalIncludeDirectories>
       <CompileAs>CompileAsCpp</CompileAs>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
     </ClCompile>
@@ -160,23 +161,24 @@
     <ClCompile Include="..\src\platform.c" />
     <ClCompile Include="..\src\util.c" />
     <ClCompile Include="..\src\xcp.cpp" />
+    <ClCompile Include="..\src\xcpAppl.c" />
     <ClCompile Include="..\src\xcpLite.c" />
     <ClCompile Include="..\src\xcpServer.c" />
     <ClCompile Include="..\src\xcpTl.c" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="xcpAppl.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\A2L.hpp" />
     <ClInclude Include="..\src\platform.h" />
     <ClInclude Include="..\src\util.h" />
+    <ClInclude Include="..\src\xcp.h" />
     <ClInclude Include="..\src\xcp.hpp" />
+    <ClInclude Include="..\src\xcpAppl.h" />
     <ClInclude Include="..\src\xcpLite.h" />
     <ClInclude Include="..\src\xcpServer.h" />
     <ClInclude Include="..\src\xcpTl.h" />
     <ClInclude Include="main.h" />
     <ClInclude Include="main_cfg.h" />
-    <ClInclude Include="xcpAppl.h" />
     <ClInclude Include="xcptl_cfg.h" />
     <ClInclude Include="xcp_cfg.h" />
   </ItemGroup>

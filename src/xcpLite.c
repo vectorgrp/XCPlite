@@ -254,10 +254,17 @@ typedef struct {
 
 static tXcpData gXcp = { 0,0,0 };
 
-
+#define CRM                       (gXcp.Crm)
+#define CRM_LEN                   (gXcp.CrmLen)
 #define CRM_BYTE(x)               (gXcp.Crm.b[x])
 #define CRM_WORD(x)               (gXcp.Crm.w[x])
 #define CRM_DWORD(x)              (gXcp.Crm.dw[x])
+
+#define CRO                       (gXcp.Cro)
+#define CRO_LEN                   (gXcp.CroLen)
+#define CRO_BYTE(x)               (gXcp.Cro.b[x])
+#define CRO_WORD(x)               (gXcp.Cro.w[x])
+#define CRO_DWORD(x)              (gXcp.Cro.dw[x])
 
 
 /****************************************************************************/
@@ -267,7 +274,7 @@ static tXcpData gXcp = { 0,0,0 };
 #define error(e) { err=(e); goto negative_response; }
 #define check_error(e) { err=(e); if (err!=0) goto negative_response;  }
 #ifdef XCP_ENABLE_DYN_ADDRESSING
-#define check_result(e) { err=(e); if (err!=0) { if (err==CRC_CMD_PENDING) { XcpPushComand(cmdData,cmdLen); goto no_response;} else goto negative_response; } }
+#define check_result(e) { err=(e); if (err!=0) { if (err==CRC_CMD_PENDING) { XcpPushCommand(); goto no_response;} else goto negative_response; } }
 #else
 #define check_result(e) { err=(e); if (err!=0) goto negative_response; }
 #endif
@@ -286,8 +293,8 @@ static tXcpData gXcp = { 0,0,0 };
 
 #ifdef XCP_ENABLE_DEBUG_PRINTS
 
-static void XcpPrintCmd(const tXcpCto *pCmd);
-static void XcpPrintRes(const tXcpCto *pCmd);
+static void XcpPrintCmd();
+static void XcpPrintRes();
 static void XcpPrintDaqList(uint16_t daq);
 
 #endif
@@ -340,52 +347,60 @@ uint32_t XcpGetDaqOverflowCount() {
 // Write n bytes. Copying of size bytes from data to gXcp.MtaPtr
 static uint8_t XcpWriteMta( uint8_t size, const uint8_t* data )
 {
+    // Ext=0x01 Relativ addressing
 #ifdef XCP_ENABLE_DYN_ADDRESSING
-    if (gXcp.MtaExt != 0) {
-        if (gXcp.MtaExt == 1) {
-            return CRC_CMD_PENDING; // Async command
-        }
-        return CRC_ACCESS_DENIED; // Access violation
+    if (gXcp.MtaExt == 0x01) {
+        return CRC_CMD_PENDING; // Async command
     }
-#else
-    if (gXcp.MtaExt != 0) return CRC_ACCESS_DENIED; // Access violation
 #endif
 
-  /* Absolute RAM memory write access */
-  if (gXcp.MtaPtr == NULL) return CRC_ACCESS_DENIED;
-  while ( size > 0 )  {
-    *gXcp.MtaPtr = *data;
-    gXcp.MtaPtr++;
-    data++;
-    size--;
-  }
-  return 0;
+    // Ext=0x00 Standard memory access
+    if (gXcp.MtaExt == 0x00) {
+        if (gXcp.MtaPtr == NULL) return CRC_ACCESS_DENIED;
+        while (size > 0) {
+            *gXcp.MtaPtr = *data;
+            gXcp.MtaPtr++;
+            data++;
+            size--;
+        }
+        return 0; // Ok
+    }
 
+    return CRC_ACCESS_DENIED; // Access violation
 }
 
 // Read n bytes. Copying of size bytes from data to gXcp.MtaPtr
 static uint8_t XcpReadMta( uint8_t size, uint8_t* data )
 {
+    // Ext=0x01 Relativ addressing
 #ifdef XCP_ENABLE_DYN_ADDRESSING
-    if (gXcp.MtaExt != 0) {
-        if (gXcp.MtaExt == 1) {
-            return CRC_CMD_PENDING; // Async command
-        }
-        return CRC_ACCESS_DENIED; // Access violation
+    if (gXcp.MtaExt == 0x01) {
+        return CRC_CMD_PENDING; // Async command
     }
-#else
-    if (gXcp.MtaExt != 0) return CRC_ACCESS_DENIED; // Access violation
 #endif
 
-  /* Absolute RAM memory read access */
-    if (gXcp.MtaPtr == NULL) return CRC_ACCESS_DENIED;
-    while (size > 0)  {
-    *data = *gXcp.MtaPtr;
-    data++;
-    gXcp.MtaPtr++;
-    size--;
-  }
-  return 0;
+    // Ext=0xFF File (A2L) upload
+#ifdef XCP_ENABLE_IDT_A2L_UPLOAD
+    if (gXcp.MtaExt == 0xFF) {
+        if (!ApplXcpReadA2L(size, gXcp.MtaAddr, data)) return CRC_ACCESS_DENIED; // Access violation
+        gXcp.MtaAddr += size;
+        return 0; // Ok
+    }
+#endif
+
+    // Ext=0x00 Standard memory access
+    if (gXcp.MtaExt == 0x00) {
+        if (gXcp.MtaPtr == NULL) return CRC_ACCESS_DENIED;
+        while (size > 0) {
+            *data = *gXcp.MtaPtr;
+            data++;
+            gXcp.MtaPtr++;
+            size--;
+        }
+        return 0; // Ok
+    }
+
+    return CRC_ACCESS_DENIED; // Access violation
 }
 
 
@@ -781,7 +796,7 @@ void XcpEventExt(uint16_t event, uint8_t* base) {
 
 #ifdef XCP_ENABLE_DYN_ADDRESSING
     if (!isStarted()) return;
-    if (gXcp.SessionStatus & SS_CMD_PENDING) { // Pending command, check if it can be executed in this context
+    if (isCmdPending()) { // Pending command, check if it can be executed in this context
         if (gXcp.MtaExt == 1 && (uint16_t)(gXcp.MtaAddr >> 16) == event) {
             // Convert MtaPtr to context
             gXcp.MtaPtr = base + (gXcp.MtaAddr & 0xFFFF);
@@ -817,20 +832,18 @@ void XcpDisconnect( void )
 }
 
 // Transmit command response
-static void XcpSendCrm(const tXcpCto* pCmd) {
+static void XcpSendResponse() {
 
-    XcpTlSendCrm(&gXcp.Crm.b[0], gXcp.CrmLen);
+    XcpTlSendCrm((const uint8_t*)&gXcp.Crm, gXcp.CrmLen);
 #ifdef XCP_ENABLE_DEBUG_PRINTS
-    if (ApplXcpGetDebugLevel() >= 1) XcpPrintRes(pCmd);
+    if (ApplXcpGetDebugLevel() >= 1) XcpPrintRes();
 #endif
 }
 
 
 //  Push XCP command which can not be executes in this context for later async execution
 #ifdef XCP_ENABLE_DYN_ADDRESSING
-static void XcpPushComand( const uint32_t* cmdData, uint16_t cmdLen ) {
-    gXcp.CroLen = (uint8_t)cmdLen;
-    memcpy(&gXcp.Cro, cmdData, cmdLen);
+static void XcpPushCommand() {
     gXcp.SessionStatus |= (uint16_t)SS_CMD_PENDING;
 }
 #endif
@@ -838,14 +851,14 @@ static void XcpPushComand( const uint32_t* cmdData, uint16_t cmdLen ) {
 //  Handles incoming XCP commands
 void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
 {
-  if (!isStarted()) return;
 
   uint8_t err = 0;
-  const tXcpCto* pCmd = (const tXcpCto*)cmdData;
 
-#define CRO_BYTE(x)               (pCmd->b[x])
-#define CRO_WORD(x)               (pCmd->w[x])
-#define CRO_DWORD(x)              (pCmd->dw[x])
+  if (!isStarted()) return;
+  if (cmdLen >= sizeof(gXcp.Cro)) return;
+  
+  gXcp.CroLen = (uint8_t)cmdLen;
+  memcpy(&gXcp.Cro, cmdData, cmdLen);
 
   // Prepare the default response
   CRM_CMD = PID_RES; /* Response, no error */
@@ -890,7 +903,7 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
   else {
 
 #ifdef XCP_ENABLE_DEBUG_PRINTS
-      if (ApplXcpGetDebugLevel() >= 1) XcpPrintCmd(pCmd);
+      if (ApplXcpGetDebugLevel() >= 1) XcpPrintCmd();
 #endif
       if (!isConnected()) { // Must be connected
 #ifdef XCP_ENABLE_DEBUG_PRINTS
@@ -936,43 +949,33 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
             break;
 
           case CC_GET_ID:
-            {
-              gXcp.CrmLen = CRM_GET_ID_LEN;
-              CRM_GET_ID_MODE = 0;
+          {
+              CRM_LEN = CRM_GET_ID_LEN;
+              CRM_GET_ID_MODE = 0; // Transfer mode
               CRM_GET_ID_LENGTH = 0;
               switch (CRO_GET_ID_TYPE) {
-              case IDT_ASCII: {
-                    const char* s = ApplXcpGetName();
-                    gXcp.MtaPtr = (uint8_t*)s;
-                    gXcp.MtaExt = 0;
-                    CRM_GET_ID_LENGTH = (uint32_t)strlen(s);
-                  }
+                case IDT_ASCII: 
+                case IDT_ASAM_NAME:
+                case IDT_ASAM_PATH:
+                case IDT_ASAM_URL:
+                case IDT_ASAM_EPK:
+                  CRM_GET_ID_LENGTH = ApplXcpGetId(CRO_GET_ID_TYPE, CRM_GET_ID_DATA, CRM_GET_ID_DATA_MAX_LEN);
+                  CRM_LEN = (uint8_t)(CRM_GET_ID_LEN+CRM_GET_ID_LENGTH);
+                  CRM_GET_ID_MODE = 0x01; // Uncompressed data in response
                   break;
-
-#ifdef XCP_ENABLE_IDT_A2L_NAME
-                  case IDT_ASAM_NAME: {
-                        const char* s = ApplXcpGetA2lName();
-                        gXcp.MtaPtr = (uint8_t*)s;
-                        gXcp.MtaExt = 0;
-                        CRM_GET_ID_LENGTH = (uint32_t)strlen(s);
-                      }
-                      break;
-#endif
 #ifdef XCP_ENABLE_IDT_A2L_UPLOAD
-                  case IDT_ASAM_UPLOAD:
-                      if (!ApplXcpGetA2lUpload(&gXcp.MtaPtr, &CRM_GET_ID_LENGTH)) error(CRC_ACCESS_DENIED);
-                      gXcp.MtaExt = 0;
-                      break;
+                case IDT_ASAM_UPLOAD:
+                    gXcp.MtaAddr = 0;
+                    gXcp.MtaExt = 0xFF;
+                    CRM_GET_ID_LENGTH = ApplXcpGetId(CRO_GET_ID_TYPE, NULL, 0);
+                    CRM_GET_ID_MODE = 0x00; // Uncompressed data upload 
+                    break;
 #endif
-                  case IDT_ASAM_PATH:
-                  case IDT_ASAM_URL:
-                      CRM_GET_ID_LENGTH = 0;     // No error, just return length=0, INCA always polls ID_TYPE 0-4
-                      break;
-                  default:
-                      error(CRC_OUT_OF_RANGE);
+                default:
+                  error(CRC_OUT_OF_RANGE);
               }
-            }
-            break;
+          }
+          break;
 
           case CC_GET_STATUS:
             {
@@ -1212,9 +1215,6 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
               if ( (CRO_START_STOP_MODE==1 ) || (CRO_START_STOP_MODE==2) )  { // start or select
                 DaqListFlags(daq) |= (uint8_t)DAQ_FLAG_SELECTED;
                 if (CRO_START_STOP_MODE == 1) { // start individual daq list
-                    #ifdef XCP_ENABLE_TEST_CHECKS
-                      error(CRC_CMD_UNKNOWN)
-                    #endif
                     XcpStartDaq(daq);
                 }
                 gXcp.CrmLen = CRM_START_STOP_LEN;
@@ -1243,7 +1243,7 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
                   break;
               case 1: /* start selected */
                   if (!ApplXcpStartDaq()) error(CRC_RESOURCE_TEMPORARY_NOT_ACCESSIBLE);
-                  XcpSendCrm(pCmd); // Transmit response and then start DAQ
+                  XcpSendResponse(); // Transmit response and then start DAQ
                   XcpStartAllSelectedDaq();
                   return;
               case 0: /* stop all */
@@ -1434,7 +1434,7 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
   }
 
   // Transmit command response
-  XcpSendCrm(pCmd);
+  XcpSendResponse();
   return;
 
   // Transmit error response
@@ -1442,7 +1442,7 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
   gXcp.CrmLen = 2;
   CRM_CMD = PID_ERR;
   CRM_ERR = err;
-  XcpSendCrm(pCmd);
+  XcpSendResponse();
   return;
 
   // Return with no responce in case of async commands
@@ -1466,7 +1466,7 @@ void XcpSendEvent(uint8_t evc, const uint8_t* d, uint8_t l)
         CRM_BYTE(1) = evc;  /* Event Code*/
         gXcp.CrmLen = 2;
         for (i = 0; i < l; i++) CRM_BYTE(gXcp.CrmLen++) = d[i++];
-        XcpTlSendCrm(&gXcp.Crm.b[0], gXcp.CrmLen);
+        XcpSendResponse();
     }
 }
 
@@ -1683,7 +1683,7 @@ uint16_t XcpCreateEvent(const char* name, uint32_t cycleTime, uint8_t priority, 
 
 #ifdef XCP_ENABLE_DEBUG_PRINTS
 
-static void XcpPrintCmd(const tXcpCto * pCmd) {
+static void XcpPrintCmd() {
 
     switch (CRO_CMD) {
 
@@ -1872,10 +1872,13 @@ static void XcpPrintCmd(const tXcpCto * pCmd) {
     } /* switch */
 }
 
-static void XcpPrintRes(const tXcpCto* pCmd) {
-
-    if (CRM_CMD == PID_ERR) {
-        const char* e;
+static void XcpPrintRes() {
+    
+    if (CRM_CMD == PID_EV) {
+        printf("<- EVENT: %02Xh\n", CRM_BYTE(1));
+    }
+    else if (CRM_CMD == PID_ERR) {
+                const char* e;
         switch (CRM_ERR) {
                 case  CRC_CMD_SYNCH: e = "CRC_CMD_SYNCH"; break;
                 case  CRC_CMD_BUSY: e = "CRC_CMD_BUSY"; break;

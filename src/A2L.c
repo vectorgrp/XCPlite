@@ -49,8 +49,7 @@ static const char* gA2lHeader =
 
 //----------------------------------------------------------------------------------
 #ifdef OPTION_ENABLE_CAL_SEGMENT
-static const char* gA2lModPar =
-"/begin MOD_PAR \"\"\n"
+static const char* gA2lMemorySegment =
 "/begin MEMORY_SEGMENT\n"
 "CALRAM \"\" DATA FLASH INTERN 0x%08X 0x%08X - 1 - 1 - 1 - 1 - 1\n" // CALRAM_START, CALRAM_SIZE
 "/begin IF_DATA XCP\n"
@@ -60,9 +59,7 @@ static const char* gA2lModPar =
 "/begin PAGE 0x00 ECU_ACCESS_WITH_XCP_ONLY XCP_READ_ACCESS_WITH_ECU_ONLY XCP_WRITE_ACCESS_WITH_ECU_ONLY /end PAGE\n"
 "/end SEGMENT\n"
 "/end IF_DATA\n"
-"/end MEMORY_SEGMENT\n"
-"/end MOD_PAR\n"
-"\n";
+"/end MEMORY_SEGMENT\n";
 #endif
 
 static const char* gA2lIfData1 = // Parameters %04X version, %u max cto, %u max dto, %u max event, %s timestamp unit
@@ -250,8 +247,12 @@ BOOL A2lOpen(const char *filename, const char* projectName ) {
 
 // Memory segments
 #ifdef OPTION_ENABLE_CAL_SEGMENT
-void A2lCreate_MOD_PAR(uint32_t startAddr, uint32_t size) {
-	fprintf(gA2lFile, gA2lModPar, startAddr, size);
+void A2lCreate_MOD_PAR(uint32_t startAddr, uint32_t size, char *epk) {
+	fprintf(gA2lFile, "/begin MOD_PAR \"\"\n");
+	fprintf(gA2lFile, "EPK \"%s\"\n", epk);
+	fprintf(gA2lFile, "ADDR_EPK 0x%08X\n", ApplXcpGetAddr((uint8_t*)epk));
+	fprintf(gA2lFile, gA2lMemorySegment, startAddr, size);
+	fprintf(gA2lFile, "/end MOD_PAR\n\n");
 }
 #endif
 

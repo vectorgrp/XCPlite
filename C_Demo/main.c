@@ -12,13 +12,13 @@
 
 #include "main.h"
 #include "main_cfg.h"
-#include "..\src\platform.h"
-#include "../src/util.h"
-#include "..\src\xcpTl.h"
-#include "..\src\xcpLite.h"
-#include "..\src\xcpServer.h"
+#include "platform.h"
+#include "util.h"
+#include "xcpTl.h"
+#include "xcpLite.h"
+#include "xcpServer.h"
 #if OPTION_ENABLE_A2L_GEN
-#include "..\src\A2L.h"
+#include "A2L.h"
 #endif
 #include "ecu.h" // Demo measurement task in C
 
@@ -27,12 +27,11 @@
 // Create A2L file
 
 #if OPTION_ENABLE_A2L_GEN
-static BOOL createA2L(const char* a2l_path_name) {
+static BOOL createA2L() {
 
-    if (!A2lOpen(a2l_path_name, ApplXcpGetName() )) return FALSE;
-
-    A2lCreateParameterWithLimits(gDebugLevel, A2L_TYPE_UINT32, "Console output verbosity", "", 0, 100);
+    if (!A2lOpen(OPTION_A2L_FILE_NAME, OPTION_A2L_PROJECT_NAME )) return FALSE;
     ecuCreateA2lDescription();
+    A2lCreateParameterWithLimits(gDebugLevel, A2L_TYPE_UINT32, "Console output verbosity", "", 0, 100);
     A2lCreate_IF_DATA(gOptionUseTCP, gOptionAddr, gOptionPort);
     A2lClose();
     return TRUE;
@@ -45,7 +44,7 @@ static BOOL createA2L(const char* a2l_path_name) {
 
 int main(int argc, char* argv[]) {
 
-    printf("\n%s - XCP on Ethernet C Demo\n", ApplXcpGetName());
+    printf("\nXCP on Ethernet C Demo\n");
     if (!cmdline_parser(argc, argv)) return 0;
 
     // Init network
@@ -60,14 +59,14 @@ int main(int argc, char* argv[]) {
     // Initialize measurement task thread
     ecuInit();
 #if OPTION_ENABLE_A2L_GEN
-    createA2L(ApplXcpGetA2lFileName());
+    createA2L();
 #endif
     tXcpThread t2;
     create_thread(&t2, ecuTask);
 
     // Loop   
     for (;;) {
-        Sleep(100);
+        sleepMs(100);
         if (!XcpServerStatus()) { printf("\nXCP Server failed\n");  break;  } // Check if the XCP server is running
         if (_kbhit()) {
             if (_getch() == 27) { XcpSendEvent(EVC_SESSION_TERMINATED, NULL, 0);  break; } // Stop on ESC

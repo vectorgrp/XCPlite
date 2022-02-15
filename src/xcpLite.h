@@ -117,15 +117,11 @@ extern uint8_t ApplXcpGetClockState();
 extern BOOL ApplXcpGetClockInfoGrandmaster(uint8_t* uuid, uint8_t* epoch, uint8_t* stratum);
 #endif
 
-/* Info */
-#ifdef XCP_ENABLE_IDT_A2L_NAME // Enable GET_ID: A2L filename without extension
-extern const char* ApplXcpGetA2lName();
-extern const char* ApplXcpGetA2lFileName();
-#endif
+/* Info (for GET_ID) */
+extern uint32_t ApplXcpGetId(uint8_t id, uint8_t* buf, uint32_t bufLen);
 #ifdef XCP_ENABLE_IDT_A2L_UPLOAD // Enable GET_ID: A2L content upload to host
-extern BOOL ApplXcpGetA2lUpload(uint8_t** p, uint32_t* n);
+extern BOOL ApplXcpReadA2L(uint8_t size, uint32_t addr, uint8_t* data);
 #endif
-extern const char* ApplXcpGetName();
 
 /* Debug print verbosity */
 #ifndef ApplXcpGetDebugLevel

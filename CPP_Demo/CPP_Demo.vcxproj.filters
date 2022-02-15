@@ -8,7 +8,6 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="xcpAppl.c" />
     <ClCompile Include="..\src\xcpLite.c">
       <Filter>src</Filter>
     </ClCompile>
@@ -22,6 +21,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\util.c">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\xcpAppl.c">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
@@ -51,7 +53,12 @@
     <ClInclude Include="..\src\xcpTl.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="xcpAppl.h" />
+    <ClInclude Include="..\src\xcp.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\xcpAppl.h">
+      <Filter>src</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="src">

@@ -21,14 +21,14 @@
 
 // A2L generation
 #define OPTION_ENABLE_A2L_GEN ON // Enable A2L generation
+#define OPTION_A2L_FILE_NAME APP_NAME ".a2l" // A2L full filename (with path)
+#define OPTION_A2L_PROJECT_NAME "Demo" // A2L project name
 
 // Default ip addr and port
-#define OPTION_USE_TCP ON 
+#define OPTION_ENABLE_TCP ON 
 #define OPTION_SERVER_PORT 5555 // Default UDP port
 #define OPTION_SERVER_ADDR {127,0,0,1} // Default IP addr, 0.0.0.0 = ANY, 255.255.255.255 = first adapter addr
 
-// Calibration segment
-#define OPTION_ENABLE_CAL_SEGMENT 
 
 
 
