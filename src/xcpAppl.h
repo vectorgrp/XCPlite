@@ -7,7 +7,6 @@
 
 
 // Debug output control
-extern uint32_t gDebugLevel;
 //#define ApplXcpGetDebugLevel() gDebugLevel
 extern uint32_t ApplXcpGetDebugLevel();
 

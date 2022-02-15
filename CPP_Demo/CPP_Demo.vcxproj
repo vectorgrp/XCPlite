@@ -173,12 +173,12 @@
     <ClInclude Include="..\src\util.h" />
     <ClInclude Include="..\src\xcp.h" />
     <ClInclude Include="..\src\xcp.hpp" />
-    <ClInclude Include="..\src\xcpAppl.h" />
     <ClInclude Include="..\src\xcpLite.h" />
     <ClInclude Include="..\src\xcpServer.h" />
     <ClInclude Include="..\src\xcpTl.h" />
     <ClInclude Include="main.h" />
     <ClInclude Include="main_cfg.h" />
+    <ClInclude Include="xcpAppl.h" />
     <ClInclude Include="xcptl_cfg.h" />
     <ClInclude Include="xcp_cfg.h" />
   </ItemGroup>

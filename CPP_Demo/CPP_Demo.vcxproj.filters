@@ -56,7 +56,7 @@
     <ClInclude Include="..\src\xcp.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\xcpAppl.h">
+    <ClInclude Include="xcpAppl.h">
       <Filter>src</Filter>
     </ClInclude>
   </ItemGroup>

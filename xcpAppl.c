@@ -3,8 +3,7 @@
 |   xcpAppl.c
 |
 | Description:
-|   
-|   Platform and implementation specific functions used by the XCP implementation
+|   Application specific functions for xcpLite
 |   All other callbacks/dependencies are implemented as macros in xcpAppl.h
 |
 | Copyright (c) Vector Informatik GmbH. All rights reserved.
@@ -14,11 +13,20 @@
 
 #include "main.h"
 #include "main_cfg.h"
-#include "../src/platform.h"
-#include "../src/util.h"
-#include "../src/xcp.h"
-#include "../src/xcp.hpp"
-
+#include "platform.h"
+#ifdef VECTOR_INTERNAL  // >>>>>>>>>>>>>>>>>>>>>>>>>>>
+#include "ptp.h"
+#endif // VECTOR_INTERNAL <<<<<<<<<<<<<<<<<<<<<<<<<<<<
+#include "util.h"
+#include "xcpLite.h"
+#ifdef APP_CPP_Demo
+#include "xcp.hpp"
+#endif
+#ifndef APP_CPP_Demo
+#ifdef OPTION_ENABLE_CAL_SEGMENT
+#include "ecu.h"
+#endif
+#endif
 
     
 /**************************************************************************/
@@ -34,6 +42,8 @@ uint32_t ApplXcpGetDebugLevel() {
 /**************************************************************************/
 // General Callbacks
 /**************************************************************************/
+
+#ifdef APP_CPP_Demo
 
 BOOL ApplXcpConnect() {
     return Xcp::getInstance()->onConnect();
@@ -51,14 +61,73 @@ BOOL ApplXcpStopDaq() {
     return Xcp::getInstance()->onStopDaq();
 }
 
+#else
+
+BOOL ApplXcpConnect() {
+    return TRUE;
+}
+
+BOOL ApplXcpPrepareDaq() { 
+#if OPTION_ENABLE_PTP
+    if (gOptionPTP) {
+        return ptpClockPrepareDaq();
+    }
+    else {
+        return TRUE;
+    }
+#else
+    return TRUE;
+#endif
+}
+
+BOOL ApplXcpStartDaq() {
+    return TRUE;
+}
+
+BOOL ApplXcpStopDaq() {
+    return TRUE;
+}
+
+#endif
 
 /**************************************************************************/
 // Clock
 // Get clock for DAQ timestamps
 /**************************************************************************/
 
-// XCP slave clock timestamp resolution defined in xcp_cfg.h
+// XCP server clock timestamp resolution defined in xcp_cfg.h
 // Clock must be monotonic !!!
+
+#if OPTION_ENABLE_PTP
+
+uint64_t ApplXcpGetClock64() { 
+    if (gOptionPTP) {
+        return ptpClockGet64();
+    }
+    else {
+        return clockGet64();
+    }
+}
+
+uint8_t ApplXcpGetClockState() { 
+    if (gOptionPTP) {
+        return ptpClockGetState();
+    }
+    else {
+        return CLOCK_STATE_FREE_RUNNING;
+    }
+}
+
+BOOL ApplXcpGetClockInfoGrandmaster(uint8_t* uuid, uint8_t* epoch, uint8_t* stratum) {
+    if (gOptionPTP) {
+        return ptpClockGetGrandmasterInfo(uuid, epoch, stratum);
+    }
+    else {
+        return FALSE;
+    }
+}
+
+#else 
 
 uint64_t ApplXcpGetClock64() {
     return clockGet64();
@@ -68,25 +137,40 @@ uint8_t ApplXcpGetClockState() {
     return LOCAL_CLOCK_STATE_FREE_RUNNING;
 }
 
+#ifdef XCP_ENABLE_PTP
 BOOL ApplXcpGetClockInfoGrandmaster(uint8_t* uuid, uint8_t* epoch, uint8_t* stratum) {
     (void)uuid;
     (void)epoch;
     (void)stratum;
     return FALSE;
 }
+#endif
+
+#endif 
+
 
 /**************************************************************************/
 // Pointer - Address conversion
 /**************************************************************************/
 
+// 64 Bit and 32 Bit platform pointer to XCP/A2L address conversions
+// XCP memory access is limited to a 4GB address range
 
-    // 64 Bit and 32 Bit platform pointer to XCP/A2L address conversions
-    // XCP memory access is limited to a 4GB address range
+// The XCP addresses with extension = 0 for Win32 and Win64 versions of XCPlite are defined as relative to the load address of the main module
+// This allows using Microsoft linker PDB files for address update
+// In Microsoft Visual Studio set option "Generate Debug Information" to "optimized for sharing and publishing (/DEBUG:FULL)"
+// In CANape select "Microsoft PDB extented"
 
-    // The XCP addresses for Win32 and Win64 versions of XCPlite are defined as relative to the load address of the main module
-    // This allows using Microsoft linker PDB files for address update
-    // In Microsoft Visual Studio set option "Generate Debug Information" to "optimized for sharing and publishing (/DEBUG:FULL)"
-    // In CANape select "Microsoft PDB extented"
+uint8_t* ApplXcpGetPointer(uint8_t addr_ext, uint32_t addr) {
+
+    if (addr_ext != 0) return NULL;
+#ifdef XCP_ENABLE_CAL_PAGE
+    return ecuParAddrMapping(ApplXcpGetBaseAddr() + addr);
+#else
+    return ApplXcpGetBaseAddr() + addr;
+#endif
+}
+
 
 #ifdef _WIN
 
@@ -101,7 +185,7 @@ uint8_t* ApplXcpGetBaseAddr() {
         baseAddr = (uint8_t*)GetModuleHandle(NULL);
         baseAddrValid = 1;
 #ifdef XCP_ENABLE_DEBUG_PRINTS
-        if (ApplXcpGetDebugLevel() >= 1) printf("Set global addressing base (ApplXcpGetBaseAddr() = 0x%I64X)\n", (uint64_t)baseAddr);
+        if (ApplXcpGetDebugLevel() >= 1) printf("ApplXcpGetBaseAddr() = 0x%I64X\n", (uint64_t)baseAddr);
 #endif
     }
     return baseAddr;
@@ -116,10 +200,50 @@ uint32_t ApplXcpGetAddr(uint8_t* p) {
     return (uint32_t)(p - ApplXcpGetBaseAddr());
 }
 
-uint8_t* ApplXcpGetPointer(uint8_t addr_ext, uint32_t addr) {
-    (void)addr_ext;
-    return ApplXcpGetBaseAddr() + addr;
+#endif
+
+#ifdef _LINUX64
+
+#ifndef __USE_GNU
+#define __USE_GNU
+#endif
+#include <link.h>
+
+uint8_t* baseAddr = NULL;
+uint8_t baseAddrValid = 0;
+
+static int dump_phdr(struct dl_phdr_info* pinfo, size_t size, void* data)
+{
+    // printf("name=%s (%d segments)\n", pinfo->dlpi_name, pinfo->dlpi_phnum);
+
+    // Application modules has no name
+    if (0 == strlen(pinfo->dlpi_name)) {
+        baseAddr = (uint8_t*)pinfo->dlpi_addr;
+    }
+
+    (void)size;
+    (void)data;
+    return 0;
 }
+
+uint8_t* ApplXcpGetBaseAddr() {
+
+    if (!baseAddrValid) {
+        dl_iterate_phdr(dump_phdr, NULL);
+        assert(baseAddr != NULL);
+        baseAddrValid = 1;
+        printf("BaseAddr = %lX\n", (uint64_t)baseAddr);
+    }
+
+    return baseAddr;
+}
+
+uint32_t ApplXcpGetAddr(uint8_t* p)
+{
+    ApplXcpGetBaseAddr();
+    return (uint32_t)(p - baseAddr);
+}
+
 #endif
 
 
@@ -132,17 +256,132 @@ uint8_t* ApplXcpGetBaseAddr()
 
 uint32_t ApplXcpGetAddr(uint8_t* p)
 {
-    assert((uint64_t)p <= 0xFFFFFFFF);
-    return ((uint32_t)p);
-}
-
-uint8_t* ApplXcpGetPointer(uint8_t addr_ext, uint32_t addr) {
-    (void)addr_ext;
-    return (uint8_t*)addr;
+    return ((uint32_t)(p));
 }
 
 #endif
 
+
+
+
+
+/**************************************************************************/
+// Pointer to XCP address conversions for LINUX shared objects
+/**************************************************************************/
+
+#ifdef XCP_ENABLE_SO
+
+// Address information of loaded modules for XCP (application and shared libraries)
+// Index is XCP address extension
+// Index 0 is application
+
+static struct
+{
+    const char* name;
+    uint8_t* baseAddr;
+}
+gModuleProperties[XCP_MAX_MODULE] = { {} };
+
+
+uint8_t ApplXcpGetExt(uint8_t* addr)
+{
+    // Here we have the possibility to loop over the modules and find out the extension
+    ()addr;
+    return 0;
+}
+
+uint32_t ApplXcpGetAddr(uint8_t* addr)
+{
+    uint8_t addr_ext = ApplXcpGetExt(addr);
+    union {
+        uint8_t* ptr;
+        uint32_t i;
+    } rawAddr;
+    rawAddr.ptr = (uint8_t*)(addr - gModuleProperties[addr_ext].baseAddr);
+    return rawAddr.i;
+}
+
+uint8_t* ApplXcpGetPointer(uint8_t addr_ext, uint32_t addr)
+{
+    uint8_t* baseAddr = 0;
+    if (addr_ext < XCP_MAX_MODULE) {
+        baseAddr = gModuleProperties[addr_ext].baseAddr;
+    }
+    return baseAddr + addr;
+}
+
+
+static int dump_phdr(struct dl_phdr_info* pinfo, size_t size, void* data)
+{
+#ifdef XCP_ENABLE_DEBUG_PRINTS
+    if (gDebugLevel >= 1) {
+        printf("0x%zX %s 0x%X %d %d %d %d 0x%X\n",
+            pinfo->dlpi_addr, pinfo->dlpi_name, pinfo->dlpi_phdr, pinfo->dlpi_phnum,
+            pinfo->dlpi_adds, pinfo->dlpi_subs, pinfo->dlpi_tls_modid,
+            pinfo->dlpi_tls_data);
+    }
+#endif
+
+  // Modules
+  if (0 < strlen(pinfo->dlpi_name)) {
+    // Here we could remember module information or something like that
+  }
+
+  // Application
+  else  {
+
+#ifdef XCP_ENABLE_DEBUG_PRINTS
+      if (gDebugLevel >= 1) {
+          printf("Application base addr = 0x%zx\n", pinfo->dlpi_addr);
+      }
+#endif
+
+    gModuleProperties[0].baseAddr = (uint8_t*) pinfo->dlpi_addr;
+  }
+
+  ()size;
+  ()data;
+  return 0;
+}
+
+void ApplXcpInitBaseAddressList()
+{
+#ifdef XCP_ENABLE_DEBUG_PRINTS
+    if (gDebugLevel >= 1) printf("Module List:\n");
+#endif
+
+    dl_iterate_phdr(dump_phdr, NULL);
+}
+
+#endif
+
+
+
+
+/**************************************************************************/
+// Calibration page handling
+/**************************************************************************/
+
+#ifdef OPTION_ENABLE_CAL_SEGMENT
+
+// segment = 0
+// RAM = page 0, FLASH = page 1
+
+uint8_t ApplXcpGetCalPage(uint8_t segment, uint8_t mode) {
+    (void)mode;
+    if (segment > 0) return CRC_PAGE_NOT_VALID;
+    return ecuParGetCalPage();
+}
+
+uint8_t ApplXcpSetCalPage(uint8_t segment, uint8_t page, uint8_t mode) {
+    if (segment > 0) return CRC_SEGMENT_NOT_VALID;
+    if (page > 1) return CRC_PAGE_NOT_VALID;
+    if ((mode & (CAL_PAGE_MODE_ECU | CAL_PAGE_MODE_XCP)) != (CAL_PAGE_MODE_ECU | CAL_PAGE_MODE_XCP)) return CRC_PAGE_MODE_NOT_VALID;
+    ecuParSetCalPage(page);
+    return 0;
+}
+
+#endif
 
 
 /**************************************************************************/
@@ -264,6 +503,8 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t* buf, uint32_t bufLen) {
     }
     return len;
 }
+
+
 
 
 
