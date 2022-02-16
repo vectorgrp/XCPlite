@@ -28,24 +28,18 @@ void cmdline_usage(const char* appName) {
         "  %s [options]\n"
         "\n"
         "  Options:\n"
-        "    -dx              Set output verbosity to x (default: 1)\n"
-        "    -bind <ipaddr>   IP address for socket bind (default: ANY)\n"
-        "    -port <portname> Server port (default: 5555)\n"
-        "    -tcp             Use TCP\n"
-#if OPTION_ENABLE_A2L_GEN
-        "    -a2l [path]      Generate .a2l file at path\n"
-#endif
+        "    -dx              Set output verbosity to x (default is 1)\n"
+        "    -bind <ipaddr>   Server IP address for socket bind (default is localhost, any = 0.0.0.0)\n"
+        "    -port <portname> Server port (default is 5555)\n"
+        "    -tcp             Use TCP (default is UDP)\n"
 #if OPTION_ENABLE_PTP
-            "    -ptp [domain]    Enable PTP (master domain)\n"
-#endif
-#if OPTION_ENABLE_CDC
-            "    -cdc             Enable complementary DAQ channel\n"
+            "    -ptp [domain]    Enable PTP (default is off, default domain is 0)\n"
 #endif
 #if OPTION_ENABLE_XLAPI_V3
-        "    -v3              V3 enable\n"
+        "    -v3              V3 enable (default: off)\n"
         "    -net <netname>   V3 network (default: NET1)\n"
         "    -seg <segname>   V3 segment (default: SEG1)\n"
-        "    -addr <mac>      V3 endpoint IPv4 addr (default: 172.31.31.194)\n"
+        "    -addr <mac>      V3 endpoint IPv4 addr (default: 192.168.0.200)\n"
         "    -mac <mac>       V3 endpoint MAC addr (default: 0xdc:0xa6:0x32:0x7e:0x66:0xdc)\n"
 #if OPTION_ENABLE_PCAP
             "    -pcap <file>     V3 log all ethernet frames to PCAP file\n"

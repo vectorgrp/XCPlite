@@ -27,9 +27,9 @@
 #define OPTION_A2L_PROJECT_NAME "Demo" // A2L project name
 
 // Default ip addr and port
-#define OPTION_ENABLE_TCP ON 
-#define OPTION_SERVER_PORT 5555 // Default UDP port, overwritten by commandline option
-#define OPTION_SERVER_ADDR {127,0,0,1} // Default IP addr, 0.0.0.0 = ANY, 255.255.255.255 = first adapter addr, overwritten by commandline option
+#define OPTION_ENABLE_TCP ON // Enable TCP support and commandline option -tcp
+#define OPTION_SERVER_PORT 5555 // Default UDP port, overwritten by commandline option -por
+#define OPTION_SERVER_ADDR {0,0,0,0} // Default IP addr, 0.0.0.0 = ANY, 255.255.255.255 = first adapter found, overwritten by commandline option -bind x.x.x.x
 
 // Calibration segment
 #define OPTION_ENABLE_CAL_SEGMENT ON
@@ -38,7 +38,7 @@
 #define OPTION_ENABLE_XLAPI_V3 OFF 
 #if OPTION_ENABLE_XLAPI_V3
 
-#define OPTION_USE_XLAPI_V3  // Use XL-API by default
+#define OPTION_USE_XLAPI_V3  // Use XL_API by default
 #define OPTION_SERVER_XL_ADDR {192,168,0,200} // XL_API Ethernet Adapter IP
 #define OPTION_SERVER_XL_MAC {0xdc,0xa6,0x32,0x7e,0x66,0xdc} // XL_API Ethernet Adapter MAC
 #define OPTION_SERVER_XL_NET "NET1" // XL_API Network name

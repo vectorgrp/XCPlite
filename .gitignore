@@ -40,4 +40,4 @@ obj/
 *.par
 *.cnaxml
 Environment
-/CANape20/CustomProperties.json
+CustomProperties.json
