@@ -31,7 +31,9 @@ void cmdline_usage(const char* appName) {
         "    -dx              Set output verbosity to x (default is 1)\n"
         "    -bind <ipaddr>   Server IP address for socket bind (default is localhost, any = 0.0.0.0)\n"
         "    -port <portname> Server port (default is 5555)\n"
-        "    -tcp             Use TCP (default is UDP)\n"
+#ifdef OPTION_ENABLE_TCP
+            "    -tcp             Use TCP (default is UDP)\n"
+#endif
 #if OPTION_ENABLE_PTP
             "    -ptp [domain]    Enable PTP (default is off, default domain is 0)\n"
 #endif
@@ -107,7 +109,7 @@ BOOL cmdline_parser(int argc, char* argv[]) {
                 }
             }
         }
-#ifdef XCPTL_ENABLE_TCP
+#ifdef OPTION_ENABLE_TCP
         else if (strcmp(argv[i], "-tcp") == 0) {
             gOptionUseTCP = !gOptionUseTCP;
         }
@@ -170,7 +172,7 @@ BOOL cmdline_parser(int argc, char* argv[]) {
 
     if (gDebugLevel) printf("Set screen output verbosity to %u\n", gDebugLevel);
 
-#ifdef XCPTL_ENABLE_TCP
+#ifdef OPTION_ENABLE_TCP
     printf("Using %s socket\n", gOptionUseTCP ? "TCP" : "UDP");
 #endif
 #if OPTION_ENABLE_XLAPI_V3

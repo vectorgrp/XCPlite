@@ -74,17 +74,17 @@
 #define XCP_DAQ_MEM_SIZE (5*200) // Amount of memory for DAQ tables, each ODT entry (e.g. measurement variable) needs 5 bytes
 
 // CLOCK_USE_UTC_TIME_NS
-#// Settings for 64 bit ns since 1.1.1970 TAI clock (CLOCK_USE_UTC_TIME_NS)
+// Settings for 64 bit ns since 1.1.1970 TAI clock (CLOCK_USE_UTC_TIME_NS)
 
-    #define XCP_DAQ_CLOCK_64BIT  // Use 64 Bit time stamps in GET_DAQ_CLOCK
-    #define XCP_DAQ_CLOCK_UIID { 0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc }
+#define XCP_DAQ_CLOCK_64BIT  // Use 64 Bit time stamps in GET_DAQ_CLOCK
+#define XCP_DAQ_CLOCK_UIID { 0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc }
 
-    // Server DAQ clock info (mandatory)
-    #define XCP_TIMESTAMP_UNIT DAQ_TIMESTAMP_UNIT_1NS // unit DAQ_TIMESTAMP_UNIT_xxx
-    #define XCP_TIMESTAMP_TICKS 1  // ticks per unit
-    #define XCP_TIMESTAMP_EPOCH XCP_EPOCH_TAI
+// Server DAQ clock info (mandatory)
+#define XCP_TIMESTAMP_UNIT DAQ_TIMESTAMP_UNIT_1NS // unit DAQ_TIMESTAMP_UNIT_xxx
+#define XCP_TIMESTAMP_TICKS 1  // ticks per unit
+#define XCP_TIMESTAMP_EPOCH XCP_EPOCH_TAI
 
-    // Grandmaster clock (optional, use XcpSetGrandmasterClockInfo, implement ApplXcpGetClockInfoGrandmaster)
-    //#define XCP_ENABLE_PTP
+// Grandmaster clock (optional, use XcpSetGrandmasterClockInfo, implement ApplXcpGetClockInfoGrandmaster)
+//#define XCP_ENABLE_PTP
 
 #define XCP_TIMESTAMP_TICKS_S CLOCK_TICKS_PER_S // ticks per s (for debug output)

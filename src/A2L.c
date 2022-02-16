@@ -214,7 +214,6 @@ static const char* getTypeMax(int32_t type) {
 	return max;
 }
 
-uint32_t(*A2lGetAddr)(uint8_t* p) = NULL;
 
 BOOL A2lOpen(const char *filename, const char* projectName ) {
 

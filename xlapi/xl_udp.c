@@ -39,11 +39,11 @@
 #include "xl_udp.h"
 
 #if OPTION_ENABLE_PCAP
-#include "../xlapi/xl_pcap.h"
+#include "xl_pcap.h"
 #endif
 
 #if OPTION_ENABLE_PTP
-#include "../src/ptp.h"
+#include "ptp.h"
 #endif
 
 static int gUdpDebugLevel = 5;

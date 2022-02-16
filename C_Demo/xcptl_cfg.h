@@ -30,7 +30,10 @@ Drawbacks:
 
 // TL segment size and DTO size (must all be even!)
 // Segment size is the maximum data buffer size given to send/sendTo, for UDP it is the MTU
-//#define XCPTL_JUMBO_FRAMES // XL-API does not support jumbo 
+#if OPTION_ENABLE_XLAPI_V3 // XL-API does not support jumbo
+#else
+#define XCPTL_JUMBO_FRAMES  
+#endif
 #ifdef XCPTL_JUMBO_FRAMES
   #define XCPTL_SEGMENT_SIZE (1024*7) // UDP MTU = 7168 - Use jumbo frames for UDP
   #define XCPTL_MAX_DTO_SIZE (1024-XCPTL_TRANSPORT_LAYER_HEADER_SIZE-4) // DTO size must be mod 4
