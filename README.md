@@ -63,9 +63,14 @@ All settings and parameters for the XCP protocol and transport layer are located
 Compile options for the XCPlite demos are located in main_cfg.h:
 
 ## Notes:
+<<<<<<< HEAD
 - Specify the IP addr on the command line, when you have multiple Ethernet adapters. Otherwise the IP address of the first Ethernet adapter found is written to A2L file
 - If A2L generation and upload is disabled, make sure CANape (or any other tool) is using an up to date A2L file
 - If A2L upload is enabled, you may need to set the IP address manually once, when connect is refused, press the flashing update icon in the CANape statusbar 
+=======
+- If A2L generation and upload is disabled, make sure CANape (or any other tool) is using an up to date A2L file
+- If A2L upload is enabled, you may need to set the IP address manually once, when connect is refused, press the flashing update icon in the statusbar 
+>>>>>>> Vector/master
 - The latest version of C_Demo offers the possibility to enable EPK checking
 - For CANape, use address update with Linker Map Type ELF extended for a.out format or PDB for .exe
 - 64 bit version needs all objects within one 4 GByte data segment
@@ -129,6 +134,7 @@ Start the generated VS solution
 
 #### Build on Windows command line
 
+```
 For the CMake setup, prepare your command line environment.
 Set compiler to Microsoft x64 cl.exe and make sure the system finds cmake.exe and ninja.exe.
 You can also use the Windows clang compiler.
