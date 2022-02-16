@@ -10,8 +10,8 @@
 
 #include "main.h"
 #include "main_cfg.h"
-#include "../src/platform.h"
-#include "../src/util.h"
+#include "platform.h"
+#include "util.h"
 
 
 

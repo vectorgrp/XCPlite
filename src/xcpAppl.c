@@ -14,9 +14,6 @@
 #include "main.h"
 #include "main_cfg.h"
 #include "platform.h"
-#ifdef VECTOR_INTERNAL  // >>>>>>>>>>>>>>>>>>>>>>>>>>>
-#include "ptp.h"
-#endif // VECTOR_INTERNAL <<<<<<<<<<<<<<<<<<<<<<<<<<<<
 #include "util.h"
 #include "xcpLite.h"
 #ifdef APP_CPP_Demo

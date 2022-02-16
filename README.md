@@ -59,12 +59,15 @@ Example:
 
 ## Configuration options:
 
-All settings and parameters for the XCP protocol and transport layer are located in xcp_cfg.h and xcptl_cfg.h
+All settings and parameters for the XCP protocol and transport layer are located in xcp_cfg.h and xcptl_cfg.h.
 Compile options for the XCPlite demos are located in main_cfg.h:
 
 ## Notes:
-- If A2L generation and upload is disabled, use CANape address update with Linker Map Type ELF extended for a.out format or PDB for .exe
-- Linux Compile with -O2, Link with -pthread
+- Specify the IP addr on the command line, when you have multiple Ethernet adapters. Otherwise the IP address of the first Ethernet adapter found is written to A2L file
+- If A2L generation and upload is disabled, make sure CANape (or any other tool) is using an up to date A2L file
+- If A2L upload is enabled, you may need to set the IP address manually once, when connect is refused, press the flashing update icon in the CANape statusbar 
+- The latest version of C_Demo offers the possibility to enable EPK checking
+- For CANape, use address update with Linker Map Type ELF extended for a.out format or PDB for .exe
 - 64 bit version needs all objects within one 4 GByte data segment
 - Enable XL-API on command line: C_Demo -v3 -addr 172.31.31.1 -port 5555
 
@@ -90,52 +93,54 @@ Version 4:
 
 ## Build
 
-### Linux x86_64
+### Linux 
 
-$ sudo apt-get install cmake g++ clang cmake ninja-build
+$ sudo apt-get install cmake g++ clang ninja-build
 
-#### Release Build
+#### Build
+
 ```
-$ cd XcpLite
-$ mkdir build_release
-$ cd build_release
-$ cmake -GNinja -DCMAKE_BUILD_TYPE=Release ..
+$ cd XCPlite
+$ nano C_Demo/CMakeLists.txt -> set(WINDOWS FALSE)
+$ mkdir build_C_Demo
+
+$ cd build_C_Demo
+$ cmake -GNinja -DCMAKE_BUILD_TYPE=Release -S ../C_Demo 
 $ ninja
+
+or
+
+$ cmake -DCMAKE_BUILD_TYPE=Release -S C_Demo -B build_C_Demo
+$ cd build_C_Demo
+$ make
+
 ```
 
-#### Debug Build
-```
-$ cd XcpLite
-$ mkdir build_debug
-$ cd build_debug
-$ cmake -GNinja ..
-$ ninja
-```
 ### Windows x86_64
 
-Use the Visual Studio projects or CMake.
+Use the Visual Studio 19 projects included in the repo or build projects with CMake.
+
+#### Build Visual Studio project and solution
+```
+Start cmake-gui
+Choose your build options in the GUI
+Start the generated VS solution
+```
+
+#### Build on Windows command line
 
 For the CMake setup, prepare your command line environment.
 Set compiler to Microsoft x64 cl.exe and make sure the system finds cmake.exe and ninja.exe.
 You can also use the Windows clang compiler.
+
 ```
 > call "C:\Program Files (x86)\Microsoft Visual Studio 15.0\VC\Auxiliary\Build\vcvars64.bat"
 > set PATH=C:\Tools\ninja;%PATH%
 > set PATH=C:\Tools\cmake_3.17.2.0\bin;%PATH%
-```
-#### Release Build
-```
-> cd XcpLite
+> cd XCPlite
 > mkdir build_release
 > cd build_release
-> cmake.exe -GNinja -DCMAKE_BUILD_TYPE=Release ..
-> ninja.exe
+> cmake -GNinja -DCMAKE_BUILD_TYPE=Release ../C_Demo
+> ninja
 ```
-#### Debug Build
-```
-> cd XcpLite
-> mkdir build_debug
-> cd build_debug
-> cmake.exe -GNinja ..
-> ninja.exe
-```
+
