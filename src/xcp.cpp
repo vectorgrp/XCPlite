@@ -17,7 +17,6 @@
 #include "main_cfg.h"
 #include "platform.h"
 #include "util.h"
-
 #include "xcp.hpp"
 #include "xcpServer.h"
 #include "xcpTl.h"

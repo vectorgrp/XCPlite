@@ -19,6 +19,7 @@
 #include "platform.h"
 #include "util.h"
 
+
 #ifdef _WIN // Windows needs to link with Ws2_32.lib
 
 #if OPTION_ENABLE_XLAPI_V3
@@ -184,7 +185,7 @@ int socketOpen(SOCKET* sp, BOOL useTCP, BOOL nonBlocking, BOOL reuseaddr) {
     // Create a socket
     *sp = socket(AF_INET, useTCP ?SOCK_STREAM:SOCK_DGRAM , 0);
     if (*sp < 0) {
-        printf("ERROR: cannot open socket!\n");
+        DBG_PRINT_ERROR("ERROR: cannot open socket!\n");
         return 0;
     }
 
@@ -196,7 +197,7 @@ int socketOpen(SOCKET* sp, BOOL useTCP, BOOL nonBlocking, BOOL reuseaddr) {
     return 1;
 }
 
-int socketBind(SOCKET sock, uint8_t* addr, uint16_t port) {
+int socketBind(SOCKET sock, const uint8_t* addr, uint16_t port) {
 
     // Bind the socket to any address and the specified port
     SOCKADDR_IN a;
@@ -209,7 +210,7 @@ int socketBind(SOCKET sock, uint8_t* addr, uint16_t port) {
     }
     a.sin_port = htons(port);
     if (bind(sock, (SOCKADDR*)&a, sizeof(a)) < 0) {
-        printf("ERROR %u: cannot bind on %u.%u.%u.%u port %u!\n", socketGetLastError(), addr[0], addr[1], addr[2], addr[3], port);
+        DBG_PRINTF_ERROR("ERROR %d: cannot bind on %u.%u.%u.%u port %u!\n", socketGetLastError(), addr?addr[0]:0, addr?addr[1]:0, addr? addr[2]:0, addr?addr[3]: 0, port);
         return 0;
     }
 
@@ -273,7 +274,7 @@ int socketGetLocalAddr(uint8_t* mac, uint8_t* addr) {
                 struct sockaddr_in* sa = (struct sockaddr_in*)(ifa->ifa_addr);
                 if (0x100007f != sa->sin_addr.s_addr) { /* not loop back adapter (127.0.0.1) */
                     inet_ntop(AF_INET, &sa->sin_addr.s_addr, strbuf, sizeof(strbuf));
-                    printf("  Network interface %s: ip=%s\n", ifa->ifa_name, strbuf);
+                    DBG_PRINTF1("  Network interface %s: ip=%s\n", ifa->ifa_name, strbuf);
                     if (addr1 == 0) {
                         addr1 = sa->sin_addr.s_addr;
                         ifa1 = ifa;
@@ -288,7 +289,7 @@ int socketGetLocalAddr(uint8_t* mac, uint8_t* addr) {
         if (mac) memcpy(mac, mac1, 6);
         if (addr) memcpy(addr, &addr1, 4);
         inet_ntop(AF_INET, &addr1, strbuf, sizeof(strbuf));
-        printf("  Use adapter %s with ip=%s, mac=%02X-%02X-%02X-%02X-%02X-%02X for A2L info and clock UUID\n", ifa1->ifa_name, strbuf, mac1[0], mac1[1], mac1[2], mac1[3], mac1[4], mac1[5]);
+        DBG_PRINTF1("  Use adapter %s with ip=%s, mac=%02X-%02X-%02X-%02X-%02X-%02X for A2L info and clock UUID\n", ifa1->ifa_name, strbuf, mac1[0], mac1[1], mac1[2], mac1[3], mac1[4], mac1[5]);
         return 1;
     }
     return 0;
@@ -321,11 +322,11 @@ BOOL socketStartup() {
     wsaVersionRequested = MAKEWORD(2, 2);
     err = WSAStartup(wsaVersionRequested, &wsaData);
     if (err != 0) {
-        printf("ERROR: WSAStartup failed with ERROR: %d!\n", err);
+        DBG_PRINTF_ERROR("ERROR: WSAStartup failed with ERROR: %d!\n", err);
         return FALSE;
     }
     if (LOBYTE(wsaData.wVersion) != 2 || HIBYTE(wsaData.wVersion) != 2) { // Confirm that the WinSock DLL supports 2.2
-        printf("ERROR: could not find a usable version of Winsock.dll!\n");
+        DBG_PRINT_ERROR("ERROR: could not find a usable version of Winsock.dll!\n");
         WSACleanup();
         return FALSE;
     }
@@ -368,14 +369,14 @@ BOOL socketOpen(SOCKET* sp, int useTCP, int nonBlocking, int reuseaddr) {
         *sp = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     }
     if (*sp == INVALID_SOCKET) {
-        printf("ERROR %u: could not create socket!\n", socketGetLastError());
+        DBG_PRINTF_ERROR("ERROR %d: could not create socket!\n", socketGetLastError());
         return FALSE;
     }
 
     // Set nonblocking mode
     u_long b = nonBlocking ? 1:0;
     if (NO_ERROR != ioctlsocket(*sp, FIONBIO, &b)) {
-        printf("ERROR %u: could not set non blocking mode!\n", socketGetLastError());
+        DBG_PRINTF_ERROR("ERROR %d: could not set non blocking mode!\n", socketGetLastError());
         return FALSE;
     }
 
@@ -389,7 +390,7 @@ BOOL socketOpen(SOCKET* sp, int useTCP, int nonBlocking, int reuseaddr) {
 }
 
 
-BOOL socketBind(SOCKET sock, uint8_t *addr, uint16_t port) {
+BOOL socketBind(SOCKET sock, const uint8_t *addr, uint16_t port) {
 
 #if OPTION_ENABLE_XLAPI_V3
     if (gOptionUseXLAPI) {
@@ -400,19 +401,19 @@ BOOL socketBind(SOCKET sock, uint8_t *addr, uint16_t port) {
     // Bind the socket to any address and the specified port
     SOCKADDR_IN a;
     a.sin_family = AF_INET;
-    if (addr != NULL && addr[0] !=0) {
+    if (addr != NULL && addr[0] !=0) { 
         a.sin_addr.s_addr = *(uint32_t*)addr; // Bind to the specific addr given
     }
-    else {
+    else { // NULL or 0.x.x.x
         a.sin_addr.s_addr = htonl(INADDR_ANY); // Bind to any addr
     }
     a.sin_port = htons(port);
     if (bind(sock, (SOCKADDR*)&a, sizeof(a)) < 0) {
         if (socketGetLastError() == WSAEADDRINUSE) {
-            printf("ERROR: Port is already in use!\n");
+            DBG_PRINTF_ERROR("ERROR: Port is already in use!\n");
         }
         else {
-            printf("ERROR %u: cannot bind on port %u!\n", socketGetLastError(), port);
+            DBG_PRINTF_ERROR("ERROR %d: cannot bind on %u.%u.%u.%u port %u!\n", socketGetLastError(), addr?addr[0]:0, addr?addr[1]:0, addr?addr[2]:0, addr?addr[3]:0, port);
         }
         return FALSE;
     }
@@ -487,21 +488,23 @@ BOOL socketGetLocalAddr(uint8_t* mac, uint8_t* addr) {
             while (pAdapter) {
                 if (pAdapter->Type == MIB_IF_TYPE_ETHERNET) {
                     inet_pton(AF_INET, pAdapter->IpAddressList.IpAddress.String, &a);
+#ifdef XCP_ENABLE_DEBUG_PRINTS
                     if (a!=0) {
-                        printf("  Ethernet adapter %" PRIu32 ":", (uint32_t) pAdapter->Index);
-                        //printf(" %s", pAdapter->AdapterName);
-                        printf(" %s", pAdapter->Description);
-                        printf(" %02X-%02X-%02X-%02X-%02X-%02X", pAdapter->Address[0], pAdapter->Address[1], pAdapter->Address[2], pAdapter->Address[3], pAdapter->Address[4], pAdapter->Address[5]);
-                        printf(" %s", pAdapter->IpAddressList.IpAddress.String);
-                        //printf(" %s", pAdapter->IpAddressList.IpMask.String);
-                        //printf(" Gateway: %s", pAdapter->GatewayList.IpAddress.String);
+                        DBG_PRINTF1("  Ethernet adapter %" PRIu32 ":", (uint32_t) pAdapter->Index);
+                        //DBG_PRINTF1(" %s", pAdapter->AdapterName);
+                        DBG_PRINTF1(" %s", pAdapter->Description);
+                        DBG_PRINTF1(" %02X-%02X-%02X-%02X-%02X-%02X", pAdapter->Address[0], pAdapter->Address[1], pAdapter->Address[2], pAdapter->Address[3], pAdapter->Address[4], pAdapter->Address[5]);
+                        DBG_PRINTF1(" %s", pAdapter->IpAddressList.IpAddress.String);
+                        //DBG_PRINTF1(" %s", pAdapter->IpAddressList.IpMask.String);
+                        //DBG_PRINTF1(" Gateway: %s", pAdapter->GatewayList.IpAddress.String);
                         //if (pAdapter->DhcpEnabled) printf(" DHCP");
-                        printf("\n");
+                        DBG_PRINT1("\n");
                         if (addr1[0] == 0 ) {
                             memcpy(addr1, (uint8_t*)&a, 4);
                             memcpy(mac1, pAdapter->Address, 6);
                         }
                     }
+#endif
                 }
                 pAdapter = pAdapter->Next;
             }
@@ -529,7 +532,7 @@ BOOL socketListen(SOCKET sock) {
 #endif
 
     if (listen(sock, 5)) {
-        printf("ERROR %u: listen failed!\n", socketGetLastError());
+        DBG_PRINTF_ERROR("ERROR %d: listen failed!\n", socketGetLastError());
         return 0;
     }
     return 1;
@@ -546,7 +549,7 @@ SOCKET socketAccept(SOCKET sock, uint8_t addr[]) {
     struct sockaddr_in sa;
     socklen_t sa_size = sizeof(sa);
     SOCKET s = accept(sock, (struct sockaddr*) & sa, &sa_size);
-    *(uint32_t*)addr = sa.sin_addr.s_addr;
+    if (addr) *(uint32_t*)addr = sa.sin_addr.s_addr;
     return s;
 }
 
@@ -563,15 +566,15 @@ BOOL socketJoin(SOCKET sock, uint8_t* maddr) {
     group.imr_multiaddr.s_addr = *(uint32_t*)maddr;
     group.imr_interface.s_addr = htonl(INADDR_ANY);
     if (0 > setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const char*)&group, sizeof(group))) {
-        printf("ERROR %u: Failed to set multicast socket option IP_ADD_MEMBERSHIP!\n", socketGetLastError());
+        DBG_PRINTF_ERROR("ERROR %d: Failed to set multicast socket option IP_ADD_MEMBERSHIP!\n", socketGetLastError());
         return 0;
     }
     return 1;
 }
 
 
-// Receive from a UDP socket
-// Return number of bytes received, 0 when TCP socket closed or empty UDP packet received, -1 on error
+// Receive from socket
+// Return number of bytes received, 0 when socket closed, would block or empty UDP packet received, -1 on error
 int16_t socketRecvFrom(SOCKET sock, uint8_t* buffer, uint16_t bufferSize, uint8_t *addr, uint16_t *port) {
 
 #if OPTION_ENABLE_XLAPI_V3
@@ -587,38 +590,42 @@ int16_t socketRecvFrom(SOCKET sock, uint8_t* buffer, uint16_t bufferSize, uint8_
         return 0;
     }
     else if (n < 0) {
-        if (socketGetLastError() == SOCKET_ERROR_WBLOCK) return 0;
-        if (socketGetLastError() == SOCKET_ERROR_CLOSED) {
-            printf("Socket closed\n");
-            return -1; // Socket closed
+        int32_t err = socketGetLastError();
+        if (err == SOCKET_ERROR_WBLOCK) return 0;
+        if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR) {
+            return 0; // Socket closed
         }
-        printf("ERROR %u: recvfrom failed (result=%d)!\n", socketGetLastError(), n);
+        DBG_PRINTF_ERROR("ERROR %u: recvfrom failed (result=%d)!\n", err, n);
+        return -1;
     }
     if (port) *port = htons(src.sin_port);
     if (addr) memcpy(addr, &src.sin_addr.s_addr, 4);
     return n;
 }
 
-// Receive from TCP socket
-int16_t socketRecv(SOCKET sock, uint8_t* buffer, uint16_t size) {
+// Receive from socket
+// Return number of bytes received, 0 when socket closed, would block or empty UDP packet received, -1 on error
+int16_t socketRecv(SOCKET sock, uint8_t* buffer, uint16_t size, BOOL waitAll) {
 
 #if OPTION_ENABLE_XLAPI_V3
     if (gOptionUseXLAPI) {
+        assert(!waitAll);
         return xlUdpSocketRecv(sock, buffer, size);
     }
 #endif
 
-    int16_t n = (int16_t)recv(sock, (char*)buffer, size, MSG_WAITALL);
+    int16_t n = (int16_t)recv(sock, (char*)buffer, size, waitAll ? MSG_WAITALL:0);
     if (n == 0) {
         return 0;
     }
     else if (n < 0) {
-        if (socketGetLastError() == SOCKET_ERROR_WBLOCK) return 0;
-        if (socketGetLastError() == SOCKET_ERROR_CLOSED) {
-            printf("Socket closed\n");
-            return -1; // Socket closed
+        int32_t err = socketGetLastError();
+        if (err == SOCKET_ERROR_WBLOCK) return 0;  // Would block
+        if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR) {
+            return 0; // Socket closed
         }
-        printf("ERROR %u: recvfrom failed (result=%d)!\n", socketGetLastError(), n);
+        DBG_PRINTF_ERROR("ERROR %u: recvfrom failed (result=%d)!\n", err, n);
+        return -1; // Error
     }
     return n;
 }
@@ -680,17 +687,19 @@ static struct timespec gtr;
 static struct timespec gts0;
 #endif
 
-char* clockGetString(char* s, uint64_t c) {
+char* clockGetString(char* s, uint32_t l, uint64_t c) {
 
 #ifndef CLOCK_USE_UTC_TIME_NS
-    sprintf(s, "%gs", (double)c / CLOCK_TICKS_PER_S);
+    SNPRINTF(s,l, "%gs", (double)c / CLOCK_TICKS_PER_S);
 #else
     time_t t = (time_t)(c / CLOCK_TICKS_PER_S); // s since 1.1.1970
     struct tm tm;
     gmtime_r(&t, &tm);
     uint64_t fns = c % CLOCK_TICKS_PER_S;
-    uint32_t tai_s = (uint32_t)((c % CLOCK_TICKS_PER_M) / CLOCK_TICKS_PER_S);
-    sprintf(s, "%u.%u.%u %02u:%02u:%02u/%02u +%luns", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec, tai_s, fns);
+    SNPRINTF(s,l, "%u.%u.%u %02u:%02u:%02u +%" PRIu64 "ns", 
+        tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, 
+        (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec, 
+        fns);
 #endif
     return s;
 }
@@ -698,34 +707,31 @@ char* clockGetString(char* s, uint64_t c) {
 
 BOOL clockInit()
 {
-    printf("\nInit clock\n  (");
-#ifdef CLOCK_USE_UTC_TIME_US
-#error "CLOCK_USE_UTC_TIME_US is deprecated!");
-#endif
+    DBG_PRINT2("\nInit clock\n  (");
 #ifdef CLOCK_USE_UTC_TIME_NS
-    printf("CLOCK_USE_UTC_TIME_NS,");
+    DBG_PRINT2("CLOCK_USE_UTC_TIME_NS,");
 #endif
 #ifdef CLOCK_USE_APP_TIME_US
-    printf("CLOCK_USE_APP_TIME_US,");
+    DBG_PRINT2("CLOCK_USE_APP_TIME_US,");
 #endif
-
 #if CLOCK_TYPE == CLOCK_TAI
-    printf("CLOCK_TYPE_TAI,");
+    DBG_PRINT2("CLOCK_TYPE_TAI,");
 #endif
 #if CLOCK_TYPE == CLOCK_REALTIME
-    printf("CLOCK_TYPE_REALTIME,");
+    DBG_PRINT2("CLOCK_TYPE_REALTIME,");
 #endif
-    printf(")\n");
+    DBG_PRINT2(")\n");
 
     clock_getres(CLOCK_TYPE, &gtr);
-    printf("Clock resolution is %lds,%ldns!\n", gtr.tv_sec, gtr.tv_nsec);
+    DBG_PRINTF2("Clock resolution is %lds,%ldns!\n", gtr.tv_sec, gtr.tv_nsec);
 
 #ifndef CLOCK_USE_UTC_TIME_NS
     clock_gettime(CLOCK_TYPE, &gts0);
 #endif
     clockGet64();
 
-    if (gDebugLevel >= 2) {
+#ifdef XCP_ENABLE_DGB_PRINT
+    if (DBG_LEVEL >= 2) {
         uint64_t t1, t2;
         char s[128];
         struct timespec gts_TAI;
@@ -736,15 +742,16 @@ BOOL clockInit()
         gettimeofday(&ptm, NULL);
         clock_gettime(CLOCK_TAI, &gts_TAI);
         clock_gettime(CLOCK_REALTIME, &gts_REALTIME);
-        printf("  CLOCK_TAI=%lus CLOCK_REALTIME=%lus time=%lu timeofday=%lu\n", gts_TAI.tv_sec, gts_REALTIME.tv_sec, now, ptm.tv_sec);
+        DBG_PRINTF2("  CLOCK_TAI=%lus CLOCK_REALTIME=%lus time=%lu timeofday=%lu\n", gts_TAI.tv_sec, gts_REALTIME.tv_sec, now, ptm.tv_sec);
         // Check
         t1 = clockGet64();
         sleepNs(100000);
         t2 = clockGet64();
-        printf("  +0us:   %s\n", clockGetString(s, t1));
-        printf("  +100us: %s (%u)\n", clockGetString(s, t2), (uint32_t)(t2 - t1));
-        printf("\n");
+        DBG_PRINTF2("  +0us:   %s\n", clockGetString(s, sizeof(s), t1));
+        DBG_PRINTF2("  +100us: %s (%u)\n", clockGetString(s, sizeof(s), t2), (uint32_t)(t2 - t1));
+        DBG_PRINT2("\n");
     }
+#endif
 
     return TRUE;
 }
@@ -769,29 +776,30 @@ static uint64_t sFactor = 0; // ticks per us
 static uint8_t sDivide = 0; // divide or multiply
 static uint64_t sOffset = 0; // offset
 
-
-char* clockGetString(char* s, uint64_t c) {
+#ifdef ENABLE_DEBUG_PRINTS
+char* clockGetString(char* s, uint32_t l, uint64_t c) {
 
 #ifndef CLOCK_USE_UTC_TIME_NS
-    sprintf(s, "%gs", (double)c / CLOCK_TICKS_PER_S);
+    SNPRINTF(s, l, "%gs", (double)c / CLOCK_TICKS_PER_S);
 #else
     time_t t = (time_t)(c / CLOCK_TICKS_PER_S); // s
     struct tm tm;
     gmtime_s(&tm, &t);
     uint64_t fns = c % CLOCK_TICKS_PER_S;
     uint32_t tai_s = (uint32_t)((c % CLOCK_TICKS_PER_M) / CLOCK_TICKS_PER_S);
-    sprintf(s, "%u.%u.%u %02u:%02u:%02u/%02u +%" PRIu64 "s", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec, tai_s, fns);
+    SNPRINTF(s, l, "%u.%u.%u %02u:%02u:%02u/%02u +%" PRIu64 "s", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec, tai_s, fns);
 #endif
     return s;
 }
+#endif
 
 #include <sys/timeb.h>
 
 BOOL clockInit() {
 
-    printf("\nInit clock\n");
+    DBG_PRINT2("\nInit clock\n");
 #ifdef CLOCK_USE_UTC_TIME_NS
-    printf("  CLOCK_USE_UTC_TIME_NS\n");
+    DBG_PRINT2("  CLOCK_USE_UTC_TIME_NS\n");
 #endif
 
     // Get current performance counter frequency
@@ -799,11 +807,11 @@ BOOL clockInit() {
     LARGE_INTEGER tF, tC;
     uint64_t tp;
     if (!QueryPerformanceFrequency(&tF)) {
-        printf("ERROR: Performance counter not available on this system!\n");
+        DBG_PRINT_ERROR("ERROR: Performance counter not available on this system!\n");
         return FALSE;
     }
     if (tF.u.HighPart) {
-        printf("ERROR: Unexpected performance counter frequency!\n");
+        DBG_PRINT_ERROR("ERROR: Unexpected performance counter frequency!\n");
         return FALSE;
     }
 #ifndef CLOCK_USE_UTC_TIME_NS
@@ -850,17 +858,18 @@ BOOL clockInit() {
 
     clockGet64();
 
-    if (gDebugLevel >= 1) {
+#ifdef ENABLE_DEBUG_PRINTS
+    if (DBG_LEVEL >= 3) {
 #ifdef CLOCK_USE_UTC_TIME_NS
-        if (gDebugLevel >= 2) {
+        if (DBG_LEVEL >= 4) {
             struct tm tm;
             _gmtime64_s(&tm, (const __time64_t*)&t);
-            printf("  Current time = %I64uus + %ums\n", t, t_ms);
-            printf("  Zone difference in minutes from UTC: %d\n", tstruct.timezone);
-            printf("  Time zone: %s\n", _tzname[0]);
-            printf("  Daylight saving: %s\n", tstruct.dstflag ? "YES" : "NO");
-            printf("  UTC time = %" PRIu64 "s since 1.1.1970 ", t);
-            printf("  %u.%u.%u %u:%u:%u\n", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec);
+            DBG_PRINTF2("  Current time = %I64uus + %ums\n", t, t_ms);
+            DBG_PRINTF2("  Zone difference in minutes from UTC: %d\n", tstruct.timezone);
+            DBG_PRINTF2("  Time zone: %s\n", _tzname[0]);
+            DBG_PRINTF2("  Daylight saving: %s\n", tstruct.dstflag ? "YES" : "NO");
+            DBG_PRINTF2("  UTC time = %" PRIu64 "s since 1.1.1970 ", t);
+            DBG_PRINTF2("  %u.%u.%u %u:%u:%u\n", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec);
         }
 #endif
         uint64_t t1, t2;
@@ -868,12 +877,12 @@ BOOL clockInit() {
         t1 = clockGet64();
         sleepNs(100000);
         t2 = clockGet64();
-        printf("  Resolution = %u Hz, system resolution = %" PRIu32 " Hz, conversion = %c%" PRIu64 "+%" PRIu64 "\n", CLOCK_TICKS_PER_S, (uint32_t)tF.u.LowPart, sDivide ? '/' : '*', sFactor, sOffset);
-        if (gDebugLevel >= 2) {
-            printf("  +0us:   %I64u  %s\n", t1, clockGetString(s, t1));
-            printf("  +100us: %I64u  %s\n", t2, clockGetString(s, t2));
-        }
+
+        DBG_PRINTF3("  Resolution = %u Hz, system resolution = %" PRIu32 " Hz, conversion = %c%" PRIu64 "+%" PRIu64 "\n", CLOCK_TICKS_PER_S, (uint32_t)tF.u.LowPart, sDivide ? '/' : '*', sFactor, sOffset);
+        DBG_PRINTF4("  +0us:   %I64u  %s\n", t1, clockGetString(s, 64, t1));
+        DBG_PRINTF4("  +100us: %I64u  %s\n", t2, clockGetString(s, 64, t2));
     } // Test
+#endif
 
     return TRUE;
 }

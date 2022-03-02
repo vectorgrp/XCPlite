@@ -15,11 +15,15 @@
 #define A2L_TYPE_FLOAT   -9
 #define A2L_TYPE_DOUBLE  -10
 
+#define A2L_TYPE_BOOL sizeof(BOOL) 
+
 #ifndef A2lGetAddr
     #define A2lGetAddr(p) ApplXcpGetAddr(p)
 #endif
 
 #ifdef __cplusplus
+
+#include <typeinfo>
 
 #ifndef A2lGetType
 #define A2lGetSign_(var) ((int)(typeid(var).name()[0]=='u'?+1:-1))

@@ -28,6 +28,7 @@
 
 // Default ip addr and port
 #define OPTION_ENABLE_TCP ON // Enable TCP support and commandline option -tcp
+#define OPTION_USE_TCP OFF // Enable TCP by default and commandline option -udp
 #define OPTION_SERVER_PORT 5555 // Default UDP port, overwritten by commandline option -por
 #define OPTION_SERVER_ADDR {0,0,0,0} // Default IP addr, 0.0.0.0 = ANY, 255.255.255.255 = first adapter found, overwritten by commandline option -bind x.x.x.x
 

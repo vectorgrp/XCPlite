@@ -217,7 +217,7 @@ static const char* sModPar =
 
  uint32_t A2L::encodeDynAddr(uint8_t ext, uint32_t addr) {
 	 if (ext == 1) { // dynamic addr, addr is offset to this
-		 if (addr > 0xFFFF) printf("ERROR: Offset too large!\n");
+		 if (addr > 0xFFFF) DBG_PRINT_ERROR("ERROR: Offset too large!\n");
 		 return (addr & 0xFFFF) | ((uint32_t)event << 16); // Use event and offset coding for address
 
 	 }
@@ -258,7 +258,7 @@ void A2L::close() {
 
 	fprintf(file, "%s", sFooter);
 	fclose(file);
-	printf("A2L close: %u measurements, %u params, %u typedefs, %u components, %u instances, %u conversions\n",
+	DBG_PRINTF2("A2L close: %u measurements, %u params, %u typedefs, %u components, %u instances, %u conversions\n",
 		cntMeasurements, cntParameters, cntTypedefs, cntComponents, cntInstances, cntConversions);
 
 	file = NULL;
@@ -269,14 +269,14 @@ BOOL A2L::open(const char *projectName) {
 
 	if (file) return FALSE;
 
-	printf("A2L open %s\n", filename);
+	DBG_PRINTF2("A2L open %s\n", filename);
 #ifdef _LINUX // Linux
 	file = fopen(filename, "w");
 	if (!file) {
 #else
 	if (fopen_s(&file, filename, "w")) {
 #endif
-			printf("ERROR: Could not create A2L file %s!\n", filename);
+		    DBG_PRINTF_ERROR("ERROR: Could not create A2L file %s!\n", filename);
 			return FALSE;
 	}
 	
@@ -338,7 +338,7 @@ void A2L::create_XCP_IF_DATA(BOOL tcp, const uint8_t* addr, uint16_t port) {
 		memcpy(addr0, addr, 4);
 	}
 	char addrs[17];
-	sprintf(addrs, "%u.%u.%u.%u", addr0[0], addr0[1], addr0[2], addr0[3]);
+	SPRINTF(addrs, "%u.%u.%u.%u", addr0[0], addr0[1], addr0[2], addr0[3]);
 	char* prot = tcp ? (char*)"TCP" : (char*)"UDP";
 	fprintf(file, sIfData2, prot, XCP_TRANSPORT_LAYER_VERSION, port, addrs, prot);
 }

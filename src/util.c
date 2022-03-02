@@ -15,41 +15,70 @@
 
 
 
-
 /**************************************************************************/
-// cmd line parser
+// load file to memory
 /**************************************************************************/
 
-// help
-void cmdline_usage(const char* appName) {
-        printf(
-        "\n"
-        "Usage:\n"
-        "  %s [options]\n"
-        "\n"
-        "  Options:\n"
-        "    -dx              Set output verbosity to x (default is 1)\n"
-        "    -bind <ipaddr>   Server IP address for socket bind (default is localhost, any = 0.0.0.0)\n"
-        "    -port <portname> Server port (default is 5555)\n"
-#ifdef OPTION_ENABLE_TCP
-            "    -tcp             Use TCP (default is UDP)\n"
-#endif
-#if OPTION_ENABLE_PTP
-            "    -ptp [domain]    Enable PTP (default is off, default domain is 0)\n"
-#endif
-#if OPTION_ENABLE_XLAPI_V3
-        "    -v3              V3 enable (default: off)\n"
-        "    -net <netname>   V3 network (default: NET1)\n"
-        "    -seg <segname>   V3 segment (default: SEG1)\n"
-        "    -addr <mac>      V3 endpoint IPv4 addr (default: 192.168.0.200)\n"
-        "    -mac <mac>       V3 endpoint MAC addr (default: 0xdc:0xa6:0x32:0x7e:0x66:0xdc)\n"
-#if OPTION_ENABLE_PCAP
-            "    -pcap <file>     V3 log all ethernet frames to PCAP file\n"
-#endif
-#endif
-        "\n", appName
-    );
+void releaseFile(uint8_t* file) {
+
+    if (file != NULL) {
+        free(file);
+    }
 }
+
+uint8_t* loadFile(const char* filename, uint32_t* length) {
+
+    uint8_t* fileBuf = NULL; // file content
+    uint32_t fileLen = 0; // file length
+
+    DBG_PRINTF1("Load %s\n", filename);
+
+#ifdef _LINUX // Linux
+    FILE* fd;
+    fd = fopen(filename, "r");
+    if (fd == NULL) {
+        DBG_PRINTF_ERROR("ERROR: file %s not found!\n", filename);
+        return NULL;
+    }
+    struct stat fdstat;
+    stat(filename, &fdstat);
+    fileBuf = (uint8_t*)malloc((size_t)(fdstat.st_size + 1));
+    if (fileBuf == NULL) return NULL;
+    fileLen = (uint32_t)fread(fileBuf, 1, (uint32_t)fdstat.st_size, fd);
+    fclose(fd);
+#else
+    wchar_t wcfilename[256] = { 0 };
+    MultiByteToWideChar(0, 0, filename, (int)strlen(filename), wcfilename, (int)strlen(filename));
+    HANDLE hFile = CreateFileW((wchar_t*)wcfilename, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFile == INVALID_HANDLE_VALUE) {
+        DBG_PRINTF_ERROR("file %s not found!\n", filename);
+        return NULL;
+    }
+    fileLen = (uint32_t)GetFileSize(hFile, NULL);
+    fileBuf = (uint8_t*)malloc(fileLen+1);
+    if (fileBuf == NULL) {
+        DBG_PRINTF_ERROR("Error: out of memory!\n");
+        CloseHandle(hFile);
+        return NULL;
+    }
+    if (!ReadFile(hFile, fileBuf, fileLen, NULL, NULL)) {
+        DBG_PRINTF_ERROR("Error: could not read from %s!\n",filename);
+        free(fileBuf);
+        CloseHandle(hFile);
+        return NULL;
+    }
+    fileBuf[fileLen] = 0;
+    CloseHandle(hFile);
+#endif
+
+    DBG_PRINTF3("  file %s ready for upload, size=%u\n\n", filename, fileLen);
+
+    *length = fileLen;
+    return fileBuf;
+}
+
+
+
 
 
 //-----------------------------------------------------------------------------------------------------
@@ -59,7 +88,7 @@ void cmdline_usage(const char* appName) {
 
 uint32_t gDebugLevel = OPTION_DEBUG_LEVEL;
 
-BOOL gOptionUseTCP = FALSE;
+BOOL gOptionUseTCP = OPTION_USE_TCP;
 uint16_t gOptionPort = OPTION_SERVER_PORT;
 uint8_t gOptionAddr[4] = OPTION_SERVER_ADDR;
 
@@ -81,6 +110,55 @@ char gOptionPCAP_File[FILENAME_MAX] = APP_NAME ".pcap";
 #endif
 
 
+/**************************************************************************/
+// cmd line parser
+/**************************************************************************/
+
+// help
+void cmdline_usage(const char* appName) {
+    printf(
+        "\n"
+        "Usage:\n"
+        "  %s [options]\n"
+        "\n"
+        "  Options:\n"
+        "    -dx              Set output verbosity to x (default is 1)\n"
+        "    -bind <ipaddr>   IP address to bind (default is ANY (0.0.0.0))\n"
+        "    -port <portname> Server port (default is 5555)\n"
+#ifdef OPTION_ENABLE_TCP
+#if OPTION_USE_TCP
+        "    -udp             Use UDP\n"
+#else
+        "    -tcp             Use TCP\n"
+#endif
+#endif
+#if OPTION_ENABLE_PTP
+        "    -ptp [domain]    Enable PTP (master domain)\n"
+#endif
+#if OPTION_ENABLE_HTTP
+        "    -http [port]     Enable HTTP server on port (default: 8080)\n"
+#endif
+#if OPTION_ENABLE_CDC
+        "    -cdc             Enable complementary DAQ channel\n"
+#endif
+#if OPTION_ENABLE_XLAPI_V3
+        "    -v3              V3 enable (default: off)\n"
+        "    -net <netname>   V3 network (default: NET1)\n"
+        "    -seg <segname>   V3 segment (default: SEG1)\n"
+        "    -addr <ipaddr>   V3 endpoint IPv4 addr (default: 192.168.0.200)\n"
+        "    -mac <mac>       V3 endpoint MAC addr (default: 0xdc:0xa6:0x32:0x7e:0x66:0xdc)\n"
+#if OPTION_ENABLE_PCAP
+        "    -pcap <file>     V3 log all ethernet frames to PCAP file\n"
+#endif
+#endif
+        "\n"
+        "  Keys:\n"
+        "    ESC              Exit\n"
+        "    + or -           Change debug output level\n"
+        "\n",
+        appName
+    );
+}
 
 
 BOOL cmdline_parser(int argc, char* argv[]) {
@@ -98,7 +176,7 @@ BOOL cmdline_parser(int argc, char* argv[]) {
         else if (strcmp(argv[i], "-bind") == 0) {
             if (++i < argc) {
                 if (inet_pton(AF_INET, argv[i], &gOptionAddr)) {
-                    printf("Set ip addr for bind to %s\n", argv[i]);
+                    printf("Set ip addr to %s\n", argv[i]);
                 }
             }
         }
@@ -111,7 +189,10 @@ BOOL cmdline_parser(int argc, char* argv[]) {
         }
 #ifdef OPTION_ENABLE_TCP
         else if (strcmp(argv[i], "-tcp") == 0) {
-            gOptionUseTCP = !gOptionUseTCP;
+            gOptionUseTCP = TRUE;
+        }
+        else if (strcmp(argv[i], "-udp") == 0) {
+            gOptionUseTCP = FALSE;
         }
 #endif
 #if OPTION_ENABLE_XLAPI_V3
@@ -173,7 +254,7 @@ BOOL cmdline_parser(int argc, char* argv[]) {
     if (gDebugLevel) printf("Set screen output verbosity to %u\n", gDebugLevel);
 
 #ifdef OPTION_ENABLE_TCP
-    printf("Using %s socket\n", gOptionUseTCP ? "TCP" : "UDP");
+    printf("Using %s\n", gOptionUseTCP ? "TCP" : "UDP");
 #endif
 #if OPTION_ENABLE_XLAPI_V3
     if (gOptionUseXLAPI) {

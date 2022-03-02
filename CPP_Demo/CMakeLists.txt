@@ -12,6 +12,7 @@ set(CPP_Demo_SOURCES
 
 set(OPTION_DEBUG_LEVEL 1 CACHE STRING "Debug output level")
 option(OPTION_ENABLE_TCP "Enable TCP" 1)
+option(OPTION_USE_TCP "Use TCP by default" 0)
 set(OPTION_SERVER_PORT 5555 CACHE STRING "XCP default port")
 set(OPTION_SERVER_ADDR {0,0,0,0} CACHE STRING "XCP IP address to bind, ANY=0.0.0.0")
 option(OPTION_ENABLE_A2L_GEN "Enable A2L file generator" 1)

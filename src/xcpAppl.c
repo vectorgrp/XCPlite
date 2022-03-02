@@ -16,25 +16,16 @@
 #include "platform.h"
 #include "util.h"
 #include "xcpLite.h"
+#include "xcpAppl.h"
 #ifdef APP_CPP_Demo
 #include "xcp.hpp"
-#endif
-#ifndef APP_CPP_Demo
+#else
 #ifdef OPTION_ENABLE_CAL_SEGMENT
 #include "ecu.h"
 #endif
 #endif
 
     
-/**************************************************************************/
-// Test
-/**************************************************************************/
-
-#ifndef ApplXcpGetDebugLevel
-uint32_t ApplXcpGetDebugLevel() {
-    return gDebugLevel;
-}
-#endif
 
 /**************************************************************************/
 // General Callbacks
@@ -54,17 +45,19 @@ BOOL ApplXcpStartDaq() {
     return Xcp::getInstance()->onStartDaq();
 }
 
-BOOL ApplXcpStopDaq() {
-    return Xcp::getInstance()->onStopDaq();
+void ApplXcpStopDaq() {
+    Xcp::getInstance()->onStopDaq();
 }
 
 #else
 
 BOOL ApplXcpConnect() {
+    XCP_DBG_PRINT1("XCP connect\n");
     return TRUE;
 }
 
 BOOL ApplXcpPrepareDaq() { 
+    XCP_DBG_PRINT1("XCP prepare DAQ\n");
 #if OPTION_ENABLE_PTP
     if (gOptionPTP) {
         return ptpClockPrepareDaq();
@@ -78,11 +71,17 @@ BOOL ApplXcpPrepareDaq() {
 }
 
 BOOL ApplXcpStartDaq() {
+    XCP_DBG_PRINT1("XCP start DAQ\n");
     return TRUE;
 }
 
-BOOL ApplXcpStopDaq() {
-    return TRUE;
+void ApplXcpStopDaq() {
+    XCP_DBG_PRINT1("XCP stop DAQ\n");
+#if OPTION_ENABLE_PTP
+    if (gOptionPTP) {
+        ptpClockStopDaq();
+    }
+#endif
 }
 
 #endif
@@ -156,16 +155,39 @@ BOOL ApplXcpGetClockInfoGrandmaster(uint8_t* uuid, uint8_t* epoch, uint8_t* stra
 // The XCP addresses with extension = 0 for Win32 and Win64 versions of XCPlite are defined as relative to the load address of the main module
 // This allows using Microsoft linker PDB files for address update
 // In Microsoft Visual Studio set option "Generate Debug Information" to "optimized for sharing and publishing (/DEBUG:FULL)"
-// In CANape select "Microsoft PDB extented"
+
+
+#define XCP_ENABLE_MEMORY_CHECK
+#ifdef XCP_ENABLE_MEMORY_CHECK
+BOOL check(uint8_t *p)
+{
+    (void)p;
+    return TRUE;
+}
+#endif
+
 
 uint8_t* ApplXcpGetPointer(uint8_t addr_ext, uint32_t addr) {
 
     if (addr_ext != 0) return NULL;
-#ifdef XCP_ENABLE_CAL_PAGE
-    return ecuParAddrMapping(ApplXcpGetBaseAddr() + addr);
-#else
-    return ApplXcpGetBaseAddr() + addr;
+    uint8_t* p;
+
+#ifdef _WIN32 // on WIN32 check that XCP address is in range, because addr is relativ to baseaddr
+    assert((uint64_t)ApplXcpGetBaseAddr() + addr <= 0xffffffff); 
 #endif
+
+    p = ApplXcpGetBaseAddr() + addr;
+#ifdef XCP_ENABLE_CAL_PAGE
+    p = ecuParAddrMapping(p);
+#endif
+    
+#ifdef XCP_ENABLE_MEMORY_CHECK
+    if (!check(p)) {
+        XCP_DBG_PRINTF_ERROR("ERROR: Illegal address %08X!\n", addr);
+        return NULL;
+    }
+#endif
+    return p;
 }
 
 
@@ -181,9 +203,7 @@ uint8_t* ApplXcpGetBaseAddr() {
     if (!baseAddrValid) {
         baseAddr = (uint8_t*)GetModuleHandle(NULL);
         baseAddrValid = 1;
-#ifdef XCP_ENABLE_DEBUG_PRINTS
-        if (ApplXcpGetDebugLevel() >= 1) printf("ApplXcpGetBaseAddr() = 0x%I64X\n", (uint64_t)baseAddr);
-#endif
+        XCP_DBG_PRINTF1("ApplXcpGetBaseAddr() = 0x%I64X\n", (uint64_t)baseAddr);
     }
     return baseAddr;
 }
@@ -211,7 +231,7 @@ uint8_t baseAddrValid = 0;
 
 static int dump_phdr(struct dl_phdr_info* pinfo, size_t size, void* data)
 {
-    // printf("name=%s (%d segments)\n", pinfo->dlpi_name, pinfo->dlpi_phnum);
+    // XCP_DBG_PRINTF1("name=%s (%d segments)\n", pinfo->dlpi_name, pinfo->dlpi_phnum);
 
     // Application modules has no name
     if (0 == strlen(pinfo->dlpi_name)) {
@@ -229,7 +249,7 @@ uint8_t* ApplXcpGetBaseAddr() {
         dl_iterate_phdr(dump_phdr, NULL);
         assert(baseAddr != NULL);
         baseAddrValid = 1;
-        printf("BaseAddr = %lX\n", (uint64_t)baseAddr);
+        XCP_DBG_PRINTF1("BaseAddr = %lX\n", (uint64_t)baseAddr);
     }
 
     return baseAddr;
@@ -310,14 +330,10 @@ uint8_t* ApplXcpGetPointer(uint8_t addr_ext, uint32_t addr)
 
 static int dump_phdr(struct dl_phdr_info* pinfo, size_t size, void* data)
 {
-#ifdef XCP_ENABLE_DEBUG_PRINTS
-    if (gDebugLevel >= 1) {
-        printf("0x%zX %s 0x%X %d %d %d %d 0x%X\n",
+    XCP_DBG_PRINTF1("0x%zX %s 0x%X %d %d %d %d 0x%X\n",
             pinfo->dlpi_addr, pinfo->dlpi_name, pinfo->dlpi_phdr, pinfo->dlpi_phnum,
             pinfo->dlpi_adds, pinfo->dlpi_subs, pinfo->dlpi_tls_modid,
             pinfo->dlpi_tls_data);
-    }
-#endif
 
   // Modules
   if (0 < strlen(pinfo->dlpi_name)) {
@@ -327,13 +343,8 @@ static int dump_phdr(struct dl_phdr_info* pinfo, size_t size, void* data)
   // Application
   else  {
 
-#ifdef XCP_ENABLE_DEBUG_PRINTS
-      if (gDebugLevel >= 1) {
-          printf("Application base addr = 0x%zx\n", pinfo->dlpi_addr);
-      }
-#endif
-
-    gModuleProperties[0].baseAddr = (uint8_t*) pinfo->dlpi_addr;
+     XCP_DBG_PRINTF1("Application base addr = 0x%zx\n", pinfo->dlpi_addr);
+     gModuleProperties[0].baseAddr = (uint8_t*) pinfo->dlpi_addr;
   }
 
   ()size;
@@ -343,10 +354,7 @@ static int dump_phdr(struct dl_phdr_info* pinfo, size_t size, void* data)
 
 void ApplXcpInitBaseAddressList()
 {
-#ifdef XCP_ENABLE_DEBUG_PRINTS
-    if (gDebugLevel >= 1) printf("Module List:\n");
-#endif
-
+    XCP_DBG_PRINTF1("Module List:\n");
     dl_iterate_phdr(dump_phdr, NULL);
 }
 
@@ -387,70 +395,13 @@ uint8_t ApplXcpSetCalPage(uint8_t segment, uint8_t page, uint8_t mode) {
 
 #ifdef XCP_ENABLE_IDT_A2L_UPLOAD // Enable GET_ID A2L content upload to host
 
-static uint8_t* gXcpFile = NULL; // file content
-static uint32_t gXcpFileLength = 0; // file length
-#ifdef _WIN
-static HANDLE hFile, hFileMapping;
-#endif
-
-static BOOL loadA2L() {
-
-    const char* filename = OPTION_A2L_FILE_NAME;
-
-#ifdef XCP_ENABLE_DEBUG_PRINTS
-    if (ApplXcpGetDebugLevel() >= 1) printf("Load %s\n", filename);
-#endif
-
-#ifdef _LINUX // Linux
-    if (gXcpFile) free(gXcpFile);
-    FILE* fd;
-    fd = fopen(filename, "r");
-    if (fd == NULL) {
-        printf("ERROR: file %s not found!\n", filename);
-        return 0;
-    }
-    struct stat fdstat;
-    stat(filename, &fdstat);
-    gXcpFile = (uint8_t*)malloc((size_t)(fdstat.st_size + 1));
-    gXcpFileLength = (uint32_t)fread(gXcpFile, 1, (uint32_t)fdstat.st_size, fd);
-    fclose(fd);
-#else
-    wchar_t wcfilename[256] = { 0 };
-    if (gXcpFile) {
-        UnmapViewOfFile(gXcpFile);
-        CloseHandle(hFileMapping);
-        CloseHandle(hFile);
-    }
-    MultiByteToWideChar(0, 0, filename, (int)strlen(filename), wcfilename, (int)strlen(filename));
-    hFile = CreateFileW((wchar_t*)wcfilename, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (hFile == INVALID_HANDLE_VALUE) {
-        printf("file %s not found!\n", filename);
-        return 0;
-    }
-    gXcpFileLength = (uint32_t)GetFileSize(hFile, NULL) - 2;
-    hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, gXcpFileLength, NULL);
-    if (hFileMapping == NULL) return 0;
-    gXcpFile = (uint8_t*)MapViewOfFile(hFileMapping, FILE_MAP_READ, 0, 0, 0);
-    if (gXcpFile == NULL) return 0;
-#endif
-#ifdef XCP_ENABLE_DEBUG_PRINTS
-    if (ApplXcpGetDebugLevel() >= 1) printf("  file %s ready for upload, size=%u\n\n", filename, gXcpFileLength);
-#endif
-
-    return TRUE;
-}
-
-BOOL ApplXcpReadA2L(uint8_t size, uint32_t addr, uint8_t* data) {
-    if (addr + size > gXcpFileLength) return FALSE;
-    memcpy(data, gXcpFile + addr, size);
-    return TRUE;
-}
-#endif
-
-
 /**************************************************************************/
 // Infos for GET_ID
 /**************************************************************************/
+
+static uint8_t* gXcpFile = NULL; // file content
+static uint32_t gXcpFileLength = 0; // file length
+
 
 uint32_t ApplXcpGetId(uint8_t id, uint8_t* buf, uint32_t bufLen) {
 
@@ -480,7 +431,7 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t* buf, uint32_t bufLen) {
 
 #ifdef XCP_ENABLE_IDT_A2L_UPLOAD
     case IDT_ASAM_UPLOAD:
-        if (!loadA2L()) return 0;
+        if (NULL==(gXcpFile=loadFile(OPTION_A2L_FILE_NAME,&gXcpFileLength))) return 0;
         len = gXcpFileLength;
         break;
 #endif
@@ -490,7 +441,7 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t* buf, uint32_t bufLen) {
         if (buf) {
             uint8_t addr[4];
             if (socketGetLocalAddr(NULL, addr)) {
-                sprintf_s((char*)buf, bufLen, "http://%u.%u.%u.%u:%u/A2L", addr[0], addr[1], addr[2], addr[3], 8080);
+                SNPRINTF((char*)buf, bufLen, "http://%u.%u.%u.%u:%u/file/" OPTION_A2L_FILE_NAME, addr[0], addr[1], addr[2], addr[3], gOptionHTTPPort);
                 len = (uint32_t)strlen((char*)buf);
             }
         }
@@ -500,6 +451,16 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t* buf, uint32_t bufLen) {
     }
     return len;
 }
+
+
+BOOL ApplXcpReadA2L(uint8_t size, uint32_t addr, uint8_t* data) {
+    if (addr + size > gXcpFileLength) return FALSE;
+    memcpy(data, gXcpFile + addr, size);
+    return TRUE;
+}
+
+
+#endif
 
 
 

@@ -13,6 +13,7 @@
 #include "main.h"
 #include "main_cfg.h"
 #include "platform.h"
+#include "util.h"
 #include "xcp_cfg.h"
 #include "xcpLite.h"
 #include "A2L.h"
@@ -163,7 +164,7 @@ static const char* gA2lIfData2 = // Parameter %s TCP or UDP, %04X tl version, %u
 
 static const char* gA2lFooter =
 "/end MODULE\n"
-"/end PROJECT\n\n\n\n\n\n"
+"/end PROJECT\n"
 ;
 
 
@@ -217,13 +218,13 @@ static const char* getTypeMax(int32_t type) {
 
 BOOL A2lOpen(const char *filename, const char* projectName ) {
 
-	printf("Create A2L %s\n", filename);
+	DBG_PRINTF1("Create A2L %s\n", filename);
 	gA2lFile = 0;
 	gA2lEvent = -1;
 	gA2lMeasurements = gA2lParameters = gA2lTypedefs = gA2lInstances = gA2lConversions = gA2lComponents = 0;
 	gA2lFile = fopen(filename, "w");
 	if (gA2lFile == 0) {
-		printf("ERROR: Could not create A2L file %s!\n", filename);
+		DBG_PRINTF_ERROR("ERROR: Could not create A2L file %s!\n", filename);
 		return FALSE;
 	}
 
@@ -303,7 +304,7 @@ void A2lCreate_IF_DATA(BOOL tcp, const uint8_t *addr, uint16_t port) {
 	socketGetLocalAddr(NULL, addr0);
   }
   char addrs[17];
-  sprintf(addrs, "%u.%u.%u.%u", addr0[0], addr0[1], addr0[2], addr0[3]);
+  SPRINTF(addrs, "%u.%u.%u.%u", addr0[0], addr0[1], addr0[2], addr0[3]);
   char* prot = tcp ? (char*)"TCP" : (char*)"UDP";
   fprintf(gA2lFile, gA2lIfData2, prot, XCP_TRANSPORT_LAYER_VERSION, port, addrs, prot);
 }
@@ -345,7 +346,7 @@ void A2lCreateTypedefInstance_(const char* instanceName, const char* typeName, u
 
 void A2lCreateMeasurement_(const char* instanceName, const char* name, int32_t type, uint32_t addr, double factor, double offset, const char* unit, const char* comment) {
 
-	// printf("%s %s - %08X\n", name, getMeaType(type), addr);
+	// DBG_PRINTF1("%s %s - %08X\n", name, getMeaType(type), addr);
 	
 	if (unit == NULL) unit = "";
 	if (comment == NULL) comment = "";
@@ -470,7 +471,7 @@ void A2lClose() {
 
 	fprintf(gA2lFile, "%s", gA2lFooter);
 	fclose(gA2lFile);
-	printf("  A2L: %u measurements, %u params, %u typedefs, %u components, %u instances, %u conversions\n",
+	DBG_PRINTF2("  A2L: %u measurements, %u params, %u typedefs, %u components, %u instances, %u conversions\n",
 		gA2lMeasurements, gA2lParameters, gA2lTypedefs, gA2lComponents, gA2lInstances, gA2lConversions);
 }
 

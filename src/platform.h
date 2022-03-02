@@ -19,6 +19,18 @@ extern int _kbhit();
 
 
 //-------------------------------------------------------------------------------
+// Safe sprintf
+
+#ifdef _WIN
+#define SPRINTF(dest,format,...) sprintf_s((char*)dest,sizeof(dest),format,__VA_ARGS__)
+#define SNPRINTF(dest,len,format,...) sprintf_s((char*)dest,len,format,__VA_ARGS__)
+#else
+#define SPRINTF(dest,format,...) snprintf((char*)dest,sizeof(dest),format,__VA_ARGS__)
+#define SNPRINTF(dest,len,format,...) snprintf((char*)dest,len,format,__VA_ARGS__)
+#endif
+
+
+//-------------------------------------------------------------------------------
 // Delay
 
 // Delay based on clock 
@@ -82,7 +94,9 @@ typedef pthread_t tXcpThread;
 #define SOCKADDR struct sockaddr
 
 #define socketGetLastError() errno
-#define SOCKET_ERROR_CLOSED   EBADF
+#define SOCKET_ERROR_ABORT    EBADF
+#define SOCKET_ERROR_RESET    EBADF
+#define SOCKET_ERROR_INTR     EBADF
 #define SOCKET_ERROR_WBLOCK   EAGAIN
 
 #define htonll(val) ((((uint64_t)htonl((uint32_t)val)) << 32) + htonl((uint32_t)(val >> 32)))
@@ -95,19 +109,21 @@ typedef pthread_t tXcpThread;
 #include <ws2tcpip.h>
 
 #define socketGetLastError() (WSAGetLastError())
-#define SOCKET_ERROR_CLOSED   10004 // Wsaabtr
 #define SOCKET_ERROR_WBLOCK   WSAEWOULDBLOCK
+#define SOCKET_ERROR_ABORT    WSAECONNABORTED
+#define SOCKET_ERROR_RESET    WSAECONNRESET
+#define SOCKET_ERROR_INTR     WSAEINTR
 
 #endif
 
 extern BOOL socketStartup();
 extern void socketCleanup();
 extern BOOL socketOpen(SOCKET* sp, BOOL useTCP, BOOL nonBlocking, BOOL reuseaddr);
-extern BOOL socketBind(SOCKET sock, uint8_t* addr, uint16_t port);
+extern BOOL socketBind(SOCKET sock, const uint8_t* addr, uint16_t port);
 extern BOOL socketJoin(SOCKET sock, uint8_t* maddr);
 extern BOOL socketListen(SOCKET sock);
 extern SOCKET socketAccept(SOCKET sock, uint8_t addr[]);
-extern int16_t socketRecv(SOCKET sock, uint8_t* buffer, uint16_t bufferSize);
+extern int16_t socketRecv(SOCKET sock, uint8_t* buffer, uint16_t bufferSize, BOOL waitAll);
 extern int16_t socketRecvFrom(SOCKET sock, uint8_t* buffer, uint16_t bufferSize, uint8_t* addr, uint16_t* port);
 extern int16_t socketSend(SOCKET sock, const uint8_t* buffer, uint16_t bufferSize);
 extern int16_t socketSendTo(SOCKET sock, const uint8_t* buffer, uint16_t bufferSize, const uint8_t* addr, uint16_t port);
@@ -142,5 +158,5 @@ extern BOOL socketGetLocalAddr(uint8_t* mac, uint8_t* addr);
 
 // Clock
 extern BOOL clockInit();
-extern char* clockGetString(char* s, uint64_t c);
+extern char* clockGetString(char* s, uint32_t l, uint64_t c);
 extern uint64_t clockGet64();

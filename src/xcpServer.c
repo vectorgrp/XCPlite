@@ -18,7 +18,8 @@
 #include "util.h"
 
 #include "xcpTl.h"
-#include "xcpLite.h"
+#include "xcpLite.h"    // Protocol layer interface
+#include "xcpAppl.h"    // Dependecies to application code
 #include "xcpServer.h"
 
 
@@ -62,6 +63,7 @@ BOOL XcpServerInit( const uint8_t *addr, uint16_t port, BOOL useTCP) {
     int r;
 
     if (gXcpServer.isInit) return FALSE;
+    DBG_PRINT1("Start XCP server\n");
 
     gXcpServer.TransmitThreadRunning = gXcpServer.ReceiveThreadRunning = 0;
     gXcpServer.FlushCycleTimer = 0;
@@ -104,9 +106,7 @@ extern void* XcpServerReveiveThread(void* par)
 #endif
 {
     (void)par;
-#ifdef XCP_ENABLE_DEBUG_PRINTS
-    printf("Start XCP CMD thread\n");
-#endif
+    XCP_DBG_PRINT3("Start XCP CMD thread\n");
 
     // Receive XCP unicast commands loop
     gXcpServer.ReceiveThreadRunning = 1;
@@ -115,10 +115,8 @@ extern void* XcpServerReveiveThread(void* par)
     }
     gXcpServer.ReceiveThreadRunning = 0;
 
-#ifdef XCP_ENABLE_DEBUG_PRINTS
-    printf("ERROR: XcpTlHandleCommands failed!\n");
-    printf("ERROR: XcpServerReveiveThread terminated!\n");
-#endif
+    XCP_DBG_PRINT_ERROR("ERROR: XcpTlHandleCommands failed!\n");
+    XCP_DBG_PRINT_ERROR("ERROR: XcpServerReveiveThread terminated!\n");
     return 0;
 }
 
@@ -131,9 +129,7 @@ extern void* XcpServerTransmitThread(void* par)
 #endif
 {
     (void)par;
-#ifdef XCP_ENABLE_DEBUG_PRINTS
-    printf("Start XCP DAQ thread\n");
-#endif
+    XCP_DBG_PRINT3("Start XCP DAQ thread\n");
 
     // Transmit loop
     gXcpServer.TransmitThreadRunning = 1;
@@ -159,10 +155,9 @@ extern void* XcpServerTransmitThread(void* par)
     } // for (;;)
     gXcpServer.TransmitThreadRunning = 0;
 
-#ifdef XCP_ENABLE_DEBUG_PRINTS
-    printf("ERROR: XcpTlHandleTransmitQueue failed!\n"); // Error
-    printf("ERROR: XcpServerTransmitThread terminated!\n");
-#endif
+    XCP_DBG_PRINT_ERROR("ERROR: XcpTlHandleTransmitQueue failed!\n"); 
+    XCP_DBG_PRINT_ERROR("ERROR: XcpServerTransmitThread terminated!\n");
     return 0;
 }
+
 
