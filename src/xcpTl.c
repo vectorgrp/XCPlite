@@ -404,9 +404,9 @@ void XcpTlSendCrm(const uint8_t* packet, uint16_t packet_size) {
     // Build XCP CTO message (ctr+dlc+packet)
     tXcpCtoMessage p;
     p.ctr = gXcpTl.lastCroCtr++;
-    p.dlc = (uint16_t)size;
-    memcpy(p.data, packet, size);
-    r = sendDatagram((unsigned char*)&p, (uint16_t)(size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE));
+    p.dlc = (uint16_t)packet_size;
+    memcpy(p.packet, packet, packet_size);
+    r = sendDatagram((unsigned char*)&p, (uint16_t)(packet_size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE));
     if (r==(-1)) { // Would block
         // @@@@ Todo
     }
@@ -645,7 +645,7 @@ int XcpTlInit(const uint8_t* addr, uint16_t port, BOOL useTCP) {
     { // UDP
         if (!socketOpen(&gXcpTl.Sock, 0 /* useTCP */, 0 /*nonblocking*/, 1 /*reuseAddr*/)) return 0;
         if (!socketBind(gXcpTl.Sock, gXcpTl.ServerAddr, gXcpTl.ServerPort)) return 0; // Bind on ANY, when serverAddr=255.255.255.255
-        XCP_DBG_PRINTF1("  Listening for XCP commands on UDP %u.%u.%u.%u port %u\n\n", gXcpTl.ServerAddr[0], gXcpTl.ServerAddr[1], gXcpTl.ServerAddr[2], gXcpTl.ServerAddr[3], gXcpTl.ServerPort);
+        XCP_DBG_PRINTF1("  Listening for XCP commands on UDP %u.%u.%u.%u port %u\n", gXcpTl.ServerAddr[0], gXcpTl.ServerAddr[1], gXcpTl.ServerAddr[2], gXcpTl.ServerAddr[3], gXcpTl.ServerPort);
     }
 
     // Multicast UDP commands

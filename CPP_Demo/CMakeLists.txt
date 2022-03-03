@@ -10,7 +10,7 @@ set(CPP_Demo_SOURCES
   ../src/xcpAppl.c ../src/xcp.cpp ../src/xcpLite.c ../src/xcpTl.c ../src/xcpServer.c ../src/A2L.cpp ../src/platform.c ../src/util.c
 )
 
-set(OPTION_DEBUG_LEVEL 1 CACHE STRING "Debug output level")
+set(OPTION_DEBUG_LEVEL 2 CACHE STRING "Debug output level")
 option(OPTION_ENABLE_TCP "Enable TCP" 1)
 option(OPTION_USE_TCP "Use TCP by default" 0)
 set(OPTION_SERVER_PORT 5555 CACHE STRING "XCP default port")

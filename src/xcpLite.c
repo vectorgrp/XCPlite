@@ -1318,7 +1318,7 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
                       if (!isLegacyMode()) { // Extended format
                           #ifdef XCP_DAQ_CLOCK_64BIT
                               gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN + 8;
-                              CRM_GET_DAQ_CLOCK_MCAST_PAYLOAD_FMT = 0x42; // FMT_XCP_SLV = size of payload is DLONG + CLUSTER_ID
+                              CRM_GET_DAQ_CLOCK_MCAST_PAYLOAD_FMT = 0x42; // FMT_XCP_SLV = size of timestamp is DLONG + CLUSTER_ID
                               CRM_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER64 = CRO_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER;
                               CRM_DAQ_CLOCK_MCAST_COUNTER64 = CRO_DAQ_CLOCK_MCAST_COUNTER;
                               uint64_t clock = ApplXcpGetClock64();
@@ -1327,17 +1327,17 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
                               CRM_DAQ_CLOCK_MCAST_SYNC_STATE64 = ApplXcpGetClockState();
                           #else
                               gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN + 4;
-                              CRM_GET_DAQ_CLOCK_MCAST_PAYLOAD_FMT = 0x41; // FMT_XCP_SLV = size of payload is DWORD + CLUSTER_ID
+                              CRM_GET_DAQ_CLOCK_MCAST_PAYLOAD_FMT = 0x41; // FMT_XCP_SLV = size of timestamp is DWORD + CLUSTER_ID
                               CRM_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER = CRO_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER;
                               CRM_DAQ_CLOCK_MCAST_COUNTER = CRO_DAQ_CLOCK_MCAST_COUNTER;
-                              CRM_GET_DAQ_CLOCK_MCAST_TIME = ApplXcpGetClock();
+                              CRM_GET_DAQ_CLOCK_MCAST_TIME = (uint32_t)ApplXcpGetClock64();
                               CRM_DAQ_CLOCK_MCAST_SYNC_STATE = ApplXcpGetClockState();
                           #endif
                       }
                       else
                       { // Legacy format
                           gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN;
-                          CRM_GET_DAQ_CLOCK_MCAST_PAYLOAD_FMT = 0x41; // FMT_XCP_SLV = size of payload is DWORD + CLUSTER_ID
+                          CRM_GET_DAQ_CLOCK_MCAST_PAYLOAD_FMT = 0x41; // FMT_XCP_SLV = size of timestamp is DWORD + CLUSTER_ID
                           CRM_GET_DAQ_CLOCK_MCAST_TIME = (uint32_t)ApplXcpGetClock64();
                       }
                   }
@@ -1360,22 +1360,22 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
               if (!isLegacyMode()) { // Extended format
                  #ifdef XCP_DAQ_CLOCK_64BIT
                    gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN + 5;
-                   CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = 0x2;// FMT_XCP_SLV = size of payload is DLONG
+                   CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = 0x2;// FMT_XCP_SLV = size of timestamp is DLONG
                    uint64_t clock = ApplXcpGetClock64();
                    CRM_GET_DAQ_CLOCK_TIME64_LOW =  (uint32_t)(clock & 0xFFFFFFFFLL);
                    CRM_GET_DAQ_CLOCK_TIME64_HIGH = (uint32_t)((clock & 0xFFFFFFFF00000000LL) >> 32);
                    CRM_GET_DAQ_CLOCK_SYNC_STATE64 = ApplXcpGetClockState();
                  #else
                    gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN + 1;
-                   CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = 0x01; // FMT_XCP_SLV = size of payload is DWORD
-                   CRM_GET_DAQ_CLOCK_TIME = ApplXcpGetClock();
+                   CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = 0x01; // FMT_XCP_SLV = size of timestamp is DWORD
+                   CRM_GET_DAQ_CLOCK_TIME = (uint32_t)ApplXcpGetClock64();
                    CRM_GET_DAQ_CLOCK_SYNC_STATE = ApplXcpGetClockState();
 #endif
               }
               else
               #endif // >= 0x0103
               { // Legacy format
-                  CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = 0x01; // FMT_XCP_SLV = size of payload is DWORD
+                  CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = 0x01; // FMT_XCP_SLV = size of timestamp is DWORD
                   gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN;
                   CRM_GET_DAQ_CLOCK_TIME = (uint32_t)ApplXcpGetClock64();
               }

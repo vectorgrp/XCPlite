@@ -64,12 +64,28 @@ Compile options for the XCPlite demos are located in main_cfg.h:
 
 ## Notes:
 
-- Specify the IP addr on the command line, when you have multiple Ethernet adapters. Otherwise the IP address of the first Ethernet adapter found is written to A2L file
-- If A2L generation and upload is disabled, make sure CANape (or any other tool) is using an up to date A2L file
-- If A2L upload is enabled, you may need to set the IP address manually once, when connect is refused, press the flashing update icon in the CANape statusbar 
-- The latest version of C_Demo offers the possibility to enable EPK checking
-- For CANape, use address update with Linker Map Type ELF extended for a.out format or PDB for .exe
-- 64 bit version needs all objects within one 4 GByte data segment
+- Specify the IP addr on the command line (-bind), when you have multiple Ethernet adapters. 
+  Otherwise the IP address of the first Ethernet adapter found, will be written to A2L file. 
+
+- If A2L generation and upload is disabled, make sure CANape (or any other tool) is using an up to date A2L file.
+  You may enable EPK check, to make sure the A2L description matches the ECU software.
+
+- If A2L upload is enabled, you may need to set the IP address manually once.
+  When connect is refused in CANape, press the flashing update icon in the statusbar 
+
+- For CANape automatic A2L address update, use Linker Map Type ELF extended for Linux a.out format or PDB for Microsoft .exe
+
+- 64 bit builds needs all objects located within one 4 GByte data segment. Note that XCP addresses are 32 Bit plus 8 Bit extension. 
+  The conversion methods from pointer to A2l/XCP address and vice versa, are in xcpAppl.c and maybe changed for specific needs. 
+  xcpLite.c does not make assumptions on addresses. The only exception is during measurement, where XcpEvent creates pointers by adding the XCP/A2L address to ApplXcpGetBaseAddr(). 
+  To save space, the 32 Bit addresses, not 64 Bit pointers are stored in the DAQ lists.
+  During measurement setup, ApplXcpGetPointer is called once to check for validity of the XCP/A2L address conversion. 
+  
+- Multicast time synchronisation (GET_DAQ_CLOCK_MULTICAST) is enabled in CANape by default
+  When measurment does not start, it is most probably a problem with multicast reception
+  It provides no benefit with single clients or with PTP time synchronized clients and therefore just unnessesary effort
+  Turn it off in device/protocol/event/TIME_CORRELATION_GETDAQCLOCK, change from "multicast" to "extended response"
+
 - Enable XL-API on command line: C_Demo -v3 -addr 172.31.31.1 -port 5555
 
 

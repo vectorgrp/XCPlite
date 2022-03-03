@@ -19,7 +19,7 @@
 #define ON 1
 #define OFF 0
 
-#define OPTION_DEBUG_LEVEL 1 
+#define OPTION_DEBUG_LEVEL 2 
 
 // A2L generation
 #define OPTION_ENABLE_A2L_GEN ON // Enable A2L generation
