@@ -786,8 +786,7 @@ char* clockGetString(char* s, uint32_t l, uint64_t c) {
     struct tm tm;
     gmtime_s(&tm, &t);
     uint64_t fns = c % CLOCK_TICKS_PER_S;
-    uint32_t tai_s = (uint32_t)((c % CLOCK_TICKS_PER_M) / CLOCK_TICKS_PER_S);
-    SNPRINTF(s, l, "%u.%u.%u %02u:%02u:%02u/%02u +%" PRIu64 "s", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec, tai_s, fns);
+    SNPRINTF(s, l, "%u.%u.%u %02u:%02u:%02u +%" PRIu64 "s", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec, fns);
 #endif
     return s;
 }

@@ -1310,34 +1310,34 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
                   #ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
                   case CC_TL_GET_DAQ_CLOCK_MULTICAST:
                   {
-                      uint16_t clusterId = CRO_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER;
+                      uint16_t clusterId = CRO_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER;
                       if (gXcp.ClusterId != clusterId) error(CRC_OUT_OF_RANGE);
                       CRM_CMD = PID_EV;
                       CRM_EVENTCODE = EVC_TIME_SYNC;
                       CRM_GET_DAQ_CLOCK_MCAST_TRIGGER_INFO = 0x18 + 0x02; // TIME_OF_SAMPLING (Bitmask 0x18, 3 - Sampled on reception) + TRIGGER_INITIATOR ( Bitmask 0x07, 2 - GET_DAQ_CLOCK_MULTICAST)
                       if (!isLegacyMode()) { // Extended format
                           #ifdef XCP_DAQ_CLOCK_64BIT
-                              gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN + 8;
-                              CRM_GET_DAQ_CLOCK_MCAST_PAYLOAD_FMT = 0x42; // FMT_XCP_SLV = size of timestamp is DLONG + CLUSTER_ID
-                              CRM_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER64 = CRO_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER;
-                              CRM_DAQ_CLOCK_MCAST_COUNTER64 = CRO_DAQ_CLOCK_MCAST_COUNTER;
+                              gXcp.CrmLen = CRM_GET_DAQ_CLOCK_MCAST_LEN + 8;
+                              CRM_GET_DAQ_CLOCK_MCAST_PAYLOAD_FMT = DAQ_CLOCK_PAYLOAD_FMT_ID| DAQ_CLOCK_PAYLOAD_FMT_SLV_64; // size of timestamp is DLONG + CLUSTER_ID
+                              CRM_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER64 = CRO_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER;
+                              CRM_GET_DAQ_CLOCK_MCAST_COUNTER64 = CRO_GET_DAQ_CLOCK_MCAST_COUNTER;
                               uint64_t clock = ApplXcpGetClock64();
-                              CRM_GET_DAQ_CLOCK_MCAST_TIME64_LOW = (uint32_t)((clock & 0xFFFFFFFF00000000LL) >> 32);;
-                              CRM_GET_DAQ_CLOCK_MCAST_TIME64_HIGH = (uint32_t)(clock & 0xFFFFFFFFLL);
-                              CRM_DAQ_CLOCK_MCAST_SYNC_STATE64 = ApplXcpGetClockState();
+                              CRM_GET_DAQ_CLOCK_MCAST_TIME64_LOW = (uint32_t)(clock);
+                              CRM_GET_DAQ_CLOCK_MCAST_TIME64_HIGH = (uint32_t)(clock >> 32);
+                              CRM_GET_DAQ_CLOCK_MCAST_SYNC_STATE64 = ApplXcpGetClockState();
                           #else
-                              gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN + 4;
-                              CRM_GET_DAQ_CLOCK_MCAST_PAYLOAD_FMT = 0x41; // FMT_XCP_SLV = size of timestamp is DWORD + CLUSTER_ID
-                              CRM_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER = CRO_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER;
-                              CRM_DAQ_CLOCK_MCAST_COUNTER = CRO_DAQ_CLOCK_MCAST_COUNTER;
+                              gXcp.CrmLen = CRM_GET_DAQ_CLOCK_MCAST_LEN + 4;
+                              CRM_GET_DAQ_CLOCK_MCAST_PAYLOAD_FMT = DAQ_CLOCK_PAYLOAD_FMT_ID | DAQ_CLOCK_PAYLOAD_FMT_SLV_32; // size of timestamp is DWORD + CLUSTER_ID
+                              CRM_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER = CRO_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER;
+                              CRM_GET_DAQ_CLOCK_MCAST_COUNTER = CRO_GET_DAQ_CLOCK_MCAST_COUNTER;
                               CRM_GET_DAQ_CLOCK_MCAST_TIME = (uint32_t)ApplXcpGetClock64();
-                              CRM_DAQ_CLOCK_MCAST_SYNC_STATE = ApplXcpGetClockState();
+                              CRM_GET_DAQ_CLOCK_MCAST_SYNC_STATE = ApplXcpGetClockState();
                           #endif
                       }
                       else
                       { // Legacy format
-                          gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN;
-                          CRM_GET_DAQ_CLOCK_MCAST_PAYLOAD_FMT = 0x41; // FMT_XCP_SLV = size of timestamp is DWORD + CLUSTER_ID
+                          gXcp.CrmLen = CRM_GET_DAQ_CLOCK_MCAST_LEN;
+                          CRM_GET_DAQ_CLOCK_MCAST_PAYLOAD_FMT = DAQ_CLOCK_PAYLOAD_FMT_SLV_32; // size of timestamp is DWORD
                           CRM_GET_DAQ_CLOCK_MCAST_TIME = (uint32_t)ApplXcpGetClock64();
                       }
                   }
@@ -1360,14 +1360,14 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
               if (!isLegacyMode()) { // Extended format
                  #ifdef XCP_DAQ_CLOCK_64BIT
                    gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN + 5;
-                   CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = 0x2;// FMT_XCP_SLV = size of timestamp is DLONG
+                   CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = DAQ_CLOCK_PAYLOAD_FMT_SLV_64;// FMT_XCP_SLV = size of timestamp is DLONG
                    uint64_t clock = ApplXcpGetClock64();
-                   CRM_GET_DAQ_CLOCK_TIME64_LOW =  (uint32_t)(clock & 0xFFFFFFFFLL);
-                   CRM_GET_DAQ_CLOCK_TIME64_HIGH = (uint32_t)((clock & 0xFFFFFFFF00000000LL) >> 32);
+                   CRM_GET_DAQ_CLOCK_TIME64_LOW =  (uint32_t)(clock);
+                   CRM_GET_DAQ_CLOCK_TIME64_HIGH = (uint32_t)(clock >> 32);
                    CRM_GET_DAQ_CLOCK_SYNC_STATE64 = ApplXcpGetClockState();
                  #else
                    gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN + 1;
-                   CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = 0x01; // FMT_XCP_SLV = size of timestamp is DWORD
+                   CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = DAQ_CLOCK_PAYLOAD_FMT_SLV_32; // FMT_XCP_SLV = size of timestamp is DWORD
                    CRM_GET_DAQ_CLOCK_TIME = (uint32_t)ApplXcpGetClock64();
                    CRM_GET_DAQ_CLOCK_SYNC_STATE = ApplXcpGetClockState();
 #endif
@@ -1375,7 +1375,7 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
               else
               #endif // >= 0x0103
               { // Legacy format
-                  CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = 0x01; // FMT_XCP_SLV = size of timestamp is DWORD
+                  CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = DAQ_CLOCK_PAYLOAD_FMT_SLV_32; // FMT_XCP_SLV = size of timestamp is DWORD
                   gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN;
                   CRM_GET_DAQ_CLOCK_TIME = (uint32_t)ApplXcpGetClock64();
               }
@@ -1836,7 +1836,7 @@ static void XcpPrintCmd() {
          switch (CRO_TL_SUBCOMMAND) {
            case CC_TL_GET_DAQ_CLOCK_MULTICAST:
                if (XCP_DBG_LEVEL >= 3 || !isDaqRunning()) {
-                   printf("GET_DAQ_CLOCK_MULTICAST counter=%u, cluster=%u\n", CRO_DAQ_CLOCK_MCAST_COUNTER, CRO_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER);
+                   printf("GET_DAQ_CLOCK_MULTICAST counter=%u, cluster=%u\n", CRO_GET_DAQ_CLOCK_MCAST_COUNTER, CRO_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER);
                }
              break;
          }
@@ -1946,24 +1946,19 @@ static void XcpPrintRes() {
 
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
         case CC_GET_DAQ_CLOCK:
-        getDaqClockMulticast:
             if (XCP_DBG_LEVEL >= 3 || !isDaqRunning()) {
                 if (isLegacyMode()) {
-                    printf("<- t=%u (L)", CRM_GET_DAQ_CLOCK_TIME);
+                    printf("<- L t=0x%" PRIx32 "\n", CRM_GET_DAQ_CLOCK_TIME);
                 }
                 else {
-                    if (CRM_GET_DAQ_CLOCK_PAYLOAD_FMT == 0x01) { // CRM_GET_DAQ_CLOCK_PAYLOAD_FMT
-                        printf("<- t=%u sync=%u", CRM_GET_DAQ_CLOCK_TIME, CRM_GET_DAQ_CLOCK_SYNC_STATE);
+                    if (CRM_GET_DAQ_CLOCK_PAYLOAD_FMT == DAQ_CLOCK_PAYLOAD_FMT_SLV_32) {
+                        printf("<- X t=0x%" PRIx32 " sync=%u\n", CRM_GET_DAQ_CLOCK_TIME, CRM_GET_DAQ_CLOCK_SYNC_STATE);
                     }
                     else {
-                        printf("<- t=%08X.%08X sync=%u", CRM_GET_DAQ_CLOCK_TIME64_LOW, CRM_GET_DAQ_CLOCK_TIME64_HIGH, CRM_GET_DAQ_CLOCK_SYNC_STATE64);
+                        char ts[64];
+                        clockGetString(ts, sizeof(ts), (((uint64_t)CRM_GET_DAQ_CLOCK_TIME64_HIGH) << 32) | CRM_GET_DAQ_CLOCK_TIME64_LOW);
+                        printf("<- X t=%s, sync=%u\n", ts, CRM_GET_DAQ_CLOCK_SYNC_STATE64);
                     }
-                }
-                if (CRM_CMD == PID_EV) {
-                    printf(" PID_EV\n");
-                }
-                else {
-                    printf("\n");
                 }
             }
             break;
@@ -1999,7 +1994,26 @@ static void XcpPrintRes() {
             switch (CRO_TL_SUBCOMMAND) {
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
             case CC_TL_GET_DAQ_CLOCK_MULTICAST:
-                goto getDaqClockMulticast;
+                if (XCP_DBG_LEVEL >= 3 || !isDaqRunning()) {
+                    if (isLegacyMode()) {
+                        printf("<- L t=0x%" PRIx32 "\n", CRM_GET_DAQ_CLOCK_MCAST_TIME);
+                    }
+                    else {
+                        if ((CRM_GET_DAQ_CLOCK_MCAST_PAYLOAD_FMT & ~DAQ_CLOCK_PAYLOAD_FMT_ID) == DAQ_CLOCK_PAYLOAD_FMT_SLV_32) {
+                            printf("<- X t=0x%" PRIx32 " sync=%u", CRM_GET_DAQ_CLOCK_MCAST_TIME, CRM_GET_DAQ_CLOCK_MCAST_SYNC_STATE);
+                            if (CRM_GET_DAQ_CLOCK_MCAST_PAYLOAD_FMT & DAQ_CLOCK_PAYLOAD_FMT_ID) printf(" counter=%u, cluster=%u", CRM_GET_DAQ_CLOCK_MCAST_COUNTER, CRM_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER);
+                        }
+                        else {
+                            char ts[64];
+                            clockGetString(ts, sizeof(ts), (((uint64_t)CRM_GET_DAQ_CLOCK_MCAST_TIME64_HIGH)<<32)|CRM_GET_DAQ_CLOCK_MCAST_TIME64_LOW);
+                            printf("<- X t=%s, sync=%u", ts, CRM_GET_DAQ_CLOCK_MCAST_SYNC_STATE64);
+                            if (CRM_GET_DAQ_CLOCK_MCAST_PAYLOAD_FMT & DAQ_CLOCK_PAYLOAD_FMT_ID) printf(" counter=%u, cluster=%u", CRM_GET_DAQ_CLOCK_MCAST_COUNTER64, CRM_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER64);
+                        }
+                        printf("\n");
+                    }
+                }
+
+                break;
             case CC_TL_GET_SERVER_ID:
                 break;
 #endif

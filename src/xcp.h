@@ -759,24 +759,31 @@
 #define CRM_GET_DAQ_CLOCK_TIME                          CRM_DWORD(1)  // 4
 #endif
 
+#define DAQ_CLOCK_PAYLOAD_FMT_SLV_32   (1<<0)
+#define DAQ_CLOCK_PAYLOAD_FMT_SLV_64   (2<<0) 
+#define DAQ_CLOCK_PAYLOAD_FMT_ID       (1<<6)
+
 /* GET_DAQ_CLOCK_MULTICAST */
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
-#define CRO_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER          CRO_WORD(1)
-#define CRO_DAQ_CLOCK_MCAST_COUNTER                     CRO_BYTE(4)
+#define CRO_GET_DAQ_CLOC_MCAST_LEN                      4
+#define CRM_GET_DAQ_CLOCK_MCAST_LEN                     8
+
+#define CRO_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER      CRO_WORD(1)
+#define CRO_GET_DAQ_CLOCK_MCAST_COUNTER                 CRO_BYTE(4)
 
 #define CRM_GET_DAQ_CLOCK_MCAST_TRIGGER_INFO            CRM_BYTE(2)   // 2
 #define CRM_GET_DAQ_CLOCK_MCAST_PAYLOAD_FMT             CRM_BYTE(3)   // 3
 
 #define CRM_GET_DAQ_CLOCK_MCAST_TIME                    CRM_DWORD(1)  // 4
-#define CRM_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER          CRM_WORD(4)   // 8
-#define CRM_DAQ_CLOCK_MCAST_COUNTER                     CRM_BYTE(10)  // 10
-#define CRM_DAQ_CLOCK_MCAST_SYNC_STATE                  CRM_BYTE(11)  // 11
+#define CRM_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER      CRM_WORD(4)   // 8
+#define CRM_GET_DAQ_CLOCK_MCAST_COUNTER                 CRM_BYTE(10)  // 10
+#define CRM_GET_DAQ_CLOCK_MCAST_SYNC_STATE              CRM_BYTE(11)  // 11
 
 #define CRM_GET_DAQ_CLOCK_MCAST_TIME64_LOW              CRM_DWORD(1)  // 4
 #define CRM_GET_DAQ_CLOCK_MCAST_TIME64_HIGH             CRM_DWORD(2)  // 8
-#define CRM_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER64        CRM_WORD(6)   // 12
-#define CRM_DAQ_CLOCK_MCAST_COUNTER64                   CRM_BYTE(14)  // 14
-#define CRM_DAQ_CLOCK_MCAST_SYNC_STATE64                CRM_BYTE(15)  // 15
+#define CRM_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER64    CRM_WORD(6)   // 12
+#define CRM_GET_DAQ_CLOCK_MCAST_COUNTER64               CRM_BYTE(14)  // 14
+#define CRM_GET_DAQ_CLOCK_MCAST_SYNC_STATE64            CRM_BYTE(15)  // 15
 #endif
 
 /* READ_DAQ */

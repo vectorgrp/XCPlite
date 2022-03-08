@@ -57,7 +57,7 @@ Drawbacks:
 #define XCPTL_TRANSPORT_LAYER_HEADER_SIZE 4
 
 // Multicast (GET_DAQ_CLOCK_MULTICAST)
-// Use multicast time synchronisation to improve synchronisation of multiple XCP slaves
+// Use multicast time synchronisation (not recommended)
 // See readme.md
 //#define XCPTL_ENABLE_MULTICAST
 #ifdef XCPTL_ENABLE_MULTICAST

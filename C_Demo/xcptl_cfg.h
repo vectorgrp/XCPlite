@@ -6,6 +6,9 @@
 |
 | Description:
 |   User configuration file for XCP transport layer parameters
+|
+| Code released into public domain, no attribution required
+|
  ----------------------------------------------------------------------------*/
 
 // Transport layer version
@@ -19,7 +22,7 @@
 #define XCPTL_QUEUED_CRM // Use transmit queue for command responces
 /*
 Benefits:
-- Unique transport layers message counters for CRM and DTO (CANape default transport layer option us "include command response")
+- Unique transport layers message counters for CRM and DTO (CANape default transport layer option is "include command response")
 - Transmit queue empty before DAQ is stopped (end of measurement consistent for all event channels)
 - socketSendTo needs not to be thread safe for a socket
 Drawbacks:
@@ -57,7 +60,7 @@ Drawbacks:
 #define XCPTL_TRANSPORT_LAYER_HEADER_SIZE 4
 
 // Multicast (GET_DAQ_CLOCK_MULTICAST)
-// Use multicast time synchronisation to improve synchronisation of multiple XCP slaves
+// Use multicast time synchronisation (not recommended)
 // See readme.md
 //#define XCPTL_ENABLE_MULTICAST
 #ifdef XCPTL_ENABLE_MULTICAST
