@@ -84,3 +84,5 @@
 
 #endif
 
+#include "main_cfg.h"
+

@@ -13,6 +13,7 @@
 #include "main.h"
 #include "main_cfg.h"
 #include "platform.h"
+#include "options.h"
 #include "util.h"
 
 #include <vector>
@@ -218,7 +219,7 @@ static const char* sModPar =
  uint32_t A2L::encodeDynAddr(uint8_t ext, uint32_t addr) {
 	 if (ext == 1) { // dynamic addr, addr is offset to this
 		 if (addr > 0xFFFF) DBG_PRINT_ERROR("ERROR: Offset too large!\n");
-		 return (addr & 0xFFFF) | ((uint32_t)event << 16); // Use event and offset coding for address
+		 return (addr & 0xFFFF) | ((uint32_t)fixedEvent << 16); // Use event and offset coding for address
 
 	 }
 	 return addr;
@@ -243,7 +244,7 @@ static const char* sModPar =
 	 
 	filename = name;
 	file = NULL;
-	event = 0xFFFF;
+	fixedEvent = defaultEvent = 0xFFFF;
 	cntMeasurements = cntParameters = cntTypedefs = cntComponents = cntInstances = cntConversions = 0;
  }
 
@@ -343,15 +344,27 @@ void A2L::create_XCP_IF_DATA(BOOL tcp, const uint8_t* addr, uint16_t port) {
 	fprintf(file, sIfData2, prot, XCP_TRANSPORT_LAYER_VERSION, port, addrs, prot);
 }
 
+void A2L::createMeasurement_IF_DATA() {
+	if (fixedEvent >= 0) {
+		fprintf(file, " /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x%X /end DAQ_EVENT /end IF_DATA", fixedEvent);
+	}
+	else if (defaultEvent >= 0) {
+		fprintf(file, " /begin IF_DATA XCP /begin DAQ_EVENT DEFAULT_EVENT_LIST EVENT 0x%X /end DAQ_EVENT /end IF_DATA", defaultEvent);
+	}
+}
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
- void A2L::setEvent(uint16_t e) {
-	event = e;
+void A2L::setDefaultEvent(uint16_t e) {
+	defaultEvent = e;
 }
 
- void A2L::rstEvent() {
-	event = 0xFFFF;
+void A2L::setFixedEvent(uint16_t e) {
+	fixedEvent = e;
+}
+
+ void A2L::rstFixedEvent() {
+	fixedEvent = 0xFFFF;
 }
 
  //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -383,9 +396,7 @@ void A2L::create_XCP_IF_DATA(BOOL tcp, const uint8_t* addr, uint16_t port) {
 	if (!file) return;
 	fprintf(file, "/begin INSTANCE %s \"%s\" %s 0x%X", instanceName, comment, typeName, encodeDynAddr(ext, addr));
 	printAddrExt(ext);
-	if (event >= 0) {
-		fprintf(file, " /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x%X /end DAQ_EVENT /end IF_DATA", event);
-	}
+	createMeasurement_IF_DATA();
 	fprintf(file, " /end INSTANCE\n");
 	cntInstances++;
 }
@@ -405,9 +416,7 @@ void A2L::create_XCP_IF_DATA(BOOL tcp, const uint8_t* addr, uint16_t port) {
 	fprintf(file, "\"%s\" %s %s_COMPU_METHOD 0 0 %s %s ECU_ADDRESS 0x%X", comment, getType(type), conv, getTypeMin(type), getTypeMax(type), encodeDynAddr(ext, addr));
 	printAddrExt(ext);
 	printPhysUnit(unit);
-	if (event >= 0) {
-		fprintf(file," /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x%X /end DAQ_EVENT /end IF_DATA", event);
-	}
+	createMeasurement_IF_DATA();
 	fprintf(file, " /end MEASUREMENT\n");
 	cntMeasurements++;
 }
@@ -419,9 +428,7 @@ void A2L::create_XCP_IF_DATA(BOOL tcp, const uint8_t* addr, uint16_t port) {
 	 printName("CHARACTERISTIC", instanceName, name);
 	 fprintf(file, "\"\" VAL_BLK 0x%X R_%s 0 NO_COMPU_METHOD %s %s MATRIX_DIM %u", encodeDynAddr(ext, addr), getType(type), getTypeMin(type), getTypeMax(type), dim);
 	 printAddrExt(ext);
-	if (event>=0) {
-		fprintf(file," /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x%X /end DAQ_EVENT /end IF_DATA", event);
-	}
+	 createMeasurement_IF_DATA();
 	fprintf(file, " /end CHARACTERISTIC\n");
 	cntMeasurements++;
 }

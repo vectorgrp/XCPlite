@@ -70,10 +70,12 @@ class A2L {
 private:
 
 	 FILE* file;
-	 uint32_t event;
-	 	
+     uint32_t fixedEvent;
+     uint32_t defaultEvent;
+
      void printName(const char*type, const char* instanceName, const char* name);
      uint32_t encodeDynAddr(uint8_t ext, uint32_t addr);
+     void createMeasurement_IF_DATA();
 
 
 public:
@@ -102,9 +104,10 @@ public:
     // All XCP events must have been be created before
     void create_XCP_IF_DATA(BOOL tcp, const uint8_t* addr, uint16_t port);
 
-    // Set/reset fixed XCP event for all following creates
-    void setEvent(uint16_t xcp_event);
-    void rstEvent();
+    // Set XCP events for all following creates
+    void setFixedEvent(uint16_t xcp_event);
+    void setDefaultEvent(uint16_t xcp_event);
+    void rstFixedEvent();
 
     // Create groups
     void createParameterGroup(const char* name, int count, ...);

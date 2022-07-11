@@ -116,21 +116,26 @@ typedef pthread_t tXcpThread;
 
 #endif
 
-extern BOOL socketStartup();
+#define SOCKET_TIMESTAMP_NONE    0 // No timestamps
+#define SOCKET_TIMESTAMP_HW      1 // Hardware clock
+#define SOCKET_TIMESTAMP_HW_SYNT 2 // Hardware clock syntonized to PC clock (not synchronized!)
+#define SOCKET_TIMESTAMP_PC      3 // PC clock
+
+extern BOOL socketStartup(char* app_name);
+extern BOOL socketSetTimestampMode(uint8_t timestamp_mode);
 extern void socketCleanup();
-extern BOOL socketOpen(SOCKET* sp, BOOL useTCP, BOOL nonBlocking, BOOL reuseaddr);
-extern BOOL socketBind(SOCKET sock, const uint8_t* addr, uint16_t port);
+extern BOOL socketOpen(SOCKET* sp, BOOL useTCP, BOOL nonBlocking, BOOL reuseaddr, BOOL timestamps);
+extern BOOL socketBind(SOCKET sock, uint8_t* addr, uint16_t port);
 extern BOOL socketJoin(SOCKET sock, uint8_t* maddr);
 extern BOOL socketListen(SOCKET sock);
 extern SOCKET socketAccept(SOCKET sock, uint8_t addr[]);
 extern int16_t socketRecv(SOCKET sock, uint8_t* buffer, uint16_t bufferSize, BOOL waitAll);
-extern int16_t socketRecvFrom(SOCKET sock, uint8_t* buffer, uint16_t bufferSize, uint8_t* addr, uint16_t* port);
+extern int16_t socketRecvFrom(SOCKET sock, uint8_t* buffer, uint16_t bufferSize, uint8_t* addr, uint16_t* port, uint64_t *time);
 extern int16_t socketSend(SOCKET sock, const uint8_t* buffer, uint16_t bufferSize);
-extern int16_t socketSendTo(SOCKET sock, const uint8_t* buffer, uint16_t bufferSize, const uint8_t* addr, uint16_t port);
+extern int16_t socketSendTo(SOCKET sock, const uint8_t* buffer, uint16_t bufferSize, const uint8_t* addr, uint16_t port, uint64_t *time);
 extern BOOL socketShutdown(SOCKET sock);
 extern BOOL socketClose(SOCKET* sp);
 extern BOOL socketGetLocalAddr(uint8_t* mac, uint8_t* addr);
-
 
 //-------------------------------------------------------------------------------
 // Clock
@@ -158,5 +163,7 @@ extern BOOL socketGetLocalAddr(uint8_t* mac, uint8_t* addr);
 
 // Clock
 extern BOOL clockInit();
-extern char* clockGetString(char* s, uint32_t l, uint64_t c);
 extern uint64_t clockGet64();
+
+extern char* clockGetString(char* s, uint32_t l, uint64_t c);
+extern char* clockGetTimeString(char* s, uint32_t l, int64_t c);

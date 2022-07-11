@@ -9,7 +9,7 @@
 |
 | Code released into public domain, no attribution required
 |
-----------------------------------------------------------------------------*/
+ ----------------------------------------------------------------------------*/
 
 
  /*----------------------------------------------------------------------------*/
@@ -47,11 +47,17 @@
 //#define XCP_ENABLE_CHECKSUM // Enable checksum calculation command
 //#define XCP_ENABLE_CAL_PAGE // Enable cal page switch
 
+
 /*----------------------------------------------------------------------------*/
 /* GET_ID command */
 
-#define XCP_ENABLE_IDT_A2L_NAME // Enable GET_ID A2L name without extension upload
-#define XCP_ENABLE_IDT_A2L_UPLOAD // Enable GET_ID A2L content upload
+#if OPTION_ENABLE_A2L_GEN
+#define XCP_ENABLE_IDT_A2L_UPLOAD // Upload A2L via XCP UPLOAD
+#endif
+#if OPTION_ENABLE_HTTP
+#define XCP_ENABLE_IDT_A2L_HTTP_GET // Upload A2L via HTTP GET
+#endif
+
 
 /*----------------------------------------------------------------------------*/
 /* DAQ features and parameters */
@@ -65,29 +71,22 @@
 
 #define XCP_DAQ_MEM_SIZE (5*100) // Amount of memory for DAQ tables, each ODT entry (e.g. measurement variable) needs 5 bytes
 
-// DAQ clock info
-#ifndef CLOCK_USE_UTC_TIME_NS
-
-// Settings for 32 bit us since application start (CLOCK_USE_APP_TIME_US)
-#define XCP_TIMESTAMP_UNIT DAQ_TIMESTAMP_UNIT_1US // unit DAQ_TIMESTAMP_UNIT_xxx
-#define XCP_TIMESTAMP_TICKS 1  // ticks per unit
-//#define XCP_DAQ_CLOCK_64BIT  // Use 64 Bit time stamps in GET_DAQ_CLOCK, GET_DAQ_CLOCK_MULTICAST 
-#define XCP_DAQ_CLOCK_UIID { 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00 }
-
-#else
-
+// CLOCK_USE_UTC_TIME_NS
 // Settings for 64 bit ns since 1.1.1970 TAI clock (CLOCK_USE_UTC_TIME_NS)
-#define XCP_TIMESTAMP_UNIT DAQ_TIMESTAMP_UNIT_1NS // unit DAQ_TIMESTAMP_UNIT_xxx
-#define XCP_TIMESTAMP_TICKS 1  // ticks per unit
-#define XCP_DAQ_CLOCK_64BIT  // Use 64 Bit time stamps in GET_DAQ_CLOCK, GET_DAQ_CLOCK_MULTICAST 
+
+#define XCP_DAQ_CLOCK_64BIT  // Use 64 Bit time stamps in GET_DAQ_CLOCK
 #define XCP_DAQ_CLOCK_UIID { 0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc }
 
-// Grandmaster clock (optional, implement ApplXcpGetClockInfoGrandmaster)
-//#define XCP_ENABLE_PTP
+// Server DAQ clock info (mandatory)
+#define XCP_TIMESTAMP_UNIT DAQ_TIMESTAMP_UNIT_1NS // unit DAQ_TIMESTAMP_UNIT_xxx
+#define XCP_TIMESTAMP_TICKS 1  // ticks per unit
+#define XCP_TIMESTAMP_EPOCH XCP_EPOCH_TAI
 
-#endif
+// Grandmaster clock (optional, use XcpSetGrandmasterClockInfo, implement ApplXcpGetClockInfoGrandmaster)
+// #define XCP_ENABLE_PTP
 
-//#define XCP_ENABLE_DAQ_CLOCK_MULTICAST // Enable GET_DAQ_CLOCK_MULTICAST
+
+#define XCP_ENABLE_DAQ_CLOCK_MULTICAST // Enable GET_DAQ_CLOCK_MULTICAST
 #ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
     // XCP default cluster id (multicast addr 239,255,0,1, group 127,0,1 (mac 01-00-5E-7F-00-01)
 #define XCP_MULTICAST_CLUSTER_ID 1

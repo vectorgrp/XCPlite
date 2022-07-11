@@ -26,6 +26,9 @@
     <ClCompile Include="..\src\xcpAppl.c">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\options.c">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\A2L.hpp">
@@ -57,6 +60,9 @@
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="xcpAppl.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\options.h">
       <Filter>src</Filter>
     </ClInclude>
   </ItemGroup>

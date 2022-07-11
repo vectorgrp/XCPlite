@@ -71,7 +71,7 @@ public:
 
 	static Xcp* getInstance();
 
-	virtual BOOL init(const uint8_t* addr, uint16_t port, BOOL useTCP, BOOL usePTP);
+	virtual BOOL init(const uint8_t* addr, uint16_t port, BOOL useTCP, BOOL usePTP, uint16_t segmentSize);
 	virtual void shutdown();
 
 	virtual BOOL onConnect();      // Callbacks

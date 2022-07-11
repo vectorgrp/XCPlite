@@ -13,7 +13,6 @@
 -----------------------------------------------------------------------------*/
 
 #include "main.h"
-#include "main_cfg.h"
 #include "platform.h"
 #include "util.h"
 
@@ -24,9 +23,9 @@
 
 
 #ifdef _WIN
-static DWORD WINAPI XcpServerReveiveThread(LPVOID lpParameter);
+static DWORD WINAPI XcpServerReceiveThread(LPVOID lpParameter);
 #else
-static void* XcpServerReveiveThread(void* par);
+static void* XcpServerReceiveThread(void* par);
 #endif
 #ifdef _WIN
 static DWORD WINAPI XcpServerTransmitThread(LPVOID lpParameter);
@@ -39,7 +38,7 @@ static struct {
 
     BOOL isInit; 
 
-    uint64_t FlushCycleNs; // Send a DTO packet at least every x ns (typical value 200ms, 0 = off)
+    uint32_t FlushCycleMs; // Send a DTO packet at least every x ms (typical value 200ms, 0 = off)
     uint64_t FlushCycleTimer;
 
     // Threads
@@ -58,22 +57,22 @@ BOOL XcpServerStatus() {
 
 
 // XCP server init
-BOOL XcpServerInit( const uint8_t *addr, uint16_t port, BOOL useTCP) {
+BOOL XcpServerInit( const uint8_t *addr, uint16_t port, BOOL useTCP, uint16_t segmentSize) {
 
     int r;
 
     if (gXcpServer.isInit) return FALSE;
-    DBG_PRINT1("Start XCP server\n");
+    XCP_DBG_PRINT1("\nStart XCP server\n");
 
     gXcpServer.TransmitThreadRunning = gXcpServer.ReceiveThreadRunning = 0;
     gXcpServer.FlushCycleTimer = 0;
-    gXcpServer.FlushCycleNs = 200*CLOCK_TICKS_PER_MS; // 200 ms flush cycle time
+    gXcpServer.FlushCycleMs = 200; // 200 ms flush cycle time
 
     // Initialize XCP protocol layer
     XcpInit();
 
     // Initialize XCP transport layer
-    r = XcpTlInit(addr, port, useTCP);
+    r = XcpTlInit(addr, port, useTCP, segmentSize);
     if (!r) return 0;
 
     // Start XCP protocol layer
@@ -81,8 +80,11 @@ BOOL XcpServerInit( const uint8_t *addr, uint16_t port, BOOL useTCP) {
 
     // Create threads
     create_thread(&gXcpServer.DAQThreadHandle, XcpServerTransmitThread);
-    create_thread(&gXcpServer.CMDThreadHandle, XcpServerReveiveThread);
-    
+    create_thread(&gXcpServer.CMDThreadHandle, XcpServerReceiveThread);
+#ifdef _WIN
+    SetThreadPriority(gXcpServer.DAQThreadHandle, THREAD_PRIORITY_TIME_CRITICAL);
+#endif
+
     gXcpServer.isInit = TRUE;
     return TRUE;
 }
@@ -100,9 +102,9 @@ BOOL XcpServerShutdown() {
 
 // XCP server unicast command receive thread
 #ifdef _WIN
-DWORD WINAPI XcpServerReveiveThread(LPVOID par)
+DWORD WINAPI XcpServerReceiveThread(LPVOID par)
 #else
-extern void* XcpServerReveiveThread(void* par)
+extern void* XcpServerReceiveThread(void* par)
 #endif
 {
     (void)par;
@@ -116,7 +118,7 @@ extern void* XcpServerReveiveThread(void* par)
     gXcpServer.ReceiveThreadRunning = 0;
 
     XCP_DBG_PRINT_ERROR("ERROR: XcpTlHandleCommands failed!\n");
-    XCP_DBG_PRINT_ERROR("ERROR: XcpServerReveiveThread terminated!\n");
+    XCP_DBG_PRINT_ERROR("ERROR: XcpServerReceiveThread terminated!\n");
     return 0;
 }
 
@@ -136,7 +138,7 @@ extern void* XcpServerTransmitThread(void* par)
     for (;;) {
 
         // Wait for transmit data available, time out at least for required flush cycle
-        XcpTlWaitForTransmitData(2/*ms*/);
+        XcpTlWaitForTransmitData(gXcpServer.FlushCycleMs);
 
         // Transmit all completed UDP packets from the transmit queue
         if (!XcpTlHandleTransmitQueue()) {
@@ -147,7 +149,7 @@ extern void* XcpServerTransmitThread(void* par)
         // Cyclic flush of incomplete packets from transmit queue or transmit buffer to keep tool visualizations up to date
         // No priorisation of events implemented, no latency optimizations
         uint64_t c = clockGet64();
-        if (gXcpServer.FlushCycleNs > 0 &&  c - gXcpServer.FlushCycleTimer > gXcpServer.FlushCycleNs) {
+        if (gXcpServer.FlushCycleMs > 0 &&  c - gXcpServer.FlushCycleTimer > gXcpServer.FlushCycleMs * CLOCK_TICKS_PER_MS) {
             gXcpServer.FlushCycleTimer = c;
             XcpTlFlushTransmitQueue();
         }

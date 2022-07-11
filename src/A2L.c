@@ -1,6 +1,6 @@
 /*----------------------------------------------------------------------------
 | File:
-|   a2l.c
+|   A2L.c
 |
 | Description:
 |   Create A2L file 
@@ -11,15 +11,16 @@
  ----------------------------------------------------------------------------*/
 
 #include "main.h"
-#include "main_cfg.h"
 #include "platform.h"
+#include "options.h"
 #include "util.h"
 #include "xcp_cfg.h"
 #include "xcpLite.h"
 #include "A2L.h"
 
 static FILE* gA2lFile = NULL;
-static int gA2lEvent = 0;
+static int32_t gA2lFixedEvent = -1;
+static int32_t gA2lDefaultEvent = -1;
 
 static unsigned int gA2lMeasurements;
 static unsigned int gA2lParameters;
@@ -49,7 +50,7 @@ static const char* gA2lHeader =
 "\n";
 
 //----------------------------------------------------------------------------------
-#ifdef OPTION_ENABLE_CAL_SEGMENT
+#if OPTION_ENABLE_CAL_SEGMENT
 static const char* gA2lMemorySegment =
 "/begin MEMORY_SEGMENT\n"
 "CALRAM \"\" DATA FLASH INTERN 0x%08X 0x%08X - 1 - 1 - 1 - 1 - 1\n" // CALRAM_START, CALRAM_SIZE
@@ -168,6 +169,18 @@ static const char* gA2lFooter =
 ;
 
 
+static const char* getSymbolName(const char* instanceName, const char* name) {
+
+	static char s[256];
+	if (instanceName != NULL && strlen(instanceName) > 0) {
+		SNPRINTF(s, 256, "%s.%s", instanceName, name);
+		return s;
+	}
+	else {
+		return name;
+	}
+}
+
 static const char* getType(int32_t type) {
 	const char* types;
 	switch (type) {
@@ -215,12 +228,46 @@ static const char* getTypeMax(int32_t type) {
 	return max;
 }
 
+static const char* getPhysMin(int32_t type, double factor, double offset) {
+	double value = 0.0;
+	switch (type) {
+	case A2L_TYPE_INT8:		value = -128; break;
+	case A2L_TYPE_INT16:	value = -32768; break;
+	case A2L_TYPE_INT32:	value = -2147483647-1; break;
+	case A2L_TYPE_INT64:	value = -1E12; break;
+	case A2L_TYPE_FLOAT:	value = -1E12; break;
+	case A2L_TYPE_DOUBLE:	value = -1E12; break;
+	default:                value = 0.0;
+	}
+
+	static char str[20];
+	snprintf(str, 20, "%f", factor * value + offset);
+	return str;
+}
+
+static const char* getPhysMax(int32_t type, double factor, double offset) {
+	double value = 0.0;
+	switch (type) {
+	case A2L_TYPE_INT8:		value = 127; break;
+	case A2L_TYPE_INT16:	value = 32767; break;
+	case A2L_TYPE_INT32:	value = 2147483647; break;
+	case A2L_TYPE_UINT8:  value = 255; break;
+	case A2L_TYPE_UINT16: value = 65535; break;
+	case A2L_TYPE_UINT32: value = 4294967295; break;
+	default:                value = 1E12;
+	}
+
+	static char str[20];
+	snprintf(str, 20, "%f", factor * value + offset);
+	return str;
+}
+
 
 BOOL A2lOpen(const char *filename, const char* projectName ) {
 
-	DBG_PRINTF1("Create A2L %s\n", filename);
+	DBG_PRINTF1("\nCreate A2L %s\n", filename);
 	gA2lFile = 0;
-	gA2lEvent = -1;
+	gA2lFixedEvent = -1;
 	gA2lMeasurements = gA2lParameters = gA2lTypedefs = gA2lInstances = gA2lConversions = gA2lComponents = 0;
 	gA2lFile = fopen(filename, "w");
 	if (gA2lFile == 0) {
@@ -246,23 +293,26 @@ BOOL A2lOpen(const char *filename, const char* projectName ) {
 }
 
 // Memory segments
-#ifdef OPTION_ENABLE_CAL_SEGMENT
+#if OPTION_ENABLE_CAL_SEGMENT
 void A2lCreate_MOD_PAR(uint32_t startAddr, uint32_t size, char *epk) {
 	fprintf(gA2lFile, "/begin MOD_PAR \"\"\n");
 	fprintf(gA2lFile, "EPK \"%s\"\n", epk);
 	fprintf(gA2lFile, "ADDR_EPK 0x%08X\n", ApplXcpGetAddr((uint8_t*)epk));
 	fprintf(gA2lFile, gA2lMemorySegment, startAddr, size);
+	DBG_PRINTF1("  A2L MOD_PAR MEMORY_SEGMENT 1: 0x%08X %u\n", startAddr, size);
 	fprintf(gA2lFile, "/end MOD_PAR\n\n");
+	DBG_PRINTF1("  A2L MOD_PAR EPK \"%s\" 0x%08X\n", epk, ApplXcpGetAddr((uint8_t*)epk));
 }
 #endif
 
 void A2lCreate_IF_DATA(BOOL tcp, const uint8_t *addr, uint16_t port) {
 
-	tXcpEvent* eventList;
-	uint16_t eventCount = 0;
+	#ifdef XCP_ENABLE_DAQ_EVENT_LIST
+		tXcpEvent* eventList;
+  #endif
+  uint16_t eventCount = 0;
 
 	assert(gA2lFile);
-
 
 #if (XCP_TIMESTAMP_UNIT==DAQ_TIMESTAMP_UNIT_1NS)
   #define XCP_TIMESTAMP_UNIT_S "UNIT_1NS"
@@ -279,7 +329,8 @@ void A2lCreate_IF_DATA(BOOL tcp, const uint8_t *addr, uint16_t port) {
 
   fprintf(gA2lFile, gA2lIfData1, XCP_PROTOCOL_LAYER_VERSION, XCPTL_MAX_CTO_SIZE, XCPTL_MAX_DTO_SIZE, eventCount, XCP_TIMESTAMP_UNIT_S);
 
-  for (unsigned int i = 0; i < eventCount; i++) {
+#ifdef XCP_ENABLE_DAQ_EVENT_LIST
+	for (unsigned int i = 0; i < eventCount; i++) {
 
 	  // Shortened name
 	  char shortName[9];
@@ -294,28 +345,50 @@ void A2lCreate_IF_DATA(BOOL tcp, const uint8_t *addr, uint16_t port) {
 #endif
 	  fprintf(gA2lFile, " /end EVENT\n");
   }
+#endif
 
   // Transport Layer info ipaddr, port, protocol, version
   uint8_t addr0[] = { 127,0,0,1 }; // Use localhost if no other option
   if (addr != NULL && addr[0] != 0) {
-	memcpy(addr0, addr, 4);
+	  memcpy(addr0, addr, 4);
   }
   else {
-	socketGetLocalAddr(NULL, addr0);
+	  socketGetLocalAddr(NULL, addr0);
   }
   char addrs[17];
   SPRINTF(addrs, "%u.%u.%u.%u", addr0[0], addr0[1], addr0[2], addr0[3]);
   char* prot = tcp ? (char*)"TCP" : (char*)"UDP";
   fprintf(gA2lFile, gA2lIfData2, prot, XCP_TRANSPORT_LAYER_VERSION, port, addrs, prot);
+	DBG_PRINTF1("  A2L IF_DATA protocol=%s, ip=%s, port=%u\n", prot, addrs, port);
+
 }
 
 
-void A2lSetEvent(uint16_t event) {
-	gA2lEvent = event;
+void A2lCreateMeasurement_IF_DATA() {
+	if (gA2lFixedEvent >= 0) {
+		fprintf(gA2lFile, " /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x%X /end DAQ_EVENT /end IF_DATA", gA2lFixedEvent);
+	}
+	else if (gA2lDefaultEvent >= 0) {
+		fprintf(gA2lFile, " /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE DEFAULT_EVENT_LIST EVENT 0x%X /end DAQ_EVENT /end IF_DATA", gA2lDefaultEvent);
+	}
 }
 
-void A2lRstEvent() {
-	gA2lEvent = -1;
+
+void A2lSetDefaultEvent(uint16_t event) {
+	A2lRstFixedEvent();
+	gA2lDefaultEvent = event;
+}
+
+void A2lSetFixedEvent(uint16_t event) {
+	gA2lFixedEvent = event;
+}
+
+void A2lRstDefaultEvent() {
+	gA2lDefaultEvent = -1;
+}
+
+void A2lRstFixedEvent() {
+	gA2lFixedEvent = -1;
 }
 
 
@@ -324,48 +397,45 @@ void A2lTypedefBegin_(const char* name, uint32_t size, const char* comment) {
 	gA2lTypedefs++;
 }
 
+
 void A2lTypedefComponent_(const char* name, int32_t type, uint32_t offset) {
 	fprintf(gA2lFile,"  /begin STRUCTURE_COMPONENT %s M_%s 0x%X SYMBOL_TYPE_LINK \"%s\" /end STRUCTURE_COMPONENT\n", name, getType(type), offset, name);
 	gA2lComponents++;
 }
 
+
 void A2lTypedefEnd_() {
 	fprintf(gA2lFile,"/end TYPEDEF_STRUCTURE\n");
 }
 
+
 void A2lCreateTypedefInstance_(const char* instanceName, const char* typeName, uint32_t addr, const char* comment) {
 	fprintf(gA2lFile, "/begin INSTANCE %s \"%s\" %s 0x%X", instanceName, comment, typeName, (unsigned int)addr);
-	if (gA2lEvent >= 0) {
-		fprintf(gA2lFile, " /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x%X /end DAQ_EVENT /end IF_DATA", gA2lEvent);
-	}
+	A2lCreateMeasurement_IF_DATA();
 	fprintf(gA2lFile, " /end INSTANCE\n");
 	gA2lInstances++;
 
 }
 
 
-void A2lCreateMeasurement_(const char* instanceName, const char* name, int32_t type, uint32_t addr, double factor, double offset, const char* unit, const char* comment) {
-
-	// DBG_PRINTF1("%s %s - %08X\n", name, getMeaType(type), addr);
+void A2lCreateMeasurement_(const char* instanceName, const char* name, int32_t type, uint32_t addr, double factor, double offset, const char* unit, const char* comment, BOOL symbolLink) {
 	
 	if (unit == NULL) unit = "";
 	if (comment == NULL) comment = "";
 	const char *conv = "NO";
 	if (factor != 0.0 || offset != 0.0) {
-		fprintf(gA2lFile, "/begin COMPU_METHOD %s_COMPU_METHOD \"\" LINEAR \"%%6.3\" \"%s\" COEFFS_LINEAR %g %g /end COMPU_METHOD\n", name, unit!=NULL?unit:"", factor,offset);
+		fprintf(gA2lFile, "/begin COMPU_METHOD %s.Conversion \"\" LINEAR \"%%6.3\" \"%s\" COEFFS_LINEAR %g %g /end COMPU_METHOD\n", name, unit!=NULL?unit:"", factor,offset);
 		conv = name;
 		gA2lConversions++;
 	}
-	if (instanceName!=NULL && strlen(instanceName)>0) {
-		fprintf(gA2lFile, "/begin MEASUREMENT %s.%s \"%s\" %s %s_COMPU_METHOD 0 0 %s %s ECU_ADDRESS 0x%X", instanceName, name, comment, getType(type), conv, getTypeMin(type), getTypeMax(type), (unsigned int)addr);
-	}
-	else {
-		fprintf(gA2lFile, "/begin MEASUREMENT %s \"%s\" %s %s_COMPU_METHOD 0 0 %s %s ECU_ADDRESS 0x%X", name, comment, getType(type), conv, getTypeMin(type), getTypeMax(type), (unsigned int)addr);
-	}
+  
+	//fprintf(gA2lFile, "/begin MEASUREMENT %s \"%s\" %s %s.Conversion 0 0 %s %s ECU_ADDRESS 0x%X", getSymbolName(instanceName, name), comment, getType(type), conv, getTypeMin(type), getTypeMax(type), (unsigned int)addr);
+	fprintf(gA2lFile, "/begin MEASUREMENT %s \"%s\" %s %s.Conversion 0 0 %s %s ECU_ADDRESS 0x%X", getSymbolName(instanceName, name), comment, getType(type), conv, getPhysMin(type, factor, offset), getPhysMax(type, factor, offset), (unsigned int)addr);
 	if (unit != NULL) fprintf(gA2lFile, " PHYS_UNIT \"%s\"", unit);
-	if (gA2lEvent >= 0) {
-		fprintf(gA2lFile," /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x%X /end DAQ_EVENT /end IF_DATA", gA2lEvent);
-	}
+#if OPTION_ENABLE_A2L_SYMBOL_LINKS
+	if (symbolLink) fprintf(gA2lFile, " SYMBOL_LINK \"%s\" %u", getSymbolName(instanceName, name), 0);
+#endif
+	A2lCreateMeasurement_IF_DATA();
 	fprintf(gA2lFile, " /end MEASUREMENT\n");
 	gA2lMeasurements++;
 }
@@ -373,15 +443,11 @@ void A2lCreateMeasurement_(const char* instanceName, const char* name, int32_t t
 
 void A2lCreateMeasurementArray_(const char* instanceName, const char* name, int32_t type, int dim, uint32_t addr) {
 
-	if (instanceName) {
-		fprintf(gA2lFile, "/begin CHARACTERISTIC %s.%s \"\" VAL_BLK 0x%X R_%s 0 NO_COMPU_METHOD %s %s MATRIX_DIM %u", instanceName, name, (uint32_t)addr, getType(type), getTypeMin(type), getTypeMax(type), dim);
-	}
-	else {
-		fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"\" VAL_BLK 0x%X R_%s 0 NO_COMPU_METHOD %s %s MATRIX_DIM %u", name, (unsigned int)addr, getType(type), getTypeMin(type), getTypeMax(type), dim);
-	}
-	if (gA2lEvent>=0) {
-		fprintf(gA2lFile," /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x%X /end DAQ_EVENT /end IF_DATA", gA2lEvent);
-	}
+	fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"\" VAL_BLK 0x%X R_%s 0 NO_COMPU_METHOD %s %s MATRIX_DIM %u", getSymbolName(instanceName, name), (uint32_t)addr, getType(type), getTypeMin(type), getTypeMax(type), dim);
+#if OPTION_ENABLE_A2L_SYMBOL_LINKS
+	fprintf(gA2lFile, " SYMBOL_LINK \"%s\" %u", getSymbolName(instanceName, name), 0);
+#endif
+	A2lCreateMeasurement_IF_DATA();
 	fprintf(gA2lFile, " /end CHARACTERISTIC\n");
 	gA2lMeasurements++;
 }
@@ -389,15 +455,21 @@ void A2lCreateMeasurementArray_(const char* instanceName, const char* name, int3
 
 void A2lCreateParameterWithLimits_(const char* name, int32_t type, uint32_t addr, const char* comment, const char* unit, double min, double max) {
 
-	fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" VALUE 0x%X R_%s 0 NO_COMPU_METHOD %g %g PHYS_UNIT \"%s\" /end CHARACTERISTIC\n",
-		name, comment, addr, getType(type), min, max, unit);
+	fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" VALUE 0x%X R_%s 0 NO_COMPU_METHOD %g %g PHYS_UNIT \"%s\"",	name, comment, addr, getType(type), min, max, unit);
+#if OPTION_ENABLE_A2L_SYMBOL_LINKS
+	fprintf(gA2lFile, " SYMBOL_LINK \"%s\" %u", name, 0);
+#endif
+	fprintf(gA2lFile, " /end CHARACTERISTIC\n");
 	gA2lParameters++;
 }
 
 void A2lCreateParameter_(const char* name, int32_t type, uint32_t addr, const char* comment, const char* unit) {
 
-	fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" VALUE 0x%X R_%s 0 NO_COMPU_METHOD %s %s PHYS_UNIT \"%s\" /end CHARACTERISTIC\n",
-		name, comment, addr, getType(type), getTypeMin(type), getTypeMax(type), unit);
+	fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" VALUE 0x%X R_%s 0 NO_COMPU_METHOD %s %s PHYS_UNIT \"%s\"",	name, comment, addr, getType(type), getTypeMin(type), getTypeMax(type), unit);
+#if OPTION_ENABLE_A2L_SYMBOL_LINKS
+	fprintf(gA2lFile, " SYMBOL_LINK \"%s\" %u", name, 0);
+#endif
+	fprintf(gA2lFile, " /end CHARACTERISTIC\n");
 	gA2lParameters++;
 }
 
@@ -407,8 +479,12 @@ void A2lCreateMap_(const char* name, int32_t type, uint32_t addr, uint32_t xdim,
 		"/begin CHARACTERISTIC %s \"%s\" MAP 0x%X R_%s 0 NO_COMPU_METHOD %s %s"
 		" /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD  %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR"
 		" /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD  %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR"
-		" PHYS_UNIT \"%s\" /end CHARACTERISTIC\n",
+		" PHYS_UNIT \"%s\"",
 		name, comment, addr, getType(type), getTypeMin(type), getTypeMax(type), xdim, xdim-1, xdim,  ydim, ydim-1, ydim,  unit);
+#if OPTION_ENABLE_A2L_SYMBOL_LINKS
+	fprintf(gA2lFile, " SYMBOL_LINK \"%s\" %u", name, 0);
+#endif
+	fprintf(gA2lFile, " /end CHARACTERISTIC\n");
 	gA2lParameters++;
 }
 
@@ -417,11 +493,14 @@ void A2lCreateCurve_(const char* name, int32_t type, uint32_t addr, uint32_t xdi
 	fprintf(gA2lFile,
 		"/begin CHARACTERISTIC %s \"%s\" CURVE 0x%X R_%s 0 NO_COMPU_METHOD %s %s"
 		" /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD  %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR"
-		" PHYS_UNIT \"%s\" /end CHARACTERISTIC\n",
+		" PHYS_UNIT \"%s\"",
 		name, comment, addr, getType(type), getTypeMin(type), getTypeMax(type),  xdim, xdim-1, xdim,  unit);
+#if OPTION_ENABLE_A2L_SYMBOL_LINKS
+	fprintf(gA2lFile, " SYMBOL_LINK \"%s\" %u", name, 0);
+#endif
+	fprintf(gA2lFile, " /end CHARACTERISTIC\n");
 	gA2lParameters++;
 }
-
 
 
 void A2lParameterGroup(const char* name, int count, ...) {
@@ -438,6 +517,19 @@ void A2lParameterGroup(const char* name, int count, ...) {
 	fprintf(gA2lFile, "\n/end REF_CHARACTERISTIC ");
 	fprintf(gA2lFile, "/end GROUP\n\n");
 }
+
+
+void A2lParameterGroupFromList(const char* name, const char* pNames[], size_t count) {
+
+	fprintf(gA2lFile, "/begin GROUP %s \"\"", name);
+	fprintf(gA2lFile, " /begin REF_CHARACTERISTIC\n");
+	for (size_t i = 0; i < count; i++) {
+		fprintf(gA2lFile, " %s", pNames[i]);
+	}
+	fprintf(gA2lFile, "\n/end REF_CHARACTERISTIC ");
+	fprintf(gA2lFile, "/end GROUP\n\n");
+}
+
 
 void A2lMeasurementGroup(const char* name, int count, ...) {
 
@@ -471,7 +563,7 @@ void A2lClose() {
 
 	fprintf(gA2lFile, "%s", gA2lFooter);
 	fclose(gA2lFile);
-	DBG_PRINTF2("  A2L: %u measurements, %u params, %u typedefs, %u components, %u instances, %u conversions\n",
+	DBG_PRINTF1("  A2L %u measurements, %u params, %u typedefs, %u components, %u instances, %u conversions\n\n",
 		gA2lMeasurements, gA2lParameters, gA2lTypedefs, gA2lComponents, gA2lInstances, gA2lConversions);
 }
 

@@ -51,7 +51,7 @@ Xcp::~Xcp() {}
 
 
 
-BOOL Xcp::init(const uint8_t* addr0, uint16_t port0, BOOL useTCP0, BOOL usePTP0) {
+BOOL Xcp::init(const uint8_t* addr0, uint16_t port0, BOOL useTCP0, BOOL usePTP0, uint16_t segmentSize) {
 
     addr = addr0;
     port = port0;
@@ -60,13 +60,13 @@ BOOL Xcp::init(const uint8_t* addr0, uint16_t port0, BOOL useTCP0, BOOL usePTP0)
     a2lFile = NULL;
 
     // Init network
-    if (!socketStartup()) return FALSE;
+    if (!socketStartup((char*)APP_NAME)) return FALSE;
 
     // Init clock
     if (!clockInit()) return FALSE;
 
     // Init and start XCP server
-    if (!XcpServerInit(addr, port, useTCP)) return FALSE;
+    if (!XcpServerInit(addr, port, useTCP, segmentSize)) return FALSE;
 
     return TRUE;
 }
@@ -205,7 +205,7 @@ XcpObject::XcpObject(const char* instanceName, const char* className, int classS
 
     printf("Create instance %s of %s\n", instanceName, className);
     A2L* a2l = Xcp::getInstance()->getA2L();
-    a2l->setEvent(instanceId);
+    a2l->setFixedEvent(instanceId);
     a2l->createDynTypedefInstance(instanceName, className, "");
 }
 
@@ -213,7 +213,7 @@ XcpObject::XcpObject(const char* instanceName, const char* className, int classS
 void XcpObject::a2lCreateTypedef() {
 
     A2L* a2l = Xcp::getInstance()->getA2L();
-    a2l->setEvent(instanceId);
+    a2l->setFixedEvent(instanceId);
     // Create a typedef for this class
     a2l->createTypedefBegin_(className, classSize, "");
     a2l->createTypedefMeasurementComponent(instanceId);

@@ -11,8 +11,8 @@
  ----------------------------------------------------------------------------*/
 
 #include "main.h"
-#include "main_cfg.h"
 #include "platform.h"
+#include "options.h"
 #include "util.h"
 #include "xcpTl.h"
 #include "xcpLite.h"
@@ -31,8 +31,12 @@ static BOOL createA2L() {
 
     if (!A2lOpen(OPTION_A2L_FILE_NAME, OPTION_A2L_PROJECT_NAME )) return FALSE;
     ecuCreateA2lDescription();
+#ifdef __cplusplus
+    A2lCreateParameterWithLimits(gDebugLevel, "Console output verbosity", "", 0, 100);
+#else
     A2lCreateParameterWithLimits(gDebugLevel, A2L_TYPE_UINT32, "Console output verbosity", "", 0, 100);
-    A2lCreate_IF_DATA(gOptionUseTCP, gOptionAddr, gOptionPort);
+#endif
+    A2lCreate_IF_DATA(gOptionUseTCP, gOptionBindAddr, gOptionPort);
     A2lClose();
     return TRUE;
 }
@@ -41,6 +45,17 @@ static BOOL createA2L() {
 
 //-----------------------------------------------------------------------------------------------------
 
+static BOOL checkKeyboard() {
+    if (_kbhit()) {
+        switch (_getch()) {
+        case 27:  XcpSendEvent(EVC_SESSION_TERMINATED, NULL, 0);  return FALSE; // Stop on ESC
+        case '+': if (gDebugLevel < 5) gDebugLevel++; printf("\nDebuglevel = %u\n", gDebugLevel); break;
+        case '-': if (gDebugLevel > 0) gDebugLevel--; printf("\nDebuglevel = %u\n", gDebugLevel); break;
+        }
+    }
+    return TRUE;
+}
+
 
 int main(int argc, char* argv[]) {
 
@@ -48,13 +63,13 @@ int main(int argc, char* argv[]) {
     if (!cmdline_parser(argc, argv)) return 0;
 
     // Init network
-    if (!socketStartup()) return 0;
+    if (!socketStartup(APP_NAME)) return 0;
 
     // Init clock
     if (!clockInit()) return 0;
 
     // Initialize the XCP Server
-    if (!XcpServerInit(gOptionAddr, gOptionPort, gOptionUseTCP)) return 0;
+    if (!XcpServerInit(gOptionBindAddr, gOptionPort, gOptionUseTCP, XCPTL_MAX_SEGMENT_SIZE)) return 0;
 
     // Initialize measurement task thread
     ecuInit();
@@ -66,11 +81,9 @@ int main(int argc, char* argv[]) {
 
     // Loop   
     for (;;) {
-        sleepMs(100);
+        sleepMs(500);
         if (!XcpServerStatus()) { printf("\nXCP Server failed\n");  break;  } // Check if the XCP server is running
-        if (_kbhit()) {
-            if (_getch() == 27) { XcpSendEvent(EVC_SESSION_TERMINATED, NULL, 0);  break; } // Stop on ESC
-        }
+        if (!checkKeyboard()) break;
     }
 
     // Exit

@@ -60,7 +60,7 @@ extern void XcpSendEvent(uint8_t evc, const uint8_t* d, uint8_t l);
 extern BOOL XcpIsStarted();
 extern BOOL XcpIsConnected();
 extern BOOL XcpIsDaqRunning();
-extern BOOL XcpIsDaqPacked();
+extern BOOL XcpIsDaqEventRunning(uint16_t event);
 extern uint64_t XcpGetDaqStartTime();
 extern uint32_t XcpGetDaqOverflowCount();
 
@@ -74,6 +74,8 @@ extern void XcpSetGrandmasterClockInfo(uint8_t* id, uint8_t epoch, uint8_t strat
 
 // Event list
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
+
+#define XCP_INVALID_EVENT 0xFFFF
 
 // Clear event list
 extern void XcpClearEventList();
@@ -112,8 +114,19 @@ extern uint8_t ApplXcpSetCalPage(uint8_t segment, uint8_t page, uint8_t mode);
 
 /* DAQ clock */
 extern uint64_t ApplXcpGetClock64();
+#define CLOCK_STATE_SYNCH_IN_PROGRESS                  (0 << 0)
+#define CLOCK_STATE_SYNCH                              (1 << 0)
+#define CLOCK_STATE_FREE_RUNNING                       (7 << 0)
+#define CLOCK_STATE_GRANDMASTER_STATE_SYNC_IN_PROGRESS (0 << 3)
+#define CLOCK_STATE_GRANDMASTER_STATE_SYNC             (1 << 3)
 extern uint8_t ApplXcpGetClockState();
 #ifdef XCP_ENABLE_PTP
+#define CLOCK_STRATUM_LEVEL_UNKNOWN   255
+#define CLOCK_STRATUM_LEVEL_ARB       16   // unsychronized
+#define CLOCK_STRATUM_LEVEL_UTC       0    // Atomic reference clock
+#define CLOCK_EPOCH_TAI 0 // Atomic monotonic time since 1.1.1970 (TAI)
+#define CLOCK_EPOCH_UTC 1 // Universal Coordinated Time (with leap seconds) since 1.1.1970 (UTC)
+#define CLOCK_EPOCH_ARB 2 // Arbitrary (epoch unknown)
 extern BOOL ApplXcpGetClockInfoGrandmaster(uint8_t* uuid, uint8_t* epoch, uint8_t* stratum);
 #endif
 

@@ -10,16 +10,13 @@
  ----------------------------------------------------------------------------*/
 
 #include "main.h"
-#include "main_cfg.h"
 #include "platform.h"
+#include "options.h"
 #include "util.h"
-
 #include "xcp_cfg.h"
 #include "xcptl_cfg.h"
 #include "xcp.hpp"
-
 #include "A2L.hpp"
-
 
 
 //-----------------------------------------------------------------------------------------------------
@@ -130,6 +127,18 @@ float par_float = 0.32f;
 double par_double = 0.64;
 
 
+static BOOL checkKeyboard() {
+    if (_kbhit()) {
+        switch (_getch()) {
+        case 27:  return FALSE; // Stop on ESC
+        case '+': if (gDebugLevel < 5) gDebugLevel++; printf("\nDebuglevel = %u\n", gDebugLevel); break;
+        case '-': if (gDebugLevel > 0) gDebugLevel--; printf("\nDebuglevel = %u\n", gDebugLevel); break;
+        }
+    }
+    return TRUE;
+}
+
+
 int main(int argc, char* argv[]) {
 
     printf("\nXCP on Ethernet C++ Demo\n");
@@ -137,7 +146,7 @@ int main(int argc, char* argv[]) {
 
     // XCP singleton and A2L init (using the A2L factory from Xcp)
     Xcp* xcp = Xcp::getInstance();
-    if (!xcp->init(gOptionAddr, gOptionPort, gOptionUseTCP, FALSE)) return -1;
+    if (!xcp->init(gOptionBindAddr, gOptionPort, gOptionUseTCP, FALSE, XCPTL_STANDARD_SEGMENT_SIZE)) return -1;
     A2L* a2l = xcp->createA2L("CPP_DEMO");
 
     // Create a calibration parameter to control the debug output verbosity
@@ -154,7 +163,6 @@ int main(int argc, char* argv[]) {
     a2l->createParameter(par_float, "", "");
     a2l->createParameter(par_double, "", "");
     a2l->createParameterGroup("TestParameters", 11, "gDebugLevel", "par_int8", "par_int16", "par_int32", "par_int64", "par_uint8", "par_uint16", "par_uint32", "par_uint64", "par_float", "par_double");
-    
 
 
     // Create 10 different SigGen signal generator task instances with calibration parameters and dynamic addressing
@@ -180,9 +188,9 @@ int main(int argc, char* argv[]) {
     // Main loop (health status and keyboard check)
     printf("\nPress ESC to stop\n");
     for (;;) {
-        sleepMs(100);
+        sleepMs(200);
         if (!xcp->status()) { printf("\nXCP server failed\n");  break;  } // Check if the XCP server is running
-        if (_kbhit()) {  if (_getch() == 27) break;  } // Stop on ESC
+        if (!checkKeyboard()) break;
     }
 
     // XCP shutdown

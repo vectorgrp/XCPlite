@@ -14,6 +14,7 @@
 #include "main.h"
 #include "main_cfg.h"
 #include "platform.h"
+#include "options.h"
 #include "util.h"
 #include "xcpLite.h"
 #include "xcpAppl.h"
@@ -94,55 +95,24 @@ void ApplXcpStopDaq() {
 // XCP server clock timestamp resolution defined in xcp_cfg.h
 // Clock must be monotonic !!!
 
-#if OPTION_ENABLE_PTP
-
 uint64_t ApplXcpGetClock64() { 
-    if (gOptionPTP) {
-        return ptpClockGet64();
-    }
-    else {
-        return clockGet64();
-    }
-}
 
-uint8_t ApplXcpGetClockState() { 
-    if (gOptionPTP) {
-        return ptpClockGetState();
-    }
-    else {
-        return CLOCK_STATE_FREE_RUNNING;
-    }
-}
-
-BOOL ApplXcpGetClockInfoGrandmaster(uint8_t* uuid, uint8_t* epoch, uint8_t* stratum) {
-    if (gOptionPTP) {
-        return ptpClockGetGrandmasterInfo(uuid, epoch, stratum);
-    }
-    else {
-        return FALSE;
-    }
-}
-
-#else 
-
-uint64_t ApplXcpGetClock64() {
     return clockGet64();
 }
 
-uint8_t ApplXcpGetClockState() {
-    return LOCAL_CLOCK_STATE_FREE_RUNNING;
+uint8_t ApplXcpGetClockState() { 
+
+    return CLOCK_STATE_FREE_RUNNING;
 }
 
-#ifdef XCP_ENABLE_PTP
 BOOL ApplXcpGetClockInfoGrandmaster(uint8_t* uuid, uint8_t* epoch, uint8_t* stratum) {
-    (void)uuid;
-    (void)epoch;
-    (void)stratum;
+
+  (void)uuid;
+  (void)epoch;
+  (void)stratum;
+
     return FALSE;
 }
-#endif
-
-#endif 
 
 
 /**************************************************************************/

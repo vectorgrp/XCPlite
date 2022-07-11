@@ -156,19 +156,19 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\src\A2L.c" />
+    <ClCompile Include="..\src\options.c" />
     <ClCompile Include="..\src\platform.c" />
     <ClCompile Include="..\src\util.c" />
     <ClCompile Include="..\src\xcpAppl.c" />
     <ClCompile Include="..\src\xcpLite.c" />
     <ClCompile Include="..\src\xcpServer.c" />
     <ClCompile Include="..\src\xcpTl.c" />
-    <ClCompile Include="..\xlapi\xl_pcap.c" />
-    <ClCompile Include="..\xlapi\xl_udp.c" />
     <ClCompile Include="ecu.c" />
     <ClCompile Include="main.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\A2L.h" />
+    <ClInclude Include="..\src\options.h" />
     <ClInclude Include="..\src\platform.h" />
     <ClInclude Include="..\src\util.h" />
     <ClInclude Include="..\src\xcp.h" />
@@ -176,8 +176,6 @@
     <ClInclude Include="..\src\xcpLite.h" />
     <ClInclude Include="..\src\xcpServer.h" />
     <ClInclude Include="..\src\xcpTl.h" />
-    <ClInclude Include="..\xlapi\xl_pcap.h" />
-    <ClInclude Include="..\xlapi\xl_udp.h" />
     <ClInclude Include="ecu.h" />
     <ClInclude Include="main.h" />
     <ClInclude Include="main_cfg.h" />

@@ -18,16 +18,13 @@
     <ClCompile Include="..\src\xcpTl.c">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="..\xlapi\xl_pcap.c">
-      <Filter>xlapi</Filter>
-    </ClCompile>
-    <ClCompile Include="..\xlapi\xl_udp.c">
-      <Filter>xlapi</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\util.c">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\xcpAppl.c">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\options.c">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
@@ -55,25 +52,19 @@
     </ClInclude>
     <ClInclude Include="main.h" />
     <ClInclude Include="main_cfg.h" />
-    <ClInclude Include="..\xlapi\xl_pcap.h">
-      <Filter>xlapi</Filter>
-    </ClInclude>
-    <ClInclude Include="..\xlapi\xl_udp.h">
-      <Filter>xlapi</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\util.h">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\xcpAppl.h">
       <Filter>src</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\options.h">
+      <Filter>src</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="src">
       <UniqueIdentifier>{036055ad-fd46-425a-aeab-17670ab510c5}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="xlapi">
-      <UniqueIdentifier>{22057ab0-5549-4c67-8d26-06ea39a11dd9}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

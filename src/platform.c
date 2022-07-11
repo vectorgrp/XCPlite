@@ -15,16 +15,12 @@
  ----------------------------------------------------------------------------*/
 
 #include "main.h"
-#include "main_cfg.h"
 #include "platform.h"
+#include "options.h"
 #include "util.h"
 
 
 #ifdef _WIN // Windows needs to link with Ws2_32.lib
-
-#if OPTION_ENABLE_XLAPI_V3
-#include "xl_udp.h"
-#endif
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -100,26 +96,31 @@ void sleepNs(uint32_t ns) {
     uint32_t us = ns / 1000;
     uint32_t ms = us / 1000;
 
-    // Start sleeping at 1800us, shorter sleeps are more precise but need significant CPU time
-    if (us >= 2000) {
-        Sleep(ms - 1);
+    // Sleep
+    if (us > 1000) {
+        Sleep(ms);
     }
-    // Busy wait
+
+    // Busy wait <= 1ms, -> CPU load !!!
     else {
+      
         t1 = t2 = clockGet64();
         uint64_t te = t1 + us * (uint64_t)CLOCK_TICKS_PER_US;
         for (;;) {
             t2 = clockGet64();
             if (t2 >= te) break;
-            if (te - t2 > 0) Sleep(0);
+            Sleep(0);
         }
     }
 }
 
 void sleepMs(uint32_t ms) {
-
+    if (ms < 10) {  
+      DBG_PRINT_ERROR("WARNING: cannot precisely sleep less than 10ms!\n");
+    }
     Sleep(ms);
 }
+
 
 
 #endif // Windows
@@ -169,18 +170,19 @@ void mutexDestroy(MUTEX* m) {
 // Sockets
 /**************************************************************************/
 
+
 #ifdef _LINUX
 
-int socketStartup() {
+int socketStartup(char* app_name) {
 
-    return 1;
+  return 1;
 }
 
 void socketCleanup() {
 
 }
 
-int socketOpen(SOCKET* sp, BOOL useTCP, BOOL nonBlocking, BOOL reuseaddr) {
+int socketOpen(SOCKET* sp, BOOL useTCP, BOOL nonBlocking, BOOL reuseaddr, BOOL timestamps) {
     (void)nonBlocking;
     // Create a socket
     *sp = socket(AF_INET, useTCP ?SOCK_STREAM:SOCK_DGRAM , 0);
@@ -197,7 +199,7 @@ int socketOpen(SOCKET* sp, BOOL useTCP, BOOL nonBlocking, BOOL reuseaddr) {
     return 1;
 }
 
-int socketBind(SOCKET sock, const uint8_t* addr, uint16_t port) {
+int socketBind(SOCKET sock, uint8_t* addr, uint16_t port) {
 
     // Bind the socket to any address and the specified port
     SOCKADDR_IN a;
@@ -303,43 +305,57 @@ int socketGetLocalAddr(uint8_t* mac, uint8_t* addr) {
 
 #ifdef _WIN
 
-BOOL socketStartup() {
+BOOL socketSetTimestampMode(uint8_t m) {
 
-
-#if OPTION_ENABLE_XLAPI_V3
-    if (gOptionUseXLAPI) {
-        return xlUdpSocketStartup((char*)APP_NAME);
-    }
+#if OPTION_ENABLE_XLAPI_V3 || OPTION_ENABLE_XLAPI_IAP
+  if (gOptionXcpUse_XLAPI_V3 || gOptionXcpUse_XLAPI_IAP) {
+    return xl_socketSetTimestampMode(m);
+  }
 #endif
 
+  if (m != SOCKET_TIMESTAMP_NONE && m != SOCKET_TIMESTAMP_PC) {
+    DBG_PRINT_ERROR("ERROR: unsupported timestamp mode!\n");
+    return FALSE;
+  }
+  return TRUE;
+}
 
-    int err;
 
-    WORD wsaVersionRequested;
-    WSADATA wsaData;
+BOOL socketStartup(char* app_name) {
 
-    // Init Winsock2
-    wsaVersionRequested = MAKEWORD(2, 2);
-    err = WSAStartup(wsaVersionRequested, &wsaData);
-    if (err != 0) {
-        DBG_PRINTF_ERROR("ERROR: WSAStartup failed with ERROR: %d!\n", err);
-        return FALSE;
-    }
-    if (LOBYTE(wsaData.wVersion) != 2 || HIBYTE(wsaData.wVersion) != 2) { // Confirm that the WinSock DLL supports 2.2
-        DBG_PRINT_ERROR("ERROR: could not find a usable version of Winsock.dll!\n");
-        WSACleanup();
-        return FALSE;
-    }
+  (void)app_name;
+#if OPTION_ENABLE_XLAPI_V3 || OPTION_ENABLE_XLAPI_IAP
+  if (gOptionXcpUse_XLAPI_V3 || gOptionXcpUse_XLAPI_IAP) {
+      return xl_socketStartup(app_name);
+  }
+#endif
 
-    return TRUE;
+  int err;
+  WORD wsaVersionRequested;
+  WSADATA wsaData;
+
+  // Init Winsock2
+  wsaVersionRequested = MAKEWORD(2, 2);
+  err = WSAStartup(wsaVersionRequested, &wsaData);
+  if (err != 0) {
+      DBG_PRINTF_ERROR("ERROR: WSAStartup failed with ERROR: %d!\n", err);
+      return FALSE;
+  }
+  if (LOBYTE(wsaData.wVersion) != 2 || HIBYTE(wsaData.wVersion) != 2) { // Confirm that the WinSock DLL supports 2.2
+      DBG_PRINT_ERROR("ERROR: could not find a usable version of Winsock.dll!\n");
+      WSACleanup();
+      return FALSE;
+  }
+
+  return TRUE;
 }
 
 
 void socketCleanup(void) {
 
-#if OPTION_ENABLE_XLAPI_V3
-    if (gOptionUseXLAPI) {
-        xlUdpSocketCleanup();
+#if OPTION_ENABLE_XLAPI_V3 || OPTION_ENABLE_XLAPI_IAP
+    if (gOptionXcpUse_XLAPI_V3 || gOptionXcpUse_XLAPI_IAP) {
+        xl_socketCleanup();
     }
 #endif
 
@@ -347,11 +363,13 @@ void socketCleanup(void) {
 }
 
 
-BOOL socketOpen(SOCKET* sp, int useTCP, int nonBlocking, int reuseaddr) {
+BOOL socketOpen(SOCKET* sp, BOOL useTCP, BOOL nonBlocking, BOOL reuseaddr, BOOL timestamps) {
 
-#if OPTION_ENABLE_XLAPI_V3
-    if (gOptionUseXLAPI) {
-        return xlUdpSocketOpen((XL_SOCKET*)sp, useTCP, nonBlocking, reuseaddr);
+  (void)timestamps;
+
+#if OPTION_ENABLE_XLAPI_V3 || OPTION_ENABLE_XLAPI_IAP
+    if (gOptionXcpUse_XLAPI_V3 || gOptionXcpUse_XLAPI_IAP) {
+        return xl_socketOpen((XL_SOCKET*)sp, useTCP, nonBlocking, reuseaddr, timestamps);
     }
 #endif
 
@@ -390,18 +408,18 @@ BOOL socketOpen(SOCKET* sp, int useTCP, int nonBlocking, int reuseaddr) {
 }
 
 
-BOOL socketBind(SOCKET sock, const uint8_t *addr, uint16_t port) {
+BOOL socketBind(SOCKET sock, uint8_t *addr, uint16_t port) {
 
-#if OPTION_ENABLE_XLAPI_V3
-    if (gOptionUseXLAPI) {
-        return xlUdpSocketBind((XL_SOCKET)sock, gOptionXlServerNet, gOptionXlServerSeg, gOptionXlServerMac, addr, port);
+#if OPTION_ENABLE_XLAPI_V3 || OPTION_ENABLE_XLAPI_IAP
+    if (gOptionXcpUse_XLAPI_V3 || gOptionXcpUse_XLAPI_IAP) {
+        return xl_socketBind((XL_SOCKET)sock, addr, port);
     }
 #endif
 
     // Bind the socket to any address and the specified port
     SOCKADDR_IN a;
     a.sin_family = AF_INET;
-    if (addr != NULL && addr[0] !=0) { 
+    if (addr != NULL && *(uint32_t*)addr !=0) { 
         a.sin_addr.s_addr = *(uint32_t*)addr; // Bind to the specific addr given
     }
     else { // NULL or 0.x.x.x
@@ -423,9 +441,9 @@ BOOL socketBind(SOCKET sock, const uint8_t *addr, uint16_t port) {
 
 BOOL socketShutdown(SOCKET sock) {
 
-#if OPTION_ENABLE_XLAPI_V3
-    if (gOptionUseXLAPI) {
-        return xlUdpSocketShutdown(sock);
+#if OPTION_ENABLE_XLAPI_V3 || OPTION_ENABLE_XLAPI_IAP
+    if (gOptionXcpUse_XLAPI_V3 || gOptionXcpUse_XLAPI_IAP) {
+        return xl_socketShutdown(sock);
     }
 #endif
 
@@ -437,9 +455,9 @@ BOOL socketShutdown(SOCKET sock) {
 
 BOOL socketClose(SOCKET* sockp) {
 
-#if OPTION_ENABLE_XLAPI_V3
-    if (gOptionUseXLAPI) {
-        return xlUdpSocketClose((XL_SOCKET*)sockp);
+#if OPTION_ENABLE_XLAPI_V3 || OPTION_ENABLE_XLAPI_IAP
+    if (gOptionXcpUse_XLAPI_V3 || gOptionXcpUse_XLAPI_IAP) {
+        return xl_socketClose((XL_SOCKET*)sockp);
     }
 #endif
 
@@ -457,8 +475,8 @@ BOOL socketClose(SOCKET* sockp) {
 
 BOOL socketGetLocalAddr(uint8_t* mac, uint8_t* addr) {
 
-#if OPTION_ENABLE_XLAPI_V3
-    if (gOptionUseXLAPI) {
+#if OPTION_ENABLE_XLAPI_V3 || OPTION_ENABLE_XLAPI_IAP
+    if (gOptionXcpUse_XLAPI_V3 || gOptionXcpUse_XLAPI_IAP) {
         if (addr) memcpy(addr, gOptionXlServerAddr, 4);
         if (mac) memcpy(mac, gOptionXlServerMac, 6);
         return 1;
@@ -488,23 +506,23 @@ BOOL socketGetLocalAddr(uint8_t* mac, uint8_t* addr) {
             while (pAdapter) {
                 if (pAdapter->Type == MIB_IF_TYPE_ETHERNET) {
                     inet_pton(AF_INET, pAdapter->IpAddressList.IpAddress.String, &a);
-#ifdef XCP_ENABLE_DEBUG_PRINTS
                     if (a!=0) {
-                        DBG_PRINTF1("  Ethernet adapter %" PRIu32 ":", (uint32_t) pAdapter->Index);
-                        //DBG_PRINTF1(" %s", pAdapter->AdapterName);
-                        DBG_PRINTF1(" %s", pAdapter->Description);
-                        DBG_PRINTF1(" %02X-%02X-%02X-%02X-%02X-%02X", pAdapter->Address[0], pAdapter->Address[1], pAdapter->Address[2], pAdapter->Address[3], pAdapter->Address[4], pAdapter->Address[5]);
-                        DBG_PRINTF1(" %s", pAdapter->IpAddressList.IpAddress.String);
-                        //DBG_PRINTF1(" %s", pAdapter->IpAddressList.IpMask.String);
-                        //DBG_PRINTF1(" Gateway: %s", pAdapter->GatewayList.IpAddress.String);
-                        //if (pAdapter->DhcpEnabled) printf(" DHCP");
-                        DBG_PRINT1("\n");
+
+                        DBG_PRINTF3("  Ethernet adapter %" PRIu32 ":", (uint32_t) pAdapter->Index);
+                        //DBG_PRINTF3(" %s", pAdapter->AdapterName);
+                        DBG_PRINTF3(" %s", pAdapter->Description);
+                        DBG_PRINTF3(" %02X-%02X-%02X-%02X-%02X-%02X", pAdapter->Address[0], pAdapter->Address[1], pAdapter->Address[2], pAdapter->Address[3], pAdapter->Address[4], pAdapter->Address[5]);
+                        DBG_PRINTF3(" %s", pAdapter->IpAddressList.IpAddress.String);
+                        //DBG_PRINTF3(" %s", pAdapter->IpAddressList.IpMask.String);
+                        //DBG_PRINTF3(" Gateway: %s", pAdapter->GatewayList.IpAddress.String);
+                        //if (pAdapter->DhcpEnabled) DBG_PRINTF3(" DHCP");
+                        DBG_PRINT3("\n");
+
                         if (addr1[0] == 0 ) {
                             memcpy(addr1, (uint8_t*)&a, 4);
                             memcpy(mac1, pAdapter->Address, 6);
                         }
                     }
-#endif
                 }
                 pAdapter = pAdapter->Next;
             }
@@ -525,9 +543,9 @@ BOOL socketGetLocalAddr(uint8_t* mac, uint8_t* addr) {
 
 BOOL socketListen(SOCKET sock) {
 
-#if OPTION_ENABLE_XLAPI_V3
-    if (gOptionUseXLAPI) {
-        return xlUdpSocketListen(sock);
+#if OPTION_ENABLE_XLAPI_V3 || OPTION_ENABLE_XLAPI_IAP
+    if (gOptionXcpUse_XLAPI_V3 || gOptionXcpUse_XLAPI_IAP) {
+        return xl_socketListen(sock);
     }
 #endif
 
@@ -540,9 +558,9 @@ BOOL socketListen(SOCKET sock) {
 
 SOCKET socketAccept(SOCKET sock, uint8_t addr[]) {
 
-#if OPTION_ENABLE_XLAPI_V3
-    if (gOptionUseXLAPI) {
-        return xlUdpSocketAccept(sock, addr);
+#if OPTION_ENABLE_XLAPI_V3 || OPTION_ENABLE_XLAPI_IAP
+    if (gOptionXcpUse_XLAPI_V3 || gOptionXcpUse_XLAPI_IAP) {
+        return xl_socketAccept(sock, addr);
     }
 #endif
 
@@ -556,9 +574,9 @@ SOCKET socketAccept(SOCKET sock, uint8_t addr[]) {
 
 BOOL socketJoin(SOCKET sock, uint8_t* maddr) {
 
-#if OPTION_ENABLE_XLAPI_V3
-    if (gOptionUseXLAPI) {
-        return xlUdpSocketJoin(sock, maddr);
+#if OPTION_ENABLE_XLAPI_V3 || OPTION_ENABLE_XLAPI_IAP
+    if (gOptionXcpUse_XLAPI_V3 || gOptionXcpUse_XLAPI_IAP) {
+        return xl_socketJoin(sock, maddr);
     }
 #endif
 
@@ -575,11 +593,11 @@ BOOL socketJoin(SOCKET sock, uint8_t* maddr) {
 
 // Receive from socket
 // Return number of bytes received, 0 when socket closed, would block or empty UDP packet received, -1 on error
-int16_t socketRecvFrom(SOCKET sock, uint8_t* buffer, uint16_t bufferSize, uint8_t *addr, uint16_t *port) {
+int16_t socketRecvFrom(SOCKET sock, uint8_t* buffer, uint16_t bufferSize, uint8_t *addr, uint16_t *port, uint64_t *time) {
 
-#if OPTION_ENABLE_XLAPI_V3
-    if (gOptionUseXLAPI) {
-        return xlUdpSocketRecvFrom(sock, buffer, bufferSize, addr, port);
+#if OPTION_ENABLE_XLAPI_V3 || OPTION_ENABLE_XLAPI_IAP
+    if (gOptionXcpUse_XLAPI_V3 || gOptionXcpUse_XLAPI_IAP) {
+        return xl_socketRecvFrom(sock, buffer, bufferSize, addr, port, time);
     }
 #endif
 
@@ -598,6 +616,7 @@ int16_t socketRecvFrom(SOCKET sock, uint8_t* buffer, uint16_t bufferSize, uint8_
         DBG_PRINTF_ERROR("ERROR %u: recvfrom failed (result=%d)!\n", err, n);
         return -1;
     }
+    if (time!=NULL) *time = clockGet64();
     if (port) *port = htons(src.sin_port);
     if (addr) memcpy(addr, &src.sin_addr.s_addr, 4);
     return n;
@@ -607,10 +626,10 @@ int16_t socketRecvFrom(SOCKET sock, uint8_t* buffer, uint16_t bufferSize, uint8_
 // Return number of bytes received, 0 when socket closed, would block or empty UDP packet received, -1 on error
 int16_t socketRecv(SOCKET sock, uint8_t* buffer, uint16_t size, BOOL waitAll) {
 
-#if OPTION_ENABLE_XLAPI_V3
-    if (gOptionUseXLAPI) {
+#if OPTION_ENABLE_XLAPI_V3 || OPTION_ENABLE_XLAPI_IAP
+    if (gOptionXcpUse_XLAPI_V3 || gOptionXcpUse_XLAPI_IAP) {
         assert(!waitAll);
-        return xlUdpSocketRecv(sock, buffer, size);
+        return xl_socketRecv(sock, buffer, size);
     }
 #endif
 
@@ -633,11 +652,11 @@ int16_t socketRecv(SOCKET sock, uint8_t* buffer, uint16_t size, BOOL waitAll) {
 
 // Send datagram on socket
 // Must be thread save
-int16_t socketSendTo(SOCKET sock, const uint8_t* buffer, uint16_t size, const uint8_t* addr, uint16_t port) {
+int16_t socketSendTo(SOCKET sock, const uint8_t* buffer, uint16_t size, const uint8_t* addr, uint16_t port, uint64_t *time) {
 
-#if OPTION_ENABLE_XLAPI_V3
-    if (gOptionUseXLAPI) {
-        return xlUdpSocketSendTo(sock, buffer, size, addr, port);
+#if OPTION_ENABLE_XLAPI_V3 || OPTION_ENABLE_XLAPI_IAP
+    if (gOptionXcpUse_XLAPI_V3 || gOptionXcpUse_XLAPI_IAP) {
+        return xl_socketSendTo(sock, buffer, size, addr, port, time);
     }
 #endif
 
@@ -649,6 +668,7 @@ int16_t socketSendTo(SOCKET sock, const uint8_t* buffer, uint16_t size, const ui
     memcpy(&sa.sin_addr.s_addr, addr, 4);
 #endif
     sa.sin_port = htons(port);
+    if (time!=NULL) *time = clockGet64();
     return (int16_t)sendto(sock, (const char*)buffer, size, 0, (SOCKADDR*)&sa, (uint16_t)sizeof(sa));
 }
 
@@ -656,16 +676,39 @@ int16_t socketSendTo(SOCKET sock, const uint8_t* buffer, uint16_t size, const ui
 // Must be thread save
 int16_t socketSend(SOCKET sock, const uint8_t* buffer, uint16_t size) {
 
-#if OPTION_ENABLE_XLAPI_V3
-    if (gOptionUseXLAPI) {
-        return xlUdpSocketSend(sock, buffer, size);
+#if OPTION_ENABLE_XLAPI_V3 || OPTION_ENABLE_XLAPI_IAP
+    if (gOptionXcpUse_XLAPI_V3 || gOptionXcpUse_XLAPI_IAP) {
+        return xl_socketSend(sock, buffer, size);
     }
 #endif
-
     return (int16_t)send(sock, (const char *)buffer, size, 0);
 }
 
 
+#ifdef VECTOR_INTERNAL  // >>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+uint64_t socketGetSendTime(SOCKET sock) {
+    (void)sock;
+#if OPTION_ENABLE_XLAPI_V3 || OPTION_ENABLE_XLAPI_IAP
+    if (gOptionXcpUse_XLAPI_V3 || gOptionXcpUse_XLAPI_IAP) {
+        return xl_socketGetSendTime(sock);
+    }
+#endif
+    assert(0);
+    return 0; 
+}
+
+uint64_t socketGetTime() {
+
+#if OPTION_ENABLE_XLAPI_V3 || OPTION_ENABLE_XLAPI_IAP
+  if (gOptionXcpUse_XLAPI_V3 || gOptionXcpUse_XLAPI_IAP) {
+    return xl_socketGetTime();
+  }
+#endif
+  return clockGet64();
+}
+
+#endif // VECTOR_INTERNAL <<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 /**************************************************************************/
 // Clock
@@ -698,7 +741,7 @@ char* clockGetString(char* s, uint32_t l, uint64_t c) {
     uint64_t fns = c % CLOCK_TICKS_PER_S;
     SNPRINTF(s,l, "%u.%u.%u %02u:%02u:%02u +%" PRIu64 "ns", 
         tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, 
-        (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec, 
+        tm.tm_hour % 24, tm.tm_min, tm.tm_sec, 
         fns);
 #endif
     return s;
@@ -776,21 +819,38 @@ static uint64_t sFactor = 0; // ticks per us
 static uint8_t sDivide = 0; // divide or multiply
 static uint64_t sOffset = 0; // offset
 
-#ifdef ENABLE_DEBUG_PRINTS
-char* clockGetString(char* s, uint32_t l, uint64_t c) {
+char* clockGetString(char* str, uint32_t l, uint64_t c) {
 
 #ifndef CLOCK_USE_UTC_TIME_NS
     SNPRINTF(s, l, "%gs", (double)c / CLOCK_TICKS_PER_S);
 #else
-    time_t t = (time_t)(c / CLOCK_TICKS_PER_S); // s
-    struct tm tm;
-    gmtime_s(&tm, &t);
-    uint64_t fns = c % CLOCK_TICKS_PER_S;
-    SNPRINTF(s, l, "%u.%u.%u %02u:%02u:%02u +%" PRIu64 "s", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec, fns);
+    uint64_t s = c / CLOCK_TICKS_PER_S;
+    uint64_t ns = c % CLOCK_TICKS_PER_S;
+    if (s < 3600 * 24 * 365 * 30) {
+        SNPRINTF(str, l, "%" PRIu64 "d %" PRIu64 "h %" PRIu64 "m %" PRIu64 "s +%" PRIu64 "ns", s / (3600 * 24), (s % (3600 * 24)) / 3600, ((s % (3600 * 24)) % 3600) / 60, ((s % (3600 * 24)) % 3600) % 60, ns);
+    }
+    else {
+        struct tm tm;
+        time_t t = s;
+        gmtime_s(&tm, &t);
+        SNPRINTF(str, l, "%u.%u.%u %02u:%02u:%02u +%" PRIu64 "ns", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, tm.tm_hour % 24, tm.tm_min, tm.tm_sec, ns);
+    }
 #endif
-    return s;
+    return str;
 }
+
+char* clockGetTimeString(char* str, uint32_t l, int64_t t) {
+
+#ifndef CLOCK_USE_UTC_TIME_NS
+    SNPRINTF(s, l, "%gs", (double)c / CLOCK_TICKS_PER_S);
+#else
+    char sign = '+';    if (t < 0) { sign = '-'; t = -t; }
+    uint64_t s = t / CLOCK_TICKS_PER_S;
+    uint64_t ns = t % CLOCK_TICKS_PER_S;
+    SNPRINTF(str, l, "%c %" PRIu64 "d %" PRIu64 "h %" PRIu64 "m %" PRIu64 "s +%" PRIu64 "ns", sign, s / (3600 * 24), (s % (3600 * 24)) / 3600, ((s % (3600 * 24)) % 3600) / 60, ((s % (3600 * 24)) % 3600) % 60, ns);
 #endif
+    return str;
+}
 
 #include <sys/timeb.h>
 
@@ -858,28 +918,21 @@ BOOL clockInit() {
     clockGet64();
 
 #ifdef ENABLE_DEBUG_PRINTS
-    if (DBG_LEVEL >= 3) {
+    if (DBG_LEVEL >= 2) {
+        DBG_PRINTF2("PC clock\n");
 #ifdef CLOCK_USE_UTC_TIME_NS
-        if (DBG_LEVEL >= 4) {
+        if (DBG_LEVEL >= 3) {
             struct tm tm;
             _gmtime64_s(&tm, (const __time64_t*)&t);
-            DBG_PRINTF2("  Current time = %I64uus + %ums\n", t, t_ms);
-            DBG_PRINTF2("  Zone difference in minutes from UTC: %d\n", tstruct.timezone);
-            DBG_PRINTF2("  Time zone: %s\n", _tzname[0]);
-            DBG_PRINTF2("  Daylight saving: %s\n", tstruct.dstflag ? "YES" : "NO");
-            DBG_PRINTF2("  UTC time = %" PRIu64 "s since 1.1.1970 ", t);
-            DBG_PRINTF2("  %u.%u.%u %u:%u:%u\n", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec);
+            DBG_PRINTF3("  Current time = %I64uus + %ums\n", t, t_ms);
+            DBG_PRINTF3("  Zone difference in minutes from UTC: %d\n", tstruct.timezone);
+            DBG_PRINTF3("  Time zone: %s\n", _tzname[0]);
+            DBG_PRINTF3("  Daylight saving: %s\n", tstruct.dstflag ? "YES" : "NO");
+            DBG_PRINTF3("  UTC time = %" PRIu64 "s since 1.1.1970 ", t);
+            DBG_PRINTF3("  %u.%u.%u %u:%u:%u\n", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, tm.tm_hour % 24, tm.tm_min, tm.tm_sec);
         }
 #endif
-        uint64_t t1, t2;
-        char s[64];
-        t1 = clockGet64();
-        sleepNs(100000);
-        t2 = clockGet64();
-
-        DBG_PRINTF3("  Resolution = %u Hz, system resolution = %" PRIu32 " Hz, conversion = %c%" PRIu64 "+%" PRIu64 "\n", CLOCK_TICKS_PER_S, (uint32_t)tF.u.LowPart, sDivide ? '/' : '*', sFactor, sOffset);
-        DBG_PRINTF4("  +0us:   %I64u  %s\n", t1, clockGetString(s, 64, t1));
-        DBG_PRINTF4("  +100us: %I64u  %s\n", t2, clockGetString(s, 64, t2));
+        DBG_PRINTF2("  Resolution = %u Hz, system resolution = %" PRIu32 " Hz, conversion = %c%" PRIu64 "+%" PRIu64 "\n", CLOCK_TICKS_PER_S, (uint32_t)tF.u.LowPart, sDivide ? '/' : '*', sFactor, sOffset);
     } // Test
 #endif
 

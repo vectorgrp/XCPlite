@@ -13,7 +13,6 @@
  ----------------------------------------------------------------------------*/
 
 #include "main.h"
-#include "main_cfg.h"
 #include "platform.h"
 #include "util.h"
 
@@ -55,12 +54,6 @@ typedef struct {
     uint8_t packet[XCPTL_MAX_CTO_SIZE];
 } tXcpCtoMessage;
 
-typedef struct {
-    uint16_t dlc;
-    uint16_t ctr;
-    uint8_t packet[XCPTL_MAX_DTO_SIZE];
-} tXcpDtoMessage;
-
 
 /* Transport Layer:
 segment = message 1 + message 2 ... + message n
@@ -69,7 +62,7 @@ message = len + ctr + (protocol layer packet) + fill
 typedef struct {
     uint16_t uncommited;        // Number of uncommited messages in this segment
     uint16_t size;              // Number of overall bytes in this segment
-    uint8_t msg[XCPTL_SEGMENT_SIZE];  // Segment/MTU - concatenated transport layer messages
+    uint8_t msg[XCPTL_MAX_SEGMENT_SIZE];  // Segment/MTU - concatenated transport layer messages
 } tXcpMessageBuffer;
 
 
@@ -89,10 +82,16 @@ static struct {
 
     int32_t lastError;
 
+    // Maximum size of a XCP transportlayer segment
+    uint16_t SegmentSize;
+
     // Transmit segment queue
     tXcpMessageBuffer queue[XCPTL_QUEUE_SIZE];
     uint32_t queue_rp; // rp = read index
     uint32_t queue_len; // rp+len = write index (the next free entry), len=0 ist empty, len=XCPTL_QUEUE_SIZE is full
+#ifdef _WIN
+    HANDLE queue_event;
+#endif
     tXcpMessageBuffer* msg_ptr; // current incomplete or not fully commited segment
     uint64_t bytes_written;   // data bytes writen
 
@@ -172,7 +171,7 @@ static int sendDatagram(const uint8_t *data, uint16_t size ) {
             return 0;
         }
 
-        r = socketSendTo(gXcpTl.Sock, data, size, gXcpTl.MasterAddr, gXcpTl.MasterPort);
+        r = socketSendTo(gXcpTl.Sock, data, size, gXcpTl.MasterAddr, gXcpTl.MasterPort, NULL);
     }
 #endif // UDP
 
@@ -286,17 +285,20 @@ uint8_t *XcpTlGetTransmitBuffer(void **handlep, uint16_t packet_size) {
     uint16_t msg_size;
 
  #if XCPTL_PACKET_ALIGNMENT==2
-    packet_size = (uint16_t)((packet_size + 1) & 0xFFFE); // Add fill
+    packet_size = (uint16_t)((packet_size + 1) & 0xFFFE); // Add fill %2
 #endif
 #if XCPTL_PACKET_ALIGNMENT==4
-    packet_size = (uint16_t)((packet_size + 3) & 0xFFFC); // Add fill
+    packet_size = (uint16_t)((packet_size + 3) & 0xFFFC); // Add fill %4
 #endif
     msg_size = (uint16_t)(packet_size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE);
+    if (msg_size > gXcpTl.SegmentSize) {
+        return NULL; // Overflow, should never happen in correct DAQ setups
+    }
 
     mutexLock(&gXcpTl.Mutex_Queue);
 
     // Get another message buffer from queue, when active buffer ist full
-    if (gXcpTl.msg_ptr==NULL || (uint16_t)(gXcpTl.msg_ptr->size + msg_size) >= XCPTL_SEGMENT_SIZE) {
+    if (gXcpTl.msg_ptr==NULL || (uint16_t)(gXcpTl.msg_ptr->size + msg_size) > gXcpTl.SegmentSize) {
         getSegmentBuffer();
     }
 
@@ -324,11 +326,17 @@ uint8_t *XcpTlGetTransmitBuffer(void **handlep, uint16_t packet_size) {
 void XcpTlCommitTransmitBuffer(void *handle) {
 
     tXcpMessageBuffer* p = (tXcpMessageBuffer*)handle;
-
     if (handle != NULL) {
         mutexLock(&gXcpTl.Mutex_Queue);
         p->uncommited--;
         mutexUnlock(&gXcpTl.Mutex_Queue);
+
+#ifdef _WIN
+        if (gXcpTl.queue_len > XCPTL_QUEUE_SIZE/2) {
+          SetEvent(gXcpTl.queue_event);
+        }
+#endif
+
     }
 }
 
@@ -344,7 +352,7 @@ void XcpTlWaitForTransmitQueue() {
 
     XcpTlFlushTransmitBuffer();
     do {
-        sleepMs(2);
+        sleepMs(20);
     } while (gXcpTl.queue_len > 1) ;
 
 }
@@ -546,7 +554,7 @@ BOOL XcpTlHandleCommands() {
         // Wait for a UDP datagramm
         uint16_t srcPort;
         uint8_t srcAddr[4];
-        n = socketRecvFrom(gXcpTl.Sock, (uint8_t*)&msgBuf, (uint16_t)sizeof(msgBuf), srcAddr, &srcPort); // recv blocking
+        n = socketRecvFrom(gXcpTl.Sock, (uint8_t*)&msgBuf, (uint16_t)sizeof(msgBuf), srcAddr, &srcPort, NULL); // recv blocking
         if (n == 0) return TRUE; // Socket closed, should not happen
         if (n < 0) {  // error
             if (socketGetLastError() == SOCKET_ERROR_WBLOCK) return 1; // Ok, timeout, no command pending
@@ -591,7 +599,7 @@ extern void* XcpTlMulticastThread(void* par)
     int16_t n;
     (void)par;
     for (;;) {
-        n = socketRecvFrom(gXcpTl.MulticastSock, buffer, (uint16_t)sizeof(buffer), NULL, NULL);
+        n = socketRecvFrom(gXcpTl.MulticastSock, buffer, (uint16_t)sizeof(buffer), NULL, NULL, NULL);
         if (n <= 0) break; // Terminate on error or socket close 
         handleXcpMulticast(n, (tXcpCtoMessage*)buffer);
     }
@@ -606,10 +614,13 @@ void XcpTlSetClusterId(uint16_t clusterId) {
   (void)clusterId;
 }
 
-int XcpTlInit(const uint8_t* addr, uint16_t port, BOOL useTCP) {
+BOOL XcpTlInit(const uint8_t* addr, uint16_t port, BOOL useTCP, uint16_t segmentSize) {
 
-    XCP_DBG_PRINTF2("\nInit XCP on %s transport layer\n", useTCP ? "TCP" : "UDP");
-    XCP_DBG_PRINTF2("  MTU=%u, QUEUE_SIZE=%u, %uKiB memory used\n", XCPTL_SEGMENT_SIZE, XCPTL_QUEUE_SIZE, (unsigned int)sizeof(gXcpTl) / 1024);
+    if (segmentSize > XCPTL_MAX_SEGMENT_SIZE) return FALSE;
+    gXcpTl.SegmentSize = segmentSize;
+
+    XCP_DBG_PRINTF1("\nInit XCP on %s transport layer\n", useTCP ? "TCP" : "UDP");
+    XCP_DBG_PRINTF1("  MTU=%u, QUEUE_SIZE=%u, %uKiB memory used\n", gXcpTl.SegmentSize, XCPTL_QUEUE_SIZE, (unsigned int)sizeof(gXcpTl) / 1024);
 
     if (addr != 0)  { // Bind to given addr 
         memcpy(gXcpTl.ServerAddr, addr, 4);
@@ -625,13 +636,17 @@ int XcpTlInit(const uint8_t* addr, uint16_t port, BOOL useTCP) {
 
     mutexInit(&gXcpTl.Mutex_Queue, 0, 1000);
     XcpTlInitTransmitQueue();
+#ifdef _WIN
+    gXcpTl.queue_event = CreateEvent(NULL, TRUE, FALSE, NULL);
+    assert(gXcpTl.queue_event!=NULL); 
+#endif
 
 #ifdef XCPTL_ENABLE_TCP
     gXcpTl.ListenSock = INVALID_SOCKET;
     if (useTCP) { // TCP
-        if (!socketOpen(&gXcpTl.ListenSock, 1 /* useTCP */, 0 /*nonblocking*/, 1 /*reuseAddr*/)) return 0;
-        if (!socketBind(gXcpTl.ListenSock, gXcpTl.ServerAddr, gXcpTl.ServerPort)) return 0; // Bind on ANY, when serverAddr=255.255.255.255
-        if (!socketListen(gXcpTl.ListenSock)) return 0; // Put socket in listen mode
+        if (!socketOpen(&gXcpTl.ListenSock, TRUE /* useTCP */, FALSE /*nonblocking*/, TRUE /*reuseAddr*/, FALSE /* timestamps*/)) return FALSE;
+        if (!socketBind(gXcpTl.ListenSock, gXcpTl.ServerAddr, gXcpTl.ServerPort)) return FALSE; // Bind on ANY, when serverAddr=255.255.255.255
+        if (!socketListen(gXcpTl.ListenSock)) return FALSE; // Put socket in listen mode
         XCP_DBG_PRINTF1("  Listening for TCP connections on %u.%u.%u.%u port %u\n", gXcpTl.ServerAddr[0], gXcpTl.ServerAddr[1], gXcpTl.ServerAddr[2], gXcpTl.ServerAddr[3], gXcpTl.ServerPort);
     }
     else
@@ -643,29 +658,29 @@ int XcpTlInit(const uint8_t* addr, uint16_t port, BOOL useTCP) {
     else
 #endif
     { // UDP
-        if (!socketOpen(&gXcpTl.Sock, 0 /* useTCP */, 0 /*nonblocking*/, 1 /*reuseAddr*/)) return 0;
-        if (!socketBind(gXcpTl.Sock, gXcpTl.ServerAddr, gXcpTl.ServerPort)) return 0; // Bind on ANY, when serverAddr=255.255.255.255
+        if (!socketOpen(&gXcpTl.Sock, FALSE /* useTCP */, FALSE /*nonblocking*/, TRUE /*reuseAddr*/, FALSE /* timestamps*/)) return FALSE;
+        if (!socketBind(gXcpTl.Sock, gXcpTl.ServerAddr, gXcpTl.ServerPort)) return FALSE; // Bind on ANY, when serverAddr=255.255.255.255
         XCP_DBG_PRINTF1("  Listening for XCP commands on UDP %u.%u.%u.%u port %u\n", gXcpTl.ServerAddr[0], gXcpTl.ServerAddr[1], gXcpTl.ServerAddr[2], gXcpTl.ServerAddr[3], gXcpTl.ServerPort);
     }
 
     // Multicast UDP commands
 #ifdef XCPTL_ENABLE_MULTICAST
 
-    if (!socketOpen(&gXcpTl.MulticastSock, 0 /*useTCP*/, 0 /*nonblocking*/, 1 /*reusable*/)) return 0;
-    XCP_DBG_PRINTF2("  Bind XCP multicast socket to %u.%u.%u.%u\n", gXcpTl.ServerAddr[0], gXcpTl.ServerAddr[1], gXcpTl.ServerAddr[2], gXcpTl.ServerAddr[3]);
-    if (!socketBind(gXcpTl.MulticastSock, gXcpTl.ServerAddr, XCPTL_MULTICAST_PORT)) return 0; // Bind to ANY, when serverAddr=255.255.255.255
+    if (!socketOpen(&gXcpTl.MulticastSock, FALSE /*useTCP*/, FALSE /*nonblocking*/, TRUE /*reusable*/, FALSE /* timestamps*/)) return FALSE;
+    XCP_DBG_PRINTF2("  Bind XCP multicast socket to %u.%u.%u.%u:%u\n", gXcpTl.ServerAddr[0], gXcpTl.ServerAddr[1], gXcpTl.ServerAddr[2], gXcpTl.ServerAddr[3], XCPTL_MULTICAST_PORT);
+    if (!socketBind(gXcpTl.MulticastSock, gXcpTl.ServerAddr, XCPTL_MULTICAST_PORT)) return FALSE; // Bind to ANY, when serverAddr=255.255.255.255
 
     uint16_t cid = XcpGetClusterId();
     uint8_t maddr[4] = { 239,255,0,0 }; // 0xEFFFiiii
     maddr[2] = (uint8_t)(cid >> 8);
     maddr[3] = (uint8_t)(cid);
-    if (!socketJoin(gXcpTl.MulticastSock, maddr)) return 0;
-    XCP_DBG_PRINTF3("  Listening for XCP multicast from %u.%u.%u.%u:%u\n", maddr[0], maddr[1], maddr[2], maddr[3], XCPTL_MULTICAST_PORT);
+    if (!socketJoin(gXcpTl.MulticastSock, maddr)) return FALSE;
+    XCP_DBG_PRINTF2("  Listening for XCP multicast on %u.%u.%u.%u\n", maddr[0], maddr[1], maddr[2], maddr[3]);
 
     XCP_DBG_PRINT3("  Start XCP multicast thread\n");
     create_thread(&gXcpTl.MulticastThreadHandle, XcpTlMulticastThread);
 #endif
-    return 1;
+    return TRUE;
 }
 
 
@@ -673,7 +688,7 @@ void XcpTlShutdown() {
 
 #ifdef XCPTL_ENABLE_MULTICAST
     socketClose(&gXcpTl.MulticastSock);
-    sleepMs(500);
+    sleepMs(200);
     cancel_thread(gXcpTl.MulticastThreadHandle);
 #endif
     mutexDestroy(&gXcpTl.Mutex_Queue);
@@ -681,6 +696,9 @@ void XcpTlShutdown() {
     if (isTCP()) socketClose(&gXcpTl.ListenSock);
 #endif
     socketClose(&gXcpTl.Sock);
+#ifdef _WIN
+    CloseHandle(gXcpTl.queue_event);
+#endif
 }
 
 
@@ -688,9 +706,17 @@ void XcpTlShutdown() {
 // Wait for outgoing data or timeout after timeout_us
 void XcpTlWaitForTransmitData(uint32_t timeout_ms) {
 
-    if (gXcpTl.queue_len <= 1) {
-        sleepMs(timeout_ms);
+#ifdef _WIN 
+    if (WAIT_OBJECT_0 == WaitForSingleObject(gXcpTl.queue_event, timeout_ms)) {
+      ResetEvent(gXcpTl.queue_event);
     }
+#else
+      (void)timeout_ms;
+      if (gXcpTl.queue_len <= 1) {
+        sleepNs(2 * CLOCK_TICKS_PER_MS);
+      }
+#endif
+
     return;
 }
 
@@ -698,38 +724,7 @@ void XcpTlWaitForTransmitData(uint32_t timeout_ms) {
 
 //-------------------------------------------------------------------------------------------------------
 
-int XcpTlGetLastError() {
+int32_t XcpTlGetLastError() {
     return gXcpTl.lastError;
-}
-
-
-// Info used to generate A2L
-const char* XcpTlGetServerAddrString() {
-
-    static char tmp[32];
-    uint8_t addr[4],*a;
-    if (gXcpTl.ServerAddr[0] != 0) {
-        a = gXcpTl.ServerAddr;
-    }
-    else if (socketGetLocalAddr(NULL, addr)) { // If server bound to ANY, determine addr of the ethernet adapter
-        a = addr;
-    }
-    else {
-        return "127.0.0.1";
-    }
-    SPRINTF(tmp, "%u.%u.%u.%u", a[0], a[1], a[2], a[3]);
-    return tmp;
-}
-
-// Info used to generate A2L
-uint16_t XcpTlGetServerPort() {
-
-    return gXcpTl.ServerPort;
-}
-
-// Info used to generate clock UUID
-int XcpTlGetServerMAC(uint8_t *mac) {
-
-    return socketGetLocalAddr(mac,NULL);
 }
 
