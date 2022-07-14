@@ -91,7 +91,7 @@
 
 #endif
 
-//#define XCP_ENABLE_DAQ_CLOCK_MULTICAST // Enable GET_DAQ_CLOCK_MULTICAST
+#define XCP_ENABLE_DAQ_CLOCK_MULTICAST // Enable GET_DAQ_CLOCK_MULTICAST
 #ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
     // XCP default cluster id (multicast addr 239,255,0,1, group 127,0,1 (mac 01-00-5E-7F-00-01)
 #define XCP_MULTICAST_CLUSTER_ID 1

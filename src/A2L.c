@@ -29,7 +29,7 @@ static unsigned int gA2lInstances;
 static unsigned int gA2lConversions;
 
 static const char* gA2lHeader =
-"ASAP2_VERSION 1 71\n"
+"ASAP2_VERSION 1 70\n"
 "/begin PROJECT %s \"\"\n"
 "/begin HEADER \"\" VERSION \"1.0\" /end HEADER\n"
 "/begin MODULE %s \"\"\n"
@@ -41,7 +41,7 @@ static const char* gA2lHeader =
 "ALIGNMENT_BYTE 1\n"
 "ALIGNMENT_WORD 1\n"
 "ALIGNMENT_LONG 1\n"
-"ALIGNMENT_FLOAT16_IEEE 1\n"
+//"ALIGNMENT_FLOAT16_IEEE 1\n"
 "ALIGNMENT_FLOAT32_IEEE 1\n"
 "ALIGNMENT_FLOAT64_IEEE 1\n"
 "ALIGNMENT_INT64 1\n"
