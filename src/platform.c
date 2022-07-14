@@ -488,7 +488,6 @@ BOOL socketGetLocalAddr(uint8_t* mac, uint8_t* addr) {
             while (pAdapter) {
                 if (pAdapter->Type == MIB_IF_TYPE_ETHERNET) {
                     inet_pton(AF_INET, pAdapter->IpAddressList.IpAddress.String, &a);
-#ifdef XCP_ENABLE_DEBUG_PRINTS
                     if (a!=0) {
                         DBG_PRINTF1("  Ethernet adapter %" PRIu32 ":", (uint32_t) pAdapter->Index);
                         //DBG_PRINTF1(" %s", pAdapter->AdapterName);
@@ -504,7 +503,6 @@ BOOL socketGetLocalAddr(uint8_t* mac, uint8_t* addr) {
                             memcpy(mac1, pAdapter->Address, 6);
                         }
                     }
-#endif
                 }
                 pAdapter = pAdapter->Next;
             }
