@@ -94,25 +94,17 @@ void sleepMs(uint32_t ms) {
 #else
 
 
-void sleepNs(uint32_t ns) {
+void sleepNs(uint32_t sleep_ns) {
 
     uint64_t t1, t2;
-    uint32_t us = ns / 1000;
-    uint32_t ms = us / 1000;
 
-    // Start sleeping at 1800us, shorter sleeps are more precise but need significant CPU time
-    if (us >= 2000) {
-        Sleep(ms - 1);
-    }
-    // Busy wait
-    else {
-        t1 = t2 = clockGet64();
-        uint64_t te = t1 + us * (uint64_t)CLOCK_TICKS_PER_US;
-        for (;;) {
-            t2 = clockGet64();
-            if (t2 >= te) break;
-            if (te - t2 > 0) Sleep(0);
-        }
+    t1 = clockGet64();
+    uint64_t te = t1 + (uint64_t)sleep_ns*CLOCK_TICKS_PER_NS;
+    for (;;) {
+        t2 = clockGet64();
+        if (t2 >= te) break;
+        uint32_t ms = (uint32_t)((te - t2) / CLOCK_TICKS_PER_MS);
+        Sleep(0);
     }
 }
 

@@ -154,7 +154,6 @@ void cmdline_usage(const char* appName) {
         "\n"
         "  Keys:\n"
         "    ESC              Exit\n"
-        "    + or -           Change debug output level\n"
         "\n",
         appName
     );
