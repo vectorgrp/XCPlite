@@ -55,12 +55,6 @@ typedef struct {
     uint8_t packet[XCPTL_MAX_CTO_SIZE];
 } tXcpCtoMessage;
 
-typedef struct {
-    uint16_t dlc;
-    uint16_t ctr;
-    uint8_t packet[XCPTL_MAX_DTO_SIZE];
-} tXcpDtoMessage;
-
 
 /* Transport Layer:
 segment = message 1 + message 2 ... + message n
@@ -93,6 +87,9 @@ static struct {
     tXcpMessageBuffer queue[XCPTL_QUEUE_SIZE];
     uint32_t queue_rp; // rp = read index
     uint32_t queue_len; // rp+len = write index (the next free entry), len=0 ist empty, len=XCPTL_QUEUE_SIZE is full
+#ifdef _WIN
+    HANDLE queue_event;
+#endif
     tXcpMessageBuffer* msg_ptr; // current incomplete or not fully commited segment
     uint64_t bytes_written;   // data bytes writen
 
@@ -324,11 +321,17 @@ uint8_t *XcpTlGetTransmitBuffer(void **handlep, uint16_t packet_size) {
 void XcpTlCommitTransmitBuffer(void *handle) {
 
     tXcpMessageBuffer* p = (tXcpMessageBuffer*)handle;
-
     if (handle != NULL) {
         mutexLock(&gXcpTl.Mutex_Queue);
         p->uncommited--;
         mutexUnlock(&gXcpTl.Mutex_Queue);
+
+#ifdef _WIN
+        if (gXcpTl.queue_len > XCPTL_QUEUE_SIZE/2) {
+          SetEvent(gXcpTl.queue_event);
+        }
+#endif
+
     }
 }
 
@@ -625,7 +628,10 @@ int XcpTlInit(const uint8_t* addr, uint16_t port, BOOL useTCP) {
 
     mutexInit(&gXcpTl.Mutex_Queue, 0, 1000);
     XcpTlInitTransmitQueue();
-
+#ifdef _WIN
+    gXcpTl.queue_event = CreateEvent(NULL, TRUE, FALSE, NULL);
+    assert(gXcpTl.queue_event!=NULL); 
+#endif
 #ifdef XCPTL_ENABLE_TCP
     gXcpTl.ListenSock = INVALID_SOCKET;
     if (useTCP) { // TCP
@@ -659,13 +665,13 @@ int XcpTlInit(const uint8_t* addr, uint16_t port, BOOL useTCP) {
     uint8_t maddr[4] = { 239,255,0,0 }; // 0xEFFFiiii
     maddr[2] = (uint8_t)(cid >> 8);
     maddr[3] = (uint8_t)(cid);
-    if (!socketJoin(gXcpTl.MulticastSock, maddr)) return 0;
-    XCP_DBG_PRINTF3("  Listening for XCP multicast from %u.%u.%u.%u:%u\n", maddr[0], maddr[1], maddr[2], maddr[3], XCPTL_MULTICAST_PORT);
+    if (!socketJoin(gXcpTl.MulticastSock, maddr)) return FALSE;
+    XCP_DBG_PRINTF2("  Listening for XCP multicast on %u.%u.%u.%u\n", maddr[0], maddr[1], maddr[2], maddr[3]);
 
     XCP_DBG_PRINT3("  Start XCP multicast thread\n");
     create_thread(&gXcpTl.MulticastThreadHandle, XcpTlMulticastThread);
 #endif
-    return 1;
+    return TRUE;
 }
 
 
@@ -673,7 +679,7 @@ void XcpTlShutdown() {
 
 #ifdef XCPTL_ENABLE_MULTICAST
     socketClose(&gXcpTl.MulticastSock);
-    sleepMs(500);
+    sleepMs(200);
     cancel_thread(gXcpTl.MulticastThreadHandle);
 #endif
     mutexDestroy(&gXcpTl.Mutex_Queue);
@@ -681,6 +687,9 @@ void XcpTlShutdown() {
     if (isTCP()) socketClose(&gXcpTl.ListenSock);
 #endif
     socketClose(&gXcpTl.Sock);
+#ifdef _WIN
+    CloseHandle(gXcpTl.queue_event);
+#endif
 }
 
 
@@ -688,9 +697,17 @@ void XcpTlShutdown() {
 // Wait for outgoing data or timeout after timeout_us
 void XcpTlWaitForTransmitData(uint32_t timeout_ms) {
 
-    if (gXcpTl.queue_len <= 1) {
-        sleepMs(timeout_ms);
+#ifdef _WIN 
+    if (WAIT_OBJECT_0 == WaitForSingleObject(gXcpTl.queue_event, timeout_ms)) {
+      ResetEvent(gXcpTl.queue_event);
     }
+#else
+      (void)timeout_ms;
+      if (gXcpTl.queue_len <= 1) {
+        sleepNs(2 * CLOCK_TICKS_PER_MS);
+      }
+#endif
+
     return;
 }
 
@@ -698,38 +715,7 @@ void XcpTlWaitForTransmitData(uint32_t timeout_ms) {
 
 //-------------------------------------------------------------------------------------------------------
 
-int XcpTlGetLastError() {
+int32_t XcpTlGetLastError() {
     return gXcpTl.lastError;
-}
-
-
-// Info used to generate A2L
-const char* XcpTlGetServerAddrString() {
-
-    static char tmp[32];
-    uint8_t addr[4],*a;
-    if (gXcpTl.ServerAddr[0] != 0) {
-        a = gXcpTl.ServerAddr;
-    }
-    else if (socketGetLocalAddr(NULL, addr)) { // If server bound to ANY, determine addr of the ethernet adapter
-        a = addr;
-    }
-    else {
-        return "127.0.0.1";
-    }
-    SPRINTF(tmp, "%u.%u.%u.%u", a[0], a[1], a[2], a[3]);
-    return tmp;
-}
-
-// Info used to generate A2L
-uint16_t XcpTlGetServerPort() {
-
-    return gXcpTl.ServerPort;
-}
-
-// Info used to generate clock UUID
-int XcpTlGetServerMAC(uint8_t *mac) {
-
-    return socketGetLocalAddr(mac,NULL);
 }
 

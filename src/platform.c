@@ -100,9 +100,9 @@ void sleepNs(uint32_t ns) {
     uint32_t us = ns / 1000;
     uint32_t ms = us / 1000;
 
-    // Start sleeping at 1800us, shorter sleeps are more precise but need significant CPU time
+    // Start sleeping at 2000us, shorter sleeps are more precise but need significant CPU time
     if (us >= 2000) {
-        Sleep(ms - 1);
+        Sleep(ms);
     }
     // Busy wait
     else {
@@ -111,7 +111,7 @@ void sleepNs(uint32_t ns) {
         for (;;) {
             t2 = clockGet64();
             if (t2 >= te) break;
-            if (te - t2 > 0) Sleep(0);
+            Sleep(0);
         }
     }
 }
@@ -869,15 +869,7 @@ BOOL clockInit() {
             DBG_PRINTF2("  %u.%u.%u %u:%u:%u\n", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec);
         }
 #endif
-        uint64_t t1, t2;
-        char s[64];
-        t1 = clockGet64();
-        sleepNs(100000);
-        t2 = clockGet64();
-
         DBG_PRINTF3("  Resolution = %u Hz, system resolution = %" PRIu32 " Hz, conversion = %c%" PRIu64 "+%" PRIu64 "\n", CLOCK_TICKS_PER_S, (uint32_t)tF.u.LowPart, sDivide ? '/' : '*', sFactor, sOffset);
-        DBG_PRINTF4("  +0us:   %I64u  %s\n", t1, clockGetString(s, 64, t1));
-        DBG_PRINTF4("  +100us: %I64u  %s\n", t2, clockGetString(s, 64, t2));
     } // Test
 #endif
 
