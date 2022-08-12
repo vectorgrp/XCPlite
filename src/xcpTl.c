@@ -327,7 +327,7 @@ void XcpTlCommitTransmitBuffer(void *handle) {
         mutexUnlock(&gXcpTl.Mutex_Queue);
 
 #ifdef _WIN
-        if (gXcpTl.queue_len > XCPTL_QUEUE_SIZE/2) {
+        if (gXcpTl.queue_len > 1) {
           SetEvent(gXcpTl.queue_event);
         }
 #endif
