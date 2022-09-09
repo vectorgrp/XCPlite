@@ -25,7 +25,6 @@
 #include "ecu.h"
 #endif
 #endif
-
     
 
 /**************************************************************************/
@@ -59,16 +58,7 @@ BOOL ApplXcpConnect() {
 
 BOOL ApplXcpPrepareDaq() { 
     XCP_DBG_PRINT1("XCP prepare DAQ\n");
-#if OPTION_ENABLE_PTP
-    if (gOptionPTP) {
-        return ptpClockPrepareDaq();
-    }
-    else {
-        return TRUE;
-    }
-#else
     return TRUE;
-#endif
 }
 
 BOOL ApplXcpStartDaq() {
@@ -78,11 +68,6 @@ BOOL ApplXcpStartDaq() {
 
 void ApplXcpStopDaq() {
     XCP_DBG_PRINT1("XCP stop DAQ\n");
-#if OPTION_ENABLE_PTP
-    if (gOptionPTP) {
-        ptpClockStopDaq();
-    }
-#endif
 }
 
 #endif
@@ -97,7 +82,7 @@ void ApplXcpStopDaq() {
 
 uint64_t ApplXcpGetClock64() { 
 
-    return clockGet64();
+    return clockGet();
 }
 
 uint8_t ApplXcpGetClockState() { 
@@ -107,9 +92,9 @@ uint8_t ApplXcpGetClockState() {
 
 BOOL ApplXcpGetClockInfoGrandmaster(uint8_t* uuid, uint8_t* epoch, uint8_t* stratum) {
 
-  (void)uuid;
-  (void)epoch;
-  (void)stratum;
+    (void)uuid;
+    (void)epoch;
+    (void)stratum;
 
     return FALSE;
 }
@@ -359,11 +344,6 @@ uint8_t ApplXcpSetCalPage(uint8_t segment, uint8_t page, uint8_t mode) {
 #endif
 
 
-/**************************************************************************/
-// Read A2L to memory accessible by XCP
-/**************************************************************************/
-
-#ifdef XCP_ENABLE_IDT_A2L_UPLOAD // Enable GET_ID A2L content upload to host
 
 /**************************************************************************/
 // Infos for GET_ID
@@ -372,32 +352,38 @@ uint8_t ApplXcpSetCalPage(uint8_t segment, uint8_t page, uint8_t mode) {
 static uint8_t* gXcpFile = NULL; // file content
 static uint32_t gXcpFileLength = 0; // file length
 
-
 uint32_t ApplXcpGetId(uint8_t id, uint8_t* buf, uint32_t bufLen) {
 
     uint32_t len = 0;
     switch (id) {
 
     case IDT_ASCII:
+      len = (uint32_t)strlen(APP_NAME);
+      if (buf) {
+        if (len > bufLen) return 0; // Insufficient buffer space
+        strncpy((char*)buf, APP_NAME, len);
+      }
+      break;
+
     case IDT_ASAM_NAME:
-        len = (uint32_t)strlen(APP_NAME);
-        if (buf) {
-            if (len > bufLen) return 0; // Insufficient buffer space
-            strncpy((char*)buf, APP_NAME, len);
-        }
-        break;
+      len = (uint32_t)strlen(OPTION_A2L_NAME);
+      if (buf) {
+        if (len > bufLen) return 0; // Insufficient buffer space
+        strncpy((char*)buf, OPTION_A2L_NAME, len);
+      }
+      break;
 
     case IDT_ASAM_PATH:
-        len = (uint32_t)strlen(OPTION_A2L_FILE_NAME);
-        if (buf) {
-            if (len > bufLen) return 0; // Insufficient buffer space
-            strncpy((char*)buf, OPTION_A2L_FILE_NAME, len);
-        }
-        break;
+      len = (uint32_t)strlen(OPTION_A2L_FILE_NAME);
+      if (buf) {
+        if (len > bufLen) return 0; // Insufficient buffer space
+        strncpy((char*)buf, OPTION_A2L_FILE_NAME, len);
+      }
+      break;
 
     case IDT_ASAM_EPK:
-        // Not implemented
-        break;
+      // Not implemented
+      break;
 
 #ifdef XCP_ENABLE_IDT_A2L_UPLOAD
     case IDT_ASAM_UPLOAD:
@@ -423,13 +409,12 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t* buf, uint32_t bufLen) {
 }
 
 
+#ifdef XCP_ENABLE_IDT_A2L_UPLOAD // Enable GET_ID A2L content upload to host
 BOOL ApplXcpReadA2L(uint8_t size, uint32_t addr, uint8_t* data) {
     if (addr + size > gXcpFileLength) return FALSE;
     memcpy(data, gXcpFile + addr, size);
     return TRUE;
 }
-
-
 #endif
 
 

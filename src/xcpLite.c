@@ -61,9 +61,8 @@
 #include "main.h"
 #include "platform.h"
 #include "util.h"
-
 #include "xcpLite.h"    // Protocol layer interface
-#include "xcpAppl.h"    // Dependecies to application code
+#include "xcpAppl.h"    // Debug print functions supplied by application
 
 
 /****************************************************************************/
@@ -83,6 +82,9 @@
 #endif
 
 #if defined( XCPTL_MAX_DTO_SIZE )
+#if ( XCPTL_MAX_DTO_SIZE > (XCPTL_MAX_SEGMENT_SIZE-4) )
+#error "XCPTL_MAX_DTO_SIZE too large"
+#endif
 #if ( XCPTL_MAX_DTO_SIZE < 16 )
 #error "XCPTL_MAX_DTO_SIZE must be >= 16"
 #endif
@@ -683,7 +685,6 @@ static void XcpEvent_(uint16_t event, uint8_t* base, uint64_t clock)
   uint32_t sc;
 #endif
   void* handle = NULL;
-  uint8_t prio = 0;
 
   if (!isDaqRunning()) return; // DAQ not running
 
@@ -702,7 +703,6 @@ static void XcpEvent_(uint16_t event, uint8_t* base, uint64_t clock)
   for (daq=0; daq<gXcp.Daq.DaqCount; daq++) {
       if ((DaqListFlags(daq) & (uint8_t)DAQ_FLAG_RUNNING) == 0) continue; // DAQ list not active
       if (DaqListEventChannel(daq) != event) continue; // DAQ list not associated with this event
-      if (DaqListPriority(daq) > prio) prio = DaqListPriority(daq);
 #ifdef XCP_ENABLE_PACKED_MODE
       sc = DaqListSampleCount(daq); // Packed mode sample count, 0 if not packed
 #endif
@@ -728,7 +728,7 @@ static void XcpEvent_(uint16_t event, uint8_t* base, uint64_t clock)
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
 #ifdef XCP_ENABLE_TEST_CHECKS
           if (ev->time > clock) { // declining time stamps
-              XCP_DBG_PRINTF_ERROR("ERROR: Declining timestamp! event=%u\n", event);   
+              XCP_DBG_PRINTF_ERROR("ERROR: Declining timestamp! event=%u, diff=%" PRIu64 "\n", event, ev->time-clock);
           }
           if (ev->time == clock) { // duplicate time stamps
               XCP_DBG_PRINTF3("WARNING: Duplicate timestamp! event=%u\n", event);
@@ -738,11 +738,9 @@ static void XcpEvent_(uint16_t event, uint8_t* base, uint64_t clock)
 
          // Buffer overrun
          if (d0 == 0) {
-#ifdef XCP_ENABLE_DEBUG_PRINTS
-            if (XCP_DBG_LEVEL >=3 || gXcp.DaqOverflowCount<5) XCP_DBG_PRINTF1("DAQ queue overflow! Event %u skipped\n", event);
-#endif
             gXcp.DaqOverflowCount++;
             DaqListFlags(daq) |= DAQ_FLAG_OVERRUN;
+            XCP_DBG_PRINTF_ERROR("WARNING: DAQ queue overflow %u! Event %u skipped\n", gXcp.DaqOverflowCount, event);
             return; // Skip rest of this event on queue overrun
         }
 
@@ -779,13 +777,11 @@ static void XcpEvent_(uint16_t event, uint8_t* base, uint64_t clock)
             } // ODT entry
         }
 
-        XcpTlCommitTransmitBuffer(handle);
+        XcpTlCommitTransmitBuffer(handle, DaqListPriority(daq)!=0 && odt==DaqListLastOdt(daq));
 
       } /* odt */
 
   } /* daq */
-
-  if (prio>0 && handle!=NULL) XcpTlFlushTransmitBuffer();
 
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
 #ifdef XCP_ENABLE_TEST_CHECKS
@@ -834,8 +830,13 @@ void XcpDisconnect( void )
 {
   if (!isStarted()) return;
 
+  if (isDaqRunning()) {
+    ApplXcpStopDaq();
+    XcpStopAllDaq();
+    XcpTlWaitForTransmitQueueEmpty(); // Wait until transmit queue empty before sending command response
+  }
+
   gXcp.SessionStatus &= (uint16_t)(~SS_CONNECTED);
-  XcpStopAllDaq();
 }
 
 // Transmit command response
@@ -1226,7 +1227,7 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
               }
               else {
                 if (XcpStopDaq(daq)) {
-                    XcpTlWaitForTransmitQueue(); // Event processing stopped - wait until transmit queue empty before sending command response
+                    XcpTlWaitForTransmitQueueEmpty(); // Event processing stopped - wait until transmit queue empty before sending command response
                 }
               }
 
@@ -1253,7 +1254,7 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
               case 0: /* stop all */
                   ApplXcpStopDaq();
                   XcpStopAllDaq();
-                  XcpTlWaitForTransmitQueue(); // Wait until transmit queue empty before sending command response
+                  XcpTlWaitForTransmitQueueEmpty(); // Wait until transmit queue empty before sending command response
                   break;
               default:
                   error(CRC_OUT_OF_RANGE);

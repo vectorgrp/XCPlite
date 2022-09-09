@@ -1,13 +1,22 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="..\src\A2L.cpp">
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="..\src\options.c">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\platform.c">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\util.c">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\xcp.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="main.cpp" />
+    <ClCompile Include="..\src\xcpAppl.c">
+      <Filter>src</Filter>
+    </ClCompile>
     <ClCompile Include="..\src\xcpLite.c">
       <Filter>src</Filter>
     </ClCompile>
@@ -17,34 +26,31 @@
     <ClCompile Include="..\src\xcpTl.c">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\platform.c">
+    <ClCompile Include="..\src\A2L.c">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\util.c">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\xcpAppl.c">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\options.c">
+    <ClCompile Include="..\src\A2Lpp.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\src\A2L.hpp">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\xcp.hpp">
-      <Filter>src</Filter>
-    </ClInclude>
     <ClInclude Include="main.h" />
-    <ClInclude Include="xcp_cfg.h" />
-    <ClInclude Include="xcptl_cfg.h" />
     <ClInclude Include="main_cfg.h" />
+    <ClInclude Include="xcptl_cfg.h" />
+    <ClInclude Include="xcp_cfg.h" />
+    <ClInclude Include="..\src\options.h">
+      <Filter>src</Filter>
+    </ClInclude>
     <ClInclude Include="..\src\platform.h">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\util.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\xcp.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\xcp.hpp">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\xcpLite.h">
@@ -56,19 +62,16 @@
     <ClInclude Include="..\src\xcpTl.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\xcp.h">
+    <ClInclude Include="..\src\A2L.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="xcpAppl.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\options.h">
+    <ClInclude Include="..\src\A2Lpp.hpp">
       <Filter>src</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="src">
-      <UniqueIdentifier>{b4169995-43ff-406f-a649-a480e12a6154}</UniqueIdentifier>
+      <UniqueIdentifier>{f7082bfe-e779-400c-a4d8-fd831ae9b607}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

@@ -10,11 +10,13 @@
 #include "xcp_cfg.h" // Protocoll Layer configuration
 
 #ifdef OPTION_ENABLE_A2L_GEN
-#include "A2L.hpp" // A2L generator
+#include "A2Lpp.hpp" // A2L generator
 #endif
 
+// ------------------------------------------------------------------------------------------------------------------------
 // XCP server 
 // class Xcp is a polymorph singleton
+
 class Xcp {
 
 private:
@@ -95,50 +97,53 @@ public:
 	void eventExtAt(uint16_t event, uint8_t* base, uint64_t clock);
 
 	uint32_t getA2lAddr(uint8_t* p); // Get A2L addr from pointer	
-	const char* getA2lFileName(); // Get A2L filename info for GET_ID name and upload 
-
+	
 	// Optional: A2L generation
 #ifdef OPTION_ENABLE_A2L_GEN
 	A2L* createA2L(const char* projectName); 
-    A2L* getA2L() { return a2lFile; }
 	void closeA2L();
+	A2L* getA2L() { return a2lFile; }
+	const char* getA2lFileName(); // Get A2L filename info for GET_ID name and upload 
 #endif
 };
 
 
+// ------------------------------------------------------------------------------------------------------------------------
 // XCP object
-// Allows to calibrate and measure instances and references to instances of classes
-// Represents a A2L instance of a structure type
+
+// Allows to calibrate and measure instances and references to instances of application classes by deriving from XcpObject
+// Represents an A2L instance of a structure type
 class XcpObject {
 
 private:
-	uint16_t instanceId;
-	const char* className;
-	int classSize;
 
 protected:
-	const char* instanceName;
+	const char* className;
+	int classSize;
+	uint16_t xcpInstanceId;
+	const char* xcpInstanceName;
 
 	// Create components (A2L STRUCTURE_COMPONENTS) components of inheriting classes
-	virtual void a2lCreateTypedefComponents(A2L* a2l) { (void)a2l; };
+	virtual void xcpCreateA2lTypedefComponents(A2L* a2l) { (void)a2l; };
 
 public:
 
 	// Create an A2L INSTANCE (instanceName) for the class with className/classSize
 	XcpObject(const char* instanceName, const char* className, int classSize);
 
-	// Create the typedef (A2L TYPEDEF_STRUCTURE) for this class, calls a2lCreateTypedefComponents to add components 
-	void a2lCreateTypedef();
+	// Create the typedef (A2L TYPEDEF_STRUCTURE) for this class, calls xcpCreateA2lTypedefComponents to add components 
+	void xcpCreateA2lTypedef();
 
 	// Trigger the XCP event (instanceId) associated with this A2L INSTANCE
 	void xcpEvent();
 	void xcpEvent(uint8_t* base);
+	
+	uint32_t xcpGetA2lDynAddr(uint16_t o) { // Get A2L dyn addr from member variable offset	
+			return (o & 0xFFFF) | ((uint32_t)xcpInstanceId << 16); // Use event and offset coding for address
+	}
 
 
 };
-
-
-#define XcpDynObject(instanceName,className) XcpObject(instanceName,#className,sizeof(className))
 
 
 

@@ -17,10 +17,9 @@
 #include "main_cfg.h"
 #include "platform.h"
 #include "util.h"
+#include "xcpLite.h"
 #include "xcp.hpp"
 #include "xcpServer.h"
-#include "xcpTl.h"
-#include "xcpLite.h"
 
 
 
@@ -60,7 +59,7 @@ BOOL Xcp::init(const uint8_t* addr0, uint16_t port0, BOOL useTCP0, BOOL usePTP0,
     a2lFile = NULL;
 
     // Init network
-    if (!socketStartup((char*)APP_NAME)) return FALSE;
+    if (!socketStartup()) return FALSE;
 
     // Init clock
     if (!clockInit()) return FALSE;
@@ -81,7 +80,7 @@ void Xcp::shutdown() {
 
 
 uint64_t Xcp::getDaqClock() {
-    return ::clockGet64();
+    return ::clockGet();
 }
 
 
@@ -161,7 +160,7 @@ vector<Xcp::XcpEventDescriptor>* Xcp::getEventList() {
 #ifdef OPTION_ENABLE_A2L_GEN
 
 uint32_t Xcp::getA2lAddr(uint8_t* p) { // Get A2L addr from pointer
-    return ApplXcpGetAddr(p);
+    return ApplXcpGetAddr(p); 
 }
 
 const char* Xcp::getA2lFileName() {
@@ -181,11 +180,11 @@ A2L* Xcp::createA2L(const char* projectName) {
 
 void Xcp::closeA2L() {
 
-    if (a2lFile) {
+    if (a2lFile!=NULL) {
         a2lFile->create_XCP_IF_DATA(useTCP, addr, port);
         a2lFile->close();
         delete a2lFile;
-        a2lFile = 0;
+        a2lFile = NULL;
     }
 }
 
@@ -195,29 +194,30 @@ void Xcp::closeA2L() {
 
 XcpObject::XcpObject(const char* instanceName, const char* className, int classSize) {
 
-    this->instanceName = instanceName;
+    this->xcpInstanceName = instanceName;
     this->className = className;
     this->classSize = classSize;
 
     // Create a XCP extended event for this instance
-    // The event number is unique and will be the instance id used in A2L addresses
-    instanceId = Xcp::getInstance()->createEvent(Xcp::XcpEventDescriptor(instanceName, 0, 0, 0, sizeof(*this)));
+    // The event number is unique and will be the instance id used in A2L address high word
+    xcpInstanceId = Xcp::getInstance()->createEvent(Xcp::XcpEventDescriptor(instanceName, 0, 0, 0, sizeof(*this)));
 
+    // Create this instance in A2L
     printf("Create instance %s of %s\n", instanceName, className);
     A2L* a2l = Xcp::getInstance()->getA2L();
-    a2l->setFixedEvent(instanceId);
+    a2l->setFixedEvent(xcpInstanceId);
     a2l->createDynTypedefInstance(instanceName, className, "");
 }
 
 
-void XcpObject::a2lCreateTypedef() {
+void XcpObject::xcpCreateA2lTypedef() {
 
+    // Create a A2L typedef for this class
     A2L* a2l = Xcp::getInstance()->getA2L();
-    a2l->setFixedEvent(instanceId);
-    // Create a typedef for this class
+    a2l->setFixedEvent(xcpInstanceId);
     a2l->createTypedefBegin_(className, classSize, "");
-    a2l->createTypedefMeasurementComponent(instanceId);
-    a2lCreateTypedefComponents(a2l);
+    a2l->createTypedefMeasurementComponent(xcpInstanceId);
+    xcpCreateA2lTypedefComponents(a2l);
     a2l->createTypedefEnd();
 };
 
@@ -227,14 +227,14 @@ void XcpObject::a2lCreateTypedef() {
 void XcpObject::xcpEvent() {
 
     if (this != NULL) {
-        Xcp::getInstance()->eventExt(instanceId, (uint8_t*)this);
+        Xcp::getInstance()->eventExt(xcpInstanceId, (uint8_t*)this);
     }
 }
 
 void XcpObject::xcpEvent(uint8_t* base) {
 
     if (this != NULL) {
-        Xcp::getInstance()->eventExt(instanceId, base);
+        Xcp::getInstance()->eventExt(xcpInstanceId, base);
     }
 }
 

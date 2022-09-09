@@ -1,6 +1,6 @@
 #pragma once
 
-// main_cfg.h.in
+// main_cfg.h
 // CPP_Demo
 
 /* Copyright(c) Vector Informatik GmbH.All rights reserved.
@@ -19,16 +19,18 @@
 #define ON 1
 #define OFF 0
 
-#define OPTION_DEBUG_LEVEL 1 
+#define OPTION_DEBUG_LEVEL 2 
 
 // A2L generation
-#define OPTION_ENABLE_A2L_GEN ON // Enable A2L generation
-#define OPTION_A2L_FILE_NAME APP_NAME ".A2L" // A2L filename 
-#define OPTION_A2L_PROJECT_NAME "Demo" // A2L project name
+#define OPTION_ENABLE_A2L_GEN          ON             // Enable A2L generation
+#define OPTION_ENABLE_A2L_SYMBOL_LINKS ON             // Enable generation of symbol links (required for CANape integrated linker map update)
+#define OPTION_A2L_NAME                "CPP_Demo"     // A2L name 
+#define OPTION_A2L_FILE_NAME           "CPP_Demo.a2l" // A2L filename 
+#define OPTION_A2L_PROJECT_NAME        "CPP_Demo"     // A2L project name
 
 // Default communication parameters
-#define OPTION_ENABLE_TCP ON // Enable TCP support
-#define OPTION_USE_TCP ON // Default is UDP
-#define OPTION_USE_JUMBO_FRAMES ON // Default is jumbo frames on
-#define OPTION_SERVER_PORT 5555 // Default UDP port, overwritten by commandline option
-#define OPTION_SERVER_ADDR {0,0,0,0} // Default IP addr, 0.0.0.0 = ANY, overwritten by commandline option
+#define OPTION_ENABLE_TCP             ON // Enable TCP support
+#define OPTION_USE_TCP                ON // Default is UDP
+#define OPTION_MTU                    1500
+#define OPTION_SERVER_PORT            5555 // Default UDP port, overwritten by commandline option
+#define OPTION_SERVER_ADDR            {0,0,0,0} // Default IP addr, 0.0.0.0 = ANY, overwritten by commandline option

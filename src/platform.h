@@ -76,8 +76,8 @@ typedef HANDLE tXcpThread;
 
 typedef pthread_t tXcpThread;
 #define create_thread(h,t) pthread_create(h, NULL, t, NULL);
-#define join_thread(h,t) pthread_join(h,0);
-#define cancel_thread(h) pthread_cancel(h);
+#define join_thread(h) pthread_join(h,NULL);
+#define cancel_thread(h) { pthread_detach(h); pthread_cancel(h); }
 
 #endif
 
@@ -93,7 +93,6 @@ typedef pthread_t tXcpThread;
 #define SOCKADDR_IN struct sockaddr_in
 #define SOCKADDR struct sockaddr
 
-#define socketGetLastError() errno
 #define SOCKET_ERROR_ABORT    EBADF
 #define SOCKET_ERROR_RESET    EBADF
 #define SOCKET_ERROR_INTR     EBADF
@@ -108,7 +107,7 @@ typedef pthread_t tXcpThread;
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
-#define socketGetLastError() (WSAGetLastError())
+#define SOCKET_ERROR_OTHER    1
 #define SOCKET_ERROR_WBLOCK   WSAEWOULDBLOCK
 #define SOCKET_ERROR_ABORT    WSAECONNABORTED
 #define SOCKET_ERROR_RESET    WSAECONNRESET
@@ -116,13 +115,19 @@ typedef pthread_t tXcpThread;
 
 #endif
 
+// Timestamp mode
 #define SOCKET_TIMESTAMP_NONE    0 // No timestamps
 #define SOCKET_TIMESTAMP_HW      1 // Hardware clock
-#define SOCKET_TIMESTAMP_HW_SYNT 2 // Hardware clock syntonized to PC clock (not synchronized!)
+#define SOCKET_TIMESTAMP_HW_SYNT 2 // Hardware clock syntonized to PC clock
 #define SOCKET_TIMESTAMP_PC      3 // PC clock
 
-extern BOOL socketStartup(char* app_name);
-extern BOOL socketSetTimestampMode(uint8_t timestamp_mode);
+// Clock mode
+#define SOCKET_TIMESTAMP_FREE_RUNNING 0 
+#define SOCKET_TIMESTAMP_SOFTWARE_SYNC 1
+
+
+extern BOOL socketStartup();
+extern int32_t socketGetLastError();
 extern void socketCleanup();
 extern BOOL socketOpen(SOCKET* sp, BOOL useTCP, BOOL nonBlocking, BOOL reuseaddr, BOOL timestamps);
 extern BOOL socketBind(SOCKET sock, uint8_t* addr, uint16_t port);
@@ -136,6 +141,7 @@ extern int16_t socketSendTo(SOCKET sock, const uint8_t* buffer, uint16_t bufferS
 extern BOOL socketShutdown(SOCKET sock);
 extern BOOL socketClose(SOCKET* sp);
 extern BOOL socketGetLocalAddr(uint8_t* mac, uint8_t* addr);
+
 
 //-------------------------------------------------------------------------------
 // Clock
@@ -163,7 +169,7 @@ extern BOOL socketGetLocalAddr(uint8_t* mac, uint8_t* addr);
 
 // Clock
 extern BOOL clockInit();
-extern uint64_t clockGet64();
-
+extern uint64_t clockGet();
+extern uint64_t clockGetLast();
 extern char* clockGetString(char* s, uint32_t l, uint64_t c);
 extern char* clockGetTimeString(char* s, uint32_t l, int64_t c);

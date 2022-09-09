@@ -71,23 +71,23 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>$(SolutionDir)\build_CPP_Demo\$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)\build_CPP_Demo\$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)CPP_Demo\CANape\</OutDir>
+    <IntDir>$(SolutionDir)\build_CPP_Demo\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>$(SolutionDir)\build_CPP_Demo\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)\build_CPP_Demo\$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)CPP_Demo\CANape\</OutDir>
+    <IntDir>$(SolutionDir)\build_CPP_Demo\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>$(SolutionDir)\build_CPP_Demo\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)\build_CPP_Demo\$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)CPP_Demo\CANape\</OutDir>
+    <IntDir>$(SolutionDir)\build_CPP_Demo\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>$(SolutionDir)\build_CPP_Demo\$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)\build_CPP_Demo\$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)CPP_Demo\CANape\</OutDir>
+    <IntDir>$(SolutionDir)\build_CPP_Demo\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -95,7 +95,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)\CPP_Demo\;$(SolutionDir)\src\;$(SolutionDir)\xlapi\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)\;$(SolutionDir)\src\;$(SolutionDir)\xlapi\</AdditionalIncludeDirectories>
       <CompileAs>CompileAsCpp</CompileAs>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
     </ClCompile>
@@ -110,7 +110,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)\C_Demo\;$(SolutionDir)\src\;$(SolutionDir)\xlapi\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)\;$(SolutionDir)\src\;$(SolutionDir)\xlapi\</AdditionalIncludeDirectories>
       <CompileAs>CompileAsCpp</CompileAs>
     </ClCompile>
     <Link>
@@ -127,7 +127,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)\C_Demo\;$(SolutionDir)\src\;$(SolutionDir)\xlapi\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)\;$(SolutionDir)\src\;$(SolutionDir)\xlapi\</AdditionalIncludeDirectories>
       <CompileAs>CompileAsCpp</CompileAs>
     </ClCompile>
     <Link>
@@ -145,7 +145,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)\CPP_Demo\;$(SolutionDir)\src\;$(SolutionDir)\xlapi\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)\;$(SolutionDir)\src\;$(SolutionDir)\xlapi\</AdditionalIncludeDirectories>
       <CompileAs>CompileAsCpp</CompileAs>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
     </ClCompile>
@@ -157,7 +157,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\src\A2L.cpp" />
+    <ClCompile Include="..\src\A2L.c" />
+    <ClCompile Include="..\src\A2Lpp.cpp" />
     <ClCompile Include="..\src\options.c" />
     <ClCompile Include="..\src\platform.c" />
     <ClCompile Include="..\src\util.c" />
@@ -169,7 +170,8 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\src\A2L.hpp" />
+    <ClInclude Include="..\src\A2L.h" />
+    <ClInclude Include="..\src\A2Lpp.hpp" />
     <ClInclude Include="..\src\options.h" />
     <ClInclude Include="..\src\platform.h" />
     <ClInclude Include="..\src\util.h" />
@@ -180,7 +182,6 @@
     <ClInclude Include="..\src\xcpTl.h" />
     <ClInclude Include="main.h" />
     <ClInclude Include="main_cfg.h" />
-    <ClInclude Include="xcpAppl.h" />
     <ClInclude Include="xcptl_cfg.h" />
     <ClInclude Include="xcp_cfg.h" />
   </ItemGroup>

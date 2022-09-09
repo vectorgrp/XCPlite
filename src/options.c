@@ -27,6 +27,7 @@ uint16_t gOptionPort = OPTION_SERVER_PORT;
 uint8_t gOptionBindAddr[4] = OPTION_SERVER_ADDR;
 
 
+
 //-----------------------------------------------------------------------------------------------------
 // cmd line parser
 
@@ -34,20 +35,13 @@ uint8_t gOptionBindAddr[4] = OPTION_SERVER_ADDR;
 // help
 void cmdline_usage(const char* appName) {
 
-#if OPTION_ENABLE_XLAPI_V3 || OPTION_ENABLE_XLAPI_IAP
-    const uint8_t xl_addr[4] = OPTION_SERVER_XL_ADDR;
-    const uint8_t xl_mac[6] = OPTION_SERVER_XL_MAC;
-    const char* xl_net = OPTION_SERVER_XL_NET;
-    const char* xl_seg = OPTION_SERVER_XL_SEG;
-#endif
-
     printf(
         "\n"
         "Usage:\n"
         "  %s [options]\n"
         "\n"
         "  Options:\n"
-        "    -dx              Set output verbosity to x (default is 1)\n"
+        "    -log <x>         Set console log output verbosity to x (default: 2)\n"
         "    -bind <ipaddr>   XCP server adapter IP address to bind (default is ANY (0.0.0.0))\n"
         "    -port <portname> XCP server port (default is 5555)\n"
 #if OPTION_ENABLE_TCP
@@ -57,11 +51,11 @@ void cmdline_usage(const char* appName) {
         "    -tcp             Use TCP for XCP\n"
 #endif
 #endif
-
         "\n"
         "  Keys:\n"
         "    ESC              Exit\n"
-        "%s\n",
+
+      "%s\n",
         appName,
         ""
     );
@@ -72,14 +66,16 @@ BOOL cmdline_parser(int argc, char* argv[]) {
 
     // Parse commandline
     for (int i = 1; i < argc; i++) {
-        char c;
         if (strcmp(argv[i], "-h") == 0) {
             cmdline_usage(argv[0]);
             return FALSE;
         }
-        else if (sscanf(argv[i], "-d%c", &c) == 1) {
-            gDebugLevel = c - '0';
-            printf("Debug output level = %u\n", gDebugLevel);
+        else if (strcmp(argv[i], "-log") == 0) {
+          if (++i < argc) {
+            if (sscanf(argv[i], "%u", &gDebugLevel) == 1) {
+              printf("Debug output level = %u\n", gDebugLevel);
+            }
+          }
         }
         else if (strcmp(argv[i], "-bind") == 0) {
             if (++i < argc) {
@@ -102,6 +98,7 @@ BOOL cmdline_parser(int argc, char* argv[]) {
         }
         else if (strcmp(argv[i], "-udp") == 0) {
             gOptionUseTCP = FALSE;
+            printf("Use UDP\n");
         }
 #endif
         else {

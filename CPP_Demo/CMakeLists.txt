@@ -9,7 +9,7 @@ set(CMAKE_CXX_COMPILER "g++")
 
 set(CPP_Demo_SOURCES 
   main.cpp 
-  ../src/xcpAppl.c ../src/xcp.cpp ../src/xcpLite.c ../src/xcpTl.c ../src/xcpServer.c ../src/A2L.cpp ../src/platform.c ../src/util.c ../src/options.c
+  ../src/xcpAppl.c ../src/xcp.cpp ../src/xcpLite.c ../src/xcpTl.c ../src/xcpServer.c ../src/A2L.c ../src/A2Lpp.cpp ../src/platform.c ../src/util.c ../src/options.c
 )
 
 set(OPTION_DEBUG_LEVEL 2 CACHE STRING "Debug output level")

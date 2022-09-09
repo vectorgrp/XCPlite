@@ -14,7 +14,6 @@
 #include "platform.h"
 #include "options.h"
 #include "util.h"
-#include "xcpTl.h"
 #include "xcpLite.h"
 #include "xcpServer.h"
 #if OPTION_ENABLE_A2L_GEN
