@@ -76,8 +76,8 @@ typedef HANDLE tXcpThread;
 
 typedef pthread_t tXcpThread;
 #define create_thread(h,t) pthread_create(h, NULL, t, NULL);
-#define join_thread(h,t) pthread_join(h,0);
-#define cancel_thread(h) pthread_cancel(h);
+#define join_thread(h) pthread_join(h);
+#define cancel_thread(h) { pthread_detach(h); pthread_cancel(h); }
 
 #endif
 

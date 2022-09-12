@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.1.0)
 
 project(C_Demo VERSION 5.0 LANGUAGES C)
-set(WINDOWS TRUE)
+set(WINDOWS FALSE)
 
 set(CMAKE_C_COMPILER "gcc")
 set(CMAKE_CXX_COMPILER "g++")

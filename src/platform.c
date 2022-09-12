@@ -94,17 +94,25 @@ void sleepMs(uint32_t ms) {
 #else
 
 
-void sleepNs(uint32_t sleep_ns) {
+void sleepNs(uint32_t ns) {
 
     uint64_t t1, t2;
+    uint32_t us = ns / 1000;
+    uint32_t ms = us / 1000;
 
-    t1 = clockGet64();
-    uint64_t te = t1 + (uint64_t)sleep_ns*CLOCK_TICKS_PER_NS;
-    for (;;) {
-        t2 = clockGet64();
-        if (t2 >= te) break;
-        uint32_t ms = (uint32_t)((te - t2) / CLOCK_TICKS_PER_MS);
-        Sleep(0);
+    // Start sleeping at 2000us, shorter sleeps are more precise but need significant CPU time
+    if (us >= 2000) {
+        Sleep(ms);
+    }
+    // Busy wait
+    else {
+        t1 = t2 = clockGet64();
+        uint64_t te = t1 + us * (uint64_t)CLOCK_TICKS_PER_US;
+        for (;;) {
+            t2 = clockGet64();
+            if (t2 >= te) break;
+            Sleep(0);
+        }
     }
 }
 
@@ -861,15 +869,7 @@ BOOL clockInit() {
             DBG_PRINTF2("  %u.%u.%u %u:%u:%u\n", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, (tm.tm_hour + 2) % 24, tm.tm_min, tm.tm_sec);
         }
 #endif
-        uint64_t t1, t2;
-        char s[64];
-        t1 = clockGet64();
-        sleepNs(100000);
-        t2 = clockGet64();
-
         DBG_PRINTF3("  Resolution = %u Hz, system resolution = %" PRIu32 " Hz, conversion = %c%" PRIu64 "+%" PRIu64 "\n", CLOCK_TICKS_PER_S, (uint32_t)tF.u.LowPart, sDivide ? '/' : '*', sFactor, sOffset);
-        DBG_PRINTF4("  +0us:   %I64u  %s\n", t1, clockGetString(s, 64, t1));
-        DBG_PRINTF4("  +100us: %I64u  %s\n", t2, clockGetString(s, 64, t2));
     } // Test
 #endif
 
