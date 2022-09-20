@@ -87,7 +87,7 @@ public:
 
 	void clearEventList(); // Event handling
 	uint16_t createEvent(XcpEventDescriptor event);
-	vector<XcpEventDescriptor>* getEventList();
+	std::vector<XcpEventDescriptor>* getEventList();
 
 	void event(uint16_t event);    // Event trigger
 	void eventExt(uint16_t event, uint8_t* base);
