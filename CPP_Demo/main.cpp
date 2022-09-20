@@ -61,7 +61,7 @@ public:
     double value;
 
     // Task
-    thread *t;
+    std::thread *t;
 
     SigGen(const char* instanceName, uint32_t cycleTimeUs, double ampl, double offset, double phase, double period) : XcpObject(instanceName,"SigGen",sizeof(SigGen)) {
 
@@ -76,7 +76,7 @@ public:
         value = 0; 
 
         // Start ECU task thread
-        t = new thread([this]() { task(); });
+        t = new std::thread([this]() { task(); });
     }
          
     void calcMinMax(double v) { // track the task with current minimum and maximum value
@@ -161,7 +161,7 @@ int main(int argc, char* argv[]) {
     // The constructor of SigGen will create an instance amd an associated XCP event
     SigGen* sigGen[10];
     for (int i = 0; i <= 9; i++) {
-        string* s = new string("SigGen"); s->append(to_string(i+1));
+        std::string* s = new std::string("SigGen"); s->append(std::to_string(i+1));
         sigGen[i] = new SigGen((char*)s->c_str(), 2000, 100.0-i*5, 0.0, i*M_PI/15.0, 2.0);
     }
     
