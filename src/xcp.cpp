@@ -143,12 +143,12 @@ uint16_t Xcp::createEvent(XcpEventDescriptor event) {
     return XcpCreateEvent(event.name, event.cycleTime, event.priority, event.sampleCount, event.size);
 }
 
-vector<Xcp::XcpEventDescriptor>* Xcp::getEventList() {
+std::vector<Xcp::XcpEventDescriptor>* Xcp::getEventList() {
 
     uint16_t evtCount = 0;
     tXcpEvent* evtList = XcpGetEventList(&evtCount);
 
-    vector<Xcp::XcpEventDescriptor>* l = new vector<Xcp::XcpEventDescriptor>();
+    std::vector<Xcp::XcpEventDescriptor>* l = new std::vector<Xcp::XcpEventDescriptor>();
     for (int i = 0; i < evtCount; i++) {
         uint64_t ns = evtList[i].timeCycle;
         uint8_t exp = evtList[i].timeUnit;
