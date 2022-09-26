@@ -14,7 +14,7 @@
 #include "util.h"
 
 
-
+#ifdef XCP_ENABLE_IDT_A2L_UPLOAD
 /**************************************************************************/
 // load file to memory
 /**************************************************************************/
@@ -76,7 +76,7 @@ uint8_t* loadFile(const char* filename, uint32_t* length) {
     *length = fileLen;
     return fileBuf;
 }
-
+#endif
 
 
 
@@ -110,6 +110,7 @@ char gOptionPCAP_File[FILENAME_MAX] = APP_NAME ".pcap";
 #endif
 
 
+#if defined(_WIN) || defined(_LINUX)
 /**************************************************************************/
 // cmd line parser
 /**************************************************************************/
@@ -125,7 +126,7 @@ void cmdline_usage(const char* appName) {
         "    -dx              Set output verbosity to x (default is 1)\n"
         "    -bind <ipaddr>   IP address to bind (default is ANY (0.0.0.0))\n"
         "    -port <portname> Server port (default is 5555)\n"
-#ifdef OPTION_ENABLE_TCP
+#if OPTION_ENABLE_TCP
 #if OPTION_USE_TCP
         "    -udp             Use UDP\n"
 #else
@@ -187,7 +188,7 @@ BOOL cmdline_parser(int argc, char* argv[]) {
                 }
             }
         }
-#ifdef OPTION_ENABLE_TCP
+#if OPTION_ENABLE_TCP
         else if (strcmp(argv[i], "-tcp") == 0) {
             gOptionUseTCP = TRUE;
         }
@@ -253,7 +254,7 @@ BOOL cmdline_parser(int argc, char* argv[]) {
 
     if (gDebugLevel) printf("Set screen output verbosity to %u\n", gDebugLevel);
 
-#ifdef OPTION_ENABLE_TCP
+#if OPTION_ENABLE_TCP
     printf("Using %s\n", gOptionUseTCP ? "TCP" : "UDP");
 #endif
 #if OPTION_ENABLE_XLAPI_V3
@@ -264,3 +265,4 @@ BOOL cmdline_parser(int argc, char* argv[]) {
     return TRUE;
 }
 
+#endif

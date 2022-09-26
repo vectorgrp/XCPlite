@@ -149,7 +149,7 @@ void mutexDestroy(MUTEX* m) {
     pthread_mutex_destroy(m);
 }
 
-#else
+#elif defined(_WIN)
 
 void mutexInit(MUTEX* m, int recursive, uint32_t spinCount) {
     (void) recursive;
@@ -767,7 +767,7 @@ uint64_t clockGet64() {
 #endif
 }
 
-#else // Windows
+#elif defined(_WIN) // Windows
 
 // Performance counter to clock conversion
 static uint64_t sFactor = 0; // ticks per us

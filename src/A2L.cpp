@@ -46,7 +46,7 @@ static const char* sHeader =
 
 
 //----------------------------------------------------------------------------------
-#ifdef OPTION_ENABLE_CAL_SEGMENT
+#if OPTION_ENABLE_CAL_SEGMENT
 static const char* sModPar = 
 "/begin MOD_PAR \"\"\n"
 "/begin MEMORY_SEGMENT\n"
@@ -297,7 +297,7 @@ BOOL A2L::open(const char *projectName) {
 }
 
 // Create memory segments
-#ifdef OPTION_ENABLE_CAL_SEGMENT
+#if OPTION_ENABLE_CAL_SEGMENT
 void A2L::create_MOD_PAR(uint32_t startAddr, uint32_t size) {
 	fprintf(file, sModPar, startAddr, size);
 }

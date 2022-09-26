@@ -12,6 +12,7 @@
  /*
  | Code released into public domain, no attribution required
  */
+#include <vector>
 
 #include "main.h"
 #include "main_cfg.h"
@@ -43,7 +44,11 @@ Xcp* Xcp::getInstance()
 }
 
 
-Xcp::Xcp() : useTCP(FALSE), usePTP(FALSE), port(0), addr(), a2lFile(NULL) {
+Xcp::Xcp() : useTCP(FALSE), usePTP(FALSE), addr(), port(0)
+#if OPTION_ENABLE_A2L_GEN
+        , a2lFile(NULL)
+#endif
+{
 
 }
 
@@ -57,7 +62,9 @@ BOOL Xcp::init(const uint8_t* addr0, uint16_t port0, BOOL useTCP0, BOOL usePTP0)
     port = port0;
     useTCP = useTCP0;
     usePTP = usePTP0;
+#if OPTION_ENABLE_A2L_GEN
     a2lFile = NULL;
+#endif
 
     // Init network
     if (!socketStartup()) return FALSE;
@@ -89,7 +96,7 @@ BOOL Xcp::onConnect() {
 
     // if A2L file is not closed yet, finalize it and make it available
     // to be able to offer the file for upload, it has to be finalized here at latest 
-#ifdef OPTION_ENABLE_A2L_GEN
+#if OPTION_ENABLE_A2L_GEN
     closeA2L();
 #endif
 
@@ -158,7 +165,7 @@ std::vector<Xcp::XcpEventDescriptor>* Xcp::getEventList() {
     return l;
 }
 
-#ifdef OPTION_ENABLE_A2L_GEN
+#if OPTION_ENABLE_A2L_GEN
 
 uint32_t Xcp::getA2lAddr(uint8_t* p) { // Get A2L addr from pointer
     return ApplXcpGetAddr(p);
@@ -173,7 +180,7 @@ A2L* Xcp::createA2L(const char* projectName) {
     if (a2lFile) return a2lFile;
     a2lFile = new A2L(OPTION_A2L_FILE_NAME);
     if (!a2lFile->open(projectName)) return NULL;
-#ifdef OPTION_ENABLE_CAL_SEGMENT
+#if OPTION_ENABLE_CAL_SEGMENT
     void create_MOD_PAR(uint32_t startAddr, uint32_t size);
 #endif
     return a2lFile;
@@ -204,14 +211,17 @@ XcpObject::XcpObject(const char* instanceName, const char* className, int classS
     instanceId = Xcp::getInstance()->createEvent(Xcp::XcpEventDescriptor(instanceName, 0, 0, 0, sizeof(*this)));
 
     printf("Create instance %s of %s\n", instanceName, className);
+#if OPTION_ENABLE_A2L_GEN
     A2L* a2l = Xcp::getInstance()->getA2L();
     a2l->setEvent(instanceId);
     a2l->createDynTypedefInstance(instanceName, className, "");
+#endif
 }
 
 
 void XcpObject::a2lCreateTypedef() {
 
+#if OPTION_ENABLE_A2L_GEN
     A2L* a2l = Xcp::getInstance()->getA2L();
     a2l->setEvent(instanceId);
     // Create a typedef for this class
@@ -219,6 +229,7 @@ void XcpObject::a2lCreateTypedef() {
     a2l->createTypedefMeasurementComponent(instanceId);
     a2lCreateTypedefComponents(a2l);
     a2l->createTypedefEnd();
+#endif
 };
 
 
