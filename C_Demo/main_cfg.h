@@ -39,7 +39,7 @@
 #define OPTION_ENABLE_XLAPI_V3 OFF 
 #if OPTION_ENABLE_XLAPI_V3
 
-#define OPTION_USE_XLAPI_V3  // Use XL_API by default
+#define OPTION_USE_XLAPI_V3 ON // Use XL_API by default
 #define OPTION_SERVER_XL_ADDR {192,168,0,200} // XL_API Ethernet Adapter IP
 #define OPTION_SERVER_XL_MAC {0xdc,0xa6,0x32,0x7e,0x66,0xdc} // XL_API Ethernet Adapter MAC
 #define OPTION_SERVER_XL_NET "NET1" // XL_API Network name

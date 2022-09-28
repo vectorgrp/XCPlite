@@ -316,10 +316,12 @@ BOOL XcpIsDaqRunning() {
     return isDaqRunning();
 }
 
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
 #ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
 uint16_t XcpGetClusterId() {
     return gXcp.ClusterId;
 }
+#endif
 #endif
 
 BOOL XcpIsDaqPacked() {
@@ -947,6 +949,7 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
               CRM_GET_ID_MODE = 0; // Transfer mode
               CRM_GET_ID_LENGTH = 0;
               switch (CRO_GET_ID_TYPE) {
+#ifdef XCP_ENABLE_IDT_A2L_UPLOAD
                 case IDT_ASCII: 
                 case IDT_ASAM_NAME:
                 case IDT_ASAM_PATH:
@@ -956,7 +959,6 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
                   CRM_LEN = (uint8_t)(CRM_GET_ID_LEN+CRM_GET_ID_LENGTH);
                   CRM_GET_ID_MODE = 0x01; // Uncompressed data in response
                   break;
-#ifdef XCP_ENABLE_IDT_A2L_UPLOAD
                 case IDT_ASAM_UPLOAD:
                     gXcp.MtaAddr = 0;
                     gXcp.MtaExt = 0xFF;
@@ -1093,7 +1095,13 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
                 CRM_GET_DAQ_RESOLUTION_INFO_GRANULARITY_STIM = 1;
                 CRM_GET_DAQ_RESOLUTION_INFO_MAX_SIZE_DAQ  = (uint8_t)XCP_MAX_ODT_ENTRY_SIZE;
                 CRM_GET_DAQ_RESOLUTION_INFO_MAX_SIZE_STIM = (uint8_t)XCP_MAX_ODT_ENTRY_SIZE;
-                CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_MODE = gXcp.ClockInfo.server.timestampUnit | DAQ_TIMESTAMP_FIXED | DAQ_TIMESTAMP_DWORD;
+                CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_MODE =
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
+                        gXcp.ClockInfo.server.timestampUnit |
+#else
+                        XCP_TIMESTAMP_UNIT |
+#endif
+                        DAQ_TIMESTAMP_FIXED | DAQ_TIMESTAMP_DWORD;
                 CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_TICKS = (XCP_TIMESTAMP_TICKS);
               }
               break;
@@ -1354,7 +1362,7 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
 
           case CC_GET_DAQ_CLOCK:
           {
-              #if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
               CRM_GET_DAQ_CLOCK_RES1 = 0x00; // Placeholder for event code
               CRM_GET_DAQ_CLOCK_TRIGGER_INFO = 0x18; // TIME_OF_SAMPLING (Bitmask 0x18, 3 - Sampled on reception)
               if (!isLegacyMode()) { // Extended format
@@ -1370,12 +1378,11 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
                    CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = DAQ_CLOCK_PAYLOAD_FMT_SLV_32; // FMT_XCP_SLV = size of timestamp is DWORD
                    CRM_GET_DAQ_CLOCK_TIME = (uint32_t)ApplXcpGetClock64();
                    CRM_GET_DAQ_CLOCK_SYNC_STATE = ApplXcpGetClockState();
-#endif
+                 #endif
               }
               else
-              #endif // >= 0x0103
+#endif // >= 0x0103
               { // Legacy format
-                  CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = DAQ_CLOCK_PAYLOAD_FMT_SLV_32; // FMT_XCP_SLV = size of timestamp is DWORD
                   gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN;
                   CRM_GET_DAQ_CLOCK_TIME = (uint32_t)ApplXcpGetClock64();
               }
@@ -1832,6 +1839,7 @@ static void XcpPrintCmd() {
          break;
 #endif
 
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
      case CC_TRANSPORT_LAYER_CMD:
          switch (CRO_TL_SUBCOMMAND) {
            case CC_TL_GET_DAQ_CLOCK_MULTICAST:
@@ -1841,6 +1849,7 @@ static void XcpPrintCmd() {
              break;
          }
          break;
+#endif
 
     } /* switch */
 }

@@ -45,7 +45,7 @@
 //#define XCP_ENABLE_INTERLEAVED
 //#define XCP_INTERLEAVED_QUEUE_SIZE 16
 
-#ifdef OPTION_ENABLE_CAL_SEGMENT
+#if OPTION_ENABLE_CAL_SEGMENT
 #define XCP_ENABLE_CHECKSUM // Enable checksum calculation command
 #define XCP_ENABLE_CAL_PAGE // Enable cal page switch
 #endif

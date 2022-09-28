@@ -49,7 +49,7 @@ static const char* gA2lHeader =
 "\n";
 
 //----------------------------------------------------------------------------------
-#ifdef OPTION_ENABLE_CAL_SEGMENT
+#if OPTION_ENABLE_CAL_SEGMENT
 static const char* gA2lMemorySegment =
 "/begin MEMORY_SEGMENT\n"
 "CALRAM \"\" DATA FLASH INTERN 0x%08X 0x%08X - 1 - 1 - 1 - 1 - 1\n" // CALRAM_START, CALRAM_SIZE
@@ -246,7 +246,7 @@ BOOL A2lOpen(const char *filename, const char* projectName ) {
 }
 
 // Memory segments
-#ifdef OPTION_ENABLE_CAL_SEGMENT
+#if OPTION_ENABLE_CAL_SEGMENT
 void A2lCreate_MOD_PAR(uint32_t startAddr, uint32_t size, char *epk) {
 	fprintf(gA2lFile, "/begin MOD_PAR \"\"\n");
 	fprintf(gA2lFile, "EPK \"%s\"\n", epk);

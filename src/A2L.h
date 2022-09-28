@@ -74,7 +74,7 @@
 extern BOOL A2lOpen(const char *filename, const char* projectName);
 
 // Create memory segments
-#ifdef OPTION_ENABLE_CAL_SEGMENT
+#if OPTION_ENABLE_CAL_SEGMENT
 extern void A2lCreate_MOD_PAR( uint32_t startAddr, uint32_t size, char* epk);
 #endif
 

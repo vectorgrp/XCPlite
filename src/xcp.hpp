@@ -9,7 +9,7 @@
 #include "xcptl_cfg.h" // Transport Layer configuration
 #include "xcp_cfg.h" // Protocoll Layer configuration
 
-#ifdef OPTION_ENABLE_A2L_GEN
+#if OPTION_ENABLE_A2L_GEN
 #include "A2L.hpp" // A2L generator
 #endif
 
@@ -24,7 +24,7 @@ private:
 	const uint8_t* addr;
 	uint16_t port;
 
-#ifdef OPTION_ENABLE_A2L_GEN
+#if OPTION_ENABLE_A2L_GEN
 	A2L* a2lFile;
 #endif	
 
@@ -98,7 +98,7 @@ public:
 	const char* getA2lFileName(); // Get A2L filename info for GET_ID name and upload 
 
 	// Optional: A2L generation
-#ifdef OPTION_ENABLE_A2L_GEN
+#if OPTION_ENABLE_A2L_GEN
 	A2L* createA2L(const char* projectName); 
     A2L* getA2L() { return a2lFile; }
 	void closeA2L();
@@ -119,8 +119,10 @@ private:
 protected:
 	const char* instanceName;
 
+#if OPTION_ENABLE_A2L_GEN
 	// Create components (A2L STRUCTURE_COMPONENTS) components of inheriting classes
 	virtual void a2lCreateTypedefComponents(A2L* a2l) { (void)a2l; };
+#endif
 
 public:
 

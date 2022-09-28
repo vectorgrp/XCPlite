@@ -20,7 +20,7 @@
 #ifdef APP_CPP_Demo
 #include "xcp.hpp"
 #else
-#ifdef OPTION_ENABLE_CAL_SEGMENT
+#if OPTION_ENABLE_CAL_SEGMENT
 #include "ecu.h"
 #endif
 #endif
@@ -367,7 +367,7 @@ void ApplXcpInitBaseAddressList()
 // Calibration page handling
 /**************************************************************************/
 
-#ifdef OPTION_ENABLE_CAL_SEGMENT
+#if OPTION_ENABLE_CAL_SEGMENT
 
 // segment = 0
 // RAM = page 0, FLASH = page 1

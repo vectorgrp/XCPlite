@@ -50,7 +50,7 @@ extern void sleepMs(uint32_t ms);
 #define mutexLock pthread_mutex_lock
 #define mutexUnlock pthread_mutex_unlock
 
-#else
+#elif defined (_WIN)
 
 #define MUTEX CRITICAL_SECTION
 #define mutexLock EnterCriticalSection
@@ -72,7 +72,7 @@ typedef HANDLE tXcpThread;
 #define join_thread(h) WaitForSingleObject(h, INFINITE);
 #define cancel_thread(h) { TerminateThread(h,0); WaitForSingleObject(h,1000); CloseHandle(h); }
 
-#else
+#elif defined(_LINUX)
 
 typedef pthread_t tXcpThread;
 #define create_thread(h,t) pthread_create(h, NULL, t, NULL);
