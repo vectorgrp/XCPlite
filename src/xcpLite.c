@@ -1861,11 +1861,13 @@ static void XcpPrintCmd() {
 
      case CC_TRANSPORT_LAYER_CMD:
          switch (CRO_TL_SUBCOMMAND) {
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0103             
            case CC_TL_GET_DAQ_CLOCK_MULTICAST:
                if (XCP_DBG_LEVEL >= 3 || !isDaqRunning()) {
                    printf("GET_DAQ_CLOCK_MULTICAST counter=%u, cluster=%u\n", CRO_GET_DAQ_CLOCK_MCAST_COUNTER, CRO_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER);
                }
              break;
+#endif
          }
          break;
 
@@ -1994,7 +1996,7 @@ static void XcpPrintRes() {
             printf("<- config=%02Xh, clocks=%02Xh, state=%02Xh, info=%02Xh, clusterId=%u\n",
                 CRM_TIME_SYNC_PROPERTIES_SERVER_CONFIG, CRM_TIME_SYNC_PROPERTIES_OBSERVABLE_CLOCKS, CRM_TIME_SYNC_PROPERTIES_SYNC_STATE, CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO, CRM_TIME_SYNC_PROPERTIES_CLUSTER_ID );
             break;
-#endif
+#endif // >= 0x0103
 
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0104
         case CC_LEVEL_1_COMMAND:

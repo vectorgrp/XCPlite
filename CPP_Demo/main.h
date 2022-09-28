@@ -83,8 +83,5 @@
 #include <thread>
 #include <string>
 #include <vector>
-#include <vector>
-using namespace std;
-
 
 #include "main_cfg.h"

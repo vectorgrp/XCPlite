@@ -55,7 +55,7 @@ Drawbacks:
 // This is standard in XCP V1.3, but it needs to create an additional thread and socket for multicast reception
 // Has no benefit with PTP time synchronized slave and is just unnesserary effort
 // CANape expects this by default -> adjust setting in device/protocol/event/TIME_CORRELATION_GETDAQCLOCK from "multicast" to "extended response" to switch it of
-#define XCPTL_ENABLE_MULTICAST
+//#define XCPTL_ENABLE_MULTICAST
 #ifdef XCPTL_ENABLE_MULTICAST
     #define XCPTL_MULTICAST_PORT 5557
 #endif

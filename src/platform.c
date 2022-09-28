@@ -20,7 +20,7 @@
 #include "util.h"
 
 
-#ifdef _WIN // Windows needs to link with Ws2_32.lib
+#if defined(_WIN) // Windows // Windows needs to link with Ws2_32.lib
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -70,7 +70,7 @@ int _kbhit() {
 // Sleep
 /**************************************************************************/
 
-#ifdef _LINUX // Linux
+#if defined(_LINUX) // Linux
 
 void sleepNs(uint32_t ns) {
   if (ns == 0) {
@@ -97,7 +97,7 @@ void sleepMs(uint32_t ms) {
   }
 }
 
-#else
+#elif defined(_WIN) // Windows
 
 
 void sleepNs(uint32_t ns) {
@@ -140,7 +140,7 @@ void sleepMs(uint32_t ms) {
 // Mutex
 /**************************************************************************/
 
-#ifdef _LINUX
+#if defined(_LINUX)
 
 void mutexInit(MUTEX* m, int recursive, uint32_t spinCount) {
     (void)spinCount;
@@ -160,7 +160,7 @@ void mutexDestroy(MUTEX* m) {
     pthread_mutex_destroy(m);
 }
 
-#else
+#elif defined(_WIN)
 
 void mutexInit(MUTEX* m, int recursive, uint32_t spinCount) {
     (void) recursive;
@@ -313,7 +313,7 @@ int socketGetLocalAddr(uint8_t* mac, uint8_t* addr) {
 #endif // _LINUX
 
 
-#ifdef _WIN
+#if defined(_WIN)
 
 uint32_t socketGetTimestampMode(uint8_t *clockType) {
 
@@ -332,9 +332,9 @@ BOOL socketSetTimestampMode(uint8_t m) {
 
 int32_t socketGetLastError() {
 
-#ifdef _WIN
+#if defined(_WIN)
   return WSAGetLastError();
-#else
+#elif defined(_LINUX)
   return errno;
 #endif
 }
@@ -599,10 +599,12 @@ int16_t socketSendTo(SOCKET sock, const uint8_t* buffer, uint16_t size, const ui
 
     SOCKADDR_IN sa;
     sa.sin_family = AF_INET;
-#ifdef _WIN
+#if defined(_WIN) // Linux
     memcpy(&sa.sin_addr.S_un.S_addr, addr, 4);
-#else
+#elif defined(_WIN) // Windows
     memcpy(&sa.sin_addr.s_addr, addr, 4);
+#else
+#error
 #endif
     sa.sin_port = htons(port);
     if (time!=NULL) *time = clockGet();
@@ -615,7 +617,6 @@ int16_t socketSend(SOCKET sock, const uint8_t* buffer, uint16_t size) {
 
     return (int16_t)send(sock, (const char *)buffer, size, 0);
 }
-
 
 
 /**************************************************************************/
@@ -631,7 +632,7 @@ uint64_t clockGetLast() {
   return sClock;
 }
 
-#ifdef _LINUX // Linux
+#if defined(_LINUX) // Linux
 
 /*
 Linux clock type
@@ -731,7 +732,7 @@ uint64_t clockGet() {
 #endif
 }
 
-#else // Windows
+#elif defined(_WIN) // Windows
 
 // Performance counter to clock conversion
 static uint64_t sFactor = 0; // ticks per us

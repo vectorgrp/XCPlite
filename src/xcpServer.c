@@ -19,14 +19,14 @@
 #include "xcpServer.h"
 
 
-#ifdef _WIN
+#if defined(_WIN) // Windows
 static DWORD WINAPI XcpServerReceiveThread(LPVOID lpParameter);
-#else
+#elif defined(_LINUX) // Linux
 static void* XcpServerReceiveThread(void* par);
 #endif
-#ifdef _WIN
+#if defined(_WIN) // Windows
 static DWORD WINAPI XcpServerTransmitThread(LPVOID lpParameter);
-#else
+#elif defined(_LINUX) // Linux
 static void* XcpServerTransmitThread(void* par);
 #endif
 
@@ -95,9 +95,9 @@ BOOL XcpServerShutdown() {
 
 
 // XCP server unicast command receive thread
-#ifdef _WIN
+#if defined(_WIN) // Windows
 DWORD WINAPI XcpServerReceiveThread(LPVOID par)
-#else
+#elif defined(_LINUX) // Linux
 extern void* XcpServerReceiveThread(void* par)
 #endif
 {
@@ -118,9 +118,9 @@ extern void* XcpServerReceiveThread(void* par)
 
 
 // XCP server transmit thread
-#ifdef _WIN
+#if defined(_WIN) // Windows
 DWORD WINAPI XcpServerTransmitThread(LPVOID par)
-#else
+#elif defined(_LINUX) // Linux
 extern void* XcpServerTransmitThread(void* par)
 #endif
 {

@@ -15,15 +15,9 @@
 #include "platform.h"
 #include "options.h"
 #include "util.h"
-
-#include <vector>
-using namespace std;
-
 #include "xcp.hpp"
 #include "A2L.h"
 #include "A2Lpp.hpp"
-
-
 
  //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  
@@ -49,7 +43,7 @@ BOOL A2L::open(const char *projectName) {
 }
 
 // Create memory segments
-#ifdef OPTION_ENABLE_CAL_SEGMENT
+#if OPTION_ENABLE_CAL_SEGMENT
 void A2L::create_MOD_PAR(uint32_t startAddr, uint32_t size) {
 	A2lCreate_MOD_PAR(startAddr, size, NULL);
 }
@@ -133,15 +127,4 @@ uint16_t A2L::getFixedEvent() {
 }
  
  
- //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
- void A2L::createParameterGroup(const char* name) { (void)name; }
- void A2L::closeParameterGroup() {}
- void A2L::createMeasurementGroup(const char* name) { (void)name; }
- void A2L::closeMeasurementGroup() {}
-
  
-
-
-
-

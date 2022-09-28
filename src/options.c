@@ -27,10 +27,10 @@ uint16_t gOptionPort = OPTION_SERVER_PORT;
 uint8_t gOptionBindAddr[4] = OPTION_SERVER_ADDR;
 
 
-
 //-----------------------------------------------------------------------------------------------------
 // cmd line parser
 
+#if defined(_WIN) || defined(_LINUX)
 
 // help
 void cmdline_usage(const char* appName) {
@@ -54,7 +54,6 @@ void cmdline_usage(const char* appName) {
         "\n"
         "  Keys:\n"
         "    ESC              Exit\n"
-
       "%s\n",
         appName,
         ""
@@ -101,12 +100,13 @@ BOOL cmdline_parser(int argc, char* argv[]) {
             printf("Use UDP\n");
         }
 #endif
+  
         else {
             printf("Unknown command line option %s\n", argv[i]);
             return FALSE;
         }
     }
-
     return TRUE;
 }
 
+#endif

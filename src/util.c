@@ -33,7 +33,8 @@ uint8_t* loadFile(const char* filename, uint32_t* length) {
 
     DBG_PRINTF1("Load %s\n", filename);
 
-#ifdef _LINUX // Linux
+#if defined(_LINUX) // Linux
+
     FILE* fd;
     fd = fopen(filename, "r");
     if (fd == NULL) {
@@ -46,7 +47,9 @@ uint8_t* loadFile(const char* filename, uint32_t* length) {
     if (fileBuf == NULL) return NULL;
     fileLen = (uint32_t)fread(fileBuf, 1, (uint32_t)fdstat.st_size, fd);
     fclose(fd);
-#else
+
+#elif defined(_LINUX) // Linux
+
     wchar_t wcfilename[256] = { 0 };
     MultiByteToWideChar(0, 0, filename, (int)strlen(filename), wcfilename, (int)strlen(filename));
     HANDLE hFile = CreateFileW((wchar_t*)wcfilename, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -69,6 +72,7 @@ uint8_t* loadFile(const char* filename, uint32_t* length) {
     }
     fileBuf[fileLen] = 0;
     CloseHandle(hFile);
+
 #endif
 
     DBG_PRINTF3("  file %s ready for upload, size=%u\n\n", filename, fileLen);
@@ -76,6 +80,4 @@ uint8_t* loadFile(const char* filename, uint32_t* length) {
     *length = fileLen;
     return fileBuf;
 }
-
-
 

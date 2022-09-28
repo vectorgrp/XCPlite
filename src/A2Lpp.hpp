@@ -64,7 +64,7 @@ public:
     BOOL open(const char* projectName);
     
     // Create memory segments
-#ifdef OPTION_ENABLE_CAL_SEGMENT
+#if OPTION_ENABLE_CAL_SEGMENT
     void create_MOD_PAR(uint32_t startAddr, uint32_t size);
 #endif
 
@@ -77,12 +77,6 @@ public:
     void setDefaultEvent(uint16_t xcp_event);
     void rstFixedEvent();
     uint16_t getFixedEvent();
-
-    // Create groups
-    void createParameterGroup(const char* name);
-    void closeParameterGroup();
-    void createMeasurementGroup(const char* name);
-    void closeMeasurementGroup();
 
     // Create measurements
     void createMeasurement_(const char* instanceName, const char* name, int32_t type, uint8_t ext, uint32_t addr, double factor, double offset, const char* unit, const char* comment);

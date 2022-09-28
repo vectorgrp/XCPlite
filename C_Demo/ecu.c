@@ -140,7 +140,7 @@ uint8_t *ecuParAddrMapping( uint8_t *a ) {
 void ecuInit() {
 
     // Initialize calibration parameters
-#ifdef OPTION_ENABLE_CAL_SEGMENT
+#if OPTION_ENABLE_CAL_SEGMENT
     ecuParInit(); // Initializes parameters in RAM calibration segment
     ecuParSetCalPage(RAM); // Switch to RAM calibration segment 
 #endif
@@ -167,7 +167,7 @@ void ecuInit() {
 void ecuCreateA2lDescription() {
 
     // Calibration Memory Segment
-#ifdef OPTION_ENABLE_CAL_SEGMENT  
+#if OPTION_ENABLE_CAL_SEGMENT  
     A2lCreate_MOD_PAR(ApplXcpGetAddr((uint8_t*)&ecuPar), sizeof(ecuPar), (char*)ecuPar.epk);
 #endif
 

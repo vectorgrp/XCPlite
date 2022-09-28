@@ -23,10 +23,12 @@
 
 // A2L generation
 #define OPTION_ENABLE_A2L_GEN          ON           // Enable A2L generation
+#if OPTION_ENABLE_A2L_GEN
 #define OPTION_ENABLE_A2L_SYMBOL_LINKS ON           // Enable generation of symbol links (required for CANape integrated linker map update)
 #define OPTION_A2L_NAME                "C_Demo"     // A2L name 
 #define OPTION_A2L_FILE_NAME           "C_Demo.a2l" // A2L filename 
 #define OPTION_A2L_PROJECT_NAME        "C_Demo"     // A2L project name
+#endif
 
 // Default communication parameters
 #define OPTION_ENABLE_TCP              ON // Enable TCP support

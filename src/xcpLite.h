@@ -96,7 +96,9 @@ extern tXcpEvent* XcpGetEvent(uint16_t event);
 
 /* Callbacks */
 extern BOOL ApplXcpConnect();
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0104
 extern BOOL ApplXcpPrepareDaq();
+#endif
 extern BOOL ApplXcpStartDaq();
 extern void ApplXcpStopDaq();
 

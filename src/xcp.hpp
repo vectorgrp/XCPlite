@@ -26,7 +26,7 @@ private:
 	const uint8_t* addr;
 	uint16_t port;
 
-#ifdef OPTION_ENABLE_A2L_GEN
+#if OPTION_ENABLE_A2L_GEN
 	A2L* a2lFile;
 #endif	
 
@@ -89,7 +89,7 @@ public:
 
 	void clearEventList(); // Event handling
 	uint16_t createEvent(XcpEventDescriptor event);
-	vector<XcpEventDescriptor>* getEventList();
+	std::vector<XcpEventDescriptor>* getEventList();
 
 	void event(uint16_t event);    // Event trigger
 	void eventExt(uint16_t event, uint8_t* base);
@@ -99,7 +99,7 @@ public:
 	uint32_t getA2lAddr(uint8_t* p); // Get A2L addr from pointer	
 	
 	// Optional: A2L generation
-#ifdef OPTION_ENABLE_A2L_GEN
+#if OPTION_ENABLE_A2L_GEN
 	A2L* createA2L(const char* projectName); 
 	void closeA2L();
 	A2L* getA2L() { return a2lFile; }

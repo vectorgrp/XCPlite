@@ -21,10 +21,10 @@ extern int _kbhit();
 //-------------------------------------------------------------------------------
 // Safe sprintf
 
-#ifdef _WIN
+#if defined(_WIN) // Windows
 #define SPRINTF(dest,format,...) sprintf_s((char*)dest,sizeof(dest),format,__VA_ARGS__)
 #define SNPRINTF(dest,len,format,...) sprintf_s((char*)dest,len,format,__VA_ARGS__)
-#else
+#elif defined(_LINUX) // Linux
 #define SPRINTF(dest,format,...) snprintf((char*)dest,sizeof(dest),format,__VA_ARGS__)
 #define SNPRINTF(dest,len,format,...) snprintf((char*)dest,len,format,__VA_ARGS__)
 #endif
@@ -43,18 +43,19 @@ extern void sleepMs(uint32_t ms);
 //-------------------------------------------------------------------------------
 // Mutex
 
-#ifdef _LINUX
+
+#if defined(_WIN) // Windows
+
+#define MUTEX CRITICAL_SECTION
+#define mutexLock EnterCriticalSection
+#define mutexUnlock LeaveCriticalSection
+
+#elif defined(_LINUX) // Linux
 
 #define MUTEX pthread_mutex_t
 #define MUTEX_INTIALIZER PTHREAD_MUTEX_INITIALIZER
 #define mutexLock pthread_mutex_lock
 #define mutexUnlock pthread_mutex_unlock
-
-#else
-
-#define MUTEX CRITICAL_SECTION
-#define mutexLock EnterCriticalSection
-#define mutexUnlock LeaveCriticalSection
 
 #endif
 
@@ -65,14 +66,14 @@ void mutexDestroy(MUTEX* m);
 //-------------------------------------------------------------------------------
 // Threads
 
-#ifdef _WIN
+#if defined(_WIN) // Windows
 
 typedef HANDLE tXcpThread;
 #define create_thread(h,t) *h = CreateThread(0, 0, t, NULL, 0, NULL)
 #define join_thread(h) WaitForSingleObject(h, INFINITE);
 #define cancel_thread(h) { TerminateThread(h,0); WaitForSingleObject(h,1000); CloseHandle(h); }
 
-#else
+#elif defined(_LINUX) // Linux
 
 typedef pthread_t tXcpThread;
 #define create_thread(h,t) pthread_create(h, NULL, t, NULL);
@@ -102,7 +103,7 @@ typedef pthread_t tXcpThread;
 
 #endif
 
-#ifdef _WIN // Windows sockets or XL-API
+#if defined(_WIN) // Windows // Windows sockets or XL-API
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -125,7 +126,6 @@ typedef pthread_t tXcpThread;
 #define SOCKET_TIMESTAMP_FREE_RUNNING 0 
 #define SOCKET_TIMESTAMP_SOFTWARE_SYNC 1
 
-
 extern BOOL socketStartup();
 extern int32_t socketGetLastError();
 extern void socketCleanup();
@@ -141,7 +141,6 @@ extern int16_t socketSendTo(SOCKET sock, const uint8_t* buffer, uint16_t bufferS
 extern BOOL socketShutdown(SOCKET sock);
 extern BOOL socketClose(SOCKET* sp);
 extern BOOL socketGetLocalAddr(uint8_t* mac, uint8_t* addr);
-
 
 //-------------------------------------------------------------------------------
 // Clock

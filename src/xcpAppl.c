@@ -21,7 +21,7 @@
 #ifdef APP_CPP_Demo
 #include "xcp.hpp"
 #else
-#ifdef OPTION_ENABLE_CAL_SEGMENT
+#if OPTION_ENABLE_CAL_SEGMENT
 #include "ecu.h"
 #endif
 #endif
@@ -37,9 +37,11 @@ BOOL ApplXcpConnect() {
     return Xcp::getInstance()->onConnect();
 }
 
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0104
 BOOL ApplXcpPrepareDaq() {
     return Xcp::getInstance()->onPrepareDaq();
 }
+#endif
 
 BOOL ApplXcpStartDaq() {
     return Xcp::getInstance()->onStartDaq();
@@ -56,10 +58,12 @@ BOOL ApplXcpConnect() {
     return TRUE;
 }
 
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0104
 BOOL ApplXcpPrepareDaq() { 
     XCP_DBG_PRINT1("XCP prepare DAQ\n");
     return TRUE;
 }
+#endif
 
 BOOL ApplXcpStartDaq() {
     XCP_DBG_PRINT1("XCP start DAQ\n");
@@ -322,7 +326,7 @@ void ApplXcpInitBaseAddressList()
 // Calibration page handling
 /**************************************************************************/
 
-#ifdef OPTION_ENABLE_CAL_SEGMENT
+#if OPTION_ENABLE_CAL_SEGMENT
 
 // segment = 0
 // RAM = page 0, FLASH = page 1
@@ -365,6 +369,7 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t* buf, uint32_t bufLen) {
       }
       break;
 
+#ifdef OPTION_A2L_NAME
     case IDT_ASAM_NAME:
       len = (uint32_t)strlen(OPTION_A2L_NAME);
       if (buf) {
@@ -372,7 +377,9 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t* buf, uint32_t bufLen) {
         strncpy((char*)buf, OPTION_A2L_NAME, len);
       }
       break;
+#endif
 
+#ifdef OPTION_A2L_FILE_NAME
     case IDT_ASAM_PATH:
       len = (uint32_t)strlen(OPTION_A2L_FILE_NAME);
       if (buf) {
@@ -380,6 +387,7 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t* buf, uint32_t bufLen) {
         strncpy((char*)buf, OPTION_A2L_FILE_NAME, len);
       }
       break;
+#endif
 
     case IDT_ASAM_EPK:
       // Not implemented

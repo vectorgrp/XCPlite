@@ -17,8 +17,8 @@
 
 // Protocol layer version
 // #define XCP_PROTOCOL_LAYER_VERSION 0x0101
-// #define XCP_PROTOCOL_LAYER_VERSION 0x0103  // GET_DAQ_CLOCK_MULTICAST, GET_TIME_CORRELATION_PROPERTIES
-#define XCP_PROTOCOL_LAYER_VERSION 0x0104  // PACKED_MODE, CC_START_STOP_SYNCH prepare
+#define XCP_PROTOCOL_LAYER_VERSION 0x0103  // GET_DAQ_CLOCK_MULTICAST, GET_TIME_CORRELATION_PROPERTIES
+// #define XCP_PROTOCOL_LAYER_VERSION 0x0104  // PACKED_MODE, CC_START_STOP_SYNCH prepare
 
 /*----------------------------------------------------------------------------*/
 /* Driver features */
@@ -32,7 +32,7 @@
 //#define XCP_ENABLE_INTERLEAVED
 //#define XCP_INTERLEAVED_QUEUE_SIZE 16
 
-#ifdef OPTION_ENABLE_CAL_SEGMENT
+#if OPTION_ENABLE_CAL_SEGMENT
 #define XCP_ENABLE_CHECKSUM // Enable checksum calculation command
 #define XCP_ENABLE_CAL_PAGE // Enable cal page switch
 #endif
@@ -68,7 +68,7 @@
 // Grandmaster clock (optional, use XcpSetGrandmasterClockInfo, implement ApplXcpGetClockInfoGrandmaster)
 #define XCP_ENABLE_PTP
 
-#define XCP_ENABLE_DAQ_CLOCK_MULTICAST // Enable GET_DAQ_CLOCK_MULTICAST
+// #define XCP_ENABLE_DAQ_CLOCK_MULTICAST // Enable GET_DAQ_CLOCK_MULTICAST
 #ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
     // XCP default cluster id (multicast addr 239,255,0,1, group 127,0,1 (mac 01-00-5E-7F-00-01)
 #define XCP_MULTICAST_CLUSTER_ID 1

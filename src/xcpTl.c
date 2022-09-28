@@ -77,7 +77,7 @@ static struct {
     tXcpMessageBuffer queue[XCPTL_QUEUE_SIZE];
     uint32_t queue_rp; // rp = read index
     uint32_t queue_len; // rp+len = write index (the next free entry), len=0 ist empty, len=XCPTL_QUEUE_SIZE is full
-#ifdef _WIN
+#if defined(_WIN) // Windows
     HANDLE queue_event;
     uint64_t queue_event_time;
 #endif
@@ -96,7 +96,13 @@ static struct {
 #endif
 
     MUTEX Mutex_Queue;
-   
+    
+#ifdef XCPTL_ENABLE_SELF_TEST
+    uint32_t last_queue_len;   // DAQ data bytes writen by last handleTransmitQueue
+    uint32_t last_bytes_written;   // DAQ data bytes writen by last handleTransmitQueue
+    uint64_t total_bytes_written;   // Total DAQ data bytes writen
+#endif
+
 } gXcpTl;
 
 
@@ -170,7 +176,7 @@ static int sendDatagram(const uint8_t *data, uint16_t size ) {
 static BOOL notifyTransmitQueueHandler() {
 
     // Windows only, Linux version uses polling
-#ifdef _WIN
+#if defined(_WIN) // Windows
     // Notify when there is finalized buffer in the queue
     // Notify at most every XCPTL_QUEUE_TRANSMIT_CYCLE_TIME to save CPU load
     uint64_t clock = clockGetLast();
@@ -328,7 +334,7 @@ void XcpTlCommitTransmitBuffer(void *handle, BOOL flush) {
 
         // Flush (high priority data commited)
         if (flush && gXcpTl.msg_ptr != NULL && gXcpTl.msg_ptr->size > 0) {
-#ifdef _WIN
+#if defined(_WIN) // Windows
             gXcpTl.queue_event_time = 0;
 #endif
             getSegmentBuffer();
@@ -590,9 +596,9 @@ static int handleXcpMulticast(int n, tXcpCtoMessage* p) {
     return 1; // Ok
 }
 
-#ifdef _WIN
+#if defined(_WIN) // Windows
 DWORD WINAPI XcpTlMulticastThread(LPVOID par)
-#else
+#elif defined(_LINUX) // Linux
 extern void* XcpTlMulticastThread(void* par)
 #endif
 {
@@ -640,7 +646,7 @@ BOOL XcpTlInit(const uint8_t* addr, uint16_t port, BOOL useTCP, uint16_t segment
 
     mutexInit(&gXcpTl.Mutex_Queue, 0, 1000);
     XcpTlInitTransmitQueue();
-#ifdef _WIN
+#if defined(_WIN) // Windows
     gXcpTl.queue_event = CreateEvent(NULL, TRUE, FALSE, NULL);
     assert(gXcpTl.queue_event!=NULL); 
     gXcpTl.queue_event_time = 0;
@@ -684,7 +690,9 @@ BOOL XcpTlInit(const uint8_t* addr, uint16_t port, BOOL useTCP, uint16_t segment
 
     XCP_DBG_PRINT3("  Start XCP multicast thread\n");
     create_thread(&gXcpTl.MulticastThreadHandle, XcpTlMulticastThread);
+
 #endif
+
     return TRUE;
 }
 
@@ -701,7 +709,7 @@ void XcpTlShutdown() {
     if (isTCP()) socketClose(&gXcpTl.ListenSock);
 #endif
     socketClose(&gXcpTl.Sock);
-#ifdef _WIN
+#if defined(_WIN) // Windows
     CloseHandle(gXcpTl.queue_event);
 #endif
 }
@@ -714,14 +722,14 @@ void XcpTlShutdown() {
 // Return FALSE in case of timeout
 BOOL XcpTlWaitForTransmitData(uint32_t timeout_ms) {
 
-#ifdef _WIN 
+#if defined(_WIN) // Windows 
     // Use event triggered for Windows
     if (WAIT_OBJECT_0 == WaitForSingleObject(gXcpTl.queue_event, timeout_ms == 0 ? INFINITE : timeout_ms)) {
       ResetEvent(gXcpTl.queue_event);
       return TRUE;
     }
     return FALSE;
-#else
+#elif defined(_LINUX) // Linux
     // Use polling for Linux
     #define XCPTL_QUEUE_TRANSMIT_POLLING_TIME_MS 1
     uint32_t t = 0;
