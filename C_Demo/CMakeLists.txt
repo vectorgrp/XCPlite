@@ -31,13 +31,15 @@ set(OPTION_SERVER_XL_ADDR {192,168,0,200} CACHE STRING "")
 set(OPTION_SERVER_XL_MAC {0xdc,0xa6,0x32,0x7e,0x66,0xdc} CACHE STRING "")
 set(OPTION_SERVER_XL_NET "NET1" CACHE STRING "")
 set(OPTION_SERVER_XL_SEG "SEG1" CACHE STRING "")
-configure_file(main_cfg.h.in ${PROJECT_SOURCE_DIR}/main_cfg.h)
 
 if (WINDOWS)
 add_executable(C_Demo ${C_Demo_WIN_SOURCES})
+set(OPTION_USE_XLAPI_V3 ON)
 else ()
 add_executable(C_Demo ${C_Demo_LINUX_SOURCES})
 endif ()
+
+configure_file(main_cfg.h.in ${PROJECT_SOURCE_DIR}/main_cfg.h)
 
 target_include_directories(C_Demo PUBLIC "${PROJECT_SOURCE_DIR}" )
 target_include_directories(C_Demo PUBLIC "${PROJECT_SOURCE_DIR}/../src" )

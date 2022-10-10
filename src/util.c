@@ -10,6 +10,7 @@
 
 #include "main.h"
 #include "main_cfg.h"
+#include "xcp_cfg.h"
 #include "platform.h"
 #include "util.h"
 
