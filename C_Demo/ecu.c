@@ -32,10 +32,14 @@
 #endif
 
 
-// Event
-uint16_t gXcpEvent_EcuCyclic = 0; // XCP event number
+static uint16_t gXcpEvent_EcuCyclic = 0; // XCP event number
+static uint64_t ecuStartTime = 0; // Time at ECU startup
 
-// Global measurement variables
+
+/**************************************************************************/
+/* ECU Measurement Signals */
+/**************************************************************************/
+
 double ecuTime = 0;
 double channel1 = 0;
 double channel2 = 0;
@@ -54,7 +58,6 @@ int32_t sdwordCounter = 0;
 /* ECU Parameters */
 /**************************************************************************/
 
-
 struct ecuPar {
     char epk[32];
     uint32_t cycleTimeUs;
@@ -70,10 +73,10 @@ struct ecuPar {
 struct ecuPar ecuPar = {
     __DATE__ " " __TIME__, // EPK
     ECU_TASK_CYCLE_TIME_US, // Default cycle time in us
-    3.0, // period
-    0.0, // offset
-    0, // phase
-    400.0, // ampl
+    1.0,    // period
+    0.0,    // offset
+    0,      // phase
+    400.0,  // ampl
     { {0,0,0,0,0,0,1,2}, // map1_8_8
      {0,0,0,0,0,0,2,3},
      {0,0,0,0,1,1,2,3},
@@ -138,6 +141,8 @@ uint8_t *ecuParAddrMapping( uint8_t *a ) {
 
 // Init demo parameters and measurements 
 void ecuInit() {
+
+    ecuStartTime = clockGet();
 
     // Initialize calibration parameters
 #if OPTION_ENABLE_CAL_SEGMENT
@@ -236,6 +241,8 @@ void ecuCreateA2lDescription() {
 // Cyclic demo task 
 void ecuCyclic( void )
 {
+    ecuTime = (double)(clockGet()-ecuStartTime)/CLOCK_TICKS_PER_S;
+
     // Counters of different type
     sbyteCounter++;
     swordCounter++;
@@ -254,7 +261,6 @@ void ecuCyclic( void )
     channel1 = ecuCalPage->offset + ecuCalPage->ampl * sin(x);
     channel2 = ecuCalPage->offset + ecuCalPage->ampl * sin(x + M_PI * 1 / 3);
     channel3 = ecuCalPage->offset + ecuCalPage->ampl * sin(x + M_PI * 2 / 3);
-    ecuTime += 0.002;
 
     XcpEvent(gXcpEvent_EcuCyclic); // Trigger XCP measurement data aquisition event 
 }
