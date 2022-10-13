@@ -390,12 +390,6 @@ void XcpTlSendCrm(const uint8_t* packet, uint16_t packet_size) {
         msg.ctr = gXcpTl.ctr++;
         memcpy(msg.packet, packet, packet_size);
         msg_size = packet_size;
-#if (XCPTL_PACKET_ALIGNMENT==2)
-        msg_size = (uint16_t)((msg_size + 1) & 0xFFFE); // Add fill
-#endif
-#if (XCPTL_PACKET_ALIGNMENT==4)
-        msg_size = (uint16_t)((msg_size + 3) & 0xFFFC); // Add fill
-#endif
         msg.dlc = (uint16_t)msg_size;
         msg_size = (uint16_t)(msg_size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE);
         r = sendDatagram((uint8_t*)&msg.dlc, msg_size);
