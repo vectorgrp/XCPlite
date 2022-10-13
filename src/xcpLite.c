@@ -557,12 +557,18 @@ static uint8_t XcpAddOdtEntry(uint32_t addr, uint8_t ext, uint8_t size) {
         if (e0 != 0xFFFF && e0 != e1) return CRC_OUT_OF_RANGE; // Error event channel redefinition
         DaqListEventChannel(gXcp.WriteDaqDaq) = e1;
      }
-    else {
-        if (NULL == ApplXcpGetPointer(ext, addr)) return CRC_ACCESS_DENIED; // Access denied 
-    }
-#else
-    if (NULL == ApplXcpGetPointer(ext, addr)) return CRC_ACCESS_DENIED; // Access denied 
+    else
 #endif
+    {
+        uint8_t* p;
+        uint64_t a;
+        p = ApplXcpGetPointer(ext, addr);
+        if (p == NULL) return CRC_ACCESS_DENIED; // Access denied 
+        a = p - ApplXcpGetBaseAddr();
+        if (a>0xFFFFFFFF) return CRC_ACCESS_DENIED; // Access out of range
+        addr = (uint32_t)a;
+    }
+
     OdtEntrySize(gXcp.WriteDaqOdtEntry) = size;
     OdtEntryAddr(gXcp.WriteDaqOdtEntry) = addr; // Holds A2L/XCP address
     if (!XcpAdjustOdtSize(gXcp.WriteDaqDaq, gXcp.WriteDaqOdt, size)) return CRC_DAQ_CONFIG;
