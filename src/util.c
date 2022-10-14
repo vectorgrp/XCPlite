@@ -33,7 +33,7 @@ uint8_t* loadFile(const char* filename, uint32_t* length) {
 
     DBG_PRINTF1("Load %s\n", filename);
 
-#if defined(_WIN) // Windows
+#if defined(_LINUX) // Linux
 
     FILE* fd;
     fd = fopen(filename, "r");
@@ -48,7 +48,7 @@ uint8_t* loadFile(const char* filename, uint32_t* length) {
     fileLen = (uint32_t)fread(fileBuf, 1, (uint32_t)fdstat.st_size, fd);
     fclose(fd);
 
-#elif defined(_LINUX) // Linux
+#elif defined(_WIN) // Windows
 
     wchar_t wcfilename[256] = { 0 };
     MultiByteToWideChar(0, 0, filename, (int)strlen(filename), wcfilename, (int)strlen(filename));

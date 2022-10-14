@@ -16,10 +16,9 @@ set(OPTION_DEBUG_LEVEL 2 CACHE STRING "Debug output level")
 
 option(OPTION_ENABLE_TCP "Enable TCP" 1)
 option(OPTION_USE_TCP "Use TCP as default" 1)
-set(OPTION_SERVER_PORT 5555 CACHE STRING "XCP default port")
-set(OPTION_SERVER_ADDR {0,0,0,0} CACHE STRING "XCP IP address to bind, ANY=0.0.0.0")
-
-option(OPTION_ENABLE_A2L_GEN "Enable A2L file generator" 1)
+set(OPTION_MTU 1500 CACHE STRING "Default MTU")
+set(OPTION_SERVER_PORT 5555 CACHE STRING "Default port")
+set(OPTION_SERVER_ADDR {0,0,0,0} CACHE STRING "Adapter IP address to bind, ANY=0.0.0.0")
 
 configure_file(main_cfg.h.in ${PROJECT_SOURCE_DIR}/main_cfg.h)
 

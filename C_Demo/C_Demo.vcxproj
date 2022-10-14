@@ -71,13 +71,13 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>$(SolutionDir)C_Demo\CANape</OutDir>
+    <OutDir>$(SolutionDir)C_Demo\CANape\</OutDir>
     <IntDir>$(SolutionDir)build_C_Demo\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>$(SolutionDir)\build_C_Demo\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)\build_C_Demo\$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)C_Demo\CANape\</OutDir>
+    <IntDir>$(SolutionDir)build_C_Demo\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>

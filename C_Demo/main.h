@@ -48,7 +48,7 @@
 
 #include <assert.h>
 
-#ifndef _WIN // Linux
+#if defined(_LINUX) // Linux
 
 #include <stdarg.h>
 #include <string.h>
@@ -72,15 +72,11 @@
 #define FALSE 0
 #define TRUE 1
 
-#else // Windows
+#elif defined(_WIN) // Windows
 
 #include <windows.h>
 #include <time.h>
 #include <conio.h>
-
-#define BOOL int
-#define FALSE 0
-#define TRUE 1
 
 #endif
 
