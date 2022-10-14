@@ -33,7 +33,7 @@ uint8_t* loadFile(const char* filename, uint32_t* length) {
 
     DBG_PRINTF1("Load %s\n", filename);
 
-#if defined(_LINUX) // Linux
+#if defined(_WIN) // Windows
 
     FILE* fd;
     fd = fopen(filename, "r");
