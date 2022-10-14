@@ -28,7 +28,7 @@
 /*----------------------------------------------------------------------------*/
 /* Driver features */
 
-#define XCP_ENABLE_DYN_ADDRESSING // Enable addr_ext=1 indicating relative addr format (event<<16)|offset 
+#define XCP_ENABLE_DYN_ADDRESSING // Enable addr_ext=1 indicating relative addr format (event<<16)|offset for measurement and calibration
 
 /*----------------------------------------------------------------------------*/
 /* Protocol features */

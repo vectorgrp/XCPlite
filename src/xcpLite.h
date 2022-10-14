@@ -92,9 +92,10 @@ extern tXcpEvent* XcpGetEvent(uint16_t event);
 /* Protocol layer external dependencies                                     */
 /****************************************************************************/
 
-// All functions must be thread save
+// All callback functions supplied by the application
+// Must be thread save
 
-/* Callbacks */
+/* Callbacks on connect, measurement prepare, start and stop */
 extern BOOL ApplXcpConnect();
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0104
 extern BOOL ApplXcpPrepareDaq();
@@ -102,12 +103,26 @@ extern BOOL ApplXcpPrepareDaq();
 extern BOOL ApplXcpStartDaq();
 extern void ApplXcpStopDaq();
 
-/* Generate a native pointer from XCP address extension and address */
-extern uint8_t* ApplXcpGetPointer(uint8_t addr_ext, uint32_t addr);
-extern uint32_t ApplXcpGetAddr(uint8_t* p);
-extern uint8_t *ApplXcpGetBaseAddr();
+/* Address conversions from A2L address to pointer and vice versa */
+/* Note that xcpAddrExt 0x01 and 0xFF are reserved for special use cases (0x01 if XCP_ENABLE_DYN_ADDRESSING, 0xFF if XCP_ENABLE_IDT_A2L_UPLOAD) */
+extern uint8_t* ApplXcpGetPointer(uint8_t xcpAddrExt, uint32_t xcpAddr); /* Create a pointer (uint8_t*) from xcpAddrExt and xcpAddr, returns NULL if no access */
+extern uint32_t ApplXcpGetAddr(uint8_t* p); // Calculate the xcpAddr address from a pointer
+extern uint8_t *ApplXcpGetBaseAddr(); // Get the base address for DAQ data access */
+/*
+ Note 1:
+   For DAQ performance and memory optimization:
+   XCPlite DAQ tables do not store address extensions and do not use ApplXcpGetPointer(), addr is stored as 32 Bit value and access is hardcoded by *(baseAddr+xcpAddr)
+   All accesible DAQ data is within a 4GByte range starting at ApplXcpGetBaseAddr()
+   Address extensions to increase the addressable range are not supported yet
+   Attempting to setup an ODT entry with address extension != 0 gives a CRC_ACCESS_DENIED error message
 
-/* Switch calibration page */
+ Note 2:
+   ApplXcpGetPointer may do address transformations according to active calibration page
+   When measuring calibration variables inswitch
+*/
+
+
+/* Switch calibration pages */
 #ifdef XCP_ENABLE_CAL_PAGE
 extern uint8_t ApplXcpGetCalPage(uint8_t segment, uint8_t mode);
 extern uint8_t ApplXcpSetCalPage(uint8_t segment, uint8_t page, uint8_t mode);
@@ -131,9 +146,14 @@ extern uint8_t ApplXcpGetClockState();
 extern BOOL ApplXcpGetClockInfoGrandmaster(uint8_t* uuid, uint8_t* epoch, uint8_t* stratum);
 #endif
 
-/* Info (for GET_ID) */
+/* Get info for GET_ID command (pointer to and length of data) */
+/* Supports IDT_ASCII, IDT_ASAM_NAME, IDT_ASAM_PATH, IDT_ASAM_URL, IDT_ASAM_EPK and IDT_ASAM_UPLOAD */
+/* Returns 0 if not available */
 extern uint32_t ApplXcpGetId(uint8_t id, uint8_t* buf, uint32_t bufLen);
-#ifdef XCP_ENABLE_IDT_A2L_UPLOAD // Enable GET_ID: A2L content upload to host
-extern BOOL ApplXcpReadA2L(uint8_t size, uint32_t addr, uint8_t* data);
+
+/* Read a chunk (offset,size) of the A2L file for upload */
+/* Return FALSE if out of bounds */
+#ifdef XCP_ENABLE_IDT_A2L_UPLOAD // Enable A2L content upload to host (IDT_ASAM_UPLOAD)
+extern BOOL ApplXcpReadA2L(uint8_t size, uint32_t offset, uint8_t* data);
 #endif
 
