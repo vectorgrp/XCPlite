@@ -548,8 +548,10 @@ static uint8_t XcpAddOdtEntry(uint32_t addr, uint8_t ext, uint8_t size) {
     if ((size == 0) || size > XCP_MAX_ODT_ENTRY_SIZE) return CRC_OUT_OF_RANGE;
     if (0 == gXcp.Daq.DaqCount || 0 == gXcp.Daq.OdtCount || 0 == gXcp.Daq.OdtEntryCount) return CRC_DAQ_CONFIG;
 
-#ifdef XCP_ENABLE_DYN_ADDRESSING
-    if (ext > 1) return CRC_ACCESS_DENIED; // Access violation
+#ifndef XCP_ENABLE_DYN_ADDRESSING
+    if (ext > 0) return CRC_ACCESS_DENIED; // Not supported
+#else
+    if (ext > 1) return CRC_ACCESS_DENIED; // Not supported
     if (ext == 1) {
         uint16_t e0 = DaqListEventChannel(gXcp.WriteDaqDaq);
         uint16_t e1 = (uint16_t)(addr >> 16);
@@ -563,7 +565,7 @@ static uint8_t XcpAddOdtEntry(uint32_t addr, uint8_t ext, uint8_t size) {
         uint8_t* p;
         uint64_t a;
         p = ApplXcpGetPointer(ext, addr);
-        if (p == NULL) return CRC_ACCESS_DENIED; // Access denied 
+        if (p == NULL) return CRC_ACCESS_DENIED; // Access denied
         a = p - ApplXcpGetBaseAddr();
         if (a>0xFFFFFFFF) return CRC_ACCESS_DENIED; // Access out of range
         addr = (uint32_t)a;
