@@ -82,14 +82,14 @@ public:
     void calcMinMax(double v) { // track the task with current minimum and maximum value
         
         if (pMaxSigGen==NULL || (pMaxSigGen != this && pMaxSigGen->value < v)) {
-            pMaxSigGen = this;
+            pMaxSigGen = this; // current task with the minimal value
+            maxSigGenEvent->xcpEvent((uint8_t*)pMaxSigGen);  // Trigger an event when pMaxSigGen changed
         }
-        if (pMinSigGen==NULL || (pMinSigGen != this && pMinSigGen->value > v)) {
-            pMinSigGen = this;
+        if (pMinSigGen==NULL || pMinSigGen->value > v) {
+            pMinSigGen = this; // current task with the maximum value
+            minSigGenEvent->xcpEvent((uint8_t*)pMinSigGen); // Trigger an event when pMinSigGen changed
         }
-        maxSigGenEvent->xcpEvent((uint8_t*)pMaxSigGen);
-        minSigGenEvent->xcpEvent((uint8_t*)pMinSigGen);
-        
+
     }
 
     void task() {
@@ -99,7 +99,7 @@ public:
 
             sleepNs(par_cycleTimeUs * 1000); 
             value = par_offset + par_ampl * sin( (double)clockGet64() * M_2PI / (CLOCK_TICKS_PER_S * par_period) + par_phase);
-            calcMinMax(value); // track the task with current minimum and maximum value
+            calcMinMax(value); // track the tasks with current minimum and maximum value
 
             // Trigger the XCP instance event
             xcpEvent();
@@ -156,6 +156,9 @@ int main(int argc, char* argv[]) {
     a2l->createParameterGroup("TestParameters", 11, "gDebugLevel", "par_int8", "par_int16", "par_int32", "par_int64", "par_uint8", "par_uint16", "par_uint32", "par_uint64", "par_float", "par_double");
     
 
+    // Create virtual instances of pMinSigGen and pMaxSigGen 
+    minSigGenEvent = new XcpDynObject("pMinSigGen", SigGen);
+    maxSigGenEvent = new XcpDynObject("pMaxSigGen", SigGen);
 
     // Create 10 different SigGen signal generator task instances with calibration parameters and dynamic addressing
     // The constructor of SigGen will create an instance amd an associated XCP event
@@ -167,12 +170,6 @@ int main(int argc, char* argv[]) {
     
     // Create A2L description for class SigGen, use any instance to do this, function cant be static
     sigGen[0]->a2lCreateTypedef();
-
-
-    // Create virtual instances of pMinSigGen and pMaxSigGen 
-    minSigGenEvent = new XcpDynObject("pMinSigGen", SigGen);
-    maxSigGenEvent = new XcpDynObject("pMaxSigGen", SigGen);
-
 
     // Finalize and close A2l (otherwise it will be closed later on connect)
     xcp->closeA2L();

@@ -143,7 +143,6 @@ extern void* XcpServerTransmitThread(void* par)
             break; // error - terminate thread
         }
 
-        // Every gFlushCycle in us time period
         // Cyclic flush of incomplete packets from transmit queue or transmit buffer to keep tool visualizations up to date
         // No priorisation of events implemented, no latency optimizations
         uint64_t c = clockGet64();

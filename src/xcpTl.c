@@ -227,7 +227,7 @@ void XcpTlInitTransmitQueue() {
 }
 
 // Transmit all completed and fully commited UDP frames
-// Returns -1 would block, 1 ok, 0 error
+// Returns 1 ok, 0 error
 int XcpTlHandleTransmitQueue( void ) {
 
     tXcpMessageBuffer* b;
@@ -249,8 +249,8 @@ int XcpTlHandleTransmitQueue( void ) {
 
         // Send this frame
         int r = sendDatagram(&b->msg[0], b->size);
-        if (r == (-1)) return 1; // Ok, would block (-1)
-        if (r == 0) return 0; // Nok, error (0)
+        if (r == (-1)) return 1; // Ok, would block
+        if (r == 0) return 0; // Nok, error
         gXcpTl.bytes_written += b->size;
 
         // Free this buffer when succesfully sent
@@ -629,7 +629,7 @@ int XcpTlInit(const uint8_t* addr, uint16_t port, BOOL useTCP) {
     mutexInit(&gXcpTl.Mutex_Queue, 0, 1000);
     XcpTlInitTransmitQueue();
 #ifdef _WIN
-    gXcpTl.queue_event = CreateEvent(NULL, TRUE, FALSE, NULL);
+    gXcpTl.queue_event = CreateEvent(NULL, TRUE /* manual reset */, FALSE /* initial state */, NULL);
     assert(gXcpTl.queue_event!=NULL); 
 #endif
 #ifdef XCPTL_ENABLE_TCP
