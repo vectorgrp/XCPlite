@@ -60,12 +60,13 @@
 
 #include "main.h"
 #include "main_cfg.h"
-#include "platform.h"
-#include "util.h"
 
 #include "xcpLite.h"    // Protocol layer interface
 #include "xcpAppl.h"    // Dependecies to application code
 
+#ifdef XCP_ENABLE_DEBUG_PRINTS
+#include "platform.h"
+#endif
 
 /****************************************************************************/
 /* Defaults and checks                                                      */
@@ -77,7 +78,7 @@
 #error "XCPTL_MAX_CTO_SIZE must be <= 255"
 #endif
 #if ( XCPTL_MAX_CTO_SIZE < 16 )
-#error "XCPTL_MAX_CTO_SIZE must be >= 16"
+#warning "XCPTL_MAX_CTO_SIZE must be >= 16"
 #endif
 #else
 #error "Please define XCPTL_CTO_SIZE"
@@ -85,10 +86,10 @@
 
 #if defined( XCPTL_MAX_DTO_SIZE )
 #if ( XCPTL_MAX_DTO_SIZE < 16 )
-#error "XCPTL_MAX_DTO_SIZE must be >= 16"
+#warning "XCPTL_MAX_DTO_SIZE must be >= 16"
 #endif
 #else
-#error "Please define XCPTL_DTO_SIZE"
+#error "Please define XCPTL_MAX_DTO_SIZE"
 #endif
 
 /* Max. size of an object referenced by an ODT entry XCP_MAX_ODT_ENTRY_SIZE may be limited  */
@@ -668,7 +669,7 @@ static void XcpStopAllDaq( void )
 
 // Measurement data acquisition, sample and transmit measurement date associated to event
 
-static void XcpEvent_(uint16_t event, uint8_t* base, uint64_t clock)
+static void XcpEvent_(uint16_t event, uint64_t clock)
 {
   uint8_t* d;
   uint8_t* d0;
@@ -731,7 +732,7 @@ static void XcpEvent_(uint16_t event, uint8_t* base, uint64_t clock)
 #endif
 
          // Buffer overrun
-         if (d0 == 0) {
+         if (d0 == NULL) {
             XCP_DBG_PRINTF1("DAQ queue overflow! Event %u skipped\n", event);
             gXcp.DaqOverflowCount++;
             DaqListFlags(daq) |= DAQ_FLAG_OVERRUN;
@@ -749,7 +750,7 @@ static void XcpEvent_(uint16_t event, uint8_t* base, uint64_t clock)
         }
 
         // Timestamp
-        if (hs == 6) {
+        if (hs == 2+4) {
             *((uint32_t*)&d0[2]) = (uint32_t)clock;
         }
 
@@ -765,7 +766,7 @@ static void XcpEvent_(uint16_t event, uint8_t* base, uint64_t clock)
 #ifdef XCP_ENABLE_PACKED_MODE
                 if (sc>1) n *= sc; // packed mode
 #endif
-                memcpy((uint8_t*)d, &base[OdtEntryAddr(e)], n);
+                memcpy(d, ApplXcpGetPointer( 0, OdtEntryAddr(e) ), n);
                 d += n;
                 e++;
             } // ODT entry
@@ -786,33 +787,9 @@ static void XcpEvent_(uint16_t event, uint8_t* base, uint64_t clock)
 #endif
 }
 
-void XcpEventAt(uint16_t event, uint64_t clock) {
-    if (!isDaqRunning()) return; // DAQ not running
-    XcpEvent_(event, ApplXcpGetBaseAddr(), clock);
-}
-
-void XcpEventExt(uint16_t event, uint8_t* base) {
-
-#ifdef XCP_ENABLE_DYN_ADDRESSING
-    if (!isStarted()) return;
-    if (isCmdPending()) { // Pending command, check if it can be executed in this context
-        if (gXcp.MtaExt == 1 && (uint16_t)(gXcp.MtaAddr >> 16) == event) {
-            // Convert MtaPtr to context
-            gXcp.MtaPtr = base + (gXcp.MtaAddr & 0xFFFF);
-            gXcp.MtaExt = 0;
-            XcpCommand((const uint32_t*)&gXcp.Cro, gXcp.CroLen);
-            gXcp.SessionStatus &= (uint16_t)~SS_CMD_PENDING;
-        }
-    }
-#endif
-
-    if (!isDaqRunning()) return; // DAQ not running
-    XcpEvent_(event, base, 0);
-}
-
 void XcpEvent(uint16_t event) {
     if (!isDaqRunning()) return; // DAQ not running
-    XcpEvent_(event, ApplXcpGetBaseAddr(), 0);
+    XcpEvent_(event, 0);
 }
 
 
@@ -854,7 +831,7 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
   uint8_t err = 0;
 
   if (!isStarted()) return;
-  if (cmdLen >= sizeof(gXcp.Cro)) return;
+  if (cmdLen > sizeof(gXcp.Cro)) return;
   
   gXcp.CroLen = (uint8_t)cmdLen;
   memcpy(&gXcp.Cro, cmdData, cmdLen);

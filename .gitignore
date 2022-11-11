@@ -1,6 +1,7 @@
 
 build_C_Demo/
 build_CPP_Demo/
+build_Use_in_ECU_Demo/
 bin/
 obj/
 *.[oa]
