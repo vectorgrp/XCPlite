@@ -234,18 +234,29 @@ int socketClose(SOCKET *sp) {
 }
 
 
+#ifndef __APPLE__
 #include <linux/if_packet.h>
+#else
+#include <ifaddrs.h>
+#include <net/if_dl.h>
+#endif
 
 static int GetMAC(char* ifname, uint8_t* mac) {
     struct ifaddrs* ifap, * ifaptr;
 
     if (getifaddrs(&ifap) == 0) {
         for (ifaptr = ifap; ifaptr != NULL; ifaptr = ifaptr->ifa_next) {
+#ifdef __APPLE__
+            if (((ifaptr)->ifa_addr)->sa_family == AF_LINK) {
+                memcpy(mac, (unsigned char *)LLADDR((struct sockaddr_dl *)(ifaptr)->ifa_addr), 6);
+            }
+#else
             if (!strcmp(ifaptr->ifa_name, ifname) && ifaptr->ifa_addr->sa_family == AF_PACKET) {
                 struct sockaddr_ll* s = (struct sockaddr_ll*)ifaptr->ifa_addr;
                 memcpy(mac, s->sll_addr, 6);
                 break;
             }
+#endif
         }
         freeifaddrs(ifap);
         return ifaptr != NULL;
