@@ -41,3 +41,14 @@ obj/
 *.cnaxml
 Environment
 CustomProperties.json
+
+CPP_Demo/CMakeCache.txt
+CPP_Demo/CMakeFiles/
+CPP_Demo/CPP_Demo.out
+CPP_Demo/Makefile
+CPP_Demo/cmake_install.cmake
+C_Demo/CMakeCache.txt
+C_Demo/CMakeFiles/
+C_Demo/C_Demo.out
+C_Demo/Makefile
+C_Demo/cmake_install.cmake
