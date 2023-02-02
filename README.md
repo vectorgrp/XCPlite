@@ -159,7 +159,6 @@ Start the generated VS solution
 
 #### Build on Windows command line
 
-```
 For the CMake setup, prepare your command line environment.
 Set compiler to Microsoft x64 cl.exe and make sure the system finds cmake.exe and ninja.exe.
 You can also use the Windows clang compiler.
