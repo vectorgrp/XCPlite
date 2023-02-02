@@ -99,6 +99,7 @@ typedef pthread_t tXcpThread;
 #define SOCKET_ERROR_INTR     EBADF
 #define SOCKET_ERROR_WBLOCK   EAGAIN
 
+#undef htonll
 #define htonll(val) ((((uint64_t)htonl((uint32_t)val)) << 32) + htonl((uint32_t)(val >> 32)))
 
 #endif

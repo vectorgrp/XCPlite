@@ -112,20 +112,33 @@ Version 4:
 
 ### Linux 
 
-$ sudo apt-get install cmake g++ clang ninja-build
+$ sudo apt-get install cmake g++
 
 #### Build
 
+Edit C_Demo/CMakeLists.txt: set(WINDOWS FALSE)
+
 ```
 $ cd XCPlite
-$ nano C_Demo/CMakeLists.txt -> set(WINDOWS FALSE)
 $ mkdir build_C_Demo
 
+$ cmake -DCMAKE_BUILD_TYPE=Release -S C_Demo -B build_C_Demo
 $ cd build_C_Demo
-$ cmake -GNinja -DCMAKE_BUILD_TYPE=Release -S ../C_Demo 
-$ ninja
+$ make
 
-or
+```
+
+### macOS 
+
+$ brew install cmake gcc 
+
+#### Build
+
+Edit C_Demo/CMakeLists.txt: set(WINDOWS FALSE)
+
+```
+$ cd XCPlite
+$ mkdir build_C_Demo
 
 $ cmake -DCMAKE_BUILD_TYPE=Release -S C_Demo -B build_C_Demo
 $ cd build_C_Demo
