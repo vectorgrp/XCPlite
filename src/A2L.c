@@ -52,7 +52,7 @@ static const char* gA2lHeader =
 #if OPTION_ENABLE_CAL_SEGMENT
 static const char* gA2lMemorySegment =
 "/begin MEMORY_SEGMENT\n"
-"CALRAM \"\" DATA FLASH INTERN 0x%08X 0x%08X - 1 - 1 - 1 - 1 - 1\n" // CALRAM_START, CALRAM_SIZE
+"CALRAM \"\" DATA FLASH INTERN 0x%08X 0x%08X -1 -1 -1 -1 -1\n" // CALRAM_START, CALRAM_SIZE
 "/begin IF_DATA XCP\n"
 "/begin SEGMENT 0x01 0x02 0x00 0x00 0x00 \n"
 "/begin CHECKSUM XCP_ADD_44 MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION \"\" /end CHECKSUM\n"
