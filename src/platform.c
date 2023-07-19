@@ -34,36 +34,42 @@
 #ifdef _LINUX
 
 int _getch() {
-    static int ch = -1, fd = 0;
-    struct termios neu, alt;
-    fd = fileno(stdin);
-    tcgetattr(fd, &alt);
-    neu = alt;
-    neu.c_lflag = (unsigned int)neu.c_lflag & ~(unsigned int)(ICANON | ECHO);
-    tcsetattr(fd, TCSANOW, &neu);
-    ch = getchar();
-    tcsetattr(fd, TCSANOW, &alt);
-    return ch;
+  struct termios oldt, newt;
+  int ch;
+  tcgetattr(STDIN_FILENO, &oldt);
+  newt = oldt;
+  newt.c_lflag &= ~ICANON;
+  // newt.c_lflag &= ECHO; // echo
+  newt.c_lflag &= ~ECHO; // no echo
+  tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+  ch = getchar();
+  tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+  return ch;
 }
 
 int _kbhit() {
-    struct termios term, oterm;
-    int fd = 0;
-    int c = 0;
-    tcgetattr(fd, &oterm);
-    memcpy(&term, &oterm, sizeof(term));
-    term.c_lflag = term.c_lflag & (!ICANON);
-    term.c_cc[VMIN] = 0;
-    term.c_cc[VTIME] = 1;
-    tcsetattr(fd, TCSANOW, &term);
-    c = getchar();
-    tcsetattr(fd, TCSANOW, &oterm);
-    if (c != -1)
-        ungetc(c, stdin);
-    return ((c != -1) ? 1 : 0);
+  struct termios oldt, newt;
+  int ch;
+  int oldf;
+  tcgetattr(STDIN_FILENO, &oldt);
+  newt = oldt;
+  newt.c_lflag &= ~(ICANON | ECHO);
+  tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+  oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
+  fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
+  ch = getchar();
+  tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+  fcntl(STDIN_FILENO, F_SETFL, oldf);
+  if (ch != EOF) {
+    ungetc(ch, stdin);
+    return 1;
+  }
+  return 0;
 }
 
+
 #endif
+
 
 
 /**************************************************************************/
@@ -246,18 +252,29 @@ int socketClose(SOCKET *sp) {
 }
 
 
+#ifndef __APPLE__
 #include <linux/if_packet.h>
+#else
+#include <ifaddrs.h>
+#include <net/if_dl.h>
+#endif
 
 static int GetMAC(char* ifname, uint8_t* mac) {
     struct ifaddrs* ifap, * ifaptr;
 
     if (getifaddrs(&ifap) == 0) {
         for (ifaptr = ifap; ifaptr != NULL; ifaptr = ifaptr->ifa_next) {
+#ifdef __APPLE__
+            if (((ifaptr)->ifa_addr)->sa_family == AF_LINK) {
+                memcpy(mac, (unsigned char *)LLADDR((struct sockaddr_dl *)(ifaptr)->ifa_addr), 6);
+            }
+#else 
             if (!strcmp(ifaptr->ifa_name, ifname) && ifaptr->ifa_addr->sa_family == AF_PACKET) {
                 struct sockaddr_ll* s = (struct sockaddr_ll*)ifaptr->ifa_addr;
                 memcpy(mac, s->sll_addr, 6);
                 break;
             }
+#endif
         }
         freeifaddrs(ifap);
         return ifaptr != NULL;
@@ -332,11 +349,7 @@ BOOL socketSetTimestampMode(uint8_t m) {
 
 int32_t socketGetLastError() {
 
-#if defined(_WIN)
   return WSAGetLastError();
-#elif defined(_LINUX)
-  return errno;
-#endif
 }
 
 
@@ -368,10 +381,11 @@ void socketCleanup(void) {
     WSACleanup();
 }
 
-
+// Create a socket, TCP or UDP
+// Note: Enabling HW timestamps may have impact on throughput
 BOOL socketOpen(SOCKET* sp, BOOL useTCP, BOOL nonBlocking, BOOL reuseaddr, BOOL timestamps) {
 
-  (void)timestamps;
+    (void)timestamps;
 
     // Create a socket
     if (!useTCP) {
@@ -599,9 +613,9 @@ int16_t socketSendTo(SOCKET sock, const uint8_t* buffer, uint16_t size, const ui
 
     SOCKADDR_IN sa;
     sa.sin_family = AF_INET;
-#if defined(_WIN) // Linux
+#if defined(_WIN) // Windows
     memcpy(&sa.sin_addr.S_un.S_addr, addr, 4);
-#elif defined(_WIN) // Windows
+#elif defined(_LINUX) // Linux
     memcpy(&sa.sin_addr.s_addr, addr, 4);
 #else
 #error
@@ -736,13 +750,15 @@ uint64_t clockGet() {
 
 // Performance counter to clock conversion
 static uint64_t sFactor = 0; // ticks per us
+#ifdef CLOCK_USE_UTC_TIME_NS
 static uint8_t sDivide = 0; // divide or multiply
+#endif
 static uint64_t sOffset = 0; // offset
 
 char* clockGetString(char* str, uint32_t l, uint64_t c) {
 
 #ifndef CLOCK_USE_UTC_TIME_NS
-    SNPRINTF(s, l, "%gs", (double)c / CLOCK_TICKS_PER_S);
+    SNPRINTF(str, l, "%gs", (double)c / CLOCK_TICKS_PER_S);
 #else
     uint64_t s = c / CLOCK_TICKS_PER_S;
     uint64_t ns = c % CLOCK_TICKS_PER_S;
@@ -762,7 +778,7 @@ char* clockGetString(char* str, uint32_t l, uint64_t c) {
 char* clockGetTimeString(char* str, uint32_t l, int64_t t) {
 
 #ifndef CLOCK_USE_UTC_TIME_NS
-    SNPRINTF(s, l, "%gs", (double)c / CLOCK_TICKS_PER_S);
+    SNPRINTF(str, l, "%gs", (double)t/CLOCK_TICKS_PER_S);
 #else
     char sign = '+';    if (t < 0) { sign = '-'; t = -t; }
     uint64_t s = t / CLOCK_TICKS_PER_S;
@@ -795,18 +811,17 @@ BOOL clockInit() {
         DBG_PRINT_ERROR("ERROR: Unexpected performance counter frequency!\n");
         return FALSE;
     }
-#ifndef CLOCK_USE_UTC_TIME_NS
-    sFactor = tF.u.LowPart / CLOCK_TICKS_PER_S;
-    sDivide = 1;
-#else
+#ifdef CLOCK_USE_UTC_TIME_NS
     if (CLOCK_TICKS_PER_S > tF.u.LowPart) {
-        sFactor = CLOCK_TICKS_PER_S / tF.u.LowPart;
-        sDivide = 0;
-    }
+      sFactor = CLOCK_TICKS_PER_S / tF.u.LowPart;
+      sDivide = 0;
+}
     else {
-        sFactor = tF.u.LowPart / CLOCK_TICKS_PER_S;
-        sDivide = 1;
+      sFactor = tF.u.LowPart / CLOCK_TICKS_PER_S;
+      sDivide = 1;
     }
+#else
+    sFactor = tF.u.LowPart / CLOCK_TICKS_PER_S;
 #endif
 
     // Get current performance counter to absolute time relation
@@ -817,44 +832,53 @@ BOOL clockInit() {
 
     // Get current UTC time in ms since 1.1.1970
     struct _timeb tstruct;
-    uint64_t t;
-    uint32_t t_ms;
+    uint64_t time_s;
+    uint32_t time_ms;
     _ftime(&tstruct);
-    t_ms = tstruct.millitm;
-    t = tstruct.time;
+    time_ms = tstruct.millitm;
+    time_s = tstruct.time;
     //_time64(&t); // s since 1.1.1970
 #endif
 
     // Calculate factor and offset
     QueryPerformanceCounter(&tC);
     tp = (((int64_t)tC.u.HighPart) << 32) | (int64_t)tC.u.LowPart;
-#ifndef CLOCK_USE_UTC_TIME_NS
-    // Reset clock now
-    sOffset = tp;
-#else
+#ifdef CLOCK_USE_UTC_TIME_NS
     // set  offset from local clock UTC value t
     // this is inaccurate up to 1 s, but irrelevant because system clock UTC offset is also not accurate
-    sOffset = t * CLOCK_TICKS_PER_S + (uint64_t)t_ms * CLOCK_TICKS_PER_MS - tp * sFactor;
+    sOffset = time_s * CLOCK_TICKS_PER_S + (uint64_t)time_ms * CLOCK_TICKS_PER_MS - tp * sFactor;
+#else
+    // Reset clock now
+    sOffset = tp;
 #endif
 
     clockGet();
 
 #ifdef ENABLE_DEBUG_PRINTS
     if (DBG_LEVEL >= 2) {
+
+
 #ifdef CLOCK_USE_UTC_TIME_NS
-        if (DBG_LEVEL >= 3) {
+        if (DBG_LEVEL >= 4) {
             struct tm tm;
-            _gmtime64_s(&tm, (const __time64_t*)&t);
-            DBG_PRINTF4("    Current time = %I64uus + %ums\n", t, t_ms);
-            DBG_PRINTF4("    Zone difference in minutes from UTC: %d\n", tstruct.timezone);
-            DBG_PRINTF4("    Time zone: %s\n", _tzname[0]);
-            DBG_PRINTF4("    Daylight saving: %s\n", tstruct.dstflag ? "YES" : "NO");
-            DBG_PRINTF4("    UTC time = %" PRIu64 "s since 1.1.1970 ", t);
-            DBG_PRINTF4("    %u.%u.%u %u:%u:%u\n", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, tm.tm_hour % 24, tm.tm_min, tm.tm_sec);
-        }
+            _gmtime64_s(&tm, (const __time64_t*)&time_s);
+            printf("    Current time = %I64uus + %ums\n", time_s, time_ms);
+            printf("    Zone difference in minutes from UTC: %d\n", tstruct.timezone);
+            printf("    Time zone: %s\n", _tzname[0]);
+            printf("    Daylight saving: %s\n", tstruct.dstflag ? "YES" : "NO");
+            printf("    UTC time = %" PRIu64 "s since 1.1.1970 ", time_s);
+            printf("    %u.%u.%u %u:%u:%u\n", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, tm.tm_hour % 24, tm.tm_min, tm.tm_sec);
+        } 
+        printf("    System clock resolution = %" PRIu32 "Hz, UTC ns conversion = %c%" PRIu64 "+%" PRIu64 "\n", (uint32_t)tF.u.LowPart, sDivide ? '/' : '*', sFactor, sOffset);
+#else
+      printf("    System clock resolution = %" PRIu32 "Hz, ARB us conversion = -%" PRIu64 " /%" PRIu64 "\n", (uint32_t)tF.u.LowPart, sOffset, sFactor);
 #endif
-        DBG_PRINTF3("  Resolution = %u Hz, system resolution = %" PRIu32 " Hz, conversion = %c%" PRIu64 "+%" PRIu64 "\n", CLOCK_TICKS_PER_S, (uint32_t)tF.u.LowPart, sDivide ? '/' : '*', sFactor, sOffset);
-    } // Test
+        uint64_t t;
+        char ts[64];
+        t = clockGet();
+        clockGetString(ts, sizeof(ts), t);
+        printf("  Now = %I64u (%u per us) %s\n", t, CLOCK_TICKS_PER_US, ts);
+    } 
 #endif
 
     return TRUE;
@@ -869,6 +893,7 @@ uint64_t clockGet() {
 
     QueryPerformanceCounter(&tp);
     t = (((uint64_t)tp.u.HighPart) << 32) | (uint64_t)tp.u.LowPart;
+#ifdef CLOCK_USE_UTC_TIME_NS
     if (sDivide) {
         t = t / sFactor + sOffset;
     }
@@ -876,6 +901,9 @@ uint64_t clockGet() {
         t = t * sFactor + sOffset;
     }
 
+#else
+    t = (t - sOffset) / sFactor;
+#endif
     sClock = t;
     return t;
 }

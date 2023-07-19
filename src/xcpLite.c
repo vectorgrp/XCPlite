@@ -634,6 +634,12 @@ static void XcpStartAllSelectedDaq()
     }
   }
 
+  if (XCP_DBG_LEVEL >= 2) {
+    char ts[64];
+    clockGetString(ts, sizeof(ts), gXcp.DaqStartClock64);
+    printf("DAQ start at t=%s\n", ts);
+  }
+
   gXcp.SessionStatus |= SS_DAQ;
 }
 
@@ -943,7 +949,7 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
             gXcp.CrmLen = CRM_GET_COMM_MODE_INFO_LEN;
             CRM_GET_COMM_MODE_INFO_DRIVER_VERSION = XCP_DRIVER_VERSION;
 #ifdef XCP_ENABLE_INTERLEAVED
-            CRM_GET_COMM_MODE_INFO_COMM_OPTIONAL = CMO_INTERLEAVED_MODE;
+            CRM_GET_COMM_MODE_INFO_COMM_OPTIONAL = 0; // CMO_INTERLEAVED_MODE;
             CRM_GET_COMM_MODE_INFO_QUEUE_SIZE = XCP_INTERLEAVED_QUEUE_SIZE;
 #else
             CRM_GET_COMM_MODE_INFO_COMM_OPTIONAL = 0;
@@ -1267,7 +1273,7 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
               default:
                   error(CRC_OUT_OF_RANGE);
               }
-
+              
             }
             break;
 
@@ -1457,8 +1463,8 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
   // Return with no responce in case of async commands
 #ifdef XCP_ENABLE_DYN_ADDRESSING
   no_response:
+    return;
 #endif
-  return;
 }
 
 
@@ -1510,7 +1516,7 @@ void XcpInit( void )
     #ifndef XCP_MAX_EVENT
       #define XCP_MAX_EVENT 0
     #endif
-    XCP_DBG_PRINTF1("  Version=%u.%u, MAXEV=%u, MAXCTO=%u, MAXDTO=%u, DAQMEM=%u, MAXDAQ=%u, MAXENTRY=%u, MAXENTRYSIZE=%u)\n", XCP_PROTOCOL_LAYER_VERSION >> 8, XCP_PROTOCOL_LAYER_VERSION & 0xFF, XCP_MAX_EVENT, XCPTL_MAX_CTO_SIZE, XCPTL_MAX_DTO_SIZE, XCP_DAQ_MEM_SIZE, (1 << sizeof(uint16_t) * 8) - 1, (1 << sizeof(uint16_t) * 8) - 1, (1 << (sizeof(uint8_t) * 8)) - 1);
+    XCP_DBG_PRINTF1("  Version=%u.%u, MAXEV=%u, MAXCTO=%u, MAXDTO=%u, DAQMEM=%u, MAXDAQ=%u, MAXENTRY=%u, MAXENTRYSIZE=%u\n", XCP_PROTOCOL_LAYER_VERSION >> 8, XCP_PROTOCOL_LAYER_VERSION & 0xFF, XCP_MAX_EVENT, XCPTL_MAX_CTO_SIZE, XCPTL_MAX_DTO_SIZE, XCP_DAQ_MEM_SIZE, (1 << sizeof(uint16_t) * 8) - 1, (1 << sizeof(uint16_t) * 8) - 1, (1 << (sizeof(uint8_t) * 8)) - 1);
     XCP_DBG_PRINTF1("  %u KiB memory used\n", (unsigned int)sizeof(gXcp) / 1024);
     XCP_DBG_PRINT1("  Options=(");
 
@@ -1561,7 +1567,7 @@ void XcpStart(void)
     // XCP server clock default description
     gXcp.ClockInfo.server.timestampTicks = XCP_TIMESTAMP_TICKS;
     gXcp.ClockInfo.server.timestampUnit = XCP_TIMESTAMP_UNIT;
-    gXcp.ClockInfo.server.stratumLevel = XCP_STRATUM_LEVEL_ARB;
+    gXcp.ClockInfo.server.stratumLevel = XCP_STRATUM_LEVEL_UNKNOWN;
 #ifdef XCP_DAQ_CLOCK_64BIT
     gXcp.ClockInfo.server.nativeTimestampSize = 8; // NATIVE_TIMESTAMP_SIZE_DLONG;
     gXcp.ClockInfo.server.valueBeforeWrapAround = 0xFFFFFFFFFFFFFFFFULL;
@@ -1585,10 +1591,10 @@ void XcpStart(void)
 
 	// XCP grandmaster clock default description
     gXcp.ClockInfo.grandmaster.timestampTicks = XCP_TIMESTAMP_TICKS;
-	gXcp.ClockInfo.grandmaster.timestampUnit = XCP_TIMESTAMP_UNIT;
-	gXcp.ClockInfo.grandmaster.nativeTimestampSize = 8; // NATIVE_TIMESTAMP_SIZE_DLONG;
-	gXcp.ClockInfo.grandmaster.valueBeforeWrapAround = 0xFFFFFFFFFFFFFFFFULL;
-    gXcp.ClockInfo.grandmaster.stratumLevel = XCP_STRATUM_LEVEL_ARB;
+	  gXcp.ClockInfo.grandmaster.timestampUnit = XCP_TIMESTAMP_UNIT;
+	  gXcp.ClockInfo.grandmaster.nativeTimestampSize = 8; // NATIVE_TIMESTAMP_SIZE_DLONG;
+	  gXcp.ClockInfo.grandmaster.valueBeforeWrapAround = 0xFFFFFFFFFFFFFFFFULL;
+    gXcp.ClockInfo.grandmaster.stratumLevel = XCP_STRATUM_LEVEL_UNKNOWN;
     gXcp.ClockInfo.grandmaster.epochOfGrandmaster = XCP_EPOCH_ARB;
     if (ApplXcpGetClockInfoGrandmaster(gXcp.ClockInfo.grandmaster.UUID, &gXcp.ClockInfo.grandmaster.epochOfGrandmaster, &gXcp.ClockInfo.grandmaster.stratumLevel)) {
       XCP_DBG_PRINTF1("  GrandmasterClock: UUID=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X stratumLevel=%u, epoch=%u\n", gXcp.ClockInfo.grandmaster.UUID[0], gXcp.ClockInfo.grandmaster.UUID[1], gXcp.ClockInfo.grandmaster.UUID[2], gXcp.ClockInfo.grandmaster.UUID[3], gXcp.ClockInfo.grandmaster.UUID[4], gXcp.ClockInfo.grandmaster.UUID[5], gXcp.ClockInfo.grandmaster.UUID[6], gXcp.ClockInfo.grandmaster.UUID[7], gXcp.ClockInfo.grandmaster.stratumLevel, gXcp.ClockInfo.grandmaster.epochOfGrandmaster);
@@ -1601,16 +1607,6 @@ void XcpStart(void)
 
     gXcp.SessionStatus |= SS_STARTED;
 }
-
-
-#ifdef XCP_ENABLE_PTP
-void XcpSetGrandmasterClockInfo(uint8_t* id, uint8_t epoch, uint8_t stratumLevel) {
-
-	memcpy(gXcp.ClockInfo.grandmaster.UUID, id, 8);
-	gXcp.ClockInfo.server.stratumLevel = gXcp.ClockInfo.grandmaster.stratumLevel = stratumLevel;
-	gXcp.ClockInfo.grandmaster.epochOfGrandmaster = epoch;
-}
-#endif
 
 
 /**************************************************************************/
@@ -1827,11 +1823,11 @@ static void XcpPrintCmd() {
          break;
 
      case CC_START_STOP_DAQ_LIST:
-            printf("START_STOP mode=%02Xh, daq=%u\n", CRO_START_STOP_MODE, CRO_START_STOP_DAQ);
+            printf("START_STOP mode=%s, daq=%u\n", (CRO_START_STOP_MODE == 2)?"select": (CRO_START_STOP_MODE == 1)?"start":"stop", CRO_START_STOP_DAQ);
             break;
 
      case CC_START_STOP_SYNCH:
-            printf("CC_START_STOP_SYNCH mode=%02Xh\n", CRO_START_STOP_MODE);
+            printf("CC_START_STOP_SYNCH mode=%s\n", (CRO_START_STOP_MODE == 3) ? "prepare" : (CRO_START_STOP_MODE == 2) ? "stop_selected" : (CRO_START_STOP_MODE == 1) ? "start_selected" : "stop_all");
             break;
 
      case CC_GET_DAQ_CLOCK:
@@ -1993,8 +1989,9 @@ static void XcpPrintRes() {
                     }
                     else {
                         char ts[64];
-                        clockGetString(ts, sizeof(ts), (((uint64_t)CRM_GET_DAQ_CLOCK_TIME64_HIGH) << 32) | CRM_GET_DAQ_CLOCK_TIME64_LOW);
-                        printf("<- X t=%s, sync=%u\n", ts, CRM_GET_DAQ_CLOCK_SYNC_STATE64);
+                        uint64_t t = (((uint64_t)CRM_GET_DAQ_CLOCK_TIME64_HIGH) << 32) | CRM_GET_DAQ_CLOCK_TIME64_LOW;
+                        clockGetString(ts, sizeof(ts), t);
+                        printf("<- X t=%" PRIu64 " (%s), sync=%u\n", t&0xFFFFFFFF, ts, CRM_GET_DAQ_CLOCK_SYNC_STATE64);
                     }
                 }
             }

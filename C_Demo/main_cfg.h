@@ -30,15 +30,15 @@
 #define OPTION_A2L_PROJECT_NAME        "C_Demo"     // A2L project name
 #endif
 
+
 // Default communication parameters
-#define OPTION_ENABLE_TCP              ON // Enable TCP support
-#define OPTION_USE_TCP                 OFF // Default is UDP
-#define OPTION_MTU                     1500
-#define OPTION_SERVER_PORT             5555 // Default UDP port, overwritten by commandline option
-#define OPTION_SERVER_ADDR             {0,0,0,0} // Default IP addr, 0.0.0.0 = ANY, overwritten by commandline option
+#define OPTION_ENABLE_TCP ON // Enable TCP support
+#define OPTION_USE_TCP OFF // Default
+#define OPTION_MTU 1500 // Ethernet MTU
+#define OPTION_SERVER_PORT 5555 // Default UDP port, overwritten by commandline option -port
+#define OPTION_SERVER_ADDR {0,0,0,0} // Default IP addr, 0.0.0.0 = ANY, 255.255.255.255 = first adapter found, overwritten by commandline option -bind x.x.x.x
 
 // Calibration segment
-#define OPTION_ENABLE_CAL_SEGMENT      ON
-
+#define OPTION_ENABLE_CAL_SEGMENT ON
 
 

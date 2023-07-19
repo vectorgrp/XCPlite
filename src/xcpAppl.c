@@ -178,7 +178,7 @@ uint32_t ApplXcpGetAddr(uint8_t* p) {
 
 #endif
 
-#ifdef _LINUX64
+#if defined(_LINUX64) && !defined(__APPLE__)
 
 #ifndef __USE_GNU
 #define __USE_GNU
@@ -221,6 +221,24 @@ uint32_t ApplXcpGetAddr(uint8_t* p)
 }
 
 #endif
+
+
+#ifdef __APPLE__
+
+static uint8_t __base_addr_val = 0;
+
+uint8_t* ApplXcpGetBaseAddr()
+{
+    return ((uint8_t*)((uint64_t)(&__base_addr_val)&0xffffffff00000000));
+}
+
+uint32_t ApplXcpGetAddr(uint8_t* p)
+{
+    return ((uint32_t)((uint64_t) p)& 0xffffffff);
+}
+
+#endif
+
 
 
 #ifdef _LINUX32

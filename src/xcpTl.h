@@ -24,3 +24,11 @@ extern BOOL XcpTlWaitForTransmitData(uint32_t timeout_ms); // Wait until packets
 extern void XcpTlSetClusterId(uint16_t clusterId); // Set cluster id for GET_DAQ_CLOCK_MULTICAST reception
 #endif
 
+
+// Test mode
+#ifdef XCPTL_ENABLE_SELF_TEST
+extern void XcpTlCreateA2lDescription();
+extern void XcpTlCreateXcpEvents();
+extern uint64_t XcpTlGetBytesWritten(); // Get the number of bytes send
+#endif
+

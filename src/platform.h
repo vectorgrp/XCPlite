@@ -99,7 +99,11 @@ typedef pthread_t tXcpThread;
 #define SOCKET_ERROR_INTR     EBADF
 #define SOCKET_ERROR_WBLOCK   EAGAIN
 
+#undef htonll
 #define htonll(val) ((((uint64_t)htonl((uint32_t)val)) << 32) + htonl((uint32_t)(val >> 32)))
+
+
+#define socketGetLastError() errno
 
 #endif
 
@@ -142,10 +146,11 @@ extern BOOL socketShutdown(SOCKET sock);
 extern BOOL socketClose(SOCKET* sp);
 extern BOOL socketGetLocalAddr(uint8_t* mac, uint8_t* addr);
 
+
 //-------------------------------------------------------------------------------
 // Clock
 
-// Clock resolution
+// Clock resolution and epoch
 #define CLOCK_USE_UTC_TIME_NS // Use ns timestamps relative to 1.1.1970 (TAI monotonic - no backward jumps)
 //#define CLOCK_USE_APP_TIME_US // Use arbitrary us timestamps relative to application start
 

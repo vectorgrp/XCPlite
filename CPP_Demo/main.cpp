@@ -41,6 +41,7 @@ class SigGen : public XcpObject {
 protected:
 
     // Create A2L desription of this instance
+#if OPTION_ENABLE_A2L_GEN
     virtual void xcpCreateA2lTypedefComponents(A2L* a2l) {
         a2l->createTypedefMeasurementComponent(value);
         a2l->createTypedefParameterComponent(par_cycleTimeUs);
@@ -49,6 +50,7 @@ protected:
         a2l->createTypedefParameterComponent(par_period);
         a2l->createTypedefParameterComponent(par_offset);
     }
+#endif
 
 public:
 
@@ -143,6 +145,8 @@ int main(int argc, char* argv[]) {
     // XCP singleton and A2L init (using the A2L factory from Xcp)
     Xcp* xcp = Xcp::getInstance();
     if (!xcp->init(gOptionBindAddr, gOptionPort, gOptionUseTCP, FALSE, XCPTL_MAX_SEGMENT_SIZE)) return -1;
+
+#if OPTION_ENABLE_A2L_GEN
     A2L* a2l = xcp->createA2L("CPP_DEMO");
 
     // Create a calibration parameter to control the debug output verbosity
@@ -158,17 +162,20 @@ int main(int argc, char* argv[]) {
     a2l->createParameter(par_int64, "", "");
     a2l->createParameter(par_float, "", "");
     a2l->createParameter(par_double, "", "");
-    
+#endif
+
     // Create 10 different SigGen signal generator task instances with calibration parameters and dynamic addressing
     // The constructor of SigGen will create an instance amd an associated XCP event
     SigGen* sigGen[10];
     for (int i = 0; i <= 9; i++) {
-        std::string* s = new std::string("SigGen"); s->append(std::to_string(i+1));
+      std::string* s = new std::string("SigGen"); s->append(std::to_string(i+1));
         sigGen[i] = new SigGen((char*)s->c_str(), 16000, 100.0-i*5, 0.0, i*M_PI/15.0, 2.0);
     }
     
     // Create A2L description for class SigGen, use any instance to do this, function cant be static
+#if OPTION_ENABLE_A2L_GEN
     sigGen[0]->xcpCreateA2lTypedef();
+#endif
     
 #if OPTION_CALC_MINMAX
     // Create virtual instances of pMinSigGen and pMaxSigGen 
@@ -177,7 +184,9 @@ int main(int argc, char* argv[]) {
 #endif
 
     // Finalize and close A2l (otherwise it will be closed later on connect)
+#if OPTION_ENABLE_A2L_GEN
     xcp->closeA2L();
+#endif
 
     // Main loop (health status and keyboard check)
     printf("\nPress ESC to stop\n");

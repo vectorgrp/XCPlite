@@ -16,6 +16,9 @@
 #include "platform.h"
 #include "util.h"
 #include "xcpLite.h"   
+#ifdef XCPTL_ENABLE_SELF_TEST
+#include "A2L.h"
+#endif
 
 // Parameter checks
 #if XCPTL_TRANSPORT_LAYER_HEADER_SIZE != 4
@@ -105,23 +108,47 @@ static struct {
 
 } gXcpTl;
 
+#ifdef XCPTL_ENABLE_SELF_TEST
+static uint16_t gXcpTl_test_event = XCP_INVALID_EVENT;
+#endif
 
 #if defined XCPTL_ENABLE_TCP && defined XCPTL_ENABLE_UDP
 #define isTCP() (gXcpTl.ListenSock != INVALID_SOCKET)
-#define isUDP() (gXcpTl.ListenSock == INVALID_SOCKET)
 #else
 #ifdef XCPTL_ENABLE_TCP
 #define isTCP() TRUE
 #else
 #define isTCP() FALSE
 #endif
-#ifdef XCPTL_ENABLE_UDP
-#define isUDP() TRUE
-#else
-#define isUDP() FALSE
-#endif
 #endif
 
+
+//------------------------------------------------------------------------------
+#ifdef XCPTL_ENABLE_SELF_TEST
+
+void XcpTlCreateXcpEvents() {
+  gXcpTl_test_event = XcpCreateEvent("XCP", 0, 0, 0, 0);
+}
+
+void XcpTlCreateA2lDescription() {
+
+  // Measurements
+  A2lSetDefaultEvent(gXcpTl_test_event);
+  A2lCreateMeasurement(gXcpTl.total_bytes_written, "XCP total bytes written");
+  A2lCreateMeasurement(gXcpTl.last_bytes_written, "bytes written by queue handler");
+  A2lCreateMeasurement(gXcpTl.last_queue_len, "queue level before queue handler");
+  A2lCreateMeasurement(gXcpTl.queue_len, "XCP queue level");
+
+  // Create a group for the measurements (optional)
+  A2lMeasurementGroup("XCP", 4,
+    "gXcpTl.total_bytes_written","gXcpTl.last_bytes_written","gXcpTl.last_queue_len","gXcpTl.queue_len");
+}
+
+uint64_t XcpTlGetBytesWritten() {
+    return gXcpTl.total_bytes_written;
+}
+
+#endif
 
 //------------------------------------------------------------------------------
 
@@ -224,6 +251,11 @@ static void XcpTlInitTransmitQueue() {
     getSegmentBuffer();
     mutexUnlock(&gXcpTl.Mutex_Queue);
     assert(gXcpTl.msg_ptr);
+#ifdef XCPTL_ENABLE_SELF_TEST
+    gXcpTl.last_queue_len = 0;
+    gXcpTl.last_bytes_written = 0;
+    gXcpTl.total_bytes_written = 0;
+#endif
 }
 
 // Transmit all completed and fully commited UDP frames
@@ -234,6 +266,10 @@ int32_t XcpTlHandleTransmitQueue( void ) {
 
     tXcpMessageBuffer* b = NULL;
     int32_t n = 0;
+
+#ifdef XCPTL_ENABLE_SELF_TEST
+    gXcpTl.last_queue_len = gXcpTl.queue_len;
+#endif
 
     for (;;) {
       for (uint32_t i = 0; i < max_loops; i++) {
@@ -274,6 +310,16 @@ int32_t XcpTlHandleTransmitQueue( void ) {
       sleepMs(0);
 
     } // for (ever)
+
+#ifdef XCPTL_ENABLE_SELF_TEST
+    if (n > 0) {
+      gXcpTl.last_bytes_written = n;
+      gXcpTl.total_bytes_written += n;
+      if (gXcpTl.last_bytes_written > 0 && gXcpTl_test_event != XCP_INVALID_EVENT) {
+        XcpEvent(gXcpTl_test_event); // Test event, trigger every time the queue is emptied
+      }
+    }
+#endif
 
     return n; // Ok, queue empty now
 }
@@ -443,7 +489,7 @@ static int handleXcpCommand(tXcpCtoMessage *p, uint8_t *srcAddr, uint16_t srcPor
     if (connected) {
 
 #ifdef XCPTL_ENABLE_UDP
-        if (isUDP() && gXcpTl.MasterAddrValid) {
+        if (!isTCP() && gXcpTl.MasterAddrValid) {
 
             // Check unicast ip address, not allowed to change
             if (memcmp(&gXcpTl.MasterAddr, srcAddr, sizeof(gXcpTl.MasterAddr)) != 0) { // Message from different master received
@@ -471,7 +517,7 @@ static int handleXcpCommand(tXcpCtoMessage *p, uint8_t *srcAddr, uint16_t srcPor
         /* Check for CONNECT command ? */
         if (p->dlc == 2 && p->packet[0] == CC_CONNECT) {
 #ifdef XCPTL_ENABLE_UDP
-            if (isUDP()) {
+            if (!isTCP()) {
                 memcpy(gXcpTl.MasterAddr, srcAddr, sizeof(gXcpTl.MasterAddr)); // Save master address, so XcpCommand can send the CONNECT response
                 gXcpTl.MasterPort = srcPort;
                 gXcpTl.MasterAddrValid = TRUE;
@@ -487,7 +533,7 @@ static int handleXcpCommand(tXcpCtoMessage *p, uint8_t *srcAddr, uint16_t srcPor
     }
 
 #ifdef XCPTL_ENABLE_UDP
-    if (isUDP() && !connected) { // not connected before
+    if (!isTCP() && !connected) { // not connected before
         if (XcpIsConnected()) {
             XCP_DBG_PRINTF1("XCP master connected on UDP addr=%u.%u.%u.%u, port=%u\n", gXcpTl.MasterAddr[0], gXcpTl.MasterAddr[1], gXcpTl.MasterAddr[2], gXcpTl.MasterAddr[3], gXcpTl.MasterPort);
         }
@@ -551,7 +597,7 @@ BOOL XcpTlHandleCommands() {
 #endif // TCP
 
 #ifdef XCPTL_ENABLE_UDP
-    if (isUDP()) {
+    if (!isTCP()) {
         // Wait for a UDP datagramm
         uint16_t srcPort;
         uint8_t srcAddr[4];
@@ -624,7 +670,15 @@ BOOL XcpTlInit(const uint8_t* addr, uint16_t port, BOOL useTCP, uint16_t segment
     gXcpTl.SegmentSize = segmentSize;
 
     XCP_DBG_PRINTF1("\nInit XCP on %s transport layer\n", useTCP ? "TCP" : "UDP");
-    XCP_DBG_PRINTF1("  SEGMENT_SIZE=%u, QUEUE_SIZE=%u, %uKiB memory used\n", gXcpTl.SegmentSize, XCPTL_QUEUE_SIZE, (unsigned int)sizeof(gXcpTl) / 1024);
+    XCP_DBG_PRINTF1("  SEGMENT_SIZE=%u, MAX_CTO_SIZE=%u, QUEUE_SIZE=%u, ALIGNMENT=%u, %uKiB memory used\n", gXcpTl.SegmentSize, XCPTL_MAX_CTO_SIZE, XCPTL_QUEUE_SIZE, XCPTL_PACKET_ALIGNMENT, (unsigned int)sizeof(gXcpTl) / 1024);
+    XCP_DBG_PRINT1("  Options=("); // Print activated XCP transport layer options  
+#ifdef XCPTL_ENABLE_MULTICAST
+    XCP_DBG_PRINT1("ENABLE_MULTICAST,");
+#endif
+#ifdef XCPTL_QUEUED_CRM
+    XCP_DBG_PRINT1("QUEUED_CRM,");
+#endif
+    XCP_DBG_PRINT1(")\n");
 
     if (addr != 0)  { // Bind to given addr 
         memcpy(gXcpTl.ServerAddr, addr, 4);

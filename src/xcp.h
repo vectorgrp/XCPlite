@@ -1123,9 +1123,9 @@
 /* XCP clock information                                                    */
 /****************************************************************************/
 
-#define XCP_STRATUM_LEVEL_UNKNOWN   255
-#define XCP_STRATUM_LEVEL_ARB       16   // unsychronized
-#define XCP_STRATUM_LEVEL_UTC       0    // Atomic reference clock
+#define XCP_STRATUM_LEVEL_UNKNOWN   255  // Unknown
+#define XCP_STRATUM_LEVEL_RTC       3    // Realtime Clock
+#define XCP_STRATUM_LEVEL_GPS       0    // GPS Clock
 
 #define XCP_EPOCH_TAI 0 // Atomic monotonic time since 1.1.1970 (TAI)
 #define XCP_EPOCH_UTC 1 // Universal Coordinated Time (with leap seconds) since 1.1.1970 (UTC)

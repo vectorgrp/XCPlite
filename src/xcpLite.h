@@ -4,8 +4,8 @@
 /* Copyright(c) Vector Informatik GmbH.All rights reserved.
    Licensed under the MIT license.See LICENSE file in the project root for details. */
 
-#include "xcp_cfg.h"    // Protocol layer configuration
 #include "xcptl_cfg.h"  // Transport layer configuration
+#include "xcp_cfg.h"    // Protocol layer configuration
 #include "xcp.h"        // XCP protocol defines
 #include "xcpTl.h"      // Transport layer interface
 
@@ -67,9 +67,6 @@ extern uint32_t XcpGetDaqOverflowCount();
 #ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
 extern uint16_t XcpGetClusterId();
 #endif
-#ifdef XCP_ENABLE_PTP
-extern void XcpSetGrandmasterClockInfo(uint8_t* id, uint8_t epoch, uint8_t stratumLevel);
-#endif
 
 // Event list
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
@@ -130,12 +127,13 @@ extern uint8_t ApplXcpSetCalPage(uint8_t segment, uint8_t page, uint8_t mode);
 
 /* DAQ clock */
 extern uint64_t ApplXcpGetClock64();
-#define CLOCK_STATE_SYNCH_IN_PROGRESS                  (0 << 0)
-#define CLOCK_STATE_SYNCH                              (1 << 0)
-#define CLOCK_STATE_FREE_RUNNING                       (7 << 0)
-#define CLOCK_STATE_GRANDMASTER_STATE_SYNC_IN_PROGRESS (0 << 3)
+
+#define CLOCK_STATE_SYNCH_IN_PROGRESS                  (0)
+#define CLOCK_STATE_SYNCH                              (1)
+#define CLOCK_STATE_FREE_RUNNING                       (7)
 #define CLOCK_STATE_GRANDMASTER_STATE_SYNC             (1 << 3)
 extern uint8_t ApplXcpGetClockState();
+
 #ifdef XCP_ENABLE_PTP
 #define CLOCK_STRATUM_LEVEL_UNKNOWN   255
 #define CLOCK_STRATUM_LEVEL_ARB       16   // unsychronized

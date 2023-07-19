@@ -59,7 +59,8 @@ BOOL XcpServerInit( const uint8_t *addr, uint16_t port, BOOL useTCP, uint16_t se
     if (gXcpServer.isInit) return FALSE;
     XCP_DBG_PRINT1("\nStart XCP server\n");
 
-    gXcpServer.TransmitThreadRunning = gXcpServer.ReceiveThreadRunning = 0;
+    gXcpServer.TransmitThreadRunning = 0;
+    gXcpServer.ReceiveThreadRunning = 0;
     gXcpServer.FlushCycleTimer = 0;
 
     // Initialize XCP protocol layer
@@ -163,5 +164,4 @@ extern void* XcpServerTransmitThread(void* par)
     XCP_DBG_PRINT_ERROR("XCP DAQ thread terminated!\n");
     return 0;
 }
-
 
