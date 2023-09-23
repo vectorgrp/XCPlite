@@ -644,12 +644,27 @@ extern void* XcpTlMulticastThread(void* par)
 {
     uint8_t buffer[256];
     int16_t n;
+    uint16_t srcPort;
+    uint8_t srcAddr[4];
+
     (void)par;
+
     for (;;) {
-        n = socketRecvFrom(gXcpTl.MulticastSock, buffer, (uint16_t)sizeof(buffer), NULL, NULL, NULL);
+        n = socketRecvFrom(gXcpTl.MulticastSock, buffer, (uint16_t)sizeof(buffer), srcAddr, &srcPort, NULL);
         if (n <= 0) break; // Terminate on error or socket close 
+#if XCLTL_RESTRICT_MULTICAST
+        // Accept multicast from active master only
+        if (gXcpTl.MasterAddrValid && memcmp(gXcpTl.MasterAddr, srcAddr, 4) == 0) {
+            handleXcpMulticast(n, (tXcpCtoMessage*)buffer);
+        }
+        else {
+            XCP_DBG_PRINTF1("WARNING: Ignored Multicast from %u.%u.%u.%u:%u\n", srcAddr[0], srcAddr[1], srcAddr[2], srcAddr[3], srcPort);
+        }
+#else
         handleXcpMulticast(n, (tXcpCtoMessage*)buffer);
+#endif
     }
+
     XCP_DBG_PRINT1("Terminate XCP multicast thread\n");
     socketClose(&gXcpTl.MulticastSock);
     return 0;
