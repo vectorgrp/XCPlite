@@ -29,7 +29,7 @@
 static BOOL createA2L() {
 
     if (!A2lOpen(OPTION_A2L_FILE_NAME, OPTION_A2L_PROJECT_NAME )) return FALSE;
-    ecuCreateA2lDescription();
+    ecuCreateA2lDescription(); // Create the measurements and calibration objects for the demo task
 #ifdef __cplusplus
     A2lCreateParameterWithLimits(gDebugLevel, "Console output verbosity", "", 0, 100);
 #else
@@ -61,35 +61,33 @@ int main(int argc, char* argv[]) {
     printf("\nXCP on Ethernet C Demo\n");
     if (!cmdline_parser(argc, argv)) return 0;
 
-    // Init network
-    if (!socketStartup(APP_NAME)) return 0;
-
-    // Init clock
+    // Initialize high resolution clock for measurement event timestamping
     if (!clockInit()) return 0;
 
     // Initialize the XCP Server
+    if (!socketStartup()) return 0; // Initialize sockets
     if (!XcpServerInit(gOptionBindAddr, gOptionPort, gOptionUseTCP, XCPTL_MAX_SEGMENT_SIZE)) return 0;
 
-    // Initialize measurement task thread
+    // Initialize a demo measurement task thread (in ecu.c) and create an A2L for its measurement and calibration objects
     ecuInit();
 #if OPTION_ENABLE_A2L_GEN
     createA2L();
 #endif
     tXcpThread t2;
-    create_thread(&t2, ecuTask);
+    create_thread(&t2, ecuTask); // create a cyclic task which produces demo measurement signal events
 
-    // Loop   
+    // Loop and check status of the XCP server (no side effects)
     for (;;) {
         sleepMs(500);
         if (!XcpServerStatus()) { printf("\nXCP Server failed\n");  break;  } // Check if the XCP server is running
         if (!checkKeyboard()) break;
     }
 
-    // Exit
-    sleepMs(1000); // give everything a chance to be up and running
-    printf("\nPress ESC to stop\n");
+    // Terminate task
+    sleepMs(1000);
     cancel_thread(t2);
     
+    // Stop the XCP server
     XcpServerShutdown();
     socketCleanup();
 
@@ -97,3 +95,4 @@ int main(int argc, char* argv[]) {
     while (!_kbhit()) sleepMs(100);
     return 1;
 }
+

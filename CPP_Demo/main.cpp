@@ -36,6 +36,11 @@ static class XcpObject* minSigGenEvent = NULL;
 static class XcpObject* maxSigGenEvent = NULL;
 #endif
 
+/*
+An instance of class SigGen creates a sine signal in its variable value, depending on property ampl, phase, offset and period
+value is declared as a measurement signal of each instance of SigGen
+amp, phase, offset and period are calibration parameters
+*/
 class SigGen : public XcpObject {
 
 protected:
@@ -150,8 +155,9 @@ int main(int argc, char* argv[]) {
     A2L* a2l = xcp->createA2L("CPP_DEMO");
 
     // Create a calibration parameter to control the debug output verbosity
-    // Create some test calibration parameters in global address space
     a2l->createParameter(gDebugLevel, "", "");
+
+    // Create some test calibration parameters in global address space
     a2l->createParameter(par_uint8, "", "");
     a2l->createParameter(par_uint16, "", "");
     a2l->createParameter(par_uint32, "", "");
@@ -164,15 +170,15 @@ int main(int argc, char* argv[]) {
     a2l->createParameter(par_double, "", "");
 #endif
 
-    // Create 10 different SigGen signal generator task instances with calibration parameters and dynamic addressing
-    // The constructor of SigGen will create an instance amd an associated XCP event
+    // Create 10 different SigGen sine signal generator task instances with calibration parameters and dynamic addressing
+    // The constructor of SigGen will create an instance and an associated XCP event for each
     SigGen* sigGen[10];
     for (int i = 0; i <= 9; i++) {
       std::string* s = new std::string("SigGen"); s->append(std::to_string(i+1));
         sigGen[i] = new SigGen((char*)s->c_str(), 16000, 100.0-i*5, 0.0, i*M_PI/15.0, 2.0);
     }
     
-    // Create A2L description for class SigGen, use any instance to do this, function cant be static
+    // Create A2L description for class SigGen, use any instance to do this, function can't be static
 #if OPTION_ENABLE_A2L_GEN
     sigGen[0]->xcpCreateA2lTypedef();
 #endif
@@ -183,12 +189,12 @@ int main(int argc, char* argv[]) {
     maxSigGenEvent = new XcpDynObject("pMaxSigGen", SigGen);
 #endif
 
-    // Finalize and close A2l (otherwise it will be closed later on connect)
+    // Finalize and close A2l
 #if OPTION_ENABLE_A2L_GEN
     xcp->closeA2L();
 #endif
 
-    // Main loop (health status and keyboard check)
+    // Main loop (XCP health status (no side effects) and keyboard check)
     printf("\nPress ESC to stop\n");
     for (;;) {
         sleepMs(100);

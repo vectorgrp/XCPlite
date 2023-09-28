@@ -3,8 +3,8 @@
 |   xcpAppl.c
 |
 | Description:
-|   Application specific functions for xcpLite
-|   All other callbacks/dependencies are implemented as macros in xcpAppl.h
+|   Platform specific functions and callbacks for XCP driver
+|   Some are implemented as macros in xcpAppl.h
 |
 | Copyright (c) Vector Informatik GmbH. All rights reserved.
 | Licensed under the MIT license. See LICENSE file in the project root for details.
@@ -91,7 +91,7 @@ uint64_t ApplXcpGetClock64() {
 
 uint8_t ApplXcpGetClockState() { 
 
-    return CLOCK_STATE_FREE_RUNNING;
+    return CLOCK_STATE_FREE_RUNNING; // Clock is a free running counter 
 }
 
 BOOL ApplXcpGetClockInfoGrandmaster(uint8_t* uuid, uint8_t* epoch, uint8_t* stratum) {
@@ -100,7 +100,7 @@ BOOL ApplXcpGetClockInfoGrandmaster(uint8_t* uuid, uint8_t* epoch, uint8_t* stra
     (void)epoch;
     (void)stratum;
 
-    return FALSE;
+    return FALSE; // No PTP support implemented
 }
 
 
@@ -109,7 +109,7 @@ BOOL ApplXcpGetClockInfoGrandmaster(uint8_t* uuid, uint8_t* epoch, uint8_t* stra
 /**************************************************************************/
 
 // 64 Bit and 32 Bit platform pointer to XCP/A2L address conversions
-// XCP memory access is limited to a 4GB address range
+// XCP memory access is limited to a 4GB address range (32 Bit)
 
 // The XCP addresses with extension = 0 for Win32 and Win64 versions of XCPlite are defined as relative to the load address of the main module
 // This allows using Microsoft linker PDB files for address update
@@ -368,7 +368,9 @@ uint8_t ApplXcpSetCalPage(uint8_t segment, uint8_t page, uint8_t mode) {
 
 
 /**************************************************************************/
-// Infos for GET_ID
+// Provide infos for GET_ID
+// The XCP command GET_ID provides different type of identification
+// information to the XCP client (see code below)
 /**************************************************************************/
 
 static uint8_t* gXcpFile = NULL; // file content

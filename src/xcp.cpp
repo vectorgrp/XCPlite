@@ -17,11 +17,6 @@
 #include "main_cfg.h"
 #include "platform.h"
 #include "util.h"
-#ifdef VECTOR_INTERNAL  // >>>>>>>>>>>>>>>>>>>>>>>>>>>
-#if OPTION_ENABLE_PTP
-#include "ptp.h"
-#endif
-#endif // VECTOR_INTERNAL <<<<<<<<<<<<<<<<<<<<<<<<<<<<
 #include "xcpLite.h"
 #include "xcp.hpp"
 #include "xcpServer.h"
@@ -73,15 +68,6 @@ BOOL Xcp::init(const uint8_t* addr0, uint16_t port0, BOOL useTCP0, BOOL usePTP0,
 
     // Init clock
     if (!clockInit()) return FALSE;
-
-#ifdef VECTOR_INTERNAL  // >>>>>>>>>>>>>>>>>>>>>>>>>>>
-    // Init ptp
-#if OPTION_ENABLE_PTP
-    if (usePTP) {
-        if (!ptpInit((const uint8_t*)gOptionAddr, 0)) return 0;
-    }
-#endif
-#endif // VECTOR_INTERNAL <<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
     // Init and start XCP server
     if (!XcpServerInit(addr, port, useTCP, segmentSize)) return FALSE;

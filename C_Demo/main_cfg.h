@@ -38,7 +38,7 @@
 #define OPTION_SERVER_PORT 5555 // Default UDP port, overwritten by commandline option -port
 #define OPTION_SERVER_ADDR {0,0,0,0} // Default IP addr, 0.0.0.0 = ANY, 255.255.255.255 = first adapter found, overwritten by commandline option -bind x.x.x.x
 
-// Calibration segment
+// Enable calibration segment (RAM,FLASH) demo
 #define OPTION_ENABLE_CAL_SEGMENT ON
 
 

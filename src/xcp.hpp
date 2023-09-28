@@ -9,7 +9,7 @@
 #include "xcptl_cfg.h" // Transport Layer configuration
 #include "xcp_cfg.h" // Protocoll Layer configuration
 
-#ifdef OPTION_ENABLE_A2L_GEN
+#if OPTION_ENABLE_A2L_GEN
 #include "A2Lpp.hpp" // A2L generator
 #endif
 

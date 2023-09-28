@@ -27,10 +27,16 @@
 
 
 #ifdef _WIN
-#define WIN32_LEAN_AND_MEAN
-#define _CRT_SECURE_NO_WARNINGS
-#else
-#define _DEFAULT_SOURCE
+  #ifndef WIN32_LEAN_AND_MEAN
+    #define WIN32_LEAN_AND_MEAN
+  #endif
+  #ifndef _CRT_SECURE_NO_WARNINGS
+    #define _CRT_SECURE_NO_WARNINGS
+  #endif
+  #else
+  #ifndef _DEFAULT_SOURCE
+    #define _DEFAULT_SOURCE
+  #endif
 #endif
 
 

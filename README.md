@@ -91,11 +91,14 @@ Compile options for the XCPlite demos are located in main_cfg.h.
 
 ## Version History
 
-Version 6:
-- Refactored code for more simplicity
-- XL_API support removed
+Version 6.x:
+- Bugfixes
+- Transport Layer interface refactored, unused functions removed
+- Support for Vector Network Interfaces removed
+- Duplicate code in A2L generating removed
+- Improved support for PTP synchronized clock
 
-Version 5:
+Version 5.x:
 - C and C++ Demo code seperated
 - UDP or TCP support for sockets, UDP support for XL-API (Vector VN56xx Ethernet Interfaces)
 - XL-API DLLs not included, download from Vector Website required
@@ -103,8 +106,9 @@ Version 5:
 - Improved cmake support
 - XCP server implementation as a C++ class 
 - Improved runtime type generation for A2L generator when compiled as C++
+- Support for MacOS
 
-Version 4:
+Version 4.x:
 
 - Refactoring to minimize dependencies
 - All dependencies to UDP socket library in platform.h/.c

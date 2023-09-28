@@ -3,7 +3,7 @@
 |   ecu.c
 |
 | Description:
-|   Test Measurement and Calibration variables for XCP demo
+|   Measurement and calibration demo for XCP demo
 |   C language
  ----------------------------------------------------------------------------*/
  /*
@@ -24,7 +24,7 @@
 /**************************************************************************/
 
 // Default cycle time of ecuTask() in us
-// Realized with simple Sleep(), Windows can not sleep less than 15ms
+// Realized with simple Sleep(), note that Windows can not sleep less than 15ms
 #ifdef _LINUX
 #define ECU_TASK_CYCLE_TIME_US 2000 
 #else
@@ -55,7 +55,7 @@ int32_t sdwordCounter = 0;
 
 
 /**************************************************************************/
-/* ECU Parameters */
+/* ECU Calibration Parameters */
 /**************************************************************************/
 
 struct ecuPar {
@@ -70,6 +70,9 @@ struct ecuPar {
 };
 
 
+#if OPTION_ENABLE_CAL_SEGMENT
+const
+#endif
 struct ecuPar ecuPar = {
     __DATE__ " " __TIME__, // EPK
     ECU_TASK_CYCLE_TIME_US, // Default cycle time in us
@@ -89,10 +92,20 @@ struct ecuPar ecuPar = {
     { 0,1,3,6,9,15,20,30,38,42,44,46,48,50,48,45,40,33,25,15,5,4,3,2,1,0,0,1,4,8,4,0} // curve1_32
 };
 
-volatile struct ecuPar* ecuCalPage = &ecuPar;
 
 #if OPTION_ENABLE_CAL_SEGMENT
+/*
+Calibration parameters are collected in a C struct
+This is used to create a RAM and a FLASH version (const) of the parameter set
+The FLASH parameter set is treated as readonly
+Demo code accesses parameters through a pointer
+The calibration tool can switch between the parameters sets or reinitialized the RAM patameter set from FLASH
+*/
+volatile struct ecuPar* ecuCalPage = (struct ecuPar*)&ecuPar; // Calibration page pointer
 volatile struct ecuPar ecuRamPar;
+#define ECU_PAR(x) (ecuCalPage->x)
+#else
+#define ECU_PAR(x) (ecuPar.x)
 #endif
 
 /**************************************************************************/
@@ -106,25 +119,25 @@ char* ecuGetEPK() {
 #if OPTION_ENABLE_CAL_SEGMENT
 
 // Calibration page handling
-// page 0 is RAM, page 1 is ROM
+// page 0 is RAM, page 1 is FLASH
 #define RAM 0
-#define ROM 1
-// A2L file contains ROM addresses
+#define FLASH 1
+// A2L file contains the FLASH addresses
 
-void ecuParInit() {
+void ecuParInit() { // Initialize RAM calibration page from FLASH and switch to RAM
 
-    memcpy((void*)&ecuRamPar, (void*)&ecuPar, sizeof(struct ecuPar));
-    ecuParSetCalPage(0);
+    memcpy((void*)&ecuRamPar, (void*)&ecuPar, sizeof(struct ecuPar)); 
+    ecuParSetCalPage(RAM);
 }
 
-void ecuParSetCalPage(uint8_t page) {
+void ecuParSetCalPage(uint8_t page) { // Set the current calibration page
 
     ecuCalPage = (page == RAM) ? &ecuRamPar : (struct ecuPar *)&ecuPar;
 }
 
-uint8_t ecuParGetCalPage() {
+uint8_t ecuParGetCalPage() { // Get the current calibration page
 
-    return (ecuCalPage == &ecuRamPar) ? RAM : ROM;
+    return (ecuCalPage == &ecuRamPar) ? RAM : FLASH;
 }
 
 uint8_t *ecuParAddrMapping( uint8_t *a ) {
@@ -138,6 +151,7 @@ uint8_t *ecuParAddrMapping( uint8_t *a ) {
 }
 
 #endif // OPTION_ENABLE_CAL_SEGMENT
+
 
 // Init demo parameters and measurements 
 void ecuInit() {
@@ -173,7 +187,7 @@ void ecuCreateA2lDescription() {
 
     // Calibration Memory Segment
 #if OPTION_ENABLE_CAL_SEGMENT  
-    A2lCreate_MOD_PAR(ApplXcpGetAddr((uint8_t*)&ecuPar), sizeof(ecuPar), (char*)ecuPar.epk);
+    A2lCreate_MOD_PAR(ApplXcpGetAddr((uint8_t*)&ecuPar), sizeof(struct ecuPar), (char*)ecuPar.epk);
 #endif
 
     // Parameters
@@ -257,10 +271,10 @@ void ecuCyclic( void )
     byteArray1[i] ++;
 
     // Floating point signals
-    double x = M_2PI * ecuTime / ecuCalPage->period;
-    channel1 = ecuCalPage->offset + ecuCalPage->ampl * sin(x);
-    channel2 = ecuCalPage->offset + ecuCalPage->ampl * sin(x + M_PI * 1 / 3);
-    channel3 = ecuCalPage->offset + ecuCalPage->ampl * sin(x + M_PI * 2 / 3);
+    double x = M_2PI * ecuTime / ECU_PAR(period);
+    channel1 = ECU_PAR(offset) + ECU_PAR(ampl) * sin(x);
+    channel2 = ECU_PAR(offset) + ECU_PAR(ampl) * sin(x + M_PI * 1 / 3);
+    channel3 = ECU_PAR(offset) + ECU_PAR(ampl) * sin(x + M_PI * 2 / 3);
 
     XcpEvent(gXcpEvent_EcuCyclic); // Trigger XCP measurement data aquisition event 
 }
@@ -274,9 +288,9 @@ void* ecuTask(void* p)
 #endif
 {
     (void)p;
-    printf("Start C task (cycle = %dus, XCP event = %d)\n", ecuCalPage->cycleTimeUs, gXcpEvent_EcuCyclic);
+    printf("Start C task (cycle = %dus, XCP event = %d)\n", ECU_PAR(cycleTimeUs), gXcpEvent_EcuCyclic);
     for (;;) {
-        sleepNs(ecuCalPage->cycleTimeUs * 1000); // cycletime is a calibration parameter
+        sleepNs(ECU_PAR(cycleTimeUs) * 1000); // cycletime is a calibration parameter
         ecuCyclic();
     }
 }
