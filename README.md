@@ -1,7 +1,7 @@
 
 # XCPlite V6
 
-Copyright 2023 Vector Informatik GmbH
+Copyright 2024 Vector Informatik GmbH
 
 Lightweight implementation of the ASAM XCP Protocol Layer V1.4.
 
@@ -20,8 +20,14 @@ Achieves up to 100 MByte/s throughput on a Raspberry Pi 4 (with jumbo frames ena
 No manual A2L creation (ASAP2 ECU description) required. 
 An A2L with a reduced featureset is generated through code instrumentation during runtime and may be uploaded by XCP. 
 
-C and C++ measurement demo applications C_DEMO and CPP_Demo. 
-Calibrate and measure global variables or dynamic instances of classes. 
+## Included code examples (Build Targets):  
+
+XCPlite:
+  Getting started with a simple demo in C with minimum code and features. Shows the basics how to integrate XCP in existing applications. Compiles as C.
+C_DEMO:
+  Shows more sophisticated calibration, maps and curves, calibration page switching and EPK check. Compiles as C or C++.
+CPP_Demo:
+  XCP server as a C++ singleton. Demonstrates an approach how to calibrate and measure members of dynamic instances of classes. 
 
 
 ## Code instrumentation for measurement events:
@@ -56,46 +62,37 @@ Example:
 ![CANape](Screenshot.png)
 
 
+
 ## Configuration options:
 
 All settings and parameters for the XCP protocol and transport layer are located in xcp_cfg.h and xcptl_cfg.h. 
-Compile options for the XCPlite demos are located in main_cfg.h. 
+Compile options for the different demo targets are located in main_cfg.h. 
+
 
 ## Notes:
 
-- Specify the IP addr on the command line (-bind), if there are multiple Ethernet adapters. 
-  Otherwise the IP address of the Ethernet adapter found first, will be written to A2L file. 
+- Specify the IP addr to bind (in main_cfg.h or on the command line (-bind)), if there are multiple Ethernet adapters. Otherwise the IP address of the Ethernet adapter found first, will be written to A2L file. 
 
-- If A2L generation and upload is disabled, make sure CANape (or any other tool) is using an up to date A2L file with correct memory addresses. 
-  As XCP uses direct memory access, wrong addresses may lead to access fault or corrupt data. 
-  You may enable EPK check, to make sure the A2L description matches the ECU software.
+- If A2L generation and upload is disabled, make sure CANape (or any other tool) is using an up to date A2L file with correct memory addresses and data types.  The A2L from ELF updater in CANape may be activated to achieve this. Be aware that XCP uses direct memory access, wrong addresses may lead to access fault or even worse to corrupt data. You may want to enable EPK check, to make sure the A2L description matches the ECU software.
 
-- If A2L upload is enabled, you may need to set the IP address manually once.
-  When connect is refused in CANape, press the flashing update icon in the statusbar 
+- If A2L upload is enabled, you may need to set the IP address manually once. When connect is refused in CANape, press the flashing update icon in the statusbar.
 
-- For CANape automatic A2L address update, use Linker Map Type ELF extended for Linux a.out format or PDB for Microsoft .exe
+- For the A2L Updater or CANapes automatic A2L address update, use Linker Map Type ELF extended for Linux a.out format or PDB for Microsoft .exe
 
-- 64 bit builds needs all objects located within one 4 GByte data segment. Note that XCP addresses are 32 Bit plus 8 Bit extension. 
-  The conversion methods from pointer to A2l/XCP address and vice versa, are in xcpAppl.c and maybe changed for specific needs. 
-  xcpLite.c does not make assumptions on addresses. The only exception is during measurement, where XcpEvent creates pointers by adding the XCP/A2L address to ApplXcpGetBaseAddr(). 
-  To save space, the 32 Bit addresses, not 64 Bit pointers are stored in the DAQ lists.
-  During measurement setup, ApplXcpGetPointer is called once to check for validity of the XCP/A2L address conversion. 
+- 64 bit builds needs all objects located within one 4 GByte data segment. Note that XCP addresses are 32 Bit plus 8 Bit extension. The conversion methods from pointer to A2l/XCP address and vice versa, are in xcpAppl.c and maybe changed for specific needs. xcpLite.c does not make assumptions on addresses. The only exception is during measurement, where XcpEvent creates pointers by adding the XCP/A2L address to ApplXcpGetBaseAddr(). To save space, the 32 Bit addresses, not 64 Bit pointers are stored in the DAQ lists. During measurement setup, ApplXcpGetPointer is called once to check for validity of the XCP/A2L address conversion. 
   
-- Multicast time synchronisation (GET_DAQ_CLOCK_MULTICAST) is enabled in CANape by default. 
-  When measurement does not start, it is most probably a problem with multicast reception. 
-  Multicast provides no benefit with single clients or with PTP time synchronized clients and is therefore just unnessesary effort. . 
-  Turn Multicast off in device/protocol/event/TIME_CORRELATION_GETDAQCLOCK  by changing the option from "multicast" to "extended response"
-
+- Multicast time synchronisation (GET_DAQ_CLOCK_MULTICAST) is enabled in CANape by default. When measurement does not start, it is most probably a problem with multicast reception. Multicast provides no benefit with single clients or with PTP time synchronized clients and is therefore just unnessesary effort. Turn Multicast off in device/protocol/event/TIME_CORRELATION_GETDAQCLOCK by changing the option from "multicast" to "extended response"
 
 
 
 ## Version History
 
 Version 6.x:
-- Bugfixes
-- Transport Layer interface refactored, unused functions removed
-- Support for Vector Network Interfaces removed
-- Duplicate code in A2L generating removed
+- Bugfixes, optimizations, refactorings and simplifications
+- New targets XCPlite and XCPlite as a static library for Linux
+- Support for C, C++ and Rust 
+- Support for Vector Network Interfaces and integrated zero copy UDP stack removed, available on request at Vector
+- Support for CANFD added, CAN not recomended because protocol layer not optimized for minumum message length 
 - Improved support for PTP synchronized clock
 
 Version 5.x:
@@ -109,7 +106,6 @@ Version 5.x:
 - Support for MacOS
 
 Version 4.x:
-
 - Refactoring to minimize dependencies
 - All dependencies to UDP socket library in platform.h/.c
 - Support for Vector XL-API removed
@@ -146,14 +142,14 @@ $ brew install cmake gcc
 
 #### Build
 
-Edit C_Demo/CMakeLists.txt: set(WINDOWS FALSE)
+Edit XCPlite/CMakeLists.txt: set(WINDOWS FALSE)
 
 ```
 $ cd XCPlite
-$ mkdir build_C_Demo
+$ mkdir build_XCPlite
 
-$ cmake -DCMAKE_BUILD_TYPE=Release -S C_Demo -B build_C_Demo
-$ cd build_C_Demo
+$ cmake -DCMAKE_BUILD_TYPE=Release -S XCPlite -B build_XCPlite
+$ cd build_XCPlite
 $ make
 
 ```

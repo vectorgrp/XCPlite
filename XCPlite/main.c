@@ -112,16 +112,25 @@ int main(int argc, char* argv[]) {
 #if OPTION_ENABLE_A2L_GEN
     if (!A2lOpen(OPTION_A2L_FILE_NAME, OPTION_A2L_PROJECT_NAME)) return 0;
     event = XcpCreateEvent("mainLoop", 0, 0, 0, 0);
+#ifdef __cplusplus // In C++, A2L objects datatype is detected at run time
     A2lCreateParameterWithLimits(ampl, "Amplitude of sinus signal in V", "V", 0, 800);
     A2lCreateParameterWithLimits(period, "Period of sinus signal in s", "s", 0, 10);
     A2lCreateParameterWithLimits(cycleTime, "Cycle time of demo event loop in us", "us", 0, 1000000);
     A2lSetFixedEvent(event); // Associate to the variables created below
     A2lCreatePhysMeasurement(channel1, "Sinus demo signal", 1.0, 0.0, "V");
     A2lCreateMeasurement(counter, "Event counter");
+#else
+    A2lCreateParameterWithLimits(ampl, A2L_TYPE_DOUBLE, "Amplitude of sinus signal in V", "V", 0, 800);
+    A2lCreateParameterWithLimits(period, A2L_TYPE_DOUBLE, "Period of sinus signal in s", "s", 0, 10);
+    A2lCreateParameterWithLimits(cycleTime, A2L_TYPE_DOUBLE, "Cycle time of demo event loop in us", "us", 0, 1000000);
+    A2lSetFixedEvent(event); // Associate to the variables created below
+    A2lCreatePhysMeasurement(channel1, A2L_TYPE_DOUBLE, "Sinus demo signal", 1.0, 0.0, "V");
+    A2lCreateMeasurement(counter, A2L_TYPE_UINT32, "Event counter");
+#endif
     A2lCreate_ETH_IF_DATA(OPTION_USE_TCP, ipAddr, OPTION_SERVER_PORT);
     A2lClose();
-#endif
-    
+#endif    
+
     // Start XCP rx and tx handler threads
     xcpTasksRunning = TRUE;
     printf("Start XCP rx and tx task\n");
@@ -129,7 +138,6 @@ int main(int argc, char* argv[]) {
     create_thread(&rxThread, rxTask); 
     tXcpThread txThread;
     create_thread(&txThread, txTask);
-
 
     // Start XCP
     XcpStart();
