@@ -5,7 +5,7 @@ Copyright 2023 Vector Informatik GmbH
 
 Lightweight implementation of the ASAM XCP Protocol Layer V1.4.
 
-New to XCP? Checkout Vector´s XCP Reference Book here: https://www.vector.com/int/en/know-how/protocols/xcp-measurement-and-calibration-protocol/xcp-book# or visit the Virtual VectorAcedemy for an E-Learning on XCP: https://elearning.vector.com/ 
+New to XCP? Checkout Vectorï¿½s XCP Reference Book here: https://www.vector.com/int/en/know-how/protocols/xcp-measurement-and-calibration-protocol/xcp-book# or visit the Virtual VectorAcedemy for an E-Learning on XCP: https://elearning.vector.com/ 
 
 Supports Linux 32/64 Bit and Windows 32/64 Bit. 
 
@@ -139,6 +139,25 @@ $ cd build_C_Demo
 $ make
 
 ```
+
+### macOS 
+
+$ brew install cmake gcc 
+
+#### Build
+
+Edit C_Demo/CMakeLists.txt: set(WINDOWS FALSE)
+
+```
+$ cd XCPlite
+$ mkdir build_C_Demo
+
+$ cmake -DCMAKE_BUILD_TYPE=Release -S C_Demo -B build_C_Demo
+$ cd build_C_Demo
+$ make
+
+```
+
 
 ### Windows x86_64
 

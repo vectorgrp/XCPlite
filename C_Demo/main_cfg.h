@@ -19,10 +19,10 @@
 #define ON 1
 #define OFF 0
 
-#define OPTION_DEBUG_LEVEL 2 
+#define OPTION_DEBUG_LEVEL 1 
 
 // A2L generation
-#define OPTION_ENABLE_A2L_GEN          ON           // Enable A2L generation
+#define OPTION_ENABLE_A2L_GEN ON  // Enable A2L generation
 #if OPTION_ENABLE_A2L_GEN
 #define OPTION_ENABLE_A2L_SYMBOL_LINKS ON           // Enable generation of symbol links (required for CANape integrated linker map update)
 #define OPTION_A2L_NAME                "C_Demo"     // A2L name 
@@ -38,7 +38,7 @@
 #define OPTION_SERVER_PORT 5555 // Default UDP port, overwritten by commandline option -port
 #define OPTION_SERVER_ADDR {0,0,0,0} // Default IP addr, 0.0.0.0 = ANY, 255.255.255.255 = first adapter found, overwritten by commandline option -bind x.x.x.x
 
-// Enable calibration segment (RAM,FLASH) demo
+// Calibration segment
 #define OPTION_ENABLE_CAL_SEGMENT ON
 
 

@@ -1,4 +1,7 @@
 
+*.DS_Store
+
+build/
 build_C_Demo/
 build_CPP_Demo/
 bin/
