@@ -142,15 +142,14 @@ $ brew install cmake gcc
 
 #### Build
 
-Edit XCPlite/CMakeLists.txt: set(WINDOWS FALSE)
+Edit CMakeLists.txt: set(WINDOWS FALSE), set(MACOS TRUE)
 
 ```
-$ cd XCPlite
-$ mkdir build_XCPlite
-
-$ cmake -DCMAKE_BUILD_TYPE=Release -S XCPlite -B build_XCPlite
-$ cd build_XCPlite
+$ cd XCPlite or cd CPP_Demo or cd C_DEMO
+cmake -DCMAKE_BUILD_TYPE=Release -S . -B build  
+$ cs build
 $ make
+$ ./XCPlite.out
 
 ```
 

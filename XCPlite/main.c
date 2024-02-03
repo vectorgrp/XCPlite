@@ -90,9 +90,20 @@ void* txTask(void* p)
 
 static BOOL checkKeyboard() { if (_kbhit()) { if (_getch()==27) {  return FALSE; } } return TRUE; }
 
+static void info() {
+    printf("\nXCPlite - Simple Demo\n");
+#ifdef __x86_64__
+    printf("x86_64\n");
+#elif defined(__arm64__)
+    printf("arm64\n");
+#else
+    printf("Unbekannte Architektur!\n");
+#endif
+}
+
 int main(int argc, char* argv[]) {
 
-    printf("\nXCPlite - Simple Demo\n");
+    info();
 
     // Initialize high resolution clock for measurement event timestamping
     if (!clockInit()) return 0;

@@ -64,7 +64,7 @@ static const char* gA2lMemorySegment =
 #endif
 
 //----------------------------------------------------------------------------------
-static const char* gA2lIfDataBegin =
+static const char* const gA2lIfDataBegin =
 "\n/begin IF_DATA XCP\n";
 
 //----------------------------------------------------------------------------------
@@ -154,7 +154,7 @@ static const char* gA2lIfDataBeginDAQ = // Parameter: %u max event, %s timestamp
 // ... Event list follows, before EndDaq
 
 //----------------------------------------------------------------------------------
-static const char* gA2lIfDataEndDAQ =
+static const char * const gA2lIfDataEndDAQ =
 "/end DAQ\n";
 
 
@@ -221,18 +221,15 @@ taggedstruct{
 #endif
 
 
-
 //----------------------------------------------------------------------------------
-static const char* gA2lIfDataEnd =
+static const char* const gA2lIfDataEnd =
 "/end IF_DATA\n\n";
 
 
 //----------------------------------------------------------------------------------
-static const char* gA2lFooter =
+static const char* const gA2lFooter =
 	"/end MODULE\n"
 	"/end PROJECT\n";
-
-
 
 
 

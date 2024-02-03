@@ -23,8 +23,8 @@
 
 // Transport layer definitions and configuration
 #if XCP_TRANSPORT_LAYER_TYPE==XCP_TRANSPORT_LAYER_ETH
-#include "xcptl.h" 
-#include "xcpethtl.h"  // Ethernet transport layer specific functions
+#include "xcpTl.h" 
+#include "xcpEthTl.h"  // Ethernet transport layer specific functions
 #elif XCP_TRANSPORT_LAYER_TYPE==XCP_TRANSPORT_LAYER_CAN
 #include "xcptl.h" 
 #include "xcpcantl.h"  
