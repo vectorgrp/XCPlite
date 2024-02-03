@@ -52,7 +52,7 @@ void A2L::create_MOD_PAR(uint32_t startAddr, uint32_t size) {
 // Create XCP IF_DATA
 void A2L::create_XCP_IF_DATA(BOOL tcp, const uint8_t* addr, uint16_t port) {
 
-	A2lCreate_IF_DATA(tcp, addr, port);
+	A2lCreate_ETH_IF_DATA(tcp, addr, port);
 }
 
 

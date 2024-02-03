@@ -14,22 +14,22 @@
     <ClCompile Include="..\src\xcp.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\xcpAppl.c">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\xcpLite.c">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\xcpServer.c">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\xcpTl.c">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\A2L.c">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\A2Lpp.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\xcpEthServer.c">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\xcpEthTl.c">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\xcpAppl.c">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
@@ -56,16 +56,22 @@
     <ClInclude Include="..\src\xcpLite.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\xcpServer.h">
+    <ClInclude Include="..\src\A2L.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\A2Lpp.hpp">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\xcpEthServer.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\xcpEthTl.h">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\xcpTl.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\A2L.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\A2Lpp.hpp">
+    <ClInclude Include="..\src\xcpAppl.h">
       <Filter>src</Filter>
     </ClInclude>
   </ItemGroup>

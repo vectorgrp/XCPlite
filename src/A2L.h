@@ -79,7 +79,8 @@ extern void A2lCreate_MOD_PAR( uint32_t startAddr, uint32_t size, char* epk);
 #endif
 
 // Create XCP IF_DATA
-extern void A2lCreate_IF_DATA(BOOL tcp, const uint8_t* addr, uint16_t port);
+extern void A2lCreate_ETH_IF_DATA(BOOL useTCP, const uint8_t* addr, uint16_t port);
+extern void A2lCreate_CAN_IF_DATA(BOOL useCANFD, uint16_t croId, uint16_t dtoId, uint32_t bitRate);
 
 // Set fixec or default event for all following creates
 extern void A2lSetFixedEvent(uint16_t event);

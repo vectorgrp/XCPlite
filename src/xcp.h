@@ -16,7 +16,7 @@
 #define CC_CONNECT                        0xFF
 #define CC_DISCONNECT                     0xFE
 #define CC_GET_STATUS                     0xFD
-#define CC_SYNC                           0xFC
+#define CC_SYNCH                          0xFC
 
 #define CC_GET_COMM_MODE_INFO             0xFB
 #define CC_GET_ID                         0xFA
@@ -161,7 +161,7 @@
 #define EVC_CMD_PENDING        0x05
 #define EVC_DAQ_OVERLOAD       0x06
 #define EVC_SESSION_TERMINATED 0x07
-#define EVC_TIME_SYNC          0x08
+#define EVC_TIME_SYNCH         0x08
 #define EVC_STIM_TIMEOUT       0x09
 #define EVC_SLEEP              0x0A
 #define EVC_WAKEUP             0x0B
@@ -309,17 +309,28 @@
 
 
 /*-------------------------------------------------------------------------*/
-/* DAQ_LIST_MODE (GET_DAQ_LIST_MODE, SET_DAQ_LIST_MODE) */
+/* DAQ list flags (from GET_DAQ_LIST_MODE, SET_DAQ_LIST_MODE) */
 
-#define DAQ_FLAG_SELECTED                 ((uint8_t)0x01) /* */
-#define DAQ_FLAG_DIRECTION                ((uint8_t)0x02) /* Data Stimulation Mode */
-#define DAQ_FLAG_CMPL_DAQ_CH              ((uint8_t)0x04) /* Complementary DAQ channel */
-#define DAQ_FLAG_TIMESTAMP                ((uint8_t)0x10) /* Timestamps */
-#define DAQ_FLAG_NO_PID                   ((uint8_t)0x20) /* No PID */
-#define DAQ_FLAG_RUNNING                  ((uint8_t)0x40) /* Is started */
-#define DAQ_FLAG_RESUME                   ((uint8_t)0x80) /* Resume Mode */
-#define DAQ_FLAG_RESERVED                 ((uint8_t)0x08)
-#define DAQ_FLAG_OVERRUN                  ((uint8_t)0x08) /* Overun (Internal Use) */
+// DAQ list mode bit mask coding
+#define DAQ_MODE_ALTERNATING              ((uint8_t)0x01) /* Bit0 - Enable/disable alternating display mode */
+#define DAQ_MODE_DIRECTION                ((uint8_t)0x02) /* Bit1 - DAQ list stim mode */
+#define DAQ_MODE_RESERVED2                ((uint8_t)0x04) /* Bit2 - Not used */
+#define DAQ_MODE_DTO_CTR                  ((uint8_t)0x08) /* Bit3 - Use DTO CTR field */
+#define DAQ_MODE_TIMESTAMP                ((uint8_t)0x10) /* Bit4 - Enable timestamp */
+#define DAQ_MODE_PID_OFF                  ((uint8_t)0x20) /* Bit5 - Disable PID */
+#define DAQ_MODE_RESERVED6                ((uint8_t)0x40) /* Bit6 - Not used */
+#define DAQ_MODE_RESERVED7                ((uint8_t)0x80) /* Bit7 - Not used */
+
+
+/*-------------------------------------------------------------------------*/
+/* DAQ list state */
+
+// DAQ list state bit mask coding
+#define DAQ_STATE_STOPPED_UNSELECTED       ((uint8_t)0x00) /* Not selected, stopped */
+#define DAQ_STATE_SELECTED                 ((uint8_t)0x01) /* Selected */
+#define DAQ_STATE_RUNNING                  ((uint8_t)0x02) /* Running */
+#define DAQ_STATE_OVERRUN                  ((uint8_t)0x04) /* Overrun */
+
 
 
 /*-------------------------------------------------------------------------*/
@@ -538,9 +549,9 @@
 
 
 /* UPLOAD */
-#define CRM_UPLOAD_MAX_SIZE                             ((uint8_t)(XCPTL_MAX_CTO_SIZE-1))
 #define CRO_UPLOAD_LEN                                  2
 #define CRO_UPLOAD_SIZE                                 CRO_BYTE(1)
+#define CRM_UPLOAD_MAX_SIZE                             ((uint8_t)(XCPTL_MAX_CTO_SIZE-1))
 #define CRM_UPLOAD_LEN                                  1 /* +CRO_UPLOAD_SIZE */
 #define CRM_UPLOAD_DATA                                 (&CRM_BYTE(1))
 
@@ -697,7 +708,7 @@
 
 
 /* WRITE_DAQ_MULTIPLE */
-#define CRO_WRITE_DAQ_MULTIPLE_LEN                      8
+#define CRO_WRITE_DAQ_MULTIPLE_LEN(n)                   (2+(n)*8)
 #define CRO_WRITE_DAQ_MULTIPLE_NODAQ                    CRO_BYTE(1)
 #define CRO_WRITE_DAQ_MULTIPLE_BITOFFSET(i)             CRO_BYTE(2 + (8*(i)))
 #define CRO_WRITE_DAQ_MULTIPLE_SIZE(i)                  CRO_BYTE(3 + (8*(i)))
@@ -727,17 +738,17 @@
 
 
 /* START_STOP_DAQ_LIST */
-#define CRO_START_STOP_LEN                              4
-#define CRO_START_STOP_MODE                             CRO_BYTE(1)
-#define CRO_START_STOP_DAQ                              CRO_WORD(1)
-#define CRM_START_STOP_LEN                              2
-#define CRM_START_STOP_FIRST_PID                        CRM_BYTE(1)
+#define CRO_START_STOP_DAQ_LIST_LEN                     4
+#define CRO_START_STOP_DAQ_LIST_MODE                    CRO_BYTE(1)
+#define CRO_START_STOP_DAQ_LIST_DAQ                     CRO_WORD(1)
+#define CRM_START_STOP_DAQ_LIST_LEN                     2
+#define CRM_START_STOP_DAQ_LIST_FIRST_PID               CRM_BYTE(1)
 
 
 /* START_STOP_SYNCH */
-#define CRO_START_STOP_SYNC_LEN                         2
-#define CRO_START_STOP_SYNC_MODE                        CRO_BYTE(1)
-#define CRM_START_STOP_SYNC_LEN                         1
+#define CRO_START_STOP_SYNCH_LEN                        2
+#define CRO_START_STOP_SYNCH_MODE                       CRO_BYTE(1)
+#define CRM_START_STOP_SYNCH_LEN                        1
 
 
 /* GET_DAQ_CLOCK */
@@ -750,11 +761,11 @@
 #define CRM_GET_DAQ_CLOCK_PAYLOAD_FMT                   CRM_BYTE(3)   // 3
 
 #define CRM_GET_DAQ_CLOCK_TIME                          CRM_DWORD(1)  // 4
-#define CRM_GET_DAQ_CLOCK_SYNC_STATE                    CRM_BYTE(8)   // 8
+#define CRM_GET_DAQ_CLOCK_SYNCH_STATE                   CRM_BYTE(8)   // 8
 
 #define CRM_GET_DAQ_CLOCK_TIME64_LOW                    CRM_DWORD(1)  // 4
 #define CRM_GET_DAQ_CLOCK_TIME64_HIGH                   CRM_DWORD(2)  // 8
-#define CRM_GET_DAQ_CLOCK_SYNC_STATE64                  CRM_BYTE(12)  // 12
+#define CRM_GET_DAQ_CLOCK_SYNCH_STATE64                 CRM_BYTE(12)  // 12
 #else
 #define CRM_GET_DAQ_CLOCK_TIME                          CRM_DWORD(1)  // 4
 #endif
@@ -777,13 +788,13 @@
 #define CRM_GET_DAQ_CLOCK_MCAST_TIME                    CRM_DWORD(1)  // 4
 #define CRM_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER      CRM_WORD(4)   // 8
 #define CRM_GET_DAQ_CLOCK_MCAST_COUNTER                 CRM_BYTE(10)  // 10
-#define CRM_GET_DAQ_CLOCK_MCAST_SYNC_STATE              CRM_BYTE(11)  // 11
+#define CRM_GET_DAQ_CLOCK_MCAST_SYNCH_STATE             CRM_BYTE(11)  // 11
 
 #define CRM_GET_DAQ_CLOCK_MCAST_TIME64_LOW              CRM_DWORD(1)  // 4
 #define CRM_GET_DAQ_CLOCK_MCAST_TIME64_HIGH             CRM_DWORD(2)  // 8
 #define CRM_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER64    CRM_WORD(6)   // 12
 #define CRM_GET_DAQ_CLOCK_MCAST_COUNTER64               CRM_BYTE(14)  // 14
-#define CRM_GET_DAQ_CLOCK_MCAST_SYNC_STATE64            CRM_BYTE(15)  // 15
+#define CRM_GET_DAQ_CLOCK_MCAST_SYNCH_STATE64           CRM_BYTE(15)  // 15
 #endif
 
 /* READ_DAQ */
@@ -963,6 +974,7 @@
 
 
 /* GET_SERVER_ID */
+/*
 #define CRO_GET_SERVER_ID_LEN                            6
 #define CRO_GET_SERVER_ID_SUB_CODE                       CRO_BYTE(1)
 #define CRO_GET_SERVER_ID_X                              CRO_BYTE(2)
@@ -974,7 +986,7 @@
 #define CRM_GET_SERVER_ID_C                              CRM_BYTE(2)
 #define CRM_GET_SERVER_ID_P                              CRM_BYTE(3)
 #define CRM_GET_SERVER_ID_CAN_ID_CMD_STIM                CRM_DWORD(1)
-
+*/
 
 /* GET_DAQ_ID */
 #define CRO_GET_DAQ_ID_LEN                              3
@@ -1032,42 +1044,42 @@
 
 
 /* TIME SYNCHRONIZATION PROPERTIES*/
-#define CRO_TIME_SYNC_PROPERTIES_LEN                        6
-#define CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES             CRO_BYTE(1)
-#define CRO_TIME_SYNC_PROPERTIES_GET_PROPERTIES_REQUEST     CRO_BYTE(2)
-#define CRO_TIME_SYNC_PROPERTIES_CLUSTER_ID                 CRO_WORD(2)
+#define CRO_TIME_SYNCH_PROPERTIES_LEN                       6
+#define CRO_TIME_SYNCH_PROPERTIES_SET_PROPERTIES            CRO_BYTE(1)
+#define CRO_TIME_SYNCH_PROPERTIES_GET_PROPERTIES_REQUEST    CRO_BYTE(2)
+#define CRO_TIME_SYNCH_PROPERTIES_CLUSTER_ID                CRO_WORD(2)
 
-/* CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES: */
-#define TIME_SYNC_SET_PROPERTIES_RESPONSE_FMT              (3 << 0)
-#define TIME_SYNC_SET_PROPERTIES_TIME_SYNC_BRIDGE          (3 << 2)
-#define TIME_SYNC_SET_PROPERTIES_CLUSTER_ID                (1 << 4)
+/* CRO_TIME_SYNCH_PROPERTIES_SET_PROPERTIES: */
+#define TIME_SYNCH_SET_PROPERTIES_RESPONSE_FMT              (3 << 0)
+#define TIME_SYNCH_SET_PROPERTIES_TIME_SYNCH_BRIDGE         (3 << 2)
+#define TIME_SYNCH_SET_PROPERTIES_CLUSTER_ID                (1 << 4)
 
-#define TIME_SYNC_RESPONSE_FMT_LEGACY                      0
-#define TIME_SYNC_RESPONSE_FMT_TRIGGER_SUBSET              1
-#define TIME_SYNC_RESPONSE_FMT_TRIGGER_ALL                 2
+#define TIME_SYNCH_RESPONSE_FMT_LEGACY                      0
+#define TIME_SYNCH_RESPONSE_FMT_TRIGGER_SUBSET              1
+#define TIME_SYNCH_RESPONSE_FMT_TRIGGER_ALL                 2
 
-/* CRO_TIME_SYNC_PROPERTIES_GET_PROPERTIES_REQUEST: */
-#define TIME_SYNC_GET_PROPERTIES_GET_CLK_INFO             (1 << 0)
+/* CRO_TIME_SYNCH_PROPERTIES_GET_PROPERTIES_REQUEST: */
+#define TIME_SYNCH_GET_PROPERTIES_GET_CLK_INFO             (1 << 0)
 
 
-#define CRM_TIME_SYNC_PROPERTIES_LEN                        8
-#define CRM_TIME_SYNC_PROPERTIES_SERVER_CONFIG              CRM_BYTE(1)
-#define CRM_TIME_SYNC_PROPERTIES_OBSERVABLE_CLOCKS          CRM_BYTE(2)
-#define CRM_TIME_SYNC_PROPERTIES_SYNC_STATE                 CRM_BYTE(3)
-#define CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO                 CRM_BYTE(4)
-#define CRM_TIME_SYNC_PROPERTIES_RESERVED                   CRM_BYTE(5)
-#define CRM_TIME_SYNC_PROPERTIES_CLUSTER_ID                 CRM_WORD(3)
+#define CRM_TIME_SYNCH_PROPERTIES_LEN                       8
+#define CRM_TIME_SYNCH_PROPERTIES_SERVER_CONFIG             CRM_BYTE(1)
+#define CRM_TIME_SYNCH_PROPERTIES_OBSERVABLE_CLOCKS         CRM_BYTE(2)
+#define CRM_TIME_SYNCH_PROPERTIES_SYNCH_STATE               CRM_BYTE(3)
+#define CRM_TIME_SYNCH_PROPERTIES_CLOCK_INFO                CRM_BYTE(4)
+#define CRM_TIME_SYNCH_PROPERTIES_RESERVED                  CRM_BYTE(5)
+#define CRM_TIME_SYNCH_PROPERTIES_CLUSTER_ID                CRM_WORD(3)
 
-/* CRM_TIME_SYNC_PROPERTIES_SERVER_CONFIG: */
-#define SERVER_CONFIG_RESPONSE_FMT_LEGACY                    (0)
-#define SERVER_CONFIG_RESPONSE_FMT_ADVANCED                  (2)
-#define SERVER_CONFIG_DAQ_TS_ECU                             (1 << 2)
-#define SERVER_CONFIG_DAQ_TS_SERVER                          (0 << 2)
-#define SERVER_CONFIG_TIME_SYNC_BRIDGE_NONE                  (0 << 3)
+/* CRM_TIME_SYNCH_PROPERTIES_SERVER_CONFIG: */
+#define SERVER_CONFIG_RESPONSE_FMT_LEGACY                   (0)
+#define SERVER_CONFIG_RESPONSE_FMT_ADVANCED                 (2)
+#define SERVER_CONFIG_DAQ_TS_ECU                            (1 << 2)
+#define SERVER_CONFIG_DAQ_TS_SERVER                         (0 << 2)
+#define SERVER_CONFIG_TIME_SYNCH_BRIDGE_NONE                (0 << 3)
 
-/* CRM_TIME_SYNC_PROPERTIES_OBSERVABLE_CLOCKS: */
+/* CRM_TIME_SYNCH_PROPERTIES_OBSERVABLE_CLOCKS: */
 #define LOCAL_CLOCK_FREE_RUNNING    (0<<0)
-#define LOCAL_CLOCK_SYNCED          (1<<0)
+#define LOCAL_CLOCK_SYNCHED         (1<<0)
 #define LOCAL_CLOCK_NONE            (2<<0)
 #define GRANDM_CLOCK_NONE           (0<<2)
 #define GRANDM_CLOCK_READABLE       (1<<2)
@@ -1077,17 +1089,17 @@
 #define ECU_CLOCK_EVENT             (2<<4)
 #define ECU_CLOCK_NOTREADABLE       (3<<4)
 
-/* CRM_TIME_SYNC_PROPERTIES_SYNC_STATE: */
+/* CRM_TIME_SYNCH_PROPERTIES_SYNCH_STATE: */
 #define LOCAL_CLOCK_STATE_SYNCH_IN_PROGRESS       (0 << 0)
 #define LOCAL_CLOCK_STATE_SYNCH                   (1 << 0)
 #define LOCAL_CLOCK_STATE_SYNT_IN_PROGRESS        (2 << 0)
 #define LOCAL_CLOCK_STATE_SYNT                    (3 << 0)
 #define LOCAL_CLOCK_STATE_FREE_RUNNING            (7 << 0)
-#define GRANDM_CLOCK_STATE_SYNC_IN_PROGRESS       (0 << 3)
-#define GRANDM_CLOCK_STATE_SYNC                   (1 << 3)
+#define GRANDM_CLOCK_STATE_SYNCH_IN_PROGRESS      (0 << 3)
+#define GRANDM_CLOCK_STATE_SYNCH                  (1 << 3)
 
 
-/* CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO: */
+/* CRM_TIME_SYNCH_PROPERTIES_CLOCK_INFO: */
 #define CLOCK_INFO_SERVER           (1<<0)
 #define CLOCK_INFO_GRANDM           (1<<1)
 #define CLOCK_INFO_RELATION         (1<<2)
@@ -1099,15 +1111,15 @@
     1 = Event derived from XCP - independent time synchronization event - e.g.globally synchronized pulse per second signal
     2 = GET_DAQ_CLOCK_MULTICAST
     3 = GET_DAQ_CLOCK_MULTICAST via Time Sync Bridge
-    4 = State change in syntonization / synchronization to grandmaster clock(either established or lost, additional information is provided by the SYNC_STATE field - see Table 236)
+    4 = State change in syntonization / synchronization to grandmaster clock(either established or lost, additional information is provided by the SYNCH_STATE field - see Table 236)
     5 = Leap second occurred on grandmaster clock
     6 = release of ECU reset
 */
-#define TRIG_INITIATOR_SYNC_LINE                            0UL
+#define TRIG_INITIATOR_SYNCH_LINE                           0UL
 #define TRIG_INITIATOR_XCP_INDEPENDENT                      1UL
 #define TRIG_INITIATOR_MULTICAST                            2UL
 #define TRIG_INITIATOR_MULTICAST_TS_BRIDGE                  3UL
-#define TRIG_INITIATOR_SYNC_STATE_CHANGE                    4UL
+#define TRIG_INITIATOR_SYNCH_STATE_CHANGE                   4UL
 #define TRIG_INITIATOR_LEAP_SECOND                          5UL
 #define TRIG_INITIATOR_ECU_RESET_RELEASE                    6UL
 #define TRIG_INITIATOR_RESERVED                             7UL
@@ -1178,18 +1190,43 @@ typedef struct {
 #define CC_TL_GET_DAQ_CLOCK_MULTICAST                       0xFA
 #define CRO_TL_SUBCOMMAND                                   CRO_BYTE(1)
 
-/* GET_SERVER_ID */
-#define CRO_TL_SLV_DETECT_PORT                              CRO_WORD(1)
-#define CRO_TL_SLV_DETECT_MCAST_IP_ADDR                     CRO_DWORD(1)
 
-#define TL_SLV_DETECT_STATUS_PROTOCOL_TCP                   0
-#define TL_SLV_DETECT_STATUS_PROTOCOL_UDP                   1
-#define TL_SLV_DETECT_STATUS_PROTOCOL_TCP_UDP               2
-#define TL_SLV_DETECT_STATUS_PROTOCOL_RESERVED              3
-#define TL_SLV_DETECT_STATUS_IP_VERSION_IPV4                (0)
-#define TL_SLV_DETECT_STATUS_IP_VERSION_RESERVED            (1<<2)
-#define TL_SLV_DETECT_STATUS_SLV_AVAILABILITY_BUSY          (1<<3)
-#define TL_SLV_DETECT_STATUS_SLV_ID_EXT_SUPPORTED           (1<<4)
+/* GET_SERVER_ID and GET_SERVER_ID_EXTENDED */
+#define CRO_TL_GET_SERVER_ID_LEN                            21
+#define CRO_TL_GET_SERVER_ID_PORT                           CRO_WORD(1)
+#define CRO_TL_GET_SERVER_ID_ADDR(n)                        CRO_BYTE(4+n)
+#define CRO_TL_GET_SERVER_ID_MODE                           CRO_BYTE(20)
+
+/* GET_SERVER_ID */
+/*
+#define CRM_TL_GET_SERVER_ID_LEN(n)                         (24+1+(n))
+#define CRM_TL_GET_SERVER_ID_ADDR(n)                        CRM_BYTE(n)
+#define CRM_TL_GET_SERVER_ID_PORT                           CRM_WORD(8)
+#define CRM_TL_GET_SERVER_ID_STATUS                         CRM_BYTE(18)
+#define CRM_TL_GET_SERVER_ID_RESOURCE                       CRM_BYTE(19)
+#define CRM_TL_GET_SERVER_ID_ID_LEN                         CRM_BYTE(20)
+#define CRM_TL_GET_SERVER_ID_ID                             CRM_BYTE(21)
+#define CRM_TL_GET_SERVER_ID_MAX_LEN                        128
+*/
+
+#define GET_SERVER_ID_STATUS_PROTOCOL_TCP                   0
+#define GET_SERVER_ID_STATUS_PROTOCOL_UDP                   1
+#define GET_SERVER_ID_STATUS_PROTOCOL_TCP_UDP               2
+#define GET_SERVER_ID_STATUS_IP_VERSION_IPV4                (0)
+#define GET_SERVER_ID_STATUS_SLV_AVAILABILITY_BUSY          (1<<3)
+#define GET_SERVER_ID_STATUS_SLV_ID_EXT_SUPPORTED           (1<<4)
+
+/* GET_SERVER_ID_EXT */
+#define CRM_TL_GET_SERVER_ID_LEN(n)                         (24+1+(n))
+#define CRM_TL_GET_SERVER_ID_ADDR(n)                        CRM_BYTE(2+n)
+#define CRM_TL_GET_SERVER_ID_PORT                           CRM_WORD(18)
+#define CRM_TL_GET_SERVER_ID_STATUS                         CRM_BYTE(20)
+#define CRM_TL_GET_SERVER_ID_RESOURCE                       CRM_BYTE(21)
+#define CRM_TL_GET_SERVER_ID_ID_LEN                         *(uint32_t*)&(CRM_BYTE(22)) // this is a DWORD on unaligned offset 
+#define CRM_TL_GET_SERVER_ID_ID                             CRM_BYTE(26)
+#define CRM_TL_GET_SERVER_ID_MAC(n)                         CRM_BYTE(26+n) /*+CRM_TL_GET_SERVER_ID_ID_LEN*/
+
+#define CRM_TL_GET_SERVER_ID_MAX_LEN                        (XCPTL_MAX_CTO_SIZE-(26+6))
 
 /* GET_SERVER_ID_EXTENDED */
 #define TL_SLV_DETECT_STATUS_SLV_ID_EXT_RADAR_DATA          (1<<0)

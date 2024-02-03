@@ -13,7 +13,7 @@
 |   GET_COMM_MODE_INFO GET_ID GET_VERSION
 |   SET_MTA UPLOAD SHORT_UPLOAD DOWNLOAD SHORT_DOWNLOAD
 |   GET_CAL_PAGE SET_CAL_PAGE BUILD_CHECKSUM
-|   GET_DAQ_RESOLUTION_INFO GET_DAQ_PROCESSOR_INFO GET_DAQ_EVENT_INFO GET_DAQ_LIST_INFO
+|   GET_DAQ_RESOLUTION_INFO GET_DAQ_PROCESSOR_INFO GET_DAQ_EVENT_INFO
 |   FREE_DAQ ALLOC_DAQ ALLOC_ODT ALLOC_ODT_ENTRY SET_DAQ_PTR WRITE_DAQ WRITE_DAQ_MULTIPLE
 |   GET_DAQ_LIST_MODE SET_DAQ_LIST_MODE START_STOP_SYNCH START_STOP_DAQ_LIST
 |   GET_DAQ_CLOCK GET_DAQ_CLOCK_MULTICAST TIME_CORRELATION_PROPERTIES
@@ -74,8 +74,8 @@
 #if ( XCPTL_MAX_CTO_SIZE > 255 )
 #error "XCPTL_MAX_CTO_SIZE must be <= 255"
 #endif
-#if ( XCPTL_MAX_CTO_SIZE < 16 )
-#error "XCPTL_MAX_CTO_SIZE must be >= 16"
+#if ( XCPTL_MAX_CTO_SIZE < 8 )
+#error "XCPTL_MAX_CTO_SIZE must be >= 8"
 #endif
 #else
 #error "Please define XCPTL_CTO_SIZE"
@@ -85,8 +85,8 @@
 #if ( XCPTL_MAX_DTO_SIZE > (XCPTL_MAX_SEGMENT_SIZE-4) )
 #error "XCPTL_MAX_DTO_SIZE too large"
 #endif
-#if ( XCPTL_MAX_DTO_SIZE < 16 )
-#error "XCPTL_MAX_DTO_SIZE must be >= 16"
+#if ( XCPTL_MAX_DTO_SIZE < 8 )
+#error "XCPTL_MAX_DTO_SIZE must be >= 8"
 #endif
 #else
 #error "Please define XCPTL_DTO_SIZE"
@@ -138,7 +138,8 @@ typedef struct {
 #ifdef XCP_ENABLE_PACKED_MODE
     uint16_t sampleCount;         /* Packed mode */
 #endif
-    uint8_t flags;
+    uint8_t mode;
+    uint8_t state;
     uint8_t priority;
 } tXcpDaqList;
 
@@ -174,7 +175,8 @@ typedef struct {
 #define DaqListOdtCount(i)      ((gXcp.Daq.u.DaqList[i].lastOdt-gXcp.Daq.u.DaqList[i].firstOdt)+1)
 #define DaqListLastOdt(i)       gXcp.Daq.u.DaqList[i].lastOdt
 #define DaqListFirstOdt(i)      gXcp.Daq.u.DaqList[i].firstOdt
-#define DaqListFlags(i)         gXcp.Daq.u.DaqList[i].flags
+#define DaqListMode(i)          gXcp.Daq.u.DaqList[i].mode
+#define DaqListState(i)         gXcp.Daq.u.DaqList[i].state
 #define DaqListEventChannel(i)  gXcp.Daq.u.DaqList[i].eventChannel
 #define DaqListPriority(i)      gXcp.Daq.u.DaqList[i].priority
 #ifdef XCP_ENABLE_PACKED_MODE
@@ -240,6 +242,7 @@ typedef struct {
     uint16_t ClusterId;
 #endif
 
+#if XCP_TRANSPORT_LAYER_TYPE==XCP_TRANSPORT_LAYER_ETH
     #pragma pack(push, 1)
     struct {
         T_CLOCK_INFO server;
@@ -249,6 +252,7 @@ typedef struct {
 #endif
     } ClockInfo;
     #pragma pack(pop)
+#endif
 #endif
 
 } tXcpData;
@@ -275,10 +279,11 @@ static tXcpData gXcp = { 0,0,0 };
 
 #define error(e) { err=(e); goto negative_response; }
 #define check_error(e) { err=(e); if (err!=0) goto negative_response;  }
+
 #ifdef XCP_ENABLE_DYN_ADDRESSING
-#define check_result(e) { err=(e); if (err!=0) { if (err==CRC_CMD_PENDING) { XcpPushCommand(); goto no_response;} else goto negative_response; } }
+  #define check_result(e) { err=(e); if (err!=0) { if (err==CRC_CMD_PENDING) { XcpPushCommand(); goto no_response;} else goto negative_response; } }
 #else
-#define check_result(e) { err=(e); if (err!=0) goto negative_response; }
+  #define check_result(e) { err=(e); if (err!=0) goto negative_response; }
 #endif
 
 #define isInitialized() (gXcp.SessionStatus & SS_INITIALIZED)
@@ -288,17 +293,24 @@ static tXcpData gXcp = { 0,0,0 };
 #define isCmdPending() (gXcp.SessionStatus & SS_CMD_PENDING)
 #define isLegacyMode() (gXcp.SessionStatus & SS_LEGACY_MODE)
 
+
 /****************************************************************************/
 // Test instrumentation
 /****************************************************************************/
 
-#ifdef XCP_ENABLE_DEBUG_PRINTS
+#ifdef XCP_ENABLE_TEST_CHECKS
+  #define check_len(n) if (cmdLen<(n)) { err = CRC_CMD_SYNTAX; goto negative_response; }
+#else
+  #define check_len(n)
+#endif
 
+
+#ifdef XCP_ENABLE_DEBUG_PRINTS
 static void XcpPrintCmd();
 static void XcpPrintRes();
 static void XcpPrintDaqList(uint16_t daq);
-
 #endif
+
 
 /****************************************************************************/
 /* Status                                                                   */
@@ -321,7 +333,7 @@ BOOL XcpIsDaqEventRunning(uint16_t event) {
   if (!isDaqRunning()) return FALSE; // DAQ not running
 
   for (uint16_t daq = 0; daq < gXcp.Daq.DaqCount; daq++) {
-    if ((DaqListFlags(daq) & (uint8_t)DAQ_FLAG_RUNNING) == 0) continue; // DAQ list not active
+    if ((DaqListState(daq) & DAQ_STATE_RUNNING) == 0) continue; // DAQ list not active
     if (DaqListEventChannel(daq) == event) return TRUE; // Event is associated to this DAQ list
   }
 
@@ -360,12 +372,7 @@ static uint8_t XcpWriteMta( uint8_t size, const uint8_t* data )
     // Ext=0x00 Standard memory access
     if (gXcp.MtaExt == 0x00) {
         if (gXcp.MtaPtr == NULL) return CRC_ACCESS_DENIED;
-        while (size > 0) {
-            *gXcp.MtaPtr = *data;
-            gXcp.MtaPtr++;
-            data++;
-            size--;
-        }
+        memcpy(gXcp.MtaPtr, data, size);
         return 0; // Ok
     }
 
@@ -394,12 +401,7 @@ static uint8_t XcpReadMta( uint8_t size, uint8_t* data )
     // Ext=0x00 Standard memory access
     if (gXcp.MtaExt == 0x00) {
         if (gXcp.MtaPtr == NULL) return CRC_ACCESS_DENIED;
-        while (size > 0) {
-            *data = *gXcp.MtaPtr;
-            data++;
-            gXcp.MtaPtr++;
-            size--;
-        }
+        memcpy(data, gXcp.MtaPtr, size);
         return 0; // Ok
     }
 
@@ -590,7 +592,7 @@ static uint8_t XcpSetDaqListMode(uint16_t daq, uint16_t event, uint8_t mode, uin
     if (e0 != 0xFFFF && event != e0) return CRC_OUT_OF_RANGE; // Error event channel redefinition
 #endif
     DaqListEventChannel(daq) = event;
-    DaqListFlags(daq) = mode;
+    DaqListMode(daq) = mode;
     DaqListPriority(daq) = prio;
   return 0;
 }
@@ -599,7 +601,7 @@ static uint8_t XcpSetDaqListMode(uint16_t daq, uint16_t event, uint8_t mode, uin
 // Start event processing
 static void XcpStartDaq( uint16_t daq )
 {
-  DaqListFlags(daq) |= DAQ_FLAG_RUNNING;
+  DaqListState(daq) |= DAQ_STATE_RUNNING;
   gXcp.SessionStatus |= SS_DAQ;
 }
 
@@ -623,9 +625,9 @@ static void XcpStartAllSelectedDaq()
 
   // Start all selected DAQs
   for (daq=0;daq<gXcp.Daq.DaqCount;daq++)  {
-    if ( (DaqListFlags(daq) & DAQ_FLAG_SELECTED) != 0 ) {
-      DaqListFlags(daq) |= DAQ_FLAG_RUNNING;
-      DaqListFlags(daq) &= (uint8_t)~DAQ_FLAG_SELECTED;
+    if ( (DaqListState(daq) & DAQ_STATE_SELECTED) != 0 ) {
+      DaqListState(daq) |= DAQ_STATE_RUNNING;
+      DaqListState(daq) &= (uint8_t)~DAQ_STATE_SELECTED;
 #ifdef XCP_ENABLE_DEBUG_PRINTS
       if (XCP_DBG_LEVEL >= 3) {
           XcpPrintDaqList(daq);
@@ -633,13 +635,13 @@ static void XcpStartAllSelectedDaq()
 #endif
     }
   }
-
+#ifdef XCP_ENABLE_DEBUG_PRINTS
   if (XCP_DBG_LEVEL >= 2) {
     char ts[64];
     clockGetString(ts, sizeof(ts), gXcp.DaqStartClock64);
     printf("DAQ start at t=%s\n", ts);
   }
-
+#endif
   gXcp.SessionStatus |= SS_DAQ;
 }
 
@@ -647,11 +649,11 @@ static void XcpStartAllSelectedDaq()
 // Returns TRUE if all DAQ lists are stopped and event procession has stopped
 static uint8_t XcpStopDaq( uint16_t daq )
 {
-  DaqListFlags(daq) &= (uint8_t)(DAQ_FLAG_DIRECTION|DAQ_FLAG_TIMESTAMP|DAQ_FLAG_NO_PID);
+  DaqListState(daq) &= (uint8_t)(~(DAQ_STATE_OVERRUN|DAQ_STATE_RUNNING));
 
   /* Check if all DAQ lists are stopped */
   for (daq=0; daq<gXcp.Daq.DaqCount; daq++)  {
-    if ( (DaqListFlags(daq) & (uint8_t)DAQ_FLAG_RUNNING) != 0 )  {
+    if ( (DaqListState(daq) & DAQ_STATE_RUNNING) != 0 )  {
       return 0;
     }
   }
@@ -666,9 +668,9 @@ static void XcpStopAllSelectedDaq()
   uint16_t daq;
 
   for (daq=0;daq<gXcp.Daq.DaqCount;daq++) {
-    if ( (DaqListFlags(daq) & (uint8_t)DAQ_FLAG_SELECTED) != 0 ) {
+    if ( (DaqListState(daq) & DAQ_STATE_SELECTED) != 0 ) {
       XcpStopDaq(daq);
-      DaqListFlags(daq) &= (uint8_t)(~DAQ_FLAG_SELECTED);
+      DaqListState(daq) = DAQ_STATE_STOPPED_UNSELECTED;
     }
   }
 }
@@ -677,7 +679,7 @@ static void XcpStopAllSelectedDaq()
 static void XcpStopAllDaq( void )
 {
   for (uint8_t daq=0; daq<gXcp.Daq.DaqCount; daq++) {
-    DaqListFlags(daq) &= (uint8_t)(DAQ_FLAG_DIRECTION|DAQ_FLAG_TIMESTAMP|DAQ_FLAG_NO_PID);
+    DaqListState(daq) = DAQ_STATE_STOPPED_UNSELECTED;
   }
   gXcp.SessionStatus &= (uint16_t)(~SS_DAQ); // Stop processing DAQ events
 }
@@ -714,13 +716,15 @@ static void XcpEvent_(uint16_t event, uint8_t* base, uint64_t clock)
 #endif
 #endif
 
+  // Loop over all active DAQ lists associated to the current event
   for (daq=0; daq<gXcp.Daq.DaqCount; daq++) {
-      if ((DaqListFlags(daq) & (uint8_t)DAQ_FLAG_RUNNING) == 0) continue; // DAQ list not active
+      if ((DaqListState(daq) & DAQ_STATE_RUNNING) == 0) continue; // DAQ list not active
       if (DaqListEventChannel(daq) != event) continue; // DAQ list not associated with this event
 #ifdef XCP_ENABLE_PACKED_MODE
       sc = DaqListSampleCount(daq); // Packed mode sample count, 0 if not packed
 #endif
 
+      // Loop over all ODTs of the current DAQ list
       for (hs=2+4,odt=DaqListFirstOdt(daq);odt<=DaqListLastOdt(daq);hs=2,odt++)  {
 
           // Mutex to ensure transmit buffers with time stamp in ascending order
@@ -751,10 +755,9 @@ static void XcpEvent_(uint16_t event, uint8_t* base, uint64_t clock)
 #endif
 
          // Buffer overrun
-         if (d0 == 0) {
+         if (d0 == NULL) {
             gXcp.DaqOverflowCount++;
-            DaqListFlags(daq) |= DAQ_FLAG_OVERRUN;
-            XCP_DBG_PRINTF_ERROR("WARNING: DAQ queue overflow %u! Event %u skipped\n", gXcp.DaqOverflowCount, event);
+            DaqListState(daq) |= DAQ_STATE_OVERRUN;
             return; // Skip rest of this event on queue overrun
         }
 
@@ -763,13 +766,13 @@ static void XcpEvent_(uint16_t event, uint8_t* base, uint64_t clock)
         d0[1] = (uint8_t)daq;
 
         // Use BIT7 of PID or ODT to indicate overruns
-        if ( (DaqListFlags(daq) & DAQ_FLAG_OVERRUN) != 0 ) {
+        if ( (DaqListState(daq) & DAQ_STATE_OVERRUN) != 0 ) {
           d0[0] |= 0x80;
-          DaqListFlags(daq) &= (uint8_t)(~DAQ_FLAG_OVERRUN);
+          DaqListState(daq) &= (uint8_t)(~DAQ_STATE_OVERRUN);
         }
 
         // Timestamp
-        if (hs == 6) {
+        if (hs == 2+4) { // First ODT (data starts at offset 6) always has a 32 bit timestamp
             *((uint32_t*)&d0[2]) = (uint32_t)clock;
         }
 
@@ -847,7 +850,7 @@ void XcpDisconnect( void )
   if (isDaqRunning()) {
     ApplXcpStopDaq();
     XcpStopAllDaq();
-    XcpTlWaitForTransmitQueueEmpty(); // Wait until transmit queue empty before sending command response
+    XcpTlWaitForTransmitQueueEmpty(); // Wait until transmit queue empty
   }
 
   gXcp.SessionStatus &= (uint16_t)(~SS_CONNECTED);
@@ -856,12 +859,22 @@ void XcpDisconnect( void )
 // Transmit command response
 static void XcpSendResponse() {
 
-    XcpTlSendCrm((const uint8_t*)&gXcp.Crm, gXcp.CrmLen);
+  XcpTlSendCrm((const uint8_t*)&gXcp.Crm, gXcp.CrmLen);
 #ifdef XCP_ENABLE_DEBUG_PRINTS
-    if (XCP_DBG_LEVEL >= 2) XcpPrintRes();
+  if (XCP_DBG_LEVEL >= 2) XcpPrintRes();
 #endif
 }
 
+// Transmit multicast command response
+#if XCP_TRANSPORT_LAYER_TYPE==XCP_TRANSPORT_LAYER_ETH
+static void XcpSendMulticastResponse( uint8_t *addr, uint16_t port) {
+
+  XcpEthTlSendMulticastCrm((const uint8_t*)&gXcp.Crm, gXcp.CrmLen, addr, port);
+#ifdef XCP_ENABLE_DEBUG_PRINTS
+  if (XCP_DBG_LEVEL >= 2) XcpPrintRes();
+#endif
+}
+#endif
 
 //  Push XCP command which can not be executes in this context for later async execution
 #ifdef XCP_ENABLE_DYN_ADDRESSING
@@ -877,7 +890,7 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
   uint8_t err = 0;
 
   if (!isStarted()) return;
-  if (cmdLen >= sizeof(gXcp.Cro)) return;
+  if (cmdLen > sizeof(gXcp.Cro)) return;
   
   gXcp.CroLen = (uint8_t)cmdLen;
   memcpy(&gXcp.Cro, cmdData, cmdLen);
@@ -887,7 +900,11 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
   gXcp.CrmLen = 1; /* Length = 1 */
 
   // CONNECT ?
+#if XCP_TRANSPORT_LAYER_TYPE == XCP_TRANSPORT_LAYER_ETH
   if (cmdLen==CRO_CONNECT_LEN && CRO_CMD==CC_CONNECT)
+#else
+  if (cmdLen>=CRO_CONNECT_LEN && CRO_CMD==CC_CONNECT)
+#endif
   {
 #ifdef XCP_ENABLE_DEBUG_PRINTS
       XCP_DBG_PRINTF2("CONNECT mode=%u\n", CRO_CONNECT_MODE);
@@ -897,26 +914,23 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
       // Check application is ready for XCP connect 
       if (!ApplXcpConnect()) error(CRC_ACCESS_DENIED);
 
-    // Initialize Session Status
-    gXcp.SessionStatus = (uint16_t)(SS_INITIALIZED | SS_STARTED | SS_CONNECTED | SS_LEGACY_MODE);
+      // Initialize Session Status
+      gXcp.SessionStatus = (uint16_t)(SS_INITIALIZED | SS_STARTED | SS_CONNECTED | SS_LEGACY_MODE);
 
-    /* Reset DAQ */
-    XcpFreeDaq();
+      /* Reset DAQ */
+      XcpFreeDaq();
 
-    // Response
-    gXcp.CrmLen = CRM_CONNECT_LEN;
-    CRM_CONNECT_TRANSPORT_VERSION = (uint8_t)( (uint16_t)XCP_TRANSPORT_LAYER_VERSION >> 8 ); /* Major versions of the XCP Protocol Layer and Transport Layer Specifications. */
-    CRM_CONNECT_PROTOCOL_VERSION =  (uint8_t)( (uint16_t)XCP_PROTOCOL_LAYER_VERSION >> 8 );
-    CRM_CONNECT_MAX_CTO_SIZE = XCPTL_MAX_CTO_SIZE;
-    CRM_CONNECT_MAX_DTO_SIZE = XCPTL_MAX_DTO_SIZE;
-    CRM_CONNECT_RESOURCE = 0x00;                  /* Reset resource mask */
-    CRM_CONNECT_RESOURCE |= (uint8_t)RM_DAQ;       /* Data Acquisition */
-    CRM_CONNECT_COMM_BASIC = 0;
-    CRM_CONNECT_COMM_BASIC |= (uint8_t)CMB_OPTIONAL;
+      // Response
+      gXcp.CrmLen = CRM_CONNECT_LEN;
+      CRM_CONNECT_TRANSPORT_VERSION = (uint8_t)( (uint16_t)XCP_TRANSPORT_LAYER_VERSION >> 8 ); /* Major versions of the XCP Protocol Layer and Transport Layer Specifications. */
+      CRM_CONNECT_PROTOCOL_VERSION =  (uint8_t)( (uint16_t)XCP_PROTOCOL_LAYER_VERSION >> 8 );
+      CRM_CONNECT_MAX_CTO_SIZE = XCPTL_MAX_CTO_SIZE;
+      CRM_CONNECT_MAX_DTO_SIZE = XCPTL_MAX_DTO_SIZE;
+      CRM_CONNECT_RESOURCE = RM_DAQ;       /* Data Acquisition supported */
+      CRM_CONNECT_COMM_BASIC = CMB_OPTIONAL;
 #if defined ( XCP_CPUTYPE_BIGENDIAN )
-    CRM_CONNECT_COMM_BASIC |= (uint8_t)PI_MOTOROLA;
+      CRM_CONNECT_COMM_BASIC |= (uint8_t)PI_MOTOROLA;
 #endif
-
   }
 
   // Handle other all other commands
@@ -925,17 +939,15 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
 #ifdef XCP_ENABLE_DEBUG_PRINTS
       if (XCP_DBG_LEVEL >= 2) XcpPrintCmd();
 #endif
-      if (!isConnected()) { // Must be connected
+      if (!isConnected() && CRO_CMD!= CC_TRANSPORT_LAYER_CMD) { // Must be connected, exception are the transport layer commands
           XCP_DBG_PRINT1("Command ignored because not in connected state, no response sent!\n");
           return;
       }
 
       if (cmdLen<1 || cmdLen>XCPTL_MAX_CTO_SIZE) error(CRC_CMD_SYNTAX);
-
       switch (CRO_CMD)
       {
-
-        case CC_SYNC:
+        case CC_SYNCH:
           {
             /* Always return a negative response with the error code ERR_CMD_SYNCH. */
             gXcp.CrmLen = CRM_SYNCH_LEN;
@@ -960,14 +972,15 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
           }
           break;
 
-          case CC_DISCONNECT:
-            {
-              XcpDisconnect();
-            }
-            break;
-
-          case CC_GET_ID:
+        case CC_DISCONNECT:
           {
+            XcpDisconnect();
+          }
+          break;
+
+        case CC_GET_ID:
+          {
+              check_len(CRO_GET_ID_LEN);
               CRM_LEN = CRM_GET_ID_LEN;
               CRM_GET_ID_MODE = 0; // Transfer mode
               CRM_GET_ID_LENGTH = 0;
@@ -995,388 +1008,439 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
           }
           break;
 
-          case CC_GET_STATUS:
-            {
-              gXcp.CrmLen = CRM_GET_STATUS_LEN;
-              CRM_GET_STATUS_STATUS = (uint8_t)(gXcp.SessionStatus&0xFF);
-              CRM_GET_STATUS_PROTECTION = 0;
-              CRM_GET_STATUS_CONFIG_ID = 0; /* Session configuration ID not available. */
-            }
-            break;
-
-          case CC_SET_MTA:
-            {            
-              gXcp.MtaExt = CRO_SET_MTA_EXT;
-              gXcp.MtaAddr = CRO_SET_MTA_ADDR;
-              gXcp.MtaPtr = NULL;
-              if (gXcp.MtaExt > 1) error(CRC_OUT_OF_RANGE);
-              if (gXcp.MtaExt == 0) {
-                  gXcp.MtaPtr = ApplXcpGetPointer(gXcp.MtaExt, gXcp.MtaAddr);
-              }
-            }
-            break;
-
-          case CC_DOWNLOAD:
+        case CC_GET_STATUS:
           {
-              uint8_t size = CRO_DOWNLOAD_SIZE;
-              if (size > CRO_DOWNLOAD_MAX_SIZE) error(CRC_OUT_OF_RANGE)
-              check_result(XcpWriteMta(size, CRO_DOWNLOAD_DATA));
+            gXcp.CrmLen = CRM_GET_STATUS_LEN;
+            CRM_GET_STATUS_STATUS = (uint8_t)(gXcp.SessionStatus&0xFF);
+            CRM_GET_STATUS_PROTECTION = 0;
+            CRM_GET_STATUS_CONFIG_ID = 0; /* Session configuration ID not available. */
           }
           break;
 
-          case CC_SHORT_DOWNLOAD:
-          {
-              uint8_t size = CRO_SHORT_DOWNLOAD_SIZE;
-              if (size > CRO_SHORT_DOWNLOAD_MAX_SIZE) error(CRC_OUT_OF_RANGE)
-              if (!isCmdPending()) {
-                  gXcp.MtaExt = CRO_SHORT_DOWNLOAD_EXT;
-                  gXcp.MtaAddr = CRO_SHORT_DOWNLOAD_ADDR;
-                  gXcp.MtaPtr = ApplXcpGetPointer(gXcp.MtaExt, gXcp.MtaAddr);
-              }
-              check_result(XcpWriteMta(size, CRO_SHORT_DOWNLOAD_DATA));
+        case CC_SET_MTA:
+          {            
+            check_len(CRO_SET_MTA_LEN);
+            gXcp.MtaExt = CRO_SET_MTA_EXT;
+            gXcp.MtaAddr = CRO_SET_MTA_ADDR;
+            gXcp.MtaPtr = NULL;
+            if (gXcp.MtaExt > 1) error(CRC_OUT_OF_RANGE);
+            if (gXcp.MtaExt == 0) {
+                gXcp.MtaPtr = ApplXcpGetPointer(gXcp.MtaExt, gXcp.MtaAddr);
+            }
           }
           break;
 
-          case CC_UPLOAD:
-            {
-              uint8_t size = CRO_UPLOAD_SIZE;
-              if (size > CRM_UPLOAD_MAX_SIZE) error(CRC_OUT_OF_RANGE);
-              check_result(XcpReadMta(size,CRM_UPLOAD_DATA));
-              gXcp.CrmLen = (uint8_t)(CRM_UPLOAD_LEN+size);
-            }
-            break;
+        case CC_DOWNLOAD:
+          {
+            check_len(CRO_DOWNLOAD_LEN);
+            uint8_t size = CRO_DOWNLOAD_SIZE; // Variable cmdLen
+            if (size > CRO_DOWNLOAD_MAX_SIZE || size > cmdLen-CRO_DOWNLOAD_LEN) error(CRC_CMD_SYNTAX)
+            check_result(XcpWriteMta(size, CRO_DOWNLOAD_DATA));
+          }
+          break;
 
-          case CC_SHORT_UPLOAD:
-            {
-              uint8_t size = CRO_SHORT_UPLOAD_SIZE;
-              if (size > CRM_SHORT_UPLOAD_MAX_SIZE) error(CRC_OUT_OF_RANGE);
-              if (!isCmdPending()) {
-                  gXcp.MtaExt = CRO_SHORT_UPLOAD_EXT;
-                  gXcp.MtaAddr = CRO_SHORT_UPLOAD_ADDR;
-                  gXcp.MtaPtr = ApplXcpGetPointer(gXcp.MtaExt, gXcp.MtaAddr);
-              }
-              check_result(XcpReadMta(size,CRM_SHORT_UPLOAD_DATA));
-              gXcp.CrmLen = (uint8_t)(CRM_SHORT_UPLOAD_LEN+size);
+        case CC_SHORT_DOWNLOAD:
+          {
+            check_len(CRO_SHORT_DOWNLOAD_LEN);
+            uint8_t size = CRO_SHORT_DOWNLOAD_SIZE; // Variable cmdLen
+            if (size > CRO_SHORT_DOWNLOAD_MAX_SIZE || size > cmdLen - CRO_SHORT_DOWNLOAD_LEN) error(CRC_CMD_SYNTAX)
+            if (!isCmdPending()) {
+                gXcp.MtaExt = CRO_SHORT_DOWNLOAD_EXT;
+                gXcp.MtaAddr = CRO_SHORT_DOWNLOAD_ADDR;
+                gXcp.MtaPtr = ApplXcpGetPointer(gXcp.MtaExt, gXcp.MtaAddr);
             }
-            break;
+            check_result(XcpWriteMta(size, CRO_SHORT_DOWNLOAD_DATA));
+          }
+          break;
+
+        case CC_UPLOAD:
+          {
+            check_len(CRO_UPLOAD_LEN);
+            uint8_t size = CRO_UPLOAD_SIZE;
+            if (size > CRM_UPLOAD_MAX_SIZE) error(CRC_OUT_OF_RANGE);
+            check_result(XcpReadMta(size,CRM_UPLOAD_DATA));
+            gXcp.CrmLen = (uint8_t)(CRM_UPLOAD_LEN+size);
+          }
+          break;
+
+        case CC_SHORT_UPLOAD:
+          {
+            check_len(CRO_SHORT_UPLOAD_LEN);
+            uint8_t size = CRO_SHORT_UPLOAD_SIZE;
+            if (size > CRM_SHORT_UPLOAD_MAX_SIZE) error(CRC_OUT_OF_RANGE);
+            if (!isCmdPending()) {
+                gXcp.MtaExt = CRO_SHORT_UPLOAD_EXT;
+                gXcp.MtaAddr = CRO_SHORT_UPLOAD_ADDR;
+                gXcp.MtaPtr = ApplXcpGetPointer(gXcp.MtaExt, gXcp.MtaAddr);
+            }
+            check_result(XcpReadMta(size,CRM_SHORT_UPLOAD_DATA));
+            gXcp.CrmLen = (uint8_t)(CRM_SHORT_UPLOAD_LEN+size);
+          }
+          break;
 
 #ifdef XCP_ENABLE_CAL_PAGE
-          case CC_SET_CAL_PAGE:
+        case CC_SET_CAL_PAGE:
           {
-              check_error(ApplXcpSetCalPage(CRO_SET_CAL_PAGE_SEGMENT, CRO_SET_CAL_PAGE_PAGE, CRO_SET_CAL_PAGE_MODE));
+            check_len(CRO_SET_CAL_PAGE_LEN);
+            check_error(ApplXcpSetCalPage(CRO_SET_CAL_PAGE_SEGMENT, CRO_SET_CAL_PAGE_PAGE, CRO_SET_CAL_PAGE_MODE));
           }
           break;
 
-          case CC_GET_CAL_PAGE:
+        case CC_GET_CAL_PAGE:
           {
-              gXcp.CrmLen = CRM_GET_CAL_PAGE_LEN;
-              CRM_GET_CAL_PAGE_PAGE = ApplXcpGetCalPage(CRO_GET_CAL_PAGE_SEGMENT, CRO_GET_CAL_PAGE_MODE);
+            check_len(CRO_GET_CAL_PAGE_LEN);
+            gXcp.CrmLen = CRM_GET_CAL_PAGE_LEN;
+            CRM_GET_CAL_PAGE_PAGE = ApplXcpGetCalPage(CRO_GET_CAL_PAGE_SEGMENT, CRO_GET_CAL_PAGE_MODE);
           }
           break;
-#endif
+#endif // XCP_ENABLE_CAL_PAGE
 
-
-#if defined ( XCP_ENABLE_CHECKSUM )
-          case CC_BUILD_CHECKSUM: /* Build Checksum */
+#ifdef XCP_ENABLE_CHECKSUM
+        case CC_BUILD_CHECKSUM:
           {
-              uint32_t n = CRO_BUILD_CHECKSUM_SIZE;
-              uint32_t s = 0;
-              uint32_t d,i;
-              //if (n % 4 != 0) error(CRC_OUT_OF_RANGE)
-              //n = n / 4;
-              n = (n + 3) / 4;
-              for (i = 0; i < n; i++) { 
-                  check_error(XcpReadMta(4, (uint8_t*)&d)); 
-                  s += d; 
-              }
-              CRM_BUILD_CHECKSUM_RESULT = s;
-              CRM_BUILD_CHECKSUM_TYPE = XCP_CHECKSUM_TYPE_ADD44;
-              gXcp.CrmLen = CRM_BUILD_CHECKSUM_LEN;
-          }
-          break;
-#endif
-
-
-            case CC_GET_DAQ_PROCESSOR_INFO:
-            {
-              gXcp.CrmLen = CRM_GET_DAQ_PROCESSOR_INFO_LEN;
-              CRM_GET_DAQ_PROCESSOR_INFO_MIN_DAQ = 0;
-              CRM_GET_DAQ_PROCESSOR_INFO_MAX_DAQ = (gXcp.Daq.DaqCount); /* dynamic */
-#if defined ( XCP_ENABLE_DAQ_EVENT_INFO )
-              CRM_GET_DAQ_PROCESSOR_INFO_MAX_EVENT = gXcp.EventCount;
-#else
-              CRM_GET_DAQ_PROCESSOR_INFO_MAX_EVENT = 0; /* Unknown */
-#endif
-              CRM_GET_DAQ_PROCESSOR_INFO_DAQ_KEY_BYTE = (uint8_t)DAQ_HDR_ODT_DAQB; /* DTO identification field type: Relative ODT number, absolute list number (BYTE) */
-              CRM_GET_DAQ_PROCESSOR_INFO_PROPERTIES = (uint8_t)( DAQ_PROPERTY_CONFIG_TYPE | DAQ_PROPERTY_TIMESTAMP | DAQ_OVERLOAD_INDICATION_PID );
+            check_len(CRO_BUILD_CHECKSUM_LEN);
+            uint32_t n = CRO_BUILD_CHECKSUM_SIZE;
+            uint32_t s = 0;
+            uint32_t d,i;
+            //if (n % 4 != 0) error(CRC_OUT_OF_RANGE)
+            //n = n / 4;
+            n = (n + 3) / 4;
+            for (i = 0; i < n; i++) { 
+              check_error(XcpReadMta(4, (uint8_t*)&d)); 
+              s += d; 
             }
-            break;
+            CRM_BUILD_CHECKSUM_RESULT = s;
+            CRM_BUILD_CHECKSUM_TYPE = XCP_CHECKSUM_TYPE_ADD44;
+            gXcp.CrmLen = CRM_BUILD_CHECKSUM_LEN;
+          }
+          break;
+#endif // XCP_ENABLE_CHECKSUM
 
-            case CC_GET_DAQ_RESOLUTION_INFO:
-              {
-                gXcp.CrmLen = CRM_GET_DAQ_RESOLUTION_INFO_LEN;
-                CRM_GET_DAQ_RESOLUTION_INFO_GRANULARITY_DAQ = 1;
-                CRM_GET_DAQ_RESOLUTION_INFO_GRANULARITY_STIM = 1;
-                CRM_GET_DAQ_RESOLUTION_INFO_MAX_SIZE_DAQ  = (uint8_t)XCP_MAX_ODT_ENTRY_SIZE;
-                CRM_GET_DAQ_RESOLUTION_INFO_MAX_SIZE_STIM = (uint8_t)XCP_MAX_ODT_ENTRY_SIZE;
-                CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_MODE = XCP_TIMESTAMP_UNIT | DAQ_TIMESTAMP_FIXED | DAQ_TIMESTAMP_DWORD;
-                CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_TICKS = XCP_TIMESTAMP_TICKS;
-              }
-              break;
+        case CC_GET_DAQ_PROCESSOR_INFO:
+          {
+            gXcp.CrmLen = CRM_GET_DAQ_PROCESSOR_INFO_LEN;
+            CRM_GET_DAQ_PROCESSOR_INFO_MIN_DAQ = 0;
+            CRM_GET_DAQ_PROCESSOR_INFO_MAX_DAQ = (gXcp.Daq.DaqCount); /* dynamic */
+#if defined ( XCP_ENABLE_DAQ_EVENT_INFO )
+            CRM_GET_DAQ_PROCESSOR_INFO_MAX_EVENT = gXcp.EventCount;
+#else
+            CRM_GET_DAQ_PROCESSOR_INFO_MAX_EVENT = 0; /* Unknown */
+#endif
+            CRM_GET_DAQ_PROCESSOR_INFO_DAQ_KEY_BYTE = (uint8_t)DAQ_HDR_ODT_DAQB; /* DTO identification field type: Relative ODT number, absolute list number (BYTE) */
+            CRM_GET_DAQ_PROCESSOR_INFO_PROPERTIES = (uint8_t)( DAQ_PROPERTY_CONFIG_TYPE | DAQ_PROPERTY_TIMESTAMP | DAQ_OVERLOAD_INDICATION_PID );
+          }
+          break;
+
+        case CC_GET_DAQ_RESOLUTION_INFO:
+          {
+            gXcp.CrmLen = CRM_GET_DAQ_RESOLUTION_INFO_LEN;
+            CRM_GET_DAQ_RESOLUTION_INFO_GRANULARITY_DAQ = 1;
+            CRM_GET_DAQ_RESOLUTION_INFO_GRANULARITY_STIM = 1;
+            CRM_GET_DAQ_RESOLUTION_INFO_MAX_SIZE_DAQ  = (uint8_t)XCP_MAX_ODT_ENTRY_SIZE;
+            CRM_GET_DAQ_RESOLUTION_INFO_MAX_SIZE_STIM = (uint8_t)XCP_MAX_ODT_ENTRY_SIZE;
+            CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_MODE = XCP_TIMESTAMP_UNIT | DAQ_TIMESTAMP_FIXED | DAQ_TIMESTAMP_DWORD;
+            CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_TICKS = XCP_TIMESTAMP_TICKS;
+          }
+          break;
 
 #ifdef XCP_ENABLE_DAQ_EVENT_INFO
-            case CC_GET_DAQ_EVENT_INFO:
-            {
-                uint16_t eventNumber = CRO_GET_DAQ_EVENT_INFO_EVENT;
-                tXcpEvent* event = XcpGetEvent(eventNumber);
-                if (event==NULL) error(CRC_OUT_OF_RANGE);
-                gXcp.CrmLen = CRM_GET_DAQ_EVENT_INFO_LEN;
-                CRM_GET_DAQ_EVENT_INFO_PROPERTIES = DAQ_EVENT_PROPERTIES_DAQ | DAQ_EVENT_PROPERTIES_EVENT_CONSISTENCY;
+        case CC_GET_DAQ_EVENT_INFO:
+          {
+            check_len(CRO_GET_DAQ_EVENT_INFO_LEN);
+            uint16_t eventNumber = CRO_GET_DAQ_EVENT_INFO_EVENT;
+            tXcpEvent* event = XcpGetEvent(eventNumber);
+            if (event==NULL) error(CRC_OUT_OF_RANGE);
+            gXcp.CrmLen = CRM_GET_DAQ_EVENT_INFO_LEN;
+            CRM_GET_DAQ_EVENT_INFO_PROPERTIES = DAQ_EVENT_PROPERTIES_DAQ | DAQ_EVENT_PROPERTIES_EVENT_CONSISTENCY;
 #ifdef XCP_ENABLE_PACKED_MODE
-                if (ApplXcpEventList[event].sampleCount) CRM_GET_DAQ_EVENT_INFO_PROPERTIES |= DAQ_EVENT_PROPERTIES_PACKED;
+            if (ApplXcpEventList[event].sampleCount) CRM_GET_DAQ_EVENT_INFO_PROPERTIES |= DAQ_EVENT_PROPERTIES_PACKED;
 #endif
-                // if (event->size) CRM_GET_DAQ_EVENT_INFO_PROPERTIES |= DAQ_EVENT_PROPERTIES_EXT; @@@@ V1.6
-                CRM_GET_DAQ_EVENT_INFO_MAX_DAQ_LIST = 0xFF;
-                CRM_GET_DAQ_EVENT_INFO_NAME_LENGTH = (uint8_t)strlen(event->name);
-                CRM_GET_DAQ_EVENT_INFO_TIME_CYCLE = event->timeCycle;
-                CRM_GET_DAQ_EVENT_INFO_TIME_UNIT = event->timeUnit;
-                CRM_GET_DAQ_EVENT_INFO_PRIORITY = event->priority;
-                gXcp.MtaPtr = (uint8_t*)event->name;
-                gXcp.MtaExt = 0;
+            // if (event->size) CRM_GET_DAQ_EVENT_INFO_PROPERTIES |= DAQ_EVENT_PROPERTIES_EXT; @@@@ V1.6
+            CRM_GET_DAQ_EVENT_INFO_MAX_DAQ_LIST = 0xFF;
+            CRM_GET_DAQ_EVENT_INFO_NAME_LENGTH = (uint8_t)strlen(event->name);
+            CRM_GET_DAQ_EVENT_INFO_TIME_CYCLE = event->timeCycle;
+            CRM_GET_DAQ_EVENT_INFO_TIME_UNIT = event->timeUnit;
+            CRM_GET_DAQ_EVENT_INFO_PRIORITY = event->priority;
+            gXcp.MtaPtr = (uint8_t*)event->name;
+            gXcp.MtaExt = 0;
+          }
+          break;
+#endif // XCP_ENABLE_DAQ_EVENT_INFO
 
-            }
+        case CC_FREE_DAQ:
+          {
+              XcpFreeDaq();
+          }
+          break;
+
+        case CC_ALLOC_DAQ:
+          {
+            check_len(CRO_ALLOC_DAQ_LEN);
+            uint16_t count = CRO_ALLOC_DAQ_COUNT;
+            check_error(XcpAllocDaq(count));
+          }
+          break;
+
+        case CC_ALLOC_ODT:
+          {
+            check_len(CRO_ALLOC_ODT_LEN);
+            uint16_t daq = CRO_ALLOC_ODT_DAQ;
+            uint8_t count = CRO_ALLOC_ODT_COUNT;
+            if (daq >= gXcp.Daq.DaqCount) error(CRC_OUT_OF_RANGE);
+            check_error( XcpAllocOdt(daq, count) )
+          }
+          break;
+
+        case CC_ALLOC_ODT_ENTRY:
+          {
+            check_len(CRO_ALLOC_ODT_ENTRY_LEN);
+            uint16_t daq = CRO_ALLOC_ODT_ENTRY_DAQ;
+            uint8_t odt = CRO_ALLOC_ODT_ENTRY_ODT;
+            uint8_t count = CRO_ALLOC_ODT_ENTRY_COUNT;
+            if ((daq >= gXcp.Daq.DaqCount) || (odt >= DaqListOdtCount(daq))) error(CRC_OUT_OF_RANGE);
+            check_error( XcpAllocOdtEntry(daq, odt, count) )
+          }
+          break;
+
+        case CC_GET_DAQ_LIST_MODE:
+          {
+            check_len(CRO_GET_DAQ_LIST_MODE_LEN);
+            uint16_t daq = CRO_GET_DAQ_LIST_MODE_DAQ;
+            if (daq >= gXcp.Daq.DaqCount) error(CRC_OUT_OF_RANGE);
+            gXcp.CrmLen = CRM_GET_DAQ_LIST_MODE_LEN;
+            CRM_GET_DAQ_LIST_MODE_MODE = DaqListMode(daq);
+            CRM_GET_DAQ_LIST_MODE_PRESCALER = 1;
+            CRM_GET_DAQ_LIST_MODE_EVENTCHANNEL = DaqListEventChannel(daq);
+            CRM_GET_DAQ_LIST_MODE_PRIORITY = DaqListPriority(daq);
+          }
+          break;
+
+        case CC_SET_DAQ_LIST_MODE:
+          {
+            check_len(CRO_SET_DAQ_LIST_MODE_LEN);
+            uint16_t daq = CRO_SET_DAQ_LIST_MODE_DAQ;
+            uint16_t event = CRO_SET_DAQ_LIST_MODE_EVENTCHANNEL;
+            uint8_t mode = CRO_SET_DAQ_LIST_MODE_MODE;
+            uint8_t prio = CRO_SET_DAQ_LIST_MODE_PRIORITY;
+            if (daq >= gXcp.Daq.DaqCount) error(CRC_OUT_OF_RANGE);
+            if (mode & (DAQ_MODE_ALTERNATING | DAQ_MODE_DIRECTION | DAQ_MODE_DTO_CTR | DAQ_MODE_PID_OFF)) error(CRC_OUT_OF_RANGE);  // none of these modes implemented
+            if (0==(mode & (DAQ_MODE_TIMESTAMP))) error(CRC_CMD_SYNTAX);  // timestamp is fixed on
+            if (CRO_SET_DAQ_LIST_MODE_PRESCALER > 1) error(CRC_OUT_OF_RANGE); // prescaler is not implemented
+            check_error(XcpSetDaqListMode(daq, event, mode, prio));
             break;
-#endif
+          }
 
-            case CC_FREE_DAQ:
-            {
-                XcpFreeDaq();
-            }
-            break;
+        case CC_SET_DAQ_PTR:
+          {
+            check_len(CRO_SET_DAQ_PTR_LEN);
+            uint16_t daq = CRO_SET_DAQ_PTR_DAQ;
+            uint8_t odt = CRO_SET_DAQ_PTR_ODT;
+            uint8_t idx = CRO_SET_DAQ_PTR_IDX;
+            check_error(XcpSetDaqPtr(daq,odt,idx));
+          }
+          break;
 
-          case CC_ALLOC_DAQ:
-            {
-                uint16_t count = CRO_ALLOC_DAQ_COUNT;
-                check_error(XcpAllocDaq(count));
-            }
-            break;
-
-          case CC_ALLOC_ODT:
-            {
-              uint16_t daq = CRO_ALLOC_ODT_DAQ;
-              uint8_t count = CRO_ALLOC_ODT_COUNT;
-              if (daq >= gXcp.Daq.DaqCount) error(CRC_OUT_OF_RANGE);
-              check_error( XcpAllocOdt(daq, count) )
-            }
-            break;
-
-          case CC_ALLOC_ODT_ENTRY:
-            {
-              uint16_t daq = CRO_ALLOC_ODT_ENTRY_DAQ;
-              uint8_t odt = CRO_ALLOC_ODT_ENTRY_ODT;
-              uint8_t count = CRO_ALLOC_ODT_ENTRY_COUNT;
-              if ((daq >= gXcp.Daq.DaqCount) || (odt >= DaqListOdtCount(daq))) error(CRC_OUT_OF_RANGE);
-              check_error( XcpAllocOdtEntry(daq, odt, count) )
-            }
-            break;
-
-          case CC_GET_DAQ_LIST_MODE:
-            {
-              uint16_t daq = CRO_GET_DAQ_LIST_MODE_DAQ;
-              if (daq >= gXcp.Daq.DaqCount) error(CRC_OUT_OF_RANGE);
-              gXcp.CrmLen = CRM_GET_DAQ_LIST_MODE_LEN;
-              CRM_GET_DAQ_LIST_MODE_MODE = DaqListFlags(daq);
-              CRM_GET_DAQ_LIST_MODE_PRESCALER = 1;
-              CRM_GET_DAQ_LIST_MODE_EVENTCHANNEL = DaqListEventChannel(daq);
-              CRM_GET_DAQ_LIST_MODE_PRIORITY = DaqListPriority(daq);
-            }
-            break;
-
-          case CC_SET_DAQ_LIST_MODE:
-            {
-              uint16_t daq = CRO_SET_DAQ_LIST_MODE_DAQ;
-              uint16_t event = CRO_SET_DAQ_LIST_MODE_EVENTCHANNEL;
-              uint8_t mode = CRO_SET_DAQ_LIST_MODE_MODE;
-              uint8_t prio = CRO_SET_DAQ_LIST_MODE_PRIORITY;
-              if (daq >= gXcp.Daq.DaqCount) error(CRC_OUT_OF_RANGE);
-              if (mode & (DAQ_FLAG_NO_PID | DAQ_FLAG_RESUME | DAQ_FLAG_DIRECTION | DAQ_FLAG_CMPL_DAQ_CH | DAQ_FLAG_SELECTED | DAQ_FLAG_RUNNING)) error(CRC_OUT_OF_RANGE);  // no pid, resume, stim not supported
-              if (0==(mode & (DAQ_FLAG_TIMESTAMP | DAQ_FLAG_SELECTED))) error(CRC_OUT_OF_RANGE);  // No timestamp not supported
-              if (CRO_SET_DAQ_LIST_MODE_PRESCALER > 1) error(CRC_OUT_OF_RANGE); // prescaler not supportet
-              check_error(XcpSetDaqListMode(daq, event, mode, prio));
-              break;
-            }
-
-          case CC_SET_DAQ_PTR: /* Set target for WRITE_DAQ or WRITE_DAQ_MULTIPLE */
-            {
-              uint16_t daq = CRO_SET_DAQ_PTR_DAQ;
-              uint8_t odt = CRO_SET_DAQ_PTR_ODT;
-              uint8_t idx = CRO_SET_DAQ_PTR_IDX;
-              check_error(XcpSetDaqPtr(daq,odt,idx));
-            }
-            break;
-
-          case CC_WRITE_DAQ: /* Write ODT entry */
+        case CC_WRITE_DAQ:
+          {
+            check_len(CRO_WRITE_DAQ_LEN);
             check_error(XcpAddOdtEntry(CRO_WRITE_DAQ_ADDR, CRO_WRITE_DAQ_EXT, CRO_WRITE_DAQ_SIZE));
-            break;
+          }
+          break;
 
-          case CC_WRITE_DAQ_MULTIPLE: /* Write multiple ODT entries */
-              {
-                 for (int i = 0; i < CRO_WRITE_DAQ_MULTIPLE_NODAQ; i++) {
-                     check_error(XcpAddOdtEntry(CRO_WRITE_DAQ_MULTIPLE_ADDR(i), CRO_WRITE_DAQ_MULTIPLE_EXT(i), CRO_WRITE_DAQ_MULTIPLE_SIZE(i)));
-                  }
+        case CC_WRITE_DAQ_MULTIPLE: 
+          {
+            check_len(CRO_WRITE_DAQ_MULTIPLE_LEN(1));
+            uint8_t n = CRO_WRITE_DAQ_MULTIPLE_NODAQ;
+            check_len(CRO_WRITE_DAQ_MULTIPLE_LEN(n));
+            for (int i = 0; i < n; i++) {
+                  check_error(XcpAddOdtEntry(CRO_WRITE_DAQ_MULTIPLE_ADDR(i), CRO_WRITE_DAQ_MULTIPLE_EXT(i), CRO_WRITE_DAQ_MULTIPLE_SIZE(i)));
               }
-              break;
+          }
+          break;
 
-          case CC_START_STOP_DAQ_LIST:
-            {
-              uint16_t daq = CRO_START_STOP_DAQ;
-              if (daq >= gXcp.Daq.DaqCount) error(CRC_OUT_OF_RANGE);
-              if ( (CRO_START_STOP_MODE==1 ) || (CRO_START_STOP_MODE==2) )  { // start or select
-                DaqListFlags(daq) |= (uint8_t)DAQ_FLAG_SELECTED;
-                if (CRO_START_STOP_MODE == 1) { // start individual daq list
-                    XcpStartDaq(daq);
-                }
-                gXcp.CrmLen = CRM_START_STOP_LEN;
-                CRM_START_STOP_FIRST_PID = 0; // Absolute DAQ, Relative ODT - DaqListFirstPid(daq);
+        case CC_START_STOP_DAQ_LIST:
+          {
+            check_len(CRO_START_STOP_DAQ_LIST_LEN);
+            uint16_t daq = CRO_START_STOP_DAQ_LIST_DAQ;
+            if (daq >= gXcp.Daq.DaqCount) error(CRC_OUT_OF_RANGE);
+            if ( (CRO_START_STOP_DAQ_LIST_MODE==1 ) || (CRO_START_STOP_DAQ_LIST_MODE==2) )  { // start or select
+              DaqListState(daq) |= DAQ_STATE_SELECTED;
+              if (CRO_START_STOP_DAQ_LIST_MODE == 1) { // start individual daq list
+                  XcpStartDaq(daq);
               }
-              else {
-                if (XcpStopDaq(daq)) {
-                    XcpTlWaitForTransmitQueueEmpty(); // Event processing stopped - wait until transmit queue empty before sending command response
-                }
-              }
-
+              gXcp.CrmLen = CRM_START_STOP_DAQ_LIST_LEN;
+              CRM_START_STOP_DAQ_LIST_FIRST_PID = 0; // Absolute DAQ, Relative ODT - DaqListFirstPid(daq);
             }
-            break;
+            else {
+              if (XcpStopDaq(daq)) {
+                  XcpTlWaitForTransmitQueueEmpty(); // Event processing stopped - wait until transmit queue empty before sending command response
+              }
+            }
 
-          case CC_START_STOP_SYNCH:
-            {
-              if ((0 == gXcp.Daq.DaqCount) || (0 == gXcp.Daq.OdtCount) || (0 == gXcp.Daq.OdtEntryCount)) error(CRC_DAQ_CONFIG);
-              switch (CRO_START_STOP_MODE) {
+          }
+          break;
+
+        case CC_START_STOP_SYNCH:
+          {
+            if ((0 == gXcp.Daq.DaqCount) || (0 == gXcp.Daq.OdtCount) || (0 == gXcp.Daq.OdtEntryCount)) error(CRC_DAQ_CONFIG);
+            check_len(CRO_START_STOP_SYNCH_LEN);
+            switch (CRO_START_STOP_SYNCH_MODE) {
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0104
-              case 3: /* prepare for start selected */
-                  if (!ApplXcpPrepareDaq()) error(CRC_RESOURCE_TEMPORARY_NOT_ACCESSIBLE);
-                  break;
+            case 3: /* prepare for start selected */
+                if (!ApplXcpPrepareDaq()) error(CRC_RESOURCE_TEMPORARY_NOT_ACCESSIBLE);
+                break;
 #endif
-              case 2: /* stop selected */
-                  XcpStopAllSelectedDaq();
-                  break;
-              case 1: /* start selected */
-                  if (!ApplXcpStartDaq()) error(CRC_RESOURCE_TEMPORARY_NOT_ACCESSIBLE);
-                  XcpSendResponse(); // Transmit response and then start DAQ
-                  XcpStartAllSelectedDaq();
-                  return;
-              case 0: /* stop all */
-                  ApplXcpStopDaq();
-                  XcpStopAllDaq();
-                  XcpTlWaitForTransmitQueueEmpty(); // Wait until transmit queue empty before sending command response
-                  break;
-              default:
-                  error(CRC_OUT_OF_RANGE);
-              }
+            case 2: /* stop selected */
+                XcpStopAllSelectedDaq();
+                break;
+            case 1: /* start selected */
+                if (!ApplXcpStartDaq()) error(CRC_RESOURCE_TEMPORARY_NOT_ACCESSIBLE);
+                XcpSendResponse(); // Transmit response and then start DAQ
+                XcpStartAllSelectedDaq();
+                return;
+            case 0: /* stop all */
+                ApplXcpStopDaq();
+                XcpStopAllDaq();
+                XcpTlWaitForTransmitQueueEmpty(); // Wait until transmit queue empty before sending command response
+                break;
+            default:
+                error(CRC_OUT_OF_RANGE);
+            }
               
-            }
-            break;
+          }
+          break;
 
-#if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
-            case CC_TIME_CORRELATION_PROPERTIES:
-            {
-               gXcp.CrmLen = CRM_TIME_SYNC_PROPERTIES_LEN;
-               if ((CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES & TIME_SYNC_SET_PROPERTIES_RESPONSE_FMT) >= 1) { // set extended format
-                  XCP_DBG_PRINTF2("  Timesync extended mode activated (RESPONSE_FMT=%u)\n", CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES & TIME_SYNC_SET_PROPERTIES_RESPONSE_FMT);
-                  gXcp.SessionStatus &= (uint16_t)~SS_LEGACY_MODE;
-              }
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0103 && XCP_TRANSPORT_LAYER_TYPE==XCP_TRANSPORT_LAYER_ETH
+        case CC_TIME_CORRELATION_PROPERTIES:
+          {
+            check_len(CRO_TIME_SYNCH_PROPERTIES_LEN);
+            gXcp.CrmLen = CRM_TIME_SYNCH_PROPERTIES_LEN;
+            if ((CRO_TIME_SYNCH_PROPERTIES_SET_PROPERTIES & TIME_SYNCH_SET_PROPERTIES_RESPONSE_FMT) >= 1) { // set extended format
+              XCP_DBG_PRINTF2("  Timesync extended mode activated (RESPONSE_FMT=%u)\n", CRO_TIME_SYNCH_PROPERTIES_SET_PROPERTIES & TIME_SYNCH_SET_PROPERTIES_RESPONSE_FMT);
+              gXcp.SessionStatus &= (uint16_t)~SS_LEGACY_MODE;
+            }
 #ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
-              if (CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES & TIME_SYNC_SET_PROPERTIES_CLUSTER_ID) { // set cluster id
-                  XCP_DBG_PRINTF2("  Cluster id set to %u\n", CRO_TIME_SYNC_PROPERTIES_CLUSTER_ID);
-                  gXcp.ClusterId = CRO_TIME_SYNC_PROPERTIES_CLUSTER_ID; // Set cluster id
-                  XcpTlSetClusterId(gXcp.ClusterId);
-              }
-              CRM_TIME_SYNC_PROPERTIES_CLUSTER_ID = gXcp.ClusterId;
-#else
-              if (CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES & TIME_SYNC_SET_PROPERTIES_CLUSTER_ID) { // set cluster id
-                  //error(CRC_OUT_OF_RANGE); // CANape insists on setting a cluster id, even if Multicast is not enabled
-                  XCP_DBG_PRINTF2("  Cluster id = %u setting ignored\n", CRO_TIME_SYNC_PROPERTIES_CLUSTER_ID);
-              }
-              CRM_TIME_SYNC_PROPERTIES_CLUSTER_ID = 0;
-#endif
-              if (CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES & TIME_SYNC_SET_PROPERTIES_TIME_SYNC_BRIDGE) error(CRC_OUT_OF_RANGE); // set time sync bride is not supported -> error
-              CRM_TIME_SYNC_PROPERTIES_SERVER_CONFIG = SERVER_CONFIG_RESPONSE_FMT_ADVANCED | SERVER_CONFIG_DAQ_TS_SERVER | SERVER_CONFIG_TIME_SYNC_BRIDGE_NONE;  // SERVER_CONFIG_RESPONSE_FMT_LEGACY
-              CRM_TIME_SYNC_PROPERTIES_RESERVED = 0x0;
-#ifndef XCP_ENABLE_PTP
-              CRM_TIME_SYNC_PROPERTIES_OBSERVABLE_CLOCKS = LOCAL_CLOCK_FREE_RUNNING | GRANDM_CLOCK_NONE | ECU_CLOCK_NONE;
-              CRM_TIME_SYNC_PROPERTIES_SYNC_STATE = LOCAL_CLOCK_STATE_FREE_RUNNING;
-              CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO = CLOCK_INFO_SERVER;
-#else // XCP_ENABLE_PTP
-              if (ApplXcpGetClockInfoGrandmaster(gXcp.ClockInfo.grandmaster.UUID, &gXcp.ClockInfo.grandmaster.epochOfGrandmaster, &gXcp.ClockInfo.grandmaster.stratumLevel)) { // Update UUID and clock details
-                  CRM_TIME_SYNC_PROPERTIES_OBSERVABLE_CLOCKS = LOCAL_CLOCK_SYNCED | GRANDM_CLOCK_READABLE | ECU_CLOCK_NONE;
-                  XCP_DBG_PRINTF1("  GrandmasterClock: UUID=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X stratumLevel=%u, epoch=%u\n", gXcp.ClockInfo.grandmaster.UUID[0], gXcp.ClockInfo.grandmaster.UUID[1], gXcp.ClockInfo.grandmaster.UUID[2], gXcp.ClockInfo.grandmaster.UUID[3], gXcp.ClockInfo.grandmaster.UUID[4], gXcp.ClockInfo.grandmaster.UUID[5], gXcp.ClockInfo.grandmaster.UUID[6], gXcp.ClockInfo.grandmaster.UUID[7], gXcp.ClockInfo.grandmaster.stratumLevel, gXcp.ClockInfo.grandmaster.epochOfGrandmaster);
-                  CRM_TIME_SYNC_PROPERTIES_SYNC_STATE = ApplXcpGetClockState();
-                  XCP_DBG_PRINTF1("  SyncState: %u\n", CRM_TIME_SYNC_PROPERTIES_SYNC_STATE);
-                  CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO = CLOCK_INFO_SERVER | CLOCK_INFO_GRANDM | CLOCK_INFO_RELATION;
-              }
-              else {
-                  CRM_TIME_SYNC_PROPERTIES_OBSERVABLE_CLOCKS = LOCAL_CLOCK_FREE_RUNNING | GRANDM_CLOCK_NONE | ECU_CLOCK_NONE;
-                  CRM_TIME_SYNC_PROPERTIES_SYNC_STATE = LOCAL_CLOCK_STATE_FREE_RUNNING;
-                  CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO = CLOCK_INFO_SERVER;
-              }
-#endif // XCP_ENABLE_PTP
-              if (CRO_TIME_SYNC_PROPERTIES_GET_PROPERTIES_REQUEST & TIME_SYNC_GET_PROPERTIES_GET_CLK_INFO) { // check whether MTA based upload is requested
-                  gXcp.MtaPtr = (uint8_t*)&gXcp.ClockInfo.server;
-                  gXcp.MtaExt = 0;
-              }
+            if (CRO_TIME_SYNCH_PROPERTIES_SET_PROPERTIES & TIME_SYNCH_SET_PROPERTIES_CLUSTER_ID) { // set cluster id
+              XCP_DBG_PRINTF2("  Cluster id set to %u\n", CRO_TIME_SYNCH_PROPERTIES_CLUSTER_ID);
+              gXcp.ClusterId = CRO_TIME_SYNCH_PROPERTIES_CLUSTER_ID; // Set cluster id
+              XcpEthTlSetClusterId(gXcp.ClusterId);
             }
-            break;
+            CRM_TIME_SYNCH_PROPERTIES_CLUSTER_ID = gXcp.ClusterId;
+#else
+            if (CRO_TIME_SYNCH_PROPERTIES_SET_PROPERTIES & TIME_SYNCH_SET_PROPERTIES_CLUSTER_ID) { // set cluster id
+                //error(CRC_OUT_OF_RANGE); // CANape insists on setting a cluster id, even if Multicast is not enabled
+                XCP_DBG_PRINTF2("  Cluster id = %u setting ignored\n", CRO_TIME_SYNCH_PROPERTIES_CLUSTER_ID);
+            }
+            CRM_TIME_SYNCH_PROPERTIES_CLUSTER_ID = 0;
 #endif
+            if (CRO_TIME_SYNCH_PROPERTIES_SET_PROPERTIES & TIME_SYNCH_SET_PROPERTIES_TIME_SYNCH_BRIDGE) error(CRC_OUT_OF_RANGE); // set time sync bride is not supported -> error
+            CRM_TIME_SYNCH_PROPERTIES_SERVER_CONFIG = SERVER_CONFIG_RESPONSE_FMT_ADVANCED | SERVER_CONFIG_DAQ_TS_SERVER | SERVER_CONFIG_TIME_SYNCH_BRIDGE_NONE;  // SERVER_CONFIG_RESPONSE_FMT_LEGACY
+            CRM_TIME_SYNCH_PROPERTIES_RESERVED = 0x0;
+#ifndef XCP_ENABLE_PTP
+            CRM_TIME_SYNCH_PROPERTIES_OBSERVABLE_CLOCKS = LOCAL_CLOCK_FREE_RUNNING | GRANDM_CLOCK_NONE | ECU_CLOCK_NONE;
+            CRM_TIME_SYNCH_PROPERTIES_SYNCH_STATE = LOCAL_CLOCK_STATE_FREE_RUNNING;
+            CRM_TIME_SYNCH_PROPERTIES_CLOCK_INFO = CLOCK_INFO_SERVER;
+#else // XCP_ENABLE_PTP
+            if (ApplXcpGetClockInfoGrandmaster(gXcp.ClockInfo.grandmaster.UUID, &gXcp.ClockInfo.grandmaster.epochOfGrandmaster, &gXcp.ClockInfo.grandmaster.stratumLevel)) { // Update UUID and clock details
+                CRM_TIME_SYNCH_PROPERTIES_OBSERVABLE_CLOCKS = LOCAL_CLOCK_SYNCHED | GRANDM_CLOCK_READABLE | ECU_CLOCK_NONE;
+                XCP_DBG_PRINTF1("  GrandmasterClock: UUID=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X stratumLevel=%u, epoch=%u\n", gXcp.ClockInfo.grandmaster.UUID[0], gXcp.ClockInfo.grandmaster.UUID[1], gXcp.ClockInfo.grandmaster.UUID[2], gXcp.ClockInfo.grandmaster.UUID[3], gXcp.ClockInfo.grandmaster.UUID[4], gXcp.ClockInfo.grandmaster.UUID[5], gXcp.ClockInfo.grandmaster.UUID[6], gXcp.ClockInfo.grandmaster.UUID[7], gXcp.ClockInfo.grandmaster.stratumLevel, gXcp.ClockInfo.grandmaster.epochOfGrandmaster);
+                CRM_TIME_SYNCH_PROPERTIES_SYNCH_STATE = ApplXcpGetClockState();
+                XCP_DBG_PRINTF1("  SyncState: %u\n", CRM_TIME_SYNCH_PROPERTIES_SYNCH_STATE);
+                CRM_TIME_SYNCH_PROPERTIES_CLOCK_INFO = CLOCK_INFO_SERVER | CLOCK_INFO_GRANDM | CLOCK_INFO_RELATION;
+            }
+            else {
+                CRM_TIME_SYNCH_PROPERTIES_OBSERVABLE_CLOCKS = LOCAL_CLOCK_FREE_RUNNING | GRANDM_CLOCK_NONE | ECU_CLOCK_NONE;
+                CRM_TIME_SYNCH_PROPERTIES_SYNCH_STATE = LOCAL_CLOCK_STATE_FREE_RUNNING;
+                CRM_TIME_SYNCH_PROPERTIES_CLOCK_INFO = CLOCK_INFO_SERVER;
+            }
+#endif // XCP_ENABLE_PTP
+            if (CRO_TIME_SYNCH_PROPERTIES_GET_PROPERTIES_REQUEST & TIME_SYNCH_GET_PROPERTIES_GET_CLK_INFO) { // check whether MTA based upload is requested
+                gXcp.MtaPtr = (uint8_t*)&gXcp.ClockInfo.server;
+                gXcp.MtaExt = 0;
+            }
+          }
+          break;
+#endif // >= 0x0103
 
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
-            case CC_TRANSPORT_LAYER_CMD:
+        case CC_TRANSPORT_LAYER_CMD:
+          switch (CRO_TL_SUBCOMMAND) {
 
-              switch (CRO_TL_SUBCOMMAND) {
-
-                  #ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
-                  case CC_TL_GET_DAQ_CLOCK_MULTICAST:
-                  {
-                      uint16_t clusterId = CRO_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER;
-                      if (gXcp.ClusterId != clusterId) error(CRC_OUT_OF_RANGE);
-                      CRM_CMD = PID_EV;
-                      CRM_EVENTCODE = EVC_TIME_SYNC;
-                      CRM_GET_DAQ_CLOCK_MCAST_TRIGGER_INFO = 0x18 + 0x02; // TIME_OF_SAMPLING (Bitmask 0x18, 3 - Sampled on reception) + TRIGGER_INITIATOR ( Bitmask 0x07, 2 - GET_DAQ_CLOCK_MULTICAST)
-                      if (!isLegacyMode()) { // Extended format
-                          #ifdef XCP_DAQ_CLOCK_64BIT
-                              gXcp.CrmLen = CRM_GET_DAQ_CLOCK_MCAST_LEN + 8;
-                              CRM_GET_DAQ_CLOCK_MCAST_PAYLOAD_FMT = DAQ_CLOCK_PAYLOAD_FMT_ID| DAQ_CLOCK_PAYLOAD_FMT_SLV_64; // size of timestamp is DLONG + CLUSTER_ID
-                              CRM_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER64 = CRO_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER;
-                              CRM_GET_DAQ_CLOCK_MCAST_COUNTER64 = CRO_GET_DAQ_CLOCK_MCAST_COUNTER;
-                              uint64_t clock = ApplXcpGetClock64();
-                              CRM_GET_DAQ_CLOCK_MCAST_TIME64_LOW = (uint32_t)(clock);
-                              CRM_GET_DAQ_CLOCK_MCAST_TIME64_HIGH = (uint32_t)(clock >> 32);
-                              CRM_GET_DAQ_CLOCK_MCAST_SYNC_STATE64 = ApplXcpGetClockState();
-                          #else
-                              gXcp.CrmLen = CRM_GET_DAQ_CLOCK_MCAST_LEN + 4;
-                              CRM_GET_DAQ_CLOCK_MCAST_PAYLOAD_FMT = DAQ_CLOCK_PAYLOAD_FMT_ID | DAQ_CLOCK_PAYLOAD_FMT_SLV_32; // size of timestamp is DWORD + CLUSTER_ID
-                              CRM_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER = CRO_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER;
-                              CRM_GET_DAQ_CLOCK_MCAST_COUNTER = CRO_GET_DAQ_CLOCK_MCAST_COUNTER;
-                              CRM_GET_DAQ_CLOCK_MCAST_TIME = (uint32_t)ApplXcpGetClock64();
-                              CRM_GET_DAQ_CLOCK_MCAST_SYNC_STATE = ApplXcpGetClockState();
-                          #endif
-                      }
-                      else
-                      { // Legacy format
-                          gXcp.CrmLen = CRM_GET_DAQ_CLOCK_MCAST_LEN;
-                          CRM_GET_DAQ_CLOCK_MCAST_PAYLOAD_FMT = DAQ_CLOCK_PAYLOAD_FMT_SLV_32; // size of timestamp is DWORD
+              #ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
+              case CC_TL_GET_DAQ_CLOCK_MULTICAST:
+              {
+                  check_len(CRO_GET_DAQ_CLOC_MCAST_LEN);
+                  uint16_t clusterId = CRO_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER;
+                  if (gXcp.ClusterId != clusterId) error(CRC_OUT_OF_RANGE);
+                  CRM_CMD = PID_EV;
+                  CRM_EVENTCODE = EVC_TIME_SYNCH;
+                  CRM_GET_DAQ_CLOCK_MCAST_TRIGGER_INFO = 0x18 + 0x02; // TIME_OF_SAMPLING (Bitmask 0x18, 3 - Sampled on reception) + TRIGGER_INITIATOR ( Bitmask 0x07, 2 - GET_DAQ_CLOCK_MULTICAST)
+                  if (!isLegacyMode()) { // Extended format
+                      #ifdef XCP_DAQ_CLOCK_64BIT
+                          gXcp.CrmLen = CRM_GET_DAQ_CLOCK_MCAST_LEN + 8;
+                          CRM_GET_DAQ_CLOCK_MCAST_PAYLOAD_FMT = DAQ_CLOCK_PAYLOAD_FMT_ID| DAQ_CLOCK_PAYLOAD_FMT_SLV_64; // size of timestamp is DLONG + CLUSTER_ID
+                          CRM_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER64 = CRO_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER;
+                          CRM_GET_DAQ_CLOCK_MCAST_COUNTER64 = CRO_GET_DAQ_CLOCK_MCAST_COUNTER;
+                          uint64_t clock = ApplXcpGetClock64();
+                          CRM_GET_DAQ_CLOCK_MCAST_TIME64_LOW = (uint32_t)(clock);
+                          CRM_GET_DAQ_CLOCK_MCAST_TIME64_HIGH = (uint32_t)(clock >> 32);
+                          CRM_GET_DAQ_CLOCK_MCAST_SYNCH_STATE64 = ApplXcpGetClockState();
+                      #else
+                          gXcp.CrmLen = CRM_GET_DAQ_CLOCK_MCAST_LEN + 4;
+                          CRM_GET_DAQ_CLOCK_MCAST_PAYLOAD_FMT = DAQ_CLOCK_PAYLOAD_FMT_ID | DAQ_CLOCK_PAYLOAD_FMT_SLV_32; // size of timestamp is DWORD + CLUSTER_ID
+                          CRM_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER = CRO_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER;
+                          CRM_GET_DAQ_CLOCK_MCAST_COUNTER = CRO_GET_DAQ_CLOCK_MCAST_COUNTER;
                           CRM_GET_DAQ_CLOCK_MCAST_TIME = (uint32_t)ApplXcpGetClock64();
-                      }
+                          CRM_GET_DAQ_CLOCK_MCAST_SYNCH_STATE = ApplXcpGetClockState();
+                      #endif
+                      if (gXcp.CrmLen> XCPTL_MAX_CTO_SIZE) error(CRC_CMD_UNKNOWN); // Extended mode needs enough CTO size 
                   }
-                  break;
-                  #endif // XCP_ENABLE_DAQ_CLOCK_MULTICAST
-
-              case CC_TL_GET_SERVER_ID:
-              default: /* unknown transport layer command */
-                  error(CRC_CMD_UNKNOWN);
-
+                  else
+                  { // Legacy format
+                      gXcp.CrmLen = CRM_GET_DAQ_CLOCK_MCAST_LEN;
+                      CRM_GET_DAQ_CLOCK_MCAST_PAYLOAD_FMT = DAQ_CLOCK_PAYLOAD_FMT_SLV_32; // size of timestamp is DWORD
+                      CRM_GET_DAQ_CLOCK_MCAST_TIME = (uint32_t)ApplXcpGetClock64();
+                  }
               }
               break;
-#endif
+              #endif // XCP_ENABLE_DAQ_CLOCK_MULTICAST
+
+                  #if XCP_TRANSPORT_LAYER_TYPE==XCP_TRANSPORT_LAYER_ETH
+                  case CC_TL_GET_SERVER_ID:
+                    goto no_response; // Not supported, no response, response has atypical layout
+
+                  case CC_TL_GET_SERVER_ID_EXTENDED:
+                    check_len(CRO_TL_GET_SERVER_ID_LEN);
+                    BOOL server_isTCP;
+                    uint16_t server_port;
+                    uint8_t server_addr[4];
+                    uint8_t server_mac[6];
+                    uint16_t client_port;
+                    uint8_t client_addr[4];
+                    client_port = CRO_TL_GET_SERVER_ID_PORT;
+                    memcpy(client_addr, &CRO_TL_GET_SERVER_ID_ADDR(0), 4);
+                    XcpEthTlGetInfo(&server_isTCP, server_mac, server_addr, &server_port);
+                    memcpy(&CRM_TL_GET_SERVER_ID_ADDR(0),server_addr,4);
+                    CRM_TL_GET_SERVER_ID_PORT = server_port;
+                    CRM_TL_GET_SERVER_ID_STATUS = 
+                      (server_isTCP ? GET_SERVER_ID_STATUS_PROTOCOL_TCP : GET_SERVER_ID_STATUS_PROTOCOL_UDP) | // protocol type
+                      (isConnected() ? GET_SERVER_ID_STATUS_SLV_AVAILABILITY_BUSY : 0) | // In use
+                      0; // TL_SLV_DETECT_STATUS_SLV_ID_EXT_SUPPORTED; // GET_SERVER_ID_EXTENDET supported
+                    CRM_TL_GET_SERVER_ID_RESOURCE  = RM_DAQ;                 
+                    CRM_TL_GET_SERVER_ID_ID_LEN = (uint8_t)ApplXcpGetId(IDT_ASCII, &CRM_TL_GET_SERVER_ID_ID, CRM_TL_GET_SERVER_ID_MAX_LEN);
+                    memcpy((uint8_t*)&CRM_TL_GET_SERVER_ID_MAC(CRM_TL_GET_SERVER_ID_ID_LEN), server_mac, 6);
+                    gXcp.CrmLen = (uint8_t)CRM_TL_GET_SERVER_ID_LEN(CRM_TL_GET_SERVER_ID_ID_LEN);
+                    XcpSendMulticastResponse(client_addr,client_port); // Transmit multicast command response
+                    goto no_response;
+                    #endif
+
+                  case 0:
+                  default: /* unknown transport layer command */
+                    error(CRC_CMD_UNKNOWN);
+
+              }
+          break;
+#endif // >= 0x0103
 
           case CC_GET_DAQ_CLOCK:
           {
@@ -1384,19 +1448,20 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
               CRM_GET_DAQ_CLOCK_RES1 = 0x00; // Placeholder for event code
               CRM_GET_DAQ_CLOCK_TRIGGER_INFO = 0x18; // TIME_OF_SAMPLING (Bitmask 0x18, 3 - Sampled on reception)
               if (!isLegacyMode()) { // Extended format
-                 #ifdef XCP_DAQ_CLOCK_64BIT
+                #ifdef XCP_DAQ_CLOCK_64BIT
                    gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN + 5;
                    CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = DAQ_CLOCK_PAYLOAD_FMT_SLV_64;// FMT_XCP_SLV = size of timestamp is DLONG
                    uint64_t clock = ApplXcpGetClock64();
                    CRM_GET_DAQ_CLOCK_TIME64_LOW =  (uint32_t)(clock);
                    CRM_GET_DAQ_CLOCK_TIME64_HIGH = (uint32_t)(clock >> 32);
-                   CRM_GET_DAQ_CLOCK_SYNC_STATE64 = ApplXcpGetClockState();
-                 #else
+                   CRM_GET_DAQ_CLOCK_SYNCH_STATE64 = ApplXcpGetClockState();
+                #else
                    gXcp.CrmLen = CRM_GET_DAQ_CLOCK_LEN + 1;
                    CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = DAQ_CLOCK_PAYLOAD_FMT_SLV_32; // FMT_XCP_SLV = size of timestamp is DWORD
                    CRM_GET_DAQ_CLOCK_TIME = (uint32_t)ApplXcpGetClock64();
-                   CRM_GET_DAQ_CLOCK_SYNC_STATE = ApplXcpGetClockState();
-#endif
+                   CRM_GET_DAQ_CLOCK_SYNCH_STATE = ApplXcpGetClockState();
+                #endif
+                if (gXcp.CrmLen > XCPTL_MAX_CTO_SIZE) error(CRC_CMD_UNKNOWN); // Extended mode needs enough CTO size               
               }
               else
               #endif // >= 0x0103
@@ -1410,7 +1475,7 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
 
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0104
           case CC_LEVEL_1_COMMAND:
-              switch (CRO_LEVEL_1_COMMAND_CODE) {
+            switch (CRO_LEVEL_1_COMMAND_CODE) {
 
               /* Major and minor versions */
               case CC_GET_VERSION:
@@ -1437,7 +1502,7 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
               default: /* unknown command */
                   error(CRC_CMD_UNKNOWN);
               }
-              break;
+            break;
 #endif // >= 0x0104
 
           default: /* unknown command */
@@ -1461,7 +1526,7 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
   return;
 
   // Return with no responce in case of async commands
-#ifdef XCP_ENABLE_DYN_ADDRESSING
+#if XCP_TRANSPORT_LAYER_TYPE==XCP_TRANSPORT_LAYER_ETH
   no_response:
     return;
 #endif
@@ -1499,13 +1564,13 @@ void XcpInit( void )
     /* Initialize all XCP variables to zero */
     memset((uint8_t*)&gXcp, 0, sizeof(gXcp));
 
-#if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
-
-#ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
-    gXcp.ClusterId = XCP_MULTICAST_CLUSTER_ID;  // XCP default cluster id (multicast addr 239,255,0,1, group 127,0,1 (mac 01-00-5E-7F-00-01)
-    XcpTlSetClusterId(gXcp.ClusterId);
-#endif
-
+#if XCP_TRANSPORT_LAYER_TYPE==XCP_TRANSPORT_LAYER_ETH
+  #if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
+    #ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
+      gXcp.ClusterId = XCP_MULTICAST_CLUSTER_ID;  // XCP default cluster id (multicast addr 239,255,0,1, group 127,0,1 (mac 01-00-5E-7F-00-01)
+      XcpEthTlSetClusterId(gXcp.ClusterId);
+    #endif
+  #endif
 #endif
 
     /* Initialize the session status */
@@ -1516,7 +1581,7 @@ void XcpInit( void )
     #ifndef XCP_MAX_EVENT
       #define XCP_MAX_EVENT 0
     #endif
-    XCP_DBG_PRINTF1("  Version=%u.%u, MAXEV=%u, MAXCTO=%u, MAXDTO=%u, DAQMEM=%u, MAXDAQ=%u, MAXENTRY=%u, MAXENTRYSIZE=%u)\n", XCP_PROTOCOL_LAYER_VERSION >> 8, XCP_PROTOCOL_LAYER_VERSION & 0xFF, XCP_MAX_EVENT, XCPTL_MAX_CTO_SIZE, XCPTL_MAX_DTO_SIZE, XCP_DAQ_MEM_SIZE, (1 << sizeof(uint16_t) * 8) - 1, (1 << sizeof(uint16_t) * 8) - 1, (1 << (sizeof(uint8_t) * 8)) - 1);
+    XCP_DBG_PRINTF1("  Version=%u.%u, MAXEV=%u, MAXCTO=%u, MAXDTO=%u, DAQMEM=%u, MAXDAQ=%u, MAXENTRY=%u, MAXENTRYSIZE=%u\n", XCP_PROTOCOL_LAYER_VERSION >> 8, XCP_PROTOCOL_LAYER_VERSION & 0xFF, XCP_MAX_EVENT, XCPTL_MAX_CTO_SIZE, XCPTL_MAX_DTO_SIZE, XCP_DAQ_MEM_SIZE, (1 << sizeof(uint16_t) * 8) - 1, (1 << sizeof(uint16_t) * 8) - 1, (1 << (sizeof(uint8_t) * 8)) - 1);
     XCP_DBG_PRINTF1("  %u KiB memory used\n", (unsigned int)sizeof(gXcp) / 1024);
     XCP_DBG_PRINT1("  Options=(");
 
@@ -1562,6 +1627,7 @@ void XcpStart(void)
 {
     if (!isInitialized()) return;
 
+#if XCP_TRANSPORT_LAYER_TYPE==XCP_TRANSPORT_LAYER_ETH
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
 
     // XCP server clock default description
@@ -1574,22 +1640,20 @@ void XcpStart(void)
 #else
     gXcp.ClockInfo.server.nativeTimestampSize = 4; // NATIVE_TIMESTAMP_SIZE_LONG;
     gXcp.ClockInfo.server.valueBeforeWrapAround = 0xFFFFFFFFULL;
-#endif
-    uint8_t uuid[8] = XCP_DAQ_CLOCK_UIID;
-    memcpy(gXcp.ClockInfo.server.UUID,uuid,8);
-
-    XCP_DBG_PRINT3("\nStart XCP protocol layer\n");
-    XCP_DBG_PRINTF3("  ServerClock: ticks=%u, unit=%s, size=%u, UUID=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X\n\n", gXcp.ClockInfo.server.timestampTicks, (gXcp.ClockInfo.server.timestampUnit == DAQ_TIMESTAMP_UNIT_1NS) ? "ns" : "us", gXcp.ClockInfo.server.nativeTimestampSize, gXcp.ClockInfo.server.UUID[0], gXcp.ClockInfo.server.UUID[1], gXcp.ClockInfo.server.UUID[2], gXcp.ClockInfo.server.UUID[3], gXcp.ClockInfo.server.UUID[4], gXcp.ClockInfo.server.UUID[5], gXcp.ClockInfo.server.UUID[6], gXcp.ClockInfo.server.UUID[7]);
-    
-#endif
-
+#endif   
+#endif // XCP_PROTOCOL_LAYER_VERSION >= 0x0103
 #ifdef XCP_ENABLE_PTP
+
+    uint8_t uuid[8] = XCP_DAQ_CLOCK_UIID;
+    memcpy(gXcp.ClockInfo.server.UUID, uuid, 8);
+
+    XCP_DBG_PRINTF3("  ServerClock: ticks=%u, unit=%s, size=%u, UUID=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X\n\n", gXcp.ClockInfo.server.timestampTicks, (gXcp.ClockInfo.server.timestampUnit == DAQ_TIMESTAMP_UNIT_1NS) ? "ns" : "us", gXcp.ClockInfo.server.nativeTimestampSize, gXcp.ClockInfo.server.UUID[0], gXcp.ClockInfo.server.UUID[1], gXcp.ClockInfo.server.UUID[2], gXcp.ClockInfo.server.UUID[3], gXcp.ClockInfo.server.UUID[4], gXcp.ClockInfo.server.UUID[5], gXcp.ClockInfo.server.UUID[6], gXcp.ClockInfo.server.UUID[7]);
 
     // If the server clock is PTP synchronized, both origin and local timestamps are considered to be the same.
     gXcp.ClockInfo.relation.timestampLocal = 0;
     gXcp.ClockInfo.relation.timestampOrigin = 0;
 
-	// XCP grandmaster clock default description
+	  // XCP grandmaster clock default description
     gXcp.ClockInfo.grandmaster.timestampTicks = XCP_TIMESTAMP_TICKS;
 	  gXcp.ClockInfo.grandmaster.timestampUnit = XCP_TIMESTAMP_UNIT;
 	  gXcp.ClockInfo.grandmaster.nativeTimestampSize = 8; // NATIVE_TIMESTAMP_SIZE_DLONG;
@@ -1600,10 +1664,10 @@ void XcpStart(void)
       XCP_DBG_PRINTF1("  GrandmasterClock: UUID=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X stratumLevel=%u, epoch=%u\n", gXcp.ClockInfo.grandmaster.UUID[0], gXcp.ClockInfo.grandmaster.UUID[1], gXcp.ClockInfo.grandmaster.UUID[2], gXcp.ClockInfo.grandmaster.UUID[3], gXcp.ClockInfo.grandmaster.UUID[4], gXcp.ClockInfo.grandmaster.UUID[5], gXcp.ClockInfo.grandmaster.UUID[6], gXcp.ClockInfo.grandmaster.UUID[7], gXcp.ClockInfo.grandmaster.stratumLevel, gXcp.ClockInfo.grandmaster.epochOfGrandmaster);
       XCP_DBG_PRINT1("  ClockRelation: local=0, origin=0\n");
     }
+#endif // PTP
+#endif // XCP_TRANSPORT_LAYER_TYPE==XCP_TRANSPORT_LAYER_ETH
 
     XCP_DBG_PRINT3("Start XCP protocol layer\n");
-
-#endif
 
     gXcp.SessionStatus |= SS_STARTED;
 }
@@ -1671,7 +1735,7 @@ uint16_t XcpCreateEvent(const char* name, uint32_t cycleTimeNs, uint8_t priority
 #endif
 #ifdef XCP_ENABLE_DEBUG_PRINTS
      uint64_t ns = (uint64_t)(gXcp.EventList[e].timeCycle * pow(10, gXcp.EventList[e].timeUnit));
-     XCP_DBG_PRINTF1("Event %u: %s cycle=%" PRIu64 "ns, prio=%u, sc=%u, size=%u\n", e, gXcp.EventList[e].name, ns, gXcp.EventList[e].priority, gXcp.EventList[e].sampleCount, gXcp.EventList[e].size);
+     XCP_DBG_PRINTF1("  Event %u: %s cycle=%" PRIu64 "ns, prio=%u, sc=%u, size=%u\n", e, gXcp.EventList[e].name, ns, gXcp.EventList[e].priority, gXcp.EventList[e].sampleCount, gXcp.EventList[e].size);
      if (cycleTimeNs != ns) XCP_DBG_PRINTF1("Warning: cycle time %uns, loss of significant digits!\n", cycleTimeNs);
 #endif
 
@@ -1745,8 +1809,8 @@ static void XcpPrintCmd() {
         break;
 #endif
 
-    case CC_SYNC:
-            printf("SYNC\n");
+    case CC_SYNCH:
+            printf("SYNCH\n");
             break;
 
     case CC_GET_COMM_MODE_INFO:
@@ -1823,11 +1887,11 @@ static void XcpPrintCmd() {
          break;
 
      case CC_START_STOP_DAQ_LIST:
-            printf("START_STOP mode=%s, daq=%u\n", (CRO_START_STOP_MODE == 2)?"select": (CRO_START_STOP_MODE == 1)?"start":"stop", CRO_START_STOP_DAQ);
+            printf("START_STOP mode=%s, daq=%u\n", (CRO_START_STOP_DAQ_LIST_MODE == 2)?"select": (CRO_START_STOP_DAQ_LIST_MODE == 1)?"start":"stop", CRO_START_STOP_DAQ_LIST_DAQ);
             break;
 
      case CC_START_STOP_SYNCH:
-            printf("CC_START_STOP_SYNCH mode=%s\n", (CRO_START_STOP_MODE == 3) ? "prepare" : (CRO_START_STOP_MODE == 2) ? "stop_selected" : (CRO_START_STOP_MODE == 1) ? "start_selected" : "stop_all");
+            printf("CC_START_STOP_SYNCH mode=%s\n", (CRO_START_STOP_SYNCH_MODE == 3) ? "prepare" : (CRO_START_STOP_SYNCH_MODE == 2) ? "stop_selected" : (CRO_START_STOP_SYNCH_MODE == 1) ? "start_selected" : "stop_all");
             break;
 
      case CC_GET_DAQ_CLOCK:
@@ -1838,7 +1902,7 @@ static void XcpPrintCmd() {
 
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
      case CC_TIME_CORRELATION_PROPERTIES:
-         printf("GET_TIME_CORRELATION_PROPERTIES set=%02Xh, request=%u, clusterId=%u\n", CRO_TIME_SYNC_PROPERTIES_SET_PROPERTIES, CRO_TIME_SYNC_PROPERTIES_GET_PROPERTIES_REQUEST, CRO_TIME_SYNC_PROPERTIES_CLUSTER_ID );
+         printf("GET_TIME_CORRELATION_PROPERTIES set=%02Xh, request=%u, clusterId=%u\n", CRO_TIME_SYNCH_PROPERTIES_SET_PROPERTIES, CRO_TIME_SYNCH_PROPERTIES_GET_PROPERTIES_REQUEST, CRO_TIME_SYNCH_PROPERTIES_CLUSTER_ID );
          break;
 #endif
 
@@ -1871,6 +1935,10 @@ static void XcpPrintCmd() {
                    printf("GET_DAQ_CLOCK_MULTICAST counter=%u, cluster=%u\n", CRO_GET_DAQ_CLOCK_MCAST_COUNTER, CRO_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER);
                }
              break;
+           case CC_TL_GET_SERVER_ID_EXTENDED:
+           case CC_TL_GET_SERVER_ID:
+             printf("GET_SERVER_ID %u:%u:%u:%u:%u\n", CRO_TL_GET_SERVER_ID_ADDR(0), CRO_TL_GET_SERVER_ID_ADDR(1), CRO_TL_GET_SERVER_ID_ADDR(2), CRO_TL_GET_SERVER_ID_ADDR(3), CRO_TL_GET_SERVER_ID_PORT );
+             break;
 #endif
          }
          break;
@@ -1881,7 +1949,7 @@ static void XcpPrintCmd() {
 
 static void XcpPrintRes() {
     
-    if (CRM_CMD == PID_EV && CRM_EVENTCODE != EVC_TIME_SYNC) {
+    if (CRM_CMD == PID_EV && CRM_EVENTCODE != EVC_TIME_SYNCH) {
         printf("<- EVENT: %02Xh\n", CRM_BYTE(1));
     }
     else if (CRM_CMD == PID_ERR) {
@@ -1985,13 +2053,13 @@ static void XcpPrintRes() {
                 }
                 else {
                     if (CRM_GET_DAQ_CLOCK_PAYLOAD_FMT == DAQ_CLOCK_PAYLOAD_FMT_SLV_32) {
-                        printf("<- X t=0x%" PRIx32 " sync=%u\n", CRM_GET_DAQ_CLOCK_TIME, CRM_GET_DAQ_CLOCK_SYNC_STATE);
+                        printf("<- X t=0x%" PRIx32 " sync=%u\n", CRM_GET_DAQ_CLOCK_TIME, CRM_GET_DAQ_CLOCK_SYNCH_STATE);
                     }
                     else {
                         char ts[64];
                         uint64_t t = (((uint64_t)CRM_GET_DAQ_CLOCK_TIME64_HIGH) << 32) | CRM_GET_DAQ_CLOCK_TIME64_LOW;
                         clockGetString(ts, sizeof(ts), t);
-                        printf("<- X t=%" PRIu64 " (%s), sync=%u\n", t&0xFFFFFFFF, ts, CRM_GET_DAQ_CLOCK_SYNC_STATE64);
+                        printf("<- X t=%" PRIu64 " (%s), sync=%u\n", t&0xFFFFFFFF, ts, CRM_GET_DAQ_CLOCK_SYNCH_STATE64);
                     }
                 }
             }
@@ -1999,7 +2067,7 @@ static void XcpPrintRes() {
 
         case CC_TIME_CORRELATION_PROPERTIES:
             printf("<- config=%02Xh, clocks=%02Xh, state=%02Xh, info=%02Xh, clusterId=%u\n",
-                CRM_TIME_SYNC_PROPERTIES_SERVER_CONFIG, CRM_TIME_SYNC_PROPERTIES_OBSERVABLE_CLOCKS, CRM_TIME_SYNC_PROPERTIES_SYNC_STATE, CRM_TIME_SYNC_PROPERTIES_CLOCK_INFO, CRM_TIME_SYNC_PROPERTIES_CLUSTER_ID );
+                CRM_TIME_SYNCH_PROPERTIES_SERVER_CONFIG, CRM_TIME_SYNCH_PROPERTIES_OBSERVABLE_CLOCKS, CRM_TIME_SYNCH_PROPERTIES_SYNCH_STATE, CRM_TIME_SYNCH_PROPERTIES_CLOCK_INFO, CRM_TIME_SYNCH_PROPERTIES_CLUSTER_ID );
             break;
 #endif // >= 0x0103
 
@@ -2034,13 +2102,13 @@ static void XcpPrintRes() {
                     }
                     else {
                         if ((CRM_GET_DAQ_CLOCK_MCAST_PAYLOAD_FMT & ~DAQ_CLOCK_PAYLOAD_FMT_ID) == DAQ_CLOCK_PAYLOAD_FMT_SLV_32) {
-                            printf("<- X t=0x%" PRIx32 " sync=%u", CRM_GET_DAQ_CLOCK_MCAST_TIME, CRM_GET_DAQ_CLOCK_MCAST_SYNC_STATE);
+                            printf("<- X t=0x%" PRIx32 " sync=%u", CRM_GET_DAQ_CLOCK_MCAST_TIME, CRM_GET_DAQ_CLOCK_MCAST_SYNCH_STATE);
                             if (CRM_GET_DAQ_CLOCK_MCAST_PAYLOAD_FMT & DAQ_CLOCK_PAYLOAD_FMT_ID) printf(" counter=%u, cluster=%u", CRM_GET_DAQ_CLOCK_MCAST_COUNTER, CRM_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER);
                         }
                         else {
                             char ts[64];
                             clockGetString(ts, sizeof(ts), (((uint64_t)CRM_GET_DAQ_CLOCK_MCAST_TIME64_HIGH)<<32)|CRM_GET_DAQ_CLOCK_MCAST_TIME64_LOW);
-                            printf("<- X t=%s, sync=%u", ts, CRM_GET_DAQ_CLOCK_MCAST_SYNC_STATE64);
+                            printf("<- X t=%s, sync=%u", ts, CRM_GET_DAQ_CLOCK_MCAST_SYNCH_STATE64);
                             if (CRM_GET_DAQ_CLOCK_MCAST_PAYLOAD_FMT & DAQ_CLOCK_PAYLOAD_FMT_ID) printf(" counter=%u, cluster=%u", CRM_GET_DAQ_CLOCK_MCAST_COUNTER64, CRM_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER64);
                         }
                         printf("\n");
@@ -2048,8 +2116,11 @@ static void XcpPrintRes() {
                 }
 
                 break;
+
             case CC_TL_GET_SERVER_ID:
-                break;
+              printf("<- %u.%u.%u.%u:%u %s\n",
+                CRM_TL_GET_SERVER_ID_ADDR(0), CRM_TL_GET_SERVER_ID_ADDR(1), CRM_TL_GET_SERVER_ID_ADDR(2), CRM_TL_GET_SERVER_ID_ADDR(3), CRM_TL_GET_SERVER_ID_PORT, &CRM_TL_GET_SERVER_ID_ID);
+              break;
 #endif
             }
             break;
@@ -2075,7 +2146,8 @@ static void XcpPrintDaqList( uint16_t daq )
   printf(" eventchannel=%04Xh,",DaqListEventChannel(daq));
   printf(" firstOdt=%u,",DaqListFirstOdt(daq));
   printf(" lastOdt=%u,",DaqListLastOdt(daq));
-  printf(" flags=%02Xh,",DaqListFlags(daq));
+  printf(" mode=%02Xh,", DaqListMode(daq));
+  printf(" state=%02Xh,", DaqListState(daq));
 #ifdef XCP_ENABLE_PACKED_MODE
   printf(" sampleCount=%u\n",DaqListSampleCount(daq));
 #endif

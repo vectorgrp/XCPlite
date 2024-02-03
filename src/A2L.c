@@ -28,6 +28,7 @@ static uint32_t gA2lComponents;
 static uint32_t gA2lInstances;
 static uint32_t gA2lConversions;
 
+//----------------------------------------------------------------------------------
 static const char* gA2lHeader =
 "ASAP2_VERSION 1 71\n"
 "/begin PROJECT %s \"\"\n"
@@ -35,7 +36,6 @@ static const char* gA2lHeader =
 "/begin MODULE %s \"\"\n"
 "/include \"XCP_104.aml\"\n\n"
 
-//----------------------------------------------------------------------------------
 "/begin MOD_COMMON \"\"\n"
 "BYTE_ORDER MSB_LAST\n"
 "ALIGNMENT_BYTE 1\n"
@@ -63,10 +63,12 @@ static const char* gA2lMemorySegment =
 "/end MEMORY_SEGMENT\n";
 #endif
 
-static const char* gA2lIfData1 = // Parameters %04X version, %u max cto, %u max dto, %u max event, %s timestamp unit
-"\n/begin IF_DATA XCP\n"
+//----------------------------------------------------------------------------------
+static const char* gA2lIfDataBegin =
+"\n/begin IF_DATA XCP\n";
 
 //----------------------------------------------------------------------------------
+static const char* gA2lIfDataProtocolLayer = // Parameter: XCP_PROTOCOL_LAYER_VERSION, MAX_CTO, MAX_DTO 
 "/begin PROTOCOL_LAYER\n"
 " 0x%04X" // XCP_PROTOCOL_LAYER_VERSION
 " 1000 2000 0 0 0 0 0" // Timeouts T1-T7
@@ -113,6 +115,7 @@ static const char* gA2lIfData1 = // Parameters %04X version, %u max cto, %u max 
 "OPTIONAL_CMD START_STOP_SYNCH\n"
 "OPTIONAL_CMD START_STOP_DAQ_LIST\n"
 "OPTIONAL_CMD GET_DAQ_CLOCK\n"
+#if XCP_TRANSPORT_LAYER_TYPE == XCP_TRANSPORT_LAYER_ETH
 "OPTIONAL_CMD WRITE_DAQ_MULTIPLE\n"
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
 "OPTIONAL_CMD TIME_CORRELATION_PROPERTIES\n"
@@ -123,32 +126,41 @@ static const char* gA2lIfData1 = // Parameters %04X version, %u max cto, %u max 
 #ifdef XCP_ENABLE_PACKED_MODE
 "OPTIONAL_LEVEL1_CMD SET_DAQ_PACKED_MODE\n"
 "OPTIONAL_LEVEL1_CMD GET_DAQ_PACKED_MODE\n"
-  #endif
+#endif
 #endif
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0150
 //"OPTIONAL_LEVEL1_CMD SW_DBG_COMMAND_SPACE\n"
 //"OPTIONAL_LEVEL1_CMD POD_COMMAND_SPACE\n"
 #endif
+#endif // ETH
 "/end PROTOCOL_LAYER\n"
 
-//----------------------------------------------------------------------------------
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
 /*
 "/begin TIME_CORRELATION\n" // TIME
 "/end TIME_CORRELATION\n"
 */
 #endif
+;
 
 //----------------------------------------------------------------------------------
-"/begin DAQ\n" // DAQ
+static const char* gA2lIfDataBeginDAQ = // Parameter: %u max event, %s timestamp unit
+"/begin DAQ\n"
 "DYNAMIC 0 %u 0 OPTIMISATION_TYPE_DEFAULT ADDRESS_EXTENSION_FREE IDENTIFICATION_FIELD_TYPE_RELATIVE_BYTE GRANULARITY_ODT_ENTRY_SIZE_DAQ_BYTE 0xF8 OVERLOAD_INDICATION_PID\n"
 "/begin TIMESTAMP_SUPPORTED\n"
 "0x01 SIZE_DWORD %s TIMESTAMP_FIXED\n"
-"/end TIMESTAMP_SUPPORTED\n"; // ... Event list follows
+"/end TIMESTAMP_SUPPORTED\n"; 
 
-static const char* gA2lIfData2 = // Parameter %s TCP or UDP, %04X tl version, %u port, %s ip address string, %s TCP or UDP
-"/end DAQ\n"
+// ... Event list follows, before EndDaq
 
+//----------------------------------------------------------------------------------
+static const char* gA2lIfDataEndDAQ =
+"/end DAQ\n";
+
+
+//----------------------------------------------------------------------------------
+// XCP_ON_ETH
+static const char* gA2lIfDataEth = // Parameter: %s TCP or UDP, %04X tl version, %u port, %s ip address string, %s TCP or UDP
 "/begin XCP_ON_%s_IP\n" // Transport Layer
 "  0x%04X %u ADDRESS \"%s\"\n"
 //"OPTIONAL_TL_SUBCMD GET_SERVER_ID\n"
@@ -158,14 +170,70 @@ static const char* gA2lIfData2 = // Parameter %s TCP or UDP, %04X tl version, %u
 "  OPTIONAL_TL_SUBCMD GET_DAQ_CLOCK_MULTICAST\n"
 #endif
 "/end XCP_ON_%s_IP\n" // Transport Layer
-
-"/end IF_DATA\n\n"
 ;
 
+//----------------------------------------------------------------------------------
+// XCP_ON_CAN
+static const char* gA2lIfDataCan = // Parameter: TRANSPORT_LAYER_VERSION, CRO_ID, DTO_ID, BITRATE
+"/begin XCP_ON_CAN\n" // Transport Layer
+"  0x%04X\n"
+"  CAN_ID_MASTER 0x%x\n"
+"  CAN_ID_SLAVE 0x%x\n"
+"  BAUDRATE %u\n"
+"  SAMPLE_POINT 0x4B\n"
+"  SAMPLE_RATE SINGLE\n"
+"  BTL_CYCLES 0x08\n"
+"  SJW 0x02\n"
+"  SYNC_EDGE SINGLE\n"
+"/end XCP_ON_CAN\n";
+
+
+
+#if 0
+
+block "CAN_FD" struct {                    /* The CAN_FD block definition indicates the use of CAN-FD frames */
+taggedstruct{
+
+	"MAX_DLC" uint;                        /* 8, 12, 16, 20, 24, 32, 48 or 64 */
+	"CAN_FD_DATA_TRANSFER_BAUDRATE" ulong; /* BAUDRATE [Hz] */
+	"SAMPLE_POINT" uchar;                  /* sample point receiver */
+																				 /* [% complete bit time] */
+	"BTL_CYCLES" uchar;                    /* BTL_CYCLES */
+																				 /* [slots per bit time] */
+	"SJW" uchar;                           /* length synchr. segment */
+																				 /* [BTL_CYCLES] */
+	"SYNC_EDGE" enum {
+		"SINGLE" = 1,                        /* on falling edge only */
+		"DUAL" = 2                         /* on falling and rising edge */
+	};
+	"MAX_DLC_REQUIRED";                    /* master to slave frames */
+																				 /* always to have DLC = MAX_DLC_for CAN-FD */
+	"SECONDARY_SAMPLE_POINT" uchar;        /* sender sample point */
+																				 /* [% complete bit time] */
+	"TRANSCEIVER_DELAY_COMPENSATION" enum {
+		"OFF" = 0,
+		"ON" = 1
+	};
+			};
+		};
+
+
+#endif
+
+
+
+//----------------------------------------------------------------------------------
+static const char* gA2lIfDataEnd =
+"/end IF_DATA\n\n";
+
+
+//----------------------------------------------------------------------------------
 static const char* gA2lFooter =
-"/end MODULE\n"
-"/end PROJECT\n"
-;
+	"/end MODULE\n"
+	"/end PROJECT\n";
+
+
+
 
 
 #define printPhysUnit(unit) if (unit != NULL && strlen(unit) > 0) fprintf(gA2lFile, " PHYS_UNIT \"%s\"", unit);
@@ -235,7 +303,7 @@ static const char* getPhysMin(int32_t type, double factor, double offset) {
 	switch (type) {
 	case A2L_TYPE_INT8:		value = -128; break;
 	case A2L_TYPE_INT16:	value = -32768; break;
-	case A2L_TYPE_INT32:	value = -2147483647-1; break;
+	case A2L_TYPE_INT32:	value = -(double)2147483648; break;
 	case A2L_TYPE_INT64:	value = -1E12; break;
 	case A2L_TYPE_FLOAT:	value = -1E12; break;
 	case A2L_TYPE_DOUBLE:	value = -1E12; break;
@@ -309,62 +377,105 @@ void A2lCreate_MOD_PAR(uint32_t startAddr, uint32_t size, char *epk) {
 }
 #endif
 
-void A2lCreate_IF_DATA(BOOL tcp, const uint8_t *addr, uint16_t port) {
+
+static void A2lCreate_IF_DATA_DAQ() {
 
 	assert(gA2lFile != NULL);
 
 #if defined( XCP_ENABLE_DAQ_EVENT_LIST ) && !defined( XCP_ENABLE_DAQ_EVENT_INFO )
 	tXcpEvent* eventList;
-  #endif
-  uint16_t eventCount = 0;
+#endif
+	uint16_t eventCount = 0;
 
 #if (XCP_TIMESTAMP_UNIT==DAQ_TIMESTAMP_UNIT_1NS)
-  #define XCP_TIMESTAMP_UNIT_S "UNIT_1NS"
+#define XCP_TIMESTAMP_UNIT_S "UNIT_1NS"
 #elif (XCP_TIMESTAMP_UNIT==DAQ_TIMESTAMP_UNIT_1US)
-  #define XCP_TIMESTAMP_UNIT_S "UNIT_1US"
+#define XCP_TIMESTAMP_UNIT_S "UNIT_1US"
 #else
-  #error
+#error
 #endif
 
-  // Event list in A2L file (if event info by XCP is not active)
+	// Event list in A2L file (if event info by XCP is not active)
 #if defined( XCP_ENABLE_DAQ_EVENT_LIST ) && !defined( XCP_ENABLE_DAQ_EVENT_INFO )
-  eventList = XcpGetEventList(&eventCount);
+	eventList = XcpGetEventList(&eventCount);
 #endif
 
-  fprintf(gA2lFile, gA2lIfData1, XCP_PROTOCOL_LAYER_VERSION, XCPTL_MAX_CTO_SIZE, XCPTL_MAX_DTO_SIZE, eventCount, XCP_TIMESTAMP_UNIT_S);
+	fprintf(gA2lFile, gA2lIfDataBeginDAQ, eventCount, XCP_TIMESTAMP_UNIT_S);
 
+	// Eventlist
 #if defined( XCP_ENABLE_DAQ_EVENT_LIST ) && !defined( XCP_ENABLE_DAQ_EVENT_INFO )
 	for (uint32_t i = 0; i < eventCount; i++) {
 
-	  // Shortened name
-	  char shortName[9];
-	  strncpy(shortName, eventList[i].name, 8);
-	  shortName[8] = 0;
+		// Shortened name
+		char shortName[9];
+		strncpy(shortName, eventList[i].name, 8);
+		shortName[8] = 0;
 
-	  fprintf(gA2lFile, "/begin EVENT \"%s\" \"%s\" 0x%X DAQ 0xFF %u %u %u CONSISTENCY DAQ", eventList[i].name, shortName, i, eventList[i].timeCycle, eventList[i].timeUnit, eventList[i].priority);
+		fprintf(gA2lFile, "/begin EVENT \"%s\" \"%s\" 0x%X DAQ 0xFF %u %u %u CONSISTENCY EVENT", eventList[i].name, shortName, i, eventList[i].timeCycle, eventList[i].timeUnit, eventList[i].priority);
 #ifdef XCP_ENABLE_PACKED_MODE
-	  if (eventList[i].sampleCount!=0) {
-		  fprintf(gA2lFile, " /begin DAQ_PACKED_MODE ELEMENT_GROUPED STS_LAST MANDATORY %u /end DAQ_PACKED_MODE",eventList[i].sampleCount);
-	  }
+		if (eventList[i].sampleCount != 0) {
+			fprintf(gA2lFile, " /begin DAQ_PACKED_MODE ELEMENT_GROUPED STS_LAST MANDATORY %u /end DAQ_PACKED_MODE", eventList[i].sampleCount);
+		}
 #endif
-	  fprintf(gA2lFile, " /end EVENT\n");
-  }
+		fprintf(gA2lFile, " /end EVENT\n");
+	}
 #endif
 
-  // Transport Layer info ipaddr, port, protocol, version
-  uint8_t addr0[] = { 127,0,0,1 }; // Use localhost if no other option
-  if (addr != NULL && addr[0] != 0) {
-	  memcpy(addr0, addr, 4);
-  }
-  else {
-	  socketGetLocalAddr(NULL, addr0);
-  }
-  char addrs[17];
-  SPRINTF(addrs, "%u.%u.%u.%u", addr0[0], addr0[1], addr0[2], addr0[3]);
-  char* prot = tcp ? (char*)"TCP" : (char*)"UDP";
-  fprintf(gA2lFile, gA2lIfData2, prot, XCP_TRANSPORT_LAYER_VERSION, port, addrs, prot);
-	DBG_PRINTF1("  A2L IF_DATA protocol=%s, ip=%s, port=%u\n", prot, addrs, port);
+	fprintf(gA2lFile, gA2lIfDataEndDAQ);
 
+}
+
+void A2lCreate_ETH_IF_DATA(BOOL useTCP, const uint8_t* addr, uint16_t port) {
+
+	fprintf(gA2lFile, gA2lIfDataBegin);
+
+	// Protocol Layer info
+	fprintf(gA2lFile, gA2lIfDataProtocolLayer, XCP_PROTOCOL_LAYER_VERSION, XCPTL_MAX_CTO_SIZE, XCPTL_MAX_DTO_SIZE);
+
+	// DAQ info
+	A2lCreate_IF_DATA_DAQ();
+
+	// Transport Layer info
+	uint8_t addr0[] = { 127,0,0,1 }; // Use localhost if no other option
+	if (addr != NULL && addr[0] != 0) {
+		memcpy(addr0, addr, 4);
+	} else {
+		socketGetLocalAddr(NULL, addr0);
+	}
+	char addrs[17];
+	SPRINTF(addrs, "%u.%u.%u.%u", addr0[0], addr0[1], addr0[2], addr0[3]);
+	char* prot = useTCP ? (char*)"TCP" : (char*)"UDP";
+	fprintf(gA2lFile, gA2lIfDataEth, prot, XCP_TRANSPORT_LAYER_VERSION, port, addrs, prot);
+
+	fprintf(gA2lFile, gA2lIfDataEnd);
+
+	DBG_PRINTF1("  IF_DATA XCP_ON_%s, ip=%s, port=%u\n", prot, addrs, port);
+}
+
+void A2lCreate_CAN_IF_DATA(BOOL useCANFD, uint16_t croId, uint16_t dtoId, uint32_t bitRate) {
+
+	(void)useCANFD;
+
+	fprintf(gA2lFile, gA2lIfDataBegin);
+	
+	// Protocol Layer info
+	fprintf(gA2lFile, gA2lIfDataProtocolLayer, XCP_PROTOCOL_LAYER_VERSION, XCPTL_MAX_CTO_SIZE, XCPTL_MAX_DTO_SIZE);
+
+	// DAQ info
+	A2lCreate_IF_DATA_DAQ();
+
+	// Transport Layer info
+	uint32_t _croId = croId;
+	uint32_t _dtoId = croId;
+	if (useCANFD) {
+		_croId |= 0x40000000;
+		_dtoId |= 0x40000000;
+	}
+	fprintf(gA2lFile, gA2lIfDataCan, XCP_TRANSPORT_LAYER_VERSION, _croId, _dtoId, bitRate);
+
+	fprintf(gA2lFile, gA2lIfDataEnd);
+		
+ 	DBG_PRINTF1("  IF_DATA XCP_ON_CAN, CRO=%u, DTO=%u, BITRATE=%u\n", croId, dtoId, bitRate);
 }
 
 
@@ -624,7 +735,7 @@ void A2lClose() {
 		fprintf(gA2lFile, "%s", gA2lFooter);
 		fclose(gA2lFile);
 		gA2lFile = NULL;
-		DBG_PRINTF1("  A2L %u measurements, %u params, %u typedefs, %u components, %u instances, %u conversions\n\n",
+		DBG_PRINTF1("A2L created: %u measurements, %u params, %u typedefs, %u components, %u instances, %u conversions\n\n",
 			gA2lMeasurements, gA2lParameters, gA2lTypedefs, gA2lComponents, gA2lInstances, gA2lConversions);
 	}
 }

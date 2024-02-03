@@ -55,9 +55,11 @@
 
 #define XCP_DAQ_MEM_SIZE (5*200) // Amount of memory for DAQ tables, each ODT entry (e.g. measurement variable) needs 5 bytes
 
-// CLOCK_USE_UTC_TIME_NS
 // Settings for 64 bit ns since 1.1.1970 TAI clock (CLOCK_USE_UTC_TIME_NS)
-#define XCP_DAQ_CLOCK_64BIT  // Use 64 Bit time stamps in GET_DAQ_CLOCK
+#ifndef CLOCK_USE_UTC_TIME_NS
+  #error "Unexpected clock resolution and epoch"
+#endif
+#define XCP_DAQ_CLOCK_32BIT  // Use 32 bit time stamps K
 #define XCP_DAQ_CLOCK_UIID { 0xdc,0xa6,0x32,0xFF,0xFE,0x7e,0x66,0xdc }
 
 // Server DAQ clock info (mandatory)

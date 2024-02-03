@@ -110,15 +110,14 @@ void sleepNs(uint32_t ns) {
 
     uint64_t t1, t2;
     uint32_t us = ns / 1000;
-    uint32_t ms = us / 1000;
 
     // Sleep
     if (us > 1000) {
-        Sleep(ms);
+        Sleep(us/1000);
     }
 
     // Busy wait <= 1ms, -> CPU load !!!
-    else {
+    else if (us>0) {
       
         t1 = t2 = clockGet();
         uint64_t te = t1 + us * (uint64_t)CLOCK_TICKS_PER_US;
@@ -127,6 +126,9 @@ void sleepNs(uint32_t ns) {
             if (t2 >= te) break;
             Sleep(0);
         }
+    }
+    else {
+      Sleep(0);
     }
 }
 
@@ -395,7 +397,9 @@ BOOL socketOpen(SOCKET* sp, BOOL useTCP, BOOL nonBlocking, BOOL reuseaddr, BOOL 
         #define SIO_UDP_CONNRESET _WSAIOW(IOC_VENDOR, 12)
         BOOL bNewBehavior = FALSE;
         DWORD dwBytesReturned = 0;
-        WSAIoctl(*sp, SIO_UDP_CONNRESET, &bNewBehavior, sizeof bNewBehavior, NULL, 0, &dwBytesReturned, NULL, NULL);
+        if (*sp != INVALID_SOCKET) {
+          WSAIoctl(*sp, SIO_UDP_CONNRESET, &bNewBehavior, sizeof bNewBehavior, NULL, 0, &dwBytesReturned, NULL, NULL);
+        }
     }
     else {
         *sp = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -762,10 +766,10 @@ char* clockGetString(char* str, uint32_t l, uint64_t c) {
 #else
     uint64_t s = c / CLOCK_TICKS_PER_S;
     uint64_t ns = c % CLOCK_TICKS_PER_S;
-    if (s < 3600 * 24 * 365 * 30) {
-        SNPRINTF(str, l, "%" PRIu64 "d %" PRIu64 "h %" PRIu64 "m %" PRIu64 "s +%" PRIu64 "ns", s / (3600 * 24), (s % (3600 * 24)) / 3600, ((s % (3600 * 24)) % 3600) / 60, ((s % (3600 * 24)) % 3600) % 60, ns);
+    if (s < 3600 * 24 * 365 * 30) { // ARB epoch
+        SNPRINTF(str, l, "%" PRIu64 "d%" PRIu64 "h%" PRIu64 "m%" PRIu64 "s+%" PRIu64 "ns", s / (3600 * 24), (s % (3600 * 24)) / 3600, ((s % (3600 * 24)) % 3600) / 60, ((s % (3600 * 24)) % 3600) % 60, ns);
     }
-    else {
+    else { // UNIX epoch
         struct tm tm;
         time_t t = s;
         gmtime_s(&tm, &t);
@@ -783,7 +787,7 @@ char* clockGetTimeString(char* str, uint32_t l, int64_t t) {
     char sign = '+';    if (t < 0) { sign = '-'; t = -t; }
     uint64_t s = t / CLOCK_TICKS_PER_S;
     uint64_t ns = t % CLOCK_TICKS_PER_S;
-    SNPRINTF(str, l, "%c %" PRIu64 "d %" PRIu64 "h %" PRIu64 "m %" PRIu64 "s +%" PRIu64 "ns", sign, s / (3600 * 24), (s % (3600 * 24)) / 3600, ((s % (3600 * 24)) % 3600) / 60, ((s % (3600 * 24)) % 3600) % 60, ns);
+    SNPRINTF(str, l, "%c%" PRIu64 "d%" PRIu64 "h%" PRIu64 "m%" PRIu64 "s+%" PRIu64 "ns", sign, s / (3600 * 24), (s % (3600 * 24)) / 3600, ((s % (3600 * 24)) % 3600) / 60, ((s % (3600 * 24)) % 3600) % 60, ns);
 #endif
     return str;
 }
@@ -795,8 +799,10 @@ BOOL clockInit() {
     DBG_PRINT2("\nInit clock\n");
 #ifdef CLOCK_USE_UTC_TIME_NS
     DBG_PRINT2("  CLOCK_USE_UTC_TIME_NS\n");
+#else
+    DBG_PRINT2("  CLOCK_USE_APP_TIME_US\n");
 #endif
-
+    
     sClock = 0;
 
     // Get current performance counter frequency
@@ -855,9 +861,7 @@ BOOL clockInit() {
     clockGet();
 
 #ifdef ENABLE_DEBUG_PRINTS
-    if (DBG_LEVEL >= 2) {
-
-
+    if (DBG_LEVEL >= 3) {
 #ifdef CLOCK_USE_UTC_TIME_NS
         if (DBG_LEVEL >= 4) {
             struct tm tm;
@@ -869,9 +873,9 @@ BOOL clockInit() {
             printf("    UTC time = %" PRIu64 "s since 1.1.1970 ", time_s);
             printf("    %u.%u.%u %u:%u:%u\n", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, tm.tm_hour % 24, tm.tm_min, tm.tm_sec);
         } 
-        printf("    System clock resolution = %" PRIu32 "Hz, UTC ns conversion = %c%" PRIu64 "+%" PRIu64 "\n", (uint32_t)tF.u.LowPart, sDivide ? '/' : '*', sFactor, sOffset);
+        printf("  System clock resolution = %" PRIu32 "Hz, UTC ns conversion = %c%" PRIu64 "+%" PRIu64 "\n", (uint32_t)tF.u.LowPart, sDivide ? '/' : '*', sFactor, sOffset);
 #else
-      printf("    System clock resolution = %" PRIu32 "Hz, ARB us conversion = -%" PRIu64 " /%" PRIu64 "\n", (uint32_t)tF.u.LowPart, sOffset, sFactor);
+      printf("  System clock resolution = %" PRIu32 "Hz, ARB us conversion = -%" PRIu64 "/%" PRIu64 "\n", (uint32_t)tF.u.LowPart, sOffset, sFactor);
 #endif
         uint64_t t;
         char ts[64];

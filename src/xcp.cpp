@@ -19,7 +19,7 @@
 #include "util.h"
 #include "xcpLite.h"
 #include "xcp.hpp"
-#include "xcpServer.h"
+#include "xcpEthServer.h"
 
 
 
@@ -70,7 +70,7 @@ BOOL Xcp::init(const uint8_t* addr0, uint16_t port0, BOOL useTCP0, BOOL usePTP0,
     if (!clockInit()) return FALSE;
 
     // Init and start XCP server
-    if (!XcpServerInit(addr, port, useTCP, segmentSize)) return FALSE;
+    if (!XcpEthServerInit(addr, port, useTCP, segmentSize)) return FALSE;
 
     return TRUE;
 }
@@ -78,7 +78,7 @@ BOOL Xcp::init(const uint8_t* addr0, uint16_t port0, BOOL useTCP0, BOOL usePTP0,
 void Xcp::shutdown() {
 
     // Stop and shutdown XCP server
-    XcpServerShutdown();
+    XcpEthServerShutdown();
 
     socketCleanup();
 }
@@ -114,7 +114,7 @@ BOOL Xcp::onStopDaq() {
 
 
 BOOL Xcp::status() {
-    return XcpServerStatus();
+    return XcpEthServerStatus();
 }
 
 BOOL Xcp::connected() {

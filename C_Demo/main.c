@@ -15,7 +15,7 @@
 #include "options.h"
 #include "util.h"
 #include "xcpLite.h"
-#include "xcpServer.h"
+#include "xcpEthServer.h"
 #if OPTION_ENABLE_A2L_GEN
 #include "A2L.h"
 #endif
@@ -35,7 +35,7 @@ static BOOL createA2L() {
 #else
     A2lCreateParameterWithLimits(gDebugLevel, A2L_TYPE_UINT32, "Console output verbosity", "", 0, 100);
 #endif
-    A2lCreate_IF_DATA(gOptionUseTCP, gOptionBindAddr, gOptionPort);
+    A2lCreate_ETH_IF_DATA(gOptionUseTCP, gOptionBindAddr, gOptionPort);
     A2lClose();
     return TRUE;
 }
@@ -66,7 +66,7 @@ int main(int argc, char* argv[]) {
 
     // Initialize the XCP Server
     if (!socketStartup()) return 0; // Initialize sockets
-    if (!XcpServerInit(gOptionBindAddr, gOptionPort, gOptionUseTCP, XCPTL_MAX_SEGMENT_SIZE)) return 0;
+    if (!XcpEthServerInit(gOptionBindAddr, gOptionPort, gOptionUseTCP, XCPTL_MAX_SEGMENT_SIZE)) return 0;
 
     // Initialize a demo measurement task thread (in ecu.c) and create an A2L for its measurement and calibration objects
     ecuInit();
@@ -79,7 +79,7 @@ int main(int argc, char* argv[]) {
     // Loop and check status of the XCP server (no side effects)
     for (;;) {
         sleepMs(500);
-        if (!XcpServerStatus()) { printf("\nXCP Server failed\n");  break;  } // Check if the XCP server is running
+        if (!XcpEthServerStatus()) { printf("\nXCP Server failed\n");  break;  } // Check if the XCP server is running
         if (!checkKeyboard()) break;
     }
 
@@ -88,7 +88,7 @@ int main(int argc, char* argv[]) {
     cancel_thread(t2);
     
     // Stop the XCP server
-    XcpServerShutdown();
+    XcpEthServerShutdown();
     socketCleanup();
 
     printf("\nApplication terminated. Press any key to close\n");

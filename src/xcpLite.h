@@ -4,10 +4,38 @@
 /* Copyright(c) Vector Informatik GmbH.All rights reserved.
    Licensed under the MIT license.See LICENSE file in the project root for details. */
 
+
+#ifdef __XCPTL_CFG_H__
+#error "Include dependency error!"
+#endif
+#ifdef __XCP_CFG_H__
+#error "Include dependency error!"
+#endif
+
+   
+// Transport layer type
+// The protocol layer implementation has some dependencies on the transport layer type
+// Some XCP commands are only supported on Ethernet and can not be compiled with MAX_CTO == 8 
+#define XCP_TRANSPORT_LAYER_ETH 1
+#define XCP_TRANSPORT_LAYER_CAN 0
+
 #include "xcptl_cfg.h"  // Transport layer configuration
+
+// Transport layer definitions and configuration
+#if XCP_TRANSPORT_LAYER_TYPE==XCP_TRANSPORT_LAYER_ETH
+#include "xcptl.h" 
+#include "xcpethtl.h"  // Ethernet transport layer specific functions
+#elif XCP_TRANSPORT_LAYER_TYPE==XCP_TRANSPORT_LAYER_CAN
+#include "xcptl.h" 
+#include "xcpcantl.h"  
+#else
+#error "Define XCP_TRANSPORT_LAYER_ETH or XCP_TRANSPORT_LAYER_CAN"
+#endif
+
+// Protocol layer definitions and configuration
 #include "xcp_cfg.h"    // Protocol layer configuration
 #include "xcp.h"        // XCP protocol defines
-#include "xcpTl.h"      // Transport layer interface
+
 
 
 /****************************************************************************/
@@ -131,7 +159,7 @@ extern uint64_t ApplXcpGetClock64();
 #define CLOCK_STATE_SYNCH_IN_PROGRESS                  (0)
 #define CLOCK_STATE_SYNCH                              (1)
 #define CLOCK_STATE_FREE_RUNNING                       (7)
-#define CLOCK_STATE_GRANDMASTER_STATE_SYNC             (1 << 3)
+#define CLOCK_STATE_GRANDMASTER_STATE_SYNCH             (1 << 3)
 extern uint8_t ApplXcpGetClockState();
 
 #ifdef XCP_ENABLE_PTP

@@ -27,16 +27,10 @@
 
 
 #ifdef _WIN
-  #ifndef WIN32_LEAN_AND_MEAN
-    #define WIN32_LEAN_AND_MEAN
-  #endif
-  #ifndef _CRT_SECURE_NO_WARNINGS
-    #define _CRT_SECURE_NO_WARNINGS
-  #endif
-  #else
-  #ifndef _DEFAULT_SOURCE
-    #define _DEFAULT_SOURCE
-  #endif
+#define WIN32_LEAN_AND_MEAN
+#define _CRT_SECURE_NO_WARNINGS
+#else
+#define _DEFAULT_SOURCE
 #endif
 
 
@@ -53,7 +47,7 @@
 
 #include <assert.h>
 
-#if defined(_LINUX) // Linux
+#ifndef _WIN // Linux
 
 #include <stdarg.h>
 #include <string.h>
@@ -77,7 +71,7 @@
 #define FALSE 0
 #define TRUE 1
 
-#elif defined(_WIN) // Windows
+#else // Windows
 
 #include <windows.h>
 #include <time.h>

@@ -160,9 +160,9 @@
     <ClCompile Include="..\src\platform.c" />
     <ClCompile Include="..\src\util.c" />
     <ClCompile Include="..\src\xcpAppl.c" />
+    <ClCompile Include="..\src\xcpEthServer.c" />
+    <ClCompile Include="..\src\xcpEthTl.c" />
     <ClCompile Include="..\src\xcpLite.c" />
-    <ClCompile Include="..\src\xcpServer.c" />
-    <ClCompile Include="..\src\xcpTl.c" />
     <ClCompile Include="ecu.c" />
     <ClCompile Include="main.c" />
   </ItemGroup>
@@ -172,8 +172,10 @@
     <ClInclude Include="..\src\platform.h" />
     <ClInclude Include="..\src\util.h" />
     <ClInclude Include="..\src\xcp.h" />
+    <ClInclude Include="..\src\xcpAppl.h" />
+    <ClInclude Include="..\src\xcpEthServer.h" />
+    <ClInclude Include="..\src\xcpEthTl.h" />
     <ClInclude Include="..\src\xcpLite.h" />
-    <ClInclude Include="..\src\xcpServer.h" />
     <ClInclude Include="..\src\xcpTl.h" />
     <ClInclude Include="ecu.h" />
     <ClInclude Include="main.h" />

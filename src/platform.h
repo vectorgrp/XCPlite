@@ -139,7 +139,7 @@ extern BOOL socketJoin(SOCKET sock, uint8_t* maddr);
 extern BOOL socketListen(SOCKET sock);
 extern SOCKET socketAccept(SOCKET sock, uint8_t addr[]);
 extern int16_t socketRecv(SOCKET sock, uint8_t* buffer, uint16_t bufferSize, BOOL waitAll);
-extern int16_t socketRecvFrom(SOCKET sock, uint8_t* buffer, uint16_t bufferSize, uint8_t* addr, uint16_t* port, uint64_t *time);
+extern int16_t socketRecvFrom(SOCKET sock, uint8_t* buffer, uint16_t bufferSize, uint8_t* srcAddr, uint16_t* srcPort, uint64_t *time);
 extern int16_t socketSend(SOCKET sock, const uint8_t* buffer, uint16_t bufferSize);
 extern int16_t socketSendTo(SOCKET sock, const uint8_t* buffer, uint16_t bufferSize, const uint8_t* addr, uint16_t port, uint64_t *time);
 extern BOOL socketShutdown(SOCKET sock);
@@ -151,9 +151,11 @@ extern BOOL socketGetLocalAddr(uint8_t* mac, uint8_t* addr);
 // Clock
 
 // Clock resolution and epoch
-#define CLOCK_USE_UTC_TIME_NS // Use ns timestamps relative to 1.1.1970 (TAI monotonic - no backward jumps)
-//#define CLOCK_USE_APP_TIME_US // Use arbitrary us timestamps relative to application start
-
+#if !defined(CLOCK_USE_UTC_TIME_NS) && !defined(CLOCK_USE_APP_TIME_US)
+  // Default
+  #define CLOCK_USE_UTC_TIME_NS // Use ns timestamps relative to 1.1.1970 (TAI monotonic - no backward jumps)
+  //#define CLOCK_USE_APP_TIME_US // Use arbitrary us timestamps relative to application start
+#endif
 
 #ifdef CLOCK_USE_UTC_TIME_NS
 

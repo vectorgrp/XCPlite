@@ -30,9 +30,10 @@
 #define OPTION_A2L_PROJECT_NAME        "C_Demo"     // A2L project name
 #endif
 
+// Enable ETH transport layer
+#define OPTION_ENABLE_ETH_TRANSPORT ON 
 
 // Default communication parameters
-#define OPTION_ENABLE_TCP ON // Enable TCP support
 #define OPTION_USE_TCP OFF // Default
 #define OPTION_MTU 1500 // Ethernet MTU
 #define OPTION_SERVER_PORT 5555 // Default UDP port, overwritten by commandline option -port
