@@ -100,7 +100,7 @@ uint16_t A2L::getFixedEvent() {
  //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
  void A2L::createMeasurement_(const char* instanceName, const char* name, int32_t type, uint8_t ext, uint32_t addr, double factor, double offset, const char* unit, const char* comment) {
-	 A2lCreateMeasurement_(instanceName, name, type, ext, addr, factor, offset, unit, comment, FALSE);
+	 A2lCreateMeasurement_(instanceName, name, type, ext, addr, factor, offset, unit, comment, OPTION_ENABLE_A2L_SYMBOL_LINKS);
 }
  
  void A2L::createMeasurementArray_(const char* instanceName, const char* name, int32_t type, int dim, uint8_t ext, uint32_t addr) {
