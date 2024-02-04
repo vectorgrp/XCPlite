@@ -144,7 +144,11 @@ void Xcp::clearEventList() {
 }
 
 uint16_t Xcp::createEvent(XcpEventDescriptor event) {
-    return XcpCreateEvent(event.name, event.cycleTime, event.priority, event.sampleCount, event.size);
+  return XcpCreateEvent(event.name, event.cycleTime, event.priority, event.sampleCount, event.size);
+}
+
+uint16_t Xcp::createEvent(const char *name, uint32_t cycleTimeNs) {
+  return XcpCreateEvent(name, cycleTimeNs,0,0,0);
 }
 
 std::vector<Xcp::XcpEventDescriptor>* Xcp::getEventList() {

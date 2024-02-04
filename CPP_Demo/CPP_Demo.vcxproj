@@ -71,22 +71,22 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>$(SolutionDir)CPP_Demo\CANape\</OutDir>
+    <OutDir>$(SolutionDir)CPP_Demo\</OutDir>
     <IntDir>$(SolutionDir)\build_CPP_Demo\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>$(SolutionDir)CPP_Demo\CANape\</OutDir>
+    <OutDir>$(SolutionDir)CPP_Demo\</OutDir>
     <IntDir>$(SolutionDir)\build_CPP_Demo\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>$(SolutionDir)CPP_Demo\CANape\</OutDir>
+    <OutDir>$(SolutionDir)CPP_Demo\</OutDir>
     <IntDir>$(SolutionDir)\build_CPP_Demo\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>$(SolutionDir)CPP_Demo\CANape\</OutDir>
+    <OutDir>$(SolutionDir)CPP_Demo\</OutDir>
     <IntDir>$(SolutionDir)\build_CPP_Demo\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">

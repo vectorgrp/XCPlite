@@ -89,6 +89,7 @@ public:
 
 	void clearEventList(); // Event handling
 	uint16_t createEvent(XcpEventDescriptor event);
+	uint16_t createEvent(const char *name, uint32_t cycleTimeNs = 0);
 	std::vector<XcpEventDescriptor>* getEventList();
 
 	void event(uint16_t event);    // Event trigger
@@ -123,25 +124,30 @@ protected:
 	uint16_t xcpInstanceId;
 	const char* xcpInstanceName;
 
+#if OPTION_ENABLE_A2L_GEN
 	// Create components (A2L STRUCTURE_COMPONENTS) components of inheriting classes
 	virtual void xcpCreateA2lTypedefComponents(A2L* a2l) { (void)a2l; };
+#endif
 
 public:
 
 	// Create an A2L INSTANCE (instanceName) for the class with className/classSize
 	XcpObject(const char* instanceName, const char* className, int classSize);
 
-	// Create the typedef (A2L TYPEDEF_STRUCTURE) for this class, calls xcpCreateA2lTypedefComponents to add components 
-	void xcpCreateA2lTypedef();
-
+	
 	// Trigger the XCP event (instanceId) associated with this A2L INSTANCE
 	void xcpEvent();
 	void xcpEvent(uint8_t* base);
 	
-	uint32_t xcpGetA2lDynAddr(uint16_t o) { // Get A2L dyn addr from member variable offset	
+#if OPTION_ENABLE_A2L_GEN
+	// Create the typedef (A2L TYPEDEF_STRUCTURE) for this class, calls xcpCreateA2lTypedefComponents to add components 
+	void xcpCreateA2lTypedef();
+
+	// Get A2L dyn addr from member variable offset	
+	uint32_t xcpGetA2lDynAddr(uint16_t o) { 
 			return (o & 0xFFFF) | ((uint32_t)xcpInstanceId << 16); // Use event and offset coding for address
 	}
-
+#endif
 
 };
 

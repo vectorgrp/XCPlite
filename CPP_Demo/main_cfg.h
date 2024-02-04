@@ -21,19 +21,27 @@
 
 #define OPTION_DEBUG_LEVEL 2 
 
+
+//-------------------------------------------------------------------------------------------------------
+// Enable demo how to measure dynamic instances
+#define OPTION_ENABLE_DYNAMIC_DEMO      ON
+
+
+//-------------------------------------------------------------------------------------------------------
 // A2L generation
-#define OPTION_ENABLE_A2L_GEN          ON           // Enable A2L generation
+#define OPTION_ENABLE_A2L_GEN          ON               // Enable A2L generation
 #if OPTION_ENABLE_A2L_GEN
-#define OPTION_ENABLE_A2L_SYMBOL_LINKS ON           // Enable generation of symbol links (required for CANape integrated linker map update)
-#define OPTION_A2L_NAME                "CPP_Demo"     // A2L name 
-#define OPTION_A2L_FILE_NAME           "CPP_Demo.a2l" // A2L filename 
-#define OPTION_A2L_PROJECT_NAME        "CPP_Demo"     // A2L project name
+  #define OPTION_ENABLE_A2L_SYMBOL_LINKS ON             // Enable generation of symbol links (required for CANape integrated linker map update)
+  #define OPTION_A2L_NAME                "CPP_Demo"     // A2L name 
+  #define OPTION_A2L_FILE_NAME           "CPP_Demo.a2l" // A2L filename 
+  #define OPTION_A2L_PROJECT_NAME        "CPP_Demo"     // A2L project name
 #endif
 
-// Enable ETH transport layer
-#define OPTION_ENABLE_ETH_TRANSPORT ON 
 
-// Default communication parameters
+//-------------------------------------------------------------------------------------------------------
+// ETH
+
+#define OPTION_ENABLE_ETH_TRANSPORT ON 
 #define OPTION_USE_TCP ON // Default
 #define OPTION_MTU 1500 // Ethernet MTU
 #define OPTION_SERVER_PORT 5555 // Default UDP port, overwritten by commandline option -port
