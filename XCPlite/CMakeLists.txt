@@ -1,20 +1,13 @@
 # XCPlite
 cmake_minimum_required(VERSION 3.5)
 
-set(MACOS TRUE)
+set(MACOS FALSE) # Build for macOS Darwin ARM
+set(WINDOWS FALSE) # Build for Windows x64
+set(LINUX TRUE) # Build for Linus x64
 
-if (MACOS)
+if (MACOS) # Not working yet
 
   set(CMAKE_TOOLCHAIN_FILE "darwin-arm-toolchain.cmake")
-  
-  # Set the compilers explicitly (macOS brew ls gcc)
-  # set(CMAKE_C_COMPILER /usr/local/Cellar/gcc/13.2.0/bin/x86_64-apple-darwin23-gcc-13)
-  # set(CMAKE_CXX_COMPILER /usr/local/Cellar/gcc/13.2.0/bin/x86_64-apple-darwin23-gcc-13)
-
-else ()
-
-  set(CMAKE_C_COMPILER "gcc")
-  set(CMAKE_CXX_COMPILER "g++")
 
 endif ()
 
@@ -31,6 +24,9 @@ add_executable(XCPlite ${XCPlite_SOURCES})
 target_include_directories(XCPlite PUBLIC "${PROJECT_SOURCE_DIR}" )
 target_include_directories(XCPlite PUBLIC "${PROJECT_SOURCE_DIR}/../src" )
 
+# compile*.c as C++
+# file(GLOB_RECURSE CFILES "${CMAKE_SOURCE_DIR}/../*.c")
+# set_source_files_properties(${CFILES} PROPERTIES LANGUAGE CXX)
 
 if (WINDOWS)
 

@@ -233,16 +233,12 @@ void XcpObject::xcpCreateA2lTypedef() {
 // Trigger the XCP event (instanceId) associated with this instance 
 void XcpObject::xcpEvent() {
 
-    if (this != NULL) {
-        Xcp::getInstance()->eventExt(xcpInstanceId, (uint8_t*)this);
-    }
+    Xcp::getInstance()->eventExt(xcpInstanceId, (uint8_t*)this);
 }
 
 void XcpObject::xcpEvent(uint8_t* base) {
 
-    if (this != NULL) {
-        Xcp::getInstance()->eventExt(xcpInstanceId, base);
-    }
+    Xcp::getInstance()->eventExt(xcpInstanceId, base);
 }
 
 

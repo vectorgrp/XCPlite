@@ -1,6 +1,9 @@
 
 *.DS_Store
 
+XCPlite/Xcode_build/
+XCPlite/build/
+
 build/
 build_XCPlite/
 build_C_Demo/
@@ -45,3 +48,5 @@ obj/
 *.cnaxml
 Environment
 CustomProperties.json
+*.xcbkptlist
+/XCPlite/XCPlite.xcodeproj/project.xcworkspace/xcuserdata/rainer.xcuserdatad/Bookmarks/bookmarks.plist

@@ -88,9 +88,10 @@ void* txTask(void* p)
 
 //-------------------------------------------------------------------------------------------------
 
-static BOOL checkKeyboard() { if (_kbhit()) { if (_getch()==27) {  return FALSE; } } return TRUE; }
+static BOOL checkKeyboard(void) { 
+    if (_kbhit()) { if (_getch()==27) {  return FALSE; } } return TRUE; }
 
-static void info() {
+static void info(void) {
     printf("\nXCPlite - Simple Demo\n");
 #ifdef __x86_64__
     printf("x86_64\n");

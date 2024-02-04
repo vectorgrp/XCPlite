@@ -1,5 +1,5 @@
 # CPP_Demo
-cmake_minimum_required(VERSION 3.1.0)
+cmake_minimum_required(VERSION 3.5)
 
 project(CPP_Demo VERSION 6.0 LANGUAGES CXX)
 set(WINDOWS FALSE)
@@ -18,7 +18,7 @@ add_executable(CPP_Demo ${CPP_Demo_SOURCES})
 target_include_directories(CPP_Demo PUBLIC "${PROJECT_SOURCE_DIR}" )
 target_include_directories(CPP_Demo PUBLIC "${PROJECT_SOURCE_DIR}/../src" )
 
-# compile*.c as C++
+# compile *.c as C++
 file(GLOB_RECURSE CFILES "${CMAKE_SOURCE_DIR}/../*.c")
 set_source_files_properties(${CFILES} PROPERTIES LANGUAGE CXX)
 

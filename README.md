@@ -3,13 +3,16 @@
 
 Copyright 2024 Vector Informatik GmbH
 
-Lightweight implementation of the ASAM XCP Protocol Layer V1.4.
+Lightweight demo implementation of ASAM XCP V1.4 on Ethernet UDP or TCP for POSIX based or Windows Operating Systems.
+Provided to test and demonstrate calibration tools such as CANape, to showcase some capabilities of XCP and to serve as a base for individualy customized implementations.
 
 New to XCP? Checkout Vector�s XCP Reference Book here: https://www.vector.com/int/en/know-how/protocols/xcp-measurement-and-calibration-protocol/xcp-book# or visit the Virtual VectorAcedemy for an E-Learning on XCP: https://elearning.vector.com/ 
 
 Supports Linux 32/64 Bit and Windows 32/64 Bit. 
 
-List of restrictions compared to Vectors free xcpBasic and commercial xcpProf in source file xcpLite.c. 
+A List of restrictions compared to Vectors free xcpBasic and commercial xcpProf may be found in source file xcpLite.c.
+xcpBasic is an implementaion optimized for smaller Microcontrollers and CAN as Transport-Layer.
+xcpProf is a product in Vectors AUTOSAR and CANbedded product portfolio.   
 
 Supports XCP on Ethernet, TCP or UDP with jumbo frames. 
 Thread safe, minimal thread lock and zero copy data acquisition. 
@@ -17,8 +20,12 @@ C and C++ support.
 
 Achieves up to 100 MByte/s throughput on a Raspberry Pi 4 (with jumbo frames enabled). 
 
-No manual A2L creation (ASAP2 ECU description) required. 
-An A2L with a reduced featureset is generated through code instrumentation during runtime and may be uploaded by XCP. 
+XCPlite has been testet on CANFD, but there is no example target to showcase this.
+XCPlite is not recomended for CAN.
+
+No manual A2L creation (ASAP2 ECU description) is required for XCPlite. 
+An A2L with a reduced featureset is generated through code instrumentation during runtime and may be automatically uploaded by XCP. 
+
 
 ## Included code examples (Build Targets):  
 
@@ -32,32 +39,40 @@ CPP_Demo:
 
 ## Code instrumentation for measurement events:
 
-Only simple code instrumentation needed for event triggering and data copy, event definition and data object definition. 
+Very simple code instrumentation needed for event triggering and data copy, event definition and data object definition. 
 
 Example: 
 
 ### Definition:
-```
-  double channel1;
-```
 
-### Initialisation and A2L info generation:
+Define a variable which should be acquired and visualized in realtime by the measurement and calibration tool
 
 ```
-  channel1 = 0;
+  double channel1; 
+```
 
+### A2L generation:
+
+A2L is ASCII file format standardized by ASAM to describe ECU internal measurement and calibration values.
+With XCPlite, the A2L file may be generated during runtime at startup of the application:
+
+```
   A2lCreateEvent("ECU"); // Create a new event with name "ECU""
-  A2lSetEvent("ECU"); // Set event "ECU" to be associated to following measurement definitions
-  A2lCreatePhysMeasurement(channel1, 2.0, 1.0, "Volt", "Demo floating point signal"); // Create a new measurement signal "channel1" with linear conversion rule (factor,offset) and unit "Volt"
+  A2lSetEvent("ECU"); // Set event "ECU" to be associated to following measurement value definitions
+  A2lCreatePhysMeasurement(channel1, 2.0, 1.0, "Volt", "Demo floating point signal"); // Create a measurement signal "channel1" with linear conversion rule (factor,offset) and unit "Volt"
 ```
 
 
 ### Measurement data acquisition event:
 
+A measurement event is trigger for measurement data acquisition somewhere in the code. Multiples measurement objects such as channel1, even complexer objects like structs and instances can be associated to the event. This is done during runtime in the GUI of the measurement and calibration tool. An event will be precicly timestamped with ns resolution, timestamps may obtained from PTP synchronized clocks and the data attached to it, is garantueed to be consistent. The blocking duration of the XcpEvent function is as low as possible:
+
 ```
   channel1 += 0.6;
   XcpEvent(1); // Trigger event number 1, attach a timestamp and copy measurement data
 ```
+
+This is a screenshot of the tool GUI.
 
 ![CANape](Screenshot.png)
 
@@ -91,7 +106,7 @@ Version 6.x:
 - Bugfixes, optimizations, refactorings and simplifications
 - New targets XCPlite and XCPlite as a static library for Linux
 - Support for C, C++ and Rust 
-- Support for Vector Network Interfaces and integrated zero copy UDP stack removed, available on request at Vector
+- Support for Vector Network Interfaces (ETH and CAN) and the integrated zero copy UDP stack have been removed
 - Support for CANFD added, CAN not recomended because protocol layer not optimized for minumum message length 
 - Improved support for PTP synchronized clock
 
@@ -113,43 +128,22 @@ Version 4.x:
 
 ## Build
 
-### Linux 
+### Linux or macOS
 
 $ sudo apt-get install cmake g++ clang ninja-build
-
-#### Build
-
-```
-$ cd XCPlite
-$ nano C_Demo/CMakeLists.txt -> set(WINDOWS FALSE)
-$ mkdir build_C_Demo
-
-$ cd build_C_Demo
-$ cmake -GNinja -DCMAKE_BUILD_TYPE=Release -S ../C_Demo 
-$ ninja
-
 or
-
-$ cmake -DCMAKE_BUILD_TYPE=Release -S C_Demo -B build_C_Demo
-$ cd build_C_Demo
-$ make
-
-```
-
-### macOS 
-
 $ brew install cmake gcc 
 
 #### Build
 
-Edit CMakeLists.txt: set(WINDOWS FALSE), set(MACOS TRUE)
+Edit CMakeLists.txt: set(WINDOWS FALSE), set(MACOS FALSE)
 
 ```
-$ cd XCPlite or cd CPP_Demo or cd C_DEMO
-cmake -DCMAKE_BUILD_TYPE=Release -S . -B build  
-$ cs build
+$ cd <targetDirectory> (XCPlite or CPP_Demo or C_DEMO)
+$ cmake -DCMAKE_BUILD_TYPE=Release -S . -B build  
+$ cd build
 $ make
-$ ./XCPlite.out
+$ ./<targetName>.out (XCPlite or CPP_Demo or C_DEMO)
 
 ```
 
@@ -161,7 +155,6 @@ Use the Visual Studio 19 projects included in the repo or build projects with CM
 #### Build Visual Studio project and solution
 ```
 Start cmake-gui
-Choose your build options in the GUI
 Start the generated VS solution
 ```
 
@@ -169,7 +162,7 @@ Start the generated VS solution
 
 ```
 For the CMake setup, prepare your command line environment.
-Set compiler to Microsoft x64 cl.exe and make sure the system finds cmake.exe and ninja.exe.
+Set compiler to Microsoft x64 cl.exe and make sure the system finds cmake and ninja or make.
 You can also use the Windows clang compiler.
 
 ```
