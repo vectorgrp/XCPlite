@@ -3,39 +3,42 @@
 
 Copyright 2024 Vector Informatik GmbH
 
-Lightweight demo implementation of ASAM XCP V1.4 on Ethernet UDP or TCP for POSIX based or Windows Operating Systems.
-Provided to test and demonstrate calibration tools such as CANape, to showcase some capabilities of XCP and to serve as a base for individualy customized implementations.
+XCPlite is a lightweight demo implementation of the ASAM XCP V1.4 standard protocol for measurement and calibration of electronic control units. 
+The demo implementation uses Ethernet UDP or TCP communication on POSIX based or Windows Operating Systems. 
+XCPlite is provided to test and demonstrate calibration tools such as CANape or any other XCP client implementation. 
+It demonstrates some capabilities of XCP and may serve as a base for individually customized implementations. 
 
 New to XCP? Checkout Vector�s XCP Reference Book here: https://www.vector.com/int/en/know-how/protocols/xcp-measurement-and-calibration-protocol/xcp-book# or visit the Virtual VectorAcedemy for an E-Learning on XCP: https://elearning.vector.com/ 
 
-Supports Linux 32/64 Bit and Windows 32/64 Bit. 
+A list of restrictions compared to Vectors free XCPbasic or commercial XCPprof may be found in the source file xcpLite.c.
+XCPbasic is an implementation optimized for smaller Microcontrollers and CAN as Transport-Layer.
+XCPprof is a product in Vectors AUTOSAR MICROSAR and CANbedded product portfolio.   
 
-A List of restrictions compared to Vectors free xcpBasic and commercial xcpProf may be found in source file xcpLite.c.
-xcpBasic is an implementaion optimized for smaller Microcontrollers and CAN as Transport-Layer.
-xcpProf is a product in Vectors AUTOSAR and CANbedded product portfolio.   
+XCPlite
+- Supports TCP or UDP with jumbo frames. 
+- Is thread safe, has minimal thread lock and single copy data acquisition. 
+- Compiles as C or C++. 
+- Has no dependencies but includes some boilerplate code to abstract socket communication and clock
+- Achieves up to 100 MByte/s throughput on a Raspberry Pi 4. 
 
-Supports XCP on Ethernet, TCP or UDP with jumbo frames. 
-Thread safe, minimal thread lock and zero copy data acquisition. 
-C and C++ support. 
-
-Achieves up to 100 MByte/s throughput on a Raspberry Pi 4 (with jumbo frames enabled). 
-
-XCPlite has been testet on CANFD, but there is no example target to showcase this.
+XCPlite has been testet on CANFD, there is some experimental code included, but there is no example target to showcase this.
 XCPlite is not recomended for CAN.
 
 No manual A2L creation (ASAP2 ECU description) is required for XCPlite. 
-An A2L with a reduced featureset is generated through code instrumentation during runtime and may be automatically uploaded by XCP. 
+An A2L with a reduced featureset may be generated through code instrumentation during runtime and can be automatically uploaded by XCP. 
 
 
 ## Included code examples (Build Targets):  
 
 XCPlite:
-  Getting started with a simple demo in C with minimum code and features. Shows the basics how to integrate XCP in existing applications. Compiles as C.
+  Getting started with a simple demo in C with minimum code and features. Shows the basics how to integrate XCP in existing applications. Compiles as C. 
+
 C_DEMO:
-  Shows more sophisticated calibration, maps and curves, calibration page switching and EPK check. Compiles as C or C++.
+  Shows more sophisticated calibration, maps and curves, calibration page switching and EPK check. Compiles as C or C++. 
+
 CPP_Demo:
   XCP server as a C++ singleton. Demonstrates an approach how to calibrate and measure members of dynamic instances of classes. 
-
+  
 
 ## Code instrumentation for measurement events:
 
@@ -45,7 +48,7 @@ Example:
 
 ### Definition:
 
-Define a variable which should be acquired and visualized in realtime by the measurement and calibration tool
+Define a global variable which should be acquired and visualized in realtime by the measurement and calibration tool
 
 ```
   double channel1; 
@@ -53,7 +56,7 @@ Define a variable which should be acquired and visualized in realtime by the mea
 
 ### A2L generation:
 
-A2L is ASCII file format standardized by ASAM to describe ECU internal measurement and calibration values.
+A2L is an ASCII file format (ASAM standard) to describe ECU internal measurement and calibration values.
 With XCPlite, the A2L file may be generated during runtime at startup of the application:
 
 ```
@@ -65,7 +68,7 @@ With XCPlite, the A2L file may be generated during runtime at startup of the app
 
 ### Measurement data acquisition event:
 
-A measurement event is trigger for measurement data acquisition somewhere in the code. Multiples measurement objects such as channel1, even complexer objects like structs and instances can be associated to the event. This is done during runtime in the GUI of the measurement and calibration tool. An event will be precicly timestamped with ns resolution, timestamps may obtained from PTP synchronized clocks and the data attached to it, is garantueed to be consistent. The blocking duration of the XcpEvent function is as low as possible:
+A measurement event is a trigger for measurement data acquisition somewhere in the code. Multiples measurement objects such as channel1, even complexer objects like structs and instances can be associated to the event. This is done during runtime in the GUI of the measurement and calibration tool. An event will be precicly timestamped with ns resolution, timestamps may obtained from PTP synchronized clocks and the data attached to it, is garantueed to be consistent. The blocking duration of the XcpEvent function is as low as possible:
 
 ```
   channel1 += 0.6;
