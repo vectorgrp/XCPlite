@@ -13,8 +13,6 @@
 
 #include "main.h"
 #include "platform.h"
-#include "options.h"
-#include "util.h"
 #include "xcpLite.h"
 #if OPTION_ENABLE_A2L_GEN
 #include "A2L.h"

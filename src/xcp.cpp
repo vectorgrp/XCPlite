@@ -227,7 +227,7 @@ void XcpObject::xcpCreateA2lTypedef() {
     A2L* a2l = Xcp::getInstance()->getA2L();
     a2l->setFixedEvent(xcpInstanceId);
     a2l->createTypedefBegin_(className, classSize, "");
-    a2l->createTypedefMeasurementComponent(xcpInstanceId);
+    a2l->createDynTypedefMeasurementComponent(xcpInstanceId);
     xcpCreateA2lTypedefComponents(a2l);
     a2l->createTypedefEnd();
 };

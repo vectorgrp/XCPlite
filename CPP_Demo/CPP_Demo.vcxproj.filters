@@ -2,9 +2,6 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="..\src\options.c">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\platform.c">
       <Filter>src</Filter>
     </ClCompile>
@@ -38,9 +35,6 @@
     <ClInclude Include="main_cfg.h" />
     <ClInclude Include="xcptl_cfg.h" />
     <ClInclude Include="xcp_cfg.h" />
-    <ClInclude Include="..\src\options.h">
-      <Filter>src</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\platform.h">
       <Filter>src</Filter>
     </ClInclude>
