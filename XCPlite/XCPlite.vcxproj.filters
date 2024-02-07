@@ -39,6 +39,9 @@
     <ClInclude Include="..\src\xcpTl.h">
       <Filter>src</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\dbg_print.h">
+      <Filter>src</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="src">

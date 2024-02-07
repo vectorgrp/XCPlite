@@ -6,20 +6,28 @@
 /* Copyright(c) Vector Informatik GmbH.All rights reserved.
    Licensed under the MIT license.See LICENSE file in the project root for details. */
 
-
-#define APP_NAME "C_Demo"
-#define APP_VERSION_MAJOR 6
-#define APP_VERSION_MINOR 0
-
-
-//-----------------------------------------------------------------------------------------------------
 // Application configuration:
 // XCP configuration is in xcp_cfg.h (Protocol Layer) and xcptl_cfg.h (Transport Layer)
+
+#define APP_NAME                "C_Demo"
+#define APP_VERSION_MAJOR       6
+#define APP_VERSION_MINOR       0
+
+
 
 #define ON 1
 #define OFF 0
 
-#define OPTION_DEBUG_LEVEL 1 
+
+// Debug prints
+#define OPTION_ENABLE_DBG_PRINTS        ON
+#define OPTION_DEBUG_LEVEL              2 
+#define OPTION_UDP_DEBUG_LEVEL          0  
+
+
+// Enable demo how to create a calibration segment with page switching
+#define OPTION_ENABLE_CAL_SEGMENT ON
+
 
 // A2L generation
 #define OPTION_ENABLE_A2L_GEN ON  // Enable A2L generation
@@ -30,16 +38,18 @@
 #define OPTION_A2L_PROJECT_NAME        "C_Demo"     // A2L project name
 #endif
 
-// Enable ETH transport layer
-#define OPTION_ENABLE_ETH_TRANSPORT ON 
 
-// Default communication parameters
-#define OPTION_USE_TCP OFF // Default
-#define OPTION_MTU 1500 // Ethernet MTU
-#define OPTION_SERVER_PORT 5555 // Default UDP port, overwritten by commandline option -port
-#define OPTION_SERVER_ADDR {0,0,0,0} // Default IP addr, 0.0.0.0 = ANY, 255.255.255.255 = first adapter found, overwritten by commandline option -bind x.x.x.x
+// Set clock resolution (for clock function in platform.c)
+//#define CLOCK_USE_APP_TIME_US
+#define CLOCK_USE_UTC_TIME_NS
 
-// Calibration segment
-#define OPTION_ENABLE_CAL_SEGMENT ON
+
+// Ethernet Transport Layer
+#define OPTION_ENABLE_ETH_TRANSPORT   ON 
+#define OPTION_USE_TCP                OFF // Default
+#define OPTION_MTU                    1500 // Ethernet MTU
+#define OPTION_SERVER_PORT            5555 // Default UDP port, overwritten by commandline option -port
+#define OPTION_SERVER_ADDR            {127,0,0,1} // Default IP addr, 0.0.0.0 = ANY, 255.255.255.255 = first adapter found, overwritten by commandline option -bind x.x.x.x
+
 
 

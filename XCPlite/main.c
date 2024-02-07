@@ -19,11 +19,11 @@
 #endif
 
 
+// OPTIONs defined in main_cfg.h
 
-// All OPTIONs defined in main_cfg.h
-
+#if OPTION_ENABLE_DBG_PRINTS
 unsigned int gDebugLevel = OPTION_DEBUG_LEVEL;
-
+#endif
 
 //-------------------------------------------------------------------------------------------------
 
@@ -86,23 +86,12 @@ void* txTask(void* p)
 
 //-------------------------------------------------------------------------------------------------
 
-static BOOL checkKeyboard(void) { 
-    if (_kbhit()) { if (_getch()==27) {  return FALSE; } } return TRUE; }
+static BOOL checkKeyboard(void) { if (_kbhit()) { if (_getch()==27) {  return FALSE; } } return TRUE; }
 
-static void info(void) {
+
+int main() {
+
     printf("\nXCPlite - Simple Demo\n");
-#ifdef __x86_64__
-    printf("x86_64\n");
-#elif defined(__arm64__)
-    printf("arm64\n");
-#else
-    printf("Unbekannte Architektur!\n");
-#endif
-}
-
-int main(int argc, char* argv[]) {
-
-    info();
 
     // Initialize high resolution clock for measurement event timestamping
     if (!clockInit()) return 0;

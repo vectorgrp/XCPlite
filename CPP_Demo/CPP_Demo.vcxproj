@@ -159,6 +159,7 @@
   <ItemGroup>
     <ClCompile Include="..\src\A2L.c" />
     <ClCompile Include="..\src\A2Lpp.cpp" />
+    <ClCompile Include="..\src\options.c" />
     <ClCompile Include="..\src\platform.c" />
     <ClCompile Include="..\src\util.c" />
     <ClCompile Include="..\src\xcp.cpp" />
@@ -171,6 +172,8 @@
   <ItemGroup>
     <ClInclude Include="..\src\A2L.h" />
     <ClInclude Include="..\src\A2Lpp.hpp" />
+    <ClInclude Include="..\src\dbg_print.h" />
+    <ClInclude Include="..\src\options.h" />
     <ClInclude Include="..\src\platform.h" />
     <ClInclude Include="..\src\util.h" />
     <ClInclude Include="..\src\xcp.h" />

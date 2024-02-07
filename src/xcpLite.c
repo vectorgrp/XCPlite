@@ -60,7 +60,7 @@
 
 #include "main.h"
 #include "platform.h"
-#include "util.h"
+#include "dbg_print.h"
 #include "xcpLite.h"    // Protocol layer interface
 #include "xcpAppl.h"    // Debug print functions supplied by application
 
@@ -305,7 +305,7 @@ static tXcpData gXcp = { 0,0,0 };
 #endif
 
 
-#ifdef XCP_ENABLE_DEBUG_PRINTS
+#ifdef DBG_LEVEL
 static void XcpPrintCmd();
 static void XcpPrintRes();
 static void XcpPrintDaqList(uint16_t daq);
@@ -446,7 +446,7 @@ static uint8_t  XcpAllocMemory( void )
   gXcp.pOdtEntryAddr = (uint32_t*)&gXcp.pOdt[gXcp.Daq.OdtCount];
   gXcp.pOdtEntrySize = (uint8_t*)&gXcp.pOdtEntryAddr[gXcp.Daq.OdtEntryCount];
   
-  XCP_DBG_PRINTF4("[XcpAllocMemory] %u of %u Bytes used\n",s,XCP_DAQ_MEM_SIZE );
+  DBG_PRINTF4("[XcpAllocMemory] %u of %u Bytes used\n",s,XCP_DAQ_MEM_SIZE );
   return 0;
 }
 
@@ -499,7 +499,7 @@ static BOOL  XcpAdjustOdtSize(uint16_t daq, uint16_t odt, uint8_t size) {
 #endif
 #ifdef XCP_ENABLE_TEST_CHECKS
     if (DaqListOdtSize(odt) > XCPTL_MAX_DTO_SIZE) {
-        XCP_DBG_PRINTF_ERROR("ERROR: ODT size %u exceed XCPTL_MAX_DTO_SIZE %u!\n", DaqListOdtSize(odt), XCPTL_MAX_DTO_SIZE);
+        DBG_PRINTF_ERROR("ERROR: ODT size %u exceed XCPTL_MAX_DTO_SIZE %u!\n", DaqListOdtSize(odt), XCPTL_MAX_DTO_SIZE);
         return FALSE;
     }
 #endif
@@ -628,15 +628,15 @@ static void XcpStartAllSelectedDaq()
     if ( (DaqListState(daq) & DAQ_STATE_SELECTED) != 0 ) {
       DaqListState(daq) |= DAQ_STATE_RUNNING;
       DaqListState(daq) &= (uint8_t)~DAQ_STATE_SELECTED;
-#ifdef XCP_ENABLE_DEBUG_PRINTS
-      if (XCP_DBG_LEVEL >= 3) {
+#ifdef DBG_LEVEL
+      if (DBG_LEVEL >= 3) {
           XcpPrintDaqList(daq);
       }
 #endif
     }
   }
-#ifdef XCP_ENABLE_DEBUG_PRINTS
-  if (XCP_DBG_LEVEL >= 2) {
+#ifdef DBG_LEVEL
+  if (DBG_LEVEL >= 2) {
     char ts[64];
     clockGetString(ts, sizeof(ts), gXcp.DaqStartClock64);
     printf("DAQ start at t=%s\n", ts);
@@ -710,7 +710,7 @@ static void XcpEvent_(uint16_t event, uint8_t* base, uint64_t clock)
 #if defined(XCP_ENABLE_TEST_CHECKS) || defined(XCP_ENABLE_MULTITHREAD_EVENTS)
   tXcpEvent* ev = XcpGetEvent(event);
   if (ev == NULL) {
-      XCP_DBG_PRINTF_ERROR("ERROR: Unknown event %u!\n", event);
+      DBG_PRINTF_ERROR("ERROR: Unknown event %u!\n", event);
       return; // Unknown event
   }
 #endif
@@ -746,10 +746,10 @@ static void XcpEvent_(uint16_t event, uint8_t* base, uint64_t clock)
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
 #ifdef XCP_ENABLE_TEST_CHECKS
           if (ev->time > clock) { // declining time stamps
-              XCP_DBG_PRINTF_ERROR("ERROR: Declining timestamp! event=%u, diff=%" PRIu64 "\n", event, ev->time-clock);
+              DBG_PRINTF_ERROR("ERROR: Declining timestamp! event=%u, diff=%" PRIu64 "\n", event, ev->time-clock);
           }
           if (ev->time == clock) { // duplicate time stamps
-              XCP_DBG_PRINTF3("WARNING: Duplicate timestamp! event=%u\n", event);
+              DBG_PRINTF3("WARNING: Duplicate timestamp! event=%u\n", event);
           }
 #endif
 #endif
@@ -860,8 +860,8 @@ void XcpDisconnect( void )
 static void XcpSendResponse() {
 
   XcpTlSendCrm((const uint8_t*)&gXcp.Crm, gXcp.CrmLen);
-#ifdef XCP_ENABLE_DEBUG_PRINTS
-  if (XCP_DBG_LEVEL >= 2) XcpPrintRes();
+#ifdef DBG_LEVEL
+  if (DBG_LEVEL >= 2) XcpPrintRes();
 #endif
 }
 
@@ -870,8 +870,8 @@ static void XcpSendResponse() {
 static void XcpSendMulticastResponse( uint8_t *addr, uint16_t port) {
 
   XcpEthTlSendMulticastCrm((const uint8_t*)&gXcp.Crm, gXcp.CrmLen, addr, port);
-#ifdef XCP_ENABLE_DEBUG_PRINTS
-  if (XCP_DBG_LEVEL >= 2) XcpPrintRes();
+#ifdef DBG_LEVEL
+  if (DBG_LEVEL >= 2) XcpPrintRes();
 #endif
 }
 #endif
@@ -906,9 +906,9 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
   if (cmdLen>=CRO_CONNECT_LEN && CRO_CMD==CC_CONNECT)
 #endif
   {
-#ifdef XCP_ENABLE_DEBUG_PRINTS
-      XCP_DBG_PRINTF2("CONNECT mode=%u\n", CRO_CONNECT_MODE);
-      if (gXcp.SessionStatus & SS_CONNECTED) XCP_DBG_PRINT1("  Already connected! DAQ setup cleared! Legacy mode activated!\n");
+#ifdef DBG_LEVEL
+      DBG_PRINTF2("CONNECT mode=%u\n", CRO_CONNECT_MODE);
+      if (gXcp.SessionStatus & SS_CONNECTED) DBG_PRINT1("  Already connected! DAQ setup cleared! Legacy mode activated!\n");
 #endif
 
       // Check application is ready for XCP connect 
@@ -936,11 +936,11 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
   // Handle other all other commands
   else {
 
-#ifdef XCP_ENABLE_DEBUG_PRINTS
-      if (XCP_DBG_LEVEL >= 2) XcpPrintCmd();
+#ifdef DBG_LEVEL
+      if (DBG_LEVEL >= 2) XcpPrintCmd();
 #endif
       if (!isConnected() && CRO_CMD!= CC_TRANSPORT_LAYER_CMD) { // Must be connected, exception are the transport layer commands
-          XCP_DBG_PRINT1("Command ignored because not in connected state, no response sent!\n");
+          DBG_PRINT1("Command ignored because not in connected state, no response sent!\n");
           return;
       }
 
@@ -1316,12 +1316,12 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
             check_len(CRO_TIME_SYNCH_PROPERTIES_LEN);
             gXcp.CrmLen = CRM_TIME_SYNCH_PROPERTIES_LEN;
             if ((CRO_TIME_SYNCH_PROPERTIES_SET_PROPERTIES & TIME_SYNCH_SET_PROPERTIES_RESPONSE_FMT) >= 1) { // set extended format
-              XCP_DBG_PRINTF2("  Timesync extended mode activated (RESPONSE_FMT=%u)\n", CRO_TIME_SYNCH_PROPERTIES_SET_PROPERTIES & TIME_SYNCH_SET_PROPERTIES_RESPONSE_FMT);
+              DBG_PRINTF2("  Timesync extended mode activated (RESPONSE_FMT=%u)\n", CRO_TIME_SYNCH_PROPERTIES_SET_PROPERTIES & TIME_SYNCH_SET_PROPERTIES_RESPONSE_FMT);
               gXcp.SessionStatus &= (uint16_t)~SS_LEGACY_MODE;
             }
 #ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
             if (CRO_TIME_SYNCH_PROPERTIES_SET_PROPERTIES & TIME_SYNCH_SET_PROPERTIES_CLUSTER_ID) { // set cluster id
-              XCP_DBG_PRINTF2("  Cluster id set to %u\n", CRO_TIME_SYNCH_PROPERTIES_CLUSTER_ID);
+              DBG_PRINTF2("  Cluster id set to %u\n", CRO_TIME_SYNCH_PROPERTIES_CLUSTER_ID);
               gXcp.ClusterId = CRO_TIME_SYNCH_PROPERTIES_CLUSTER_ID; // Set cluster id
               XcpEthTlSetClusterId(gXcp.ClusterId);
             }
@@ -1329,7 +1329,7 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
 #else
             if (CRO_TIME_SYNCH_PROPERTIES_SET_PROPERTIES & TIME_SYNCH_SET_PROPERTIES_CLUSTER_ID) { // set cluster id
                 //error(CRC_OUT_OF_RANGE); // CANape insists on setting a cluster id, even if Multicast is not enabled
-                XCP_DBG_PRINTF2("  Cluster id = %u setting ignored\n", CRO_TIME_SYNCH_PROPERTIES_CLUSTER_ID);
+                DBG_PRINTF2("  Cluster id = %u setting ignored\n", CRO_TIME_SYNCH_PROPERTIES_CLUSTER_ID);
             }
             CRM_TIME_SYNCH_PROPERTIES_CLUSTER_ID = 0;
 #endif
@@ -1343,9 +1343,9 @@ void XcpCommand( const uint32_t* cmdData, uint16_t cmdLen )
 #else // XCP_ENABLE_PTP
             if (ApplXcpGetClockInfoGrandmaster(gXcp.ClockInfo.grandmaster.UUID, &gXcp.ClockInfo.grandmaster.epochOfGrandmaster, &gXcp.ClockInfo.grandmaster.stratumLevel)) { // Update UUID and clock details
                 CRM_TIME_SYNCH_PROPERTIES_OBSERVABLE_CLOCKS = LOCAL_CLOCK_SYNCHED | GRANDM_CLOCK_READABLE | ECU_CLOCK_NONE;
-                XCP_DBG_PRINTF1("  GrandmasterClock: UUID=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X stratumLevel=%u, epoch=%u\n", gXcp.ClockInfo.grandmaster.UUID[0], gXcp.ClockInfo.grandmaster.UUID[1], gXcp.ClockInfo.grandmaster.UUID[2], gXcp.ClockInfo.grandmaster.UUID[3], gXcp.ClockInfo.grandmaster.UUID[4], gXcp.ClockInfo.grandmaster.UUID[5], gXcp.ClockInfo.grandmaster.UUID[6], gXcp.ClockInfo.grandmaster.UUID[7], gXcp.ClockInfo.grandmaster.stratumLevel, gXcp.ClockInfo.grandmaster.epochOfGrandmaster);
+                DBG_PRINTF1("  GrandmasterClock: UUID=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X stratumLevel=%u, epoch=%u\n", gXcp.ClockInfo.grandmaster.UUID[0], gXcp.ClockInfo.grandmaster.UUID[1], gXcp.ClockInfo.grandmaster.UUID[2], gXcp.ClockInfo.grandmaster.UUID[3], gXcp.ClockInfo.grandmaster.UUID[4], gXcp.ClockInfo.grandmaster.UUID[5], gXcp.ClockInfo.grandmaster.UUID[6], gXcp.ClockInfo.grandmaster.UUID[7], gXcp.ClockInfo.grandmaster.stratumLevel, gXcp.ClockInfo.grandmaster.epochOfGrandmaster);
                 CRM_TIME_SYNCH_PROPERTIES_SYNCH_STATE = ApplXcpGetClockState();
-                XCP_DBG_PRINTF1("  SyncState: %u\n", CRM_TIME_SYNCH_PROPERTIES_SYNCH_STATE);
+                DBG_PRINTF1("  SyncState: %u\n", CRM_TIME_SYNCH_PROPERTIES_SYNCH_STATE);
                 CRM_TIME_SYNCH_PROPERTIES_CLOCK_INFO = CLOCK_INFO_SERVER | CLOCK_INFO_GRANDM | CLOCK_INFO_RELATION;
             }
             else {
@@ -1576,47 +1576,47 @@ void XcpInit( void )
     /* Initialize the session status */
     gXcp.SessionStatus = 0;
 
-#ifdef XCP_ENABLE_DEBUG_PRINTS
-    XCP_DBG_PRINT1("\nInit XCP protocol layer\n");
+#ifdef DBG_LEVEL
+    DBG_PRINT1("\nInit XCP protocol layer\n");
     #ifndef XCP_MAX_EVENT
       #define XCP_MAX_EVENT 0
     #endif
-    XCP_DBG_PRINTF1("  Version=%u.%u, MAXEV=%u, MAXCTO=%u, MAXDTO=%u, DAQMEM=%u, MAXDAQ=%u, MAXENTRY=%u, MAXENTRYSIZE=%u\n", XCP_PROTOCOL_LAYER_VERSION >> 8, XCP_PROTOCOL_LAYER_VERSION & 0xFF, XCP_MAX_EVENT, XCPTL_MAX_CTO_SIZE, XCPTL_MAX_DTO_SIZE, XCP_DAQ_MEM_SIZE, (1 << sizeof(uint16_t) * 8) - 1, (1 << sizeof(uint16_t) * 8) - 1, (1 << (sizeof(uint8_t) * 8)) - 1);
-    XCP_DBG_PRINTF1("  %u KiB memory used\n", (unsigned int)sizeof(gXcp) / 1024);
-    XCP_DBG_PRINT1("  Options=(");
+    DBG_PRINTF1("  Version=%u.%u, MAXEV=%u, MAXCTO=%u, MAXDTO=%u, DAQMEM=%u, MAXDAQ=%u, MAXENTRY=%u, MAXENTRYSIZE=%u\n", XCP_PROTOCOL_LAYER_VERSION >> 8, XCP_PROTOCOL_LAYER_VERSION & 0xFF, XCP_MAX_EVENT, XCPTL_MAX_CTO_SIZE, XCPTL_MAX_DTO_SIZE, XCP_DAQ_MEM_SIZE, (1 << sizeof(uint16_t) * 8) - 1, (1 << sizeof(uint16_t) * 8) - 1, (1 << (sizeof(uint8_t) * 8)) - 1);
+    DBG_PRINTF1("  %u KiB memory used\n", (unsigned int)sizeof(gXcp) / 1024);
+    DBG_PRINT1("  Options=(");
 
     // Print activated XCP protocol options
 #ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST // Enable GET_DAQ_CLOCK_MULTICAST
-    XCP_DBG_PRINT1("DAQ_CLK_MULTICAST,");
+    DBG_PRINT1("DAQ_CLK_MULTICAST,");
 #endif
 #ifdef XCP_DAQ_CLOCK_64BIT  // Use 64 Bit time stamps
-    XCP_DBG_PRINT1("DAQ_CLK_64BIT,");
+    DBG_PRINT1("DAQ_CLK_64BIT,");
 #endif
 #ifdef XCP_ENABLE_PTP // Enable server clock synchronized to PTP grandmaster clock
-    XCP_DBG_PRINT1("GM_CLK_INFO,");
+    DBG_PRINT1("GM_CLK_INFO,");
 #endif
 #ifdef XCP_ENABLE_PACKED_MODE  // Enable packed DAQ events
-    XCP_DBG_PRINT1("PACKED_MODE,");
+    DBG_PRINT1("PACKED_MODE,");
 #endif
 #ifdef XCP_ENABLE_IDT_A2L_UPLOAD // Enable A2L upload to host
-    XCP_DBG_PRINT1("A2L_UPLOAD,");
+    DBG_PRINT1("A2L_UPLOAD,");
 #endif
 #ifdef XCP_ENABLE_IDT_A2L_HTTP_GET // Enable A2L upload to host
-    XCP_DBG_PRINT1("A2L_URL,");
+    DBG_PRINT1("A2L_URL,");
 #endif
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST // Enable XCP event info by protocol or by A2L
-    XCP_DBG_PRINT1("DAQ_EVT_LIST,");
+    DBG_PRINT1("DAQ_EVT_LIST,");
 #endif
 #ifdef XCP_ENABLE_DAQ_EVENT_INFO // Enable XCP event info by protocol instead of A2L
-    XCP_DBG_PRINT1("DAQ_EVT_INFO,");
+    DBG_PRINT1("DAQ_EVT_INFO,");
 #endif
 #ifdef XCP_ENABLE_CHECKSUM // Enable BUILD_CHECKSUM command
-    XCP_DBG_PRINT1("CHECKSUM,");
+    DBG_PRINT1("CHECKSUM,");
 #endif
 #ifdef XCP_ENABLE_INTERLEAVED // Enable interleaved command execution
-    XCP_DBG_PRINT1("INTERLEAVED,");
+    DBG_PRINT1("INTERLEAVED,");
 #endif
-    XCP_DBG_PRINT1(")\n\n");
+    DBG_PRINT1(")\n\n");
 #endif
 
     gXcp.SessionStatus |= SS_INITIALIZED;
@@ -1647,7 +1647,7 @@ void XcpStart(void)
     uint8_t uuid[8] = XCP_DAQ_CLOCK_UIID;
     memcpy(gXcp.ClockInfo.server.UUID, uuid, 8);
 
-    XCP_DBG_PRINTF3("  ServerClock: ticks=%u, unit=%s, size=%u, UUID=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X\n\n", gXcp.ClockInfo.server.timestampTicks, (gXcp.ClockInfo.server.timestampUnit == DAQ_TIMESTAMP_UNIT_1NS) ? "ns" : "us", gXcp.ClockInfo.server.nativeTimestampSize, gXcp.ClockInfo.server.UUID[0], gXcp.ClockInfo.server.UUID[1], gXcp.ClockInfo.server.UUID[2], gXcp.ClockInfo.server.UUID[3], gXcp.ClockInfo.server.UUID[4], gXcp.ClockInfo.server.UUID[5], gXcp.ClockInfo.server.UUID[6], gXcp.ClockInfo.server.UUID[7]);
+    DBG_PRINTF3("  ServerClock: ticks=%u, unit=%s, size=%u, UUID=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X\n\n", gXcp.ClockInfo.server.timestampTicks, (gXcp.ClockInfo.server.timestampUnit == DAQ_TIMESTAMP_UNIT_1NS) ? "ns" : "us", gXcp.ClockInfo.server.nativeTimestampSize, gXcp.ClockInfo.server.UUID[0], gXcp.ClockInfo.server.UUID[1], gXcp.ClockInfo.server.UUID[2], gXcp.ClockInfo.server.UUID[3], gXcp.ClockInfo.server.UUID[4], gXcp.ClockInfo.server.UUID[5], gXcp.ClockInfo.server.UUID[6], gXcp.ClockInfo.server.UUID[7]);
 
     // If the server clock is PTP synchronized, both origin and local timestamps are considered to be the same.
     gXcp.ClockInfo.relation.timestampLocal = 0;
@@ -1661,13 +1661,13 @@ void XcpStart(void)
     gXcp.ClockInfo.grandmaster.stratumLevel = XCP_STRATUM_LEVEL_UNKNOWN;
     gXcp.ClockInfo.grandmaster.epochOfGrandmaster = XCP_EPOCH_ARB;
     if (ApplXcpGetClockInfoGrandmaster(gXcp.ClockInfo.grandmaster.UUID, &gXcp.ClockInfo.grandmaster.epochOfGrandmaster, &gXcp.ClockInfo.grandmaster.stratumLevel)) {
-      XCP_DBG_PRINTF1("  GrandmasterClock: UUID=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X stratumLevel=%u, epoch=%u\n", gXcp.ClockInfo.grandmaster.UUID[0], gXcp.ClockInfo.grandmaster.UUID[1], gXcp.ClockInfo.grandmaster.UUID[2], gXcp.ClockInfo.grandmaster.UUID[3], gXcp.ClockInfo.grandmaster.UUID[4], gXcp.ClockInfo.grandmaster.UUID[5], gXcp.ClockInfo.grandmaster.UUID[6], gXcp.ClockInfo.grandmaster.UUID[7], gXcp.ClockInfo.grandmaster.stratumLevel, gXcp.ClockInfo.grandmaster.epochOfGrandmaster);
-      XCP_DBG_PRINT1("  ClockRelation: local=0, origin=0\n");
+      DBG_PRINTF1("  GrandmasterClock: UUID=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X stratumLevel=%u, epoch=%u\n", gXcp.ClockInfo.grandmaster.UUID[0], gXcp.ClockInfo.grandmaster.UUID[1], gXcp.ClockInfo.grandmaster.UUID[2], gXcp.ClockInfo.grandmaster.UUID[3], gXcp.ClockInfo.grandmaster.UUID[4], gXcp.ClockInfo.grandmaster.UUID[5], gXcp.ClockInfo.grandmaster.UUID[6], gXcp.ClockInfo.grandmaster.UUID[7], gXcp.ClockInfo.grandmaster.stratumLevel, gXcp.ClockInfo.grandmaster.epochOfGrandmaster);
+      DBG_PRINT1("  ClockRelation: local=0, origin=0\n");
     }
 #endif // PTP
 #endif // XCP_TRANSPORT_LAYER_TYPE==XCP_TRANSPORT_LAYER_ETH
 
-    XCP_DBG_PRINT3("Start XCP protocol layer\n");
+    DBG_PRINT3("Start XCP protocol layer\n");
 
     gXcp.SessionStatus |= SS_STARTED;
 }
@@ -1704,11 +1704,11 @@ uint16_t XcpCreateEvent(const char* name, uint32_t cycleTimeNs, uint8_t priority
     uint32_t c;
 
     if (!isInitialized()) {
-      XCP_DBG_PRINT1("ERROR: XCP driver not initialized\n");
+      DBG_PRINT1("ERROR: XCP driver not initialized\n");
       return (uint16_t)0xFFFF; // Uninitialized or out of memory
     }
     if (gXcp.EventCount >= XCP_MAX_EVENT) {
-      XCP_DBG_PRINT1("ERROR: XCP too many events\n");
+      DBG_PRINT1("ERROR: XCP too many events\n");
       return (uint16_t)0xFFFF; // Uninitialized or out of memory
     }
 
@@ -1733,10 +1733,10 @@ uint16_t XcpCreateEvent(const char* name, uint32_t cycleTimeNs, uint8_t priority
 #ifdef XCP_ENABLE_MULTITHREAD_EVENTS
     mutexInit(&gXcp.EventList[e].mutex, 0, 1000);
 #endif
-#ifdef XCP_ENABLE_DEBUG_PRINTS
+#ifdef DBG_LEVEL
      uint64_t ns = (uint64_t)(gXcp.EventList[e].timeCycle * pow(10, gXcp.EventList[e].timeUnit));
-     XCP_DBG_PRINTF1("  Event %u: %s cycle=%" PRIu64 "ns, prio=%u, sc=%u, size=%u\n", e, gXcp.EventList[e].name, ns, gXcp.EventList[e].priority, gXcp.EventList[e].sampleCount, gXcp.EventList[e].size);
-     if (cycleTimeNs != ns) XCP_DBG_PRINTF1("Warning: cycle time %uns, loss of significant digits!\n", cycleTimeNs);
+     DBG_PRINTF1("  Event %u: %s cycle=%" PRIu64 "ns, prio=%u, sc=%u, size=%u\n", e, gXcp.EventList[e].name, ns, gXcp.EventList[e].priority, gXcp.EventList[e].sampleCount, gXcp.EventList[e].size);
+     if (cycleTimeNs != ns) DBG_PRINTF1("Warning: cycle time %uns, loss of significant digits!\n", cycleTimeNs);
 #endif
 
     return gXcp.EventCount++;
@@ -1749,7 +1749,7 @@ uint16_t XcpCreateEvent(const char* name, uint32_t cycleTimeNs, uint8_t priority
 /* Test printing                                                            */
 /****************************************************************************/
 
-#ifdef XCP_ENABLE_DEBUG_PRINTS
+#ifdef DBG_LEVEL
 
 static void XcpPrintCmd() {
 
@@ -1771,7 +1771,7 @@ static void XcpPrintCmd() {
         break;
 
     case CC_SHORT_DOWNLOAD:
-        if (XCP_DBG_LEVEL >= 3) {
+        if (DBG_LEVEL >= 3) {
             uint16_t i;
             printf("SHORT_DOWNLOAD addr=%08Xh, addrext=%02Xh, size=%u, data=", CRO_SHORT_DOWNLOAD_ADDR, CRO_SHORT_DOWNLOAD_EXT, CRO_SHORT_DOWNLOAD_SIZE);
             for (i = 0; (i < CRO_SHORT_DOWNLOAD_SIZE) && (i < CRO_SHORT_DOWNLOAD_MAX_SIZE); i++) {
@@ -1782,13 +1782,13 @@ static void XcpPrintCmd() {
         break;
 
     case CC_UPLOAD:
-        if (XCP_DBG_LEVEL >= 3) {
+        if (DBG_LEVEL >= 3) {
             printf("UPLOAD size=%u\n", CRO_UPLOAD_SIZE);
         }
         break;
 
     case CC_SHORT_UPLOAD:
-        if (XCP_DBG_LEVEL >= 3 || !isDaqRunning()) { // Polling DAQ 
+        if (DBG_LEVEL >= 3 || !isDaqRunning()) { // Polling DAQ 
             printf("SHORT_UPLOAD addr=%08Xh, addrext=%02Xh, size=%u\n", CRO_SHORT_UPLOAD_ADDR, CRO_SHORT_UPLOAD_EXT, CRO_SHORT_UPLOAD_SIZE);
         }
         break;
@@ -1854,7 +1854,7 @@ static void XcpPrintCmd() {
             break;
 
      case CC_ALLOC_ODT_ENTRY:
-            if (XCP_DBG_LEVEL >= 3) {
+            if (DBG_LEVEL >= 3) {
               printf("ALLOC_ODT_ENTRY daq=%u, odt=%u, count=%u\n", CRO_ALLOC_ODT_ENTRY_DAQ, CRO_ALLOC_ODT_ENTRY_ODT, CRO_ALLOC_ODT_ENTRY_COUNT);
             }
             break;
@@ -1868,7 +1868,7 @@ static void XcpPrintCmd() {
             break;
 
      case CC_SET_DAQ_PTR:
-            if (XCP_DBG_LEVEL >= 3) {
+            if (DBG_LEVEL >= 3) {
                 printf("SET_DAQ_PTR daq=%u,odt=%u,idx=%u\n", CRO_SET_DAQ_PTR_DAQ, CRO_SET_DAQ_PTR_ODT, CRO_SET_DAQ_PTR_IDX);
             }
             break;
@@ -1878,7 +1878,7 @@ static void XcpPrintCmd() {
             break;
 
      case CC_WRITE_DAQ_MULTIPLE:
-         if (XCP_DBG_LEVEL >= 3) {
+         if (DBG_LEVEL >= 3) {
              printf("WRITE_DAQ_MULTIPLE count=%u\n", CRO_WRITE_DAQ_MULTIPLE_NODAQ);
              for (int i = 0; i < CRO_WRITE_DAQ_MULTIPLE_NODAQ; i++) {
                  printf("   %u: size=%u,addr=%08Xh,%02Xh\n", i, CRO_WRITE_DAQ_MULTIPLE_SIZE(i), CRO_WRITE_DAQ_MULTIPLE_ADDR(i), CRO_WRITE_DAQ_MULTIPLE_EXT(i));
@@ -1895,7 +1895,7 @@ static void XcpPrintCmd() {
             break;
 
      case CC_GET_DAQ_CLOCK:
-            if (XCP_DBG_LEVEL >= 3 || !isDaqRunning()) {
+            if (DBG_LEVEL >= 3 || !isDaqRunning()) {
               printf("GET_DAQ_CLOCK\n");
             }
             break;
@@ -1931,7 +1931,7 @@ static void XcpPrintCmd() {
          switch (CRO_TL_SUBCOMMAND) {
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0103             
            case CC_TL_GET_DAQ_CLOCK_MULTICAST:
-               if (XCP_DBG_LEVEL >= 3 || !isDaqRunning()) {
+               if (DBG_LEVEL >= 3 || !isDaqRunning()) {
                    printf("GET_DAQ_CLOCK_MULTICAST counter=%u, cluster=%u\n", CRO_GET_DAQ_CLOCK_MCAST_COUNTER, CRO_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER);
                }
              break;
@@ -2002,7 +2002,7 @@ static void XcpPrintRes() {
             break;
 
         case CC_UPLOAD:
-            if (XCP_DBG_LEVEL >= 4) {
+            if (DBG_LEVEL >= 4) {
                 printf("<- data=");
                 for (int i = 0; i < CRO_UPLOAD_SIZE; i++) {
                     printf("%02Xh ", CRM_UPLOAD_DATA[i]);
@@ -2012,7 +2012,7 @@ static void XcpPrintRes() {
             break;
 
         case CC_SHORT_UPLOAD:
-            if (XCP_DBG_LEVEL >= 4) {
+            if (DBG_LEVEL >= 4) {
                 printf("<- data=");
                 for (int i = 0; i < (uint16_t)CRO_SHORT_UPLOAD_SIZE; i++) {
                     printf("%02Xh ", CRM_SHORT_UPLOAD_DATA[i]);
@@ -2047,7 +2047,7 @@ static void XcpPrintRes() {
 
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
         case CC_GET_DAQ_CLOCK:
-            if (XCP_DBG_LEVEL >= 3 || !isDaqRunning()) {
+            if (DBG_LEVEL >= 3 || !isDaqRunning()) {
                 if (isLegacyMode()) {
                     printf("<- L t=0x%" PRIx32 "\n", CRM_GET_DAQ_CLOCK_TIME);
                 }
@@ -2096,7 +2096,7 @@ static void XcpPrintRes() {
             switch (CRO_TL_SUBCOMMAND) {
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
             case CC_TL_GET_DAQ_CLOCK_MULTICAST:
-                if (XCP_DBG_LEVEL >= 3 || !isDaqRunning()) {
+                if (DBG_LEVEL >= 3 || !isDaqRunning()) {
                     if (isLegacyMode()) {
                         printf("<- L t=0x%" PRIx32 "\n", CRM_GET_DAQ_CLOCK_MCAST_TIME);
                     }
@@ -2126,7 +2126,7 @@ static void XcpPrintRes() {
             break;
 
         default:
-            if (XCP_DBG_LEVEL >= 3) {
+            if (DBG_LEVEL >= 3) {
                 printf("<- OK\n");
             }
             break;
@@ -2161,5 +2161,5 @@ static void XcpPrintDaqList( uint16_t daq )
 }
 
 
-#endif /* XCP_ENABLE_DEBUG_PRINTS */
+#endif /* DBG_PRINTS_ENABLED */
 

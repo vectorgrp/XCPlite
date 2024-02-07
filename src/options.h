@@ -8,7 +8,8 @@
 
 //-------------------------------------------------------------------------------
 // Commandline options and defaults
-extern uint32_t gDebugLevel;
+
+extern unsigned int gDebugLevel;
 
 #if OPTION_ENABLE_TCP
 extern BOOL gOptionUseTCP;

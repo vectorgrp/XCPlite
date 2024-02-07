@@ -19,38 +19,7 @@
 
 #if OPTION_ENABLE_CAN_TRANSPORT
 
-#if OPTION_ENABLE_XLAPI_INT // Vector internal XL-API
-
-#ifdef VECTOR_INTERNAL  // >>>>>>>>>>>>>>>>>>>>>>>>>>>
-
-#define DYNAMIC_XLDRIVER_DLL
-#ifndef _WIN32
-#define _WIN32
-#include "vcandint.h"
-#undef _WIN32
-#else
-#include "vcandint.h"
-#endif
-
-#endif // VECTOR_INTERNAL <<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
-#else
-
- // Need to link with vxlapi.lib
-#ifdef _WIN64
-#pragma comment(lib, "../xlapi/vxlapi64.lib")
-#else
-#ifdef _WIN32
-#pragma comment(lib, "../xlapi/vxlapi.lib")
-#endif
-#endif
-
-#include "vxlapi.h"
-
-#endif
-
-
-typedef struct {
+ typedef struct {
   uint8_t commited;                // commited = TRUE
   uint8_t len;                     // CAN message length
   uint8_t msg[XCPTL_MAX_DTO_SIZE]; // CAN message payload

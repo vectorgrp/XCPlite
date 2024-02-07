@@ -14,7 +14,7 @@
 
 #include "main.h"
 #include "platform.h"
-#include "util.h"
+#include "dbg_print.h"
 #include "xcpLite.h"   
 #include "xcpEthServer.h"
 
@@ -73,7 +73,7 @@ BOOL XcpEthServerInit(const uint8_t* addr, uint16_t port, BOOL useTCP, uint16_t 
     int r = 0;
 
     if (gXcpServer.isInit) return FALSE;
-    XCP_DBG_PRINT1("\nStart XCP server\n");
+    DBG_PRINT1("\nStart XCP server\n");
 
     gXcpServer.TransmitThreadRunning = 0;
     gXcpServer.ReceiveThreadRunning = 0;
@@ -129,7 +129,7 @@ extern void* XcpServerReceiveThread(void* par)
 #endif
 {
     (void)par;
-    XCP_DBG_PRINT3("Start XCP CMD thread\n");
+    DBG_PRINT3("Start XCP CMD thread\n");
 
     // Receive XCP unicast commands loop
     gXcpServer.ReceiveThreadRunning = 1;
@@ -140,8 +140,8 @@ extern void* XcpServerReceiveThread(void* par)
     }
     gXcpServer.ReceiveThreadRunning = 0;
 
-    XCP_DBG_PRINT_ERROR("ERROR: XcpTlHandleCommands failed!\n");
-    XCP_DBG_PRINT_ERROR("ERROR: XcpServerReceiveThread terminated!\n");
+    DBG_PRINT_ERROR("ERROR: XcpTlHandleCommands failed!\n");
+    DBG_PRINT_ERROR("ERROR: XcpServerReceiveThread terminated!\n");
     return 0;
 }
 
@@ -156,7 +156,7 @@ extern void* XcpServerTransmitThread(void* par)
     (void)par;
     int32_t n;
 
-    XCP_DBG_PRINT3("Start XCP DAQ thread\n");
+    DBG_PRINT3("Start XCP DAQ thread\n");
 
     // Transmit loop
     gXcpServer.TransmitThreadRunning = 1;
@@ -168,14 +168,14 @@ extern void* XcpServerTransmitThread(void* par)
         // Transmit all completed UDP packets from the transmit queue
         n = XcpTlHandleTransmitQueue();
         if (n<0) {
-          XCP_DBG_PRINT_ERROR("ERROR: XcpTlHandleTransmitQueue failed!\n");
+          DBG_PRINT_ERROR("ERROR: XcpTlHandleTransmitQueue failed!\n");
           break; // error - terminate thread
         }
 
     } // for (;;)
     gXcpServer.TransmitThreadRunning = 0;
 
-    XCP_DBG_PRINT_ERROR("XCP DAQ thread terminated!\n");
+    DBG_PRINT_ERROR("XCP DAQ thread terminated!\n");
     return 0;
 }
 
@@ -192,14 +192,14 @@ extern void* XcpServerCDCThread(void* par)
 #endif
 {
     gXcpServer.XcpServerCDCThreadRunning = 1;
-    XCP_DBG_PRINT3("Start CDC server thread\n");
+    DBG_PRINT3("Start CDC server thread\n");
 
     // Server loop
     for (;;) {
 
         // Handle incoming XCP commands
         if (!udpCdcReceiveAndHandleCommands()) { // in blocking mode
-            XCP_DBG_PRINT_ERROR("ERROR: udpCdcHandleCommands failed, shutdown and restart\n"); // Error
+            DBG_PRINT_ERROR("ERROR: udpCdcHandleCommands failed, shutdown and restart\n"); // Error
             XcpServerShutdown();
             xcpServerRestart();
         }

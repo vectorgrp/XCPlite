@@ -12,8 +12,7 @@
 
 #include "main.h"
 #include "platform.h"
-#include "options.h"
-#include "util.h"
+#include "dbg_print.h"
 #include "xcpLite.h"
 #include "A2L.h"
 
@@ -173,7 +172,7 @@ static const char* gA2lIfDataEth = // Parameter: %s TCP or UDP, %04X tl version,
 ;
 
 //----------------------------------------------------------------------------------
-// XCP_ON_CAN
+// XCP_ON_CAN (CAN_FD not implemented yet)
 static const char* gA2lIfDataCan = // Parameter: TRANSPORT_LAYER_VERSION, CRO_ID, DTO_ID, BITRATE
 "/begin XCP_ON_CAN\n" // Transport Layer
 "  0x%04X\n"
@@ -186,39 +185,6 @@ static const char* gA2lIfDataCan = // Parameter: TRANSPORT_LAYER_VERSION, CRO_ID
 "  SJW 0x02\n"
 "  SYNC_EDGE SINGLE\n"
 "/end XCP_ON_CAN\n";
-
-
-
-#if 0
-
-block "CAN_FD" struct {                    /* The CAN_FD block definition indicates the use of CAN-FD frames */
-taggedstruct{
-
-	"MAX_DLC" uint;                        /* 8, 12, 16, 20, 24, 32, 48 or 64 */
-	"CAN_FD_DATA_TRANSFER_BAUDRATE" ulong; /* BAUDRATE [Hz] */
-	"SAMPLE_POINT" uchar;                  /* sample point receiver */
-																				 /* [% complete bit time] */
-	"BTL_CYCLES" uchar;                    /* BTL_CYCLES */
-																				 /* [slots per bit time] */
-	"SJW" uchar;                           /* length synchr. segment */
-																				 /* [BTL_CYCLES] */
-	"SYNC_EDGE" enum {
-		"SINGLE" = 1,                        /* on falling edge only */
-		"DUAL" = 2                         /* on falling and rising edge */
-	};
-	"MAX_DLC_REQUIRED";                    /* master to slave frames */
-																				 /* always to have DLC = MAX_DLC_for CAN-FD */
-	"SECONDARY_SAMPLE_POINT" uchar;        /* sender sample point */
-																				 /* [% complete bit time] */
-	"TRANSCEIVER_DELAY_COMPENSATION" enum {
-		"OFF" = 0,
-		"ON" = 1
-	};
-			};
-		};
-
-
-#endif
 
 
 //----------------------------------------------------------------------------------
@@ -463,7 +429,7 @@ void A2lCreate_CAN_IF_DATA(BOOL useCANFD, uint16_t croId, uint16_t dtoId, uint32
 
 	// Transport Layer info
 	uint32_t _croId = croId;
-	uint32_t _dtoId = croId;
+	uint32_t _dtoId = dtoId;
 	if (useCANFD) {
 		_croId |= 0x40000000;
 		_dtoId |= 0x40000000;

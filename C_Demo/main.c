@@ -21,7 +21,13 @@
 #endif
 #include "ecu.h" // Demo measurement task in C
 
- 
+
+// OPTIONs are defined in main_cfg.h
+
+#if OPTION_ENABLE_DBG_PRINTS
+unsigned int gDebugLevel = OPTION_DEBUG_LEVEL;
+#endif
+
 //-----------------------------------------------------------------------------------------------------
 // Create A2L file
 

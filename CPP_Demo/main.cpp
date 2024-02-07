@@ -15,16 +15,18 @@
 
 #include "main.h"
 #include "platform.h"
+#include "options.h"
 #include "util.h"
 
 #include "xcp.hpp"
 #include "A2Lpp.hpp"
 
 
- // All OPTIONs are defined in main_cfg.h
+ // OPTIONs are defined in main_cfg.h
 
+#if OPTION_ENABLE_DBG_PRINTS
 unsigned int gDebugLevel = OPTION_DEBUG_LEVEL;
-
+#endif
 
  //-----------------------------------------------------------------------------------------------------
 
@@ -35,12 +37,13 @@ uint16_t gMainloopEvent = 0;
 double gChannel1 = 0.0;
 uint16_t gCounter = 0;
 
-// Demo calibrationparameters
+// Demo calibration parameters
 struct sSignalParameters {
   double ampl;
   double offset;
   double phase;
-}  gSignalParameters = { 400.0, 0.0, 0.0 };
+};
+struct sSignalParameters gSignalParameters = { 400.0, 0.0, 0.0 };
 double gPeriod = 5.0;;
 uint32_t gCycleTime = 10000; // us
 
@@ -124,15 +127,14 @@ public:
 
 
 
-int main() {
+int main(int argc, char* argv[]) {
 
-    printf("\nXCP on Ethernet C++ Demo\n");
+  printf("\nXCP on Ethernet C++ Demo\n");
+  if (!cmdline_parser(argc, argv)) return 0;
 
     // XCP singleton
     Xcp* xcp = Xcp::getInstance();
-    uint8_t ipAddr[] = OPTION_SERVER_ADDR;
-    if (!xcp->init(ipAddr, OPTION_SERVER_PORT, OPTION_USE_TCP, FALSE, XCPTL_MAX_SEGMENT_SIZE)) return -1;
-
+    if (!xcp->init(gOptionBindAddr, gOptionPort, gOptionUseTCP, FALSE, XCPTL_MAX_SEGMENT_SIZE)) return -1;
 
     // Create a measurement event
     // Must be defined before A2L generation
@@ -144,7 +146,7 @@ int main() {
     A2L* a2l = xcp->createA2L("CPP_DEMO");
 
     // Declare calibration parameters in global address space
-    a2l->createTypedefBegin(sSignalParameters, "This is the global signal parameters structure type"); // global struct signal_parameters signal_parameters
+    a2l->createTypedefBegin(gSignalParameters, "This is the global signal parameters structure type"); // global struct signal_parameters signal_parameters
     a2l->createTypedefParameterComponent(gSignalParameters,ampl);
     a2l->createTypedefParameterComponent(gSignalParameters,offset);
     a2l->createTypedefParameterComponent(gSignalParameters,phase);

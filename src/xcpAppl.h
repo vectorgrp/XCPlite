@@ -7,4 +7,4 @@
 
 
 // All functions names ApplXxxx are defined in XCPlite.h
-// These function custimized functionality of the XCP Transport Layer to the target plattform
+// These function custimize functionality of XCP Layer to the target plattform

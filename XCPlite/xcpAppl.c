@@ -11,9 +11,8 @@
  ----------------------------------------------------------------------------*/
 
 #include "main.h"
-#include "main_cfg.h"
 #include "platform.h"
-#include "options.h"
+#include "dbg_print.h"
 #include "util.h"
 #include "xcpLite.h"
     
@@ -24,24 +23,24 @@
 
 
 BOOL ApplXcpConnect() {
-    XCP_DBG_PRINT1("XCP connect\n");
+    DBG_PRINT1("XCP connect\n");
     return TRUE;
 }
 
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0104
 BOOL ApplXcpPrepareDaq() { 
-    XCP_DBG_PRINT1("XCP prepare DAQ\n");
+    DBG_PRINT1("XCP prepare DAQ\n");
     return TRUE;
 }
 #endif
 
 BOOL ApplXcpStartDaq() {
-    XCP_DBG_PRINT1("XCP start DAQ\n");
+    DBG_PRINT1("XCP start DAQ\n");
     return TRUE;
 }
 
 void ApplXcpStopDaq() {
-    XCP_DBG_PRINT1("XCP stop DAQ\n");
+    DBG_PRINT1("XCP stop DAQ\n");
 }
 
 
@@ -107,7 +106,7 @@ uint8_t* ApplXcpGetBaseAddr() {
     if (!baseAddrValid) {
         baseAddr = (uint8_t*)GetModuleHandle(NULL);
         baseAddrValid = 1;
-        XCP_DBG_PRINTF4("ApplXcpGetBaseAddr() = 0x%I64X\n", (uint64_t)baseAddr);
+        DBG_PRINTF4("ApplXcpGetBaseAddr() = 0x%I64X\n", (uint64_t)baseAddr);
     }
     return baseAddr;
 }
@@ -135,7 +134,7 @@ uint8_t baseAddrValid = 0;
 
 static int dump_phdr(struct dl_phdr_info* pinfo, size_t size, void* data)
 {
-    // XCP_DBG_PRINTF1("name=%s (%d segments)\n", pinfo->dlpi_name, pinfo->dlpi_phnum);
+    // DBG_PRINTF1("name=%s (%d segments)\n", pinfo->dlpi_name, pinfo->dlpi_phnum);
 
     // Application modules has no name
     if (0 == strlen(pinfo->dlpi_name)) {
@@ -153,7 +152,7 @@ uint8_t* ApplXcpGetBaseAddr() {
         dl_iterate_phdr(dump_phdr, NULL);
         assert(baseAddr != NULL);
         baseAddrValid = 1;
-        XCP_DBG_PRINTF1("BaseAddr = %lX\n", (uint64_t)baseAddr);
+        DBG_PRINTF1("BaseAddr = %lX\n", (uint64_t)baseAddr);
     }
 
     return baseAddr;

@@ -14,8 +14,7 @@
 
 #include "main.h"
 #include "platform.h"
-#include "util.h"
-#include "options.h"
+#include "dbg_print.h"
 #include "xcpLite.h"   
 
 #if OPTION_ENABLE_XLAPI_ZERO_COPY
@@ -191,7 +190,7 @@ static int sendDatagram(const uint8_t *data, uint16_t size, const uint8_t* addr,
       }
       else { // Respond to active master
         if (!gXcpTl.MasterAddrValid) {
-          XCP_DBG_PRINT_ERROR("ERROR: invalid master address!\n");
+          DBG_PRINT_ERROR("ERROR: invalid master address!\n");
           gXcpTl.lastError = XCPTL_ERROR_INVALID_MASTER;
           return 0;
         }
@@ -206,7 +205,7 @@ static int sendDatagram(const uint8_t *data, uint16_t size, const uint8_t* addr,
             return -1; // Would block
         }
         else {
-            XCP_DBG_PRINTF_ERROR("ERROR: sento failed (result=%d, errno=%d)!\n", r, socketGetLastError());
+            DBG_PRINTF_ERROR("ERROR: sento failed (result=%d, errno=%d)!\n", r, socketGetLastError());
             gXcpTl.lastError = XCPTL_ERROR_SEND_FAILED;
             return 0; // Error
         }
@@ -521,11 +520,11 @@ static int handleXcpCommand(int n, tXcpCtoMessage *p, uint8_t *srcAddr, uint16_t
     // gXcpTl.LastCrmCtr = p->ctr;
     connected = XcpIsConnected();
 
-#ifdef XCP_ENABLE_DEBUG_PRINTS
-    if (XCP_DBG_LEVEL >= 5 || (!connected && XCP_DBG_LEVEL >= 3)) {
-        XCP_DBG_PRINTF1("RX: CTR %04X LEN %04X DATA = ", p->ctr,p->dlc);
-        for (int i = 0; i < p->dlc; i++) XCP_DBG_PRINTF1("%0X ", p->packet[i]);
-        XCP_DBG_PRINT1("\n");
+#ifdef DBG_LEVEL
+    if (DBG_LEVEL >= 5 || (!connected && DBG_LEVEL >= 3)) {
+        DBG_PRINTF1("RX: CTR %04X LEN %04X DATA = ", p->ctr,p->dlc);
+        for (int i = 0; i < p->dlc; i++) DBG_PRINTF1("%0X ", p->packet[i]);
+        DBG_PRINT1("\n");
     }
 #endif
 
@@ -537,7 +536,7 @@ static int handleXcpCommand(int n, tXcpCtoMessage *p, uint8_t *srcAddr, uint16_t
 
             // Check unicast ip address, not allowed to change
             if (memcmp(&gXcpTl.MasterAddr, srcAddr, sizeof(gXcpTl.MasterAddr)) != 0) { // Message from different master received
-                XCP_DBG_PRINTF1("WARNING: message from unknown new master %u.%u.%u.%u, disconnecting!\n", srcAddr[0], srcAddr[1], srcAddr[2], srcAddr[3]);
+                DBG_PRINTF1("WARNING: message from unknown new master %u.%u.%u.%u, disconnecting!\n", srcAddr[0], srcAddr[1], srcAddr[2], srcAddr[3]);
                 XcpDisconnect();
                 gXcpTl.MasterAddrValid = FALSE;
                 return 1; // Disconnect
@@ -545,7 +544,7 @@ static int handleXcpCommand(int n, tXcpCtoMessage *p, uint8_t *srcAddr, uint16_t
 
             // Check unicast master udp port, not allowed to change
             if (gXcpTl.MasterPort != srcPort) {
-                XCP_DBG_PRINTF1("WARNING: master port changed from %u to %u, disconnecting!\n", gXcpTl.MasterPort, srcPort);
+                DBG_PRINTF1("WARNING: master port changed from %u to %u, disconnecting!\n", gXcpTl.MasterPort, srcPort);
                 XcpDisconnect();
                 gXcpTl.MasterAddrValid = FALSE;
                 return 1; // Disconnect
@@ -571,7 +570,7 @@ static int handleXcpCommand(int n, tXcpCtoMessage *p, uint8_t *srcAddr, uint16_t
             XcpCommand((const uint32_t*)&p->packet[0],p->dlc); // Handle CONNECT command
         }
         else {
-            XCP_DBG_PRINT1("WARNING: no valid CONNECT command\n");
+            DBG_PRINT1("WARNING: no valid CONNECT command\n");
         }
 
     }
@@ -579,7 +578,7 @@ static int handleXcpCommand(int n, tXcpCtoMessage *p, uint8_t *srcAddr, uint16_t
 #ifdef XCPTL_ENABLE_UDP
     if (!isTCP() && !connected) { // not connected before
         if (XcpIsConnected()) {
-            XCP_DBG_PRINTF1("XCP master connected on UDP addr=%u.%u.%u.%u, port=%u\n", gXcpTl.MasterAddr[0], gXcpTl.MasterAddr[1], gXcpTl.MasterAddr[2], gXcpTl.MasterAddr[3], gXcpTl.MasterPort);
+            DBG_PRINTF1("XCP master connected on UDP addr=%u.%u.%u.%u, port=%u\n", gXcpTl.MasterAddr[0], gXcpTl.MasterAddr[1], gXcpTl.MasterAddr[2], gXcpTl.MasterAddr[3], gXcpTl.MasterPort);
         }
         else { // Is not in connected state
             gXcpTl.MasterAddrValid = FALSE; // Any client can connect
@@ -609,15 +608,15 @@ BOOL XcpTlHandleCommands(uint32_t timeout_ms) {
 
         // Listen to incoming TCP connection if not connected
         if (gXcpTl.Sock == INVALID_SOCKET) {
-            if (gXcpTl.blockingRx) XCP_DBG_PRINT3("CDM thread waiting for TCP connection ...\n");
+            DBG_PRINT3("CDM thread waiting for TCP connection ...\n");
             gXcpTl.Sock = socketAccept(gXcpTl.ListenSock, gXcpTl.MasterAddr); // Wait here for incoming connection
             if (gXcpTl.Sock == INVALID_SOCKET) {
-                if (gXcpTl.blockingRx) XCP_DBG_PRINT_ERROR("ERROR: accept failed!\n");
+                DBG_PRINT_ERROR("ERROR: accept failed!\n");
                 return TRUE; // Ignore error from accept, when in non blocking mode
             }
             else {
-                XCP_DBG_PRINTF1("XCP master %u.%u.%u.%u accepted!\n", gXcpTl.MasterAddr[0], gXcpTl.MasterAddr[1], gXcpTl.MasterAddr[2], gXcpTl.MasterAddr[3]);
-                XCP_DBG_PRINT3("Listening for XCP commands\n");
+                DBG_PRINTF1("XCP master %u.%u.%u.%u accepted!\n", gXcpTl.MasterAddr[0], gXcpTl.MasterAddr[1], gXcpTl.MasterAddr[2], gXcpTl.MasterAddr[3]);
+                DBG_PRINT3("Listening for XCP commands\n");
             }
         }
 
@@ -636,7 +635,7 @@ BOOL XcpTlHandleCommands(uint32_t timeout_ms) {
             }
         }
         if (n==0) {  // Socket closed
-            XCP_DBG_PRINT1("XCP Master closed TCP connection! XCP disconnected.\n");
+            DBG_PRINT1("XCP Master closed TCP connection! XCP disconnected.\n");
             XcpDisconnect();
             sleepMs(100);
             socketShutdown(gXcpTl.Sock);
@@ -654,12 +653,12 @@ BOOL XcpTlHandleCommands(uint32_t timeout_ms) {
         if (n == 0) return TRUE; // Socket closed, should not happen
         if (n < 0) {  // error
             if (socketGetLastError() == SOCKET_ERROR_WBLOCK) return 1; // Ok, timeout, no command pending
-            XCP_DBG_PRINTF_ERROR("ERROR %u: recvfrom failed (result=%d)!\n", socketGetLastError(), n);
+            DBG_PRINTF_ERROR("ERROR %u: recvfrom failed (result=%d)!\n", socketGetLastError(), n);
             return FALSE; // Error
         }
         else { // Ok
             if (msgBuf.dlc != n - XCPTL_TRANSPORT_LAYER_HEADER_SIZE) {
-              XCP_DBG_PRINT_ERROR("ERROR: corrupt message received!\n");
+              DBG_PRINT_ERROR("ERROR: corrupt message received!\n");
               return FALSE; // Error
             }
 #ifdef VECTOR_INTERNAL  // >>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -731,14 +730,14 @@ extern void* XcpTlMulticastThread(void* par)
             handleXcpMulticastCommand(n, (tXcpCtoMessage*)buffer);
         }
         else {
-            XCP_DBG_PRINTF1("WARNING: Ignored Multicast from %u.%u.%u.%u:%u\n", srcAddr[0], srcAddr[1], srcAddr[2], srcAddr[3], srcPort);
+            DBG_PRINTF1("WARNING: Ignored Multicast from %u.%u.%u.%u:%u\n", srcAddr[0], srcAddr[1], srcAddr[2], srcAddr[3], srcPort);
         }
 #else
         handleXcpMulticastCommand(n, (tXcpCtoMessage*)buffer, NULL, NULL);
 #endif
     }
 
-    XCP_DBG_PRINT1("Terminate XCP multicast thread\n");
+    DBG_PRINT1("Terminate XCP multicast thread\n");
     socketClose(&gXcpTl.MulticastSock);
     return 0;
 }
@@ -753,16 +752,16 @@ BOOL XcpEthTlInit(const uint8_t* addr, uint16_t port, BOOL useTCP, uint16_t segm
     if (segmentSize > XCPTL_MAX_SEGMENT_SIZE) return FALSE;
     gXcpTl.SegmentSize = segmentSize;
 
-    XCP_DBG_PRINTF1("\nInit XCP on %s transport layer\n", useTCP ? "TCP" : "UDP");
-    XCP_DBG_PRINTF1("  SEGMENT_SIZE=%u, MAX_CTO_SIZE=%u, QUEUE_SIZE=%u, ALIGNMENT=%u, %uKiB memory used\n", gXcpTl.SegmentSize, XCPTL_MAX_CTO_SIZE, XCPTL_QUEUE_SIZE, XCPTL_PACKET_ALIGNMENT, (unsigned int)sizeof(gXcpTl) / 1024);
-    XCP_DBG_PRINT1("  Options=("); // Print activated XCP transport layer options  
+    DBG_PRINTF1("\nInit XCP on %s transport layer\n", useTCP ? "TCP" : "UDP");
+    DBG_PRINTF1("  SEGMENT_SIZE=%u, MAX_CTO_SIZE=%u, QUEUE_SIZE=%u, ALIGNMENT=%u, %uKiB memory used\n", gXcpTl.SegmentSize, XCPTL_MAX_CTO_SIZE, XCPTL_QUEUE_SIZE, XCPTL_PACKET_ALIGNMENT, (unsigned int)sizeof(gXcpTl) / 1024);
+    DBG_PRINT1("  Options=("); // Print activated XCP transport layer options  
 #ifdef XCPTL_ENABLE_MULTICAST
-    XCP_DBG_PRINT1("ENABLE_MULTICAST,");
+    DBG_PRINT1("ENABLE_MULTICAST,");
 #endif
 #ifdef XCPTL_QUEUED_CRM
-    XCP_DBG_PRINT1("QUEUED_CRM,");
+    DBG_PRINT1("QUEUED_CRM,");
 #endif
-    XCP_DBG_PRINT1(")\n");
+    DBG_PRINT1(")\n");
 
     if (addr != 0)  { // Bind to given addr 
         memcpy(gXcpTl.ServerAddr, addr, 4);
@@ -791,12 +790,12 @@ BOOL XcpEthTlInit(const uint8_t* addr, uint16_t port, BOOL useTCP, uint16_t segm
         if (!socketOpen(&gXcpTl.ListenSock, TRUE /* useTCP */, !blockingRx, TRUE /*reuseAddr*/, FALSE /* timestamps*/)) return FALSE;
         if (!socketBind(gXcpTl.ListenSock, gXcpTl.ServerAddr, gXcpTl.ServerPort)) return FALSE; // Bind on ANY, when serverAddr=255.255.255.255
         if (!socketListen(gXcpTl.ListenSock)) return FALSE; // Put socket in listen mode
-        XCP_DBG_PRINTF1("  Listening for TCP connections on %u.%u.%u.%u port %u\n", gXcpTl.ServerAddr[0], gXcpTl.ServerAddr[1], gXcpTl.ServerAddr[2], gXcpTl.ServerAddr[3], gXcpTl.ServerPort);
+        DBG_PRINTF1("  Listening for TCP connections on %u.%u.%u.%u port %u\n", gXcpTl.ServerAddr[0], gXcpTl.ServerAddr[1], gXcpTl.ServerAddr[2], gXcpTl.ServerAddr[3], gXcpTl.ServerPort);
     }
     else
 #else
     if (useTCP) { // TCP
-        XCP_DBG_PRINT_ERROR("ERROR: #define XCPTL_ENABLE_TCP for support\n");
+        DBG_PRINT_ERROR("ERROR: #define XCPTL_ENABLE_TCP for support\n");
         return FALSE;
     }
     else
@@ -804,7 +803,7 @@ BOOL XcpEthTlInit(const uint8_t* addr, uint16_t port, BOOL useTCP, uint16_t segm
     { // UDP
         if (!socketOpen(&gXcpTl.Sock, FALSE /* useTCP */, !blockingRx, TRUE /*reuseAddr*/, FALSE /* timestamps*/)) return FALSE;
         if (!socketBind(gXcpTl.Sock, gXcpTl.ServerAddr, gXcpTl.ServerPort)) return FALSE; // Bind on ANY, when serverAddr=255.255.255.255
-        XCP_DBG_PRINTF1("  Listening for XCP commands on UDP %u.%u.%u.%u port %u\n", gXcpTl.ServerAddr[0], gXcpTl.ServerAddr[1], gXcpTl.ServerAddr[2], gXcpTl.ServerAddr[3], gXcpTl.ServerPort);
+        DBG_PRINTF1("  Listening for XCP commands on UDP %u.%u.%u.%u port %u\n", gXcpTl.ServerAddr[0], gXcpTl.ServerAddr[1], gXcpTl.ServerAddr[2], gXcpTl.ServerAddr[3], gXcpTl.ServerPort);
     }
 
     socketGetLocalAddr(gXcpTl.ServerMac, NULL); // Store MAC for later use
@@ -817,16 +816,16 @@ BOOL XcpEthTlInit(const uint8_t* addr, uint16_t port, BOOL useTCP, uint16_t segm
 
       // Open a socket for GET_DAQ_CLOCK_MULTICAST and join its multicast group
       if (!socketOpen(&gXcpTl.MulticastSock, FALSE /*useTCP*/, FALSE /*nonblocking*/, TRUE /*reusable*/, FALSE /* timestamps*/)) return FALSE;
-      XCP_DBG_PRINTF2("  Bind XCP multicast socket to %u.%u.%u.%u:%u\n", gXcpTl.ServerAddr[0], gXcpTl.ServerAddr[1], gXcpTl.ServerAddr[2], gXcpTl.ServerAddr[3], XCPTL_MULTICAST_PORT);
+      DBG_PRINTF2("  Bind XCP multicast socket to %u.%u.%u.%u:%u\n", gXcpTl.ServerAddr[0], gXcpTl.ServerAddr[1], gXcpTl.ServerAddr[2], gXcpTl.ServerAddr[3], XCPTL_MULTICAST_PORT);
       if (!socketBind(gXcpTl.MulticastSock, gXcpTl.ServerAddr, XCPTL_MULTICAST_PORT)) return FALSE; // Bind to ANY, when serverAddr=255.255.255.255
       uint16_t cid = XcpGetClusterId();
       uint8_t maddr[4] = XCPTL_MULTICAST_ADDR; // 0xEFFFiiii
       maddr[2] = (uint8_t)(cid >> 8);
       maddr[3] = (uint8_t)(cid);
       if (!socketJoin(gXcpTl.MulticastSock, maddr)) return FALSE;
-      XCP_DBG_PRINTF2("  Listening for XCP GET_DAQ_CLOCK multicast on %u.%u.%u.%u\n", maddr[0], maddr[1], maddr[2], maddr[3]);
+      DBG_PRINTF2("  Listening for XCP GET_DAQ_CLOCK multicast on %u.%u.%u.%u\n", maddr[0], maddr[1], maddr[2], maddr[3]);
 
-      XCP_DBG_PRINT3("  Start XCP multicast thread\n");
+      DBG_PRINT3("  Start XCP multicast thread\n");
       create_thread(&gXcpTl.MulticastThreadHandle, XcpTlMulticastThread);
 
 #if OPTION_ENABLE_XLAPI_V3 || OPTION_ENABLE_XLAPI_IAP

@@ -9,16 +9,15 @@
  ----------------------------------------------------------------------------*/
 
 #include "main.h"
-#include "options.h"
 #include "platform.h"
+#include "dbg_print.h"
+#include "options.h"
 
 
 //-----------------------------------------------------------------------------------------------------
 // Options
 
 // Commandline Options and Defaults
-
-uint32_t gDebugLevel = OPTION_DEBUG_LEVEL;
 
 #if OPTION_ENABLE_TCP
 BOOL gOptionUseTCP = OPTION_USE_TCP;

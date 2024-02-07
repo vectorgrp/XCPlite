@@ -16,8 +16,7 @@
 
 #include "main.h"
 #include "platform.h"
-#include "options.h"
-#include "util.h"
+#include "dbg_print.h"
 
 
 #if defined(_WIN) // Windows // Windows needs to link with Ws2_32.lib
@@ -711,7 +710,7 @@ BOOL clockInit()
 #endif
     clockGet();
 
-#ifdef XCP_ENABLE_DGB_PRINT
+#ifdef DBG_LEVEL
     if (DBG_LEVEL >= 2) {
         uint64_t t1, t2;
         char s[128];
@@ -860,7 +859,7 @@ BOOL clockInit() {
 
     clockGet();
 
-#ifdef ENABLE_DEBUG_PRINTS
+#ifdef DBG_LEVEL
     if (DBG_LEVEL >= 3) {
 #ifdef CLOCK_USE_UTC_TIME_NS
         if (DBG_LEVEL >= 4) {

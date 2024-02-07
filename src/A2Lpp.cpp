@@ -11,10 +11,7 @@
  ----------------------------------------------------------------------------*/
 
 #include "main.h"
-#include "main_cfg.h"
 #include "platform.h"
-#include "options.h"
-#include "util.h"
 #include "xcp.hpp"
 #include "A2L.h"
 #include "A2Lpp.hpp"

@@ -11,8 +11,6 @@
 #include "A2L.h"
 
 
-
-
 #define A2lGetSign_(var) ((int)(typeid(var).name()[0]=='u'?+1:-1))
 #define A2lGetType_(var) (A2lGetSign_(var)*(typeid(var).name()[0]=='f'?9:typeid(var).name()[0]=='d'?10:sizeof(var)))
 #define A2lGetAddr_(var) Xcp::getInstance()->getA2lAddr((uint8_t*)&var)

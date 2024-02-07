@@ -168,6 +168,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\A2L.h" />
+    <ClInclude Include="..\src\dbg_print.h" />
     <ClInclude Include="..\src\options.h" />
     <ClInclude Include="..\src\platform.h" />
     <ClInclude Include="..\src\util.h" />
