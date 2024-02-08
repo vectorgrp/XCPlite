@@ -46,10 +46,8 @@ Drawbacks:
 
 // TL segment size and DTO size
 // Segment size is the maximum data buffer size given to send/sendTo, for UDP it is the MTU
-//#define XCPTL_JUMBO_SEGMENT_SIZE (8000-20-8) // Jumbo frame UDP MTU (8000 - IP-header - UDP-header)
-//#define XCPTL_STANDARD_SEGMENT_SIZE (1500-20-8) // UDP MTU (1500 - IP-header - UDP-header)
-#define XCPTL_MAX_SEGMENT_SIZE 1028
-#define XCPTL_MAX_DTO_SIZE (XCPTL_MAX_SEGMENT_SIZE-XCPTL_TRANSPORT_LAYER_HEADER_SIZE) // Normal ETH frame MTU - IPhdr - UDPhdr- XCPTLhdr, DTO size must be mod 4 
+#define XCPTL_MAX_SEGMENT_SIZE (OPTION_MTU-20-8) // UDP MTU (MTU - IP-header - UDP-header)
+#define XCPTL_MAX_DTO_SIZE (XCPTL_MAX_SEGMENT_SIZE-XCPTL_TRANSPORT_LAYER_HEADER_SIZE) // Normal ETH frame MTU - IPhdr - UDPhdr- XCPhdr, DTO size must be mod 4 
 #define XCPTL_PACKET_ALIGNMENT 4 // Packet alignment for multiple XCP transport layer packets in a XCP transport layer message
 
 // CTO size

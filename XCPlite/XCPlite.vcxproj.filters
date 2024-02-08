@@ -15,6 +15,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="xcpAppl.c" />
+    <ClCompile Include="..\src\xcpEthServer.c">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="xcp_cfg.h" />
@@ -40,6 +43,9 @@
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\dbg_print.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\xcpEthServer.h">
       <Filter>src</Filter>
     </ClInclude>
   </ItemGroup>

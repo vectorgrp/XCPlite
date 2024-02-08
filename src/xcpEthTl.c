@@ -17,9 +17,6 @@
 #include "dbg_print.h"
 #include "xcpLite.h"   
 
-#if OPTION_ENABLE_XLAPI_ZERO_COPY
-#include "xl_sockets.h"
-#endif
 #ifdef XCPTL_ENABLE_SELF_TEST
 #include "A2L.h"
 #endif
@@ -45,9 +42,6 @@ typedef struct {
 } tXcpMessage;
 
 typedef struct {
-#if OPTION_ENABLE_XLAPI_ZERO_COPY
-  uint8_t hdr[XL_SOCKETS_HDR_SIZE];
-#endif
     uint16_t dlc;
     uint16_t ctr;
     uint8_t packet[XCPTL_MAX_CTO_SIZE];
@@ -60,9 +54,6 @@ message = len + ctr + (protocol layer packet) + fill
 typedef struct {
     uint16_t uncommited;        // Number of uncommited messages in this segment
     uint16_t size;              // Number of overall bytes in this segment
-#if OPTION_ENABLE_XLAPI_ZERO_COPY
-    uint8_t hdr[XL_SOCKETS_HDR_SIZE];
-#endif
     uint8_t msg[XCPTL_MAX_SEGMENT_SIZE];  // Segment/MTU - concatenated transport layer messages
 } tXcpMessageBuffer;
 
@@ -810,9 +801,6 @@ BOOL XcpEthTlInit(const uint8_t* addr, uint16_t port, BOOL useTCP, uint16_t segm
 
     // Multicast UDP commands
 #ifdef XCPTL_ENABLE_MULTICAST
-#if OPTION_ENABLE_XLAPI_V3 || OPTION_ENABLE_XLAPI_IAP
-    if (!(gOptionXcpUse_XLAPI_V3 || gOptionXcpUse_XLAPI_IAP)) {
-#endif
 
       // Open a socket for GET_DAQ_CLOCK_MULTICAST and join its multicast group
       if (!socketOpen(&gXcpTl.MulticastSock, FALSE /*useTCP*/, FALSE /*nonblocking*/, TRUE /*reusable*/, FALSE /* timestamps*/)) return FALSE;
@@ -828,9 +816,6 @@ BOOL XcpEthTlInit(const uint8_t* addr, uint16_t port, BOOL useTCP, uint16_t segm
       DBG_PRINT3("  Start XCP multicast thread\n");
       create_thread(&gXcpTl.MulticastThreadHandle, XcpTlMulticastThread);
 
-#if OPTION_ENABLE_XLAPI_V3 || OPTION_ENABLE_XLAPI_IAP
-    }
-#endif
 #endif
 
     return TRUE;
@@ -840,15 +825,9 @@ BOOL XcpEthTlInit(const uint8_t* addr, uint16_t port, BOOL useTCP, uint16_t segm
 void XcpTlShutdown() {
 
 #ifdef XCPTL_ENABLE_MULTICAST
-#if OPTION_ENABLE_XLAPI_V3 || OPTION_ENABLE_XLAPI_IAP
-  if (!(gOptionXcpUse_XLAPI_V3 || gOptionXcpUse_XLAPI_IAP)) {
-#endif
     socketClose(&gXcpTl.MulticastSock);
     sleepMs(200);
     cancel_thread(gXcpTl.MulticastThreadHandle);
-#if OPTION_ENABLE_XLAPI_V3 || OPTION_ENABLE_XLAPI_IAP
-  }
-#endif
 #endif
 
   mutexDestroy(&gXcpTl.Mutex_Queue);

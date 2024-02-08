@@ -714,19 +714,13 @@ BOOL clockInit()
     if (DBG_LEVEL >= 2) {
         uint64_t t1, t2;
         char s[128];
-        struct timespec gts_TAI;
-        struct timespec gts_REALTIME;
+        struct timespec gts;
         struct timeval ptm;
-        // Print different clocks
         time_t now = time(NULL);
         gettimeofday(&ptm, NULL);
-        clock_gettime(CLOCK_TAI, &gts_TAI);
-        clock_gettime(CLOCK_REALTIME, &gts_REALTIME);
-        DBG_PRINTF2("  CLOCK_TAI=%lus CLOCK_REALTIME=%lus time=%lu timeofday=%lu\n", gts_TAI.tv_sec, gts_REALTIME.tv_sec, now, ptm.tv_sec);
-        // Check
-        t1 = clockGet();
-        sleepNs(100000);
-        t2 = clockGet();
+        clock_gettime(CLOCK_TYPE, &gts);
+        DBG_PRINTF2("  CLOCK_REALTIME=%lus time=%lu timeofday=%lu\n", gts.tv_sec, now, ptm.tv_sec);
+        t1 = clockGet(); sleepNs(100000); t2 = clockGet();
         DBG_PRINTF2("  +0us:   %s\n", clockGetString(s, sizeof(s), t1));
         DBG_PRINTF2("  +100us: %s (%u)\n", clockGetString(s, sizeof(s), t2), (uint32_t)(t2 - t1));
         DBG_PRINT2("\n");

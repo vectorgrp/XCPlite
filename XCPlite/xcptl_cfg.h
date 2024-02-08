@@ -41,14 +41,14 @@ Drawbacks:
 #define XCPTL_TRANSPORT_LAYER_HEADER_SIZE 4
 
 // TL segment size and DTO size
-// Segment size is the maximum data buffer size given to send/sendTo, for UDP it is the MTU
-#define XCPTL_MAX_SEGMENT_SIZE (OPTION_MTU-20-8) // UDP MTU - IP-header - UDP-header
-#define XCPTL_MAX_DTO_SIZE (1500-32) // Max is ETH frame MTU - 32 (IPhdr - UDPhdr- XCPTLhdr), DTO size must be mod 4 
+// Segment size is the maximum data buffer size given to send/sendTo, for UDP it is the UDP MTU
+#define XCPTL_MAX_SEGMENT_SIZE (OPTION_MTU-20-8) // UDP MTU (MTU - IP-header - UDP-header)
+#define XCPTL_MAX_DTO_SIZE (XCPTL_MAX_SEGMENT_SIZE-XCPTL_TRANSPORT_LAYER_HEADER_SIZE) // Normal ETH frame MTU - IPhdr - UDPhdr- XCPhdr, DTO size must be mod 4 
 #define XCPTL_PACKET_ALIGNMENT 4 // Packet alignment for multiple XCP transport layer packets in a XCP transport layer message
 
 // DAQ transmit queue 
 // Transmit queue size in segments, should at least be able to hold all data produced until the next call to HandleTransmitQueue
-#define XCPTL_QUEUE_SIZE 10000  // array[XCPTL_QUEUE_SIZE] of tXcpMessageBuffer (XCPTL_MAX_SEGMENT_SIZE+4) 
+#define XCPTL_QUEUE_SIZE 16  // array[XCPTL_QUEUE_SIZE] of tXcpMessageBuffer (XCPTL_MAX_SEGMENT_SIZE+4) 
 // Maximum queue trigger event rate
 #define XCPTL_QUEUE_TRANSMIT_CYCLE_TIME (1*CLOCK_TICKS_PER_MS)
 // Flush cycle

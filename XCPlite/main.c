@@ -14,6 +14,7 @@
 #include "main.h"
 #include "platform.h"
 #include "xcpLite.h"
+#include "xcpEthServer.h"
 #if OPTION_ENABLE_A2L_GEN
 #include "A2L.h"
 #endif
@@ -43,51 +44,7 @@ uint32_t cycleTime = 10000; // us
 
 //-------------------------------------------------------------------------------------------------
 
-BOOL xcpTasksRunning = FALSE;
-
-// XCP command handler task
-#ifdef _WIN
-DWORD WINAPI rxTask(LPVOID p)
-#else
-void* rxTask(void* p)
-#endif
-{
-  (void)p;
-  while (xcpTasksRunning) {
-
-    // Handle incoming XCP commands (blocking)
-    if (!XcpTlHandleCommands(XCPTL_TIMEOUT_INFINITE)) break; // Error -> terminate 
-  }
-  xcpTasksRunning = FALSE;
-  return 0;
-}
-
-
-// XCP transmit queue handler task
-#ifdef _WIN
-DWORD WINAPI txTask(LPVOID p)
-#else
-void* txTask(void* p)
-#endif
-{
-  (void)p;
-  while (xcpTasksRunning) {
-
-    // Wait for transmit data available (50ms timeout)
-    if (!XcpTlWaitForTransmitData(50)) XcpTlFlushTransmitBuffer(); // Flush after timerout to keep data visualization going
-
-    // Transmit all pending complete messages from the transmit queue
-    if (XcpTlHandleTransmitQueue() < 0) break; // Error -> terminate
-  }
-  xcpTasksRunning = FALSE;
-  return 0;
-}
-
-
-//-------------------------------------------------------------------------------------------------
-
 static BOOL checkKeyboard(void) { if (_kbhit()) { if (_getch()==27) {  return FALSE; } } return TRUE; }
-
 
 int main() {
 
@@ -96,15 +53,12 @@ int main() {
     // Initialize high resolution clock for measurement event timestamping
     if (!clockInit()) return 0;
 
-    // Initialize XCP protocol layer
-    XcpInit();
-
     // Init network
     if (!socketStartup()) return 0;
-
-    // Initialize XCP on ETH transport layer
+    
+    // Initialize the XCP Server
     uint8_t ipAddr[] = OPTION_SERVER_ADDR;
-    if (!XcpEthTlInit(ipAddr, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_MTU-28 /* max size of XCP payload in UDP */, TRUE /* blocking rx */)) return 0;
+    if (!XcpEthServerInit(ipAddr, OPTION_SERVER_PORT, OPTION_USE_TCP, XCPTL_MAX_SEGMENT_SIZE)) return 0;
 
     
     // Create ASAM A2L description file for measurement signals, calibration variables, events and communication parameters 
@@ -130,19 +84,9 @@ int main() {
     A2lClose();
 #endif    
 
-    // Start XCP rx and tx handler threads
-    xcpTasksRunning = TRUE;
-    printf("Start XCP rx and tx task\n");
-    tXcpThread rxThread;
-    create_thread(&rxThread, rxTask); 
-    tXcpThread txThread;
-    create_thread(&txThread, txTask);
-
-    // Start XCP
-    XcpStart();
 
     // Mainloop 
-    while (xcpTasksRunning) {
+    for (;;) {
 
         // XCP Measurement Demo
         counter++;
@@ -150,6 +94,8 @@ int main() {
         XcpEvent(event); // Trigger XCP measurement data aquisition event 
 
         sleepNs(cycleTime*1000);
+
+        if (!XcpEthServerStatus()) { printf("\nXCP Server failed\n");  break; } // Check if the XCP server is running
 
         if (!checkKeyboard()) {
           XcpSendEvent(EVC_SESSION_TERMINATED, NULL, 0);
@@ -160,14 +106,9 @@ int main() {
     // Stop XCP
     XcpDisconnect();
 
-    // Stop XCP rx and tx handler threads
-    xcpTasksRunning = FALSE;
-    printf("Stop XCP rx and tx task\n");
-    cancel_thread(rxThread);
-    cancel_thread(txThread);
-
-    // Shutdown XCP transport layer
-    XcpTlShutdown();
+    // Stop the XCP server
+    XcpEthServerShutdown();
+    socketCleanup();
 
     printf("\nXCPlite terminated. Press any key to close\n");
     while (!_kbhit()) sleepMs(100);
