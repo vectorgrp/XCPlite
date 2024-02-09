@@ -13,7 +13,6 @@
 #include "main.h"
 #include "platform.h"
 #include "options.h"
-#include "util.h"
 #include "xcpLite.h"
 #include "xcpEthServer.h"
 #if OPTION_ENABLE_A2L_GEN
@@ -34,12 +33,14 @@ unsigned int gDebugLevel = OPTION_DEBUG_LEVEL;
 #if OPTION_ENABLE_A2L_GEN
 static BOOL createA2L() {
 
-    if (!A2lOpen(OPTION_A2L_FILE_NAME, OPTION_A2L_PROJECT_NAME )) return FALSE;
+    if (!A2lOpen(OPTION_A2L_FILE_NAME, OPTION_A2L_NAME )) return FALSE;
     ecuCreateA2lDescription(); // Create the measurements and calibration objects for the demo task
+#if OPTION_ENABLE_DBG_PRINTS
 #ifdef __cplusplus
     A2lCreateParameterWithLimits(gDebugLevel, "Console output verbosity", "", 0, 100);
 #else
     A2lCreateParameterWithLimits(gDebugLevel, A2L_TYPE_UINT32, "Console output verbosity", "", 0, 100);
+#endif
 #endif
     A2lCreate_ETH_IF_DATA(gOptionUseTCP, gOptionBindAddr, gOptionPort);
     A2lClose();
@@ -54,8 +55,10 @@ static BOOL checkKeyboard() {
     if (_kbhit()) {
         switch (_getch()) {
         case 27:  XcpSendEvent(EVC_SESSION_TERMINATED, NULL, 0);  return FALSE; // Stop on ESC
+#if OPTION_ENABLE_DBG_PRINTS
         case '+': if (gDebugLevel < 5) gDebugLevel++; printf("\nDebuglevel = %u\n", gDebugLevel); break;
         case '-': if (gDebugLevel > 0) gDebugLevel--; printf("\nDebuglevel = %u\n", gDebugLevel); break;
+#endif
         }
     }
     return TRUE;

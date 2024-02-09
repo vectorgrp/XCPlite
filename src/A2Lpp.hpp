@@ -86,9 +86,7 @@ public:
     BOOL open(const char* projectName);
     
     // Create memory segments
-#if OPTION_ENABLE_CAL_SEGMENT
     void create_MOD_PAR(uint32_t startAddr, uint32_t size);
-#endif
 
     // Create IF_DATA for XCP
     // All XCP events must have been be created before

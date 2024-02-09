@@ -1,23 +1,19 @@
-//#pragma once
-#ifdef __XCPTL_CFG_H__
-#error "Include dependency error!"
-#endif
-#define __XCPTL_CFG_H__
+#pragma once
 
 /*----------------------------------------------------------------------------
 | File:
 |   xcptl_cfg.h
-|   XCPlite
 |
 | Description:
-|   User configuration file for XCP on CAN/ETH transport layer
+|   User configuration file for XCP transport layer parameters
+|
+| Code released into public domain, no attribution required
+|
  ----------------------------------------------------------------------------*/
 
-   
-
-// Transport layer version
-#define XCP_TRANSPORT_LAYER_VERSION 0x0104
+// Transport layer
 #define XCP_TRANSPORT_LAYER_TYPE XCP_TRANSPORT_LAYER_ETH
+#define XCP_TRANSPORT_LAYER_VERSION 0x0104
 
 // TCP or/and UDP option enabled
 #define XCPTL_ENABLE_TCP

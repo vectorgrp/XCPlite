@@ -158,7 +158,6 @@
     <ClCompile Include="..\src\A2L.c" />
     <ClCompile Include="..\src\options.c" />
     <ClCompile Include="..\src\platform.c" />
-    <ClCompile Include="..\src\util.c" />
     <ClCompile Include="..\src\xcpAppl.c" />
     <ClCompile Include="..\src\xcpEthServer.c" />
     <ClCompile Include="..\src\xcpEthTl.c" />
@@ -171,7 +170,6 @@
     <ClInclude Include="..\src\dbg_print.h" />
     <ClInclude Include="..\src\options.h" />
     <ClInclude Include="..\src\platform.h" />
-    <ClInclude Include="..\src\util.h" />
     <ClInclude Include="..\src\xcp.h" />
     <ClInclude Include="..\src\xcpAppl.h" />
     <ClInclude Include="..\src\xcpEthServer.h" />

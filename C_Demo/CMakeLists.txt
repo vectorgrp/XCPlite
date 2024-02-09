@@ -14,7 +14,7 @@ project(C_Demo VERSION 6.0 LANGUAGES C)
 
 set(C_Demo_SOURCES 
 	main.c ecu.c 
-	../src/xcpAppl.c ../src/xcpLite.c ../src/xcpEthServer.c ../src/xcpEthTl.c ../src/A2L.c ../src/platform.c  ../src/util.c ../src/options.c )
+	../src/xcpAppl.c ../src/xcpLite.c ../src/xcpEthServer.c ../src/xcpEthTl.c ../src/A2L.c ../src/platform.c  ../src/options.c )
 
 # compile as C
 set_source_files_properties(${C_Demo_SOURCES} PROPERTIES LANGUAGE C)

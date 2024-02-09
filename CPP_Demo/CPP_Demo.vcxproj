@@ -161,7 +161,6 @@
     <ClCompile Include="..\src\A2Lpp.cpp" />
     <ClCompile Include="..\src\options.c" />
     <ClCompile Include="..\src\platform.c" />
-    <ClCompile Include="..\src\util.c" />
     <ClCompile Include="..\src\xcp.cpp" />
     <ClCompile Include="..\src\xcpAppl.c" />
     <ClCompile Include="..\src\xcpEthServer.c" />
@@ -175,7 +174,6 @@
     <ClInclude Include="..\src\dbg_print.h" />
     <ClInclude Include="..\src\options.h" />
     <ClInclude Include="..\src\platform.h" />
-    <ClInclude Include="..\src\util.h" />
     <ClInclude Include="..\src\xcp.h" />
     <ClInclude Include="..\src\xcp.hpp" />
     <ClInclude Include="..\src\xcpAppl.h" />

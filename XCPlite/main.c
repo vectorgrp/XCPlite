@@ -63,7 +63,7 @@ int main() {
     
     // Create ASAM A2L description file for measurement signals, calibration variables, events and communication parameters 
 #if OPTION_ENABLE_A2L_GEN
-    if (!A2lOpen(OPTION_A2L_FILE_NAME, OPTION_A2L_PROJECT_NAME)) return 0;
+    if (!A2lOpen(OPTION_A2L_FILE_NAME, OPTION_A2L_NAME)) return 0;
     event = XcpCreateEvent("mainLoop", 0, 0, 0, 0);
 #ifdef __cplusplus // In C++, A2L objects datatype is detected at run time
     A2lCreateParameterWithLimits(ampl, "Amplitude of sinus signal in V", "V", 0, 800);

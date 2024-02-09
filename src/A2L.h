@@ -21,6 +21,8 @@
     #define A2lGetAddr(p) ApplXcpGetAddr(p)
 #endif
 
+#define OPTION_ENABLE_A2L_SYMBOL_LINKS  ON   // Enable generation of symbol links (required for CANape integrated linker map update)
+
 #ifdef __cplusplus
 
 #include <typeinfo>
@@ -40,8 +42,8 @@
 #define A2lCreateMap(name,xdim,ydim,comment,unit) A2lCreateMap_(#name, A2lGetType(name[0][0]), 0, A2lGetAddr((uint8_t*)&name[0][0]), xdim, ydim, comment, unit)
 
 // Create measurements
-#define A2lCreateMeasurement(name,comment) A2lCreateMeasurement_(NULL, #name, A2lGetType(name), 0, A2lGetAddr((uint8_t*)&(name)), 1.0, 0.0, NULL, comment, true)
-#define A2lCreatePhysMeasurement(name,comment,factor,offset,unit) A2lCreateMeasurement_(NULL, #name, A2lGetType(name), 0, A2lGetAddr((uint8_t*)&name), factor, offset, unit, comment, true) // unsigned integer (8/16/32) with linear physical conversion rule
+#define A2lCreateMeasurement(name,comment) A2lCreateMeasurement_(NULL, #name, A2lGetType(name), 0, A2lGetAddr((uint8_t*)&(name)), 1.0, 0.0, NULL, comment)
+#define A2lCreatePhysMeasurement(name,comment,factor,offset,unit) A2lCreateMeasurement_(NULL, #name, A2lGetType(name), 0, A2lGetAddr((uint8_t*)&name), factor, offset, unit, comment) // unsigned integer (8/16/32) with linear physical conversion rule
 #define A2lCreateMeasurementArray(name) A2lCreateMeasurementArray_(NULL,#name, A2lGetType(name[0]), sizeof(name)/sizeof(name[0]), 0, A2lGetAddr((uint8_t*)&name[0])) // unsigned integer (8/16/32) or double array
 
 // Create typedefs
@@ -56,8 +58,8 @@
 #define A2lCreateMap(name,type,xdim,ydim,comment,unit) A2lCreateMap_(#name, type, 0, A2lGetAddr((uint8_t*)&name[0][0]), xdim, ydim, comment, unit)
 
 // Create measurements
-#define A2lCreateMeasurement(name,type,comment) A2lCreateMeasurement_(NULL,#name,type, 0, A2lGetAddr((uint8_t*)&(name)), 1.0, 0.0, NULL, comment,TRUE)
-#define A2lCreatePhysMeasurement(name,type,comment,factor,offset,unit) A2lCreateMeasurement_(NULL, #name,type, 0, A2lGetAddr((uint8_t*)&name), factor, offset, unit, comment, TRUE) // unsigned integer (8/16/32) with linear physical conversion rule
+#define A2lCreateMeasurement(name,type,comment) A2lCreateMeasurement_(NULL,#name,type, 0, A2lGetAddr((uint8_t*)&(name)), 1.0, 0.0, NULL, comment)
+#define A2lCreatePhysMeasurement(name,type,comment,factor,offset,unit) A2lCreateMeasurement_(NULL, #name,type, 0, A2lGetAddr((uint8_t*)&name), factor, offset, unit, comment) // unsigned integer (8/16/32) with linear physical conversion rule
 #define A2lCreateMeasurementArray(name,type) A2lCreateMeasurementArray_(NULL, #name, type, sizeof(name)/sizeof(name[0]), 0, A2lGetAddr((uint8_t*)&name[0])) // unsigned integer (8/16/32) or double array
 
 // Create typedefs
@@ -74,9 +76,7 @@
 extern BOOL A2lOpen(const char *filename, const char* projectName);
 
 // Create memory segments
-#if OPTION_ENABLE_CAL_SEGMENT
 extern void A2lCreate_MOD_PAR( uint32_t startAddr, uint32_t size, char* epk);
-#endif
 
 // Create XCP IF_DATA
 extern void A2lCreate_ETH_IF_DATA(BOOL useTCP, const uint8_t* addr, uint16_t port);
@@ -89,7 +89,7 @@ extern void A2lSetDefaultEvent(uint16_t event);
 extern void A2lRstDefaultEvent();
 
 // Create measurements
-extern void A2lCreateMeasurement_(const char* instanceName, const char* name, int32_t type, uint8_t ext, uint32_t addr, double factor, double offset, const char* unit, const char* comment, BOOL symbolLink);
+extern void A2lCreateMeasurement_(const char* instanceName, const char* name, int32_t type, uint8_t ext, uint32_t addr, double factor, double offset, const char* unit, const char* comment);
 extern void A2lCreateMeasurementArray_(const char* instanceName, const char* name, int32_t type, int dim, uint8_t ext, uint32_t addr);
 
 // Create typedefs

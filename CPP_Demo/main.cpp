@@ -16,8 +16,6 @@
 #include "main.h"
 #include "platform.h"
 #include "options.h"
-#include "util.h"
-
 #include "xcp.hpp"
 #include "A2Lpp.hpp"
 
@@ -155,8 +153,9 @@ int main(int argc, char* argv[]) {
     // a2l->createParameterWithLimits(gSignalParameters.phase, "Phase of sinus signal in s", "s", 0, 10); // global signal_parameters.phase, this is an alternative way to define components of global structs
     a2l->createParameterWithLimits(gPeriod, "Period of sinus signal in s", "s", 0, 10); // global double period
     a2l->createParameterWithLimits(gCycleTime, "Cycle time of demo event loop in us", "us", 0, 1000000); // global uint32_t cycleTime
+#if OPTION_ENABLE_DBG_PRINTS
     a2l->createParameter(gDebugLevel, "Console output verbosity level", ""); // Create a calibration parameter to control the debug output verbosity
-
+#endif
     // Declare measurement variables in global address space
     A2lSetFixedEvent(gMainloopEvent); // Associate this event to the measurement variables created below
     a2l->createPhysMeasurement(gChannel1, "Sinus signal as double with physical conversion rule", 1.0, 0.0, "V");

@@ -14,10 +14,9 @@
 #include "main.h"
 #include "platform.h"
 #include "dbg_print.h"
-#include "util.h"
 #include "xcpLite.h"
 #include "xcpAppl.h"
-#ifdef APP_CPP_Demo
+#if OPTION_ENABLE_XCP_CLASS
 #include "xcp.hpp"
 #else
 #if OPTION_ENABLE_CAL_SEGMENT
@@ -30,7 +29,7 @@
 // General Callbacks from XCPlite.c
 /**************************************************************************/
 
-#ifdef APP_CPP_Demo
+#ifdef OPTION_ENABLE_XCP_CLASS
 
 BOOL ApplXcpConnect() {
     return Xcp::getInstance()->onConnect();
@@ -136,7 +135,7 @@ uint8_t* ApplXcpGetPointer(uint8_t addr_ext, uint32_t addr) {
 #endif
 
     p = ApplXcpGetBaseAddr() + addr;
-#ifdef XCP_ENABLE_CAL_PAGE
+#if OPTION_ENABLE_CAL_SEGMENT
     p = ecuParAddrMapping(p);
 #endif
     
@@ -364,6 +363,23 @@ uint8_t ApplXcpSetCalPage(uint8_t segment, uint8_t page, uint8_t mode) {
     return 0;
 }
 
+#else
+
+// Not implemented
+
+uint8_t ApplXcpGetCalPage(uint8_t segment, uint8_t mode) {
+(void)segment;
+(void)mode;
+return CRC_PAGE_NOT_VALID;
+}
+
+uint8_t ApplXcpSetCalPage(uint8_t segment, uint8_t page, uint8_t mode) {
+  (void)segment;
+  (void)page;
+  (void)mode;
+  return CRC_PAGE_NOT_VALID;
+}
+
 #endif
 
 
@@ -371,26 +387,93 @@ uint8_t ApplXcpSetCalPage(uint8_t segment, uint8_t page, uint8_t mode) {
 /**************************************************************************/
 // Provide infos for GET_ID
 // The XCP command GET_ID provides different type of identification
-// information to the XCP client (see code below)
+// information to the XCP client
+// Returns 0, when the information is not available
 /**************************************************************************/
+
+#ifdef XCP_ENABLE_IDT_A2L_UPLOAD // Enable GET_ID A2L content upload to host
 
 static uint8_t* gXcpFile = NULL; // file content
 static uint32_t gXcpFileLength = 0; // file length
+
+BOOL ApplXcpReadA2L(uint8_t size, uint32_t addr, uint8_t* data) {
+  if (addr + size > gXcpFileLength) return FALSE;
+  memcpy(data, gXcpFile + addr, size);
+  return TRUE;
+}
+
+void releaseFile(uint8_t* file) {
+
+  if (file != NULL) {
+    free(file);
+  }
+}
+
+uint8_t* loadFile(const char* filename, uint32_t* length) {
+
+  uint8_t* fileBuf = NULL; // file content
+  uint32_t fileLen = 0; // file length
+
+  DBG_PRINTF1("Load %s\n", filename);
+
+#if defined(_LINUX) // Linux
+
+  FILE* fd;
+  fd = fopen(filename, "r");
+  if (fd == NULL) {
+    DBG_PRINTF_ERROR("ERROR: file %s not found!\n", filename);
+    return NULL;
+  }
+  struct stat fdstat;
+  stat(filename, &fdstat);
+  fileBuf = (uint8_t*)malloc((size_t)(fdstat.st_size + 1));
+  if (fileBuf == NULL) return NULL;
+  fileLen = (uint32_t)fread(fileBuf, 1, (uint32_t)fdstat.st_size, fd);
+  fclose(fd);
+
+#elif defined(_WIN) // Windows
+
+  wchar_t wcfilename[256] = { 0 };
+  MultiByteToWideChar(0, 0, filename, (int)strlen(filename), wcfilename, (int)strlen(filename));
+  HANDLE hFile = CreateFileW((wchar_t*)wcfilename, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+  if (hFile == INVALID_HANDLE_VALUE) {
+    DBG_PRINTF_ERROR("file %s not found!\n", filename);
+    return NULL;
+  }
+  fileLen = (uint32_t)GetFileSize(hFile, NULL);
+  fileBuf = (uint8_t*)malloc(fileLen + 1);
+  if (fileBuf == NULL) {
+    DBG_PRINTF_ERROR("Error: out of memory!\n");
+    CloseHandle(hFile);
+    return NULL;
+  }
+  if (!ReadFile(hFile, fileBuf, fileLen, NULL, NULL)) {
+    DBG_PRINTF_ERROR("Error: could not read from %s!\n", filename);
+    free(fileBuf);
+    CloseHandle(hFile);
+    return NULL;
+  }
+  fileBuf[fileLen] = 0;
+  CloseHandle(hFile);
+
+#endif
+
+  DBG_PRINTF3("  file %s ready for upload, size=%u\n\n", filename, fileLen);
+
+  *length = fileLen;
+  return fileBuf;
+}
+
+#endif
+
 
 uint32_t ApplXcpGetId(uint8_t id, uint8_t* buf, uint32_t bufLen) {
 
     uint32_t len = 0;
     switch (id) {
 
-    case IDT_ASCII:
-      len = (uint32_t)strlen(APP_NAME);
-      if (buf) {
-        if (len > bufLen) return 0; // Insufficient buffer space
-        strncpy((char*)buf, APP_NAME, len);
-      }
-      break;
-
 #ifdef OPTION_A2L_NAME
+    case IDT_ASCII:
     case IDT_ASAM_NAME:
       len = (uint32_t)strlen(OPTION_A2L_NAME);
       if (buf) {
@@ -436,17 +519,6 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t* buf, uint32_t bufLen) {
     }
     return len;
 }
-
-
-#ifdef XCP_ENABLE_IDT_A2L_UPLOAD // Enable GET_ID A2L content upload to host
-BOOL ApplXcpReadA2L(uint8_t size, uint32_t addr, uint8_t* data) {
-    if (addr + size > gXcpFileLength) return FALSE;
-    memcpy(data, gXcpFile + addr, size);
-    return TRUE;
-}
-#endif
-
-
 
 
 

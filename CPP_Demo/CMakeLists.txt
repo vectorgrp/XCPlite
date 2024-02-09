@@ -14,7 +14,7 @@ project(CPP_Demo VERSION 6.0 LANGUAGES CXX)
 
 set(CPP_Demo_SOURCES 
   main.cpp 
-  ../src/xcpAppl.c ../src/xcp.cpp ../src/xcpLite.c ../src/xcpEthTl.c ../src/xcpEthServer.c ../src/A2L.c ../src/A2Lpp.cpp ../src/platform.c ../src/util.c ../src/options.c
+  ../src/xcpAppl.c ../src/xcp.cpp ../src/xcpLite.c ../src/xcpEthTl.c ../src/xcpEthServer.c ../src/A2L.c ../src/A2Lpp.cpp ../src/platform.c ../src/options.c
 )
 
 # compile *.c as C++

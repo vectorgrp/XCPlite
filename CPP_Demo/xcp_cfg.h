@@ -33,8 +33,9 @@
 
 #define XCP_TRANSPORT_LAYER_TYPE XCP_TRANSPORT_LAYER_ETH // Enable ethernet specific commands
 
-
-#define XCP_ENABLE_DYN_ADDRESSING // Enable addr_ext=1 indicating relative addr format (event<<16)|offset 
+#if OPTION_ENABLE_XCP_CLASS
+  #define XCP_ENABLE_DYN_ADDRESSING // Enable addr_ext=1 indicating relative addr format (event<<16)|offset 
+#endif
 
 /*----------------------------------------------------------------------------*/
 /* Protocol features */
@@ -42,8 +43,9 @@
 //#define XCP_ENABLE_INTERLEAVED
 //#define XCP_INTERLEAVED_QUEUE_SIZE 16
 
-//#define XCP_ENABLE_CHECKSUM // Enable checksum calculation command
-//#define XCP_ENABLE_CAL_PAGE // Enable cal page switch
+#define XCP_ENABLE_CHECKSUM // Enable checksum calculation command
+
+#define XCP_ENABLE_CAL_PAGE // Enable cal page switch
 
 
 /*----------------------------------------------------------------------------*/

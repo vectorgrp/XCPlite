@@ -5,9 +5,6 @@
     <ClCompile Include="..\src\platform.c">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\util.c">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\xcp.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -39,9 +36,6 @@
     <ClInclude Include="xcptl_cfg.h" />
     <ClInclude Include="xcp_cfg.h" />
     <ClInclude Include="..\src\platform.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\util.h">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\xcp.h">

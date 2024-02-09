@@ -33,18 +33,15 @@ void A2L::close() {
   A2lClose();
  }
 
-
 BOOL A2L::open(const char *projectName) {
    
   return A2lOpen(filename, projectName);
 }
 
 // Create memory segments
-#if OPTION_ENABLE_CAL_SEGMENT
 void A2L::create_MOD_PAR(uint32_t startAddr, uint32_t size) {
 	A2lCreate_MOD_PAR(startAddr, size, NULL);
 }
-#endif
 
 // Create XCP IF_DATA
 void A2L::create_XCP_IF_DATA(BOOL tcp, const uint8_t* addr, uint16_t port) {
@@ -97,7 +94,7 @@ uint16_t A2L::getFixedEvent() {
  //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
  void A2L::createMeasurement_(const char* instanceName, const char* name, int32_t type, uint8_t ext, uint32_t addr, double factor, double offset, const char* unit, const char* comment) {
-	 A2lCreateMeasurement_(instanceName, name, type, ext, addr, factor, offset, unit, comment, OPTION_ENABLE_A2L_SYMBOL_LINKS);
+	 A2lCreateMeasurement_(instanceName, name, type, ext, addr, factor, offset, unit, comment);
 }
  
  void A2L::createMeasurementArray_(const char* instanceName, const char* name, int32_t type, int dim, uint8_t ext, uint32_t addr) {

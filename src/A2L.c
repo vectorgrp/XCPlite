@@ -48,7 +48,6 @@ static const char* gA2lHeader =
 "\n";
 
 //----------------------------------------------------------------------------------
-#if OPTION_ENABLE_CAL_SEGMENT
 static const char* gA2lMemorySegment =
 "/begin MEMORY_SEGMENT\n"
 "CALRAM \"\" DATA FLASH INTERN 0x%08X 0x%08X -1 -1 -1 -1 -1\n" // CALRAM_START, CALRAM_SIZE
@@ -60,7 +59,6 @@ static const char* gA2lMemorySegment =
 "/end SEGMENT\n"
 "/end IF_DATA\n"
 "/end MEMORY_SEGMENT\n";
-#endif
 
 //----------------------------------------------------------------------------------
 static const char* const gA2lIfDataBegin =
@@ -326,7 +324,6 @@ BOOL A2lOpen(const char *filename, const char* projectName ) {
 }
 
 // Memory segments
-#if OPTION_ENABLE_CAL_SEGMENT
 void A2lCreate_MOD_PAR(uint32_t startAddr, uint32_t size, char *epk) {
 
 	assert(gA2lFile != NULL);
@@ -336,9 +333,10 @@ void A2lCreate_MOD_PAR(uint32_t startAddr, uint32_t size, char *epk) {
 	fprintf(gA2lFile, gA2lMemorySegment, startAddr, size);
 	DBG_PRINTF1("  A2L MOD_PAR MEMORY_SEGMENT 1: 0x%08X %u\n", startAddr, size);
 	fprintf(gA2lFile, "/end MOD_PAR\n\n");
+#if OPTION_ENABLE_DBG_PRINTS
 	if (epk) DBG_PRINTF1("  A2L MOD_PAR EPK \"%s\" 0x%08X\n", epk, ApplXcpGetAddr((uint8_t*)epk));
-}
 #endif
+}
 
 
 static void A2lCreate_IF_DATA_DAQ() {
@@ -530,7 +528,7 @@ void A2lCreateTypedefInstance_(const char* instanceName, const char* typeName, u
 }
 
 
-void A2lCreateMeasurement_(const char* instanceName, const char* name, int32_t type, uint8_t ext, uint32_t addr, double factor, double offset, const char* unit, const char* comment, BOOL symbolLink) {
+void A2lCreateMeasurement_(const char* instanceName, const char* name, int32_t type, uint8_t ext, uint32_t addr, double factor, double offset, const char* unit, const char* comment) {
 	
 	assert(gA2lFile != NULL);
 	if (unit == NULL) unit = "";
@@ -548,7 +546,7 @@ void A2lCreateMeasurement_(const char* instanceName, const char* name, int32_t t
 	printPhysUnit(unit);
 	fprintf(gA2lFile, " READ_WRITE");
 #if OPTION_ENABLE_A2L_SYMBOL_LINKS
-	if (symbolLink) fprintf(gA2lFile, " SYMBOL_LINK \"%s\" %u", A2lGetSymbolName(instanceName, name), 0);
+	fprintf(gA2lFile, " SYMBOL_LINK \"%s\" %u", A2lGetSymbolName(instanceName, name), 0);
 #else
 	(void)symbolLink;
 #endif

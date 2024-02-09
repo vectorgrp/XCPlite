@@ -12,9 +12,6 @@
     <ClCompile Include="..\src\platform.c">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\util.c">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\xcpLite.c">
       <Filter>src</Filter>
     </ClCompile>
@@ -40,9 +37,6 @@
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\platform.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\util.h">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\xcp.h">

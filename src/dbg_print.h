@@ -9,7 +9,7 @@
 //-------------------------------------------------------------------------------
 // Debug print
 
-#ifdef OPTION_ENABLE_DBG_PRINTS
+#if OPTION_ENABLE_DBG_PRINTS
 
 extern unsigned int gDebugLevel;
 #define DBG_LEVEL gDebugLevel

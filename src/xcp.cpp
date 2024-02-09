@@ -16,7 +16,6 @@
 #include "main.h"
 #include "main_cfg.h"
 #include "platform.h"
-#include "util.h"
 #include "xcpLite.h"
 #include "xcp.hpp"
 #include "xcpEthServer.h"
@@ -181,9 +180,6 @@ A2L* Xcp::createA2L(const char* projectName) {
     if (a2lFile) return a2lFile;
     a2lFile = new A2L(OPTION_A2L_FILE_NAME);
     if (!a2lFile->open(projectName)) return NULL;
-#if OPTION_ENABLE_CAL_SEGMENT
-    void create_MOD_PAR(uint32_t startAddr, uint32_t size);
-#endif
     return a2lFile;
 }
 

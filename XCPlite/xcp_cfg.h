@@ -29,22 +29,25 @@
 /*----------------------------------------------------------------------------*/
 /* Protocol features */
 
-#if OPTION_ENABLE_CAL_SEGMENT
+// #define XCP_ENABLE_CAL_PAGE // Enable cal page switch, uses callbacks in xcpAppl.c !
+
 #define XCP_ENABLE_CHECKSUM // Enable checksum calculation command
-#define XCP_ENABLE_CAL_PAGE // Enable cal page switch
-#endif
+
 
 /*----------------------------------------------------------------------------*/
 /* GET_ID command */
 
-// #define XCP_ENABLE_IDT_A2L_UPLOAD // Upload A2L via XCP enabled
+// Uses addr_ext=0xFF to indicate addr space to upload A2L  
+
+#define XCP_ENABLE_IDT_A2L_UPLOAD // Upload A2L via XCP enabled
+
 
 /*----------------------------------------------------------------------------*/
 /* DAQ features and parameters */
 
 // #define XCP_ENABLE_DAQ_EVENT_INFO // Enable XCP_GET_EVENT_INFO, if this is enabled, A2L file event information will be ignored
- #define XCP_ENABLE_DAQ_EVENT_LIST // Enable event list
- #define XCP_MAX_EVENT 16 // Maximum number of events, size of event table
+#define XCP_ENABLE_DAQ_EVENT_LIST // Enable event list
+#define XCP_MAX_EVENT 16 // Maximum number of events, size of event table
 // #define XCP_ENABLE_MULTITHREAD_EVENTS // Make XcpEvent thread safe for same event coming from different threads
 // #define XCP_ENABLE_PACKED_MODE // Enable packed mode 
 
@@ -54,14 +57,14 @@
 
 #if CLOCK_TICKS_PER_S == 1000000  // Settings for 32 bit us since application start (CLOCK_USE_APP_TIME_US)
 
-#define XCP_TIMESTAMP_UNIT DAQ_TIMESTAMP_UNIT_1US // unit DAQ_TIMESTAMP_UNIT_xxx
-#define XCP_TIMESTAMP_TICKS 1  // ticks per unit
+  #define XCP_TIMESTAMP_UNIT DAQ_TIMESTAMP_UNIT_1US // unit DAQ_TIMESTAMP_UNIT_xxx
+  #define XCP_TIMESTAMP_TICKS 1  // ticks per unit
 
 #endif
 #if CLOCK_TICKS_PER_S == 1000000000  // Settings for 32 bit ns since application start (CLOCK_USE_UTC_TIME_NS)
 
-#define XCP_TIMESTAMP_UNIT DAQ_TIMESTAMP_UNIT_1NS // unit DAQ_TIMESTAMP_UNIT_xxx
-#define XCP_TIMESTAMP_TICKS 1  // ticks per unit
+  #define XCP_TIMESTAMP_UNIT DAQ_TIMESTAMP_UNIT_1NS // unit DAQ_TIMESTAMP_UNIT_xxx
+  #define XCP_TIMESTAMP_TICKS 1  // ticks per unit
 
 #endif
 
