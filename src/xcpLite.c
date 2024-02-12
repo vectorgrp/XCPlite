@@ -62,7 +62,6 @@
 #include "platform.h"
 #include "dbg_print.h"
 #include "xcpLite.h"    // Protocol layer interface
-#include "xcpAppl.h"    // Debug print functions supplied by application
 
 
 /****************************************************************************/

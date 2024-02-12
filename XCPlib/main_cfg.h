@@ -41,8 +41,8 @@
 
 // Debug prints
 #define OPTION_ENABLE_DBG_PRINTS        ON
-#define OPTION_DEBUG_LEVEL            2 
-//#define OPTION_UDP_DEBUG_LEVEL          0  
+#define OPTION_DEBUG_LEVEL              2
+#define OPTION_UDP_DEBUG_LEVEL          0  
 
 
 // A2L generation

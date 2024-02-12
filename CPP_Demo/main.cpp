@@ -15,6 +15,7 @@
 
 #include "main.h"
 #include "platform.h"
+#include "dbg_print.h"
 #include "options.h"
 #include "xcp.hpp"
 #include "A2Lpp.hpp"
@@ -22,9 +23,6 @@
 
  // OPTIONs are defined in main_cfg.h
 
-#if OPTION_ENABLE_DBG_PRINTS
-unsigned int gDebugLevel = OPTION_DEBUG_LEVEL;
-#endif
 
  //-----------------------------------------------------------------------------------------------------
 

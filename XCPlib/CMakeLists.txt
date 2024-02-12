@@ -12,8 +12,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 project(XCPlite VERSION 6.0 LANGUAGES C CXX)
 
-set(XCPlite_SOURCES main.c xcpAppl.c ../src/xcpLite.c ../src/xcpEthTl.c ../src/xcpEthServer.c ../src/A2L.c ../src/platform.c )
-
+set(XCPlib_SOURCES xcpAppl.c ../src/xcpLite.c ../src/xcpEthTl.c ../src/xcpEthServer.c ../src/A2L.c ../src/platform.c )
+set(XCPlite_SOURCES main.c  )
 
 # compile as C
 # set_source_files_properties(${XCPlite_SOURCES} PROPERTIES LANGUAGE C)
@@ -27,6 +27,10 @@ if (WINDOWS)
   
 else ()
 
+  add_library(XCP STATIC ${XCPlib_SOURCES} )
+  target_include_directories(XCP PUBLIC "${PROJECT_SOURCE_DIR}" )
+  target_include_directories(XCP PUBLIC "${PROJECT_SOURCE_DIR}/../src" )
+
   add_executable(XCPlite ${XCPlite_SOURCES})
   target_include_directories(XCPlite PUBLIC "${PROJECT_SOURCE_DIR}" )
   target_include_directories(XCPlite PUBLIC "${PROJECT_SOURCE_DIR}/../src" )
@@ -35,6 +39,7 @@ else ()
   find_package(Threads REQUIRED)
   target_link_libraries(XCPlite PRIVATE Threads::Threads)
   target_link_libraries(XCPlite PRIVATE m)
+  target_link_libraries(XCPlite PRIVATE XCP)
 
 endif ()
 

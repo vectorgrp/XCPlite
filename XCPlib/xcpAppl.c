@@ -3,9 +3,8 @@
 |   xcpAppl.c
 |
 | Description:
-|   Platform specific functions and callbacks for XCP driver
-|   Some are implemented as macros in xcpAppl.h
-|
+|   Application specific functions and callbacks for XCP driver
+|   
 | Copyright (c) Vector Informatik GmbH. All rights reserved.
 | Licensed under the MIT license. See LICENSE file in the project root for details.
 |
@@ -15,46 +14,12 @@
 #include "platform.h"
 #include "dbg_print.h"
 #include "xcpLite.h"
-#if OPTION_ENABLE_XCP_CLASS
-#include "xcp.hpp"
-#else
-#if OPTION_ENABLE_CAL_SEGMENT
-#include "ecu.h"
-#endif
-#endif
     
-
-
-
-#if OPTION_ENABLE_DBG_PRINTS
-unsigned int gDebugLevel = OPTION_DEBUG_LEVEL;
-#endif
 
 /**************************************************************************/
 // General Callbacks from XCPlite.c
 /**************************************************************************/
 
-#ifdef OPTION_ENABLE_XCP_CLASS
-
-BOOL ApplXcpConnect() {
-    return Xcp::getInstance()->onConnect();
-}
-
-#if XCP_PROTOCOL_LAYER_VERSION >= 0x0104
-BOOL ApplXcpPrepareDaq() {
-    return Xcp::getInstance()->onPrepareDaq();
-}
-#endif
-
-BOOL ApplXcpStartDaq() {
-    return Xcp::getInstance()->onStartDaq();
-}
-
-void ApplXcpStopDaq() {
-    Xcp::getInstance()->onStopDaq();
-}
-
-#else
 
 BOOL ApplXcpConnect() {
     DBG_PRINT1("XCP connect\n");
@@ -77,7 +42,7 @@ void ApplXcpStopDaq() {
     DBG_PRINT1("XCP stop DAQ\n");
 }
 
-#endif
+
 
 
 /**************************************************************************/
@@ -120,37 +85,11 @@ BOOL ApplXcpGetClockInfoGrandmaster(uint8_t* uuid, uint8_t* epoch, uint8_t* stra
 // In Microsoft Visual Studio set option "Generate Debug Information" to "optimized for sharing and publishing (/DEBUG:FULL)"
 
 
-#define XCP_ENABLE_MEMORY_CHECK
-#ifdef XCP_ENABLE_MEMORY_CHECK
-static BOOL check(uint8_t *p)
-{
-    (void)p;
-    return TRUE;
-}
-#endif
-
 
 uint8_t* ApplXcpGetPointer(uint8_t addr_ext, uint32_t addr) {
 
     if (addr_ext != 0) return NULL;
-    uint8_t* p;
-
-#ifdef _WIN32 // on WIN32 check that XCP address is in range, because addr is relativ to baseaddr
-    assert((uint64_t)ApplXcpGetBaseAddr() + addr <= 0xffffffff); 
-#endif
-
-    p = ApplXcpGetBaseAddr() + addr;
-#if OPTION_ENABLE_CAL_SEGMENT
-    p = ecuParAddrMapping(p);
-#endif
-    
-#ifdef XCP_ENABLE_MEMORY_CHECK
-    if (!check(p)) {
-        DBG_PRINTF_ERROR("ERROR: Illegal address %08X!\n", addr);
-        return NULL;
-    }
-#endif
-    return p;
+    return ApplXcpGetBaseAddr() + addr;
 }
 
 
@@ -166,7 +105,7 @@ uint8_t* ApplXcpGetBaseAddr() {
     if (!baseAddrValid) {
         baseAddr = (uint8_t*)GetModuleHandle(NULL);
         baseAddrValid = 1;
-        DBG_PRINTF3("ApplXcpGetBaseAddr() = 0x%I64X\n", (uint64_t)baseAddr);
+        DBG_PRINTF4("ApplXcpGetBaseAddr() = 0x%I64X\n", (uint64_t)baseAddr);
     }
     return baseAddr;
 }
@@ -260,122 +199,16 @@ uint32_t ApplXcpGetAddr(uint8_t* p)
 #endif
 
 
-
-
-
-/**************************************************************************/
-// Pointer to XCP address conversions for LINUX shared objects
-/**************************************************************************/
-#if 0 // Support for Linux SO not implemented yet
-#ifdef XCP_ENABLE_SO
-
-// Address information of loaded modules for XCP (application and shared libraries)
-// Index is XCP address extension
-// Index 0 is application
-
-static struct
-{
-    const char* name;
-    uint8_t* baseAddr;
-}
-gModuleProperties[XCP_MAX_MODULE] = { {} };
-
-
-uint8_t ApplXcpGetExt(uint8_t* addr)
-{
-    // Here we have the possibility to loop over the modules and find out the extension
-    ()addr;
-    return 0;
-}
-
-uint32_t ApplXcpGetAddr(uint8_t* addr)
-{
-    uint8_t addr_ext = ApplXcpGetExt(addr);
-    union {
-        uint8_t* ptr;
-        uint32_t i;
-    } rawAddr;
-    rawAddr.ptr = (uint8_t*)(addr - gModuleProperties[addr_ext].baseAddr);
-    return rawAddr.i;
-}
-
-uint8_t* ApplXcpGetPointer(uint8_t addr_ext, uint32_t addr)
-{
-    uint8_t* baseAddr = 0;
-    if (addr_ext < XCP_MAX_MODULE) {
-        baseAddr = gModuleProperties[addr_ext].baseAddr;
-    }
-    return baseAddr + addr;
-}
-
-
-static int dump_phdr(struct dl_phdr_info* pinfo, size_t size, void* data)
-{
-    DBG_PRINTF1("0x%zX %s 0x%X %d %d %d %d 0x%X\n",
-            pinfo->dlpi_addr, pinfo->dlpi_name, pinfo->dlpi_phdr, pinfo->dlpi_phnum,
-            pinfo->dlpi_adds, pinfo->dlpi_subs, pinfo->dlpi_tls_modid,
-            pinfo->dlpi_tls_data);
-
-  // Modules
-  if (0 < strlen(pinfo->dlpi_name)) {
-    // Here we could remember module information or something like that
-  }
-
-  // Application
-  else  {
-
-     DBG_PRINTF1("Application base addr = 0x%zx\n", pinfo->dlpi_addr);
-     gModuleProperties[0].baseAddr = (uint8_t*) pinfo->dlpi_addr;
-  }
-
-  ()size;
-  ()data;
-  return 0;
-}
-
-void ApplXcpInitBaseAddressList()
-{
-    DBG_PRINTF1("Module List:\n");
-    dl_iterate_phdr(dump_phdr, NULL);
-}
-
-#endif // #ifdef XCP_ENABLE_SO
-#endif
-
-
-
-
 /**************************************************************************/
 // Calibration page switching
 /**************************************************************************/
 
-#if OPTION_ENABLE_CAL_SEGMENT
-
-// segment = 0
-// RAM = page 0, FLASH = page 1
-
-uint8_t ApplXcpGetCalPage(uint8_t segment, uint8_t mode) {
-    (void)mode;
-    if (segment > 0) return CRC_PAGE_NOT_VALID;
-    return ecuParGetCalPage();
-}
-
-uint8_t ApplXcpSetCalPage(uint8_t segment, uint8_t page, uint8_t mode) {
-    if (segment > 0) return CRC_SEGMENT_NOT_VALID;
-    if (page > 1) return CRC_PAGE_NOT_VALID;
-    if ((mode & (CAL_PAGE_MODE_ECU | CAL_PAGE_MODE_XCP)) != (CAL_PAGE_MODE_ECU | CAL_PAGE_MODE_XCP)) return CRC_PAGE_MODE_NOT_VALID;
-    ecuParSetCalPage(page);
-    return 0;
-}
-
-#else
-
 // Not implemented
 
 uint8_t ApplXcpGetCalPage(uint8_t segment, uint8_t mode) {
-(void)segment;
-(void)mode;
-return CRC_PAGE_NOT_VALID;
+  (void)segment;
+  (void)mode;
+  return CRC_PAGE_NOT_VALID;
 }
 
 uint8_t ApplXcpSetCalPage(uint8_t segment, uint8_t page, uint8_t mode) {
@@ -385,16 +218,15 @@ uint8_t ApplXcpSetCalPage(uint8_t segment, uint8_t page, uint8_t mode) {
   return CRC_PAGE_NOT_VALID;
 }
 
-#endif
-
 
 
 /**************************************************************************/
 // Provide infos for GET_ID
 // The XCP command GET_ID provides different type of identification
-// information to the XCP client
+// information to the XCP client 
 // Returns 0, when the information is not available
 /**************************************************************************/
+
 
 #ifdef XCP_ENABLE_IDT_A2L_UPLOAD // Enable GET_ID A2L content upload to host
 
@@ -502,23 +334,11 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t* buf, uint32_t bufLen) {
       // Not implemented
       break;
 
-#ifdef XCP_ENABLE_IDT_A2L_UPLOAD
+#if defined(XCP_ENABLE_IDT_A2L_UPLOAD) && defined(OPTION_A2L_FILE_NAME)
     case IDT_ASAM_UPLOAD:
-        if (NULL==(gXcpFile=loadFile(OPTION_A2L_FILE_NAME,&gXcpFileLength))) return 0;
-        len = gXcpFileLength;
-        break;
-#endif
-
-#ifdef XCP_ENABLE_IDT_A2L_HTTP_GET
-    case IDT_ASAM_URL:
-        if (buf) {
-            uint8_t addr[4];
-            if (socketGetLocalAddr(NULL, addr)) {
-                SNPRINTF((char*)buf, bufLen, "http://%u.%u.%u.%u:%u/file/" OPTION_A2L_FILE_NAME, addr[0], addr[1], addr[2], addr[3], gOptionHTTPPort);
-                len = (uint32_t)strlen((char*)buf);
-            }
-        }
-        break;
+      if (NULL == (gXcpFile = loadFile(OPTION_A2L_FILE_NAME, &gXcpFileLength))) return 0;
+      len = gXcpFileLength;
+      break;
 #endif
 
     }

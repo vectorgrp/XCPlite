@@ -16,6 +16,10 @@
 #include "xcpLite.h"
     
 
+#if OPTION_ENABLE_DBG_PRINTS
+unsigned int gDebugLevel = OPTION_DEBUG_LEVEL;
+#endif
+
 /**************************************************************************/
 // General Callbacks from XCPlite.c
 /**************************************************************************/
