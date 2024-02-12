@@ -158,11 +158,11 @@
   <ItemGroup>
     <ClCompile Include="..\src\A2L.c" />
     <ClCompile Include="..\src\platform.c" />
+    <ClCompile Include="..\src\xcpAppl.c" />
     <ClCompile Include="..\src\xcpEthServer.c" />
     <ClCompile Include="..\src\xcpEthTl.c" />
     <ClCompile Include="..\src\xcpLite.c" />
     <ClCompile Include="main.c" />
-    <ClCompile Include="xcpAppl.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\A2L.h" />

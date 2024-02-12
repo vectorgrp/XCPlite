@@ -12,7 +12,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 project(XCPlite VERSION 6.0 LANGUAGES C CXX)
 
-set(XCPlite_SOURCES main.c xcpAppl.c ../src/xcpLite.c ../src/xcpEthTl.c ../src/xcpEthServer.c ../src/A2L.c ../src/platform.c )
+set(XCPlite_SOURCES main.c ../src/xcpAppl.c ../src/xcpLite.c ../src/xcpEthTl.c ../src/xcpEthServer.c ../src/A2L.c ../src/platform.c )
 
 
 # compile as C

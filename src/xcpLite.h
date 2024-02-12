@@ -44,8 +44,10 @@
 
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
 
+#define XCP_MAX_EVENT_NAME 8
+
 typedef struct {
-    const char* name;
+    char shortName[XCP_MAX_EVENT_NAME+1]; // A2L XCP IF_DATA short event name, long name not supported
     uint32_t size; // ext event size
     uint8_t timeUnit; // timeCycle unit, 1ns=0, 10ns=1, 100ns=2, 1us=3, ..., 1ms=6, ...
     uint8_t timeCycle; // cycletime in units, 0 = sporadic or unknown

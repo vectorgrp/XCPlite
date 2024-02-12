@@ -14,8 +14,10 @@
     <ClCompile Include="..\src\xcpEthTl.c">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="xcpAppl.c" />
     <ClCompile Include="..\src\xcpEthServer.c">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\xcpAppl.c">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

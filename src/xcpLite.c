@@ -1722,7 +1722,8 @@ uint16_t XcpCreateEvent(const char* name, uint32_t cycleTimeNs, uint8_t priority
     }
     gXcp.EventList[e].timeCycle = (uint8_t)c;
 
-    gXcp.EventList[e].name = name;
+    strncpy(gXcp.EventList[e].shortName,name,XCP_MAX_EVENT_NAME);
+    gXcp.EventList[e].shortName[XCP_MAX_EVENT_NAME] = 0;
     gXcp.EventList[e].priority = priority;
     gXcp.EventList[e].sampleCount = sampleCount;
     gXcp.EventList[e].size = size;
@@ -1734,7 +1735,7 @@ uint16_t XcpCreateEvent(const char* name, uint32_t cycleTimeNs, uint8_t priority
 #endif
 #ifdef DBG_LEVEL
      uint64_t ns = (uint64_t)(gXcp.EventList[e].timeCycle * pow(10, gXcp.EventList[e].timeUnit));
-     DBG_PRINTF1("  Event %u: %s cycle=%" PRIu64 "ns, prio=%u, sc=%u, size=%u\n", e, gXcp.EventList[e].name, ns, gXcp.EventList[e].priority, gXcp.EventList[e].sampleCount, gXcp.EventList[e].size);
+     DBG_PRINTF1("  Event %u: %s cycle=%" PRIu64 "ns, prio=%u, sc=%u, size=%u\n", e, gXcp.EventList[e].shortName, ns, gXcp.EventList[e].priority, gXcp.EventList[e].sampleCount, gXcp.EventList[e].size);
      if (cycleTimeNs != ns) DBG_PRINTF1("Warning: cycle time %uns, loss of significant digits!\n", cycleTimeNs);
 #endif
 

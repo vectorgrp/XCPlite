@@ -57,7 +57,16 @@ int main() {
     uint8_t ipAddr[] = OPTION_SERVER_ADDR;
     if (!XcpEthServerInit(ipAddr, OPTION_SERVER_PORT, OPTION_USE_TCP, XCPTL_MAX_SEGMENT_SIZE)) return 0;
 
-    
+    // Test address conversion functions
+    // uint8_t* ApplXcpGetPointer(uint8_t addr_ext, uint32_t addr);
+    // uint32_t ApplXcpGetAddr(uint8_t * p);
+    uint32_t a = ApplXcpGetAddr((uint8_t*)&ampl);
+    uint8_t* p = ApplXcpGetPointer(0 /*addr_ext*/, a);
+    double val = *(double*)p; // read
+    assert(ampl == val); 
+    *(double*)p = 100.0; // write
+    assert(ampl == 100.0);
+
     // Create ASAM A2L description file for measurement signals, calibration variables, events and communication parameters 
 #if OPTION_ENABLE_A2L_GEN
     if (!A2lOpen(OPTION_A2L_FILE_NAME, OPTION_A2L_NAME)) return 0;

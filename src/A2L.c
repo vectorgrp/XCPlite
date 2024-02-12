@@ -367,12 +367,7 @@ static void A2lCreate_IF_DATA_DAQ() {
 #if defined( XCP_ENABLE_DAQ_EVENT_LIST ) && !defined( XCP_ENABLE_DAQ_EVENT_INFO )
 	for (uint32_t i = 0; i < eventCount; i++) {
 
-		// Shortened name
-		char shortName[9];
-		strncpy(shortName, eventList[i].name, 8);
-		shortName[8] = 0;
-
-		fprintf(gA2lFile, "/begin EVENT \"%s\" \"%s\" 0x%X DAQ 0xFF %u %u %u CONSISTENCY EVENT", eventList[i].name, shortName, i, eventList[i].timeCycle, eventList[i].timeUnit, eventList[i].priority);
+		fprintf(gA2lFile, "/begin EVENT \"%s\" \"%s\" 0x%X DAQ 0xFF %u %u %u CONSISTENCY EVENT", eventList[i].shortName, eventList[i].shortName, i, eventList[i].timeCycle, eventList[i].timeUnit, eventList[i].priority);
 #ifdef XCP_ENABLE_PACKED_MODE
 		if (eventList[i].sampleCount != 0) {
 			fprintf(gA2lFile, " /begin DAQ_PACKED_MODE ELEMENT_GROUPED STS_LAST MANDATORY %u /end DAQ_PACKED_MODE", eventList[i].sampleCount);
