@@ -160,7 +160,7 @@ std::vector<Xcp::XcpEventDescriptor>* Xcp::getEventList() {
         uint64_t ns = evtList[i].timeCycle;
         uint8_t exp = evtList[i].timeUnit;
         while (exp-- > 0) ns *= 10;
-        l->push_back(Xcp::XcpEventDescriptor(evtList[i].name, (uint32_t)(ns / 1000), evtList[i].priority, evtList[i].sampleCount, evtList[i].size));
+        l->push_back(Xcp::XcpEventDescriptor(evtList[i].shortName, (uint32_t)(ns / 1000), evtList[i].priority, evtList[i].sampleCount, evtList[i].size));
     }
     return l;
 }

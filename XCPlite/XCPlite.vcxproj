@@ -167,13 +167,13 @@
   <ItemGroup>
     <ClInclude Include="..\src\A2L.h" />
     <ClInclude Include="..\src\dbg_print.h" />
+    <ClInclude Include="..\src\main.h" />
     <ClInclude Include="..\src\platform.h" />
     <ClInclude Include="..\src\xcp.h" />
     <ClInclude Include="..\src\xcpEthServer.h" />
     <ClInclude Include="..\src\xcpEthTl.h" />
     <ClInclude Include="..\src\xcpLite.h" />
     <ClInclude Include="..\src\xcpTl.h" />
-    <ClInclude Include="main.h" />
     <ClInclude Include="main_cfg.h" />
     <ClInclude Include="xcpTl_cfg.h" />
     <ClInclude Include="xcp_cfg.h" />

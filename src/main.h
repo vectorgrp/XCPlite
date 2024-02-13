@@ -1,4 +1,5 @@
 #pragma once
+
 /* main.h */
 /*
 | Code released into public domain, no attribution required
@@ -77,11 +78,18 @@
 #include <time.h>
 #include <conio.h>
 
+#define BOOL int
+#define FALSE 0
+#define TRUE 1
+
 #endif
 
+#ifdef __cplusplus
 #include <typeinfo>
 #include <thread>
 #include <string>
 #include <vector>
+#endif
 
 #include "main_cfg.h"
+

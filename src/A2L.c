@@ -27,6 +27,20 @@ static uint32_t gA2lComponents;
 static uint32_t gA2lInstances;
 static uint32_t gA2lConversions;
 
+
+//----------------------------------------------------------------------------------
+// Check for memory accessibility
+//#define A2L_ENABLE_MEMORY_CHECK
+#ifdef A2L_ENABLE_MEMORY_CHECK
+static void mem_check(const char* name, int32_t type, uint8_t ext, uint32_t addr) {
+	(void)type; (void)name;
+	volatile uint8_t *p = ApplXcpGetPointer(ext,addr);
+	if (p==NULL) { DBG_PRINTF1("ERROR: memory address 0x%04X of variable %s not accessible !\n",addr,name); assert(0); }
+    volatile uint8_t b = *p; // if this leads to a memory protection error, check if address transformation from A2L to uint_8_p* transformation is correct 
+}
+#endif	
+
+
 //----------------------------------------------------------------------------------
 static const char* gA2lHeader =
 "ASAP2_VERSION 1 71\n"
@@ -201,7 +215,6 @@ static const char* const gA2lFooter =
 #define printAddrExt(ext) if (ext>0) fprintf(gA2lFile, " ECU_ADDRESS_EXTENSION %u",ext);
 
 const char* A2lGetSymbolName(const char* instanceName, const char* name) {
-
 	static char s[256];
 	if (instanceName != NULL && strlen(instanceName) > 0) {
 		SNPRINTF(s, 256, "%s.%s", instanceName, name);
@@ -287,7 +300,6 @@ static const char* getPhysMax(int32_t type, double factor, double offset) {
 	case A2L_TYPE_UINT32: value = 4294967295; break;
 	default:                value = 1E12;
 	}
-
 	static char str[20];
 	snprintf(str, 20, "%f", factor * value + offset);
 	return str;
@@ -526,6 +538,9 @@ void A2lCreateTypedefInstance_(const char* instanceName, const char* typeName, u
 void A2lCreateMeasurement_(const char* instanceName, const char* name, int32_t type, uint8_t ext, uint32_t addr, double factor, double offset, const char* unit, const char* comment) {
 	
 	assert(gA2lFile != NULL);
+#ifdef A2L_ENABLE_MEMORY_CHECK
+	mem_check(name, type, ext, addr);
+#endif	
 	if (unit == NULL) unit = "";
 	if (comment == NULL) comment = "";
 	const char *conv = "NO";

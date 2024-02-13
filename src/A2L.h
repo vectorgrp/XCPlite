@@ -4,6 +4,9 @@
 /* Copyright(c) Vector Informatik GmbH.All rights reserved.
    Licensed under the MIT license.See LICENSE file in the project root for details. */
 
+#define OPTION_ENABLE_A2L_SYMBOL_LINKS  ON   // Enable generation of symbol links (required for CANape integrated linker map update)
+
+
 #define A2L_TYPE_UINT8    1
 #define A2L_TYPE_UINT16   2
 #define A2L_TYPE_UINT32   4
@@ -20,8 +23,6 @@
 #ifndef A2lGetAddr
     #define A2lGetAddr(p) ApplXcpGetAddr(p)
 #endif
-
-#define OPTION_ENABLE_A2L_SYMBOL_LINKS  ON   // Enable generation of symbol links (required for CANape integrated linker map update)
 
 #ifdef __cplusplus
 

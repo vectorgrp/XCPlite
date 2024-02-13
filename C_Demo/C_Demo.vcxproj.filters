@@ -27,7 +27,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ecu.h" />
-    <ClInclude Include="main.h" />
     <ClInclude Include="main_cfg.h" />
     <ClInclude Include="xcptl_cfg.h" />
     <ClInclude Include="..\src\A2L.h">
@@ -59,6 +58,9 @@
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\dbg_print.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="main.h">
       <Filter>src</Filter>
     </ClInclude>
   </ItemGroup>

@@ -31,7 +31,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="main.h" />
     <ClInclude Include="main_cfg.h" />
     <ClInclude Include="xcptl_cfg.h" />
     <ClInclude Include="xcp_cfg.h" />
@@ -69,6 +68,9 @@
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\options.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="main.h">
       <Filter>src</Filter>
     </ClInclude>
   </ItemGroup>
