@@ -372,13 +372,14 @@ static uint8_t XcpWriteMta( uint8_t size, const uint8_t* data )
     if (gXcp.MtaExt == 0x00) {
         if (gXcp.MtaPtr == NULL) return CRC_ACCESS_DENIED;
         memcpy(gXcp.MtaPtr, data, size);
+        gXcp.MtaPtr += size;
         return 0; // Ok
     }
 
     return CRC_ACCESS_DENIED; // Access violation
 }
 
-// Read n bytes. Copying of size bytes from data to gXcp.MtaPtr
+// Read n bytes. Copying of size bytes from gXcp.MtaPtr to data
 static uint8_t XcpReadMta( uint8_t size, uint8_t* data )
 {
     // Ext=0x01 Relativ addressing
@@ -401,6 +402,7 @@ static uint8_t XcpReadMta( uint8_t size, uint8_t* data )
     if (gXcp.MtaExt == 0x00) {
         if (gXcp.MtaPtr == NULL) return CRC_ACCESS_DENIED;
         memcpy(data, gXcp.MtaPtr, size);
+        gXcp.MtaPtr += size;
         return 0; // Ok
     }
 
