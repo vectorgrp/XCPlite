@@ -7,11 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		8017513E2B8E829200D4AD60 /* xcpAppl.c in Sources */ = {isa = PBXBuildFile; fileRef = 8017513D2B8E829200D4AD60 /* xcpAppl.c */; };
 		D52705B32B76D3BB00875CEC /* xcpEthServer.c in Sources */ = {isa = PBXBuildFile; fileRef = D52705B22B76D3BB00875CEC /* xcpEthServer.c */; };
 		D5712CA92B719648008E08CC /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = D5712CA82B719648008E08CC /* main.c */; };
 		D5712CAD2B719673008E08CC /* xcpLite.c in Sources */ = {isa = PBXBuildFile; fileRef = D5712CAB2B719673008E08CC /* xcpLite.c */; };
 		D5712CAE2B719673008E08CC /* xcpEthTl.c in Sources */ = {isa = PBXBuildFile; fileRef = D5712CAC2B719673008E08CC /* xcpEthTl.c */; };
-		D5712CB02B71967F008E08CC /* xcpAppl.c in Sources */ = {isa = PBXBuildFile; fileRef = D5712CAF2B71967F008E08CC /* xcpAppl.c */; };
 		D5712CB62B71977D008E08CC /* A2L.c in Sources */ = {isa = PBXBuildFile; fileRef = D5712CB52B71977C008E08CC /* A2L.c */; };
 		D5712CB82B7197AA008E08CC /* platform.c in Sources */ = {isa = PBXBuildFile; fileRef = D5712CB72B7197AA008E08CC /* platform.c */; };
 /* End PBXBuildFile section */
@@ -29,6 +29,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		8017513D2B8E829200D4AD60 /* xcpAppl.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = xcpAppl.c; path = src/xcpAppl.c; sourceTree = SOURCE_ROOT; };
 		D52705B22B76D3BB00875CEC /* xcpEthServer.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = xcpEthServer.c; path = src/xcpEthServer.c; sourceTree = SOURCE_ROOT; };
 		D52705B42B76D3F900875CEC /* xcptl_cfg.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = xcptl_cfg.h; sourceTree = "<group>"; };
 		D52705B52B76D3F900875CEC /* main_cfg.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = main_cfg.h; sourceTree = "<group>"; };
@@ -38,7 +39,6 @@
 		D5712CA82B719648008E08CC /* main.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
 		D5712CAB2B719673008E08CC /* xcpLite.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = xcpLite.c; path = src/xcpLite.c; sourceTree = SOURCE_ROOT; };
 		D5712CAC2B719673008E08CC /* xcpEthTl.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = xcpEthTl.c; path = src/xcpEthTl.c; sourceTree = SOURCE_ROOT; };
-		D5712CAF2B71967F008E08CC /* xcpAppl.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = xcpAppl.c; sourceTree = "<group>"; };
 		D5712CB52B71977C008E08CC /* A2L.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = A2L.c; path = src/A2L.c; sourceTree = SOURCE_ROOT; };
 		D5712CB72B7197AA008E08CC /* platform.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = platform.c; path = src/platform.c; sourceTree = SOURCE_ROOT; };
 		D595B51B2B77FB8C008DC3F2 /* xcpEthTl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = xcpEthTl.h; path = src/xcpEthTl.h; sourceTree = SOURCE_ROOT; };
@@ -64,6 +64,7 @@
 		D5712CA22B719429008E08CC /* XCPlite */ = {
 			isa = PBXGroup;
 			children = (
+				8017513D2B8E829200D4AD60 /* xcpAppl.c */,
 				D595B51F2B77FB8C008DC3F2 /* A2L.h */,
 				D595B51C2B77FB8C008DC3F2 /* platform.h */,
 				D595B51E2B77FB8C008DC3F2 /* xcp.h */,
@@ -77,7 +78,6 @@
 				D52705B42B76D3F900875CEC /* xcptl_cfg.h */,
 				D52705B22B76D3BB00875CEC /* xcpEthServer.c */,
 				D5712CB72B7197AA008E08CC /* platform.c */,
-				D5712CAF2B71967F008E08CC /* xcpAppl.c */,
 				D5712CB52B71977C008E08CC /* A2L.c */,
 				D5712CAC2B719673008E08CC /* xcpEthTl.c */,
 				D5712CAB2B719673008E08CC /* xcpLite.c */,
@@ -160,11 +160,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				D52705B32B76D3BB00875CEC /* xcpEthServer.c in Sources */,
+				8017513E2B8E829200D4AD60 /* xcpAppl.c in Sources */,
 				D5712CB62B71977D008E08CC /* A2L.c in Sources */,
 				D5712CA92B719648008E08CC /* main.c in Sources */,
 				D5712CB82B7197AA008E08CC /* platform.c in Sources */,
 				D5712CAD2B719673008E08CC /* xcpLite.c in Sources */,
-				D5712CB02B71967F008E08CC /* xcpAppl.c in Sources */,
 				D5712CAE2B719673008E08CC /* xcpEthTl.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

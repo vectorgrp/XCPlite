@@ -260,69 +260,77 @@ int socketClose(SOCKET *sp) {
 #include <net/if_dl.h>
 #endif
 
-static int GetMAC(char* ifname, uint8_t* mac) {
-    struct ifaddrs* ifap, * ifaptr;
-
-    if (getifaddrs(&ifap) == 0) {
-        for (ifaptr = ifap; ifaptr != NULL; ifaptr = ifaptr->ifa_next) {
+static BOOL GetMAC(char* ifname, uint8_t* mac) {
+    struct ifaddrs *ifaddrs, *ifa;
+    if (getifaddrs(&ifaddrs) == 0) {
+        for (ifa = ifaddrs; ifa != NULL; ifa = ifa->ifa_next) {
+            if (!strcmp(ifa->ifa_name, ifname)) {
 #ifdef __APPLE__
-            if (((ifaptr)->ifa_addr)->sa_family == AF_LINK) {
-                memcpy(mac, (unsigned char *)LLADDR((struct sockaddr_dl *)(ifaptr)->ifa_addr), 6);
-            }
-#else 
-            if (!strcmp(ifaptr->ifa_name, ifname) && ifaptr->ifa_addr->sa_family == AF_PACKET) {
-                struct sockaddr_ll* s = (struct sockaddr_ll*)ifaptr->ifa_addr;
-                memcpy(mac, s->sll_addr, 6);
-                break;
-            }
+                if (ifa->ifa_addr->sa_family == AF_LINK) {
+                    memcpy(mac, (unsigned char *)LLADDR((struct sockaddr_dl *)ifa->ifa_addr), 6);
+                    DBG_PRINTF4("  %s: MAC = %02X-%02X-%02X-%02X-%02X-%02X\n", ifa->ifa_name, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+                }
+#else
+                if (ifa->ifa_addr->sa_family == AF_PACKET) {
+                    struct sockaddr_ll* s = (struct sockaddr_ll*)ifa->ifa_addr;
+                    memcpy(mac, s->sll_addr, 6);
+                    DBG_PRINTF4("  %s: MAC = %02X-%02X-%02X-%02X-%02X-%02X\n", ifa->ifa_name, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+                    break;
+                }
 #endif
+            }
         }
-        freeifaddrs(ifap);
-        return ifaptr != NULL;
+        freeifaddrs(ifaddrs);
+        return (ifa != NULL);
     }
-    return 0;
+    return FALSE;
 }
 
-int socketGetLocalAddr(uint8_t* mac, uint8_t* addr) {
-
+BOOL socketGetLocalAddr(uint8_t* mac, uint8_t* addr) {
     static uint32_t addr1 = 0;
     static uint8_t mac1[6] = { 0,0,0,0,0,0 };
-
-    if (addr1 != 0) {
-        if (addr) memcpy(addr, &addr1, 4);
-        if (mac) memcpy(mac, mac1, 6);
-        return 1;
-    }
-
-    struct ifaddrs* ifaddr;
-    char strbuf[100];
-    struct ifaddrs* ifa1 = NULL;
-
-    if (-1 != getifaddrs(&ifaddr)) {
-        for (struct ifaddrs* ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
-            if ((NULL != ifa->ifa_addr) && (AF_INET == ifa->ifa_addr->sa_family)) {
-                struct sockaddr_in* sa = (struct sockaddr_in*)(ifa->ifa_addr);
-                if (0x100007f != sa->sin_addr.s_addr) { /* not loop back adapter (127.0.0.1) */
-                    inet_ntop(AF_INET, &sa->sin_addr.s_addr, strbuf, sizeof(strbuf));
-                    DBG_PRINTF3("  Network interface %s: ip=%s\n", ifa->ifa_name, strbuf);
-                    if (addr1 == 0) {
-                        addr1 = sa->sin_addr.s_addr;
-                        ifa1 = ifa;
+    if (addr1 == 0) {
+        struct ifaddrs *ifaddrs, *ifa;
+        struct ifaddrs *ifa1 = NULL;
+        char strbuf[100];
+        if (-1 != getifaddrs(&ifaddrs)) {
+            for (ifa = ifaddrs; ifa != NULL; ifa = ifa->ifa_next) {
+                if ((NULL != ifa->ifa_addr) && (AF_INET == ifa->ifa_addr->sa_family)) { // IPV4
+                    struct sockaddr_in* sa = (struct sockaddr_in*)(ifa->ifa_addr);
+                    if (0x100007f != sa->sin_addr.s_addr) { /* not 127.0.0.1 */
+#ifdef DBG_LEVEL
+                        if (DBG_LEVEL >= 5) {
+                            inet_ntop(AF_INET, &sa->sin_addr.s_addr, strbuf, sizeof(strbuf));
+                            printf("  %s: IPV4 = %s\n", ifa->ifa_name, strbuf);
+                        }
+#endif
+                        if (addr1 == 0) {
+                            addr1 = sa->sin_addr.s_addr;
+                            ifa1 = ifa;
+                        }
                     }
                 }
             }
+            if (addr1 != 0) {
+                GetMAC(ifa1->ifa_name, mac1);
+#ifdef DBG_LEVEL
+                if (DBG_LEVEL >= 3) {
+                    inet_ntop(AF_INET, &addr1, strbuf, sizeof(strbuf));
+                    printf("  Use IPV4 adapter %s with IP=%s, MAC=%02X-%02X-%02X-%02X-%02X-%02X for A2L info and clock UUID\n", ifa1->ifa_name, strbuf, mac1[0], mac1[1], mac1[2], mac1[3], mac1[4], mac1[5]);
+                }
+#endif
+            }
+            freeifaddrs(ifaddrs);
         }
-        freeifaddrs(ifaddr);
     }
     if (addr1 != 0) {
-        GetMAC(ifa1->ifa_name, mac1);
         if (mac) memcpy(mac, mac1, 6);
         if (addr) memcpy(addr, &addr1, 4);
-        inet_ntop(AF_INET, &addr1, strbuf, sizeof(strbuf));
-        DBG_PRINTF3("  Use adapter %s with ip=%s, mac=%02X-%02X-%02X-%02X-%02X-%02X for A2L info and clock UUID\n", ifa1->ifa_name, strbuf, mac1[0], mac1[1], mac1[2], mac1[3], mac1[4], mac1[5]);
-        return 1;
+        return TRUE;
+    } 
+    else {
+        return FALSE;
     }
-    return 0;
 }
 
 
@@ -498,7 +506,7 @@ BOOL socketGetLocalAddr(uint8_t* mac, uint8_t* addr) {
                 if (pAdapter->Type == MIB_IF_TYPE_ETHERNET) {
                     inet_pton(AF_INET, pAdapter->IpAddressList.IpAddress.String, &a);
                     if (a!=0) {
-
+#ifdef DBG_LEVEL
                         DBG_PRINTF3("  Ethernet adapter %" PRIu32 ":", (uint32_t) pAdapter->Index);
                         //DBG_PRINTF3(" %s", pAdapter->AdapterName);
                         DBG_PRINTF3(" %s", pAdapter->Description);
@@ -508,7 +516,7 @@ BOOL socketGetLocalAddr(uint8_t* mac, uint8_t* addr) {
                         //DBG_PRINTF3(" Gateway: %s", pAdapter->GatewayList.IpAddress.String);
                         //if (pAdapter->DhcpEnabled) DBG_PRINTF3(" DHCP");
                         DBG_PRINT3("\n");
-
+#endif
                         if (addr1[0] == 0 ) {
                             memcpy(addr1, (uint8_t*)&a, 4);
                             memcpy(mac1, pAdapter->Address, 6);
@@ -658,7 +666,7 @@ Linux clock type
                   Not available on WSL
 */
 #define CLOCK_TYPE CLOCK_REALTIME
-/// #define CLOCK_TYPE CLOCK_TAI
+// #define CLOCK_TYPE CLOCK_TAI
 
 static struct timespec gtr;
 #ifndef CLOCK_USE_UTC_TIME_NS
@@ -711,7 +719,7 @@ BOOL clockInit()
     clockGet();
 
 #ifdef DBG_LEVEL
-    if (DBG_LEVEL >= 2) {
+    if (DBG_LEVEL >= 4) {
         uint64_t t1, t2;
         char s[128];
         struct timespec gts;

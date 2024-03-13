@@ -70,13 +70,7 @@
 
 
 //-------------------------------------------------------------------------------
-// Debug 
-
-// Debug console prints
-#if OPTION_ENABLE_DBG_PRINTS
-  #define XCP_ENABLE_DEBUG_PRINTS
-  #define XCP_DBG_LEVEL XCP_DEBUG_LEVEL
-#endif
+// Debug
 
 // Enable extended error checks, performance penalty !!!
 #define XCP_ENABLE_TEST_CHECKS

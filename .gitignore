@@ -6,6 +6,7 @@ CPP_Demo/build/
 build_XCPlite/
 build_C_Demo/
 build_CPP_Demo/
+build/
 bin/
 obj/
 *.[oa]
@@ -35,6 +36,12 @@ obj/
 *.log
 *.vcxproj.FileListAbsolute.txt
 
+# Xcode
+*.DS_Store
+Xcode_build/
+/XCPlite.xcodeproj/xcuserdata/
+/XCPlite.xcodeproj/project.xcworkspace/
+
 
 # CANape specific
 *.pcap
@@ -46,12 +53,3 @@ obj/
 Environment
 CustomProperties.json
 
-# MAC
-*.DS_Store
-Xcode_build/
-build/
-/XCPlite.xcodeproj/xcuserdata/rainer.xcuserdatad/xcdebugger/Breakpoints_v2.xcbkptlist
-/XCPlite.xcodeproj/project.xcworkspace/xcuserdata/rainer.xcuserdatad/UserInterfaceState.xcuserstate
-/XCPlite.xcodeproj/project.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings
-/XCPlite.xcodeproj/project.xcworkspace/contents.xcworkspacedata
-/XCPlite.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
