@@ -146,20 +146,26 @@ Version 4.x:
 
 ### Linux or macOS
 
-$ sudo apt-get install cmake g++ clang ninja-build
-or
-$ brew install cmake gcc 
+#### Install development tooling
+for Linux:
+``` sh
+sudo apt-get install cmake g++ clang ninja-build
+```
+for MacOS
+``` sh
+brew install cmake gcc 
+```
 
 #### Build
 
 Edit CMakeLists.txt: set(WINDOWS FALSE), set(MACOS FALSE)
 
-```
-$ cd <targetDirectory> (XCPlite or CPP_Demo or C_DEMO)
-$ cmake -DCMAKE_BUILD_TYPE=Release -S . -B build  
-$ cd build
-$ make
-$ ./<targetName>.out (XCPlite or CPP_Demo or C_DEMO)
+``` sh
+cd <targetDirectory> (XCPlite or CPP_Demo or C_DEMO)
+cmake -DCMAKE_BUILD_TYPE=Release -S . -B build  
+cd build
+make
+./<targetName>.out (XCPlite or CPP_Demo or C_DEMO)
 
 ```
 
@@ -169,26 +175,23 @@ $ ./<targetName>.out (XCPlite or CPP_Demo or C_DEMO)
 Use the Visual Studio 19 projects included in the repo or build projects with CMake.
 
 #### Build Visual Studio project and solution
-```
+
 Start cmake-gui
 Start the generated VS solution
-```
 
 #### Build on Windows command line
 
-```
 For the CMake setup, prepare your command line environment.
 Set compiler to Microsoft x64 cl.exe and make sure the system finds cmake and ninja or make.
 You can also use the Windows clang compiler.
 
+``` bat
+call "C:\Program Files (x86)\Microsoft Visual Studio 15.0\VC\Auxiliary\Build\vcvars64.bat"
+set PATH=C:\Tools\ninja;%PATH%
+set PATH=C:\Tools\cmake_3.17.2.0\bin;%PATH%
+cd XCPlite
+mkdir build_release
+cd build_release
+cmake -GNinja -DCMAKE_BUILD_TYPE=Release ../C_Demo
+ninja
 ```
-> call "C:\Program Files (x86)\Microsoft Visual Studio 15.0\VC\Auxiliary\Build\vcvars64.bat"
-> set PATH=C:\Tools\ninja;%PATH%
-> set PATH=C:\Tools\cmake_3.17.2.0\bin;%PATH%
-> cd XCPlite
-> mkdir build_release
-> cd build_release
-> cmake -GNinja -DCMAKE_BUILD_TYPE=Release ../C_Demo
-> ninja
-```
-
