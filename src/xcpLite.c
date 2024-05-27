@@ -1697,7 +1697,7 @@ tXcpEvent* XcpGetEvent(uint16_t event) {
 }
 
 
-// Create an XCP event, <rate> in us, 0 = sporadic, <priority> 0-normal, >=1 realtime, <sampleCount> only for packed mode events only, <size> only for extended events
+// Create an XCP event, <cycleTimeNs> in ns, 0 = sporadic, <priority> 0-normal, >=1 realtime, <sampleCount> only for packed mode events only, <size> only for extended events
 // Returns the XCP event number for XcpEventXxx() or 0xFFFF when out of memory
 uint16_t XcpCreateEvent(const char* name, uint32_t cycleTimeNs, uint8_t priority, uint16_t sampleCount, uint32_t size) {
 

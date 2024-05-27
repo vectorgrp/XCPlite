@@ -176,7 +176,7 @@ void ecuInit() {
     for (unsigned int i = 0; i < 1024; i++) longArray1[i] = i;
 
     // Create an XCP event for the cyclic task
-    gXcpEvent_EcuCyclic = XcpCreateEvent("ecuTask", ECU_TASK_CYCLE_TIME_US/CLOCK_TICKS_PER_US, 0, 0, 0);
+    gXcpEvent_EcuCyclic = XcpCreateEvent("ecuTask", ECU_TASK_CYCLE_TIME_US*1000, 0, 0, 0);
 }
 
 
