@@ -652,14 +652,6 @@ BOOL XcpTlHandleCommands(uint32_t timeout_ms) {
               DBG_PRINT_ERROR("ERROR: corrupt message received!\n");
               return FALSE; // Error
             }
-#ifdef VECTOR_INTERNAL  
-#ifdef XCPTL_ENABLE_MULTICAST
-            if (dstPort!=0 && dstPort!=gXcpTl.ServerPort) { // Multicast received from XCP command socket (XL-API only)
-              return handleXcpMulticastCommand(n, &msgBuf, dstAddr, dstPort);
-            }
-            else 
-#endif
-#endif 
             return handleXcpCommand(n, &msgBuf, srcAddr, srcPort);
         }
     }
