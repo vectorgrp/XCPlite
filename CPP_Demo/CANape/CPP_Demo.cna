@@ -10,13 +10,11 @@ PrgDate=14.12.2023
 Description=
 CreationTime=18:30
 CreationDate=01/27/2022 ; Month/Day/Year
-<<<<<<< HEAD
 ModificationTime=18:22
 ModificationDate=02/07/2024 ; Month/Day/Year
 
 ModificationTime=14:23
 ModificationDate=07/19/2023 ; Month/Day/Year
->>>>>>> 0ded51f (V6 synch with internal version)
 Protected=0
 CurrentWindowsACP=1252
 
@@ -905,7 +903,7 @@ FilterNodeID=Alle\Messliste
 TreeExpand_0=@Alle
 TreeExpand_1=Alle\Messliste
 TreeExpand_2=Alle\Messliste\Alle Signale
-TreeExpand_3=$Alle\Geräte
+TreeExpand_3=$Alle\Gerï¿½te
 TreeExpand_4=#Alle\Messliste\Alle Signale\gChannel1
 TreeExpand_5=@Alle\Messliste
 TreeExpand_6=$Alle\Messliste\Alle Signale
