@@ -18,7 +18,6 @@
 #include "platform.h"
 #include "dbg_print.h"
 
-
 #if defined(_WIN) // Windows // Windows needs to link with Ws2_32.lib
 
 #pragma comment(lib, "ws2_32.lib")
@@ -31,6 +30,10 @@
 /**************************************************************************/
 
 #ifdef _LINUX
+
+#ifdef PLATFORM_ENABLE_KEYBOARD
+
+#include <fcntl.h>
 
 int _getch() {
   struct termios oldt, newt;
@@ -66,7 +69,7 @@ int _kbhit() {
   return 0;
 }
 
-
+#endif
 #endif
 
 
@@ -104,7 +107,6 @@ void sleepMs(uint32_t ms) {
 
 #elif defined(_WIN) // Windows
 
-
 void sleepNs(uint32_t ns) {
 
     uint64_t t1, t2;
@@ -133,7 +135,7 @@ void sleepNs(uint32_t ns) {
 
 void sleepMs(uint32_t ms) {
     if (ms > 0 && ms < 10) {  
-      DBG_PRINT_ERROR("WARNING: cannot precisely sleep less than 10ms!\n");
+      DBG_PRINT_WARNING("WARNING: cannot precisely sleep less than 10ms!\n");
     }
     Sleep(ms);
 }
@@ -149,7 +151,7 @@ void sleepMs(uint32_t ms) {
 
 #if defined(_LINUX)
 
-void mutexInit(MUTEX* m, int recursive, uint32_t spinCount) {
+void mutexInit(MUTEX* m, BOOL recursive, uint32_t spinCount) {
     (void)spinCount;
     if (recursive) {
         pthread_mutexattr_t ma;
@@ -169,7 +171,7 @@ void mutexDestroy(MUTEX* m) {
 
 #elif defined(_WIN)
 
-void mutexInit(MUTEX* m, int recursive, uint32_t spinCount) {
+void mutexInit(MUTEX* m, BOOL recursive, uint32_t spinCount) {
     (void) recursive;
     // Window critical sections are always recursive
     (void)InitializeCriticalSectionAndSpinCount(m,spinCount);
@@ -190,17 +192,16 @@ void mutexDestroy(MUTEX* m) {
 
 #ifdef _LINUX
 
-int socketStartup() {
-
-  return 1;
+BOOL socketStartup() {
+  return TRUE;
 }
 
 void socketCleanup() {
-
 }
 
-int socketOpen(SOCKET* sp, BOOL useTCP, BOOL nonBlocking, BOOL reuseaddr, BOOL timestamps) {
+BOOL socketOpen(SOCKET* sp, BOOL useTCP, BOOL nonBlocking, BOOL reuseaddr, BOOL timestamps) {
     (void)nonBlocking;
+    (void)timestamps;
     // Create a socket
     *sp = socket(AF_INET, useTCP ?SOCK_STREAM:SOCK_DGRAM , 0);
     if (*sp < 0) {
@@ -213,10 +214,10 @@ int socketOpen(SOCKET* sp, BOOL useTCP, BOOL nonBlocking, BOOL reuseaddr, BOOL t
         setsockopt(*sp, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
     }
 
-    return 1;
+    return TRUE;
 }
 
-int socketBind(SOCKET sock, uint8_t* addr, uint16_t port) {
+BOOL socketBind(SOCKET sock, uint8_t* addr, uint16_t port) {
 
     // Bind the socket to any address and the specified port
     SOCKADDR_IN a;
@@ -233,25 +234,28 @@ int socketBind(SOCKET sock, uint8_t* addr, uint16_t port) {
         return 0;
     }
 
-    return 1;
+    return TRUE;
 }
 
 
-int socketShutdown(SOCKET sock) {
+BOOL socketShutdown(SOCKET sock) {
     if (sock != INVALID_SOCKET) {
         shutdown(sock, SHUT_RDWR);
     }
-    return 1;
+    return TRUE;
 }
 
-int socketClose(SOCKET *sp) {
+BOOL socketClose(SOCKET *sp) {
     if (*sp != INVALID_SOCKET) {
         close(*sp);
         *sp = INVALID_SOCKET;
     }
-    return 1;
+    return TRUE;
 }
 
+
+
+#ifdef PLATFORM_ENABLE_GET_LOCAL_ADDR
 
 #ifndef __APPLE__
 #include <linux/if_packet.h>
@@ -289,32 +293,29 @@ static BOOL GetMAC(char* ifname, uint8_t* mac) {
 BOOL socketGetLocalAddr(uint8_t* mac, uint8_t* addr) {
     static uint32_t addr1 = 0;
     static uint8_t mac1[6] = { 0,0,0,0,0,0 };
+#ifdef DBG_LEVEL
+    char strbuf[64];
+#endif
     if (addr1 == 0) {
         struct ifaddrs *ifaddrs, *ifa;
         struct ifaddrs *ifa1 = NULL;
-        char strbuf[100];
         if (-1 != getifaddrs(&ifaddrs)) {
             for (ifa = ifaddrs; ifa != NULL; ifa = ifa->ifa_next) {
                 if ((NULL != ifa->ifa_addr) && (AF_INET == ifa->ifa_addr->sa_family)) { // IPV4
                     struct sockaddr_in* sa = (struct sockaddr_in*)(ifa->ifa_addr);
                     if (0x100007f != sa->sin_addr.s_addr) { /* not 127.0.0.1 */
-#ifdef DBG_LEVEL
-                        if (DBG_LEVEL >= 5) {
-                            inet_ntop(AF_INET, &sa->sin_addr.s_addr, strbuf, sizeof(strbuf));
-                            printf("  %s: IPV4 = %s\n", ifa->ifa_name, strbuf);
-                        }
-#endif
                         if (addr1 == 0) {
                             addr1 = sa->sin_addr.s_addr;
                             ifa1 = ifa;
+                            break;
                         }
                     }
                 }
             }
-            if (addr1 != 0) {
+            if (addr1 != 0 && ifa1!=NULL) {
                 GetMAC(ifa1->ifa_name, mac1);
 #ifdef DBG_LEVEL
-                if (DBG_LEVEL >= 3) {
+                if (DBG_LEVEL >= 4) {
                     inet_ntop(AF_INET, &addr1, strbuf, sizeof(strbuf));
                     printf("  Use IPV4 adapter %s with IP=%s, MAC=%02X-%02X-%02X-%02X-%02X-%02X for A2L info and clock UUID\n", ifa1->ifa_name, strbuf, mac1[0], mac1[1], mac1[2], mac1[3], mac1[4], mac1[5]);
                 }
@@ -335,9 +336,9 @@ BOOL socketGetLocalAddr(uint8_t* mac, uint8_t* addr) {
 
 
 
+#endif // PLATFORM_ENABLE_GET_LOCAL_ADDR
 
 #endif // _LINUX
-
 
 #if defined(_WIN)
 
@@ -475,6 +476,7 @@ BOOL socketClose(SOCKET* sockp) {
     return TRUE;
 }
 
+#ifdef PLATFORM_ENABLE_GET_LOCAL_ADDR
 
 #include <iphlpapi.h>
 #pragma comment(lib, "IPHLPAPI.lib")
@@ -507,15 +509,15 @@ BOOL socketGetLocalAddr(uint8_t* mac, uint8_t* addr) {
                     inet_pton(AF_INET, pAdapter->IpAddressList.IpAddress.String, &a);
                     if (a!=0) {
 #ifdef DBG_LEVEL
-                        DBG_PRINTF3("  Ethernet adapter %" PRIu32 ":", (uint32_t) pAdapter->Index);
-                        //DBG_PRINTF3(" %s", pAdapter->AdapterName);
-                        DBG_PRINTF3(" %s", pAdapter->Description);
-                        DBG_PRINTF3(" %02X-%02X-%02X-%02X-%02X-%02X", pAdapter->Address[0], pAdapter->Address[1], pAdapter->Address[2], pAdapter->Address[3], pAdapter->Address[4], pAdapter->Address[5]);
-                        DBG_PRINTF3(" %s", pAdapter->IpAddressList.IpAddress.String);
-                        //DBG_PRINTF3(" %s", pAdapter->IpAddressList.IpMask.String);
-                        //DBG_PRINTF3(" Gateway: %s", pAdapter->GatewayList.IpAddress.String);
-                        //if (pAdapter->DhcpEnabled) DBG_PRINTF3(" DHCP");
-                        DBG_PRINT3("\n");
+                        DBG_PRINTF5("  Ethernet adapter %" PRIu32 ":", (uint32_t) pAdapter->Index);
+                        //DBG_PRINTF5(" %s", pAdapter->AdapterName);
+                        DBG_PRINTF5(" %s", pAdapter->Description);
+                        DBG_PRINTF5(" %02X-%02X-%02X-%02X-%02X-%02X", pAdapter->Address[0], pAdapter->Address[1], pAdapter->Address[2], pAdapter->Address[3], pAdapter->Address[4], pAdapter->Address[5]);
+                        DBG_PRINTF5(" %s", pAdapter->IpAddressList.IpAddress.String);
+                        //DBG_PRINTF5(" %s", pAdapter->IpAddressList.IpMask.String);
+                        //DBG_PRINTF5(" Gateway: %s", pAdapter->GatewayList.IpAddress.String);
+                        //if (pAdapter->DhcpEnabled) DBG_PRINTF5(" DHCP");
+                        DBG_PRINT5("\n");
 #endif
                         if (addr1[0] == 0 ) {
                             memcpy(addr1, (uint8_t*)&a, 4);
@@ -536,6 +538,9 @@ BOOL socketGetLocalAddr(uint8_t* mac, uint8_t* addr) {
     }
     return FALSE;
 }
+
+#endif // PLATFORM_ENABLE_GET_LOCAL_ADDR
+
 
 #endif // _WIN
 
@@ -693,25 +698,25 @@ char* clockGetString(char* s, uint32_t l, uint64_t c) {
 
 BOOL clockInit()
 {
-    DBG_PRINT2("\nInit clock\n  (");
+    DBG_PRINT3("\nInit clock\n  (");
 #ifdef CLOCK_USE_UTC_TIME_NS
-    DBG_PRINT2("CLOCK_USE_UTC_TIME_NS,");
+    DBG_PRINT3("CLOCK_USE_UTC_TIME_NS,");
 #endif
 #ifdef CLOCK_USE_APP_TIME_US
-    DBG_PRINT2("CLOCK_USE_APP_TIME_US,");
+    DBG_PRINT3("CLOCK_USE_APP_TIME_US,");
 #endif
 #if CLOCK_TYPE == CLOCK_TAI
-    DBG_PRINT2("CLOCK_TYPE_TAI,");
+    DBG_PRINT3("CLOCK_TYPE_TAI,");
 #endif
 #if CLOCK_TYPE == CLOCK_REALTIME
-    DBG_PRINT2("CLOCK_TYPE_REALTIME,");
+    DBG_PRINT3("CLOCK_TYPE_REALTIME,");
 #endif
-    DBG_PRINT2(")\n");
+    DBG_PRINT3(")\n");
 
     sClock = 0;
 
     clock_getres(CLOCK_TYPE, &gtr);
-    DBG_PRINTF2("Clock resolution is %lds,%ldns!\n", gtr.tv_sec, gtr.tv_nsec);
+    DBG_PRINTF4("Clock resolution is %lds,%ldns!\n", gtr.tv_sec, gtr.tv_nsec);
 
 #ifndef CLOCK_USE_UTC_TIME_NS
     clock_gettime(CLOCK_TYPE, &gts0);
@@ -727,11 +732,11 @@ BOOL clockInit()
         time_t now = time(NULL);
         gettimeofday(&ptm, NULL);
         clock_gettime(CLOCK_TYPE, &gts);
-        DBG_PRINTF2("  CLOCK_REALTIME=%lus time=%lu timeofday=%lu\n", gts.tv_sec, now, ptm.tv_sec);
+        DBG_PRINTF4("  CLOCK_REALTIME=%lus time=%lu timeofday=%lu\n", gts.tv_sec, now, ptm.tv_sec);
         t1 = clockGet(); sleepNs(100000); t2 = clockGet();
-        DBG_PRINTF2("  +0us:   %s\n", clockGetString(s, sizeof(s), t1));
-        DBG_PRINTF2("  +100us: %s (%u)\n", clockGetString(s, sizeof(s), t2), (uint32_t)(t2 - t1));
-        DBG_PRINT2("\n");
+        DBG_PRINTF4("  +0us:   %s\n", clockGetString(s, sizeof(s), t1));
+        DBG_PRINTF4("  +100us: %s (%u)\n", clockGetString(s, sizeof(s), t2), (uint32_t)(t2 - t1));
+        DBG_PRINT4("\n");
     }
 #endif
 
@@ -797,11 +802,11 @@ char* clockGetTimeString(char* str, uint32_t l, int64_t t) {
 
 BOOL clockInit() {
 
-    DBG_PRINT2("\nInit clock\n");
+    DBG_PRINT3("\nInit clock\n");
 #ifdef CLOCK_USE_UTC_TIME_NS
-    DBG_PRINT2("  CLOCK_USE_UTC_TIME_NS\n");
+    DBG_PRINT3("  CLOCK_USE_UTC_TIME_NS\n");
 #else
-    DBG_PRINT2("  CLOCK_USE_APP_TIME_US\n");
+    DBG_PRINT3("  CLOCK_USE_APP_TIME_US\n");
 #endif
     
     sClock = 0;
@@ -862,9 +867,9 @@ BOOL clockInit() {
     clockGet();
 
 #ifdef DBG_LEVEL
-    if (DBG_LEVEL >= 3) {
+    if (DBG_LEVEL >= 5) {
 #ifdef CLOCK_USE_UTC_TIME_NS
-        if (DBG_LEVEL >= 4) {
+        if (DBG_LEVEL >= 6) {
             struct tm tm;
             _gmtime64_s(&tm, (const __time64_t*)&time_s);
             printf("    Current time = %I64uus + %ums\n", time_s, time_ms);

@@ -5,9 +5,13 @@
 */
 
 
+#define PLATFORM_ENABLE_GET_LOCAL_ADDR
+#define PLATFORM_ENABLE_KEYBOARD
+
 //-------------------------------------------------------------------------------
 // Keyboard
 
+#ifdef PLATFORM_ENABLE_KEYBOARD
 #ifdef _LINUX
 
 #include <termios.h>
@@ -16,6 +20,7 @@ extern int _getch();
 extern int _kbhit();
 
 #endif
+#endif // PLATFORM_ENABLE_KEYBOARD
 
 
 //-------------------------------------------------------------------------------
@@ -71,14 +76,14 @@ void mutexDestroy(MUTEX* m);
 typedef HANDLE tXcpThread;
 #define create_thread(h,t) *h = CreateThread(0, 0, t, NULL, 0, NULL)
 #define join_thread(h) WaitForSingleObject(h, INFINITE);
-#define cancel_thread(h) { TerminateThread(h,0); WaitForSingleObject(h,1000); CloseHandle(h); }
+#define terminate_thread(h) { TerminateThread(h,0); WaitForSingleObject(h,1000); CloseHandle(h); }
 
 #elif defined(_LINUX) // Linux
 
 typedef pthread_t tXcpThread;
 #define create_thread(h,t) pthread_create(h, NULL, t, NULL);
 #define join_thread(h) pthread_join(h,NULL);
-#define cancel_thread(h) { pthread_detach(h); pthread_cancel(h); }
+#define detach_thread(h) { pthread_detach(h); pthread_cancel(h); }
 
 #endif
 
@@ -144,8 +149,9 @@ extern int16_t socketSend(SOCKET sock, const uint8_t* buffer, uint16_t bufferSiz
 extern int16_t socketSendTo(SOCKET sock, const uint8_t* buffer, uint16_t bufferSize, const uint8_t* addr, uint16_t port, uint64_t *time);
 extern BOOL socketShutdown(SOCKET sock);
 extern BOOL socketClose(SOCKET* sp);
+#ifdef PLATFORM_ENABLE_GET_LOCAL_ADDR
 extern BOOL socketGetLocalAddr(uint8_t* mac, uint8_t* addr);
-
+#endif
 
 //-------------------------------------------------------------------------------
 // Clock

@@ -17,8 +17,8 @@
 #include "A2L.h"
 
 static FILE* gA2lFile = NULL;
-static uint16_t gA2lFixedEvent = XCP_INVALID_EVENT;
-static uint16_t gA2lDefaultEvent = XCP_INVALID_EVENT;
+static uint16_t gA2lFixedEvent = XCP_UNDEFINED_EVENT;
+static uint16_t gA2lDefaultEvent = XCP_UNDEFINED_EVENT;
 
 static uint32_t gA2lMeasurements;
 static uint32_t gA2lParameters;
@@ -35,7 +35,7 @@ static uint32_t gA2lConversions;
 static void mem_check(const char* name, int32_t type, uint8_t ext, uint32_t addr) {
 	(void)type; (void)name;
 	volatile uint8_t *p = ApplXcpGetPointer(ext,addr);
-	if (p==NULL) { DBG_PRINTF1("ERROR: memory address 0x%04X of variable %s not accessible !\n",addr,name); assert(0); }
+	if (p==NULL) { DBG_PRINTF3("ERROR: memory address 0x%04X of variable %s not accessible !\n",addr,name); assert(0); }
     volatile uint8_t b = *p; // if this leads to a memory protection error, check if address transformation from A2L to uint_8_p* transformation is correct 
 }
 #endif	
@@ -308,9 +308,9 @@ static const char* getPhysMax(int32_t type, double factor, double offset) {
 
 BOOL A2lOpen(const char *filename, const char* projectName ) {
 
-	DBG_PRINTF1("\nCreate A2L %s\n", filename);
+	DBG_PRINTF3("\nCreate A2L %s\n", filename);
 	gA2lFile = NULL;
-	gA2lFixedEvent = XCP_INVALID_EVENT;
+	gA2lFixedEvent = XCP_UNDEFINED_EVENT;
 	gA2lMeasurements = gA2lParameters = gA2lTypedefs = gA2lInstances = gA2lConversions = gA2lComponents = 0;
 	gA2lFile = fopen(filename, "w");
 	if (gA2lFile == 0) {
@@ -343,10 +343,10 @@ void A2lCreate_MOD_PAR(uint32_t startAddr, uint32_t size, char *epk) {
 	fprintf(gA2lFile, "EPK \"%s\"\n", epk);
 	fprintf(gA2lFile, "ADDR_EPK 0x%08X\n", ApplXcpGetAddr((uint8_t*)epk));
 	fprintf(gA2lFile, gA2lMemorySegment, startAddr, size);
-	DBG_PRINTF1("  A2L MOD_PAR MEMORY_SEGMENT 1: 0x%08X %u\n", startAddr, size);
+	DBG_PRINTF3("  A2L MOD_PAR MEMORY_SEGMENT 1: 0x%08X %u\n", startAddr, size);
 	fprintf(gA2lFile, "/end MOD_PAR\n\n");
 #if OPTION_ENABLE_DBG_PRINTS
-	if (epk) DBG_PRINTF1("  A2L MOD_PAR EPK \"%s\" 0x%08X\n", epk, ApplXcpGetAddr((uint8_t*)epk));
+	if (epk) DBG_PRINTF3("  A2L MOD_PAR EPK \"%s\" 0x%08X\n", epk, ApplXcpGetAddr((uint8_t*)epk));
 #endif
 }
 
@@ -417,7 +417,7 @@ void A2lCreate_ETH_IF_DATA(BOOL useTCP, const uint8_t* addr, uint16_t port) {
 
 	fprintf(gA2lFile, gA2lIfDataEnd);
 
-	DBG_PRINTF1("  IF_DATA XCP_ON_%s, ip=%s, port=%u\n", prot, addrs, port);
+	DBG_PRINTF3("  IF_DATA XCP_ON_%s, ip=%s, port=%u\n", prot, addrs, port);
 }
 
 void A2lCreate_CAN_IF_DATA(BOOL useCANFD, uint16_t croId, uint16_t dtoId, uint32_t bitRate) {
@@ -443,17 +443,17 @@ void A2lCreate_CAN_IF_DATA(BOOL useCANFD, uint16_t croId, uint16_t dtoId, uint32
 
 	fprintf(gA2lFile, gA2lIfDataEnd);
 		
- 	DBG_PRINTF1("  IF_DATA XCP_ON_CAN, CRO=%u, DTO=%u, BITRATE=%u\n", croId, dtoId, bitRate);
+ 	DBG_PRINTF3("  IF_DATA XCP_ON_CAN, CRO=%u, DTO=%u, BITRATE=%u\n", croId, dtoId, bitRate);
 }
 
 
 void A2lCreateMeasurement_IF_DATA() {
 
 	assert(gA2lFile != NULL);
-	if (gA2lFixedEvent != XCP_INVALID_EVENT) {
+	if (gA2lFixedEvent != XCP_UNDEFINED_EVENT) {
 		fprintf(gA2lFile, " /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x%X /end DAQ_EVENT /end IF_DATA", gA2lFixedEvent);
 	}
-	else if (gA2lDefaultEvent != XCP_INVALID_EVENT) {
+	else if (gA2lDefaultEvent != XCP_UNDEFINED_EVENT) {
 		fprintf(gA2lFile, " /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE DEFAULT_EVENT_LIST EVENT 0x%X /end DAQ_EVENT /end IF_DATA", gA2lDefaultEvent);
 	}
 }
@@ -487,11 +487,11 @@ uint16_t A2lGetFixedEvent() {
 }
 
 void A2lRstDefaultEvent() {
-	gA2lDefaultEvent = XCP_INVALID_EVENT;
+	gA2lDefaultEvent = XCP_UNDEFINED_EVENT;
 }
 
 void A2lRstFixedEvent() {
-	gA2lFixedEvent = XCP_INVALID_EVENT;
+	gA2lFixedEvent = XCP_UNDEFINED_EVENT;
 }
 
 
@@ -706,7 +706,7 @@ void A2lClose() {
 		fprintf(gA2lFile, "%s", gA2lFooter);
 		fclose(gA2lFile);
 		gA2lFile = NULL;
-		DBG_PRINTF1("A2L created: %u measurements, %u params, %u typedefs, %u components, %u instances, %u conversions\n\n",
+		DBG_PRINTF3("A2L created: %u measurements, %u params, %u typedefs, %u components, %u instances, %u conversions\n\n",
 			gA2lMeasurements, gA2lParameters, gA2lTypedefs, gA2lComponents, gA2lInstances, gA2lConversions);
 	}
 }

@@ -25,17 +25,31 @@
 // #define XCP_PROTOCOL_LAYER_VERSION 0x0104  // PACKED_MODE, CC_START_STOP_SYNCH prepare
 
 
-
-
-
 /*----------------------------------------------------------------------------*/
-/* Driver features */
+/* Adress, address extension coding */
 
-#define XCP_TRANSPORT_LAYER_TYPE XCP_TRANSPORT_LAYER_ETH // Enable ethernet specific commands
+// Use addr_ext XCP_ADDR_EXT_ABS to indicate absulute addr format (ApplXcpGetBaseAddr()+(uint32_t)addr) 
+#define XCP_ENABLE_ABS_ADDRESSING
+#define XCP_ADDR_EXT_ABS 0x01 // Absolute address format 
 
+// Use addr_ext XCP_ADDR_EXT_DYN to indicate relative addr format (event<<16)|offset 
 #if OPTION_ENABLE_XCP_CLASS
-  #define XCP_ENABLE_DYN_ADDRESSING // Enable addr_ext=1 indicating relative addr format (event<<16)|offset 
+  #define XCP_ENABLE_DYN_ADDRESSING
+  #define XCP_ADDR_EXT_DYN 0x02 // Relative address format
 #endif
+
+// Use addr_ext XCP_ADDR_EXT_APP to indicate application specific addr format and use ApplXcpReadMemory and ApplXcpWriteMemory
+// #define XCP_ENABLE_APP_ADDRESSING
+// #define XCP_ADDR_EXT_APP 0x00 // Address format handled by application
+
+// Internally used address extensions
+// Use addr_ext XCP_ADDR_EXT_A2L to indicate A2L upload memory space
+#define XCP_ADDR_EXT_A2L 0xFD
+// Use addr_ext XCP_ADDR_EXT_PTR to indicate gXcp.MtaPtr is valid 
+#define XCP_ADDR_EXT_PTR 0xFE
+
+// Undefined address extension
+#define XCP_ADDR_EXT_UNDEFINED 0xFF // Undefined address extension
 
 /*----------------------------------------------------------------------------*/
 /* Protocol features */

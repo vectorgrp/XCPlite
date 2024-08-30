@@ -104,7 +104,7 @@ int main() {
         if (!XcpEthServerStatus()) { printf("\nXCP Server failed\n");  break; } // Check if the XCP server is running
 
         if (!checkKeyboard()) {
-          XcpSendEvent(EVC_SESSION_TERMINATED, NULL, 0);
+          XcpSendEvent(PID_EV,EVC_SESSION_TERMINATED, NULL, 0);
           break;
         }
     }

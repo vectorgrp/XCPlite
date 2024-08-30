@@ -52,7 +52,7 @@ static BOOL createA2L() {
 static BOOL checkKeyboard() {
     if (_kbhit()) {
         switch (_getch()) {
-        case 27:  XcpSendEvent(EVC_SESSION_TERMINATED, NULL, 0);  return FALSE; // Stop on ESC
+        case 27:  XcpSendEvent(PID_EV,EVC_SESSION_TERMINATED, NULL, 0);  return FALSE; // Stop on ESC
 #if OPTION_ENABLE_DBG_PRINTS
         case '+': if (gDebugLevel < 5) gDebugLevel++; printf("\nDebuglevel = %u\n", gDebugLevel); break;
         case '-': if (gDebugLevel > 0) gDebugLevel--; printf("\nDebuglevel = %u\n", gDebugLevel); break;
@@ -91,8 +91,7 @@ int main(int argc, char* argv[]) {
     }
 
     // Terminate task
-    sleepMs(1000);
-    cancel_thread(t2);
+    // @@@@
     
     // Stop the XCP server
     XcpEthServerShutdown();

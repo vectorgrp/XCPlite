@@ -37,9 +37,9 @@ static struct {
 
     // Threads
     tXcpThread DAQThreadHandle;
-    volatile int TransmitThreadRunning;
+    volatile BOOL TransmitThreadRunning;
     tXcpThread CMDThreadHandle;
-    volatile int ReceiveThreadRunning;
+    volatile BOOL ReceiveThreadRunning;
 
 } gXcpServer;
 
@@ -56,12 +56,15 @@ BOOL XcpEthServerInit(const uint8_t* addr, uint16_t port, BOOL useTCP, uint16_t 
     int r = 0;
 
     if (gXcpServer.isInit) return FALSE;
-    DBG_PRINT1("\nStart XCP server\n");
+    DBG_PRINT3("\nStart XCP server\n");
 
+    // Init network sockets
+    if (!socketStartup()) return FALSE;
+    
     gXcpServer.TransmitThreadRunning = 0;
     gXcpServer.ReceiveThreadRunning = 0;
 
-    // Initialize XCP protocol layer
+    // Initialize XCP protocol layer if not already done
     XcpInit();
 
     // Initialize XCP transport layer
@@ -82,13 +85,14 @@ BOOL XcpEthServerInit(const uint8_t* addr, uint16_t port, BOOL useTCP, uint16_t 
 BOOL XcpEthServerShutdown() {
 
     if (gXcpServer.isInit) {
-
         XcpDisconnect();
-        cancel_thread(gXcpServer.DAQThreadHandle);
-        cancel_thread(gXcpServer.CMDThreadHandle);
-
-        // Shutdown XCP transport layer
-        XcpTlShutdown();
+        gXcpServer.ReceiveThreadRunning = FALSE;
+        gXcpServer.TransmitThreadRunning = FALSE;
+        XcpEthTlShutdown();
+        join_thread(gXcpServer.CMDThreadHandle);
+        join_thread(gXcpServer.DAQThreadHandle);
+        gXcpServer.isInit = FALSE;
+        socketCleanup();
     }
     return TRUE;
 }
@@ -105,16 +109,16 @@ extern void* XcpServerReceiveThread(void* par)
     DBG_PRINT3("Start XCP CMD thread\n");
 
     // Receive XCP unicast commands loop
-    gXcpServer.ReceiveThreadRunning = 1;
-    for (;;) { 
-      if (!XcpTlHandleCommands(XCPTL_TIMEOUT_INFINITE)) { // Timeout Blocking
+    gXcpServer.ReceiveThreadRunning = TRUE;
+    while (gXcpServer.ReceiveThreadRunning) { 
+      if (!XcpEthTlHandleCommands(XCPTL_TIMEOUT_INFINITE)) { // Timeout Blocking
+        DBG_PRINT_ERROR("ERROR: XcpTlHandleCommands failed!\n");
         break; // error -> terminate thread
       }
     }
-    gXcpServer.ReceiveThreadRunning = 0;
+    gXcpServer.ReceiveThreadRunning = FALSE;
 
-    DBG_PRINT_ERROR("ERROR: XcpTlHandleCommands failed!\n");
-    DBG_PRINT_ERROR("ERROR: XcpServerReceiveThread terminated!\n");
+    DBG_PRINT3("XCP receive thread terminated!\n");
     return 0;
 }
 
@@ -132,8 +136,8 @@ extern void* XcpServerTransmitThread(void* par)
     DBG_PRINT3("Start XCP DAQ thread\n");
 
     // Transmit loop
-    gXcpServer.TransmitThreadRunning = 1;
-    for (;;) {
+    gXcpServer.TransmitThreadRunning = TRUE;
+    while (gXcpServer.TransmitThreadRunning) {
 
         // Wait for transmit data available, time out at least for required flush cycle
       if (!XcpTlWaitForTransmitData(XCPTL_QUEUE_FLUSH_CYCLE_MS)) XcpTlFlushTransmitBuffer(); // Flush after timerout to keep data visualization going
@@ -146,9 +150,9 @@ extern void* XcpServerTransmitThread(void* par)
         }
 
     } // for (;;)
-    gXcpServer.TransmitThreadRunning = 0;
+    gXcpServer.TransmitThreadRunning = FALSE;
 
-    DBG_PRINT_ERROR("XCP DAQ thread terminated!\n");
+    DBG_PRINT3("XCP transmit thread terminated!\n");
     return 0;
 }
 

@@ -258,8 +258,8 @@ BOOL XcpTlHandleCommands(uint32_t timeout_ms) {
 
 BOOL XcpCanTlInit(BOOL useCANFD, uint32_t croId, uint32_t dtoId, uint32_t bitRate) {
 
-    XCP_DBG_PRINTF1("\nInit XCP on %s transport layer, croId=%u, dtoId=%u\n", useCANFD?"CANFD":"CAN",croId, dtoId);
-    XCP_DBG_PRINTF1("  QUEUE_SIZE=%u, %uKiB memory used\n", XCPTL_QUEUE_SIZE, (unsigned int)sizeof(gXcpTl) / 1024);
+    XCP_DBG_PRINTF3("\nInit XCP on %s transport layer, croId=%u, dtoId=%u\n", useCANFD?"CANFD":"CAN",croId, dtoId);
+    XCP_DBG_PRINTF3("  QUEUE_SIZE=%u, %uKiB memory used\n", XCPTL_QUEUE_SIZE, (unsigned int)sizeof(gXcpTl) / 1024);
 
     gXcpTl.useCANFD = useCANFD;
     gXcpTl.CroId = croId;

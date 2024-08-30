@@ -133,7 +133,7 @@ uint8_t baseAddrValid = 0;
 
 static int dump_phdr(struct dl_phdr_info* pinfo, size_t size, void* data)
 {
-    // DBG_PRINTF1("name=%s (%d segments)\n", pinfo->dlpi_name, pinfo->dlpi_phnum);
+    // DBG_PRINTF3("name=%s (%d segments)\n", pinfo->dlpi_name, pinfo->dlpi_phnum);
 
     // Application modules has no name
     if (0 == strlen(pinfo->dlpi_name)) {
@@ -151,7 +151,7 @@ uint8_t* ApplXcpGetBaseAddr() {
         dl_iterate_phdr(dump_phdr, NULL);
         assert(baseAddr != NULL);
         baseAddrValid = 1;
-        DBG_PRINTF1("BaseAddr = %lX\n", (uint64_t)baseAddr);
+        DBG_PRINTF3("BaseAddr = %lX\n", (uint64_t)baseAddr);
     }
 
     return baseAddr;
@@ -251,7 +251,7 @@ uint8_t* loadFile(const char* filename, uint32_t* length) {
   uint8_t* fileBuf = NULL; // file content
   uint32_t fileLen = 0; // file length
 
-  DBG_PRINTF1("Load %s\n", filename);
+  DBG_PRINTF3("Load %s\n", filename);
 
 #if defined(_LINUX) // Linux
 

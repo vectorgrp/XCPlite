@@ -130,7 +130,7 @@ void Xcp::event(uint16_t event) {
 }
 
 void Xcp::eventExt(uint16_t event, uint8_t* base) {
-    XcpEventExt(event, base);
+    XcpEventExt(event, base, 0);
 }
 
 void Xcp::eventAt(uint16_t event, uint64_t clock) {

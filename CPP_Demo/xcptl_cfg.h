@@ -44,7 +44,9 @@ Drawbacks:
 
 // CTO size
 // Maximum size of a XCP command
-#define XCPTL_MAX_CTO_SIZE 252 // must be mod 4
+#define XCPTL_MAX_CTO_SIZE (248) 
+// CRO_SHORT_DOWNLOAD_MAX_SIZE = XCPTL_MAX_CTO_SIZE-8 should be %8==0
+// CRO_DOWNLOAD_MAX_SIZE = XCPTL_MAX_CTO_SIZE-2
 
 // DAQ transmit queue 
 // Transmit queue size in segments, should at least be able to hold all data produced until the next call to HandleTransmitQueue
