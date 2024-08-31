@@ -257,10 +257,10 @@ BOOL socketClose(SOCKET *sp) {
 
 #ifdef PLATFORM_ENABLE_GET_LOCAL_ADDR
 
+#include <ifaddrs.h>
 #ifndef __APPLE__
 #include <linux/if_packet.h>
 #else
-#include <ifaddrs.h>
 #include <net/if_dl.h>
 #endif
 
