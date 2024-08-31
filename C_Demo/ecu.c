@@ -18,6 +18,10 @@
 #endif
 #include "ecu.h"
 
+#ifdef _WIN
+#define M_PI 3.14159265358979323846
+#endif
+#define M_2PI (M_PI*2)
 
 /**************************************************************************/
 /* ECU Measurements */

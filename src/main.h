@@ -83,10 +83,5 @@
 #define FALSE 0
 #define TRUE 1
 
-// #ifdef _WIN
-// #define M_PI 3.14159265358979323846
-// #endif
-// #define M_2PI (M_PI*2)
-
 #include "main_cfg.h"
 

@@ -21,6 +21,12 @@
 #include "A2Lpp.hpp"
 
 
+#ifdef _WIN
+#define M_PI 3.14159265358979323846
+#endif
+#define M_2PI (M_PI*2)
+
+
  // OPTIONs are defined in main_cfg.h
 
 

@@ -236,7 +236,7 @@ uint8_t* ApplXcpGetBaseAddr()
     return ((uint8_t*)((uint64_t)(&__base_addr_val)&0xffffffff00000000));
 }
 
-uint32_t ApplXcpGetAddr(const uint8_t* p)
+uint32_t ApplXcpGetAddr(uint8_t* p)
 {
     return ((uint32_t)((uint64_t) p)& 0xffffffff);
 }

@@ -53,3 +53,5 @@ Xcode_build/
 Environment
 CustomProperties.json
 
+/.vscode/settings.json
+/.vscode/tasks.json
