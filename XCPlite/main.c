@@ -25,7 +25,6 @@
 
 //-------------------------------------------------------------------------------------------------
 
-
 // Demo measurement event
 uint16_t event = 0;
 
@@ -81,7 +80,7 @@ int main() {
 #else
     A2lCreateParameterWithLimits(ampl, A2L_TYPE_DOUBLE, "Amplitude of sinus signal in V", "V", 0, 800);
     A2lCreateParameterWithLimits(period, A2L_TYPE_DOUBLE, "Period of sinus signal in s", "s", 0, 10);
-    A2lCreateParameterWithLimits(cycleTime, A2L_TYPE_DOUBLE, "Cycle time of demo event loop in us", "us", 0, 1000000);
+    A2lCreateParameterWithLimits(cycleTime, A2L_TYPE_UINT32, "Cycle time of demo event loop in us", "us", 0, 1000000);
     A2lSetFixedEvent(event); // Associate to the variables created below
     A2lCreatePhysMeasurement(channel1, A2L_TYPE_DOUBLE, "Sinus demo signal", 1.0, 0.0, "V");
     A2lCreateMeasurement(counter, A2L_TYPE_UINT32, "Event counter");

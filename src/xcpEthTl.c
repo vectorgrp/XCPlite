@@ -818,20 +818,17 @@ void XcpTlShutdown() {
 
 #ifdef XCPTL_ENABLE_MULTICAST
     socketClose(&gXcpTl.MulticastSock);
-    sleepMs(200);
-    cancel_thread(gXcpTl.MulticastThreadHandle);
+    join_thread(gXcpTl.MulticastThreadHandle);
 #endif
 
-  mutexDestroy(&gXcpTl.Mutex_Queue);
 #ifdef XCPTL_ENABLE_TCP
     if (isTCP()) socketClose(&gXcpTl.ListenSock);
 #endif
     socketClose(&gXcpTl.Sock);
 #if defined(_WIN) // Windows
     CloseHandle(gXcpTl.queue_event);
-
+    mutexDestroy(&gXcpTl.Mutex_Queue);
 #endif
-
 }
 
 

@@ -36,10 +36,10 @@ static struct {
     BOOL isInit; 
 
     // Threads
-    tXcpThread DAQThreadHandle;
-    volatile int TransmitThreadRunning;
-    tXcpThread CMDThreadHandle;
-    volatile int ReceiveThreadRunning;
+    tXcpThread TransmitThreadHandle;
+    volatile BOOL TransmitThreadRunning;
+    tXcpThread ReceiveThreadHandle;
+    volatile BOOL ReceiveThreadRunning;
 
 } gXcpServer;
 
@@ -72,8 +72,8 @@ BOOL XcpCanServerInit(BOOL useCANFD, uint16_t croId, uint16_t dtoId, uint32_t bi
     XcpStart();
 
     // Create threads
-    create_thread(&gXcpServer.DAQThreadHandle, XcpServerTransmitThread);
-    create_thread(&gXcpServer.CMDThreadHandle, XcpServerReceiveThread);
+    create_thread(&gXcpServer.TransmitThreadHandle, XcpServerTransmitThread);
+    create_thread(&gXcpServer.ReceiveThreadHandle, XcpServerReceiveThread);
 
     gXcpServer.isInit = TRUE;
     return TRUE;
@@ -83,11 +83,14 @@ BOOL XcpCanServerShutdown() {
 
     if (gXcpServer.isInit) {
         XcpDisconnect();
-        cancel_thread(gXcpServer.DAQThreadHandle);
-        cancel_thread(gXcpServer.CMDThreadHandle);
 
         // Shutdown XCP transport layer
         XcpTlShutdown();
+        
+        gXcpServer.TransmitThreadRunning = FALSE;
+        gXcpServer.ReceiveThreadRunning = FALSE;
+        join_thread(gXcpServer.TransmitThreadHandle);
+        join_thread(gXcpServer.ReceiveThreadHandle);
     }
     return TRUE;
 }
@@ -104,12 +107,12 @@ extern void* XcpServerReceiveThread(void* par)
     XCP_DBG_PRINT3("Start XCP CMD thread\n");
 
     // Receive XCP command message loop
-    gXcpServer.ReceiveThreadRunning = 1;
-    for (;;) {
+    gXcpServer.ReceiveThreadRunning = TRUE;
+    while (gXcpServer.ReceiveThreadRunning) {
         // Blocking
         if (!XcpTlHandleCommands(XCPTL_TIMEOUT_INFINITE)) break; // Error -> terminate thread
     }
-    gXcpServer.ReceiveThreadRunning = 0;
+    gXcpServer.ReceiveThreadRunning = FALSE;
 
     XCP_DBG_PRINT_ERROR("ERROR: XcpTlHandleCommands failed!\n");
     XCP_DBG_PRINT_ERROR("ERROR: XcpServerReceiveThread terminated!\n");
@@ -130,8 +133,8 @@ extern void* XcpServerTransmitThread(void* par)
     XCP_DBG_PRINT3("Start XCP DAQ thread\n");
 
     // Transmit loop
-    gXcpServer.TransmitThreadRunning = 1;
-    for (;;) {
+    gXcpServer.TransmitThreadRunning = TRUE;
+    while (gXcpServer.TransmitThreadRunning) {
 
         // Wait for transmit data available
         XcpTlWaitForTransmitData(XCPTL_TIMEOUT_INFINITE);
@@ -144,7 +147,7 @@ extern void* XcpServerTransmitThread(void* par)
         }
 
     } // for (;;)
-    gXcpServer.TransmitThreadRunning = 0;
+    gXcpServer.TransmitThreadRunning = FALSE;
 
     XCP_DBG_PRINT_ERROR("XCP DAQ thread terminated!\n");
     return 0;

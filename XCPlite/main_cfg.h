@@ -61,4 +61,5 @@
 #define OPTION_MTU                      1500            // Ethernet MTU
 #define OPTION_SERVER_PORT              5555            // Default UDP port
 #define OPTION_SERVER_ADDR              {127,0,0,1}     // IP addr to bind, 0.0.0.0 = ANY
+//#define OPTION_SERVER_ADDR              {192,168,179,2}     // IP addr to bind, 0.0.0.0 = ANY
 

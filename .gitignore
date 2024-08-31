@@ -53,3 +53,4 @@ Xcode_build/
 Environment
 CustomProperties.json
 
+*.json
