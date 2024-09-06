@@ -86,11 +86,10 @@ BOOL XcpEthServerShutdown() {
 
     if (gXcpServer.isInit) {
         XcpDisconnect();
-        gXcpServer.ReceiveThreadRunning = FALSE;
-        gXcpServer.TransmitThreadRunning = FALSE;
+        cancel_thread(gXcpServer.ReceiveThreadHandle);
+        cancel_thread(gXcpServer.TransmitThreadHandle);
+
         XcpTlShutdown();
-        join_thread(gXcpServer.ReceiveThreadHandle);
-        join_thread(gXcpServer.TransmitThreadHandle);
         gXcpServer.isInit = FALSE;
         socketCleanup();
     }
