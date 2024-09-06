@@ -92,6 +92,7 @@ BOOL XcpEthServerShutdown() {
         XcpTlShutdown();
         gXcpServer.isInit = FALSE;
         socketCleanup();
+        XcpReset();
     }
     return TRUE;
 }
