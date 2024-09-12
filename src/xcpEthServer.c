@@ -61,8 +61,8 @@ BOOL XcpEthServerInit(const uint8_t* addr, uint16_t port, BOOL useTCP, uint16_t 
     // Init network sockets
     if (!socketStartup()) return FALSE;
     
-    gXcpServer.TransmitThreadRunning = 0;
-    gXcpServer.ReceiveThreadRunning = 0;
+    gXcpServer.TransmitThreadRunning = FALSE;
+    gXcpServer.ReceiveThreadRunning = FALSE;
 
     // Initialize XCP protocol layer if not already done
     XcpInit();
@@ -84,6 +84,20 @@ BOOL XcpEthServerInit(const uint8_t* addr, uint16_t port, BOOL useTCP, uint16_t 
 
 BOOL XcpEthServerShutdown() {
 
+#if OPTION_SERVER_FORCEFULL_TERMINATION
+    // Forcefull termination
+    if (gXcpServer.isInit) {
+        DBG_PRINT3("Disconnect, cancel threads and shutdown XCP!\n");
+        XcpDisconnect();
+        cancel_thread(gXcpServer.ReceiveThreadHandle);
+        cancel_thread(gXcpServer.TransmitThreadHandle);
+        XcpTlShutdown();
+        gXcpServer.isInit = FALSE;
+        socketCleanup();
+        XcpReset();
+    }
+#else
+    // Gracefull termination
     if (gXcpServer.isInit) {
         XcpDisconnect();
         gXcpServer.ReceiveThreadRunning = FALSE;
@@ -93,9 +107,12 @@ BOOL XcpEthServerShutdown() {
         join_thread(gXcpServer.TransmitThreadHandle);
         gXcpServer.isInit = FALSE;
         socketCleanup();
+        XcpReset();
     }
+#endif
     return TRUE;
 }
+
 
 
 // XCP server unicast command receive thread

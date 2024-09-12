@@ -73,6 +73,7 @@ typedef struct {
 extern void XcpInit(void);
 extern void XcpStart(void);
 extern void XcpDisconnect();
+extern void XcpReset();
 
 /* Trigger a XCP data acquisition or stimulation event */
 extern void XcpEvent(uint16_t event);

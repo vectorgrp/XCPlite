@@ -58,8 +58,8 @@ BOOL XcpCanServerInit(BOOL useCANFD, uint16_t croId, uint16_t dtoId, uint32_t bi
     if (gXcpServer.isInit) return FALSE;
     XCP_DBG_PRINT1("\nStart XCP server\n");
 
-    gXcpServer.TransmitThreadRunning = 0;
-    gXcpServer.ReceiveThreadRunning = 0;
+    gXcpServer.TransmitThreadRunning = FALSE;
+    gXcpServer.ReceiveThreadRunning = FALSE;
 
     // Initialize XCP protocol layer
     XcpInit();

@@ -90,6 +90,10 @@ int main(int argc, char* argv[]) {
         if (!checkKeyboard()) break;
     }
 
+    // Terminate task
+    sleepMs(1000);
+    cancel_thread(t2);
+    
     // Stop the XCP server
     XcpEthServerShutdown();
     socketCleanup();

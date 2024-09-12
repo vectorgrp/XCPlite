@@ -857,6 +857,11 @@ void XcpDisconnect( void )
   gXcp.SessionStatus &= (uint16_t)(~SS_CONNECTED);
 }
 
+// Reset XCP kernel states
+void XcpReset() {
+    memset(&gXcp, 0, sizeof(gXcp));
+}
+
 // Transmit command response
 static void XcpSendResponse() {
 

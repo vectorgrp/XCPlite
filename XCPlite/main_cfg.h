@@ -38,10 +38,9 @@
 #define ON 1
 #define OFF 0
 
-
-// Debug prints
-#define OPTION_ENABLE_DBG_PRINTS        ON
-#define OPTION_DEBUG_LEVEL              2
+// Set clock resolution (for clock function in platform.c)
+#define CLOCK_USE_APP_TIME_US
+//#define CLOCK_USE_UTC_TIME_NS
 
 // A2L generation
 #define OPTION_ENABLE_A2L_GEN           ON // Enable A2L generation
@@ -50,16 +49,16 @@
 #define OPTION_A2L_FILE_NAME            "XCPlite.a2l" // A2L filename 
 #endif
 
-
-// Set clock resolution (for clock function in platform.c)
-#define CLOCK_USE_APP_TIME_US
-//#define CLOCK_USE_UTC_TIME_NS
-
-
 // Ethernet Transport Layer
 #define OPTION_USE_TCP                  OFF
 #define OPTION_MTU                      1500            // Ethernet MTU
 #define OPTION_SERVER_PORT              5555            // Default UDP port
 #define OPTION_SERVER_ADDR              {127,0,0,1}     // IP addr to bind, 0.0.0.0 = ANY
-//#define OPTION_SERVER_ADDR              {192,168,179,2}     // IP addr to bind, 0.0.0.0 = ANY
+
+// Shutdown options for the XCP server
+//#define OPTION_SERVER_FORCEFULL_TERMINATION ON
+
+// Debug prints
+#define OPTION_ENABLE_DBG_PRINTS        ON
+#define OPTION_DEBUG_LEVEL              2
 
