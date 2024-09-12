@@ -18,6 +18,10 @@
 #include "platform.h"
 #include "dbg_print.h"
 
+#ifndef __MAIN_CFG_H__
+#error "Include dependency error!"
+#endif
+
 #if defined(_WIN) // Windows // Windows needs to link with Ws2_32.lib
 
 #pragma comment(lib, "ws2_32.lib")
@@ -189,6 +193,7 @@ void mutexDestroy(MUTEX* m) {
 // Sockets
 /**************************************************************************/
 
+#if defined(XCPTL_ENABLE_UDP) || defined(XCPTL_ENABLE_TCP)
 
 #ifdef _LINUX
 
@@ -237,7 +242,8 @@ BOOL socketBind(SOCKET sock, uint8_t* addr, uint16_t port) {
     return TRUE;
 }
 
-
+// Shutdown socket
+// Block rx and tx direction
 BOOL socketShutdown(SOCKET sock) {
     if (sock != INVALID_SOCKET) {
         shutdown(sock, SHUT_RDWR);
@@ -245,6 +251,8 @@ BOOL socketShutdown(SOCKET sock) {
     return TRUE;
 }
 
+// Close socket
+// Make addr reusable
 BOOL socketClose(SOCKET *sp) {
     if (*sp != INVALID_SOCKET) {
         close(*sp);
@@ -257,10 +265,10 @@ BOOL socketClose(SOCKET *sp) {
 
 #ifdef PLATFORM_ENABLE_GET_LOCAL_ADDR
 
-#include <ifaddrs.h>
 #ifndef __APPLE__
 #include <linux/if_packet.h>
 #else
+#include <ifaddrs.h>
 #include <net/if_dl.h>
 #endif
 
@@ -458,7 +466,8 @@ BOOL socketBind(SOCKET sock, uint8_t *addr, uint16_t port) {
     return TRUE;
 }
 
-
+// Shutdown socket
+// Block rx and tx direction
 BOOL socketShutdown(SOCKET sock) {
 
     if (sock != INVALID_SOCKET) {
@@ -467,6 +476,8 @@ BOOL socketShutdown(SOCKET sock) {
     return TRUE;
 }
 
+// Close socket
+// Make addr reusable
 BOOL socketClose(SOCKET* sockp) {
 
     if (*sockp != INVALID_SOCKET) {
@@ -648,6 +659,7 @@ int16_t socketSend(SOCKET sock, const uint8_t* buffer, uint16_t size) {
     return (int16_t)send(sock, (const char *)buffer, size, 0);
 }
 
+#endif
 
 /**************************************************************************/
 // Clock

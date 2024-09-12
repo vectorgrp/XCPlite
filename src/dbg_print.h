@@ -9,9 +9,9 @@
 //-------------------------------------------------------------------------------
 // Debug print
 
-#if OPTION_ENABLE_DBG_PRINTS
+#ifdef XCP_ENABLE_DBG_PRINTS
 
-extern unsigned int gDebugLevel;
+extern uint8_t gDebugLevel;
 #define DBG_LEVEL gDebugLevel
 
 /*

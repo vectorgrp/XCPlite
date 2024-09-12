@@ -294,11 +294,13 @@ static uint8_t XcpAsyncCommand( BOOL async, const uint32_t* cmdBuf, uint16_t cmd
 #define error(e) { err=(e); goto negative_response; }
 #define check_error(e) { err=(e); if (err!=0) goto negative_response;  }
 
-#define isInitialized() (gXcp.SessionStatus & SS_INITIALIZED)
-#define isStarted() (gXcp.SessionStatus & SS_STARTED)
-#define isConnected() (gXcp.SessionStatus & SS_CONNECTED)
-#define isDaqRunning() (gXcp.SessionStatus & SS_DAQ)
-#define isLegacyMode() (gXcp.SessionStatus & SS_LEGACY_MODE)
+// BOOL type macros
+#define isInitialized() (0!=(gXcp.SessionStatus & SS_INITIALIZED))
+#define isStarted()     (0!=(gXcp.SessionStatus & SS_STARTED))
+#define isConnected()   (0!=(gXcp.SessionStatus & SS_CONNECTED))
+#define isDaqRunning()  (0!=(gXcp.SessionStatus & SS_DAQ))
+#define isLegacyMode()  (0!=(gXcp.SessionStatus & SS_LEGACY_MODE))
+#define isConnected()   (0!=(gXcp.SessionStatus & SS_CONNECTED))
 
 
 /****************************************************************************/
@@ -488,7 +490,7 @@ static uint8_t XcpSetMta( uint8_t ext, uint32_t addr ) {
 /****************************************************************************/
 
 // Free all dynamic DAQ lists
-static void  XcpFreeDaq( void ) {
+static void  XcpFreeDaq() {
 
   gXcp.SessionStatus &= ~SS_DAQ;
 
@@ -504,7 +506,7 @@ static void  XcpFreeDaq( void ) {
 }
 
 // Allocate Memory for daq,odt,odtEntries and Queue according to DaqCount, OdtCount and OdtEntryCount
-static uint8_t XcpAllocMemory( void ) {
+static uint8_t XcpAllocMemory() {
 
   uint32_t s;
 
@@ -566,7 +568,7 @@ static BOOL  XcpAdjustOdtSize(uint16_t daq, uint16_t odt, uint8_t size) {
     if (sc == 0) sc = 1;
     DaqListOdtSize(odt) = (uint16_t)(DaqListOdtSize(odt) + size*sc);
 #else
-    (void) daq;
+    (void)daq;
     DaqListOdtSize(odt) = (uint16_t)(DaqListOdtSize(odt) + size);
 #endif
 #ifdef XCP_ENABLE_TEST_CHECKS
@@ -771,7 +773,7 @@ static void XcpStopAllSelectedDaq() {
 }
 
 // Stop all DAQs
-static void XcpStopAllDaq( void ) {
+static void XcpStopAllDaq() {
 
   for (uint8_t daq=0; daq<gXcp.Daq.DaqCount; daq++) {
     DaqListState(daq) = DAQ_STATE_STOPPED_UNSELECTED;
@@ -938,7 +940,7 @@ uint8_t XcpEventExt(uint16_t event, const uint8_t* base, uint32_t len) {
     mutexLock(&gXcp.CmdPendingMutex);
 #endif
     BOOL cmdPending = FALSE;
-    if (gXcp.SessionStatus & SS_CMD_PENDING) {
+    if ((gXcp.SessionStatus & SS_CMD_PENDING) != 0) {
         if (gXcp.MtaExt == XCP_ADDR_EXT_DYN && (uint16_t)(gXcp.MtaAddr >> 16) == event) {
             gXcp.SessionStatus &= ~SS_CMD_PENDING;
             cmdPending = TRUE;
@@ -972,17 +974,21 @@ uint8_t XcpEventExt(uint16_t event, const uint8_t* base, uint32_t len) {
 /****************************************************************************/
 
 // Stops DAQ and goes to disconnected state
-void XcpDisconnect( void )
+void XcpDisconnect()
 {
   if (!isStarted()) return;
 
-  if (isDaqRunning()) {
-    ApplXcpStopDaq();
-    XcpStopAllDaq();
-    XcpTlWaitForTransmitQueueEmpty(); // Wait until transmit queue empty
-  }
+  if (isConnected()) {
 
-  gXcp.SessionStatus &= ~SS_CONNECTED;
+    if (isDaqRunning()) {
+      ApplXcpStopDaq();
+      XcpStopAllDaq();
+      XcpTlWaitForTransmitQueueEmpty(); // Wait until transmit queue empty
+    }
+    
+    gXcp.SessionStatus &= ~SS_CONNECTED;
+    ApplXcpDisconnect();
+  }
 }
 
 // Transmit command response
@@ -1017,7 +1023,7 @@ static uint8_t XcpPushCommand( const tXcpCto* cmdBuf, uint16_t cmdLen) {
 #endif
 
   // Set pending command flag
-  if (gXcp.SessionStatus & SS_CMD_PENDING) {
+  if ((gXcp.SessionStatus & SS_CMD_PENDING) != 0) {
 #if defined(XCP_ENABLE_MULTITHREAD_CAL_EVENTS) 
     mutexUnlock(&gXcp.CmdPendingMutex);
 #endif
@@ -1067,7 +1073,7 @@ static uint8_t XcpAsyncCommand( BOOL async, const uint32_t* cmdBuf, uint16_t cmd
   {
 #ifdef DBG_LEVEL
       DBG_PRINTF3("CONNECT mode=%u\n", CRO_CONNECT_MODE);
-      if (gXcp.SessionStatus & SS_CONNECTED) DBG_PRINT_WARNING("WARNING: Already connected! DAQ setup cleared! Legacy mode activated!\n");
+      if ((gXcp.SessionStatus & SS_CONNECTED) != 0) DBG_PRINT_WARNING("WARNING: Already connected! DAQ setup cleared! Legacy mode activated!\n");
 #endif
 
       // Check application is ready for XCP connect 
@@ -1359,7 +1365,7 @@ static uint8_t XcpAsyncCommand( BOOL async, const uint32_t* cmdBuf, uint16_t cmd
             {
               check_len(CRO_SET_REQUEST_LEN);
               CRM_LEN = CRM_SET_REQUEST_LEN;
-              if (CRO_SET_REQUEST_MODE & SET_REQUEST_MODE_STORE_CAL) check_error(ApplXcpFreezeCalPage(0));
+              if ((CRO_SET_REQUEST_MODE & SET_REQUEST_MODE_STORE_CAL) != 0) check_error(ApplXcpFreezeCalPage(0));
             }
             break;
   #endif // XCP_ENABLE_FREEZE_CAL_PAGE
@@ -1503,8 +1509,8 @@ static uint8_t XcpAsyncCommand( BOOL async, const uint32_t* cmdBuf, uint16_t cmd
             uint8_t mode = CRO_SET_DAQ_LIST_MODE_MODE;
             uint8_t prio = CRO_SET_DAQ_LIST_MODE_PRIORITY;
             if (daq >= gXcp.Daq.DaqCount) error(CRC_OUT_OF_RANGE);
-            if (mode & (DAQ_MODE_ALTERNATING | DAQ_MODE_DIRECTION | DAQ_MODE_DTO_CTR | DAQ_MODE_PID_OFF)) error(CRC_OUT_OF_RANGE);  // none of these modes implemented
-            if (0==(mode & (DAQ_MODE_TIMESTAMP))) error(CRC_CMD_SYNTAX);  // timestamp is fixed on
+            if ((mode & (DAQ_MODE_ALTERNATING | DAQ_MODE_DIRECTION | DAQ_MODE_DTO_CTR | DAQ_MODE_PID_OFF)) != 0) error(CRC_OUT_OF_RANGE);  // none of these modes implemented
+            if ((mode & DAQ_MODE_TIMESTAMP) == 0) error(CRC_CMD_SYNTAX);  // timestamp is fixed on
             if (CRO_SET_DAQ_LIST_MODE_PRESCALER > 1) error(CRC_OUT_OF_RANGE); // prescaler is not implemented
             check_error(XcpSetDaqListMode(daq, event, mode, prio));
             break;
@@ -1600,20 +1606,20 @@ static uint8_t XcpAsyncCommand( BOOL async, const uint32_t* cmdBuf, uint16_t cmd
               gXcp.SessionStatus &= ~SS_LEGACY_MODE;
             }
   #ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
-            if (CRO_TIME_SYNCH_PROPERTIES_SET_PROPERTIES & TIME_SYNCH_SET_PROPERTIES_CLUSTER_ID) { // set cluster id
+            if ((CRO_TIME_SYNCH_PROPERTIES_SET_PROPERTIES & TIME_SYNCH_SET_PROPERTIES_CLUSTER_ID) != 0) { // set cluster id
               DBG_PRINTF4("  Cluster id set to %u\n", CRO_TIME_SYNCH_PROPERTIES_CLUSTER_ID);
               gXcp.ClusterId = CRO_TIME_SYNCH_PROPERTIES_CLUSTER_ID; // Set cluster id
               XcpEthTlSetClusterId(gXcp.ClusterId);
             }
             CRM_TIME_SYNCH_PROPERTIES_CLUSTER_ID = gXcp.ClusterId;
   #else
-            if (CRO_TIME_SYNCH_PROPERTIES_SET_PROPERTIES & TIME_SYNCH_SET_PROPERTIES_CLUSTER_ID) { // set cluster id
+            if ((CRO_TIME_SYNCH_PROPERTIES_SET_PROPERTIES & TIME_SYNCH_SET_PROPERTIES_CLUSTER_ID) != 0) { // set cluster id
                 //error(CRC_OUT_OF_RANGE); // CANape insists on setting a cluster id, even if Multicast is not enabled
                 DBG_PRINTF4("  Cluster id = %u setting ignored\n", CRO_TIME_SYNCH_PROPERTIES_CLUSTER_ID);
             }
             CRM_TIME_SYNCH_PROPERTIES_CLUSTER_ID = 0;
   #endif
-            if (CRO_TIME_SYNCH_PROPERTIES_SET_PROPERTIES & TIME_SYNCH_SET_PROPERTIES_TIME_SYNCH_BRIDGE) error(CRC_OUT_OF_RANGE); // set time sync bride is not supported -> error
+            if ((CRO_TIME_SYNCH_PROPERTIES_SET_PROPERTIES & TIME_SYNCH_SET_PROPERTIES_TIME_SYNCH_BRIDGE) != 0) error(CRC_OUT_OF_RANGE); // set time sync bride is not supported -> error
             CRM_TIME_SYNCH_PROPERTIES_SERVER_CONFIG = SERVER_CONFIG_RESPONSE_FMT_ADVANCED | SERVER_CONFIG_DAQ_TS_SERVER | SERVER_CONFIG_TIME_SYNCH_BRIDGE_NONE;  // SERVER_CONFIG_RESPONSE_FMT_LEGACY
             CRM_TIME_SYNCH_PROPERTIES_RESERVED = 0x0;
   #ifndef XCP_ENABLE_PTP
@@ -1634,7 +1640,7 @@ static uint8_t XcpAsyncCommand( BOOL async, const uint32_t* cmdBuf, uint16_t cmd
                 CRM_TIME_SYNCH_PROPERTIES_CLOCK_INFO = CLOCK_INFO_SERVER;
             }
   #endif // XCP_ENABLE_PTP
-            if (CRO_TIME_SYNCH_PROPERTIES_GET_PROPERTIES_REQUEST & TIME_SYNCH_GET_PROPERTIES_GET_CLK_INFO) { // check whether MTA based upload is requested
+            if ((CRO_TIME_SYNCH_PROPERTIES_GET_PROPERTIES_REQUEST & TIME_SYNCH_GET_PROPERTIES_GET_CLK_INFO) != 0) { // check whether MTA based upload is requested
                 gXcp.MtaPtr = (uint8_t*)&gXcp.ClockInfo.server;
                 gXcp.MtaExt = XCP_ADDR_EXT_PTR;
             }
@@ -1863,8 +1869,8 @@ void XcpPrint( const char *str ) {
   uint8_t i;
   uint16_t l = strlen(str);
   for (i = 0; i < l && i < XCPTL_MAX_CTO_SIZE-4; i++) crm.b[i+2] = str[i];
-  crm.b[i+3] = '\n';
-  crm.b[i+4] = 0;
+  crm.b[i+2] = '\n';
+  crm.b[i+3] = 0;
   XcpTlSendCrm((const uint8_t*)&crm, l+4);
   //XcpTlFlushTransmitBuffer(); // Don't do this, as it will decrease performance of the transmit process
 }
@@ -1876,7 +1882,8 @@ void XcpPrint( const char *str ) {
 | Initialization of the XCP Protocol Layer
 ******************************************************************************/
 
-void XcpInit( void )
+// Init XCP protocol layer
+void XcpInit()
 {
   if (gXcp.SessionStatus == 0) {
 
@@ -1903,7 +1910,8 @@ void XcpInit( void )
   }
 }
 
-void XcpStart(void)
+// Start XCP protocol layer
+void XcpStart()
 {
     if (!isInitialized()) return;
 
@@ -1915,11 +1923,12 @@ void XcpStart(void)
     #endif
     DBG_PRINTF3("  Version=%u.%u, MAXEV=%u, MAXCTO=%u, MAXDTO=%u, DAQMEM=%u, MAXDAQ=%u, MAXENTRY=%u, MAXENTRYSIZE=%u\n", XCP_PROTOCOL_LAYER_VERSION >> 8, XCP_PROTOCOL_LAYER_VERSION & 0xFF, XCP_MAX_EVENT, XCPTL_MAX_CTO_SIZE, XCPTL_MAX_DTO_SIZE, XCP_DAQ_MEM_SIZE, (1 << sizeof(uint16_t) * 8) - 1, (1 << sizeof(uint16_t) * 8) - 1, (1 << (sizeof(uint8_t) * 8)) - 1);
     DBG_PRINTF3("  %u KiB memory used\n", (unsigned int)sizeof(gXcp) / 1024);
+    DBG_PRINT3("  Note: These parameters in xcp_cfg.h need to be configured for optimal memory consumption and performance!\n");
     DBG_PRINT3("  Options=(");
 
     // Print activated XCP protocol options
   #ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST // Enable GET_DAQ_CLOCK_MULTICAST
-    DBG_PRINT3("DAQ_CLK_MULTICAST,");
+    DBG_PRINT3("DAQ_CLK_MULTICAST (not recomended),");
   #endif
   #ifdef XCP_DAQ_CLOCK_64BIT  // Use 64 Bit time stamps
     DBG_PRINT3("DAQ_CLK_64BIT,");
@@ -1994,6 +2003,12 @@ void XcpStart(void)
     DBG_PRINT3("Start XCP protocol layer\n");
 
     gXcp.SessionStatus |= SS_STARTED;
+}
+
+
+// Reset XCP protocol layer
+void XcpReset() {
+    memset(&gXcp, 0, sizeof(gXcp));
 }
 
 

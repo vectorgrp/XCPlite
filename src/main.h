@@ -71,7 +71,7 @@
 #include <vector>
 #endif
 
-#define BOOL int
+#define BOOL uint8_t
 #define FALSE 0
 #define TRUE 1
 

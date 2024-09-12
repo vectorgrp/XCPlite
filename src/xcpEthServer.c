@@ -18,6 +18,11 @@
 #include "xcpLite.h"   
 #include "xcpEthServer.h"
 
+#ifndef __MAIN_CFG_H__
+#error "Include dependency error!"
+#endif
+
+#if defined(XCPTL_ENABLE_UDP) || defined(XCPTL_ENABLE_TCP)
 
 #if defined(_WIN) // Windows
 static DWORD WINAPI XcpServerReceiveThread(LPVOID lpParameter);
@@ -36,9 +41,9 @@ static struct {
     BOOL isInit; 
 
     // Threads
-    tXcpThread DAQThreadHandle;
+    tXcpThread TransmitThreadHandle;
     volatile BOOL TransmitThreadRunning;
-    tXcpThread CMDThreadHandle;
+    tXcpThread ReceiveThreadHandle;
     volatile BOOL ReceiveThreadRunning;
 
 } gXcpServer;
@@ -51,7 +56,7 @@ BOOL XcpEthServerStatus() {
 
 
 // XCP server init
-BOOL XcpEthServerInit(const uint8_t* addr, uint16_t port, BOOL useTCP, uint16_t segmentSize)
+BOOL XcpEthServerInit(const uint8_t* addr, uint16_t port, BOOL useTCP)
 {
     int r = 0;
 
@@ -61,22 +66,22 @@ BOOL XcpEthServerInit(const uint8_t* addr, uint16_t port, BOOL useTCP, uint16_t 
     // Init network sockets
     if (!socketStartup()) return FALSE;
     
-    gXcpServer.TransmitThreadRunning = 0;
-    gXcpServer.ReceiveThreadRunning = 0;
+    gXcpServer.TransmitThreadRunning = FALSE;
+    gXcpServer.ReceiveThreadRunning = FALSE;
 
     // Initialize XCP protocol layer if not already done
     XcpInit();
 
     // Initialize XCP transport layer
-    r = XcpEthTlInit(addr, port, useTCP, segmentSize, TRUE /*blocking rx*/);
+    r = XcpEthTlInit(addr, port, useTCP, TRUE /*blocking rx*/);
     if (!r) return 0;
 
     // Start XCP protocol layer
     XcpStart();
 
     // Create threads
-    create_thread(&gXcpServer.DAQThreadHandle, XcpServerTransmitThread);
-    create_thread(&gXcpServer.CMDThreadHandle, XcpServerReceiveThread);
+    create_thread(&gXcpServer.TransmitThreadHandle, XcpServerTransmitThread);
+    create_thread(&gXcpServer.ReceiveThreadHandle, XcpServerReceiveThread);
 
     gXcpServer.isInit = TRUE;
     return TRUE;
@@ -84,16 +89,32 @@ BOOL XcpEthServerInit(const uint8_t* addr, uint16_t port, BOOL useTCP, uint16_t 
 
 BOOL XcpEthServerShutdown() {
 
+#ifdef XCP_SERVER_FORCEFULL_TERMINATION
+    // Forcefull termination
+    if (gXcpServer.isInit) {
+        DBG_PRINT3("Disconnect, cancel threads and shutdown XCP!\n");
+        XcpDisconnect();
+        cancel_thread(gXcpServer.ReceiveThreadHandle);
+        cancel_thread(gXcpServer.TransmitThreadHandle);
+        XcpEthTlShutdown();
+        gXcpServer.isInit = FALSE;
+        socketCleanup();
+        XcpReset();
+    }
+#else
+    // Gracefull termination
     if (gXcpServer.isInit) {
         XcpDisconnect();
         gXcpServer.ReceiveThreadRunning = FALSE;
         gXcpServer.TransmitThreadRunning = FALSE;
         XcpEthTlShutdown();
-        join_thread(gXcpServer.CMDThreadHandle);
-        join_thread(gXcpServer.DAQThreadHandle);
+        join_thread(gXcpServer.ReceiveThreadHandle);
+        join_thread(gXcpServer.TransmitThreadHandle);
         gXcpServer.isInit = FALSE;
         socketCleanup();
+        XcpReset();
     }
+#endif
     return TRUE;
 }
 
@@ -156,3 +177,5 @@ extern void* XcpServerTransmitThread(void* par)
     return 0;
 }
 
+
+#endif

@@ -4,9 +4,9 @@
 | Code released into public domain, no attribution required
 */
 
-
-#define PLATFORM_ENABLE_GET_LOCAL_ADDR
-#define PLATFORM_ENABLE_KEYBOARD
+#ifndef __MAIN_CFG_H__
+#error "Include dependency error!"
+#endif
 
 //-------------------------------------------------------------------------------
 // Keyboard
@@ -76,20 +76,22 @@ void mutexDestroy(MUTEX* m);
 typedef HANDLE tXcpThread;
 #define create_thread(h,t) *h = CreateThread(0, 0, t, NULL, 0, NULL)
 #define join_thread(h) WaitForSingleObject(h, INFINITE);
-#define terminate_thread(h) { TerminateThread(h,0); WaitForSingleObject(h,1000); CloseHandle(h); }
+#define cancel_thread(h) { TerminateThread(h,0); WaitForSingleObject(h,1000); CloseHandle(h); }
 
 #elif defined(_LINUX) // Linux
 
 typedef pthread_t tXcpThread;
 #define create_thread(h,t) pthread_create(h, NULL, t, NULL);
 #define join_thread(h) pthread_join(h,NULL);
-#define detach_thread(h) { pthread_detach(h); pthread_cancel(h); }
+#define cancel_thread(h) { pthread_detach(h); pthread_cancel(h); }
 
 #endif
 
 
 //-------------------------------------------------------------------------------
 // Platform independant socket functions
+
+#if defined(XCPTL_ENABLE_UDP) || defined(XCPTL_ENABLE_TCP)
 
 #ifdef _LINUX // Linux sockets
 
@@ -151,6 +153,8 @@ extern BOOL socketShutdown(SOCKET sock);
 extern BOOL socketClose(SOCKET* sp);
 #ifdef PLATFORM_ENABLE_GET_LOCAL_ADDR
 extern BOOL socketGetLocalAddr(uint8_t* mac, uint8_t* addr);
+#endif
+
 #endif
 
 //-------------------------------------------------------------------------------
