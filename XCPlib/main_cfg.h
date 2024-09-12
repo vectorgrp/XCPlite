@@ -1,4 +1,5 @@
 #pragma once
+#define __MAIN_CFG_H__
 
 // main_cfg.h
 // XCPlite
@@ -38,21 +39,6 @@
 #define ON 1
 #define OFF 0
 
-
-// Debug prints
-#define OPTION_ENABLE_DBG_PRINTS        ON
-#define OPTION_DEBUG_LEVEL              2
-#define OPTION_UDP_DEBUG_LEVEL          0  
-
-
-// A2L generation
-#define OPTION_ENABLE_A2L_GEN           ON // Enable A2L generation
-#if OPTION_ENABLE_A2L_GEN
-#define OPTION_A2L_NAME                 "XCPlite"     // A2L name 
-#define OPTION_A2L_FILE_NAME            "XCPlite.a2l" // A2L filename 
-#endif
-
-
 // Set clock resolution (for clock function in platform.c)
 #define CLOCK_USE_APP_TIME_US
 //#define CLOCK_USE_UTC_TIME_NS
@@ -64,3 +50,13 @@
 #define OPTION_SERVER_PORT              5555            // Default UDP port
 #define OPTION_SERVER_ADDR              {127,0,0,1}     // IP addr to bind, 0.0.0.0 = ANY
 
+// A2L generation
+#define OPTION_ENABLE_A2L_GEN           ON // Enable A2L generation
+#if OPTION_ENABLE_A2L_GEN
+#define OPTION_A2L_NAME                 "XCPlite"     // A2L name 
+#define OPTION_A2L_FILE_NAME            "XCPlite.a2l" // A2L filename 
+#endif
+
+// Debug prints
+#define OPTION_ENABLE_DBG_PRINTS        ON
+#define OPTION_DEBUG_LEVEL              3 // 1 - Error, 2 - Warn, 3 - Info, 4 - Trace, 5 - Debug 

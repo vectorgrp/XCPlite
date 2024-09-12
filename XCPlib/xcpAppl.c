@@ -26,6 +26,10 @@ BOOL ApplXcpConnect() {
     return TRUE;
 }
 
+void ApplXcpDisconnect() {
+    DBG_PRINT3("XCP disconnect\n");
+}
+
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0104
 BOOL ApplXcpPrepareDaq() { 
     DBG_PRINT1("XCP prepare DAQ\n");
@@ -110,7 +114,7 @@ uint8_t* ApplXcpGetBaseAddr() {
     return baseAddr;
 }
 
-uint32_t ApplXcpGetAddr(uint8_t* p) {
+uint32_t ApplXcpGetAddr(const uint8_t* p) {
 
     assert(p >= ApplXcpGetBaseAddr());
 #ifdef _WIN64
@@ -157,7 +161,7 @@ uint8_t* ApplXcpGetBaseAddr() {
     return baseAddr;
 }
 
-uint32_t ApplXcpGetAddr(uint8_t* p)
+uint32_t ApplXcpGetAddr(const uint8_t* p)
 {
     ApplXcpGetBaseAddr();
     return (uint32_t)(p - baseAddr);
@@ -175,7 +179,7 @@ uint8_t* ApplXcpGetBaseAddr()
     return ((uint8_t*)((uint64_t)(&__base_addr_val)&0xffffffff00000000));
 }
 
-uint32_t ApplXcpGetAddr(uint8_t* p)
+uint32_t ApplXcpGetAddr(const uint8_t* p)
 {
     return ((uint32_t)((uint64_t) p)& 0xffffffff);
 }
@@ -191,7 +195,7 @@ uint8_t* ApplXcpGetBaseAddr()
     return ((uint8_t*)0);
 }
 
-uint32_t ApplXcpGetAddr(uint8_t* p)
+uint32_t ApplXcpGetAddr(const uint8_t* p)
 {
     return ((uint32_t)(p));
 }

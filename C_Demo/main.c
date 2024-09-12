@@ -73,7 +73,7 @@ int main(int argc, char* argv[]) {
 
     // Initialize the XCP Server
     if (!socketStartup()) return 0; // Initialize sockets
-    if (!XcpEthServerInit(gOptionBindAddr, gOptionPort, gOptionUseTCP, XCPTL_MAX_SEGMENT_SIZE)) return 0;
+    if (!XcpEthServerInit(gOptionBindAddr, gOptionPort, gOptionUseTCP)) return 0;
 
     // Initialize a demo measurement task thread (in ecu.c) and create an A2L for its measurement and calibration objects
     ecuInit();

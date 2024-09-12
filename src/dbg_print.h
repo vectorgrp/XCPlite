@@ -1,4 +1,6 @@
 #pragma once
+#define __DBG_PRINT_H__
+
 
 /* dbg_print.h */
 /*
@@ -9,10 +11,12 @@
 //-------------------------------------------------------------------------------
 // Debug print
 
-#ifdef XCP_ENABLE_DBG_PRINTS
+#if !defined(OPTION_ENABLE_DBG_PRINTS) || !defined(OPTION_DEBUG_LEVEL)
+  #error "Please define OPTION_ENABLE_DBG_PRINTS and OPTION_DEBUG_LEVEL in main_cfg.h to ON or OFF"
+#endif
 
-extern uint8_t gDebugLevel;
-#define DBG_LEVEL gDebugLevel
+
+#if OPTION_ENABLE_DBG_PRINTS
 
 /*
 1 - Error
@@ -21,6 +25,9 @@ extern uint8_t gDebugLevel;
 4 - Trace
 5 - Debug 
 */
+extern uint8_t gDebugLevel;
+#define DBG_LEVEL gDebugLevel
+
 
 #define DBG_PRINTF(level, format, ...) if (DBG_LEVEL>=level) printf(format, __VA_ARGS__)
 #define DBG_PRINTF_ERROR(format, ...) if (DBG_LEVEL>=1) printf(format, __VA_ARGS__)

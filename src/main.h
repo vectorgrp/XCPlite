@@ -1,4 +1,5 @@
 #pragma once
+#define __MAIN_CFG_H__
 
 
 /* main.h */

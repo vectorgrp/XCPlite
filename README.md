@@ -1,5 +1,5 @@
 
-# XCPlite V6
+# XCPlite V7.x.x
 
 Copyright 2024 Vector Informatik GmbH
 
@@ -20,6 +20,7 @@ XCPlite
 - Compiles as C or C++. 
 - Has no dependencies but includes some boilerplate code to abstract socket communication and clock
 - Achieves up to 100 MByte/s throughput on a Raspberry Pi 4. 
+- v7 is used as the XCP on ETH protocol and transport layer implementation for the rust xcp-lite API
 
 XCPlite has been testet on CANFD, there is some experimental code included, but there is no example target to showcase this.
 XCPlite is not recomended for CAN.
@@ -117,6 +118,20 @@ Turn Multicast off in device/protocol/event/TIME_CORRELATION_GETDAQCLOCK by chan
 
 
 ## Version History
+
+Version 7.x.x
+
+- Sync with xcp-lite (rust FFI) version
+- Refactoring for xcplib
+- Debug level 1-error, 2-warn,3-info,4-debug,5-trace
+- New addressing mode with callbacks
+- XcpEthServer optional, XcpTlTransmitQueuePeek and XcpTlTransmitQueueNext
+- Option for forcefull or gracefull thread termination
+- Segment_size parameters removed
+- SendCallback removed, additional callback for rust FFI
+- Type of BOOL changed to uint8_t to simplify FFI
+- XcpReset
+
 
 Version 6.x:
 - Bugfixes, optimizations, refactorings and simplifications

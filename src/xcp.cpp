@@ -52,7 +52,7 @@ Xcp::~Xcp() {}
 
 
 
-BOOL Xcp::init(const uint8_t* addr0, uint16_t port0, BOOL useTCP0, BOOL usePTP0, uint16_t segmentSize) {
+BOOL Xcp::init(const uint8_t* addr0, uint16_t port0, BOOL useTCP0, BOOL usePTP0) {
 
     addr = addr0;
     port = port0;
@@ -69,7 +69,7 @@ BOOL Xcp::init(const uint8_t* addr0, uint16_t port0, BOOL useTCP0, BOOL usePTP0,
     if (!clockInit()) return FALSE;
 
     // Init and start XCP server
-    if (!XcpEthServerInit(addr, port, useTCP, segmentSize)) return FALSE;
+    if (!XcpEthServerInit(addr, port, useTCP)) return FALSE;
 
     return TRUE;
 }
@@ -97,6 +97,9 @@ BOOL Xcp::onConnect() {
 #endif
 
     return TRUE;
+}
+
+void Xcp::onDisconnect() {
 }
 
 BOOL Xcp::onPrepareDaq() {
@@ -167,7 +170,7 @@ std::vector<Xcp::XcpEventDescriptor>* Xcp::getEventList() {
 
 #if OPTION_ENABLE_A2L_GEN
 
-uint32_t Xcp::getA2lAddr(uint8_t* p) { // Get A2L addr from pointer
+uint32_t Xcp::getA2lAddr(const uint8_t* p) { // Get A2L addr from pointer
     return ApplXcpGetAddr(p); 
 }
 

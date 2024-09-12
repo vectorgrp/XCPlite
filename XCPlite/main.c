@@ -60,12 +60,12 @@ int main() {
     
     // Initialize the XCP Server
     uint8_t ipAddr[] = OPTION_SERVER_ADDR;
-    if (!XcpEthServerInit(ipAddr, OPTION_SERVER_PORT, OPTION_USE_TCP, XCPTL_MAX_SEGMENT_SIZE)) return 0;
+    if (!XcpEthServerInit(ipAddr, OPTION_SERVER_PORT, OPTION_USE_TCP)) return 0;
 
     // Test address conversion functions
     // uint8_t* ApplXcpGetPointer(uint8_t addr_ext, uint32_t addr);
-    // uint32_t ApplXcpGetAddr(uint8_t * p);
-    uint32_t a = ApplXcpGetAddr((uint8_t*)&ampl);
+    // uint32_t ApplXcpGetAddr(const uint8_t * p);
+    uint32_t a = ApplXcpGetAddr((const uint8_t*)&ampl);
     uint8_t* p = ApplXcpGetPointer(0 /*addr_ext*/, a);
     double val = *(double*)p; // read
     assert(ampl == val); 

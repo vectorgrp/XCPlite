@@ -1,4 +1,5 @@
 #pragma once
+#define __MAIN_CFG_H__
 
 // main_cfg.h
 // XCPlite
@@ -38,10 +39,25 @@
 #define ON 1
 #define OFF 0
 
+// Set clock resolution (for clock function in platform.c)
+#define CLOCK_USE_APP_TIME_US
+//#define CLOCK_USE_UTC_TIME_NS
 
-// Debug prints
-#define OPTION_ENABLE_DBG_PRINTS        ON
-#define OPTION_DEBUG_LEVEL              2
+// Platform options
+#define PLATFORM_ENABLE_GET_LOCAL_ADDR
+#define PLATFORM_ENABLE_KEYBOARD
+
+// Ethernet Server
+// TCP or/and UDP server enabled
+#define XCPTL_ENABLE_TCP
+#define XCPTL_ENABLE_UDP
+#define XCP_SERVER_FORCEFULL_TERMINATION // Otherwise use gracefull server thread termination in xcplib
+
+// Ethernet Transport Layer options
+#define OPTION_USE_TCP                  OFF
+#define OPTION_MTU                      1500            // Ethernet MTU
+#define OPTION_SERVER_PORT              5555            // Default UDP port
+#define OPTION_SERVER_ADDR              {127,0,0,1}     // IP addr to bind, 0.0.0.0 = ANY
 
 // A2L generation
 #define OPTION_ENABLE_A2L_GEN           ON // Enable A2L generation
@@ -50,15 +66,6 @@
 #define OPTION_A2L_FILE_NAME            "XCPlite.a2l" // A2L filename 
 #endif
 
-
-// Set clock resolution (for clock function in platform.c)
-#define CLOCK_USE_APP_TIME_US
-//#define CLOCK_USE_UTC_TIME_NS
-
-
-// Ethernet Transport Layer
-#define OPTION_USE_TCP                  OFF
-#define OPTION_MTU                      1500            // Ethernet MTU
-#define OPTION_SERVER_PORT              5555            // Default UDP port
-#define OPTION_SERVER_ADDR              {127,0,0,1}     // IP addr to bind, 0.0.0.0 = ANY
-
+// Debug prints
+#define OPTION_ENABLE_DBG_PRINTS        ON
+#define OPTION_DEBUG_LEVEL              3 // 1 - Error, 2 - Warn, 3 - Info, 4 - Trace, 5 - Debug 

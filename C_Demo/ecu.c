@@ -12,6 +12,7 @@
 
 #include "main.h"
 #include "platform.h"
+#include "dbg_print.h"
 #include "xcpLite.h"
 #if OPTION_ENABLE_A2L_GEN
 #include "A2L.h"
@@ -191,7 +192,7 @@ void ecuCreateA2lDescription() {
 
     // Calibration Memory Segment
 #if OPTION_ENABLE_CAL_SEGMENT  
-    A2lCreate_MOD_PAR(ApplXcpGetAddr((uint8_t*)&ecuPar), sizeof(struct ecuPar), (char*)ecuPar.epk);
+    A2lCreate_MOD_PAR(ApplXcpGetAddr((const uint8_t*)&ecuPar), sizeof(struct ecuPar), (char*)ecuPar.epk);
 #endif
 
     // Parameters

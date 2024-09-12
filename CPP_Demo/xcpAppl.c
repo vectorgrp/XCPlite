@@ -13,9 +13,7 @@
  ----------------------------------------------------------------------------*/
 
 #include "main.h"
-#include "main_cfg.h"
 #include "../src/platform.h"
-#include "../src/util.h"
 #include "../src/xcp.h"
 #include "../src/xcp.hpp"
 
@@ -38,6 +36,11 @@ uint32_t ApplXcpGetDebugLevel() {
 BOOL ApplXcpConnect() {
     return Xcp::getInstance()->onConnect();
 }
+
+void ApplXcpDisconnect() {
+    Xcp::getInstance()->onDisconnect();
+}
+
 
 BOOL ApplXcpPrepareDaq() {
     return Xcp::getInstance()->onPrepareDaq();
@@ -107,7 +110,7 @@ uint8_t* ApplXcpGetBaseAddr() {
     return baseAddr;
 }
 
-uint32_t ApplXcpGetAddr(uint8_t* p) {
+uint32_t ApplXcpGetAddr(const uint8_t* p) {
 
     assert(p >= ApplXcpGetBaseAddr());
 #ifdef _WIN64
@@ -130,7 +133,7 @@ uint8_t* ApplXcpGetBaseAddr()
     return ((uint8_t*)0);
 }
 
-uint32_t ApplXcpGetAddr(uint8_t* p)
+uint32_t ApplXcpGetAddr(const uint8_t* p)
 {
     assert((uint64_t)p <= 0xFFFFFFFF);
     return ((uint32_t)p);

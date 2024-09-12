@@ -341,12 +341,12 @@ void A2lCreate_MOD_PAR(uint32_t startAddr, uint32_t size, char *epk) {
 	assert(gA2lFile != NULL);
 	fprintf(gA2lFile, "/begin MOD_PAR \"\"\n");
 	fprintf(gA2lFile, "EPK \"%s\"\n", epk);
-	fprintf(gA2lFile, "ADDR_EPK 0x%08X\n", ApplXcpGetAddr((uint8_t*)epk));
+	fprintf(gA2lFile, "ADDR_EPK 0x%08X\n", ApplXcpGetAddr((const uint8_t*)epk));
 	fprintf(gA2lFile, gA2lMemorySegment, startAddr, size);
 	DBG_PRINTF3("  A2L MOD_PAR MEMORY_SEGMENT 1: 0x%08X %u\n", startAddr, size);
 	fprintf(gA2lFile, "/end MOD_PAR\n\n");
 #if OPTION_ENABLE_DBG_PRINTS
-	if (epk) DBG_PRINTF3("  A2L MOD_PAR EPK \"%s\" 0x%08X\n", epk, ApplXcpGetAddr((uint8_t*)epk));
+	if (epk) DBG_PRINTF3("  A2L MOD_PAR EPK \"%s\" 0x%08X\n", epk, ApplXcpGetAddr((const uint8_t*)epk));
 #endif
 }
 

@@ -1,4 +1,5 @@
 #pragma once
+#define __XCP_CFG_H__
 
 /*----------------------------------------------------------------------------
 | File:
@@ -101,9 +102,16 @@
 // Debug 
 
 // Debug console prints
+#if !defined(OPTION_ENABLE_DBG_PRINTS) || !defined(OPTION_DEBUG_LEVEL)
+  #warning "Please define OPTION_ENABLE_DBG_PRINTS and OPTION_DEBUG_LEVEL in main_cfg.h to ON or OFF"
+#else
 #if OPTION_ENABLE_DBG_PRINTS
-#define XCP_ENABLE_DEBUG_PRINTS
-#define XCP_DBG_LEVEL XCP_DEBUG_LEVEL
+  #define XCP_ENABLE_DEBUG_PRINTS
+  #define XCP_DBG_LEVEL OPTION_DEBUG_LEVEL
+#else
+  #undef XCP_ENABLE_DEBUG_PRINTS
+  #undef XCP_DBG_LEVEL OPTION_DEBUG_LEVEL
+#endif
 #endif
 
 // Enable extended error checks, performance penalty !!!

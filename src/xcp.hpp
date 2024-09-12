@@ -73,10 +73,11 @@ public:
 
 	static Xcp* getInstance();
 
-	virtual BOOL init(const uint8_t* addr, uint16_t port, BOOL useTCP, BOOL usePTP, uint16_t segmentSize);
+	virtual BOOL init(const uint8_t* addr, uint16_t port, BOOL useTCP, BOOL usePTP);
 	virtual void shutdown();
 
 	virtual BOOL onConnect();      // Callbacks
+	virtual void onDisconnect();     
 	virtual BOOL onPrepareDaq();
 	virtual BOOL onStartDaq();
 	virtual BOOL onStopDaq();
@@ -97,7 +98,7 @@ public:
 	void eventAt(uint16_t event, uint64_t clock);
 	void eventExtAt(uint16_t event, uint8_t* base, uint64_t clock);
 
-	uint32_t getA2lAddr(uint8_t* p); // Get A2L addr from pointer	
+	uint32_t getA2lAddr(const uint8_t* p); // Get A2L addr from pointer	
 	
 	// Optional: A2L generation
 #if OPTION_ENABLE_A2L_GEN

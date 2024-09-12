@@ -14,6 +14,7 @@
 
 #include "main.h"
 #include "platform.h"
+#include "dbg_print.h"
 #include "util.h"
 #include "xcpLite.h"   
 #include "xcpCanServer.h"

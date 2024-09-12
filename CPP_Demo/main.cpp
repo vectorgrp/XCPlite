@@ -136,7 +136,7 @@ int main(int argc, char* argv[]) {
 
     // XCP singleton
     Xcp* xcp = Xcp::getInstance();
-    if (!xcp->init(gOptionBindAddr, gOptionPort, gOptionUseTCP, FALSE, XCPTL_MAX_SEGMENT_SIZE)) return -1;
+    if (!xcp->init(gOptionBindAddr, gOptionPort, gOptionUseTCP, FALSE)) return -1;
 
     // Create a measurement event
     // Must be defined before A2L generation

@@ -73,9 +73,11 @@ BOOL cmdline_parser(int argc, char* argv[]) {
 #if OPTION_ENABLE_DBG_PRINTS
         else if (strcmp(argv[i], "-log") == 0) {
           if (++i < argc) {
-            extern unsigned int gDebugLevel;
-            if (sscanf(argv[i], "%u", &gDebugLevel) == 1) {
-              printf("Debug output level = %u\n", gDebugLevel);
+            unsigned int l = 0;
+            if (sscanf(argv[i], "%u", &l) == 1) {
+                extern uint8_t gDebugLevel;
+                gDebugLevel = (uint8_t)l;
+                printf("Debug output level = %u\n", gDebugLevel);
             }
           }
         }

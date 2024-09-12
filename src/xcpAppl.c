@@ -24,20 +24,22 @@
 #endif
     
 
-
-
 #if OPTION_ENABLE_DBG_PRINTS
-unsigned int gDebugLevel = OPTION_DEBUG_LEVEL;
+uint8_t gDebugLevel = OPTION_DEBUG_LEVEL;
 #endif
 
 /**************************************************************************/
 // General Callbacks from XCPlite.c
 /**************************************************************************/
 
-#ifdef OPTION_ENABLE_XCP_CLASS
+#if OPTION_ENABLE_XCP_CLASS
 
 BOOL ApplXcpConnect() {
     return Xcp::getInstance()->onConnect();
+}
+
+void ApplXcpDisconnect() {
+    Xcp::getInstance()->onDisconnect();
 }
 
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0104
@@ -59,6 +61,10 @@ void ApplXcpStopDaq() {
 BOOL ApplXcpConnect() {
     DBG_PRINT3("XCP connect\n");
     return TRUE;
+}
+
+void ApplXcpDisconnect() {
+    DBG_PRINT3("XCP disconnect\n");
 }
 
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0104
@@ -171,7 +177,7 @@ uint8_t* ApplXcpGetBaseAddr() {
     return baseAddr;
 }
 
-uint32_t ApplXcpGetAddr(uint8_t* p) {
+uint32_t ApplXcpGetAddr(const uint8_t* p) {
 
     assert(p >= ApplXcpGetBaseAddr());
 #ifdef _WIN64
@@ -218,7 +224,7 @@ uint8_t* ApplXcpGetBaseAddr() {
     return baseAddr;
 }
 
-uint32_t ApplXcpGetAddr(uint8_t* p)
+uint32_t ApplXcpGetAddr(const uint8_t* p)
 {
     ApplXcpGetBaseAddr();
     return (uint32_t)(p - baseAddr);
@@ -236,7 +242,7 @@ uint8_t* ApplXcpGetBaseAddr()
     return ((uint8_t*)((uint64_t)(&__base_addr_val)&0xffffffff00000000));
 }
 
-uint32_t ApplXcpGetAddr(uint8_t* p)
+uint32_t ApplXcpGetAddr(const uint8_t* p)
 {
     return ((uint32_t)((uint64_t) p)& 0xffffffff);
 }
@@ -252,7 +258,7 @@ uint8_t* ApplXcpGetBaseAddr()
     return ((uint8_t*)0);
 }
 
-uint32_t ApplXcpGetAddr(uint8_t* p)
+uint32_t ApplXcpGetAddr(const uint8_t* p)
 {
     return ((uint32_t)(p));
 }
@@ -288,7 +294,7 @@ uint8_t ApplXcpGetExt(uint8_t* addr)
     return 0;
 }
 
-uint32_t ApplXcpGetAddr(uint8_t* addr)
+uint32_t ApplXcpGetAddr(const uint8_t* addr)
 {
     uint8_t addr_ext = ApplXcpGetExt(addr);
     union {
