@@ -132,6 +132,10 @@ int _kbhit(void);
 
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-------------------------------------------------------------------------------
 // Delay
 
@@ -337,4 +341,8 @@ extern MUTEX gWinMutex;
 bool atomic_compare_exchange_strong_explicit(uint8_t *a, uint8_t *b, uint8_t c, int d, int e);
 bool atomic_compare_exchange_weak_explicit(uint8_t *a, uint8_t *b, uint8_t c, int d, int e);
 
+#endif
+
+#ifdef __cplusplus
+} // extern "C"
 #endif

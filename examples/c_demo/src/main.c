@@ -14,8 +14,8 @@
 
 // XCP parameters
 #define OPTION_ENABLE_A2L_GENERATOR       // Enable A2L file generation
-#define OPTION_A2L_PROJECT_NAME "C_Demo"  // A2L project name
-#define OPTION_A2L_FILE_NAME "C_Demo.a2l" // A2L file name
+#define OPTION_A2L_PROJECT_NAME "C_demo"  // A2L project name
+#define OPTION_A2L_FILE_NAME "C_demo.a2l" // A2L file name
 #define OPTION_USE_TCP false              // TCP or UDP
 #define OPTION_SERVER_PORT 5555           // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}   // Bind addr, 0.0.0.0 = ANY

@@ -10,6 +10,10 @@
 #include "../xcplib.h" // for tXcpEventId, tXcpCalSegIndex
 #include "platform.h"  // for atomic_bool
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 // Basic A2L types
@@ -422,3 +426,7 @@ void A2lCreateTypedefInstance_(const char *instance_name, const char *type_name,
 void A2lCreateParameter_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, const char *comment, const char *unit, double min, double max);
 void A2lCreateMap_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, uint32_t xdim, uint32_t ydim, const char *comment, const char *unit, double min, double max);
 void A2lCreateCurve_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, uint32_t xdim, const char *comment, const char *unit, double min, double max);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif

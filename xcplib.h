@@ -2,8 +2,14 @@
 // A2L generation functions and macros are in src/a2l.h
 // Used for Rust bindgen to generate FFI bindings for xcplib
 
+#pragma once
+
 #include <stdbool.h>
 #include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // XCP on Ethernet server interface
@@ -188,3 +194,7 @@ void ApplXcpRegisterCallbacks(bool (*cb_connect)(void), uint8_t (*cb_prepare_daq
 // Register a connect callback
 // Used by the A2L generator
 void ApplXcpRegisterConnectCallback(bool (*cb_connect)(void));
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
