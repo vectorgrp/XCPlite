@@ -57,17 +57,24 @@ void *task(void *p)
     uint32_t delay_us = 1000;
     uint64_t start_time = ApplXcpGetClock64(); // Get the start time in clock ticks
 
-    uint16_t counter = 0; // Local counter variable for measurement
+    // Task local measurement variables on stack
+    uint16_t counter = 0;
     double channel = 0;
 
     // Register measurement variables located on stack
     tXcpEventId event = XcpCreateEventInstance("task", 0, 0);
+
+    // Use event instance id to build a unique task name
     uint16_t task_id = event;
     char task_name[32];
     sprintf(task_name, "task_%u", task_id);
 
-    A2lCreateMeasurementInstance(task_name, event, counter, "task loop counter", "");
-    A2lCreateMeasurementInstance(task_name, event, channel, "task sine signal", "");
+    // Register the task local variables with dynamic addressing mode
+    A2lLock();
+    A2lSetStackAddrMode_i(event);
+    A2lCreateMeasurementInstance(task_name, counter, "task loop counter", "");
+    A2lCreateMeasurementInstance(task_name, channel, "task sine signal", "");
+    A2lUnlock();
 
     printf("Start task %u\n", task_id);
 
@@ -93,7 +100,7 @@ void *task(void *p)
         }
 
         // Measurement event
-        XcpEventDyn(&event);
+        DaqEvent(event);
 
         // Sleep for the specified delay parameter in microseconds
         sleepNs(delay_us * 1000);

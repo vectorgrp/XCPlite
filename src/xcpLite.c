@@ -1031,6 +1031,13 @@ static tXcpEvent *XcpGetEvent(tXcpEventId event) {
     return &gXcp.EventList.event[event];
 }
 
+// Get the event name
+const char *XcpGetEventName(tXcpEventId event) {
+    if (!isInitialized() || event >= gXcp.EventList.count)
+        return NULL;
+    return &gXcp.EventList.event[event].name;
+}
+
 // Find an event by name, return XCP_UNDEFINED_EVENT_ID if not found
 tXcpEventId XcpFindEvent(const char *name, uint16_t *count) {
     uint16_t id = XCP_UNDEFINED_EVENT_ID;
@@ -1658,7 +1665,7 @@ static void XcpTriggerDaqList(tQueueHandle queueHandle, uint16_t daq, const uint
 
 // Trigger event
 // DAQ must be running
-static void XcpTriggerDaqEvent(tQueueHandle queueHandle, tXcpEventId event, const uint8_t *dyn_rel_base, uint64_t clock) {
+static void XcpTriggerDaqEvent(tQueueHandle queueHandle, tXcpEventId event, const uint8_t *dyn_base, const uint8_t *rel_base, uint64_t clock) {
 
     uint16_t daq;
 
@@ -1694,8 +1701,8 @@ static void XcpTriggerDaqEvent(tQueueHandle queueHandle, tXcpEventId event, cons
     // Relative addressing mode, the difference is unimportant here
     static_assert(XCP_ADDR_EXT_REL < 4, "XCP_ADDR_EXT_REL must be less than 4");
     static_assert(XCP_ADDR_EXT_DYN < 4, "XCP_ADDR_EXT_DYN must be less than 4");
-    base_addr[XCP_ADDR_EXT_REL] = dyn_rel_base;
-    base_addr[XCP_ADDR_EXT_DYN] = dyn_rel_base;
+    base_addr[XCP_ADDR_EXT_REL] = rel_base;
+    base_addr[XCP_ADDR_EXT_DYN] = dyn_base;
 #endif
 
 #ifndef XCP_MAX_EVENT_COUNT
@@ -1760,30 +1767,10 @@ static void XcpTriggerDaqEvent(tQueueHandle queueHandle, tXcpEventId event, cons
 #endif
 }
 
-// ABS addressing mode event at a given clock
-// Base for ADDR_EXT_ABS is ApplXcpGetBaseAddr()
-#ifdef XCP_ENABLE_ABS_ADDRESSING
-void XcpEventAt(tXcpEventId event, uint64_t clock) {
-    if (!isDaqRunning())
-        return; // DAQ not running
-    XcpTriggerDaqEvent(gXcp.Queue, event, NULL, clock);
-}
-#endif
-
-// ABS addressing mode event
-// Base for ADDR_EXT_ABS is ApplXcpGetBaseAddr()
-#ifdef XCP_ENABLE_ABS_ADDRESSING
-void XcpEvent(tXcpEventId event) {
-    if (!isDaqRunning())
-        return; // DAQ not running
-    XcpTriggerDaqEvent(gXcp.Queue, event, NULL, 0);
-}
-#endif
-
 // Dyn addressing mode event at a given clock
 // Base for ADDR_EXT_REL and ADDR_EXT_DYN is given as parameter
 // Base for ADDR_EXT_ABS is ApplXcpGetBaseAddr()
-uint8_t XcpEventExtAt(tXcpEventId event, const uint8_t *base, uint64_t clock) {
+uint8_t XcpEventDynRelAt(tXcpEventId event, const uint8_t *dyn_base, const uint8_t *rel_base, uint64_t clock) {
 
     // Cal
 #ifdef XCP_ENABLE_DYN_ADDRESSING
@@ -1803,7 +1790,7 @@ uint8_t XcpEventExtAt(tXcpEventId event, const uint8_t *base, uint64_t clock) {
 
     if (cmdPending) {
         // Convert relative signed 16 bit addr in MtaAddr to pointer MtaPtr
-        gXcp.MtaPtr = (uint8_t *)(base + (int16_t)(gXcp.MtaAddr & 0xFFFF));
+        gXcp.MtaPtr = (uint8_t *)(dyn_base + (int16_t)(gXcp.MtaAddr & 0xFFFF));
         gXcp.MtaExt = XCP_ADDR_EXT_PTR;
         if (CRC_CMD_OK == XcpAsyncCommand(true, (const uint32_t *)&gXcp.CmdPendingCrm, gXcp.CmdPendingCrmLen)) {
             uint8_t cmd = gXcp.CmdPendingCrm.b[0];
@@ -1817,16 +1804,22 @@ uint8_t XcpEventExtAt(tXcpEventId event, const uint8_t *base, uint64_t clock) {
     // Daq
     if (!isDaqRunning())
         return CRC_CMD_OK; // DAQ not running
-    XcpTriggerDaqEvent(gXcp.Queue, event, base, clock);
+    XcpTriggerDaqEvent(gXcp.Queue, event, dyn_base, rel_base, clock);
     return CRC_CMD_OK;
 }
 
 // Trigger an event with given base base address for ADDR_EXT_DYN and ADDR_EXT_REL
-uint8_t XcpEventExt(tXcpEventId event, const uint8_t *base) { return XcpEventExtAt(event, base, 0); }
+void XcpEventExt(tXcpEventId event, const uint8_t *base) { XcpEventDynRelAt(event, base, base, 0); }
 
-// Trigger an event
-// Convenience function when the event address is the base address
-uint8_t XcpEventDyn(tXcpEventId *event) { return XcpEventExtAt(*event, (uint8_t *)event, 0); }
+// ABS addressing mode event
+// Base for ADDR_EXT_ABS is ApplXcpGetBaseAddr()
+#ifdef XCP_ENABLE_ABS_ADDRESSING
+void XcpEvent(tXcpEventId event) {
+    if (!isDaqRunning())
+        return; // DAQ not running
+    XcpTriggerDaqEvent(gXcp.Queue, event, NULL, NULL, 0);
+}
+#endif
 
 /****************************************************************************/
 /* Command Processor                                                        */

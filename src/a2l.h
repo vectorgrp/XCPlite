@@ -72,12 +72,16 @@ extern MUTEX gA2lMutex;
 // Not thread safe !!!!!
 
 // Set addressing mode by event name or calibration segment index
-void A2lSetSegmentAddrMode_(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance); // Calibration segment relative addressing mode
-void A2lSetRelativeAddrMode_(const char *event_name, const uint8_t *stack_frame_pointer);
-void A2lSetAbsoluteAddrMode_(const char *event_name);
+// Used by the macros with the identical name (without underscore)
+void A2lSetSegmentAddrMode__i(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance);
+void A2lSetRelativeAddrMode__s(const char *event_name, const uint8_t *base_addr);
+void A2lSetRelativeAddrMode__i(tXcpEventId event_id, const uint8_t *base_addr);
+void A2lSetStackAddrMode__s(const char *event_name, const uint8_t *stack_frame);
+void A2lSetStackAddrMode__i(tXcpEventId event_id, const uint8_t *stack_frame);
+void A2lSetAbsoluteAddrMode__s(const char *event_name);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// Stack frame relative addressing mode
+// Addressing mode
 // Can be used without runtime A2L file generation
 
 #ifndef get_stack_frame_pointer
@@ -108,31 +112,66 @@ void A2lSetAbsoluteAddrMode_(const char *event_name);
 
 // Set segment relative address mode
 // Error if the segment index does not exist
-#define A2lSetSegmentAddrMode(seg_index, seg_instance) A2lSetSegmentAddrMode_(seg_index, (const uint8_t *)&seg_instance);
+#define A2lSetSegmentAddrMode(seg_index, seg_instance) A2lSetSegmentAddrMode__i(seg_index, (const uint8_t *)&seg_instance);
 
-// Set addressing mode to relative for a given event 'name' and base address
+// Set addressing mode to relative for a given event 'event_name' and base address
 // Error if the event does not exist
-// Use in combination with DaqEvent(name)
-#define A2lSetRelativeAddrMode(name, base_addr)                                                                                                                                    \
+// Use in combination with DaqEvent(event_name)
+#define A2lSetRelativeAddrMode(event_name, base_addr) A2lSetRelativeAddrMode__s(#event_name, (const uint8_t *)base_addr);
+#define A2lSetRelativeAddrMode_s(event_name, base_addr) A2lSetRelativeAddrMode__s(event_name, (const uint8_t *)base_addr);
+
+// Once
+#define A2lOnceSetRelativeAddrMode(event_name, base_addr)                                                                                                                          \
     {                                                                                                                                                                              \
-        static atomic_bool a2l_mode_rel_##name##_ = false;                                                                                                                         \
-        if (A2lOnce_(&a2l_mode_rel_##name##_))                                                                                                                                     \
-            A2lSetRelativeAddrMode_(#name, (const uint8_t *)base_addr);                                                                                                            \
+        static atomic_bool a2l_mode_dyn_##event_name##_ = false;                                                                                                                   \
+        if (A2lOnce_(&a2l_mode_dyn_##event_name##_))                                                                                                                               \
+            A2lSetRelativeAddrMode__s(#event_name, (const uint8_t *)base_addr);                                                                                                    \
+    }
+#define A2lOnceSetRelativeAddrMode_s(event_name_string, base_addr)                                                                                                                 \
+    {                                                                                                                                                                              \
+        static atomic_bool a2l_mode_dyn__ = false;                                                                                                                                 \
+        if (A2lOnce_(&a2l_mode_dyn__))                                                                                                                                             \
+            A2lSetRelativeAddrMode__s(event_name_string, (const uint8_t *)base_addr);                                                                                              \
     }
 
-// Set addressing mode to stack and event 'name'
+// Set addressing mode to stack and event 'event_name'
 // Error if the event does not exist
-// Use in combination with DaqEvent(name)
-#define A2lSetStackAddrMode(name) A2lSetRelativeAddrMode(name, get_stack_frame_pointer());
+// Use in combination with DaqEvent(event_name)
+#define A2lSetStackAddrMode(event_name) A2lSetStackAddrMode__s(#event_name, get_stack_frame_pointer());
+#define A2lSetStackAddrMode_s(event_name_string) A2lSetStackAddrMode__s(event_name_string, get_stack_frame_pointer());
+#define A2lSetStackAddrMode_i(event_id) A2lSetStackAddrMode__i(event_id, get_stack_frame_pointer());
 
-// Set addressing mode to absolute and event 'name'
-// Error if the event does not exist
-// Use in combination with DaqEvent(name)
-#define A2lSetAbsoluteAddrMode(name)                                                                                                                                               \
+// Once
+#define A2lOnceSetStackAddrMode(event_name)                                                                                                                                        \
     {                                                                                                                                                                              \
-        static atomic_bool a2l_mode_abs_##name##_ = false;                                                                                                                         \
-        if (A2lOnce_(&a2l_mode_abs_##name##_))                                                                                                                                     \
-            A2lSetAbsoluteAddrMode_(#name);                                                                                                                                        \
+        static atomic_bool a2l_mode_rel_##event_name##_ = false;                                                                                                                   \
+        if (A2lOnce_(&a2l_mode_rel_##event_name##_))                                                                                                                               \
+            A2lSetStackAddrMode__s(#event_name, get_stack_frame_pointer());                                                                                                        \
+    }
+#define A2lOnceSetStackAddrMode_s(event_name_string)                                                                                                                               \
+    {                                                                                                                                                                              \
+        static atomic_bool a2l_mode_rel__ = false;                                                                                                                                 \
+        if (A2lOnce_(&a2l_mode_rel__))                                                                                                                                             \
+            A2lSetStackAddrMode__s(event_name_string, get_stack_frame_pointer());                                                                                                  \
+    }
+
+// Set addressing mode to absolute and event 'event_name'
+// Error if the event does not exist
+// Use in combination with DaqEvent(event_name)
+#define A2lSetAbsoluteAddrMode(event_name) A2lSetAbsoluteAddrMode__s(#event_name);
+#define A2lSetAbsoluteAddrMode_s(event_name_string) A2lSetAbsoluteAddrMode__s(event_name_string);
+// Once
+#define A2lOnceSetAbsoluteAddrMode(event_name)                                                                                                                                     \
+    {                                                                                                                                                                              \
+        static atomic_bool a2l_mode_abs_##event_name##_ = false;                                                                                                                   \
+        if (A2lOnce_(&a2l_mode_abs_##event_name##_))                                                                                                                               \
+            A2lSetAbsoluteAddrMode__s(#event_name);                                                                                                                                \
+    }
+#define A2lOnceSetAbsoluteAddrMode_s(event_name_string)                                                                                                                            \
+    {                                                                                                                                                                              \
+        static atomic_bool a2l_mode_abs__ = false;                                                                                                                                 \
+        if (A2lOnce_(&a2l_mode_abs__))                                                                                                                                             \
+            A2lSetAbsoluteAddrMode__s(event_name_string);                                                                                                                          \
     }
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -171,6 +210,7 @@ void A2lSetAbsoluteAddrMode_(const char *event_name);
 // Create measurements on stack or in global memory
 // Measurements are registered once, it is allowed to use the following macros in local scope which is run multiple times
 
+// Once mode
 #define A2lCreateMeasurement(name, comment, unit)                                                                                                                                  \
     {                                                                                                                                                                              \
         static atomic_bool a2l_##name##_ = false;                                                                                                                                  \
@@ -183,16 +223,6 @@ void A2lSetAbsoluteAddrMode_(const char *event_name);
         static atomic_bool a2l_##name##_ = false;                                                                                                                                  \
         if (A2lOnce_(&a2l_##name##_))                                                                                                                                              \
             A2lCreateMeasurement_(NULL, #name, A2lGetTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&(name)), unit_or_conversion, min, max, comment);                      \
-    }
-
-// Thread safe
-// Create thread local measurement instance, combine with XcpCreateEventInstance() and DaqEventInstance()
-#define A2lCreateMeasurementInstance(instance_name, event, name, comment, unit_or_conversion)                                                                                      \
-    {                                                                                                                                                                              \
-        mutexLock(&gA2lMutex);                                                                                                                                                     \
-        A2lSetDynAddrMode_(event, (const uint8_t *)&event);                                                                                                                        \
-        A2lCreateMeasurement_(instance_name, #name, A2lGetTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&(name)), unit_or_conversion, 0.0, 0.0, comment);                 \
-        mutexUnlock(&gA2lMutex);                                                                                                                                                   \
     }
 
 #define A2lCreateMeasurementArray(name, comment, unit_or_conversion)                                                                                                               \
@@ -211,8 +241,24 @@ void A2lSetAbsoluteAddrMode_(const char *event_name);
                                        A2lGetAddr_(&name[0]), unit_or_conversion, comment);                                                                                        \
     }
 
+// With instance name
+#define A2lCreateMeasurementInstance(instance_name, name, comment, unit)                                                                                                           \
+    {                                                                                                                                                                              \
+        A2lCreateMeasurement_(instance_name, #name, A2lGetTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&(name)), unit, 0.0, 0.0, comment);                               \
+    }
+
+#define A2lCreatePhysMeasurementInstance(instance_name, name, comment, unit_or_conversion, min, max)                                                                               \
+    {                                                                                                                                                                              \
+        A2lCreateMeasurement_(instance_name, #name, A2lGetTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&(name)), unit_or_conversion, min, max, comment);                 \
+    }
+
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Create typedefs and typedef components
+
+#define A2lCreateTypedefNamedInstance(name, instance, typeName, comment)                                                                                                           \
+    {                                                                                                                                                                              \
+        A2lCreateTypedefInstance_(name, #typeName, 0, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&instance), comment);                                                               \
+    }
 
 #define A2lCreateTypedefInstance(name, typeName, comment)                                                                                                                          \
     {                                                                                                                                                                              \
@@ -391,15 +437,19 @@ bool A2lInit(const char *a2l_filename, const char *a2l_projectname, const uint8_
 // Finish A2L generation
 bool A2lFinalize(void);
 
+// Lock and unlock for thread safety
+void A2lLock(void);
+void A2lUnlock(void);
+
 // --------------------------------------------------------------------------------------------
 // Helper functions used in the for A2L generation macros
 
 bool A2lOnce_(atomic_bool *once);
 
-void A2lSetAbsAddrMode_(tXcpEventId default_event_id);
-void A2lSetDynAddrMode_(tXcpEventId event_id, const uint8_t *base);
-void A2lSetSegAddrMode_(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance_addr);
-void A2lSetRelAddrMode_(tXcpEventId event_id, const uint8_t *base);
+void A2lSetAbsAddrMode(tXcpEventId default_event_id);
+void A2lSetDynAddrMode(tXcpEventId event_id, const uint8_t *base);
+void A2lSetSegAddrMode(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance_addr);
+void A2lSetRelAddrMode(tXcpEventId event_id, const uint8_t *base);
 
 uint32_t A2lGetAddr_(const void *addr);
 uint8_t A2lGetAddrExt_(void);

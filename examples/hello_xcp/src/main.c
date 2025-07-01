@@ -18,9 +18,9 @@
 #define OPTION_A2L_FILE_NAME "hello_xcp.a2l" // A2L filename
 #define OPTION_USE_TCP false                 // TCP or UDP
 #define OPTION_SERVER_PORT 5555              // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0}      // Bind addr, 0.0.0.0 = ANY
-// #define OPTION_SERVER_ADDR {127, 0, 0, 1} // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE 1024 * 16 // Size of the measurement queue in bytes, must be a multiple of 8
+// #define OPTION_SERVER_ADDR {0, 0, 0, 0}      // Bind addr, 0.0.0.0 = ANY
+#define OPTION_SERVER_ADDR {172, 19, 8, 57} // 172.19.8.57
+#define OPTION_QUEUE_SIZE 1024 * 16         // Size of the measurement queue in bytes, must be a multiple of 8
 #define OPTION_LOG_LEVEL 3
 
 //-----------------------------------------------------------------------------------------------------
@@ -98,6 +98,8 @@ int main(void) {
 
     A2lFinalize(); // Optional: Finalize the A2L file generation early, otherwise it would be written when the client tool connects
 
+    // Mainloop
+    printf("Start main loop...\n");
     for (;;) {
         // Lock the calibration parameter segment for consistent and safe access
         // Calibration segment locking is completely lock-free and wait-free (no mutexes, system calls or CAS operations )

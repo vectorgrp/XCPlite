@@ -12,12 +12,13 @@
 
 #include "a2l.h"
 
-#include <assert.h>  // for assert
-#include <stdarg.h>  // for va_
-#include <stdbool.h> // for bool
-#include <stdint.h>  // for uintxx_t
-#include <stdio.h>   // for fclose, fopen, fread, fseek, ftell
-#include <string.h>  // for strlen, strncpy
+#include <assert.h>   // for assert
+#include <inttypes.h> // for PRIu64
+#include <stdarg.h>   // for va_
+#include <stdbool.h>  // for bool
+#include <stdint.h>   // for uintxx_t
+#include <stdio.h>    // for fclose, fopen, fread, fseek, ftell
+#include <string.h>   // for strlen, strncpy
 
 #include "dbg_print.h" // for DBG_PRINTF3, DBG_PRINT4, DBG_PRINTF4, DBG...
 #include "main_cfg.h"  // for OPTION_xxx
@@ -645,41 +646,43 @@ static void A2lCreateMeasurement_IF_DATA(void) {
             } else {
                 assert(false); // Fixed event must be set before calling this function
             }
-        }
-        if (gAl2AddrExt == XCP_ADDR_EXT_ABS) {
+        } else if (gAl2AddrExt == XCP_ADDR_EXT_ABS) {
             if (gA2lFixedEvent != XCP_UNDEFINED_EVENT_ID) {
                 fprintf(gA2lFile, " /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x%X /end DAQ_EVENT /end IF_DATA", gA2lFixedEvent);
             } else if (gA2lDefaultEvent != XCP_UNDEFINED_EVENT_ID) {
                 fprintf(gA2lFile, " /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x%X /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA",
                         gA2lDefaultEvent);
             }
+        } else if (gAl2AddrExt != XCP_ADDR_EXT_SEG) {
+            assert(false);
         }
     }
 }
 
 //----------------------------------------------------------------------------------
-// Mode
+// Raw functions to set addressing mode unchecked (by calibration segment index or event id)
+// -> XCP_ADDR_EXT_SEG/ABS/DYN/REL
 
-void A2lSetSegAddrMode_(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance_addr) {
+void A2lSetSegAddrMode(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance_addr) {
     gA2lAddrIndex = calseg_index;
     gA2lAddrBase = calseg_instance_addr; // Address of a a the calibration segment instance which is used in the macros to create the components
     gAl2AddrExt = XCP_ADDR_EXT_SEG;
 }
 
-void A2lSetAbsAddrMode_(tXcpEventId default_event_id) {
+void A2lSetAbsAddrMode(tXcpEventId default_event_id) {
     gA2lFixedEvent = XCP_UNDEFINED_EVENT_ID;
     gA2lDefaultEvent = default_event_id;
     gAl2AddrExt = XCP_ADDR_EXT_ABS;
 }
 
-void A2lSetRelAddrMode_(tXcpEventId event_id, const uint8_t *base) {
+void A2lSetRelAddrMode(tXcpEventId event_id, const uint8_t *base) {
     gA2lAddrBase = base;
     gA2lFixedEvent = event_id;
     gA2lDefaultEvent = XCP_UNDEFINED_EVENT_ID;
     gAl2AddrExt = XCP_ADDR_EXT_REL;
 }
 
-void A2lSetDynAddrMode_(tXcpEventId event_id, const uint8_t *base) {
+void A2lSetDynAddrMode(tXcpEventId event_id, const uint8_t *base) {
     gA2lAddrBase = base;
     gA2lFixedEvent = event_id;
     gA2lDefaultEvent = XCP_UNDEFINED_EVENT_ID;
@@ -695,12 +698,12 @@ void A2lRstAddrMode(void) {
 }
 
 //----------------------------------------------------------------------------------
-// Set addressing mode
+// Set addressing mode (by event name or calibration segment index lookup and runtime check)
 
 #ifdef XCP_ENABLE_CALSEG_LIST
 
 // Set relative address mode with calibration segment index
-void A2lSetSegmentAddrMode_(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance_addr) {
+void A2lSetSegmentAddrMode__i(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance_addr) {
 
     const tXcpCalSeg *calseg = XcpGetCalSeg(calseg_index);
     if (calseg == NULL) {
@@ -708,8 +711,8 @@ void A2lSetSegmentAddrMode_(tXcpCalSegIndex calseg_index, const uint8_t *calseg_
         return;
     }
 
-    A2lSetSegAddrMode_(calseg_index, (const uint8_t *)calseg_instance_addr);
-    fprintf(gA2lFile, "\n/* Relative addressing mode: calseg=%s */\n", calseg->name);
+    A2lSetSegAddrMode(calseg_index, (const uint8_t *)calseg_instance_addr);
+    fprintf(gA2lFile, "\n/* Segment relative addressing mode: calseg=%s */\n", calseg->name);
 
     if (gA2lAutoGroups) {
         A2lBeginGroup(calseg->name, "Calibration Segment", true);
@@ -721,7 +724,8 @@ void A2lSetSegmentAddrMode_(tXcpCalSegIndex calseg_index, const uint8_t *calseg_
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
 
 // Set relative address mode with event name
-void A2lSetRelativeAddrMode_(const char *event_name, const uint8_t *base_addr) {
+// Will result in using ADDR_EXT_DYN for user defined base, ADDR_EXT_REL is used for stack frame relative addressing
+void A2lSetRelativeAddrMode__s(const char *event_name, const uint8_t *base_addr) {
 
     assert(gA2lFile != NULL);
 
@@ -731,19 +735,54 @@ void A2lSetRelativeAddrMode_(const char *event_name, const uint8_t *base_addr) {
         return;
     }
 
-    A2lSetDynAddrMode_(event, (uint8_t *)base_addr);
-
+    A2lSetDynAddrMode(event, (uint8_t *)base_addr);
     if (gA2lAutoGroups) {
         A2lBeginGroup(event_name, "Measurement event group", false);
     }
 
-    fprintf(gA2lFile, "\n/* Relative addressing mode: event=%s (%u), addr_ext=%u, addr_base=%p */\n", event_name, event, gAl2AddrExt, (void *)gA2lAddrBase);
+    fprintf(gA2lFile, "\n/* Relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event, gAl2AddrExt);
+}
+
+// Set stack frame relative address mode with event name or event id
+// Will result in using ADDR_EXT_REL
+void A2lSetStackAddrMode__s(const char *event_name, const uint8_t *stack_frame) {
+
+    assert(gA2lFile != NULL);
+
+    tXcpEventId event = XcpFindEvent(event_name, NULL);
+    if (event == XCP_UNDEFINED_EVENT_ID) {
+        DBG_PRINTF_ERROR("SetStackAddrMode: Event %s not found!\n", event_name);
+        return;
+    }
+
+    A2lSetRelAddrMode(event, stack_frame);
+    if (gA2lAutoGroups) {
+        A2lBeginGroup(event_name, "Measurement event group", false);
+    }
+
+    fprintf(gA2lFile, "\n/* Stack frame relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event, gAl2AddrExt);
+}
+void A2lSetStackAddrMode__i(tXcpEventId event_id, const uint8_t *stack_frame) {
+
+    assert(gA2lFile != NULL);
+
+    const char *event_name = XcpGetEventName(event_id);
+    if (event_name == NULL) {
+        DBG_PRINTF_ERROR("SetStackAddrMode: Event %u not found!\n", event_id);
+        return;
+    }
+    A2lSetRelAddrMode(event_id, stack_frame);
+    if (gA2lAutoGroups) {
+        A2lBeginGroup(event_name, "Measurement event group", false);
+    }
+
+    fprintf(gA2lFile, "\n/* Stack frame relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, gAl2AddrExt);
 }
 
 #endif
 
 // Set absolute address mode with fixed event name
-void A2lSetAbsoluteAddrMode_(const char *event_name) {
+void A2lSetAbsoluteAddrMode__s(const char *event_name) {
 
     assert(gA2lFile != NULL);
 
@@ -753,7 +792,7 @@ void A2lSetAbsoluteAddrMode_(const char *event_name) {
         return;
     }
 
-    A2lSetAbsAddrMode_(event_id);
+    A2lSetAbsAddrMode(event_id);
 
     if (gA2lAutoGroups) {
         A2lBeginGroup(event_name, "Measurement event group", false);
@@ -785,7 +824,6 @@ uint32_t A2lGetAddr_(const void *p) {
     }
     case XCP_ADDR_EXT_DYN: {
         uint64_t addr_diff = (uint64_t)p - (uint64_t)gA2lAddrBase;
-
         // Ensure the relative address does not overflow the address space
         uint64_t addr_high = (addr_diff >> 16);
         if (addr_high != 0 && addr_high != 0xFFFFFFFFFFFF) {
@@ -865,11 +903,10 @@ const char *A2lCreateLinearConversion_(const char *name, const char *comment, co
 // Typedefs
 
 // Begin a typedef structure
-// Thread safe, but be aware of the mutex lock
 void A2lTypedefBegin_(const char *name, uint32_t size, const char *comment) {
 
     assert(gA2lFile != NULL);
-    mutexLock(&gA2lMutex);
+
     fprintf(gA2lFile, "/begin TYPEDEF_STRUCTURE %s \"%s\" 0x%X", name, comment, size);
     fprintf(gA2lFile, "\n");
     gA2lTypedefs++;
@@ -880,7 +917,6 @@ void A2lTypedefEnd_(void) {
 
     assert(gA2lFile != NULL);
     fprintf(gA2lFile, "/end TYPEDEF_STRUCTURE\n");
-    mutexUnlock(&gA2lMutex);
 }
 
 // For scalar measurement and parameter components
@@ -960,7 +996,6 @@ void A2lCreateTypedefInstance_(const char *instance_name, const char *typeName, 
         A2lAddToGroup(instance_name);
     }
 
-    mutexLock(&gA2lMutex);
     fprintf(gA2lFile, "/begin INSTANCE %s \"%s\" %s 0x%X", instance_name, comment, typeName, addr);
     printAddrExt(ext);
     if (x_dim > 1)
@@ -968,7 +1003,6 @@ void A2lCreateTypedefInstance_(const char *instance_name, const char *typeName, 
     A2lCreateMeasurement_IF_DATA();
     fprintf(gA2lFile, " /end INSTANCE\n");
     gA2lInstances++;
-    mutexUnlock(&gA2lMutex);
 }
 
 //----------------------------------------------------------------------------------
@@ -1097,13 +1131,11 @@ void A2lCreateCurve_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t ad
 // Groups
 
 // Begin a group for measurements or parameters
-// Thread safe, but be aware of the mutex lock
 void A2lBeginGroup(const char *name, const char *comment, bool is_parameter_group) {
     assert(gA2lGroupsFile != NULL);
     if (gA2lAutoGroupName == NULL || strcmp(name, gA2lAutoGroupName) != 0) { // Close previous group if any and new group name is different
         A2lEndGroup();
 
-        mutexLock(&gA2lMutex);
         gA2lAutoGroupName = name;
         gA2lAutoGroupIsParameter = is_parameter_group;
         fprintf(gA2lGroupsFile, "/begin GROUP %s \"%s\"", name, comment);
@@ -1131,7 +1163,6 @@ void A2lEndGroup(void) {
 
     fprintf(gA2lGroupsFile, " /end REF_%s", gA2lAutoGroupIsParameter ? "CHARACTERISTIC" : "MEASUREMENT");
     fprintf(gA2lGroupsFile, " /end GROUP\n");
-    mutexUnlock(&gA2lMutex);
 }
 
 void A2lCreateMeasurementGroup(const char *name, int count, ...) {
@@ -1139,7 +1170,7 @@ void A2lCreateMeasurementGroup(const char *name, int count, ...) {
     va_list ap;
 
     assert(gA2lGroupsFile != NULL);
-    mutexLock(&gA2lMutex);
+
     fprintf(gA2lGroupsFile, "/begin GROUP %s \"\" ROOT", name);
     fprintf(gA2lGroupsFile, " /begin REF_MEASUREMENT");
     va_start(ap, count);
@@ -1149,13 +1180,12 @@ void A2lCreateMeasurementGroup(const char *name, int count, ...) {
     va_end(ap);
     fprintf(gA2lGroupsFile, " /end REF_MEASUREMENT");
     fprintf(gA2lGroupsFile, " /end GROUP\n\n");
-    mutexUnlock(&gA2lMutex);
 }
 
 void A2lCreateMeasurementGroupFromList(const char *name, char *names[], uint32_t count) {
 
     assert(gA2lGroupsFile != NULL);
-    mutexLock(&gA2lMutex);
+
     fprintf(gA2lGroupsFile, "/begin GROUP %s \"\" ROOT", name);
     fprintf(gA2lGroupsFile, " /begin REF_MEASUREMENT");
     for (uint32_t i1 = 0; i1 < count; i1++) {
@@ -1163,7 +1193,6 @@ void A2lCreateMeasurementGroupFromList(const char *name, char *names[], uint32_t
     }
     fprintf(gA2lGroupsFile, " /end REF_MEASUREMENT");
     fprintf(gA2lGroupsFile, "\n/end GROUP\n\n");
-    mutexUnlock(&gA2lMutex);
 }
 
 void A2lCreateParameterGroup(const char *name, int count, ...) {
@@ -1171,7 +1200,7 @@ void A2lCreateParameterGroup(const char *name, int count, ...) {
     va_list ap;
 
     assert(gA2lGroupsFile != NULL);
-    mutexLock(&gA2lMutex);
+
     fprintf(gA2lGroupsFile, "/begin GROUP %s \"\" ROOT", name);
     fprintf(gA2lGroupsFile, " /begin REF_CHARACTERISTIC\n");
     va_start(ap, count);
@@ -1181,13 +1210,12 @@ void A2lCreateParameterGroup(const char *name, int count, ...) {
     va_end(ap);
     fprintf(gA2lGroupsFile, "\n/end REF_CHARACTERISTIC ");
     fprintf(gA2lGroupsFile, "/end GROUP\n\n");
-    mutexUnlock(&gA2lMutex);
 }
 
 void A2lCreateParameterGroupFromList(const char *name, const char *pNames[], int count) {
 
     assert(gA2lGroupsFile != NULL);
-    mutexLock(&gA2lMutex);
+
     fprintf(gA2lGroupsFile, "/begin GROUP %s \"\" ROOT", name);
     fprintf(gA2lGroupsFile, " /begin REF_CHARACTERISTIC\n");
     for (int i = 0; i < count; i++) {
@@ -1195,7 +1223,6 @@ void A2lCreateParameterGroupFromList(const char *name, const char *pNames[], int
     }
     fprintf(gA2lGroupsFile, "\n/end REF_CHARACTERISTIC ");
     fprintf(gA2lGroupsFile, "/end GROUP\n\n");
-    mutexUnlock(&gA2lMutex);
 }
 
 //----------------------------------------------------------------------------------
@@ -1300,6 +1327,10 @@ bool A2lFinalize(void) {
 
     return true; // Do not refuse connect
 }
+
+// Lock and unlock
+void A2lLock(void) { mutexLock(&gA2lMutex); }
+void A2lUnlock(void) { mutexUnlock(&gA2lMutex); }
 
 // Open the A2L file and register the finalize callback
 bool A2lInit(const char *a2l_filename, const char *a2l_projectname, const uint8_t *addr, uint16_t port, bool useTCP, bool finalize_on_connect, bool auto_groups) {

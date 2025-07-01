@@ -117,11 +117,11 @@ tXcpEventId XcpFindEvent(const char *name, uint16_t *count);
 //}
 
 // Used by the DAQ macros
-uint8_t XcpEventExtAt(tXcpEventId event, const uint8_t *base, uint64_t clock);
-uint8_t XcpEventExt(tXcpEventId event, const uint8_t *base);
-uint8_t XcpEventDyn(tXcpEventId *event);
+uint8_t XcpEventDynRelAt(tXcpEventId event, const uint8_t *dyn_base, const uint8_t *rel_base, uint64_t clock);
+void XcpEventExt(tXcpEventId event, const uint8_t *base);
+void XcpEvent(tXcpEventId event);
 
-// Trigger the XCP event 'name' for stack (DaqEvent) or relative addressing (DaqEventRelative) mode
+// Trigger the XCP event 'name' for stack only (DaqEvent) or relative and stack addressing (DaqEventDyn) mode
 // Error if the event does not exist
 // Both macros can be to measure variables in absolute addressing mode as well
 #define DaqEvent(name)                                                                                                                                                             \
@@ -133,7 +133,7 @@ uint8_t XcpEventDyn(tXcpEventId *event);
                 assert(false);                                                                                                                                                     \
             }                                                                                                                                                                      \
         } else {                                                                                                                                                                   \
-            XcpEventExt(daq_event_stackframe_##name##_, get_stack_frame_pointer());                                                                                                \
+            XcpEventDynRelAt(daq_event_stackframe_##name##_, get_stack_frame_pointer(), get_stack_frame_pointer(), 0);                                                             \
         }                                                                                                                                                                          \
     }
 
@@ -148,9 +148,12 @@ uint8_t XcpEventDyn(tXcpEventId *event);
                 assert(false);                                                                                                                                                     \
             }                                                                                                                                                                      \
         } else {                                                                                                                                                                   \
-            XcpEventExtAt(daq_event_rel_##name##_, (const uint8_t *)base_addr, 0);                                                                                                 \
+            XcpEventDynRelAt(daq_event_rel_##name##_, (const uint8_t *)base_addr, get_stack_frame_pointer(), 0);                                                                   \
         }                                                                                                                                                                          \
     }
+
+// Trigger the XCP event 'event_id' for relative mode with individual base address
+#define DaqEventRelative_i(event_id, base_addr) XcpEventDynRelAt(event_id, (const uint8_t *)base_addr, get_stack_frame_pointer(), 0);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Misc

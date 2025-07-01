@@ -2,6 +2,7 @@
 
 *.hex 
 *.mf4
+*.cnaxml
 
 *.a2l.old
 
@@ -10,3 +11,6 @@
 /hello_xcp.a2l
 /struct_demo.a2l
 /multi_thread_demo.a2l
+/examples/cpp_demo/CANape/RecycleBin.ini
+/examples/cpp_demo/CANape/~CANape_INI.TMP
+/examples/cpp_demo/CANape/~CANapeCurrentCfg.tmp
