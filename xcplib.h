@@ -137,6 +137,9 @@ void XcpEvent(tXcpEventId event);
         }                                                                                                                                                                          \
     }
 
+// Trigger a XCP event with explicit 'event_id'
+#define DaqEvent_i(event_id) XcpEventDynRelAt(event_id, get_stack_frame_pointer(), get_stack_frame_pointer(), 0);
+
 // Trigger the XCP event 'name' for relative mode with individual base address
 // Error if the event does not exist
 #define DaqEventRelative(name, base_addr)                                                                                                                                          \
@@ -152,7 +155,7 @@ void XcpEvent(tXcpEventId event);
         }                                                                                                                                                                          \
     }
 
-// Trigger the XCP event 'event_id' for relative mode with individual base address
+// Trigger a XCP event with explicit 'event_id' for relative mode with individual base address
 #define DaqEventRelative_i(event_id, base_addr) XcpEventDynRelAt(event_id, (const uint8_t *)base_addr, get_stack_frame_pointer(), 0);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

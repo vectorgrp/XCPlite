@@ -100,7 +100,7 @@ void *task(void *p)
         }
 
         // Measurement event
-        DaqEvent(event);
+        DaqEvent_i(event);
 
         // Sleep for the specified delay parameter in microseconds
         sleepNs(delay_us * 1000);
