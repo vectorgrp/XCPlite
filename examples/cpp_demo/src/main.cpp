@@ -20,12 +20,11 @@
 #define OPTION_A2L_PROJECT_NAME "cpp_demo"  // A2L project name
 #define OPTION_A2L_FILE_NAME "cpp_demo.a2l" // A2L filename
 #define OPTION_USE_TCP false                // TCP or UDP
-#define OPTION_SERVER_PORT                                                                                                                                                         \
-    5555                                      // Port
-                                              // #define OPTION_SERVER_ADDR {0, 0, 0, 0}     // Bind addr, 0.0.0.0 = ANY
-                                              // #define OPTION_SERVER_ADDR {172, 19, 8, 57} // 172.19.8.57
-#define OPTION_SERVER_ADDR {192, 168, 0, 128} // 192.168.0.128
-#define OPTION_QUEUE_SIZE 1024 * 16           // Size of the measurement queue in bytes
+#define OPTION_SERVER_PORT 5555             // Port
+#define OPTION_SERVER_ADDR {0, 0, 0, 0}     // Bind addr, 0.0.0.0 = ANY
+// #define OPTION_SERVER_ADDR {172, 19, 8, 57} // 172.19.8.57
+// #define OPTION_SERVER_ADDR {192, 168, 0, 128} // 192.168.0.128
+#define OPTION_QUEUE_SIZE 1024 * 16 // Size of the measurement queue in bytes
 #define OPTION_LOG_LEVEL 4
 
 //-----------------------------------------------------------------------------------------------------
@@ -40,7 +39,7 @@ typedef struct {
 const parameters_t parameters = {.counter_max = 1000, .delay_us = 1000};
 
 //-----------------------------------------------------------------------------------------------------
-// Demo measurement values
+// Demo global measurement values
 
 static uint8_t temperature = 50; // In Celsius
 static float speed = 0.0f;       // Speed in km/h
@@ -61,7 +60,7 @@ typedef struct {
     uint32_t delay_us; // Delay in microseconds for the main loop
 } signal_parameters_t;
 
-// Default values
+// Default values, 2 diffents parameters sets
 const signal_parameters_t signal_parameters_1 = {
     .ampl = 100.0,
     .phase = 0.0,
@@ -91,7 +90,7 @@ class SigGen {
     // Constructor - creates the signal generator with the given instance name and parameters
     SigGen(const char *instance_name, signal_parameters_t params) : signal_parameters(instance_name, params), value(0), instance_name(instance_name) {
 
-        A2lLock();
+        A2lLock(); // Take care for thread safety when registering measurements and parameters
 
         // Define a typedef for signal_parameters_t once (this is thread safe)
         A2lTypedefBegin(signal_parameters_t, "Signal parameters typedef");
@@ -103,10 +102,14 @@ class SigGen {
         A2lTypedefEnd();
 
         // Create an instance of the signal parameters in the CalSeg wrapper for calibration access
+        // The wrapper class 'CalSeg' instance 'signal_parameters' created a calibration memory segment in its constructor
         A2lSetSegmentAddrMode(signal_parameters.getIndex(), signal_parameters);
         A2lCreateTypedefNamedInstance(instance_name, signal_parameters, signal_parameters_t, "Signal parameters");
 
+        // Create a measurement event for each instance of SigGen
         event = XcpCreateEvent(instance_name, 0, 0);
+
+        // Register member variables of this instance as measurements
         A2lSetRelativeAddrMode_s(instance_name, (const uint8_t *)this);
         A2lCreatePhysMeasurementInstance(instance_name, value, "Signal generator output", "", -100, 100);
 
@@ -124,7 +127,7 @@ class SigGen {
 
         start_time = (double)clockGet() / CLOCK_TICKS_PER_S; // time in s since start of the signal generator
 
-        // Register the local (stack) measurement variable 'time'
+        // Register the local (stack) measurement variable 'time' for measurement
         A2lLock();
         A2lSetStackAddrMode_s(instance_name);
         A2lCreatePhysMeasurementInstance(instance_name, time, "Signal generator time", "s", 0, 3600);
@@ -134,13 +137,14 @@ class SigGen {
 
             time = (double)clockGet() / CLOCK_TICKS_PER_S - start_time; // time in s since start of the signal generator
 
+            // Calculate a sine wave signal depending in the signal parameters
             {
                 auto p = signal_parameters.lock();
                 value = p->offset + p->ampl * sin((time - start_time) * M_2PI / p->period + p->phase);
                 delay_us = p->delay_us;
             }
 
-            DaqEventRelative_i(event, (const uint8_t *)this); // Trigger with this as dynamic addressing base
+            DaqEventRelative_i(event, (const uint8_t *)this); // Trigger with this as dynamic addressing base to make the member variables accessible
 
             sleepNs(delay_us * 1000);
         }
@@ -174,13 +178,13 @@ int main(void) {
         return 1;
     }
 
-    // Create a calibration segment wrapper for the struct 'parameters_t' and its default values in constant 'parameters'
+    // Create a calibration segment wrapper for the struct 'parameters_t' and use its default values in constant 'parameters'
     // This calibration segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
     // It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
     // It supports XCP/ECU independent page switching, checksum calculation and reinitialization (copy reference page to working page)
     auto calseg = xcplib::CreateCalSeg("Parameters", parameters);
 
-    // Register calibration parameters in segment 'calseg'
+    // Register calibration parameters in this memory segment
     A2lSetSegmentAddrMode(calseg.getIndex(), parameters);
     A2lCreateParameter(parameters, counter_max, "Maximum counter value", "", 0, 2000);
     A2lCreateParameter(parameters, delay_us, "Mainloop delay time in us", "us", 0, 999999);
@@ -188,22 +192,22 @@ int main(void) {
     // Create a measurement event 'mainloop'
     DaqCreateEvent(mainloop);
 
-    // Register global measurement variables 'temperature' and 'speed'
+    // Register the global measurement variables 'temperature' and 'speed'
     A2lSetAbsoluteAddrMode(mainloop);
     const char *conv = A2lCreateLinearConversion(Temperature, "Temperature in °C from unsigned byte", "°C", 1.0, -50.0);
     A2lCreatePhysMeasurement(temperature, "Motor temperature in °C", conv, -50.0, 200.0);
     A2lCreatePhysMeasurement(speed, "Speed in km/h", "km/h", 0, 250.0);
 
-    // Register local measurement variable 'loop_counter'
+    // Register a local measurement variable 'loop_counter'
     uint16_t loop_counter = 0;
     A2lSetStackAddrMode(mainloop);
     A2lCreateMeasurement(loop_counter, "Loop counter, local measurement variable on stack", "");
 
-    // Create signal generator instances
+    // Create 2 signal generator instances of class SigGen with individual parameters
     SigGen siggen1("SigGen1", signal_parameters_1);
     SigGen siggen2("SigGen2", signal_parameters_2);
 
-    // Force finalizing the A2L file
+    // Optional for testing: Force finalizing the A2L file, otherwise it will be finalized on XCP tool connect
     sleepMs(100);
     A2lFinalize();
 
@@ -237,7 +241,7 @@ int main(void) {
         if (speed > 245.0f)
             speed = 0; // Reset speed to 0 km/h
 
-        // Trigger measurement events
+        // Trigger the measurement 'mainloop'
         DaqEvent(mainloop);
 
         // Use delay parameter - done outside the lock to allow XCP modifications
