@@ -116,16 +116,9 @@ class SigGen {
         A2lSetRelativeAddrMode_s(instance_name, this);
         A2lCreatePhysMeasurementInstance(instance_name, value, "Signal generator output", "", -100, 100);
 
-        A2lUnlock();
-
         // Start thread
         thread_ = new std::thread([this]() { task(); });
     }
-
-    SigGen(const SigGen &) = delete;                     // Disable copy constructor
-    SigGen(SigGen &&) = delete;                          // Disable move constructor
-    auto operator=(const SigGen &) -> SigGen & = delete; // Disable copy assignment operator
-    auto operator=(SigGen &&) -> SigGen & = delete;      // Disable move assignment operator
 
     // Cyclic calculation function - runs in a separate thread
     void task() {
@@ -208,6 +201,12 @@ int main() {
     A2lCreateParameter(parameters, counter_max, "Maximum counter value", "", 0, 2000);
     A2lCreateParameter(parameters, delay_us, "Mainloop delay time in us", "us", 0, 999999);
 
+    // Create 2 signal generator instances of class SigGen with individual parameters
+    SigGen siggen1("SigGen1", signalParameters1);
+    SigGen siggen2("SigGen2", signalParameters2);
+    A2lLock();
+    A2lUnlock();
+
     // Create a measurement event 'mainloop'
     DaqCreateEvent(mainloop);
 
@@ -217,14 +216,12 @@ int main() {
     A2lCreatePhysMeasurement(temperature, "Motor temperature in °C", conv, -50.0, 200.0);
     A2lCreatePhysMeasurement(speed, "Speed in km/h", "km/h", 0, 250.0);
 
-    // Register a local measurement variable 'loop_counter'
+    // Register local variables measurement 'loop_counter' and sum
     uint16_t loop_counter = 0;
+    double sum = 0;
     A2lSetStackAddrMode(mainloop);
     A2lCreateMeasurement(loop_counter, "Loop counter, local measurement variable on stack", "");
-
-    // Create 2 signal generator instances of class SigGen with individual parameters
-    SigGen siggen1("SigGen1", signalParameters1);
-    SigGen siggen2("SigGen2", signalParameters2);
+    A2lCreateMeasurement(sum, "Sum of SigGen1 and SigGen2 value", "Volt");
 
     // Optional for testing: Force finalizing the A2L file, otherwise it will be finalized on XCP tool connect
     sleepMs(100);
@@ -250,7 +247,8 @@ int main() {
 
         } // Guard automatically unlocks here
 
-        // Update global measurement variables
+        // Update some measurement variables
+        sum = siggen1.value + siggen2.value; // Add the values of the two signal generators (Note: this is not thread safe for simplicity)
         if (loop_counter == 0) {
             temperature += 1;
             if (temperature > 150)

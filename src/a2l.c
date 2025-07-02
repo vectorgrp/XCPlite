@@ -1026,16 +1026,13 @@ void A2lCreateMeasurement_(const char *instance_name, const char *name, tA2lType
                            double phys_max, const char *comment) {
 
     if (gA2lFile != NULL) {
-
         const char *symbol_name = A2lGetSymbolName(instance_name, name);
         if (gA2lAutoGroups) {
-            A2lAddToGroup(name);
+            A2lAddToGroup(symbol_name);
         }
-
         if (comment == NULL) {
             comment = "";
         }
-
         double min, max;
         const char *conv;
         if (phys_min == 0.0 && phys_max == 0.0) {
@@ -1065,17 +1062,15 @@ void A2lCreateMeasurementArray_(const char *instance_name, const char *name, tA2
                                 const char *comment) {
 
     if (gA2lFile != NULL) {
-        if (gA2lAutoGroups) {
-            A2lAddToGroup(name);
-        }
-
         const char *symbol_name = A2lGetSymbolName(instance_name, name);
+        if (gA2lAutoGroups) {
+            A2lAddToGroup(symbol_name);
+        }
         if (unit == NULL)
             unit = "";
         if (comment == NULL)
             comment = "";
         const char *conv = "NO_COMPU_METHOD";
-
         fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" VAL_BLK 0x%X %s 0 %s %s %s MATRIX_DIM %u %u", symbol_name, comment, addr, A2lGetRecordLayoutName_(type), conv,
                 getTypeMinString(type), getTypeMaxString(type), x_dim, y_dim);
         printAddrExt(ext);
@@ -1095,7 +1090,6 @@ void A2lCreateParameter_(const char *name, tA2lTypeId type, uint8_t ext, uint32_
         if (gA2lAutoGroups) {
             A2lAddToGroup(name);
         }
-
         fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" VALUE 0x%X %s 0 NO_COMPU_METHOD %g %g", name, comment, addr, A2lGetRecordLayoutName_(type), min, max);
         printPhysUnit(gA2lFile, unit);
         printAddrExt(ext);
@@ -1111,7 +1105,6 @@ void A2lCreateMap_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr
         if (gA2lAutoGroups) {
             A2lAddToGroup(name);
         }
-
         fprintf(gA2lFile,
                 "/begin CHARACTERISTIC %s \"%s\" MAP 0x%X %s 0 NO_COMPU_METHOD %g %g"
                 " /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD  %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR"
@@ -1131,7 +1124,6 @@ void A2lCreateCurve_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t ad
         if (gA2lAutoGroups) {
             A2lAddToGroup(name);
         }
-
         fprintf(gA2lFile,
                 "/begin CHARACTERISTIC %s \"%s\" CURVE 0x%X %s 0 NO_COMPU_METHOD %g %g"
                 " /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD  %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR",
@@ -1152,14 +1144,16 @@ void A2lCreateCurve_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t ad
 void A2lBeginGroup(const char *name, const char *comment, bool is_parameter_group) {
     if (gA2lFile != NULL) {
         assert(gA2lGroupsFile != NULL);
-        if (gA2lAutoGroupName == NULL || strcmp(name, gA2lAutoGroupName) != 0) { // Close previous group if any and new group name is different
+        if ((gA2lAutoGroupName == NULL) || (strcmp(name, gA2lAutoGroupName) != 0) || (is_parameter_group != gA2lAutoGroupIsParameter)) {
+
+            // Close previous group if any
             A2lEndGroup();
 
             gA2lAutoGroupName = name;
             gA2lAutoGroupIsParameter = is_parameter_group;
             fprintf(gA2lGroupsFile, "/begin GROUP %s \"%s\"", name, comment);
             if (gA2lAutoGroupIsParameter) {
-                fprintf(gA2lGroupsFile, " ROOT /begin REF_CHARACTERISTIC");
+                fprintf(gA2lGroupsFile, " /begin REF_CHARACTERISTIC");
             } else {
                 fprintf(gA2lGroupsFile, " /begin REF_MEASUREMENT");
             }
@@ -1326,7 +1320,7 @@ bool A2lFinalize(void) {
             A2lEndGroup();
         }
 
-        // Create sub groups for all event
+        // Create a sub group for all events
 #if defined(XCP_ENABLE_DAQ_EVENT_LIST) && !defined(XCP_ENABLE_DAQ_EVENT_INFO)
         if (gA2lAutoGroups) {
             tXcpEventList *eventList;
