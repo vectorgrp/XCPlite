@@ -79,7 +79,8 @@ const signal_parameters_t signal_parameters_2 = {
 class SigGen {
 
   private:
-    std::thread *t;                                        // Thread for the signal generator task
+    std::thread *t; // Thread for the signal generator task
+    // signal_parameters_t *signal_parameters; // Parameters for the signal generators replaced by a wrapper to make them adjustable by the XCP tool
     xcplib::CalSeg<signal_parameters_t> signal_parameters; // Wrapper for signal parameters to enable calibration access
     tXcpEventId event;                                     // Event for measurement updates
     const char *instance_name;                             // Instance name

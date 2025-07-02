@@ -10,10 +10,6 @@
 #include "../xcplib.h" // for tXcpEventId, tXcpCalSegIndex
 #include "platform.h"  // for atomic_bool
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 // Basic A2L types
@@ -36,6 +32,63 @@ static_assert(sizeof(long long) == 8, "sizeof(long long) must be 8 bytes for A2L
 
 // Macro to generate type
 // A2L type
+
+#ifdef __cplusplus
+namespace A2l {
+
+template <typename T> struct TypeTraits {
+    static constexpr tA2lTypeId value = A2L_TYPE_UNDEFINED;
+};
+
+// Specializations
+template <> struct TypeTraits<signed char> {
+    static constexpr tA2lTypeId value = A2L_TYPE_INT8;
+};
+template <> struct TypeTraits<unsigned char> {
+    static constexpr tA2lTypeId value = A2L_TYPE_UINT8;
+};
+template <> struct TypeTraits<bool> {
+    static constexpr tA2lTypeId value = A2L_TYPE_UINT8;
+};
+template <> struct TypeTraits<signed short> {
+    static constexpr tA2lTypeId value = A2L_TYPE_INT16;
+};
+template <> struct TypeTraits<unsigned short> {
+    static constexpr tA2lTypeId value = A2L_TYPE_UINT16;
+};
+template <> struct TypeTraits<signed int> {
+    static constexpr tA2lTypeId value = (tA2lTypeId)(-sizeof(int));
+};
+template <> struct TypeTraits<unsigned int> {
+    static constexpr tA2lTypeId value = (tA2lTypeId)sizeof(int);
+};
+template <> struct TypeTraits<signed long> {
+    static constexpr tA2lTypeId value = (tA2lTypeId)(-sizeof(long));
+};
+template <> struct TypeTraits<unsigned long> {
+    static constexpr tA2lTypeId value = (tA2lTypeId)sizeof(long);
+};
+template <> struct TypeTraits<signed long long> {
+    static constexpr tA2lTypeId value = A2L_TYPE_INT64;
+};
+template <> struct TypeTraits<unsigned long long> {
+    static constexpr tA2lTypeId value = A2L_TYPE_UINT64;
+};
+template <> struct TypeTraits<float> {
+    static constexpr tA2lTypeId value = A2L_TYPE_FLOAT;
+};
+template <> struct TypeTraits<double> {
+    static constexpr tA2lTypeId value = A2L_TYPE_DOUBLE;
+};
+
+template <typename T> constexpr tA2lTypeId getTypeId() { return TypeTraits<T>::value; }
+} // namespace A2l
+
+// C++ convenience macro that works with variables
+#define A2lGetTypeId(var) A2l::getTypeId<decltype(var)>()
+
+#else
+
 #define A2lGetTypeId(type)                                                                                                                                                         \
     _Generic((type),                                                                                                                                                               \
         signed char: A2L_TYPE_INT8,                                                                                                                                                \
@@ -52,6 +105,12 @@ static_assert(sizeof(long long) == 8, "sizeof(long long) must be 8 bytes for A2L
         float: A2L_TYPE_FLOAT,                                                                                                                                                     \
         double: A2L_TYPE_DOUBLE,                                                                                                                                                   \
         default: A2L_TYPE_UNDEFINED)
+
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 // Macros to generate type names as static char* string
 const char *A2lGetA2lTypeName(tA2lTypeId type);

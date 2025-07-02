@@ -798,7 +798,7 @@ void A2lSetAbsoluteAddrMode__s(const char *event_name) {
         A2lBeginGroup(event_name, "Measurement event group", false);
     }
 
-    fprintf(gA2lFile, "\n/* Absolute addressing mode: event=%s (%u), addr_ext=%u, addr_base=%p */\n", event_name, event_id, gAl2AddrExt, (void *)ApplXcpGetBaseAddr());
+    fprintf(gA2lFile, "\n/* Absolute addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, gAl2AddrExt);
 }
 
 //----------------------------------------------------------------------------------
