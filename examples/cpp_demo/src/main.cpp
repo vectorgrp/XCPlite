@@ -85,11 +85,15 @@ const signal_parameters_t signal_parameters_2 = {
 class SigGen {
 
   private:
-    std::thread *t; // Thread for the signal generator task
     // signal_parameters_t *signal_parameters; // Parameters for the signal generators replaced by a wrapper to make them adjustable by the XCP tool
+    // XCP calibration parameter struct wrapper
     xcplib::CalSeg<signal_parameters_t> signal_parameters; // Wrapper for signal parameters to enable calibration access
-    tXcpEventId event;                                     // Event for measurement updates
-    const char *instance_name;                             // Instance name
+
+    // XCP event
+    // tXcpEventId event;                                     // Event for measurement updates
+
+    const char *instance_name; // Instance name
+    std::thread *t;            // Thread for the signal generator task
 
   public:
     double value; // Current value
@@ -97,6 +101,7 @@ class SigGen {
     // Constructor - creates the signal generator with the given instance name and parameters
     SigGen(const char *instance_name, signal_parameters_t params) : signal_parameters(instance_name, params), value(0), instance_name(instance_name) {
 
+        // A2L registration
         A2lLock(); // Take care for thread safety when registering measurements and parameters
 
         // Define a typedef for signal_parameters_t once (this is thread safe)
@@ -114,10 +119,11 @@ class SigGen {
         A2lCreateTypedefNamedInstance(instance_name, signal_parameters, signal_parameters_t, "Signal parameters");
 
         // Create a measurement event for each instance of SigGen
-        event = XcpCreateEvent(instance_name, 0, 0);
+        //        event = XcpCreateEvent(instance_name, 0, 0);
+        DaqCreateEvent_s(instance_name);
 
         // Register member variables of this instance as measurements
-        A2lSetRelativeAddrMode_s(instance_name, (const uint8_t *)this);
+        A2lSetRelativeAddrMode_s(instance_name, this);
         A2lCreatePhysMeasurementInstance(instance_name, value, "Signal generator output", "", -100, 100);
 
         A2lUnlock();
@@ -134,6 +140,7 @@ class SigGen {
 
         start_time = (double)clockGet() / CLOCK_TICKS_PER_S; // time in s since start of the signal generator
 
+        // A2L registration
         // Register the local (stack) measurement variable 'time' for measurement
         A2lLock();
         A2lSetStackAddrMode_s(instance_name);
@@ -151,7 +158,8 @@ class SigGen {
                 delay_us = p->delay_us;
             }
 
-            DaqEventRelative_i(event, (const uint8_t *)this); // Trigger with this as dynamic addressing base to make the member variables accessible
+            // XCP event
+            DaqEventRelative_s(instance_name, this); // Trigger with this as dynamic addressing base to make the member variables accessible
 
             sleepNs(delay_us * 1000);
         }
@@ -248,6 +256,7 @@ int main(void) {
         if (speed > 245.0f)
             speed = 0; // Reset speed to 0 km/h
 
+        // XCP event
         // Trigger the measurement 'mainloop'
         DaqEvent(mainloop);
 

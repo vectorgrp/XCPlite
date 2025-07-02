@@ -78,8 +78,9 @@ tXcpEventId XcpFindEvent(const char *name, uint16_t *count);
 
 // Create the XCP event 'name'
 // Cycle time is set to sporadic and priority to normal
-// Setting the cycle time would only have the  benefit for the XCP client tool to estimate the expected data rate of a DAQ setup
+// Setting the cycle time would only have the benefit for the XCP client tool to estimate the expected data rate of a DAQ setup
 #define DaqCreateEvent(name) XcpCreateEvent(#name, 0, 0)
+#define DaqCreateEvent_s(name) XcpCreateEvent(name, 0, 0)
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // DAQ event convenience macros
@@ -152,6 +153,21 @@ void XcpEvent(tXcpEventId event);
             }                                                                                                                                                                      \
         } else {                                                                                                                                                                   \
             XcpEventDynRelAt(daq_event_rel_##name##_, (const uint8_t *)base_addr, get_stack_frame_pointer(), 0);                                                                   \
+        }                                                                                                                                                                          \
+    }
+
+// Trigger the XCP event "name" for relative mode with individual base address
+// Error if the event does not exist
+#define DaqEventRelative_s(name, base_addr)                                                                                                                                        \
+    {                                                                                                                                                                              \
+        static tXcpEventId daq_event_rel__ = XCP_UNDEFINED_EVENT_ID;                                                                                                               \
+        if (daq_event_rel__ == XCP_UNDEFINED_EVENT_ID) {                                                                                                                           \
+            daq_event_rel__ = XcpFindEvent(name, NULL);                                                                                                                            \
+            if (daq_event_rel__ == XCP_UNDEFINED_EVENT_ID) {                                                                                                                       \
+                assert(false);                                                                                                                                                     \
+            }                                                                                                                                                                      \
+        } else {                                                                                                                                                                   \
+            XcpEventDynRelAt(daq_event_rel__, (const uint8_t *)base_addr, get_stack_frame_pointer(), 0);                                                                           \
         }                                                                                                                                                                          \
     }
 
