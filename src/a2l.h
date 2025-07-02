@@ -503,7 +503,7 @@ void A2lUnlock(void);
 // --------------------------------------------------------------------------------------------
 // Helper functions used in the for A2L generation macros
 
-typedef bool A2lOnceType;
+typedef volatile bool A2lOnceType;
 bool A2lOnce_(A2lOnceType *once);
 
 void A2lSetAbsAddrMode(tXcpEventId default_event_id);
