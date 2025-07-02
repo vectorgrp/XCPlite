@@ -196,6 +196,22 @@ typedef pthread_t THREAD;
 #endif
 
 //-------------------------------------------------------------------------------
+// Thread local storage
+
+#ifdef __cplusplus
+#define THREAD_LOCAL thread_local
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#define THREAD_LOCAL _Thread_local
+#elif defined(__GNUC__)
+#define THREAD_LOCAL __thread
+#elif defined(_MSC_VER)
+#define THREAD_LOCAL __declspec(thread)
+#else
+#define THREAD_LOCAL static // Fallback to static (not thread-safe)
+#warning "Thread-local storage not supported, falling back to static"
+#endif
+
+//-------------------------------------------------------------------------------
 // Platform independent socket functions
 
 #if defined(OPTION_ENABLE_TCP) || defined(OPTION_ENABLE_UDP)

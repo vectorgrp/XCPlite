@@ -7,6 +7,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "platform.h" // for THREAD_LOCAL
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -83,18 +85,22 @@ tXcpEventId XcpFindEvent(const char *name, uint16_t *count);
 #define DaqCreateEvent_s(name) XcpCreateEvent(name, 0, 0)
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// DAQ event convenience macros
-// Create and trigger event macros to be used in combination
-// Event name parameter is a symbol, not a string
-// Create linker map file markers (static variables: daq_event_stackframe_'eventname' or daq_event_relative_'eventname') for the XCP event id used
+// DAQ event trigger convenience macros
+
+// Event name parameter is a symbol, a string (_s) or an event index (_i)
+// Creates linker map file markers (static variables: daq_event_stackframe_'eventname'_ or daq_event_relative_'eventname'_) for the XCP event id used
 // No need to take care to store the event id
+// Uses thread local storage to create a thread safe once pattern for the event lookup
 // Required option is XCP_ENABLE_DAQ_EVENT_LIST (must be set in xcp_cfg.h)
+
+// All macros can be used to measure variables registered in absolute addressing mode as well
 
 #ifndef get_stack_frame_pointer
 #define get_stack_frame_pointer() (const uint8_t *)__builtin_frame_address(0)
 #endif
 
-// __builtin_frame_address is GCC/Clang compiler specific extension
+// Not needed
+// __builtin_frame_address should be available on all desired platforms
 // static inline const uint8_t *get_stack_frame_pointer_(void) {
 //  #if defined(__x86_64__) || defined(_M_X64)
 //      void *fp;
@@ -123,11 +129,11 @@ void XcpEventExt(tXcpEventId event, const uint8_t *base);
 void XcpEvent(tXcpEventId event);
 
 // Trigger the XCP event 'name' for stack only (DaqEvent) or relative and stack addressing (DaqEventDyn) mode
+// Cache the event lookup
 // Error if the event does not exist
-// Both macros can be to measure variables in absolute addressing mode as well
 #define DaqEvent(name)                                                                                                                                                             \
     {                                                                                                                                                                              \
-        static tXcpEventId daq_event_stackframe_##name##_ = XCP_UNDEFINED_EVENT_ID;                                                                                                \
+        static THREAD_LOCAL tXcpEventId daq_event_stackframe_##name##_ = XCP_UNDEFINED_EVENT_ID;                                                                                   \
         if (daq_event_stackframe_##name##_ == XCP_UNDEFINED_EVENT_ID) {                                                                                                            \
             daq_event_stackframe_##name##_ = XcpFindEvent(#name, NULL);                                                                                                            \
             if (daq_event_stackframe_##name##_ == XCP_UNDEFINED_EVENT_ID) {                                                                                                        \
@@ -142,32 +148,34 @@ void XcpEvent(tXcpEventId event);
 #define DaqEvent_i(event_id) XcpEventDynRelAt(event_id, get_stack_frame_pointer(), get_stack_frame_pointer(), 0);
 
 // Trigger the XCP event 'name' for relative mode with individual base address
+// Cache the event lookup
 // Error if the event does not exist
 #define DaqEventRelative(name, base_addr)                                                                                                                                          \
     {                                                                                                                                                                              \
-        static tXcpEventId daq_event_rel_##name##_ = XCP_UNDEFINED_EVENT_ID;                                                                                                       \
-        if (daq_event_rel_##name##_ == XCP_UNDEFINED_EVENT_ID) {                                                                                                                   \
-            daq_event_rel_##name##_ = XcpFindEvent(#name, NULL);                                                                                                                   \
-            if (daq_event_rel_##name##_ == XCP_UNDEFINED_EVENT_ID) {                                                                                                               \
+        static THREAD_LOCAL tXcpEventId daq_event_relative_##name##_ = XCP_UNDEFINED_EVENT_ID;                                                                                     \
+        if (daq_event_relative_##name##_ == XCP_UNDEFINED_EVENT_ID) {                                                                                                              \
+            daq_event_relative_##name##_ = XcpFindEvent(#name, NULL);                                                                                                              \
+            if (daq_event_relative_##name##_ == XCP_UNDEFINED_EVENT_ID) {                                                                                                          \
                 assert(false);                                                                                                                                                     \
             }                                                                                                                                                                      \
         } else {                                                                                                                                                                   \
-            XcpEventDynRelAt(daq_event_rel_##name##_, (const uint8_t *)base_addr, get_stack_frame_pointer(), 0);                                                                   \
+            XcpEventDynRelAt(daq_event_relative_##name##_, (const uint8_t *)base_addr, get_stack_frame_pointer(), 0);                                                              \
         }                                                                                                                                                                          \
     }
 
 // Trigger the XCP event "name" for relative mode with individual base address
+// Cache the event lookup
 // Error if the event does not exist
 #define DaqEventRelative_s(name, base_addr)                                                                                                                                        \
     {                                                                                                                                                                              \
-        static tXcpEventId daq_event_rel__ = XCP_UNDEFINED_EVENT_ID;                                                                                                               \
-        if (daq_event_rel__ == XCP_UNDEFINED_EVENT_ID) {                                                                                                                           \
-            daq_event_rel__ = XcpFindEvent(name, NULL);                                                                                                                            \
-            if (daq_event_rel__ == XCP_UNDEFINED_EVENT_ID) {                                                                                                                       \
+        static THREAD_LOCAL tXcpEventId daq_event_relative_##name##_ = XCP_UNDEFINED_EVENT_ID;                                                                                     \
+        if (daq_event_relative_##name##_ == XCP_UNDEFINED_EVENT_ID) {                                                                                                              \
+            daq_event_relative_##name##_ = XcpFindEvent(name, NULL);                                                                                                               \
+            if (daq_event_relative_##name##_ == XCP_UNDEFINED_EVENT_ID) {                                                                                                          \
                 assert(false);                                                                                                                                                     \
             }                                                                                                                                                                      \
         } else {                                                                                                                                                                   \
-            XcpEventDynRelAt(daq_event_rel__, (const uint8_t *)base_addr, get_stack_frame_pointer(), 0);                                                                           \
+            XcpEventDynRelAt(daq_event_relative_##name##_, (const uint8_t *)base_addr, get_stack_frame_pointer(), 0);                                                              \
         }                                                                                                                                                                          \
     }
 

@@ -1,5 +1,5 @@
 // Generic C++ RAII wrapper for calibration parameter segments
-// Provides automatic lock/unlock management using guard pattern
+// Provides automatic lock/unlock management using a guard pattern
 
 #pragma once
 
