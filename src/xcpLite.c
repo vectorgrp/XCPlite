@@ -1035,7 +1035,7 @@ static tXcpEvent *XcpGetEvent(tXcpEventId event) {
 const char *XcpGetEventName(tXcpEventId event) {
     if (!isInitialized() || event >= gXcp.EventList.count)
         return NULL;
-    return &gXcp.EventList.event[event].name;
+    return (const char *)&gXcp.EventList.event[event].name;
 }
 
 // Find an event by name, return XCP_UNDEFINED_EVENT_ID if not found

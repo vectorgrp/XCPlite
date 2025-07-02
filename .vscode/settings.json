@@ -52,6 +52,7 @@
         "vector": "cpp",
         "algorithm": "cpp",
         "xcplib.h": "c",
-        "a2l.h": "c"
+        "a2l.h": "c",
+        "platform.h": "c"
     }
 }

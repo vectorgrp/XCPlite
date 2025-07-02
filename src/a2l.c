@@ -1227,13 +1227,18 @@ void A2lCreateParameterGroupFromList(const char *name, const char *pNames[], int
 
 //----------------------------------------------------------------------------------
 
-bool A2lOnce_(atomic_bool *value) {
-    bool old_value = false;
-    if (atomic_compare_exchange_strong_explicit(value, &old_value, true, memory_order_relaxed, memory_order_relaxed)) {
-        return gA2lFile != NULL; // Return true if A2L file is open
-    } else {
+bool A2lOnce_(A2lOnceType *value) {
+    if (*value)
         return false;
-    }
+    *value = true;
+    return true;
+
+    // bool old_value = false;
+    // if (atomic_compare_exchange_strong_explicit(value, &old_value, true, memory_order_relaxed, memory_order_relaxed)) {
+    //     return gA2lFile != NULL; // Return true if A2L file is open
+    // } else {
+    //     return false;
+    // }
 }
 
 //-----------------------------------------------------------------------------------------------------
