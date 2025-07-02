@@ -12,7 +12,12 @@
 #include "xcplib.hpp"
 #include <thread>
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+#ifndef M_2PI
 #define M_2PI (M_PI * 2)
+#endif
 
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
@@ -96,7 +101,7 @@ class SigGen {
         // Define a typedef for signal_parameters_t once (this is thread safe)
         A2lTypedefBegin(signal_parameters_t, "Signal parameters typedef");
         A2lTypedefParameterComponent(ampl, signal_parameters_t, "Amplitude", "Volt", 0, 100);
-        A2lTypedefParameterComponent(phase, signal_parameters_t, "Phase", "", 0, M_PI);
+        A2lTypedefParameterComponent(phase, signal_parameters_t, "Phase", "", 0, M_2PI);
         A2lTypedefParameterComponent(offset, signal_parameters_t, "Offset", "Volt", -100, 100);
         A2lTypedefParameterComponent(period, signal_parameters_t, "Period", "s", 0.01, 10.0);
         A2lTypedefParameterComponent(delay_us, signal_parameters_t, "Delay time in us", "us", 0, 100000);
