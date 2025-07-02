@@ -64,7 +64,7 @@ typedef struct {
     uint32_t delay_us; // Delay in microseconds for the main loop
 } signal_parameters_t;
 
-// Default values, 2 diffents parameters sets
+// Default values, 2 different parameters sets
 const signal_parameters_t signal_parameters_1 = {
     .ampl = 100.0,
     .phase = 0.0,
@@ -87,9 +87,6 @@ class SigGen {
     // XCP calibration parameter struct wrapper
     xcplib::CalSeg<signal_parameters_t> signal_parameters; // Wrapper for signal parameters to enable calibration access
 
-    // XCP event
-    // tXcpEventId event;                                     // Event for measurement updates
-
     const char *instance_name; // Instance name
     std::thread *t;            // Thread for the signal generator task
 
@@ -102,7 +99,8 @@ class SigGen {
         // A2L registration
         A2lLock(); // Take care for thread safety when registering measurements and parameters
 
-        // Define a typedef for signal_parameters_t once (this is thread safe)
+        // Once define a typedef for signal_parameters_t once
+        // All typedef registration macros use a once pattern, so there will be exactly one typedef in the A2L file
         A2lTypedefBegin(signal_parameters_t, "Signal parameters typedef");
         A2lTypedefParameterComponent(ampl, signal_parameters_t, "Amplitude", "Volt", 0, 100);
         A2lTypedefParameterComponent(phase, signal_parameters_t, "Phase", "", 0, M_2PI);
@@ -111,16 +109,16 @@ class SigGen {
         A2lTypedefParameterComponent(delay_us, signal_parameters_t, "Delay time in us", "us", 0, 100000);
         A2lTypedefEnd();
 
-        // Create an instance of the signal parameters in the CalSeg wrapper for calibration access
+        // Create an instance of the signal parameters member variable in the CalSeg<> wrapper for calibration access
         // The wrapper class 'CalSeg' instance 'signal_parameters' created a calibration memory segment in its constructor
         A2lSetSegmentAddrMode(signal_parameters.getIndex(), signal_parameters);
         A2lCreateTypedefNamedInstance(instance_name, signal_parameters, signal_parameters_t, "Signal parameters");
 
         // Create a measurement event for each instance of SigGen
-        //        event = XcpCreateEvent(instance_name, 0, 0);
+        // The event name is the instance name
         DaqCreateEvent_s(instance_name);
 
-        // Register member variables of this instance as measurements
+        // Register the member variable 'value' of this instance as measurement
         A2lSetRelativeAddrMode_s(instance_name, this);
         A2lCreatePhysMeasurementInstance(instance_name, value, "Signal generator output", "", -100, 100);
 
@@ -149,21 +147,29 @@ class SigGen {
 
             time = (double)clockGet() / CLOCK_TICKS_PER_S - start_time; // time in s since start of the signal generator
 
-            // Calculate a sine wave signal depending in the signal parameters
+            // Calculate a sine wave signal depending on the signal parameters
             {
                 auto p = signal_parameters.lock();
-                value = p->offset + p->ampl * sin((time - start_time) * M_2PI / p->period + p->phase);
+                value = p->offset + p->ampl * sin(time * M_2PI / p->period + p->phase);
                 delay_us = p->delay_us;
             }
 
-            // XCP event
-            DaqEventRelative_s(instance_name, this); // Trigger with this as dynamic addressing base to make the member variables accessible
+            // XCP event by event name, event lookup is once and will be cached in a static thread local variable
+            DaqEventRelative_s(instance_name, this); // Trigger with this as dynamic addressing base to make member variables accessible
 
             sleepNs(delay_us * 1000);
         }
     }
 
-    ~SigGen() { delete t; }
+    ~SigGen() {
+
+        if (t != nullptr) {
+            if (t->joinable()) {
+                t->join();
+            }
+            delete t;
+        }
+    }
 };
 
 //-----------------------------------------------------------------------------------------------------
@@ -258,7 +264,7 @@ int main(void) {
         // Trigger the measurement 'mainloop'
         DaqEvent(mainloop);
 
-        // Use delay parameter - done outside the lock to allow XCP modifications
+        // Use delay parameter - done outside the lock to avoid starvation of XCP tool calibration access
         sleepNs(delay_us * 1000);
     } // mainloop
 
