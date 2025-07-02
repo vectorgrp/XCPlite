@@ -12,12 +12,13 @@
 
 #include "a2l.h"
 
-#include <assert.h>  // for assert
-#include <stdarg.h>  // for va_
-#include <stdbool.h> // for bool
-#include <stdint.h>  // for uintxx_t
-#include <stdio.h>   // for fclose, fopen, fread, fseek, ftell
-#include <string.h>  // for strlen, strncpy
+#include <assert.h>   // for assert
+#include <inttypes.h> // for PRIu64
+#include <stdarg.h>   // for va_
+#include <stdbool.h>  // for bool
+#include <stdint.h>   // for uintxx_t
+#include <stdio.h>    // for fclose, fopen, fread, fseek, ftell
+#include <string.h>   // for strlen, strncpy
 
 #include "dbg_print.h" // for DBG_PRINTF3, DBG_PRINT4, DBG_PRINTF4, DBG...
 #include "main_cfg.h"  // for OPTION_xxx
@@ -645,41 +646,43 @@ static void A2lCreateMeasurement_IF_DATA(void) {
             } else {
                 assert(false); // Fixed event must be set before calling this function
             }
-        }
-        if (gAl2AddrExt == XCP_ADDR_EXT_ABS) {
+        } else if (gAl2AddrExt == XCP_ADDR_EXT_ABS) {
             if (gA2lFixedEvent != XCP_UNDEFINED_EVENT_ID) {
                 fprintf(gA2lFile, " /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x%X /end DAQ_EVENT /end IF_DATA", gA2lFixedEvent);
             } else if (gA2lDefaultEvent != XCP_UNDEFINED_EVENT_ID) {
                 fprintf(gA2lFile, " /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x%X /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA",
                         gA2lDefaultEvent);
             }
+        } else if (gAl2AddrExt != XCP_ADDR_EXT_SEG) {
+            assert(false);
         }
     }
 }
 
 //----------------------------------------------------------------------------------
-// Mode
+// Raw functions to set addressing mode unchecked (by calibration segment index or event id)
+// -> XCP_ADDR_EXT_SEG/ABS/DYN/REL
 
-void A2lSetSegAddrMode_(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance_addr) {
+void A2lSetSegAddrMode(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance_addr) {
     gA2lAddrIndex = calseg_index;
     gA2lAddrBase = calseg_instance_addr; // Address of a a the calibration segment instance which is used in the macros to create the components
     gAl2AddrExt = XCP_ADDR_EXT_SEG;
 }
 
-void A2lSetAbsAddrMode_(tXcpEventId default_event_id) {
+void A2lSetAbsAddrMode(tXcpEventId default_event_id) {
     gA2lFixedEvent = XCP_UNDEFINED_EVENT_ID;
     gA2lDefaultEvent = default_event_id;
     gAl2AddrExt = XCP_ADDR_EXT_ABS;
 }
 
-void A2lSetRelAddrMode_(tXcpEventId event_id, const uint8_t *base) {
+void A2lSetRelAddrMode(tXcpEventId event_id, const uint8_t *base) {
     gA2lAddrBase = base;
     gA2lFixedEvent = event_id;
     gA2lDefaultEvent = XCP_UNDEFINED_EVENT_ID;
     gAl2AddrExt = XCP_ADDR_EXT_REL;
 }
 
-void A2lSetDynAddrMode_(tXcpEventId event_id, const uint8_t *base) {
+void A2lSetDynAddrMode(tXcpEventId event_id, const uint8_t *base) {
     gA2lAddrBase = base;
     gA2lFixedEvent = event_id;
     gA2lDefaultEvent = XCP_UNDEFINED_EVENT_ID;
@@ -695,24 +698,25 @@ void A2lRstAddrMode(void) {
 }
 
 //----------------------------------------------------------------------------------
-// Set addressing mode
+// Set addressing mode (by event name or calibration segment index lookup and runtime check)
 
 #ifdef XCP_ENABLE_CALSEG_LIST
 
 // Set relative address mode with calibration segment index
-void A2lSetSegmentAddrMode_(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance_addr) {
+void A2lSetSegmentAddrMode__i(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance_addr) {
+    if (gA2lFile != NULL) {
+        const tXcpCalSeg *calseg = XcpGetCalSeg(calseg_index);
+        if (calseg == NULL) {
+            DBG_PRINTF_ERROR("SetSegAddrMode: Calibration segment %u not found!\n", calseg_index);
+            return;
+        }
 
-    const tXcpCalSeg *calseg = XcpGetCalSeg(calseg_index);
-    if (calseg == NULL) {
-        DBG_PRINTF_ERROR("SetSegAddrMode: Calibration segment %u not found!\n", calseg_index);
-        return;
-    }
+        A2lSetSegAddrMode(calseg_index, (const uint8_t *)calseg_instance_addr);
+        fprintf(gA2lFile, "\n/* Segment relative addressing mode: calseg=%s */\n", calseg->name);
 
-    A2lSetSegAddrMode_(calseg_index, (const uint8_t *)calseg_instance_addr);
-    fprintf(gA2lFile, "\n/* Relative addressing mode: calseg=%s */\n", calseg->name);
-
-    if (gA2lAutoGroups) {
-        A2lBeginGroup(calseg->name, "Calibration Segment", true);
+        if (gA2lAutoGroups) {
+            A2lBeginGroup(calseg->name, "Calibration Segment", true);
+        }
     }
 }
 
@@ -721,45 +725,85 @@ void A2lSetSegmentAddrMode_(tXcpCalSegIndex calseg_index, const uint8_t *calseg_
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
 
 // Set relative address mode with event name
-void A2lSetRelativeAddrMode_(const char *event_name, const uint8_t *base_addr) {
+// Will result in using ADDR_EXT_DYN for user defined base, ADDR_EXT_REL is used for stack frame relative addressing
+void A2lSetRelativeAddrMode__s(const char *event_name, const uint8_t *base_addr) {
 
-    assert(gA2lFile != NULL);
+    if (gA2lFile != NULL) {
 
-    tXcpEventId event = XcpFindEvent(event_name, NULL);
-    if (event == XCP_UNDEFINED_EVENT_ID) {
-        DBG_PRINTF_ERROR("SetRelativeAddrMode: Event %s not found!\n", event_name);
-        return;
+        tXcpEventId event = XcpFindEvent(event_name, NULL);
+        if (event == XCP_UNDEFINED_EVENT_ID) {
+            DBG_PRINTF_ERROR("SetRelativeAddrMode: Event %s not found!\n", event_name);
+            return;
+        }
+
+        A2lSetDynAddrMode(event, (uint8_t *)base_addr);
+        if (gA2lAutoGroups) {
+            A2lBeginGroup(event_name, "Measurement event group", false);
+        }
+
+        fprintf(gA2lFile, "\n/* Relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event, gAl2AddrExt);
     }
+}
 
-    A2lSetDynAddrMode_(event, (uint8_t *)base_addr);
+// Set stack frame relative address mode with event name or event id
+// Will result in using ADDR_EXT_REL
+void A2lSetStackAddrMode__s(const char *event_name, const uint8_t *stack_frame) {
 
-    if (gA2lAutoGroups) {
-        A2lBeginGroup(event_name, "Measurement event group", false);
+    if (gA2lFile != NULL) {
+
+        tXcpEventId event = XcpFindEvent(event_name, NULL);
+        if (event == XCP_UNDEFINED_EVENT_ID) {
+            DBG_PRINTF_ERROR("SetStackAddrMode: Event %s not found!\n", event_name);
+            return;
+        }
+
+        A2lSetRelAddrMode(event, stack_frame);
+        if (gA2lAutoGroups) {
+            A2lBeginGroup(event_name, "Measurement event group", false);
+        }
+
+        fprintf(gA2lFile, "\n/* Stack frame relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event, gAl2AddrExt);
     }
+}
+void A2lSetStackAddrMode__i(tXcpEventId event_id, const uint8_t *stack_frame) {
 
-    fprintf(gA2lFile, "\n/* Relative addressing mode: event=%s (%u), addr_ext=%u, addr_base=%p */\n", event_name, event, gAl2AddrExt, (void *)gA2lAddrBase);
+    if (gA2lFile != NULL) {
+
+        const char *event_name = XcpGetEventName(event_id);
+        if (event_name == NULL) {
+            DBG_PRINTF_ERROR("SetStackAddrMode: Event %u not found!\n", event_id);
+            return;
+        }
+        A2lSetRelAddrMode(event_id, stack_frame);
+        if (gA2lAutoGroups) {
+            A2lBeginGroup(event_name, "Measurement event group", false);
+        }
+
+        fprintf(gA2lFile, "\n/* Stack frame relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, gAl2AddrExt);
+    }
 }
 
 #endif
 
 // Set absolute address mode with fixed event name
-void A2lSetAbsoluteAddrMode_(const char *event_name) {
+void A2lSetAbsoluteAddrMode__s(const char *event_name) {
 
-    assert(gA2lFile != NULL);
+    if (gA2lFile != NULL) {
 
-    tXcpEventId event_id = XcpFindEvent(event_name, NULL);
-    if (event_id == XCP_UNDEFINED_EVENT_ID) {
-        DBG_PRINTF_ERROR("SetAbsoluteAddrMode: Event %s not found!\n", event_name);
-        return;
+        tXcpEventId event_id = XcpFindEvent(event_name, NULL);
+        if (event_id == XCP_UNDEFINED_EVENT_ID) {
+            DBG_PRINTF_ERROR("SetAbsoluteAddrMode: Event %s not found!\n", event_name);
+            return;
+        }
+
+        A2lSetAbsAddrMode(event_id);
+
+        if (gA2lAutoGroups) {
+            A2lBeginGroup(event_name, "Measurement event group", false);
+        }
+
+        fprintf(gA2lFile, "\n/* Absolute addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, gAl2AddrExt);
     }
-
-    A2lSetAbsAddrMode_(event_id);
-
-    if (gA2lAutoGroups) {
-        A2lBeginGroup(event_name, "Measurement event group", false);
-    }
-
-    fprintf(gA2lFile, "\n/* Absolute addressing mode: event=%s (%u), addr_ext=%u, addr_base=%p */\n", event_name, event_id, gAl2AddrExt, (void *)ApplXcpGetBaseAddr());
 }
 
 //----------------------------------------------------------------------------------
@@ -769,40 +813,42 @@ uint8_t A2lGetAddrExt_(void) { return gAl2AddrExt; }
 
 uint32_t A2lGetAddr_(const void *p) {
 
-    switch (gAl2AddrExt) {
-    case XCP_ADDR_EXT_ABS: {
-        return ApplXcpGetAddr(p); // Calculate the XCP address from a pointer
-    }
-    case XCP_ADDR_EXT_REL: {
-        uint64_t addr_diff = (uint64_t)p - (uint64_t)gA2lAddrBase;
-        // Ensure the relative address does not overflow the address space
-        uint64_t addr_high = (addr_diff >> 32);
-        if (addr_high != 0 && addr_high != 0xFFFFFFFF) {
-            DBG_PRINTF_ERROR("A2L XCP_ADDR_EXT_REL relative address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lAddrBase);
-            assert(0); // Ensure the relative address does not overflow the 32 Bit A2L address space
+    if (gA2lFile != NULL) {
+        switch (gAl2AddrExt) {
+        case XCP_ADDR_EXT_ABS: {
+            return ApplXcpGetAddr(p); // Calculate the XCP address from a pointer
         }
-        return (uint32_t)(addr_diff & 0xFFFFFFFF);
+        case XCP_ADDR_EXT_REL: {
+            uint64_t addr_diff = (uint64_t)p - (uint64_t)gA2lAddrBase;
+            // Ensure the relative address does not overflow the address space
+            uint64_t addr_high = (addr_diff >> 32);
+            if (addr_high != 0 && addr_high != 0xFFFFFFFF) {
+                DBG_PRINTF_ERROR("A2L XCP_ADDR_EXT_REL relative address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lAddrBase);
+                assert(0); // Ensure the relative address does not overflow the 32 Bit A2L address space
+            }
+            return (uint32_t)(addr_diff & 0xFFFFFFFF);
+        }
+        case XCP_ADDR_EXT_DYN: {
+            uint64_t addr_diff = (uint64_t)p - (uint64_t)gA2lAddrBase;
+            // Ensure the relative address does not overflow the address space
+            uint64_t addr_high = (addr_diff >> 16);
+            if (addr_high != 0 && addr_high != 0xFFFFFFFFFFFF) {
+                DBG_PRINTF_ERROR("A2L XCP_ADDR_EXT_DYN relative address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lAddrBase);
+                assert(0); // Ensure the relative address does not overflow the 32 Bit A2L address space
+            }
+            return (uint32_t)(((uint32_t)gA2lFixedEvent) << 16 | (addr_diff & 0xFFFF));
+        }
+        case XCP_ADDR_EXT_SEG: {
+            uint64_t addr_diff = (uint64_t)p - (uint64_t)gA2lAddrBase;
+            // Ensure the relative address does not overflow the 16 Bit A2L address offset for calibration segment relative addressing
+            assert((addr_diff >> 16) == 0);
+            return XcpGetCalSegBaseAddress(gA2lAddrIndex) + (addr_diff & 0xFFFF);
+        }
+        }
+        DBG_PRINTF_ERROR("A2L address extension %u is not supported!\n", gAl2AddrExt);
     }
-    case XCP_ADDR_EXT_DYN: {
-        uint64_t addr_diff = (uint64_t)p - (uint64_t)gA2lAddrBase;
 
-        // Ensure the relative address does not overflow the address space
-        uint64_t addr_high = (addr_diff >> 16);
-        if (addr_high != 0 && addr_high != 0xFFFFFFFFFFFF) {
-            DBG_PRINTF_ERROR("A2L XCP_ADDR_EXT_DYN relative address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lAddrBase);
-            assert(0); // Ensure the relative address does not overflow the 32 Bit A2L address space
-        }
-        return (uint32_t)(((uint32_t)gA2lFixedEvent) << 16 | (addr_diff & 0xFFFF));
-    }
-    case XCP_ADDR_EXT_SEG: {
-        uint64_t addr_diff = (uint64_t)p - (uint64_t)gA2lAddrBase;
-        // Ensure the relative address does not overflow the 16 Bit A2L address offset for calibration segment relative addressing
-        assert((addr_diff >> 16) == 0);
-        return XcpGetCalSegBaseAddress(gA2lAddrIndex) + (addr_diff & 0xFFFF);
-    }
-    }
-    DBG_PRINTF_ERROR("A2L address extension %u is not supported!\n", gAl2AddrExt);
-    assert(0);
+    return 0; // Return 0 if the A2L file is not open or the address extension is not supported
 }
 
 //----------------------------------------------------------------------------------
@@ -841,134 +887,136 @@ static const char *getConversion(const char *unit_or_conversion, double *min, do
 
 const char *A2lCreateLinearConversion_(const char *name, const char *comment, const char *unit, double factor, double offset) {
 
-    assert(gA2lFile != NULL);
+    if (gA2lFile != NULL) {
 
-    if (unit == NULL)
-        unit = "";
-    if (comment == NULL)
-        comment = "";
+        if (unit == NULL)
+            unit = "";
+        if (comment == NULL)
+            comment = "";
 
-    // Build the conversion name with prefix "conv." and store it in a static variable
-    // Rememner factor and offset for later use
-    SNPRINTF(gA2lConvName, sizeof(gA2lConvName), "conv.%s", name);
-    gA2lConvFactor = factor;
-    gA2lConvOffset = offset;
+        // Build the conversion name with prefix "conv." and store it in a static variable
+        // Rememner factor and offset for later use
+        SNPRINTF(gA2lConvName, sizeof(gA2lConvName), "conv.%s", name);
+        gA2lConvFactor = factor;
+        gA2lConvOffset = offset;
 
-    fprintf(gA2lConversionsFile, "/begin COMPU_METHOD conv.%s \"%s\" LINEAR \"%%6.3\" \"%s\" COEFFS_LINEAR %g %g /end COMPU_METHOD\n", name, comment, unit, factor, offset);
-    gA2lConversions++;
+        fprintf(gA2lConversionsFile, "/begin COMPU_METHOD conv.%s \"%s\" LINEAR \"%%6.3\" \"%s\" COEFFS_LINEAR %g %g /end COMPU_METHOD\n", name, comment, unit, factor, offset);
+        gA2lConversions++;
 
-    // Return the conversion name for reference when creating measurements
-    return gA2lConvName;
+        // Return the conversion name for reference when creating measurements
+        return gA2lConvName;
+    }
+    return "";
 }
 
 //----------------------------------------------------------------------------------
 // Typedefs
 
 // Begin a typedef structure
-// Thread safe, but be aware of the mutex lock
 void A2lTypedefBegin_(const char *name, uint32_t size, const char *comment) {
 
-    assert(gA2lFile != NULL);
-    mutexLock(&gA2lMutex);
-    fprintf(gA2lFile, "/begin TYPEDEF_STRUCTURE %s \"%s\" 0x%X", name, comment, size);
-    fprintf(gA2lFile, "\n");
-    gA2lTypedefs++;
+    if (gA2lFile != NULL) {
+
+        fprintf(gA2lFile, "/begin TYPEDEF_STRUCTURE %s \"%s\" 0x%X", name, comment, size);
+        fprintf(gA2lFile, "\n");
+        gA2lTypedefs++;
+    }
 }
 
 // End a typedef structure
 void A2lTypedefEnd_(void) {
 
-    assert(gA2lFile != NULL);
-    fprintf(gA2lFile, "/end TYPEDEF_STRUCTURE\n");
-    mutexUnlock(&gA2lMutex);
+    if (gA2lFile != NULL) {
+        fprintf(gA2lFile, "/end TYPEDEF_STRUCTURE\n");
+    }
 }
 
 // For scalar measurement and parameter components
 void A2lTypedefComponent_(const char *name, const char *type_name, uint16_t x_dim, uint32_t offset) {
 
-    assert(gA2lFile != NULL);
-    fprintf(gA2lFile, "  /begin STRUCTURE_COMPONENT %s %s 0x%X", name, type_name, offset);
-    if (x_dim > 1)
-        fprintf(gA2lFile, " MATRIX_DIM %u", x_dim);
-    fprintf(gA2lFile, " /end STRUCTURE_COMPONENT\n");
+    if (gA2lFile != NULL) {
+        fprintf(gA2lFile, "  /begin STRUCTURE_COMPONENT %s %s 0x%X", name, type_name, offset);
+        if (x_dim > 1)
+            fprintf(gA2lFile, " MATRIX_DIM %u", x_dim);
+        fprintf(gA2lFile, " /end STRUCTURE_COMPONENT\n");
 
-    gA2lComponents++;
+        gA2lComponents++;
+    }
 }
 
 // For multidimensional parameter components with TYPEDEF_CHARACTERISTIC for fields with comment, unit, min, max
 void A2lTypedefParameterComponent_(const char *name, const char *type_name, uint16_t x_dim, uint16_t y_dim, uint32_t offset, const char *comment, const char *unit, double min,
                                    double max, const char *x_axis, const char *y_axis) {
 
-    assert(gA2lFile != NULL);
+    if (gA2lFile != NULL) {
+        // TYPEDEF_AXIS
+        if (y_dim == 0 && x_dim > 1) {
+            fprintf(gA2lTypedefsFile, "/begin TYPEDEF_AXIS A_%s \"%s\" NO_INPUT_QUANTITY A_%s 0 NO_COMPU_METHOD %u %g %g", name, comment, type_name, x_dim, min, max);
+            printPhysUnit(gA2lTypedefsFile, unit);
+            fprintf(gA2lTypedefsFile, " /end TYPEDEF_AXIS\n");
+            fprintf(gA2lFile, "  /begin STRUCTURE_COMPONENT %s A_%s 0x%X /end STRUCTURE_COMPONENT\n", name, name, offset);
 
-    // TYPEDEF_AXIS
-    if (y_dim == 0 && x_dim > 1) {
-        fprintf(gA2lTypedefsFile, "/begin TYPEDEF_AXIS A_%s \"%s\" NO_INPUT_QUANTITY A_%s 0 NO_COMPU_METHOD %u %g %g", name, comment, type_name, x_dim, min, max);
-        printPhysUnit(gA2lTypedefsFile, unit);
-        fprintf(gA2lTypedefsFile, " /end TYPEDEF_AXIS\n");
-        fprintf(gA2lFile, "  /begin STRUCTURE_COMPONENT %s A_%s 0x%X /end STRUCTURE_COMPONENT\n", name, name, offset);
+        }
 
-    }
-
-    // TYPEDEF_CHARACTERISTIC
-    else {
-        // MAP
-        if (y_dim > 1) {
-            fprintf(gA2lTypedefsFile, "/begin TYPEDEF_CHARACTERISTIC C_%s \"%s\" MAP %s 0 NO_COMPU_METHOD %g %g", name, comment, type_name, min, max);
-            if (x_axis == NULL)
-                fprintf(gA2lTypedefsFile, " /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR", x_dim, x_dim - 1,
-                        x_dim);
-            else
-                fprintf(gA2lTypedefsFile, " /begin AXIS_DESCR COM_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD %u 0.0 0.0 AXIS_PTS_REF THIS.%s /end AXIS_DESCR", x_dim, x_axis);
-            if (y_axis == NULL)
-                fprintf(gA2lTypedefsFile, " /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR", y_dim, y_dim - 1,
-                        y_dim);
-            else
-                fprintf(gA2lTypedefsFile, " /begin AXIS_DESCR COM_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD %u 0.0 0.0 AXIS_PTS_REF THIS.%s /end AXIS_DESCR", y_dim, y_axis);
-        }
-        // CURVE
-        else if (x_dim > 1) {
-            fprintf(gA2lTypedefsFile, "/begin TYPEDEF_CHARACTERISTIC C_%s \"%s\" CURVE %s 0 NO_COMPU_METHOD %g %g", name, comment, type_name, min, max);
-            if (x_axis == NULL)
-                fprintf(gA2lTypedefsFile, " /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR", x_dim, x_dim - 1,
-                        x_dim);
-            else
-                fprintf(gA2lTypedefsFile, " /begin AXIS_DESCR COM_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD %u 0.0 0.0 AXIS_PTS_REF THIS.%s /end AXIS_DESCR", x_dim, x_axis);
-        }
-        // VALUE
-        else if (x_dim == 1 && y_dim == 1) {
-            fprintf(gA2lTypedefsFile, "/begin TYPEDEF_CHARACTERISTIC C_%s \"%s\" VALUE %s 0 NO_COMPU_METHOD %g %g", name, comment, type_name, min, max);
-        }
-        //
+        // TYPEDEF_CHARACTERISTIC
         else {
-            DBG_PRINTF_ERROR("Invalid dimensions: x_dim=%u, y_dim=%u\n", x_dim, y_dim);
-            assert(0);
+            // MAP
+            if (y_dim > 1) {
+                fprintf(gA2lTypedefsFile, "/begin TYPEDEF_CHARACTERISTIC C_%s \"%s\" MAP %s 0 NO_COMPU_METHOD %g %g", name, comment, type_name, min, max);
+                if (x_axis == NULL)
+                    fprintf(gA2lTypedefsFile, " /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR", x_dim, x_dim - 1,
+                            x_dim);
+                else
+                    fprintf(gA2lTypedefsFile, " /begin AXIS_DESCR COM_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD %u 0.0 0.0 AXIS_PTS_REF THIS.%s /end AXIS_DESCR", x_dim, x_axis);
+                if (y_axis == NULL)
+                    fprintf(gA2lTypedefsFile, " /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR", y_dim, y_dim - 1,
+                            y_dim);
+                else
+                    fprintf(gA2lTypedefsFile, " /begin AXIS_DESCR COM_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD %u 0.0 0.0 AXIS_PTS_REF THIS.%s /end AXIS_DESCR", y_dim, y_axis);
+            }
+            // CURVE
+            else if (x_dim > 1) {
+                fprintf(gA2lTypedefsFile, "/begin TYPEDEF_CHARACTERISTIC C_%s \"%s\" CURVE %s 0 NO_COMPU_METHOD %g %g", name, comment, type_name, min, max);
+                if (x_axis == NULL)
+                    fprintf(gA2lTypedefsFile, " /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR", x_dim, x_dim - 1,
+                            x_dim);
+                else
+                    fprintf(gA2lTypedefsFile, " /begin AXIS_DESCR COM_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD %u 0.0 0.0 AXIS_PTS_REF THIS.%s /end AXIS_DESCR", x_dim, x_axis);
+            }
+            // VALUE
+            else if (x_dim == 1 && y_dim == 1) {
+                fprintf(gA2lTypedefsFile, "/begin TYPEDEF_CHARACTERISTIC C_%s \"%s\" VALUE %s 0 NO_COMPU_METHOD %g %g", name, comment, type_name, min, max);
+            }
+            //
+            else {
+                DBG_PRINTF_ERROR("Invalid dimensions: x_dim=%u, y_dim=%u\n", x_dim, y_dim);
+                assert(0);
+            }
+            printPhysUnit(gA2lTypedefsFile, unit);
+            fprintf(gA2lTypedefsFile, " /end TYPEDEF_CHARACTERISTIC\n");
+            fprintf(gA2lFile, "  /begin STRUCTURE_COMPONENT %s C_%s 0x%X /end STRUCTURE_COMPONENT\n", name, name, offset);
         }
-        printPhysUnit(gA2lTypedefsFile, unit);
-        fprintf(gA2lTypedefsFile, " /end TYPEDEF_CHARACTERISTIC\n");
-        fprintf(gA2lFile, "  /begin STRUCTURE_COMPONENT %s C_%s 0x%X /end STRUCTURE_COMPONENT\n", name, name, offset);
-    }
 
-    gA2lComponents++;
+        gA2lComponents++;
+    }
 }
 
 void A2lCreateTypedefInstance_(const char *instance_name, const char *typeName, uint16_t x_dim, uint8_t ext, uint32_t addr, const char *comment) {
 
-    assert(gA2lFile != NULL);
+    if (gA2lFile != NULL) {
 
-    if (gA2lAutoGroups) {
-        A2lAddToGroup(instance_name);
+        if (gA2lAutoGroups) {
+            A2lAddToGroup(instance_name);
+        }
+
+        fprintf(gA2lFile, "/begin INSTANCE %s \"%s\" %s 0x%X", instance_name, comment, typeName, addr);
+        printAddrExt(ext);
+        if (x_dim > 1)
+            fprintf(gA2lFile, " MATRIX_DIM %u", x_dim);
+        A2lCreateMeasurement_IF_DATA();
+        fprintf(gA2lFile, " /end INSTANCE\n");
+        gA2lInstances++;
     }
-
-    mutexLock(&gA2lMutex);
-    fprintf(gA2lFile, "/begin INSTANCE %s \"%s\" %s 0x%X", instance_name, comment, typeName, addr);
-    printAddrExt(ext);
-    if (x_dim > 1)
-        fprintf(gA2lFile, " MATRIX_DIM %u", x_dim);
-    A2lCreateMeasurement_IF_DATA();
-    fprintf(gA2lFile, " /end INSTANCE\n");
-    gA2lInstances++;
-    mutexUnlock(&gA2lMutex);
 }
 
 //----------------------------------------------------------------------------------
@@ -977,64 +1025,65 @@ void A2lCreateTypedefInstance_(const char *instance_name, const char *typeName, 
 void A2lCreateMeasurement_(const char *instance_name, const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, const char *unit_or_conversion, double phys_min,
                            double phys_max, const char *comment) {
 
-    assert(gA2lFile != NULL);
+    if (gA2lFile != NULL) {
 
-    const char *symbol_name = A2lGetSymbolName(instance_name, name);
-    if (gA2lAutoGroups) {
-        A2lAddToGroup(name);
+        const char *symbol_name = A2lGetSymbolName(instance_name, name);
+        if (gA2lAutoGroups) {
+            A2lAddToGroup(name);
+        }
+
+        if (comment == NULL) {
+            comment = "";
+        }
+
+        double min, max;
+        const char *conv;
+        if (phys_min == 0.0 && phys_max == 0.0) {
+            min = getTypeMin(type);
+            max = getTypeMax(type);
+            conv = getConversion(unit_or_conversion, &min, &max);
+        } else {
+            min = phys_min;
+            max = phys_max;
+            conv = getConversion(unit_or_conversion, NULL, NULL);
+        }
+
+        fprintf(gA2lFile, "/begin MEASUREMENT %s \"%s\" %s %s 0 0 %g %g ECU_ADDRESS 0x%X", symbol_name, comment, A2lGetA2lTypeName(type), conv, min, max, addr);
+        printAddrExt(ext);
+        printPhysUnit(gA2lFile, unit_or_conversion);
+        if (gAl2AddrExt == XCP_ADDR_EXT_ABS || gAl2AddrExt == XCP_ADDR_EXT_DYN) { // Absolute or dynamic address mode allows write access
+            fprintf(gA2lFile, " READ_WRITE");
+        }
+
+        A2lCreateMeasurement_IF_DATA();
+        fprintf(gA2lFile, " /end MEASUREMENT\n");
+        gA2lMeasurements++;
     }
-
-    if (comment == NULL) {
-        comment = "";
-    }
-
-    double min, max;
-    const char *conv;
-    if (phys_min == 0.0 && phys_max == 0.0) {
-        min = getTypeMin(type);
-        max = getTypeMax(type);
-        conv = getConversion(unit_or_conversion, &min, &max);
-    } else {
-        min = phys_min;
-        max = phys_max;
-        conv = getConversion(unit_or_conversion, NULL, NULL);
-    }
-
-    fprintf(gA2lFile, "/begin MEASUREMENT %s \"%s\" %s %s 0 0 %g %g ECU_ADDRESS 0x%X", symbol_name, comment, A2lGetA2lTypeName(type), conv, min, max, addr);
-    printAddrExt(ext);
-    printPhysUnit(gA2lFile, unit_or_conversion);
-    if (gAl2AddrExt == XCP_ADDR_EXT_ABS || gAl2AddrExt == XCP_ADDR_EXT_DYN) { // Absolute or dynamic address mode allows write access
-        fprintf(gA2lFile, " READ_WRITE");
-    }
-
-    A2lCreateMeasurement_IF_DATA();
-    fprintf(gA2lFile, " /end MEASUREMENT\n");
-    gA2lMeasurements++;
 }
 
 void A2lCreateMeasurementArray_(const char *instance_name, const char *name, tA2lTypeId type, int x_dim, int y_dim, uint8_t ext, uint32_t addr, const char *unit,
                                 const char *comment) {
 
-    assert(gA2lFile != NULL);
+    if (gA2lFile != NULL) {
+        if (gA2lAutoGroups) {
+            A2lAddToGroup(name);
+        }
 
-    if (gA2lAutoGroups) {
-        A2lAddToGroup(name);
+        const char *symbol_name = A2lGetSymbolName(instance_name, name);
+        if (unit == NULL)
+            unit = "";
+        if (comment == NULL)
+            comment = "";
+        const char *conv = "NO_COMPU_METHOD";
+
+        fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" VAL_BLK 0x%X %s 0 %s %s %s MATRIX_DIM %u %u", symbol_name, comment, addr, A2lGetRecordLayoutName_(type), conv,
+                getTypeMinString(type), getTypeMaxString(type), x_dim, y_dim);
+        printAddrExt(ext);
+
+        A2lCreateMeasurement_IF_DATA();
+        fprintf(gA2lFile, " /end CHARACTERISTIC\n");
+        gA2lMeasurements++;
     }
-
-    const char *symbol_name = A2lGetSymbolName(instance_name, name);
-    if (unit == NULL)
-        unit = "";
-    if (comment == NULL)
-        comment = "";
-    const char *conv = "NO_COMPU_METHOD";
-
-    fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" VAL_BLK 0x%X %s 0 %s %s %s MATRIX_DIM %u %u", symbol_name, comment, addr, A2lGetRecordLayoutName_(type), conv,
-            getTypeMinString(type), getTypeMaxString(type), x_dim, y_dim);
-    printAddrExt(ext);
-
-    A2lCreateMeasurement_IF_DATA();
-    fprintf(gA2lFile, " /end CHARACTERISTIC\n");
-    gA2lMeasurements++;
 }
 
 //----------------------------------------------------------------------------------
@@ -1042,171 +1091,188 @@ void A2lCreateMeasurementArray_(const char *instance_name, const char *name, tA2
 
 void A2lCreateParameter_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, const char *comment, const char *unit, double min, double max) {
 
-    assert(gA2lFile != NULL);
-    if (gA2lAutoGroups) {
-        A2lAddToGroup(name);
-    }
+    if (gA2lFile != NULL) {
+        if (gA2lAutoGroups) {
+            A2lAddToGroup(name);
+        }
 
-    fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" VALUE 0x%X %s 0 NO_COMPU_METHOD %g %g", name, comment, addr, A2lGetRecordLayoutName_(type), min, max);
-    printPhysUnit(gA2lFile, unit);
-    printAddrExt(ext);
-    A2lCreateMeasurement_IF_DATA();
-    fprintf(gA2lFile, " /end CHARACTERISTIC\n");
-    gA2lParameters++;
+        fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" VALUE 0x%X %s 0 NO_COMPU_METHOD %g %g", name, comment, addr, A2lGetRecordLayoutName_(type), min, max);
+        printPhysUnit(gA2lFile, unit);
+        printAddrExt(ext);
+        A2lCreateMeasurement_IF_DATA();
+        fprintf(gA2lFile, " /end CHARACTERISTIC\n");
+        gA2lParameters++;
+    }
 }
 
 void A2lCreateMap_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, uint32_t xdim, uint32_t ydim, const char *comment, const char *unit, double min, double max) {
 
-    assert(gA2lFile != NULL);
-    if (gA2lAutoGroups) {
-        A2lAddToGroup(name);
-    }
+    if (gA2lFile != NULL) {
+        if (gA2lAutoGroups) {
+            A2lAddToGroup(name);
+        }
 
-    fprintf(gA2lFile,
-            "/begin CHARACTERISTIC %s \"%s\" MAP 0x%X %s 0 NO_COMPU_METHOD %g %g"
-            " /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD  %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR"
-            " /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD  %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR",
-            name, comment, addr, A2lGetRecordLayoutName_(type), min, max, xdim, xdim - 1, xdim, ydim, ydim - 1, ydim);
-    printPhysUnit(gA2lFile, unit);
-    printAddrExt(ext);
-    A2lCreateMeasurement_IF_DATA();
-    fprintf(gA2lFile, " /end CHARACTERISTIC\n");
-    gA2lParameters++;
+        fprintf(gA2lFile,
+                "/begin CHARACTERISTIC %s \"%s\" MAP 0x%X %s 0 NO_COMPU_METHOD %g %g"
+                " /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD  %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR"
+                " /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD  %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR",
+                name, comment, addr, A2lGetRecordLayoutName_(type), min, max, xdim, xdim - 1, xdim, ydim, ydim - 1, ydim);
+        printPhysUnit(gA2lFile, unit);
+        printAddrExt(ext);
+        A2lCreateMeasurement_IF_DATA();
+        fprintf(gA2lFile, " /end CHARACTERISTIC\n");
+        gA2lParameters++;
+    }
 }
 
 void A2lCreateCurve_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, uint32_t xdim, const char *comment, const char *unit, double min, double max) {
 
-    assert(gA2lFile != NULL);
-    if (gA2lAutoGroups) {
-        A2lAddToGroup(name);
+    if (gA2lFile != NULL) {
+        if (gA2lAutoGroups) {
+            A2lAddToGroup(name);
+        }
+
+        fprintf(gA2lFile,
+                "/begin CHARACTERISTIC %s \"%s\" CURVE 0x%X %s 0 NO_COMPU_METHOD %g %g"
+                " /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD  %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR",
+                name, comment, addr, A2lGetRecordLayoutName_(type), min, max, xdim, xdim - 1, xdim);
+        printPhysUnit(gA2lFile, unit);
+        printAddrExt(ext);
+        A2lCreateMeasurement_IF_DATA();
+
+        fprintf(gA2lFile, " /end CHARACTERISTIC\n");
+        gA2lParameters++;
     }
-
-    fprintf(gA2lFile,
-            "/begin CHARACTERISTIC %s \"%s\" CURVE 0x%X %s 0 NO_COMPU_METHOD %g %g"
-            " /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD  %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR",
-            name, comment, addr, A2lGetRecordLayoutName_(type), min, max, xdim, xdim - 1, xdim);
-    printPhysUnit(gA2lFile, unit);
-    printAddrExt(ext);
-    A2lCreateMeasurement_IF_DATA();
-
-    fprintf(gA2lFile, " /end CHARACTERISTIC\n");
-    gA2lParameters++;
 }
 
 //----------------------------------------------------------------------------------
 // Groups
 
 // Begin a group for measurements or parameters
-// Thread safe, but be aware of the mutex lock
 void A2lBeginGroup(const char *name, const char *comment, bool is_parameter_group) {
-    assert(gA2lGroupsFile != NULL);
-    if (gA2lAutoGroupName == NULL || strcmp(name, gA2lAutoGroupName) != 0) { // Close previous group if any and new group name is different
-        A2lEndGroup();
+    if (gA2lFile != NULL) {
+        assert(gA2lGroupsFile != NULL);
+        if (gA2lAutoGroupName == NULL || strcmp(name, gA2lAutoGroupName) != 0) { // Close previous group if any and new group name is different
+            A2lEndGroup();
 
-        mutexLock(&gA2lMutex);
-        gA2lAutoGroupName = name;
-        gA2lAutoGroupIsParameter = is_parameter_group;
-        fprintf(gA2lGroupsFile, "/begin GROUP %s \"%s\"", name, comment);
-        if (gA2lAutoGroupIsParameter) {
-            fprintf(gA2lGroupsFile, " ROOT /begin REF_CHARACTERISTIC");
-        } else {
-            fprintf(gA2lGroupsFile, " /begin REF_MEASUREMENT");
+            gA2lAutoGroupName = name;
+            gA2lAutoGroupIsParameter = is_parameter_group;
+            fprintf(gA2lGroupsFile, "/begin GROUP %s \"%s\"", name, comment);
+            if (gA2lAutoGroupIsParameter) {
+                fprintf(gA2lGroupsFile, " ROOT /begin REF_CHARACTERISTIC");
+            } else {
+                fprintf(gA2lGroupsFile, " /begin REF_MEASUREMENT");
+            }
         }
     }
 }
 
 // Add a measurement or parameter to the current open group
 void A2lAddToGroup(const char *name) {
-    assert(gA2lGroupsFile != NULL);
-    if (gA2lAutoGroupName != NULL) {
-        fprintf(gA2lGroupsFile, " %s", name);
+    if (gA2lFile != NULL) {
+        assert(gA2lGroupsFile != NULL);
+        if (gA2lAutoGroupName != NULL) {
+            fprintf(gA2lGroupsFile, " %s", name);
+        }
     }
 }
 
 // End the current open group for measurements or parameters
 void A2lEndGroup(void) {
-    assert(gA2lGroupsFile != NULL);
-    if (gA2lAutoGroupName == NULL)
-        return;
+    if (gA2lFile != NULL) {
+        assert(gA2lGroupsFile != NULL);
+        if (gA2lAutoGroupName == NULL)
+            return;
 
-    fprintf(gA2lGroupsFile, " /end REF_%s", gA2lAutoGroupIsParameter ? "CHARACTERISTIC" : "MEASUREMENT");
-    fprintf(gA2lGroupsFile, " /end GROUP\n");
-    mutexUnlock(&gA2lMutex);
+        fprintf(gA2lGroupsFile, " /end REF_%s", gA2lAutoGroupIsParameter ? "CHARACTERISTIC" : "MEASUREMENT");
+        fprintf(gA2lGroupsFile, " /end GROUP\n");
+    }
 }
 
 void A2lCreateMeasurementGroup(const char *name, int count, ...) {
+    if (gA2lFile != NULL) {
+        va_list ap;
 
-    va_list ap;
+        assert(gA2lGroupsFile != NULL);
 
-    assert(gA2lGroupsFile != NULL);
-    mutexLock(&gA2lMutex);
-    fprintf(gA2lGroupsFile, "/begin GROUP %s \"\" ROOT", name);
-    fprintf(gA2lGroupsFile, " /begin REF_MEASUREMENT");
-    va_start(ap, count);
-    for (int i = 0; i < count; i++) {
-        fprintf(gA2lGroupsFile, " %s", va_arg(ap, char *));
+        fprintf(gA2lGroupsFile, "/begin GROUP %s \"\" ROOT", name);
+        fprintf(gA2lGroupsFile, " /begin REF_MEASUREMENT");
+        va_start(ap, count);
+        for (int i = 0; i < count; i++) {
+            fprintf(gA2lGroupsFile, " %s", va_arg(ap, char *));
+        }
+        va_end(ap);
+        fprintf(gA2lGroupsFile, " /end REF_MEASUREMENT");
+        fprintf(gA2lGroupsFile, " /end GROUP\n\n");
     }
-    va_end(ap);
-    fprintf(gA2lGroupsFile, " /end REF_MEASUREMENT");
-    fprintf(gA2lGroupsFile, " /end GROUP\n\n");
-    mutexUnlock(&gA2lMutex);
 }
 
 void A2lCreateMeasurementGroupFromList(const char *name, char *names[], uint32_t count) {
+    if (gA2lFile != NULL) {
+        assert(gA2lGroupsFile != NULL);
 
-    assert(gA2lGroupsFile != NULL);
-    mutexLock(&gA2lMutex);
-    fprintf(gA2lGroupsFile, "/begin GROUP %s \"\" ROOT", name);
-    fprintf(gA2lGroupsFile, " /begin REF_MEASUREMENT");
-    for (uint32_t i1 = 0; i1 < count; i1++) {
-        fprintf(gA2lGroupsFile, " %s", names[i1]);
+        fprintf(gA2lGroupsFile, "/begin GROUP %s \"\" ROOT", name);
+        fprintf(gA2lGroupsFile, " /begin REF_MEASUREMENT");
+        for (uint32_t i1 = 0; i1 < count; i1++) {
+            fprintf(gA2lGroupsFile, " %s", names[i1]);
+        }
+        fprintf(gA2lGroupsFile, " /end REF_MEASUREMENT");
+        fprintf(gA2lGroupsFile, "\n/end GROUP\n\n");
     }
-    fprintf(gA2lGroupsFile, " /end REF_MEASUREMENT");
-    fprintf(gA2lGroupsFile, "\n/end GROUP\n\n");
-    mutexUnlock(&gA2lMutex);
 }
 
 void A2lCreateParameterGroup(const char *name, int count, ...) {
+    if (gA2lFile != NULL) {
+        va_list ap;
 
-    va_list ap;
+        assert(gA2lGroupsFile != NULL);
 
-    assert(gA2lGroupsFile != NULL);
-    mutexLock(&gA2lMutex);
-    fprintf(gA2lGroupsFile, "/begin GROUP %s \"\" ROOT", name);
-    fprintf(gA2lGroupsFile, " /begin REF_CHARACTERISTIC\n");
-    va_start(ap, count);
-    for (int i = 0; i < count; i++) {
-        fprintf(gA2lGroupsFile, " %s", va_arg(ap, char *));
+        fprintf(gA2lGroupsFile, "/begin GROUP %s \"\" ROOT", name);
+        fprintf(gA2lGroupsFile, " /begin REF_CHARACTERISTIC\n");
+        va_start(ap, count);
+        for (int i = 0; i < count; i++) {
+            fprintf(gA2lGroupsFile, " %s", va_arg(ap, char *));
+        }
+        va_end(ap);
+        fprintf(gA2lGroupsFile, "\n/end REF_CHARACTERISTIC ");
+        fprintf(gA2lGroupsFile, "/end GROUP\n\n");
     }
-    va_end(ap);
-    fprintf(gA2lGroupsFile, "\n/end REF_CHARACTERISTIC ");
-    fprintf(gA2lGroupsFile, "/end GROUP\n\n");
-    mutexUnlock(&gA2lMutex);
 }
 
 void A2lCreateParameterGroupFromList(const char *name, const char *pNames[], int count) {
 
-    assert(gA2lGroupsFile != NULL);
-    mutexLock(&gA2lMutex);
-    fprintf(gA2lGroupsFile, "/begin GROUP %s \"\" ROOT", name);
-    fprintf(gA2lGroupsFile, " /begin REF_CHARACTERISTIC\n");
-    for (int i = 0; i < count; i++) {
-        fprintf(gA2lGroupsFile, " %s", pNames[i]);
+    if (gA2lFile != NULL) {
+        assert(gA2lGroupsFile != NULL);
+
+        fprintf(gA2lGroupsFile, "/begin GROUP %s \"\" ROOT", name);
+        fprintf(gA2lGroupsFile, " /begin REF_CHARACTERISTIC\n");
+        for (int i = 0; i < count; i++) {
+            fprintf(gA2lGroupsFile, " %s", pNames[i]);
+        }
+        fprintf(gA2lGroupsFile, "\n/end REF_CHARACTERISTIC ");
+        fprintf(gA2lGroupsFile, "/end GROUP\n\n");
     }
-    fprintf(gA2lGroupsFile, "\n/end REF_CHARACTERISTIC ");
-    fprintf(gA2lGroupsFile, "/end GROUP\n\n");
-    mutexUnlock(&gA2lMutex);
 }
 
 //----------------------------------------------------------------------------------
+// Helper function to ensure A2L generation macros are executed only once
+// This allows to use the macros in loops or functions without taking care of multiple executions
+// Note that the A2L generation may be lazy
+// Once the A2L file has been finalized, further calls to the macros will not have any effect
 
-bool A2lOnce_(atomic_bool *value) {
-    bool old_value = false;
-    if (atomic_compare_exchange_strong_explicit(value, &old_value, true, memory_order_relaxed, memory_order_relaxed)) {
-        return gA2lFile != NULL; // Return true if A2L file is open
-    } else {
+bool A2lOnce_(A2lOnceType *value) {
+    if (*value)
         return false;
-    }
+    *value = true;
+    return true;
+
+    // There is no ned to be thread safe here, because the A2L macros it protects from beeing executed multiple times are intended for single thread usage only
+    // bool old_value = false;
+    // if (atomic_compare_exchange_strong_explicit(value, &old_value, true, memory_order_relaxed, memory_order_relaxed)) {
+    //     return gA2lFile != NULL; // Return true if A2L file is open
+    // } else {
+    //     return false;
+    // }
 }
 
 //-----------------------------------------------------------------------------------------------------
@@ -1299,6 +1365,16 @@ bool A2lFinalize(void) {
     }
 
     return true; // Do not refuse connect
+}
+
+// Lock and unlock
+void A2lLock(void) {
+    if (gA2lFile != NULL)
+        mutexLock(&gA2lMutex);
+}
+void A2lUnlock(void) {
+    if (gA2lFile != NULL)
+        mutexUnlock(&gA2lMutex);
 }
 
 // Open the A2L file and register the finalize callback

@@ -132,6 +132,10 @@ int _kbhit(void);
 
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //-------------------------------------------------------------------------------
 // Delay
 
@@ -189,6 +193,22 @@ typedef pthread_t THREAD;
     }
 #define yield_thread(void) sched_yield(void)
 
+#endif
+
+//-------------------------------------------------------------------------------
+// Thread local storage
+
+#ifdef __cplusplus
+#define THREAD_LOCAL thread_local
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#define THREAD_LOCAL _Thread_local
+#elif defined(__GNUC__)
+#define THREAD_LOCAL __thread
+#elif defined(_MSC_VER)
+#define THREAD_LOCAL __declspec(thread)
+#else
+#define THREAD_LOCAL static // Fallback to static (not thread-safe)
+#warning "Thread-local storage not supported, falling back to static"
 #endif
 
 //-------------------------------------------------------------------------------
@@ -337,4 +357,8 @@ extern MUTEX gWinMutex;
 bool atomic_compare_exchange_strong_explicit(uint8_t *a, uint8_t *b, uint8_t c, int d, int e);
 bool atomic_compare_exchange_weak_explicit(uint8_t *a, uint8_t *b, uint8_t c, int d, int e);
 
+#endif
+
+#ifdef __cplusplus
+} // extern "C"
 #endif

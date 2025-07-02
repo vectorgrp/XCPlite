@@ -19,20 +19,20 @@
 #define OPTION_USE_TCP false                 // TCP or UDP
 #define OPTION_SERVER_PORT 5555              // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}      // Bind addr, 0.0.0.0 = ANY
-// #define OPTION_SERVER_ADDR {127, 0, 0, 1} // Bind addr, 0.0.0.0 = ANY
+// #define OPTION_SERVER_ADDR {172, 19, 8, 57} // 172.19.8.57
 #define OPTION_QUEUE_SIZE 1024 * 16 // Size of the measurement queue in bytes, must be a multiple of 8
 #define OPTION_LOG_LEVEL 3
 
 //-----------------------------------------------------------------------------------------------------
 // Demo calibration parameters
 
-typedef struct params {
+typedef struct parameters {
     uint16_t counter_max; // Maximum value for the counter
     uint32_t delay_us;    // Sleep timein microseconds for the main loop
-} params_t;
+} parameters_t;
 
 // Default values
-const params_t params = {.counter_max = 1000, .delay_us = 1000};
+const parameters_t parameters = {.counter_max = 1000, .delay_us = 1000};
 
 //-----------------------------------------------------------------------------------------------------
 // Demo measurement values
@@ -70,15 +70,15 @@ int main(void) {
 #endif
 
     // Create a calibration segment named 'Parameters' for the calibration parameter struct
-    // This segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
+    // This calibration segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
     // It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
     // It supports XCP/ECU independent page switching, checksum calculation and reinitialization (copy reference page to working page)
-    tXcpCalSegIndex calseg = XcpCreateCalSeg("Parameters", &params, sizeof(params));
+    tXcpCalSegIndex calseg = XcpCreateCalSeg("Parameters", &parameters, sizeof(parameters));
 
     // Register calibration parameters in the calibration segment
-    A2lSetSegmentAddrMode(calseg, params);
-    A2lCreateParameter(params, counter_max, "Maximum counter value", "", 0, 2000);
-    A2lCreateParameter(params, delay_us, "Mainloop delay time in us", "us", 0, 999999);
+    A2lSetSegmentAddrMode(calseg, parameters);
+    A2lCreateParameter(parameters, counter_max, "Maximum counter value", "", 0, 2000);
+    A2lCreateParameter(parameters, delay_us, "Mainloop delay time in us", "us", 0, 999999);
 
     // Create a measurement event named "mainloop"
     DaqCreateEvent(mainloop);
@@ -98,17 +98,19 @@ int main(void) {
 
     A2lFinalize(); // Optional: Finalize the A2L file generation early, otherwise it would be written when the client tool connects
 
+    // Mainloop
+    printf("Start main loop...\n");
     for (;;) {
         // Lock the calibration parameter segment for consistent and safe access
         // Calibration segment locking is completely lock-free and wait-free (no mutexes, system calls or CAS operations )
         // It returns a pointer to the active page (working or reference) of the calibration segment
-        params_t *params = (params_t *)XcpLockCalSeg(calseg);
+        parameters_t *parameters = (parameters_t *)XcpLockCalSeg(calseg);
 
-        uint32_t delay_us = params->delay_us; // Get the delay parameter in microseconds
+        uint32_t delay_us = parameters->delay_us; // Get the delay parameter in microseconds
 
         // Local variable for measurement
         loop_counter++;
-        if (loop_counter > params->counter_max) {
+        if (loop_counter > parameters->counter_max) {
             loop_counter = 0;
         }
 

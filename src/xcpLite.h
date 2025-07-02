@@ -38,11 +38,9 @@ void XcpDisconnect(void);
 
 // Trigger a XCP data acquisition event
 typedef uint16_t tXcpEventId;
-uint8_t XcpEventExtAt(tXcpEventId event, const uint8_t *base, uint64_t clock);
-uint8_t XcpEventExt(tXcpEventId event, const uint8_t *base);
-void XcpEventAt(tXcpEventId event, uint64_t clock);
+uint8_t XcpEventDynRelAt(tXcpEventId event, const uint8_t *dyn_base, const uint8_t *rel_base, uint64_t clock);
+void XcpEventExt(tXcpEventId event, const uint8_t *base);
 void XcpEvent(tXcpEventId event);
-uint8_t XcpEventDyn(tXcpEventId *event);
 
 // Send an XCP event message
 void XcpSendEvent(uint8_t evc, const uint8_t *d, uint8_t l);
@@ -120,6 +118,9 @@ tXcpEventList *XcpGetEventList(void);
 
 // Get event id by name, returns XCP_UNDEFINED_EVENT_ID if not found
 tXcpEventId XcpFindEvent(const char *name, uint16_t *count);
+
+// Get event name by id, returns NULL if not found
+const char *XcpGetEventName(tXcpEventId event);
 
 #endif // XCP_ENABLE_DAQ_EVENT_LIST
 
