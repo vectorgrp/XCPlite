@@ -26,11 +26,11 @@ ALIGNMENT_INT64 1
 
 /* Absolute addressing mode: event=mainloop (0), addr_ext=1 */
 /begin MEASUREMENT temperature "Motor temperature in °C" UBYTE conv.Temperature 0 0 -50 200 ECU_ADDRESS 0x20000 ECU_ADDRESS_EXTENSION 1 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT speed "Speed in km/h" FLOAT32_IEEE NO_COMPU_METHOD 0 0 0 250 ECU_ADDRESS 0x20084 ECU_ADDRESS_EXTENSION 1 PHYS_UNIT "km/h" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT speed "Speed in km/h" FLOAT64_IEEE NO_COMPU_METHOD 0 0 0 250 ECU_ADDRESS 0x20090 ECU_ADDRESS_EXTENSION 1 PHYS_UNIT "km/h" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 
 /* Stack frame relative addressing mode: event=mainloop (0), addr_ext=3 */
 /begin MEASUREMENT loop_counter "Loop counter, local measurement variable on stack" UWORD NO_COMPU_METHOD 0 0 0 65535 ECU_ADDRESS 0xFFFFFFD6 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "" /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin TYPEDEF_STRUCTURE signal_parameters_t "Signal parameters typedef" 0x28
+/begin TYPEDEF_STRUCTURE SignalParametersT "Signal parameters typedef" 0x28
   /begin STRUCTURE_COMPONENT ampl C_ampl 0x0 /end STRUCTURE_COMPONENT
   /begin STRUCTURE_COMPONENT phase C_phase 0x8 /end STRUCTURE_COMPONENT
   /begin STRUCTURE_COMPONENT offset C_offset 0x10 /end STRUCTURE_COMPONENT
@@ -39,22 +39,22 @@ ALIGNMENT_INT64 1
 /end TYPEDEF_STRUCTURE
 
 /* Segment relative addressing mode: calseg=SigGen1 */
-/begin INSTANCE SigGen1 "Signal parameters" signal_parameters_t 0x80020000 /end INSTANCE
+/begin INSTANCE SigGen1 "Signal parameters" SignalParametersT 0x80020000 /end INSTANCE
 
 /* Relative addressing mode: event=SigGen1 (1), addr_ext=2 */
 /begin MEASUREMENT SigGen1.value "Signal generator output" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100 ECU_ADDRESS 0x10018 ECU_ADDRESS_EXTENSION 2 PHYS_UNIT "" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 
+/* Stack frame relative addressing mode: event=SigGen1 (1), addr_ext=3 */
+/begin MEASUREMENT SigGen1.time "Signal generator time" FLOAT64_IEEE NO_COMPU_METHOD 0 0 0 3600 ECU_ADDRESS 0xFFFFFFF0 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "s" /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+
 /* Segment relative addressing mode: calseg=SigGen2 */
-/begin INSTANCE SigGen2 "Signal parameters" signal_parameters_t 0x80030000 /end INSTANCE
+/begin INSTANCE SigGen2 "Signal parameters" SignalParametersT 0x80030000 /end INSTANCE
 
 /* Relative addressing mode: event=SigGen2 (2), addr_ext=2 */
 /begin MEASUREMENT SigGen2.value "Signal generator output" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100 ECU_ADDRESS 0x20018 ECU_ADDRESS_EXTENSION 2 PHYS_UNIT "" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 
-/* Stack frame relative addressing mode: event=SigGen1 (1), addr_ext=3 */
-/begin MEASUREMENT SigGen1.time "Signal generator time" FLOAT64_IEEE NO_COMPU_METHOD 0 0 0 3600 ECU_ADDRESS 0xFFFFFFE8 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "s" /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-
 /* Stack frame relative addressing mode: event=SigGen2 (2), addr_ext=3 */
-/begin MEASUREMENT SigGen2.time "Signal generator time" FLOAT64_IEEE NO_COMPU_METHOD 0 0 0 3600 ECU_ADDRESS 0xFFFFFFE8 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "s" /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT SigGen2.time "Signal generator time" FLOAT64_IEEE NO_COMPU_METHOD 0 0 0 3600 ECU_ADDRESS 0xFFFFFFF0 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "s" /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 
 /* Typedefs */
 /begin RECORD_LAYOUT F64 FNC_VALUES 1 FLOAT64_IEEE ROW_DIR DIRECT /end RECORD_LAYOUT
@@ -107,10 +107,8 @@ ALIGNMENT_INT64 1
 /* Groups */
 /begin GROUP Parameters "Calibration Segment" ROOT /begin REF_CHARACTERISTIC parameters.counter_max parameters.delay_us /end REF_CHARACTERISTIC /end GROUP
 /begin GROUP mainloop "Measurement event group" /begin REF_MEASUREMENT temperature speed loop_counter /end REF_MEASUREMENT /end GROUP
-/begin GROUP SigGen1 "Calibration Segment" ROOT /begin REF_CHARACTERISTIC SigGen1 value /end REF_CHARACTERISTIC /end GROUP
-/begin GROUP SigGen2 "Calibration Segment" ROOT /begin REF_CHARACTERISTIC SigGen2 value /end REF_CHARACTERISTIC /end GROUP
-/begin GROUP SigGen1 "Measurement event group" /begin REF_MEASUREMENT time /end REF_MEASUREMENT /end GROUP
-/begin GROUP SigGen2 "Measurement event group" /begin REF_MEASUREMENT time /end REF_MEASUREMENT /end GROUP
+/begin GROUP SigGen1 "Calibration Segment" ROOT /begin REF_CHARACTERISTIC SigGen1 value time /end REF_CHARACTERISTIC /end GROUP
+/begin GROUP SigGen2 "Calibration Segment" ROOT /begin REF_CHARACTERISTIC SigGen2 value time /end REF_CHARACTERISTIC /end GROUP
 /begin GROUP Events "Events" ROOT /begin SUB_GROUP mainloop SigGen1 SigGen2 /end SUB_GROUP /end GROUP
 
 /* Conversions */
@@ -120,7 +118,7 @@ ALIGNMENT_INT64 1
 /begin COMPU_METHOD conv.Temperature "Temperature in °C from unsigned byte" LINEAR "%6.3" "°C" COEFFS_LINEAR 1 -50 /end COMPU_METHOD
 
 /begin MOD_PAR ""
-EPK "EPK_Jul__2_2025_08:30:34" ADDR_EPK 0x80000000
+EPK "EPK_Jul__2_2025_14:13:46" ADDR_EPK 0x80000000
 /begin MEMORY_SEGMENT epk "" DATA FLASH INTERN 0x80000000 24 -1 -1 -1 -1 -1 /end MEMORY_SEGMENT
 /begin MEMORY_SEGMENT
 Parameters "" DATA FLASH INTERN 0x80010000 0x8 -1 -1 -1 -1 -1

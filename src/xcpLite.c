@@ -232,7 +232,7 @@ typedef struct {
         uint32_t odt_entry_addr[XCP_DAQ_MEM_SIZE / 4];
         // ODT entry size array
         uint8_t odt_entry_size[XCP_DAQ_MEM_SIZE / 1];
-// ODT entry addr extension array
+        // ODT entry addr extension array
 #ifdef XCP_ENABLE_DAQ_ADDREXT
         uint8_t odt_entry_addr_ext[XCP_DAQ_MEM_SIZE / 1];
 #endif

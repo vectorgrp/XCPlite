@@ -1,24 +1,18 @@
 
-#include <algorithm>
 #include <cmath>
-#include <cstdint>
 #include <iostream>
-#include <numeric>
 #include <string>
-#include <vector>
+#include <thread>
 
 #include "a2l.h"
 #include "platform.h"
 #include "xcplib.h"
 #include "xcplib.hpp"
-#include <thread>
 
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
-#ifndef M_2PI
-#define M_2PI (M_PI * 2)
-#endif
+namespace {
+
+constexpr double kPi = 3.14159265358979323846;
+constexpr double k2Pi = (kPi * 2);
 
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
@@ -28,25 +22,25 @@
 #define OPTION_USE_TCP false                // TCP or UDP
 #define OPTION_SERVER_PORT 5555             // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}     // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE 1024 * 64         // Size of the measurement queue in bytes
+#define OPTION_QUEUE_SIZE (1024 * 64)       // Size of the measurement queue in bytes
 #define OPTION_LOG_LEVEL 3
 
 //-----------------------------------------------------------------------------------------------------
 // Demo calibration parameters
 
-typedef struct {
+struct ParametersT {
     uint16_t counter_max; // Maximum value for the counter
     uint32_t delay_us;    // Sleep time in microseconds for the main loop
-} parameters_t;
+};
 
 // Default values
-const parameters_t parameters = {.counter_max = 1000, .delay_us = 1000};
+constexpr ParametersT parameters = {.counter_max = 1000, .delay_us = 1000};
 
 //-----------------------------------------------------------------------------------------------------
 // Demo global measurement values
 
-static uint8_t temperature = 50; // In Celsius
-static float speed = 0.0f;       // Speed in km/h
+uint8_t temperature = 50; // In Celsius
+double speed = 0.0f;      // Speed in km/h
 
 //-----------------------------------------------------------------------------------------------------
 // Waveform generator class
@@ -56,23 +50,23 @@ An instance of class SigGen creates a sine signal in its member variable value
 Depending on calibration parameters ampl, phase, offset and period
 */
 
-typedef struct {
+struct SignalParametersT {
     double ampl;       // Amplitude of the sine wave
     double phase;      // Phase shift in radians
     double offset;     // Offset of the sine wave
     double period;     // Period of the sine wave in seconds
     uint32_t delay_us; // Delay in microseconds for the main loop
-} signal_parameters_t;
+};
 
-// Default values, 2 different parameters sets
-const signal_parameters_t signal_parameters_1 = {
+// Default values, 2 different parameters sets ....
+constexpr SignalParametersT signalParameters1 = {
     .ampl = 100.0,
     .phase = 0.0,
     .offset = 0.0,
     .period = 2.0,   // s
     .delay_us = 1000 // us
 };
-const signal_parameters_t signal_parameters_2 = {
+constexpr SignalParametersT signalParameters2 = {
     .ampl = 50.0,
     .phase = 1.0,
     .offset = 0.0,
@@ -85,34 +79,34 @@ class SigGen {
   private:
     // signal_parameters_t *signal_parameters; // Parameters for the signal generators replaced by a wrapper to make them adjustable by the XCP tool
     // XCP calibration parameter struct wrapper
-    xcplib::CalSeg<signal_parameters_t> signal_parameters; // Wrapper for signal parameters to enable calibration access
+    xcplib::CalSeg<SignalParametersT> signal_parameters_; // Wrapper for signal parameters to enable calibration access
 
-    const char *instance_name; // Instance name
-    std::thread *t;            // Thread for the signal generator task
+    const char *instance_name_; // Instance name
+    std::thread *thread_;       // Thread for the signal generator task
 
   public:
-    double value; // Current value
+    double value{0}; // Current value
 
     // Constructor - creates the signal generator with the given instance name and parameters
-    SigGen(const char *instance_name, signal_parameters_t params) : signal_parameters(instance_name, params), value(0), instance_name(instance_name) {
+    SigGen(const char *instance_name, SignalParametersT params) : signal_parameters_(instance_name, params), instance_name_(instance_name) {
 
         // A2L registration
         A2lLock(); // Take care for thread safety when registering measurements and parameters
 
         // Once define a typedef for signal_parameters_t once
         // All typedef registration macros use a once pattern, so there will be exactly one typedef in the A2L file
-        A2lTypedefBegin(signal_parameters_t, "Signal parameters typedef");
-        A2lTypedefParameterComponent(ampl, signal_parameters_t, "Amplitude", "Volt", 0, 100);
-        A2lTypedefParameterComponent(phase, signal_parameters_t, "Phase", "", 0, M_2PI);
-        A2lTypedefParameterComponent(offset, signal_parameters_t, "Offset", "Volt", -100, 100);
-        A2lTypedefParameterComponent(period, signal_parameters_t, "Period", "s", 0.01, 10.0);
-        A2lTypedefParameterComponent(delay_us, signal_parameters_t, "Delay time in us", "us", 0, 100000);
+        A2lTypedefBegin(SignalParametersT, "Signal parameters typedef");
+        A2lTypedefParameterComponent(ampl, SignalParametersT, "Amplitude", "Volt", 0, 100);
+        A2lTypedefParameterComponent(phase, SignalParametersT, "Phase", "", 0, k2Pi);
+        A2lTypedefParameterComponent(offset, SignalParametersT, "Offset", "Volt", -100, 100);
+        A2lTypedefParameterComponent(period, SignalParametersT, "Period", "s", 0.01, 10.0);
+        A2lTypedefParameterComponent(delay_us, SignalParametersT, "Delay time in us", "us", 0, 100000);
         A2lTypedefEnd();
 
         // Create an instance of the signal parameters member variable in the CalSeg<> wrapper for calibration access
         // The wrapper class 'CalSeg' instance 'signal_parameters' created a calibration memory segment in its constructor
-        A2lSetSegmentAddrMode(signal_parameters.getIndex(), signal_parameters);
-        A2lCreateTypedefNamedInstance(instance_name, signal_parameters, signal_parameters_t, "Signal parameters");
+        A2lSetSegmentAddrMode(signal_parameters_.getIndex(), signal_parameters_);
+        A2lCreateTypedefNamedInstance(instance_name, signal_parameters_, SignalParametersT, "Signal parameters");
 
         // Create a measurement event for each instance of SigGen
         // The event name is the instance name
@@ -125,37 +119,41 @@ class SigGen {
         A2lUnlock();
 
         // Start thread
-        t = new std::thread([this]() { task(); });
+        thread_ = new std::thread([this]() { task(); });
     }
 
+    SigGen(const SigGen &) = delete;                     // Disable copy constructor
+    SigGen(SigGen &&) = delete;                          // Disable move constructor
+    auto operator=(const SigGen &) -> SigGen & = delete; // Disable copy assignment operator
+    auto operator=(SigGen &&) -> SigGen & = delete;      // Disable move assignment operator
+
     // Cyclic calculation function - runs in a separate thread
-    void task(void) {
+    void task() {
 
-        uint32_t delay_us = 1000; // us
-        double time, start_time;  // s
-
-        start_time = (double)clockGet() / CLOCK_TICKS_PER_S; // time in s since start of the signal generator
+        double time = 0;
+        uint32_t delay_us = 1000;                                                // us
+        double start_time = static_cast<double>(clockGet()) / CLOCK_TICKS_PER_S; // time in s since start of the signal generator
 
         // A2L registration
         // Register the local (stack) measurement variable 'time' for measurement
         A2lLock();
-        A2lSetStackAddrMode_s(instance_name);
-        A2lCreatePhysMeasurementInstance(instance_name, time, "Signal generator time", "s", 0, 3600);
+        A2lSetStackAddrMode_s(instance_name_);
+        A2lCreatePhysMeasurementInstance(instance_name_, time, "Signal generator time", "s", 0, 3600);
         A2lUnlock();
 
         for (;;) {
 
-            time = (double)clockGet() / CLOCK_TICKS_PER_S - start_time; // time in s since start of the signal generator
+            time = static_cast<double>(clockGet()) / CLOCK_TICKS_PER_S - start_time; // time in s since start of the signal generator
 
             // Calculate a sine wave signal depending on the signal parameters
             {
-                auto p = signal_parameters.lock();
-                value = p->offset + p->ampl * sin(time * M_2PI / p->period + p->phase);
+                auto p = signal_parameters_.lock();
+                value = p->offset + p->ampl * sin((time * k2Pi / p->period) + p->phase);
                 delay_us = p->delay_us;
             }
 
             // XCP event by event name, event lookup is once and will be cached in a static thread local variable
-            DaqEventRelative_s(instance_name, this); // Trigger with this as dynamic addressing base to make member variables accessible
+            DaqEventRelative_s(instance_name_, this); // Trigger with this as dynamic addressing base to make member variables accessible
 
             sleepNs(delay_us * 1000);
         }
@@ -163,18 +161,20 @@ class SigGen {
 
     ~SigGen() {
 
-        if (t != nullptr) {
-            if (t->joinable()) {
-                t->join();
+        if (thread_ != nullptr) {
+            if (thread_->joinable()) {
+                thread_->join();
             }
-            delete t;
+            delete thread_;
         }
     }
 };
 
+} // namespace
+
 //-----------------------------------------------------------------------------------------------------
 
-int main(void) {
+int main() {
 
     std::cout << "\nXCP on Ethernet cpp_demo C++ xcplib demo\n" << std::endl;
 
@@ -197,7 +197,7 @@ int main(void) {
         return 1;
     }
 
-    // Create a calibration segment wrapper for the struct 'parameters_t' and use its default values in constant 'parameters'
+    // Create a calibration segment wrapper for the struct 'parameters_t' and use its default values in constant 'kParameters'
     // This calibration segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
     // It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
     // It supports XCP/ECU independent page switching, checksum calculation and reinitialization (copy reference page to working page)
@@ -223,8 +223,8 @@ int main(void) {
     A2lCreateMeasurement(loop_counter, "Loop counter, local measurement variable on stack", "");
 
     // Create 2 signal generator instances of class SigGen with individual parameters
-    SigGen siggen1("SigGen1", signal_parameters_1);
-    SigGen siggen2("SigGen2", signal_parameters_2);
+    SigGen siggen1("SigGen1", signalParameters1);
+    SigGen siggen2("SigGen2", signalParameters2);
 
     // Optional for testing: Force finalizing the A2L file, otherwise it will be finalized on XCP tool connect
     sleepMs(100);

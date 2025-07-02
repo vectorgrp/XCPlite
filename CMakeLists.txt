@@ -78,6 +78,7 @@ target_link_libraries(multi_thread_demo PRIVATE xcplib)
 
 # Example cpp_demo
 add_executable(cpp_demo examples/cpp_demo/src/main.cpp)
+target_compile_options(cpp_demo PRIVATE -std=c++11 )
 target_include_directories(cpp_demo PUBLIC "${PROJECT_ROOT}" )
 target_link_libraries(cpp_demo PRIVATE xcplib)
 

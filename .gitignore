@@ -3,8 +3,9 @@
 *.hex 
 *.mf4
 *.cnaxml
+*.tmp
 
-*.a2l.old
+/*.a2l.old
 
 /C_demo.a2l
 /CPP_demo.a2l
