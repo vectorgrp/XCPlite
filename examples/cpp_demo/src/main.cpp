@@ -32,7 +32,7 @@ struct ParametersT {
 };
 
 // Default values
-constexpr ParametersT parameters = {.counter_max = 1000, .delay_us = 1000};
+constexpr ParametersT kParameters = {.counter_max = 1000, .delay_us = 1000};
 
 //-----------------------------------------------------------------------------------------------------
 // Demo global measurement values
@@ -47,7 +47,7 @@ double speed = 0.0f;      // Speed in km/h
 
 // Default parameter values for multiple instances
 
-constexpr SignalGenerator::SignalParametersT signalParameters1 = {
+constexpr signal_generator::SignalParametersT kSignalParameters1 = {
     .ampl = 100.0,
     .phase = 0.0,
     .offset = 0.0,
@@ -55,7 +55,7 @@ constexpr SignalGenerator::SignalParametersT signalParameters1 = {
     .delay_us = 1000 // us
 };
 
-constexpr SignalGenerator::SignalParametersT signalParameters2 = {
+constexpr signal_generator::SignalParametersT kSignalParameters2 = {
     .ampl = 50.0,
     .phase = 1.0,
     .offset = 0.0,
@@ -92,7 +92,7 @@ int main() {
     // This calibration segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
     // It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
     // It supports XCP/ECU independent page switching, checksum calculation and reinitialization (copy reference page to working page)
-    auto calseg = xcplib::CreateCalSeg("Parameters", parameters);
+    auto calseg = xcplib::CreateCalSeg("Parameters", kParameters);
 
     // Add the calibration segment description as a typedef instance to the A2L file
     A2lTypedefBegin(ParametersT, "A2L Typedef for ParametersT");
@@ -125,8 +125,8 @@ int main() {
     // Note that the signal generator threads register measurements in the A2L file as well
     // This is not in conflict because the main thread has already registered its measurements above
     // Otherwise use A2lLock() and A2lUnlock() to avoid race conditions when registering measurements, the A2L generator for measurements is not thread safe by itself
-    SignalGenerator::SignalGenerator signal_generator_1("SigGen1", signalParameters1);
-    SignalGenerator::SignalGenerator signal_generator_2("SigGen2", signalParameters2);
+    signal_generator::SignalGenerator signal_generator_1("SigGen1", kSignalParameters1);
+    signal_generator::SignalGenerator signal_generator_2("SigGen2", kSignalParameters2);
 
     // Optional for testing: Force finalizing the A2L file, otherwise it will be finalized on XCP tool connect
     sleepMs(100);
@@ -134,7 +134,7 @@ int main() {
 
     // Main loop
     std::cout << "Starting main loop..." << std::endl;
-    uint32_t delay_us = parameters.delay_us; // Default
+    uint32_t delay_us = kParameters.delay_us; // Default
     for (;;) {
         // Access calibration parameters 'delay' and 'counter_max' safely
         // Use RAII guard for automatic lock/unlock the calibration parameter segment 'calseg'
@@ -152,7 +152,7 @@ int main() {
         } // Guard automatically unlocks here
 
         // Sum the values of signal generator 1+2 into the local variable sum
-        sum = signal_generator_1.get_value() + signal_generator_2.get_value();
+        sum = signal_generator_1.GetValue() + signal_generator_2.GetValue();
 
         // Update some more local and global variables
         if (loop_counter == 0) {

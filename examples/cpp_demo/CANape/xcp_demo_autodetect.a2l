@@ -43,13 +43,13 @@ ALIGNMENT_INT64 1
 /begin INSTANCE SigGen2 "Signal parameters for the signal generator" SignalParametersT 0x80030000 /end INSTANCE
 
 /* Relative addressing mode: event=SigGen1 (1), addr_ext=2 */
-/begin MEASUREMENT SigGen1.value "Signal generator output" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100 ECU_ADDRESS 0x10018 ECU_ADDRESS_EXTENSION 2 PHYS_UNIT "" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT SigGen1.value_ "Signal generator output" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100 ECU_ADDRESS 0x10018 ECU_ADDRESS_EXTENSION 2 PHYS_UNIT "" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 
 /* Stack frame relative addressing mode: event=SigGen1 (1), addr_ext=3 */
 /begin MEASUREMENT SigGen1.time "Signal generator time" FLOAT64_IEEE NO_COMPU_METHOD 0 0 0 3600 ECU_ADDRESS 0xFFFFFFF0 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "s" /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 
 /* Relative addressing mode: event=SigGen2 (2), addr_ext=2 */
-/begin MEASUREMENT SigGen2.value "Signal generator output" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100 ECU_ADDRESS 0x20018 ECU_ADDRESS_EXTENSION 2 PHYS_UNIT "" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT SigGen2.value_ "Signal generator output" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100 ECU_ADDRESS 0x20018 ECU_ADDRESS_EXTENSION 2 PHYS_UNIT "" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 
 /* Stack frame relative addressing mode: event=SigGen2 (2), addr_ext=3 */
 /begin MEASUREMENT SigGen2.time "Signal generator time" FLOAT64_IEEE NO_COMPU_METHOD 0 0 0 3600 ECU_ADDRESS 0xFFFFFFF0 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "s" /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
@@ -109,8 +109,8 @@ ALIGNMENT_INT64 1
 /begin GROUP mainloop "Measurement event group" /begin REF_MEASUREMENT temperature speed loop_counter sum /end REF_MEASUREMENT /end GROUP
 /begin GROUP SigGen1 "" ROOT /begin REF_CHARACTERISTIC SigGen1 /end REF_CHARACTERISTIC /end GROUP
 /begin GROUP SigGen2 "" ROOT /begin REF_CHARACTERISTIC SigGen2 /end REF_CHARACTERISTIC /end GROUP
-/begin GROUP SigGen1 "Measurement event group" /begin REF_MEASUREMENT SigGen1.value SigGen1.time /end REF_MEASUREMENT /end GROUP
-/begin GROUP SigGen2 "Measurement event group" /begin REF_MEASUREMENT SigGen2.value SigGen2.time /end REF_MEASUREMENT /end GROUP
+/begin GROUP SigGen1 "Measurement event group" /begin REF_MEASUREMENT SigGen1.value_ SigGen1.time /end REF_MEASUREMENT /end GROUP
+/begin GROUP SigGen2 "Measurement event group" /begin REF_MEASUREMENT SigGen2.value_ SigGen2.time /end REF_MEASUREMENT /end GROUP
 /begin GROUP Events "Events" ROOT /begin SUB_GROUP mainloop SigGen1 SigGen2 /end SUB_GROUP /end GROUP
 
 /* Conversions */
@@ -120,7 +120,7 @@ ALIGNMENT_INT64 1
 /begin COMPU_METHOD conv.Temperature "Temperature in °C from unsigned byte" LINEAR "%6.3" "°C" COEFFS_LINEAR 1 -50 /end COMPU_METHOD
 
 /begin MOD_PAR ""
-EPK "EPK_Jul__3_2025_13:55:43" ADDR_EPK 0x80000000
+EPK "EPK_Jul__3_2025_14:40:23" ADDR_EPK 0x80000000
 /begin MEMORY_SEGMENT epk "" DATA FLASH INTERN 0x80000000 24 -1 -1 -1 -1 -1 /end MEMORY_SEGMENT
 /begin MEMORY_SEGMENT
 Parameters "" DATA FLASH INTERN 0x80010000 0x8 -1 -1 -1 -1 -1

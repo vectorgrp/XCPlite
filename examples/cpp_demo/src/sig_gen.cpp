@@ -14,7 +14,7 @@ Depending on calibration parameters ampl, phase, offset and period
 
 #include "sig_gen.hpp"
 
-namespace SignalGenerator {
+namespace signal_generator {
 
 // Constructor - creates the signal generator with the given instance name and parameters
 SignalGenerator::SignalGenerator(const char *instance_name, SignalParametersT params) : signal_parameters_(instance_name, params), instance_name_(instance_name) {
@@ -38,7 +38,7 @@ SignalGenerator::SignalGenerator(const char *instance_name, SignalParametersT pa
     // A2lCreateTypedefNamedInstance(instance_name, signal_parameters_, SignalParametersT, "Signal parameters");
 
     // Start thread
-    thread_ = new std::thread([this]() { task(); });
+    thread_ = new std::thread([this]() { Task(); });
 }
 
 SignalGenerator::~SignalGenerator() {
@@ -52,7 +52,7 @@ SignalGenerator::~SignalGenerator() {
 }
 
 // Cyclic calculation function - runs in a separate thread
-void SignalGenerator::task() {
+void SignalGenerator::Task() {
 
     double time = 0;
     uint32_t delay_us = 1000;                                                // us
@@ -67,7 +67,7 @@ void SignalGenerator::task() {
 
     // Register the member variable 'value' of this instance as measurement
     A2lSetRelativeAddrMode_s(instance_name_, this);
-    A2lCreatePhysMeasurementInstance(instance_name_, value, "Signal generator output", "", -100, 100);
+    A2lCreatePhysMeasurementInstance(instance_name_, value_, "Signal generator output", "", -100, 100);
     // Register the local (stack) measurement variable 'time' for measurement
     A2lSetStackAddrMode_s(instance_name_);
     A2lCreatePhysMeasurementInstance(instance_name_, time, "Signal generator time", "s", 0, 3600);
@@ -81,7 +81,7 @@ void SignalGenerator::task() {
         // Calculate a sine wave signal depending on the signal parameters
         {
             auto p = signal_parameters_.lock();
-            value = p->offset + p->ampl * sin((time * k2Pi / p->period) + p->phase);
+            value_ = p->offset + p->ampl * sin((time * k2Pi / p->period) + p->phase);
             delay_us = p->delay_us;
         }
 
@@ -92,4 +92,4 @@ void SignalGenerator::task() {
     }
 }
 
-} // namespace SignalGenerator
+} // namespace signal_generator

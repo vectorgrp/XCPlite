@@ -8,7 +8,7 @@
 #include "xcplib.h"
 #include "xcplib.hpp"
 
-namespace SignalGenerator {
+namespace signal_generator {
 
 constexpr double kPi = 3.14159265358979323846;
 constexpr double k2Pi = (kPi * 2);
@@ -28,13 +28,14 @@ class SignalGenerator {
     xcplib::CalSeg<SignalParametersT> signal_parameters_; // Wrapper template class for the signal parameters struct to enable XCP calibration access
     const char *instance_name_;                           // Instance name
     std::thread *thread_;                                 // Thread for the signal generator task
-    void task();
-    double value{0}; // Current value, accessible via XCP measurement
+    double value_{0};                                     // Current value, accessible via XCP measurement
+
+    void Task();
 
   public:
-    double get_value() const { return value; } // Getter for the current value
+    [[nodiscard]] double GetValue() const { return value_; } // Getter for the current value
     SignalGenerator(const char *instance_name, SignalParametersT params);
     ~SignalGenerator();
 };
 
-} // namespace SignalGenerator
+} // namespace signal_generator

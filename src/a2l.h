@@ -34,7 +34,7 @@ static_assert(sizeof(long long) == 8, "sizeof(long long) must be 8 bytes for A2L
 // A2L type
 
 #ifdef __cplusplus
-namespace A2l {
+namespace a2l {
 
 template <typename T> struct TypeTraits {
     static constexpr tA2lTypeId value = A2L_TYPE_UNDEFINED;
@@ -82,10 +82,10 @@ template <> struct TypeTraits<double> {
 };
 
 template <typename T> constexpr tA2lTypeId getTypeId() { return TypeTraits<T>::value; }
-} // namespace A2l
+} // namespace a2l
 
 // C++ convenience macro that works with variables
-#define A2lGetTypeId(var) A2l::getTypeId<decltype(var)>()
+#define A2lGetTypeId(var) a2l::getTypeId<decltype(var)>()
 
 #else
 
