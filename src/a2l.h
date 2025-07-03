@@ -316,14 +316,14 @@ void A2lSetAbsoluteAddrMode__s(const char *event_name);
 
 #define A2lCreateTypedefNamedInstance(name, instance, typeName, comment)                                                                                                           \
     {                                                                                                                                                                              \
-        A2lCreateTypedefInstance_(name, #typeName, 0, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&instance), comment);                                                               \
+        A2lCreateTypedefMeasurementInstance_(name, #typeName, 0, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&instance), comment);                                                    \
     }
 
 #define A2lCreateTypedefInstance(name, typeName, comment)                                                                                                                          \
     {                                                                                                                                                                              \
         static A2lOnceType a2l_##name##_ = false;                                                                                                                                  \
         if (A2lOnce_(&a2l_##name##_)) {                                                                                                                                            \
-            A2lCreateTypedefInstance_(#name, #typeName, 0, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&name), comment);                                                              \
+            A2lCreateTypedefMeasurementInstance_(#name, #typeName, 0, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&name), comment);                                                   \
         }                                                                                                                                                                          \
     }
 
@@ -331,7 +331,7 @@ void A2lSetAbsoluteAddrMode__s(const char *event_name);
     {                                                                                                                                                                              \
         static A2lOnceType a2l_##name##_ = false;                                                                                                                                  \
         if (A2lOnce_(&a2l_##name##_)) {                                                                                                                                            \
-            A2lCreateTypedefInstance_(#name, #typeName, 0, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)name), comment);                                                               \
+            A2lCreateTypedefMeasurementInstance_(#name, #typeName, 0, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)name), comment);                                                    \
         }                                                                                                                                                                          \
     }
 
@@ -339,7 +339,7 @@ void A2lSetAbsoluteAddrMode__s(const char *event_name);
     {                                                                                                                                                                              \
         static A2lOnceType a2l_##name##_ = false;                                                                                                                                  \
         if (A2lOnce_(&a2l_##name##_)) {                                                                                                                                            \
-            A2lCreateTypedefInstance_(#name, #typeName, dim, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&name), comment);                                                            \
+            A2lCreateTypedefMeasurementInstance_(#name, #typeName, dim, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&name), comment);                                                 \
         }                                                                                                                                                                          \
     }
 
@@ -347,7 +347,7 @@ void A2lSetAbsoluteAddrMode__s(const char *event_name);
     {                                                                                                                                                                              \
         static A2lOnceType a2l_##name##_ = false;                                                                                                                                  \
         if (A2lOnce_(&a2l_##name##_)) {                                                                                                                                            \
-            A2lCreateTypedefInstance_(#name, #typeName, dim, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)name), comment);                                                             \
+            A2lCreateTypedefMeasurementInstance_(#name, #typeName, dim, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)name), comment);                                                  \
         }                                                                                                                                                                          \
     }
 
@@ -355,6 +355,7 @@ void A2lSetAbsoluteAddrMode__s(const char *event_name);
     {                                                                                                                                                                              \
         static A2lOnceType a2l_##type_name##_ = false;                                                                                                                             \
         if (A2lOnce_(&a2l_##type_name##_)) {                                                                                                                                       \
+            A2lLock();                                                                                                                                                             \
             A2lTypedefBegin_(#type_name, (uint32_t)sizeof(type_name), comment);                                                                                                    \
         }                                                                                                                                                                          \
     }
@@ -472,6 +473,7 @@ void A2lSetAbsoluteAddrMode__s(const char *event_name);
         static A2lOnceType a2l_once = false;                                                                                                                                       \
         if (A2lOnce_(&a2l_once)) {                                                                                                                                                 \
             A2lTypedefEnd_();                                                                                                                                                      \
+            A2lUnlock();                                                                                                                                                           \
         }                                                                                                                                                                          \
     }
 
@@ -528,9 +530,11 @@ void A2lTypedefBegin_(const char *name, uint32_t size, const char *comment);
 void A2lTypedefComponent_(const char *name, const char *type_name, uint16_t x_dim, uint32_t offset);
 void A2lTypedefParameterComponent_(const char *name, const char *type_name, uint16_t x_dim, uint16_t y_dim, uint32_t offset, const char *comment, const char *unit, double min,
                                    double max, const char *x_axis, const char *y_axis);
-
 void A2lTypedefEnd_(void);
-void A2lCreateTypedefInstance_(const char *instance_name, const char *type_name, uint16_t x_dim, uint8_t ext, uint32_t addr, const char *comment);
+
+// CrA2lCreateTypedefMeasurementInstance_s
+void A2lCreateTypedefMeasurementInstance_(const char *instance_name, const char *type_name, uint16_t x_dim, uint8_t ext, uint32_t addr, const char *comment);
+void A2lCreateTypedefParameterInstance_(const char *instance_name, const char *type_name, uint8_t ext, uint32_t addr, const char *comment);
 
 // Create parameters
 void A2lCreateParameter_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, const char *comment, const char *unit, double min, double max);

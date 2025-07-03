@@ -1,5 +1,3 @@
-
-
 /*****************************************************************************
 | File:
 |   xcpLite.c
@@ -516,6 +514,12 @@ tXcpCalSeg const *XcpGetCalSeg(tXcpCalSegIndex calseg) {
     if (!isStarted() || calseg >= gXcp.CalSegList.count)
         return NULL;
     return &gXcp.CalSegList.calseg[calseg];
+}
+
+// Get the name of the calibration segment
+const char *XcpGetCalSegName(tXcpCalSegIndex calseg) {
+    assert(calseg < gXcp.CalSegList.count);
+    return gXcp.CalSegList.calseg[calseg].name;
 }
 
 // Get the XCP/A2L address (address mode XCP_ADDR_MODE_SEG) of a calibration segment

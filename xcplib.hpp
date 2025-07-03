@@ -5,7 +5,12 @@
 
 #include "xcplib.h"
 
+// #include <string>
+// #include <string_view>
+
 namespace xcplib {
+
+constexpr uint8_t XCP_ADDR_EXT_SEG = 0;
 
 /// Generic RAII wrapper for structs with calibration parameters
 /// Template parameter T must be the calibration parameter struct type
@@ -24,7 +29,7 @@ template <typename T> class CalSeg {
         }
     }
 
-    /// Get the segment index (for direct XCP API calls if needed)
+    /// Get the segment index (for direct XCP or A2L API calls if needed)
     tXcpCalSegIndex getIndex() const { return segment_index_; }
 
     /// RAII guard class for automatic lock/unlock
@@ -55,9 +60,19 @@ template <typename T> class CalSeg {
 
     /// Create a guard that automatically locks and unlocks the calibration segment
     CalSegGuard lock() const { return CalSegGuard(segment_index_); }
+
+    /// Create the A2L instance description for this calibration segment
+    /// @param type_name The name of the type as it should appear in the A2L file
+    /// @param comment Description for the A2L file
+    void CreateA2lTypedefInstance(const char *type_name, const char *comment) {
+        A2lLock();
+        A2lCreateTypedefParameterInstance_(XcpGetCalSegName(segment_index_), type_name, XCP_ADDR_EXT_SEG, XcpGetCalSegBaseAddress(segment_index_), comment);
+        A2lCreateParameterGroup(XcpGetCalSegName(segment_index_), 1, XcpGetCalSegName(segment_index_));
+        A2lUnlock();
+    }
 };
 
-/// Convenience function to create a calibration segment wrapper
+/// Convenience function to create calibration segment wrappers
 /// Usage: auto calseg = xcp::CreateCalSeg("Parameters", default_parameters);
 template <typename T> CalSeg<T> CreateCalSeg(const char *name, const T &default_params) { return CalSeg<T>(name, default_params); }
 

@@ -1001,19 +1001,25 @@ void A2lTypedefParameterComponent_(const char *name, const char *type_name, uint
     }
 }
 
-void A2lCreateTypedefInstance_(const char *instance_name, const char *typeName, uint16_t x_dim, uint8_t ext, uint32_t addr, const char *comment) {
-
+void A2lCreateTypedefMeasurementInstance_(const char *instance_name, const char *typeName, uint16_t x_dim, uint8_t ext, uint32_t addr, const char *comment) {
     if (gA2lFile != NULL) {
-
         if (gA2lAutoGroups) {
             A2lAddToGroup(instance_name);
         }
-
         fprintf(gA2lFile, "/begin INSTANCE %s \"%s\" %s 0x%X", instance_name, comment, typeName, addr);
         printAddrExt(ext);
         if (x_dim > 1)
             fprintf(gA2lFile, " MATRIX_DIM %u", x_dim);
         A2lCreateMeasurement_IF_DATA();
+        fprintf(gA2lFile, " /end INSTANCE\n");
+        gA2lInstances++;
+    }
+}
+
+void A2lCreateTypedefParameterInstance_(const char *instance_name, const char *typeName, uint8_t ext, uint32_t addr, const char *comment) {
+    if (gA2lFile != NULL) {
+        fprintf(gA2lFile, "/begin INSTANCE %s \"%s\" %s 0x%X", instance_name, comment, typeName, addr);
+        printAddrExt(ext);
         fprintf(gA2lFile, " /end INSTANCE\n");
         gA2lInstances++;
     }
@@ -1145,18 +1151,11 @@ void A2lBeginGroup(const char *name, const char *comment, bool is_parameter_grou
     if (gA2lFile != NULL) {
         assert(gA2lGroupsFile != NULL);
         if ((gA2lAutoGroupName == NULL) || (strcmp(name, gA2lAutoGroupName) != 0) || (is_parameter_group != gA2lAutoGroupIsParameter)) {
-
-            // Close previous group if any
-            A2lEndGroup();
-
+            A2lEndGroup(); // Close previous group if any
             gA2lAutoGroupName = name;
             gA2lAutoGroupIsParameter = is_parameter_group;
-            fprintf(gA2lGroupsFile, "/begin GROUP %s \"%s\"", name, comment);
-            if (gA2lAutoGroupIsParameter) {
-                fprintf(gA2lGroupsFile, " /begin REF_CHARACTERISTIC");
-            } else {
-                fprintf(gA2lGroupsFile, " /begin REF_MEASUREMENT");
-            }
+            fprintf(gA2lGroupsFile, "/begin GROUP %s%s \"%s\"", gA2lAutoGroupIsParameter ? "CalSeg." : "", name, comment);
+            fprintf(gA2lGroupsFile, " /begin REF_%s", gA2lAutoGroupIsParameter ? "CHARACTERISTIC" : "MEASUREMENT");
         }
     }
 }
@@ -1177,18 +1176,17 @@ void A2lEndGroup(void) {
         assert(gA2lGroupsFile != NULL);
         if (gA2lAutoGroupName == NULL)
             return;
-
         fprintf(gA2lGroupsFile, " /end REF_%s", gA2lAutoGroupIsParameter ? "CHARACTERISTIC" : "MEASUREMENT");
         fprintf(gA2lGroupsFile, " /end GROUP\n");
+        gA2lAutoGroupName = NULL;
     }
 }
 
 void A2lCreateMeasurementGroup(const char *name, int count, ...) {
     if (gA2lFile != NULL) {
         va_list ap;
-
         assert(gA2lGroupsFile != NULL);
-
+        A2lEndGroup(); // End the previous group if any
         fprintf(gA2lGroupsFile, "/begin GROUP %s \"\" ROOT", name);
         fprintf(gA2lGroupsFile, " /begin REF_MEASUREMENT");
         va_start(ap, count);
@@ -1197,39 +1195,38 @@ void A2lCreateMeasurementGroup(const char *name, int count, ...) {
         }
         va_end(ap);
         fprintf(gA2lGroupsFile, " /end REF_MEASUREMENT");
-        fprintf(gA2lGroupsFile, " /end GROUP\n\n");
+        fprintf(gA2lGroupsFile, " /end GROUP\n");
     }
 }
 
 void A2lCreateMeasurementGroupFromList(const char *name, char *names[], uint32_t count) {
     if (gA2lFile != NULL) {
         assert(gA2lGroupsFile != NULL);
-
+        A2lEndGroup(); // End the previous group if any
         fprintf(gA2lGroupsFile, "/begin GROUP %s \"\" ROOT", name);
         fprintf(gA2lGroupsFile, " /begin REF_MEASUREMENT");
         for (uint32_t i1 = 0; i1 < count; i1++) {
             fprintf(gA2lGroupsFile, " %s", names[i1]);
         }
         fprintf(gA2lGroupsFile, " /end REF_MEASUREMENT");
-        fprintf(gA2lGroupsFile, "\n/end GROUP\n\n");
+        fprintf(gA2lGroupsFile, " /end GROUP\n");
     }
 }
 
 void A2lCreateParameterGroup(const char *name, int count, ...) {
     if (gA2lFile != NULL) {
         va_list ap;
-
         assert(gA2lGroupsFile != NULL);
-
+        A2lEndGroup(); // End the previous group if any
         fprintf(gA2lGroupsFile, "/begin GROUP %s \"\" ROOT", name);
-        fprintf(gA2lGroupsFile, " /begin REF_CHARACTERISTIC\n");
+        fprintf(gA2lGroupsFile, " /begin REF_CHARACTERISTIC");
         va_start(ap, count);
         for (int i = 0; i < count; i++) {
             fprintf(gA2lGroupsFile, " %s", va_arg(ap, char *));
         }
         va_end(ap);
-        fprintf(gA2lGroupsFile, "\n/end REF_CHARACTERISTIC ");
-        fprintf(gA2lGroupsFile, "/end GROUP\n\n");
+        fprintf(gA2lGroupsFile, " /end REF_CHARACTERISTIC");
+        fprintf(gA2lGroupsFile, " /end GROUP\n");
     }
 }
 
@@ -1237,14 +1234,14 @@ void A2lCreateParameterGroupFromList(const char *name, const char *pNames[], int
 
     if (gA2lFile != NULL) {
         assert(gA2lGroupsFile != NULL);
-
+        A2lEndGroup(); // End the previous group if any
         fprintf(gA2lGroupsFile, "/begin GROUP %s \"\" ROOT", name);
-        fprintf(gA2lGroupsFile, " /begin REF_CHARACTERISTIC\n");
+        fprintf(gA2lGroupsFile, " /begin REF_CHARACTERISTIC");
         for (int i = 0; i < count; i++) {
             fprintf(gA2lGroupsFile, " %s", pNames[i]);
         }
-        fprintf(gA2lGroupsFile, "\n/end REF_CHARACTERISTIC ");
-        fprintf(gA2lGroupsFile, "/end GROUP\n\n");
+        fprintf(gA2lGroupsFile, " /end REF_CHARACTERISTIC");
+        fprintf(gA2lGroupsFile, " /end GROUP\n\n");
     }
 }
 
@@ -1385,7 +1382,7 @@ bool A2lInit(const char *a2l_filename, const char *a2l_projectname, const uint8_
     gA2lUseTCP = useTCP;
     gA2lAutoGroups = auto_groups;
 
-    mutexInit(&gA2lMutex, true, 1000);
+    mutexInit(&gA2lMutex, false, 1000); // Non recursive mutex, spincount 1000
 
     // Check if A2L file already exists and rename it to 'name.old' if it does
     if (file_exists(a2l_filename)) {

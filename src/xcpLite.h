@@ -10,6 +10,10 @@
 #include "xcpQueue.h" // for tQueueHandle
 #include "xcp_cfg.h"  // for XCP_PROTOCOL_LAYER_VERSION, XCP_ENABLE_...
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /****************************************************************************/
 /* Protocol layer interface                                                 */
 /****************************************************************************/
@@ -193,6 +197,9 @@ tXcpCalSegList const *XcpGetCalSegList(void);
 // Get a pointer to the calibration segment struct
 tXcpCalSeg const *XcpGetCalSeg(tXcpCalSegIndex calseg);
 
+// Get the name of the calibration segment
+const char *XcpGetCalSegName(tXcpCalSegIndex calseg);
+
 // Get the XCP/A2L address of a calibration segment
 uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg);
 
@@ -340,3 +347,7 @@ void ApplXcpRegisterConnectCallback(bool (*cb_connect)(void));
 #define XCP_A2L_FILENAME_MAX_LENGTH 255 // Maximum length of A2L filename with extension
 void ApplXcpSetA2lName(const char *name);
 const char *ApplXcpGetA2lName(void);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif

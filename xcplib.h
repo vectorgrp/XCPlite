@@ -57,6 +57,12 @@ typedef uint16_t tXcpCalSegIndex;
 // Returns the handle or XCP_UNDEFINED_CALSEG when out of memory
 tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint16_t size);
 
+// Get the name of the calibration segment
+const char *XcpGetCalSegName(tXcpCalSegIndex calseg);
+
+// Get the XCP/A2L address of a calibration segment
+uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg);
+
 // Lock a calibration segment and return a pointer to the ECU page
 uint8_t const *XcpLockCalSeg(tXcpCalSegIndex calseg);
 
