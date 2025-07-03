@@ -10,7 +10,7 @@ PrgDate=16.06.2025
 Description=
 CreationTime=21:05
 CreationDate=07/07/2024 ; Month/Day/Year
-ModificationTime=14:04
+ModificationTime=15:09
 ModificationDate=07/03/2025 ; Month/Day/Year
 Protected=0
 CurrentWindowsACP=1252
@@ -62,7 +62,7 @@ StimMode=0
 IsFallback=0
 
 [CALIBRATION_OBJECT_11]
-EditOffset=1
+EditOffset=0.1
 EditFactor=2
 EditFormat=2
 ShowWorkingPoint=0
@@ -140,7 +140,7 @@ StimMode=0
 IsFallback=0
 
 [CALIBRATION_OBJECT_6]
-EditOffset=1
+EditOffset=0.1
 EditFactor=2
 EditFormat=2
 ShowWorkingPoint=0
@@ -247,7 +247,7 @@ Count=0
 Name=Signal Generator
 Comment=
 Maximized=0
-ActiveWindow=9
+ActiveWindow=6
 IsReportPage=0
 TimeAxisSynchronized=0
 PrintLayout=Default
@@ -271,7 +271,7 @@ Count=0
 
 [DISPLAY_PAGES]
 Count=3
-Active=2
+Active=1
 
 [DYNAMIC_COLUMNS]
 Count=0
@@ -387,11 +387,11 @@ GUID=DISPLAY_7f547459-ae45-4f9d-b911-c974ac78ffa2
 
 [MEASUREMENT_OBJECT_2]
 Module=xcp_demo
-Name=speed
+Name=sum
 Disabled=0
-Mode=2147483649
+Mode=2147483648
 Rate=0
-ModeIsDefault=0
+ModeIsDefault=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -401,6 +401,67 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_2_DISPLAY_1]
+Window=7
+Index=2
+Color=65535
+ApplyColorToBackground=0
+ColorFunction=0
+ColorFunctionScope=1
+LineTyp=2
+YMinHome=-250
+YMaxHome=250
+YMin=-250
+YMax=250
+XOffsetNS=0
+XOffset=0
+ValueFormat=3
+BitMask=1
+ShowYAxis=1
+Width=10
+LineStyle=1
+MarkerType=1
+SRMainValue=0
+InvalidValueDrawMode=3
+LineWidth=1
+Precision=-2
+Digits=6
+Enabled=1
+StoredFocused=0
+SublMask=1
+MeaSublMask=3
+LockScaling=0
+RightAxis=0
+MapMode=2
+OverlayGridColor=0
+ShadingMode=3
+EditOffset=1
+EditFactor=2
+WAxisLabel=
+XAxisLabel=
+YAxisLabel=
+AxisCaption=
+Row=0
+Col=0
+YAxis_ID=0
+AxisTemplate=
+GUID=DISPLAY_848d14b7-6671-4433-bc26-3ba8f8b69e2f
+
+[MEASUREMENT_OBJECT_3]
+Module=xcp_demo
+Name=speed
+Disabled=0
+Mode=2147483648
+Rate=0
+ModeIsDefault=1
+Row=0
+Column=0
+MeaReferenced=1
+ArchivBy_1=Recorder1
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=1
+
+[MEASUREMENT_OBJECT_3_DISPLAY_1]
 Window=3
 Index=2
 Color=255
@@ -446,13 +507,13 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_736d4f73-7414-49b0-906a-5af6cba84d9e
 
-[MEASUREMENT_OBJECT_3]
+[MEASUREMENT_OBJECT_4]
 Module=xcp_demo
 Name=temperature
 Disabled=0
-Mode=2147483649
+Mode=2147483648
 Rate=0
-ModeIsDefault=0
+ModeIsDefault=1
 Row=0
 Column=0
 MeaReferenced=1
@@ -461,7 +522,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_3_DISPLAY_1]
+[MEASUREMENT_OBJECT_4_DISPLAY_1]
 Window=3
 Index=1
 Color=65535
@@ -507,9 +568,9 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_d88d8100-c003-4992-8564-1e801c2ffade
 
-[MEASUREMENT_OBJECT_4]
+[MEASUREMENT_OBJECT_5]
 Module=xcp_demo
-Name=SigGen1.value
+Name=SigGen1.value_
 Disabled=0
 Mode=2147483649
 Rate=0
@@ -522,18 +583,18 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_4_DISPLAY_1]
+[MEASUREMENT_OBJECT_5_DISPLAY_1]
 Window=7
-Index=2
+Index=1
 Color=65280
 ApplyColorToBackground=0
 ColorFunction=0
 ColorFunctionScope=1
 LineTyp=2
-YMinHome=-250
-YMaxHome=250
-YMin=-250
-YMax=250
+YMinHome=-100
+YMaxHome=100
+YMin=-100
+YMax=100
 XOffsetNS=0
 XOffset=0
 ValueFormat=3
@@ -548,7 +609,7 @@ LineWidth=1
 Precision=-2
 Digits=6
 Enabled=1
-StoredFocused=1
+StoredFocused=0
 SublMask=1
 MeaSublMask=3
 LockScaling=0
@@ -564,11 +625,11 @@ YAxisLabel=
 AxisCaption=
 Row=0
 Col=0
-YAxis_ID=1
+YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_8b39b718-6077-48d5-b05b-b17812df0f23
+GUID=DISPLAY_f47e3390-a853-449c-9b94-5da6535aecb7
 
-[MEASUREMENT_OBJECT_5]
+[MEASUREMENT_OBJECT_6]
 Module=xcp_demo
 Name=SigGen1.time
 Disabled=0
@@ -583,7 +644,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_5_DISPLAY_1]
+[MEASUREMENT_OBJECT_6_DISPLAY_1]
 Window=10
 Index=1
 Color=255
@@ -628,67 +689,6 @@ Col=0
 YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_6dc60f25-3942-4646-9683-ac0bbaaa5b22
-
-[MEASUREMENT_OBJECT_6]
-Module=xcp_demo
-Name=SigGen2.value
-Disabled=0
-Mode=2147483650
-Rate=0
-ModeIsDefault=1
-Row=0
-Column=0
-MeaReferenced=1
-ArchivBy_1=Recorder1
-IsFallback=0
-HasManagedDisplay=0
-DisplayCount=1
-
-[MEASUREMENT_OBJECT_6_DISPLAY_1]
-Window=7
-Index=1
-Color=255
-ApplyColorToBackground=0
-ColorFunction=0
-ColorFunctionScope=1
-LineTyp=2
-YMinHome=-250
-YMaxHome=250
-YMin=-250
-YMax=250
-XOffsetNS=0
-XOffset=0
-ValueFormat=3
-BitMask=1
-ShowYAxis=1
-Width=10
-LineStyle=1
-MarkerType=1
-SRMainValue=0
-InvalidValueDrawMode=3
-LineWidth=1
-Precision=-2
-Digits=6
-Enabled=1
-StoredFocused=0
-SublMask=1
-MeaSublMask=3
-LockScaling=0
-RightAxis=0
-MapMode=2
-OverlayGridColor=0
-ShadingMode=3
-EditOffset=1
-EditFactor=2
-WAxisLabel=
-XAxisLabel=
-YAxisLabel=
-AxisCaption=
-Row=0
-Col=0
-YAxis_ID=1
-AxisTemplate=
-GUID=DISPLAY_adec6942-1d49-4c9a-9900-7a305cf5508f
 
 [MEASUREMENT_OBJECT_7]
 Module=xcp_demo
@@ -753,9 +753,9 @@ GUID=DISPLAY_7590ce82-2d09-4653-8c30-ede5deb3c270
 
 [MEASUREMENT_OBJECT_8]
 Module=xcp_demo
-Name=sum
+Name=SigGen2.value_
 Disabled=0
-Mode=2147483648
+Mode=2147483650
 Rate=0
 ModeIsDefault=1
 Row=0
@@ -769,15 +769,15 @@ DisplayCount=1
 [MEASUREMENT_OBJECT_8_DISPLAY_1]
 Window=7
 Index=0
-Color=65535
+Color=255
 ApplyColorToBackground=0
 ColorFunction=0
 ColorFunctionScope=1
 LineTyp=2
-YMinHome=-250
-YMaxHome=250
-YMin=-250
-YMax=250
+YMinHome=-100
+YMaxHome=100
+YMin=-100
+YMax=100
 XOffsetNS=0
 XOffset=0
 ValueFormat=3
@@ -792,7 +792,7 @@ LineWidth=1
 Precision=-2
 Digits=6
 Enabled=1
-StoredFocused=0
+StoredFocused=1
 SublMask=1
 MeaSublMask=3
 LockScaling=0
@@ -808,9 +808,9 @@ YAxisLabel=
 AxisCaption=
 Row=0
 Col=0
-YAxis_ID=1
+YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_848d14b7-6671-4433-bc26-3ba8f8b69e2f
+GUID=DISPLAY_25885f58-8dd6-419e-bb85-0f20e5f56898
 
 [MEASUREMENT_OPTIONS]
 RemainingRecordingTime=5000
@@ -1106,14 +1106,16 @@ TreeExpand_31=Alle\Geräte\xcp_demo\xcp_demo_autodetect.a2l\Parameters
 TreeExpand_32=Alle\Geräte\xcp_demo\xcp_demo_autodetect.a2l\SigGen1
 TreeExpand_33=Alle\Geräte\xcp_demo\xcp_demo_autodetect.a2l\SigGen1\SigGen1
 TreeExpand_34=Alle\Geräte\xcp_demo\xcp_demo_autodetect.a2l\Parameters\Parameters
-TreeExpand_35=$Alle\Geräte
-TreeExpand_36=#Alle\Geräte\xcp_demo\xcp_demo_autodetect.a2l\counter_global
-TreeExpand_37=@Alle\Geräte\xcp_demo
-TreeExpand_38=$Alle\Geräte\xcp_demo\xcp_demo_autodetect.a2l\Events\mainloop\temperature
-TreeExpand_39=#Alle\Geräte\xcp_demo\xcp_demo_autodetect.a2l\SigGen1\SigGen1\SigGen1.phase
-TreeExpand_40=@Alle\Messliste
-TreeExpand_41=$Alle\Messliste\Alle Signale
-TreeExpand_42=#Alle\Messliste\Globale Variablen
+TreeExpand_35=Alle\Geräte\xcp_demo\xcp_demo_autodetect.a2l\SigGen2
+TreeExpand_36=Alle\Geräte\xcp_demo\xcp_demo_autodetect.a2l\SigGen2\SigGen2
+TreeExpand_37=$Alle\Geräte
+TreeExpand_38=#Alle\Geräte\xcp_demo\xcp_demo_autodetect.a2l\counter_global
+TreeExpand_39=@Alle\Geräte\xcp_demo
+TreeExpand_40=$Alle\Geräte\xcp_demo\xcp_demo_autodetect.a2l
+TreeExpand_41=#Alle\Geräte\xcp_demo\xcp_demo_autodetect.a2l\Events\SigGen2\SigGen2.value_
+TreeExpand_42=@Alle\Messliste
+TreeExpand_43=$Alle\Messliste\Alle Signale
+TreeExpand_44=#Alle\Messliste\Globale Variablen
 TextSearchCaseSensitive=0
 TextSearchUseMode=1
 TextSearchSearchFullText=1
@@ -1232,7 +1234,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_f58664ba-df76-4d20-a14b-268fff88ae76
+GUID=DISPLAY_eab3dd47-38c8-4b9a-a1e6-83b8e7ff5e77
 
 [WINDOW_1_OBJECT_2]
 Type=2
@@ -1281,7 +1283,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_573d6785-6e8f-449d-bbe4-2bd9bcf24d36
+GUID=DISPLAY_cc631c98-bc56-4667-a3dc-dc88e0080715
 
 [WINDOW_2]
 ComponentCount=1
@@ -1303,8 +1305,8 @@ DisplayMask=1 ; pages 1
 XLen=31490
 XMin=0
 XMinNs=0
-XMax=36506
-XMaxNs=36506532662
+XMax=99402
+XMaxNs=99402905725
 Grid=1
 Mark=1
 YValue=2
@@ -1394,8 +1396,8 @@ Comment=Write-Fenster
 Number=4
 GUID=WINDOW_446152b9-0c82-4710-9a56-52baa89295ac
 ScreenDPIinSection=192
-Position=0, 130, 0, 2054, 826 ;cmd, x, y, w, h
-Position_dpi96=0, 65, 0, 1027, 413 ;cmd, x, y, w, h
+Position=0, 622, 0, 1560, 314 ;cmd, x, y, w, h
+Position_dpi96=0, 311, 0, 780, 157 ;cmd, x, y, w, h
 Position_Page01=0, 622, 0, 1560, 314 ;cmd, x, y, w, h
 Position_Page01_dpi96=0, 311, 0, 780, 157 ;cmd, x, y, w, h
 Position_Page03=0, 130, 0, 2054, 826 ;cmd, x, y, w, h
@@ -1482,11 +1484,11 @@ ShowSignalComments=1
 DisplayMask=2 ; pages 2
 
 [WINDOW_7]
-XLen=8486
+XLen=6647
 XMin=0
 XMinNs=0
-XMax=36506
-XMaxNs=36506532662
+XMax=99403
+XMaxNs=99403144962
 Grid=1
 Mark=1
 YValue=1
@@ -1508,7 +1510,7 @@ YAxisWidth=162
 YAxisWidth_dpi96=81
 RightYAxisWidth=0
 RightYAxisWidth_dpi96=0
-ObjectMode=0
+ObjectMode=1
 DisplayMode=2
 ShowSignalMode=0
 AxisScrollPos2=0
@@ -1625,7 +1627,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_4eb6116a-452e-4f7f-9da3-ea7322be4cf1
+GUID=DISPLAY_fe8c5e7b-a47f-4e13-9f48-d49b1b6533f4
 
 [WINDOW_8_OBJECT_2]
 Type=2
@@ -1674,7 +1676,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_ea5183bd-5de6-4671-832d-b6cfc61a2a04
+GUID=DISPLAY_3fcc547c-67be-44e6-aacb-c093d5b82a82
 
 [WINDOW_8_OBJECT_3]
 Type=2
@@ -1723,7 +1725,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_a9866733-ad49-4e7c-811e-f3882cad7617
+GUID=DISPLAY_bf18f687-8aaf-448f-85ea-debd79cd6192
 
 [WINDOW_8_OBJECT_4]
 Type=2
@@ -1772,7 +1774,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_aaac4f89-475d-4230-8ef5-145cb85c4441
+GUID=DISPLAY_f13b3a5f-22e7-4f3a-a377-f67443ba8125
 
 [WINDOW_8_OBJECT_5]
 Type=2
@@ -1821,7 +1823,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_6a529e66-54fd-4e1d-806b-07a7c8157fd7
+GUID=DISPLAY_a07dde94-d630-4e1e-9a91-a8a3fd8a4e44
 
 [WINDOW_9]
 ProgID=
@@ -1896,7 +1898,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_c3d277c1-90dd-4ad3-bbee-9a8f25f255b2
+GUID=DISPLAY_8ba445d2-b061-46ea-893c-c1814b5b46d9
 
 [WINDOW_9_OBJECT_2]
 Type=2
@@ -1945,7 +1947,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_cf4b8354-f688-4050-9efc-462cc17dfae5
+GUID=DISPLAY_891be2e2-a51d-4175-a6ae-d820cd05491a
 
 [WINDOW_9_OBJECT_3]
 Type=2
@@ -1994,7 +1996,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_b4e76266-b928-4c21-beaf-9c0e24080c59
+GUID=DISPLAY_09819005-2051-414c-8f6c-b2ca5f715d38
 
 [WINDOW_9_OBJECT_4]
 Type=2
@@ -2043,7 +2045,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_004f2b59-e054-4e3a-ab52-47e3c2271295
+GUID=DISPLAY_29e7ac53-dba5-4de3-adac-7a945f6547df
 
 [WINDOW_9_OBJECT_5]
 Type=2
@@ -2092,26 +2094,11 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_bac93669-dbf7-40a5-becc-e4252a393bcb
+GUID=DISPLAY_6c58e63e-ee58-455e-8fc8-61e97b4c3488
 
 [WINDOWS]
 Count=10
 
-[Y_COMMON_AXIS_1]
-YMin=-250
-YMax=250
-ValueFormat=3
-AxisTemplate=
-LockScaling=0
-ID=1
-Comment=
-Color=65280
-Name=Achse 1
-YMin-Home=-250
-YMax-Home=250
-DisplayOnlyComment=0
-XAxisGroup=0
-
 [Y_COMMON_AXIS_LIST]
-Count=1
+Count=0
 

@@ -59,11 +59,7 @@ c_demo:
   Consistent calibration changes and measurement.  
   Calibration page switching and EPK version check.  
   Note: A2lTypedefCurveComponentWithSharedAxis uses THIS. references to shared axis in typedef structures. This requires CANape24 or higher.  
-  
-cpp_demo:  
-  Demonstrates measurement of member variables and stack variables in class instance member functions.  
-  Shows how to create a class with calibration parameters as member variables.  
-  
+
 struct_demo:  
   Shows how to define types for nested structs, array struct components and arrays of structs
 
@@ -72,6 +68,12 @@ multi_thread_demo:
   Create thread local instances of events and measurements.  
   Share a calibration parameter segment among the threads.  
   Access to calibration parameters is thread safe and consistent.  
+
+cpp_demo:  
+  Demonstrates measurement of member variables and stack variables in class instance member functions.  
+  Shows how to create a class with calibration parameters as member variables.  
+
+![CANape Sreenshot](examples/cpp_demo/cpp_demo.png)
 
 ## Build
 

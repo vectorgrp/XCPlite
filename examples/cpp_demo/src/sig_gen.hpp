@@ -31,6 +31,7 @@ class SignalGenerator {
     double value_{0};                                     // Current value, accessible via XCP measurement
 
     void Task();
+    double Calculate(double time);
 
   public:
     [[nodiscard]] double GetValue() const { return value_; } // Getter for the current value

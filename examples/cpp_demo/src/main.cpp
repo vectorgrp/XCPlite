@@ -45,21 +45,21 @@ double speed = 0.0f;      // Speed in km/h
 //-----------------------------------------------------------------------------------------------------
 // Demo signal generator class
 
+constexpr double kPi = 3.14159265358979323846;
+constexpr double k2Pi = (kPi * 2);
 // Default parameter values for multiple instances
-
 constexpr signal_generator::SignalParametersT kSignalParameters1 = {
-    .ampl = 100.0,
+    .ampl = 12.5,
     .phase = 0.0,
     .offset = 0.0,
-    .period = 2.0,   // s
+    .period = 0.4,   // s
     .delay_us = 1000 // us
 };
-
 constexpr signal_generator::SignalParametersT kSignalParameters2 = {
-    .ampl = 50.0,
-    .phase = 1.0,
+    .ampl = 80.0,
+    .phase = kPi / 2,
     .offset = 0.0,
-    .period = 2.0,   // s
+    .period = 10.0,  // s
     .delay_us = 1000 // us
 };
 

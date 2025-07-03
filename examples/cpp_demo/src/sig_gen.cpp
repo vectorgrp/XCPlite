@@ -4,7 +4,6 @@
 /*
 An instance of class SignalGenerator creates various waveforms, such as sine, square, arbitrary
 Depending on calibration parameters ampl, phase, offset and period
-
 */
 
 #include <cmath>
@@ -32,11 +31,6 @@ SignalGenerator::SignalGenerator(const char *instance_name, SignalParametersT pa
     // Add the calibration segment description as a typedef instance to the A2L file
     signal_parameters_.CreateA2lTypedefInstance("SignalParametersT", "Signal parameters for the signal generator");
 
-    // Create an instance of the signal parameters member variable in the CalSeg<> wrapper for calibration access
-    // The wrapper class 'CalSeg' instance 'signal_parameters' created a calibration memory segment in its constructor
-    // A2lSetSegmentAddrMode(signal_parameters_.getIndex(), signal_parameters_);
-    // A2lCreateTypedefNamedInstance(instance_name, signal_parameters_, SignalParametersT, "Signal parameters");
-
     // Start thread
     thread_ = new std::thread([this]() { Task(); });
 }
@@ -51,6 +45,12 @@ SignalGenerator::~SignalGenerator() {
     }
 }
 
+// Calculate the sine value based on the parameters
+double SignalGenerator::Calculate(double time) {
+    auto p = signal_parameters_.lock();
+    return p->offset + p->ampl * sin((time * k2Pi / p->period) + p->phase);
+}
+
 // Cyclic calculation function - runs in a separate thread
 void SignalGenerator::Task() {
 
@@ -63,32 +63,30 @@ void SignalGenerator::Task() {
     DaqCreateEvent_s(instance_name_);
 
     // A2L registration
-    A2lLock(); // Take care for thread safety when registering measurements and parameters in multiple threads
-
     // Register the member variable 'value' of this instance as measurement
+    // Register the local (stack) measurement variable 'time' for measurement
+    A2lLock(); // Take care for thread safety when registering measurements and parameters in multiple threads
     A2lSetRelativeAddrMode_s(instance_name_, this);
     A2lCreatePhysMeasurementInstance(instance_name_, value_, "Signal generator output", "", -100, 100);
-    // Register the local (stack) measurement variable 'time' for measurement
     A2lSetStackAddrMode_s(instance_name_);
     A2lCreatePhysMeasurementInstance(instance_name_, time, "Signal generator time", "s", 0, 3600);
-
     A2lUnlock();
 
     for (;;) {
 
         time = static_cast<double>(clockGet()) / CLOCK_TICKS_PER_S - start_time; // time in s since start of the signal generator
 
-        // Calculate a sine wave signal depending on the signal parameters
-        {
-            auto p = signal_parameters_.lock();
-            value_ = p->offset + p->ampl * sin((time * k2Pi / p->period) + p->phase);
-            delay_us = p->delay_us;
-        }
+        // Calculate a the signal depending on the signal parameters
+        value_ = Calculate(time);
 
         // XCP event by event name, event lookup is once and will be cached in a static thread local variable
         DaqEventRelative_s(instance_name_, this); // Trigger with this as dynamic addressing base to make member variables accessible
 
-        sleepNs(delay_us * 1000);
+        // Sleep for delay_us microseconds
+        // Be sure the lock is held as short as possible !
+        // The calibration segment lock does not content against other threads, it is wait free !
+        // But it delays or even starve XCP client tool calibration operations
+        sleepNs(signal_parameters_.lock()->delay_us * 1000);
     }
 }
 
