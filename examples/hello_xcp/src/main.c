@@ -85,9 +85,8 @@ int main(void) {
     // Register global measurement variables (temperature, speed)
     // Set absolute addressing mode with default event mainloop
     A2lSetAbsoluteAddrMode(mainloop);
-    // Temperature conversion factor 0, offset -50 results in 0°C at 50
-    const char *conv = A2lCreateLinearConversion(Temperature, "Temperature in °C from unsigned byte", "°C", 1.0, -50.0);
-    A2lCreatePhysMeasurement(temperature, "Motor temperature in °C", conv, -50.0, 200.0);
+    A2lCreateLinearConversion(temperature_conversion, "Temperature in °C from unsigned byte", "°C", 1.0, -50.0);
+    A2lCreatePhysMeasurement(temperature, "Motor temperature in °C", temperature_conversion, -50.0, 200.0);
     A2lCreatePhysMeasurement(speed, "Speed in km/h", "km/h", 0, 250.0);
 
     // Register a local measurement variable (loop_counter)

@@ -49,17 +49,29 @@ constexpr double kPi = 3.14159265358979323846;
 constexpr double k2Pi = (kPi * 2);
 // Default parameter values for multiple instances
 constexpr signal_generator::SignalParametersT kSignalParameters1 = {
+    .signal_type = signal_generator::SignalTypeT::SINE, // Type of the signal
     .ampl = 12.5,
     .phase = 0.0,
     .offset = 0.0,
-    .period = 0.4,   // s
+    .period = 0.4, // s
+// .lookup_table = {.lookup_values = {}, .lookup_axis = {}},
+#ifdef CANAPE_24
+    .lookup_values = {0.0, 0.10, 0.30, 0.60, 0.80, 0.100, 0.80, 0.60, 0.30, 0.10, 0.0},
+    .lookup_axis = {0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0},
+#endif
     .delay_us = 1000 // us
 };
 constexpr signal_generator::SignalParametersT kSignalParameters2 = {
+    .signal_type = signal_generator::SignalTypeT::SINE, // Type of the signal
     .ampl = 80.0,
     .phase = kPi / 2,
     .offset = 0.0,
-    .period = 10.0,  // s
+    .period = 10.0, // s
+// .lookup_table = {.lookup_values = {}, .lookup_axis = {}},
+#ifdef CANAPE_24
+    .lookup_values = {0.0, 0.10, 0.30, 0.60, 0.80, 0.100, 0.80, 0.60, 0.30, 0.10, 0.0},
+    .lookup_axis = {0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0},
+#endif
     .delay_us = 1000 // us
 };
 
@@ -110,8 +122,8 @@ int main() {
 
     // Register the global measurement variables 'temperature' and 'speed'
     A2lSetAbsoluteAddrMode(mainloop);
-    const char *conv = A2lCreateLinearConversion(Temperature, "Temperature in °C from unsigned byte", "°C", 1.0, -50.0);
-    A2lCreatePhysMeasurement(temperature, "Motor temperature in °C", conv, -50.0, 200.0);
+    A2lCreateLinearConversion(temperature_conversion, "Temperature in °C from unsigned byte", "°C", 1.0, -50.0);
+    A2lCreatePhysMeasurement(temperature, "Motor temperature in °C", temperature_conversion, -50.0, 200.0);
     A2lCreatePhysMeasurement(speed, "Speed in km/h", "km/h", 0, 250.0);
 
     // Register the local measurement variables 'loop_counter' and sum

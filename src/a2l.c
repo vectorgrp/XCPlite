@@ -36,8 +36,6 @@ static FILE *gA2lGroupsFile = NULL;
 
 static FILE *gA2lConversionsFile = NULL;
 static char gA2lConvName[256];
-static double gA2lConvFactor = 1.0;
-static double gA2lConvOffset = 0.0;
 
 static char gA2lAutoGroups = true;            // Automatically create groups for measurements and parameters
 static const char *gA2lAutoGroupName = NULL;  // Current open group
@@ -225,40 +223,29 @@ const char *A2lGetSymbolName(const char *instance_name, const char *name) {
 }
 
 const char *A2lGetA2lTypeName(tA2lTypeId type) {
-
     switch (type) {
     case A2L_TYPE_INT8:
         return "SBYTE";
-        break;
     case A2L_TYPE_INT16:
         return "SWORD";
-        break;
     case A2L_TYPE_INT32:
         return "SLONG";
-        break;
     case A2L_TYPE_INT64:
         return "A_INT64";
-        break;
     case A2L_TYPE_UINT8:
         return "UBYTE";
-        break;
     case A2L_TYPE_UINT16:
         return "UWORD";
-        break;
     case A2L_TYPE_UINT32:
         return "ULONG";
-        break;
     case A2L_TYPE_UINT64:
         return "A_UINT64";
-        break;
     case A2L_TYPE_FLOAT:
         return "FLOAT32_IEEE";
-        break;
     case A2L_TYPE_DOUBLE:
         return "FLOAT64_IEEE";
-        break;
     default:
-        return NULL;
+        assert(0);
     }
 }
 
@@ -266,168 +253,83 @@ const char *A2lGetA2lTypeName_M(tA2lTypeId type) {
     switch (type) {
     case A2L_TYPE_INT8:
         return "M_I8";
-        break;
     case A2L_TYPE_INT16:
         return "M_I16";
-        break;
     case A2L_TYPE_INT32:
         return "M_I32";
-        break;
     case A2L_TYPE_INT64:
         return "M_I64";
-        break;
     case A2L_TYPE_UINT8:
         return "M_U8";
-        break;
     case A2L_TYPE_UINT16:
         return "M_U16";
-        break;
     case A2L_TYPE_UINT32:
         return "M_U32";
-        break;
     case A2L_TYPE_UINT64:
         return "M_U64";
-        break;
     case A2L_TYPE_FLOAT:
         return "M_F32";
-        break;
     case A2L_TYPE_DOUBLE:
         return "M_F64";
-        break;
     default:
-        return NULL;
+        assert(0);
     }
 }
 
 const char *A2lGetA2lTypeName_C(tA2lTypeId type) {
-
     switch (type) {
     case A2L_TYPE_INT8:
         return "C_I8";
-        break;
     case A2L_TYPE_INT16:
         return "C_I16";
-        break;
     case A2L_TYPE_INT32:
         return "C_I32";
-        break;
     case A2L_TYPE_INT64:
         return "C_I64";
-        break;
     case A2L_TYPE_UINT8:
         return "C_U8";
-        break;
     case A2L_TYPE_UINT16:
         return "C_U16";
-        break;
     case A2L_TYPE_UINT32:
         return "C_U32";
-        break;
     case A2L_TYPE_UINT64:
         return "C_U64";
-        break;
     case A2L_TYPE_FLOAT:
         return "C_F32";
-        break;
     case A2L_TYPE_DOUBLE:
         return "C_F64";
-        break;
     default:
-        return NULL;
+        assert(0);
     }
 }
 
 const char *A2lGetRecordLayoutName_(tA2lTypeId type) {
-
     switch (type) {
     case A2L_TYPE_INT8:
         return "I8";
-        break;
     case A2L_TYPE_INT16:
         return "I16";
-        break;
     case A2L_TYPE_INT32:
         return "I32";
-        break;
     case A2L_TYPE_INT64:
         return "I64";
-        break;
     case A2L_TYPE_UINT8:
         return "U8";
-        break;
     case A2L_TYPE_UINT16:
         return "U16";
-        break;
     case A2L_TYPE_UINT32:
         return "U32";
-        break;
     case A2L_TYPE_UINT64:
         return "U64";
-        break;
     case A2L_TYPE_FLOAT:
         return "F32";
-        break;
     case A2L_TYPE_DOUBLE:
         return "F64";
-        break;
     default:
-        return NULL;
+        assert(0);
     }
 }
 
-static const char *getTypeMinString(tA2lTypeId type) {
-    const char *min;
-    switch (type) {
-    case A2L_TYPE_INT8:
-        min = "-128";
-        break;
-    case A2L_TYPE_INT16:
-        min = "-32768";
-        break;
-    case A2L_TYPE_INT32:
-        min = "-2147483648";
-        break;
-    case A2L_TYPE_INT64:
-        min = "-1e12";
-        break;
-    case A2L_TYPE_FLOAT:
-        min = "-1e12";
-        break;
-    case A2L_TYPE_DOUBLE:
-        min = "-1e12";
-        break;
-    default:
-        min = "0";
-    }
-    return min;
-}
-
-static const char *getTypeMaxString(tA2lTypeId type) {
-    const char *max;
-    switch (type) {
-    case A2L_TYPE_INT8:
-        max = "127";
-        break;
-    case A2L_TYPE_INT16:
-        max = "32767";
-        break;
-    case A2L_TYPE_INT32:
-        max = "2147483647";
-        break;
-    case A2L_TYPE_UINT8:
-        max = "255";
-        break;
-    case A2L_TYPE_UINT16:
-        max = "65535";
-        break;
-    case A2L_TYPE_UINT32:
-        max = "4294967295";
-        break;
-    default:
-        max = "1e12";
-    }
-    return max;
-}
 static double getTypeMin(tA2lTypeId type) {
     double min;
     switch (type) {
@@ -512,30 +414,31 @@ static bool A2lOpen(const char *filename, const char *projectname) {
 
     // Create predefined conversions
     // In the conversions.a2l file - will be merges later as there might be more conversions during the generation process
-    fprintf(gA2lConversionsFile, "/begin COMPU_METHOD conv.BOOL \"\" TAB_VERB \"%%.0\" \"\" COMPU_TAB_REF conv.BOOL.table /end COMPU_METHOD\n");
-    fprintf(gA2lConversionsFile, "/begin COMPU_VTAB conv.BOOL.table \"\" TAB_VERB 2 0 \"false\" 1 \"true\" /end COMPU_VTAB\n");
-    fprintf(gA2lConversionsFile, "\n");
+    fprintf(gA2lConversionsFile, "/begin COMPU_METHOD conv.bool \"\" TAB_VERB \"%%.0\" \"\" COMPU_TAB_REF conv.bool.table /end COMPU_METHOD\n");
+    fprintf(gA2lConversionsFile, "/begin COMPU_VTAB conv.bool.table \"\" TAB_VERB 2 0 \"false\" 1 \"true\" /end COMPU_VTAB\n");
 
     // Create predefined standard record layouts and typedefs for elementary types
     // In the typedefs.a2l file - will be merges later as there might be more typedefs during the generation process
-    for (int i = -10; i <= +10; i++) {
-        tA2lTypeId id = (tA2lTypeId)i;
-        const char *at = A2lGetA2lTypeName(id);
-        if (at != NULL) {
-            const char *t = A2lGetRecordLayoutName_(id);
-            // RECORD_LAYOUTs for standard types U8,I8,...,F64 (Position 1 increasing index)
-            // Example: /begin RECORD_LAYOUT U64 FNC_VALUES 1 A_UINT64 ROW_DIR DIRECT /end RECORD_LAYOUT
-            fprintf(gA2lTypedefsFile, "/begin RECORD_LAYOUT %s FNC_VALUES 1 %s ROW_DIR DIRECT /end RECORD_LAYOUT\n", t, at);
-            // RECORD_LAYOUTs for axis points with standard types A_U8,A_I8,... (Positionn 1 increasing index)
-            // Example: /begin RECORD_LAYOUT A_F32 AXIS_PTS_X 1 FLOAT32_IEEE INDEX_INCR DIRECT /end RECORD_LAYOUT
-            fprintf(gA2lTypedefsFile, "/begin RECORD_LAYOUT A_%s AXIS_PTS_X 1 %s INDEX_INCR DIRECT /end RECORD_LAYOUT\n", t, at);
-            // Example: /begin TYPEDEF_MEASUREMENT M_F64 "" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -1e12 1e12 /end TYPEDEF_MEASUREMENT
-            fprintf(gA2lTypedefsFile, "/begin TYPEDEF_MEASUREMENT M_%s \"\" %s NO_COMPU_METHOD 0 0 %s %s /end TYPEDEF_MEASUREMENT\n", t, at, getTypeMinString(id),
-                    getTypeMaxString(id));
-            // Example: /begin TYPEDEF_CHARACTERISTIC C_U8 "" VALUE U8 0 NO_COMPU_METHOD 0 255 /end TYPEDEF_CHARACTERISTIC
-            fprintf(gA2lTypedefsFile, "/begin TYPEDEF_CHARACTERISTIC C_%s \"\" VALUE %s 0 NO_COMPU_METHOD %s %s /end TYPEDEF_CHARACTERISTIC\n", t, t, getTypeMinString(id),
-                    getTypeMaxString(id));
-        }
+    tA2lTypeId typeid_table[] = {A2L_TYPE_UINT8, A2L_TYPE_UINT16, A2L_TYPE_UINT32, A2L_TYPE_UINT64, A2L_TYPE_INT8,
+                                 A2L_TYPE_INT16, A2L_TYPE_INT32,  A2L_TYPE_INT64,  A2L_TYPE_FLOAT,  A2L_TYPE_DOUBLE};
+    for (size_t i = 0; i < sizeof(typeid_table); i++) {
+        tA2lTypeId a2l_type_id = typeid_table[i];
+        const char *a2l_type_name = A2lGetA2lTypeName(a2l_type_id);
+        assert(a2l_type_name != NULL);
+        const char *a2l_record_layout_name = A2lGetRecordLayoutName_(a2l_type_id);
+        assert(a2l_record_layout_name != NULL);
+        // RECORD_LAYOUTs for standard types U8,I8,...,F64 (Position 1 increasing index)
+        // Example: /begin RECORD_LAYOUT U64 FNC_VALUES 1 A_UINT64 ROW_DIR DIRECT /end RECORD_LAYOUT
+        fprintf(gA2lTypedefsFile, "/begin RECORD_LAYOUT %s FNC_VALUES 1 %s ROW_DIR DIRECT /end RECORD_LAYOUT\n", a2l_record_layout_name, a2l_type_name);
+        // RECORD_LAYOUTs for axis points with standard types A_U8,A_I8,... (Positionn 1 increasing index)
+        // Example: /begin RECORD_LAYOUT A_F32 AXIS_PTS_X 1 FLOAT32_IEEE INDEX_INCR DIRECT /end RECORD_LAYOUT
+        fprintf(gA2lTypedefsFile, "/begin RECORD_LAYOUT A_%s AXIS_PTS_X 1 %s INDEX_INCR DIRECT /end RECORD_LAYOUT\n", a2l_record_layout_name, a2l_type_name);
+        // Example: /begin TYPEDEF_MEASUREMENT M_F64 "" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -1e12 1e12 /end TYPEDEF_MEASUREMENT
+        fprintf(gA2lTypedefsFile, "/begin TYPEDEF_MEASUREMENT M_%s \"\" %s NO_COMPU_METHOD 0 0 %g %g /end TYPEDEF_MEASUREMENT\n", a2l_record_layout_name, a2l_type_name,
+                getTypeMin(a2l_type_id), getTypeMax(a2l_type_id));
+        // Example: /begin TYPEDEF_CHARACTERISTIC C_U8 "" VALUE U8 0 NO_COMPU_METHOD 0 255 /end TYPEDEF_CHARACTERISTIC
+        fprintf(gA2lTypedefsFile, "/begin TYPEDEF_CHARACTERISTIC C_%s \"\" VALUE %s 0 NO_COMPU_METHOD %g %g /end TYPEDEF_CHARACTERISTIC\n", a2l_record_layout_name,
+                a2l_record_layout_name, getTypeMin(a2l_type_id), getTypeMax(a2l_type_id));
     }
     fprintf(gA2lTypedefsFile, "\n");
 
@@ -886,25 +789,28 @@ static const char *getConversion(const char *unit_or_conversion, double *min, do
 }
 
 const char *A2lCreateLinearConversion_(const char *name, const char *comment, const char *unit, double factor, double offset) {
-
     if (gA2lFile != NULL) {
-
         if (unit == NULL)
             unit = "";
         if (comment == NULL)
             comment = "";
-
-        // Build the conversion name with prefix "conv." and store it in a static variable
-        // Rememner factor and offset for later use
-        SNPRINTF(gA2lConvName, sizeof(gA2lConvName), "conv.%s", name);
-        gA2lConvFactor = factor;
-        gA2lConvOffset = offset;
-
+        SNPRINTF(gA2lConvName, sizeof(gA2lConvName), "conv.%s", name); // Build the conversion name with prefix "conv." and store it in a static variable
         fprintf(gA2lConversionsFile, "/begin COMPU_METHOD conv.%s \"%s\" LINEAR \"%%6.3\" \"%s\" COEFFS_LINEAR %g %g /end COMPU_METHOD\n", name, comment, unit, factor, offset);
         gA2lConversions++;
 
         // Return the conversion name for reference when creating measurements
         return gA2lConvName;
+    }
+    return "";
+}
+
+const char *A2lCreateEnumConversion_(const char *name, const char *enum_description) {
+    if (gA2lFile != NULL) {
+        SNPRINTF(gA2lConvName, sizeof(gA2lConvName), "conv.%s", name); // Build the conversion name with prefix "conv." and store it in a static variable
+        fprintf(gA2lConversionsFile, "/begin COMPU_METHOD conv.%s \"\" TAB_VERB \"%%.0 \" \"\" COMPU_TAB_REF conv.%s.table /end COMPU_METHOD\n", name, name);
+        fprintf(gA2lConversionsFile, "/begin COMPU_VTAB conv.%s.table \"\" TAB_VERB %s /end COMPU_VTAB\n", name, enum_description);
+        gA2lConversions++;
+        return gA2lConvName; // Return the conversion name for reference when creating measurements
     }
     return "";
 }
@@ -945,14 +851,15 @@ void A2lTypedefComponent_(const char *name, const char *type_name, uint16_t x_di
 }
 
 // For multidimensional parameter components with TYPEDEF_CHARACTERISTIC for fields with comment, unit, min, max
-void A2lTypedefParameterComponent_(const char *name, const char *type_name, uint16_t x_dim, uint16_t y_dim, uint32_t offset, const char *comment, const char *unit, double min,
-                                   double max, const char *x_axis, const char *y_axis) {
+void A2lTypedefParameterComponent_(const char *name, const char *type_name, uint16_t x_dim, uint16_t y_dim, uint32_t offset, const char *comment, const char *unit_or_conversion,
+                                   double min, double max, const char *x_axis, const char *y_axis) {
 
     if (gA2lFile != NULL) {
+
         // TYPEDEF_AXIS
         if (y_dim == 0 && x_dim > 1) {
             fprintf(gA2lTypedefsFile, "/begin TYPEDEF_AXIS A_%s \"%s\" NO_INPUT_QUANTITY A_%s 0 NO_COMPU_METHOD %u %g %g", name, comment, type_name, x_dim, min, max);
-            printPhysUnit(gA2lTypedefsFile, unit);
+            printPhysUnit(gA2lTypedefsFile, unit_or_conversion);
             fprintf(gA2lTypedefsFile, " /end TYPEDEF_AXIS\n");
             fprintf(gA2lFile, "  /begin STRUCTURE_COMPONENT %s A_%s 0x%X /end STRUCTURE_COMPONENT\n", name, name, offset);
 
@@ -985,14 +892,15 @@ void A2lTypedefParameterComponent_(const char *name, const char *type_name, uint
             }
             // VALUE
             else if (x_dim == 1 && y_dim == 1) {
-                fprintf(gA2lTypedefsFile, "/begin TYPEDEF_CHARACTERISTIC C_%s \"%s\" VALUE %s 0 NO_COMPU_METHOD %g %g", name, comment, type_name, min, max);
+                const char *conv = getConversion(unit_or_conversion, NULL, NULL);
+                fprintf(gA2lTypedefsFile, "/begin TYPEDEF_CHARACTERISTIC C_%s \"%s\" VALUE %s 0 %s %g %g", name, comment, type_name, conv, min, max);
             }
             //
             else {
                 DBG_PRINTF_ERROR("Invalid dimensions: x_dim=%u, y_dim=%u\n", x_dim, y_dim);
                 assert(0);
             }
-            printPhysUnit(gA2lTypedefsFile, unit);
+            printPhysUnit(gA2lTypedefsFile, unit_or_conversion);
             fprintf(gA2lTypedefsFile, " /end TYPEDEF_CHARACTERISTIC\n");
             fprintf(gA2lFile, "  /begin STRUCTURE_COMPONENT %s C_%s 0x%X /end STRUCTURE_COMPONENT\n", name, name, offset);
         }
@@ -1077,8 +985,8 @@ void A2lCreateMeasurementArray_(const char *instance_name, const char *name, tA2
         if (comment == NULL)
             comment = "";
         const char *conv = "NO_COMPU_METHOD";
-        fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" VAL_BLK 0x%X %s 0 %s %s %s MATRIX_DIM %u %u", symbol_name, comment, addr, A2lGetRecordLayoutName_(type), conv,
-                getTypeMinString(type), getTypeMaxString(type), x_dim, y_dim);
+        fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" VAL_BLK 0x%X %s 0 %s %g %g MATRIX_DIM %u %u", symbol_name, comment, addr, A2lGetRecordLayoutName_(type), conv,
+                getTypeMin(type), getTypeMax(type), x_dim, y_dim);
         printAddrExt(ext);
 
         A2lCreateMeasurement_IF_DATA();
@@ -1090,14 +998,25 @@ void A2lCreateMeasurementArray_(const char *instance_name, const char *name, tA2
 //----------------------------------------------------------------------------------
 // Parameters
 
-void A2lCreateParameter_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, const char *comment, const char *unit, double min, double max) {
+void A2lCreateParameter_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, const char *comment, const char *unit_or_conversion, double phys_min, double phys_max) {
 
     if (gA2lFile != NULL) {
         if (gA2lAutoGroups) {
             A2lAddToGroup(name);
         }
-        fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" VALUE 0x%X %s 0 NO_COMPU_METHOD %g %g", name, comment, addr, A2lGetRecordLayoutName_(type), min, max);
-        printPhysUnit(gA2lFile, unit);
+        double min, max;
+        const char *conv;
+        if (phys_min == 0.0 && phys_max == 0.0) {
+            min = getTypeMin(type);
+            max = getTypeMax(type);
+            conv = getConversion(unit_or_conversion, &min, &max);
+        } else {
+            min = phys_min;
+            max = phys_max;
+            conv = getConversion(unit_or_conversion, NULL, NULL);
+        }
+        fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" VALUE 0x%X %s 0 %s %g %g", name, comment, addr, A2lGetRecordLayoutName_(type), conv, min, max);
+        printPhysUnit(gA2lFile, unit_or_conversion);
         printAddrExt(ext);
         A2lCreateMeasurement_IF_DATA();
         fprintf(gA2lFile, " /end CHARACTERISTIC\n");

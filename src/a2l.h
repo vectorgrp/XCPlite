@@ -30,65 +30,7 @@ static_assert(sizeof(char) == 1, "sizeof(char) must be 1 bytes for A2L types to 
 static_assert(sizeof(short) == 2, "sizeof(short) must be 2 bytes for A2L types to work correctly");
 static_assert(sizeof(long long) == 8, "sizeof(long long) must be 8 bytes for A2L types to work correctly");
 
-// Macro to generate type
-// A2L type
-
-#ifdef __cplusplus
-namespace a2l {
-
-template <typename T> struct TypeTraits {
-    static constexpr tA2lTypeId value = A2L_TYPE_UNDEFINED;
-};
-
-// Specializations
-template <> struct TypeTraits<signed char> {
-    static constexpr tA2lTypeId value = A2L_TYPE_INT8;
-};
-template <> struct TypeTraits<unsigned char> {
-    static constexpr tA2lTypeId value = A2L_TYPE_UINT8;
-};
-template <> struct TypeTraits<bool> {
-    static constexpr tA2lTypeId value = A2L_TYPE_UINT8;
-};
-template <> struct TypeTraits<signed short> {
-    static constexpr tA2lTypeId value = A2L_TYPE_INT16;
-};
-template <> struct TypeTraits<unsigned short> {
-    static constexpr tA2lTypeId value = A2L_TYPE_UINT16;
-};
-template <> struct TypeTraits<signed int> {
-    static constexpr tA2lTypeId value = (tA2lTypeId)(-sizeof(int));
-};
-template <> struct TypeTraits<unsigned int> {
-    static constexpr tA2lTypeId value = (tA2lTypeId)sizeof(int);
-};
-template <> struct TypeTraits<signed long> {
-    static constexpr tA2lTypeId value = (tA2lTypeId)(-sizeof(long));
-};
-template <> struct TypeTraits<unsigned long> {
-    static constexpr tA2lTypeId value = (tA2lTypeId)sizeof(long);
-};
-template <> struct TypeTraits<signed long long> {
-    static constexpr tA2lTypeId value = A2L_TYPE_INT64;
-};
-template <> struct TypeTraits<unsigned long long> {
-    static constexpr tA2lTypeId value = A2L_TYPE_UINT64;
-};
-template <> struct TypeTraits<float> {
-    static constexpr tA2lTypeId value = A2L_TYPE_FLOAT;
-};
-template <> struct TypeTraits<double> {
-    static constexpr tA2lTypeId value = A2L_TYPE_DOUBLE;
-};
-
-template <typename T> constexpr tA2lTypeId getTypeId() { return TypeTraits<T>::value; }
-} // namespace a2l
-
-// C++ convenience macro that works with variables
-#define A2lGetTypeId(var) a2l::getTypeId<decltype(var)>()
-
-#else
-
+// Macro to generate A2L type id from an expression
 #define A2lGetTypeId(type)                                                                                                                                                         \
     _Generic((type),                                                                                                                                                               \
         signed char: A2L_TYPE_INT8,                                                                                                                                                \
@@ -105,8 +47,6 @@ template <typename T> constexpr tA2lTypeId getTypeId() { return TypeTraits<T>::v
         float: A2L_TYPE_FLOAT,                                                                                                                                                     \
         double: A2L_TYPE_DOUBLE,                                                                                                                                                   \
         default: A2L_TYPE_UNDEFINED)
-
-#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -263,7 +203,21 @@ void A2lSetAbsoluteAddrMode__s(const char *event_name);
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Create conversions
 
-#define A2lCreateLinearConversion(name, comment, unit, factor, offset) A2lCreateLinearConversion_(#name, comment, unit, factor, offset);
+#define A2lCreateLinearConversion(name, comment, unit, factor, offset)                                                                                                             \
+    static const char *name = "NO_COMPU_METHOD";                                                                                                                                   \
+    {                                                                                                                                                                              \
+        static A2lOnceType a2l_conv_##name##_ = false;                                                                                                                             \
+        if (A2lOnce_(&a2l_conv_##name##_))                                                                                                                                         \
+            name = A2lCreateLinearConversion_(#name, comment, unit, factor, offset);                                                                                               \
+    }
+
+#define A2lCreateEnumConversion(name, description)                                                                                                                                 \
+    static const char *name = "NO_COMPU_METHOD";                                                                                                                                   \
+    {                                                                                                                                                                              \
+        static A2lOnceType a2l_conv_##name##_ = false;                                                                                                                             \
+        if (A2lOnce_(&a2l_conv_##name##_))                                                                                                                                         \
+            name = A2lCreateEnumConversion_(#name, description);                                                                                                                   \
+    }
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Create measurements on stack or in global memory
@@ -312,7 +266,7 @@ void A2lSetAbsoluteAddrMode__s(const char *event_name);
     }
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// Create typedefs and typedef components
+// Create instances from typedefs
 
 #define A2lCreateTypedefNamedInstance(name, instance, typeName, comment)                                                                                                           \
     {                                                                                                                                                                              \
@@ -518,6 +472,7 @@ uint8_t A2lGetAddrExt_(void);
 
 // Create measurements
 const char *A2lCreateLinearConversion_(const char *name, const char *comment, const char *unit, double factor, double offset);
+const char *A2lCreateEnumConversion_(const char *name, const char *enum_description);
 
 void A2lCreateMeasurement_(const char *instance_name, const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, const char *unit_or_conversion, double min, double max,
                            const char *comment);

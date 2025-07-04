@@ -10,33 +10,54 @@
 
 namespace signal_generator {
 
-constexpr double kPi = 3.14159265358979323846;
-constexpr double k2Pi = (kPi * 2);
+enum SignalTypeT : std::uint8_t {
+    SINE = 0,     // Sine wave
+    SQUARE = 1,   // Square wave
+    TRIANGLE = 2, // Triangle wave
+    SAWTOOTH = 3, // Sawtooth wave
+    ARBITRARY = 4 // Arbitrary waveform from lookup table
+};
+
+// Typedefs with maps or curves with shared axis require CANape 24
+#define CANAPE_24 // Define this to enable CANape 24 specific features
+
+// Lookup table for arbitrary waveforms
+constexpr uint8_t kLookupTableSize = 11; // Size of the lookup table
 
 // Signal parameters struct
 struct SignalParametersT {
-    double ampl;       // Amplitude of the sine wave
-    double phase;      // Phase shift in radians
-    double offset;     // Offset of the sine wave
-    double period;     // Period of the sine wave in seconds
-    uint32_t delay_us; // Delay in microseconds for the main loop
+    double ampl;   // Amplitude
+    double phase;  // Phase shift in radians
+    double offset; // Offset
+    double period; // Period in seconds
+    // Lookup table for arbitrary waveforms
+#ifdef CANAPE_24
+    float lookup_values[kLookupTableSize]; // Values
+    float lookup_axis[kLookupTableSize];   // Axis
+#endif
+    uint32_t delay_us;   // Delay in microseconds for the task loop
+    uint8_t signal_type; // Type of the signal (SignalTypeT)
 };
 
 class SignalGenerator {
 
   private:
-    xcplib::CalSeg<SignalParametersT> signal_parameters_; // Wrapper template class for the signal parameters struct to enable XCP calibration access
-    const char *instance_name_;                           // Instance name
-    std::thread *thread_;                                 // Thread for the signal generator task
-    double value_{0};                                     // Current value, accessible via XCP measurement
+    xcplib::CalSeg<SignalParametersT> signal_parameters_; // Wrapped signal parameters struct to enable XCP calibration access
+
+    const char *instance_name_; // Instance name
+    std::thread *thread_;       // Thread for the signal generator task
+
+    double value_{0}; // Current value
 
     void Task();
-    double Calculate(double time);
+
+    double Calculate(double time); // Calculate sine value based on time
 
   public:
-    [[nodiscard]] double GetValue() const { return value_; } // Getter for the current value
     SignalGenerator(const char *instance_name, SignalParametersT params);
     ~SignalGenerator();
+
+    [[nodiscard]] double GetValue() const { return value_; } // Getter for the current value
 };
 
 } // namespace signal_generator
