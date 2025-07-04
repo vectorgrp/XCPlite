@@ -30,23 +30,192 @@ static_assert(sizeof(char) == 1, "sizeof(char) must be 1 bytes for A2L types to 
 static_assert(sizeof(short) == 2, "sizeof(short) must be 2 bytes for A2L types to work correctly");
 static_assert(sizeof(long long) == 8, "sizeof(long long) must be 8 bytes for A2L types to work correctly");
 
-// Macro to generate A2L type id from an expression
-#define A2lGetTypeId(type)                                                                                                                                                         \
-    _Generic((type),                                                                                                                                                               \
-        signed char: A2L_TYPE_INT8,                                                                                                                                                \
-        unsigned char: A2L_TYPE_UINT8,                                                                                                                                             \
-        bool: A2L_TYPE_UINT8,                                                                                                                                                      \
-        signed short: A2L_TYPE_INT16,                                                                                                                                              \
-        unsigned short: A2L_TYPE_UINT16,                                                                                                                                           \
-        signed int: (tA2lTypeId)(-sizeof(int)),                                                                                                                                    \
-        unsigned int: (tA2lTypeId)sizeof(int),                                                                                                                                     \
-        signed long: (tA2lTypeId)(-sizeof(long)),                                                                                                                                  \
-        unsigned long: (tA2lTypeId)sizeof(long),                                                                                                                                   \
-        signed long long: A2L_TYPE_INT64,                                                                                                                                          \
-        unsigned long long: A2L_TYPE_UINT64,                                                                                                                                       \
-        float: A2L_TYPE_FLOAT,                                                                                                                                                     \
-        double: A2L_TYPE_DOUBLE,                                                                                                                                                   \
+// Portable type detection macros for both C and C++
+#ifdef __cplusplus
+// C++ version using template meta-programming
+namespace A2lTypeTraits {
+template <typename T> struct TypeId {
+    static const tA2lTypeId value = A2L_TYPE_UNDEFINED;
+};
+template <> struct TypeId<signed char> {
+    static const tA2lTypeId value = A2L_TYPE_INT8;
+};
+template <> struct TypeId<unsigned char> {
+    static const tA2lTypeId value = A2L_TYPE_UINT8;
+};
+template <> struct TypeId<bool> {
+    static const tA2lTypeId value = A2L_TYPE_UINT8;
+};
+template <> struct TypeId<signed short> {
+    static const tA2lTypeId value = A2L_TYPE_INT16;
+};
+template <> struct TypeId<unsigned short> {
+    static const tA2lTypeId value = A2L_TYPE_UINT16;
+};
+template <> struct TypeId<signed int> {
+    static const tA2lTypeId value = (tA2lTypeId)(-sizeof(int));
+};
+template <> struct TypeId<unsigned int> {
+    static const tA2lTypeId value = (tA2lTypeId)sizeof(int);
+};
+template <> struct TypeId<signed long> {
+    static const tA2lTypeId value = (tA2lTypeId)(-sizeof(long));
+};
+template <> struct TypeId<unsigned long> {
+    static const tA2lTypeId value = (tA2lTypeId)sizeof(long);
+};
+template <> struct TypeId<signed long long> {
+    static const tA2lTypeId value = A2L_TYPE_INT64;
+};
+template <> struct TypeId<unsigned long long> {
+    static const tA2lTypeId value = A2L_TYPE_UINT64;
+};
+template <> struct TypeId<float> {
+    static const tA2lTypeId value = A2L_TYPE_FLOAT;
+};
+template <> struct TypeId<double> {
+    static const tA2lTypeId value = A2L_TYPE_DOUBLE;
+};
+
+// Helper to strip cv-qualifiers and references
+template <typename T> struct RemoveCVRef {
+    using type = T;
+};
+template <typename T> struct RemoveCVRef<const T> {
+    using type = T;
+};
+template <typename T> struct RemoveCVRef<volatile T> {
+    using type = T;
+};
+template <typename T> struct RemoveCVRef<const volatile T> {
+    using type = T;
+};
+template <typename T> struct RemoveCVRef<T &> {
+    using type = T;
+};
+template <typename T> struct RemoveCVRef<const T &> {
+    using type = T;
+};
+template <typename T> struct RemoveCVRef<volatile T &> {
+    using type = T;
+};
+template <typename T> struct RemoveCVRef<const volatile T &> {
+    using type = T;
+};
+
+// Function to get type id at compile time
+template <typename T> constexpr tA2lTypeId GetTypeId() { return TypeId<typename RemoveCVRef<T>::type>::value; }
+
+// Function to get type id from expression (handles arrays, complex expressions)
+template <typename T> constexpr tA2lTypeId GetTypeIdFromExpr(const T &) { return GetTypeId<T>(); }
+} // namespace A2lTypeTraits
+
+#define A2lGetTypeId(expr) A2lTypeTraits::GetTypeIdFromExpr(expr)
+
+#else
+// C version using _Generic for simple expressions and fallback for complex ones
+
+// Helper function to deduce type from pointer (for array elements)
+static inline tA2lTypeId A2lGetTypeIdFromPtr_uint8(const uint8_t *p) {
+    (void)p;
+    return A2L_TYPE_UINT8;
+}
+static inline tA2lTypeId A2lGetTypeIdFromPtr_int8(const int8_t *p) {
+    (void)p;
+    return A2L_TYPE_INT8;
+}
+static inline tA2lTypeId A2lGetTypeIdFromPtr_uint16(const uint16_t *p) {
+    (void)p;
+    return A2L_TYPE_UINT16;
+}
+static inline tA2lTypeId A2lGetTypeIdFromPtr_int16(const int16_t *p) {
+    (void)p;
+    return A2L_TYPE_INT16;
+}
+static inline tA2lTypeId A2lGetTypeIdFromPtr_uint32(const uint32_t *p) {
+    (void)p;
+    return A2L_TYPE_UINT32;
+}
+static inline tA2lTypeId A2lGetTypeIdFromPtr_int32(const int32_t *p) {
+    (void)p;
+    return A2L_TYPE_INT32;
+}
+static inline tA2lTypeId A2lGetTypeIdFromPtr_uint64(const uint64_t *p) {
+    (void)p;
+    return A2L_TYPE_UINT64;
+}
+static inline tA2lTypeId A2lGetTypeIdFromPtr_int64(const int64_t *p) {
+    (void)p;
+    return A2L_TYPE_INT64;
+}
+static inline tA2lTypeId A2lGetTypeIdFromPtr_float(const float *p) {
+    (void)p;
+    return A2L_TYPE_FLOAT;
+}
+static inline tA2lTypeId A2lGetTypeIdFromPtr_double(const double *p) {
+    (void)p;
+    return A2L_TYPE_DOUBLE;
+}
+static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
+    (void)p;
+    return A2L_TYPE_UINT8;
+}
+
+// For complex expressions (like array indexing), use pointer-based type detection
+#define A2lGetTypeIdFromPtr(ptr)                                                                                                                                                   \
+    _Generic((ptr),                                                                                                                                                                \
+        const uint8_t *: A2lGetTypeIdFromPtr_uint8,                                                                                                                                \
+        uint8_t *: A2lGetTypeIdFromPtr_uint8,                                                                                                                                      \
+        const int8_t *: A2lGetTypeIdFromPtr_int8,                                                                                                                                  \
+        int8_t *: A2lGetTypeIdFromPtr_int8,                                                                                                                                        \
+        const uint16_t *: A2lGetTypeIdFromPtr_uint16,                                                                                                                              \
+        uint16_t *: A2lGetTypeIdFromPtr_uint16,                                                                                                                                    \
+        const int16_t *: A2lGetTypeIdFromPtr_int16,                                                                                                                                \
+        int16_t *: A2lGetTypeIdFromPtr_int16,                                                                                                                                      \
+        const uint32_t *: A2lGetTypeIdFromPtr_uint32,                                                                                                                              \
+        uint32_t *: A2lGetTypeIdFromPtr_uint32,                                                                                                                                    \
+        const int32_t *: A2lGetTypeIdFromPtr_int32,                                                                                                                                \
+        int32_t *: A2lGetTypeIdFromPtr_int32,                                                                                                                                      \
+        const uint64_t *: A2lGetTypeIdFromPtr_uint64,                                                                                                                              \
+        uint64_t *: A2lGetTypeIdFromPtr_uint64,                                                                                                                                    \
+        const int64_t *: A2lGetTypeIdFromPtr_int64,                                                                                                                                \
+        int64_t *: A2lGetTypeIdFromPtr_int64,                                                                                                                                      \
+        const float *: A2lGetTypeIdFromPtr_float,                                                                                                                                  \
+        float *: A2lGetTypeIdFromPtr_float,                                                                                                                                        \
+        const double *: A2lGetTypeIdFromPtr_double,                                                                                                                                \
+        double *: A2lGetTypeIdFromPtr_double,                                                                                                                                      \
+        const bool *: A2lGetTypeIdFromPtr_bool,                                                                                                                                    \
+        bool *: A2lGetTypeIdFromPtr_bool,                                                                                                                                          \
+        default: A2lGetTypeIdFromPtr_uint8)(ptr)
+
+// Macro to generate A2L type id from an expression - supports both simple and complex expressions
+#define A2lGetTypeId(expr)                                                                                                                                                         \
+    _Generic(&(expr),                                                                                                                                                              \
+        const uint8_t *: A2L_TYPE_UINT8,                                                                                                                                           \
+        uint8_t *: A2L_TYPE_UINT8,                                                                                                                                                 \
+        const int8_t *: A2L_TYPE_INT8,                                                                                                                                             \
+        int8_t *: A2L_TYPE_INT8,                                                                                                                                                   \
+        const uint16_t *: A2L_TYPE_UINT16,                                                                                                                                         \
+        uint16_t *: A2L_TYPE_UINT16,                                                                                                                                               \
+        const int16_t *: A2L_TYPE_INT16,                                                                                                                                           \
+        int16_t *: A2L_TYPE_INT16,                                                                                                                                                 \
+        const uint32_t *: A2L_TYPE_UINT32,                                                                                                                                         \
+        uint32_t *: A2L_TYPE_UINT32,                                                                                                                                               \
+        const int32_t *: A2L_TYPE_INT32,                                                                                                                                           \
+        int32_t *: A2L_TYPE_INT32,                                                                                                                                                 \
+        const uint64_t *: A2L_TYPE_UINT64,                                                                                                                                         \
+        uint64_t *: A2L_TYPE_UINT64,                                                                                                                                               \
+        const int64_t *: A2L_TYPE_INT64,                                                                                                                                           \
+        int64_t *: A2L_TYPE_INT64,                                                                                                                                                 \
+        const float *: A2L_TYPE_FLOAT,                                                                                                                                             \
+        float *: A2L_TYPE_FLOAT,                                                                                                                                                   \
+        const double *: A2L_TYPE_DOUBLE,                                                                                                                                           \
+        double *: A2L_TYPE_DOUBLE,                                                                                                                                                 \
+        const bool *: A2L_TYPE_UINT8,                                                                                                                                              \
+        bool *: A2L_TYPE_UINT8,                                                                                                                                                    \
         default: A2L_TYPE_UNDEFINED)
+
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -188,16 +357,16 @@ void A2lSetAbsoluteAddrMode__s(const char *event_name);
     {                                                                                                                                                                              \
         static A2lOnceType a2l_par_##name##_ = false;                                                                                                                              \
         if (A2lOnce_(&a2l_par_##name##_))                                                                                                                                          \
-            A2lCreateCurve_(#instance_name "." #name, A2lGetTypeId(instance_name.name[0]), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&instance_name.name[0]), xdim, comment, unit,  \
-                            min, max);                                                                                                                                             \
+            A2lCreateCurve_(#instance_name "." #name, A2lGetArrayElementTypeId(instance_name.name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&instance_name.name[0]), xdim,        \
+                            comment, unit, min, max);                                                                                                                              \
     }
 
 #define A2lCreateMap(instance_name, name, xdim, ydim, comment, unit, min, max)                                                                                                     \
     {                                                                                                                                                                              \
         static A2lOnceType a2l_par_##name##_ = false;                                                                                                                              \
         if (A2lOnce_(&a2l_par_##name##_))                                                                                                                                          \
-            A2lCreateMap_(#instance_name "." #name, A2lGetTypeId(instance_name.name[0][0]), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&instance_name.name[0][0]), xdim, ydim,       \
-                          comment, unit, min, max);                                                                                                                                \
+            A2lCreateMap_(#instance_name "." #name, A2lGetArray2DElementTypeId(instance_name.name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&instance_name.name[0][0]), xdim,     \
+                          ydim, comment, unit, min, max);                                                                                                                          \
     }
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -498,4 +667,44 @@ void A2lCreateCurve_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t ad
 
 #ifdef __cplusplus
 } // extern "C"
+#endif
+
+// Additional robust alternatives for complex type detection scenarios
+
+// Helper macros for array element type detection (works with multi-dimensional arrays)
+#ifdef __cplusplus
+#define A2lGetArrayElementTypeId(array) A2lTypeTraits::GetTypeIdFromExpr((array)[0])
+#define A2lGetArray2DElementTypeId(array) A2lTypeTraits::GetTypeIdFromExpr((array)[0][0])
+#else
+#define A2lGetArrayElementTypeId(array) A2lGetTypeId((array)[0])
+#define A2lGetArray2DElementTypeId(array) A2lGetTypeId((array)[0][0])
+#endif
+
+// Fallback macros using sizeof for when all else fails (works in both C and C++)
+#define A2lGetTypeIdBySizeof(expr) _A2lGetTypeIdBySizeof(sizeof(expr), _Generic((expr) + 0, default: 0, float: 1, double: 2))
+
+static inline tA2lTypeId _A2lGetTypeIdBySizeof(size_t size, int float_hint) {
+    if (float_hint == 1)
+        return A2L_TYPE_FLOAT;
+    if (float_hint == 2)
+        return A2L_TYPE_DOUBLE;
+    switch (size) {
+    case 1:
+        return A2L_TYPE_UINT8; // Could be signed, but we assume unsigned as fallback
+    case 2:
+        return A2L_TYPE_UINT16;
+    case 4:
+        return A2L_TYPE_UINT32;
+    case 8:
+        return A2L_TYPE_UINT64;
+    default:
+        return A2L_TYPE_UNDEFINED;
+    }
+}
+
+// Alternative macro using decltype (C++11) for maximum robustness
+#ifdef __cplusplus
+#if __cplusplus >= 201103L
+#define A2lGetTypeIdDecltype(expr) A2lTypeTraits::GetTypeId<decltype(expr)>()
+#endif
 #endif

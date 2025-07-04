@@ -82,6 +82,19 @@ target_compile_options(cpp_demo PRIVATE -std=c++11 )
 target_include_directories(cpp_demo PUBLIC "${PROJECT_ROOT}" )
 target_link_libraries(cpp_demo PRIVATE xcplib)
 
+# Type detection test (C version)
+set_source_files_properties(test/type_detection_test/src/main.c PROPERTIES LANGUAGE C)
+add_executable(type_detection_test_c test/type_detection_test/src/main.c)
+target_include_directories(type_detection_test_c PUBLIC "${PROJECT_ROOT}" )
+target_link_libraries(type_detection_test_c PRIVATE xcplib)
+
+# Type detection test (C++ version)
+set_source_files_properties(test/type_detection_test/src/main.cpp PROPERTIES LANGUAGE CXX)
+add_executable(type_detection_test_cpp test/type_detection_test/src/main.cpp)
+target_compile_options(type_detection_test_cpp PRIVATE -std=c++11 )
+target_include_directories(type_detection_test_cpp PUBLIC "${PROJECT_ROOT}" )
+target_link_libraries(type_detection_test_cpp PRIVATE xcplib)
+
 
 if (WINDOWS)
 
@@ -94,5 +107,7 @@ else ()
     set_target_properties(struct_demo PROPERTIES SUFFIX ".out")
     set_target_properties(multi_thread_demo PROPERTIES SUFFIX ".out")
     set_target_properties(cpp_demo PROPERTIES SUFFIX ".out")
+    set_target_properties(type_detection_test_c PROPERTIES SUFFIX ".out")
+    set_target_properties(type_detection_test_cpp PROPERTIES SUFFIX ".out")
 
 endif ()

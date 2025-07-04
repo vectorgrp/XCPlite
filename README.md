@@ -1,4 +1,3 @@
-
 # XCPlite V0.9.1
 
 XCPlite is a lightweight pure C implementation of the ASAM XCP V1.4 standard protocol for measurement and calibration of electronic control units.  
