@@ -1,0 +1,94 @@
+# rule set
+# main.cpp is a demo file, so we disable some checks 
+
+---
+Checks: >
+  -*,
+  clang-diagnostic-*,
+  clang-analyzer-*,
+  vector-*,
+  readability-*,
+  bugprone-*,
+  modernize-*,
+  performance-*,
+  cert-*,
+  cppcoreguidelines-*,
+  hicpp-*,
+  portability-*,
+  -readability-uppercase-literal-suffix,
+  -cert-dcl16-c,
+  -hicpp-uppercase-literal-suffix,
+  -readability-named-parameter,
+  -hicpp-named-parameter,
+  -readability-redundant-member-init,
+  -readability-make-member-function-const,
+  -readability-braces-around-statements,
+  -readability-identifier-length,
+  -hicpp-braces-around-statements,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -readability-magic-numbers,
+  -cppcoreguidelines-macro-usage,
+  -cppcoreguidelines-avoid-non-const-global-variables,
+  -modernize-use-trailing-return-type,
+
+
+FormatStyle: file
+
+# warnings are NOT treated as errors
+WarningsAsErrors: ""
+
+# analyze all included headers (not system-headers)
+HeaderFilterRegex: ".*"
+
+CheckOptions:
+  ##########     readability-identifier-naming     #########
+  # Class, structs, enums and unions
+  - { key: readability-identifier-naming.ClassCase,                  value: CamelCase  }
+  - { key: readability-identifier-naming.EnumCase,                   value: CamelCase  }
+  - { key: readability-identifier-naming.StructCase,                 value: CamelCase  } # redundant with ClassCase
+  - { key: readability-identifier-naming.UnionCase,                  value: CamelCase  }
+
+  # Functions and methods (all are treated equally, only FunctionCase needed)
+  - { key: readability-identifier-naming.FunctionCase,               value: CamelCase  }
+
+  # Non-static and static non-const variables and pointers
+  - { key: readability-identifier-naming.VariableCase,               value: lower_case }
+
+  # static, global or constexpr constant variables
+  - { key: readability-identifier-naming.StaticConstantCase,         value: CamelCase  }
+  - { key: readability-identifier-naming.StaticConstantPrefix,       value: k          }
+  - { key: readability-identifier-naming.GlobalConstantCase,         value: CamelCase  }
+  - { key: readability-identifier-naming.GlobalConstantPrefix,       value: k          }
+  - { key: readability-identifier-naming.ConstexprVariableCase,      value: CamelCase  }
+  - { key: readability-identifier-naming.ConstexprVariablePrefix,    value: k          }
+  - { key: readability-identifier-naming.EnumConstantCase,           value: CamelCase  }
+  - { key: readability-identifier-naming.EnumConstantPrefix,         value: k          }
+
+  # Class / Struct data members (including static members)
+  - { key: readability-identifier-naming.MemberCase,                 value: lower_case }
+  - { key: readability-identifier-naming.MemberSuffix,               value: _          }
+  - { key: readability-identifier-naming.ClassMemberCase,            value: lower_case }
+  - { key: readability-identifier-naming.ClassMemberSuffix,          value: _          }
+  - { key: readability-identifier-naming.PublicMemberCase,           value: lower_case } # public members dont require trailing _
+
+  # Parameters
+  - { key: readability-identifier-naming.ParameterCase,              value: lower_case }
+
+  # Templates
+  - { key: readability-identifier-naming.TemplateParameterCase,      value: CamelCase  }
+  - { key: readability-identifier-naming.ValueTemplateParameterCase, value: aNy_CasE   } # not clearly specified
+
+  # Miscellaneous
+  - { key: readability-identifier-naming.NamespaceCase,              value: lower_case }
+  - { key: readability-identifier-naming.MacroDefinitionCase,        value: UPPER_CASE }
+  - { key: readability-identifier-naming.MacroDefinitionIgnoredRegexp, value: .*_HPP_  }
+  - { key: readability-identifier-naming.TypeAliasCase,              value: CamelCase  }
+  - { key: readability-identifier-naming.TypedefCase,                value: CamelCase  }
+
+  ########## End of readability-identifier-naming ##########
+
+  - { key: vector-noexcept-special-functions.FunctionsToInclude,     value: "Swap"     }
+  - { key: hicpp-move-const-arg.CheckTriviallyCopyableMove,          value: false      }
+  - { key: performance-move-const-arg.CheckTriviallyCopyableMove,    value: false      }
+
+...
