@@ -49,30 +49,28 @@ constexpr double kPi = 3.14159265358979323846;
 constexpr double k2Pi = (kPi * 2);
 // Default parameter values for multiple instances
 constexpr signal_generator::SignalParametersT kSignalParameters1 = {
-    .signal_type = signal_generator::SignalTypeT::SINE, // Type of the signal
     .ampl = 12.5,
     .phase = 0.0,
     .offset = 0.0,
     .period = 0.4, // s
-// .lookup_table = {.lookup_values = {}, .lookup_axis = {}},
 #ifdef CANAPE_24
     .lookup_values = {0.0, 0.10, 0.30, 0.60, 0.80, 0.100, 0.80, 0.60, 0.30, 0.10, 0.0},
     .lookup_axis = {0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0},
 #endif
-    .delay_us = 1000 // us
+    .delay_us = 1000,                                   // us
+    .signal_type = signal_generator::SignalTypeT::SINE, // Type of the signal
 };
 constexpr signal_generator::SignalParametersT kSignalParameters2 = {
-    .signal_type = signal_generator::SignalTypeT::SINE, // Type of the signal
     .ampl = 80.0,
     .phase = kPi / 2,
     .offset = 0.0,
     .period = 10.0, // s
-// .lookup_table = {.lookup_values = {}, .lookup_axis = {}},
 #ifdef CANAPE_24
     .lookup_values = {0.0, 0.10, 0.30, 0.60, 0.80, 0.100, 0.80, 0.60, 0.30, 0.10, 0.0},
     .lookup_axis = {0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0},
 #endif
-    .delay_us = 1000 // us
+    .delay_us = 1000,                                   // us
+    .signal_type = signal_generator::SignalTypeT::SINE, // Type of the signal
 };
 
 //-----------------------------------------------------------------------------------------------------
