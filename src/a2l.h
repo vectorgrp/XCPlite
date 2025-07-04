@@ -113,6 +113,7 @@ template <typename T> constexpr tA2lTypeId GetTypeIdFromExpr(const T &) { return
 #define A2lGetTypeId(expr) A2lTypeTraits::GetTypeIdFromExpr(expr)
 
 #else
+
 // C version using _Generic for simple expressions and fallback for complex ones
 
 // Helper function to deduce type from pointer (for array elements)
@@ -217,11 +218,30 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
 
 #endif
 
+// Additional robust alternatives for complex type detection scenarios
+
+// Helper macros for array element type detection (works with multi-dimensional arrays)
+#ifdef __cplusplus
+#define A2lGetArrayElementTypeId(array) A2lTypeTraits::GetTypeIdFromExpr((array)[0])
+#define A2lGetArray2DElementTypeId(array) A2lTypeTraits::GetTypeIdFromExpr((array)[0][0])
+
+// Alternative macro using decltype (C++11) for maximum robustness
+#if __cplusplus >= 201103L
+#define A2lGetTypeIdDecltype(expr) A2lTypeTraits::GetTypeId<decltype(expr)>()
+#else
+#error "C++11 or later is required for decltype-based type detection"
+#endif
+
+#else
+#define A2lGetArrayElementTypeId(array) A2lGetTypeId((array)[0])
+#define A2lGetArray2DElementTypeId(array) A2lGetTypeId((array)[0][0])
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// Macros to generate type names as static char* string
+// Macros to generate type names as static const char* string
 const char *A2lGetA2lTypeName(tA2lTypeId type);
 const char *A2lGetA2lTypeName_M(tA2lTypeId type);
 const char *A2lGetA2lTypeName_C(tA2lTypeId type);
@@ -667,44 +687,4 @@ void A2lCreateCurve_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t ad
 
 #ifdef __cplusplus
 } // extern "C"
-#endif
-
-// Additional robust alternatives for complex type detection scenarios
-
-// Helper macros for array element type detection (works with multi-dimensional arrays)
-#ifdef __cplusplus
-#define A2lGetArrayElementTypeId(array) A2lTypeTraits::GetTypeIdFromExpr((array)[0])
-#define A2lGetArray2DElementTypeId(array) A2lTypeTraits::GetTypeIdFromExpr((array)[0][0])
-#else
-#define A2lGetArrayElementTypeId(array) A2lGetTypeId((array)[0])
-#define A2lGetArray2DElementTypeId(array) A2lGetTypeId((array)[0][0])
-#endif
-
-// Fallback macros using sizeof for when all else fails (works in both C and C++)
-#define A2lGetTypeIdBySizeof(expr) _A2lGetTypeIdBySizeof(sizeof(expr), _Generic((expr) + 0, default: 0, float: 1, double: 2))
-
-static inline tA2lTypeId _A2lGetTypeIdBySizeof(size_t size, int float_hint) {
-    if (float_hint == 1)
-        return A2L_TYPE_FLOAT;
-    if (float_hint == 2)
-        return A2L_TYPE_DOUBLE;
-    switch (size) {
-    case 1:
-        return A2L_TYPE_UINT8; // Could be signed, but we assume unsigned as fallback
-    case 2:
-        return A2L_TYPE_UINT16;
-    case 4:
-        return A2L_TYPE_UINT32;
-    case 8:
-        return A2L_TYPE_UINT64;
-    default:
-        return A2L_TYPE_UNDEFINED;
-    }
-}
-
-// Alternative macro using decltype (C++11) for maximum robustness
-#ifdef __cplusplus
-#if __cplusplus >= 201103L
-#define A2lGetTypeIdDecltype(expr) A2lTypeTraits::GetTypeId<decltype(expr)>()
-#endif
 #endif

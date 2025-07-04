@@ -65,31 +65,37 @@ int main() {
     std::cout << "  float_value: " << type_id_to_string(A2lGetTypeId(test_instance.float_value)) << "\n";
     std::cout << "  double_value: " << type_id_to_string(A2lGetTypeId(test_instance.double_value)) << "\n";
     std::cout << "  bool_value: " << type_id_to_string(A2lGetTypeId(test_instance.bool_value)) << "\n";
+    assert(A2lGetTypeId(test_instance.byte_value) == A2L_TYPE_UINT8);
+    assert(A2lGetTypeId(test_instance.word_value) == A2L_TYPE_UINT16);
+    assert(A2lGetTypeId(test_instance.dword_value) == A2L_TYPE_UINT32);
+    assert(A2lGetTypeId(test_instance.float_value) == A2L_TYPE_FLOAT);
+    assert(A2lGetTypeId(test_instance.double_value) == A2L_TYPE_DOUBLE);
+    assert(A2lGetTypeId(test_instance.bool_value) == A2L_TYPE_UINT8);
 
     // Test complex expressions (array indexing)
     std::cout << "\nComplex expressions (array indexing):\n";
     std::cout << "  curve_data[0]: " << type_id_to_string(A2lGetTypeId(test_instance.curve_data[0])) << "\n";
     std::cout << "  map_data[0][0]: " << type_id_to_string(A2lGetTypeId(test_instance.map_data[0][0])) << "\n";
     std::cout << "  signed_array[0]: " << type_id_to_string(A2lGetTypeId(test_instance.signed_array[0])) << "\n";
+    assert(A2lGetTypeId(test_instance.curve_data[0]) == A2L_TYPE_UINT16);
+    assert(A2lGetTypeId(test_instance.map_data[0][0]) == A2L_TYPE_FLOAT);
+    assert(A2lGetTypeId(test_instance.signed_array[0]) == A2L_TYPE_INT32);
 
     // Test helper macros
     std::cout << "\nHelper macros:\n";
     std::cout << "  A2lGetArrayElementTypeId(curve_data): " << type_id_to_string(A2lGetArrayElementTypeId(test_instance.curve_data)) << "\n";
     std::cout << "  A2lGetArray2DElementTypeId(map_data): " << type_id_to_string(A2lGetArray2DElementTypeId(test_instance.map_data)) << "\n";
 
-    // Test sizeof-based fallback
-    std::cout << "\nSizeof-based fallback:\n";
-    std::cout << "  A2lGetTypeIdBySizeof(byte_value): " << type_id_to_string(A2lGetTypeIdBySizeof(test_instance.byte_value)) << "\n";
-    std::cout << "  A2lGetTypeIdBySizeof(float_value): " << type_id_to_string(A2lGetTypeIdBySizeof(test_instance.float_value)) << "\n";
-    std::cout << "  A2lGetTypeIdBySizeof(double_value): " << type_id_to_string(A2lGetTypeIdBySizeof(test_instance.double_value)) << "\n";
-
-// Test C++11 decltype if available
-#if __cplusplus >= 201103L
+    // Test C++11 decltype if available
+    // #if __cplusplus >= 201103L
     std::cout << "\nC++11 decltype-based (compile-time):\n";
     std::cout << "  decltype(byte_value): " << type_id_to_string(A2lGetTypeIdDecltype(test_instance.byte_value)) << "\n";
     std::cout << "  decltype(curve_data[0]): " << type_id_to_string(A2lGetTypeIdDecltype(test_instance.curve_data[0])) << "\n";
     std::cout << "  decltype(map_data[0][0]): " << type_id_to_string(A2lGetTypeIdDecltype(test_instance.map_data[0][0])) << "\n";
-#endif
+    assert(A2lGetTypeIdDecltype(test_instance.byte_value) == A2L_TYPE_UINT8);
+    assert(A2lGetTypeIdDecltype(test_instance.curve_data[0]) == A2L_TYPE_UINT16);
+    assert(A2lGetTypeIdDecltype(test_instance.map_data[0][0]) == A2L_TYPE_FLOAT);
+    // #endif
 
     return 0;
 }
