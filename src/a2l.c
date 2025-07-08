@@ -28,7 +28,9 @@
 #include "xcp_cfg.h"   // for XCP_xxx
 #include "xcptl_cfg.h" // for XCPTL_xxx
 
-MUTEX gA2lMutex;
+//----------------------------------------------------------------------------------
+
+static MUTEX gA2lMutex;
 
 static FILE *gA2lFile = NULL;
 static FILE *gA2lTypedefsFile = NULL;
@@ -627,87 +629,84 @@ void A2lSetSegmentAddrMode__i(tXcpCalSegIndex calseg_index, const uint8_t *calse
 
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
 
-// Set relative address mode with event name
+static void beginEventGroup(tXcpEventId event_id) {
+    if (gA2lAutoGroups) {
+        const char *event_name = XcpGetEventName(event_id);
+        if (XcpGetEventIndex(event_id) == 0) {
+            // Use the event name as group name if the event index is 0
+            A2lBeginGroup(event_name, "Measurement event group", false);
+        } else {
+            // Use the event name with index as group name if the event index is not 0
+            char group_name[64];
+            SNPRINTF(group_name, sizeof(group_name), "%s_%u", event_name, XcpGetEventIndex(event_id));
+            A2lBeginGroup(group_name, "Measurement event group", false);
+        }
+    }
+}
+
+// Set relative address mode with event name or event id
 // Will result in using ADDR_EXT_DYN for user defined base, ADDR_EXT_REL is used for stack frame relative addressing
 void A2lSetRelativeAddrMode__s(const char *event_name, const uint8_t *base_addr) {
-
     if (gA2lFile != NULL) {
-
-        tXcpEventId event = XcpFindEvent(event_name, NULL);
-        if (event == XCP_UNDEFINED_EVENT_ID) {
-            DBG_PRINTF_ERROR("SetRelativeAddrMode: Event %s not found!\n", event_name);
-            return;
-        }
-
-        A2lSetDynAddrMode(event, (uint8_t *)base_addr);
-        if (gA2lAutoGroups) {
-            A2lBeginGroup(event_name, "Measurement event group", false);
-        }
-
-        fprintf(gA2lFile, "\n/* Relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event, gAl2AddrExt);
+        tXcpEventId event_id = XcpFindEvent(event_name, NULL);
+        assert(event_id != XCP_UNDEFINED_EVENT_ID);
+        A2lSetDynAddrMode(event_id, (uint8_t *)base_addr);
+        beginEventGroup(event_id);
+        fprintf(gA2lFile, "\n/* Relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, gAl2AddrExt);
+    }
+}
+void A2lSetRelativeAddrMode__i(tXcpEventId event_id, const uint8_t *base_addr) {
+    if (gA2lFile != NULL) {
+        const char *event_name = XcpGetEventName(event_id);
+        assert(event_name != NULL);
+        A2lSetDynAddrMode(event_id, (uint8_t *)base_addr);
+        beginEventGroup(event_id);
+        fprintf(gA2lFile, "\n/* Relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, gAl2AddrExt);
     }
 }
 
 // Set stack frame relative address mode with event name or event id
 // Will result in using ADDR_EXT_REL
 void A2lSetStackAddrMode__s(const char *event_name, const uint8_t *stack_frame) {
-
     if (gA2lFile != NULL) {
-
-        tXcpEventId event = XcpFindEvent(event_name, NULL);
-        if (event == XCP_UNDEFINED_EVENT_ID) {
-            DBG_PRINTF_ERROR("SetStackAddrMode: Event %s not found!\n", event_name);
-            return;
-        }
-
-        A2lSetRelAddrMode(event, stack_frame);
-        if (gA2lAutoGroups) {
-            A2lBeginGroup(event_name, "Measurement event group", false);
-        }
-
-        fprintf(gA2lFile, "\n/* Stack frame relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event, gAl2AddrExt);
+        tXcpEventId event_id = XcpFindEvent(event_name, NULL);
+        assert(event_id != XCP_UNDEFINED_EVENT_ID);
+        A2lSetRelAddrMode(event_id, stack_frame);
+        beginEventGroup(event_id);
+        fprintf(gA2lFile, "\n/* Stack frame relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, gAl2AddrExt);
     }
 }
 void A2lSetStackAddrMode__i(tXcpEventId event_id, const uint8_t *stack_frame) {
-
     if (gA2lFile != NULL) {
-
         const char *event_name = XcpGetEventName(event_id);
-        if (event_name == NULL) {
-            DBG_PRINTF_ERROR("SetStackAddrMode: Event %u not found!\n", event_id);
-            return;
-        }
+        assert(event_name != NULL);
         A2lSetRelAddrMode(event_id, stack_frame);
-        if (gA2lAutoGroups) {
-            A2lBeginGroup(event_name, "Measurement event group", false);
-        }
-
+        beginEventGroup(event_id);
         fprintf(gA2lFile, "\n/* Stack frame relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, gAl2AddrExt);
     }
 }
 
-#endif
-
-// Set absolute address mode with fixed event name
+// Set absolute address mode with  with event name or event id
 void A2lSetAbsoluteAddrMode__s(const char *event_name) {
-
     if (gA2lFile != NULL) {
-
         tXcpEventId event_id = XcpFindEvent(event_name, NULL);
-        if (event_id == XCP_UNDEFINED_EVENT_ID) {
-            DBG_PRINTF_ERROR("SetAbsoluteAddrMode: Event %s not found!\n", event_name);
-            return;
-        }
-
+        assert(event_id != XCP_UNDEFINED_EVENT_ID);
         A2lSetAbsAddrMode(event_id);
-
-        if (gA2lAutoGroups) {
-            A2lBeginGroup(event_name, "Measurement event group", false);
-        }
-
+        beginEventGroup(event_id);
         fprintf(gA2lFile, "\n/* Absolute addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, gAl2AddrExt);
     }
 }
+void A2lSetAbsoluteAddrMode__i(tXcpEventId event_id) {
+    if (gA2lFile != NULL) {
+        const char *event_name = XcpGetEventName(event_id);
+        assert(event_name != NULL);
+        A2lSetAbsAddrMode(event_id);
+        beginEventGroup(event_id);
+        fprintf(gA2lFile, "\n/* Stack frame absolute addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, gAl2AddrExt);
+    }
+}
+
+#endif
 
 //----------------------------------------------------------------------------------
 // Address encoding
@@ -837,7 +836,7 @@ void A2lTypedefEnd_(void) {
     }
 }
 
-// For scalar measurement and parameter components
+// For scalar or one dimensional measurement and parameter components of basic types
 void A2lTypedefComponent_(const char *name, const char *type_name, uint16_t x_dim, uint32_t offset) {
 
     if (gA2lFile != NULL) {
@@ -850,11 +849,30 @@ void A2lTypedefComponent_(const char *name, const char *type_name, uint16_t x_di
     }
 }
 
+// For measurement components with TYPEDEF_MEASUREMENT for fields with comment, unit, min, max
+void A2lTypedefMeasurementComponent_(const char *name, const char *type_name, uint32_t offset, const char *comment, const char *unit_or_conversion, double min, double max) {
+    if (gA2lFile != NULL) {
+        // TYPEDEF_MEASUREMENT
+        const char *conv = getConversion(unit_or_conversion, NULL, NULL);
+        assert(gA2lTypedefsFile != NULL);
+        fprintf(gA2lTypedefsFile, "/begin TYPEDEF_MEASUREMENT M_%s \"%s\" %s %s 0 0 %g %g", name, comment, type_name, conv, min, max);
+        printPhysUnit(gA2lTypedefsFile, unit_or_conversion);
+        fprintf(gA2lTypedefsFile, " /end TYPEDEF_MEASUREMENT\n");
+
+        // STRUCTURE_COMPONENT
+        fprintf(gA2lFile, "  /begin STRUCTURE_COMPONENT %s M_%s 0x%X /end STRUCTURE_COMPONENT\n", name, name, offset);
+
+        gA2lComponents++;
+    }
+}
+
 // For multidimensional parameter components with TYPEDEF_CHARACTERISTIC for fields with comment, unit, min, max
 void A2lTypedefParameterComponent_(const char *name, const char *type_name, uint16_t x_dim, uint16_t y_dim, uint32_t offset, const char *comment, const char *unit_or_conversion,
                                    double min, double max, const char *x_axis, const char *y_axis) {
 
     if (gA2lFile != NULL) {
+
+        assert(gA2lTypedefsFile != NULL);
 
         // TYPEDEF_AXIS
         if (y_dim == 0 && x_dim > 1) {
@@ -1165,24 +1183,17 @@ void A2lCreateParameterGroupFromList(const char *name, const char *pNames[], int
 }
 
 //----------------------------------------------------------------------------------
-// Helper function to ensure A2L generation macros are executed only once
+// Helper function to ensure A2L generation blocks are executed only once
 // This allows to use the macros in loops or functions without taking care of multiple executions
-// Note that the A2L generation may be lazy
-// Once the A2L file has been finalized, further calls to the macros will not have any effect
 
-bool A2lOnce_(A2lOnceType *value) {
-    if (*value)
-        return false;
-    *value = true;
-    return true;
-
-    // There is no ned to be thread safe here, because the A2L macros it protects from beeing executed multiple times are intended for single thread usage only
-    // bool old_value = false;
-    // if (atomic_compare_exchange_strong_explicit(value, &old_value, true, memory_order_relaxed, memory_order_relaxed)) {
-    //     return gA2lFile != NULL; // Return true if A2L file is open
-    // } else {
-    //     return false;
-    // }
+bool A2lOnce_(uint64_t *value) {
+    if (gA2lFile != NULL) {
+        uint8_t old_value = 0;
+        if (atomic_compare_exchange_strong_explicit((atomic_uint_fast8_t *)value, &old_value, 1, memory_order_relaxed, memory_order_relaxed)) {
+            return true; // Return true if A2L file is open
+        }
+    }
+    return false;
 }
 
 //-----------------------------------------------------------------------------------------------------
@@ -1236,11 +1247,20 @@ bool A2lFinalize(void) {
             A2lEndGroup();
         }
 
-        // Create a sub group for all events
 #if defined(XCP_ENABLE_DAQ_EVENT_LIST) && !defined(XCP_ENABLE_DAQ_EVENT_INFO)
+        tXcpEventList *eventList = XcpGetEventList();
+
+        // Create a enum conversion with all event ids
+        fprintf(gA2lConversionsFile, "/begin COMPU_METHOD conv.events \"\" TAB_VERB \"%%.0 \" \"\" COMPU_TAB_REF conv.events.table /end COMPU_METHOD\n");
+        fprintf(gA2lConversionsFile, "/begin COMPU_VTAB conv.events.table \"\" TAB_VERB %u\n", eventList->count);
+        for (uint32_t id = 0; id < eventList->count; id++) {
+            tXcpEvent *event = &eventList->event[id];
+            fprintf(gA2lConversionsFile, " %u \"%s\"", id, event->name);
+        }
+        fprintf(gA2lConversionsFile, "\n/end COMPU_VTAB\n");
+
+        // Create a sub group for all events
         if (gA2lAutoGroups) {
-            tXcpEventList *eventList;
-            eventList = XcpGetEventList();
             fprintf(gA2lGroupsFile, "/begin GROUP Events \"Events\" ROOT /begin SUB_GROUP");
             for (uint32_t id = 0; id < eventList->count; id++) {
                 tXcpEvent *event = &eventList->event[id];
@@ -1279,12 +1299,17 @@ bool A2lFinalize(void) {
 
 // Lock and unlock
 void A2lLock(void) {
-    if (gA2lFile != NULL)
+    if (gA2lFile != NULL) {
         mutexLock(&gA2lMutex);
+    }
 }
 void A2lUnlock(void) {
-    if (gA2lFile != NULL)
+    if (gA2lFile != NULL) {
+        if (gA2lAutoGroups) {
+            A2lEndGroup();
+        }
         mutexUnlock(&gA2lMutex);
+    }
 }
 
 // Open the A2L file and register the finalize callback

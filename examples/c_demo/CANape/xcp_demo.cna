@@ -1,8 +1,8 @@
 [FILE_INFO]
 Identification=CANape-Configuration-File
 FileName=xcp_demo.cna
-FileNameAbsolute=Y:\xcp-lite-RainerZ\xcplib\examples\c_demo\CANape\xcp_demo.cna
-WorkingDirectory=Y:\xcp-lite-RainerZ\xcplib\examples\c_demo\CANape
+FileNameAbsolute=Y:\XCPlite-RainerZ\examples\c_demo\CANape\xcp_demo.cna
+WorkingDirectory=Y:\XCPlite-RainerZ\examples\c_demo\CANape
 ProjectId=07e8-0007-0007-0015-0002-0030-0000
 FileVersion=2200
 PrgVersion=Version 24.0.0.1160 VC16
@@ -10,8 +10,8 @@ PrgDate=02.06.2025
 Description=
 CreationTime=21:05
 CreationDate=07/07/2024 ; Month/Day/Year
-ModificationTime=14:02
-ModificationDate=06/29/2025 ; Month/Day/Year
+ModificationTime=18:45
+ModificationDate=07/04/2025 ; Month/Day/Year
 Protected=0
 CurrentWindowsACP=1252
 
@@ -241,7 +241,7 @@ Count=0
 
 [DISPLAY_PAGES]
 Count=4
-Active=2
+Active=0
 
 [DYNAMIC_COLUMNS]
 Count=0
@@ -1283,8 +1283,8 @@ WindowTextExtended=1
 WindowTextExtendedNew=1
 WindowSymbols=1
 GlobalCursor=0
-GlobalCursorTime=0
-GlobalCursorTimeNs=0
+GlobalCursorTime=11836
+GlobalCursorTimeNs=11836848000
 MainWindowPos=1, 377, 215, 2726, 1518 ;cmd, x, y, w, h
 
 [PAR_COMMENT]
@@ -1467,8 +1467,8 @@ TreeExpand_22=Alle\Geräte\xcp_demo\xcp_demo_autodetect.a2l\Parameters
 TreeExpand_23=$Alle\Geräte
 TreeExpand_24=#Alle\Geräte\xcp_demo\xcp_demo_autodetect.a2l\counter_global
 TreeExpand_25=@Alle\Geräte\xcp_demo
-TreeExpand_26=$Alle\Geräte\xcp_demo\xcp_demo_autodetect.a2l\Events\mainloop\counter8
-TreeExpand_27=#Alle\Geräte\xcp_demo\xcp_demo_autodetect.a2l\Parameters\params\params.map
+TreeExpand_26=$Alle\Geräte\xcp_demo\xcp_demo_autodetect.a2l\Events\mainloop\params_copy
+TreeExpand_27=#Alle\Geräte\xcp_demo\xcp_demo_autodetect.a2l
 TreeExpand_28=@Alle\Messliste
 TreeExpand_29=$Alle\Messliste\Alle Signale
 TreeExpand_30=#Alle\Messliste\Neu hinzugefügt
@@ -1626,8 +1626,8 @@ XAxisLabel=
 YAxisLabel=
 ShowWorkingPointHistory=0
 AxisCaption=
-Row=2
-Col=4
+Row=0
+Col=0
 YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_eefb11c0-05f2-4993-b97b-8ca8dacb6e20
@@ -1685,7 +1685,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_be6bcb53-1790-4264-b4f5-3a08d2f96b0b
+GUID=DISPLAY_cbb02981-d7c1-4885-a383-c1b7ebd402f5
 
 [WINDOW_1_OBJECT_2]
 Type=2
@@ -1733,7 +1733,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_49f676c1-e38a-4694-b22d-fc50a35e5fdf
+GUID=DISPLAY_324e8130-dc95-414f-860b-2fdf71faae79
 
 [WINDOW_1_OBJECT_3]
 Type=2
@@ -1781,7 +1781,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_0f79e436-ac37-4bda-a533-99e6dcb01902
+GUID=DISPLAY_2441118b-16d9-498c-b24c-0e2d290cdd57
 
 [WINDOW_1_OBJECT_4]
 Type=2
@@ -1829,7 +1829,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_30ac3561-fdec-4c88-b269-fdd0084e4e20
+GUID=DISPLAY_2c9187a7-2ac9-4d5f-8628-cda0b8f90a12
 
 [WINDOW_1_OBJECT_5]
 Type=2
@@ -1877,7 +1877,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_2d393c9f-b7f7-49e0-b720-c9327106d872
+GUID=DISPLAY_9622c5a6-edca-4287-b1db-5ca8b45c7391
 
 [WINDOW_2]
 ComponentCount=1
@@ -1899,8 +1899,8 @@ DisplayMask=1 ; pages 1
 XLen=5432
 XMin=0
 XMinNs=0
-XMax=4377
-XMaxNs=4377526599
+XMax=19226
+XMaxNs=19226019452
 Grid=1
 Mark=1
 YValue=2
@@ -2154,9 +2154,9 @@ Comment=Kennfeld-/Kennlinienfenster
 Number=7
 GUID=WINDOW_5d4a2b25-3714-42c4-b6be-2a9d5c6fe287
 ScreenDPIinSection=192
-Position=0, 319, 74, 1843, 1000 ;cmd, x, y, w, h
+Position=0, 320, 74, 1844, 1000 ;cmd, x, y, w, h
 Position_dpi96=0, 160, 37, 922, 500 ;cmd, x, y, w, h
-Position_Page02=0, 319, 74, 1843, 1000 ;cmd, x, y, w, h
+Position_Page02=0, 320, 74, 1844, 1000 ;cmd, x, y, w, h
 Position_Page02_dpi96=0, 160, 37, 922, 500 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
@@ -2173,7 +2173,7 @@ ColorFunction=0
 DefColWidth=232
 CrosshairCursor=0
 CursorColor=0
-DataWindowAreaHorizontalSplittingFactor=0.270549809472
+DataWindowAreaHorizontalSplittingFactor=0.270402611534
 DataWindowAreaLayout=2
 DisplayMask=2 ; pages 2
 Distance=14
@@ -2439,7 +2439,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_4f869adb-5658-4345-9c56-c4e7dfbe8bf7
+GUID=DISPLAY_781972db-eb67-47e0-adf5-907fdef3169b
 
 [WINDOW_8_OBJECT_2]
 Type=2
@@ -2487,7 +2487,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_822e4d7d-3785-4c9b-aae5-6fabed9d8176
+GUID=DISPLAY_065eab9c-bf86-4568-9dc6-e78fec4912dd
 
 [WINDOW_8_OBJECT_3]
 Type=2
@@ -2535,7 +2535,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_a35b1059-073b-42d9-b299-a72d2ea8cca5
+GUID=DISPLAY_e4c32afc-b97b-452c-b6a8-a963a2f5b40a
 
 [WINDOW_8_OBJECT_4]
 Type=2
@@ -2583,7 +2583,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_583aaa5e-8965-4d8c-b2c2-74e05c8c0dd9
+GUID=DISPLAY_c189c7dd-4901-48e6-aa58-4339449382d1
 
 [WINDOW_8_OBJECT_5]
 Type=2
@@ -2631,7 +2631,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_c44fec30-34cb-4bd1-8d0e-b37c09541490
+GUID=DISPLAY_a2cc5e77-c676-4048-b1db-221cd744f3a2
 
 [WINDOW_8_OBJECT_6]
 Type=2
@@ -2679,7 +2679,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_c123d00c-4d80-4a3f-991e-caed6e6bac28
+GUID=DISPLAY_acd0f3a1-7ca8-4b70-98e6-16c0e8a64f12
 
 [WINDOW_9]
 Title=

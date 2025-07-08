@@ -62,6 +62,7 @@ template <typename T> class CalSeg {
     CalSegGuard lock() const { return CalSegGuard(segment_index_); }
 
     /// Create the A2L instance description for this calibration segment
+    /// Thread safe
     /// @param type_name The name of the type as it should appear in the A2L file
     /// @param comment Description for the A2L file
     void CreateA2lTypedefInstance(const char *type_name, const char *comment) {

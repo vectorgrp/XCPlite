@@ -83,6 +83,8 @@ tXcpEventId XcpCreateEvent(const char *name, uint32_t cycleTimeNs /* ns */, uint
 tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycleTimeNs /* ns */, uint8_t priority /* 0-normal, >=1 realtime*/);
 // Get event id by name, returns XCP_UNDEFINED_EVENT_ID if not found
 tXcpEventId XcpFindEvent(const char *name, uint16_t *count);
+// Get the event index (1..), return 0 if not found
+uint16_t XcpGetEventIndex(tXcpEventId event);
 
 // Create the XCP event 'name'
 // Cycle time is set to sporadic and priority to normal

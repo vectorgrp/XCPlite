@@ -125,6 +125,8 @@ tXcpEventId XcpFindEvent(const char *name, uint16_t *count);
 
 // Get event name by id, returns NULL if not found
 const char *XcpGetEventName(tXcpEventId event);
+// Get the event index (1..), return 0 if not found
+uint16_t XcpGetEventIndex(tXcpEventId event);
 
 #endif // XCP_ENABLE_DAQ_EVENT_LIST
 

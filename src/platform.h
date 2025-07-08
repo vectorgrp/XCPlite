@@ -79,6 +79,7 @@
 #elif defined(_LINUX) || defined(_MACOS) // Linux
 
 #include <pthread.h>
+#include <stdatomic.h>
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -311,11 +312,10 @@ char *clockGetString(char *s, uint32_t l, uint64_t c);
 char *clockGetTimeString(char *s, uint32_t l, int64_t c);
 
 //-------------------------------------------------------------------------------
-// Atomic operations
+// Atomic operations emulation for Windows
 
-#ifndef _WIN
-#include <stdatomic.h>
-#else
+#ifdef _WIN
+
 #ifdef _WIN32_
 #error "Windows32 not implemented yet"
 #endif

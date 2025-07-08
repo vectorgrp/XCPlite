@@ -1,4 +1,5 @@
 #pragma once
+
 /* A2L.h */
 /* Copyright(c) Vector Informatik GmbH.All rights reserved.
    Licensed under the MIT license.See LICENSE file in the project root for details. */
@@ -7,8 +8,7 @@
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uintxx_t
 
-#include "../xcplib.h" // for tXcpEventId, tXcpCalSegIndex
-#include "platform.h"  // for A2lOnceType
+#include "xcplib.h" // for tXcpEventId, tXcpCalSegIndex
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -30,7 +30,9 @@ static_assert(sizeof(char) == 1, "sizeof(char) must be 1 bytes for A2L types to 
 static_assert(sizeof(short) == 2, "sizeof(short) must be 2 bytes for A2L types to work correctly");
 static_assert(sizeof(long long) == 8, "sizeof(long long) must be 8 bytes for A2L types to work correctly");
 
-// Portable type detection macros for both C and C++
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Automatic, portable type detection macros for both C and C++
+
 #ifdef __cplusplus
 // C++ version using template meta-programming
 namespace A2lTypeTraits {
@@ -253,50 +255,11 @@ const char *A2lGetRecordLayoutName_(tA2lTypeId type);
 #define A2lGetRecordLayoutName(type) A2lGetRecordLayoutName_(A2lGetTypeId(type))
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-extern MUTEX gA2lMutex;
-
-// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// Set mode (address generation and event) for all following A2lCreateXxxx macros and functions
-// Not thread safe !!!!!
-
-// Set addressing mode by event name or calibration segment index
-// Used by the macros with the identical name (without underscore)
-void A2lSetSegmentAddrMode__i(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance);
-void A2lSetRelativeAddrMode__s(const char *event_name, const uint8_t *base_addr);
-void A2lSetRelativeAddrMode__i(tXcpEventId event_id, const uint8_t *base_addr);
-void A2lSetStackAddrMode__s(const char *event_name, const uint8_t *stack_frame);
-void A2lSetStackAddrMode__i(tXcpEventId event_id, const uint8_t *stack_frame);
-void A2lSetAbsoluteAddrMode__s(const char *event_name);
-
-// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// Addressing mode
-// Can be used without runtime A2L file generation
+// Addressing mode convenience macros
 
 #ifndef get_stack_frame_pointer
 #define get_stack_frame_pointer() (const uint8_t *)__builtin_frame_address(0)
 #endif
-
-// static inline const uint8_t *get_stack_frame_pointer_(void) {
-//  #if defined(__x86_64__) || defined(_M_X64)
-//      void *fp;
-//      __asm__ volatile("movq %%rbp, %0" : "=r"(fp));
-//      return (uint8_t *)fp;
-//  #elif defined(__i386__) || defined(_M_IX86)
-//      void *fp;
-//      __asm__ volatile("movl %%ebp, %0" : "=r"(fp));
-//      return (uint8_t *)fp;
-//  #elif defined(__aarch64__)
-//      void *fp;
-//      __asm__ volatile("mov %0, x29" : "=r"(fp));
-//      return (uint8_t *)fp;
-//  #elif defined(__arm__)
-//      void *fp;
-//      __asm__ volatile("mov %0, fp" : "=r"(fp));
-//      return (uint8_t *)fp;
-//  #else
-//      return (uint8_t *)__builtin_frame_address(0);
-//  #endif
-//}
 
 // Set segment relative address mode
 // Error if the segment index does not exist
@@ -304,324 +267,216 @@ void A2lSetAbsoluteAddrMode__s(const char *event_name);
 
 // Set addressing mode to relative for a given event 'event_name' and base address
 // Error if the event does not exist
-// Use in combination with DaqEvent(event_name)
 #define A2lSetRelativeAddrMode(event_name, base_addr) A2lSetRelativeAddrMode__s(#event_name, (const uint8_t *)base_addr);
 #define A2lSetRelativeAddrMode_s(event_name, base_addr) A2lSetRelativeAddrMode__s(event_name, (const uint8_t *)base_addr);
-
-// Once
-#define A2lOnceSetRelativeAddrMode(event_name, base_addr)                                                                                                                          \
-    {                                                                                                                                                                              \
-        static A2lOnceType a2l_mode_dyn_##event_name##_ = false;                                                                                                                   \
-        if (A2lOnce_(&a2l_mode_dyn_##event_name##_))                                                                                                                               \
-            A2lSetRelativeAddrMode__s(#event_name, (const uint8_t *)base_addr);                                                                                                    \
-    }
-#define A2lOnceSetRelativeAddrMode_s(event_name_string, base_addr)                                                                                                                 \
-    {                                                                                                                                                                              \
-        static A2lOnceType a2l_mode_dyn__ = false;                                                                                                                                 \
-        if (A2lOnce_(&a2l_mode_dyn__))                                                                                                                                             \
-            A2lSetRelativeAddrMode__s(event_name_string, (const uint8_t *)base_addr);                                                                                              \
-    }
+#define A2lSetRelativeAddrMode_i(event_id, base_addr) A2lSetRelativeAddrMode__i(event_id, (const uint8_t *)base_addr);
 
 // Set addressing mode to stack and event 'event_name'
 // Error if the event does not exist
-// Use in combination with DaqEvent(event_name)
 #define A2lSetStackAddrMode(event_name) A2lSetStackAddrMode__s(#event_name, get_stack_frame_pointer());
 #define A2lSetStackAddrMode_s(event_name_string) A2lSetStackAddrMode__s(event_name_string, get_stack_frame_pointer());
 #define A2lSetStackAddrMode_i(event_id) A2lSetStackAddrMode__i(event_id, get_stack_frame_pointer());
 
-// Once
-#define A2lOnceSetStackAddrMode(event_name)                                                                                                                                        \
-    {                                                                                                                                                                              \
-        static A2lOnceType a2l_mode_rel_##event_name##_ = false;                                                                                                                   \
-        if (A2lOnce_(&a2l_mode_rel_##event_name##_))                                                                                                                               \
-            A2lSetStackAddrMode__s(#event_name, get_stack_frame_pointer());                                                                                                        \
-    }
-#define A2lOnceSetStackAddrMode_s(event_name_string)                                                                                                                               \
-    {                                                                                                                                                                              \
-        static A2lOnceType a2l_mode_rel__ = false;                                                                                                                                 \
-        if (A2lOnce_(&a2l_mode_rel__))                                                                                                                                             \
-            A2lSetStackAddrMode__s(event_name_string, get_stack_frame_pointer());                                                                                                  \
-    }
-
 // Set addressing mode to absolute and event 'event_name'
 // Error if the event does not exist
-// Use in combination with DaqEvent(event_name)
 #define A2lSetAbsoluteAddrMode(event_name) A2lSetAbsoluteAddrMode__s(#event_name);
 #define A2lSetAbsoluteAddrMode_s(event_name_string) A2lSetAbsoluteAddrMode__s(event_name_string);
-// Once
-#define A2lOnceSetAbsoluteAddrMode(event_name)                                                                                                                                     \
-    {                                                                                                                                                                              \
-        static A2lOnceType a2l_mode_abs_##event_name##_ = false;                                                                                                                   \
-        if (A2lOnce_(&a2l_mode_abs_##event_name##_))                                                                                                                               \
-            A2lSetAbsoluteAddrMode__s(#event_name);                                                                                                                                \
-    }
-#define A2lOnceSetAbsoluteAddrMode_s(event_name_string)                                                                                                                            \
-    {                                                                                                                                                                              \
-        static A2lOnceType a2l_mode_abs__ = false;                                                                                                                                 \
-        if (A2lOnce_(&a2l_mode_abs__))                                                                                                                                             \
-            A2lSetAbsoluteAddrMode__s(event_name_string);                                                                                                                          \
-    }
+#define A2lSetAbsoluteAddrMode_i(event_id) A2lSetAbsoluteAddrMode__i(event_id);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Create parameters in a calibration segment or in global memory
 
 #define A2lCreateParameter(instance_name, name, comment, unit, min, max)                                                                                                           \
-    {                                                                                                                                                                              \
-        static A2lOnceType a2l_par_##name##_ = false;                                                                                                                              \
-        if (A2lOnce_(&a2l_par_##name##_))                                                                                                                                          \
-            A2lCreateParameter_(#instance_name "." #name, A2lGetTypeId(instance_name.name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&instance_name.name), comment, unit, min,     \
-                                max);                                                                                                                                              \
-    }
+    A2lCreateParameter_(#instance_name "." #name, A2lGetTypeId(instance_name.name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&instance_name.name), comment, unit, min, max);
 
 #define A2lCreateCurve(instance_name, name, xdim, comment, unit, min, max)                                                                                                         \
-    {                                                                                                                                                                              \
-        static A2lOnceType a2l_par_##name##_ = false;                                                                                                                              \
-        if (A2lOnce_(&a2l_par_##name##_))                                                                                                                                          \
-            A2lCreateCurve_(#instance_name "." #name, A2lGetArrayElementTypeId(instance_name.name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&instance_name.name[0]), xdim,        \
-                            comment, unit, min, max);                                                                                                                              \
-    }
+    A2lCreateCurve_(#instance_name "." #name, A2lGetArrayElementTypeId(instance_name.name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&instance_name.name[0]), xdim, comment, unit, \
+                    min, max);
 
 #define A2lCreateMap(instance_name, name, xdim, ydim, comment, unit, min, max)                                                                                                     \
-    {                                                                                                                                                                              \
-        static A2lOnceType a2l_par_##name##_ = false;                                                                                                                              \
-        if (A2lOnce_(&a2l_par_##name##_))                                                                                                                                          \
-            A2lCreateMap_(#instance_name "." #name, A2lGetArray2DElementTypeId(instance_name.name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&instance_name.name[0][0]), xdim,     \
-                          ydim, comment, unit, min, max);                                                                                                                          \
-    }
+    A2lCreateMap_(#instance_name "." #name, A2lGetArray2DElementTypeId(instance_name.name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&instance_name.name[0][0]), xdim, ydim,       \
+                  comment, unit, min, max);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Create conversions
 
-#define A2lCreateLinearConversion(name, comment, unit, factor, offset)                                                                                                             \
-    static const char *name = "NO_COMPU_METHOD";                                                                                                                                   \
-    {                                                                                                                                                                              \
-        static A2lOnceType a2l_conv_##name##_ = false;                                                                                                                             \
-        if (A2lOnce_(&a2l_conv_##name##_))                                                                                                                                         \
-            name = A2lCreateLinearConversion_(#name, comment, unit, factor, offset);                                                                                               \
-    }
+#define A2lCreateLinearConversion(name, comment, unit, factor, offset) const char *name = A2lCreateLinearConversion_(#name, comment, unit, factor, offset);
 
-#define A2lCreateEnumConversion(name, description)                                                                                                                                 \
-    static const char *name = "NO_COMPU_METHOD";                                                                                                                                   \
-    {                                                                                                                                                                              \
-        static A2lOnceType a2l_conv_##name##_ = false;                                                                                                                             \
-        if (A2lOnce_(&a2l_conv_##name##_))                                                                                                                                         \
-            name = A2lCreateEnumConversion_(#name, description);                                                                                                                   \
-    }
+#define A2lCreateEnumConversion(name, description) const char *name = A2lCreateEnumConversion_(#name, description);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Create measurements on stack or in global memory
-// Measurements are registered once, it is allowed to use the following macros in local scope which is run multiple times
 
-// Once mode
 #define A2lCreateMeasurement(name, comment, unit)                                                                                                                                  \
-    {                                                                                                                                                                              \
-        static A2lOnceType a2l_##name##_ = false;                                                                                                                                  \
-        if (A2lOnce_(&a2l_##name##_))                                                                                                                                              \
-            A2lCreateMeasurement_(NULL, #name, A2lGetTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&(name)), unit, 0.0, 0.0, comment);                                    \
-    }
+    A2lCreateMeasurement_(NULL, #name, A2lGetTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&(name)), unit, 0.0, 0.0, comment);
 
 #define A2lCreatePhysMeasurement(name, comment, unit_or_conversion, min, max)                                                                                                      \
-    {                                                                                                                                                                              \
-        static A2lOnceType a2l_##name##_ = false;                                                                                                                                  \
-        if (A2lOnce_(&a2l_##name##_))                                                                                                                                              \
-            A2lCreateMeasurement_(NULL, #name, A2lGetTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&(name)), unit_or_conversion, min, max, comment);                      \
-    }
+    A2lCreateMeasurement_(NULL, #name, A2lGetTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&(name)), unit_or_conversion, min, max, comment);
 
 #define A2lCreateMeasurementArray(name, comment, unit_or_conversion)                                                                                                               \
-    {                                                                                                                                                                              \
-        static A2lOnceType a2l_##name##_ = false;                                                                                                                                  \
-        if (A2lOnce_(&a2l_##name##_))                                                                                                                                              \
-            A2lCreateMeasurementArray_(NULL, #name, A2lGetTypeId(name[0]), sizeof(name) / sizeof(name[0]), 1, A2lGetAddrExt_(), A2lGetAddr_(&name[0]), unit_or_conversion,         \
-                                       comment);                                                                                                                                   \
-    }
+    A2lCreateMeasurementArray_(NULL, #name, A2lGetTypeId(name[0]), sizeof(name) / sizeof(name[0]), 1, A2lGetAddrExt_(), A2lGetAddr_(&name[0]), unit_or_conversion, comment);
 
 #define A2lCreateMeasurementMatrix(name, comment, unit_or_conversion)                                                                                                              \
-    {                                                                                                                                                                              \
-        static A2lOnceType a2l_##name##_ = false;                                                                                                                                  \
-        if (A2lOnce_(&a2l_##name##_))                                                                                                                                              \
-            A2lCreateMeasurementArray_(NULL, #name, A2lGetTypeId(name[0][0]), sizeof(name[0]) / sizeof(name[0][0]), sizeof(name) / sizeof(name[0]), A2lGetAddrExt_(),              \
-                                       A2lGetAddr_(&name[0]), unit_or_conversion, comment);                                                                                        \
-    }
+    A2lCreateMeasurementArray_(NULL, #name, A2lGetTypeId(name[0][0]), sizeof(name[0]) / sizeof(name[0][0]), sizeof(name) / sizeof(name[0]), A2lGetAddrExt_(),                      \
+                               A2lGetAddr_(&name[0]), unit_or_conversion, comment);
 
 // With instance name
 #define A2lCreateMeasurementInstance(instance_name, name, comment, unit)                                                                                                           \
-    {                                                                                                                                                                              \
-        A2lCreateMeasurement_(instance_name, #name, A2lGetTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&(name)), unit, 0.0, 0.0, comment);                               \
-    }
+    A2lCreateMeasurement_(instance_name, #name, A2lGetTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&(name)), unit, 0.0, 0.0, comment);
 
 #define A2lCreatePhysMeasurementInstance(instance_name, name, comment, unit_or_conversion, min, max)                                                                               \
-    {                                                                                                                                                                              \
-        A2lCreateMeasurement_(instance_name, #name, A2lGetTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&(name)), unit_or_conversion, min, max, comment);                 \
-    }
+    A2lCreateMeasurement_(instance_name, #name, A2lGetTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&(name)), unit_or_conversion, min, max, comment);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Create instances from typedefs
 
 #define A2lCreateTypedefNamedInstance(name, instance, typeName, comment)                                                                                                           \
-    {                                                                                                                                                                              \
-        A2lCreateTypedefMeasurementInstance_(name, #typeName, 0, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&instance), comment);                                                    \
-    }
+    A2lCreateTypedefMeasurementInstance_(name, #typeName, 0, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&instance), comment);
 
-#define A2lCreateTypedefInstance(name, typeName, comment)                                                                                                                          \
-    {                                                                                                                                                                              \
-        static A2lOnceType a2l_##name##_ = false;                                                                                                                                  \
-        if (A2lOnce_(&a2l_##name##_)) {                                                                                                                                            \
-            A2lCreateTypedefMeasurementInstance_(#name, #typeName, 0, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&name), comment);                                                   \
-        }                                                                                                                                                                          \
-    }
+#define A2lCreateTypedefInstance(name, typeName, comment) A2lCreateTypedefMeasurementInstance_(#name, #typeName, 0, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&name), comment);
 
-#define A2lCreateTypedefReference(name, typeName, comment)                                                                                                                         \
-    {                                                                                                                                                                              \
-        static A2lOnceType a2l_##name##_ = false;                                                                                                                                  \
-        if (A2lOnce_(&a2l_##name##_)) {                                                                                                                                            \
-            A2lCreateTypedefMeasurementInstance_(#name, #typeName, 0, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)name), comment);                                                    \
-        }                                                                                                                                                                          \
-    }
+#define A2lCreateTypedefReference(name, typeName, comment) A2lCreateTypedefMeasurementInstance_(#name, #typeName, 0, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)name), comment);
 
-#define A2lCreateTypedefArray(name, typeName, dim, comment)                                                                                                                        \
-    {                                                                                                                                                                              \
-        static A2lOnceType a2l_##name##_ = false;                                                                                                                                  \
-        if (A2lOnce_(&a2l_##name##_)) {                                                                                                                                            \
-            A2lCreateTypedefMeasurementInstance_(#name, #typeName, dim, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&name), comment);                                                 \
-        }                                                                                                                                                                          \
-    }
+#define A2lCreateTypedefArray(name, typeName, dim, comment) A2lCreateTypedefMeasurementInstance_(#name, #typeName, dim, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&name), comment);
 
 #define A2lCreateTypedefArrayReference(name, typeName, dim, comment)                                                                                                               \
-    {                                                                                                                                                                              \
-        static A2lOnceType a2l_##name##_ = false;                                                                                                                                  \
-        if (A2lOnce_(&a2l_##name##_)) {                                                                                                                                            \
-            A2lCreateTypedefMeasurementInstance_(#name, #typeName, dim, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)name), comment);                                                  \
-        }                                                                                                                                                                          \
-    }
+    A2lCreateTypedefMeasurementInstance_(#name, #typeName, dim, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)name), comment);
 
-#define A2lTypedefBegin(type_name, comment)                                                                                                                                        \
-    {                                                                                                                                                                              \
-        static A2lOnceType a2l_##type_name##_ = false;                                                                                                                             \
-        if (A2lOnce_(&a2l_##type_name##_)) {                                                                                                                                       \
-            A2lLock();                                                                                                                                                             \
-            A2lTypedefBegin_(#type_name, (uint32_t)sizeof(type_name), comment);                                                                                                    \
-        }                                                                                                                                                                          \
-    }
+#define A2lTypedefBegin(type_name, comment) A2lTypedefBegin_(#type_name, (uint32_t)sizeof(type_name), comment);
 
 #define A2lTypedefMeasurementComponent(field_name, typedef_name)                                                                                                                   \
     {                                                                                                                                                                              \
-        static A2lOnceType a2l_##name##_ = false;                                                                                                                                  \
-        if (A2lOnce_(&a2l_##name##_)) {                                                                                                                                            \
-            typedef_name instance;                                                                                                                                                 \
-            A2lTypedefComponent_(#field_name, A2lGetTypeName_M(instance.field_name), 1, ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance));                               \
-        }                                                                                                                                                                          \
+        typedef_name instance;                                                                                                                                                     \
+        A2lTypedefComponent_(#field_name, A2lGetTypeName_M(instance.field_name), 1, ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance));                                   \
+    }
+
+#define A2lTypedefPhysMeasurementComponent(field_name, typedef_name, comment, unit_or_conversion, min, max)                                                                        \
+    {                                                                                                                                                                              \
+        typedef_name instance;                                                                                                                                                     \
+        A2lTypedefMeasurementComponent_(#field_name, A2lGetTypeName(instance.field_name), ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance), comment, unit_or_conversion, \
+                                        min, max);                                                                                                                                 \
     }
 
 #define A2lTypedefParameterComponent(field_name, typeName, comment, unit, min, max)                                                                                                \
     {                                                                                                                                                                              \
-        static A2lOnceType a2l_##field_name##_ = false;                                                                                                                            \
-        if (A2lOnce_(&a2l_##field_name##_)) {                                                                                                                                      \
-            typeName instance;                                                                                                                                                     \
-            A2lTypedefParameterComponent_(#field_name, A2lGetRecordLayoutName(instance.field_name), 1, 1, ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance), comment,     \
-                                          unit, min, max, NULL, NULL);                                                                                                             \
-        }                                                                                                                                                                          \
+        typeName instance;                                                                                                                                                         \
+        A2lTypedefParameterComponent_(#field_name, A2lGetRecordLayoutName(instance.field_name), 1, 1, ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance), comment, unit,   \
+                                      min, max, NULL, NULL);                                                                                                                       \
     }
 
 #define A2lTypedefCurveComponent(field_name, typeName, x_dim, comment, unit, min, max)                                                                                             \
     {                                                                                                                                                                              \
-        static A2lOnceType a2l_##field_name##_ = false;                                                                                                                            \
-        if (A2lOnce_(&a2l_##field_name##_)) {                                                                                                                                      \
-            typeName instance;                                                                                                                                                     \
-            A2lTypedefParameterComponent_(#field_name, A2lGetRecordLayoutName(instance.field_name[0]), x_dim, 1, ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance),       \
-                                          comment, unit, min, max, NULL, NULL);                                                                                                    \
-        }                                                                                                                                                                          \
+        typeName instance;                                                                                                                                                         \
+        A2lTypedefParameterComponent_(#field_name, A2lGetRecordLayoutName(instance.field_name[0]), x_dim, 1, ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance), comment,  \
+                                      unit, min, max, NULL, NULL);                                                                                                                 \
     }
 
 #define A2lTypedefCurveComponentWithSharedAxis(field_name, typeName, x_dim, comment, unit, min, max, x_axis)                                                                       \
     {                                                                                                                                                                              \
-        static A2lOnceType a2l_##field_name##_ = false;                                                                                                                            \
-        if (A2lOnce_(&a2l_##field_name##_)) {                                                                                                                                      \
-            typeName instance;                                                                                                                                                     \
-            A2lTypedefParameterComponent_(#field_name, A2lGetRecordLayoutName(instance.field_name[0]), x_dim, 1, ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance),       \
-                                          comment, unit, min, max, x_axis, NULL);                                                                                                  \
-        }                                                                                                                                                                          \
+        typeName instance;                                                                                                                                                         \
+        A2lTypedefParameterComponent_(#field_name, A2lGetRecordLayoutName(instance.field_name[0]), x_dim, 1, ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance), comment,  \
+                                      unit, min, max, x_axis, NULL);                                                                                                               \
     }
 
 #define A2lTypedefMapComponent(field_name, typeName, x_dim, y_dim, comment, unit, min, max)                                                                                        \
     {                                                                                                                                                                              \
-        static A2lOnceType a2l_##field_name##_ = false;                                                                                                                            \
-        if (A2lOnce_(&a2l_##field_name##_)) {                                                                                                                                      \
-            typeName instance;                                                                                                                                                     \
-            A2lTypedefParameterComponent_(#field_name, A2lGetRecordLayoutName(instance.field_name[0][0]), x_dim, y_dim,                                                            \
-                                          ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance), comment, unit, min, max, NULL, NULL);                                        \
-        }                                                                                                                                                                          \
+        typeName instance;                                                                                                                                                         \
+        A2lTypedefParameterComponent_(#field_name, A2lGetRecordLayoutName(instance.field_name[0][0]), x_dim, y_dim, ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance),    \
+                                      comment, unit, min, max, NULL, NULL);                                                                                                        \
     }
 
 #define A2lTypedefMapComponentWithSharedAxis(field_name, typeName, x_dim, y_dim, comment, unit, min, max, x_axis, y_axis)                                                          \
     {                                                                                                                                                                              \
-        static A2lOnceType a2l_##field_name##_ = false;                                                                                                                            \
-        if (A2lOnce_(&a2l_##field_name##_)) {                                                                                                                                      \
-            typeName instance;                                                                                                                                                     \
-            A2lTypedefParameterComponent_(#field_name, A2lGetRecordLayoutName(instance.field_name[0][0]), x_dim, y_dim,                                                            \
-                                          ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance), comment, unit, min, max, x_axis, y_axis);                                    \
-        }                                                                                                                                                                          \
+        typeName instance;                                                                                                                                                         \
+        A2lTypedefParameterComponent_(#field_name, A2lGetRecordLayoutName(instance.field_name[0][0]), x_dim, y_dim, ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance),    \
+                                      comment, unit, min, max, x_axis, y_axis);                                                                                                    \
     }
 
 #define A2lTypedefAxisComponent(field_name, typeName, x_dim, comment, unit, min, max)                                                                                              \
     {                                                                                                                                                                              \
-        static A2lOnceType a2l_##field_name##_ = false;                                                                                                                            \
-        if (A2lOnce_(&a2l_##field_name##_)) {                                                                                                                                      \
-            typeName instance;                                                                                                                                                     \
-            A2lTypedefParameterComponent_(#field_name, A2lGetRecordLayoutName(instance.field_name[0]), x_dim, 0, ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance),       \
-                                          comment, unit, min, max, NULL, NULL);                                                                                                    \
-        }                                                                                                                                                                          \
+        typeName instance;                                                                                                                                                         \
+        A2lTypedefParameterComponent_(#field_name, A2lGetRecordLayoutName(instance.field_name[0]), x_dim, 0, ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance), comment,  \
+                                      unit, min, max, NULL, NULL);                                                                                                                 \
     }
 
 #define A2lTypedefMeasurementArrayComponent(field_name, typedef_name)                                                                                                              \
     {                                                                                                                                                                              \
-        static A2lOnceType a2l_##field_name##_ = false;                                                                                                                            \
-        if (A2lOnce_(&a2l_##field_name##_)) {                                                                                                                                      \
-            typedef_name instance;                                                                                                                                                 \
-            A2lTypedefComponent_(#field_name, A2lGetTypeName_M(instance.field_name[0]), sizeof(instance.field_name) / sizeof(instance.field_name[0]),                              \
-                                 ((uint8_t *)&(instance.field_name[0]) - (uint8_t *)&instance));                                                                                   \
-        }                                                                                                                                                                          \
+        typedef_name instance;                                                                                                                                                     \
+        A2lTypedefComponent_(#field_name, A2lGetTypeName_M(instance.field_name[0]), sizeof(instance.field_name) / sizeof(instance.field_name[0]),                                  \
+                             ((uint8_t *)&(instance.field_name[0]) - (uint8_t *)&instance));                                                                                       \
     }
 
 #define A2lTypedefParameterArrayComponent(field_name, typeName, comment, unit, min, max)                                                                                           \
     {                                                                                                                                                                              \
-        static A2lOnceType a2l_##field_name##_ = false;                                                                                                                            \
-        if (A2lOnce_(&a2l_##field_name##_)) {                                                                                                                                      \
-            typeName instance;                                                                                                                                                     \
-            A2lTypedefComponent_(#field_name, A2lGetTypeName_C(instance.field_name[0]), sizeof(instance.field_name) / sizeof(instance.field_name[0]),                              \
-                                 ((uint8_t *)&(instance.field_name[0]) - (uint8_t *)&instance));                                                                                   \
-        }                                                                                                                                                                          \
+        typeName instance;                                                                                                                                                         \
+        A2lTypedefComponent_(#field_name, A2lGetTypeName_C(instance.field_name[0]), sizeof(instance.field_name) / sizeof(instance.field_name[0]),                                  \
+                             ((uint8_t *)&(instance.field_name[0]) - (uint8_t *)&instance));                                                                                       \
     }
 
 #define A2lTypedefParameterMatrixComponent(field_name, typeName, comment, unit, min, max)                                                                                          \
     {                                                                                                                                                                              \
-        static A2lOnceType a2l_##field_name##_ = false;                                                                                                                            \
-        if (A2lOnce_(&a2l_##field_name##_)) {                                                                                                                                      \
-            typeName instance;                                                                                                                                                     \
-            A2lTypedefComponent_(#field_name, A2lGetTypeName_C(instance.field_name[0][0]), sizeof(instance.field_name) / sizeof(instance.field_name[0]),                           \
-                                 ((uint8_t *)&(instance.field_name[0]) - (uint8_t *)&instance));                                                                                   \
-        }                                                                                                                                                                          \
+        typeName instance;                                                                                                                                                         \
+        A2lTypedefComponent_(#field_name, A2lGetTypeName_C(instance.field_name[0][0]), sizeof(instance.field_name) / sizeof(instance.field_name[0]),                               \
+                             ((uint8_t *)&(instance.field_name[0]) - (uint8_t *)&instance));                                                                                       \
     }
 
 #define A2lTypedefComponent(field_name, field_type_name, field_dim, typedef_name)                                                                                                  \
     {                                                                                                                                                                              \
-        static A2lOnceType a2l_##field_name##_ = false;                                                                                                                            \
-        if (A2lOnce_(&a2l_##field_name##_)) {                                                                                                                                      \
-            typedef_name instance;                                                                                                                                                 \
-            A2lTypedefComponent_(#field_name, #field_type_name, field_dim, ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance));                                            \
-        }                                                                                                                                                                          \
+        typedef_name instance;                                                                                                                                                     \
+        A2lTypedefComponent_(#field_name, #field_type_name, field_dim, ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance));                                                \
     }
 
-#define A2lTypedefEnd()                                                                                                                                                            \
-    {                                                                                                                                                                              \
-        static A2lOnceType a2l_once = false;                                                                                                                                       \
-        if (A2lOnce_(&a2l_once)) {                                                                                                                                                 \
-            A2lTypedefEnd_();                                                                                                                                                      \
-            A2lUnlock();                                                                                                                                                           \
-        }                                                                                                                                                                          \
-    }
+#define A2lTypedefEnd() A2lTypedefEnd_()
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// Create groups
+// Addressing mode
+// Set addressing mode for the following A2L generation macros
+
+// Absolute addressing mode
+// XCP address extension = 1 XCP_ADDR_EXT_ABS
+// XCP address is the absolute address of the variable relative to the main module load address
+void A2lSetAbsAddrMode(tXcpEventId default_event_id);
+
+// Relative addressing mode
+// Used for accessing stack variable relativ to the stack frame pointer
+// XCP address extension = 3 XCP_ADDR_EXT_REL
+// XCP address is int32_t offset to the stack frame pointer
+void A2lSetRelAddrMode(tXcpEventId event_id, const uint8_t *base);
+
+// Dynamic addressing mode
+// Relative address, used for heap and class members
+// Enables XCP polling access
+// XCP address extension = 2 XCP_ADDR_EXT_DYN
+// XCP address is int16_t offset to the given base address, high word of the address is the event id
+void A2lSetDynAddrMode(tXcpEventId event_id, const uint8_t *base);
+
+// Calibration segment addressing mode
+// Used for calibration parameters ins a XCP calibration segments (A2L MEMORY_SEGMENT)
+// XCP address extension = 0 XCP_ADDR_EXT_SEG
+// XCP address is uint32_t offset to the segment base address
+void A2lSetSegAddrMode(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance_addr);
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Thread safety
+// Use these macros to protect critical sections and create once patterns in A2L generation code
+
+// Execute a block once
+// Global
+#define A2lOnce(name)                                                                                                                                                              \
+    static uint64_t __a2l_##name##_ = 0;                                                                                                                                           \
+    if (A2lOnce_(&__a2l_##name##_))
+// Per thread
+#define A2lThreadOnce(name)                                                                                                                                                        \
+    static THREAD_LOCAL uint64_t __a2l_##name##_ = 0;                                                                                                                              \
+    if (A2lOnce_(&__a2l_##name##_))
+
+// Lock and unlock a block (mutex)
+void A2lLock(void);
+void A2lUnlock(void);
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Manually create groups
+// If automatic group generation (A2lInit parameter) is disabled, use these functions to create groups manually.
 
 void A2lBeginGroup(const char *name, const char *comment, bool is_parameter_group);
 void A2lAddToGroup(const char *name);
@@ -641,20 +496,25 @@ bool A2lInit(const char *a2l_filename, const char *a2l_projectname, const uint8_
 // Finish A2L generation
 bool A2lFinalize(void);
 
-// Lock and unlock for thread safety
-void A2lLock(void);
-void A2lUnlock(void);
-
 // --------------------------------------------------------------------------------------------
-// Helper functions used in the for A2L generation macros
+// --------------------------------------------------------------------------------------------
+// Helper functions used in the by A2L generation macros
 
-typedef volatile bool A2lOnceType;
-bool A2lOnce_(A2lOnceType *once);
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Set mode (address generation and event) for all following A2lCreateXxxx macros and functions
+// Not thread safe !!!!!
 
-void A2lSetAbsAddrMode(tXcpEventId default_event_id);
-void A2lSetDynAddrMode(tXcpEventId event_id, const uint8_t *base);
-void A2lSetSegAddrMode(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance_addr);
-void A2lSetRelAddrMode(tXcpEventId event_id, const uint8_t *base);
+// Set addressing mode by event name or calibration segment index
+// Used by the macros with the identical name (one underscore)
+void A2lSetSegmentAddrMode__i(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance);
+void A2lSetRelativeAddrMode__s(const char *event_name, const uint8_t *base_addr);
+void A2lSetRelativeAddrMode__i(tXcpEventId event_id, const uint8_t *base_addr);
+void A2lSetStackAddrMode__s(const char *event_name, const uint8_t *stack_frame);
+void A2lSetStackAddrMode__i(tXcpEventId event_id, const uint8_t *stack_frame);
+void A2lSetAbsoluteAddrMode__s(const char *event_name);
+void A2lSetAbsoluteAddrMode__i(tXcpEventId event_id);
+
+bool A2lOnce_(uint64_t *once);
 
 uint32_t A2lGetAddr_(const void *addr);
 uint8_t A2lGetAddrExt_(void);
@@ -672,6 +532,7 @@ void A2lCreateMeasurementArray_(const char *instance_name, const char *name, tA2
 // Create typedefs
 void A2lTypedefBegin_(const char *name, uint32_t size, const char *comment);
 void A2lTypedefComponent_(const char *name, const char *type_name, uint16_t x_dim, uint32_t offset);
+void A2lTypedefMeasurementComponent_(const char *name, const char *type_name, uint32_t offset, const char *comment, const char *unit_or_conversion, double min, double max);
 void A2lTypedefParameterComponent_(const char *name, const char *type_name, uint16_t x_dim, uint16_t y_dim, uint32_t offset, const char *comment, const char *unit, double min,
                                    double max, const char *x_axis, const char *y_axis);
 void A2lTypedefEnd_(void);

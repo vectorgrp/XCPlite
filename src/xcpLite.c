@@ -1042,27 +1042,33 @@ const char *XcpGetEventName(tXcpEventId event) {
     return (const char *)&gXcp.EventList.event[event].name;
 }
 
+// Get the event index (1..), return 0 if not found
+uint16_t XcpGetEventIndex(tXcpEventId event) {
+    if (!isInitialized() || event >= gXcp.EventList.count)
+        return 0;
+    return gXcp.EventList.event[event].index;
+}
+
 // Find an event by name, return XCP_UNDEFINED_EVENT_ID if not found
-tXcpEventId XcpFindEvent(const char *name, uint16_t *count) {
+tXcpEventId XcpFindEvent(const char *name, uint16_t *pcount) {
     uint16_t id = XCP_UNDEFINED_EVENT_ID;
     if (isInitialized()) {
-        mutexLock(&gXcp.EventList.mutex);
-        if (count != NULL)
-            *count = 0;
-        for (uint16_t i = 0; i < gXcp.EventList.count; i++) {
+        uint16_t count = gXcp.EventList.count;
+        if (pcount != NULL)
+            *pcount = 0;
+        for (uint16_t i = 0; i < count; i++) {
             if (strcmp(gXcp.EventList.event[i].name, name) == 0) {
-                if (count != NULL)
-                    *count += 1;
+                if (pcount != NULL)
+                    *pcount += 1;
                 id = i; // Remember the last found event
             }
         }
-        mutexUnlock(&gXcp.EventList.mutex);
     }
     return id;
 }
 
 // Create an XCP event
-// Thread safe
+// Not thread safe
 // Returns the XCP event number for XcpEventXxx() or XCP_UNDEFINED_EVENT_ID when out of memory
 static tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cycleTimeNs, uint8_t priority) {
 
@@ -1074,15 +1080,12 @@ static tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint3
         return XCP_UNDEFINED_EVENT_ID; // Uninitialized
     }
 
-    mutexLock(&gXcp.EventList.mutex);
     e = gXcp.EventList.count;
     if (e >= XCP_MAX_EVENT_COUNT) {
-        mutexUnlock(&gXcp.EventList.mutex); // Unlock event list mutex
         DBG_PRINT_ERROR("too many events\n");
         return XCP_UNDEFINED_EVENT_ID; // Out of memory
     }
     gXcp.EventList.count++;
-    mutexUnlock(&gXcp.EventList.mutex);
 
     // Convert cycle time to ASAM coding time cycle and time unit
     // RESOLUTION OF TIMESTAMP "UNIT_1NS" = 0, "UNIT_10NS" = 1, ...
@@ -1098,24 +1101,39 @@ static tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint3
     STRNCPY(gXcp.EventList.event[e].name, name, XCP_MAX_EVENT_NAME);
     gXcp.EventList.event[e].name[XCP_MAX_EVENT_NAME] = 0;
     gXcp.EventList.event[e].priority = priority;
-    DBG_PRINTF3("  Event %u: %s cycle=%uns, prio=%u\n", e, gXcp.EventList.event[e].name, cycleTimeNs, gXcp.EventList.event[e].priority);
+    DBG_PRINTF3("  Event %u: %s index=%u, cycle=%uns, prio=%u\n", e, gXcp.EventList.event[e].name, index, cycleTimeNs, priority);
     return e;
 }
 
 // Add a measurement event to event list, return event number (0..MAX_EVENT-1), thread safe, if name exists, an instance id is appended to the name
+// Thread safe
 tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycleTimeNs, uint8_t priority) {
     uint16_t count = 0;
-    XcpFindEvent(name, &count);
-    return XcpCreateIndexedEvent(name, count + 1, cycleTimeNs, priority);
+    mutexLock(&gXcp.EventList.mutex);
+    tXcpEventId id = XcpFindEvent(name, &count);
+    id = XcpCreateIndexedEvent(name, count + 1, cycleTimeNs, priority);
+    mutexUnlock(&gXcp.EventList.mutex);
+    return id;
 }
 
 // Add a measurement event to the event list, return event number (0..MAX_EVENT-1), thread safe, error if name exists
+// Thread safe
 tXcpEventId XcpCreateEvent(const char *name, uint32_t cycleTimeNs, uint8_t priority) {
-    if (XcpFindEvent(name, NULL) != XCP_UNDEFINED_EVENT_ID) {
-        DBG_PRINTF("Event '%s' already exists\n", name);
-        return XCP_UNDEFINED_EVENT_ID;
+    uint16_t count = 0;
+    mutexLock(&gXcp.EventList.mutex);
+    tXcpEventId id = XcpFindEvent(name, &count);
+    if (id != XCP_UNDEFINED_EVENT_ID) {
+        mutexUnlock(&gXcp.EventList.mutex);
+        DBG_PRINTF_WARNING("Event '%s' already exists\n", name);
+        if (count == 1)
+            return id; // Event already exists, return the existing event id
+        else
+            assert(0);
     }
-    return XcpCreateIndexedEvent(name, 0, cycleTimeNs, priority);
+    id = XcpCreateIndexedEvent(name, 0, cycleTimeNs, priority);
+    mutexUnlock(&gXcp.EventList.mutex);
+
+    return id;
 }
 
 #endif // XCP_ENABLE_DAQ_EVENT_LIST

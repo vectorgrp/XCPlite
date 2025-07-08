@@ -26,6 +26,98 @@
         },
         {
             "type": "shell",
+            "label": "build hello_xcp",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build",
+                "--target",
+                "hello_xcp"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Build hello_xcp target using CMake",
+            "dependsOn": "cmake configure"
+        },
+        {
+            "type": "shell",
+            "label": "build c_demo",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build",
+                "--target",
+                "c_demo"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Build c_demo target using CMake",
+            "dependsOn": "cmake configure"
+        },
+        {
+            "type": "shell",
+            "label": "build struct_demo",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build",
+                "--target",
+                "struct_demo"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Build struct_demo target using CMake",
+            "dependsOn": "cmake configure"
+        },
+        {
+            "type": "shell",
+            "label": "build multi_thread_demo",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build",
+                "--target",
+                "multi_thread_demo"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Build multi_thread_demo target using CMake",
+            "dependsOn": "cmake configure"
+        },
+        {
+            "type": "shell",
             "label": "build cpp_demo",
             "command": "cmake",
             "args": [

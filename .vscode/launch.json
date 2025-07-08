@@ -22,13 +22,13 @@
             "preLaunchTask": "build cpp_demo"
         },
         {
-            "name": "Debug cpp_demo (current file)",
+            "name": "Debug multi_thread_demo",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${fileDirname}/${fileBasenameNoExtension}",
+            "program": "${workspaceFolder}/build/multi_thread_demo.out",
             "args": [],
             "stopAtEntry": false,
-            "cwd": "${fileDirname}",
+            "cwd": "${workspaceFolder}",
             "environment": [],
             "externalConsole": false,
             "MIMode": "lldb",
@@ -39,7 +39,47 @@
                     "ignoreFailures": true
                 }
             ],
-            "preLaunchTask": "C/C++: clang Aktive Datei kompilieren"
+            "preLaunchTask": "build multi_thread_demo"
+        },
+        {
+            "name": "Debug struct_demo",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/struct_demo.out",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "build struct_demo"
+        },
+        {
+            "name": "Debug hello_xcp",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/hello_xcp.out",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "build hello_xcp"
         }
     ]
 }

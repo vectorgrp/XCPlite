@@ -21,23 +21,37 @@ constexpr double k2Pi = (kPi * 2);
 // Constructor - creates the signal generator with the given instance name and parameters
 SignalGenerator::SignalGenerator(const char *instance_name, SignalParametersT params) : signal_parameters_(instance_name, params), instance_name_(instance_name) {
 
-    // A2l registration of SignalParametersT
-    // All typedef and conversion registration macros use a once pattern, so there will be exactly one typedef in the A2L file
-    A2lTypedefBegin(SignalParametersT, "A2L typedef for SignalParametersT");
-    A2lCreateEnumConversion(signal_type_enum, "5 0 \"SINE\" 1 \"SQUARE\" 2 \"TRIANGLE\" 3 \"SAWTOOTH\" 4 \"ARBITRARY\"");
-    A2lTypedefParameterComponent(signal_type, SignalParametersT, "Signal type", signal_type_enum, 0, 4);
-    A2lTypedefParameterComponent(ampl, SignalParametersT, "Amplitude", "Volt", 0, 100);
-    A2lTypedefParameterComponent(phase, SignalParametersT, "Phase", "", 0, k2Pi);
-    A2lTypedefParameterComponent(offset, SignalParametersT, "Offset", "Volt", -100, 100);
-    A2lTypedefParameterComponent(period, SignalParametersT, "Period", "s", 0.01, 10.0);
-    A2lTypedefParameterComponent(delay_us, SignalParametersT, "Delay time in us", "us", 0, 100000);
-#ifdef CANAPE_24 // Shared axis in typedefs requires CANape 24
-    A2lTypedefCurveComponentWithSharedAxis(lookup_values, SignalParametersT, kLookupTableSize, "Lookup table with shared axis lookup_axis", "", -1.0, 1.0, "lookup_axis");
-    A2lTypedefAxisComponent(lookup_axis, SignalParametersT, kLookupTableSize, "Axis for lookup table in", "", -0.0, 1.0);
+// A2l registration of LookupTableT typedef
+#ifdef CANAPE_24_NESTED // Shared axis in typedefs requires CANape 24
+    A2lOnce(LookupTableT) {
+        A2lTypedefBegin(LookupTableT, "A2L typedef for LookupTableT");
+        A2lTypedefCurveComponentWithSharedAxis(values, LookupTableT, kLookupTableSize, "Lookup table with shared axis", "", -1.0, 1.0, "axis");
+        A2lTypedefAxisComponent(axis, LookupTableT, kLookupTableSize, "Axis for lookup table in", "", -0.0, 1.0);
+        A2lTypedefEnd();
+    }
 #endif
-    A2lTypedefEnd();
 
-    // Add the calibration segment description as a typedef instance to the A2L file
+    // A2l registration of SignalParametersT typedef
+    A2lOnce(SignalParametersT) {
+        A2lTypedefBegin(SignalParametersT, "A2L typedef for SignalParametersT");
+        A2lCreateEnumConversion(signal_type_enum, "5 0 \"SINE\" 1 \"SQUARE\" 2 \"TRIANGLE\" 3 \"SAWTOOTH\" 4 \"ARBITRARY\"");
+        A2lTypedefParameterComponent(signal_type, SignalParametersT, "Signal type", signal_type_enum, 0, 4);
+        A2lTypedefParameterComponent(ampl, SignalParametersT, "Amplitude", "Volt", 0, 100);
+        A2lTypedefParameterComponent(phase, SignalParametersT, "Phase", "", 0, k2Pi);
+        A2lTypedefParameterComponent(offset, SignalParametersT, "Offset", "Volt", -100, 100);
+        A2lTypedefParameterComponent(period, SignalParametersT, "Period", "s", 0.01, 10.0);
+        A2lTypedefParameterComponent(delay_us, SignalParametersT, "Delay time in us", "us", 0, 100000);
+#ifdef CANAPE_24 // Shared axis in typedefs requires CANape 24
+        A2lTypedefCurveComponentWithSharedAxis(lookup_values, SignalParametersT, kLookupTableSize, "Lookup table with shared axis lookup_axis", "", -1.0, 1.0, "lookup_axis");
+        A2lTypedefAxisComponent(lookup_axis, SignalParametersT, kLookupTableSize, "Axis for lookup table in", "", -0.0, 1.0);
+#endif
+#ifdef CANAPE_24_NESTED // Shared axis in typedefs requires CANape 24
+        A2lTypedefComponent(lookup, LookupTableT, 1, SignalParametersT);
+#endif
+        A2lTypedefEnd();
+    }
+
+    // Create an instance of the signal generatores calibration segment
     signal_parameters_.CreateA2lTypedefInstance("SignalParametersT", "Signal parameters for the signal generator");
 
     // Start thread
@@ -65,7 +79,7 @@ void SignalGenerator::Task() {
     DaqCreateEvent_s(instance_name_);
 
     // A2L registration
-    // Register the member variable 'value' of this instance as measurement
+    // Register the member variables 'value' and 'time' of each instance as measurement
     // Register the local (stack) measurement variable 'time' for measurement
     A2lLock(); // Take care for thread safety when registering measurements and parameters in multiple threads
     A2lSetRelativeAddrMode_s(instance_name_, this);
@@ -95,21 +109,30 @@ void SignalGenerator::Task() {
             case SignalTypeT::SAWTOOTH:
                 v = (normalized_time - 0.5) * 2.0;
                 break;
+#if defined(CANAPE_24) || defined(CANAPE_24_NESTED) // Shared axis in typedefs requires CANape 24
             case SignalTypeT::ARBITRARY: {
                 // Find the index in the lookup table based on the time
-                v = p->lookup_values[kLookupTableSize - 1];
+#if defined(CANAPE_24_NESTED)
+                const float *values = p->lookup.values; // Use the lookup table values
+                const float *axis = p->lookup.axis;     // Use the lookup table axis
+#else
+                const float *values = p->lookup_values; // Use the lookup table values
+                const float *axis = p->lookup_axis;     // Use the lookup table axis
+#endif
+                v = values[kLookupTableSize - 1];
                 for (uint8_t i = 0; i < kLookupTableSize - 1; i++) {
-                    if (normalized_time < p->lookup_axis[i + 1]) {
+                    if (normalized_time < axis[i + 1]) {
                         // Linear interpolation between the two points
-                        double t1 = p->lookup_axis[i];
-                        double t2 = p->lookup_axis[i + 1];
-                        double v1 = p->lookup_values[i];
-                        double v2 = p->lookup_values[i + 1];
+                        double t1 = axis[i];
+                        double t2 = axis[i + 1];
+                        double v1 = values[i];
+                        double v2 = values[i + 1];
                         v = v1 + (v2 - v1) * (normalized_time - t1) / (t2 - t1);
                         break;
                     }
                 };
             } break;
+#endif
             default:
                 v = sin((normalized_time * k2Pi) + p->phase);
                 break;

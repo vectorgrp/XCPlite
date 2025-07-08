@@ -2,6 +2,9 @@
 
 cmake_minimum_required(VERSION 3.5)
 
+# Enable compile commands for VS Code IntelliSense
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 project(xcplib VERSION 1.0.0 LANGUAGES C CXX)
 
 
@@ -37,15 +40,15 @@ message(STATUS "PROJECT_ROOT is: ${PROJECT_ROOT}")
 
 # xcplib
 if(PLATFORM_64BIT)
-set(xcplib_SOURCES src/xcpAppl.c src/xcpLite.c src/xcpEthServer.c src/xcpEthTl.c src/xcpQueue64.c src/a2l.c src/platform.c   )   
+set(xcplib_SOURCES src/xcpAppl.c src/xcpLite.c src/xcpEthServer.c src/xcpEthTl.c src/xcpQueue64.c src/a2l.c src/platform.c )   
 else()
-set(xcplib_SOURCES src/xcpAppl.c src/xcpLite.c src/xcpEthServer.c src/xcpEthTl.c  src/xcpQueue32.c src/a2l.c src/platform.c   )   
+set(xcplib_SOURCES src/xcpAppl.c src/xcpLite.c src/xcpEthServer.c src/xcpEthTl.c  src/xcpQueue32.c src/a2l.c src/platform.c )   
 endif()
 
 
 set_source_files_properties(${xcplib_SOURCES} PROPERTIES LANGUAGE C)
 add_library(xcplib ${xcplib_SOURCES})
-target_include_directories(xcplib PUBLIC "${PROJECT_ROOT}/src" )
+target_include_directories(xcplib PUBLIC "${PROJECT_ROOT}/" "${PROJECT_ROOT}/src" )
 target_compile_options(xcplib
     PRIVATE
         -Wall
@@ -58,42 +61,31 @@ target_compile_options(xcplib
 
 # Example hello_xcp
 add_executable(hello_xcp examples/hello_xcp/src/main.c)
-target_include_directories(hello_xcp PUBLIC "${PROJECT_ROOT}" )
+target_include_directories(hello_xcp PUBLIC "${PROJECT_ROOT}" "${PROJECT_ROOT}/src")
 target_link_libraries( hello_xcp PRIVATE xcplib)
 
 # Example c_demo
 add_executable(c_demo examples/c_demo/src/main.c)
-target_include_directories(c_demo PUBLIC "${PROJECT_ROOT}" )
+target_include_directories(c_demo PUBLIC "${PROJECT_ROOT}" "${PROJECT_ROOT}/src")
 target_link_libraries(c_demo PRIVATE xcplib)
 
 # Example struct_demo
 add_executable(struct_demo examples/struct_demo/src/main.c)
-target_include_directories(struct_demo PUBLIC "${PROJECT_ROOT}" )
+target_include_directories(struct_demo PUBLIC "${PROJECT_ROOT}" "${PROJECT_ROOT}/src")
 target_link_libraries(struct_demo PRIVATE xcplib)
 
 # Example multi_thread_demo
 add_executable(multi_thread_demo examples/multi_thread_demo/src/main.c)
-target_include_directories(multi_thread_demo PUBLIC "${PROJECT_ROOT}" )
+target_include_directories(multi_thread_demo PUBLIC "${PROJECT_ROOT}" "${PROJECT_ROOT}/src")
 target_link_libraries(multi_thread_demo PRIVATE xcplib)
 
 # Example cpp_demo
 add_executable(cpp_demo examples/cpp_demo/src/main.cpp examples/cpp_demo/src/sig_gen.cpp)
 target_compile_options(cpp_demo PRIVATE -std=c++11 )
-target_include_directories(cpp_demo PUBLIC "${PROJECT_ROOT}" )
+target_include_directories(cpp_demo PUBLIC "${PROJECT_ROOT}" "${PROJECT_ROOT}/src")
 target_link_libraries(cpp_demo PRIVATE xcplib)
 
-# Type detection test (C version)
-set_source_files_properties(test/type_detection_test/src/main.c PROPERTIES LANGUAGE C)
-add_executable(type_detection_test_c test/type_detection_test/src/main.c)
-target_include_directories(type_detection_test_c PUBLIC "${PROJECT_ROOT}" )
-target_link_libraries(type_detection_test_c PRIVATE xcplib)
 
-# Type detection test (C++ version)
-set_source_files_properties(test/type_detection_test/src/main.cpp PROPERTIES LANGUAGE CXX)
-add_executable(type_detection_test_cpp test/type_detection_test/src/main.cpp)
-target_compile_options(type_detection_test_cpp PRIVATE -std=c++11 )
-target_include_directories(type_detection_test_cpp PUBLIC "${PROJECT_ROOT}" )
-target_link_libraries(type_detection_test_cpp PRIVATE xcplib)
 
 
 if (WINDOWS)
@@ -107,7 +99,6 @@ else ()
     set_target_properties(struct_demo PROPERTIES SUFFIX ".out")
     set_target_properties(multi_thread_demo PROPERTIES SUFFIX ".out")
     set_target_properties(cpp_demo PROPERTIES SUFFIX ".out")
-    set_target_properties(type_detection_test_c PROPERTIES SUFFIX ".out")
-    set_target_properties(type_detection_test_cpp PROPERTIES SUFFIX ".out")
+    
 
 endif ()

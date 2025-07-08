@@ -19,10 +19,19 @@ enum SignalTypeT : std::uint8_t {
 };
 
 // Typedefs with maps or curves with shared axis require CANape 24
-#define CANAPE_24 // Define this to enable CANape 24 specific features
+#define CANAPE_24
+// #define CANAPE_24_NESTED
 
 // Lookup table for arbitrary waveforms
 constexpr uint8_t kLookupTableSize = 11; // Size of the lookup table
+
+// Lookup table struct
+#ifdef CANAPE_24_NESTED
+struct LookupTableT {
+    float values[kLookupTableSize]; // Values
+    float axis[kLookupTableSize];   // Axis
+};
+#endif
 
 // Signal parameters struct
 struct SignalParametersT {
@@ -34,6 +43,9 @@ struct SignalParametersT {
 #ifdef CANAPE_24
     float lookup_values[kLookupTableSize]; // Values
     float lookup_axis[kLookupTableSize];   // Axis
+#endif
+#ifdef CANAPE_24_NESTED
+    LookupTableT lookup;
 #endif
     uint32_t delay_us;   // Delay in microseconds for the task loop
     uint8_t signal_type; // Type of the signal (SignalTypeT)
