@@ -819,9 +819,7 @@ const char *A2lCreateEnumConversion_(const char *name, const char *enum_descript
 
 // Begin a typedef structure
 void A2lTypedefBegin_(const char *name, uint32_t size, const char *comment) {
-
     if (gA2lFile != NULL) {
-
         fprintf(gA2lFile, "/begin TYPEDEF_STRUCTURE %s \"%s\" 0x%X", name, comment, size);
         fprintf(gA2lFile, "\n");
         gA2lTypedefs++;
@@ -830,7 +828,6 @@ void A2lTypedefBegin_(const char *name, uint32_t size, const char *comment) {
 
 // End a typedef structure
 void A2lTypedefEnd_(void) {
-
     if (gA2lFile != NULL) {
         fprintf(gA2lFile, "/end TYPEDEF_STRUCTURE\n");
     }
@@ -838,13 +835,11 @@ void A2lTypedefEnd_(void) {
 
 // For scalar or one dimensional measurement and parameter components of basic types
 void A2lTypedefComponent_(const char *name, const char *type_name, uint16_t x_dim, uint32_t offset) {
-
     if (gA2lFile != NULL) {
         fprintf(gA2lFile, "  /begin STRUCTURE_COMPONENT %s %s 0x%X", name, type_name, offset);
         if (x_dim > 1)
             fprintf(gA2lFile, " MATRIX_DIM %u", x_dim);
         fprintf(gA2lFile, " /end STRUCTURE_COMPONENT\n");
-
         gA2lComponents++;
     }
 }
@@ -869,7 +864,6 @@ void A2lTypedefMeasurementComponent_(const char *name, const char *type_name, ui
 // For multidimensional parameter components with TYPEDEF_CHARACTERISTIC for fields with comment, unit, min, max
 void A2lTypedefParameterComponent_(const char *name, const char *type_name, uint16_t x_dim, uint16_t y_dim, uint32_t offset, const char *comment, const char *unit_or_conversion,
                                    double min, double max, const char *x_axis, const char *y_axis) {
-
     if (gA2lFile != NULL) {
 
         assert(gA2lTypedefsFile != NULL);
@@ -1168,7 +1162,6 @@ void A2lCreateParameterGroup(const char *name, int count, ...) {
 }
 
 void A2lCreateParameterGroupFromList(const char *name, const char *pNames[], int count) {
-
     if (gA2lFile != NULL) {
         assert(gA2lGroupsFile != NULL);
         A2lEndGroup(); // End the previous group if any

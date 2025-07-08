@@ -76,6 +76,8 @@ static inline tXcpContext *XcpGetContext(void) { return &gXcpContext; }
 static inline const char *XcpGetContextName(void) { return gXcpContext.name; }
 
 // Begin a span, create a span event once
+// Trigger the span event on entry
+// Note: The once pattern to create the span event must not be thread safe, because XcpCreateEvent is, and returns the id of an event which does already exit
 #define BeginSpan(name)                                                                                                                                                            \
     static tXcpEventId span_id = XCP_UNDEFINED_EVENT_ID;                                                                                                                           \
     if (span_id == XCP_UNDEFINED_EVENT_ID) {                                                                                                                                       \
@@ -88,12 +90,15 @@ static inline const char *XcpGetContextName(void) { return gXcpContext.name; }
     XcpEventDynRelAt(ctx->id, (const uint8_t *)ctx, get_stack_frame_pointer(), 0);
 
 // End span
+// Trigger the span event on exit
 #define EndSpan()                                                                                                                                                                  \
     ctx->span_id = previous_span_id;                                                                                                                                               \
     ctx->level--;                                                                                                                                                                  \
     XcpEventDynRelAt(ctx->id, (const uint8_t *)ctx, get_stack_frame_pointer(), 0);
 
-// Create a named context with an event of the same name and register it as A2L typedef instance tied to the event
+// Create a named context
+// Create the context event (name is 'context_name'_'context_index')
+// Register the context struct  as A2L typedef instance tied to the context event
 static uint16_t XcpCreateContext(const char *context_name, uint16_t context_index) {
 
     // Once:
@@ -205,7 +210,7 @@ void *task(void *p)
 
     bool run = true;
     uint32_t delay_us = 1000;
-    uint64_t start_time = ApplXcpGetClock64(); // Get the start time in clock ticks CLOCK_TICKS_PER_S
+    uint64_t start_time = clockGet(); // Get the start time in clock ticks CLOCK_TICKS_PER_S
 
     // Task local measurement variables on stack
     uint16_t counter = 0;
@@ -248,7 +253,7 @@ void *task(void *p)
                 counter = 0;
             }
 
-            time = (double)(ApplXcpGetClock64() - start_time) / CLOCK_TICKS_PER_S;        // Calculate elapsed time in seconds
+            time = (double)(clockGet() - start_time) / CLOCK_TICKS_PER_S;                 // Calculate elapsed time in seconds
             double normalized_time = M_2PI * fmod(time, params->period) / params->period; // Normalize time ([0.0..M_2PI[ to the period
 
             channel1 = params->ampl * sin(normalized_time);                    // Sine wave

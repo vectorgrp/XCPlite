@@ -1,4 +1,4 @@
-# XCPlite V0.9.2
+# XCPlite V0.9.1
 
 XCPlite is a lightweight pure C implementation of the ASAM XCP V1.4 standard protocol for measurement and calibration of electronic control units.  
 It supports XCP on TCP or UDP with jumbo frames.  
@@ -114,16 +114,16 @@ Future versions of the A2L updaters might support these addressing schemes.
 
 ## Platform requirements
 
-- Atomics (C11 stdatomic.h - atomic_bool, atomic_uintptr_t, atomic_uint8_t, compare_exchange, fetch_sub).
-Used for lock free queue (xcpQueue64), lock free calibration segments, DYN address mode cmd pending state, DAQ running state.
-- THREAD (Linux: pthread_create, pthread_join, pthread_cancel).
-Used for XCP transmit and receive thread.
-- THREAD_LOCAL (C11:_Thread_local).
-Used for the DaqEvent macros and A2L generation
-- MUTEX (Linux: pthread_mutex_lock, pthread_mutex_unlock).
-Used for 32 Bit Queue acquire, queue consumer incrementing the transport layer counter, thread safe creating event and calseg, thread safe lazy A2L registration.
-- SleepMs, SleepNs (Linux: nanosleep).
-Used for reveive thread polling loop.
-- Clock (Linux: clock_gettime).
-Used for DAQ timestamp clock.
-- Sockets (Linux: socket, ...).
+- Atomics (C11 stdatomic.h - atomic_bool, atomic_uintptr_t, atomic_uint8_t, compare_exchange, fetch_sub).  
+Used for lock free queue (xcpQueue64), lock free calibration segments, DYN address mode cmd pending state, DAQ running state.  
+- THREAD (Linux: pthread_create, pthread_join, pthread_cancel).  
+Used for XCP transmit and receive thread.  
+- THREAD_LOCAL (C11:_Thread_local).  
+Used for the DaqEvent macros and A2L generation.
+- MUTEX (Linux: pthread_mutex_lock, pthread_mutex_unlock).  
+Used for 32 Bit Queue acquire, queue consumer incrementing the transport layer counter, thread safe creating event and calseg, thread safe lazy A2L registration.  
+- SleepMs, SleepNs (Linux: nanosleep).  
+Used for reveive thread polling loop.  
+- Clock (Linux: clock_gettime).  
+Used for DAQ timestamp clock.  
+- Sockets (Linux: socket, ...).  

@@ -224,7 +224,7 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
 
 // Helper macros for array element type detection (works with multi-dimensional arrays)
 #ifdef __cplusplus
-#define A2lGetArrayElementTypeId(array) A2lTypeTraits::GetTypeIdFromExpr((array)[0])
+#define A2lGetArray1DElementTypeId(array) A2lTypeTraits::GetTypeIdFromExpr((array)[0])
 #define A2lGetArray2DElementTypeId(array) A2lTypeTraits::GetTypeIdFromExpr((array)[0][0])
 
 // Alternative macro using decltype (C++11) for maximum robustness
@@ -235,7 +235,7 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
 #endif
 
 #else
-#define A2lGetArrayElementTypeId(array) A2lGetTypeId((array)[0])
+#define A2lGetArray1DElementTypeId(array) A2lGetTypeId((array)[0])
 #define A2lGetArray2DElementTypeId(array) A2lGetTypeId((array)[0][0])
 #endif
 
@@ -250,9 +250,20 @@ const char *A2lGetA2lTypeName_C(tA2lTypeId type);
 const char *A2lGetRecordLayoutName_(tA2lTypeId type);
 
 #define A2lGetTypeName(type) A2lGetA2lTypeName(A2lGetTypeId(type))
+#define A2lGetTypeName1D(type) A2lGetA2lTypeName(A2lGetArray1DElementTypeId(type))
+#define A2lGetTypeName2D(type) A2lGetA2lTypeName(A2lGetArray2DElementTypeId(type))
+
 #define A2lGetTypeName_M(type) A2lGetA2lTypeName_M(A2lGetTypeId(type))
+#define A2lGetTypeName1D_M(type) A2lGetA2lTypeName_M(A2lGetArray1DElementTypeId(type))
+#define A2lGetTypeName2D_M(type) A2lGetA2lTypeName_M(A2lGetArray2DElementTypeId(type))
+
 #define A2lGetTypeName_C(type) A2lGetA2lTypeName_C(A2lGetTypeId(type))
+#define A2lGetTypeName1D_C(type) A2lGetA2lTypeName_C(A2lGetArray1DElementTypeId(type))
+#define A2lGetTypeName2D_C(type) A2lGetA2lTypeName_C(A2lGetArray2DElementTypeId(type))
+
 #define A2lGetRecordLayoutName(type) A2lGetRecordLayoutName_(A2lGetTypeId(type))
+#define A2lGetRecordLayoutName1D(type) A2lGetRecordLayoutName_(A2lGetArray1DElementTypeId(type))
+#define A2lGetRecordLayoutName2D(type) A2lGetRecordLayoutName_(A2lGetArray2DElementTypeId(type))
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Addressing mode convenience macros
@@ -290,8 +301,8 @@ const char *A2lGetRecordLayoutName_(tA2lTypeId type);
     A2lCreateParameter_(#instance_name "." #name, A2lGetTypeId(instance_name.name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&instance_name.name), comment, unit, min, max);
 
 #define A2lCreateCurve(instance_name, name, xdim, comment, unit, min, max)                                                                                                         \
-    A2lCreateCurve_(#instance_name "." #name, A2lGetArrayElementTypeId(instance_name.name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&instance_name.name[0]), xdim, comment, unit, \
-                    min, max);
+    A2lCreateCurve_(#instance_name "." #name, A2lGetArray1DElementTypeId(instance_name.name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&instance_name.name[0]), xdim, comment,     \
+                    unit, min, max);
 
 #define A2lCreateMap(instance_name, name, xdim, ydim, comment, unit, min, max)                                                                                                     \
     A2lCreateMap_(#instance_name "." #name, A2lGetArray2DElementTypeId(instance_name.name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&instance_name.name[0][0]), xdim, ydim,       \
@@ -314,10 +325,11 @@ const char *A2lGetRecordLayoutName_(tA2lTypeId type);
     A2lCreateMeasurement_(NULL, #name, A2lGetTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&(name)), unit_or_conversion, min, max, comment);
 
 #define A2lCreateMeasurementArray(name, comment, unit_or_conversion)                                                                                                               \
-    A2lCreateMeasurementArray_(NULL, #name, A2lGetTypeId(name[0]), sizeof(name) / sizeof(name[0]), 1, A2lGetAddrExt_(), A2lGetAddr_(&name[0]), unit_or_conversion, comment);
+    A2lCreateMeasurementArray_(NULL, #name, A2lGetArray1DElementTypeId(name), sizeof(name) / sizeof(name[0]), 1, A2lGetAddrExt_(), A2lGetAddr_(&name[0]), unit_or_conversion,      \
+                               comment);
 
 #define A2lCreateMeasurementMatrix(name, comment, unit_or_conversion)                                                                                                              \
-    A2lCreateMeasurementArray_(NULL, #name, A2lGetTypeId(name[0][0]), sizeof(name[0]) / sizeof(name[0][0]), sizeof(name) / sizeof(name[0]), A2lGetAddrExt_(),                      \
+    A2lCreateMeasurementArray_(NULL, #name, A2lGetArray2DElementTypeId(name), sizeof(name[0]) / sizeof(name[0][0]), sizeof(name) / sizeof(name[0]), A2lGetAddrExt_(),              \
                                A2lGetAddr_(&name[0]), unit_or_conversion, comment);
 
 // With instance name
@@ -367,56 +379,56 @@ const char *A2lGetRecordLayoutName_(tA2lTypeId type);
 #define A2lTypedefCurveComponent(field_name, typeName, x_dim, comment, unit, min, max)                                                                                             \
     {                                                                                                                                                                              \
         typeName instance;                                                                                                                                                         \
-        A2lTypedefParameterComponent_(#field_name, A2lGetRecordLayoutName(instance.field_name[0]), x_dim, 1, ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance), comment,  \
+        A2lTypedefParameterComponent_(#field_name, A2lGetRecordLayoutName1D(instance.field_name), x_dim, 1, ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance), comment,   \
                                       unit, min, max, NULL, NULL);                                                                                                                 \
     }
 
 #define A2lTypedefCurveComponentWithSharedAxis(field_name, typeName, x_dim, comment, unit, min, max, x_axis)                                                                       \
     {                                                                                                                                                                              \
         typeName instance;                                                                                                                                                         \
-        A2lTypedefParameterComponent_(#field_name, A2lGetRecordLayoutName(instance.field_name[0]), x_dim, 1, ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance), comment,  \
+        A2lTypedefParameterComponent_(#field_name, A2lGetRecordLayoutName1D(instance.field_name), x_dim, 1, ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance), comment,   \
                                       unit, min, max, x_axis, NULL);                                                                                                               \
     }
 
 #define A2lTypedefMapComponent(field_name, typeName, x_dim, y_dim, comment, unit, min, max)                                                                                        \
     {                                                                                                                                                                              \
         typeName instance;                                                                                                                                                         \
-        A2lTypedefParameterComponent_(#field_name, A2lGetRecordLayoutName(instance.field_name[0][0]), x_dim, y_dim, ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance),    \
+        A2lTypedefParameterComponent_(#field_name, A2lGetRecordLayoutName2D(instance.field_name), x_dim, y_dim, ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance),        \
                                       comment, unit, min, max, NULL, NULL);                                                                                                        \
     }
 
 #define A2lTypedefMapComponentWithSharedAxis(field_name, typeName, x_dim, y_dim, comment, unit, min, max, x_axis, y_axis)                                                          \
     {                                                                                                                                                                              \
         typeName instance;                                                                                                                                                         \
-        A2lTypedefParameterComponent_(#field_name, A2lGetRecordLayoutName(instance.field_name[0][0]), x_dim, y_dim, ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance),    \
+        A2lTypedefParameterComponent_(#field_name, A2lGetRecordLayoutName2D(instance.field_name), x_dim, y_dim, ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance),        \
                                       comment, unit, min, max, x_axis, y_axis);                                                                                                    \
     }
 
 #define A2lTypedefAxisComponent(field_name, typeName, x_dim, comment, unit, min, max)                                                                                              \
     {                                                                                                                                                                              \
         typeName instance;                                                                                                                                                         \
-        A2lTypedefParameterComponent_(#field_name, A2lGetRecordLayoutName(instance.field_name[0]), x_dim, 0, ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance), comment,  \
+        A2lTypedefParameterComponent_(#field_name, A2lGetRecordLayoutName1D(instance.field_name), x_dim, 0, ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance), comment,   \
                                       unit, min, max, NULL, NULL);                                                                                                                 \
     }
 
 #define A2lTypedefMeasurementArrayComponent(field_name, typedef_name)                                                                                                              \
     {                                                                                                                                                                              \
         typedef_name instance;                                                                                                                                                     \
-        A2lTypedefComponent_(#field_name, A2lGetTypeName_M(instance.field_name[0]), sizeof(instance.field_name) / sizeof(instance.field_name[0]),                                  \
+        A2lTypedefComponent_(#field_name, A2lGetTypeName1D_M(instance.field_name), sizeof(instance.field_name) / sizeof(instance.field_name[0]),                                   \
                              ((uint8_t *)&(instance.field_name[0]) - (uint8_t *)&instance));                                                                                       \
     }
 
 #define A2lTypedefParameterArrayComponent(field_name, typeName, comment, unit, min, max)                                                                                           \
     {                                                                                                                                                                              \
         typeName instance;                                                                                                                                                         \
-        A2lTypedefComponent_(#field_name, A2lGetTypeName_C(instance.field_name[0]), sizeof(instance.field_name) / sizeof(instance.field_name[0]),                                  \
+        A2lTypedefComponent_(#field_name, A2lGetTypeName1D_C(instance.field_name), sizeof(instance.field_name) / sizeof(instance.field_name[0]),                                   \
                              ((uint8_t *)&(instance.field_name[0]) - (uint8_t *)&instance));                                                                                       \
     }
 
 #define A2lTypedefParameterMatrixComponent(field_name, typeName, comment, unit, min, max)                                                                                          \
     {                                                                                                                                                                              \
         typeName instance;                                                                                                                                                         \
-        A2lTypedefComponent_(#field_name, A2lGetTypeName_C(instance.field_name[0][0]), sizeof(instance.field_name) / sizeof(instance.field_name[0]),                               \
+        A2lTypedefComponent_(#field_name, A2lGetTypeName2D_C(instance.field_name), sizeof(instance.field_name) / sizeof(instance.field_name[0]),                                   \
                              ((uint8_t *)&(instance.field_name[0]) - (uint8_t *)&instance));                                                                                       \
     }
 
