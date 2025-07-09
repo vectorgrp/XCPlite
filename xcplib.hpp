@@ -5,9 +5,6 @@
 
 #include "xcplib.h"
 
-// #include <string>
-// #include <string_view>
-
 namespace xcplib {
 
 constexpr uint8_t XCP_ADDR_EXT_SEG = 0;

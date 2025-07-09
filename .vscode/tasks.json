@@ -180,59 +180,6 @@
                 "$gcc"
             ],
             "detail": "Configure CMake build system"
-        },
-        {
-            "type": "shell",
-            "label": "Generate Documentation",
-            "command": "cmake",
-            "args": [
-                "--build",
-                "build",
-                "--target",
-                "docs"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "group": "build",
-            "problemMatcher": [],
-            "detail": "Generate API documentation using Doxygen",
-            "dependsOn": "cmake configure"
-        },
-        {
-            "type": "shell",
-            "label": "Generate and Open Documentation",
-            "command": "cmake",
-            "args": [
-                "--build",
-                "build",
-                "--target",
-                "docs-open"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "group": "build",
-            "problemMatcher": [],
-            "detail": "Generate API documentation and open in browser",
-            "dependsOn": "cmake configure"
-        },
-        {
-            "type": "shell",
-            "label": "Clean Documentation",
-            "command": "cmake",
-            "args": [
-                "--build",
-                "build",
-                "--target",
-                "docs-clean"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "group": "build",
-            "problemMatcher": [],
-            "detail": "Clean generated documentation files"
         }
     ],
     "version": "2.0.0"

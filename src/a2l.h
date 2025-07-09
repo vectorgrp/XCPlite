@@ -31,29 +31,6 @@
 /// 3. Create measurements and parameters using the provided macros
 /// 4. Optionally finalize the A2L file with A2lFinalize() or automatic finalization at XCP tool connect
 ///
-/// @example
-/// @code
-/// // Initialize A2L generation
-/// A2lInit("myecu.a2l", "MyECU", ip_addr, port, false /* UDP */, true /* finalize_on_connect */ */, true /* auto_groups */);
-///
-/// // Create a measurement variable
-/// // static double engine_speed = 0.0;
-/// A2lCreatePhysMeasurement(engine_speed, "Engine speed", "rpm", 0.0, 8000.0);
-///
-/// // Create a calibration parameter segment with a parameter struct constant
-/// //typedef struct parameters {
-/// //    double max_speed;
-/// //    uint32_t timeout;
-/// //} parameters_t;
-/// //const parameters_t parameters = {.max_speed = 180, .timeout = 1000};
-///
-/// tXcpCalSegIndex calseg = XcpCreateCalSeg("Parameters", &parameters, sizeof(parameters));
-/// A2lCreateParameter(parameters, max_speed, "Maximum speed in Km/h", "Km/h", 0, 250);
-/// A2lCreateParameter(parameters, timeout, "Timeout", "us", 0, 10000);
-
-/// // Finalize the A2L file
-/// A2lFinalize();
-/// @endcode
 
 // Copyright(c) Vector Informatik GmbH.All rights reserved.
 // Licensed under the MIT license.See LICENSE file in the project root for details.

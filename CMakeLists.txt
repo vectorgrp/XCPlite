@@ -1,4 +1,3 @@
-# c_demo
 
 cmake_minimum_required(VERSION 3.5)
 
@@ -17,13 +16,6 @@ else()
 endif()
     
 
-# Enable doc
-if(NOT DEFINED ENABLE_DOC)
-    set(ENABLE_DOC TRUE)
-endif()
-if(ENABLE_DOC)
-message( "Docs enabled")    
-endif()
 
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
     message("Building for 64-bit platform")
@@ -147,72 +139,4 @@ else ()
 
 
 endif ()
-
-
-
-if (ENABLE_DOC)
-
-# Find Doxygen for documentation generation
-find_package(Doxygen OPTIONAL_COMPONENTS dot mscgen dia)
-if(DOXYGEN_FOUND)
-
-    # Set Doxygen variables
-    set(DOXYGEN_INPUT_DIR ${PROJECT_SOURCE_DIR})
-    set(DOXYGEN_OUTPUT_DIR ${PROJECT_SOURCE_DIR}/docs)
-    set(DOXYGEN_INDEX_FILE ${DOXYGEN_OUTPUT_DIR}/html/index.html)
-    
-    # Create the Doxyfile from template if needed
-    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile @ONLY)
-    
-    # Create output directory
-    file(MAKE_DIRECTORY ${DOXYGEN_OUTPUT_DIR})
-    
-    # Custom target for generating documentation
-    add_custom_target(docs
-        COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMENT "Generating API documentation with Doxygen"
-        VERBATIM
-    )
-    
-    # Custom target for cleaning documentation
-    add_custom_target(docs-clean
-        COMMAND ${CMAKE_COMMAND} -E rm -rf ${DOXYGEN_OUTPUT_DIR}
-        COMMENT "Cleaning generated documentation"
-    )
-    
-    # Custom target for opening documentation in browser (macOS/Linux)
-    if(APPLE)
-        add_custom_target(docs-open
-            COMMAND open ${DOXYGEN_INDEX_FILE}
-            DEPENDS docs
-            COMMENT "Opening documentation in default browser"
-        )
-    elseif(UNIX)
-        add_custom_target(docs-open
-            COMMAND xdg-open ${DOXYGEN_INDEX_FILE}
-            DEPENDS docs
-            COMMENT "Opening documentation in default browser"
-        )
-    endif()
-    
-    message(STATUS "Doxygen found: ${DOXYGEN_EXECUTABLE}")
-    message(STATUS "Documentation will be generated in: ${DOXYGEN_OUTPUT_DIR}")
-    message(STATUS "Use 'make docs' to generate documentation")
-    message(STATUS "Use 'make docs-open' to generate and open documentation")
-else()
-    message(STATUS "Doxygen not found. Documentation generation not available.")
-    message(STATUS "Install doxygen to enable documentation generation:")
-    if(APPLE)
-        message(STATUS "  brew install doxygen")
-        message(STATUS "  brew install graphviz  # Optional: for graphs")
-    elseif(UNIX)
-        message(STATUS "  sudo apt-get install doxygen")
-        message(STATUS "  sudo apt-get install graphviz  # Optional: for graphs")
-    endif()
-endif()
-endif()
-
-
-
 
