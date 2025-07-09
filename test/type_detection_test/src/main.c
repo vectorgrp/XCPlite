@@ -84,9 +84,9 @@ int main() {
 
     // Test helper macros
     printf("\nHelper macros:\n");
-    printf("  A2lGetArrayElementTypeId(curve_data): %s\n", type_id_to_string(A2lGetArrayElementTypeId(test_instance.curve_data)));
+    printf("  A2lGetArrayElementTypeId(curve_data): %s\n", type_id_to_string(A2lGetArray1DElementTypeId(test_instance.curve_data)));
     printf("  A2lGetArray2DElementTypeId(map_data): %s\n", type_id_to_string(A2lGetArray2DElementTypeId(test_instance.map_data)));
-    assert(A2lGetArrayElementTypeId(test_instance.curve_data) == A2L_TYPE_UINT16);
+    assert(A2lGetArray1DElementTypeId(test_instance.curve_data) == A2L_TYPE_UINT16);
     assert(A2lGetArray2DElementTypeId(test_instance.map_data) == A2L_TYPE_FLOAT);
 
     return 0;

@@ -461,9 +461,11 @@ static void A2lCreate_MOD_PAR(void) {
         // Calibration segments are implicitly indexed
         // The segment number used in XCP commands XCP_SET_CAL_PAGE, GET_CAL_PAGE, XCP_GET_SEGMENT_INFO, ... are the indices of the segments starting with 0
         tXcpCalSegList const *calSegList = XcpGetCalSegList();
-        for (uint32_t i = 0; i < calSegList->count; i++) {
-            tXcpCalSeg const *calseg = &calSegList->calseg[i];
-            fprintf(gA2lFile, gA2lMemorySegment, calseg->name, ((i + 1) << 16) | 0x80000000, calseg->size);
+        if (calSegList != NULL && calSegList->count > 0) {
+            for (uint32_t i = 0; i < calSegList->count; i++) {
+                tXcpCalSeg const *calseg = &calSegList->calseg[i];
+                fprintf(gA2lFile, gA2lMemorySegment, calseg->name, ((i + 1) << 16) | 0x80000000, calseg->size);
+            }
         }
 
         fprintf(gA2lFile, "/end MOD_PAR\n\n");
@@ -489,7 +491,7 @@ static void A2lCreate_IF_DATA_DAQ(void) {
     // Event list in A2L file (if event info by XCP is not active)
 #if defined(XCP_ENABLE_DAQ_EVENT_LIST) && !defined(XCP_ENABLE_DAQ_EVENT_INFO)
     eventList = XcpGetEventList();
-    eventCount = eventList->count;
+    eventCount = eventList != NULL ? eventList->count : 0;
 #endif
 
     fprintf(gA2lFile, gA2lIfDataBeginDAQ, eventCount, XCP_TIMESTAMP_UNIT_S);
@@ -568,39 +570,55 @@ static void A2lCreateMeasurement_IF_DATA(void) {
 // Raw functions to set addressing mode unchecked (by calibration segment index or event id)
 // -> XCP_ADDR_EXT_SEG/ABS/DYN/REL
 
-void A2lSetSegAddrMode(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance_addr) {
+// Calibration segment addressing mode
+// Used for calibration parameters ins a XCP calibration segments (A2L MEMORY_SEGMENT)
+// XCP address extension = 0 XCP_ADDR_EXT_SEG
+// XCP address is uint32_t offset to the segment base address
+static void A2lSetSegAddrMode(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance_addr) {
     gA2lAddrIndex = calseg_index;
     gA2lAddrBase = calseg_instance_addr; // Address of a a the calibration segment instance which is used in the macros to create the components
     gAl2AddrExt = XCP_ADDR_EXT_SEG;
 }
 
-void A2lSetAbsAddrMode(tXcpEventId default_event_id) {
+// Absolute addressing mode
+// XCP address extension = 1 XCP_ADDR_EXT_ABS
+// XCP address is the absolute address of the variable relative to the main module load address
+static void A2lSetAbsAddrMode(tXcpEventId default_event_id) {
     gA2lFixedEvent = XCP_UNDEFINED_EVENT_ID;
     gA2lDefaultEvent = default_event_id;
     gAl2AddrExt = XCP_ADDR_EXT_ABS;
 }
 
-void A2lSetRelAddrMode(tXcpEventId event_id, const uint8_t *base) {
+// Relative addressing mode
+// Used for accessing stack variable relativ to the stack frame pointer
+// XCP address extension = 3 XCP_ADDR_EXT_REL
+// XCP address is int32_t offset to the stack frame pointer
+static void A2lSetRelAddrMode(tXcpEventId event_id, const uint8_t *base) {
     gA2lAddrBase = base;
     gA2lFixedEvent = event_id;
     gA2lDefaultEvent = XCP_UNDEFINED_EVENT_ID;
     gAl2AddrExt = XCP_ADDR_EXT_REL;
 }
 
-void A2lSetDynAddrMode(tXcpEventId event_id, const uint8_t *base) {
+// Dynamic addressing mode
+// Relative address, used for heap and class members
+// Enables XCP polling access
+// XCP address extension = 2 XCP_ADDR_EXT_DYN
+// XCP address is int16_t offset to the given base address, high word of the address is the event id
+static void A2lSetDynAddrMode(tXcpEventId event_id, const uint8_t *base) {
     gA2lAddrBase = base;
     gA2lFixedEvent = event_id;
     gA2lDefaultEvent = XCP_UNDEFINED_EVENT_ID;
     gAl2AddrExt = XCP_ADDR_EXT_DYN;
 }
 
-void A2lRstAddrMode(void) {
-    gA2lFixedEvent = XCP_UNDEFINED_EVENT_ID;
-    gA2lDefaultEvent = XCP_UNDEFINED_EVENT_ID;
-    gA2lAddrBase = NULL;
-    gA2lAddrIndex = 0;
-    gAl2AddrExt = XCP_UNDEFINED_ADDR_EXT;
-}
+// static void A2lRstAddrMode(void) {
+//     gA2lFixedEvent = XCP_UNDEFINED_EVENT_ID;
+//     gA2lDefaultEvent = XCP_UNDEFINED_EVENT_ID;
+//     gA2lAddrBase = NULL;
+//     gA2lAddrIndex = 0;
+//     gAl2AddrExt = XCP_UNDEFINED_ADDR_EXT;
+// }
 
 //----------------------------------------------------------------------------------
 // Set addressing mode (by event name or calibration segment index lookup and runtime check)
@@ -1242,28 +1260,29 @@ bool A2lFinalize(void) {
 
 #if defined(XCP_ENABLE_DAQ_EVENT_LIST) && !defined(XCP_ENABLE_DAQ_EVENT_INFO)
         tXcpEventList *eventList = XcpGetEventList();
-
-        // Create a enum conversion with all event ids
-        fprintf(gA2lConversionsFile, "/begin COMPU_METHOD conv.events \"\" TAB_VERB \"%%.0 \" \"\" COMPU_TAB_REF conv.events.table /end COMPU_METHOD\n");
-        fprintf(gA2lConversionsFile, "/begin COMPU_VTAB conv.events.table \"\" TAB_VERB %u\n", eventList->count);
-        for (uint32_t id = 0; id < eventList->count; id++) {
-            tXcpEvent *event = &eventList->event[id];
-            fprintf(gA2lConversionsFile, " %u \"%s\"", id, event->name);
-        }
-        fprintf(gA2lConversionsFile, "\n/end COMPU_VTAB\n");
-
-        // Create a sub group for all events
-        if (gA2lAutoGroups) {
-            fprintf(gA2lGroupsFile, "/begin GROUP Events \"Events\" ROOT /begin SUB_GROUP");
+        if (eventList != NULL && eventList->count > 0) {
+            // Create a enum conversion with all event ids
+            fprintf(gA2lConversionsFile, "/begin COMPU_METHOD conv.events \"\" TAB_VERB \"%%.0 \" \"\" COMPU_TAB_REF conv.events.table /end COMPU_METHOD\n");
+            fprintf(gA2lConversionsFile, "/begin COMPU_VTAB conv.events.table \"\" TAB_VERB %u\n", eventList->count);
             for (uint32_t id = 0; id < eventList->count; id++) {
                 tXcpEvent *event = &eventList->event[id];
-                uint16_t index = event->index;
-                const char *name = event->name;
-                if (index <= 1) {
-                    fprintf(gA2lGroupsFile, " %s", name);
-                }
+                fprintf(gA2lConversionsFile, " %u \"%s\"", id, event->name);
             }
-            fprintf(gA2lGroupsFile, " /end SUB_GROUP /end GROUP\n");
+            fprintf(gA2lConversionsFile, "\n/end COMPU_VTAB\n");
+
+            // Create a sub group for all events
+            if (gA2lAutoGroups) {
+                fprintf(gA2lGroupsFile, "/begin GROUP Events \"Events\" ROOT /begin SUB_GROUP");
+                for (uint32_t id = 0; id < eventList->count; id++) {
+                    tXcpEvent *event = &eventList->event[id];
+                    uint16_t index = event->index;
+                    const char *name = event->name;
+                    if (index <= 1) {
+                        fprintf(gA2lGroupsFile, " %s", name);
+                    }
+                }
+                fprintf(gA2lGroupsFile, " /end SUB_GROUP /end GROUP\n");
+            }
         }
 #endif
 

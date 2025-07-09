@@ -76,25 +76,34 @@ static inline tXcpContext *XcpGetContext(void) { return &gXcpContext; }
 static inline const char *XcpGetContextName(void) { return gXcpContext.name; }
 
 // Begin a span, create a span event once
-// Trigger the span event on entry
-// Note: The once pattern to create the span event must not be thread safe, because XcpCreateEvent is, and returns the id of an event which does already exit
+// Trigger the context event on entry
 #define BeginSpan(name)                                                                                                                                                            \
+    uint64_t span_t1 = ApplXcpGetClock64();                                                                                                                                        \
+    uint64_t span_dt;                                                                                                                                                              \
     static tXcpEventId span_id = XCP_UNDEFINED_EVENT_ID;                                                                                                                           \
     if (span_id == XCP_UNDEFINED_EVENT_ID) {                                                                                                                                       \
+        A2lLock();                                                                                                                                                                 \
         span_id = XcpCreateEvent(name, 0, 0);                                                                                                                                      \
+        A2lSetStackAddrMode_i(span_id);                                                                                                                                            \
+        A2lCreateMeasurementInstance(name, span_dt, "Span runtime", "ns");                                                                                                         \
+        A2lUnlock();                                                                                                                                                               \
     }                                                                                                                                                                              \
     tXcpContext *ctx = XcpGetContext();                                                                                                                                            \
     tXcpEventId previous_span_id = ctx->span_id;                                                                                                                                   \
     ctx->span_id = span_id;                                                                                                                                                        \
     ctx->level++;                                                                                                                                                                  \
-    XcpEventDynRelAt(ctx->id, (const uint8_t *)ctx, get_stack_frame_pointer(), 0);
+    XcpEventDynRelAt(ctx->id, (const uint8_t *)ctx, get_stack_frame_pointer(), span_t1);
 
 // End span
-// Trigger the span event on exit
+// Trigger the span event and the context event on exit
+// Measure execution time of the span
 #define EndSpan()                                                                                                                                                                  \
+    uint64_t span_t2 = ApplXcpGetClock64();                                                                                                                                        \
+    span_dt = span_t2 - span_t1;                                                                                                                                                   \
+    XcpEventDynRelAt(ctx->span_id, NULL, get_stack_frame_pointer(), span_t2);                                                                                                      \
     ctx->span_id = previous_span_id;                                                                                                                                               \
     ctx->level--;                                                                                                                                                                  \
-    XcpEventDynRelAt(ctx->id, (const uint8_t *)ctx, get_stack_frame_pointer(), 0);
+    XcpEventDynRelAt(ctx->id, (const uint8_t *)ctx, get_stack_frame_pointer(), span_t2);
 
 // Create a named context
 // Create the context event (name is 'context_name'_'context_index')
@@ -141,22 +150,27 @@ static uint16_t XcpCreateContext(const char *context_name, uint16_t context_inde
 // Clip a value to a range defined in the calibration segment
 double clip(double input) {
 
+    // Instrumentation: Begin span for clip function
     BeginSpan("clip");
 
     // Simulate some more expensive work
     sleepNs(400000);
 
-    // Clip the input value to a range defined in the calibration segment
     params_t *params = (params_t *)XcpLockCalSeg(calseg);
+
+    // Clip the input value to a range defined in the calibration segment
     double output = input;
     if (output > params->clip_max) {
-        output = params->clip_max; // Clip to maximum value
+        output = params->clip_max;
     } else if (output < params->clip_min) {
-        output = params->clip_min; // Clip to minimum value
+        output = params->clip_min;
     }
-    XcpUnlockCalSeg(calseg); // Unlock the calibration segment
 
+    XcpUnlockCalSeg(calseg);
+
+    // Instrumentation: End span for filter function
     EndSpan();
+
     return output;
 }
 
@@ -170,7 +184,7 @@ double filter(double input) {
     // Instrumentation: Begin span for filter function
     BeginSpan("filter");
 
-    // Instrumentation: Register local variables (once global, just use the span event id
+    // Instrumentation: Register local variable filtered_input for measurement (once global, use the span event id)
     A2lOnce(filter_local_vars) { // Ensure this is only done once globally
         A2lLock();
         A2lSetStackAddrMode_i(XcpGetContext()->span_id); // Set stack addressing mode
@@ -182,15 +196,15 @@ double filter(double input) {
     sleepNs(1000000);
 
     params_t *params = (params_t *)XcpLockCalSeg(calseg);
+
+    // Filter the input signal using a simple low-pass filter
     filtered_input = input * params->filter + last * (1.0 - params->filter);
-    XcpUnlockCalSeg(calseg); // Unlock the calibration segment
-    last = filtered_input;   // Update the last output for the next call in this thread
+    last = filtered_input;
 
-    // Clip the output to a range, for example
+    XcpUnlockCalSeg(calseg);
+
+    // Clip the filter output
     clipped_output = clip(filtered_input);
-
-    // Instrumentation: Measure local variables
-    DaqEvent_i(XcpGetContext()->span_id);
 
     // Instrumentation: End span for filter function
     EndSpan();

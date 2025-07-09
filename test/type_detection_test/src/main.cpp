@@ -83,7 +83,7 @@ int main() {
 
     // Test helper macros
     std::cout << "\nHelper macros:\n";
-    std::cout << "  A2lGetArrayElementTypeId(curve_data): " << type_id_to_string(A2lGetArrayElementTypeId(test_instance.curve_data)) << "\n";
+    std::cout << "  A2lGetArrayElementTypeId(curve_data): " << type_id_to_string(A2lGetArray1DElementTypeId(test_instance.curve_data)) << "\n";
     std::cout << "  A2lGetArray2DElementTypeId(map_data): " << type_id_to_string(A2lGetArray2DElementTypeId(test_instance.map_data)) << "\n";
 
     // Test C++11 decltype if available

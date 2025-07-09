@@ -1,8 +1,64 @@
-#pragma once
+/// @file a2l.h
+/// @brief A2L (ASAM-2 MCD-2 MC) description file generation for XCPlite
+///
+/// This header provides comprehensive functionality for automatic generation of A2L description files
+/// during runtime. The A2L format is defined in the ASAM-2 MCD-2 MC standard and describes ECU internal
+/// measurement and calibration values for use with XCP-based measurement and calibration tools.
+///
+/// @section a2l_overview Overview
+///
+/// The A2L generation system provides:
+/// - Automatic type detection for both C and C++
+/// - Support for different addressing modes (absolute, relative, stack, segment-based)
+/// - Definition of measurement event
+/// - Definition of calibration parameter segments
+/// - Calibration parameter and measurement variable definitions
+/// - Support for complex data structures (typedefs)
+/// - Thread-safe operation with once-patterns or lock/unlock
+///
+/// @section a2l_addressing Addressing Modes
+///
+/// Four addressing modes are supported:
+/// - **Absolute**: Variables in global memory space
+/// - **Relative**: Variables relative to a base address (e.g., heap objects)
+/// - **Stack**: Variables on the stack relative to stack frame pointer
+/// - **Segment**: Calibration parameters in calibration parameter segments
+///
+/// @section a2l_usage Basic Usage
+///
+/// 1. Initialize A2L generation with A2lInit()
+/// 2. Set addressing mode for the following variables
+/// 3. Create measurements and parameters using the provided macros
+/// 4. Optionally finalize the A2L file with A2lFinalize() or automatic finalization at XCP tool connect
+///
+/// @example
+/// @code
+/// // Initialize A2L generation
+/// A2lInit("myecu.a2l", "MyECU", ip_addr, port, false /* UDP */, true /* finalize_on_connect */ */, true /* auto_groups */);
+///
+/// // Create a measurement variable
+/// // static double engine_speed = 0.0;
+/// A2lCreatePhysMeasurement(engine_speed, "Engine speed", "rpm", 0.0, 8000.0);
+///
+/// // Create a calibration parameter segment with a parameter struct constant
+/// //typedef struct parameters {
+/// //    double max_speed;
+/// //    uint32_t timeout;
+/// //} parameters_t;
+/// //const parameters_t parameters = {.max_speed = 180, .timeout = 1000};
+///
+/// tXcpCalSegIndex calseg = XcpCreateCalSeg("Parameters", &parameters, sizeof(parameters));
+/// A2lCreateParameter(parameters, max_speed, "Maximum speed in Km/h", "Km/h", 0, 250);
+/// A2lCreateParameter(parameters, timeout, "Timeout", "us", 0, 10000);
 
-/* A2L.h */
-/* Copyright(c) Vector Informatik GmbH.All rights reserved.
-   Licensed under the MIT license.See LICENSE file in the project root for details. */
+/// // Finalize the A2L file
+/// A2lFinalize();
+/// @endcode
+
+// Copyright(c) Vector Informatik GmbH.All rights reserved.
+// Licensed under the MIT license.See LICENSE file in the project root for details.
+
+#pragma once
 
 #include <assert.h>  // for assert
 #include <stdbool.h> // for bool
@@ -11,6 +67,8 @@
 #include "xcplib.h" // for tXcpEventId, tXcpCalSegIndex
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+/// @cond INTERNAL_IMPLEMENTATION
 
 // Basic A2L types
 typedef int8_t tA2lTypeId; // A2L type ID, positive for unsigned types, negative for signed types
@@ -265,6 +323,8 @@ const char *A2lGetRecordLayoutName_(tA2lTypeId type);
 #define A2lGetRecordLayoutName1D(type) A2lGetRecordLayoutName_(A2lGetArray1DElementTypeId(type))
 #define A2lGetRecordLayoutName2D(type) A2lGetRecordLayoutName_(A2lGetArray2DElementTypeId(type))
 
+/// @endcond
+
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Addressing mode convenience macros
 
@@ -441,34 +501,6 @@ const char *A2lGetRecordLayoutName_(tA2lTypeId type);
 #define A2lTypedefEnd() A2lTypedefEnd_()
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// Addressing mode
-// Set addressing mode for the following A2L generation macros
-
-// Absolute addressing mode
-// XCP address extension = 1 XCP_ADDR_EXT_ABS
-// XCP address is the absolute address of the variable relative to the main module load address
-void A2lSetAbsAddrMode(tXcpEventId default_event_id);
-
-// Relative addressing mode
-// Used for accessing stack variable relativ to the stack frame pointer
-// XCP address extension = 3 XCP_ADDR_EXT_REL
-// XCP address is int32_t offset to the stack frame pointer
-void A2lSetRelAddrMode(tXcpEventId event_id, const uint8_t *base);
-
-// Dynamic addressing mode
-// Relative address, used for heap and class members
-// Enables XCP polling access
-// XCP address extension = 2 XCP_ADDR_EXT_DYN
-// XCP address is int16_t offset to the given base address, high word of the address is the event id
-void A2lSetDynAddrMode(tXcpEventId event_id, const uint8_t *base);
-
-// Calibration segment addressing mode
-// Used for calibration parameters ins a XCP calibration segments (A2L MEMORY_SEGMENT)
-// XCP address extension = 0 XCP_ADDR_EXT_SEG
-// XCP address is uint32_t offset to the segment base address
-void A2lSetSegAddrMode(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance_addr);
-
-// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Thread safety
 // Use these macros to protect critical sections and create once patterns in A2L generation code
 
@@ -512,9 +544,7 @@ bool A2lFinalize(void);
 // --------------------------------------------------------------------------------------------
 // Helper functions used in the by A2L generation macros
 
-// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// Set mode (address generation and event) for all following A2lCreateXxxx macros and functions
-// Not thread safe !!!!!
+/// @cond INTERNAL_IMPLEMENTATION
 
 // Set addressing mode by event name or calibration segment index
 // Used by the macros with the identical name (one underscore)
@@ -526,18 +556,23 @@ void A2lSetStackAddrMode__i(tXcpEventId event_id, const uint8_t *stack_frame);
 void A2lSetAbsoluteAddrMode__s(const char *event_name);
 void A2lSetAbsoluteAddrMode__i(tXcpEventId event_id);
 
+// Once pattern helper
 bool A2lOnce_(uint64_t *once);
 
+// Address encoding
 uint32_t A2lGetAddr_(const void *addr);
 uint8_t A2lGetAddrExt_(void);
+
+// Create parameters
+void A2lCreateParameter_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, const char *comment, const char *unit, double min, double max);
+void A2lCreateMap_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, uint32_t xdim, uint32_t ydim, const char *comment, const char *unit, double min, double max);
+void A2lCreateCurve_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, uint32_t xdim, const char *comment, const char *unit, double min, double max);
 
 // Create measurements
 const char *A2lCreateLinearConversion_(const char *name, const char *comment, const char *unit, double factor, double offset);
 const char *A2lCreateEnumConversion_(const char *name, const char *enum_description);
-
 void A2lCreateMeasurement_(const char *instance_name, const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, const char *unit_or_conversion, double min, double max,
                            const char *comment);
-
 void A2lCreateMeasurementArray_(const char *instance_name, const char *name, tA2lTypeId type, int x_dim, int y_dim, uint8_t ext, uint32_t addr, const char *unit_or_conversion,
                                 const char *comment);
 
@@ -549,14 +584,11 @@ void A2lTypedefParameterComponent_(const char *name, const char *type_name, uint
                                    double max, const char *x_axis, const char *y_axis);
 void A2lTypedefEnd_(void);
 
-// CrA2lCreateTypedefMeasurementInstance_s
+// Create instances if typedefs
 void A2lCreateTypedefMeasurementInstance_(const char *instance_name, const char *type_name, uint16_t x_dim, uint8_t ext, uint32_t addr, const char *comment);
 void A2lCreateTypedefParameterInstance_(const char *instance_name, const char *type_name, uint8_t ext, uint32_t addr, const char *comment);
 
-// Create parameters
-void A2lCreateParameter_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, const char *comment, const char *unit, double min, double max);
-void A2lCreateMap_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, uint32_t xdim, uint32_t ydim, const char *comment, const char *unit, double min, double max);
-void A2lCreateCurve_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, uint32_t xdim, const char *comment, const char *unit, double min, double max);
+/// @endcond
 
 #ifdef __cplusplus
 } // extern "C"

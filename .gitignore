@@ -5,6 +5,10 @@
 /DEBUGGING_SETUP.md
 /.vscode/c_cpp_properties.json
 
+# doxygen
+/docs/html
+/Doxyfile.bak
+
 
 # CANape artefacts
 *.hex 
@@ -26,3 +30,5 @@
 /typedefs.a2l
 
 
+/a2l_test.a2l
+/DOCUMENTATION.md

@@ -1,6 +1,38 @@
 // Header file for the XCPlite xcplib application interface
-// A2L generation functions and macros are in src/a2l.h
 // Used for Rust bindgen to generate FFI bindings for xcplib
+// A2L generation functions and macros are in src/a2l.h
+
+/// @mainpage XCPlite API Reference
+///
+/// @section intro_sec Introduction
+///
+/// XCPlite is a lightweight C implementation of the ASAM XCP V1.4 protocol for measurement and calibration.
+/// This documentation covers the public API for the XCPlite library.
+///
+/// @section api_overview API Overview
+///
+/// The XCPlite API is divided into several main areas:
+///
+/// - **XCP Ethernet Server Interface**: Initialize and manage XCP-on-Ethernet connections
+/// - **Calibration Segments**: Manage calibration parameter storage and access
+/// - **Events and DAQ**: Handle data acquisition events and measurements
+/// - **A2L Generation**: Automatic generation of ASAM A2L description files
+/// - **Type Detection**: Robust compile-time type detection for C and C++
+///
+/// @section getting_started Getting Started
+///
+/// 1. Initialize the XCP library with XcpInit()
+/// 2. Set up an Ethernet server with XcpEthServerInit()
+/// 3. Create events for your measurement points with XcpCreateEvent()
+/// 4. Use the DaqEvent() macro to trigger measurements
+/// 5. Generate A2L descriptions using the A2L macros in src/a2l.h
+///
+/// @section files Key Header Files
+///
+/// - `xcplib.h` - Main XCP protocol interface
+/// - `src/a2l.h` - A2L generation macros and functions
+///
+/// All functions and macros are documented with detailed parameter descriptions and usage examples.
 
 #pragma once
 
@@ -61,6 +93,7 @@ typedef uint16_t tXcpCalSegIndex;
 tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint16_t size);
 
 /// Get the name of the calibration segment
+/// @return the name of the calibration segment or NULL if the index is invalid.
 const char *XcpGetCalSegName(tXcpCalSegIndex calseg);
 
 // Get the XCP/A2L address of a calibration segment
@@ -220,6 +253,10 @@ void XcpSendTerminateSessionEvent(void);
 
 /// Send a message to the XCP client
 void XcpPrint(const char *str);
+
+/// Get the current DAQ clock value
+/// @return time in CLOCK_TICKS_PER_S units
+uint64_t ApplXcpGetClock64(void);
 
 // Register XCP callbacks
 // Used by the Rust API
