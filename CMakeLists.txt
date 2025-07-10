@@ -88,7 +88,7 @@ target_include_directories(multi_thread_demo PUBLIC "${PROJECT_ROOT}" "${PROJECT
 target_link_libraries(multi_thread_demo PRIVATE xcplib)
 
 # Example cpp_demo
-add_executable(cpp_demo examples/cpp_demo/src/main.cpp examples/cpp_demo/src/sig_gen.cpp)
+add_executable(cpp_demo examples/cpp_demo/src/main.cpp examples/cpp_demo/src/sig_gen.cpp examples/cpp_demo/src/lookup.cpp)
 target_compile_options(cpp_demo PRIVATE -std=c++11 )
 target_include_directories(cpp_demo PUBLIC "${PROJECT_ROOT}" "${PROJECT_ROOT}/src")
 target_link_libraries(cpp_demo PRIVATE xcplib)

@@ -1,3 +1,13 @@
+//-----------------------------------------------------------------------------------------------------
+// Waveform signal generator class
+
+/*
+An instance of class SignalGenerator creates various waveforms, such as sine, square, arbitrary
+Depending on calibration parameters ampl, phase, offset and period
+*/
+
+#pragma once
+
 #include <cmath>
 #include <iostream>
 #include <string>
@@ -7,6 +17,14 @@
 #include "platform.h"
 #include "xcplib.h"
 #include "xcplib.hpp"
+
+#define CANAPE_24 // Typedefs with maps or curves with shared axis require CANape 24
+
+#ifdef CANAPE_24
+#include "lookup.hpp"
+#endif
+
+//-----------------------------------------------------------------------------------------------
 
 namespace signal_generator {
 
@@ -18,21 +36,6 @@ enum SignalTypeT : std::uint8_t {
     ARBITRARY = 4 // Arbitrary waveform from lookup table
 };
 
-// Typedefs with maps or curves with shared axis require CANape 24
-#define CANAPE_24
-// #define CANAPE_24_NESTED
-
-// Lookup table for arbitrary waveforms
-constexpr uint8_t kLookupTableSize = 11; // Size of the lookup table
-
-// Lookup table struct
-#ifdef CANAPE_24_NESTED
-struct LookupTableT {
-    float values[kLookupTableSize]; // Values
-    float axis[kLookupTableSize];   // Axis
-};
-#endif
-
 // Signal parameters struct
 struct SignalParametersT {
     double ampl;   // Amplitude
@@ -41,11 +44,7 @@ struct SignalParametersT {
     double period; // Period in seconds
     // Lookup table for arbitrary waveforms
 #ifdef CANAPE_24
-    float lookup_values[kLookupTableSize]; // Values
-    float lookup_axis[kLookupTableSize];   // Axis
-#endif
-#ifdef CANAPE_24_NESTED
-    LookupTableT lookup;
+    lookup_table::LookupTableT lookup;
 #endif
     uint32_t delay_us;   // Delay in microseconds for the task loop
     uint8_t signal_type; // Type of the signal (SignalTypeT)

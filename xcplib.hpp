@@ -64,8 +64,8 @@ template <typename T> class CalSeg {
     /// @param comment Description for the A2L file
     void CreateA2lTypedefInstance(const char *type_name, const char *comment) {
         A2lLock();
+        A2lSetSegmentAddrMode__i(segment_index_, NULL);
         A2lCreateTypedefParameterInstance_(XcpGetCalSegName(segment_index_), type_name, XCP_ADDR_EXT_SEG, XcpGetCalSegBaseAddress(segment_index_), comment);
-        A2lCreateParameterGroup(XcpGetCalSegName(segment_index_), 1, XcpGetCalSegName(segment_index_));
         A2lUnlock();
     }
 };
