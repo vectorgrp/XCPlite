@@ -80,10 +80,9 @@ static const char *gA2lHeader = "ASAP2_VERSION 1 71\n"
                                 "\n\n";
 
 //----------------------------------------------------------------------------------
-static const char *gA2lMemorySegment = "/begin MEMORY_SEGMENT\n"
-                                       "%s \"\" DATA FLASH INTERN 0x%08X 0x%X -1 -1 -1 -1 -1\n" // name, start, size
+static const char *gA2lMemorySegment = "/begin MEMORY_SEGMENT %s \"\" DATA FLASH INTERN 0x%08X 0x%X -1 -1 -1 -1 -1\n" // name, start, size
                                        "/begin IF_DATA XCP\n"
-                                       "/begin SEGMENT 0x1 0x2 0x0 0x0 0x0\n"
+                                       "/begin SEGMENT %u 0x2 0x0 0x0 0x0\n"
                                        "/begin CHECKSUM XCP_ADD_44 MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION \"\" /end CHECKSUM\n"
                                        // 2 calibration pages, 0=working page (RAM), 1=initial readonly page (FLASH), independent access to ECU and XCP page possible
                                        "/begin PAGE 0x1 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_NOT_ALLOWED /end PAGE\n"
@@ -116,11 +115,13 @@ static const char *gA2lIfDataProtocolLayer = // Parameter: XCP_PROTOCOL_LAYER_VE
     "OPTIONAL_CMD GET_CAL_PAGE\n"
     "OPTIONAL_CMD SET_CAL_PAGE\n"
     "OPTIONAL_CMD COPY_CAL_PAGE\n"
-//"OPTIONAL_CMD CC_GET_PAG_PROCESSOR_INFO\n"
+#ifdef XCP_ENABLE_FREEZE_CAL_PAGE
+    "OPTIONAL_CMD CC_GET_PAG_PROCESSOR_INFO\n"
+    "OPTIONAL_CMD CC_GET_SEGMENT_MODE\n"
+    "OPTIONAL_CMD CC_SET_SEGMENT_MODE\n"
+#endif
 //"OPTIONAL_CMD CC_GET_SEGMENT_INFO\n"
 //"OPTIONAL_CMD CC_GET_PAGE_INFO\n"
-//"OPTIONAL_CMD CC_SET_SEGMENT_MODE\n"
-//"OPTIONAL_CMD CC_GET_SEGMENT_MODE\n"
 #endif
 #ifdef XCP_ENABLE_CHECKSUM
     "OPTIONAL_CMD BUILD_CHECKSUM\n"
@@ -388,8 +389,6 @@ static double getTypeMax(tA2lTypeId type) {
 
 static bool A2lOpen(const char *filename, const char *projectname) {
 
-    DBG_PRINTF3("A2L create %s\n", filename);
-
     gA2lFile = NULL;
     gA2lTypedefsFile = NULL;
     gA2lFixedEvent = XCP_UNDEFINED_EVENT_ID;
@@ -458,13 +457,14 @@ static void A2lCreate_MOD_PAR(void) {
             fprintf(gA2lFile, "EPK \"%s\" ADDR_EPK 0x80000000\n", epk);
             fprintf(gA2lFile, gA2lEpkMemorySegment, strlen(epk));
         }
-        // Calibration segments are implicitly indexed
+        // Calibration segments are implicitly indexed, index in the list is segment number - 1
         // The segment number used in XCP commands XCP_SET_CAL_PAGE, GET_CAL_PAGE, XCP_GET_SEGMENT_INFO, ... are the indices of the segments starting with 0
+        // Segment number 0 is reserved for the implicit EPK segment
         tXcpCalSegList const *calSegList = XcpGetCalSegList();
         if (calSegList != NULL && calSegList->count > 0) {
             for (uint32_t i = 0; i < calSegList->count; i++) {
                 tXcpCalSeg const *calseg = &calSegList->calseg[i];
-                fprintf(gA2lFile, gA2lMemorySegment, calseg->name, ((i + 1) << 16) | 0x80000000, calseg->size);
+                fprintf(gA2lFile, gA2lMemorySegment, calseg->name, XcpGetCalSegBaseAddress(i), calseg->size, i + 1);
             }
         }
 
@@ -1338,6 +1338,8 @@ bool A2lInit(const char *a2l_filename, const char *a2l_projectname, const uint8_
     assert(a2l_filename != NULL);
     assert(a2l_projectname != NULL);
     assert(addr != NULL);
+
+    DBG_PRINTF3("Start A2L generator, file=%s, auto_finalize=%u, auto_groups=%u\n", a2l_filename, finalize_on_connect, auto_groups);
 
     // Save transport layer parameters for A2l finalization
     memcpy(&gA2lOptionBindAddr, addr, 4);

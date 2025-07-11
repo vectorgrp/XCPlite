@@ -21,7 +21,7 @@ namespace {
 #define OPTION_SERVER_PORT 5555             // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}     // Bind addr, 0.0.0.0 = ANY
 #define OPTION_QUEUE_SIZE (1024 * 64)       // Size of the measurement queue in bytes
-#define OPTION_LOG_LEVEL 5
+#define OPTION_LOG_LEVEL 3
 
 //-----------------------------------------------------------------------------------------------------
 // Demo calibration parameters

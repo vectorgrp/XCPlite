@@ -159,7 +159,7 @@ extern void *XcpServerReceiveThread(void *par)
 #endif
 {
     (void)par;
-    DBG_PRINT3("Start XCP CMD thread\n");
+    DBG_PRINT3("Start XCP receive thread\n");
 
     // Receive XCP unicast commands loop
     gXcpServer.ReceiveThreadRunning = true;
@@ -187,7 +187,7 @@ extern void *XcpServerTransmitThread(void *par)
     (void)par;
     int32_t n;
 
-    DBG_PRINT3("Start XCP DAQ thread\n");
+    DBG_PRINT3("Start XCP transmit thread\n");
 
     // Transmit loop
     gXcpServer.TransmitThreadRunning = true;

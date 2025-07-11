@@ -282,10 +282,6 @@ typedef struct {
     /* EPK */
     char Epk[XCP_EPK_MAX_LENGTH + 1]; // EPK string, null terminated
 
-#ifdef XCP_ENABLE_FREEZE_CAL_PAGE
-    uint8_t SegmentMode;
-#endif
-
     /* Optional event list */
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
     tXcpEventList EventList;
@@ -582,6 +578,9 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
     c->xcp_access = XCP_CALPAGE_DEFAULT_PAGE;                                              // Default page for XCP access is the working page
     atomic_store_explicit(&c->ecu_access, XCP_CALPAGE_DEFAULT_PAGE, memory_order_relaxed); // Default page for ECU access is the working page
     atomic_store_explicit(&c->lock_count, 0, memory_order_relaxed);                        // No locks
+#ifdef XCP_ENABLE_FREEZE_MODE
+    c->mode = PAG_PROPERTY_FREEZE;
+#endif
 
     // Set the ecu default page (FLASH page)
     c->default_page = (uint8_t *)default_page;
@@ -610,10 +609,8 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
     }
 
     gXcp.CalSegList.count++;
-
     mutexUnlock(&gXcp.CalSegList.mutex);
-
-    DBG_PRINTF3("CalSeg %u: %s size=%u\n", i, c->name, c->size);
+    DBG_PRINTF3("Create CalSeg %u: %s memory segment=%u, addr=0x%08X, size=%u\n", i, c->name, i + 1, XcpGetCalSegBaseAddress(i), c->size);
     return i;
 }
 
@@ -811,38 +808,40 @@ static uint8_t XcpCalSegWriteMemory(uint32_t dst, uint16_t size, const uint8_t *
 #ifdef XCP_ENABLE_CAL_PAGE
 
 // Get active ecu or xcp calibration page
-static uint8_t XcpCalSegGetCalPage(tXcpCalSegIndex calseg, uint8_t mode) {
-    if (calseg >= gXcp.CalSegList.count) {
-        DBG_PRINT_ERROR("invalid cal seg number\n");
+// Note: XCP/A2L segment numbers are bytes, 0 is reserved for the EPK segment, tXcpCalSegIndex is the XCP/A2L segment number - 1
+static uint8_t XcpCalSegGetCalPage(uint8_t segment, uint8_t mode) {
+    if (segment < 1 || segment > gXcp.CalSegList.count) {
+        DBG_PRINTF_ERROR("invalid segment number: %u\n", segment);
         return XCP_CALPAGE_INVALID_PAGE;
     }
+    tXcpCalSegIndex calseg = segment - 1; // Convert to index
     if (mode == CAL_PAGE_MODE_ECU) {
         return (uint8_t)atomic_load_explicit(&gXcp.CalSegList.calseg[calseg].ecu_access, memory_order_relaxed);
     }
     if (mode == CAL_PAGE_MODE_XCP) {
         return gXcp.CalSegList.calseg[calseg].xcp_access;
     }
-
     DBG_PRINT_ERROR("invalid get cal page mode\n");
     return XCP_CALPAGE_INVALID_PAGE; // Invalid mode
 }
 
 // Set active ecu and/or xcp calibration page
-static uint8_t XcpCalSegSetCalPage(tXcpCalSegIndex calseg, uint8_t page, uint8_t mode) {
+// Note: XCP/A2L segment numbers are bytes, 0 is reserved for the EPK segment, tXcpCalSegIndex is the XCP/A2L segment number - 1
+static uint8_t XcpCalSegSetCalPage(uint8_t segment, uint8_t page, uint8_t mode) {
     if (page > 1) {
         DBG_PRINTF_ERROR("invalid cal page number %u\n", page);
         return CRC_ACCESS_DENIED; // Invalid calseg
     }
-
     if (mode & CAL_PAGE_MODE_ALL) { // Set all calibration segments to the same page
-        for (calseg = 0; calseg < gXcp.CalSegList.count; calseg++) {
-            XcpCalSegSetCalPage(calseg, page, mode & (CAL_PAGE_MODE_ECU | CAL_PAGE_MODE_XCP));
+        for (tXcpCalSegIndex calseg = 0; calseg < gXcp.CalSegList.count; calseg++) {
+            XcpCalSegSetCalPage((uint8_t)(calseg + 1), page, mode & (CAL_PAGE_MODE_ECU | CAL_PAGE_MODE_XCP));
         }
     } else {
-        if (calseg >= gXcp.CalSegList.count) {
-            DBG_PRINTF_ERROR("invalid cal seg %u\n", calseg);
-            return CRC_ACCESS_DENIED; // Invalid calseg
+        if (segment < 1 || segment > gXcp.CalSegList.count) {
+            DBG_PRINTF_ERROR("invalid segment number %u\n", segment);
+            return XCP_CALPAGE_INVALID_PAGE;
         }
+        tXcpCalSegIndex calseg = segment - 1; // Convert to index
         if (mode & CAL_PAGE_MODE_ECU) {
             atomic_store_explicit(&gXcp.CalSegList.calseg[calseg].ecu_access, page, memory_order_relaxed);
         }
@@ -854,16 +853,17 @@ static uint8_t XcpCalSegSetCalPage(tXcpCalSegIndex calseg, uint8_t page, uint8_t
 }
 
 // Copy calibration page
+// Note: XCP/A2L segment numbers are bytes, 0 is reserved for the EPK segment, tXcpCalSegIndex is the XCP/A2L segment number - 1
 #ifdef XCP_ENABLE_COPY_CAL_PAGE
-static uint8_t XcpCalSegCopyCalPage(tXcpCalSegIndex srcSeg, uint8_t srcPage, tXcpCalSegIndex dstSeg, uint8_t dstPage) {
+static uint8_t XcpCalSegCopyCalPage(uint8_t srcSeg, uint8_t srcPage, uint8_t dstSeg, uint8_t dstPage) {
     // Only copy from default page to working page supported
-    if (srcSeg != dstSeg || srcSeg >= gXcp.CalSegList.count || dstPage != XCP_CALPAGE_WORKING_PAGE || srcPage != XCP_CALPAGE_DEFAULT_PAGE) {
+    if (srcSeg != dstSeg || srcSeg < 1 || srcSeg > gXcp.CalSegList.count || dstPage != XCP_CALPAGE_WORKING_PAGE || srcPage != XCP_CALPAGE_DEFAULT_PAGE) {
         DBG_PRINT_ERROR("invalid calseg copy operation\n");
         return CRC_PAGE_NOT_VALID;
     }
-    uint16_t size = gXcp.CalSegList.calseg[dstSeg].size;
-    const uint8_t *srcPtr = gXcp.CalSegList.calseg[srcSeg].default_page;
-    return XcpCalSegWriteMemory(dstSeg, size, srcPtr);
+    uint16_t size = gXcp.CalSegList.calseg[dstSeg - 1].size;
+    const uint8_t *srcPtr = gXcp.CalSegList.calseg[srcSeg - 1].default_page;
+    return XcpCalSegWriteMemory(0x80000000 | dstSeg, size, srcPtr);
 }
 #endif
 
@@ -892,12 +892,38 @@ static uint8_t XcpCalSegCommand(uint8_t cmd) {
 }
 #endif
 
-// Freeze calibration page
+// Freeze calibration segment working pages
+// Note: XCP/A2L segment numbers are bytes, 0 is reserved for the EPK segment, tXcpCalSegIndex is the XCP/A2L segment number - 1
 #ifdef XCP_ENABLE_FREEZE_CAL_PAGE
-static uint8_t XcpCalSegCalFreeze(void) {
-    // not implemented
-    return CRC_CMD_UNKNOWN;
+
+static uint8_t XcpGetCalSegMode(uint8_t segment) {
+    if (segment > gXcp.CalSegList.count)
+        return CRC_OUT_OF_RANGE;
+    if (segment == 0)
+        return 0; // EPK segment does not support freeze
+    return gXcp.CalSegList.calseg[segment - 1].mode;
 }
+
+static uint8_t XcpSetCalSegMode(uint8_t segment, uint8_t mode) {
+    if (segment > gXcp.CalSegList.count)
+        return CRC_OUT_OF_RANGE;
+    gXcp.CalSegList.calseg[segment - 1].mode = mode;
+    return CRC_CMD_OK;
+}
+
+static uint8_t XcpCalSegCalFreeze(void) {
+
+    // Freeze all segment with freeze mode enabled
+    for (uint16_t i = 0; i < gXcp.CalSegList.count; i++) {
+        tXcpCalSeg *c = &gXcp.CalSegList.calseg[i];
+        if ((c->mode & PAG_PROPERTY_FREEZE) != 0) {
+            DBG_PRINTF3("Freeze cal seg %u: %s\n", i + 1, c->name);
+            // @@@@ TODO Not implemented, alloc memory for a new default page
+        }
+    }
+    return CRC_CMD_OK;
+}
+
 #endif // XCP_ENABLE_FREEZE_CAL_PAGE
 
 #endif // XCP_ENABLE_CAL_PAGE
@@ -1140,7 +1166,7 @@ static tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint3
     STRNCPY(gXcp.EventList.event[e].name, name, XCP_MAX_EVENT_NAME);
     gXcp.EventList.event[e].name[XCP_MAX_EVENT_NAME] = 0;
     gXcp.EventList.event[e].priority = priority;
-    DBG_PRINTF3("  Event %u: %s index=%u, cycle=%uns, prio=%u\n", e, gXcp.EventList.event[e].name, index, cycleTimeNs, priority);
+    DBG_PRINTF3("Create Event %u: %s index=%u, cycle=%uns, prio=%u\n", e, gXcp.EventList.event[e].name, index, cycleTimeNs, priority);
     return e;
 }
 
@@ -2273,27 +2299,29 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
 #ifdef XCP_ENABLE_CAL_PAGE
         case CC_SET_CAL_PAGE: {
             check_len(CRO_SET_CAL_PAGE_LEN);
+            uint8_t segment = CRO_SET_CAL_PAGE_SEGMENT;
 #ifdef XCP_ENABLE_CALSEG_LIST
             if (gXcp.CalSegList.count > 0) {
-                check_error(XcpCalSegSetCalPage(CRO_SET_CAL_PAGE_SEGMENT, CRO_SET_CAL_PAGE_PAGE, CRO_SET_CAL_PAGE_MODE));
+                check_error(XcpCalSegSetCalPage(segment, CRO_SET_CAL_PAGE_PAGE, CRO_SET_CAL_PAGE_MODE));
             } else
 #endif
             {
-                check_error(ApplXcpSetCalPage(CRO_SET_CAL_PAGE_SEGMENT, CRO_SET_CAL_PAGE_PAGE, CRO_SET_CAL_PAGE_MODE));
+                check_error(ApplXcpSetCalPage(segment, CRO_SET_CAL_PAGE_PAGE, CRO_SET_CAL_PAGE_MODE));
             }
         } break;
 
         case CC_GET_CAL_PAGE: {
             uint8_t page;
             check_len(CRO_GET_CAL_PAGE_LEN);
+            uint8_t segment = CRO_SET_CAL_PAGE_SEGMENT;
             CRM_LEN = CRM_GET_CAL_PAGE_LEN;
 #ifdef XCP_ENABLE_CALSEG_LIST
             if (gXcp.CalSegList.count > 0) {
-                page = XcpCalSegGetCalPage(CRO_GET_CAL_PAGE_SEGMENT, CRO_GET_CAL_PAGE_MODE);
+                page = XcpCalSegGetCalPage(segment, CRO_GET_CAL_PAGE_MODE);
             } else
 #endif
             {
-                page = ApplXcpGetCalPage(CRO_GET_CAL_PAGE_SEGMENT, CRO_GET_CAL_PAGE_MODE);
+                page = ApplXcpGetCalPage(segment, CRO_GET_CAL_PAGE_MODE);
             }
             if (page == 0xFF)
                 error(CRC_MODE_NOT_VALID);
@@ -2303,43 +2331,50 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
 #ifdef XCP_ENABLE_COPY_CAL_PAGE
         case CC_COPY_CAL_PAGE: {
             CRM_LEN = CRM_COPY_CAL_PAGE_LEN;
+            uint8_t src_segment = CRO_COPY_CAL_PAGE_SRC_SEGMENT;
+            uint8_t src_page = CRO_COPY_CAL_PAGE_SRC_PAGE;
+            uint8_t dst_segment = CRO_COPY_CAL_PAGE_DEST_SEGMENT;
+            uint8_t dst_page = CRO_COPY_CAL_PAGE_DEST_PAGE;
 #ifdef XCP_ENABLE_CALSEG_LIST
             if (gXcp.CalSegList.count > 0) {
-                check_error(XcpCalSegCopyCalPage(CRO_COPY_CAL_PAGE_SRC_SEGMENT, CRO_COPY_CAL_PAGE_SRC_PAGE, CRO_COPY_CAL_PAGE_DEST_SEGMENT, CRO_COPY_CAL_PAGE_DEST_PAGE));
+                check_error(XcpCalSegCopyCalPage(src_segment, src_page, dst_segment, dst_page));
             } else
 #endif
             {
-                check_error(ApplXcpCopyCalPage(CRO_COPY_CAL_PAGE_SRC_SEGMENT, CRO_COPY_CAL_PAGE_SRC_PAGE, CRO_COPY_CAL_PAGE_DEST_SEGMENT, CRO_COPY_CAL_PAGE_DEST_PAGE));
+                check_error(ApplXcpCopyCalPage(src_segment, src_page, dst_segment, dst_page));
             }
         } break;
 #endif // XCP_ENABLE_COPY_CAL_PAGE
 
-#ifdef XCP_ENABLE_FREEZE_CAL_PAGE // @@@@ TODO: Only 1 segment supported yet
+#ifdef XCP_ENABLE_CALSEG_LIST
+#ifdef XCP_ENABLE_FREEZE_CAL_PAGE
         case CC_GET_PAG_PROCESSOR_INFO: {
             check_len(CRO_GET_PAG_PROCESSOR_INFO_LEN);
             CRM_LEN = CRM_GET_PAG_PROCESSOR_INFO_LEN;
-            CRM_GET_PAG_PROCESSOR_INFO_MAX_SEGMENT = 1;
-            CRM_GET_PAG_PROCESSOR_INFO_PROPERTIES = PAG_PROPERTY_FREEZE;
+            CRM_GET_PAG_PROCESSOR_INFO_MAX_SEGMENTS = (uint8_t)gXcp.CalSegList.count;
+            CRM_GET_PAG_PROCESSOR_INFO_PROPERTIES = PAG_PROPERTY_FREEZE; // Freeze mode supported
         } break;
-
-            /* case CC_GET_SEGMENT_INFO: break; not implemented */
-            /* case CC_GET_PAGE_INFO: not implemented */
 
         case CC_SET_SEGMENT_MODE: {
             check_len(CRO_SET_SEGMENT_MODE_LEN);
-            if (CRO_SET_SEGMENT_MODE_SEGMENT > 0)
-                error(CRC_OUT_OF_RANGE) CRM_LEN = CRM_SET_SEGMENT_MODE_LEN;
-            gXcp.SegmentMode = CRO_SET_SEGMENT_MODE_MODE;
+            uint8_t segment = CRO_SET_SEGMENT_MODE_SEGMENT;
+            uint8_t mode = CRO_SET_SEGMENT_MODE_MODE;
+            check_error(XcpSetCalSegMode(segment, mode));
         } break;
 
         case CC_GET_SEGMENT_MODE: {
             check_len(CRO_GET_SEGMENT_MODE_LEN);
-            if (CRO_GET_SEGMENT_MODE_SEGMENT > 0)
-                error(CRC_OUT_OF_RANGE) CRM_LEN = CRM_GET_SEGMENT_MODE_LEN;
-            CRM_GET_SEGMENT_MODE_MODE = gXcp.SegmentMode;
+            uint8_t segment = CRO_GET_SEGMENT_MODE_SEGMENT;
+            CRM_LEN = CRM_GET_SEGMENT_MODE_LEN;
+            CRM_GET_SEGMENT_MODE_MODE = XcpGetCalSegMode(segment);
         } break;
 
 #endif // XCP_ENABLE_FREEZE_CAL_PAGE
+
+        /* case CC_GET_SEGMENT_INFO: break; not implemented */
+        /* case CC_GET_PAGE_INFO: not implemented */
+
+#endif // XCP_ENABLE_CALSEG_LIST
 #endif // XCP_ENABLE_CAL_PAGE
 
 #ifdef XCP_ENABLE_CHECKSUM

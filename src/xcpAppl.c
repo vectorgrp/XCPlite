@@ -441,7 +441,7 @@ void ApplXcpSetA2lName(const char *name) {
     if (dot != NULL)
         *dot = '\0';                                 // Null-terminate the string at the dot
     gXcpA2lName[XCP_A2L_FILENAME_MAX_LENGTH] = '\0'; // Ensure null-termination
-    DBG_PRINTF3("ApplXcpSetA2lName '%s'\n", name);
+    DBG_PRINTF4("ApplXcpSetA2lName '%s'\n", name);
 }
 
 // Return the A2L name (without extension)
