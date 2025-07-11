@@ -373,10 +373,10 @@ static tXcpData gXcp = {0};
 
 // State checks
 #define isInitialized() (0 != (gXcp.SessionStatus & SS_INITIALIZED))
+#define isActivated() ((SS_ACTIVATED | SS_INITIALIZED) == ((gXcp.SessionStatus & (SS_ACTIVATED | SS_INITIALIZED))))
 #define isStarted() (0 != (gXcp.SessionStatus & SS_STARTED))
 #define isConnected() (0 != (gXcp.SessionStatus & SS_CONNECTED))
 #define isLegacyMode() (0 != (gXcp.SessionStatus & SS_LEGACY_MODE))
-#define isConnected() (0 != (gXcp.SessionStatus & SS_CONNECTED))
 
 // Thread safe state checks
 #define isDaqRunning() atomic_load_explicit(&gXcp.DaqRunning, memory_order_relaxed)
@@ -427,11 +427,9 @@ static void XcpPrintDaqList(uint16_t daq);
 uint16_t XcpGetSessionStatus(void) { return gXcp.SessionStatus; }
 
 bool XcpIsInitialized(void) { return isInitialized(); }
-
+bool XcpIsActivated(void) { return isActivated(); }
 bool XcpIsStarted(void) { return isStarted(); }
-
 bool XcpIsConnected(void) { return isConnected(); }
-
 bool XcpIsDaqRunning(void) { return isDaqRunning(); }
 
 bool XcpIsDaqEventRunning(uint16_t event) {
@@ -502,6 +500,28 @@ static void XcpInitCalSegList(void) {
     mutexInit(&gXcp.CalSegList.mutex, false, 0); // Non-recursive mutex, no spin count
 }
 
+// Free the calibration segment list
+static void XcpFreeCalSegList(void) {
+    for (uint16_t i = 0; i < gXcp.CalSegList.count; i++) {
+        tXcpCalSeg *calseg = &gXcp.CalSegList.calseg[i];
+        if (calseg->xcp_page != NULL) {
+            free(calseg->xcp_page);
+            calseg->xcp_page = NULL;
+        }
+        if (calseg->ecu_page != NULL) {
+            free(calseg->ecu_page);
+            calseg->ecu_page = NULL;
+        }
+        uintptr_t free_page = atomic_load_explicit(&calseg->free_page, memory_order_relaxed);
+        if (free_page != 0) {
+            free((void *)free_page);
+            atomic_store_explicit(&calseg->free_page, (uintptr_t)NULL, memory_order_relaxed);
+        }
+    }
+    gXcp.CalSegList.count = 0;
+    mutexDestroy(&gXcp.CalSegList.mutex);
+}
+
 // Get a pointer to the list and the size of the list
 tXcpCalSegList const *XcpGetCalSegList(void) {
     if (!isInitialized())
@@ -552,36 +572,48 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
     tXcpCalSeg *c = &gXcp.CalSegList.calseg[i];
     STRNCPY(c->name, name, XCP_MAX_CALSEG_NAME);
     c->name[XCP_MAX_CALSEG_NAME] = 0;
+    c->xcp_page = NULL;
+    c->ecu_page = NULL;
+    atomic_store_explicit(&c->free_page, (uintptr_t)NULL, memory_order_relaxed);
+    c->free_page_hazard = false; // Free page is not in use yet, no hazard
+    atomic_store_explicit(&c->ecu_page_next, (uintptr_t)NULL, memory_order_relaxed);
+    c->size = size;
+    c->write_pending = false;
+    c->xcp_access = XCP_CALPAGE_DEFAULT_PAGE;                                              // Default page for XCP access is the working page
+    atomic_store_explicit(&c->ecu_access, XCP_CALPAGE_DEFAULT_PAGE, memory_order_relaxed); // Default page for ECU access is the working page
+    atomic_store_explicit(&c->lock_count, 0, memory_order_relaxed);                        // No locks
 
     // Set the ecu default page (FLASH page)
     c->default_page = (uint8_t *)default_page;
 
-    // Allocate the ecu working page (RAM page)
-    c->xcp_page = malloc(size);
-    memcpy(c->xcp_page, default_page, size); // Copy default page to XCP working page copy
+    // Allocate the working page and initialize RCU, if XCP has been activated
+    if (isActivated()) {
 
-    // Allocate the xcp page
-    c->ecu_page = malloc(size);
-    memcpy(c->ecu_page, default_page, size); // Copy default page to ECU working page copy
+        // Allocate the ecu working page (RAM page)
+        c->xcp_page = malloc(size);
+        memcpy(c->xcp_page, default_page, size); // Copy default page to XCP working page copy
 
-    // Allocate a free uninitialized page
-    atomic_store_explicit(&c->free_page, (uintptr_t)malloc(size), memory_order_relaxed);
-    c->free_page_hazard = false; // Free page is not in use yet, no hazard
+        // Allocate the xcp page
+        c->ecu_page = malloc(size);
+        memcpy(c->ecu_page, default_page, size); // Copy default page to ECU working page copy
 
-    // New ECU page version not updated
-    atomic_store_explicit(&c->ecu_page_next, (uintptr_t)c->ecu_page, memory_order_relaxed);
+        // Allocate a free uninitialized page
+        atomic_store_explicit(&c->free_page, (uintptr_t)malloc(size), memory_order_relaxed);
 
-    c->size = size;
-    c->xcp_access = XCP_CALPAGE_WORKING_PAGE;                                              // Default page for XCP access is the working page
-    atomic_store_explicit(&c->ecu_access, XCP_CALPAGE_WORKING_PAGE, memory_order_relaxed); // Default page for ECU access is the working page
-    atomic_store_explicit(&c->lock_count, 0, memory_order_relaxed);                        // No locks
-    c->write_pending = false;                                                              // No write pending
+        // New ECU page version not updated
+        atomic_store_explicit(&c->ecu_page_next, (uintptr_t)c->ecu_page, memory_order_relaxed);
+
+        // Enable access to the working page
+        c->xcp_access = XCP_CALPAGE_WORKING_PAGE;                                              // Default page for XCP access is the working page
+        atomic_store_explicit(&c->ecu_access, XCP_CALPAGE_WORKING_PAGE, memory_order_relaxed); // Default page for ECU access is the working page
+                                                                                               // No write pending
+    }
 
     gXcp.CalSegList.count++;
 
     mutexUnlock(&gXcp.CalSegList.mutex);
 
-    DBG_PRINTF3("  CalSeg %u: %s size=%u\n", i, c->name, c->size);
+    DBG_PRINTF3("CalSeg %u: %s size=%u\n", i, c->name, c->size);
     return i;
 }
 
@@ -595,6 +627,11 @@ uint8_t const *XcpLockCalSeg(tXcpCalSegIndex calseg) {
     }
 
     tXcpCalSeg *c = &gXcp.CalSegList.calseg[calseg];
+
+    // Not activated, return default page
+    if (!isActivated()) {
+        return c->default_page;
+    }
 
     // Update
     // Increment the lock count
@@ -627,12 +664,15 @@ uint8_t const *XcpLockCalSeg(tXcpCalSegIndex calseg) {
 // Unlock a calibration segment
 void XcpUnlockCalSeg(tXcpCalSegIndex calseg) {
 
-    if (!isInitialized() || calseg >= gXcp.CalSegList.count) {
-        DBG_PRINT_ERROR("XCP not initialized or invalid calseg\n");
-        return; // Uninitialized or invalid calseg
-    }
+    if (!isActivated()) {
 
-    atomic_fetch_sub_explicit(&gXcp.CalSegList.calseg[calseg].lock_count, 1, memory_order_release); // Decrement the lock count
+        if (calseg >= gXcp.CalSegList.count) {
+            DBG_PRINT_ERROR("XCP not initialized or invalid calseg\n");
+            return; // Uninitialized or invalid calseg
+        }
+
+        atomic_fetch_sub_explicit(&gXcp.CalSegList.calseg[calseg].lock_count, 1, memory_order_release); // Decrement the lock count
+    }
 }
 
 // XCP client memory read
@@ -1023,28 +1063,28 @@ static uint8_t XcpSetMta(uint8_t ext, uint32_t addr) {
 
 // Get a pointer to and the size of the XCP event list
 tXcpEventList *XcpGetEventList(void) {
-    if (!isInitialized())
+    if (!isActivated())
         return NULL;
     return &gXcp.EventList;
 }
 
 // Get a pointer to the XCP event struct
 static tXcpEvent *XcpGetEvent(tXcpEventId event) {
-    if (!isInitialized() || event >= gXcp.EventList.count)
+    if (!isActivated() || event >= gXcp.EventList.count)
         return NULL;
     return &gXcp.EventList.event[event];
 }
 
 // Get the event name
 const char *XcpGetEventName(tXcpEventId event) {
-    if (!isInitialized() || event >= gXcp.EventList.count)
+    if (!isActivated() || event >= gXcp.EventList.count)
         return NULL;
     return (const char *)&gXcp.EventList.event[event].name;
 }
 
 // Get the event index (1..), return 0 if not found
 uint16_t XcpGetEventIndex(tXcpEventId event) {
-    if (!isInitialized() || event >= gXcp.EventList.count)
+    if (!isActivated() || event >= gXcp.EventList.count)
         return 0;
     return gXcp.EventList.event[event].index;
 }
@@ -1052,7 +1092,7 @@ uint16_t XcpGetEventIndex(tXcpEventId event) {
 // Find an event by name, return XCP_UNDEFINED_EVENT_ID if not found
 tXcpEventId XcpFindEvent(const char *name, uint16_t *pcount) {
     uint16_t id = XCP_UNDEFINED_EVENT_ID;
-    if (isInitialized()) {
+    if (isActivated()) {
         uint16_t count = gXcp.EventList.count;
         if (pcount != NULL)
             *pcount = 0;
@@ -1075,8 +1115,7 @@ static tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint3
     uint16_t e;
     uint32_t c;
 
-    if (!isInitialized()) {
-        DBG_PRINT_ERROR("XCP not initialized\n");
+    if (!isActivated()) {
         return XCP_UNDEFINED_EVENT_ID; // Uninitialized
     }
 
@@ -1950,7 +1989,7 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             return CRC_CMD_OK; // Application not ready, ignore
 
         // Initialize Session Status
-        gXcp.SessionStatus = (SS_INITIALIZED | SS_STARTED | SS_CONNECTED | SS_LEGACY_MODE);
+        gXcp.SessionStatus = (SS_INITIALIZED | SS_ACTIVATED | SS_STARTED | SS_CONNECTED | SS_LEGACY_MODE);
 
         /* Reset DAQ */
         XcpClearDaq();
@@ -2803,6 +2842,10 @@ no_response:
 
 void XcpBackgroundTasks(void) {
 
+    if (!isActivated()) { // Ignore
+        return;
+    }
+
 // Publish all modified calibration segments
 #ifdef XCP_ENABLE_CALSEG_LAZY_WRITE
     XcpCalSegPublishAll(false);
@@ -2878,14 +2921,19 @@ void XcpPrint(const char *str) {
 // Init XCP protocol layer singleton once
 // This is a once initialization of the static gXcp singleton data structure
 // Memory for the DAQ lists are provided by the caller if daq_lists != NULL
-void XcpInit(void) {
+void XcpInit(bool activate) {
     // Once
-    if (isInitialized()) { // Already initialized, just ignore
+    if (isActivated()) { // Already initialized, just ignore
         return;
     }
 
     // Clear XCP state
     memset((uint8_t *)&gXcp, 0, sizeof(gXcp));
+
+    if (!activate) {
+        gXcp.SessionStatus = SS_INITIALIZED;
+        return; // Do not activate XCP protocol layer
+    }
 
     // Allocate DAQ list memory
     gXcp.DaqLists = malloc(sizeof(tXcpDaqLists));
@@ -2908,7 +2956,7 @@ void XcpInit(void) {
     // Initialize high resolution clock
     clockInit();
 
-    gXcp.SessionStatus = SS_INITIALIZED;
+    gXcp.SessionStatus = SS_INITIALIZED | SS_ACTIVATED;
 }
 
 // Start XCP protocol layer
@@ -2917,8 +2965,7 @@ void XcpStart(tQueueHandle queueHandle, bool resumeMode) {
 
     (void)resumeMode; // Start in resume mode
 
-    assert(isInitialized());
-    if (!isInitialized())
+    if (!isActivated())
         return;
 
 #ifdef DBG_LEVEL
@@ -3043,11 +3090,15 @@ void XcpStart(tQueueHandle queueHandle, bool resumeMode) {
 // Reset XCP protocol layer back to not init state
 void XcpReset(void) {
 
-    assert(isInitialized());
-    if (isInitialized())
+    if (!isActivated()) { // Ignore
         return;
+    }
 
     free(gXcp.DaqLists);
+    gXcp.DaqLists = NULL;
+#ifdef XCP_ENABLE_CALSEG_LIST
+    XcpFreeCalSegList();
+#endif
 
     memset(&gXcp, 0, sizeof(gXcp));
 }

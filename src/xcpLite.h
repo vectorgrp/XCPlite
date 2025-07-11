@@ -19,8 +19,9 @@ extern "C" {
 /****************************************************************************/
 
 // Initialization for the XCP Protocol Layer
-void XcpInit(void);
+void XcpInit(bool activate);
 bool XcpIsInitialized(void);
+bool XcpIsActivated(void);
 void XcpStart(tQueueHandle queueHandle, bool resumeMode);
 void XcpReset(void);
 

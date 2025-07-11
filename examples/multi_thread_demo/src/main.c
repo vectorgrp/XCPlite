@@ -32,7 +32,7 @@
 #define OPTION_SERVER_PORT 5555                      // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}              // Bind addr, 0.0.0.0 = ANY
 #define OPTION_QUEUE_SIZE 1024 * 32                  // Size of the measurement queue in bytes, must be a multiple of 8
-#define OPTION_LOG_LEVEL 4
+#define OPTION_LOG_LEVEL 3
 
 //-----------------------------------------------------------------------------------------------------
 // Demo calibration parameters
@@ -109,6 +109,10 @@ static inline const char *XcpGetContextName(void) { return gXcpContext.name; }
 // Create the context event (name is 'context_name'_'context_index')
 // Register the context struct  as A2L typedef instance tied to the context event
 static uint16_t XcpCreateContext(const char *context_name, uint16_t context_index) {
+
+    if (!XcpIsActivated()) {
+        return XCP_UNDEFINED_EVENT_ID; // Return undefined event ID if XCP is not activated
+    }
 
     // Once:
     // Create a typedef for the thread context
@@ -306,8 +310,9 @@ int main(void) {
     // Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
     XcpSetLogLevel(OPTION_LOG_LEVEL);
 
-    // Initialize the XCP singleton, must be called before starting the server
-    XcpInit();
+    // Initialize the XCP singleton, activate XCP, must be called before starting the server
+    // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
+    XcpInit(true);
 
     // Initialize the XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;

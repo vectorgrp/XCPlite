@@ -227,6 +227,7 @@
 #define SS_INITIALIZED ((uint16_t)0x8000)  /* initialized */
 #define SS_STARTED ((uint16_t)0x4000)      /* started*/
 #define SS_CONNECTED ((uint16_t)0x2000)    /* connected */
+#define SS_ACTIVATED ((uint16_t)0x1000)    /* activated or passive */
 
 /*-------------------------------------------------------------------------*/
 /* Identifier Type (GET_ID) */

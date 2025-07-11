@@ -60,7 +60,11 @@ static struct {
 } gXcpServer;
 
 // XCP server status
-bool XcpEthServerStatus(void) { return gXcpServer.isInit && gXcpServer.TransmitThreadRunning && gXcpServer.ReceiveThreadRunning; }
+bool XcpEthServerStatus(void) {
+    if (!XcpIsActivated())
+        return true;
+    return gXcpServer.isInit && gXcpServer.TransmitThreadRunning && gXcpServer.ReceiveThreadRunning;
+}
 
 // XCP server information
 void XcpEthServerGetInfo(bool *isTcp, uint8_t *mac, uint8_t *addr, uint16_t *port) { XcpEthTlGetInfo(isTcp, mac, addr, port); }
@@ -68,10 +72,10 @@ void XcpEthServerGetInfo(bool *isTcp, uint8_t *mac, uint8_t *addr, uint16_t *por
 // XCP server init
 bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t queueSize) {
 
-    // Check that the XCP singleton has been explicitly initialized
-    if (!XcpIsInitialized()) {
-        DBG_PRINT_ERROR("XCP not initialized!\n");
-        return false;
+    // Check and ignore, if the XCP singleton has not been initialized and activated
+    if (!XcpIsActivated()) {
+        DBG_PRINT3("XcpEthServerInit: XCP not initialized and activated!\n");
+        return true;
     }
 
     // Check if already initialized and running

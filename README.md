@@ -112,18 +112,30 @@ This is indicated by the address extension:
 
 Future versions of the A2L updaters might support these addressing schemes.  
 
-## Platform requirements
+## Platform requirements and memory usage
 
-- Atomics (C11 stdatomic.h - atomic_bool, atomic_uintptr_t, atomic_uint8_t, compare_exchange, fetch_sub).  
-Used for lock free queue (xcpQueue64), lock free calibration segments, DYN address mode cmd pending state, DAQ running state.  
+- malloc.  
+  Used for transmit queue (XcpEthServerInit(queue size).  
+  DAQ list (OPTION_DAQ_MEM_SIZE).  
+  Calibration segments page memory (3 copies of the default page for calibration page RCU).  
+
+- Atomics (C11 stdatomic.h.  
+  Requires atomic_bool, atomic_uintptr_t, atomic_uint8_t, compare_exchange, fetch_sub.  
+  Used for lock free queue (xcpQueue64), lock free calibration segments, DYN address mode cmd pending state, DAQ running state.  
+
 - THREAD (Linux: pthread_create, pthread_join, pthread_cancel).  
-Used for XCP transmit and receive thread.  
+  Used for XCP transmit and receive thread.  
+
 - THREAD_LOCAL (C11:_Thread_local).  
-Used for the DaqEvent macros and A2L generation.
+  Used for the DaqEvent macros and A2L generation.  
+
 - MUTEX (Linux: pthread_mutex_lock, pthread_mutex_unlock).  
-Used for 32 Bit Queue acquire, queue consumer incrementing the transport layer counter, thread safe creating event and calseg, thread safe lazy A2L registration.  
+  Used for 32 Bit Queue acquire, queue consumer incrementing the transport layer counter, thread safe creating event and calseg, thread safe lazy A2L registration.  
+
 - SleepMs, SleepNs (Linux: nanosleep).  
-Used for reveive thread polling loop.  
+  Used for receive thread polling loop.  
+
 - Clock (Linux: clock_gettime).  
-Used for DAQ timestamp clock.  
+  Used for DAQ timestamp clock.  
+
 - Sockets (Linux: socket, ...).  

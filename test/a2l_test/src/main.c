@@ -55,9 +55,9 @@ int main() {
     printf("A2l Generation Test:\n");
     printf("====================\n");
 
-    // Initialize the XCP singleton
-    // Provides the event and calibration segment list
-    XcpInit();
+    // Initialize the XCP singleton, activate XCP, must be called before starting the server
+    // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
+    XcpInit(true);
 
     uint8_t addr[4] = OPTION_SERVER_ADDR;
     if (!A2lInit(OPTION_A2L_FILE_NAME, OPTION_A2L_PROJECT_NAME, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, true, true)) {

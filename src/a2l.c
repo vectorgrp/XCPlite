@@ -1328,6 +1328,13 @@ void A2lUnlock(void) {
 bool A2lInit(const char *a2l_filename, const char *a2l_projectname, const uint8_t *addr, uint16_t port, bool useTCP, bool finalize_on_connect, bool auto_groups) {
 
     assert(gA2lFile == NULL);
+
+    // Check and ignore, if the XCP singleton has not been initialized and activated
+    if (!XcpIsActivated()) {
+        DBG_PRINT3("A2lInit: XCP not initialized and activated!\n");
+        return true;
+    }
+
     assert(a2l_filename != NULL);
     assert(a2l_projectname != NULL);
     assert(addr != NULL);
