@@ -810,9 +810,12 @@ static uint8_t XcpCalSegWriteMemory(uint32_t dst, uint16_t size, const uint8_t *
 // Get active ecu or xcp calibration page
 // Note: XCP/A2L segment numbers are bytes, 0 is reserved for the EPK segment, tXcpCalSegIndex is the XCP/A2L segment number - 1
 static uint8_t XcpCalSegGetCalPage(uint8_t segment, uint8_t mode) {
-    if (segment < 1 || segment > gXcp.CalSegList.count) {
+    if (segment > gXcp.CalSegList.count) {
         DBG_PRINTF_ERROR("invalid segment number: %u\n", segment);
         return XCP_CALPAGE_INVALID_PAGE;
+    }
+    if (segment == 0) {
+        return XCP_CALPAGE_DEFAULT_PAGE; // EPK segment does not have calibration pages
     }
     tXcpCalSegIndex calseg = segment - 1; // Convert to index
     if (mode == CAL_PAGE_MODE_ECU) {
@@ -857,13 +860,17 @@ static uint8_t XcpCalSegSetCalPage(uint8_t segment, uint8_t page, uint8_t mode) 
 #ifdef XCP_ENABLE_COPY_CAL_PAGE
 static uint8_t XcpCalSegCopyCalPage(uint8_t srcSeg, uint8_t srcPage, uint8_t dstSeg, uint8_t dstPage) {
     // Only copy from default page to working page supported
-    if (srcSeg != dstSeg || srcSeg < 1 || srcSeg > gXcp.CalSegList.count || dstPage != XCP_CALPAGE_WORKING_PAGE || srcPage != XCP_CALPAGE_DEFAULT_PAGE) {
+    if (srcSeg != dstSeg || srcSeg > gXcp.CalSegList.count || dstPage != XCP_CALPAGE_WORKING_PAGE || srcPage != XCP_CALPAGE_DEFAULT_PAGE) {
         DBG_PRINT_ERROR("invalid calseg copy operation\n");
-        return CRC_PAGE_NOT_VALID;
+        return CRC_WRITE_PROTECTED;
     }
-    uint16_t size = gXcp.CalSegList.calseg[dstSeg - 1].size;
-    const uint8_t *srcPtr = gXcp.CalSegList.calseg[srcSeg - 1].default_page;
-    return XcpCalSegWriteMemory(0x80000000 | dstSeg, size, srcPtr);
+    if (dstSeg >= 1) {
+        uint16_t size = gXcp.CalSegList.calseg[dstSeg - 1].size;
+        const uint8_t *srcPtr = gXcp.CalSegList.calseg[srcSeg - 1].default_page;
+        return XcpCalSegWriteMemory(0x80000000 | dstSeg, size, srcPtr);
+    } else {
+        return CRC_CMD_OK; // Silently ignore copy operations on EPK segment
+    }
 }
 #endif
 
@@ -895,6 +902,10 @@ static uint8_t XcpCalSegCommand(uint8_t cmd) {
 // Freeze calibration segment working pages
 // Note: XCP/A2L segment numbers are bytes, 0 is reserved for the EPK segment, tXcpCalSegIndex is the XCP/A2L segment number - 1
 #ifdef XCP_ENABLE_FREEZE_CAL_PAGE
+
+static uint8_t XcpGetCalSegCount(void) {
+    return (uint8_t)(gXcp.CalSegList.count + 1); // Return the number of calibration segments +1 for the virtual EPK segment
+}
 
 static uint8_t XcpGetCalSegMode(uint8_t segment) {
     if (segment > gXcp.CalSegList.count)
@@ -2351,7 +2362,7 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
         case CC_GET_PAG_PROCESSOR_INFO: {
             check_len(CRO_GET_PAG_PROCESSOR_INFO_LEN);
             CRM_LEN = CRM_GET_PAG_PROCESSOR_INFO_LEN;
-            CRM_GET_PAG_PROCESSOR_INFO_MAX_SEGMENTS = (uint8_t)gXcp.CalSegList.count;
+            CRM_GET_PAG_PROCESSOR_INFO_MAX_SEGMENTS = XcpGetCalSegCount();
             CRM_GET_PAG_PROCESSOR_INFO_PROPERTIES = PAG_PROPERTY_FREEZE; // Freeze mode supported
         } break;
 
@@ -3160,7 +3171,8 @@ static void XcpPrintCmd(const tXcpCto *cmdBuf) {
     switch (CRO_CMD) {
 
     case CC_SET_CAL_PAGE:
-        printf(" SET_CAL_PAGE segment=%u,page=%u,mode=%02Xh\n", CRO_SET_CAL_PAGE_SEGMENT, CRO_SET_CAL_PAGE_PAGE, CRO_SET_CAL_PAGE_MODE);
+        printf(" SET_CAL_PAGE segment=%u,page=%u,mode=%02Xh %s\n", CRO_SET_CAL_PAGE_SEGMENT, CRO_SET_CAL_PAGE_PAGE, CRO_SET_CAL_PAGE_MODE,
+               (CRO_SET_CAL_PAGE_MODE & CAL_PAGE_MODE_ALL) ? "(all)" : "");
         break;
     case CC_GET_CAL_PAGE:
         printf(" GET_CAL_PAGE segment=%u, mode=%u\n", CRO_GET_CAL_PAGE_SEGMENT, CRO_GET_CAL_PAGE_MODE);
@@ -3173,10 +3185,10 @@ static void XcpPrintCmd(const tXcpCto *cmdBuf) {
         printf(" GET_PAG_PROCESSOR_INFO\n");
         break;
     case CC_SET_SEGMENT_MODE:
-        printf(" SET_SEGMENT_MODE\n");
+        printf(" SET_SEGMENT_MODE segment=%u, mode=%u\n", CRO_SET_SEGMENT_MODE_SEGMENT, CRO_SET_SEGMENT_MODE_MODE);
         break;
     case CC_GET_SEGMENT_MODE:
-        printf(" GET_SEGMENT_MODE\n");
+        printf(" GET_SEGMENT_MODE segment=%u\n", CRO_GET_SEGMENT_MODE_SEGMENT);
         break;
     case CC_BUILD_CHECKSUM:
         printf(" BUILD_CHECKSUM size=%u\n", CRO_BUILD_CHECKSUM_SIZE);

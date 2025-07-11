@@ -82,16 +82,24 @@ static const char *gA2lHeader = "ASAP2_VERSION 1 71\n"
 //----------------------------------------------------------------------------------
 static const char *gA2lMemorySegment = "/begin MEMORY_SEGMENT %s \"\" DATA FLASH INTERN 0x%08X 0x%X -1 -1 -1 -1 -1\n" // name, start, size
                                        "/begin IF_DATA XCP\n"
-                                       "/begin SEGMENT %u 0x2 0x0 0x0 0x0\n"
+                                       "/begin SEGMENT %u 2 0 0 0\n"
                                        "/begin CHECKSUM XCP_ADD_44 MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION \"\" /end CHECKSUM\n"
                                        // 2 calibration pages, 0=working page (RAM), 1=initial readonly page (FLASH), independent access to ECU and XCP page possible
-                                       "/begin PAGE 0x1 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_NOT_ALLOWED /end PAGE\n"
-                                       "/begin PAGE 0x0 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_DONT_CARE /end PAGE\n"
+                                       "/begin PAGE 0 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_DONT_CARE /end PAGE\n"
+                                       "/begin PAGE 1 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_NOT_ALLOWED /end PAGE\n"
                                        "/end SEGMENT\n"
                                        "/end IF_DATA\n"
                                        "/end MEMORY_SEGMENT\n";
 
-static const char *gA2lEpkMemorySegment = "/begin MEMORY_SEGMENT epk \"\" DATA FLASH INTERN 0x80000000 %u -1 -1 -1 -1 -1 /end MEMORY_SEGMENT\n";
+static const char *gA2lEpkMemorySegment = "/begin MEMORY_SEGMENT epk \"\" DATA FLASH INTERN 0x80000000 %u -1 -1 -1 -1 -1\n"
+                                          "/begin IF_DATA XCP\n"
+                                          "/begin SEGMENT 0 2 0 0 0\n"
+                                          "/begin CHECKSUM XCP_ADD_44 MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION \"\" /end CHECKSUM\n"
+                                          "/begin PAGE 0 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_DONT_CARE /end PAGE\n"
+                                          "/begin PAGE 1 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_NOT_ALLOWED /end PAGE\n"
+                                          "/end SEGMENT\n"
+                                          "/end IF_DATA\n"
+                                          "/end MEMORY_SEGMENT\n";
 
 //----------------------------------------------------------------------------------
 static const char *const gA2lIfDataBegin = "\n/begin IF_DATA XCP\n";
@@ -116,9 +124,9 @@ static const char *gA2lIfDataProtocolLayer = // Parameter: XCP_PROTOCOL_LAYER_VE
     "OPTIONAL_CMD SET_CAL_PAGE\n"
     "OPTIONAL_CMD COPY_CAL_PAGE\n"
 #ifdef XCP_ENABLE_FREEZE_CAL_PAGE
-    "OPTIONAL_CMD CC_GET_PAG_PROCESSOR_INFO\n"
-    "OPTIONAL_CMD CC_GET_SEGMENT_MODE\n"
-    "OPTIONAL_CMD CC_SET_SEGMENT_MODE\n"
+    "OPTIONAL_CMD GET_PAG_PROCESSOR_INFO\n"
+    "OPTIONAL_CMD GET_SEGMENT_MODE\n"
+    "OPTIONAL_CMD SET_SEGMENT_MODE\n"
 #endif
 //"OPTIONAL_CMD CC_GET_SEGMENT_INFO\n"
 //"OPTIONAL_CMD CC_GET_PAGE_INFO\n"
@@ -462,7 +470,7 @@ static void A2lCreate_MOD_PAR(void) {
         // Segment number 0 is reserved for the implicit EPK segment
         tXcpCalSegList const *calSegList = XcpGetCalSegList();
         if (calSegList != NULL && calSegList->count > 0) {
-            for (uint32_t i = 0; i < calSegList->count; i++) {
+            for (tXcpCalSegIndex i = 0; i < calSegList->count; i++) {
                 tXcpCalSeg const *calseg = &calSegList->calseg[i];
                 fprintf(gA2lFile, gA2lMemorySegment, calseg->name, XcpGetCalSegBaseAddress(i), calseg->size, i + 1);
             }

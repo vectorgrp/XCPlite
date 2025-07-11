@@ -139,3 +139,16 @@ Future versions of the A2L updaters might support these addressing schemes.
   Used for DAQ timestamp clock.  
 
 - Sockets (Linux: socket, ...).  
+
+## CANape known issues
+
+- Initialize RAM (COPY_CAL_PAGE) is executed only on the first calibration segment
+- GET_SEGMENT_MODE is executed multiple times on only the last calibration segment before freeze request
+- Address extension of memory segment is ignored
+- Request for unique address extension per DAQ list is ignored (DAQ_KEY_BYTE == DAQ_EXT_DAQ)
+- CANape < V24 does not support THIS. axis references
+
+## Suggestions for improvement
+
+- Transport Layer counter mutex could be avoided with different counter mode mode
+- Indicate when polling access is not possible
