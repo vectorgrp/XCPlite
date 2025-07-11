@@ -88,7 +88,8 @@ int main(void) {
         return 1;
     }
 #else
-    // Set the A2L filename for upload, assuming the A2L file exists
+    // Set the A2L filename for upload, assuming the A2L file exists and is stable
+    // Stable means that events and calibration segments are created in the same order every time, as they are in the A2L file
     ApplXcpSetA2lName(OPTION_A2L_FILE_NAME);
 #endif
 

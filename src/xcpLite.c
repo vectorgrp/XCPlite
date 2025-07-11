@@ -2963,7 +2963,7 @@ void XcpInit(bool activate) {
 // Assume the transport layer is running
 void XcpStart(tQueueHandle queueHandle, bool resumeMode) {
 
-    (void)resumeMode; // Start in resume mode
+    (void)resumeMode; // Start in resume mode, not implemented yet
 
     if (!isActivated())
         return;

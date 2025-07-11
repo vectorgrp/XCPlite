@@ -25,7 +25,6 @@
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
 
-#define OPTION_ENABLE_A2L_GENERATOR                  // Enable A2L file generation
 #define OPTION_A2L_PROJECT_NAME "multi_thread_demo"  // A2L project name
 #define OPTION_A2L_FILE_NAME "multi_thread_demo.a2l" // A2L file name
 #define OPTION_USE_TCP false                         // TCP or UDP
@@ -321,14 +320,9 @@ int main(void) {
     }
 
     // Enable A2L generation and prepare the A2L file, finalize the A2L file on XCP connect, auto grouping
-#ifdef OPTION_ENABLE_A2L_GENERATOR
     if (!A2lInit(OPTION_A2L_FILE_NAME, OPTION_A2L_PROJECT_NAME, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, true, true)) {
         return 1;
     }
-#else
-    // Set the A2L filename for upload, assuming the A2L file exists
-    ApplXcpSetA2lName(OPTION_A2L_FILE_NAME);
-#endif
 
     // Create a calibration segment for the calibration parameter struct
     // This segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
