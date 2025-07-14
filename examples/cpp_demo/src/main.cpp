@@ -13,14 +13,11 @@ namespace {
 
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
-#define OPTION_ENABLE_A2L_GENERATOR         // Enable A2L file generation
-#define OPTION_ENABLE_AUTO_GROUPS true      // Automatically create groups for measurements and parameters
-#define OPTION_A2L_PROJECT_NAME "cpp_demo"  // A2L project name
-#define OPTION_A2L_FILE_NAME "cpp_demo.a2l" // A2L filename
-#define OPTION_USE_TCP false                // TCP or UDP
-#define OPTION_SERVER_PORT 5555             // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0}     // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE (1024 * 64)       // Size of the measurement queue in bytes
+#define OPTION_PROJECT_NAME "cpp_demo"  // A2L project name
+#define OPTION_USE_TCP false            // TCP or UDP
+#define OPTION_SERVER_PORT 5555         // Port
+#define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
+#define OPTION_QUEUE_SIZE (1024 * 64)   // Size of the measurement queue in bytes
 #define OPTION_LOG_LEVEL 3
 
 //-----------------------------------------------------------------------------------------------------
@@ -101,7 +98,7 @@ int main() {
     }
 
     // Enable A2L generation
-    if (!A2lInit(OPTION_A2L_FILE_NAME, OPTION_A2L_PROJECT_NAME, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, true, OPTION_ENABLE_AUTO_GROUPS)) {
+    if (!A2lInit(OPTION_PROJECT_NAME, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, false, true, true)) {
         std::cerr << "Failed to initialize A2L generator" << std::endl;
         return 1;
     }

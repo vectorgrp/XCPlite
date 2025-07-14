@@ -20,19 +20,23 @@
 #include <stdio.h>    // for fclose, fopen, fread, fseek, ftell
 #include <string.h>   // for strlen, strncpy
 
-#include "dbg_print.h" // for DBG_PRINTF3, DBG_PRINT4, DBG_PRINTF4, DBG...
-#include "main_cfg.h"  // for OPTION_xxx
-#include "platform.h"  // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
-#include "xcp.h"       // for CRC_XXX
-#include "xcpLite.h"   // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
-#include "xcp_cfg.h"   // for XCP_xxx
-#include "xcptl_cfg.h" // for XCPTL_xxx
+#include "dbg_print.h"   // for DBG_PRINTF3, DBG_PRINT4, DBG_PRINTF4, DBG...
+#include "main_cfg.h"    // for OPTION_xxx
+#include "persistency.h" // for XcpBinWrite, XcpBinLoad
+#include "platform.h"    // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
+#include "xcp.h"         // for CRC_XXX
+#include "xcpLite.h"     // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
+#include "xcp_cfg.h"     // for XCP_xxx
+#include "xcptl_cfg.h"   // for XCPTL_xxx
 
 //----------------------------------------------------------------------------------
 
+static FILE *gA2lFile = NULL;
+static char gA2lFilename[256];
+static char gBinFilename[256];
+
 static MUTEX gA2lMutex;
 
-static FILE *gA2lFile = NULL;
 static FILE *gA2lTypedefsFile = NULL;
 static FILE *gA2lGroupsFile = NULL;
 
@@ -505,16 +509,28 @@ static void A2lCreate_IF_DATA_DAQ(void) {
     fprintf(gA2lFile, gA2lIfDataBeginDAQ, eventCount, XCP_TIMESTAMP_UNIT_S);
 
     // Eventlist
+
 #if defined(XCP_ENABLE_DAQ_EVENT_LIST) && !defined(XCP_ENABLE_DAQ_EVENT_INFO)
     for (uint32_t id = 0; id < eventCount; id++) {
         tXcpEvent *event = &eventList->event[id];
         uint16_t index = event->index;
         const char *name = event->name;
+
+        // Convert cycle time to ASAM coding time cycle and time unit
+        // RESOLUTION OF TIMESTAMP "UNIT_1NS" = 0, "UNIT_10NS" = 1, ...
+        uint8_t timeUnit = 0; // timeCycle unit, 1ns=0, 10ns=1, 100ns=2, 1us=3, ..., 1ms=6, ...
+        uint8_t timeCycle;    // cycle time in units, 0 = sporadic or unknown
+        uint32_t c = event->cycleTimeNs;
+        while (c >= 256) {
+            c /= 10;
+            timeUnit++;
+        }
+        timeCycle = (uint8_t)c;
+
         if (index == 0) {
-            fprintf(gA2lFile, "/begin EVENT \"%s\" \"%s\" 0x%X DAQ 0xFF %u %u %u CONSISTENCY EVENT", name, name, id, event->timeCycle, event->timeUnit, event->priority);
+            fprintf(gA2lFile, "/begin EVENT \"%s\" \"%s\" 0x%X DAQ 0xFF %u %u %u CONSISTENCY EVENT", name, name, id, timeCycle, timeUnit, event->priority);
         } else {
-            fprintf(gA2lFile, "/begin EVENT \"%s_%u\" \"%s_%u\" 0x%X DAQ 0xFF %u %u %u CONSISTENCY EVENT", name, index, name, index, id, event->timeCycle, event->timeUnit,
-                    event->priority);
+            fprintf(gA2lFile, "/begin EVENT \"%s_%u\" \"%s_%u\" 0x%X DAQ 0xFF %u %u %u CONSISTENCY EVENT", name, index, name, index, id, timeCycle, timeUnit, event->priority);
         }
 
         fprintf(gA2lFile, " /end EVENT\n");
@@ -1218,14 +1234,14 @@ bool A2lOnce_(uint64_t *value) {
 //-----------------------------------------------------------------------------------------------------
 // A2L file generation and finalization on XCP connect
 
-static bool file_exists(const char *path) {
-    FILE *file = fopen(path, "r");
-    if (file) {
-        fclose(file);
-        return true;
-    }
-    return false;
-}
+// static bool file_exists(const char *path) {
+//     FILE *file = fopen(path, "r");
+//     if (file) {
+//         fclose(file);
+//         return true;
+//     }
+//     return false;
+// }
 
 static bool includeFile(FILE **filep, const char *filename) {
 
@@ -1253,13 +1269,6 @@ static bool includeFile(FILE **filep, const char *filename) {
 bool A2lFinalize(void) {
 
     if (gA2lFile != NULL) {
-
-        // @@@@ TODO: Improve EPK generation
-        // A different A2L EPK version is  be required for the same build, if the order of event or calibration segment creation  is different and leads to different ids !!!!
-        // Set the EPK (software version number) for the A2L file
-        char epk[64];
-        sprintf(epk, "EPK_%s_%s", __DATE__, __TIME__);
-        XcpSetEpk(epk);
 
         // Close the last group if any
         if (gA2lAutoGroups) {
@@ -1310,8 +1319,10 @@ bool A2lFinalize(void) {
         fclose(gA2lFile);
         gA2lFile = NULL;
 
-        DBG_PRINTF3("A2L created: %u measurements, %u params, %u typedefs, %u components, %u instances, %u conversions\n\n", gA2lMeasurements, gA2lParameters, gA2lTypedefs,
+        DBG_PRINTF3("A2L created: %u measurements, %u params, %u typedefs, %u components, %u instances, %u conversions\n", gA2lMeasurements, gA2lParameters, gA2lTypedefs,
                     gA2lComponents, gA2lInstances, gA2lConversions);
+
+        XcpBinWrite(gBinFilename);
     }
 
     return true; // Do not refuse connect
@@ -1333,7 +1344,7 @@ void A2lUnlock(void) {
 }
 
 // Open the A2L file and register the finalize callback
-bool A2lInit(const char *a2l_filename, const char *a2l_projectname, const uint8_t *addr, uint16_t port, bool useTCP, bool finalize_on_connect, bool auto_groups) {
+bool A2lInit(const char *a2l_projectname, const uint8_t *addr, uint16_t port, bool useTCP, bool force_generation, bool finalize_on_connect, bool enable_auto_grouping) {
 
     assert(gA2lFile == NULL);
 
@@ -1343,35 +1354,40 @@ bool A2lInit(const char *a2l_filename, const char *a2l_projectname, const uint8_
         return true;
     }
 
-    assert(a2l_filename != NULL);
     assert(a2l_projectname != NULL);
     assert(addr != NULL);
 
-    DBG_PRINTF3("Start A2L generator, file=%s, auto_finalize=%u, auto_groups=%u\n", a2l_filename, finalize_on_connect, auto_groups);
-
-    // Save transport layer parameters for A2l finalization
+    // Save parameters anyway
     memcpy(&gA2lOptionBindAddr, addr, 4);
     gA2lOptionPort = port;
     gA2lUseTCP = useTCP;
-    gA2lAutoGroups = auto_groups;
+    gA2lAutoGroups = enable_auto_grouping;
 
     mutexInit(&gA2lMutex, false, 1000); // Non recursive mutex, spincount 1000
 
-    // Check if A2L file already exists and rename it to 'name.old' if it does
-    if (file_exists(a2l_filename)) {
-        char old_filename[256];
-        SNPRINTF(old_filename, sizeof(old_filename), "%s.old", a2l_filename);
-        if (rename(a2l_filename, old_filename) != 0) {
-            DBG_PRINTF_ERROR("Failed to rename existing A2L file %s to %s\n", a2l_filename, old_filename);
-            return false;
-        } else {
-            DBG_PRINTF3("Renamed existing A2L file %s to %s\n", a2l_filename, old_filename);
+    // @@@@ TODO move to somewhere else
+    // EPK generation
+    // Set the EPK (software version number) for the A2L file
+    char epk[64];
+    SNPRINTF(epk, sizeof(epk), "_%s%s", __DATE__, __TIME__);
+    XcpSetEpk(epk);
+
+    // Build filenames
+    SNPRINTF(gA2lFilename, sizeof(gA2lFilename), "%s%s.a2l", a2l_projectname, XcpGetEpk());
+    SNPRINTF(gBinFilename, sizeof(gBinFilename), "%s%s.bin", a2l_projectname, XcpGetEpk());
+    DBG_PRINTF3("Start A2L generator, file=%s, force=%u, auto_finalize=%u, auto_groups=%u\n", gA2lFilename, force_generation, finalize_on_connect, enable_auto_grouping);
+
+    // Check if the binary file exists and load it
+    if (!force_generation) {
+        if (XcpBinLoad(gBinFilename, XcpGetEpk())) {
+            DBG_PRINTF3("Loaded binary file %s, A2L generation has been disabled\n", gBinFilename);
+            return true; // Do not generate A2L file if binary file exists
         }
     }
 
     // Open A2L file
-    if (!A2lOpen(a2l_filename, a2l_projectname)) {
-        printf("Failed to open A2L file %s\n", a2l_filename);
+    if (!A2lOpen(gA2lFilename, a2l_projectname)) {
+        printf("Failed to open A2L file %s\n", gA2lFilename);
         return false;
     }
 

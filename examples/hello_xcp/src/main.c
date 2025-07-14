@@ -13,13 +13,11 @@
 //-----------------------------------------------------------------------------------------------------
 
 // XCP parameters
-#define OPTION_ENABLE_A2L_GENERATOR          // Enable A2L file generation
-#define OPTION_A2L_PROJECT_NAME "hello_xcp"  // A2L project name
-#define OPTION_A2L_FILE_NAME "hello_xcp.a2l" // A2L filename
-#define OPTION_USE_TCP false                 // TCP or UDP
-#define OPTION_SERVER_PORT 5555              // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0}      // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE 1024 * 16          // Size of the measurement queue in bytes, must be a multiple of 8
+#define OPTION_PROJECT_NAME "hello_xcp" // Project name, used to build the A2L and BIN file name
+#define OPTION_USE_TCP false            // TCP or UDP
+#define OPTION_SERVER_PORT 5555         // Port
+#define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
+#define OPTION_QUEUE_SIZE 1024 * 16     // Size of the measurement queue in bytes, must be a multiple of 8
 #define OPTION_LOG_LEVEL 3
 
 //-----------------------------------------------------------------------------------------------------
@@ -59,22 +57,19 @@ int main(void) {
         return 1;
     }
 
-    // Enable A2L generation and prepare the A2L file, finalize the A2L file on XCP connect
-#ifdef OPTION_ENABLE_A2L_GENERATOR
-    if (!A2lInit(OPTION_A2L_FILE_NAME, OPTION_A2L_PROJECT_NAME, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, true, true)) {
+    // Enable A2L generation
+    // If the A2l file aready exists, check if EPK matches and load the binary persistence file
+    // If not, prepare the A2L file, finalize the A2L file on XCP connect
+    if (!A2lInit(OPTION_PROJECT_NAME, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, false /* force_generation*/, true /* finalize_on_connect*/, true /* enable auto grouping*/)) {
         return 1;
     }
-#else
-    // Set the A2L filename for upload, assuming the A2L file exists and is stable
-    // Stable means that events and calibration segments are created in the same order every time, as they are in the A2L file
-    ApplXcpSetA2lName(OPTION_A2L_FILE_NAME);
-#endif
 
     // Create a calibration segment named 'Parameters' for the calibration parameter struct
     // This calibration segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
     // It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
     // It supports XCP/ECU independent page switching, checksum calculation and reinitialization (copy reference page to working page)
     tXcpCalSegIndex calseg = XcpCreateCalSeg("Parameters", &parameters, sizeof(parameters));
+    assert(calseg != XCP_UNDEFINED_CALSEG); // Ensure the calibration segment was created successfully
 
     // Register calibration parameters in the calibration segment
     A2lSetSegmentAddrMode(calseg, parameters);

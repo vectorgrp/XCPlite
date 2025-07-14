@@ -25,12 +25,11 @@
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
 
-#define OPTION_A2L_PROJECT_NAME "multi_thread_demo"  // A2L project name
-#define OPTION_A2L_FILE_NAME "multi_thread_demo.a2l" // A2L file name
-#define OPTION_USE_TCP false                         // TCP or UDP
-#define OPTION_SERVER_PORT 5555                      // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0}              // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE 1024 * 32                  // Size of the measurement queue in bytes, must be a multiple of 8
+#define OPTION_PROJECT_NAME "multi_thread_demo" // A2L project name
+#define OPTION_USE_TCP false                    // TCP or UDP
+#define OPTION_SERVER_PORT 5555                 // Port
+#define OPTION_SERVER_ADDR {0, 0, 0, 0}         // Bind addr, 0.0.0.0 = ANY
+#define OPTION_QUEUE_SIZE 1024 * 32             // Size of the measurement queue in bytes, must be a multiple of 8
 #define OPTION_LOG_LEVEL 3
 
 //-----------------------------------------------------------------------------------------------------
@@ -238,7 +237,7 @@ void *task(void *p)
 
     // Instrumentation: Events and measurement variables
     // Register task local variables counter and channelx with stack addressing mode
-    tXcpEventId task_event_id = XcpCreateEventInstance("task", 0, 0);
+    tXcpEventId task_event_id = DaqCreateEventInstance_s("task");
 
     // Build the task name from the event index
     uint16_t task_index = XcpGetEventIndex(task_event_id); // Get the event index of this event instance
@@ -320,7 +319,7 @@ int main(void) {
     }
 
     // Enable A2L generation and prepare the A2L file, finalize the A2L file on XCP connect, auto grouping
-    if (!A2lInit(OPTION_A2L_FILE_NAME, OPTION_A2L_PROJECT_NAME, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, true, true)) {
+    if (!A2lInit(OPTION_PROJECT_NAME, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, true, true, true)) {
         return 1;
     }
 
@@ -330,6 +329,7 @@ int main(void) {
     // It supports XCP/ECU independant page switching, checksum calculation and reinitialization (copy reference page to working page)
     // Note that it can be used in only one ECU thread (in Rust terminology, it is Send, but not Sync)
     calseg = XcpCreateCalSeg("Parameters", &params, sizeof(params));
+    assert(calseg != XCP_UNDEFINED_CALSEG); // Ensure the calibration segment was created successfully
 
     // Register calibration parameters in the calibration segment
     A2lSetSegmentAddrMode(calseg, params);

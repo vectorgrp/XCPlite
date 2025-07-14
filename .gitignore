@@ -17,7 +17,8 @@
 *.tmp
 
 # Examples A2L files
-/*.a2l.old
+/*.a2l
+/*.bin
 /c_demo.a2l
 /cpp_demo.a2l
 /hello_xcp.a2l

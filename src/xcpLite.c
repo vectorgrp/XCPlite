@@ -4,20 +4,12 @@
 |
 |  Description:
 |    Implementation of the ASAM XCP Protocol Layer V1.4
-|    Version V1.0.0
+|    Version V0.9.1
 |       - Designed and optimized for 64 bit POSIX based platforms (Linux or MacOS)
 |       - Tested on x86 strong and ARM weak memory model
 |       - Can be adapted for 32 bit platforms
 |       - Runs on Windows for demonstration purposes with some limitations
-|
-|  Supported XCP commands:
-|       GET_COMM_MODE_INFO GET_ID GET_VERSION
-|       SET_MTA UPLOAD SHORT_UPLOAD DOWNLOAD SHORT_DOWNLOAD
-|       GET_CAL_PAGE SET_CAL_PAGE BUILD_CHECKSUM
-|       GET_DAQ_RESOLUTION_INFO GET_DAQ_PROCESSOR_INFO GET_DAQ_EVENT_INFO
-|       FREE_DAQ ALLOC_DAQ ALLOC_ODT ALLOC_ODT_ENTRY SET_DAQ_PTR WRITE_DAQ WRITE_DAQ_MULTIPLE
-|       GET_DAQ_LIST_MODE SET_DAQ_LIST_MODE START_STOP_SYNCH START_STOP_DAQ_LIST
-|       GET_DAQ_CLOCK GET_DAQ_CLOCK_MULTICAST TIME_CORRELATION_PROPERTIES
+
 |
 |  Limitations:
 |       - 8 bit and 16 bit CPUs are not supported
@@ -47,7 +39,7 @@
 |     - Block mode for UPLOAD, DOWNLOAD and PROGRAM is not available
 |     - Resume mode is not available|
 |     - Memory write and read protection is not supported
-|     - Checksum calculation with AUTOSAR CRC module is not supported
+|     - Checksum calculation supports only CRC CCITT16 or ADD44
 |
 |
 | Copyright (c) Vector Informatik GmbH. All rights reserved.
@@ -67,13 +59,14 @@
 #include <stdlib.h>   // for free, malloc
 #include <string.h>   // for memcpy, memset, strlen
 
-#include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
-#include "platform.h"  // for atomics
-#include "xcp.h"       // XCP protocol definitions
-#include "xcpEthTl.h"  // for transport layer XcpTlWaitForTransmitQueueEmpty and XcpTlSendCrm
-#include "xcpQueue.h"  // for QueueXxx transport queue layer interface
-#include "xcp_cfg.h"   // XCP protocol layer configuration parameters (XCP_xxx)
-#include "xcptl_cfg.h" // XCP transport layer configuration parameters (XCPTL_xxx)
+#include "dbg_print.h"   // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
+#include "persistency.h" // for XcpBinFreezeCalSeg
+#include "platform.h"    // for atomics
+#include "xcp.h"         // XCP protocol definitions
+#include "xcpEthTl.h"    // for transport layer XcpTlWaitForTransmitQueueEmpty and XcpTlSendCrm
+#include "xcpQueue.h"    // for QueueXxx transport queue layer interface
+#include "xcp_cfg.h"     // XCP protocol layer configuration parameters (XCP_xxx)
+#include "xcptl_cfg.h"   // XCP transport layer configuration parameters (XCPTL_xxx)
 
 /****************************************************************************/
 /* Defaults and checks                                                      */
@@ -145,180 +138,18 @@
 #endif
 
 /****************************************************************************/
+/* Protocol layer state data                                                */
+/****************************************************************************/
+
+// XCP singleton
+// Calling XCP functions (e.g. XcpEvent()) before XcpInit() will assert
+tXcpData gXcp = {0};
+
+/****************************************************************************/
 /* Forward declarations of static functions                                 */
 /****************************************************************************/
 
 static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLen);
-
-/****************************************************************************/
-/* XCP packet                                                               */
-/****************************************************************************/
-
-typedef union {
-    uint8_t b[((XCPTL_MAX_CTO_SIZE + 3) & 0xFFC)];
-    uint16_t w[((XCPTL_MAX_CTO_SIZE + 3) & 0xFFC) / 2];
-    uint32_t dw[((XCPTL_MAX_CTO_SIZE + 3) & 0xFFC) / 4];
-} tXcpCto;
-
-/****************************************************************************/
-/* DAQ tables                                                               */
-/****************************************************************************/
-
-#define XCP_UNDEFINED_DAQ_LIST 0xFFFF
-
-// ODT
-// size = 8 byte
-#pragma pack(push, 1)
-typedef struct {
-    uint16_t first_odt_entry; /* Absolute odt entry number */
-    uint16_t last_odt_entry;  /* Absolute odt entry number */
-    uint16_t size;            /* Number of bytes */
-    uint16_t res;
-} tXcpOdt;
-#pragma pack(pop)
-// static_assert(sizeof(tXcpOdt) == 8, "Error: size of tXcpOdt is not equal to 8");
-
-/* DAQ list */
-// size = 12 byte
-#pragma pack(push, 1)
-typedef struct {
-    uint16_t last_odt;  /* Absolute odt number */
-    uint16_t first_odt; /* Absolute odt number */
-    uint16_t EVENT_ID;  /* Associated event */
-#ifdef XCP_MAX_EVENT_COUNT
-    uint16_t next; /* Next DAQ list associated to EVENT_ID */
-#else
-    uint16_t res1;
-#endif
-    uint8_t mode;
-    uint8_t state;
-    uint8_t priority;
-    uint8_t addr_ext;
-} tXcpDaqList;
-#pragma pack(pop)
-// static_assert(sizeof(tXcpDaqList) == 12, "Error: size of tXcpDaqList is not equal to 12");
-
-/* Dynamic DAQ list structure in a linear memory block with size XCP_DAQ_MEM_SIZE + 8  */
-#pragma pack(push, 1)
-typedef struct {
-    uint16_t odt_entry_count; // Total number of ODT entries in ODT entry addr and size arrays
-    uint16_t odt_count;       // Total number of ODTs in ODT array
-    uint16_t daq_count;       // Number of DAQ lists in DAQ list array
-    uint16_t res;
-#ifdef XCP_ENABLE_DAQ_RESUME
-    uint16_t config_id;
-    uint16_t res1;
-#endif
-#ifdef XCP_MAX_EVENT_COUNT
-    uint16_t daq_first[XCP_MAX_EVENT_COUNT]; // Event channel to DAQ list mapping
-#endif
-
-    // DAQ array
-    // size and alignment % 8
-    // memory layout:
-    //  tXcpDaqList[] - DAQ list array
-    //  tXcpOdt[]     - ODT array
-    //  uint32_t[]    - ODT entry addr array
-    //  uint8_t[]     - ODT entry size array
-    //  uint8_t[]     - ODT entry addr extension array (optional)
-    union {
-        // DAQ array
-        tXcpDaqList daq_list[XCP_DAQ_MEM_SIZE / sizeof(tXcpDaqList)];
-        // ODT array
-        tXcpOdt odt[XCP_DAQ_MEM_SIZE / sizeof(tXcpOdt)];
-        // ODT entry addr array
-        uint32_t odt_entry_addr[XCP_DAQ_MEM_SIZE / 4];
-        // ODT entry size array
-        uint8_t odt_entry_size[XCP_DAQ_MEM_SIZE / 1];
-        // ODT entry addr extension array
-#ifdef XCP_ENABLE_DAQ_ADDREXT
-        uint8_t odt_entry_addr_ext[XCP_DAQ_MEM_SIZE / 1];
-#endif
-        uint64_t b[XCP_DAQ_MEM_SIZE / 8 + 1];
-    } u;
-
-} tXcpDaqLists;
-#pragma pack(pop)
-
-/****************************************************************************/
-/* Protocol layer data                                                      */
-/****************************************************************************/
-
-typedef struct {
-
-    uint16_t SessionStatus;
-
-    tXcpCto Crm;    /* response message buffer */
-    uint8_t CrmLen; /* RES,ERR message length */
-
-#ifdef XCP_ENABLE_DYN_ADDRESSING
-    atomic_bool CmdPending;
-    tXcpCto CmdPendingCrm;    /* pending command message buffer */
-    uint8_t CmdPendingCrmLen; /* pending command message length */
-#endif
-
-#ifdef DBG_LEVEL
-    uint8_t CmdLast;
-    uint8_t CmdLast1;
-#endif
-
-    /* Memory Transfer Address as pointer (ApplXcpGetPointer) */
-    uint8_t *MtaPtr;
-    uint32_t MtaAddr;
-    uint8_t MtaExt;
-
-    /* State info from SET_DAQ_PTR for WRITE_DAQ and WRITE_DAQ_MULTIPLE */
-    uint16_t WriteDaqOdtEntry; // Absolute odt index
-    uint16_t WriteDaqOdt;      // Absolute odt index
-    uint16_t WriteDaqDaq;
-
-    /* DAQ */
-    tQueueHandle Queue;        // Daq queue handle
-    tXcpDaqLists *DaqLists;    // DAQ lists
-    atomic_bool DaqRunning;    // DAQ is running
-    uint64_t DaqStartClock64;  // DAQ start time
-    uint32_t DaqOverflowCount; // DAQ queue overflow
-
-    /* EPK */
-    char Epk[XCP_EPK_MAX_LENGTH + 1]; // EPK string, null terminated
-
-    /* Optional event list */
-#ifdef XCP_ENABLE_DAQ_EVENT_LIST
-    tXcpEventList EventList;
-#endif
-
-    /* Optional calibration segment list */
-#ifdef XCP_ENABLE_CALSEG_LIST
-    tXcpCalSegList CalSegList;
-#endif
-
-#if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
-
-#ifdef XCP_ENABLE_PROTOCOL_LAYER_ETH
-
-#ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
-    uint16_t ClusterId;
-#endif
-
-#pragma pack(push, 1)
-    struct {
-        T_CLOCK_INFO server;
-#ifdef XCP_ENABLE_PTP
-        T_CLOCK_INFO_GRANDMASTER grandmaster;
-        T_CLOCK_INFO_RELATION relation;
-#endif
-    } ClockInfo;
-#pragma pack(pop)
-#endif
-#endif // XCP_ENABLE_PROTOCOL_LAYER_ETH
-
-} tXcpData;
-
-// XCP singleton
-// Some compilers complain about this initialization
-// Calling XCP functions (e.g. XcpEvent()) before XcpInit() is forbidden
-// Static initialization of gXcp.SessionStatus to 0 allows to check this condition
-static tXcpData gXcp = {0};
 
 /****************************************************************************/
 /* Macros                                                                   */
@@ -460,21 +291,13 @@ void XcpSetEpk(const char *epk) {
     assert(epk != NULL);
     size_t epk_len = STRNLEN(epk, XCP_EPK_MAX_LENGTH);
     STRNCPY(gXcp.Epk, epk, epk_len);
-    // Ensure null-termination
-    gXcp.Epk[XCP_EPK_MAX_LENGTH] = 0;
+    gXcp.Epk[XCP_EPK_MAX_LENGTH] = 0; // Ensure null-termination
     // Remove white spaces from the EPK string
     for (char *p = gXcp.Epk; *p; p++) {
         if (*p == ' ' || *p == '\t') {
             *p = '_'; // Replace spaces with underscores
         }
     }
-    // EPK length must be a %4 because of 4 byte XCP checksum calculation granularity
-    uint32_t epk_length = (uint32_t)strlen(gXcp.Epk);
-    if ((epk_length % 4) != 0) {
-        DBG_PRINTF_WARNING("EPK length %u is not a multiple of 4\n", epk_length);
-        gXcp.Epk[epk_length & 0xFFFC] = 0; // Shorten EPK if not
-    }
-
     DBG_PRINTF3("EPK = '%s'\n", gXcp.Epk);
 }
 const char *XcpGetEpk(void) {
@@ -520,16 +343,26 @@ static void XcpFreeCalSegList(void) {
 
 // Get a pointer to the list and the size of the list
 tXcpCalSegList const *XcpGetCalSegList(void) {
-    if (!isInitialized())
-        return NULL;
+    assert(isInitialized());
     return &gXcp.CalSegList;
 }
 
-// Get a pointer to a calibration segment struct
-tXcpCalSeg const *XcpGetCalSeg(tXcpCalSegIndex calseg) {
+// Get a pointer to the calibration segment struct of calseg index
+tXcpCalSeg *XcpGetCalSeg(tXcpCalSegIndex calseg) {
     if (!isStarted() || calseg >= gXcp.CalSegList.count)
         return NULL;
     return &gXcp.CalSegList.calseg[calseg];
+}
+
+// Get the index of a calibration segment by name
+static tXcpCalSegIndex XcpFindCalSeg(const char *name) {
+    for (tXcpCalSegIndex i = 0; i < gXcp.CalSegList.count; i++) {
+        tXcpCalSeg *calseg = &gXcp.CalSegList.calseg[i];
+        if (strcmp(calseg->name, name) == 0) {
+            return i;
+        }
+    }
+    return XCP_UNDEFINED_CALSEG; // Not found
 }
 
 // Get the name of the calibration segment
@@ -550,51 +383,75 @@ uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg) {
 // Returns the handle (calibration segment index) or XCP_UNDEFINED_CALSEG when out of memory
 tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint16_t size) {
 
-    if (!isInitialized()) {
-        DBG_PRINT_ERROR("XCP not initialized\n");
-        return XCP_UNDEFINED_CALSEG;
-    }
+    assert(isInitialized());
 
     mutexLock(&gXcp.CalSegList.mutex);
 
-    uint16_t i = gXcp.CalSegList.count;
+    // Check out of memory
     if (gXcp.CalSegList.count >= XCP_MAX_CALSEG_COUNT) {
         mutexUnlock(&gXcp.CalSegList.mutex);
         DBG_PRINT_ERROR("too many calibration segments\n");
         return XCP_UNDEFINED_CALSEG;
     }
 
-    // Create a new calibration segment
-    tXcpCalSeg *c = &gXcp.CalSegList.calseg[i];
-    STRNCPY(c->name, name, XCP_MAX_CALSEG_NAME);
-    c->name[XCP_MAX_CALSEG_NAME] = 0;
+    // Check if already existing
+    tXcpCalSeg *c = NULL;
+    tXcpCalSegIndex index = XcpFindCalSeg(name);
+    if (index != XCP_UNDEFINED_CALSEG) {
+#ifdef XCP_ENABLE_FREEZE_CAL_PAGE
+        // Check if this is a preloaded segment
+        // Preloaded segments have the correct size and a valid default page, loaded from the binary calibration segment image file on startup
+        c = &gXcp.CalSegList.calseg[index];
+        if (size == c->size && c->default_page != NULL && (c->mode & PAG_PROPERTY_PRELOAD) != 0) {
+            DBG_PRINTF3("Use preloaded CalSeg %u: %s index=%u, addr=0x%08X, size=%u\n", index, c->name, index + 1, XcpGetCalSegBaseAddress(index), c->size);
+        } else
+#endif
+        {
+            // Error if segment already exists
+            mutexUnlock(&gXcp.CalSegList.mutex);
+            DBG_PRINTF_ERROR("Calibration segment '%s' already exists with size %u\n", name, c->size);
+            assert(false);
+            return XCP_UNDEFINED_CALSEG;
+        }
+    } else {
+        // Create a new calibration segment with given default page
+        index = gXcp.CalSegList.count;
+        c = &gXcp.CalSegList.calseg[index];
+        gXcp.CalSegList.count++;
+        STRNCPY(c->name, name, XCP_MAX_CALSEG_NAME);
+        c->name[XCP_MAX_CALSEG_NAME] = 0;
+        c->size = size;
+        c->default_page = (uint8_t *)default_page;
+#ifdef XCP_ENABLE_FREEZE_CAL_PAGE
+        c->file_pos = 0;
+#endif
+        DBG_PRINTF3("Create CalSeg %u: %s index=%u, addr=0x%08X, size=%u\n", index, c->name, index + 1, XcpGetCalSegBaseAddress(index), c->size);
+    }
+
+    // Init
     c->xcp_page = NULL;
     c->ecu_page = NULL;
     atomic_store_explicit(&c->free_page, (uintptr_t)NULL, memory_order_relaxed);
     c->free_page_hazard = false; // Free page is not in use yet, no hazard
     atomic_store_explicit(&c->ecu_page_next, (uintptr_t)NULL, memory_order_relaxed);
-    c->size = size;
     c->write_pending = false;
     c->xcp_access = XCP_CALPAGE_DEFAULT_PAGE;                                              // Default page for XCP access is the working page
     atomic_store_explicit(&c->ecu_access, XCP_CALPAGE_DEFAULT_PAGE, memory_order_relaxed); // Default page for ECU access is the working page
     atomic_store_explicit(&c->lock_count, 0, memory_order_relaxed);                        // No locks
-#ifdef XCP_ENABLE_FREEZE_MODE
-    c->mode = PAG_PROPERTY_FREEZE;
+#ifdef XCP_ENABLE_FREEZE_CAL_PAGE
+    c->mode = 0; // Default mode is freeze not enabled, set by XCP command SET_SEGMENT_MODE
 #endif
-
-    // Set the ecu default page (FLASH page)
-    c->default_page = (uint8_t *)default_page;
 
     // Allocate the working page and initialize RCU, if XCP has been activated
     if (isActivated()) {
 
         // Allocate the ecu working page (RAM page)
         c->xcp_page = malloc(size);
-        memcpy(c->xcp_page, default_page, size); // Copy default page to XCP working page copy
+        memcpy(c->xcp_page, c->default_page, size); // Copy default page to XCP working page copy
 
         // Allocate the xcp page
         c->ecu_page = malloc(size);
-        memcpy(c->ecu_page, default_page, size); // Copy default page to ECU working page copy
+        memcpy(c->ecu_page, c->default_page, size); // Copy default page to ECU working page copy
 
         // Allocate a free uninitialized page
         atomic_store_explicit(&c->free_page, (uintptr_t)malloc(size), memory_order_relaxed);
@@ -608,18 +465,18 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
                                                                                                // No write pending
     }
 
-    gXcp.CalSegList.count++;
     mutexUnlock(&gXcp.CalSegList.mutex);
-    DBG_PRINTF3("Create CalSeg %u: %s memory segment=%u, addr=0x%08X, size=%u\n", i, c->name, i + 1, XcpGetCalSegBaseAddress(i), c->size);
-    return i;
+    return index;
 }
 
 // Lock a calibration segment and return a pointer to the ECU page
 // Single threaded recursive !
 uint8_t const *XcpLockCalSeg(tXcpCalSegIndex calseg) {
 
-    if (!isInitialized() || calseg >= gXcp.CalSegList.count) {
-        DBG_PRINT_ERROR("XCP not initialized or invalid calseg\n");
+    assert(isInitialized());
+
+    if (calseg >= gXcp.CalSegList.count) {
+        DBG_PRINTF_ERROR("Invalid calseg %u\n", calseg);
         return NULL; // Uninitialized or invalid calseg
     }
 
@@ -924,12 +781,14 @@ static uint8_t XcpSetCalSegMode(uint8_t segment, uint8_t mode) {
 
 static uint8_t XcpCalSegCalFreeze(void) {
 
-    // Freeze all segment with freeze mode enabled
+    // Freeze all segments with freeze mode enabled
     for (uint16_t i = 0; i < gXcp.CalSegList.count; i++) {
         tXcpCalSeg *c = &gXcp.CalSegList.calseg[i];
         if ((c->mode & PAG_PROPERTY_FREEZE) != 0) {
-            DBG_PRINTF3("Freeze cal seg %u: %s\n", i + 1, c->name);
-            // @@@@ TODO Not implemented, alloc memory for a new default page
+            DBG_PRINTF3("Freeze cal seg '%s' (size=%u, pos=%u)\n", c->name, c->size, c->file_pos);
+            if (!XcpBinFreezeCalSeg(i)) {
+                return CRC_ACCESS_DENIED; // Access denied, freeze failed
+            }
         }
     }
     return CRC_CMD_OK;
@@ -1093,6 +952,68 @@ static uint8_t XcpSetMta(uint8_t ext, uint32_t addr) {
 }
 
 /**************************************************************************/
+/* Checksum calculation                                                   */
+/**************************************************************************/
+
+/* Table for CCITT checksum calculation */
+#ifdef XCP_ENABLE_CHECKSUM
+
+#if (XCP_CHECKSUM_TYPE == XCP_CHECKSUM_TYPE_CRC16CCITT)
+const uint16_t CRC16CCITTtab[256] = {
+    0x0000, 0x1021, 0x2042, 0x3063,  0x4084, 0x50a5, 0x60c6, 0x70e7u, 0x8108, 0x9129, 0xa14a, 0xb16b,  0xc18c, 0xd1ad, 0xe1ce, 0xf1efu, 0x1231, 0x0210, 0x3273, 0x2252,
+    0x52b5, 0x4294, 0x72f7, 0x62d6u, 0x9339, 0x8318, 0xb37b, 0xa35a,  0xd3bd, 0xc39c, 0xf3ff, 0xe3deu, 0x2462, 0x3443, 0x0420, 0x1401,  0x64e6, 0x74c7, 0x44a4, 0x5485u,
+    0xa56a, 0xb54b, 0x8528, 0x9509,  0xe5ee, 0xf5cf, 0xc5ac, 0xd58du, 0x3653, 0x2672, 0x1611, 0x0630,  0x76d7, 0x66f6, 0x5695, 0x46b4u, 0xb75b, 0xa77a, 0x9719, 0x8738,
+    0xf7df, 0xe7fe, 0xd79d, 0xc7bcu, 0x48c4, 0x58e5, 0x6886, 0x78a7,  0x0840, 0x1861, 0x2802, 0x3823u, 0xc9cc, 0xd9ed, 0xe98e, 0xf9af,  0x8948, 0x9969, 0xa90a, 0xb92bu,
+    0x5af5, 0x4ad4, 0x7ab7, 0x6a96,  0x1a71, 0x0a50, 0x3a33, 0x2a12u, 0xdbfd, 0xcbdc, 0xfbbf, 0xeb9e,  0x9b79, 0x8b58, 0xbb3b, 0xab1au, 0x6ca6, 0x7c87, 0x4ce4, 0x5cc5,
+    0x2c22, 0x3c03, 0x0c60, 0x1c41u, 0xedae, 0xfd8f, 0xcdec, 0xddcd,  0xad2a, 0xbd0b, 0x8d68, 0x9d49u, 0x7e97, 0x6eb6, 0x5ed5, 0x4ef4,  0x3e13, 0x2e32, 0x1e51, 0x0e70u,
+    0xff9f, 0xefbe, 0xdfdd, 0xcffc,  0xbf1b, 0xaf3a, 0x9f59, 0x8f78u, 0x9188, 0x81a9, 0xb1ca, 0xa1eb,  0xd10c, 0xc12d, 0xf14e, 0xe16fu, 0x1080, 0x00a1, 0x30c2, 0x20e3,
+    0x5004, 0x4025, 0x7046, 0x6067u, 0x83b9, 0x9398, 0xa3fb, 0xb3da,  0xc33d, 0xd31c, 0xe37f, 0xf35eu, 0x02b1, 0x1290, 0x22f3, 0x32d2,  0x4235, 0x5214, 0x6277, 0x7256u,
+    0xb5ea, 0xa5cb, 0x95a8, 0x8589,  0xf56e, 0xe54f, 0xd52c, 0xc50du, 0x34e2, 0x24c3, 0x14a0, 0x0481,  0x7466, 0x6447, 0x5424, 0x4405u, 0xa7db, 0xb7fa, 0x8799, 0x97b8,
+    0xe75f, 0xf77e, 0xc71d, 0xd73cu, 0x26d3, 0x36f2, 0x0691, 0x16b0,  0x6657, 0x7676, 0x4615, 0x5634u, 0xd94c, 0xc96d, 0xf90e, 0xe92f,  0x99c8, 0x89e9, 0xb98a, 0xa9abu,
+    0x5844, 0x4865, 0x7806, 0x6827,  0x18c0, 0x08e1, 0x3882, 0x28a3u, 0xcb7d, 0xdb5c, 0xeb3f, 0xfb1e,  0x8bf9, 0x9bd8, 0xabbb, 0xbb9au, 0x4a75, 0x5a54, 0x6a37, 0x7a16,
+    0x0af1, 0x1ad0, 0x2ab3, 0x3a92u, 0xfd2e, 0xed0f, 0xdd6c, 0xcd4d,  0xbdaa, 0xad8b, 0x9de8, 0x8dc9u, 0x7c26, 0x6c07, 0x5c64, 0x4c45,  0x3ca2, 0x2c83, 0x1ce0, 0x0cc1u,
+    0xef1f, 0xff3e, 0xcf5d, 0xdf7c,  0xaf9b, 0xbfba, 0x8fd9, 0x9ff8u, 0x6e17, 0x7e36, 0x4e55, 0x5e74,  0x2e93, 0x3eb2, 0x0ed1, 0x1ef0u};
+
+#endif
+
+static uint8_t calcChecksum(uint32_t checksum_size, uint32_t *checksum_result) {
+    assert(checksum_size > 0);
+    assert(checksum_result != NULL);
+
+#if (XCP_CHECKSUM_TYPE == XCP_CHECKSUM_TYPE_CRC16CCITT)
+
+    // CRC16 CCITT
+    uint16_t sum = 0xFFFF;
+    uint8_t value = 0;
+    for (uint32_t n = checksum_size; n > 0; n--) {
+        uint8_t res = XcpReadMta(1, &value);
+        if (res != CRC_CMD_OK)
+            return res;
+        sum = CRC16CCITTtab[((uint8_t)(sum >> 8)) ^ value] ^ (uint16_t)(sum << 8);
+    }
+    *checksum_result = (uint32_t)sum;
+
+#else
+
+    // ADD44
+    uint32_t sum = 0;
+    uint32_t value = 0;
+    for (uint32_t n = checksum_size; n >= sizeof(value); n -= sizeof(value)) {
+        uint8_t res = XcpReadMta(sizeof(value), (uint8_t *)&value);
+        if (res != CRC_CMD_OK)
+            return res;
+        sum += value;
+    }
+    *checksum_result = (uint32_t)sum;
+
+#endif
+
+    return CRC_CMD_OK;
+}
+
+#endif // XCP_ENABLE_CHECKSUM
+
+/**************************************************************************/
 /* Eventlist                                                              */
 /**************************************************************************/
 
@@ -1106,7 +1027,7 @@ tXcpEventList *XcpGetEventList(void) {
 }
 
 // Get a pointer to the XCP event struct
-static tXcpEvent *XcpGetEvent(tXcpEventId event) {
+tXcpEvent *XcpGetEvent(tXcpEventId event) {
     if (!isActivated() || event >= gXcp.EventList.count)
         return NULL;
     return &gXcp.EventList.event[event];
@@ -1147,36 +1068,23 @@ tXcpEventId XcpFindEvent(const char *name, uint16_t *pcount) {
 // Create an XCP event
 // Not thread safe
 // Returns the XCP event number for XcpEventXxx() or XCP_UNDEFINED_EVENT_ID when out of memory
-static tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cycleTimeNs, uint8_t priority) {
-
-    uint16_t e;
-    uint32_t c;
+tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cycleTimeNs, uint8_t priority) {
 
     if (!isActivated()) {
         return XCP_UNDEFINED_EVENT_ID; // Uninitialized
     }
 
-    e = gXcp.EventList.count;
+    uint16_t e = gXcp.EventList.count;
     if (e >= XCP_MAX_EVENT_COUNT) {
         DBG_PRINT_ERROR("too many events\n");
         return XCP_UNDEFINED_EVENT_ID; // Out of memory
     }
     gXcp.EventList.count++;
-
-    // Convert cycle time to ASAM coding time cycle and time unit
-    // RESOLUTION OF TIMESTAMP "UNIT_1NS" = 0, "UNIT_10NS" = 1, ...
-    c = cycleTimeNs;
-    gXcp.EventList.event[e].timeUnit = 0;
-    while (c >= 256) {
-        c /= 10;
-        gXcp.EventList.event[e].timeUnit++;
-    }
-    gXcp.EventList.event[e].timeCycle = (uint8_t)c;
-
     gXcp.EventList.event[e].index = index; // Index of the event instance
     STRNCPY(gXcp.EventList.event[e].name, name, XCP_MAX_EVENT_NAME);
     gXcp.EventList.event[e].name[XCP_MAX_EVENT_NAME] = 0;
     gXcp.EventList.event[e].priority = priority;
+    gXcp.EventList.event[e].cycleTimeNs = cycleTimeNs;
     DBG_PRINTF3("Create Event %u: %s index=%u, cycle=%uns, prio=%u\n", e, gXcp.EventList.event[e].name, index, cycleTimeNs, priority);
     return e;
 }
@@ -1184,9 +1092,16 @@ static tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint3
 // Add a measurement event to event list, return event number (0..MAX_EVENT-1), thread safe, if name exists, an instance id is appended to the name
 // Thread safe
 tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycleTimeNs, uint8_t priority) {
+
+    if (!isActivated()) {
+        return XCP_UNDEFINED_EVENT_ID; // Uninitialized
+    }
+
     uint16_t count = 0;
     mutexLock(&gXcp.EventList.mutex);
     tXcpEventId id = XcpFindEvent(name, &count);
+    // @@@@ TODO use preloaded event instances instead of creating a new instance
+    // Event instances have no identity, could use any unused preload event instance with this name
     id = XcpCreateIndexedEvent(name, count + 1, cycleTimeNs, priority);
     mutexUnlock(&gXcp.EventList.mutex);
     return id;
@@ -1195,20 +1110,22 @@ tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycleTimeNs, uint8
 // Add a measurement event to the event list, return event number (0..MAX_EVENT-1), thread safe, error if name exists
 // Thread safe
 tXcpEventId XcpCreateEvent(const char *name, uint32_t cycleTimeNs, uint8_t priority) {
+
+    if (!isActivated()) {
+        return XCP_UNDEFINED_EVENT_ID; // Uninitialized
+    }
+
     uint16_t count = 0;
     mutexLock(&gXcp.EventList.mutex);
     tXcpEventId id = XcpFindEvent(name, &count);
     if (id != XCP_UNDEFINED_EVENT_ID) {
         mutexUnlock(&gXcp.EventList.mutex);
-        DBG_PRINTF_WARNING("Event '%s' already exists\n", name);
-        if (count == 1)
-            return id; // Event already exists, return the existing event id
-        else
-            assert(0);
+        DBG_PRINTF4("Event '%s' already defined, id=%u\n", name, id);
+        assert(count == 1); // Creating additional event instances is not supported, use XcpCreateEventInstance
+        return id;          // Event already exists, return the existing event id, event could be preloaded from binary freeze file for A2L stability
     }
     id = XcpCreateIndexedEvent(name, 0, cycleTimeNs, priority);
     mutexUnlock(&gXcp.EventList.mutex);
-
     return id;
 }
 
@@ -1785,10 +1702,6 @@ static void XcpTriggerDaqEvent(tQueueHandle queueHandle, tXcpEventId event, cons
     if (clock == 0)
         clock = ApplXcpGetClock64();
 
-    // @@@@ TODO: Don't forced to use XCP_ENABLE_DAQ_ADDREXT as a workaround, this needs 20% more DAQ memory
-    // Unique address extension per DAQ list is currently not assured by CANape, this is a known issue
-    // The API may rely on the convenient ability to measure absolute and relative ODT entries with the same event
-
     // Build base pointers for each addressing mode
 #ifdef XCP_ENABLE_DAQ_ADDREXT
     const uint8_t *base_addr[4] = {NULL, NULL, NULL, NULL}; // Base address for each addressing mode
@@ -2080,7 +1993,7 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             CRM_ERR = CRC_CMD_SYNCH;
         } break;
 
-        // Don_t respond, just ignore, no error unkwown command, used for testing
+        // Don_t respond, just ignore, no error unkown command, used for testing
         case CC_NOP:
             goto no_response;
 
@@ -2402,27 +2315,8 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
                 error(CRC_ACCESS_DENIED);
             }
 #endif
-            uint32_t checksum_value = 0;
-            uint32_t checksum_size = CRO_BUILD_CHECKSUM_SIZE;
-            // Switch to XCP_CHECKSUM_TYPE_ADD41 if n is not a multiple of 4
-            if ((checksum_size % 4) != 0) {
-                for (uint32_t i = 0; i < checksum_size; i++) {
-                    uint8_t memory_value = 0;
-                    check_error(XcpReadMta(sizeof(memory_value), &memory_value));
-                    checksum_value += memory_value;
-                }
-                CRM_BUILD_CHECKSUM_RESULT = checksum_value;
-                CRM_BUILD_CHECKSUM_TYPE = XCP_CHECKSUM_TYPE_ADD11;
-            } else {
-                checksum_size = checksum_size / 4;
-                for (uint32_t i = 0; i < checksum_size; i++) {
-                    uint32_t memory_value = 0;
-                    check_error(XcpReadMta(sizeof(memory_value), (uint8_t *)&memory_value));
-                    checksum_value += memory_value;
-                }
-                CRM_BUILD_CHECKSUM_RESULT = checksum_value;
-                CRM_BUILD_CHECKSUM_TYPE = XCP_CHECKSUM_TYPE_ADD44;
-            }
+            check_error(calcChecksum(CRO_BUILD_CHECKSUM_SIZE, &CRM_BUILD_CHECKSUM_RESULT));
+            CRM_BUILD_CHECKSUM_TYPE = XCP_CHECKSUM_TYPE;
             CRM_LEN = CRM_BUILD_CHECKSUM_LEN;
         } break;
 #endif // XCP_ENABLE_CHECKSUM

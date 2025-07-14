@@ -67,8 +67,7 @@ void SignalGenerator::Task() {
     uint32_t delay_us = 1000;                                                // us
     double start_time = static_cast<double>(clockGet()) / CLOCK_TICKS_PER_S; // time in s since start of the signal generator
 
-    // Create a measurement event for each instance of SignalGenerator
-    // The event name is the instance name
+    // Create a measurement event with individual name 'instance_name_' for each instance of SignalGenerator
     DaqCreateEvent_s(instance_name_);
 
     // A2L registration

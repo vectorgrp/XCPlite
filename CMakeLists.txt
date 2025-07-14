@@ -48,9 +48,9 @@ message(STATUS "PROJECT_ROOT is: ${PROJECT_ROOT}")
 
 # xcplib
 if(PLATFORM_64BIT)
-set(xcplib_SOURCES src/xcpAppl.c src/xcpLite.c src/xcpEthServer.c src/xcpEthTl.c src/xcpQueue64.c src/a2l.c src/platform.c )   
+set(xcplib_SOURCES src/xcpAppl.c src/xcpLite.c src/xcpEthServer.c src/xcpEthTl.c src/xcpQueue64.c src/a2l.c src/persistency.c src/platform.c )   
 else()
-set(xcplib_SOURCES src/xcpAppl.c src/xcpLite.c src/xcpEthServer.c src/xcpEthTl.c  src/xcpQueue32.c src/a2l.c src/platform.c )   
+set(xcplib_SOURCES src/xcpAppl.c src/xcpLite.c src/xcpEthServer.c src/xcpEthTl.c  src/xcpQueue32.c src/a2l.c src/persistency.c src/platform.c )   
 endif()
 
 

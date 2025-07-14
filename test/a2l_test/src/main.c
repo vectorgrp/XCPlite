@@ -8,11 +8,10 @@
 #include "a2l.h"    // for xcplib A2l generation
 #include "xcplib.h" // for xcplib application programming interface
 
-#define OPTION_A2L_PROJECT_NAME "a2l_test"  // A2L project name
-#define OPTION_A2L_FILE_NAME "a2l_test.a2l" // A2L file name
-#define OPTION_USE_TCP false                // TCP or UDP
-#define OPTION_SERVER_PORT 5555             // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0}     // Bind addr, 0.0.0.0 = ANY
+#define OPTION_PROJECT_NAME "a2l_test"  // A2L project name
+#define OPTION_USE_TCP false            // TCP or UDP
+#define OPTION_SERVER_PORT 5555         // Port
+#define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
 
 typedef struct params {
     uint16_t uint8;
@@ -60,7 +59,7 @@ int main() {
     XcpInit(true);
 
     uint8_t addr[4] = OPTION_SERVER_ADDR;
-    if (!A2lInit(OPTION_A2L_FILE_NAME, OPTION_A2L_PROJECT_NAME, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, true, true)) {
+    if (!A2lInit(OPTION_PROJECT_NAME, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, true, true, true)) {
         return 1;
     }
 
@@ -70,6 +69,7 @@ int main() {
     // It supports XCP/ECU independent page switching, checksum calculation and reinitialization (copy reference page to working page)
     // Note that it can be used in only one ECU thread (in Rust terminology, it is Send, but not Sync)
     tXcpCalSegIndex calseg = XcpCreateCalSeg("segment_name", &params, sizeof(params));
+    assert(calseg != XCP_UNDEFINED_CALSEG); // Ensure the calibration segment was created successfully
     A2lTypedefBegin(params_t, "comment");
     A2lTypedefParameterComponent(uint8, params_t, "comment", "unit", 0, 255);
     A2lTypedefParameterComponent(uint16, params_t, "comment", "unit", 0, 65535);

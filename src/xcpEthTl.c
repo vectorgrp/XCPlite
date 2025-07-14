@@ -570,7 +570,7 @@ int32_t XcpTlHandleTransmitQueue(void) {
 
     // Simply polling transmit queue
     // @@@@ TODO Optimize efficiency, use a condvar or something like that to wakeup/sleep the transmit thread
-    // @@@@ TODO Optimize the mutex
+    // @@@@ TODO Eliminate the mutex
     // This is needed to assure XCP transport layer header counter consistency among response and DAQ packets
     // In fact this is a XCP design flaw, CANape supports independent DAQ and response packet counters, but other tools don't
 

@@ -14,13 +14,11 @@
 //-----------------------------------------------------------------------------------------------------
 
 // XCP parameters
-#define OPTION_ENABLE_A2L_GENERATOR            // Enable A2L file generation
-#define OPTION_A2L_PROJECT_NAME "struct_demo"  // A2L project name
-#define OPTION_A2L_FILE_NAME "struct_demo.a2l" // A2L file name
-#define OPTION_USE_TCP false                   // TCP or UDP
-#define OPTION_SERVER_PORT 5555                // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0}        // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE 1024 * 32            // Size of the measurement queue in bytes, must be a multiple of 8
+#define OPTION_PROJECT_NAME "struct_demo" // A2L project name
+#define OPTION_USE_TCP false              // TCP or UDP
+#define OPTION_SERVER_PORT 5555           // Port
+#define OPTION_SERVER_ADDR {0, 0, 0, 0}   // Bind addr, 0.0.0.0 = ANY
+#define OPTION_QUEUE_SIZE 1024 * 32       // Size of the measurement queue in bytes, must be a multiple of 8
 #define OPTION_LOG_LEVEL 3
 
 //-----------------------------------------------------------------------------------------------------
@@ -76,15 +74,9 @@ int main(void) {
     }
 
     // Enable A2L generation and prepare the A2L file, finalize the A2L file on XCP connect
-#ifdef OPTION_ENABLE_A2L_GENERATOR
-    if (!A2lInit(OPTION_A2L_FILE_NAME, OPTION_A2L_PROJECT_NAME, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, true, true)) {
+    if (!A2lInit(OPTION_PROJECT_NAME, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, true, true, true)) {
         return 1;
     }
-#else
-    // Set the A2L filename for upload, assuming the A2L file exists and is stable
-    // Stable means that events and calibration segments are created in the same order every time, as they are in the A2L file
-    ApplXcpSetA2lName(OPTION_A2L_FILE_NAME);
-#endif
 
     // Create a calibration segment for the calibration parameter struct
     // This segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
@@ -92,6 +84,7 @@ int main(void) {
     // It supports XCP/ECU independant page switching, checksum calculation and reinitialization (copy reference page to working page)
     // Note that it can be used in only one ECU thread (in Rust terminology, it is Send, but not Sync)
     tXcpCalSegIndex calseg = XcpCreateCalSeg("Parameters", &params, sizeof(params));
+    assert(calseg != XCP_UNDEFINED_CALSEG); // Ensure the calibration segment was created successfully
 
     // Register individual calibration parameters in the calibration segment
     A2lSetSegmentAddrMode(calseg, params);

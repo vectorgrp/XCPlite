@@ -21,9 +21,7 @@ template <typename T> class CalSeg {
     /// @param default_params Default parameter values (reference page)
     CalSeg(const char *name, const T &default_params) {
         segment_index_ = XcpCreateCalSeg(name, &default_params, sizeof(T));
-        if (segment_index_ == XCP_UNDEFINED_CALSEG) {
-            assert(false);
-        }
+        assert(segment_index_ != XCP_UNDEFINED_CALSEG); // Ensure the calibration segment was created successfully
     }
 
     /// Get the segment index (for direct XCP or A2L API calls if needed)

@@ -1,12 +1,6 @@
----
-Folders:
-  - "[[Software Resource]]"
----
 # XCPlite API Reference Guide
 
-**Version**: 0.9.2\
-
----
+**Version**: 0.9.1
 
 ## Table of Contents
 

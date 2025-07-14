@@ -7,8 +7,11 @@
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uint16_t, uint32_t, uint8_t
 
-#include "xcpQueue.h" // for tQueueHandle
-#include "xcp_cfg.h"  // for XCP_PROTOCOL_LAYER_VERSION, XCP_ENABLE_...
+#include "dbg_print.h" // for DBG_LEVEL, DBG_PRINTF, DBG_PRINT, ...
+#include "xcp.h"       // for XCP protocol definitions
+#include "xcpQueue.h"  // for tQueueHandle
+#include "xcp_cfg.h"   // for XCP_PROTOCOL_LAYER_VERSION, XCP_ENABLE_...
+#include "xcptl_cfg.h" // for XCPTL_MAX_CTO_SIZE
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,7 +29,9 @@ void XcpStart(tQueueHandle queueHandle, bool resumeMode);
 void XcpReset(void);
 
 // EPK software version identifier
-#define XCP_EPK_MAX_LENGTH 32 // Maximum length of EPK string
+#ifndef XCP_EPK_MAX_LENGTH
+#define XCP_EPK_MAX_LENGTH 31 // Maximum length of EPK string
+#endif
 void XcpSetEpk(const char *epk);
 const char *XcpGetEpk(void);
 
@@ -100,8 +105,7 @@ void XcpSetLogLevel(uint8_t level);
 typedef struct {
     uint16_t daqList;                  // associated DAQ list
     uint16_t index;                    // Event instance index, 0 = single instance, 1.. = multiple instances
-    uint8_t timeUnit;                  // timeCycle unit, 1ns=0, 10ns=1, 100ns=2, 1us=3, ..., 1ms=6, ...
-    uint8_t timeCycle;                 // cycle time in units, 0 = sporadic or unknown
+    uint32_t cycleTimeNs;              // cycle time in nanoseconds, 0 means sporadic event
     uint8_t priority;                  // priority 0 = queued, 1 = pushing, 2 = realtime
     uint8_t res;                       // reserved
     char name[XCP_MAX_EVENT_NAME + 1]; // event name
@@ -113,6 +117,8 @@ typedef struct {
     tXcpEvent event[XCP_MAX_EVENT_COUNT]; // event list
 } tXcpEventList;
 
+// Create an XCP event (internal use)
+tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cycleTimeNs, uint8_t priority);
 // Add a measurement event to event list, return event number (0..MAX_EVENT-1)
 tXcpEventId XcpCreateEvent(const char *name, uint32_t cycleTimeNs /* ns */, uint8_t priority /* 0-normal, >=1 realtime*/);
 // Add a measurement event to event list, return event number (0..MAX_EVENT-1), thread safe, if name exists, an instance id is appended to the name
@@ -128,6 +134,8 @@ tXcpEventId XcpFindEvent(const char *name, uint16_t *count);
 const char *XcpGetEventName(tXcpEventId event);
 // Get the event index (1..), return 0 if not found
 uint16_t XcpGetEventIndex(tXcpEventId event);
+// Get the event descriptor struct by id, returns NULL if not found
+tXcpEvent *XcpGetEvent(tXcpEventId event);
 
 #endif // XCP_ENABLE_DAQ_EVENT_LIST
 
@@ -184,7 +192,8 @@ typedef struct {
     bool write_pending;    // write pending because write delay
     bool free_page_hazard; // safe free page use is not guaranteed yet, it may be in use
 #ifdef XCP_ENABLE_FREEZE_CAL_PAGE
-    uint8_t mode;
+    uint8_t mode;      // reuested for freeze and preload
+    uint32_t file_pos; // position of the calibration segment in the persistency file
 #endif
     char name[XCP_MAX_CALSEG_NAME + 1];
 } tXcpCalSeg;
@@ -201,7 +210,7 @@ typedef struct {
 tXcpCalSegList const *XcpGetCalSegList(void);
 
 // Get a pointer to the calibration segment struct
-tXcpCalSeg const *XcpGetCalSeg(tXcpCalSegIndex calseg);
+tXcpCalSeg *XcpGetCalSeg(tXcpCalSegIndex calseg);
 
 // Get the name of the calibration segment
 const char *XcpGetCalSegName(tXcpCalSegIndex calseg);
@@ -222,6 +231,170 @@ uint8_t const *XcpLockCalSeg(tXcpCalSegIndex calseg);
 void XcpUnlockCalSeg(tXcpCalSegIndex calseg);
 
 #endif // XCP_ENABLE_CALSEG_LIST
+
+/****************************************************************************/
+/* XCP packet                                                               */
+/****************************************************************************/
+
+typedef union {
+    uint8_t b[((XCPTL_MAX_CTO_SIZE + 3) & 0xFFC)];
+    uint16_t w[((XCPTL_MAX_CTO_SIZE + 3) & 0xFFC) / 2];
+    uint32_t dw[((XCPTL_MAX_CTO_SIZE + 3) & 0xFFC) / 4];
+} tXcpCto;
+
+/****************************************************************************/
+/* DAQ tables                                                               */
+/****************************************************************************/
+
+#define XCP_UNDEFINED_DAQ_LIST 0xFFFF
+
+// ODT
+// size = 8 byte
+#pragma pack(push, 1)
+typedef struct {
+    uint16_t first_odt_entry; /* Absolute odt entry number */
+    uint16_t last_odt_entry;  /* Absolute odt entry number */
+    uint16_t size;            /* Number of bytes */
+    uint16_t res;
+} tXcpOdt;
+#pragma pack(pop)
+// static_assert(sizeof(tXcpOdt) == 8, "Error: size of tXcpOdt is not equal to 8");
+
+/* DAQ list */
+// size = 12 byte
+#pragma pack(push, 1)
+typedef struct {
+    uint16_t last_odt;  /* Absolute odt number */
+    uint16_t first_odt; /* Absolute odt number */
+    uint16_t EVENT_ID;  /* Associated event */
+#ifdef XCP_MAX_EVENT_COUNT
+    uint16_t next; /* Next DAQ list associated to EVENT_ID */
+#else
+    uint16_t res1;
+#endif
+    uint8_t mode;
+    uint8_t state;
+    uint8_t priority;
+    uint8_t addr_ext;
+} tXcpDaqList;
+#pragma pack(pop)
+// static_assert(sizeof(tXcpDaqList) == 12, "Error: size of tXcpDaqList is not equal to 12");
+
+/* Dynamic DAQ list structure in a linear memory block with size XCP_DAQ_MEM_SIZE + 8  */
+#pragma pack(push, 1)
+typedef struct {
+    uint16_t odt_entry_count; // Total number of ODT entries in ODT entry addr and size arrays
+    uint16_t odt_count;       // Total number of ODTs in ODT array
+    uint16_t daq_count;       // Number of DAQ lists in DAQ list array
+    uint16_t res;
+#ifdef XCP_ENABLE_DAQ_RESUME
+    uint16_t config_id;
+    uint16_t res1;
+#endif
+#ifdef XCP_MAX_EVENT_COUNT
+    uint16_t daq_first[XCP_MAX_EVENT_COUNT]; // Event channel to DAQ list mapping
+#endif
+
+    // DAQ array
+    // size and alignment % 8
+    // memory layout:
+    //  tXcpDaqList[] - DAQ list array
+    //  tXcpOdt[]     - ODT array
+    //  uint32_t[]    - ODT entry addr array
+    //  uint8_t[]     - ODT entry size array
+    //  uint8_t[]     - ODT entry addr extension array (optional)
+    union {
+        // DAQ array
+        tXcpDaqList daq_list[XCP_DAQ_MEM_SIZE / sizeof(tXcpDaqList)];
+        // ODT array
+        tXcpOdt odt[XCP_DAQ_MEM_SIZE / sizeof(tXcpOdt)];
+        // ODT entry addr array
+        uint32_t odt_entry_addr[XCP_DAQ_MEM_SIZE / 4];
+        // ODT entry size array
+        uint8_t odt_entry_size[XCP_DAQ_MEM_SIZE / 1];
+        // ODT entry addr extension array
+#ifdef XCP_ENABLE_DAQ_ADDREXT
+        uint8_t odt_entry_addr_ext[XCP_DAQ_MEM_SIZE / 1];
+#endif
+        uint64_t b[XCP_DAQ_MEM_SIZE / 8 + 1];
+    } u;
+
+} tXcpDaqLists;
+#pragma pack(pop)
+
+/****************************************************************************/
+/* Protocol layer state data                                                */
+/****************************************************************************/
+
+typedef struct {
+
+    uint16_t SessionStatus;
+
+    tXcpCto Crm;    /* response message buffer */
+    uint8_t CrmLen; /* RES,ERR message length */
+
+#ifdef XCP_ENABLE_DYN_ADDRESSING
+    atomic_bool CmdPending;
+    tXcpCto CmdPendingCrm;    /* pending command message buffer */
+    uint8_t CmdPendingCrmLen; /* pending command message length */
+#endif
+
+#ifdef DBG_LEVEL
+    uint8_t CmdLast;
+    uint8_t CmdLast1;
+#endif
+
+    /* Memory Transfer Address as pointer (ApplXcpGetPointer) */
+    uint8_t *MtaPtr;
+    uint32_t MtaAddr;
+    uint8_t MtaExt;
+
+    /* State info from SET_DAQ_PTR for WRITE_DAQ and WRITE_DAQ_MULTIPLE */
+    uint16_t WriteDaqOdtEntry; // Absolute odt index
+    uint16_t WriteDaqOdt;      // Absolute odt index
+    uint16_t WriteDaqDaq;
+
+    /* DAQ */
+    tQueueHandle Queue;        // Daq queue handle
+    tXcpDaqLists *DaqLists;    // DAQ lists
+    atomic_bool DaqRunning;    // DAQ is running
+    uint64_t DaqStartClock64;  // DAQ start time
+    uint32_t DaqOverflowCount; // DAQ queue overflow
+
+    /* EPK */
+    char Epk[XCP_EPK_MAX_LENGTH + 1]; // EPK string, null terminated
+
+    /* Optional event list */
+#ifdef XCP_ENABLE_DAQ_EVENT_LIST
+    tXcpEventList EventList;
+#endif
+
+    /* Optional calibration segment list */
+#ifdef XCP_ENABLE_CALSEG_LIST
+    tXcpCalSegList CalSegList;
+#endif
+
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
+
+#ifdef XCP_ENABLE_PROTOCOL_LAYER_ETH
+
+#ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
+    uint16_t ClusterId;
+#endif
+
+#pragma pack(push, 1)
+    struct {
+        T_CLOCK_INFO server;
+#ifdef XCP_ENABLE_PTP
+        T_CLOCK_INFO_GRANDMASTER grandmaster;
+        T_CLOCK_INFO_RELATION relation;
+#endif
+    } ClockInfo;
+#pragma pack(pop)
+#endif
+#endif // XCP_ENABLE_PROTOCOL_LAYER_ETH
+
+} tXcpData;
 
 /****************************************************************************/
 /* Protocol layer external dependencies                                     */

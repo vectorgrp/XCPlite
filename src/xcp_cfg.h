@@ -72,10 +72,12 @@
 #define XCP_ENABLE_CAL_PAGE // Enable calibration page switching commands
 #ifdef XCP_ENABLE_CAL_PAGE
 #define XCP_ENABLE_COPY_CAL_PAGE   // // Enable calibration page initialization (FLASH->RAM copy)
-#define XCP_ENABLE_FREEZE_CAL_PAGE // Enable calibration freeze command
+#define XCP_ENABLE_FREEZE_CAL_PAGE // Enable calibration page freeze and preload
 #endif
 
 #define XCP_ENABLE_CHECKSUM // Enable checksum calculation command
+#define XCP_CHECKSUM_TYPE XCP_CHECKSUM_TYPE_CRC16CCITT
+// #define XCP_CHECKSUM_TYPE XCP_CHECKSUM_TYPE_ADD44
 
 // #define XCP_ENABLE_SEED_KEY // Enable seed/key command
 

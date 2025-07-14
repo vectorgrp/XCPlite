@@ -86,6 +86,7 @@ typedef uint16_t tXcpCalSegIndex;
 
 /// Create a calibration segment and add it to the list of calibration segments.
 /// With 2 pages, a default page (reference page, FLASH) and a working page (RAM).
+/// assert if the segment name already exists.
 /// @param name Name of the calibration segment.
 /// @param default_page Pointer to the default page.
 /// @param size Size of the calibration page in bytes.
@@ -114,18 +115,24 @@ typedef uint16_t tXcpEventId;
 #define XCP_MAX_EVENT_NAME 15 // defined in xcp_cfg.h
 
 /// Add a measurement event to the event list, return event number (0..XCP_MAX_EVENT_COUNT-1)
+/// If the name exists, returns the event indexes, asserts if the existing event name already exists with multiple instance indexes.
 /// @param name Name of the event.
 /// @param cycleTimeNs Cycle time in nanoseconds. 0 means sporadic event.
 /// @param priority Priority of the event. 0 means normal, >=1 means realtime.
 /// @return The event id or XCP_UNDEFINED_EVENT_ID if out of memory.
 tXcpEventId XcpCreateEvent(const char *name, uint32_t cycleTimeNs /* ns */, uint8_t priority /* 0-normal, >=1 realtime*/);
 
-/// Add a measurement event to event list, return event number (0..XCP_MAX_EVENT_COUNT-1), thread safe, if name exists, an instance id is appended to the name
+/// Add a measurement event to event list, return event number (0..XCP_MAX_EVENT_COUNT-1), thread safe
+/// If name exists, an instance index is generated (appended to the name in the A2L file)
+/// @param name Name of the event.
+/// @param cycleTimeNs Cycle time in nanoseconds. 0 means sporadic event.
+/// @param priority Priority of the event. 0 means normal, >=1 means realtime.
+/// @return The event id or XCP_UNDEFINED_EVENT_ID if out of memory.
 tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycleTimeNs /* ns */, uint8_t priority /* 0-normal, >=1 realtime*/);
 
 /// Get event id by name, returns XCP_UNDEFINED_EVENT_ID if not found
 /// @param name Name of the event.
-/// @param count Optional out parameter to return the number of events with the same name.
+/// @param count Optional out parameter to return the number of event instances with the same name.
 /// If not NULL, the count of events with the same name is returned.
 /// If NULL, only the first event with the given name is returned.
 /// @return The event id or XCP_UNDEFINED_EVENT_ID if not found.
@@ -137,11 +144,41 @@ tXcpEventId XcpFindEvent(const char *name, uint16_t *count);
 /// @return The event index (1..), or 0 if no indexed event instance.
 uint16_t XcpGetEventIndex(tXcpEventId event);
 
-// Create the XCP event 'name'
-// Cycle time is set to sporadic and priority to normal
-// Setting the cycle time would only have the benefit for the XCP client tool to estimate the expected data rate of a DAQ setup
-#define DaqCreateEvent(name) XcpCreateEvent(#name, 0, 0)
-#define DaqCreateEvent_s(name) XcpCreateEvent(name, 0, 0)
+/// Convenience macros
+/// Create a XCP events by 'name' as identifier or string
+/// Cycle time is set to sporadic and priority to normal
+/// Setting the cycle time would only have the benefit for the XCP client tool to estimate the expected data rate of a DAQ setup
+
+/// Global event
+/// Name given as identifier
+/// Caches the event id in thread local storage
+#define DaqCreateEvent(name)                                                                                                                                                       \
+    if (XcpIsActivated()) {                                                                                                                                                        \
+        static THREAD_LOCAL tXcpEventId daq_create_event_##name##_ = XCP_UNDEFINED_EVENT_ID;                                                                                       \
+        if (daq_create_event_##name##_ == XCP_UNDEFINED_EVENT_ID) {                                                                                                                \
+            daq_create_event_##name##_ = XcpCreateEvent(#name, 0, 0);                                                                                                              \
+        }                                                                                                                                                                          \
+    }
+
+/// Multi instance event (thread local)
+/// Name given as identifier
+/// No caching of the event id
+#define DaqCreateEventInstance(name) XcpCreateEventInstance(#name, 0, 0);
+
+/// Global event
+/// Name given as char string
+/// Caches the event index in thread local storage
+#define DaqCreateEvent_s(name)                                                                                                                                                     \
+    if (XcpIsActivated()) {                                                                                                                                                        \
+        static THREAD_LOCAL tXcpEventId daq_create_event__ = XCP_UNDEFINED_EVENT_ID;                                                                                               \
+        if (daq_create_event__ == XCP_UNDEFINED_EVENT_ID) {                                                                                                                        \
+            daq_create_event__ = XcpCreateEvent(name, 0, 0);                                                                                                                       \
+        }                                                                                                                                                                          \
+    }
+
+/// Multi instance event (thread local)
+/// Name given as char string, no caching of the event id
+#define DaqCreateEventInstance_s(name) XcpCreateEventInstance(name, 0, 0);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // DAQ event trigger convenience macros

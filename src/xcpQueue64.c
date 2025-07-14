@@ -94,7 +94,6 @@ Transport Layer segment, message, packet:
 #define QUEUE_ACCUMULATE_PACKETS // Accumulate XCP packets to multiple XCP messages obtained with QueuePeek
 
 // Wait for at least QUEUE_PEEK_THRESHOLD bytes in the queue before returning a segment, to optimize efficiency
-// @@@@ Experimental, not tested yet, could improve performance for high throughput
 #define QUEUE_PEEK_THRESHOLD XCPTL_MAX_SEGMENT_SIZE
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -543,11 +542,7 @@ void QueueDeinit(tQueueHandle queueHandle) {
 #if defined(QUEUE_MUTEX)
     mutexDestroy(&queue->h.mutex);
 #endif
-
-    if (queue->h.from_memory) {
-        // @@@@ TODO: QueueDeinit resets the shared flag, so the memory is freed multiple times if there are more than two queues accessing the same memory.
-        queue->h.from_memory = false;
-    } else {
+    if (!queue->h.from_memory) {
         free(queue);
     }
 

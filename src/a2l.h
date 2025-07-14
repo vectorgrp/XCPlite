@@ -511,10 +511,21 @@ void A2lCreateMeasurementGroupFromList(const char *name, char *names[], uint32_t
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-// Init A2L generation
-bool A2lInit(const char *a2l_filename, const char *a2l_projectname, const uint8_t *addr, uint16_t port, bool useTCP, bool finalize_on_connect, bool auto_groups);
+/// Init A2L generation
+/// If the A2l file aready exists and matches the current EPK matches, if yes, load the binary persistence file
+/// If not, prepare the A2L file and start the runtime generation process
+// @param a2l_projectname Name of the A2L project, used to build the A2L and BIN file name
+// @param addr IP Address Used for IF_DATA XCP
+// @param port Port Used for IF_DATA XCP
+// @param useTCP Protocol Used for IF_DATA XCP
+// @param force_generation Force generation of the A2L file, even if it already exists and matches the EPK
+// @param finalize_on_connect Finalize the A2L file on XCP client connect, if false, the A2L file has to finalized manually
+// @param enable_auto_grouping Enable automatic grouping of parameters (per segment) and measurements (per event), if false, grouping must be done manually
+// @return true on success, false on failure
+bool A2lInit(const char *a2l_projectname, const uint8_t *addr, uint16_t port, bool useTCP, bool force_generation, bool finalize_on_connect, bool enable_auto_grouping);
 
-// Finish A2L generation
+/// Finish A2L generation
+/// Finalize the A2L file, write the binary persistence file
 bool A2lFinalize(void);
 
 // --------------------------------------------------------------------------------------------
