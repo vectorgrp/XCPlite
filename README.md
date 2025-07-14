@@ -31,7 +31,7 @@ It may serve as a base for individually customized XCP implementations on Microp
 XCPlite is used as a C library for the implementation of XCP for Rust in:  
 <https://github.com/vectorgrp/xcp-lite>  
 
-### Whats new in XCPlite V0.9.1
+### Whats new in XCPlite V0.9.2
 
 - Breaking changes to V6.  
 - Lockless transmit queue. Works on x86-64 strong and ARM-64 weak memory model.  
