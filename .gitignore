@@ -1,57 +1,35 @@
 
-# build
-XCPlite/build/
-C_Demo/build/
-CPP_Demo/build/
-build_XCPlite/
-build_C_Demo/
-build_CPP_Demo/
-build/
-bin/
-obj/
-*.[oa]
+/build
+
+# vscode
+/DEBUGGING_SETUP.md
+/.vscode/c_cpp_properties.json
+
+# doxygen
+/docs/html
+/Doxyfile.bak
 
 
-# Visual Studio 
-.vs/
-*.suo
-*.sdf
-*.opensdf
-*.vspscc
-*.csproj.user
-*.sln.DotSettings
-*.sln.DotSettings.user 
-*.vcxproj.user
-*.iobj
-*.ipdb
-*.pdb
-*.exe
-*.tlog
-*.obj
-*.dll
-*.xml
-*.lib
-*.ilk
-*.idb
-*.log
-*.vcxproj.FileListAbsolute.txt
-
-# Xcode
-*.DS_Store
-Xcode_build/
-/XCPlite.xcodeproj/xcuserdata/
-/XCPlite.xcodeproj/project.xcworkspace/
-
-
-# CANape specific
-*.pcap
-*.mdf
+# CANape artefacts
+*.hex 
 *.mf4
-*.HEX
-*.par
 *.cnaxml
-Environment
-CustomProperties.json
+*.tmp
 
-/.vscode/settings.json
-/.vscode/tasks.json
+# Examples A2L files
+/*.a2l
+/*.bin
+/c_demo.a2l
+/cpp_demo.a2l
+/hello_xcp.a2l
+/struct_demo.a2l
+/multi_thread_demo.a2l
+
+# Temporary files
+/conversions.a2l
+/groups.a2l
+/typedefs.a2l
+
+
+/a2l_test.a2l
+/DOCUMENTATION.md

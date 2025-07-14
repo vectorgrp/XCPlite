@@ -1,0 +1,186 @@
+{
+    "tasks": [
+        {
+            "type": "cppbuild",
+            "label": "C/C++: clang Aktive Datei kompilieren",
+            "command": "/usr/bin/clang",
+            "args": [
+                "-fcolor-diagnostics",
+                "-fansi-escape-codes",
+                "-g",
+                "${file}",
+                "-o",
+                "${fileDirname}/${fileBasenameNoExtension}"
+            ],
+            "options": {
+                "cwd": "${fileDirname}"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "detail": "Vom Debugger generierte Aufgabe."
+        },
+        {
+            "type": "shell",
+            "label": "build hello_xcp",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build",
+                "--target",
+                "hello_xcp"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Build hello_xcp target using CMake",
+            "dependsOn": "cmake configure"
+        },
+        {
+            "type": "shell",
+            "label": "build c_demo",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build",
+                "--target",
+                "c_demo"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Build c_demo target using CMake",
+            "dependsOn": "cmake configure"
+        },
+        {
+            "type": "shell",
+            "label": "build struct_demo",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build",
+                "--target",
+                "struct_demo"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Build struct_demo target using CMake",
+            "dependsOn": "cmake configure"
+        },
+        {
+            "type": "shell",
+            "label": "build multi_thread_demo",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build",
+                "--target",
+                "multi_thread_demo"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Build multi_thread_demo target using CMake",
+            "dependsOn": "cmake configure"
+        },
+        {
+            "type": "shell",
+            "label": "build a2l_test",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build",
+                "--target",
+                "a2l_test"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Build a2l_test target using CMake",
+            "dependsOn": "cmake configure"
+        },
+        {
+            "type": "shell",
+            "label": "build cpp_demo",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build",
+                "--target",
+                "cpp_demo"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Build cpp_demo target using CMake",
+            "dependsOn": "cmake configure"
+        },
+        {
+            "type": "shell",
+            "label": "cmake configure",
+            "command": "cmake",
+            "args": [
+                "-B",
+                "build",
+                "-S",
+                "."
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Configure CMake build system"
+        }
+    ],
+    "version": "2.0.0"
+}
