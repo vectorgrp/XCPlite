@@ -3040,7 +3040,7 @@ void XcpReset(void) {
     XcpFreeCalSegList();
 #endif
 
-    memset(&gXcp, 0, sizeof(gXcp));
+    XcpInit(true); // Reset XCP state
 }
 
 /****************************************************************************/

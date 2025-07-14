@@ -11,9 +11,13 @@
 extern "C" {
 #endif
 
+#if defined(XCP_ENABLE_CALSEG_LIST) || defined(XCP_ENABLE_DAQ_EVENT_LIST)
+
 bool XcpBinWrite(const char *filename);
 bool XcpBinLoad(const char *filename, const char *epk);
 bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg);
+
+#endif // XCP_ENABLE_CALSEG_LIST || XCP_ENABLE_DAQ_EVENT_LIST
 
 #ifdef __cplusplus
 } // extern "C"
