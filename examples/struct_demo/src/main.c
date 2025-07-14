@@ -82,7 +82,6 @@ int main(void) {
     // This segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
     // It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
     // It supports XCP/ECU independant page switching, checksum calculation and reinitialization (copy reference page to working page)
-    // Note that it can be used in only one ECU thread (in Rust terminology, it is Send, but not Sync)
     tXcpCalSegIndex calseg = XcpCreateCalSeg("Parameters", &params, sizeof(params));
     assert(calseg != XCP_UNDEFINED_CALSEG); // Ensure the calibration segment was created successfully
 
