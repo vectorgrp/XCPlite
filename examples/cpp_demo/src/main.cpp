@@ -98,7 +98,7 @@ int main() {
     }
 
     // Enable A2L generation
-    if (!A2lInit(OPTION_PROJECT_NAME, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, false, true, true)) {
+    if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, false, true, true)) {
         std::cerr << "Failed to initialize A2L generator" << std::endl;
         return 1;
     }

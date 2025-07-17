@@ -9,7 +9,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Enable test
 if(NOT DEFINED BUILD_TEST)
     set(BUILD_TEST TRUE)
-    endif()
+endif()
 if(BUILD_TEST)
 message( "Build test enabled")    
 else()

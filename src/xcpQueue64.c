@@ -205,8 +205,6 @@ Producer acquire lock time statistics: lockCount=3800489, maxLockTime=150000ns, 
 130us: 1
 150us: 1
 
-
-
 // QUEUE_NO_LOCK:
 ------------------
 Producer acquire lock time statistics: lockCount=3762386, maxLockTime=57958ns,  avgLockTime=127ns
@@ -257,48 +255,10 @@ Max queue level reached: 163812 of 1047548, 15%
 8: 362
 9: 308
 10: 289
-11: 283
-12: 268
-13: 258
-14: 241
-15: 228
-16: 215
-17: 207
-18: 199
-19: 189
-20: 185
-21: 182
-22: 176
-23: 172
-24: 161
-25: 152
-26: 147
-27: 139
-28: 135
-29: 133
-30: 130
-31: 124
-32: 117
-33: 113
 34: 111
-35: 106
-36: 103
-37: 102
-38: 101
-39: 100
-40: 97
-41: 97
-42: 95
-43: 92
-44: 91
-45: 90
-46: 90
-47: 89
-48: 86
 49: 85
 50: 85
 51: 84
-
 
 
 ------------------------------------------------------
@@ -336,22 +296,6 @@ Producer acquire spin count statistics:
 
 Max queue level reached: 220460 of 523260, 42%
 
-
-
-
-Producer acquire lock time statistics: lockCount=1899659, maxLockTime=266315ns,  avgLockTime=89ns
-0us: 1899619
-10us: 8
-20us: 3
-30us: 12
-40us: 16
-260us: 1
-
-Producer acquire spin count statistics:
-2: 3125
-3: 10
-
-Max queue level reached: 77964 of 523260, 14%
 
 */
 

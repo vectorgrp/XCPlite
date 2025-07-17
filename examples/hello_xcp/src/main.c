@@ -60,7 +60,7 @@ int main(void) {
     // Enable A2L generation
     // If the A2l file aready exists, check if EPK matches and load the binary persistence file
     // If not, prepare the A2L file, finalize the A2L file on XCP connect
-    if (!A2lInit(OPTION_PROJECT_NAME, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, false /* force_generation*/, true /* finalize_on_connect*/, true /* enable auto grouping*/)) {
+    if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, true /* force_generation*/, true /* finalize_on_connect*/, true /* enable auto grouping*/)) {
         return 1;
     }
 

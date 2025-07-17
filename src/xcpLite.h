@@ -157,7 +157,7 @@ tXcpEvent *XcpGetEvent(tXcpEventId event);
 #endif
 
 /*
-Single thread lock-free, wait-free CalSeg RCU:
+lock-free, wait-free CalSeg RCU:
     XCP receive thread command handler:
         On XCP write access
         if free_page != NULL

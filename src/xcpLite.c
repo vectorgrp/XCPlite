@@ -321,6 +321,7 @@ static void XcpInitCalSegList(void) {
 
 // Free the calibration segment list
 static void XcpFreeCalSegList(void) {
+    assert(isInitialized());
     for (uint16_t i = 0; i < gXcp.CalSegList.count; i++) {
         tXcpCalSeg *calseg = &gXcp.CalSegList.calseg[i];
         if (calseg->xcp_page != NULL) {
@@ -349,13 +350,15 @@ tXcpCalSegList const *XcpGetCalSegList(void) {
 
 // Get a pointer to the calibration segment struct of calseg index
 tXcpCalSeg *XcpGetCalSeg(tXcpCalSegIndex calseg) {
-    if (!isStarted() || calseg >= gXcp.CalSegList.count)
+    assert(isInitialized());
+    if (calseg >= gXcp.CalSegList.count)
         return NULL;
     return &gXcp.CalSegList.calseg[calseg];
 }
 
 // Get the index of a calibration segment by name
 static tXcpCalSegIndex XcpFindCalSeg(const char *name) {
+    assert(isInitialized());
     for (tXcpCalSegIndex i = 0; i < gXcp.CalSegList.count; i++) {
         tXcpCalSeg *calseg = &gXcp.CalSegList.calseg[i];
         if (strcmp(calseg->name, name) == 0) {
@@ -367,12 +370,14 @@ static tXcpCalSegIndex XcpFindCalSeg(const char *name) {
 
 // Get the name of the calibration segment
 const char *XcpGetCalSegName(tXcpCalSegIndex calseg) {
+    assert(isInitialized());
     assert(calseg < gXcp.CalSegList.count);
     return gXcp.CalSegList.calseg[calseg].name;
 }
 
 // Get the XCP/A2L address (address mode XCP_ADDR_MODE_SEG) of a calibration segment
 uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg) {
+    assert(isInitialized());
     assert(calseg < gXcp.CalSegList.count);
     // Address 0x80000000 is used to access the A2L EPK version
     return 0x80000000 + (((uint32_t)(calseg + 1)) << 16);

@@ -32,8 +32,13 @@
 //----------------------------------------------------------------------------------
 
 static FILE *gA2lFile = NULL;
+static bool gA2lFileFinalized = false;
+
 static char gA2lFilename[256];
 static char gBinFilename[256];
+
+static bool gA2lFinalizeOnConnect = false; // Finalize A2L file on connect
+static bool gA2lWriteAlways = true;        // Write A2L file always, even if no changes were made
 
 static MUTEX gA2lMutex;
 
@@ -400,6 +405,8 @@ static double getTypeMax(tA2lTypeId type) {
 }
 
 static bool A2lOpen(const char *filename, const char *projectname) {
+
+    assert(!gA2lFileFinalized);
 
     gA2lFile = NULL;
     gA2lTypedefsFile = NULL;
@@ -1234,15 +1241,6 @@ bool A2lOnce_(uint64_t *value) {
 //-----------------------------------------------------------------------------------------------------
 // A2L file generation and finalization on XCP connect
 
-// static bool file_exists(const char *path) {
-//     FILE *file = fopen(path, "r");
-//     if (file) {
-//         fclose(file);
-//         return true;
-//     }
-//     return false;
-// }
-
 static bool includeFile(FILE **filep, const char *filename) {
 
     if (filep != NULL && *filep != NULL && filename != NULL) {
@@ -1265,9 +1263,32 @@ static bool includeFile(FILE **filep, const char *filename) {
     return true;
 }
 
+// Callback on XCP client tool connect
+bool A2lCheckFinalizeOnConnect(void) {
+
+    // Finalize A2l once on connect
+    if (gA2lFinalizeOnConnect) {
+        if (gA2lFileFinalized) {
+            return true; // A2L file already finalized, allow connect
+        } else {
+            return A2lFinalize(); // Finalize A2L file generation
+        }
+    } else {
+
+        // If A2l generation is active, refuse connect
+        if (gA2lFile != NULL) {
+            DBG_PRINT_WARNING("A2L file not finalized, XCP connect refused!\n");
+            return false; // Refuse connect
+        }
+    }
+
+    return true; // Do not refuse connect
+}
+
 // Finalize A2L file generation
 bool A2lFinalize(void) {
 
+    // If A2l file is open, finalize it
     if (gA2lFile != NULL) {
 
         // Close the last group if any
@@ -1275,9 +1296,11 @@ bool A2lFinalize(void) {
             A2lEndGroup();
         }
 
+        // Create event groups
 #if defined(XCP_ENABLE_DAQ_EVENT_LIST) && !defined(XCP_ENABLE_DAQ_EVENT_INFO)
         tXcpEventList *eventList = XcpGetEventList();
         if (eventList != NULL && eventList->count > 0) {
+
             // Create a enum conversion with all event ids
             fprintf(gA2lConversionsFile, "/begin COMPU_METHOD conv.events \"\" TAB_VERB \"%%.0 \" \"\" COMPU_TAB_REF conv.events.table /end COMPU_METHOD\n");
             fprintf(gA2lConversionsFile, "/begin COMPU_VTAB conv.events.table \"\" TAB_VERB %u\n", eventList->count);
@@ -1318,14 +1341,18 @@ bool A2lFinalize(void) {
 
         fclose(gA2lFile);
         gA2lFile = NULL;
+        gA2lFileFinalized = true;
 
         DBG_PRINTF3("A2L created: %u measurements, %u params, %u typedefs, %u components, %u instances, %u conversions\n", gA2lMeasurements, gA2lParameters, gA2lTypedefs,
                     gA2lComponents, gA2lInstances, gA2lConversions);
 
-        XcpBinWrite(gBinFilename);
+        if (!gA2lWriteAlways)
+            XcpBinWrite(gBinFilename);
+
+        return true; // A2L file generation successful
     }
 
-    return true; // Do not refuse connect
+    return false; // A2L file generation not active
 }
 
 // Lock and unlock
@@ -1344,9 +1371,10 @@ void A2lUnlock(void) {
 }
 
 // Open the A2L file and register the finalize callback
-bool A2lInit(const char *a2l_projectname, const uint8_t *addr, uint16_t port, bool useTCP, bool force_generation, bool finalize_on_connect, bool enable_auto_grouping) {
+bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t *addr, uint16_t port, bool useTCP, bool write_always, bool finalize_on_connect, bool auto_groups) {
 
     assert(gA2lFile == NULL);
+    assert(!gA2lFileFinalized);
 
     // Check and ignore, if the XCP singleton has not been initialized and activated
     if (!XcpIsActivated()) {
@@ -1357,28 +1385,35 @@ bool A2lInit(const char *a2l_projectname, const uint8_t *addr, uint16_t port, bo
     assert(a2l_projectname != NULL);
     assert(addr != NULL);
 
-    // Save parameters anyway
+    // Save parameters and modes
     memcpy(&gA2lOptionBindAddr, addr, 4);
     gA2lOptionPort = port;
     gA2lUseTCP = useTCP;
-    gA2lAutoGroups = enable_auto_grouping;
+    gA2lAutoGroups = auto_groups;
+    gA2lFinalizeOnConnect = finalize_on_connect;
+    gA2lWriteAlways = write_always;
 
     mutexInit(&gA2lMutex, false, 1000); // Non recursive mutex, spincount 1000
 
-    // @@@@ TODO move to somewhere else
-    // EPK generation
+    // EPK generation if not provided
     // Set the EPK (software version number) for the A2L file
     char epk[64];
-    SNPRINTF(epk, sizeof(epk), "_%s%s", __DATE__, __TIME__);
+    if (a2l_version == NULL) {
+        SNPRINTF(epk, sizeof(epk), "_%s%s", __DATE__, __TIME__);
+    } else {
+        SNPRINTF(epk, sizeof(epk), "_%s", a2l_version);
+    }
     XcpSetEpk(epk);
 
     // Build filenames
-    SNPRINTF(gA2lFilename, sizeof(gA2lFilename), "%s%s.a2l", a2l_projectname, XcpGetEpk());
-    SNPRINTF(gBinFilename, sizeof(gBinFilename), "%s%s.bin", a2l_projectname, XcpGetEpk());
-    DBG_PRINTF3("Start A2L generator, file=%s, force=%u, auto_finalize=%u, auto_groups=%u\n", gA2lFilename, force_generation, finalize_on_connect, enable_auto_grouping);
+    // If A2l file is build once for a new build, the EPK is appended to the filename
+    const char *epk_suffix = gA2lWriteAlways ? "" : XcpGetEpk();
+    SNPRINTF(gA2lFilename, sizeof(gA2lFilename), "%s%s.a2l", a2l_projectname, epk_suffix);
+    SNPRINTF(gBinFilename, sizeof(gBinFilename), "%s%s.bin", a2l_projectname, epk_suffix);
+    DBG_PRINTF3("Start A2L generator, file=%s, write_always=%u, finalize_on_connect=%u, auto_groups=%u\n", gA2lFilename, gA2lWriteAlways, gA2lFinalizeOnConnect, gA2lAutoGroups);
 
     // Check if the binary file exists and load it
-    if (!force_generation) {
+    if (!gA2lWriteAlways) {
         if (XcpBinLoad(gBinFilename, XcpGetEpk())) {
             DBG_PRINTF3("Loaded binary file %s, A2L generation has been disabled\n", gBinFilename);
             return true; // Do not generate A2L file if binary file exists
@@ -1391,8 +1426,8 @@ bool A2lInit(const char *a2l_projectname, const uint8_t *addr, uint16_t port, bo
         return false;
     }
 
-    // Register finalize callback on XCP connect
-    if (finalize_on_connect)
-        ApplXcpRegisterConnectCallback(A2lFinalize);
+    // Register a callback on XCP connect
+    ApplXcpRegisterConnectCallback(A2lCheckFinalizeOnConnect);
+
     return true;
 }
