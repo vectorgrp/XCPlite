@@ -29,6 +29,23 @@ extern bool A2lCheckFinalizeOnConnect(void);
 #define OPTION_SERVER_PORT 5555           // Port
 #define OPTION_SERVER_ADDR {127, 0, 0, 1} // Bind addr, 0.0.0.0 = ANY
 
+//-----------------------------------------------------------------------------------------------------
+// Measurements
+
+uint8_t uint8 = 0;
+uint16_t uint16 = 1;
+uint32_t uint32 = 2;
+uint64_t uint64 = 3;
+int8_t int8 = 4;
+int16_t int16 = 5;
+int32_t int32 = 6;
+int64_t int64 = 7;
+float float4 = 8.0f;
+double double8 = 9.0;
+
+//-----------------------------------------------------------------------------------------------------
+// Parameters
+
 typedef struct params {
 
     uint16_t uint8;
@@ -202,6 +219,22 @@ int main() {
     A2lCreateAxis(params, map3_x_axis, 8, "Comment", "unit", 0, 1000.0);
 */
 
+    // Register global measurement variables
+    // Set absolute addressing mode with default event
+    DaqCreateEvent(event);
+    A2lSetAbsoluteAddrMode(event);
+    A2lCreateLinearConversion(linear_conversion, "x*2-50", "°C", 2.0, -50.0);
+    A2lCreatePhysMeasurement(uint8, "uint8_t", linear_conversion, -50.0, 200.0);
+    A2lCreatePhysMeasurement(uint16, "uint16_t", "unit", 0, 65535.0);
+    A2lCreatePhysMeasurement(uint32, "uint32_t", "unit", 0, 4294967295.0);
+    A2lCreatePhysMeasurement(uint64, "uint64_t", "unit", 0, 18446744073709551615ULL);
+    A2lCreatePhysMeasurement(int8, "int8_t", "unit", -128.0, 127.0);
+    A2lCreatePhysMeasurement(int16, "int16_t", "unit", -32768.0, 32767.0);
+    A2lCreatePhysMeasurement(int32, "int32_t", "unit", -2147483648.0, 2147483647.0);
+    A2lCreatePhysMeasurement(int64, "int64_t", "unit", -9223372036854775807.0, 9223372036854775807.0);
+    A2lCreatePhysMeasurement(float4, "float4", "unit", -1000.0, 1000.0);
+    A2lCreatePhysMeasurement(double8, "double8", "unit", -1000.0, 1000.0);
+
     A2lFinalize();
     assert(A2lCheckFinalizeOnConnect()); // XCP connect is now allowed, the A2L file is finalized
 
@@ -232,14 +265,6 @@ int main() {
     }
 
     // Compare a2l_test.a2l to the expected output in test/a2l_test/a2l_test_expected.a2l
-    // This is a simple string comparison, you can use a more sophisticated diff tool if needed
-    // For example, you can use the `diff` command in Unix-like systems or a text comparison tool in your IDE
-    // The expected output is stored in test/a2l_test/a2l_test_expected.a2l
-    // You can also use a unit test framework to compare the generated A2L file with the expected output
-    // For example, you can use a unit test framework like CMocka or Unity to compare the generated A2L file with the expected output
-    // This can be done by reading the generated A2L file and the expected output file into memory and comparing them line by line
-    // If the files are not equal,
-    // you can print the differences or fail the test case
     printf("Comparing generated A2L file with expected output...\n");
     result = system("diff a2l_test.a2l ./test/a2l_test/a2l_test_expected.a2l");
     if (result == 0) {
@@ -247,7 +272,27 @@ int main() {
     } else if (result == 1) {
         printf("A2L file does not match expected output\n");
     } else {
-        printf("Error comparing A2L file with expected output, exit code: %d\n", result);
+        printf("Error comparing A2L file, exit code: %d\n", result);
+    }
+
+    // Run A2l update
+    printf("Running A2L update tool...\n");
+    result = system("../a2ltool/target/release/a2ltool  --create -e build/a2l_test.out  -M temperature  -o a2l_test_updated.a2l");
+    if (result == 0) {
+        printf("A2L update passed\n");
+    } else {
+        printf("A2L update failed with exit code: %d\n", result);
+    }
+
+    // Compare a2l_test.a2l to the updated output in a2l_test_updated.a2l
+    printf("Comparing updated A2L file with original...\n");
+    result = system("diff a2l_test.a2l a2l_test_updated.a2l");
+    if (result == 0) {
+        printf("Updated A2L file matches expected output\n");
+    } else if (result == 1) {
+        printf("Updated A2L file does not match expected output\n");
+    } else {
+        printf("Error comparing A2L file, exit code: %d\n", result);
     }
 
     printf("Done\n");
