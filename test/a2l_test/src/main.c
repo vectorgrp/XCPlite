@@ -277,7 +277,7 @@ int main() {
 
     // Run A2l update
     printf("Running A2L update tool...\n");
-    result = system("../a2ltool/target/release/a2ltool  --create -e build/a2l_test.out  -M temperature  -o a2l_test_updated.a2l");
+    result = system("../a2ltool/target/release/a2ltool  -e build/a2l_test.out --update  -o a2l_test_updated.a2l  a2l_test.a2l");
     if (result == 0) {
         printf("A2L update passed\n");
     } else {
