@@ -37,21 +37,26 @@
 #define XCP_ENABLE_DAQ_ADDREXT
 
 // Use addr_ext XCP_ADDR_EXT_REL to indicate relative addr format offset as uint64
+// Used for stack frame relative addressing
 #define XCP_ENABLE_REL_ADDRESSING
 #define XCP_ADDR_EXT_REL 0x03 // Event relative address format
 
 // Use addr_ext XCP_ADDR_EXT_DYN to indicate relative addr format (event as uint16_t <<16)| offset as int16_t
+// Used for relative addressing with asyncronous access (heap, member variables)
 #define XCP_ENABLE_DYN_ADDRESSING
 #define XCP_ADDR_EXT_DYN 0x02 // Relative address format
 
-// Use addr_ext XCP_ADDR_EXT_ABS to indicate absulute addr format (ApplXcpGetBaseAddr()+ addr as uint64)
+// Use addr_ext XCP_ADDR_EXT_ABS to indicate absolute addr format (ApplXcpGetBaseAddr()+ addr as uint64)
+// Used for global data
 #define XCP_ENABLE_ABS_ADDRESSING
 #define XCP_ADDR_EXT_ABS 0x01 // Absolute address format
 
-// Use addr_ext XCP_ADDR_EXT_SEG to indicate application specific addr format
-// Use ApplXcpReadMemory and ApplXcpWriteMemory or the XCP lite calibration segments (#ifdef XCP_ENABLE_CALSEG_LIST) to access memory
-#define XCP_ENABLE_APP_ADDRESSING // Segment relative memory access handled by application
-#define XCP_ADDR_EXT_APP 0x00     // Segment relative address format, must be 0, CANape does not support memory segment address extensions
+// Use addr_ext XCP_ADDR_EXT_APP/SEG to indicate application specific addr format or segment relative address format
+#define XCP_ENABLE_APP_ADDRESSING
+// Application specific address format
+#define XCP_ADDR_EXT_APP 0x00 // Memory access handled by application, calls ApplXcpReadMemory and ApplXcpWriteMemory
+// If calibration segments are enabled (#ifdef XCP_ENABLE_CALSEG_LIST)
+#define XCP_ADDR_EXT_SEG 0x00 // Segment relative address format, must be 0, CANape does not support memory segment address extensions
 
 // Internally used address extensions
 // Use addr_ext XCP_ADDR_EXT_EPK to indicate EPK upload memory space

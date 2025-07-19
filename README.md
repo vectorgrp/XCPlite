@@ -163,6 +163,12 @@ The addressing mode is indicated by the address extension:
 2 - Signed 32Bit relative address, default is relative to the stack frame pointer of the function which triggers the event.  
 3 - Signed 16Bit relative address, high word of the address is the event id. This allows polling access to the variable. Used for heap and class instance member variables.
 
+'''sh
+../a2ltool-RainerZ/target/debug/a2ltool  -v -e test/a2l_test/linux/a2l_test.out --update  -o a2l_test_updated.a2l  a2l_test.a2l  
+../a2ltool-RainerZ/target/debug/a2ltool  -v  -e test/a2l_test/linux/a2l_test.out --update FULL  --update-mode PRESERVE --enable-structures -o a2l_test_updated.a2l  a2l_test.a2l
+
+'''
+
 ### Platform requirements and resource usage
 
 - File system: fopen, fprintf.  

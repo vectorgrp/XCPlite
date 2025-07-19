@@ -869,8 +869,7 @@ const char *A2lCreateEnumConversion_(const char *name, const char *enum_descript
 // Begin a typedef structure
 void A2lTypedefBegin_(const char *name, uint32_t size, const char *comment) {
     if (gA2lFile != NULL) {
-        fprintf(gA2lFile, "/begin TYPEDEF_STRUCTURE %s \"%s\" 0x%X", name, comment, size);
-        fprintf(gA2lFile, "\n");
+        fprintf(gA2lFile, "\n/begin TYPEDEF_STRUCTURE %s \"%s\" 0x%X\n", name, comment, size);
         gA2lTypedefs++;
     }
 }
