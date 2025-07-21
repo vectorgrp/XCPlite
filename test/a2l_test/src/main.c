@@ -208,8 +208,23 @@ static int32_t static_int32 = 6;
 static int64_t static_int64 = 7;
 static float static_float4 = 8.0f;
 static double static_double8 = 9.0;
-static int16_t static_array[16] = {0, 1, 2, 3, 4, 3, 2, 1, 0, -1, -2, -3, -4, -3, -2, -1};
-static double static_matrix[2][3] = {{1, 2, 3}, {4, 5, 6}};
+
+// Curves and maps static parameters
+int16_t static_curve1[16] = {0, 1, 2, 3, 4, 3, 2, 1, 0, -1, -2, -3, -4, -3, -2, -1}; // A curve with 16 points and fixed axis
+double static_curve2[8] = {0, 1, 2, 3, 4, 3, 2, 1};                                  // A curve with 8 points and shared axis curve_axis
+float static_curve2_axis[8] = {0, 1, 2, 4, 6, 9, 13, 15};                            // Axis
+int8_t static_map1[8][8] = {{0, 0, 0, 0, 0, 0, 0, 0}, {0, 1, 1, 1, 1, 1, 0, 0}, {0, 1, 3, 3, 3, 1, 0, 0}, {0, 1, 3, 3, 3, 1, 0, 0},
+                            {0, 1, 3, 3, 3, 1, 0, 0}, {0, 1, 1, 1, 1, 1, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}}; // A map with 8x8 points and fix axis
+int32_t static_map2[4][8] = {
+    {0, 0, 0, 0, 0, 0, 0, 0},
+    {0, 1, 1, 1, 1, 1, 0, 0},
+    {0, 1, 3, 3, 3, 1, 0, 0},
+    {0, 1, 3, 3, 3, 1, 0, 0},
+}; // A map with 8x4 points and shared axis
+int16_t static_map2_x_axis[8] = {0, 1, 2, 3, 4, 5, 6, 7};                              // X-axis
+uint16_t static_map2_y_axis[4] = {0, 1, 2, 3};                                         // Y-axis
+uint64_t static_map3[4][4] = {{0, 0, 0, 0}, {0, 1, 1, 1}, {0, 1, 3, 3}, {0, 1, 3, 3}}; // A map with 8x4 points and shared axis and fixed axis
+int64_t static_map3_x_axis[8] = {0, 2, 5, 10};                                         // X-axis
 
 //-----------------------------------------------------------------------------------------------------
 
@@ -257,21 +272,35 @@ int main() {
     A2lCreateParameter(static_int32, "Global memory parameter", "unit", -2147483648, 2147483647);
     A2lCreateParameter(static_float4, "Global memory parameter", "unit", -1000.0, 1000.0);
     A2lCreateParameter(static_double8, "Global memory parameter", "unit", -1000.0, 1000.0);
-    A2lCreateCurve(static_array, 16, "Global memory curve", "unit", -20, 20);
-    A2lCreateMap(static_matrix, 3, 2, "Global memory map", "unit", -128, 127);
+    A2lCreateCurve(static_curve1, 8, "Global memory parameter field", "unit", -20, 20);
+    A2lCreateCurveWithSharedAxis(static_curve2, 8, "Global memory parameter", "unit", 0, 1000.0, "static_curve2_axis");
+    A2lCreateAxis(static_curve2_axis, 8, "Global memory parameter", "unit", 0, 20);
+    A2lCreateMap(static_map1, 8, 8, "Global memory parameter", "", -128, 127);
+    A2lCreateMapWithSharedAxis(static_map2, 8, 4, "Global memory parameter", "", -128, 127, "static_map2_x_axis", "static_map2_y_axis");
+    A2lCreateAxis(static_map2_x_axis, 8, "Global memory parameter", "unit", 0, 1000.0);
+    A2lCreateAxis(static_map2_y_axis, 4, "Global memory parameter", "unit", 0, 500.0);
+    A2lCreateMapWithSharedAxis(static_map3, 8, 4, "Global memory parameter", "", -128, 127, "static_map3_x_axis", NULL);
+    A2lCreateAxis(static_map3_x_axis, 8, "Global memory parameter", "unit", 0, 1000.0);
 
     // Create parameters in the struct instance params in global memory
-    A2lCreateParameter(static_params.uint8, "Global memory parameter", "unit", 0, 255);
-    A2lCreateParameter(static_params.uint16, "Global memory parameter", "unit", 0, 65535);
-    A2lCreateParameter(static_params.uint32, "Global memory parameter", "unit", 0, 4294967295);
-    A2lCreateParameter(static_params.uint64, "Global memory parameter", "unit", 0, 18446744073709551615ULL);
-    A2lCreateParameter(static_params.int8, "Global memory parameter", "unit", -128, 127);
-    A2lCreateParameter(static_params.int16, "Global memory parameter", "unit", -32768, 32767);
-    A2lCreateParameter(static_params.int32, "Global memory parameter", "unit", -2147483648, 2147483647);
-    A2lCreateParameter(static_params.float4, "Global memory parameter", "unit", -1000.0, 1000.0);
-    A2lCreateParameter(static_params.double8, "Global memory parameter", "unit", -1000.0, 1000.0);
-    A2lCreateCurve(static_params.curve1, 8, "Global memory curve", "unit", -20, 20);
-    A2lCreateMap(static_params.map1, 8, 8, "Global memory map", "unit", -128, 127);
+    A2lCreateParameter(static_params.uint8, "Global memory parameter struct field", "unit", 0, 255);
+    A2lCreateParameter(static_params.uint16, "Global memory parameter struct field", "unit", 0, 65535);
+    A2lCreateParameter(static_params.uint32, "Global memory parameter struct field", "unit", 0, 4294967295);
+    A2lCreateParameter(static_params.uint64, "Global memory parameter struct field", "unit", 0, 18446744073709551615ULL);
+    A2lCreateParameter(static_params.int8, "Global memory parameter struct field", "unit", -128, 127);
+    A2lCreateParameter(static_params.int16, "Global memory parameter struct field", "unit", -32768, 32767);
+    A2lCreateParameter(static_params.int32, "Global memory parameter struct field", "unit", -2147483648, 2147483647);
+    A2lCreateParameter(static_params.float4, "Global memory parameter struct field", "unit", -1000.0, 1000.0);
+    A2lCreateParameter(static_params.double8, "Global memory parameter struct field", "unit", -1000.0, 1000.0);
+    A2lCreateCurve(static_params.curve1, 8, "Global memory parameter struct field", "unit", -20, 20);
+    A2lCreateCurveWithSharedAxis(static_params.curve2, 8, "Global memory parameter struct field", "unit", 0, 1000.0, "static_params.curve2_axis");
+    A2lCreateAxis(static_params.curve2_axis, 8, "Global memory parameter struct field", "unit", 0, 20);
+    A2lCreateMap(static_params.map1, 8, 8, "Global memory parameter struct field", "", -128, 127);
+    A2lCreateMapWithSharedAxis(static_params.map2, 8, 4, "Global memory parameter struct field", "", -128, 127, "static_params.map2_x_axis", "static_params.map2_y_axis");
+    A2lCreateAxis(static_params.map2_x_axis, 8, "Global memory parameter struct field", "unit", 0, 1000.0);
+    A2lCreateAxis(static_params.map2_y_axis, 4, "Global memory parameter struct field", "unit", 0, 500.0);
+    A2lCreateMapWithSharedAxis(static_params.map3, 8, 4, "Global memory parameter struct field", "", -128, 127, "static_params.map3_x_axis", NULL);
+    A2lCreateAxis(static_params.map3_x_axis, 8, "Global memory parameter struct field", "unit", 0, 1000.0);
 
     A2lEndGroup();
 
@@ -321,15 +350,13 @@ int main() {
     A2lCreateParameter(params.double8, "Parameter in calibration segment", "unit", -1000.0, 1000.0);
     A2lCreateCurve(params.curve1, 8, "Parameter in calibration segment", "unit", -20, 20);
     A2lCreateMap(params.map1, 8, 8, "Parameter in calibration segment", "unit", -128, 127);
-    /*
-    A2lCreateCurveWithSharedAxis(params, curve2, 8, "Comment", "unit", 0, 1000.0, "params.curve2_axis");
-    A2lCreateAxis(params, curve2_axis, 8, "Comment", "unit", 0, 20);
-    A2lCreateMapWithSharedAxis(params, map2, 8, 4, "Comment", "", -128, 127, "params.map2_x_axis", "params.map2_y_axis");
-    A2lCreateAxis(params, map2_x_axis, 8, "Comment", "unit", 0, 1000.0);
-    A2lCreateAxis(params, map2_y_axis, 4, "Comment", "unit", 0, 500.0);
-    A2lCreateMapWithSharedAxis(params, map3, 8, 4, "Comment", "", -128, 127, "params.map3_x_axis", NULL);
-    A2lCreateAxis(params, map3_x_axis, 8, "Comment", "unit", 0, 1000.0);
-*/
+    A2lCreateAxis(params.curve2_axis, 8, "Comment", "unit", 0, 20);
+    A2lCreateAxis(params.map2_x_axis, 8, "Comment", "unit", 0, 1000.0);
+    A2lCreateAxis(params.map2_y_axis, 4, "Comment", "unit", 0, 500.0);
+    A2lCreateAxis(params.map3_x_axis, 8, "Comment", "unit", 0, 1000.0);
+    A2lCreateCurveWithSharedAxis(params.curve2, 8, "Comment", "unit", 0, 1000.0, "params.curve2_axis");
+    A2lCreateMapWithSharedAxis(params.map2, 8, 4, "Comment", "", -128, 127, "params.map2_x_axis", "params.map2_y_axis");
+    A2lCreateMapWithSharedAxis(params.map3, 8, 4, "Comment", "", -128, 127, "params.map3_x_axis", NULL);
 
     //---------------------------------------------------------------------------------------------------------------------------------
     // Measurement

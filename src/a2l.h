@@ -333,15 +333,24 @@ const char *A2lGetRecordLayoutName_(tA2lTypeId type);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Create parameters
-// Addressing mode ABS (unsafe), addressing mode CAL or addresing mode DYN with explicit sync event
+// Addressing mode ABS (unsafe), addressing mode CAL or addresing mode DYN with explicit sync event and base
 
 #define A2lCreateParameter(name, comment, unit, min, max) A2lCreateParameter_(#name, A2lGetTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&name), comment, unit, min, max);
 
 #define A2lCreateCurve(name, xdim, comment, unit, min, max)                                                                                                                        \
-    A2lCreateCurve_(#name, A2lGetArray1DElementTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&name[0]), xdim, comment, unit, min, max);
+    A2lCreateCurve_(#name, A2lGetArray1DElementTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&name[0]), xdim, comment, unit, min, max, NULL);
+
+#define A2lCreateCurveWithSharedAxis(name, xdim, comment, unit, min, max, x_axis)                                                                                                  \
+    A2lCreateCurve_(#name, A2lGetArray1DElementTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&name[0]), xdim, comment, unit, min, max, x_axis);
+
+#define A2lCreateAxis(name, xdim, comment, unit, min, max)                                                                                                                         \
+    A2lCreateAxis_(#name, A2lGetArray1DElementTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&name[0]), xdim, comment, unit, min, max);
 
 #define A2lCreateMap(name, xdim, ydim, comment, unit, min, max)                                                                                                                    \
-    A2lCreateMap_(#name, A2lGetArray2DElementTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&name[0][0]), xdim, ydim, comment, unit, min, max);
+    A2lCreateMap_(#name, A2lGetArray2DElementTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&name[0][0]), xdim, ydim, comment, unit, min, max, NULL, NULL);
+
+#define A2lCreateMapWithSharedAxis(name, xdim, ydim, comment, unit, min, max, x_axis, y_axis)                                                                                      \
+    A2lCreateMap_(#name, A2lGetArray2DElementTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&name[0][0]), xdim, ydim, comment, unit, min, max, x_axis, y_axis);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Create conversions
@@ -561,8 +570,11 @@ uint8_t A2lGetAddrExt_(void);
 
 // Create parameters
 void A2lCreateParameter_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, const char *comment, const char *unit, double min, double max);
-void A2lCreateMap_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, uint32_t xdim, uint32_t ydim, const char *comment, const char *unit, double min, double max);
-void A2lCreateCurve_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, uint32_t xdim, const char *comment, const char *unit, double min, double max);
+void A2lCreateMap_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, uint32_t xdim, uint32_t ydim, const char *comment, const char *unit, double min, double max,
+                   const char *x_axis, const char *y_axis);
+void A2lCreateCurve_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, uint32_t xdim, const char *comment, const char *unit, double min, double max,
+                     const char *x_axis);
+void A2lCreateAxis_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, uint32_t xdim, const char *comment, const char *unit, double min, double max);
 
 // Create measurements
 const char *A2lCreateLinearConversion_(const char *name, const char *comment, const char *unit, double factor, double offset);
