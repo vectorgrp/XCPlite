@@ -332,14 +332,14 @@ int main(void) {
 
     // Register calibration parameters in the calibration segment
     A2lSetSegmentAddrMode(calseg, params);
-    A2lCreateParameter(params, counter_max, "Max counter value, wrap around", "", 0, 10000.0);
-    A2lCreateParameter(params, ampl, "Amplitude", "Volt", 0, 100.0);
-    A2lCreateParameter(params, period, "Period", "s", 0.1, 10.0);
-    A2lCreateParameter(params, filter, "Filter coefficient", "", 0.0, 1.0);
-    A2lCreateParameter(params, clip_max, "Maximum value for clipping function", "Volt", -100.0, 100.0);
-    A2lCreateParameter(params, clip_min, "Minimum value for clipping function", "Volt", -100.0, 100.0);
-    A2lCreateParameter(params, delay_us, "task delay time in us", "us", 0, 1000000);
-    A2lCreateParameter(params, run, "stop task", "", 0, 1);
+    A2lCreateParameter(params.counter_max, "Max counter value, wrap around", "", 0, 10000.0);
+    A2lCreateParameter(params.ampl, "Amplitude", "Volt", 0, 100.0);
+    A2lCreateParameter(params.period, "Period", "s", 0.1, 10.0);
+    A2lCreateParameter(params.filter, "Filter coefficient", "", 0.0, 1.0);
+    A2lCreateParameter(params.clip_max, "Maximum value for clipping function", "Volt", -100.0, 100.0);
+    A2lCreateParameter(params.clip_min, "Minimum value for clipping function", "Volt", -100.0, 100.0);
+    A2lCreateParameter(params.delay_us, "task delay time in us", "us", 0, 1000000);
+    A2lCreateParameter(params.run, "stop task", "", 0, 1);
 
     // Create multiple instances of task
     THREAD t[10];

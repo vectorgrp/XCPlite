@@ -35,7 +35,9 @@ static FILE *gA2lFile = NULL;
 static bool gA2lFileFinalized = false;
 
 static char gA2lFilename[256];
+#if defined(XCP_ENABLE_CALSEG_LIST) && defined(XCP_ENABLE_DAQ_EVENT_LIST)
 static char gBinFilename[256];
+#endif
 
 static bool gA2lFinalizeOnConnect = false; // Finalize A2L file on connect
 static bool gA2lWriteAlways = true;        // Write A2L file always, even if no changes were made
@@ -75,7 +77,6 @@ static const char *gA2lHeader = "ASAP2_VERSION 1 71\n"
                                 "/begin HEADER \"\" VERSION \"1.0\" PROJECT_NO VECTOR /end HEADER\n\n"
                                 "/begin MODULE %s \"\"\n\n"
                                 "/include \"XCP_104.aml\"\n\n"
-
                                 "/begin MOD_COMMON \"\"\n"
                                 "BYTE_ORDER MSB_LAST\n"
                                 "ALIGNMENT_BYTE 1\n"
@@ -89,6 +90,7 @@ static const char *gA2lHeader = "ASAP2_VERSION 1 71\n"
                                 "\n\n";
 
 //----------------------------------------------------------------------------------
+#if defined(XCP_ENABLE_CALSEG_LIST)
 static const char *gA2lMemorySegment = "/begin MEMORY_SEGMENT %s \"\" DATA FLASH INTERN 0x%08X 0x%X -1 -1 -1 -1 -1\n" // name, start, size
                                        "/begin IF_DATA XCP\n"
                                        "/begin SEGMENT %u 2 0 0 0\n"
@@ -99,6 +101,7 @@ static const char *gA2lMemorySegment = "/begin MEMORY_SEGMENT %s \"\" DATA FLASH
                                        "/end SEGMENT\n"
                                        "/end IF_DATA\n"
                                        "/end MEMORY_SEGMENT\n";
+#endif
 
 static const char *gA2lEpkMemorySegment = "/begin MEMORY_SEGMENT epk \"\" DATA FLASH INTERN 0x80000000 %u -1 -1 -1 -1 -1\n"
                                           "/begin IF_DATA XCP\n"
@@ -469,16 +472,17 @@ static bool A2lOpen(const char *filename, const char *projectname) {
 static void A2lCreate_MOD_PAR(void) {
     if (gA2lFile != NULL) {
 
-#ifdef XCP_ENABLE_CALSEG_LIST
         fprintf(gA2lFile, "\n/begin MOD_PAR \"\"\n");
         const char *epk = XcpGetEpk();
         if (epk) {
             fprintf(gA2lFile, "EPK \"%s\" ADDR_EPK 0x80000000\n", epk);
             fprintf(gA2lFile, gA2lEpkMemorySegment, strlen(epk));
         }
+
         // Calibration segments are implicitly indexed, index in the list is segment number - 1
         // The segment number used in XCP commands XCP_SET_CAL_PAGE, GET_CAL_PAGE, XCP_GET_SEGMENT_INFO, ... are the indices of the segments starting with 0
         // Segment number 0 is reserved for the implicit EPK segment
+#ifdef XCP_ENABLE_CALSEG_LIST
         tXcpCalSegList const *calSegList = XcpGetCalSegList();
         if (calSegList != NULL && calSegList->count > 0) {
             for (tXcpCalSegIndex i = 0; i < calSegList->count; i++) {
@@ -486,10 +490,10 @@ static void A2lCreate_MOD_PAR(void) {
                 fprintf(gA2lFile, gA2lMemorySegment, calseg->name, XcpGetCalSegBaseAddress(i), calseg->size, i + 1);
             }
         }
+#endif
 
         fprintf(gA2lFile, "/end MOD_PAR\n\n");
     }
-#endif
 }
 
 static void A2lCreate_IF_DATA_DAQ(void) {
@@ -605,18 +609,20 @@ static void A2lCreateMeasurement_IF_DATA(void) {
 // Used for calibration parameters ins a XCP calibration segments (A2L MEMORY_SEGMENT)
 // XCP address extension = 0 XCP_ADDR_EXT_SEG
 // XCP address is uint32_t offset to the segment base address
-static void A2lSetSegAddrMode(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance_addr) {
+#if defined(XCP_ENABLE_CALSEG_LIST)
+void A2lSetSegAddrMode(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance_addr) {
     gA2lAddrIndex = calseg_index;
     gA2lAddrBase = calseg_instance_addr; // Address of a a the calibration segment instance which is used in the macros to create the components
     gAl2AddrExt = XCP_ADDR_EXT_SEG;
 }
+#endif
 
 // Absolute addressing mode
 // XCP address extension = 1 XCP_ADDR_EXT_ABS
 // XCP address is the absolute address of the variable relative to the main module load address
-static void A2lSetAbsAddrMode(tXcpEventId default_event_id) {
+void A2lSetAbsAddrMode(tXcpEventId default_event_id) {
     gA2lFixedEvent = XCP_UNDEFINED_EVENT_ID;
-    gA2lDefaultEvent = default_event_id;
+    gA2lDefaultEvent = default_event_id; // May be XCP_UNDEFINED_EVENT_ID
     gAl2AddrExt = XCP_ADDR_EXT_ABS;
 }
 
@@ -624,7 +630,7 @@ static void A2lSetAbsAddrMode(tXcpEventId default_event_id) {
 // Used for accessing stack variable relativ to the stack frame pointer
 // XCP address extension = 3 XCP_ADDR_EXT_REL
 // XCP address is int32_t offset to the stack frame pointer
-static void A2lSetRelAddrMode(tXcpEventId event_id, const uint8_t *base) {
+void A2lSetRelAddrMode(tXcpEventId event_id, const uint8_t *base) {
     gA2lAddrBase = base;
     gA2lFixedEvent = event_id;
     gA2lDefaultEvent = XCP_UNDEFINED_EVENT_ID;
@@ -636,20 +642,20 @@ static void A2lSetRelAddrMode(tXcpEventId event_id, const uint8_t *base) {
 // Enables XCP polling access
 // XCP address extension = 2 XCP_ADDR_EXT_DYN
 // XCP address is int16_t offset to the given base address, high word of the address is the event id
-static void A2lSetDynAddrMode(tXcpEventId event_id, const uint8_t *base) {
+void A2lSetDynAddrMode(tXcpEventId event_id, const uint8_t *base) {
     gA2lAddrBase = base;
     gA2lFixedEvent = event_id;
     gA2lDefaultEvent = XCP_UNDEFINED_EVENT_ID;
     gAl2AddrExt = XCP_ADDR_EXT_DYN;
 }
 
-// static void A2lRstAddrMode(void) {
-//     gA2lFixedEvent = XCP_UNDEFINED_EVENT_ID;
-//     gA2lDefaultEvent = XCP_UNDEFINED_EVENT_ID;
-//     gA2lAddrBase = NULL;
-//     gA2lAddrIndex = 0;
-//     gAl2AddrExt = XCP_UNDEFINED_ADDR_EXT;
-// }
+void A2lRstAddrMode(void) {
+    gA2lFixedEvent = XCP_UNDEFINED_EVENT_ID;
+    gA2lDefaultEvent = XCP_UNDEFINED_EVENT_ID;
+    gA2lAddrBase = NULL;
+    gA2lAddrIndex = 0;
+    gAl2AddrExt = XCP_UNDEFINED_ADDR_EXT;
+}
 
 //----------------------------------------------------------------------------------
 // Set addressing mode (by event name or calibration segment index lookup and runtime check)
@@ -735,23 +741,26 @@ void A2lSetStackAddrMode__i(tXcpEventId event_id, const uint8_t *stack_frame) {
     }
 }
 
-// Set absolute address mode with  with event name or event id
+// Set absolute address mode with with default event name or event id (optional)
 void A2lSetAbsoluteAddrMode__s(const char *event_name) {
     if (gA2lFile != NULL) {
         tXcpEventId event_id = XcpFindEvent(event_name, NULL);
-        assert(event_id != XCP_UNDEFINED_EVENT_ID);
         A2lSetAbsAddrMode(event_id);
-        beginEventGroup(event_id);
-        fprintf(gA2lFile, "\n/* Absolute addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, gAl2AddrExt);
+        if (event_id != XCP_UNDEFINED_EVENT_ID) {
+            beginEventGroup(event_id);
+            fprintf(gA2lFile, "\n/* Absolute addressing mode: default_event=%s (%u), addr_ext=%u */\n", event_name, event_id, gAl2AddrExt);
+        }
     }
 }
 void A2lSetAbsoluteAddrMode__i(tXcpEventId event_id) {
     if (gA2lFile != NULL) {
         const char *event_name = XcpGetEventName(event_id);
-        assert(event_name != NULL);
+        assert(event_name != NULL || event_id == XCP_UNDEFINED_EVENT_ID);
         A2lSetAbsAddrMode(event_id);
-        beginEventGroup(event_id);
-        fprintf(gA2lFile, "\n/* Stack frame absolute addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, gAl2AddrExt);
+        if (event_id != XCP_UNDEFINED_EVENT_ID) {
+            beginEventGroup(event_id);
+            fprintf(gA2lFile, "\n/* Stack frame absolute addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, gAl2AddrExt);
+        }
     }
 }
 
@@ -1022,7 +1031,7 @@ void A2lCreateMeasurement_(const char *instance_name, const char *name, tA2lType
         fprintf(gA2lFile, "/begin MEASUREMENT %s \"%s\" %s %s 0 0 %g %g ECU_ADDRESS 0x%X", symbol_name, comment, A2lGetA2lTypeName(type), conv, min, max, addr);
         printAddrExt(ext);
         printPhysUnit(gA2lFile, unit_or_conversion);
-        if (gAl2AddrExt == XCP_ADDR_EXT_ABS || gAl2AddrExt == XCP_ADDR_EXT_DYN) { // Absolute or dynamic address mode allows write access
+        if (gAl2AddrExt == XCP_ADDR_EXT_ABS || gAl2AddrExt == XCP_ADDR_EXT_DYN) { // Absolute and dynamic mode allows write access
             fprintf(gA2lFile, " READ_WRITE");
         }
 
@@ -1133,7 +1142,7 @@ void A2lBeginGroup(const char *name, const char *comment, bool is_parameter_grou
             A2lEndGroup(); // Close previous group if any
             gA2lAutoGroupName = name;
             gA2lAutoGroupIsParameter = is_parameter_group;
-            fprintf(gA2lGroupsFile, "/begin GROUP %s%s \"%s\"", gA2lAutoGroupIsParameter ? "CalSeg." : "", name, comment);
+            fprintf(gA2lGroupsFile, "/begin GROUP %s \"%s\"", name, comment);
             fprintf(gA2lGroupsFile, " /begin REF_%s", gA2lAutoGroupIsParameter ? "CHARACTERISTIC" : "MEASUREMENT");
         }
     }
@@ -1345,8 +1354,11 @@ bool A2lFinalize(void) {
         DBG_PRINTF3("A2L created: %u measurements, %u params, %u typedefs, %u components, %u instances, %u conversions\n", gA2lMeasurements, gA2lParameters, gA2lTypedefs,
                     gA2lComponents, gA2lInstances, gA2lConversions);
 
+        // Write the binary persistence file if calsegment list and DAQ event list are enabled
+#if defined(XCP_ENABLE_CALSEG_LIST) && defined(XCP_ENABLE_DAQ_EVENT_LIST)
         if (!gA2lWriteAlways)
             XcpBinWrite(gBinFilename);
+#endif
 
         return true; // A2L file generation successful
     }
@@ -1408,16 +1420,18 @@ bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t
     // If A2l file is build once for a new build, the EPK is appended to the filename
     const char *epk_suffix = gA2lWriteAlways ? "" : XcpGetEpk();
     SNPRINTF(gA2lFilename, sizeof(gA2lFilename), "%s%s.a2l", a2l_projectname, epk_suffix);
-    SNPRINTF(gBinFilename, sizeof(gBinFilename), "%s%s.bin", a2l_projectname, epk_suffix);
     DBG_PRINTF3("Start A2L generator, file=%s, write_always=%u, finalize_on_connect=%u, auto_groups=%u\n", gA2lFilename, gA2lWriteAlways, gA2lFinalizeOnConnect, gA2lAutoGroups);
 
-    // Check if the binary file exists and load it
+// Check if the binary file exists and load it
+#if defined(XCP_ENABLE_CALSEG_LIST) && defined(XCP_ENABLE_DAQ_EVENT_LIST)
+    SNPRINTF(gBinFilename, sizeof(gBinFilename), "%s%s.bin", a2l_projectname, epk_suffix);
     if (!gA2lWriteAlways) {
         if (XcpBinLoad(gBinFilename, XcpGetEpk())) {
             DBG_PRINTF3("Loaded binary file %s, A2L generation has been disabled\n", gBinFilename);
             return true; // Do not generate A2L file if binary file exists
         }
     }
+#endif
 
     // Open A2L file
     if (!A2lOpen(gA2lFilename, a2l_projectname)) {

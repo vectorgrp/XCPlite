@@ -29,6 +29,8 @@
 #include "xcp_cfg.h"   // for XCP_xxx
 #include "xcptl_cfg.h" // for XCPTL_xxx
 
+#if defined(XCP_ENABLE_DAQ_EVENT_LIST) && defined(XCP_ENABLE_CALSEG_LIST)
+
 #define BIN_SIGNATURE "XCPlite__BINARY"
 #define BIN_VERSION 0x0100
 #pragma pack(push, 1)
@@ -37,7 +39,7 @@ typedef struct {
     char signature[16];               // File signature "XCPlite__BINARY"
     uint16_t version;                 // File version, currently 0x0100
     char Epk[XCP_EPK_MAX_LENGTH + 1]; // EPK string, 0 terminated, 32 bytes
-    uint16_t event_count;             // Number of events tBinEventDescriptor
+    uint16_t event_count;             // Number of events tEventDescriptor
     uint16_t calseg_count;
     uint32_t res;
 } tHeader;
@@ -291,3 +293,5 @@ bool XcpBinLoad(const char *filename, const char *epk) {
 
     return true;
 }
+
+#endif

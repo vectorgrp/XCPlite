@@ -1,6 +1,55 @@
 {
     "tasks": [
         {
+            "type": "shell",
+            "label": "XCPlite: sync to Pi",
+            "command": "rsync",
+            "args": [
+                "-avz",
+                "--delete",
+                "--exclude=build/",
+                "--exclude=.git/",
+                "--exclude=\"*.o\"",
+                "--exclude=\"*.out\"",
+                "--exclude=\"*.a\"",
+                "./",
+                "rainer@192.168.0.205:~/XCPlite-RainerZ/"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "detail": "rsync to Raspberry Pi rainer@192.168.0.205:~/XCPlite-RainerZ/"
+        },
+        {
+            "type": "shell",
+            "label": "XCPlite: sync to Pi (sync.sh)",
+            "command": "./sync.sh",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "detail": "Call ./sync.sh - rsync to Raspberry Pi rainer@192.168.0.205:~/XCPlite-RainerZ/"
+        },
+        {
             "type": "cppbuild",
             "label": "C/C++: clang Aktive Datei kompilieren",
             "command": "/usr/bin/clang",
@@ -26,7 +75,7 @@
         },
         {
             "type": "shell",
-            "label": "build hello_xcp",
+            "label": "XCPlite: build hello_xcp",
             "command": "cmake",
             "args": [
                 "--build",
@@ -49,7 +98,7 @@
         },
         {
             "type": "shell",
-            "label": "build c_demo",
+            "label": "XCPlite: build c_demo",
             "command": "cmake",
             "args": [
                 "--build",
@@ -72,7 +121,7 @@
         },
         {
             "type": "shell",
-            "label": "build struct_demo",
+            "label": "XCPlite: build struct_demo",
             "command": "cmake",
             "args": [
                 "--build",
@@ -95,7 +144,7 @@
         },
         {
             "type": "shell",
-            "label": "build multi_thread_demo",
+            "label": "XCPlite: build multi_thread_demo",
             "command": "cmake",
             "args": [
                 "--build",
@@ -118,7 +167,7 @@
         },
         {
             "type": "shell",
-            "label": "build a2l_test",
+            "label": "XCPlite: build a2l_test",
             "command": "cmake",
             "args": [
                 "--build",
@@ -141,7 +190,7 @@
         },
         {
             "type": "shell",
-            "label": "build cpp_demo",
+            "label": "XCPlite: build cpp_demo",
             "command": "cmake",
             "args": [
                 "--build",
@@ -180,7 +229,84 @@
                 "$gcc"
             ],
             "detail": "Configure CMake build system"
-        }
+        },
+        {
+            "type": "shell",
+            "label": "XCPlite: Remote configure CMake on Pi",
+            "command": "ssh",
+            "args": [
+                "rainer@192.168.0.205",
+                "cd ~/XCPlite-RainerZ && cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug"
+            ],
+            "group": "build",
+            "dependsOn": "XCPlite: sync to Pi",
+            "detail": "Configure CMake build system on Raspberry Pi"
+        },
+        {
+            "type": "shell",
+            "label": "XCPlite: Remote build hello_xcp on Pi",
+            "command": "ssh",
+            "args": [
+                "rainer@192.168.0.205",
+                "cd ~/XCPlite-RainerZ && cmake --build build --target hello_xcp"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "dependsOn": "XCPlite: Remote configure CMake on Pi",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Build hello_xcp target on Raspberry Pi"
+        },
+        {
+            "type": "shell",
+            "label": "XCPlite: Remote build cpp_demo on Pi",
+            "command": "ssh",
+            "args": [
+                "rainer@192.168.0.205",
+                "cd ~/XCPlite-RainerZ && cmake --build build --target cpp_demo"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "dependsOn": "XCPlite: Remote configure CMake on Pi",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Build cpp_demo target on Raspberry Pi"
+        },
+        {
+            "type": "shell",
+            "label": "XCPlite: Remote build all on Pi",
+            "command": "ssh",
+            "args": [
+                "rainer@192.168.0.205",
+                "cd ~/XCPlite-RainerZ && cmake --build build"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "dependsOn": "XCPlite: Remote configure CMake on Pi",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Build all targets on Raspberry Pi"
+        },
+        {
+            "type": "shell",
+            "label": "XCPlite: Remote kill XCP processes on Pi",
+            "command": "ssh",
+            "args": [
+                "rainer@192.168.0.205",
+                "pkill -f 'hello_xcp\\|cpp_demo\\|c_demo\\|multi_thread_demo' || true"
+            ],
+            "group": "build",
+            "detail": "Kill any running XCP demo processes on Raspberry Pi"
+        },
     ],
     "version": "2.0.0"
 }

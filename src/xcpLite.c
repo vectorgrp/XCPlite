@@ -1024,6 +1024,12 @@ static uint8_t calcChecksum(uint32_t checksum_size, uint32_t *checksum_result) {
 
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
 
+void XcpInitEventList(void) {
+
+    gXcp.EventList.count = 0; // Reset event list
+    mutexInit(&gXcp.EventList.mutex, false, 1000);
+}
+
 // Get a pointer to and the size of the XCP event list
 tXcpEventList *XcpGetEventList(void) {
     if (!isActivated())
@@ -1318,9 +1324,9 @@ static uint8_t XcpSetDaqPtr(uint16_t daq, uint8_t odt, uint8_t idx) {
 }
 
 // Add an ODT entry to current DAQ/ODT
-// Supports XCP_ADDR_EXT_ABS and XCP_ADDR_EXT_DYN if XCP_ENABLE_DYN_ADDRESSING
+// Supports XCP_ADDR_EXT_/ABS/DYN
 // All ODT entries of a DAQ list must have the same address extension,returns CRC_DAQ_CONFIG if not
-// In XCP_ADDR_EXT_DYN and XCP_ADDR_EXT_REL addressing mode, the event must be unique
+// In XCP_ADDR_EXT_/DYN/REL addressing mode, the event must be unique
 static uint8_t XcpAddOdtEntry(uint32_t addr, uint8_t ext, uint8_t size) {
 
     if (size == 0 || size > XCP_MAX_ODT_ENTRY_SIZE)
@@ -1346,7 +1352,7 @@ static uint8_t XcpAddOdtEntry(uint32_t addr, uint8_t ext, uint8_t size) {
 #ifdef XCP_ENABLE_DYN_ADDRESSING
     // DYN addressing mode, base pointer will given to XcpEventExt()
     // Max address range base-0x8000 - base+0x7FFF
-    if (ext == XCP_ADDR_EXT_DYN) {                 // relative addressing mode
+    if (ext == XCP_ADDR_EXT_DYN) {
         uint16_t event = (uint16_t)(addr >> 16);   // event
         int16_t offset = (int16_t)(addr & 0xFFFF); // address offset
         base_offset = (int32_t)offset;             // sign extend to 32 bit, the relative address may be negative
@@ -2330,7 +2336,7 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             CRM_LEN = CRM_GET_DAQ_PROCESSOR_INFO_LEN;
             CRM_GET_DAQ_PROCESSOR_INFO_MIN_DAQ = 0;                                                      // Total number of predefined DAQ lists
             CRM_GET_DAQ_PROCESSOR_INFO_MAX_DAQ = gXcp.DaqLists != NULL ? (gXcp.DaqLists->daq_count) : 0; // Number of currently dynamically allocated DAQ lists
-#if defined(XCP_ENABLE_DAQ_EVENT_INFO)
+#if defined(XCP_ENABLE_DAQ_EVENT_INFO) && defined(XCP_ENABLE_DAQ_EVENT_LIST)
             CRM_GET_DAQ_PROCESSOR_INFO_MAX_EVENT = gXcp.EventList.count; // Number of currently available event channels
 #else
             CRM_GET_DAQ_PROCESSOR_INFO_MAX_EVENT = 0; // 0 - unknown
@@ -2889,8 +2895,8 @@ void XcpInit(bool activate) {
     XcpInitCalSegList();
 #endif
 
-#ifdef XCP_ENABLE_EVENT_LIST
-    mutexInit(&gXcp.EventList.mutex, false, 1000);
+#ifdef XCP_ENABLE_DAQ_EVENT_LIST
+    XcpInitEventList();
 #endif
 
 #ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST

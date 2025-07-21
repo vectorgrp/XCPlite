@@ -87,7 +87,7 @@ int main(void) {
 
     // Register individual calibration parameters in the calibration segment
     A2lSetSegmentAddrMode(calseg, params);
-    A2lCreateParameter(params, delay_us, "mainloop delay time in us", "us", 0, 1000000);
+    A2lCreateParameter(params.delay_us, "mainloop delay time in us", "us", 0, 1000000);
 
     // Create a A2L typedef for struct2_t
     A2lTypedefBegin(struct2_t, "A2L typedef for struct2_t");

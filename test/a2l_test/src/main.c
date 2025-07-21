@@ -11,7 +11,7 @@
 
 #include "xcpLite.h"
 
-// Not public API
+//  Not public API
 extern bool A2lCheckFinalizeOnConnect(void);
 
 // static bool file_exists(const char *path) {
@@ -28,6 +28,7 @@ extern bool A2lCheckFinalizeOnConnect(void);
 #define OPTION_USE_TCP false              // TCP or UDP
 #define OPTION_SERVER_PORT 5555           // Port
 #define OPTION_SERVER_ADDR {127, 0, 0, 1} // Bind addr, 0.0.0.0 = ANY
+#define OPTION_QUEUE_SIZE 1024 * 32       // Size of the measurement queue in bytes, must be a multiple of 8
 
 //-----------------------------------------------------------------------------------------------------
 // Measurements
@@ -70,9 +71,10 @@ static struct1_t struct1_array[10]; // Array of struct1_t
 //-----------------------------------------------------------------------------------------------------
 // Parameters
 
+// Parameterstruct
 typedef struct params {
 
-    uint16_t uint8;
+    uint8_t uint8;
     uint16_t uint16;
     uint32_t uint32;
     uint64_t uint64;
@@ -101,7 +103,7 @@ typedef struct params {
 
 } params_t;
 
-params_t params = {
+const params_t params = {
     .uint8 = 0,
     .uint16 = 0,
     .uint32 = 0,
@@ -148,6 +150,69 @@ params_t params = {
 
 };
 
+static params_t static_params = {
+    .uint8 = 0,
+    .uint16 = 0,
+    .uint32 = 0,
+    .uint64 = 0,
+    .int8 = 0,
+    .int16 = 0,
+    .int32 = 0,
+    .int64 = 0,
+
+    .float4 = 0.0f,
+    .double8 = 0.0,
+
+    .curve1 = {0, 1, 2, 3, 4, 3, 2, 1, 0, -1, -2, -3, -4, -3, -2, -1},
+    .curve2 = {0, 1, 2, 3, 4, 3, 2, 1},
+    .curve2_axis = {0, 1, 2, 4, 6, 9, 13, 15},
+
+    .map1 = {{0, 0, 0, 0, 0, 0, 0, 0},
+             {0, 1, 1, 1, 1, 1, 0, 0},
+             {0, 1, 3, 3, 3, 1, 0, 0},
+             {0, 1, 3, 3, 3, 1, 0, 0},
+             {0, 1, 3, 3, 3, 1, 0, 0},
+             {0, 1, 1, 1, 1, 1, 0, 0},
+             {0, 0, 0, 0, 0, 0, 0, 0},
+             {0, 0, 0, 0, 0, 0, 0, 0}},
+
+    .map2 =
+        {
+            {0, 0, 0, 0, 0, 0, 0, 0},
+            {0, 1, 1, 1, 1, 1, 0, 0},
+            {0, 1, 3, 3, 3, 1, 0, 0},
+            {0, 1, 3, 3, 3, 1, 0, 0},
+        },
+
+    .map2_x_axis = {0, 1, 2, 3, 4, 5, 6, 7},
+    .map2_y_axis = {0, 1, 2, 3},
+
+    .map3 =
+        {
+            {0, 0, 0, 0},
+            {0, 1, 1, 1},
+            {0, 1, 3, 3},
+            {0, 1, 3, 3},
+        },
+
+};
+
+// Single parameters in static memory
+static uint8_t static_uint8 = 0;
+static uint16_t static_uint16 = 1;
+static uint32_t static_uint32 = 2;
+static uint64_t static_uint64 = 3;
+static int8_t static_int8 = 4;
+static int16_t static_int16 = 5;
+static int32_t static_int32 = 6;
+static int64_t static_int64 = 7;
+static float static_float4 = 8.0f;
+static double static_double8 = 9.0;
+static int16_t static_array[16] = {0, 1, 2, 3, 4, 3, 2, 1, 0, -1, -2, -3, -4, -3, -2, -1};
+static double static_matrix[2][3] = {{1, 2, 3}, {4, 5, 6}};
+
+//-----------------------------------------------------------------------------------------------------
+
 int main() {
 
     printf("A2l Generation Test:\n");
@@ -160,69 +225,102 @@ int main() {
     XcpSetLogLevel(OPTION_LOG_LEVEL); // Set the log level for XCP
 
     // No need to start the XCP server
-    assert(XcpIsInitialized());
-    assert(!XcpIsStarted());
+    // Initialize the XCP Server
+    uint8_t addr[4] = OPTION_SERVER_ADDR;
+    if (!XcpEthServerInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_QUEUE_SIZE)) {
+        return 1;
+    }
 
     // Initialize the A2L generator in manual finalization mode with auto group generation
     // Empty version string to allow diff with the expected output
-    uint8_t addr[4] = OPTION_SERVER_ADDR;
     if (!A2lInit(OPTION_PROJECT_NAME, "", addr, OPTION_SERVER_PORT, OPTION_USE_TCP, true /*write_always*/, false /*finalize_on_connect*/, true /*auto_grouping*/)) {
         return 1;
     }
 
-    // XCP connect should be refused until the A2L file is finalized
-    printf("Test connection refusal:\n");
-    assert(!A2lCheckFinalizeOnConnect());
-
     //----------------------------------------------------------------------------------------------------------------------------------------------------------------
     // Calibration
+
+    // Calibration of parameters in global memory without a calibration segment
+    // Thead safety is assured by the sync event
+    // Create the calibration sync event for static parameters
+    tXcpEventId sync = XcpCreateEvent("Sync", 0, 0);
+    A2lSetDynAddrMode(sync, &static_uint8);
+    A2lBeginGroup("Global", "Parameters in global memory", true);
+
+    // Create individual parameters in global memory
+    A2lCreateParameter(static_uint8, "Global memory parameter", "unit", 0, 255);
+    A2lCreateParameter(static_uint16, "Global memory parameter", "unit", 0, 65535);
+    A2lCreateParameter(static_uint32, "Global memory parameter", "unit", 0, 4294967295);
+    A2lCreateParameter(static_uint64, "Global memory parameter", "unit", 0, 18446744073709551615ULL);
+    A2lCreateParameter(static_int8, "Global memory parameter", "unit", -128, 127);
+    A2lCreateParameter(static_int16, "Global memory parameter", "unit", -32768, 32767);
+    A2lCreateParameter(static_int32, "Global memory parameter", "unit", -2147483648, 2147483647);
+    A2lCreateParameter(static_float4, "Global memory parameter", "unit", -1000.0, 1000.0);
+    A2lCreateParameter(static_double8, "Global memory parameter", "unit", -1000.0, 1000.0);
+    A2lCreateCurve(static_array, 16, "Global memory curve", "unit", -20, 20);
+    A2lCreateMap(static_matrix, 3, 2, "Global memory map", "unit", -128, 127);
+
+    // Create parameters in the struct instance params in global memory
+    A2lCreateParameter(static_params.uint8, "Global memory parameter", "unit", 0, 255);
+    A2lCreateParameter(static_params.uint16, "Global memory parameter", "unit", 0, 65535);
+    A2lCreateParameter(static_params.uint32, "Global memory parameter", "unit", 0, 4294967295);
+    A2lCreateParameter(static_params.uint64, "Global memory parameter", "unit", 0, 18446744073709551615ULL);
+    A2lCreateParameter(static_params.int8, "Global memory parameter", "unit", -128, 127);
+    A2lCreateParameter(static_params.int16, "Global memory parameter", "unit", -32768, 32767);
+    A2lCreateParameter(static_params.int32, "Global memory parameter", "unit", -2147483648, 2147483647);
+    A2lCreateParameter(static_params.float4, "Global memory parameter", "unit", -1000.0, 1000.0);
+    A2lCreateParameter(static_params.double8, "Global memory parameter", "unit", -1000.0, 1000.0);
+    A2lCreateCurve(static_params.curve1, 8, "Global memory curve", "unit", -20, 20);
+    A2lCreateMap(static_params.map1, 8, 8, "Global memory map", "unit", -128, 127);
+
+    A2lEndGroup();
 
     // Create a calibration segment for the calibration parameter struct
     // This segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
     // It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
     // It supports XCP/ECU independent page switching, checksum calculation and reinitialization (copy reference page to working page)
-    tXcpCalSegIndex calseg1 = XcpCreateCalSeg("segment_1", &params, sizeof(params));
+    tXcpCalSegIndex calseg1 = XcpCreateCalSeg("params", (const void *)&params, sizeof(params));
     assert(calseg1 != XCP_UNDEFINED_CALSEG); // Ensure the calibration segment was created successfully
     A2lTypedefBegin(params_t, "comment");
-    A2lTypedefParameterComponent(uint8, params_t, "comment", "unit", 0, 255);
-    A2lTypedefParameterComponent(uint16, params_t, "comment", "unit", 0, 65535);
-    A2lTypedefParameterComponent(uint32, params_t, "comment", "unit", 0, 4294967295);
-    A2lTypedefParameterComponent(uint64, params_t, "comment", "unit", 0, 18446744073709551615ULL);
-    A2lTypedefParameterComponent(int8, params_t, "comment", "unit", -128, 127);
-    A2lTypedefParameterComponent(int16, params_t, "comment", "unit", -32768, 32767);
-    A2lTypedefParameterComponent(int32, params_t, "comment", "unit", -2147483648, 2147483647);
-    A2lTypedefParameterComponent(int64, params_t, "comment", "unit", -9223372036854775807LL, 9223372036854775807LL);
-    A2lTypedefParameterComponent(float4, params_t, "comment", "unit", -1000.0, 1000.0);
-    A2lTypedefParameterComponent(double8, params_t, "comment", "unit", -1000.0, 1000.0);
-    A2lTypedefCurveComponent(curve1, params_t, 8, "comment", "unit", -20, 20);
-    A2lTypedefCurveComponentWithSharedAxis(curve2, params_t, 8, "comment", "unit", 0, 1000.0, "curve2_axis");
-    A2lTypedefAxisComponent(curve2_axis, params_t, 8, "comment", "unit", 0, 20);
-    A2lTypedefMapComponent(map1, params_t, 8, 8, "comment", "", -128, 127);
-    A2lTypedefMapComponentWithSharedAxis(map2, params_t, 8, 4, "comment", "", -128, 127, "map2_x_axis", "map2_y_axis");
-    A2lTypedefAxisComponent(map2_x_axis, params_t, 8, "comment", "unit", 0, 1000.0);
-    A2lTypedefAxisComponent(map2_y_axis, params_t, 4, "comment", "unit", 0, 500.0);
-    A2lTypedefMapComponentWithSharedAxis(map3, params_t, 8, 4, "comment", "", -128, 127, "map3_x_axis", NULL);
-    A2lTypedefAxisComponent(map3_x_axis, params_t, 8, "comment", "unit", 0, 1000.0);
+    A2lTypedefParameterComponent(uint8, params_t, "Parameter typedef field", "unit", 0, 255);
+    A2lTypedefParameterComponent(uint16, params_t, "Parameter typedef field", "unit", 0, 65535);
+    A2lTypedefParameterComponent(uint32, params_t, "Parameter typedef field", "unit", 0, 4294967295);
+    A2lTypedefParameterComponent(uint64, params_t, "Parameter typedef field", "unit", 0, 18446744073709551615ULL);
+    A2lTypedefParameterComponent(int8, params_t, "Parameter typedef field", "unit", -128, 127);
+    A2lTypedefParameterComponent(int16, params_t, "Parameter typedef field", "unit", -32768, 32767);
+    A2lTypedefParameterComponent(int32, params_t, "Parameter typedef field", "unit", -2147483648, 2147483647);
+    A2lTypedefParameterComponent(int64, params_t, "Parameter typedef field", "unit", -9223372036854775807LL, 9223372036854775807LL);
+    A2lTypedefParameterComponent(float4, params_t, "Parameter typedef field", "unit", -1000.0, 1000.0);
+    A2lTypedefParameterComponent(double8, params_t, "Parameter typedef field", "unit", -1000.0, 1000.0);
+    A2lTypedefCurveComponent(curve1, params_t, 8, "Parameter typedef field", "unit", -20, 20);
+    A2lTypedefCurveComponentWithSharedAxis(curve2, params_t, 8, "Parameter typedef field", "unit", 0, 1000.0, "curve2_axis");
+    A2lTypedefAxisComponent(curve2_axis, params_t, 8, "Parameter typedef field", "unit", 0, 20);
+    A2lTypedefMapComponent(map1, params_t, 8, 8, "Parameter typedef field", "", -128, 127);
+    A2lTypedefMapComponentWithSharedAxis(map2, params_t, 8, 4, "Parameter typedef field", "", -128, 127, "map2_x_axis", "map2_y_axis");
+    A2lTypedefAxisComponent(map2_x_axis, params_t, 8, "Parameter typedef field", "unit", 0, 1000.0);
+    A2lTypedefAxisComponent(map2_y_axis, params_t, 4, "Parameter typedef field", "unit", 0, 500.0);
+    A2lTypedefMapComponentWithSharedAxis(map3, params_t, 8, 4, "Parameter typedef field", "", -128, 127, "map3_x_axis", NULL);
+    A2lTypedefAxisComponent(map3_x_axis, params_t, 8, "Parameter typedef field", "unit", 0, 1000.0);
     A2lTypedefEnd();
 
     A2lSetSegmentAddrMode(calseg1, params);
-    A2lCreateTypedefInstance(params, params_t, "comment");
+    A2lCreateTypedefInstance(params, params_t, "Parameter typedef instance in calibration segment");
 
     // Create a calibration segment with individual calibration parameters
-    tXcpCalSegIndex calseg2 = XcpCreateCalSeg("segment_2", &params, sizeof(params));
+    tXcpCalSegIndex calseg2 = XcpCreateCalSeg("params2", (const void *)&params, sizeof(params));
     assert(calseg2 != XCP_UNDEFINED_CALSEG); // Ensure the calibration segment was created successfully
     A2lSetSegmentAddrMode(calseg2, params);
-    A2lCreateParameter(params, uint8, "Comment", "unit", 0, 255);
-    A2lCreateParameter(params, uint16, "Comment", "unit", 0, 65535);
-    A2lCreateParameter(params, uint32, "Comment", "unit", 0, 4294967295);
-    A2lCreateParameter(params, uint64, "Comment", "unit", 0, 18446744073709551615ULL);
-    A2lCreateParameter(params, int8, "Comment", "unit", -128, 127);
-    A2lCreateParameter(params, int16, "Comment", "unit", -32768, 32767);
-    A2lCreateParameter(params, int32, "Comment", "unit", -2147483648, 2147483647);
-    A2lCreateParameter(params, float4, "Comment", "unit", -1000.0, 1000.0);
-    A2lCreateParameter(params, double8, "Comment", "unit", -1000.0, 1000.0);
-    A2lCreateCurve(params, curve1, 8, "Comment", "unit", -20, 20);
-    A2lCreateMap(params, map1, 8, 8, "Comment", "", -128, 127);
+    A2lCreateParameter(params.uint8, "Parameter in calibration segment", "unit", 0, 255);
+    A2lCreateParameter(params.uint16, "Parameter in calibration segment", "unit", 0, 65535);
+    A2lCreateParameter(params.uint32, "Parameter in calibration segment", "unit", 0, 4294967295);
+    A2lCreateParameter(params.uint64, "Parameter in calibration segment", "unit", 0, 18446744073709551615ULL);
+    A2lCreateParameter(params.int8, "Parameter in calibration segment", "unit", -128, 127);
+    A2lCreateParameter(params.int16, "Parameter in calibration segment", "unit", -32768, 32767);
+    A2lCreateParameter(params.int32, "Parameter in calibration segment", "unit", -2147483648, 2147483647);
+    A2lCreateParameter(params.float4, "Parameter in calibration segment", "unit", -1000.0, 1000.0);
+    A2lCreateParameter(params.double8, "Parameter in calibration segment", "unit", -1000.0, 1000.0);
+    A2lCreateCurve(params.curve1, 8, "Parameter in calibration segment", "unit", -20, 20);
+    A2lCreateMap(params.map1, 8, 8, "Parameter in calibration segment", "unit", -128, 127);
     /*
     A2lCreateCurveWithSharedAxis(params, curve2, 8, "Comment", "unit", 0, 1000.0, "params.curve2_axis");
     A2lCreateAxis(params, curve2_axis, 8, "Comment", "unit", 0, 20);
@@ -236,6 +334,7 @@ int main() {
     //---------------------------------------------------------------------------------------------------------------------------------
     // Measurement
 
+    // Events
     DaqCreateEvent(event);
 
     // Global measurement variables of basic types
@@ -335,7 +434,7 @@ int main() {
             Display the XCP settings in the a2l file, if they exist
     */
     printf("Running A2L validation tool...\n");
-    int result = system("../a2ltool/target/release/a2ltool -c -s  --show-xcp a2l_test.a2l");
+    int result = system("../a2ltool/target/release/a2ltool -c -s   a2l_test.a2l");
     if (result == 0) {
         printf("A2L validation passed\n");
     } else {

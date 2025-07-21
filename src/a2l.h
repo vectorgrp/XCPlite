@@ -332,18 +332,16 @@ const char *A2lGetRecordLayoutName_(tA2lTypeId type);
 #define A2lSetAbsoluteAddrMode_i(event_id) A2lSetAbsoluteAddrMode__i(event_id);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// Create parameters in a calibration segment or in global memory
+// Create parameters
+// Addressing mode ABS (unsafe), addressing mode CAL or addresing mode DYN with explicit sync event
 
-#define A2lCreateParameter(instance_name, name, comment, unit, min, max)                                                                                                           \
-    A2lCreateParameter_(#instance_name "." #name, A2lGetTypeId(instance_name.name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&instance_name.name), comment, unit, min, max);
+#define A2lCreateParameter(name, comment, unit, min, max) A2lCreateParameter_(#name, A2lGetTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&name), comment, unit, min, max);
 
-#define A2lCreateCurve(instance_name, name, xdim, comment, unit, min, max)                                                                                                         \
-    A2lCreateCurve_(#instance_name "." #name, A2lGetArray1DElementTypeId(instance_name.name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&instance_name.name[0]), xdim, comment,     \
-                    unit, min, max);
+#define A2lCreateCurve(name, xdim, comment, unit, min, max)                                                                                                                        \
+    A2lCreateCurve_(#name, A2lGetArray1DElementTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&name[0]), xdim, comment, unit, min, max);
 
-#define A2lCreateMap(instance_name, name, xdim, ydim, comment, unit, min, max)                                                                                                     \
-    A2lCreateMap_(#instance_name "." #name, A2lGetArray2DElementTypeId(instance_name.name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&instance_name.name[0][0]), xdim, ydim,       \
-                  comment, unit, min, max);
+#define A2lCreateMap(name, xdim, ydim, comment, unit, min, max)                                                                                                                    \
+    A2lCreateMap_(#name, A2lGetArray2DElementTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&name[0][0]), xdim, ydim, comment, unit, min, max);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Create conversions
@@ -496,6 +494,15 @@ void A2lLock(void);
 void A2lUnlock(void);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Addressing modes
+
+void A2lRstAddrMode(void);
+void A2lSetDynAddrMode(tXcpEventId event_id, const uint8_t *base);
+void A2lSetRelAddrMode(tXcpEventId event_id, const uint8_t *base);
+void A2lSetAbsAddrMode(tXcpEventId default_event_id);
+void A2lSetSegAddrMode(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance_addr);
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Manually create groups
 // If automatic group generation (A2lInit parameter) is disabled, use these functions to create groups manually.
 
@@ -530,7 +537,6 @@ bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t
 /// Finalize the A2L file, write the binary persistence file
 bool A2lFinalize(void);
 
-// --------------------------------------------------------------------------------------------
 // --------------------------------------------------------------------------------------------
 // Helper functions used in the by A2L generation macros
 
