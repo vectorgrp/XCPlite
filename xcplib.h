@@ -282,6 +282,9 @@ void XcpInit(bool activate);
 /// Check if XCP has been activated
 bool XcpIsActivated(void);
 
+/// Check if XCP is connected
+bool XcpIsConnected(void);
+
 // Set the A2L file name (for GET_ID IDT_ASAM_NAME, IDT_ASAM_NAME and for IDT_ASAM_UPLOAD)
 // Used by the A2L generator
 #define XCP_A2L_FILENAME_MAX_LENGTH 255 // Maximum length of A2L filename with extension

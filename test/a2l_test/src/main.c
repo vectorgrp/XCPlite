@@ -23,12 +23,12 @@ extern bool A2lCheckFinalizeOnConnect(void);
 //     return false;
 // }
 
-#define OPTION_PROJECT_NAME "a2l_test"    // A2L project name
-#define OPTION_LOG_LEVEL 4                // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
-#define OPTION_USE_TCP false              // TCP or UDP
-#define OPTION_SERVER_PORT 5555           // Port
-#define OPTION_SERVER_ADDR {127, 0, 0, 1} // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE 1024 * 32       // Size of the measurement queue in bytes, must be a multiple of 8
+#define OPTION_PROJECT_NAME "a2l_test"  // A2L project name
+#define OPTION_LOG_LEVEL 4              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_USE_TCP false            // TCP or UDP
+#define OPTION_SERVER_PORT 5555         // Port
+#define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
+#define OPTION_QUEUE_SIZE 1024 * 32     // Size of the measurement queue in bytes, must be a multiple of 8
 
 //-----------------------------------------------------------------------------------------------------
 // Measurements
@@ -37,11 +37,11 @@ extern bool A2lCheckFinalizeOnConnect(void);
 static uint8_t uint8 = 0;
 static uint16_t uint16 = 1;
 static uint32_t uint32 = 2;
-static uint64_t uint64 = 3;
+static uint64_t uint_64 = 3;
 static int8_t int8 = 4;
 static int16_t int16 = 5;
 static int32_t int32 = 6;
-static int64_t int64 = 7;
+static int64_t int_64 = 7;
 static float float4 = 8.0f;
 static double double8 = 9.0;
 
@@ -77,12 +77,12 @@ typedef struct params {
     uint8_t uint8;
     uint16_t uint16;
     uint32_t uint32;
-    uint64_t uint64;
+    uint64_t uint_64;
 
     int8_t int8;
     int16_t int16;
     int32_t int32;
-    int64_t int64;
+    int64_t int_64;
 
     float float4;
     double double8;
@@ -103,15 +103,16 @@ typedef struct params {
 
 } params_t;
 
+// A const instance of the params_t struct
 const params_t params = {
     .uint8 = 0,
     .uint16 = 0,
     .uint32 = 0,
-    .uint64 = 0,
+    .uint_64 = 0,
     .int8 = 0,
     .int16 = 0,
     .int32 = 0,
-    .int64 = 0,
+    .int_64 = 0,
 
     .float4 = 0.0f,
     .double8 = 0.0,
@@ -150,15 +151,16 @@ const params_t params = {
 
 };
 
+// A static instance of the params_t struct in static memory
 static params_t static_params = {
     .uint8 = 0,
     .uint16 = 0,
     .uint32 = 0,
-    .uint64 = 0,
+    .uint_64 = 0,
     .int8 = 0,
     .int16 = 0,
     .int32 = 0,
-    .int64 = 0,
+    .int_64 = 0,
 
     .float4 = 0.0f,
     .double8 = 0.0,
@@ -198,6 +200,7 @@ static params_t static_params = {
 };
 
 // Single parameters in static memory
+static uint32_t static_counter_max = 60000;
 static uint8_t static_uint8 = 0;
 static uint16_t static_uint16 = 1;
 static uint32_t static_uint32 = 2;
@@ -209,7 +212,7 @@ static int64_t static_int64 = 7;
 static float static_float4 = 8.0f;
 static double static_double8 = 9.0;
 
-// Curves and maps static parameters
+// Curves and maps as static parameters
 int16_t static_curve1[16] = {0, 1, 2, 3, 4, 3, 2, 1, 0, -1, -2, -3, -4, -3, -2, -1}; // A curve with 16 points and fixed axis
 double static_curve2[8] = {0, 1, 2, 3, 4, 3, 2, 1};                                  // A curve with 8 points and shared axis curve_axis
 float static_curve2_axis[8] = {0, 1, 2, 4, 6, 9, 13, 15};                            // Axis
@@ -248,7 +251,7 @@ int main() {
 
     // Initialize the A2L generator in manual finalization mode with auto group generation
     // Empty version string to allow diff with the expected output
-    if (!A2lInit(OPTION_PROJECT_NAME, "", addr, OPTION_SERVER_PORT, OPTION_USE_TCP, true /*write_always*/, false /*finalize_on_connect*/, true /*auto_grouping*/)) {
+    if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, true /*write_always*/, false /*finalize_on_connect*/, true /*auto_grouping*/)) {
         return 1;
     }
 
@@ -258,11 +261,12 @@ int main() {
     // Calibration of parameters in global memory without a calibration segment
     // Thead safety is assured by the sync event
     // Create the calibration sync event for static parameters
-    tXcpEventId sync = XcpCreateEvent("Sync", 0, 0);
+    tXcpEventId sync = XcpCreateEvent("sync", 0, 0);
     A2lSetDynAddrMode(sync, &static_uint8);
     A2lBeginGroup("Global", "Parameters in global memory", true);
 
     // Create individual parameters in global memory
+    A2lCreateParameter(static_counter_max, "Test period in ms (default 10s)", "ms", 0, 1000 * 10);
     A2lCreateParameter(static_uint8, "Global memory parameter", "unit", 0, 255);
     A2lCreateParameter(static_uint16, "Global memory parameter", "unit", 0, 65535);
     A2lCreateParameter(static_uint32, "Global memory parameter", "unit", 0, 4294967295);
@@ -286,10 +290,11 @@ int main() {
     A2lCreateParameter(static_params.uint8, "Global memory parameter struct field", "unit", 0, 255);
     A2lCreateParameter(static_params.uint16, "Global memory parameter struct field", "unit", 0, 65535);
     A2lCreateParameter(static_params.uint32, "Global memory parameter struct field", "unit", 0, 4294967295);
-    A2lCreateParameter(static_params.uint64, "Global memory parameter struct field", "unit", 0, 18446744073709551615ULL);
+    A2lCreateParameter(static_params.uint_64, "Global memory parameter struct field", "unit", 0, 18446744073709551615ULL);
     A2lCreateParameter(static_params.int8, "Global memory parameter struct field", "unit", -128, 127);
     A2lCreateParameter(static_params.int16, "Global memory parameter struct field", "unit", -32768, 32767);
     A2lCreateParameter(static_params.int32, "Global memory parameter struct field", "unit", -2147483648, 2147483647);
+    A2lCreateParameter(static_params.int_64, "Global memory parameter struct field", "unit", -9223372036854775807LL, 9223372036854775807LL);
     A2lCreateParameter(static_params.float4, "Global memory parameter struct field", "unit", -1000.0, 1000.0);
     A2lCreateParameter(static_params.double8, "Global memory parameter struct field", "unit", -1000.0, 1000.0);
     A2lCreateCurve(static_params.curve1, 8, "Global memory parameter struct field", "unit", -20, 20);
@@ -314,11 +319,11 @@ int main() {
     A2lTypedefParameterComponent(uint8, params_t, "Parameter typedef field", "unit", 0, 255);
     A2lTypedefParameterComponent(uint16, params_t, "Parameter typedef field", "unit", 0, 65535);
     A2lTypedefParameterComponent(uint32, params_t, "Parameter typedef field", "unit", 0, 4294967295);
-    A2lTypedefParameterComponent(uint64, params_t, "Parameter typedef field", "unit", 0, 18446744073709551615ULL);
+    A2lTypedefParameterComponent(uint_64, params_t, "Parameter typedef field", "unit", 0, 18446744073709551615ULL);
     A2lTypedefParameterComponent(int8, params_t, "Parameter typedef field", "unit", -128, 127);
     A2lTypedefParameterComponent(int16, params_t, "Parameter typedef field", "unit", -32768, 32767);
     A2lTypedefParameterComponent(int32, params_t, "Parameter typedef field", "unit", -2147483648, 2147483647);
-    A2lTypedefParameterComponent(int64, params_t, "Parameter typedef field", "unit", -9223372036854775807LL, 9223372036854775807LL);
+    A2lTypedefParameterComponent(int_64, params_t, "Parameter typedef field", "unit", -9223372036854775807LL, 9223372036854775807LL);
     A2lTypedefParameterComponent(float4, params_t, "Parameter typedef field", "unit", -1000.0, 1000.0);
     A2lTypedefParameterComponent(double8, params_t, "Parameter typedef field", "unit", -1000.0, 1000.0);
     A2lTypedefCurveComponent(curve1, params_t, 8, "Parameter typedef field", "unit", -20, 20);
@@ -342,10 +347,11 @@ int main() {
     A2lCreateParameter(params.uint8, "Parameter in calibration segment", "unit", 0, 255);
     A2lCreateParameter(params.uint16, "Parameter in calibration segment", "unit", 0, 65535);
     A2lCreateParameter(params.uint32, "Parameter in calibration segment", "unit", 0, 4294967295);
-    A2lCreateParameter(params.uint64, "Parameter in calibration segment", "unit", 0, 18446744073709551615ULL);
+    A2lCreateParameter(params.uint_64, "Parameter in calibration segment", "unit", 0, 18446744073709551615ULL);
     A2lCreateParameter(params.int8, "Parameter in calibration segment", "unit", -128, 127);
     A2lCreateParameter(params.int16, "Parameter in calibration segment", "unit", -32768, 32767);
     A2lCreateParameter(params.int32, "Parameter in calibration segment", "unit", -2147483648, 2147483647);
+    A2lCreateParameter(params.int_64, "Parameter in calibration segment", "unit", -9223372036854775807LL, 9223372036854775807LL);
     A2lCreateParameter(params.float4, "Parameter in calibration segment", "unit", -1000.0, 1000.0);
     A2lCreateParameter(params.double8, "Parameter in calibration segment", "unit", -1000.0, 1000.0);
     A2lCreateCurve(params.curve1, 8, "Parameter in calibration segment", "unit", -20, 20);
@@ -366,17 +372,22 @@ int main() {
 
     // Global measurement variables of basic types
     A2lSetAbsoluteAddrMode(event);
-    A2lCreateLinearConversion(linear_conversion, "x*2-50", "°C", 2.0, -50.0);
-    A2lCreatePhysMeasurement(uint8, "uint8_t", linear_conversion, -50.0, 200.0);
-    A2lCreatePhysMeasurement(uint16, "uint16_t", "unit", 0, 65535.0);
+    A2lCreateEnumConversion(enum_conversion, "5 0 \"SINE\" 1 \"SQUARE\" 2 \"TRIANGLE\" 3 \"SAWTOOTH\" 4 \"ARBITRARY\"");
+    A2lCreatePhysMeasurement(uint8, "Enumeration type value uint8_t", enum_conversion, 0, 4);
+    A2lCreateLinearConversion(linear_conversion, "Temperature as uint8*2-50", "°C", 2.0, -50.0);
+    A2lCreatePhysMeasurement(uint16, "uint16_t value with linear conversion", linear_conversion, -50.0, +300.0);
     A2lCreatePhysMeasurement(uint32, "uint32_t", "unit", 0, 4294967295.0);
-    A2lCreatePhysMeasurement(uint64, "uint64_t", "unit", 0, 18446744073709551615ULL);
+    A2lCreatePhysMeasurement(uint_64, "uint64_t", "unit", 0, 18446744073709551615ULL);
     A2lCreatePhysMeasurement(int8, "int8_t", "unit", -128.0, 127.0);
     A2lCreatePhysMeasurement(int16, "int16_t", "unit", -32768.0, 32767.0);
     A2lCreatePhysMeasurement(int32, "int32_t", "unit", -2147483648.0, 2147483647.0);
-    A2lCreatePhysMeasurement(int64, "int64_t", "unit", -9223372036854775807.0, 9223372036854775807.0);
+    A2lCreatePhysMeasurement(int_64, "int64_t", "unit", -9223372036854775807.0, 9223372036854775807.0);
     A2lCreatePhysMeasurement(float4, "float4", "unit", -1000.0, 1000.0);
     A2lCreatePhysMeasurement(double8, "double8", "unit", -1000.0, 1000.0);
+
+    // Global measurement variables of multidimensional basic types
+    A2lCreateMeasurementArray(array, "int16_t array");
+    A2lCreateMeasurementMatrix(matrix, "double matrix");
 
     // Local (stack) variables of basic types
     uint8_t local_uint8 = 0;
@@ -389,17 +400,23 @@ int main() {
     int64_t local_int64 = 7;
     float local_float4 = 8.0f;
     double local_double8 = 9.0;
+    // Multidimensional
+    int16_t local_array[16] = {0, 1, 2, 3, 4, 3, 2, 1, 0, -1, -2, -3, -4, -3, -2, -1};
+    double local_matrix[2][2] = {{0, 1}, {2, 3}};
+
     A2lSetStackAddrMode(event);
-    A2lCreatePhysMeasurement(local_uint8, "uint8_t", linear_conversion, -50.0, 200.0);
-    A2lCreatePhysMeasurement(local_uint16, "uint16_t", "unit", 0, 65535.0);
-    A2lCreatePhysMeasurement(local_uint32, "uint32_t", "unit", 0, 4294967295.0);
-    A2lCreatePhysMeasurement(local_uint64, "uint64_t", "unit", 0, 18446744073709551615ULL);
-    A2lCreatePhysMeasurement(local_int8, "int8_t", "unit", -128.0, 127.0);
-    A2lCreatePhysMeasurement(local_int16, "int16_t", "unit", -32768.0, 32767.0);
-    A2lCreatePhysMeasurement(local_int32, "int32_t", "unit", -2147483648.0, 2147483647.0);
-    A2lCreatePhysMeasurement(local_int64, "int64_t", "unit", -9223372036854775807.0, 9223372036854775807.0);
-    A2lCreatePhysMeasurement(local_float4, "float4", "unit", -1000.0, 1000.0);
-    A2lCreatePhysMeasurement(local_double8, "double8", "unit", -1000.0, 1000.0);
+    A2lCreatePhysMeasurement(local_uint8, "Boolean value", "conv.bool", 0, 1);
+    A2lCreateMeasurement(local_uint16, "Integer value");
+    A2lCreateMeasurement(local_uint32, "Integer value");
+    A2lCreateMeasurement(local_uint64, "Integer value");
+    A2lCreateMeasurement(local_int8, "Integer value");
+    A2lCreateMeasurement(local_int16, "Integer value");
+    A2lCreateMeasurement(local_int32, "Integer value");
+    A2lCreateMeasurement(local_int64, "Integer value");
+    A2lCreatePhysMeasurement(local_float4, "float4", linear_conversion, -1000.0, 1000.0);
+    A2lCreatePhysMeasurement(local_double8, "double8", linear_conversion, -1000.0, 1000.0);
+    A2lCreateMeasurementArray(local_array, "int16_t array");
+    A2lCreatePhysMeasurementMatrix(local_matrix, "double matrix", linear_conversion, 0.0, 10.0);
 
     // Register measurement structs
     A2lTypedefBegin(struct2_t, "A2L typedef for struct2_t");
@@ -499,6 +516,34 @@ int main() {
     //     printf("Error comparing A2L file, exit code: %d\n", result);
     // }
 
-    printf("Done\n");
+    // Mainloop
+    printf("Start main loop...\n");
+    uint32_t loop_counter = 0;
+    for (;;) {
+        // Stop after 1s
+        loop_counter++;
+        if (loop_counter > static_counter_max && !XcpIsConnected()) {
+            break;
+        }
+
+        // Trigger measurement events
+        XcpEventExt(sync, &static_uint8);
+        DaqEvent(event);
+        DaqEvent(event_heap);
+
+        sleepNs(1000000);
+        if (loop_counter % 1000 == 0) {
+            printf("%us\r", (static_counter_max - loop_counter) / 1000);
+        }
+
+    } // for (;;)
+
+    // Force disconnect the XCP client
+    XcpDisconnect();
+
+    // Stop the XCP server
+    XcpEthServerShutdown();
+
+    printf("Exit...\n");
     return 0;
 }

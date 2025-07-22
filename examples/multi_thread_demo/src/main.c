@@ -190,7 +190,7 @@ double filter(double input) {
     A2lOnce(filter_local_vars) { // Ensure this is only done once globally
         A2lLock();
         A2lSetStackAddrMode_i(XcpGetContext()->span_id); // Set stack addressing mode
-        A2lCreateMeasurement(filtered_input, "Filter result", "");
+        A2lCreateMeasurement(filtered_input, "Filter result");
         A2lUnlock();
     }
 

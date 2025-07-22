@@ -94,7 +94,7 @@ static const char *gA2lHeader = "ASAP2_VERSION 1 71\n"
 static const char *gA2lMemorySegment = "/begin MEMORY_SEGMENT %s \"\" DATA FLASH INTERN 0x%08X 0x%X -1 -1 -1 -1 -1\n" // name, start, size
                                        "/begin IF_DATA XCP\n"
                                        "/begin SEGMENT %u 2 0 0 0\n"
-                                       "/begin CHECKSUM XCP_ADD_44 MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION \"\" /end CHECKSUM\n"
+                                       "/begin CHECKSUM XCP_CRC_16_CITT MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION \"\" /end CHECKSUM\n"
                                        // 2 calibration pages, 0=working page (RAM), 1=initial readonly page (FLASH), independent access to ECU and XCP page possible
                                        "/begin PAGE 0 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_DONT_CARE /end PAGE\n"
                                        "/begin PAGE 1 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_NOT_ALLOWED /end PAGE\n"
@@ -106,7 +106,7 @@ static const char *gA2lMemorySegment = "/begin MEMORY_SEGMENT %s \"\" DATA FLASH
 static const char *gA2lEpkMemorySegment = "/begin MEMORY_SEGMENT epk \"\" DATA FLASH INTERN 0x80000000 %u -1 -1 -1 -1 -1\n"
                                           "/begin IF_DATA XCP\n"
                                           "/begin SEGMENT 0 2 0 0 0\n"
-                                          "/begin CHECKSUM XCP_ADD_44 MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION \"\" /end CHECKSUM\n"
+                                          "/begin CHECKSUM XCP_CRC_16_CITT MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION \"\" /end CHECKSUM\n"
                                           "/begin PAGE 0 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_DONT_CARE /end PAGE\n"
                                           "/begin PAGE 1 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_NOT_ALLOWED /end PAGE\n"
                                           "/end SEGMENT\n"
@@ -816,10 +816,12 @@ uint32_t A2lGetAddr_(const void *p) {
 
 void printPhysUnit(FILE *file, const char *unit_or_conversion) {
 
-    // It is a phys unit if the string is not NULL and does not start with "conv."
-    size_t len = strlen(unit_or_conversion);
-    if (unit_or_conversion != NULL && !(len > 5 && strncmp(unit_or_conversion, "conv.", 5) == 0)) {
-        fprintf(file, " PHYS_UNIT \"%s\"", unit_or_conversion);
+    // It is a phys unit if the string is not NULL or empty and does not start with "conv."
+    if (unit_or_conversion != NULL) {
+        size_t len = strlen(unit_or_conversion);
+        if (len > 0 && !(len > 5 && strncmp(unit_or_conversion, "conv.", 5) == 0)) {
+            fprintf(file, " PHYS_UNIT \"%s\"", unit_or_conversion);
+        }
     }
 }
 
@@ -890,7 +892,8 @@ void A2lTypedefEnd_(void) {
     }
 }
 
-// For scalar or one dimensional measurement and parameter components of basic types
+// For scalar or one dimensional measurement and parameter components of specified type
+// type_name is the name of another typedef, typedef_measurement or typedef_characteristic
 void A2lTypedefComponent_(const char *name, const char *type_name, uint16_t x_dim, uint32_t offset) {
     if (gA2lFile != NULL) {
         fprintf(gA2lFile, "  /begin STRUCTURE_COMPONENT %s %s 0x%X", name, type_name, offset);
@@ -1027,37 +1030,41 @@ void A2lCreateMeasurement_(const char *instance_name, const char *name, tA2lType
             max = phys_max;
             conv = getConversion(unit_or_conversion, NULL, NULL);
         }
-
         fprintf(gA2lFile, "/begin MEASUREMENT %s \"%s\" %s %s 0 0 %g %g ECU_ADDRESS 0x%X", symbol_name, comment, A2lGetA2lTypeName(type), conv, min, max, addr);
         printAddrExt(ext);
         printPhysUnit(gA2lFile, unit_or_conversion);
         if (gAl2AddrExt == XCP_ADDR_EXT_ABS || gAl2AddrExt == XCP_ADDR_EXT_DYN) { // Absolute and dynamic mode allows write access
             fprintf(gA2lFile, " READ_WRITE");
         }
-
         A2lCreateMeasurement_IF_DATA();
         fprintf(gA2lFile, " /end MEASUREMENT\n");
         gA2lMeasurements++;
     }
 }
 
-void A2lCreateMeasurementArray_(const char *instance_name, const char *name, tA2lTypeId type, int x_dim, int y_dim, uint8_t ext, uint32_t addr, const char *unit,
-                                const char *comment) {
-
+void A2lCreateMeasurementArray_(const char *instance_name, const char *name, tA2lTypeId type, int x_dim, int y_dim, uint8_t ext, uint32_t addr, const char *unit_or_conversion,
+                                double phys_min, double phys_max, const char *comment) {
     if (gA2lFile != NULL) {
         const char *symbol_name = A2lGetSymbolName(instance_name, name);
         if (gA2lAutoGroups) {
             A2lAddToGroup(symbol_name);
         }
-        if (unit == NULL)
-            unit = "";
         if (comment == NULL)
             comment = "";
-        const char *conv = "NO_COMPU_METHOD";
-        fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" VAL_BLK 0x%X %s 0 %s %g %g MATRIX_DIM %u %u", symbol_name, comment, addr, A2lGetRecordLayoutName_(type), conv,
-                getTypeMin(type), getTypeMax(type), x_dim, y_dim);
+        double min, max;
+        const char *conv;
+        if (phys_min == 0.0 && phys_max == 0.0) {
+            min = getTypeMin(type);
+            max = getTypeMax(type);
+            conv = getConversion(unit_or_conversion, &min, &max);
+        } else {
+            min = phys_min;
+            max = phys_max;
+            conv = getConversion(unit_or_conversion, NULL, NULL);
+        }
+        fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" VAL_BLK 0x%X %s 0 %s %g %g MATRIX_DIM %u %u", symbol_name, comment, addr, A2lGetRecordLayoutName_(type), conv, min, max,
+                x_dim, y_dim);
         printAddrExt(ext);
-
         A2lCreateMeasurement_IF_DATA();
         fprintf(gA2lFile, " /end CHARACTERISTIC\n");
         gA2lMeasurements++;

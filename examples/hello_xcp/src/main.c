@@ -89,7 +89,7 @@ int main(void) {
     // Register a local measurement variable (loop_counter)
     uint16_t loop_counter = 0;
     A2lSetStackAddrMode(mainloop); // Set stack relative addressing mode with fixed event mainloop
-    A2lCreateMeasurement(loop_counter, "Loop counter, local measurement variable on stack", "");
+    A2lCreateMeasurement(loop_counter, "Loop counter, local measurement variable on stack");
 
     A2lFinalize(); // Optional: Finalize the A2L file generation early, otherwise it would be written when the client tool connects
 

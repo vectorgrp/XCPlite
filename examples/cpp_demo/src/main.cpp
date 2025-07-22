@@ -131,8 +131,8 @@ int main() {
 
     // Register the local measurement variables 'loop_counter' and sum
     A2lSetStackAddrMode(mainloop);
-    A2lCreateMeasurement(loop_counter, "Loop counter, local measurement variable on stack", "");
-    A2lCreateMeasurement(sum, "Sum of SigGen1 and SigGen2 value", "Volt");
+    A2lCreateMeasurement(loop_counter, "Loop counter, local measurement variable on stack");
+    A2lCreateMeasurement(sum, "Sum of SigGen1 and SigGen2 value");
 
     // Signal generator class demo
     // See sig_gen.cpp for details how to measure instance member variables and stack variables in member functions

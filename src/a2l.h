@@ -1,22 +1,19 @@
-/// @file a2l.h
-/// @brief A2L (ASAM-2 MCD-2 MC) description file generation for XCPlite
+/// a2l.h
 ///
+/// A2L (ASAM-2 MCD-2 MC) description file generation for XCPlite
 /// This header provides comprehensive functionality for automatic generation of A2L description files
 /// during runtime. The A2L format is defined in the ASAM-2 MCD-2 MC standard and describes ECU internal
 /// measurement and calibration values for use with XCP-based measurement and calibration tools.
 ///
-/// @section a2l_overview Overview
-///
 /// The A2L generation system provides:
 /// - Automatic type detection for both C and C++
 /// - Support for different addressing modes (absolute, relative, stack, segment-based)
-/// - Definition of measurement event
+/// - Definition of measurement events
 /// - Definition of calibration parameter segments
 /// - Calibration parameter and measurement variable definitions
 /// - Support for complex data structures (typedefs)
+/// - Definition of groups
 /// - Thread-safe operation with once-patterns or lock/unlock
-///
-/// @section a2l_addressing Addressing Modes
 ///
 /// Four addressing modes are supported:
 /// - **Absolute**: Variables in global memory space
@@ -24,13 +21,12 @@
 /// - **Stack**: Variables on the stack relative to stack frame pointer
 /// - **Segment**: Calibration parameters in calibration parameter segments
 ///
-/// @section a2l_usage Basic Usage
+/// Basic Usage
 ///
 /// 1. Initialize A2L generation with A2lInit()
 /// 2. Set addressing mode for the following variables
 /// 3. Create measurements and parameters using the provided macros
-/// 4. Optionally finalize the A2L file with A2lFinalize() or automatic finalization at XCP tool connect
-///
+/// 4. Finalize the A2L file with A2lFinalize()
 
 // Copyright(c) Vector Informatik GmbH.All rights reserved.
 // Licensed under the MIT license.See LICENSE file in the project root for details.
@@ -44,8 +40,6 @@
 #include "xcplib.h" // for tXcpEventId, tXcpCalSegIndex
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-/// @cond INTERNAL_IMPLEMENTATION
 
 // Basic A2L types
 typedef int8_t tA2lTypeId; // A2L type ID, positive for unsigned types, negative for signed types
@@ -300,8 +294,6 @@ const char *A2lGetRecordLayoutName_(tA2lTypeId type);
 #define A2lGetRecordLayoutName1D(type) A2lGetRecordLayoutName_(A2lGetArray1DElementTypeId(type))
 #define A2lGetRecordLayoutName2D(type) A2lGetRecordLayoutName_(A2lGetArray2DElementTypeId(type))
 
-/// @endcond
-
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Addressing mode convenience macros
 
@@ -362,19 +354,25 @@ const char *A2lGetRecordLayoutName_(tA2lTypeId type);
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Create measurements on stack or in global memory
 
-#define A2lCreateMeasurement(name, comment, unit)                                                                                                                                  \
-    A2lCreateMeasurement_(NULL, #name, A2lGetTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&(name)), unit, 0.0, 0.0, comment);
+#define A2lCreateMeasurement(name, comment) A2lCreateMeasurement_(NULL, #name, A2lGetTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&(name)), NULL, 0.0, 0.0, comment);
 
 #define A2lCreatePhysMeasurement(name, comment, unit_or_conversion, min, max)                                                                                                      \
     A2lCreateMeasurement_(NULL, #name, A2lGetTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&(name)), unit_or_conversion, min, max, comment);
 
-#define A2lCreateMeasurementArray(name, comment, unit_or_conversion)                                                                                                               \
-    A2lCreateMeasurementArray_(NULL, #name, A2lGetArray1DElementTypeId(name), sizeof(name) / sizeof(name[0]), 1, A2lGetAddrExt_(), A2lGetAddr_(&name[0]), unit_or_conversion,      \
-                               comment);
+#define A2lCreateMeasurementArray(name, comment)                                                                                                                                   \
+    A2lCreateMeasurementArray_(NULL, #name, A2lGetArray1DElementTypeId(name), sizeof(name) / sizeof(name[0]), 1, A2lGetAddrExt_(), A2lGetAddr_(&name[0]), NULL, 0.0, 0.0, comment);
 
-#define A2lCreateMeasurementMatrix(name, comment, unit_or_conversion)                                                                                                              \
+#define A2lCreateMeasurementMatrix(name, comment)                                                                                                                                  \
     A2lCreateMeasurementArray_(NULL, #name, A2lGetArray2DElementTypeId(name), sizeof(name[0]) / sizeof(name[0][0]), sizeof(name) / sizeof(name[0]), A2lGetAddrExt_(),              \
-                               A2lGetAddr_(&name[0]), unit_or_conversion, comment);
+                               A2lGetAddr_(&name[0]), NULL, 0.0, 0.0, comment);
+
+#define A2lCreatePhysMeasurementArray(name, comment, unit_or_conversion, min, max)                                                                                                 \
+    A2lCreatePhysMeasurementArray_(NULL, #name, A2lGetArray1DElementTypeId(name), sizeof(name) / sizeof(name[0]), 1, A2lGetAddrExt_(), A2lGetAddr_(&name[0]), unit_or_conversion,  \
+                                   min, max, comment);
+
+#define A2lCreatePhysMeasurementMatrix(name, comment, unit_or_conversion, min, max)                                                                                                \
+    A2lCreateMeasurementArray_(NULL, #name, A2lGetArray2DElementTypeId(name), sizeof(name[0]) / sizeof(name[0][0]), sizeof(name) / sizeof(name[0]), A2lGetAddrExt_(),              \
+                               A2lGetAddr_(&name[0]), unit_or_conversion, min, max, comment);
 
 // With instance name
 #define A2lCreateMeasurementInstance(instance_name, name, comment, unit)                                                                                                           \
@@ -398,7 +396,20 @@ const char *A2lGetRecordLayoutName_(tA2lTypeId type);
 #define A2lCreateTypedefArrayReference(name, typeName, dim, comment)                                                                                                               \
     A2lCreateTypedefMeasurementInstance_(#name, #typeName, dim, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)name), comment);
 
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Create typedefs and typedef components
+
 #define A2lTypedefBegin(type_name, comment) A2lTypedefBegin_(#type_name, (uint32_t)sizeof(type_name), comment);
+
+#define A2lTypedefComponent(field_name, field_type_name, field_dim, typedef_name)                                                                                                  \
+    {                                                                                                                                                                              \
+        typedef_name instance;                                                                                                                                                     \
+        A2lTypedefComponent_(#field_name, #field_type_name, field_dim, ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance));                                                \
+    }
+
+#define A2lTypedefEnd() A2lTypedefEnd_()
+
+// Measurement components
 
 #define A2lTypedefMeasurementComponent(field_name, typedef_name)                                                                                                                   \
     {                                                                                                                                                                              \
@@ -412,6 +423,15 @@ const char *A2lGetRecordLayoutName_(tA2lTypeId type);
         A2lTypedefMeasurementComponent_(#field_name, A2lGetTypeName(instance.field_name), ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance), comment, unit_or_conversion, \
                                         min, max);                                                                                                                                 \
     }
+
+#define A2lTypedefMeasurementArrayComponent(field_name, typedef_name)                                                                                                              \
+    {                                                                                                                                                                              \
+        typedef_name instance;                                                                                                                                                     \
+        A2lTypedefComponent_(#field_name, A2lGetTypeName1D_M(instance.field_name), sizeof(instance.field_name) / sizeof(instance.field_name[0]),                                   \
+                             ((uint8_t *)&(instance.field_name[0]) - (uint8_t *)&instance));                                                                                       \
+    }
+
+// Parameter components
 
 #define A2lTypedefParameterComponent(field_name, typeName, comment, unit, min, max)                                                                                                \
     {                                                                                                                                                                              \
@@ -455,38 +475,10 @@ const char *A2lGetRecordLayoutName_(tA2lTypeId type);
                                       unit, min, max, NULL, NULL);                                                                                                                 \
     }
 
-#define A2lTypedefMeasurementArrayComponent(field_name, typedef_name)                                                                                                              \
-    {                                                                                                                                                                              \
-        typedef_name instance;                                                                                                                                                     \
-        A2lTypedefComponent_(#field_name, A2lGetTypeName1D_M(instance.field_name), sizeof(instance.field_name) / sizeof(instance.field_name[0]),                                   \
-                             ((uint8_t *)&(instance.field_name[0]) - (uint8_t *)&instance));                                                                                       \
-    }
-
-#define A2lTypedefParameterArrayComponent(field_name, typeName, comment, unit, min, max)                                                                                           \
-    {                                                                                                                                                                              \
-        typeName instance;                                                                                                                                                         \
-        A2lTypedefComponent_(#field_name, A2lGetTypeName1D_C(instance.field_name), sizeof(instance.field_name) / sizeof(instance.field_name[0]),                                   \
-                             ((uint8_t *)&(instance.field_name[0]) - (uint8_t *)&instance));                                                                                       \
-    }
-
-#define A2lTypedefParameterMatrixComponent(field_name, typeName, comment, unit, min, max)                                                                                          \
-    {                                                                                                                                                                              \
-        typeName instance;                                                                                                                                                         \
-        A2lTypedefComponent_(#field_name, A2lGetTypeName2D_C(instance.field_name), sizeof(instance.field_name) / sizeof(instance.field_name[0]),                                   \
-                             ((uint8_t *)&(instance.field_name[0]) - (uint8_t *)&instance));                                                                                       \
-    }
-
-#define A2lTypedefComponent(field_name, field_type_name, field_dim, typedef_name)                                                                                                  \
-    {                                                                                                                                                                              \
-        typedef_name instance;                                                                                                                                                     \
-        A2lTypedefComponent_(#field_name, #field_type_name, field_dim, ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance));                                                \
-    }
-
-#define A2lTypedefEnd() A2lTypedefEnd_()
-
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Thread safety
-// Use these macros to protect critical sections and create once patterns in A2L generation code
+// Use these macros to protect blocks of macros and create once patterns in A2L generation code
+// The states of the A2L generator (group, addressing mode, typedef begin/end) are not thread-safe
 
 // Execute a block once
 // Global
@@ -503,7 +495,7 @@ void A2lLock(void);
 void A2lUnlock(void);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// Addressing modes
+// Set addressing modes
 
 void A2lRstAddrMode(void);
 void A2lSetDynAddrMode(tXcpEventId event_id, const uint8_t *base);
@@ -530,15 +522,15 @@ void A2lCreateMeasurementGroupFromList(const char *name, char *names[], uint32_t
 /// Init A2L generation
 /// If the A2l file aready exists and matches the current EPK matches, if yes, load the binary persistence file
 /// If not, prepare the A2L file and start the runtime generation process
-// @param a2l_projectname Name of the A2L project, used to build the A2L and BIN file name
-// @param a2l_version Version string of the A2L project, used to build the A2L and BIN file name, can be NULL to generate a version based on time and date
-// @param addr IP Address Used for IF_DATA XCP
-// @param port Port Used for IF_DATA XCP
-// @param useTCP Protocol Used for IF_DATA XCP
-// @param force_generation Force generation of the A2L file, even if it already exists and matches the EPK
-// @param finalize_on_connect Finalize the A2L file on XCP client connect, if false, the A2L file has to finalized manually
-// @param enable_auto_grouping Enable automatic grouping of parameters (per segment) and measurements (per event), if false, grouping must be done manually
-// @return true on success, false on failure
+/// @param a2l_projectname Name of the A2L project, used to build the A2L and BIN file name
+/// @param a2l_version Version string of the A2L project, used to build the A2L and BIN file name, can be NULL to generate a version based on time and date
+/// @param addr IP Address Used for IF_DATA XCP
+/// @param port Port Used for IF_DATA XCP
+/// @param useTCP Protocol Used for IF_DATA XCP
+/// @param force_generation Force generation of the A2L file, even if it already exists and matches the EPK
+/// @param finalize_on_connect Finalize the A2L file on XCP client connect, if false, the A2L file has to finalized manually
+/// @param enable_auto_grouping Enable automatic grouping of parameters (per segment) and measurements (per event), if false, grouping must be done manually
+/// @return true on success, false on failure
 bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t *addr, uint16_t port, bool useTCP, bool force_generation, bool finalize_on_connect,
              bool enable_auto_grouping);
 
@@ -548,8 +540,6 @@ bool A2lFinalize(void);
 
 // --------------------------------------------------------------------------------------------
 // Helper functions used in the by A2L generation macros
-
-/// @cond INTERNAL_IMPLEMENTATION
 
 // Set addressing mode by event name or calibration segment index
 // Used by the macros with the identical name (one underscore)
@@ -576,27 +566,27 @@ void A2lCreateCurve_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t ad
                      const char *x_axis);
 void A2lCreateAxis_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, uint32_t xdim, const char *comment, const char *unit, double min, double max);
 
-// Create measurements
+// Create conversions
 const char *A2lCreateLinearConversion_(const char *name, const char *comment, const char *unit, double factor, double offset);
 const char *A2lCreateEnumConversion_(const char *name, const char *enum_description);
+
+// Create measurements
 void A2lCreateMeasurement_(const char *instance_name, const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, const char *unit_or_conversion, double min, double max,
                            const char *comment);
 void A2lCreateMeasurementArray_(const char *instance_name, const char *name, tA2lTypeId type, int x_dim, int y_dim, uint8_t ext, uint32_t addr, const char *unit_or_conversion,
-                                const char *comment);
+                                double phys_min, double phys_max, const char *comment);
 
 // Create typedefs
 void A2lTypedefBegin_(const char *name, uint32_t size, const char *comment);
+void A2lTypedefEnd_(void);
 void A2lTypedefComponent_(const char *name, const char *type_name, uint16_t x_dim, uint32_t offset);
 void A2lTypedefMeasurementComponent_(const char *name, const char *type_name, uint32_t offset, const char *comment, const char *unit_or_conversion, double min, double max);
 void A2lTypedefParameterComponent_(const char *name, const char *type_name, uint16_t x_dim, uint16_t y_dim, uint32_t offset, const char *comment, const char *unit, double min,
                                    double max, const char *x_axis, const char *y_axis);
-void A2lTypedefEnd_(void);
 
 // Create instances if typedefs
 void A2lCreateTypedefMeasurementInstance_(const char *instance_name, const char *type_name, uint16_t x_dim, uint8_t ext, uint32_t addr, const char *comment);
 void A2lCreateTypedefParameterInstance_(const char *instance_name, const char *type_name, uint8_t ext, uint32_t addr, const char *comment);
-
-/// @endcond
 
 #ifdef __cplusplus
 } // extern "C"
