@@ -53,12 +53,12 @@ typedef int8_t tA2lTypeId; // A2L type ID, positive for unsigned types, negative
 #define A2L_TYPE_UINT16 (tA2lTypeId)2
 #define A2L_TYPE_UINT32 (tA2lTypeId)4
 #define A2L_TYPE_UINT64 (tA2lTypeId)8
-#define A2L_TYPE_INT8 (tA2lTypeId) - 1
-#define A2L_TYPE_INT16 (tA2lTypeId) - 2
-#define A2L_TYPE_INT32 (tA2lTypeId) - 4
-#define A2L_TYPE_INT64 (tA2lTypeId) - 8
-#define A2L_TYPE_FLOAT (tA2lTypeId) - 9
-#define A2L_TYPE_DOUBLE (tA2lTypeId) - 10
+#define A2L_TYPE_INT8 (tA2lTypeId)(-1)
+#define A2L_TYPE_INT16 (tA2lTypeId)(-2)
+#define A2L_TYPE_INT32 (tA2lTypeId)(-4)
+#define A2L_TYPE_INT64 (tA2lTypeId)(-8)
+#define A2L_TYPE_FLOAT (tA2lTypeId)(-9)
+#define A2L_TYPE_DOUBLE (tA2lTypeId)(-10)
 #define A2L_TYPE_UNDEFINED (tA2lTypeId)0
 
 static_assert(sizeof(char) == 1, "sizeof(char) must be 1 bytes for A2L types to work correctly");
@@ -90,16 +90,16 @@ template <> struct TypeId<unsigned short> {
     static const tA2lTypeId value = A2L_TYPE_UINT16;
 };
 template <> struct TypeId<signed int> {
-    static const tA2lTypeId value = (tA2lTypeId)(-sizeof(int));
+    static const tA2lTypeId value = (tA2lTypeId)(-(int8_t)sizeof(int));
 };
 template <> struct TypeId<unsigned int> {
-    static const tA2lTypeId value = (tA2lTypeId)sizeof(int);
+    static const tA2lTypeId value = (tA2lTypeId)(int8_t)sizeof(int);
 };
 template <> struct TypeId<signed long> {
-    static const tA2lTypeId value = (tA2lTypeId)(-sizeof(long));
+    static const tA2lTypeId value = (tA2lTypeId)(-(int8_t)sizeof(long));
 };
 template <> struct TypeId<unsigned long> {
-    static const tA2lTypeId value = (tA2lTypeId)sizeof(long);
+    static const tA2lTypeId value = (tA2lTypeId)(int8_t)sizeof(long);
 };
 template <> struct TypeId<signed long long> {
     static const tA2lTypeId value = A2L_TYPE_INT64;
@@ -305,8 +305,15 @@ const char *A2lGetRecordLayoutName_(tA2lTypeId type);
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Addressing mode convenience macros
 
+#undef get_stack_frame_pointer
 #ifndef get_stack_frame_pointer
+#if defined(__GNUC__) || defined(__clang__)
 #define get_stack_frame_pointer() (const uint8_t *)__builtin_frame_address(0)
+#elif defined(_MSC_VER)
+#define get_stack_frame_pointer() (const uint8_t *)_AddressOfReturnAddress()
+#else
+#error "get_stack_frame_pointer is not defined for this compiler. Please implement it."
+#endif
 #endif
 
 // Set segment relative address mode
