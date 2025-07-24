@@ -164,7 +164,7 @@ void sleepMs(uint32_t ms) {
 
 MUTEX gWinMutex;
 
-bool atomic_compare_exchange_strong_explicit(atomic_bool *a, bool *b, bool c, int d, int e) {
+bool atomic_compare_exchange_weak_explicit(uint8_t *a, uint8_t *b, uint8_t c, int d, int e) {
     (void)d;
     (void)e;
 
@@ -176,7 +176,7 @@ bool atomic_compare_exchange_strong_explicit(atomic_bool *a, bool *b, bool c, in
     return true;
 }
 
-bool atomic_compare_exchange_weak_explicit(atomic_bool *a, bool *b, bool c, int d, int e) {
+bool atomic_compare_exchange_strong_explicit(uint8_t *a, uint8_t *b, uint8_t c, int d, int e) {
     (void)d;
     (void)e;
     mutexLock(&gWinMutex);

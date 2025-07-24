@@ -33,3 +33,9 @@
 
 /a2l_test.a2l
 /DOCUMENTATION.md
+/pi5
+/pi5.pub
+/setup_remote_pi.sh
+/sync.sh
+*.out
+/REMOTE_DEVELOPMENT.md

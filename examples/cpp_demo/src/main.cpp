@@ -98,7 +98,7 @@ int main() {
     }
 
     // Enable A2L generation
-    if (!A2lInit(OPTION_PROJECT_NAME, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, false, true, true)) {
+    if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, false, true, true)) {
         std::cerr << "Failed to initialize A2L generator" << std::endl;
         return 1;
     }
@@ -131,8 +131,8 @@ int main() {
 
     // Register the local measurement variables 'loop_counter' and sum
     A2lSetStackAddrMode(mainloop);
-    A2lCreateMeasurement(loop_counter, "Loop counter, local measurement variable on stack", "");
-    A2lCreateMeasurement(sum, "Sum of SigGen1 and SigGen2 value", "Volt");
+    A2lCreateMeasurement(loop_counter, "Loop counter, local measurement variable on stack");
+    A2lCreateMeasurement(sum, "Sum of SigGen1 and SigGen2 value");
 
     // Signal generator class demo
     // See sig_gen.cpp for details how to measure instance member variables and stack variables in member functions

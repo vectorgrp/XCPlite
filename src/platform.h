@@ -53,7 +53,7 @@
 
 #ifdef _WIN
 #define WIN32_LEAN_AND_MEAN
-#define _CRT_SECURE_NO_WARNINGS
+
 #else
 #ifndef _DEFAULT_SOURCE
 #define _DEFAULT_SOURCE
@@ -72,7 +72,8 @@
 
 #if defined(_WIN)
 
-#define _CRT_SECURE_NO_WARNINGS
+#include <stdio.h>
+
 #include <time.h>
 #include <windows.h>
 

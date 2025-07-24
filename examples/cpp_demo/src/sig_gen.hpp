@@ -62,7 +62,7 @@ class SignalGenerator {
 
     void Task();
 
-    double Calculate(double time); // Calculate sine value based on time
+    double Calculate(double time); // Calculate waveform value based on time
 
   public:
     SignalGenerator(const char *instance_name, SignalParametersT params);

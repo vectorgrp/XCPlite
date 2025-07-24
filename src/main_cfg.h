@@ -24,7 +24,7 @@
   #define OPTION_ENABLE_TCP
   #define OPTION_ENABLE_UDP
   #define OPTION_MTU                          Ethernet MTU, must be %8
-  #define OPTION_DAQ_MEM_SIZE                 Size of memory for DAQ setup in bytes (5 byts per signal needed)
+  #define OPTION_DAQ_MEM_SIZE                 Size of memory for DAQ setup in bytes (5 bytes per signal needed)
   #define OPTION_ENABLE_A2L_UPLOAD            Enable A2L upload through XCP
   #define OPTION_ENABLE_GET_LOCAL_ADDR        Determine an existing IP address for A2L file, if bound to ANY
   #define OPTION_SERVER_FORCEFULL_TERMINATION Terminate the server threads instead of waiting for the tasks to finish

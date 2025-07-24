@@ -11,7 +11,7 @@
 extern "C" {
 #endif
 
-#if defined(XCP_ENABLE_CALSEG_LIST) || defined(XCP_ENABLE_DAQ_EVENT_LIST)
+#if defined(XCP_ENABLE_CALSEG_LIST) && defined(XCP_ENABLE_DAQ_EVENT_LIST)
 
 bool XcpBinWrite(const char *filename);
 bool XcpBinLoad(const char *filename, const char *epk);

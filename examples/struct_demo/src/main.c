@@ -74,7 +74,7 @@ int main(void) {
     }
 
     // Enable A2L generation and prepare the A2L file, finalize the A2L file on XCP connect
-    if (!A2lInit(OPTION_PROJECT_NAME, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, true, true, true)) {
+    if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, true, true, true)) {
         return 1;
     }
 
@@ -82,13 +82,12 @@ int main(void) {
     // This segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
     // It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
     // It supports XCP/ECU independant page switching, checksum calculation and reinitialization (copy reference page to working page)
-    // Note that it can be used in only one ECU thread (in Rust terminology, it is Send, but not Sync)
     tXcpCalSegIndex calseg = XcpCreateCalSeg("Parameters", &params, sizeof(params));
     assert(calseg != XCP_UNDEFINED_CALSEG); // Ensure the calibration segment was created successfully
 
     // Register individual calibration parameters in the calibration segment
     A2lSetSegmentAddrMode(calseg, params);
-    A2lCreateParameter(params, delay_us, "mainloop delay time in us", "us", 0, 1000000);
+    A2lCreateParameter(params.delay_us, "mainloop delay time in us", "us", 0, 1000000);
 
     // Create a A2L typedef for struct2_t
     A2lTypedefBegin(struct2_t, "A2L typedef for struct2_t");
@@ -131,14 +130,14 @@ int main(void) {
 
     // Stack
     A2lSetStackAddrMode(event); // stack relative addressing mode
-    A2lCreateMeasurement(local_counter, "Stack measurement variable", "");
+    A2lCreateMeasurement(local_counter, "Stack measurement variable");
     A2lCreateTypedefInstance(local_struct2, struct2_t, "Instance of test_struct2_t");
     A2lCreateTypedefInstance(local_struct1, struct1_t, "Instance of test_struct1_t");
     A2lCreateTypedefArray(local_struct1_array, struct1_t, 8, "Array [10] of struct1_t");
 
     // static/global
     A2lSetAbsoluteAddrMode(event); // absolute addressing mode
-    A2lCreateMeasurement(static_counter, "Global measurement variable ", "");
+    A2lCreateMeasurement(static_counter, "Global measurement variable ");
     A2lCreateTypedefInstance(static_struct2, struct2_t, "Instance of test_struct2_t");
     A2lCreateTypedefInstance(static_struct1, struct1_t, "Instance of test_struct1_t");
     A2lCreateTypedefArray(static_struct1_array, struct1_t, 8, "Array [10] of struct1_t");

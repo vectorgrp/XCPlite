@@ -46,13 +46,15 @@ void XcpBackgroundTasks(void);
 // Disconnect, stop DAQ, flush queue, flush pending calibrations
 void XcpDisconnect(void);
 
-// Trigger a XCP data acquisition event
+// XCP event identifier type
 typedef uint16_t tXcpEventId;
+
+// Trigger a XCP data acquisition event
 uint8_t XcpEventDynRelAt(tXcpEventId event, const uint8_t *dyn_base, const uint8_t *rel_base, uint64_t clock);
 void XcpEventExt(tXcpEventId event, const uint8_t *base);
 void XcpEvent(tXcpEventId event);
 
-// Send an XCP event message
+// Send a XCP event message
 void XcpSendEvent(uint8_t evc, const uint8_t *d, uint8_t l);
 
 // Send terminate session signal event
@@ -157,7 +159,7 @@ tXcpEvent *XcpGetEvent(tXcpEventId event);
 #endif
 
 /*
-Single thread lock-free, wait-free CalSeg RCU:
+lock-free, wait-free CalSeg RCU:
     XCP receive thread command handler:
         On XCP write access
         if free_page != NULL
@@ -434,7 +436,7 @@ uint8_t ApplXcpUserCommand(uint8_t cmd);
    For DAQ performance and memory optimization:
    XCPlite DAQ tables do not store address extensions and do not use ApplXcpGetPointer(void), addr is stored as 32 Bit value and access is hardcoded by *(baseAddr+xcpAddr)
    All accessible DAQ data is within a 4GByte range starting at ApplXcpGetBaseAddr(void)
-   Attempting to setup an ODT entry with address extension != XCP_ADDR_EXT_ABS, XCP_ADDR_EXT_DYN or XCP_ADDR_EXT_REL gives a CRC_ACCESS_DENIED error message
+   Attempting to setup an ODT entry with address extension != XCP_ADDR_EXT_/ABS/DYN/REL gives a CRC_ACCESS_DENIED error message
 
  Note 2:
    ApplXcpGetPointer may do address transformations according to active calibration page

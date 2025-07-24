@@ -272,14 +272,18 @@ void XcpEvent(tXcpEventId event);
 // Misc
 
 /// Set log level
-/// @param log level (0 = no logging, 1 = error, 2 = warning, 3 = info, 4 = debug, 5 = trace)
+/// @param level (0 = no logging, 1 = error, 2 = warning, 3 = info, 4 = debug, 5 = trace)
 void XcpSetLogLevel(uint8_t level);
 
 /// Initialize the XCP singleton, must be called befor starting the server
+/// @param activate If true, the XCP library is activated
 void XcpInit(bool activate);
 
 /// Check if XCP has been activated
 bool XcpIsActivated(void);
+
+/// Check if XCP is connected
+bool XcpIsConnected(void);
 
 // Set the A2L file name (for GET_ID IDT_ASAM_NAME, IDT_ASAM_NAME and for IDT_ASAM_UPLOAD)
 // Used by the A2L generator

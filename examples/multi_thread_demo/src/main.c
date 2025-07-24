@@ -37,8 +37,8 @@
 
 typedef struct params {
     uint16_t counter_max; // Maximum value of the counter
-    double ampl;          // Amplitude of the sine wave
-    double period;        // Period of the sine wave in seconds
+    double ampl;          // Amplitude
+    double period;        // Period
     double filter;        // Filter coefficient for the filter function 0.0-1.0
     double clip_max;      // Maximum value for clipping function
     double clip_min;      // Minimum value for clipping function
@@ -190,7 +190,7 @@ double filter(double input) {
     A2lOnce(filter_local_vars) { // Ensure this is only done once globally
         A2lLock();
         A2lSetStackAddrMode_i(XcpGetContext()->span_id); // Set stack addressing mode
-        A2lCreateMeasurement(filtered_input, "Filter result", "");
+        A2lCreateMeasurement(filtered_input, "Filter result");
         A2lUnlock();
     }
 
@@ -319,7 +319,7 @@ int main(void) {
     }
 
     // Enable A2L generation and prepare the A2L file, finalize the A2L file on XCP connect, auto grouping
-    if (!A2lInit(OPTION_PROJECT_NAME, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, true, true, true)) {
+    if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, true, true, true)) {
         return 1;
     }
 
@@ -327,23 +327,22 @@ int main(void) {
     // This segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
     // It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
     // It supports XCP/ECU independant page switching, checksum calculation and reinitialization (copy reference page to working page)
-    // Note that it can be used in only one ECU thread (in Rust terminology, it is Send, but not Sync)
     calseg = XcpCreateCalSeg("Parameters", &params, sizeof(params));
     assert(calseg != XCP_UNDEFINED_CALSEG); // Ensure the calibration segment was created successfully
 
     // Register calibration parameters in the calibration segment
     A2lSetSegmentAddrMode(calseg, params);
-    A2lCreateParameter(params, counter_max, "Max counter value, wrap around", "", 0, 10000.0);
-    A2lCreateParameter(params, ampl, "Amplitude", "Volt", 0, 100.0);
-    A2lCreateParameter(params, period, "Period", "s", 0.1, 10.0);
-    A2lCreateParameter(params, filter, "Filter coefficient", "", 0.0, 1.0);
-    A2lCreateParameter(params, clip_max, "Maximum value for clipping function", "Volt", -100.0, 100.0);
-    A2lCreateParameter(params, clip_min, "Minimum value for clipping function", "Volt", -100.0, 100.0);
-    A2lCreateParameter(params, delay_us, "task delay time in us", "us", 0, 1000000);
-    A2lCreateParameter(params, run, "stop task", "", 0, 1);
+    A2lCreateParameter(params.counter_max, "Max counter value, wrap around", "", 0, 10000.0);
+    A2lCreateParameter(params.ampl, "Amplitude", "Volt", 0, 100.0);
+    A2lCreateParameter(params.period, "Period", "s", 0.1, 10.0);
+    A2lCreateParameter(params.filter, "Filter coefficient", "", 0.0, 1.0);
+    A2lCreateParameter(params.clip_max, "Maximum value for clipping function", "Volt", -100.0, 100.0);
+    A2lCreateParameter(params.clip_min, "Minimum value for clipping function", "Volt", -100.0, 100.0);
+    A2lCreateParameter(params.delay_us, "task delay time in us", "us", 0, 1000000);
+    A2lCreateParameter(params.run, "stop task", "", 0, 1);
 
     // Create multiple instances of task
-    THREAD t[10];
+    THREAD t[THREAD_COUNT];
     for (int i = 0; i < THREAD_COUNT; i++) {
         create_thread(&t[i], task);
     }

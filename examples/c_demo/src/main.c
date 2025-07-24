@@ -81,7 +81,7 @@ int main(void) {
     }
 
     // Enable A2L generation and prepare the A2L file, finalize the A2L file on XCP connect
-    if (!A2lInit(OPTION_PROJECT_NAME, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, true, true, true)) {
+    if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, true, true, true)) {
         return 1;
     }
 
@@ -89,7 +89,6 @@ int main(void) {
     // This segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
     // It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
     // It supports XCP/ECU independent page switching, checksum calculation and reinitialization (copy reference page to working page)
-    // Note that it can be used in only one ECU thread (in Rust terminology, it is Send, but not Sync)
     tXcpCalSegIndex calseg = XcpCreateCalSeg("Parameters", &params, sizeof(params));
     assert(calseg != XCP_UNDEFINED_CALSEG); // Ensure the calibration segment was created successfully
 
@@ -109,12 +108,12 @@ int main(void) {
     A2lCreateTypedefInstance(params, params_t, "Calibration parameters");
 
     // Alternative: Without using a typedef, create the calibration parameters directly
-    // A2lCreateParameter(params, counter_max, "maximum counter value", "", 0, 2000);
-    // A2lCreateParameter(params, delay_us, "mainloop delay time in us", "us", 0, 1000000);
-    // A2lCreateParameter(params, test_byte1, "", "", -128, 127);
-    // A2lCreateParameter(params, test_byte2, "", "", -128, 127);
-    // A2lCreateCurve(params, curve, 8, "", "", -128, 127);
-    // A2lCreateMap(params, map, 8, 8, "", "", -128, 127);
+    // A2lCreateParameter(params.counter_max, "maximum counter value", "", 0, 2000);
+    // A2lCreateParameter(params.delay_us, "mainloop delay time in us", "us", 0, 1000000);
+    // A2lCreateParameter(params.test_byte1, "", "", -128, 127);
+    // A2lCreateParameter(params.test_byte2, "", "", -128, 127);
+    // A2lCreateCurve(params.curve, 8, "", "", -128, 127);
+    // A2lCreateMap(params.map, 8, 8, "", "", -128, 127);
 
     // Variables on stack
     uint8_t counter8 = 0;
@@ -131,25 +130,25 @@ int main(void) {
 
     // Register global measurement variables
     A2lSetAbsoluteAddrMode(mainloop);
-    A2lCreateMeasurement(g_counter8, "Measurement variable", "");
-    A2lCreateMeasurement(g_counter16, "Measurement variable", "");
-    A2lCreateMeasurement(g_counter32, "Measurement variable", "");
-    A2lCreateMeasurement(g_counter64, "Measurement variable", "");
-    A2lCreateMeasurement(g_counter8s, "Measurement variable", "");
-    A2lCreateMeasurement(g_counter16s, "Measurement variable", "");
-    A2lCreateMeasurement(g_counter32s, "Measurement variable", "");
-    A2lCreateMeasurement(g_counter64s, "Measurement variable", "");
+    A2lCreateMeasurement(g_counter8, "Measurement variable");
+    A2lCreateMeasurement(g_counter16, "Measurement variable");
+    A2lCreateMeasurement(g_counter32, "Measurement variable");
+    A2lCreateMeasurement(g_counter64, "Measurement variable");
+    A2lCreateMeasurement(g_counter8s, "Measurement variable");
+    A2lCreateMeasurement(g_counter16s, "Measurement variable");
+    A2lCreateMeasurement(g_counter32s, "Measurement variable");
+    A2lCreateMeasurement(g_counter64s, "Measurement variable");
 
     // Register measurement variables located on stack
     A2lSetStackAddrMode(mainloop);
-    A2lCreateMeasurement(counter8, "Measurement variable", "");
-    A2lCreateMeasurement(counter16, "Measurement variable", "");
-    A2lCreateMeasurement(counter32, "Measurement variable", "");
-    A2lCreateMeasurement(counter64, "Measurement variable", "");
-    A2lCreateMeasurement(counter8s, "Measurement variable", "");
-    A2lCreateMeasurement(counter16s, "Measurement variable", "");
-    A2lCreateMeasurement(counter32s, "Measurement variable", "");
-    A2lCreateMeasurement(counter64s, "Measurement variable", "");
+    A2lCreateMeasurement(counter8, "Measurement variable");
+    A2lCreateMeasurement(counter16, "Measurement variable");
+    A2lCreateMeasurement(counter32, "Measurement variable");
+    A2lCreateMeasurement(counter64, "Measurement variable");
+    A2lCreateMeasurement(counter8s, "Measurement variable");
+    A2lCreateMeasurement(counter16s, "Measurement variable");
+    A2lCreateMeasurement(counter32s, "Measurement variable");
+    A2lCreateMeasurement(counter64s, "Measurement variable");
 
     // Multidimensional measurements on stack
     float array_f32[8] = {000, 100, 200, 300, 400, 500, 600, 700};
@@ -161,8 +160,8 @@ int main(void) {
 
     };
 
-    A2lCreateMeasurementArray(array_f32, "array float[8]", "");
-    A2lCreateMeasurementMatrix(matrix_f32, "matrix float[4][8]", "");
+    A2lCreateMeasurementArray(array_f32, "array float[8]");
+    A2lCreateMeasurementMatrix(matrix_f32, "matrix float[4][8]");
 
     // Create a measurement typedef for the calibration parameter struct
     typedef params_t params_measurement_t;

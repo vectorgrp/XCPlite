@@ -1,0 +1,169 @@
+
+// /begin A2ML
+
+block "IF_DATA" taggedunion if_data {
+
+
+
+	"CANAPE_EXT" struct {
+	  int;             /* version number */
+	  taggedstruct {
+		"LINK_MAP" struct {
+		  char[256];   /* segment name */
+		  long;        /* base address of the segment */
+		  uint;        /* address extension of the segment */
+		  uint;        /* flag: address is relative to DS */
+		  long;        /* offset of the segment address */
+		  uint;        /* datatypValid */
+		  uint;        /* enum datatyp */
+		  uint;        /* bit offset of the segment */
+		};
+		"DISPLAY" struct {
+		  long;        /* display color */
+		  double;      /* minimal display value (phys)*/
+		  double;      /* maximal display value (phys)*/
+		};
+		"VIRTUAL_CONVERSION" struct {
+		  char[256];   /* name of the conversion formula */
+		};
+		"STEPSIZE_W" uint; /* step size for FNC_VALUES in referenced record layout */
+		"STEPSIZE_X" uint; /* step size for AXIS_PTS_X in referenced record layout */
+		"STEPSIZE_Y" uint; /* step size for AXIS_PTS_Y in referenced record layout */
+	  };
+	};
+
+
+   "CANAPE_ADDRESS_UPDATE" taggedstruct {
+          ("EPK_ADDRESS" struct {
+            char[1024];  /* name of the corresponding symbol in MAP file*/
+            long;  /* optional address offset*/
+          })*;
+          "ECU_CALIBRATION_OFFSET" struct {
+            char[1024];  /* name of the corresponding symbol in MAP file*/
+            long;  /* optional address offset*/
+          };
+          (block "CALIBRATION_METHOD" taggedunion {
+            "AUTOSAR_SINGLE_POINTERED" struct {
+              char[1024];  /* MAP symbol name for pointer table in RAM*/
+              long;  /* optional address offset*/
+              taggedstruct {
+                "ORIGINAL_POINTER_TABLE" struct {
+                  char[1024];  /* MAP symbol name for pointer table in FLASH */
+                  long;  /* optional address offset */
+                };
+              };
+            };
+            "InCircuit2" struct {
+              char[1024];  /* MAP symbol name for pointer table in RAM */
+              long;  /* optional address offset */
+              taggedstruct {
+                "ORIGINAL_POINTER_TABLE" struct {
+                  char[1024];  /* MAP symbol name for pointer table in FLASH*/
+                  long;  /* optional address offset*/
+                };
+                "FLASH_SECTION" struct {
+                  ulong;  /* start address of flash section */
+                  ulong;  /* length of flash section */
+                };
+              };
+            };
+          })*;
+          block "MAP_SYMBOL" taggedstruct {
+            "FIRST" struct {
+              char[1024];  /* symbol name of the corresponding segment in MAP file*/
+              long;  /* offset;*/
+            };
+            "LAST" struct {
+              char[1024];  /* symbol name of the corresponding segment in MAP file*/
+              long;  /* offset;*/
+            };
+            ("ADDRESS_MAPPING_XCP" struct {
+              char[1024];  /* symbol name of source range in MAP file*/
+              char[1024];  /* symbol name of destination range in MAP file*/
+            })*;
+          };
+          (block "MEMORY_SEGMENT" struct {
+            char[1024];  /* name of the memory segment*/
+            taggedstruct {
+              "FIRST" struct {
+                char[1024];  /* symbol name of the corresponding segment in MAP file*/
+                long;  /* offset;*/
+              };
+              "LAST" struct {
+                char[1024];  /* symbol name of the corresponding segment in MAP file*/
+                long;  /* offset;*/
+              };
+              ("ADDRESS_MAPPING_XCP" struct {
+                char[1024];  /* symbol name of source range in MAP file*/
+                char[1024];  /* symbol name of destination range in MAP file*/
+              })*;
+            };
+          })*;
+        };
+
+
+
+
+        "CANAPE_GROUP" taggedstruct {
+          block "STRUCTURE_LIST" (char[1024])*;
+        };
+
+
+
+
+        "CANAPE_CAL_METHOD" taggedstruct {
+          (block "CAL_PARAM_GROUP" taggedstruct {
+            "NAME" char[1024];
+            "ADDRESS" ulong;
+            "SIZE" ulong;
+            "COMMENT" char[1024];
+            "LINK_MAP" struct {
+              char[256];  /* symbol name */
+              ulong;  /* base address of the symbol */
+              uint;  /* address extension of the symbol */
+              uint;  /* flag: address is relative to DS */
+              long;  /* offset of the symbol address */
+            };
+          })*;
+        };
+     
+
+
+
+
+        "CNP_CREATE_INI" taggedstruct {
+          block "TP_BLOB" struct {
+            uint;  /* version */
+            taggedstruct {
+              ("PARAMETER" struct {
+                char[256];  /* file name */
+                char[50];  /* Section - $CNP_DVC_SCTN$ defines the Device-Section entry */
+                char[50];  /* parameter name */
+                char[256];  /* parameter value */
+              })*;
+            };
+          };
+        };
+
+
+
+
+        "CANAPE_MODULE" struct {
+          taggedstruct {
+            ("RECORD_LAYOUT_STEPSIZE" struct {
+              char[256];  /* name of record layout*/
+              uint;  /* stepsize for FNC_VALUES */
+              uint;  /* stepsize for AXIS_PTS_X */
+              uint;  /* stepsize for AXIS_PTS_Y */
+              uint;  /* stepsize for AXIS_PTS_Z */
+              uint;  /* stepsize for AXIS_PTS_4 */
+              uint;  /* stepsize for AXIS_PTS_5 */
+            })*;
+          };
+        };
+
+
+
+}; // block "IF_DATA"
+
+// /end A2ML
