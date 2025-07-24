@@ -342,7 +342,7 @@ int main(void) {
     A2lCreateParameter(params.run, "stop task", "", 0, 1);
 
     // Create multiple instances of task
-    THREAD t[10];
+    THREAD t[THREAD_COUNT];
     for (int i = 0; i < THREAD_COUNT; i++) {
         create_thread(&t[i], task);
     }

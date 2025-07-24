@@ -292,10 +292,10 @@ void XcpSetEpk(const char *epk) {
     size_t epk_len = STRNLEN(epk, XCP_EPK_MAX_LENGTH);
     STRNCPY(gXcp.Epk, epk, epk_len);
     gXcp.Epk[XCP_EPK_MAX_LENGTH] = 0; // Ensure null-termination
-    // Remove white spaces from the EPK string
+    // Remove unwanted characters from the EPK string
     for (char *p = gXcp.Epk; *p; p++) {
-        if (*p == ' ' || *p == '\t') {
-            *p = '_'; // Replace spaces with underscores
+        if (*p == ' ' || *p == '\t' || *p == ':') {
+            *p = '_'; // Replace with underscores
         }
     }
     DBG_PRINTF3("EPK = '%s'\n", gXcp.Epk);
