@@ -297,9 +297,20 @@ const char *A2lGetRecordLayoutName_(tA2lTypeId type);
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Addressing mode convenience macros
 
+
+
+#undef get_stack_frame_pointer
 #ifndef get_stack_frame_pointer
+#if defined(__GNUC__) || defined(__clang__)
 #define get_stack_frame_pointer() (const uint8_t *)__builtin_frame_address(0)
+#elif defined(_MSC_VER)
+#define get_stack_frame_pointer() (const uint8_t *)_AddressOfReturnAddress()
+#else
+#error "get_stack_frame_pointer is not defined for this compiler. Please implement it."
 #endif
+#endif
+
+
 
 // Set segment relative address mode
 // Error if the segment index does not exist

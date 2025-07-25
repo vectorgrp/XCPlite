@@ -169,7 +169,10 @@ The addressing mode is indicated by the address extension:
 
 '''
 
-### Platform requirements and resource usage
+### Platform and language standard requirements and resource usage
+
+- _Generic and declspec for A2L generation type detection
+  Requires C11 and C++20
 
 - File system: fopen, fprintf.  
   Used for A2L generation and optional calibration persistency to a binary file

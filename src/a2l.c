@@ -269,6 +269,7 @@ const char *A2lGetA2lTypeName(tA2lTypeId type) {
         return "FLOAT64_IEEE";
     default:
         assert(0);
+        return NULL;
     }
 }
 
@@ -296,6 +297,7 @@ const char *A2lGetA2lTypeName_M(tA2lTypeId type) {
         return "M_F64";
     default:
         assert(0);
+        return NULL;
     }
 }
 
@@ -323,6 +325,7 @@ const char *A2lGetA2lTypeName_C(tA2lTypeId type) {
         return "C_F64";
     default:
         assert(0);
+        return NULL;
     }
 }
 
@@ -350,6 +353,7 @@ const char *A2lGetRecordLayoutName_(tA2lTypeId type) {
         return "F64";
     default:
         assert(0);
+        return NULL;
     }
 }
 
@@ -363,7 +367,7 @@ static double getTypeMin(tA2lTypeId type) {
         min = -32768;
         break;
     case A2L_TYPE_INT32:
-        min = -2147483648;
+        min = -2147483647-1;
         break;
     case A2L_TYPE_INT64:
         min = -1e12;
@@ -567,7 +571,9 @@ static void A2lCreate_ETH_IF_DATA(bool useTCP, const uint8_t *addr, uint16_t por
         if (addr != NULL && addr[0] != 0) {
             memcpy(addr0, addr, 4);
         } else {
+#ifdef OPTION_ENABLE_GET_LOCAL_ADDR
             socketGetLocalAddr(NULL, addr0);
+#endif
         }
         char addrs[17];
         SPRINTF(addrs, "%u.%u.%u.%u", addr0[0], addr0[1], addr0[2], addr0[3]);
