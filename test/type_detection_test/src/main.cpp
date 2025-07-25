@@ -52,9 +52,13 @@ std::string type_id_to_string(tA2lTypeId type_id) {
 }
 
 int main() {
+
+    extern void cpp_version_test();
+    cpp_version_test();
+
     TestStruct test_instance = {};
 
-    std::cout << "C++ Type Detection Test Results:\n";
+    std::cout << "\nC++ Type Detection Test Results:\n";
     std::cout << "================================\n";
 
     // Test simple types

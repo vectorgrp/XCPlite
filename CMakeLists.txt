@@ -47,7 +47,7 @@ set(CMAKE_C_COMPILER "gcc")
 set(CMAKE_CXX_COMPILER "g++")
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED True)
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 
@@ -125,7 +125,7 @@ target_link_libraries(multi_thread_demo PRIVATE xcplib)
 
 # Example cpp_demo
 add_executable(cpp_demo examples/cpp_demo/src/main.cpp examples/cpp_demo/src/sig_gen.cpp examples/cpp_demo/src/lookup.cpp)
-target_compile_options(cpp_demo PRIVATE -std=c++20 )
+target_compile_options(cpp_demo PRIVATE -std=c++11 )
 target_include_directories(cpp_demo PUBLIC "${PROJECT_ROOT}" "${PROJECT_ROOT}/src")
 target_link_libraries(cpp_demo PRIVATE xcplib)
 
@@ -134,15 +134,15 @@ target_link_libraries(cpp_demo PRIVATE xcplib)
 if(BUILD_TEST)
 
 # Type detection test (C version)
-add_executable(type_detection_test_c test/type_detection_test/src/main.c)
+add_executable(type_detection_test_c test/type_detection_test/src/main.c  test/type_detection_test/src/c_version_test.c)
 target_compile_options(type_detection_test_c PRIVATE -std=c11)
 target_include_directories(type_detection_test_c PUBLIC "${PROJECT_ROOT}" )
 target_link_libraries(type_detection_test_c PRIVATE xcplib)
 
 
 # Type detection test (C++ version)
-add_executable(type_detection_test_cpp test/type_detection_test/src/main.cpp)
-target_compile_options(type_detection_test_cpp PRIVATE -std=c++20 )
+add_executable(type_detection_test_cpp test/type_detection_test/src/main.cpp test/type_detection_test/src/cpp_version_test.cpp)
+target_compile_options(type_detection_test_cpp PRIVATE -std=c++11 )
 target_include_directories(type_detection_test_cpp PUBLIC "${PROJECT_ROOT}" )
 target_link_libraries(type_detection_test_cpp PRIVATE xcplib)
 

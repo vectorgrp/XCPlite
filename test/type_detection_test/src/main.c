@@ -53,9 +53,13 @@ const char *type_id_to_string(tA2lTypeId type_id) {
 }
 
 int main() {
+
+    extern void c_version_test(void);
+    c_version_test();
+
     TestStruct test_instance = {0};
 
-    printf("Type Detection Test Results:\n");
+    printf("\nC Type Detection Test Results:\n");
     printf("============================\n");
 
     // Test simple types
