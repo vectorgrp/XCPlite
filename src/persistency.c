@@ -262,6 +262,7 @@ bool XcpBinLoad(const char *filename, const char *epk) {
 
         tXcpEventId event_id = XcpCreateIndexedEvent(desc.name, desc.index, desc.cycleTimeNs, desc.priority);
         assert(event_id == desc.id); // Ensure the event ID matches the descriptor ID
+        (void)event_id;
     }
 
     // Load calibration segments

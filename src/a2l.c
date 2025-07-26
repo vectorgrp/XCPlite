@@ -367,7 +367,7 @@ static double getTypeMin(tA2lTypeId type) {
         min = -32768;
         break;
     case A2L_TYPE_INT32:
-        min = -2147483647-1;
+        min = -2147483647 - 1;
         break;
     case A2L_TYPE_INT64:
         min = -1e12;
@@ -791,6 +791,7 @@ uint32_t A2lGetAddr_(const void *p) {
             if (addr_high != 0 && addr_high != 0xFFFFFFFF) {
                 DBG_PRINTF_ERROR("A2L XCP_ADDR_EXT_REL relative address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lAddrBase);
                 assert(0); // Ensure the relative address does not overflow the 32 Bit A2L address space
+                break;
             }
             return (uint32_t)(addr_diff & 0xFFFFFFFF);
         }
@@ -801,6 +802,7 @@ uint32_t A2lGetAddr_(const void *p) {
             if (addr_high != 0 && addr_high != 0xFFFFFFFFFFFF) {
                 DBG_PRINTF_ERROR("A2L XCP_ADDR_EXT_DYN relative address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lAddrBase);
                 assert(0); // Ensure the relative address does not overflow the 32 Bit A2L address space
+                break;
             }
             return (uint32_t)(((uint32_t)gA2lFixedEvent) << 16 | (addr_diff & 0xFFFF));
         }

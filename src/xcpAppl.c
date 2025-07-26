@@ -307,7 +307,8 @@ uint32_t ApplXcpGetAddr(const uint8_t *p) {
     uint8_t *b = ApplXcpGetBaseAddr();
     if (p < b || ((uint64_t)p - (uint64_t)b) > 0xffffffff) { // be sure that XCP address range is sufficient
         DBG_PRINTF_ERROR("Address out of range! base = %p, addr = %p\n", (void *)b, (void *)p);
-        // assert(0);
+        assert(0); // Ensure the address is in range
+        return 0;
     }
     return (uint32_t)(p - b);
 }

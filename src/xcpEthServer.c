@@ -95,7 +95,6 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
 
     // Create queue
     assert(queueSize > 0);
-
     gXcpServer.TransmitQueue = QueueInit(queueSize);
     if (gXcpServer.TransmitQueue == NULL)
         return false;

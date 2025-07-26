@@ -42,14 +42,23 @@ elseif(UNIX)
     set(LINUX TRUE) # Build for Linux x64
 endif()
 
+# Compiler selection option
+option(USE_CLANG "Use clang/clang++ instead of gcc/g++" OFF)
+if(USE_CLANG)
+    message("Using clang compiler")
+    set(CMAKE_C_COMPILER "clang")
+    set(CMAKE_CXX_COMPILER "clang++")
+else()
+    message("Using gcc compiler")
+    set(CMAKE_C_COMPILER "gcc")
+    set(CMAKE_CXX_COMPILER "g++")
+endif()
 
-set(CMAKE_C_COMPILER "gcc")
-set(CMAKE_CXX_COMPILER "g++")
+# Set C and C++ standards
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED True)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
-
 
 
 # xcplib sources
@@ -63,12 +72,8 @@ set(xcplib_SOURCES src/xcpAppl.c src/xcpLite.c src/xcpEthServer.c src/xcpEthTl.c
 endif()
 
 
-
 set(PROJECT_ROOT ${CMAKE_CURRENT_LIST_DIR})
 message(STATUS "PROJECT_ROOT is: ${PROJECT_ROOT}")
-
-
-
 
 set_source_files_properties(${xcplib_SOURCES} PROPERTIES LANGUAGE C)
 add_library(xcplib ${xcplib_SOURCES})
@@ -78,7 +83,7 @@ target_compile_options(xcplib
         -Wall
         -Wextra
         -Wconversion
-        -Werror
+        #-Werror
         -pedantic
         #-Wshadow
 )

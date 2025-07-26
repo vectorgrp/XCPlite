@@ -98,7 +98,8 @@ int main() {
     }
 
     // Enable A2L generation
-    if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, false, true, true)) {
+    // Set mode to write once and enable binary persistence file and freeze support
+    if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, false /*write_always*/, false /*finalize_on_connect*/, true /*auto_groups*/)) {
         std::cerr << "Failed to initialize A2L generator" << std::endl;
         return 1;
     }

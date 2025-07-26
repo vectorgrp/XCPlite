@@ -44,6 +44,7 @@
 
 #include <assert.h>  // for assert
 #include <stdbool.h> // for bool
+#include <stddef.h>  // for offsetof
 #include <stdint.h>  // for uintxx_t
 
 #include "xcplib.h" // for tXcpEventId, tXcpCalSegIndex
