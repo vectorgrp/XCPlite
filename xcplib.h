@@ -117,6 +117,10 @@ void XcpUnlockCalSeg(tXcpCalSegIndex calseg);
 /// @return true on success, otherwise false.
 bool XcpFreezeAllCalSeg(void);
 
+/// Set all calibration segments to their default page.
+/// Maybe used in emergency situations.
+bool XcpResetAllCalSegs(void);
+
 // Get the XCP/A2L address of a calibration segment
 // Internal function used for A2L generation
 uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg);
