@@ -7,13 +7,10 @@
 1. [Overview](#1-overview)
 2. [Getting Started](#2-getting-started)
 3. [API Reference](#3-api-reference)
-   4. [XCP on Ethernet Server Interface](#31-xcp-on-ethernet-server-interface)
-   5. [Calibration Segments](#32-calibration-segments)
-   6. [Events](#33-events)
-   7. [DAQ Event Convenience Macros](#34-daq-event-convenience-macros)
-   8. [Miscellaneous Utilities](#35-miscellaneous-utilities)
-9. [Example Application](#4-example-application)
-10. [Glossary](#5-glossary)
+4. [Example Application](#4-example-application)
+5. [A2l Creator](#5-a2l-creator)
+6. [Glossary](#6-glossary)
+
 
 ---
 
@@ -137,7 +134,7 @@ See function and macro documentation in xcplib.h
 
 See examples folder and README.md for a short descriptions of the example applications.
 
-##### A2L creation for your application
+## 5 · A2L Creator
 
 All A2l generation macros and functions are not thread safe. It is up to the user to take care for thread safety, as well as for once execution, when definitions are called multiple times in nested functions or from different threads.  
 The functions A2lLock() and A2lUnlock() may be used to lock sequences of A2L definitions.  
@@ -148,7 +145,8 @@ Also note that A2L definitions may be lazy, but the A2L file is finalized when a
 All definitions of instances follow the sample principle: Set the addressing mode first. The addressing mode is valid for all following definitions.  
 The examples in the examples/folder show various way how to create A2L artifacts.  
 
-## 5 · Glossary
+## 6 · Glossary
+
 
 - **A2L** – ASAM MCD‑2 MC description file (measurement & calibration meta‑data).
 - **DAQ** – Data Acquisition (periodic or sporadic transmit of ECU variables).

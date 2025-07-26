@@ -6,7 +6,7 @@
 |   xcpLite.h
 |
 | Description:
-|   XCPlite internal header file for xcpLite.c
+|   XCPlite internal header file for XCP protocol layer xcpLite.c
 |
 | All functions, types and constants intended to be public API are declared in xcplib.h
 |
