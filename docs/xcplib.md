@@ -11,6 +11,7 @@
 5. [A2l Creator](#5-a2l-creator)
 6. [Glossary](#6-glossary)
 
+
 ---
 
 ## 1 · Overview
@@ -145,6 +146,7 @@ All definitions of instances follow the sample principle: Set the addressing mod
 The examples in the examples/folder show various way how to create A2L artifacts.  
 
 ## 6 · Glossary
+
 
 - **A2L** – ASAM MCD‑2 MC description file (measurement & calibration meta‑data).
 - **DAQ** – Data Acquisition (periodic or sporadic transmit of ECU variables).
