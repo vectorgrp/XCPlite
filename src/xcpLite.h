@@ -1,8 +1,19 @@
 #pragma once
 #define __XCP_LITE_H__
 
-/* Copyright(c) Vector Informatik GmbH.All rights reserved.
-   Licensed under the MIT license.See LICENSE file in the project root for details. */
+/*----------------------------------------------------------------------------
+| File:
+|   xcpLite.h
+|
+| Description:
+|   XCPlite internal header file for xcpLite.c
+|
+| All functions, types and constants intended to be public API are declared in xcplib.h
+|
+| Copyright (c) Vector Informatik GmbH. All rights reserved.
+| See LICENSE file in the project root for details.
+|
+ ----------------------------------------------------------------------------*/
 
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uint16_t, uint32_t, uint8_t

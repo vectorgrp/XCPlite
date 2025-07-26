@@ -1,6 +1,18 @@
 #pragma once
 #define __XCP_ETHTL_H__
 
+/*----------------------------------------------------------------------------
+| File:
+|   xcpEthTl.h
+|
+| Description:
+|   XCPlite internal header file for xcpEthTl.c
+|
+| Copyright (c) Vector Informatik GmbH. All rights reserved.
+| See LICENSE file in the project root for details.
+|
+ ----------------------------------------------------------------------------*/
+
 /* Copyright(c) Vector Informatik GmbH.All rights reserved.
    Licensed under the MIT license.See LICENSE file in the project root for details. */
 

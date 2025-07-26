@@ -4,8 +4,7 @@
 |
 | Description:
 |   XCP on UDP/TCP transport layer
-|   Linux and Windows version
-|   Supports Winsock and Linux Sockets
+|   Linux, MACOS and Windows version
 |
 | Copyright (c) Vector Informatik GmbH. All rights reserved.
 | Licensed under the MIT license. See LICENSE file in the project root for details.

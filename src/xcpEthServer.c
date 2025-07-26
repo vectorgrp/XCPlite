@@ -3,8 +3,7 @@
 |   xcpEthServer.c
 |
 | Description:
-|   XCP on UDP Server
-|   SHows how to integrate the XCP driver in an application
+|   XCP on UDP/TCP Server
 |   Creates threads for cmd handling and data transmission
 |
 | Copyright (c) Vector Informatik GmbH. All rights reserved.

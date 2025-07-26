@@ -1,8 +1,17 @@
 #pragma once
 #define __XCP_H__
 
-/* Copyright(c) Vector Informatik GmbH.All rights reserved.
-   Licensed under the MIT license.See LICENSE file in the project root for details. */
+/*----------------------------------------------------------------------------
+| File:
+|   xcp.h
+|
+| Description:
+|   XCP protocol definitions
+|
+| Copyright (c) Vector Informatik GmbH. All rights reserved.
+| See LICENSE file in the project root for details.
+|
+ ----------------------------------------------------------------------------*/
 
 #include "xcp_cfg.h" // for XCP_PROTOCOL_LAYER_VERSION
 

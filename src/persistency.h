@@ -1,6 +1,18 @@
 #pragma once
 #define __PERSISTENCY_H__
 
+/*----------------------------------------------------------------------------
+| File:
+|   persistency.h
+|
+| Description:
+|   XCPlite internal header file for persistency.c
+|
+| Copyright (c) Vector Informatik GmbH. All rights reserved.
+| See LICENSE file in the project root for details.
+|
+ ----------------------------------------------------------------------------*/
+
 #include <assert.h>  // for assert
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uintxx_t

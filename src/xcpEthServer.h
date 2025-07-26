@@ -1,8 +1,17 @@
 #pragma once
 #define __XCP_ETH_SERVER_H__
 
-/* Copyright(c) Vector Informatik GmbH.All rights reserved.
-   Licensed under the MIT license.See LICENSE file in the project root for details. */
+/*----------------------------------------------------------------------------
+| File:
+|   xcpEthServer.h
+|
+| Description:
+|   XCPlite internal header file for xcpEthServer.c
+|
+| Copyright (c) Vector Informatik GmbH. All rights reserved.
+| See LICENSE file in the project root for details.
+|
+ ----------------------------------------------------------------------------*/
 
 #include <stdbool.h>
 #include <stdint.h>

@@ -27,7 +27,7 @@ Key features:
 - Single‑instance XCP server (TCP or UDP)
 - Lock‑free calibration segments
 - Measurement events to capture global, stack and heap data
-- Optional A2L file generation at runtime
+- Optional A2L file meta data and type generation at runtime
 
 ---
 

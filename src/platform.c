@@ -3,7 +3,7 @@
 |   platform.c
 |
 | Description:
-|   Platform (Linux/Windows) abstraction layer
+|   Platform (Linux/Windows/MACOS) abstraction layer
 |     Atomics
 |     Sleep
 |     Threads

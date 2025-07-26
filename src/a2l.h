@@ -1,4 +1,18 @@
-/// a2l.h
+#pragma once
+#define __A2L_H__
+
+/*----------------------------------------------------------------------------
+| File:
+|   a2l.h
+|
+| Description:
+|   Public header for A2L generation
+|
+| Copyright (c) Vector Informatik GmbH. All rights reserved.
+| See LICENSE file in the project root for details.
+|
+ ----------------------------------------------------------------------------*/
+
 ///
 /// A2L (ASAM-2 MCD-2 MC) description file generation for XCPlite
 /// This header provides comprehensive functionality for automatic generation of A2L description files
@@ -27,11 +41,6 @@
 /// 2. Set addressing mode for the following variables
 /// 3. Create measurements and parameters using the provided macros
 /// 4. Finalize the A2L file with A2lFinalize()
-
-// Copyright(c) Vector Informatik GmbH.All rights reserved.
-// Licensed under the MIT license.See LICENSE file in the project root for details.
-
-#pragma once
 
 #include <assert.h>  // for assert
 #include <stdbool.h> // for bool

@@ -1,9 +1,17 @@
 #pragma once
 #define __PLATFORM_H__
 
-/*
-| Code released into public domain, no attribution required
-*/
+/*----------------------------------------------------------------------------
+| File:
+|   platform.h
+|
+| Description:
+|   XCPlite internal header file for platform.c
+|
+| Copyright (c) Vector Informatik GmbH. All rights reserved.
+| See LICENSE file in the project root for details.
+|
+ ----------------------------------------------------------------------------*/
 
 //-------------------------------------------------------------------------------------------------
 // Platform defines

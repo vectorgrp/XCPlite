@@ -3,7 +3,7 @@
 |   xcpAppl.c
 |
 | Description:
-|   Application specific functions and callbacks for XCP
+|   Application specific functions and callbacks for xcpLite.c
 |   Additional functions for xcplib interface
 |
 | Copyright (c) Vector Informatik GmbH. All rights reserved.
@@ -329,7 +329,7 @@ uint32_t ApplXcpGetAddr(const uint8_t *p) { return ((uint32_t)(p)); }
 /**************************************************************************/
 
 // CANape specific user commands for atomic consistent calibration operations
-// Used only, when internal calibration segments are not used
+// Called only, when internal calibration segment management is not used or not enabled
 #ifdef XCP_ENABLE_USER_COMMAND
 uint8_t ApplXcpUserCommand(uint8_t cmd) {
     switch (cmd) {
@@ -351,7 +351,7 @@ uint8_t ApplXcpUserCommand(uint8_t cmd) {
 #endif
 
 // Access calibration memory segments
-// Called for SEG addressing mode, only when internal calibration segments are not enabled or used
+// Called for SEG addressing mode, only when internal calibration segment management is not used or not enabled
 #ifdef XCP_ENABLE_APP_ADDRESSING
 uint8_t ApplXcpReadMemory(uint32_t src, uint8_t size, uint8_t *dst) {
     if (callback_read != NULL)
@@ -371,7 +371,7 @@ uint8_t ApplXcpWriteMemory(uint32_t dst, uint8_t size, const uint8_t *src) {
 
 // Operations on  calibration memory segments
 
-// Called only when internal calibration segments are not enabled or used
+// Called only when internal calibration segment management is not used or not enabled
 #ifdef XCP_ENABLE_CAL_PAGE
 
 uint8_t ApplXcpGetCalPage(uint8_t segment, uint8_t mode) {
