@@ -112,59 +112,13 @@ All out‑parameters are *optional* and may be passed as `NULL`.
 
 ### 3.2 Calibration Segments
 
-| Prototype                                                                                        | Description                                                                                                                                           |
-| ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tXcpCalSegIndex XcpCreateCalSeg(const char *name, const uint8_t *default_page, uint16_t size);` | Create a calibration segment backed by working (RAM) & reference (FLASH) pages. Thread‑safe. Returns segment handle or `XCP_UNDEFINED_CALSEG` on OOM. |
-| `const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg);`                                          | Atomically lock the segment and obtain a pointer to the active page.                                                                                 |
-| `void XcpUnlockCalSeg(tXcpCalSegIndex calseg);`                                                  | Release segment lock (must be called from the same thread that acquired it).                                                                          |
-
-Constants:
-
-- `XCP_UNDEFINED_CALSEG` (0xFFFF) – Invalid handle.
-- `XCP_MAX_CALSEG_NAME` (15) – Max segment name length.
-
----
+See function and macro documentation in xcplib.h
 
 ### 3.3 Events
 
-| Prototype                                                                                       | Description                                                                   |
-| ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `tXcpEventId XcpCreateEvent(const char *name, uint32_t cycleTimeNs, uint8_t priority);`         | Register a new measurement event. `priority` ≥ 1 designates real‑time events. |
-| `tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycleTimeNs, uint8_t priority);` | Thread‑safe variant; appends an instance ID if `name` already exists.         |
-| `tXcpEventId XcpFindEvent(const char *name, uint16_t *count);`                                  | Look up an event by name. Returns `XCP_UNDEFINED_EVENT_ID` if not found.      |
+See function and macro documentation in xcplib.h
 
-Macros:
-
-- `DaqCreateEvent(name)` – Convenience wrapper for `XcpCreateEvent` with *sporadic* cycle and *normal* priority.
-
-Constants:
-
-- `XCP_UNDEFINED_EVENT_ID` (0xFFFF)
-- `XCP_MAX_EVENT_NAME` (15)
-
----
-
-### 3.4 DAQ Event Convenience Macros
-
-These macros provide zero‑overhead mappings between C variables and XCP DAQ lists without manual bookkeeping.
-
-- `DaqEvent(name)` – Trigger event `name` using *stack* addressing.
-- `DaqEventRelative(name, base_addr)` – Trigger event `name` using *relative* addressing with `base_addr`.
-
-Both macros abort via `assert(false)` if the event has not been created.
-
-Helper functions (normally not called directly):
-
-```c
-uint8_t XcpEventDynRelAt(tXcpEventId event, const uint8_t *dyn_base, const uint8_t *rel_base, uint64_t clock);
-void XcpEventExt(tXcpEventId event, const uint8_t *base);
-void XcpEvent(tXcpEventId event);
-
-```
-
----
-
-### 3.5 Miscellaneous Utilities
+### 3.5 Miscellaneous Functions
 
 | Function                                                         | Purpose                                                         |
 | ---------------------------------------------------------------- | --------------------------------------------------------------- |
@@ -179,39 +133,9 @@ void XcpEvent(tXcpEventId event);
 
 ---
 
-## 4 · Example Application
+## 4 · Example Applications
 
-Below is an abridged version of `struct_demo.c`, demonstrating initialisation, calibration segments, measurement events and A2L generation.  Full source is available in the **examples/struct\_demo** directory.
-
-```c
-#include "xcpEthServer.h"
-#include "xcpLite.h"
-#include "a2l.h"
-
-int main(void)
-{
-    XcpSetLogLevel(5);    // verbose
-    XcpInit();            // core
-
-    const uint8_t addr[4] = {0,0,0,0};
-    if (!XcpEthServerInit(addr, 5555, false, 32*1024))
-        return 1;
-
-    // Optional: live A2L file generation
-    A2lInit("struct_demo.a2l", "struct_demo", addr, 5555, false, true);
-
-    // Create calibration segment & parameter definition ...
-    // Create measurement events, refer to next section ...
-
-    for (;;) {
-        /* main loop: update variables, lock/unlock cal seg, trigger events */
-    }
-
-    XcpDisconnect();
-    XcpEthServerShutdown();
-    return 0;
-}
-```
+See examples folder and README.md for a short descriptions of the example applications.
 
 ##### A2L creation for your application
 
@@ -219,10 +143,10 @@ All A2l generation macros and functions are not thread safe. It is up to the use
 The functions A2lLock() and A2lUnlock() may be used to lock sequences of A2L definitions.  
 The macro A2lOnce may be used to create a once execution pattern for a block of A2L definitions.  
 
-Also note that A2L defintions may be lazy, but the A2L fule is finalized when a XCP tool connects. All definitions after that point are ignored and not visible to the tool.  
+Also note that A2L definitions may be lazy, but the A2L file is finalized when a XCP tool connects. All definitions after that point are ignored and not visible to the tool.  
 
 All definitions of instances follow the sample principle: Set the addressing mode first. The addressing mode is valid for all following definitions.  
-The examples in the examples/folder show various way how to create A2L artefacts.  
+The examples in the examples/folder show various way how to create A2L artifacts.  
 
 ## 5 · Glossary
 
