@@ -1,9 +1,16 @@
 #pragma once
 #define __DBG_PRINT_H__
 
-/*
+/*----------------------------------------------------------------------------
+| File:
+|   a2l.h
+|
+| Description:
+|   Debug log printing
+|
 | Code released into public domain, no attribution required
-*/
+|
+ ----------------------------------------------------------------------------*/
 
 #include "main_cfg.h" // for OPTION_ENABLE_DBG_PRINTS, OPTION_DEFAULT_DBG_LEVEL
 

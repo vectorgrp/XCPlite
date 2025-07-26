@@ -1,8 +1,17 @@
 #pragma once
 #define __XCP_QUEUE_h__
 
-/* Copyright(c) Vector Informatik GmbH.All rights reserved.
-   Licensed under the MIT license.See LICENSE file in the project root for details. */
+/*----------------------------------------------------------------------------
+| File:
+|   xcpQueue.h
+|
+| Description:
+|   XCPlite internal header file for xcpQueue64.c or xcpQueue32.c
+||
+| Copyright (c) Vector Informatik GmbH. All rights reserved.
+| See LICENSE file in the project root for details.
+|
+ ----------------------------------------------------------------------------*/
 
 #include <stdbool.h>
 #include <stdint.h>
