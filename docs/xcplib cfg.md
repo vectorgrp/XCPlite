@@ -186,3 +186,77 @@ This section describes the XCP protocol layer configuration parameters in xcp_cf
 |-----------|-------------|
 | `XCP_ENABLE_TEST_CHECKS` | Enables extended error checks with performance penalty |
 | `XCP_ENABLE_OVERRUN_INDICATION_PID` | Enables overrun indication via PID (not needed for Ethernet) |
+
+## 4 · Transmit Queue Configuration
+
+The 64-bit transmit queue has several parameters to further optimize DAQ measurement performance and data capture side effects.
+
+### Queue Implementation Selection
+
+The queue implementation can be configured using one of three mutually exclusive defines that control the synchronization mechanism between producers and consumers:
+
+| Parameter | Description |
+|-----------|-------------|
+| `QUEUE_MUTEX` | Uses mutex-based producer locking. This is convenient and might be optimal for high throughput when worst-case producer latency is acceptable. No consumer lock, uses memory fences between producer and consumer |
+| `QUEUE_SEQ_LOCK` | Uses sequence lock to protect against inconsistency during entry acquire. The queue is lock-free with minimal CAS spin wait in contention. The consumer may spin heavily to acquire a safe consistent head |
+| `QUEUE_NO_LOCK` | No synchronization between producer and consumer. Producer uses CAS loop to increment head, consumer clears memory completely for consistent reservation state. Tradeoff between consumer spin activity and consumer cache activity - might be optimal for medium throughput |
+
+**Default**: `QUEUE_NO_LOCK` is enabled by default as it provides the best balance for medium throughput scenarios.
+
+### Queue Optimization Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `QUEUE_ACCUMULATE_PACKETS` | Enables accumulation of multiple XCP packets into XCP messages within a segment obtained with `QueuePeek()`. This improves efficiency by reducing the number of network operations |
+| `QUEUE_PEEK_THRESHOLD` | Minimum number of bytes that must be in the queue before `QueuePeek()` returns a segment. Set to `XCPTL_MAX_SEGMENT_SIZE` by default to optimize transmission efficiency |
+| `CACHE_LINE_SIZE` | Cache line size used to align queue entries and queue header. Set to 128 bytes to accommodate most modern CPU architectures |
+| `MAX_ENTRY_SIZE` | Maximum size of a single queue entry, calculated as `XCPTL_MAX_DTO_SIZE + XCPTL_TRANSPORT_LAYER_HEADER_SIZE`. Must be aligned to `XCPTL_PACKET_ALIGNMENT` |
+
+### Performance Testing and Profiling (Development Only)
+
+**Warning**: These parameters have significant performance impact and should NOT be enabled in production builds.
+
+| Parameter | Description |
+|-----------|-------------|
+| `TEST_ACQUIRE_LOCK_TIMING` | Enables timing measurement for queue acquire operations. Collects statistics on lock acquisition times including maximum, sum, and histogram data |
+| `TEST_ACQUIRE_SPIN_COUNT` | Enables spin count statistics for producer acquire operations. Tracks how many spin loops are needed during contention |
+| `TEST_CONSUMER_SEQ_LOCK_SPIN_COUNT` | Enables spin count statistics for consumer sequence lock operations. Tracks consumer spinning behavior with sequence locks |
+
+### Profiling Configuration Constants
+
+When profiling is enabled, the following constants control the statistics collection:
+
+| Parameter | Description |
+|-----------|-------------|
+| `LOCK_TIME_HISTOGRAM_SIZE` | Size of lock time histogram array (default: 100 entries) |
+| `LOCK_TIME_HISTOGRAM_STEP` | Step size for lock time measurements (10ns steps) |
+| `SPIN_COUNT_HISTOGRAM_SIZE` | Size of spin count histogram for producer statistics (default: 100 entries) |
+| `SEQ_LOCK_HISTOGRAM_SIZE` | Size of sequence lock histogram for consumer statistics (default: 200 entries) |
+
+### Queue Runtime Configuration
+
+The queue size is configured at runtime when calling `QueueInit(buffer_size)`. The buffer size determines:
+
+- Total memory allocated for the queue
+- Number of queue entries that can be stored
+- Maximum throughput capacity
+
+**Memory Calculation**: Each queue entry requires `MAX_ENTRY_SIZE` bytes plus alignment overhead. The effective queue size is `buffer_size - MAX_ENTRY_SIZE`.
+
+### Platform Requirements
+
+The 64-bit queue implementation requires:
+
+- 64-bit POSIX platform (Linux or macOS)
+- Support for atomic operations
+- C11 or later for `stdatomic.h`
+
+On 32-bit platforms or Windows, the system automatically falls back to the 32-bit queue implementation (`xcpQueue32.c`).
+
+### Performance Recommendations
+
+1. **For High Throughput**: Use `QUEUE_MUTEX` if worst-case producer latency is acceptable
+2. **For Low Latency**: Use `QUEUE_SEQ_LOCK` but expect higher CPU usage due to spinning
+3. **For Balanced Performance**: Use `QUEUE_NO_LOCK` (default) for most applications
+4. **Buffer Sizing**: Allocate sufficient buffer size to handle peak data rates with some headroom
+5. **Testing**: Always benchmark different configurations with your specific workload patterns
