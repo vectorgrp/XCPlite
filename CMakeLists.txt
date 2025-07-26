@@ -73,15 +73,15 @@ message(STATUS "PROJECT_ROOT is: ${PROJECT_ROOT}")
 set_source_files_properties(${xcplib_SOURCES} PROPERTIES LANGUAGE C)
 add_library(xcplib ${xcplib_SOURCES})
 target_include_directories(xcplib PUBLIC "${PROJECT_ROOT}/" "${PROJECT_ROOT}/src" )
-#target_compile_options(xcplib
-#    PRIVATE
-#        -Wall
-#        -Wextra
-#        -Wconversion
-#        -Werror
-#        -pedantic
-#        -Wshadow
-#)
+target_compile_options(xcplib
+    PRIVATE
+        -Wall
+        -Wextra
+        -Wconversion
+        -Werror
+        -pedantic
+        #-Wshadow
+)
 
 target_compile_definitions(xcplib PRIVATE _CRT_SECURE_NO_WARNINGS)
 #target_compile_options(xcplib PRIVATE -D_CRT_SECURE_NO_WARNINGS)

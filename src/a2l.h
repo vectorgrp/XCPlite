@@ -55,9 +55,9 @@ typedef int8_t tA2lTypeId; // A2L type ID, positive for unsigned types, negative
 #define A2L_TYPE_DOUBLE (tA2lTypeId)(-10)
 #define A2L_TYPE_UNDEFINED (tA2lTypeId)0
 
-static_assert(sizeof(char) == 1, "sizeof(char) must be 1 bytes for A2L types to work correctly");
-static_assert(sizeof(short) == 2, "sizeof(short) must be 2 bytes for A2L types to work correctly");
-static_assert(sizeof(long long) == 8, "sizeof(long long) must be 8 bytes for A2L types to work correctly");
+static_assert(sizeof(char) == 1, "sizeof(char) must be 1");
+static_assert(sizeof(short) == 2, "sizeof(short) must be 2");
+static_assert(sizeof(long long) == 8, "sizeof(long long) must be 8");
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Automatic, portable type detection macros for both C and C++
@@ -297,8 +297,6 @@ const char *A2lGetRecordLayoutName_(tA2lTypeId type);
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Addressing mode convenience macros
 
-
-
 #undef get_stack_frame_pointer
 #ifndef get_stack_frame_pointer
 #if defined(__GNUC__) || defined(__clang__)
@@ -309,8 +307,6 @@ const char *A2lGetRecordLayoutName_(tA2lTypeId type);
 #error "get_stack_frame_pointer is not defined for this compiler. Please implement it."
 #endif
 #endif
-
-
 
 // Set segment relative address mode
 // Error if the segment index does not exist
@@ -335,8 +331,7 @@ const char *A2lGetRecordLayoutName_(tA2lTypeId type);
 #define A2lSetAbsoluteAddrMode_i(event_id) A2lSetAbsoluteAddrMode__i(event_id);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// Create parameters
-// Addressing mode ABS (unsafe), addressing mode CAL or addresing mode DYN with explicit sync event and base
+// Create parameters in calibration parameter segments or in global memory
 
 #define A2lCreateParameter(name, comment, unit, min, max) A2lCreateParameter_(#name, A2lGetTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&name), comment, unit, min, max);
 
@@ -395,15 +390,22 @@ const char *A2lGetRecordLayoutName_(tA2lTypeId type);
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Create instances from typedefs
 
+// Single instance of typedef
+// A2L instance name and symbol name are the same
+#define A2lCreateTypedefInstance(name, typeName, comment) A2lCreateTypedefMeasurementInstance_(#name, #typeName, 0, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&name), comment);
+
+// Single instance of typedef
+// A2L instance name and symbol name are different
 #define A2lCreateTypedefNamedInstance(name, instance, typeName, comment)                                                                                                           \
     A2lCreateTypedefMeasurementInstance_(name, #typeName, 0, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&instance), comment);
 
-#define A2lCreateTypedefInstance(name, typeName, comment) A2lCreateTypedefMeasurementInstance_(#name, #typeName, 0, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&name), comment);
-
-#define A2lCreateTypedefReference(name, typeName, comment) A2lCreateTypedefMeasurementInstance_(#name, #typeName, 0, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)name), comment);
-
+// Array of typedef instances
 #define A2lCreateTypedefArray(name, typeName, dim, comment) A2lCreateTypedefMeasurementInstance_(#name, #typeName, dim, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&name), comment);
 
+// Pointer to typedef instance
+#define A2lCreateTypedefReference(name, typeName, comment) A2lCreateTypedefMeasurementInstance_(#name, #typeName, 0, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)name), comment);
+
+// Pointer to array of typedef instances
 #define A2lCreateTypedefArrayReference(name, typeName, dim, comment)                                                                                                               \
     A2lCreateTypedefMeasurementInstance_(#name, #typeName, dim, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)name), comment);
 
@@ -413,10 +415,7 @@ const char *A2lGetRecordLayoutName_(tA2lTypeId type);
 #define A2lTypedefBegin(type_name, comment) A2lTypedefBegin_(#type_name, (uint32_t)sizeof(type_name), comment);
 
 #define A2lTypedefComponent(field_name, field_type_name, field_dim, typedef_name)                                                                                                  \
-    {                                                                                                                                                                              \
-        typedef_name instance;                                                                                                                                                     \
-        A2lTypedefComponent_(#field_name, #field_type_name, field_dim, ((uint8_t *)&(instance.field_name) - (uint8_t *)&instance));                                                \
-    }
+    A2lTypedefComponent_(#field_name, #field_type_name, field_dim, offsetof(typedef_name, field_name));
 
 #define A2lTypedefEnd() A2lTypedefEnd_()
 

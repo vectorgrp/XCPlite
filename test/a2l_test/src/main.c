@@ -23,8 +23,9 @@ extern bool A2lCheckFinalizeOnConnect(void);
 //     return false;
 // }
 
-#define OPTION_PROJECT_NAME "a2l_test"  // A2L project name
-#define OPTION_LOG_LEVEL 4              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_PROJECT_NAME "a2l_test" // A2L project name
+#define OPTION_LOG_LEVEL 4             // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+// #define OPTION_START_SERVER
 #define OPTION_USE_TCP false            // TCP or UDP
 #define OPTION_SERVER_PORT 5555         // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
@@ -66,7 +67,7 @@ static struct1_t struct1 = {.byte_field = 1, .word_field = 2, .array_field = {0,
 static struct2_t struct2 = {.byte_field = 1, .word_field = 2};                                                                                  // Single instance of struct2_t
 
 // Array of structs
-static struct1_t struct1_array[10]; // Array of struct1_t
+static struct1_t struct1_array[16]; // Array of struct1_t
 
 //-----------------------------------------------------------------------------------------------------
 // Parameters
@@ -245,15 +246,20 @@ int main() {
     // No need to start the XCP server
     // Initialize the XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;
+#ifdef OPTION_START_SERVER
     if (!XcpEthServerInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_QUEUE_SIZE)) {
         return 1;
     }
-
     // Initialize the A2L generator in manual finalization mode with auto group generation
     // Empty version string to allow diff with the expected output
     if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, true /*write_always*/, false /*finalize_on_connect*/, true /*auto_grouping*/)) {
         return 1;
     }
+#else
+    if (!A2lInit(OPTION_PROJECT_NAME, "EPK", addr, OPTION_SERVER_PORT, OPTION_USE_TCP, true /*write_always*/, false /*finalize_on_connect*/, true /*auto_grouping*/)) {
+        return 1;
+    }
+#endif
 
     //----------------------------------------------------------------------------------------------------------------------------------------------------------------
     // Calibration
@@ -449,7 +455,7 @@ int main() {
     A2lSetAbsoluteAddrMode(event); // absolute addressing mode
     A2lCreateTypedefInstance(struct2, struct2_t, "Instance of test_struct2_t");
     A2lCreateTypedefInstance(struct1, struct1_t, "Instance of test_struct1_t");
-    A2lCreateTypedefArray(struct1_array, struct1_t, 8, "Array [10] of struct1_t");
+    A2lCreateTypedefArray(struct1_array, struct1_t, 16, "Array [16] of struct1_t");
 
     // Heap
     DaqCreateEvent(event_heap);
@@ -486,15 +492,15 @@ int main() {
     }
 
     // Compare a2l_test.a2l to the expected output in test/a2l_test/a2l_test_expected.a2l
-    // printf("Comparing generated A2L file with expected output...\n");
-    // result = system("diff a2l_test.a2l ./test/a2l_test/a2l_test_expected.a2l");
-    // if (result == 0) {
-    //     printf("A2L file matches expected output\n");
-    // } else if (result == 1) {
-    //     printf("A2L file does not match expected output\n");
-    // } else {
-    //     printf("Error comparing A2L file, exit code: %d\n", result);
-    // }
+    printf("Comparing generated A2L file with expected output...\n");
+    result = system("diff a2l_test.a2l ./test/a2l_test/a2l_test_expected.a2l");
+    if (result == 0) {
+        printf("A2L file matches expected output\n");
+    } else if (result == 1) {
+        printf("A2L file does not match expected output\n");
+    } else {
+        printf("Error comparing A2L file, exit code: %d\n", result);
+    }
 
     // Run A2l update
     // printf("Running A2L update tool...\n");
@@ -516,6 +522,7 @@ int main() {
     //     printf("Error comparing A2L file, exit code: %d\n", result);
     // }
 
+#ifdef OPTION_START_SERVER
     // Mainloop
     printf("Start main loop...\n");
     uint32_t loop_counter = 0;
@@ -543,6 +550,7 @@ int main() {
 
     // Stop the XCP server
     XcpEthServerShutdown();
+#endif
 
     printf("Exit...\n");
     return 0;

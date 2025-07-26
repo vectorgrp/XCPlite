@@ -415,7 +415,6 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
             // Error if segment already exists
             mutexUnlock(&gXcp.CalSegList.mutex);
             DBG_PRINTF_ERROR("Calibration segment '%s' already exists with size %u\n", name, c->size);
-            assert(false);
             return XCP_UNDEFINED_CALSEG;
         }
     } else {
@@ -784,12 +783,12 @@ static uint8_t XcpSetCalSegMode(uint8_t segment, uint8_t mode) {
     return CRC_CMD_OK;
 }
 
-static uint8_t XcpCalSegCalFreeze(void) {
+// Freeze all segments or segments with freeze mode enabled
+static uint8_t XcpFreezeSelectedCalSegs(bool all) {
 
-    // Freeze all segments with freeze mode enabled
     for (uint16_t i = 0; i < gXcp.CalSegList.count; i++) {
         tXcpCalSeg *c = &gXcp.CalSegList.calseg[i];
-        if ((c->mode & PAG_PROPERTY_FREEZE) != 0) {
+        if ((c->mode & PAG_PROPERTY_FREEZE) != 0 || all) {
             DBG_PRINTF3("Freeze cal seg '%s' (size=%u, pos=%u)\n", c->name, c->size, c->file_pos);
             if (!XcpBinFreezeCalSeg(i)) {
                 return CRC_ACCESS_DENIED; // Access denied, freeze failed
@@ -797,6 +796,19 @@ static uint8_t XcpCalSegCalFreeze(void) {
         }
     }
     return CRC_CMD_OK;
+}
+
+// Freeze all segments
+bool XcpFreezeAllCalSegs(void) { return XcpFreezeSelectedCalSegs(true) != CRC_CMD_OK; }
+
+// Set all segments to the default page
+void XcpResetAllCalSegs(void) {
+
+    for (uint16_t i = 0; i < gXcp.CalSegList.count; i++) {
+        tXcpCalSeg *c = &gXcp.CalSegList.calseg[i];
+        atomic_store_explicit(&c->ecu_access, XCP_CALPAGE_DEFAULT_PAGE, memory_order_relaxed); // Default page for ECU access is the working page
+    }
+    XcpDisconnect(); // Reset the session status
 }
 
 #endif // XCP_ENABLE_FREEZE_CAL_PAGE
@@ -2130,7 +2142,7 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             case SET_REQUEST_MODE_STORE_CAL:
 #ifdef XCP_ENABLE_CALSEG_LIST
                 if (gXcp.CalSegList.count > 0) {
-                    check_error(XcpCalSegCalFreeze());
+                    check_error(XcpFreezeSelectedCalSegs(false));
                 } else
 #endif
                 {

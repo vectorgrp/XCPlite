@@ -29,10 +29,9 @@
 ///
 /// @section files Key Header Files
 ///
-/// - `xcplib.h` - Main XCP protocol interface
-/// - `src/a2l.h` - A2L generation macros and functions
+/// - `xcplib.h` - API of the XCP library xcplib
+/// - `src/a2l.h` - A2L generation macros and C functions
 ///
-/// All functions and macros are documented with detailed parameter descriptions and usage examples.
 
 #pragma once
 
@@ -80,32 +79,47 @@ void XcpEthServerGetInfo(bool *out_is_tcp, uint8_t *out_mac, uint8_t *out_addres
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Calibration segments
 
-#define XCP_UNDEFINED_CALSEG 0xFFFF
 typedef uint16_t tXcpCalSegIndex;
-#define XCP_MAX_CALSEG_NAME 15 // defined in xcp_cfg.h
+#define XCP_UNDEFINED_CALSEG 0xFFFF
+
+#define XCP_MAX_CALSEG_NAME 15 // adjust in xcp_cfg.h
 
 /// Create a calibration segment and add it to the list of calibration segments.
-/// With 2 pages, a default page (reference page, FLASH) and a working page (RAM).
-/// assert if the segment name already exists.
+/// Create a named calibration segment and add it to the list of calibration segments.
+/// This calibration segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
+/// It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration params
+/// It supports XCP/ECU independent page switching, checksum calculation, copy and reinitialization (copy reference page to working page)
 /// @param name Name of the calibration segment.
 /// @param default_page Pointer to the default page.
 /// @param size Size of the calibration page in bytes.
-/// @return the handle or XCP_UNDEFINED_CALSEG when out of memory.
+/// @return a handle or XCP_UNDEFINED_CALSEG when out of memory or the name already exists.
 tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint16_t size);
 
 /// Get the name of the calibration segment
 /// @return the name of the calibration segment or NULL if the index is invalid.
 const char *XcpGetCalSegName(tXcpCalSegIndex calseg);
 
-// Get the XCP/A2L address of a calibration segment
-// Used for A2L generation
-uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg);
-
 /// Lock a calibration segment and return a pointer to the ECU page
+/// @param calseg Calibration segment index.
+/// @return Pointer to the active page of the calibration segment (working page or reference page, controlled by the XCP client tool).
+/// The pointer is valid until the calibration segment is unlocked.
+/// The data can be safely access, while the look is held. There is no contention with the XCP client tool and with other threads acqiring the lock.
 uint8_t const *XcpLockCalSeg(tXcpCalSegIndex calseg);
 
 /// Unlock a calibration segment
 void XcpUnlockCalSeg(tXcpCalSegIndex calseg);
+
+/// Freeze all calibration segments
+/// The current working page is written to the persistency file
+/// It will be the new default page on next application start
+/// Freeze can also be required by the XCP client tool.
+/// Requires option XCP_ENABLE_FREEZE_CAL_PAGE.
+/// @return true on success, otherwise false.
+bool XcpFreezeAllCalSeg(void);
+
+// Get the XCP/A2L address of a calibration segment
+// Internal function used for A2L generation
+uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Events
@@ -272,10 +286,12 @@ void XcpEvent(tXcpEventId event);
 // Misc
 
 /// Set log level
+/// Log level 4 provides a trace of all XCP commands and responses.
 /// @param level (0 = no logging, 1 = error, 2 = warning, 3 = info, 4 = debug, 5 = trace)
 void XcpSetLogLevel(uint8_t level);
 
-/// Initialize the XCP singleton, must be called befor starting the server
+/// Initialize the XCP singleton, activate XCP, must be called before starting the server
+/// If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
 /// @param activate If true, the XCP library is activated
 void XcpInit(bool activate);
 
@@ -285,13 +301,14 @@ bool XcpIsActivated(void);
 /// Check if XCP is connected
 bool XcpIsConnected(void);
 
-// Set the A2L file name (for GET_ID IDT_ASAM_NAME, IDT_ASAM_NAME and for IDT_ASAM_UPLOAD)
-// Used by the A2L generator
+// Set the A2L file name
+// To enable automatic detection by the XCP client tool (GET_ID IDT_ASAM_NAME, IDT_ASAM_NAME and for IDT_ASAM_UPLOAD)
+// Internal function used by the A2L generator
 #define XCP_A2L_FILENAME_MAX_LENGTH 255 // Maximum length of A2L filename with extension
 void ApplXcpSetA2lName(const char *name);
 
 // Set software version identifier (EPK)
-// Used by the A2L generator
+// Internal function used by the A2L generator
 #define XCP_EPK_MAX_LENGTH 32 // Maximum length of EPK string
 void XcpSetEpk(const char *epk);
 
@@ -300,17 +317,22 @@ void XcpSetEpk(const char *epk);
 void XcpDisconnect(void);
 
 /// Send terminate session event to the XCP client
+/// Force the XCP client to terminate the session
 void XcpSendTerminateSessionEvent(void);
 
 /// Send a message to the XCP client
+/// @param str Message to send, appears in the XCP client write log window
 void XcpPrint(const char *str);
 
 /// Get the current DAQ clock value
 /// @return time in CLOCK_TICKS_PER_S units
+/// Resolution and epoch is defined in main_cfg.h
+/// Epoch may be PTP or arbitrary
+/// Resolution is 1ns or 1us
 uint64_t ApplXcpGetClock64(void);
 
 // Register XCP callbacks
-// Used by the Rust API
+// Internal function used by the Rust API
 void ApplXcpRegisterCallbacks(bool (*cb_connect)(void), uint8_t (*cb_prepare_daq)(void), uint8_t (*cb_start_daq)(void), void (*cb_stop_daq)(void),
                               uint8_t (*cb_freeze_daq)(uint8_t clear, uint16_t config_id), uint8_t (*cb_get_cal_page)(uint8_t segment, uint8_t mode),
                               uint8_t (*cb_set_cal_page)(uint8_t segment, uint8_t page, uint8_t mode), uint8_t (*cb_freeze_cal)(void),
@@ -318,7 +340,7 @@ void ApplXcpRegisterCallbacks(bool (*cb_connect)(void), uint8_t (*cb_prepare_daq
                               uint8_t (*cb_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay), uint8_t (*cb_flush)(void));
 
 // Register a connect callback
-// Used by the A2L generator
+// Internal function used by the A2L generator
 void ApplXcpRegisterConnectCallback(bool (*cb_connect)(void));
 
 #ifdef __cplusplus
