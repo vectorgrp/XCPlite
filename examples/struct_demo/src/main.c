@@ -15,7 +15,7 @@
 
 // XCP parameters
 #define OPTION_PROJECT_NAME "struct_demo" // A2L project name
-#define OPTION_USE_TCP false              // TCP or UDP
+#define OPTION_USE_TCP true               // TCP or UDP
 #define OPTION_SERVER_PORT 5555           // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}   // Bind addr, 0.0.0.0 = ANY
 #define OPTION_QUEUE_SIZE 1024 * 32       // Size of the measurement queue in bytes, must be a multiple of 8
@@ -42,16 +42,15 @@ typedef struct {
 typedef struct {
     uint8_t byte_field;
     int16_t word_field;
-    uint8_t array_field[4]; // Array field
-    struct2_t struct_field; // Struct field
+    uint8_t array_field[256]; // Array field
+    struct2_t struct_field;   // Struct field
 } struct1_t;
 
 // Global measurement variables
 static uint16_t static_counter = 0;                                   // Local counter variable for measurement
 static struct2_t static_struct2 = {.byte_field = 1, .word_field = 2}; // Single instance of struct2_t
-static struct1_t static_struct1 = {
-    .byte_field = 1, .word_field = 2, .array_field = {0, 1, 2, 3}, .struct_field = {.byte_field = 1, .word_field = 2}}; // Single instance of struct1_t
-static struct1_t static_struct1_array[10];                                                                              // Array of struct1_t
+static struct1_t static_struct1 = {.byte_field = 1, .word_field = 2, .array_field = {0}, .struct_field = {.byte_field = 1, .word_field = 2}}; // Single instance of struct1_t
+static struct1_t static_struct1_array[10];                                                                                                    // Array of struct1_t
 
 //-----------------------------------------------------------------------------------------------------
 
@@ -104,10 +103,10 @@ int main(void) {
     A2lTypedefEnd();
 
     // Local stack measurement variables
-    uint16_t local_counter = 0;                                   // Local counter variable for measurement
-    struct2_t local_struct2 = {.byte_field = 1, .word_field = 2}; // Single instance of struct2_t
-    struct1_t local_struct1 = {.byte_field = 1, .word_field = 2, .array_field = {0, 1, 2, 3}, .struct_field = {.byte_field = 1, .word_field = 2}}; // Single instance of struct1_t
-    struct1_t local_struct1_array[8];                                                                                                              // Array of struct1_t
+    uint16_t local_counter = 0;                                                                                                           // Local counter variable for measurement
+    struct2_t local_struct2 = {.byte_field = 1, .word_field = 2};                                                                         // Single instance of struct2_t
+    struct1_t local_struct1 = {.byte_field = 1, .word_field = 2, .array_field = {0}, .struct_field = {.byte_field = 1, .word_field = 2}}; // Single instance of struct1_t
+    struct1_t local_struct1_array[8];                                                                                                     // Array of struct1_t
 
     // Heap measurement variables
     struct1_t *heap_struct1 = malloc(sizeof(struct1_t)); // Pointer to a struct1_t on the heap
