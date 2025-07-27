@@ -63,7 +63,17 @@
 #if (!defined(_LINUX64) && !defined(_MACOS)) || !defined(PLATFORM_64BIT)
 #error "This implementation requires a 64 Bit Posix platform (_LINUX64 or _MACOS)"
 #endif
-static_assert(sizeof(void *) == 8, "This implementation requires a 64 Bit platform"); // This implementation requires 64 Bit Posix platforms
+static_assert(sizeof(void *) == 8, "This implementation requires a 64 Bit platform");
+
+// Check for atomic support and atomic_uint_least32_t availability
+#ifdef __STDC_NO_ATOMICS__
+#error "C11 atomics are not supported on this platform, but required for xcpQueue64.c"
+#endif
+
+// Test atomic_uint_least32_t availability
+static_assert(sizeof(atomic_uint_least32_t) == 4, "atomic_uint_least32_t must be 4 bytes");
+// static atomic_uint_least32_t _atomic_test_variable = 0;
+// static_assert(sizeof(_atomic_test_variable) == 4, "atomic_uint_least32_t must be usable");
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -137,7 +147,7 @@ static uint64_t get_timestamp_ns(void) {
 // #define TEST_ACQUIRE_SPIN_COUNT
 #ifdef TEST_ACQUIRE_SPIN_COUNT
 #define SPIN_COUNT_HISTOGRAM_SIZE 100 // Up to 100 loops
-static atomic_uint_least32_t spinCountHistogramm[SPIN_COUNT_HISTOGRAM_SIZE] = {
+static atomic_uint_fast32_t spinCountHistogramm[SPIN_COUNT_HISTOGRAM_SIZE] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 
@@ -148,7 +158,7 @@ static atomic_uint_least32_t spinCountHistogramm[SPIN_COUNT_HISTOGRAM_SIZE] = {
 #ifdef TEST_CONSUMER_SEQ_LOCK_SPIN_COUNT
 #define SEQ_LOCK_HISTOGRAM_SIZE 200  // Up to 200 loops
 static uint32_t seqLockMaxLevel = 0; // Maximum queue level reached
-static atomic_uint_least32_t seqLockHistogramm[SEQ_LOCK_HISTOGRAM_SIZE] = {
+static atomic_uint_fast32_t seqLockHistogramm[SEQ_LOCK_HISTOGRAM_SIZE] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -169,8 +179,6 @@ static atomic_uint_least32_t seqLockHistogramm[SEQ_LOCK_HISTOGRAM_SIZE] = {
 #define CTR_RESERVED 0x0000u  // Reserved by producer
 #define CTR_COMMITTED 0xCCCCu // Committed by producer
 
-static_assert(sizeof(atomic_uint_least32_t) == 4, "atomic_uint_least32_t must be 4 bytes");
-
 // Transport layer message header
 #pragma pack(push, 1)
 typedef struct {
@@ -185,9 +193,9 @@ static_assert(sizeof(tXcpDtoMessage) == XCPTL_TRANSPORT_LAYER_HEADER_SIZE, "tXcp
 // Aligned to cache line size
 typedef struct {
     // Shared state
-    atomic_uint_fast64_t head;          // Consumer reads from head
-    atomic_uint_fast64_t tail;          // Producers write to tail
-    atomic_uint_least32_t packets_lost; // Packet lost counter, incremented by producers when a queue entry could not be acquired
+    atomic_uint_fast64_t head;         // Consumer reads from head
+    atomic_uint_fast64_t tail;         // Producers write to tail
+    atomic_uint_fast32_t packets_lost; // Packet lost counter, incremented by producers when a queue entry could not be acquired
     atomic_bool flush;
 
 #if defined(QUEUE_SEQ_LOCK)
@@ -468,7 +476,7 @@ tQueueBuffer QueueAcquire(tQueueHandle queueHandle, uint16_t packet_len) {
 #endif
 
     if (entry == NULL) {
-        uint32_t lost = atomic_fetch_add_explicit(&queue->h.packets_lost, 1, memory_order_acq_rel);
+        uint32_t lost = (uint32_t)atomic_fetch_add_explicit(&queue->h.packets_lost, 1, memory_order_acq_rel);
         if (lost == 0)
             DBG_PRINTF_WARNING("Transmit queue overrun, msg_len=%u, head=%" PRIu64 ", tail=%" PRIu64 ", level=%u, queue_size=%u\n", msg_len, head, tail, (uint32_t)(head - tail),
                                queue->h.queue_size);
@@ -539,7 +547,7 @@ tQueueBuffer QueuePeek(tQueueHandle queueHandle, bool flush, uint32_t *packets_l
 
     // Return the number of packets lost in the queue
     if (packets_lost != NULL) {
-        uint32_t lost = atomic_exchange_explicit(&queue->h.packets_lost, 0, memory_order_acq_rel);
+        uint32_t lost = (uint32_t)atomic_exchange_explicit(&queue->h.packets_lost, 0, memory_order_acq_rel);
         *packets_lost = lost;
         if (lost) {
             DBG_PRINTF_WARNING("QueuePeek: packets lost since last call: %u\n", lost);

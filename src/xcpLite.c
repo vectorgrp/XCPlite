@@ -1286,6 +1286,8 @@ static bool XcpAdjustOdtSize(uint16_t daq, uint16_t odt, uint8_t n) {
         DBG_PRINTF_ERROR("DAQ %u, ODT %u overflow, max ODT = %u!\n", daq, odt - DaqListFirstOdt(daq), max_size);
         return false;
     }
+#else
+    (void)daq;
 #endif
     return true;
 }
@@ -1464,7 +1466,6 @@ static uint8_t XcpSetDaqListMode(uint16_t daq, uint16_t event, uint8_t mode, uin
 }
 
 // Check if DAQ lists are fully and consistently initialized
-#ifdef XCP_ENABLE_TEST_CHECKS
 bool XcpCheckPreparedDaqLists(void) {
 
     for (uint16_t daq = 0; daq < gXcp.DaqLists->daq_count; daq++) {
@@ -1493,7 +1494,6 @@ bool XcpCheckPreparedDaqLists(void) {
 
     return true;
 }
-#endif
 
 // Start DAQ
 static void XcpStartDaq(void) {
@@ -2958,8 +2958,9 @@ void XcpStart(tQueueHandle queueHandle, bool resumeMode) {
         DBG_PRINT("INTERLEAVED,");
 #endif
         DBG_PRINT(")\n");
-#endif
     }
+#endif // DBG_LEVEL
+
     gXcp.Queue = queueHandle;
 
 #ifdef XCP_ENABLE_PROTOCOL_LAYER_ETH

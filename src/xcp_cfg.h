@@ -91,32 +91,37 @@
 #define XCP_UNDEFINED_ADDR_EXT 0xFF // Undefined address extension
 
 /*----------------------------------------------------------------------------*/
-/* Protocol features */
+/* Protocol features and commands */
 
-#define XCP_ENABLE_CAL_PAGE // Enable calibration page switching commands
+#define XCP_ENABLE_CAL_PAGE // Enable calibration page commands
 #ifdef XCP_ENABLE_CAL_PAGE
-#define XCP_ENABLE_COPY_CAL_PAGE   // // Enable calibration page initialization (FLASH->RAM copy)
-#define XCP_ENABLE_FREEZE_CAL_PAGE // Enable calibration page freeze and preload
+
+// Enable calibration page initialization (FLASH->RAM copy)
+#define XCP_ENABLE_COPY_CAL_PAGE
+
+// Enable calibration page freeze request
+#ifdef OPTION_CAL_PERSISTENCE
+#define XCP_ENABLE_FREEZE_CAL_PAGE
 #endif
 
-#define XCP_ENABLE_CHECKSUM // Enable checksum calculation command
+#endif
+
+// Enable checksum calculation command
+#define XCP_ENABLE_CHECKSUM
 #define XCP_CHECKSUM_TYPE XCP_CHECKSUM_TYPE_CRC16CCITT
 // #define XCP_CHECKSUM_TYPE XCP_CHECKSUM_TYPE_ADD44
 
-// #define XCP_ENABLE_SEED_KEY // Enable seed/key command
+// Enable seed/key command
+// #define XCP_ENABLE_SEED_KEY
 
 #define XCP_ENABLE_SERV_TEXT // Enable SERV_TEXT events
 
-/*----------------------------------------------------------------------------*/
-/* GET_ID command */
-
+// Enable GET_ID command support for A2L upload
 #ifdef OPTION_ENABLE_A2L_UPLOAD
-#define XCP_ENABLE_IDT_A2L_UPLOAD // Enable upload A2L via XCP
+#define XCP_ENABLE_IDT_A2L_UPLOAD
 #endif
 
-/*----------------------------------------------------------------------------*/
-/* User defined command */
-
+// Enable user defined command
 // Used for begin and end atomic calibration operation
 #define XCP_ENABLE_USER_COMMAND
 
@@ -146,21 +151,36 @@
 // Enable DAQ resume mode
 #define XCP_ENABLE_DAQ_RESUME
 
+/*----------------------------------------------------------------------------*/
+/* DAQ event management */
+
 // Enable event list
 #ifndef XCPLIB_FOR_RUST // Not needed for Rust xcp-lite, has its own event management
+
 #define XCP_ENABLE_DAQ_EVENT_LIST
+
+#if defined(OPTION_DAQ_EVENT_COUNT) && (OPTION_DAQ_EVENT_COUNT > 0)
+#undef XCP_MAX_EVENT_COUNT
+#define XCP_MAX_EVENT_COUNT OPTION_DAQ_EVENT_COUNT
 #endif
+
+#endif
+
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
 
-// Enable XCP_GET_EVENT_INFO, if this is enabled, A2L file event information will be ignored
+// Enable XCP_GET_EVENT_INFO, if this is enabled, event information can be queried by the XCP client tool
 // #define XCP_ENABLE_DAQ_EVENT_INFO
 
 #define XCP_MAX_EVENT_NAME 15
 
 #endif
 
+/*----------------------------------------------------------------------------*/
+/* Calibration segment management */
+
 // Enable calibration segment list
 #ifndef XCPLIB_FOR_RUST // Not needed for Rust xcp-lite, has its own calibration segment management
+
 #define XCP_ENABLE_CALSEG_LIST
 #endif
 #ifdef XCP_ENABLE_CALSEG_LIST

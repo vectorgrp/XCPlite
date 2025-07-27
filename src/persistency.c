@@ -29,7 +29,11 @@
 #include "xcp_cfg.h"   // for XCP_xxx
 #include "xcptl_cfg.h" // for XCPTL_xxx
 
-#if defined(XCP_ENABLE_DAQ_EVENT_LIST) && defined(XCP_ENABLE_CALSEG_LIST)
+#ifdef OPTION_CAL_PERSISTENCE
+
+#if !defined(XCP_ENABLE_DAQ_EVENT_LIST) || !defined(XCP_ENABLE_CALSEG_LIST)
+#error "XCP_ENABLE_DAQ_EVENT_LIST and XCP_ENABLE_CALSEG_LIST must be enabled for calibration segment persistency"
+#endif
 
 #define BIN_SIGNATURE "XCPlite__BINARY"
 #define BIN_VERSION 0x0100
@@ -295,4 +299,4 @@ bool XcpBinLoad(const char *filename, const char *epk) {
     return true;
 }
 
-#endif
+#endif // OPTION_CAL_PERSISTENCE

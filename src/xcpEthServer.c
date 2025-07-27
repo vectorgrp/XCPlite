@@ -31,7 +31,6 @@
 #if !defined(_WIN) && !defined(_LINUX) && !defined(_MACOS)
 #error "Please define platform _WIN, _MACOS or _LINUX"
 #endif
-
 #if defined(_WIN) // Windows
 static DWORD WINAPI XcpServerReceiveThread(LPVOID lpParameter);
 #elif defined(_LINUX) // Linux
@@ -41,6 +40,9 @@ static void *XcpServerReceiveThread(void *par);
 static DWORD WINAPI XcpServerTransmitThread(LPVOID lpParameter);
 #elif defined(_LINUX) // Linux
 static void *XcpServerTransmitThread(void *par);
+#endif
+#if !defined(OPTION_ENABLE_TCP) && !defined(OPTION_ENABLE_UDP)
+#error "Please define OPTION_ENABLE_TCP or OPTION_ENABLE_UDP"
 #endif
 
 static struct {

@@ -26,6 +26,7 @@
 #include "xcp.h"       // for CRC_XXX
 #include "xcpLite.h"   // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
 #include "xcpQueue.h"
+#include "xcp_cfg.h"   // for XCP_xxx
 #include "xcptl_cfg.h" // for XCPTL_xxx
 
 // Parameter checks
@@ -40,6 +41,11 @@
 #endif
 #if ((XCPTL_MAX_SEGMENT_SIZE & 0x07) != 0)
 #error "XCPTL_MAX_SEGMENT_SIZE should be aligned to 8!"
+#endif
+#ifdef XCPTL_ENABLE_MULTICAST
+#ifndef XCP_ENABLE_DAQ_CLOCK_MULTICAST
+#error "XCP_ENABLE_DAQ_CLOCK_MULTICAST must be defined for multicast support"
+#endif
 #endif
 
 #pragma pack(push, 1)
@@ -180,7 +186,7 @@ void XcpEthTlSendMulticastCrm(const uint8_t *packet, uint16_t packet_size, const
     // Build XCP CTO message (ctr+dlc+packet)
     tXcpCtoMessage p;
     p.dlc = (uint16_t)packet_size;
-    p.Ctr = 0;
+    p.ctr = 0;
     memcpy(p.packet, packet, packet_size);
     r = XcpEthTlSend((uint8_t *)&p, (uint16_t)(packet_size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE), addr, port);
     if (r == (-1)) { // Would block

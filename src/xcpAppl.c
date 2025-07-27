@@ -417,6 +417,7 @@ uint8_t ApplXcpCalFreeze(void) {
 uint8_t ApplXcpDaqResumeStore(uint16_t config_id) {
 
     DBG_PRINTF3("ApplXcpResumeStore config-id=%u\n", config_id);
+    (void)config_id;
     return CRC_CMD_IGNORED;
 }
 uint8_t ApplXcpDaqResumeClear(void) {

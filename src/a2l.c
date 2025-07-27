@@ -35,7 +35,7 @@ static FILE *gA2lFile = NULL;
 static bool gA2lFileFinalized = false;
 
 static char gA2lFilename[256];
-#if defined(XCP_ENABLE_CALSEG_LIST) && defined(XCP_ENABLE_DAQ_EVENT_LIST)
+#ifdef OPTION_CAL_PERSISTENCE
 static char gBinFilename[256];
 #endif
 
@@ -1395,7 +1395,7 @@ bool A2lFinalize(void) {
                     gA2lComponents, gA2lInstances, gA2lConversions);
 
         // Write the binary persistence file if calsegment list and DAQ event list are enabled
-#if defined(XCP_ENABLE_CALSEG_LIST) && defined(XCP_ENABLE_DAQ_EVENT_LIST)
+#ifdef OPTION_CAL_PERSISTENCE
         if (!gA2lWriteAlways)
             XcpBinWrite(gBinFilename);
 #endif
@@ -1426,6 +1426,8 @@ bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t
 
     assert(gA2lFile == NULL);
     assert(!gA2lFileFinalized);
+    assert(a2l_projectname != NULL);
+    assert(addr != NULL);
 
     // Check and ignore, if the XCP singleton has not been initialized and activated
     if (!XcpIsActivated()) {
@@ -1433,8 +1435,13 @@ bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t
         return true;
     }
 
-    assert(a2l_projectname != NULL);
-    assert(addr != NULL);
+    // If the binary persistence mode is not enabled, enable the write_always mode
+#ifndef OPTION_CAL_PERSISTENCE
+    if (!write_always) {
+        DBG_PRINT_WARNING("A2lInit: OPTION_CAL_PERSISTENCE not enabled, write_always is set to true!\n");
+        write_always = true;
+    }
+#endif // OPTION_CAL_PERSISTENCE
 
     // Save parameters and modes
     memcpy(&gA2lOptionBindAddr, addr, 4);
@@ -1463,7 +1470,7 @@ bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t
     DBG_PRINTF3("Start A2L generator, file=%s, write_always=%u, finalize_on_connect=%u, auto_groups=%u\n", gA2lFilename, gA2lWriteAlways, gA2lFinalizeOnConnect, gA2lAutoGroups);
 
 // Check if the binary file exists and load it
-#if defined(XCP_ENABLE_CALSEG_LIST) && defined(XCP_ENABLE_DAQ_EVENT_LIST)
+#ifdef OPTION_CAL_PERSISTENCE
     SNPRINTF(gBinFilename, sizeof(gBinFilename), "%s%s.bin", a2l_projectname, epk_suffix);
     if (!gA2lWriteAlways) {
         if (XcpBinLoad(gBinFilename, XcpGetEpk())) {

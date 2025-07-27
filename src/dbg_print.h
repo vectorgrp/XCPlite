@@ -79,11 +79,11 @@ extern uint8_t gDebugLevel;
 #define DBG_PRINTF4(s, ...)
 #define DBG_PRINTF5(s, ...)
 
-#define DBG_PRINT(s, ...)
-#define DBG_PRINT_ERROR(s, ...) // printf(s,__VA_ARGS__)
-#define DBG_PRINT_WARNING(s, ...)
-#define DBG_PRINT3(s, ...)
-#define DBG_PRINT4(s, ...)
-#define DBG_PRINT5(s, ...)
+#define DBG_PRINT(s)
+#define DBG_PRINT_ERROR(s) // printf(s,__VA_ARGS__)
+#define DBG_PRINT_WARNING(s)
+#define DBG_PRINT3(s)
+#define DBG_PRINT4(s)
+#define DBG_PRINT5(s)
 
 #endif
