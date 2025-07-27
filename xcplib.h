@@ -270,7 +270,6 @@ uint8_t XcpEventDynRelAt(tXcpEventId event, const uint8_t *dyn_base, const uint8
         if (daq_event_stackframe__ == XCP_UNDEFINED_EVENT_ID) {                                                                                                                    \
             daq_event_stackframe__ = XcpFindEvent(name, NULL);                                                                                                                     \
             assert(daq_event_stackframe__ != XCP_UNDEFINED_EVENT_ID);                                                                                                              \
-            \                                                                                                                                                                      \
         } else {                                                                                                                                                                   \
             XcpEventDynRelAt(daq_event_stackframe__, get_stack_frame_pointer(), get_stack_frame_pointer(), 0);                                                                     \
         }                                                                                                                                                                          \
