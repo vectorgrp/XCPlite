@@ -29,13 +29,19 @@
 #include "xcp_cfg.h"     // for XCP_xxx
 #include "xcptl_cfg.h"   // for XCPTL_xxx
 
+#ifdef _WIN
+#ifdef OPTION_ENABLE_GET_LOCAL_ADDR
+#include <stdlib.h> // for free, malloc in getLocalAddr
+#endif
+#endif
+
 //----------------------------------------------------------------------------------
 
 static FILE *gA2lFile = NULL;
 static bool gA2lFileFinalized = false;
 
 static char gA2lFilename[256];
-#if defined(XCP_ENABLE_CALSEG_LIST) && defined(XCP_ENABLE_DAQ_EVENT_LIST)
+#ifdef OPTION_CAL_PERSISTENCE
 static char gBinFilename[256];
 #endif
 
@@ -367,7 +373,7 @@ static double getTypeMin(tA2lTypeId type) {
         min = -32768;
         break;
     case A2L_TYPE_INT32:
-        min = -2147483647-1;
+        min = -2147483647 - 1;
         break;
     case A2L_TYPE_INT64:
         min = -1e12;
@@ -791,6 +797,7 @@ uint32_t A2lGetAddr_(const void *p) {
             if (addr_high != 0 && addr_high != 0xFFFFFFFF) {
                 DBG_PRINTF_ERROR("A2L XCP_ADDR_EXT_REL relative address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lAddrBase);
                 assert(0); // Ensure the relative address does not overflow the 32 Bit A2L address space
+                break;
             }
             return (uint32_t)(addr_diff & 0xFFFFFFFF);
         }
@@ -801,6 +808,7 @@ uint32_t A2lGetAddr_(const void *p) {
             if (addr_high != 0 && addr_high != 0xFFFFFFFFFFFF) {
                 DBG_PRINTF_ERROR("A2L XCP_ADDR_EXT_DYN relative address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lAddrBase);
                 assert(0); // Ensure the relative address does not overflow the 32 Bit A2L address space
+                break;
             }
             return (uint32_t)(((uint32_t)gA2lFixedEvent) << 16 | (addr_diff & 0xFFFF));
         }
@@ -1393,7 +1401,7 @@ bool A2lFinalize(void) {
                     gA2lComponents, gA2lInstances, gA2lConversions);
 
         // Write the binary persistence file if calsegment list and DAQ event list are enabled
-#if defined(XCP_ENABLE_CALSEG_LIST) && defined(XCP_ENABLE_DAQ_EVENT_LIST)
+#ifdef OPTION_CAL_PERSISTENCE
         if (!gA2lWriteAlways)
             XcpBinWrite(gBinFilename);
 #endif
@@ -1424,6 +1432,8 @@ bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t
 
     assert(gA2lFile == NULL);
     assert(!gA2lFileFinalized);
+    assert(a2l_projectname != NULL);
+    assert(addr != NULL);
 
     // Check and ignore, if the XCP singleton has not been initialized and activated
     if (!XcpIsActivated()) {
@@ -1431,8 +1441,13 @@ bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t
         return true;
     }
 
-    assert(a2l_projectname != NULL);
-    assert(addr != NULL);
+    // If the binary persistence mode is not enabled, enable the write_always mode
+#ifndef OPTION_CAL_PERSISTENCE
+    if (!write_always) {
+        DBG_PRINT_WARNING("A2lInit: OPTION_CAL_PERSISTENCE not enabled, write_always is set to true!\n");
+        write_always = true;
+    }
+#endif // OPTION_CAL_PERSISTENCE
 
     // Save parameters and modes
     memcpy(&gA2lOptionBindAddr, addr, 4);
@@ -1461,7 +1476,7 @@ bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t
     DBG_PRINTF3("Start A2L generator, file=%s, write_always=%u, finalize_on_connect=%u, auto_groups=%u\n", gA2lFilename, gA2lWriteAlways, gA2lFinalizeOnConnect, gA2lAutoGroups);
 
 // Check if the binary file exists and load it
-#if defined(XCP_ENABLE_CALSEG_LIST) && defined(XCP_ENABLE_DAQ_EVENT_LIST)
+#ifdef OPTION_CAL_PERSISTENCE
     SNPRINTF(gBinFilename, sizeof(gBinFilename), "%s%s.bin", a2l_projectname, epk_suffix);
     if (!gA2lWriteAlways) {
         if (XcpBinLoad(gBinFilename, XcpGetEpk())) {

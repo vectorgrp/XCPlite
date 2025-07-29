@@ -1210,14 +1210,12 @@ static uint8_t XcpCheckMemory(void) {
         return CRC_MEMORY_OVERFLOW;
     }
 
-#ifdef XCP_ENABLE_TEST_CHECKS
     assert(sizeof(tXcpDaqList) == 12);                  // Check size
     assert(sizeof(tXcpOdt) == 8);                       // Check size
     assert(((uint64_t)gXcp.DaqLists % 4) == 0);         // Check alignment
     assert(((uint64_t)&DaqListOdtTable[0] % 4) == 0);   // Check alignment
     assert(((uint64_t)&OdtEntryAddrTable[0] % 4) == 0); // Check alignment
     assert(((uint64_t)&OdtEntrySizeTable[0] % 4) == 0); // Check alignment
-#endif
 
     DBG_PRINTF5("[XcpCheckMemory] %u of %u Bytes used\n", s, XCP_DAQ_MEM_SIZE);
     return 0;
@@ -1288,6 +1286,8 @@ static bool XcpAdjustOdtSize(uint16_t daq, uint16_t odt, uint8_t n) {
         DBG_PRINTF_ERROR("DAQ %u, ODT %u overflow, max ODT = %u!\n", daq, odt - DaqListFirstOdt(daq), max_size);
         return false;
     }
+#else
+    (void)daq;
 #endif
     return true;
 }
@@ -1466,7 +1466,6 @@ static uint8_t XcpSetDaqListMode(uint16_t daq, uint16_t event, uint8_t mode, uin
 }
 
 // Check if DAQ lists are fully and consistently initialized
-#ifdef XCP_ENABLE_TEST_CHECKS
 bool XcpCheckPreparedDaqLists(void) {
 
     for (uint16_t daq = 0; daq < gXcp.DaqLists->daq_count; daq++) {
@@ -1495,28 +1494,22 @@ bool XcpCheckPreparedDaqLists(void) {
 
     return true;
 }
-#endif
 
 // Start DAQ
 static void XcpStartDaq(void) {
 
     // If not already running
-    if (!isDaqRunning()) {
+    if (isDaqRunning())
+        return;
 
-        gXcp.DaqStartClock64 = ApplXcpGetClock64();
-        gXcp.DaqOverflowCount = 0;
+    gXcp.DaqStartClock64 = ApplXcpGetClock64();
+    gXcp.DaqOverflowCount = 0;
 
 #ifdef DBG_LEVEL
-        if (DBG_LEVEL >= 4) {
-            char ts[64];
-            clockGetString(ts, sizeof(ts), gXcp.DaqStartClock64);
-            DBG_PRINTF3("DAQ processing start at t=%s\n", ts);
-        }
-#endif
-    }
-#ifdef XCP_ENABLE_TEST_CHECKS
-    else {
-        assert(0);
+    if (DBG_LEVEL >= 4) {
+        char ts[64];
+        clockGetString(ts, sizeof(ts), gXcp.DaqStartClock64);
+        DBG_PRINTF3("DAQ processing start at t=%s\n", ts);
     }
 #endif
 
@@ -1682,9 +1675,7 @@ static void XcpTriggerDaqList(tQueueHandle queueHandle, uint16_t daq, const uint
 #endif
             while (e <= el) {
                 uint8_t n = *size_ptr++;
-#ifdef XCP_ENABLE_TEST_CHECKS
                 assert(n != 0);
-#endif
 #ifdef XCP_ENABLE_DAQ_ADDREXT
                 const uint8_t *src = (const uint8_t *)&base[*addr_ext_ptr++][*addr_ptr++];
 #else
@@ -1774,9 +1765,7 @@ static void XcpTriggerDaqEvent(tQueueHandle queueHandle, tXcpEventId event, cons
         return; // Event out of range
     daq = DaqListFirst(event);
     while (daq != XCP_UNDEFINED_DAQ_LIST) {
-#ifdef XCP_ENABLE_TEST_CHECKS
         assert(daq < gXcp.DaqLists->daq_count);
-#endif
         if (DaqListState(daq) & DAQ_STATE_RUNNING) { // DAQ list active
 
             // Build base pointer for this DAQ list
@@ -2547,7 +2536,8 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0104
             case 3: /* prepare for start selected */
 #ifdef XCP_ENABLE_TEST_CHECKS
-                assert(XcpCheckPreparedDaqLists());
+                if (!XcpCheckPreparedDaqLists())
+                    error(CRC_DAQ_CONFIG);
 #endif
                 if (!ApplXcpPrepareDaq())
                     error(CRC_RESOURCE_TEMPORARY_NOT_ACCESSIBLE);
@@ -2823,10 +2813,7 @@ void XcpSendEvent(uint8_t evc, const uint8_t *d, uint8_t l) {
     if (!isConnected())
         return;
 
-#ifdef XCP_ENABLE_TEST_CHECKS
     assert(l < XCPTL_MAX_CTO_SIZE - 2);
-#endif
-
     if (l >= XCPTL_MAX_CTO_SIZE - 2)
         return;
 
@@ -2971,8 +2958,9 @@ void XcpStart(tQueueHandle queueHandle, bool resumeMode) {
         DBG_PRINT("INTERLEAVED,");
 #endif
         DBG_PRINT(")\n");
-#endif
     }
+#endif // DBG_LEVEL
+
     gXcp.Queue = queueHandle;
 
 #ifdef XCP_ENABLE_PROTOCOL_LAYER_ETH

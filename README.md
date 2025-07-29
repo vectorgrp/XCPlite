@@ -62,9 +62,13 @@ XCPprof is a commercial product in Vectors AUTOSAR MICROSAR and CANbedded produc
 
 ### Documentation
 
-A description of the XCP instrumentation API is available in the doc folder.  (work in progress)
+A description of the XCP instrumentation API is available in the doc folder.  
 
 ## XCPlite Examples  
+
+Examples are found in the examples folder.  
+There is a CANape project for each example in examples/xxxx/CANape. To load a new project into CANape, select load project and navigate to the CANape.ini file in the examples CANape folder.  
+All CANape project examples are configured to upload the A2L file via XCP. The IP address of the XCP server is stored in the A2L file uploaded last time. If CANape can not connect, check that the correct IP address is configured in device manager - transport layer settings.  
 
 hello_xcp:  
   Getting started with a simple demo in C, with minimum code and features.  

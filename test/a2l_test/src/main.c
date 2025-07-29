@@ -276,7 +276,7 @@ int main() {
     A2lCreateParameter(static_uint8, "Global memory parameter", "unit", 0, 255);
     A2lCreateParameter(static_uint16, "Global memory parameter", "unit", 0, 65535);
     A2lCreateParameter(static_uint32, "Global memory parameter", "unit", 0, 4294967295);
-    A2lCreateParameter(static_uint64, "Global memory parameter", "unit", 0, 18446744073709551615ULL);
+    A2lCreateParameter(static_uint64, "Global memory parameter", "unit", 0, 1E15);
     A2lCreateParameter(static_int8, "Global memory parameter", "unit", -128, 127);
     A2lCreateParameter(static_int16, "Global memory parameter", "unit", -32768, 32767);
     A2lCreateParameter(static_int32, "Global memory parameter", "unit", -2147483648, 2147483647);
@@ -296,11 +296,11 @@ int main() {
     A2lCreateParameter(static_params.uint8, "Global memory parameter struct field", "unit", 0, 255);
     A2lCreateParameter(static_params.uint16, "Global memory parameter struct field", "unit", 0, 65535);
     A2lCreateParameter(static_params.uint32, "Global memory parameter struct field", "unit", 0, 4294967295);
-    A2lCreateParameter(static_params.uint_64, "Global memory parameter struct field", "unit", 0, 18446744073709551615ULL);
+    A2lCreateParameter(static_params.uint_64, "Global memory parameter struct field", "unit", 0, 1e15);
     A2lCreateParameter(static_params.int8, "Global memory parameter struct field", "unit", -128, 127);
     A2lCreateParameter(static_params.int16, "Global memory parameter struct field", "unit", -32768, 32767);
     A2lCreateParameter(static_params.int32, "Global memory parameter struct field", "unit", -2147483648, 2147483647);
-    A2lCreateParameter(static_params.int_64, "Global memory parameter struct field", "unit", -9223372036854775807LL, 9223372036854775807LL);
+    A2lCreateParameter(static_params.int_64, "Global memory parameter struct field", "unit", -1e14, 1e14);
     A2lCreateParameter(static_params.float4, "Global memory parameter struct field", "unit", -1000.0, 1000.0);
     A2lCreateParameter(static_params.double8, "Global memory parameter struct field", "unit", -1000.0, 1000.0);
     A2lCreateCurve(static_params.curve1, 8, "Global memory parameter struct field", "unit", -20, 20);
@@ -325,11 +325,11 @@ int main() {
     A2lTypedefParameterComponent(uint8, params_t, "Parameter typedef field", "unit", 0, 255);
     A2lTypedefParameterComponent(uint16, params_t, "Parameter typedef field", "unit", 0, 65535);
     A2lTypedefParameterComponent(uint32, params_t, "Parameter typedef field", "unit", 0, 4294967295);
-    A2lTypedefParameterComponent(uint_64, params_t, "Parameter typedef field", "unit", 0, 18446744073709551615ULL);
+    A2lTypedefParameterComponent(uint_64, params_t, "Parameter typedef field", "unit", 0, 1e15);
     A2lTypedefParameterComponent(int8, params_t, "Parameter typedef field", "unit", -128, 127);
     A2lTypedefParameterComponent(int16, params_t, "Parameter typedef field", "unit", -32768, 32767);
     A2lTypedefParameterComponent(int32, params_t, "Parameter typedef field", "unit", -2147483648, 2147483647);
-    A2lTypedefParameterComponent(int_64, params_t, "Parameter typedef field", "unit", -9223372036854775807LL, 9223372036854775807LL);
+    A2lTypedefParameterComponent(int_64, params_t, "Parameter typedef field", "unit", -1e19, 1e19);
     A2lTypedefParameterComponent(float4, params_t, "Parameter typedef field", "unit", -1000.0, 1000.0);
     A2lTypedefParameterComponent(double8, params_t, "Parameter typedef field", "unit", -1000.0, 1000.0);
     A2lTypedefCurveComponent(curve1, params_t, 8, "Parameter typedef field", "unit", -20, 20);
@@ -353,11 +353,11 @@ int main() {
     A2lCreateParameter(params.uint8, "Parameter in calibration segment", "unit", 0, 255);
     A2lCreateParameter(params.uint16, "Parameter in calibration segment", "unit", 0, 65535);
     A2lCreateParameter(params.uint32, "Parameter in calibration segment", "unit", 0, 4294967295);
-    A2lCreateParameter(params.uint_64, "Parameter in calibration segment", "unit", 0, 18446744073709551615ULL);
+    A2lCreateParameter(params.uint_64, "Parameter in calibration segment", "unit", 0, 1e19);
     A2lCreateParameter(params.int8, "Parameter in calibration segment", "unit", -128, 127);
     A2lCreateParameter(params.int16, "Parameter in calibration segment", "unit", -32768, 32767);
     A2lCreateParameter(params.int32, "Parameter in calibration segment", "unit", -2147483648, 2147483647);
-    A2lCreateParameter(params.int_64, "Parameter in calibration segment", "unit", -9223372036854775807LL, 9223372036854775807LL);
+    A2lCreateParameter(params.int_64, "Parameter in calibration segment", "unit", -1e19, 1e19);
     A2lCreateParameter(params.float4, "Parameter in calibration segment", "unit", -1000.0, 1000.0);
     A2lCreateParameter(params.double8, "Parameter in calibration segment", "unit", -1000.0, 1000.0);
     A2lCreateCurve(params.curve1, 8, "Parameter in calibration segment", "unit", -20, 20);
@@ -383,11 +383,11 @@ int main() {
     A2lCreateLinearConversion(linear_conversion, "Temperature as uint8*2-50", "°C", 2.0, -50.0);
     A2lCreatePhysMeasurement(uint16, "uint16_t value with linear conversion", linear_conversion, -50.0, +300.0);
     A2lCreatePhysMeasurement(uint32, "uint32_t", "unit", 0, 4294967295.0);
-    A2lCreatePhysMeasurement(uint_64, "uint64_t", "unit", 0, 18446744073709551615ULL);
+    A2lCreatePhysMeasurement(uint_64, "uint64_t", "unit", 0, 1e14);
     A2lCreatePhysMeasurement(int8, "int8_t", "unit", -128.0, 127.0);
     A2lCreatePhysMeasurement(int16, "int16_t", "unit", -32768.0, 32767.0);
     A2lCreatePhysMeasurement(int32, "int32_t", "unit", -2147483648.0, 2147483647.0);
-    A2lCreatePhysMeasurement(int_64, "int64_t", "unit", -9223372036854775807.0, 9223372036854775807.0);
+    A2lCreatePhysMeasurement(int_64, "int64_t", "unit", -1e14, 1e14);
     A2lCreatePhysMeasurement(float4, "float4", "unit", -1000.0, 1000.0);
     A2lCreatePhysMeasurement(double8, "double8", "unit", -1000.0, 1000.0);
 
