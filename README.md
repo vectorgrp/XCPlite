@@ -70,10 +70,27 @@ Examples are found in the examples folder.
 There is a CANape project for each example in examples/xxxx/CANape. To load a new project into CANape, select load project and navigate to the CANape.ini file in the examples CANape folder.  
 All CANape project examples are configured to upload the A2L file via XCP. The IP address of the XCP server is stored in the A2L file uploaded last time. If CANape can not connect, check that the correct IP address is configured in device manager - transport layer settings.  
 
+The getting started example is hello_xcp.
+
 hello_xcp:  
-  Getting started with a simple demo in C, with minimum code and features.  
-  Demonstrates basic code instrumentation to start the XCP server and how to create a calibration variable segment.  
-  Defines an event for measurement of integer variables on stack and in global memory.  
+  Demonstrates how to start the XCP on Ethernet server and use the runtime A2L generator.  
+  Shows how to create a calibration parameter segment structure, register the parameters in the segment and access them safely.  
+  Defines events for measurement of global and local variables.  
+  Demonstrates the different addressing modes for variables and parameters.  
+  Defines a function, registers local variables and function parameters and creates and triggers a measurement event in the function.  
+
+The other examples cover more advanced topics:  
+
+- Create a C++ application, use the C++ RAII calibration segment wrapper.  
+- Safely share calibration parameters among different threads.  
+- Measure instances of complex types, such a structs, arrays, nested structs and arrays of structs by using typedefs.  
+- Create complex parameters, like maps, curves and lookup tables with fixed or shared axis.  
+- Measure thread local instances of variables, create event instances.  
+- Create physical conversion rules and enumerations.  
+- Create additional groups.  
+- Use consistent atomic calibration.  
+- Make calibration changes persistent (freeze).  
+- Use the xcplib API to create context and span, measure durations.  
 
 c_demo:  
   Shows more complex data objects (structs, arrays), calibration objects (axis, maps and curves).  
@@ -97,13 +114,13 @@ cpp_demo:
   Demonstrates measurement of member variables and stack variables in class instance member functions.  
   Shows how to create a class with calibration parameters as member variables.  
 
-![CANape Sreenshot](examples/cpp_demo/cpp_demo.png)
+![CANape Screenshot](examples/cpp_demo/cpp_demo.png)
 
 ### XCPlite Build
 
 Build the library and all examples:  
 
-'''
+```
 
 cmake -DCMAKE_BUILD_TYPE=Debug -S . -B build  
 make --directory ./build
@@ -114,7 +131,7 @@ make --directory ./build
 ./build/multi_thread_demo.out
 ./build/struct_demo.out
 
-'''
+```
 
 ## Appendix
 
