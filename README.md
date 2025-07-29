@@ -97,7 +97,7 @@ cpp_demo:
   Demonstrates measurement of member variables and stack variables in class instance member functions.  
   Shows how to create a class with calibration parameters as member variables.  
 
-![CANape Sreenshot](examples/cpp_demo/cpp_demo.png)
+![CANape Screenshot](examples/cpp_demo/cpp_demo.png)
 
 ### XCPlite Build
 

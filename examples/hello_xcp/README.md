@@ -26,7 +26,7 @@ More advanced topics are covered by the other examples:
 
 ## CANape Screenshot
 
-![CANape Sreenshot](hello_xcp.png)
+![CANape Screenshot](CANape.png)
 
 ## A2L File
 
