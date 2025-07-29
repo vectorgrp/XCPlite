@@ -21,7 +21,7 @@
 #define OPTION_LOG_LEVEL 3
 
 //-----------------------------------------------------------------------------------------------------
-// Demo calibration params
+// Demo calibration parameters
 
 // Calibration parameters structure
 typedef struct params {
@@ -34,9 +34,9 @@ typedef struct params {
 const parameters_t params = {.counter_max = 1000, .delay_us = 1000, .acceleration = 0.01f};
 
 // A global calibration segment handle for the calibration parameters
-// It will be created in the application and has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
-// Using the calibration segment assures safe (thread safe against XCP modifications), lock-free and consistent access to the calibration params in the parameters_t struct
-// It supports XCP/ECU independent page switching, checksum calculation and reinitialization (copy reference page to working page)
+// A calibration segment has a working page ("RAM") and a reference page ("FLASH"), it is described by a MEMORY_SEGMENT in the A2L file
+// Using the calibration segment to access parameters assures safe (thread safe against XCP modifications), wait-free and consistent access
+// It supports RAM/FLASH page switching, reinitialization (copy FLASH to RAM page) and persistence (save RAM page to BIN file)
 tXcpCalSegIndex calseg = XCP_UNDEFINED_CALSEG;
 
 //-----------------------------------------------------------------------------------------------------
@@ -52,23 +52,30 @@ float calc_speed(float current_speed) {
 
     float new_speed = 0.0f;
 
-    // XCP: Create a measurement event and local measurement variables for current_speed and new_speed
-    DaqCreateEvent(speed);
-    A2lSetStackAddrMode(speed); // Set stack relative addressing mode with fixed event speed
-    A2lCreatePhysMeasurementInstance("calc_speed", current_speed, "Parameter current_speed in function calculate_speed", "km/h", 0, 250.0);
-    A2lCreatePhysMeasurementInstance("calc_speed", new_speed, "Loop counter, local measurement variable on stack", "km/h", 0, 250.0);
+    // XCP: Create a measurement event and once register local measurement variables for current_speed and new_speed
+    DaqCreateEvent(calc_speed);
+    A2lOnce() {
+        A2lSetStackAddrMode(calc_speed); // Set stack relative addressing mode with fixed event speed
+        A2lCreatePhysMeasurementInstance("calc_speed", current_speed, "Parameter current_speed in function calculate_speed", "km/h", 0, 250.0);
+        A2lCreatePhysMeasurementInstance("calc_speed", new_speed, "Loop counter, local measurement variable on stack", "km/h", 0, 250.0);
+    }
 
     // XCP: Lock access to calibration parameters
     parameters_t *params = (parameters_t *)XcpLockCalSeg(calseg);
 
     // Calculate new speed based on acceleration and sample rate
-    new_speed = current_speed + (params->acceleration * (params->delay_us / 1000000.0f) / 1000.0f); // km/h
+    new_speed = current_speed + params->acceleration * params->delay_us * 3.6 / 1000000.0; // km/h
+    if (new_speed < 0.0f) {
+        new_speed = 0.0f;
+    } else if (new_speed > 250.0f) {
+        new_speed = 250.0f; // Limit speed to 250 km/h
+    }
 
     // XCP: Unlock the calibration segment
     XcpUnlockCalSeg(calseg);
 
-    // XCP: Trigger the measurement "speed"
-    DaqEvent(speed);
+    // XCP: Trigger the measurement "calc_speed"
+    DaqEvent(calc_speed);
 
     return new_speed;
 }
@@ -103,7 +110,7 @@ int main(void) {
     // XCP: Create a calibration segment named 'Parameters' for the calibration parameter struct instance 'params' as reference page
     calseg = XcpCreateCalSeg("Parameters", &params, sizeof(params));
 
-    // XCP: Register calibration params in the calibration segment
+    // XCP: Register the calibration parameters in the calibration segment
     A2lSetSegmentAddrMode(calseg, params);
     A2lCreateParameter(params.counter_max, "Maximum counter value", "", 0, 2000);
     A2lCreateParameter(params.delay_us, "Mainloop delay time in us", "us", 0, 999999);
@@ -113,7 +120,6 @@ int main(void) {
     DaqCreateEvent(mainloop);
 
     // XCP: Register global measurement variables (temperature, speed)
-    // Set absolute addressing mode with default event mainloop
     A2lSetAbsoluteAddrMode(mainloop);
     A2lCreateLinearConversion(temperature_conversion, "Temperature in °C from unsigned byte", "°C", 1.0, -55.0);
     A2lCreatePhysMeasurement(temperature, "Motor temperature in °C", temperature_conversion, -55.0, 200.0);
@@ -128,16 +134,17 @@ int main(void) {
     printf("Start main loop...\n");
     for (;;) {
         // XCP: Lock the calibration parameter segment for consistent and safe access
-        // Calibration segment locking is completely lock-free and wait-free (no mutexes, system calls or CAS operations )
-        // It returns a pointer to the active page (working or reference) of the calibration segment
+        // Calibration segment locking is wait-free, locks may be recursive
+        // Returns a pointer to the active page (working or reference) of the calibration segment
         parameters_t *params = (parameters_t *)XcpLockCalSeg(calseg);
 
         uint32_t delay_us = params->delay_us; // Get the delay parameter in microseconds
 
-        // Local variable for measurement
+        // Local variables
         loop_counter++;
         if (loop_counter > params->counter_max) {
             loop_counter = 0;
+            A2lFinalize(); // @@@@ Test: Finalize the A2L file generation manually, otherwise it would be written when the client tool connects
         }
 
         // Global measurement variables
@@ -147,13 +154,11 @@ int main(void) {
         // XCP: Unlock the calibration segment
         XcpUnlockCalSeg(calseg);
 
-        // XCP: Trigger measurement events
+        // XCP: Trigger a measurement event
         DaqEvent(mainloop);
 
-        // Sleep for the specified delay parameter in microseconds, don't sleep with the XCP lock held to give the XCP client a chance to calibrate the params
+        // Sleep for the specified delay parameter in microseconds, don't sleep with the XCP lock held to give the XCP client a chance to update params
         sleepNs(delay_us * 1000);
-
-        A2lFinalize(); // Optional: Finalize the A2L file generation early, otherwise it would be written when the client tool connects
 
     } // for (;;)
 
