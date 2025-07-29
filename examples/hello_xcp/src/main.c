@@ -31,7 +31,7 @@ typedef struct params {
 } parameters_t;
 
 // Default values (reference page, "FLASH") for the calibration parameters
-const parameters_t params = {.counter_max = 1000, .delay_us = 1000, .acceleration = 0.0f};
+const parameters_t params = {.counter_max = 1000, .delay_us = 1000, .acceleration = 0.01f};
 
 // A global calibration segment handle for the calibration parameters
 // It will be created in the application and has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
@@ -124,8 +124,6 @@ int main(void) {
     A2lSetStackAddrMode(mainloop); // Set stack relative addressing mode with fixed event mainloop
     A2lCreateMeasurement(loop_counter, "Loop counter, local measurement variable on stack");
 
-    A2lFinalize(); // Optional: Finalize the A2L file generation early, otherwise it would be written when the client tool connects
-
     // Mainloop
     printf("Start main loop...\n");
     for (;;) {
@@ -154,6 +152,8 @@ int main(void) {
 
         // Sleep for the specified delay parameter in microseconds, don't sleep with the XCP lock held to give the XCP client a chance to calibrate the params
         sleepNs(delay_us * 1000);
+
+        A2lFinalize(); // Optional: Finalize the A2L file generation early, otherwise it would be written when the client tool connects
 
     } // for (;;)
 
