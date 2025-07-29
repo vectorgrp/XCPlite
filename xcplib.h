@@ -103,11 +103,13 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
 /// @return the name of the calibration segment or NULL if the index is invalid.
 const char *XcpGetCalSegName(tXcpCalSegIndex calseg);
 
-/// Lock a calibration segment and return a pointer to the ECU page
+/// Lock a calibration segment.
 /// @param calseg Calibration segment index.
 /// @return Pointer to the active page of the calibration segment (working page or reference page, controlled by the XCP client tool).
 /// The pointer is valid until the calibration segment is unlocked.
-/// The data can be safely access, while the look is held. There is no contention with the XCP client tool and with other threads acqiring the lock.
+/// The data can be safely accessed while the lock is held.
+/// There is no contention with the XCP client tool and with other threads acquiring the lock.
+/// Acquiring the lock is wait-free, locks may be recursive
 uint8_t const *XcpLockCalSeg(tXcpCalSegIndex calseg);
 
 /// Unlock a calibration segment

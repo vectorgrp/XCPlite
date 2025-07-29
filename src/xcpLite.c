@@ -493,7 +493,7 @@ uint8_t const *XcpLockCalSeg(tXcpCalSegIndex calseg) {
 
     // Update
     // Increment the lock count
-    // Check for updates if we aquired the first lock
+    // Check for updates if we acquired the first lock
     uint8_t lock_count = atomic_load_explicit(&c->lock_count, memory_order_acquire);
     while (!atomic_compare_exchange_weak_explicit(&c->lock_count, &lock_count, lock_count + 1, memory_order_acquire, memory_order_relaxed))
         ;
