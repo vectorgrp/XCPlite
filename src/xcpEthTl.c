@@ -44,7 +44,7 @@
 #endif
 #ifdef XCPTL_ENABLE_MULTICAST
 #ifndef XCP_ENABLE_DAQ_CLOCK_MULTICAST
-#error "XCP_ENABLE_DAQ_CLOCK_MULTICAST must be defined for multicast support"
+#error "XCP_ENABLE_DAQ_CLOCK_MULTICAST must be defined"
 #endif
 #endif
 

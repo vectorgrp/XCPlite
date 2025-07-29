@@ -63,7 +63,7 @@
 #define OPTION_ENABLE_UDP
 #define OPTION_MTU 8000                     // Ethernet packet size (MTU) - Jumbo frames supported
 #define OPTION_SERVER_FORCEFULL_TERMINATION // Don't wait for the rx and tx thread to finish, just terminate them
-  
+
 // CAL
 #define OPTION_CAL_PERSISTENCE // Enable calibration segment persistence, BIN file is used to store calibration segments, A2L maybe generated only once per build
 
@@ -75,7 +75,5 @@
 #define OPTION_ENABLE_A2L_UPLOAD // Enable A2L upload via XCP
 
 // Enable socketGetLocalAddr and XcpEthTlGetInfo
-// Used for convenience to get a correct ip address in A2L, when bound to ANY 0.0.0.0
-#ifndef _WIN // @@@@ TODO: Crashes seen on Windows
+// Used for convenience to get an existing ip address in A2L, when bound to ANY 0.0.0.0
 #define OPTION_ENABLE_GET_LOCAL_ADDR
-#endif

@@ -80,11 +80,10 @@ add_library(xcplib ${xcplib_SOURCES})
 target_include_directories(xcplib PUBLIC "${PROJECT_ROOT}/" "${PROJECT_ROOT}/src" )
 target_compile_options(xcplib
     PRIVATE
-        -Wall
-        -Wextra
-        -Wconversion
-        #-Werror
         -pedantic
+        -Wall
+        #-Wextra
+        #-Wconversion
         #-Wshadow
 )
 
