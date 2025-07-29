@@ -26,13 +26,13 @@ More advanced topics are covered by the other examples:
 
 ## CANape Screenshot
 
-![CANape Sreenshot](examples/cpp_demo/cpp_demo.png)
+![CANape Sreenshot](hello_xcp.png)
 
 ## A2L File
 
 This is an excerpt of the generated A2L file:  
 
-'''
+```
 
 /* Segment relative addressing mode: calseg=Parameters */
 /begin CHARACTERISTIC params.counter_max "Maximum counter value" VALUE 0x80010000 U16 0 NO_COMPU_METHOD 0 2000 /end CHARACTERISTIC
@@ -50,4 +50,4 @@ This is an excerpt of the generated A2L file:
 /begin MEASUREMENT calc_speed.current_speed "Parameter current_speed in function calculate_speed" FLOAT32_IEEE NO_COMPU_METHOD 0 0 0 250 ECU_ADDRESS 0xFFFFFFFC ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "km/h" /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin MEASUREMENT calc_speed.new_speed "Loop counter, local measurement variable on stack" FLOAT32_IEEE NO_COMPU_METHOD 0 0 0 250 ECU_ADDRESS 0xFFFFFFF8 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "km/h" /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 
-'''
+```

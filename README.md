@@ -103,7 +103,7 @@ cpp_demo:
 
 Build the library and all examples:  
 
-'''
+```
 
 cmake -DCMAKE_BUILD_TYPE=Debug -S . -B build  
 make --directory ./build
@@ -114,7 +114,7 @@ make --directory ./build
 ./build/multi_thread_demo.out
 ./build/struct_demo.out
 
-'''
+```
 
 ## Appendix
 
