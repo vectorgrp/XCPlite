@@ -64,12 +64,21 @@
 #define OPTION_MTU 8000                     // Ethernet packet size (MTU) - Jumbo frames supported
 #define OPTION_SERVER_FORCEFULL_TERMINATION // Don't wait for the rx and tx thread to finish, just terminate them
 
+#ifndef XCPLIB_FOR_RUST
+
 // CAL
 #define OPTION_CAL_PERSISTENCE // Enable calibration segment persistence, BIN file is used to store calibration segments, A2L maybe generated only once per build
 
 // DAQ
 #define OPTION_DAQ_MEM_SIZE (1000 * 6) // Memory bytes used for XCP DAQ tables - max 6 bytes per measurement signal needed
 #define OPTION_DAQ_EVENT_COUNT 32      // Maximum number of DAQ events (integer value, must be even)
+
+#else
+
+#define OPTION_DAQ_MEM_SIZE (10000 * 6) // Memory bytes used for XCP DAQ tables - max 6 bytes per measurement signal needed
+#define OPTION_DAQ_EVENT_COUNT 256      // Maximum number of DAQ events (integer value, must be even)
+
+#endif
 
 // A2L
 #define OPTION_ENABLE_A2L_UPLOAD // Enable A2L upload via XCP
