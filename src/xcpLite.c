@@ -474,7 +474,6 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
 }
 
 // Lock a calibration segment and return a pointer to the ECU page
-// Single threaded recursive !
 uint8_t const *XcpLockCalSeg(tXcpCalSegIndex calseg) {
 
     assert(isInitialized());
@@ -493,11 +492,7 @@ uint8_t const *XcpLockCalSeg(tXcpCalSegIndex calseg) {
 
     // Update
     // Increment the lock count
-    // Check for updates if we acquired the first lock
-    uint8_t lock_count = atomic_load_explicit(&c->lock_count, memory_order_acquire);
-    while (!atomic_compare_exchange_weak_explicit(&c->lock_count, &lock_count, lock_count + 1, memory_order_acquire, memory_order_relaxed))
-        ;
-    if (lock_count == 0) {
+    if (0 == atomic_fetch_add_explicit(&c->lock_count, 1, memory_order_relaxed)) {
 
         // Update if there is a new page version, free the old page
         uint8_t *ecu_page_next = (uint8_t *)atomic_load_explicit(&c->ecu_page_next, memory_order_acquire);
@@ -522,15 +517,16 @@ uint8_t const *XcpLockCalSeg(tXcpCalSegIndex calseg) {
 // Unlock a calibration segment
 void XcpUnlockCalSeg(tXcpCalSegIndex calseg) {
 
-    if (!isActivated()) {
+    if (!isActivated())
+        return;
 
-        if (calseg >= gXcp.CalSegList.count) {
-            DBG_PRINT_ERROR("XCP not initialized or invalid calseg\n");
-            return; // Uninitialized or invalid calseg
-        }
-
-        atomic_fetch_sub_explicit(&gXcp.CalSegList.calseg[calseg].lock_count, 1, memory_order_release); // Decrement the lock count
+    if (calseg >= gXcp.CalSegList.count) {
+        DBG_PRINT_ERROR("XCP not initialized or invalid calseg\n");
+        return; // Uninitialized or invalid calseg
     }
+
+    tXcpCalSeg *c = &gXcp.CalSegList.calseg[calseg];
+    atomic_fetch_sub_explicit(&c->lock_count, 1, memory_order_relaxed); // Decrement the lock count
 }
 
 // XCP client memory read
