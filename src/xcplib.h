@@ -62,8 +62,6 @@ void XcpEthServerGetInfo(bool *out_is_tcp, uint8_t *out_mac, uint8_t *out_addres
 typedef uint16_t tXcpCalSegIndex;
 #define XCP_UNDEFINED_CALSEG 0xFFFF
 
-#define XCP_MAX_CALSEG_NAME 15 // adjust in xcp_cfg.h
-
 /// Create a calibration segment and add it to the list of calibration segments.
 /// Create a named calibration segment and add it to the list of calibration segments.
 /// This calibration segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
@@ -112,7 +110,6 @@ uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg);
 
 #define XCP_UNDEFINED_EVENT_ID 0xFFFF
 typedef uint16_t tXcpEventId;
-#define XCP_MAX_EVENT_NAME 15 // defined in xcp_cfg.h
 
 /// Add a measurement event to the event list, returns the event id  (0..XCP_MAX_EVENT_COUNT-1)
 /// If the event name already exists, returns the existing event event number
