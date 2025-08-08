@@ -1,43 +1,19 @@
-// Header file for the XCPlite library xcplib application programming interface
-// Used for Rust bindgen to generate FFI bindings for xcplib
-// Supporting functions and macros for A2L generation in src/a2l.h
-
-/// @mainpage XCPlite API Reference
-///
-/// @section intro_sec Introduction
-///
-/// XCPlite is a lightweight C implementation of the ASAM XCP V1.4 protocol for measurement and calibration.
-/// This documentation covers the public API for the XCPlite library xcplib.
-///
-/// @section api_overview API Overview
-///
-/// The XCPlite API is divided into:
-///
-/// - **XCP Ethernet Server Interface**: Initialize the XCP-on-Ethernet server
-/// - **Calibration Segments**: Manage calibration parameter storage and access
-/// - **Events and DAQ**: Create and trigger data acquisition events
-/// - **A2L Generation**: Automatic generation of ASAM A2L description files with metadata and symbol type descriptions
-///
-/// @section getting_started Getting Started
-///
-/// 1. Initialize the XCP library with XcpInit()
-/// 2. Set up an Ethernet server with XcpEthServerInit()
-/// 3.1. Create calibration segments for structs with calibration parameter
-/// 3.2. Access calibration parameters through looking and unlocking the calibration segment
-/// 4.1. Create data acquisition events
-/// 4.2. Create measurement instrumentation points to trigger data acquisition events
-/// 5. Generate A2L metadata and type descriptions using the A2L macros in src/a2l.h
-///
-/// Refer to the example in `src/a2l_example.c` for usage details.
-///
-/// @section files Key Header Files
-///
-/// - `xcplib.h` - API of the XCP C library xcplib
-/// - `xcplib.hpp` - API of the XCP C library C++ extension
-/// - `src/a2l.h` - A2L generation macros and functions for C and C++
-///
-
 #pragma once
+#define __XCPLIB_H__
+
+/*----------------------------------------------------------------------------
+| File:
+|   xcplib.h
+|
+| Description:
+|   C header file for the XCPlite library xcplib application programming interface
+|   Used for Rust bindgen to generate FFI bindings for xcplib
+|   Supporting functions and macros for A2L generation are in a2l.h
+|
+| Copyright (c) Vector Informatik GmbH. All rights reserved.
+| See LICENSE file in the project root for details.
+|
+ ----------------------------------------------------------------------------*/
 
 #include <stdbool.h>
 #include <stdint.h>
