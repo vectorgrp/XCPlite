@@ -506,8 +506,7 @@ uint8_t const *XcpLockCalSeg(tXcpCalSegIndex calseg) {
     }
 
     // Return the active ECU page (RAM or FLASH)
-    uint8_t ecu_access = (uint8_t)atomic_load_explicit(&c->ecu_access, memory_order_relaxed);
-    if (ecu_access != XCP_CALPAGE_WORKING_PAGE) {
+    if (atomic_load_explicit(&c->ecu_access, memory_order_relaxed) != XCP_CALPAGE_WORKING_PAGE) {
         return c->default_page;
     } else {
         return c->ecu_page;
@@ -525,8 +524,7 @@ void XcpUnlockCalSeg(tXcpCalSegIndex calseg) {
         return; // Uninitialized or invalid calseg
     }
 
-    tXcpCalSeg *c = &gXcp.CalSegList.calseg[calseg];
-    atomic_fetch_sub_explicit(&c->lock_count, 1, memory_order_relaxed); // Decrement the lock count
+    atomic_fetch_sub_explicit(&gXcp.CalSegList.calseg[calseg].lock_count, 1, memory_order_relaxed); // Decrement the lock count
 }
 
 // XCP client memory read
@@ -2279,14 +2277,18 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
 #endif // XCP_ENABLE_COPY_CAL_PAGE
 
 #ifdef XCP_ENABLE_CALSEG_LIST
-#ifdef XCP_ENABLE_FREEZE_CAL_PAGE
         case CC_GET_PAG_PROCESSOR_INFO: {
             check_len(CRO_GET_PAG_PROCESSOR_INFO_LEN);
             CRM_LEN = CRM_GET_PAG_PROCESSOR_INFO_LEN;
             CRM_GET_PAG_PROCESSOR_INFO_MAX_SEGMENTS = XcpGetCalSegCount();
+#ifdef XCP_ENABLE_FREEZE_CAL_PAGE
             CRM_GET_PAG_PROCESSOR_INFO_PROPERTIES = PAG_PROPERTY_FREEZE; // Freeze mode supported
+#else
+            CRM_GET_PAG_PROCESSOR_INFO_PROPERTIES = 0;
+#endif
         } break;
 
+#ifdef XCP_ENABLE_FREEZE_CAL_PAGE
         case CC_SET_SEGMENT_MODE: {
             check_len(CRO_SET_SEGMENT_MODE_LEN);
             uint8_t segment = CRO_SET_SEGMENT_MODE_SEGMENT;
@@ -2393,12 +2395,22 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             tXcpEvent *event = XcpGetEvent(eventNumber);
             if (event == NULL)
                 error(CRC_OUT_OF_RANGE);
+            // Convert cycle time to ASAM coding time cycle and time unit
+            // RESOLUTION OF TIMESTAMP "UNIT_1NS" = 0, "UNIT_10NS" = 1, ...
+            uint8_t timeUnit = 0; // timeCycle unit, 1ns=0, 10ns=1, 100ns=2, 1us=3, ..., 1ms=6, ...
+            uint8_t timeCycle;    // cycle time in units, 0 = sporadic or unknown
+            uint32_t c = event->cycleTimeNs;
+            while (c >= 256) {
+                c /= 10;
+                timeUnit++;
+            }
+            timeCycle = (uint8_t)c;
             CRM_LEN = CRM_GET_DAQ_EVENT_INFO_LEN;
             CRM_GET_DAQ_EVENT_INFO_PROPERTIES = DAQ_EVENT_PROPERTIES_DAQ | DAQ_EVENT_PROPERTIES_EVENT_CONSISTENCY;
             CRM_GET_DAQ_EVENT_INFO_MAX_DAQ_LIST = 0xFF;
             CRM_GET_DAQ_EVENT_INFO_NAME_LENGTH = (uint8_t)strlen(event->name);
-            CRM_GET_DAQ_EVENT_INFO_TIME_CYCLE = event->timeCycle;
-            CRM_GET_DAQ_EVENT_INFO_TIME_UNIT = event->timeUnit;
+            CRM_GET_DAQ_EVENT_INFO_TIME_CYCLE = timeCycle;
+            CRM_GET_DAQ_EVENT_INFO_TIME_UNIT = timeUnit;
             CRM_GET_DAQ_EVENT_INFO_PRIORITY = event->priority;
             gXcp.MtaPtr = (uint8_t *)event->name;
             gXcp.MtaExt = XCP_ADDR_EXT_PTR;

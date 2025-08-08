@@ -328,6 +328,9 @@ char *clockGetTimeString(char *s, uint32_t l, int64_t c);
 #ifdef _WIN32_
 #error "Windows32 not implemented yet"
 #endif
+#ifdef _WIN64
+#error "Remove this line to enable Windows64 atomic emulation, this is for demonstration and test purposes only"
+#endif
 
 // On Windows 64 we rely on the x86-64 strong memory model and assume atomic 64 bit load/store
 // Use a mutex for thread safe atomic_fetch_add/sub and atomic_compare_exchange
@@ -342,27 +345,17 @@ char *clockGetTimeString(char *s, uint32_t l, int64_t c);
 #define atomic_uint_fast32_t uint32_t
 #define atomic_uintptr_t uintptr_t
 #define atomic_uint_fast8_t uint8_t
-#define atomic_uint_fast8_t uint8_t
 
 #define atomic_store_explicit(a, b, c) (*(a)) = (b)
 #define atomic_load_explicit(a, b) (*(a))
 
 extern MUTEX gWinMutex;
 
-#define atomic_fetch_add_explicit(a, b, c)                                                                                                                                         \
-    {                                                                                                                                                                              \
-        mutexLock(&gWinMutex);                                                                                                                                                     \
-        (*(a)) += (b);                                                                                                                                                             \
-        mutexUnlock(&gWinMutex);                                                                                                                                                   \
-    }
-
-#define atomic_fetch_sub_explicit(a, b, c)                                                                                                                                         \
-    {                                                                                                                                                                              \
-        mutexLock(&gWinMutex);                                                                                                                                                     \
-        (*(a)) -= (b);                                                                                                                                                             \
-        mutexUnlock(&gWinMutex);                                                                                                                                                   \
-    }
-
+uint64_t atomic_exchange_explicit(uint64_t *a, uint64_t b, int c);
+uint64_t atomic_fetch_add_explicit(uint64_t *a, uint64_t b, int c);
+uint64_t atomic_fetch_sub_explicit(uint64_t *a, uint64_t b, int c);
+bool atomic_compare_exchange_strong_explicit(uint64_t *a, uint64_t *b, uint64_t c, int d, int e);
+bool atomic_compare_exchange_weak_explicit(uint64_t *a, uint64_t *b, uint64_t c, int d, int e);
 bool atomic_compare_exchange_strong_explicit(uint8_t *a, uint8_t *b, uint8_t c, int d, int e);
 bool atomic_compare_exchange_weak_explicit(uint8_t *a, uint8_t *b, uint8_t c, int d, int e);
 
