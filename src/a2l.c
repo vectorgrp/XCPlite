@@ -141,14 +141,14 @@ static const char *gA2lIfDataProtocolLayer = // Parameter: XCP_PROTOCOL_LAYER_VE
     "OPTIONAL_CMD GET_CAL_PAGE\n"
     "OPTIONAL_CMD SET_CAL_PAGE\n"
     "OPTIONAL_CMD COPY_CAL_PAGE\n"
-#ifdef XCP_ENABLE_FREEZE_CAL_PAGE
+#ifdef XCP_ENABLE_CALSEG_LIST
     "OPTIONAL_CMD GET_PAG_PROCESSOR_INFO\n"
+#ifdef XCP_ENABLE_FREEZE_CAL_PAGE
     "OPTIONAL_CMD GET_SEGMENT_MODE\n"
     "OPTIONAL_CMD SET_SEGMENT_MODE\n"
-#endif
-//"OPTIONAL_CMD CC_GET_SEGMENT_INFO\n"
-//"OPTIONAL_CMD CC_GET_PAGE_INFO\n"
-#endif
+#endif // XCP_ENABLE_FREEZE_CAL_PAGE
+#endif // XCP_ENABLE_CALSEG_LIST
+#endif // XCP_ENABLE_CAL_PAGE
 #ifdef XCP_ENABLE_CHECKSUM
     "OPTIONAL_CMD BUILD_CHECKSUM\n"
 #endif
@@ -689,6 +689,29 @@ void A2lSetSegmentAddrMode__i(tXcpCalSegIndex calseg_index, const uint8_t *calse
         if (gA2lAutoGroups) {
             A2lBeginGroup(calseg->name, "Calibration Segment", true);
         }
+    }
+}
+
+// Set segment relative address mode with calibration segment name
+void A2lSetSegmentAddrMode__s(const char *calseg_name, const uint8_t *calseg_instance_addr) {
+
+    tXcpCalSegIndex calseg_index = XcpFindCalSeg(calseg_name);
+    if (calseg_index == XCP_UNDEFINED_CALSEG) {
+        DBG_PRINTF_ERROR("SetSegAddrMode: Calibration segment %s not found!\n", calseg_name);
+        return;
+    }
+    const tXcpCalSeg *calseg = XcpGetCalSeg(calseg_index);
+    if (calseg == NULL) {
+        DBG_PRINTF_ERROR("SetSegAddrMode: Calibration segment %u not found!\n", calseg_index);
+        return;
+    }
+
+    A2lSetSegAddrMode(calseg_index, (const uint8_t *)calseg_instance_addr);
+    if (gA2lFile != NULL)
+        fprintf(gA2lFile, "\n/* Segment relative addressing mode: calseg=%s */\n", calseg->name);
+
+    if (gA2lAutoGroups) {
+        A2lBeginGroup(calseg->name, "Calibration Segment", true);
     }
 }
 
@@ -1428,10 +1451,8 @@ void A2lUnlock(void) {
 }
 
 // Open the A2L file and register the finalize callback
-bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t *addr, uint16_t port, bool useTCP, bool write_always, bool finalize_on_connect, bool auto_groups) {
+bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
 
-    assert(gA2lFile == NULL);
-    assert(!gA2lFileFinalized);
     assert(a2l_projectname != NULL);
     assert(addr != NULL);
 
@@ -1449,15 +1470,15 @@ bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t
     }
 #endif // OPTION_CAL_PERSISTENCE
 
-    // Save parameters and modes
+    // Save communication parameters
     memcpy(&gA2lOptionBindAddr, addr, 4);
     gA2lOptionPort = port;
     gA2lUseTCP = useTCP;
-    gA2lAutoGroups = auto_groups;
-    gA2lFinalizeOnConnect = finalize_on_connect;
-    gA2lWriteAlways = write_always;
 
-    mutexInit(&gA2lMutex, false, 1000); // Non recursive mutex, spincount 1000
+    // Save mode
+    gA2lWriteAlways = mode & A2L_MODE_WRITE_ALWAYS;
+    gA2lAutoGroups = mode & A2L_MODE_AUTO_GROUPS;
+    gA2lFinalizeOnConnect = mode & A2L_MODE_FINALIZE_ON_CONNECT;
 
     // EPK generation if not provided
     // Set the EPK (software version number) for the A2L file

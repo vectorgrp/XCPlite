@@ -50,6 +50,14 @@
 #include "xcplib.h" // for tXcpEventId, tXcpCalSegIndex
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// A2L generation modes
+
+#define A2L_MODE_WRITE_ALWAYS 0x01        // Always write A2L file, overwrite existing file
+#define A2L_MODE_WRITE_ONCE 0x02          // Write A2L file only once, do not overwrite existing file, use the binary persistence file to keep the A2L file valid
+#define A2L_MODE_FINALIZE_ON_CONNECT 0x04 // Finalize A2L file on XCP connect
+#define A2L_MODE_AUTO_GROUPS 0x08         // Automatically create groups for measurements and parameters
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 // Basic A2L types
 typedef int8_t tA2lTypeId; // A2L type ID, positive for unsigned types, negative for signed types
@@ -266,8 +274,9 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
 #define A2lGetArray1DElementTypeId(array) A2lTypeTraits::GetTypeIdFromExpr((array)[0])
 #define A2lGetArray2DElementTypeId(array) A2lTypeTraits::GetTypeIdFromExpr((array)[0][0])
 
-// Alternative macro using decltype (C++11) for maximum robustness
-#if __cplusplus >= 201103L
+// Check availability of decltype (C++11)
+#ifdef __cpp_decltype
+// #if __cplusplus >= 199711
 #define A2lGetTypeIdDecltype(expr) A2lTypeTraits::GetTypeId<decltype(expr)>()
 #else
 #error "C++11 or later is required for decltype-based type detection"
@@ -321,6 +330,7 @@ const char *A2lGetRecordLayoutName_(tA2lTypeId type);
 // Set segment relative address mode
 // Error if the segment index does not exist
 #define A2lSetSegmentAddrMode(seg_index, seg_instance) A2lSetSegmentAddrMode__i(seg_index, (const uint8_t *)&seg_instance);
+#define A2lSetSegmentAddrMode_s(seg_name, seg_instance) A2lSetSegmentAddrMode__s(seg_name, (const uint8_t *)&seg_instance);
 
 // Set addressing mode to relative for a given event 'event_name' and base address
 // Error if the event does not exist
@@ -363,9 +373,9 @@ const char *A2lGetRecordLayoutName_(tA2lTypeId type);
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Create conversions
 
-#define A2lCreateLinearConversion(name, comment, unit, factor, offset) const char *name = A2lCreateLinearConversion_(#name, comment, unit, factor, offset);
+#define A2lCreateLinearConversion(name, comment, unit, factor, offset) A2lCreateLinearConversion_(#name, comment, unit, factor, offset)
 
-#define A2lCreateEnumConversion(name, description) const char *name = A2lCreateEnumConversion_(#name, description);
+#define A2lCreateEnumConversion(name, description) A2lCreateEnumConversion_(#name, description)
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Create measurements on stack or in global memory
@@ -391,8 +401,8 @@ const char *A2lGetRecordLayoutName_(tA2lTypeId type);
                                A2lGetAddr_(&name[0]), unit_or_conversion, min, max, comment);
 
 // With instance name
-#define A2lCreateMeasurementInstance(instance_name, name, comment, unit)                                                                                                           \
-    A2lCreateMeasurement_(instance_name, #name, A2lGetTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&(name)), unit, 0.0, 0.0, comment);
+#define A2lCreateMeasurementInstance(instance_name, name, comment)                                                                                                                 \
+    A2lCreateMeasurement_(instance_name, #name, A2lGetTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&(name)), NULL, 0.0, 0.0, comment);
 
 #define A2lCreatePhysMeasurementInstance(instance_name, name, comment, unit_or_conversion, min, max)                                                                               \
     A2lCreateMeasurement_(instance_name, #name, A2lGetTypeId(name), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&(name)), unit_or_conversion, min, max, comment);
@@ -547,12 +557,13 @@ void A2lCreateMeasurementGroupFromList(const char *name, char *names[], uint32_t
 /// @param addr IP Address Used for IF_DATA XCP
 /// @param port Port Used for IF_DATA XCP
 /// @param useTCP Protocol Used for IF_DATA XCP
-/// @param force_generation Force generation of the A2L file, even if it already exists and matches the EPK
-/// @param finalize_on_connect Finalize the A2L file on XCP client connect, if false, the A2L file has to finalized manually
-/// @param enable_auto_grouping Enable automatic grouping of parameters (per segment) and measurements (per event), if false, grouping must be done manually
+/// @param mode
+///  A2L_MODE_WRITE_ONCE Write A2L file once after a new build, enabled calibration segment persistence
+///  A2L_MODE_WRITE_ALWAYS Force generation of the A2L file, even if it already exists and matches the EPK
+///  A2L_MODE_FINALIZE_ON_CONNECT Finalize the A2L file on XCP client connect, if false, the A2L file has to finalized manually
+///  A2L_MODE_AUTO_GROUPS Enable automatic grouping of parameters (per segment) and measurements (per event), if false, grouping must be done manually
 /// @return true on success, false on failure
-bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t *addr, uint16_t port, bool useTCP, bool force_generation, bool finalize_on_connect,
-             bool enable_auto_grouping);
+bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode);
 
 /// Finish A2L generation
 /// Finalize the A2L file, write the binary persistence file
@@ -564,6 +575,7 @@ bool A2lFinalize(void);
 // Set addressing mode by event name or calibration segment index
 // Used by the macros with the identical name (one underscore)
 void A2lSetSegmentAddrMode__i(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance);
+void A2lSetSegmentAddrMode__s(const char *calseg_name, const uint8_t *calseg_instance);
 void A2lSetRelativeAddrMode__s(const char *event_name, const uint8_t *base_addr);
 void A2lSetRelativeAddrMode__i(tXcpEventId event_id, const uint8_t *base_addr);
 void A2lSetStackAddrMode__s(const char *event_name, const uint8_t *stack_frame);

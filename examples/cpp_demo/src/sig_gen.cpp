@@ -32,7 +32,7 @@ SignalGenerator::SignalGenerator(const char *instance_name, SignalParametersT pa
     A2lOnce(SignalParametersT) {
         A2lTypedefBegin(SignalParametersT, "A2L typedef for SignalParametersT");
         A2lCreateEnumConversion(signal_type_enum, "5 0 \"SINE\" 1 \"SQUARE\" 2 \"TRIANGLE\" 3 \"SAWTOOTH\" 4 \"ARBITRARY\"");
-        A2lTypedefParameterComponent(signal_type, SignalParametersT, "Signal type", signal_type_enum, 0, 4);
+        A2lTypedefParameterComponent(signal_type, SignalParametersT, "Signal type", "conv.signal_type_enum", 0, 4);
         A2lTypedefParameterComponent(ampl, SignalParametersT, "Amplitude", "Volt", 0, 100);
         A2lTypedefParameterComponent(phase, SignalParametersT, "Phase", "", 0, k2Pi);
         A2lTypedefParameterComponent(offset, SignalParametersT, "Offset", "Volt", -100, 100);

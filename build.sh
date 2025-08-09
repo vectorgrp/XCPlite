@@ -48,6 +48,7 @@ echo "-------------------------------------------------------------------"
 # Build the core library first
 if make --directory ./build $LIBRARY_TARGET > /dev/null 2>&1; then
     echo "✅ SUCCESS: $LIBRARY_TARGET compiled successfully"
+    echo ""
     SUCCESSFUL_TARGETS+=("$LIBRARY_TARGET")
     
     # Build library-dependent targets only if library succeeded
@@ -56,12 +57,16 @@ if make --directory ./build $LIBRARY_TARGET > /dev/null 2>&1; then
             SUCCESSFUL_TARGETS+=("$target")
         else
             echo "❌ FAILED: $target compilation failed"
+            echo "   Error details:"
+            make --directory ./build $target 2>&1 | sed 's/^/   /'
             FAILED_TARGETS+=("$target")
         fi
     done
     
 else
     echo "❌ CRITICAL FAILURE: $LIBRARY_TARGET compilation failed"
+    echo "   Error details:"
+    make --directory ./build $LIBRARY_TARGET 2>&1 | sed 's/^/   /'
     echo ""
     echo "🛑 Library build failed, but proceeding with independent targets..."
     echo "   Library-dependent targets will be skipped."
@@ -83,6 +88,8 @@ for target in "${INDEPENDENT_TARGETS[@]}"; do
         SUCCESSFUL_TARGETS+=("$target")
     else
         echo "❌ FAILED: $target compilation failed"
+        echo "   Error details:"
+        make --directory ./build $target 2>&1 | sed 's/^/   /'
         FAILED_TARGETS+=("$target")
     fi
 done
@@ -94,7 +101,7 @@ echo "==================================================================="
 
 if [ ${#FAILED_TARGETS[@]} -eq 0 ]; then
     echo ""
-    echo "✅ All targets compiled successfully! 🎉"
+    echo "✅ All targets compiled successfully!"
     echo ""
 else
     echo ""
@@ -120,9 +127,7 @@ else
     echo ""
     if [[ " ${FAILED_TARGETS[@]} " =~ " xcplib " ]]; then
         echo "💥 LIBRARY FAILURE: Core library (xcplib) failed to compile."
-        echo "   Library-dependent targets were skipped to prevent cascading failures."
-        echo "   Independent targets were still attempted."
-        echo "   Fix the library issues first before attempting library-dependent targets."
+        echo "   Library-dependent targets were skipped."
     fi
 fi
 

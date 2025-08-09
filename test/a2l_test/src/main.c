@@ -252,11 +252,11 @@ int main() {
     }
     // Initialize the A2L generator in manual finalization mode with auto group generation
     // Empty version string to allow diff with the expected output
-    if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, true /*write_always*/, false /*finalize_on_connect*/, true /*auto_grouping*/)) {
+    if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_AUTO_GROUPS)) {
         return 1;
     }
 #else
-    if (!A2lInit(OPTION_PROJECT_NAME, "EPK", addr, OPTION_SERVER_PORT, OPTION_USE_TCP, true /*write_always*/, false /*finalize_on_connect*/, true /*auto_grouping*/)) {
+    if (!A2lInit(OPTION_PROJECT_NAME, "EPK", addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_AUTO_GROUPS)) {
         return 1;
     }
 #endif
@@ -378,10 +378,12 @@ int main() {
 
     // Global measurement variables of basic types
     A2lSetAbsoluteAddrMode(event);
-    A2lCreateEnumConversion(enum_conversion, "5 0 \"SINE\" 1 \"SQUARE\" 2 \"TRIANGLE\" 3 \"SAWTOOTH\" 4 \"ARBITRARY\"");
-    A2lCreatePhysMeasurement(uint8, "Enumeration type value uint8_t", enum_conversion, 0, 4);
-    A2lCreateLinearConversion(linear_conversion, "Temperature as uint8*2-50", "°C", 2.0, -50.0);
-    A2lCreatePhysMeasurement(uint16, "uint16_t value with linear conversion", linear_conversion, -50.0, +300.0);
+    ;
+    A2lCreatePhysMeasurement(uint8, "Enumeration type value uint8_t",
+                             A2lCreateEnumConversion(enum_conversion, "5 0 \"SINE\" 1 \"SQUARE\" 2 \"TRIANGLE\" 3 \"SAWTOOTH\" 4 \"ARBITRARY\""), 0, 4);
+    ;
+    A2lCreatePhysMeasurement(uint16, "uint16_t value with linear conversion", A2lCreateLinearConversion(linear_conversion, "Temperature as uint8*2-50", "°C", 2.0, -50.0), -50.0,
+                             +300.0);
     A2lCreatePhysMeasurement(uint32, "uint32_t", "unit", 0, 4294967295.0);
     A2lCreatePhysMeasurement(uint_64, "uint64_t", "unit", 0, 1e14);
     A2lCreatePhysMeasurement(int8, "int8_t", "unit", -128.0, 127.0);
@@ -419,10 +421,10 @@ int main() {
     A2lCreateMeasurement(local_int16, "Integer value");
     A2lCreateMeasurement(local_int32, "Integer value");
     A2lCreateMeasurement(local_int64, "Integer value");
-    A2lCreatePhysMeasurement(local_float4, "float4", linear_conversion, -1000.0, 1000.0);
-    A2lCreatePhysMeasurement(local_double8, "double8", linear_conversion, -1000.0, 1000.0);
+    A2lCreatePhysMeasurement(local_float4, "float4", "conv.linear_conversion", -1000.0, 1000.0);
+    A2lCreatePhysMeasurement(local_double8, "double8", "conv.linear_conversion", -1000.0, 1000.0);
     A2lCreateMeasurementArray(local_array, "int16_t array");
-    A2lCreatePhysMeasurementMatrix(local_matrix, "double matrix", linear_conversion, 0.0, 10.0);
+    A2lCreatePhysMeasurementMatrix(local_matrix, "double matrix", "conv.linear_conversion", 0.0, 10.0);
 
     // Register measurement structs
     A2lTypedefBegin(struct2_t, "A2L typedef for struct2_t");
