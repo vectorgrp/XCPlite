@@ -1307,7 +1307,7 @@ void A2lCreateParameterGroupFromList(const char *name, const char *pNames[], int
 
 bool A2lOnce_(uint64_t *value) {
     if (gA2lFile != NULL) {
-        uint8_t old_value = 0;
+        uint64_t old_value = 0;
         if (atomic_compare_exchange_strong_explicit((atomic_uint_fast8_t *)value, &old_value, 1, memory_order_relaxed, memory_order_relaxed)) {
             return true; // Return true if A2L file is open
         }
