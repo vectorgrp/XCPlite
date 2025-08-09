@@ -357,7 +357,7 @@ tXcpCalSeg *XcpGetCalSeg(tXcpCalSegIndex calseg) {
 }
 
 // Get the index of a calibration segment by name
-static tXcpCalSegIndex XcpFindCalSeg(const char *name) {
+tXcpCalSegIndex XcpFindCalSeg(const char *name) {
     assert(isInitialized());
     for (tXcpCalSegIndex i = 0; i < gXcp.CalSegList.count; i++) {
         tXcpCalSeg *calseg = &gXcp.CalSegList.calseg[i];
@@ -474,7 +474,6 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
 }
 
 // Lock a calibration segment and return a pointer to the ECU page
-// Single threaded recursive !
 uint8_t const *XcpLockCalSeg(tXcpCalSegIndex calseg) {
 
     assert(isInitialized());
@@ -493,11 +492,7 @@ uint8_t const *XcpLockCalSeg(tXcpCalSegIndex calseg) {
 
     // Update
     // Increment the lock count
-    // Check for updates if we acquired the first lock
-    uint8_t lock_count = atomic_load_explicit(&c->lock_count, memory_order_acquire);
-    while (!atomic_compare_exchange_weak_explicit(&c->lock_count, &lock_count, lock_count + 1, memory_order_acquire, memory_order_relaxed))
-        ;
-    if (lock_count == 0) {
+    if (0 == atomic_fetch_add_explicit(&c->lock_count, 1, memory_order_relaxed)) {
 
         // Update if there is a new page version, free the old page
         uint8_t *ecu_page_next = (uint8_t *)atomic_load_explicit(&c->ecu_page_next, memory_order_acquire);
@@ -511,8 +506,7 @@ uint8_t const *XcpLockCalSeg(tXcpCalSegIndex calseg) {
     }
 
     // Return the active ECU page (RAM or FLASH)
-    uint8_t ecu_access = (uint8_t)atomic_load_explicit(&c->ecu_access, memory_order_relaxed);
-    if (ecu_access != XCP_CALPAGE_WORKING_PAGE) {
+    if (atomic_load_explicit(&c->ecu_access, memory_order_relaxed) != XCP_CALPAGE_WORKING_PAGE) {
         return c->default_page;
     } else {
         return c->ecu_page;
@@ -522,15 +516,15 @@ uint8_t const *XcpLockCalSeg(tXcpCalSegIndex calseg) {
 // Unlock a calibration segment
 void XcpUnlockCalSeg(tXcpCalSegIndex calseg) {
 
-    if (!isActivated()) {
+    if (!isActivated())
+        return;
 
-        if (calseg >= gXcp.CalSegList.count) {
-            DBG_PRINT_ERROR("XCP not initialized or invalid calseg\n");
-            return; // Uninitialized or invalid calseg
-        }
-
-        atomic_fetch_sub_explicit(&gXcp.CalSegList.calseg[calseg].lock_count, 1, memory_order_release); // Decrement the lock count
+    if (calseg >= gXcp.CalSegList.count) {
+        DBG_PRINT_ERROR("XCP not initialized or invalid calseg\n");
+        return; // Uninitialized or invalid calseg
     }
+
+    atomic_fetch_sub_explicit(&gXcp.CalSegList.calseg[calseg].lock_count, 1, memory_order_relaxed); // Decrement the lock count
 }
 
 // XCP client memory read
@@ -976,7 +970,7 @@ static uint8_t XcpSetMta(uint8_t ext, uint32_t addr) {
 #ifdef XCP_ENABLE_CHECKSUM
 
 #if (XCP_CHECKSUM_TYPE == XCP_CHECKSUM_TYPE_CRC16CCITT)
-const uint16_t CRC16CCITTtab[256] = {
+static const uint16_t CRC16CCITTtab[256] = {
     0x0000, 0x1021, 0x2042, 0x3063,  0x4084, 0x50a5, 0x60c6, 0x70e7u, 0x8108, 0x9129, 0xa14a, 0xb16b,  0xc18c, 0xd1ad, 0xe1ce, 0xf1efu, 0x1231, 0x0210, 0x3273, 0x2252,
     0x52b5, 0x4294, 0x72f7, 0x62d6u, 0x9339, 0x8318, 0xb37b, 0xa35a,  0xd3bd, 0xc39c, 0xf3ff, 0xe3deu, 0x2462, 0x3443, 0x0420, 0x1401,  0x64e6, 0x74c7, 0x44a4, 0x5485u,
     0xa56a, 0xb54b, 0x8528, 0x9509,  0xe5ee, 0xf5cf, 0xc5ac, 0xd58du, 0x3653, 0x2672, 0x1611, 0x0630,  0x76d7, 0x66f6, 0x5695, 0x46b4u, 0xb75b, 0xa77a, 0x9719, 0x8738,
@@ -2283,14 +2277,18 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
 #endif // XCP_ENABLE_COPY_CAL_PAGE
 
 #ifdef XCP_ENABLE_CALSEG_LIST
-#ifdef XCP_ENABLE_FREEZE_CAL_PAGE
         case CC_GET_PAG_PROCESSOR_INFO: {
             check_len(CRO_GET_PAG_PROCESSOR_INFO_LEN);
             CRM_LEN = CRM_GET_PAG_PROCESSOR_INFO_LEN;
             CRM_GET_PAG_PROCESSOR_INFO_MAX_SEGMENTS = XcpGetCalSegCount();
+#ifdef XCP_ENABLE_FREEZE_CAL_PAGE
             CRM_GET_PAG_PROCESSOR_INFO_PROPERTIES = PAG_PROPERTY_FREEZE; // Freeze mode supported
+#else
+            CRM_GET_PAG_PROCESSOR_INFO_PROPERTIES = 0;
+#endif
         } break;
 
+#ifdef XCP_ENABLE_FREEZE_CAL_PAGE
         case CC_SET_SEGMENT_MODE: {
             check_len(CRO_SET_SEGMENT_MODE_LEN);
             uint8_t segment = CRO_SET_SEGMENT_MODE_SEGMENT;
@@ -2397,12 +2395,22 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             tXcpEvent *event = XcpGetEvent(eventNumber);
             if (event == NULL)
                 error(CRC_OUT_OF_RANGE);
+            // Convert cycle time to ASAM coding time cycle and time unit
+            // RESOLUTION OF TIMESTAMP "UNIT_1NS" = 0, "UNIT_10NS" = 1, ...
+            uint8_t timeUnit = 0; // timeCycle unit, 1ns=0, 10ns=1, 100ns=2, 1us=3, ..., 1ms=6, ...
+            uint8_t timeCycle;    // cycle time in units, 0 = sporadic or unknown
+            uint32_t c = event->cycleTimeNs;
+            while (c >= 256) {
+                c /= 10;
+                timeUnit++;
+            }
+            timeCycle = (uint8_t)c;
             CRM_LEN = CRM_GET_DAQ_EVENT_INFO_LEN;
             CRM_GET_DAQ_EVENT_INFO_PROPERTIES = DAQ_EVENT_PROPERTIES_DAQ | DAQ_EVENT_PROPERTIES_EVENT_CONSISTENCY;
             CRM_GET_DAQ_EVENT_INFO_MAX_DAQ_LIST = 0xFF;
             CRM_GET_DAQ_EVENT_INFO_NAME_LENGTH = (uint8_t)strlen(event->name);
-            CRM_GET_DAQ_EVENT_INFO_TIME_CYCLE = event->timeCycle;
-            CRM_GET_DAQ_EVENT_INFO_TIME_UNIT = event->timeUnit;
+            CRM_GET_DAQ_EVENT_INFO_TIME_CYCLE = timeCycle;
+            CRM_GET_DAQ_EVENT_INFO_TIME_UNIT = timeUnit;
             CRM_GET_DAQ_EVENT_INFO_PRIORITY = event->priority;
             gXcp.MtaPtr = (uint8_t *)event->name;
             gXcp.MtaExt = XCP_ADDR_EXT_PTR;

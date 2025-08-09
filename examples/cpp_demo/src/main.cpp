@@ -99,7 +99,7 @@ int main() {
 
     // Enable A2L generation
     // Set mode to write once to create stable A2L files, this also enables calibration segment persistence and freeze support
-    if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, false /*write_always*/, false /*finalize_on_connect*/, true /*auto_groups*/)) {
+    if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_AUTO_GROUPS)) {
         std::cerr << "Failed to initialize A2L generator" << std::endl;
         return 1;
     }
@@ -126,8 +126,8 @@ int main() {
 
     // Register the global measurement variables 'temperature' and 'speed'
     A2lSetAbsoluteAddrMode(mainloop);
-    A2lCreateLinearConversion(temperature_conversion, "Temperature in °C from unsigned byte", "°C", 1.0, -50.0);
-    A2lCreatePhysMeasurement(temperature, "Motor temperature in °C", temperature_conversion, -50.0, 200.0);
+    A2lCreateLinearConversion(temperature, "Temperature in °C from unsigned byte", "°C", 1.0, -50.0);
+    A2lCreatePhysMeasurement(temperature, "Motor temperature in °C", "conv.temperature", -50.0, 200.0);
     A2lCreatePhysMeasurement(speed, "Speed in km/h", "km/h", 0, 250.0);
 
     // Register the local measurement variables 'loop_counter' and sum

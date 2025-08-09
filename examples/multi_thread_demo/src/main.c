@@ -18,6 +18,7 @@
 #define M_2PI (M_PI * 2)
 #endif
 
+#define XCP_MAX_EVENT_NAME 15
 #define THREAD_COUNT 8              // Number of threads to create
 #define MAX_THREAD_NAME_LENGTH 32   // Maximum length of thread name
 #define EXPERIMENTAL_THREAD_CONTEXT // Enable demonstration of tracking thread context and span of the clip and filter function
@@ -83,7 +84,7 @@ static inline const char *XcpGetContextName(void) { return gXcpContext.name; }
         A2lLock();                                                                                                                                                                 \
         span_id = XcpCreateEvent(name, 0, 0);                                                                                                                                      \
         A2lSetStackAddrMode_i(span_id);                                                                                                                                            \
-        A2lCreateMeasurementInstance(name, span_dt, "Span runtime", "ns");                                                                                                         \
+        A2lCreatePhysMeasurementInstance(name, span_dt, "Span runtime", "ns", 0.0, 0.1000000);                                                                                     \
         A2lUnlock();                                                                                                                                                               \
     }                                                                                                                                                                              \
     tXcpContext *ctx = XcpGetContext();                                                                                                                                            \
@@ -247,10 +248,10 @@ void *task(void *p)
     // Create measurement variables for this task instance
     A2lLock();
     A2lSetStackAddrMode_i(task_event_id);
-    A2lCreateMeasurementInstance(task_name, counter, "task loop counter", "");
-    A2lCreateMeasurementInstance(task_name, channel1, "task sine wave signal", "Volt");
-    A2lCreateMeasurementInstance(task_name, channel2, "task square wave signal", "Volt");
-    A2lCreateMeasurementInstance(task_name, channel3, "task sawtooth signal", "Volt");
+    A2lCreateMeasurementInstance(task_name, counter, "task loop counter");
+    A2lCreateMeasurementInstance(task_name, channel1, "task sine wave signal");
+    A2lCreateMeasurementInstance(task_name, channel2, "task square wave signal");
+    A2lCreateMeasurementInstance(task_name, channel3, "task sawtooth signal");
     A2lUnlock();
 
     // Instrumentation: Context
@@ -319,7 +320,7 @@ int main(void) {
     }
 
     // Enable A2L generation and prepare the A2L file, finalize the A2L file on XCP connect, auto grouping
-    if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, true, true, true)) {
+    if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         return 1;
     }
 

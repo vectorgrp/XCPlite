@@ -28,6 +28,9 @@
 #include <netinet/in.h> // for sockets
 #include <unistd.h>     // for sleep
 #endif
+#if defined(_WIN)
+#include <stdlib.h> // for malloc, free
+#endif
 
 #include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
 #include "main_cfg.h"  // for OPTION_xxx ...
@@ -164,27 +167,65 @@ void sleepMs(uint32_t ms) {
 
 MUTEX gWinMutex;
 
-bool atomic_compare_exchange_weak_explicit(uint8_t *a, uint8_t *b, uint8_t c, int d, int e) {
-    (void)d;
-    (void)e;
-
+uint64_t atomic_exchange_explicit(uint64_t *a, uint64_t b, int c) {
+    (void)c;
     mutexLock(&gWinMutex);
-    bool old_value = *a;
-    *a = c;
-    *b = old_value;
+    uint64_t old_value = *a;
+    *a = b;
     mutexUnlock(&gWinMutex);
-    return true;
+    return old_value;
 }
 
-bool atomic_compare_exchange_strong_explicit(uint8_t *a, uint8_t *b, uint8_t c, int d, int e) {
+uint64_t atomic_fetch_add_explicit(uint64_t *a, uint64_t b, int c) {
+    (void)c;
+    mutexLock(&gWinMutex);
+    uint64_t old_value = *a;
+    *a += b;
+    mutexUnlock(&gWinMutex);
+    return old_value;
+}
+
+uint64_t atomic_fetch_sub_explicit(uint64_t *a, uint64_t b, int c) {
+    (void)c;
+    mutexLock(&gWinMutex);
+    uint64_t old_value = *a;
+    *a -= b;
+    mutexUnlock(&gWinMutex);
+    return old_value;
+}
+
+bool atomic_compare_exchange_weak_explicit(uint64_t *a, uint64_t *b, uint64_t c, int d, int e) {
     (void)d;
     (void)e;
+    bool res;
     mutexLock(&gWinMutex);
-    bool old_value = *a;
-    *a = c;
-    *b = old_value;
+    uint64_t old_value = *a;
+    if (old_value == *b) {
+        *a = c;
+        res = true;
+    } else {
+        *b = old_value;
+        res = false;
+    }
     mutexUnlock(&gWinMutex);
-    return true;
+    return res;
+}
+
+bool atomic_compare_exchange_strong_explicit(uint64_t *a, uint64_t *b, uint64_t c, int d, int e) {
+    (void)d;
+    (void)e;
+    bool res;
+    mutexLock(&gWinMutex);
+    uint64_t old_value = *a;
+    if (old_value == *b) {
+        *a = c;
+        res = true;
+    } else {
+        *b = old_value;
+        res = false;
+    }
+    mutexUnlock(&gWinMutex);
+    return res;
 }
 
 #endif

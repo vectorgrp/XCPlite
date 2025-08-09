@@ -120,20 +120,39 @@ cpp_demo:
 
 Build the library and all examples:  
 
+Use the build script to build all targets and get comprehensive output on issues:
+
+```
+./build.sh
+```
+
+Or build individual example targets:
+
 ```
 
 cmake -DCMAKE_BUILD_TYPE=Debug -S . -B build  
-make --directory ./build
-
-./build/hello_xcp.out
-./build/c_demo.out
-./build/cpp_demo.out
-./build/multi_thread_demo.out
-./build/struct_demo.out
+make --directory ./build hello_xcp
 
 ```
 
 ## Appendix
+
+### Trouble shooting compilation issues
+
+Note that XCPlite requires C11 and C++11 (for cpp_demo).
+
+First pull the lastest version V0.9.2 on master.  
+There are some minor changes for better trouble shouting the build process.  
+
+Use build.sh and check, which of the targets have build issues.  
+If there are failures, copy & paste the complete output and provide it.  
+  
+If type_detection_test_c builds ok, run it.  
+./build/type_detection_test_c.out
+Copy & paste the complete output and provide it.
+
+Same with type_detection_test_cpp
+./build/type_detection_test_cpp.out
 
 ### Instrumentation cost and side effects
 
