@@ -139,20 +139,38 @@ make --directory ./build hello_xcp
 
 ### Trouble shooting compilation issues
 
-Note that XCPlite requires C11 and C++11 (for cpp_demo).
-
-First pull the lastest version V0.9.2 on master.  
-There are some minor changes for better trouble shouting the build process.  
+First of all, note that XCPlite requires C11 (and C++11 for c++ support in cpp_demo).
+A possible problematic requirement is that the 64-bit lockless transmit queue implementation requires atomic_uint_least4.  
+This may cause problems on some platforms when using the clang compiler.  
+Prefer gcc for better compatibility.  
+If this is not an option, the mutex based 32-bit queue may be used instead.  
 
 Use build.sh and check, which of the targets have build issues.  
 If there are failures, copy & paste the complete output and provide it.  
-  
+
+build.sh has command line parameters. Example:
+
+```
+./build.sh release clang
+```
+
+Default is gcc and debug build.  
+
+On failure:  
+
 If type_detection_test_c builds ok, run it.  
+
+```
 ./build/type_detection_test_c.out
+```
+
 Copy & paste the complete output and provide it.
 
-Same with type_detection_test_cpp
+Same with type_detection_test_cpp.  
+
+```
 ./build/type_detection_test_cpp.out
+```
 
 ### Instrumentation cost and side effects
 

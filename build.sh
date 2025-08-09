@@ -3,15 +3,72 @@
 
 # ccmake -B build -S .
 
-# Debug build with Clang or Gcc
+# Parse command line arguments
+BUILD_TYPE="Debug"  # Default to Debug build
+USE_CLANG="OFF"     # Default to GCC (better compatibility for Raspberry Pi)
+
+# Function to show usage
+show_usage() {
+    echo "Usage: $0 [build_type] [compiler]"
+    echo ""
+    echo "Parameters:"
+    echo "  build_type: debug|release (default: debug)"
+    echo "  compiler:   gcc|clang (default: gcc)"
+    echo ""
+    echo "Examples:"
+    echo "  $0                    # Debug build with GCC (default)"
+    echo "  $0 release            # Release build with GCC"
+    echo "  $0 debug clang        # Debug build with Clang"
+    echo "  $0 release clang      # Release build with Clang"
+    echo "  $0 gcc                # Debug build with GCC (compiler as first param)"
+    echo "  $0 clang              # Debug build with Clang (compiler as first param)"
+}
+
+# Parse arguments
+for arg in "$@"; do
+    # Convert to lowercase for comparison
+    arg_lower=$(echo "$arg" | tr '[:upper:]' '[:lower:]')
+    case "$arg_lower" in
+        debug)
+            BUILD_TYPE="Debug"
+            ;;
+        release)
+            BUILD_TYPE="Release"
+            ;;
+        gcc)
+            USE_CLANG="OFF"
+            ;;
+        clang)
+            USE_CLANG="ON"
+            ;;
+        -h|--help|help)
+            show_usage
+            exit 0
+            ;;
+        *)
+            echo "Error: Unknown parameter '$arg'"
+            echo ""
+            show_usage
+            exit 1
+            ;;
+    esac
+done
+
+# Display selected configuration
+COMPILER_NAME=""
+if [ "$USE_CLANG" = "ON" ]; then
+    COMPILER_NAME="Clang"
+else
+    COMPILER_NAME="GCC"
+fi
+BUILD_TYPE_UPPER=$(echo "$BUILD_TYPE" | tr '[:lower:]' '[:upper:]')
+echo "Building in $BUILD_TYPE_UPPER mode with $COMPILER_NAME compiler"
+
 # Gcc has lesser compatibility problems, use gcc for raspberry pi builds, if problems with atomic_uint_least32_t
 echo "==================================================================="
 echo "Configuring CMake build system..."
 echo "==================================================================="
-cmake -DCMAKE_BUILD_TYPE=Debug -S . -B build -DUSE_CLANG=OFF
-
-# Release build with Clang or Gcc
-# cmake -DCMAKE_BUILD_TYPE=Release -S . -B build -DUSE_CLANG=OFF
+cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE -S . -B build -DUSE_CLANG=$USE_CLANG
 
 # Be sure EPK is updated before building
 touch src/a2l.c
