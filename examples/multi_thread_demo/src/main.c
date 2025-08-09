@@ -18,6 +18,7 @@
 #define M_2PI (M_PI * 2)
 #endif
 
+#define XCP_MAX_EVENT_NAME 15
 #define THREAD_COUNT 8              // Number of threads to create
 #define MAX_THREAD_NAME_LENGTH 32   // Maximum length of thread name
 #define EXPERIMENTAL_THREAD_CONTEXT // Enable demonstration of tracking thread context and span of the clip and filter function
