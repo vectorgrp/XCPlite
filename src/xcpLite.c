@@ -357,7 +357,7 @@ tXcpCalSeg *XcpGetCalSeg(tXcpCalSegIndex calseg) {
 }
 
 // Get the index of a calibration segment by name
-static tXcpCalSegIndex XcpFindCalSeg(const char *name) {
+tXcpCalSegIndex XcpFindCalSeg(const char *name) {
     assert(isInitialized());
     for (tXcpCalSegIndex i = 0; i < gXcp.CalSegList.count; i++) {
         tXcpCalSeg *calseg = &gXcp.CalSegList.calseg[i];

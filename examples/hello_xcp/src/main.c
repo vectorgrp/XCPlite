@@ -103,7 +103,7 @@ int main(void) {
     // XCP: Enable A2L generation
     // If the A2l file aready exists, check if software version (EPK) matches and load the binary persistence file
     // If not, prepare the A2L file, finalize the A2L file on XCP connect
-    if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, true /* force_generation*/, true /* finalize_on_connect*/, true /* enable auto grouping*/)) {
+    if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         return 1;
     }
 
@@ -121,8 +121,8 @@ int main(void) {
 
     // XCP: Register global measurement variables (temperature, speed)
     A2lSetAbsoluteAddrMode(mainloop);
-    A2lCreateLinearConversion(temperature_conversion, "Temperature in °C from unsigned byte", "°C", 1.0, -55.0);
-    A2lCreatePhysMeasurement(temperature, "Motor temperature in °C", temperature_conversion, -55.0, 200.0);
+    A2lCreateLinearConversion(temperature, "Temperature in °C from unsigned byte", "°C", 1.0, -55.0);
+    A2lCreatePhysMeasurement(temperature, "Motor temperature in °C", "conv.temperature", -55.0, 200.0);
     A2lCreatePhysMeasurement(speed, "Speed in km/h", "km/h", 0, 250.0);
 
     // XCP: Register a local measurement variable (loop_counter)
