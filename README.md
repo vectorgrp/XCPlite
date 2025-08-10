@@ -122,13 +122,13 @@ Build the library and all examples:
 
 Use the build script to build all targets and get comprehensive output on issues:
 
-```
+```bash
 ./build.sh
 ```
 
 Or build individual example targets:
 
-```
+```bash
 
 cmake -DCMAKE_BUILD_TYPE=Debug -S . -B build  
 make --directory ./build hello_xcp
@@ -145,22 +145,43 @@ This may cause problems on some platforms when using the clang compiler.
 Prefer gcc for better compatibility.  
 If this is not an option, the mutex based 32-bit queue may be used instead.  
 
-Use build.sh and check, which of the targets have build issues.  
+```bash
+
+# Test with system default
+cmake -B build -S . && cmake --build build
+
+# Test with clang
+cmake -B build-clang -S . -DUSE_CLANG=ON && cmake --build build-clang
+
+# Test with GCC  
+cmake -B build-gcc -S . -DUSE_GCC=ON && cmake --build build-gcc
+
+```
+
+There is a script 'build.sh' to automate the build process and to check which of the targets have build issues.  
 If there are failures, copy & paste the complete output and provide it.  
 
-build.sh has command line parameters. Example:
-
-```
-./build.sh release clang
+```bash
+./build.sh
 ```
 
-Default is gcc and debug build.  
+'build.sh' has command line parameters to select a release or debug build and force the compiler to be used.  
 
-On failure:  
-
-If type_detection_test_c builds ok, run it.  
-
+```bash
+./build.sh --help
 ```
+
+Default is the system default compiler and debug build.  
+
+On failure try to force gcc:  
+
+```bash
+./build.sh gcc
+```
+
+If still fails and if type_detection_test_c builds ok, run it.  
+
+```bash
 ./build/type_detection_test_c.out
 ```
 
@@ -168,7 +189,7 @@ Copy & paste the complete output and provide it.
 
 Same with type_detection_test_cpp.  
 
-```
+```bash
 ./build/type_detection_test_cpp.out
 ```
 
