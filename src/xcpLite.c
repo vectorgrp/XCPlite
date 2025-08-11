@@ -1798,7 +1798,7 @@ uint8_t XcpEventDynRelAt(tXcpEventId event, const uint8_t *dyn_base, const uint8
     bool cmdPending = false;
     if (atomic_load_explicit(&gXcp.CmdPending, memory_order_acquire)) {
         if (gXcp.MtaExt == XCP_ADDR_EXT_DYN && (uint16_t)(gXcp.MtaAddr >> 16) == event) {
-            bool old_value = true;
+            ATOMIC_BOOL_TYPE old_value = true;
             if (atomic_compare_exchange_weak_explicit(&gXcp.CmdPending, &old_value, false, memory_order_release, memory_order_relaxed)) {
                 cmdPending = true;
             }
@@ -1892,7 +1892,7 @@ static void XcpSendMulticastResponse(const tXcpCto *crm, uint8_t crmLen, uint8_t
 static uint8_t XcpPushCommand(const tXcpCto *cmdBuf, uint8_t cmdLen) {
 
     // Set pending command flag
-    bool old_value = false;
+    ATOMIC_BOOL_TYPE old_value = false;
     if (!atomic_compare_exchange_strong_explicit(&gXcp.CmdPending, &old_value, true, memory_order_acq_rel, memory_order_relaxed)) {
         return CRC_CMD_BUSY;
     }
