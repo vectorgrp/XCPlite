@@ -196,7 +196,7 @@ typedef struct {
     atomic_uint_fast64_t head;         // Consumer reads from head
     atomic_uint_fast64_t tail;         // Producers write to tail
     atomic_uint_fast32_t packets_lost; // Packet lost counter, incremented by producers when a queue entry could not be acquired
-    atomic_bool flush;
+    ATOMIC_BOOL flush;
 
 #if defined(QUEUE_SEQ_LOCK)
     // seq_lock is used to acquire an entry safely

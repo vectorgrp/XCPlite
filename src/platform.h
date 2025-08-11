@@ -76,7 +76,7 @@
 // Platform specific functions
 
 #include <stdbool.h> // for bool
-#include <stdint.h>  // for uintxx_t
+#include <stdint.h>  // for uintxx_t, uint_fastxx_t
 
 #if defined(_WIN)
 
@@ -89,6 +89,8 @@
 
 #include <pthread.h>
 #include <stdatomic.h>
+#define ATOMIC_BOOL_TYPE uint_fast8_t
+#define ATOMIC_BOOL atomic_uint_fast8_t
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -340,11 +342,13 @@ char *clockGetTimeString(char *s, uint32_t l, int64_t c);
 #define memory_order_acquire 0
 #define memory_order_release 0
 
-#define atomic_bool uint8_t
 #define atomic_uint_fast64_t uint64_t
 #define atomic_uint_fast32_t uint32_t
 #define atomic_uintptr_t uintptr_t
-#define atomic_uint_fast8_t uint8_t
+#define atomic_uint_fast8_t uint64_t
+
+#define ATOMIC_BOOL_TYPE uint64_t
+#define ATOMIC_BOOL uint64_t
 
 #define atomic_store_explicit(a, b, c) (*(a)) = (b)
 #define atomic_load_explicit(a, b) (*(a))
