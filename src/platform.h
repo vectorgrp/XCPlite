@@ -88,7 +88,9 @@
 #elif defined(_LINUX) || defined(_MACOS) // Linux
 
 #include <pthread.h>
+
 #include <stdatomic.h>
+#define ATOMIC_BOOL_TYPE bool
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -321,8 +323,9 @@ char *clockGetString(char *s, uint32_t l, uint64_t c);
 char *clockGetTimeString(char *s, uint32_t l, int64_t c);
 
 //-------------------------------------------------------------------------------
-// Atomic operations emulation for Windows
+// Atomic operations
 
+// Atomic operations emulation for Windows
 #ifdef _WIN
 
 #ifdef _WIN32_
@@ -342,7 +345,6 @@ char *clockGetTimeString(char *s, uint32_t l, int64_t c);
 
 #define atomic_bool uint64_t
 #define atomic_uint_fast64_t uint64_t
-//#define atomic_uint_fast32_t uint32_t
 #define atomic_uintptr_t uintptr_t
 #define atomic_uint_fast8_t uint64_t
 

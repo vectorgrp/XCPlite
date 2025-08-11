@@ -511,13 +511,16 @@ const char *A2lGetRecordLayoutName_(tA2lTypeId type);
 // The states of the A2L generator (group, addressing mode, typedef begin/end) are not thread-safe
 
 // Execute a block once
+#define A2L_ONCE_TYPE uint64_t
+#define A2L_ONCE_ATOMIC_TYPE atomic_uint_fast64_t
+
 // Global
 #define A2lOnce(name)                                                                                                                                                              \
-    static uint64_t __a2l_##name##_ = 0;                                                                                                                                           \
+    static A2L_ONCE_TYPE __a2l_##name##_ = 0;                                                                                                                                      \
     if (A2lOnce_(&__a2l_##name##_))
 // Per thread
 #define A2lThreadOnce(name)                                                                                                                                                        \
-    static THREAD_LOCAL uint64_t __a2l_##name##_ = 0;                                                                                                                              \
+    static THREAD_LOCAL A2L_ONCE_TYPE __a2l_##name##_ = 0;                                                                                                                         \
     if (A2lOnce_(&__a2l_##name##_))
 
 // Lock and unlock a block (mutex)

@@ -117,6 +117,14 @@ endif()
 # Link threads library to xcplib (needed for pthread usage in platform.h)
 target_link_libraries(xcplib PUBLIC Threads::Threads)
 
+# Check for atomic library support (needed on some ARM platforms with clang)
+include(CheckLibraryExists)
+check_library_exists(atomic __atomic_store_4 "" HAVE_LIBATOMIC)
+if(HAVE_LIBATOMIC)
+    message(STATUS "Linking with atomic library for C11 atomics support")
+    target_link_libraries(xcplib PUBLIC atomic)
+endif()
+
 
 # Example hello_xcp
 set(hello_xcp_SOURCES examples/hello_xcp/src/main.c)   

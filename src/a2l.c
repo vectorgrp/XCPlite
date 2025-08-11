@@ -1305,10 +1305,10 @@ void A2lCreateParameterGroupFromList(const char *name, const char *pNames[], int
 // Helper function to ensure A2L generation blocks are executed only once
 // This allows to use the macros in loops or functions without taking care of multiple executions
 
-bool A2lOnce_(uint64_t *value) {
+bool A2lOnce_(A2L_ONCE_TYPE *value) {
     if (gA2lFile != NULL) {
-        uint64_t old_value = 0;
-        if (atomic_compare_exchange_strong_explicit((atomic_uint_fast64_t *)value, &old_value, 1, memory_order_relaxed, memory_order_relaxed)) {
+        A2L_ONCE_TYPE old_value = 0;
+        if (atomic_compare_exchange_strong_explicit((A2L_ONCE_ATOMIC_TYPE *)value, &old_value, 1, memory_order_relaxed, memory_order_relaxed)) {
             return true; // Return true if A2L file is open
         }
     }
