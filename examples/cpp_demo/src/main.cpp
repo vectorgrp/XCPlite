@@ -1,5 +1,6 @@
 // cpp_demo xcplib C++ example
 
+#include <cstdint> // for uintxx_t
 #include <iostream>
 
 #include "a2l.h"

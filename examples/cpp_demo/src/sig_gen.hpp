@@ -8,10 +8,8 @@ Depending on calibration parameters ampl, phase, offset and period
 
 #pragma once
 
-#include <cmath>
-#include <iostream>
-#include <string>
-#include <thread>
+#include <cstdint> // for uintxx_t
+#include <thread>  // for thread
 
 #include "a2l.h"
 #include "platform.h"
@@ -28,7 +26,7 @@ Depending on calibration parameters ampl, phase, offset and period
 
 namespace signal_generator {
 
-enum SignalTypeT : std::uint8_t {
+enum SignalTypeT : uint8_t {
     SINE = 0,     // Sine wave
     SQUARE = 1,   // Square wave
     TRIANGLE = 2, // Triangle wave

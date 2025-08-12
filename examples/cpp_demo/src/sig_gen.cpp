@@ -6,11 +6,10 @@ An instance of class SignalGenerator creates various waveforms, such as sine, sq
 Depending on calibration parameters ampl, phase, offset and period
 */
 
-#include <cmath>
-#include <iostream>
-#include <string>
-#include <thread>
+#include <cmath>   // for fmod, sin
+#include <cstdint> // for uintxx_t
 
+#include "a2l.h"
 #include "lookup.hpp"
 #include "sig_gen.hpp"
 
@@ -29,7 +28,7 @@ SignalGenerator::SignalGenerator(const char *instance_name, SignalParametersT pa
 #endif
 
     // A2l registration of SignalParametersT typedef
-    A2lOnce(SignalParametersT) {
+    A2lOnce() {
         A2lTypedefBegin(SignalParametersT, "A2L typedef for SignalParametersT");
         A2lCreateEnumConversion(signal_type_enum, "5 0 \"SINE\" 1 \"SQUARE\" 2 \"TRIANGLE\" 3 \"SAWTOOTH\" 4 \"ARBITRARY\"");
         A2lTypedefParameterComponent(signal_type, SignalParametersT, "Signal type", "conv.signal_type_enum", 0, 4);

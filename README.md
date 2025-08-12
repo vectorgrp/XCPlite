@@ -158,7 +158,7 @@ make --directory ./build hello_xcp
 
 ### Trouble shooting compilation issues
 
-First of all, note that XCPlite requires C11 (and C++11 for c++ support in cpp_demo).
+First of all, note that XCPlite requires C11 (and C++17 for c++ support in cpp_demo).
 A possible problematic requirement is that the 64-bit lockless transmit queue implementation requires atomic_uint_least4.  
 This may cause problems on some platforms when using the clang compiler.  
 Prefer gcc for better compatibility.  
@@ -264,7 +264,7 @@ The addressing mode is indicated by the address extension:
 ### Platform and language standard requirements and resource usage
 
 - _Generic and declspec for A2L generation type detection
-  Requires C11 and C++11
+  Requires C11 and C++17
 
 - File system: fopen, fprintf.  
   Used for A2L generation and optional calibration persistency to a binary file

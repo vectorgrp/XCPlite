@@ -116,7 +116,7 @@ static uint16_t XcpCreateContext(const char *context_name, uint16_t context_inde
     // Once:
     // Create a typedef for the thread context
     // Uses the predefined enum conversion rule for the event names
-    A2lOnce(tXcpContext) {
+    A2lOnce() {
         A2lLock();
         A2lTypedefBegin(tXcpContext, "A2L typedef for tXcpContext");
         A2lTypedefPhysMeasurementComponent(span_id, tXcpContext, "function span id", "conv.events", 0, 32);
@@ -188,7 +188,7 @@ double filter(double input) {
     BeginSpan("filter");
 
     // Instrumentation: Register local variable filtered_input for measurement (once global, use the span event id)
-    A2lOnce(filter_local_vars) { // Ensure this is only done once globally
+    A2lOnce() { // Ensure this is only done once globally
         A2lLock();
         A2lSetStackAddrMode_i(XcpGetContext()->span_id); // Set stack addressing mode
         A2lCreateMeasurement(filtered_input, "Filter result");
