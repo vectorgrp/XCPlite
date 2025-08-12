@@ -16,15 +16,17 @@
 #include "a2l.h"
 
 #ifdef __cplusplus
+
 #include <mutex>
 #include <type_traits>
 
-// For C++17 and later, use std::monostate from <variant>
-// For older compilers, provide a simple empty type
+// For C++17 and later (which is required for XCPlite), use std::monostate from <variant>
 #if __cplusplus >= 201703L
 #include <variant>
 using empty_type = std::monostate;
 #else
+#error "C++17 or later is required for XCPlite, please enable C++17 in your build system"
+// For older compilers, provide a simple empty type
 struct empty_type {};
 #endif
 
