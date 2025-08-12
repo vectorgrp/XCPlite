@@ -13,6 +13,28 @@
 |
  ----------------------------------------------------------------------------*/
 
+// Helper macros for C++ one time and thread safe A2L registrations
+// Mutex protection is needed in multi-threaded contexts, because the A2L registration macros are not thread-safe
+
+/*
+Usage examples:
+
+if (A2lOnce()) {
+    // This block executes exactly once globally across all threads
+    // Not Thread-safe !
+}
+
+if (A2lOnceLock()) {
+    // Thread-safe
+    // This block executes exactly once globally AND is mutex-protected during execution
+}
+
+if (A2lOncePerThread()) {
+    // Thread-safe
+    // This block executes exactly once per thread AND is mutex-protected
+}
+*/
+
 #include "a2l.h"
 
 #ifdef __cplusplus
@@ -83,29 +105,6 @@ template <bool WithMutex, int Location> class A2lOnceGuard<WithMutex, true, Loca
 #define A2lOnceLock()                                                                                                                                                              \
     A2lOnceGuard<true, false, __LINE__> {}
 #define A2lOncePerThread()                                                                                                                                                         \
-    A2lOnceGuard<false, true, __LINE__> {}
-#define A2lOncePerThreadLock()                                                                                                                                                     \
     A2lOnceGuard<true, true, __LINE__> {}
-
-// Usage examples (preferred syntax with explicit if):
-// if (A2lOnce()) {
-//     // This block executes exactly once globally across all threads
-//     // Thread-safe with no additional mutex overhead during execution
-// }
-//
-// if (A2lOnceLock()) {
-//     // This block executes exactly once globally AND is mutex-protected during execution
-//     // Useful when the once-block itself needs additional thread safety
-// }
-//
-// if (A2lOncePerThread()) {
-//     // This block executes exactly once per thread
-//     // Each thread will execute this block once independently
-// }
-//
-// if (A2lOncePerThreadLock()) {
-//     // This block executes exactly once per thread AND is mutex-protected during execution
-//     // Each thread executes once, with mutex protection during execution
-// }
 
 #endif // __cplusplus
