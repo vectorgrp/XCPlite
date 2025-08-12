@@ -513,8 +513,8 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
     if (A2lOnce_(&__a2l_once_##name##_))
 // Per thread once - executed once per thread
 #define A2lThreadOnce(name)                                                                                                                                                        \
-    static THREAD_LOCAL A2L_ONCE_TYPE __a2l_thread_once_##name##_ = 0;                                                                                                             \
-    if (A2lOnce_(&__a2l_thread_once_##name##_))
+    static THREAD_LOCAL uint64_t __a2l_thread_once_##name##_ = 0;                                                                                                                  \
+    if ((__a2l_thread_once_##name##_++) == 0)
 
 #endif // !__cplusplus
 

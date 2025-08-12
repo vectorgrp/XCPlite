@@ -17,6 +17,7 @@
 
 #ifdef __cplusplus
 
+#include <atomic>
 #include <mutex>
 #include <type_traits>
 
@@ -31,52 +32,60 @@ struct empty_type {};
 #endif
 
 // RAII guard for execute-once pattern with optional mutex protection
-template <bool WithMutex = false, bool PerThread = false> class A2lOnceGuard {
+// Location parameter ensures each call site gets its own once_flag
+// Static members belong to the type, so each location is a different type which gets its own once_flag
+template <bool WithMutex = false, bool PerThread = false, int Location = 0> class A2lOnceGuard {
   private:
     inline static std::once_flag once_flag_;
     inline static std::conditional_t<WithMutex, std::mutex, empty_type> mutex_;
     std::conditional_t<WithMutex, std::unique_lock<std::mutex>, empty_type> lock_;
-    bool should_execute_;
 
   public:
-    A2lOnceGuard() : should_execute_(false) {
+    A2lOnceGuard() {
         if constexpr (WithMutex) {
             lock_ = std::unique_lock<std::mutex>(mutex_);
         }
-        std::call_once(once_flag_, [this]() { should_execute_ = true; });
     }
 
-    explicit operator bool() const { return should_execute_; }
+    explicit operator bool() const {
+        bool execute = false;
+        std::call_once(once_flag_, [&execute]() { execute = true; });
+        return execute;
+    }
 };
 
-// Specialization for per-thread execution (cannot use thread_local inline static)
-template <bool WithMutex> class A2lOnceGuard<WithMutex, true> {
+// Specialization for per-thread execution
+template <bool WithMutex, int Location> class A2lOnceGuard<WithMutex, true, Location> {
   private:
-    static thread_local std::once_flag once_flag_;
     inline static std::conditional_t<WithMutex, std::mutex, empty_type> mutex_;
     std::conditional_t<WithMutex, std::unique_lock<std::mutex>, empty_type> lock_;
-    bool should_execute_;
 
   public:
-    A2lOnceGuard() : should_execute_(false) {
+    A2lOnceGuard() {
         if constexpr (WithMutex) {
             lock_ = std::unique_lock<std::mutex>(mutex_);
         }
-        std::call_once(once_flag_, [this]() { should_execute_ = true; });
     }
 
-    explicit operator bool() const { return should_execute_; }
+    explicit operator bool() const {
+        static thread_local bool executed = false;
+        if (!executed) {
+            executed = true;
+            return true;
+        }
+        return false;
+    }
 };
 
 // Enhanced convenience macros for C++ RAII-style once execution
 #define A2lOnce()                                                                                                                                                                  \
-    A2lOnceGuard<false, false> {}
+    A2lOnceGuard<false, false, __LINE__> {}
 #define A2lOnceLock()                                                                                                                                                              \
-    A2lOnceGuard<true, false> {}
+    A2lOnceGuard<true, false, __LINE__> {}
 #define A2lOncePerThread()                                                                                                                                                         \
-    A2lOnceGuard<false, true> {}
+    A2lOnceGuard<false, true, __LINE__> {}
 #define A2lOncePerThreadLock()                                                                                                                                                     \
-    A2lOnceGuard<true, true> {}
+    A2lOnceGuard<true, true, __LINE__> {}
 
 // Usage examples (preferred syntax with explicit if):
 // if (A2lOnce()) {
@@ -98,11 +107,5 @@ template <bool WithMutex> class A2lOnceGuard<WithMutex, true> {
 //     // This block executes exactly once per thread AND is mutex-protected during execution
 //     // Each thread executes once, with mutex protection during execution
 // }
-//
-// Alternative syntax (also supported):
-// A2lOnce() && []() {
-//     // Initialization code here
-//     return true;
-// }();
 
 #endif // __cplusplus
