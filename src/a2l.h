@@ -516,22 +516,6 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
     static THREAD_LOCAL A2L_ONCE_TYPE __a2l_thread_once_##name##_ = 0;                                                                                                             \
     if (A2lOnce_(&__a2l_thread_once_##name##_))
 
-#else
-
-#include <mutex>
-
-// Global once - thread-safe across all threads
-#define A2lOnce(name)                                                                                                                                                              \
-    static std::once_flag __a2l_cpp_##name##_flag;                                                                                                                                 \
-    static bool __a2l_cpp_##name##_executed = false;                                                                                                                               \
-    std::call_once(__a2l_cpp_##name##_flag, []() { __a2l_cpp_##name##_executed = true; });                                                                                         \
-    if (__a2l_cpp_##name##_executed)
-
-// Per thread once - executed once per thread
-#define A2lThreadOnce(name)                                                                                                                                                        \
-    thread_local static bool __a2l_cpp_thread_##name##_ = []() { return true; };                                                                                                   \
-    if (__a2l_cpp_thread_##name##_)
-
 #endif // !__cplusplus
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
