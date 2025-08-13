@@ -161,6 +161,7 @@ extern "C" {
 
 // Delay based on clock
 void sleepNs(uint32_t ns);
+#define sleepUs(x) sleepNs((x) * 1000)
 
 // Delay - Less precise and less CPU load, not based on clock, time domain different
 void sleepMs(uint32_t ms);
