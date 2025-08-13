@@ -733,7 +733,7 @@ static uint8_t XcpCalSegCopyCalPage(uint8_t srcSeg, uint8_t srcPage, uint8_t dst
 #ifdef XCP_ENABLE_USER_COMMAND
 
 // Handle atomic calibration segment commands
-static uint8_t XcpCalSegCommand(uint8_t cmd) {
+uint8_t XcpCalSegCommand(uint8_t cmd) {
     switch (cmd) {
     // Begin atomic calibration operation
     case 0x01:
@@ -824,7 +824,7 @@ This is also a requirement to the tool, which must ensure that the data is consi
 */
 
 // Copy of size bytes from data to gXcp.MtaPtr or gXcp.MtaAddr depending on the addressing mode
-static uint8_t XcpWriteMta(uint8_t size, const uint8_t *data) {
+uint8_t XcpWriteMta(uint8_t size, const uint8_t *data) {
 
     // EXT == XCP_ADDR_EXT_SEG calibration segment memory access
 #ifdef XCP_ENABLE_CALSEG_LIST
@@ -926,7 +926,7 @@ static uint8_t XcpReadMta(uint8_t size, uint8_t *data) {
 }
 
 // Set MTA
-static uint8_t XcpSetMta(uint8_t ext, uint32_t addr) {
+uint8_t XcpSetMta(uint8_t ext, uint32_t addr) {
 
     gXcp.MtaExt = ext;
     gXcp.MtaAddr = addr;

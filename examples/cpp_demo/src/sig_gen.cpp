@@ -6,17 +6,18 @@ An instance of class SignalGenerator creates various waveforms, such as sine, sq
 Depending on calibration parameters ampl, phase, offset and period
 */
 
-#include <cmath>
-#include <iostream>
-#include <string>
-#include <thread>
+#include <cmath>   // for fmod, sin
+#include <cstdint> // for uintxx_t
 
+#include "a2l.hpp"
+
+#ifdef CANAPE_24
 #include "lookup.hpp"
+using namespace lookup_table;
+#endif
 #include "sig_gen.hpp"
 
 namespace signal_generator {
-
-using namespace lookup_table;
 
 constexpr double kPi = 3.14159265358979323846;
 constexpr double k2Pi = (kPi * 2);
@@ -28,8 +29,8 @@ SignalGenerator::SignalGenerator(const char *instance_name, SignalParametersT pa
     params.lookup.A2lRegisterTypedef(); // Register the lookup table typedef once
 #endif
 
-    // A2l registration of SignalParametersT typedef
-    A2lOnce(SignalParametersT) {
+    // Global once A2l registration of SignalParametersT typedef
+    if (A2lOnce()) {
         A2lTypedefBegin(SignalParametersT, "A2L typedef for SignalParametersT");
         A2lCreateEnumConversion(signal_type_enum, "5 0 \"SINE\" 1 \"SQUARE\" 2 \"TRIANGLE\" 3 \"SAWTOOTH\" 4 \"ARBITRARY\"");
         A2lTypedefParameterComponent(signal_type, SignalParametersT, "Signal type", "conv.signal_type_enum", 0, 4);
@@ -44,7 +45,7 @@ SignalGenerator::SignalGenerator(const char *instance_name, SignalParametersT pa
         A2lTypedefEnd();
     }
 
-    // Create an instance of the signal generatores calibration segment
+    // Create an instance of the signal generators calibration segment
     signal_parameters_.CreateA2lTypedefInstance("SignalParametersT", "Signal parameters for the signal generator");
 
     // Start thread
@@ -71,8 +72,8 @@ void SignalGenerator::Task() {
     DaqCreateEvent_s(instance_name_);
 
     // A2L registration
-    // Register the member variables 'value' and 'time' of each instance as measurement
-    // Register the local (stack) measurement variable 'time' for measurement
+    // Register the member variable 'value_' of each instance as measurements by using the instance name as a prefix
+    // Register the local (stack) measurement variable 'time' for each instance
     A2lLock(); // Take care for thread safety when registering measurements and parameters in multiple threads
     A2lSetRelativeAddrMode_s(instance_name_, this);
     A2lCreatePhysMeasurementInstance(instance_name_, value_, "Signal generator output", "", -100, 100);

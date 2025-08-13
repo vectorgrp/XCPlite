@@ -38,7 +38,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -176,6 +176,11 @@ if(BUILD_TEST)
     add_executable(a2l_test test/a2l_test/src/main.c)
     target_include_directories(a2l_test PUBLIC "${PROJECT_ROOT}")
     target_link_libraries(a2l_test PRIVATE xcplib)
+
+    # Calibration segment multi-threading test (C++ version)
+    add_executable(cal_test test/cal_test/src/main.cpp)
+    target_include_directories(cal_test PUBLIC "${PROJECT_ROOT}" "${PROJECT_ROOT}/src")
+    target_link_libraries(cal_test PRIVATE xcplib)
 endif()
 
 
@@ -199,6 +204,7 @@ else()
         set_target_properties(type_detection_test_c PROPERTIES SUFFIX ".out")
         set_target_properties(type_detection_test_cpp PROPERTIES SUFFIX ".out")
         set_target_properties(a2l_test PROPERTIES SUFFIX ".out")
+        set_target_properties(cal_test PROPERTIES SUFFIX ".out")
     endif()
 endif()
 

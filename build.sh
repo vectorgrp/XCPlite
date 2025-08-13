@@ -153,6 +153,7 @@ LIBRARY_DEPENDENT_TARGETS=(
     "multi_thread_demo"
     "cpp_demo"
     "a2l_test"
+    "cal_test"
 )
 INDEPENDENT_TARGETS=(
     "type_detection_test_c"

@@ -76,7 +76,7 @@
 // Platform specific functions
 
 #include <stdbool.h> // for bool
-#include <stdint.h>  // for uintxx_t
+#include <stdint.h>  // for uintxx_t, uint_fastxx_t
 
 #if defined(_WIN)
 
@@ -89,8 +89,16 @@
 
 #include <pthread.h>
 
+#ifndef __cplusplus
 #include <stdatomic.h>
-#define ATOMIC_BOOL_TYPE bool
+#define ATOMIC_BOOL_TYPE uint_fast8_t
+#define ATOMIC_BOOL atomic_uint_fast8_t
+#else
+// For C++, use <atomic> instead of <stdatomic.h>
+#include <atomic>
+#define ATOMIC_BOOL_TYPE uint_fast8_t
+#define ATOMIC_BOOL std::atomic<uint_fast8_t>
+#endif
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -153,6 +161,7 @@ extern "C" {
 
 // Delay based on clock
 void sleepNs(uint32_t ns);
+#define sleepUs(x) sleepNs((x) * 1000)
 
 // Delay - Less precise and less CPU load, not based on clock, time domain different
 void sleepMs(uint32_t ms);
@@ -332,7 +341,7 @@ char *clockGetTimeString(char *s, uint32_t l, int64_t c);
 #error "Windows32 not implemented yet"
 #endif
 #ifdef _WIN64
-//#error "Remove this line to enable Windows64 atomic emulation, this is for demonstration and test purposes only"
+// #error "Remove this line to enable Windows64 atomic emulation, this is for demonstration and test purposes only"
 #endif
 
 // On Windows 64 we rely on the x86-64 strong memory model and assume atomic 64 bit load/store
@@ -343,12 +352,12 @@ char *clockGetTimeString(char *s, uint32_t l, int64_t c);
 #define memory_order_acquire 0
 #define memory_order_release 0
 
-#define atomic_bool uint64_t
 #define atomic_uint_fast64_t uint64_t
 #define atomic_uintptr_t uintptr_t
 #define atomic_uint_fast8_t uint64_t
 
 #define ATOMIC_BOOL_TYPE uint64_t
+#define ATOMIC_BOOL uint64_t
 
 #define atomic_store_explicit(a, b, c) (*(a)) = (b)
 #define atomic_load_explicit(a, b) (*(a))

@@ -1,10 +1,11 @@
 // cpp_demo xcplib C++ example
 
+#include <cstdint> // for uintxx_t
 #include <iostream>
 
-#include "a2l.h"
 #include "platform.h"
-#include "xcplib.h"
+
+#include "a2l.hpp"
 #include "xcplib.hpp"
 
 #include "sig_gen.hpp"

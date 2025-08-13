@@ -5,19 +5,17 @@
 An instance of struct LookupTable creates a calibratable curve with axis points
 */
 
-#include <cmath>
-#include <iostream>
-#include <string>
-#include <thread>
+#include <cstdint> // for uintxx_t
 
-#include "lookup.hpp"
+#include "a2l.hpp"    // for A2lTypedefBegin, A2lTypedefCurveComponentWithSharedAxis, etc.
+#include "lookup.hpp" // for kLookupTableSize, LookupTableT
 
 namespace lookup_table {
 
 void lookup_table::LookupTableT::A2lRegisterTypedef() const {
 
-    // A2l registration of LookupTableT typedef
-    A2lOnce(LookupTableT) {
+    // A2l global once registration of LookupTableT typedef
+    if (A2lOnce()) {
         A2lTypedefBegin(LookupTableT, "A2L typedef for LookupTableT");
         A2lTypedefCurveComponentWithSharedAxis(values, LookupTableT, kLookupTableSize, "Lookup table with shared axis", "", -1.0, 1.0, "axis");
         A2lTypedefAxisComponent(axis, LookupTableT, kLookupTableSize, "Axis for lookup table in", "", -0.0, 1.0);

@@ -8,17 +8,12 @@ Depending on calibration parameters ampl, phase, offset and period
 
 #pragma once
 
-#include <cmath>
-#include <iostream>
-#include <string>
-#include <thread>
+#include <cstdint> // for uintxx_t
+#include <thread>  // for thread
 
-#include "a2l.h"
-#include "platform.h"
-#include "xcplib.h"
-#include "xcplib.hpp"
+#include "xcplib.hpp" // for xcplib::CalSeg
 
-#define CANAPE_24 // Typedefs with maps or curves with shared axis require CANape 24
+// #define CANAPE_24 // Typedefs with maps or curves with shared axis require CANape 24
 
 #ifdef CANAPE_24
 #include "lookup.hpp"
@@ -28,7 +23,7 @@ Depending on calibration parameters ampl, phase, offset and period
 
 namespace signal_generator {
 
-enum SignalTypeT : std::uint8_t {
+enum SignalTypeT : uint8_t {
     SINE = 0,     // Sine wave
     SQUARE = 1,   // Square wave
     TRIANGLE = 2, // Triangle wave

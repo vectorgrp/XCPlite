@@ -7,15 +7,7 @@ An instance of struct LookupTable creates a calibratable curve with axis points
 
 #pragma once
 
-#include <cmath>
-#include <iostream>
-#include <string>
-#include <thread>
-
-#include "a2l.h"
-#include "platform.h"
-#include "xcplib.h"
-#include "xcplib.hpp"
+#include <cstdint> // for uintxx_t
 
 namespace lookup_table {
 

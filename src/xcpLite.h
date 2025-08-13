@@ -19,6 +19,7 @@
 #include <stdint.h>  // for uint16_t, uint32_t, uint8_t
 
 #include "dbg_print.h" // for DBG_LEVEL, DBG_PRINTF, DBG_PRINT, ...
+#include "platform.h"  // for atomics
 #include "xcp.h"       // for XCP protocol definitions
 #include "xcpQueue.h"  // for tQueueHandle
 #include "xcp_cfg.h"   // for XCP_PROTOCOL_LAYER_VERSION, XCP_ENABLE_...
@@ -350,7 +351,7 @@ typedef struct {
     uint8_t CrmLen; /* RES,ERR message length */
 
 #ifdef XCP_ENABLE_DYN_ADDRESSING
-    atomic_bool CmdPending;
+    ATOMIC_BOOL CmdPending;
     tXcpCto CmdPendingCrm;    /* pending command message buffer */
     uint8_t CmdPendingCrmLen; /* pending command message length */
 #endif
@@ -373,7 +374,7 @@ typedef struct {
     /* DAQ */
     tQueueHandle Queue;        // Daq queue handle
     tXcpDaqLists *DaqLists;    // DAQ lists
-    atomic_bool DaqRunning;    // DAQ is running
+    ATOMIC_BOOL DaqRunning;    // DAQ is running
     uint64_t DaqStartClock64;  // DAQ start time
     uint32_t DaqOverflowCount; // DAQ queue overflow
 

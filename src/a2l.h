@@ -47,7 +47,8 @@
 #include <stddef.h>  // for offsetof
 #include <stdint.h>  // for uintxx_t
 
-#include "xcplib.h" // for tXcpEventId, tXcpCalSegIndex
+#include "platform.h" // for atomics
+#include "xcplib.h"   // for tXcpEventId, tXcpCalSegIndex
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // A2L generation modes
@@ -81,6 +82,7 @@ static_assert(sizeof(long long) == 8, "sizeof(long long) must be 8");
 // Automatic, portable type detection macros for both C and C++
 
 #ifdef __cplusplus
+
 // C++ version using template meta-programming
 namespace A2lTypeTraits {
 template <typename T> struct TypeId {
@@ -161,9 +163,8 @@ template <typename T> constexpr tA2lTypeId GetTypeIdFromExpr(const T &) { return
 
 #define A2lGetTypeId(expr) A2lTypeTraits::GetTypeIdFromExpr(expr)
 
-#else
-
 // C version using _Generic for simple expressions and fallback for complex ones
+#else
 
 // Helper function to deduce type from pointer (for array elements)
 static inline tA2lTypeId A2lGetTypeIdFromPtr_uint8(const uint8_t *p) {
@@ -265,7 +266,7 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
         bool *: A2L_TYPE_UINT8,                                                                                                                                                    \
         default: A2L_TYPE_UNDEFINED)
 
-#endif
+#endif // C
 
 // Additional robust alternatives for complex type detection scenarios
 
@@ -274,7 +275,7 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
 #define A2lGetArray1DElementTypeId(array) A2lTypeTraits::GetTypeIdFromExpr((array)[0])
 #define A2lGetArray2DElementTypeId(array) A2lTypeTraits::GetTypeIdFromExpr((array)[0][0])
 
-// Check availability of decltype (C++11)
+// Check availability of decltype (>=C++11)
 #ifdef __cpp_decltype
 // #if __cplusplus >= 199711
 #define A2lGetTypeIdDecltype(expr) A2lTypeTraits::GetTypeId<decltype(expr)>()
@@ -286,16 +287,6 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
 #define A2lGetArray1DElementTypeId(array) A2lGetTypeId((array)[0])
 #define A2lGetArray2DElementTypeId(array) A2lGetTypeId((array)[0][0])
 #endif
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-// Macros to generate type names as static const char* string
-const char *A2lGetA2lTypeName(tA2lTypeId type);
-const char *A2lGetA2lTypeName_M(tA2lTypeId type);
-const char *A2lGetA2lTypeName_C(tA2lTypeId type);
-const char *A2lGetRecordLayoutName_(tA2lTypeId type);
 
 #define A2lGetTypeName(type) A2lGetA2lTypeName(A2lGetTypeId(type))
 #define A2lGetTypeName1D(type) A2lGetA2lTypeName(A2lGetArray1DElementTypeId(type))
@@ -514,18 +505,36 @@ const char *A2lGetRecordLayoutName_(tA2lTypeId type);
 #define A2L_ONCE_TYPE uint64_t
 #define A2L_ONCE_ATOMIC_TYPE atomic_uint_fast64_t
 
-// Global
-#define A2lOnce(name)                                                                                                                                                              \
-    static A2L_ONCE_TYPE __a2l_##name##_ = 0;                                                                                                                                      \
-    if (A2lOnce_(&__a2l_##name##_))
-// Per thread
-#define A2lThreadOnce(name)                                                                                                                                                        \
-    static THREAD_LOCAL A2L_ONCE_TYPE __a2l_##name##_ = 0;                                                                                                                         \
-    if (A2lOnce_(&__a2l_##name##_))
+#ifndef __cplusplus
 
+// Global once - thread-safe across all threads
+#define A2lOnce(name)                                                                                                                                                              \
+    static A2L_ONCE_TYPE __a2l_once_##name##_ = 0;                                                                                                                                 \
+    if (A2lOnce_(&__a2l_once_##name##_))
+// Per thread once - executed once per thread
+#define A2lThreadOnce(name)                                                                                                                                                        \
+    static THREAD_LOCAL uint64_t __a2l_thread_once_##name##_ = 0;                                                                                                                  \
+    if ((__a2l_thread_once_##name##_++) == 0)
+
+#endif // !__cplusplus
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Lock and unlock a block (mutex)
 void A2lLock(void);
 void A2lUnlock(void);
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Macros to generate type names as static const char* string
+const char *A2lGetA2lTypeName(tA2lTypeId type);
+const char *A2lGetA2lTypeName_M(tA2lTypeId type);
+const char *A2lGetA2lTypeName_C(tA2lTypeId type);
+const char *A2lGetRecordLayoutName_(tA2lTypeId type);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Set addressing modes
