@@ -8,8 +8,10 @@ Depending on calibration parameters ampl, phase, offset and period
 
 #include <cmath>   // for fmod, sin
 #include <cstdint> // for uintxx_t
+#include <thread>
 
-#include "a2l.hpp"
+#include "a2l.hpp"    // for xcplib A2l generation application programming interface
+#include "xcplib.hpp" // for xcplib application programming interface
 
 #ifdef CANAPE_24
 #include "lookup.hpp"

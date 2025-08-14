@@ -1480,6 +1480,8 @@ bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t
     gA2lAutoGroups = mode & A2L_MODE_AUTO_GROUPS;
     gA2lFinalizeOnConnect = mode & A2L_MODE_FINALIZE_ON_CONNECT;
 
+    mutexInit(&gA2lMutex, false, 0);
+
     // EPK generation if not provided
     // Set the EPK (software version number) for the A2L file
     char epk[64];

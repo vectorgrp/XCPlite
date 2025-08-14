@@ -2,11 +2,13 @@
 
 #include <cstdint> // for uintxx_t
 #include <iostream>
+#include <atomic>
+#include <thread>
 
-#include "platform.h"
 
-#include "a2l.hpp"
-#include "xcplib.hpp"
+#include "platform.h" // for sleepMs, sleepNs
+#include "a2l.hpp"    // for xcplib A2l generation application programming interface
+#include "xcplib.hpp" // for xcplib application programming interface
 
 #include "sig_gen.hpp"
 

@@ -1,13 +1,8 @@
 // cal_test xcplib example - Multi-threaded calibration segment access test
 
-#include <assert.h> // for assert
-#include <atomic>
-#include <stdbool.h> // for bool
-#include <stdint.h>  // for uintxx_t
-#include <stdio.h>   // for printf
-#include <string.h>  // for sprintf
-#include <thread>
+#include <cstdint> // for uintxx_t
 #include <vector>
+
 
 #include "platform.h"
 
@@ -100,10 +95,7 @@ void worker_thread(uint32_t thread_id) {
 
     printf("Thread %u started with event ID %u\n", thread_id, event_id);
 
-    auto start_time = std::chrono::high_resolution_clock::now();
-
     while (test_running.load()) {
-        auto access_start = std::chrono::high_resolution_clock::now();
 
         // Read from calibration segment
         {
@@ -138,16 +130,11 @@ void worker_thread(uint32_t thread_id) {
         DaqEvent_i(event_id);
 
         // Record timing
-        auto access_end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(access_end - access_start);
-        stats.total_time_ns.fetch_add(duration.count());
         sleepUs(DEFAULT_TASK_LOOP_DELAY_US);
     }
 
-    auto end_time = std::chrono::high_resolution_clock::now();
-    auto total_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
 
-    printf("Thread %u finished after %lld ms: reads=%llu\n", thread_id, (long long)total_duration.count(), (unsigned long long)stats.read_count.load());
+    printf("Thread %u finished after %lld ms: reads=%llu\n", thread_id, (long long)0, (unsigned long long)stats.read_count.load());
 }
 
 //-----------------------------------------------------------------------------------------------------

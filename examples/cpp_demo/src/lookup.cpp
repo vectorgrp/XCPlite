@@ -4,10 +4,14 @@
 /*
 An instance of struct LookupTable creates a calibratable curve with axis points
 */
-
+#include <cmath>   // for fmod, sin
 #include <cstdint> // for uintxx_t
 
-#include "a2l.hpp"    // for A2lTypedefBegin, A2lTypedefCurveComponentWithSharedAxis, etc.
+
+
+#include "a2l.hpp"    // for xcplib A2l generation application programming interface
+#include "xcplib.hpp" // for xcplib application programming interface
+
 #include "lookup.hpp" // for kLookupTableSize, LookupTableT
 
 namespace lookup_table {
