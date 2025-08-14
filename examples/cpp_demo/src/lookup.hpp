@@ -1,3 +1,5 @@
+#pragma once
+
 //-----------------------------------------------------------------------------------------------------
 // Calibratable lookup table
 
@@ -5,20 +7,22 @@
 An instance of struct LookupTable creates a calibratable curve with axis points
 */
 
-#pragma once
 
-#include <cstdint> // for uintxx_t
-
-namespace lookup_table {
+// Use a typedef, typedefs with maps or curves with shared axis require CANape 24
+// #define CANAPE_24 
 
 // Lookup table for arbitrary waveforms
-constexpr uint8_t kLookupTableSize = 11; // Size of the lookup table
+namespace lookup_table {
+
+constexpr size_t kLookupTableSize = 11; // Size of the lookup table
 
 struct LookupTableT {
 
   public:
     float values[kLookupTableSize]; // Values
-    float axis[kLookupTableSize];   // Axis
+#ifdef CANAPE_24
+    float lookup_axis[kLookupTableSize]; // Axis
+#endif
 
     // Lookup function - returns the interpolated value for the given input
     float Lookup(float input) const;

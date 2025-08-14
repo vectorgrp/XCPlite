@@ -1,18 +1,16 @@
 // cpp_demo xcplib C++ example
 
+#include <atomic>
 #include <cstdint> // for uintxx_t
 #include <iostream>
-#include <atomic>
 #include <thread>
 
-
-#include "platform.h" // for sleepMs, sleepNs
 #include "a2l.hpp"    // for xcplib A2l generation application programming interface
+#include "platform.h" // for sleepMs, sleepNs
 #include "xcplib.hpp" // for xcplib application programming interface
 
+#include "lookup.hpp" // for lookup_table::LookupTableT
 #include "sig_gen.hpp"
-
-namespace {
 
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
@@ -21,7 +19,7 @@ namespace {
 #define OPTION_SERVER_PORT 5555         // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
 #define OPTION_QUEUE_SIZE (1024 * 64)   // Size of the measurement queue in bytes
-#define OPTION_LOG_LEVEL 3
+#define OPTION_LOG_LEVEL 4
 
 //-----------------------------------------------------------------------------------------------------
 // Demo calibration parameters
@@ -40,8 +38,6 @@ constexpr ParametersT kParameters = {.counter_max = 1000, .delay_us = 1000};
 uint8_t temperature = 50; // In Celsius
 double speed = 0.0f;      // Speed in km/h
 
-} // namespace
-
 //-----------------------------------------------------------------------------------------------------
 // Demo signal generator class
 
@@ -54,13 +50,13 @@ const signal_generator::SignalParametersT kSignalParameters1 = {
     .phase = 0.0,
     .offset = 0.0,
     .period = 0.4, // s
-#ifdef CANAPE_24
     .lookup =
         {
-            .values = {0.0, 0.5, 1.0, 0.50, 0.00, -0.5, -1, -0.5, 0, 0.0, 0.0},
-            .axis = {0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0},
-        },
+            .values = {0.0f, 0.5f, 1.0f, 0.50f, 0.0f, -0.5f, -1.0f, -0.5f, 0.0f, 0.0f, 0.0f},
+#ifdef CANAPE_24
+            .lookup_axis = {0.0f, 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f},
 #endif
+        },
     .delay_us = 1000,                                   // us
     .signal_type = signal_generator::SignalTypeT::SINE, // Type of the signal
 };
@@ -69,13 +65,13 @@ const signal_generator::SignalParametersT kSignalParameters2 = {
     .phase = kPi / 2,
     .offset = 0.0,
     .period = 10.0, // s
-#ifdef CANAPE_24
     .lookup =
         {
-            .values = {0.0, 0.10, 0.30, 0.60, 0.80, 1.00, 0.80, 0.60, 0.30, 0.10, 0.0},
-            .axis = {0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0},
-        },
+            .values = {0.0f, 0.1f, 0.3f, 0.6f, 0.8f, 1.0f, 0.80f, 0.6f, 0.3f, 0.1f, 0.0f},
+#ifdef CANAPE_24
+            .lookup_axis = {0.0f, 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f},
 #endif
+        },
     .delay_us = 1000,                                   // us
     .signal_type = signal_generator::SignalTypeT::SINE, // Type of the signal
 };
@@ -122,7 +118,12 @@ int main() {
 
     // Local variables
     uint16_t loop_counter = 0;
-    double sum = 0;
+    uint64_t loop_time = 0;
+    uint64_t loop_cycletime = 0;
+    constexpr size_t kHistogramSize = 256;
+    uint32_t loop_histogram[kHistogramSize];
+    memset(loop_histogram, 0, sizeof(loop_histogram));
+    double sum = 0, channel1 = 0, channel2 = 0;
 
     // Create a measurement event 'mainloop'
     DaqCreateEvent(mainloop);
@@ -133,17 +134,20 @@ int main() {
     A2lCreatePhysMeasurement(temperature, "Motor temperature in °C", "conv.temperature", -50.0, 200.0);
     A2lCreatePhysMeasurement(speed, "Speed in km/h", "km/h", 0, 250.0);
 
-    // Register the local measurement variables 'loop_counter' and sum
+    // Register the local measurement variables 'loop_counter', 'loop_time', 'loop_cycletime', 'loop_histogram' and 'sum'
     A2lSetStackAddrMode(mainloop);
-    A2lCreateMeasurement(loop_counter, "Loop counter, local measurement variable on stack");
+    A2lCreateMeasurement(loop_counter, "Mainloop loop counter");
+    A2lCreateLinearConversion(clock_ticks, "Conversion from clock ticks to milliseconds", "ms", 1.0 / (double)CLOCK_TICKS_PER_MS, 0.0);
+    A2lCreatePhysMeasurement(loop_cycletime, "Mainloop cycle time", "conv.clock_ticks", 0.0, 0.05);
+    A2lCreateMeasurementArray(loop_histogram, "Mainloop cycle time histogram");
     A2lCreateMeasurement(sum, "Sum of SigGen1 and SigGen2 value");
 
-    // Signal generator class demo
-    // See sig_gen.cpp for details how to measure instance member variables and stack variables in member functions
+    // Signal generator C++ class demo
+    // See sig_gen.cpp for details how to measure instance members and stack variables in member functions
     // Create 2 signal generator instances of class SignalGenerator with individual parameters
     // Note that the signal generator threads register measurements in the A2L file as well
     // This is not in conflict because the main thread has already registered its measurements above
-    // Otherwise use A2lLock() and A2lUnlock() to avoid race conditions when registering measurements, the A2L generator for measurements is not thread safe by itself
+    // Otherwise use A2lLock() and A2lUnlock() to avoid race conditions when registering measurements, the A2L generator macros for are not thread safe by itself
     signal_generator::SignalGenerator signal_generator_1("SigGen1", kSignalParameters1);
     signal_generator::SignalGenerator signal_generator_2("SigGen2", kSignalParameters2);
 
@@ -155,7 +159,7 @@ int main() {
     std::cout << "Starting main loop..." << std::endl;
     uint32_t delay_us = kParameters.delay_us; // Default
     for (;;) {
-        // Access calibration parameters 'delay' and 'counter_max' safely
+        // Access the calibration parameters 'delay' and 'counter_max' safely
         // Use RAII guard for automatic lock/unlock the calibration parameter segment 'calseg'
         {
             auto parameters = calseg.lock();
@@ -163,15 +167,23 @@ int main() {
             // Get the calibration parameter 'delay' parameter in microseconds
             delay_us = parameters->delay_us;
 
-            // Increment a local measurement 'loop_counter' variable using a calibration parameter 'counter_max' as a limit
+            // Increment the local measurement variable 'loop_counter' variable using the calibration parameter 'counter_max' as a limit
             loop_counter++;
             if (loop_counter > parameters->counter_max)
                 loop_counter = 0;
 
         } // Guard automatically unlocks here
 
+        // Measure and calculate the mainloop cycle time
+        uint64_t last_loop_time = loop_time;
+        loop_time = clockGet();
+        loop_cycletime = loop_time - last_loop_time;
+        loop_histogram[loop_cycletime >= (CLOCK_TICKS_PER_MS / 10) * (kHistogramSize - 1) ? (kHistogramSize - 1) : loop_cycletime / (CLOCK_TICKS_PER_MS / 10)]++;
+
         // Sum the values of signal generator 1+2 into the local variable sum
-        sum = signal_generator_1.GetValue() + signal_generator_2.GetValue();
+        channel1 = signal_generator_1.GetValue();
+        channel2 = signal_generator_2.GetValue();
+        sum = channel1 + channel2;
 
         // Update some more local and global variables
         if (loop_counter == 0) {

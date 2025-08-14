@@ -1,3 +1,5 @@
+#pragma once
+
 //-----------------------------------------------------------------------------------------------------
 // Waveform signal generator class
 
@@ -6,18 +8,13 @@ An instance of class SignalGenerator creates various waveforms, such as sine, sq
 Depending on calibration parameters ampl, phase, offset and period
 */
 
-#pragma once
 
 #include <cstdint> // for uintxx_t
 #include <thread>  // for thread
 
 #include "xcplib.hpp" // for xcplib::CalSeg
 
-// #define CANAPE_24 // Typedefs with maps or curves with shared axis require CANape 24
-
-#ifdef CANAPE_24
-#include "lookup.hpp"
-#endif
+#include "lookup.hpp" // for lookup_table::LookupTableT
 
 //-----------------------------------------------------------------------------------------------
 
@@ -33,16 +30,13 @@ enum SignalTypeT : uint8_t {
 
 // Signal parameters struct
 struct SignalParametersT {
-    double ampl;   // Amplitude
-    double phase;  // Phase shift in radians
-    double offset; // Offset
-    double period; // Period in seconds
-    // Lookup table for arbitrary waveforms
-#ifdef CANAPE_24
-    lookup_table::LookupTableT lookup;
-#endif
-    uint32_t delay_us;   // Delay in microseconds for the task loop
-    uint8_t signal_type; // Type of the signal (SignalTypeT)
+    double ampl;                       // Amplitude
+    double phase;                      // Phase shift in radians
+    double offset;                     // Offset
+    double period;                     // Period in seconds
+    lookup_table::LookupTableT lookup; // Lookup table for arbitrary waveforms
+    uint32_t delay_us;                 // Delay in microseconds for the task loop
+    uint8_t signal_type;               // Type of the signal (SignalTypeT)
 };
 
 class SignalGenerator {

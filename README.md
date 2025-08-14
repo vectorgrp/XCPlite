@@ -97,7 +97,7 @@ c_demo:
   Measurement variables on stack and in global memory.  
   Consistent calibration changes and measurement.  
   Calibration page switching and EPK version check.  
-  Note: A2lTypedefCurveComponentWithSharedAxis uses THIS. references to shared axis in typedef structures. This requires CANape24 or higher.  
+  Note: If CANAPE_24 is defined in sig_gen.hpp, the lookup table is a nested typedef, it uses a THIS. references to its shared axis contained in the typedef.   
 
 struct_demo:  
   Shows how to define measurement variables in nested structs, multidimensional fields and arrays of structs
@@ -153,6 +153,16 @@ cmake -DCMAKE_BUILD_TYPE=Debug -S . -B build
 make --directory ./build hello_xcp
 
 ```
+
+XCPlite can be build for Windows with Microsoft Visual Studio, but there are some limitations and performance penalties.  
+XCPlite is optimized for Posix based systems.  
+
+To create a Visual Studion solution:  
+
+```bash
+./build.sh
+```
+
 
 ## Appendix
 
