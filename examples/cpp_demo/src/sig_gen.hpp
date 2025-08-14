@@ -5,9 +5,8 @@
 
 /*
 An instance of class SignalGenerator creates various waveforms, such as sine, square, arbitrary
-Depending on calibration parameters ampl, phase, offset and period
+Depending on calibration parameters ampl, phase, offset and period in struct SignalParametersT
 */
-
 
 #include <cstdint> // for uintxx_t
 #include <thread>  // for thread

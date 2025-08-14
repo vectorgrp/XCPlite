@@ -7,11 +7,11 @@
 #include <thread>   // for std::thread
 
 #include "a2l.hpp"    // for xcplib A2l generation application programming interface
-#include "platform.h" // for sleepMs, sleepNs
+#include "platform.h" // for sleepMs, sleepNs, clockGet, CLOCK_TICKS_PER_MS
 #include "xcplib.hpp" // for xcplib application programming interface
 
-#include "lookup.hpp" // for lookup_table::LookupTableT
-#include "sig_gen.hpp"
+#include "lookup.hpp"  // for lookup_table::LookupTableT
+#include "sig_gen.hpp" // for signal_generator::SignalGenerator
 
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
@@ -20,7 +20,7 @@
 #define OPTION_SERVER_PORT 5555         // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
 #define OPTION_QUEUE_SIZE (1024 * 64)   // Size of the measurement queue in bytes
-#define OPTION_LOG_LEVEL 4
+#define OPTION_LOG_LEVEL 3
 
 //-----------------------------------------------------------------------------------------------------
 // Demo calibration parameters
@@ -165,10 +165,10 @@ int main() {
         {
             auto parameters = calseg.lock();
 
-            // Get the calibration parameter 'delay' parameter in microseconds
+            // Get the calibration parameter 'delay' in microseconds
             delay_us = parameters->delay_us;
 
-            // Increment the local measurement variable 'loop_counter' variable using the calibration parameter 'counter_max' as a limit
+            // Increment the local measurement variable 'loop_counter' using the calibration parameter 'counter_max' as a limit
             loop_counter++;
             if (loop_counter > parameters->counter_max)
                 loop_counter = 0;
