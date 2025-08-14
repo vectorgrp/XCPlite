@@ -1,9 +1,10 @@
 // cpp_demo xcplib C++ example
 
-#include <atomic>
-#include <cstdint> // for uintxx_t
-#include <iostream>
-#include <thread>
+#include <atomic>   // for std::atomic
+#include <cstdint>  // for uintxx_t
+#include <cstring>  // for memset
+#include <iostream> // for std::cout
+#include <thread>   // for std::thread
 
 #include "a2l.hpp"    // for xcplib A2l generation application programming interface
 #include "platform.h" // for sleepMs, sleepNs
