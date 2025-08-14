@@ -29,33 +29,31 @@ ALIGNMENT_INT64 1
 /begin INSTANCE Parameters "Main parameters" ParametersT 0x80010000 /end INSTANCE
 
 /* Absolute addressing mode: default_event=mainloop (0), addr_ext=1 */
-/begin MEASUREMENT temperature "Motor temperature in °C" UBYTE conv.temperature 0 0 -50 200 ECU_ADDRESS 0x28000 ECU_ADDRESS_EXTENSION 1 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT speed "Speed in km/h" FLOAT64_IEEE NO_COMPU_METHOD 0 0 0 250 ECU_ADDRESS 0x280B0 ECU_ADDRESS_EXTENSION 1 PHYS_UNIT "km/h" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT temperature "Motor temperature in °C" UBYTE conv.temperature 0 0 -50 200 ECU_ADDRESS 0x2D000 ECU_ADDRESS_EXTENSION 1 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT speed "Speed in km/h" FLOAT64_IEEE NO_COMPU_METHOD 0 0 0 250 ECU_ADDRESS 0x37560 ECU_ADDRESS_EXTENSION 1 PHYS_UNIT "km/h" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 
 /* Stack frame relative addressing mode: event=mainloop (0), addr_ext=3 */
-/begin MEASUREMENT loop_counter "Loop counter, local measurement variable on stack" UWORD NO_COMPU_METHOD 0 0 0 65535 ECU_ADDRESS 0xFFFFFFCE ECU_ADDRESS_EXTENSION 3 /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT sum "Sum of SigGen1 and SigGen2 value" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -1e+12 1e+12 ECU_ADDRESS 0xFFFFFFC0 ECU_ADDRESS_EXTENSION 3 /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT loop_counter "Mainloop loop counter" UWORD NO_COMPU_METHOD 0 0 0 65535 ECU_ADDRESS 0xFFFFF94C ECU_ADDRESS_EXTENSION 3 /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT loop_cycletime "Mainloop cycle time" A_UINT64 conv.clock_ticks 0 0 0 0.05 ECU_ADDRESS 0xFFFFF970 ECU_ADDRESS_EXTENSION 3 /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin CHARACTERISTIC loop_histogram "Mainloop cycle time histogram" VAL_BLK 0xFFFFF998 U32 0 NO_COMPU_METHOD 0 4.29497e+09 MATRIX_DIM 256 1 ECU_ADDRESS_EXTENSION 3 /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end CHARACTERISTIC
+/begin MEASUREMENT sum "Sum of SigGen1 and SigGen2 value" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -1e+12 1e+12 ECU_ADDRESS 0xFFFFFDB0 ECU_ADDRESS_EXTENSION 3 /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 
-/begin TYPEDEF_STRUCTURE SignalParametersT "A2L typedef for SignalParametersT" 0x28
-  /begin STRUCTURE_COMPONENT signal_type C_signal_type 0x24 /end STRUCTURE_COMPONENT
+/begin TYPEDEF_STRUCTURE LookupTableT "A2L typedef for LookupTableT" 0x2C
+  /begin STRUCTURE_COMPONENT values C_values 0x0 /end STRUCTURE_COMPONENT
+/end TYPEDEF_STRUCTURE
+
+/begin TYPEDEF_STRUCTURE SignalParametersT "A2L typedef for SignalParametersT" 0x58
+  /begin STRUCTURE_COMPONENT signal_type C_signal_type 0x50 /end STRUCTURE_COMPONENT
   /begin STRUCTURE_COMPONENT ampl C_ampl 0x0 /end STRUCTURE_COMPONENT
   /begin STRUCTURE_COMPONENT phase C_phase 0x8 /end STRUCTURE_COMPONENT
   /begin STRUCTURE_COMPONENT offset C_offset 0x10 /end STRUCTURE_COMPONENT
   /begin STRUCTURE_COMPONENT period C_period 0x18 /end STRUCTURE_COMPONENT
-  /begin STRUCTURE_COMPONENT delay_us C_delay_us 0x20 /end STRUCTURE_COMPONENT
+  /begin STRUCTURE_COMPONENT delay_us C_delay_us 0x4C /end STRUCTURE_COMPONENT
+  /begin STRUCTURE_COMPONENT lookup LookupTableT 0x20 /end STRUCTURE_COMPONENT
 /end TYPEDEF_STRUCTURE
 
 /* Segment relative addressing mode: calseg=SigGen1 */
 /begin INSTANCE SigGen1 "Signal parameters for the signal generator" SignalParametersT 0x80020000 /end INSTANCE
-
-/begin TYPEDEF_STRUCTURE SignalParametersT "A2L typedef for SignalParametersT" 0x28
-  /begin STRUCTURE_COMPONENT signal_type C_signal_type 0x24 /end STRUCTURE_COMPONENT
-  /begin STRUCTURE_COMPONENT ampl C_ampl 0x0 /end STRUCTURE_COMPONENT
-  /begin STRUCTURE_COMPONENT phase C_phase 0x8 /end STRUCTURE_COMPONENT
-  /begin STRUCTURE_COMPONENT offset C_offset 0x10 /end STRUCTURE_COMPONENT
-  /begin STRUCTURE_COMPONENT period C_period 0x18 /end STRUCTURE_COMPONENT
-  /begin STRUCTURE_COMPONENT delay_us C_delay_us 0x20 /end STRUCTURE_COMPONENT
-/end TYPEDEF_STRUCTURE
 
 /* Segment relative addressing mode: calseg=SigGen2 */
 /begin INSTANCE SigGen2 "Signal parameters for the signal generator" SignalParametersT 0x80030000 /end INSTANCE
@@ -64,13 +62,13 @@ ALIGNMENT_INT64 1
 /begin MEASUREMENT SigGen1.value_ "Signal generator output" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100 ECU_ADDRESS 0x10018 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 
 /* Stack frame relative addressing mode: event=SigGen1 (1), addr_ext=3 */
-/begin MEASUREMENT SigGen1.time "Signal generator time" FLOAT64_IEEE NO_COMPU_METHOD 0 0 0 3600 ECU_ADDRESS 0xFFFFFFE0 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "s" /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT SigGen1.time "Signal generator time" FLOAT64_IEEE NO_COMPU_METHOD 0 0 0 3600 ECU_ADDRESS 0xFFFFFEF0 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "s" /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 
 /* Relative addressing mode: event=SigGen2 (2), addr_ext=2 */
 /begin MEASUREMENT SigGen2.value_ "Signal generator output" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100 ECU_ADDRESS 0x20018 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 
 /* Stack frame relative addressing mode: event=SigGen2 (2), addr_ext=3 */
-/begin MEASUREMENT SigGen2.time "Signal generator time" FLOAT64_IEEE NO_COMPU_METHOD 0 0 0 3600 ECU_ADDRESS 0xFFFFFFE0 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "s" /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT SigGen2.time "Signal generator time" FLOAT64_IEEE NO_COMPU_METHOD 0 0 0 3600 ECU_ADDRESS 0xFFFFFEF0 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "s" /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 
 /* Typedefs */
 /begin RECORD_LAYOUT U8 FNC_VALUES 1 UBYTE ROW_DIR DIRECT /end RECORD_LAYOUT
@@ -116,12 +114,7 @@ ALIGNMENT_INT64 1
 
 /begin TYPEDEF_CHARACTERISTIC C_counter_max "Maximum counter value" VALUE U16 0 NO_COMPU_METHOD 0 2000 /end TYPEDEF_CHARACTERISTIC
 /begin TYPEDEF_CHARACTERISTIC C_delay_us "Mainloop delay time in us" VALUE U32 0 NO_COMPU_METHOD 0 999999 PHYS_UNIT "us" /end TYPEDEF_CHARACTERISTIC
-/begin TYPEDEF_CHARACTERISTIC C_signal_type "Signal type" VALUE U8 0 conv.signal_type_enum 0 4 /end TYPEDEF_CHARACTERISTIC
-/begin TYPEDEF_CHARACTERISTIC C_ampl "Amplitude" VALUE F64 0 NO_COMPU_METHOD 0 100 PHYS_UNIT "Volt" /end TYPEDEF_CHARACTERISTIC
-/begin TYPEDEF_CHARACTERISTIC C_phase "Phase" VALUE F64 0 NO_COMPU_METHOD 0 6.28319 /end TYPEDEF_CHARACTERISTIC
-/begin TYPEDEF_CHARACTERISTIC C_offset "Offset" VALUE F64 0 NO_COMPU_METHOD -100 100 PHYS_UNIT "Volt" /end TYPEDEF_CHARACTERISTIC
-/begin TYPEDEF_CHARACTERISTIC C_period "Period" VALUE F64 0 NO_COMPU_METHOD 0.01 10 PHYS_UNIT "s" /end TYPEDEF_CHARACTERISTIC
-/begin TYPEDEF_CHARACTERISTIC C_delay_us "Delay time in us" VALUE U32 0 NO_COMPU_METHOD 0 100000 PHYS_UNIT "us" /end TYPEDEF_CHARACTERISTIC
+/begin TYPEDEF_CHARACTERISTIC C_values "Lookup table" CURVE F32 0 NO_COMPU_METHOD -1 1 /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD 11 0 10 FIX_AXIS_PAR_DIST 0 1 11 /end AXIS_DESCR /end TYPEDEF_CHARACTERISTIC
 /begin TYPEDEF_CHARACTERISTIC C_signal_type "Signal type" VALUE U8 0 conv.signal_type_enum 0 4 /end TYPEDEF_CHARACTERISTIC
 /begin TYPEDEF_CHARACTERISTIC C_ampl "Amplitude" VALUE F64 0 NO_COMPU_METHOD 0 100 PHYS_UNIT "Volt" /end TYPEDEF_CHARACTERISTIC
 /begin TYPEDEF_CHARACTERISTIC C_phase "Phase" VALUE F64 0 NO_COMPU_METHOD 0 6.28319 /end TYPEDEF_CHARACTERISTIC
@@ -131,20 +124,18 @@ ALIGNMENT_INT64 1
 
 /* Groups */
 /begin GROUP Parameters "Calibration Segment" /begin REF_CHARACTERISTIC /end REF_CHARACTERISTIC /end GROUP
-/begin GROUP mainloop "Measurement event group" /begin REF_MEASUREMENT temperature speed loop_counter sum /end REF_MEASUREMENT /end GROUP
+/begin GROUP mainloop "Measurement event group" /begin REF_MEASUREMENT temperature speed loop_counter loop_cycletime loop_histogram sum /end REF_MEASUREMENT /end GROUP
 /begin GROUP SigGen1 "Calibration Segment" /begin REF_CHARACTERISTIC /end REF_CHARACTERISTIC /end GROUP
 /begin GROUP SigGen2 "Calibration Segment" /begin REF_CHARACTERISTIC /end REF_CHARACTERISTIC /end GROUP
 /begin GROUP SigGen1 "Measurement event group" /begin REF_MEASUREMENT SigGen1.value_ SigGen1.time /end REF_MEASUREMENT /end GROUP
-/begin GROUP SigGen2 "Measurement event group" /begin REF_MEASUREMENT /end REF_MEASUREMENT /end GROUP
-/begin GROUP SigGen2 "Measurement event group" /begin REF_MEASUREMENT SigGen2.time /end REF_MEASUREMENT /end GROUP
+/begin GROUP SigGen2 "Measurement event group" /begin REF_MEASUREMENT SigGen2.value_ SigGen2.time /end REF_MEASUREMENT /end GROUP
 /begin GROUP Events "Events" ROOT /begin SUB_GROUP mainloop SigGen1 SigGen2 /end SUB_GROUP /end GROUP
 
 /* Conversions */
 /begin COMPU_METHOD conv.bool "" TAB_VERB "%.0" "" COMPU_TAB_REF conv.bool.table /end COMPU_METHOD
 /begin COMPU_VTAB conv.bool.table "" TAB_VERB 2 0 "false" 1 "true" /end COMPU_VTAB
 /begin COMPU_METHOD conv.temperature "Temperature in °C from unsigned byte" LINEAR "%6.3" "°C" COEFFS_LINEAR 1 -50 /end COMPU_METHOD
-/begin COMPU_METHOD conv.signal_type_enum "" TAB_VERB "%.0 " "" COMPU_TAB_REF conv.signal_type_enum.table /end COMPU_METHOD
-/begin COMPU_VTAB conv.signal_type_enum.table "" TAB_VERB 5 0 "SINE" 1 "SQUARE" 2 "TRIANGLE" 3 "SAWTOOTH" 4 "ARBITRARY" /end COMPU_VTAB
+/begin COMPU_METHOD conv.clock_ticks "Conversion from clock ticks to milliseconds" LINEAR "%6.3" "ms" COEFFS_LINEAR 0.001 0 /end COMPU_METHOD
 /begin COMPU_METHOD conv.signal_type_enum "" TAB_VERB "%.0 " "" COMPU_TAB_REF conv.signal_type_enum.table /end COMPU_METHOD
 /begin COMPU_VTAB conv.signal_type_enum.table "" TAB_VERB 5 0 "SINE" 1 "SQUARE" 2 "TRIANGLE" 3 "SAWTOOTH" 4 "ARBITRARY" /end COMPU_VTAB
 /begin COMPU_METHOD conv.events "" TAB_VERB "%.0 " "" COMPU_TAB_REF conv.events.table /end COMPU_METHOD
@@ -153,7 +144,7 @@ ALIGNMENT_INT64 1
 /end COMPU_VTAB
 
 /begin MOD_PAR ""
-EPK "_Aug_12_202513_39_09" ADDR_EPK 0x80000000
+EPK "_Aug_14_202517_44_34" ADDR_EPK 0x80000000
 /begin MEMORY_SEGMENT epk "" DATA FLASH INTERN 0x80000000 20 -1 -1 -1 -1 -1
 /begin IF_DATA XCP
 /begin SEGMENT 0 2 0 0 0
@@ -172,7 +163,7 @@ EPK "_Aug_12_202513_39_09" ADDR_EPK 0x80000000
 /end SEGMENT
 /end IF_DATA
 /end MEMORY_SEGMENT
-/begin MEMORY_SEGMENT SigGen1 "" DATA FLASH INTERN 0x80020000 0x28 -1 -1 -1 -1 -1
+/begin MEMORY_SEGMENT SigGen1 "" DATA FLASH INTERN 0x80020000 0x58 -1 -1 -1 -1 -1
 /begin IF_DATA XCP
 /begin SEGMENT 2 2 0 0 0
 /begin CHECKSUM XCP_CRC_16_CITT MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION "" /end CHECKSUM
@@ -181,7 +172,7 @@ EPK "_Aug_12_202513_39_09" ADDR_EPK 0x80000000
 /end SEGMENT
 /end IF_DATA
 /end MEMORY_SEGMENT
-/begin MEMORY_SEGMENT SigGen2 "" DATA FLASH INTERN 0x80030000 0x28 -1 -1 -1 -1 -1
+/begin MEMORY_SEGMENT SigGen2 "" DATA FLASH INTERN 0x80030000 0x58 -1 -1 -1 -1 -1
 /begin IF_DATA XCP
 /begin SEGMENT 3 2 0 0 0
 /begin CHECKSUM XCP_CRC_16_CITT MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION "" /end CHECKSUM
@@ -239,7 +230,7 @@ DYNAMIC 0 3 0 OPTIMISATION_TYPE_DEFAULT ADDRESS_EXTENSION_FREE IDENTIFICATION_FI
 /begin EVENT "SigGen2" "SigGen2" 0x2 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
 /end DAQ
 /begin XCP_ON_UDP_IP
-  0x104 5555 ADDRESS "192.168.0.128"
+  0x104 5555 ADDRESS "10.110.65.61"
 /end XCP_ON_UDP_IP
 /end IF_DATA
 

@@ -8,14 +8,15 @@ Depending on calibration parameters ampl, phase, offset and period
 
 #include <cmath>   // for fmod, sin
 #include <cstdint> // for uintxx_t
+#include <thread>
 
-#include "a2l.hpp"
+#include "a2l.hpp"    // for xcplib A2l generation application programming interface
+#include "xcplib.hpp" // for xcplib application programming interface
 
-#ifdef CANAPE_24
-#include "lookup.hpp"
+#include "sig_gen.hpp" 
+
+#include "lookup.hpp" // calibratble lookup table for arbitrary waveform generator
 using namespace lookup_table;
-#endif
-#include "sig_gen.hpp"
 
 namespace signal_generator {
 
@@ -25,12 +26,11 @@ constexpr double k2Pi = (kPi * 2);
 // Constructor - creates the signal generator with the given instance name and parameters
 SignalGenerator::SignalGenerator(const char *instance_name, SignalParametersT params) : signal_parameters_(instance_name, params), instance_name_(instance_name) {
 
-#ifdef CANAPE_24
-    params.lookup.A2lRegisterTypedef(); // Register the lookup table typedef once
-#endif
-
     // Global once A2l registration of SignalParametersT typedef
     if (A2lOnce()) {
+
+        params.lookup.A2lRegisterTypedef(); // Register the lookup table typedef
+
         A2lTypedefBegin(SignalParametersT, "A2L typedef for SignalParametersT");
         A2lCreateEnumConversion(signal_type_enum, "5 0 \"SINE\" 1 \"SQUARE\" 2 \"TRIANGLE\" 3 \"SAWTOOTH\" 4 \"ARBITRARY\"");
         A2lTypedefParameterComponent(signal_type, SignalParametersT, "Signal type", "conv.signal_type_enum", 0, 4);
@@ -39,9 +39,7 @@ SignalGenerator::SignalGenerator(const char *instance_name, SignalParametersT pa
         A2lTypedefParameterComponent(offset, SignalParametersT, "Offset", "Volt", -100, 100);
         A2lTypedefParameterComponent(period, SignalParametersT, "Period", "s", 0.01, 10.0);
         A2lTypedefParameterComponent(delay_us, SignalParametersT, "Delay time in us", "us", 0, 100000);
-#ifdef CANAPE_24 // Shared axis in typedefs requires CANape 24
         A2lTypedefComponent(lookup, LookupTableT, 1, SignalParametersT);
-#endif
         A2lTypedefEnd();
     }
 
@@ -102,12 +100,10 @@ void SignalGenerator::Task() {
             case SignalTypeT::SAWTOOTH:
                 v = (normalized_time - 0.5) * 2.0;
                 break;
-#ifdef CANAPE_24 // Shared axis in typedefs requires CANape 24
             case SignalTypeT::ARBITRARY: {
                 // Find the index in the lookup table based on the time
-                v = p->lookup.Lookup(normalized_time);
+                v = p->lookup.Lookup((float)normalized_time);
             } break;
-#endif
             default:
                 v = sin((normalized_time * k2Pi) + p->phase);
                 break;

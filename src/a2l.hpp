@@ -35,23 +35,17 @@ if (A2lOncePerThread()) {
 }
 */
 
+#ifdef __cplusplus
+#include <thread>
+#endif
+
 #include "a2l.h"
 
 #ifdef __cplusplus
 
-#include <atomic>
 #include <mutex>
-#include <type_traits>
 
-// For C++17 and later (which is required for XCPlite), use std::monostate from <variant>
-#if __cplusplus >= 201703L
-#include <variant>
-using empty_type = std::monostate;
-#else
-#error "C++17 or later is required for XCPlite, please enable C++17 in your build system"
-// For older compilers, provide a simple empty type
 struct empty_type {};
-#endif
 
 // RAII guard for execute-once pattern with optional mutex protection
 // Location parameter ensures each call site gets its own once_flag
