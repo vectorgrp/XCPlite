@@ -10,6 +10,11 @@
 ||
  ----------------------------------------------------------------------------*/
 
+/ Version
+#define OPTION_VERSION_MAJOR 0
+#define OPTION_VERSION_MINOR 9
+#define OPTION_VERSION_PATCH 3
+
 /*
 
   A #define OPTION_xxx may be a higher abstraction level configuration set
