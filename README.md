@@ -135,11 +135,9 @@ The automatic A2L upload then happens every time a new version of A2L file has b
 Depending on the settings in XCPlite, this happens after the first run of a new software build, or each time the application is restarted.  
 Of course, the A2L file may also be copied manually into the CANape project folder.  
 
-### XCPlite Build
+### XCPlite build on Linux or macOS
 
-Build the library and all examples:  
-
-Use the build script to build all targets and get comprehensive output on issues:
+Use the build script to build the library xcplib, example targets and get comprehensive output on issues:
 
 ```bash
 ./build.sh
@@ -148,19 +146,26 @@ Use the build script to build all targets and get comprehensive output on issues
 Or build individual example targets:
 
 ```bash
-
 cmake -DCMAKE_BUILD_TYPE=Debug -S . -B build  
 make --directory ./build hello_xcp
-
 ```
 
-XCPlite can be build for Windows with Microsoft Visual Studio, but there are some limitations and performance penalties.  
-XCPlite is optimized for Posix based systems.  
+### XCPlite build on Windows
 
-To create a Visual Studion solution:  
+It is possible to build for Windows with the Microsoft Visual Studio compiler, but there are some limitations and performance penalties under Windows.  
+XCPlite is optimized for Posix based systems.  
+On Windows, atomic operations are emulated and the transmit queue always uses a mutex on the producer side.  
 
 ```bash
-./build.sh
+cmake -DCMAKE_BUILD_TYPE=Debug -S . -B build-msvc
+cmake --build build-msvc --target hello_xcp
+build-msvc/debug/hello_xcp.exe
+```
+
+To create a Visual Studio solution:  
+
+```bash
+./build.bat
 ```
 
 

@@ -64,7 +64,7 @@ float calc_speed(float current_speed) {
     parameters_t *params = (parameters_t *)XcpLockCalSeg(calseg);
 
     // Calculate new speed based on acceleration and sample rate
-    new_speed = current_speed + params->acceleration * params->delay_us * 3.6 / 1000000.0; // km/h
+    new_speed = (float)(current_speed + params->acceleration * params->delay_us * 3.6 / 1000000.0); // km/h
     if (new_speed < 0.0f) {
         new_speed = 0.0f;
     } else if (new_speed > 250.0f) {

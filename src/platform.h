@@ -327,6 +327,7 @@ bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr);
 // Clock
 bool clockInit(void);
 uint64_t clockGet(void);
+uint64_t clockGetRaw(void);
 uint64_t clockGetLast(void);
 char *clockGetString(char *s, uint32_t l, uint64_t c);
 char *clockGetTimeString(char *s, uint32_t l, int64_t c);

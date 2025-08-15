@@ -205,24 +205,43 @@ void XcpEventExt(tXcpEventId event, const uint8_t *base);
 uint8_t XcpEventDynRelAt(tXcpEventId event, const uint8_t *dyn_base, const uint8_t *rel_base, uint64_t clock);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Get stack frame pointer
+// Used by the Daq and A2l macros to get the stack frame pointer for stack relative addressing mode
+
+// Linux, MACOS gnu and clang compiler
+#if defined(__GNUC__) || defined(__clang__)
+
+#define get_stack_frame_pointer() (const uint8_t *)__builtin_frame_address(0)
+
+// MSVC compiler
+#elif defined(_MSC_VER)
+
+// Workaround to get the stackframe address with the MS compiler
+// The __forceinline ensures this gets inlined, so effectively zero function call overhead
+// The local variable approach compiles to a single LEA instruction
+// Suppress the warning since this is intentional behavior for stack frame detection
+#pragma warning(push)
+#pragma warning(disable : 4172) // returning address of local variable - intentional
+static __forceinline const uint8_t *get_stack_frame_pointer_msvc(void) {
+    volatile char stack_marker = 0;
+    return (const uint8_t *)&stack_marker;
+}
+#pragma warning(pop)
+#define get_stack_frame_pointer() get_stack_frame_pointer_msvc()
+
+// Other compilers
+#else
+#error "get_stack_frame_pointer is not defined for this compiler. Please implement it."
+#endif
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // DAQ event trigger convenience macros
 
 // Event name parameter is a symbol, a string (_s) or an event index (_i)
 // Creates linker map file markers (static variables: daq_event_stackframe_'eventname'_ or daq_event_relative_'eventname'_) for the XCP event id used
 // No need to take care to store the event id
 // Uses thread local storage to create a thread safe once pattern for the event lookup
-
 // All macros can be used to measure variables registered in absolute addressing mode as well
-
-#ifndef get_stack_frame_pointer
-#if defined(__GNUC__) || defined(__clang__)
-#define get_stack_frame_pointer() (const uint8_t *)__builtin_frame_address(0)
-#elif defined(_MSC_VER)
-#define get_stack_frame_pointer() (const uint8_t *)_AddressOfReturnAddress()
-#else
-#error "get_stack_frame_pointer is not defined for this compiler. Please implement it."
-#endif
-#endif
 
 /// Trigger the XCP event 'name' for stack relative or absolute addressing
 /// Cache the event name lookup
