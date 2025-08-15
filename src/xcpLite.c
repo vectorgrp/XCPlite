@@ -571,7 +571,7 @@ static uint8_t XcpCalSegPublish(tXcpCalSeg *c, bool wait) {
             free_page = (uint8_t *)atomic_load_explicit(&c->free_page, memory_order_acquire);
         }
         if (free_page == NULL) {
-            DBG_PRINTF_ERROR("Can not update calibration changes, calseg %s not locked periodically\n", c->name);
+            DBG_PRINTF_ERROR("Can not update calibration changes, timeout - calseg %s locked\n", c->name);
             return CRC_ACCESS_DENIED; // No free page available
         }
     } else {

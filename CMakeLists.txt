@@ -87,14 +87,7 @@ endif()
 
 
 # xcplib sources
-# Use the 32-bit version for non 64-bit platform and for Windows
-if(WINDOWS OR NOT PLATFORM_64BIT)
-    message(STATUS "Build 32-bit xcplib")
-    set(xcplib_SOURCES src/xcpAppl.c src/xcpLite.c src/xcpEthServer.c src/xcpEthTl.c src/xcpQueue32.c src/a2l.c src/persistency.c src/platform.c)   
-else()
-    message(STATUS "Build 64-bit xcplib")
-    set(xcplib_SOURCES src/xcpAppl.c src/xcpLite.c src/xcpEthServer.c src/xcpEthTl.c src/xcpQueue64.c src/a2l.c src/persistency.c src/platform.c)   
-endif()
+set(xcplib_SOURCES src/xcpAppl.c src/xcpLite.c src/xcpEthServer.c src/xcpEthTl.c src/xcpQueue32.c src/xcpQueue64.c src/a2l.c src/persistency.c src/platform.c)   
 
 set(PROJECT_ROOT ${CMAKE_CURRENT_LIST_DIR})
 message(STATUS "PROJECT_ROOT is: ${PROJECT_ROOT}")

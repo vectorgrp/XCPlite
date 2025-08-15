@@ -13,6 +13,13 @@
 |
  ----------------------------------------------------------------------------*/
 
+// Enable atomic emulation for platforms without stdatomic.h
+// This is used for Windows (and automatically set in this case)
+// Switches to 32 bit transmit queue implementation
+// Not designed for non x86 platforms, needs strong memory ordering
+// Use this for testing only
+// #define OPTION_ATOMIC_EMULATION
+
 //-------------------------------------------------------------------------------------------------
 // Platform defines
 
@@ -27,6 +34,9 @@
 #if defined(_WIN32) || defined(_WIN64)
 
 #define _WIN
+
+// For Windows compatibility, we use an emulation for atomic operations and the 32 bit version of the transmit queue
+#define OPTION_ATOMIC_EMULATION
 
 #if defined(_WIN32) && defined(_WIN64)
 // #error "defined(_WIN32) && defined(_WIN64)"
@@ -89,6 +99,7 @@
 
 #include <pthread.h>
 
+#ifndef OPTION_ATOMIC_EMULATION
 #ifndef __cplusplus
 #include <stdatomic.h>
 #define ATOMIC_BOOL_TYPE uint_fast8_t
@@ -98,6 +109,7 @@
 #include <atomic>
 #define ATOMIC_BOOL_TYPE uint_fast8_t
 #define ATOMIC_BOOL std::atomic<uint_fast8_t>
+#endif
 #endif
 
 #include <arpa/inet.h>
@@ -336,13 +348,10 @@ char *clockGetTimeString(char *s, uint32_t l, int64_t c);
 // Atomic operations
 
 // Atomic operations emulation for Windows
-#ifdef _WIN
+#ifdef OPTION_ATOMIC_EMULATION
 
 #ifdef _WIN32_
 #error "Windows32 not implemented yet"
-#endif
-#ifdef _WIN64
-// #error "Remove this line to enable Windows64 atomic emulation, this is for demonstration and test purposes only"
 #endif
 
 // On Windows 64 we rely on the x86-64 strong memory model and assume atomic 64 bit load/store
@@ -373,7 +382,7 @@ bool atomic_compare_exchange_weak_explicit(uint64_t *a, uint64_t *b, uint64_t c,
 bool atomic_compare_exchange_strong_explicit(uint64_t *a, uint64_t *b, uint64_t c, int d, int e);
 bool atomic_compare_exchange_weak_explicit(uint64_t *a, uint64_t *b, uint64_t c, int d, int e);
 
-#endif
+#endif // OPTION_ATOMIC_EMULATION
 
 #ifdef __cplusplus
 } // extern "C"

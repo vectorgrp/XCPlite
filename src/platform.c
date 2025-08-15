@@ -163,7 +163,7 @@ void sleepMs(uint32_t ms) {
 /**************************************************************************/
 
 // stdatomic emulation for Windows
-#ifdef _WIN
+#ifdef OPTION_ATOMIC_EMULATION
 
 MUTEX gWinMutex;
 
@@ -228,7 +228,7 @@ bool atomic_compare_exchange_strong_explicit(uint64_t *a, uint64_t *b, uint64_t 
     return res;
 }
 
-#endif
+#endif // OPTION_ATOMIC_EMULATION
 
 /**************************************************************************/
 // Mutex

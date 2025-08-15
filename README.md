@@ -60,11 +60,19 @@ There are other implementations of XCP available:
 XCPbasic is a free implementation for smaller Microcontrollers (even 8Bit) and optimized for CAN as Transport-Layer.  
 XCPprof is a commercial product in Vectors AUTOSAR MICROSAR and CANbedded product portfolio.  
 
+### Compatibilty
+
+The required C and and C++ language standards are C11 and C++20.  
+
+Most of the examples require CANape 23 or later, because they use A2L TYPEDEFs and relative memory addressing.  
+
+If these requirements can not be fulfilled, just stay with the prior stable version tagged V6.4.  
+
 ### Documentation
 
 A description of the XCP instrumentation API is available in the doc folder.  
 
-## XCPlite Examples  
+## Examples  
 
 Examples are found in the examples folder.  
 There is a CANape project for each example in examples/xxxx/CANape. To load a new project into CANape, select load project and navigate to the CANape.ini file in the examples CANape folder.  
@@ -97,7 +105,7 @@ c_demo:
   Measurement variables on stack and in global memory.  
   Consistent calibration changes and measurement.  
   Calibration page switching and EPK version check.  
-  Note: If CANAPE_24 is defined in sig_gen.hpp, the lookup table is a nested typedef, it uses a THIS. references to its shared axis contained in the typedef.   
+  Note: If CANAPE_24 is defined in sig_gen.hpp, the lookup table is a nested typedef, it uses a THIS. references to its shared axis contained in the typedef.
 
 struct_demo:  
   Shows how to define measurement variables in nested structs, multidimensional fields and arrays of structs
@@ -135,7 +143,7 @@ The automatic A2L upload then happens every time a new version of A2L file has b
 Depending on the settings in XCPlite, this happens after the first run of a new software build, or each time the application is restarted.  
 Of course, the A2L file may also be copied manually into the CANape project folder.  
 
-### XCPlite build on Linux or macOS
+### Build on Linux or macOS
 
 Use the build script to build the library xcplib, example targets and get comprehensive output on issues:
 
@@ -150,7 +158,7 @@ cmake -DCMAKE_BUILD_TYPE=Debug -S . -B build
 make --directory ./build hello_xcp
 ```
 
-### XCPlite build on Windows
+### Build on Windows
 
 It is possible to build for Windows with the Microsoft Visual Studio compiler, but there are some limitations and performance penalties under Windows.  
 XCPlite is optimized for Posix based systems.  
@@ -167,7 +175,6 @@ To create a Visual Studio solution:
 ```bash
 ./build.bat
 ```
-
 
 ## Appendix
 
@@ -310,15 +317,12 @@ The addressing mode is indicated by the address extension:
 
 - Sockets (Linux: socket, ...).  
 
-### CANape known issues
+### Known issues and suggestions for improvement
 
-- Initialize RAM (COPY_CAL_PAGE) is executed only on the first calibration segment
-- GET_SEGMENT_MODE is executed multiple times on only the last calibration segment before freeze request
-- Address extension of memory segment is ignored
-- Request for unique address extension per DAQ list is ignored (DAQ_KEY_BYTE == DAQ_EXT_DAQ)
-- CANape < V24 does not support THIS. axis references
-
-### Suggestions for improvement
-
-- Transport Layer counter mutex could be avoided with different counter mode
-- Indicate when polling access is not possible
+- Initialize RAM (COPY_CAL_PAGE) is executed only on the first calibration segment.  
+- GET_SEGMENT_MODE is executed multiple times on the last calibration segment before freeze request.  
+- Address extension of memory segment is ignored by CANape, using 0 for calibration segment relative addressing.  
+- Request for unique address extension per DAQ list is ignored by CANape (DAQ_KEY_BYTE == DAQ_EXT_DAQ), this forces us to store store the address extension per ODT entry.  
+- CANape < V24 does not support shared axis in typedefs or THIS. axis references.  
+- Transport Layer counter mutex could be avoided with different counter mode.  
+- Indicate when polling access is not possible.  
