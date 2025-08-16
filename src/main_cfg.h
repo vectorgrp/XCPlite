@@ -10,7 +10,7 @@
 ||
  ----------------------------------------------------------------------------*/
 
-/ Version
+// Version
 #define OPTION_VERSION_MAJOR 0
 #define OPTION_VERSION_MINOR 9
 #define OPTION_VERSION_PATCH 3

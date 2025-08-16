@@ -36,6 +36,7 @@
 #define _WIN
 
 // For Windows compatibility, we use an emulation for atomic operations and the 32 bit version of the transmit queue
+// MSVC does not support C11 stdatomic.h, so we must use emulation
 #define OPTION_ATOMIC_EMULATION
 
 #if defined(_WIN32) && defined(_WIN64)
