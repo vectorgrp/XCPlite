@@ -163,7 +163,7 @@ void sleepMs(uint32_t ms) {
 /**************************************************************************/
 
 // stdatomic emulation for Windows
-#ifdef _WIN
+#ifdef OPTION_ATOMIC_EMULATION
 
 MUTEX gWinMutex;
 
@@ -228,7 +228,7 @@ bool atomic_compare_exchange_strong_explicit(uint64_t *a, uint64_t *b, uint64_t 
     return res;
 }
 
-#endif
+#endif // OPTION_ATOMIC_EMULATION
 
 /**************************************************************************/
 // Mutex
@@ -854,15 +854,19 @@ bool clockInit(void) {
 
 // Get 64 bit clock
 uint64_t clockGet(void) {
-
     struct timespec ts;
     clock_gettime(CLOCK_TYPE, &ts);
-#ifdef OPTION_CLOCK_TICKS_1NS                                                           // ns
-    return sClock = (((uint64_t)(ts.tv_sec) * 1000000000ULL) + (uint64_t)(ts.tv_nsec)); // ns
-#else                                                                                   // OPTION_CLOCK_TICKS_1US us
+#ifdef OPTION_CLOCK_TICKS_1NS // ns
+    return sClock = (((uint64_t)(ts.tv_sec) * 1000000000ULL) + (uint64_t)(ts.tv_nsec));
+#else // us
     return sClock = (((uint64_t)(ts.tv_sec) * 1000000ULL) + (uint64_t)(ts.tv_nsec / 1000)); // us
-    // return sClock = (((uint64_t)(ts.tv_sec - gts0.tv_sec) * 1000000ULL) + (uint64_t)(ts.tv_nsec / 1000)); // us ARB
+    // return sClock = (((uint64_t)(ts.tv_sec - gts0.tv_sec) * 1000000ULL) + (uint64_t)(ts.tv_nsec / 1000));
 #endif
+}
+uint64_t clockGetRaw(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_TYPE, &ts);
+    return sClock = (((uint64_t)(ts.tv_sec) * 1000000000ULL) + (uint64_t)(ts.tv_nsec));
 }
 
 #elif defined(_WIN) // Windows
@@ -1023,6 +1027,15 @@ uint64_t clockGet(void) {
     } else {
         t = t * sFactor + sOffset;
     }
+    sClock = t;
+    return t;
+}
+uint64_t clockGetRaw(void) {
+    LARGE_INTEGER tp;
+    uint64_t t;
+
+    QueryPerformanceCounter(&tp);
+    t = (((uint64_t)tp.u.HighPart) << 32) | (uint64_t)tp.u.LowPart;
     sClock = t;
     return t;
 }

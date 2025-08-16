@@ -20,6 +20,7 @@
 
 #define XCP_MAX_EVENT_NAME 15
 #define THREAD_COUNT 8              // Number of threads to create
+#define THREAD_DELAY_US 10000       // Delay in microseconds for the thread loops
 #define MAX_THREAD_NAME_LENGTH 32   // Maximum length of thread name
 #define EXPERIMENTAL_THREAD_CONTEXT // Enable demonstration of tracking thread context and span of the clip and filter function
 
@@ -30,7 +31,7 @@
 #define OPTION_USE_TCP false                    // TCP or UDP
 #define OPTION_SERVER_PORT 5555                 // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}         // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE 1024 * 32             // Size of the measurement queue in bytes, must be a multiple of 8
+#define OPTION_QUEUE_SIZE (1024 * 1024)         // Size of the measurement queue in bytes, must be a multiple of 8
 #define OPTION_LOG_LEVEL 3
 
 //-----------------------------------------------------------------------------------------------------
@@ -43,12 +44,12 @@ typedef struct params {
     double filter;        // Filter coefficient for the filter function 0.0-1.0
     double clip_max;      // Maximum value for clipping function
     double clip_min;      // Minimum value for clipping function
-    uint32_t delay_us;    // Delay in microseconds for the main loop
+    uint32_t delay_us;    // Delay in microseconds for the thread loops
     bool run;             // Stop flag for the task
 } params_t;
 
 // Default parameters
-static const params_t params = {.counter_max = 1000, .ampl = 100.0, .period = 3.0, .filter = 0.07, .clip_max = 80.0, .clip_min = -100.0, .delay_us = 10000, .run = true};
+static const params_t params = {.counter_max = 1000, .ampl = 100.0, .period = 3.0, .filter = 0.07, .clip_max = 80.0, .clip_min = -100.0, .delay_us = THREAD_DELAY_US, .run = true};
 
 // Global calibration segment handle
 static tXcpCalSegIndex calseg = XCP_UNDEFINED_CALSEG;
@@ -157,7 +158,7 @@ double clip(double input) {
     BeginSpan("clip");
 
     // Simulate some more expensive work
-    sleepNs(400000);
+    sleepUs(50);
 
     params_t *params = (params_t *)XcpLockCalSeg(calseg);
 
@@ -196,7 +197,7 @@ double filter(double input) {
     }
 
     // Simulate some more expensive work
-    sleepNs(1000000);
+    sleepUs(100);
 
     params_t *params = (params_t *)XcpLockCalSeg(calseg);
 
@@ -235,6 +236,7 @@ void *task(void *p)
     double channel1 = 0;
     double channel2 = 0;
     double channel3 = 0;
+    uint32_t array[256] = {0};
 
     // Instrumentation: Events and measurement variables
     // Register task local variables counter and channelx with stack addressing mode
@@ -243,7 +245,7 @@ void *task(void *p)
     // Build the task name from the event index
     uint16_t task_index = XcpGetEventIndex(task_event_id); // Get the event index of this event instance
     char task_name[XCP_MAX_EVENT_NAME + 1];
-    sprintf(task_name, "task_%u", task_index);
+    SNPRINTF(task_name, sizeof(task_name), "task_%u", task_index);
 
     // Create measurement variables for this task instance
     A2lLock();
@@ -252,6 +254,7 @@ void *task(void *p)
     A2lCreateMeasurementInstance(task_name, channel1, "task sine wave signal");
     A2lCreateMeasurementInstance(task_name, channel2, "task square wave signal");
     A2lCreateMeasurementInstance(task_name, channel3, "task sawtooth signal");
+    A2lCreateMeasurementArrayInstance(task_name, array, "task array (to increase measurement workload)");
     A2lUnlock();
 
     // Instrumentation: Context
@@ -295,10 +298,10 @@ void *task(void *p)
         DaqEvent_i(task_event_id);
 
         // Sleep for the specified delay parameter in microseconds, defines the approximate sampling rate
-        sleepNs(delay_us * 1000);
+        sleepUs(delay_us);
     }
 
-    return NULL; // Exit the thread
+    return 0; // Exit the thread
 }
 
 // Demo main
@@ -345,6 +348,7 @@ int main(void) {
     // Create multiple instances of task
     THREAD t[THREAD_COUNT];
     for (int i = 0; i < THREAD_COUNT; i++) {
+        t[i] = 0;
         create_thread(&t[i], task);
     }
 
@@ -353,7 +357,8 @@ int main(void) {
     A2lFinalize();
 
     for (int i = 0; i < THREAD_COUNT; i++) {
-        join_thread(t[i]);
+        if (t[i])
+            join_thread(t[i]);
     }
 
     // Force disconnect the XCP client

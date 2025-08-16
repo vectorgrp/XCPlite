@@ -19,8 +19,8 @@
 /*----------------------------------------------------------------------------*/
 /* Version */
 
-// Driver version (GET_COMM_MODE_INFO)
-#define XCP_DRIVER_VERSION 0x01
+// Driver version (GET_COMM_MODE_INFO, BYTE)
+#define XCP_DRIVER_VERSION (((OPTION_VERSION_MAJOR << 4) & 0xF0) | (OPTION_VERSION_MINOR & 0x0F))
 
 // Enable Ethernet specific protocol layer commands
 #define XCP_ENABLE_PROTOCOL_LAYER_ETH
