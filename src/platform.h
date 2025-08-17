@@ -32,10 +32,6 @@
 // MSVC does not support C11 stdatomic.h
 #define OPTION_ATOMIC_EMULATION
 
-#if defined(_WIN32) && defined(_WIN64)
-// #error "defined(_WIN32) && defined(_WIN64)"
-#undef _WIN32 // @@@@ TODO: Remove this line
-#endif
 #if defined(_LINUX) || defined(_LINUX64) || defined(_LINUX32)
 #error "defined(_LINUX) || defined(_LINUX64) || defined(_LINUX32)"
 #endif
@@ -380,10 +376,6 @@ char *clockGetTimeString(char *s, uint32_t l, int64_t c);
 
 // Atomic operations emulation for Windows
 #ifdef OPTION_ATOMIC_EMULATION
-
-#ifdef _WIN32_
-#error "Windows32 not implemented yet"
-#endif
 
 // On Windows 64 we rely on the x86-64 strong memory model and assume atomic 64 bit load/store
 // Use a mutex for thread safe atomic_fetch_add/sub and atomic_compare_exchange

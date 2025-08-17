@@ -187,7 +187,7 @@ int main(void) {
         if (delay_us != params->delay_us) {
             delay_us = params->delay_us;
             char buffer[64];
-            sprintf(buffer, "Mainloop sleep duration changed to %uus", delay_us);
+            snprintf(buffer, sizeof(buffer), "Mainloop sleep duration changed to %uus", delay_us);
             XcpPrint(buffer);
             printf("%s\n", buffer);
         }
@@ -207,7 +207,7 @@ int main(void) {
         params_copy = *params;
         if (params_copy.test_byte1 != -params_copy.test_byte2) {
             char buffer[64];
-            sprintf(buffer, "Inconsistent %u:  %d -  %d", counter16, params_copy.test_byte1, params_copy.test_byte2);
+            snprintf(buffer, sizeof(buffer), "Inconsistent %u:  %d -  %d", counter16, params_copy.test_byte1, params_copy.test_byte2);
             XcpPrint(buffer);
             printf("%s\n", buffer);
         }

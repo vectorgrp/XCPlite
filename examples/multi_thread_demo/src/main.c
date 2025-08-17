@@ -21,6 +21,7 @@
 
 // Threads
 #if defined(_WIN32) // Windows
+#include <windows.h>
 typedef HANDLE THREAD;
 #define create_thread(h, t) *h = CreateThread(0, 0, t, NULL, 0, NULL)
 #define join_thread(h) WaitForSingleObject(h, INFINITE);
@@ -144,7 +145,7 @@ static uint16_t XcpCreateContext(const char *context_name, uint16_t context_inde
     // Init thread local context
     // Create a unique name from index
     // Create an XCP event for this context
-    sprintf(gXcpContext.name, "%s_%u", context_name, context_index);
+    snprintf(gXcpContext.name, sizeof(gXcpContext.name), "%s_%u", context_name, context_index);
     gXcpContext.id = XcpCreateEvent(gXcpContext.name, 0, 0);
     gXcpContext.span_id = gXcpContext.id;
     gXcpContext.level = 0;
@@ -233,7 +234,7 @@ double filter(double input) {
 
 // Task function that runs in a separate thread
 // Calculates a sine wave, square wave, and sawtooth wave signal
-#ifdef _WIN
+#ifdef _WIN32
 DWORD WINAPI task(LPVOID p)
 #else
 void *task(void *p)
@@ -260,7 +261,7 @@ void *task(void *p)
     // Build the task name from the event index
     uint16_t task_index = XcpGetEventIndex(task_event_id); // Get the event index of this event instance
     char task_name[XCP_MAX_EVENT_NAME + 1];
-    sprintf(task_name, "task_%u", task_index);
+    snprintf(task_name, sizeof(task_name), "task_%u", task_index);
 
     // Create measurement variables for this task instance
     A2lLock();
