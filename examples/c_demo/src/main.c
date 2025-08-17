@@ -6,9 +6,8 @@
 #include <stdio.h>   // for printf
 #include <string.h>  // for sprintf
 
-#include "a2l.h"      // for xcplib A2l generation
-#include "platform.h" // for sleepMs, clockGet
-#include "xcplib.h"   // for xcplib application programming interface
+#include "a2l.h"    // for xcplib A2l generation
+#include "xcplib.h" // for xcplib application programming interface
 
 //-----------------------------------------------------------------------------------------------------
 
@@ -188,7 +187,7 @@ int main(void) {
         if (delay_us != params->delay_us) {
             delay_us = params->delay_us;
             char buffer[64];
-            SNPRINTF(buffer, sizeof(buffer), "Mainloop sleep duration changed to %uus", delay_us);
+            snprintf(buffer, sizeof(buffer), "Mainloop sleep duration changed to %uus", delay_us);
             XcpPrint(buffer);
             printf("%s\n", buffer);
         }
@@ -208,7 +207,7 @@ int main(void) {
         params_copy = *params;
         if (params_copy.test_byte1 != -params_copy.test_byte2) {
             char buffer[64];
-            SNPRINTF(buffer, sizeof(buffer), "Inconsistent %u:  %d -  %d", counter16, params_copy.test_byte1, params_copy.test_byte2);
+            snprintf(buffer, sizeof(buffer), "Inconsistent %u:  %d -  %d", counter16, params_copy.test_byte1, params_copy.test_byte2);
             XcpPrint(buffer);
             printf("%s\n", buffer);
         }
@@ -258,7 +257,7 @@ int main(void) {
         g_counter64s = counter64s;
 
         // Sleep for the specified delay parameter in microseconds
-        sleepNs(delay_us * 1000);
+        sleepUs(delay_us);
 
         A2lFinalize(); // Optional: Finalize the A2L file generation early, to write the A2L now, not when the client connects
 

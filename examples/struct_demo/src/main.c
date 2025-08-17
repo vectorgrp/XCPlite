@@ -7,9 +7,8 @@
 #include <stdlib.h>  // for free, malloc
 #include <string.h>  // for sprintf
 
-#include "a2l.h"      // for xcplib A2l generation
-#include "platform.h" // for sleepMs
-#include "xcplib.h"   // for xcplib application programming interface
+#include "a2l.h"    // for xcplib A2l generation
+#include "xcplib.h" // for xcplib application programming interface
 
 //-----------------------------------------------------------------------------------------------------
 
@@ -161,7 +160,7 @@ int main(void) {
 
         // Sleep for the delay parameter microseconds
         params_t *params = (params_t *)XcpLockCalSeg(calseg);
-        sleepNs(params->delay_us * 1000);
+        sleepUs(params->delay_us);
         XcpUnlockCalSeg(calseg);
 
         // Trigger the measurement events

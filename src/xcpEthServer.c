@@ -87,6 +87,9 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
 
     DBG_PRINT3("Start XCP server\n");
     DBG_PRINTF3("  Queue size = %u\n", queueSize);
+#ifdef OPTION_ATOMIC_EMULATION
+    DBG_PRINT3("  Using atomic emulation !!\n");
+#endif
 
     gXcpServer.TransmitThreadRunning = false;
     gXcpServer.ReceiveThreadRunning = false;

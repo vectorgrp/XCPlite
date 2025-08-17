@@ -7,9 +7,10 @@
 #include <stdio.h>   // for printf
 #include <string.h>  // for sprintf
 
-#include "a2l.h"      // for xcplib A2l generation
-#include "platform.h" // for sleepMs
-#include "xcplib.h"   // for xcplib application programming interface
+#include "a2l.h"    // for xcplib A2l generation
+#include "xcplib.h" // for xcplib application programming interface
+
+//-----------------------------------------------------------------------------------------------------
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -17,6 +18,21 @@
 #ifndef M_2PI
 #define M_2PI (M_PI * 2)
 #endif
+
+// Threads
+#if defined(_WIN32) // Windows
+#include <windows.h>
+typedef HANDLE THREAD;
+#define create_thread(h, t) *h = CreateThread(0, 0, t, NULL, 0, NULL)
+#define join_thread(h) WaitForSingleObject(h, INFINITE);
+#else
+#include <pthread.h>
+typedef pthread_t THREAD;
+#define create_thread(h, t) pthread_create(h, NULL, t, NULL)
+#define join_thread(h) pthread_join(h, NULL)
+#endif
+
+//-----------------------------------------------------------------------------------------------------
 
 #define XCP_MAX_EVENT_NAME 15
 #define THREAD_COUNT 8              // Number of threads to create
@@ -129,7 +145,7 @@ static uint16_t XcpCreateContext(const char *context_name, uint16_t context_inde
     // Init thread local context
     // Create a unique name from index
     // Create an XCP event for this context
-    SNPRINTF(gXcpContext.name, XCP_MAX_EVENT_NAME, "%s_%u", context_name, context_index);
+    snprintf(gXcpContext.name, sizeof(gXcpContext.name), "%s_%u", context_name, context_index);
     gXcpContext.id = XcpCreateEvent(gXcpContext.name, 0, 0);
     gXcpContext.span_id = gXcpContext.id;
     gXcpContext.level = 0;
@@ -218,7 +234,7 @@ double filter(double input) {
 
 // Task function that runs in a separate thread
 // Calculates a sine wave, square wave, and sawtooth wave signal
-#ifdef _WIN
+#ifdef _WIN32
 DWORD WINAPI task(LPVOID p)
 #else
 void *task(void *p)
@@ -228,7 +244,7 @@ void *task(void *p)
 
     bool run = true;
     uint32_t delay_us = 1000;
-    uint64_t start_time = clockGet(); // Get the start time in clock ticks CLOCK_TICKS_PER_S
+    uint64_t start_time = clockGetUs(); // Get the start time
 
     // Task local measurement variables on stack
     uint16_t counter = 0;
@@ -245,7 +261,7 @@ void *task(void *p)
     // Build the task name from the event index
     uint16_t task_index = XcpGetEventIndex(task_event_id); // Get the event index of this event instance
     char task_name[XCP_MAX_EVENT_NAME + 1];
-    SNPRINTF(task_name, sizeof(task_name), "task_%u", task_index);
+    snprintf(task_name, sizeof(task_name), "task_%u", task_index);
 
     // Create measurement variables for this task instance
     A2lLock();
@@ -273,7 +289,7 @@ void *task(void *p)
                 counter = 0;
             }
 
-            time = (double)(clockGet() - start_time) / CLOCK_TICKS_PER_S;                 // Calculate elapsed time in seconds
+            time = (double)(clockGetUs() - start_time) / 1000000;                         // Calculate elapsed time in seconds
             double normalized_time = M_2PI * fmod(time, params->period) / params->period; // Normalize time ([0.0..M_2PI[ to the period
 
             channel1 = params->ampl * sin(normalized_time);                    // Sine wave
@@ -353,7 +369,7 @@ int main(void) {
     }
 
     // Optional: Finalize the A2L file generation early, to write the A2L now, not when the client connects
-    sleepMs(200);
+    sleepUs(200000);
     A2lFinalize();
 
     for (int i = 0; i < THREAD_COUNT; i++) {

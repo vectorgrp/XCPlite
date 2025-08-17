@@ -18,8 +18,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "platform.h" // for THREAD_LOCAL
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -243,6 +241,22 @@ static __forceinline const uint8_t *get_stack_frame_pointer_msvc(void) {
 // Uses thread local storage to create a thread safe once pattern for the event lookup
 // All macros can be used to measure variables registered in absolute addressing mode as well
 
+// Needs thread local storage
+#ifndef THREAD_LOCAL
+#ifdef __cplusplus
+#define THREAD_LOCAL thread_local
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#define THREAD_LOCAL _Thread_local
+#elif defined(__GNUC__)
+#define THREAD_LOCAL __thread
+#elif defined(_MSC_VER)
+#define THREAD_LOCAL __declspec(thread)
+#else
+#define THREAD_LOCAL static // Fallback to static (not thread-safe)
+#error "Thread-local storage not supported"
+#endif
+#endif // THREAD_LOCAL
+
 /// Trigger the XCP event 'name' for stack relative or absolute addressing
 /// Cache the event name lookup
 #define DaqEvent(name)                                                                                                                                                             \
@@ -367,6 +381,11 @@ void ApplXcpRegisterCallbacks(bool (*cb_connect)(void), uint8_t (*cb_prepare_daq
 // Register a connect callback
 // Internal function used by the A2L generator to finalize the A2L file on XCP client connect
 void ApplXcpRegisterConnectCallback(bool (*cb_connect)(void));
+
+// xcplib utility functions used for the demos to keep them clean and platform-independent
+uint64_t clockGetNs(void);
+uint64_t clockGetUs(void);
+void sleepUs(uint32_t us);
 
 #ifdef __cplusplus
 } // extern "C"

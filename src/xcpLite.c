@@ -49,6 +49,10 @@
 |  from Vector Informatik GmbH, please contact Vector
 |***************************************************************************/
 
+#include "main_cfg.h"  // for OPTION_xxx
+#include "xcp_cfg.h"   // XCP protocol layer configuration parameters (XCP_xxx)
+#include "xcptl_cfg.h" // XCP transport layer configuration parameters (XCPTL_xxx)
+
 #include "xcpLite.h" // XCP protocol layer interface functions
 
 #include <assert.h>   // for assert
@@ -65,8 +69,6 @@
 #include "xcp.h"         // XCP protocol definitions
 #include "xcpEthTl.h"    // for transport layer XcpTlWaitForTransmitQueueEmpty and XcpTlSendCrm
 #include "xcpQueue.h"    // for QueueXxx transport queue layer interface
-#include "xcp_cfg.h"     // XCP protocol layer configuration parameters (XCP_xxx)
-#include "xcptl_cfg.h"   // XCP transport layer configuration parameters (XCPTL_xxx)
 
 /****************************************************************************/
 /* Defaults and checks                                                      */
@@ -567,7 +569,7 @@ static uint8_t XcpCalSegPublish(tXcpCalSeg *c, bool wait) {
     if (wait) {
         // Wait and delay the XCP server receive thread, until a free page becomes available
         for (int timeout = 0; timeout < XCP_CALSEG_AQUIRE_FREE_PAGE_TIMEOUT && (free_page == NULL || c->free_page_hazard); timeout++) {
-            sleepMs(1);
+            sleepUs(1000);
             free_page = (uint8_t *)atomic_load_explicit(&c->free_page, memory_order_acquire);
         }
         if (free_page == NULL) {
@@ -854,7 +856,7 @@ uint8_t XcpWriteMta(uint8_t size, const uint8_t *data) {
         // Test data consistency: slow bytewise write to increase probability for multithreading data consistency problems
         // while (size-->0) {
         //     *gXcp.MtaPtr++ = *data++;
-        //     sleepNs(5);
+        //     sleepUs(1);
         // }
 
         // Fast write with atomic copies of basic types, assuming correctly aligned target memory locations

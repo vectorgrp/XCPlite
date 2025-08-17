@@ -47,8 +47,7 @@
 #include <stddef.h>  // for offsetof
 #include <stdint.h>  // for uintxx_t
 
-#include "platform.h" // for atomics
-#include "xcplib.h"   // for tXcpEventId, tXcpCalSegIndex, get_stack_frame_pointer
+#include "xcplib.h" // for tXcpEventId, tXcpCalSegIndex, get_stack_frame_pointer
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // A2L generation modes

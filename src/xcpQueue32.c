@@ -28,7 +28,7 @@
 #include <stdlib.h>   // for free, malloc
 #include <string.h>   // for memcpy, strcmp
 
-#include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
+#include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT, ...
 #include "xcpEthTl.h"  // for XcpTlGetCtr
 #include "xcpTl_cfg.h" // for XCPTL_TRANSPORT_LAYER_HEADER_SIZE, XCPTL_MAX_DTO_SIZE, XCPTL_MAX_SEGMENT_SIZE
 

@@ -7,9 +7,8 @@
 #include <stdio.h>   // for printf
 #include <string.h>  // for sprintf
 
-#include "a2l.h"      // for xcplib A2l generation
-#include "platform.h" // for sleepMs, clockGet
-#include "xcplib.h"   // for xcplib application programming interface
+#include "a2l.h"    // for xcplib A2l generation
+#include "xcplib.h" // for xcplib application programming interface
 
 // Test structure with various types and arrays
 struct TestStruct {

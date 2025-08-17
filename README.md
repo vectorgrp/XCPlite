@@ -309,7 +309,7 @@ The addressing mode is indicated by the address extension:
 - MUTEX (Linux: pthread_mutex_lock, pthread_mutex_unlock).  
   Used for 32 Bit Queue acquire, queue consumer incrementing the transport layer counter, thread safe creating event and calseg, thread safe lazy A2L registration.  
 
-- SleepMs, SleepNs (Linux: nanosleep).  
+- Sleep (Linux: nanosleep).  
   Used for receive thread polling loop.  
 
 - Clock (Linux: clock_gettime).  
