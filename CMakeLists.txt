@@ -103,7 +103,7 @@ message(STATUS "PROJECT_ROOT is: ${PROJECT_ROOT}")
 # Create xcplib library
 set_source_files_properties(${xcplib_SOURCES} PROPERTIES LANGUAGE C)
 add_library(xcplib ${xcplib_SOURCES})
-target_include_directories(xcplib PUBLIC "${PROJECT_ROOT}/" "${PROJECT_ROOT}/src")
+target_include_directories(xcplib PUBLIC "${PROJECT_ROOT}/inc" "${PROJECT_ROOT}/src")
 
 # Apply compiler-specific flags
 if(COMMON_WARNING_FLAGS)
@@ -131,33 +131,33 @@ endif()
 set(hello_xcp_SOURCES examples/hello_xcp/src/main.c)   
 set_source_files_properties(${hello_xcp_SOURCES} PROPERTIES LANGUAGE C)
 add_executable(hello_xcp ${hello_xcp_SOURCES})
-target_include_directories(hello_xcp PUBLIC "${PROJECT_ROOT}" "${PROJECT_ROOT}/src")
+target_include_directories(hello_xcp PUBLIC "${PROJECT_ROOT}/inc")
 target_link_libraries(hello_xcp PRIVATE xcplib)
 
 # Example c_demo
 set(c_demo_SOURCES examples/c_demo/src/main.c)
 set_source_files_properties(${c_demo_SOURCES} PROPERTIES LANGUAGE C)
 add_executable(c_demo ${c_demo_SOURCES})
-target_include_directories(c_demo PUBLIC "${PROJECT_ROOT}" "${PROJECT_ROOT}/src")
+target_include_directories(c_demo PUBLIC "${PROJECT_ROOT}/inc")
 target_link_libraries(c_demo PRIVATE xcplib)
 
 # Example struct_demo
 set(struct_demo_SOURCES examples/struct_demo/src/main.c)
 set_source_files_properties(${struct_demo_SOURCES} PROPERTIES LANGUAGE C)
 add_executable(struct_demo ${struct_demo_SOURCES})
-target_include_directories(struct_demo PUBLIC "${PROJECT_ROOT}" "${PROJECT_ROOT}/src")
+target_include_directories(struct_demo PUBLIC "${PROJECT_ROOT}/inc")
 target_link_libraries(struct_demo PRIVATE xcplib)
 
 # Example multi_thread_demo
 set(multi_thread_demo_SOURCES examples/multi_thread_demo/src/main.c)
 set_source_files_properties(${multi_thread_demo_SOURCES} PROPERTIES LANGUAGE C)
 add_executable(multi_thread_demo ${multi_thread_demo_SOURCES})
-target_include_directories(multi_thread_demo PUBLIC "${PROJECT_ROOT}" "${PROJECT_ROOT}/src")
+target_include_directories(multi_thread_demo PUBLIC "${PROJECT_ROOT}/inc")
 target_link_libraries(multi_thread_demo PRIVATE xcplib)
 
 # Example cpp_demo
 add_executable(cpp_demo examples/cpp_demo/src/main.cpp examples/cpp_demo/src/sig_gen.cpp examples/cpp_demo/src/lookup.cpp)
-target_include_directories(cpp_demo PUBLIC "${PROJECT_ROOT}" "${PROJECT_ROOT}/src")
+target_include_directories(cpp_demo PUBLIC "${PROJECT_ROOT}/inc")
 target_link_libraries(cpp_demo PRIVATE xcplib)
 
 
@@ -165,22 +165,22 @@ target_link_libraries(cpp_demo PRIVATE xcplib)
 if(BUILD_TEST)
     # Type detection test (C version)
     add_executable(type_detection_test_c test/type_detection_test/src/main.c test/type_detection_test/src/c_version_test.c)
-    target_include_directories(type_detection_test_c PUBLIC "${PROJECT_ROOT}" "${PROJECT_ROOT}/src")
+    target_include_directories(type_detection_test_c PUBLIC "${PROJECT_ROOT}/inc")
     # target_link_libraries(type_detection_test_c PRIVATE xcplib)
 
     # Type detection test (C++ version)
     add_executable(type_detection_test_cpp test/type_detection_test/src/main.cpp test/type_detection_test/src/cpp_version_test.cpp)
-    target_include_directories(type_detection_test_cpp PUBLIC "${PROJECT_ROOT}" "${PROJECT_ROOT}/src")
+    target_include_directories(type_detection_test_cpp PUBLIC "${PROJECT_ROOT}/inc")
     # target_link_libraries(type_detection_test_cpp PRIVATE xcplib)
 
     # A2L generation test (C version)
     add_executable(a2l_test test/a2l_test/src/main.c)
-    target_include_directories(a2l_test PUBLIC "${PROJECT_ROOT}")
+    target_include_directories(a2l_test PUBLIC "${PROJECT_ROOT}/inc")
     target_link_libraries(a2l_test PRIVATE xcplib)
 
     # Calibration segment multi-threading test (C++ version)
     add_executable(cal_test test/cal_test/src/main.cpp)
-    target_include_directories(cal_test PUBLIC "${PROJECT_ROOT}" "${PROJECT_ROOT}/src")
+    target_include_directories(cal_test PUBLIC "${PROJECT_ROOT}/inc")
     target_link_libraries(cal_test PRIVATE xcplib)
 endif()
 
