@@ -591,8 +591,8 @@ tQueueBuffer QueuePeek(tQueueHandle queueHandle, bool flush, uint32_t *packets_l
 
             // Limit spinning
             if (spin_count++ >= 50) {
-                sleepNs(100000); // Sleep for 100us to reduce CPU load
-                spin_count = 0;  // Reset
+                sleepUs(100);   // Sleep for 100us to reduce CPU load
+                spin_count = 0; // Reset
             }
 
             // Get spin count statistics

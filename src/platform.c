@@ -17,23 +17,9 @@
 
 #include "platform.h"
 
-#include <assert.h>   // for assert
-#include <inttypes.h> // for PRIu64
-#include <stdbool.h>  // for bool
-#include <stdint.h>   // for uintxx_t
-#include <stdio.h>    // for printf
-#include <string.h>   // for memcpy, strcmp
-#include <time.h>     // for timespec, nanosleep, CLOCK_MONOTONIC_RAW
-#if defined(_LINUX) || defined(_MACOS)
-#include <netinet/in.h> // for sockets
-#include <unistd.h>     // for sleep
-#endif
-#if defined(_WIN)
-#include <stdlib.h> // for malloc, free
-#endif
-
 #include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
 #include "main_cfg.h"  // for OPTION_xxx ...
+#include <inttypes.h>  // for PRIu64
 
 /**************************************************************************/
 // Winsock
@@ -98,14 +84,17 @@ int _kbhit(void) {
 
 #if defined(_LINUX) // Linux
 
-void sleepNs(uint32_t ns) {
-    if (ns == 0) {
+#include <time.h>   // for timespec, nanosleep, CLOCK_MONOTONIC_RAW
+#include <unistd.h> // for sleep
+
+void sleepUs(uint32_t us) {
+    if (us == 0) {
         sleep(0);
     } else {
         struct timespec timeout, timerem;
-        assert(ns < 1000000000UL);
+        assert(us < 1000000UL);
         timeout.tv_sec = 0;
-        timeout.tv_nsec = (int32_t)ns;
+        timeout.tv_nsec = (int32_t)us * 1000;
         nanosleep(&timeout, &timerem);
     }
 }
@@ -123,10 +112,9 @@ void sleepMs(uint32_t ms) {
 
 #elif defined(_WIN) // Windows
 
-void sleepNs(uint32_t ns) {
+void sleepUs(uint32_t us) {
 
     uint64_t t1, t2;
-    uint32_t us = ns / 1000;
 
     // Sleep
     if (us > 1000) {
@@ -863,11 +851,6 @@ uint64_t clockGet(void) {
     // return sClock = (((uint64_t)(ts.tv_sec - gts0.tv_sec) * 1000000ULL) + (uint64_t)(ts.tv_nsec / 1000));
 #endif
 }
-uint64_t clockGetRaw(void) {
-    struct timespec ts;
-    clock_gettime(CLOCK_TYPE, &ts);
-    return sClock = (((uint64_t)(ts.tv_sec) * 1000000000ULL) + (uint64_t)(ts.tv_nsec));
-}
 
 #elif defined(_WIN) // Windows
 
@@ -1030,14 +1013,8 @@ uint64_t clockGet(void) {
     sClock = t;
     return t;
 }
-uint64_t clockGetRaw(void) {
-    LARGE_INTEGER tp;
-    uint64_t t;
-
-    QueryPerformanceCounter(&tp);
-    t = (((uint64_t)tp.u.HighPart) << 32) | (uint64_t)tp.u.LowPart;
-    sClock = t;
-    return t;
-}
 
 #endif // Windows
+
+uint64_t clockGetUs(void) { return clockGet() / CLOCK_TICKS_PER_US; }
+uint64_t clockGetNs(void) { return clockGet(); }

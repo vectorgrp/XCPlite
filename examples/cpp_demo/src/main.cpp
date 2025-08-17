@@ -7,7 +7,6 @@
 #include <thread>   // for std::thread
 
 #include "a2l.hpp"    // for xcplib A2l generation application programming interface
-#include "platform.h" // for sleepMs, sleepNs, clockGet, CLOCK_TICKS_PER_MS
 #include "xcplib.hpp" // for xcplib application programming interface
 
 #include "lookup.hpp"  // for lookup_table::LookupTableT
@@ -138,7 +137,7 @@ int main() {
     // Register the local measurement variables 'loop_counter', 'loop_time', 'loop_cycletime', 'loop_histogram' and 'sum'
     A2lSetStackAddrMode(mainloop);
     A2lCreateMeasurement(loop_counter, "Mainloop loop counter");
-    A2lCreateLinearConversion(clock_ticks, "Conversion from clock ticks to milliseconds", "ms", 1.0 / (double)CLOCK_TICKS_PER_MS, 0.0);
+    A2lCreateLinearConversion(clock_ticks, "Conversion from clock ticks to milliseconds", "ms", 1.0 / 1000.0, 0.0);
     A2lCreatePhysMeasurement(loop_cycletime, "Mainloop cycle time", "conv.clock_ticks", 0.0, 0.05);
     A2lCreateMeasurementArray(loop_histogram, "Mainloop cycle time histogram");
     A2lCreateMeasurement(sum, "Sum of SigGen1 and SigGen2 value");
@@ -153,7 +152,7 @@ int main() {
     signal_generator::SignalGenerator signal_generator_2("SigGen2", kSignalParameters2);
 
     // Optional for testing: Force finalizing the A2L file, otherwise it will be finalized on XCP tool connect
-    sleepMs(100);
+    sleepUs(100000);
     A2lFinalize();
 
     // Main loop
@@ -177,9 +176,9 @@ int main() {
 
         // Measure and calculate the mainloop cycle time
         uint64_t last_loop_time = loop_time;
-        loop_time = clockGet();
+        loop_time = clockGetUs();
         loop_cycletime = loop_time - last_loop_time;
-        loop_histogram[loop_cycletime >= (CLOCK_TICKS_PER_MS / 10) * (kHistogramSize - 1) ? (kHistogramSize - 1) : loop_cycletime / (CLOCK_TICKS_PER_MS / 10)]++;
+        loop_histogram[loop_cycletime >= (1000000 / 10) * (kHistogramSize - 1) ? (kHistogramSize - 1) : loop_cycletime / (1000000 / 10)]++;
 
         // Sum the values of signal generator 1+2 into the local variable sum
         channel1 = signal_generator_1.GetValue();
@@ -200,7 +199,7 @@ int main() {
         DaqEvent(mainloop);
 
         // Use delay parameter - done outside the lock to avoid starvation of XCP tool calibration access
-        sleepNs(delay_us * 1000);
+        sleepUs(delay_us);
     } // mainloop
 
     // Cleanup

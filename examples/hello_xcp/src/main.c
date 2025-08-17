@@ -6,9 +6,8 @@
 #include <stdio.h>   // for printf
 #include <string.h>  // for sprintf
 
-#include "a2l.h"      // for xcplib A2l generation
-#include "platform.h" // for sleepNs
-#include "xcplib.h"   // for xcplib application programming interface
+#include "a2l.h"    // for xcplib A2l generation
+#include "xcplib.h" // for xcplib application programming interface
 
 //-----------------------------------------------------------------------------------------------------
 // XCP params
@@ -158,7 +157,7 @@ int main(void) {
         DaqEvent(mainloop);
 
         // Sleep for the specified delay parameter in microseconds, don't sleep with the XCP lock held to give the XCP client a chance to update params
-        sleepNs(delay_us * 1000);
+        sleepUs(delay_us);
 
     } // for (;;)
 

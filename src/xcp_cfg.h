@@ -12,9 +12,7 @@
  ----------------------------------------------------------------------------*/
 
 #include "main_cfg.h" // for OPTION_xxx
-
-// Clock resolution defined in platform.h
-#include "platform.h" // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
+#include "platform.h" // for CLOCK_TICKS_PER_xx
 
 /*----------------------------------------------------------------------------*/
 /* Version */

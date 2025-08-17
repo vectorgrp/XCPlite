@@ -69,7 +69,7 @@
 #define OPTION_MTU 8000                     // Ethernet packet size (MTU) - Jumbo frames supported
 #define OPTION_SERVER_FORCEFULL_TERMINATION // Don't wait for the rx and tx thread to finish, just terminate them
 
-#ifndef XCPLIB_FOR_RUST
+#ifndef XCPLIB_FOR_RUST // Set by the rust build script
 
 // CAL
 #define OPTION_CAL_PERSISTENCE // Enable calibration segment persistence, BIN file is used to store calibration segments, A2L maybe generated only once per build
@@ -91,3 +91,12 @@
 // Enable socketGetLocalAddr and XcpEthTlGetInfo
 // Used for convenience to get an existing ip address in A2L, when bound to ANY 0.0.0.0
 #define OPTION_ENABLE_GET_LOCAL_ADDR
+
+//-------------------------------------------------------------------------------
+
+// Enable atomic emulation for platforms without stdatomic.h
+// This is used on Windows and automatically set in platform.hin this case
+// Switches to 32 bit transmit queue implementation
+// Not designed for non x86 platforms, needs strong memory ordering
+// Explicit define used for testing only
+// #define OPTION_ATOMIC_EMULATION

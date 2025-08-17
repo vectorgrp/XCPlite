@@ -279,7 +279,7 @@ int main() {
     A2lCreateParameter(static_uint64, "Global memory parameter", "unit", 0, 1E15);
     A2lCreateParameter(static_int8, "Global memory parameter", "unit", -128, 127);
     A2lCreateParameter(static_int16, "Global memory parameter", "unit", -32768, 32767);
-    A2lCreateParameter(static_int32, "Global memory parameter", "unit", -2147483647-1, 2147483647);
+    A2lCreateParameter(static_int32, "Global memory parameter", "unit", -2147483647 - 1, 2147483647);
     A2lCreateParameter(static_float4, "Global memory parameter", "unit", -1000.0, 1000.0);
     A2lCreateParameter(static_double8, "Global memory parameter", "unit", -1000.0, 1000.0);
     A2lCreateCurve(static_curve1, 8, "Global memory parameter field", "unit", -20, 20);
@@ -299,7 +299,7 @@ int main() {
     A2lCreateParameter(static_params.uint_64, "Global memory parameter struct field", "unit", 0, 1e15);
     A2lCreateParameter(static_params.int8, "Global memory parameter struct field", "unit", -128, 127);
     A2lCreateParameter(static_params.int16, "Global memory parameter struct field", "unit", -32768, 32767);
-    A2lCreateParameter(static_params.int32, "Global memory parameter struct field", "unit", -2147483647-1, 2147483647);
+    A2lCreateParameter(static_params.int32, "Global memory parameter struct field", "unit", -2147483647 - 1, 2147483647);
     A2lCreateParameter(static_params.int_64, "Global memory parameter struct field", "unit", -1e14, 1e14);
     A2lCreateParameter(static_params.float4, "Global memory parameter struct field", "unit", -1000.0, 1000.0);
     A2lCreateParameter(static_params.double8, "Global memory parameter struct field", "unit", -1000.0, 1000.0);
@@ -328,7 +328,7 @@ int main() {
     A2lTypedefParameterComponent(uint_64, params_t, "Parameter typedef field", "unit", 0, 1e15);
     A2lTypedefParameterComponent(int8, params_t, "Parameter typedef field", "unit", -128, 127);
     A2lTypedefParameterComponent(int16, params_t, "Parameter typedef field", "unit", -32768, 32767);
-    A2lTypedefParameterComponent(int32, params_t, "Parameter typedef field", "unit", -2147483647-1, 2147483647);
+    A2lTypedefParameterComponent(int32, params_t, "Parameter typedef field", "unit", -2147483647 - 1, 2147483647);
     A2lTypedefParameterComponent(int_64, params_t, "Parameter typedef field", "unit", -1e19, 1e19);
     A2lTypedefParameterComponent(float4, params_t, "Parameter typedef field", "unit", -1000.0, 1000.0);
     A2lTypedefParameterComponent(double8, params_t, "Parameter typedef field", "unit", -1000.0, 1000.0);
@@ -356,7 +356,7 @@ int main() {
     A2lCreateParameter(params.uint_64, "Parameter in calibration segment", "unit", 0, 1e19);
     A2lCreateParameter(params.int8, "Parameter in calibration segment", "unit", -128, 127);
     A2lCreateParameter(params.int16, "Parameter in calibration segment", "unit", -32768, 32767);
-    A2lCreateParameter(params.int32, "Parameter in calibration segment", "unit", -2147483647-1, 2147483647);
+    A2lCreateParameter(params.int32, "Parameter in calibration segment", "unit", -2147483647 - 1, 2147483647);
     A2lCreateParameter(params.int_64, "Parameter in calibration segment", "unit", -1e19, 1e19);
     A2lCreateParameter(params.float4, "Parameter in calibration segment", "unit", -1000.0, 1000.0);
     A2lCreateParameter(params.double8, "Parameter in calibration segment", "unit", -1000.0, 1000.0);
@@ -540,7 +540,7 @@ int main() {
         DaqEvent(event);
         DaqEvent(event_heap);
 
-        sleepNs(1000000);
+        sleepUs(1000);
         if (loop_counter % 1000 == 0) {
             printf("%us\r", (static_counter_max - loop_counter) / 1000);
         }

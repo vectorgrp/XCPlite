@@ -13,13 +13,6 @@
 |
  ----------------------------------------------------------------------------*/
 
-// Enable atomic emulation for platforms without stdatomic.h
-// This is used for Windows (and automatically set in this case)
-// Switches to 32 bit transmit queue implementation
-// Not designed for non x86 platforms, needs strong memory ordering
-// Use this for testing only
-// #define OPTION_ATOMIC_EMULATION
-
 //-------------------------------------------------------------------------------------------------
 // Platform defines
 
@@ -30,13 +23,13 @@
 #define PLATFORM_32BIT
 #endif
 
-// Windows or Linux/macOS ?
+// Windows
 #if defined(_WIN32) || defined(_WIN64)
 
 #define _WIN
 
-// For Windows compatibility, we use an emulation for atomic operations and the 32 bit version of the transmit queue
-// MSVC does not support C11 stdatomic.h, so we must use emulation
+// For Windows compatibility, we must use an emulation for atomic operations and fallback to the 32 bit transmit queue
+// MSVC does not support C11 stdatomic.h
 #define OPTION_ATOMIC_EMULATION
 
 #if defined(_WIN32) && defined(_WIN64)
@@ -47,6 +40,7 @@
 #error "defined(_LINUX) || defined(_LINUX64) || defined(_LINUX32)"
 #endif
 
+// Linux or macOS
 #else
 
 #define _LINUX
@@ -73,10 +67,6 @@
 #ifdef _WIN
 #define WIN32_LEAN_AND_MEAN
 
-#else
-#ifndef _DEFAULT_SOURCE
-#define _DEFAULT_SOURCE
-#endif
 #endif
 
 #if !defined(_WIN) && !defined(_LINUX) && !defined(_MACOS)
@@ -84,19 +74,46 @@
 #endif
 
 //-------------------------------------------------------------------------------------------------
-// Platform specific functions
+// Compilation options
 
-#include <stdbool.h> // for bool
-#include <stdint.h>  // for uintxx_t, uint_fastxx_t
+#include "main_cfg.h" // for OPTION_xxx
+
+//-------------------------------------------------------------------------------------------------
+// Platform specific functions
 
 #if defined(_WIN)
 
+#include <assert.h>   // for assert
+#include <inttypes.h> // for PRIx32, PRIu64
+#include <stdbool.h>  // for bool
+#include <stdint.h>   // for uintxx_t, uint_fastxx_t
 #include <stdio.h>
-
+#include <stdio.h> // for printf
 #include <time.h>
 #include <windows.h>
 
+#if defined(_WIN)
+#include <stdlib.h> // for malloc, free
+#endif
+
 #elif defined(_LINUX) || defined(_MACOS) // Linux
+
+// Define feature test macros before any includes to ensure POSIX functions are available
+#ifndef _DEFAULT_SOURCE
+#define _DEFAULT_SOURCE
+#endif
+// #ifndef _GNU_SOURCE
+// #define _GNU_SOURCE
+// #endif
+// #ifndef _POSIX_C_SOURCE
+// #define _POSIX_C_SOURCE 200809L
+// #endif
+
+#include <assert.h>   // for assert
+#include <inttypes.h> // for PRIx32, PRIu64
+#include <stdbool.h>  // for bool
+#include <stdint.h>   // for uintxx_t, uint_fastxx_t
+#include <stdio.h>    // for printf
 
 #include <pthread.h>
 
@@ -113,21 +130,16 @@
 #endif
 #endif
 
-#include <arpa/inet.h>
-#include <errno.h>
-#include <sys/socket.h>
-
 #else
 
 #error "Please define platform _WIN or _MACOS or _LINUX"
 
 #endif
 
-#include "main_cfg.h" // for OPTION_xxx
+//-------------------------------------------------------------------------------
+// Compile options
 
-#if !defined(_WIN) && !defined(_LINUX) && !defined(_MACOS)
-#error "Please define platform _WIN, _MACOS or _LINUX"
-#endif
+#include "main_cfg.h" // for OPTION_xxx
 
 //-------------------------------------------------------------------------------
 // Keyboard
@@ -149,6 +161,18 @@ int _kbhit(void);
 //-------------------------------------------------------------------------------
 // Safe sprintf, strncpy, ...
 
+#include <stdio.h>
+#include <string.h>
+
+// Portable implementation of strnlen for systems that don't have it
+static inline size_t safe_strnlen(const char *s, size_t maxlen) {
+    size_t len = 0;
+    while (len < maxlen && s[len] != '\0') {
+        len++;
+    }
+    return len;
+}
+
 #if defined(_WIN) // Windows
 
 #define SPRINTF(dest, format, ...) sprintf_s((char *)dest, sizeof(dest), format, __VA_ARGS__)
@@ -161,7 +185,7 @@ int _kbhit(void);
 #define SPRINTF(dest, format, ...) snprintf((char *)dest, sizeof(dest), format, __VA_ARGS__)
 #define SNPRINTF(dest, len, format, ...) snprintf((char *)dest, len, format, __VA_ARGS__)
 #define STRNCPY strncpy
-#define STRNLEN strnlen
+#define STRNLEN safe_strnlen
 
 #endif
 
@@ -172,11 +196,11 @@ extern "C" {
 //-------------------------------------------------------------------------------
 // Delay
 
-// Delay based on clock
-void sleepNs(uint32_t ns);
-#define sleepUs(x) sleepNs((x) * 1000)
+// Delay based on XCP clock
+// Busy waits on low durations
+void sleepUs(uint32_t us);
 
-// Delay - Less precise and less CPU load, not based on clock, time domain different
+// Delay - Less precise and less CPU load, not based on XCP clock, time domain different
 void sleepMs(uint32_t ms);
 
 //-------------------------------------------------------------------------------
@@ -242,7 +266,7 @@ typedef pthread_t THREAD;
 #define THREAD_LOCAL __declspec(thread)
 #else
 #define THREAD_LOCAL static // Fallback to static (not thread-safe)
-#warning "Thread-local storage not supported, falling back to static"
+#error "Thread-local storage not supported"
 #endif
 
 //-------------------------------------------------------------------------------
@@ -250,7 +274,12 @@ typedef pthread_t THREAD;
 
 #if defined(OPTION_ENABLE_TCP) || defined(OPTION_ENABLE_UDP)
 
-#ifdef _LINUX // Linux sockets
+#ifdef _LINUX // Linux or macOS sockets
+
+#include <arpa/inet.h>
+#include <errno.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
 
 #define SOCKET int
 #define INVALID_SOCKET (-1)
@@ -340,8 +369,9 @@ bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr);
 // Clock
 bool clockInit(void);
 uint64_t clockGet(void);
-uint64_t clockGetRaw(void);
 uint64_t clockGetLast(void);
+uint64_t clockGetUs(void);
+uint64_t clockGetNs(void);
 char *clockGetString(char *s, uint32_t l, uint64_t c);
 char *clockGetTimeString(char *s, uint32_t l, int64_t c);
 

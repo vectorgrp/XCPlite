@@ -13,7 +13,7 @@ Depending on calibration parameters ampl, phase, offset and period
 #include "a2l.hpp"    // for xcplib A2l generation application programming interface
 #include "xcplib.hpp" // for xcplib application programming interface
 
-#include "sig_gen.hpp" 
+#include "sig_gen.hpp"
 
 #include "lookup.hpp" // calibratble lookup table for arbitrary waveform generator
 using namespace lookup_table;
@@ -63,8 +63,8 @@ SignalGenerator::~SignalGenerator() {
 void SignalGenerator::Task() {
 
     double time = 0;
-    uint32_t delay_us = 1000;                                                // us
-    double start_time = static_cast<double>(clockGet()) / CLOCK_TICKS_PER_S; // time in s since start of the signal generator
+    uint32_t delay_us = 1000;                                        // us
+    double start_time = static_cast<double>(clockGetUs()) / 1000000; // time in s since start of the signal generator
 
     // Create a measurement event with individual name 'instance_name_' for each instance of SignalGenerator
     DaqCreateEvent_s(instance_name_);
@@ -81,7 +81,7 @@ void SignalGenerator::Task() {
 
     for (;;) {
 
-        time = static_cast<double>(clockGet()) / CLOCK_TICKS_PER_S - start_time; // time in s since start of the signal generator
+        time = static_cast<double>(clockGetUs()) / 1000000 - start_time; // time in s since start of the signal generator
 
         // Calculate the waveform value based on the current time and signal parameters
         {
@@ -118,7 +118,7 @@ void SignalGenerator::Task() {
         // Be sure the lock is held as short as possible !
         // The calibration segment lock does not content against other threads, it is wait free !
         // But it delays or even starve XCP client tool calibration operations
-        sleepNs(signal_parameters_.lock()->delay_us * 1000);
+        sleepUs(signal_parameters_.lock()->delay_us);
     }
 }
 

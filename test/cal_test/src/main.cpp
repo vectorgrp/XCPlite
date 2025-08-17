@@ -10,7 +10,6 @@
 #include <vector>
 
 #include "a2l.hpp"    // for xcplib A2l generation application programming interface
-#include "platform.h" // for sleepMs, sleepNs, clockGetRaw, CLOCK_TICKS_PER_MS
 #include "xcplib.hpp" // for xcplib application programming interface
 
 // Internally used XCP functions for testing
@@ -103,7 +102,7 @@ void worker_thread(uint32_t thread_id) {
 
     while (test_running.load()) {
 
-        uint64_t start_time = clockGetRaw();
+        uint64_t start_time = clockGetNs();
 
         // Read from calibration segment
         {
@@ -130,7 +129,7 @@ void worker_thread(uint32_t thread_id) {
             }
         }
 
-        stats.read_time_ns += clockGetRaw() - start_time;
+        stats.read_time_ns += clockGetNs() - start_time;
         stats.read_count++;
 
         counter++;
@@ -203,7 +202,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Finalize A2L
-    sleepMs(100);
+    sleepUs(100000);
     A2lFinalize();
 
     // Let the test run for the specified duration
@@ -228,7 +227,7 @@ int main(int argc, char *argv[]) {
             XcpCalSegCommand(0x01); // Begin atomic calibration operation
             XcpSetMta(0, 0x80010000 + offsetof(ParametersT, data));
             XcpWriteMta(DEFAULT_TEST_DATA_SIZE / 2, &test_data[0]);
-            sleepNs(100);
+            sleepUs(100);
             XcpSetMta(0, 0x80010000 + offsetof(ParametersT, data) + DEFAULT_TEST_DATA_SIZE / 2);
             XcpWriteMta(DEFAULT_TEST_DATA_SIZE / 2, &test_data[DEFAULT_TEST_DATA_SIZE / 2]);
             XcpCalSegCommand(0x02); // End atomic calibration operation
