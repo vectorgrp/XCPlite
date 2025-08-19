@@ -1035,6 +1035,9 @@ void A2lCreateTypedefMeasurementInstance_(const char *instance_name, const char 
 
 void A2lCreateTypedefParameterInstance_(const char *instance_name, const char *typeName, uint8_t ext, uint32_t addr, const char *comment) {
     if (gA2lFile != NULL) {
+        if (gA2lAutoGroups) {
+            A2lAddToGroup(instance_name);
+        }
         fprintf(gA2lFile, "/begin INSTANCE %s \"%s\" %s 0x%X", instance_name, comment, typeName, addr);
         printAddrExt(ext);
         fprintf(gA2lFile, " /end INSTANCE\n");
