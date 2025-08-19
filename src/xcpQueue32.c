@@ -280,7 +280,10 @@ void QueuePush(tQueueHandle queueHandle, tQueueBuffer *const queueBuffer, bool f
 // Not used by the queue implementation itself
 uint32_t QueueLevel(tQueueHandle queueHandle) {
     tQueue *queue = (tQueue *)queueHandle;
-    return queue->queue_len;
+    if (queue->queue_len > 1 || (queue->queue_len == 1 && queue->msg_ptr != NULL && queue->msg_ptr->size > 0)) {
+        return queue->queue_len;
+    }
+    return 0;
 }
 
 // Check if there is a message segment in the transmit queue

@@ -435,9 +435,6 @@ static bool A2lOpen(const char *filename, const char *projectname) {
         return false;
     }
 
-    // Notify XCP that there is an A2L file available for upload by the XCP client tool
-    ApplXcpSetA2lName(filename);
-
     // Create headers
     fprintf(gA2lFile, gA2lHeader, projectname, projectname); // main file
 
@@ -1432,6 +1429,9 @@ bool A2lFinalize(void) {
             XcpBinWrite(gBinFilename);
 #endif
 
+        // Notify XCP that there is an A2L file available for upload by the XCP client
+        ApplXcpSetA2lName(gA2lFilename);
+
         return true; // A2L file generation successful
     }
 
@@ -1501,18 +1501,25 @@ bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t
     SNPRINTF(gA2lFilename, sizeof(gA2lFilename), "%s%s.a2l", a2l_projectname, epk_suffix);
     DBG_PRINTF3("Start A2L generator, file=%s, write_always=%u, finalize_on_connect=%u, auto_groups=%u\n", gA2lFilename, gA2lWriteAlways, gA2lFinalizeOnConnect, gA2lAutoGroups);
 
-// Check if the binary file exists and load it
+// Check if the BIN file and the A2L exists and load the binary file
 #ifdef OPTION_CAL_PERSISTENCE
     SNPRINTF(gBinFilename, sizeof(gBinFilename), "%s%s.bin", a2l_projectname, epk_suffix);
     if (!gA2lWriteAlways) {
-        if (XcpBinLoad(gBinFilename, XcpGetEpk())) {
-            DBG_PRINTF3("Loaded binary file %s, A2L generation has been disabled\n", gBinFilename);
-            return true; // Do not generate A2L file if binary file exists
+
+        if (fexists(gA2lFilename)) {
+            if (XcpBinLoad(gBinFilename, XcpGetEpk())) {
+                DBG_PRINTF3("Loaded binary file %s, A2L generation has been disabled\n", gBinFilename);
+
+                // Notify XCP that there is an A2L file available for upload by the XCP client
+                ApplXcpSetA2lName(gA2lFilename);
+
+                return true; // Do not generate A2L, but still provide the existing file, if binary file exists
+            }
         }
     }
 #endif
 
-    // Open A2L file
+    // Open A2L file for generation
     if (!A2lOpen(gA2lFilename, a2l_projectname)) {
         printf("Failed to open A2L file %s\n", gA2lFilename);
         return false;
