@@ -372,6 +372,13 @@ char *clockGetString(char *s, uint32_t l, uint64_t c);
 char *clockGetTimeString(char *s, uint32_t l, int64_t c);
 
 //-------------------------------------------------------------------------------
+// File system utilities
+
+// Check if a file exists
+// Returns true if the file exists and is accessible, false otherwise
+bool fexists(const char *filename);
+
+//-------------------------------------------------------------------------------
 // Atomic operations
 
 // Atomic operations emulation for Windows
