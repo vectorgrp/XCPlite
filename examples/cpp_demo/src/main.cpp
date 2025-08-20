@@ -157,15 +157,11 @@ int main() {
 
     // Main loop
     std::cout << "Starting main loop..." << std::endl;
-    uint32_t delay_us = kParameters.delay_us; // Default
     for (;;) {
         // Access the calibration parameters 'delay' and 'counter_max' safely
         // Use RAII guard for automatic lock/unlock the calibration parameter segment 'calseg'
         {
             auto parameters = calseg.lock();
-
-            // Get the calibration parameter 'delay' in microseconds
-            delay_us = parameters->delay_us;
 
             // Increment the local measurement variable 'loop_counter' using the calibration parameter 'counter_max' as a limit
             loop_counter++;
@@ -198,8 +194,7 @@ int main() {
         // Trigger the XCP measurement mainloop for temperature, speed, loop_counter and sum
         DaqEvent(mainloop);
 
-        // Use delay parameter - done outside the lock to avoid starvation of XCP tool calibration access
-        sleepUs(delay_us);
+        sleepUs(calseg.lock()->delay_us);
     } // mainloop
 
     // Cleanup

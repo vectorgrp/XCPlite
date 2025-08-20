@@ -1018,3 +1018,29 @@ uint64_t clockGet(void) {
 
 uint64_t clockGetUs(void) { return clockGet() / CLOCK_TICKS_PER_US; }
 uint64_t clockGetNs(void) { return clockGet(); }
+
+/**************************************************************************/
+// File system utilities
+/**************************************************************************/
+
+#if defined(_WIN32)
+#include <io.h> // for _access
+#else
+#include <unistd.h> // for access
+#endif
+
+// Check if a file exists
+// Returns true if the file exists and is accessible, false otherwise
+bool fexists(const char *filename) {
+    if (filename == NULL) {
+        return false;
+    }
+
+#ifdef _WIN32
+    // Windows: use _access from io.h
+    return (_access(filename, 0) == 0);
+#else
+    // Linux/macOS: use access from unistd.h
+    return (access(filename, F_OK) == 0);
+#endif
+}
