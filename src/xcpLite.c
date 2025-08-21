@@ -1093,11 +1093,22 @@ tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cyc
         return XCP_UNDEFINED_EVENT_ID; // Uninitialized
     }
 
+    assert(name != NULL);
+
+    // Check name length
+    size_t nameLen = STRNLEN(name, XCP_MAX_EVENT_NAME + 1);
+    if (nameLen > XCP_MAX_EVENT_NAME) {
+        DBG_PRINTF_ERROR("event name '%.*s...' too long (%zu > %d chars)\n", XCP_MAX_EVENT_NAME, name, nameLen, XCP_MAX_EVENT_NAME);
+        return XCP_UNDEFINED_EVENT_ID;
+    }
+
+    // Check event count
     uint16_t e = gXcp.EventList.count;
     if (e >= XCP_MAX_EVENT_COUNT) {
         DBG_PRINT_ERROR("too many events\n");
         return XCP_UNDEFINED_EVENT_ID; // Out of memory
     }
+
     gXcp.EventList.count++;
     gXcp.EventList.event[e].index = index; // Index of the event instance
     STRNCPY(gXcp.EventList.event[e].name, name, XCP_MAX_EVENT_NAME);

@@ -149,6 +149,7 @@ LIBRARY_TARGET="xcplib"
 LIBRARY_DEPENDENT_TARGETS=(
     "hello_xcp" 
     "c_demo"
+    "class_demo"
     "struct_demo"
     "multi_thread_demo"
     "cpp_demo"

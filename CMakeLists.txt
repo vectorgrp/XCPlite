@@ -160,6 +160,11 @@ add_executable(cpp_demo examples/cpp_demo/src/main.cpp examples/cpp_demo/src/sig
 target_include_directories(cpp_demo PUBLIC "${PROJECT_ROOT}/inc")
 target_link_libraries(cpp_demo PRIVATE xcplib)
 
+# Example class_demo
+add_executable(class_demo examples/class_demo/src/main.cpp )
+target_include_directories(class_demo PUBLIC "${PROJECT_ROOT}/inc")
+target_link_libraries(class_demo PRIVATE xcplib)
+
 
 # Tests
 if(BUILD_TEST)
@@ -191,8 +196,9 @@ if(WIN32)
 else()
     # Unix/Linux/macOS specific settings
     
-    # Link math library for multi_thread_demo (uses sin, cos, etc.)
+    # Link math library for multi_thread_demo and class_demo (uses sin, cos, etc.)
     target_link_libraries(multi_thread_demo PRIVATE m)
+    target_link_libraries(class_demo PRIVATE m)
 
     # Set .out suffix for executables on non-Windows platforms
     set_target_properties(c_demo PROPERTIES SUFFIX ".out")
@@ -200,6 +206,7 @@ else()
     set_target_properties(struct_demo PROPERTIES SUFFIX ".out")
     set_target_properties(multi_thread_demo PROPERTIES SUFFIX ".out")
     set_target_properties(cpp_demo PROPERTIES SUFFIX ".out")
+    set_target_properties(class_demo PROPERTIES SUFFIX ".out")
     
     if(BUILD_TEST)
         set_target_properties(type_detection_test_c PROPERTIES SUFFIX ".out")
