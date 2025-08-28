@@ -134,6 +134,11 @@ add_executable(hello_xcp ${hello_xcp_SOURCES})
 target_include_directories(hello_xcp PUBLIC "${PROJECT_ROOT}/inc")
 target_link_libraries(hello_xcp PRIVATE xcplib)
 
+# Example hello_xcp_cpp
+add_executable(hello_xcp_cpp examples/hello_xcp_cpp/src/main.cpp )
+target_include_directories(hello_xcp_cpp PUBLIC "${PROJECT_ROOT}/inc")
+target_link_libraries(hello_xcp_cpp PRIVATE xcplib)
+
 # Example c_demo
 set(c_demo_SOURCES examples/c_demo/src/main.c)
 set_source_files_properties(${c_demo_SOURCES} PROPERTIES LANGUAGE C)
@@ -191,8 +196,9 @@ if(WIN32)
 else()
     # Unix/Linux/macOS specific settings
     
-    # Link math library for multi_thread_demo (uses sin, cos, etc.)
+    # Link math library for multi_thread_demo and hello_xcp_cpp (uses sin, cos, etc.)
     target_link_libraries(multi_thread_demo PRIVATE m)
+    target_link_libraries(hello_xcp_cpp PRIVATE m)
 
     # Set .out suffix for executables on non-Windows platforms
     set_target_properties(c_demo PROPERTIES SUFFIX ".out")
@@ -200,6 +206,7 @@ else()
     set_target_properties(struct_demo PROPERTIES SUFFIX ".out")
     set_target_properties(multi_thread_demo PROPERTIES SUFFIX ".out")
     set_target_properties(cpp_demo PROPERTIES SUFFIX ".out")
+    set_target_properties(hello_xcp_cpp PROPERTIES SUFFIX ".out")
     
     if(BUILD_TEST)
         set_target_properties(type_detection_test_c PROPERTIES SUFFIX ".out")

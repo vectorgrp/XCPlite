@@ -148,10 +148,11 @@ echo "==================================================================="
 LIBRARY_TARGET="xcplib"
 LIBRARY_DEPENDENT_TARGETS=(
     "hello_xcp" 
+    "hello_xcp_cpp"
     "c_demo"
+    "cpp_demo"
     "struct_demo"
     "multi_thread_demo"
-    "cpp_demo"
     "a2l_test"
     "cal_test"
 )

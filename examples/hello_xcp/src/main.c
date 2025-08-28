@@ -17,7 +17,7 @@
 #define OPTION_SERVER_PORT 5555         // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
 #define OPTION_QUEUE_SIZE 1024 * 16     // Size of the measurement queue in bytes, must be a multiple of 8
-#define OPTION_LOG_LEVEL 3
+#define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 //-----------------------------------------------------------------------------------------------------
 // Demo calibration parameters
@@ -25,7 +25,7 @@
 // Calibration parameters structure
 typedef struct params {
     uint16_t counter_max; // Maximum value for the counter
-    uint32_t delay_us;    // Sleep timein microseconds for the main loop
+    uint32_t delay_us;    // Sleep time in microseconds for the main loop
     float acceleration;   // Acceleration in m/s^2
 } parameters_t;
 
@@ -73,7 +73,7 @@ float calc_speed(float current_speed) {
     // XCP: Unlock the calibration segment
     XcpUnlockCalSeg(calseg);
 
-    // XCP: Trigger the measurement "calc_speed"
+    // XCP: Trigger the measurement event "calc_speed"
     DaqEvent(calc_speed);
 
     return new_speed;
@@ -99,9 +99,15 @@ int main(void) {
         return 1;
     }
 
-    // XCP: Enable A2L generation
-    // If the A2l file aready exists, check if software version (EPK) matches and load the binary persistence file
-    // If not, prepare the A2L file, finalize the A2L file on XCP connect
+    // XCP: Enable inline A2L generation
+    // In WRITE_ONCE mode:
+    //   If the A2l file aready exists, check if software version (EPK) still matches and load calibration values from the binary persistence file
+    //   If not, prepare the A2L file, finalize the A2L file on XCP client connect
+    // In WRITE_ALWAYS mode:
+    //   Recreate the A2L file on each application start, calibration values stay on default/reference page
+    //   Binary persistence is not supported
+    // Finalize the A2L file on XCP connect
+    // Optionally create A2L groups for calibration segments and events
     if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         return 1;
     }
@@ -129,6 +135,8 @@ int main(void) {
     A2lSetStackAddrMode(mainloop); // Set stack relative addressing mode with fixed event mainloop
     A2lCreateMeasurement(loop_counter, "Loop counter, local measurement variable on stack");
 
+    A2lFinalize(); // Test: Manually finalize the A2L file to make it visible without XCP tool connect
+
     // Mainloop
     printf("Start main loop...\n");
     for (;;) {
@@ -137,23 +145,22 @@ int main(void) {
         // Returns a pointer to the active page (working or reference) of the calibration segment
         parameters_t *params = (parameters_t *)XcpLockCalSeg(calseg);
 
-        uint32_t delay_us = params->delay_us; // Get the delay parameter in microseconds
+        uint32_t delay_us = params->delay_us; // Get the delay calibration parameter in microseconds
 
         // Local variables
         loop_counter++;
-        if (loop_counter > params->counter_max) {
+        if (loop_counter > params->counter_max) { // Get the counter_max calibration value and reset loop_counter
             loop_counter = 0;
-            A2lFinalize(); // @@@@ Test: Finalize the A2L file generation manually, otherwise it would be written when the client tool connects
         }
 
         // Global measurement variables
         temperature = 50 + 21;
-        speed = calc_speed(speed); // Function to calculate the new speed based on the current speed
+        speed = calc_speed(speed); // Demo function to calculate a new speed based on the current speed and acceleration
 
         // XCP: Unlock the calibration segment
         XcpUnlockCalSeg(calseg);
 
-        // XCP: Trigger a measurement event
+        // XCP: Trigger the measurement event "mainloop"
         DaqEvent(mainloop);
 
         // Sleep for the specified delay parameter in microseconds, don't sleep with the XCP lock held to give the XCP client a chance to update params
