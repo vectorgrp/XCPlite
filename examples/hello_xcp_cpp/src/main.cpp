@@ -1,13 +1,10 @@
-// hello_xcp_cpp xcplib C++ example - Demonstrating class member variable measurement
+// hello_xcp_cpp - simple xcplib C++ example
 
-#include <array>   // for std::array
-#include <atomic>  // for std::atomic
-#include <cstdint> // for uintxx_t
-
+#include <array>    // for std::array
 #include <atomic>   // for std::atomic
 #include <csignal>  // for signal handling
+#include <cstdint>  // for uintxx_t
 #include <iostream> // for std::cout
-#include <memory>   // for std::unique_ptr
 #include <optional> // for std::optional
 
 #include "a2l.hpp"    // for xcplib A2l generation application programming interface
@@ -20,7 +17,7 @@
 #define OPTION_SERVER_PORT 5555             // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}     // Bind addr, 0.0.0.0 = ANY
 #define OPTION_QUEUE_SIZE (1024 * 64)       // Size of the measurement queue in bytes
-#define OPTION_LOG_LEVEL 3
+#define OPTION_LOG_LEVEL 3                  // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 //-----------------------------------------------------------------------------------------------------
 // Floating average calculation class
@@ -53,21 +50,23 @@ template <size_t N> double FloatingAverage<N>::calculate(double input) {
     // Create a measurement event "avg_calc" for this member function
     DaqCreateEvent(avg_calc);
 
-    // Register member variables for XCP measurement using relative addressing
-    // This uses 'this' as the base address for measuring member variables
     if (A2lOnce()) {
+        // Register member variables for XCP measurement
+        // Using 'this' as the base address for relative mode
         A2lSetRelativeAddrMode(avg_calc, this);
         A2lCreateMeasurement(current_index_, "Current position in ring buffer");
         A2lCreateMeasurement(sample_count_, "Number of samples collected");
         A2lCreateMeasurement(sum_, "Running sum of all samples");
 
         // Also register local variables and parameters of this function
+        // Note: This forces the compiler to spill function parameters from registers to stack to make them accessible by XCP, it causes minimal runtime impact, but does not create
+        // undefined behaviour
         A2lSetStackAddrMode(avg_calc);
         A2lCreateMeasurement(input, "Input value for floating average");
         A2lCreateMeasurement(average, "Current calculated average");
     }
 
-    // Calculate the average
+    // Calculate the floating average over N samples
     if (sample_count_ >= N) {
         sum_ -= samples_[current_index_];
     } else {
@@ -79,7 +78,7 @@ template <size_t N> double FloatingAverage<N>::calculate(double input) {
     current_index_ = (current_index_ + 1) % N;
 
     // Trigger XCP measurement event "avg_calc"
-    // Use relative addressing to make member variables accessible
+    // Use relative addressing and provide this to make member variables accessible
     DaqEventRelative(avg_calc, this);
 
     return average;
