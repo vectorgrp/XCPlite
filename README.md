@@ -78,7 +78,7 @@ Examples are found in the examples folder.
 There is a CANape project for each example in examples/xxxx/CANape. To load a new project into CANape, select load project and navigate to the CANape.ini file in the examples CANape folder.  
 All CANape project examples are configured to upload the A2L file via XCP. The IP address of the XCP server is stored in the A2L file uploaded last time. If CANape can not connect, check that the correct IP address is configured in device manager - transport layer settings.  
 
-The getting started example is hello_xcp.
+To get started, take a first look at C example hello_xcp and then at hello_xcp_cpp for C++.
 
 hello_xcp:  
   Demonstrates how to start the XCP on Ethernet server and use the runtime A2L generator.  
@@ -87,9 +87,11 @@ hello_xcp:
   Demonstrates the different addressing modes for variables and parameters.  
   Defines a function, registers local variables and function parameters and creates and triggers a measurement event in the function.  
 
+hello_xcp_cpp:
+  Demonstrates how to instrument a member function of a C++ class and how to register and access calibration parameters in C++.  
+
 The other examples cover more advanced topics:  
 
-- Create a C++ application, use the C++ RAII calibration segment wrapper.  
 - Safely share calibration parameters among different threads.  
 - Measure instances of complex types, such a structs, arrays, nested structs and arrays of structs by using typedefs.  
 - Create complex parameters, like maps, curves and lookup tables with fixed or shared axis.  
