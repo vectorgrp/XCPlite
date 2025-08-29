@@ -50,7 +50,7 @@ XCPlite is used as a C library by the implementation of XCP for Rust in:
 - Runtime A2L database file generation and upload.  
 - Prepared for PTP synchronized timestamps.  
 - Supports calibration and measurement of structures.  
-- User friendly code instrumentation to create calibration parameter segments, measurement variables and A2L metadata descriptions.  
+- User friendly code instrumentation to create calibration parameter segments, measurement variables and A2L metadata descriptions as code.  
 - Measurement of global (static), local (stack) or heap variables and class instances.  
 - Thread safe, lock-free and wait-free ECU access to calibration data.  
 - Calibration page switching and consistent calibration.  
@@ -65,8 +65,6 @@ XCPprof is a commercial product in Vectors AUTOSAR MICROSAR and CANbedded produc
 The required C and and C++ language standards are C11 and C++20.  
 
 Most of the examples require CANape 23 or later, because they use A2L TYPEDEFs and relative memory addressing.  
-
-If these requirements can not be fulfilled, just stay with the prior stable version tagged V6.4.  
 
 ### Documentation
 
@@ -103,7 +101,7 @@ The other examples cover more advanced topics:
 - Use the xcplib API to create context and span, measure durations.  
 
 c_demo:  
-  Shows more complex data objects (structs, arrays), calibration objects (axis, maps and curves).  
+  Shows more complex data objects (structs, arrays) and calibration objects (axis, maps and curves).  
   Measurement variables on stack and in global memory.  
   Consistent calibration changes and measurement.  
   Calibration page switching and EPK version check.  
@@ -115,7 +113,7 @@ struct_demo:
 multi_thread_demo:  
   Shows measurement in multiple threads.  
   Create thread local instances of events and measurements.  
-  Share a calibration parameter segment among multiple thread.  
+  Share a calibration parameter segment among multiple threads.  
   Thread safe and consistent access to calibration parameters.  
   Experimental code to demonstrate how to create context and spans using the XCP instrumentation API.  
 
@@ -182,7 +180,7 @@ To create a Visual Studio solution:
 
 ### Trouble shooting compilation issues
 
-First of all, note that XCPlite requires C11 (and C++17 for c++ support in cpp_demo).
+First of all, note that XCPlite requires C11 (and C++17 for C++ support).
 A possible problematic requirement is that the 64-bit lockless transmit queue implementation requires atomic_uint_least4.  
 This may cause problems on some platforms when using the clang compiler.  
 Prefer gcc for better compatibility.  
@@ -238,14 +236,15 @@ Same with type_detection_test_cpp.
 
 ### Instrumentation cost and side effects
 
-Keeping code instrumentation side effects as small as possible was one of the major goals.
+Keeping code instrumentation side effects as small as possible was one of the major goals, but of course there are effects caused by the code instrumentation:
   
 Data Acquisition:  
   
-The measurement data acquisition trigger, data transfer and calibration segment access are lock-free implementations.  
-DAQ trigger needs a system call to get the current time.  
-Some of the DAQ trigger macros do an event lookup by name at the first time (for the convenience not to care about event handles), and cache the result in static or thread local memory.  
+The measurement data acquisition trigger and data transfer is a lock-free implementations for the producer. It may be switched to simpler a mutex based implementation, if the platform requirements can not be met. DAQ trigger needs a external call to get the current time.  
+Some of the DAQ trigger macros do a lazy event lookup by name at the first time (for the convenience not to care about event handles), and cache the result in static or thread local memory.  
 The instrumentation to create events, uses a mutex lock against other simultaneous event creations.  
+  
+Measurement of function parameters and local variables, has the side effect that the compiler will spill the parameters from registers to stack frame and always keeps local variables on the stack frame. This is a side effect of the in scope registration macros, so it will work even with optimization level > -O0. There is no undefined behavior caused by compiler optimizations.  
   
 Calibration:  
   
@@ -255,7 +254,7 @@ Calibration segment access is thread safe and lock less. There is no more heap a
 
 A2L Generation:  
   
-The A2L generation uses the file system. There is not need for memory. It opens 4 different files, which will be merged on A2L finalization.  
+The A2L generation simply uses the file system. There is no need for memory. It opens 4 different files, which will be merged on A2L finalization.  
 The A2l generation macros are not thread safe and don't have an underlying once pattern. It is up to the user to take care for locking and one time execution. There are helper functions and macros to make this easy.  
   
 The overall concepts often relies on one time execution patterns. If this is not acceptable, the application has to take care for creating events and calibration segments in a controlled way. The A2l address generation for measurement variables on stack needs to be done once in local scope, there is no other option yet. Also the different options to create thread local instances of measurement data.  
@@ -263,13 +262,13 @@ The overall concepts often relies on one time execution patterns. If this is not
 ### A2L file generation and address update options
 
 Option 1:
-The A2L file is always created during application runtime. The A2L is allowed to change on each restart of the application. It is just uploaded again by the XCP client.  
-To avoid A2L changes on each restart, the creation order of events and calibration segments has to be deterministic.  
-As a default, the A2L version identifier (EPK) is generated from build time and date. If the A2L file is not stable, it is up to the user to provide an EPK which reflects this.
+The A2L file is always created during application runtime. The A2L may be volatile, which means it may change on each restart of the application. This happens, when there are race conditions in registering calibration segments and events. The A2L file is just uploaded again by the XCP client.  
+To avoid A2L changes on each restart, the creation order of events and calibration segments just has to be deterministic.  
+As a default, the A2L version identifier (EPK) is generated from build time and date. If the A2L file is not stable, it is up to the user to provide an EPK version string which reflects this, otherwise it could create undefined behavior.  
 
 Option 2:
 The A2l file is created only once during the first run of a new build of the application.  
-A copy of all calibration segments and events definitions and calibration segment data is stored in a binary .bin file to achieve the same ordering in the next application start. BIN and A2L file get a unique name based on the software version string. The EPK software version is used to check validity of the A2l and BIN file.  
+A copy of all calibration segments and events definitions and calibration segment data is stored in a binary .bin file to achieve the same ordering in the next application start. BIN and A2L file get a unique name based on the software version string. The EPK software version string is used to check validity of the A2l and BIN file.  
 The existing A2L file is provided for upload to the XCP client or may be provided to the tool by copying it.  
 As a side effect, calibration segment persistency (freeze command) is supported.
 
@@ -283,7 +282,7 @@ The addressing mode is indicated by the address extension:
 0 - Calibration segment (A2L MEMORY_SEGMENT) relative address, high word of the address is the calibration segment index.  
 1 - Absolute address (Unsigned 32Bit, relative to main module load address).  
 2 - Signed 32Bit relative address, default is relative to the stack frame pointer of the function which triggers the event.  
-3 - Signed 16Bit relative address, high word of the address is the event id. This allows polling access to the variable. Used for heap and class instance member variables.
+3 - Signed 16Bit relative address, high word of the address is the event id. This allows asynchronous (polling) access to the variable. Used for heap and class instance member variables.
 
 ### Platform and language standard requirements and resource usage
 
