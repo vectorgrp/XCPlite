@@ -214,20 +214,26 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
 // Logging
 /****************************************************************************/
 
-#ifdef OPTION_ENABLE_DBG_PRINTS
-uint8_t gDebugLevel = OPTION_DEFAULT_DBG_LEVEL;
-#endif
+#if defined(OPTION_ENABLE_DBG_PRINTS) && !defined(OPTION_FIXED_DBG_LEVEL) && defined(OPTION_DEFAULT_DBG_LEVEL)
 
-// This is used by the Rust ffi to set the log level
+uint8_t gDebugLevel = OPTION_DEFAULT_DBG_LEVEL;
+
+// Set the log level
 void XcpSetLogLevel(uint8_t level) {
-#ifdef OPTION_ENABLE_DBG_PRINTS
     if (level > 3)
         DBG_PRINTF_WARNING("Set log level %u -> %u\n", gDebugLevel, level);
     gDebugLevel = level;
-#else
-    (void)level;
-#endif
 }
+
+#else
+
+// Set the log level dummy, log level is a constant or logging is off
+void XcpSetLogLevel(uint8_t level) {
+    (void)level;
+    DBG_PRINT_WARNING("XcpSetLogLevel ignored\n");
+}
+
+#endif
 
 /****************************************************************************/
 // Test instrumentation
