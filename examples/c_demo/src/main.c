@@ -18,6 +18,7 @@
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
 #define OPTION_QUEUE_SIZE 1024 * 32     // Size of the measurement queue in bytes, must be a multiple of 8
 #define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+// #define OPTION_CANAPE_24                // Enable CANape 24 shared axis support for typedefs
 
 //-----------------------------------------------------------------------------------------------------
 
@@ -98,8 +99,12 @@ int main(void) {
     A2lTypedefParameterComponent(counter_max, params_t, "", "", 0, 2000);
     A2lTypedefParameterComponent(delay_us, params_t, "Mainloop sleep time in us", "us", 0, 1000000);
     A2lTypedefMapComponent(map, params_t, 8, 8, "Demo map", "", -128, 127);
+#ifdef OPTION_CANAPE_24
     A2lTypedefCurveComponentWithSharedAxis(curve, params_t, 8, "Demo curve with shared axis curve_axis", "Volt", 0, 1000.0, "curve_axis");
     A2lTypedefAxisComponent(curve_axis, params_t, 8, "Demo axis for curve", "Nm", 0, 20);
+#else
+    A2lTypedefCurveComponent(curve, params_t, 8, "Demo curve with fixed axis", "Volt", 0, 1000.0);
+#endif
     A2lTypedefEnd();
 
     // Register the calibration parameter struct in the calibration segment

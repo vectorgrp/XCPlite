@@ -135,8 +135,6 @@ int main(void) {
     A2lSetStackAddrMode(mainloop); // Set stack relative addressing mode with fixed event mainloop
     A2lCreateMeasurement(loop_counter, "Loop counter, local measurement variable on stack");
 
-    A2lFinalize(); // Test: Manually finalize the A2L file to make it visible without XCP tool connect
-
     // Mainloop
     printf("Start main loop...\n");
     for (;;) {
@@ -165,6 +163,8 @@ int main(void) {
 
         // Sleep for the specified delay parameter in microseconds, don't sleep with the XCP lock held to give the XCP client a chance to update params
         sleepUs(delay_us);
+
+        A2lFinalize(); // @@@@ Test: Manually finalize the A2L file to make it visible without XCP tool connect
 
     } // for (;;)
 
