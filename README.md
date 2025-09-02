@@ -73,10 +73,23 @@ A description of the XCP instrumentation API is available in the doc folder.
 ## Examples  
 
 Examples are found in the examples folder.  
-There is a CANape project for each example in examples/xxxx/CANape. To load a new project into CANape, select load project and navigate to the CANape.ini file in the examples CANape folder.  
-All CANape project examples are configured to upload the A2L file via XCP. The IP address of the XCP server is stored in the A2L file uploaded last time. If CANape can not connect, check that the correct IP address is configured in device manager - transport layer settings.  
 
 To get started, take a first look at C example hello_xcp and then at hello_xcp_cpp for C++.
+
+### Example CANape projects
+
+There is a CANape project for each example in a directory folder "examples/<ExampleName>/CANape".  
+To load a project into CANape, select load project and navigate to the CANape.ini file in this folder.  
+All CANape project examples are configured to upload the A2L file via XCP. The IP address of the XCP server is stored in the A2L file uploaded last time. If CANape can not connect, check that the correct IP address is configured in "Device Configuration/Devices/<DeviceName>/Protocol/Transport Layer".  
+
+The examples should run with a CANape demo version, which can be downloaded from https://www.vector.com/de/de/support-downloads/download-center. 
+The demo installation must be explicitly enabled in the installer and has some limitations:  
+It will store only the first seconds of measurement data and the number of measurement signals is limited.
+
+Note: Some of the examples use display windows without title bars to make it look cleaner. This option can be turned of with "Options/Display/View/Display Headline".  
+
+
+### Example Details
 
 hello_xcp:  
   Demonstrates how to start the XCP on Ethernet server and use the runtime A2L generator.  

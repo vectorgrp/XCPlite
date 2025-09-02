@@ -296,8 +296,7 @@ bool XcpEthTlHandleCommands(uint32_t timeout_ms) {
             DBG_PRINT5("Waiting for TCP connection ...\n");
             gXcpTl.Sock = socketAccept(gXcpTl.ListenSock, gXcpTl.MasterAddr); // Wait here for incoming connection
             if (gXcpTl.Sock == INVALID_SOCKET) {
-                DBG_PRINT_ERROR("accept failed!\n");
-                return true; // Ignore error from accept, when in non blocking mode
+                return true; // Ignore error from accept
             } else {
                 DBG_PRINTF3("XCP master %u.%u.%u.%u accepted!\n", gXcpTl.MasterAddr[0], gXcpTl.MasterAddr[1], gXcpTl.MasterAddr[2], gXcpTl.MasterAddr[3]);
                 DBG_PRINT3("Listening for XCP commands\n");

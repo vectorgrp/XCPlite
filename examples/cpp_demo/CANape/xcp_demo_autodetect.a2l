@@ -29,8 +29,8 @@ ALIGNMENT_INT64 1
 /begin INSTANCE Parameters "Main parameters" ParametersT 0x80010000 /end INSTANCE
 
 /* Absolute addressing mode: default_event=mainloop (0), addr_ext=1 */
-/begin MEASUREMENT temperature "Motor temperature in °C" UBYTE conv.temperature 0 0 -50 200 ECU_ADDRESS 0x2E000 ECU_ADDRESS_EXTENSION 1 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT speed "Speed in km/h" FLOAT64_IEEE NO_COMPU_METHOD 0 0 0 250 ECU_ADDRESS 0x385A0 ECU_ADDRESS_EXTENSION 1 PHYS_UNIT "km/h" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT temperature "Motor temperature in °C" UBYTE conv.temperature 0 0 -50 200 ECU_ADDRESS 0x2F000 ECU_ADDRESS_EXTENSION 1 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT speed "Speed in km/h" FLOAT64_IEEE NO_COMPU_METHOD 0 0 0 250 ECU_ADDRESS 0x39660 ECU_ADDRESS_EXTENSION 1 PHYS_UNIT "km/h" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 
 /* Stack frame relative addressing mode: event=mainloop (0), addr_ext=3 */
 /begin MEASUREMENT loop_counter "Mainloop loop counter" UWORD NO_COMPU_METHOD 0 0 0 65535 ECU_ADDRESS 0x110 ECU_ADDRESS_EXTENSION 3 /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
@@ -123,10 +123,10 @@ ALIGNMENT_INT64 1
 /begin TYPEDEF_CHARACTERISTIC C_delay_us "Delay time in us" VALUE U32 0 NO_COMPU_METHOD 0 100000 PHYS_UNIT "us" /end TYPEDEF_CHARACTERISTIC
 
 /* Groups */
-/begin GROUP Parameters "Calibration Segment" /begin REF_CHARACTERISTIC /end REF_CHARACTERISTIC /end GROUP
+/begin GROUP Parameters "Calibration Segment" /begin REF_CHARACTERISTIC Parameters /end REF_CHARACTERISTIC /end GROUP
 /begin GROUP mainloop "Measurement event group" /begin REF_MEASUREMENT temperature speed loop_counter loop_cycletime loop_histogram sum /end REF_MEASUREMENT /end GROUP
-/begin GROUP SigGen1 "Calibration Segment" /begin REF_CHARACTERISTIC /end REF_CHARACTERISTIC /end GROUP
-/begin GROUP SigGen2 "Calibration Segment" /begin REF_CHARACTERISTIC /end REF_CHARACTERISTIC /end GROUP
+/begin GROUP SigGen1 "Calibration Segment" /begin REF_CHARACTERISTIC SigGen1 /end REF_CHARACTERISTIC /end GROUP
+/begin GROUP SigGen2 "Calibration Segment" /begin REF_CHARACTERISTIC SigGen2 /end REF_CHARACTERISTIC /end GROUP
 /begin GROUP SigGen1 "Measurement event group" /begin REF_MEASUREMENT SigGen1.value_ SigGen1.time /end REF_MEASUREMENT /end GROUP
 /begin GROUP SigGen2 "Measurement event group" /begin REF_MEASUREMENT SigGen2.value_ SigGen2.time /end REF_MEASUREMENT /end GROUP
 /begin GROUP Events "Events" ROOT /begin SUB_GROUP mainloop SigGen1 SigGen2 /end SUB_GROUP /end GROUP
@@ -144,8 +144,8 @@ ALIGNMENT_INT64 1
 /end COMPU_VTAB
 
 /begin MOD_PAR ""
-EPK "_Aug_19_202513_45_15" ADDR_EPK 0x80000000
-/begin MEMORY_SEGMENT epk "" DATA FLASH INTERN 0x80000000 20 -1 -1 -1 -1 -1
+EPK "_Sep__2_2025_16_31_48" ADDR_EPK 0x80000000
+/begin MEMORY_SEGMENT epk "" DATA FLASH INTERN 0x80000000 21 -1 -1 -1 -1 -1
 /begin IF_DATA XCP
 /begin SEGMENT 0 2 0 0 0
 /begin CHECKSUM XCP_CRC_16_CITT MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION "" /end CHECKSUM
@@ -230,7 +230,7 @@ DYNAMIC 0 3 0 OPTIMISATION_TYPE_DEFAULT ADDRESS_EXTENSION_FREE IDENTIFICATION_FI
 /begin EVENT "SigGen2" "SigGen2" 0x2 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
 /end DAQ
 /begin XCP_ON_UDP_IP
-  0x104 5555 ADDRESS "172.31.31.11"
+  0x104 5555 ADDRESS "10.110.64.225"
 /end XCP_ON_UDP_IP
 /end IF_DATA
 

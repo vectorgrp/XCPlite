@@ -1489,7 +1489,7 @@ bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t
     // Set the EPK (software version number) for the A2L file
     char epk[64];
     if (a2l_version == NULL) {
-        SNPRINTF(epk, sizeof(epk), "_%s%s", __DATE__, __TIME__);
+        SNPRINTF(epk, sizeof(epk), "_%s_%s", __DATE__, __TIME__);
     } else {
         SNPRINTF(epk, sizeof(epk), "_%s", a2l_version);
     }

@@ -25,13 +25,15 @@
   XCP library build options:
 
   // Logging
-  #define OPTION_ENABLE_DBG_PRINTS    Enable debug prints
-  #define OPTION_DEFAULT_DBG_LEVEL  Default log level: 1 - Error, 2 - Warn, 3 - Info, 4 - Trace, 5 - Debug
+  #define OPTION_ENABLE_DBG_PRINTS            Enable debug prints
+  #define OPTION_ENABLE_DBG_STDERR            Enable debug print errors and warnings go to stderr
+  #define OPTION_DEFAULT_DBG_LEVEL            Default log level: 1 - Error, 2 - Warn, 3 - Info, 4 - Trace, 5 - Debug
+  #define OPTION_FIXED_DBG_LEVEL              Fixed log level to optimize code size
 
   // Clock
-  #define OPTION_CLOCK_EPOCH_ARB      Arbitrary epoch or since 1.1.1970
+  #define OPTION_CLOCK_EPOCH_ARB              Arbitrary epoch or since 1.1.1970
   #define OPTION_CLOCK_EPOCH_PTP
-  #define OPTION_CLOCK_TICKS_1NS      Resolution 1ns or 1us, granularity depends on platform
+  #define OPTION_CLOCK_TICKS_1NS              Resolution 1ns or 1us, granularity depends on platform
   #define OPTION_CLOCK_TICKS_1US
 
   // XCP server settings
@@ -55,7 +57,9 @@
 
 // Logging
 #define OPTION_ENABLE_DBG_PRINTS
-#define OPTION_DEFAULT_DBG_LEVEL 2
+#define OPTION_ENABLE_DBG_STDERR
+#define OPTION_DEFAULT_DBG_LEVEL 3 // User adjustable log level, default 3
+// #define OPTION_FIXED_DBG_LEVEL 2 // Optimize code size, only errors and warnings enabled, other levels optimized out
 
 // Clock
 #define OPTION_CLOCK_EPOCH_ARB // -> use CLOCK_MONOTONIC_RAW

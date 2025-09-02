@@ -1,9 +1,9 @@
 ASAP2_VERSION 1 71
-/begin PROJECT struct_demo ""
+/begin PROJECT hello_xcp_cpp ""
 
 /begin HEADER "" VERSION "1.0" PROJECT_NO VECTOR /end HEADER
 
-/begin MODULE struct_demo ""
+/begin MODULE hello_xcp_cpp ""
 
 /include "XCP_104.aml"
 
@@ -20,35 +20,22 @@ ALIGNMENT_INT64 1
 
 
 
+/begin TYPEDEF_STRUCTURE ParametersT "A2L Typedef for ParametersT" 0x10
+  /begin STRUCTURE_COMPONENT min C_min 0x0 /end STRUCTURE_COMPONENT
+  /begin STRUCTURE_COMPONENT max C_max 0x8 /end STRUCTURE_COMPONENT
+/end TYPEDEF_STRUCTURE
+
 /* Segment relative addressing mode: calseg=Parameters */
-/begin CHARACTERISTIC params.delay_us "mainloop delay time in us" VALUE 0x80010000 U32 0 NO_COMPU_METHOD 0 1e+06 PHYS_UNIT "us" /end CHARACTERISTIC
+/begin INSTANCE Parameters "Random number generator parameters" ParametersT 0x80010000 /end INSTANCE
 
-/begin TYPEDEF_STRUCTURE struct2_t "A2L typedef for struct2_t" 0x4
-  /begin STRUCTURE_COMPONENT byte_field M_U8 0x0 /end STRUCTURE_COMPONENT
-  /begin STRUCTURE_COMPONENT word_field M_I16 0x2 /end STRUCTURE_COMPONENT
-/end TYPEDEF_STRUCTURE
+/* Relative addressing mode: event=avg_calc (0), addr_ext=2 */
+/begin MEASUREMENT current_index_ "Current position in ring buffer" A_UINT64 NO_COMPU_METHOD 0 0 0 1e+12 ECU_ADDRESS 0x400 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT sample_count_ "Number of samples collected" A_UINT64 NO_COMPU_METHOD 0 0 0 1e+12 ECU_ADDRESS 0x408 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT sum_ "Running sum of all samples" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -1e+12 1e+12 ECU_ADDRESS 0x410 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 
-/begin TYPEDEF_STRUCTURE struct1_t "A2L typedef for struct1_t" 0x108
-  /begin STRUCTURE_COMPONENT byte_field M_U8 0x0 /end STRUCTURE_COMPONENT
-  /begin STRUCTURE_COMPONENT word_field M_I16 0x2 /end STRUCTURE_COMPONENT
-  /begin STRUCTURE_COMPONENT array_field M_U8 0x4 MATRIX_DIM 256 /end STRUCTURE_COMPONENT
-  /begin STRUCTURE_COMPONENT struct_field struct2_t 0x104 /end STRUCTURE_COMPONENT
-/end TYPEDEF_STRUCTURE
-
-/* Stack frame relative addressing mode: event=event (0), addr_ext=3 */
-/begin MEASUREMENT local_counter "Stack measurement variable" UWORD NO_COMPU_METHOD 0 0 0 65535 ECU_ADDRESS 0x470 ECU_ADDRESS_EXTENSION 3 /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin INSTANCE local_struct2 "Instance of test_struct2_t" struct2_t 0x490 ECU_ADDRESS_EXTENSION 3 /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end INSTANCE
-/begin INSTANCE local_struct1 "Instance of test_struct1_t" struct1_t 0x4BC ECU_ADDRESS_EXTENSION 3 /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end INSTANCE
-/begin INSTANCE local_struct1_array "Array [10] of struct1_t" struct1_t 0x5EC ECU_ADDRESS_EXTENSION 3 MATRIX_DIM 8 /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end INSTANCE
-
-/* Absolute addressing mode: default_event=event (0), addr_ext=1 */
-/begin MEASUREMENT static_counter "Global measurement variable " UWORD NO_COMPU_METHOD 0 0 0 65535 ECU_ADDRESS 0x32C60 ECU_ADDRESS_EXTENSION 1 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin INSTANCE static_struct2 "Instance of test_struct2_t" struct2_t 0x28000 ECU_ADDRESS_EXTENSION 1 /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end INSTANCE
-/begin INSTANCE static_struct1 "Instance of test_struct1_t" struct1_t 0x28010 ECU_ADDRESS_EXTENSION 1 /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end INSTANCE
-/begin INSTANCE static_struct1_array "Array [10] of struct1_t" struct1_t 0x32C70 ECU_ADDRESS_EXTENSION 1 MATRIX_DIM 8 /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end INSTANCE
-
-/* Relative addressing mode: event=event_heap (1), addr_ext=2 */
-/begin INSTANCE heap_struct1 "Pointer to struct1_t on heap" struct1_t 0x10000 ECU_ADDRESS_EXTENSION 2 /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end INSTANCE
+/* Stack frame relative addressing mode: event=avg_calc (0), addr_ext=3 */
+/begin MEASUREMENT input "Input value for floating average" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -1e+12 1e+12 ECU_ADDRESS 0x114 ECU_ADDRESS_EXTENSION 3 /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT average "Current calculated average" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -1e+12 1e+12 ECU_ADDRESS 0x94 ECU_ADDRESS_EXTENSION 3 /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 
 /* Typedefs */
 /begin RECORD_LAYOUT U8 FNC_VALUES 1 UBYTE ROW_DIR DIRECT /end RECORD_LAYOUT
@@ -92,19 +79,20 @@ ALIGNMENT_INT64 1
 /begin TYPEDEF_MEASUREMENT M_F64 "" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -1e+12 1e+12 /end TYPEDEF_MEASUREMENT
 /begin TYPEDEF_CHARACTERISTIC C_F64 "" VALUE F64 0 NO_COMPU_METHOD -1e+12 1e+12 /end TYPEDEF_CHARACTERISTIC
 
+/begin TYPEDEF_CHARACTERISTIC C_min "Minimum random number value" VALUE F64 0 NO_COMPU_METHOD -100 100 /end TYPEDEF_CHARACTERISTIC
+/begin TYPEDEF_CHARACTERISTIC C_max "Maximum random number value" VALUE F64 0 NO_COMPU_METHOD -100 100 /end TYPEDEF_CHARACTERISTIC
 
 /* Groups */
-/begin GROUP Parameters "Calibration Segment" /begin REF_CHARACTERISTIC params.delay_us /end REF_CHARACTERISTIC /end GROUP
-/begin GROUP event "Measurement event group" /begin REF_MEASUREMENT local_counter local_struct2 local_struct1 local_struct1_array static_counter static_struct2 static_struct1 static_struct1_array /end REF_MEASUREMENT /end GROUP
-/begin GROUP event_heap "Measurement event group" /begin REF_MEASUREMENT heap_struct1 /end REF_MEASUREMENT /end GROUP
-/begin GROUP Events "Events" ROOT /begin SUB_GROUP event event_heap /end SUB_GROUP /end GROUP
+/begin GROUP Parameters "Calibration Segment" /begin REF_CHARACTERISTIC Parameters /end REF_CHARACTERISTIC /end GROUP
+/begin GROUP avg_calc "Measurement event group" /begin REF_MEASUREMENT current_index_ sample_count_ sum_ input average /end REF_MEASUREMENT /end GROUP
+/begin GROUP Events "Events" ROOT /begin SUB_GROUP avg_calc /end SUB_GROUP /end GROUP
 
 /* Conversions */
 /begin COMPU_METHOD conv.bool "" TAB_VERB "%.0" "" COMPU_TAB_REF conv.bool.table /end COMPU_METHOD
 /begin COMPU_VTAB conv.bool.table "" TAB_VERB 2 0 "false" 1 "true" /end COMPU_VTAB
 /begin COMPU_METHOD conv.events "" TAB_VERB "%.0 " "" COMPU_TAB_REF conv.events.table /end COMPU_METHOD
-/begin COMPU_VTAB conv.events.table "" TAB_VERB 2
- 0 "event" 1 "event_heap"
+/begin COMPU_VTAB conv.events.table "" TAB_VERB 1
+ 0 "avg_calc"
 /end COMPU_VTAB
 
 /begin MOD_PAR ""
@@ -118,7 +106,7 @@ EPK "_Sep__2_2025_15_10_03" ADDR_EPK 0x80000000
 /end SEGMENT
 /end IF_DATA
 /end MEMORY_SEGMENT
-/begin MEMORY_SEGMENT Parameters "" DATA FLASH INTERN 0x80010000 0x4 -1 -1 -1 -1 -1
+/begin MEMORY_SEGMENT Parameters "" DATA FLASH INTERN 0x80010000 0x10 -1 -1 -1 -1 -1
 /begin IF_DATA XCP
 /begin SEGMENT 1 2 0 0 0
 /begin CHECKSUM XCP_CRC_16_CITT MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION "" /end CHECKSUM
@@ -167,12 +155,11 @@ OPTIONAL_CMD TIME_CORRELATION_PROPERTIES
 OPTIONAL_LEVEL1_CMD GET_VERSION
 /end PROTOCOL_LAYER
 /begin DAQ
-DYNAMIC 0 2 0 OPTIMISATION_TYPE_DEFAULT ADDRESS_EXTENSION_FREE IDENTIFICATION_FIELD_TYPE_RELATIVE_BYTE GRANULARITY_ODT_ENTRY_SIZE_DAQ_BYTE 0xF8 OVERLOAD_INDICATION_PID
+DYNAMIC 0 1 0 OPTIMISATION_TYPE_DEFAULT ADDRESS_EXTENSION_FREE IDENTIFICATION_FIELD_TYPE_RELATIVE_BYTE GRANULARITY_ODT_ENTRY_SIZE_DAQ_BYTE 0xF8 OVERLOAD_INDICATION_PID
 /begin TIMESTAMP_SUPPORTED
 0x1 SIZE_DWORD UNIT_1US TIMESTAMP_FIXED
 /end TIMESTAMP_SUPPORTED
-/begin EVENT "event" "event" 0x0 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
-/begin EVENT "event_heap" "event_heap" 0x1 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
+/begin EVENT "avg_calc" "avg_calc" 0x0 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
 /end DAQ
 /begin XCP_ON_TCP_IP
   0x104 5555 ADDRESS "10.110.64.225"

@@ -39,13 +39,6 @@ template <size_t N> class FloatingAverage {
 };
 
 template <size_t N> FloatingAverage<N>::FloatingAverage() : samples_{}, current_index_(0), sample_count_(0), sum_(0.0) {
-    std::cout << "FloatingAverage<" << N << "> instance created" << std::endl;
-}
-
-// Floating avarage calculate function - instrumented for XCP measurement
-template <size_t N> double FloatingAverage<N>::calculate(double input) {
-
-    double average; // Current calculated average
 
     // Create a measurement event "avg_calc" for this member function
     DaqCreateEvent(avg_calc);
@@ -57,8 +50,19 @@ template <size_t N> double FloatingAverage<N>::calculate(double input) {
         A2lCreateMeasurement(current_index_, "Current position in ring buffer");
         A2lCreateMeasurement(sample_count_, "Number of samples collected");
         A2lCreateMeasurement(sum_, "Running sum of all samples");
+    }
 
-        // Also register local variables and parameters of this function
+    std::cout << "FloatingAverage<" << N << "> instance created" << std::endl;
+}
+
+// Floating avarage calculate function - instrumented for XCP measurement
+template <size_t N> double FloatingAverage<N>::calculate(double input) {
+
+    double average; // Current calculated average
+
+    if (A2lOnce()) {
+
+        // Register local variables and parameters of this function
         // Note: This forces the compiler to spill function parameters from registers to stack to make them accessible by XCP, it causes minimal runtime impact, but does not create
         // undefined behaviour
         A2lSetStackAddrMode(avg_calc);
@@ -170,10 +174,9 @@ int main() {
         double current_average = average.calculate(random_number());
 
         sleepUs(1000);
-    }
 
-    // Test: Force finalize A2L file, if not already done
-    A2lFinalize();
+        A2lFinalize(); // @@@@ Test: Manually finalize the A2L file to make it visible without XCP tool connect
+    }
 
     // Cleanup
     std::cout << "\nExiting ..." << std::endl;
