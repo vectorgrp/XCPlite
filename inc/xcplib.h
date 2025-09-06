@@ -270,6 +270,19 @@ static __forceinline const uint8_t *get_stack_frame_pointer_msvc(void) {
         }                                                                                                                                                                          \
     }
 
+/// Trigger the XCP event 'name' with a given timestamp for stack relative or absolute addressing
+/// Cache the event name lookup
+#define DaqEventAt(name, clock)                                                                                                                                                    \
+    if (XcpIsActivated()) {                                                                                                                                                        \
+        static THREAD_LOCAL tXcpEventId daq_event_stackframe_##name##_ = XCP_UNDEFINED_EVENT_ID;                                                                                   \
+        if (daq_event_stackframe_##name##_ == XCP_UNDEFINED_EVENT_ID) {                                                                                                            \
+            daq_event_stackframe_##name##_ = XcpFindEvent(#name, NULL);                                                                                                            \
+            assert(daq_event_stackframe_##name##_ != XCP_UNDEFINED_EVENT_ID);                                                                                                      \
+        } else {                                                                                                                                                                   \
+            XcpEventDynRelAt(daq_event_stackframe_##name##_, get_stack_frame_pointer(), get_stack_frame_pointer(), clock);                                                         \
+        }                                                                                                                                                                          \
+    }
+
 /// Trigger the XCP event 'name' for stack relative or absolute addressing
 /// Cache the event name lookup
 #define DaqEvent_s(name)                                                                                                                                                           \

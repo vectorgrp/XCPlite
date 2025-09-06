@@ -172,6 +172,17 @@ add_executable(bpf_demo ${bpf_demo_SOURCES})
 target_include_directories(bpf_demo PUBLIC "${PROJECT_ROOT}/inc")
 target_link_libraries(bpf_demo PRIVATE xcplib)
 
+# Add libbpf dependency for Linux builds
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_library(LIBBPF_LIBRARY bpf)
+    if(LIBBPF_LIBRARY)
+        target_link_libraries(bpf_demo PRIVATE ${LIBBPF_LIBRARY})
+        message(STATUS "Found libbpf: ${LIBBPF_LIBRARY}")
+    else()
+        message(WARNING "libbpf not found. BPF functionality will be disabled.")
+    endif()
+endif()
+
 # Tests
 if(BUILD_TEST)
     # Type detection test (C version)
