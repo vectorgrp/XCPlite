@@ -153,6 +153,7 @@ LIBRARY_DEPENDENT_TARGETS=(
     "cpp_demo"
     "struct_demo"
     "multi_thread_demo"
+    "bpf_demo"
     "a2l_test"
     "cal_test"
 )
