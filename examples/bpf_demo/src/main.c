@@ -1,6 +1,6 @@
 ﻿// bpf_demo xcplib example
 
-#define _GNU_SOURCE // for usleep
+// #define _GNU_SOURCE
 
 #include <assert.h>  // for assert
 #include <errno.h>   // for errno
@@ -14,6 +14,8 @@
 #ifdef __linux__
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
+#else
+#error "This example only works on Linux systems with BPF support"
 #endif
 
 #include "a2l.h"    // for xcplib A2l generation
@@ -51,13 +53,11 @@ static demo_struct_t static_struct = {.byte_field = 1, .word_field = 2}; // Sing
 static uint32_t new_process_pid = 0;                                     // Global variable to store new process PID
 static volatile bool running = true;                                     // Control flag for main loop
 
-#ifdef __linux__
 static struct bpf_object *obj = NULL;
 static struct bpf_link *bpf_link = NULL; // Rename to avoid conflict with system link()
 static struct ring_buffer *rb = NULL;
 static int map_fd = -1;
 static bool bpf_enabled = false;
-#endif
 
 //-----------------------------------------------------------------------------------------------------
 // Signal handler for clean shutdown
@@ -67,7 +67,6 @@ static void sig_handler(int sig) { running = false; }
 //-----------------------------------------------------------------------------------------------------
 // BPF functions
 
-#ifdef __linux__
 static int handle_event(void *ctx, void *data, size_t data_sz) {
     struct event *e = data;
 
@@ -152,7 +151,6 @@ static void cleanup_bpf() {
         obj = NULL;
     }
 }
-#endif
 
 //-----------------------------------------------------------------------------------------------------
 // Main
@@ -164,7 +162,6 @@ int main(int argc, char *argv[]) {
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 
-#ifdef __linux__
     // Try to initialize BPF program
     if (load_bpf_program() != 0) {
         printf("Warning: Failed to initialize BPF program. Running without BPF monitoring.\n");
@@ -172,9 +169,6 @@ int main(int argc, char *argv[]) {
     } else {
         bpf_enabled = true;
     }
-#else
-    printf("Warning: BPF is only supported on Linux. Running without BPF monitoring.\n");
-#endif
 
     // Init XCP
     XcpInit(true);
@@ -204,29 +198,20 @@ int main(int argc, char *argv[]) {
     // Start main loop
     printf("Start main loop...\n");
     while (running) {
+
         // Update counter
         static_counter++;
 
-        // Simulate process creation for testing (since BPF might not load due to BTF requirements)
-        if (static_counter % 50 == 0) {
-            new_process_pid = 1000 + (static_counter / 50);
-            printf("Simulated process creation: PID=%u\n", new_process_pid);
-            // Trigger XCP measurement event manually
-            DaqEvent(process_event);
-        }
-
         // Poll BPF events if enabled
-#ifdef __linux__
         if (bpf_enabled) {
             ring_buffer__poll(rb, 10); // 10ms timeout
         }
-#endif
 
         // Trigger DAQ event for periodic measurements
         DaqEvent(mainloop_event);
 
         // Sleep for a short period
-        usleep(100000); // 100ms
+        sleepUs(100000); // 100ms
     }
 
     printf("Shutting down...\n");

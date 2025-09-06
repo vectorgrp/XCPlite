@@ -33,6 +33,9 @@ show_usage() {
     echo "  build:                System default compiler builds"
     echo "  build-gcc:            GCC compiler builds"
     echo "  build-clang:          Clang compiler builds"
+    echo ""
+    echo "Platform-specific targets:"
+    echo "  bpf_demo:             Only built on Linux systems (requires BPF support)"
 }
 
 # Parse arguments
@@ -153,10 +156,17 @@ LIBRARY_DEPENDENT_TARGETS=(
     "cpp_demo"
     "struct_demo"
     "multi_thread_demo"
-    "bpf_demo"
     "a2l_test"
     "cal_test"
 )
+
+# Add bpf_demo only on Linux systems
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    LIBRARY_DEPENDENT_TARGETS+=("bpf_demo")
+    echo "Linux system detected - bpf_demo will be built with BPF support"
+else
+    echo "Non-Linux system detected - bpf_demo will be skipped (BPF only supported on Linux)"
+fi
 INDEPENDENT_TARGETS=(
     "type_detection_test_c"
     "type_detection_test_cpp"
@@ -176,6 +186,41 @@ if make --directory ./$BUILD_DIR $LIBRARY_TARGET > /dev/null 2>&1; then
     echo "✅ SUCCESS: $LIBRARY_TARGET compiled successfully"
     echo ""
     SUCCESSFUL_TARGETS+=("$LIBRARY_TARGET")
+    
+    # Build BPF program if bpf_demo is in the target list
+    if [[ " ${LIBRARY_DEPENDENT_TARGETS[@]} " =~ " bpf_demo " ]]; then
+        echo ""
+        echo "-------------------------------------------------------------------"
+        echo "Building BPF program for bpf_demo..."
+        echo "-------------------------------------------------------------------"
+        
+        # Check if build_bpf.sh exists
+        if [ -f "examples/bpf_demo/build_bpf.sh" ]; then
+            # Make the script executable
+            chmod +x examples/bpf_demo/build_bpf.sh
+            
+            # Run the BPF build script
+            if examples/bpf_demo/build_bpf.sh > /dev/null 2>&1; then
+                echo "✅ SUCCESS: BPF program compiled successfully"
+                
+                # Copy BPF object file to the correct build directory
+                BPF_OBJ_SRC="examples/bpf_demo/src/process_monitor.bpf.o"
+                if [ -f "$BPF_OBJ_SRC" ]; then
+                    cp "$BPF_OBJ_SRC" "$BUILD_DIR/"
+                    echo "   BPF object file copied to $BUILD_DIR/"
+                else
+                    echo "⚠️  WARNING: BPF object file not found at $BPF_OBJ_SRC"
+                fi
+            else
+                echo "❌ FAILED: BPF program build failed"
+                echo "   BPF build error details:"
+                examples/bpf_demo/build_bpf.sh 2>&1 | sed 's/^/   /'
+            fi
+        else
+            echo "⚠️  WARNING: BPF build script not found at examples/bpf_demo/build_bpf.sh"
+        fi
+        echo ""
+    fi
     
     # Build library-dependent targets only if library succeeded
     for target in "${LIBRARY_DEPENDENT_TARGETS[@]}"; do
