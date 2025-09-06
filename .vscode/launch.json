@@ -115,7 +115,7 @@
                 "debuggerPath": "/usr/bin/gdb",
                 "pipeProgram": "ssh",
                 "pipeArgs": [
-                    "rainer@192.168.0.205"
+                    "rainer@192.168.0.206"
                 ],
                 "pipeCwd": ""
             },
@@ -143,7 +143,7 @@
                 "debuggerPath": "/usr/bin/gdb",
                 "pipeProgram": "ssh",
                 "pipeArgs": [
-                    "rainer@192.168.0.205"
+                    "rainer@192.168.0.206"
                 ],
                 "pipeCwd": ""
             },

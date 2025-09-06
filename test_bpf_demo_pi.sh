@@ -5,7 +5,7 @@
 
 set -e
 
-PI_HOST="rainer@192.168.0.205"
+PI_HOST="rainer@192.168.0.206"
 PROJECT_DIR="~/XCPlite-RainerZ"
 
 echo "=== BPF Demo Test on Raspberry Pi ==="

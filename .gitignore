@@ -17,6 +17,7 @@
 conversions.a2l
 groups.a2l
 typedefs.a2l
+*.bak
 
 
 /run_remote.sh

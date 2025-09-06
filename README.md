@@ -82,12 +82,11 @@ There is a CANape project for each example in a directory folder "examples/<Exam
 To load a project into CANape, select load project and navigate to the CANape.ini file in this folder.  
 All CANape project examples are configured to upload the A2L file via XCP. The IP address of the XCP server is stored in the A2L file uploaded last time. If CANape can not connect, check that the correct IP address is configured in "Device Configuration/Devices/<DeviceName>/Protocol/Transport Layer".  
 
-The examples should run with a CANape demo version, which can be downloaded from https://www.vector.com/de/de/support-downloads/download-center. 
+The examples should run with a CANape demo version, which can be downloaded from <https://www.vector.com/de/de/support-downloads/download-center>.
 The demo installation must be explicitly enabled in the installer and has some limitations:  
 It will store only the first seconds of measurement data and the number of measurement signals is limited.
 
 Note: Some of the examples use display windows without title bars to make it look cleaner. This option can be turned of with "Options/Display/View/Display Headline".  
-
 
 ### Example Details
 
@@ -134,6 +133,13 @@ cpp_demo:
   Demonstrates the calibration segment RAII wrapper.  
   Demonstrates measurement of member variables and stack variables in class instance member functions.  
   Shows how to create a class with calibration parameters as member variables.  
+
+threadx_demo:
+  Planned
+  
+bpf_demo:
+  Work in progress
+  Experimental
 
 ![CANape Screenshot](examples/cpp_demo/cpp_demo.png)
 

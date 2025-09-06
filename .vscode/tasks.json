@@ -13,7 +13,7 @@
                 "--exclude=\"*.out\"",
                 "--exclude=\"*.a\"",
                 "./",
-                "rainer@192.168.0.205:~/XCPlite-RainerZ/"
+                "rainer@192.168.0.206:~/XCPlite-RainerZ/"
             ],
             "options": {
                 "cwd": "${workspaceFolder}"
@@ -28,7 +28,7 @@
                 "focus": false,
                 "panel": "shared"
             },
-            "detail": "rsync to Raspberry Pi rainer@192.168.0.205:~/XCPlite-RainerZ/"
+            "detail": "rsync to Raspberry Pi rainer@192.168.0.206:~/XCPlite-RainerZ/"
         },
         {
             "type": "shell",
@@ -47,7 +47,7 @@
                 "focus": false,
                 "panel": "shared"
             },
-            "detail": "Call ./sync.sh - rsync to Raspberry Pi rainer@192.168.0.205:~/XCPlite-RainerZ/"
+            "detail": "Call ./sync.sh - rsync to Raspberry Pi rainer@192.168.0.206:~/XCPlite-RainerZ/"
         },
         {
             "type": "cppbuild",
@@ -235,7 +235,7 @@
             "label": "XCPlite: Remote configure CMake on Pi",
             "command": "ssh",
             "args": [
-                "rainer@192.168.0.205",
+                "rainer@192.168.0.206",
                 "cd ~/XCPlite-RainerZ && cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug"
             ],
             "group": "build",
@@ -247,7 +247,7 @@
             "label": "XCPlite: Remote build hello_xcp on Pi",
             "command": "ssh",
             "args": [
-                "rainer@192.168.0.205",
+                "rainer@192.168.0.206",
                 "cd ~/XCPlite-RainerZ && cmake --build build --target hello_xcp"
             ],
             "group": {
@@ -265,7 +265,7 @@
             "label": "XCPlite: Remote build cpp_demo on Pi",
             "command": "ssh",
             "args": [
-                "rainer@192.168.0.205",
+                "rainer@192.168.0.206",
                 "cd ~/XCPlite-RainerZ && cmake --build build --target cpp_demo"
             ],
             "group": {
@@ -283,7 +283,7 @@
             "label": "XCPlite: Remote build all on Pi",
             "command": "ssh",
             "args": [
-                "rainer@192.168.0.205",
+                "rainer@192.168.0.206",
                 "cd ~/XCPlite-RainerZ && cmake --build build"
             ],
             "group": {
@@ -301,7 +301,7 @@
             "label": "XCPlite: Remote kill XCP processes on Pi",
             "command": "ssh",
             "args": [
-                "rainer@192.168.0.205",
+                "rainer@192.168.0.206",
                 "pkill -f 'hello_xcp\\|cpp_demo\\|c_demo\\|multi_thread_demo' || true"
             ],
             "group": "build",
