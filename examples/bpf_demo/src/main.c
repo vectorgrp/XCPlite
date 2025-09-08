@@ -42,7 +42,7 @@ typedef struct {
 // BPF event structure
 // Event structure that matches the BPF program
 #define EVENT_PROCESS_FORK 1
-#define EVENT_CONTEXT_SWITCH 2
+#define EVENT_SYSCALL 2
 #define EVENT_TIMER_TICK 3
 
 struct event {
@@ -109,7 +109,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
         uint64_t timestamp_us = e->timestamp / 1000;
         DaqEventAt(process_event, timestamp_us);
 
-    } else if (e->event_type == EVENT_CONTEXT_SWITCH) {
+    } else if (e->event_type == EVENT_SYSCALL) {
         // Handle context switch events
         context_switch_count++;
         current_prev_pid = e->pid;
@@ -215,11 +215,11 @@ static int load_bpf_program() {
         }
     }
 
-    // Attach context switch tracepoint
-    prog = bpf_object__find_program_by_name(obj, "trace_context_switch");
+    // Attach syscall tracepoint
+    prog = bpf_object__find_program_by_name(obj, "trace_syscall_enter");
     context_switch_link = NULL;
     if (!prog) {
-        printf("Failed to find BPF program 'trace_context_switch'\n");
+        printf("Failed to find BPF program 'trace_syscall_enter'\n");
     } else {
         context_switch_link = bpf_program__attach(prog);
         if (libbpf_get_error(context_switch_link)) {

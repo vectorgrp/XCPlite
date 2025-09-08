@@ -24,7 +24,7 @@ struct {
 
 // Event types to distinguish different tracepoints
 #define EVENT_PROCESS_FORK 1
-#define EVENT_CONTEXT_SWITCH 2
+#define EVENT_SYSCALL 2
 #define EVENT_TIMER_TICK 3
 
 struct event {
@@ -80,7 +80,7 @@ int trace_syscall_enter(void *ctx) {
 
     // Capture precise kernel timestamp
     e->timestamp = bpf_ktime_get_ns();
-    e->event_type = EVENT_CONTEXT_SWITCH; // Reusing event type for high-frequency events
+    e->event_type = EVENT_SYSCALL; // Reusing event type for high-frequency events
 
     // Get current task info
     __u64 pid_tgid = bpf_get_current_pid_tgid();
