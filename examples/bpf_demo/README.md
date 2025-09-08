@@ -28,10 +28,6 @@ sudo dnf install clang llvm libbpf-devel kernel-headers
 sudo pacman -S clang llvm libbpf linux-headers
 ```
 
-### Other platforms
-
-The demo will compile and run without BPF support, showing only the basic XCP functionality.
-
 ## Building
 
 1. **Build the BPF program (Linux only)**:
@@ -57,33 +53,6 @@ The demo will compile and run without BPF support, showing only the basic XCP fu
 # Root privileges required for BPF programs
 sudo ./build/bpf_demo.out
 ```
-
-### On other platforms or without BPF
-
-```bash
-./build/bpf_demo.out
-```
-
-## XCP Measurements
-
-The demo exposes the following measurements via XCP:
-
-- `static_counter`: Incremental counter
-- `static_struct`: Demo structure with byte and word fields
-- `new_process_pid`: PID of the most recently created process (Linux only)
-- `loop_counter`: Local loop iteration counter
-
-## XCP Events
-
-- `mainloop_event`: Triggered every loop iteration (1ms)
-- `process_event`: Triggered when a new process is detected (Linux only)
-
-## Monitoring with CANape
-
-1. Connect to the XCP server (default: UDP port 5555)
-2. Load the generated A2L file (`bpf_demo.a2l`)
-3. Create measurements for the available variables
-4. Monitor `new_process_pid` to see process creation events in real-time
 
 ## Troubleshooting
 
