@@ -34,6 +34,25 @@
 //-----------------------------------------------------------------------------------------------------
 // Global variables
 
+// Syscall monitoring variables
+static uint32_t syscall_count = 0;       // Total number of tracked syscalls
+static uint32_t current_syscall_nr = 0;  // Current syscall number
+static uint32_t current_syscall_pid = 0; // PID making the syscall
+static uint32_t syscall_rate = 0;        // Syscalls per second (calculated)
+static uint64_t last_syscall_time = 0;   // Timestamp of last syscall
+
+// Syscall category counters
+static uint32_t timing_syscalls = 0; // Timing & scheduling syscalls
+static uint32_t memory_syscalls = 0; // Memory management syscalls
+static uint32_t thread_syscalls = 0; // Thread & process syscalls
+static uint32_t sync_syscalls = 0;   // Synchronization syscalls
+
+// Individual syscall counters for interesting ones
+static uint32_t nanosleep_count = 0;
+static uint32_t mmap_count = 0;
+static uint32_t clone_count = 0;
+static uint32_t futex_count = 0;
+
 typedef struct {
     uint8_t byte_field;
     int16_t word_field;
@@ -44,6 +63,74 @@ typedef struct {
 #define EVENT_PROCESS_FORK 1
 #define EVENT_SYSCALL 2
 #define EVENT_TIMER_TICK 3
+
+// Interesting syscalls for monitoring (ARM64 numbers) - must match BPF program
+#define SYSCALL_FUTEX 98               // Fast userspace mutexes
+#define SYSCALL_EXIT 93                // Process termination
+#define SYSCALL_CLOCK_GETTIME 113      // Time queries
+#define SYSCALL_NANOSLEEP 115          // Sleep operations
+#define SYSCALL_SCHED_SETSCHEDULER 119 // Scheduler policy changes
+#define SYSCALL_SCHED_YIELD 124        // Voluntary CPU yielding
+#define SYSCALL_BRK 214                // Heap management
+#define SYSCALL_MUNMAP 215             // Memory unmapping
+#define SYSCALL_CLONE 220              // Thread/process creation
+#define SYSCALL_MMAP 222               // Memory mapping
+#define SYSCALL_MPROTECT 226           // Memory protection changes
+#define SYSCALL_WAIT4 260              // Process waiting
+#define SYSCALL_PIPE2 59               // Inter-process communication
+
+// Syscall categories
+#define CATEGORY_TIMING 1
+#define CATEGORY_MEMORY 2
+#define CATEGORY_THREAD 3
+#define CATEGORY_SYNC 4
+
+// Syscall lookup table
+struct syscall_info {
+    uint32_t number;
+    const char *name;
+    const char *category_name;
+};
+
+static const struct syscall_info syscall_lookup[] = {
+    {SYSCALL_FUTEX, "futex", "sync"},
+    {SYSCALL_EXIT, "exit", "thread"},
+    {SYSCALL_CLOCK_GETTIME, "clock_gettime", "timing"},
+    {SYSCALL_NANOSLEEP, "nanosleep", "timing"},
+    {SYSCALL_SCHED_SETSCHEDULER, "sched_setscheduler", "timing"},
+    {SYSCALL_SCHED_YIELD, "sched_yield", "timing"},
+    {SYSCALL_BRK, "brk", "memory"},
+    {SYSCALL_MUNMAP, "munmap", "memory"},
+    {SYSCALL_CLONE, "clone", "thread"},
+    {SYSCALL_MMAP, "mmap", "memory"},
+    {SYSCALL_MPROTECT, "mprotect", "memory"},
+    {SYSCALL_WAIT4, "wait4", "thread"},
+    {SYSCALL_PIPE2, "pipe2", "sync"},
+};
+
+static const char *get_syscall_name(uint32_t syscall_nr) {
+    for (int i = 0; i < sizeof(syscall_lookup) / sizeof(syscall_lookup[0]); i++) {
+        if (syscall_lookup[i].number == syscall_nr) {
+            return syscall_lookup[i].name;
+        }
+    }
+    return "unknown";
+}
+
+static const char *get_category_name(uint32_t category) {
+    switch (category) {
+    case CATEGORY_TIMING:
+        return "timing";
+    case CATEGORY_MEMORY:
+        return "memory";
+    case CATEGORY_THREAD:
+        return "thread";
+    case CATEGORY_SYNC:
+        return "sync";
+    default:
+        return "unknown";
+    }
+}
 
 struct event {
     uint64_t timestamp;  // Precise kernel timestamp from bpf_ktime_get_ns()
@@ -65,7 +152,9 @@ struct event {
             uint32_t pid;
             uint32_t syscall_nr; // Syscall number
             char comm[16];
-            uint32_t tgid; // Thread group ID
+            uint32_t tgid;             // Thread group ID
+            uint32_t is_tracked;       // 1 if this is a tracked syscall, 0 otherwise
+            uint32_t syscall_category; // Category: 1=timing, 2=memory, 3=thread, 4=sync
         } syscall;
 
         // Timer/IRQ event data
@@ -84,13 +173,6 @@ static demo_struct_t static_struct = {.byte_field = 1, .word_field = 2}; // Sing
 // Process monitoring variables
 static uint32_t new_process_pid = 0; // Global variable to store new process PID
 
-// Syscall monitoring variables
-static uint32_t syscall_count = 0;       // Total number of syscalls
-static uint32_t current_syscall_nr = 0;  // Current syscall number
-static uint32_t current_syscall_pid = 0; // PID making the syscall
-static uint32_t syscall_rate = 0;        // Syscalls per second (calculated)
-static uint64_t last_syscall_time = 0;   // Timestamp of last syscall
-
 // Timer/IRQ monitoring variables
 static uint32_t timer_tick_count = 0;     // Total number of timer ticks
 static uint32_t current_softirq_type = 0; // Current softirq type
@@ -107,6 +189,13 @@ static struct bpf_link *timer_tick_link = NULL;   // Link for timer tick tracepo
 
 static struct ring_buffer *rb = NULL; // BPF ring buffer for receiving events
 static int map_fd = -1;               // BPF map file descriptor
+
+//-----------------------------------------------------------------------------------------------------
+// XCP Events
+
+DAQ_CREATE_EVENT_VARIABLE(mainloop_event);
+DAQ_CREATE_EVENT_VARIABLE(process_event);
+DAQ_CREATE_EVENT_VARIABLE(ctx_switch);
 
 //-----------------------------------------------------------------------------------------------------
 // Signal handler for clean shutdown
@@ -146,6 +235,38 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
         current_syscall_pid = e->data.syscall.pid;
         last_syscall_time = e->timestamp;
 
+        // Update category counters
+        switch (e->data.syscall.syscall_category) {
+        case CATEGORY_TIMING:
+            timing_syscalls++;
+            break;
+        case CATEGORY_MEMORY:
+            memory_syscalls++;
+            break;
+        case CATEGORY_THREAD:
+            thread_syscalls++;
+            break;
+        case CATEGORY_SYNC:
+            sync_syscalls++;
+            break;
+        }
+
+        // Update individual syscall counters
+        switch (current_syscall_nr) {
+        case SYSCALL_NANOSLEEP:
+            nanosleep_count++;
+            break;
+        case SYSCALL_MMAP:
+            mmap_count++;
+            break;
+        case SYSCALL_CLONE:
+            clone_count++;
+            break;
+        case SYSCALL_FUTEX:
+            futex_count++;
+            break;
+        }
+
         // Update per-CPU counters (protect against array bounds)
         if (e->cpu_id < MAX_CPU_COUNT) {
             cpu_utilization[e->cpu_id]++;
@@ -160,12 +281,20 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
             syscall_rate = syscall_count - syscall_count_last_second;
             syscall_count_last_second = syscall_count;
             last_rate_calculation_time = current_time_ns;
-            printf("Syscalls/sec: %u (Total: %u), Last syscall: %u from PID %u\n", syscall_rate, syscall_count, current_syscall_nr, current_syscall_pid);
+
+            const char *syscall_name = get_syscall_name(current_syscall_nr);
+            const char *category_name = get_category_name(e->data.syscall.syscall_category);
+            printf("Tracked syscalls/sec: %u (Total: %u), Last: %s(%u) [%s] from PID %u\n", syscall_rate, syscall_count, syscall_name, current_syscall_nr, category_name,
+                   current_syscall_pid);
+            printf("  Categories - timing: %u, memory: %u, thread: %u, sync: %u\n", timing_syscalls, memory_syscalls, thread_syscalls, sync_syscalls);
         }
 
         // Optional: Print detailed syscall info (comment out for less verbose output)
-        // printf("Syscall: %s[%u] called syscall %u on CPU%u, timestamp=%llu ns\n",
-        //        e->data.syscall.comm, e->data.syscall.pid, e->data.syscall.syscall_nr, e->cpu_id, e->timestamp);
+        // const char* syscall_name = get_syscall_name(e->data.syscall.syscall_nr);
+        // printf("Syscall: %s[%u] called %s(%u) [%s] on CPU%u, timestamp=%llu ns\n",
+        //        e->data.syscall.comm, e->data.syscall.pid, syscall_name,
+        //        e->data.syscall.syscall_nr, get_category_name(e->data.syscall.syscall_category),
+        //        e->cpu_id, e->timestamp);
 
         // Trigger XCP measurement event for syscalls
         uint64_t timestamp_us = e->timestamp / 1000;
@@ -360,11 +489,23 @@ int main(int argc, char *argv[]) {
 
     // Context switch monitoring measurements
     A2lSetAbsoluteAddrMode(ctx_switch);
-    A2lCreateMeasurement(syscall_count, "Total syscalls");              // Total syscall count
+    A2lCreateMeasurement(syscall_count, "Total tracked syscalls");      // Total syscall count
     A2lCreateMeasurement(current_syscall_nr, "Current syscall number"); // Current syscall number
     A2lCreateMeasurement(current_syscall_pid, "Syscall PID");           // PID making syscalls
-    A2lCreateMeasurement(syscall_rate, "Syscalls per second");          // Syscall rate calculation
+    A2lCreateMeasurement(syscall_rate, "Tracked syscalls per second");  // Syscall rate calculation
     A2lCreateMeasurement(last_syscall_time, "Last syscall time");       // Syscall timestamp
+
+    // Syscall category counters
+    A2lCreateMeasurement(timing_syscalls, "Timing/scheduling syscalls"); // Timing syscalls
+    A2lCreateMeasurement(memory_syscalls, "Memory management syscalls"); // Memory syscalls
+    A2lCreateMeasurement(thread_syscalls, "Thread/process syscalls");    // Thread syscalls
+    A2lCreateMeasurement(sync_syscalls, "Synchronization syscalls");     // Sync syscalls
+
+    // Individual interesting syscall counters
+    A2lCreateMeasurement(nanosleep_count, "nanosleep syscall count"); // Sleep calls
+    A2lCreateMeasurement(mmap_count, "mmap syscall count");           // Memory mapping
+    A2lCreateMeasurement(clone_count, "clone syscall count");         // Thread creation
+    A2lCreateMeasurement(futex_count, "futex syscall count");         // Fast mutex ops
 
     // Timer tick monitoring measurements
     A2lCreateMeasurement(timer_tick_count, "Total timer ticks");        // Total timer tick count

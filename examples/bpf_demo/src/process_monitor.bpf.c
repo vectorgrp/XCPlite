@@ -8,6 +8,7 @@ typedef unsigned long long __u64;
 #define SEC(name) __attribute__((section(name), used))
 #define BPF_MAP_TYPE_RINGBUF 27
 #define __uint(name, val) int (*name)[val]
+#define __always_inline inline __attribute__((always_inline))
 
 // BPF helper function declarations (minimal set)
 static void *(*bpf_ringbuf_reserve)(void *ringbuf, __u64 size, __u64 flags) = (void *)131;
@@ -26,6 +27,24 @@ struct {
 #define EVENT_PROCESS_FORK 1
 #define EVENT_SYSCALL 2
 #define EVENT_TIMER_TICK 3
+
+// Interesting syscalls for monitoring (ARM64 numbers)
+#define SYSCALL_FUTEX 98               // Fast userspace mutexes
+#define SYSCALL_EXIT 93                // Process termination
+#define SYSCALL_CLOCK_GETTIME 113      // Time queries
+#define SYSCALL_NANOSLEEP 115          // Sleep operations
+#define SYSCALL_SCHED_SETSCHEDULER 119 // Scheduler policy changes
+#define SYSCALL_SCHED_YIELD 124        // Voluntary CPU yielding
+#define SYSCALL_BRK 214                // Heap management
+#define SYSCALL_MUNMAP 215             // Memory unmapping
+#define SYSCALL_CLONE 220              // Thread/process creation
+#define SYSCALL_MMAP 222               // Memory mapping
+#define SYSCALL_MPROTECT 226           // Memory protection changes
+#define SYSCALL_WAIT4 260              // Process waiting
+#define SYSCALL_PIPE2 59               // Inter-process communication
+
+// Maximum number of tracked syscalls
+#define MAX_TRACKED_SYSCALLS 13
 
 struct event {
     __u64 timestamp;  // Precise kernel timestamp from bpf_ktime_get_ns()
@@ -47,7 +66,9 @@ struct event {
             __u32 pid;
             __u32 syscall_nr; // Syscall number
             char comm[16];
-            __u32 tgid; // Thread group ID
+            __u32 tgid;             // Thread group ID
+            __u32 is_tracked;       // 1 if this is a tracked syscall, 0 otherwise
+            __u32 syscall_category; // Category: 1=timing, 2=memory, 3=thread, 4=sync
         } syscall;
 
         // Timer/IRQ event data
@@ -93,10 +114,62 @@ int trace_process_fork(void *ctx) {
     return 0;
 }
 
+// Structure for raw_syscalls/sys_enter tracepoint
+struct syscall_enter_args {
+    __u64 __unused__;
+    long id;       // syscall number
+    __u64 args[6]; // syscall arguments
+};
+
+// Helper function to classify syscalls
+static __always_inline __u32 classify_syscall(__u32 syscall_nr) {
+    switch (syscall_nr) {
+    // Timing & Scheduling (category 1)
+    case SYSCALL_NANOSLEEP:
+    case SYSCALL_CLOCK_GETTIME:
+    case SYSCALL_SCHED_YIELD:
+    case SYSCALL_SCHED_SETSCHEDULER:
+        return 1;
+
+    // Memory Management (category 2)
+    case SYSCALL_MMAP:
+    case SYSCALL_MUNMAP:
+    case SYSCALL_BRK:
+    case SYSCALL_MPROTECT:
+        return 2;
+
+    // Thread & Process Management (category 3)
+    case SYSCALL_CLONE:
+    case SYSCALL_EXIT:
+    case SYSCALL_WAIT4:
+        return 3;
+
+    // Synchronization (category 4)
+    case SYSCALL_FUTEX:
+    case SYSCALL_PIPE2:
+        return 4;
+
+    default:
+        return 0; // Not tracked
+    }
+}
+
+// Helper function to check if syscall is tracked
+static __always_inline __u32 is_tracked_syscall(__u32 syscall_nr) { return classify_syscall(syscall_nr) > 0 ? 1 : 0; }
+
 // High-frequency syscall tracepoint - more accessible than sched_switch
 SEC("tp/raw_syscalls/sys_enter")
 int trace_syscall_enter(void *ctx) {
     struct event *e;
+    struct syscall_enter_args *args = (struct syscall_enter_args *)ctx;
+
+    // Get the syscall number early for filtering
+    __u32 syscall_nr = (__u32)args->id;
+
+    // Only process tracked syscalls to reduce overhead
+    if (!is_tracked_syscall(syscall_nr)) {
+        return 0; // Skip uninteresting syscalls
+    }
 
     e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
     if (!e)
@@ -115,8 +188,10 @@ int trace_syscall_enter(void *ctx) {
     e->data.syscall.pid = pid_tgid & 0xFFFFFFFF;
     e->data.syscall.tgid = (pid_tgid >> 32) & 0xFFFFFFFF;
 
-    // For now, just set a dummy syscall number until we can properly parse the context
-    e->data.syscall.syscall_nr = 0; // Will be improved later
+    // Get the syscall number and classification
+    e->data.syscall.syscall_nr = syscall_nr;
+    e->data.syscall.is_tracked = 1;
+    e->data.syscall.syscall_category = classify_syscall(syscall_nr);
 
     bpf_get_current_comm(&e->data.syscall.comm, sizeof(e->data.syscall.comm));
 
