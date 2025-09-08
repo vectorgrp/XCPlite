@@ -47,13 +47,35 @@ typedef struct {
 
 struct event {
     uint64_t timestamp;  // Precise kernel timestamp from bpf_ktime_get_ns()
-    uint32_t event_type; // Type of event (fork, context switch, etc.)
-    uint32_t pid;
-    uint32_t ppid;      // For fork events: parent PID, for sched: previous state
-    uint32_t next_pid;  // For context switch: next PID to be scheduled
-    uint32_t cpu_id;    // CPU where event occurred
-    char comm[16];      // Process/thread name
-    char next_comm[16]; // For context switch: next process name
+    uint32_t event_type; // Type of event (fork, syscall, timer)
+    uint32_t cpu_id;     // CPU where event occurred
+
+    // Union for event-specific data
+    union {
+        // Fork event data
+        struct {
+            uint32_t pid;
+            uint32_t ppid;
+            char comm[16];
+            char parent_comm[16];
+        } fork;
+
+        // Syscall event data
+        struct {
+            uint32_t pid;
+            uint32_t syscall_nr; // Syscall number
+            char comm[16];
+            uint32_t tgid; // Thread group ID
+        } syscall;
+
+        // Timer/IRQ event data
+        struct {
+            uint32_t irq_vec;      // IRQ vector number
+            uint32_t softirq_type; // Softirq type
+            uint32_t cpu_load;     // Simple CPU activity indicator
+            uint32_t reserved;     // For future use
+        } timer;
+    } data;
 };
 
 static uint16_t static_counter = 0;                                      // Local counter variable for measurement
@@ -62,20 +84,26 @@ static demo_struct_t static_struct = {.byte_field = 1, .word_field = 2}; // Sing
 // Process monitoring variables
 static uint32_t new_process_pid = 0; // Global variable to store new process PID
 
-// Context switch monitoring variables
-static uint32_t context_switch_count = 0;     // Total number of context switches
-static uint32_t current_prev_pid = 0;         // Previous task PID
-static uint32_t current_next_pid = 0;         // Next task PID
-static uint32_t current_cpu_id = 0;           // CPU where context switch occurred
-static uint32_t context_switch_rate = 0;      // Context switches per second (calculated)
-static uint64_t last_context_switch_time = 0; // Timestamp of last context switch
+// Syscall monitoring variables
+static uint32_t syscall_count = 0;       // Total number of syscalls
+static uint32_t current_syscall_nr = 0;  // Current syscall number
+static uint32_t current_syscall_pid = 0; // PID making the syscall
+static uint32_t syscall_rate = 0;        // Syscalls per second (calculated)
+static uint64_t last_syscall_time = 0;   // Timestamp of last syscall
+
+// Timer/IRQ monitoring variables
+static uint32_t timer_tick_count = 0;     // Total number of timer ticks
+static uint32_t current_softirq_type = 0; // Current softirq type
+static uint32_t current_irq_vec = 0;      // Current IRQ vector
+static uint32_t timer_tick_rate = 0;      // Timer ticks per second (calculated)
+static uint64_t last_timer_tick_time = 0; // Timestamp of last timer tick
 #define MAX_CPU_COUNT 16
-static uint32_t cpu_utilization[MAX_CPU_COUNT] = {0}; // Per-CPU context switch counters
+static uint32_t cpu_utilization[MAX_CPU_COUNT] = {0}; // Per-CPU activity counters
 
 static struct bpf_object *obj = NULL;
-static struct bpf_link *process_fork_link = NULL;   // Link for process fork tracepoint
-static struct bpf_link *context_switch_link = NULL; // Link for context switch tracepoint
-static struct bpf_link *timer_tick_link = NULL;     // Link for timer tick tracepoint
+static struct bpf_link *process_fork_link = NULL; // Link for process fork tracepoint
+static struct bpf_link *syscall_link = NULL;      // Link for syscall tracepoint
+static struct bpf_link *timer_tick_link = NULL;   // Link for timer tick tracepoint
 
 static struct ring_buffer *rb = NULL; // BPF ring buffer for receiving events
 static int map_fd = -1;               // BPF map file descriptor
@@ -97,57 +125,58 @@ static void sig_handler(int sig) { running = false; }
 
 static int handle_event(void *ctx, void *data, size_t data_sz) {
     struct event *e = data;
-    static uint64_t context_switch_count_last_second = 0;
     static uint64_t last_rate_calculation_time = 0;
+    static uint64_t syscall_count_last_second = 0;
+    static uint64_t timer_count_last_second = 0;
 
     if (e->event_type == EVENT_PROCESS_FORK) {
         // Handle process fork events
-        new_process_pid = e->pid;
-        printf("Process created: PID=%u, PPID=%u, comm=%s, CPU=%u, timestamp=%llu ns\n", e->pid, e->ppid, e->comm, e->cpu_id, e->timestamp);
+        new_process_pid = e->data.fork.pid;
+        printf("Process created: PID=%u, PPID=%u, comm=%s, parent_comm=%s, CPU=%u, timestamp=%llu ns\n", e->data.fork.pid, e->data.fork.ppid, e->data.fork.comm,
+               e->data.fork.parent_comm, e->cpu_id, e->timestamp);
 
         // Trigger XCP measurement event with precise kernel timestamp
         uint64_t timestamp_us = e->timestamp / 1000;
         DaqEventAt(process_event, timestamp_us);
 
     } else if (e->event_type == EVENT_SYSCALL) {
-        // Handle context switch events
-        context_switch_count++;
-        current_prev_pid = e->pid;
-        current_next_pid = e->next_pid;
-        current_cpu_id = e->cpu_id;
-        last_context_switch_time = e->timestamp;
+        // Handle syscall events
+        syscall_count++;
+        current_syscall_nr = e->data.syscall.syscall_nr;
+        current_syscall_pid = e->data.syscall.pid;
+        last_syscall_time = e->timestamp;
 
         // Update per-CPU counters (protect against array bounds)
         if (e->cpu_id < MAX_CPU_COUNT) {
             cpu_utilization[e->cpu_id]++;
         }
 
-        // Calculate context switch rate every second
+        // Calculate syscall rate every second
         uint64_t current_time_ns = e->timestamp;
         if (last_rate_calculation_time == 0) {
             last_rate_calculation_time = current_time_ns;
-            context_switch_count_last_second = context_switch_count;
+            syscall_count_last_second = syscall_count;
         } else if ((current_time_ns - last_rate_calculation_time) >= 1000000000ULL) { // 1 second in ns
-            context_switch_rate = context_switch_count - context_switch_count_last_second;
-            context_switch_count_last_second = context_switch_count;
+            syscall_rate = syscall_count - syscall_count_last_second;
+            syscall_count_last_second = syscall_count;
             last_rate_calculation_time = current_time_ns;
-            printf("Context switches/sec: %u (Total: %u)\n", context_switch_rate, context_switch_count);
+            printf("Syscalls/sec: %u (Total: %u), Last syscall: %u from PID %u\n", syscall_rate, syscall_count, current_syscall_nr, current_syscall_pid);
         }
 
-        // Optional: Print detailed context switch info (comment out for less verbose output)
-        // printf("Context switch: %s[%u] -> %s[%u] on CPU%u, state=%u, timestamp=%llu ns\n",
-        //        e->comm, e->pid, e->next_comm, e->next_pid, e->cpu_id, e->ppid, e->timestamp);
+        // Optional: Print detailed syscall info (comment out for less verbose output)
+        // printf("Syscall: %s[%u] called syscall %u on CPU%u, timestamp=%llu ns\n",
+        //        e->data.syscall.comm, e->data.syscall.pid, e->data.syscall.syscall_nr, e->cpu_id, e->timestamp);
 
-        // Trigger XCP measurement event for context switches
+        // Trigger XCP measurement event for syscalls
         uint64_t timestamp_us = e->timestamp / 1000;
         DaqEventAt(ctx_switch, timestamp_us);
 
     } else if (e->event_type == EVENT_TIMER_TICK) {
-        // Handle timer tick events (alternative high frequency data)
-        context_switch_count++; // Reuse counter for timer ticks
-        current_prev_pid = e->pid;
-        current_cpu_id = e->cpu_id;
-        last_context_switch_time = e->timestamp;
+        // Handle timer tick events (IRQ/softirq activity)
+        timer_tick_count++;
+        current_softirq_type = e->data.timer.softirq_type;
+        current_irq_vec = e->data.timer.irq_vec;
+        last_timer_tick_time = e->timestamp;
 
         // Update per-CPU counters
         if (e->cpu_id < MAX_CPU_COUNT) {
@@ -158,14 +187,18 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
         uint64_t current_time_ns = e->timestamp;
         if (last_rate_calculation_time == 0) {
             last_rate_calculation_time = current_time_ns;
-            context_switch_count_last_second = context_switch_count;
+            timer_count_last_second = timer_tick_count;
         } else if ((current_time_ns - last_rate_calculation_time) >= 1000000000ULL) { // 1 second in ns
-            context_switch_rate = context_switch_count - context_switch_count_last_second;
-            context_switch_count_last_second = context_switch_count;
+            timer_tick_rate = timer_tick_count - timer_count_last_second;
+            timer_count_last_second = timer_tick_count;
             last_rate_calculation_time = current_time_ns;
 
-            printf("Timer ticks/sec: %u (Total: %u)\n", context_switch_rate, context_switch_count);
+            printf("Timer ticks/sec: %u (Total: %u), Last: softirq_type=%u, irq_vec=%u\n", timer_tick_rate, timer_tick_count, current_softirq_type, current_irq_vec);
         }
+
+        // Optional: Print detailed timer tick info (comment out for less verbose output)
+        // printf("Timer tick: softirq_type=%u, irq_vec=%u, cpu_load=%u on CPU%u, timestamp=%llu ns\n",
+        //        e->data.timer.softirq_type, e->data.timer.irq_vec, e->data.timer.cpu_load, e->cpu_id, e->timestamp);
 
         // Trigger XCP measurement event for timer ticks (high frequency data!)
         uint64_t timestamp_us = e->timestamp / 1000;
@@ -217,15 +250,15 @@ static int load_bpf_program() {
 
     // Attach syscall tracepoint
     prog = bpf_object__find_program_by_name(obj, "trace_syscall_enter");
-    context_switch_link = NULL;
+    syscall_link = NULL;
     if (!prog) {
         printf("Failed to find BPF program 'trace_syscall_enter'\n");
     } else {
-        context_switch_link = bpf_program__attach(prog);
-        if (libbpf_get_error(context_switch_link)) {
-            printf("Warning: Failed to attach context switch BPF program: %ld\n", libbpf_get_error(context_switch_link));
+        syscall_link = bpf_program__attach(prog);
+        if (libbpf_get_error(syscall_link)) {
+            printf("Warning: Failed to attach syscall BPF program: %ld\n", libbpf_get_error(syscall_link));
         } else {
-            printf("Context switch tracepoint attached successfully\n");
+            printf("Syscall tracepoint attached successfully\n");
         }
     }
 
@@ -270,9 +303,9 @@ static void cleanup_bpf() {
         bpf_link__destroy(process_fork_link);
         process_fork_link = NULL;
     }
-    if (context_switch_link) {
-        bpf_link__destroy(context_switch_link);
-        context_switch_link = NULL;
+    if (syscall_link) {
+        bpf_link__destroy(syscall_link);
+        syscall_link = NULL;
     }
     if (timer_tick_link) {
         bpf_link__destroy(timer_tick_link);
@@ -327,30 +360,36 @@ int main(int argc, char *argv[]) {
 
     // Context switch monitoring measurements
     A2lSetAbsoluteAddrMode(ctx_switch);
-    A2lCreateMeasurement(context_switch_count, "Total context switches");       // Total count
-    A2lCreateMeasurement(current_prev_pid, "Previous task PID");                // Previous task PID
-    A2lCreateMeasurement(current_next_pid, "Next task PID");                    // Next task PID
-    A2lCreateMeasurement(current_cpu_id, "Context switch CPU ID");              // CPU ID
-    A2lCreateMeasurement(context_switch_rate, "Context switches per second");   // Rate calculation
-    A2lCreateMeasurement(last_context_switch_time, "Last context switch time"); // Timestamp
+    A2lCreateMeasurement(syscall_count, "Total syscalls");              // Total syscall count
+    A2lCreateMeasurement(current_syscall_nr, "Current syscall number"); // Current syscall number
+    A2lCreateMeasurement(current_syscall_pid, "Syscall PID");           // PID making syscalls
+    A2lCreateMeasurement(syscall_rate, "Syscalls per second");          // Syscall rate calculation
+    A2lCreateMeasurement(last_syscall_time, "Last syscall time");       // Syscall timestamp
 
-    // Per-CPU context switch counters
-    A2lCreateMeasurement(cpu_utilization[0], "CPU0 context switches");
-    A2lCreateMeasurement(cpu_utilization[1], "CPU1 context switches");
-    A2lCreateMeasurement(cpu_utilization[2], "CPU2 context switches");
-    A2lCreateMeasurement(cpu_utilization[3], "CPU3 context switches");
-    A2lCreateMeasurement(cpu_utilization[4], "CPU4 context switches");
-    A2lCreateMeasurement(cpu_utilization[5], "CPU5 context switches");
-    A2lCreateMeasurement(cpu_utilization[6], "CPU6 context switches");
-    A2lCreateMeasurement(cpu_utilization[7], "CPU7 context switches");
-    A2lCreateMeasurement(cpu_utilization[8], "CPU8 context switches");
-    A2lCreateMeasurement(cpu_utilization[9], "CPU9 context switches");
-    A2lCreateMeasurement(cpu_utilization[10], "CPU10 context switches");
-    A2lCreateMeasurement(cpu_utilization[11], "CPU11 context switches");
-    A2lCreateMeasurement(cpu_utilization[12], "CPU12 context switches");
-    A2lCreateMeasurement(cpu_utilization[13], "CPU13 context switches");
-    A2lCreateMeasurement(cpu_utilization[14], "CPU14 context switches");
-    A2lCreateMeasurement(cpu_utilization[15], "CPU15 context switches");
+    // Timer tick monitoring measurements
+    A2lCreateMeasurement(timer_tick_count, "Total timer ticks");        // Total timer tick count
+    A2lCreateMeasurement(current_softirq_type, "Current softirq type"); // Current softirq type
+    A2lCreateMeasurement(current_irq_vec, "Current IRQ vector");        // Current IRQ vector
+    A2lCreateMeasurement(timer_tick_rate, "Timer ticks per second");    // Timer tick rate
+    A2lCreateMeasurement(last_timer_tick_time, "Last timer tick time"); // Timer tick timestamp
+
+    // Per-CPU activity counters (now tracks all event types)
+    A2lCreateMeasurement(cpu_utilization[0], "CPU0 activity");
+    A2lCreateMeasurement(cpu_utilization[1], "CPU1 activity");
+    A2lCreateMeasurement(cpu_utilization[2], "CPU2 activity");
+    A2lCreateMeasurement(cpu_utilization[3], "CPU3 activity");
+    A2lCreateMeasurement(cpu_utilization[4], "CPU4 activity");
+    A2lCreateMeasurement(cpu_utilization[5], "CPU5 activity");
+    A2lCreateMeasurement(cpu_utilization[6], "CPU6 activity");
+    A2lCreateMeasurement(cpu_utilization[7], "CPU7 activity");
+    A2lCreateMeasurement(cpu_utilization[8], "CPU8 activity");
+    A2lCreateMeasurement(cpu_utilization[9], "CPU9 activity");
+    A2lCreateMeasurement(cpu_utilization[10], "CPU10 activity");
+    A2lCreateMeasurement(cpu_utilization[11], "CPU11 activity");
+    A2lCreateMeasurement(cpu_utilization[12], "CPU12 activity");
+    A2lCreateMeasurement(cpu_utilization[13], "CPU13 activity");
+    A2lCreateMeasurement(cpu_utilization[14], "CPU14 activity");
+    A2lCreateMeasurement(cpu_utilization[15], "CPU15 activity");
 
     A2lFinalize(); // Finalize A2L file now, do not wait for XCP connect
 
