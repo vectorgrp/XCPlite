@@ -7,6 +7,7 @@ typedef unsigned long long __u64;
 // Define minimal BPF helpers to avoid problematic headers
 #define SEC(name) __attribute__((section(name), used))
 #define BPF_MAP_TYPE_RINGBUF 27
+#define BPF_MAP_TYPE_ARRAY 2
 #define __uint(name, val) int (*name)[val]
 #define __always_inline inline __attribute__((always_inline))
 
@@ -17,6 +18,8 @@ static __u64 (*bpf_ktime_get_ns)(void) = (void *)5;
 static __u64 (*bpf_get_current_pid_tgid)(void) = (void *)14;
 static long (*bpf_get_current_comm)(void *buf, __u32 size_of_buf) = (void *)16;
 static __u32 (*bpf_get_smp_processor_id)(void) = (void *)8;
+static void *(*bpf_map_lookup_elem)(void *map, const void *key) = (void *)1;
+static long (*bpf_map_update_elem)(void *map, const void *key, const void *value, __u64 flags) = (void *)2;
 
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
@@ -43,8 +46,16 @@ struct {
 #define SYSCALL_WAIT4 260              // Process waiting
 #define SYSCALL_PIPE2 59               // Inter-process communication
 
-// Maximum number of tracked syscalls
-#define MAX_TRACKED_SYSCALLS 13
+// Maximum syscall number on ARM64 (based on __NR_syscalls)
+#define MAX_SYSCALL_NR 463
+
+// BPF map to count all syscalls
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(max_entries, MAX_SYSCALL_NR);
+    __uint(key_size, sizeof(__u32));
+    __uint(value_size, sizeof(__u64));
+} syscall_counters SEC(".maps");
 
 struct event {
     __u64 timestamp;  // Precise kernel timestamp from bpf_ktime_get_ns()
@@ -154,21 +165,33 @@ static __always_inline __u32 classify_syscall(__u32 syscall_nr) {
     }
 }
 
-// Helper function to check if syscall is tracked
-static __always_inline __u32 is_tracked_syscall(__u32 syscall_nr) { return classify_syscall(syscall_nr) > 0 ? 1 : 0; }
-
-// High-frequency syscall tracepoint - more accessible than sched_switch
+// High-frequency syscall tracepoint - now tracks ALL syscalls
 SEC("tp/raw_syscalls/sys_enter")
 int trace_syscall_enter(void *ctx) {
     struct event *e;
     struct syscall_enter_args *args = (struct syscall_enter_args *)ctx;
 
-    // Get the syscall number early for filtering
+    // Get the syscall number
     __u32 syscall_nr = (__u32)args->id;
 
-    // Only process tracked syscalls to reduce overhead
-    if (!is_tracked_syscall(syscall_nr)) {
-        return 0; // Skip uninteresting syscalls
+    // Bounds check for BPF verifier
+    if (syscall_nr >= MAX_SYSCALL_NR) {
+        return 0;
+    }
+
+    // Update counter in BPF map
+    __u64 *counter = bpf_map_lookup_elem(&syscall_counters, &syscall_nr);
+    if (counter) {
+        __sync_fetch_and_add(counter, 1);
+    } else {
+        __u64 initial_count = 1;
+        bpf_map_update_elem(&syscall_counters, &syscall_nr, &initial_count, 0);
+    }
+
+    // Only send detailed events for interesting syscalls to reduce overhead
+    __u32 category = classify_syscall(syscall_nr);
+    if (category == 0) {
+        return 0; // Skip sending event for uninteresting syscalls
     }
 
     e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
@@ -191,7 +214,7 @@ int trace_syscall_enter(void *ctx) {
     // Get the syscall number and classification
     e->data.syscall.syscall_nr = syscall_nr;
     e->data.syscall.is_tracked = 1;
-    e->data.syscall.syscall_category = classify_syscall(syscall_nr);
+    e->data.syscall.syscall_category = category;
 
     bpf_get_current_comm(&e->data.syscall.comm, sizeof(e->data.syscall.comm));
 

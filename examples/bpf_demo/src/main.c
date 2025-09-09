@@ -132,6 +132,39 @@ static const char *get_category_name(uint32_t category) {
     }
 }
 
+// Userspace version of classify_syscall function (must match BPF version)
+static uint32_t classify_syscall(uint32_t syscall_nr) {
+    switch (syscall_nr) {
+    // Timing & Scheduling (category 1)
+    case SYSCALL_NANOSLEEP:
+    case SYSCALL_CLOCK_GETTIME:
+    case SYSCALL_SCHED_YIELD:
+    case SYSCALL_SCHED_SETSCHEDULER:
+        return CATEGORY_TIMING;
+
+    // Memory Management (category 2)
+    case SYSCALL_MMAP:
+    case SYSCALL_MUNMAP:
+    case SYSCALL_BRK:
+    case SYSCALL_MPROTECT:
+        return CATEGORY_MEMORY;
+
+    // Thread & Process Management (category 3)
+    case SYSCALL_CLONE:
+    case SYSCALL_EXIT:
+    case SYSCALL_WAIT4:
+        return CATEGORY_THREAD;
+
+    // Synchronization (category 4)
+    case SYSCALL_FUTEX:
+    case SYSCALL_PIPE2:
+        return CATEGORY_SYNC;
+
+    default:
+        return 0; // Not tracked
+    }
+}
+
 struct event {
     uint64_t timestamp;  // Precise kernel timestamp from bpf_ktime_get_ns()
     uint32_t event_type; // Type of event (fork, syscall, timer)
@@ -188,7 +221,8 @@ static struct bpf_link *syscall_link = NULL;      // Link for syscall tracepoint
 static struct bpf_link *timer_tick_link = NULL;   // Link for timer tick tracepoint
 
 static struct ring_buffer *rb = NULL; // BPF ring buffer for receiving events
-static int map_fd = -1;               // BPF map file descriptor
+static int map_fd = -1;               // BPF ring buffer map file descriptor
+static int syscall_counters_fd = -1;  // BPF syscall counters map file descriptor
 
 //-----------------------------------------------------------------------------------------------------
 // XCP Events
@@ -211,6 +245,55 @@ static void sig_handler(int sig) { running = false; }
 #else
 #define TO_XCP_CLOCK_TICKS(timestamp) (timestamp)
 #endif
+
+//-----------------------------------------------------------------------------------------------------
+// Print comprehensive syscall statistics from BPF map
+
+static void print_all_syscall_stats(int map_fd) {
+    printf("\n=== Complete Syscall Statistics ===\n");
+
+    uint64_t total_syscalls = 0;
+    uint32_t active_syscalls = 0;
+    uint64_t top_syscalls[10] = {0}; // Track top 10 syscall counts
+    uint32_t top_numbers[10] = {0};  // Track corresponding syscall numbers
+
+    // Read all syscall counters from the BPF map
+    for (uint32_t syscall_nr = 0; syscall_nr < 463; syscall_nr++) {
+        uint64_t count = 0;
+        if (bpf_map_lookup_elem(map_fd, &syscall_nr, &count) == 0 && count > 0) {
+            total_syscalls += count;
+            active_syscalls++;
+
+            // Track top 10 syscalls
+            for (int i = 0; i < 10; i++) {
+                if (count > top_syscalls[i]) {
+                    // Shift everything down
+                    for (int j = 9; j > i; j--) {
+                        top_syscalls[j] = top_syscalls[j - 1];
+                        top_numbers[j] = top_numbers[j - 1];
+                    }
+                    // Insert new top syscall
+                    top_syscalls[i] = count;
+                    top_numbers[i] = syscall_nr;
+                    break;
+                }
+            }
+        }
+    }
+
+    printf("Total syscalls captured: %llu\n", total_syscalls);
+    printf("Active syscall types: %u / 463\n", active_syscalls);
+    printf("\nTop 10 Most Frequent Syscalls:\n");
+
+    for (int i = 0; i < 10 && top_syscalls[i] > 0; i++) {
+        const char *name = get_syscall_name(top_numbers[i]);
+        const char *category = get_category_name(classify_syscall(top_numbers[i]));
+        double percentage = (double)top_syscalls[i] / total_syscalls * 100.0;
+
+        printf("  %2d. %s(%u) [%s]: %llu calls (%.1f%%)\n", i + 1, name, top_numbers[i], category, top_syscalls[i], percentage);
+    }
+    printf("\n");
+}
 
 static int handle_event(void *ctx, void *data, size_t data_sz) {
     struct event *e = data;
@@ -287,6 +370,14 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
             printf("Tracked syscalls/sec: %u (Total: %u), Last: %s(%u) [%s] from PID %u\n", syscall_rate, syscall_count, syscall_name, current_syscall_nr, category_name,
                    current_syscall_pid);
             printf("  Categories - timing: %u, memory: %u, thread: %u, sync: %u\n", timing_syscalls, memory_syscalls, thread_syscalls, sync_syscalls);
+
+            // Show comprehensive syscall statistics every 10 seconds
+            static uint32_t stats_counter = 0;
+            stats_counter++;
+            if (stats_counter >= 10) {
+                print_all_syscall_stats(syscall_counters_fd);
+                stats_counter = 0;
+            }
         }
 
         // Optional: Print detailed syscall info (comment out for less verbose output)
@@ -409,9 +500,17 @@ static int load_bpf_program() {
     // Get BPF map file descriptor
     map_fd = bpf_object__find_map_fd_by_name(obj, "rb");
     if (map_fd < 0) {
-        printf("Failed to find BPF map\n");
+        printf("Failed to find BPF ring buffer map\n");
         return -1;
     }
+
+    // Get syscall counters map file descriptor
+    syscall_counters_fd = bpf_object__find_map_fd_by_name(obj, "syscall_counters");
+    if (syscall_counters_fd < 0) {
+        printf("Failed to find BPF syscall_counters map\n");
+        return -1;
+    }
+
     // Set up ring buffer to receive events on callback function handle_event
     rb = ring_buffer__new(map_fd, handle_event, NULL, NULL);
     if (!rb) {
