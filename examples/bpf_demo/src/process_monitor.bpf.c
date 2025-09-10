@@ -31,21 +31,6 @@ struct {
 #define EVENT_SYSCALL 2
 #define EVENT_TIMER_TICK 3
 
-// Interesting syscalls for monitoring (ARM64 numbers)
-#define SYSCALL_FUTEX 98               // Fast userspace mutexes
-#define SYSCALL_EXIT 93                // Process termination
-#define SYSCALL_CLOCK_GETTIME 113      // Time queries
-#define SYSCALL_NANOSLEEP 115          // Sleep operations
-#define SYSCALL_SCHED_SETSCHEDULER 119 // Scheduler policy changes
-#define SYSCALL_SCHED_YIELD 124        // Voluntary CPU yielding
-#define SYSCALL_BRK 214                // Heap management
-#define SYSCALL_MUNMAP 215             // Memory unmapping
-#define SYSCALL_CLONE 220              // Thread/process creation
-#define SYSCALL_MMAP 222               // Memory mapping
-#define SYSCALL_MPROTECT 226           // Memory protection changes
-#define SYSCALL_WAIT4 260              // Process waiting
-#define SYSCALL_PIPE2 59               // Inter-process communication
-
 // Maximum syscall number on ARM64 (based on __NR_syscalls)
 #define MAX_SYSCALL_NR 463
 
@@ -92,6 +77,8 @@ struct event {
     } data;
 };
 
+//--------------------------------------------------------------------------------------
+
 SEC("tp/sched/sched_process_fork")
 int trace_process_fork(void *ctx) {
     struct event *e;
@@ -125,12 +112,29 @@ int trace_process_fork(void *ctx) {
     return 0;
 }
 
+//--------------------------------------------------------------------------------------
+
 // Structure for raw_syscalls/sys_enter tracepoint
 struct syscall_enter_args {
     __u64 __unused__;
     long id;       // syscall number
     __u64 args[6]; // syscall arguments
 };
+
+// Interesting syscalls for monitoring (ARM64 numbers)
+#define SYSCALL_FUTEX 98               // Fast userspace mutexes
+#define SYSCALL_EXIT 93                // Process termination
+#define SYSCALL_CLOCK_GETTIME 113      // Time queries
+#define SYSCALL_NANOSLEEP 115          // Sleep operations
+#define SYSCALL_SCHED_SETSCHEDULER 119 // Scheduler policy changes
+#define SYSCALL_SCHED_YIELD 124        // Voluntary CPU yielding
+#define SYSCALL_BRK 214                // Heap management
+#define SYSCALL_MUNMAP 215             // Memory unmapping
+#define SYSCALL_CLONE 220              // Thread/process creation
+#define SYSCALL_MMAP 222               // Memory mapping
+#define SYSCALL_MPROTECT 226           // Memory protection changes
+#define SYSCALL_WAIT4 260              // Process waiting
+#define SYSCALL_PIPE2 59               // Inter-process communication
 
 // Helper function to classify syscalls
 static __always_inline __u32 classify_syscall(__u32 syscall_nr) {
@@ -179,7 +183,7 @@ int trace_syscall_enter(void *ctx) {
         return 0;
     }
 
-    // Update counter in BPF map
+    // Update syscall counter in BPF map
     __u64 *counter = bpf_map_lookup_elem(&syscall_counters, &syscall_nr);
     if (counter) {
         __sync_fetch_and_add(counter, 1);
@@ -221,6 +225,8 @@ int trace_syscall_enter(void *ctx) {
     bpf_ringbuf_submit(e, 0);
     return 0;
 }
+
+//--------------------------------------------------------------------------------------
 
 // Alternative high-frequency tracepoint: timer interrupts
 // This tracepoint typically requires fewer permissions than sched_switch

@@ -20,7 +20,28 @@
 #include "xcplib.h" // for xcplib application programming interface
 
 //-----------------------------------------------------------------------------------------------------
-// ARM64 Syscall Number Constants
+// XCP params
+
+#define OPTION_PROJECT_NAME "bpf_demo"  // Project name, used to build the A2L and BIN file name
+#define OPTION_USE_TCP false            // TCP or UDP
+#define OPTION_SERVER_PORT 5555         // Port
+#define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
+#define OPTION_QUEUE_SIZE 1024 * 16     // Size of the measurement queue in bytes, must be a multiple of 8
+#define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+
+#define TO_XCP_TIMESTAMP(t) (t / 1000) // Convert to XCP timestamp in microseconds (OPTION_CLOCK_TICKS_1US)
+// #define TO_XCP_TIMESTAMP(t) (t)        // Convert to XCP timestamp in nanoseconds (OPTION_CLOCK_TICKS_1NS)
+
+// Syscall monitoring variables
+static uint32_t syscall_count = 0;          // Total number of tracked syscalls
+static uint32_t current_syscall_nr = 0;     // Current syscall number
+static uint32_t current_syscall_pid = 0;    // PID making the syscall
+static uint32_t current_syscall_cpu_id = 0; // CPU where the syscall occurred
+static uint32_t syscall_rate = 0;           // Syscalls per second (calculated)
+static uint64_t last_syscall_time = 0;      // Timestamp of last syscall
+
+//-----------------------------------------------------------------------------------------------------
+// ARM64 Syscall monitoring
 // Based on Linux kernel arch/arm64/include/asm/unistd.h and include/uapi/asm-generic/unistd.h
 
 // I/O Operations
@@ -361,50 +382,7 @@
 #define SYS_lsm_list_modules 461
 #define SYS_mseal 462
 
-// Legacy compatibility defines (from BPF file)
-#define SYSCALL_FUTEX SYS_futex
-#define SYSCALL_EXIT SYS_exit
-#define SYSCALL_CLOCK_GETTIME SYS_clock_gettime
-#define SYSCALL_NANOSLEEP SYS_clock_nanosleep // ARM64 uses 115 for nanosleep
-#define SYSCALL_SCHED_SETSCHEDULER SYS_sched_setscheduler
-#define SYSCALL_SCHED_YIELD SYS_sched_yield
-#define SYSCALL_BRK SYS_brk
-#define SYSCALL_MUNMAP SYS_munmap
-#define SYSCALL_CLONE SYS_clone
-#define SYSCALL_MMAP SYS_mmap
-#define SYSCALL_MPROTECT SYS_mprotect
-#define SYSCALL_WAIT4 SYS_wait4
-#define SYSCALL_PIPE2 SYS_pipe2
-
-//-----------------------------------------------------------------------------------------------------
-// XCP params
-
-#define OPTION_PROJECT_NAME "bpf_demo"  // Project name, used to build the A2L and BIN file name
-#define OPTION_USE_TCP false            // TCP or UDP
-#define OPTION_SERVER_PORT 5555         // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE 1024 * 16     // Size of the measurement queue in bytes, must be a multiple of 8
-#define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
-
-#define TO_XCP_TIMESTAMP(t) (t / 1000) // Convert to XCP timestamp in microseconds (OPTION_CLOCK_TICKS_1US)
-// #define TO_XCP_TIMESTAMP(t) (t)        // Convert to XCP timestamp in nanoseconds (OPTION_CLOCK_TICKS_1NS)
-
-//-----------------------------------------------------------------------------------------------------
-// Global variables
-
-// Syscall monitoring variables
-static uint32_t syscall_count = 0;          // Total number of tracked syscalls
-static uint32_t current_syscall_nr = 0;     // Current syscall number
-static uint32_t current_syscall_pid = 0;    // PID making the syscall
-static uint32_t current_syscall_cpu_id = 0; // CPU where the syscall occurred
-static uint32_t syscall_rate = 0;           // Syscalls per second (calculated)
-static uint64_t last_syscall_time = 0;      // Timestamp of last syscall
-
-// BPF event structure
-// Event structure that matches the BPF program
-#define EVENT_PROCESS_FORK 1
-#define EVENT_SYSCALL 2
-#define EVENT_TIMER_TICK 3
+#define MAX_SYSCALL_NR 463
 
 // ARM64 syscall lookup table (major syscalls 0-462) - using constants for clarity
 static const char *arm64_syscall_names[] = {[SYS_io_setup] = "io_setup",
@@ -721,6 +699,34 @@ static const char *get_syscall_name(uint32_t syscall_nr) {
     return "unknown";
 }
 
+//-----------------------------------------------------------------------------------------------------
+// Print syscall statistics from BPF map
+
+static void print_all_syscall_stats(int map_fd) {
+    printf("\nSyscall Statistics:\n");
+    uint64_t total_syscalls = 0;
+
+    // Read all syscall counters from the BPF map
+    for (uint32_t syscall_nr = 0; syscall_nr < 463; syscall_nr++) {
+        uint64_t count = 0;
+        if (bpf_map_lookup_elem(map_fd, &syscall_nr, &count) == 0 && count > 0) {
+            total_syscalls += count;
+            const char *name = get_syscall_name(syscall_nr);
+            printf("  %u: %s: %llu calls\n", syscall_nr, name, count);
+        }
+    }
+
+    printf("Total syscalls captured: %llu\n", total_syscalls);
+}
+
+//-----------------------------------------------------------------------------------------------------
+// BPF event structure
+
+// Event structure must match the BPF program
+#define EVENT_PROCESS_FORK 1
+#define EVENT_SYSCALL 2
+#define EVENT_TIMER_TICK 3
+
 struct event {
     uint64_t timestamp;  // Precise kernel timestamp from bpf_ktime_get_ns()
     uint32_t event_type; // Type of event (fork, syscall, timer)
@@ -756,7 +762,8 @@ struct event {
     } data;
 };
 
-static uint16_t static_counter = 0; // Local counter variable for measurement
+//-----------------------------------------------------------------------------------------------------
+// Handle incoming events from BPF ring buffer
 
 // Process monitoring variables
 static uint32_t new_process_pid = 0; // Global variable to store new process PID
@@ -767,8 +774,6 @@ static uint32_t current_softirq_type = 0; // Current softirq type
 static uint32_t current_irq_vec = 0;      // Current IRQ vector
 static uint32_t timer_tick_rate = 0;      // Timer ticks per second (calculated)
 static uint64_t last_timer_tick_time = 0; // Timestamp of last timer tick
-#define MAX_CPU_COUNT 16
-static uint32_t cpu_utilization[MAX_CPU_COUNT] = {0}; // Per-CPU activity counters
 
 static struct bpf_object *obj = NULL;
 static struct bpf_link *process_fork_link = NULL; // Link for process fork tracepoint
@@ -778,68 +783,6 @@ static struct bpf_link *timer_tick_link = NULL;   // Link for timer tick tracepo
 static struct ring_buffer *rb = NULL; // BPF ring buffer for receiving events
 static int map_fd = -1;               // BPF ring buffer map file descriptor
 static int syscall_counters_fd = -1;  // BPF syscall counters map file descriptor
-
-//-----------------------------------------------------------------------------------------------------
-// Signal handler for clean shutdown
-
-static volatile bool running = true; // Control flag for main loop
-static void sig_handler(int sig) { running = false; }
-
-//-----------------------------------------------------------------------------------------------------
-// BPF functions
-
-#ifdef OPTION_CLOCK_TICKS_1US
-#define TO_XCP_CLOCK_TICKS(timestamp) ((timestamp) / 1000)
-#else
-#define TO_XCP_CLOCK_TICKS(timestamp) (timestamp)
-#endif
-
-//-----------------------------------------------------------------------------------------------------
-// Print comprehensive syscall statistics from BPF map
-
-static void print_all_syscall_stats(int map_fd) {
-    printf("\n=== Complete Syscall Statistics ===\n");
-
-    uint64_t total_syscalls = 0;
-    uint32_t active_syscalls = 0;
-    uint64_t top_syscalls[10] = {0}; // Track top 10 syscall counts
-    uint32_t top_numbers[10] = {0};  // Track corresponding syscall numbers
-
-    // Read all syscall counters from the BPF map
-    for (uint32_t syscall_nr = 0; syscall_nr < 463; syscall_nr++) {
-        uint64_t count = 0;
-        if (bpf_map_lookup_elem(map_fd, &syscall_nr, &count) == 0 && count > 0) {
-            total_syscalls += count;
-            active_syscalls++;
-
-            // Track top 10 syscalls
-            for (int i = 0; i < 10; i++) {
-                if (count > top_syscalls[i]) {
-                    // Shift everything down
-                    for (int j = 9; j > i; j--) {
-                        top_syscalls[j] = top_syscalls[j - 1];
-                        top_numbers[j] = top_numbers[j - 1];
-                    }
-                    // Insert new top syscall
-                    top_syscalls[i] = count;
-                    top_numbers[i] = syscall_nr;
-                    break;
-                }
-            }
-        }
-    }
-
-    printf("Total syscalls captured: %llu\n", total_syscalls);
-    printf("Active syscall types: %u / 463\n", active_syscalls);
-    printf("\nTop 10 Most Frequent Syscalls:\n");
-
-    for (int i = 0; i < 10 && top_syscalls[i] > 0; i++) {
-        const char *name = get_syscall_name(top_numbers[i]);
-        double percentage = (double)top_syscalls[i] / total_syscalls * 100.0;
-        printf("  %2d. %s(%u): %llu calls (%.1f%%)\n", i + 1, name, top_numbers[i], top_syscalls[i], percentage);
-    }
-    printf("\n");
-}
 
 static int handle_event(void *ctx, void *data, size_t data_sz) {
     struct event *e = data;
@@ -927,6 +870,9 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
 
     return 0;
 }
+
+//-----------------------------------------------------------------------------------------------------
+// Initialize and load BPF program
 
 // Try to load BPF program, continue without it if it fails
 static int load_bpf_program() {
@@ -1048,6 +994,10 @@ static void cleanup_bpf() {
 //-----------------------------------------------------------------------------------------------------
 // Main
 
+// Signal handler for clean shutdown
+static volatile bool running = true;
+static void sig_handler(int sig) { running = false; }
+
 int main(int argc, char *argv[]) {
     printf("\nXCP BPF demo\n");
 
@@ -1073,14 +1023,17 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    uint32_t counter = 0;
+
     // Create events for DAQ (Data Acquisition)
     DaqCreateEvent(mainloop_event);
     DaqCreateEvent(process_event);
     DaqCreateEvent(syscall_event);
 
     // Register statistics measurement variables (mainloop every 100ms  )
+    A2lSetStackAddrMode(mainloop_event);
+    A2lCreateMeasurement(counter, "Mainloop counter value"); // Mainloop counter
     A2lSetAbsoluteAddrMode(mainloop_event);
-    A2lCreateMeasurement(static_counter, "Mainloop counter value");          // Mainloop counter
     A2lCreateMeasurement(syscall_count, "Total tracked syscalls count");     // Total syscall count
     A2lCreateMeasurement(syscall_rate, "Total tracked syscalls per second"); // Total syscall rate
     A2lCreateMeasurement(timer_tick_count, "Total timer ticks");             // Total timer tick count
@@ -1094,6 +1047,12 @@ int main(int argc, char *argv[]) {
     A2lSetAbsoluteAddrMode(syscall_event);
     A2lCreateMeasurement(current_syscall_nr, "Current syscall number"); // Current syscall number
     A2lCreateMeasurement(current_syscall_pid, "Syscall PID");           // PID making the syscall
+    // for (uint32_t syscall_nr = 0; syscall_nr < 463; syscall_nr++) {     // Individual measurement variables for each syscall
+    //     const char *name = get_syscall_name(syscall_nr);
+    //     if (name && strcmp(name, "unknown") != 0) {
+    //         A2lCreateMeasurement(name, "Count");
+    //     }
+    // }
 
     // Timer tick event monitoring  (BPF event)
     A2lCreateMeasurement(current_softirq_type, "Current softirq type"); // Current softirq type
@@ -1106,7 +1065,7 @@ int main(int argc, char *argv[]) {
     while (running) {
 
         // Update counter
-        static_counter++;
+        counter++;
 
         // Poll BPF events
         ring_buffer__poll(rb, 10); // 10ms timeout
