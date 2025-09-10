@@ -7,8 +7,11 @@ XCP is a measurement and calibration protocol commonly used in the automotive in
 It provides real time signal oriented data acquisition (measurement, logging) and modification of parameter constants (calibration) in a target micro controller system (ECU), to help observing and optimizing cyber physical control algorithms in real time.  
   
 Timestamped events, measurement variables and parameter constants are described by an ASAM-A2L description file, another associated ASAM standard. A2L is a human readable ASCII format.  
-Data objects are identified by address. In a micro controller system programmed in C or C++, these addresses are used to directly access the ECUs memory. This concept has minimum impact on the target system in terms of memory consumption, runtime and needs minimum code instrumentation. The A2l is a kind of annotated ELF Linker-Address-Map, with meta information on data instances and data types (MC specific types - lookup-tables, axis scaling, physical limits and units, conversion rules, ...).  
-In a Microprocessor system developed in a system programming language like C, C++ or Rust, this concept is still usefull and efficient. Measurement signals and calibration parameters must have a static lifetime and a defined memory layout, but no predefined memory location and no static storage class. Data acquisition and modification is achieved by appropriate code instrumentation for measurement and wrapper types for groups of calibration parameters.
+In a micro controller system programmed in C or C++, measurement data items are directly accessed in their original memory locations. This concept has minimum impact on the target system in terms of memory consumption, runtime and needs minimum code instrumentation. The A2l is a kind of annotated ELF Linker-Address-Map, with meta information on data instances and data types (MC specific types - lookup-tables, axis scaling, physical limits and units, conversion rules, ...).  
+
+In a Microprocessor system developed in a system programming language like C, C++ or Rust, this concept is still useful and efficient. Measurement signals and calibration parameters usually have a static lifetime and a defined memory layout, but no predefined memory location and are not limited to static storage classes. Data acquisition and modification is achieved by appropriate code instrumentation for measurement and wrapper types for groups of calibration parameters.
+
+From a software developer perspective, XCP may be considered to be a high-frequency application level tracing solution, using statically instrumented trace points with configurable associated data. Tracing can be started, stopped and reconfigured during runtime. What is not configured, does not consume bandwidth, memory and other resources. The acquired context data is always consistent and trace events are precisely time stamped. Data types and instances of available context data items are defined as code or obtained by a XCP tool from ELF/DWARF debug information. Data instances may be in global, local, thread local and heap storage locations. In addition to that, XCP provides the capability to modify application variables and state in a thread safe and consistent way.  
 
 The ASAM-XCP standard defines a protocol and a transport layer. There are transport layers for all common communication busses used in the automotive industry, such as CAN, CAN-FD, FLEXRAY, SPI and Ethernet.  
 
@@ -23,10 +26,10 @@ Visit the Virtual VectorAcademy for an E-Learning on XCP:
 
 XCPlite is an implementation of XCP for Microprocessors in pure C, optimized for the XCP on Ethernet Transport Layer for TCP or UDP with jumbo frames.  
 It is optimized for 64 Bit platforms with POSIX based Operating Systems, but also runs on 32 Bit platforms and on Windows with some restrictions.  
-The A2L measurement and calibration object database can be generated during runtime and uploaded by the XCP client on connect.  
+The A2L measurement and calibration object database can be generated during runtime and uploaded by the XCP client tool on connect.  
 
 XCPlite is provided to test and demonstrate calibration tools such as CANape or any other XCP client implementation.  
-It may serve as a base for individually customized XCP implementations on Microprocessors.  
+It may serve as a base for individually customized XCP on Ethernet implementations on Microprocessors.  
 It implements and demonstrates some techniques how to deal with variables in dynamically allocated memory and how to do measurement and calibration in multi-threaded applications.  
 
 XCPlite is used as a C library by the implementation of XCP for Rust in:  
@@ -138,9 +141,9 @@ threadx_demo:
   Planned
   
 bpf_demo:
-  Work in progress
-  Experimental
-
+  Experimental, work in progress.  
+  Demonstrates tracing of process creations and selected syscalls.  
+  
 ![CANape Screenshot](examples/cpp_demo/cpp_demo.png)
 
 ### Building a CANape project and configuration from scratch
