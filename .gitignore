@@ -22,3 +22,4 @@ typedefs.a2l
 
 /run_remote.sh
 /run.sh
+/examples/bpf_demo/CANape/CANapeTmpMea.ini

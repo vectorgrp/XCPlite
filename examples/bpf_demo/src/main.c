@@ -157,7 +157,7 @@ static const char *syscall_names[MAX_SYSCALL_NR] = {[SYS_io_setup] = "io_setup",
                                                     [SYS_clock_settime] = "clock_settime",
                                                     [SYS_clock_gettime] = "clock_gettime",
                                                     [SYS_clock_getres] = "clock_getres",
-                                                    [SYS_clock_nanosleep] = "nanosleep",
+                                                    [SYS_clock_nanosleep] = "clock_nanosleep",
                                                     [SYS_syslog] = "syslog",
                                                     [SYS_ptrace] = "ptrace",
                                                     [SYS_sched_setparam] = "sched_setparam",
@@ -388,11 +388,10 @@ static void print_syscall_stats(int map_fd) {
 // Event structure must match the BPF program
 #define EVENT_PROCESS_FORK 1
 #define EVENT_SYSCALL 2
-#define EVENT_TIMER_TICK 3
 
 struct event {
     uint64_t timestamp;  // Precise kernel timestamp from bpf_ktime_get_ns()
-    uint32_t event_type; // Type of event (fork, syscall, timer)
+    uint32_t event_type; // Type of event (fork, syscall)
     uint32_t cpu_id;     // CPU where event occurred
 
     // Union for event-specific data
@@ -410,18 +409,9 @@ struct event {
             uint32_t pid;
             uint32_t syscall_nr; // Syscall number
             char comm[16];
-            uint32_t tgid;             // Thread group ID
-            uint32_t is_tracked;       // 1 if this is a tracked syscall, 0 otherwise
-            uint32_t syscall_category; // Category: 1=timing, 2=memory, 3=thread, 4=sync
+            uint32_t tgid; // Thread group ID
         } syscall;
 
-        // Timer/IRQ event data
-        struct {
-            uint32_t irq_vec;      // IRQ vector number
-            uint32_t softirq_type; // Softirq type
-            uint32_t cpu_load;     // Simple CPU activity indicator
-            uint32_t reserved;     // For future use
-        } timer;
     } data;
 };
 
@@ -431,17 +421,9 @@ struct event {
 // Process monitoring variables
 static uint32_t new_process_pid = 0; // Global variable to store new process PID
 
-// Timer/IRQ monitoring variables
-static uint32_t timer_tick_count = 0;     // Total number of timer ticks
-static uint32_t current_softirq_type = 0; // Current softirq type
-static uint32_t current_irq_vec = 0;      // Current IRQ vector
-static uint32_t timer_tick_rate = 0;      // Timer ticks per second (calculated)
-static uint64_t last_timer_tick_time = 0; // Timestamp of last timer tick
-
 static struct bpf_object *obj = NULL;
 static struct bpf_link *process_fork_link = NULL; // Link for process fork tracepoint
 static struct bpf_link *syscall_link = NULL;      // Link for syscall tracepoint
-static struct bpf_link *timer_tick_link = NULL;   // Link for timer tick tracepoint
 
 static struct ring_buffer *rb = NULL; // BPF ring buffer for receiving events
 static int map_fd = -1;               // BPF ring buffer map file descriptor
@@ -501,40 +483,8 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
         }
 
         // Optional: Print detailed syscall info (comment out for less verbose output)
-        if (syscall_nr != SYS_clock_nanosleep) {
-            const char *syscall_name = get_syscall_name(syscall_nr);
-            printf("Syscall: %s [%u] called %s (%u) on CPU%u\n", e->data.syscall.comm, e->data.syscall.pid, syscall_name, syscall_nr, syscall_cpu_id);
-        }
-
-        DaqEventAt(syscall_event, TO_XCP_TIMESTAMP(e->timestamp));
-
-    }
-
-    // Handle timer tick events (IRQ/softirq activity)
-    else if (e->event_type == EVENT_TIMER_TICK) {
-        static uint64_t timer_count_last_second = 0;
-        static uint64_t last_rate_calculation_time = 0;
-
-        timer_tick_count++;
-        current_softirq_type = e->data.timer.softirq_type;
-        current_irq_vec = e->data.timer.irq_vec;
-        last_timer_tick_time = e->timestamp;
-
-        // Calculate timer tick rate every second
-        uint64_t current_time_ns = e->timestamp;
-        if (last_rate_calculation_time == 0) {
-            last_rate_calculation_time = current_time_ns;
-            timer_count_last_second = timer_tick_count;
-        } else if ((current_time_ns - last_rate_calculation_time) >= 1000000000ULL) { // 1 second in ns
-            timer_tick_rate = timer_tick_count - timer_count_last_second;
-            timer_count_last_second = timer_tick_count;
-            last_rate_calculation_time = current_time_ns;
-            // printf("Timer ticks/sec: %u (Total: %u), Last: softirq_type=%u, irq_vec=%u\n", timer_tick_rate, timer_tick_count, current_softirq_type, current_irq_vec);
-        }
-
-        // Optional: Print detailed timer tick info (comment out for less verbose output)
-        // printf("Timer tick: softirq_type=%u, irq_vec=%u, cpu_load=%u on CPU%u, timestamp=%llu ns\n",
-        //        e->data.timer.softirq_type, e->data.timer.irq_vec, e->data.timer.cpu_load, e->cpu_id, e->timestamp);
+        const char *syscall_name = get_syscall_name(syscall_nr);
+        printf("Syscall: %s [%u] called %s (%u) on CPU%u\n", e->data.syscall.comm, e->data.syscall.pid, syscall_name, syscall_nr, syscall_cpu_id);
 
         DaqEventAt(syscall_event, TO_XCP_TIMESTAMP(e->timestamp));
     }
@@ -599,21 +549,6 @@ static int load_bpf_program() {
         }
     }
 
-    // Attach timer tick tracepoint
-    prog = bpf_object__find_program_by_name(obj, "trace_timer_tick");
-    timer_tick_link = NULL;
-    if (!prog) {
-        printf("Failed to find BPF program 'trace_timer_tick'\n");
-    } else {
-        timer_tick_link = bpf_program__attach(prog);
-        if (libbpf_get_error(timer_tick_link)) {
-            printf("Warning: Failed to attach timer tick BPF program: %ld\n", libbpf_get_error(timer_tick_link));
-
-        } else {
-            printf("Timer tick tracepoint attached successfully (alternative high-frequency monitoring)\n");
-        }
-    }
-
     // Get BPF map file descriptor
     map_fd = bpf_object__find_map_fd_by_name(obj, "rb");
     if (map_fd < 0) {
@@ -651,10 +586,6 @@ static void cleanup_bpf() {
     if (syscall_link) {
         bpf_link__destroy(syscall_link);
         syscall_link = NULL;
-    }
-    if (timer_tick_link) {
-        bpf_link__destroy(timer_tick_link);
-        timer_tick_link = NULL;
     }
     if (obj) {
         bpf_object__close(obj);
@@ -705,10 +636,8 @@ int main(int argc, char *argv[]) {
     A2lSetStackAddrMode(mainloop_event);
     A2lCreateMeasurement(counter, "Mainloop counter value"); // Mainloop counter
     A2lSetAbsoluteAddrMode(mainloop_event);
-    A2lCreateMeasurement(syscall_count, "Total tracked syscalls count");     // Total syscall count
-    A2lCreateMeasurement(syscall_rate, "Total tracked syscalls per second"); // Total syscall rate
-    A2lCreateMeasurement(timer_tick_count, "Total timer ticks");             // Total timer tick count
-    A2lCreateMeasurement(timer_tick_rate, "Timer ticks per second");         // Timer tick rate
+    A2lCreateMeasurement(syscall_count, "Total tracked syscalls count");                             // Total syscall count
+    A2lCreatePhysMeasurement(syscall_rate, "Total tracked syscalls per second", "1/s", 0.0, 2000.0); // Total syscall rate
 
     // New process PID creation event monitoring (BPF event)
     A2lSetAbsoluteAddrMode(process_event);
@@ -725,10 +654,6 @@ int main(int argc, char *argv[]) {
             A2lCreateMeasurement_(NULL, name, A2L_TYPE_UINT32, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&(syscall_event_counters[syscall_nr])), NULL, 0.0, 0.0, "");
         }
     }
-
-    // Timer tick event monitoring  (BPF event)
-    A2lCreateMeasurement(current_softirq_type, "Current softirq type"); // Current softirq type
-    A2lCreateMeasurement(current_irq_vec, "Current IRQ vector");        // Current IRQ vector
 
     A2lFinalize(); // Finalize A2L file now, do not wait for XCP connect
 

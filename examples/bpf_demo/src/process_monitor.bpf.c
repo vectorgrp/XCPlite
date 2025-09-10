@@ -32,7 +32,6 @@ struct {
 // Event types to distinguish different tracepoints
 #define EVENT_PROCESS_FORK 1
 #define EVENT_SYSCALL 2
-#define EVENT_TIMER_TICK 3
 
 // Maximum syscall number on ARM64 (based on __NR_syscalls)
 #define MAX_SYSCALL_NR 463
@@ -47,7 +46,7 @@ struct {
 
 struct event {
     __u64 timestamp;  // Precise kernel timestamp from bpf_ktime_get_ns()
-    __u32 event_type; // Type of event (fork, syscall, timer)
+    __u32 event_type; // Type of event (fork, syscall)
     __u32 cpu_id;     // CPU where event occurred
 
     // Union for event-specific data
@@ -65,18 +64,9 @@ struct event {
             __u32 pid;
             __u32 syscall_nr; // Syscall number
             char comm[16];
-            __u32 tgid;             // Thread group ID
-            __u32 is_tracked;       // 1 if this is a tracked syscall, 0 otherwise
-            __u32 syscall_category; // Category: 1=timing, 2=memory, 3=thread, 4=sync
+            __u32 tgid; // Thread group ID
         } syscall;
 
-        // Timer/IRQ event data
-        struct {
-            __u32 irq_vec;      // IRQ vector number
-            __u32 softirq_type; // Softirq type
-            __u32 cpu_load;     // Simple CPU activity indicator
-            __u32 reserved;     // For future use
-        } timer;
     } data;
 };
 
@@ -89,9 +79,6 @@ int trace_process_fork(void *ctx) {
     e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
     if (!e)
         return 0;
-
-    // Clear the entire structure first
-    __builtin_memset(e, 0, sizeof(*e));
 
     // Capture precise kernel timestamp first
     e->timestamp = bpf_ktime_get_ns();
@@ -129,14 +116,15 @@ static __always_inline __u32 classify_syscall(__u32 syscall_nr) {
 
     switch (syscall_nr) {
 
-    // Ignore some high-frequency uninteresting syscalls
+    // Ignore some high-frequency less interesting syscalls
+    case SYS_clock_nanosleep:
     case SYS_nanosleep:
     case SYS_write:
     case SYS_read:
+    case SYS_getrandom:
     case SYS_rt_sigaction:
     case SYS_rt_sigprocmask:
     case SYS_ppoll:
-    case SYS_getrandom:
     case SYS_epoll_pwait:
         return 0;
 
@@ -159,7 +147,7 @@ int trace_syscall_enter(void *ctx) {
         return 0;
     }
 
-    // Update syscall counter in BPF map
+    // Update syscall counters in BPF map
     __u64 *counter = bpf_map_lookup_elem(&syscall_counters, &syscall_nr);
     if (counter) {
         __sync_fetch_and_add(counter, 1);
@@ -178,58 +166,14 @@ int trace_syscall_enter(void *ctx) {
     if (!e)
         return 0;
 
-    // Clear the entire structure first
-    __builtin_memset(e, 0, sizeof(*e));
-
-    // Capture precise kernel timestamp
     e->timestamp = bpf_ktime_get_ns();
     e->event_type = EVENT_SYSCALL;
+    e->data.syscall.syscall_nr = syscall_nr;
     e->cpu_id = bpf_get_smp_processor_id();
-
-    // Get current task info
     __u64 pid_tgid = bpf_get_current_pid_tgid();
     e->data.syscall.pid = pid_tgid & 0xFFFFFFFF;
     e->data.syscall.tgid = (pid_tgid >> 32) & 0xFFFFFFFF;
-
-    // Get the syscall number and classification
-    e->data.syscall.syscall_nr = syscall_nr;
-    e->data.syscall.is_tracked = 1;
-    e->data.syscall.syscall_category = category;
-
     bpf_get_current_comm(&e->data.syscall.comm, sizeof(e->data.syscall.comm));
-
-    bpf_ringbuf_submit(e, 0);
-    return 0;
-}
-
-//--------------------------------------------------------------------------------------
-
-// Alternative high-frequency tracepoint: timer interrupts
-// This tracepoint typically requires fewer permissions than sched_switch
-SEC("tp/irq/softirq_entry")
-int trace_timer_tick(void *ctx) {
-    struct event *e;
-
-    e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
-    if (!e)
-        return 0;
-
-    // Clear the entire structure first
-    __builtin_memset(e, 0, sizeof(*e));
-
-    // Capture precise kernel timestamp
-    e->timestamp = bpf_ktime_get_ns();
-    e->event_type = EVENT_TIMER_TICK;
-    e->cpu_id = bpf_get_smp_processor_id();
-
-    // For softirq_entry, we can extract interrupt-specific information
-    // For now, let's use simple values instead of parsing context directly
-    e->data.timer.softirq_type = 1; // Dummy value for now
-    e->data.timer.irq_vec = 0;      // Dummy value for now
-
-    // Use timestamp variation as a simple CPU activity indicator
-    e->data.timer.cpu_load = (__u32)(e->timestamp & 0xFFFFFFFF);
-    e->data.timer.reserved = 0;
 
     bpf_ringbuf_submit(e, 0);
     return 0;
