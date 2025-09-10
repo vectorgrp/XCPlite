@@ -39,7 +39,7 @@
 #include "process_monitor.bpf.h"
 
 // syscall counters
-static uint32_t syscall_counters[MAX_SYSCALL_NR] = {0};
+static uint32_t syscall_event_counters[MAX_SYSCALL_NR] = {0};
 
 // ARM64 syscall lookup table (major syscalls 0-462) - using constants for clarity
 static const char *syscall_names[MAX_SYSCALL_NR] = {[SYS_io_setup] = "io_setup",
@@ -473,7 +473,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
 
         syscall_count++;
         if (syscall_nr < MAX_SYSCALL_NR) {
-            syscall_counters[syscall_nr]++;
+            syscall_event_counters[syscall_nr]++;
         }
 
         // Calculate syscall rate every second
@@ -713,14 +713,15 @@ int main(int argc, char *argv[]) {
 
     // Syscall event monitoring  (BPF event)
     A2lSetAbsoluteAddrMode(syscall_event);
-    A2lCreateMeasurement(syscall_nr, "Current syscall number"); // Current syscall number
-    A2lCreateMeasurement(syscall_pid, "Syscall PID");           // PID making the syscall
-    // for (uint32_t syscall_nr = 0; syscall_nr < 463; syscall_nr++) {     // Individual measurement variables for each syscall
-    //     const char *name = get_syscall_name(syscall_nr);
-    //     if (name && strcmp(name, "unknown") != 0) {
-    //         A2lCreateMeasurement(name, "Count");
-    //     }
-    // }
+    A2lCreateMeasurement(syscall_nr, "Current syscall number");     // Current syscall number
+    A2lCreateMeasurement(syscall_pid, "Syscall PID");               // PID making the syscall
+    for (uint32_t syscall_nr = 0; syscall_nr < 463; syscall_nr++) { // Individual measurement variables for each syscall
+        const char *name = get_syscall_name(syscall_nr);
+        if (name && strcmp(name, "unknown") != 0) {
+            // Using the A2L generation function directly to create variables with dynamic names
+            A2lCreateMeasurement_(NULL, name, A2L_TYPE_UINT32, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&(syscall_event_counters[syscall_nr])), NULL, 0.0, 0.0, "");
+        }
+    }
 
     // Timer tick event monitoring  (BPF event)
     A2lCreateMeasurement(current_softirq_type, "Current softirq type"); // Current softirq type
