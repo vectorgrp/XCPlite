@@ -836,7 +836,7 @@ uint8_t XcpWriteMta(uint8_t size, const uint8_t *data) {
 
     // EXT == XCP_ADDR_EXT_SEG calibration segment memory access
 #ifdef XCP_ENABLE_CALSEG_LIST
-    if (gXcp.MtaExt == XCP_ADDR_EXT_SEG && gXcp.CalSegList.count > 0) {
+    if (gXcp.MtaExt == XCP_ADDR_EXT_SEG) {
         uint8_t res = XcpCalSegWriteMemory(gXcp.MtaAddr, size, data);
         gXcp.MtaAddr += size;
         return res;
@@ -895,7 +895,7 @@ static uint8_t XcpReadMta(uint8_t size, uint8_t *data) {
 
     // EXT == XCP_ADDR_EXT_SEG calibration segment memory access
 #ifdef XCP_ENABLE_CALSEG_LIST
-    if (gXcp.MtaExt == XCP_ADDR_EXT_SEG && gXcp.CalSegList.count > 0) {
+    if (gXcp.MtaExt == XCP_ADDR_EXT_SEG) {
         uint8_t res = XcpCalSegReadMemory(gXcp.MtaAddr, size, data);
         gXcp.MtaAddr += size;
         return res;
@@ -1996,18 +1996,17 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             error(CRC_CMD_SYNTAX);
         switch (CRO_CMD) {
 
-            // User defined commands
 #ifdef XCP_ENABLE_USER_COMMAND
         case CC_USER_CMD: {
             check_len(CRO_USER_CMD_LEN);
+            uint8_t subcmd = CRO_USER_CMD_SUBCOMMAND;
 #ifdef XCP_ENABLE_CALSEG_LIST
-            if (gXcp.CalSegList.count > 0) {
-                check_error(XcpCalSegCommand(CRO_USER_CMD_SUBCOMMAND));
+            // User defined commands for begin/end consistent calibration sequence
+            if (subcmd == 0x01 || subcmd == 0x02) {
+                check_error(XcpCalSegCommand(subcmd));
             } else
 #endif
-            {
-                check_error(ApplXcpUserCommand(CRO_USER_CMD_SUBCOMMAND));
-            }
+                check_error(ApplXcpUserCommand(subcmd));
         } break;
 #endif
 
@@ -2143,13 +2142,10 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
 #ifdef XCP_ENABLE_FREEZE_CAL_PAGE
             case SET_REQUEST_MODE_STORE_CAL:
 #ifdef XCP_ENABLE_CALSEG_LIST
-                if (gXcp.CalSegList.count > 0) {
-                    check_error(XcpFreezeSelectedCalSegs(false));
-                } else
+                check_error(XcpFreezeSelectedCalSegs(false));
+#else
+                check_error(ApplXcpCalFreeze());
 #endif
-                {
-                    check_error(ApplXcpCalFreeze());
-                }
                 break;
 #endif // XCP_ENABLE_FREEZE_CAL_PAGE
             default:
@@ -2250,13 +2246,10 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             check_len(CRO_SET_CAL_PAGE_LEN);
             uint8_t segment = CRO_SET_CAL_PAGE_SEGMENT;
 #ifdef XCP_ENABLE_CALSEG_LIST
-            if (gXcp.CalSegList.count > 0) {
-                check_error(XcpCalSegSetCalPage(segment, CRO_SET_CAL_PAGE_PAGE, CRO_SET_CAL_PAGE_MODE));
-            } else
+            check_error(XcpCalSegSetCalPage(segment, CRO_SET_CAL_PAGE_PAGE, CRO_SET_CAL_PAGE_MODE));
+#else
+            check_error(ApplXcpSetCalPage(segment, CRO_SET_CAL_PAGE_PAGE, CRO_SET_CAL_PAGE_MODE));
 #endif
-            {
-                check_error(ApplXcpSetCalPage(segment, CRO_SET_CAL_PAGE_PAGE, CRO_SET_CAL_PAGE_MODE));
-            }
         } break;
 
         case CC_GET_CAL_PAGE: {
@@ -2265,13 +2258,10 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             uint8_t segment = CRO_SET_CAL_PAGE_SEGMENT;
             CRM_LEN = CRM_GET_CAL_PAGE_LEN;
 #ifdef XCP_ENABLE_CALSEG_LIST
-            if (gXcp.CalSegList.count > 0) {
-                page = XcpCalSegGetCalPage(segment, CRO_GET_CAL_PAGE_MODE);
-            } else
+            page = XcpCalSegGetCalPage(segment, CRO_GET_CAL_PAGE_MODE);
+#else
+            page = ApplXcpGetCalPage(segment, CRO_GET_CAL_PAGE_MODE);
 #endif
-            {
-                page = ApplXcpGetCalPage(segment, CRO_GET_CAL_PAGE_MODE);
-            }
             if (page == 0xFF)
                 error(CRC_MODE_NOT_VALID);
             CRM_GET_CAL_PAGE_PAGE = page;
@@ -2285,13 +2275,10 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             uint8_t dst_segment = CRO_COPY_CAL_PAGE_DEST_SEGMENT;
             uint8_t dst_page = CRO_COPY_CAL_PAGE_DEST_PAGE;
 #ifdef XCP_ENABLE_CALSEG_LIST
-            if (gXcp.CalSegList.count > 0) {
-                check_error(XcpCalSegCopyCalPage(src_segment, src_page, dst_segment, dst_page));
-            } else
+            check_error(XcpCalSegCopyCalPage(src_segment, src_page, dst_segment, dst_page));
+#else
+            check_error(ApplXcpCopyCalPage(src_segment, src_page, dst_segment, dst_page));
 #endif
-            {
-                check_error(ApplXcpCopyCalPage(src_segment, src_page, dst_segment, dst_page));
-            }
         } break;
 #endif // XCP_ENABLE_COPY_CAL_PAGE
 
