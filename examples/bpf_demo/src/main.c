@@ -23,10 +23,10 @@
 // XCP params
 
 #define OPTION_PROJECT_NAME "bpf_demo"  // Project name, used to build the A2L and BIN file name
-#define OPTION_USE_TCP false            // TCP or UDP
+#define OPTION_USE_TCP true             // TCP or UDP
 #define OPTION_SERVER_PORT 5555         // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE 1024 * 16     // Size of the measurement queue in bytes, must be a multiple of 8
+#define OPTION_QUEUE_SIZE 1024 * 512    // Size of the measurement queue in bytes, must be a multiple of 8
 #define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 #define TO_XCP_TIMESTAMP(t) (t / 1000) // Convert to XCP timestamp in microseconds (OPTION_CLOCK_TICKS_1US)
@@ -454,8 +454,11 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
     if (e->event_type == EVENT_PROCESS_FORK) {
         new_process_pid = e->data.fork.pid;
 
-        printf("Process created: PID=%u, PPID=%u, comm=%s, parent_comm=%s, CPU=%u, timestamp=%llu ns\n", e->data.fork.pid, e->data.fork.ppid, e->data.fork.comm,
-               e->data.fork.parent_comm, e->cpu_id, e->timestamp);
+        char buffer[256];
+        snprintf(buffer, sizeof(buffer), "Process created: PID=%u, PPID=%u, comm=%s, parent_comm=%s, CPU=%u, timestamp=%llu ns\n", e->data.fork.pid, e->data.fork.ppid,
+                 e->data.fork.comm, e->data.fork.parent_comm, e->cpu_id, e->timestamp);
+        XcpPrint(buffer);
+        printf("%s\n", buffer);
 
         DaqEventAt(process_event, TO_XCP_TIMESTAMP(e->timestamp));
 
