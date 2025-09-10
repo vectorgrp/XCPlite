@@ -10,7 +10,7 @@ PrgDate=16.06.2025
 Description=
 CreationTime=13:52
 CreationDate=09/10/2025 ; Month/Day/Year
-ModificationTime=18:17
+ModificationTime=22:03
 ModificationDate=09/10/2025 ; Month/Day/Year
 Protected=0
 CurrentWindowsACP=1252
@@ -138,7 +138,7 @@ COUNT=5
 5=}
 
 [FUNCTION_OBJECT_1]
-Number=4
+Number=7
 Unit=
 Components=0
 TimeSeriesSaveMode=0
@@ -227,7 +227,7 @@ IsParameterFunctionResult=0
 Module=xcp_demo
 
 [FUNCTION_OBJECT_2]
-Number=5
+Number=8
 Unit=
 Components=0
 TimeSeriesSaveMode=0
@@ -19353,12 +19353,12 @@ PROPERTY_8=SequenceFilters={"IsEnabled":"1","FilterCount":"0"}
 PROPERTY_9=SearchPatterns={"EventCount":"0"}
 PROPERTY_10=ExplorerConfig={"VSplitPos":"300","VSplitExpanded":"true","HSplitPos":"580","HSplitExpanded":"false","ActiveExplorerView":"1","ActiveSearchType":"0"}
 PROPERTY_11=ContinuousMode=1
-PROPERTY_12=AbsoluteTimeMode=1
+PROPERTY_12=AbsoluteTimeMode=0
 PROPERTY_13=HighPrioritySBClient=0
 PROPERTY_14=EventFading=0
 PROPERTY_15=ByteFading=0
 PROPERTY_16=BufferEntries=10000
-PROPERTY_17=ClearStart=true
+PROPERTY_17=ClearStart=false
 PROPERTY_18=OnlyMeasurement=false
 PROPERTY_19=CopyColumnTitles=true
 PROPERTY_20=LoggingEnabled=false
@@ -19379,7 +19379,7 @@ Column_6=256, 150
 Column_7=257, 100
 Column_8=5, 100
 Column_9=1281, 100
-DeltaTimeEnabled=0
+DeltaTimeEnabled=1
 Title=Trace window {DISPLAYED_FILENAME}
 Type=16384
 Comment=ActiveX Window
@@ -19426,8 +19426,8 @@ DisplayMask=1 ; pages 1
 XLen=140562
 XMin=0
 XMinNs=0
-XMax=28209
-XMaxNs=28209608941
+XMax=11273
+XMaxNs=11273682182
 Grid=1
 Mark=1
 YValue=2
@@ -19508,7 +19508,7 @@ ShowActivity=0
 ExceedLimitWarning=0
 OnlyHighlightOnViolation=1
 LegendScrollPos=0
-DotLinePos=195
+DotLinePos=196
 ObjectCount=0
 Title=Numeric {DISPLAYED_FILENAME}
 Type=4
@@ -19516,9 +19516,9 @@ Comment=Numeric Window
 Number=5
 GUID=WINDOW_f8fb5041-5d5b-4f5c-86f1-e7798564f3fe
 ScreenDPIinSection=192
-Position=0, 874, 664, 1039, 210 ;cmd, x, y, w, h
+Position=0, 874, 664, 1040, 210 ;cmd, x, y, w, h
 Position_dpi96=0, 437, 332, 520, 105 ;cmd, x, y, w, h
-Position_Page01=0, 874, 664, 1039, 210 ;cmd, x, y, w, h
+Position_Page01=0, 874, 664, 1040, 210 ;cmd, x, y, w, h
 Position_Page01_dpi96=0, 437, 332, 520, 105 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
