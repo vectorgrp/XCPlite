@@ -37,7 +37,8 @@ clean:
 	rm -f $(BPF_OBJ)
 
 install: $(BPF_OBJ)
-	@BUILD_DIR=${BUILD_DIR:-../../../build}; \
+	@BUILD_DIR=$${BUILD_DIR:-../../../build}; \
+	echo "Installing to: $$BUILD_DIR"; \
 	mkdir -p "$$BUILD_DIR"; \
 	cp $(BPF_OBJ) "$$BUILD_DIR/"; \
 	echo "BPF object installed to $$BUILD_DIR/"

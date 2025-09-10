@@ -3,6 +3,7 @@
 #include <assert.h>  // for assert
 #include <errno.h>   // for errno
 #include <signal.h>  // for signal handling
+#include <stdarg.h>  // for va_list
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uintxx_t
 #include <stdio.h>   // for printf
@@ -33,10 +34,8 @@
 // #define TO_XCP_TIMESTAMP(t) (t)        // Convert to XCP timestamp in nanoseconds (OPTION_CLOCK_TICKS_1NS)
 
 //-----------------------------------------------------------------------------------------------------
-// ARM64 Syscall monitoring
-// Based on Linux kernel arch/arm64/include/asm/unistd.h and include/uapi/asm-generic/unistd.h
 
-#include "process_monitor.bpf.h"
+#include "process_monitor.bpf.h" // shared BPF definitions
 
 // syscall counters
 static uint32_t syscall_event_counters[MAX_SYSCALL_NR] = {0};
@@ -383,39 +382,6 @@ static void print_syscall_stats(int map_fd) {
 }
 
 //-----------------------------------------------------------------------------------------------------
-// BPF event structure
-
-// Event structure must match the BPF program
-#define EVENT_PROCESS_FORK 1
-#define EVENT_SYSCALL 2
-
-struct event {
-    uint64_t timestamp;  // Precise kernel timestamp from bpf_ktime_get_ns()
-    uint32_t event_type; // Type of event (fork, syscall)
-    uint32_t cpu_id;     // CPU where event occurred
-
-    // Union for event-specific data
-    union {
-        // Fork event data
-        struct {
-            uint32_t pid;
-            uint32_t ppid;
-            char comm[16];
-            char parent_comm[16];
-        } fork;
-
-        // Syscall event data
-        struct {
-            uint32_t pid;
-            uint32_t syscall_nr; // Syscall number
-            char comm[16];
-            uint32_t tgid; // Thread group ID
-        } syscall;
-
-    } data;
-};
-
-//-----------------------------------------------------------------------------------------------------
 // Handle incoming events from BPF ring buffer
 
 // Process monitoring variables
@@ -495,22 +461,41 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
 //-----------------------------------------------------------------------------------------------------
 // Initialize and load BPF program
 
+// Custom libbpf print function to filter out BTF warnings
+static int custom_libbpf_print(int level, const char *format, va_list args) {
+    // Filter out BTF-related messages
+    if (strstr(format, "BTF") || strstr(format, "btf")) {
+        return 0; // Suppress BTF messages
+    }
+    return vfprintf(stderr, format, args);
+}
+
 // Try to load BPF program, continue without it if it fails
 static int load_bpf_program() {
     struct bpf_program *prog;
     int err;
 
+    printf("BPF loader\n");
+
+    // Set custom libbpf print function to filter out BTF warnings
+    libbpf_set_print(custom_libbpf_print);
+
+    // Alternative: Completely suppress all libbpf output
+    // libbpf_set_print(NULL);
+
     // Try to open BPF object file from multiple possible paths
-    const char *bpf_paths[] = {"process_monitor.bpf.o", "examples/bpf_demo/src/process_monitor.bpf.o", "../examples/bpf_demo/src/process_monitor.bpf.o", NULL};
+    const char *bpf_paths[] = {"process_monitor.bpf.o", "build/process_monitor.bpf.o", "examples/bpf_demo/src/process_monitor.bpf.o", NULL};
     for (int i = 0; bpf_paths[i]; i++) {
         obj = bpf_object__open_file(bpf_paths[i], NULL);
         if (obj && !libbpf_get_error(obj)) {
             printf("Found BPF object file at: %s\n", bpf_paths[i]);
             break;
+        } else {
+            obj = NULL; // Reset obj on failure
         }
     }
-    if (!obj || libbpf_get_error(obj)) {
-        printf("Failed to open BPF object file: %ld\n", libbpf_get_error(obj));
+    if (!obj) {
+        printf("Failed to open BPF object file\n");
         return -1;
     }
 
@@ -518,6 +503,8 @@ static int load_bpf_program() {
     err = bpf_object__load(obj);
     if (err) {
         printf("Failed to load BPF object: %d\n", err);
+        bpf_object__close(obj);
+        obj = NULL;
         return -1;
     }
 

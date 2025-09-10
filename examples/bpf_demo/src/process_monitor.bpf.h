@@ -1,3 +1,59 @@
+#ifndef PROCESS_MONITOR_BPF_H
+#define PROCESS_MONITOR_BPF_H
+
+// Shared definitions for BPF program and userspace
+// This header ensures both sides use compatible type definitions
+
+// Type compatibility
+// BPF does not support stdint.h
+#ifdef __BPF__
+
+typedef unsigned char u8;
+typedef unsigned short u16;
+typedef unsigned int u32;
+typedef unsigned long long u64;
+
+#else
+
+// Standard userspace types
+#include <stdint.h>
+typedef uint8_t u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
+#endif
+
+// Event types to distinguish different tracepoints
+#define EVENT_PROCESS_FORK 1
+#define EVENT_SYSCALL 2
+
+// Shared event structure - MUST be identical in BPF and userspace
+struct event {
+    u64 timestamp;  // Precise kernel timestamp from bpf_ktime_get_ns()
+    u32 event_type; // Type of event (fork, syscall, timer)
+    u32 cpu_id;     // CPU where event occurred
+
+    // Union for event-specific data
+    union {
+        // Fork event data
+        struct {
+            u32 pid;
+            u32 ppid;
+            char comm[16];
+            char parent_comm[16];
+        } fork;
+
+        // Syscall event data
+        struct {
+            u32 pid;
+            u32 syscall_nr; // Syscall number
+            char comm[16];
+            u32 tgid; // Thread group ID
+        } syscall;
+
+    } data;
+};
+
 // ARM64 Syscalls
 // Based on Linux kernel arch/arm64/include/asm/unistd.h and include/uapi/asm-generic/unistd.h
 
@@ -340,3 +396,5 @@
 #define SYS_mseal 462
 
 #define MAX_SYSCALL_NR 463
+
+#endif // PROCESS_MONITOR_BPF_H
