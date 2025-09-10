@@ -1,3 +1,6 @@
+
+#include "process_monitor.bpf.h"
+
 // Define types first to avoid header conflicts
 typedef unsigned char __u8;
 typedef unsigned short __u16;
@@ -121,51 +124,24 @@ struct syscall_enter_args {
     __u64 args[6]; // syscall arguments
 };
 
-// Interesting syscalls for monitoring (ARM64 numbers)
-#define SYSCALL_FUTEX 98               // Fast userspace mutexes
-#define SYSCALL_EXIT 93                // Process termination
-#define SYSCALL_CLOCK_GETTIME 113      // Time queries
-#define SYSCALL_NANOSLEEP 115          // Sleep operations
-#define SYSCALL_SCHED_SETSCHEDULER 119 // Scheduler policy changes
-#define SYSCALL_SCHED_YIELD 124        // Voluntary CPU yielding
-#define SYSCALL_BRK 214                // Heap management
-#define SYSCALL_MUNMAP 215             // Memory unmapping
-#define SYSCALL_CLONE 220              // Thread/process creation
-#define SYSCALL_MMAP 222               // Memory mapping
-#define SYSCALL_MPROTECT 226           // Memory protection changes
-#define SYSCALL_WAIT4 260              // Process waiting
-#define SYSCALL_PIPE2 59               // Inter-process communication
-
-// Helper function to classify syscalls
+// Helper function to enable event generation on syscalls
 static __always_inline __u32 classify_syscall(__u32 syscall_nr) {
+
     switch (syscall_nr) {
-    // Timing & Scheduling (category 1)
-    case SYSCALL_NANOSLEEP:
-    case SYSCALL_CLOCK_GETTIME:
-    case SYSCALL_SCHED_YIELD:
-    case SYSCALL_SCHED_SETSCHEDULER:
-        return 1;
 
-    // Memory Management (category 2)
-    case SYSCALL_MMAP:
-    case SYSCALL_MUNMAP:
-    case SYSCALL_BRK:
-    case SYSCALL_MPROTECT:
-        return 2;
-
-    // Thread & Process Management (category 3)
-    case SYSCALL_CLONE:
-    case SYSCALL_EXIT:
-    case SYSCALL_WAIT4:
-        return 3;
-
-    // Synchronization (category 4)
-    case SYSCALL_FUTEX:
-    case SYSCALL_PIPE2:
-        return 4;
+    // Ignore some high-frequency uninteresting syscalls
+    case SYS_nanosleep:
+    case SYS_write:
+    case SYS_read:
+    case SYS_rt_sigaction:
+    case SYS_rt_sigprocmask:
+    case SYS_ppoll:
+    case SYS_getrandom:
+    case SYS_epoll_pwait:
+        return 0;
 
     default:
-        return 0; // Not tracked
+        return 1;
     }
 }
 
