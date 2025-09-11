@@ -1,6 +1,11 @@
 ﻿// struct_demo xcplib example
 
+// This is a pure measurement only example, no calibration segments used
+// Demonstrates how to create typedefs for nested structs and arrays of struct
+// and how to use the typedefs to create measurement variable instances
+
 #include <assert.h>  // for assert
+#include <signal.h>  // for signal handling
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uintxx_t
 #include <stdio.h>   // for printf
@@ -21,17 +26,7 @@
 #define OPTION_LOG_LEVEL 3                // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 //-----------------------------------------------------------------------------------------------------
-
-// Demo calibration parameters
-typedef struct params {
-
-    uint32_t delay_us; // Delay in microseconds for the main loop
-
-} params_t;
-
-const params_t params = {.delay_us = 1000};
-
-//-----------------------------------------------------------------------------------------------------
+// Measurement variables and structs
 
 typedef struct {
     uint8_t byte_field; // Basic type fields
@@ -53,8 +48,14 @@ static struct1_t static_struct1_array[10];                                      
 
 //-----------------------------------------------------------------------------------------------------
 
+static volatile bool running = true;
+static void sig_handler(int sig) { running = false; }
+
 // Demo main
 int main(void) {
+
+    signal(SIGINT, sig_handler);
+    signal(SIGTERM, sig_handler);
 
     printf("\nXCP on Ethernet struct measurement xcplib demo\n");
 
@@ -75,17 +76,6 @@ int main(void) {
     if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         return 1;
     }
-
-    // Create a calibration segment for the calibration parameter struct
-    // This segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
-    // It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
-    // It supports XCP/ECU independant page switching, checksum calculation and reinitialization (copy reference page to working page)
-    tXcpCalSegIndex calseg = XcpCreateCalSeg("Parameters", &params, sizeof(params));
-    assert(calseg != XCP_UNDEFINED_CALSEG); // Ensure the calibration segment was created successfully
-
-    // Register individual calibration parameters in the calibration segment
-    A2lSetSegmentAddrMode(calseg, params);
-    A2lCreateParameter(params.delay_us, "mainloop delay time in us", "us", 0, 1000000);
 
     // Create a A2L typedef for struct2_t
     A2lTypedefBegin(struct2_t, "A2L typedef for struct2_t");
@@ -146,7 +136,7 @@ int main(void) {
 
     A2lFinalize(); // Optional: Finalize the A2L file generation early, to write the A2L immediately, not when the client connects
 
-    for (;;) {
+    while (running) {
 
         // Modify some static and stack variables
         local_counter++;
@@ -158,15 +148,11 @@ int main(void) {
         heap_struct1->word_field = local_counter; // Modify the heap variable
         heap_struct1->struct_field.word_field = local_counter;
 
-        // Sleep for the delay parameter microseconds
-        params_t *params = (params_t *)XcpLockCalSeg(calseg);
-        sleepUs(params->delay_us);
-        XcpUnlockCalSeg(calseg);
-
         // Trigger the measurement events
         DaqEvent(event);
         DaqEventRelative(event_heap, heap_struct1);
 
+        sleepUs(1000);
     } // for(;;)
 
     // Force disconnect the XCP client

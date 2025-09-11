@@ -90,3 +90,61 @@ The BPF program attaches to the `sched/sched_process_fork` tracepoint, which is 
 - Command name (comm)
 
 This data is passed to userspace via a BPF ring buffer and processed by the main application, which updates the global `new_process_pid` variable and triggers an XCP measurement event.
+
+# Raspberry Pi
+
+```bash
+sudo bpftrace --info
+
+
+System
+  OS: Linux 6.12.34+rpt-rpi-2712 #1 SMP PREEMPT Debian 1:6.12.34-1+rpt1~bookworm (2025-06-26)
+  Arch: aarch64
+
+Build
+  version: v0.17.0
+  LLVM: 14.0.6
+  unsafe uprobe: no
+  bfd: no
+  libdw (DWARF support): yes
+
+Kernel helpers
+  probe_read: yes
+  probe_read_str: yes
+  probe_read_user: yes
+  probe_read_user_str: yes
+  probe_read_kernel: yes
+  probe_read_kernel_str: yes
+  get_current_cgroup_id: yes
+  send_signal: yes
+  override_return: yes
+  get_boot_ns: yes
+  dpath: no
+  skboutput: no
+
+Kernel features
+  Instruction limit: 1000000
+  Loop support: yes
+  btf: no
+  map batch: yes
+  uprobe refcount (depends on Build:bcc bpf_attach_uprobe refcount): no
+
+Map types
+  hash: yes
+  percpu hash: yes
+  array: yes
+  percpu array: yes
+  stack_trace: yes
+  perf_event_array: yes
+
+Probe types
+  kprobe: yes
+  tracepoint: yes
+  perf_event: yes
+  kfunc: no
+  iter:task: no
+  iter:task_file: no
+  kprobe_multi: no
+  raw_tp_special: yes
+
+```

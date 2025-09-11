@@ -350,6 +350,9 @@ static void XcpFreeCalSegList(void) {
     mutexDestroy(&gXcp.CalSegList.mutex);
 }
 
+// Get the number of calibration segments +1 for the virtual EPK segment
+static uint8_t XcpGetCalSegCount(void) { return (uint8_t)(gXcp.CalSegList.count + 1); }
+
 // Get a pointer to the list and the size of the list
 tXcpCalSegList const *XcpGetCalSegList(void) {
     assert(isInitialized());
@@ -760,15 +763,12 @@ uint8_t XcpCalSegCommand(uint8_t cmd) {
     }
     return CRC_CMD_UNKNOWN;
 }
-#endif
+
+#endif // XCP_ENABLE_USER_COMMAND
 
 // Freeze calibration segment working pages
 // Note: XCP/A2L segment numbers are bytes, 0 is reserved for the EPK segment, tXcpCalSegIndex is the XCP/A2L segment number - 1
 #ifdef XCP_ENABLE_FREEZE_CAL_PAGE
-
-static uint8_t XcpGetCalSegCount(void) {
-    return (uint8_t)(gXcp.CalSegList.count + 1); // Return the number of calibration segments +1 for the virtual EPK segment
-}
 
 static uint8_t XcpGetCalSegMode(uint8_t segment) {
     if (segment > gXcp.CalSegList.count)

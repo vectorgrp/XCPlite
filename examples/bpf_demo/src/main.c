@@ -461,27 +461,12 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
 //-----------------------------------------------------------------------------------------------------
 // Initialize and load BPF program
 
-// Custom libbpf print function to filter out BTF warnings
-static int custom_libbpf_print(int level, const char *format, va_list args) {
-    // Filter out BTF-related messages
-    if (strstr(format, "BTF") || strstr(format, "btf")) {
-        return 0; // Suppress BTF messages
-    }
-    return vfprintf(stderr, format, args);
-}
-
 // Try to load BPF program, continue without it if it fails
 static int load_bpf_program() {
     struct bpf_program *prog;
     int err;
 
     printf("BPF loader\n");
-
-    // Set custom libbpf print function to filter out BTF warnings
-    libbpf_set_print(custom_libbpf_print);
-
-    // Alternative: Completely suppress all libbpf output
-    // libbpf_set_print(NULL);
 
     // Try to open BPF object file from multiple possible paths
     const char *bpf_paths[] = {"process_monitor.bpf.o", "build/process_monitor.bpf.o", "examples/bpf_demo/src/process_monitor.bpf.o", NULL};
