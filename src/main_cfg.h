@@ -27,8 +27,8 @@
   // Logging
   #define OPTION_ENABLE_DBG_PRINTS            Enable debug prints
   #define OPTION_ENABLE_DBG_STDERR            Enable debug print errors and warnings go to stderr
-  #define OPTION_DEFAULT_DBG_LEVEL            Default log level: 1 - Error, 2 - Warn, 3 - Info, 4 - Trace, 5 - Debug
-  #define OPTION_FIXED_DBG_LEVEL              Fixed log level to optimize code size
+  #define OPTION_DEFAULT_DBG_LEVEL x          Default log level: 1 - Error, 2 - Warn, 3 - Info, 4 - Trace, 5 - Debug
+  #define OPTION_FIXED_DBG_LEVEL x            Fixed log level to optimize code size
 
   // Clock
   #define OPTION_CLOCK_EPOCH_ARB              Arbitrary epoch or since 1.1.1970
@@ -39,14 +39,16 @@
   // XCP server settings
   #define OPTION_ENABLE_TCP
   #define OPTION_ENABLE_UDP
-  #define OPTION_MTU                          Ethernet MTU, must be %8
+  #define OPTION_MTU x                        Ethernet MTU, must be %8
   #define OPTION_SERVER_FORCEFULL_TERMINATION Terminate the server threads instead of waiting for the tasks to finish
 
   // DAQ settings
-  #define OPTION_DAQ_MEM_SIZE                 Size of memory for DAQ setup in bytes (integer value, 6 bytes per signal needed)
-  #define OPTION_DAQ_EVENT_COUNT              Maximum number of DAQ events (integer value, must be even)
+  #define OPTION_DAQ_MEM_SIZE x               Size of memory for DAQ setup in bytes (integer value, 6 bytes per signal needed)
+  #define OPTION_DAQ_EVENT_COUNT x            Maximum number of DAQ events (integer value, must be even)
 
   // CAL settings
+  #define OPTION_CAL_SEGMENTS                 Enable calibration segment management (otherwise callbacks are used for calibration segment commands)
+  #define OPTION_CAL_SEGMENT_COUNT x          Maximum number of calibration segments
   #define OPTION_CAL_PERSISTENCE              Enable calibration segment persistence, BIN file is used to store calibration segments, A2L maybe generated only once per build
 
   // A2L generation settings
@@ -76,7 +78,9 @@
 #ifndef XCPLIB_FOR_RUST // Set by the rust build script
 
 // CAL
-#define OPTION_CAL_PERSISTENCE // Enable calibration segment persistence, BIN file is used to store calibration segments, A2L maybe generated only once per build
+#define OPTION_CAL_SEGMENTS        // Enable calibration segment management
+#define OPTION_CAL_SEGMENT_COUNT 4 // Maximum number of calibration segments
+#define OPTION_CAL_PERSISTENCE     // Enable calibration segment persistence, BIN file is used to store calibration segments, A2L maybe generated only once per build
 
 // DAQ
 #define OPTION_DAQ_MEM_SIZE (1000 * 6) // Memory bytes used for XCP DAQ tables - max 6 bytes per measurement signal needed

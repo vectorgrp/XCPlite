@@ -1,6 +1,7 @@
 ﻿// hello_xcp xcplib example
 
 #include <assert.h>  // for assert
+#include <signal.h>  // for signal handling
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uintxx_t
 #include <stdio.h>   // for printf
@@ -82,9 +83,14 @@ float calc_speed(float current_speed) {
 //-----------------------------------------------------------------------------------------------------
 // Demo main
 
+static volatile bool running = true;
+static void sig_handler(int sig) { running = false; }
+
 int main(void) {
 
     printf("\nXCP on Ethernet hello_xcp C xcplib demo\n");
+    signal(SIGINT, sig_handler);
+    signal(SIGTERM, sig_handler);
 
     // XCP: Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
     XcpSetLogLevel(OPTION_LOG_LEVEL);
@@ -137,7 +143,7 @@ int main(void) {
 
     // Mainloop
     printf("Start main loop...\n");
-    for (;;) {
+    while (running) {
         // XCP: Lock the calibration parameter segment for consistent and safe access
         // Calibration segment locking is wait-free, locks may be recursive
         // Returns a pointer to the active page (working or reference) of the calibration segment

@@ -7,32 +7,46 @@
 BUILD_TYPE="Debug"  # Default to Debug build
 COMPILER_CHOICE=""  # Default to system default compiler (no forcing)
 CLEAN_BUILD=false   # Whether to clean before building
+BUILD_TARGET="examples"  # Default to building library + examples (without bpf_demo)
 
 # Function to show usage
 show_usage() {
-    echo "Usage: $0 [build_type] [compiler] [options]"
+    echo "Usage: $0 [build_type] [compiler] [target] [options]"
     echo ""
     echo "Parameters:"
     echo "  build_type: debug|release (default: debug)"
     echo "  compiler:   gcc|clang"
+    echo "  target:     lib|examples|tests|bpf|all (default: examples)"
+    echo ""
+    echo "Build Targets:"
+    echo "  lib:        Build only the xcplib library"
+    echo "  examples:   Build library + examples (excluding bpf_demo) [DEFAULT]"
+    echo "  tests:      Build library + test targets (a2l_test, cal_test, type_detection tests)"
+    echo "  bpf:        Build library + examples including bpf_demo (Linux only)"
+    echo "  all:        Build everything (library + examples + tests + bpf_demo)"
     echo ""
     echo "Options:"
     echo "  clean:      Clean build directory before building"
     echo "  cleanall:   Clean all build directories (build-*, build)"
     echo ""
     echo "Examples:"
-    echo "  $0                    # Debug build with system default compiler"
-    echo "  $0 clean              # Clean build directory and debug rebuild with system default compiler"
-    echo "  $0 release            # Release build with system default compiler"
-    echo "  $0 debug clang        # Debug build with Clang"
-    echo "  $0 release gcc        # Release build with GCC"
-    echo "  $0 clang clean        # Clean Clang build directory and rebuild"
+    echo "  $0                    # Default: library + examples (no bpf_demo)"
+    echo "  $0 lib                # Build only the library"
+    echo "  $0 tests              # Build library + test targets"
+    echo "  $0 bpf                # Build library + examples including bpf_demo"
+    echo "  $0 all                # Build everything"
+    echo "  $0 clean              # Clean build and rebuild library + examples"
+    echo "  $0 release gcc all    # Release build with GCC, all targets"
+    echo "  $0 debug clang tests  # Debug build with Clang, tests only"
     echo "  $0 cleanall           # Clean all build directories and exit"
     echo ""
     echo "Build directories used:"
     echo "  build:                System default compiler builds"
     echo "  build-gcc:            GCC compiler builds"
     echo "  build-clang:          Clang compiler builds"
+    echo ""
+    echo "Platform-specific targets:"
+    echo "  bpf_demo:             Only built on Linux systems (requires BPF support)"
 }
 
 # Parse arguments
@@ -54,6 +68,21 @@ for arg in "$@"; do
             ;;
         default)
             COMPILER_CHOICE="default"
+            ;;
+        lib|library)
+            BUILD_TARGET="lib"
+            ;;
+        examples)
+            BUILD_TARGET="examples"
+            ;;
+        tests)
+            BUILD_TARGET="tests"
+            ;;
+        bpf)
+            BUILD_TARGET="bpf"
+            ;;
+        all)
+            BUILD_TARGET="all"
             ;;
         clean)
             CLEAN_BUILD=true
@@ -103,6 +132,7 @@ esac
 BUILD_TYPE_UPPER=$(echo "$BUILD_TYPE" | tr '[:lower:]' '[:upper:]')
 echo "Building in $BUILD_TYPE_UPPER mode with $COMPILER_NAME compiler"
 echo "Build directory: $BUILD_DIR"
+echo "Build target: $BUILD_TARGET"
 
 # Detect actual system default compiler when using default option
 if [ "$COMPILER_CHOICE" = "" ] || [ "$COMPILER_CHOICE" = "default" ]; then
@@ -144,22 +174,75 @@ echo "==================================================================="
 echo "Building targets..."
 echo "==================================================================="
 
-# Define all targets to build
+# Define all targets to build based on BUILD_TARGET
 LIBRARY_TARGET="xcplib"
-LIBRARY_DEPENDENT_TARGETS=(
+
+# Define target groups
+EXAMPLE_TARGETS=(
     "hello_xcp" 
     "hello_xcp_cpp"
     "c_demo"
     "cpp_demo"
     "struct_demo"
     "multi_thread_demo"
+)
+
+TEST_TARGETS=(
     "a2l_test"
     "cal_test"
-)
-INDEPENDENT_TARGETS=(
     "type_detection_test_c"
     "type_detection_test_cpp"
 )
+
+BPF_TARGETS=()
+# Add bpf_demo only on Linux systems
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    BPF_TARGETS+=("bpf_demo")
+fi
+
+# Determine which targets to build based on BUILD_TARGET
+LIBRARY_DEPENDENT_TARGETS=()
+INDEPENDENT_TARGETS=()
+
+case "$BUILD_TARGET" in
+    "lib")
+        echo "Build target: Library only"
+        # Only build the library, no other targets
+        ;;
+    "examples")
+        echo "Build target: Library + Examples (excluding bpf_demo)"
+        LIBRARY_DEPENDENT_TARGETS=("${EXAMPLE_TARGETS[@]}")
+        ;;
+    "tests")
+        echo "Build target: Library + Tests"
+        LIBRARY_DEPENDENT_TARGETS=("${TEST_TARGETS[@]}")
+        ;;
+    "bpf")
+        echo "Build target: Library + Examples (including bpf_demo)"
+        LIBRARY_DEPENDENT_TARGETS=("${EXAMPLE_TARGETS[@]}")
+        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+            LIBRARY_DEPENDENT_TARGETS+=("${BPF_TARGETS[@]}")
+            echo "Linux system detected - bpf_demo will be built with BPF support"
+        else
+            echo "Non-Linux system detected - bpf_demo will be skipped (BPF only supported on Linux)"
+        fi
+        ;;
+    "all")
+        echo "Build target: Everything (Library + Examples + Tests + BPF)"
+        LIBRARY_DEPENDENT_TARGETS=("${EXAMPLE_TARGETS[@]}" "${TEST_TARGETS[@]}")
+        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+            LIBRARY_DEPENDENT_TARGETS+=("${BPF_TARGETS[@]}")
+            echo "Linux system detected - bpf_demo will be built with BPF support"
+        else
+            echo "Non-Linux system detected - bpf_demo will be skipped (BPF only supported on Linux)"
+        fi
+        ;;
+    *)
+        echo "Error: Unknown build target '$BUILD_TARGET'"
+        show_usage
+        exit 1
+        ;;
+esac
 
 # Arrays to track success/failure
 SUCCESSFUL_TARGETS=()
@@ -176,17 +259,57 @@ if make --directory ./$BUILD_DIR $LIBRARY_TARGET > /dev/null 2>&1; then
     echo ""
     SUCCESSFUL_TARGETS+=("$LIBRARY_TARGET")
     
-    # Build library-dependent targets only if library succeeded
-    for target in "${LIBRARY_DEPENDENT_TARGETS[@]}"; do
-        if make --directory ./$BUILD_DIR $target > /dev/null 2>&1; then
-            SUCCESSFUL_TARGETS+=("$target")
-        else
-            echo "❌ FAILED: $target compilation failed"
-            echo "   Error details:"
-            make --directory ./$BUILD_DIR $target 2>&1 | sed 's/^/   /'
-            FAILED_TARGETS+=("$target")
+    # If BUILD_TARGET is "lib", we're done after building the library
+    if [ "$BUILD_TARGET" = "lib" ]; then
+        echo "Library-only build completed successfully."
+    else
+        # Build BPF program if bpf_demo is in the target list
+        if [[ " ${LIBRARY_DEPENDENT_TARGETS[@]} " =~ " bpf_demo " ]]; then
+            echo ""
+            echo "-------------------------------------------------------------------"
+            echo "Building BPF program for bpf_demo..."
+            echo "-------------------------------------------------------------------"
+            
+            # Check if build_bpf.sh exists
+            if [ -f "examples/bpf_demo/build_bpf.sh" ]; then
+                # Make the script executable
+                chmod +x examples/bpf_demo/build_bpf.sh
+                
+                # Run the BPF build script
+                if examples/bpf_demo/build_bpf.sh > /dev/null 2>&1; then
+                    echo "✅ SUCCESS: BPF program compiled successfully"
+                    
+                    # Copy BPF object file to the correct build directory
+                    BPF_OBJ_SRC="examples/bpf_demo/src/process_monitor.bpf.o"
+                    if [ -f "$BPF_OBJ_SRC" ]; then
+                        cp "$BPF_OBJ_SRC" "$BUILD_DIR/"
+                        echo "   BPF object file copied to $BUILD_DIR/"
+                    else
+                        echo "⚠️  WARNING: BPF object file not found at $BPF_OBJ_SRC"
+                    fi
+                else
+                    echo "❌ FAILED: BPF program build failed"
+                    echo "   BPF build error details:"
+                    examples/bpf_demo/build_bpf.sh 2>&1 | sed 's/^/   /'
+                fi
+            else
+                echo "⚠️  WARNING: BPF build script not found at examples/bpf_demo/build_bpf.sh"
+            fi
+            echo ""
         fi
-    done
+        
+        # Build library-dependent targets only if library succeeded
+        for target in "${LIBRARY_DEPENDENT_TARGETS[@]}"; do
+            if make --directory ./$BUILD_DIR $target > /dev/null 2>&1; then
+                SUCCESSFUL_TARGETS+=("$target")
+            else
+                echo "❌ FAILED: $target compilation failed"
+                echo "   Error details:"
+                make --directory ./$BUILD_DIR $target 2>&1 | sed 's/^/   /'
+                FAILED_TARGETS+=("$target")
+            fi
+        done
+    fi
     
 else
     echo "❌ CRITICAL FAILURE: $LIBRARY_TARGET compilation failed"
@@ -200,24 +323,28 @@ else
     
     # Note: We don't add library-dependent targets to FAILED_TARGETS 
     # since they weren't actually attempted
-    echo "📋 SKIPPED TARGETS (due to library failure):"
-    for target in "${LIBRARY_DEPENDENT_TARGETS[@]}"; do
-        echo "   - $target (skipped - requires xcplib)"
-    done
-    echo ""
+    if [ ${#LIBRARY_DEPENDENT_TARGETS[@]} -gt 0 ]; then
+        echo "📋 SKIPPED TARGETS (due to library failure):"
+        for target in "${LIBRARY_DEPENDENT_TARGETS[@]}"; do
+            echo "   - $target (skipped - requires xcplib)"
+        done
+        echo ""
+    fi
 fi
 
-# Build independent targets regardless of library status
-for target in "${INDEPENDENT_TARGETS[@]}"; do
-    if make --directory ./$BUILD_DIR $target > /dev/null 2>&1; then
-        SUCCESSFUL_TARGETS+=("$target")
-    else
-        echo "❌ FAILED: $target compilation failed"
-        echo "   Error details:"
-        make --directory ./$BUILD_DIR $target 2>&1 | sed 's/^/   /'
-        FAILED_TARGETS+=("$target")
-    fi
-done
+# Build independent targets regardless of library status (only for certain build targets)
+if [ ${#INDEPENDENT_TARGETS[@]} -gt 0 ]; then
+    for target in "${INDEPENDENT_TARGETS[@]}"; do
+        if make --directory ./$BUILD_DIR $target > /dev/null 2>&1; then
+            SUCCESSFUL_TARGETS+=("$target")
+        else
+            echo "❌ FAILED: $target compilation failed"
+            echo "   Error details:"
+            make --directory ./$BUILD_DIR $target 2>&1 | sed 's/^/   /'
+            FAILED_TARGETS+=("$target")
+        fi
+    done
+fi
 
 echo ""
 echo "==================================================================="
@@ -228,6 +355,7 @@ if [ "$COMPILER_CHOICE" = "" ] || [ "$COMPILER_CHOICE" = "default" ]; then
     echo "System Compiler: $ACTUAL_COMPILER"
 fi
 echo "Build Directory: $BUILD_DIR"
+echo "Build Target: $BUILD_TARGET"
 echo ""
 
 if [ ${#FAILED_TARGETS[@]} -eq 0 ]; then

@@ -176,17 +176,21 @@
 /*----------------------------------------------------------------------------*/
 /* Calibration segment management */
 
-// Enable calibration segment list
-#ifndef XCPLIB_FOR_RUST // Not needed for Rust xcp-lite, has its own calibration segment management
-
+// Enable calibration segment list management
+#ifndef XCPLIB_FOR_RUST // Not needed for Rust xcp-lite, has its own calibration segment management and uses the callbacks
+#ifdef OPTION_CAL_SEGMENTS
 #define XCP_ENABLE_CALSEG_LIST
+#if OPTION_CAL_SEGMENT_COUNT > 0
+#define XCP_MAX_CALSEG_COUNT OPTION_CAL_SEGMENT_COUNT
 #endif
+#endif // OPTION_CAL_SEGMENTS
+#endif
+
 #ifdef XCP_ENABLE_CALSEG_LIST
 
-#define XCP_MAX_CALSEG_COUNT 4
-#define XCP_MAX_CALSEG_NAME 15
+#define XCP_MAX_CALSEG_NAME 15 // Maximum length of calibration segment name
 
-#define XCP_ADDR_EXT_SEG 0x00 // Segment relative address format, must be 0, CANape does not support memory segment address extensions
+#define XCP_ADDR_EXT_SEG 0x00 // Segment relative address format, must be 0x00, CANape does not support memory segment address extensions
 
 // Enable lazy write mode for calibration segments
 // RCU updates of calibration segments are done in a cyclic manner in the background

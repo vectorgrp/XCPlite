@@ -146,6 +146,11 @@ add_executable(c_demo ${c_demo_SOURCES})
 target_include_directories(c_demo PUBLIC "${PROJECT_ROOT}/inc")
 target_link_libraries(c_demo PRIVATE xcplib)
 
+# Example cpp_demo
+add_executable(cpp_demo examples/cpp_demo/src/main.cpp examples/cpp_demo/src/sig_gen.cpp examples/cpp_demo/src/lookup.cpp)
+target_include_directories(cpp_demo PUBLIC "${PROJECT_ROOT}/inc")
+target_link_libraries(cpp_demo PRIVATE xcplib)
+
 # Example struct_demo
 set(struct_demo_SOURCES examples/struct_demo/src/main.c)
 set_source_files_properties(${struct_demo_SOURCES} PROPERTIES LANGUAGE C)
@@ -160,11 +165,23 @@ add_executable(multi_thread_demo ${multi_thread_demo_SOURCES})
 target_include_directories(multi_thread_demo PUBLIC "${PROJECT_ROOT}/inc")
 target_link_libraries(multi_thread_demo PRIVATE xcplib)
 
-# Example cpp_demo
-add_executable(cpp_demo examples/cpp_demo/src/main.cpp examples/cpp_demo/src/sig_gen.cpp examples/cpp_demo/src/lookup.cpp)
-target_include_directories(cpp_demo PUBLIC "${PROJECT_ROOT}/inc")
-target_link_libraries(cpp_demo PRIVATE xcplib)
+# Example bpf_demo
+set(bpf_demo_SOURCES examples/bpf_demo/src/main.c)   
+set_source_files_properties(${bpf_demo_SOURCES} PROPERTIES LANGUAGE C)
+add_executable(bpf_demo ${bpf_demo_SOURCES})
+target_include_directories(bpf_demo PUBLIC "${PROJECT_ROOT}/inc")
+target_link_libraries(bpf_demo PRIVATE xcplib)
 
+# Add libbpf dependency for Linux builds
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_library(LIBBPF_LIBRARY bpf)
+    if(LIBBPF_LIBRARY)
+        target_link_libraries(bpf_demo PRIVATE ${LIBBPF_LIBRARY})
+        message(STATUS "Found libbpf: ${LIBBPF_LIBRARY}")
+    else()
+        message(WARNING "libbpf not found. BPF functionality will be disabled.")
+    endif()
+endif()
 
 # Tests
 if(BUILD_TEST)
@@ -201,12 +218,13 @@ else()
     target_link_libraries(hello_xcp_cpp PRIVATE m)
 
     # Set .out suffix for executables on non-Windows platforms
-    set_target_properties(c_demo PROPERTIES SUFFIX ".out")
     set_target_properties(hello_xcp PROPERTIES SUFFIX ".out")
+    set_target_properties(hello_xcp_cpp PROPERTIES SUFFIX ".out")
+    set_target_properties(c_demo PROPERTIES SUFFIX ".out")
+    set_target_properties(cpp_demo PROPERTIES SUFFIX ".out")
     set_target_properties(struct_demo PROPERTIES SUFFIX ".out")
     set_target_properties(multi_thread_demo PROPERTIES SUFFIX ".out")
-    set_target_properties(cpp_demo PROPERTIES SUFFIX ".out")
-    set_target_properties(hello_xcp_cpp PROPERTIES SUFFIX ".out")
+    set_target_properties(bpf_demo PROPERTIES SUFFIX ".out")
     
     if(BUILD_TEST)
         set_target_properties(type_detection_test_c PROPERTIES SUFFIX ".out")

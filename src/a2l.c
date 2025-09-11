@@ -832,12 +832,14 @@ uint32_t A2lGetAddr_(const void *p) {
             }
             return (uint32_t)(((uint32_t)gA2lFixedEvent) << 16 | (addr_diff & 0xFFFF));
         }
+#ifdef XCP_ENABLE_CALSEG_LIST
         case XCP_ADDR_EXT_SEG: {
             uint64_t addr_diff = (uint64_t)p - (uint64_t)gA2lAddrBase;
             // Ensure the relative address does not overflow the 16 Bit A2L address offset for calibration segment relative addressing
             assert((addr_diff >> 16) == 0);
             return XcpGetCalSegBaseAddress(gA2lAddrIndex) + (addr_diff & 0xFFFF);
         }
+#endif
         }
         DBG_PRINTF_ERROR("A2L address extension %u is not supported!\n", gAl2AddrExt);
     }
@@ -1465,14 +1467,6 @@ bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t
         return true;
     }
 
-    // If the binary persistence mode is not enabled, enable the write_always mode
-#ifndef OPTION_CAL_PERSISTENCE
-    if (!write_always) {
-        DBG_PRINT_WARNING("A2lInit: OPTION_CAL_PERSISTENCE not enabled, write_always is set to true!\n");
-        write_always = true;
-    }
-#endif // OPTION_CAL_PERSISTENCE
-
     // Save communication parameters
     memcpy(&gA2lOptionBindAddr, addr, 4);
     gA2lOptionPort = port;
@@ -1480,6 +1474,9 @@ bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t
 
     // Save mode
     gA2lWriteAlways = mode & A2L_MODE_WRITE_ALWAYS;
+#ifndef OPTION_CAL_PERSISTENCE
+    assert(gA2lWriteAlways);
+#endif
     gA2lAutoGroups = mode & A2L_MODE_AUTO_GROUPS;
     gA2lFinalizeOnConnect = mode & A2L_MODE_FINALIZE_ON_CONNECT;
 

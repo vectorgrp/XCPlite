@@ -2,14 +2,6 @@
 /build
 /build-*
 
-# vscode
-/DEBUGGING_SETUP.md
-/.vscode/c_cpp_properties.json
-
-# doxygen
-/docs/html
-/Doxyfile.bak
-
 
 # CANape artefacts
 *.hex 
@@ -18,25 +10,16 @@
 *.tmp
 
 # Examples A2L files
-/*.a2l
-/*.bin
-/c_demo.a2l
-/cpp_demo.a2l
-/hello_xcp.a2l
-/struct_demo.a2l
-/multi_thread_demo.a2l
+*.a2l
+*.bin
 
 # Temporary files
-/conversions.a2l
-/groups.a2l
-/typedefs.a2l
+conversions.a2l
+groups.a2l
+typedefs.a2l
+*.bak
 
 
-/a2l_test.a2l
-/DOCUMENTATION.md
-/pi5
-/pi5.pub
-/setup_remote_pi.sh
-/sync.sh
-*.out
-/REMOTE_DEVELOPMENT.md
+/run_remote.sh
+/run.sh
+/examples/bpf_demo/CANape/CANapeTmpMea.ini
