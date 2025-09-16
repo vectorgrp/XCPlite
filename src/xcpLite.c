@@ -130,15 +130,6 @@
 #define XCP_MAX_DAQ_COUNT 256
 #endif
 
-// Dynamic addressing (ext = XCP_ADDR_EXT_DYN, addr=(event<<16)|offset
-#if defined(XCP_ENABLE_DYN_ADDRESSING) && !defined(XCP_ADDR_EXT_DYN)
-#error "Please define XCP_ADDR_EXT_DYN"
-#endif
-// Relative addressing (ext = XCP_ADDR_EXT_REL, addr=offset
-#if defined(XCP_ENABLE_REL_ADDRESSING) && !defined(XCP_ADDR_EXT_REL)
-#error "Please define XCP_ADDR_EXT_REL"
-#endif
-
 /****************************************************************************/
 /* Protocol layer state data                                                */
 /****************************************************************************/
@@ -945,7 +936,7 @@ uint8_t XcpWriteMta(uint8_t size, const uint8_t *data) {
 
     // EXT == XCP_ADDR_EXT_SEG calibration segment memory access
 #ifdef XCP_ENABLE_CALSEG_LIST
-    if (gXcp.MtaExt == XCP_ADDR_EXT_SEG) {
+    if (XcpAddrIsSeg(gXcp.MtaExt)) {
         uint8_t res = XcpCalSegWriteMemory(gXcp.MtaAddr, size, data);
         gXcp.MtaAddr += size;
         return res;
@@ -954,7 +945,7 @@ uint8_t XcpWriteMta(uint8_t size, const uint8_t *data) {
 
     // EXT == XCP_ADDR_EXT_APP Application specific memory access
 #ifdef XCP_ENABLE_APP_ADDRESSING
-    if (gXcp.MtaExt == XCP_ADDR_EXT_APP) {
+    if (XcpAddrIsApp(gXcp.MtaExt)) {
         uint8_t res = ApplXcpWriteMemory(gXcp.MtaAddr, size, data);
         gXcp.MtaAddr += size;
         return res;
@@ -1004,7 +995,7 @@ static uint8_t XcpReadMta(uint8_t size, uint8_t *data) {
 
     // EXT == XCP_ADDR_EXT_SEG calibration segment memory access
 #ifdef XCP_ENABLE_CALSEG_LIST
-    if (gXcp.MtaExt == XCP_ADDR_EXT_SEG) {
+    if (XcpAddrIsSeg(gXcp.MtaExt)) {
         uint8_t res = XcpCalSegReadMemory(gXcp.MtaAddr, size, data);
         gXcp.MtaAddr += size;
         return res;
@@ -1013,7 +1004,7 @@ static uint8_t XcpReadMta(uint8_t size, uint8_t *data) {
 
     // EXT == XCP_ADDR_EXT_APP Application specific memory access
 #ifdef XCP_ENABLE_APP_ADDRESSING
-    if (gXcp.MtaExt == XCP_ADDR_EXT_APP) {
+    if (XcpAddrIsApp(gXcp.MtaExt)) {
         uint8_t res = ApplXcpReadMemory(gXcp.MtaAddr, size, data);
         gXcp.MtaAddr += size;
         return res;
@@ -1049,25 +1040,25 @@ uint8_t XcpSetMta(uint8_t ext, uint32_t addr) {
     gXcp.MtaAddr = addr;
 #ifdef XCP_ENABLE_DYN_ADDRESSING
     // Event relative addressing mode, MtaPtr unknown yet
-    if (gXcp.MtaExt == XCP_ADDR_EXT_DYN) {
+    if (XcpAddrIsDyn(gXcp.MtaExt)) {
         gXcp.MtaPtr = NULL; // MtaPtr not used
     } else
 #endif
 #ifdef XCP_ENABLE_CALSEG_LIST
         // Segment relative addressing mode
-        if (gXcp.MtaExt == XCP_ADDR_EXT_SEG) {
+        if (XcpAddrIsSeg(gXcp.MtaExt)) {
             gXcp.MtaPtr = NULL; // MtaPtr not used
         } else
 #endif
 #if defined(XCP_ENABLE_APP_ADDRESSING)
             // Application specific addressing mode
-            if (gXcp.MtaExt == XCP_ADDR_EXT_APP) {
+            if (XcpAddrIsApp(gXcp.MtaExt)) {
                 gXcp.MtaPtr = NULL; // MtaPtr not used
             } else
 #endif
 #ifdef XCP_ENABLE_ABS_ADDRESSING
                 // Absolute addressing mode
-                if (gXcp.MtaExt == XCP_ADDR_EXT_ABS) {
+                if (XcpAddrIsAbs(gXcp.MtaExt)) {
                     gXcp.MtaPtr = ApplXcpGetPointer(gXcp.MtaExt, gXcp.MtaAddr);
                     gXcp.MtaExt = XCP_ADDR_EXT_PTR;
                 } else
@@ -1486,7 +1477,7 @@ static uint8_t XcpAddOdtEntry(uint32_t addr, uint8_t ext, uint8_t size) {
 #ifdef XCP_ENABLE_DYN_ADDRESSING
     // DYN addressing mode, base pointer will given to XcpEventExt()
     // Max address range base-0x8000 - base+0x7FFF
-    if (ext == XCP_ADDR_EXT_DYN) {
+    if (XcpAddrIsDyn(ext)) {
         uint16_t event = (uint16_t)(addr >> 16);   // event
         int16_t offset = (int16_t)(addr & 0xFFFF); // address offset
         base_offset = (int32_t)offset;             // sign extend to 32 bit, the relative address may be negative
@@ -1499,14 +1490,14 @@ static uint8_t XcpAddOdtEntry(uint32_t addr, uint8_t ext, uint8_t size) {
 #ifdef XCP_ENABLE_REL_ADDRESSING
         // REL addressing mode, base pointer will given to XcpEventExt()
         // Max address range base-0x80000000 - base+0x7FFFFFFF
-        if (ext == XCP_ADDR_EXT_REL) {   // relative addressing mode
+        if (XcpAddrIsRel(ext)) {         // relative addressing mode
             base_offset = (int32_t)addr; // sign extend to 32 bit, the offset may be negative
         } else
 #endif
 #ifdef XCP_ENABLE_ABS_ADDRESSING
             // ABS addressing mode, base pointer will ApplXcpGetBaseAddr()
             // Max address range 0-0x7FFFFFFF
-            if (ext == XCP_ADDR_EXT_ABS) { // absolute addressing mode{
+            if (XcpAddrIsAbs(ext)) { // absolute addressing mode
                 uint8_t *p;
                 int64_t a;
                 p = ApplXcpGetPointer(ext, addr);
@@ -1839,20 +1830,26 @@ static void XcpTriggerDaqEvent(tQueueHandle queueHandle, tXcpEventId event, cons
         clock = ApplXcpGetClock64();
 
     // Build base pointers for each addressing mode
+    // @@@@ For optimization, we assume that all the addressing modes may be indexed in an array base_addr[4]
 #ifdef XCP_ENABLE_DAQ_ADDREXT
     const uint8_t *base_addr[4] = {NULL, NULL, NULL, NULL}; // Base address for each addressing mode
 #ifdef XCP_ENABLE_ABS_ADDRESSING
     static_assert(XCP_ADDR_EXT_ABS < 4, "XCP_ADDR_EXT_ABS must be less than 4");
     base_addr[XCP_ADDR_EXT_ABS] = ApplXcpGetBaseAddr(); // Absolute address base
 #endif
-    // Relative addressing mode, the difference is unimportant here
+#ifdef XCP_ENABLE_REL_ADDRESSING
     static_assert(XCP_ADDR_EXT_REL < 4, "XCP_ADDR_EXT_REL must be less than 4");
-    static_assert(XCP_ADDR_EXT_DYN < 4, "XCP_ADDR_EXT_DYN must be less than 4");
     base_addr[XCP_ADDR_EXT_REL] = rel_base;
+#endif
+#ifdef XCP_ENABLE_DYN_ADDRESSING
+    static_assert(XCP_ADDR_EXT_DYN < 4, "XCP_ADDR_EXT_DYN must be less than 4");
     base_addr[XCP_ADDR_EXT_DYN] = dyn_base;
+#endif
 #endif
 
 #ifndef XCP_MAX_EVENT_COUNT
+
+    // @@@@ Non optimized version for arbitrary event ids
 
     // Loop over all active DAQ lists associated to the current event
     for (daq = 0; daq < gXcp.DaqLists->daq_count; daq++) {
@@ -1862,19 +1859,29 @@ static void XcpTriggerDaqEvent(tQueueHandle queueHandle, tXcpEventId event, cons
             continue; // DAQ list not associated with this event
 
         // Build base pointer for this DAQ list
+// Address extension unique per DAQ list
 #ifndef XCP_ENABLE_DAQ_ADDREXT
-        const uint8_t *base_addr;
+        const uint8_t *base_addr = NULL;
+        uint8_t ext = DaqListAddrExt(daq);
 #ifdef XCP_ENABLE_ABS_ADDRESSING
-        if (DaqListAddrExt(daq) == XCP_ADDR_EXT_ABS) {
+        if (XcpAddrIsAbs(ext)) {
             // Absolute addressing mode for this DAQ list, base pointer is ApplXcpGetBaseAddr()
             base_addr = ApplXcpGetBaseAddr();
         } else
 #endif
-        {
-            // Relative addressing mode, base pointer is given as parameter
-            base_addr = dyn_rel_base;
+#ifdef XCP_ENABLE_REL_ADDRESSING
+            if (XcpAddrIsRel(ext)) {
+            // Relative addressing mode for this DAQ list, base pointer is given as parameter
+            base_addr = rel_base;
+        } else
+#endif
+#ifdef XCP_ENABLE_DYN_ADDRESSING
+            if (XcpAddrIsDyn(ext)) {
+            // Dynamic addressing mode for this DAQ list, base pointer is given as parameter
+            base_addr = dyn_base;
         }
 #endif
+#endif // XCP_ENABLE_DAQ_ADDREXT
 
         XcpTriggerDaqList(daq_lists, queueHandle, daq, base_addr, clock); // Trigger DAQ list
     } /* daq */
@@ -1885,25 +1892,36 @@ static void XcpTriggerDaqEvent(tQueueHandle queueHandle, tXcpEventId event, cons
     // Loop over linked list of daq lists associated to event
     if (event >= XCP_MAX_EVENT_COUNT)
         return; // Event out of range
+
     daq = DaqListFirst(event);
     while (daq != XCP_UNDEFINED_DAQ_LIST) {
         assert(daq < gXcp.DaqLists->daq_count);
         if (DaqListState(daq) & DAQ_STATE_RUNNING) { // DAQ list active
 
             // Build base pointer for this DAQ list
+            // Address extension unique per DAQ list
 #ifndef XCP_ENABLE_DAQ_ADDREXT
-            const uint8_t *base_addr;
+            const uint8_t *base_addr = NULL;
+            uint8_t ext = DaqListAddrExt(daq);
 #ifdef XCP_ENABLE_ABS_ADDRESSING
-            if (DaqListAddrExt(daq) == XCP_ADDR_EXT_ABS) {
+            if (XcpAddrIsAbs(ext)) {
                 // Absolute addressing mode for this DAQ list, base pointer is ApplXcpGetBaseAddr()
                 base_addr = ApplXcpGetBaseAddr();
             } else
 #endif
-            {
-                // Relative addressing mode, base pointer is given as parameter
-                base_addr = dyn_rel_base;
+#ifdef XCP_ENABLE_REL_ADDRESSING
+                if (XcpAddrIsRel(ext)) {
+                // Relative addressing mode for this DAQ list, base pointer is given as parameter
+                base_addr = rel_base;
+            } else
+#endif
+#ifdef XCP_ENABLE_DYN_ADDRESSING
+                if (XcpAddrIsDyn(ext)) {
+                // Dynamic addressing mode for this DAQ list, base pointer is given as parameter
+                base_addr = dyn_base;
             }
 #endif
+#endif // XCP_ENABLE_DAQ_ADDREXT
 
             XcpTriggerDaqList(queueHandle, daq, base_addr, clock); // Trigger DAQ list
         }
@@ -1925,7 +1943,7 @@ uint8_t XcpEventDynRelAt(tXcpEventId event, const uint8_t *dyn_base, const uint8
     // Check if a pending command can be executed in this context
     bool cmdPending = false;
     if (atomic_load_explicit(&gXcp.CmdPending, memory_order_acquire)) {
-        if (gXcp.MtaExt == XCP_ADDR_EXT_DYN && (uint16_t)(gXcp.MtaAddr >> 16) == event) {
+        if (XcpAddrIsDyn(gXcp.MtaExt) && (uint16_t)(gXcp.MtaAddr >> 16) == event) {
             ATOMIC_BOOL_TYPE old_value = true;
             if (atomic_compare_exchange_weak_explicit(&gXcp.CmdPending, &old_value, false, memory_order_release, memory_order_relaxed)) {
                 cmdPending = true;
@@ -2268,14 +2286,14 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             if (size > CRO_DOWNLOAD_MAX_SIZE || size > CRO_LEN - CRO_DOWNLOAD_LEN)
                 error(CRC_CMD_SYNTAX)
 #ifdef XCP_ENABLE_DYN_ADDRESSING
-                    if (gXcp.MtaExt == XCP_ADDR_EXT_DYN) {
+                    if (XcpAddrIsDyn(gXcp.MtaExt)) {
                     if (XcpPushCommand(CRO, CRO_LEN) == CRC_CMD_BUSY)
                         goto busy_response;
                     goto no_response;
                 }
 #endif
 #ifdef XCP_ENABLE_REL_ADDRESSING
-            if (gXcp.MtaExt == XCP_ADDR_EXT_REL) {
+            if (XcpAddrIsRel(gXcp.MtaExt)) {
                 error(CRC_ACCESS_DENIED);
             }
 #endif
@@ -2291,14 +2309,14 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
                 check_error(XcpSetMta(CRO_SHORT_DOWNLOAD_EXT, CRO_SHORT_DOWNLOAD_ADDR));
             }
 #ifdef XCP_ENABLE_DYN_ADDRESSING
-            if (gXcp.MtaExt == XCP_ADDR_EXT_DYN) {
+            if (XcpAddrIsDyn(gXcp.MtaExt)) {
                 if (XcpPushCommand(CRO, CRO_LEN) == CRC_CMD_BUSY)
                     goto busy_response;
                 goto no_response;
             }
 #endif
 #ifdef XCP_ENABLE_REL_ADDRESSING
-            if (gXcp.MtaExt == XCP_ADDR_EXT_REL) {
+            if (XcpAddrIsRel(gXcp.MtaExt)) {
                 error(CRC_ACCESS_DENIED);
             }
 #endif
@@ -2311,14 +2329,14 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             if (size > CRM_UPLOAD_MAX_SIZE)
                 error(CRC_OUT_OF_RANGE);
 #ifdef XCP_ENABLE_DYN_ADDRESSING
-            if (gXcp.MtaExt == XCP_ADDR_EXT_DYN) {
+            if (XcpAddrIsDyn(gXcp.MtaExt)) {
                 if (XcpPushCommand(CRO, CRO_LEN) == CRC_CMD_BUSY)
                     goto busy_response;
                 goto no_response;
             }
 #endif
 #ifdef XCP_ENABLE_REL_ADDRESSING
-            if (gXcp.MtaExt == XCP_ADDR_EXT_REL) {
+            if (XcpAddrIsRel(gXcp.MtaExt)) {
                 error(CRC_ACCESS_DENIED);
             }
 #endif
@@ -2335,14 +2353,14 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
                 check_error(XcpSetMta(CRO_SHORT_UPLOAD_EXT, CRO_SHORT_UPLOAD_ADDR));
             }
 #ifdef XCP_ENABLE_DYN_ADDRESSING
-            if (gXcp.MtaExt == XCP_ADDR_EXT_DYN) {
+            if (XcpAddrIsDyn(gXcp.MtaExt)) {
                 if (XcpPushCommand(CRO, CRO_LEN) == CRC_CMD_BUSY)
                     goto busy_response;
                 goto no_response;
             }
 #endif
 #ifdef XCP_ENABLE_REL_ADDRESSING
-            if (gXcp.MtaExt == XCP_ADDR_EXT_REL) {
+            if (XcpAddrIsRel(gXcp.MtaExt)) {
                 error(CRC_ACCESS_DENIED);
             }
 #endif
@@ -2444,13 +2462,13 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
         case CC_BUILD_CHECKSUM: {
             check_len(CRO_BUILD_CHECKSUM_LEN);
 #ifdef XCP_ENABLE_DYN_ADDRESSING
-            if (gXcp.MtaExt == XCP_ADDR_EXT_DYN) {
+            if (XcpAddrIsDyn(gXcp.MtaExt)) {
                 XcpPushCommand(CRO, CRO_LEN);
                 goto no_response;
             } // Execute in async mode
 #endif
 #ifdef XCP_ENABLE_REL_ADDRESSING
-            if (gXcp.MtaExt == XCP_ADDR_EXT_REL) {
+            if (XcpAddrIsRel(gXcp.MtaExt)) {
                 error(CRC_ACCESS_DENIED);
             }
 #endif

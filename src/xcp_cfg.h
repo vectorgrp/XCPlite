@@ -29,53 +29,76 @@
 #define XCP_PROTOCOL_LAYER_VERSION 0x0104 // PACKED_MODE, CC_START_STOP_SYNCH prepare
 
 /*----------------------------------------------------------------------------*/
+// Enable calibration segment list management
+#ifndef XCPLIB_FOR_RUST // Not needed for Rust xcp-lite, has its own calibration segment management and uses the callbacks
+#ifdef OPTION_CAL_SEGMENTS
+#define XCP_ENABLE_CALSEG_LIST
+#if OPTION_CAL_SEGMENT_COUNT > 0
+#define XCP_MAX_CALSEG_COUNT OPTION_CAL_SEGMENT_COUNT
+#endif
+#endif // OPTION_CAL_SEGMENTS
+#endif
+
+/*----------------------------------------------------------------------------*/
 /* Address, address extension coding */
 
-// Enable individual address extensions for each ODT entry, otherwise address extension must be unique for each DAQ list
-#define XCP_ENABLE_DAQ_ADDREXT
-
-// Event based addressing modes without asynchronous access
+// --- Event based addressing mode without asynchronous access
 #define XCP_ENABLE_REL_ADDRESSING
 #ifdef XCP_ENABLE_REL_ADDRESSING
 
 // Use addr_ext XCP_ADDR_EXT_REL to indicate relative addr format (rel_base + (offset as int32_t))
 // Used for stack frame relative addressing
 #define XCP_ADDR_EXT_REL 0x03 // Event relative address format
+#define XcpAddrIsRel(addr_ext) ((addr_ext) == XCP_ADDR_EXT_REL)
 
 #endif // XCP_ENABLE_REL_ADDRESSING
 
-// Event based addressing modes with asynchronous access
+// --- Event based addressing modes with asynchronous access
 #define XCP_ENABLE_DYN_ADDRESSING
 #ifdef XCP_ENABLE_DYN_ADDRESSING
 
 // Use addr_ext DYN to indicate relative addr format (dyn_base + (((event as uint16_t) <<16) | offset as int16_t))
 #define XCP_ADDR_EXT_DYN 0x02 // Relative address format
+#define XcpAddrIsDyn(addr_ext) ((addr_ext) == XCP_ADDR_EXT_DYN)
 
 #endif // XCP_ENABLE_DYN_ADDRESSING
 
-// Asynchronous absolute addressing mode (not thread safe)
+// --- Asynchronous absolute addressing mode (not thread safe)
 #define XCP_ENABLE_ABS_ADDRESSING
 #ifdef XCP_ENABLE_ABS_ADDRESSING
 
 // Use addr_ext XCP_ADDR_EXT_ABS to indicate absolute addr format (ApplXcpGetBaseAddr() + (addr as uint32_t))
 // Used for global data
 #define XCP_ADDR_EXT_ABS 0x01 // Absolute address format
+#define XcpAddrIsAbs(addr_ext) ((addr_ext) == XCP_ADDR_EXT_ABS)
 
 #endif // XCP_ENABLE_ABS_ADDRESSING
 
-// Segment or application specific addressing mode
+// --- Calibration segment relative addressing mode
+// If calibration segments are enabled
+#ifdef XCP_ENABLE_CALSEG_LIST
+
+#define XCP_ADDR_EXT_SEG 0x00 // Segment relative address format, must be 0, CANape does not support memory segment address extensions
+#define XcpAddrIsSeg(addr_ext) ((addr_ext) == XCP_ADDR_EXT_SEG)
+
+#else
+
+// --- Application specific addressing mode for external calibration segment management and memory access
+// If built-in calibration segment management is disabled
 #define XCP_ENABLE_APP_ADDRESSING
 #ifdef XCP_ENABLE_APP_ADDRESSING
 
 // Use addr_ext XCP_ADDR_EXT_APP/SEG to indicate application specific addr format or segment relative address format
 // Application specific address format
-#define XCP_ADDR_EXT_APP 0x00 // Memory access handled by application, calls ApplXcpReadMemory and ApplXcpWriteMemory
-// If calibration segments are enabled (#ifdef XCP_ENABLE_CALSEG_LIST)
-#define XCP_ADDR_EXT_SEG 0x00 // Segment relative address format, must be 0, CANape does not support memory segment address extensions
+// Memory access and calibration segments are handled by the application, calls ApplXcpReadMemory and ApplXcpWriteMemory
+#define XCP_ADDR_EXT_APP 0x00
+#define XcpAddrIsApp(addr_ext) ((addr_ext) == XCP_ADDR_EXT_APP)
 
 #endif // XCP_ENABLE_APP_ADDRESSING
 
-// Internally used address extensions
+#endif // !defined(XCP_ENABLE_CALSEG_LIST)
+
+// --- Internally used address extensions
 // Use addr_ext XCP_ADDR_EXT_EPK to indicate EPK upload memory space
 #define XCP_ADDR_EXT_EPK 0x00
 #define XCP_ADDR_EPK 0x80000000
@@ -126,11 +149,8 @@
 /*----------------------------------------------------------------------------*/
 /* DAQ features and parameters */
 
-// Maximum number of DAQ events
-// If XCP_MAX_EVENT_COUNT is defined, DAQ list to event association lookup will be optimized
-// Requires XCP_MAX_EVENT_COUNT * 2 bytes of memory
-// XCP_MAX_EVENT_COUNT must be even
-#define XCP_MAX_EVENT_COUNT 256 // For available event numbers from 0 to 255
+// Enable individual address extensions for each ODT entry, otherwise address extension must be unique for each DAQ list
+// #define XCP_ENABLE_DAQ_ADDREXT
 
 // Maximum number of DAQ lists
 // Must be <= 0xFFFE
@@ -149,48 +169,49 @@
 // Enable DAQ resume mode
 #define XCP_ENABLE_DAQ_RESUME
 
+// Overrun indication via PID
+// Not needed for Ethernet, client detects data loss via transport layer counters
+// #define XCP_ENABLE_OVERRUN_INDICATION_PID
+
 /*----------------------------------------------------------------------------*/
 /* DAQ event management */
 
 // Enable event list
 #ifndef XCPLIB_FOR_RUST // Not needed for Rust xcp-lite, has its own event management
-
 #define XCP_ENABLE_DAQ_EVENT_LIST
-
-#if defined(OPTION_DAQ_EVENT_COUNT) && (OPTION_DAQ_EVENT_COUNT > 0)
-#undef XCP_MAX_EVENT_COUNT
-#define XCP_MAX_EVENT_COUNT OPTION_DAQ_EVENT_COUNT
-#endif
-
 #endif
 
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
 
+#if defined(OPTION_DAQ_EVENT_COUNT) && (OPTION_DAQ_EVENT_COUNT > 0)
+#define XCP_MAX_EVENT_COUNT OPTION_DAQ_EVENT_COUNT
+#else
+#error "Please define OPTION_DAQ_EVENT_COUNT"
+#endif
+
 // Enable XCP_GET_EVENT_INFO, if this is enabled, event information can be queried by the XCP client tool
 // #define XCP_ENABLE_DAQ_EVENT_INFO
 
+// Maximum length of event name without the trailing 0
 #define XCP_MAX_EVENT_NAME 15
 
-#endif
+#else                           // XCP_ENABLE_DAQ_EVENT_LIST
+
+// If XCP_MAX_EVENT_COUNT is defined and DAQ event management is not used, DAQ list to event association lookup will be optimized
+// Set the maximum number of DAQ events (the highest DAQ event number used), XCP_MAX_EVENT_COUNT must be even
+// Requires XCP_MAX_EVENT_COUNT * 2 bytes of memory
+#define XCP_MAX_EVENT_COUNT 256 // For available event numbers from 0 to 255
+
+#endif // !XCP_ENABLE_DAQ_EVENT_LIST
 
 /*----------------------------------------------------------------------------*/
 /* Calibration segment management */
-
-// Enable calibration segment list management
-#ifndef XCPLIB_FOR_RUST // Not needed for Rust xcp-lite, has its own calibration segment management and uses the callbacks
-#ifdef OPTION_CAL_SEGMENTS
-#define XCP_ENABLE_CALSEG_LIST
-#if OPTION_CAL_SEGMENT_COUNT > 0
-#define XCP_MAX_CALSEG_COUNT OPTION_CAL_SEGMENT_COUNT
-#endif
-#endif // OPTION_CAL_SEGMENTS
-#endif
 
 #ifdef XCP_ENABLE_CALSEG_LIST
 
 #define XCP_MAX_CALSEG_NAME 15 // Maximum length of calibration segment name
 
-#define XCP_ADDR_EXT_SEG 0x00 // Segment relative address format, must be 0x00, CANape does not support memory segment address extensions
+#define XCP_ADDR_EXT_SEG_ 0x00 // Segment relative address format, must be 0x00, CANape does not support memory segment address extensions
 
 // Enable lazy write mode for calibration segments
 // RCU updates of calibration segments are done in a cyclic manner in the background
@@ -202,11 +223,10 @@
 // Timeout for acquiring a free calibration segment page
 #define XCP_CALSEG_AQUIRE_FREE_PAGE_TIMEOUT 500 // 500 ms timeout
 
-#endif
+#endif // XCP_ENABLE_CALSEG_LIST
 
-// Overrun indication via PID
-// Not needed for Ethernet, client detects data loss via transport layer counters
-// #define XCP_ENABLE_OVERRUN_INDICATION_PID
+//-------------------------------------------------------------------------------
+/* Clock */
 
 // Clock resolution
 // #define XCP_DAQ_CLOCK_32BIT  // Use 32 Bit time stamps

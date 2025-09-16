@@ -111,20 +111,7 @@ This section describes the XCP protocol layer configuration parameters in xcp_cf
 | `XCP_ADDR_EXT_DYN` | Address extension code for dynamic addressing (default: 0x02) |
 | `XCP_ENABLE_ABS_ADDRESSING` | Enables asynchronous absolute addressing mode (not thread safe) |
 | `XCP_ADDR_EXT_ABS` | Address extension code for absolute addressing (default: 0x01) |
-| `XCP_ENABLE_APP_ADDRESSING` | Enables segment or application-specific addressing mode |
-| `XCP_ADDR_EXT_APP` | Address extension for application-specific memory access (default: 0x00) |
 | `XCP_ADDR_EXT_SEG` | Address extension for segment relative addressing (must be 0x00) |
-
-### Special Address Extensions
-
-| Parameter | Description |
-|-----------|-------------|
-| `XCP_ADDR_EXT_EPK` | Address extension for EPK upload memory space (0x00) |
-| `XCP_ADDR_EPK` | Base address for EPK memory space (0x80000000) |
-| `XCP_ADDR_EXT_A2L` | Address extension for A2L upload memory space (0xFD) |
-| `XCP_ADDR_A2l` | Base address for A2L memory space (0x00000000) |
-| `XCP_ADDR_EXT_PTR` | Address extension indicating gXcp.MtaPtr is valid (0xFE) |
-| `XCP_UNDEFINED_ADDR_EXT` | Undefined address extension marker (0xFF) |
 
 ### Protocol Features
 
