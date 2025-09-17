@@ -182,21 +182,6 @@ bool ApplXcpGetClockInfoGrandmaster(uint8_t *uuid, uint8_t *epoch, uint8_t *stra
 
 #ifdef XCP_ENABLE_ABS_ADDRESSING
 
-uint8_t *ApplXcpGetPointer(uint8_t addr_ext, uint32_t addr) {
-
-    if (!XcpAddrIsAbs(addr_ext))
-        return NULL;
-
-    uint8_t *p;
-
-#ifdef _WIN32 // on WIN64 check that XCP address does not overflow
-    assert((uint64_t)ApplXcpGetBaseAddr() + addr >= (uint64_t)ApplXcpGetBaseAddr());
-#endif
-
-    p = ApplXcpGetBaseAddr() + addr;
-    return p;
-}
-
 #ifdef _WIN
 
 static uint8_t *baseAddr = NULL;

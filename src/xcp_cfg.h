@@ -50,6 +50,8 @@
 // Used for stack frame relative addressing
 #define XCP_ADDR_EXT_REL 0x03 // Event relative address format
 #define XcpAddrIsRel(addr_ext) ((addr_ext) == XCP_ADDR_EXT_REL)
+#define XcpAddrEncodeRel(signed_int32_offset) ((uint32_t)(signed_int32_offset & 0xFFFFFFFF))
+#define XcpAddrDecodeRelOffset(addr) (int32_t)(addr) // signed address offset
 
 #endif // XCP_ENABLE_REL_ADDRESSING
 
@@ -60,6 +62,9 @@
 // Use addr_ext DYN to indicate relative addr format (dyn_base + (((event as uint16_t) <<16) | offset as int16_t))
 #define XCP_ADDR_EXT_DYN 0x02 // Relative address format
 #define XcpAddrIsDyn(addr_ext) ((addr_ext) == XCP_ADDR_EXT_DYN)
+#define XcpAddrEncodeDyn(signed_int16_offset, event) (((uint32_t)(event) << 16) | ((signed_int16_offset) & 0xFFFF))
+#define XcpAddrDecodeDynEvent(addr) (uint16_t)(addr >> 16)    // event
+#define XcpAddrDecodeDynOffset(addr) (int16_t)(addr & 0xFFFF) // signed address offset
 
 #endif // XCP_ENABLE_DYN_ADDRESSING
 
@@ -71,15 +76,21 @@
 // Used for global data
 #define XCP_ADDR_EXT_ABS 0x01 // Absolute address format
 #define XcpAddrIsAbs(addr_ext) ((addr_ext) == XCP_ADDR_EXT_ABS)
+#define XcpAddrEncodeAbs(p) ApplXcpGetAddr(p) // Calculate absolute address encoding from a pointer, application specific function
+#define XcpAddrDecodeAbsOffset(addr) (uint32_t)(addr)
 
 #endif // XCP_ENABLE_ABS_ADDRESSING
 
 // --- Calibration segment relative addressing mode
-// If calibration segments are enabled
-#ifdef XCP_ENABLE_CALSEG_LIST
+#ifdef XCP_ENABLE_CALSEG_LIST // If calibration segments are enabled
 
 #define XCP_ADDR_EXT_SEG 0x00 // Segment relative address format, must be 0, CANape does not support memory segment address extensions
 #define XcpAddrIsSeg(addr_ext) ((addr_ext) == XCP_ADDR_EXT_SEG)
+#define XcpAddrEncodeSegIndex(seg_index, offset)                                                                                                                                   \
+    (0x80000000 + (((uint32_t)((seg_index) + 1)) << 16) + (offset)) // +1, because 0x80000000 is used to access the virtual A2L EPK segment
+#define XcpAddrEncodeSegNumber(seg_number, offset) (0x80000000 + (((uint32_t)((seg_number))) << 16) + (offset))
+#define XcpAddrDecodeSegNumber(addr) (uint16_t)(((addr) >> 16) & 0x7FFF)
+#define XcpAddrDecodeSegOffset(addr) (uint16_t)((addr) & 0xFFFF)
 
 #else
 
@@ -100,7 +111,8 @@
 
 // --- Internally used address extensions
 // Use addr_ext XCP_ADDR_EXT_EPK to indicate EPK upload memory space
-#define XCP_ADDR_EXT_EPK 0x00
+// A2L specification does not allow to specify the address extension for the EPK address, we use a virtual calibration segment (number 0, address ext 0)
+#define XCP_ADDR_EXT_EPK 0x00 // must be 0
 #define XCP_ADDR_EPK 0x80000000
 // Use addr_ext XCP_ADDR_EXT_A2L to indicate A2L upload memory space
 #define XCP_ADDR_EXT_A2L 0xFD

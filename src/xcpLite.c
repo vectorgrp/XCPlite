@@ -378,8 +378,7 @@ const char *XcpGetCalSegName(tXcpCalSegIndex calseg) {
 uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg) {
     assert(isInitialized());
     assert(calseg < gXcp.CalSegList.count);
-    // Address 0x80000000 is used to access the A2L EPK version
-    return 0x80000000 + (((uint32_t)(calseg + 1)) << 16);
+    return XcpAddrEncodeSegIndex(calseg, 0);
 }
 
 // Create a calibration segment
@@ -532,11 +531,11 @@ void XcpUnlockCalSeg(tXcpCalSegIndex calseg) {
 static uint8_t XcpCalSegReadMemory(uint32_t src, uint16_t size, uint8_t *dst) {
 
     // Decode the source address into calibration segment and offset
-    uint16_t calseg = (uint16_t)((src >> 16) - 1) & 0x7FFF; // Get the calibration segment number
-    uint16_t offset = (uint16_t)(src & 0xFFFF);             // Get the offset within the calibration segment
+    uint16_t calseg = XcpAddrDecodeSegNumber(src); // Get the calibration segment number from the address
+    uint16_t offset = XcpAddrDecodeSegOffset(src); // Get the offset within the calibration segment
 
     // Check for EPK read access
-    if (calseg == 0x7FFF) {
+    if (calseg == 0) {
         const char *epk = XcpGetEpk();
         if (epk != NULL) {
             uint16_t epk_len = (uint16_t)strlen(epk);
@@ -547,11 +546,16 @@ static uint8_t XcpCalSegReadMemory(uint32_t src, uint16_t size, uint8_t *dst) {
         }
     }
 
-    if (calseg >= gXcp.CalSegList.count || offset + size > gXcp.CalSegList.calseg[calseg].size) {
-        DBG_PRINTF_ERROR("invalid calseg read access addr=%08X size=%u\n", src, size);
+    if (calseg >= gXcp.CalSegList.count) {
+        DBG_PRINTF_ERROR("invalid calseg number %u\n", calseg);
         return CRC_ACCESS_DENIED;
     }
-    tXcpCalSeg *c = &gXcp.CalSegList.calseg[calseg];
+    tXcpCalSeg *c = &gXcp.CalSegList.calseg[calseg - 1];
+    if (offset + size > c->size) {
+        DBG_PRINTF_ERROR("out of bound calseg read access (addr=%08X, size=%u)\n", src, size);
+        return CRC_ACCESS_DENIED;
+    }
+
     memcpy(dst, c->xcp_access != XCP_CALPAGE_WORKING_PAGE ? c->default_page + offset : c->xcp_page + offset, size);
     return CRC_CMD_OK;
 }
@@ -617,22 +621,27 @@ uint8_t XcpCalSegPublishAll(bool wait) {
 }
 
 // Xcp client memory write
-// Write xcp page, error on write to default page
+// Write xcp page, error on write to default page or EPK segment
 static uint8_t XcpCalSegWriteMemory(uint32_t dst, uint16_t size, const uint8_t *src) {
-    // Decode the destination address into calibration segment and offset
-    uint16_t calseg = (uint16_t)((dst >> 16) - 1) & 0x7FFF; // Get the calibration segment number from the address
-    uint16_t offset = (uint16_t)(dst & 0xFFFF);             // Get the offset within the calibration segment
-    if (calseg >= gXcp.CalSegList.count) {
-        DBG_PRINTF_ERROR("invalid calseg write access calseg=%u\n", calseg);
+    // Decode the destination address into calibration segment index and offset
+    uint16_t calseg = XcpAddrDecodeSegNumber(dst);
+    uint16_t offset = XcpAddrDecodeSegOffset(dst);
+
+    if (calseg == 0) {
+        DBG_PRINT_ERROR("invalid write access to calseg number 0 (EPK)\n");
         return CRC_ACCESS_DENIED;
     }
-    tXcpCalSeg *c = &gXcp.CalSegList.calseg[calseg];
-    if (size > gXcp.CalSegList.calseg[calseg].size) {
-        DBG_PRINTF_ERROR("invalid calseg write access addr=%08X size=%u\n", dst, size);
+    if (calseg > gXcp.CalSegList.count) {
+        DBG_PRINTF_ERROR("invalid calseg number %u\n", calseg);
+        return CRC_ACCESS_DENIED;
+    }
+    tXcpCalSeg *c = &gXcp.CalSegList.calseg[calseg - 1];
+    if (offset + size > c->size) {
+        DBG_PRINTF_ERROR("out of bound calseg write access (number=%u, offset=%u, size=%u)\n", calseg, offset, size);
         return CRC_ACCESS_DENIED;
     }
     if (c->xcp_access != XCP_CALPAGE_WORKING_PAGE) {
-        DBG_PRINTF_ERROR("attempt to write default page addr=%08X size=%u\n", dst, size);
+        DBG_PRINTF_ERROR("attempt to write default page addr=%08X\n", dst);
         return CRC_ACCESS_DENIED;
     }
 
@@ -778,7 +787,7 @@ uint8_t XcpGetSegPageInfo(uint8_t segment, uint8_t page) {
 
 // Get active ecu or xcp calibration page
 // Note: XCP/A2L segment numbers are bytes, 0 is reserved for the EPK segment, tXcpCalSegIndex is the XCP/A2L segment number - 1
-static uint8_t XcpCalSegGetCalPage(uint8_t segment, uint8_t mode) {
+static uint8_t XcpCalSegGetCalPage(tXcpCalSegNumber segment, uint8_t mode) {
     if (segment > gXcp.CalSegList.count) {
         DBG_PRINTF_ERROR("invalid segment number: %u\n", segment);
         return XCP_CALPAGE_INVALID_PAGE;
@@ -799,7 +808,7 @@ static uint8_t XcpCalSegGetCalPage(uint8_t segment, uint8_t mode) {
 
 // Set active ecu and/or xcp calibration page
 // Note: XCP/A2L segment numbers are bytes, 0 is reserved for the EPK segment, tXcpCalSegIndex is the XCP/A2L segment number - 1
-static uint8_t XcpCalSegSetCalPage(uint8_t segment, uint8_t page, uint8_t mode) {
+static uint8_t XcpCalSegSetCalPage(tXcpCalSegNumber segment, uint8_t page, uint8_t mode) {
     if (page > 1) {
         DBG_PRINTF_ERROR("invalid cal page number %u\n", page);
         return CRC_ACCESS_DENIED; // Invalid calseg
@@ -827,7 +836,7 @@ static uint8_t XcpCalSegSetCalPage(uint8_t segment, uint8_t page, uint8_t mode) 
 // Copy calibration page
 // Note: XCP/A2L segment numbers are bytes, 0 is reserved for the EPK segment, tXcpCalSegIndex is the XCP/A2L segment number - 1
 #ifdef XCP_ENABLE_COPY_CAL_PAGE
-static uint8_t XcpCalSegCopyCalPage(uint8_t srcSeg, uint8_t srcPage, uint8_t dstSeg, uint8_t dstPage) {
+static uint8_t XcpCalSegCopyCalPage(tXcpCalSegNumber srcSeg, uint8_t srcPage, tXcpCalSegNumber dstSeg, uint8_t dstPage) {
     // Only copy from default page to working page supported
     if (srcSeg != dstSeg || srcSeg > gXcp.CalSegList.count || dstPage != XCP_CALPAGE_WORKING_PAGE || srcPage != XCP_CALPAGE_DEFAULT_PAGE) {
         DBG_PRINT_ERROR("invalid calseg copy operation\n");
@@ -867,19 +876,17 @@ uint8_t XcpCalSegCommand(uint8_t cmd) {
 #endif // XCP_ENABLE_USER_COMMAND
 
 // Freeze calibration segment working pages
-// Note: XCP/A2L segment numbers are bytes, 0 is reserved for the EPK segment, tXcpCalSegIndex is the XCP/A2L segment number - 1
+// Note: XCP/A2L segment numbers (tXcpCalSegNumber) are bytes, 0 is reserved for the EPK segment, tXcpCalSegIndex is the XCP/A2L segment number - 1
 #ifdef XCP_ENABLE_FREEZE_CAL_PAGE
 
-static uint8_t XcpGetCalSegMode(uint8_t segment) {
-    if (segment > gXcp.CalSegList.count)
-        return CRC_OUT_OF_RANGE;
-    if (segment == 0)
-        return 0; // EPK segment does not support freeze
-    return gXcp.CalSegList.calseg[segment - 1].mode;
+static uint8_t XcpGetCalSegMode(tXcpCalSegNumber segment) {
+    if (segment == 0 || segment > gXcp.CalSegList.count)
+        return 0;                                    // EPK segment has no mode
+    return gXcp.CalSegList.calseg[segment - 1].mode; // Return the segment mode
 }
 
-static uint8_t XcpSetCalSegMode(uint8_t segment, uint8_t mode) {
-    if (segment > gXcp.CalSegList.count)
+static uint8_t XcpSetCalSegMode(tXcpCalSegNumber segment, uint8_t mode) {
+    if (segment == 0 || segment > gXcp.CalSegList.count)
         return CRC_OUT_OF_RANGE;
     gXcp.CalSegList.calseg[segment - 1].mode = mode;
     return CRC_CMD_OK;
@@ -1059,7 +1066,7 @@ uint8_t XcpSetMta(uint8_t ext, uint32_t addr) {
 #ifdef XCP_ENABLE_ABS_ADDRESSING
                 // Absolute addressing mode
                 if (XcpAddrIsAbs(gXcp.MtaExt)) {
-                    gXcp.MtaPtr = ApplXcpGetPointer(gXcp.MtaExt, gXcp.MtaAddr);
+                    gXcp.MtaPtr = ApplXcpGetBaseAddr() + gXcp.MtaAddr;
                     gXcp.MtaExt = XCP_ADDR_EXT_PTR;
                 } else
 #endif
@@ -1478,9 +1485,9 @@ static uint8_t XcpAddOdtEntry(uint32_t addr, uint8_t ext, uint8_t size) {
     // DYN addressing mode, base pointer will given to XcpEventExt()
     // Max address range base-0x8000 - base+0x7FFF
     if (XcpAddrIsDyn(ext)) {
-        uint16_t event = (uint16_t)(addr >> 16);   // event
-        int16_t offset = (int16_t)(addr & 0xFFFF); // address offset
-        base_offset = (int32_t)offset;             // sign extend to 32 bit, the relative address may be negative
+        uint16_t event = XcpAddrDecodeDynEvent(addr);
+        int16_t offset = XcpAddrDecodeDynOffset(addr);
+        base_offset = (int32_t)offset; // sign extend to 32 bit, the relative address may be negative
         uint16_t e0 = DaqListEventChannel(gXcp.WriteDaqDaq);
         if (e0 != XCP_UNDEFINED_EVENT_ID && e0 != event)
             return CRC_OUT_OF_RANGE; // Error event channel redefinition
@@ -1490,23 +1497,18 @@ static uint8_t XcpAddOdtEntry(uint32_t addr, uint8_t ext, uint8_t size) {
 #ifdef XCP_ENABLE_REL_ADDRESSING
         // REL addressing mode, base pointer will given to XcpEventExt()
         // Max address range base-0x80000000 - base+0x7FFFFFFF
-        if (XcpAddrIsRel(ext)) {         // relative addressing mode
-            base_offset = (int32_t)addr; // sign extend to 32 bit, the offset may be negative
+        if (XcpAddrIsRel(ext)) { // relative addressing mode
+            base_offset = XcpAddrDecodeRelOffset(addr);
         } else
 #endif
 #ifdef XCP_ENABLE_ABS_ADDRESSING
             // ABS addressing mode, base pointer will ApplXcpGetBaseAddr()
             // Max address range 0-0x7FFFFFFF
+            // @@@@ TODO: This range checking here is too late, should be assured by the A2L creator
             if (XcpAddrIsAbs(ext)) { // absolute addressing mode
-                uint8_t *p;
-                int64_t a;
-                p = ApplXcpGetPointer(ext, addr);
-                if (p == NULL)
-                    return CRC_ACCESS_DENIED; // Access denied
-                a = p - ApplXcpGetBaseAddr();
-                if (a > 0x7FFFFFFF || a < 0)
-                    return CRC_ACCESS_DENIED; // Access out of range
-                base_offset = (int32_t)a;
+                base_offset = (int32_t)XcpAddrDecodeAbsOffset(addr);
+                if (base_offset & 0x80000000)
+                    return CRC_ACCESS_DENIED; // Access out of range, because ODT entry addr is signed
             } else
 #endif
                 return CRC_ACCESS_DENIED;
@@ -2128,12 +2130,16 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             check_len(CRO_USER_CMD_LEN);
             uint8_t subcmd = CRO_USER_CMD_SUBCOMMAND;
 #ifdef XCP_ENABLE_CALSEG_LIST
-            // User defined commands for begin/end consistent calibration sequence
-            if (subcmd == 0x01 || subcmd == 0x02) {
-                check_error(XcpCalSegCommand(subcmd));
-            } else
-#endif
+            // Check for user defined commands for begin/end consistent calibration sequence
+            uint8_t err = XcpCalSegCommand(subcmd);
+            if (err == CRC_CMD_UNKNOWN) {
                 check_error(ApplXcpUserCommand(subcmd));
+            } else {
+                check_error(err);
+            }
+#else
+            check_error(ApplXcpUserCommand(subcmd));
+#endif
         } break;
 #endif
 

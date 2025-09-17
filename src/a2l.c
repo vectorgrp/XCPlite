@@ -810,32 +810,31 @@ uint32_t A2lGetAddr_(const void *p) {
     if (gA2lFile != NULL) {
 
         if (XcpAddrIsAbs(gAl2AddrExt)) {
-
-            return ApplXcpGetAddr(p); // Calculate the XCP address from a pointer
+            return XcpAddrEncodeAbs(p);
         }
 
         else if (XcpAddrIsRel(gAl2AddrExt)) {
             uint64_t addr_diff = (uint64_t)p - (uint64_t)gA2lAddrBase;
-            // Ensure the relative address does not overflow the address space
+            // Ensure the address difference does not overflow the value range for signed int32_t
             uint64_t addr_high = (addr_diff >> 32);
             if (addr_high != 0 && addr_high != 0xFFFFFFFF) {
                 DBG_PRINTF_ERROR("A2L XCP_ADDR_EXT_REL relative address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lAddrBase);
-                assert(0); // Ensure the relative address does not overflow the 32 Bit A2L address space
+                assert(0);
                 return 0;
             }
-            return (uint32_t)(addr_diff & 0xFFFFFFFF);
+            return XcpAddrEncodeRel(addr_diff);
         }
 
         else if (XcpAddrIsDyn(gAl2AddrExt)) {
             uint64_t addr_diff = (uint64_t)p - (uint64_t)gA2lAddrBase;
-            // Ensure the relative address does not overflow the address space
+            // Ensure the address difference does not overflow the value range for signed int16_t
             uint64_t addr_high = (addr_diff >> 16);
             if (addr_high != 0 && addr_high != 0xFFFFFFFFFFFF) {
                 DBG_PRINTF_ERROR("A2L XCP_ADDR_EXT_DYN relative address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lAddrBase);
-                assert(0); // Ensure the relative address does not overflow the 32 Bit A2L address space
+                assert(0);
                 return 0;
             }
-            return (uint32_t)(((uint32_t)gA2lFixedEvent) << 16 | (addr_diff & 0xFFFF));
+            return XcpAddrEncodeDyn(addr_diff, gA2lFixedEvent);
         }
 
         else
@@ -843,7 +842,11 @@ uint32_t A2lGetAddr_(const void *p) {
             if (XcpAddrIsSeg(gAl2AddrExt)) {
             uint64_t addr_diff = (uint64_t)p - (uint64_t)gA2lAddrBase;
             // Ensure the relative address does not overflow the 16 Bit A2L address offset for calibration segment relative addressing
-            assert((addr_diff >> 16) == 0);
+            if ((addr_diff >> 16) != 0) {
+                DBG_PRINTF_ERROR("A2L XCP_ADDR_EXT_SEG relative address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lAddrBase);
+                assert(0);
+                return 0;
+            }
             return XcpGetCalSegBaseAddress(gA2lAddrIndex) + (addr_diff & 0xFFFF);
         } else
 #endif

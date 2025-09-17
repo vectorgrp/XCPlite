@@ -187,10 +187,15 @@ lock-free, wait-free CalSeg RCU:
         - ecu_access
 */
 
+// Calibration segment number
+// Used in A2l and XCP commands to identify a calibration segment
+// Currently only 256 segments are supported
+typedef uint8_t tXcpCalSegNumber;
+
 // Calibration segment index
 // The index of the calibration segment in the calibration segment list or XCP_UNDEFINED_CALSEG
-#define XCP_UNDEFINED_CALSEG 0xFFFF
 typedef uint16_t tXcpCalSegIndex;
+#define XCP_UNDEFINED_CALSEG 0xFFFF
 
 // Calibration segment
 typedef struct {
@@ -361,7 +366,7 @@ typedef struct {
     uint8_t CmdLast1;
 #endif
 
-    /* Memory Transfer Address as pointer (ApplXcpGetPointer) */
+    /* Memory Transfer Address as pointer */
     uint8_t *MtaPtr;
     uint32_t MtaAddr;
     uint8_t MtaExt;
@@ -430,9 +435,8 @@ void ApplXcpStopDaq(void);
 
 /* Address conversions from A2L address to pointer and vice versa in absolute addressing mode */
 #ifdef XCP_ENABLE_ABS_ADDRESSING
-uint8_t *ApplXcpGetPointer(uint8_t xcpAddrExt, uint32_t xcpAddr); /* Create a pointer (uint8_t*) from xcpAddrExt and xcpAddr, returns NULL if no access */
-uint32_t ApplXcpGetAddr(const uint8_t *p);                        // Calculate the xcpAddr address from a pointer
-uint8_t *ApplXcpGetBaseAddr(void);                                // Get the base address for DAQ data access */
+uint32_t ApplXcpGetAddr(const uint8_t *p); // Calculate the xcpAddr address from a pointer
+uint8_t *ApplXcpGetBaseAddr(void);         // Get the base address for DAQ data access */
 #endif
 
 /* Read and write memory */
