@@ -223,8 +223,6 @@
 
 #define XCP_MAX_CALSEG_NAME 15 // Maximum length of calibration segment name
 
-#define XCP_ADDR_EXT_SEG_ 0x00 // Segment relative address format, must be 0x00, CANape does not support memory segment address extensions
-
 // Enable lazy write mode for calibration segments
 // RCU updates of calibration segments are done in a cyclic manner in the background
 // Calibration write speed is then independent from the lock rate, but single calibration latencies are higher

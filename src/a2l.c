@@ -627,7 +627,7 @@ static void A2lCreateMeasurement_IF_DATA(void) {
 void A2lSetSegAddrMode(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance_addr) {
     gA2lAddrIndex = calseg_index;
     gA2lAddrBase = calseg_instance_addr; // Address of a a the calibration segment instance which is used in the macros to create the components
-    gAl2AddrExt = XCP_ADDR_EXT_SEG_;
+    gAl2AddrExt = XCP_ADDR_EXT_SEG;
 }
 #endif
 
