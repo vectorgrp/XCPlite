@@ -200,7 +200,7 @@ void XcpEventExt(tXcpEventId event, const uint8_t *base);
 // Trigger the XCP event 'event' with explicitly given base addresses for XCP_ADDR_EXT_DYN and XCP_ADDR_EXT_REL addressing modes
 // Internal, explicit function used by the DAQ convenience macros
 // May be used for special uses case and for explicitly setting the event time stamp (clock > 0)
-uint8_t XcpEventDynRelAt(tXcpEventId event, const uint8_t *dyn_base, const uint8_t *rel_base, uint64_t clock);
+void XcpEventDynRelAt(tXcpEventId event, const uint8_t *dyn_base, const uint8_t *rel_base, uint64_t clock);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Get stack frame pointer

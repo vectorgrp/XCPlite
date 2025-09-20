@@ -23,9 +23,8 @@ extern bool A2lCheckFinalizeOnConnect(void);
 //     return false;
 // }
 
-#define OPTION_PROJECT_NAME "a2l_test" // A2L project name
-#define OPTION_LOG_LEVEL 4             // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
-// #define OPTION_START_SERVER
+#define OPTION_PROJECT_NAME "a2l_test"  // A2L project name
+#define OPTION_LOG_LEVEL 4              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debugs
 #define OPTION_USE_TCP false            // TCP or UDP
 #define OPTION_SERVER_PORT 5555         // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
@@ -246,20 +245,9 @@ int main() {
     // No need to start the XCP server
     // Initialize the XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;
-#ifdef OPTION_START_SERVER
-    if (!XcpEthServerInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_QUEUE_SIZE)) {
-        return 1;
-    }
-    // Initialize the A2L generator in manual finalization mode with auto group generation
-    // Empty version string to allow diff with the expected output
-    if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_AUTO_GROUPS)) {
-        return 1;
-    }
-#else
     if (!A2lInit(OPTION_PROJECT_NAME, "EPK", addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_AUTO_GROUPS)) {
         return 1;
     }
-#endif
 
     //----------------------------------------------------------------------------------------------------------------------------------------------------------------
     // Calibration
@@ -523,36 +511,6 @@ int main() {
     // } else {
     //     printf("Error comparing A2L file, exit code: %d\n", result);
     // }
-
-#ifdef OPTION_START_SERVER
-    // Mainloop
-    printf("Start main loop...\n");
-    uint32_t loop_counter = 0;
-    for (;;) {
-        // Stop after 1s
-        loop_counter++;
-        if (loop_counter > static_counter_max && !XcpIsConnected()) {
-            break;
-        }
-
-        // Trigger measurement events
-        XcpEventExt(sync, &static_uint8);
-        DaqEvent(event);
-        DaqEvent(event_heap);
-
-        sleepUs(1000);
-        if (loop_counter % 1000 == 0) {
-            printf("%us\r", (static_counter_max - loop_counter) / 1000);
-        }
-
-    } // for (;;)
-
-    // Force disconnect the XCP client
-    XcpDisconnect();
-
-    // Stop the XCP server
-    XcpEthServerShutdown();
-#endif
 
     printf("Exit...\n");
     return 0;

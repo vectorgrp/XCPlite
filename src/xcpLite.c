@@ -1932,49 +1932,54 @@ static void XcpTriggerDaqEvent(tQueueHandle queueHandle, tXcpEventId event, cons
 #endif
 }
 
-// Dyn addressing mode event at a given clock
-// Base for ADDR_EXT_REL and ADDR_EXT_DYN is given as parameter
-// Base for ADDR_EXT_ABS is ApplXcpGetBaseAddr()
-uint8_t XcpEventDynRelAt(tXcpEventId event, const uint8_t *dyn_base, const uint8_t *rel_base, uint64_t clock) {
-
-    // Cal
+// Async command processing for pending command
 #ifdef XCP_ENABLE_DYN_ADDRESSING
+static void XcpProcessPendingCommand(tXcpEventId event, const uint8_t *dyn_base) {
     if (!isStarted())
-        return CRC_CMD_OK;
-
-    // Check if a pending command can be executed in this context
-    bool cmdPending = false;
+        return;
     if (atomic_load_explicit(&gXcp.CmdPending, memory_order_acquire)) {
-        if (XcpAddrIsDyn(gXcp.MtaExt) && (uint16_t)(gXcp.MtaAddr >> 16) == event) {
+        // Check if the pending command can be executed in this context
+        if (XcpAddrIsDyn(gXcp.MtaExt) && XcpAddrDecodeDynEvent(gXcp.MtaAddr) == event) {
             ATOMIC_BOOL_TYPE old_value = true;
             if (atomic_compare_exchange_weak_explicit(&gXcp.CmdPending, &old_value, false, memory_order_release, memory_order_relaxed)) {
-                cmdPending = true;
+                // Convert relative signed 16 bit addr in MtaAddr to pointer MtaPtr
+                gXcp.MtaPtr = (uint8_t *)(dyn_base + XcpAddrDecodeDynOffset(gXcp.MtaAddr));
+                gXcp.MtaExt = XCP_ADDR_EXT_PTR;
+                XcpAsyncCommand(true, (const uint32_t *)&gXcp.CmdPendingCrm, gXcp.CmdPendingCrmLen);
             }
         }
     }
+}
+#endif // XCP_ENABLE_DYN_ADDRESSING
 
-    if (cmdPending) {
-        // Convert relative signed 16 bit addr in MtaAddr to pointer MtaPtr
-        gXcp.MtaPtr = (uint8_t *)(dyn_base + (int16_t)(gXcp.MtaAddr & 0xFFFF));
-        gXcp.MtaExt = XCP_ADDR_EXT_PTR;
-        if (CRC_CMD_OK == XcpAsyncCommand(true, (const uint32_t *)&gXcp.CmdPendingCrm, gXcp.CmdPendingCrmLen)) {
-            uint8_t cmd = gXcp.CmdPendingCrm.b[0];
-            if (cmd == CC_SHORT_DOWNLOAD || cmd == CC_DOWNLOAD)
-                return CRC_CMD_PENDING; // Write operation done
-        }
-        return CRC_CMD_OK; // Another pending operation done
-    }
+// Dyn addressing mode event at a given clock
+// Base for ADDR_EXT_REL and ADDR_EXT_DYN is given as parameter
+// Base for ADDR_EXT_ABS is ApplXcpGetBaseAddr()
+void XcpEventDynRelAt(tXcpEventId event, const uint8_t *dyn_base, const uint8_t *rel_base, uint64_t clock) {
+
+    // Async command processing for pending command
+#ifdef XCP_ENABLE_DYN_ADDRESSING
+    XcpProcessPendingCommand(event, dyn_base);
 #endif // XCP_ENABLE_DYN_ADDRESSING
 
     // Daq
     if (!isDaqRunning())
-        return CRC_CMD_OK; // DAQ not running
+        return; // DAQ not running
     XcpTriggerDaqEvent(gXcp.Queue, event, dyn_base, rel_base, clock);
-    return CRC_CMD_OK;
 }
 
 // Trigger an event with given base base address for ADDR_EXT_DYN and ADDR_EXT_REL
-void XcpEventExt(tXcpEventId event, const uint8_t *base) { XcpEventDynRelAt(event, base, base, 0); }
+void XcpEventExt(tXcpEventId event, const uint8_t *base) {
+
+    // Async command processing for pending command
+#ifdef XCP_ENABLE_DYN_ADDRESSING
+    XcpProcessPendingCommand(event, base);
+#endif // XCP_ENABLE_DYN_ADDRESSING
+
+    if (!isDaqRunning())
+        return; // DAQ not running
+    XcpTriggerDaqEvent(gXcp.Queue, event, base, base, 0);
+}
 
 // ABS addressing mode event
 // Base for ADDR_EXT_ABS is ApplXcpGetBaseAddr()
@@ -2012,9 +2017,19 @@ void XcpDisconnect(void) {
 }
 
 // Transmit command response packet
-static void XcpSendResponse(const tXcpCto *crm, uint8_t crmLen) {
+static void XcpSendResponse(bool async, const tXcpCto *crm, uint8_t crmLen) {
 
-    XcpTlSendCrm((const uint8_t *)crm, crmLen);
+    // Send async command responses via the transmit queue
+    if (async) {
+        tQueueBuffer queueBuffer = QueueAcquire(gXcp.Queue, crmLen);
+        if (queueBuffer.buffer != NULL) {
+            memcpy(queueBuffer.buffer, crm, crmLen);
+            QueuePush(gXcp.Queue, &queueBuffer, true); // High priority
+        }
+    } else {
+        XcpTlSendCrm((const uint8_t *)crm, crmLen);
+    }
+
 #ifdef DBG_LEVEL
     if (DBG_LEVEL >= 4)
         XcpPrintRes(crm);
@@ -2714,7 +2729,7 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
                     error(CRC_DAQ_ACTIVE);
                 }
 #endif
-                XcpSendResponse(&CRM, CRM_LEN); // Transmit response first and then start DAQ
+                XcpSendResponse(async, &CRM, CRM_LEN); // Transmit response first and then start DAQ
                 XcpStartSelectedDaqLists();
                 XcpStartDaq();    // start DAQ event processing, if not already running
                 goto no_response; // Do not send response again
@@ -2920,7 +2935,7 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
     }
 
     // Transmit normal command response
-    XcpSendResponse(&CRM, CRM_LEN);
+    XcpSendResponse(async, &CRM, CRM_LEN);
     return CRC_CMD_OK;
 
 // Transmit error response
@@ -2928,7 +2943,7 @@ negative_response:
     CRM_LEN = 2;
     CRM_CMD = PID_ERR;
     CRM_ERR = err;
-    XcpSendResponse(&CRM, CRM_LEN);
+    XcpSendResponse(async, &CRM, CRM_LEN);
     return err;
 
 // Transmit busy response, if another command is already pending
@@ -2939,7 +2954,7 @@ busy_response:
     CRM_LEN = 2;
     CRM_CMD = PID_ERR;
     CRM_ERR = CRC_CMD_BUSY;
-    XcpSendResponse(&CRM, CRM_LEN);
+    XcpSendResponse(async, &CRM, CRM_LEN);
     return CRC_CMD_BUSY;
 #endif
 

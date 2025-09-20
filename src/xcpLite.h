@@ -62,7 +62,7 @@ void XcpDisconnect(void);
 typedef uint16_t tXcpEventId;
 
 // Trigger a XCP data acquisition event
-uint8_t XcpEventDynRelAt(tXcpEventId event, const uint8_t *dyn_base, const uint8_t *rel_base, uint64_t clock);
+void XcpEventDynRelAt(tXcpEventId event, const uint8_t *dyn_base, const uint8_t *rel_base, uint64_t clock);
 void XcpEventExt(tXcpEventId event, const uint8_t *base);
 void XcpEvent(tXcpEventId event);
 

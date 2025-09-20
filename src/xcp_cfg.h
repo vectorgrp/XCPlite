@@ -63,8 +63,8 @@
 #define XCP_ADDR_EXT_DYN 0x02 // Relative address format
 #define XcpAddrIsDyn(addr_ext) ((addr_ext) == XCP_ADDR_EXT_DYN)
 #define XcpAddrEncodeDyn(signed_int16_offset, event) (((uint32_t)(event) << 16) | ((signed_int16_offset) & 0xFFFF))
-#define XcpAddrDecodeDynEvent(addr) (uint16_t)(addr >> 16)    // event
-#define XcpAddrDecodeDynOffset(addr) (int16_t)(addr & 0xFFFF) // signed address offset
+#define XcpAddrDecodeDynEvent(addr) (uint16_t)((addr) >> 16)    // event
+#define XcpAddrDecodeDynOffset(addr) (int16_t)((addr) & 0xFFFF) // signed address offset
 
 #endif // XCP_ENABLE_DYN_ADDRESSING
 
