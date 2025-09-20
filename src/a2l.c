@@ -1032,6 +1032,9 @@ void A2lCreateTypedefMeasurementInstance_(const char *instance_name, const char 
         printAddrExt(ext);
         if (x_dim > 1)
             fprintf(gA2lFile, " MATRIX_DIM %u", x_dim);
+        if (XcpAddrIsAbs(gAl2AddrExt) || XcpAddrIsDyn(gAl2AddrExt)) { // Absolute and dynamic mode allows write access
+            fprintf(gA2lFile, " READ_WRITE");
+        }
         A2lCreateMeasurement_IF_DATA();
         fprintf(gA2lFile, " /end INSTANCE\n");
         gA2lInstances++;

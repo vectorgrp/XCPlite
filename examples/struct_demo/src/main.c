@@ -145,8 +145,8 @@ int main(void) {
         local_struct1_array[local_counter % 8].struct_field.word_field = local_counter;
         static_struct1_array[local_counter % 8].word_field = local_counter;
         static_struct1_array[local_counter % 8].struct_field.word_field = local_counter;
-        heap_struct1->word_field = local_counter; // Modify the heap variable
-        heap_struct1->struct_field.word_field = local_counter;
+        heap_struct1->word_field++; // Modify the heap variable
+        heap_struct1->struct_field.word_field++;
 
         // Trigger the measurement events
         DaqEvent(event);

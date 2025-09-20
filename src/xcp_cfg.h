@@ -162,7 +162,7 @@
 /* DAQ features and parameters */
 
 // Enable individual address extensions for each ODT entry, otherwise address extension must be unique for each DAQ list
-// #define XCP_ENABLE_DAQ_ADDREXT
+#define XCP_ENABLE_DAQ_ADDREXT
 
 // Maximum number of DAQ lists
 // Must be <= 0xFFFE
