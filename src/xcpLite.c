@@ -546,7 +546,7 @@ static uint8_t XcpCalSegReadMemory(uint32_t src, uint16_t size, uint8_t *dst) {
         }
     }
 
-    if (calseg >= gXcp.CalSegList.count) {
+    if (calseg > gXcp.CalSegList.count) {
         DBG_PRINTF_ERROR("invalid calseg number %u\n", calseg);
         return CRC_ACCESS_DENIED;
     }
