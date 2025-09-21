@@ -133,10 +133,10 @@ int main(void) {
     A2lCreateTypedefArray(static_struct1_array, struct1_t, 8, "Array [10] of struct1_t");
 
     // Heap
-    A2lSetRelativeAddrMode(event_heap, heap_struct1); // relative addressing mode for heap_struct1_array
-    A2lCreateTypedefReference(heap_struct1, struct1_t, "Pointer to struct1_t on heap");
-    A2lSetRelativeAddrMode2(event_heap, heap_struct2); // relative addressing mode for heap_struct2_array
-    A2lCreateTypedefReference(heap_struct2, struct2_t, "Pointer to struct2_t on heap");
+    A2lSetRelativeAddrMode1(event_heap); // relative addressing mode for heap_struct1_array, first base pointer
+    A2lCreateTypedefInstance(heap_struct1, struct1_t, "Pointer to struct1_t on heap");
+    A2lSetRelativeAddrMode2(event_heap); // relative addressing mode for heap_struct2_array, second base pointer
+    A2lCreateTypedefInstance(heap_struct2, struct2_t, "Pointer to struct2_t on heap");
 
     A2lFinalize(); // Optional: Finalize the A2L file generation early, to write the A2L immediately, not when the client connects
 

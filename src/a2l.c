@@ -67,7 +67,7 @@ static uint8_t gA2lOptionBindAddr[4] = {0, 0, 0, 0};
 static tXcpEventId gA2lFixedEvent = XCP_UNDEFINED_EVENT_ID;
 static tXcpEventId gA2lDefaultEvent = XCP_UNDEFINED_EVENT_ID;
 static uint8_t gAl2AddrExt = XCP_ADDR_EXT_ABS; // Address extension (addressing mode, default absolute)
-static const uint8_t *gA2lAddrBase = NULL;     // Event or calseg address for rel and dyn mode
+static const uint8_t *gA2lAddrBase = NULL;     // Base address for rel and dyn mode
 static tXcpCalSegIndex gA2lAddrIndex = 0;      // Segment index for seg mode
 
 static uint32_t gA2lMeasurements;
@@ -628,7 +628,7 @@ static void A2lCreateMeasurement_IF_DATA(void) {
 #if defined(XCP_ENABLE_CALSEG_LIST)
 void A2lSetSegAddrMode(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance_addr) {
     gA2lAddrIndex = calseg_index;
-    gA2lAddrBase = calseg_instance_addr; // Address of a a the calibration segment instance which is used in the macros to create the components
+    gA2lAddrBase = calseg_instance_addr; // Address of the calibration segment instance which is used in the macros to create the components
     gAl2AddrExt = XCP_ADDR_EXT_SEG;
 }
 #endif
@@ -817,39 +817,45 @@ uint32_t A2lGetAddr_(const void *p) {
 
 #ifdef XCP_ENABLE_REL_ADDRESSING
         else if (XcpAddrIsRel(gAl2AddrExt)) {
-            uint64_t addr_diff = (uint64_t)p - (uint64_t)gA2lAddrBase;
-            // Ensure the address difference does not overflow the value range for signed int32_t
-            uint64_t addr_high = (addr_diff >> 32);
-            if (addr_high != 0 && addr_high != 0xFFFFFFFF) {
-                DBG_PRINTF_ERROR("A2L rel address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lAddrBase);
-                assert(0);
-                return 0;
+            uint64_t addr_diff = 0;
+            if (gA2lAddrBase != NULL) {
+                addr_diff = (uint64_t)p - (uint64_t)gA2lAddrBase;
+                // Ensure the address difference does not overflow the value range for signed int32_t
+                uint64_t addr_high = (addr_diff >> 32);
+                if (addr_high != 0 && addr_high != 0xFFFFFFFF) {
+                    DBG_PRINTF_ERROR("A2L rel address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lAddrBase);
+                    assert(0);
+                    return 0;
+                }
             }
             return XcpAddrEncodeRel(addr_diff);
         }
 #endif
-
         else if (XcpAddrIsDyn(gAl2AddrExt)) {
-            uint64_t addr_diff = (uint64_t)p - (uint64_t)gA2lAddrBase;
-            // Ensure the address difference does not overflow the value range for signed int16_t
-            uint64_t addr_high = (addr_diff >> 16);
-            if (addr_high != 0 && addr_high != 0xFFFFFFFFFFFF) {
-                DBG_PRINTF_ERROR("A2L dyn address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lAddrBase);
-                assert(0);
-                return 0;
+            uint64_t addr_diff = 0;
+            if (gA2lAddrBase != NULL) {
+                addr_diff = (uint64_t)p - (uint64_t)gA2lAddrBase;
+                // Ensure the address difference does not overflow the value range for signed int16_t
+                uint64_t addr_high = (addr_diff >> 16);
+                if (addr_high != 0 && addr_high != 0xFFFFFFFFFFFF) {
+                    DBG_PRINTF_ERROR("A2L dyn address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lAddrBase);
+                    assert(0);
+                    return 0;
+                }
             }
             return XcpAddrEncodeDyn(addr_diff, gA2lFixedEvent);
-        }
-
-        else
+        } else
 #ifdef XCP_ENABLE_CALSEG_LIST
             if (XcpAddrIsSeg(gAl2AddrExt)) {
-            uint64_t addr_diff = (uint64_t)p - (uint64_t)gA2lAddrBase;
-            // Ensure the relative address does not overflow the 16 Bit A2L address offset for calibration segment relative addressing
-            if ((addr_diff >> 16) != 0) {
-                DBG_PRINTF_ERROR("A2L seg relative address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lAddrBase);
-                assert(0);
-                return 0;
+            uint64_t addr_diff = 0;
+            if (gA2lAddrBase != NULL) {
+                addr_diff = (uint64_t)p - (uint64_t)gA2lAddrBase;
+                // Ensure the relative address does not overflow the 16 Bit A2L address offset for calibration segment relative addressing
+                if ((addr_diff >> 16) != 0) {
+                    DBG_PRINTF_ERROR("A2L seg relative address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lAddrBase);
+                    assert(0);
+                    return 0;
+                }
             }
             return XcpGetCalSegBaseAddress(gA2lAddrIndex) + (addr_diff & 0xFFFF);
         } else
