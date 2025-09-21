@@ -1938,11 +1938,6 @@ void XcpEvent(tXcpEventId event) {
 }
 #endif
 
-void XcpEventExtAt1(tXcpEventId event, const uint8_t *base0, uint64_t clock) {}
-void XcpEventExtAt2(tXcpEventId event, const uint8_t *base0, const uint8_t *base1, uint64_t clock) {}
-void XcpEventExt1(tXcpEventId event, const uint8_t *base0) {}
-void XcpEventExt2(tXcpEventId event, const uint8_t *base0, const uint8_t *base1) {}
-
 /****************************************************************************/
 /* Command Processor                                                        */
 /****************************************************************************/

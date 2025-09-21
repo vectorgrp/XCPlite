@@ -737,20 +737,20 @@ static void beginEventGroup(tXcpEventId event_id) {
 
 // Set relative address mode with event name or event id
 // Will result in using ADDR_EXT_DYN for user defined base, ADDR_EXT_REL is used for stack frame relative addressing
-void A2lSetRelativeAddrMode__s(const char *event_name, const uint8_t *base_addr) {
+void A2lSetRelativeAddrMode__s(const char *event_name, uint8_t i, const uint8_t *base_addr) {
     if (gA2lFile != NULL) {
         tXcpEventId event_id = XcpFindEvent(event_name, NULL);
         assert(event_id != XCP_UNDEFINED_EVENT_ID);
-        A2lSetDynAddrMode(event_id, 1, (uint8_t *)base_addr);
+        A2lSetDynAddrMode(event_id, i, (uint8_t *)base_addr);
         beginEventGroup(event_id);
         fprintf(gA2lFile, "\n/* Relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, gAl2AddrExt);
     }
 }
-void A2lSetRelativeAddrMode__i(tXcpEventId event_id, const uint8_t *base_addr) {
+void A2lSetRelativeAddrMode__i(tXcpEventId event_id, uint8_t i, const uint8_t *base_addr) {
     if (gA2lFile != NULL) {
         const char *event_name = XcpGetEventName(event_id);
         assert(event_name != NULL);
-        A2lSetDynAddrMode(event_id, 1, (uint8_t *)base_addr);
+        A2lSetDynAddrMode(event_id, i, (uint8_t *)base_addr);
         beginEventGroup(event_id);
         fprintf(gA2lFile, "\n/* Relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, gAl2AddrExt);
     }

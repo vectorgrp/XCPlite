@@ -99,7 +99,9 @@ int main(void) {
 
     // Heap measurement variables
     struct1_t *heap_struct1 = malloc(sizeof(struct1_t)); // Pointer to a struct1_t on the heap
+    struct2_t *heap_struct2 = malloc(sizeof(struct2_t)); // Pointer to a struct2_t on the heap
     *heap_struct1 = local_struct1;
+    *heap_struct2 = local_struct2;
 
     // Initialize some values
     for (int i = 0; i < 8; i++) {
@@ -133,6 +135,8 @@ int main(void) {
     // Heap
     A2lSetRelativeAddrMode(event_heap, heap_struct1); // relative addressing mode for heap_struct1_array
     A2lCreateTypedefReference(heap_struct1, struct1_t, "Pointer to struct1_t on heap");
+    A2lSetRelativeAddrMode2(event_heap, heap_struct2); // relative addressing mode for heap_struct2_array
+    A2lCreateTypedefReference(heap_struct2, struct2_t, "Pointer to struct2_t on heap");
 
     A2lFinalize(); // Optional: Finalize the A2L file generation early, to write the A2L immediately, not when the client connects
 
@@ -147,10 +151,11 @@ int main(void) {
         static_struct1_array[local_counter % 8].struct_field.word_field = local_counter;
         heap_struct1->word_field++; // Modify the heap variable
         heap_struct1->struct_field.word_field++;
+        heap_struct2->word_field++;
 
         // Trigger the measurement events
         DaqEvent(event);
-        DaqEventRelative(event_heap, heap_struct1);
+        DaqEvent2(event_heap, heap_struct1, heap_struct2);
 
         sleepUs(1000);
     } // for(;;)
