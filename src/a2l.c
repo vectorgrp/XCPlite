@@ -596,7 +596,12 @@ static void A2lCreate_ETH_IF_DATA(bool useTCP, const uint8_t *addr, uint16_t por
 
 static void A2lCreateMeasurement_IF_DATA(void) {
     if (gA2lFile != NULL) {
-        if (XcpAddrIsDyn(gAl2AddrExt) || XcpAddrIsRel(gAl2AddrExt)) {
+        if (XcpAddrIsDyn(gAl2AddrExt)
+#ifdef XCP_ENABLE_REL_ADDRESSING
+            || XcpAddrIsRel(gAl2AddrExt)
+#endif
+
+        ) {
             if (gA2lFixedEvent != XCP_UNDEFINED_EVENT_ID) {
                 fprintf(gA2lFile, " /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x%X /end DAQ_EVENT /end IF_DATA", gA2lFixedEvent);
             } else {
@@ -637,22 +642,24 @@ void A2lSetAbsAddrMode(tXcpEventId default_event_id) {
 }
 
 // Relative addressing mode
-// Used for accessing stack variable relativ to the stack frame pointer
+// Used for accessing stack variables relative to the stack frame pointer
+#ifdef XCP_ENABLE_REL_ADDRESSING
 void A2lSetRelAddrMode(tXcpEventId event_id, const uint8_t *base) {
     gA2lAddrBase = base;
     gA2lFixedEvent = event_id;
     gA2lDefaultEvent = XCP_UNDEFINED_EVENT_ID;
     gAl2AddrExt = XCP_ADDR_EXT_REL;
 }
+#endif
 
 // Dynamic addressing mode
 // Relative address, used for heap and class members
 // Enables XCP polling access
-void A2lSetDynAddrMode(tXcpEventId event_id, const uint8_t *base) {
+void A2lSetDynAddrMode(tXcpEventId event_id, uint8_t i, const uint8_t *base) {
     gA2lAddrBase = base;
     gA2lFixedEvent = event_id;
     gA2lDefaultEvent = XCP_UNDEFINED_EVENT_ID;
-    gAl2AddrExt = XCP_ADDR_EXT_DYN;
+    gAl2AddrExt = XCP_ADDR_EXT_DYN + i;
 }
 
 void A2lRstAddrMode(void) {
@@ -734,7 +741,7 @@ void A2lSetRelativeAddrMode__s(const char *event_name, const uint8_t *base_addr)
     if (gA2lFile != NULL) {
         tXcpEventId event_id = XcpFindEvent(event_name, NULL);
         assert(event_id != XCP_UNDEFINED_EVENT_ID);
-        A2lSetDynAddrMode(event_id, (uint8_t *)base_addr);
+        A2lSetDynAddrMode(event_id, 1, (uint8_t *)base_addr);
         beginEventGroup(event_id);
         fprintf(gA2lFile, "\n/* Relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, gAl2AddrExt);
     }
@@ -743,7 +750,7 @@ void A2lSetRelativeAddrMode__i(tXcpEventId event_id, const uint8_t *base_addr) {
     if (gA2lFile != NULL) {
         const char *event_name = XcpGetEventName(event_id);
         assert(event_name != NULL);
-        A2lSetDynAddrMode(event_id, (uint8_t *)base_addr);
+        A2lSetDynAddrMode(event_id, 1, (uint8_t *)base_addr);
         beginEventGroup(event_id);
         fprintf(gA2lFile, "\n/* Relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, gAl2AddrExt);
     }
@@ -755,7 +762,7 @@ void A2lSetStackAddrMode__s(const char *event_name, const uint8_t *stack_frame) 
     if (gA2lFile != NULL) {
         tXcpEventId event_id = XcpFindEvent(event_name, NULL);
         assert(event_id != XCP_UNDEFINED_EVENT_ID);
-        A2lSetRelAddrMode(event_id, stack_frame);
+        A2lSetDynAddrMode(event_id, 0, stack_frame);
         beginEventGroup(event_id);
         fprintf(gA2lFile, "\n/* Stack frame relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, gAl2AddrExt);
     }
@@ -764,7 +771,7 @@ void A2lSetStackAddrMode__i(tXcpEventId event_id, const uint8_t *stack_frame) {
     if (gA2lFile != NULL) {
         const char *event_name = XcpGetEventName(event_id);
         assert(event_name != NULL);
-        A2lSetRelAddrMode(event_id, stack_frame);
+        A2lSetDynAddrMode(event_id, 0, stack_frame);
         beginEventGroup(event_id);
         fprintf(gA2lFile, "\n/* Stack frame relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, gAl2AddrExt);
     }
@@ -808,6 +815,7 @@ uint32_t A2lGetAddr_(const void *p) {
             return XcpAddrEncodeAbs(p);
         }
 
+#ifdef XCP_ENABLE_REL_ADDRESSING
         else if (XcpAddrIsRel(gAl2AddrExt)) {
             uint64_t addr_diff = (uint64_t)p - (uint64_t)gA2lAddrBase;
             // Ensure the address difference does not overflow the value range for signed int32_t
@@ -819,6 +827,7 @@ uint32_t A2lGetAddr_(const void *p) {
             }
             return XcpAddrEncodeRel(addr_diff);
         }
+#endif
 
         else if (XcpAddrIsDyn(gAl2AddrExt)) {
             uint64_t addr_diff = (uint64_t)p - (uint64_t)gA2lAddrBase;

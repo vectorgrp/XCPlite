@@ -536,8 +536,10 @@ const char *A2lGetRecordLayoutName_(tA2lTypeId type);
 // Set addressing modes
 
 void A2lRstAddrMode(void);
-void A2lSetDynAddrMode(tXcpEventId event_id, const uint8_t *base);
+void A2lSetDynAddrMode(tXcpEventId event_id, uint8_t i, const uint8_t *base);
+#ifdef XCP_ENABLE_REL_ADDRESSING
 void A2lSetRelAddrMode(tXcpEventId event_id, const uint8_t *base);
+#endif
 void A2lSetAbsAddrMode(tXcpEventId default_event_id);
 void A2lSetSegAddrMode(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance_addr);
 

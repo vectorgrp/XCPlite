@@ -256,7 +256,7 @@ int main() {
     // Thead safety is assured by the sync event
     // Create the calibration sync event for static parameters
     tXcpEventId sync = XcpCreateEvent("sync", 0, 0);
-    A2lSetDynAddrMode(sync, &static_uint8);
+    A2lSetDynAddrMode(sync, 1, &static_uint8);
     A2lBeginGroup("Global", "Parameters in global memory", true);
 
     // Create individual parameters in global memory

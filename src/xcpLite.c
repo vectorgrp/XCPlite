@@ -1809,7 +1809,7 @@ static void XcpTriggerDaqList(tQueueHandle queueHandle, uint16_t daq, const uint
 
 // Trigger event
 // DAQ must be running
-static void XcpTriggerDaqEvent(tQueueHandle queueHandle, tXcpEventId event, const uint8_t *dyn_base, const uint8_t *rel_base, uint64_t clock) {
+static void XcpTriggerDaqEvent(tQueueHandle queueHandle, tXcpEventId event, const uint8_t **base, uint64_t clock) {
 
     uint16_t daq;
 
@@ -1831,24 +1831,6 @@ static void XcpTriggerDaqEvent(tQueueHandle queueHandle, tXcpEventId event, cons
     if (clock == 0)
         clock = ApplXcpGetClock64();
 
-    // Build base pointers for each addressing mode
-    // @@@@ For optimization, we assume that all the addressing modes may be indexed in an array base_addr[4]
-#ifdef XCP_ENABLE_DAQ_ADDREXT
-    const uint8_t *base_addr[4] = {NULL, NULL, NULL, NULL}; // Base address for each addressing mode
-#ifdef XCP_ENABLE_ABS_ADDRESSING
-    static_assert(XCP_ADDR_EXT_ABS < 4, "XCP_ADDR_EXT_ABS must be less than 4");
-    base_addr[XCP_ADDR_EXT_ABS] = ApplXcpGetBaseAddr(); // Absolute address base
-#endif
-#ifdef XCP_ENABLE_REL_ADDRESSING
-    static_assert(XCP_ADDR_EXT_REL < 4, "XCP_ADDR_EXT_REL must be less than 4");
-    base_addr[XCP_ADDR_EXT_REL] = rel_base;
-#endif
-#ifdef XCP_ENABLE_DYN_ADDRESSING
-    static_assert(XCP_ADDR_EXT_DYN < 4, "XCP_ADDR_EXT_DYN must be less than 4");
-    base_addr[XCP_ADDR_EXT_DYN] = dyn_base;
-#endif
-#endif
-
 #ifndef XCP_MAX_EVENT_COUNT
 
     // @@@@ Non optimized version for arbitrary event ids
@@ -1860,32 +1842,15 @@ static void XcpTriggerDaqEvent(tQueueHandle queueHandle, tXcpEventId event, cons
         if (DaqListEventChannel(daq) != event)
             continue; // DAQ list not associated with this event
 
-        // Build base pointer for this DAQ list
-// Address extension unique per DAQ list
 #ifndef XCP_ENABLE_DAQ_ADDREXT
-        const uint8_t *base_addr = NULL;
+        // Address extension unique per DAQ list
+        // Build base pointer for this DAQ list
         uint8_t ext = DaqListAddrExt(daq);
-#ifdef XCP_ENABLE_ABS_ADDRESSING
-        if (XcpAddrIsAbs(ext)) {
-            // Absolute addressing mode for this DAQ list, base pointer is ApplXcpGetBaseAddr()
-            base_addr = ApplXcpGetBaseAddr();
-        } else
+        XcpTriggerDaqList(queueHandle, daq, base[ext], clock); // Trigger DAQ list
+#else
+        XcpTriggerDaqList(queueHandle, daq, base, clock); // Trigger DAQ list
 #endif
-#ifdef XCP_ENABLE_REL_ADDRESSING
-            if (XcpAddrIsRel(ext)) {
-            // Relative addressing mode for this DAQ list, base pointer is given as parameter
-            base_addr = rel_base;
-        } else
-#endif
-#ifdef XCP_ENABLE_DYN_ADDRESSING
-            if (XcpAddrIsDyn(ext)) {
-            // Dynamic addressing mode for this DAQ list, base pointer is given as parameter
-            base_addr = dyn_base;
-        }
-#endif
-#endif // XCP_ENABLE_DAQ_ADDREXT
 
-        XcpTriggerDaqList(daq_lists, queueHandle, daq, base_addr, clock); // Trigger DAQ list
     } /* daq */
 
 #else
@@ -1900,32 +1865,14 @@ static void XcpTriggerDaqEvent(tQueueHandle queueHandle, tXcpEventId event, cons
         assert(daq < gXcp.DaqLists->daq_count);
         if (DaqListState(daq) & DAQ_STATE_RUNNING) { // DAQ list active
 
-            // Build base pointer for this DAQ list
-            // Address extension unique per DAQ list
 #ifndef XCP_ENABLE_DAQ_ADDREXT
-            const uint8_t *base_addr = NULL;
+            // Address extension unique per DAQ list
+            // Build base pointer for this DAQ list
             uint8_t ext = DaqListAddrExt(daq);
-#ifdef XCP_ENABLE_ABS_ADDRESSING
-            if (XcpAddrIsAbs(ext)) {
-                // Absolute addressing mode for this DAQ list, base pointer is ApplXcpGetBaseAddr()
-                base_addr = ApplXcpGetBaseAddr();
-            } else
+            XcpTriggerDaqList(queueHandle, daq, base[ext], clock); // Trigger DAQ list
+#else
+            XcpTriggerDaqList(queueHandle, daq, base, clock); // Trigger DAQ list
 #endif
-#ifdef XCP_ENABLE_REL_ADDRESSING
-                if (XcpAddrIsRel(ext)) {
-                // Relative addressing mode for this DAQ list, base pointer is given as parameter
-                base_addr = rel_base;
-            } else
-#endif
-#ifdef XCP_ENABLE_DYN_ADDRESSING
-                if (XcpAddrIsDyn(ext)) {
-                // Dynamic addressing mode for this DAQ list, base pointer is given as parameter
-                base_addr = dyn_base;
-            }
-#endif
-#endif // XCP_ENABLE_DAQ_ADDREXT
-
-            XcpTriggerDaqList(queueHandle, daq, base_addr, clock); // Trigger DAQ list
         }
         daq = DaqListNext(daq);
     }
@@ -1934,7 +1881,7 @@ static void XcpTriggerDaqEvent(tQueueHandle queueHandle, tXcpEventId event, cons
 
 // Async command processing for pending command
 #ifdef XCP_ENABLE_DYN_ADDRESSING
-static void XcpProcessPendingCommand(tXcpEventId event, const uint8_t *dyn_base) {
+static void XcpProcessPendingCommand(tXcpEventId event, const uint8_t **base) {
     if (!isStarted())
         return;
     if (atomic_load_explicit(&gXcp.CmdPending, memory_order_acquire)) {
@@ -1943,7 +1890,7 @@ static void XcpProcessPendingCommand(tXcpEventId event, const uint8_t *dyn_base)
             ATOMIC_BOOL_TYPE old_value = true;
             if (atomic_compare_exchange_weak_explicit(&gXcp.CmdPending, &old_value, false, memory_order_release, memory_order_relaxed)) {
                 // Convert relative signed 16 bit addr in MtaAddr to pointer MtaPtr
-                gXcp.MtaPtr = (uint8_t *)(dyn_base + XcpAddrDecodeDynOffset(gXcp.MtaAddr));
+                gXcp.MtaPtr = (uint8_t *)(base[gXcp.MtaExt] + XcpAddrDecodeDynOffset(gXcp.MtaAddr));
                 gXcp.MtaExt = XCP_ADDR_EXT_PTR;
                 XcpAsyncCommand(true, (const uint32_t *)&gXcp.CmdPendingCrm, gXcp.CmdPendingCrmLen);
             }
@@ -1955,21 +1902,21 @@ static void XcpProcessPendingCommand(tXcpEventId event, const uint8_t *dyn_base)
 // Dyn addressing mode event at a given clock
 // Base for ADDR_EXT_REL and ADDR_EXT_DYN is given as parameter
 // Base for ADDR_EXT_ABS is ApplXcpGetBaseAddr()
-void XcpEventDynRelAt(tXcpEventId event, const uint8_t *dyn_base, const uint8_t *rel_base, uint64_t clock) {
+void XcpEventExtAt(tXcpEventId event, const uint8_t **base, uint64_t clock) {
 
     // Async command processing for pending command
 #ifdef XCP_ENABLE_DYN_ADDRESSING
-    XcpProcessPendingCommand(event, dyn_base);
+    XcpProcessPendingCommand(event, base);
 #endif // XCP_ENABLE_DYN_ADDRESSING
 
     // Daq
     if (!isDaqRunning())
         return; // DAQ not running
-    XcpTriggerDaqEvent(gXcp.Queue, event, dyn_base, rel_base, clock);
+    XcpTriggerDaqEvent(gXcp.Queue, event, base, clock);
 }
 
 // Trigger an event with given base base address for ADDR_EXT_DYN and ADDR_EXT_REL
-void XcpEventExt(tXcpEventId event, const uint8_t *base) {
+void XcpEventExt(tXcpEventId event, const uint8_t **base) {
 
     // Async command processing for pending command
 #ifdef XCP_ENABLE_DYN_ADDRESSING
@@ -1978,7 +1925,7 @@ void XcpEventExt(tXcpEventId event, const uint8_t *base) {
 
     if (!isDaqRunning())
         return; // DAQ not running
-    XcpTriggerDaqEvent(gXcp.Queue, event, base, base, 0);
+    XcpTriggerDaqEvent(gXcp.Queue, event, base, 0);
 }
 
 // ABS addressing mode event
@@ -1987,9 +1934,14 @@ void XcpEventExt(tXcpEventId event, const uint8_t *base) {
 void XcpEvent(tXcpEventId event) {
     if (!isDaqRunning())
         return; // DAQ not running
-    XcpTriggerDaqEvent(gXcp.Queue, event, NULL, NULL, 0);
+    XcpTriggerDaqEvent(gXcp.Queue, event, NULL, 0);
 }
 #endif
+
+void XcpEventExtAt1(tXcpEventId event, const uint8_t *base0, uint64_t clock) {}
+void XcpEventExtAt2(tXcpEventId event, const uint8_t *base0, const uint8_t *base1, uint64_t clock) {}
+void XcpEventExt1(tXcpEventId event, const uint8_t *base0) {}
+void XcpEventExt2(tXcpEventId event, const uint8_t *base0, const uint8_t *base1) {}
 
 /****************************************************************************/
 /* Command Processor                                                        */

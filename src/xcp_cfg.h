@@ -42,8 +42,19 @@
 /*----------------------------------------------------------------------------*/
 /* Address, address extension coding */
 
+/*
+Address extensions:
+0x00        - Calibration segment relative addressing mode (XCP_ADDR_EXT_SEG)
+0x01        - Absolute addressing mode (XCP_ADDR_EXT_ABS)
+0x02-0x7F   - Event based relative addressing mode with asynchronous access ([XCP_ADDR_EXT_DYN...0x7F])
+0x80-0xFC   - Reserved
+0xFD        - A2L upload memory space (XCP_ADDR_EXT_A2L)
+0xFE        - MTA pointer address space (XCP_ADDR_EXT_PTR)
+0xFF        - Undefined address extension (XCP_UNDEFINED_ADDR_EXT)
+*/
+
 // --- Event based addressing mode without asynchronous access
-#define XCP_ENABLE_REL_ADDRESSING
+// #define XCP_ENABLE_REL_ADDRESSING
 #ifdef XCP_ENABLE_REL_ADDRESSING
 
 // Use addr_ext XCP_ADDR_EXT_REL to indicate relative addr format (rel_base + (offset as int32_t))
@@ -61,7 +72,7 @@
 
 // Use addr_ext DYN to indicate relative addr format (dyn_base + (((event as uint16_t) <<16) | offset as int16_t))
 #define XCP_ADDR_EXT_DYN 0x02 // Relative address format
-#define XcpAddrIsDyn(addr_ext) ((addr_ext) == XCP_ADDR_EXT_DYN)
+#define XcpAddrIsDyn(addr_ext) (((addr_ext) & 0x7F) >= XCP_ADDR_EXT_DYN)
 #define XcpAddrEncodeDyn(signed_int16_offset, event) (((uint32_t)(event) << 16) | ((signed_int16_offset) & 0xFFFF))
 #define XcpAddrDecodeDynEvent(addr) (uint16_t)((addr) >> 16)    // event
 #define XcpAddrDecodeDynOffset(addr) (int16_t)((addr) & 0xFFFF) // signed address offset

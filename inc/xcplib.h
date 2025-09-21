@@ -195,12 +195,17 @@ void XcpEvent(tXcpEventId event);
 /// @param event
 /// @param base address pointer for the relative (XCP_ADDR_EXT_DYN) addressing mode (from A2lSetRelativeAddrMode(base)).
 /// Assumes XCP_ADDR_EXT_REL is used for stack relative addressing and XCP_ADDR_EXT_ABS for absolute addressing.
-void XcpEventExt(tXcpEventId event, const uint8_t *base);
+void XcpEventExt(tXcpEventId event, const uint8_t **base);
 
 // Trigger the XCP event 'event' with explicitly given base addresses for XCP_ADDR_EXT_DYN and XCP_ADDR_EXT_REL addressing modes
 // Internal, explicit function used by the DAQ convenience macros
 // May be used for special uses case and for explicitly setting the event time stamp (clock > 0)
-void XcpEventDynRelAt(tXcpEventId event, const uint8_t *dyn_base, const uint8_t *rel_base, uint64_t clock);
+void XcpEventExtAt(tXcpEventId event, const uint8_t **base, uint64_t clock);
+
+void XcpEventExtAt1(tXcpEventId event, const uint8_t *base0, uint64_t clock);
+void XcpEventExtAt2(tXcpEventId event, const uint8_t *base0, const uint8_t *base1, uint64_t clock);
+void XcpEventExt1(tXcpEventId event, const uint8_t *base0);
+void XcpEventExt2(tXcpEventId event, const uint8_t *base0, const uint8_t *base1);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Get stack frame pointer
@@ -266,7 +271,7 @@ static __forceinline const uint8_t *get_stack_frame_pointer_msvc(void) {
             daq_event_stackframe_##name##_ = XcpFindEvent(#name, NULL);                                                                                                            \
             assert(daq_event_stackframe_##name##_ != XCP_UNDEFINED_EVENT_ID);                                                                                                      \
         }                                                                                                                                                                          \
-        XcpEventDynRelAt(daq_event_stackframe_##name##_, get_stack_frame_pointer(), get_stack_frame_pointer(), 0);                                                                 \
+        XcpEventExtAt1(daq_event_stackframe_##name##_, get_stack_frame_pointer(), 0);                                                                                              \
     }
 #define DaqEventAt(name, clock)                                                                                                                                                    \
     if (XcpIsActivated()) {                                                                                                                                                        \
@@ -275,7 +280,7 @@ static __forceinline const uint8_t *get_stack_frame_pointer_msvc(void) {
             daq_event_stackframe_##name##_ = XcpFindEvent(#name, NULL);                                                                                                            \
             assert(daq_event_stackframe_##name##_ != XCP_UNDEFINED_EVENT_ID);                                                                                                      \
         }                                                                                                                                                                          \
-        XcpEventDynRelAt(daq_event_stackframe_##name##_, get_stack_frame_pointer(), get_stack_frame_pointer(), clock);                                                             \
+        XcpEventExtAt1(daq_event_stackframe_##name##_, get_stack_frame_pointer(), clock);                                                                                          \
     }
 
 /// Trigger the XCP event 'name' for stack relative or absolute addressing
@@ -288,7 +293,7 @@ static __forceinline const uint8_t *get_stack_frame_pointer_msvc(void) {
             daq_event_stackframe__ = XcpFindEvent(name, NULL);                                                                                                                     \
             assert(daq_event_stackframe__ != XCP_UNDEFINED_EVENT_ID);                                                                                                              \
         }                                                                                                                                                                          \
-        XcpEventDynRelAt(daq_event_stackframe__, get_stack_frame_pointer(), get_stack_frame_pointer(), 0);                                                                         \
+        XcpEventExt1(daq_event_stackframe__, get_stack_frame_pointer());                                                                                                           \
     }
 #define DaqEventAt_s(name, clock)                                                                                                                                                  \
     if (XcpIsActivated()) {                                                                                                                                                        \
@@ -297,17 +302,17 @@ static __forceinline const uint8_t *get_stack_frame_pointer_msvc(void) {
             daq_event_stackframe__ = XcpFindEvent(name, NULL);                                                                                                                     \
             assert(daq_event_stackframe__ != XCP_UNDEFINED_EVENT_ID);                                                                                                              \
         }                                                                                                                                                                          \
-        XcpEventDynRelAt(daq_event_stackframe__, get_stack_frame_pointer(), get_stack_frame_pointer(), clock);                                                                     \
+        XcpEventExtAt1(daq_event_stackframe__, get_stack_frame_pointer(), clock);                                                                                                  \
     }
 
 /// Trigger the XCP event by handle 'event_id' for stack relative or absolute addressing
 #define DaqEvent_i(event_id)                                                                                                                                                       \
     if (XcpIsActivated()) {                                                                                                                                                        \
-        XcpEventDynRelAt(event_id, get_stack_frame_pointer(), get_stack_frame_pointer(), 0);                                                                                       \
+        XcpEventExt1(event_id, get_stack_frame_pointer());                                                                                                                         \
     }
 #define DaqEventAt_i(event_id, clock)                                                                                                                                              \
     if (XcpIsActivated()) {                                                                                                                                                        \
-        XcpEventDynRelAt(event_id, get_stack_frame_pointer(), get_stack_frame_pointer(), clock);                                                                                   \
+        XcpEventExtAt1(event_id, get_stack_frame_pointer(), clock);                                                                                                                \
     }
 
 /// Trigger the XCP event 'name' for absolute, stack and relative addressing mode with given individual base address (from A2lSetRelativeAddrMode(base_addr))
@@ -319,7 +324,7 @@ static __forceinline const uint8_t *get_stack_frame_pointer_msvc(void) {
             daq_event_relative_##name##_ = XcpFindEvent(#name, NULL);                                                                                                              \
             assert(daq_event_relative_##name##_ != XCP_UNDEFINED_EVENT_ID);                                                                                                        \
         }                                                                                                                                                                          \
-        XcpEventDynRelAt(daq_event_relative_##name##_, (const uint8_t *)base_addr, get_stack_frame_pointer(), 0);                                                                  \
+        XcpEventExt2(daq_event_relative_##name##_, get_stack_frame_pointer(), (const uint8_t *)base_addr);                                                                         \
     }
 
 /// Trigger the XCP event 'name' for absolute, stack and relative addressing mode with given individual base address (from A2lSetRelativeAddrMode(base_addr))
@@ -332,14 +337,14 @@ static __forceinline const uint8_t *get_stack_frame_pointer_msvc(void) {
             daq_event_relative__ = XcpFindEvent(name, NULL);                                                                                                                       \
             assert(daq_event_relative__ != XCP_UNDEFINED_EVENT_ID);                                                                                                                \
         }                                                                                                                                                                          \
-        XcpEventDynRelAt(daq_event_relative__, (const uint8_t *)base_addr, get_stack_frame_pointer(), 0);                                                                          \
+        XcpEventExt2(daq_event_relative__, get_stack_frame_pointer(), (const uint8_t *)base_addr);                                                                                 \
     }
 
 /// Trigger the XCP event by handle 'event_id' for absolute, stack and relative addressing mode with given individual base address (from A2lSetRelativeAddrMode(base_addr))
 /// Cache the event lookup
 #define DaqEventRelative_i(event_id, base_addr)                                                                                                                                    \
     if (XcpIsActivated()) {                                                                                                                                                        \
-        XcpEventDynRelAt(event_id, (const uint8_t *)base_addr, get_stack_frame_pointer(), 0);                                                                                      \
+        XcpEventExt2(event_id, get_stack_frame_pointer(), (const uint8_t *)base_addr, 0);                                                                                          \
     }
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
