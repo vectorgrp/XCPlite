@@ -2434,7 +2434,6 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             check_len(CRO_GET_PAGE_INFO_LEN);
             uint8_t segment = CRO_GET_PAGE_INFO_SEGMENT_NUMBER;
             uint8_t page = CRO_GET_PAGE_INFO_PAGE_NUMBER;
-            CRM_LEN = CRM_GET_PAGE_INFO_LEN;
             check_error(XcpGetSegPageInfo(segment, page));
         } break;
 
