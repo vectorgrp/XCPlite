@@ -350,9 +350,6 @@ static void XcpFreeCalSegList(void) {
     mutexDestroy(&gXcp.CalSegList.mutex);
 }
 
-// Get the number of calibration segments +1 for the virtual EPK segment
-static uint8_t XcpGetCalSegCount(void) { return (uint8_t)(gXcp.CalSegList.count + 1); }
-
 // Get a pointer to the list and the size of the list
 tXcpCalSegList const *XcpGetCalSegList(void) {
     assert(isInitialized());
@@ -671,6 +668,121 @@ static uint8_t XcpCalSegWriteMemory(uint32_t dst, uint16_t size, const uint8_t *
     return CRC_CMD_OK;
 }
 
+// Table 97 GET SEGMENT INFO command structure
+// Returns information on a specific SEGMENT.
+// If the specified SEGMENT is not available, ERR_OUT_OF_RANGE will be returned.
+static uint8_t XcpGetSegInfo(uint8_t segment, uint8_t mode, uint8_t seg_info, uint8_t map_index) {
+    (void)map_index; // Mapping not supported
+
+    if (segment > gXcp.CalSegList.count) {
+        DBG_PRINTF_ERROR("invalid segment number: %u\n", segment);
+        return CRC_OUT_OF_RANGE;
+    }
+
+    // EPK segment (segment = 0) does not support calibration pages or mappings
+    // @@@@ TODO: better handling if EPK is not set
+    if (segment == 0) {
+        const char *epk = XcpGetEpk();
+        if (epk == NULL) {
+            DBG_PRINT_ERROR("EPK segment not available\n");
+            return CRC_OUT_OF_RANGE;
+        }
+        switch (mode) {
+        case 0: // Mode 0 - get get basic info (address, length or name)
+            CRM_LEN = CRM_GET_SEGMENT_INFO_LEN_MODE0;
+            if (seg_info == 0) {
+                CRM_GET_SEGMENT_INFO_BASIC_INFO = XCP_ADDR_EPK; // EPK segment address
+                return CRC_CMD_OK;
+            } else if (seg_info == 1) {
+                CRM_GET_SEGMENT_INFO_BASIC_INFO = (uint16_t)strlen(epk); // EPK segment size
+                return CRC_CMD_OK;
+            } else if (seg_info == 2) {              // EPK segment name (Vector extension, name via MTA and upload)
+                CRM_GET_SEGMENT_INFO_BASIC_INFO = 3; // Length of the name
+                gXcp.MtaPtr = (uint8_t *)"epk";
+                gXcp.MtaExt = XCP_ADDR_EXT_PTR;
+                return CRC_CMD_OK;
+            } else {
+                return CRC_OUT_OF_RANGE;
+            }
+            break;
+        case 1: // Mode 1 - get standard info
+            CRM_LEN = CRM_GET_SEGMENT_INFO_LEN_MODE1;
+            CRM_GET_SEGMENT_INFO_MAX_PAGES = 1;
+            CRM_GET_SEGMENT_INFO_ADDRESS_EXTENSION = XCP_ADDR_EXT_EPK;
+            CRM_GET_SEGMENT_INFO_MAX_MAPPING = 0;
+            CRM_GET_SEGMENT_INFO_COMPRESSION = 0;
+            CRM_GET_SEGMENT_INFO_ENCRYPTION = 0;
+            return CRC_CMD_OK;
+        case 2: // Mode 2 - get mapping info not supported
+            return CRC_OUT_OF_RANGE;
+        default: // Illegal mode
+            return CRC_CMD_SYNTAX;
+        }
+    }
+
+    // Calibration segment (segment >= 1)
+    tXcpCalSegIndex calseg = segment - 1;
+    tXcpCalSeg *c = &gXcp.CalSegList.calseg[calseg];
+    // 0 - basic address info, 1 - standard info, 2 - mapping info
+    switch (mode) {
+    case 0: // Mode 0 - get address or length depending on seg_info
+        CRM_LEN = CRM_GET_SEGMENT_INFO_LEN_MODE0;
+        if (seg_info == 0) { // Get address
+            CRM_GET_SEGMENT_INFO_BASIC_INFO = XcpGetCalSegBaseAddress(calseg);
+            return CRC_CMD_OK;
+        } else if (seg_info == 1) { // Get length
+            CRM_GET_SEGMENT_INFO_BASIC_INFO = c->size;
+            return CRC_CMD_OK;
+        } else if (seg_info == 2) { // Get segment name (Vector extension, name via MTA and upload)
+            CRM_GET_SEGMENT_INFO_BASIC_INFO = strlen(c->name);
+            gXcp.MtaPtr = (uint8_t *)c->name;
+            gXcp.MtaExt = XCP_ADDR_EXT_PTR;
+            return CRC_CMD_OK;
+        } else {
+            return CRC_OUT_OF_RANGE;
+        }
+        break;
+    case 1: // Get standard info for this SEGMENT
+        CRM_LEN = CRM_GET_SEGMENT_INFO_LEN_MODE1;
+        CRM_GET_SEGMENT_INFO_MAX_PAGES = 2;
+        CRM_GET_SEGMENT_INFO_ADDRESS_EXTENSION = XCP_ADDR_EXT_SEG;
+        CRM_GET_SEGMENT_INFO_MAX_MAPPING = 0;
+        CRM_GET_SEGMENT_INFO_COMPRESSION = 0;
+        CRM_GET_SEGMENT_INFO_ENCRYPTION = 0;
+        return CRC_CMD_OK;
+    case 2: // Mode 2 - get mapping info not supported
+        return CRC_OUT_OF_RANGE;
+    default: // Illegal mode
+        return CRC_CMD_SYNTAX;
+    }
+}
+
+uint8_t XcpGetSegPageInfo(uint8_t segment, uint8_t page) {
+
+    if (segment > gXcp.CalSegList.count)
+        return CRC_OUT_OF_RANGE;
+    if ((segment == 0 && page > 0) || page > 1)
+        return CRC_PAGE_NOT_VALID;
+
+    CRM_LEN = CRM_GET_PAGE_INFO_LEN;
+
+    if (segment == 0) {
+        CRM_GET_PAGE_INFO_PROPERTIES = 0x0F; // EPK segment, write access not allowed, read access don't care
+        CRM_GET_PAGE_INFO_INIT_SEGMENT = 0;
+        return CRC_CMD_OK;
+    }
+
+    // PAGE 0: ECU_ACCESS_DONT_CARE, XCP_READ_ACCESS_DONT_CARE, XCP_WRITE_ACCESS_DONT_CARE
+    // PAGE 1: ECU_ACCESS_DONT_CARE, XCP_READ_ACCESS_DONT_CARE, XCP_WRITE_ACCESS_NOT_ALLOWED
+    if (page == XCP_CALPAGE_WORKING_PAGE) {
+        CRM_GET_PAGE_INFO_PROPERTIES = 0x3F; // All bits 0..5 can be set for "don't care"
+    } else if (page == XCP_CALPAGE_DEFAULT_PAGE) {
+        CRM_GET_PAGE_INFO_PROPERTIES = 0x0F; // All bits 0..3 can be set for "don't care", but XCP write access not allowed (bits 4,5 not set)
+    }
+    CRM_GET_PAGE_INFO_INIT_SEGMENT = (uint8_t)(XCP_CALPAGE_DEFAULT_PAGE);
+    return CRC_CMD_OK;
+}
+
 #ifdef XCP_ENABLE_CAL_PAGE
 
 // Get active ecu or xcp calibration page
@@ -740,10 +852,8 @@ static uint8_t XcpCalSegCopyCalPage(uint8_t srcSeg, uint8_t srcPage, uint8_t dst
 }
 #endif
 
-// Atomic calibration operations
-#ifdef XCP_ENABLE_USER_COMMAND
-
 // Handle atomic calibration segment commands
+#ifdef XCP_ENABLE_USER_COMMAND
 uint8_t XcpCalSegCommand(uint8_t cmd) {
     switch (cmd) {
     // Begin atomic calibration operation
@@ -763,7 +873,6 @@ uint8_t XcpCalSegCommand(uint8_t cmd) {
     }
     return CRC_CMD_UNKNOWN;
 }
-
 #endif // XCP_ENABLE_USER_COMMAND
 
 // Freeze calibration segment working pages
@@ -2283,10 +2392,11 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
 #endif // XCP_ENABLE_COPY_CAL_PAGE
 
 #ifdef XCP_ENABLE_CALSEG_LIST
+
         case CC_GET_PAG_PROCESSOR_INFO: {
             check_len(CRO_GET_PAG_PROCESSOR_INFO_LEN);
             CRM_LEN = CRM_GET_PAG_PROCESSOR_INFO_LEN;
-            CRM_GET_PAG_PROCESSOR_INFO_MAX_SEGMENTS = XcpGetCalSegCount();
+            CRM_GET_PAG_PROCESSOR_INFO_MAX_SEGMENTS = (uint8_t)(gXcp.CalSegList.count + 1); // +1 for segment 0 (EPK)
 #ifdef XCP_ENABLE_FREEZE_CAL_PAGE
             CRM_GET_PAG_PROCESSOR_INFO_PROPERTIES = PAG_PROPERTY_FREEZE; // Freeze mode supported
 #else
@@ -2311,8 +2421,22 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
 
 #endif // XCP_ENABLE_FREEZE_CAL_PAGE
 
-        /* case CC_GET_SEGMENT_INFO: break; not implemented */
-        /* case CC_GET_PAGE_INFO: not implemented */
+        case CC_GET_SEGMENT_INFO: {
+            check_len(CRO_GET_SEGMENT_INFO_LEN);
+            uint8_t mode = CRO_GET_SEGMENT_INFO_MODE;
+            uint8_t segment = CRO_GET_SEGMENT_INFO_SEGMENT_NUMBER;
+            uint8_t segInfo = CRO_GET_SEGMENT_INFO_SEGMENT_INFO;
+            uint8_t mapIndex = CRO_GET_SEGMENT_INFO_MAPPING_INDEX;
+            check_error(XcpGetSegInfo(segment, mode, segInfo, mapIndex));
+        } break;
+
+        case CC_GET_PAGE_INFO: {
+            check_len(CRO_GET_PAGE_INFO_LEN);
+            uint8_t segment = CRO_GET_PAGE_INFO_SEGMENT_NUMBER;
+            uint8_t page = CRO_GET_PAGE_INFO_PAGE_NUMBER;
+            CRM_LEN = CRM_GET_PAGE_INFO_LEN;
+            check_error(XcpGetSegPageInfo(segment, page));
+        } break;
 
 #endif // XCP_ENABLE_CALSEG_LIST
 #endif // XCP_ENABLE_CAL_PAGE
