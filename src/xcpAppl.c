@@ -442,6 +442,7 @@ static void closeA2lFile(void) {
     assert(gXcpFile != NULL);
     fclose(gXcpFile);
     gXcpFile = NULL;
+    DBG_PRINT4("A2L file closed\n");
 }
 
 static uint32_t openA2lFile(void) {
@@ -463,7 +464,6 @@ static uint32_t openA2lFile(void) {
     gXcpFileLength = (uint32_t)ftell(gXcpFile);
     rewind(gXcpFile);
     assert(gXcpFileLength > 0);
-
     DBG_PRINTF4("A2L file %s ready for upload, size=%u\n", filename, gXcpFileLength);
     return gXcpFileLength;
 }
@@ -472,12 +472,14 @@ static uint32_t openA2lFile(void) {
 bool ApplXcpReadA2L(uint8_t size, uint32_t addr, uint8_t *data) {
     if (gXcpFile == NULL)
         return false;
-    if (addr + size > gXcpFileLength)
+    if (addr + size > gXcpFileLength || size != fread(data, 1, (uint32_t)size, gXcpFile)) {
+        closeA2lFile();
+        DBG_PRINTF_ERROR("ApplXcpReadA2L addr=%u size=%u exceeds file length=%u\n", addr, size, gXcpFileLength);
         return false;
-    if (size != fread(data, 1, (uint32_t)size, gXcpFile))
-        return false;
-    if (addr + size == gXcpFileLength)
+    }
+    if (addr + size == gXcpFileLength) {
         closeA2lFile(); // Close file after complete sequential read
+    }
     return true;
 }
 

@@ -660,6 +660,7 @@ void A2lSetDynAddrMode(tXcpEventId event_id, uint8_t i, const uint8_t *base) {
     gA2lFixedEvent = event_id;
     gA2lDefaultEvent = XCP_UNDEFINED_EVENT_ID;
     gAl2AddrExt = XCP_ADDR_EXT_DYN + i;
+    assert(gAl2AddrExt <= XCP_ADDR_EXT_DYN_MAX);
 }
 
 void A2lRstAddrMode(void) {
@@ -1516,7 +1517,7 @@ bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t
     }
     XcpSetEpk(epk);
 
-    // Build filenames
+        // Build filenames
     // If A2l file is build once for a new build, the EPK is appended to the filename
     const char *epk_suffix = gA2lWriteAlways ? "" : XcpGetEpk();
     SNPRINTF(gA2lFilename, sizeof(gA2lFilename), "%s%s.a2l", a2l_projectname, epk_suffix);
