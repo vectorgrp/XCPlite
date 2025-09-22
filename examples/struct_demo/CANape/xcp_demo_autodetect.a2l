@@ -32,11 +32,11 @@ ALIGNMENT_INT64 1
   /begin STRUCTURE_COMPONENT struct_field struct2_t 0x104 /end STRUCTURE_COMPONENT
 /end TYPEDEF_STRUCTURE
 
-/* Stack frame relative addressing mode: event=event (0), addr_ext=3 */
-/begin MEASUREMENT local_counter "Stack measurement variable" UWORD NO_COMPU_METHOD 0 0 0 65535 ECU_ADDRESS 0xFFFFF366 ECU_ADDRESS_EXTENSION 3 /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin INSTANCE local_struct2 "Instance of test_struct2_t" struct2_t 0xFFFFF360 ECU_ADDRESS_EXTENSION 3 /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end INSTANCE
-/begin INSTANCE local_struct1 "Instance of test_struct1_t" struct1_t 0xFFFFFBC0 ECU_ADDRESS_EXTENSION 3 /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end INSTANCE
-/begin INSTANCE local_struct1_array "Array [10] of struct1_t" struct1_t 0xFFFFF380 ECU_ADDRESS_EXTENSION 3 MATRIX_DIM 8 /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end INSTANCE
+/* Stack frame relative addressing mode: event=event (0), addr_ext=2 */
+/begin MEASUREMENT local_counter "Stack measurement variable" UWORD NO_COMPU_METHOD 0 0 0 65535 ECU_ADDRESS 0xF31E ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin INSTANCE local_struct2 "Instance of test_struct2_t" struct2_t 0xF318 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end INSTANCE
+/begin INSTANCE local_struct1 "Instance of test_struct1_t" struct1_t 0xFBC0 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end INSTANCE
+/begin INSTANCE local_struct1_array "Array [10] of struct1_t" struct1_t 0xF380 ECU_ADDRESS_EXTENSION 2 MATRIX_DIM 8 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end INSTANCE
 
 /* Absolute addressing mode: default_event=event (0), addr_ext=1 */
 /begin MEASUREMENT static_counter "Global measurement variable " UWORD NO_COMPU_METHOD 0 0 0 65535 ECU_ADDRESS 0x24C08 ECU_ADDRESS_EXTENSION 1 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
@@ -44,8 +44,11 @@ ALIGNMENT_INT64 1
 /begin INSTANCE static_struct1 "Instance of test_struct1_t" struct1_t 0x24004 ECU_ADDRESS_EXTENSION 1 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end INSTANCE
 /begin INSTANCE static_struct1_array "Array [10] of struct1_t" struct1_t 0x241B8 ECU_ADDRESS_EXTENSION 1 MATRIX_DIM 8 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end INSTANCE
 
-/* Relative addressing mode: event=event_heap (1), addr_ext=2 */
-/begin INSTANCE heap_struct1 "Pointer to struct1_t on heap" struct1_t 0x10000 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end INSTANCE
+/* Relative addressing mode: event=event_heap (1), addr_ext=3 */
+/begin INSTANCE heap_struct1 "Pointer to struct1_t on heap" struct1_t 0x10000 ECU_ADDRESS_EXTENSION 3 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end INSTANCE
+
+/* Relative addressing mode: event=event_heap (1), addr_ext=4 */
+/begin INSTANCE heap_struct2 "Pointer to struct2_t on heap" struct2_t 0x10000 ECU_ADDRESS_EXTENSION 4 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end INSTANCE
 
 /* Typedefs */
 /begin RECORD_LAYOUT U8 FNC_VALUES 1 UBYTE ROW_DIR DIRECT /end RECORD_LAYOUT
@@ -92,7 +95,7 @@ ALIGNMENT_INT64 1
 
 /* Groups */
 /begin GROUP event "Measurement event group" /begin REF_MEASUREMENT local_counter local_struct2 local_struct1 local_struct1_array static_counter static_struct2 static_struct1 static_struct1_array /end REF_MEASUREMENT /end GROUP
-/begin GROUP event_heap "Measurement event group" /begin REF_MEASUREMENT heap_struct1 /end REF_MEASUREMENT /end GROUP
+/begin GROUP event_heap "Measurement event group" /begin REF_MEASUREMENT heap_struct1 heap_struct2 /end REF_MEASUREMENT /end GROUP
 /begin GROUP Events "Events" ROOT /begin SUB_GROUP event event_heap /end SUB_GROUP /end GROUP
 
 /* Conversions */
@@ -104,7 +107,7 @@ ALIGNMENT_INT64 1
 /end COMPU_VTAB
 
 /begin MOD_PAR ""
-EPK "_Sep_20_2025_22_17_44" ADDR_EPK 0x80000000
+EPK "_Sep_22_2025_19_01_45" ADDR_EPK 0x80000000
 /begin MEMORY_SEGMENT epk "" DATA FLASH INTERN 0x80000000 21 -1 -1 -1 -1 -1
 /begin IF_DATA XCP
 /begin SEGMENT 0 2 0 0 0
@@ -132,6 +135,8 @@ OPTIONAL_CMD GET_CAL_PAGE
 OPTIONAL_CMD SET_CAL_PAGE
 OPTIONAL_CMD COPY_CAL_PAGE
 OPTIONAL_CMD GET_PAG_PROCESSOR_INFO
+OPTIONAL_CMD GET_SEGMENT_INFO
+OPTIONAL_CMD GET_PAGE_INFO
 OPTIONAL_CMD GET_SEGMENT_MODE
 OPTIONAL_CMD SET_SEGMENT_MODE
 OPTIONAL_CMD BUILD_CHECKSUM
