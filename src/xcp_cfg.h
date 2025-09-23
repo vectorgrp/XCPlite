@@ -46,15 +46,17 @@
 Address extensions:
 0x00        - Calibration segment relative addressing mode (XCP_ADDR_EXT_SEG)
 0x01        - Absolute addressing mode (XCP_ADDR_EXT_ABS)
-0x02-0x7F   - Event based relative addressing mode with asynchronous access ([XCP_ADDR_EXT_DYN...0x7F])
-0x80-0xFC   - Reserved
+0x02-0x04   - Event based relative addressing mode with asynchronous access ([XCP_ADDR_EXT_DYN+x])
+0x05-0xFC   - Reserved
 0xFD        - A2L upload memory space (XCP_ADDR_EXT_A2L)
 0xFE        - MTA pointer address space (XCP_ADDR_EXT_PTR)
 0xFF        - Undefined address extension (XCP_UNDEFINED_ADDR_EXT)
 */
 
 // --- Event based addressing mode without asynchronous access
-// #define XCP_ENABLE_REL_ADDRESSING
+#ifdef XCPLIB_FOR_RUST
+#define XCP_ENABLE_REL_ADDRESSING
+#endif
 #ifdef XCP_ENABLE_REL_ADDRESSING
 
 // Use addr_ext XCP_ADDR_EXT_REL to indicate relative addr format (rel_base + (offset as int32_t))
@@ -72,7 +74,12 @@ Address extensions:
 
 // Use addr_ext DYN to indicate relative addr format (dyn_base + (((event as uint16_t) <<16) | offset as int16_t))
 #define XCP_ADDR_EXT_DYN 0x02 // Relative address format 0x02..0x04 (stack, base_addr1, base_addr2)
-#define XCP_ADDR_EXT_DYN_MAX 0x04
+#ifdef XCPLIB_FOR_RUST
+#define XCP_ADDR_EXT_DYN_MAX 0x02
+#else
+#define XCP_ADDR_EXT_DYN_MAX 0x03
+#endif
+
 #define XcpAddrIsDyn(addr_ext) (((addr_ext) >= XCP_ADDR_EXT_DYN && (addr_ext) <= XCP_ADDR_EXT_DYN_MAX))
 #define XcpAddrEncodeDyn(signed_int16_offset, event) (((uint32_t)(event) << 16) | ((signed_int16_offset) & 0xFFFF))
 #define XcpAddrDecodeDynEvent(addr) (uint16_t)((addr) >> 16)    // event
