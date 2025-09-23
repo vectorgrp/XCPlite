@@ -258,9 +258,8 @@ Address extensions:
 /* Clock */
 
 // Clock resolution
-// #define XCP_DAQ_CLOCK_32BIT  // Use 32 Bit time stamps
-#define XCP_DAQ_CLOCK_64BIT                       // Use 64 Bit time stamps
-#if CLOCK_TICKS_PER_S == 1000000                  //  us
+#define XCP_DAQ_CLOCK_64BIT                       // Use 64 Bit time stamps for XCP V1.3
+#if CLOCK_TICKS_PER_S == 1000000                  // us
 #define XCP_TIMESTAMP_UNIT DAQ_TIMESTAMP_UNIT_1US // unit
 #define XCP_TIMESTAMP_TICKS 1                     // ticks per unit
 #elif CLOCK_TICKS_PER_S == 1000000000             // ns

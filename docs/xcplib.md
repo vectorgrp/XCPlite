@@ -11,7 +11,6 @@
 5. [A2l Creator](#5-a2l-creator)
 6. [Glossary](#6-glossary)
 
-
 ---
 
 ## 1 · Overview
@@ -22,8 +21,8 @@ All functions are *C linkage* and can therefore be consumed directly from C/C++
 Key features:
 
 - Single‑instance XCP server (TCP or UDP)
-- Lock‑free calibration segments
-- Measurement events to capture global, stack and heap data
+- Lock‑free calibration parameter segments
+- Timestamped measurement events to capture global, stack and heap data
 - Optional A2L file meta data and type generation at runtime
 
 ---
@@ -40,7 +39,7 @@ Key features:
 2. **Set log level (optional)**
 
 ```c
-   XcpSetLogLevel(5); // (1=error, 2=warning, 3=info, 4=debug, 5=trace):
+   XcpSetLogLevel(3); // (1=error, 2=warning, 3=info, 4=debug (XCP commands), 5=trace)
 ```
 
 3. **Initialise the XCP core** *once*:
@@ -66,7 +65,7 @@ Key features:
 
 ## 3 · API Reference
 
-### 3.0 · Initialisation
+### Initialization
 
 #### void XcpInit( bool activate)
 
@@ -115,6 +114,43 @@ See function and macro documentation in xcplib.h
 
 See function and macro documentation in xcplib.h
 
+### 3.4 A2L Generation
+
+#### bool A2lInit(const char *project_name, const char*epk, const uint8_t *address, uint16_t port, bool use_tcp, uint32_t mode_flags)
+
+Initializes the A2L generation system of XCPlite. This function must be called once before any A2L-related macros or API functions are used. It performs the following actions:
+
+- Allocates and initializes all internal data structures and files required for A2L file creation.
+- Enables runtime definition of parameters, measurements, type definitions, groups and conversion rules.
+
+**Parameters:**
+
+- `project_name`: Name of the project, used for the A2L and BIN file names.
+- `epk`: Optional software version string (EPK) for the A2L file. Pass `NULL` to use the default.
+- `address`: Default IPv4 address of the XCP server.
+- `port`: Port number of the XCP server.
+- `use_tcp`: If `true`, TCP transport is used; if `false`, UDP transport.
+- `mode_flags`: Bitwise combination of A2L generation mode flags controlling file creation and runtime behavior:
+  - `A2L_MODE_WRITE_ALWAYS` (0x01): Always write the A2L file, overwriting any existing file.
+  - `A2L_MODE_WRITE_ONCE` (0x02): Write the A2L file (.a2l) once after a rebuild; Uses the binary persistence file (.bin) to keep calibration segment and event numbers stable, even if the registration order changes.
+  - `A2L_MODE_FINALIZE_ON_CONNECT` (0x04): Finalize the A2L file when an XCP client connects, later registrations are not visible to the tool. If not set, the A2L file must be finalized manually.
+  - `A2L_MODE_AUTO_GROUPS` (0x08): Automatically create groups for measurement events and parameter segments in the A2L file.
+
+#### void A2lFinalize(void)
+
+Finalizes and writes the A2L file to disk. This function should be called when all measurements, parameters, events, and calibration segments have been registered and no further A2L definitions are expected. After finalization, the A2L file becomes visible to XCP tools and cannot be modified further during runtime.
+
+#### void A2lCreateXxxx(...)
+
+All A2L generation macros and functions are not thread safe. It is up to the user to ensure thread safety and to use once-patterns when definitions are called multiple times in nested functions or from different threads.
+The functions `A2lLock()` and `A2lUnlock()` may be used to lock sequences of A2L definitions. The macro `A2lOnce` may be used to create a once execution pattern for a block of A2L definitions.
+
+Also note that A2L definitions may be lazy, but the A2L file is finalized when an XCP tool connects (or when `A2lFinalize()` is called). All definitions after that point are ignored and not visible to the tool.
+
+All definitions of instances follow the same principle: Set the addressing mode first. The addressing mode is valid for all following definitions. The examples in the `examples/` folder show various ways how to create A2L artifacts.
+
+---
+
 ### 3.5 Miscellaneous Functions
 
 | Function                                                         | Purpose                                                         |
@@ -134,19 +170,7 @@ See function and macro documentation in xcplib.h
 
 See examples folder and README.md for a short descriptions of the example applications.
 
-## 5 · A2L Creator
-
-All A2l generation macros and functions are not thread safe. It is up to the user to take care for thread safety, as well as for once execution, when definitions are called multiple times in nested functions or from different threads.  
-The functions A2lLock() and A2lUnlock() may be used to lock sequences of A2L definitions.  
-The macro A2lOnce may be used to create a once execution pattern for a block of A2L definitions.  
-
-Also note that A2L definitions may be lazy, but the A2L file is finalized when a XCP tool connects. All definitions after that point are ignored and not visible to the tool.  
-
-All definitions of instances follow the sample principle: Set the addressing mode first. The addressing mode is valid for all following definitions.  
-The examples in the examples/folder show various way how to create A2L artifacts.  
-
 ## 6 · Glossary
-
 
 - **A2L** – ASAM MCD‑2 MC description file (measurement & calibration meta‑data).
 - **DAQ** – Data Acquisition (periodic or sporadic transmit of ECU variables).
