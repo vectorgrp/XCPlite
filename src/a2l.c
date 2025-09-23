@@ -111,10 +111,9 @@ static const char *gA2lMemorySegment = "/begin MEMORY_SEGMENT %s \"\" DATA FLASH
 
 static const char *gA2lEpkMemorySegment = "/begin MEMORY_SEGMENT epk \"\" DATA FLASH INTERN 0x80000000 %u -1 -1 -1 -1 -1\n"
                                           "/begin IF_DATA XCP\n"
-                                          "/begin SEGMENT 0 2 0 0 0\n"
+                                          "/begin SEGMENT 0 1 0 0 0\n"
                                           "/begin CHECKSUM XCP_CRC_16_CITT MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION \"\" /end CHECKSUM\n"
-                                          "/begin PAGE 0 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_DONT_CARE /end PAGE\n"
-                                          "/begin PAGE 1 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_NOT_ALLOWED /end PAGE\n"
+                                          "/begin PAGE 0 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_NOT_ALLOWED /end PAGE\n"
                                           "/end SEGMENT\n"
                                           "/end IF_DATA\n"
                                           "/end MEMORY_SEGMENT\n";
@@ -1517,7 +1516,7 @@ bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t
     }
     XcpSetEpk(epk);
 
-        // Build filenames
+    // Build filenames
     // If A2l file is build once for a new build, the EPK is appended to the filename
     const char *epk_suffix = gA2lWriteAlways ? "" : XcpGetEpk();
     SNPRINTF(gA2lFilename, sizeof(gA2lFilename), "%s%s.a2l", a2l_projectname, epk_suffix);

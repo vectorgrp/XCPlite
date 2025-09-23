@@ -107,14 +107,14 @@ int main(void) {
 
     // XCP: Enable inline A2L generation
     // In WRITE_ONCE mode:
-    //   If the A2l file aready exists, check if software version (EPK) still matches and load calibration values from the binary persistence file
-    //   If not, prepare the A2L file, finalize the A2L file on XCP client connect
+    //   If the A2l file aready exists, check if software version (EPK) still matches and load calibration values from the binary persistence file (.bin)
+    //   If not, create a new A2L file (.a2l) and binary persistence file (.bin) with default calibration values
     // In WRITE_ALWAYS mode:
-    //   Recreate the A2L file on each application start, calibration values stay on default/reference page
+    //   Recreate the A2L file on each application start, calibration values will be initialized to default
     //   Binary persistence is not supported
     // Finalize the A2L file on XCP connect
     // Optionally create A2L groups for calibration segments and events
-    if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(OPTION_PROJECT_NAME, NULL /* EPK */, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         return 1;
     }
 

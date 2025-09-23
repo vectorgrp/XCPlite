@@ -842,12 +842,20 @@ static uint8_t XcpCalSegCopyCalPage(tXcpCalSegNumber srcSeg, uint8_t srcPage, tX
         DBG_PRINT_ERROR("invalid calseg copy operation\n");
         return CRC_WRITE_PROTECTED;
     }
-    if (dstSeg >= 1) {
-        uint16_t size = gXcp.CalSegList.calseg[dstSeg - 1].size;
-        const uint8_t *srcPtr = gXcp.CalSegList.calseg[srcSeg - 1].default_page;
-        return XcpCalSegWriteMemory(0x80000000 | dstSeg, size, srcPtr);
-    } else {
-        return CRC_CMD_OK; // Silently ignore copy operations on EPK segment
+    // @@@@ TODO: CANape does not support individual segment copy operations, copy all segments at once
+    // Copy all segments from default page to working page
+    for (tXcpCalSegIndex i = 0; i < gXcp.CalSegList.count; i++) {
+        dstSeg = i + 1;
+        // @@@@ ---------------------------------------------
+
+        if (dstSeg >= 1) {
+            tXcpCalSeg *c = &gXcp.CalSegList.calseg[dstSeg - 1];
+            uint16_t size = c->size;
+            const uint8_t *srcPtr = c->default_page;
+            return XcpCalSegWriteMemory(XcpAddrEncodeSegNumber(dstSeg, 0), size, srcPtr);
+        } else {
+            return CRC_WRITE_PROTECTED; // Copy operations on EPK segment
+        }
     }
 }
 #endif
@@ -880,14 +888,18 @@ uint8_t XcpCalSegCommand(uint8_t cmd) {
 #ifdef XCP_ENABLE_FREEZE_CAL_PAGE
 
 static uint8_t XcpGetCalSegMode(tXcpCalSegNumber segment) {
-    if (segment == 0 || segment > gXcp.CalSegList.count)
-        return 0;                                    // EPK segment has no mode
+    if (segment == 0)
+        return 0; // EPK segment has no mode
+    if (segment > gXcp.CalSegList.count)
+        return 0;                                    // Segment number out of range, ignore
     return gXcp.CalSegList.calseg[segment - 1].mode; // Return the segment mode
 }
 
 static uint8_t XcpSetCalSegMode(tXcpCalSegNumber segment, uint8_t mode) {
-    if (segment == 0 || segment > gXcp.CalSegList.count)
-        return CRC_OUT_OF_RANGE;
+    if (segment == 0)
+        return CRC_CMD_OK; // EPK segment has no mode
+    if (segment > gXcp.CalSegList.count)
+        return CRC_OUT_OF_RANGE; // Segment number out of range
     gXcp.CalSegList.calseg[segment - 1].mode = mode;
     return CRC_CMD_OK;
 }
