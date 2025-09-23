@@ -110,9 +110,13 @@ All out‑parameters are *optional* and may be passed as `NULL`.
 
 See function and macro documentation in xcplib.h
 
+---
+
 ### 3.3 Events
 
 See function and macro documentation in xcplib.h
+
+---
 
 ### 3.4 A2L Generation
 
@@ -139,6 +143,17 @@ Initializes the A2L generation system of XCPlite. This function must be called o
 #### void A2lFinalize(void)
 
 Finalizes and writes the A2L file to disk. This function should be called when all measurements, parameters, events, and calibration segments have been registered and no further A2L definitions are expected. After finalization, the A2L file becomes visible to XCP tools and cannot be modified further during runtime.
+
+#### void A2lSetXxxAddrMode(...)
+
+XCPlite uses relative memory addressing. There are 4 different addressing modes. When an addressing mode is set, it is valid for all subsequent definitions of parameters and measurement variables.
+
+| Macro                   | Description                                                                                  |
+|------------------------ |---------------------------------------------------------------------------------------------|
+| `A2lSetSegmentAddrMode` | Sets segment-relative addressing mode for calibration parameters in a specific segment.      |
+| `A2lSetAbsoluteAddrMode`| Sets absolute addressing mode for variables in global memory space.                         |
+| `A2lSetStackAddrMode`   | Sets stack-relative addressing mode for variables on the stack (relative to frame pointer). |
+| `A2lSetRelativeAddrMode`| Sets relative addressing mode for variables relative to a base address (e.g., heap objects or class instances).|
 
 #### void A2lCreateXxxx(...)
 
