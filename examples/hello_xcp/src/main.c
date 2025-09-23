@@ -31,7 +31,7 @@ typedef struct params {
 } parameters_t;
 
 // Default values (reference page, "FLASH") for the calibration parameters
-const parameters_t params = {.counter_max = 1000, .delay_us = 1000, .acceleration = 0.01f};
+const parameters_t params = {.counter_max = 1024, .delay_us = 1000, .acceleration = 0.01f};
 
 // A global calibration segment handle for the calibration parameters
 // A calibration segment has a working page ("RAM") and a reference page ("FLASH"), it is described by a MEMORY_SEGMENT in the A2L file

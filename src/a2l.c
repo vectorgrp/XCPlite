@@ -109,11 +109,15 @@ static const char *gA2lMemorySegment = "/begin MEMORY_SEGMENT %s \"\" DATA FLASH
                                        "/end MEMORY_SEGMENT\n";
 #endif
 
+// @@@@ TODO: EPK segment address hardcoded to 0x80000000
 static const char *gA2lEpkMemorySegment = "/begin MEMORY_SEGMENT epk \"\" DATA FLASH INTERN 0x80000000 %u -1 -1 -1 -1 -1\n"
                                           "/begin IF_DATA XCP\n"
-                                          "/begin SEGMENT 0 1 0 0 0\n"
+                                          "/begin SEGMENT 0 2 0 0 0\n"
+                                          // @@@@ TODO: Workaround: EPK segment has 2 readonly pages, CANape would not care for a single page EPK segment, reads active page always
+                                          // from segment 0 and uses only SET_CAL_PAGE ALL mode
                                           "/begin CHECKSUM XCP_CRC_16_CITT MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION \"\" /end CHECKSUM\n"
                                           "/begin PAGE 0 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_NOT_ALLOWED /end PAGE\n"
+                                          "/begin PAGE 1 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_NOT_ALLOWED /end PAGE\n"
                                           "/end SEGMENT\n"
                                           "/end IF_DATA\n"
                                           "/end MEMORY_SEGMENT\n";
@@ -486,6 +490,7 @@ static void A2lCreate_MOD_PAR(void) {
         fprintf(gA2lFile, "\n/begin MOD_PAR \"\"\n");
         const char *epk = XcpGetEpk();
         if (epk) {
+            // @@@@ TODO: EPK segment address hardcoded to 0x80000000
             fprintf(gA2lFile, "EPK \"%s\" ADDR_EPK 0x80000000\n", epk);
             fprintf(gA2lFile, gA2lEpkMemorySegment, strlen(epk));
         }
