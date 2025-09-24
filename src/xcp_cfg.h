@@ -221,7 +221,7 @@ Address extensions:
 #endif
 
 // Enable XCP_GET_EVENT_INFO, if this is enabled, event information can be queried by the XCP client tool
-// #define XCP_ENABLE_DAQ_EVENT_INFO
+#define XCP_ENABLE_DAQ_EVENT_INFO
 
 // Maximum length of event name without the trailing 0
 #define XCP_MAX_EVENT_NAME 15

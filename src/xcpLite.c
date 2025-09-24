@@ -694,7 +694,7 @@ static uint8_t XcpGetSegInfo(uint8_t segment, uint8_t mode, uint8_t seg_info, ui
                 CRM_GET_SEGMENT_INFO_BASIC_INFO = XCP_ADDR_EPK; // EPK segment address
                 return CRC_CMD_OK;
             } else if (seg_info == 1) {
-                CRM_GET_SEGMENT_INFO_BASIC_INFO = (uint16_t)strlen(epk); // EPK segment size
+                CRM_GET_SEGMENT_INFO_BASIC_INFO = strlen(epk); // EPK segment size
                 return CRC_CMD_OK;
             } else if (seg_info == 2) {              // EPK segment name (Vector extension, name via MTA and upload)
                 CRM_GET_SEGMENT_INFO_BASIC_INFO = 3; // Length of the name
@@ -2468,9 +2468,9 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             CRM_GET_DAQ_PROCESSOR_INFO_MIN_DAQ = 0;                                                      // Total number of predefined DAQ lists
             CRM_GET_DAQ_PROCESSOR_INFO_MAX_DAQ = gXcp.DaqLists != NULL ? (gXcp.DaqLists->daq_count) : 0; // Number of currently dynamically allocated DAQ lists
 #if defined(XCP_ENABLE_DAQ_EVENT_INFO) && defined(XCP_ENABLE_DAQ_EVENT_LIST)
-            CRM_GET_DAQ_PROCESSOR_INFO_MAX_EVENT = gXcp.EventList.count; // Number of currently available event channels
+            CRM_GET_DAQ_PROCESSOR_INFO_MAX_EVENT = gXcp.EventList.count; // Number of currently available event channels which can be queried by GET_DAQ_EVENT_INFO
 #else
-            CRM_GET_DAQ_PROCESSOR_INFO_MAX_EVENT = 0; // 0 - unknown
+            CRM_GET_DAQ_PROCESSOR_INFO_MAX_EVENT = 0; // 0 - unknown, because GET_DAQ_EVENT_INFO is not enabled
 #endif
             // Optimization type: default
             // Address extension type:
@@ -3235,6 +3235,15 @@ static void XcpPrintCmd(const tXcpCto *cmdBuf) {
     case CC_GET_SEGMENT_MODE:
         printf(" GET_SEGMENT_MODE segment=%u\n", CRO_GET_SEGMENT_MODE_SEGMENT);
         break;
+    case CC_GET_SEGMENT_INFO:
+        printf(" GET_SEGMENT_INFO segment=%u, mode=%u, info=%u, mapIndex=%u\n", CRO_GET_SEGMENT_INFO_SEGMENT_NUMBER, CRO_GET_SEGMENT_INFO_MODE, CRO_GET_SEGMENT_INFO_SEGMENT_INFO,
+               CRO_GET_SEGMENT_INFO_MAPPING_INDEX);
+        break;
+
+    case CC_GET_PAGE_INFO:
+        printf(" GET_PAGE_INFO segment=%u, page=%u\n", CRO_GET_PAGE_INFO_SEGMENT_NUMBER, CRO_GET_PAGE_INFO_PAGE_NUMBER);
+        break;
+
     case CC_BUILD_CHECKSUM:
         printf(" BUILD_CHECKSUM size=%u\n", CRO_BUILD_CHECKSUM_SIZE);
         break;

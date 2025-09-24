@@ -514,7 +514,7 @@ static void A2lCreate_MOD_PAR(void) {
 
 static void A2lCreate_IF_DATA_DAQ(void) {
 
-#if defined(XCP_ENABLE_DAQ_EVENT_LIST) && !defined(XCP_ENABLE_DAQ_EVENT_INFO)
+#if defined(XCP_ENABLE_DAQ_EVENT_LIST)
     tXcpEventList *eventList;
 #endif
     uint16_t eventCount = 0;
@@ -528,7 +528,7 @@ static void A2lCreate_IF_DATA_DAQ(void) {
 #endif
 
     // Event list in A2L file (if event info by XCP is not active)
-#if defined(XCP_ENABLE_DAQ_EVENT_LIST) && !defined(XCP_ENABLE_DAQ_EVENT_INFO)
+#if defined(XCP_ENABLE_DAQ_EVENT_LIST)
     eventList = XcpGetEventList();
     eventCount = eventList != NULL ? eventList->count : 0;
 #endif
@@ -537,7 +537,7 @@ static void A2lCreate_IF_DATA_DAQ(void) {
 
     // Eventlist
 
-#if defined(XCP_ENABLE_DAQ_EVENT_LIST) && !defined(XCP_ENABLE_DAQ_EVENT_INFO)
+#if defined(XCP_ENABLE_DAQ_EVENT_LIST)
     for (uint32_t id = 0; id < eventCount; id++) {
         tXcpEvent *event = &eventList->event[id];
         uint16_t index = event->index;
@@ -1405,7 +1405,7 @@ bool A2lFinalize(void) {
         }
 
         // Create event groups
-#if defined(XCP_ENABLE_DAQ_EVENT_LIST) && !defined(XCP_ENABLE_DAQ_EVENT_INFO)
+#if defined(XCP_ENABLE_DAQ_EVENT_LIST)
         tXcpEventList *eventList = XcpGetEventList();
         if (eventList != NULL && eventList->count > 0) {
 
