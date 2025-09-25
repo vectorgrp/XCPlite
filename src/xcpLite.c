@@ -842,21 +842,29 @@ static uint8_t XcpCalSegCopyCalPage(tXcpCalSegNumber srcSeg, uint8_t srcPage, tX
         DBG_PRINT_ERROR("invalid calseg copy operation\n");
         return CRC_WRITE_PROTECTED;
     }
+
     // @@@@ TODO: CANape does not support individual segment copy operations, copy all segments at once
+
+    // if (dstSeg >= 1) {
+    //     tXcpCalSeg *c = &gXcp.CalSegList.calseg[dstSeg - 1];
+    //     uint16_t size = c->size;
+    //     const uint8_t *srcPtr = c->default_page;
+    //     return XcpCalSegWriteMemory(XcpAddrEncodeSegNumber(dstSeg, 0), size, srcPtr);
+    // } else {
+    //     return CRC_WRITE_PROTECTED; // Copy operation on EPK segment
+    // }
+
     // Copy all segments from default page to working page
     for (tXcpCalSegIndex i = 0; i < gXcp.CalSegList.count; i++) {
-        dstSeg = i + 1;
-        // @@@@ ---------------------------------------------
-
-        if (dstSeg >= 1) {
-            tXcpCalSeg *c = &gXcp.CalSegList.calseg[dstSeg - 1];
-            uint16_t size = c->size;
-            const uint8_t *srcPtr = c->default_page;
-            return XcpCalSegWriteMemory(XcpAddrEncodeSegNumber(dstSeg, 0), size, srcPtr);
-        } else {
-            return CRC_WRITE_PROTECTED; // Copy operations on EPK segment
+        tXcpCalSeg *c = &gXcp.CalSegList.calseg[i];
+        uint16_t size = c->size;
+        const uint8_t *srcPtr = c->default_page;
+        uint8_t res = XcpCalSegWriteMemory(XcpAddrEncodeSegIndex(i, 0), size, srcPtr);
+        if (res != CRC_CMD_OK) {
+            return res;
         }
     }
+    return CRC_CMD_OK;
 }
 #endif
 
@@ -3239,11 +3247,9 @@ static void XcpPrintCmd(const tXcpCto *cmdBuf) {
         printf(" GET_SEGMENT_INFO segment=%u, mode=%u, info=%u, mapIndex=%u\n", CRO_GET_SEGMENT_INFO_SEGMENT_NUMBER, CRO_GET_SEGMENT_INFO_MODE, CRO_GET_SEGMENT_INFO_SEGMENT_INFO,
                CRO_GET_SEGMENT_INFO_MAPPING_INDEX);
         break;
-
     case CC_GET_PAGE_INFO:
         printf(" GET_PAGE_INFO segment=%u, page=%u\n", CRO_GET_PAGE_INFO_SEGMENT_NUMBER, CRO_GET_PAGE_INFO_PAGE_NUMBER);
         break;
-
     case CC_BUILD_CHECKSUM:
         printf(" BUILD_CHECKSUM size=%u\n", CRO_BUILD_CHECKSUM_SIZE);
         break;
@@ -3511,6 +3517,10 @@ static void XcpPrintRes(const tXcpCto *crm) {
             printf(" <- sum=%08Xh\n", CRM_BUILD_CHECKSUM_RESULT);
             break;
 #endif
+
+        case CC_GET_PAG_PROCESSOR_INFO:
+            printf(" <- segments=%u, properties=%02Xh\n", CRM_GET_PAG_PROCESSOR_INFO_MAX_SEGMENTS, CRM_GET_PAG_PROCESSOR_INFO_PROPERTIES);
+            break;
 
         case CC_GET_DAQ_RESOLUTION_INFO:
             printf(" <- mode=%02Xh, , ticks=%02Xh\n", CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_MODE, CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_TICKS);

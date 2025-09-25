@@ -42,8 +42,8 @@ tXcpCalSegIndex calseg = XCP_UNDEFINED_CALSEG;
 //-----------------------------------------------------------------------------------------------------
 // Demo global measurement values
 
-static uint8_t temperature = 50; // Temperature in Deg Celcius as Byte, 0 is -55 °C, 255 is +200 °C
-static float speed = 0.0f;       // Speed in km/h
+uint8_t temperature = 50; // Temperature in Deg Celcius as Byte, 0 is -55 °C, 255 is +200 °C
+float speed = 0.0f;       // Speed in km/h
 
 //-----------------------------------------------------------------------------------------------------
 // Demo function with XCP instrumentation

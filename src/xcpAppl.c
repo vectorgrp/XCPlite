@@ -217,8 +217,8 @@ uint32_t ApplXcpGetAddr(const uint8_t *p) {
 #endif
 #include <link.h>
 
-uint8_t *baseAddr = NULL;
-uint8_t baseAddrValid = 0;
+static uint8_t *baseAddr = NULL;
+static uint8_t baseAddrValid = 0;
 
 static int dump_phdr(struct dl_phdr_info *pinfo, size_t size, void *data) {
     // DBG_PRINTF3("name=%s (%d segments)\n", pinfo->dlpi_name, pinfo->dlpi_phnum);
