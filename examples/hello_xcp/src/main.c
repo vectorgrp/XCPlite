@@ -114,7 +114,7 @@ int main(void) {
     //   Binary persistence is not supported
     // Finalize the A2L file on XCP connect
     // Optionally create A2L groups for calibration segments and events
-    if (!A2lInit(OPTION_PROJECT_NAME, NULL /* EPK */, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(OPTION_PROJECT_NAME, NULL /* EPK */, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         return 1;
     }
 

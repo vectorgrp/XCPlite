@@ -502,7 +502,7 @@ uint8_t ApplXcpDaqResumeClear(void);
 
 /* Get info for GET_ID command (pointer to and length of data) */
 /* Supports IDT_ASCII, IDT_ASAM_NAME, IDT_ASAM_PATH, IDT_ASAM_URL, IDT_ASAM_EPK and IDT_ASAM_UPLOAD */
-/* Returns 0 if not available */
+/* Returns 0 if not available or buffer size exceeded */
 uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen);
 
 /* Read a chunk (offset,size) of the A2L file for upload */

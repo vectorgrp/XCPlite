@@ -522,7 +522,6 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen) {
         DBG_PRINTF3("ApplXcpGetId GET_ID%u A2L path=%s\n", id, buf);
         break;
 
-#ifdef XCP_ENABLE_IDT_A2L_UPLOAD
     case IDT_ASAM_EPK: {
         const char *epk = XcpGetEpk();
         if (epk == NULL)
@@ -538,8 +537,10 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen) {
         }
     } break;
 
+#ifdef XCP_ENABLE_IDT_A2L_UPLOAD
     case IDT_ASAM_UPLOAD:
-        assert(buf == NULL); // Not implemented
+        if (buf != NULL)
+            return 0; // A2L not available as response buffer
         len = openA2lFile();
         DBG_PRINTF3("ApplXcpGetId GET_ID%u A2L as upload (len=%u)\n", id, len);
         break;
