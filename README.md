@@ -340,7 +340,7 @@ The addressing mode is indicated by the address extension:
 
 - Sockets (Linux: socket, ...).  
 
-### Known issues and suggestions for improvement
+### Known issues
 
 - COPY_CAL_PAGE: CANape initialize RAM is executed only on the first calibration segment. Workaround: always copy all segments.  
 - CANape ignores segment numbers in A2L, if segment numbering starts with 1, SET_CAL_PAGE is executed on segment 0 and 1
@@ -352,3 +352,8 @@ The addressing mode is indicated by the address extension:
 - Transport Layer counter mutex could be avoided with alternative counter mode, which is not default in CANape.  
 - Indicate when polling access is not possible. CANape assumes polling access is always possible.  
 - Configuration for begin/end atomic calibration user defined XCP commend is not default. Must be set once in a new CANape project to 0x01F1 and 0x02F1.  
+
+### Todo
+
+- CANape ignores address extension of loop_histogram in ccp_demo, when saving calibration values to a parameter file
+  loop_histogram is a CHARACTERISTIC array, but it is in a measurement group

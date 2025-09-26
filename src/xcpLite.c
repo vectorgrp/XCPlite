@@ -437,8 +437,8 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
     c->free_page_hazard = false; // Free page is not in use yet, no hazard
     atomic_store_explicit(&c->ecu_page_next, (uintptr_t)NULL, memory_order_relaxed);
     c->write_pending = false;
-    c->xcp_access = XCP_CALPAGE_DEFAULT_PAGE;                                              // Default page for XCP access is the working page
-    atomic_store_explicit(&c->ecu_access, XCP_CALPAGE_DEFAULT_PAGE, memory_order_relaxed); // Default page for ECU access is the working page
+    c->xcp_access = XCP_CALPAGE_DEFAULT_PAGE;                                              // Default page for XCP access
+    atomic_store_explicit(&c->ecu_access, XCP_CALPAGE_DEFAULT_PAGE, memory_order_relaxed); // Default page for ECU access
     atomic_store_explicit(&c->lock_count, 0, memory_order_relaxed);                        // No locks
 #ifdef XCP_ENABLE_FREEZE_CAL_PAGE
     c->mode = 0; // Default mode is freeze not enabled, set by XCP command SET_SEGMENT_MODE
@@ -464,7 +464,7 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
         // Enable access to the working page
         c->xcp_access = XCP_CALPAGE_WORKING_PAGE;                                              // Default page for XCP access is the working page
         atomic_store_explicit(&c->ecu_access, XCP_CALPAGE_WORKING_PAGE, memory_order_relaxed); // Default page for ECU access is the working page
-                                                                                               // No write pending
+        // No write pending
     }
 
     mutexUnlock(&gXcp.CalSegList.mutex);
@@ -921,7 +921,7 @@ uint8_t XcpCalSegCommand(uint8_t cmd) {
         DBG_PRINT4("End atomic calibration operation\n");
         return XcpCalSegPublishAll(true); // Flush all pending writes
     }
-    return CRC_CMD_UNKNOWN;
+    return CRC_SUBCMD_UNKNOWN;
 }
 #endif // XCP_ENABLE_USER_COMMAND
 
@@ -2165,11 +2165,11 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             uint8_t subcmd = CRO_USER_CMD_SUBCOMMAND;
 #ifdef XCP_ENABLE_CALSEG_LIST
             // Check for user defined commands for begin/end consistent calibration sequence
-            uint8_t err = XcpCalSegCommand(subcmd);
-            if (err == CRC_CMD_UNKNOWN) {
+            uint8_t res = XcpCalSegCommand(subcmd);
+            if (res == CRC_SUBCMD_UNKNOWN) {
                 check_error(ApplXcpUserCommand(subcmd));
             } else {
-                check_error(err);
+                check_error(res);
             }
 #else
             check_error(ApplXcpUserCommand(subcmd));

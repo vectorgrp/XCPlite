@@ -96,7 +96,7 @@ static const char *gA2lHeader = "ASAP2_VERSION 1 71\n"
                                 "\n\n";
 
 //----------------------------------------------------------------------------------
-#if defined(XCP_ENABLE_CALSEG_LIST)
+#ifdef XCP_ENABLE_CALSEG_LIST
 static const char *gA2lMemorySegment = "/begin MEMORY_SEGMENT %s \"\" DATA FLASH INTERN 0x%08X 0x%X -1 -1 -1 -1 -1\n" // name, start, size
                                        "/begin IF_DATA XCP\n"
                                        "/begin SEGMENT %u 2 0 0 0\n" // index
@@ -107,7 +107,6 @@ static const char *gA2lMemorySegment = "/begin MEMORY_SEGMENT %s \"\" DATA FLASH
                                        "/end SEGMENT\n"
                                        "/end IF_DATA\n"
                                        "/end MEMORY_SEGMENT\n";
-#endif
 
 #ifdef XCP_ENABLE_EPK_CALSEG
 static const char *gA2lEpkMemorySegment = "/begin MEMORY_SEGMENT epk \"\" DATA FLASH INTERN 0x%08X %u -1 -1 -1 -1 -1\n"
@@ -123,6 +122,7 @@ static const char *gA2lEpkMemorySegment = "/begin MEMORY_SEGMENT epk \"\" DATA F
                                           "/end MEMORY_SEGMENT\n";
 #endif
 
+#endif
 //----------------------------------------------------------------------------------
 static const char *const gA2lIfDataBegin = "\n/begin IF_DATA XCP\n";
 
@@ -489,26 +489,32 @@ static void A2lCreate_MOD_PAR(void) {
     if (gA2lFile != NULL) {
 
         fprintf(gA2lFile, "\n/begin MOD_PAR \"\"\n");
-        tXcpCalSegIndex i = 0;
 
         // EPK
         const char *epk = XcpGetEpk();
         if (epk) {
             fprintf(gA2lFile, "EPK \"%s\" ADDR_EPK 0x%08X\n", epk, XCP_ADDR_EPK);
 
+#ifdef XCP_ENABLE_CALSEG_LIST
+
             // EPK segment is segment 0
 #ifdef XCP_ENABLE_EPK_CALSEG
             fprintf(gA2lFile, gA2lEpkMemorySegment, XCP_ADDR_EPK, strlen(epk));
-            i = 1;
 #endif
         }
 
-#ifdef XCP_ENABLE_CALSEG_LIST
         tXcpCalSegList const *calSegList = XcpGetCalSegList();
         if (calSegList != NULL && calSegList->count > 0) {
-            for (; i < calSegList->count; i++) {
+            for (tXcpCalSegIndex i = 0; i < calSegList->count; i++) {
                 tXcpCalSeg const *calseg = &calSegList->calseg[i];
-                fprintf(gA2lFile, gA2lMemorySegment, calseg->name, XcpGetCalSegBaseAddress(i), calseg->size, i);
+                fprintf(gA2lFile, gA2lMemorySegment, calseg->name, XcpGetCalSegBaseAddress(i), calseg->size,
+#ifdef XCP_ENABLE_EPK_CALSEG
+                        i + 1
+#else
+                        i
+#endif
+
+                );
             }
         }
 #endif

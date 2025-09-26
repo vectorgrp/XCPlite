@@ -317,6 +317,7 @@ uint32_t ApplXcpGetAddr(const uint8_t *p) { return ((uint32_t)(p)); }
 // Called only, when internal calibration segment management is not used or not enabled
 #ifdef XCP_ENABLE_USER_COMMAND
 uint8_t ApplXcpUserCommand(uint8_t cmd) {
+
     switch (cmd) {
     case 0x01: // Begin atomic calibration operation
         write_delayed = true;
@@ -329,7 +330,7 @@ uint8_t ApplXcpUserCommand(uint8_t cmd) {
 #endif
         break;
     default:
-        return CRC_CMD_UNKNOWN;
+        return CRC_SUBCMD_UNKNOWN;
     }
     return CRC_CMD_OK;
 }

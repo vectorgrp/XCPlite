@@ -103,6 +103,9 @@ Address extensions:
 // --- Calibration segment relative addressing mode
 #ifdef XCP_ENABLE_CALSEG_LIST // If calibration segments are enabled
 
+// Enable the EPK calibration segment to detect HEX file incompatibility
+// #define XCP_ENABLE_EPK_CALSEG
+
 #define XCP_ADDR_EXT_SEG 0x00 // Segment relative address format, must be 0, CANape does not support memory segment address extensions
 #define XcpAddrIsSeg(addr_ext) ((addr_ext) == XCP_ADDR_EXT_SEG)
 #ifdef XCP_ENABLE_EPK_CALSEG
