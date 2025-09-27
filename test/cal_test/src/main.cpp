@@ -12,6 +12,8 @@
 #include "a2l.hpp"    // for xcplib A2l generation application programming interface
 #include "xcplib.hpp" // for xcplib application programming interface
 
+#include "xcp_cfg.h"
+
 // Internally used XCP functions for testing
 extern "C" {
 uint8_t XcpWriteMta(uint8_t size, const uint8_t *data);
@@ -220,15 +222,15 @@ int main(int argc, char *argv[]) {
             test_data[i] = (uint8_t)(d0 + i);
         }
         if (write_count & 1) {
-            XcpSetMta(0, 0x80010000 + offsetof(ParametersT, data));
+            XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(0, offsetof(ParametersT, data)));
             XcpWriteMta(DEFAULT_TEST_DATA_SIZE, &test_data[0]);
 
         } else {
             XcpCalSegCommand(0x01); // Begin atomic calibration operation
-            XcpSetMta(0, 0x80010000 + offsetof(ParametersT, data));
+            XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(0, offsetof(ParametersT, data)));
             XcpWriteMta(DEFAULT_TEST_DATA_SIZE / 2, &test_data[0]);
             sleepUs(100);
-            XcpSetMta(0, 0x80010000 + offsetof(ParametersT, data) + DEFAULT_TEST_DATA_SIZE / 2);
+            XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(0, offsetof(ParametersT, data) + DEFAULT_TEST_DATA_SIZE / 2));
             XcpWriteMta(DEFAULT_TEST_DATA_SIZE / 2, &test_data[DEFAULT_TEST_DATA_SIZE / 2]);
             XcpCalSegCommand(0x02); // End atomic calibration operation
         }

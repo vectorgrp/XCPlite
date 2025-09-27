@@ -53,26 +53,31 @@ static uint8_t (*callback_get_cal_page)(uint8_t segment, uint8_t mode) = NULL;
 static uint8_t (*callback_set_cal_page)(uint8_t segment, uint8_t page, uint8_t mode) = NULL;
 static uint8_t (*callback_init_cal)(uint8_t src_page, uint8_t dst_page) = NULL;
 static uint8_t (*callback_freeze_cal)(void) = NULL;
-
-#ifdef XCP_ENABLE_APP_ADDRESSING
 static uint8_t (*callback_read)(uint32_t src, uint8_t size, uint8_t *dst) = NULL;
 static uint8_t (*callback_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay) = NULL;
 static uint8_t (*callback_flush)(void) = NULL;
+
+void ApplXcpRegisterConnectCallback(bool (*cb_connect)(void)) { callback_connect = cb_connect; }
+void ApplXcpRegisterPrepareDaqCallback(uint8_t (*cb_prepare_daq)(void)) { callback_prepare_daq = cb_prepare_daq; }
+void ApplXcpRegisterStartDaqCallback(uint8_t (*cb_start_daq)(void)) { callback_start_daq = cb_start_daq; }
+void ApplXcpRegisterStopDaqCallback(void (*cb_stop_daq)(void)) { callback_stop_daq = cb_stop_daq; }
+void ApplXcpRegisterFreezeDaqCallback(uint8_t (*cb_freeze_daq)(uint8_t clear, uint16_t config_id)) { callback_freeze_daq = cb_freeze_daq; }
+void ApplXcpRegisterGetCalPageCallback(uint8_t (*cb_get_cal_page)(uint8_t segment, uint8_t mode)) { callback_get_cal_page = cb_get_cal_page; }
+void ApplXcpRegisterSetCalPageCallback(uint8_t (*cb_set_cal_page)(uint8_t segment, uint8_t page, uint8_t mode)) { callback_set_cal_page = cb_set_cal_page; }
+void ApplXcpRegisterFreezeCalCallback(uint8_t (*cb_freeze_cal)(void)) { callback_freeze_cal = cb_freeze_cal; }
+void ApplXcpRegisterInitCalCallback(uint8_t (*cb_init_cal)(uint8_t src_page, uint8_t dst_page)) { callback_init_cal = cb_init_cal; }
+void ApplXcpRegisterReadCallback(uint8_t (*cb_read)(uint32_t src, uint8_t size, uint8_t *dst)) { callback_read = cb_read; }
+void ApplXcpRegisterWriteCallback(uint8_t (*cb_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay)) { callback_write = cb_write; }
+void ApplXcpRegisterFlushCallback(uint8_t (*cb_flush)(void)) { callback_flush = cb_flush; }
+
+// Internal function used by the Rust API
 void ApplXcpRegisterCallbacks(bool (*cb_connect)(void), uint8_t (*cb_prepare_daq)(void), uint8_t (*cb_start_daq)(void), void (*cb_stop_daq)(void),
                               uint8_t (*cb_freeze_daq)(uint8_t clear, uint16_t config_id), uint8_t (*cb_get_cal_page)(uint8_t segment, uint8_t mode),
                               uint8_t (*cb_set_cal_page)(uint8_t segment, uint8_t page, uint8_t mode), uint8_t (*cb_freeze_cal)(void),
                               uint8_t (*cb_init_cal)(uint8_t src_page, uint8_t dst_page), uint8_t (*cb_read)(uint32_t src, uint8_t size, uint8_t *dst),
                               uint8_t (*cb_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay), uint8_t (*cb_flush)(void))
 
-#else
-void ApplXcpRegisterCallbacks(bool (*cb_connect)(void), uint8_t (*cb_prepare_daq)(void), uint8_t (*cb_start_daq)(void), void (*cb_stop_daq)(void),
-                              uint8_t (*cb_freeze_daq)(uint8_t clear, uint16_t config_id), uint8_t (*cb_get_cal_page)(uint8_t segment, uint8_t mode),
-                              uint8_t (*cb_set_cal_page)(uint8_t segment, uint8_t page, uint8_t mode), uint8_t (*cb_freeze_cal)(void),
-                              uint8_t (*cb_init_cal)(uint8_t src_page, uint8_t dst_page))
-
-#endif
 {
-
     callback_connect = cb_connect;
     callback_prepare_daq = cb_prepare_daq;
     callback_start_daq = cb_start_daq;
@@ -82,14 +87,10 @@ void ApplXcpRegisterCallbacks(bool (*cb_connect)(void), uint8_t (*cb_prepare_daq
     callback_set_cal_page = cb_set_cal_page;
     callback_freeze_cal = cb_freeze_cal;
     callback_init_cal = cb_init_cal;
-#ifdef XCP_ENABLE_APP_ADDRESSING
     callback_read = cb_read;
     callback_write = cb_write;
     callback_flush = cb_flush;
-#endif
 }
-
-void ApplXcpRegisterConnectCallback(bool (*cb_connect)(void)) { callback_connect = cb_connect; }
 
 /**************************************************************************/
 // General notifications from protocol layer
@@ -181,20 +182,6 @@ bool ApplXcpGetClockInfoGrandmaster(uint8_t *uuid, uint8_t *epoch, uint8_t *stra
 
 #ifdef XCP_ENABLE_ABS_ADDRESSING
 
-uint8_t *ApplXcpGetPointer(uint8_t addr_ext, uint32_t addr) {
-
-    if (addr_ext != XCP_ADDR_EXT_ABS)
-        return NULL;
-    uint8_t *p;
-
-#ifdef _WIN32 // on WIN64 check that XCP address does not overflow
-    assert((uint64_t)ApplXcpGetBaseAddr() + addr >= (uint64_t)ApplXcpGetBaseAddr());
-#endif
-
-    p = ApplXcpGetBaseAddr() + addr;
-    return p;
-}
-
 #ifdef _WIN
 
 static uint8_t *baseAddr = NULL;
@@ -230,8 +217,8 @@ uint32_t ApplXcpGetAddr(const uint8_t *p) {
 #endif
 #include <link.h>
 
-uint8_t *baseAddr = NULL;
-uint8_t baseAddrValid = 0;
+static uint8_t *baseAddr = NULL;
+static uint8_t baseAddrValid = 0;
 
 static int dump_phdr(struct dl_phdr_info *pinfo, size_t size, void *data) {
     // DBG_PRINTF3("name=%s (%d segments)\n", pinfo->dlpi_name, pinfo->dlpi_phnum);
@@ -330,6 +317,7 @@ uint32_t ApplXcpGetAddr(const uint8_t *p) { return ((uint32_t)(p)); }
 // Called only, when internal calibration segment management is not used or not enabled
 #ifdef XCP_ENABLE_USER_COMMAND
 uint8_t ApplXcpUserCommand(uint8_t cmd) {
+
     switch (cmd) {
     case 0x01: // Begin atomic calibration operation
         write_delayed = true;
@@ -342,7 +330,7 @@ uint8_t ApplXcpUserCommand(uint8_t cmd) {
 #endif
         break;
     default:
-        return CRC_CMD_UNKNOWN;
+        return CRC_SUBCMD_UNKNOWN;
     }
     return CRC_CMD_OK;
 }
@@ -455,6 +443,7 @@ static void closeA2lFile(void) {
     assert(gXcpFile != NULL);
     fclose(gXcpFile);
     gXcpFile = NULL;
+    DBG_PRINT4("A2L file closed\n");
 }
 
 static uint32_t openA2lFile(void) {
@@ -476,7 +465,6 @@ static uint32_t openA2lFile(void) {
     gXcpFileLength = (uint32_t)ftell(gXcpFile);
     rewind(gXcpFile);
     assert(gXcpFileLength > 0);
-
     DBG_PRINTF4("A2L file %s ready for upload, size=%u\n", filename, gXcpFileLength);
     return gXcpFileLength;
 }
@@ -485,12 +473,14 @@ static uint32_t openA2lFile(void) {
 bool ApplXcpReadA2L(uint8_t size, uint32_t addr, uint8_t *data) {
     if (gXcpFile == NULL)
         return false;
-    if (addr + size > gXcpFileLength)
+    if (addr + size > gXcpFileLength || size != fread(data, 1, (uint32_t)size, gXcpFile)) {
+        closeA2lFile();
+        DBG_PRINTF_ERROR("ApplXcpReadA2L addr=%u size=%u exceeds file length=%u\n", addr, size, gXcpFileLength);
         return false;
-    if (size != fread(data, 1, (uint32_t)size, gXcpFile))
-        return false;
-    if (addr + size == gXcpFileLength)
+    }
+    if (addr + size == gXcpFileLength) {
         closeA2lFile(); // Close file after complete sequential read
+    }
     return true;
 }
 
@@ -533,7 +523,6 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen) {
         DBG_PRINTF3("ApplXcpGetId GET_ID%u A2L path=%s\n", id, buf);
         break;
 
-#ifdef XCP_ENABLE_IDT_A2L_UPLOAD
     case IDT_ASAM_EPK: {
         const char *epk = XcpGetEpk();
         if (epk == NULL)
@@ -549,8 +538,10 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen) {
         }
     } break;
 
+#ifdef XCP_ENABLE_IDT_A2L_UPLOAD
     case IDT_ASAM_UPLOAD:
-        assert(buf == NULL); // Not implemented
+        if (buf != NULL)
+            return 0; // A2L not available as response buffer
         len = openA2lFile();
         DBG_PRINTF3("ApplXcpGetId GET_ID%u A2L as upload (len=%u)\n", id, len);
         break;

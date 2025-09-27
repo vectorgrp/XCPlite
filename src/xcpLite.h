@@ -62,7 +62,9 @@ void XcpDisconnect(void);
 typedef uint16_t tXcpEventId;
 
 // Trigger a XCP data acquisition event
-uint8_t XcpEventDynRelAt(tXcpEventId event, const uint8_t *dyn_base, const uint8_t *rel_base, uint64_t clock);
+void XcpEventExt_At(tXcpEventId event, const uint8_t **bases, uint64_t clock);
+void XcpEventExt_(tXcpEventId event, const uint8_t **bases);
+void XcpEventExtAt(tXcpEventId event, const uint8_t *base, uint64_t clock);
 void XcpEventExt(tXcpEventId event, const uint8_t *base);
 void XcpEvent(tXcpEventId event);
 
@@ -187,10 +189,15 @@ lock-free, wait-free CalSeg RCU:
         - ecu_access
 */
 
+// Calibration segment number
+// Used in A2l and XCP commands to identify a calibration segment
+// Currently only 256 segments are supported
+typedef uint8_t tXcpCalSegNumber;
+
 // Calibration segment index
 // The index of the calibration segment in the calibration segment list or XCP_UNDEFINED_CALSEG
-#define XCP_UNDEFINED_CALSEG 0xFFFF
 typedef uint16_t tXcpCalSegIndex;
+#define XCP_UNDEFINED_CALSEG 0xFFFF
 
 // Calibration segment
 typedef struct {
@@ -361,7 +368,7 @@ typedef struct {
     uint8_t CmdLast1;
 #endif
 
-    /* Memory Transfer Address as pointer (ApplXcpGetPointer) */
+    /* Memory Transfer Address as pointer */
     uint8_t *MtaPtr;
     uint32_t MtaAddr;
     uint8_t MtaExt;
@@ -430,9 +437,8 @@ void ApplXcpStopDaq(void);
 
 /* Address conversions from A2L address to pointer and vice versa in absolute addressing mode */
 #ifdef XCP_ENABLE_ABS_ADDRESSING
-uint8_t *ApplXcpGetPointer(uint8_t xcpAddrExt, uint32_t xcpAddr); /* Create a pointer (uint8_t*) from xcpAddrExt and xcpAddr, returns NULL if no access */
-uint32_t ApplXcpGetAddr(const uint8_t *p);                        // Calculate the xcpAddr address from a pointer
-uint8_t *ApplXcpGetBaseAddr(void);                                // Get the base address for DAQ data access */
+uint32_t ApplXcpGetAddr(const uint8_t *p); // Calculate the xcpAddr address from a pointer
+uint8_t *ApplXcpGetBaseAddr(void);         // Get the base address for DAQ data access */
 #endif
 
 /* Read and write memory */
@@ -446,33 +452,20 @@ uint8_t ApplXcpWriteMemory(uint32_t dst, uint8_t size, const uint8_t *src);
 uint8_t ApplXcpUserCommand(uint8_t cmd);
 #endif
 
-/*
- Note 1:
-   For DAQ performance and memory optimization:
-   XCPlite DAQ tables do not store address extensions and do not use ApplXcpGetPointer(void), addr is stored as 32 Bit value and access is hardcoded by *(baseAddr+xcpAddr)
-   All accessible DAQ data is within a 4GByte range starting at ApplXcpGetBaseAddr(void)
-   Attempting to setup an ODT entry with address extension != XCP_ADDR_EXT_/ABS/DYN/REL gives a CRC_ACCESS_DENIED error message
-
- Note 2:
-   ApplXcpGetPointer may do address transformations according to active calibration page
-*/
-
-/* Switch calibration pages */
-
 // Calibration segment number
 // Is the type (uint8_t) used by XCP commands like GET_SEGMENT_INFO, SET_CAL_PAGE, ...
 typedef uint8_t tXcpCalSegNumber;
 
-// Calibration page number type
+// Calibration page number
 #define XCP_CALPAGE_DEFAULT_PAGE 1 // FLASH page
 #define XCP_CALPAGE_WORKING_PAGE 0 // RAM page
 #define XCP_CALPAGE_INVALID_PAGE 0xFF
 typedef uint8_t tXcpCalPageNumber;
 
-#ifdef XCP_ENABLE_CAL_PAGE
+/* Calibration page handling by application */
+#if defined(XCP_ENABLE_CAL_PAGE) && !defined(XCP_ENABLE_CALSEG_LIST)
 uint8_t ApplXcpSetCalPage(tXcpCalSegNumber segment, tXcpCalPageNumber page, uint8_t mode);
 uint8_t ApplXcpGetCalPage(tXcpCalSegNumber segment, uint8_t mode);
-uint8_t ApplXcpSetCalPage(tXcpCalSegNumber segment, tXcpCalPageNumber page, uint8_t mode);
 #ifdef XCP_ENABLE_COPY_CAL_PAGE
 uint8_t ApplXcpCopyCalPage(tXcpCalSegNumber srcSeg, tXcpCalPageNumber srcPage, tXcpCalSegNumber destSeg, tXcpCalPageNumber destPage);
 #endif
@@ -481,7 +474,7 @@ uint8_t ApplXcpCalFreeze(void);
 #endif
 #endif
 
-/* DAQ clock */
+/* DAQ clock provided by application*/
 uint64_t ApplXcpGetClock64(void);
 #define CLOCK_STATE_SYNCH_IN_PROGRESS (0)
 #define CLOCK_STATE_SYNCH (1)
@@ -509,7 +502,7 @@ uint8_t ApplXcpDaqResumeClear(void);
 
 /* Get info for GET_ID command (pointer to and length of data) */
 /* Supports IDT_ASCII, IDT_ASAM_NAME, IDT_ASAM_PATH, IDT_ASAM_URL, IDT_ASAM_EPK and IDT_ASAM_UPLOAD */
-/* Returns 0 if not available */
+/* Returns 0 if not available or buffer size exceeded */
 uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen);
 
 /* Read a chunk (offset,size) of the A2L file for upload */
@@ -521,23 +514,26 @@ bool ApplXcpReadA2L(uint8_t size, uint32_t offset, uint8_t *data);
 // Logging
 void ApplXcpSetLogLevel(uint8_t level);
 
-// Register callbacks
-#ifdef XCP_ENABLE_APP_ADDRESSING
+// Register XCP callbacks
+void ApplXcpRegisterConnectCallback(bool (*cb_connect)(void));
+void ApplXcpRegisterPrepareDaqCallback(uint8_t (*cb_prepare_daq)(void));
+void ApplXcpRegisterStartDaqCallback(uint8_t (*cb_start_daq)(void));
+void ApplXcpRegisterStopDaqCallback(void (*cb_stop_daq)(void));
+void ApplXcpRegisterFreezeDaqCallback(uint8_t (*cb_freeze_daq)(uint8_t clear, uint16_t config_id));
+void ApplXcpRegisterGetCalPageCallback(uint8_t (*cb_get_cal_page)(uint8_t segment, uint8_t mode));
+void ApplXcpRegisterSetCalPageCallback(uint8_t (*cb_set_cal_page)(uint8_t segment, uint8_t page, uint8_t mode));
+void ApplXcpRegisterFreezeCalCallback(uint8_t (*cb_freeze_cal)(void));
+void ApplXcpRegisterInitCalCallback(uint8_t (*cb_init_cal)(uint8_t src_page, uint8_t dst_page));
+void ApplXcpRegisterReadCallback(uint8_t (*cb_read)(uint32_t src, uint8_t size, uint8_t *dst));
+void ApplXcpRegisterWriteCallback(uint8_t (*cb_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay));
+void ApplXcpRegisterFlushCallback(uint8_t (*cb_flush)(void));
+
+// Internal function used by the Rust API
 void ApplXcpRegisterCallbacks(bool (*cb_connect)(void), uint8_t (*cb_prepare_daq)(void), uint8_t (*cb_start_daq)(void), void (*cb_stop_daq)(void),
                               uint8_t (*cb_freeze_daq)(uint8_t clear, uint16_t config_id), uint8_t (*cb_get_cal_page)(uint8_t segment, uint8_t mode),
                               uint8_t (*cb_set_cal_page)(uint8_t segment, uint8_t page, uint8_t mode), uint8_t (*cb_freeze_cal)(void),
                               uint8_t (*cb_init_cal)(uint8_t src_page, uint8_t dst_page), uint8_t (*cb_read)(uint32_t src, uint8_t size, uint8_t *dst),
                               uint8_t (*cb_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay), uint8_t (*cb_flush)(void));
-
-#else
-void ApplXcpRegisterCallbacks(bool (*cb_connect)(void), uint8_t (*cb_prepare_daq)(void), uint8_t (*cb_start_daq)(void), void (*cb_stop_daq)(void),
-                              uint8_t (*cb_freeze_daq)(uint8_t clear, uint16_t config_id), uint8_t (*cb_get_cal_page)(uint8_t segment, uint8_t mode),
-                              uint8_t (*cb_set_cal_page)(uint8_t segment, uint8_t page, uint8_t mode), uint8_t (*cb_freeze_cal)(void),
-                              uint8_t (*cb_init_cal)(uint8_t src_page, uint8_t dst_page));
-
-#endif
-
-void ApplXcpRegisterConnectCallback(bool (*cb_connect)(void));
 
 // Set/get the A2L file name (for GET_ID IDT_ASAM_NAME, IDT_ASAM_NAME and for IDT_ASAM_UPLOAD)
 #define XCP_A2L_FILENAME_MAX_LENGTH 255 // Maximum length of A2L filename with extension

@@ -14,7 +14,7 @@
 // XCP params
 
 #define OPTION_PROJECT_NAME "hello_xcp" // Project name, used to build the A2L and BIN file name
-#define OPTION_USE_TCP false            // TCP or UDP
+#define OPTION_USE_TCP true             // TCP or UDP
 #define OPTION_SERVER_PORT 5555         // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
 #define OPTION_QUEUE_SIZE 1024 * 16     // Size of the measurement queue in bytes, must be a multiple of 8
@@ -31,7 +31,7 @@ typedef struct params {
 } parameters_t;
 
 // Default values (reference page, "FLASH") for the calibration parameters
-const parameters_t params = {.counter_max = 1000, .delay_us = 1000, .acceleration = 0.01f};
+const parameters_t params = {.counter_max = 1024, .delay_us = 1000, .acceleration = 0.01f};
 
 // A global calibration segment handle for the calibration parameters
 // A calibration segment has a working page ("RAM") and a reference page ("FLASH"), it is described by a MEMORY_SEGMENT in the A2L file
@@ -42,8 +42,8 @@ tXcpCalSegIndex calseg = XCP_UNDEFINED_CALSEG;
 //-----------------------------------------------------------------------------------------------------
 // Demo global measurement values
 
-static uint8_t temperature = 50; // Temperature in Deg Celcius as Byte, 0 is -55 °C, 255 is +200 °C
-static float speed = 0.0f;       // Speed in km/h
+uint8_t temperature = 50; // Temperature in Deg Celcius as Byte, 0 is -55 °C, 255 is +200 °C
+float speed = 0.0f;       // Speed in km/h
 
 //-----------------------------------------------------------------------------------------------------
 // Demo function with XCP instrumentation
@@ -107,14 +107,14 @@ int main(void) {
 
     // XCP: Enable inline A2L generation
     // In WRITE_ONCE mode:
-    //   If the A2l file aready exists, check if software version (EPK) still matches and load calibration values from the binary persistence file
-    //   If not, prepare the A2L file, finalize the A2L file on XCP client connect
+    //   If the A2l file aready exists, check if software version (EPK) still matches and load calibration values from the binary persistence file (.bin)
+    //   If not, create a new A2L file (.a2l) and binary persistence file (.bin) with default calibration values
     // In WRITE_ALWAYS mode:
-    //   Recreate the A2L file on each application start, calibration values stay on default/reference page
+    //   Recreate the A2L file on each application start, calibration values will be initialized to default
     //   Binary persistence is not supported
     // Finalize the A2L file on XCP connect
     // Optionally create A2L groups for calibration segments and events
-    if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(OPTION_PROJECT_NAME, NULL /* EPK */, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         return 1;
     }
 

@@ -1,17 +1,17 @@
 [FILE_INFO]
 Identification=CANape-Configuration-File
 FileName=xcp_demo.cna
-FileNameAbsolute=D:\git\XCPlite-RainerZ\examples\c_demo\CANape\xcp_demo.cna
-WorkingDirectory=D:\git\XCPlite-RainerZ\examples\c_demo\CANape
+FileNameAbsolute=Y:\XCPlite-RainerZ\examples\c_demo\CANape\xcp_demo.cna
+WorkingDirectory=Y:\XCPlite-RainerZ\examples\c_demo\CANape
 ProjectId=07e8-0007-0007-0015-0002-0030-0000
 FileVersion=2200
-PrgVersion=Version 23.0.21.55 HF1
-PrgDate=11.08.2025
+PrgVersion=Version 23.0.20.3237 
+PrgDate=16.06.2025
 Description=
 CreationTime=21:05
 CreationDate=07/07/2024 ; Month/Day/Year
-ModificationTime=16:34
-ModificationDate=09/02/2025 ; Month/Day/Year
+ModificationTime=19:50
+ModificationDate=09/22/2025 ; Month/Day/Year
 Protected=0
 CurrentWindowsACP=1252
 
@@ -1434,9 +1434,9 @@ WindowTextExtended=1
 WindowTextExtendedNew=1
 WindowSymbols=1
 GlobalCursor=0
-GlobalCursorTime=0
-GlobalCursorTimeNs=0
-MainWindowPos=1, 1955, 455, 1342, 772 ;cmd, x, y, w, h
+GlobalCursorTime=83862
+GlobalCursorTimeNs=83862599000
+MainWindowPos=1, 458, 267, 2684, 1544 ;cmd, x, y, w, h
 
 [PAR_COMMENT]
 1="Name",""
@@ -1459,7 +1459,7 @@ ScriptName=
 ScriptName=
 
 [PRINTING]
-ScreenDPI=96
+ScreenDPI=192
 
 [PROFILE_MDF_OBJECT_1]
 Unit=
@@ -1608,7 +1608,7 @@ Count=0
 [WINDOW_1]
 ProgID=
 PROPERTIES_COUNT=1
-PROPERTY_1={"Version":"1.3.0.0","Configuration":{"ArrayWindowSubControlConfiguration":{"NumericGraphicCompositeWidth":305,"NumericGraphicCompositeHeight":130,"LegendCoordinatePoint":{"X":0,"Y":0},"LegendWidth":0,"LegendHeight":0,"LegendLayoutGroupSizeWidth":0,"LegendLayoutGroupSizeHeight":0,"NumericCoordinatePoint":{"X":1,"Y":24},"NumericWidth":303,"NumericHeight":105,"NumericLayoutGroupSizeWidth":303,"NumericLayoutGroupSizeHeight":105,"Intersection2DXWCoordinatePoint":{"X":0,"Y":0},"Intersection2DXWWidth":0,"Intersection2DXWHeight":0,"Intersection2DXWLayoutGroupSizeWidth":0,"Intersection2DXWLayoutGroupSizeHeight":0,"Intersection2DYWCoordinatePoint":{"X":0,"Y":0},"Intersection2DYWWidth":0,"Intersection2DYWHeight":0,"Intersection2DYWLayoutGroupSizeWidth":0,"Intersection2DYWLayoutGroupSizeHeight":0,"Graphic3DCoordinatePoint":{"X":0,"Y":0},"Graphic3DWidth":0,"Graphic3DHeight":0,"Graphic3DLayoutGroupSizeWidth":0,"Graphic3DLayoutGroupSizeHeight":0},"ShowCalibrationBar":true,"ShowHorizontalChartLines":false,"ShowVerticalChartLines":false,"NonSelectedIntersectionLineTransparency":0.100000024,"FocusedValueSymbol":"DEVICE:\"xcp_demo\":\"$params$params.test_byte2\":P","ValueObjectConfigurations":[{"Symbol":"DEVICE:\"xcp_demo\":\"$params$params.counter_max\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ValueFormat":0,"AxisValueFormats":[],"NumericFormat":4,"AxisNumericFormats":[],"NumericFormatDigits":6,"IsActive":true,"CurrentChartViewType":2,"PointMarker":1,"IsValueAnnotationEnabled":false,"ValueAxisMin":0,"ValueAxisMax":2000,"ValueAxisMinHome":0,"ValueAxisMaxHome":2000,"ValueAxisPosition":0,"CommonValueAxisName":null,"CommonValueAxisLabel":null,"CommonValueAxisMin":0,"CommonValueAxisMax":0,"CommonValueAxisMinHome":0,"CommonValueAxisMaxHome":0,"SerializationCommonValueAxisColor":{"R":0,"G":0,"B":0,"A":0},"CommonValueAxisID":0,"CommonValueAxisFormat":null,"CommonValueAxisPosition":0,"CommonXAxisLabel":"","CommonYAxisLabel":"","CustomAxisLabels":["","","","","",""]},{"Symbol":"DEVICE:\"xcp_demo\":\"$params$params.delay_us\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ValueFormat":0,"AxisValueFormats":[],"NumericFormat":4,"AxisNumericFormats":[],"NumericFormatDigits":6,"IsActive":true,"CurrentChartViewType":2,"PointMarker":1,"IsValueAnnotationEnabled":false,"ValueAxisMin":0,"ValueAxisMax":1000000,"ValueAxisMinHome":0,"ValueAxisMaxHome":1000000,"ValueAxisPosition":0,"CommonValueAxisName":null,"CommonValueAxisLabel":null,"CommonValueAxisMin":0,"CommonValueAxisMax":0,"CommonValueAxisMinHome":0,"CommonValueAxisMaxHome":0,"SerializationCommonValueAxisColor":{"R":0,"G":0,"B":0,"A":0},"CommonValueAxisID":0,"CommonValueAxisFormat":null,"CommonValueAxisPosition":0,"CommonXAxisLabel":"","CommonYAxisLabel":"","CustomAxisLabels":["","","","","",""]},{"Symbol":"DEVICE:\"xcp_demo\":\"$params$params.test_byte1\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ValueFormat":0,"AxisValueFormats":[],"NumericFormat":4,"AxisNumericFormats":[],"NumericFormatDigits":6,"IsActive":true,"CurrentChartViewType":2,"PointMarker":1,"IsValueAnnotationEnabled":false,"ValueAxisMin":-128,"ValueAxisMax":127,"ValueAxisMinHome":-128,"ValueAxisMaxHome":127,"ValueAxisPosition":0,"CommonValueAxisName":null,"CommonValueAxisLabel":null,"CommonValueAxisMin":0,"CommonValueAxisMax":0,"CommonValueAxisMinHome":0,"CommonValueAxisMaxHome":0,"SerializationCommonValueAxisColor":{"R":0,"G":0,"B":0,"A":0},"CommonValueAxisID":0,"CommonValueAxisFormat":null,"CommonValueAxisPosition":0,"CommonXAxisLabel":"","CommonYAxisLabel":"","CustomAxisLabels":["","","","","",""]},{"Symbol":"DEVICE:\"xcp_demo\":\"$params$params.test_byte2\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ValueFormat":0,"AxisValueFormats":[],"NumericFormat":4,"AxisNumericFormats":[],"NumericFormatDigits":6,"IsActive":true,"CurrentChartViewType":2,"PointMarker":1,"IsValueAnnotationEnabled":false,"ValueAxisMin":-128,"ValueAxisMax":127,"ValueAxisMinHome":-128,"ValueAxisMaxHome":127,"ValueAxisPosition":0,"CommonValueAxisName":null,"CommonValueAxisLabel":null,"CommonValueAxisMin":0,"CommonValueAxisMax":0,"CommonValueAxisMinHome":0,"CommonValueAxisMaxHome":0,"SerializationCommonValueAxisColor":{"R":0,"G":0,"B":0,"A":0},"CommonValueAxisID":0,"CommonValueAxisFormat":null,"CommonValueAxisPosition":0,"CommonXAxisLabel":"","CommonYAxisLabel":"","CustomAxisLabels":["","","","","",""]}],"NumericGraphicControlPosition":0,"NumericGraphicControlSelectedTab":0,"GraphicControlPosition":0,"Height2DXControl":1,"Height2DYControl":1,"Height3DControl":2,"HeightNumericControl":1,"HeightChartControl":1,"HeightLegendControl":0.44999998807907104,"Width2DXControl":1,"Width2DYControl":1,"Width3DControl":2,"WidthNumericControl":2,"WidthChartControl":2,"WidthLegendControl":0.30000001192092896,"HeightValueControl":1,"WidthValueControl":1,"HeightNumericGraphicControl":1,"WidthNumericGraphicControl":1,"Height2DChartsControl":1,"Width2DChartsControl":1,"IsXAxisHeightSynchronizedBetweenCharts":true,"IsYAxisAreaWidthSynchronizedBetweenCharts":true,"SyncedXAxisHeight":NaN,"XWChartXAxisHeight":NaN,"YWChartXAxisHeight":NaN,"SyncedLeftAxisAreaWidth":NaN,"XWChartLeftAxisAreaWidth":NaN,"YWChartLeftAxisAreaWidth":NaN,"SyncedRightAxisAreaWidth":NaN,"XWChartRightAxisAreaWidth":NaN,"YWChartRightAxisAreaWidth":NaN,"LegendPosition":0,"LegendViewType":0,"LegendTableColumnAttributes":[{"TypeId":"1048594","Size":40},{"TypeId":"1048601","Size":45},{"TypeId":"31","Size":100},{"TypeId":"3","Size":250},{"TypeId":"16","Size":70},{"TypeId":"1048627","Size":100},{"TypeId":"1048631","Size":100},{"TypeId":"1048634","Size":100}],"LegendTabItemAttributes":[{"TypeId":"31","Size":100}],"FlipAxes":false,"AxisDisplayNameMode":3,"ReversedAxis":[false,false],"ShowUnits":false,"ShowObjectColor":false,"SortDescending":false,"SortAttributeId":null,"ShowWorkingPointHistory":false,"NumericViewValueObjectDisplayOption":1,"ValueColumnWidth":106,"ValueColumnWidthDouble":106.66666666666663,"ParameterGroup":"","ModuleName":"","GroupIsFunction":false,"NumericControlAxisAttributes":[],"NumericControlColumnAttributes":[{"TypeId":"31","Size":192}],"ChartViewValueObjectDisplayOption":1,"SerializationCameraPosition":{"X":1,"Y":1,"Z":-1},"SerializationCameraTarget":{"X":0,"Y":0.5,"Z":0},"IsValueAnnotationRotated":false,"EquidistantAxisPoints":false,"BarThickness":0.6,"WorkingPointMarker":0,"LinearWorkingPointInterpolation":true,"ShowAllIntersectionLines":false,"IsValueAxisIndependent":true,"TickLabelRotationAngle":-90,"IsTickLabelRotationEnabled":false,"IsTickLabelRightAligned":false,"ShowBoundarySurface":true,"ShowBoundarySurfaceGradient":false,"ShowCursorAsCrosshair":false,"XAxisAutoRange":true,"ValueAxisAutoRange":true,"ShowAllValueAxes":false,"DrawAxisBands":false,"CurrentColumnChartType":0,"SerializationCursorCrosshairColor":{"R":0,"G":0,"B":0,"A":255},"AlignBarToZero":true,"DefaultChartViewType":2,"AttributeColumnPositioning":1}}
+PROPERTY_1={"Version":"1.3.0.0","Configuration":{"ArrayWindowSubControlConfiguration":{"NumericGraphicCompositeWidth":308,"NumericGraphicCompositeHeight":133,"LegendCoordinatePoint":{"X":0,"Y":0},"LegendWidth":0,"LegendHeight":0,"LegendLayoutGroupSizeWidth":0,"LegendLayoutGroupSizeHeight":0,"NumericCoordinatePoint":{"X":1,"Y":24},"NumericWidth":306,"NumericHeight":108,"NumericLayoutGroupSizeWidth":306,"NumericLayoutGroupSizeHeight":108,"Intersection2DXWCoordinatePoint":{"X":0,"Y":0},"Intersection2DXWWidth":0,"Intersection2DXWHeight":0,"Intersection2DXWLayoutGroupSizeWidth":0,"Intersection2DXWLayoutGroupSizeHeight":0,"Intersection2DYWCoordinatePoint":{"X":0,"Y":0},"Intersection2DYWWidth":0,"Intersection2DYWHeight":0,"Intersection2DYWLayoutGroupSizeWidth":0,"Intersection2DYWLayoutGroupSizeHeight":0,"Graphic3DCoordinatePoint":{"X":0,"Y":0},"Graphic3DWidth":0,"Graphic3DHeight":0,"Graphic3DLayoutGroupSizeWidth":0,"Graphic3DLayoutGroupSizeHeight":0},"ShowCalibrationBar":true,"ShowHorizontalChartLines":false,"ShowVerticalChartLines":false,"NonSelectedIntersectionLineTransparency":0.100000024,"FocusedValueSymbol":"DEVICE:\"xcp_demo\":\"$params$params.test_byte2\":P","ValueObjectConfigurations":[{"Symbol":"DEVICE:\"xcp_demo\":\"$params$params.counter_max\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ValueFormat":0,"AxisValueFormats":[],"NumericFormat":4,"AxisNumericFormats":[],"NumericFormatDigits":6,"IsActive":true,"CurrentChartViewType":2,"PointMarker":1,"IsValueAnnotationEnabled":false,"ValueAxisMin":0,"ValueAxisMax":2000,"ValueAxisMinHome":0,"ValueAxisMaxHome":2000,"ValueAxisPosition":0,"CommonValueAxisName":null,"CommonValueAxisLabel":null,"CommonValueAxisMin":0,"CommonValueAxisMax":0,"CommonValueAxisMinHome":0,"CommonValueAxisMaxHome":0,"SerializationCommonValueAxisColor":{"R":0,"G":0,"B":0,"A":0},"CommonValueAxisID":0,"CommonValueAxisFormat":null,"CommonValueAxisPosition":0,"CommonXAxisLabel":"","CommonYAxisLabel":"","CustomAxisLabels":["","","","","",""]},{"Symbol":"DEVICE:\"xcp_demo\":\"$params$params.delay_us\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ValueFormat":0,"AxisValueFormats":[],"NumericFormat":4,"AxisNumericFormats":[],"NumericFormatDigits":6,"IsActive":true,"CurrentChartViewType":2,"PointMarker":1,"IsValueAnnotationEnabled":false,"ValueAxisMin":0,"ValueAxisMax":1000000,"ValueAxisMinHome":0,"ValueAxisMaxHome":1000000,"ValueAxisPosition":0,"CommonValueAxisName":null,"CommonValueAxisLabel":null,"CommonValueAxisMin":0,"CommonValueAxisMax":0,"CommonValueAxisMinHome":0,"CommonValueAxisMaxHome":0,"SerializationCommonValueAxisColor":{"R":0,"G":0,"B":0,"A":0},"CommonValueAxisID":0,"CommonValueAxisFormat":null,"CommonValueAxisPosition":0,"CommonXAxisLabel":"","CommonYAxisLabel":"","CustomAxisLabels":["","","","","",""]},{"Symbol":"DEVICE:\"xcp_demo\":\"$params$params.test_byte1\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ValueFormat":0,"AxisValueFormats":[],"NumericFormat":4,"AxisNumericFormats":[],"NumericFormatDigits":6,"IsActive":true,"CurrentChartViewType":2,"PointMarker":1,"IsValueAnnotationEnabled":false,"ValueAxisMin":-128,"ValueAxisMax":127,"ValueAxisMinHome":-128,"ValueAxisMaxHome":127,"ValueAxisPosition":0,"CommonValueAxisName":null,"CommonValueAxisLabel":null,"CommonValueAxisMin":0,"CommonValueAxisMax":0,"CommonValueAxisMinHome":0,"CommonValueAxisMaxHome":0,"SerializationCommonValueAxisColor":{"R":0,"G":0,"B":0,"A":0},"CommonValueAxisID":0,"CommonValueAxisFormat":null,"CommonValueAxisPosition":0,"CommonXAxisLabel":"","CommonYAxisLabel":"","CustomAxisLabels":["","","","","",""]},{"Symbol":"DEVICE:\"xcp_demo\":\"$params$params.test_byte2\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ValueFormat":0,"AxisValueFormats":[],"NumericFormat":4,"AxisNumericFormats":[],"NumericFormatDigits":6,"IsActive":true,"CurrentChartViewType":2,"PointMarker":1,"IsValueAnnotationEnabled":false,"ValueAxisMin":-128,"ValueAxisMax":127,"ValueAxisMinHome":-128,"ValueAxisMaxHome":127,"ValueAxisPosition":0,"CommonValueAxisName":null,"CommonValueAxisLabel":null,"CommonValueAxisMin":0,"CommonValueAxisMax":0,"CommonValueAxisMinHome":0,"CommonValueAxisMaxHome":0,"SerializationCommonValueAxisColor":{"R":0,"G":0,"B":0,"A":0},"CommonValueAxisID":0,"CommonValueAxisFormat":null,"CommonValueAxisPosition":0,"CommonXAxisLabel":"","CommonYAxisLabel":"","CustomAxisLabels":["","","","","",""]}],"NumericGraphicControlPosition":0,"NumericGraphicControlSelectedTab":0,"GraphicControlPosition":0,"Height2DXControl":1,"Height2DYControl":1,"Height3DControl":2,"HeightNumericControl":1,"HeightChartControl":1,"HeightLegendControl":0.44999998807907104,"Width2DXControl":1,"Width2DYControl":1,"Width3DControl":2,"WidthNumericControl":2,"WidthChartControl":2,"WidthLegendControl":0.30000001192092896,"HeightValueControl":1,"WidthValueControl":1,"HeightNumericGraphicControl":1,"WidthNumericGraphicControl":1,"Height2DChartsControl":1,"Width2DChartsControl":1,"IsXAxisHeightSynchronizedBetweenCharts":true,"IsYAxisAreaWidthSynchronizedBetweenCharts":true,"SyncedXAxisHeight":NaN,"XWChartXAxisHeight":NaN,"YWChartXAxisHeight":NaN,"SyncedLeftAxisAreaWidth":NaN,"XWChartLeftAxisAreaWidth":NaN,"YWChartLeftAxisAreaWidth":NaN,"SyncedRightAxisAreaWidth":NaN,"XWChartRightAxisAreaWidth":NaN,"YWChartRightAxisAreaWidth":NaN,"LegendPosition":0,"LegendViewType":0,"LegendTableColumnAttributes":[{"TypeId":"1048594","Size":40},{"TypeId":"1048601","Size":45},{"TypeId":"31","Size":100},{"TypeId":"3","Size":250},{"TypeId":"16","Size":70},{"TypeId":"1048627","Size":100},{"TypeId":"1048631","Size":100},{"TypeId":"1048634","Size":100}],"LegendTabItemAttributes":[{"TypeId":"31","Size":100}],"FlipAxes":false,"AxisDisplayNameMode":3,"ReversedAxis":[false,false],"ShowUnits":false,"ShowObjectColor":false,"SortDescending":false,"SortAttributeId":null,"ShowWorkingPointHistory":false,"NumericViewValueObjectDisplayOption":1,"ValueColumnWidth":106,"ValueColumnWidthDouble":106.66666666666663,"ParameterGroup":"","ModuleName":"","GroupIsFunction":false,"NumericControlAxisAttributes":[],"NumericControlColumnAttributes":[{"TypeId":"31","Size":192}],"ChartViewValueObjectDisplayOption":1,"SerializationCameraPosition":{"X":1,"Y":1,"Z":-1},"SerializationCameraTarget":{"X":0,"Y":0.5,"Z":0},"IsValueAnnotationRotated":false,"EquidistantAxisPoints":false,"BarThickness":0.6,"WorkingPointMarker":0,"LinearWorkingPointInterpolation":true,"ShowAllIntersectionLines":false,"IsValueAxisIndependent":true,"TickLabelRotationAngle":-90,"IsTickLabelRotationEnabled":false,"IsTickLabelRightAligned":false,"ShowBoundarySurface":true,"ShowBoundarySurfaceGradient":false,"ShowCursorAsCrosshair":false,"XAxisAutoRange":true,"ValueAxisAutoRange":true,"ShowAllValueAxes":false,"DrawAxisBands":false,"CurrentColumnChartType":0,"SerializationCursorCrosshairColor":{"R":0,"G":0,"B":0,"A":255},"AlignBarToZero":true,"DefaultChartViewType":2,"AttributeColumnPositioning":1}}
 OBJECTS_COUNT=4
 OBJECT_1=DEVICE:"xcp_demo":"$params$params.counter_max":P
 OBJECT_2=DEVICE:"xcp_demo":"$params$params.delay_us":P
@@ -1621,10 +1621,10 @@ Type=137438953472
 Comment=Calibration
 Number=1
 GUID=WINDOW_b925684c-7ba1-48ce-918f-0609cbee10b4
-ScreenDPIinSection=96
-Position=0, 0, 222, 311, 153 ;cmd, x, y, w, h
+ScreenDPIinSection=192
+Position=0, 0, 444, 622, 306 ;cmd, x, y, w, h
 Position_dpi96=0, 0, 222, 311, 153 ;cmd, x, y, w, h
-Position_Page01=0, 0, 222, 311, 153 ;cmd, x, y, w, h
+Position_Page01=0, 0, 444, 622, 306 ;cmd, x, y, w, h
 Position_Page01_dpi96=0, 0, 222, 311, 153 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
@@ -1636,10 +1636,10 @@ Type=16
 Comment=Map/Curve Window
 Number=10
 GUID=WINDOW_bb22a5a5-3bdc-49dd-b2c9-7212c9602bc0
-ScreenDPIinSection=96
-Position=0, 73, 64, 940, 485 ;cmd, x, y, w, h
+ScreenDPIinSection=192
+Position=0, 146, 128, 1880, 970 ;cmd, x, y, w, h
 Position_dpi96=0, 73, 64, 940, 485 ;cmd, x, y, w, h
-Position_Page02=0, 73, 64, 940, 485 ;cmd, x, y, w, h
+Position_Page02=0, 146, 128, 1880, 970 ;cmd, x, y, w, h
 Position_Page02_dpi96=0, 73, 64, 940, 485 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
@@ -1856,7 +1856,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_5195cf27-2296-4c63-98c2-b07f5a4835c6
+GUID=DISPLAY_6008bb0f-dd84-48ce-b4df-aae2744d1825
 
 [WINDOW_1_OBJECT_2]
 Type=2
@@ -1905,7 +1905,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_8c781893-8890-4dd1-9cc1-96f736736bd2
+GUID=DISPLAY_d24beb3a-bb56-400a-9aaa-d2c14984de1d
 
 [WINDOW_1_OBJECT_3]
 Type=2
@@ -1954,7 +1954,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_8f46456b-a690-4fd5-b27b-ab430c09822f
+GUID=DISPLAY_606fd402-383f-4c8f-943b-3c853353170b
 
 [WINDOW_1_OBJECT_4]
 Type=2
@@ -2003,7 +2003,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_9212e02e-c0cb-4bb5-958d-7808c470b247
+GUID=DISPLAY_178ebfda-56ba-4ae0-ad97-0951f4b7329b
 
 [WINDOW_2]
 ComponentCount=1
@@ -2012,10 +2012,10 @@ Type=65536
 Comment=Multi view window
 Number=2
 GUID=WINDOW_3f306d17-7bdd-464f-bbd8-ead5b31ddbd8
-ScreenDPIinSection=96
-Position=0, 311, 5, 763, 370 ;cmd, x, y, w, h
+ScreenDPIinSection=192
+Position=0, 622, 10, 1526, 740 ;cmd, x, y, w, h
 Position_dpi96=0, 311, 5, 763, 370 ;cmd, x, y, w, h
-Position_Page01=0, 311, 5, 763, 370 ;cmd, x, y, w, h
+Position_Page01=0, 622, 10, 1526, 740 ;cmd, x, y, w, h
 Position_Page01_dpi96=0, 311, 5, 763, 370 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
@@ -2025,16 +2025,16 @@ DisplayMask=1 ; pages 1
 XLen=5432
 XMin=0
 XMinNs=0
-XMax=972
-XMaxNs=972057240
+XMax=37407
+XMaxNs=37407452083
 Grid=1
 Mark=1
 YValue=2
 ShowLegend=2
 ShowLegendHeader=1
-LegendPixWidth=224
+LegendPixWidth=448
 LegendPixWidth_dpi96=224
-LegendPixHeight=98
+LegendPixHeight=196
 LegendPixHeight_dpi96=98
 LegendPos=2
 Optimize=1
@@ -2044,7 +2044,7 @@ XYModeIndexP1=-1
 DisplayModeAuto=0
 XStart=0
 AbsoluteTimeMode=0
-YAxisWidth=196
+YAxisWidth=392
 YAxisWidth_dpi96=196
 RightYAxisWidth=0
 RightYAxisWidth_dpi96=0
@@ -2071,7 +2071,7 @@ Type=1
 Comment=Graphic Window
 Number=3
 GUID=WINDOW_57d21daf-0f84-4517-9258-1ecbf4f6ee07
-ScreenDPIinSection=96
+ScreenDPIinSection=192
 Position=0, 0, 0, 0, 0 ;cmd, x, y, w, h
 Position_dpi96=0, 0, 0, 0, 0 ;cmd, x, y, w, h
 Position_Page01=0, 0, 0, 0, 0 ;cmd, x, y, w, h
@@ -2087,11 +2087,11 @@ TimeAxisTemplate=<default>
 DisplayMask=1 ; pages 1
 
 [WINDOW_3_LEG_COLUMNS]
-ScreenDPIinSection=96
+ScreenDPIinSection=192
 COUNT=2
-COL_0=31, 136
+COL_0=31, 272
 COL_0_dpi96=31, 136
-COL_1=1048578, 95
+COL_1=1048578, 190
 COL_1_dpi96=1048578, 95
 
 [WINDOW_4]
@@ -2102,23 +2102,23 @@ ClearStart=1
 AbsoluteTimeEnabled=0
 ShowGridLines=0
 ColumnCount=3
-Column_0=21, 40
+Column_0=21, 80
 Column_0_dpi96=21, 40
-Column_1=22, 90
+Column_1=22, 180
 Column_1_dpi96=22, 90
-Column_2=23, 953
+Column_2=23, 1906
 Column_2_dpi96=23, 953
 Title=Write
 Type=128
 Comment=Write Window
 Number=4
 GUID=WINDOW_446152b9-0c82-4710-9a56-52baa89295ac
-ScreenDPIinSection=96
-Position=0, 0, 375, 1074, 193 ;cmd, x, y, w, h
+ScreenDPIinSection=192
+Position=0, 0, 750, 2148, 386 ;cmd, x, y, w, h
 Position_dpi96=0, 0, 375, 1074, 193 ;cmd, x, y, w, h
-Position_Page01=0, 0, 375, 1074, 193 ;cmd, x, y, w, h
+Position_Page01=0, 0, 750, 2148, 386 ;cmd, x, y, w, h
 Position_Page01_dpi96=0, 0, 375, 1074, 193 ;cmd, x, y, w, h
-Position_Page04=0, 0, 0, 1052, 520 ;cmd, x, y, w, h
+Position_Page04=0, 0, 0, 2104, 1040 ;cmd, x, y, w, h
 Position_Page04_dpi96=0, 0, 0, 1052, 520 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
@@ -2129,14 +2129,14 @@ ProgID=CNPTRACE.TraceCtrl.1
 PROPERTIES_COUNT=22
 PROPERTY_1=DeviceItems={"CaptureEvents":"1","ShowEvents":"0","NodeCount":"1","Node0":{"DeviceName":"xcp_demo","CaptureEvents":"1","ShowEvents":"1","NodeCount":"3","Node0":{"Channel":"2","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node1":{"Channel":"3","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node2":{"Channel":"4","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"}}}
 PROPERTY_2=NetworkItems={"Items":"0"}
-PROPERTY_3=ColumnConfigs={"ConfigCount":"1","Config0":{"Layout":"1","Name":"hello_xcp","Column0":{"Width":"106","Position":"0","Name":"Time","IsDefaultName":"1"},"Column3":{"Width":"46","Position":"1","Name":"Name","IsDefaultName":"1"},"Column6":{"Width":"50","Position":"2","Name":"Length","IsDefaultName":"1"},"Column7":{"Width":"300","Position":"4","Name":"Data","IsDefaultName":"1"},"Column52":{"Width":"372","Position":"3","Name":"Protocol Interpretation","IsDefaultName":"1"}},"Active":"0","ActiveLayout":"1"}
+PROPERTY_3=ColumnConfigs={"ConfigCount":"1","Config0":{"Layout":"1","Name":"hello_xcp","Column0":{"Width":"212","Position":"0","Name":"Time","IsDefaultName":"1"},"Column3":{"Width":"92","Position":"1","Name":"Name","IsDefaultName":"1"},"Column6":{"Width":"100","Position":"2","Name":"Length","IsDefaultName":"1"},"Column7":{"Width":"600","Position":"4","Name":"Data","IsDefaultName":"1"},"Column52":{"Width":"744","Position":"3","Name":"Protocol Interpretation","IsDefaultName":"1"}},"Active":"0","ActiveLayout":"1"}
 PROPERTY_4=PinningEvents={"EventCount":"0"}
 PROPERTY_5=ExpandedEvents={"EventCount":"0"}
 PROPERTY_6=AnalysisGroups={"GroupCount":"1","Group0":{"Enabled":"1","Expanded":"1","Name":"Filtergruppe 0","FilterCount":"2","Filter0":{"Stop":"1","Enabled":"1","ConditionCount":"0"},"Filter1":{"Stop":"0","Enabled":"0","ConditionCount":"0"}}}
 PROPERTY_7=AnalysisDataChangeFilter=0
 PROPERTY_8=SequenceFilters={"IsEnabled":"1","FilterCount":"0"}
 PROPERTY_9=SearchPatterns={"EventCount":"0"}
-PROPERTY_10=ExplorerConfig={"VSplitPos":"150","VSplitExpanded":"true","HSplitPos":"290","HSplitExpanded":"false","ActiveExplorerView":"1","ActiveSearchType":"0"}
+PROPERTY_10=ExplorerConfig={"VSplitPos":"300","VSplitExpanded":"true","HSplitPos":"580","HSplitExpanded":"false","ActiveExplorerView":"1","ActiveSearchType":"0"}
 PROPERTY_11=ContinuousMode=1
 PROPERTY_12=AbsoluteTimeMode=0
 PROPERTY_13=HighPrioritySBClient=0
@@ -2154,21 +2154,21 @@ ObjectCount=0
 HiddenDisplayCount=0
 TraceChannelCount=2
 ColumnCount=5
-Column_0=0, 106
-Column_1=4, 46
-Column_2=2, 50
-Column_3=513, 372
-Column_4=3, 300
+Column_0=0, 212
+Column_1=4, 92
+Column_2=2, 100
+Column_3=513, 744
+Column_4=3, 600
 DeltaTimeEnabled=1
 Title=Trace-Fenster {DISPLAYED_FILENAME}
 Type=16384
 Comment=ActiveX Window
 Number=5
 GUID=WINDOW_9327afe1-ff92-4071-9bed-dc42be1f63ed
-ScreenDPIinSection=96
-Position=0, 38, 54, 1046, 484 ;cmd, x, y, w, h
+ScreenDPIinSection=192
+Position=0, 76, 108, 2092, 968 ;cmd, x, y, w, h
 Position_dpi96=0, 38, 54, 1046, 484 ;cmd, x, y, w, h
-Position_Page04=0, 38, 54, 1046, 484 ;cmd, x, y, w, h
+Position_Page04=0, 76, 108, 2092, 968 ;cmd, x, y, w, h
 Position_Page04_dpi96=0, 38, 54, 1046, 484 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
@@ -2190,7 +2190,7 @@ Color=0
 ScaleFont=1
 ShowLegend=1
 ShowLegendHeader=0
-LegendPixWidth=167
+LegendPixWidth=334
 LegendPixWidth_dpi96=167
 GridStyle=0
 DisplayColors=1
@@ -2201,17 +2201,17 @@ ShowActivity=0
 ExceedLimitWarning=0
 OnlyHighlightOnViolation=0
 LegendScrollPos=0
-DotLinePos=37
+DotLinePos=81
 ObjectCount=0
 Title=Measurement
 Type=4
 Comment=Numeric Window
 Number=6
 GUID=WINDOW_c26a0f19-e499-4e71-a336-b802a6611691
-ScreenDPIinSection=96
-Position=0, 0, 0, 311, 222 ;cmd, x, y, w, h
+ScreenDPIinSection=192
+Position=0, 0, 0, 622, 444 ;cmd, x, y, w, h
 Position_dpi96=0, 0, 0, 311, 222 ;cmd, x, y, w, h
-Position_Page01=0, 0, 0, 311, 222 ;cmd, x, y, w, h
+Position_Page01=0, 0, 0, 622, 444 ;cmd, x, y, w, h
 Position_Page01_dpi96=0, 0, 0, 311, 222 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
@@ -2220,9 +2220,9 @@ LEGEND_SHARED_COLUMNS=1
 DisplayMask=1 ; pages 1
 
 [WINDOW_6_LEG_COLUMNS]
-ScreenDPIinSection=96
+ScreenDPIinSection=192
 COUNT=1
-COL_0=31, 167
+COL_0=31, 334
 COL_0_dpi96=31, 167
 
 [WINDOW_7]
@@ -2231,10 +2231,10 @@ Type=16
 Comment=Map/Curve Window
 Number=7
 GUID=WINDOW_5d4a2b25-3714-42c4-b6be-2a9d5c6fe287
-ScreenDPIinSection=96
-Position=0, 160, 37, 922, 500 ;cmd, x, y, w, h
+ScreenDPIinSection=192
+Position=0, 320, 74, 1844, 1000 ;cmd, x, y, w, h
 Position_dpi96=0, 160, 37, 922, 500 ;cmd, x, y, w, h
-Position_Page02=0, 160, 37, 922, 500 ;cmd, x, y, w, h
+Position_Page02=0, 320, 74, 1844, 1000 ;cmd, x, y, w, h
 Position_Page02_dpi96=0, 160, 37, 922, 500 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
@@ -2372,10 +2372,10 @@ Type=137438953472
 Comment=Allgemeines Verstellen
 Number=8
 GUID=WINDOW_b08251d6-393b-4386-a0da-f6012e73706e
-ScreenDPIinSection=96
-Position=0, 18, 7, 510, 356 ;cmd, x, y, w, h
+ScreenDPIinSection=192
+Position=0, 36, 14, 1020, 712 ;cmd, x, y, w, h
 Position_dpi96=0, 18, 7, 510, 356 ;cmd, x, y, w, h
-Position_Page02=0, 18, 7, 510, 356 ;cmd, x, y, w, h
+Position_Page02=0, 36, 14, 1020, 712 ;cmd, x, y, w, h
 Position_Page02_dpi96=0, 18, 7, 510, 356 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
@@ -2566,7 +2566,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_ba373cdb-2b37-41db-a9b6-e3e29c3b6578
+GUID=DISPLAY_b94de7a0-ca9d-4ebb-afae-67687654991b
 
 [WINDOW_8_OBJECT_2]
 Type=2
@@ -2615,7 +2615,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_e429ec14-d550-4449-a82b-dea4b14d20bd
+GUID=DISPLAY_894425e9-58bd-4003-bd80-55f71796bc41
 
 [WINDOW_8_OBJECT_3]
 Type=2
@@ -2664,7 +2664,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_4d295a31-0f41-430e-9801-d5343e053867
+GUID=DISPLAY_104c97a4-9ea0-418a-9b2b-9ef29a740809
 
 [WINDOW_8_OBJECT_4]
 Type=2
@@ -2713,7 +2713,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_db759154-662d-4cee-a3b7-7775eff48d44
+GUID=DISPLAY_df0a8e8c-0802-4437-9bc1-2c4b84957dde
 
 [WINDOW_8_OBJECT_5]
 Type=2
@@ -2762,7 +2762,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_3c2c13dd-8b9b-418a-bfd9-615084740b12
+GUID=DISPLAY_e3283f09-d4f5-4547-97ec-2bba25ee08a5
 
 [WINDOW_9]
 Title=
@@ -2770,10 +2770,10 @@ Type=8192
 Comment=Map/Curve Window
 Number=9
 GUID=WINDOW_d37e1028-0660-44ce-b800-c04ff9fb2ac6
-ScreenDPIinSection=96
-Position=0, 12, 13, 1065, 514 ;cmd, x, y, w, h
+ScreenDPIinSection=192
+Position=0, 24, 26, 2130, 1028 ;cmd, x, y, w, h
 Position_dpi96=0, 12, 13, 1065, 514 ;cmd, x, y, w, h
-Position_Page03=0, 12, 13, 1065, 514 ;cmd, x, y, w, h
+Position_Page03=0, 24, 26, 2130, 1028 ;cmd, x, y, w, h
 Position_Page03_dpi96=0, 12, 13, 1065, 514 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1

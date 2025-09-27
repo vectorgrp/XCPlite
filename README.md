@@ -340,12 +340,20 @@ The addressing mode is indicated by the address extension:
 
 - Sockets (Linux: socket, ...).  
 
-### Known issues and suggestions for improvement
+### Known issues
 
-- Initialize RAM (COPY_CAL_PAGE) is executed only on the first calibration segment.  
-- GET_SEGMENT_MODE is executed multiple times on the last calibration segment before freeze request.  
-- Address extension of memory segment is ignored by CANape, using 0 for calibration segment relative addressing.  
-- Request for unique address extension per DAQ list is ignored by CANape (DAQ_KEY_BYTE == DAQ_EXT_DAQ), this forces us to store store the address extension per ODT entry.  
+- COPY_CAL_PAGE: CANape initialize RAM is executed only on the first calibration segment. Workaround: always copy all segments.  
+- CANape ignores segment numbers in A2L, if segment numbering starts with 1, SET_CAL_PAGE is executed on segment 0 and 1
+- GET_ID 5 (EPK) mode = 0x01 is ignored by CANape. Workaround: always provide EPK via upload.  
+- CANape executes GET_SEGMENT_MODE multiple times on the last calibration segment before freeze request.  
+- Address extension of memory segment is ignored by CANape. Workaround: using 0 for calibration segment relative addressing.  
+- Request for unique address extension per DAQ list is ignored by CANape (DAQ_KEY_BYTE == DAQ_EXT_DAQ). Workaround: Store the address extension per ODT entry.  
 - CANape < V24 does not support shared axis in typedefs or THIS. axis references.  
-- Transport Layer counter mutex could be avoided with different counter mode.  
-- Indicate when polling access is not possible.  
+- Transport Layer counter mutex could be avoided with alternative counter mode, which is not default in CANape.  
+- Indicate when polling access is not possible. CANape assumes polling access is always possible.  
+- Configuration for begin/end atomic calibration user defined XCP commend is not default. Must be set once in a new CANape project to 0x01F1 and 0x02F1.  
+
+### Todo
+
+- CANape ignores address extension of loop_histogram in ccp_demo, when saving calibration values to a parameter file
+  loop_histogram is a CHARACTERISTIC array, but it is in a measurement group

@@ -108,7 +108,8 @@ static inline const char *XcpGetContextName(void) { return gXcpContext.name; }
     tXcpEventId previous_span_id = ctx->span_id;                                                                                                                                   \
     ctx->span_id = span_id;                                                                                                                                                        \
     ctx->level++;                                                                                                                                                                  \
-    XcpEventDynRelAt(ctx->id, (const uint8_t *)ctx, get_stack_frame_pointer(), span_t1);
+    const uint8_t *span_base[4] = {NULL, ApplXcpGetBaseAddr(), get_stack_frame_pointer(), (const uint8_t *)ctx};                                                                   \
+    XcpEventExt_At(ctx->id, span_base, span_t1);
 
 // End span
 // Trigger the span event and the context event on exit
@@ -116,10 +117,10 @@ static inline const char *XcpGetContextName(void) { return gXcpContext.name; }
 #define EndSpan()                                                                                                                                                                  \
     uint64_t span_t2 = ApplXcpGetClock64();                                                                                                                                        \
     span_dt = span_t2 - span_t1;                                                                                                                                                   \
-    XcpEventDynRelAt(ctx->span_id, NULL, get_stack_frame_pointer(), span_t2);                                                                                                      \
+    XcpEventExt_At(ctx->span_id, span_base, span_t2);                                                                                                                              \
     ctx->span_id = previous_span_id;                                                                                                                                               \
     ctx->level--;                                                                                                                                                                  \
-    XcpEventDynRelAt(ctx->id, (const uint8_t *)ctx, get_stack_frame_pointer(), span_t2);
+    XcpEventExt_At(ctx->id, span_base, span_t2);
 
 // Create a named context
 // Create the context event (name is 'context_name'_'context_index')
