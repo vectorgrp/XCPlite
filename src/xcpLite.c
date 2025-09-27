@@ -946,7 +946,7 @@ static uint8_t XcpSetCalSegMode(tXcpCalSegNumber segment, uint8_t mode) {
         return CRC_CMD_OK; // EPK segment has no mode
     segment--;             // Adjust for EPK segment at index 0
 #endif
-    if (segment > gXcp.CalSegList.count)
+    if (segment >= gXcp.CalSegList.count)
         return CRC_OUT_OF_RANGE; // Segment number out of range
     gXcp.CalSegList.calseg[segment].mode = mode;
     return CRC_CMD_OK;
