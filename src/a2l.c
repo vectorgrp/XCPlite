@@ -123,6 +123,7 @@ static const char *gA2lEpkMemorySegment = "/begin MEMORY_SEGMENT epk \"\" DATA F
 #endif
 
 #endif
+
 //----------------------------------------------------------------------------------
 static const char *const gA2lIfDataBegin = "\n/begin IF_DATA XCP\n";
 
@@ -495,14 +496,16 @@ static void A2lCreate_MOD_PAR(void) {
         if (epk) {
             fprintf(gA2lFile, "EPK \"%s\" ADDR_EPK 0x%08X\n", epk, XCP_ADDR_EPK);
 
+            // EPK memory segment is segment 0
 #ifdef XCP_ENABLE_CALSEG_LIST
-
-            // EPK segment is segment 0
 #ifdef XCP_ENABLE_EPK_CALSEG
             fprintf(gA2lFile, gA2lEpkMemorySegment, XCP_ADDR_EPK, strlen(epk));
 #endif
+#endif // XCP_ENABLE_CALSEG_LIST
         }
 
+        // Memory segments
+#ifdef XCP_ENABLE_CALSEG_LIST
         tXcpCalSegList const *calSegList = XcpGetCalSegList();
         if (calSegList != NULL && calSegList->count > 0) {
             for (tXcpCalSegIndex i = 0; i < calSegList->count; i++) {
@@ -517,7 +520,7 @@ static void A2lCreate_MOD_PAR(void) {
                 );
             }
         }
-#endif
+#endif // XCP_ENABLE_CALSEG_LIST
 
         fprintf(gA2lFile, "/end MOD_PAR\n\n");
     }
@@ -629,8 +632,6 @@ static void A2lCreateMeasurement_IF_DATA(void) {
                 fprintf(gA2lFile, " /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x%X /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA",
                         gA2lDefaultEvent);
             }
-        } else if (!XcpAddrIsSeg(gAl2AddrExt)) {
-            assert(false);
         }
     }
 }

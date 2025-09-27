@@ -104,16 +104,22 @@ Address extensions:
 #ifdef XCP_ENABLE_CALSEG_LIST // If calibration segments are enabled
 
 // Enable the EPK calibration segment to detect HEX file incompatibility
-// #define XCP_ENABLE_EPK_CALSEG
+#ifdef OPTION_CAL_SEGMENT_EPK
+#define XCP_ENABLE_EPK_CALSEG
+#endif
 
 #define XCP_ADDR_EXT_SEG 0x00 // Segment relative address format, must be 0, CANape does not support memory segment address extensions
 #define XcpAddrIsSeg(addr_ext) ((addr_ext) == XCP_ADDR_EXT_SEG)
+
 #ifdef XCP_ENABLE_EPK_CALSEG
+#define XCP_ADDR_EPK 0x80000000
 #define XcpAddrEncodeSegIndex(seg_index, offset)                                                                                                                                   \
     (0x80000000 + (((uint32_t)((seg_index) + 1)) << 16) + (offset)) // +1, because 0x80000000 is used to access the virtual A2L EPK segment
 #else
+#define XCP_ADDR_EPK 0xFFFF0000
 #define XcpAddrEncodeSegIndex(seg_index, offset) (0x80000000 + (((uint32_t)(seg_index)) << 16) + (offset)) // +1, because 0x80000000 is used to access the virtual A2L EPK segment
 #endif
+
 #define XcpAddrEncodeSegNumber(seg_number, offset) (0x80000000 + (((uint32_t)((seg_number))) << 16) + (offset))
 #define XcpAddrDecodeSegNumber(addr) (uint16_t)(((addr) >> 16) & 0x7FFF)
 #define XcpAddrDecodeSegOffset(addr) (uint16_t)((addr) & 0xFFFF)
@@ -133,17 +139,14 @@ Address extensions:
 
 #endif // XCP_ENABLE_APP_ADDRESSING
 
+#define XCP_ADDR_EPK 0xFFFF0000
+
 #endif // !defined(XCP_ENABLE_CALSEG_LIST)
 
 // --- Internally used address extensions
 // Use addr_ext XCP_ADDR_EXT_EPK to indicate EPK upload memory space
 // A2L specification does not allow to specify the address extension for the EPK address, we use a virtual calibration segment (number 0, address ext 0)
 #define XCP_ADDR_EXT_EPK 0x00 // must be 0
-#ifdef XCP_ENABLE_EPK_CALSEG
-#define XCP_ADDR_EPK 0x80000000
-#else
-#define XCP_ADDR_EPK 0xFFFF0000
-#endif
 // Use addr_ext XCP_ADDR_EXT_A2L to indicate A2L upload memory space
 #define XCP_ADDR_EXT_A2L 0xFD
 #define XCP_ADDR_A2l 0x00000000

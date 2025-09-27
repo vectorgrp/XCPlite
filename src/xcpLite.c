@@ -2221,7 +2221,7 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
                 CRM_GET_ID_MODE = 0x01; // Transfer mode is "Uncompressed data in response"
                 break;
             case IDT_ASAM_EPK: {
-                /* @@@@ TODO: Remove woraround: EPK is always provided via upload, CANape ignores mode = 0x01 */
+                /* @@@@ TODO: Remove workaround: EPK is always provided via upload, CANape ignores mode = 0x01 */
                 /*
                 uint32_t len;
                 len = ApplXcpGetId(CRO_GET_ID_TYPE, CRM_GET_ID_DATA, CRM_GET_ID_DATA_MAX_LEN);

@@ -50,6 +50,7 @@
   #define OPTION_CAL_SEGMENTS                 Enable calibration segment management (otherwise callbacks are used for calibration segment commands)
   #define OPTION_CAL_SEGMENT_COUNT x          Maximum number of calibration segments
   #define OPTION_CAL_PERSISTENCE              Enable calibration segment persistence, BIN file is used to store calibration segments, A2L maybe generated only once per build
+  #define OPTION_CAL_SEGMENT_EPK              Enable EPK calibration segment to detect HEX file incompatibility
 
   // A2L generation settings
   #define OPTION_ENABLE_A2L_UPLOAD            Enable A2L upload through XCP
@@ -66,8 +67,8 @@
 // Clock
 #define OPTION_CLOCK_EPOCH_ARB // -> use CLOCK_MONOTONIC_RAW
 // #define OPTION_CLOCK_EPOCH_PTP // -> use CLOCK_REALTIME
-#define OPTION_CLOCK_TICKS_1US
-// #define OPTION_CLOCK_TICKS_1NS
+// #define OPTION_CLOCK_TICKS_1US
+#define OPTION_CLOCK_TICKS_1NS
 
 // XCP server options
 #define OPTION_ENABLE_TCP
@@ -81,6 +82,7 @@
 #define OPTION_CAL_SEGMENTS        // Enable calibration segment management
 #define OPTION_CAL_SEGMENT_COUNT 4 // Maximum number of calibration segments
 #define OPTION_CAL_PERSISTENCE     // Enable calibration segment persistence, BIN file is used to store calibration segments, A2L maybe generated only once per build
+// #define OPTION_CAL_SEGMENT_EPK     // Enable EPK calibration segment to detect HEX file incompatibility
 
 // DAQ
 #define OPTION_DAQ_MEM_SIZE (1000 * 6) // Memory bytes used for XCP DAQ tables - max 6 bytes per measurement signal needed
