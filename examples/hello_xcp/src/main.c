@@ -121,11 +121,20 @@ int main(void) {
     // XCP: Create a calibration segment named 'Parameters' for the calibration parameter struct instance 'params' as reference page
     calseg = XcpCreateCalSeg("Parameters", &params, sizeof(params));
 
-    // XCP: Register the calibration parameters in the calibration segment
+    // XCP: Register the individual calibration parameters in the calibration segment
     A2lSetSegmentAddrMode(calseg, params);
     A2lCreateParameter(params.counter_max, "Maximum counter value", "", 0, 2000);
     A2lCreateParameter(params.delay_us, "Mainloop delay time in us", "us", 0, 999999);
     A2lCreateParameter(params.acceleration, "Acceleration", "m/(s*s)", -10, 10);
+
+    // XCP: Alternatively, register the calibration segment as a typedef instance
+    // A2lTypedefBegin(parameters_t, "Calibration parameters typedef");
+    // A2lTypedefParameterComponent(counter_max, parameters_t, "Maximum counter value", "", 0, 2000);
+    // A2lTypedefParameterComponent(delay_us, parameters_t, "Mainloop delay time in us", "us", 0, 999999);
+    // A2lTypedefParameterComponent(acceleration, parameters_t, "Acceleration", "m/(s*s)", -10, 10);
+    // A2lTypedefEnd();
+    // A2lSetSegmentAddrMode(calseg, params);
+    // A2lCreateTypedefInstance(params, parameters_t, "Calibration parameters");
 
     // XCP: Create a measurement event named "mainloop"
     DaqCreateEvent(mainloop);

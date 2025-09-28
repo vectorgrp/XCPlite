@@ -299,12 +299,23 @@ Create the A2L file once and update it with an A2L update tool such as the CANap
 Note that currently, the usual A2L tools will only update absolute addresses for variables and instances in global memory and offsets of structure fields.  
 Data acquisition of variables on stack and relative addressing, is not possible today. This might change in a future version of the A2L Updater.  
 
+For instance
+
+```bash
+a2ltool --elffile  hello_xcp.out --update  --enable-structures --output hello_xcp_updated.a2l  hello_xcp.a2l   
+```
+
+will work only for absolute addressing mode, not for segment, stack and relative addressing modes.  
+
+### Addressing modes
+
 XCPlite makes intensive use of relative addressing.  
+  
 The addressing mode is indicated by the address extension:  
 0 - Calibration segment (A2L MEMORY_SEGMENT) relative address, high word of the address is the calibration segment index.  
 1 - Absolute address (Unsigned 32Bit, relative to main module load address).  
 2 - Signed 32Bit relative address, default is relative to the stack frame pointer of the function which triggers the event.  
-3 - Signed 16Bit relative address, high word of the address is the event id. This allows asynchronous (polling) access to the variable. Used for heap and class instance member variables.
+3.. - Signed 16Bit relative address, high word of the address is the event id. This allows asynchronous (polling) access to the variable. Used for heap and class instance member variables.
 
 ### Platform and language standard requirements and resource usage
 

@@ -77,7 +77,7 @@ Address extensions:
 #ifdef XCPLIB_FOR_RUST
 #define XCP_ADDR_EXT_DYN_MAX 0x02
 #else
-#define XCP_ADDR_EXT_DYN_MAX 0x03
+#define XCP_ADDR_EXT_DYN_MAX 0x04
 #endif
 
 #define XcpAddrIsDyn(addr_ext) (((addr_ext) >= XCP_ADDR_EXT_DYN && (addr_ext) <= XCP_ADDR_EXT_DYN_MAX))

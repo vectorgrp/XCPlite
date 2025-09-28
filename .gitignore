@@ -1,6 +1,7 @@
 
-/build
-/build-*
+build
+build-*
+pi
 
 
 # CANape artefacts
