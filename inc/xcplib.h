@@ -276,7 +276,7 @@ uint8_t *ApplXcpGetBaseAddr(void);
             daq_event_stackframe_##name##_ = XcpFindEvent(#name, NULL);                                                                                                            \
             assert(daq_event_stackframe_##name##_ != XCP_UNDEFINED_EVENT_ID);                                                                                                      \
         }                                                                                                                                                                          \
-        const uint8_t *base[4] = {NULL, ApplXcpGetBaseAddr(), get_stack_frame_pointer(), NULL};                                                                                    \
+        const uint8_t *base[4] = {ApplXcpGetBaseAddr(), ApplXcpGetBaseAddr(), get_stack_frame_pointer(), NULL};                                                                    \
         XcpEventExt_(daq_event_stackframe_##name##_, base);                                                                                                                        \
     }
 #define DaqEventAt(name, clock)                                                                                                                                                    \
@@ -286,7 +286,7 @@ uint8_t *ApplXcpGetBaseAddr(void);
             daq_event_stackframe_##name##_ = XcpFindEvent(#name, NULL);                                                                                                            \
             assert(daq_event_stackframe_##name##_ != XCP_UNDEFINED_EVENT_ID);                                                                                                      \
         }                                                                                                                                                                          \
-        const uint8_t *base[4] = {NULL, ApplXcpGetBaseAddr(), get_stack_frame_pointer(), NULL};                                                                                    \
+        const uint8_t *base[4] = {ApplXcpGetBaseAddr(), ApplXcpGetBaseAddr(), get_stack_frame_pointer(), NULL};                                                                    \
         XcpEventExt_At(daq_event_stackframe_##name##_, base, clock);                                                                                                               \
     }
 
@@ -300,7 +300,7 @@ uint8_t *ApplXcpGetBaseAddr(void);
             daq_event_stackframe__ = XcpFindEvent(name, NULL);                                                                                                                     \
             assert(daq_event_stackframe__ != XCP_UNDEFINED_EVENT_ID);                                                                                                              \
         }                                                                                                                                                                          \
-        const uint8_t *base[4] = {NULL, ApplXcpGetBaseAddr(), get_stack_frame_pointer(), NULL};                                                                                    \
+        const uint8_t *base[4] = {ApplXcpGetBaseAddr(), ApplXcpGetBaseAddr(), get_stack_frame_pointer(), NULL};                                                                    \
         XcpEventExt_(daq_event_stackframe__, base);                                                                                                                                \
     }
 #define DaqEventAt_s(name, clock)                                                                                                                                                  \
@@ -310,19 +310,19 @@ uint8_t *ApplXcpGetBaseAddr(void);
             daq_event_stackframe__ = XcpFindEvent(name, NULL);                                                                                                                     \
             assert(daq_event_stackframe__ != XCP_UNDEFINED_EVENT_ID);                                                                                                              \
         }                                                                                                                                                                          \
-        const uint8_t *base[4] = {NULL, ApplXcpGetBaseAddr(), get_stack_frame_pointer(), NULL};                                                                                    \
+        const uint8_t *base[4] = {ApplXcpGetBaseAddr(), ApplXcpGetBaseAddr(), get_stack_frame_pointer(), NULL};                                                                    \
         XcpEventExt_At(daq_event_stackframe__, base, clock);                                                                                                                       \
     }
 
 /// Trigger the XCP event by handle 'event_id' for stack relative or absolute addressing
 #define DaqEvent_i(event_id)                                                                                                                                                       \
     if (XcpIsActivated()) {                                                                                                                                                        \
-        const uint8_t *base[4] = {NULL, ApplXcpGetBaseAddr(), get_stack_frame_pointer(), NULL};                                                                                    \
+        const uint8_t *base[4] = {ApplXcpGetBaseAddr(), ApplXcpGetBaseAddr(), get_stack_frame_pointer(), NULL};                                                                    \
         XcpEventExt_(event_id, base);                                                                                                                                              \
     }
 #define DaqEventAt_i(event_id, clock)                                                                                                                                              \
     if (XcpIsActivated()) {                                                                                                                                                        \
-        const uint8_t *base[4] = {NULL, ApplXcpGetBaseAddr(), get_stack_frame_pointer(), NULL};                                                                                    \
+        const uint8_t *base[4] = {ApplXcpGetBaseAddr(), ApplXcpGetBaseAddr(), get_stack_frame_pointer(), NULL};                                                                    \
         XcpEventExt_At(event_id, base, clock);                                                                                                                                     \
     }
 
@@ -335,7 +335,7 @@ uint8_t *ApplXcpGetBaseAddr(void);
             daq_event_relative_##name##_ = XcpFindEvent(#name, NULL);                                                                                                              \
             assert(daq_event_relative_##name##_ != XCP_UNDEFINED_EVENT_ID);                                                                                                        \
         }                                                                                                                                                                          \
-        const uint8_t *base[4] = {NULL, ApplXcpGetBaseAddr(), get_stack_frame_pointer(), (const uint8_t *)base_addr};                                                              \
+        const uint8_t *base[4] = {ApplXcpGetBaseAddr(), ApplXcpGetBaseAddr(), get_stack_frame_pointer(), (const uint8_t *)base_addr};                                              \
         XcpEventExt_(daq_event_relative_##name##_, base);                                                                                                                          \
     }
 #define DaqEvent2(name, base_addr1, base_addr2)                                                                                                                                    \
@@ -345,7 +345,7 @@ uint8_t *ApplXcpGetBaseAddr(void);
             daq_event_relative_##name##_ = XcpFindEvent(#name, NULL);                                                                                                              \
             assert(daq_event_relative_##name##_ != XCP_UNDEFINED_EVENT_ID);                                                                                                        \
         }                                                                                                                                                                          \
-        const uint8_t *base[5] = {NULL, ApplXcpGetBaseAddr(), get_stack_frame_pointer(), (const uint8_t *)base_addr1, (const uint8_t *)base_addr2};                                \
+        const uint8_t *base[5] = {ApplXcpGetBaseAddr(), ApplXcpGetBaseAddr(), get_stack_frame_pointer(), (const uint8_t *)base_addr1, (const uint8_t *)base_addr2};                \
         XcpEventExt_(daq_event_relative_##name##_, base);                                                                                                                          \
     }
 
@@ -359,7 +359,7 @@ uint8_t *ApplXcpGetBaseAddr(void);
             daq_event_relative__ = XcpFindEvent(name, NULL);                                                                                                                       \
             assert(daq_event_relative__ != XCP_UNDEFINED_EVENT_ID);                                                                                                                \
         }                                                                                                                                                                          \
-        const uint8_t *base[4] = {NULL, ApplXcpGetBaseAddr(), get_stack_frame_pointer(), (const uint8_t *)base_addr};                                                              \
+        const uint8_t *base[4] = {ApplXcpGetBaseAddr(), ApplXcpGetBaseAddr(), get_stack_frame_pointer(), (const uint8_t *)base_addr};                                              \
         XcpEventExt_(daq_event_relative__, base);                                                                                                                                  \
     }
 
@@ -367,7 +367,7 @@ uint8_t *ApplXcpGetBaseAddr(void);
 /// Cache the event lookup
 #define DaqEvent1_i(event_id, base_addr)                                                                                                                                           \
     if (XcpIsActivated()) {                                                                                                                                                        \
-        const uint8_t *base[4] = {NULL, ApplXcpGetBaseAddr(), get_stack_frame_pointer(), (const uint8_t *)base_addr};                                                              \
+        const uint8_t *base[4] = {ApplXcpGetBaseAddr(), ApplXcpGetBaseAddr(), get_stack_frame_pointer(), (const uint8_t *)base_addr};                                              \
         XcpEventExt_(event_id, base);                                                                                                                                              \
     }
 

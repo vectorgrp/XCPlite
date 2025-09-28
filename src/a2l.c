@@ -700,10 +700,13 @@ void A2lSetSegmentAddrMode__i(tXcpCalSegIndex calseg_index, const uint8_t *calse
             DBG_PRINTF_ERROR("SetSegAddrMode: Calibration segment %u not found!\n", calseg_index);
             return;
         }
-
+#if XCP_ADDR_EXT_SEG == 0x00
         A2lSetSegAddrMode(calseg_index, (const uint8_t *)calseg_instance_addr);
         fprintf(gA2lFile, "\n/* Segment relative addressing mode: calseg=%s */\n", calseg->name);
-
+#else
+        A2lSetAbsAddrMode(XCP_UNDEFINED_EVENT_ID);
+        fprintf(gA2lFile, "\n/* Absolute segment addressing mode: calseg=%s */\n", calseg->name);
+#endif
         if (gA2lAutoGroups) {
             A2lBeginGroup(calseg->name, "Calibration Segment", true);
         }
@@ -712,24 +715,27 @@ void A2lSetSegmentAddrMode__i(tXcpCalSegIndex calseg_index, const uint8_t *calse
 
 // Set segment relative address mode with calibration segment name
 void A2lSetSegmentAddrMode__s(const char *calseg_name, const uint8_t *calseg_instance_addr) {
-
-    tXcpCalSegIndex calseg_index = XcpFindCalSeg(calseg_name);
-    if (calseg_index == XCP_UNDEFINED_CALSEG) {
-        DBG_PRINTF_ERROR("SetSegAddrMode: Calibration segment %s not found!\n", calseg_name);
-        return;
-    }
-    const tXcpCalSeg *calseg = XcpGetCalSeg(calseg_index);
-    if (calseg == NULL) {
-        DBG_PRINTF_ERROR("SetSegAddrMode: Calibration segment %u not found!\n", calseg_index);
-        return;
-    }
-
-    A2lSetSegAddrMode(calseg_index, (const uint8_t *)calseg_instance_addr);
-    if (gA2lFile != NULL)
+    if (gA2lFile != NULL) {
+        tXcpCalSegIndex calseg_index = XcpFindCalSeg(calseg_name);
+        if (calseg_index == XCP_UNDEFINED_CALSEG) {
+            DBG_PRINTF_ERROR("SetSegAddrMode: Calibration segment %s not found!\n", calseg_name);
+            return;
+        }
+        const tXcpCalSeg *calseg = XcpGetCalSeg(calseg_index);
+        if (calseg == NULL) {
+            DBG_PRINTF_ERROR("SetSegAddrMode: Calibration segment %u not found!\n", calseg_index);
+            return;
+        }
+#if XCP_ADDR_EXT_SEG == 0x00
+        A2lSetSegAddrMode(calseg_index, (const uint8_t *)calseg_instance_addr);
         fprintf(gA2lFile, "\n/* Segment relative addressing mode: calseg=%s */\n", calseg->name);
-
-    if (gA2lAutoGroups) {
-        A2lBeginGroup(calseg->name, "Calibration Segment", true);
+#else
+        A2lSetAbsAddrMode(XCP_UNDEFINED_EVENT_ID);
+        fprintf(gA2lFile, "\n/* Absolute segment addressing mode: calseg=%s */\n", calseg->name);
+#endif
+        if (gA2lAutoGroups) {
+            A2lBeginGroup(calseg->name, "Calibration Segment", true);
+        }
     }
 }
 
@@ -816,7 +822,6 @@ void A2lSetAbsoluteAddrMode__i(tXcpEventId event_id) {
         }
     }
 }
-
 #endif
 
 //----------------------------------------------------------------------------------

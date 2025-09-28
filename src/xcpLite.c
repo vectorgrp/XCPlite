@@ -367,6 +367,18 @@ tXcpCalSegIndex XcpFindCalSeg(const char *name) {
     return XCP_UNDEFINED_CALSEG; // Not found
 }
 
+// Get the index of a calibration segment by address (inside of the default page)
+tXcpCalSegIndex XcpFindCalSegByAddr(uint8_t *addr) {
+    assert(isInitialized());
+    for (tXcpCalSegIndex i = 0; i < gXcp.CalSegList.count; i++) {
+        tXcpCalSeg *calseg = &gXcp.CalSegList.calseg[i];
+        if (addr >= calseg->default_page && addr < calseg->default_page + calseg->size) {
+            return i;
+        }
+    }
+    return XCP_UNDEFINED_CALSEG; // Not found
+}
+
 // Get the name of the calibration segment
 const char *XcpGetCalSegName(tXcpCalSegIndex calseg) {
     assert(isInitialized());
@@ -374,11 +386,18 @@ const char *XcpGetCalSegName(tXcpCalSegIndex calseg) {
     return gXcp.CalSegList.calseg[calseg].name;
 }
 
-// Get the XCP/A2L address (address mode XCP_ADDR_MODE_SEG) of a calibration segment
+// Get the XCP/A2L address (address mode XCP_ADDR_MODE_SEG or XCP_ADDR_MODE_ABS) of a calibration segment
 uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg) {
     assert(isInitialized());
     assert(calseg < gXcp.CalSegList.count);
+#if XCP_ADDR_EXT_SEG == 0x00 // Memory segments are addressed in relative mode
     return XcpAddrEncodeSegIndex(calseg, 0);
+#else // Memory segments are addressed in absolute mode
+#if XCP_ADDR_EXT_ABS != 0x00
+#error "XCP_ADDR_EXT_ABS must be 0x00"
+#endif
+    return XcpAddrEncodeAbs(gXcp.CalSegList.calseg[calseg].default_page);
+#endif
 }
 
 // Create a calibration segment
@@ -406,7 +425,7 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
         // Preloaded segments have the correct size and a valid default page, loaded from the binary calibration segment image file on startup
         c = &gXcp.CalSegList.calseg[index];
         if (size == c->size && c->default_page != NULL && (c->mode & PAG_PROPERTY_PRELOAD) != 0) {
-            DBG_PRINTF3("Use preloaded CalSeg %u: %s index=%u, addr=0x%08X, size=%u\n", index, c->name, index, XcpGetCalSegBaseAddress(index), c->size);
+            DBG_PRINTF3("Use preloaded CalSeg %u: %s index=%u, size=%u\n", index, c->name, index, c->size);
         } else
 #endif
         {
@@ -427,7 +446,7 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
 #ifdef XCP_ENABLE_FREEZE_CAL_PAGE
         c->file_pos = 0;
 #endif
-        DBG_PRINTF3("Create CalSeg %u: %s index=%u, addr=0x%08X, size=%u\n", index, c->name, index, XcpGetCalSegBaseAddress(index), c->size);
+        DBG_PRINTF3("Create CalSeg %u: %s index=%u, size=%u\n", index, c->name, index, c->size);
     }
 
     // Init
@@ -754,7 +773,7 @@ static uint8_t XcpGetSegInfo(tXcpCalSegNumber segment, uint8_t mode, uint8_t seg
     case 1: // Get standard info for this SEGMENT
         CRM_LEN = CRM_GET_SEGMENT_INFO_LEN_MODE1;
         CRM_GET_SEGMENT_INFO_MAX_PAGES = 2;
-        CRM_GET_SEGMENT_INFO_ADDRESS_EXTENSION = XCP_ADDR_EXT_SEG;
+        CRM_GET_SEGMENT_INFO_ADDRESS_EXTENSION = 0; // Address extension for segments is always 0 (SEG or ABS address mode)
         CRM_GET_SEGMENT_INFO_MAX_MAPPING = 0;
         CRM_GET_SEGMENT_INFO_COMPRESSION = 0;
         CRM_GET_SEGMENT_INFO_ENCRYPTION = 0;
@@ -1133,8 +1152,18 @@ uint8_t XcpSetMta(uint8_t ext, uint32_t addr) {
 #ifdef XCP_ENABLE_ABS_ADDRESSING
                     // Absolute addressing mode
                     if (XcpAddrIsAbs(gXcp.MtaExt)) {
-                        gXcp.MtaPtr = ApplXcpGetBaseAddr() + gXcp.MtaAddr;
+                        gXcp.MtaPtr = ApplXcpGetBaseAddr() + XcpAddrDecodeAbsOffset(gXcp.MtaAddr);
                         gXcp.MtaExt = XCP_ADDR_EXT_PTR;
+#ifdef XCP_ENABLE_CALSEG_LIST
+                        // Check for calibration segment absolute address
+                        tXcpCalSegIndex calseg = XcpFindCalSegByAddr(gXcp.MtaPtr);
+                        if (calseg != XCP_UNDEFINED_CALSEG) {
+                            tXcpCalSeg *c = &gXcp.CalSegList.calseg[calseg];
+                            DBG_PRINTF3("Direct absolute access to calseg '%s' addr=%08X\n", c->name, gXcp.MtaAddr);
+                            gXcp.MtaExt = XCP_ADDR_EXT_SEG;
+                            gXcp.MtaAddr = XcpAddrEncodeSegIndex(calseg, gXcp.MtaPtr - c->default_page); // Convert to segment relative address
+                        }
+#endif
                     } else
 #endif
                     {
@@ -1992,12 +2021,12 @@ void XcpEventExt_(tXcpEventId event, const uint8_t **bases) {
 }
 
 void XcpEventExt(tXcpEventId event, const uint8_t *base) {
-    const uint8_t *bases[4] = {NULL, ApplXcpGetBaseAddr(), base, base};
+    const uint8_t *bases[4] = {ApplXcpGetBaseAddr(), ApplXcpGetBaseAddr(), base, base};
     XcpEventExt_(event, bases);
 }
 
 void XcpEventExtAt(tXcpEventId event, const uint8_t *base, uint64_t clock) {
-    const uint8_t *bases[4] = {NULL, ApplXcpGetBaseAddr(), base, base};
+    const uint8_t *bases[4] = {ApplXcpGetBaseAddr(), ApplXcpGetBaseAddr(), base, base};
     XcpEventExt_At(event, bases, clock);
 }
 
@@ -2005,7 +2034,7 @@ void XcpEventExtAt(tXcpEventId event, const uint8_t *base, uint64_t clock) {
 void XcpEvent(tXcpEventId event) {
     if (!isDaqRunning())
         return; // DAQ not running
-    const uint8_t *bases[4] = {NULL, ApplXcpGetBaseAddr(), NULL, NULL};
+    const uint8_t *bases[4] = {ApplXcpGetBaseAddr(), ApplXcpGetBaseAddr(), NULL, NULL};
     XcpTriggerDaqEvent(gXcp.Queue, event, bases, 0);
 }
 #endif
