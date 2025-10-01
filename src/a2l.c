@@ -37,6 +37,11 @@
 
 //----------------------------------------------------------------------------------
 
+#define INCLUDE_AML_FILES // Use /include "file.aml"
+// #define EMBED_AML_FILES // Embed AML files into generated A2L file
+
+//----------------------------------------------------------------------------------
+
 static FILE *gA2lFile = NULL;
 static bool gA2lFileFinalized = false;
 
@@ -78,22 +83,27 @@ static uint32_t gA2lInstances;
 static uint32_t gA2lConversions;
 
 //----------------------------------------------------------------------------------
-static const char *gA2lHeader = "ASAP2_VERSION 1 71\n"
-                                "/begin PROJECT %s \"\"\n\n"
-                                "/begin HEADER \"\" VERSION \"1.0\" PROJECT_NO XCPlite /end HEADER\n\n"
-                                "/begin MODULE %s \"\"\n\n"
-                                "/include \"XCP_104.aml\"\n\n"
-                                "/begin MOD_COMMON \"\"\n"
-                                "BYTE_ORDER MSB_LAST\n"
-                                "ALIGNMENT_BYTE 1\n"
-                                "ALIGNMENT_WORD 1\n"
-                                "ALIGNMENT_LONG 1\n"
-                                "ALIGNMENT_FLOAT16_IEEE 1\n"
-                                "ALIGNMENT_FLOAT32_IEEE 1\n"
-                                "ALIGNMENT_FLOAT64_IEEE 1\n"
-                                "ALIGNMENT_INT64 1\n"
-                                "/end MOD_COMMON\n"
-                                "\n\n";
+static const char *gA2lHeader1 = "ASAP2_VERSION 1 71\n"
+                                 "/begin PROJECT %s \"\"\n\n" // project name
+                                 "/begin HEADER \"\" VERSION \"1.0\" PROJECT_NO XCPlite /end HEADER\n\n"
+                                 "/begin MODULE %s \"\"\n\n"; // module name
+
+static const char *gA2lHeader2 = "/begin MOD_COMMON \"\"\n"
+                                 "BYTE_ORDER MSB_LAST\n"
+                                 "ALIGNMENT_BYTE 1\n"
+                                 "ALIGNMENT_WORD 1\n"
+                                 "ALIGNMENT_LONG 1\n"
+                                 "ALIGNMENT_FLOAT16_IEEE 1\n"
+                                 "ALIGNMENT_FLOAT32_IEEE 1\n"
+                                 "ALIGNMENT_FLOAT64_IEEE 1\n"
+                                 "ALIGNMENT_INT64 1\n"
+                                 "/end MOD_COMMON\n"
+                                 "\n\n";
+
+//----------------------------------------------------------------------------------
+#ifdef EMBED_AML_FILES
+static const char *gA2lAml = "";
+#endif
 
 //----------------------------------------------------------------------------------
 #ifdef XCP_ENABLE_CALSEG_LIST
@@ -443,7 +453,19 @@ static bool A2lOpen(const char *filename, const char *projectname) {
     }
 
     // Create headers
-    fprintf(gA2lFile, gA2lHeader, projectname, projectname); // main file
+    fprintf(gA2lFile, gA2lHeader1, projectname, projectname);
+#ifdef INCLUDE_AML_FILES
+    // To include multiple AML files, remove the /begin A2ML and /end A2LM in the XCP_104.aml and CANape.aml files and uncomment the following lines
+    // fprintf(gA2lFile,"/begin A2ML\n"
+    // "/include \"XCP_104.aml\"\n\n"
+    // "/include \"CANape.aml\"\n\n"
+    // "/end A2ML\n");
+    fprintf(gA2lFile, "/include \"XCP_104.aml\"\n\n");
+#endif
+#ifdef EMBED_AML_FILES
+    fprintf(gA2lFile, gA2lAml); // main file
+#endif
+    fprintf(gA2lFile, gA2lHeader2);
 
     fprintf(gA2lTypedefsFile, "\n/* Typedefs */\n");       // typedefs temporary file
     fprintf(gA2lGroupsFile, "\n/* Groups */\n");           // groups temporary file
@@ -1544,7 +1566,7 @@ bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t
     SNPRINTF(gA2lFilename, sizeof(gA2lFilename), "%s%s.a2l", a2l_projectname, epk_suffix);
     DBG_PRINTF3("Start A2L generator, file=%s, write_always=%u, finalize_on_connect=%u, auto_groups=%u\n", gA2lFilename, gA2lWriteAlways, gA2lFinalizeOnConnect, gA2lAutoGroups);
 
-// Check if the BIN file and the A2L exists and load the binary file
+    // Check if the BIN file and the A2L exists and load the binary file
 #ifdef OPTION_CAL_PERSISTENCE
     SNPRINTF(gBinFilename, sizeof(gBinFilename), "%s%s.bin", a2l_projectname, epk_suffix);
     if (!gA2lWriteAlways) {

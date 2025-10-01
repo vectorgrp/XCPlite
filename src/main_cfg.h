@@ -51,8 +51,7 @@
   #define OPTION_CAL_SEGMENT_COUNT x          Maximum number of calibration segments
   #define OPTION_CAL_PERSISTENCE              Enable calibration segment persistence, BIN file is used to store calibration segments, A2L maybe generated only once per build
   #define OPTION_CAL_SEGMENT_EPK              Enable EPK calibration segment to detect HEX file incompatibility
-  #define OPTION_CAL_SEGMENTS_ABS             Enable absolute addressing for calibration segments, calibration parameters and calibration segments may be updated by linker map
-  file,
+  #define OPTION_CAL_SEGMENTS_ABS             Enable absolute addressing for calibration segments, calibration parameters and calibration segments may be updated by linker mapfile,
 
   // A2L generation settings
   #define OPTION_ENABLE_A2L_UPLOAD            Enable A2L upload through XCP
