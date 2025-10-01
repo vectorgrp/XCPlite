@@ -93,7 +93,11 @@ Address extensions:
 
 // Use addr_ext XCP_ADDR_EXT_ABS to indicate absolute addr format (ApplXcpGetBaseAddr() + (addr as uint32_t))
 // Used for global data
-#define XCP_ADDR_EXT_ABS 0x00 // Absolute address format
+#if !defined(XCP_ENABLE_CALSEG_LIST) || defined(OPTION_CAL_SEGMENTS_ABS)
+#define XCP_ADDR_EXT_ABS 0x00
+#else
+#define XCP_ADDR_EXT_ABS 0x01
+#endif
 #define XcpAddrIsAbs(addr_ext) ((addr_ext) == XCP_ADDR_EXT_ABS)
 #define XcpAddrEncodeAbs(p) ApplXcpGetAddr(p) // Calculate absolute address encoding from a pointer, application specific function
 #define XcpAddrDecodeAbsOffset(addr) (uint32_t)(addr)
@@ -108,7 +112,11 @@ Address extensions:
 #define XCP_ENABLE_EPK_CALSEG
 #endif
 
-#define XCP_ADDR_EXT_SEG 0x01 // Segment relative address format
+#if defined(OPTION_CAL_SEGMENTS_ABS)
+#define XCP_ADDR_EXT_SEG 0x01
+#else
+#define XCP_ADDR_EXT_SEG 0x00
+#endif
 #define XcpAddrIsSeg(addr_ext) ((addr_ext) == XCP_ADDR_EXT_SEG)
 
 #ifdef XCP_ENABLE_EPK_CALSEG

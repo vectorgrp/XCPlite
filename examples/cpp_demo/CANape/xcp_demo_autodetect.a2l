@@ -1,7 +1,7 @@
 ASAP2_VERSION 1 71
 /begin PROJECT cpp_demo ""
 
-/begin HEADER "" VERSION "1.0" PROJECT_NO VECTOR /end HEADER
+/begin HEADER "" VERSION "1.0" PROJECT_NO XCPlite /end HEADER
 
 /begin MODULE cpp_demo ""
 
@@ -25,12 +25,12 @@ ALIGNMENT_INT64 1
   /begin STRUCTURE_COMPONENT delay_us C_delay_us 0x4 /end STRUCTURE_COMPONENT
 /end TYPEDEF_STRUCTURE
 
-/* Segment relative addressing mode: calseg=Parameters */
-/begin INSTANCE Parameters "Main parameters" ParametersT 0x80000000 /end INSTANCE
+/* Absolute segment addressing mode: calseg=Parameters */
+/begin INSTANCE Parameters "Main parameters" ParametersT 0x23890 /end INSTANCE
 
-/* Absolute addressing mode: default_event=mainloop (0), addr_ext=1 */
-/begin MEASUREMENT temperature "Motor temperature in °C" UBYTE conv.temperature 0 0 -50 200 ECU_ADDRESS 0x28000 ECU_ADDRESS_EXTENSION 1 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT speed "Speed in km/h" FLOAT64_IEEE NO_COMPU_METHOD 0 0 0 250 ECU_ADDRESS 0x280C0 ECU_ADDRESS_EXTENSION 1 PHYS_UNIT "km/h" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/* Absolute addressing mode: default_event=mainloop (0), addr_ext=0 */
+/begin MEASUREMENT temperature "Motor temperature in °C" UBYTE conv.temperature 0 0 -50 200 ECU_ADDRESS 0x28000 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT speed "Speed in km/h" FLOAT64_IEEE NO_COMPU_METHOD 0 0 0 250 ECU_ADDRESS 0x280C0 PHYS_UNIT "km/h" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 
 /* Stack frame relative addressing mode: event=mainloop (0), addr_ext=2 */
 /begin MEASUREMENT loop_counter "Mainloop loop counter" UWORD NO_COMPU_METHOD 0 0 0 65535 ECU_ADDRESS 0xFBA6 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
@@ -52,11 +52,11 @@ ALIGNMENT_INT64 1
   /begin STRUCTURE_COMPONENT lookup LookupTableT 0x20 /end STRUCTURE_COMPONENT
 /end TYPEDEF_STRUCTURE
 
-/* Segment relative addressing mode: calseg=SigGen1 */
-/begin INSTANCE SigGen1 "Signal parameters for the signal generator" SignalParametersT 0x80010000 /end INSTANCE
+/* Absolute segment addressing mode: calseg=SigGen1 */
+/begin INSTANCE SigGen1 "Signal parameters for the signal generator" SignalParametersT 0x23898 /end INSTANCE
 
-/* Segment relative addressing mode: calseg=SigGen2 */
-/begin INSTANCE SigGen2 "Signal parameters for the signal generator" SignalParametersT 0x80020000 /end INSTANCE
+/* Absolute segment addressing mode: calseg=SigGen2 */
+/begin INSTANCE SigGen2 "Signal parameters for the signal generator" SignalParametersT 0x238F0 /end INSTANCE
 
 /* Relative addressing mode: event=SigGen1 (1), addr_ext=3 */
 /begin MEASUREMENT SigGen1.value_ "Signal generator output" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100 ECU_ADDRESS 0x10018 ECU_ADDRESS_EXTENSION 3 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
@@ -144,8 +144,8 @@ ALIGNMENT_INT64 1
 /end COMPU_VTAB
 
 /begin MOD_PAR ""
-EPK "_Sep_26_2025_15_40_50" ADDR_EPK 0xFFFF0000
-/begin MEMORY_SEGMENT Parameters "" DATA FLASH INTERN 0x80000000 0x8 -1 -1 -1 -1 -1
+EPK "_Oct__1_2025_11_26_42" ADDR_EPK 0xFFFF0000
+/begin MEMORY_SEGMENT Parameters "" DATA FLASH INTERN 0x00023890 0x8 -1 -1 -1 -1 -1
 /begin IF_DATA XCP
 /begin SEGMENT 0 2 0 0 0
 /begin CHECKSUM XCP_CRC_16_CITT MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION "" /end CHECKSUM
@@ -154,7 +154,7 @@ EPK "_Sep_26_2025_15_40_50" ADDR_EPK 0xFFFF0000
 /end SEGMENT
 /end IF_DATA
 /end MEMORY_SEGMENT
-/begin MEMORY_SEGMENT SigGen1 "" DATA FLASH INTERN 0x80010000 0x58 -1 -1 -1 -1 -1
+/begin MEMORY_SEGMENT SigGen1 "" DATA FLASH INTERN 0x00023898 0x58 -1 -1 -1 -1 -1
 /begin IF_DATA XCP
 /begin SEGMENT 1 2 0 0 0
 /begin CHECKSUM XCP_CRC_16_CITT MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION "" /end CHECKSUM
@@ -163,7 +163,7 @@ EPK "_Sep_26_2025_15_40_50" ADDR_EPK 0xFFFF0000
 /end SEGMENT
 /end IF_DATA
 /end MEMORY_SEGMENT
-/begin MEMORY_SEGMENT SigGen2 "" DATA FLASH INTERN 0x80020000 0x58 -1 -1 -1 -1 -1
+/begin MEMORY_SEGMENT SigGen2 "" DATA FLASH INTERN 0x000238F0 0x58 -1 -1 -1 -1 -1
 /begin IF_DATA XCP
 /begin SEGMENT 2 2 0 0 0
 /begin CHECKSUM XCP_CRC_16_CITT MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION "" /end CHECKSUM
@@ -217,7 +217,7 @@ OPTIONAL_LEVEL1_CMD GET_VERSION
 /begin DAQ
 DYNAMIC 0 3 0 OPTIMISATION_TYPE_DEFAULT ADDRESS_EXTENSION_FREE IDENTIFICATION_FIELD_TYPE_RELATIVE_BYTE GRANULARITY_ODT_ENTRY_SIZE_DAQ_BYTE 0xF8 OVERLOAD_INDICATION_PID
 /begin TIMESTAMP_SUPPORTED
-0x1 SIZE_DWORD UNIT_1US TIMESTAMP_FIXED
+0x1 SIZE_DWORD UNIT_1NS TIMESTAMP_FIXED
 /end TIMESTAMP_SUPPORTED
 /begin EVENT "mainloop" "mainloop" 0x0 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
 /begin EVENT "SigGen1" "SigGen1" 0x1 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
