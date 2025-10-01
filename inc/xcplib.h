@@ -264,8 +264,10 @@ static __forceinline const uint8_t *get_stack_frame_pointer_msvc(void) {
 #endif
 #endif // THREAD_LOCAL
 
-// Get the base address for DAQ data access
+// Get the base address for absolute XCP/A2L 32 bit address
 uint8_t *ApplXcpGetBaseAddr(void);
+// Calculate the absolute XCP/A2L 32 bit address from a pointer
+uint32_t ApplXcpGetAddr(const uint8_t *p);
 
 /// Trigger the XCP event 'name' for stack relative or absolute addressing
 /// Cache the event name lookup

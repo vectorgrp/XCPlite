@@ -99,7 +99,7 @@ struct ParametersT {
 };
 
 // Default parameter values
-constexpr ParametersT kParameters = {.min = -1.0, .max = 1.0};
+const ParametersT kParameters = {.min = -1.0, .max = 1.0};
 
 // A calibration segment wrapper for the parameters
 std::optional<xcplib::CalSeg<ParametersT>> gCalSeg;
@@ -155,7 +155,7 @@ int main() {
     // This calibration segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
     // It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
     // It supports XCP/ECU independent page switching, checksum calculation and reinitialization (copy reference page to working page)
-    gCalSeg.emplace("Parameters", kParameters);
+    gCalSeg.emplace("Parameters", &kParameters);
 
     // Add the calibration segment description as a typedef and an instance to the A2L file
     A2lTypedefBegin(ParametersT, "A2L Typedef for ParametersT");
