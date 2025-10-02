@@ -2631,22 +2631,20 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
 
             // Dynamic DAQ list configuration, timestamps, resume, prescaler and overrun indication options
             // Identification field can not be switched off, bitwise data stimulation not supported
-            CRM_GET_DAQ_PROCESSOR_INFO_PROPERTIES = (uint8_t)(
-                DAQ_PROPERTY_CONFIG_TYPE | 
-                DAQ_PROPERTY_TIMESTAMP |
+            CRM_GET_DAQ_PROCESSOR_INFO_PROPERTIES = (uint8_t)(DAQ_PROPERTY_CONFIG_TYPE | DAQ_PROPERTY_TIMESTAMP |
 #ifdef XCP_ENABLE_OVERRUN_INDICATION_PID
-                DAQ_OVERLOAD_INDICATION_PID) |
+                                                              DAQ_OVERLOAD_INDICATION_PID |
 #endif
 #ifdef XCP_ENABLE_OVERRUN_INDICATION_EVENT
-                DAQ_OVERLOAD_INDICATION_EVENT |
+                                                              DAQ_OVERLOAD_INDICATION_EVENT |
 #endif
 #ifdef XCP_ENABLE_DAQ_RESUME
-                DAQ_PROPERTY_RESUME |
+                                                              DAQ_PROPERTY_RESUME |
 #endif
 #ifdef XCP_ENABLE_DAQ_PRESCALER
-                DAQ_PROPERTY_PRESCALER |
+                                                              DAQ_PROPERTY_PRESCALER |
 #endif
-                0);
+                                                              0);
 
         } break;
 
