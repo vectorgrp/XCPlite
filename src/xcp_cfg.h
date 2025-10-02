@@ -224,7 +224,7 @@ Address extensions:
 #define XCP_ENABLE_DAQ_PRESCALER
 
 // Overrun indication via PID
-// Not needed for Ethernet, client detects data loss via transport layer counters
+// Not needed for Ethernet, client detects data loss via transport layer counter gaps
 // #define XCP_ENABLE_OVERRUN_INDICATION_PID
 
 /*----------------------------------------------------------------------------*/

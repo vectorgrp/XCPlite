@@ -40,8 +40,8 @@ XCPlite is used as a C library by the implementation of XCP for Rust in:
 - Breaking changes to V6.  
 - Lockless transmit queue. Works on x86-64 strong and ARM-64 weak memory model.  
 - Measurement and read access to variables on stack.  
-- Supports multiple calibration segments with working and reference page and independent page switching.  
-- Lock free and thread safe calibration parameter access, consistent calibration changes and page switches.  
+- Calibration segments for lock free and thread safe calibration parameter access, consistent calibration changes and page switches.  
+- Supports multiple segments with working and reference page and independent page switching.  
 - Refactored A2L generation macros.  
 - Build as a library.  
 - Used (as FFI library) for the rust xcp-lite version.  
@@ -283,18 +283,18 @@ The overall concepts often relies on one time execution patterns. If this is not
 
 ### A2L file generation and address update options
 
-Option 1:
+Option 1:  
 The A2L file is always created during application runtime. The A2L may be volatile, which means it may change on each restart of the application. This happens, when there are race conditions in registering calibration segments and events. The A2L file is just uploaded again by the XCP client.  
 To avoid A2L changes on each restart, the creation order of events and calibration segments just has to be deterministic.  
 As a default, the A2L version identifier (EPK) is generated from build time and date. If the A2L file is not stable, it is up to the user to provide an EPK version string which reflects this, otherwise it could create undefined behavior.  
 
-Option 2:
+Option 2:  
 The A2l file is created only once during the first run of a new build of the application.  
 A copy of all calibration segments and events definitions and calibration segment data is stored in a binary .bin file to achieve the same ordering in the next application start. BIN and A2L file get a unique name based on the software version string. The EPK software version string is used to check validity of the A2l and BIN file.  
 The existing A2L file is provided for upload to the XCP client or may be provided to the tool by copying it.  
 As a side effect, calibration segment persistency (freeze command) is supported.
 
-Option 3:
+Option 3:  
 Create the A2L file once and update it with an A2L update tool such as the CANape integrated A2L Updater or Open Source a2ltool.  
 Note that currently, the usual A2L tools will only update absolute addresses for variables and instances in global memory and offsets of structure fields.  
 Data acquisition of variables on stack and relative addressing, is not possible today. This might change in a future version of the A2L Updater.  
@@ -307,15 +307,29 @@ a2ltool --elffile  hello_xcp.out --update  --enable-structures --output hello_xc
 
 will work only for absolute addressing mode, not for segment, stack and relative addressing modes.  
 
+Option 4:  
+Disable A2L generation completely and enable absolute addressing for calibration segments (#define OPTION_CAL_SEGMENTS_ABS in main_cfg.h).  
+Use only absolute addressing mode, which is in this case associated to address extension 0.  
+The A2l file may be created and updated with any usual method of your choice, using CANape, A2L-Studio, A2L-Creator, a2ltool, ...  
+Measurement of heap and stack is not possible anymore and you are now limited to 32 a bit address range starting at the module load address (ApplXcpGetBaseAddr()).  
+Thread safe calibration using calibration segments is still assured.  
+Thread safety of measurement data acquisition is now in your responsibility, by using a safe fixed event for each individual measurement variable.  
+
 ### Addressing modes
 
 XCPlite makes intensive use of relative addressing.  
-  
 The addressing mode is indicated by the address extension:  
-0 - Calibration segment (A2L MEMORY_SEGMENT) relative address, high word of the address is the calibration segment index.  
-1 - Absolute address (Unsigned 32Bit, relative to main module load address).  
+  
+0/1 - Calibration segment (A2L MEMORY_SEGMENT) relative address, high word of the address is the calibration segment index.  
+1/0 - Absolute address (Unsigned 32Bit, relative to main module load address).  
 2 - Signed 32Bit relative address, default is relative to the stack frame pointer of the function which triggers the event.  
-3.. - Signed 16Bit relative address, high word of the address is the event id. This allows asynchronous (polling) access to the variable. Used for heap and class instance member variables.
+3.. - Signed 16Bit relative address, high word of the address is the event id. This allows asynchronous (polling) access to the variable. Used for heap and class instance member variables.  
+
+Depending on #define OPTION_CAL_SEGMENTS_ABS in main_cfg.h, address extension 0 is either the absolute addressing mode or the segment relative addressing mode.
+This is important, because CANape does not support address extensions >0 for calibration parameters in calibration segments.  
+Parameters in calibration segments may be accessed by their segment relative address or by their absolute address, using the corresponding address extension.  
+The absolute address of a calibration parameter is an address in the default page struct. This requires, that the pointer to the default parameters (reference page) given to XcpCreateCalSeg are within the 32 bit addressable with static lifetime! XcpCreateCalSeg does not copy the default parameters.  
+This would be possible, when only using segment relative addressing mode, but is currently not implement.  
 
 ### Platform and language standard requirements and resource usage
 
