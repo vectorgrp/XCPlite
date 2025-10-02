@@ -85,7 +85,7 @@
 #define OPTION_CAL_SEGMENT_COUNT 4 // Maximum number of calibration segments
 #define OPTION_CAL_PERSISTENCE     // Enable calibration segment persistence, BIN file is used to store calibration segments, A2L maybe generated only once per build
 // #define OPTION_CAL_SEGMENT_EPK     // Enable EPK calibration segment to detect HEX file incompatibility
-// #define OPTION_CAL_SEGMENTS_ABS // Enable absolute addressing for calibration segments
+#define OPTION_CAL_SEGMENTS_ABS // Enable absolute addressing for calibration segments
 
 #endif
 
@@ -104,7 +104,7 @@
 #endif
 
 // A2L
-#define OPTION_ENABLE_A2L_UPLOAD // Enable A2L upload via XCP
+#define OPTION_ENABLE_A2L_UPLOAD // Enable A2L upload option via XCP
 
 // Enable socketGetLocalAddr and XcpEthTlGetInfo
 // Used for convenience to get an existing ip address in A2L, when bound to ANY 0.0.0.0

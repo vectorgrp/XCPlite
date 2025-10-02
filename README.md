@@ -96,12 +96,16 @@ Note: Some of the examples use display windows without title bars to make it loo
 hello_xcp:  
   Demonstrates how to start the XCP on Ethernet server and use the runtime A2L generator.  
   Shows how to create a calibration parameter segment structure, register the parameters in the segment and access them safely.  
-  Defines events for measurement of global and local variables.  
-  Demonstrates the different addressing modes for variables and parameters.  
+  Defines events for measurement of global and local (stack) variables.  
+  Demonstrates the different addressing modes for measurement variables and calibration parameters.  
   Defines a function, registers local variables and function parameters and creates and triggers a measurement event in the function.  
 
 hello_xcp_cpp:
   Demonstrates how to instrument a member function of a C++ class and how to register and access calibration parameters in C++.  
+
+no_a2l_demo:
+  Demonstrates XCPlite without runtime A2L generation by using an A2L generation tool during the build process.  
+  This variant is currently limited to measurement and calibration of global variables.  
 
 The other examples cover more advanced topics:  
 
@@ -299,14 +303,6 @@ Create the A2L file once and update it with an A2L update tool such as the CANap
 Note that currently, the usual A2L tools will only update absolute addresses for variables and instances in global memory and offsets of structure fields.  
 Data acquisition of variables on stack and relative addressing, is not possible today. This might change in a future version of the A2L Updater.  
 
-For instance
-
-```bash
-a2ltool --elffile  hello_xcp.out --update  --enable-structures --output hello_xcp_updated.a2l  hello_xcp.a2l   
-```
-
-will work only for absolute addressing mode, not for segment, stack and relative addressing modes.  
-
 Option 4:  
 Disable A2L generation completely and enable absolute addressing for calibration segments (#define OPTION_CAL_SEGMENTS_ABS in main_cfg.h).  
 Use only absolute addressing mode, which is in this case associated to address extension 0.  
@@ -314,6 +310,22 @@ The A2l file may be created and updated with any usual method of your choice, us
 Measurement of heap and stack is not possible anymore and you are now limited to 32 a bit address range starting at the module load address (ApplXcpGetBaseAddr()).  
 Thread safe calibration using calibration segments is still assured.  
 Thread safety of measurement data acquisition is now in your responsibility, by using a safe fixed event for each individual measurement variable.  
+
+Create:
+
+```bash
+../a2ltool-RainerZ/target/debug/a2ltool --create --from-source examples/no_a2l_demo/src/main.c  --elffile  pi/no_a2l_demo.out  --enable-structures --output no_a2l_demo.a2l    
+
+../a2ltool-RainerZ/target/debug/a2ltool --create --measurement-regex "counter"  --elffile  pi/no_a2l_demo.out  --enable-structures --output examples/no_a2l_demo/CANape/no_a2l_demo.a2l    
+
+```
+
+Update:
+
+```bash
+```
+
+will work only for absolute addressing mode, not for segment, stack and relative addressing modes.  
 
 ### Addressing modes
 

@@ -134,6 +134,13 @@ add_executable(hello_xcp ${hello_xcp_SOURCES})
 target_include_directories(hello_xcp PUBLIC "${PROJECT_ROOT}/inc")
 target_link_libraries(hello_xcp PRIVATE xcplib)
 
+# Example no_a2l_demo
+set(no_a2l_demo_SOURCES examples/no_a2l_demo/src/main.c)   
+set_source_files_properties(${no_a2l_demo_SOURCES} PROPERTIES LANGUAGE C)
+add_executable(no_a2l_demo ${no_a2l_demo_SOURCES})
+target_include_directories(no_a2l_demo PUBLIC "${PROJECT_ROOT}/inc")
+target_link_libraries(no_a2l_demo PRIVATE xcplib)
+
 # Example hello_xcp_cpp
 add_executable(hello_xcp_cpp examples/hello_xcp_cpp/src/main.cpp )
 target_include_directories(hello_xcp_cpp PUBLIC "${PROJECT_ROOT}/inc")
@@ -219,6 +226,7 @@ else()
 
     # Set .out suffix for executables on non-Windows platforms
     set_target_properties(hello_xcp PROPERTIES SUFFIX ".out")
+    set_target_properties(no_a2l_demo PROPERTIES SUFFIX ".out")
     set_target_properties(hello_xcp_cpp PROPERTIES SUFFIX ".out")
     set_target_properties(c_demo PROPERTIES SUFFIX ".out")
     set_target_properties(cpp_demo PROPERTIES SUFFIX ".out")

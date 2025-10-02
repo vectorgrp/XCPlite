@@ -181,6 +181,7 @@ LIBRARY_TARGET="xcplib"
 EXAMPLE_TARGETS=(
     "hello_xcp" 
     "hello_xcp_cpp"
+    "no_a2l_demo"
     "c_demo"
     "cpp_demo"
     "struct_demo"
