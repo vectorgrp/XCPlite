@@ -310,20 +310,7 @@ The A2l file may be created and updated with any usual method of your choice, us
 Measurement of heap and stack is not possible anymore and you are now limited to 32 a bit address range starting at the module load address (ApplXcpGetBaseAddr()).  
 Thread safe calibration using calibration segments is still assured.  
 Thread safety of measurement data acquisition is now in your responsibility, by using a safe fixed event for each individual measurement variable.  
-
-Create:
-
-```bash
-../a2ltool-RainerZ/target/debug/a2ltool --create --from-source examples/no_a2l_demo/src/main.c  --elffile  pi/no_a2l_demo.out  --enable-structures --output no_a2l_demo.a2l    
-
-../a2ltool-RainerZ/target/debug/a2ltool --create --measurement-regex "counter"  --elffile  pi/no_a2l_demo.out  --enable-structures --output examples/no_a2l_demo/CANape/no_a2l_demo.a2l    
-
-```
-
-Update:
-
-```bash
-```
+The demo no_a2l_demo demonstrates this.  
 
 will work only for absolute addressing mode, not for segment, stack and relative addressing modes.  
 

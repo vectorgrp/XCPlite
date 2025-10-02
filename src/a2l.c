@@ -1531,7 +1531,7 @@ bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t
 
     // Check and ignore, if the XCP singleton has not been initialized and activated
     if (!XcpIsActivated()) {
-        DBG_PRINT3("A2lInit: XCP not initialized and activated!\n");
+        DBG_PRINT3("A2lInit: XCP is deactivated!\n");
         return true;
     }
 

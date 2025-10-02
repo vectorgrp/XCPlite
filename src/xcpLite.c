@@ -449,7 +449,6 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
 #ifdef XCP_ENABLE_FREEZE_CAL_PAGE
         c->file_pos = 0;
 #endif
-        DBG_PRINTF3("Create CalSeg %u: %s index=%u, size=%u\n", index, c->name, index, c->size);
     }
 
     // Init
@@ -460,7 +459,7 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
     atomic_store_explicit(&c->ecu_page_next, (uintptr_t)NULL, memory_order_relaxed);
     c->write_pending = false;
     c->xcp_access = XCP_CALPAGE_DEFAULT_PAGE;                                              // Default page for XCP access
-    atomic_store_explicit(&c->ecu_access, XCP_CALPAGE_DEFAULT_PAGE, memory_order_relaxed); // Default page for ECU access
+    atomic_store_explicit(&c->ecu_access, XCP_CALPAGE_DEFAULT_PAGE, memory_order_relaxed); // Default page for ECU access if XCP is not activated
     atomic_store_explicit(&c->lock_count, 0, memory_order_relaxed);                        // No locks
 #ifdef XCP_ENABLE_FREEZE_CAL_PAGE
     c->mode = 0; // Default mode is freeze not enabled, set by XCP command SET_SEGMENT_MODE
@@ -468,6 +467,8 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
 
     // Allocate the working page and initialize RCU, if XCP has been activated
     if (isActivated()) {
+
+        DBG_PRINTF3("Create CalSeg %u: %s index=%u, size=%u\n", index, c->name, index, c->size);
 
         // Allocate the ecu working page (RAM page)
         c->xcp_page = malloc(size);

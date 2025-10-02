@@ -10,7 +10,7 @@ PrgDate=16.06.2025
 Description=
 CreationTime=11:34
 CreationDate=10/02/2025 ; Month/Day/Year
-ModificationTime=12:32
+ModificationTime=16:24
 ModificationDate=10/02/2025 ; Month/Day/Year
 Protected=0
 CurrentWindowsACP=1252
@@ -164,8 +164,7 @@ Count=0
 
 [MEASUREMENT_LIST]
 Count=1
-OfflineFileName=Recorder_2025-10-02_12-30-54.mf4
-OfflineFileCount=1
+OfflineFileCount=0
 MeaCfgLabellistName=
 
 [MEASUREMENT_OBJECT_1]
@@ -174,7 +173,7 @@ Name=counter
 Disabled=0
 Mode=2147483648
 Rate=1
-ModeIsDefault=1
+ModeIsDefault=0
 Row=0
 Column=0
 MeaReferenced=1
@@ -389,7 +388,7 @@ DisplayCount=0
 Name=Recorder
 Type=0
 Comment=
-FilenameTemplate={RECORDER}_{YEAR}-{MONTH}-{DAY}_{HOUR}-{MINUTE}-{SECOND}.mf4
+FilenameTemplate=no_a2l_demo.mf4
 ConverterId=
 TEXT_SEARCH=
 RecStartStopEnabled=0
@@ -493,14 +492,15 @@ TreeExpand_12=All\Measurement list\no_a2l_demo
 TreeExpand_13=All\Devices\no_a2l_demo\no_a2l_demo.a2l
 TreeExpand_14=All\Devices\no_a2l_demo\no_a2l_demo.a2l\Software structure
 TreeExpand_15=All\Devices\no_a2l_demo\no_a2l_demo.a2l\Software structure\params
-TreeExpand_16=$All\Devices
-TreeExpand_17=#All\Devices
-TreeExpand_18=@All\Devices\no_a2l_demo
-TreeExpand_19=$All\Devices\no_a2l_demo\no_a2l_demo.a2l
-TreeExpand_20=#All\Devices\no_a2l_demo\no_a2l_demo.a2l\counter
-TreeExpand_21=@All\Measurement list
-TreeExpand_22=$All\Measurement list\All signals
-TreeExpand_23=#All\Measurement list\no_a2l_demo\mainloop
+TreeExpand_16=All\Devices\no_a2l_demo\Unknown variables
+TreeExpand_17=$All\Devices
+TreeExpand_18=#All\Devices
+TreeExpand_19=@All\Devices\no_a2l_demo
+TreeExpand_20=$All\Devices\no_a2l_demo\Unknown variables
+TreeExpand_21=#All\Devices\no_a2l_demo\Unknown variables\counter
+TreeExpand_22=@All\Measurement list
+TreeExpand_23=$All\Measurement list\All signals
+TreeExpand_24=#All\Measurement list\no_a2l_demo\mainloop
 TextSearchCaseSensitive=0
 TextSearchUseMode=1
 TextSearchSearchFullText=1
@@ -514,7 +514,7 @@ Count=0
 ShowTime=1
 TimeWidth=180
 CopyColumnTitles=1
-ClearStart=1
+ClearStart=0
 AbsoluteTimeEnabled=0
 ShowGridLines=0
 ColumnCount=3
@@ -565,8 +565,8 @@ Mark=1
 YValue=1
 ShowLegend=2
 ShowLegendHeader=1
-LegendPixWidth=224
-LegendPixWidth_dpi96=112
+LegendPixWidth=283
+LegendPixWidth_dpi96=142
 LegendPixHeight=196
 LegendPixHeight_dpi96=98
 LegendPos=2
@@ -622,8 +622,8 @@ DisplayMask=1 ; pages 1
 [WINDOW_3_LEG_COLUMNS]
 ScreenDPIinSection=192
 COUNT=1
-COL_0=31, 224
-COL_0_dpi96=31, 112
+COL_0=31, 283
+COL_0_dpi96=31, 142
 
 [WINDOW_4]
 ProgID=
@@ -695,7 +695,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_a9793286-7799-4f1b-a2b0-0faec7e1dd89
+GUID=DISPLAY_a7d920e5-4f00-4e57-8f60-ae6fd54a2c51
 
 [WINDOW_4_OBJECT_2]
 Type=2
@@ -744,7 +744,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_3d89a8be-dcee-4418-b58a-8d097c81e61f
+GUID=DISPLAY_d19fd1d7-02ec-42bd-af06-60841ab90ee1
 
 [WINDOWS]
 Count=4
