@@ -592,6 +592,10 @@ int32_t XcpTlHandleTransmitQueue(void) {
     const uint32_t outer_loop_sleep_ms = 1; // Sleep time in ms for each outer loop
 #endif
 
+#ifdef OPTION_DAQ_ASYNC_EVENT
+    tXcpEventId event = XcpCreateEvent("async", outer_loop_sleep_ms * CLOCK_TICKS_PER_MS, 0);
+#endif
+
     int32_t n = 0;      // Number of bytes sent
     bool flush = false; // Flush queue in regular intervals
 
@@ -636,6 +640,10 @@ int32_t XcpTlHandleTransmitQueue(void) {
         }
 
         sleepMs(outer_loop_sleep_ms);
+#ifdef OPTION_DAQ_ASYNC_EVENT
+        XcpEvent(event);
+#endif
+
     } // for(j)
     return n;
 }

@@ -45,6 +45,7 @@
   // DAQ settings
   #define OPTION_DAQ_MEM_SIZE x               Size of memory for DAQ setup in bytes (integer value, 6 bytes per signal needed)
   #define OPTION_DAQ_EVENT_COUNT x            Maximum number of DAQ events (integer value, must be even)
+  #define OPTION_DAQ_ASYNC_EVENT              Create a global, cyclic DAQ event for asynchronous data acquisition
 
   // CAL settings
   #define OPTION_CAL_SEGMENTS                 Enable calibration segment management (otherwise callbacks are used for calibration segment commands)
@@ -89,6 +90,7 @@
 // DAQ
 #define OPTION_DAQ_MEM_SIZE (1000 * 6) // Memory bytes used for XCP DAQ tables - max 6 bytes per measurement signal needed
 #define OPTION_DAQ_EVENT_COUNT 32      // Maximum number of DAQ events (integer value, must be even)
+#define OPTION_DAQ_ASYNC_EVENT         // Create an asynchronous, cyclic DAQ event for asynchronous data acquisition
 
 #else
 
