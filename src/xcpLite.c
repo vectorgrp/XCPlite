@@ -22,7 +22,6 @@
 |       - Only dynamic DAQ list allocation supported
 |       - Resume is not supported
 |       - Overload indication by event is not supported
-|       - DAQ does not support prescaler
 |       - ODT optimization not supported
 |       - Seed & key is not supported
 |       - Flash programming is not supported
@@ -167,7 +166,11 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
 #define DaqListAddrExt(i) gXcp.DaqLists->u.daq_list[i].addr_ext
 #define DaqListPriority(i) gXcp.DaqLists->u.daq_list[i].priority
 #ifdef XCP_MAX_EVENT_COUNT
-#define DaqListFirst(event) gXcp.DaqLists->daq_first[event]
+#ifdef XCP_ENABLE_DAQ_EVENT_LIST
+#define DaqListFirst(event_id) gXcp.EventList.event[event_id].daq_first
+#else
+#define DaqListFirst(event_id) gXcp.DaqLists->daq_first[event_id]
+#endif
 #define DaqListNext(daq) gXcp.DaqLists->u.daq_list[daq].next
 #endif
 
@@ -1323,6 +1326,11 @@ tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cyc
     STRNCPY(gXcp.EventList.event[e].name, name, XCP_MAX_EVENT_NAME);
     gXcp.EventList.event[e].name[XCP_MAX_EVENT_NAME] = 0;
     gXcp.EventList.event[e].priority = priority;
+#ifdef XCP_ENABLE_DAQ_PRESCALER
+    gXcp.EventList.event[e].daq_prescaler = 0;
+    gXcp.EventList.event[e].daq_prescaler_cnt = 0;
+#endif
+    gXcp.EventList.event[e].daq_first = XCP_UNDEFINED_DAQ_LIST;
     gXcp.EventList.event[e].cycleTimeNs = cycleTimeNs;
     DBG_PRINTF3("Create Event %u: %s index=%u, cycle=%uns, prio=%u\n", e, gXcp.EventList.event[e].name, index, cycleTimeNs, priority);
     return e;
@@ -1397,10 +1405,15 @@ static void XcpClearDaq(void) {
     gXcp.DaqLists->res = 0xBEAC;
 
 #ifdef XCP_MAX_EVENT_COUNT
-    uint16_t event;
-    for (event = 0; event < XCP_MAX_EVENT_COUNT; event++) {
+#ifdef XCP_ENABLE_DAQ_EVENT_LIST
+    for (uint16_t event = 0; event < gXcp.EventList.count; event++) {
+        gXcp.EventList.event[event].daq_first = XCP_UNDEFINED_DAQ_LIST;
+    }
+#else
+    for (uint16_t event = 0; event < XCP_MAX_EVENT_COUNT; event++) {
         gXcp.DaqLists->daq_first[event] = XCP_UNDEFINED_DAQ_LIST;
     }
+#endif
 #endif
 }
 
@@ -1622,25 +1635,40 @@ static uint8_t XcpAddOdtEntry(uint32_t addr, uint8_t ext, uint8_t size) {
 
 // Set DAQ list mode
 // All DAQ lists associated with an event, must have the same address extension
-static uint8_t XcpSetDaqListMode(uint16_t daq, uint16_t event, uint8_t mode, uint8_t prio) {
+static uint8_t XcpSetDaqListMode(uint16_t daq, uint16_t event_id, uint8_t mode, uint8_t prescaler, uint8_t prio) {
 
     if (gXcp.DaqLists == NULL || daq >= gXcp.DaqLists->daq_count)
         return CRC_DAQ_CONFIG;
 
+#ifndef XCP_ENABLE_DAQ_PRESCALER
+    if (prescaler > 1)
+        return CRC_OUT_OF_RANGE; // prescaler is not supported
+#else
+    (void)prescaler;
+#endif
+
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
-    // If any events are registered, check if this event exists
-    if (gXcp.EventList.count > 0) {
-        tXcpEvent *e = XcpGetEvent(event); // Check if event exists
-        if (e == NULL)
-            return CRC_OUT_OF_RANGE;
-    }
+    // Check if this event exists
+    tXcpEvent *event = XcpGetEvent(event_id); // Check if event exists
+    if (event == NULL)
+        return CRC_OUT_OF_RANGE;
+
+// Set the prescaler to the associated event, individual prescaler per DAQ list are not supported
+#ifdef XCP_ENABLE_DAQ_PRESCALER
+#ifndef XCP_ENABLE_DAQ_EVENT_LIST
+#error "XCP_ENABLE_DAQ_PRESCALER requires XCP_ENABLE_DAQ_EVENT_LIST"
+#endif
+    event->daq_prescaler = prescaler; // Conflicts are not checked
+    event->daq_prescaler_cnt = 0;
+#endif
+
 #endif
 
 #ifdef XCP_ENABLE_DYN_ADDRESSING
 
     // Check if the DAQ list requires a specific event and it matches
-    uint16_t event0 = DaqListEventChannel(daq);
-    if (event0 != XCP_UNDEFINED_EVENT_ID && event != event0)
+    uint16_t event_id0 = DaqListEventChannel(daq);
+    if (event_id0 != XCP_UNDEFINED_EVENT_ID && event_id != event_id0)
         return CRC_DAQ_CONFIG; // Error event not unique
 
     // Check all DAQ lists with same event have the same address extension
@@ -1657,14 +1685,14 @@ static uint8_t XcpSetDaqListMode(uint16_t daq, uint16_t event, uint8_t mode, uin
 #endif
 #endif
 
-    DaqListEventChannel(daq) = event;
+    DaqListEventChannel(daq) = event_id;
     DaqListMode(daq) = mode;
     DaqListPriority(daq) = prio;
 
-    // Add daq to linked list of daq lists already associated to this event
+    // Append daq to linked list of daq lists already associated to this event
 #ifdef XCP_MAX_EVENT_COUNT
-    uint16_t daq0 = DaqListFirst(event);
-    uint16_t *daq0_next = &DaqListFirst(event);
+    uint16_t daq0 = DaqListFirst(event_id);
+    uint16_t *daq0_next = &DaqListFirst(event_id);
     while (daq0 != XCP_UNDEFINED_DAQ_LIST) {
         assert(daq0 < gXcp.DaqLists->daq_count);
         daq0 = DaqListNext(daq0);
@@ -1905,9 +1933,7 @@ static void XcpTriggerDaqList(tQueueHandle queueHandle, uint16_t daq, const uint
 
 // Trigger event
 // DAQ must be running
-static void XcpTriggerDaqEvent(tQueueHandle queueHandle, tXcpEventId event, const uint8_t **bases, uint64_t clock) {
-
-    uint16_t daq;
+static void XcpTriggerDaqEvent(tQueueHandle queueHandle, tXcpEventId event_id, const uint8_t **bases, uint64_t clock) {
 
     // No DAQ lists allocated
     if (gXcp.DaqLists == NULL)
@@ -1917,25 +1943,17 @@ static void XcpTriggerDaqEvent(tQueueHandle queueHandle, tXcpEventId event, cons
     if (!isDaqRunning())
         return;
 
-    // Event is invalid
-    if (event >= XCP_MAX_EVENT_COUNT) {
-        DBG_PRINTF_ERROR("Event %u out of range\n", event);
-        return;
-    }
-
     // Get clock, if not given as parameter
     if (clock == 0)
         clock = ApplXcpGetClock64();
 
-#ifndef XCP_MAX_EVENT_COUNT
-
-    // @@@@ Non optimized version for arbitrary event ids
+#ifndef XCP_MAX_EVENT_COUNT // Basic mode for arbitrary event ids
 
     // Loop over all active DAQ lists associated to the current event
-    for (daq = 0; daq < gXcp.DaqLists->daq_count; daq++) {
+    for (uint16_t daq = 0; daq < gXcp.DaqLists->daq_count; daq++) {
         if ((DaqListState(daq) & DAQ_STATE_RUNNING) == 0)
             continue; // DAQ list not active
-        if (DaqListEventChannel(daq) != event)
+        if (DaqListEventChannel(daq) != event_id)
             continue; // DAQ list not associated with this event
 
 #ifndef XCP_ENABLE_DAQ_ADDREXT
@@ -1949,18 +1967,35 @@ static void XcpTriggerDaqEvent(tQueueHandle queueHandle, tXcpEventId event, cons
 
     } /* daq */
 
+#else // Event number space is limited to XCP_MAX_EVENT_COUNT, with and without event list
+
+#ifdef XCP_ENABLE_DAQ_EVENT_LIST
+    if (event_id >= gXcp.EventList.count) {
+        DBG_PRINTF_ERROR("Event id %u out of range\n", event_id);
+        return;
+    }
+
+#ifdef XCP_ENABLE_DAQ_PRESCALER
+    tXcpEvent *event = &gXcp.EventList.event[event_id];
+    event->daq_prescaler_cnt++;
+    if (event->daq_prescaler_cnt >= event->daq_prescaler) {
+        event->daq_prescaler_cnt = 0;
+    } else {
+        return;
+    }
+#endif
+
 #else
+    if (event_id >= XCP_MAX_EVENT_COUNT) {
+        DBG_PRINTF_ERROR("Event id %u out of range\n", event_id);
+        return;
+    }
+#endif
 
-    // Optimized
-    // Loop over linked list of daq lists associated to event
-    if (event >= XCP_MAX_EVENT_COUNT)
-        return; // Event out of range
-
-    daq = DaqListFirst(event);
-    while (daq != XCP_UNDEFINED_DAQ_LIST) {
+    // Loop over all active DAQ lists associated to the current event
+    for (uint16_t daq = DaqListFirst(event_id); daq != XCP_UNDEFINED_DAQ_LIST; daq = DaqListNext(daq)) {
         assert(daq < gXcp.DaqLists->daq_count);
         if (DaqListState(daq) & DAQ_STATE_RUNNING) { // DAQ list active
-
 #ifndef XCP_ENABLE_DAQ_ADDREXT
             // Address extension unique per DAQ list
             // Build base pointer for this DAQ list
@@ -1970,7 +2005,6 @@ static void XcpTriggerDaqEvent(tQueueHandle queueHandle, tXcpEventId event, cons
             XcpTriggerDaqList(queueHandle, daq, bases, clock); // Trigger DAQ list
 #endif
         }
-        daq = DaqListNext(daq);
     }
 #endif
 }
@@ -2595,8 +2629,8 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             CRM_GET_DAQ_PROCESSOR_INFO_DAQ_KEY_BYTE |= DAQ_EXT_DAQ;
 #endif
 
-            // Dynamic DAQ list configuration, timestamps, resume and overload indication supported
-            // Identification field can not be switched off, bitwise data stimulation not supported, Prescaler not supported
+            // Dynamic DAQ list configuration, timestamps, resume, prescaler and overrun indication options
+            // Identification field can not be switched off, bitwise data stimulation not supported
             CRM_GET_DAQ_PROCESSOR_INFO_PROPERTIES = (uint8_t)(
                 DAQ_PROPERTY_CONFIG_TYPE | 
                 DAQ_PROPERTY_TIMESTAMP |
@@ -2608,6 +2642,9 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
 #endif
 #ifdef XCP_ENABLE_DAQ_RESUME
                 DAQ_PROPERTY_RESUME |
+#endif
+#ifdef XCP_ENABLE_DAQ_PRESCALER
+                DAQ_PROPERTY_PRESCALER |
 #endif
                 0);
 
@@ -2708,6 +2745,7 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             uint16_t event = CRO_SET_DAQ_LIST_MODE_EVENTCHANNEL;
             uint8_t mode = CRO_SET_DAQ_LIST_MODE_MODE;
             uint8_t prio = CRO_SET_DAQ_LIST_MODE_PRIORITY;
+            uint8_t prescaler = CRO_SET_DAQ_LIST_MODE_PRESCALER;
             if (gXcp.DaqLists == NULL)
                 error(CRC_SEQUENCE);
             if (daq >= gXcp.DaqLists->daq_count)
@@ -2716,9 +2754,7 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
                 error(CRC_OUT_OF_RANGE); // none of these modes implemented
             if ((mode & DAQ_MODE_TIMESTAMP) == 0)
                 error(CRC_CMD_SYNTAX); // timestamp is fixed on
-            if (CRO_SET_DAQ_LIST_MODE_PRESCALER > 1)
-                error(CRC_OUT_OF_RANGE); // prescaler is not implemented
-            check_error(XcpSetDaqListMode(daq, event, mode, prio));
+            check_error(XcpSetDaqListMode(daq, event, mode, prescaler, prio));
             break;
         }
 

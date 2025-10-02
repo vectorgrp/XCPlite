@@ -78,16 +78,20 @@
 #define OPTION_MTU 8000                     // Ethernet packet size (MTU) - Jumbo frames supported
 #define OPTION_SERVER_FORCEFULL_TERMINATION // Don't wait for the rx and tx thread to finish, just terminate them
 
-#ifndef XCPLIB_FOR_RUST // Set by the rust build script
-
 // CAL
+#ifndef XCPLIB_FOR_RUST // Set by the rust build script, Rust xcp-lite currently has its own calibration segment management
+
 #define OPTION_CAL_SEGMENTS        // Enable calibration segment management
 #define OPTION_CAL_SEGMENT_COUNT 4 // Maximum number of calibration segments
 #define OPTION_CAL_PERSISTENCE     // Enable calibration segment persistence, BIN file is used to store calibration segments, A2L maybe generated only once per build
 // #define OPTION_CAL_SEGMENT_EPK     // Enable EPK calibration segment to detect HEX file incompatibility
 // #define OPTION_CAL_SEGMENTS_ABS // Enable absolute addressing for calibration segments
 
+#endif
+
 // DAQ
+#ifndef XCPLIB_FOR_RUST // Set by the rust build script, Rust xcp-lite needs larger DAQ lists for testing
+
 #define OPTION_DAQ_MEM_SIZE (1000 * 6) // Memory bytes used for XCP DAQ tables - max 6 bytes per measurement signal needed
 #define OPTION_DAQ_EVENT_COUNT 32      // Maximum number of DAQ events (integer value, must be even)
 #define OPTION_DAQ_ASYNC_EVENT         // Create an asynchronous, cyclic DAQ event for asynchronous data acquisition

@@ -119,12 +119,15 @@ void XcpSetLogLevel(uint8_t level);
 #endif
 
 typedef struct {
-    uint16_t daqList;                  // associated DAQ list
-    uint16_t index;                    // Event instance index, 0 = single instance, 1.. = multiple instances
-    uint32_t cycleTimeNs;              // cycle time in nanoseconds, 0 means sporadic event
-    uint8_t priority;                  // priority 0 = queued, 1 = pushing, 2 = realtime
-    uint8_t res;                       // reserved
-    char name[XCP_MAX_EVENT_NAME + 1]; // event name
+    uint32_t cycleTimeNs; // Cycle time in nanoseconds, 0 means sporadic event
+    uint16_t index;       // Event instance index, 0 = single instance, 1.. = multiple instances
+    uint16_t daq_first;   // First associated DAQ list, linked list
+    uint8_t priority;     // Priority 0 = queued, >=1 flushing
+#ifdef XCP_ENABLE_DAQ_PRESCALER
+    uint8_t daq_prescaler;     // Current prescaler set with SET_DAQ_LIST_MODE
+    uint8_t daq_prescaler_cnt; // Current prescaler counter
+#endif
+    char name[XCP_MAX_EVENT_NAME + 1]; // Event name
 } tXcpEvent;
 
 typedef struct {
@@ -136,9 +139,9 @@ typedef struct {
 // Create an XCP event (internal use)
 tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cycleTimeNs, uint8_t priority);
 // Add a measurement event to event list, return event number (0..MAX_EVENT-1)
-tXcpEventId XcpCreateEvent(const char *name, uint32_t cycleTimeNs /* ns */, uint8_t priority /* 0-normal, >=1 realtime*/);
+tXcpEventId XcpCreateEvent(const char *name, uint32_t cycleTimeNs /* ns */, uint8_t priority /* 0 = queued, >=1 flushing*/);
 // Add a measurement event to event list, return event number (0..MAX_EVENT-1), thread safe, if name exists, an instance id is appended to the name
-tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycleTimeNs /* ns */, uint8_t priority /* 0-normal, >=1 realtime*/);
+tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycleTimeNs /* ns */, uint8_t priority /* 0 = queued, >=1 flushing */);
 
 // Get event list
 tXcpEventList *XcpGetEventList(void);
@@ -315,8 +318,8 @@ typedef struct {
     uint16_t config_id;
     uint16_t res1;
 #endif
-#ifdef XCP_MAX_EVENT_COUNT
-    uint16_t daq_first[XCP_MAX_EVENT_COUNT]; // Event channel to DAQ list mapping
+#if !defined(XCP_ENABLE_DAQ_EVENT_LIST) && defined(XCP_MAX_EVENT_COUNT)
+    uint16_t daq_first[XCP_MAX_EVENT_COUNT]; // Event channel to DAQ list mapping when there is no event management
 #endif
 
     // DAQ array
@@ -494,10 +497,8 @@ bool ApplXcpGetClockInfoGrandmaster(uint8_t *uuid, uint8_t *epoch, uint8_t *stra
 
 /* DAQ resume */
 #ifdef XCP_ENABLE_DAQ_RESUME
-
 uint8_t ApplXcpDaqResumeStore(uint16_t config_id);
 uint8_t ApplXcpDaqResumeClear(void);
-
 #endif
 
 /* Get info for GET_ID command (pointer to and length of data) */

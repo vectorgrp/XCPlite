@@ -221,14 +221,14 @@ static const char *gA2lIfDataProtocolLayer = // Parameter: XCP_PROTOCOL_LAYER_VE
 //----------------------------------------------------------------------------------
 static const char *gA2lIfDataBeginDAQ = // Parameter: %u max event, %s timestamp unit
     "/begin DAQ\n"
-    "DYNAMIC 0 %u 0 OPTIMISATION_TYPE_DEFAULT ADDRESS_EXTENSION_FREE IDENTIFICATION_FIELD_TYPE_RELATIVE_BYTE GRANULARITY_ODT_ENTRY_SIZE_DAQ_BYTE 0xF8 OVERLOAD_INDICATION_PID\n"
-    "/begin TIMESTAMP_SUPPORTED\n"
-    "0x1 SIZE_DWORD %s TIMESTAMP_FIXED\n"
-    "/end TIMESTAMP_SUPPORTED\n";
+    "DYNAMIC 0 %u 0 OPTIMISATION_TYPE_DEFAULT ADDRESS_EXTENSION_FREE IDENTIFICATION_FIELD_TYPE_RELATIVE_BYTE GRANULARITY_ODT_ENTRY_SIZE_DAQ_BYTE 0xF8 OVERLOAD_INDICATION_PID"
+#ifdef XCP_ENABLE_DAQ_PRESCALER
+    " PRESCALER_SUPPORTED"
+#endif
+    "\n/begin TIMESTAMP_SUPPORTED 0x1 SIZE_DWORD %s TIMESTAMP_FIXED /end TIMESTAMP_SUPPORTED\n";
 
 // ... Event list follows, before EndDaq
 
-//----------------------------------------------------------------------------------
 static const char *const gA2lIfDataEndDAQ = "/end DAQ\n";
 
 //----------------------------------------------------------------------------------

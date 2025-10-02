@@ -592,7 +592,7 @@ int32_t XcpTlHandleTransmitQueue(void) {
     const uint32_t outer_loop_sleep_ms = 1; // Sleep time in ms for each outer loop
 #endif
 
-#ifdef OPTION_DAQ_ASYNC_EVENT
+#if defined(OPTION_DAQ_ASYNC_EVENT) && defined(XCP_ENABLE_DAQ_EVENT_LIST)
     tXcpEventId event = XcpCreateEvent("async", outer_loop_sleep_ms * CLOCK_TICKS_PER_MS, 0);
 #endif
 
@@ -640,7 +640,7 @@ int32_t XcpTlHandleTransmitQueue(void) {
         }
 
         sleepMs(outer_loop_sleep_ms);
-#ifdef OPTION_DAQ_ASYNC_EVENT
+#if defined(OPTION_DAQ_ASYNC_EVENT) && defined(XCP_ENABLE_DAQ_EVENT_LIST)
         XcpEvent(event);
 #endif
 

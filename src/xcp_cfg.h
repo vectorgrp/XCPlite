@@ -30,14 +30,12 @@
 
 /*----------------------------------------------------------------------------*/
 // Enable calibration segment list management
-#ifndef XCPLIB_FOR_RUST // Not needed for Rust xcp-lite, has its own calibration segment management and uses the callbacks
 #ifdef OPTION_CAL_SEGMENTS
 #define XCP_ENABLE_CALSEG_LIST
 #if OPTION_CAL_SEGMENT_COUNT > 0
 #define XCP_MAX_CALSEG_COUNT OPTION_CAL_SEGMENT_COUNT
 #endif
 #endif // OPTION_CAL_SEGMENTS
-#endif
 
 /*----------------------------------------------------------------------------*/
 /* Address, address extension coding */
@@ -54,7 +52,7 @@ Address extensions:
 */
 
 // --- Event based addressing mode without asynchronous access
-#ifdef XCPLIB_FOR_RUST
+#ifdef XCPLIB_FOR_RUST // Set by the Rust build script, Rust xcp-lite uses relative addressing (0x03) and dynamic addressing (0x02), relative addressing is not used in XCPlite
 #define XCP_ENABLE_REL_ADDRESSING
 #endif
 #ifdef XCP_ENABLE_REL_ADDRESSING
@@ -74,7 +72,7 @@ Address extensions:
 
 // Use addr_ext DYN to indicate relative addr format (dyn_base + (((event as uint16_t) <<16) | offset as int16_t))
 #define XCP_ADDR_EXT_DYN 0x02 // Relative address format 0x02..0x04 (stack, base_addr1, base_addr2)
-#ifdef XCPLIB_FOR_RUST
+#ifdef XCPLIB_FOR_RUST        // Set by the Rust build script
 #define XCP_ADDR_EXT_DYN_MAX 0x02
 #else
 #define XCP_ADDR_EXT_DYN_MAX 0x04
@@ -216,11 +214,14 @@ Address extensions:
 #ifdef OPTION_DAQ_MEM_SIZE
 #define XCP_DAQ_MEM_SIZE OPTION_DAQ_MEM_SIZE
 #else
-#define XCP_DAQ_MEM_SIZE (1024 * 5) // Amount of memory for DAQ tables, each ODT entry (e.g. measurement variable or memory block) needs 5 bytes
+#define XCP_DAQ_MEM_SIZE (1024 * 6) // Amount of memory for DAQ tables, each ODT entry (e.g. measurement variable or memory block) needs 5 bytes
 #endif
 
-// Enable DAQ resume mode
-#define XCP_ENABLE_DAQ_RESUME
+// Enable DAQ resume mode, requires XCP_ENABLE_DAQ_EVENT_LIST
+// #define XCP_ENABLE_DAQ_RESUME
+
+// Enable prescaler for DAQ events, requires XCP_ENABLE_DAQ_EVENT_LIST
+#define XCP_ENABLE_DAQ_PRESCALER
 
 // Overrun indication via PID
 // Not needed for Ethernet, client detects data loss via transport layer counters
@@ -230,7 +231,7 @@ Address extensions:
 /* DAQ event management */
 
 // Enable event list
-#ifndef XCPLIB_FOR_RUST // Not needed for Rust xcp-lite, has its own event management
+#ifndef XCPLIB_FOR_RUST // // Set by the Rust build script, not needed for Rust xcp-lite, currently has its own event management
 #define XCP_ENABLE_DAQ_EVENT_LIST
 #endif
 

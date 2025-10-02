@@ -136,6 +136,7 @@ This section describes the XCP protocol layer configuration parameters in xcp_cf
 | `XCP_MAX_DAQ_COUNT` | Maximum number of DAQ lists. Must be ≤ 0xFFFE (default: 1024) |
 | `XCP_DAQ_MEM_SIZE` | Static memory allocation for DAQ tables. Each ODT entry needs 5 bytes, each DAQ list 12 bytes, each ODT 8 bytes |
 | `XCP_ENABLE_DAQ_RESUME` | Enables DAQ resume mode functionality |
+| `XCP_ENABLE_DAQ_PRESCALER` | Enables DAQ prescaler (downsampling) |
 | `XCP_ENABLE_DAQ_EVENT_LIST` | Enables event list management (not needed for Rust xcp-lite) |
 | `XCP_ENABLE_DAQ_EVENT_INFO` | Enables XCP_GET_EVENT_INFO command |
 | `XCP_MAX_EVENT_NAME` | Maximum length for event names in characters (default: 15) |
