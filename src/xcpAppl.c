@@ -30,7 +30,7 @@
 
 // @@@@ TODO improve
 #ifdef XCP_ENABLE_USER_COMMAND
-static bool write_delayed = false;
+static bool __write_delayed = false;
 #endif
 
 /**************************************************************************/
@@ -44,31 +44,31 @@ void ApplXcpSetLogLevel(uint8_t level) { XcpSetLogLevel(level); }
 // Callbacks
 /**************************************************************************/
 
-static bool (*callback_connect)(void) = NULL;
-static uint8_t (*callback_prepare_daq)(void) = NULL;
-static uint8_t (*callback_start_daq)(void) = NULL;
-static void (*callback_stop_daq)(void) = NULL;
-static uint8_t (*callback_freeze_daq)(uint8_t clear, uint16_t config_id) = NULL;
-static uint8_t (*callback_get_cal_page)(uint8_t segment, uint8_t mode) = NULL;
-static uint8_t (*callback_set_cal_page)(uint8_t segment, uint8_t page, uint8_t mode) = NULL;
-static uint8_t (*callback_init_cal)(uint8_t src_page, uint8_t dst_page) = NULL;
-static uint8_t (*callback_freeze_cal)(void) = NULL;
-static uint8_t (*callback_read)(uint32_t src, uint8_t size, uint8_t *dst) = NULL;
-static uint8_t (*callback_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay) = NULL;
-static uint8_t (*callback_flush)(void) = NULL;
+static bool (*__callback_connect)(void) = NULL;
+static uint8_t (*__callback_prepare_daq)(void) = NULL;
+static uint8_t (*__callback_start_daq)(void) = NULL;
+static void (*__callback_stop_daq)(void) = NULL;
+static uint8_t (*__callback_freeze_daq)(uint8_t clear, uint16_t config_id) = NULL;
+static uint8_t (*__callback_get_cal_page)(uint8_t segment, uint8_t mode) = NULL;
+static uint8_t (*__callback_set_cal_page)(uint8_t segment, uint8_t page, uint8_t mode) = NULL;
+static uint8_t (*__callback_init_cal)(uint8_t src_page, uint8_t dst_page) = NULL;
+static uint8_t (*__callback_freeze_cal)(void) = NULL;
+static uint8_t (*__callback_read)(uint32_t src, uint8_t size, uint8_t *dst) = NULL;
+static uint8_t (*__callback_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay) = NULL;
+static uint8_t (*__callback_flush)(void) = NULL;
 
-void ApplXcpRegisterConnectCallback(bool (*cb_connect)(void)) { callback_connect = cb_connect; }
-void ApplXcpRegisterPrepareDaqCallback(uint8_t (*cb_prepare_daq)(void)) { callback_prepare_daq = cb_prepare_daq; }
-void ApplXcpRegisterStartDaqCallback(uint8_t (*cb_start_daq)(void)) { callback_start_daq = cb_start_daq; }
-void ApplXcpRegisterStopDaqCallback(void (*cb_stop_daq)(void)) { callback_stop_daq = cb_stop_daq; }
-void ApplXcpRegisterFreezeDaqCallback(uint8_t (*cb_freeze_daq)(uint8_t clear, uint16_t config_id)) { callback_freeze_daq = cb_freeze_daq; }
-void ApplXcpRegisterGetCalPageCallback(uint8_t (*cb_get_cal_page)(uint8_t segment, uint8_t mode)) { callback_get_cal_page = cb_get_cal_page; }
-void ApplXcpRegisterSetCalPageCallback(uint8_t (*cb_set_cal_page)(uint8_t segment, uint8_t page, uint8_t mode)) { callback_set_cal_page = cb_set_cal_page; }
-void ApplXcpRegisterFreezeCalCallback(uint8_t (*cb_freeze_cal)(void)) { callback_freeze_cal = cb_freeze_cal; }
-void ApplXcpRegisterInitCalCallback(uint8_t (*cb_init_cal)(uint8_t src_page, uint8_t dst_page)) { callback_init_cal = cb_init_cal; }
-void ApplXcpRegisterReadCallback(uint8_t (*cb_read)(uint32_t src, uint8_t size, uint8_t *dst)) { callback_read = cb_read; }
-void ApplXcpRegisterWriteCallback(uint8_t (*cb_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay)) { callback_write = cb_write; }
-void ApplXcpRegisterFlushCallback(uint8_t (*cb_flush)(void)) { callback_flush = cb_flush; }
+void ApplXcpRegisterConnectCallback(bool (*cb_connect)(void)) { __callback_connect = cb_connect; }
+void ApplXcpRegisterPrepareDaqCallback(uint8_t (*cb_prepare_daq)(void)) { __callback_prepare_daq = cb_prepare_daq; }
+void ApplXcpRegisterStartDaqCallback(uint8_t (*cb_start_daq)(void)) { __callback_start_daq = cb_start_daq; }
+void ApplXcpRegisterStopDaqCallback(void (*cb_stop_daq)(void)) { __callback_stop_daq = cb_stop_daq; }
+void ApplXcpRegisterFreezeDaqCallback(uint8_t (*cb_freeze_daq)(uint8_t clear, uint16_t config_id)) { __callback_freeze_daq = cb_freeze_daq; }
+void ApplXcpRegisterGetCalPageCallback(uint8_t (*cb_get_cal_page)(uint8_t segment, uint8_t mode)) { __callback_get_cal_page = cb_get_cal_page; }
+void ApplXcpRegisterSetCalPageCallback(uint8_t (*cb_set_cal_page)(uint8_t segment, uint8_t page, uint8_t mode)) { __callback_set_cal_page = cb_set_cal_page; }
+void ApplXcpRegisterFreezeCalCallback(uint8_t (*cb_freeze_cal)(void)) { __callback_freeze_cal = cb_freeze_cal; }
+void ApplXcpRegisterInitCalCallback(uint8_t (*cb_init_cal)(uint8_t src_page, uint8_t dst_page)) { __callback_init_cal = cb_init_cal; }
+void ApplXcpRegisterReadCallback(uint8_t (*cb_read)(uint32_t src, uint8_t size, uint8_t *dst)) { __callback_read = cb_read; }
+void ApplXcpRegisterWriteCallback(uint8_t (*cb_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay)) { __callback_write = cb_write; }
+void ApplXcpRegisterFlushCallback(uint8_t (*cb_flush)(void)) { __callback_flush = cb_flush; }
 
 // Internal function used by the Rust API
 void ApplXcpRegisterCallbacks(bool (*cb_connect)(void), uint8_t (*cb_prepare_daq)(void), uint8_t (*cb_start_daq)(void), void (*cb_stop_daq)(void),
@@ -78,18 +78,18 @@ void ApplXcpRegisterCallbacks(bool (*cb_connect)(void), uint8_t (*cb_prepare_daq
                               uint8_t (*cb_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay), uint8_t (*cb_flush)(void))
 
 {
-    callback_connect = cb_connect;
-    callback_prepare_daq = cb_prepare_daq;
-    callback_start_daq = cb_start_daq;
-    callback_stop_daq = cb_stop_daq;
-    callback_freeze_daq = cb_freeze_daq;
-    callback_get_cal_page = cb_get_cal_page;
-    callback_set_cal_page = cb_set_cal_page;
-    callback_freeze_cal = cb_freeze_cal;
-    callback_init_cal = cb_init_cal;
-    callback_read = cb_read;
-    callback_write = cb_write;
-    callback_flush = cb_flush;
+    __callback_connect = cb_connect;
+    __callback_prepare_daq = cb_prepare_daq;
+    __callback_start_daq = cb_start_daq;
+    __callback_stop_daq = cb_stop_daq;
+    __callback_freeze_daq = cb_freeze_daq;
+    __callback_get_cal_page = cb_get_cal_page;
+    __callback_set_cal_page = cb_set_cal_page;
+    __callback_freeze_cal = cb_freeze_cal;
+    __callback_init_cal = cb_init_cal;
+    __callback_read = cb_read;
+    __callback_write = cb_write;
+    __callback_flush = cb_flush;
 }
 
 /**************************************************************************/
@@ -99,10 +99,10 @@ void ApplXcpRegisterCallbacks(bool (*cb_connect)(void), uint8_t (*cb_prepare_daq
 bool ApplXcpConnect(void) {
     DBG_PRINT4("ApplXcpConnect\n");
 #ifdef XCP_ENABLE_USER_COMMAND
-    write_delayed = false;
+    __write_delayed = false;
 #endif
-    if (callback_connect != NULL)
-        return callback_connect();
+    if (__callback_connect != NULL)
+        return __callback_connect();
     return true;
 }
 
@@ -111,8 +111,8 @@ void ApplXcpDisconnect(void) { DBG_PRINT4("ApplXcpDisconnect\n"); }
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0104
 bool ApplXcpPrepareDaq(void) {
     DBG_PRINT4("ApplXcpPrepareDaq\n");
-    if (callback_prepare_daq != NULL) {
-        if (!callback_prepare_daq()) {
+    if (__callback_prepare_daq != NULL) {
+        if (!__callback_prepare_daq()) {
             DBG_PRINT_WARNING("DAQ start canceled by AppXcpPrepareDaq!\n");
             return false;
         };
@@ -123,14 +123,14 @@ bool ApplXcpPrepareDaq(void) {
 
 void ApplXcpStartDaq(void) {
     DBG_PRINT4("ApplXcpStartDaq\n");
-    if (callback_start_daq != NULL)
-        callback_start_daq();
+    if (__callback_start_daq != NULL)
+        __callback_start_daq();
 }
 
 void ApplXcpStopDaq(void) {
     DBG_PRINT4("ApplXcpStartDaq\n");
-    if (callback_stop_daq != NULL)
-        callback_stop_daq();
+    if (__callback_stop_daq != NULL)
+        __callback_stop_daq();
 }
 
 /**************************************************************************/
@@ -184,19 +184,19 @@ bool ApplXcpGetClockInfoGrandmaster(uint8_t *uuid, uint8_t *epoch, uint8_t *stra
 
 #ifdef _WIN
 
-static uint8_t *baseAddr = NULL;
-static uint8_t baseAddrValid = 0;
+static uint8_t *__baseAddr = NULL;
+static uint8_t __baseAddrValid = 0;
 
 // Get base pointer for the XCP address range
 // This function is time sensitive, as it is called once on every XCP event
 uint8_t *ApplXcpGetBaseAddr(void) {
 
-    if (!baseAddrValid) {
-        baseAddr = (uint8_t *)GetModuleHandle(NULL);
-        baseAddrValid = 1;
-        DBG_PRINTF4("ApplXcpGetBaseAddr() = 0x%I64X\n", (uint64_t)baseAddr);
+    if (!__baseAddrValid) {
+        __baseAddr = (uint8_t *)GetModuleHandle(NULL);
+        __baseAddrValid = 1;
+        DBG_PRINTF4("ApplXcpGetBaseAddr() = 0x%I64X\n", (uint64_t)__baseAddr);
     }
-    return baseAddr;
+    return __baseAddr;
 }
 
 uint32_t ApplXcpGetAddr(const uint8_t *p) {
@@ -217,15 +217,15 @@ uint32_t ApplXcpGetAddr(const uint8_t *p) {
 #endif
 #include <link.h>
 
-static uint8_t *baseAddr = NULL;
-static uint8_t baseAddrValid = 0;
+static uint8_t *__baseAddr = NULL;
+static uint8_t __baseAddrValid = 0;
 
 static int dump_phdr(struct dl_phdr_info *pinfo, size_t size, void *data) {
     // DBG_PRINTF3("name=%s (%d segments)\n", pinfo->dlpi_name, pinfo->dlpi_phnum);
 
     // Application modules has no name
     if (0 == strlen(pinfo->dlpi_name)) {
-        baseAddr = (uint8_t *)pinfo->dlpi_addr;
+        __baseAddr = (uint8_t *)pinfo->dlpi_addr;
     }
 
     (void)size;
@@ -235,14 +235,14 @@ static int dump_phdr(struct dl_phdr_info *pinfo, size_t size, void *data) {
 
 uint8_t *ApplXcpGetBaseAddr(void) {
 
-    if (!baseAddrValid) {
+    if (!__baseAddrValid) {
         dl_iterate_phdr(dump_phdr, NULL);
-        assert(baseAddr != NULL);
-        baseAddrValid = 1;
-        DBG_PRINTF4("Base address for absolute addressing = %p\n", (void *)baseAddr);
+        assert(__baseAddr != NULL);
+        __baseAddrValid = 1;
+        DBG_PRINTF4("Base address for absolute addressing = %p\n", (void *)__baseAddr);
     }
 
-    return baseAddr;
+    return __baseAddr;
 }
 
 uint32_t ApplXcpGetAddr(const uint8_t *p) {
@@ -271,20 +271,20 @@ static int dump_so(void) {
 }
 */
 
-static uint8_t *baseAddr = NULL;
-static uint8_t baseAddrValid = 0;
+static uint8_t *__baseAddr = NULL;
+static uint8_t __baseAddrValid = 0;
 
 uint8_t *ApplXcpGetBaseAddr(void) {
 
-    if (!baseAddrValid) {
+    if (!__baseAddrValid) {
         // dump_so();
-        baseAddr = (uint8_t *)_dyld_get_image_header(0); // Module addr
-        assert(baseAddr != NULL);
-        baseAddrValid = 1;
-        DBG_PRINTF4("Base address for absolute addressing = %p\n", (void *)baseAddr);
+        __baseAddr = (uint8_t *)_dyld_get_image_header(0); // Module addr
+        assert(__baseAddr != NULL);
+        __baseAddrValid = 1;
+        DBG_PRINTF4("Base address for absolute addressing = %p\n", (void *)__baseAddr);
     }
 
-    return baseAddr;
+    return __baseAddr;
 }
 
 uint32_t ApplXcpGetAddr(const uint8_t *p) {
@@ -320,13 +320,13 @@ uint8_t ApplXcpUserCommand(uint8_t cmd) {
 
     switch (cmd) {
     case 0x01: // Begin atomic calibration operation
-        write_delayed = true;
+        __write_delayed = true;
         break;
     case 0x02: // End atomic calibration operation;
-        write_delayed = false;
+        __write_delayed = false;
 #ifdef XCP_ENABLE_APP_ADDRESSING
-        if (callback_flush != NULL)
-            return callback_flush();
+        if (__callback_flush != NULL)
+            return __callback_flush();
 #endif
         break;
     default:
@@ -340,13 +340,13 @@ uint8_t ApplXcpUserCommand(uint8_t cmd) {
 // Called for SEG addressing mode, only when internal calibration segment management is not used or not enabled
 #ifdef XCP_ENABLE_APP_ADDRESSING
 uint8_t ApplXcpReadMemory(uint32_t src, uint8_t size, uint8_t *dst) {
-    if (callback_read != NULL)
-        return callback_read(src, size, dst);
+    if (__callback_read != NULL)
+        return __callback_read(src, size, dst);
     return CRC_ACCESS_DENIED;
 }
 uint8_t ApplXcpWriteMemory(uint32_t dst, uint8_t size, const uint8_t *src) {
-    if (callback_write != NULL)
-        return callback_write(dst, size, src, write_delayed);
+    if (__callback_write != NULL)
+        return __callback_write(dst, size, src, __write_delayed);
     return CRC_ACCESS_DENIED;
 }
 #endif
@@ -361,14 +361,14 @@ uint8_t ApplXcpWriteMemory(uint32_t dst, uint8_t size, const uint8_t *src) {
 #ifdef XCP_ENABLE_CAL_PAGE
 
 uint8_t ApplXcpGetCalPage(uint8_t segment, uint8_t mode) {
-    if (callback_get_cal_page != NULL)
-        return callback_get_cal_page(segment, mode); // return cal page number
-    return XCP_CALPAGE_WORKING_PAGE;                 // page 0 = working page (RAM) is default
+    if (__callback_get_cal_page != NULL)
+        return __callback_get_cal_page(segment, mode); // return cal page number
+    return XCP_CALPAGE_WORKING_PAGE;                   // page 0 = working page (RAM) is default
 }
 
 uint8_t ApplXcpSetCalPage(uint8_t segment, uint8_t page, uint8_t mode) {
-    if (callback_set_cal_page != NULL)
-        return callback_set_cal_page(segment, page, mode); // return CRC_CMD_xxx return code
+    if (__callback_set_cal_page != NULL)
+        return __callback_set_cal_page(segment, page, mode); // return CRC_CMD_xxx return code
     return CRC_CMD_UNKNOWN;
 }
 
@@ -376,16 +376,16 @@ uint8_t ApplXcpSetCalPage(uint8_t segment, uint8_t page, uint8_t mode) {
 uint8_t ApplXcpCopyCalPage(uint8_t srcSeg, uint8_t srcPage, uint8_t dstSeg, uint8_t dstPage) {
     if (srcSeg != dstSeg && srcSeg > 0)
         return CRC_PAGE_NOT_VALID; // Only one segment supported
-    if (callback_init_cal != NULL)
-        return callback_init_cal(srcPage, dstPage); // return CRC_CMD_xxx return code
+    if (__callback_init_cal != NULL)
+        return __callback_init_cal(srcPage, dstPage); // return CRC_CMD_xxx return code
     return CRC_CMD_UNKNOWN;
 }
 #endif
 
 #ifdef XCP_ENABLE_FREEZE_CAL_PAGE
 uint8_t ApplXcpCalFreeze(void) {
-    if (callback_freeze_cal != NULL)
-        return callback_freeze_cal(); // return CRC_CMD_xxx return code
+    if (__callback_freeze_cal != NULL)
+        return __callback_freeze_cal(); // return CRC_CMD_xxx return code
     return CRC_CMD_UNKNOWN;
 }
 #endif

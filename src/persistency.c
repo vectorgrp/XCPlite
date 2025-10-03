@@ -68,20 +68,20 @@ typedef struct {
 
 extern tXcpData gXcp;
 
-static tHeader gHeader;
-static const char *gBinFilename = NULL;
+static tHeader gA2lHeader;
+static const char *gA2lBinFilename = NULL;
 
 static bool writeHeader(FILE *file, const char *epk, uint16_t event_count, uint16_t calseg_count) {
 
-    strncpy(gHeader.signature, BIN_SIGNATURE, sizeof(gHeader.signature) - 1);
-    gHeader.signature[sizeof(gHeader.signature) - 1] = '\0'; // Ensure null termination
-    gHeader.version = BIN_VERSION;
-    strncpy(gHeader.Epk, epk, XCP_EPK_MAX_LENGTH);
-    gHeader.Epk[XCP_EPK_MAX_LENGTH] = '\0'; // Ensure null termination
-    gHeader.event_count = event_count;
-    gHeader.calseg_count = calseg_count;
-    gHeader.res = 0;
-    size_t written = fwrite(&gHeader, sizeof(tHeader), 1, file);
+    strncpy(gA2lHeader.signature, BIN_SIGNATURE, sizeof(gA2lHeader.signature) - 1);
+    gA2lHeader.signature[sizeof(gA2lHeader.signature) - 1] = '\0'; // Ensure null termination
+    gA2lHeader.version = BIN_VERSION;
+    strncpy(gA2lHeader.Epk, epk, XCP_EPK_MAX_LENGTH);
+    gA2lHeader.Epk[XCP_EPK_MAX_LENGTH] = '\0'; // Ensure null termination
+    gA2lHeader.event_count = event_count;
+    gA2lHeader.calseg_count = calseg_count;
+    gA2lHeader.res = 0;
+    size_t written = fwrite(&gA2lHeader, sizeof(tHeader), 1, file);
     if (written != 1) {
         DBG_PRINTF3("Failed to write header to file: %s\n", strerror(errno));
         return false;
@@ -174,7 +174,7 @@ bool XcpBinWrite(const char *filename) {
     }
 
     fclose(file);
-    gBinFilename = filename;
+    gA2lBinFilename = filename;
 
     DBG_PRINTF3("Persistency data written to file '%s'\n", filename);
     return true;
@@ -195,9 +195,9 @@ bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg) {
         return false;
     }
 
-    FILE *file = fopen(gBinFilename, "r+b");
+    FILE *file = fopen(gA2lBinFilename, "r+b");
     if (file == NULL) {
-        DBG_PRINTF_ERROR("Failed to open file '%s' for read/write: %s\n", gBinFilename, strerror(errno));
+        DBG_PRINTF_ERROR("Failed to open file '%s' for read/write: %s\n", gA2lBinFilename, strerror(errno));
         return false;
     }
 
@@ -205,14 +205,14 @@ bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg) {
     assert(seg->file_pos > 0); // Ensure the file position is set
     size_t n = 0;
     if (0 == fseek(file, seg->file_pos, SEEK_SET)) {
-        printf("Writing calibration segment %u, size=%u active page data to file '%s'+%u\n", calseg, seg->size, gBinFilename, seg->file_pos);
+        printf("Writing calibration segment %u, size=%u active page data to file '%s'+%u\n", calseg, seg->size, gA2lBinFilename, seg->file_pos);
         const uint8_t *ecu_page = XcpLockCalSeg(calseg);
         n = fwrite(ecu_page, seg->size, 1, file);
         XcpUnlockCalSeg(calseg);
     }
     fclose(file);
     if (n != 1) {
-        DBG_PRINTF_ERROR("Failed to write calibration segment %u, size=%u active page data to file '%s'+%u\n", calseg, seg->size, gBinFilename, seg->file_pos);
+        DBG_PRINTF_ERROR("Failed to write calibration segment %u, size=%u active page data to file '%s'+%u\n", calseg, seg->size, gA2lBinFilename, seg->file_pos);
         return false;
     } else {
         return true;
@@ -229,7 +229,7 @@ bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg) {
 /// If the file does not exist, has an invalid format, or the EPK does not match, it returns false.
 bool XcpBinLoad(const char *filename, const char *epk) {
     assert(filename != NULL);
-    gBinFilename = NULL;
+    gA2lBinFilename = NULL;
 
     FILE *file = fopen(filename, "rb");
     if (file == NULL) {
@@ -237,25 +237,25 @@ bool XcpBinLoad(const char *filename, const char *epk) {
         return false;
     }
 
-    size_t read = fread(&gHeader, sizeof(tHeader), 1, file);
-    if (read != 1 || strncmp(gHeader.signature, BIN_SIGNATURE, sizeof(gHeader.signature)) != 0) {
+    size_t read = fread(&gA2lHeader, sizeof(tHeader), 1, file);
+    if (read != 1 || strncmp(gA2lHeader.signature, BIN_SIGNATURE, sizeof(gA2lHeader.signature)) != 0) {
         DBG_PRINTF3("Invalid file format or signature in '%s'\n", filename);
         fclose(file);
         return false;
     }
 
     // Check EPK match
-    if (strncmp(gHeader.Epk, epk, XCP_EPK_MAX_LENGTH) != 0) {
-        DBG_PRINTF_WARNING("Persistence file '%s' not loaded, EPK mismatch: file EPK '%s', current EPK '%s'\n", filename, gHeader.Epk, epk);
+    if (strncmp(gA2lHeader.Epk, epk, XCP_EPK_MAX_LENGTH) != 0) {
+        DBG_PRINTF_WARNING("Persistence file '%s' not loaded, EPK mismatch: file EPK '%s', current EPK '%s'\n", filename, gA2lHeader.Epk, epk);
         fclose(file);
         return false; // EPK mismatch
     }
 
     DBG_PRINTF3("Loading '%s', EPK '%s'\n", filename, epk);
-    gBinFilename = filename;
+    gA2lBinFilename = filename;
 
     // Load events
-    for (uint16_t i = 0; i < gHeader.event_count; i++) {
+    for (uint16_t i = 0; i < gA2lHeader.event_count; i++) {
         tEventDescriptor desc;
         read = fread(&desc, sizeof(tEventDescriptor), 1, file);
         if (read != 1) {
@@ -270,7 +270,7 @@ bool XcpBinLoad(const char *filename, const char *epk) {
     }
 
     // Load calibration segments
-    for (uint16_t i = 0; i < gHeader.calseg_count; i++) {
+    for (uint16_t i = 0; i < gA2lHeader.calseg_count; i++) {
         tCalSegDescriptor desc;
         read = fread(&desc, sizeof(tCalSegDescriptor), 1, file);
         if (read != 1) {

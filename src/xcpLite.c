@@ -210,13 +210,13 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
 
 #if defined(OPTION_ENABLE_DBG_PRINTS) && !defined(OPTION_FIXED_DBG_LEVEL) && defined(OPTION_DEFAULT_DBG_LEVEL)
 
-uint8_t gDebugLevel = OPTION_DEFAULT_DBG_LEVEL;
+uint8_t gXcpDebugLevel = OPTION_DEFAULT_DBG_LEVEL;
 
 // Set the log level
 void XcpSetLogLevel(uint8_t level) {
     if (level > 3)
-        DBG_PRINTF_WARNING("Set log level %u -> %u\n", gDebugLevel, level);
-    gDebugLevel = level;
+        DBG_PRINTF_WARNING("Set log level %u -> %u\n", gXcpDebugLevel, level);
+    gXcpDebugLevel = level;
 }
 
 #else
@@ -1185,7 +1185,7 @@ uint8_t XcpSetMta(uint8_t ext, uint32_t addr) {
 #ifdef XCP_ENABLE_CHECKSUM
 
 #if (XCP_CHECKSUM_TYPE == XCP_CHECKSUM_TYPE_CRC16CCITT)
-static const uint16_t CRC16CCITTtab[256] = {
+static const uint16_t gXcpCRC16CCITTtab[256] = {
     0x0000, 0x1021, 0x2042, 0x3063,  0x4084, 0x50a5, 0x60c6, 0x70e7u, 0x8108, 0x9129, 0xa14a, 0xb16b,  0xc18c, 0xd1ad, 0xe1ce, 0xf1efu, 0x1231, 0x0210, 0x3273, 0x2252,
     0x52b5, 0x4294, 0x72f7, 0x62d6u, 0x9339, 0x8318, 0xb37b, 0xa35a,  0xd3bd, 0xc39c, 0xf3ff, 0xe3deu, 0x2462, 0x3443, 0x0420, 0x1401,  0x64e6, 0x74c7, 0x44a4, 0x5485u,
     0xa56a, 0xb54b, 0x8528, 0x9509,  0xe5ee, 0xf5cf, 0xc5ac, 0xd58du, 0x3653, 0x2672, 0x1611, 0x0630,  0x76d7, 0x66f6, 0x5695, 0x46b4u, 0xb75b, 0xa77a, 0x9719, 0x8738,
@@ -1215,7 +1215,7 @@ static uint8_t calcChecksum(uint32_t checksum_size, uint32_t *checksum_result) {
         uint8_t res = XcpReadMta(1, &value);
         if (res != CRC_CMD_OK)
             return res;
-        sum = CRC16CCITTtab[((uint8_t)(sum >> 8)) ^ value] ^ (uint16_t)(sum << 8);
+        sum = gXcpCRC16CCITTtab[((uint8_t)(sum >> 8)) ^ value] ^ (uint16_t)(sum << 8);
     }
     *checksum_result = (uint32_t)sum;
 

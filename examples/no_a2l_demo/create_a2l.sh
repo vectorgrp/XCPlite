@@ -25,15 +25,16 @@ echo ""
 echo "----------------------------------------------------------------------"
 echo "Starting target executable on Target ..."
 echo "$TARGET_PATH"
-echo ""
-ssh $TARGET_USER@$TARGET_HOST "cd ~/XCPlite-RainerZ && $TARGET_PATH" &
+ssh $TARGET_USER@$TARGET_HOST "cd ~/XCPlite-RainerZ && ./build.sh && $TARGET_PATH" &
 SSH_PID=$!
+echo $SSH_PID
+echo ""
 # Give target some time to initialize
 sleep 2
 
 
 
-# Create a A2L template with xcp_client by uploading memory segments and events via XCP on UDP
+# Create a A2L template with xcp_client by uploading memory segments and events via XCP
 echo ""
 echo "----------------------------------------------------------------------"
 echo "Creating A2L file template by querying target via XCP..."
@@ -46,7 +47,7 @@ $XCPCLIENT --log-level=3  --dest-addr=$TARGET_HOST:5555 --tcp --list-mea ".*" --
 # Stop target - kill SSH process if it still exists, then kill remote process by name
 echo ""
 echo "----------------------------------------------------------------------"
-echo "Stopping target executable on Target ..."
+echo "Stopping target executable $SSH_PID on Target ..."
 echo ""
 if kill -0 $SSH_PID 2>/dev/null; then
     kill $SSH_PID

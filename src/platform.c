@@ -357,12 +357,12 @@ static bool GetMAC(char *ifname, uint8_t *mac) {
 }
 
 bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr) {
-    static uint32_t addr1 = 0;
-    static uint8_t mac1[6] = {0, 0, 0, 0, 0, 0};
+    static uint32_t __addr1 = 0;
+    static uint8_t __mac1[6] = {0, 0, 0, 0, 0, 0};
 #ifdef DBG_LEVEL
     char strbuf[64];
 #endif
-    if (addr1 == 0) {
+    if (__addr1 == 0) {
         struct ifaddrs *ifaddrs, *ifa;
         struct ifaddrs *ifa1 = NULL;
         if (-1 != getifaddrs(&ifaddrs)) {
@@ -370,33 +370,33 @@ bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr) {
                 if ((NULL != ifa->ifa_addr) && (AF_INET == ifa->ifa_addr->sa_family)) { // IPV4
                     struct sockaddr_in *sa = (struct sockaddr_in *)(ifa->ifa_addr);
                     if (0x100007f != sa->sin_addr.s_addr) { /* not 127.0.0.1 */
-                        if (addr1 == 0) {
-                            addr1 = sa->sin_addr.s_addr;
+                        if (__addr1 == 0) {
+                            __addr1 = sa->sin_addr.s_addr;
                             ifa1 = ifa;
                             break;
                         }
                     }
                 }
             }
-            if (addr1 != 0 && ifa1 != NULL) {
-                GetMAC(ifa1->ifa_name, mac1);
+            if (__addr1 != 0 && ifa1 != NULL) {
+                GetMAC(ifa1->ifa_name, __mac1);
 #ifdef DBG_LEVEL
                 if (DBG_LEVEL >= 5) {
-                    inet_ntop(AF_INET, &addr1, strbuf, sizeof(strbuf));
+                    inet_ntop(AF_INET, &__addr1, strbuf, sizeof(strbuf));
                     printf("  Use IPV4 adapter %s with IP=%s, MAC=%02X-%02X-%02X-%02X-%02X-%02X for A2L info and clock "
                            "UUID\n",
-                           ifa1->ifa_name, strbuf, mac1[0], mac1[1], mac1[2], mac1[3], mac1[4], mac1[5]);
+                           ifa1->ifa_name, strbuf, __mac1[0], __mac1[1], __mac1[2], __mac1[3], __mac1[4], __mac1[5]);
                 }
 #endif
             }
             freeifaddrs(ifaddrs);
         }
     }
-    if (addr1 != 0) {
+    if (__addr1 != 0) {
         if (mac)
-            memcpy(mac, mac1, 6);
+            memcpy(mac, __mac1, 6);
         if (addr)
-            memcpy(addr, &addr1, 4);
+            memcpy(addr, &__addr1, 4);
         return true;
     } else {
         return false;
@@ -548,14 +548,14 @@ bool socketClose(SOCKET *sockp) {
 
 bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr) {
 
-    static uint8_t addr1[4] = {0, 0, 0, 0};
-    static uint8_t mac1[6] = {0, 0, 0, 0, 0, 0};
+    static uint8_t __addr1[4] = {0, 0, 0, 0};
+    static uint8_t __mac1[6] = {0, 0, 0, 0, 0, 0};
     uint32_t a;
     PIP_ADAPTER_INFO pAdapterInfo;
     PIP_ADAPTER_INFO pAdapter = NULL;
     DWORD dwRetVal = 0;
 
-    if (addr1[0] == 0) {
+    if (__addr1[0] == 0) {
 
         ULONG ulOutBufLen = sizeof(IP_ADAPTER_INFO);
         pAdapterInfo = (IP_ADAPTER_INFO *)malloc(sizeof(IP_ADAPTER_INFO));
@@ -586,9 +586,9 @@ bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr) {
                         // if (pAdapter->DhcpEnabled) DBG_PRINTF5(" DHCP");
                         DBG_PRINT5("\n");
 #endif
-                        if (addr1[0] == 0) {
-                            memcpy(addr1, (uint8_t *)&a, 4);
-                            memcpy(mac1, pAdapter->Address, 6);
+                        if (__addr1[0] == 0) {
+                            memcpy(__addr1, (uint8_t *)&a, 4);
+                            memcpy(__mac1, pAdapter->Address, 6);
                         }
                     }
                 }
@@ -599,11 +599,11 @@ bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr) {
             free(pAdapterInfo);
     }
 
-    if (addr1[0] != 0) {
+    if (__addr1[0] != 0) {
         if (mac)
-            memcpy(mac, mac1, 6);
+            memcpy(mac, __mac1, 6);
         if (addr)
-            memcpy(addr, addr1, 4);
+            memcpy(addr, __addr1, 4);
         return true;
     }
     return false;
@@ -721,13 +721,13 @@ int16_t socketSend(SOCKET sock, const uint8_t *buffer, uint16_t size) { return (
 // Clock
 /**************************************************************************/
 
-static uint64_t sClock = 0;
+static uint64_t __gClock = 0;
 
 // Get the last known clock value
 // Save CPU load, clockGet may take resonable run time, depending on platform
 // For slow timeouts and timers, it is sufficient to rely on the relatively high call frequency of clockGet() by other
 // parts of the application
-uint64_t clockGetLast(void) { return sClock; }
+uint64_t clockGetLast(void) { return __gClock; }
 
 // Not used, might be faster on macOS
 // #ifdef _MACOS
@@ -810,7 +810,7 @@ bool clockInit(void) {
     DBG_PRINT3("  ticks = OPTION_CLOCK_TICKS_1NS\n");
 #endif
 
-    sClock = 0;
+    __gClock = 0;
 
 #ifdef DBG_LEVEL
     if (DBG_LEVEL >= 3) { // Test
@@ -845,10 +845,10 @@ uint64_t clockGet(void) {
     struct timespec ts;
     clock_gettime(CLOCK_TYPE, &ts);
 #ifdef OPTION_CLOCK_TICKS_1NS // ns
-    return sClock = (((uint64_t)(ts.tv_sec) * 1000000000ULL) + (uint64_t)(ts.tv_nsec));
+    return __gClock = (((uint64_t)(ts.tv_sec) * 1000000000ULL) + (uint64_t)(ts.tv_nsec));
 #else // us
-    return sClock = (((uint64_t)(ts.tv_sec) * 1000000ULL) + (uint64_t)(ts.tv_nsec / 1000)); // us
-    // return sClock = (((uint64_t)(ts.tv_sec - gts0.tv_sec) * 1000000ULL) + (uint64_t)(ts.tv_nsec / 1000));
+    return __gClock = (((uint64_t)(ts.tv_sec) * 1000000ULL) + (uint64_t)(ts.tv_nsec / 1000)); // us
+    // return __gClock = (((uint64_t)(ts.tv_sec - gts0.tv_sec) * 1000000ULL) + (uint64_t)(ts.tv_nsec / 1000));
 #endif
 }
 
@@ -916,7 +916,7 @@ bool clockInit(void) {
 #endif
     DBG_PRINTF4("  CLOCK_TICKS_PER_S = %u\n\n", CLOCK_TICKS_PER_S);
 
-    sClock = 0;
+    __gClock = 0;
 
     // Get current performance counter frequency
     // Determine conversion to CLOCK_TICKS_PER_S -> sDivide/sFactor
@@ -1010,7 +1010,7 @@ uint64_t clockGet(void) {
     } else {
         t = t * sFactor + sOffset;
     }
-    sClock = t;
+    __gClock = t;
     return t;
 }
 

@@ -47,7 +47,7 @@ static bool gA2lFileFinalized = false;
 
 static char gA2lFilename[256];
 #ifdef OPTION_CAL_PERSISTENCE
-static char gBinFilename[256];
+static char gA2lBinFilename[256];
 #endif
 
 static bool gA2lFinalizeOnConnect = false; // Finalize A2L file on connect
@@ -1496,7 +1496,7 @@ bool A2lFinalize(void) {
         // Write the binary persistence file if calsegment list and DAQ event list are enabled
 #ifdef OPTION_CAL_PERSISTENCE
         if (!gA2lWriteAlways)
-            XcpBinWrite(gBinFilename);
+            XcpBinWrite(gA2lBinFilename);
 #endif
 
         // Notify XCP that there is an A2L file available for upload by the XCP client
@@ -1568,12 +1568,12 @@ bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t
 
     // Check if the BIN file and the A2L exists and load the binary file
 #ifdef OPTION_CAL_PERSISTENCE
-    SNPRINTF(gBinFilename, sizeof(gBinFilename), "%s%s.bin", a2l_projectname, epk_suffix);
+    SNPRINTF(gA2lBinFilename, sizeof(gA2lBinFilename), "%s%s.bin", a2l_projectname, epk_suffix);
     if (!gA2lWriteAlways) {
 
         if (fexists(gA2lFilename)) {
-            if (XcpBinLoad(gBinFilename, XcpGetEpk())) {
-                DBG_PRINTF3("Loaded binary file %s, A2L generation has been disabled\n", gBinFilename);
+            if (XcpBinLoad(gA2lBinFilename, XcpGetEpk())) {
+                DBG_PRINTF3("Loaded binary file %s, A2L generation has been disabled\n", gA2lBinFilename);
 
                 // Notify XCP that there is an A2L file available for upload by the XCP client
                 ApplXcpSetA2lName(gA2lFilename);
