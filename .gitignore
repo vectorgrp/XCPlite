@@ -11,7 +11,7 @@ pi
 *.tmp
 
 # Examples A2L files
-*.a2l
+/*.a2l
 *.bin
 
 # Temporary files

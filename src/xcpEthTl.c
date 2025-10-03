@@ -593,7 +593,10 @@ int32_t XcpTlHandleTransmitQueue(void) {
 #endif
 
 #if defined(OPTION_DAQ_ASYNC_EVENT) && defined(XCP_ENABLE_DAQ_EVENT_LIST)
-    tXcpEventId event = XcpCreateEvent("async", outer_loop_sleep_ms * CLOCK_TICKS_PER_MS, 0);
+    static tXcpEventId event = XCP_UNDEFINED_EVENT_ID;
+    if (event == XCP_UNDEFINED_EVENT_ID) {
+        event = XcpCreateEvent("async", outer_loop_sleep_ms * CLOCK_TICKS_PER_MS, 0);
+    }
 #endif
 
     int32_t n = 0;      // Number of bytes sent
