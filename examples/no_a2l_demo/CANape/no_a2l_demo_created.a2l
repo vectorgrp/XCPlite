@@ -1,0 +1,40 @@
+/* a2ltool 3.0.0 */
+ASAP2_VERSION 1 71
+/begin PROJECT new_project "description of project"
+  /begin MODULE new_module ""
+
+    /begin INSTANCE params "instance for symbol params"
+      params 0x10890
+      SYMBOL_LINK "params" 0
+    /end INSTANCE
+
+    /begin MEASUREMENT counter "measurement for symbol counter"
+      UWORD NO_COMPU_METHOD 0 0 0 65535
+      ECU_ADDRESS 0x30212
+      SYMBOL_LINK "counter" 0
+    /end MEASUREMENT
+
+    /begin TYPEDEF_MEASUREMENT Measurement_ULong ""
+      ULONG NO_COMPU_METHOD 0 0 0 4294967295
+    /end TYPEDEF_MEASUREMENT
+
+    /begin TYPEDEF_MEASUREMENT Measurement_UWord ""
+      UWORD NO_COMPU_METHOD 0 0 0 65535
+    /end TYPEDEF_MEASUREMENT
+
+    /begin TYPEDEF_STRUCTURE params ""
+      0x8
+      /begin STRUCTURE_COMPONENT
+        counter_max Measurement_UWord
+        0
+        SYMBOL_TYPE_LINK "counter_max"
+      /end STRUCTURE_COMPONENT
+      /begin STRUCTURE_COMPONENT
+        delay_us Measurement_ULong
+        4
+        SYMBOL_TYPE_LINK "delay_us"
+      /end STRUCTURE_COMPONENT
+      SYMBOL_TYPE_LINK "params"
+    /end TYPEDEF_STRUCTURE
+  /end MODULE
+/end PROJECT

@@ -67,6 +67,7 @@ int main(void) {
     // XCP: Initialize the XCP singleton, activate XCP, must be called before starting the server
     //      If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
     XcpInit(true);
+    ApplXcpSetA2lName(OPTION_PROJECT_NAME); // @@@@ This is still required to enable GET_ID for XCP_IDT_ASCII
 
     // XCP: Initialize the XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;
