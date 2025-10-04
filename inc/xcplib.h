@@ -180,6 +180,14 @@ uint16_t XcpGetEventIndex(tXcpEventId event);
 /// No caching of the event id, a new event instance is created for each call
 #define DaqCreateEventInstance_s(name) XcpCreateEventInstance(name, 0, 0);
 
+/// Capture a local variable for measurement with a specific event
+/// The variable must be in scope when the event is triggered with DaqEvent
+#define DaqCapture(event, var)                                                                                                                                                     \
+    do {                                                                                                                                                                           \
+        static __typeof__(var) daq__##event##__##var;                                                                                                                              \
+        daq__##event##__##var = var;                                                                                                                                               \
+    } while (0)
+
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // DAQ event trigger measurement instrumentation point
 

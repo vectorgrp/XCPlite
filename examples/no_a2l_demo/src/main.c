@@ -29,15 +29,16 @@
 struct params {
     uint16_t counter_max; // Maximum value for the counter
     uint32_t delay_us;    // Sleep time in microseconds for the main loop
-    uint8_t test_uint8_array[10];
-    double test_double;
-    enum { ENUM_0 = 0, ENUM_1 = 1, ENUM_2 = 2, ENUM_3 = 3 } test_enum;
-    struct {
+
+    uint8_t test_par_uint8_array[10];
+    double test_par_double;
+    enum { ENUM_0 = 0, ENUM_1 = 1, ENUM_2 = 2, ENUM_3 = 3 } test_par_enum;
+    struct test_par_struct {
         uint16_t a;
         int16_t b;
         float f;
         uint8_t d[3];
-    } test_struct;
+    } test_par_struct;
 };
 
 // Default values (reference page, "FLASH") for the calibration parameters
@@ -54,10 +55,7 @@ tXcpCalSegIndex calseg = XCP_UNDEFINED_CALSEG;
 // Demo global measurement values
 
 uint16_t counter = 0;
-int64_t test_int64 = -64;
-float test_float = 0.4f;
-double test_double = 0.8;
-double test_double_array[4] = {0.1, 0.2, 0.3, 0.4};
+
 uint8_t test_uint8 = 8;
 uint16_t test_uint16 = 16;
 uint32_t test_uint32 = 32;
@@ -65,7 +63,52 @@ uint64_t test_uint64 = 64;
 int8_t test_int8 = -8;
 int16_t test_int16 = -16;
 int32_t test_int32 = -32;
-int64_t test_int64_2 = -64;
+int64_t test_int64 = -64;
+float test_float = 0.4f;
+double test_double = 0.8;
+uint8_t test_array[3] = {1, 2, 3};
+struct test_struct {
+    uint16_t a;
+    int16_t b;
+    float f;
+    uint8_t d[3];
+} test_struct = {1, -2, 0.3f, {1, 2, 3}};
+
+//-----------------------------------------------------------------------------------------------------
+// Demo function
+
+void foo(void) {
+    // Local variables
+    uint64_t test_int64 = 1;
+    float test_float = 0.1f;
+    double test_double = 0.2;
+    uint8_t test_uint8 = 1;
+    uint16_t test_uint16 = 2;
+    uint32_t test_uint32 = 3;
+    uint64_t test_uint64 = 4;
+    int8_t test_int8 = -1;
+    int16_t test_int16 = -2;
+    int32_t test_int32 = -3;
+    int64_t test_int64_2 = -4;
+    // uint8_t test_array[3] = {1, 2, 3};
+    // struct test_struct test_struct = {1, -2, 0.3f, {1, 2, 3}};
+
+    // Capture local variables for measurement with an event named 'foo'
+    DaqCreateEvent(foo);
+    DaqCapture(foo, test_int64);
+    DaqCapture(foo, test_float);
+    DaqCapture(foo, test_double);
+    DaqCapture(foo, test_uint8);
+    DaqCapture(foo, test_uint16);
+    DaqCapture(foo, test_uint32);
+    DaqCapture(foo, test_uint64);
+    DaqCapture(foo, test_int8);
+    DaqCapture(foo, test_int16);
+    DaqCapture(foo, test_int32);
+    // DaqCapture(foo, test_array); // Arrays are not supported
+    // DaqCapture(foo, test_struct);
+    DaqEvent(foo);
+}
 
 //-----------------------------------------------------------------------------------------------------
 // Demo main
@@ -129,6 +172,8 @@ int main(void) {
 
         // Sleep for the specified delay parameter in microseconds, don't sleep with the XCP lock held to give the XCP client a chance to update params
         sleepUs(delay_us);
+
+        foo();
 
     } // for (;;)
 

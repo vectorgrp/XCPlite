@@ -95,8 +95,8 @@ $XCPCLIENT --log-level=3  --dest-addr=$TARGET_HOST:5555 --tcp --elf $ELFFILE --l
 
 
 
-echo "Start a test measurement"
-$XCPCLIENT --log-level=3  --dest-addr=$TARGET_HOST:5555 --tcp  --a2l $A2LFILE  --mea ".*" --time 5
+#echo "Start a test measurement"
+#$XCPCLIENT --log-level=3  --dest-addr=$TARGET_HOST:5555 --tcp  --a2l $A2LFILE  --mea ".*" --time-ms 100
 
 
 
