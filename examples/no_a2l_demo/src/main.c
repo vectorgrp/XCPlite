@@ -42,7 +42,12 @@ struct params {
 };
 
 // Default values (reference page, "FLASH") for the calibration parameters
-const struct params params = {.counter_max = 1024, .delay_us = 1000};
+const struct params params = {.counter_max = 1024,
+                              .delay_us = 1000,
+                              .test_par_double = 0.123456789,
+                              .test_par_enum = ENUM_2,
+                              .test_par_uint8_array = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
+                              .test_par_struct = {1, -2, 0.3f, {1, 2, 3}}};
 
 // A global calibration segment handle for the calibration parameters
 // A calibration segment has a working page ("RAM") and a reference page ("FLASH"), it is described by a MEMORY_SEGMENT in the A2L file

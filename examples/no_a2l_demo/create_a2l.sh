@@ -1,5 +1,5 @@
 # Target A2L name to generate in local machines CANape project folder
-A2LFILE="examples/no_a2l_demo/CANape/no_a2l_demo_created.a2l"
+A2LFILE="examples/no_a2l_demo/CANape/no_a2l_demo.a2l"
 
 # Path to ELF file in local machine CANape project folder
 ELFFILE="examples/no_a2l_demo/CANape/no_a2l_demo.out"
@@ -68,14 +68,12 @@ echo "----------------------------------------------------------------------"
 echo "Creating A2L file template by querying target via XCP..."
 echo "$A2LFILE"
 echo ""
-$XCPCLIENT --log-level=3  --help
+$XCPCLIENT --log-level=3  --dest-addr=$TARGET_HOST:5555 --tcp --elf $ELFFILE  --create-a2l --a2l $A2LFILE 
 # Stop if failed
 if [ $? -ne 0 ]; then
     echo "xcp_client failed"
     exit 1
 fi
-
-$XCPCLIENT --log-level=3  --dest-addr=$TARGET_HOST:5555 --tcp --elf $ELFFILE --list-mea ".*" --list-cal ".*" --create-a2l --a2l $A2LFILE 
 
 
 
