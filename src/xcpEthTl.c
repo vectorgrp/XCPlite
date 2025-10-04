@@ -593,9 +593,9 @@ int32_t XcpTlHandleTransmitQueue(void) {
 #endif
 
 #if defined(OPTION_DAQ_ASYNC_EVENT) && defined(XCP_ENABLE_DAQ_EVENT_LIST)
-    static tXcpEventId event = XCP_UNDEFINED_EVENT_ID;
-    if (event == XCP_UNDEFINED_EVENT_ID) {
-        event = XcpCreateEvent("async", outer_loop_sleep_ms * CLOCK_TICKS_PER_MS, 0);
+    static tXcpEventId gXcpAsyncEvent = XCP_UNDEFINED_EVENT_ID;
+    if (gXcpAsyncEvent == XCP_UNDEFINED_EVENT_ID) {
+        gXcpAsyncEvent = XcpCreateEvent("async", outer_loop_sleep_ms * CLOCK_TICKS_PER_MS, 0);
     }
 #endif
 
@@ -644,7 +644,7 @@ int32_t XcpTlHandleTransmitQueue(void) {
 
         sleepMs(outer_loop_sleep_ms);
 #if defined(OPTION_DAQ_ASYNC_EVENT) && defined(XCP_ENABLE_DAQ_EVENT_LIST)
-        XcpEvent(event);
+        XcpEvent(gXcpAsyncEvent);
 #endif
 
     } // for(j)

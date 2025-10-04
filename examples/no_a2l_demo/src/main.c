@@ -29,6 +29,15 @@
 struct params {
     uint16_t counter_max; // Maximum value for the counter
     uint32_t delay_us;    // Sleep time in microseconds for the main loop
+    uint8_t test_uint8_array[10];
+    double test_double;
+    enum { ENUM_0 = 0, ENUM_1 = 1, ENUM_2 = 2, ENUM_3 = 3 } test_enum;
+    struct {
+        uint16_t a;
+        int16_t b;
+        float f;
+        uint8_t d[3];
+    } test_struct;
 };
 
 // Default values (reference page, "FLASH") for the calibration parameters
@@ -36,14 +45,27 @@ const struct params params = {.counter_max = 1024, .delay_us = 1000};
 
 // A global calibration segment handle for the calibration parameters
 // A calibration segment has a working page ("RAM") and a reference page ("FLASH"), it is described by a MEMORY_SEGMENT in the A2L file
-// Using the calibration segment to access parameters assures safe (thread safe against XCP modifications), wait-free and consistent access
 // It supports RAM/FLASH page switching, reinitialization (copy FLASH to RAM page) and persistence (save RAM page to BIN file)
+// Using the calibration segment to access parameters assures safe (thread safe against XCP modifications), wait-free and consistent access
+// Calibration segments may be shared among multiple threads
 tXcpCalSegIndex calseg = XCP_UNDEFINED_CALSEG;
 
 //-----------------------------------------------------------------------------------------------------
 // Demo global measurement values
 
 uint16_t counter = 0;
+int64_t test_int64 = -64;
+float test_float = 0.4f;
+double test_double = 0.8;
+double test_double_array[4] = {0.1, 0.2, 0.3, 0.4};
+uint8_t test_uint8 = 8;
+uint16_t test_uint16 = 16;
+uint32_t test_uint32 = 32;
+uint64_t test_uint64 = 64;
+int8_t test_int8 = -8;
+int16_t test_int16 = -16;
+int32_t test_int32 = -32;
+int64_t test_int64_2 = -64;
 
 //-----------------------------------------------------------------------------------------------------
 // Demo main

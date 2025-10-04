@@ -5,12 +5,11 @@ A2LFILE="examples/no_a2l_demo/CANape/no_a2l_demo_created.a2l"
 ELFFILE="examples/no_a2l_demo/CANape/no_a2l_demo.out"
 
 
-
 # Path to a2ltool executable
-A2LTOOL="../a2ltool-RainerZ/target/debug/a2ltool"
+# A2LTOOL="../a2ltool-RainerZ/target/debug/a2ltool"
 
 # Path to xcp_client tool executable
-XCPCLIENT="../xcp-lite-RainerZ/target/debug/examples/xcp_client"
+XCPCLIENT="../xcp-lite-RainerZ/target/debug/xcp_client"
 
 
 # Target (Raspberry Pi on 192.168.0.206) connection details
@@ -19,18 +18,47 @@ TARGET_HOST="192.168.0.206"
 TARGET_PATH="~/XCPlite-RainerZ/build/no_a2l_demo.out"
 
 
+# Sync target
+echo ""
+echo "----------------------------------------------------------------------"
+echo "Sync target ..."            
+rsync -avz --delete --exclude=build/ --exclude=.git/ --exclude="*.o" --exclude="*.out" --exclude="*.a" ./ rainer@192.168.0.206:~/XCPlite-RainerZ/
+
+
+# Build on target
+# Stop if failed
+echo ""
+echo "----------------------------------------------------------------------"
+echo "Build executable on Target ..."
+ssh $TARGET_USER@$TARGET_HOST "cd ~/XCPlite-RainerZ && ./build.sh"
+if [ $? -ne 0 ]; then
+    echo "Build failed"
+    exit 1
+fi
+
+
+# Download the target executable for local A2L generation
+echo ""
+echo "----------------------------------------------------------------------"
+echo "Downloading executable $ELFFILE ..."
+echo ""
+scp $TARGET_USER@$TARGET_HOST:$TARGET_PATH $ELFFILE
+
+
+
 
 # Run target executable with XCP on Ethernet in background
 echo ""
 echo "----------------------------------------------------------------------"
-echo "Starting target executable on Target ..."
+echo "Starting executable on Target ..."
 echo "$TARGET_PATH"
-ssh $TARGET_USER@$TARGET_HOST "cd ~/XCPlite-RainerZ && ./build.sh && $TARGET_PATH" &
+ssh $TARGET_USER@$TARGET_HOST "cd ~/XCPlite-RainerZ && $TARGET_PATH" &
 SSH_PID=$!
 echo $SSH_PID
 echo ""
 # Give target some time to initialize
 sleep 2
+
 
 
 
@@ -40,7 +68,37 @@ echo "----------------------------------------------------------------------"
 echo "Creating A2L file template by querying target via XCP..."
 echo "$A2LFILE"
 echo ""
-$XCPCLIENT --log-level=3  --dest-addr=$TARGET_HOST:5555 --tcp --list-mea ".*" --list-cal ".*" --create-a2l --a2l $A2LFILE 
+$XCPCLIENT --log-level=3  --help
+# Stop if failed
+if [ $? -ne 0 ]; then
+    echo "xcp_client failed"
+    exit 1
+fi
+
+$XCPCLIENT --log-level=3  --dest-addr=$TARGET_HOST:5555 --tcp --elf $ELFFILE --list-mea ".*" --list-cal ".*" --create-a2l --a2l $A2LFILE 
+
+
+
+
+
+
+
+# Use a2ltool to update the A2L template with measurement 'counter' and characteristic 'params'
+# @@@@ Does not work: creates TYPEDEF_MEASUREMENT instead of TYPEDEF_CHARACTERISTIC for params
+#echo ""
+#echo "----------------------------------------------------------------------"
+#echo "Updating A2L file with measurement 'counter' and characteristic 'params'..."
+#echo "$A2LFILE"
+#echo ""
+#$A2LTOOL --verbose --update --measurement-regex "counter"  --characteristic-regex "params" --elffile  $ELFFILE  --enable-structures --output $A2LFILE $A2LFILE
+
+
+
+
+echo "Start a test measurement"
+$XCPCLIENT --log-level=3  --dest-addr=$TARGET_HOST:5555 --tcp  --a2l $A2LFILE  --mea ".*" --time 5
+
+
 
 
 
@@ -59,27 +117,3 @@ sleep 1
 
 
 
-# Download the target executable from Pi for local A2L processing
-echo ""
-echo "----------------------------------------------------------------------"
-echo "Downloading target executable from Pi..."
-echo "$ELFFILE"
-echo ""
-scp $TARGET_USER@$TARGET_HOST:$TARGET_PATH $ELFFILE
-
-
-
-# @@@@ Does not work: creates TYPEDEF_MEASUREMENT instead of TYPEDEF_CHARACTERISTIC for params
-# Update the A2L template with measurement 'counter' and characteristic 'params'
-echo ""
-echo "----------------------------------------------------------------------"
-echo "Updating A2L file with measurement 'counter' and characteristic 'params'..."
-echo "$A2LFILE"
-echo ""
-$A2LTOOL --verbose --update --measurement-regex "counter"  --characteristic-regex "params" --elffile  $ELFFILE  --enable-structures --output $A2LFILE $A2LFILE
-
-
-echo ""
-echo "----------------------------------------------------------------------"
-echo "A2L file created: $A2LFILE"
-echo "----------------------------------------------------------------------"
