@@ -30,6 +30,7 @@ struct params {
     uint16_t counter_max; // Maximum value for the counter
     uint32_t delay_us;    // Sleep time in microseconds for the main loop
 
+    // Test parameters of various types
     uint8_t test_par_uint8_array[10];
     double test_par_double;
     enum { ENUM_0 = 0, ENUM_1 = 1, ENUM_2 = 2, ENUM_3 = 3 } test_par_enum;
