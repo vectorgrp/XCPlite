@@ -119,7 +119,7 @@ int main(void) {
     }
 
     // XCP: Create a calibration segment named 'Parameters' for the calibration parameter struct instance 'params' as reference page
-    calseg = XcpCreateCalSeg("Parameters", &params, sizeof(params));
+    calseg = XcpCreateCalSeg("params", &params, sizeof(params));
 
     // XCP: Register the individual calibration parameters in the calibration segment
     A2lSetSegmentAddrMode(calseg, params);

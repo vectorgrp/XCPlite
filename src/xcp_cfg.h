@@ -122,7 +122,7 @@ Address extensions:
 #define XcpAddrEncodeSegIndex(seg_index, offset)                                                                                                                                   \
     (0x80000000 + (((uint32_t)((seg_index) + 1)) << 16) + (offset)) // +1, because 0x80000000 is used to access the virtual A2L EPK segment
 #else
-#define XCP_ADDR_EPK 0xFFFF0000
+#define XCP_ADDR_EPK 0xFFFFFF00
 #define XcpAddrEncodeSegIndex(seg_index, offset) (0x80000000 + (((uint32_t)(seg_index)) << 16) + (offset)) // +1, because 0x80000000 is used to access the virtual A2L EPK segment
 #endif
 
@@ -145,7 +145,7 @@ Address extensions:
 
 #endif // XCP_ENABLE_APP_ADDRESSING
 
-#define XCP_ADDR_EPK 0xFFFF0000
+#define XCP_ADDR_EPK 0xFFFFFF00
 
 #endif // !defined(XCP_ENABLE_CALSEG_LIST)
 

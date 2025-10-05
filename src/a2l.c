@@ -107,7 +107,7 @@ static const char *gA2lAml = "";
 
 //----------------------------------------------------------------------------------
 #ifdef XCP_ENABLE_CALSEG_LIST
-static const char *gA2lMemorySegment = "/begin MEMORY_SEGMENT %s \"\" DATA FLASH INTERN 0x%08X 0x%X -1 -1 -1 -1 -1\n" // name, start, size
+static const char *gA2lMemorySegment = "/begin MEMORY_SEGMENT %s \"\" DATA FLASH INTERN 0x%08X %u -1 -1 -1 -1 -1\n" // name, start, size
                                        "/begin IF_DATA XCP\n"
                                        "/begin SEGMENT %u 2 0 0 0\n" // index
                                        "/begin CHECKSUM XCP_CRC_16_CITT MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION \"\" /end CHECKSUM\n"
@@ -115,6 +115,9 @@ static const char *gA2lMemorySegment = "/begin MEMORY_SEGMENT %s \"\" DATA FLASH
                                        "/begin PAGE 0 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_DONT_CARE /end PAGE\n"
                                        "/begin PAGE 1 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_NOT_ALLOWED /end PAGE\n"
                                        "/end SEGMENT\n"
+                                       "/end IF_DATA\n"
+                                       "/begin IF_DATA CANAPE_ADDRESS_UPDATE\n"
+                                       "/begin MEMORY_SEGMENT \"%s\" FIRST \"%s\" 0 LAST \"%s\" %u /end MEMORY_SEGMENT\n"
                                        "/end IF_DATA\n"
                                        "/end MEMORY_SEGMENT\n";
 
@@ -534,12 +537,11 @@ static void A2lCreate_MOD_PAR(void) {
                 tXcpCalSeg const *calseg = &calSegList->calseg[i];
                 fprintf(gA2lFile, gA2lMemorySegment, calseg->name, XcpGetCalSegBaseAddress(i), calseg->size,
 #ifdef XCP_ENABLE_EPK_CALSEG
-                        i + 1
+                        i + 1,
 #else
-                        i
+                        i,
 #endif
-
-                );
+                        calseg->name, calseg->name, calseg->name, calseg->size);
             }
         }
 #endif // XCP_ENABLE_CALSEG_LIST

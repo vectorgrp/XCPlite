@@ -348,7 +348,7 @@ int main(void) {
     // This segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
     // It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
     // It supports XCP/ECU independant page switching, checksum calculation and reinitialization (copy reference page to working page)
-    calseg = XcpCreateCalSeg("Parameters", &params, sizeof(params));
+    calseg = XcpCreateCalSeg("params", &params, sizeof(params));
     assert(calseg != XCP_UNDEFINED_CALSEG); // Ensure the calibration segment was created successfully
 
     // Register calibration parameters in the calibration segment

@@ -20,7 +20,7 @@
 #define OPTION_SERVER_PORT 5555           // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}   // Bind addr, 0.0.0.0 = ANY
 #define OPTION_QUEUE_SIZE 1024 * 16       // Size of the measurement queue in bytes, must be a multiple of 8
-#define OPTION_LOG_LEVEL 3                // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_LOG_LEVEL 2                // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 //-----------------------------------------------------------------------------------------------------
 // Demo calibration parameters
@@ -34,10 +34,10 @@ struct params {
     double test_par_double;
     enum { ENUM_0 = 0, ENUM_1 = 1, ENUM_2 = 2, ENUM_3 = 3 } test_par_enum;
     struct test_par_struct {
-        uint16_t a;
-        int16_t b;
-        float f;
-        uint8_t d[3];
+        uint16_t test_field_uint16;
+        int16_t test_field_int16;
+        float test_field_float;
+        uint8_t test_field_uint8_array[3];
     } test_par_struct;
 };
 
@@ -98,7 +98,15 @@ void foo(void) {
     // uint8_t test_array[3] = {1, 2, 3};
     // struct test_struct test_struct = {1, -2, 0.3f, {1, 2, 3}};
 
-    // Capture local variables for measurement with an event named 'foo'
+    // Access to an existing calibration segment named 'params' for the calibration parameters in 'const struct params params'
+    CalGetSeg(params);
+    {
+        struct params *params = CalLockSeg(params);
+        test_uint16 = params->counter_max;
+        CalUnlockSeg(params);
+    }
+
+    // Capture local variables for measurement with an event named 'foo' and trigger the event
     DaqCreateEvent(foo);
     DaqCapture(foo, test_int64);
     DaqCapture(foo, test_float);
@@ -127,9 +135,9 @@ int main(void) {
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 
-    printf("A2L base address = %p:\n", ApplXcpGetBaseAddr());
-    printf("&counter = %p, A2L-addr = 0x%08X\n", &counter, ApplXcpGetAddr((void *)&counter));
-    printf("&params = %p, A2L-addr = 0x%08X, size = %u\n", &params, ApplXcpGetAddr((void *)&params), (uint32_t)sizeof(params));
+    // printf("A2L base address = %p:\n", ApplXcpGetBaseAddr());
+    // printf("&counter = %p, A2L-addr = 0x%08X\n", &counter, ApplXcpGetAddr((void *)&counter));
+    // printf("&params = %p, A2L-addr = 0x%08X, size = %u\n", &params, ApplXcpGetAddr((void *)&params), (uint32_t)sizeof(params));
 
     // XCP: Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
     XcpSetLogLevel(OPTION_LOG_LEVEL);
@@ -146,7 +154,7 @@ int main(void) {
     }
 
     // XCP: Create a calibration segment named 'params' for the calibration parameters in 'const struct params params' as reference page
-    calseg = XcpCreateCalSeg("params", &params, sizeof(params));
+    CalCreateSeg(params);
 
     // XCP: Create a measurement event named "mainloop"
     DaqCreateEvent(mainloop);
@@ -159,7 +167,7 @@ int main(void) {
         //      Calibration segment locking is wait-free, locks may be recursive, calibration segments may be shared among multiple threads
         //      Returns a pointer to the active page (working or reference) of the calibration segment
         {
-            struct params *params = (struct params *)XcpLockCalSeg(calseg);
+            struct params *params = CalLockSeg(params);
 
             delay_us = params->delay_us; // Get the delay_us calibration value
 
@@ -169,7 +177,7 @@ int main(void) {
             }
 
             // XCP: Unlock the calibration segment
-            XcpUnlockCalSeg(calseg);
+            CalUnlockSeg(params);
         }
 
         // XCP: Trigger the measurement event "mainloop"

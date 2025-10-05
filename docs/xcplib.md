@@ -185,13 +185,27 @@ All definitions of instances follow the same principle: Set the addressing mode 
 
 See examples folder and README.md for a short descriptions of the example applications.
 
-## 6 · Glossary
+## 5 · Appendix
 
-- **A2L** – ASAM MCD‑2 MC description file (measurement & calibration meta‑data).
-- **DAQ** – Data Acquisition (periodic or sporadic transmit of ECU variables).
-- **EPK** – Embedded Program Identifier (software version string embedded in the ECU).
-- **ECU** – Electronic Control Unit (target device exposing the XCP protocol).
+### Static Markers
 
----
+The code instrumentations creates static variables, to help the A2L Creater or an XCP tool reading linker map files, to identify calibration segments, events, capture buffers and the scope where an event is triggered.
+
+```c
+//Create calibration segment macro segment index once pattern
+static tXcpCalSegIndex cal__##name;
+
+// Create measurement event macro event id once pattern
+static THREAD_LOCAL tXcpEventId daq__event__##name
+static THREAD_LOCAL tXcpEventId daq__event__
+
+// Daq capture macro capture buffer
+static __typeof__(var) daq__##event##__##var
+
+// Daq event macro event id once pattern
+static THREAD_LOCAL tXcpEventId daq__event_aas0__##name
+static THREAD_LOCAL tXcpEventId daq__event_aasr__##name
+static THREAD_LOCAL tXcpEventId daq__event_aasrr__##name
+```
 
 *End of document.*

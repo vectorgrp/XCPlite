@@ -177,7 +177,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Create the test calibration segment
-    auto calseg1 = xcplib::CreateCalSeg("TestParameters", &kParameters);
+    auto calseg1 = xcplib::CreateCalSeg("kParameters", &kParameters);
 
     // Add the calibration segment description as a typedef instance to the A2L file
     A2lTypedefBegin(ParametersT, "A2L Typedef for ParametersT");
