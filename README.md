@@ -2,9 +2,9 @@
 
 ## Introduction to XCP
 
-XCP is a measurement and calibration protocol commonly used in the automotive industry. It is an ASAM standard.  
+XCP is a measurement and parameter tuning (calibration) protocol commonly used in the automotive industry. It is an ASAM standard.  
 
-It provides real time signal oriented data acquisition (measurement, logging) and modification of parameter constants (calibration) in a target micro controller system (ECU), to help observing and optimizing cyber physical control algorithms in real time.  
+It provides real time signal oriented data acquisition (measurement, logging) and tuning of parameter constants (calibration) in a target micro controller system (ECU), to help observing and optimizing cyber physical control algorithms in real time.  
   
 Timestamped events, measurement variables and parameter constants are described by an ASAM-A2L description file, another associated ASAM standard. A2L is a human readable ASCII format.  
 In a micro controller system programmed in C or C++, measurement data items are directly accessed in their original memory locations. This concept has minimum impact on the target system in terms of memory consumption, runtime and needs minimum code instrumentation. The A2l is a kind of annotated ELF Linker-Address-Map, with meta information on data instances and data types (MC specific types - lookup-tables, axis scaling, physical limits and units, conversion rules, ...).  
@@ -30,7 +30,7 @@ The A2L measurement and calibration object database can be generated during runt
 
 XCPlite is provided to test and demonstrate calibration tools such as CANape or any other XCP client implementation.  
 It may serve as a base for individually customized XCP on Ethernet implementations on Microprocessors.  
-It implements and demonstrates some techniques how to deal with variables in dynamically allocated memory and how to do measurement and calibration in multi-threaded applications.  
+It implements and demonstrates some techniques how to deal with variables in dynamically allocated memory and how to do measurement and parameter tuning in multi-threaded applications.  
 
 XCPlite is used as a C library by the implementation of XCP for Rust in:  
 <https://github.com/vectorgrp/xcp-lite>  
@@ -56,7 +56,7 @@ XCPlite is used as a C library by the implementation of XCP for Rust in:
 - User friendly code instrumentation to create calibration parameter segments, measurement variables and A2L metadata descriptions as code.  
 - Measurement of global (static), local (stack) or heap variables and class instances.  
 - Thread safe, lock-free and wait-free ECU access to calibration data.  
-- Calibration page switching and consistent calibration.  
+- Calibration page switching and consistent modification.  
 - Calibration segment persistence.  
 
 There are other implementations of XCP available:  
@@ -101,28 +101,28 @@ hello_xcp:
   Defines a function, registers local variables and function parameters and creates and triggers a measurement event in the function.  
 
 hello_xcp_cpp:
-  Demonstrates how to instrument a member function of a C++ class and how to register and access calibration parameters in C++.  
+  Demonstrates how to instrument a member function of a C++ class and how to register and access parameters in C++.  
 
 no_a2l_demo:
   Demonstrates XCPlite without runtime A2L generation by using an A2L generation tool during the build process.  
-  This variant is currently limited to measurement and calibration of global variables.  
+  This variant is currently limited to measurement and modification of global variables.  
 
 The other examples cover more advanced topics:  
 
-- Safely share calibration parameters among different threads.  
+- Safely share parameters among different threads.  
 - Measure instances of complex types, such a structs, arrays, nested structs and arrays of structs by using typedefs.  
 - Create complex parameters, like maps, curves and lookup tables with fixed or shared axis.  
 - Measure thread local instances of variables, create event instances.  
 - Create physical conversion rules and enumerations.  
 - Create additional groups.  
-- Use consistent atomic calibration.  
-- Make calibration changes persistent (freeze).  
+- Use consistent atomic parameter modification.  
+- Make parameter changes persistent (freeze).  
 - Use the xcplib API to create context and span, measure durations.  
 
 c_demo:  
   Shows more complex data objects (structs, arrays) and calibration objects (axis, maps and curves).  
   Measurement variables on stack and in global memory.  
-  Consistent calibration changes and measurement.  
+  Consistent parameter changes and measurement.  
   Calibration page switching and EPK version check.  
   Note: If CANAPE_24 is defined in sig_gen.hpp, the lookup table is a nested typedef, it uses a THIS. references to its shared axis contained in the typedef.
 
@@ -132,14 +132,14 @@ struct_demo:
 multi_thread_demo:  
   Shows measurement in multiple threads.  
   Create thread local instances of events and measurements.  
-  Share a calibration parameter segment among multiple threads.  
-  Thread safe and consistent access to calibration parameters.  
+  Share a parameter segment among multiple threads.  
+  Thread safe and consistent access to parameters.  
   Experimental code to demonstrate how to create context and spans using the XCP instrumentation API.  
 
 cpp_demo:  
-  Demonstrates the calibration segment RAII wrapper.  
+  Demonstrates the calibration parameter segment RAII wrapper.  
   Demonstrates measurement of member variables and stack variables in class instance member functions.  
-  Shows how to create a class with calibration parameters as member variables.  
+  Shows how to create a class with a calibration parameter segment as a member variable.  
 
 threadx_demo:
   Planned
@@ -274,7 +274,7 @@ Measurement of function parameters and local variables, has the side effect that
   
 Calibration:  
   
-The instrumentation to create calibration segments, use a mutex lock against other simultaneous segment creations.  
+The instrumentation to create calibration parameter segments, use a mutex lock against other simultaneous segment creations.  
 During the creation of a calibration segment, heap allocations for 3 copies of the initial page are requested (a reference, a working page and a single RCU swap page).  
 Calibration segment access is thread safe and lock less. There is no more heap allocation per thread needed.  
 
@@ -288,13 +288,13 @@ The overall concepts often relies on one time execution patterns. If this is not
 ### A2L file generation and address update options
 
 Option 1:  
-The A2L file is always created during application runtime. The A2L may be volatile, which means it may change on each restart of the application. This happens, when there are race conditions in registering calibration segments and events. The A2L file is just uploaded again by the XCP client.  
-To avoid A2L changes on each restart, the creation order of events and calibration segments just has to be deterministic.  
+The A2L file is always created during application runtime. The A2L may be volatile, which means it may change on each restart of the application. This happens, when there are race conditions in registering segments and events. The A2L file is just uploaded again by the XCP client.  
+To avoid A2L changes on each restart, the creation order of events and segments just has to be deterministic.  
 As a default, the A2L version identifier (EPK) is generated from build time and date. If the A2L file is not stable, it is up to the user to provide an EPK version string which reflects this, otherwise it could create undefined behavior.  
 
 Option 2:  
 The A2l file is created only once during the first run of a new build of the application.  
-A copy of all calibration segments and events definitions and calibration segment data is stored in a binary .bin file to achieve the same ordering in the next application start. BIN and A2L file get a unique name based on the software version string. The EPK software version string is used to check validity of the A2l and BIN file.  
+A copy of all calibration parameter segments and events definitions and of the parameter data is stored in a binary .bin file to achieve the same ordering in the next application start. BIN and A2L file get a unique name based on the software version string. The EPK software version string is used to check validity of the A2l and BIN file.  
 The existing A2L file is provided for upload to the XCP client or may be provided to the tool by copying it.  
 As a side effect, calibration segment persistency (freeze command) is supported.
 
@@ -308,7 +308,7 @@ Disable A2L generation completely and enable absolute addressing for calibration
 Use only absolute addressing mode, which is in this case associated to address extension 0.  
 The A2l file may be created and updated with any usual method of your choice, using CANape, A2L-Studio, A2L-Creator, a2ltool, ...  
 Measurement of heap and stack is not possible anymore and you are now limited to 32 a bit address range starting at the module load address (ApplXcpGetBaseAddr()).  
-Thread safe calibration using calibration segments is still assured.  
+Thread safe parameter modification using calibration segments is still assured.  
 Thread safety of measurement data acquisition is now in your responsibility, by using a safe fixed event for each individual measurement variable.  
 The demo no_a2l_demo demonstrates this.  
 
@@ -319,13 +319,13 @@ will work only for absolute addressing mode, not for segment, stack and relative
 XCPlite makes intensive use of relative addressing.  
 The addressing mode is indicated by the address extension:  
   
-0/1 - Calibration segment (A2L MEMORY_SEGMENT) relative address, high word of the address is the calibration segment index.  
+0/1 - Calibration segment (A2L MEMORY_SEGMENT) relative address, high word of the address is the segment index.  
 1/0 - Absolute address (Unsigned 32Bit, relative to main module load address).  
 2 - Signed 32Bit relative address, default is relative to the stack frame pointer of the function which triggers the event.  
 3.. - Signed 16Bit relative address, high word of the address is the event id. This allows asynchronous (polling) access to the variable. Used for heap and class instance member variables.  
 
 Depending on #define OPTION_CAL_SEGMENTS_ABS in main_cfg.h, address extension 0 is either the absolute addressing mode or the segment relative addressing mode.
-This is important, because CANape does not support address extensions >0 for calibration parameters in calibration segments.  
+This is important, because CANape does not support address extensions >0 for parameters in calibration segments.  
 Parameters in calibration segments may be accessed by their segment relative address or by their absolute address, using the corresponding address extension.  
 The absolute address of a calibration parameter is an address in the default page struct. This requires, that the pointer to the default parameters (reference page) given to XcpCreateCalSeg are within the 32 bit addressable with static lifetime! XcpCreateCalSeg does not copy the default parameters.  
 This would be possible, when only using segment relative addressing mode, but is currently not implement.  
@@ -336,7 +336,7 @@ This would be possible, when only using segment relative addressing mode, but is
   Requires C11 and C++17
 
 - File system: fopen, fprintf.  
-  Used for A2L generation and optional calibration persistency to a binary file
+  Used for A2L generation and optional parameter persistency to a binary file
 
 - Heap allocation: malloc, free.  
   Transmit queue (XcpEthServerInit, parameter queue size).  
@@ -345,7 +345,7 @@ This would be possible, when only using segment relative addressing mode, but is
 
 - Atomics (C11 stdatomic.h).  
   Requires atomic_uintptr_t, atomic_uint_fast8_t, atomic_uint_fast64_t, exchange, compare_exchange, fetch_sub, fetch_add.  
-  Used for lock free queue (xcpQueue64), lock free calibration segments, DYN address mode cmd pending state, DAQ running state.  
+  Used for lock free queue (xcpQueue64), lock free calibration parameter segments, DYN address mode cmd pending state, DAQ running state.  
 
 - THREAD (Linux: pthread_create, pthread_join, pthread_cancel).  
   Used for XCP transmit and receive thread.  
@@ -366,11 +366,11 @@ This would be possible, when only using segment relative addressing mode, but is
 
 ### Known issues
 
-- COPY_CAL_PAGE: CANape initialize RAM is executed only on the first calibration segment. Workaround: always copy all segments.  
+- COPY_CAL_PAGE: CANape initialize RAM is executed only on the first memory segment. Workaround: always copy all segments.  
 - CANape ignores segment numbers in A2L, if segment numbering starts with 1, SET_CAL_PAGE is executed on segment 0 and 1
 - GET_ID 5 (EPK) mode = 0x01 is ignored by CANape. Workaround: always provide EPK via upload.  
-- CANape executes GET_SEGMENT_MODE multiple times on the last calibration segment before freeze request.  
-- Address extension of memory segment is ignored by CANape. Workaround: using 0 for calibration segment relative addressing.  
+- CANape executes GET_SEGMENT_MODE multiple times on the last memory segment before freeze request.  
+- Address extension of memory segment is ignored by CANape. Workaround: using 0 for segment relative addressing.  
 - Request for unique address extension per DAQ list is ignored by CANape (DAQ_KEY_BYTE == DAQ_EXT_DAQ). Workaround: Store the address extension per ODT entry.  
 - CANape < V24 does not support shared axis in typedefs or THIS. axis references.  
 - Transport Layer counter mutex could be avoided with alternative counter mode, which is not default in CANape.  

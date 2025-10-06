@@ -10,7 +10,11 @@
 #include <stdio.h>   // for printf
 #include <string.h>  // for sprintf
 
-#include "xcplib.h" // for xcplib application programming interface
+#include "platform.h" // for platform abstraction for thread local, threads, mutex, sockets, sleepUs, ...
+#include "xcplib.h"   // for xcplib application programming interface
+
+static volatile bool running = true;
+static void sig_handler(int sig) { running = false; }
 
 //-----------------------------------------------------------------------------------------------------
 // XCP params
@@ -81,6 +85,33 @@ struct test_struct {
 } test_struct = {1, -2, 0.3f, {1, 2, 3}};
 
 //-----------------------------------------------------------------------------------------------------
+// Demo thread
+
+// Task function that runs in a separate thread
+// Calculates a sine wave, square wave, and sawtooth wave signal
+void *task(void *p) {
+
+    printf("Start thread %u ...\n", get_thread_id());
+
+    // Thread local measurement variables
+    static THREAD_LOCAL uint16_t test_thread_local_uint16 = 0;
+
+    tXcpEventId event = DaqCreateEventInstance(task); // Create a measurement event instance for each instance of the this thread
+
+    while (running) {
+
+        test_thread_local_uint16++;
+
+        DaqCapture(task, test_thread_local_uint16);
+        DaqEvent_i(event);
+
+        sleepUs(1000);
+    }
+
+    return 0; // Exit the thread
+}
+
+//-----------------------------------------------------------------------------------------------------
 // Demo function
 
 void foo(void) {
@@ -127,9 +158,6 @@ void foo(void) {
 //-----------------------------------------------------------------------------------------------------
 // Demo main
 
-static volatile bool running = true;
-static void sig_handler(int sig) { running = false; }
-
 int main(void) {
 
     printf("\nXCP on Ethernet no_a2l_demo C xcplib demo\n");
@@ -159,6 +187,12 @@ int main(void) {
 
     // XCP: Create a measurement event named "mainloop"
     DaqCreateEvent(mainloop);
+
+    // Create 2 threads
+    THREAD t1 = 0;
+    create_thread(&t1, task);
+    THREAD t2 = 0;
+    create_thread(&t2, task);
 
     // Mainloop
     printf("Start main loop...\n");
@@ -193,6 +227,12 @@ int main(void) {
 
     // XCP: Force disconnect the XCP client
     XcpDisconnect();
+
+    // Wait for the thread to stop
+    if (t1)
+        join_thread(t1);
+    if (t2)
+        join_thread(t2);
 
     // XCP: Stop the XCP server
     XcpEthServerShutdown();

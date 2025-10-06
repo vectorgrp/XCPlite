@@ -234,6 +234,7 @@ typedef HANDLE THREAD;
         WaitForSingleObject(h, 1000);                                                                                                                                              \
         CloseHandle(h);                                                                                                                                                            \
     }
+#define get_thread_id() GetCurrentThreadId()
 
 #elif defined(_LINUX) // Linux
 
@@ -246,6 +247,7 @@ typedef pthread_t THREAD;
         pthread_cancel(h);                                                                                                                                                         \
     }
 #define yield_thread(void) sched_yield(void)
+#define get_thread_id() ((uint32_t)(uintptr_t)pthread_self())
 
 #endif
 
