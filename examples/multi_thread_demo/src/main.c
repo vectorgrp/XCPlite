@@ -257,7 +257,7 @@ void *task(void *p)
 
     // Instrumentation: Events and measurement variables
     // Register task local variables counter and channelx with stack addressing mode
-    tXcpEventId task_event_id = DaqCreateEventInstance_s("task");
+    tXcpEventId task_event_id = DaqCreateEventInstance(task);
 
     // Build the task name from the event index
     uint16_t task_index = XcpGetEventIndex(task_event_id); // Get the event index of this event instance

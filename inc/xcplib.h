@@ -112,28 +112,30 @@ uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg);
 /// Create calibration segment macro
 /// Name given as identifier, type name and segment name are identical
 /// Macro may be used anywhere in the code, even in loops
-#define CalCreateSeg(name)                                                                                                                                                         \
+#define CalSegCreate(name)                                                                                                                                                         \
     static tXcpCalSegIndex cal__##name = XCP_UNDEFINED_CALSEG;                                                                                                                     \
+    static tXcpCalSegIndex __CalSeg_##name = XCP_UNDEFINED_CALSEG;                                                                                                                 \
     if (cal__##name == XCP_UNDEFINED_CALSEG) {                                                                                                                                     \
         cal__##name = XcpCreateCalSeg(#name, (uint8_t *)&(name), sizeof(name));                                                                                                    \
+        __CalSeg_##name = cal__##name;                                                                                                                                             \
     }
 
 /// Get calibration segment macro
 /// Name given as identifier
-#define CalGetSeg(name)                                                                                                                                                            \
-    static tXcpCalSegIndex cal__##name = XCP_UNDEFINED_CALSEG;                                                                                                                     \
-    if (cal__##name == XCP_UNDEFINED_CALSEG) {                                                                                                                                     \
-        cal__##name = XcpFindCalSeg(#name);                                                                                                                                        \
+#define CalSegGet(name)                                                                                                                                                            \
+    static tXcpCalSegIndex __CalSeg_##name = XCP_UNDEFINED_CALSEG;                                                                                                                 \
+    if (__CalSeg_##name == XCP_UNDEFINED_CALSEG) {                                                                                                                                 \
+        __CalSeg_##name = XcpFindCalSeg(#name);                                                                                                                                    \
     }
 
 /// Lock calibration segment macro
 /// Name given as identifier
 /// Macro may be used anywhere in the code, even in loops
-#define CalLockSeg(name) ((__typeof__(name) *)XcpLockCalSeg(cal__##name))
+#define CalSegLock(name) ((__typeof__(name) *)XcpLockCalSeg(__CalSeg_##name))
 
 /// Unlock calibration segment macro
 /// Name given as identifier
-#define CalUnlockSeg(name) XcpUnlockCalSeg(cal__##name)
+#define CalSegUnlock(name) XcpUnlockCalSeg(__CalSeg_##name)
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Dynamic DAQ event creation
@@ -185,9 +187,9 @@ uint16_t XcpGetEventIndex(tXcpEventId event);
 /// TLS once pattern, only the first call per thread does the event lookup
 #define DaqCreateEvent(name)                                                                                                                                                       \
     if (XcpIsActivated()) {                                                                                                                                                        \
-        static THREAD_LOCAL tXcpEventId daq__event__##name = XCP_UNDEFINED_EVENT_ID;                                                                                               \
-        if (daq__event__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                        \
-            daq__event__##name = XcpCreateEvent(#name, 0, 0);                                                                                                                      \
+        static THREAD_LOCAL tXcpEventId evt__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                      \
+        if (evt__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                               \
+            evt__##name = XcpCreateEvent(#name, 0, 0);                                                                                                                             \
         }                                                                                                                                                                          \
     }
 
@@ -196,21 +198,25 @@ uint16_t XcpGetEventIndex(tXcpEventId event);
 /// TLS once pattern, only the first call per thread does the event lookup
 #define DaqCreateEvent_s(name)                                                                                                                                                     \
     if (XcpIsActivated()) {                                                                                                                                                        \
-        static THREAD_LOCAL tXcpEventId daq__event__ = XCP_UNDEFINED_EVENT_ID;                                                                                                     \
-        if (daq__event__ == XCP_UNDEFINED_EVENT_ID) {                                                                                                                              \
-            daq__event__ = XcpCreateEvent(name, 0, 0);                                                                                                                             \
+        static THREAD_LOCAL tXcpEventId evt__dynname = XCP_UNDEFINED_EVENT_ID;                                                                                                     \
+        if (evt__dynname == XCP_UNDEFINED_EVENT_ID) {                                                                                                                              \
+            evt__dynname = XcpCreateEvent(name, 0, 0);                                                                                                                             \
         }                                                                                                                                                                          \
     }
 
 /// Multi instance event
 /// Name given as identifier
 /// No caching of the event id, a new event instance is created for each call
-#define DaqCreateEventInstance(name) XcpCreateEventInstance(#name, 0, 0);
+#define DaqCreateEventInstance(name)                                                                                                                                               \
+    XcpCreateEventInstance(#name, 0, 0);                                                                                                                                           \
+    static THREAD_LOCAL tXcpEventId evt__##name = XCP_UNDEFINED_EVENT_ID;
 
 /// Multi instance event (thread local)
 /// Name given as char string
 /// No caching of the event id, a new event instance is created for each call
-#define DaqCreateEventInstance_s(name) XcpCreateEventInstance(name, 0, 0);
+// @@@@ TODO: Currently not supported to create event instances with runtime defined names
+// #define DaqCreateEventInstance_s(name) \
+//     static THREAD_LOCAL tXcpEventId evt__##name = XCP_UNDEFINED_EVENT_ID; \ XcpCreateEventInstance(name, 0, 0);
 
 /// Capture a local variable for measurement with a specific event
 /// The variable must be in scope when the event is triggered with DaqEvent
@@ -243,7 +249,6 @@ void XcpEventExt_(tXcpEventId event, const uint8_t **bases);
 
 /// Trigger the XCP event 'event' with explicitly given base addresses for all addressing modes (address extensions XCP_ADDR_EXT_SEG, XCP_ADDR_EXT_ABS, XCP_ADDR_EXT_DYN, ...)
 /// For explicitly setting the event time stamp (clock > 0)
-/// For xplicitly setting the event time stamp (clock > 0)
 /// @param event
 /// @param base address pointers
 /// @param time stamp in CLOCK_TICKS_PER_S units
@@ -283,7 +288,7 @@ static __forceinline const uint8_t *get_stack_frame_pointer_msvc(void) {
 // DAQ event trigger convenience macros
 
 // Event name parameter is a symbol, a string (_s) or an event index (_i)
-// Creates linker map file markers (static variables: daq__event_xxxx_'eventname' ) for the XCP event id used
+// Creates linker map file markers (static variables: trg__xxxx_'eventname' ) for the XCP event id used
 // No need to take care to store the event id
 // Uses thread local storage to create a thread safe once pattern for the event lookup
 // All macros can be used to measure variables registered in absolute addressing mode as well
@@ -313,58 +318,63 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
 /// Cache the event name lookup
 #define DaqEvent(name)                                                                                                                                                             \
     if (XcpIsActivated()) {                                                                                                                                                        \
-        static THREAD_LOCAL tXcpEventId daq__event_aas0__##name = XCP_UNDEFINED_EVENT_ID;                                                                                          \
-        if (daq__event_aas0__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                   \
-            daq__event_aas0__##name = XcpFindEvent(#name, NULL);                                                                                                                   \
-            assert(daq__event_aas0__##name != XCP_UNDEFINED_EVENT_ID);                                                                                                             \
+        static THREAD_LOCAL tXcpEventId trg__aas0__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                \
+        if (trg__aas0__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                         \
+            trg__aas0__##name = XcpFindEvent(#name, NULL);                                                                                                                         \
+            assert(trg__aas0__##name != XCP_UNDEFINED_EVENT_ID);                                                                                                                   \
         }                                                                                                                                                                          \
         const uint8_t *base[4] = {ApplXcpGetBaseAddr(), ApplXcpGetBaseAddr(), get_stack_frame_pointer(), NULL};                                                                    \
-        XcpEventExt_(daq__event_aas0__##name, base);                                                                                                                               \
+        XcpEventExt_(trg__aas0__##name, base);                                                                                                                                     \
     }
 #define DaqEventAt(name, clock)                                                                                                                                                    \
     if (XcpIsActivated()) {                                                                                                                                                        \
-        static THREAD_LOCAL tXcpEventId daq__event_aas0__##name = XCP_UNDEFINED_EVENT_ID;                                                                                          \
-        if (daq__event_aas0__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                   \
-            daq__event_aas0__##name = XcpFindEvent(#name, NULL);                                                                                                                   \
-            assert(daq__event_aas0__##name != XCP_UNDEFINED_EVENT_ID);                                                                                                             \
+        static THREAD_LOCAL tXcpEventId trg__aas0__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                \
+        if (trg__aas0__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                         \
+            trg__aas0__##name = XcpFindEvent(#name, NULL);                                                                                                                         \
+            assert(trg__aas0__##name != XCP_UNDEFINED_EVENT_ID);                                                                                                                   \
         }                                                                                                                                                                          \
         const uint8_t *base[4] = {ApplXcpGetBaseAddr(), ApplXcpGetBaseAddr(), get_stack_frame_pointer(), NULL};                                                                    \
-        XcpEventExt_At(daq__event_aas0__##name, base, clock);                                                                                                                      \
+        XcpEventExt_At(trg__aas0__##name, base, clock);                                                                                                                            \
     }
 
 /// Trigger the XCP event 'name' for stack relative or absolute addressing
 /// Name is a character string, but must not be a string literal
 /// Cache the event name lookup
-#define DaqEvent_s(name)                                                                                                                                                           \
-    if (XcpIsActivated()) {                                                                                                                                                        \
-        static THREAD_LOCAL tXcpEventId daq__event_aas0__ = XCP_UNDEFINED_EVENT_ID;                                                                                                \
-        if (daq__event_aas0__ == XCP_UNDEFINED_EVENT_ID) {                                                                                                                         \
-            daq__event_aas0__ = XcpFindEvent(name, NULL);                                                                                                                          \
-            assert(daq__event_aas0__ != XCP_UNDEFINED_EVENT_ID);                                                                                                                   \
-        }                                                                                                                                                                          \
-        const uint8_t *base[4] = {ApplXcpGetBaseAddr(), ApplXcpGetBaseAddr(), get_stack_frame_pointer(), NULL};                                                                    \
-        XcpEventExt_(daq__event_aas0__, base);                                                                                                                                     \
-    }
-#define DaqEventAt_s(name, clock)                                                                                                                                                  \
-    if (XcpIsActivated()) {                                                                                                                                                        \
-        static THREAD_LOCAL tXcpEventId daq__event_aas0__ = XCP_UNDEFINED_EVENT_ID;                                                                                                \
-        if (daq__event_aas0__ == XCP_UNDEFINED_EVENT_ID) {                                                                                                                         \
-            daq__event_aas0__ = XcpFindEvent(name, NULL);                                                                                                                          \
-            assert(daq__event_aas0__ != XCP_UNDEFINED_EVENT_ID);                                                                                                                   \
-        }                                                                                                                                                                          \
-        const uint8_t *base[4] = {ApplXcpGetBaseAddr(), ApplXcpGetBaseAddr(), get_stack_frame_pointer(), NULL};                                                                    \
-        XcpEventExt_At(daq__event_aas0__, base, clock);                                                                                                                            \
-    }
+// @@@@ TODO: Currently not supported to have events with runtime defined names
+// #define DaqEvent_s(name) \
+//     if (XcpIsActivated()) { \
+//         static THREAD_LOCAL tXcpEventId trg__aas0__ = XCP_UNDEFINED_EVENT_ID; \
+//         if (trg__aas0__ == XCP_UNDEFINED_EVENT_ID) { \
+//             trg__aas0__ = XcpFindEvent(name, NULL); \
+//             assert(trg__aas0__ != XCP_UNDEFINED_EVENT_ID); \
+//         } \
+//         const uint8_t *base[4] = {ApplXcpGetBaseAddr(), ApplXcpGetBaseAddr(), get_stack_frame_pointer(), NULL}; \
+//         XcpEventExt_(trg__aas0__, base); \
+//     }
+// #define DaqEventAt_s(name, clock) \
+//     if (XcpIsActivated()) { \
+//         static THREAD_LOCAL tXcpEventId trg__aas0__ = XCP_UNDEFINED_EVENT_ID; \
+//         if (trg__aas0__ == XCP_UNDEFINED_EVENT_ID) { \
+//             trg__aas0__ = XcpFindEvent(name, NULL); \
+//             assert(trg__aas0__ != XCP_UNDEFINED_EVENT_ID); \
+//         } \
+//         const uint8_t *base[4] = {ApplXcpGetBaseAddr(), ApplXcpGetBaseAddr(), get_stack_frame_pointer(), NULL}; \
+//         XcpEventExt_At(trg__aas0__, base, clock); \
+//     }
 
 /// Trigger the XCP event by handle 'event_id' for stack relative or absolute addressing
 #define DaqEvent_i(event_id)                                                                                                                                                       \
     if (XcpIsActivated()) {                                                                                                                                                        \
+        static THREAD_LOCAL tXcpEventId trg__aas0__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                \
         const uint8_t *base[4] = {ApplXcpGetBaseAddr(), ApplXcpGetBaseAddr(), get_stack_frame_pointer(), NULL};                                                                    \
+        trg__aas0__##name = event_id;                                                                                                                                              \
         XcpEventExt_(event_id, base);                                                                                                                                              \
     }
 #define DaqEventAt_i(event_id, clock)                                                                                                                                              \
     if (XcpIsActivated()) {                                                                                                                                                        \
+        static THREAD_LOCAL tXcpEventId trg__aas0__##name = event_id;                                                                                                              \
         const uint8_t *base[4] = {ApplXcpGetBaseAddr(), ApplXcpGetBaseAddr(), get_stack_frame_pointer(), NULL};                                                                    \
+        trg__aas0__##name = event_id;                                                                                                                                              \
         XcpEventExt_At(event_id, base, clock);                                                                                                                                     \
     }
 
@@ -372,23 +382,23 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
 /// Cache the event lookup
 #define DaqEvent1(name, base_addr)                                                                                                                                                 \
     if (XcpIsActivated()) {                                                                                                                                                        \
-        static THREAD_LOCAL tXcpEventId daq__event_aasr__##name = XCP_UNDEFINED_EVENT_ID;                                                                                          \
-        if (daq__event_aasr__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                   \
-            daq__event_aasr__##name = XcpFindEvent(#name, NULL);                                                                                                                   \
-            assert(daq__event_aasr__##name != XCP_UNDEFINED_EVENT_ID);                                                                                                             \
+        static THREAD_LOCAL tXcpEventId trg__aasr__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                \
+        if (trg__aasr__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                         \
+            trg__aasr__##name = XcpFindEvent(#name, NULL);                                                                                                                         \
+            assert(trg__aasr__##name != XCP_UNDEFINED_EVENT_ID);                                                                                                                   \
         }                                                                                                                                                                          \
         const uint8_t *base[4] = {ApplXcpGetBaseAddr(), ApplXcpGetBaseAddr(), get_stack_frame_pointer(), (const uint8_t *)base_addr};                                              \
-        XcpEventExt_(daq__event_aasr__##name, base);                                                                                                                               \
+        XcpEventExt_(trg__aasr__##name, base);                                                                                                                                     \
     }
 #define DaqEvent2(name, base_addr1, base_addr2)                                                                                                                                    \
     if (XcpIsActivated()) {                                                                                                                                                        \
-        static THREAD_LOCAL tXcpEventId daq__event_aasrr__##name = XCP_UNDEFINED_EVENT_ID;                                                                                         \
-        if (daq__event_aasrr__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                  \
-            daq__event_aasrr__##name = XcpFindEvent(#name, NULL);                                                                                                                  \
-            assert(daq__event_aasrr__##name != XCP_UNDEFINED_EVENT_ID);                                                                                                            \
+        static THREAD_LOCAL tXcpEventId trg__aasrr__##name = XCP_UNDEFINED_EVENT_ID;                                                                                               \
+        if (trg__aasrr__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                        \
+            trg__aasrr__##name = XcpFindEvent(#name, NULL);                                                                                                                        \
+            assert(trg__aasrr__##name != XCP_UNDEFINED_EVENT_ID);                                                                                                                  \
         }                                                                                                                                                                          \
         const uint8_t *base[5] = {ApplXcpGetBaseAddr(), ApplXcpGetBaseAddr(), get_stack_frame_pointer(), (const uint8_t *)base_addr1, (const uint8_t *)base_addr2};                \
-        XcpEventExt_(daq__event_aasrr__##name, base);                                                                                                                              \
+        XcpEventExt_(trg__aasrr__##name, base);                                                                                                                                    \
     }
 
 /// Trigger the XCP event 'name' for absolute, stack and relative addressing mode with given individual base address (from A2lSetRelativeAddrMode(base_addr))
@@ -396,19 +406,20 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
 /// Cache the event lookup
 #define DaqEvent1_s(name, base_addr)                                                                                                                                               \
     if (XcpIsActivated()) {                                                                                                                                                        \
-        static THREAD_LOCAL tXcpEventId daq__event_aasr__ = XCP_UNDEFINED_EVENT_ID;                                                                                                \
-        if (daq__event_aasr__ == XCP_UNDEFINED_EVENT_ID) {                                                                                                                         \
-            daq__event_aasr__ = XcpFindEvent(name, NULL);                                                                                                                          \
-            assert(daq__event_aasr__ != XCP_UNDEFINED_EVENT_ID);                                                                                                                   \
+        static THREAD_LOCAL tXcpEventId trg__aasr__ = XCP_UNDEFINED_EVENT_ID;                                                                                                      \
+        if (trg__aasr__ == XCP_UNDEFINED_EVENT_ID) {                                                                                                                               \
+            trg__aasr__ = XcpFindEvent(name, NULL);                                                                                                                                \
+            assert(trg__aasr__ != XCP_UNDEFINED_EVENT_ID);                                                                                                                         \
         }                                                                                                                                                                          \
         const uint8_t *base[4] = {ApplXcpGetBaseAddr(), ApplXcpGetBaseAddr(), get_stack_frame_pointer(), (const uint8_t *)base_addr};                                              \
-        XcpEventExt_(daq__event_aasr__, base);                                                                                                                                     \
+        XcpEventExt_(trg__aasr__, base);                                                                                                                                           \
     }
 
 /// Trigger the XCP event by handle 'event_id' for absolute, stack and relative addressing mode with given individual base address (from A2lSetRelativeAddrMode(base_addr))
 /// Cache the event lookup
 #define DaqEvent1_i(event_id, base_addr)                                                                                                                                           \
     if (XcpIsActivated()) {                                                                                                                                                        \
+        static THREAD_LOCAL tXcpEventId trg__aasr__##name = event_id;                                                                                                              \
         const uint8_t *base[4] = {ApplXcpGetBaseAddr(), ApplXcpGetBaseAddr(), get_stack_frame_pointer(), (const uint8_t *)base_addr};                                              \
         XcpEventExt_(event_id, base);                                                                                                                                              \
     }

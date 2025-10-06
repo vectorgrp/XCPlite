@@ -64,7 +64,7 @@ tXcpCalSegIndex calseg = XCP_UNDEFINED_CALSEG;
 //-----------------------------------------------------------------------------------------------------
 // Demo global measurement values
 
-uint16_t counter = 0;
+uint16_t global_counter = 0;
 
 uint8_t test_uint8 = 8;
 uint16_t test_uint16 = 16;
@@ -94,16 +94,28 @@ void *task(void *p) {
     printf("Start thread %u ...\n", get_thread_id());
 
     // Thread local measurement variables
-    static THREAD_LOCAL uint16_t test_thread_local_uint16 = 0;
+    static THREAD_LOCAL uint16_t thread_local_counter = 0;
 
-    tXcpEventId event = DaqCreateEventInstance(task); // Create a measurement event instance for each instance of the this thread
+    DaqCreateEvent(task);
+    // tXcpEventId event = DaqCreateEventInstance(task); // Create a measurement event instance for each instance of the this thread
 
     while (running) {
 
-        test_thread_local_uint16++;
+        thread_local_counter++;
 
-        DaqCapture(task, test_thread_local_uint16);
-        DaqEvent_i(event);
+        CalSegGet(params);
+        {
+            struct params *params = CalSegLock(params);
+            if (thread_local_counter > params->counter_max) { // Get the counter_max calibration value and reset counter
+                thread_local_counter = 0;
+            }
+            CalSegUnlock(params);
+        }
+
+        DaqCapture(task, thread_local_counter);
+
+        DaqEvent(task);
+        // DaqEvent_i(event);
 
         sleepUs(1000);
     }
@@ -115,7 +127,8 @@ void *task(void *p) {
 // Demo function
 
 void foo(void) {
-    // Local variables
+
+    // Local measurement variables
     uint64_t test_int64 = 1;
     float test_float = 0.1f;
     double test_double = 0.2;
@@ -130,12 +143,17 @@ void foo(void) {
     // uint8_t test_array[3] = {1, 2, 3};
     // struct test_struct test_struct = {1, -2, 0.3f, {1, 2, 3}};
 
+    global_counter++;
+
     // Access to an existing calibration segment named 'params' for the calibration parameters in 'const struct params params'
-    CalGetSeg(params);
+    CalSegGet(params);
     {
-        struct params *params = CalLockSeg(params);
-        test_uint16 = params->counter_max;
-        CalUnlockSeg(params);
+        struct params *params = CalSegLock(params);
+        if (global_counter > params->counter_max) { // Get the counter_max calibration value and reset counter
+            global_counter = 0;
+        }
+
+        CalSegUnlock(params);
     }
 
     // Capture local variables for measurement with an event named 'foo' and trigger the event
@@ -183,7 +201,7 @@ int main(void) {
     }
 
     // XCP: Create a calibration segment named 'params' for the calibration parameters in 'const struct params params' as reference page
-    CalCreateSeg(params);
+    CalSegCreate(params);
 
     // XCP: Create a measurement event named "mainloop"
     DaqCreateEvent(mainloop);
@@ -191,8 +209,11 @@ int main(void) {
     // Create 2 threads
     THREAD t1 = 0;
     create_thread(&t1, task);
-    THREAD t2 = 0;
-    create_thread(&t2, task);
+    // THREAD t2 = 0;
+    // create_thread(&t2, task);
+
+    // Local variables
+    uint32_t local_counter = 0;
 
     // Mainloop
     printf("Start main loop...\n");
@@ -202,20 +223,21 @@ int main(void) {
         //      Calibration segment locking is wait-free, locks may be recursive, calibration segments may be shared among multiple threads
         //      Returns a pointer to the active page (working or reference) of the calibration segment
         {
-            struct params *params = CalLockSeg(params);
+            struct params *params = CalSegLock(params);
 
             delay_us = params->delay_us; // Get the delay_us calibration value
 
-            counter++;
-            if (counter > params->counter_max) { // Get the counter_max calibration value and reset counter
-                counter = 0;
+            local_counter++;
+            if (local_counter > params->counter_max) { // Get the counter_max calibration value and reset local_counter
+                local_counter = 0;
             }
 
             // XCP: Unlock the calibration segment
-            CalUnlockSeg(params);
+            CalSegUnlock(params);
         }
 
         // XCP: Trigger the measurement event "mainloop"
+        DaqCapture(mainloop, local_counter);
         DaqEvent(mainloop);
 
         // Sleep for the specified delay parameter in microseconds, don't sleep with the XCP lock held to give the XCP client a chance to update params
@@ -231,8 +253,8 @@ int main(void) {
     // Wait for the thread to stop
     if (t1)
         join_thread(t1);
-    if (t2)
-        join_thread(t2);
+    // if (t2)
+    //     join_thread(t2);
 
     // XCP: Stop the XCP server
     XcpEthServerShutdown();

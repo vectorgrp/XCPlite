@@ -196,16 +196,16 @@ The code instrumentations creates static variables, to help the A2L Creater or a
 static tXcpCalSegIndex cal__##name;
 
 // Create measurement event macro event id once pattern
-static THREAD_LOCAL tXcpEventId daq__event__##name
-static THREAD_LOCAL tXcpEventId daq__event__
+static THREAD_LOCAL tXcpEventId evt__##name
+static THREAD_LOCAL tXcpEventId evt__
 
 // Daq capture macro capture buffer
 static __typeof__(var) daq__##event##__##var
 
 // Daq event macro event id once pattern
-static THREAD_LOCAL tXcpEventId daq__event_aas0__##name
-static THREAD_LOCAL tXcpEventId daq__event_aasr__##name
-static THREAD_LOCAL tXcpEventId daq__event_aasrr__##name
+static THREAD_LOCAL tXcpEventId evt___aas0__##name
+static THREAD_LOCAL tXcpEventId evt___aasr__##name
+static THREAD_LOCAL tXcpEventId evt___aasrr__##name
 ```
 
 *End of document.*
