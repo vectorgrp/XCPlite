@@ -10,11 +10,12 @@
 #include <stdio.h>   // for printf
 #include <string.h>  // for sprintf
 
+#include "a2l.h"      // for _A2lGetAddr_ test output
 #include "platform.h" // for platform abstraction for thread local, threads, mutex, sockets, sleepUs, ...
 #include "xcplib.h"   // for xcplib application programming interface
 
-static volatile bool running = true;
-static void sig_handler(int sig) { running = false; }
+static volatile bool global_running = true;
+static void sig_handler(int sig) { global_running = false; }
 
 //-----------------------------------------------------------------------------------------------------
 // XCP params
@@ -54,41 +55,32 @@ const struct params params = {.counter_max = 1024,
                               .test_par_uint8_array = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
                               .test_par_struct = {1, -2, 0.3f, {1, 2, 3}}};
 
-// A global calibration segment handle for the calibration parameters
-// A calibration segment has a working page ("RAM") and a reference page ("FLASH"), it is described by a MEMORY_SEGMENT in the A2L file
-// It supports RAM/FLASH page switching, reinitialization (copy FLASH to RAM page) and persistence (save RAM page to BIN file)
-// Using the calibration segment to access parameters assures safe (thread safe against XCP modifications), wait-free and consistent access
-// Calibration segments may be shared among multiple threads
-tXcpCalSegIndex calseg = XCP_UNDEFINED_CALSEG;
-
 //-----------------------------------------------------------------------------------------------------
 // Demo global measurement values
 
 uint16_t global_counter = 0;
 
-uint8_t test_uint8 = 8;
-uint16_t test_uint16 = 16;
-uint32_t test_uint32 = 32;
-uint64_t test_uint64 = 64;
-int8_t test_int8 = -8;
-int16_t test_int16 = -16;
-int32_t test_int32 = -32;
-int64_t test_int64 = -64;
-float test_float = 0.4f;
-double test_double = 0.8;
-uint8_t test_array[3] = {1, 2, 3};
+uint8_t global_test_uint8 = 8;
+uint16_t global_test_uint16 = 16;
+uint32_t global_test_uint32 = 32;
+uint64_t global_test_uint64 = 64;
+int8_t global_test_int8 = -8;
+int16_t global_test_int16 = -16;
+int32_t global_test_int32 = -32;
+int64_t global_test_int64 = -64;
+float global_test_float = 0.4f;
+double global_test_double = 0.8;
+uint8_t global_test_array[3] = {1, 2, 3};
 struct test_struct {
     uint16_t a;
     int16_t b;
     float f;
     uint8_t d[3];
-} test_struct = {1, -2, 0.3f, {1, 2, 3}};
+} global_test_struct = {1, -2, 0.3f, {1, 2, 3}};
 
 //-----------------------------------------------------------------------------------------------------
 // Demo thread
 
-// Task function that runs in a separate thread
-// Calculates a sine wave, square wave, and sawtooth wave signal
 void *task(void *p) {
 
     printf("Start thread %u ...\n", get_thread_id());
@@ -96,22 +88,16 @@ void *task(void *p) {
     // Thread local measurement variables
     static THREAD_LOCAL uint16_t thread_local_counter = 0;
 
+    uint32_t counter = 0;
+
     DaqCreateEvent(task);
     // tXcpEventId event = DaqCreateEventInstance(task); // Create a measurement event instance for each instance of the this thread
 
-    while (running) {
+    while (global_running) {
+
+        counter++;
 
         thread_local_counter++;
-
-        CalSegGet(params);
-        {
-            struct params *params = CalSegLock(params);
-            if (thread_local_counter > params->counter_max) { // Get the counter_max calibration value and reset counter
-                thread_local_counter = 0;
-            }
-            CalSegUnlock(params);
-        }
-
         DaqCapture(task, thread_local_counter);
 
         DaqEvent(task);
@@ -120,13 +106,15 @@ void *task(void *p) {
         sleepUs(1000);
     }
 
-    return 0; // Exit the thread
+    return 0;
 }
 
 //-----------------------------------------------------------------------------------------------------
 // Demo function
 
 void foo(void) {
+
+    uint32_t counter = 0;
 
     // Local measurement variables
     uint64_t test_int64 = 1;
@@ -140,36 +128,13 @@ void foo(void) {
     int16_t test_int16 = -2;
     int32_t test_int32 = -3;
     int64_t test_int64_2 = -4;
+    struct test_struct test_struct = {1, -2, 0.3f, {1, 2, 3}};
     // uint8_t test_array[3] = {1, 2, 3};
-    // struct test_struct test_struct = {1, -2, 0.3f, {1, 2, 3}};
 
     global_counter++;
+    counter++;
 
-    // Access to an existing calibration segment named 'params' for the calibration parameters in 'const struct params params'
-    CalSegGet(params);
-    {
-        struct params *params = CalSegLock(params);
-        if (global_counter > params->counter_max) { // Get the counter_max calibration value and reset counter
-            global_counter = 0;
-        }
-
-        CalSegUnlock(params);
-    }
-
-    // Capture local variables for measurement with an event named 'foo' and trigger the event
     DaqCreateEvent(foo);
-    DaqCapture(foo, test_int64);
-    DaqCapture(foo, test_float);
-    DaqCapture(foo, test_double);
-    DaqCapture(foo, test_uint8);
-    DaqCapture(foo, test_uint16);
-    DaqCapture(foo, test_uint32);
-    DaqCapture(foo, test_uint64);
-    DaqCapture(foo, test_int8);
-    DaqCapture(foo, test_int16);
-    DaqCapture(foo, test_int32);
-    // DaqCapture(foo, test_array); // Arrays are not supported
-    // DaqCapture(foo, test_struct);
     DaqEvent(foo);
 }
 
@@ -182,10 +147,6 @@ int main(void) {
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 
-    // printf("A2L base address = %p:\n", ApplXcpGetBaseAddr());
-    // printf("&counter = %p, A2L-addr = 0x%08X\n", &counter, ApplXcpGetAddr((void *)&counter));
-    // printf("&params = %p, A2L-addr = 0x%08X, size = %u\n", &params, ApplXcpGetAddr((void *)&params), (uint32_t)sizeof(params));
-
     // XCP: Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
     XcpSetLogLevel(OPTION_LOG_LEVEL);
 
@@ -195,30 +156,52 @@ int main(void) {
     ApplXcpSetA2lName(OPTION_PROJECT_NAME); // @@@@ This is still required to enable GET_ID for XCP_IDT_ASCII
 
     // XCP: Initialize the XCP Server
-    uint8_t addr[4] = OPTION_SERVER_ADDR;
-    if (!XcpEthServerInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_QUEUE_SIZE)) {
+    const uint8_t __addr[4] = OPTION_SERVER_ADDR;
+    if (!XcpEthServerInit(__addr, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_QUEUE_SIZE)) {
         return 1;
     }
 
     // XCP: Create a calibration segment named 'params' for the calibration parameters in 'const struct params params' as reference page
     CalSegCreate(params);
 
+    // Create 2 threads
+    THREAD __t1 = 0;
+    create_thread(&__t1, task);
+    // THREAD __t2 = 0;
+    // create_thread(&__t2, task);
+
+    // Local measurment variables
+    uint32_t counter = 0;
+
+    // static measurement variable
+    static uint16_t static_counter = 0;
+
     // XCP: Create a measurement event named "mainloop"
     DaqCreateEvent(mainloop);
 
-    // Create 2 threads
-    THREAD t1 = 0;
-    create_thread(&t1, task);
-    // THREAD t2 = 0;
-    // create_thread(&t2, task);
+    // Test output
+    printf("A2L base address = %p:\n", ApplXcpGetBaseAddr());
+    printf("Stackframe = %p\n", get_stack_frame_pointer());
+    A2lSetDynAddrMode(XcpFindEvent("mainloop", NULL), 0 /* dyn base index, 0 is stack */, get_stack_frame_pointer());
+    printf("&counter = %p, A2L-addr = %u:0x%08X\n", &counter, A2lGetAddrExt_(), A2lGetAddr_(&counter));
+    printf("&static_counter = %p, A2L-addr = 0x%08X\n", &static_counter, ApplXcpGetAddr((void *)&static_counter));
+    printf("&params = %p, A2L-addr = 0x%08X, size = %u\n", &params, ApplXcpGetAddr((void *)&params), (uint32_t)sizeof(params));
+    /*
 
-    // Local variables
-    uint32_t local_counter = 0;
+    /begin MEASUREMENT main.counter "" ULONG IDENTITY 0 0 0 4294967295 ECU_ADDRESS 0x1FFE4 ECU_ADDRESS_EXTENSION 2 READ_WRITE
 
-    // Mainloop
+    A2L base address = 0x55556f800000:
+    Stackframe = 0x7fffce7e0ab0
+    &counter = 0x7fffce7e0af4, A2L-addr = 2:0x00010044
+    &static_counter = 0x55556f8302c6, A2L-addr = 0x000302C6
+    &params = 0x55556f8158e0, A2L-addr = 0x000158E0, size = 48
+
+    */
+
+        // Mainloop
     printf("Start main loop...\n");
     uint32_t delay_us;
-    while (running) {
+    while (global_running) {
         // XCP: Lock the calibration parameter segment for consistent and safe access
         //      Calibration segment locking is wait-free, locks may be recursive, calibration segments may be shared among multiple threads
         //      Returns a pointer to the active page (working or reference) of the calibration segment
@@ -227,9 +210,14 @@ int main(void) {
 
             delay_us = params->delay_us; // Get the delay_us calibration value
 
-            local_counter++;
-            if (local_counter > params->counter_max) { // Get the counter_max calibration value and reset local_counter
-                local_counter = 0;
+            static_counter++;
+            if (static_counter > params->counter_max) {
+                static_counter = 0;
+            }
+
+            counter++;
+            if (counter > params->counter_max) {
+                counter = 0;
             }
 
             // XCP: Unlock the calibration segment
@@ -237,7 +225,6 @@ int main(void) {
         }
 
         // XCP: Trigger the measurement event "mainloop"
-        DaqCapture(mainloop, local_counter);
         DaqEvent(mainloop);
 
         // Sleep for the specified delay parameter in microseconds, don't sleep with the XCP lock held to give the XCP client a chance to update params
@@ -251,10 +238,10 @@ int main(void) {
     XcpDisconnect();
 
     // Wait for the thread to stop
-    if (t1)
-        join_thread(t1);
-    // if (t2)
-    //     join_thread(t2);
+    if (__t1)
+        join_thread(__t1);
+    // if (__t2)
+    //     join_thread(__t2);
 
     // XCP: Stop the XCP server
     XcpEthServerShutdown();

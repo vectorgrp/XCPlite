@@ -91,7 +91,7 @@ echo "==========================================================================
 
 
 if [ $ONLINE == true ]; then
-$XCPCLIENT --log-level=2 --verbose --dest-addr=$TARGET_HOST:5555 --tcp  --elf $ELFFILE  --create-a2l --a2l $A2LFILE 
+$XCPCLIENT --log-level=3 --verbose --dest-addr=$TARGET_HOST:5555 --tcp  --elf $ELFFILE  --create-a2l --a2l $A2LFILE 
 if [ $? -ne 0 ]; then
     echo "❌ FAILED: xcp_client returned error"
     exit 1
