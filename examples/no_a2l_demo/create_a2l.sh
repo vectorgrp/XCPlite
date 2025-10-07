@@ -1,6 +1,10 @@
+# true: use the DanielT a2ltool to add measurements and characteristics to the A2L file template created by xcp_client
+# false: use xcp_client with the elf file option to create the A2L file 
+ENABLE_A2LTOOL=false
+ONLINE=true
 
-# ENABLE_A2LTOOL=true
-
+# Path to a2ltool executable
+A2LTOOL="../a2ltool-RainerZ/target/debug/a2ltool"
 
 # Target A2L name to generate in local machines CANape project folder
 A2LFILE="examples/no_a2l_demo/CANape/no_a2l_demo.a2l"
@@ -46,56 +50,65 @@ fi
 
 
 
-
-# Run target executable with XCP on Ethernet in background
+# Run target executable with XCP on Ethernet in background#
+if [ $ONLINE == true ]; then
 echo "Starting executable $TARGET_PATH on Target ..."
 ssh $TARGET_USER@$TARGET_HOST "cd ~/XCPlite-RainerZ && $TARGET_PATH" &
 SSH_PID=$!
 sleep 2
+fi
 
 
 if [ $ENABLE_A2LTOOL == true ]; then
     
 # Use a2ltool to update the A2L template with measurement 'counter' and characteristic 'params'
-# @@@@ Does not work: creates TYPEDEF_MEASUREMENT instead of TYPEDEF_CHARACTERISTIC for params
-# Path to a2ltool executable
 echo ""
 echo "========================================================================================================"
 echo "Creating A2L file $A2LFILE with xcp_client and a2ltool"
 echo "========================================================================================================"
-A2LTOOL="../a2ltool-RainerZ/target/debug/a2ltool"
 
 # Create a A2L template with xcp_client by uploading memory segments and events via XCP
-$XCPCLIENT --log-level=2  --dest-addr=$TARGET_HOST:5555 --tcp  --create-a2l --a2l $A2LFILE 
+$XCPCLIENT --log-level=2  --dest-addr=$TARGET_HOST:5555 --tcp  --create-a2l --a2l $A2LFILE.template.a2l 
 if [ $? -ne 0 ]; then
     echo "❌ FAILED: xcp_client returned error"
     exit 1
 fi
 # Update A2L with a2ltool and add measurement 'counter' and characteristic 'params'
-$A2LTOOL --verbose --update --measurement-regex "counter"  --characteristic-regex "params" --elffile  $ELFFILE  --enable-structures --output $A2LFILE $A2LFILE
+$A2LTOOL --verbose --update --measurement-regex "global_counter"  --characteristic-regex "params" --elffile  $ELFFILE  --enable-structures --output $A2LFILE $A2LFILE.template.a2l 
 if [ $? -ne 0 ]; then
     echo "❌ FAILED: a2ltool returned error"
     exit 1
 fi
+cp tmp.a2l $A2LFILE
 
 else
-
 
 # Create a A2L template with xcp_client by uploading memory segments and events via XCP
 echo ""
 echo "========================================================================================================"
 echo "Creating A2L file $A2LFILE with xcp_client"
 echo "========================================================================================================"
-$XCPCLIENT --log-level=2  --dest-addr=$TARGET_HOST:5555 --tcp --verbose --elf $ELFFILE  --create-a2l --a2l $A2LFILE 
+
+
+if [ $ONLINE == true ]; then
+$XCPCLIENT --log-level=2 --verbose --dest-addr=$TARGET_HOST:5555 --tcp  --elf $ELFFILE  --create-a2l --a2l $A2LFILE 
 if [ $? -ne 0 ]; then
     echo "❌ FAILED: xcp_client returned error"
     exit 1
 fi
+else
+$XCPCLIENT --log-level=2 --verbose --elf $ELFFILE   --a2l $A2LFILE 
+if [ $? -ne 0 ]; then
+    echo "❌ FAILED: xcp_client returned error"
+    exit 1
+fi
+fi
 
 
 fi
 
 
+if [ $ONLINE == true ]; then
 
 #echo "Start a test measurement"
 #$XCPCLIENT --log-level=3  --dest-addr=$TARGET_HOST:5555 --tcp  --a2l $A2LFILE  --mea ".*" --time-ms 100
@@ -108,10 +121,12 @@ if kill -0 $SSH_PID 2>/dev/null; then
     kill $SSH_PID
 fi
 # Also kill the remote process by name to be sure
+# ssh rainer@192.168.0.206  "pkill -f no_a2l_demo.out" 
 ssh $TARGET_USER@$TARGET_HOST "pkill -f no_a2l_demo.out" 2>/dev/null || true
 # Give target some time to shutdown
 sleep 1
 
+fi
 
 echo ""
 echo "========================================================================================================"
