@@ -1,0 +1,15 @@
+[package]
+name = "gimli_demo"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+gimli = "0.28"
+object = "0.32"
+memmap2 = "0.9"
+anyhow = "1.0"
+clap = { version = "4.4", features = ["derive"] }
+
+[[bin]]
+name = "cfa_lookup"
+path = "src/main.rs"
