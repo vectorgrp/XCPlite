@@ -57,3 +57,5 @@ The demo script create_a2l.sh automates the complete remote build and A2L genera
 
 This is currently experimental.  
 The approach will be used for the upcoming ThreadX demo with build time A2L generation.
+
+objdump -W no_a2l_demo.out

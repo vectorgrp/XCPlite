@@ -1,7 +1,6 @@
 
 build
 build-*
-pi
 
 
 # CANape artefacts
@@ -9,6 +8,8 @@ pi
 *.mf4
 *.cnaxml
 *.tmp
+CANapeTmpMea.ini
+
 
 # Examples A2L files
 /*.a2l
@@ -19,8 +20,20 @@ conversions.a2l
 groups.a2l
 typedefs.a2l
 *.bak
+*.log
+*.txt
 
 
+# Other
 /run_remote.sh
 /run.sh
-/examples/bpf_demo/CANape/CANapeTmpMea.ini
+pi
+dwarf
+.vscode
+.DS_Store
+test_bpf_demo.sh
+CANape.aml
+/examples/no_a2l_demo/src/main_creator_test.c
+/tools/gimli_demo/target
+/tools/dwarf_reader/target
+

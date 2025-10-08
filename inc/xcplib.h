@@ -261,7 +261,20 @@ void XcpEventExt_At(tXcpEventId event, const uint8_t **bases, uint64_t clock);
 // Linux, MACOS gnu and clang compiler
 #if defined(__GNUC__) || defined(__clang__)
 
+// Option 1: Traditional frame pointer, sufficient for runtime A2L generation
+// #define get_stack_frame_pointer() (const uint8_t *)__builtin_frame_address(0)
+
+// Option 2: Canonical Frame Address (CFA) compatible, when ELF/DWARF is used to update the A2L file
+#ifdef __x86_64__
+#define get_stack_frame_pointer() ((const uint8_t *)__builtin_frame_address(0) + 16)
+#elif defined(__i386__)
+#define get_stack_frame_pointer() ((const uint8_t *)__builtin_frame_address(0) + 8)
+#elif defined(__aarch64__)
+// On ARM64, CFA = frame pointer (x29), DWARF fbreg offsets are relative to frame pointer directly
 #define get_stack_frame_pointer() (const uint8_t *)__builtin_frame_address(0)
+#else
+#define get_stack_frame_pointer() (const uint8_t *)__builtin_frame_address(0)
+#endif
 
 // MSVC compiler
 #elif defined(_MSC_VER)
