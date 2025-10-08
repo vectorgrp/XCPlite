@@ -32,7 +32,7 @@
           <property name="SerializableSelectedTabPageIndex">-1</property>
           <property name="AllowDrag">false</property>
           <property name="ItemHeight">150</property>
-          <property name="ItemWidth">341</property>
+          <property name="ItemWidth">357</property>
           <property name="SerializableDockSituation" iskey="true" value="0" />
           <property name="SerializationInfo" isnull="true" iskey="true">
             <property name="IsUserDefined">true</property>
@@ -61,7 +61,7 @@
           <property name="Orientation">Vertical</property>
           <property name="SerializableSelectedTabPageIndex">-1</property>
           <property name="AllowDrag">false</property>
-          <property name="ItemWidth">0.8986*</property>
+          <property name="ItemWidth">0.88609*</property>
           <property name="SerializableDockSituation" iskey="true" value="0" />
           <property name="SerializationInfo" isnull="true" iskey="true">
             <property name="IsUserDefined">true</property>
