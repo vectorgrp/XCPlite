@@ -345,7 +345,7 @@ static void XcpFreeCalSegList(void) {
 }
 
 // Get a pointer to the list and the size of the list
-tXcpCalSegList const *XcpGetCalSegList(void) {
+const tXcpCalSegList *XcpGetCalSegList(void) {
     assert(isInitialized());
     return &gXcp.CalSegList;
 }
@@ -495,7 +495,7 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
 }
 
 // Lock a calibration segment and return a pointer to the ECU page
-uint8_t const *XcpLockCalSeg(tXcpCalSegIndex calseg) {
+const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg) {
 
     assert(isInitialized());
 

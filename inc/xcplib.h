@@ -32,7 +32,7 @@ extern "C" {
 /// @param use_tcp Use TCP if true, otherwise UDP.
 /// @param measurement_queue_size Measurement queue size in bytes. Includes the bytes occupied by the queue header and some space needed for alignment.
 /// @return true on success, otherwise false.
-bool XcpEthServerInit(uint8_t const *address, uint16_t port, bool use_tcp, uint32_t measurement_queue_size);
+bool XcpEthServerInit(const uint8_t *address, uint16_t port, bool use_tcp, uint32_t measurement_queue_size);
 
 /// Shutdown the XCP on Ethernet server.
 bool XcpEthServerShutdown(void);
@@ -85,7 +85,7 @@ const char *XcpGetCalSegName(tXcpCalSegIndex calseg);
 /// The data can be safely accessed while the lock is held.
 /// There is no contention with the XCP client tool and with other threads acquiring the lock.
 /// Acquiring the lock is wait-free, locks may be recursive
-uint8_t const *XcpLockCalSeg(tXcpCalSegIndex calseg);
+const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg);
 
 /// Unlock a calibration segment
 void XcpUnlockCalSeg(tXcpCalSegIndex calseg);
@@ -131,7 +131,7 @@ uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg);
 /// Lock calibration segment macro
 /// Name given as identifier
 /// Macro may be used anywhere in the code, even in loops
-#define CalSegLock(name) ((__typeof__(name) const *)XcpLockCalSeg(__CalSeg_##name))
+#define CalSegLock(name) ((const __typeof__(name) *)XcpLockCalSeg(__CalSeg_##name))
 
 /// Unlock calibration segment macro
 /// Name given as identifier
