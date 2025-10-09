@@ -16,6 +16,7 @@
  ----------------------------------------------------------------------------*/
 
 #include <stdbool.h>
+#include <stddef.h> // for size_t used in TLS functions
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -228,9 +229,6 @@ uint16_t XcpGetEventIndex(tXcpEventId event);
         daq__##event##__##var = var;                                                                                                                                               \
     } while (0)
 
-/// Spill a local variable to stack (force the compiler to keep the value on stack)
-#define DaqSpill(event, var) volatile __typeof__(var) *__daq_spill_##event##_##var __attribute__((unused)) = &(var)
-
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // DAQ event trigger measurement instrumentation point
 
@@ -301,6 +299,47 @@ static __forceinline const uint8_t *get_stack_frame_pointer_msvc(void) {
 #else
 #error "get_stack_frame_pointer is not defined for this compiler. Please implement it."
 #endif
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Thread local storage
+
+// Platform-specific TLS base address access
+#ifdef __aarch64__
+static inline void *get_tls_base_address(void) {
+    void *tls_base;
+    __asm__("mrs %0, tpidr_el0" : "=r"(tls_base));
+    return tls_base;
+}
+#elif defined(__x86_64__)
+static inline void *get_tls_base_address(void) {
+    void *tls_base;
+    __asm__("mov %%fs:0, %0" : "=r"(tls_base));
+    return tls_base;
+}
+#else
+#error
+// Fallback: requires proper TLS index setup
+static inline void *get_tls_base_address(void) {
+    // This is a placeholder - actual implementation would need TLS module info
+    // Use __tls_get_addr with proper tls_index_t parameter
+    return NULL; // Platform not supported for direct TLS access
+}
+#endif
+
+// Forward declaration for TLS runtime function
+// extern void *__tls_get_addr(void *ti);
+
+// TLS index structure for __tls_get_addr
+// typedef struct {
+//     size_t ti_module; // TLS module ID
+//     size_t ti_offset; // Offset within TLS block
+// } tls_index_t;
+
+// Resolve TLS variable address (requires TLS offset from DWARF)
+// static inline void *resolve_tls_variable_address(size_t tls_module_id, size_t tls_offset) {
+//     tls_index_t ti = {.ti_module = tls_module_id, .ti_offset = tls_offset};
+//     return __tls_get_addr(&ti);
+// }
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // DAQ event trigger convenience macros

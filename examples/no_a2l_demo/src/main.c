@@ -88,18 +88,16 @@ struct test_struct {
 void *task(void *p) {
 
     printf("Start thread %u ...\n", get_thread_id());
+    printf("TLS base address = %p\n", get_tls_base_address());
 
     // Thread local measurement variables
-    static THREAD_LOCAL uint16_t thread_local_counter = 0;
+    volatile static THREAD_LOCAL uint16_t thread_local_counter = 0;
 
     // Static local scope measurement variable
-    static uint16_t static_counter = 0;
+    volatile static uint16_t static_counter = 0;
 
     // Local measurement variable
-    uint32_t counter = 0;
-
-    // Local measurement variable spilled on the stack
-    uint32_t spilled_counter = 0;
+    volatile uint32_t counter = 0;
 
     DaqCreateEvent(task);
     // tXcpEventId event = DaqCreateEventInstance(task); // Create a measurement event instance for each instance of the this thread
@@ -108,16 +106,12 @@ void *task(void *p) {
 
         counter = global_counter;
         static_counter = global_counter;
-        spilled_counter = global_counter;
         thread_local_counter = global_counter;
 
-        // Simulate a local variable that is spilled on the stack
-        DaqSpill(task, spilled_counter);
-
-        // Thread local variable
-        // @@@@ TODO: The A2L creator can not handle thread local variables yet
-        // Use the DAQ capture method instead
-        DaqCapture(task, thread_local_counter);
+        // @@@@ TODO: Thread local variables
+        // The A2L creator can not handle thread local variables yet
+        // The DAQ capture method does not work for TLS
+        // DaqCapture(task, thread_local_counter);
 
         DaqEvent(task);
         // DaqEvent_i(event);
@@ -134,23 +128,23 @@ void *task(void *p) {
 void foo(void) {
 
     // Static local scope measurement variable
-    static uint16_t static_counter = 0;
+    volatile static uint16_t static_counter = 0;
 
     // Local variable
-    uint32_t counter = 0;
+    volatile uint32_t counter = 0;
 
     // More local measurement variables
-    float test_float = 0.1f;
-    double test_double = 0.2;
-    uint8_t test_uint8 = 1;
-    uint16_t test_uint16 = 2;
-    uint32_t test_uint32 = 3;
-    uint64_t test_uint64 = 4;
-    int8_t test_int8 = -1;
-    int16_t test_int16 = -2;
-    int32_t test_int32 = -3;
-    uint64_t test_int64 = 1;
-    struct test_struct test_struct = {1, -2, 0.3f, {1, 2, 3}};
+    volatile float test_float = 0.1f;
+    volatile double test_double = 0.2;
+    volatile uint8_t test_uint8 = 1;
+    volatile uint16_t test_uint16 = 2;
+    volatile uint32_t test_uint32 = 3;
+    volatile uint64_t test_uint64 = 4;
+    volatile int8_t test_int8 = -1;
+    volatile int16_t test_int16 = -2;
+    volatile int32_t test_int32 = -3;
+    volatile uint64_t test_int64 = 1;
+    volatile struct test_struct test_struct = {1, -2, 0.3f, {1, 2, 3}};
     // uint8_t test_array[3] = {1, 2, 3};
 
     counter = global_counter;
@@ -206,10 +200,10 @@ int main(void) {
     // create_thread(&__t2, task);
 
     // Local measurement variable
-    uint32_t counter = 0;
+    volatile uint32_t counter = 0;
 
     // Local scope static measurement variable
-    static uint16_t static_counter = 0;
+    volatile static uint16_t static_counter = 0;
 
     // XCP: Create a measurement event named "mainloop"
     DaqCreateEvent(mainloop);

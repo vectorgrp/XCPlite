@@ -12,6 +12,7 @@
 # TODO
 # Prefix duplicate type definition names
 
+LOGFILE="examples/no_a2l_demo/CANape/no_a2l_demo.log"
 
 # Target A2L name to generate
 # The A2L file is generated in the local machine CANape project directory (examples/no_a2l_demo/CANape/)
@@ -22,9 +23,9 @@ ELFFILE="examples/no_a2l_demo/CANape/no_a2l_demo.out"
 
 # Build type for target executable: Release, RelWithDebInfo or Debug
 # RelWithDebInfo is used for testing purposes with -O1 and NDEBUG
-#BUILD_TYPE="RelWithDebInfo"
+BUILD_TYPE="RelWithDebInfo"
 # -O0
-BUILD_TYPE="Debug"
+#BUILD_TYPE="Debug"
 # -O2 no debug symbols
 #BUILD_TYPE="Release"
 
@@ -32,7 +33,7 @@ BUILD_TYPE="Debug"
 
 
 # Optimization level >= -O1 keeps variables in registers whenever possible, so local variables cannot be measured in any case
-# The most efficient solution to keep local variables measurable is to use the DaqCapture macro, another option is to use DaqSpill which forces the compiler to store the variable on the stack
+# The most efficient solution to keep local variables measurable is to use the DaqCapture macro, another option is mark the variable with volatile
 # Debug mode is the least efficient but keeps all variables and stack frames intact
 # So far, the solution works well with -O1, with -O2 some things have to be investigated (work in progress), -O3 is not recommended
 
@@ -134,7 +135,7 @@ echo "==========================================================================
 
 
 if [ $ONLINE == true ]; then
-$XCPCLIENT --log-level=3  --dest-addr=$TARGET_HOST:5555 --tcp  --elf $ELFFILE  --create-a2l --a2l $A2LFILE 
+$XCPCLIENT --log-level=3  --dest-addr=$TARGET_HOST:5555 --tcp  --elf $ELFFILE  --create-a2l --a2l $A2LFILE > $LOGFILE
 if [ $? -ne 0 ]; then
     echo "❌ FAILED: xcp_client returned error"
     exit 1
