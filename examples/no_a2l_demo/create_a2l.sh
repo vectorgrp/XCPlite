@@ -1,25 +1,68 @@
-# true: use the DanielT a2ltool to add measurements and characteristics to the A2L file template created by xcp_client
-# false: use xcp_client with the elf file option to create the A2L file 
-ENABLE_A2LTOOL=false
-ONLINE=true
+# !/bin/bash
 
-# Path to a2ltool executable
-A2LTOOL="../a2ltool-RainerZ/target/debug/a2ltool"
+# Script to create an A2L file for the no_a2l_demo example project
 
-# Target A2L name to generate in local machines CANape project folder
+# The script syncs the example project to the target, builds it there, runs it with XCP on Ethernet,
+# downloads the ELF file to the local machine and creates an A2L file either with xcp_client or with a2ltool
+# Prerequisites:
+# - The target must be reachable via SSH and have rsync installed
+# - The local machine must have rsync and scp installed
+# - The local machine must have xcp_client and a2ltool compiled and available
+
+# TODO
+# Prefix duplicate type definition names
+
+
+# Target A2L name to generate
+# The A2L file is generated in the local machine CANape project directory (examples/no_a2l_demo/CANape/)
 A2LFILE="examples/no_a2l_demo/CANape/no_a2l_demo.a2l"
 
 # Path to ELF file in local machine CANape project folder
 ELFFILE="examples/no_a2l_demo/CANape/no_a2l_demo.out"
 
-# Path to xcp_client tool executable
-XCPCLIENT="../xcp-lite-RainerZ/target/debug/xcp_client"
+# Build type for target executable: Release, RelWithDebInfo or Debug
+# RelWithDebInfo is used for testing purposes with -O1 and NDEBUG
+#BUILD_TYPE="RelWithDebInfo"
+# -O0
+BUILD_TYPE="Debug"
+# -O2 no debug symbols
+#BUILD_TYPE="Release"
+
+# Release build will of course not work because debug symbols are removed
+
+
+# Optimization level >= -O1 keeps variables in registers whenever possible, so local variables cannot be measured in any case
+# The most efficient solution to keep local variables measurable is to use the DaqCapture macro, another option is to use DaqSpill which forces the compiler to store the variable on the stack
+# Debug mode is the least efficient but keeps all variables and stack frames intact
+# So far, the solution works well with -O1, with -O2 some things have to be investigated (work in progress), -O3 is not recommended
+
+
+
+
+
+# true: use the DanielT a2ltool to add measurements and characteristics to the A2L file template created by xcp_client
+# false: use xcp_client with the elf file option to create the A2L file 
+ENABLE_A2LTOOL=false
+#ENABLE_A2LTOOL=true
+
+# Connect to the target via XCP and query event and segment information
+ONLINE=true
+#ONLINE=false
+
 
 
 # Target connection details
 TARGET_USER="rainer"
 TARGET_HOST="192.168.0.206"
 TARGET_PATH="~/XCPlite-RainerZ/build/no_a2l_demo.out"
+
+# Path to a2ltool executable
+A2LTOOL="../a2ltool-RainerZ/target/debug/a2ltool"
+
+# Path to xcp_client tool executable
+XCPCLIENT="../xcp-lite-RainerZ/target/debug/xcp_client"
+
+
 
 
 # Sync target
@@ -33,7 +76,7 @@ fi
 
 # Build on target
 echo "Build executable on Target ..."
-ssh $TARGET_USER@$TARGET_HOST "cd ~/XCPlite-RainerZ && ./build.sh" > /dev/null
+ssh $TARGET_USER@$TARGET_HOST "cd ~/XCPlite-RainerZ && ./build.sh $BUILD_TYPE" > /dev/null
 if [ $? -ne 0 ]; then
     echo "❌ FAILED: Build on target"
     exit 1
@@ -91,13 +134,13 @@ echo "==========================================================================
 
 
 if [ $ONLINE == true ]; then
-$XCPCLIENT --log-level=3 --verbose --dest-addr=$TARGET_HOST:5555 --tcp  --elf $ELFFILE  --create-a2l --a2l $A2LFILE 
+$XCPCLIENT --log-level=3  --dest-addr=$TARGET_HOST:5555 --tcp  --elf $ELFFILE  --create-a2l --a2l $A2LFILE 
 if [ $? -ne 0 ]; then
     echo "❌ FAILED: xcp_client returned error"
     exit 1
 fi
 else
-$XCPCLIENT --log-level=2 --verbose --elf $ELFFILE   --a2l $A2LFILE 
+$XCPCLIENT --log-level=3 --verbose --elf $ELFFILE   --a2l $A2LFILE 
 if [ $? -ne 0 ]; then
     echo "❌ FAILED: xcp_client returned error"
     exit 1

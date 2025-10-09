@@ -93,6 +93,29 @@ elseif(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
     set(COMMON_WARNING_FLAGS /W3)
 endif()
 
+# Custom build type configurations for debug symbols in release builds
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    # For Release builds: use -O2 optimization and remove debug symbols and assertions
+    set(CMAKE_C_FLAGS_RELEASE "-O2  -DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELEASE "-O2  -DNDEBUG")
+    # For RelWithDebInfo builds: release build with moderate optimization and with debug symbols, preserve stack frames
+    # -fno-omit-frame-pointer: Always generate frame pointer for better stack traces
+    # -fno-optimize-sibling-calls: Prevent tail call optimization that can confuse debuggers
+    set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls -DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls -DNDEBUG")
+    # For Debug builds: no optimization, full debug symbols
+    set(CMAKE_C_FLAGS_DEBUG "-O0 -g")
+    set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
+    message(STATUS "Custom compiler flags set")
+elseif(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
+    # MSVC equivalent settings
+    set(CMAKE_C_FLAGS_RELEASE "/O2 /Zi /DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /Zi /DNDEBUG")
+    # /Oy- disables frame pointer omission (equivalent to -fno-omit-frame-pointer)
+    set(CMAKE_C_FLAGS_RELWITHDEBINFO "/O2 /Zi /Oy- /DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "/O2 /Zi /Oy- /DNDEBUG")
+    message(STATUS "Custom MSVC flags set")
+endif()
 
 # xcplib sources
 set(xcplib_SOURCES src/xcpAppl.c src/xcpLite.c src/xcpEthServer.c src/xcpEthTl.c src/xcpQueue32.c src/xcpQueue64.c src/a2l.c src/persistency.c src/platform.c)   

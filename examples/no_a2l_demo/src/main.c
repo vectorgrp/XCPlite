@@ -53,13 +53,17 @@ const struct params params = {.counter_max = 1024,
                               .test_par_double = 0.123456789,
                               .test_par_enum = ENUM_2,
                               .test_par_uint8_array = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
-                              .test_par_struct = {1, -2, 0.3f, {1, 2, 3}}};
+                              .test_par_struct = {2, -2, 0.4f, {0, 1, 2}}};
 
 //-----------------------------------------------------------------------------------------------------
 // Demo global measurement values
 
+// Global measurement variable
+// Modified in function foo
+// Measuring it in main or task, is possible, but asynchronous and may give inconsistent results
 uint16_t global_counter = 0;
 
+// More global measurement variables of various basic and complex types
 uint8_t global_test_uint8 = 8;
 uint16_t global_test_uint16 = 16;
 uint32_t global_test_uint32 = 32;
@@ -88,16 +92,31 @@ void *task(void *p) {
     // Thread local measurement variables
     static THREAD_LOCAL uint16_t thread_local_counter = 0;
 
+    // Static local scope measurement variable
+    static uint16_t static_counter = 0;
+
+    // Local measurement variable
     uint32_t counter = 0;
+
+    // Local measurement variable spilled on the stack
+    uint32_t spilled_counter = 0;
 
     DaqCreateEvent(task);
     // tXcpEventId event = DaqCreateEventInstance(task); // Create a measurement event instance for each instance of the this thread
 
     while (global_running) {
 
-        counter++;
+        counter = global_counter;
+        static_counter = global_counter;
+        spilled_counter = global_counter;
+        thread_local_counter = global_counter;
 
-        thread_local_counter++;
+        // Simulate a local variable that is spilled on the stack
+        DaqSpill(task, spilled_counter);
+
+        // Thread local variable
+        // @@@@ TODO: The A2L creator can not handle thread local variables yet
+        // Use the DAQ capture method instead
         DaqCapture(task, thread_local_counter);
 
         DaqEvent(task);
@@ -114,10 +133,13 @@ void *task(void *p) {
 
 void foo(void) {
 
+    // Static local scope measurement variable
+    static uint16_t static_counter = 0;
+
+    // Local variable
     uint32_t counter = 0;
 
-    // Local measurement variables
-    uint64_t test_int64 = 1;
+    // More local measurement variables
     float test_float = 0.1f;
     double test_double = 0.2;
     uint8_t test_uint8 = 1;
@@ -127,12 +149,12 @@ void foo(void) {
     int8_t test_int8 = -1;
     int16_t test_int16 = -2;
     int32_t test_int32 = -3;
-    int64_t test_int64_2 = -4;
+    uint64_t test_int64 = 1;
     struct test_struct test_struct = {1, -2, 0.3f, {1, 2, 3}};
     // uint8_t test_array[3] = {1, 2, 3};
 
-    global_counter++;
-    counter++;
+    counter = global_counter;
+    static_counter = global_counter;
 
     DaqCreateEvent(foo);
     DaqEvent(foo);
@@ -144,6 +166,19 @@ void foo(void) {
 int main(void) {
 
     printf("\nXCP on Ethernet no_a2l_demo C xcplib demo\n");
+
+    // Print build configuration
+#ifdef NDEBUG
+    printf("Build: Release ");
+#else
+    printf("Build: Debug ");
+#endif
+#ifdef __OPTIMIZE__
+    printf("(__OPTIMIZE__ = %u)\n", __OPTIMIZE__);
+#else
+    printf("(no optimization)\n");
+#endif
+
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 
@@ -170,10 +205,10 @@ int main(void) {
     // THREAD __t2 = 0;
     // create_thread(&__t2, task);
 
-    // Local measurment variables
+    // Local measurement variable
     uint32_t counter = 0;
 
-    // static measurement variable
+    // Local scope static measurement variable
     static uint16_t static_counter = 0;
 
     // XCP: Create a measurement event named "mainloop"
@@ -201,19 +236,17 @@ int main(void) {
 
             delay_us = p->delay_us; // Get the delay_us calibration value
 
-            static_counter++;
-            if (static_counter > p->counter_max) {
-                static_counter = 0;
-            }
-
-            counter++;
-            if (counter > p->counter_max) {
-                counter = 0;
+            global_counter++;
+            if (global_counter > p->counter_max) {
+                global_counter = 0;
             }
 
             // XCP: Unlock the calibration segment
             CalSegUnlock(params);
         }
+
+        counter = global_counter;
+        static_counter = global_counter;
 
         // XCP: Trigger the measurement event "mainloop"
         DaqEvent(mainloop);

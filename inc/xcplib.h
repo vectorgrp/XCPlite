@@ -228,6 +228,9 @@ uint16_t XcpGetEventIndex(tXcpEventId event);
         daq__##event##__##var = var;                                                                                                                                               \
     } while (0)
 
+/// Spill a local variable to stack (force the compiler to keep the value on stack)
+#define DaqSpill(event, var) volatile __typeof__(var) *__daq_spill_##event##_##var __attribute__((unused)) = &(var)
+
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // DAQ event trigger measurement instrumentation point
 
