@@ -10,7 +10,7 @@
 #include <stdio.h>   // for printf
 #include <string.h>  // for sprintf
 
-#include "a2l.h"      // for _A2lGetAddr_ test output
+// #include "a2l.h"      // for _A2lGetAddr_ test output
 #include "platform.h" // for platform abstraction for thread local, threads, mutex, sockets, sleepUs, ...
 #include "xcplib.h"   // for xcplib application programming interface
 
@@ -180,25 +180,16 @@ int main(void) {
     DaqCreateEvent(mainloop);
 
     // Test output
+    /*
     printf("A2L base address = %p:\n", ApplXcpGetBaseAddr());
     printf("Stackframe = %p\n", get_stack_frame_pointer());
-    A2lSetDynAddrMode(XcpFindEvent("mainloop", NULL), 0 /* dyn base index, 0 is stack */, get_stack_frame_pointer());
+    A2lSetDynAddrMode(XcpFindEvent("mainloop", NULL), 0, get_stack_frame_pointer());
     printf("&counter = %p, A2L-addr = %u:0x%08X\n", &counter, A2lGetAddrExt_(), A2lGetAddr_(&counter));
     printf("&static_counter = %p, A2L-addr = 0x%08X\n", &static_counter, ApplXcpGetAddr((void *)&static_counter));
     printf("&params = %p, A2L-addr = 0x%08X, size = %u\n", &params, ApplXcpGetAddr((void *)&params), (uint32_t)sizeof(params));
-    /*
-
-    /begin MEASUREMENT main.counter "" ULONG IDENTITY 0 0 0 4294967295 ECU_ADDRESS 0x1FFE4 ECU_ADDRESS_EXTENSION 2 READ_WRITE
-
-    A2L base address = 0x55556f800000:
-    Stackframe = 0x7fffce7e0ab0
-    &counter = 0x7fffce7e0af4, A2L-addr = 2:0x00010044
-    &static_counter = 0x55556f8302c6, A2L-addr = 0x000302C6
-    &params = 0x55556f8158e0, A2L-addr = 0x000158E0, size = 48
-
     */
 
-        // Mainloop
+    // Mainloop
     printf("Start main loop...\n");
     uint32_t delay_us;
     while (global_running) {
@@ -206,17 +197,17 @@ int main(void) {
         //      Calibration segment locking is wait-free, locks may be recursive, calibration segments may be shared among multiple threads
         //      Returns a pointer to the active page (working or reference) of the calibration segment
         {
-            struct params *params = CalSegLock(params);
+            const struct params *p = CalSegLock(params);
 
-            delay_us = params->delay_us; // Get the delay_us calibration value
+            delay_us = p->delay_us; // Get the delay_us calibration value
 
             static_counter++;
-            if (static_counter > params->counter_max) {
+            if (static_counter > p->counter_max) {
                 static_counter = 0;
             }
 
             counter++;
-            if (counter > params->counter_max) {
+            if (counter > p->counter_max) {
                 counter = 0;
             }
 

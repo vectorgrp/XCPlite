@@ -61,7 +61,7 @@ float calc_speed(float current_speed) {
     }
 
     // XCP: Lock access to calibration parameters
-    parameters_t *params = (parameters_t *)XcpLockCalSeg(calseg);
+    const parameters_t *params = (parameters_t *)XcpLockCalSeg(calseg);
 
     // Calculate new speed based on acceleration and sample rate
     new_speed = (float)(current_speed + params->acceleration * params->delay_us * 3.6 / 1000000.0); // km/h
@@ -156,7 +156,7 @@ int main(void) {
         // XCP: Lock the calibration parameter segment for consistent and safe access
         // Calibration segment locking is wait-free, locks may be recursive
         // Returns a pointer to the active page (working or reference) of the calibration segment
-        parameters_t *params = (parameters_t *)XcpLockCalSeg(calseg);
+        const parameters_t *params = (parameters_t *)XcpLockCalSeg(calseg);
 
         uint32_t delay_us = params->delay_us; // Get the delay calibration parameter in microseconds
 

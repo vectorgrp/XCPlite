@@ -177,7 +177,7 @@ double clip(double input) {
     // Simulate some more expensive work
     sleepUs(50);
 
-    params_t *params = (params_t *)XcpLockCalSeg(calseg);
+    const params_t *params = (params_t *)XcpLockCalSeg(calseg);
 
     // Clip the input value to a range defined in the calibration segment
     double output = input;
@@ -216,7 +216,7 @@ double filter(double input) {
     // Simulate some more expensive work
     sleepUs(100);
 
-    params_t *params = (params_t *)XcpLockCalSeg(calseg);
+    const params_t *params = (params_t *)XcpLockCalSeg(calseg);
 
     // Filter the input signal using a simple low-pass filter
     filtered_input = input * params->filter + last * (1.0 - params->filter);
@@ -283,7 +283,7 @@ void *task(void *p)
     while (run) {
 
         {
-            params_t *params = (params_t *)XcpLockCalSeg(calseg);
+            const params_t *params = (params_t *)XcpLockCalSeg(calseg);
 
             counter++;
             if (counter > params->counter_max) {

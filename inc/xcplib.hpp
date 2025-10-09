@@ -43,12 +43,12 @@ template <typename T> class CalSeg {
     class CalSegGuard {
       private:
         tXcpCalSegIndex segment_index_;
-        const T *params_ptr_;
+        T const *params_ptr_;
 
       public:
         /// Constructor - locks the calibration segment
         explicit CalSegGuard(tXcpCalSegIndex segment_index) : segment_index_(segment_index) {
-            params_ptr_ = reinterpret_cast<const T *>(XcpLockCalSeg(segment_index_));
+            params_ptr_ = reinterpret_cast<T const *>(XcpLockCalSeg(segment_index_));
             assert(params_ptr_ != nullptr);
         }
 

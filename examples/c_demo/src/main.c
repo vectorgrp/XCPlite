@@ -187,7 +187,7 @@ int main(void) {
         // Lock the calibration parameter segment for consistent and safe access
         // Calibration segment locking is completely lock-free and wait-free (no mutexes, system calls or CAS operations )
         // It returns a pointer to the active page (working or reference) of the calibration segment
-        params_t *params = (params_t *)XcpLockCalSeg(calseg);
+        const params_t *params = (params_t *)XcpLockCalSeg(calseg);
 
         if (delay_us != params->delay_us) {
             delay_us = params->delay_us;
