@@ -113,30 +113,31 @@ uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg);
 /// Create calibration segment macro
 /// Name given as identifier, type name and segment name are identical
 /// Macro may be used anywhere in the code, even in loops
+// cal__##name is the linker map file marker for calibration segments
 #define CalSegCreate(name)                                                                                                                                                         \
     static tXcpCalSegIndex cal__##name = XCP_UNDEFINED_CALSEG;                                                                                                                     \
-    static tXcpCalSegIndex __CalSeg_##name = XCP_UNDEFINED_CALSEG;                                                                                                                 \
+    static tXcpCalSegIndex __cal__##name = XCP_UNDEFINED_CALSEG;                                                                                                                   \
     if (cal__##name == XCP_UNDEFINED_CALSEG) {                                                                                                                                     \
         cal__##name = XcpCreateCalSeg(#name, (uint8_t *)&(name), sizeof(name));                                                                                                    \
-        __CalSeg_##name = cal__##name;                                                                                                                                             \
+        __cal__##name = cal__##name;                                                                                                                                               \
     }
 
 /// Get calibration segment macro
 /// Name given as identifier
 #define CalSegGet(name)                                                                                                                                                            \
-    static tXcpCalSegIndex __CalSeg_##name = XCP_UNDEFINED_CALSEG;                                                                                                                 \
-    if (__CalSeg_##name == XCP_UNDEFINED_CALSEG) {                                                                                                                                 \
-        __CalSeg_##name = XcpFindCalSeg(#name);                                                                                                                                    \
+    static tXcpCalSegIndex __cal__##name = XCP_UNDEFINED_CALSEG;                                                                                                                   \
+    if (__cal__##name == XCP_UNDEFINED_CALSEG) {                                                                                                                                   \
+        __cal__##name = XcpFindCalSeg(#name);                                                                                                                                      \
     }
 
 /// Lock calibration segment macro
 /// Name given as identifier
 /// Macro may be used anywhere in the code, even in loops
-#define CalSegLock(name) ((const __typeof__(name) *)XcpLockCalSeg(__CalSeg_##name))
+#define CalSegLock(name) ((const __typeof__(name) *)XcpLockCalSeg(__cal__##name))
 
 /// Unlock calibration segment macro
 /// Name given as identifier
-#define CalSegUnlock(name) XcpUnlockCalSeg(__CalSeg_##name)
+#define CalSegUnlock(name) XcpUnlockCalSeg(__cal__##name)
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Dynamic DAQ event creation
@@ -220,14 +221,6 @@ uint16_t XcpGetEventIndex(tXcpEventId event);
 #define DaqCreateEventInstance_s(name) \
     static THREAD_LOCAL tXcpEventId evt__##name = XCP_UNDEFINED_EVENT_ID; \ XcpCreateEventInstance(name, 0, 0);
 */
-
-/// Capture a local variable for measurement with a specific event
-/// The variable must be in scope when the event is triggered with DaqEvent
-#define DaqCapture(event, var)                                                                                                                                                     \
-    do {                                                                                                                                                                           \
-        static __typeof__(var) daq__##event##__##var;                                                                                                                              \
-        daq__##event##__##var = var;                                                                                                                                               \
-    } while (0)
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // DAQ event trigger measurement instrumentation point
@@ -324,7 +317,6 @@ static inline void *get_tls_base_address(void) {
     // Use __tls_get_addr with proper tls_index_t parameter
     return NULL; // Platform not supported for direct TLS access
 }
-#endif
 
 // Forward declaration for TLS runtime function
 // extern void *__tls_get_addr(void *ti);
@@ -340,6 +332,7 @@ static inline void *get_tls_base_address(void) {
 //     tls_index_t ti = {.ti_module = tls_module_id, .ti_offset = tls_offset};
 //     return __tls_get_addr(&ti);
 // }
+#endif
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // DAQ event trigger convenience macros
@@ -486,6 +479,49 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
 #define DaqEventRelative DaqEvent1
 #define DaqEventRelative_s DaqEvent1_s
 #define DaqEventRelative_i DaqEvent1_i
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Build time A2L file generation helpers
+// @@@@ Work in progress
+
+#define _XCP_STRING(var_name, suffix, value) static const char __attribute__((section(XCP_STRING_SECTION), used)) __xcp_str_##var_name##suffix[] = value
+
+#ifdef __APPLE__
+// macOS Mach-O: segment,section format
+#define XCP_META_SECTION "__DATA,__xcp_meta"
+#define XCP_STRING_SECTION "__DATA,__xcp_str"
+#else
+// Linux ELF: simple section names
+#define XCP_META_SECTION ".xcp.meta"
+#define XCP_STRING_SECTION ".xcp.strings"
+#endif
+
+// Metadata annotations
+#define XCP_COMMENT (name, comment) static const char *__attribute__((section(XCP_STRING_SECTION), used)) __a2l_comment_##name = comment;
+#define XCP_UNIT(name, unit) static const char *__attribute__((section(XCP_STRING_SECTION), used)) __a2l_unit_##name = unit;
+#define XCP_LIMITS(name, min, max)                                                                                                                                                 \
+    static const double __attribute__((section(XCP_META_SECTION), used)) __a2l_min_##name = min;                                                                                   \
+    static const double __attribute__((section(XCP_META_SECTION), used)) __a2l_max_##name = max;
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Measurement of stack variables
+
+// Mark a (local) variable as volatile and used to prevent compiler optimizations and force spilling it to a memory location
+// XCPlite can measure stack variables but not registers
+// The A2L updater or creator can handle only simple location expressions such as absolute addresses, stack relative addresses (CFA) and calibration segment relative addresses
+// For complex cases, use the DaqCapture macro to capture the variable in a hidden static variable
+/// Attribute to mark a variable as measurable by XCP/A2L
+/// Example usage: XCP_MEA int32_t my_var = 0;
+#define XCP_MEA volatile __attribute__((used))
+
+/// Capture a local variable for measurement with a specific event
+/// The variable must be in scope when the event is triggered with DaqEvent
+/// The build time A2L file generator will find the hidden static variable 'daq__##event##__##var' and create the measurement with approriate addressing mode and event association
+#define DaqCapture(event, var)                                                                                                                                                     \
+    do {                                                                                                                                                                           \
+        static __typeof__(var) daq__##event##__##var;                                                                                                                              \
+        daq__##event##__##var = var;                                                                                                                                               \
+    } while (0)
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Misc

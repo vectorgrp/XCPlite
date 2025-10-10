@@ -22,7 +22,7 @@ A2LFILE="examples/no_a2l_demo/CANape/no_a2l_demo.a2l"
 ELFFILE="examples/no_a2l_demo/CANape/no_a2l_demo.out"
 
 # Build type for target executable: Release, RelWithDebInfo or Debug
-# RelWithDebInfo is used for testing purposes with -O1 and NDEBUG
+# RelWithDebInfo is default to demonstrate operation with with -O1 and NDEBUG
 BUILD_TYPE="RelWithDebInfo"
 # -O0
 #BUILD_TYPE="Debug"
@@ -33,12 +33,9 @@ BUILD_TYPE="RelWithDebInfo"
 
 
 # Optimization level >= -O1 keeps variables in registers whenever possible, so local variables cannot be measured in any case
-# The most efficient solution to keep local variables measurable is to use the DaqCapture macro, another option is mark the variable with volatile
+# The most efficient solution to keep local variables measurable is to use the DaqCapture macro, another option is mark the variable with volatile ot with the provided macro XCP_MEA
 # Debug mode is the least efficient but keeps all variables and stack frames intact
-# So far, the solution works well with -O1, with -O2 some things have to be investigated (work in progress), -O3 is not recommended
-
-
-
+# So far, the solution works well with -O1
 
 
 # true: use the DanielT a2ltool to add measurements and characteristics to the A2L file template created by xcp_client
@@ -50,8 +47,6 @@ ENABLE_A2LTOOL=false
 ONLINE=true
 #ONLINE=false
 
-
-
 # Target connection details
 TARGET_USER="rainer"
 TARGET_HOST="192.168.0.206"
@@ -62,7 +57,6 @@ A2LTOOL="../a2ltool-RainerZ/target/debug/a2ltool"
 
 # Path to xcp_client tool executable
 XCPCLIENT="../xcp-lite-RainerZ/target/debug/xcp_client"
-
 
 
 
@@ -84,7 +78,7 @@ if [ $? -ne 0 ]; then
 fi
 
 
-# Download the target executable for local A2L generation
+# Download the target executable for the local A2L generation process
 echo "Downloading executable from target $TARGET_PATH to $ELFFILE ..."
 scp $TARGET_USER@$TARGET_HOST:$TARGET_PATH $ELFFILE > /dev/null
 if [ $? -ne 0 ]; then

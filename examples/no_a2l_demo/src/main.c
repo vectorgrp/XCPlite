@@ -1,6 +1,6 @@
 ﻿// no_a2l_demo xcplib example
-// Demonstrates XCPlite usage without runtime A2L generation
-// Requires manual or tool based A2L file creation and update
+// Demonstrates XCPlite usage without runtime XCP_MEA generation
+// Requires manual or tool based XCP_MEA file creation and update
 // Limited to parameters and measurements in addressable (4 GB - 32bit) global memory
 
 #include <assert.h>  // for assert
@@ -20,7 +20,7 @@ static void sig_handler(int sig) { global_running = false; }
 //-----------------------------------------------------------------------------------------------------
 // XCP params
 
-#define OPTION_PROJECT_NAME "no_a2l_demo" // Project name, used to build the A2L and BIN file name
+#define OPTION_PROJECT_NAME "no_a2l_demo" // Project name, used to build the XCP_MEA and BIN file name
 #define OPTION_USE_TCP true               // TCP or UDP
 #define OPTION_SERVER_PORT 5555           // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}   // Bind addr, 0.0.0.0 = ANY
@@ -47,6 +47,18 @@ struct params {
     } test_par_struct;
 };
 
+// Example A2L Creator code parser annotation
+/*
+   @@ ELEMENT = counter_max
+   @@ STRUCTURE = params
+   @@ DATA_TYPE = UWORD [0 ... 10000]
+   @@ END
+*/
+
+// Example A2L Creator linker map parser annotation
+XCP_LIMITS(delay_us, 1.0, 10000.0);
+XCP_UNIT(delay_us, "us");
+
 // Default values (reference page, "FLASH") for the calibration parameters
 const struct params params = {.counter_max = 1024,
                               .delay_us = 1000,
@@ -62,6 +74,13 @@ const struct params params = {.counter_max = 1024,
 // Modified in function foo
 // Measuring it in main or task, is possible, but asynchronous and may give inconsistent results
 uint16_t global_counter = 0;
+
+/*
+@@ SYMBOL = global_counter
+@@ DESCRIPTION = "Global counter incremented in function main synch with event mainloop"
+@@ UNIT = "delay_us ticks"
+@@ END
+*/
 
 // More global measurement variables of various basic and complex types
 uint8_t global_test_uint8 = 8;
@@ -91,13 +110,14 @@ void *task(void *p) {
     printf("TLS base address = %p\n", get_tls_base_address());
 
     // Thread local measurement variables
-    volatile static THREAD_LOCAL uint16_t thread_local_counter = 0;
+    XCP_MEA static THREAD_LOCAL uint16_t thread_local_counter = 0;
 
     // Static local scope measurement variable
-    volatile static uint16_t static_counter = 0;
+    XCP_MEA static uint16_t static_counter = 0;
 
     // Local measurement variable
-    volatile uint32_t counter = 0;
+    XCP_MEA uint32_t counter = 0;
+    XCP_UNIT(counter, "ticks");
 
     DaqCreateEvent(task);
     // tXcpEventId event = DaqCreateEventInstance(task); // Create a measurement event instance for each instance of the this thread
@@ -109,7 +129,7 @@ void *task(void *p) {
         thread_local_counter = global_counter;
 
         // @@@@ TODO: Thread local variables
-        // The A2L creator can not handle thread local variables yet
+        // The XCP_MEA creator can not handle thread local variables yet
         // The DAQ capture method does not work for TLS
         // DaqCapture(task, thread_local_counter);
 
@@ -128,23 +148,23 @@ void *task(void *p) {
 void foo(void) {
 
     // Static local scope measurement variable
-    volatile static uint16_t static_counter = 0;
+    XCP_MEA static uint16_t static_counter = 0;
 
     // Local variable
-    volatile uint32_t counter = 0;
+    XCP_MEA uint32_t counter = 0;
 
     // More local measurement variables
-    volatile float test_float = 0.1f;
-    volatile double test_double = 0.2;
-    volatile uint8_t test_uint8 = 1;
-    volatile uint16_t test_uint16 = 2;
-    volatile uint32_t test_uint32 = 3;
-    volatile uint64_t test_uint64 = 4;
-    volatile int8_t test_int8 = -1;
-    volatile int16_t test_int16 = -2;
-    volatile int32_t test_int32 = -3;
-    volatile uint64_t test_int64 = 1;
-    volatile struct test_struct test_struct = {1, -2, 0.3f, {1, 2, 3}};
+    XCP_MEA float test_float = 0.1f;
+    XCP_MEA double test_double = 0.2;
+    XCP_MEA uint8_t test_uint8 = 1;
+    XCP_MEA uint16_t test_uint16 = 2;
+    XCP_MEA uint32_t test_uint32 = 3;
+    XCP_MEA uint64_t test_uint64 = 4;
+    XCP_MEA int8_t test_int8 = -1;
+    XCP_MEA int16_t test_int16 = -2;
+    XCP_MEA int32_t test_int32 = -3;
+    XCP_MEA uint64_t test_int64 = 1;
+    XCP_MEA struct test_struct test_struct = {1, -2, 0.3f, {1, 2, 3}};
     // uint8_t test_array[3] = {1, 2, 3};
 
     counter = global_counter;
@@ -200,22 +220,22 @@ int main(void) {
     // create_thread(&__t2, task);
 
     // Local measurement variable
-    volatile uint32_t counter = 0;
+    XCP_MEA uint32_t counter = 0;
 
     // Local scope static measurement variable
-    volatile static uint16_t static_counter = 0;
+    XCP_MEA static uint16_t static_counter = 0;
 
     // XCP: Create a measurement event named "mainloop"
     DaqCreateEvent(mainloop);
 
     // Test output
     /*
-    printf("A2L base address = %p:\n", ApplXcpGetBaseAddr());
+    printf("XCP_MEA base address = %p:\n", ApplXcpGetBaseAddr());
     printf("Stackframe = %p\n", get_stack_frame_pointer());
     A2lSetDynAddrMode(XcpFindEvent("mainloop", NULL), 0, get_stack_frame_pointer());
-    printf("&counter = %p, A2L-addr = %u:0x%08X\n", &counter, A2lGetAddrExt_(), A2lGetAddr_(&counter));
-    printf("&static_counter = %p, A2L-addr = 0x%08X\n", &static_counter, ApplXcpGetAddr((void *)&static_counter));
-    printf("&params = %p, A2L-addr = 0x%08X, size = %u\n", &params, ApplXcpGetAddr((void *)&params), (uint32_t)sizeof(params));
+    printf("&counter = %p, XCP_MEA-addr = %u:0x%08X\n", &counter, A2lGetAddrExt_(), A2lGetAddr_(&counter));
+    printf("&static_counter = %p, XCP_MEA-addr = 0x%08X\n", &static_counter, ApplXcpGetAddr((void *)&static_counter));
+    printf("&params = %p, XCP_MEA-addr = 0x%08X, size = %u\n", &params, ApplXcpGetAddr((void *)&params), (uint32_t)sizeof(params));
     */
 
     // Mainloop
