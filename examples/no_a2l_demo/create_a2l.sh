@@ -43,10 +43,14 @@ BUILD_TYPE="RelWithDebInfo"
 ENABLE_A2LTOOL=false
 #ENABLE_A2LTOOL=true
 
+# Connect to the target system possible
+#ECU_ONLINE=true
+ECU_ONLINE=false
+
 # Connect to the target XCP server possible
 # Start the XCP server on the target in background and stop it after A2L creation
-ECU_ONLINE=true
-#ECU_ONLINE=false
+#XCP_ONLINE=true
+XCP_ONLINE=false
 
 # Use the offline A2L creator and then update the A2L with the online A2L updater when the ECU is online
 #OFFLINE_A2L_CREATION=false
@@ -67,7 +71,11 @@ echo "==========================================================================
 echo "A2L file creator for the no_a2l_demo example project"
 echo "========================================================================================================"
 
+echo "Logging to $LOGFILE enabled"
+echo "" > $LOGFILE
 
+
+if [ $ECU_ONLINE == true ]; then
 
 # Sync target
 echo "Sync target ..."            
@@ -95,10 +103,8 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-
-
 # Run target executable with XCP on Ethernet in background#
-if [ $ECU_ONLINE == true ]; then
+if [ $XCP_ONLINE == true ]; then
 ssh $TARGET_USER@$TARGET_HOST "pkill -f no_a2l_demo.out" >> $LOGFILE
 echo ""
 echo "Starting executable $TARGET_PATH on Target ..."
@@ -107,6 +113,7 @@ SSH_PID=$!
 sleep 2
 fi
 
+fi
 
 if [ $ENABLE_A2LTOOL == true ]; then
     
@@ -140,14 +147,17 @@ if [ $? -ne 0 ]; then
     echo "❌ FAILED: xcp_client returned error"
     exit 1
 fi
+
 else
+
 echo "Creating A2L file from XCPlite ELF file ..."
 $XCPCLIENT --log-level=3 --elf $ELFFILE  --create-a2l --a2l $A2LFILE  >> $LOGFILE
 if [ $? -ne 0 ]; then
     echo "❌ FAILED: xcp_client returned error"
     exit 1
 fi
-if [ $ECU_ONLINE == true ]; then
+
+if [ $XCP_ONLINE == true ]; then
 cp $A2LFILE $A2LFILE.unfixed
 echo "Fixing A2L file with XCP server information to correct event ids, segment numbers and IF_DATA IP address ..."
 $XCPCLIENT --log-level=3 --dest-addr=$TARGET_HOST --tcp --elf $ELFFILE   --a2l $A2LFILE  --fix-a2l >> $LOGFILE
@@ -163,8 +173,8 @@ fi
 
 fi
 
-
 if [ $ECU_ONLINE == true ]; then
+if [ $XCP_ONLINE == true ]; then
 
 # Stop target - kill SSH process if it still exists, then kill remote process by name
 echo ""
@@ -178,6 +188,7 @@ ssh $TARGET_USER@$TARGET_HOST "pkill -f no_a2l_demo.out" 2>/dev/null || true
 # Give target some time to shutdown
 sleep 1
 
+fi
 fi
 
 echo ""
