@@ -37,17 +37,21 @@ XCPlite is used as a C library by the implementation of XCP for Rust in:
 
 ### Whats new in XCPlite V0.9.3
 
+Work in progress
+
 - More flexible addressing mode configuration in xcp_cfg.h
 - Absolute calibration segment addressing (OPTION_CAL_SEGMENTS_ABS in main_cfg.h)
 - Signature of xcplib::CreateCalSeg changed, pointer to reference page page
 - Automatic EPK segment is optional  (OPTION_CAL_SEGMENT_EPK in main_cfg.h)
-- Support for more that one base address in relative address mode
+- Support for more than one base address in relative address mode
 - Optional async event with 1ms cycle time and prescaler support (OPTION_DAQ_ASYNC_EVENT in main_cfg.h)
-- New experimental demo no_a2l_demo to demonstrate workflows without runtime A2L generation (using a XCPlite specific A2L creator), see README.MD of no_a2l_demo)
+- New experimental demo no_a2l_demo to demonstrate workflows without runtime A2L generation (using a XCPlite specific A2L creator, see README.MD of no_a2l_demo)
 - Memory optimization for event/daq-list mapping
 - Internal naming convention refactored to support A2L creation for dynamic objects from ELF/DWARF binaries  (gXcp, gA2l and __* are ignored by the A2L creator)
-- Generated A2L file used the project_no identifier to indicate the configured addressing schema
+- Generated A2L file uses the project_no identifier to indicate the configured addressing schema (currently ACSDD or CASDD)
 - Generate IF_DATA CANAPE_ADDRESS_UPDATE for memory segments
+- Option to include or embed AML files
+- Bugfixes
 
 ### Whats new in XCPlite V0.9.2
 
@@ -318,15 +322,17 @@ Note that currently, the usual A2L tools will only update absolute addresses for
 Data acquisition of variables on stack and relative addressing, is not possible today. This might change in a future version of the A2L Updater.  
 
 Option 4:  
-Disable A2L generation completely and enable absolute addressing for calibration segments (#define OPTION_CAL_SEGMENTS_ABS in main_cfg.h).  
-Use only absolute addressing mode, which is in this case associated to address extension 0.  
-The A2l file may be created and updated with any usual method of your choice, using CANape, A2L-Studio, A2L-Creator, a2ltool, ...  
+Disable A2L generation or don't use the A2L generation functions at all.  
+Enable absolute addressing for calibration segments (#define OPTION_CAL_SEGMENTS_ABS in main_cfg.h).  
+Use only absolute addressing mode, which is in this mode associated to address extension 0.  
+The A2l file may then be created and updated with any usual method of your choice, using CANape, A2L-Studio, A2L-Creator, a2ltool, ...  
 Measurement of heap and stack is not possible anymore and you are now limited to 32 a bit address range starting at the module load address (ApplXcpGetBaseAddr()).  
 Thread safe parameter modification using calibration segments is still assured.  
 Thread safety of measurement data acquisition is now in your responsibility, by using a safe fixed event for each individual measurement variable.  
-The demo no_a2l_demo demonstrates this.  
-
-will work only for absolute addressing mode, not for segment, stack and relative addressing modes.  
+  
+Option5:
+Experimental. Use a XCPlite specific A2L creator tool, which is aware of the different addressing schemes and static markers created by the code instrumentation macros.
+Experimetal, work in progress. See no_a2l_demo.  
 
 ### Addressing modes
 
@@ -339,9 +345,10 @@ The addressing mode is indicated by the address extension:
 3.. - Signed 16Bit relative address, high word of the address is the event id. This allows asynchronous (polling) access to the variable. Used for heap and class instance member variables.  
 
 Depending on #define OPTION_CAL_SEGMENTS_ABS in main_cfg.h, address extension 0 is either the absolute addressing mode or the segment relative addressing mode.
+The 2 mode are named CASDD and ACSDD. The A2L project_no is used to indicate the addressing mode to A2L creators or updaters.  
 This is important, because CANape does not support address extensions >0 for parameters in calibration segments.  
 Parameters in calibration segments may be accessed by their segment relative address or by their absolute address, using the corresponding address extension.  
-The absolute address of a calibration parameter is an address in the default page struct. This requires, that the pointer to the default parameters (reference page) given to XcpCreateCalSeg are within the 32 bit addressable with static lifetime! XcpCreateCalSeg does not copy the default parameters.  
+The absolute address of a calibration parameter is an address within the default/regerence page structure. This requires, that the pointer to the default parameters (reference page) given to XcpCreateCalSeg are within the 32 bit addressable with static lifetime! XcpCreateCalSeg does not copy the default parameters.  
 This would be possible, when only using segment relative addressing mode, but is currently not implement.  
 
 ### Platform and language standard requirements and resource usage
