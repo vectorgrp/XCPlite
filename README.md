@@ -35,6 +35,20 @@ It implements and demonstrates some techniques how to deal with variables in dyn
 XCPlite is used as a C library by the implementation of XCP for Rust in:  
 <https://github.com/vectorgrp/xcp-lite>  
 
+### Whats new in XCPlite V0.9.3
+
+- More flexible addressing mode configuration in xcp_cfg.h
+- Absolute calibration segment addressing (OPTION_CAL_SEGMENTS_ABS in main_cfg.h)
+- Signature of xcplib::CreateCalSeg changed, pointer to reference page page
+- Automatic EPK segment is optional  (OPTION_CAL_SEGMENT_EPK in main_cfg.h)
+- Support for more that one base address in relative address mode
+- Optional async event with 1ms cycle time and prescaler support (OPTION_DAQ_ASYNC_EVENT in main_cfg.h)
+- New experimental demo no_a2l_demo to demonstrate workflows without runtime A2L generation (using a XCPlite specific A2L creator), see README.MD of no_a2l_demo)
+- Memory optimization for event/daq-list mapping
+- Internal naming convention refactored to support A2L creation for dynamic objects from ELF/DWARF binaries  (gXcp, gA2l and __* are ignored by the A2L creator)
+- Generated A2L file used the project_no identifier to indicate the configured addressing schema
+- Generate IF_DATA CANAPE_ADDRESS_UPDATE for memory segments
+
 ### Whats new in XCPlite V0.9.2
 
 - Breaking changes to V6.  

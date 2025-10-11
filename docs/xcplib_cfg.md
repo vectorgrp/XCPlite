@@ -1,6 +1,6 @@
 # XCPlite Configuration Guide
 
-**Version**: 0.9.2
+**Version**: 0.9.3
 
 ## 0 · XCPlite Configuration
 
