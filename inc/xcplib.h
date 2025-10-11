@@ -512,7 +512,8 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
 // For complex cases, use the DaqCapture macro to capture the variable in a hidden static variable
 /// Attribute to mark a variable as measurable by XCP/A2L
 /// Example usage: XCP_MEA int32_t my_var = 0;
-#define XCP_MEA volatile __attribute__((used))
+#define XCP_MEA volatile
+// #define XCP_MEA volatile __attribute__((used))
 
 /// Capture a local variable for measurement with a specific event
 /// The variable must be in scope when the event is triggered with DaqEvent

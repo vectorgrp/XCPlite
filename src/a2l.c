@@ -85,7 +85,7 @@ static uint32_t gA2lConversions;
 //----------------------------------------------------------------------------------
 static const char *gA2lHeader1 = "ASAP2_VERSION 1 71\n"
                                  "/begin PROJECT %s \"\"\n\n" // project name
-                                 "/begin HEADER \"\" VERSION \"1.0\" PROJECT_NO XCPlite /end HEADER\n\n"
+                                 "/begin HEADER \"\" VERSION \"1.0\" PROJECT_NO " XCP_ADDRESS_MODE " /end HEADER\n\n"
                                  "/begin MODULE %s \"\"\n\n"; // module name
 
 static const char *gA2lHeader2 = "/begin MOD_COMMON \"\"\n"

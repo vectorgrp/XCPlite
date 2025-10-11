@@ -411,6 +411,7 @@ else
         echo "Build completed successfully: $BUILD_TYPE mode with $COMPILER_NAME compiler"
     fi
     echo "==================================================================="
+    echo ""
     exit 0
 fi
 

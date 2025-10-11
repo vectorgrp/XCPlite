@@ -37,3 +37,4 @@ CANape.aml
 /tools/gimli_demo/target
 /tools/dwarf_reader/target
 
+/examples/no_a2l_demo/CANape/no_a2l_demo.a2l.unfixed
