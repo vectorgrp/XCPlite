@@ -10,13 +10,18 @@
 # - The local machine must have xcp_client and a2ltool compiled and available
 
 
-LOGFILE="examples/no_a2l_demo/CANape/no_a2l_demo.log"
-#LOGFILE='/dev/stdout'
+#======================================================================================================================
+# Parameters
+#======================================================================================================================
+
+#LOGFILE="examples/no_a2l_demo/CANape/no_a2l_demo.log"
+LOGFILE='/dev/stdout'
 #LOGFILE="/dev/null"
 
 # Target A2L name to generate
 # The A2L file is generated in the local machine CANape project directory (examples/no_a2l_demo/CANape/)
 A2LFILE="examples/no_a2l_demo/CANape/no_a2l_demo.a2l"
+A2LFILE_TEMPLATE="examples/no_a2l_demo/CANape/no_a2l_demo.template.a2l"
 
 # Path to ELF file in local machine CANape project folder
 ELFFILE="examples/no_a2l_demo/CANape/no_a2l_demo.out"
@@ -45,16 +50,16 @@ ENABLE_A2LTOOL=false
 
 # Connect to the target system possible
 #ECU_ONLINE=true
-ECU_ONLINE=false
+ECU_ONLINE=true
 
 # Connect to the target XCP server possible
 # Start the XCP server on the target in background and stop it after A2L creation
 #XCP_ONLINE=true
-XCP_ONLINE=false
+XCP_ONLINE=true
 
 # Use the offline A2L creator and then update the A2L with the online A2L updater when the ECU is online
-#OFFLINE_A2L_CREATION=false
-OFFLINE_A2L_CREATION=true
+#OFFLINE_A2L_CREATION_AND_FIX=false
+OFFLINE_A2L_CREATION_AND_FIX=true
 
 # Target connection details
 TARGET_USER="rainer"
@@ -66,6 +71,16 @@ A2LTOOL="../a2ltool-RainerZ/target/debug/a2ltool"
 
 # Path to xcp_client tool executable
 XCPCLIENT="../xcp-lite-RainerZ/target/debug/xcp_client"
+
+
+# Run a simple measurement with the created A2L file to verify that measurements and characteristics are working
+#TEST=true
+TEST=false
+
+#======================================================================================================================
+# Sync Target, Build Application on Target, Download ELF, Start ECU, ...
+#======================================================================================================================
+
 
 echo "========================================================================================================"
 echo "A2L file creator for the no_a2l_demo example project"
@@ -79,7 +94,7 @@ if [ $ECU_ONLINE == true ]; then
 
 # Sync target
 echo "Sync target ..."            
-rsync -avz --delete --exclude=build/ --exclude=.git/ --exclude="*.o" --exclude="*.out" --exclude="*.a" ./ rainer@192.168.0.206:~/XCPlite-RainerZ/ >> $LOGFILE
+rsync -avz --delete --exclude=build/ --exclude=.git/ --exclude="*.o" --exclude="*.out" --exclude="*.a" ./ rainer@192.168.0.206:~/XCPlite-RainerZ/ 1> /dev/null
 if [ $? -ne 0 ]; then
     echo "❌ FAILED: Rsync with target"
     exit 1
@@ -88,7 +103,7 @@ fi
 
 # Build on target
 echo "Build executable on Target ..."
-ssh $TARGET_USER@$TARGET_HOST "cd ~/XCPlite-RainerZ && ./build.sh $BUILD_TYPE" >> $LOGFILE
+ssh $TARGET_USER@$TARGET_HOST "cd ~/XCPlite-RainerZ && ./build.sh $BUILD_TYPE" 1> /dev/null
 if [ $? -ne 0 ]; then
     echo "❌ FAILED: Build on target"
     exit 1
@@ -97,15 +112,16 @@ fi
 
 # Download the target executable for the local A2L generation process
 echo "Downloading executable from target $TARGET_PATH to $ELFFILE ..."
-scp $TARGET_USER@$TARGET_HOST:$TARGET_PATH $ELFFILE >> $LOGFILE
+scp $TARGET_USER@$TARGET_HOST:$TARGET_PATH $ELFFILE 1> /dev/null
 if [ $? -ne 0 ]; then
     echo "❌ FAILED: Download $TARGET_PATH"
     exit 1
 fi
 
+
 # Run target executable with XCP on Ethernet in background#
 if [ $XCP_ONLINE == true ]; then
-ssh $TARGET_USER@$TARGET_HOST "pkill -f no_a2l_demo.out" >> $LOGFILE
+ssh $TARGET_USER@$TARGET_HOST "pkill -f no_a2l_demo.out" 1> /dev/null
 echo ""
 echo "Starting executable $TARGET_PATH on Target ..."
 ssh $TARGET_USER@$TARGET_HOST "cd ~/XCPlite-RainerZ && $TARGET_PATH" &
@@ -115,6 +131,12 @@ fi
 
 fi
 
+#======================================================================================================================
+# Create A2L file
+#======================================================================================================================
+
+#----------------------------------------------------------------------------------------------------------------------
+# a2ltool
 if [ $ENABLE_A2LTOOL == true ]; then
     
 # Use a2ltool to update the A2L template with measurement 'counter' and characteristic 'params'
@@ -135,32 +157,46 @@ if [ $? -ne 0 ]; then
 fi
 cp tmp.a2l $A2LFILE
 
+#----------------------------------------------------------------------------------------------------------------------
 else
 
-# Create a A2L template with xcp_client by uploading memory segments and events via XCP
-echo ""
+#----------------------------------------------------
+# Create a A2L template offline with xcp_client by uploading memory segments and events via XCP
 
-if [ $OFFLINE_A2L_CREATION == false ]; then
+if [ $OFFLINE_A2L_CREATION_AND_FIX == false ]; then
+echo ""
+echo "========================================================================================================"
 echo "Creating A2L file in online mode via XCP event and segment information and from XCPlite ELF file ..."
-$XCPCLIENT --log-level=3  --dest-addr=$TARGET_HOST --tcp  --elf $ELFFILE  --a2l $A2LFILE --create-a2l >> $LOGFILE
+echo "========================================================================================================"
+echo ""
+$XCPCLIENT --log-level=3  --verbose=0 --dest-addr=$TARGET_HOST --tcp --elf $ELFFILE  --a2l $A2LFILE --create-a2l >> $LOGFILE
 if [ $? -ne 0 ]; then
     echo "❌ FAILED: xcp_client returned error"
     exit 1
 fi
 
+#---------------------------------------------------
 else
-
+echo ""
+echo "========================================================================================================"
 echo "Creating A2L file from XCPlite ELF file ..."
-$XCPCLIENT --log-level=3 --elf $ELFFILE  --create-a2l --a2l $A2LFILE  >> $LOGFILE
+echo "========================================================================================================"
+echo ""
+$XCPCLIENT --log-level=3 --verbose=0 --dest-addr=$TARGET_HOST --tcp --offline --elf $ELFFILE  --create-a2l --a2l $A2LFILE_TEMPLATE  >> $LOGFILE
 if [ $? -ne 0 ]; then
     echo "❌ FAILED: xcp_client returned error"
     exit 1
 fi
 
 if [ $XCP_ONLINE == true ]; then
-cp $A2LFILE $A2LFILE.unfixed
+
+cp $A2LFILE_TEMPLATE $A2LFILE
+echo ""
+echo "========================================================================================================"
 echo "Fixing A2L file with XCP server information to correct event ids, segment numbers and IF_DATA IP address ..."
-$XCPCLIENT --log-level=3 --dest-addr=$TARGET_HOST --tcp --elf $ELFFILE   --a2l $A2LFILE  --fix-a2l >> $LOGFILE
+echo "========================================================================================================"
+echo ""
+$XCPCLIENT --log-level=3 --verbose=0 --dest-addr=$TARGET_HOST --tcp --elf $ELFFILE   --a2l $A2LFILE  --fix-a2l >> $LOGFILE
 if [ $? -ne 0 ]; then
     echo "❌ FAILED: xcp_client returned error"
     exit 1
@@ -172,6 +208,17 @@ fi
 
 
 fi
+
+
+#======================================================================================================================
+# Shutdown
+#======================================================================================================================
+
+
+echo ""
+echo ""
+echo ""
+
 
 if [ $ECU_ONLINE == true ]; then
 if [ $XCP_ONLINE == true ]; then
@@ -197,14 +244,22 @@ echo "Created a new A2L file $A2LFILE"
 echo ""
 
 
-#echo "========================================================================================================"
-#echo "Test measurement"
-#echo "========================================================================================================"
+#======================================================================================================================
+# Test
+#======================================================================================================================
 
-#echo "Start a test measurement"
-#ssh $TARGET_USER@$TARGET_HOST "cd ~/XCPlite-RainerZ && $TARGET_PATH" &
-#sleep 1
-#$XCPCLIENT --log-level=3  --dest-addr=$TARGET_HOST:5555 --tcp  --a2l $A2LFILE  --mea ".*" --time-ms 100
-#ssh $TARGET_USER@$TARGET_HOST "pkill -f no_a2l_demo.out" 
+if [ $TEST == true ]; then
 
 
+echo "========================================================================================================"
+echo "Test measurement"
+echo "========================================================================================================"
+
+echo "Start a test measurement"
+ssh $TARGET_USER@$TARGET_HOST "cd ~/XCPlite-RainerZ && $TARGET_PATH" &
+sleep 1
+$XCPCLIENT --log-level=3  --dest-addr=$TARGET_HOST:5555 --tcp  --a2l $A2LFILE  --mea ".*" --time-ms 100
+ssh $TARGET_USER@$TARGET_HOST "pkill -f no_a2l_demo.out" 
+
+
+fi

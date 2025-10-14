@@ -1,16 +1,16 @@
 ﻿// no_a2l_demo xcplib example
-// Demonstrates XCPlite usage without runtime XCP_MEA generation
-// Requires manual or tool based XCP_MEA file creation and update
-// Limited to parameters and measurements in addressable (4 GB - 32bit) global memory
+// Demonstrates XCPlite operation without runtime A2L generation
+// See ../README.md for details
+// Requires manual or tool based XCPlite specific A2L file creation and update process
 
 #include <assert.h>  // for assert
 #include <signal.h>  // for signal handling
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uintxx_t
 #include <stdio.h>   // for printf
+#include <stdlib.h>  // for malloc, free
 #include <string.h>  // for sprintf
 
-// #include "a2l.h"      // for _A2lGetAddr_ test output
 #include "platform.h" // for platform abstraction for thread local, threads, mutex, sockets, sleepUs, ...
 #include "xcplib.h"   // for xcplib application programming interface
 
@@ -38,6 +38,7 @@ struct params {
     // Test parameters of various types
     uint8_t test_par_uint8_array[10];
     double test_par_double;
+    bool test_par_bool;
     enum { ENUM_0 = 0, ENUM_1 = 1, ENUM_2 = 2, ENUM_3 = 3 } test_par_enum;
     struct test_par_struct {
         uint16_t test_field_uint16;
@@ -63,6 +64,7 @@ XCP_UNIT(delay_us, "us");
 const struct params params = {.counter_max = 1024,
                               .delay_us = 1000,
                               .test_par_double = 0.123456789,
+                              .test_par_bool = true,
                               .test_par_enum = ENUM_2,
                               .test_par_uint8_array = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
                               .test_par_struct = {2, -2, 0.4f, {0, 1, 2}}};
@@ -75,6 +77,7 @@ const struct params params = {.counter_max = 1024,
 // Measuring it in main or task, is possible, but asynchronous and may give inconsistent results
 uint16_t global_counter = 0;
 
+// Example A2L Creator code parser annotation
 /*
 @@ SYMBOL = global_counter
 @@ DESCRIPTION = "Global counter incremented in function main synch with event mainloop"
@@ -93,13 +96,15 @@ int32_t global_test_int32 = -32;
 int64_t global_test_int64 = -64;
 float global_test_float = 0.4f;
 double global_test_double = 0.8;
+bool global_test_bool = true;
 uint8_t global_test_array[3] = {1, 2, 3};
 struct test_struct {
     uint16_t a;
     int16_t b;
     float f;
     uint8_t d[3];
-} global_test_struct = {1, -2, 0.3f, {1, 2, 3}};
+};
+struct test_struct global_test_struct = {1, -2, 0.3f, {1, 2, 3}};
 
 //-----------------------------------------------------------------------------------------------------
 // Demo thread
@@ -117,7 +122,17 @@ void *task(void *p) {
 
     // Local measurement variable
     XCP_MEA uint32_t counter = 0;
-    XCP_UNIT(counter, "ticks");
+    XCP_UNIT(counter, "ticks"); // Example for an A2L Creator annotation as code
+
+    // Heap measurement variable
+    XCP_MEA struct test_struct *heap_struct = (struct test_struct *)malloc(sizeof(struct test_struct));
+    assert(heap_struct);
+    heap_struct->a = 11;
+    heap_struct->b = -22;
+    heap_struct->f = 0.33f;
+    heap_struct->d[0] = 11;
+    heap_struct->d[1] = 22;
+    heap_struct->d[2] = 33;
 
     DaqCreateEvent(task);
     // tXcpEventId event = DaqCreateEventInstance(task); // Create a measurement event instance for each instance of the this thread
@@ -133,12 +148,12 @@ void *task(void *p) {
         // The DAQ capture method does not work for TLS
         // DaqCapture(task, thread_local_counter);
 
-        DaqEvent(task);
-        // DaqEvent_i(event);
+        DaqEventExt(task, heap_struct);
 
         sleepUs(1000);
     }
 
+    free(heap_struct);
     return 0;
 }
 
