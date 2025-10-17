@@ -128,7 +128,7 @@ xcp-lite for Rust XCP_LITE_CADR:
 // --- Asynchronous absolute addressing mode (not thread safe)
 #ifdef XCP_ENABLE_ABS_ADDRESSING
 
-// Absolute addr format (ApplXcpGetBaseAddr() + (addr as uint32_t))
+// Absolute addr format (xcp_get_base_addr() + (addr as uint32_t))
 // Used for global data
 #define XcpAddrIsAbs(addr_ext) ((addr_ext) == XCP_ADDR_EXT_ABS)
 #define XcpAddrEncodeAbs(p) ApplXcpGetAddr(p) // Calculate absolute address encoding from a pointer, application specific function

@@ -326,7 +326,7 @@ Disable A2L generation or don't use the A2L generation functions at all.
 Enable absolute addressing for calibration segments (#define OPTION_CAL_SEGMENTS_ABS in main_cfg.h).  
 Use only absolute addressing mode, which is in this mode associated to address extension 0.  
 The A2l file may then be created and updated with any usual method of your choice, using CANape, A2L-Studio, A2L-Creator, a2ltool, ...  
-Measurement of heap and stack is not possible anymore and you are now limited to 32 a bit address range starting at the module load address (ApplXcpGetBaseAddr()).  
+Measurement of heap and stack is not possible anymore and you are now limited to 32 a bit address range starting at the module load address (ApplXcpGetBaseAddr()/xcp_get_base_addr()).  
 Thread safe parameter modification using calibration segments is still assured.  
 Thread safety of measurement data acquisition is now in your responsibility, by using a safe fixed event for each individual measurement variable.  
   

@@ -14,8 +14,8 @@
 # Parameters
 #======================================================================================================================
 
-#LOGFILE="examples/no_a2l_demo/CANape/no_a2l_demo.log"
-LOGFILE='/dev/stdout'
+LOGFILE="examples/no_a2l_demo/CANape/no_a2l_demo.log"
+#LOGFILE='/dev/stdout'
 #LOGFILE="/dev/null"
 
 # Target A2L name to generate

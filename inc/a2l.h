@@ -47,7 +47,7 @@
 #include <stddef.h>  // for offsetof
 #include <stdint.h>  // for uintxx_t
 
-#include "xcplib.h" // for tXcpEventId, tXcpCalSegIndex, get_stack_frame_pointer
+#include "xcplib.h" // for tXcpEventId, tXcpCalSegIndex, xcp_get_frame_addr, ...
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // A2L generation modes
@@ -323,9 +323,9 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
 
 // Set addressing mode to stack and event 'event_name'
 // Error if the event does not exist
-#define A2lSetStackAddrMode(event_name) A2lSetStackAddrMode__s(#event_name, get_stack_frame_pointer());
-#define A2lSetStackAddrMode_s(event_name_string) A2lSetStackAddrMode__s(event_name_string, get_stack_frame_pointer());
-#define A2lSetStackAddrMode_i(event_id) A2lSetStackAddrMode__i(event_id, get_stack_frame_pointer());
+#define A2lSetStackAddrMode(event_name) A2lSetStackAddrMode__s(#event_name, xcp_get_frame_addr());
+#define A2lSetStackAddrMode_s(event_name_string) A2lSetStackAddrMode__s(event_name_string, xcp_get_frame_addr());
+#define A2lSetStackAddrMode_i(event_id) A2lSetStackAddrMode__i(event_id, xcp_get_frame_addr());
 
 // Set addressing mode to absolute and event 'event_name'
 // Error if the event does not exist

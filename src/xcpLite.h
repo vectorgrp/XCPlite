@@ -440,8 +440,10 @@ void ApplXcpStopDaq(void);
 
 /* Address conversions from A2L address to pointer and vice versa in absolute addressing mode */
 #ifdef XCP_ENABLE_ABS_ADDRESSING
+extern const uint8_t *gXcpBaseAddr;        // For runtime optimization, use xcp_get_base_addr() instead of ApplXcpGetBaseAddr()
+const uint8_t *ApplXcpGetBaseAddr(void);   // Get the base address for DAQ data access */
+#define xcp_get_base_addr() gXcpBaseAddr   // For runtime optimization, use xcp_get_base_addr() instead of ApplXcpGetBaseAddr()
 uint32_t ApplXcpGetAddr(const uint8_t *p); // Calculate the xcpAddr address from a pointer
-uint8_t *ApplXcpGetBaseAddr(void);         // Get the base address for DAQ data access */
 #endif
 
 /* Read and write memory */

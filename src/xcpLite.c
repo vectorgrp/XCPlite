@@ -1156,7 +1156,7 @@ uint8_t XcpSetMta(uint8_t ext, uint32_t addr) {
 #ifdef XCP_ENABLE_ABS_ADDRESSING
                     // Absolute addressing mode
                     if (XcpAddrIsAbs(gXcp.MtaExt)) {
-                        gXcp.MtaPtr = ApplXcpGetBaseAddr() + XcpAddrDecodeAbsOffset(gXcp.MtaAddr);
+                        gXcp.MtaPtr = (uint8_t *)ApplXcpGetBaseAddr() + XcpAddrDecodeAbsOffset(gXcp.MtaAddr);
                         gXcp.MtaExt = XCP_ADDR_EXT_PTR;
 #ifdef XCP_ENABLE_CALSEG_LIST
                         // Check for calibration segment absolute address
@@ -2056,12 +2056,12 @@ void XcpEventExt_(tXcpEventId event, const uint8_t **bases) {
 }
 
 void XcpEventExt(tXcpEventId event, const uint8_t *base) {
-    const uint8_t *bases[4] = {ApplXcpGetBaseAddr(), ApplXcpGetBaseAddr(), base, base};
+    const uint8_t *bases[4] = {xcp_get_base_addr(), xcp_get_base_addr(), base, base};
     XcpEventExt_(event, bases);
 }
 
 void XcpEventExtAt(tXcpEventId event, const uint8_t *base, uint64_t clock) {
-    const uint8_t *bases[4] = {ApplXcpGetBaseAddr(), ApplXcpGetBaseAddr(), base, base};
+    const uint8_t *bases[4] = {xcp_get_base_addr(), xcp_get_base_addr(), base, base};
     XcpEventExt_At(event, bases, clock);
 }
 
@@ -2069,7 +2069,7 @@ void XcpEventExtAt(tXcpEventId event, const uint8_t *base, uint64_t clock) {
 void XcpEvent(tXcpEventId event) {
     if (!isDaqRunning())
         return; // DAQ not running
-    const uint8_t *bases[4] = {ApplXcpGetBaseAddr(), ApplXcpGetBaseAddr(), NULL, NULL};
+    const uint8_t *bases[4] = {xcp_get_base_addr(), xcp_get_base_addr(), NULL, NULL};
     XcpTriggerDaqEvent(gXcp.Queue, event, bases, 0);
 }
 #endif
@@ -3160,6 +3160,10 @@ void XcpInit(bool activate) {
 
     // Clear XCP state
     memset((uint8_t *)&gXcp, 0, sizeof(gXcp));
+
+    // Initialize the base address for absolute addressing
+    ApplXcpGetBaseAddr();
+    assert(xcp_get_base_addr() != NULL);
 
     if (!activate) {
         gXcp.SessionStatus = SS_INITIALIZED;

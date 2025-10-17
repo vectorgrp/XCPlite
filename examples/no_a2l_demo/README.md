@@ -63,7 +63,7 @@ Step 3: A2L Fix:
 - Thread local variables
     The A2L creator can not handle thread local variables yet
     The DAQ capture method does not work for TLS, need a ApplXcpGetTlsBaseAddress() function, maybe introduce AAST type
-    Detect the base address of the TLS block, like it is done in ApplXcpGetBaseAddr() for the global variables
+    Detect the base address of the TLS block, like it is done in ApplXcpGetBaseAddr()/xcp_get_base_addr() for the global variables
     The DaqCapture macros as an alternative, does not work yet
 - EPK
     Detect if the target application has a EPK segment or not

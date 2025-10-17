@@ -1,7 +1,5 @@
-
 #!/bin/bash
 
-# ccmake -B build -S .
 
 # Parse command line arguments
 BUILD_TYPE="Debug"  # Default to Debug build

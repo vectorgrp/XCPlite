@@ -10,8 +10,8 @@ PrgDate=16.06.2025
 Description=
 CreationTime=11:34
 CreationDate=10/02/2025 ; Month/Day/Year
-ModificationTime=13:19
-ModificationDate=10/14/2025 ; Month/Day/Year
+ModificationTime=08:47
+ModificationDate=10/15/2025 ; Month/Day/Year
 Protected=0
 CurrentWindowsACP=1252
 
@@ -260,7 +260,7 @@ SubConfigsCount=0
 Count=0
 
 [MEASUREMENT_LIST]
-Count=34
+Count=31
 OfflineFileName=no_a2l_demo.mf4
 OfflineFileCount=1
 MeaCfgLabellistName=
@@ -270,7 +270,7 @@ Module=no_a2l_demo
 Name=global_counter
 Disabled=0
 Mode=2147483648
-Rate=1
+Rate=0
 ModeIsDefault=1
 Row=0
 Column=0
@@ -281,67 +281,6 @@ HasManagedDisplay=0
 DisplayCount=2
 
 [MEASUREMENT_OBJECT_10]
-Module=no_a2l_demo
-Name=foo.test_float
-Disabled=0
-Mode=2147483651
-Rate=0
-ModeIsDefault=1
-Row=0
-Column=0
-MeaReferenced=1
-ArchivBy_1=Recorder
-IsFallback=0
-HasManagedDisplay=0
-DisplayCount=1
-
-[MEASUREMENT_OBJECT_10_DISPLAY_1]
-Window=5
-Index=9
-Color=65450
-ApplyColorToBackground=0
-ColorFunction=0
-ColorFunctionScope=1
-LineTyp=2
-YMinHome=0
-YMaxHome=100
-YMin=0
-YMax=100
-XOffsetNS=0
-XOffset=0
-ValueFormat=3
-BitMask=1
-ShowYAxis=1
-Width=10
-LineStyle=1
-MarkerType=1
-SRMainValue=0
-InvalidValueDrawMode=3
-LineWidth=1
-Precision=-2
-Digits=6
-Enabled=1
-StoredFocused=0
-SublMask=0
-MeaSublMask=0
-LockScaling=0
-RightAxis=0
-MapMode=2
-OverlayGridColor=0
-ShadingMode=3
-EditOffset=1
-EditFactor=2
-WAxisLabel=
-XAxisLabel=
-YAxisLabel=
-AxisCaption=
-Row=0
-Col=0
-YAxis_ID=0
-AxisTemplate=
-GUID=DISPLAY_bc0ad253-edd6-4cab-b9bc-36c72c501d04
-
-[MEASUREMENT_OBJECT_11]
 Module=no_a2l_demo
 Name=foo.test_int8
 Disabled=0
@@ -356,7 +295,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_11_DISPLAY_1]
+[MEASUREMENT_OBJECT_10_DISPLAY_1]
 Window=5
 Index=5
 Color=16755455
@@ -402,7 +341,7 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_0fe4ddf5-71d8-43f8-9614-1aa37e182d8b
 
-[MEASUREMENT_OBJECT_12]
+[MEASUREMENT_OBJECT_11]
 Module=no_a2l_demo
 Name=foo.test_int16
 Disabled=0
@@ -417,7 +356,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_12_DISPLAY_1]
+[MEASUREMENT_OBJECT_11_DISPLAY_1]
 Window=5
 Index=8
 Color=8421631
@@ -463,7 +402,7 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_d0ca19f3-a26a-4eb9-b920-c820598221d2
 
-[MEASUREMENT_OBJECT_13]
+[MEASUREMENT_OBJECT_12]
 Module=no_a2l_demo
 Name=foo.test_int32
 Disabled=0
@@ -478,7 +417,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_13_DISPLAY_1]
+[MEASUREMENT_OBJECT_12_DISPLAY_1]
 Window=5
 Index=7
 Color=43690
@@ -524,7 +463,7 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_cce51fa3-609f-4ccc-8465-b54896541857
 
-[MEASUREMENT_OBJECT_14]
+[MEASUREMENT_OBJECT_13]
 Module=no_a2l_demo
 Name=foo.test_int64
 Disabled=0
@@ -539,7 +478,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_14_DISPLAY_1]
+[MEASUREMENT_OBJECT_13_DISPLAY_1]
 Window=5
 Index=6
 Color=11184640
@@ -585,7 +524,7 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_3f2637ed-1197-4462-8f72-ecf810acece2
 
-[MEASUREMENT_OBJECT_15]
+[MEASUREMENT_OBJECT_14]
 Module=no_a2l_demo
 Name=foo.test_uint8
 Disabled=0
@@ -600,7 +539,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_15_DISPLAY_1]
+[MEASUREMENT_OBJECT_14_DISPLAY_1]
 Window=5
 Index=1
 Color=255
@@ -646,7 +585,7 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_fab8d2f5-33ba-44a2-8d77-4ed3ec7f1114
 
-[MEASUREMENT_OBJECT_16]
+[MEASUREMENT_OBJECT_15]
 Module=no_a2l_demo
 Name=foo.test_uint16
 Disabled=0
@@ -661,7 +600,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_16_DISPLAY_1]
+[MEASUREMENT_OBJECT_15_DISPLAY_1]
 Window=5
 Index=4
 Color=11184895
@@ -707,7 +646,7 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_33046ed8-1422-43ff-b20d-f3ecd8e33ec6
 
-[MEASUREMENT_OBJECT_17]
+[MEASUREMENT_OBJECT_16]
 Module=no_a2l_demo
 Name=foo.test_uint32
 Disabled=0
@@ -722,7 +661,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_17_DISPLAY_1]
+[MEASUREMENT_OBJECT_16_DISPLAY_1]
 Window=5
 Index=3
 Color=16755370
@@ -768,7 +707,7 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_98f1c3e7-1249-4a8a-bc52-68963cd4370b
 
-[MEASUREMENT_OBJECT_18]
+[MEASUREMENT_OBJECT_17]
 Module=no_a2l_demo
 Name=foo.test_uint64
 Disabled=0
@@ -783,7 +722,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_18_DISPLAY_1]
+[MEASUREMENT_OBJECT_17_DISPLAY_1]
 Window=5
 Index=2
 Color=11206570
@@ -829,7 +768,7 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_1b4d97ed-914f-4e15-aab2-b1df8f51c11a
 
-[MEASUREMENT_OBJECT_19]
+[MEASUREMENT_OBJECT_18]
 Components=0
 Module=no_a2l_demo
 Name=$foo.test_struct$
@@ -845,7 +784,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_19_DISPLAY_1]
+[MEASUREMENT_OBJECT_18_DISPLAY_1]
 Window=5
 Index=0
 Color=65280
@@ -890,6 +829,113 @@ Col=0
 YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_46873a4e-7dd5-47cf-9d1f-5bdebd848d18
+
+[MEASUREMENT_OBJECT_19]
+Module=no_a2l_demo
+Name=task.counter
+Disabled=0
+Mode=2147483650
+Rate=0
+ModeIsDefault=1
+Row=0
+Column=0
+MeaReferenced=1
+ArchivBy_1=Recorder
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=2
+
+[MEASUREMENT_OBJECT_19_DISPLAY_1]
+Window=5
+Index=14
+Color=65535
+ApplyColorToBackground=0
+ColorFunction=0
+ColorFunctionScope=1
+LineTyp=2
+YMinHome=0
+YMaxHome=100
+YMin=0
+YMax=100
+XOffsetNS=0
+XOffset=0
+ValueFormat=3
+BitMask=1
+ShowYAxis=1
+Width=10
+LineStyle=1
+MarkerType=1
+SRMainValue=0
+InvalidValueDrawMode=3
+LineWidth=1
+Precision=-2
+Digits=6
+Enabled=1
+StoredFocused=0
+SublMask=0
+MeaSublMask=0
+LockScaling=0
+RightAxis=0
+MapMode=2
+OverlayGridColor=0
+ShadingMode=3
+EditOffset=1
+EditFactor=2
+WAxisLabel=
+XAxisLabel=
+YAxisLabel=
+AxisCaption=
+Row=0
+Col=0
+YAxis_ID=0
+AxisTemplate=
+GUID=DISPLAY_77404029-bd0b-4370-98d9-58e38b962f22
+
+[MEASUREMENT_OBJECT_19_DISPLAY_2]
+Window=3
+Index=0
+Color=65535
+ApplyColorToBackground=0
+ColorFunction=0
+ColorFunctionScope=1
+LineTyp=2
+YMinHome=-400
+YMaxHome=1600
+YMin=-400
+YMax=1600
+XOffsetNS=0
+XOffset=0
+ValueFormat=3
+BitMask=1
+ShowYAxis=1
+Width=10
+LineStyle=1
+MarkerType=1
+SRMainValue=0
+InvalidValueDrawMode=3
+LineWidth=1
+Precision=-2
+Digits=6
+Enabled=1
+StoredFocused=1
+SublMask=1
+MeaSublMask=3
+LockScaling=0
+RightAxis=0
+MapMode=2
+OverlayGridColor=0
+ShadingMode=3
+EditOffset=1
+EditFactor=2
+WAxisLabel=
+XAxisLabel=
+YAxisLabel=
+AxisCaption=
+Row=0
+Col=0
+YAxis_ID=1
+AxisTemplate=
+GUID=DISPLAY_406e17e7-f494-46c4-859f-92e355567002
 
 [MEASUREMENT_OBJECT_1_DISPLAY_1]
 Window=3
@@ -989,7 +1035,7 @@ Module=no_a2l_demo
 Name=$global_test_struct$
 Disabled=0
 Mode=2147483648
-Rate=1
+Rate=0
 ModeIsDefault=1
 Row=0
 Column=0
@@ -1000,113 +1046,6 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_20]
-Module=no_a2l_demo
-Name=task.counter
-Disabled=0
-Mode=2147483650
-Rate=0
-ModeIsDefault=1
-Row=0
-Column=0
-MeaReferenced=1
-ArchivBy_1=Recorder
-IsFallback=0
-HasManagedDisplay=0
-DisplayCount=2
-
-[MEASUREMENT_OBJECT_20_DISPLAY_1]
-Window=5
-Index=14
-Color=65535
-ApplyColorToBackground=0
-ColorFunction=0
-ColorFunctionScope=1
-LineTyp=2
-YMinHome=0
-YMaxHome=100
-YMin=0
-YMax=100
-XOffsetNS=0
-XOffset=0
-ValueFormat=3
-BitMask=1
-ShowYAxis=1
-Width=10
-LineStyle=1
-MarkerType=1
-SRMainValue=0
-InvalidValueDrawMode=3
-LineWidth=1
-Precision=-2
-Digits=6
-Enabled=1
-StoredFocused=0
-SublMask=0
-MeaSublMask=0
-LockScaling=0
-RightAxis=0
-MapMode=2
-OverlayGridColor=0
-ShadingMode=3
-EditOffset=1
-EditFactor=2
-WAxisLabel=
-XAxisLabel=
-YAxisLabel=
-AxisCaption=
-Row=0
-Col=0
-YAxis_ID=0
-AxisTemplate=
-GUID=DISPLAY_77404029-bd0b-4370-98d9-58e38b962f22
-
-[MEASUREMENT_OBJECT_20_DISPLAY_2]
-Window=3
-Index=0
-Color=65535
-ApplyColorToBackground=0
-ColorFunction=0
-ColorFunctionScope=1
-LineTyp=2
-YMinHome=-400
-YMaxHome=1600
-YMin=-400
-YMax=1600
-XOffsetNS=0
-XOffset=0
-ValueFormat=3
-BitMask=1
-ShowYAxis=1
-Width=10
-LineStyle=1
-MarkerType=1
-SRMainValue=0
-InvalidValueDrawMode=3
-LineWidth=1
-Precision=-2
-Digits=6
-Enabled=1
-StoredFocused=1
-SublMask=1
-MeaSublMask=3
-LockScaling=0
-RightAxis=0
-MapMode=2
-OverlayGridColor=0
-ShadingMode=3
-EditOffset=1
-EditFactor=2
-WAxisLabel=
-XAxisLabel=
-YAxisLabel=
-AxisCaption=
-Row=0
-Col=0
-YAxis_ID=1
-AxisTemplate=
-GUID=DISPLAY_406e17e7-f494-46c4-859f-92e355567002
-
-[MEASUREMENT_OBJECT_21]
 Module=no_a2l_demo
 Name=task.static_counter
 Disabled=0
@@ -1121,7 +1060,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=2
 
-[MEASUREMENT_OBJECT_21_DISPLAY_1]
+[MEASUREMENT_OBJECT_20_DISPLAY_1]
 Window=5
 Index=13
 Color=33023
@@ -1167,7 +1106,7 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_8fbe7fdb-5aa6-41cc-a15d-08a59e28f633
 
-[MEASUREMENT_OBJECT_21_DISPLAY_2]
+[MEASUREMENT_OBJECT_20_DISPLAY_2]
 Window=3
 Index=1
 Color=33023
@@ -1213,42 +1152,12 @@ YAxis_ID=1
 AxisTemplate=
 GUID=DISPLAY_e234b676-34f1-4a0c-ad3e-6652579052ed
 
-[MEASUREMENT_OBJECT_22]
-Module=no_a2l_demo
-Name=task.spilled_counter
-Disabled=0
-Mode=2147483650
-Rate=0
-ModeIsDefault=0
-Row=0
-Column=0
-MeaReferenced=1
-ArchivBy_1=Recorder
-IsFallback=0
-HasManagedDisplay=0
-DisplayCount=0
-
-[MEASUREMENT_OBJECT_23]
-Module=no_a2l_demo
-Name=task.thread_local_counter
-Disabled=0
-Mode=2147483650
-Rate=0
-ModeIsDefault=0
-Row=0
-Column=0
-MeaReferenced=1
-ArchivBy_1=Recorder
-IsFallback=0
-HasManagedDisplay=0
-DisplayCount=0
-
-[MEASUREMENT_OBJECT_24]
+[MEASUREMENT_OBJECT_21]
 Module=no_a2l_demo
 Name=global_running
 Disabled=0
 Mode=2147483648
-Rate=1
+Rate=0
 ModeIsDefault=1
 Row=0
 Column=0
@@ -1258,12 +1167,12 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=0
 
-[MEASUREMENT_OBJECT_25]
+[MEASUREMENT_OBJECT_22]
 Module=no_a2l_demo
 Name=global_test_double
 Disabled=0
 Mode=2147483648
-Rate=1
+Rate=0
 ModeIsDefault=1
 Row=0
 Column=0
@@ -1273,7 +1182,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_25_DISPLAY_1]
+[MEASUREMENT_OBJECT_22_DISPLAY_1]
 Window=5
 Index=26
 Color=28784
@@ -1319,12 +1228,12 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_f7b0b003-497b-430d-af33-bbbc819c1f4f
 
-[MEASUREMENT_OBJECT_26]
+[MEASUREMENT_OBJECT_23]
 Module=no_a2l_demo
 Name=global_test_float
 Disabled=0
 Mode=2147483648
-Rate=1
+Rate=0
 ModeIsDefault=1
 Row=0
 Column=0
@@ -1334,7 +1243,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_26_DISPLAY_1]
+[MEASUREMENT_OBJECT_23_DISPLAY_1]
 Window=5
 Index=25
 Color=16755200
@@ -1380,12 +1289,12 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_c85e458d-a499-4b19-8731-4c9407493e91
 
-[MEASUREMENT_OBJECT_27]
+[MEASUREMENT_OBJECT_24]
 Module=no_a2l_demo
 Name=global_test_int16
 Disabled=0
 Mode=2147483648
-Rate=1
+Rate=0
 ModeIsDefault=1
 Row=0
 Column=0
@@ -1395,7 +1304,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_27_DISPLAY_1]
+[MEASUREMENT_OBJECT_24_DISPLAY_1]
 Window=5
 Index=24
 Color=16711850
@@ -1441,12 +1350,12 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_70a34032-37bc-4fcb-afcc-992588401040
 
-[MEASUREMENT_OBJECT_28]
+[MEASUREMENT_OBJECT_25]
 Module=no_a2l_demo
 Name=global_test_int32
 Disabled=0
 Mode=2147483648
-Rate=1
+Rate=0
 ModeIsDefault=1
 Row=0
 Column=0
@@ -1456,7 +1365,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_28_DISPLAY_1]
+[MEASUREMENT_OBJECT_25_DISPLAY_1]
 Window=5
 Index=23
 Color=21930
@@ -1502,12 +1411,12 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_ef5464ef-46b6-45c8-9b95-28e16cfe7fbe
 
-[MEASUREMENT_OBJECT_29]
+[MEASUREMENT_OBJECT_26]
 Module=no_a2l_demo
 Name=global_test_int64
 Disabled=0
 Mode=2147483648
-Rate=1
+Rate=0
 ModeIsDefault=1
 Row=0
 Column=0
@@ -1517,7 +1426,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_29_DISPLAY_1]
+[MEASUREMENT_OBJECT_26_DISPLAY_1]
 Window=5
 Index=22
 Color=11162965
@@ -1562,6 +1471,189 @@ Col=0
 YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_13ff4fe0-0651-4dcd-817e-0cd7309aee5d
+
+[MEASUREMENT_OBJECT_27]
+Module=no_a2l_demo
+Name=global_test_int8
+Disabled=0
+Mode=2147483648
+Rate=0
+ModeIsDefault=1
+Row=0
+Column=0
+MeaReferenced=1
+ArchivBy_1=Recorder
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=1
+
+[MEASUREMENT_OBJECT_27_DISPLAY_1]
+Window=5
+Index=21
+Color=16777215
+ApplyColorToBackground=0
+ColorFunction=0
+ColorFunctionScope=1
+LineTyp=2
+YMinHome=0
+YMaxHome=100
+YMin=0
+YMax=100
+XOffsetNS=0
+XOffset=0
+ValueFormat=3
+BitMask=255
+ShowYAxis=1
+Width=10
+LineStyle=1
+MarkerType=1
+SRMainValue=0
+InvalidValueDrawMode=3
+LineWidth=1
+Precision=-2
+Digits=6
+Enabled=1
+StoredFocused=0
+SublMask=0
+MeaSublMask=0
+LockScaling=0
+RightAxis=0
+MapMode=2
+OverlayGridColor=0
+ShadingMode=3
+EditOffset=1
+EditFactor=2
+WAxisLabel=
+XAxisLabel=
+YAxisLabel=
+AxisCaption=
+Row=0
+Col=0
+YAxis_ID=0
+AxisTemplate=
+GUID=DISPLAY_a214dfc1-1888-40fb-88a6-4608302e478d
+
+[MEASUREMENT_OBJECT_28]
+Module=no_a2l_demo
+Name=global_test_uint16
+Disabled=0
+Mode=2147483648
+Rate=0
+ModeIsDefault=1
+Row=0
+Column=0
+MeaReferenced=1
+ArchivBy_1=Recorder
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=1
+
+[MEASUREMENT_OBJECT_28_DISPLAY_1]
+Window=5
+Index=20
+Color=43520
+ApplyColorToBackground=0
+ColorFunction=0
+ColorFunctionScope=1
+LineTyp=2
+YMinHome=0
+YMaxHome=100
+YMin=0
+YMax=100
+XOffsetNS=0
+XOffset=0
+ValueFormat=3
+BitMask=1
+ShowYAxis=1
+Width=10
+LineStyle=1
+MarkerType=1
+SRMainValue=0
+InvalidValueDrawMode=3
+LineWidth=1
+Precision=-2
+Digits=6
+Enabled=1
+StoredFocused=0
+SublMask=0
+MeaSublMask=0
+LockScaling=0
+RightAxis=0
+MapMode=2
+OverlayGridColor=0
+ShadingMode=3
+EditOffset=1
+EditFactor=2
+WAxisLabel=
+XAxisLabel=
+YAxisLabel=
+AxisCaption=
+Row=0
+Col=0
+YAxis_ID=0
+AxisTemplate=
+GUID=DISPLAY_154c9d41-d5dc-4fff-b3af-ad354a4dbc4d
+
+[MEASUREMENT_OBJECT_29]
+Module=no_a2l_demo
+Name=global_test_uint32
+Disabled=0
+Mode=2147483648
+Rate=0
+ModeIsDefault=1
+Row=0
+Column=0
+MeaReferenced=1
+ArchivBy_1=Recorder
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=1
+
+[MEASUREMENT_OBJECT_29_DISPLAY_1]
+Window=5
+Index=19
+Color=204
+ApplyColorToBackground=0
+ColorFunction=0
+ColorFunctionScope=1
+LineTyp=2
+YMinHome=0
+YMaxHome=100
+YMin=0
+YMax=100
+XOffsetNS=0
+XOffset=0
+ValueFormat=3
+BitMask=1
+ShowYAxis=1
+Width=10
+LineStyle=1
+MarkerType=1
+SRMainValue=0
+InvalidValueDrawMode=3
+LineWidth=1
+Precision=-2
+Digits=6
+Enabled=1
+StoredFocused=0
+SublMask=0
+MeaSublMask=0
+LockScaling=0
+RightAxis=0
+MapMode=2
+OverlayGridColor=0
+ShadingMode=3
+EditOffset=1
+EditFactor=2
+WAxisLabel=
+XAxisLabel=
+YAxisLabel=
+AxisCaption=
+Row=0
+Col=0
+YAxis_ID=0
+AxisTemplate=
+GUID=DISPLAY_6e7aa625-ce14-46f5-8fc7-50687ddce7d5
 
 [MEASUREMENT_OBJECT_2_DISPLAY_1]
 Window=5
@@ -1614,7 +1706,7 @@ Module=no_a2l_demo
 Name=global_test_array
 Disabled=0
 Mode=2147483648
-Rate=1
+Rate=0
 ModeIsDefault=1
 Row=0
 Column=0
@@ -1634,10 +1726,10 @@ DisplayCount=2
 
 [MEASUREMENT_OBJECT_30]
 Module=no_a2l_demo
-Name=global_test_int8
+Name=global_test_uint64
 Disabled=0
 Mode=2147483648
-Rate=1
+Rate=0
 ModeIsDefault=1
 Row=0
 Column=0
@@ -1648,189 +1740,6 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_30_DISPLAY_1]
-Window=5
-Index=21
-Color=16777215
-ApplyColorToBackground=0
-ColorFunction=0
-ColorFunctionScope=1
-LineTyp=2
-YMinHome=0
-YMaxHome=100
-YMin=0
-YMax=100
-XOffsetNS=0
-XOffset=0
-ValueFormat=3
-BitMask=255
-ShowYAxis=1
-Width=10
-LineStyle=1
-MarkerType=1
-SRMainValue=0
-InvalidValueDrawMode=3
-LineWidth=1
-Precision=-2
-Digits=6
-Enabled=1
-StoredFocused=0
-SublMask=0
-MeaSublMask=0
-LockScaling=0
-RightAxis=0
-MapMode=2
-OverlayGridColor=0
-ShadingMode=3
-EditOffset=1
-EditFactor=2
-WAxisLabel=
-XAxisLabel=
-YAxisLabel=
-AxisCaption=
-Row=0
-Col=0
-YAxis_ID=0
-AxisTemplate=
-GUID=DISPLAY_a214dfc1-1888-40fb-88a6-4608302e478d
-
-[MEASUREMENT_OBJECT_31]
-Module=no_a2l_demo
-Name=global_test_uint16
-Disabled=0
-Mode=2147483648
-Rate=1
-ModeIsDefault=1
-Row=0
-Column=0
-MeaReferenced=1
-ArchivBy_1=Recorder
-IsFallback=0
-HasManagedDisplay=0
-DisplayCount=1
-
-[MEASUREMENT_OBJECT_31_DISPLAY_1]
-Window=5
-Index=20
-Color=43520
-ApplyColorToBackground=0
-ColorFunction=0
-ColorFunctionScope=1
-LineTyp=2
-YMinHome=0
-YMaxHome=100
-YMin=0
-YMax=100
-XOffsetNS=0
-XOffset=0
-ValueFormat=3
-BitMask=1
-ShowYAxis=1
-Width=10
-LineStyle=1
-MarkerType=1
-SRMainValue=0
-InvalidValueDrawMode=3
-LineWidth=1
-Precision=-2
-Digits=6
-Enabled=1
-StoredFocused=0
-SublMask=0
-MeaSublMask=0
-LockScaling=0
-RightAxis=0
-MapMode=2
-OverlayGridColor=0
-ShadingMode=3
-EditOffset=1
-EditFactor=2
-WAxisLabel=
-XAxisLabel=
-YAxisLabel=
-AxisCaption=
-Row=0
-Col=0
-YAxis_ID=0
-AxisTemplate=
-GUID=DISPLAY_154c9d41-d5dc-4fff-b3af-ad354a4dbc4d
-
-[MEASUREMENT_OBJECT_32]
-Module=no_a2l_demo
-Name=global_test_uint32
-Disabled=0
-Mode=2147483648
-Rate=1
-ModeIsDefault=1
-Row=0
-Column=0
-MeaReferenced=1
-ArchivBy_1=Recorder
-IsFallback=0
-HasManagedDisplay=0
-DisplayCount=1
-
-[MEASUREMENT_OBJECT_32_DISPLAY_1]
-Window=5
-Index=19
-Color=204
-ApplyColorToBackground=0
-ColorFunction=0
-ColorFunctionScope=1
-LineTyp=2
-YMinHome=0
-YMaxHome=100
-YMin=0
-YMax=100
-XOffsetNS=0
-XOffset=0
-ValueFormat=3
-BitMask=1
-ShowYAxis=1
-Width=10
-LineStyle=1
-MarkerType=1
-SRMainValue=0
-InvalidValueDrawMode=3
-LineWidth=1
-Precision=-2
-Digits=6
-Enabled=1
-StoredFocused=0
-SublMask=0
-MeaSublMask=0
-LockScaling=0
-RightAxis=0
-MapMode=2
-OverlayGridColor=0
-ShadingMode=3
-EditOffset=1
-EditFactor=2
-WAxisLabel=
-XAxisLabel=
-YAxisLabel=
-AxisCaption=
-Row=0
-Col=0
-YAxis_ID=0
-AxisTemplate=
-GUID=DISPLAY_6e7aa625-ce14-46f5-8fc7-50687ddce7d5
-
-[MEASUREMENT_OBJECT_33]
-Module=no_a2l_demo
-Name=global_test_uint64
-Disabled=0
-Mode=2147483648
-Rate=1
-ModeIsDefault=1
-Row=0
-Column=0
-MeaReferenced=1
-ArchivBy_1=Recorder
-IsFallback=0
-HasManagedDisplay=0
-DisplayCount=1
-
-[MEASUREMENT_OBJECT_33_DISPLAY_1]
 Window=5
 Index=18
 Color=28784
@@ -1876,12 +1785,12 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_8d7731cf-97aa-499f-bbae-6bd153980385
 
-[MEASUREMENT_OBJECT_34]
+[MEASUREMENT_OBJECT_31]
 Module=no_a2l_demo
 Name=global_test_uint8
 Disabled=0
 Mode=2147483648
-Rate=1
+Rate=0
 ModeIsDefault=1
 Row=0
 Column=0
@@ -1891,7 +1800,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_34_DISPLAY_1]
+[MEASUREMENT_OBJECT_31_DISPLAY_1]
 Window=5
 Index=17
 Color=16755200
@@ -2139,21 +2048,6 @@ GUID=DISPLAY_f3079fc6-3235-4fa2-a15f-4e9c320c6ff8
 
 [MEASUREMENT_OBJECT_5]
 Module=no_a2l_demo
-Name=main.delay_us
-Disabled=0
-Mode=2147483649
-Rate=0
-ModeIsDefault=0
-Row=0
-Column=0
-MeaReferenced=1
-ArchivBy_1=Recorder
-IsFallback=0
-HasManagedDisplay=0
-DisplayCount=0
-
-[MEASUREMENT_OBJECT_6]
-Module=no_a2l_demo
 Name=foo.counter
 Disabled=0
 Mode=2147483651
@@ -2167,7 +2061,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=2
 
-[MEASUREMENT_OBJECT_6_DISPLAY_1]
+[MEASUREMENT_OBJECT_5_DISPLAY_1]
 Window=5
 Index=11
 Color=16776960
@@ -2213,7 +2107,7 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_21002e6f-acca-4b5f-9c89-e90092a0e584
 
-[MEASUREMENT_OBJECT_6_DISPLAY_2]
+[MEASUREMENT_OBJECT_5_DISPLAY_2]
 Window=3
 Index=2
 Color=16776960
@@ -2259,7 +2153,7 @@ YAxis_ID=1
 AxisTemplate=
 GUID=DISPLAY_dd922ee9-74c5-4ddb-92a3-bfd18dd788d4
 
-[MEASUREMENT_OBJECT_7]
+[MEASUREMENT_OBJECT_6]
 Module=no_a2l_demo
 Name=foo.static_counter
 Disabled=0
@@ -2274,7 +2168,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=2
 
-[MEASUREMENT_OBJECT_7_DISPLAY_1]
+[MEASUREMENT_OBJECT_6_DISPLAY_1]
 Window=5
 Index=12
 Color=16777215
@@ -2320,7 +2214,7 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_b60b1ddf-be6d-42dc-ad35-63dbef59b42e
 
-[MEASUREMENT_OBJECT_7_DISPLAY_2]
+[MEASUREMENT_OBJECT_6_DISPLAY_2]
 Window=3
 Index=3
 Color=16777215
@@ -2366,7 +2260,7 @@ YAxis_ID=1
 AxisTemplate=
 GUID=DISPLAY_33028dcd-c7aa-43f5-82df-2bd78ad1e65e
 
-[MEASUREMENT_OBJECT_8]
+[MEASUREMENT_OBJECT_7]
 Module=no_a2l_demo
 Name=main.static_counter
 Disabled=0
@@ -2381,7 +2275,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=2
 
-[MEASUREMENT_OBJECT_8_DISPLAY_1]
+[MEASUREMENT_OBJECT_7_DISPLAY_1]
 Window=5
 Index=15
 Color=16711935
@@ -2427,7 +2321,7 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_5b48ea33-d113-475c-a83d-5eed238527c3
 
-[MEASUREMENT_OBJECT_8_DISPLAY_2]
+[MEASUREMENT_OBJECT_7_DISPLAY_2]
 Window=3
 Index=5
 Color=16711935
@@ -2473,7 +2367,7 @@ YAxis_ID=1
 AxisTemplate=
 GUID=DISPLAY_91e83b83-115a-44ca-87fa-3f181020a9b2
 
-[MEASUREMENT_OBJECT_9]
+[MEASUREMENT_OBJECT_8]
 Module=no_a2l_demo
 Name=foo.test_double
 Disabled=0
@@ -2488,7 +2382,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_9_DISPLAY_1]
+[MEASUREMENT_OBJECT_8_DISPLAY_1]
 Window=5
 Index=10
 Color=11206655
@@ -2533,6 +2427,67 @@ Col=0
 YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_35a9f4d6-8b7e-4ef2-9f07-c51525840b00
+
+[MEASUREMENT_OBJECT_9]
+Module=no_a2l_demo
+Name=foo.test_float
+Disabled=0
+Mode=2147483651
+Rate=0
+ModeIsDefault=1
+Row=0
+Column=0
+MeaReferenced=1
+ArchivBy_1=Recorder
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=1
+
+[MEASUREMENT_OBJECT_9_DISPLAY_1]
+Window=5
+Index=9
+Color=65450
+ApplyColorToBackground=0
+ColorFunction=0
+ColorFunctionScope=1
+LineTyp=2
+YMinHome=0
+YMaxHome=100
+YMin=0
+YMax=100
+XOffsetNS=0
+XOffset=0
+ValueFormat=3
+BitMask=1
+ShowYAxis=1
+Width=10
+LineStyle=1
+MarkerType=1
+SRMainValue=0
+InvalidValueDrawMode=3
+LineWidth=1
+Precision=-2
+Digits=6
+Enabled=1
+StoredFocused=0
+SublMask=0
+MeaSublMask=0
+LockScaling=0
+RightAxis=0
+MapMode=2
+OverlayGridColor=0
+ShadingMode=3
+EditOffset=1
+EditFactor=2
+WAxisLabel=
+XAxisLabel=
+YAxisLabel=
+AxisCaption=
+Row=0
+Col=0
+YAxis_ID=0
+AxisTemplate=
+GUID=DISPLAY_bc0ad253-edd6-4cab-b9bc-36c72c501d04
 
 [MEASUREMENT_OPTIONS]
 RemainingRecordingTime=5000
@@ -2605,11 +2560,11 @@ EVENT_CHANNEL_0=0x0000
 EVENT_CHANNEL_1=0x0001
 EVENT_CHANNEL_2=0x0002
 EVENT_CHANNEL_3=0x0003
-EVENT_CYCLE_0=100
+EVENT_CYCLE_0=0
 EVENT_CYCLE_1=0
 EVENT_CYCLE_2=0
 EVENT_CYCLE_3=0
-EVENT_SAMPLE_UNIT_0=7
+EVENT_SAMPLE_UNIT_0=3
 EVENT_SAMPLE_UNIT_1=3
 EVENT_SAMPLE_UNIT_2=3
 EVENT_SAMPLE_UNIT_3=3
@@ -2824,18 +2779,16 @@ TreeExpand_16=All\Devices\no_a2l_demo\no_a2l_demo.a2l\Software structure\params\
 TreeExpand_17=All\Devices\no_a2l_demo\no_a2l_demo.a2l\Measurements\task
 TreeExpand_18=All\Devices\no_a2l_demo\no_a2l_demo.a2l\Software structure\global_test_struct
 TreeExpand_19=All\Devices\no_a2l_demo\no_a2l_demo.a2l\Measurements\foo
-TreeExpand_20=All\Devices\no_a2l_demo\Unknown variables
-TreeExpand_21=All\Devices\no_a2l_demo\Unknown variables\main
-TreeExpand_22=All\Devices\no_a2l_demo\no_a2l_demo.a2l\Measurements\mainloop
-TreeExpand_23=All\Devices\no_a2l_demo\no_a2l_demo.a2l\Measurements\async
-TreeExpand_24=$All\Devices
-TreeExpand_25=#All\Devices
-TreeExpand_26=@All\Devices\no_a2l_demo
-TreeExpand_27=$All\Devices\no_a2l_demo\no_a2l_demo.a2l\Measurements\async\global_test_uint8
-TreeExpand_28=#All\Devices\no_a2l_demo\Unknown variables
-TreeExpand_29=@All\Measurement list
-TreeExpand_30=$All\Measurement list\All signals
-TreeExpand_31=#All\Measurement list\no_a2l_demo\mainloop
+TreeExpand_20=All\Devices\no_a2l_demo\no_a2l_demo.a2l\Measurements\mainloop
+TreeExpand_21=All\Devices\no_a2l_demo\no_a2l_demo.a2l\Measurements\async
+TreeExpand_22=$All\Devices
+TreeExpand_23=#All\Devices
+TreeExpand_24=@All\Devices\no_a2l_demo
+TreeExpand_25=$All\Devices\no_a2l_demo\no_a2l_demo.a2l\Measurements\async\global_test_int64
+TreeExpand_26=#All\Devices\no_a2l_demo\no_a2l_demo.a2l\Measurements\mainloop\main.counter
+TreeExpand_27=@All\Measurement list
+TreeExpand_28=$All\Measurement list\All signals
+TreeExpand_29=#All\Measurement list\no_a2l_demo\mainloop
 TextSearchCaseSensitive=0
 TextSearchUseMode=1
 TextSearchSearchFullText=1
@@ -2893,8 +2846,8 @@ DisplayMask=1 ; pages 1
 XLen=30155
 XMin=0
 XMinNs=0
-XMax=12323
-XMaxNs=12323715588
+XMax=3351
+XMaxNs=3351560580
 Grid=1
 Mark=1
 YValue=1
@@ -3039,7 +2992,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_7131f9ba-56c6-4dd7-a6aa-eac0e345220d
+GUID=DISPLAY_b41e11dd-0509-41ba-89c0-33ddf3c83bac
 
 [WINDOW_4_OBJECT_2]
 Type=2
@@ -3088,7 +3041,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_18327af0-5080-4b7b-97d3-9efe027892ed
+GUID=DISPLAY_2b05f412-6c42-4053-9ac4-6cdfd3f11018
 
 [WINDOW_4_OBJECT_3]
 Type=2
@@ -3137,7 +3090,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_b35a8adb-67ea-4733-b4ab-cad3dc31e1a8
+GUID=DISPLAY_10e6c226-bd81-4e0d-be19-3789cd5a964a
 
 [WINDOW_4_OBJECT_4]
 Type=2
@@ -3186,7 +3139,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_3a1afa17-14bb-473b-b31d-fc5a90d7718c
+GUID=DISPLAY_41bd1166-688d-4e3a-9c12-5c98246395af
 
 [WINDOW_4_OBJECT_5]
 Type=2
@@ -3235,7 +3188,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_2ee4e80a-175e-437e-a96c-c14b9ef90b11
+GUID=DISPLAY_4e3c2b00-c2cc-4550-80a7-026aa164a3c8
 
 [WINDOW_4_OBJECT_6]
 Type=2
@@ -3284,7 +3237,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_33b04f31-08b9-4006-8288-68a5e6a2d8a7
+GUID=DISPLAY_c9123c59-f5c2-449c-8cff-5c64a5a0cd75
 
 [WINDOW_4_OBJECT_7]
 Type=2
@@ -3333,7 +3286,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_32da85a5-3afa-4360-844d-f60f8cdeb83e
+GUID=DISPLAY_930a8e64-526c-4878-a8fc-b7ca7ad99906
 
 [WINDOW_4_OBJECT_8]
 Type=2
@@ -3382,7 +3335,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_c452440a-f78c-4534-afc8-403c493f2dc3
+GUID=DISPLAY_1af93ed1-0952-4fa9-a96c-4d349b3e0f13
 
 [WINDOW_4_OBJECT_9]
 Type=2
@@ -3431,7 +3384,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_0e02ca88-d021-4edd-819f-3a19296faece
+GUID=DISPLAY_a4be0844-cf53-4859-a9a0-37cc5bc15944
 
 [WINDOW_5]
 ObjectCount=0

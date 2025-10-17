@@ -182,21 +182,24 @@ bool ApplXcpGetClockInfoGrandmaster(uint8_t *uuid, uint8_t *epoch, uint8_t *stra
 
 #ifdef XCP_ENABLE_ABS_ADDRESSING
 
-#ifdef _WIN
+// Global module load address to optimize resolving relocated absolute addresses during runtime
+// xcp_get_base_addr() uses gXcpBaseAddr directly, not ApplXcpGetBaseAddr(), assuming XCP has been initialized before
 
-static uint8_t *__baseAddr = NULL;
-static uint8_t __baseAddrValid = 0;
+const uint8_t *gXcpBaseAddr = NULL;
+uint8_t gXcpBaseAddrValid = 0;
+
+#ifdef _WIN
 
 // Get base pointer for the XCP address range
 // This function is time sensitive, as it is called once on every XCP event
-uint8_t *ApplXcpGetBaseAddr(void) {
+const uint8_t *ApplXcpGetBaseAddr(void) {
 
-    if (!__baseAddrValid) {
-        __baseAddr = (uint8_t *)GetModuleHandle(NULL);
-        __baseAddrValid = 1;
-        DBG_PRINTF4("ApplXcpGetBaseAddr() = 0x%I64X\n", (uint64_t)__baseAddr);
+    if (!gXcpBaseAddrValid) {
+        gXcpBaseAddr = (uint8_t *)GetModuleHandle(NULL);
+        gXcpBaseAddrValid = 1;
+        DBG_PRINTF4("ApplXcpGetBaseAddr() = 0x%I64X\n", (uint64_t)gXcpBaseAddr);
     }
-    return __baseAddr;
+    return gXcpBaseAddr;
 }
 
 uint32_t ApplXcpGetAddr(const uint8_t *p) {
@@ -217,15 +220,12 @@ uint32_t ApplXcpGetAddr(const uint8_t *p) {
 #endif
 #include <link.h>
 
-static uint8_t *__baseAddr = NULL;
-static uint8_t __baseAddrValid = 0;
-
 static int dump_phdr(struct dl_phdr_info *pinfo, size_t size, void *data) {
     // DBG_PRINTF3("name=%s (%d segments)\n", pinfo->dlpi_name, pinfo->dlpi_phnum);
 
     // Application modules has no name
     if (0 == strlen(pinfo->dlpi_name)) {
-        __baseAddr = (uint8_t *)pinfo->dlpi_addr;
+        gXcpBaseAddr = (uint8_t *)pinfo->dlpi_addr;
     }
 
     (void)size;
@@ -233,20 +233,20 @@ static int dump_phdr(struct dl_phdr_info *pinfo, size_t size, void *data) {
     return 0;
 }
 
-uint8_t *ApplXcpGetBaseAddr(void) {
+const uint8_t *ApplXcpGetBaseAddr(void) {
 
-    if (!__baseAddrValid) {
+    if (!gXcpBaseAddrValid) {
         dl_iterate_phdr(dump_phdr, NULL);
-        assert(__baseAddr != NULL);
-        __baseAddrValid = 1;
-        DBG_PRINTF4("Base address for absolute addressing = %p\n", (void *)__baseAddr);
+        assert(gXcpBaseAddr != NULL);
+        gXcpBaseAddrValid = 1;
+        DBG_PRINTF4("Base address for absolute addressing = %p\n", (void *)gXcpBaseAddr);
     }
 
-    return __baseAddr;
+    return gXcpBaseAddr;
 }
 
 uint32_t ApplXcpGetAddr(const uint8_t *p) {
-    uint8_t *b = ApplXcpGetBaseAddr();
+    const uint8_t *b = ApplXcpGetBaseAddr();
     assert(p >= b);
     assert(((uint64_t)p - (uint64_t)b) <= 0xffffffff); // be sure that XCP address range is sufficient
     return (uint32_t)(p - b);
@@ -271,24 +271,21 @@ static int dump_so(void) {
 }
 */
 
-static uint8_t *__baseAddr = NULL;
-static uint8_t __baseAddrValid = 0;
+const uint8_t *ApplXcpGetBaseAddr(void) {
 
-uint8_t *ApplXcpGetBaseAddr(void) {
-
-    if (!__baseAddrValid) {
+    if (!gXcpBaseAddrValid) {
         // dump_so();
-        __baseAddr = (uint8_t *)_dyld_get_image_header(0); // Module addr
-        assert(__baseAddr != NULL);
-        __baseAddrValid = 1;
-        DBG_PRINTF4("Base address for absolute addressing = %p\n", (void *)__baseAddr);
+        gXcpBaseAddr = (uint8_t *)_dyld_get_image_header(0); // Module addr
+        assert(gXcpBaseAddr != NULL);
+        gXcpBaseAddrValid = 1;
+        DBG_PRINTF4("Base address for absolute addressing = %p\n", (void *)gXcpBaseAddr);
     }
 
-    return __baseAddr;
+    return gXcpBaseAddr;
 }
 
 uint32_t ApplXcpGetAddr(const uint8_t *p) {
-    uint8_t *b = ApplXcpGetBaseAddr();
+    const uint8_t *b = ApplXcpGetBaseAddr();
     if (p < b || ((uint64_t)p - (uint64_t)b) > 0xffffffff) { // be sure that XCP address range is sufficient
         DBG_PRINTF_ERROR("Address out of range! base = %p, addr = %p\n", (void *)b, (void *)p);
         assert(0); // Ensure the address is in range
@@ -301,7 +298,7 @@ uint32_t ApplXcpGetAddr(const uint8_t *p) {
 
 #ifdef _LINUX32
 
-uint8_t *ApplXcpGetBaseAddr(void) { return ((uint8_t *)0); }
+const uint8_t *ApplXcpGetBaseAddr(void) { return ((uint8_t *)0); }
 
 uint32_t ApplXcpGetAddr(const uint8_t *p) { return ((uint32_t)(p)); }
 
