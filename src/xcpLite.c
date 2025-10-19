@@ -1016,16 +1016,16 @@ void XcpResetAllCalSegs(void) {
 /*
 XcpWriteMta is not performance critical, but critical for data consistency.
 It is used to modify calibration variables.
-When using memcpy, it is not guaranteed that is uses multibyte move operations specifically for alignment to provide thread safety.
-Its primary responsibility is only to copy memory. Any considerations regarding thread safety must be explicitly managed.
-This is also a requirement to the tool, which must ensure that the data is consistent by choosing the right granularity for DOWNLOAD and SHORT_DOWNLOAD operations.
+For size 1, 2, 4, 8 it uses single "atomic" writes assuming valid aligned target memory locations.
+Its responsibility is only to copy memory. Any considerations regarding thread safety must be explicitly managed.
+This is alsoa requirement to the tool, which must ensure that the data is consistent by choosing the right granularity for DOWNLOAD and SHORT_DOWNLOAD operations.
 */
 
 // Copy of size bytes from data to gXcp.MtaPtr or gXcp.MtaAddr depending on the addressing mode
 uint8_t XcpWriteMta(uint8_t size, const uint8_t *data) {
 
+#ifdef XCP_ENABLE_SEG_ADDRESSING
     // EXT == XCP_ADDR_EXT_SEG calibration segment memory access
-#ifdef XCP_ENABLE_CALSEG_LIST
     if (XcpAddrIsSeg(gXcp.MtaExt)) {
         uint8_t res = XcpCalSegWriteMemory(gXcp.MtaAddr, size, data);
         gXcp.MtaAddr += size;
@@ -1033,8 +1033,8 @@ uint8_t XcpWriteMta(uint8_t size, const uint8_t *data) {
     }
 #endif
 
-    // EXT == XCP_ADDR_EXT_APP Application specific memory access
 #ifdef XCP_ENABLE_APP_ADDRESSING
+    // EXT == XCP_ADDR_EXT_APP Application specific memory access
     if (XcpAddrIsApp(gXcp.MtaExt)) {
         uint8_t res = ApplXcpWriteMemory(gXcp.MtaAddr, size, data);
         gXcp.MtaAddr += size;
@@ -1055,7 +1055,7 @@ uint8_t XcpWriteMta(uint8_t size, const uint8_t *data) {
         //     sleepUs(1);
         // }
 
-        // Fast write with atomic copies of basic types, assuming correctly aligned target memory locations
+        // Fast write with "atomic" copies of basic types, assuming correctly aligned target memory locations
         switch (size) {
         case 1:
             *gXcp.MtaPtr = *data;
@@ -1083,8 +1083,8 @@ uint8_t XcpWriteMta(uint8_t size, const uint8_t *data) {
 // Copying of size bytes from data to gXcp.MtaPtr or gXcp.MtaAddr, depending on the addressing mode
 static uint8_t XcpReadMta(uint8_t size, uint8_t *data) {
 
+#ifdef XCP_ENABLE_SEG_ADDRESSING
     // EXT == XCP_ADDR_EXT_SEG calibration segment memory access
-#ifdef XCP_ENABLE_CALSEG_LIST
     if (XcpAddrIsSeg(gXcp.MtaExt)) {
         uint8_t res = XcpCalSegReadMemory(gXcp.MtaAddr, size, data);
         gXcp.MtaAddr += size;
@@ -1092,8 +1092,8 @@ static uint8_t XcpReadMta(uint8_t size, uint8_t *data) {
     }
 #endif
 
-    // EXT == XCP_ADDR_EXT_APP Application specific memory access
 #ifdef XCP_ENABLE_APP_ADDRESSING
+    // EXT == XCP_ADDR_EXT_APP Application specific memory access
     if (XcpAddrIsApp(gXcp.MtaExt)) {
         uint8_t res = ApplXcpReadMemory(gXcp.MtaAddr, size, data);
         gXcp.MtaAddr += size;
@@ -1110,8 +1110,8 @@ static uint8_t XcpReadMta(uint8_t size, uint8_t *data) {
         return 0; // Ok
     }
 
-    // Ext == XCP_ADDR_EXT_A2L A2L file upload address space
 #ifdef XCP_ENABLE_IDT_A2L_UPLOAD
+    // Ext == XCP_ADDR_EXT_A2L A2L file upload address space
     if (gXcp.MtaExt == XCP_ADDR_EXT_A2L) {
         if (!ApplXcpReadA2L(size, gXcp.MtaAddr, data))
             return CRC_ACCESS_DENIED; // Access violation
@@ -1120,61 +1120,79 @@ static uint8_t XcpReadMta(uint8_t size, uint8_t *data) {
     }
 #endif
 
-    return CRC_ACCESS_DENIED; // Access violation, illegal address or extension
+    return CRC_ACCESS_DENIED; // Access violation, illegal address or addressing mode
 }
 
 // Set MTA
+// Sets the memory transfer address in gXcp.MtaAddr/gXcp.MtaExt
+// Absolute addressing mode:
+//   Converted to pointer addressing mode gXcp.MtaPtr=ApplXcpGetBaseAddr()+XcpAddrDecodeAbsOffset(gXcp.MtaAddr) and gXcp.MtaExt=XCP_ADDR_EXT_PTR
+//   EPK access is gXcp.MtaPtr=XcpGetEpk() and gXcp.MtaExt=XCP_ADDR_EXT_PTR
+//   Absolute access to calibration segments is converted to segment relative addressing mode gXcp.MtaExt=XCP_ADDR_EXT_SEG
+// Other addressing mode are left unchanged
+// Called by XCP commands SET_MTA, SHORT_DOWNLOAD and SHORT_UPLOAD
 uint8_t XcpSetMta(uint8_t ext, uint32_t addr) {
 
     gXcp.MtaExt = ext;
     gXcp.MtaAddr = addr;
+    gXcp.MtaPtr = NULL; // MtaPtr not defined
+
 #ifndef XCP_ENABLE_EPK_CALSEG
     // Direct EPK access
     if (gXcp.MtaExt == XCP_ADDR_EXT_EPK && gXcp.MtaAddr == XCP_ADDR_EPK) {
         gXcp.MtaPtr = (uint8_t *)XcpGetEpk();
         gXcp.MtaExt = XCP_ADDR_EXT_PTR;
-    } else
+        return CRC_CMD_OK;
+    }
 #endif
-#ifdef XCP_ENABLE_DYN_ADDRESSING
-        // Event relative addressing mode, MtaPtr unknown yet
-        if (XcpAddrIsDyn(gXcp.MtaExt)) {
-            gXcp.MtaPtr = NULL; // MtaPtr not used
-        } else
-#endif
-#ifdef XCP_ENABLE_CALSEG_LIST
-            // Segment relative addressing mode
-            if (XcpAddrIsSeg(gXcp.MtaExt)) {
-                gXcp.MtaPtr = NULL; // MtaPtr not used
-            } else
-#endif
-#if defined(XCP_ENABLE_APP_ADDRESSING)
-                // Application specific addressing mode
-                if (XcpAddrIsApp(gXcp.MtaExt)) {
-                    gXcp.MtaPtr = NULL; // MtaPtr not used
-                } else
-#endif
-#ifdef XCP_ENABLE_ABS_ADDRESSING
-                    // Absolute addressing mode
-                    if (XcpAddrIsAbs(gXcp.MtaExt)) {
-                        gXcp.MtaPtr = (uint8_t *)ApplXcpGetBaseAddr() + XcpAddrDecodeAbsOffset(gXcp.MtaAddr);
-                        gXcp.MtaExt = XCP_ADDR_EXT_PTR;
-#ifdef XCP_ENABLE_CALSEG_LIST
-                        // Check for calibration segment absolute address
-                        tXcpCalSegIndex calseg = XcpFindCalSegByAddr(gXcp.MtaPtr);
-                        if (calseg != XCP_UNDEFINED_CALSEG) {
-                            tXcpCalSeg *c = &gXcp.CalSegList.calseg[calseg];
-                            DBG_PRINTF3("Direct absolute access to calseg '%s' addr=%08X\n", c->name, gXcp.MtaAddr);
-                            gXcp.MtaExt = XCP_ADDR_EXT_SEG;
-                            gXcp.MtaAddr = XcpAddrEncodeSegIndex(calseg, gXcp.MtaPtr - c->default_page); // Convert to segment relative address
-                        }
-#endif
-                    } else
-#endif
-                    {
-                        return CRC_OUT_OF_RANGE; // Unsupported addressing mode for direct memory access
-                    }
 
-    return CRC_CMD_OK;
+#ifdef XCP_ENABLE_DYN_ADDRESSING
+    // Event relative addressing mode
+    if (XcpAddrIsDyn(gXcp.MtaExt)) {
+        return CRC_CMD_OK;
+    }
+#endif
+
+#ifdef XCP_ENABLE_REL_ADDRESSING
+    // Relative addressing mode
+    if (XcpAddrIsRel(gXcp.MtaExt)) {
+        return CRC_CMD_OK;
+    }
+#endif
+
+#ifdef XCP_ENABLE_SEG_ADDRESSING
+    // Segment relative addressing mode
+    if (XcpAddrIsSeg(gXcp.MtaExt)) {
+        return CRC_CMD_OK;
+    }
+#endif
+
+#ifdef XCP_ENABLE_APP_ADDRESSING
+    // Application specific addressing mode
+    if (XcpAddrIsApp(gXcp.MtaExt)) {
+        return CRC_CMD_OK;
+    }
+#endif
+
+#ifdef XCP_ENABLE_ABS_ADDRESSING
+    // Absolute addressing mode
+    if (XcpAddrIsAbs(gXcp.MtaExt)) {
+        gXcp.MtaPtr = (uint8_t *)ApplXcpGetBaseAddr() + XcpAddrDecodeAbsOffset(gXcp.MtaAddr);
+        gXcp.MtaExt = XCP_ADDR_EXT_PTR;
+#ifdef XCP_ENABLE_CALSEG_LIST
+        // Check for calibration segment absolute address (XcpSetMta is not performance critical)
+        tXcpCalSegIndex calseg = XcpFindCalSegByAddr(gXcp.MtaPtr);
+        if (calseg != XCP_UNDEFINED_CALSEG) {
+            tXcpCalSeg *c = &gXcp.CalSegList.calseg[calseg];
+            gXcp.MtaExt = XCP_ADDR_EXT_SEG;
+            gXcp.MtaAddr = XcpAddrEncodeSegIndex(calseg, gXcp.MtaPtr - c->default_page); // Convert to segment relative address
+        }
+#endif
+        return CRC_CMD_OK;
+    }
+#endif
+
+    return CRC_OUT_OF_RANGE; // Unsupported addressing mode
 }
 
 /**************************************************************************/
