@@ -896,22 +896,14 @@ static uint8_t XcpCalSegCopyCalPage(tXcpCalSegNumber srcSeg, uint8_t srcPage, tX
 
     // Only copy from default page to working page supported
     if (srcSeg != dstSeg || srcSeg >= gXcp.CalSegList.count || dstPage != XCP_CALPAGE_WORKING_PAGE || srcPage != XCP_CALPAGE_DEFAULT_PAGE) {
-        DBG_PRINT_ERROR("invalid calseg copy operation\n");
+        DBG_PRINT_ERROR("unsupported or invalid calseg copy operation\n");
         return CRC_WRITE_PROTECTED;
     }
 
-    // @@@@ TODO: CANape does not support individual segment copy operations, copy all segments at once
+#ifdef XCP_ENABLE_COPY_CAL_PAGE_WORKAROUND
 
-    // if (dstSeg >= 1) {
-    //     tXcpCalSeg *c = &gXcp.CalSegList.calseg[dstSeg - 1];
-    //     uint16_t size = c->size;
-    //     const uint8_t *srcPtr = c->default_page;
-    //     return XcpCalSegWriteMemory(XcpAddrEncodeSegNumber(dstSeg, 0), size, srcPtr);
-    // } else {
-    //     return CRC_WRITE_PROTECTED; // Copy operation on EPK segment
-    // }
-
-    // Copy all segments from default page to working page
+    // Older CANapes < 24SP1  do not send individual segment copy operations for each segment
+    // Copy all existing segments from default page to working page, ignoring srcSeg/dstSeg
     for (tXcpCalSegIndex i = 0; i < gXcp.CalSegList.count; i++) {
         tXcpCalSeg *c = &gXcp.CalSegList.calseg[i];
         uint16_t size = c->size;
@@ -922,6 +914,15 @@ static uint8_t XcpCalSegCopyCalPage(tXcpCalSegNumber srcSeg, uint8_t srcPage, tX
         }
     }
     return CRC_CMD_OK;
+
+#else
+
+    tXcpCalSeg *c = &gXcp.CalSegList.calseg[dstSeg];
+    uint16_t size = c->size;
+    const uint8_t *srcPtr = c->default_page;
+    return XcpCalSegWriteMemory(XcpAddrEncodeSegNumber(dstSeg, 0), size, srcPtr);
+
+#endif
 }
 #endif
 

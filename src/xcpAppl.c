@@ -349,12 +349,11 @@ uint8_t ApplXcpWriteMemory(uint32_t dst, uint8_t size, const uint8_t *src) {
 #endif
 
 /**************************************************************************/
+// Operations on calibration memory segments
 // Calibration page switching callbacks
 /**************************************************************************/
 
-// Operations on  calibration memory segments
-
-// Called only when internal calibration segment management is not used or not enabled
+// Called only when internal calibration segment management is not enabled
 #ifdef XCP_ENABLE_CAL_PAGE
 
 uint8_t ApplXcpGetCalPage(uint8_t segment, uint8_t mode) {

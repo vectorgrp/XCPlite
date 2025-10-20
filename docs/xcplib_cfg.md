@@ -118,9 +118,10 @@ This section describes the XCP protocol layer configuration parameters in xcp_cf
 
 | Parameter | Description |
 |-----------|-------------|
-| `XCP_ENABLE_CAL_PAGE` | Enables calibration page switching commands |
-| `XCP_ENABLE_COPY_CAL_PAGE` | Enables calibration page initialization (FLASH→RAM copy) |
-| `XCP_ENABLE_FREEZE_CAL_PAGE` | Enables calibration page freeze and preload functionality |
+| `XCP_ENABLE_CAL_PAGE` | Enables calibration page switching commands GET/SET_CAL_PAGE |
+| `XCP_ENABLE_COPY_CAL_PAGE` | Enables calibration page initialization COPY_CAL_PAGE (FLASH→RAM copy only supported) |
+| `XCP_ENABLE_COPY_CAL_PAGE_WORKAROUND` | Enables a workaround for older CANapes (see xcp_cfg.h) |
+| `XCP_ENABLE_FREEZE_CAL_PAGE` | Enables calibration page freeze functionality (GET/SET_SEGMENT_MODE), required for calibration segment persistence |
 | `XCP_ENABLE_CHECKSUM` | Enables checksum calculation command |
 | `XCP_CHECKSUM_TYPE` | Checksum algorithm type (XCP_CHECKSUM_TYPE_CRC16CCITT or XCP_CHECKSUM_TYPE_ADD44) |
 | `XCP_ENABLE_SEED_KEY` | Enables seed/key security mechanism (commented out by default) |

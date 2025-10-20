@@ -216,7 +216,7 @@ typedef struct {
     bool write_pending;    // write pending because write delay
     bool free_page_hazard; // safe free page use is not guaranteed yet, it may be in use
 #ifdef XCP_ENABLE_FREEZE_CAL_PAGE
-    uint8_t mode;      // reuested for freeze and preload
+    uint8_t mode;      // requested for freeze and preload
     uint32_t file_pos; // position of the calibration segment in the persistency file
 #endif
     char name[XCP_MAX_CALSEG_NAME + 1];

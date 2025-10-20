@@ -197,18 +197,21 @@ xcp-lite for Rust XCP_LITE_CADR:
 /*----------------------------------------------------------------------------*/
 /* Protocol features and commands */
 
-#define XCP_ENABLE_CAL_PAGE // Enable calibration page commands
+#define XCP_ENABLE_CAL_PAGE // Enable calibration page commands (GET/SET_CAL_PAGE)
 #ifdef XCP_ENABLE_CAL_PAGE
 
-// Enable calibration page initialization (FLASH->RAM copy)
+// Enable calibration page initialization (COPY_CAL_PAGE, FLASH->RAM copy only)
 #define XCP_ENABLE_COPY_CAL_PAGE
+// Activate workaround for CANape issue with COPY_CAL_PAGE command
+// COPY_CAL_PAGE always copies all segments from default to working, this is not compliant to the XCP specification
+#define XCP_ENABLE_COPY_CAL_PAGE_WORKAROUND
 
-// Enable calibration page freeze request
+// Enable calibration working page freeze request
 #ifdef OPTION_CAL_PERSISTENCE
 #define XCP_ENABLE_FREEZE_CAL_PAGE
 #endif
 
-#endif
+#endif // XCP_ENABLE_CAL_PAGE
 
 // Enable checksum calculation command
 #define XCP_ENABLE_CHECKSUM
