@@ -24,12 +24,13 @@ uint8_t XcpCalSegCommand(uint8_t cmd);
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
 
-#define OPTION_PROJECT_NAME "cal_test"  // A2L project name
-#define OPTION_USE_TCP false            // TCP or UDP
-#define OPTION_SERVER_PORT 5555         // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE (1024 * 256)  // Size of the measurement queue in bytes, must be a multiple of 8
-#define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_PROJECT_NAME "cal_test"           // A2L project name
+#define OPTION_PROJECT_EPK __DATE__ "_" __TIME__ // EPK version string
+#define OPTION_USE_TCP false                     // TCP or UDP
+#define OPTION_SERVER_PORT 5555                  // Port
+#define OPTION_SERVER_ADDR {0, 0, 0, 0}          // Bind addr, 0.0.0.0 = ANY
+#define OPTION_QUEUE_SIZE (1024 * 256)           // Size of the measurement queue in bytes, must be a multiple of 8
+#define OPTION_LOG_LEVEL 3                       // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 #define DEFAULT_THREAD_COUNT 10         // Default number of threads
 #define DEFAULT_TEST_WRITE_COUNT 100000 // Default test writes
@@ -161,7 +162,7 @@ int main(int argc, char *argv[]) {
     XcpSetLogLevel(OPTION_LOG_LEVEL);
 
     // Initialize XCP
-    XcpInit(true);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, true);
 
     // Initialize XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;
@@ -171,8 +172,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Initialize A2L generation
-    if (!A2lInit(OPTION_PROJECT_NAME, __DATE__ "_" __TIME__ /* EPK */, addr, OPTION_SERVER_PORT, OPTION_USE_TCP,
-                 A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         printf("Failed to initialize A2L generation\n");
         return 1;
     }

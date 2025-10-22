@@ -543,7 +543,7 @@ void XcpSetLogLevel(uint8_t level);
 /// Initialize the XCP singleton, activate XCP, must be called before starting the server
 /// If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
 /// @param activate If true, the XCP library is activated
-void XcpInit(bool activate);
+void XcpInit(const char *name, const char *epk, bool activate);
 
 /// Check if XCP has been activated
 bool XcpIsActivated(void);
@@ -551,21 +551,14 @@ bool XcpIsActivated(void);
 /// Check if XCP is connected
 bool XcpIsConnected(void);
 
+// Project name
+
+const char *XcpGetProjectName(void);
+
 // A2L file name
-#define XCP_A2L_FILENAME_MAX_LENGTH 255 // Maximum length of A2L filename with extension
-/// Set the A2L file name
-/// To enable automatic detection by the XCP client tool (GET_ID IDT_ASAM_NAME, IDT_ASAM_NAME and for IDT_ASAM_UPLOAD)
-/// This will be automatically done by A2lInit
-/// If A2L generation is not used, it has to be called manually
-void XcpSetA2lName(const char *name);
+const char *XcpGetA2lName(void);
 
 // EPK software version identifier
-#define XCP_EPK_MAX_LENGTH 31 // Maximum length of EPK string (excluding null terminator), must be odd
-// Set the EPK
-// This will be automatically done by A2lInit
-// If A2L generation is not used, this has to be called manually
-void XcpSetEpk(const char *epk);
-/// Get the EPK
 const char *XcpGetEpk(void);
 
 /// Force Disconnect

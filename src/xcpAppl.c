@@ -241,7 +241,11 @@ const uint8_t *ApplXcpGetBaseAddr(void) {
 uint32_t ApplXcpGetAddr(const uint8_t *p) {
     const uint8_t *b = ApplXcpGetBaseAddr();
     assert(p >= b);
-    assert(((uint64_t)p - (uint64_t)b) <= 0xffffffff); // be sure that XCP address range is sufficient
+    if (((uint64_t)p - (uint64_t)b) > 0xffffffff) { // be sure that XCP address range is sufficient
+        DBG_PRINTF_ERROR("Address out of range! base = %p, addr = %p\n", (void *)b, (void *)p);
+        assert(0);
+        return 0;
+    }
     return (uint32_t)(p - b);
 }
 
@@ -405,6 +409,7 @@ uint8_t ApplXcpDaqResumeClear(void) {
 // Functions for upload of A2L file
 /**************************************************************************/
 
+#define XCP_A2L_FILENAME_MAX_LENGTH 255                        // Maximum length of A2L filename with extension
 static char gXcpA2lName[XCP_A2L_FILENAME_MAX_LENGTH + 1] = ""; // A2L filename (without extension .a2l)
 
 // Set the A2L file (filename without extension .a2l) to be provided to the host for upload
@@ -487,8 +492,18 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen) {
     uint32_t len = 0;
     switch (id) {
 
-    case IDT_ASCII:
-    case IDT_ASAM_NAME:
+    case IDT_ASCII: {
+        const char *project_name = XcpGetProjectName();
+        len = (uint32_t)strlen(project_name);
+        if (buf) {
+            if (len >= bufLen - 1)
+                return 0; // Insufficient buffer space
+            STRNCPY((char *)buf, project_name, len);
+        }
+        DBG_PRINTF3("ApplXcpGetId GET_ID%u project_name=%s\n", id, project_name);
+    } break;
+
+    case IDT_ASAM_NAME: {
         if (gXcpA2lName[0] == 0)
             return 0;
         len = (uint32_t)strlen(gXcpA2lName);
@@ -497,10 +512,10 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen) {
                 return 0; // Insufficient buffer space
             STRNCPY((char *)buf, gXcpA2lName, len);
         }
-        DBG_PRINTF3("ApplXcpGetId GET_ID%u name=%s\n", id, gXcpA2lName);
-        break;
+        DBG_PRINTF3("ApplXcpGetId GET_ID%u a2l_name=%s\n", id, gXcpA2lName);
+    } break;
 
-    case IDT_ASAM_PATH:
+    case IDT_ASAM_PATH: {
         if (gXcpA2lName[0] == 0)
             return 0;
         len = (uint32_t)strlen(gXcpA2lName) + 4;
@@ -509,8 +524,8 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen) {
                 return 0; // Insufficient buffer space
             SNPRINTF((char *)buf, bufLen, "%s.a2l", gXcpA2lName);
         }
-        DBG_PRINTF3("ApplXcpGetId GET_ID%u A2L path=%s\n", id, buf);
-        break;
+        DBG_PRINTF3("ApplXcpGetId GET_ID%u a2l_path=%s\n", id, buf);
+    } break;
 
     case IDT_ASAM_EPK: {
         const char *epk = XcpGetEpk();
@@ -528,16 +543,16 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen) {
     } break;
 
 #ifdef XCP_ENABLE_IDT_A2L_UPLOAD
-    case IDT_ASAM_UPLOAD:
+    case IDT_ASAM_UPLOAD: {
         if (buf != NULL)
             return 0; // A2L not available as response buffer
         len = openA2lFile();
         DBG_PRINTF3("ApplXcpGetId GET_ID%u A2L as upload (len=%u)\n", id, len);
-        break;
+    } break;
 #endif
 
 #ifdef XCP_ENABLE_IDT_A2L_HTTP_GET
-    case IDT_ASAM_URL:
+    case IDT_ASAM_URL: {
         if (buf) {
             uint8_t addr[4];
             if (socketGetLocalAddr(NULL, addr)) {
@@ -545,7 +560,7 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen) {
                 len = (uint32_t)strlen((char *)buf);
             }
         }
-        break;
+    } break;
 #endif
 
         /*

@@ -28,6 +28,12 @@
 // #define XCP_PROTOCOL_LAYER_VERSION 0x0103  // GET_DAQ_CLOCK_MULTICAST, GET_TIME_CORRELATION_PROPERTIES
 #define XCP_PROTOCOL_LAYER_VERSION 0x0104 // PACKED_MODE, CC_START_STOP_SYNCH prepare
 
+// Maximum length of EPK string (excluding null terminator), must be odd
+#define XCP_EPK_MAX_LENGTH 31
+
+// Maximum length of the project name (excluding null terminator), must be odd
+#define XCP_PROJECT_NAME_MAX_LENGTH 31
+
 /*----------------------------------------------------------------------------*/
 // Enable calibration segment list management
 #ifdef OPTION_CAL_SEGMENTS
@@ -219,7 +225,10 @@ xcp-lite for Rust XCP_LITE_CADR:
 // COPY_CAL_PAGE always copies all segments from default to working, this is not compliant to the XCP specification
 #define XCP_ENABLE_COPY_CAL_PAGE_WORKAROUND
 
-// Enable calibration working page freeze request
+// Enable working page freeze request
+// There are 2 modes:
+//   1. A persisted working page will become the new reference page (this requires segment relative addressing mode)
+//   2. Just persist the working page
 #ifdef OPTION_CAL_PERSISTENCE
 
 // Enable the FREEZE_CAL_PAGE command
@@ -228,7 +237,7 @@ xcp-lite for Rust XCP_LITE_CADR:
 
 // Enable persistency of reference (default) page, instead of working page
 // This requires segment relative addressing mode !
-// #define XCP_ENABLE_REFERENCE_PAGE_PERSISTENCY
+#define XCP_ENABLE_REFERENCE_PAGE_PERSISTENCY
 
 #endif
 

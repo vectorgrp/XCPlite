@@ -20,12 +20,13 @@ static void sig_handler(int sig) { global_running = false; }
 //-----------------------------------------------------------------------------------------------------
 // XCP params
 
-#define OPTION_PROJECT_NAME "no_a2l_demo" // Project name, used to build the volatile and BIN file name
-#define OPTION_USE_TCP true               // TCP or UDP
-#define OPTION_SERVER_PORT 5555           // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0}   // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE 1024 * 16       // Size of the measurement queue in bytes, must be a multiple of 8
-#define OPTION_LOG_LEVEL 3                // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_PROJECT_NAME "no_a2l_demo"        // Project name, used to build the volatile and BIN file name
+#define OPTION_PROJECT_EPK __DATE__ "_" __TIME__ // EPK version string
+#define OPTION_USE_TCP true                      // TCP or UDP
+#define OPTION_SERVER_PORT 5555                  // Port
+#define OPTION_SERVER_ADDR {0, 0, 0, 0}          // Bind addr, 0.0.0.0 = ANY
+#define OPTION_QUEUE_SIZE 1024 * 16              // Size of the measurement queue in bytes, must be a multiple of 8
+#define OPTION_LOG_LEVEL 3                       // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 //-----------------------------------------------------------------------------------------------------
 // Demo calibration parameters
@@ -216,10 +217,7 @@ int main(void) {
 
     // XCP: Initialize the XCP singleton, activate XCP, must be called before starting the server
     //      If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-    XcpInit(true);
-    // XcpSetProjectName(OPTION_PROJECT_NAME); // Set the name returned by XCP command GET_ID IDT_ASCII
-    XcpSetEpk(NULL); // Generate and set the EPK software version identifier for XCP command GET_ID IDT_ASAM_EPK
-    // XcpLoadBinFile(OPTION_PROJECT_NAME); // Load an existing binary file if available
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, true);
 
     // XCP: Initialize the XCP Server
     const uint8_t __addr[4] = OPTION_SERVER_ADDR;

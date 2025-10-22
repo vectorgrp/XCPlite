@@ -69,7 +69,24 @@ typedef struct {
 extern tXcpData gXcp;
 
 static tHeader gA2lHeader;
-static const char *gA2lBinFilename = NULL;
+
+//--------------------------------------------------------------------------------------------------------------------------------
+
+#define XCP_BIN_FILENAME_MAX_LENGTH 255 // Maximum length of BIN filename with extension
+static char gXcpBinFilename[XCP_BIN_FILENAME_MAX_LENGTH + 1] = "";
+
+// Build BIN filename from project name and EPK
+static void buildBinFilename(void) {
+    if (strlen(gXcpBinFilename) > 0)
+        return; // Already built
+    const char *project_name = XcpGetProjectName();
+    assert(project_name != NULL);
+    const char *epk = XcpGetEpk();
+    assert(epk != NULL);
+    SNPRINTF(gXcpBinFilename, XCP_BIN_FILENAME_MAX_LENGTH, "%s_%s.bin", project_name, epk);
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------
 
 static bool writeHeader(FILE *file, const char *epk, uint16_t event_count, uint16_t calseg_count) {
 
@@ -140,10 +157,9 @@ static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, tXcpCalSeg *seg) {
 /// @param filename The name of the file to write.
 /// @return
 /// Returns true if the file was successfully written, false otherwise.
-bool XcpBinWrite(const char *filename) {
-    assert(filename != NULL);
-
-    FILE *file = fopen(filename, "wb");
+bool XcpBinWrite(void) {
+    buildBinFilename();
+    FILE *file = fopen(gXcpBinFilename, "wb");
     if (file == NULL) {
         DBG_PRINTF3("Failed to open file for writing: %s\n", strerror(errno));
         return false;
@@ -174,9 +190,8 @@ bool XcpBinWrite(const char *filename) {
     }
 
     fclose(file);
-    gA2lBinFilename = filename;
 
-    DBG_PRINTF3("Persistency data written to file '%s'\n", filename);
+    DBG_PRINTF3("Persistency data written to file '%s'\n", gXcpBinFilename);
     return true;
 }
 
@@ -195,9 +210,10 @@ bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg) {
         return false;
     }
 
-    FILE *file = fopen(gA2lBinFilename, "r+b");
+    buildBinFilename();
+    FILE *file = fopen(gXcpBinFilename, "r+b");
     if (file == NULL) {
-        DBG_PRINTF_ERROR("Failed to open file '%s' for read/write: %s\n", gA2lBinFilename, strerror(errno));
+        DBG_PRINTF_ERROR("Failed to open file '%s' for read/write: %s\n", gXcpBinFilename, strerror(errno));
         return false;
     }
 
@@ -205,14 +221,14 @@ bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg) {
     assert(seg->file_pos > 0); // Ensure the file position is set
     size_t n = 0;
     if (0 == fseek(file, seg->file_pos, SEEK_SET)) {
-        printf("Writing calibration segment %u, size=%u active page data to file '%s'+%u\n", calseg, seg->size, gA2lBinFilename, seg->file_pos);
+        printf("Writing calibration segment %u, size=%u active page data to file '%s'+%u\n", calseg, seg->size, gXcpBinFilename, seg->file_pos);
         const uint8_t *ecu_page = XcpLockCalSeg(calseg);
         n = fwrite(ecu_page, seg->size, 1, file);
         XcpUnlockCalSeg(calseg);
     }
     fclose(file);
     if (n != 1) {
-        DBG_PRINTF_ERROR("Failed to write calibration segment %u, size=%u active page data to file '%s'+%u\n", calseg, seg->size, gA2lBinFilename, seg->file_pos);
+        DBG_PRINTF_ERROR("Failed to write calibration segment %u, size=%u active page data to file '%s'+%u\n", calseg, seg->size, gXcpBinFilename, seg->file_pos);
         return false;
     } else {
         return true;
@@ -221,22 +237,17 @@ bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg) {
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
-/// Load the binary persistency file.
-/// This function reads the binary file containing calibration segment descriptors and data and event descriptors
-/// It verifies the file signature and EPK, and creates the events and calibration segments
-/// This must be done early, before any event or segments are created
-/// @param filename The pathname of the file (with extension) to read
-/// @param epk The expected EPK string for verification
-/// @return
-/// If the file is successfully loaded, it returns true.
-/// Returns false, if the file does not exist, has an invalid format, the EPK does not match or any other reason
-bool XcpBinLoad(const char *filename, const char *epk) {
+// Load the binary persistency file.
+// @param filename The pathname of the file (with extension) to read
+// @param epk The expected EPK string for verification
+// @return
+// If the file is successfully loaded, it returns true.
+// Returns false, if the file does not exist, has an invalid format, the EPK does not match or any other reason
+static bool load(const char *filename, const char *epk) {
     assert(filename != NULL);
-    gA2lBinFilename = NULL;
-
     FILE *file = fopen(filename, "rb");
     if (file == NULL) {
-        DBG_PRINTF_ERROR("File '%s' does not exist\n", filename);
+        DBG_PRINTF3("File '%s' does not exist, starting with default calibration parameters\n", filename);
         return false;
     }
 
@@ -255,7 +266,6 @@ bool XcpBinLoad(const char *filename, const char *epk) {
     }
 
     DBG_PRINTF3("Loading '%s', EPK '%s'\n", filename, epk);
-    gA2lBinFilename = filename;
 
     // Load events
     // Event list must be empty at this point
@@ -332,6 +342,26 @@ bool XcpBinLoad(const char *filename, const char *epk) {
     }
 
     return true;
+}
+
+// Load the binary persistency file.
+// This function reads the binary file containing calibration segment descriptors and data and event descriptors
+// It verifies the file signature and EPK, and creates the events and calibration segments
+// This must be done early, before any event or segments are created
+// @return
+// If the file is successfully loaded, it returns true.
+// Returns false, if the file does not exist, has an invalid format, the EPK does not match or any other reason
+
+bool XcpBinLoad(void) {
+
+    buildBinFilename();
+    const char *epk = XcpGetEpk();
+    assert(epk != NULL);
+    if (load(gXcpBinFilename, epk)) {
+        DBG_PRINTF3("Loaded binary file %s\n", gXcpBinFilename);
+        return true;
+    }
+    return false;
 }
 
 #endif // OPTION_CAL_PERSISTENCE

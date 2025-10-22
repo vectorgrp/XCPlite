@@ -34,22 +34,16 @@ extern "C" {
 /****************************************************************************/
 
 // Initialization for the XCP Protocol Layer
-void XcpInit(bool activate);
+void XcpInit(const char *name, const char *epk, bool activate);
 bool XcpIsInitialized(void);
 bool XcpIsActivated(void);
 void XcpStart(tQueueHandle queueHandle, bool resumeMode);
 void XcpReset(void);
 
-// EPK software version identifier
-#ifndef XCP_EPK_MAX_LENGTH
-#define XCP_EPK_MAX_LENGTH 31 // Maximum length of EPK string (excluding null terminator), must be odd
-#endif
-// Set the EPK
-// This will be automatically done by A2lInit
-// If A2L generation is not used, this has to be called manually
-void XcpSetEpk(const char *epk);
+// Project name
+const char *XcpGetProjectName(void);
 
-// Get the EPK
+// EPK software version identifier
 const char *XcpGetEpk(void);
 
 // XCP command processor
@@ -393,6 +387,9 @@ typedef struct {
     uint64_t DaqStartClock64;  // DAQ start time
     uint32_t DaqOverflowCount; // DAQ queue overflow
 
+    /* Project Name */
+    char ProjectName[XCP_PROJECT_NAME_MAX_LENGTH + 1]; // Project name string, null terminated
+
     /* EPK */
     char Epk[XCP_EPK_MAX_LENGTH + 1]; // EPK string, null terminated
 
@@ -540,8 +537,7 @@ void ApplXcpRegisterCallbacks(bool (*cb_connect)(void), uint8_t (*cb_prepare_daq
                               uint8_t (*cb_init_cal)(uint8_t src_page, uint8_t dst_page), uint8_t (*cb_read)(uint32_t src, uint8_t size, uint8_t *dst),
                               uint8_t (*cb_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay), uint8_t (*cb_flush)(void));
 
-// Set/get the A2L file name (for GET_ID IDT_ASAM_NAME, IDT_ASAM_NAME and for IDT_ASAM_UPLOAD)
-#define XCP_A2L_FILENAME_MAX_LENGTH 255 // Maximum length of A2L filename with extension
+// Set/get the A2L file name (for GET_ID IDT_ASAM_NAME and for IDT_ASAM_UPLOAD)
 void XcpSetA2lName(const char *name);
 const char *XcpGetA2lName(void);
 

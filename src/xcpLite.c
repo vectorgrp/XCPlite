@@ -130,11 +130,11 @@
 #endif
 
 /* Check length of of event and segment names with null termination must be even*/
-#if XCP_EPK_MAX_LENGTH & 1 == 0
-#error "XCP_EPK_MAX_LENGTH must be odd to allow null termination"
+#if XCP_EPK_MAX_LENGTH & 1 == 0 || XCP_EPK_MAX_LENGTH >= 256
+#error "XCP_EPK_MAX_LENGTH must be <256 and odd for null termination"
 #endif
 #if XCP_MAX_EVENT_NAME & 1 == 0
-#error "XCP_MAX_EVENT_NAME must be odd to allow null termination"
+#error "XCP_MAX_EVENT_NAME must be odd for null termination"
 #endif
 
 /****************************************************************************/
@@ -291,6 +291,28 @@ uint16_t XcpGetClusterId(void) { return gXcp.ClusterId; }
 uint64_t XcpGetDaqStartTime(void) { return gXcp.DaqStartClock64; }
 
 uint32_t XcpGetDaqOverflowCount(void) { return gXcp.DaqOverflowCount; }
+
+/**************************************************************************/
+/* Project/ECU name                                                       */
+/**************************************************************************/
+
+// Set the project name
+void XcpSetProjectName(const char *name) {
+
+    assert(name != NULL);
+
+    size_t name_len = STRNLEN(name, XCP_PROJECT_NAME_MAX_LENGTH);
+    STRNCPY(gXcp.ProjectName, name, name_len);
+    gXcp.ProjectName[XCP_PROJECT_NAME_MAX_LENGTH] = 0; // Ensure null-termination
+    DBG_PRINTF3("Project Name = '%s'\n", gXcp.ProjectName);
+}
+
+// Get the project name
+const char *XcpGetProjectName(void) {
+    if (STRNLEN(gXcp.ProjectName, XCP_PROJECT_NAME_MAX_LENGTH) == 0)
+        return NULL;
+    return gXcp.ProjectName;
+}
 
 /**************************************************************************/
 /* EPK version string                                                     */
@@ -488,13 +510,16 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
         // Allocate the  working page
         c->xcp_page = malloc(size);
         memcpy(c->xcp_page, c->default_page, size); // Copy default page to working page
+        if (c->mode & PAG_PROPERTY_PRELOAD) {
+            DBG_PRINTF3("Persistence data loaded into reference page of CalSeg %u: %s size=%u\n", index, c->name, c->size);
+        }
 #else
-        // Working page persistenca
+        // Working page persistency
         // If it is a preloaded segment with a heap allocated default page, use this default page as working page
         if (c->mode & PAG_PROPERTY_PRELOAD) {
-
             c->xcp_page = (uint8_t *)c->default_page;
             c->default_page = default_page;
+            DBG_PRINTF3("Persistence data loaded into working page of CalSeg %u: %s addr=0x%08X, size=%u\n", index, c->name, XcpGetCalSegBaseAddress(index), c->size);
         }
         // else allocate and initialize the working page
         else {
@@ -3203,7 +3228,7 @@ void XcpPrint(const char *str) {
 // Init XCP protocol layer singleton once
 // This is a once initialization of the static gXcp singleton data structure
 // Memory for the DAQ lists are provided by the caller if daq_lists != NULL
-void XcpInit(bool activate) {
+void XcpInit(const char *name, const char *epk, bool activate) {
     // Once
     if (isActivated()) { // Already initialized, just ignore
         return;
@@ -3229,6 +3254,21 @@ void XcpInit(bool activate) {
     // Initialize high resolution clock
     clockInit();
 
+    // Set the EPK
+    if (epk != NULL) {
+        XcpSetEpk(epk);
+    }
+
+    // Set the project name
+    if (name != NULL) {
+        XcpSetProjectName(name);
+    }
+
+#ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
+    gXcp.ClusterId = XCP_MULTICAST_CLUSTER_ID; // XCP default cluster id (multicast addr 239,255,0,1, group 127,0,1 (mac 01-00-5E-7F-00-01)
+    XcpEthTlSetClusterId(gXcp.ClusterId);
+#endif
+
 #ifdef XCP_ENABLE_CALSEG_LIST
     XcpInitCalSegList();
 #endif
@@ -3237,12 +3277,26 @@ void XcpInit(bool activate) {
     XcpInitEventList();
 #endif
 
-#ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
-    gXcp.ClusterId = XCP_MULTICAST_CLUSTER_ID; // XCP default cluster id (multicast addr 239,255,0,1, group 127,0,1 (mac 01-00-5E-7F-00-01)
-    XcpEthTlSetClusterId(gXcp.ClusterId);
+    // Activate XCP protocol layer
+    gXcp.SessionStatus |= SS_ACTIVATED;
+
+// Check if the BIN file exists and load it
+// If successful, do not start the A2L generation process, but still provide the existing A2L file to the XCP client
+#ifdef OPTION_CAL_PERSISTENCE
+    if (XcpBinLoad()) {
+        gXcp.SessionStatus |= SS_PERSISTENCE_LOADED;
+    }
 #endif
 
-    gXcp.SessionStatus |= SS_ACTIVATED;
+#ifdef XCP_ENABLE_CALSEG_LIST
+#ifdef XCP_ENABLE_EPK_CALSEG
+    // Create the EPK calibration segment
+    // Make sure it has index 0
+    // @@@@ TODO: Currently the EPK segment is treated like any other segment, even if it is read-only and does not need 2 pages
+    tXcpCalSegIndex epk_seg = XcpCreateCalSeg("epk", XcpGetEpk(), STRNLEN(XcpGetEpk(), XCP_EPK_MAX_LENGTH));
+    assert(epk_seg == 0);
+#endif
+#endif
 }
 
 // Start XCP protocol layer
@@ -3407,7 +3461,7 @@ void XcpReset(void) {
     XcpFreeCalSegList();
 #endif
 
-    XcpInit(true); // Reset XCP state
+    XcpInit(NULL, NULL, false); // Reset XCP state
 }
 
 /****************************************************************************/

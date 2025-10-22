@@ -45,7 +45,7 @@ Key features:
 3. **Initialise the XCP core** *once*:
 
 ```c
-   XcpInit(true);
+   XcpInit("MyProject", "V1.0.1",true);
 ```
 
 4. **Start the Ethernet server** (TCP or UDP, IP addr, port):
@@ -67,7 +67,7 @@ Key features:
 
 ### Initialization
 
-#### void XcpInit( bool activate)
+#### void XcpInit(const char *project_name, const char*epk, bool activate)
 
 *Initialize XCP*
 
@@ -120,7 +120,7 @@ See function and macro documentation in xcplib.h
 
 ### 3.4 A2L Generation
 
-#### bool A2lInit(const char *project_name, const char*epk, const uint8_t *address, uint16_t port, bool use_tcp, uint32_t mode_flags)
+#### bool A2lInit(const uint8_t *address, uint16_t port, bool use_tcp, uint32_t mode_flags)
 
 Initializes the A2L generation system of XCPlite. This function must be called once before any A2L-related macros or API functions are used. It performs the following actions:
 
@@ -171,9 +171,7 @@ All definitions of instances follow the same principle: Set the addressing mode 
 | Function                                                         | Purpose                                                         |
 | ---------------------------------------------------------------- | --------------------------------------------------------------- |
 | `void XcpSetLogLevel(uint8_t level);`                            | 1 = error, 2 = warn, 3 = info, 4 = commands, 5 = trace.         |
-| `void XcpInit(void);`                                            | Initialize core singleton; must precede all other API usage.    |
-| `void XcpSetA2lName(const char *name);`                          | Manually set the A2L file name to be used for GET_ID.           |
-| `void XcpSetEpk(const char *epk);`                               | Set EPK software identifier (for A2L and BIN).                  |
+| `void XcpInit(const char *name, const char *epk, bool activate);`| Initialize core singleton; must precede all other API usage.    |
 | `void XcpDisconnect(void);`                                      | Force client disconnect, stop DAQ, flush pending operations.    |
 | `void XcpSendTerminateSessionEvent(void);`                       | Notify client of a terminated session.                          |
 | `void XcpPrint(const char *str);`                                | Send arbitrary text to the client (channel 0xFF).               |
