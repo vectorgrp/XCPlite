@@ -237,7 +237,9 @@ xcp-lite for Rust XCP_LITE_CADR:
 
 // Enable persistency of reference (default) page, instead of working page
 // This requires segment relative addressing mode !
+#ifdef OPTION_CAL_REFERENCE_PAGE_PERSISTENCY
 #define XCP_ENABLE_REFERENCE_PAGE_PERSISTENCY
+#endif
 
 #endif
 

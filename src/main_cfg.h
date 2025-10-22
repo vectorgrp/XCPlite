@@ -52,7 +52,8 @@
   #define OPTION_CAL_SEGMENT_COUNT x          Maximum number of calibration segments
   #define OPTION_CAL_PERSISTENCE              Enable calibration segment persistence, BIN file is used to store calibration segments, A2L maybe generated only once per build
   #define OPTION_CAL_SEGMENT_EPK              Enable EPK calibration segment to check HEX file compatibility
-  #define OPTION_CAL_SEGMENTS_ABS             Enable absolute addressing for calibration segments, calibration parameters and calibration segments may be updated by linker mapfile,
+  #define OPTION_CAL_SEGMENTS_ABS             Enable absolute addressing for calibration segments, calibration parameters and calibration segments may be updated by linker
+  #define OPTION_CAL_REFERENCE_PAGE_PERSISTENCY   Enable persistency for reference page, otherwise working page
 
   // A2L generation settings
   #define OPTION_ENABLE_A2L_GENERATOR         Enable A2L generator
@@ -87,7 +88,7 @@
 #define OPTION_CAL_PERSISTENCE     // Enable calibration segment persistence, BIN file is used to store calibration segments, A2L maybe generated only once per build
 #define OPTION_CAL_SEGMENT_EPK     // Enable EPK calibration segment to check HEX file compatibility
 // #define OPTION_CAL_SEGMENTS_ABS    // Enable absolute addressing for calibration segments
-
+// #define OPTION_CAL_REFERENCE_PAGE_PERSISTENCY // Enable persistency for reference page, otherwise working page
 #endif
 
 // DAQ
