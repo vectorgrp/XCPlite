@@ -171,7 +171,8 @@ int main(int argc, char *argv[]) {
     }
 
     // Initialize A2L generation
-    if (!A2lInit(OPTION_PROJECT_NAME, nullptr, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(OPTION_PROJECT_NAME, __DATE__ "_" __TIME__ /* EPK */, addr, OPTION_SERVER_PORT, OPTION_USE_TCP,
+                 A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         printf("Failed to initialize A2L generation\n");
         return 1;
     }

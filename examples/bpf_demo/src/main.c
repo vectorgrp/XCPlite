@@ -593,7 +593,8 @@ int main(int argc, char *argv[]) {
     }
 
     // Enable inline A2L generation
-    if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(OPTION_PROJECT_NAME, __DATE__ "_" __TIME__ /* EPK */, addr, OPTION_SERVER_PORT, OPTION_USE_TCP,
+                 A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         return 1;
     }
 

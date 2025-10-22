@@ -51,10 +51,11 @@
   #define OPTION_CAL_SEGMENTS                 Enable calibration segment management (otherwise callbacks are used for calibration segment commands)
   #define OPTION_CAL_SEGMENT_COUNT x          Maximum number of calibration segments
   #define OPTION_CAL_PERSISTENCE              Enable calibration segment persistence, BIN file is used to store calibration segments, A2L maybe generated only once per build
-  #define OPTION_CAL_SEGMENT_EPK              Enable EPK calibration segment to detect HEX file incompatibility
+  #define OPTION_CAL_SEGMENT_EPK              Enable EPK calibration segment to check HEX file compatibility
   #define OPTION_CAL_SEGMENTS_ABS             Enable absolute addressing for calibration segments, calibration parameters and calibration segments may be updated by linker mapfile,
 
   // A2L generation settings
+  #define OPTION_ENABLE_A2L_GENERATOR         Enable A2L generator
   #define OPTION_ENABLE_A2L_UPLOAD            Enable A2L upload through XCP
   #define OPTION_ENABLE_GET_LOCAL_ADDR        Determine an existing IP address for A2L file, if bound to ANY
 
@@ -84,8 +85,8 @@
 #define OPTION_CAL_SEGMENTS        // Enable calibration segment management
 #define OPTION_CAL_SEGMENT_COUNT 4 // Maximum number of calibration segments
 #define OPTION_CAL_PERSISTENCE     // Enable calibration segment persistence, BIN file is used to store calibration segments, A2L maybe generated only once per build
-// #define OPTION_CAL_SEGMENT_EPK     // Enable EPK calibration segment to detect HEX file incompatibility
-#define OPTION_CAL_SEGMENTS_ABS // Enable absolute addressing for calibration segments
+#define OPTION_CAL_SEGMENT_EPK     // Enable EPK calibration segment to check HEX file compatibility
+#define OPTION_CAL_SEGMENTS_ABS    // Enable absolute addressing for calibration segments
 
 #endif
 
@@ -94,7 +95,7 @@
 
 #define OPTION_DAQ_MEM_SIZE (1000 * 6) // Memory bytes used for XCP DAQ tables - max 6 bytes per measurement signal needed
 #define OPTION_DAQ_EVENT_COUNT 32      // Maximum number of DAQ events (integer value, must be even)
-#define OPTION_DAQ_ASYNC_EVENT         // Create an asynchronous, cyclic DAQ event for asynchronous data acquisition
+// #define OPTION_DAQ_ASYNC_EVENT         // Create an asynchronous, cyclic DAQ event for asynchronous data acquisition
 
 #else
 
@@ -104,7 +105,8 @@
 #endif
 
 // A2L
-#define OPTION_ENABLE_A2L_UPLOAD // Enable A2L upload option via XCP
+#define OPTION_ENABLE_A2L_GENERATOR // Enable A2L generator
+#define OPTION_ENABLE_A2L_UPLOAD    // Enable A2L upload via XCP
 
 // Enable socketGetLocalAddr and XcpEthTlGetInfo
 // Used for convenience to get an existing ip address in A2L, when bound to ANY 0.0.0.0

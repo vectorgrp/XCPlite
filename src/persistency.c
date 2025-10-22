@@ -224,22 +224,25 @@ bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg) {
 /// Load the binary persistency file.
 /// This function reads the binary file containing calibration segment descriptors and data and event descriptors
 /// It verifies the file signature and EPK, and creates the events and calibration segments
+/// This must be done early, before any event or segments are created
+/// @param filename The pathname of the file (with extension) to read
+/// @param epk The expected EPK string for verification
 /// @return
 /// If the file is successfully loaded, it returns true.
-/// If the file does not exist, has an invalid format, or the EPK does not match, it returns false.
+/// Returns false, if the file does not exist, has an invalid format, the EPK does not match or any other reason
 bool XcpBinLoad(const char *filename, const char *epk) {
     assert(filename != NULL);
     gA2lBinFilename = NULL;
 
     FILE *file = fopen(filename, "rb");
     if (file == NULL) {
-        DBG_PRINTF3("File '%s' does not exist\n", filename);
+        DBG_PRINTF_ERROR("File '%s' does not exist\n", filename);
         return false;
     }
 
     size_t read = fread(&gA2lHeader, sizeof(tHeader), 1, file);
     if (read != 1 || strncmp(gA2lHeader.signature, BIN_SIGNATURE, sizeof(gA2lHeader.signature)) != 0) {
-        DBG_PRINTF3("Invalid file format or signature in '%s'\n", filename);
+        DBG_PRINTF_ERROR("Invalid file format or signature in '%s'\n", filename);
         fclose(file);
         return false;
     }
@@ -255,40 +258,72 @@ bool XcpBinLoad(const char *filename, const char *epk) {
     gA2lBinFilename = filename;
 
     // Load events
+    // Event list must be empty at this point
+    if (gXcp.EventList.count != 0) {
+        DBG_PRINT_ERROR("Event list not empty prior to loading persistency file\n");
+        fclose(file);
+        return false;
+    }
     for (uint16_t i = 0; i < gA2lHeader.event_count; i++) {
         tEventDescriptor desc;
+        tXcpEventId event_id;
+
+        // Read event descriptor
         read = fread(&desc, sizeof(tEventDescriptor), 1, file);
         if (read != 1) {
-            DBG_PRINTF3("Failed to read event descriptor from file: %s\n", strerror(errno));
+            DBG_PRINTF_ERROR("Failed to read event descriptor from file: %s\n", strerror(errno));
             fclose(file);
             return false;
         }
 
-        tXcpEventId event_id = XcpCreateIndexedEvent(desc.name, desc.index, desc.cycleTimeNs, desc.priority);
-        assert(event_id == desc.id); // Ensure the event ID matches the descriptor ID
-        (void)event_id;
+        // Create the event
+        // As it is created in the original order, the event ID must match
+        event_id = XcpCreateIndexedEvent(desc.name, desc.index, desc.cycleTimeNs, desc.priority);
+        if (event_id == XCP_UNDEFINED_EVENT_ID || event_id != desc.id) { // Should not happen
+            DBG_PRINTF_ERROR("Failed to create event '%s' from persistency file\n", desc.name);
+            fclose(file);
+            return false;
+        }
     }
 
     // Load calibration segments
+    // Calibration segment list must be empty at this point
+    if (gXcp.CalSegList.count != 0) {
+        DBG_PRINT_ERROR("Calibration segment list not empty prior to loading persistency file\n");
+        fclose(file);
+        return false;
+    }
     for (uint16_t i = 0; i < gA2lHeader.calseg_count; i++) {
+        tXcpCalSegIndex calseg;
+
         tCalSegDescriptor desc;
         read = fread(&desc, sizeof(tCalSegDescriptor), 1, file);
         if (read != 1) {
-            DBG_PRINTF3("Failed to read calibration segment descriptor from file: %s\n", strerror(errno));
+            DBG_PRINTF_ERROR("Failed to read calibration segment descriptor from file: %s\n", strerror(errno));
             fclose(file);
             return false;
         }
 
-        void *default_page = malloc(desc.size);
-        read = fread(default_page, desc.size, 1, file);
+        // Allocate memory for persisted page from heap
+        void *page = malloc(desc.size);
+        read = fread(page, desc.size, 1, file);
         if (read != 1) {
-            DBG_PRINTF3("Failed to read calibration segment data from file: %s\n", strerror(errno));
-            free(default_page);
+            DBG_PRINTF_ERROR("Failed to read calibration segment data from file: %s\n", strerror(errno));
+            free(page);
             fclose(file);
             return false;
         }
-        tXcpCalSegIndex calseg = XcpCreateCalSeg(desc.name, default_page, desc.size);
-        assert(calseg == desc.index);
+
+        // The persisted data will become the preliminary reference page
+        // Providing a heap allocated default page may not work for absolute segment addressing mode in reference page persistency mode
+        // In working page persistency mode, the default page will be moved to working page in the later XcpCreateCalSeg called by the user, otherwise fail
+        calseg = XcpCreateCalSeg(desc.name, page, desc.size);
+        if (calseg != desc.index) {
+            DBG_PRINT_ERROR("Failed to create calibration segment\n");
+            free(page);
+            fclose(file);
+            return false;
+        }
 
         // Mark the segment as pre initialized
         tXcpCalSeg *seg = XcpGetCalSeg(calseg);

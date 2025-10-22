@@ -301,7 +301,7 @@ tQueueBuffer QueuePeek(tQueueHandle queueHandle, bool flush, uint32_t *packets_l
     if (packets_lost != NULL) {
         *packets_lost = queue->packets_lost;
         if (*packets_lost > 0)
-            DBG_PRINTF4("QueuePeek: packets_lost=%" PRIu32 "\n", *packets_lost);
+            DBG_PRINTF5("QueuePeek: packets_lost=%" PRIu32 "\n", *packets_lost);
         queue->packets_lost = 0; // Reset lost packets count
     }
 
@@ -314,7 +314,7 @@ tQueueBuffer QueuePeek(tQueueHandle queueHandle, bool flush, uint32_t *packets_l
 
         // Flush tail segment buffer if it is not empty
         if (queue->queue_len == 1 && b->size > 0 && flush) {
-            DBG_PRINT4("QueuePeek: flush\n");
+            DBG_PRINT5("QueuePeek: flush\n");
             newSegmentBuffer(queue);
         }
 

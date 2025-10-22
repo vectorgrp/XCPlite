@@ -551,16 +551,22 @@ bool XcpIsActivated(void);
 /// Check if XCP is connected
 bool XcpIsConnected(void);
 
-// Set the A2L file name
-// To enable automatic detection by the XCP client tool (GET_ID IDT_ASAM_NAME, IDT_ASAM_NAME and for IDT_ASAM_UPLOAD)
-// Internal function used by the A2L generator
+// A2L file name
 #define XCP_A2L_FILENAME_MAX_LENGTH 255 // Maximum length of A2L filename with extension
-void ApplXcpSetA2lName(const char *name);
+/// Set the A2L file name
+/// To enable automatic detection by the XCP client tool (GET_ID IDT_ASAM_NAME, IDT_ASAM_NAME and for IDT_ASAM_UPLOAD)
+/// This will be automatically done by A2lInit
+/// If A2L generation is not used, it has to be called manually
+void XcpSetA2lName(const char *name);
 
-// Set software version identifier (EPK)
-// Internal function used by the A2L generator
-#define XCP_EPK_MAX_LENGTH 32 // Maximum length of EPK string
+// EPK software version identifier
+#define XCP_EPK_MAX_LENGTH 31 // Maximum length of EPK string (excluding null terminator), must be odd
+// Set the EPK
+// This will be automatically done by A2lInit
+// If A2L generation is not used, this has to be called manually
 void XcpSetEpk(const char *epk);
+/// Get the EPK
+const char *XcpGetEpk(void);
 
 /// Force Disconnect
 /// Stop DAQ, flush queue, flush pending calibrations

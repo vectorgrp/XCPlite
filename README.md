@@ -351,6 +351,11 @@ Parameters in calibration segments may be accessed by their segment relative add
 The absolute address of a calibration parameter is an address within the default/regerence page structure. This requires, that the pointer to the default parameters (reference page) given to XcpCreateCalSeg are within the 32 bit addressable with static lifetime! XcpCreateCalSeg does not copy the default parameters.  
 This would be possible, when only using segment relative addressing mode, but is currently not implement.  
 
+### EPK - ECU Software Version
+
+To check compatibility of target ECU, A2L and binary parameter files, the so called EPK is used. It is a software version string specified in the A2L file, with an additional address where it is located in the ECU. The EPK does not have an explicit address extension, which means it defaults to 0. However the address extension 0 is defined in xcplib, as absolute or segment relative mode, the EPK may be accessed by its memory address. In addition, there is a special XCP info command GET_ID mode=5 to obtain the EPK from the ECU.  
+To be able to check the compatibility of binary parameter files, which store only parameter data in calibration parameter segments, an EPK memory segment is needed. This is important, because if CANape persists and caches calibration parameter segments in binary files and if the EPK is not in the address range of a memory segment, there is no way to check compatibility of the binary files. In XCPlite, the EPK may be specified with an xcplib API function or is generated from build time and date when calibration segment persistence mode is enabled.  
+
 ### Platform and language standard requirements and resource usage
 
 - _Generic and declspec for A2L generation type detection
@@ -397,6 +402,7 @@ This would be possible, when only using segment relative addressing mode, but is
 - Transport Layer counter mutex could be avoided with alternative counter mode, which is not default in CANape.  
 - Indicate when polling access is not possible. CANape assumes polling access is always possible.  
 - Configuration for begin/end atomic calibration user defined XCP commend is not default. Must be set once in a new CANape project to 0x01F1 and 0x02F1.  
+- EPK segment is defined with 2 readonly pages, because of CANape irritations with mixed mode calibration segment. CANape would not care for a single page EPK segment, reads active page always from segment 0 and uses only SET_CAL_PAGE ALL mode.  
 
 ### Todo
 

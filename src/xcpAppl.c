@@ -34,13 +34,6 @@ static bool __write_delayed = false;
 #endif
 
 /**************************************************************************/
-// Logging
-/**************************************************************************/
-
-// This is used by the Rust ffi to set the log level
-void ApplXcpSetLogLevel(uint8_t level) { XcpSetLogLevel(level); }
-
-/**************************************************************************/
 // Callbacks
 /**************************************************************************/
 
@@ -415,7 +408,7 @@ uint8_t ApplXcpDaqResumeClear(void) {
 static char gXcpA2lName[XCP_A2L_FILENAME_MAX_LENGTH + 1] = ""; // A2L filename (without extension .a2l)
 
 // Set the A2L file (filename without extension .a2l) to be provided to the host for upload
-void ApplXcpSetA2lName(const char *name) {
+void XcpSetA2lName(const char *name) {
     assert(name != NULL && strlen(name) < XCP_A2L_FILENAME_MAX_LENGTH);
     STRNCPY(gXcpA2lName, name, XCP_A2L_FILENAME_MAX_LENGTH);
 
@@ -424,11 +417,11 @@ void ApplXcpSetA2lName(const char *name) {
     if (dot != NULL)
         *dot = '\0';                                 // Null-terminate the string at the dot
     gXcpA2lName[XCP_A2L_FILENAME_MAX_LENGTH] = '\0'; // Ensure null-termination
-    DBG_PRINTF4("ApplXcpSetA2lName '%s'\n", name);
+    DBG_PRINTF4("XcpSetA2lName '%s'\n", name);
 }
 
 // Return the A2L name (without extension)
-const char *ApplXcpGetA2lName(void) { return gXcpA2lName; }
+const char *XcpGetA2lName(void) { return gXcpA2lName; }
 
 #ifdef XCP_ENABLE_IDT_A2L_UPLOAD // Enable GET_ID A2L content upload to host
 
@@ -554,6 +547,14 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen) {
         }
         break;
 #endif
+
+        /*
+            case IDT_ASAM_ECU:
+            case IDT_ASAM_SYSID:
+            case IDT_VECTOR_MAPNAMES:
+            case IDT_VECTOR_GET_A2LOBJECTS_FROM_ECU:
+                // Not implemented
+        */
     }
     return len;
 }

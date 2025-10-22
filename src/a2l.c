@@ -35,6 +35,8 @@
 #endif
 #endif
 
+#ifdef OPTION_ENABLE_A2L_GENERATOR
+
 //----------------------------------------------------------------------------------
 
 #define INCLUDE_AML_FILES // Use /include "file.aml"
@@ -121,7 +123,7 @@ static const char *gA2lMemorySegment = "/begin MEMORY_SEGMENT %s \"\" DATA FLASH
                                        "/end IF_DATA\n"
                                        "/end MEMORY_SEGMENT\n";
 
-#ifdef XCP_ENABLE_EPK_CALSEG
+#ifdef XCP_ENABLE_IMPLICIT_EPK_CALSEG_DEPRECATED
 static const char *gA2lEpkMemorySegment = "/begin MEMORY_SEGMENT epk \"\" DATA FLASH INTERN 0x%08X %u -1 -1 -1 -1 -1\n"
                                           "/begin IF_DATA XCP\n"
                                           "/begin SEGMENT 0 2 0 0 0\n"
@@ -523,9 +525,9 @@ static void A2lCreate_MOD_PAR(void) {
         if (epk) {
             fprintf(gA2lFile, "EPK \"%s\" ADDR_EPK 0x%08X\n", epk, XCP_ADDR_EPK);
 
-            // EPK memory segment is segment 0
+            // Implicit EPK memory segment is segment 0
 #ifdef XCP_ENABLE_CALSEG_LIST
-#ifdef XCP_ENABLE_EPK_CALSEG
+#ifdef XCP_ENABLE_IMPLICIT_EPK_CALSEG_DEPRECATED
             fprintf(gA2lFile, gA2lEpkMemorySegment, XCP_ADDR_EPK, strlen(epk));
 #endif
 #endif // XCP_ENABLE_CALSEG_LIST
@@ -538,7 +540,7 @@ static void A2lCreate_MOD_PAR(void) {
             for (tXcpCalSegIndex i = 0; i < calSegList->count; i++) {
                 const tXcpCalSeg *calseg = &calSegList->calseg[i];
                 fprintf(gA2lFile, gA2lMemorySegment, calseg->name, XcpGetCalSegBaseAddress(i), calseg->size,
-#ifdef XCP_ENABLE_EPK_CALSEG
+#ifdef XCP_ENABLE_IMPLICIT_EPK_CALSEG_DEPRECATED
                         i + 1,
 #else
                         i,
@@ -1504,7 +1506,7 @@ bool A2lFinalize(void) {
 #endif
 
         // Notify XCP that there is an A2L file available for upload by the XCP client
-        ApplXcpSetA2lName(gA2lFilename);
+        XcpSetA2lName(gA2lFilename);
 
         return true; // A2L file generation successful
     }
@@ -1527,11 +1529,31 @@ void A2lUnlock(void) {
     }
 }
 
+bool XcpLoadBinFile(const char *a2l_projectname) {
+    assert(a2l_projectname != NULL);
+    const char *epk = XcpGetEpk();
+
+    // Build BIN filename from project name and EPK
+    SNPRINTF(gA2lBinFilename, sizeof(gA2lBinFilename), "%s_%s.bin", a2l_projectname, epk);
+
+    // Check if BIN file exists and load it
+    if (fexists(gA2lBinFilename)) {
+        if (XcpBinLoad(gA2lBinFilename, epk)) {
+            DBG_PRINTF3("Loaded binary file %s\n", gA2lBinFilename);
+            return true;
+        }
+    }
+
+    DBG_PRINTF_WARNING("Binary calibration data persistence file %s does not exist or could not be loaded\n", gA2lBinFilename);
+    return false;
+}
+
 // Open the A2L file and register the finalize callback
-bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
+bool A2lInit(const char *a2l_projectname, const char *epk, const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
 
     assert(a2l_projectname != NULL);
     assert(addr != NULL);
+    assert(epk != NULL);
 
     // Check and ignore, if the XCP singleton has not been initialized and activated
     if (!XcpIsActivated()) {
@@ -1554,39 +1576,40 @@ bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t
 
     mutexInit(&gA2lMutex, false, 0);
 
-    // EPK generation if not provided
-    // Set the EPK (software version number) for the A2L file
-    char epk[64];
-    if (a2l_version == NULL) {
-        SNPRINTF(epk, sizeof(epk), "_%s_%s", __DATE__, __TIME__);
-    } else {
-        SNPRINTF(epk, sizeof(epk), "_%s", a2l_version);
-    }
+    // Generate a unique EPK string if epk==NULL or set the given epk string
     XcpSetEpk(epk);
 
-    // Build filenames
-    // If A2l file is build once for a new build, the EPK is appended to the filename
-    const char *epk_suffix = gA2lWriteAlways ? "" : XcpGetEpk();
-    SNPRINTF(gA2lFilename, sizeof(gA2lFilename), "%s%s.a2l", a2l_projectname, epk_suffix);
-    DBG_PRINTF3("Start A2L generator, file=%s, write_always=%u, finalize_on_connect=%u, auto_groups=%u\n", gA2lFilename, gA2lWriteAlways, gA2lFinalizeOnConnect, gA2lAutoGroups);
+    // Build A2L filename from project name and EPK
+    // If A2l file is generated only once for a new build, the EPK is appended to the filename
+    SNPRINTF(gA2lFilename, sizeof(gA2lFilename), "%s_%s.a2l", a2l_projectname, gA2lWriteAlways ? "" : XcpGetEpk());
 
-    // Check if the BIN file and the A2L exists and load the binary file
+// Check if the BIN file exists and load it
+// If successful, do not start the A2L generation process, but still provide the existing A2L file to the XCP client
 #ifdef OPTION_CAL_PERSISTENCE
-    SNPRINTF(gA2lBinFilename, sizeof(gA2lBinFilename), "%s%s.bin", a2l_projectname, epk_suffix);
     if (!gA2lWriteAlways) {
-
-        if (fexists(gA2lFilename)) {
-            if (XcpBinLoad(gA2lBinFilename, XcpGetEpk())) {
-                DBG_PRINTF3("Loaded binary file %s, A2L generation has been disabled\n", gA2lBinFilename);
-
-                // Notify XCP that there is an A2L file available for upload by the XCP client
-                ApplXcpSetA2lName(gA2lFilename);
-
-                return true; // Do not generate A2L, but still provide the existing file, if binary file exists
+        if (XcpLoadBinFile(a2l_projectname)) {
+            // Notify XCP that there is an existing A2L file with the correct version name available for upload by the XCP client
+            if (fexists(gA2lFilename)) {
+                XcpSetA2lName(gA2lFilename);
+                return true; // BIN file loaded successfully and matching A2L file exists, disable A2L generation
             }
+            // BIN file successfully loaded, but matching A2L file does not exist
+            DBG_PRINTF_WARNING("Matching A2L file %s for loaded binary file %s does not exist, enable A2L generation\n", gA2lFilename, gA2lBinFilename);
         }
     }
 #endif
+
+// @@@@ TODO Not a good place for this code @@@@@@@@@@@
+#ifdef XCP_ENABLE_CALSEG_LIST
+#ifdef XCP_ENABLE_EPK_CALSEG
+    // Create the EPK calibration segment
+    // Make sure it has index 0, include the 0 termination just to be sure
+    tXcpCalSegIndex epk_seg = XcpCreateCalSeg("epk", XcpGetEpk(), STRNLEN(XcpGetEpk(), XCP_EPK_MAX_LENGTH));
+    assert(epk_seg == 0);
+#endif
+#endif
+
+    DBG_PRINTF3("Start A2L generator, file=%s, write_always=%u, finalize_on_connect=%u, auto_groups=%u\n", gA2lFilename, gA2lWriteAlways, gA2lFinalizeOnConnect, gA2lAutoGroups);
 
     // Open A2L file for generation
     if (!A2lOpen(gA2lFilename, a2l_projectname)) {
@@ -1599,3 +1622,5 @@ bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t
 
     return true;
 }
+
+#endif // XCP_ENABLE_A2L_GENERATOR

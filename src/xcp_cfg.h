@@ -149,13 +149,26 @@ xcp-lite for Rust XCP_LITE_CADR:
 #ifdef OPTION_CAL_SEGMENT_EPK
 #define XCP_ENABLE_EPK_CALSEG
 #endif
-#ifdef XCP_ENABLE_EPK_CALSEG
+
+#if defined(XCP_ENABLE_IMPLICIT_EPK_CALSEG_DEPRECATED)
+
+#error "XCP_ENABLE_IMPLICIT_EPK_CALSEG_DEPRECATED is deprecated, use XCP_ENABLE_EPK_CALSEG instead "
+
 #define XCP_ADDR_EPK 0x80000000
 #define XcpAddrEncodeSegIndex(seg_index, offset) (0x80000000 + (((uint32_t)((seg_index) + 1)) << 16) + (offset))
 // +1, because 0x80000000 is used to access the virtual A2L EPK segment
+
+#elif defined(XCP_ENABLE_EPK_CALSEG) && XCP_ADDR_EXT_SEG == 0
+
+#define XCP_ADDR_EPK 0x80000000 // Segment relative EPK address
+#define XcpAddrEncodeSegIndex(seg_index, offset) (0x80000000 + ((uint32_t)((seg_index)) << 16) + (offset))
+// Assuming the EPK calibration segment has the lowest segment index (0)
+
 #else
-#define XCP_ADDR_EPK 0xFFFFFF00
+
+#define XCP_ADDR_EPK 0xFFFFFF00 // Absolute EPK address
 #define XcpAddrEncodeSegIndex(seg_index, offset) (0x80000000 + (((uint32_t)(seg_index)) << 16) + (offset))
+
 #endif
 
 #define XcpAddrEncodeSegNumber(seg_number, offset) (0x80000000 + (((uint32_t)((seg_number))) << 16) + (offset))
@@ -208,7 +221,15 @@ xcp-lite for Rust XCP_LITE_CADR:
 
 // Enable calibration working page freeze request
 #ifdef OPTION_CAL_PERSISTENCE
+
+// Enable the FREEZE_CAL_PAGE command
+// Required for calibration segment persistency
 #define XCP_ENABLE_FREEZE_CAL_PAGE
+
+// Enable persistency of reference (default) page, instead of working page
+// This requires segment relative addressing mode !
+// #define XCP_ENABLE_REFERENCE_PAGE_PERSISTENCY
+
 #endif
 
 #endif // XCP_ENABLE_CAL_PAGE

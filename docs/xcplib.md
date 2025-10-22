@@ -130,7 +130,7 @@ Initializes the A2L generation system of XCPlite. This function must be called o
 **Parameters:**
 
 - `project_name`: Name of the project, used for the A2L and BIN file names.
-- `epk`: Optional software version string (EPK) for the A2L file. Pass `NULL` to use the default.
+- `epk`: Unique software version string (EPK) for version checking of A2L and parameter files.
 - `address`: Default IPv4 address of the XCP server.
 - `port`: Port number of the XCP server.
 - `use_tcp`: If `true`, TCP transport is used; if `false`, UDP transport.
@@ -171,9 +171,9 @@ All definitions of instances follow the same principle: Set the addressing mode 
 | Function                                                         | Purpose                                                         |
 | ---------------------------------------------------------------- | --------------------------------------------------------------- |
 | `void XcpSetLogLevel(uint8_t level);`                            | 1 = error, 2 = warn, 3 = info, 4 = commands, 5 = trace.         |
-| `void XcpInit(void);`                                            | Initialise core singleton; must precede all other API usage.    |
-| `void ApplXcpSetA2lName(const char *name);`                      | Manually set the A2L file name for upload.                      |
-| `void XcpSetEpk(const char *epk);`                               | Set 32‑byte EPK software identifier (for A2L).                  |
+| `void XcpInit(void);`                                            | Initialize core singleton; must precede all other API usage.    |
+| `void XcpSetA2lName(const char *name);`                          | Manually set the A2L file name to be used for GET_ID.           |
+| `void XcpSetEpk(const char *epk);`                               | Set EPK software identifier (for A2L and BIN).                  |
 | `void XcpDisconnect(void);`                                      | Force client disconnect, stop DAQ, flush pending operations.    |
 | `void XcpSendTerminateSessionEvent(void);`                       | Notify client of a terminated session.                          |
 | `void XcpPrint(const char *str);`                                | Send arbitrary text to the client (channel 0xFF).               |

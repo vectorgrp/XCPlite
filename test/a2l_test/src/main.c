@@ -246,7 +246,7 @@ int main() {
     // No need to start the XCP server
     // Initialize the XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;
-    if (!A2lInit(OPTION_PROJECT_NAME, "EPK", addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(OPTION_PROJECT_NAME, "epk", addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_AUTO_GROUPS)) {
         return 1;
     }
 

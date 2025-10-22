@@ -42,9 +42,14 @@ void XcpReset(void);
 
 // EPK software version identifier
 #ifndef XCP_EPK_MAX_LENGTH
-#define XCP_EPK_MAX_LENGTH 31 // Maximum length of EPK string
+#define XCP_EPK_MAX_LENGTH 31 // Maximum length of EPK string (excluding null terminator), must be odd
 #endif
+// Set the EPK
+// This will be automatically done by A2lInit
+// If A2L generation is not used, this has to be called manually
 void XcpSetEpk(const char *epk);
+
+// Get the EPK
 const char *XcpGetEpk(void);
 
 // XCP command processor
@@ -514,9 +519,6 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen);
 bool ApplXcpReadA2L(uint8_t size, uint32_t offset, uint8_t *data);
 #endif
 
-// Logging
-void ApplXcpSetLogLevel(uint8_t level);
-
 // Register XCP callbacks
 void ApplXcpRegisterConnectCallback(bool (*cb_connect)(void));
 void ApplXcpRegisterPrepareDaqCallback(uint8_t (*cb_prepare_daq)(void));
@@ -540,8 +542,8 @@ void ApplXcpRegisterCallbacks(bool (*cb_connect)(void), uint8_t (*cb_prepare_daq
 
 // Set/get the A2L file name (for GET_ID IDT_ASAM_NAME, IDT_ASAM_NAME and for IDT_ASAM_UPLOAD)
 #define XCP_A2L_FILENAME_MAX_LENGTH 255 // Maximum length of A2L filename with extension
-void ApplXcpSetA2lName(const char *name);
-const char *ApplXcpGetA2lName(void);
+void XcpSetA2lName(const char *name);
+const char *XcpGetA2lName(void);
 
 #ifdef __cplusplus
 } // extern "C"

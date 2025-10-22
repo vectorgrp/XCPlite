@@ -592,6 +592,7 @@ int32_t XcpTlHandleTransmitQueue(void) {
     const uint32_t outer_loop_sleep_ms = 1; // Sleep time in ms for each outer loop
 #endif
 
+// @@@@ TODO This is too early, when the server is started before A2lInit !!!!!!!!!!!!!
 #if defined(OPTION_DAQ_ASYNC_EVENT) && defined(XCP_ENABLE_DAQ_EVENT_LIST)
     static tXcpEventId gXcpAsyncEvent = XCP_UNDEFINED_EVENT_ID;
     if (gXcpAsyncEvent == XCP_UNDEFINED_EVENT_ID) {

@@ -129,6 +129,14 @@
 #define XCP_MAX_DAQ_COUNT 256
 #endif
 
+/* Check length of of event and segment names with null termination must be even*/
+#if XCP_EPK_MAX_LENGTH & 1 == 0
+#error "XCP_EPK_MAX_LENGTH must be odd to allow null termination"
+#endif
+#if XCP_MAX_EVENT_NAME & 1 == 0
+#error "XCP_MAX_EVENT_NAME must be odd to allow null termination"
+#endif
+
 /****************************************************************************/
 /* Protocol layer state data                                                */
 /****************************************************************************/
@@ -288,9 +296,11 @@ uint32_t XcpGetDaqOverflowCount(void) { return gXcp.DaqOverflowCount; }
 /* EPK version string                                                     */
 /**************************************************************************/
 
-// Set/get the EPK (A2l file version string)
+// Set the EPK
 void XcpSetEpk(const char *epk) {
+
     assert(epk != NULL);
+
     size_t epk_len = STRNLEN(epk, XCP_EPK_MAX_LENGTH);
     STRNCPY(gXcp.Epk, epk, epk_len);
     gXcp.Epk[XCP_EPK_MAX_LENGTH] = 0; // Ensure null-termination
@@ -302,6 +312,8 @@ void XcpSetEpk(const char *epk) {
     }
     DBG_PRINTF3("EPK = '%s'\n", gXcp.Epk);
 }
+
+// Get the EPK
 const char *XcpGetEpk(void) {
     if (STRNLEN(gXcp.Epk, XCP_EPK_MAX_LENGTH) == 0)
         return NULL;
@@ -449,6 +461,7 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
 #ifdef XCP_ENABLE_FREEZE_CAL_PAGE
         c->file_pos = 0;
 #endif
+        DBG_PRINTF3("Create CalSeg %u: %s index=%u, size=%u\n", index, c->name, index, c->size);
     }
 
     // Init
@@ -461,18 +474,36 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
     c->xcp_access = XCP_CALPAGE_DEFAULT_PAGE;                                              // Default page for XCP access
     atomic_store_explicit(&c->ecu_access, XCP_CALPAGE_DEFAULT_PAGE, memory_order_relaxed); // Default page for ECU access if XCP is not activated
     atomic_store_explicit(&c->lock_count, 0, memory_order_relaxed);                        // No locks
-#ifdef XCP_ENABLE_FREEZE_CAL_PAGE
-    c->mode = 0; // Default mode is freeze not enabled, set by XCP command SET_SEGMENT_MODE
-#endif
 
     // Allocate the working page and initialize RCU, if XCP has been activated
     if (isActivated()) {
 
-        DBG_PRINTF3("Create CalSeg %u: %s index=%u, size=%u\n", index, c->name, index, c->size);
-
         // Allocate the ecu working page (RAM page)
+#ifdef XCP_ENABLE_REFERENCE_PAGE_PERSISTENCY
+
+// No persistency possible in absolute segment addressing mode
+#if XCP_ADDR_EXT_ABS == 0
+#error "XCP_ENABLE_REFERENCE_PAGE_PERSISTENCY requires segment relative addressing mode!"
+#endif
+        // Allocate the  working page
         c->xcp_page = malloc(size);
-        memcpy(c->xcp_page, c->default_page, size); // Copy default page to XCP working page copy
+        memcpy(c->xcp_page, c->default_page, size); // Copy default page to working page
+#else
+        // Working page persistenca
+        // If it is a preloaded segment with a heap allocated default page, use this default page as working page
+        if (c->mode & PAG_PROPERTY_PRELOAD) {
+
+            c->xcp_page = (uint8_t *)c->default_page;
+            c->default_page = default_page;
+        }
+        // else allocate and initialize the working page
+        else {
+
+            // Allocate the  working page
+            c->xcp_page = malloc(size);
+            memcpy(c->xcp_page, default_page, size); // Copy default page to working page
+        }
+#endif
 
         // Allocate the xcp page
         c->ecu_page = malloc(size);
@@ -489,6 +520,10 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
         atomic_store_explicit(&c->ecu_access, XCP_CALPAGE_WORKING_PAGE, memory_order_relaxed); // Default page for ECU access is the working page
         // No write pending
     }
+
+#ifdef XCP_ENABLE_FREEZE_CAL_PAGE
+    c->mode = 0; // Default mode is freeze not enabled, set by XCP command SET_SEGMENT_MODE, clear the preloaded flag
+#endif
 
     mutexUnlock(&gXcp.CalSegList.mutex);
     return index;
@@ -558,7 +593,7 @@ static uint8_t XcpCalSegReadMemory(uint32_t src, uint16_t size, uint8_t *dst) {
     uint16_t offset = XcpAddrDecodeSegOffset(src); // Get the offset within the calibration segment
 
 // Check for EPK read access
-#ifdef XCP_ENABLE_EPK_CALSEG
+#ifdef XCP_ENABLE_IMPLICIT_EPK_CALSEG_DEPRECATED
     if (calseg == 0) {
         const char *epk = XcpGetEpk();
         if (epk != NULL) {
@@ -654,7 +689,7 @@ static uint8_t XcpCalSegWriteMemory(uint32_t dst, uint16_t size, const uint8_t *
     uint16_t calseg = XcpAddrDecodeSegNumber(dst);
     uint16_t offset = XcpAddrDecodeSegOffset(dst);
 
-#ifdef XCP_ENABLE_EPK_CALSEG
+#ifdef XCP_ENABLE_IMPLICIT_EPK_CALSEG_DEPRECATED
     if (calseg == 0) {
         DBG_PRINT_ERROR("invalid write access to calseg number 0 (EPK)\n");
         return CRC_ACCESS_DENIED;
@@ -707,7 +742,7 @@ static uint8_t XcpGetSegInfo(tXcpCalSegNumber segment, uint8_t mode, uint8_t seg
 
 // EPK segment (segment = 0) does not support calibration pages or mappings
 // @@@@ TODO: better handling if EPK is not set
-#ifdef XCP_ENABLE_EPK_CALSEG
+#ifdef XCP_ENABLE_IMPLICIT_EPK_CALSEG_DEPRECATED
     if (segment == 0) {
         const char *epk = XcpGetEpk();
         if (epk == NULL) {
@@ -793,7 +828,7 @@ uint8_t XcpGetSegPageInfo(tXcpCalSegNumber segment, uint8_t page) {
 
     CRM_LEN = CRM_GET_PAGE_INFO_LEN;
 
-#ifdef XCP_ENABLE_EPK_CALSEG
+#ifdef XCP_ENABLE_IMPLICIT_EPK_CALSEG_DEPRECATED
     if (segment == 0) {
         CRM_GET_PAGE_INFO_PROPERTIES = 0x0F; // EPK segment, write access not allowed, read access don't care
         CRM_GET_PAGE_INFO_INIT_SEGMENT = 0;
@@ -827,7 +862,7 @@ static uint8_t XcpCalSegGetCalPage(tXcpCalSegNumber segment, uint8_t mode) {
         DBG_PRINTF_ERROR("invalid segment number: %u\n", segment);
         return XCP_CALPAGE_INVALID_PAGE;
     }
-#ifdef XCP_ENABLE_EPK_CALSEG
+#ifdef XCP_ENABLE_IMPLICIT_EPK_CALSEG_DEPRECATED
     if (segment == 0) {
         return XCP_CALPAGE_DEFAULT_PAGE; // EPK segment does not have calibration pages
     }
@@ -861,7 +896,7 @@ static uint8_t XcpCalSegSetCalPage(tXcpCalSegNumber segment, uint8_t page, uint8
         }
     } else {
 
-#ifdef XCP_ENABLE_EPK_CALSEG
+#ifdef XCP_ENABLE_IMPLICIT_EPK_CALSEG_DEPRECATED
         if (segment == 0) {
             return CRC_ACCESS_DENIED; // EPK segment does not have calibration pages
         }
@@ -887,7 +922,7 @@ static uint8_t XcpCalSegSetCalPage(tXcpCalSegNumber segment, uint8_t page, uint8
 #ifdef XCP_ENABLE_COPY_CAL_PAGE
 static uint8_t XcpCalSegCopyCalPage(tXcpCalSegNumber srcSeg, uint8_t srcPage, tXcpCalSegNumber dstSeg, uint8_t dstPage) {
 
-#ifdef XCP_ENABLE_EPK_CALSEG
+#ifdef XCP_ENABLE_IMPLICIT_EPK_CALSEG_DEPRECATED
     if (srcSeg == 0) {
         return CRC_ACCESS_DENIED; // EPK segment does not have calibration pages
     }
@@ -954,7 +989,7 @@ uint8_t XcpCalSegCommand(uint8_t cmd) {
 #ifdef XCP_ENABLE_FREEZE_CAL_PAGE
 
 static uint8_t XcpGetCalSegMode(tXcpCalSegNumber segment) {
-#ifdef XCP_ENABLE_EPK_CALSEG
+#ifdef XCP_ENABLE_IMPLICIT_EPK_CALSEG_DEPRECATED
     if (segment == 0)
         return 0; // EPK segment has no mode
     segment--;    // Adjust for EPK segment at index 0
@@ -965,7 +1000,7 @@ static uint8_t XcpGetCalSegMode(tXcpCalSegNumber segment) {
 }
 
 static uint8_t XcpSetCalSegMode(tXcpCalSegNumber segment, uint8_t mode) {
-#ifdef XCP_ENABLE_EPK_CALSEG
+#ifdef XCP_ENABLE_IMPLICIT_EPK_CALSEG_DEPRECATED
     if (segment == 0)
         return CRC_CMD_OK; // EPK segment has no mode
     segment--;             // Adjust for EPK segment at index 0
@@ -1138,7 +1173,8 @@ uint8_t XcpSetMta(uint8_t ext, uint32_t addr) {
     gXcp.MtaAddr = addr;
     gXcp.MtaPtr = NULL; // MtaPtr not defined
 
-#ifndef XCP_ENABLE_EPK_CALSEG
+    // If not EPK calibration segment or addressing mode 0 is absolute
+#if (!defined(XCP_ENABLE_EPK_CALSEG) && !defined(XCP_ENABLE_IMPLICIT_EPK_CALSEG_DEPRECATED)) || (XCP_ADDR_EXT_ABS == 0)
     // Direct EPK access
     if (gXcp.MtaExt == XCP_ADDR_EXT_EPK && gXcp.MtaAddr == XCP_ADDR_EPK) {
         gXcp.MtaPtr = (uint8_t *)XcpGetEpk();
@@ -2274,13 +2310,8 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
         case CC_GET_COMM_MODE_INFO: {
             CRM_LEN = CRM_GET_COMM_MODE_INFO_LEN;
             CRM_GET_COMM_MODE_INFO_DRIVER_VERSION = XCP_DRIVER_VERSION;
-#ifdef XCP_ENABLE_INTERLEAVED
-            CRM_GET_COMM_MODE_INFO_COMM_OPTIONAL = 0; // CMO_INTERLEAVED_MODE;
-            CRM_GET_COMM_MODE_INFO_QUEUE_SIZE = XCP_INTERLEAVED_QUEUE_SIZE;
-#else
             CRM_GET_COMM_MODE_INFO_COMM_OPTIONAL = 0;
             CRM_GET_COMM_MODE_INFO_QUEUE_SIZE = 0;
-#endif
             CRM_GET_COMM_MODE_INFO_MAX_BS = 0;
             CRM_GET_COMM_MODE_INFO_MIN_ST = 0;
         } break;
@@ -2314,9 +2345,10 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
                     CRM_GET_ID_MODE = 0x01; // Transfer mode is "Uncompressed data in response"
                 } else
                 */
-                { // EPK provided via upload
+                {
+                    // EPK provided via upload
                     gXcp.MtaAddr = XCP_ADDR_EPK;
-#ifdef XCP_ENABLE_EPK_CALSEG
+#ifdef XCP_ENABLE_IMPLICIT_EPK_CALSEG_DEPRECATED
                     gXcp.MtaExt = XCP_ADDR_EXT_EPK;
 #else
                     gXcp.MtaPtr = (uint8_t *)XcpGetEpk();
@@ -2555,7 +2587,7 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
         case CC_GET_PAG_PROCESSOR_INFO: {
             check_len(CRO_GET_PAG_PROCESSOR_INFO_LEN);
             CRM_LEN = CRM_GET_PAG_PROCESSOR_INFO_LEN;
-#ifdef XCP_ENABLE_EPK_CALSEG
+#ifdef XCP_ENABLE_IMPLICIT_EPK_CALSEG_DEPRECATED
             CRM_GET_PAG_PROCESSOR_INFO_MAX_SEGMENTS = (uint8_t)(gXcp.CalSegList.count + 1); // +1 for segment 0 (EPK)
 #else
             CRM_GET_PAG_PROCESSOR_INFO_MAX_SEGMENTS = (uint8_t)(gXcp.CalSegList.count);
@@ -3180,19 +3212,22 @@ void XcpInit(bool activate) {
     // Clear XCP state
     memset((uint8_t *)&gXcp, 0, sizeof(gXcp));
 
+    gXcp.SessionStatus = SS_INITIALIZED;
+    if (!activate) {
+        return; // Do not activate XCP protocol layer, state is safe now
+    }
+
     // Initialize the base address for absolute addressing
     ApplXcpGetBaseAddr();
     assert(xcp_get_base_addr() != NULL);
-
-    if (!activate) {
-        gXcp.SessionStatus = SS_INITIALIZED;
-        return; // Do not activate XCP protocol layer
-    }
 
     // Allocate DAQ list memory
     gXcp.DaqLists = malloc(sizeof(tXcpDaqLists));
     assert(gXcp.DaqLists != NULL);
     XcpClearDaq();
+
+    // Initialize high resolution clock
+    clockInit();
 
 #ifdef XCP_ENABLE_CALSEG_LIST
     XcpInitCalSegList();
@@ -3207,10 +3242,7 @@ void XcpInit(bool activate) {
     XcpEthTlSetClusterId(gXcp.ClusterId);
 #endif
 
-    // Initialize high resolution clock
-    clockInit();
-
-    gXcp.SessionStatus = SS_INITIALIZED | SS_ACTIVATED;
+    gXcp.SessionStatus |= SS_ACTIVATED;
 }
 
 // Start XCP protocol layer
@@ -3228,6 +3260,8 @@ void XcpStart(tQueueHandle queueHandle, bool resumeMode) {
         DBG_PRINTF3("  Version=%u.%u, MAX_CTO=%u, MAX_DTO=%u, DAQ_MEM=%u, MAX_DAQ=%u, MAX_ODT_ENTRY=%u, MAX_ODT_ENTRYSIZE=%u, %u KiB memory used\n",
                     XCP_PROTOCOL_LAYER_VERSION >> 8, XCP_PROTOCOL_LAYER_VERSION & 0xFF, XCPTL_MAX_CTO_SIZE, XCPTL_MAX_DTO_SIZE, XCP_DAQ_MEM_SIZE, (1 << sizeof(uint16_t) * 8) - 1,
                     (1 << sizeof(uint16_t) * 8) - 1, (1 << (sizeof(uint8_t) * 8)) - 1, (unsigned int)sizeof(gXcp) / 1024);
+
+        DBG_PRINT3("  Addressing scheme=" XCP_ADDRESS_MODE "\n");
         DBG_PRINT3("  Options=(");
 
         // Print activated XCP protocol options
@@ -3236,6 +3270,12 @@ void XcpStart(tQueueHandle queueHandle, bool resumeMode) {
 #endif
 #ifdef XCP_DAQ_CLOCK_64BIT // Use 64 Bit time stamps
         DBG_PRINT("DAQ_CLK_64BIT,");
+#endif
+#ifdef XCP_ENABLE_DAQ_ADDREXT // Enable DAQ with individual address extension per entry
+        DBG_PRINT("DAQ_ADDREXT,");
+#endif
+#ifdef XCP_ENABLE_DAQ_PRESCALER // Enable DAQ prescaler
+        DBG_PRINT("DAQ_PRESCALER,");
 #endif
 #ifdef XCP_ENABLE_PTP // Enable server clock synchronized to PTP grandmaster clock
         DBG_PRINT("GM_CLK_INFO,");
@@ -3252,14 +3292,26 @@ void XcpStart(tQueueHandle queueHandle, bool resumeMode) {
 #ifdef XCP_ENABLE_CALSEG_LIST // Enable XCP calibration segments
         DBG_PRINT("CALSEG_LIST,");
 #endif
+#ifdef XCP_ENABLE_EPK_CALSEG // Enable EPK calibration segment
+        DBG_PRINT("EPK_CALSEG,");
+#endif
+#ifdef XCP_ENABLE_COPY_CAL_PAGE
+        DBG_PRINT("COPY_CAL_PAGE,");
+#endif
+#ifdef XCP_ENABLE_A2L_UPLOAD // Enable A2L upload to host
+        DBG_PRINT("A2L_UPLOAD,");
+#endif
+#ifdef XCP_ENABLE_FREEZE_CAL_PAGE // Enable freeze calibration page
+        DBG_PRINT("FREEZE_CAL_PAGE,");
+#endif
+#ifdef XCP_ENABLE_DAQ_RESUME // Enable DAQ resume mode
+        DBG_PRINT("DAQ_RESUME,");
+#endif
 #ifdef XCP_ENABLE_DAQ_EVENT_INFO // Enable XCP event info by protocol instead of A2L
         DBG_PRINT("DAQ_EVT_INFO,");
 #endif
 #ifdef XCP_ENABLE_CHECKSUM // Enable BUILD_CHECKSUM command
         DBG_PRINT("CHECKSUM,");
-#endif
-#ifdef XCP_ENABLE_INTERLEAVED // Enable interleaved command execution
-        DBG_PRINT("INTERLEAVED,");
 #endif
         DBG_PRINT(")\n");
     }
@@ -3287,7 +3339,7 @@ void XcpStart(tQueueHandle queueHandle, bool resumeMode) {
     uint8_t uuid[8] = XCP_DAQ_CLOCK_UIID;
     memcpy(gXcp.ClockInfo.server.UUID, uuid, 8);
 
-    DBG_PRINTF4("  ServerClock: ticks=%u, unit=%s, size=%u, UUID=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X\n\n", gXcp.ClockInfo.server.timestampTicks,
+    DBG_PRINTF4("  ServerClock: ticks=%u, unit=%s, size=%u, UUID=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X\n", gXcp.ClockInfo.server.timestampTicks,
                 (gXcp.ClockInfo.server.timestampUnit == DAQ_TIMESTAMP_UNIT_1NS) ? "ns" : "us", gXcp.ClockInfo.server.nativeTimestampSize, gXcp.ClockInfo.server.UUID[0],
                 gXcp.ClockInfo.server.UUID[1], gXcp.ClockInfo.server.UUID[2], gXcp.ClockInfo.server.UUID[3], gXcp.ClockInfo.server.UUID[4], gXcp.ClockInfo.server.UUID[5],
                 gXcp.ClockInfo.server.UUID[6], gXcp.ClockInfo.server.UUID[7]);

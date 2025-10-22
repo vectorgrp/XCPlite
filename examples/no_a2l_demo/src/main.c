@@ -217,7 +217,9 @@ int main(void) {
     // XCP: Initialize the XCP singleton, activate XCP, must be called before starting the server
     //      If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
     XcpInit(true);
-    ApplXcpSetA2lName(OPTION_PROJECT_NAME); // @@@@ This is still required to enable GET_ID for XCP_IDT_ASCII
+    // XcpSetProjectName(OPTION_PROJECT_NAME); // Set the name returned by XCP command GET_ID IDT_ASCII
+    XcpSetEpk(NULL); // Generate and set the EPK software version identifier for XCP command GET_ID IDT_ASAM_EPK
+    // XcpLoadBinFile(OPTION_PROJECT_NAME); // Load an existing binary file if available
 
     // XCP: Initialize the XCP Server
     const uint8_t __addr[4] = OPTION_SERVER_ADDR;

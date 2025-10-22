@@ -577,7 +577,7 @@ void A2lCreateMeasurementGroupFromList(const char *name, char *names[], uint32_t
 ///  A2L_MODE_FINALIZE_ON_CONNECT Finalize the A2L file on XCP client connect, if false, the A2L file has to finalized manually
 ///  A2L_MODE_AUTO_GROUPS Enable automatic grouping of parameters (per segment) and measurements (per event), if false, grouping must be done manually
 /// @return true on success, false on failure
-bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode);
+bool A2lInit(const char *a2l_projectname, const char *epk, const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode);
 
 /// Finish A2L generation
 /// Finalize the A2L file, write the binary persistence file
