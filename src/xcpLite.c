@@ -430,7 +430,7 @@ uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg) {
 #if XCP_ADDR_EXT_SEG == 0x00 // Memory segments are addressed in relative mode
     return XcpAddrEncodeSegIndex(calseg, 0);
 #else // Memory segments are addressed in absolute mode
-#if XCP_ADDR_EXT_ABS != 0x00
+#if defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS != 0x00
 #error "XCP_ADDR_EXT_ABS must be 0x00"
 #endif
     return XcpAddrEncodeAbs(gXcp.CalSegList.calseg[calseg].default_page);
@@ -504,7 +504,7 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
 #ifdef XCP_ENABLE_REFERENCE_PAGE_PERSISTENCY
 
 // No persistency possible in absolute segment addressing mode
-#if XCP_ADDR_EXT_ABS == 0
+#if defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0
 #error "XCP_ENABLE_REFERENCE_PAGE_PERSISTENCY requires segment relative addressing mode!"
 #endif
         // Allocate the  working page
@@ -540,11 +540,12 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
         // New ECU page version not updated
         atomic_store_explicit(&c->ecu_page_next, (uintptr_t)c->ecu_page, memory_order_relaxed);
 
-        // Enable access to the working page
 #ifdef OPTION_CAL_SEGMENT_START_ON_REFERENCE_PAGE
+        // Enable access to the reference page
         c->xcp_access = XCP_CALPAGE_DEFAULT_PAGE;                                              // Default page for XCP access is the reference page
         atomic_store_explicit(&c->ecu_access, XCP_CALPAGE_DEFAULT_PAGE, memory_order_relaxed); // Default page for ECU access is the reference page
 #else
+        // Enable access to the working page
         c->xcp_access = XCP_CALPAGE_WORKING_PAGE;                                              // Default page for XCP access is the working page
         atomic_store_explicit(&c->ecu_access, XCP_CALPAGE_WORKING_PAGE, memory_order_relaxed); // Default page for ECU access is the working page
 #endif
@@ -589,6 +590,8 @@ const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg) {
             c->free_page_hazard = false; // There was no lock and no need for update, free page must be safe now, if there is one
         }
     }
+
+    // DBG_PRINTF5("CalSeg %u: %s locked, ecu_access=%u\n", calseg, c->name, atomic_load_explicit(&c->ecu_access, memory_order_relaxed));
 
     // Return the active ECU page (RAM or FLASH)
     if (atomic_load_explicit(&c->ecu_access, memory_order_relaxed) != XCP_CALPAGE_WORKING_PAGE) {
@@ -1059,7 +1062,7 @@ static uint8_t XcpReadMta(uint8_t size, uint8_t *data) {
     }
 #endif
 
-    // Ext == XCP_ADDR_EXT_ABS Standard memory access by absolute address pointer
+    // Ext == XCP_ADDR_EXT_PTR - Standard memory access by pointer
     if (gXcp.MtaExt == XCP_ADDR_EXT_PTR) {
         if (gXcp.MtaPtr == NULL)
             return CRC_ACCESS_DENIED;
@@ -1069,7 +1072,7 @@ static uint8_t XcpReadMta(uint8_t size, uint8_t *data) {
     }
 
 #ifdef XCP_ENABLE_IDT_A2L_UPLOAD
-    // Ext == XCP_ADDR_EXT_A2L A2L file upload address space
+    // Ext == XCP_ADDR_EXT_A2L - A2L file upload address space
     if (gXcp.MtaExt == XCP_ADDR_EXT_A2L) {
         if (!ApplXcpReadA2L(size, gXcp.MtaAddr, data))
             return CRC_ACCESS_DENIED; // Access violation
@@ -1096,7 +1099,7 @@ uint8_t XcpSetMta(uint8_t ext, uint32_t addr) {
     gXcp.MtaPtr = NULL; // MtaPtr not defined
 
     // If not EPK calibration segment or addressing mode 0 is absolute
-#if !defined(XCP_ENABLE_EPK_CALSEG) || (XCP_ADDR_EXT_ABS == 0)
+#if !defined(XCP_ENABLE_EPK_CALSEG) || (defined(XCP_ENABLE_ABS_ADDRESSING) && (XCP_ADDR_EXT_ABS == 0))
     // Direct EPK access
     if (gXcp.MtaExt == XCP_ADDR_EXT_EPK && gXcp.MtaAddr == XCP_ADDR_EPK) {
         gXcp.MtaPtr = (uint8_t *)XcpGetEpk();
@@ -3137,8 +3140,10 @@ void XcpInit(const char *name, const char *epk, bool activate) {
     }
 
     // Initialize the base address for absolute addressing
+#ifdef XCP_ENABLE_ABS_ADDRESSING
     ApplXcpGetBaseAddr();
     assert(xcp_get_base_addr() != NULL);
+#endif
 
     // Allocate DAQ list memory
     gXcp.DaqLists = malloc(sizeof(tXcpDaqLists));

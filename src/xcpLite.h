@@ -446,6 +446,9 @@ extern const uint8_t *gXcpBaseAddr;        // For runtime optimization, use xcp_
 const uint8_t *ApplXcpGetBaseAddr(void);   // Get the base address for DAQ data access */
 #define xcp_get_base_addr() gXcpBaseAddr   // For runtime optimization, use xcp_get_base_addr() instead of ApplXcpGetBaseAddr()
 uint32_t ApplXcpGetAddr(const uint8_t *p); // Calculate the xcpAddr address from a pointer
+#else
+#define ApplXcpGetBaseAddr()
+#define xcp_get_base_addr() NULL
 #endif
 
 /* Read and write memory */

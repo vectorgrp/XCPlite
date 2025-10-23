@@ -28,6 +28,7 @@
 // Enable debug print errors and warnings go to stderr
 #define OPTION_ENABLE_DBG_STDERR
 // Default log level: 1 - Error, 2 - Warn, 3 - Info, 4 - Trace, 5 - Debug
+// Use level 4 print all XCP commands
 #define OPTION_DEFAULT_DBG_LEVEL 3
 // Optimize code size, only errors and warnings enabled, other levels optimized out
 // #define OPTION_FIXED_DBG_LEVEL 2
@@ -92,7 +93,7 @@
 //-------------------------------------------------------------------------------
 // DAQ settings
 
-#define OPTION_DAQ_MEM_SIZE (1000 * 6) // Memory bytes used for XCP DAQ tables - 6 bytes per measurement signal/block needed
+#define OPTION_DAQ_MEM_SIZE (1024 * 8) // Memory bytes used for XCP DAQ tables - 6 bytes per measurement signal/block needed
 #define OPTION_DAQ_EVENT_COUNT 256     // Maximum number of DAQ events (integer value, must be even)
 #define OPTION_DAQ_ASYNC_EVENT         // Create an asynchronous, cyclic DAQ event for asynchronous data acquisition
 

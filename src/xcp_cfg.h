@@ -75,12 +75,11 @@ xcp-lite for Rust XCP_LITE_CADR:
 // --- Event based addressing mode without asynchronous access
 #ifdef XCPLIB_FOR_RUST // XCPLIB_FOR_RUST is set by the Rust build script
 
-// Rust xcp-lite uses only relative addressing (0x03) and dynamic addressing (0x02) and relative addressing
+// Rust xcp-lite uses only relative addressing (0x03) and dynamic addressing (0x02) and application specific addressing (0x00) for calibration via callbacks
 // Calibration segments are currently handled by the application
 #define XCP_ADDRESS_MODE_XCP_LITE_CADR
-#define XCP_ADDRESS_MODE "XCP_LITE_CADR"
-#define XCP_ENABLE_ABS_ADDRESSING
-#define XC_ENABLE_APP_ADDRESSING
+#define XCP_ADDRESS_MODE "XCP_LITE_P_DR"
+#define XCP_ENABLE_APP_ADDRESSING
 #define XCP_ADDR_EXT_APP 0x00
 #define XCP_ENABLE_REL_ADDRESSING
 #define XCP_ADDR_EXT_REL 0x03
@@ -181,7 +180,6 @@ xcp-lite for Rust XCP_LITE_CADR:
 
 // --- Application specific addressing mode for external calibration segment management and memory access
 // If built-in calibration segment management is disabled
-
 #ifdef XCP_ENABLE_APP_ADDRESSING
 
 // Use addr_ext XCP_ADDR_EXT_APP/SEG to indicate application specific addr format or segment relative address format

@@ -552,13 +552,16 @@ bool XcpIsActivated(void);
 bool XcpIsConnected(void);
 
 // Project name
-
+void XcpSetProjectName(const char *name);
 const char *XcpGetProjectName(void);
 
 // A2L file name
+// Notify xcplib there is a valid A2L with this name to be provided for upload via XCP command GET_ID
+void XcpSetA2lName(const char *name);
 const char *XcpGetA2lName(void);
 
 // EPK software version identifier
+void XcpSetEpk(const char *epk);
 const char *XcpGetEpk(void);
 
 /// Force Disconnect

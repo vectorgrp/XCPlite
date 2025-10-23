@@ -128,7 +128,7 @@ no_a2l_demo:
 The other examples cover more advanced topics:  
 
 - Safely share parameters among different threads.  
-- Measure instances of complex types, such a structs, arrays, nested structs and arrays of structs by using typedefs.  
+- Measure instances of complex types, such as structs, arrays, nested structs and arrays of structs by using typedefs.  
 - Create complex parameters, like maps, curves and lookup tables with fixed or shared axis.  
 - Measure thread local instances of variables, create event instances.  
 - Create physical conversion rules and enumerations.  
