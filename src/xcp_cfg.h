@@ -156,15 +156,7 @@ xcp-lite for Rust XCP_LITE_CADR:
 #define XCP_ENABLE_EPK_CALSEG
 #endif
 
-#if defined(XCP_ENABLE_IMPLICIT_EPK_CALSEG_DEPRECATED)
-
-#error "XCP_ENABLE_IMPLICIT_EPK_CALSEG_DEPRECATED is deprecated, use XCP_ENABLE_EPK_CALSEG instead "
-
-#define XCP_ADDR_EPK 0x80000000
-#define XcpAddrEncodeSegIndex(seg_index, offset) (0x80000000 + (((uint32_t)((seg_index) + 1)) << 16) + (offset))
-// +1, because 0x80000000 is used to access the virtual A2L EPK segment
-
-#elif defined(XCP_ENABLE_EPK_CALSEG) && XCP_ADDR_EXT_SEG == 0
+#if defined(XCP_ENABLE_EPK_CALSEG) && XCP_ADDR_EXT_SEG == 0
 
 #define XCP_ADDR_EPK 0x80000000 // Segment relative EPK address
 #define XcpAddrEncodeSegIndex(seg_index, offset) (0x80000000 + ((uint32_t)((seg_index)) << 16) + (offset))

@@ -122,20 +122,6 @@ static const char *gA2lMemorySegment = "/begin MEMORY_SEGMENT %s \"\" DATA FLASH
 #endif
                                        "/end MEMORY_SEGMENT\n";
 
-#ifdef XCP_ENABLE_IMPLICIT_EPK_CALSEG_DEPRECATED
-static const char *gA2lEpkMemorySegment = "/begin MEMORY_SEGMENT epk \"\" DATA FLASH INTERN 0x%08X %u -1 -1 -1 -1 -1\n"
-                                          "/begin IF_DATA XCP\n"
-                                          "/begin SEGMENT 0 2 0 0 0\n"
-                                          // @@@@ TODO: Workaround: EPK segment has 2 readonly pages, CANape would not care for a single page EPK segment, reads active page always
-                                          // from segment 0 and uses only SET_CAL_PAGE ALL mode
-                                          "/begin CHECKSUM XCP_CRC_16_CITT MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION \"\" /end CHECKSUM\n"
-                                          "/begin PAGE 0 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_NOT_ALLOWED /end PAGE\n"
-                                          "/begin PAGE 1 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_NOT_ALLOWED /end PAGE\n"
-                                          "/end SEGMENT\n"
-                                          "/end IF_DATA\n"
-                                          "/end MEMORY_SEGMENT\n";
-#endif
-
 #endif
 
 //----------------------------------------------------------------------------------
@@ -523,13 +509,6 @@ static void A2lCreate_MOD_PAR(void) {
         const char *epk = XcpGetEpk();
         if (epk) {
             fprintf(gA2lFile, "EPK \"%s\" ADDR_EPK 0x%08X\n", epk, XCP_ADDR_EPK);
-
-            // Implicit EPK memory segment is segment 0
-#ifdef XCP_ENABLE_CALSEG_LIST
-#ifdef XCP_ENABLE_IMPLICIT_EPK_CALSEG_DEPRECATED
-            fprintf(gA2lFile, gA2lEpkMemorySegment, XCP_ADDR_EPK, strlen(epk));
-#endif
-#endif // XCP_ENABLE_CALSEG_LIST
         }
 
         // Memory segments
@@ -538,13 +517,7 @@ static void A2lCreate_MOD_PAR(void) {
         if (calSegList != NULL && calSegList->count > 0) {
             for (tXcpCalSegIndex i = 0; i < calSegList->count; i++) {
                 const tXcpCalSeg *calseg = &calSegList->calseg[i];
-                fprintf(gA2lFile, gA2lMemorySegment, calseg->name, XcpGetCalSegBaseAddress(i), calseg->size,
-#ifdef XCP_ENABLE_IMPLICIT_EPK_CALSEG_DEPRECATED
-                        i + 1,
-#else
-                        i,
-#endif
-                        calseg->name, calseg->name, calseg->name, calseg->size);
+                fprintf(gA2lFile, gA2lMemorySegment, calseg->name, XcpGetCalSegBaseAddress(i), calseg->size, i, calseg->name, calseg->name, calseg->name, calseg->size);
             }
         }
 #endif // XCP_ENABLE_CALSEG_LIST
