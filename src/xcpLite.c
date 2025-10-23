@@ -541,9 +541,13 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
         atomic_store_explicit(&c->ecu_page_next, (uintptr_t)c->ecu_page, memory_order_relaxed);
 
         // Enable access to the working page
+#ifdef OPTION_CAL_SEGMENT_START_ON_REFERENCE_PAGE
+        c->xcp_access = XCP_CALPAGE_DEFAULT_PAGE;                                              // Default page for XCP access is the reference page
+        atomic_store_explicit(&c->ecu_access, XCP_CALPAGE_DEFAULT_PAGE, memory_order_relaxed); // Default page for ECU access is the reference page
+#else
         c->xcp_access = XCP_CALPAGE_WORKING_PAGE;                                              // Default page for XCP access is the working page
         atomic_store_explicit(&c->ecu_access, XCP_CALPAGE_WORKING_PAGE, memory_order_relaxed); // Default page for ECU access is the working page
-        // No write pending
+#endif
     }
 
 #ifdef XCP_ENABLE_FREEZE_CAL_PAGE
@@ -2172,6 +2176,10 @@ void XcpDisconnect(void) {
 
 #ifdef XCP_ENABLE_CALSEG_LAZY_WRITE
         XcpCalSegPublishAll(true);
+#endif
+
+#if defined(OPTION_CAL_PERSISTENCE) && !defined(OPTION_CAL_PERSIST_ON_DISCONNECT)
+        XcpBinWrite();
 #endif
 
         gXcp.SessionStatus &= (uint16_t)(~SS_CONNECTED);

@@ -115,10 +115,11 @@ static const char *gA2lMemorySegment = "/begin MEMORY_SEGMENT %s \"\" DATA FLASH
                                        "/begin PAGE 1 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_NOT_ALLOWED /end PAGE\n"
                                        "/end SEGMENT\n"
                                        "/end IF_DATA\n"
-                                       // @@@@ TODO: Option to enable CANape address update support for memory segments
-                                       //"/begin IF_DATA CANAPE_ADDRESS_UPDATE\n"
-                                       //"/begin MEMORY_SEGMENT \"%s\" FIRST \"%s\" 0 LAST \"%s\" %u /end MEMORY_SEGMENT\n"
-                                       //"/end IF_DATA\n"
+#ifdef OPTION_CAL_SEGMENTS_ABS
+                                       "/begin IF_DATA CANAPE_ADDRESS_UPDATE\n"
+                                       "/begin MEMORY_SEGMENT \"%s\" FIRST \"%s\" 0 LAST \"%s\" %u /end MEMORY_SEGMENT\n"
+                                       "/end IF_DATA\n"
+#endif
                                        "/end MEMORY_SEGMENT\n";
 
 #ifdef XCP_ENABLE_IMPLICIT_EPK_CALSEG_DEPRECATED
@@ -1497,7 +1498,8 @@ bool A2lFinalize(void) {
         DBG_PRINTF3("A2L created: %u measurements, %u params, %u typedefs, %u components, %u instances, %u conversions\n", gA2lMeasurements, gA2lParameters, gA2lTypedefs,
                     gA2lComponents, gA2lInstances, gA2lConversions);
 
-        // Write the binary persistence file if calsegment list and DAQ event list are enabled
+        // Write the binary persistence file
+        // This is required to make sure the A2L file remains valid, even if the creation order of event or calibration segment is different
 #ifdef OPTION_CAL_PERSISTENCE
         if (!gA2lWriteAlways)
             XcpBinWrite();
