@@ -197,6 +197,7 @@ const uint8_t *ApplXcpGetBaseAddr(void) {
 
 uint32_t ApplXcpGetAddr(const uint8_t *p) {
 
+    DBG_PRINTF5("Windows Address: base = %p, addr = %p, diff = %ld\n", (void *)ApplXcpGetBaseAddr(), (void *)p, (long)(p - ApplXcpGetBaseAddr()));
     assert(p >= ApplXcpGetBaseAddr());
 #ifdef _WIN64
     assert(((uint64_t)p - (uint64_t)ApplXcpGetBaseAddr()) <= 0xffffffff); // be sure that XCP address range is sufficient
@@ -240,6 +241,7 @@ const uint8_t *ApplXcpGetBaseAddr(void) {
 
 uint32_t ApplXcpGetAddr(const uint8_t *p) {
     const uint8_t *b = ApplXcpGetBaseAddr();
+    DBG_PRINTF5("Linux Address: base = %p, addr = %p, diff = %ld\n", (void *)b, (void *)p, (long)(p - b));
     assert(p >= b);
     if (((uint64_t)p - (uint64_t)b) > 0xffffffff) { // be sure that XCP address range is sufficient
         DBG_PRINTF_ERROR("Address out of range! base = %p, addr = %p\n", (void *)b, (void *)p);
@@ -269,7 +271,6 @@ static int dump_so(void) {
 */
 
 const uint8_t *ApplXcpGetBaseAddr(void) {
-
     if (!gXcpBaseAddrValid) {
         // dump_so();
         gXcpBaseAddr = (uint8_t *)_dyld_get_image_header(0); // Module addr
@@ -283,6 +284,7 @@ const uint8_t *ApplXcpGetBaseAddr(void) {
 
 uint32_t ApplXcpGetAddr(const uint8_t *p) {
     const uint8_t *b = ApplXcpGetBaseAddr();
+    DBG_PRINTF5("Mac Address: base = %p, addr = %p, diff = %ld\n", (void *)b, (void *)p, (long)(p - b));
     if (p < b || ((uint64_t)p - (uint64_t)b) > 0xffffffff) { // be sure that XCP address range is sufficient
         DBG_PRINTF_ERROR("Address out of range! base = %p, addr = %p\n", (void *)b, (void *)p);
         assert(0); // Ensure the address is in range

@@ -2071,7 +2071,7 @@ void XcpDisconnect(void) {
         XcpCalSegPublishAll(true);
 #endif
 
-#if defined(OPTION_CAL_PERSISTENCE) && !defined(OPTION_CAL_PERSIST_ON_DISCONNECT)
+#if defined(OPTION_CAL_PERSISTENCE) && defined(OPTION_CAL_PERSIST_ON_DISCONNECT)
         XcpBinWrite();
 #endif
 

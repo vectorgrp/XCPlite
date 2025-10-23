@@ -831,7 +831,7 @@ uint8_t A2lGetAddrExt_(void) { return gAl2AddrExt; }
 
 uint32_t A2lGetAddr_(const void *p) {
 
-    /*if (gA2lFile != NULL)*/ {
+    if (gA2lFile != NULL) {
 
         if (XcpAddrIsAbs(gAl2AddrExt)) {
             return XcpAddrEncodeAbs(p);
