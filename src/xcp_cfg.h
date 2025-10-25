@@ -77,8 +77,8 @@ xcp-lite for Rust XCPLITE__CADR:
 
 // Rust xcp-lite uses only relative addressing (0x03) and dynamic addressing (0x02) and application specific addressing (0x00) for calibration via callbacks
 // Calibration segments are currently handled by the application
-#define XCP_ADDRESS_MODE_XCPLITE__CADR
-#define XCP_ADDRESS_MODE "XCPLITE__P_DR"
+#define XCP_ADDRESS_MODE_XCPLITE__C_DR
+#define XCP_ADDRESS_MODE "XCPLITE__C_DR"
 #define XCP_ENABLE_APP_ADDRESSING
 #define XCP_ADDR_EXT_APP 0x00
 #define XCP_ENABLE_REL_ADDRESSING

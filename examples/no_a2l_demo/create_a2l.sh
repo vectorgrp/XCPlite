@@ -58,8 +58,8 @@ ECU_ONLINE=true
 XCP_ONLINE=true
 
 # Use the offline A2L creator and then update the A2L with the online A2L updater when the ECU is online
-#OFFLINE_A2L_CREATION_AND_FIX=false
-OFFLINE_A2L_CREATION_AND_FIX=true
+OFFLINE_A2L_CREATION_AND_FIX=false
+#OFFLINE_A2L_CREATION_AND_FIX=true
 
 # Target connection details
 TARGET_USER="rainer"
@@ -117,6 +117,7 @@ if [ $? -ne 0 ]; then
     echo "❌ FAILED: Download $TARGET_PATH"
     exit 1
 fi
+cp $ELFFILE ../xcp-lite-RainerZ/fixtures/no_a2l_demo.out
 
 
 # Run target executable with XCP on Ethernet in background#
@@ -169,7 +170,7 @@ echo "==========================================================================
 echo "Creating A2L file in online mode via XCP event and segment information and from XCPlite ELF file ..."
 echo "========================================================================================================"
 echo ""
-$XCPCLIENT --log-level=3  --verbose=0 --dest-addr=$TARGET_HOST --tcp --elf $ELFFILE  --a2l $A2LFILE --create-a2l >> $LOGFILE
+$XCPCLIENT --log-level=3  --verbose=5 --dest-addr=$TARGET_HOST --tcp --elf $ELFFILE  --a2l $A2LFILE --create-a2l >> $LOGFILE
 if [ $? -ne 0 ]; then
     echo "❌ FAILED: xcp_client returned error"
     exit 1
@@ -217,15 +218,13 @@ fi
 
 echo ""
 echo ""
-echo ""
 
 
 if [ $ECU_ONLINE == true ]; then
 if [ $XCP_ONLINE == true ]; then
 
 # Stop target - kill SSH process if it still exists, then kill remote process by name
-echo ""
-echo "Stopping target executable $SSH_PID on Target ..."
+echo "Stopping target executable $SSH_PID on Target ..." 
 if kill -0 $SSH_PID 2>/dev/null; then
     kill $SSH_PID
 fi

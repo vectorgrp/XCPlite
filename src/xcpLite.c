@@ -138,6 +138,24 @@
 #endif
 
 /****************************************************************************/
+/* XCPlite memoryy signature (XCPLITE__XXXXX)                               */
+/****************************************************************************/
+
+// Current supported addressing schemes are:
+// For the Rust wrapper: XCP_ADDRESS_MODE_XCPLITE__C_DR
+// For A2L-Toolset compatibilityAbsolute addressing mode: XCP_ADDRESS_MODE_XCPLITE__ACSDD
+// Default: Segment relative addressing mode: XCP_ADDRESS_MODE_XCPLITE__CASDD
+#ifdef XCP_ADDRESS_MODE_XCPLITE__C_DR
+__attribute__((used)) const uint16_t XCPLITE__C_DR = XCP_DRIVER_VERSION;
+#elif defined(XCP_ADDRESS_MODE_XCPLITE__ACSDD)
+__attribute__((used)) const uint16_t XCPLITE__ACSDD = XCP_DRIVER_VERSION;
+#elif defined(XCP_ADDRESS_MODE_XCPLITE__CASDD)
+__attribute__((used)) const uint16_t XCPLITE__CASDD = XCP_DRIVER_VERSION;
+#else
+#error "Please define one of XCP_ADDRESS_MODE_XCPLITE__C_DR, XCP_ADDRESS_MODE_XCPLITE__ACSDD, XCP_ADDRESS_MODE_XCPLITE__CASDD"
+#endif
+
+/****************************************************************************/
 /* Protocol layer state data                                                */
 /****************************************************************************/
 
