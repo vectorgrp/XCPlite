@@ -35,12 +35,12 @@
 #error "XCP_ENABLE_DAQ_EVENT_LIST and XCP_ENABLE_CALSEG_LIST must be enabled for calibration segment persistency"
 #endif
 
-#define BIN_SIGNATURE "XCPlite__BINARY"
+#define BIN_SIGNATURE "XCPLITE__BINARY"
 #define BIN_VERSION 0x0100
 #pragma pack(push, 1)
 
 typedef struct {
-    char signature[16];               // File signature "XCPlite__BINARY"
+    char signature[16];               // File signature "XCPLITE__BINARY"
     uint16_t version;                 // File version, currently 0x0100
     char Epk[XCP_EPK_MAX_LENGTH + 1]; // EPK string, 0 terminated, 32 bytes
     uint16_t event_count;             // Number of events tEventDescriptor

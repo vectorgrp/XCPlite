@@ -49,7 +49,7 @@
 /*
 Address extensions and addressing modes:
 
-XCPlite absolute addressing: XCP_LITE_ACSDD (default)
+XCPlite absolute addressing: XCPLITE__ACSDD (default)
 0x00        - Calibration segment relative addressing mode (XCP_ADDR_EXT_SEG with u16 offset)
 0x01        - Absolute addressing mode (XCP_ADDR_EXT_ABS)
 0x02        - Stackframe relative (Event based relative addressing mode with asynchronous access and i16 offset)
@@ -59,11 +59,11 @@ XCPlite absolute addressing: XCP_LITE_ACSDD (default)
 0xFE        - MTA pointer address space (XCP_ADDR_EXT_PTR)
 0xFF        - Undefined address extension (XCP_UNDEFINED_ADDR_EXT)
 
-XCPlite relative addressing: XCP_LITE_CASDD:
+XCPlite relative addressing: XCPLITE__CASDD:
 0x00        - Absolute addressing mode (XCP_ADDR_EXT_ABS)
 0x01        - Calibration segment relative addressing mode (XCP_ADDR_EXT_SEG)
 
-xcp-lite for Rust XCP_LITE_CADR:
+xcp-lite for Rust XCPLITE__CADR:
 0x00        - Absolute addressing mode (XCP_ADDR_EXT_ABS)
 0x01        - Calibration segment relative addressing mode (XCP_ADDR_EXT_SEG with u16 offset)
 0x02        - Pointer relative (Event based relative addressing mode with asynchronous access and i16 offset)
@@ -77,8 +77,8 @@ xcp-lite for Rust XCP_LITE_CADR:
 
 // Rust xcp-lite uses only relative addressing (0x03) and dynamic addressing (0x02) and application specific addressing (0x00) for calibration via callbacks
 // Calibration segments are currently handled by the application
-#define XCP_ADDRESS_MODE_XCP_LITE_CADR
-#define XCP_ADDRESS_MODE "XCP_LITE_P_DR"
+#define XCP_ADDRESS_MODE_XCPLITE__CADR
+#define XCP_ADDRESS_MODE "XCPLITE__P_DR"
 #define XCP_ENABLE_APP_ADDRESSING
 #define XCP_ADDR_EXT_APP 0x00
 #define XCP_ENABLE_REL_ADDRESSING
@@ -93,13 +93,13 @@ xcp-lite for Rust XCP_LITE_CADR:
 #define XCP_ENABLE_ABS_ADDRESSING
 #define XCP_ENABLE_SEG_ADDRESSING
 #if !defined(XCP_ENABLE_CALSEG_LIST) || defined(OPTION_CAL_SEGMENTS_ABS)
-#define XCP_ADDRESS_MODE_XCP_LITE_ACSDD
-#define XCP_ADDRESS_MODE "XCP_LITE_ACSDD"
+#define XCP_ADDRESS_MODE_XCPLITE__ACSDD
+#define XCP_ADDRESS_MODE "XCPLITE__ACSDD"
 #define XCP_ADDR_EXT_ABS 0x00
 #define XCP_ADDR_EXT_SEG 0x01
 #else
-#define XCP_ADDRESS_MODE_XCP_LITE_CASDD
-#define XCP_ADDRESS_MODE "XCP_LITE_CASDD"
+#define XCP_ADDRESS_MODE_XCPLITE__CASDD
+#define XCP_ADDRESS_MODE "XCPLITE__CASDD"
 #define XCP_ADDR_EXT_ABS 0x01
 #define XCP_ADDR_EXT_SEG 0x00
 #endif
