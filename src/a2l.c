@@ -1475,7 +1475,7 @@ bool A2lFinalize(void) {
         // This is required to make sure the A2L file remains valid, even if the creation order of event or calibration segment is different
 #ifdef OPTION_CAL_PERSISTENCE
         if (!gA2lWriteAlways)
-            XcpBinWrite();
+            XcpBinWrite(XCP_CALPAGE_WORKING_PAGE);
 #endif
 
         // Notify XCP that there is an A2L file available for upload by the XCP client

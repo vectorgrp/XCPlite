@@ -86,8 +86,22 @@ static void buildBinFilename(void) {
     SNPRINTF(gXcpBinFilename, XCP_BIN_FILENAME_MAX_LENGTH, "%s_%s.bin", project_name, epk);
 }
 
-//--------------------------------------------------------------------------------------------------------------------------------
+// Print the content of a calibration segment page for debugging
+#ifdef OPTION_ENABLE_DBG_PRINTS
+static void printCalsegPage(const uint8_t *page, uint16_t size) {
+    for (uint16_t i = 0; i < size; i++) {
+        printf("%02X ", page[i]);
+        if ((i + 1) % 16 == 0) {
+            printf("\n");
+        }
+    }
+    if (size % 16 != 0) {
+        printf("\n");
+    }
+}
+#endif
 
+// Write the BIN file header
 static bool writeHeader(FILE *file, const char *epk, uint16_t event_count, uint16_t calseg_count) {
 
     strncpy(gA2lHeader.signature, BIN_SIGNATURE, sizeof(gA2lHeader.signature) - 1);
@@ -106,6 +120,7 @@ static bool writeHeader(FILE *file, const char *epk, uint16_t event_count, uint1
     return true;
 }
 
+// Write an event descriptor to the BIN file
 static bool writeEvent(FILE *file, tXcpEventId event_id, const tXcpEvent *event) {
     tEventDescriptor desc;
     strncpy(desc.name, event->name, XCP_MAX_EVENT_NAME);
@@ -117,7 +132,6 @@ static bool writeEvent(FILE *file, tXcpEventId event_id, const tXcpEvent *event)
     desc.res[0] = 0xEE;
     desc.res[1] = 0xEE;
     desc.res[2] = 0xEE;
-
     size_t written = fwrite(&desc, sizeof(tEventDescriptor), 1, file);
     if (written != 1) {
         DBG_PRINTF3("Failed to write event descriptor to file: %s\n", strerror(errno));
@@ -127,21 +141,26 @@ static bool writeEvent(FILE *file, tXcpEventId event_id, const tXcpEvent *event)
     return true;
 }
 
-static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, tXcpCalSeg *seg) {
+// Write a calibration segment descriptor and page data to the BIN file
+static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, tXcpCalSeg *seg, uint8_t page) {
     tCalSegDescriptor desc;
     strncpy(desc.name, seg->name, XCP_MAX_CALSEG_NAME);
     desc.name[XCP_MAX_CALSEG_NAME] = '\0'; // Ensure null termination
     desc.size = seg->size;
     desc.index = calseg;
     *(uint32_t *)&desc.res[0] = 0xDDDDDDDD;
-
     size_t written = fwrite(&desc, sizeof(tCalSegDescriptor), 1, file);
     if (written != 1) {
         DBG_PRINTF3("Failed to write calibration segment descriptor to file: %s\n", strerror(errno));
         return false;
     }
     seg->file_pos = (uint32_t)ftell(file); // Save the position of the segment page data in the file
-    written = fwrite(seg->ecu_page, seg->size, 1, file);
+#ifdef OPTION_ENABLE_DBG_PRINTS
+    DBG_PRINTF4("Writing calibration segment %u, size=%u %s page data:\n", calseg, seg->size, page == XCP_CALPAGE_DEFAULT_PAGE ? "default" : "working");
+    printCalsegPage(page == XCP_CALPAGE_DEFAULT_PAGE ? seg->default_page : seg->ecu_page, seg->size);
+#endif
+    // This is safe, because XCP is not connected
+    written = fwrite(page == XCP_CALPAGE_DEFAULT_PAGE ? seg->default_page : seg->ecu_page, seg->size, 1, file);
     if (written != 1) {
         DBG_PRINTF3("Failed to write calibration segment data to file: %s\n", strerror(errno));
         return false;
@@ -154,17 +173,25 @@ static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, tXcpCalSeg *seg) {
 /// Write the binary persistency file.
 /// This function writes the current state of the XCP events and calibration segments to a binary file.
 /// It creates a file with the specified filename and writes the header, events, and calibration segments.
+/// The tool must not be connected at that time
 /// @param filename The name of the file to write.
 /// @return
 /// Returns true if the file was successfully written, false otherwise.
-bool XcpBinWrite(void) {
+bool XcpBinWrite(uint8_t page) {
+
     buildBinFilename();
-    FILE *file = fopen(gXcpBinFilename, "wb");
-    if (file == NULL) {
-        DBG_PRINTF3("Failed to open file for writing: %s\n", strerror(errno));
+
+    if (XcpIsConnected() && page == XCP_CALPAGE_WORKING_PAGE) {
+        DBG_PRINT_ERROR("Cannot write persistency file while XCP is connected\n");
         return false;
     }
 
+    // Open file for writing
+    FILE *file = fopen(gXcpBinFilename, "wb");
+    if (file == NULL) {
+        DBG_PRINTF3("Failed to open file %s for writing: %s\n", gXcpBinFilename, strerror(errno));
+        return false;
+    }
     if (!writeHeader(file, XcpGetEpk(), gXcp.EventList.count, gXcp.CalSegList.count)) {
         fclose(file);
         return false;
@@ -183,7 +210,7 @@ bool XcpBinWrite(void) {
     for (tXcpCalSegIndex i = 0; i < gXcp.CalSegList.count; i++) {
         tXcpCalSeg *seg = XcpGetCalSeg(i);
         assert(seg != NULL);
-        if (!writeCalseg(file, i, seg)) {
+        if (!writeCalseg(file, i, seg, page)) {
             fclose(file);
             return false;
         }
@@ -213,6 +240,11 @@ bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg) {
     buildBinFilename();
     FILE *file = fopen(gXcpBinFilename, "r+b");
     if (file == NULL) {
+        // If the file does not exist yet, create a new initial one with default page data
+        XcpBinWrite(XCP_CALPAGE_DEFAULT_PAGE);
+        file = fopen(gXcpBinFilename, "r+b");
+    }
+    if (file == NULL) {
         DBG_PRINTF_ERROR("Failed to open file '%s' for read/write: %s\n", gXcpBinFilename, strerror(errno));
         return false;
     }
@@ -221,8 +253,11 @@ bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg) {
     assert(seg->file_pos > 0); // Ensure the file position is set
     size_t n = 0;
     if (0 == fseek(file, seg->file_pos, SEEK_SET)) {
-        printf("Writing calibration segment %u, size=%u active page data to file '%s'+%u\n", calseg, seg->size, gXcpBinFilename, seg->file_pos);
         const uint8_t *ecu_page = XcpLockCalSeg(calseg);
+#ifdef OPTION_ENABLE_DBG_PRINTS
+        DBG_PRINTF4("Freezing calibration segment %u, size=%u active page data to file '%s'+%u\n", calseg, seg->size, gXcpBinFilename, seg->file_pos);
+        printCalsegPage(ecu_page, seg->size);
+#endif
         n = fwrite(ecu_page, seg->size, 1, file);
         XcpUnlockCalSeg(calseg);
     }
@@ -314,6 +349,7 @@ static bool load(const char *filename, const char *epk) {
             return false;
         }
 
+        // Read calibration segment page data
         // Allocate memory for persisted page from heap
         void *page = malloc(desc.size);
         read = fread(page, desc.size, 1, file);
@@ -323,6 +359,10 @@ static bool load(const char *filename, const char *epk) {
             fclose(file);
             return false;
         }
+#ifdef OPTION_ENABLE_DBG_PRINTS
+        DBG_PRINTF4("Reading calibration segment %u, size=%u:\n", i, desc.size);
+        printCalsegPage(page, desc.size);
+#endif
 
         // The persisted data will become the preliminary reference page
         // Providing a heap allocated default page may not work for absolute segment addressing mode in reference page persistency mode

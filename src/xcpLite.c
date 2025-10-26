@@ -518,39 +518,42 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
     // Allocate the working page and initialize RCU, if XCP has been activated
     if (isActivated()) {
 
-        // Allocate the ecu working page (RAM page)
-#ifdef XCP_ENABLE_REFERENCE_PAGE_PERSISTENCY
+        // Allocate the ECU working page (RAM page)
+        c->ecu_page = malloc(size);
+        memcpy(c->ecu_page, c->default_page, size); // Copy default page to ECU working page copy
 
+        // Allocate the xcp working page (RAM page)
+#ifdef XCP_ENABLE_REFERENCE_PAGE_PERSISTENCY
 // No persistency possible in absolute segment addressing mode
 #if defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0
 #error "XCP_ENABLE_REFERENCE_PAGE_PERSISTENCY requires segment relative addressing mode!"
 #endif
+
+        // Reference page persistency
         // Allocate the  working page
         c->xcp_page = malloc(size);
         memcpy(c->xcp_page, c->default_page, size); // Copy default page to working page
         if (c->mode & PAG_PROPERTY_PRELOAD) {
             DBG_PRINTF3("Persistence data loaded into reference page of CalSeg %u: %s size=%u\n", index, c->name, c->size);
         }
-#else
+#else  // XCP_ENABLE_REFERENCE_PAGE_PERSISTENCY
+
         // Working page persistency
-        // If it is a preloaded segment with a heap allocated default page, use this default page as working page
+        // If it is a preloaded segment with a heap allocated default page, use this default page as XCP working page
         if (c->mode & PAG_PROPERTY_PRELOAD) {
-            c->xcp_page = (uint8_t *)c->default_page;
+            c->xcp_page = (uint8_t *)c->default_page; // Swap XCP working page and preloaded default page
             c->default_page = default_page;
+            memcpy(c->ecu_page, c->xcp_page, size); // Copy XCP working page to ECU working page copy as well
             DBG_PRINTF3("Persistence data loaded into working page of CalSeg %u: %s addr=0x%08X, size=%u\n", index, c->name, XcpGetCalSegBaseAddress(index), c->size);
         }
         // else allocate and initialize the working page
         else {
 
-            // Allocate the  working page
+            // Allocate the XCP working page
             c->xcp_page = malloc(size);
             memcpy(c->xcp_page, default_page, size); // Copy default page to working page
         }
-#endif
-
-        // Allocate the xcp page
-        c->ecu_page = malloc(size);
-        memcpy(c->ecu_page, c->default_page, size); // Copy default page to ECU working page copy
+#endif // !XCP_ENABLE_REFERENCE_PAGE_PERSISTENCY
 
         // Allocate a free uninitialized page
         atomic_store_explicit(&c->free_page, (uintptr_t)malloc(size), memory_order_relaxed);
@@ -2092,12 +2095,13 @@ void XcpDisconnect(void) {
         XcpCalSegPublishAll(true);
 #endif
 
-#if defined(OPTION_CAL_PERSISTENCE) && defined(OPTION_CAL_PERSIST_ON_DISCONNECT)
-        XcpBinWrite();
-#endif
-
         gXcp.SessionStatus &= (uint16_t)(~SS_CONNECTED);
         ApplXcpDisconnect();
+
+        // Must be done in disconnected state
+#if defined(OPTION_CAL_PERSISTENCE) && defined(OPTION_CAL_PERSIST_ON_DISCONNECT)
+        XcpBinWrite(XCP_CALPAGE_WORKING_PAGE);
+#endif
     }
 }
 
