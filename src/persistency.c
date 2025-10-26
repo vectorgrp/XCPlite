@@ -157,7 +157,8 @@ static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, tXcpCalSeg *seg, uin
     seg->file_pos = (uint32_t)ftell(file); // Save the position of the segment page data in the file
 #ifdef OPTION_ENABLE_DBG_PRINTS
     DBG_PRINTF4("Writing calibration segment %u, size=%u %s page data:\n", calseg, seg->size, page == XCP_CALPAGE_DEFAULT_PAGE ? "default" : "working");
-    printCalsegPage(page == XCP_CALPAGE_DEFAULT_PAGE ? seg->default_page : seg->ecu_page, seg->size);
+    if (DBG_LEVEL >= 4)
+        printCalsegPage(page == XCP_CALPAGE_DEFAULT_PAGE ? seg->default_page : seg->ecu_page, seg->size);
 #endif
     // This is safe, because XCP is not connected
     written = fwrite(page == XCP_CALPAGE_DEFAULT_PAGE ? seg->default_page : seg->ecu_page, seg->size, 1, file);
@@ -256,7 +257,8 @@ bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg) {
         const uint8_t *ecu_page = XcpLockCalSeg(calseg);
 #ifdef OPTION_ENABLE_DBG_PRINTS
         DBG_PRINTF4("Freezing calibration segment %u, size=%u active page data to file '%s'+%u\n", calseg, seg->size, gXcpBinFilename, seg->file_pos);
-        printCalsegPage(ecu_page, seg->size);
+        if (DBG_LEVEL >= 4)
+            printCalsegPage(ecu_page, seg->size);
 #endif
         n = fwrite(ecu_page, seg->size, 1, file);
         XcpUnlockCalSeg(calseg);
@@ -361,7 +363,8 @@ static bool load(const char *filename, const char *epk) {
         }
 #ifdef OPTION_ENABLE_DBG_PRINTS
         DBG_PRINTF4("Reading calibration segment %u, size=%u:\n", i, desc.size);
-        printCalsegPage(page, desc.size);
+        if (DBG_LEVEL >= 4)
+            printCalsegPage(page, desc.size);
 #endif
 
         // The persisted data will become the preliminary reference page

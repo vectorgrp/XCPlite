@@ -11,11 +11,12 @@ build-*
 CANapeTmpMea.ini
 
 
-# Examples A2L files
+# Examples .a2l and .bin files
 /*.a2l
 *.bin
 
 # Temporary files
+test_bintool
 conversions.a2l
 groups.a2l
 typedefs.a2l
@@ -31,10 +32,10 @@ pi
 dwarf
 .vscode
 .DS_Store
-test_bpf_demo.sh
+test_bpf_demo_pi.sh
+test_bin2hex_pi.sh
 CANape.aml
-/examples/no_a2l_demo/src/main_creator_test.c
-/tools/gimli_demo/target
-/tools/dwarf_reader/target
+/tools/gimli_demo/
+/tools/dwarf_reader/
 
-/examples/no_a2l_demo/CANape/no_a2l_demo.a2l.unfixed
+/tools/bintool/USAGE_EXAMPLES.md
