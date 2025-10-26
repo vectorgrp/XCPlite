@@ -13,13 +13,13 @@
 //-----------------------------------------------------------------------------------------------------
 // XCP params
 
-#define OPTION_PROJECT_NAME "hello_xcp" // Project name, used to build the A2L and BIN file name
-#define OPTION_PROJECT_EPK "v13"        // EPK version string
-#define OPTION_USE_TCP true             // TCP or UDP
-#define OPTION_SERVER_PORT 5555         // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE 1024 * 16     // Size of the measurement queue in bytes, must be a multiple of 8
-#define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_PROJECT_NAME "hello_xcp"    // Project name, used to build the A2L and BIN file name
+#define OPTION_PROJECT_EPK "v10_" __TIME__ // EPK version string
+#define OPTION_USE_TCP true                // TCP or UDP
+#define OPTION_SERVER_PORT 5555            // Port
+#define OPTION_SERVER_ADDR {0, 0, 0, 0}    // Bind addr, 0.0.0.0 = ANY
+#define OPTION_QUEUE_SIZE 1024 * 16        // Size of the measurement queue in bytes, must be a multiple of 8
+#define OPTION_LOG_LEVEL 4                 // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 //-----------------------------------------------------------------------------------------------------
 // Demo calibration parameters
@@ -28,11 +28,11 @@
 typedef struct params {
     uint16_t counter_max; // Maximum value for the counter
     uint32_t delay_us;    // Sleep time in microseconds for the main loop
-    float acceleration;   // Acceleration in m/s^2
+    float flow_rate;      // Flow rate in m3/h
 } parameters_t;
 
 // Default values (reference page, "FLASH") for the calibration parameters
-const parameters_t params = {.counter_max = 1024, .delay_us = 1000, .acceleration = 0.01f};
+const parameters_t params = {.counter_max = 1024, .delay_us = 1000, .flow_rate = 0.300f};
 
 // A global calibration segment handle for the calibration parameters
 // A calibration segment has a working page ("RAM") and a reference page ("FLASH"), it is described by a MEMORY_SEGMENT in the A2L file
@@ -43,42 +43,51 @@ tXcpCalSegIndex calseg = XCP_UNDEFINED_CALSEG;
 //-----------------------------------------------------------------------------------------------------
 // Demo global measurement values
 
-uint8_t temperature = 50; // Temperature in Deg Celcius as Byte, 0 is -55 °C, 255 is +200 °C
-float speed = 0.0f;       // Speed in km/h
+// Temperatures are in Deg Celcius as Byte, 0 is -55 °C, 255 is +200 °C
+uint8_t outside_temperature = -5 + 55;
+uint8_t inside_temperature = 20 + 55;
+// Heat Energy in kW
+double heat_energy = 0.0f;
+
+//-----------------------------------------------------------------------------------------------------
+// Read sensor values
+
+// Simulate reading the outside temperature sensor, by writing to the global variable
+#define read_outside_sensor() (outside_temperature)
+#define read_inside_sensor() (inside_temperature)
 
 //-----------------------------------------------------------------------------------------------------
 // Demo function with XCP instrumentation
 
-float calc_speed(float current_speed) {
+// Calculate heat power from temperature difference and flow rate calibration parameter
+// Temperatures are in uint8_t in Deg Celsius offset by -55 °C, conversion rule identifier is "conv.temperature"
+float calc_power(uint8_t t1, uint8_t t2) {
 
-    float new_speed = 0.0f;
+    double diff_temp = (double)t2 - (double)t1; // Diff temperature in Kelvin
+    double heat_power = diff_temp * 10.0f;      // Heat power in kW
 
     // XCP: Create a measurement event and once register local measurement variables for current_speed and new_speed
-    DaqCreateEvent(calc_speed);
+    DaqCreateEvent(calc_power);
     A2lOnce() {
-        A2lSetStackAddrMode(calc_speed); // Set stack relative addressing mode with fixed event speed
-        A2lCreatePhysMeasurementInstance("calc_speed", current_speed, "Parameter current_speed in function calculate_speed", "km/h", 0, 250.0);
-        A2lCreatePhysMeasurementInstance("calc_speed", new_speed, "Loop counter, local measurement variable on stack", "km/h", 0, 250.0);
+        A2lSetStackAddrMode(calc_power); // Set stack relative addressing mode with fixed event heat_power
+        A2lCreatePhysMeasurementInstance("calc_power", t1, "Parameter t1 in function calc_power", "conv.temperature", -55.0, 200.0);
+        A2lCreatePhysMeasurementInstance("calc_power", t2, "Parameter t2 in function calc_power", "conv.temperature", -55.0, 200.0);
+        A2lCreatePhysMeasurementInstance("calc_power", diff_temp, "Local variable diff temperature in function calc_power", "K", -100.0, 100.0);
+        A2lCreatePhysMeasurementInstance("calc_power", heat_power, "Local variable calculated heat power in function calc_power", "W", 0.0, 10.0);
     }
 
     // XCP: Lock access to calibration parameters
     const parameters_t *params = (parameters_t *)XcpLockCalSeg(calseg);
 
-    // Calculate new speed based on acceleration and sample rate
-    new_speed = (float)(current_speed + params->acceleration * params->delay_us * 3.6 / 1000000.0); // km/h
-    if (new_speed < 0.0f) {
-        new_speed = 0.0f;
-    } else if (new_speed > 250.0f) {
-        new_speed = 250.0f; // Limit speed to 250 km/h
-    }
+    heat_power = diff_temp * params->flow_rate * 1000.0 * 1.16; // in kWh, 1.16Wh per K per liter - calculate heat power using the flow rate calibration parameter
 
     // XCP: Unlock the calibration segment
     XcpUnlockCalSeg(calseg);
 
-    // XCP: Trigger the measurement event "calc_speed"
-    DaqEvent(calc_speed);
+    // XCP: Trigger the measurement event "calc_power"
+    DaqEvent(calc_power);
 
-    return new_speed;
+    return heat_power;
 }
 
 //-----------------------------------------------------------------------------------------------------
@@ -122,31 +131,32 @@ int main(void) {
     // XCP: Create a calibration segment named 'Parameters' for the calibration parameter struct instance 'params' as reference page
     calseg = XcpCreateCalSeg("params", &params, sizeof(params));
 
-    // XCP: Register the individual calibration parameters in the calibration segment
-    A2lSetSegmentAddrMode(calseg, params);
-    A2lCreateParameter(params.counter_max, "Maximum counter value", "", 0, 2000);
-    A2lCreateParameter(params.delay_us, "Mainloop delay time in us", "us", 0, 999999);
-    A2lCreateParameter(params.acceleration, "Acceleration", "m/(s*s)", -10, 10);
-
-    // XCP: Alternatively, register the calibration segment as a typedef instance
-    // A2lTypedefBegin(parameters_t, "Calibration parameters typedef");
-    // A2lTypedefParameterComponent(counter_max, parameters_t, "Maximum counter value", "", 0, 2000);
-    // A2lTypedefParameterComponent(delay_us, parameters_t, "Mainloop delay time in us", "us", 0, 999999);
-    // A2lTypedefParameterComponent(acceleration, parameters_t, "Acceleration", "m/(s*s)", -10, 10);
-    // A2lTypedefEnd();
+    // XCP: Option1: Register the individual calibration parameters in the calibration segment
     // A2lSetSegmentAddrMode(calseg, params);
-    // A2lCreateTypedefInstance(params, parameters_t, "Calibration parameters");
+    // A2lCreateParameter(params.counter_max, "Maximum counter value", "", 0, 2000);
+    // A2lCreateParameter(params.delay_us, "Mainloop delay time in us", "us", 0, 999999);
+    // A2lCreateParameter(params.flow_rate, "Flow rate", "m3/h", 0.0, 2.0);
+
+    // XCP: Option2: Register the calibration segment as a typedef instance
+    A2lTypedefBegin(parameters_t, "Calibration parameters typedef");
+    A2lTypedefParameterComponent(counter_max, parameters_t, "Maximum counter value", "", 0, 2000);
+    A2lTypedefParameterComponent(delay_us, parameters_t, "Mainloop delay time in us", "us", 0, 999999);
+    A2lTypedefParameterComponent(flow_rate, parameters_t, "Flow rate", "m3/h", 0.0, 2.0);
+    A2lTypedefEnd();
+    A2lSetSegmentAddrMode(calseg, params);
+    A2lCreateTypedefInstance(params, parameters_t, "Calibration parameters");
 
     // XCP: Create a measurement event named "mainloop"
     DaqCreateEvent(mainloop);
 
-    // XCP: Register global measurement variables (temperature, speed)
+    // XCP: Register global measurement variables
     A2lSetAbsoluteAddrMode(mainloop);
-    A2lCreateLinearConversion(temperature, "Temperature in °C from unsigned byte", "°C", 1.0, -55.0);
-    A2lCreatePhysMeasurement(temperature, "Motor temperature in °C", "conv.temperature", -55.0, 200.0);
-    A2lCreatePhysMeasurement(speed, "Speed in km/h", "km/h", 0, 250.0);
+    A2lCreateLinearConversion(temperature, "Temperature in °C from unsigned byte", "C", 1.0, -55.0);
+    A2lCreatePhysMeasurement(outside_temperature, "Temperature in °C read from outside sensor", "conv.temperature", -20, 50);
+    A2lCreatePhysMeasurement(inside_temperature, "Temperature in °C read from inside sensor", "conv.temperature", 0, 40);
+    A2lCreatePhysMeasurement(heat_energy, "Accumulated heat energy in kWh", "kWh", 0.0, 10000.0);
 
-    // XCP: Register a local measurement variable (loop_counter)
+    // XCP: Register local measurement variables
     uint16_t loop_counter = 0;
     A2lSetStackAddrMode(mainloop); // Set stack relative addressing mode with fixed event mainloop
     A2lCreateMeasurement(loop_counter, "Loop counter, local measurement variable on stack");
@@ -168,8 +178,10 @@ int main(void) {
         }
 
         // Global measurement variables
-        temperature = 50 + 21;
-        speed = calc_speed(speed); // Demo function to calculate a new speed based on the current speed and acceleration
+        inside_temperature = read_inside_sensor();
+        outside_temperature = read_outside_sensor();
+        double heat_power = calc_power(outside_temperature, inside_temperature); // Demo function to calculate heat power in W
+        heat_energy += heat_power / 1000.0 * (double)delay_us / 3600e6;          // Integrate heat energy in kWh in a global measurement variable, kWh = W/1000  * us/ 3600e6
 
         // XCP: Unlock the calibration segment
         XcpUnlockCalSeg(calseg);
