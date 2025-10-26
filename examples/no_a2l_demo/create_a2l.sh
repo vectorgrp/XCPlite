@@ -36,17 +36,11 @@ BUILD_TYPE="RelWithDebInfo"
 
 # Release build will of course not work because debug symbols are removed
 
-
 # Optimization level >= -O1 keeps variables in registers whenever possible, so local variables cannot be measured in any case
 # The most efficient solution to keep local variables measurable is to use the DaqCapture macro, another option is mark the variable with volatile ot with the provided macro XCP_MEA
 # Debug mode is the least efficient but keeps all variables and stack frames intact
 # So far, the solution works well with -O1
 
-
-# true: use the DanielT a2ltool to add measurements and characteristics to the A2L file template created by xcp_client
-# false: use xcp_client with the elf file option to create the A2L file 
-ENABLE_A2LTOOL=false
-#ENABLE_A2LTOOL=true
 
 # Connect to the target system possible
 #ECU_ONLINE=true
@@ -89,7 +83,7 @@ echo "==========================================================================
 echo "Logging to $LOGFILE enabled"
 echo "" > $LOGFILE
 
-
+#---------------------------------------------------
 if [ $ECU_ONLINE == true ]; then
 
 # Sync target
@@ -131,40 +125,20 @@ sleep 2
 fi
 
 fi
+# ECU_ONLINE
+#---------------------------------------------------
+
 
 #======================================================================================================================
 # Create A2L file
 #======================================================================================================================
 
-#----------------------------------------------------------------------------------------------------------------------
-# a2ltool
-if [ $ENABLE_A2LTOOL == true ]; then
-    
-# Use a2ltool to update the A2L template with measurement 'counter' and characteristic 'params'
-echo ""
-echo "Creating A2L file $A2LFILE with xcp_client and a2ltool in combination"
-
-# Create a A2L template with xcp_client by uploading memory segments and events via XCP
-$XCPCLIENT --log-level=2  --dest-addr=$TARGET_HOST --tcp  --create-a2l --a2l $A2LFILE.template.a2l  >> $LOGFILE
-if [ $? -ne 0 ]; then
-    echo "❌ FAILED: xcp_client returned error"
-    exit 1
-fi
-# Update A2L with a2ltool and add measurement 'counter' and characteristic 'params'
-$A2LTOOL --verbose --update --measurement-regex "global_counter"  --characteristic-regex "params" --elffile  $ELFFILE  --enable-structures --output $A2LFILE $A2LFILE.template.a2l >> $LOGFILE
-if [ $? -ne 0 ]; then
-    echo "❌ FAILED: a2ltool returned error"
-    exit 1
-fi
-cp tmp.a2l $A2LFILE
-
-#----------------------------------------------------------------------------------------------------------------------
-else
-
-#----------------------------------------------------
 # Create a A2L template offline with xcp_client by uploading memory segments and events via XCP
 
+#---------------------------------------------------
+# One step
 if [ $OFFLINE_A2L_CREATION_AND_FIX == false ]; then
+
 echo ""
 echo "========================================================================================================"
 echo "Creating A2L file in online mode via XCP event and segment information and from XCPlite ELF file ..."
@@ -177,10 +151,13 @@ if [ $? -ne 0 ]; then
 fi
 
 #---------------------------------------------------
+# Two step
 else
+
+
 echo ""
 echo "========================================================================================================"
-echo "Creating A2L file from XCPlite ELF file ..."
+echo "Creating A2L file template from XCPlite ELF file ..."
 echo "========================================================================================================"
 echo ""
 $XCPCLIENT --log-level=3 --verbose=0 --dest-addr=$TARGET_HOST --tcp --offline --elf $ELFFILE  --create-a2l --a2l $A2LFILE_TEMPLATE  >> $LOGFILE
@@ -202,13 +179,13 @@ if [ $? -ne 0 ]; then
     echo "❌ FAILED: xcp_client returned error"
     exit 1
 fi
-fi
-
 
 fi
 
 
 fi
+# OFFLINE_A2L_CREATION_AND_FIX
+#---------------------------------------------------
 
 
 #======================================================================================================================
