@@ -7,6 +7,8 @@ A command-line tool for XCPlite `.BIN` persistency files:
 
 Persistency features in XCPlite are enabled with OPTION_CAL_PERSISTENCE.  
 
+Disclaimer: This is an AI generated tool. Don't use it for production. Improper use may corrupt calibration data.  
+
 ## Overview
 
 This tool provides comprehensive management of XCPlite binary persistency files:
@@ -14,9 +16,11 @@ This tool provides comprehensive management of XCPlite binary persistency files:
 - **HEX to BIN**: Update calibration segment data from Intel-Hex files
 - **Dump/Inspect**: View file structure, segments, and hex dumps
 
-The tool uses a hardcoded the 32-bit segment relative addressing scheme: `Address = 0x80000000 | (segment_index << 16)`
+The tool uses a hardcoded 32-bit segment relative addressing scheme: `Address = 0x80000000 | (segment_index << 16)` which is default in XCPlite.  
+Absolute addressing (OPTION_CAL_SEGMENTS_ABS in XCPlite main_cfg.h) is not supported yet.  
+There is no check for the correct addressing mode.  
+For safety, it is essential to use the EPK version segment. This can be enabled with OPTION_CAL_SEGMENT_EPK.  
 
-For safety, it is essential to use the EPK version segment. This can be enabled in XCPlite with OPTION_CAL_SEGMENT_EPK 
 
 
 ## Usage
@@ -127,7 +131,7 @@ bintool -b myproject_v1.0.bin --apply-hex calibration.hex -v
 - BIN files: timestamp in name (cpp_demo_v10_21_01_18.bin)
 
 ## Implementation
-- Location: tools/bin2hex/
+- Location: tools/bintool/
 - Rust with #[repr(C, packed)] for C ABI
 - Structs: BinHeaderRaw (58B), EventDescriptorRaw (28B), CalSegDescriptorRaw (24B)
 
@@ -140,17 +144,19 @@ bintool -b myproject_v1.0.bin --apply-hex calibration.hex -v
 ## Building
 
 ```bash
-cd tools/bin2hex
+cd tools/bintool
 cargo build --release
+# Optional, install to ~/.cargo/bin/bintool or use the compiled binary will be in `target/release/bintool`
+cargo install --path .  
 ```
 
-The compiled binary will be in `target/release/bintool`.
+
 
 
 
 ## BIN File Format
 
-The tool reads the binary format defined in `src/persistency.c`:
+The tool reads the binary format defined in `XCPlite/src/persistency.c`:
 
 ### Header (58 bytes)
 - Signature: 16 bytes - "XCPLITE__BINARY"
@@ -311,14 +317,7 @@ The tool provides clear error messages for common issues:
 
 All errors prevent file modification, ensuring data integrity.
 
-## Testing
 
-See `TEST_RESULTS.md` for comprehensive test results including:
-- BIN to HEX conversion tests
-- HEX to BIN update tests
-- EPK compatibility validation
-- Incomplete segment data handling
-- Atomic update verification
 
 ## License
 

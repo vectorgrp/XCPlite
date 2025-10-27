@@ -78,12 +78,12 @@
 // Requirement is, that the address of all reference pages must be stable and in address range of 0x0000_0000 to 0xFFFF_FFFF
 // #define OPTION_CAL_SEGMENTS_ABS
 
-// Enable persistency for reference page, default is working page
-// This decides which pages (reference/FLASH or working/RAM) are stored to the calibration segment binary file on XCP freeze request
+// Enable persistency (freeze) to reference page or to working page on next application restart
+// This decides which pages (reference/FLASH or working/RAM) are stored to the calibration segment binary file (.BIN) on XCP freeze request
 // #define OPTION_CAL_REFERENCE_PAGE_PERSISTENCY
 
-// Start on reference page instead of working page
-// #define OPTION_CAL_SEGMENT_START_ON_REFERENCE_PAGE
+// Start on reference/default page or on working page
+#define OPTION_CAL_SEGMENT_START_ON_REFERENCE_PAGE
 
 // Automatically persist the working page on XCP disconnect
 // #define OPTION_CAL_PERSIST_ON_DISCONNECT

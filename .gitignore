@@ -38,3 +38,4 @@ CANape.aml
 tools/gimli_demo/
 tools/dwarf_reader/
 tools/bintool/USAGE_EXAMPLES.md
+/examples/hello_xcp/CANape/vCDMstudioUiConfiguration.xml

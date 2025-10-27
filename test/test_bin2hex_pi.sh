@@ -3,11 +3,14 @@
 # BINTOOL Test Script for Raspberry Pi
 # This script tests the complete bintool workflow:
 # 1. Sync project to target
-# 2. Build cpp_demo on target (has multiple calibration segments)
-# 3. Start cpp_demo XCP server
+# 2. Build demo on target (has multiple calibration segments)
+# 3. Start demo XCP server
 # 4. Download A2L and BIN files using xcp_client
 # 5. Convert BIN to HEX using bintool
 # 6. Upload HEX file back to target to verify round-trip
+#
+# Usage: ./test_bin2hex_pi.sh [demo_name]
+#   demo_name: hello_xcp, c_demo, cpp_demo, multi_thread_demo, struct_demo (default: cpp_demo)
 
 set -e  # Exit on error
 
@@ -15,28 +18,44 @@ set -e  # Exit on error
 # Configuration
 #======================================================================================================================
 
-# Target connection details
+# Demo to test (can be overridden by command line argument)
+DEMO_NAME="${1:-cpp_demo}"
+
+# Determine XCP protocol based on demo (hello_xcp uses TCP, others use UDP)
+case "$DEMO_NAME" in
+    hello_xcp)
+        XCP_PROTOCOL="--tcp"
+        ;;
+    *)
+        XCP_PROTOCOL="--udp"
+        ;;
+esac
+
+# Test target connection details
 TARGET_USER="rainer"
 TARGET_HOST="192.168.0.206"
 TARGET_PATH="~/XCPlite-RainerZ"
-TARGET_EXECUTABLE="$TARGET_PATH/build/cpp_demo.out"
+TARGET_EXECUTABLE="$TARGET_PATH/build/${DEMO_NAME}.out"
+
+# Tools
+XCPCLIENT="xcp_client"  # Installed via: cargo install --path (in xcp-lite project)
+BINTOOL="bintool"  # Installed via: cargo install --path tools/bintool
+
 
 # Local paths
-XCPCLIENT="../xcp-lite-RainerZ/target/debug/xcp_client"
-BINTOOL="./tools/bintool/target/release/bintool"
 TEST_DIR="./test_bintool"
 LOGFILE="$TEST_DIR/test_bintool.log"
 
+# Test files created during the test
+A2L_FILE="$TEST_DIR/${DEMO_NAME}.a2l"
+BIN_FILE="$TEST_DIR/${DEMO_NAME}.bin"
+HEX_FROM_BIN="$TEST_DIR/${DEMO_NAME}_from_bin.hex"
+HEX_FROM_XCP="$TEST_DIR/${DEMO_NAME}_from_xcp.hex"
+BIN_BACKUP="$TEST_DIR/${DEMO_NAME}_backup.bin"
+BIN_RESTORED="$TEST_DIR/${DEMO_NAME}_restored.bin"
+
 # Build type for target executable
 BUILD_TYPE="Debug"
-
-# Test files
-A2L_FILE="$TEST_DIR/cpp_demo.a2l"
-BIN_FILE="$TEST_DIR/cpp_demo.bin"
-HEX_FROM_BIN="$TEST_DIR/cpp_demo_from_bin.hex"
-HEX_FROM_XCP="$TEST_DIR/cpp_demo_from_xcp.hex"
-BIN_BACKUP="$TEST_DIR/cpp_demo_backup.bin"
-BIN_RESTORED="$TEST_DIR/cpp_demo_restored.bin"
 
 #======================================================================================================================
 # Helper Functions
@@ -44,7 +63,7 @@ BIN_RESTORED="$TEST_DIR/cpp_demo_restored.bin"
 
 cleanup_target() {
     echo "Cleaning up target processes..."
-    ssh $TARGET_USER@$TARGET_HOST "pkill -f cpp_demo.out" 2>/dev/null || true
+    ssh $TARGET_USER@$TARGET_HOST "pkill -f ${DEMO_NAME}.out" 2>/dev/null || true
     sleep 1
 }
 
@@ -62,12 +81,12 @@ echo "==========================================================================
 echo "BINTOOL Test Script"
 echo "========================================================================================================"
 echo "Target: $TARGET_USER@$TARGET_HOST"
-echo "Demo:   cpp_demo (multiple calibration segments)"
+echo "Demo:   $DEMO_NAME"
 echo "Log:    $LOGFILE"
 echo ""
 echo "Test workflow:"
-echo "  1. Sync and build cpp_demo on target"
-echo "  2. Start XCP server (cpp_demo generates BIN file on startup)"
+echo "  1. Sync and build $DEMO_NAME on target"
+echo "  2. Start XCP server ($DEMO_NAME generates BIN file on startup)"
 echo "  3. Download A2L via XCP"
 echo "  4. Upload calibration data via XCP to create HEX file (xcp_client --upload-bin)"
 echo "  5. Download BIN file via scp"
@@ -99,10 +118,10 @@ fi
 echo "✅ Sync completed"
 
 #---------------------------------------------------
-# Step 2: Build cpp_demo on target
+# Step 2: Build demo on target
 #---------------------------------------------------
 echo ""
-echo "Step 2: Building cpp_demo on target..."
+echo "Step 2: Building $DEMO_NAME on target..."
 ssh $TARGET_USER@$TARGET_HOST "cd $TARGET_PATH && ./build.sh $BUILD_TYPE" >> $LOGFILE 2>&1
 
 if [ $? -ne 0 ]; then
@@ -112,14 +131,14 @@ fi
 echo "✅ Build completed"
 
 #---------------------------------------------------
-# Step 3: Start cpp_demo XCP server
+# Step 3: Start demo XCP server
 #---------------------------------------------------
 echo ""
-echo "Step 3: Starting cpp_demo XCP server on target..."
+echo "Step 3: Starting $DEMO_NAME XCP server on target..."
 cleanup_target
 ssh $TARGET_USER@$TARGET_HOST "cd $TARGET_PATH && $TARGET_EXECUTABLE" >> $LOGFILE 2>&1 &
 SSH_PID=$!
-sleep 2
+sleep 3
 echo "✅ XCP server started (PID: $SSH_PID)"
 
 #---------------------------------------------------
@@ -128,9 +147,19 @@ echo "✅ XCP server started (PID: $SSH_PID)"
 echo ""
 echo "Step 4: Uploading calibration data from target via XCP..."
 echo "(xcp_client --upload-bin reads calibration segments and creates Intel-Hex file)"
+echo "Using protocol: $XCP_PROTOCOL"
+
+# Check if xcp_client is available
+if ! command -v $XCPCLIENT &> /dev/null; then
+    echo "❌ FAILED: xcp_client not found in PATH"
+    echo "Please install it first from the xcp-lite project"
+    cleanup_target
+    exit 1
+fi
+
 $XCPCLIENT \
     --dest-addr=$TARGET_HOST \
-    --udp \
+    $XCP_PROTOCOL \
     --upload-a2l \
     --upload-bin \
     >> $LOGFILE 2>&1
@@ -142,8 +171,8 @@ if [ $? -ne 0 ]; then
 fi
 
 # Move uploaded files to test directory
-mv cpp_demo.a2l $A2L_FILE 2>/dev/null || true
-mv cpp_demo.hex $HEX_FROM_XCP 2>/dev/null || true
+mv ${DEMO_NAME}.a2l $A2L_FILE 2>/dev/null || true
+mv ${DEMO_NAME}.hex $HEX_FROM_XCP 2>/dev/null || true
 
 if [ ! -f "$HEX_FROM_XCP" ]; then
     echo "❌ FAILED: HEX file not created by xcp_client"
@@ -158,12 +187,12 @@ echo "✅ Created HEX file via XCP: $HEX_FROM_XCP ($(wc -l < "$HEX_FROM_XCP") li
 #---------------------------------------------------
 echo ""
 echo "Step 5: Downloading BIN file from target using scp..."
-echo "(BIN file is generated by cpp_demo on startup with timestamp in name)"
+echo "(BIN file is generated by $DEMO_NAME on startup with timestamp in name)"
 
-# Find the BIN file on target (name includes build time: cpp_demo_v10_21_01_18.bin)
-# BIN file is created by cpp_demo.out in the project root directory
+# Find the BIN file on target (name includes build time: ${DEMO_NAME}_v10_21_01_18.bin)
+# BIN file is created by ${DEMO_NAME}.out in the project root directory
 echo "Finding BIN file on target..."
-TARGET_BIN_PATTERN="$TARGET_PATH/cpp_demo_v*.bin"
+TARGET_BIN_PATTERN="$TARGET_PATH/${DEMO_NAME}_v*.bin"
 TARGET_BIN_FILE=$(ssh $TARGET_USER@$TARGET_HOST "ls -t $TARGET_BIN_PATTERN 2>/dev/null | head -1")
 
 if [ -z "$TARGET_BIN_FILE" ]; then
@@ -194,20 +223,17 @@ BIN_FILENAME=$(basename "$TARGET_BIN_FILE")
 echo "✅ Downloaded BIN file from target: $BIN_FILENAME → $BIN_FILE ($(stat -f%z "$BIN_FILE" 2>/dev/null || stat -c%s "$BIN_FILE") bytes)"
 
 #---------------------------------------------------
-# Step 6: Build bintool if needed
+# Step 6: Check bintool availability
 #---------------------------------------------------
 echo ""
-echo "Step 6: Building bintool..."
-if [ ! -f "$BINTOOL" ]; then
-    echo "Building bintool in release mode..."
-    (cd tools/bintool && cargo build --release) >> $LOGFILE 2>&1
-    if [ $? -ne 0 ]; then
-        echo "❌ FAILED: bintool build"
-        cleanup_target
-        exit 1
-    fi
+echo "Step 6: Checking bintool availability..."
+if ! command -v $BINTOOL &> /dev/null; then
+    echo "❌ FAILED: bintool not found in PATH"
+    echo "Please install it first: cargo install --path tools/bintool"
+    cleanup_target
+    exit 1
 fi
-echo "✅ bintool ready"
+echo "✅ bintool ready ($(which $BINTOOL))"
 
 #---------------------------------------------------
 # Step 7: Convert BIN to HEX
@@ -398,6 +424,7 @@ echo "✅ ALL TESTS PASSED"
 echo "========================================================================================================"
 echo ""
 echo "Test Results:"
+echo "  - Demo tested: $DEMO_NAME"
 echo "  - Project synced and built on target"
 echo "  - XCP server started successfully"
 echo "  - HEX file created via XCP upload: $HEX_FROM_XCP"
@@ -410,11 +437,11 @@ echo "  - Partial HEX update tested (subset of segments)"
 echo "  - BIN file integrity maintained"
 echo ""
 echo "Files available in: $TEST_DIR/"
-echo "  - cpp_demo.a2l           : A2L file from target"
-echo "  - cpp_demo.bin           : Original BIN file from target (via scp)"
-echo "  - cpp_demo_from_xcp.hex  : HEX created by xcp_client --upload-bin"
-echo "  - cpp_demo_from_bin.hex  : HEX created by bintool"
-echo "  - cpp_demo_backup.bin    : Backup for comparison"
+echo "  - ${DEMO_NAME}.a2l           : A2L file from target"
+echo "  - ${DEMO_NAME}.bin           : Original BIN file from target (via scp)"
+echo "  - ${DEMO_NAME}_from_xcp.hex  : HEX created by xcp_client --upload-bin"
+echo "  - ${DEMO_NAME}_from_bin.hex  : HEX created by bintool"
+echo "  - ${DEMO_NAME}_backup.bin    : Backup for comparison"
 echo ""
 echo "Log file: $LOGFILE"
 echo ""

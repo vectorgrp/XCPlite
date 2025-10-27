@@ -14,7 +14,7 @@
 // XCP params
 
 #define OPTION_PROJECT_NAME "hello_xcp"    // Project name, used to build the A2L and BIN file name
-#define OPTION_PROJECT_EPK "v20_" __TIME__ // EPK version string
+#define OPTION_PROJECT_EPK "v21_" __TIME__ // EPK version string
 #define OPTION_USE_TCP true                // TCP or UDP
 #define OPTION_SERVER_PORT 5555            // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}    // Bind addr, 0.0.0.0 = ANY
@@ -48,6 +48,8 @@ uint8_t outside_temperature = -5 + 55;
 uint8_t inside_temperature = 20 + 55;
 // Heat Energy in kW
 double heat_energy = 0.0f;
+
+uint32_t global_counter = 0;
 
 //-----------------------------------------------------------------------------------------------------
 // Read sensor values
@@ -132,19 +134,19 @@ int main(void) {
     calseg = XcpCreateCalSeg("params", &params, sizeof(params));
 
     // XCP: Option1: Register the individual calibration parameters in the calibration segment
-    // A2lSetSegmentAddrMode(calseg, params);
-    // A2lCreateParameter(params.counter_max, "Maximum counter value", "", 0, 2000);
-    // A2lCreateParameter(params.delay_us, "Mainloop delay time in us", "us", 0, 999999);
-    // A2lCreateParameter(params.flow_rate, "Flow rate", "m3/h", 0.0, 2.0);
+    A2lSetSegmentAddrMode(calseg, params);
+    A2lCreateParameter(params.counter_max, "Maximum counter value", "", 0, 2000);
+    A2lCreateParameter(params.delay_us, "Mainloop delay time in us", "us", 0, 999999);
+    A2lCreateParameter(params.flow_rate, "Flow rate", "m3/h", 0.0, 2.0);
 
     // XCP: Option2: Register the calibration segment as a typedef instance
-    A2lTypedefBegin(parameters_t, "Calibration parameters typedef");
-    A2lTypedefParameterComponent(counter_max, parameters_t, "Maximum counter value", "", 0, 2000);
-    A2lTypedefParameterComponent(delay_us, parameters_t, "Mainloop delay time in us", "us", 0, 999999);
-    A2lTypedefParameterComponent(flow_rate, parameters_t, "Flow rate", "m3/h", 0.0, 2.0);
-    A2lTypedefEnd();
-    A2lSetSegmentAddrMode(calseg, params);
-    A2lCreateTypedefInstance(params, parameters_t, "Calibration parameters");
+    // A2lTypedefBegin(parameters_t, "Calibration parameters typedef");
+    // A2lTypedefParameterComponent(counter_max, parameters_t, "Maximum counter value", "", 0, 2000);
+    // A2lTypedefParameterComponent(delay_us, parameters_t, "Mainloop delay time in us", "us", 0, 999999);
+    // A2lTypedefParameterComponent(flow_rate, parameters_t, "Flow rate", "m3/h", 0.0, 2.0);
+    // A2lTypedefEnd();
+    // A2lSetSegmentAddrMode(calseg, params);
+    // A2lCreateTypedefInstance(params, parameters_t, "Calibration parameters");
 
     // XCP: Create a measurement event named "mainloop"
     DaqCreateEvent(mainloop);
@@ -155,6 +157,7 @@ int main(void) {
     A2lCreatePhysMeasurement(outside_temperature, "Temperature in °C read from outside sensor", "conv.temperature", -20, 50);
     A2lCreatePhysMeasurement(inside_temperature, "Temperature in °C read from inside sensor", "conv.temperature", 0, 40);
     A2lCreatePhysMeasurement(heat_energy, "Accumulated heat energy in kWh", "kWh", 0.0, 10000.0);
+    A2lCreateMeasurement(global_counter, "Global free running counter");
 
     // XCP: Register local measurement variables
     uint16_t loop_counter = 0;
@@ -174,10 +177,12 @@ int main(void) {
         // Local variables
         loop_counter++;
         if (loop_counter > params->counter_max) { // Get the counter_max calibration value and reset loop_counter
+            printf("%u: params.counter_max = %u\n", global_counter, params->counter_max);
             loop_counter = 0;
         }
 
-        // Global measurement variables
+        // Global variables
+        global_counter++;
         inside_temperature = read_inside_sensor();
         outside_temperature = read_outside_sensor();
         double heat_power = calc_power(outside_temperature, inside_temperature); // Demo function to calculate heat power in W

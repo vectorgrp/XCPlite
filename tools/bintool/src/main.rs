@@ -41,7 +41,7 @@ pub enum Bin2HexError {
 #[derive(Parser, Debug)]
 #[command(name = "bintool")]
 #[command(author = "RainerZ")]
-#[command(version = "0.2.0")]
+#[command(version)] // Automatically uses version from Cargo.toml
 #[command(about = "XCPlite BIN file tool - inspect, convert, and update calibration data", long_about = None)]
 struct Args {
     /// Input .BIN file path (can be specified as positional argument or with --bin)
