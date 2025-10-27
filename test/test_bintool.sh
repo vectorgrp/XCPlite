@@ -21,9 +21,11 @@ set -e  # Exit on error
 # Demo to test (can be overridden by command line argument)
 DEMO_NAME="${1:-cpp_demo}"
 
-# Determine XCP protocol based on demo (hello_xcp uses TCP, others use UDP)
+# Determine XCP protocol based on demo
+# TCP demos: bpf_demo, hello_xcp, no_a2l_demo, struct_demo
+# UDP demos: c_demo, cpp_demo, multi_thread_demo
 case "$DEMO_NAME" in
-    hello_xcp)
+    bpf_demo|hello_xcp|no_a2l_demo|struct_demo)
         XCP_PROTOCOL="--tcp"
         ;;
     *)
