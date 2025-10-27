@@ -35,7 +35,6 @@ dwarf
 test_bpf_demo_pi.sh
 test_bin2hex_pi.sh
 CANape.aml
-/tools/gimli_demo/
-/tools/dwarf_reader/
-
-/tools/bintool/USAGE_EXAMPLES.md
+tools/gimli_demo/
+tools/dwarf_reader/
+tools/bintool/USAGE_EXAMPLES.md

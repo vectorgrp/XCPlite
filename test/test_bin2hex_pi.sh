@@ -23,7 +23,7 @@ TARGET_EXECUTABLE="$TARGET_PATH/build/cpp_demo.out"
 
 # Local paths
 XCPCLIENT="../xcp-lite-RainerZ/target/debug/xcp_client"
-BINTOOL="./tools/bin2hex/target/release/bintool"
+BINTOOL="./tools/bintool/target/release/bintool"
 TEST_DIR="./test_bintool"
 LOGFILE="$TEST_DIR/test_bintool.log"
 
@@ -200,7 +200,7 @@ echo ""
 echo "Step 6: Building bintool..."
 if [ ! -f "$BINTOOL" ]; then
     echo "Building bintool in release mode..."
-    (cd tools/bin2hex && cargo build --release) >> $LOGFILE 2>&1
+    (cd tools/bintool && cargo build --release) >> $LOGFILE 2>&1
     if [ $? -ne 0 ]; then
         echo "❌ FAILED: bintool build"
         cleanup_target
@@ -214,14 +214,21 @@ echo "✅ bintool ready"
 #---------------------------------------------------
 echo ""
 echo "Step 7: Converting BIN to HEX using bintool (new convenient syntax)..."
+$BINTOOL $BIN_FILE --dump --verbose
+$BINTOOL $BIN_FILE  -o $HEX_FROM_BIN
+if [ $? -ne 0 ]; then
+    echo "❌ FAILED: Reading BIN"
+    cleanup_target
+    exit 1
+fi
 # Simple syntax: just provide BIN file, HEX is auto-derived
-$BINTOOL $BIN_FILE -o $HEX_FROM_BIN
-
+$BINTOOL $BIN_FILE  -o $HEX_FROM_BIN
 if [ $? -ne 0 ]; then
     echo "❌ FAILED: BIN to HEX conversion"
     cleanup_target
     exit 1
 fi
+
 
 if [ ! -f "$HEX_FROM_BIN" ]; then
     echo "❌ FAILED: HEX file not created"
@@ -406,7 +413,7 @@ echo "Files available in: $TEST_DIR/"
 echo "  - cpp_demo.a2l           : A2L file from target"
 echo "  - cpp_demo.bin           : Original BIN file from target (via scp)"
 echo "  - cpp_demo_from_xcp.hex  : HEX created by xcp_client --upload-bin"
-echo "  - cpp_demo_from_bin.hex  : HEX created by bin2hex tool"
+echo "  - cpp_demo_from_bin.hex  : HEX created by bintool"
 echo "  - cpp_demo_backup.bin    : Backup for comparison"
 echo ""
 echo "Log file: $LOGFILE"
