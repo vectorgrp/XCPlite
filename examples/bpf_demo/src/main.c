@@ -31,8 +31,8 @@
 #define OPTION_QUEUE_SIZE 1024 * 512    // Size of the measurement queue in bytes, must be a multiple of 8
 #define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
-#define TO_XCP_TIMESTAMP(t) (t / 1000) // Convert to XCP timestamp in microseconds (OPTION_CLOCK_TICKS_1US)
-// #define TO_XCP_TIMESTAMP(t) (t)        // Convert to XCP timestamp in nanoseconds (OPTION_CLOCK_TICKS_1NS)
+// #define TO_XCP_TIMESTAMP(t) (t / 1000) // Convert to XCP timestamp in microseconds (OPTION_CLOCK_TICKS_1US)
+#define TO_XCP_TIMESTAMP(t) (t) // Convert to XCP timestamp in nanoseconds (OPTION_CLOCK_TICKS_1NS)
 
 //-----------------------------------------------------------------------------------------------------
 
@@ -40,6 +40,9 @@
 
 // syscall counters
 static uint32_t syscall_event_counters[MAX_SYSCALL_NR] = {0};
+
+// syscall events
+static tXcpEventId syscall_events[MAX_SYSCALL_NR] = {0};
 
 // ARM64 syscall lookup table (major syscalls 0-462) - using constants for clarity
 static const char *syscall_names[MAX_SYSCALL_NR] = {[SYS_io_setup] = "io_setup",
@@ -370,7 +373,7 @@ static void print_syscall_stats(int map_fd) {
     uint64_t total_syscalls = 0;
 
     // Read all syscall counters from the BPF map
-    for (uint32_t syscall_nr = 0; syscall_nr < 463; syscall_nr++) {
+    for (uint32_t syscall_nr = 0; syscall_nr < MAX_SYSCALL_NR; syscall_nr++) {
         uint64_t count = 0;
         if (bpf_map_lookup_elem(map_fd, &syscall_nr, &count) == 0 && count > 0) {
             total_syscalls += count;
@@ -418,11 +421,13 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
         static uint64_t syscall_last_rate_calculation_time = 0;
         static uint64_t syscall_count_last_second = 0;
 
+        // Extract syscall info in global variables for measurement
         syscall_nr = e->data.syscall.syscall_nr;
         syscall_pid = e->data.syscall.pid;
         syscall_cpu_id = e->cpu_id;
         syscall_time = e->timestamp;
 
+        // Counting syscalls
         syscall_count++;
         if (syscall_nr < MAX_SYSCALL_NR) {
             syscall_event_counters[syscall_nr]++;
@@ -450,10 +455,22 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
         }
 
         // Optional: Print detailed syscall info (comment out for less verbose output)
-        const char *syscall_name = get_syscall_name(syscall_nr);
-        printf("Syscall: %s [%u] called %s (%u) on CPU%u\n", e->data.syscall.comm, e->data.syscall.pid, syscall_name, syscall_nr, syscall_cpu_id);
+        // const char *syscall_name = get_syscall_name(syscall_nr);
+        // XcpPrint("Syscall: %s [%u] called %s (%u) on CPU%u\n", e->data.syscall.comm, e->data.syscall.pid, syscall_name, syscall_nr, syscall_cpu_id);
 
+        // Trigger general syscall event for each syscall
         DaqEventAt(syscall_event, TO_XCP_TIMESTAMP(e->timestamp));
+
+        // Trigger individual syscall event if a specific syscall is monitored
+        if (syscall_nr < MAX_SYSCALL_NR) {
+            uint16_t event_id = syscall_events[syscall_nr];
+            if (event_id != 0) {
+                // @@@@ TODO: Filter on PID
+                // @@@@ TODO: Create a macro for this kind of call
+                const uint8_t *__base[4] = {xcp_get_base_addr(), xcp_get_base_addr(), xcp_get_frame_addr(), NULL};
+                XcpEventExt_(event_id, __base);
+            }
+        }
     }
 
     return 0;
@@ -598,33 +615,44 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    uint32_t counter = 0;
-
     // Create events for DAQ (Data Acquisition)
-    DaqCreateEvent(mainloop_event);
-    DaqCreateEvent(process_event);
-    DaqCreateEvent(syscall_event);
+    DaqCreateEvent(mainloop_event); // Mainloop every 100ms
+    DaqCreateEvent(process_event);  // On each new process creation
+    DaqCreateEvent(syscall_event);  // On each syscall
 
-    // Register statistics measurement variables (mainloop every 100ms  )
-    A2lSetStackAddrMode(mainloop_event);
-    A2lCreateMeasurement(counter, "Mainloop counter value"); // Mainloop counter
+    // Create global measurement variables for syscall_count and syscall_rate(mainloop_event)
     A2lSetAbsoluteAddrMode(mainloop_event);
     A2lCreateMeasurement(syscall_count, "Total tracked syscalls count");                             // Total syscall count
     A2lCreatePhysMeasurement(syscall_rate, "Total tracked syscalls per second", "1/s", 0.0, 2000.0); // Total syscall rate
 
-    // New process PID creation event monitoring (BPF event)
+    // Create the process PID creation event (process_event)
+    // Create a global measurement variable for the new process PID
     A2lSetAbsoluteAddrMode(process_event);
     A2lCreateMeasurement(new_process_pid, "New process PID");
 
-    // Syscall event monitoring  (BPF event)
+    // Create a general event triggered on each syscall (syscall_event)
+    // Create global measurement variables for the syscall number and the PID making the syscall
     A2lSetAbsoluteAddrMode(syscall_event);
-    A2lCreateMeasurement(syscall_nr, "Current syscall number");     // Current syscall number
-    A2lCreateMeasurement(syscall_pid, "Syscall PID");               // PID making the syscall
-    for (uint32_t syscall_nr = 0; syscall_nr < 463; syscall_nr++) { // Individual measurement variables for each syscall
+    A2lCreateMeasurement(syscall_nr, "Current syscall number"); // Current syscall number
+    A2lCreateMeasurement(syscall_pid, "Syscall PID");           // PID making the syscall
+
+    // Create additional events to monitor specific syscalls via their counters
+    syscall_events[SYS_sendto] = XcpCreateEvent(get_syscall_name(SYS_sendto), 0, 0);
+    syscall_events[SYS_recvfrom] = XcpCreateEvent(get_syscall_name(SYS_recvfrom), 0, 0);
+
+    // Create global measurement variables for each syscall counter in the array syscall_event_counters
+    // Use there is a specific event ID for a syscall, use it as its fixed event, otherwise use default event 0
+    for (uint32_t syscall_nr = 0; syscall_nr < MAX_SYSCALL_NR; syscall_nr++) {
         const char *name = get_syscall_name(syscall_nr);
-        if (name && strcmp(name, "unknown") != 0) {
-            // Using the A2L generation function directly to create variables with dynamic names
-            A2lCreateMeasurement_(NULL, name, A2L_TYPE_UINT32, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&(syscall_event_counters[syscall_nr])), NULL, 0.0, 0.0, "");
+        if (name) {
+            if (strcmp(name, "unknown") != 0) {
+
+                // Using the A2L generation function directly to create variables with dynamic names
+                // If no specifc syscall event is defined, default event is 0
+                uint16_t syscall_event_id = syscall_events[syscall_nr];
+                A2lSetAbsoluteAddrMode(syscall_event_id);
+                A2lCreateMeasurement_(NULL, name, A2L_TYPE_UINT32, A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&(syscall_event_counters[syscall_nr])), NULL, 0.0, 0.0, "");
+            }
         }
     }
 
@@ -633,9 +661,6 @@ int main(int argc, char *argv[]) {
     // Start main loop
     printf("Start main loop...\n");
     while (running) {
-
-        // Update counter
-        counter++;
 
         // Poll BPF events
         ring_buffer__poll(rb, 10); // 10ms timeout

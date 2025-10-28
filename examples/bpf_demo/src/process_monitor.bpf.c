@@ -82,26 +82,23 @@ struct syscall_enter_args {
 };
 
 // Helper function to enable event generation on syscalls
-static inline u32 classify_syscall(u32 syscall_nr) {
-
-    switch (syscall_nr) {
-
-    // Ignore some high-frequency less interesting syscalls
-    case SYS_clock_nanosleep:
-    case SYS_nanosleep:
-    case SYS_write:
-    case SYS_read:
-    case SYS_getrandom:
-    case SYS_rt_sigaction:
-    case SYS_rt_sigprocmask:
-    case SYS_ppoll:
-    case SYS_epoll_pwait:
-        return 0;
-
-    default:
-        return 1;
-    }
-}
+// static inline u32 classify_syscall(u32 syscall_nr) {
+//     switch (syscall_nr) {
+//     // Ignore some high-frequency less interesting syscalls
+//     case SYS_clock_nanosleep:
+//     case SYS_nanosleep:
+//     case SYS_write:
+//     case SYS_read:
+//     case SYS_getrandom:
+//     case SYS_rt_sigaction:
+//     case SYS_rt_sigprocmask:
+//     case SYS_ppoll:
+//     case SYS_epoll_pwait:
+//         return 0;
+//     default:
+//         return 1;
+//     }
+// }
 
 // High-frequency syscall tracepoint - now tracks ALL syscalls
 SEC("tp/raw_syscalls/sys_enter")
@@ -127,10 +124,10 @@ int trace_syscall_enter(void *ctx) {
     }
 
     // Only send detailed events for interesting syscalls to reduce overhead
-    u32 category = classify_syscall(syscall_nr);
-    if (category == 0) {
-        return 0; // Skip sending event for uninteresting syscalls
-    }
+    // u32 category = classify_syscall(syscall_nr);
+    // if (category == 0) {
+    //     return 0; // Skip sending event for uninteresting syscalls
+    // }
 
     e = bpf_ringbuf_reserve(&rb, sizeof(*e), 0);
     if (!e)
