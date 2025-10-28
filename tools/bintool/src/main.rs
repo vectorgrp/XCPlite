@@ -74,7 +74,14 @@ struct Args {
 fn read_bin_file(
     path: &PathBuf,
     verbose: bool,
-) -> Result<(BinHeader, Vec<(CalSegDescriptor, Vec<u8>)>), Bin2HexError> {
+) -> Result<
+    (
+        BinHeader,
+        Vec<EventDescriptor>,
+        Vec<(CalSegDescriptor, Vec<u8>)>,
+    ),
+    Bin2HexError,
+> {
     let mut file = File::open(path)?;
 
     // Read header
@@ -90,12 +97,14 @@ fn read_bin_file(
         println!();
     }
 
-    // Skip events (we don't care about them)
+    // Read events
+    let mut events = Vec::new();
     for i in 0..header.event_count {
         let event = EventDescriptor::read_from(&mut file)?;
         if verbose {
-            println!("Skipping Event {}: {}", i, event.name);
+            println!("Read Event {}: {}", i, event.name);
         }
+        events.push(event);
     }
 
     if verbose {
@@ -140,11 +149,11 @@ fn read_bin_file(
         calseg_data.push((calseg_desc, data));
     }
 
-    Ok((header, calseg_data))
+    Ok((header, events, calseg_data))
 }
 
 fn dump_bin_file(path: &PathBuf, verbose: bool) -> Result<(), Bin2HexError> {
-    let (header, calseg_data) = read_bin_file(path, false)?;
+    let (header, events, calseg_data) = read_bin_file(path, false)?;
 
     // Print header information
     println!("========================================");
@@ -158,6 +167,22 @@ fn dump_bin_file(path: &PathBuf, verbose: bool) -> Result<(), Bin2HexError> {
     println!("  Event Count:  {}", header.event_count);
     println!("  CalSeg Count: {}", header.calseg_count);
     println!();
+
+    // Print event information
+    if !events.is_empty() {
+        println!("EVENTS:");
+        println!();
+
+        for (idx, event) in events.iter().enumerate() {
+            println!("Event {}:", idx);
+            println!("  Name:         {}", event.name);
+            println!("  ID:           {}", event.id);
+            println!("  Index:        {}", event.index);
+            println!("  Cycle Time:   {} ns", event.cycle_time_ns);
+            println!("  Priority:     {}", event.priority);
+            println!();
+        }
+    }
 
     // Print calibration segment information
     println!("CALIBRATION SEGMENTS:");
@@ -553,7 +578,7 @@ fn main() -> Result<(), Bin2HexError> {
         }
 
         // Read BIN file
-        let (_header, calseg_data) = read_bin_file(&bin_path, args.verbose)?;
+        let (_header, _events, calseg_data) = read_bin_file(&bin_path, args.verbose)?;
 
         if calseg_data.is_empty() {
             println!("Warning: No calibration segments found in BIN file");

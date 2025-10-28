@@ -60,7 +60,7 @@ static FILE *gA2lGroupsFile = NULL;
 static FILE *gA2lConversionsFile = NULL;
 static char gA2lConvName[256];
 
-static char gA2lAutoGroups = true;            // Automatically create groups for measurements and parameters
+static bool gA2lAutoGroups = true;            // Automatically create groups for measurements and parameters
 static const char *gA2lAutoGroupName = NULL;  // Current open group
 static bool gA2lAutoGroupIsParameter = false; // Group is a parameter group
 
@@ -434,6 +434,9 @@ static bool A2lOpen(const char *filename) {
     gA2lTypedefsFile = NULL;
     gA2lFixedEvent = XCP_UNDEFINED_EVENT_ID;
     gA2lMeasurements = gA2lParameters = gA2lTypedefs = gA2lInstances = gA2lConversions = gA2lComponents = 0;
+    if (fexists(filename)) {
+        DBG_PRINTF_WARNING("A2L filename %s already exists!\n", filename);
+    }
     gA2lFile = fopen(filename, "w");
     gA2lTypedefsFile = fopen("typedefs.a2l", "w");
     gA2lGroupsFile = fopen("groups.a2l", "w");
@@ -1534,6 +1537,8 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
     // Check if the A2L file already exists and the persistence BIN file has been loaded and checked
     // If yes, skip generation if not write always
     if (!gA2lWriteAlways && (XcpGetSessionStatus() & SS_PERSISTENCE_LOADED) && fexists(gA2lFilename)) {
+        // Notify XCP that there is an A2L file available for upload by the XCP client
+        XcpSetA2lName(gA2lFilename);
         DBG_PRINTF3("A2L file %s already exists, disable A2L generation\n", gA2lFilename);
         return true;
     }
