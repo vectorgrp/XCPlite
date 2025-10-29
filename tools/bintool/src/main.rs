@@ -193,15 +193,12 @@ fn dump_bin_file(path: &PathBuf, verbose: bool) -> Result<(), Bin2HexError> {
         println!("  Name:    {}", desc.name);
         println!("  Index:   {}", desc.index);
         println!("  Size:    {} bytes", desc.size);
-        println!(
-            "  Address: 0x{:08X} (XCP address)",
-            0x80000000u32 | ((desc.index as u32) << 16)
-        );
+        println!("  Address: 0x{:08X}", desc.addr);
 
         if verbose {
             println!();
             println!("  Data (hex dump):");
-            dump_hex_data(data);
+            dump_hex_data(data, desc.addr);
         }
 
         println!();
@@ -214,14 +211,14 @@ fn dump_bin_file(path: &PathBuf, verbose: bool) -> Result<(), Bin2HexError> {
     Ok(())
 }
 
-fn dump_hex_data(data: &[u8]) {
+fn dump_hex_data(data: &[u8], base_address: u32) {
     const BYTES_PER_LINE: usize = 16;
 
     for (line_idx, chunk) in data.chunks(BYTES_PER_LINE).enumerate() {
-        let address = line_idx * BYTES_PER_LINE;
+        let address = base_address + (line_idx * BYTES_PER_LINE) as u32;
 
-        // Print address
-        print!("    {:04X}:  ", address);
+        // Print full 32-bit address
+        print!("    {:08X}:  ", address);
 
         // Print hex bytes
         for (byte_idx, byte) in chunk.iter().enumerate() {
@@ -266,8 +263,8 @@ fn write_hex_file(
     let mut records = Vec::new();
 
     for (desc, data) in calseg_data {
-        // Calculate segment address: 0x80000000 | (index << 16)
-        let segment_address = 0x80000000u32 | ((desc.index as u32) << 16);
+        // Use the address from the descriptor
+        let segment_address = desc.addr;
 
         if verbose {
             println!(
@@ -339,18 +336,32 @@ fn read_hex_file(
             ihex::Record::Data { offset, value } => {
                 let full_address = current_extended_addr | (offset as u32);
 
-                // Extract segment base address (0x80000000 | (index << 16))
-                // We only care about the upper 16 bits after 0x8000
-                let segment_base = full_address & 0xFFFF0000;
-
-                if verbose && !segments.contains_key(&segment_base) {
-                    println!("  Found segment at 0x{:08X}", segment_base);
+                // Find which segment this address belongs to by checking if it falls
+                // within any existing segment's range
+                let mut found_segment = None;
+                for (&segment_base, segment_data) in segments.iter() {
+                    let segment_end = segment_base + segment_data.len() as u32;
+                    if full_address >= segment_base && full_address < segment_end + 0x100 {
+                        // Allow small gap (256 bytes) for continuation
+                        found_segment = Some(segment_base);
+                        break;
+                    }
                 }
+
+                let segment_base = if let Some(base) = found_segment {
+                    base
+                } else {
+                    // New segment starts at this address
+                    if verbose {
+                        println!("  Found segment at 0x{:08X}", full_address);
+                    }
+                    full_address
+                };
 
                 let segment_data = segments.entry(segment_base).or_default();
 
-                // Calculate offset within segment
-                let offset_in_segment = (full_address & 0xFFFF) as usize;
+                // Calculate offset within segment (relative to segment base)
+                let offset_in_segment = (full_address - segment_base) as usize;
 
                 // Extend vector if needed
                 if segment_data.len() < offset_in_segment + value.len() {
@@ -434,8 +445,8 @@ fn apply_hex_to_bin(
         let calseg_desc = CalSegDescriptor::read_from(&mut file)?;
         let data_position = file.stream_position()?;
 
-        // Calculate expected segment address from index
-        let segment_addr = 0x80000000u32 | ((calseg_desc.index as u32) << 16);
+        // Use the address from the descriptor
+        let segment_addr = calseg_desc.addr;
 
         // Skip the data for now - we'll come back to write it
         file.seek(SeekFrom::Current(calseg_desc.size as i64))?;

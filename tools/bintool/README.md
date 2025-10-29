@@ -14,7 +14,7 @@ Disclaimer: This is an AI generated tool. Don't use it for production. Improper 
 This tool provides comprehensive management of XCPlite binary persistency files:
 - **BIN to HEX**: Extract calibration segment data to Intel-Hex format
 - **HEX to BIN**: Update calibration segment data from Intel-Hex files
-- **Dump/Inspect**: View file structure, segments, and hex dumps
+- **Dump/Inspect**: View file structure, events, segments, and hex dumps
 
 The tool uses a hardcoded 32-bit segment relative addressing scheme: `Address = 0x80000000 | (segment_index << 16)` which is default in XCPlite.  
 Absolute addressing (OPTION_CAL_SEGMENTS_ABS in XCPlite main_cfg.h) is not supported yet.  
@@ -117,7 +117,6 @@ bintool -b myproject_v1.0.bin --apply-hex calibration.hex -v
 
 ## Suggestions for improvement
 
-- ~~Add a command line option to just dump a BIN file~~ ✅ **DONE** - Added `--dump` option
 - Extend the file header format to define the addressing scheme used (segment relative or absolute)
 - Extend the segment header with the absolute address of the default page 
 - Abstract the addressing scheme used  
@@ -167,7 +166,7 @@ The tool reads the binary format defined in `XCPlite/src/persistency.c`:
 - Reserved: 4 bytes
 
 ### Event Descriptors (28 bytes each)
-Events are skipped during conversion (not included in hex output).
+Events are skipped during conversion.
 
 ### Calibration Segment Descriptors (24 bytes each)
 - Name: 16 bytes - null-terminated string
@@ -325,5 +324,5 @@ MIT License - See LICENSE file in the project root.
 
 ## Author
 
-Rainer Zaiser
+RainerZ
 

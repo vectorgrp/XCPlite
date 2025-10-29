@@ -6,20 +6,29 @@ use std::mem;
 
 use crate::Bin2HexError;
 
-// Constants from C code
+// Compatibility with C code in persistency.h
+// The BIN_VERSION check at runtime is the actual protection against format mismatches.
+// If the C code changes the format, it should bump BIN_VERSION, and this tool will reject the file.
+
 const BIN_SIGNATURE: &str = "XCPLITE__BINARY";
-const BIN_VERSION: u16 = 0x0100;
+const BIN_VERSION: u16 = 0x0203;
+
+// This code only assumes the size of the header and descriptor structures
+const BIN_HEADER_SIZE: usize = 256;
+const BIN_EVENT_DESC_SIZE: usize = 256;
+const BIN_CALSEG_DESC_SIZE: usize = 256;
 
 /// BIN file header - corresponds to tHeader in C
-/// C struct: 16 + 2 + 32 + 2 + 2 + 4 = 58 bytes
+/// Version 0x0203: 256 bytes total
+
 #[repr(C, packed)]
 struct BinHeaderRaw {
-    signature: [u8; 16], // "XCPLITE__BINARY"
-    version: u16,        // 0x0100
-    epk: [u8; 32],       // EPK string, null terminated
-    event_count: u16,    // Number of event descriptors
-    calseg_count: u16,   // Number of calibration segment descriptors
-    res: u32,            // Reserved
+    signature: [u8; 16],                               // "XCPLITE__BINARY"
+    version: u16,                                      // 0x0203
+    event_count: u16,                                  // Number of event descriptors
+    calseg_count: u16,                                 // Number of calibration segment descriptors
+    reserved: [u8; 128],                               // Reserved for future use
+    epk: [u8; BIN_HEADER_SIZE - 16 - 2 - 2 - 2 - 128], // EPK string, null terminated (106 bytes remaining)
 }
 
 /// Safe wrapper for BinHeaderRaw
@@ -27,10 +36,9 @@ struct BinHeaderRaw {
 pub struct BinHeader {
     pub signature: String,
     pub version: u16,
-    pub epk: String,
     pub event_count: u16,
     pub calseg_count: u16,
-    pub res: u32,
+    pub epk: String,
 }
 
 impl BinHeader {
@@ -65,48 +73,46 @@ impl BinHeader {
         let version = raw.version;
         let event_count = raw.event_count;
         let calseg_count = raw.calseg_count;
-        let res = raw.res;
 
-        // Check version (warning only)
+        // Check version - only 0x0203 is supported
         if version != BIN_VERSION {
-            eprintln!(
-                "Warning: File version 0x{:04X} differs from expected 0x{:04X}",
+            return Err(Bin2HexError::InvalidFormat(format!(
+                "Unsupported file version 0x{:04X}. This tool only supports version 0x{:04X}.",
                 version, BIN_VERSION
-            );
+            )));
         }
 
         Ok(BinHeader {
             signature,
             version,
-            epk,
             event_count,
             calseg_count,
-            res,
+            epk,
         })
     }
 }
 
 /// Event descriptor - corresponds to tEventDescriptor in C
-/// C struct: 16 + 2 + 2 + 4 + 1 + 3 = 28 bytes
+/// New version 0x0203: 256 bytes total
+/// Fields: 2 + 2 + 4 + 1 + 128 + (256 - 2 - 2 - 4 - 1 - 128) = 256 bytes
 #[repr(C, packed)]
 struct EventDescriptorRaw {
-    name: [u8; 16],     // Event name, null terminated
-    id: u16,            // Event ID
-    index: u16,         // Event index
-    cycle_time_ns: u32, // Cycle time in nanoseconds
-    priority: u8,       // Priority (0=queued, 1=pushing, 2=realtime)
-    res: [u8; 3],       // Reserved
+    id: u16,                                               // Event ID
+    index: u16,                                            // Event index
+    cycle_time_ns: u32,                                    // Cycle time in nanoseconds
+    priority: u8,        // Priority (0=queued, 1=pushing, 2=realtime)
+    reserved: [u8; 128], // Reserved for future use
+    name: [u8; BIN_EVENT_DESC_SIZE - 2 - 2 - 4 - 1 - 128], // Event name, null terminated (119 bytes remaining)
 }
 
 /// Safe wrapper for EventDescriptorRaw
 #[derive(Debug, Clone)]
 pub struct EventDescriptor {
-    pub name: String,
     pub id: u16,
     pub index: u16,
     pub cycle_time_ns: u32,
     pub priority: u8,
-    pub res: [u8; 3],
+    pub name: String,
 }
 
 impl EventDescriptor {
@@ -131,36 +137,36 @@ impl EventDescriptor {
         let index = raw.index;
         let cycle_time_ns = raw.cycle_time_ns;
         let priority = raw.priority;
-        let res = raw.res;
 
         Ok(EventDescriptor {
-            name,
             id,
             index,
             cycle_time_ns,
             priority,
-            res,
+            name,
         })
     }
 }
 
 /// Calibration segment descriptor - corresponds to tCalSegDescriptor in C
-/// C struct: 16 + 2 + 2 + 4 = 24 bytes
+/// New version 0x0203: 256 bytes total
+/// Fields: 2 + 2 + 4 + 128 + (256 - 2 - 2 - 4 - 128) = 256 bytes
 #[repr(C, packed)]
 struct CalSegDescriptorRaw {
-    name: [u8; 16], // Calibration segment name, null terminated
-    size: u16,      // Size in bytes, multiple of 4
-    index: u16,     // Index in calibration segment list
-    res: [u8; 4],   // Reserved
+    index: u16,                                         // Index in calibration segment list
+    size: u16,                                          // Size in bytes, multiple of 4
+    addr: u32,                                          // Address of the calibration segment
+    reserved: [u8; 128],                                // Reserved for future use
+    name: [u8; BIN_CALSEG_DESC_SIZE - 2 - 2 - 4 - 128], // Calibration segment name, null terminated (120 bytes remaining)
 }
 
 /// Safe wrapper for CalSegDescriptorRaw
 #[derive(Debug, Clone)]
 pub struct CalSegDescriptor {
-    pub name: String,
-    pub size: u16,
     pub index: u16,
-    pub res: [u8; 4],
+    pub size: u16,
+    pub addr: u32,
+    pub name: String,
 }
 
 impl CalSegDescriptor {
@@ -181,15 +187,15 @@ impl CalSegDescriptor {
             .to_string();
 
         // Copy values from packed struct to avoid unaligned access
-        let size = raw.size;
         let index = raw.index;
-        let res = raw.res;
+        let size = raw.size;
+        let addr = raw.addr;
 
         Ok(CalSegDescriptor {
-            name,
-            size,
             index,
-            res,
+            size,
+            addr,
+            name,
         })
     }
 }
@@ -200,9 +206,10 @@ mod tests {
 
     #[test]
     fn test_struct_sizes() {
-        // Verify struct sizes match C definitions
-        assert_eq!(mem::size_of::<BinHeaderRaw>(), 58);
-        assert_eq!(mem::size_of::<EventDescriptorRaw>(), 28);
-        assert_eq!(mem::size_of::<CalSegDescriptorRaw>(), 24);
+        // Verify struct sizes match C definitions for version 0x0203
+        // All structs must be exactly 256 bytes
+        assert_eq!(mem::size_of::<BinHeaderRaw>(), 256);
+        assert_eq!(mem::size_of::<EventDescriptorRaw>(), 256);
+        assert_eq!(mem::size_of::<CalSegDescriptorRaw>(), 256);
     }
 }

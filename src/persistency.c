@@ -36,39 +36,50 @@
 #endif
 
 #define BIN_SIGNATURE "XCPLITE__BINARY"
-#define BIN_VERSION 0x0100
+#define BIN_VERSION 0x0203
+
 #pragma pack(push, 1)
 
 typedef struct {
-    char signature[16];               // File signature "XCPLITE__BINARY"
-    uint16_t version;                 // File version, currently 0x0100
-    char Epk[XCP_EPK_MAX_LENGTH + 1]; // EPK string, 0 terminated, 32 bytes
-    uint16_t event_count;             // Number of events tEventDescriptor
-    uint16_t calseg_count;
-    uint32_t res;
+    char signature[16];                                                   // File signature "XCPLITE__BINARY"
+    uint16_t version;                                                     // File version, currently 0x0100
+    uint16_t event_count;                                                 // Number of events, tEventDescriptor
+    uint16_t calseg_count;                                                // Number of calibration segments, tCalSegDescriptor
+    uint8_t reserved[128];                                                // Reserved for future use
+    char Epk[XCP_EPK_MAX_LENGTH + 1];                                     // EPK string, 0 terminated
+    uint8_t padding[256 - 16 - 2 - 2 - 2 - 128 - XCP_EPK_MAX_LENGTH - 1]; // Reserved for longer EPK strings
 } tHeader;
 
-typedef struct {
-    char name[XCP_MAX_EVENT_NAME + 1]; // event name, 0 terminated, 16 bytes
-    uint16_t id;
-    uint16_t index;
-    uint32_t cycleTimeNs; // cycle time in ns
-    uint8_t priority;     // priority 0 = queued, 1 = pushing, 2 = realtime
-    uint8_t res[3];       // reserved, 3 bytes
-} tEventDescriptor;
+static_assert(sizeof(tHeader) == 256, "Size of tHeader must be 256 bytes");
 
 typedef struct {
-    char name[XCP_MAX_CALSEG_NAME + 1]; // calibration segment name, 0 terminated, 16 bytes
-    uint16_t size;                      // size of the calibration segment in bytes, multiple of 4
-    uint16_t index;                     // index of the calibration segment in the list, 0..<XCP_MAX_CALSEG_COUNT
-    uint8_t res[4];                     // reserved, 4 bytes
+    uint16_t id;                                                         // Event ID
+    uint16_t index;                                                      // Event index
+    uint32_t cycleTimeNs;                                                // Cycle time in ns
+    uint8_t priority;                                                    // Priority 0 = queued, 1 = pushing, 2 = realtime
+    uint8_t reserved[128];                                               // Reserved for future use
+    char name[XCP_MAX_EVENT_NAME + 1];                                   // Event name, 0 terminated
+    uint8_t padding[256 - 2 - 2 - 4 - 1 - 128 - XCP_MAX_EVENT_NAME - 1]; // Reserved for longer event names
+} tEventDescriptor;
+
+static_assert(sizeof(tEventDescriptor) == 256, "Size of tEventDescriptor must be 256 bytes");
+
+typedef struct {
+    uint16_t index;                                                   // Index of the calibration segment in the list, 0..<XCP_MAX_CALSEG_COUNT
+    uint16_t size;                                                    // Size of the calibration segment in bytes, multiple of 4
+    uint32_t addr;                                                    // Address of the calibration segment
+    uint8_t reserved[128];                                            // Reserved for future use
+    char name[XCP_MAX_CALSEG_NAME + 1];                               // Calibration segment name, 0 terminated, 16 bytes
+    uint8_t padding[256 - 2 - 2 - 4 - 128 - XCP_MAX_CALSEG_NAME - 1]; // Reserved for longer calibration segment names
 } tCalSegDescriptor;
+
+static_assert(sizeof(tCalSegDescriptor) == 256, "Size of tCalSegDescriptor must be 256 bytes");
 
 #pragma pack(pop)
 
 extern tXcpData gXcp;
 
-static tHeader gA2lHeader;
+static tHeader gBinHeader;
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
@@ -104,15 +115,15 @@ static void printCalsegPage(const uint8_t *page, uint16_t size) {
 // Write the BIN file header
 static bool writeHeader(FILE *file, const char *epk, uint16_t event_count, uint16_t calseg_count) {
 
-    strncpy(gA2lHeader.signature, BIN_SIGNATURE, sizeof(gA2lHeader.signature) - 1);
-    gA2lHeader.signature[sizeof(gA2lHeader.signature) - 1] = '\0'; // Ensure null termination
-    gA2lHeader.version = BIN_VERSION;
-    strncpy(gA2lHeader.Epk, epk, XCP_EPK_MAX_LENGTH);
-    gA2lHeader.Epk[XCP_EPK_MAX_LENGTH] = '\0'; // Ensure null termination
-    gA2lHeader.event_count = event_count;
-    gA2lHeader.calseg_count = calseg_count;
-    gA2lHeader.res = 0;
-    size_t written = fwrite(&gA2lHeader, sizeof(tHeader), 1, file);
+    memset(&gBinHeader, 0, sizeof(tHeader));
+    strncpy(gBinHeader.signature, BIN_SIGNATURE, sizeof(gBinHeader.signature) - 1);
+    gBinHeader.signature[sizeof(gBinHeader.signature) - 1] = '\0'; // Ensure null termination
+    gBinHeader.version = BIN_VERSION;
+    strncpy(gBinHeader.Epk, epk, XCP_EPK_MAX_LENGTH);
+    gBinHeader.Epk[XCP_EPK_MAX_LENGTH] = '\0'; // Ensure null termination
+    gBinHeader.event_count = event_count;
+    gBinHeader.calseg_count = calseg_count;
+    size_t written = fwrite(&gBinHeader, sizeof(tHeader), 1, file);
     if (written != 1) {
         DBG_PRINTF3("Failed to write header to file: %s\n", strerror(errno));
         return false;
@@ -123,15 +134,13 @@ static bool writeHeader(FILE *file, const char *epk, uint16_t event_count, uint1
 // Write an event descriptor to the BIN file
 static bool writeEvent(FILE *file, tXcpEventId event_id, const tXcpEvent *event) {
     tEventDescriptor desc;
+    memset(&desc, 0, sizeof(tEventDescriptor));
     strncpy(desc.name, event->name, XCP_MAX_EVENT_NAME);
     desc.name[XCP_MAX_EVENT_NAME] = '\0'; // Ensure null termination
     desc.cycleTimeNs = event->cycleTimeNs;
     desc.priority = event->priority;
     desc.id = event_id;
     desc.index = XcpGetEventIndex(event_id);
-    desc.res[0] = 0xEE;
-    desc.res[1] = 0xEE;
-    desc.res[2] = 0xEE;
     size_t written = fwrite(&desc, sizeof(tEventDescriptor), 1, file);
     if (written != 1) {
         DBG_PRINTF3("Failed to write event descriptor to file: %s\n", strerror(errno));
@@ -144,11 +153,12 @@ static bool writeEvent(FILE *file, tXcpEventId event_id, const tXcpEvent *event)
 // Write a calibration segment descriptor and page data to the BIN file
 static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, tXcpCalSeg *seg, uint8_t page) {
     tCalSegDescriptor desc;
+    memset(&desc, 0, sizeof(tCalSegDescriptor));
     strncpy(desc.name, seg->name, XCP_MAX_CALSEG_NAME);
     desc.name[XCP_MAX_CALSEG_NAME] = '\0'; // Ensure null termination
     desc.size = seg->size;
+    desc.addr = XcpGetCalSegBaseAddress(calseg);
     desc.index = calseg;
-    *(uint32_t *)&desc.res[0] = 0xDDDDDDDD;
     size_t written = fwrite(&desc, sizeof(tCalSegDescriptor), 1, file);
     if (written != 1) {
         DBG_PRINTF3("Failed to write calibration segment descriptor to file: %s\n", strerror(errno));
@@ -288,16 +298,22 @@ static bool load(const char *filename, const char *epk) {
         return false;
     }
 
-    size_t read = fread(&gA2lHeader, sizeof(tHeader), 1, file);
-    if (read != 1 || strncmp(gA2lHeader.signature, BIN_SIGNATURE, sizeof(gA2lHeader.signature)) != 0) {
+    // Read and verify header
+    size_t read = fread(&gBinHeader, sizeof(tHeader), 1, file);
+    if (read != 1 || strncmp(gBinHeader.signature, BIN_SIGNATURE, sizeof(gBinHeader.signature)) != 0) {
         DBG_PRINTF_ERROR("Invalid file format or signature in '%s'\n", filename);
+        fclose(file);
+        return false;
+    }
+    if (gBinHeader.version != BIN_VERSION) {
+        DBG_PRINTF_ERROR("Unsupported BIN file version 0x%04X in '%s'\n", gBinHeader.version, filename);
         fclose(file);
         return false;
     }
 
     // Check EPK match
-    if (strncmp(gA2lHeader.Epk, epk, XCP_EPK_MAX_LENGTH) != 0) {
-        DBG_PRINTF_WARNING("Persistence file '%s' not loaded, EPK mismatch: file EPK '%s', current EPK '%s'\n", filename, gA2lHeader.Epk, epk);
+    if (strncmp(gBinHeader.Epk, epk, XCP_EPK_MAX_LENGTH) != 0) {
+        DBG_PRINTF_WARNING("Persistence file '%s' not loaded, EPK mismatch: file EPK '%s', current EPK '%s'\n", filename, gBinHeader.Epk, epk);
         fclose(file);
         return false; // EPK mismatch
     }
@@ -311,7 +327,7 @@ static bool load(const char *filename, const char *epk) {
         fclose(file);
         return false;
     }
-    for (uint16_t i = 0; i < gA2lHeader.event_count; i++) {
+    for (uint16_t i = 0; i < gBinHeader.event_count; i++) {
         tEventDescriptor desc;
         tXcpEventId event_id;
 
@@ -340,7 +356,7 @@ static bool load(const char *filename, const char *epk) {
         fclose(file);
         return false;
     }
-    for (uint16_t i = 0; i < gA2lHeader.calseg_count; i++) {
+    for (uint16_t i = 0; i < gBinHeader.calseg_count; i++) {
         tXcpCalSegIndex calseg;
 
         tCalSegDescriptor desc;
