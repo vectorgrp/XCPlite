@@ -24,12 +24,12 @@ constexpr double kPi = 3.14159265358979323846;
 constexpr double k2Pi = (kPi * 2);
 
 // Constructor - creates the signal generator with the given instance name and parameters
-SignalGenerator::SignalGenerator(const char *instance_name, SignalParametersT params) : signal_parameters_(instance_name, params), instance_name_(instance_name) {
+SignalGenerator::SignalGenerator(const char *instance_name, const SignalParametersT *params) : signal_parameters_(instance_name, params), instance_name_(instance_name) {
 
     // Global once A2l registration of SignalParametersT typedef
     if (A2lOnce()) {
 
-        params.lookup.A2lRegisterTypedef(); // Register the lookup table typedef
+        params->lookup.A2lRegisterTypedef(); // Register the lookup table typedef
 
         A2lTypedefBegin(SignalParametersT, "A2L typedef for SignalParametersT");
         A2lCreateEnumConversion(signal_type_enum, "5 0 \"SINE\" 1 \"SQUARE\" 2 \"TRIANGLE\" 3 \"SAWTOOTH\" 4 \"ARBITRARY\"");

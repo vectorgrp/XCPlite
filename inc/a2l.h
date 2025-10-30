@@ -47,7 +47,7 @@
 #include <stddef.h>  // for offsetof
 #include <stdint.h>  // for uintxx_t
 
-#include "xcplib.h" // for tXcpEventId, tXcpCalSegIndex, get_stack_frame_pointer
+#include "xcplib.h" // for tXcpEventId, tXcpCalSegIndex, xcp_get_frame_addr, ...
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // A2L generation modes
@@ -323,9 +323,9 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
 
 // Set addressing mode to stack and event 'event_name'
 // Error if the event does not exist
-#define A2lSetStackAddrMode(event_name) A2lSetStackAddrMode__s(#event_name, get_stack_frame_pointer());
-#define A2lSetStackAddrMode_s(event_name_string) A2lSetStackAddrMode__s(event_name_string, get_stack_frame_pointer());
-#define A2lSetStackAddrMode_i(event_id) A2lSetStackAddrMode__i(event_id, get_stack_frame_pointer());
+#define A2lSetStackAddrMode(event_name) A2lSetStackAddrMode__s(#event_name, xcp_get_frame_addr());
+#define A2lSetStackAddrMode_s(event_name_string) A2lSetStackAddrMode__s(event_name_string, xcp_get_frame_addr());
+#define A2lSetStackAddrMode_i(event_id) A2lSetStackAddrMode__i(event_id, xcp_get_frame_addr());
 
 // Set addressing mode to absolute and event 'event_name'
 // Error if the event does not exist
@@ -566,8 +566,6 @@ void A2lCreateMeasurementGroupFromList(const char *name, char *names[], uint32_t
 /// Init A2L generation
 /// If the A2l file aready exists and matches the current EPK matches, if yes, load the binary persistence file
 /// If not, prepare the A2L file and start the runtime generation process
-/// @param a2l_projectname Name of the A2L project, used to build the A2L and BIN file name
-/// @param a2l_version Version string of the A2L project, used to build the A2L and BIN file name, can be NULL to generate a version based on time and date
 /// @param addr IP Address Used for IF_DATA XCP
 /// @param port Port Used for IF_DATA XCP
 /// @param useTCP Protocol Used for IF_DATA XCP
@@ -577,7 +575,7 @@ void A2lCreateMeasurementGroupFromList(const char *name, char *names[], uint32_t
 ///  A2L_MODE_FINALIZE_ON_CONNECT Finalize the A2L file on XCP client connect, if false, the A2L file has to finalized manually
 ///  A2L_MODE_AUTO_GROUPS Enable automatic grouping of parameters (per segment) and measurements (per event), if false, grouping must be done manually
 /// @return true on success, false on failure
-bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode);
+bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode);
 
 /// Finish A2L generation
 /// Finalize the A2L file, write the binary persistence file

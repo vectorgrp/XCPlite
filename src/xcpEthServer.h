@@ -23,7 +23,7 @@
 /// @param use_tcp Use TCP if true, otherwise UDP.
 /// @param measurement_queue_size Measurement queue size in bytes. Includes the bytes occupied by the queue header and some space needed for alignment.
 /// @return true on success, otherwise false.
-bool XcpEthServerInit(uint8_t const *address, uint16_t port, bool use_tcp, uint32_t measurement_queue_size);
+bool XcpEthServerInit(const uint8_t *address, uint16_t port, bool use_tcp, uint32_t measurement_queue_size);
 
 /// Shutdown the XCP on Ethernet server.
 bool XcpEthServerShutdown(void);

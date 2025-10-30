@@ -25,8 +25,8 @@
 extern "C" {
 #endif
 
-bool XcpBinWrite(const char *filename);
-bool XcpBinLoad(const char *filename, const char *epk);
+bool XcpBinWrite(uint8_t page);
+bool XcpBinLoad(void);
 bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg);
 
 #ifdef __cplusplus

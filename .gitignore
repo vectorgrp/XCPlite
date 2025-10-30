@@ -1,6 +1,6 @@
 
-/build
-/build-*
+build
+build-*
 
 
 # CANape artefacts
@@ -8,18 +8,34 @@
 *.mf4
 *.cnaxml
 *.tmp
+CANapeTmpMea.ini
 
-# Examples A2L files
-*.a2l
+
+# Examples .a2l and .bin files
+/*.a2l
 *.bin
 
 # Temporary files
+test_bintool
 conversions.a2l
 groups.a2l
 typedefs.a2l
 *.bak
+*.log
+*.txt
 
 
+# Other
 /run_remote.sh
 /run.sh
-/examples/bpf_demo/CANape/CANapeTmpMea.ini
+pi
+dwarf
+.vscode
+.DS_Store
+test_bpf_demo_pi.sh
+test_bin2hex_pi.sh
+CANape.aml
+tools/gimli_demo/
+tools/dwarf_reader/
+tools/bintool/USAGE_EXAMPLES.md
+/examples/hello_xcp/CANape/vCDMstudioUiConfiguration.xml

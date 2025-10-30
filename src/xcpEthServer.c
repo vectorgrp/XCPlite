@@ -75,7 +75,7 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
 
     // Check and ignore, if the XCP singleton has not been initialized and activated
     if (!XcpIsActivated()) {
-        DBG_PRINT3("XcpEthServerInit: XCP not initialized and activated!\n");
+        DBG_PRINT3("XcpEthServerInit: XCP is deactivated!\n");
         return true;
     }
 

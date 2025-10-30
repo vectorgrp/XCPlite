@@ -1,6 +1,6 @@
 # XCPlite API Reference Guide
 
-**Version**: 0.9.2
+**Version**: 0.9.3
 
 ## Table of Contents
 
@@ -45,7 +45,7 @@ Key features:
 3. **Initialise the XCP core** *once*:
 
 ```c
-   XcpInit(true);
+   XcpInit("MyProject", "V1.0.1",true);
 ```
 
 4. **Start the Ethernet server** (TCP or UDP, IP addr, port):
@@ -67,7 +67,7 @@ Key features:
 
 ### Initialization
 
-#### void XcpInit( bool activate)
+#### void XcpInit(const char *project_name, const char*epk, bool activate)
 
 *Initialize XCP*
 
@@ -120,7 +120,7 @@ See function and macro documentation in xcplib.h
 
 ### 3.4 A2L Generation
 
-#### bool A2lInit(const char *project_name, const char*epk, const uint8_t *address, uint16_t port, bool use_tcp, uint32_t mode_flags)
+#### bool A2lInit(const uint8_t *address, uint16_t port, bool use_tcp, uint32_t mode_flags)
 
 Initializes the A2L generation system of XCPlite. This function must be called once before any A2L-related macros or API functions are used. It performs the following actions:
 
@@ -130,7 +130,7 @@ Initializes the A2L generation system of XCPlite. This function must be called o
 **Parameters:**
 
 - `project_name`: Name of the project, used for the A2L and BIN file names.
-- `epk`: Optional software version string (EPK) for the A2L file. Pass `NULL` to use the default.
+- `epk`: Unique software version string (EPK) for version checking of A2L and parameter files.
 - `address`: Default IPv4 address of the XCP server.
 - `port`: Port number of the XCP server.
 - `use_tcp`: If `true`, TCP transport is used; if `false`, UDP transport.
@@ -171,9 +171,7 @@ All definitions of instances follow the same principle: Set the addressing mode 
 | Function                                                         | Purpose                                                         |
 | ---------------------------------------------------------------- | --------------------------------------------------------------- |
 | `void XcpSetLogLevel(uint8_t level);`                            | 1 = error, 2 = warn, 3 = info, 4 = commands, 5 = trace.         |
-| `void XcpInit(void);`                                            | Initialise core singleton; must precede all other API usage.    |
-| `void ApplXcpSetA2lName(const char *name);`                      | Manually set the A2L file name for upload.                      |
-| `void XcpSetEpk(const char *epk);`                               | Set 32‑byte EPK software identifier (for A2L).                  |
+| `void XcpInit(const char *name, const char *epk, bool activate);`| Initialize core singleton; must precede all other API usage.    |
 | `void XcpDisconnect(void);`                                      | Force client disconnect, stop DAQ, flush pending operations.    |
 | `void XcpSendTerminateSessionEvent(void);`                       | Notify client of a terminated session.                          |
 | `void XcpPrint(const char *str);`                                | Send arbitrary text to the client (channel 0xFF).               |
@@ -185,13 +183,27 @@ All definitions of instances follow the same principle: Set the addressing mode 
 
 See examples folder and README.md for a short descriptions of the example applications.
 
-## 6 · Glossary
+## 5 · Appendix
 
-- **A2L** – ASAM MCD‑2 MC description file (measurement & calibration meta‑data).
-- **DAQ** – Data Acquisition (periodic or sporadic transmit of ECU variables).
-- **EPK** – Embedded Program Identifier (software version string embedded in the ECU).
-- **ECU** – Electronic Control Unit (target device exposing the XCP protocol).
+### Static Markers
 
----
+The code instrumentations creates static variables, to help the A2L Creater or an XCP tool reading linker map files, to identify calibration segments, events, capture buffers and the scope where an event is triggered.
+
+```c
+//Create calibration segment macro segment index once pattern
+static tXcpCalSegIndex cal__##name;
+
+// Create measurement event macro event id once pattern
+static THREAD_LOCAL tXcpEventId evt__##name
+static THREAD_LOCAL tXcpEventId evt__
+
+// Daq capture macro capture buffer
+static __typeof__(var) daq__##event##__##var
+
+// Daq event macro event id once pattern
+static THREAD_LOCAL tXcpEventId evt___aas0__##name
+static THREAD_LOCAL tXcpEventId evt___aasr__##name
+static THREAD_LOCAL tXcpEventId evt___aasrr__##name
+```
 
 *End of document.*

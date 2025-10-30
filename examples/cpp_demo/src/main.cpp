@@ -14,12 +14,13 @@
 
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
-#define OPTION_PROJECT_NAME "cpp_demo"  // A2L project name
-#define OPTION_USE_TCP false            // TCP or UDP
-#define OPTION_SERVER_PORT 5555         // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE (1024 * 256)  // Size of the measurement queue in bytes
-#define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_PROJECT_NAME "cpp_demo"     // A2L project name
+#define OPTION_PROJECT_EPK "v10 " __TIME__ // EPK version string
+#define OPTION_USE_TCP false               // TCP or UDP
+#define OPTION_SERVER_PORT 5555            // Port
+#define OPTION_SERVER_ADDR {0, 0, 0, 0}    // Bind addr, 0.0.0.0 = ANY
+#define OPTION_QUEUE_SIZE (1024 * 256)     // Size of the measurement queue in bytes
+#define OPTION_LOG_LEVEL 3                 // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 //-----------------------------------------------------------------------------------------------------
 // Demo calibration parameters
@@ -30,7 +31,7 @@ struct ParametersT {
 };
 
 // Default values
-constexpr ParametersT kParameters = {.counter_max = 1000, .delay_us = 1000};
+const ParametersT kParameters = {.counter_max = 1000, .delay_us = 1000};
 
 //-----------------------------------------------------------------------------------------------------
 // Demo global measurement values
@@ -87,7 +88,7 @@ int main() {
 
     // Initialize the XCP singleton, activate XCP, must be called before starting the server
     // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-    XcpInit(true);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, true);
 
     // Initialize the XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;
@@ -98,7 +99,7 @@ int main() {
 
     // Enable A2L generation
     // Set mode to write once to create stable A2L files, this also enables calibration segment persistence and freeze support
-    if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         std::cerr << "Failed to initialize A2L generator" << std::endl;
         return 1;
     }
@@ -107,7 +108,7 @@ int main() {
     // This calibration segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
     // It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
     // It supports XCP/ECU independent page switching, checksum calculation and reinitialization (copy reference page to working page)
-    auto calseg = xcplib::CreateCalSeg("Parameters", kParameters);
+    auto calseg = xcplib::CreateCalSeg("kParameters", &kParameters);
 
     // Add the calibration segment description as a typedef instance to the A2L file
     A2lTypedefBegin(ParametersT, "A2L Typedef for ParametersT");
@@ -148,8 +149,8 @@ int main() {
     // Note that the signal generator threads register measurements in the A2L file as well
     // This is not in conflict because the main thread has already registered its measurements above
     // Otherwise use A2lLock() and A2lUnlock() to avoid race conditions when registering measurements, the A2L generator macros for are not thread safe by itself
-    signal_generator::SignalGenerator signal_generator_1("SigGen1", kSignalParameters1);
-    signal_generator::SignalGenerator signal_generator_2("SigGen2", kSignalParameters2);
+    signal_generator::SignalGenerator signal_generator_1("SigGen1", &kSignalParameters1);
+    signal_generator::SignalGenerator signal_generator_2("SigGen2", &kSignalParameters2);
 
     // Optional for testing: Force finalizing the A2L file, otherwise it will be finalized on XCP tool connect
     sleepUs(100000);

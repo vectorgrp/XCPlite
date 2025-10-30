@@ -22,7 +22,7 @@
 
 #include "dbg_print.h"   // for DBG_PRINTF3, DBG_PRINT4, DBG_PRINTF4, DBG...
 #include "main_cfg.h"    // for OPTION_xxx
-#include "persistency.h" // for XcpBinWrite, XcpBinLoad
+#include "persistency.h" // for XcpBinWrite
 #include "platform.h"    // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
 #include "xcp.h"         // for CRC_XXX
 #include "xcpLite.h"     // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
@@ -35,15 +35,19 @@
 #endif
 #endif
 
+#ifdef OPTION_ENABLE_A2L_GENERATOR
+
+//----------------------------------------------------------------------------------
+
+#define INCLUDE_AML_FILES // Use /include "file.aml"
+// #define EMBED_AML_FILES // Embed AML files into generated A2L file
+
 //----------------------------------------------------------------------------------
 
 static FILE *gA2lFile = NULL;
 static bool gA2lFileFinalized = false;
 
 static char gA2lFilename[256];
-#ifdef OPTION_CAL_PERSISTENCE
-static char gBinFilename[256];
-#endif
 
 static bool gA2lFinalizeOnConnect = false; // Finalize A2L file on connect
 static bool gA2lWriteAlways = true;        // Write A2L file always, even if no changes were made
@@ -56,7 +60,7 @@ static FILE *gA2lGroupsFile = NULL;
 static FILE *gA2lConversionsFile = NULL;
 static char gA2lConvName[256];
 
-static char gA2lAutoGroups = true;            // Automatically create groups for measurements and parameters
+static bool gA2lAutoGroups = true;            // Automatically create groups for measurements and parameters
 static const char *gA2lAutoGroupName = NULL;  // Current open group
 static bool gA2lAutoGroupIsParameter = false; // Group is a parameter group
 
@@ -78,26 +82,31 @@ static uint32_t gA2lInstances;
 static uint32_t gA2lConversions;
 
 //----------------------------------------------------------------------------------
-static const char *gA2lHeader = "ASAP2_VERSION 1 71\n"
-                                "/begin PROJECT %s \"\"\n\n"
-                                "/begin HEADER \"\" VERSION \"1.0\" PROJECT_NO XCPlite /end HEADER\n\n"
-                                "/begin MODULE %s \"\"\n\n"
-                                "/include \"XCP_104.aml\"\n\n"
-                                "/begin MOD_COMMON \"\"\n"
-                                "BYTE_ORDER MSB_LAST\n"
-                                "ALIGNMENT_BYTE 1\n"
-                                "ALIGNMENT_WORD 1\n"
-                                "ALIGNMENT_LONG 1\n"
-                                "ALIGNMENT_FLOAT16_IEEE 1\n"
-                                "ALIGNMENT_FLOAT32_IEEE 1\n"
-                                "ALIGNMENT_FLOAT64_IEEE 1\n"
-                                "ALIGNMENT_INT64 1\n"
-                                "/end MOD_COMMON\n"
-                                "\n\n";
+static const char *gA2lHeader1 = "ASAP2_VERSION 1 71\n"
+                                 "/begin PROJECT %s \"\"\n\n" // project name
+                                 "/begin HEADER \"\" VERSION \"1.0\" PROJECT_NO " XCP_ADDRESS_MODE " /end HEADER\n\n"
+                                 "/begin MODULE %s \"\"\n\n"; // module name
+
+static const char *gA2lHeader2 = "/begin MOD_COMMON \"\"\n"
+                                 "BYTE_ORDER MSB_LAST\n"
+                                 "ALIGNMENT_BYTE 1\n"
+                                 "ALIGNMENT_WORD 1\n"
+                                 "ALIGNMENT_LONG 1\n"
+                                 "ALIGNMENT_FLOAT16_IEEE 1\n"
+                                 "ALIGNMENT_FLOAT32_IEEE 1\n"
+                                 "ALIGNMENT_FLOAT64_IEEE 1\n"
+                                 "ALIGNMENT_INT64 1\n"
+                                 "/end MOD_COMMON\n"
+                                 "\n\n";
+
+//----------------------------------------------------------------------------------
+#ifdef EMBED_AML_FILES
+static const char *gA2lAml = "";
+#endif
 
 //----------------------------------------------------------------------------------
 #ifdef XCP_ENABLE_CALSEG_LIST
-static const char *gA2lMemorySegment = "/begin MEMORY_SEGMENT %s \"\" DATA FLASH INTERN 0x%08X 0x%X -1 -1 -1 -1 -1\n" // name, start, size
+static const char *gA2lMemorySegment = "/begin MEMORY_SEGMENT %s \"\" DATA FLASH INTERN 0x%08X %u -1 -1 -1 -1 -1\n" // name, start, size
                                        "/begin IF_DATA XCP\n"
                                        "/begin SEGMENT %u 2 0 0 0\n" // index
                                        "/begin CHECKSUM XCP_CRC_16_CITT MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION \"\" /end CHECKSUM\n"
@@ -106,21 +115,12 @@ static const char *gA2lMemorySegment = "/begin MEMORY_SEGMENT %s \"\" DATA FLASH
                                        "/begin PAGE 1 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_NOT_ALLOWED /end PAGE\n"
                                        "/end SEGMENT\n"
                                        "/end IF_DATA\n"
-                                       "/end MEMORY_SEGMENT\n";
-
-#ifdef XCP_ENABLE_EPK_CALSEG
-static const char *gA2lEpkMemorySegment = "/begin MEMORY_SEGMENT epk \"\" DATA FLASH INTERN 0x%08X %u -1 -1 -1 -1 -1\n"
-                                          "/begin IF_DATA XCP\n"
-                                          "/begin SEGMENT 0 2 0 0 0\n"
-                                          // @@@@ TODO: Workaround: EPK segment has 2 readonly pages, CANape would not care for a single page EPK segment, reads active page always
-                                          // from segment 0 and uses only SET_CAL_PAGE ALL mode
-                                          "/begin CHECKSUM XCP_CRC_16_CITT MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION \"\" /end CHECKSUM\n"
-                                          "/begin PAGE 0 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_NOT_ALLOWED /end PAGE\n"
-                                          "/begin PAGE 1 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_NOT_ALLOWED /end PAGE\n"
-                                          "/end SEGMENT\n"
-                                          "/end IF_DATA\n"
-                                          "/end MEMORY_SEGMENT\n";
+#ifdef OPTION_CAL_SEGMENTS_ABS
+                                       "/begin IF_DATA CANAPE_ADDRESS_UPDATE\n"
+                                       "/begin MEMORY_SEGMENT \"%s\" FIRST \"%s\" 0 LAST \"%s\" %u /end MEMORY_SEGMENT\n"
+                                       "/end IF_DATA\n"
 #endif
+                                       "/end MEMORY_SEGMENT\n";
 
 #endif
 
@@ -145,7 +145,9 @@ static const char *gA2lIfDataProtocolLayer = // Parameter: XCP_PROTOCOL_LAYER_VE
 #ifdef XCP_ENABLE_CAL_PAGE
     "OPTIONAL_CMD GET_CAL_PAGE\n"
     "OPTIONAL_CMD SET_CAL_PAGE\n"
+#ifdef XCP_ENABLE_COPY_CAL_PAGE
     "OPTIONAL_CMD COPY_CAL_PAGE\n"
+#endif
 #ifdef XCP_ENABLE_CALSEG_LIST
     "OPTIONAL_CMD GET_PAG_PROCESSOR_INFO\n"
     "OPTIONAL_CMD GET_SEGMENT_INFO\n"
@@ -211,14 +213,14 @@ static const char *gA2lIfDataProtocolLayer = // Parameter: XCP_PROTOCOL_LAYER_VE
 //----------------------------------------------------------------------------------
 static const char *gA2lIfDataBeginDAQ = // Parameter: %u max event, %s timestamp unit
     "/begin DAQ\n"
-    "DYNAMIC 0 %u 0 OPTIMISATION_TYPE_DEFAULT ADDRESS_EXTENSION_FREE IDENTIFICATION_FIELD_TYPE_RELATIVE_BYTE GRANULARITY_ODT_ENTRY_SIZE_DAQ_BYTE 0xF8 OVERLOAD_INDICATION_PID\n"
-    "/begin TIMESTAMP_SUPPORTED\n"
-    "0x1 SIZE_DWORD %s TIMESTAMP_FIXED\n"
-    "/end TIMESTAMP_SUPPORTED\n";
+    "DYNAMIC 0 %u 0 OPTIMISATION_TYPE_DEFAULT ADDRESS_EXTENSION_FREE IDENTIFICATION_FIELD_TYPE_RELATIVE_BYTE GRANULARITY_ODT_ENTRY_SIZE_DAQ_BYTE 0xF8 OVERLOAD_INDICATION_PID"
+#ifdef XCP_ENABLE_DAQ_PRESCALER
+    " PRESCALER_SUPPORTED"
+#endif
+    "\n/begin TIMESTAMP_SUPPORTED 0x1 SIZE_DWORD %s TIMESTAMP_FIXED /end TIMESTAMP_SUPPORTED\n";
 
 // ... Event list follows, before EndDaq
 
-//----------------------------------------------------------------------------------
 static const char *const gA2lIfDataEndDAQ = "/end DAQ\n";
 
 //----------------------------------------------------------------------------------
@@ -424,7 +426,7 @@ static double getTypeMax(tA2lTypeId type) {
     return max;
 }
 
-static bool A2lOpen(const char *filename, const char *projectname) {
+static bool A2lOpen(const char *filename) {
 
     assert(!gA2lFileFinalized);
 
@@ -432,6 +434,9 @@ static bool A2lOpen(const char *filename, const char *projectname) {
     gA2lTypedefsFile = NULL;
     gA2lFixedEvent = XCP_UNDEFINED_EVENT_ID;
     gA2lMeasurements = gA2lParameters = gA2lTypedefs = gA2lInstances = gA2lConversions = gA2lComponents = 0;
+    if (fexists(filename)) {
+        DBG_PRINTF_WARNING("A2L filename %s already exists!\n", filename);
+    }
     gA2lFile = fopen(filename, "w");
     gA2lTypedefsFile = fopen("typedefs.a2l", "w");
     gA2lGroupsFile = fopen("groups.a2l", "w");
@@ -443,7 +448,19 @@ static bool A2lOpen(const char *filename, const char *projectname) {
     }
 
     // Create headers
-    fprintf(gA2lFile, gA2lHeader, projectname, projectname); // main file
+    fprintf(gA2lFile, gA2lHeader1, XcpGetProjectName(), XcpGetProjectName());
+#ifdef INCLUDE_AML_FILES
+    // To include multiple AML files, remove the /begin A2ML and /end A2LM in the XCP_104.aml and CANape.aml files and uncomment the following lines
+    // fprintf(gA2lFile,"/begin A2ML\n"
+    // "/include \"XCP_104.aml\"\n\n"
+    // "/include \"CANape.aml\"\n\n"
+    // "/end A2ML\n");
+    fprintf(gA2lFile, "/include \"XCP_104.aml\"\n\n");
+#endif
+#ifdef EMBED_AML_FILES
+    fprintf(gA2lFile, gA2lAml); // main file
+#endif
+    fprintf(gA2lFile, gA2lHeader2);
 
     fprintf(gA2lTypedefsFile, "\n/* Typedefs */\n");       // typedefs temporary file
     fprintf(gA2lGroupsFile, "\n/* Groups */\n");           // groups temporary file
@@ -495,29 +512,15 @@ static void A2lCreate_MOD_PAR(void) {
         const char *epk = XcpGetEpk();
         if (epk) {
             fprintf(gA2lFile, "EPK \"%s\" ADDR_EPK 0x%08X\n", epk, XCP_ADDR_EPK);
-
-            // EPK memory segment is segment 0
-#ifdef XCP_ENABLE_CALSEG_LIST
-#ifdef XCP_ENABLE_EPK_CALSEG
-            fprintf(gA2lFile, gA2lEpkMemorySegment, XCP_ADDR_EPK, strlen(epk));
-#endif
-#endif // XCP_ENABLE_CALSEG_LIST
         }
 
         // Memory segments
 #ifdef XCP_ENABLE_CALSEG_LIST
-        tXcpCalSegList const *calSegList = XcpGetCalSegList();
+        const tXcpCalSegList *calSegList = XcpGetCalSegList();
         if (calSegList != NULL && calSegList->count > 0) {
             for (tXcpCalSegIndex i = 0; i < calSegList->count; i++) {
-                tXcpCalSeg const *calseg = &calSegList->calseg[i];
-                fprintf(gA2lFile, gA2lMemorySegment, calseg->name, XcpGetCalSegBaseAddress(i), calseg->size,
-#ifdef XCP_ENABLE_EPK_CALSEG
-                        i + 1
-#else
-                        i
-#endif
-
-                );
+                const tXcpCalSeg *calseg = &calSegList->calseg[i];
+                fprintf(gA2lFile, gA2lMemorySegment, calseg->name, XcpGetCalSegBaseAddress(i), calseg->size, i, calseg->name, calseg->name, calseg->name, calseg->size);
             }
         }
 #endif // XCP_ENABLE_CALSEG_LIST
@@ -700,10 +703,13 @@ void A2lSetSegmentAddrMode__i(tXcpCalSegIndex calseg_index, const uint8_t *calse
             DBG_PRINTF_ERROR("SetSegAddrMode: Calibration segment %u not found!\n", calseg_index);
             return;
         }
-
+#if XCP_ADDR_EXT_SEG == 0x00
         A2lSetSegAddrMode(calseg_index, (const uint8_t *)calseg_instance_addr);
         fprintf(gA2lFile, "\n/* Segment relative addressing mode: calseg=%s */\n", calseg->name);
-
+#else
+        A2lSetAbsAddrMode(XCP_UNDEFINED_EVENT_ID);
+        fprintf(gA2lFile, "\n/* Absolute segment addressing mode: calseg=%s */\n", calseg->name);
+#endif
         if (gA2lAutoGroups) {
             A2lBeginGroup(calseg->name, "Calibration Segment", true);
         }
@@ -712,24 +718,27 @@ void A2lSetSegmentAddrMode__i(tXcpCalSegIndex calseg_index, const uint8_t *calse
 
 // Set segment relative address mode with calibration segment name
 void A2lSetSegmentAddrMode__s(const char *calseg_name, const uint8_t *calseg_instance_addr) {
-
-    tXcpCalSegIndex calseg_index = XcpFindCalSeg(calseg_name);
-    if (calseg_index == XCP_UNDEFINED_CALSEG) {
-        DBG_PRINTF_ERROR("SetSegAddrMode: Calibration segment %s not found!\n", calseg_name);
-        return;
-    }
-    const tXcpCalSeg *calseg = XcpGetCalSeg(calseg_index);
-    if (calseg == NULL) {
-        DBG_PRINTF_ERROR("SetSegAddrMode: Calibration segment %u not found!\n", calseg_index);
-        return;
-    }
-
-    A2lSetSegAddrMode(calseg_index, (const uint8_t *)calseg_instance_addr);
-    if (gA2lFile != NULL)
+    if (gA2lFile != NULL) {
+        tXcpCalSegIndex calseg_index = XcpFindCalSeg(calseg_name);
+        if (calseg_index == XCP_UNDEFINED_CALSEG) {
+            DBG_PRINTF_ERROR("SetSegAddrMode: Calibration segment %s not found!\n", calseg_name);
+            return;
+        }
+        const tXcpCalSeg *calseg = XcpGetCalSeg(calseg_index);
+        if (calseg == NULL) {
+            DBG_PRINTF_ERROR("SetSegAddrMode: Calibration segment %u not found!\n", calseg_index);
+            return;
+        }
+#if XCP_ADDR_EXT_SEG == 0x00
+        A2lSetSegAddrMode(calseg_index, (const uint8_t *)calseg_instance_addr);
         fprintf(gA2lFile, "\n/* Segment relative addressing mode: calseg=%s */\n", calseg->name);
-
-    if (gA2lAutoGroups) {
-        A2lBeginGroup(calseg->name, "Calibration Segment", true);
+#else
+        A2lSetAbsAddrMode(XCP_UNDEFINED_EVENT_ID);
+        fprintf(gA2lFile, "\n/* Absolute segment addressing mode: calseg=%s */\n", calseg->name);
+#endif
+        if (gA2lAutoGroups) {
+            A2lBeginGroup(calseg->name, "Calibration Segment", true);
+        }
     }
 }
 
@@ -816,7 +825,6 @@ void A2lSetAbsoluteAddrMode__i(tXcpEventId event_id) {
         }
     }
 }
-
 #endif
 
 //----------------------------------------------------------------------------------
@@ -1466,15 +1474,15 @@ bool A2lFinalize(void) {
         DBG_PRINTF3("A2L created: %u measurements, %u params, %u typedefs, %u components, %u instances, %u conversions\n", gA2lMeasurements, gA2lParameters, gA2lTypedefs,
                     gA2lComponents, gA2lInstances, gA2lConversions);
 
-        // Write the binary persistence file if calsegment list and DAQ event list are enabled
+        // Write the binary persistence file
+        // This is required to make sure the A2L file remains valid, even if the creation order of event or calibration segment is different
 #ifdef OPTION_CAL_PERSISTENCE
         if (!gA2lWriteAlways)
-            XcpBinWrite(gBinFilename);
+            XcpBinWrite(XCP_CALPAGE_WORKING_PAGE);
 #endif
 
         // Notify XCP that there is an A2L file available for upload by the XCP client
-        ApplXcpSetA2lName(gA2lFilename);
-
+        XcpSetA2lName(gA2lFilename);
         return true; // A2L file generation successful
     }
 
@@ -1497,14 +1505,13 @@ void A2lUnlock(void) {
 }
 
 // Open the A2L file and register the finalize callback
-bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
+bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
 
-    assert(a2l_projectname != NULL);
     assert(addr != NULL);
 
     // Check and ignore, if the XCP singleton has not been initialized and activated
     if (!XcpIsActivated()) {
-        DBG_PRINT3("A2lInit: XCP not initialized and activated!\n");
+        DBG_PRINT3("A2lInit: XCP is deactivated!\n");
         return true;
     }
 
@@ -1514,51 +1521,32 @@ bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t
     gA2lUseTCP = useTCP;
 
     // Save mode
-    gA2lWriteAlways = mode & A2L_MODE_WRITE_ALWAYS;
+    gA2lWriteAlways = !!(mode & A2L_MODE_WRITE_ALWAYS);
 #ifndef OPTION_CAL_PERSISTENCE
     assert(gA2lWriteAlways);
 #endif
-    gA2lAutoGroups = mode & A2L_MODE_AUTO_GROUPS;
-    gA2lFinalizeOnConnect = mode & A2L_MODE_FINALIZE_ON_CONNECT;
+    gA2lAutoGroups = !!(mode & A2L_MODE_AUTO_GROUPS);
+    gA2lFinalizeOnConnect = !!(mode & A2L_MODE_FINALIZE_ON_CONNECT);
 
     mutexInit(&gA2lMutex, false, 0);
 
-    // EPK generation if not provided
-    // Set the EPK (software version number) for the A2L file
-    char epk[64];
-    if (a2l_version == NULL) {
-        SNPRINTF(epk, sizeof(epk), "_%s_%s", __DATE__, __TIME__);
-    } else {
-        SNPRINTF(epk, sizeof(epk), "_%s", a2l_version);
-    }
-    XcpSetEpk(epk);
+    // Build A2L filename from project name and EPK
+    // If A2l file is generated only once for a new build, the EPK is appended to the filename
+    SNPRINTF(gA2lFilename, sizeof(gA2lFilename), "%s_%s.a2l", XcpGetProjectName(), gA2lWriteAlways ? "" : XcpGetEpk());
 
-    // Build filenames
-    // If A2l file is build once for a new build, the EPK is appended to the filename
-    const char *epk_suffix = gA2lWriteAlways ? "" : XcpGetEpk();
-    SNPRINTF(gA2lFilename, sizeof(gA2lFilename), "%s%s.a2l", a2l_projectname, epk_suffix);
+    // Check if the A2L file already exists and the persistence BIN file has been loaded and checked
+    // If yes, skip generation if not write always
+    if (!gA2lWriteAlways && (XcpGetSessionStatus() & SS_PERSISTENCE_LOADED) && fexists(gA2lFilename)) {
+        // Notify XCP that there is an A2L file available for upload by the XCP client
+        XcpSetA2lName(gA2lFilename);
+        DBG_PRINTF3("A2L file %s already exists, disable A2L generation\n", gA2lFilename);
+        return true;
+    }
+
     DBG_PRINTF3("Start A2L generator, file=%s, write_always=%u, finalize_on_connect=%u, auto_groups=%u\n", gA2lFilename, gA2lWriteAlways, gA2lFinalizeOnConnect, gA2lAutoGroups);
 
-// Check if the BIN file and the A2L exists and load the binary file
-#ifdef OPTION_CAL_PERSISTENCE
-    SNPRINTF(gBinFilename, sizeof(gBinFilename), "%s%s.bin", a2l_projectname, epk_suffix);
-    if (!gA2lWriteAlways) {
-
-        if (fexists(gA2lFilename)) {
-            if (XcpBinLoad(gBinFilename, XcpGetEpk())) {
-                DBG_PRINTF3("Loaded binary file %s, A2L generation has been disabled\n", gBinFilename);
-
-                // Notify XCP that there is an A2L file available for upload by the XCP client
-                ApplXcpSetA2lName(gA2lFilename);
-
-                return true; // Do not generate A2L, but still provide the existing file, if binary file exists
-            }
-        }
-    }
-#endif
-
     // Open A2L file for generation
-    if (!A2lOpen(gA2lFilename, a2l_projectname)) {
+    if (!A2lOpen(gA2lFilename)) {
         printf("Failed to open A2L file %s\n", gA2lFilename);
         return false;
     }
@@ -1568,3 +1556,5 @@ bool A2lInit(const char *a2l_projectname, const char *a2l_version, const uint8_t
 
     return true;
 }
+
+#endif // XCP_ENABLE_A2L_GENERATOR

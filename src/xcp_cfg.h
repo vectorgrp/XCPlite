@@ -28,40 +28,91 @@
 // #define XCP_PROTOCOL_LAYER_VERSION 0x0103  // GET_DAQ_CLOCK_MULTICAST, GET_TIME_CORRELATION_PROPERTIES
 #define XCP_PROTOCOL_LAYER_VERSION 0x0104 // PACKED_MODE, CC_START_STOP_SYNCH prepare
 
+// Maximum length of EPK string (excluding null terminator), must be odd
+#define XCP_EPK_MAX_LENGTH 31
+
+// Maximum length of the project name (excluding null terminator), must be odd
+#define XCP_PROJECT_NAME_MAX_LENGTH 31
+
 /*----------------------------------------------------------------------------*/
 // Enable calibration segment list management
-#ifndef XCPLIB_FOR_RUST // Not needed for Rust xcp-lite, has its own calibration segment management and uses the callbacks
 #ifdef OPTION_CAL_SEGMENTS
 #define XCP_ENABLE_CALSEG_LIST
 #if OPTION_CAL_SEGMENT_COUNT > 0
 #define XCP_MAX_CALSEG_COUNT OPTION_CAL_SEGMENT_COUNT
 #endif
 #endif // OPTION_CAL_SEGMENTS
-#endif
 
 /*----------------------------------------------------------------------------*/
 /* Address, address extension coding */
 
 /*
-Address extensions:
-0x00        - Calibration segment relative addressing mode (XCP_ADDR_EXT_SEG)
+Address extensions and addressing modes:
+
+XCPlite absolute addressing: XCPLITE__ACSDD (default)
+0x00        - Calibration segment relative addressing mode (XCP_ADDR_EXT_SEG with u16 offset)
 0x01        - Absolute addressing mode (XCP_ADDR_EXT_ABS)
-0x02-0x04   - Event based relative addressing mode with asynchronous access ([XCP_ADDR_EXT_DYN+x])
+0x02        - Stackframe relative (Event based relative addressing mode with asynchronous access and i16 offset)
+0x03-0x04   - Pointer relative (Event based relative addressing mode with asynchronous access and i16 offset)
 0x05-0xFC   - Reserved
 0xFD        - A2L upload memory space (XCP_ADDR_EXT_A2L)
 0xFE        - MTA pointer address space (XCP_ADDR_EXT_PTR)
 0xFF        - Undefined address extension (XCP_UNDEFINED_ADDR_EXT)
+
+XCPlite relative addressing: XCPLITE__CASDD:
+0x00        - Absolute addressing mode (XCP_ADDR_EXT_ABS)
+0x01        - Calibration segment relative addressing mode (XCP_ADDR_EXT_SEG)
+
+xcp-lite for Rust XCPLITE__CADR:
+0x00        - Absolute addressing mode (XCP_ADDR_EXT_ABS)
+0x01        - Calibration segment relative addressing mode (XCP_ADDR_EXT_SEG with u16 offset)
+0x02        - Pointer relative (Event based relative addressing mode with asynchronous access and i16 offset)
+0x03        - Stackframe relative (Not event based, with i32 offset)
+
+...
 */
 
 // --- Event based addressing mode without asynchronous access
-#ifdef XCPLIB_FOR_RUST
+#ifdef XCPLIB_FOR_RUST // XCPLIB_FOR_RUST is set by the Rust build script
+
+// Rust xcp-lite uses only relative addressing (0x03) and dynamic addressing (0x02) and application specific addressing (0x00) for calibration via callbacks
+// Calibration segments are currently handled by the application
+#define XCP_ADDRESS_MODE_XCPLITE__C_DR
+#define XCP_ADDRESS_MODE "XCPLITE__C_DR"
+#define XCP_ENABLE_APP_ADDRESSING
+#define XCP_ADDR_EXT_APP 0x00
 #define XCP_ENABLE_REL_ADDRESSING
+#define XCP_ADDR_EXT_REL 0x03
+#define XCP_ENABLE_DYN_ADDRESSING
+#define XCP_ADDR_EXT_DYN 0x02
+#define XCP_ADDR_EXT_DYN_MAX 0x02
+
+#else
+
+// C/C++ XCPlite uses absolute, dynamic and calibration segment relative addressing
+#define XCP_ENABLE_ABS_ADDRESSING
+#define XCP_ENABLE_SEG_ADDRESSING
+#if !defined(XCP_ENABLE_CALSEG_LIST) || defined(OPTION_CAL_SEGMENTS_ABS)
+#define XCP_ADDRESS_MODE_XCPLITE__ACSDD
+#define XCP_ADDRESS_MODE "XCPLITE__ACSDD"
+#define XCP_ADDR_EXT_ABS 0x00
+#define XCP_ADDR_EXT_SEG 0x01
+#else
+#define XCP_ADDRESS_MODE_XCPLITE__CASDD
+#define XCP_ADDRESS_MODE "XCPLITE__CASDD"
+#define XCP_ADDR_EXT_ABS 0x01
+#define XCP_ADDR_EXT_SEG 0x00
 #endif
+#define XCP_ENABLE_DYN_ADDRESSING
+#define XCP_ADDR_EXT_DYN 0x02
+#define XCP_ADDR_EXT_DYN_MAX 0x04
+
+#endif
+
 #ifdef XCP_ENABLE_REL_ADDRESSING
 
 // Use addr_ext XCP_ADDR_EXT_REL to indicate relative addr format (rel_base + (offset as int32_t))
 // Used for stack frame relative addressing
-#define XCP_ADDR_EXT_REL 0x03 // Event relative address format
 #define XcpAddrIsRel(addr_ext) ((addr_ext) == XCP_ADDR_EXT_REL)
 #define XcpAddrEncodeRel(signed_int32_offset) ((uint32_t)(signed_int32_offset & 0xFFFFFFFF))
 #define XcpAddrDecodeRelOffset(addr) (int32_t)(addr) // signed address offset
@@ -69,17 +120,9 @@ Address extensions:
 #endif // XCP_ENABLE_REL_ADDRESSING
 
 // --- Event based addressing modes with asynchronous access
-#define XCP_ENABLE_DYN_ADDRESSING
 #ifdef XCP_ENABLE_DYN_ADDRESSING
 
-// Use addr_ext DYN to indicate relative addr format (dyn_base + (((event as uint16_t) <<16) | offset as int16_t))
-#define XCP_ADDR_EXT_DYN 0x02 // Relative address format 0x02..0x04 (stack, base_addr1, base_addr2)
-#ifdef XCPLIB_FOR_RUST
-#define XCP_ADDR_EXT_DYN_MAX 0x02
-#else
-#define XCP_ADDR_EXT_DYN_MAX 0x03
-#endif
-
+// Relative addr format (dyn_base + (((event as uint16_t) <<16) | offset as int16_t))
 #define XcpAddrIsDyn(addr_ext) (((addr_ext) >= XCP_ADDR_EXT_DYN && (addr_ext) <= XCP_ADDR_EXT_DYN_MAX))
 #define XcpAddrEncodeDyn(signed_int16_offset, event) (((uint32_t)(event) << 16) | ((signed_int16_offset) & 0xFFFF))
 #define XcpAddrDecodeDynEvent(addr) (uint16_t)((addr) >> 16)    // event
@@ -88,12 +131,10 @@ Address extensions:
 #endif // XCP_ENABLE_DYN_ADDRESSING
 
 // --- Asynchronous absolute addressing mode (not thread safe)
-#define XCP_ENABLE_ABS_ADDRESSING
 #ifdef XCP_ENABLE_ABS_ADDRESSING
 
-// Use addr_ext XCP_ADDR_EXT_ABS to indicate absolute addr format (ApplXcpGetBaseAddr() + (addr as uint32_t))
+// Absolute addr format (xcp_get_base_addr() + (addr as uint32_t))
 // Used for global data
-#define XCP_ADDR_EXT_ABS 0x01 // Absolute address format
 #define XcpAddrIsAbs(addr_ext) ((addr_ext) == XCP_ADDR_EXT_ABS)
 #define XcpAddrEncodeAbs(p) ApplXcpGetAddr(p) // Calculate absolute address encoding from a pointer, application specific function
 #define XcpAddrDecodeAbsOffset(addr) (uint32_t)(addr)
@@ -101,23 +142,30 @@ Address extensions:
 #endif // XCP_ENABLE_ABS_ADDRESSING
 
 // --- Calibration segment relative addressing mode
-#ifdef XCP_ENABLE_CALSEG_LIST // If calibration segments are enabled
+#ifdef XCP_ENABLE_SEG_ADDRESSING
+
+#ifndef XCP_ENABLE_CALSEG_LIST
+#error "XCP_ENABLE_SEG_ADDRESSING requires XCP_ENABLE_CALSEG_LIST"
+#endif
+
+#define XcpAddrIsSeg(addr_ext) ((addr_ext) == XCP_ADDR_EXT_SEG)
 
 // Enable the EPK calibration segment to detect HEX file incompatibility
 #ifdef OPTION_CAL_SEGMENT_EPK
 #define XCP_ENABLE_EPK_CALSEG
 #endif
 
-#define XCP_ADDR_EXT_SEG 0x00 // Segment relative address format, must be 0, CANape does not support memory segment address extensions
-#define XcpAddrIsSeg(addr_ext) ((addr_ext) == XCP_ADDR_EXT_SEG)
+#if defined(XCP_ENABLE_EPK_CALSEG) && XCP_ADDR_EXT_SEG == 0
 
-#ifdef XCP_ENABLE_EPK_CALSEG
-#define XCP_ADDR_EPK 0x80000000
-#define XcpAddrEncodeSegIndex(seg_index, offset)                                                                                                                                   \
-    (0x80000000 + (((uint32_t)((seg_index) + 1)) << 16) + (offset)) // +1, because 0x80000000 is used to access the virtual A2L EPK segment
+#define XCP_ADDR_EPK 0x80000000 // Segment relative EPK address
+#define XcpAddrEncodeSegIndex(seg_index, offset) (0x80000000 + ((uint32_t)((seg_index)) << 16) + (offset))
+// Assuming the EPK calibration segment has the lowest segment index (0)
+
 #else
-#define XCP_ADDR_EPK 0xFFFF0000
-#define XcpAddrEncodeSegIndex(seg_index, offset) (0x80000000 + (((uint32_t)(seg_index)) << 16) + (offset)) // +1, because 0x80000000 is used to access the virtual A2L EPK segment
+
+#define XCP_ADDR_EPK 0xFFFFFF00 // Absolute EPK address
+#define XcpAddrEncodeSegIndex(seg_index, offset) (0x80000000 + (((uint32_t)(seg_index)) << 16) + (offset))
+
 #endif
 
 #define XcpAddrEncodeSegNumber(seg_number, offset) (0x80000000 + (((uint32_t)((seg_number))) << 16) + (offset))
@@ -126,9 +174,12 @@ Address extensions:
 
 #else
 
+#define XCP_ADDR_EPK 0xFFFFFF00
+
+#endif // XCP_ENABLE_SEG_ADDRESSING
+
 // --- Application specific addressing mode for external calibration segment management and memory access
 // If built-in calibration segment management is disabled
-#define XCP_ENABLE_APP_ADDRESSING
 #ifdef XCP_ENABLE_APP_ADDRESSING
 
 // Use addr_ext XCP_ADDR_EXT_APP/SEG to indicate application specific addr format or segment relative address format
@@ -138,10 +189,6 @@ Address extensions:
 #define XcpAddrIsApp(addr_ext) ((addr_ext) == XCP_ADDR_EXT_APP)
 
 #endif // XCP_ENABLE_APP_ADDRESSING
-
-#define XCP_ADDR_EPK 0xFFFF0000
-
-#endif // !defined(XCP_ENABLE_CALSEG_LIST)
 
 // --- Internally used address extensions
 // Use addr_ext XCP_ADDR_EXT_EPK to indicate EPK upload memory space
@@ -159,18 +206,34 @@ Address extensions:
 /*----------------------------------------------------------------------------*/
 /* Protocol features and commands */
 
-#define XCP_ENABLE_CAL_PAGE // Enable calibration page commands
+#define XCP_ENABLE_CAL_PAGE // Enable calibration page commands (GET/SET_CAL_PAGE)
 #ifdef XCP_ENABLE_CAL_PAGE
 
-// Enable calibration page initialization (FLASH->RAM copy)
+// Enable calibration page initialization (COPY_CAL_PAGE, FLASH->RAM copy only)
 #define XCP_ENABLE_COPY_CAL_PAGE
+// Activate workaround for CANape issue with COPY_CAL_PAGE command
+// COPY_CAL_PAGE always copies all segments from default to working, this is not compliant to the XCP specification
+#define XCP_ENABLE_COPY_CAL_PAGE_WORKAROUND
 
-// Enable calibration page freeze request
+// Enable working page freeze request
+// There are 2 modes:
+//   1. A persisted working page will become the new reference page (this requires segment relative addressing mode)
+//   2. Just persist the working page
 #ifdef OPTION_CAL_PERSISTENCE
+
+// Enable the FREEZE_CAL_PAGE command
+// Required for calibration segment persistency
 #define XCP_ENABLE_FREEZE_CAL_PAGE
+
+// Enable persistency of reference (default) page, instead of working page
+// This requires segment relative addressing mode !
+#ifdef OPTION_CAL_REFERENCE_PAGE_PERSISTENCY
+#define XCP_ENABLE_REFERENCE_PAGE_PERSISTENCY
 #endif
 
 #endif
+
+#endif // XCP_ENABLE_CAL_PAGE
 
 // Enable checksum calculation command
 #define XCP_ENABLE_CHECKSUM
@@ -208,21 +271,24 @@ Address extensions:
 #ifdef OPTION_DAQ_MEM_SIZE
 #define XCP_DAQ_MEM_SIZE OPTION_DAQ_MEM_SIZE
 #else
-#define XCP_DAQ_MEM_SIZE (1024 * 5) // Amount of memory for DAQ tables, each ODT entry (e.g. measurement variable or memory block) needs 5 bytes
+#define XCP_DAQ_MEM_SIZE (1024 * 6) // Amount of memory for DAQ tables, each ODT entry (e.g. measurement variable or memory block) needs 5 bytes
 #endif
 
-// Enable DAQ resume mode
-#define XCP_ENABLE_DAQ_RESUME
+// Enable DAQ resume mode, requires XCP_ENABLE_DAQ_EVENT_LIST
+// #define XCP_ENABLE_DAQ_RESUME
+
+// Enable prescaler for DAQ events, requires XCP_ENABLE_DAQ_EVENT_LIST
+#define XCP_ENABLE_DAQ_PRESCALER
 
 // Overrun indication via PID
-// Not needed for Ethernet, client detects data loss via transport layer counters
+// Not needed for Ethernet, client detects data loss via transport layer counter gaps
 // #define XCP_ENABLE_OVERRUN_INDICATION_PID
 
 /*----------------------------------------------------------------------------*/
 /* DAQ event management */
 
 // Enable event list
-#ifndef XCPLIB_FOR_RUST // Not needed for Rust xcp-lite, has its own event management
+#ifndef XCPLIB_FOR_RUST // // Set by the Rust build script, not needed for Rust xcp-lite, currently has its own event management
 #define XCP_ENABLE_DAQ_EVENT_LIST
 #endif
 

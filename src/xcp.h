@@ -233,12 +233,14 @@
 #define SS_RESUME ((uint16_t)0x0080)
 
 // Internal states (high byte) */
-#define SS_BLOCK_UPLOAD ((uint16_t)0x0100) /* Block upload in progress */
-#define SS_LEGACY_MODE ((uint16_t)0x0200)  /* XCP 1.3 legacy mode */
-#define SS_INITIALIZED ((uint16_t)0x8000)  /* initialized */
-#define SS_STARTED ((uint16_t)0x4000)      /* started*/
-#define SS_CONNECTED ((uint16_t)0x2000)    /* connected */
-#define SS_ACTIVATED ((uint16_t)0x1000)    /* activated or passive */
+#define SS_BLOCK_UPLOAD ((uint16_t)0x0100)       /* Block upload in progress */
+#define SS_LEGACY_MODE ((uint16_t)0x0200)        /* XCP 1.3 legacy mode */
+#define SS_PERSISTENCE_LOADED ((uint16_t)0x0400) /* Persistence loaded from BIN file*/
+#define SS_UNUSED2 ((uint16_t)0x0800)
+#define SS_INITIALIZED ((uint16_t)0x8000) /* initialized */
+#define SS_STARTED ((uint16_t)0x4000)     /* started*/
+#define SS_CONNECTED ((uint16_t)0x2000)   /* connected */
+#define SS_ACTIVATED ((uint16_t)0x1000)   /* activated or passive */
 
 /*-------------------------------------------------------------------------*/
 /* Identifier Type (GET_ID) */

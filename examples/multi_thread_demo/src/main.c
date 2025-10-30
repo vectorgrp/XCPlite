@@ -44,6 +44,7 @@ typedef pthread_t THREAD;
 // XCP parameters
 
 #define OPTION_PROJECT_NAME "multi_thread_demo" // A2L project name
+#define OPTION_PROJECT_EPK "_" __TIME__         // EPK version string
 #define OPTION_USE_TCP false                    // TCP or UDP
 #define OPTION_SERVER_PORT 5555                 // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}         // Bind addr, 0.0.0.0 = ANY
@@ -108,7 +109,7 @@ static inline const char *XcpGetContextName(void) { return gXcpContext.name; }
     tXcpEventId previous_span_id = ctx->span_id;                                                                                                                                   \
     ctx->span_id = span_id;                                                                                                                                                        \
     ctx->level++;                                                                                                                                                                  \
-    const uint8_t *span_base[4] = {NULL, ApplXcpGetBaseAddr(), get_stack_frame_pointer(), (const uint8_t *)ctx};                                                                   \
+    const uint8_t *span_base[4] = {xcp_get_base_addr(), xcp_get_base_addr(), xcp_get_frame_addr(), (const uint8_t *)ctx};                                                          \
     XcpEventExt_At(ctx->id, span_base, span_t1);
 
 // End span
@@ -177,7 +178,7 @@ double clip(double input) {
     // Simulate some more expensive work
     sleepUs(50);
 
-    params_t *params = (params_t *)XcpLockCalSeg(calseg);
+    const params_t *params = (params_t *)XcpLockCalSeg(calseg);
 
     // Clip the input value to a range defined in the calibration segment
     double output = input;
@@ -216,7 +217,7 @@ double filter(double input) {
     // Simulate some more expensive work
     sleepUs(100);
 
-    params_t *params = (params_t *)XcpLockCalSeg(calseg);
+    const params_t *params = (params_t *)XcpLockCalSeg(calseg);
 
     // Filter the input signal using a simple low-pass filter
     filtered_input = input * params->filter + last * (1.0 - params->filter);
@@ -257,7 +258,7 @@ void *task(void *p)
 
     // Instrumentation: Events and measurement variables
     // Register task local variables counter and channelx with stack addressing mode
-    tXcpEventId task_event_id = DaqCreateEventInstance_s("task");
+    tXcpEventId task_event_id = DaqCreateEventInstance(task);
 
     // Build the task name from the event index
     uint16_t task_index = XcpGetEventIndex(task_event_id); // Get the event index of this event instance
@@ -283,7 +284,7 @@ void *task(void *p)
     while (run) {
 
         {
-            params_t *params = (params_t *)XcpLockCalSeg(calseg);
+            const params_t *params = (params_t *)XcpLockCalSeg(calseg);
 
             counter++;
             if (counter > params->counter_max) {
@@ -331,7 +332,7 @@ int main(void) {
 
     // Initialize the XCP singleton, activate XCP, must be called before starting the server
     // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-    XcpInit(true);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, true);
 
     // Initialize the XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;
@@ -340,7 +341,7 @@ int main(void) {
     }
 
     // Enable A2L generation and prepare the A2L file, finalize the A2L file on XCP connect, auto grouping
-    if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         return 1;
     }
 
@@ -348,7 +349,7 @@ int main(void) {
     // This segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
     // It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
     // It supports XCP/ECU independant page switching, checksum calculation and reinitialization (copy reference page to working page)
-    calseg = XcpCreateCalSeg("Parameters", &params, sizeof(params));
+    calseg = XcpCreateCalSeg("params", &params, sizeof(params));
     assert(calseg != XCP_UNDEFINED_CALSEG); // Ensure the calibration segment was created successfully
 
     // Register calibration parameters in the calibration segment

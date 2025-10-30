@@ -1,5 +1,5 @@
 
-// /begin A2ML
+/begin A2ML
 
 block "IF_DATA" taggedunion if_data {
 
@@ -166,4 +166,4 @@ block "IF_DATA" taggedunion if_data {
 
 }; // block "IF_DATA"
 
-// /end A2ML
+/end A2ML

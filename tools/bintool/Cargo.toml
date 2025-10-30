@@ -1,0 +1,16 @@
+[package]
+name = "bintool"
+version = "0.2.0"
+edition = "2021"
+authors = ["RainerZ"]
+description = "XCPlite BIN file tool - inspect, convert to Intel-Hex, and update calibration data"
+license = "MIT"
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+ihex = "3.0"
+thiserror = "1.0"
+
+[[bin]]
+name = "bintool"
+path = "src/main.rs"

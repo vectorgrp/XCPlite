@@ -53,7 +53,7 @@ class SignalGenerator {
     double Calculate(double time); // Calculate waveform value based on time
 
   public:
-    SignalGenerator(const char *instance_name, SignalParametersT params);
+    SignalGenerator(const char *instance_name, const SignalParametersT *params);
     ~SignalGenerator();
 
     [[nodiscard]] double GetValue() const { return value_; } // Getter for the current value

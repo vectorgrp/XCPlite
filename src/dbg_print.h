@@ -31,8 +31,8 @@
 #ifdef OPTION_FIXED_DBG_LEVEL
 #define DBG_LEVEL OPTION_FIXED_DBG_LEVEL
 #else
-extern uint8_t gDebugLevel;
-#define DBG_LEVEL gDebugLevel
+extern uint8_t gXcpDebugLevel;
+#define DBG_LEVEL gXcpDebugLevel
 #endif
 
 #define DBG_PRINTF(format, ...) printf(format, __VA_ARGS__)

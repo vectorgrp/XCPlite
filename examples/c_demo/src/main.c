@@ -13,6 +13,7 @@
 
 // XCP parameters
 #define OPTION_PROJECT_NAME "c_demo"    // A2L project name
+#define OPTION_PROJECT_EPK "_" __TIME__ // EPK version string
 #define OPTION_USE_TCP false            // TCP or UDP
 #define OPTION_SERVER_PORT 5555         // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
@@ -72,7 +73,7 @@ int main(void) {
 
     // Initialize the XCP singleton, activate XCP, must be called before starting the server
     // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-    XcpInit(true);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, true);
 
     // Initialize the XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;
@@ -81,7 +82,7 @@ int main(void) {
     }
 
     // Enable A2L generation and prepare the A2L file, finalize the A2L file on XCP connect
-    if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         return 1;
     }
 
@@ -89,7 +90,7 @@ int main(void) {
     // This segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
     // It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
     // It supports XCP/ECU independent page switching, checksum calculation and reinitialization (copy reference page to working page)
-    tXcpCalSegIndex calseg = XcpCreateCalSeg("Parameters", &params, sizeof(params));
+    tXcpCalSegIndex calseg = XcpCreateCalSeg("params", &params, sizeof(params));
     assert(calseg != XCP_UNDEFINED_CALSEG); // Ensure the calibration segment was created successfully
 
     // Create a typedef struct for the calibration parameters
@@ -187,7 +188,7 @@ int main(void) {
         // Lock the calibration parameter segment for consistent and safe access
         // Calibration segment locking is completely lock-free and wait-free (no mutexes, system calls or CAS operations )
         // It returns a pointer to the active page (working or reference) of the calibration segment
-        params_t *params = (params_t *)XcpLockCalSeg(calseg);
+        const params_t *params = (params_t *)XcpLockCalSeg(calseg);
 
         if (delay_us != params->delay_us) {
             delay_us = params->delay_us;

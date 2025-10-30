@@ -314,10 +314,10 @@
             "args": [
                 "-avz",
                 "--include=\"*.out\"",
-                "--include=\"*.a\"",
+                "--include=\"*.a2l\"",
                 "--exclude=\"*\"",
                 "rainer@192.168.0.206:~/XCPlite-RainerZ/build/",
-                "./build/"
+                "./pi/"
             ],
             "options": {
                 "cwd": "${workspaceFolder}"

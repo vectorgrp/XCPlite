@@ -31,8 +31,8 @@ template <typename T> class CalSeg {
     /// Constructor - creates the calibration segment struct wrapper
     /// @param name Name of the calibration segment
     /// @param default_params Default parameter values (reference page)
-    CalSeg(const char *name, const T &default_params) {
-        segment_index_ = XcpCreateCalSeg(name, &default_params, sizeof(T));
+    CalSeg(const char *name, const T *default_params) {
+        segment_index_ = XcpCreateCalSeg(name, default_params, sizeof(T));
         assert(segment_index_ != XCP_UNDEFINED_CALSEG); // Ensure the calibration segment was created successfully
     }
 
@@ -82,6 +82,6 @@ template <typename T> class CalSeg {
 
 /// Convenience function to create calibration segment wrappers
 /// Usage: auto calseg = xcp::CreateCalSeg("Parameters", default_parameters);
-template <typename T> CalSeg<T> CreateCalSeg(const char *name, const T &default_params) { return CalSeg<T>(name, default_params); }
+template <typename T> CalSeg<T> CreateCalSeg(const char *name, const T *default_params) { return CalSeg<T>(name, default_params); }
 
 } // namespace xcplib
