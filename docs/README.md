@@ -16,7 +16,3 @@ This directory contains detailed documentation for XCPlite.
 - **[Technical Details](TECHNICAL.md)** - Instrumentation costs, A2L generation, addressing modes, EPK
 - **[Building](BUILDING.md)** - Detailed build instructions and troubleshooting
 
-### Additional Resources
-- [CHANGELOG](../CHANGELOG.md) - Version history and changes
-- [Vector XCP Book](https://www.vector.com/int/en/know-how/protocols/xcp-measurement-and-calibration-protocol/xcp-book#)
-- [Virtual VectorAcademy](https://elearning.vector.com/)

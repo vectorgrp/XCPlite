@@ -17,13 +17,13 @@ XCPlite extends XCP use cases beyond traditional embedded microcontrollers to **
 Designed exclusively for **Ethernet transport** (TCP/UDP with jumbo frames), XCPlite solves the challenges of measurement and calibration in systems with true parallelism and multithreading:
 
 - **Thread-safe & lock-free** - Consistent data acquisition and parameter modification across multiple cores
-- **Memory-safe** - Measure and calibrate variables in any storage location: stack, heap, thread-local, or global
+- **Memory-safe** - Measure and calibrate variables in any storage location: stack, heap, thread-local, and global
 - **Runtime A2L generation** - Define events, parameters, and metadata as code; A2L description file generated and uploaded automatically
 - **Complex type support** - Handle basic types, structs, arrays, and nested structures
 - **Calibration segments** - Page switching, consistent atomic modification, and parameter persistence (freeze)
 - **PTP timestamps** - Prepared for high-precision synchronized timestamps
 
-The API provides instrumentation macros for developers to mark measurement points and calibration parameters. Thread safety and data consistency are guaranteed even in high-load multicore scenarios.
+The API provides instrumentation macros for developers to define measurement points, calibration parameters, and meta data. Lock-free implementation ensures thread safety and data consistency without blocking latencies, even under high contention on multicore systems.
 
 Optimized for 64-bit architectures, compatible with 32-bit platforms. Requires C11 (C++20 for C++ support). Serves as the C library foundation for [XCP-Lite Rust](https://github.com/vectorgrp/xcp-lite).
 
@@ -31,12 +31,6 @@ Optimized for 64-bit architectures, compatible with 32-bit platforms. Requires C
 - **XCPbasic** - Free implementation for smaller Microcontrollers (8-bit+), optimized for CAN
 - **XCPprof** - Commercial product in Vector's AUTOSAR MICROSAR and CANbedded portfolio
 
-## Requirements
-
-- **C Standard:** C11
-- **C++ Standard:** C++20
-- **Platforms:** Linux, QNX, macOS, ThreadX, Windows (with some limitations)
-- **Tools:** Most examples require CANape 23+ (uses A2L TYPEDEFs and relative addressing)
 
 ## Getting Started
 
@@ -53,10 +47,23 @@ Multiple examples demonstrating different features are available in the [example
 - `struct_demo` - Nested structs and multidimensional arrays
 - `multi_thread_demo` - Multi-threaded measurement and parameter sharing
 - `cpp_demo` - C++ class instrumentation and RAII wrappers
-- `no_a2l_demo` - Workflow without runtime A2L generation
-- `bpf_demo` - Experimental syscall tracing
+- `no_a2l_demo` - Workflow without runtime A2L generation (experimental)
+- `bpf_demo` - Experimental syscall tracing (experimental)
 
 For detailed information about each example and how to set up CANape projects, see the [examples documentation](examples/README.md).
+
+**Requirements:**
+
+XCPlite examples are designed to showcase advanced XCP capabilities and are tested with **CANape 23+** (free demo version available). The examples leverage:
+
+- **Runtime A2L upload** - No manual A2L file management required
+- **A2L TYPEDEFs** - Complex data structures with reusable type definitions
+- **Address extensions** - Support for relative addressing and multiple memory spaces
+- **Shared axis in typedefs** - Advanced calibration structures (CANape 24+, see `cpp_demo`)
+
+These features enable efficient workflows for modern multicore HPC applications. While XCPlite is XCP-compliant and works with any XCP tool, the examples take full advantage of CANape's support for dynamic systems and advanced A2L features.
+
+**Download:** [CANape demo version](https://www.vector.com/de/de/support-downloads/download-center)
 
 ### Build
 
