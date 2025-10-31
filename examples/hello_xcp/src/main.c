@@ -197,7 +197,7 @@ int main(void) {
         // Sleep for the specified delay parameter in microseconds, don't sleep with the XCP lock held to give the XCP client a chance to update params
         sleepUs(delay_us);
 
-        A2lFinalize(); // @@@@ Test: Manually finalize the A2L file to make it visible without XCP tool connect
+        A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
 
     } // for (;;)
 

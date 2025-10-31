@@ -26,6 +26,8 @@ During the creation of a calibration segment, heap allocations for 3 copies of t
 
 Calibration segment access is thread safe and lock less. There is no more heap allocation per thread needed.
 
+
+
 ### A2L Generation
 
 The A2L generation simply uses the file system. There is no need for memory. It opens 4 different files, which will be merged on A2L finalization.
@@ -126,6 +128,97 @@ The EPK does not have an explicit address extension, which means it defaults to 
 To be able to check the compatibility of binary parameter files, which store only parameter data in calibration parameter segments, an EPK memory segment is needed. This is important, because if CANape persists and caches calibration parameter segments in binary files and if the EPK is not in the address range of a memory segment, there is no way to check compatibility of the binary files.
 
 In XCPlite, the EPK may be specified with an xcplib API function or is generated from build time and date when calibration segment persistence mode is enabled.
+
+
+### The XCPlite RCU Algorithm for calibration segment updates
+
+Here is the used RCU algorithm as pseudo code:
+
+The 3 pages are named as follows:
+  1. ecu_page - for current ECU access
+  2. xcp_page - for current XCP access
+  3. free_page - for RCU
+
+The variables lock_count, next_page and free_page are atomic pointers.
+
+This algorithm can be treated as a RCU like pattern with exactly one element (free_page) in its memory reclamation list.
+When there is no free memory, the calibration changes just get collected in the xcp_page.  
+This is used to realize calibration consistency requirements, were the collection is controlled by CANape through user defined commands.  
+Drawback of this simple approach is, that calibration updates may starve, when there is always at least one reader holding a lock.
+Worst case is, that a calibration update may time out.
+
+'''
+    Shared mutable atomic state between the XCP thread and the ECU thread is:
+        - ecu_page_next: a page with newer data, taken over into ecu_page 
+        - free_page: the page freed when new_page is taken over 
+        - ecu_access: 0 - ecu_page, 1 - default_page access mode
+        
+    Shared mutable atomic state between the ECU threads is:
+        - lock_count: number of locks on this segment
+
+
+// Multithreaded lock
+function lock(segment) {
+    if (lock_count++ == 0 }  
+      if (ecu_page != ecu_page_next) { // Need to update ecu_page
+          
+          // The ecu_page (which now becomes the free_page) might be used by some other thread, since we got the lock==0 on this segment
+          free_page_hazard = true; 
+
+          free_page = ecu_page;
+          ecu_page = ecu_page_next;
+
+      } else {
+          free_page_hazard = false; // There was no other lock and no need for update, free page must be safe now, if there is one
+      }
+    }
+    return ecu_page;
+ }
+
+// Multithreaded unlock
+function unlock(segment) {
+    lock_count--;
+}
+
+// Single threaded write
+function write(segment, offset, data[]) {
+
+    // Update data in the current xcp page
+    xcp_page[offset] = data;
+
+    // Calibration page RCU
+    // If updates are hold back for consistency, (begin/end atomic calibration)  we do not update the ECU page yet
+    if (!consistency_hold) {
+        try_publish(segment);
+    }
+}
+
+// Single threaded publish
+// Tries to publish pending changes to the ECU, return true on success
+// Called cyclically to publish pending changes. It is also called when consistency hold is released.
+function try_publish(segment) -> bool {
+   
+    // Try allocate a new xcp page
+    if (free_page == NULL || free_page_hazard ) {
+        return false  // No free page available yet
+    }
+
+    // allocate the free page
+    xcp_page_new = free_page;
+    free_page = NULL;
+
+    // Copy old xcp page to the new xcp page
+    xcp_page_old = xcp_page;
+    memcpy(xcp_page_new, xcp_page_old);
+    xcp_page = xcp_page_new;
+
+    // Update the old xcp page
+    ecu_page_next = xcp_page_old;
+    return true;
+}
+
+'''
+
 
 ## Platform and Language Standard Requirements
 

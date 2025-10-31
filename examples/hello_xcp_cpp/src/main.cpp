@@ -176,7 +176,7 @@ int main() {
 
         sleepUs(1000);
 
-        A2lFinalize(); // @@@@ Test: Manually finalize the A2L file to make it visible without XCP tool connect
+        A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
     }
 
     // Cleanup

@@ -213,15 +213,6 @@ uint16_t XcpGetEventIndex(tXcpEventId event);
     XcpCreateEventInstance(#name, 0, 0);                                                                                                                                           \
     static THREAD_LOCAL tXcpEventId evt__##name = XCP_UNDEFINED_EVENT_ID;
 
-/// Multi instance event (thread local)
-/// Name given as char string
-/// No caching of the event id, a new event instance is created for each call
-// @@@@ TODO: Currently not supported to create event instances with runtime defined names
-/*
-#define DaqCreateEventInstance_s(name) \
-    static THREAD_LOCAL tXcpEventId evt__##name = XCP_UNDEFINED_EVENT_ID; \ XcpCreateEventInstance(name, 0, 0);
-*/
-
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // DAQ event trigger measurement instrumentation point
 
@@ -393,33 +384,6 @@ static inline void *xcp_get_tls_base_addr(void) {
         XcpEventExt_At(trg__AAS__##name, __base, clock);                                                                                                                           \
     }
 
-/// Trigger the XCP event 'name' for stack relative or absolute addressing
-/// Name is a character string, but must not be a string literal
-/// Cache the event name lookup
-// @@@@ TODO: Currently not supported to have events with runtime defined names
-/*
-#define DaqEvent_s(name) \
-    if (XcpIsActivated()) { \
-        static THREAD_LOCAL tXcpEventId trg__AAS__ = XCP_UNDEFINED_EVENT_ID; \
-        if (trg__AAS__ == XCP_UNDEFINED_EVENT_ID) { \
-            trg__AAS__ = XcpFindEvent(name, NULL); \
-            assert(trg__AAS__ != XCP_UNDEFINED_EVENT_ID); \
-        } \
-        const uint8_t *__base[4] = {xcp_get_base_addr(), xcp_get_base_addr(), xcp_get_frame_addr(), NULL}; \
-        XcpEventExt_(trg__AAS__, __base); \
-    }
-#define DaqEventAt_s(name, clock) \
-    if (XcpIsActivated()) { \
-        static THREAD_LOCAL tXcpEventId trg__AAS__ = XCP_UNDEFINED_EVENT_ID; \
-        if (trg__AAS__ == XCP_UNDEFINED_EVENT_ID) { \
-            trg__AAS__ = XcpFindEvent(name, NULL); \
-            assert(trg__AAS__ != XCP_UNDEFINED_EVENT_ID); \
-        } \
-        const uint8_t *__base[4] = {xcp_get_base_addr(), xcp_get_base_addr(), xcp_get_frame_addr(), NULL}; \
-        XcpEventExt_At(trg__AAS__, __base, clock); \
-    }
-*/
-
 /// Trigger the XCP event by handle 'event_id' for stack relative or absolute addressing
 #define DaqEvent_i(event_id)                                                                                                                                                       \
     if (XcpIsActivated()) {                                                                                                                                                        \
@@ -490,7 +454,7 @@ static inline void *xcp_get_tls_base_addr(void) {
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Build time A2L file generation helpers
-// @@@@ Work in progress
+// @@@@ NOTE: Work in progress
 
 #define _XCP_STRING(var_name, suffix, value) static const char __attribute__((section(XCP_STRING_SECTION), used)) __xcp_str_##var_name##suffix[] = value
 

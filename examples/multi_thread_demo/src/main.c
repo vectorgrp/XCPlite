@@ -370,9 +370,8 @@ int main(void) {
         create_thread(&t[i], task);
     }
 
-    // Optional: Finalize the A2L file generation early, to write the A2L now, not when the client connects
     sleepUs(200000);
-    A2lFinalize();
+    A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
 
     for (int i = 0; i < THREAD_COUNT; i++) {
         if (t[i])

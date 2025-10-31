@@ -265,7 +265,7 @@ int main(void) {
         // Sleep for the specified delay parameter in microseconds
         sleepUs(delay_us);
 
-        A2lFinalize(); // Optional: Finalize the A2L file generation early, to write the A2L now, not when the client connects
+        A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
 
     } // for (;;)
 

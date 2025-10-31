@@ -28,7 +28,7 @@
 #error "Please define platform _WIN, _MACOS or _LINUX"
 #endif
 
-// @@@@ TODO improve
+// @@@@ TODO: improve, __write_delayed is the consistency hold flag parameter for the __callback_write function
 #ifdef XCP_ENABLE_USER_COMMAND
 static bool __write_delayed = false;
 #endif

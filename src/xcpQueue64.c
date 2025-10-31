@@ -711,7 +711,7 @@ tQueueBuffer QueuePeek(tQueueHandle queueHandle, bool flush, uint32_t *packets_l
     total_len = dlc + XCPTL_TRANSPORT_LAYER_HEADER_SIZE; // Include the transport layer header size
 
 // Check for more packets to concatenate in a message segment with maximum of XCPTL_MAX_SEGMENT_SIZE, by repeating this procedure
-// @@@@ TODO maybe optimize the duplicate code below
+// @@@@ TODO: maybe optimize the duplicate code below
 #ifdef QUEUE_ACCUMULATE_PACKETS
     uint32_t offset = first_offset + total_len;
     uint32_t max_offset = first_offset + level - 1;

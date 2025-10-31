@@ -32,11 +32,6 @@ Defines a function, registers local variables and function parameters and create
 
 Demonstrates how to instrument a member function of a C++ class and how to register and access parameters in C++.  
 
-### no_a2l_demo
-
-Demonstrates XCPlite without runtime A2L generation by using an A2L generation tool during the build process.  
-This variant is currently limited to measurement and modification of global variables.  
-
 ### c_demo
 
 Shows more complex data objects (structs, arrays) and calibration objects (axis, maps and curves).  
@@ -45,9 +40,16 @@ Consistent parameter changes and measurement.
 Calibration page switching and EPK version check.  
 Note: If CANAPE_24 is defined in sig_gen.hpp, the lookup table is a nested typedef, it uses a THIS. references to its shared axis contained in the typedef.
 
+### cpp_demo
+
+Demonstrates the calibration parameter segment RAII wrapper.  
+Demonstrates measurement of member variables and stack variables in class instance member functions.  
+Shows how to create a class with a calibration parameter segment as a member variable.  
+
 ### struct_demo
 
 Shows how to define measurement variables in nested structs, multidimensional fields and arrays of structs.
+Pure measurement demo, does not have any calibration parameters.
 
 ### multi_thread_demo
 
@@ -57,13 +59,13 @@ Share a parameter segment among multiple threads.
 Thread safe and consistent access to parameters.  
 Experimental code to demonstrate how to create context and spans using the XCP instrumentation API.  
 
-### cpp_demo
-
-Demonstrates the calibration parameter segment RAII wrapper.  
-Demonstrates measurement of member variables and stack variables in class instance member functions.  
-Shows how to create a class with a calibration parameter segment as a member variable.  
 
 ![CANape Screenshot](cpp_demo/cpp_demo.png)
+
+### no_a2l_demo
+
+Demonstrates XCPlite without runtime A2L generation by using an A2L generation tool during the build process.  
+This variant is currently limited to measurement and modification of global variables.  
 
 ### threadx_demo
 
@@ -102,7 +104,8 @@ The easiest way to create a new CANape project for XCPlite is:
     If not, check the Ethernet settings in 'Device/DeviceConfiguration/Devices/MyDevice/Protocol/TransportLayer'.  
 - To configure CANape for automatic upload of the A2L file, a few more settings have to be modified once in the new project:  
     In 'Device/DeviceConfiguration/Devices/MyDevice/Database', enable automatic detection of database content and select 'Check identifier and content'.
-
+- To use the consistent calibration mode (indirect calibrationmode), the user defined XCP command for start and end calibration sequence have to be configured. This setting is not default in CANape. Refer to one of the example projects for details.
+ 
 The automatic A2L upload then happens every time a new version of A2L file has been generated.  
 Depending on the settings in XCPlite, this happens after the first run of a new software build, or each time the application is restarted.  
 Of course, the A2L file may also be copied manually into the CANape project folder.

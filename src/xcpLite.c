@@ -1349,7 +1349,7 @@ tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycleTimeNs, uint8
     uint16_t count = 0;
     mutexLock(&gXcp.EventList.mutex);
     tXcpEventId id = XcpFindEvent(name, &count);
-    // @@@@ TODO use preloaded event instances instead of creating a new instance
+    // @@@@ TODO: use preloaded event instances instead of creating a new instance
     // Event instances have no identity, could use any unused preload event instance with this name
     id = XcpCreateIndexedEvent(name, count + 1, cycleTimeNs, priority);
     mutexUnlock(&gXcp.EventList.mutex);
@@ -2376,13 +2376,13 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
                 gXcp.DaqLists->config_id = config_id;
                 // gXcp.SessionStatus |= SS_STORE_DAQ_REQ;
                 check_error(ApplXcpDaqResumeStore(config_id));
-                /* @@@@ TODO Send an event message */
+                /* @@@@ TODO: Send an event message */
                 // gXcp.SessionStatus &= (uint16_t)(~SS_STORE_DAQ_REQ);
             } break;
             case SS_CLEAR_DAQ_REQ:
                 // gXcp.SessionStatus |= SS_CLEAR_DAQ_REQ;
                 check_error(ApplXcpDaqResumeClear());
-                /* @@@@ TODO Send an event message */
+                /* @@@@ TODO: Send an event message */
                 // gXcp.SessionStatus &= (uint16_t)(~SS_CLEAR_DAQ_REQ);
                 break;
 #endif /* XCP_ENABLE_DAQ_RESUME */
@@ -3352,7 +3352,7 @@ void XcpStart(tQueueHandle queueHandle, bool resumeMode) {
             gXcp.SessionStatus |= SS_RESUME;
             /* Start DAQ */
             XcpStartSelectedDaqLists();
-            // @@@@ TODO Send an event message to indicate resume mode
+            // @@@@ TODO: Send an event message to indicate resume mode
 
 #ifdef DBG_LEVEL
             if (DBG_LEVEL != 0) {

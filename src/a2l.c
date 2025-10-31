@@ -517,7 +517,13 @@ static void A2lCreate_MOD_PAR(void) {
         // Memory segments
 #ifdef XCP_ENABLE_CALSEG_LIST
         const tXcpCalSegList *calSegList = XcpGetCalSegList();
-        if (calSegList != NULL && calSegList->count > 0) {
+        if (calSegList != NULL &&
+#ifdef OPTION_CAL_SEGMENT_EPK // Don't create calseg the EPK segment if it is the only one
+            calSegList->count > 1)
+#else
+            calSegList->count > 0)
+#endif
+        {
             for (tXcpCalSegIndex i = 0; i < calSegList->count; i++) {
                 const tXcpCalSeg *calseg = &calSegList->calseg[i];
                 fprintf(gA2lFile, gA2lMemorySegment, calseg->name, XcpGetCalSegBaseAddress(i), calseg->size, i, calseg->name, calseg->name, calseg->name, calseg->size);

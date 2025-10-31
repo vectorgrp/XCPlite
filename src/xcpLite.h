@@ -174,23 +174,6 @@ tXcpEvent *XcpGetEvent(tXcpEventId event);
 #define XCP_MAX_CALSEG_NAME 15
 #endif
 
-/*
-lock-free, wait-free CalSeg RCU:
-    XCP receive thread command handler:
-        On XCP write access
-        if free_page != NULL
-            Copy xcp_page to free_page
-            NULL -> free_page --> xcp_page --> ecu_page_next
-    ECU thread XcpLockCalSeg:
-        if ecu_page_next != ecu_page
-            ecu_page_next --> ecu_page --> free_page
-
-    Shared state between the XCP thread and the ECU thread is:
-        - ecu_page_next: the next page to be accessed by the ECU thread
-        - free_page: the page freed by the ECU thread
-        - ecu_access
-*/
-
 // Calibration segment number
 // Used in A2l and XCP commands to identify a calibration segment
 // Currently only 256 segments are supported

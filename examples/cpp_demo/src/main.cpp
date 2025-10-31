@@ -152,9 +152,8 @@ int main() {
     signal_generator::SignalGenerator signal_generator_1("SigGen1", &kSignalParameters1);
     signal_generator::SignalGenerator signal_generator_2("SigGen2", &kSignalParameters2);
 
-    // Optional for testing: Force finalizing the A2L file, otherwise it will be finalized on XCP tool connect
     sleepUs(100000);
-    A2lFinalize();
+    A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
 
     // Main loop
     std::cout << "Starting main loop..." << std::endl;

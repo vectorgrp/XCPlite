@@ -363,7 +363,7 @@ static int handleXcpMulticastCommand(int n, tXcpCtoMessage *p, uint8_t *dstAddr,
     (void)dstAddr;
     (void)dstPort;
 
-    // @@@@ TODO: Check addr and cluster id and port
+    // @@@@ TODO: Check multicast addr and cluster id and port
     // printf("MULTICAST: %u.%u.%u.%u:%u len=%u\n", dstAddr[0], dstAddr[1], dstAddr[2], dstAddr[3], dstPort, n);
 
     // Valid socket data received, at least transport layer header and 1 byte
@@ -573,8 +573,8 @@ void XcpEthTlGetInfo(bool *isTcp, uint8_t *mac, uint8_t *addr, uint16_t *port) {
 int32_t XcpTlHandleTransmitQueue(void) {
 
     // Simply polling transmit queue
-    // @@@@ TODO Optimize efficiency, use a condvar or something like that to wakeup/sleep the transmit thread
-    // @@@@ TODO Eliminate the mutex
+    // @@@@ TODO: Optimize efficiency, use a condvar or something like that to wakeup/sleep the transmit thread
+    // @@@@ TODO: Eliminate the mutex
     // This is needed to assure XCP transport layer header counter consistency among response and DAQ packets
     // In fact this is a XCP design flaw, CANape supports independent DAQ and response packet counters, but other tools don't
 
@@ -592,7 +592,7 @@ int32_t XcpTlHandleTransmitQueue(void) {
     const uint32_t outer_loop_sleep_ms = 1; // Sleep time in ms for each outer loop
 #endif
 
-// @@@@ TODO This is too early, when the server is started before A2lInit !!!!!!!!!!!!!
+// @@@@ TODO: This is too early, when the server is started before A2lInit !!!!!!!!!!!!!
 #if defined(OPTION_DAQ_ASYNC_EVENT) && defined(XCP_ENABLE_DAQ_EVENT_LIST)
     static tXcpEventId gXcpAsyncEvent = XCP_UNDEFINED_EVENT_ID;
     if (gXcpAsyncEvent == XCP_UNDEFINED_EVENT_ID) {
