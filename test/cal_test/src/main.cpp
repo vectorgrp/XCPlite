@@ -19,6 +19,7 @@ extern "C" {
 uint8_t XcpWriteMta(uint8_t size, const uint8_t *data);
 uint8_t XcpSetMta(uint8_t ext, uint32_t addr);
 uint8_t XcpCalSegCommand(uint8_t cmd);
+uint8_t XcpCalSegSetCalPage(uint8_t segment, uint8_t page, uint8_t mode);
 }
 
 //-----------------------------------------------------------------------------------------------------
@@ -130,13 +131,15 @@ void worker_thread(uint32_t thread_id) {
                 test_running.store(false);
                 break;
             }
+
+            sleepUs(10);
         }
 
         stats.read_time_ns += clockGetNs() - start_time;
         stats.read_count++;
 
         counter++;
-        if (counter % 10000 == 0) {
+        if (counter % 0x10000 == 0) {
             printf("Thread %u: read_count=%llu, change_count=%llu, errors=%llu\n", thread_id, (unsigned long long)stats.read_count, (unsigned long long)stats.change_count,
                    (unsigned long long)error_count.load());
         }
@@ -210,7 +213,7 @@ int main(int argc, char *argv[]) {
 
     // Let the test run for the specified duration
     printf("Test running for %u ms...\n", DEFAULT_TEST_WRITE_COUNT);
-
+    XcpCalSegSetCalPage(1, 0, 0x83);
     for (;;) {
 
         // Sleep for the specified duration
@@ -223,15 +226,15 @@ int main(int argc, char *argv[]) {
             test_data[i] = (uint8_t)(d0 + i);
         }
         if (write_count & 1) {
-            XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(0, offsetof(ParametersT, data)));
+            XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(1, offsetof(ParametersT, data)));
             XcpWriteMta(DEFAULT_TEST_DATA_SIZE, &test_data[0]);
 
         } else {
             XcpCalSegCommand(0x01); // Begin atomic calibration operation
-            XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(0, offsetof(ParametersT, data)));
+            XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(1, offsetof(ParametersT, data)));
             XcpWriteMta(DEFAULT_TEST_DATA_SIZE / 2, &test_data[0]);
             sleepUs(100);
-            XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(0, offsetof(ParametersT, data) + DEFAULT_TEST_DATA_SIZE / 2));
+            XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(1, offsetof(ParametersT, data) + DEFAULT_TEST_DATA_SIZE / 2));
             XcpWriteMta(DEFAULT_TEST_DATA_SIZE / 2, &test_data[DEFAULT_TEST_DATA_SIZE / 2]);
             XcpCalSegCommand(0x02); // End atomic calibration operation
         }

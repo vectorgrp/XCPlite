@@ -850,7 +850,7 @@ static uint8_t XcpCalSegGetCalPage(tXcpCalSegNumber segment, uint8_t mode) {
 
 // Set active ecu and/or xcp calibration page
 // Note: XCP/A2L segment numbers are bytes, 0 is reserved for the EPK segment, tXcpCalSegIndex is the XCP/A2L segment number - 1
-static uint8_t XcpCalSegSetCalPage(tXcpCalSegNumber segment, uint8_t page, uint8_t mode) {
+uint8_t XcpCalSegSetCalPage(tXcpCalSegNumber segment, uint8_t page, uint8_t mode) {
     if (page > 1) {
         DBG_PRINTF_ERROR("invalid cal page number %u\n", page);
         return CRC_ACCESS_DENIED; // Invalid calseg
