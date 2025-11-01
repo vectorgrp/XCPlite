@@ -36,41 +36,41 @@
 #endif
 
 #define BIN_SIGNATURE "XCPLITE__BINARY"
-#define BIN_VERSION 0x0203
+#define BIN_VERSION 0x0204
 
 #pragma pack(push, 1)
 
 typedef struct {
-    char signature[16];                                                   // File signature "XCPLITE__BINARY"
-    uint16_t version;                                                     // File version, currently 0x0100
-    uint16_t event_count;                                                 // Number of events, tEventDescriptor
-    uint16_t calseg_count;                                                // Number of calibration segments, tCalSegDescriptor
-    uint8_t reserved[128];                                                // Reserved for future use
-    char Epk[XCP_EPK_MAX_LENGTH + 1];                                     // EPK string, 0 terminated
-    uint8_t padding[256 - 16 - 2 - 2 - 2 - 128 - XCP_EPK_MAX_LENGTH - 1]; // Reserved for longer EPK strings
+    char signature[16];                              // File signature "XCPLITE__BINARY"
+    uint16_t version;                                // File version, currently 0x0100
+    uint16_t event_count;                            // Number of events, tEventDescriptor
+    uint16_t calseg_count;                           // Number of calibration segments, tCalSegDescriptor
+    uint8_t reserved[128 - 16 - 2 - 2 - 2];          // Reserved for future use
+    char Epk[XCP_EPK_MAX_LENGTH + 1];                // EPK string, 0 terminated
+    uint8_t padding[128 - (XCP_EPK_MAX_LENGTH + 1)]; // Reserved for longer EPK strings up to 128 bytes
 } tHeader;
 
 static_assert(sizeof(tHeader) == 256, "Size of tHeader must be 256 bytes");
 
 typedef struct {
-    uint16_t id;                                                         // Event ID
-    uint16_t index;                                                      // Event index
-    uint32_t cycleTimeNs;                                                // Cycle time in ns
-    uint8_t priority;                                                    // Priority 0 = queued, 1 = pushing, 2 = realtime
-    uint8_t reserved[128];                                               // Reserved for future use
-    char name[XCP_MAX_EVENT_NAME + 1];                                   // Event name, 0 terminated
-    uint8_t padding[256 - 2 - 2 - 4 - 1 - 128 - XCP_MAX_EVENT_NAME - 1]; // Reserved for longer event names
+    uint16_t id;                                     // Event ID
+    uint16_t index;                                  // Event index
+    uint32_t cycleTimeNs;                            // Cycle time in ns
+    uint8_t priority;                                // Priority 0 = queued, 1 = pushing, 2 = realtime
+    uint8_t reserved[128 - 2 - 2 - 4 - 1];           // Reserved for future use
+    char name[XCP_MAX_EVENT_NAME + 1];               // Event name, 0 terminated
+    uint8_t padding[128 - (XCP_MAX_EVENT_NAME + 1)]; // Reserved for longer event names up to 128 bytes
 } tEventDescriptor;
 
 static_assert(sizeof(tEventDescriptor) == 256, "Size of tEventDescriptor must be 256 bytes");
 
 typedef struct {
-    uint16_t index;                                                   // Index of the calibration segment in the list, 0..<XCP_MAX_CALSEG_COUNT
-    uint16_t size;                                                    // Size of the calibration segment in bytes, multiple of 4
-    uint32_t addr;                                                    // Address of the calibration segment
-    uint8_t reserved[128];                                            // Reserved for future use
-    char name[XCP_MAX_CALSEG_NAME + 1];                               // Calibration segment name, 0 terminated, 16 bytes
-    uint8_t padding[256 - 2 - 2 - 4 - 128 - XCP_MAX_CALSEG_NAME - 1]; // Reserved for longer calibration segment names
+    uint16_t index;                                   // Index of the calibration segment in the list, 0..<XCP_MAX_CALSEG_COUNT
+    uint16_t size;                                    // Size of the calibration segment in bytes, multiple of 4
+    uint32_t addr;                                    // Address of the calibration segment
+    uint8_t reserved[128 - 2 - 2 - 4];                // Reserved for future use
+    char name[XCP_MAX_CALSEG_NAME + 1];               // Calibration segment name, 0 terminated, 16 bytes
+    uint8_t padding[128 - (XCP_MAX_CALSEG_NAME + 1)]; // Reserved for longer calibration segment names up to 128 bytes
 } tCalSegDescriptor;
 
 static_assert(sizeof(tCalSegDescriptor) == 256, "Size of tCalSegDescriptor must be 256 bytes");

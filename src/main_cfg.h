@@ -62,7 +62,7 @@
 #define OPTION_CAL_SEGMENTS
 
 // Maximum number of calibration segments
-#define OPTION_CAL_SEGMENT_COUNT 4
+#define OPTION_CAL_SEGMENT_COUNT 8
 
 // Enable calibration segment persistence, a binary (.BIN) file is used to store calibration segments
 // This allows to safely build the A2L file only once per build, even if the creation order of events and segments changes

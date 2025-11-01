@@ -9,26 +9,18 @@ use crate::Bin2HexError;
 // Compatibility with C code in persistency.h
 // The BIN_VERSION check at runtime is the actual protection against format mismatches.
 // If the C code changes the format, it should bump BIN_VERSION, and this tool will reject the file.
-
 const BIN_SIGNATURE: &str = "XCPLITE__BINARY";
-const BIN_VERSION: u16 = 0x0203;
-
-// This code only assumes the size of the header and descriptor structures
-const BIN_HEADER_SIZE: usize = 256;
-const BIN_EVENT_DESC_SIZE: usize = 256;
-const BIN_CALSEG_DESC_SIZE: usize = 256;
+const BIN_VERSION: u16 = 0x0204;
 
 /// BIN file header - corresponds to tHeader in C
-/// Version 0x0203: 256 bytes total
-
 #[repr(C, packed)]
 struct BinHeaderRaw {
-    signature: [u8; 16],                               // "XCPLITE__BINARY"
-    version: u16,                                      // 0x0203
-    event_count: u16,                                  // Number of event descriptors
-    calseg_count: u16,                                 // Number of calibration segment descriptors
-    reserved: [u8; 128],                               // Reserved for future use
-    epk: [u8; BIN_HEADER_SIZE - 16 - 2 - 2 - 2 - 128], // EPK string, null terminated (106 bytes remaining)
+    signature: [u8; 16],                  // "XCPLITE__BINARY"
+    version: u16,                         // 0x0203
+    event_count: u16,                     // Number of event descriptors
+    calseg_count: u16,                    // Number of calibration segment descriptors
+    reserved: [u8; 128 - 16 - 2 - 2 - 2], // Reserved for future use
+    epk: [u8; 128],                       // EPK string, null terminated (106 bytes remaining)
 }
 
 /// Safe wrapper for BinHeaderRaw
@@ -93,16 +85,14 @@ impl BinHeader {
 }
 
 /// Event descriptor - corresponds to tEventDescriptor in C
-/// New version 0x0203: 256 bytes total
-/// Fields: 2 + 2 + 4 + 1 + 128 + (256 - 2 - 2 - 4 - 1 - 128) = 256 bytes
 #[repr(C, packed)]
 struct EventDescriptorRaw {
-    id: u16,                                               // Event ID
-    index: u16,                                            // Event index
-    cycle_time_ns: u32,                                    // Cycle time in nanoseconds
-    priority: u8,        // Priority (0=queued, 1=pushing, 2=realtime)
-    reserved: [u8; 128], // Reserved for future use
-    name: [u8; BIN_EVENT_DESC_SIZE - 2 - 2 - 4 - 1 - 128], // Event name, null terminated (119 bytes remaining)
+    id: u16,                             // Event ID
+    index: u16,                          // Event index
+    cycle_time_ns: u32,                  // Cycle time in nanoseconds
+    priority: u8,                        // Priority (0=queued, 1=pushing, 2=realtime)
+    reserved: [u8; 128 - 2 - 2 - 4 - 1], // Reserved for future use
+    name: [u8; 128],                     // Event name, null terminated
 }
 
 /// Safe wrapper for EventDescriptorRaw
@@ -149,15 +139,13 @@ impl EventDescriptor {
 }
 
 /// Calibration segment descriptor - corresponds to tCalSegDescriptor in C
-/// New version 0x0203: 256 bytes total
-/// Fields: 2 + 2 + 4 + 128 + (256 - 2 - 2 - 4 - 128) = 256 bytes
 #[repr(C, packed)]
 struct CalSegDescriptorRaw {
-    index: u16,                                         // Index in calibration segment list
-    size: u16,                                          // Size in bytes, multiple of 4
-    addr: u32,                                          // Address of the calibration segment
-    reserved: [u8; 128],                                // Reserved for future use
-    name: [u8; BIN_CALSEG_DESC_SIZE - 2 - 2 - 4 - 128], // Calibration segment name, null terminated (120 bytes remaining)
+    index: u16,                      // Index in calibration segment list
+    size: u16,                       // Size in bytes, multiple of 4
+    addr: u32,                       // Address of the calibration segment
+    reserved: [u8; 128 - 2 - 2 - 4], // Reserved for future use
+    name: [u8; 128], // Calibration segment name, null terminated (120 bytes remaining)
 }
 
 /// Safe wrapper for CalSegDescriptorRaw

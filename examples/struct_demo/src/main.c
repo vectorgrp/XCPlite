@@ -19,7 +19,7 @@
 
 // XCP parameters
 #define OPTION_PROJECT_NAME "struct_demo" // A2L project name
-#define OPTION_PROJECT_EPK "_" __TIME__   // EPK version string
+#define OPTION_PROJECT_EPK __TIME__       // EPK version string
 #define OPTION_USE_TCP true               // TCP or UDP
 #define OPTION_SERVER_PORT 5555           // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}   // Bind addr, 0.0.0.0 = ANY

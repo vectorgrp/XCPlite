@@ -1,6 +1,7 @@
 // cpp_demo xcplib C++ example
 
 #include <atomic>   // for std::atomic
+#include <csignal>  // for signal(), SIGINT, SIGTERM
 #include <cstdint>  // for uintxx_t
 #include <cstring>  // for memset
 #include <iostream> // for std::cout
@@ -14,13 +15,13 @@
 
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
-#define OPTION_PROJECT_NAME "cpp_demo"     // A2L project name
-#define OPTION_PROJECT_EPK "v10 " __TIME__ // EPK version string
-#define OPTION_USE_TCP false               // TCP or UDP
-#define OPTION_SERVER_PORT 5555            // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0}    // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE (1024 * 256)     // Size of the measurement queue in bytes
-#define OPTION_LOG_LEVEL 3                 // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_PROJECT_NAME "cpp_demo"  // A2L project name
+#define OPTION_PROJECT_EPK __TIME__     // EPK version string
+#define OPTION_USE_TCP false            // TCP or UDP
+#define OPTION_SERVER_PORT 5555         // Port
+#define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
+#define OPTION_QUEUE_SIZE (1024 * 256)  // Size of the measurement queue in bytes
+#define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 //-----------------------------------------------------------------------------------------------------
 // Demo calibration parameters
@@ -79,9 +80,15 @@ const signal_generator::SignalParametersT kSignalParameters2 = {
 
 //-----------------------------------------------------------------------------------------------------
 
+// Signal handler for clean shutdown
+static volatile bool running = true;
+static void sig_handler(int sig) { running = false; }
+
 int main() {
 
     std::cout << "\nXCP on Ethernet cpp_demo C++ xcplib demo\n" << std::endl;
+    signal(SIGINT, sig_handler);
+    signal(SIGTERM, sig_handler);
 
     // Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
     XcpSetLogLevel(OPTION_LOG_LEVEL);
@@ -157,7 +164,7 @@ int main() {
 
     // Main loop
     std::cout << "Starting main loop..." << std::endl;
-    for (;;) {
+    while (running) {
         // Access the calibration parameters 'delay' and 'counter_max' safely
         // Use RAII guard for automatic lock/unlock the calibration parameter segment 'calseg'
         {
@@ -195,7 +202,7 @@ int main() {
         DaqEvent(mainloop);
 
         sleepUs(calseg.lock()->delay_us);
-    } // mainloop
+    } // while (running)
 
     // Cleanup
     XcpDisconnect();

@@ -129,12 +129,13 @@
 #define XCP_MAX_DAQ_COUNT 256
 #endif
 
-/* Check length of of event and segment names with null termination must be even*/
-#if XCP_EPK_MAX_LENGTH & 1 == 0 || XCP_EPK_MAX_LENGTH >= 256
-#error "XCP_EPK_MAX_LENGTH must be <256 and odd for null termination"
+/* Check length of of names with null termination must be even*/
+#if XCP_EPK_MAX_LENGTH & 1 == 0 || XCP_EPK_MAX_LENGTH >= 128
+#error "XCP_EPK_MAX_LENGTH must be <128 and odd for null termination"
 #endif
-#if XCP_MAX_EVENT_NAME & 1 == 0
-#error "XCP_MAX_EVENT_NAME must be odd for null termination"
+
+#if XCP_MAX_EVENT_NAME & 1 == 0 || XCP_MAX_EVENT_NAME >= 128
+#error "XCP_MAX_EVENT_NAME must be <128 and odd for null termination"
 #endif
 
 /****************************************************************************/
@@ -365,6 +366,10 @@ const char *XcpGetEpk(void) {
 /**************************************************************************/
 
 #ifdef XCP_ENABLE_CALSEG_LIST
+
+#if XCP_MAX_CALSEG_NAME & 1 == 0 || XCP_MAX_CALSEG_NAME >= 128
+#error "XCP_MAX_CALSEG_NAME must be <128 and odd for null termination"
+#endif
 
 // Initialize the calibration segment list
 static void XcpInitCalSegList(void) {

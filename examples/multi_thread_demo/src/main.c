@@ -2,6 +2,7 @@
 
 #include <assert.h>  // for assert
 #include <math.h>    // for M_PI, sin
+#include <signal.h>  // for signal handling
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uintxx_t
 #include <stdio.h>   // for printf
@@ -44,7 +45,7 @@ typedef pthread_t THREAD;
 // XCP parameters
 
 #define OPTION_PROJECT_NAME "multi_thread_demo" // A2L project name
-#define OPTION_PROJECT_EPK "_" __TIME__         // EPK version string
+#define OPTION_PROJECT_EPK __TIME__             // EPK version string
 #define OPTION_USE_TCP false                    // TCP or UDP
 #define OPTION_SERVER_PORT 5555                 // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}         // Bind addr, 0.0.0.0 = ANY
@@ -234,6 +235,14 @@ double filter(double input) {
     return clipped_output;
 }
 
+//-----------------------------------------------------------------------------------------------------
+
+// Signal handler for clean shutdown
+static volatile bool gRun = true;
+static void sig_handler(int sig) { gRun = false; }
+
+//-----------------------------------------------------------------------------------------------------
+
 // Task function that runs in a separate thread
 // Calculates a sine wave, square wave, and sawtooth wave signal
 #ifdef _WIN32
@@ -281,7 +290,7 @@ void *task(void *p)
     XcpCreateContext("ctx", task_index);
 #endif
 
-    while (run) {
+    while (run && gRun) {
 
         {
             const params_t *params = (params_t *)XcpLockCalSeg(calseg);
@@ -322,10 +331,14 @@ void *task(void *p)
     return 0; // Exit the thread
 }
 
+//-----------------------------------------------------------------------------------------------------
+
 // Demo main
 int main(void) {
 
     printf("\nXCP on Ethernet multi thread xcplib demo\n");
+    signal(SIGINT, sig_handler);
+    signal(SIGTERM, sig_handler);
 
     // Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
     XcpSetLogLevel(OPTION_LOG_LEVEL);
@@ -373,6 +386,12 @@ int main(void) {
     sleepUs(200000);
     A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
 
+    // Wait for signal to stop
+    while (gRun) {
+        sleepUs(100000); // 100ms
+    }
+
+    // Wait for all threads to finish
     for (int i = 0; i < THREAD_COUNT; i++) {
         if (t[i])
             join_thread(t[i]);

@@ -1,6 +1,7 @@
 ﻿// c_demo xcplib example
 
 #include <assert.h>  // for assert
+#include <signal.h>  // for signal handling
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uintxx_t
 #include <stdio.h>   // for printf
@@ -13,7 +14,7 @@
 
 // XCP parameters
 #define OPTION_PROJECT_NAME "c_demo"    // A2L project name
-#define OPTION_PROJECT_EPK "_" __TIME__ // EPK version string
+#define OPTION_PROJECT_EPK __TIME__     // EPK version string
 #define OPTION_USE_TCP false            // TCP or UDP
 #define OPTION_SERVER_PORT 5555         // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
@@ -63,10 +64,16 @@ int64_t g_counter64s = 0;
 
 //-----------------------------------------------------------------------------------------------------
 
+// Signal handler for clean shutdown
+static volatile bool running = true;
+static void sig_handler(int sig) { running = false; }
+
 // Demo main
 int main(void) {
 
     printf("\nXCP on Ethernet C xcplib demo\n");
+    signal(SIGINT, sig_handler);
+    signal(SIGTERM, sig_handler);
 
     // Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
     XcpSetLogLevel(OPTION_LOG_LEVEL);
@@ -82,7 +89,7 @@ int main(void) {
     }
 
     // Enable A2L generation and prepare the A2L file, finalize the A2L file on XCP connect
-    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         return 1;
     }
 
@@ -184,7 +191,7 @@ int main(void) {
     A2lCreateTypedefInstance(params_copy, params_measurement_t, "A copy of the current calibration parameters");
 
     uint32_t delay_us = 1000;
-    for (;;) {
+    while (running) {
         // Lock the calibration parameter segment for consistent and safe access
         // Calibration segment locking is completely lock-free and wait-free (no mutexes, system calls or CAS operations )
         // It returns a pointer to the active page (working or reference) of the calibration segment
@@ -267,7 +274,7 @@ int main(void) {
 
         A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
 
-    } // for (;;)
+    } // while (running)
 
     // Force disconnect the XCP client
     XcpDisconnect();
