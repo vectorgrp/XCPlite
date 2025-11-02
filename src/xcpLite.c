@@ -595,6 +595,9 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
 }
 
 // Lock a calibration segment and return a pointer to the ECU page
+// Thread safe
+// Shared atomic state is lock_count, ecu_page_next, free_page, ecu_access
+// Shared non atomic is ecu_page, free_page_hazard, release on free_page
 const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg) {
 
     assert(isInitialized());
@@ -617,10 +620,11 @@ const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg) {
 
         // Update if there is a new page version, free the old page
         uint8_t *ecu_page_next = (uint8_t *)atomic_load_explicit(&c->ecu_page_next, memory_order_acquire);
-        if (c->ecu_page != ecu_page_next) {
+        uint8_t *ecu_page = c->ecu_page;
+        if (ecu_page != ecu_page_next) {
             c->free_page_hazard = true; // Free page might be acquired by some other thread, since we got the first lock on this segment
-            atomic_store_explicit(&c->free_page, (uintptr_t)c->ecu_page, memory_order_release);
             c->ecu_page = ecu_page_next;
+            atomic_store_explicit(&c->free_page, (uintptr_t)ecu_page, memory_order_release);
         } else {
             c->free_page_hazard = false; // There was no lock and no need for update, free page must be safe now, if there is one
         }
@@ -637,6 +641,8 @@ const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg) {
 }
 
 // Unlock a calibration segment
+// Thread safe
+// Shared state is lock_count
 void XcpUnlockCalSeg(tXcpCalSegIndex calseg) {
 
     if (!isActivated())
@@ -653,6 +659,7 @@ void XcpUnlockCalSeg(tXcpCalSegIndex calseg) {
 // XCP client memory read
 // Read xcp or default page
 // Read ecu page is not supported, calibration changes might be stale
+// Single threaded function, called from XcpCommand on the XCP server thread
 static uint8_t XcpCalSegReadMemory(uint32_t src, uint16_t size, uint8_t *dst) {
 
     // Decode the source address into calibration segment and offset
@@ -674,11 +681,13 @@ static uint8_t XcpCalSegReadMemory(uint32_t src, uint16_t size, uint8_t *dst) {
 }
 
 // Publish a modified calibration segment
+// Single threaded function, called from XcpCalSegPublishAll or XcpCalSegWriteMemory on the XCP server thread
 // Option to wait for this, or return unsuccessful with CRC_CMD_PENDING
 static uint8_t XcpCalSegPublish(tXcpCalSeg *c, bool wait) {
     // Try allocate a new xcp page
     // Im a multithreaded consumer use case, we must be sure the free page is really not in use anymore
     // We simply wait until all threads are updated, this is theoretically not free of starvation, but calibration changes are slow
+    // Aquire/release semantics with XcpCalSegLock on the free page pointer
     uint8_t *free_page = (uint8_t *)atomic_load_explicit(&c->free_page, memory_order_acquire);
     if (wait) {
         // Wait and delay the XCP server receive thread, until a free page becomes available
@@ -711,6 +720,7 @@ static uint8_t XcpCalSegPublish(tXcpCalSeg *c, bool wait) {
     c->xcp_page = xcp_page_new;
 
     // Publish the old xcp page
+    // Acquire/release semantics with XcpCalSegLock on the ecu_page_next pointer
     c->write_pending = false; // No longer pending
     atomic_store_explicit(&c->ecu_page_next, (uintptr_t)xcp_page_old, memory_order_release);
 

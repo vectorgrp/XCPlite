@@ -35,7 +35,7 @@ uint8_t XcpCalSegSetCalPage(uint8_t segment, uint8_t page, uint8_t mode);
 #define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 #define TEST_THREAD_COUNT 32        // Number of threads
-#define TEST_WRITE_COUNT 10000      // Test writes
+#define TEST_WRITE_COUNT 20000      // Test writes
 #define TEST_ATOMIC_CAL             // Test with atomic begin/end calibration segment access
 #define TEST_TASK_LOOP_DELAY_US 50  // Task loop delay in us
 #define TEST_TASK_LOCK_DELAY_US 0   // Task lock delay in us
@@ -110,7 +110,7 @@ void worker_thread(uint32_t thread_id) {
 
     printf("Thread %u started with event ID %u\n", thread_id, event_id);
 
-    while (test_running.load()) {
+    while (test_running.load(std::memory_order_relaxed)) {
 
         uint64_t start_time = clockGetNs();
 
@@ -134,7 +134,7 @@ void worker_thread(uint32_t thread_id) {
 
             // Check if test should continue
             if (!parameters->run) {
-                test_running.store(false);
+                test_running.store(false, std::memory_order_relaxed);
                 break;
             }
 
@@ -144,11 +144,11 @@ void worker_thread(uint32_t thread_id) {
         } // unlock calibration segment
 
         uint64_t read_time_ns = clockGetNs() - start_time;
-        if (read_time_ns > stats.max_read_time_ns.load()) {
-            stats.max_read_time_ns.store(read_time_ns);
+        if (read_time_ns > stats.max_read_time_ns.load(std::memory_order_relaxed)) { // @@@@ Not threads safe, but good enough for max measurement
+            stats.max_read_time_ns.store(read_time_ns, std::memory_order_relaxed);
         }
-        stats.read_time_ns.fetch_add(read_time_ns);
-        stats.read_count++;
+        stats.read_time_ns.fetch_add(read_time_ns, std::memory_order_relaxed);
+        stats.read_count.fetch_add(1, std::memory_order_relaxed);
 
         counter++;
         if (counter % 0x10000 == 0) {
@@ -267,7 +267,7 @@ int main(int argc, char *argv[]) {
         }
 
         // Check if the test should continue
-        if (!test_running.load() || write_count >= TEST_WRITE_COUNT) {
+        if (!test_running.load(std::memory_order_relaxed) || write_count >= TEST_WRITE_COUNT) {
             break;
         }
     }
@@ -309,7 +309,7 @@ int main(int argc, char *argv[]) {
     printf("  Total reads: %llu\n", (unsigned long long)total_read_count);
     printf("  Total changes observed: %llu\n", (unsigned long long)total_change_count);
     printf("  Total writes pending: %u\n", gXcpWritePendingCount);
-    printf("  Total publish all count: %u\n", gXcpCalSegPublishAllCount);
+    printf("  Total publish all count: %u (expected %llu)\n", gXcpCalSegPublishAllCount, (unsigned long long)(write_count / 256) + gXcpWritePendingCount);
     printf("  Total errors: %llu\n", (unsigned long long)error_count.load());
     printf("  Average lock time: %.2f us\n", total_read_count > 0 ? (double)total_read_time_ns / total_read_count / 1000.0 : 0.0);
     printf("  Maximum lock time: %.2f us\n", (double)total_max_read_time_ns / 1000.0);
