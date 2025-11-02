@@ -32,6 +32,8 @@
 #define OPTION_DEFAULT_DBG_LEVEL 3
 // Optimize code size, only errors and warnings enabled, other levels optimized out
 // #define OPTION_FIXED_DBG_LEVEL 2
+// Enable debug metrics
+#define OPTION_ENABLE_DBG_METRICS
 
 //-------------------------------------------------------------------------------
 // Clock

@@ -232,6 +232,15 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
 #define isDaqRunning() atomic_load_explicit(&gXcp.DaqRunning, memory_order_relaxed)
 
 /****************************************************************************/
+// Metrics
+/****************************************************************************/
+
+#ifdef OPTION_ENABLE_DBG_METRICS
+uint32_t gXcpWritePendingCount = 0;
+uint32_t gXcpCalSegPublishAllCount = 0;
+#endif
+
+/****************************************************************************/
 // Logging
 /****************************************************************************/
 
@@ -684,6 +693,10 @@ static uint8_t XcpCalSegPublish(tXcpCalSeg *c, bool wait) {
     } else {
         if (free_page == NULL || c->free_page_hazard) {
             DBG_PRINTF5("Can not update calibration changes of %s yet\n", c->name);
+            c->write_pending = true;
+#ifdef OPTION_ENABLE_DBG_METRICS
+            gXcpWritePendingCount++;
+#endif
             return CRC_CMD_PENDING; // No free page available
         }
     }
@@ -698,6 +711,7 @@ static uint8_t XcpCalSegPublish(tXcpCalSeg *c, bool wait) {
     c->xcp_page = xcp_page_new;
 
     // Publish the old xcp page
+    c->write_pending = false; // No longer pending
     atomic_store_explicit(&c->ecu_page_next, (uintptr_t)xcp_page_old, memory_order_release);
 
     return CRC_CMD_OK;
@@ -705,6 +719,7 @@ static uint8_t XcpCalSegPublish(tXcpCalSeg *c, bool wait) {
 
 // Publish all modified calibration segments
 // Must be call from the same thread that calles XcpCommend
+// Returns CRC_CMD_OK if all segments have been published
 uint8_t XcpCalSegPublishAll(bool wait) {
     uint8_t res = CRC_CMD_OK;
     // If no atomic calibration operation is in progress
@@ -714,7 +729,9 @@ uint8_t XcpCalSegPublishAll(bool wait) {
             if (c->write_pending) {
                 uint8_t res1 = XcpCalSegPublish(c, wait);
                 if (res1 == CRC_CMD_OK) {
-                    c->write_pending = false;
+#ifdef OPTION_ENABLE_DBG_METRICS
+                    gXcpCalSegPublishAllCount++;
+#endif
                 } else {
                     res = res1;
                 }
@@ -752,20 +769,19 @@ static uint8_t XcpCalSegWriteMemory(uint32_t dst, uint16_t size, const uint8_t *
     // If write delayed, we do not update the ECU page yet
     if (gXcp.CalSegList.write_delayed) {
         c->write_pending = true; // Modified
+        return CRC_CMD_OK;
     } else {
 #ifdef XCP_ENABLE_CALSEG_LAZY_WRITE
-        // If lazy mode is enabled, we do not need to update the ECU page yet
-        uint8_t res = XcpCalSegPublish(c, false);
-        if (res)
-            c->write_pending = true;
+        // If lazy mode is enabled, try update, but we do not require to update the ECU page yet
+        XcpCalSegPublish(c, false);
+        return CRC_CMD_OK;
 #else
         // If not lazy mode, we wait until a free page is available
-        uint8_t res = XcpCalSegPublish(c, true);
-        if (res)
-            return res;
+        // This should succeed
+        return XcpCalSegPublish(c, true);
+
 #endif
     }
-    return CRC_CMD_OK;
 }
 
 // Table 97 GET SEGMENT INFO command structure
@@ -3082,7 +3098,9 @@ void XcpBackgroundTasks(void) {
 
 // Publish all modified calibration segments
 #ifdef XCP_ENABLE_CALSEG_LAZY_WRITE
-    XcpCalSegPublishAll(false);
+    if (CRC_CMD_OK != XcpCalSegPublishAll(false)) {
+        DBG_PRINT_WARNING("XcpBackgroundTasks: Calibration segment publish failed!\n");
+    }
 #endif
 }
 

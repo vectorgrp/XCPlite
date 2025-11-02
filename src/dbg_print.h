@@ -18,6 +18,13 @@
 #error "Please define OPTION_DEFAULT_DBG_LEVEL or OPTION_FIXED_DBG_LEVEL"
 #endif
 
+#ifdef OPTION_ENABLE_DBG_METRICS
+
+extern uint32_t gXcpWritePendingCount;
+extern uint32_t gXcpCalSegPublishAllCount;
+
+#endif
+
 #ifdef OPTION_ENABLE_DBG_PRINTS
 
 /*
