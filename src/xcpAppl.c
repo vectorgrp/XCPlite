@@ -24,8 +24,8 @@
 #include "xcpLite.h"   // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
 #include "xcp_cfg.h"   // for XCP_ENABLE_xxx
 
-#if !defined(_WIN) && !defined(_LINUX) && !defined(_MACOS)
-#error "Please define platform _WIN, _MACOS or _LINUX"
+#if !defined(_WIN) && !defined(_LINUX) && !defined(_MACOS) && !defined(_QNX)
+#error "Please define platform _WIN, _MACOS or _LINUX or _QNX"
 #endif
 
 // @@@@ TODO: improve, __write_delayed is the consistency hold flag parameter for the __callback_write function
@@ -181,6 +181,8 @@ bool ApplXcpGetClockInfoGrandmaster(uint8_t *uuid, uint8_t *epoch, uint8_t *stra
 const uint8_t *gXcpBaseAddr = NULL;
 uint8_t gXcpBaseAddrValid = 0;
 
+//----------------------------
+// Windows 64 or 32 bit
 #ifdef _WIN
 
 // Get base pointer for the XCP address range
@@ -199,7 +201,7 @@ uint32_t ApplXcpGetAddr(const uint8_t *p) {
 
     DBG_PRINTF5("Windows Address: base = %p, addr = %p, diff = %ld\n", (void *)ApplXcpGetBaseAddr(), (void *)p, (long)(p - ApplXcpGetBaseAddr()));
     assert(p >= ApplXcpGetBaseAddr());
-#ifdef _WIN64
+#if defined(PLATFORM_64BIT)
     assert(((uint64_t)p - (uint64_t)ApplXcpGetBaseAddr()) <= 0xffffffff); // be sure that XCP address range is sufficient
 #endif
     return (uint32_t)(p - ApplXcpGetBaseAddr());
@@ -207,7 +209,49 @@ uint32_t ApplXcpGetAddr(const uint8_t *p) {
 
 #endif
 
-#if defined(_LINUX64) && !defined(_MACOS)
+//----------------------------
+// Linux 64 bit or QNX 64 bit
+#if (defined(_LINUX) || defined(_QNX)) && defined(PLATFORM_64BIT)
+
+#ifdef _QNX
+
+#include <sys/link.h>     /* dl_iterate_phdr, dl_phdr_info */
+#include <sys/neutrino.h> /* _NTO_VERSION */
+#if _NTO_VERSION >= 800
+#include <qh/misc.h> /* qh_get_progname */
+#endif
+
+static int dump_phdr(const struct dl_phdr_info *pinfo, size_t size, void *data) {
+    DBG_PRINTF3("name=%s (%d segments, addr=0x%p)\n", pinfo->dlpi_name, pinfo->dlpi_phnum, (void *)pinfo->dlpi_addr);
+
+    // On QNX, the application module name is the full path to the executable
+#if _NTO_VERSION >= 800
+    // QNX 8.0 is the first version to introduce qh_get_progname()
+    // Strip off the path from the module name and compare it to the retrieved program name to find the corresponding phdr entry
+    const char *pName = strrchr(pinfo->dlpi_name, '/');
+    const char *pAppName = qh_get_progname();
+    if (NULL != pName) {
+        pName += 1;
+    } else {
+        pName = pinfo->dlpi_name;
+    }
+    if (0 == strncmp(pName, pAppName, strlen(pAppName))) {
+        gXcpBaseAddr = pinfo->dlpi_addr;
+    }
+#else
+    // On QNX 7.1 or less, there is no API to retrieve the name of the current program
+    // Name must be forwarded from args[0] to xcpAppl
+    // Workaround for now: Assume that entry 0 always contains the application module
+    gXcpBaseAddr = (uint8_t *)pinfo->dlpi_addr;
+
+#endif
+
+    (void)size;
+    (void)data;
+    return 0;
+}
+
+#else
 
 #ifndef __USE_GNU
 #define __USE_GNU
@@ -217,7 +261,7 @@ uint32_t ApplXcpGetAddr(const uint8_t *p) {
 static int dump_phdr(struct dl_phdr_info *pinfo, size_t size, void *data) {
     // DBG_PRINTF3("name=%s (%d segments)\n", pinfo->dlpi_name, pinfo->dlpi_phnum);
 
-    // Application modules has no name
+    // Application module has no name
     if (0 == strlen(pinfo->dlpi_name)) {
         gXcpBaseAddr = (uint8_t *)pinfo->dlpi_addr;
     }
@@ -226,6 +270,7 @@ static int dump_phdr(struct dl_phdr_info *pinfo, size_t size, void *data) {
     (void)data;
     return 0;
 }
+#endif
 
 const uint8_t *ApplXcpGetBaseAddr(void) {
 
@@ -253,6 +298,8 @@ uint32_t ApplXcpGetAddr(const uint8_t *p) {
 
 #endif
 
+//----------------------------
+// MACOS 64 bit
 #ifdef _MACOS
 
 #include <mach-o/dyld.h>
@@ -295,7 +342,9 @@ uint32_t ApplXcpGetAddr(const uint8_t *p) {
 
 #endif
 
-#ifdef _LINUX32
+//----------------------------
+// Linux 32 bit
+#if defined(_LINUX) && defined(PLATFORM_32BIT)
 
 const uint8_t *ApplXcpGetBaseAddr(void) { return ((uint8_t *)0); }
 

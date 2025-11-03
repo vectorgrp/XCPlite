@@ -21,7 +21,7 @@
 #endif
 
 // Threads
-#if defined(_WIN32) // Windows
+#ifdef _WIN32 // Windows 32 or 64 bit
 #include <windows.h>
 typedef HANDLE THREAD;
 #define create_thread(h, t) *h = CreateThread(0, 0, t, NULL, 0, NULL)
@@ -245,7 +245,7 @@ static void sig_handler(int sig) { gRun = false; }
 
 // Task function that runs in a separate thread
 // Calculates a sine wave, square wave, and sawtooth wave signal
-#ifdef _WIN32
+#ifdef _WIN32 // Windows 32 or 64 bit
 DWORD WINAPI task(LPVOID p)
 #else
 void *task(void *p)

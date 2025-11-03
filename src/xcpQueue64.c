@@ -59,9 +59,9 @@
 // Assume a maximum cache line size of 128 bytes
 #define CACHE_LINE_SIZE 128u // Cache line size, used to align the queue header
 
-// Check for 64 Bit platform
-#if (!defined(_LINUX64) && !defined(_MACOS)) || !defined(PLATFORM_64BIT)
-#error "This implementation requires a 64 Bit Posix platform (_LINUX64 or _MACOS)"
+// Check for 64 Bit non Windows platform
+#if !defined(PLATFORM_64BIT) || defined(_WIN)
+#error "This implementation requires a 64 Bit Posix platform"
 #endif
 static_assert(sizeof(void *) == 8, "This implementation requires a 64 Bit platform");
 

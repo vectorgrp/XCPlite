@@ -29,12 +29,6 @@
 #include "xcp_cfg.h"     // for XCP_xxx
 #include "xcptl_cfg.h"   // for XCPTL_xxx
 
-#ifdef _WIN32
-#ifdef OPTION_ENABLE_GET_LOCAL_ADDR
-#include <stdlib.h> // for free, malloc in getLocalAddr
-#endif
-#endif
-
 #ifdef OPTION_ENABLE_A2L_GENERATOR
 
 //----------------------------------------------------------------------------------

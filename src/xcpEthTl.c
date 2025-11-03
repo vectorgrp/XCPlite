@@ -382,13 +382,13 @@ void XcpEthTlSetClusterId(uint16_t clusterId) {
     // Not implemented
 }
 
-#if !defined(_WIN) && !defined(_LINUX) && !defined(_MACOS)
-#error "Please define platform _WIN, _MACOS or _LINUX"
+#if !defined(_WIN) && !defined(_LINUX) && !defined(_MACOS) && !defined(_QNX)
+#error "Please define platform _WIN, _MACOS or _LINUX or _QNX"
 #endif
 
 #if defined(_WIN) // Windows
 DWORD WINAPI XcpTlMulticastThread(LPVOID par)
-#elif defined(_LINUX) // Linux
+#else
 extern void *XcpTlMulticastThread(void *par)
 #endif
 {

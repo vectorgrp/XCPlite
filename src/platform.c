@@ -3,7 +3,7 @@
 |   platform.c
 |
 | Description:
-|   Platform (Linux/Windows/MACOS) abstraction layer
+|   Platform (Linux/Windows/MACOS/QNX) abstraction layer
 |     Atomics
 |     Sleep
 |     Threads
@@ -35,7 +35,7 @@
 // Keyboard
 /**************************************************************************/
 
-#ifdef _LINUX
+#if !defined(_WIN) // Non-Windows platforms
 
 #ifdef PLATFORM_ENABLE_KEYBOARD
 
@@ -82,7 +82,7 @@ int _kbhit(void) {
 // Sleep
 /**************************************************************************/
 
-#if defined(_LINUX) // Linux
+#if !defined(_WIN)
 
 #include <time.h>   // for timespec, nanosleep, CLOCK_MONOTONIC_RAW
 #include <unistd.h> // for sleep
@@ -110,7 +110,7 @@ void sleepMs(uint32_t ms) {
     }
 }
 
-#elif defined(_WIN) // Windows
+#else // Windows
 
 void sleepUs(uint32_t us) {
 
@@ -222,7 +222,7 @@ bool atomic_compare_exchange_strong_explicit(uint64_t *a, uint64_t *b, uint64_t 
 // Mutex
 /**************************************************************************/
 
-#if defined(_LINUX)
+#if !defined(_WIN) // Non-Windows platforms
 
 void mutexInit(MUTEX *m, bool recursive, uint32_t spinCount) {
     (void)spinCount;
@@ -238,7 +238,7 @@ void mutexInit(MUTEX *m, bool recursive, uint32_t spinCount) {
 
 void mutexDestroy(MUTEX *m) { pthread_mutex_destroy(m); }
 
-#elif defined(_WIN)
+#else // Windows
 
 void mutexInit(MUTEX *m, bool recursive, uint32_t spinCount) {
     (void)recursive;
@@ -256,7 +256,7 @@ void mutexDestroy(MUTEX *m) { DeleteCriticalSection(m); }
 
 #if defined(OPTION_ENABLE_TCP) || defined(OPTION_ENABLE_UDP)
 
-#ifdef _LINUX
+#if !defined(_WIN) // Non-Windows platforms
 
 bool socketStartup(void) { return true; }
 
@@ -320,13 +320,13 @@ bool socketClose(SOCKET *sp) {
 
 #ifdef OPTION_ENABLE_GET_LOCAL_ADDR
 
-#ifndef _MACOS
+#if !defined(_MACOS) && !defined(_QNX)
 #include <linux/if_packet.h>
 #else
 #include <ifaddrs.h>
 #include <net/if_dl.h>
 #endif
-#ifdef _LINUX
+#if !defined(_WIN) // Non-Windows platforms
 #include <ifaddrs.h>
 #endif
 
@@ -335,7 +335,7 @@ static bool GetMAC(char *ifname, uint8_t *mac) {
     if (getifaddrs(&ifaddrs) == 0) {
         for (ifa = ifaddrs; ifa != NULL; ifa = ifa->ifa_next) {
             if (!strcmp(ifa->ifa_name, ifname)) {
-#ifdef _MACOS
+#if defined(_MACOS) || defined(_QNX)
                 if (ifa->ifa_addr->sa_family == AF_LINK) {
                     memcpy(mac, (uint8_t *)LLADDR((struct sockaddr_dl *)ifa->ifa_addr), 6);
                     DBG_PRINTF4("  %s: MAC = %02X-%02X-%02X-%02X-%02X-%02X\n", ifa->ifa_name, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
@@ -405,9 +405,7 @@ bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr) {
 
 #endif // OPTION_ENABLE_GET_LOCAL_ADDR
 
-#endif // _LINUX
-
-#if defined(_WIN)
+#else
 
 uint32_t socketGetTimestampMode(uint8_t *clockType) {
 
@@ -700,10 +698,8 @@ int16_t socketSendTo(SOCKET sock, const uint8_t *buffer, uint16_t size, const ui
     sa.sin_family = AF_INET;
 #if defined(_WIN) // Windows
     memcpy(&sa.sin_addr.S_un.S_addr, addr, 4);
-#elif defined(_LINUX) // Linux
-    memcpy(&sa.sin_addr.s_addr, addr, 4);
 #else
-#error
+    memcpy(&sa.sin_addr.s_addr, addr, 4);
 #endif
     sa.sin_port = htons(port);
     if (time != NULL)
@@ -740,14 +736,13 @@ uint64_t clockGetLast(void) { return __gClock; }
 // }
 // #endif
 
-#if defined(_LINUX) // Linux or macOS
+#if !defined(_WIN) // Non-Windows platforms
 
 #if !defined(OPTION_CLOCK_EPOCH_PTP) && !defined(OPTION_CLOCK_EPOCH_ARB)
 #error "Please define OPTION_CLOCK_EPOCH_ARB or OPTION_CLOCK_EPOCH_PTP"
 #endif
 
 /*
-
 Clock options
 
     OPTION_CLOCK_EPOCH_ARB      arbitrary epoch
@@ -755,21 +750,35 @@ Clock options
     OPTION_CLOCK_TICKS_1NS      resolution 1ns or 1us, granularity depends on platform
     OPTION_CLOCK_TICKS_1US
 
-Clock types used
-    CLOCK_REALTIME      This clock may be affected by incremental adjustments performed by NTP
-                        Epoch ns since 1.1.1970
-                        Works on all platforms
-                        1us granularity on MacOS
+Clock types
+    CLOCK_REALTIME
+        This clock may be affected by incremental adjustments performed by NTP.
+        Epoch ns since 1.1.1970.
+        Works on all platforms.
+        1us granularity on MacOS.
 
-    CLOCK_TAI           This clock does not experience discontinuities and backwards jumps caused by NTP or inserting
-leap seconds as CLOCK_REALTIME does. Epoch ns since 1.1.1970 Not available on Linux and MacOS
+    CLOCK_TAI
+        This clock does not experience discontinuities and backwards jumps caused by NTP or inserting leap seconds as CLOCK_REALTIME does.
+        Epoch ns since 1.1.1970 Not available on Linux and MacOS.
 
-    CLOCK_MONOTONIC_RAW Provides a monotonic clock without time drift adjustments by NTP, giving higher stability and
-resolution Epoch ns since OS or process start Works on all platforms <1us granularity on MACOS,
+    CLOCK_MONOTONIC_RAW
+        Provides a monotonic clock without time drift adjustments by NTP, giving higher stability and resolution Epoch ns since OS or process start.
+        Works on all platforms except QNX, <1us granularity on MACOS.
+
+    CLOCK_MONOTONIC
+        Provides a monotonic clock that might be adjusted in frequency by NTP to compensate drifts (on Linux and MACOS).
+        On QNX, this clock cannot be adjusted and is ensured to increase at a constant rate.
+        Epoch ns since OS or process start.
+        Available on all platforms.
+        <1us granularity on MACOS.
 */
 
 #ifdef OPTION_CLOCK_EPOCH_ARB
-#define CLOCK_TYPE CLOCK_MONOTONIC_RAW // Works on all OS
+#ifdef _QNX
+#define CLOCK_TYPE CLOCK_MONOTONIC // Same behaviour as CLOCK_MONOTONIC_RAW on the other os
+#else
+#define CLOCK_TYPE CLOCK_MONOTONIC_RAW
+#endif
 #else
 #ifdef _WIN
 #define CLOCK_TYPE CLOCK_TAI
@@ -852,7 +861,7 @@ uint64_t clockGet(void) {
 #endif
 }
 
-#elif defined(_WIN) // Windows
+#else // Windows
 
 // Performance counter to clock conversion
 static uint64_t sFactor = 0; // ticks per us
@@ -1023,7 +1032,7 @@ uint64_t clockGetNs(void) { return clockGet(); }
 // File system utilities
 /**************************************************************************/
 
-#if defined(_WIN32)
+#ifdef _WIN
 #include <io.h> // for _access
 #else
 #include <unistd.h> // for access
@@ -1036,7 +1045,7 @@ bool fexists(const char *filename) {
         return false;
     }
 
-#ifdef _WIN32
+#ifdef _WIN
     // Windows: use _access from io.h
     return (_access(filename, 0) == 0);
 #else

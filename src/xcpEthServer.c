@@ -28,19 +28,21 @@
 #include "xcpQueue.h"
 #include "xcptl_cfg.h" // for XCPTL_xxx
 
-#if !defined(_WIN) && !defined(_LINUX) && !defined(_MACOS)
-#error "Please define platform _WIN, _MACOS or _LINUX"
+#if !defined(_WIN) && !defined(_LINUX) && !defined(_MACOS) && !defined(_QNX)
+#error "Please define platform _WIN, _MACOS or _LINUX or _QNX"
 #endif
+
 #if defined(_WIN) // Windows
 static DWORD WINAPI XcpServerReceiveThread(LPVOID lpParameter);
-#elif defined(_LINUX) // Linux
+#else
 static void *XcpServerReceiveThread(void *par);
 #endif
 #if defined(_WIN) // Windows
 static DWORD WINAPI XcpServerTransmitThread(LPVOID lpParameter);
-#elif defined(_LINUX) // Linux
+#else
 static void *XcpServerTransmitThread(void *par);
 #endif
+
 #if !defined(OPTION_ENABLE_TCP) && !defined(OPTION_ENABLE_UDP)
 #error "Please define OPTION_ENABLE_TCP or OPTION_ENABLE_UDP"
 #endif
@@ -157,7 +159,7 @@ bool XcpEthServerShutdown(void) {
 // XCP server unicast command receive thread
 #if defined(_WIN) // Windows
 DWORD WINAPI XcpServerReceiveThread(LPVOID par)
-#elif defined(_LINUX) // Linux
+#else
 extern void *XcpServerReceiveThread(void *par)
 #endif
 {
@@ -183,7 +185,7 @@ extern void *XcpServerReceiveThread(void *par)
 // XCP server transmit thread
 #if defined(_WIN) // Windows
 DWORD WINAPI XcpServerTransmitThread(LPVOID par)
-#elif defined(_LINUX) // Linux
+#else
 extern void *XcpServerTransmitThread(void *par)
 #endif
 {

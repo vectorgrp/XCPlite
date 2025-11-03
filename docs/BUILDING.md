@@ -25,6 +25,25 @@ cmake -DCMAKE_BUILD_TYPE=Debug -S . -B build
 make --directory ./build hello_xcp
 ```
 
+### QNX 
+
+Building QNX targets requires the QNX Software Development Platform (SDP) to be installed on the host.
+The installation directory of the QNX SDP to be used for compilation must be given as input argument to the build script.
+Note that all CPP targets are currently excluded from the build if QNX SDP 7.0 or lower is used, due to missing support of std::optional.
+Currently, two target architectures are supported: x86_64 and aarch64le
+
+Build all suitable targets with QNX 7.1.0 for x86_64 platforms on a Windows host:
+
+```bash
+build_qnx.bat Debug "C:\QNX\qnx710" x86_64
+```
+
+Build all suitable targets with QNX 8.0.0 for AArch64 platforms on a Linux host:
+
+```bash
+ ./build.sh Debug qcc all -q=/home/qnx800 -a=aarch64le
+```
+
 ### Windows
 
 It is possible to build for Windows with the Microsoft Visual Studio compiler, but there are some limitations and performance penalties under Windows.  
