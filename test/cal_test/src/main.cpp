@@ -308,8 +308,10 @@ int main(int argc, char *argv[]) {
     printf("  Total writes: %llu\n", (unsigned long long)write_count);
     printf("  Total reads: %llu\n", (unsigned long long)total_read_count);
     printf("  Total changes observed: %llu\n", (unsigned long long)total_change_count);
+#ifdef OPTION_ENABLE_DBG_METRICS
     printf("  Total writes pending: %u\n", gXcpWritePendingCount);
     printf("  Total publish all count: %u (expected %llu)\n", gXcpCalSegPublishAllCount, (unsigned long long)(write_count / 256) + gXcpWritePendingCount);
+#endif
     printf("  Total errors: %llu\n", (unsigned long long)error_count.load());
     printf("  Average lock time: %.2f us\n", total_read_count > 0 ? (double)total_read_time_ns / total_read_count / 1000.0 : 0.0);
     printf("  Maximum lock time: %.2f us\n", (double)total_max_read_time_ns / 1000.0);

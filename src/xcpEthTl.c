@@ -119,6 +119,10 @@ static int XcpEthTlSend(const uint8_t *data, uint16_t size, const uint8_t *addr,
     assert(data != NULL);
     DBG_PRINTF5("XcpEthTlSend: msg_len = %u\n", size);
 
+#ifdef OPTION_ENABLE_DBG_METRICS
+    gXcpTxPacketCount++;
+#endif
+
 #ifdef XCPTL_ENABLE_TCP
     if (isTCP()) {
         r = socketSend(gXcpTl.Sock, data, size);
@@ -287,6 +291,10 @@ bool XcpEthTlHandleCommands(uint32_t timeout_ms) {
     // Behaviour depends on socket mode (blocking or non blocking)
     (void)timeout_ms;
     assert((!gXcpTl.blockingRx && timeout_ms == 0) || (gXcpTl.blockingRx && timeout_ms == XCPTL_TIMEOUT_INFINITE));
+
+#ifdef OPTION_ENABLE_DBG_METRICS
+    gXcpRxPacketCount++;
+#endif
 
 #ifdef XCPTL_ENABLE_TCP
     if (isTCP()) {

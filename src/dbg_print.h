@@ -22,6 +22,9 @@
 
 extern uint32_t gXcpWritePendingCount;
 extern uint32_t gXcpCalSegPublishAllCount;
+extern uint32_t gXcpDaqEventCount;
+extern uint32_t gXcpTxPacketCount;
+extern uint32_t gXcpRxPacketCount;
 
 #endif
 

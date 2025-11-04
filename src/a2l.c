@@ -553,29 +553,22 @@ static void A2lCreate_IF_DATA_DAQ(void) {
     fprintf(gA2lFile, gA2lIfDataBeginDAQ, eventCount, XCP_TIMESTAMP_UNIT_S);
 
     // Eventlist
-
 #if defined(XCP_ENABLE_DAQ_EVENT_LIST)
     for (uint32_t id = 0; id < eventCount; id++) {
         tXcpEvent *event = &eventList->event[id];
-        uint16_t index = event->index;
-        const char *name = event->name;
 
-        // Convert cycle time to ASAM coding time cycle and time unit
+        // Convert cycle time to ASAM XCP IF_DATA coding time cycle and time unit
         // RESOLUTION OF TIMESTAMP "UNIT_1NS" = 0, "UNIT_10NS" = 1, ...
-        uint8_t timeUnit = 0; // timeCycle unit, 1ns=0, 10ns=1, 100ns=2, 1us=3, ..., 1ms=6, ...
-        uint8_t timeCycle;    // cycle time in units, 0 = sporadic or unknown
-        uint32_t c = event->cycleTimeNs;
-        while (c >= 256) {
-            c /= 10;
+        uint8_t timeUnit = 0;                    // timeCycle unit, 1ns=0, 10ns=1, 100ns=2, 1us=3, ..., 1ms=6, ...
+        uint32_t timeCycle = event->cycleTimeNs; // cycle time in units, 0 = sporadic or unknown
+        while (timeCycle >= 256) {
+            timeCycle /= 10;
             timeUnit++;
         }
-        timeCycle = (uint8_t)c;
 
-        if (index == 0) {
-            fprintf(gA2lFile, "/begin EVENT \"%s\" \"%s\" 0x%X DAQ 0xFF %u %u %u CONSISTENCY EVENT", name, name, id, timeCycle, timeUnit, event->priority);
-        } else {
-            fprintf(gA2lFile, "/begin EVENT \"%s_%u\" \"%s_%u\" 0x%X DAQ 0xFF %u %u %u CONSISTENCY EVENT", name, index, name, index, id, timeCycle, timeUnit, event->priority);
-        }
+        // @@@@ TODO: How to define the short A2L event names correctly? Short event names must be unique and <= 8 characters
+        fprintf(gA2lFile, "/begin EVENT \"%s\" \"%s\" 0x%X DAQ 0xFF %u %u %u CONSISTENCY EVENT", XcpGetEventName(id), XcpGetEventName(id), id, timeCycle, timeUnit,
+                event->priority);
 
         fprintf(gA2lFile, " /end EVENT\n");
     }
@@ -748,16 +741,7 @@ void A2lSetSegmentAddrMode__s(const char *calseg_name, const uint8_t *calseg_ins
 
 static void beginEventGroup(tXcpEventId event_id) {
     if (gA2lAutoGroups) {
-        const char *event_name = XcpGetEventName(event_id);
-        if (XcpGetEventIndex(event_id) == 0) {
-            // Use the event name as group name if the event index is 0
-            A2lBeginGroup(event_name, "Measurement event group", false);
-        } else {
-            // Use the event name with index as group name if the event index is not 0
-            char group_name[64];
-            SNPRINTF(group_name, sizeof(group_name), "%s_%u", event_name, XcpGetEventIndex(event_id));
-            A2lBeginGroup(group_name, "Measurement event group", false);
-        }
+        A2lBeginGroup(XcpGetEventName(event_id), "Measurement event group", false);
     }
 }
 
@@ -1262,7 +1246,7 @@ void A2lBeginGroup(const char *name, const char *comment, bool is_parameter_grou
             A2lEndGroup(); // Close previous group if any
             gA2lAutoGroupName = name;
             gA2lAutoGroupIsParameter = is_parameter_group;
-            fprintf(gA2lGroupsFile, "/begin GROUP %s \"%s\"", name, comment);
+            fprintf(gA2lGroupsFile, "/begin GROUP %s \"%s\" %s", name, comment, is_parameter_group ? "ROOT" : "");
             fprintf(gA2lGroupsFile, " /begin REF_%s", gA2lAutoGroupIsParameter ? "CHARACTERISTIC" : "MEASUREMENT");
         }
     }
@@ -1433,21 +1417,20 @@ bool A2lFinalize(void) {
             fprintf(gA2lConversionsFile, "/begin COMPU_METHOD conv.events \"\" TAB_VERB \"%%.0 \" \"\" COMPU_TAB_REF conv.events.table /end COMPU_METHOD\n");
             fprintf(gA2lConversionsFile, "/begin COMPU_VTAB conv.events.table \"\" TAB_VERB %u\n", eventList->count);
             for (uint32_t id = 0; id < eventList->count; id++) {
-                tXcpEvent *event = &eventList->event[id];
-                fprintf(gA2lConversionsFile, " %u \"%s\"", id, event->name);
+                fprintf(gA2lConversionsFile, " %u \"%s\"", id, XcpGetEventName(id));
             }
             fprintf(gA2lConversionsFile, "\n/end COMPU_VTAB\n");
 
             // Create a sub group for all events
             if (gA2lAutoGroups) {
                 fprintf(gA2lGroupsFile, "/begin GROUP Events \"Events\" ROOT /begin SUB_GROUP");
-                for (uint32_t id = 0; id < eventList->count; id++) {
-                    tXcpEvent *event = &eventList->event[id];
-                    uint16_t index = event->index;
-                    const char *name = event->name;
-                    if (index <= 1) {
-                        fprintf(gA2lGroupsFile, " %s", name);
-                    }
+#ifdef OPTION_DAQ_ASYNC_EVENT
+                uint32_t id = 1; // Skip event 0 which is the built-in asynchronous events
+#else
+                uint32_t id = 0;
+#endif
+                for (; id < eventList->count; id++) {
+                    fprintf(gA2lGroupsFile, " %s", XcpGetEventName(id));
                 }
                 fprintf(gA2lGroupsFile, " /end SUB_GROUP /end GROUP\n");
             }
@@ -1532,7 +1515,11 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
 
     // Build A2L filename from project name and EPK
     // If A2l file is generated only once for a new build, the EPK is appended to the filename
-    SNPRINTF(gA2lFilename, sizeof(gA2lFilename), "%s_%s.a2l", XcpGetProjectName(), gA2lWriteAlways ? "" : XcpGetEpk());
+    if (gA2lWriteAlways) {
+        SNPRINTF(gA2lFilename, sizeof(gA2lFilename), "%s.a2l", XcpGetProjectName());
+    } else {
+        SNPRINTF(gA2lFilename, sizeof(gA2lFilename), "%s_%s.a2l", XcpGetProjectName(), gA2lWriteAlways ? "" : XcpGetEpk());
+    }
 
     // Check if the A2L file already exists and the persistence BIN file has been loaded and checked
     // If yes, skip generation if not write always

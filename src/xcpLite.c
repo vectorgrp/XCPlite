@@ -238,6 +238,9 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
 #ifdef OPTION_ENABLE_DBG_METRICS
 uint32_t gXcpWritePendingCount = 0;
 uint32_t gXcpCalSegPublishAllCount = 0;
+uint32_t gXcpDaqEventCount = 0;
+uint32_t gXcpTxPacketCount;
+uint32_t gXcpRxPacketCount;
 #endif
 
 /****************************************************************************/
@@ -1297,10 +1300,18 @@ tXcpEvent *XcpGetEvent(tXcpEventId event) {
     return &gXcp.EventList.event[event];
 }
 
-// Get the event name
+// Get the full event name, including instance index postfix if applicable
+// Result has lifetime until next call of XcpGetEventName()
 const char *XcpGetEventName(tXcpEventId event) {
     if (!isActivated() || event >= gXcp.EventList.count)
         return NULL;
+    tXcpEvent *e = &gXcp.EventList.event[event];
+    if (e->index > 0) {
+        // Event instance, append instance index to the name
+        static char nameBuf[XCP_MAX_EVENT_NAME + 8];
+        SNPRINTF(nameBuf, sizeof(nameBuf), "%s_%u", e->name, e->index);
+        return nameBuf;
+    }
     return (const char *)&gXcp.EventList.event[event].name;
 }
 
@@ -1979,6 +1990,10 @@ static void XcpTriggerDaqEvent(tQueueHandle queueHandle, tXcpEventId event_id, c
     // Get clock, if not given as parameter
     if (clock == 0)
         clock = ApplXcpGetClock64();
+
+#ifdef OPTION_ENABLE_DBG_METRICS
+    gXcpDaqEventCount++;
+#endif
 
 #ifndef XCP_MAX_EVENT_COUNT // Basic mode for arbitrary event ids
 
@@ -2693,26 +2708,28 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             check_len(CRO_GET_DAQ_EVENT_INFO_LEN);
             uint16_t eventNumber = CRO_GET_DAQ_EVENT_INFO_EVENT;
             tXcpEvent *event = XcpGetEvent(eventNumber);
-            if (event == NULL)
+            if (event == NULL) {
                 error(CRC_OUT_OF_RANGE);
-            // Convert cycle time to ASAM coding time cycle and time unit
+            }
+            const char *eventName = XcpGetEventName(eventNumber);
+            assert(eventName != NULL);
+
+            // Convert cycle time to ASAM XCP IF_DATA coding time cycle and time unit
             // RESOLUTION OF TIMESTAMP "UNIT_1NS" = 0, "UNIT_10NS" = 1, ...
-            uint8_t timeUnit = 0; // timeCycle unit, 1ns=0, 10ns=1, 100ns=2, 1us=3, ..., 1ms=6, ...
-            uint8_t timeCycle;    // cycle time in units, 0 = sporadic or unknown
-            uint32_t c = event->cycleTimeNs;
-            while (c >= 256) {
-                c /= 10;
+            uint8_t timeUnit = 0;                    // timeCycle unit, 1ns=0, 10ns=1, 100ns=2, 1us=3, ..., 1ms=6, ...
+            uint32_t timeCycle = event->cycleTimeNs; // cycle time in units, 0 = sporadic or unknown
+            while (timeCycle >= 256) {
+                timeCycle /= 10;
                 timeUnit++;
             }
-            timeCycle = (uint8_t)c;
             CRM_LEN = CRM_GET_DAQ_EVENT_INFO_LEN;
             CRM_GET_DAQ_EVENT_INFO_PROPERTIES = DAQ_EVENT_PROPERTIES_DAQ | DAQ_EVENT_PROPERTIES_EVENT_CONSISTENCY;
             CRM_GET_DAQ_EVENT_INFO_MAX_DAQ_LIST = 0xFF;
-            CRM_GET_DAQ_EVENT_INFO_NAME_LENGTH = (uint8_t)strlen(event->name);
-            CRM_GET_DAQ_EVENT_INFO_TIME_CYCLE = timeCycle;
+            CRM_GET_DAQ_EVENT_INFO_NAME_LENGTH = (uint8_t)strlen(eventName);
+            CRM_GET_DAQ_EVENT_INFO_TIME_CYCLE = (uint8_t)timeCycle;
             CRM_GET_DAQ_EVENT_INFO_TIME_UNIT = timeUnit;
             CRM_GET_DAQ_EVENT_INFO_PRIORITY = event->priority;
-            gXcp.MtaPtr = (uint8_t *)event->name;
+            gXcp.MtaPtr = (uint8_t *)eventName;
             gXcp.MtaExt = XCP_ADDR_EXT_PTR;
         } break;
 #endif // XCP_ENABLE_DAQ_EVENT_INFO

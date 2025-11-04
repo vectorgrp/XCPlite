@@ -1,12 +1,16 @@
 ﻿// multi_thread_demo xcplib example
 
-#include <assert.h>  // for assert
-#include <math.h>    // for M_PI, sin
-#include <signal.h>  // for signal handling
-#include <stdbool.h> // for bool
-#include <stdint.h>  // for uintxx_t
-#include <stdio.h>   // for printf
-#include <string.h>  // for sprintf
+#include <assert.h>    // for assert
+#include <math.h>      // for M_PI, sin
+#include <signal.h>    // for signal handling
+#include <stdatomic.h> // for atomic_
+#include <stdbool.h>   // for bool
+#include <stdint.h>    // for uintxx_t
+#include <stdio.h>     // for printf
+#include <string.h>    // for sprintf
+
+#include "dbg_print.h"
+#include "main_cfg.h"
 
 #include "a2l.h"    // for xcplib A2l generation
 #include "xcplib.h" // for xcplib application programming interface
@@ -37,9 +41,11 @@ typedef pthread_t THREAD;
 
 #define XCP_MAX_EVENT_NAME 15
 #define THREAD_COUNT 8              // Number of threads to create
-#define THREAD_DELAY_US 10000       // Delay in microseconds for the thread loops
+#define THREAD_DELAY_US 1000        // Delay in microseconds for the thread loops
 #define MAX_THREAD_NAME_LENGTH 32   // Maximum length of thread name
 #define EXPERIMENTAL_THREAD_CONTEXT // Enable demonstration of tracking thread context and span of the clip and filter function
+#define FILTER_SLEEP_US 100         // Simulated work in filter function
+#define CLIP_SLEEP_US 50            // Simulated work in clip function
 
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
@@ -98,8 +104,9 @@ static inline const char *XcpGetContextName(void) { return gXcpContext.name; }
 #define BeginSpan(name)                                                                                                                                                            \
     uint64_t span_t1 = ApplXcpGetClock64();                                                                                                                                        \
     uint64_t span_dt;                                                                                                                                                              \
-    static tXcpEventId span_id = XCP_UNDEFINED_EVENT_ID;                                                                                                                           \
-    if (span_id == XCP_UNDEFINED_EVENT_ID) {                                                                                                                                       \
+    static atomic_uint_fast16_t span_id = XCP_UNDEFINED_EVENT_ID;                                                                                                                  \
+    uint16_t old_span_id = XCP_UNDEFINED_EVENT_ID;                                                                                                                                 \
+    if (atomic_compare_exchange_strong_explicit(&span_id, &old_span_id, 1, memory_order_relaxed, memory_order_relaxed)) {                                                          \
         A2lLock();                                                                                                                                                                 \
         span_id = XcpCreateEvent(name, 0, 0);                                                                                                                                      \
         A2lSetStackAddrMode_i(span_id);                                                                                                                                            \
@@ -176,8 +183,10 @@ double clip(double input) {
     // Instrumentation: Begin span for clip function
     BeginSpan("clip");
 
-    // Simulate some more expensive work
-    sleepUs(50);
+// Simulate some more expensive work
+#ifdef CLIP_SLEEP_US
+    sleepUs(CLIP_SLEEP_US);
+#endif
 
     const params_t *params = (params_t *)XcpLockCalSeg(calseg);
 
@@ -215,8 +224,10 @@ double filter(double input) {
         A2lUnlock();
     }
 
-    // Simulate some more expensive work
-    sleepUs(100);
+// Simulate some more expensive work
+#ifdef FILTER_SLEEP_US
+    sleepUs(FILTER_SLEEP_US);
+#endif
 
     const params_t *params = (params_t *)XcpLockCalSeg(calseg);
 
@@ -396,6 +407,12 @@ int main(void) {
         if (t[i])
             join_thread(t[i]);
     }
+
+#ifdef OPTION_ENABLE_DBG_METRICS
+    printf("  Total DAQ events: %u\n", gXcpDaqEventCount);
+    printf("  Total TX packets: %u\n", gXcpTxPacketCount);
+    printf("  Total RX packets: %u\n", gXcpRxPacketCount);
+#endif
 
     // Force disconnect the XCP client
     XcpDisconnect();
