@@ -234,6 +234,11 @@ if(BUILD_TEST)
     add_executable(cal_test test/cal_test/src/main.cpp)
     target_include_directories(cal_test PUBLIC "${PROJECT_ROOT}/inc")
     target_link_libraries(cal_test PRIVATE xcplib)
+
+    # Data acquisition multi-threading test (C version)
+    add_executable(daq_test test/daq_test/src/main.c)
+    target_include_directories(daq_test PUBLIC "${PROJECT_ROOT}/inc")
+    target_link_libraries(daq_test PRIVATE xcplib)
 endif()
 
 
@@ -262,6 +267,7 @@ else()
         set_target_properties(type_detection_test_cpp PROPERTIES SUFFIX ".out")
         set_target_properties(a2l_test PROPERTIES SUFFIX ".out")
         set_target_properties(cal_test PROPERTIES SUFFIX ".out")
+        set_target_properties(daq_test PROPERTIES SUFFIX ".out")
     endif()
 endif()
 

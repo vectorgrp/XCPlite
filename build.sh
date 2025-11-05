@@ -19,7 +19,7 @@ show_usage() {
     echo "Build Targets:"
     echo "  lib:        Build only the xcplib library"
     echo "  examples:   Build library + examples (excluding bpf_demo) [DEFAULT]"
-    echo "  tests:      Build library + test targets (a2l_test, cal_test, type_detection tests)"
+    echo "  tests:      Build library + test targets (a2l_test, cal_test, daq_test, type_detection tests)"
     echo "  bpf:        Build library + examples including bpf_demo (Linux only)"
     echo "  all:        Build everything (library + examples + tests + bpf_demo)"
     echo ""
@@ -191,6 +191,7 @@ EXAMPLE_TARGETS=(
 TEST_TARGETS=(
     "a2l_test"
     "cal_test"
+    "daq_test"
     "type_detection_test_c"
     "type_detection_test_cpp"
 )
