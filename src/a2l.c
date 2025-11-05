@@ -746,7 +746,7 @@ static void beginEventGroup(tXcpEventId event_id) {
 }
 
 // Set relative address mode with event name or event id
-// Will result in using ADDR_EXT_DYN for user defined base, ADDR_EXT_REL is used for stack frame relative addressing
+// Will result in using (ADDR_EXT_DYN+i) with user defined base addresses
 void A2lSetRelativeAddrMode__s(const char *event_name, uint8_t i, const uint8_t *base_addr) {
     if (gA2lFile != NULL) {
         tXcpEventId event_id = XcpFindEvent(event_name, NULL);
@@ -767,7 +767,7 @@ void A2lSetRelativeAddrMode__i(tXcpEventId event_id, uint8_t i, const uint8_t *b
 }
 
 // Set stack frame relative address mode with event name or event id
-// Will result in using ADDR_EXT_REL
+// Will result in using ADDR_EXT_DYN with stack frame pointer as base address
 void A2lSetStackAddrMode__s(const char *event_name, const uint8_t *stack_frame) {
     if (gA2lFile != NULL) {
         tXcpEventId event_id = XcpFindEvent(event_name, NULL);

@@ -333,7 +333,7 @@ void *task(void *p)
         channel3 = clip(channel3);   // Sawtooth
 
         // Instrumentation: Measurement event
-        DaqEvent_i(task_event_id);
+        DaqTriggerEvent_i(task_event_id);
 
         // Sleep for the specified delay parameter in microseconds, defines the approximate sampling rate
         sleepUs(delay_us);

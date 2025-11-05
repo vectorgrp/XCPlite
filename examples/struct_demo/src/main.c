@@ -155,8 +155,8 @@ int main(void) {
         heap_struct2->word_field++;
 
         // Trigger the measurement events
-        DaqEvent(event);
-        DaqEvent2(event_heap, heap_struct1, heap_struct2);
+        DaqTriggerEvent(event);
+        DaqTriggerEvent2(event_heap, heap_struct1, heap_struct2);
 
         sleepUs(1000);
     } // for(;;)

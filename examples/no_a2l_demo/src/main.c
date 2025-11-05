@@ -186,8 +186,7 @@ void foo(void) {
     counter = global_counter;
     static_counter = global_counter;
 
-    DaqCreateEvent(foo);
-    DaqEvent(foo);
+    DaqCreateAndTriggerEvent(foo);
 }
 
 //-----------------------------------------------------------------------------------------------------
@@ -278,7 +277,7 @@ int main(void) {
         static_counter = global_counter;
 
         // XCP: Trigger the measurement event "mainloop"
-        DaqEvent(mainloop);
+        DaqTriggerEvent(mainloop);
 
         // Sleep for the specified delay parameter in microseconds, don't sleep with the XCP lock held to give the XCP client a chance to update params
         sleepUs(delay_us);

@@ -248,20 +248,7 @@ void XcpEventExt_At(tXcpEventId event, const uint8_t **bases, uint64_t clock);
 // Linux, MACOS gnu and clang compiler
 #if defined(__GNUC__) || defined(__clang__)
 
-// Option 1: Traditional frame pointer, sufficient for runtime A2L generation and CFA aware A2L updaters
 #define xcp_get_frame_addr() (const uint8_t *)__builtin_frame_address(0)
-
-// Option 2: Canonical Frame Address (CFA) compatible, when ELF/DWARF is used to update the A2L file
-// #ifdef __x86_64__
-// #define xcp_get_frame_addr() ((const uint8_t *)__builtin_frame_address(0) + 16)
-// #elif defined(__i386__)
-// #define xcp_get_frame_addr() ((const uint8_t *)__builtin_frame_address(0) + 8)
-// #elif defined(__aarch64__)
-// // On ARM64, CFA = frame pointer (x29), DWARF fbreg offsets are relative to frame pointer directly
-// #define xcp_get_frame_addr() (const uint8_t *)__builtin_frame_address(0)
-// #else
-// #define xcp_get_frame_addr() (const uint8_t *)__builtin_frame_address(0)
-// #endif
 
 // MSVC compiler
 #elif defined(_MSC_VER)
@@ -363,7 +350,7 @@ static inline void *xcp_get_tls_base_addr(void) {
 
 /// Trigger the XCP event 'name' for stack relative or absolute addressing
 /// Cache the event name lookup
-#define DaqEvent(name)                                                                                                                                                             \
+#define DaqTriggerEvent(name)                                                                                                                                                      \
     if (XcpIsActivated()) {                                                                                                                                                        \
         static THREAD_LOCAL tXcpEventId trg__AAS__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                 \
         if (trg__AAS__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                          \
@@ -373,7 +360,7 @@ static inline void *xcp_get_tls_base_addr(void) {
         const uint8_t *__base[4] = {xcp_get_base_addr(), xcp_get_base_addr(), xcp_get_frame_addr(), NULL};                                                                         \
         XcpEventExt_(trg__AAS__##name, __base);                                                                                                                                    \
     }
-#define DaqEventAt(name, clock)                                                                                                                                                    \
+#define DaqTriggerEventAt(name, clock)                                                                                                                                             \
     if (XcpIsActivated()) {                                                                                                                                                        \
         static THREAD_LOCAL tXcpEventId trg__AAS__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                 \
         if (trg__AAS__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                          \
@@ -385,14 +372,14 @@ static inline void *xcp_get_tls_base_addr(void) {
     }
 
 /// Trigger the XCP event by handle 'event_id' for stack relative or absolute addressing
-#define DaqEvent_i(event_id)                                                                                                                                                       \
+#define DaqTriggerEvent_i(event_id)                                                                                                                                                \
     if (XcpIsActivated()) {                                                                                                                                                        \
         static THREAD_LOCAL tXcpEventId trg__AAS__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                 \
         const uint8_t *__base[4] = {xcp_get_base_addr(), xcp_get_base_addr(), xcp_get_frame_addr(), NULL};                                                                         \
         trg__AAS__##name = event_id;                                                                                                                                               \
         XcpEventExt_(event_id, __base);                                                                                                                                            \
     }
-#define DaqEventAt_i(event_id, clock)                                                                                                                                              \
+#define DaqTriggerEventAt_i(event_id, clock)                                                                                                                                       \
     if (XcpIsActivated()) {                                                                                                                                                        \
         static THREAD_LOCAL tXcpEventId trg__AAS__##name = event_id;                                                                                                               \
         const uint8_t *__base[4] = {xcp_get_base_addr(), xcp_get_base_addr(), xcp_get_frame_addr(), NULL};                                                                         \
@@ -402,7 +389,7 @@ static inline void *xcp_get_tls_base_addr(void) {
 
 /// Trigger the XCP event 'name' for absolute, stack and relative addressing mode with given individual base address (from A2lSetRelativeAddrMode(base_addr))
 /// Cache the event lookup
-#define DaqEvent1(name, base_addr)                                                                                                                                                 \
+#define DaqTriggerEvent1(name, base_addr)                                                                                                                                          \
     if (XcpIsActivated()) {                                                                                                                                                        \
         static THREAD_LOCAL tXcpEventId trg__AASD__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                \
         if (trg__AASD__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                         \
@@ -412,7 +399,7 @@ static inline void *xcp_get_tls_base_addr(void) {
         const uint8_t *__base[4] = {xcp_get_base_addr(), xcp_get_base_addr(), xcp_get_frame_addr(), (const uint8_t *)base_addr};                                                   \
         XcpEventExt_(trg__AASD__##name, __base);                                                                                                                                   \
     }
-#define DaqEvent2(name, base_addr1, base_addr2)                                                                                                                                    \
+#define DaqTriggerEvent2(name, base_addr1, base_addr2)                                                                                                                             \
     if (XcpIsActivated()) {                                                                                                                                                        \
         static THREAD_LOCAL tXcpEventId trg__AASDD__##name = XCP_UNDEFINED_EVENT_ID;                                                                                               \
         if (trg__AASDD__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                        \
@@ -426,7 +413,7 @@ static inline void *xcp_get_tls_base_addr(void) {
 /// Trigger the XCP event 'name' for absolute, stack and relative addressing mode with given individual base address (from A2lSetRelativeAddrMode(base_addr))
 /// Name is a character string, but must not be a string literal
 /// Cache the event lookup
-#define DaqEvent1_s(name, base_addr)                                                                                                                                               \
+#define DaqTriggerEvent1_s(name, base_addr)                                                                                                                                        \
     if (XcpIsActivated()) {                                                                                                                                                        \
         static THREAD_LOCAL tXcpEventId trg__AASD__ = XCP_UNDEFINED_EVENT_ID;                                                                                                      \
         if (trg__AASD__ == XCP_UNDEFINED_EVENT_ID) {                                                                                                                               \
@@ -439,7 +426,7 @@ static inline void *xcp_get_tls_base_addr(void) {
 
 /// Trigger the XCP event by handle 'event_id' for absolute, stack and relative addressing mode with given individual base address (from A2lSetRelativeAddrMode(base_addr))
 /// Cache the event lookup
-#define DaqEvent1_i(event_id, base_addr)                                                                                                                                           \
+#define DaqTriggerEvent1_i(event_id, base_addr)                                                                                                                                    \
     if (XcpIsActivated()) {                                                                                                                                                        \
         static THREAD_LOCAL tXcpEventId trg__AASD__##name = event_id;                                                                                                              \
         const uint8_t *__base[4] = {xcp_get_base_addr(), xcp_get_base_addr(), xcp_get_frame_addr(), (const uint8_t *)base_addr};                                                   \
@@ -447,10 +434,30 @@ static inline void *xcp_get_tls_base_addr(void) {
     }
 
 // Compatibility macros with older naming
-#define DaqEventRelative DaqEvent1
-#define DaqEventExt DaqEvent1
-#define DaqEventRelative_s DaqEvent1_s
-#define DaqEventRelative_i DaqEvent1_i
+#define DaqEvent DaqTriggerEvent
+#define DaqEventRelative DaqTriggerEvent1
+#define DaqEventExt DaqTriggerEvent1
+#define DaqEventRelative_s DaqTriggerEvent1_s
+#define DaqEventRelative_i DaqTriggerEvent1_i
+
+// New naming which makes it clear, if the macro creates or only triggers an event
+#define DaqTriggerEventRelative_s DaqTriggerEvent1_s
+#define DaqTriggerEventRelative_i DaqTriggerEvent1_i
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Combined create and trigger DAQ event macros
+
+#define DaqCreateAndTriggerEvent(name)                                                                                                                                             \
+    if (XcpIsActivated()) {                                                                                                                                                        \
+        static THREAD_LOCAL tXcpEventId evt__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                      \
+        static THREAD_LOCAL tXcpEventId trg__AAS__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                 \
+        if (trg__AAS__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                          \
+            evt__##name = trg__AAS__##name;                                                                                                                                        \
+            trg__AAS__##name = XcpCreateEvent(#name, 0, 0);                                                                                                                        \
+        }                                                                                                                                                                          \
+        const uint8_t *__base[4] = {xcp_get_base_addr(), xcp_get_base_addr(), xcp_get_frame_addr(), NULL};                                                                         \
+        XcpEventExt_(trg__AAS__##name, __base);                                                                                                                                    \
+    }
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Build time A2L file generation helpers
@@ -488,7 +495,7 @@ static inline void *xcp_get_tls_base_addr(void) {
 // #define XCP_MEA volatile __attribute__((used))
 
 /// Capture a local variable for measurement with a specific event
-/// The variable must be in scope when the event is triggered with DaqEvent
+/// The variable must be in scope when the event is triggered with DaqTriggerEvent
 /// The build time A2L file generator will find the hidden static variable 'daq__##event##__##var' and create the measurement with approriate addressing mode and event association
 #define DaqCapture(event, var)                                                                                                                                                     \
     do {                                                                                                                                                                           \

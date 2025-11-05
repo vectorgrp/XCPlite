@@ -41,12 +41,11 @@ template <size_t N> class FloatingAverage {
 
 template <size_t N> FloatingAverage<N>::FloatingAverage() : samples_{}, current_index_(0), sample_count_(0), sum_(0.0) {
 
-    // Create a measurement event "avg_calc" for this member function
-    DaqCreateEvent(avg_calc);
+    // Create a measurement event "avg_calc"
+    XcpCreateDaqEvent(avg_calc);
 
     if (A2lOnce()) {
-        // Register member variables for XCP measurement
-        // Using 'this' as the base address for relative mode
+        // Register member variables for XCP measurement using 'this' as the base address for relative mode
         A2lSetRelativeAddrMode(avg_calc, this);
         A2lCreateMeasurement(current_index_, "Current position in ring buffer");
         A2lCreateMeasurement(sample_count_, "Number of samples collected");
@@ -61,16 +60,6 @@ template <size_t N> double FloatingAverage<N>::calculate(double input) {
 
     double average; // Current calculated average
 
-    if (A2lOnce()) {
-
-        // Register local variables and parameters of this function
-        // Note: This forces the compiler to spill function parameters from registers to stack to make them accessible by XCP, it causes minimal runtime impact, but does not create
-        // undefined behaviour
-        A2lSetStackAddrMode(avg_calc);
-        A2lCreateMeasurement(input, "Input value for floating average");
-        A2lCreateMeasurement(average, "Current calculated average");
-    }
-
     // Calculate the floating average over N samples
     if (sample_count_ >= N) {
         sum_ -= samples_[current_index_];
@@ -82,9 +71,10 @@ template <size_t N> double FloatingAverage<N>::calculate(double input) {
     average = sum_ / static_cast<double>(sample_count_);
     current_index_ = (current_index_ + 1) % N;
 
-    // Trigger XCP measurement event "avg_calc"
-    // Use relative addressing and provide this to make member variables accessible
-    DaqEventRelative(avg_calc, this);
+    XcpTriggerDaqEvent(avg_calc,                                                      // Event
+                       (input, "Input value for floating average", "V", 0.0, 1000.0), // input value in Volts from 0..1000
+                       (average, "Current calculated average")                        // calculated average
+    );
 
     return average;
 }
@@ -100,7 +90,7 @@ struct ParametersT {
 };
 
 // Default parameter values
-const ParametersT kParameters = {.min = -1.0, .max = 1.0};
+const ParametersT kParameters = {.min = 2.0, .max = 3.0};
 
 // A calibration segment wrapper for the parameters
 std::optional<xcplib::CalSeg<ParametersT>> gCalSeg;
@@ -148,7 +138,7 @@ int main() {
     }
 
     // Enable A2L generation
-    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         std::cerr << "Failed to initialize A2L generator" << std::endl;
         return 1;
     }
@@ -173,10 +163,15 @@ int main() {
     std::cout << "Demo class instance created. Starting main loop... (Press Ctrl+C to exit)" << std::endl;
     while (gRun) {
 
-        double current_average = average.calculate(random_number());
+        double voltage = random_number();
+        double average_voltage = average.calculate(voltage);
+
+        XcpDaqEvent(mainloop,                                                        //
+                    (voltage, "Input value for floating average", "V", 0.0, 1000.0), //
+                    (average_voltage, "Calculated voltage average")                  //
+        );
 
         sleepUs(1000);
-
         A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
     }
 

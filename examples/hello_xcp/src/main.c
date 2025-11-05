@@ -87,7 +87,7 @@ float calc_power(uint8_t t1, uint8_t t2) {
     XcpUnlockCalSeg(calseg);
 
     // XCP: Trigger the measurement event "calc_power"
-    DaqEvent(calc_power);
+    DaqTriggerEvent(calc_power);
 
     return heat_power;
 }
@@ -192,7 +192,7 @@ int main(void) {
         XcpUnlockCalSeg(calseg);
 
         // XCP: Trigger the measurement event "mainloop"
-        DaqEvent(mainloop);
+        DaqTriggerEvent(mainloop);
 
         // Sleep for the specified delay parameter in microseconds, don't sleep with the XCP lock held to give the XCP client a chance to update params
         sleepUs(delay_us);

@@ -245,7 +245,7 @@ function try_publish(segment) -> bool {
 - Used for XCP transmit and receive thread
 
 **THREAD_LOCAL:** C11:`_Thread_local`
-- Used for the DaqEvent macros and A2L generation for per thread variable instances
+- Used for the DaqTriggerEvent macros and A2L generation for per thread variable instances
 
 **MUTEX:** Linux: `pthread_mutex_lock`, `pthread_mutex_unlock`
 - Used for: 32 Bit Queue acquire, queue consumer incrementing the transport layer counter, thread safe creating event and calseg, thread safe lazy A2L registration

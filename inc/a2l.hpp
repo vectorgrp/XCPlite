@@ -13,8 +13,10 @@
 |
  ----------------------------------------------------------------------------*/
 
+// =============================================================================
 // Helper macros for C++ one time and thread safe A2L registrations
 // Mutex protection is needed in multi-threaded contexts, because the A2L registration macros are not thread-safe
+// =============================================================================
 
 /*
 Usage examples:

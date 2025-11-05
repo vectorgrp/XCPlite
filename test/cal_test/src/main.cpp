@@ -157,7 +157,7 @@ void worker_thread(uint32_t thread_id) {
         }
 
         // Trigger XCP measurement event
-        DaqEvent_i(event_id);
+        DaqTriggerEvent_i(event_id);
 
         // Record timing
         sleepUs(TEST_TASK_LOOP_DELAY_US);
@@ -316,9 +316,9 @@ int main(int argc, char *argv[]) {
     printf("  Average lock time: %.2f us\n", total_read_count > 0 ? (double)total_read_time_ns / total_read_count / 1000.0 : 0.0);
     printf("  Maximum lock time: %.2f us\n", (double)total_max_read_time_ns / 1000.0);
     if (total_errors > 0) {
-        printf("  ERROR: %llu errors occurred during the test!\n", (unsigned long long)total_errors);
+        printf("ERROR: %llu errors occurred during the test!\n", (unsigned long long)total_errors);
     } else {
-        printf("  SUCCESS: No errors occurred during the test\n");
+        printf("SUCCESS: No errors occurred during the test\n");
     }
 
     // Shutdown XCP
