@@ -64,9 +64,11 @@ static uint8_t gA2lOptionBindAddr[4] = {0, 0, 0, 0};
 
 static tXcpEventId gA2lFixedEvent = XCP_UNDEFINED_EVENT_ID;
 static tXcpEventId gA2lDefaultEvent = XCP_UNDEFINED_EVENT_ID;
-static uint8_t gAl2AddrExt = XCP_ADDR_EXT_ABS; // Address extension (addressing mode, default absolute)
-static const uint8_t *gA2lAddrBase = NULL;     // Base address for rel and dyn mode
-static tXcpCalSegIndex gA2lAddrIndex = 0;      // Segment index for seg mode
+static uint8_t gA2lAddrExt = XCP_ADDR_EXT_ABS;           // Address extension (addressing mode, default absolute)
+static uint8_t gA2lAutoAddrExt = XCP_UNDEFINED_ADDR_EXT; // Address extension calculated in automatic mode (valid if gA2lAddrExt=XCP_UNDEFINED_ADDR_EXT)
+static const uint8_t *gA2lFramePtr = NULL;               // Frame address for rel and dyn mode
+static const uint8_t *gA2lBasePtr = NULL;                // Base address for rel and dyn mode
+static tXcpCalSegIndex gA2lAddrIndex = 0;                // Segment index for seg mode
 
 static uint32_t gA2lMeasurements;
 static uint32_t gA2lParameters;
@@ -610,9 +612,11 @@ static void A2lCreate_ETH_IF_DATA(bool useTCP, const uint8_t *addr, uint16_t por
 
 static void A2lCreateMeasurement_IF_DATA(void) {
     if (gA2lFile != NULL) {
-        if (XcpAddrIsDyn(gAl2AddrExt)
+
+        uint8_t addr_ext = A2lGetAddrExt_();
+        if (XcpAddrIsDyn(addr_ext)
 #ifdef XCP_ENABLE_REL_ADDRESSING
-            || XcpAddrIsRel(gAl2AddrExt)
+            || XcpAddrIsRel(addr_ext)
 #endif
 
         ) {
@@ -621,7 +625,7 @@ static void A2lCreateMeasurement_IF_DATA(void) {
             } else {
                 assert(false); // Fixed event must be set before calling this function
             }
-        } else if (XcpAddrIsAbs(gAl2AddrExt)) {
+        } else if (XcpAddrIsAbs(addr_ext)) {
             if (gA2lFixedEvent != XCP_UNDEFINED_EVENT_ID) {
                 fprintf(gA2lFile, " /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x%X /end DAQ_EVENT /end IF_DATA", gA2lFixedEvent);
             } else if (gA2lDefaultEvent != XCP_UNDEFINED_EVENT_ID) {
@@ -640,8 +644,8 @@ static void A2lCreateMeasurement_IF_DATA(void) {
 #if defined(XCP_ENABLE_CALSEG_LIST)
 void A2lSetSegAddrMode(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance_addr) {
     gA2lAddrIndex = calseg_index;
-    gA2lAddrBase = calseg_instance_addr; // Address of the calibration segment instance which is used in the macros to create the components
-    gAl2AddrExt = XCP_ADDR_EXT_SEG;
+    gA2lBasePtr = calseg_instance_addr; // Address of the calibration segment instance which is used in the macros to create the components
+    gA2lAddrExt = XCP_ADDR_EXT_SEG;
 }
 #endif
 
@@ -650,37 +654,54 @@ void A2lSetSegAddrMode(tXcpCalSegIndex calseg_index, const uint8_t *calseg_insta
 void A2lSetAbsAddrMode(tXcpEventId default_event_id) {
     gA2lFixedEvent = XCP_UNDEFINED_EVENT_ID;
     gA2lDefaultEvent = default_event_id; // May be XCP_UNDEFINED_EVENT_ID
-    gAl2AddrExt = XCP_ADDR_EXT_ABS;
+    gA2lFramePtr = NULL;
+    gA2lBasePtr = NULL;
+    gA2lAddrExt = XCP_ADDR_EXT_ABS;
 }
 
 // Relative addressing mode
 // Used for accessing stack variables relative to the stack frame pointer
 #ifdef XCP_ENABLE_REL_ADDRESSING
-void A2lSetRelAddrMode(tXcpEventId event_id, const uint8_t *base) {
-    gA2lAddrBase = base;
+void A2lSetRelAddrMode(tXcpEventId event_id, const uint8_t *base_ptr) {
+    gA2lBasePtr = base_ptr;
+    gA2lFramePtr = NULL;
     gA2lFixedEvent = event_id;
     gA2lDefaultEvent = XCP_UNDEFINED_EVENT_ID;
-    gAl2AddrExt = XCP_ADDR_EXT_REL;
+    gA2lAddrExt = XCP_ADDR_EXT_REL;
 }
 #endif
 
 // Dynamic addressing mode
 // Relative address, used for heap and class members
 // Enables XCP polling access
-void A2lSetDynAddrMode(tXcpEventId event_id, uint8_t i, const uint8_t *base) {
-    gA2lAddrBase = base;
+void A2lSetDynAddrMode(tXcpEventId event_id, uint8_t i, const uint8_t *base_ptr) {
+    gA2lBasePtr = base_ptr;
+    gA2lFramePtr = NULL;
     gA2lFixedEvent = event_id;
     gA2lDefaultEvent = XCP_UNDEFINED_EVENT_ID;
-    gAl2AddrExt = XCP_ADDR_EXT_DYN + i;
-    assert(gAl2AddrExt <= XCP_ADDR_EXT_DYN_MAX);
+    gA2lAddrExt = XCP_ADDR_EXT_DYN + i;
+    assert(gA2lAddrExt <= XCP_ADDR_EXT_DYN_MAX);
+}
+
+// Automatic addressing mode
+// A2lGetAddr and A2lGetAddrExt will determine the addressing mode at runtime
+// Based on heuristic whether the variable address is within the stack frame or not
+void A2lSetAutoAddrMode(tXcpEventId event_id, const uint8_t *frame_ptr, const uint8_t *base_ptr) {
+    gA2lFramePtr = frame_ptr;
+    gA2lBasePtr = base_ptr;
+    gA2lFixedEvent = event_id;
+    gA2lDefaultEvent = XCP_UNDEFINED_EVENT_ID;
+    gA2lAddrExt = XCP_UNDEFINED_ADDR_EXT; // Auto
 }
 
 void A2lRstAddrMode(void) {
     gA2lFixedEvent = XCP_UNDEFINED_EVENT_ID;
     gA2lDefaultEvent = XCP_UNDEFINED_EVENT_ID;
-    gA2lAddrBase = NULL;
+    gA2lFramePtr = NULL;
+    gA2lBasePtr = NULL;
     gA2lAddrIndex = 0;
-    gAl2AddrExt = XCP_UNDEFINED_ADDR_EXT;
+    gA2lAddrExt = XCP_ADDR_EXT_ABS;
+    gA2lAutoAddrExt = XCP_UNDEFINED_ADDR_EXT;
 }
 
 //----------------------------------------------------------------------------------
@@ -745,6 +766,27 @@ static void beginEventGroup(tXcpEventId event_id) {
     }
 }
 
+// Set autodetect address mode with event name or event id
+// Will result in using (ADDR_EXT_DYN+0) with stackframe pointer or (ADDR_EXT_DYN+1) user defined base addresses selected when a variable is created
+void A2lSetAutoAddrMode__s(const char *event_name, const uint8_t *stack_frame, const uint8_t *base_addr) {
+    if (gA2lFile != NULL) {
+        tXcpEventId event_id = XcpFindEvent(event_name, NULL);
+        assert(event_id != XCP_UNDEFINED_EVENT_ID);
+        A2lSetAutoAddrMode(event_id, stack_frame, base_addr);
+        beginEventGroup(event_id);
+        fprintf(gA2lFile, "\n/* Auto addressing mode: event=%s (%u) */\n", event_name, event_id);
+    }
+}
+void A2lSetAutoAddrMode__i(tXcpEventId event_id, const uint8_t *stack_frame, const uint8_t *base_addr) {
+    if (gA2lFile != NULL) {
+        const char *event_name = XcpGetEventName(event_id);
+        assert(event_name != NULL);
+        A2lSetAutoAddrMode(event_id, stack_frame, base_addr);
+        beginEventGroup(event_id);
+        fprintf(gA2lFile, "\n/* Auto addressing mode: event=%s (%u) */\n", event_name, event_id);
+    }
+}
+
 // Set relative address mode with event name or event id
 // Will result in using (ADDR_EXT_DYN+i) with user defined base addresses
 void A2lSetRelativeAddrMode__s(const char *event_name, uint8_t i, const uint8_t *base_addr) {
@@ -753,7 +795,7 @@ void A2lSetRelativeAddrMode__s(const char *event_name, uint8_t i, const uint8_t 
         assert(event_id != XCP_UNDEFINED_EVENT_ID);
         A2lSetDynAddrMode(event_id, i, (uint8_t *)base_addr);
         beginEventGroup(event_id);
-        fprintf(gA2lFile, "\n/* Relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, gAl2AddrExt);
+        fprintf(gA2lFile, "\n/* Relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_);
     }
 }
 void A2lSetRelativeAddrMode__i(tXcpEventId event_id, uint8_t i, const uint8_t *base_addr) {
@@ -762,19 +804,19 @@ void A2lSetRelativeAddrMode__i(tXcpEventId event_id, uint8_t i, const uint8_t *b
         assert(event_name != NULL);
         A2lSetDynAddrMode(event_id, i, (uint8_t *)base_addr);
         beginEventGroup(event_id);
-        fprintf(gA2lFile, "\n/* Relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, gAl2AddrExt);
+        fprintf(gA2lFile, "\n/* Relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_);
     }
 }
 
 // Set stack frame relative address mode with event name or event id
-// Will result in using ADDR_EXT_DYN with stack frame pointer as base address
+// Will result in using (ADDR_EXT_DYN+0) with stack frame pointer as base address
 void A2lSetStackAddrMode__s(const char *event_name, const uint8_t *stack_frame) {
     if (gA2lFile != NULL) {
         tXcpEventId event_id = XcpFindEvent(event_name, NULL);
         assert(event_id != XCP_UNDEFINED_EVENT_ID);
         A2lSetDynAddrMode(event_id, 0, stack_frame);
         beginEventGroup(event_id);
-        fprintf(gA2lFile, "\n/* Stack frame relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, gAl2AddrExt);
+        fprintf(gA2lFile, "\n/* Stack frame relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_);
     }
 }
 void A2lSetStackAddrMode__i(tXcpEventId event_id, const uint8_t *stack_frame) {
@@ -783,7 +825,7 @@ void A2lSetStackAddrMode__i(tXcpEventId event_id, const uint8_t *stack_frame) {
         assert(event_name != NULL);
         A2lSetDynAddrMode(event_id, 0, stack_frame);
         beginEventGroup(event_id);
-        fprintf(gA2lFile, "\n/* Stack frame relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, gAl2AddrExt);
+        fprintf(gA2lFile, "\n/* Stack frame relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_);
     }
 }
 
@@ -794,7 +836,7 @@ void A2lSetAbsoluteAddrMode__s(const char *event_name) {
         A2lSetAbsAddrMode(event_id);
         if (event_id != XCP_UNDEFINED_EVENT_ID) {
             beginEventGroup(event_id);
-            fprintf(gA2lFile, "\n/* Absolute addressing mode: default_event=%s (%u), addr_ext=%u */\n", event_name, event_id, gAl2AddrExt);
+            fprintf(gA2lFile, "\n/* Absolute addressing mode: default_event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_);
         }
     }
 }
@@ -805,7 +847,7 @@ void A2lSetAbsoluteAddrMode__i(tXcpEventId event_id) {
         A2lSetAbsAddrMode(event_id);
         if (event_id != XCP_UNDEFINED_EVENT_ID) {
             beginEventGroup(event_id);
-            fprintf(gA2lFile, "\n/* Stack frame absolute addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, gAl2AddrExt);
+            fprintf(gA2lFile, "\n/* Stack frame absolute addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_);
         }
     }
 }
@@ -814,25 +856,103 @@ void A2lSetAbsoluteAddrMode__i(tXcpEventId event_id) {
 //----------------------------------------------------------------------------------
 // Address encoding
 
-uint8_t A2lGetAddrExt_(void) { return gAl2AddrExt; }
+// Get the current address extension
+// Must be called after A2lGetAddr to get the correct address extension in case of auto addressing mode
+uint8_t A2lGetAddrExt_(void) {
 
+    if (gA2lAddrExt == XCP_UNDEFINED_ADDR_EXT) {
+        return gA2lAutoAddrExt;
+    }
+    return gA2lAddrExt;
+}
+
+// Get encoded address for pointer p according to current address extension
+// If auto addressing mode (address extension is undefined) is selected, the addressing extension is detected
 uint32_t A2lGetAddr_(const void *p) {
 
     if (gA2lFile != NULL) {
 
-        if (XcpAddrIsAbs(gAl2AddrExt)) {
+        if (gA2lAddrExt == XCP_UNDEFINED_ADDR_EXT) {
+            uint64_t addr_diff = 0;
+            const uint8_t *base_ptr = NULL;
+            // If both base pointers are set, auto detect appropriate base pointer and addressing mode
+            if (gA2lBasePtr != NULL && gA2lFramePtr != NULL) {
+                uint64_t addr_diff1 = (uint64_t)p - (uint64_t)gA2lBasePtr;
+                uint64_t addr_high1 = (addr_diff1 >> 16);
+                uint64_t addr_diff2 = (uint64_t)p - (uint64_t)gA2lFramePtr;
+                uint64_t addr_high2 = (addr_diff2 >> 16);
+                DBG_PRINTF5("A2L auto dyn address mode: addr=%p, base1=%p, diff1=%llX, base2=%p, diff2=%llX\n", p, (void *)gA2lBasePtr, addr_diff1, (void *)gA2lFramePtr,
+                            addr_diff2);
+                // Prefer positive this, then negative stack, then positive stack
+                // Positive base (heap or this relative)
+                if (addr_high1 == 0) {
+                    base_ptr = gA2lBasePtr;
+                    addr_diff = addr_diff1;
+                    gA2lAutoAddrExt = XCP_ADDR_EXT_DYN + 1; // Use base pointer addressing mode with index 1
+                    DBG_PRINT5("Positive base selected\n");
+                }
+                // Negative stack (local variables)
+                else if (addr_high2 == 0xFFFFFFFFFFFF) {
+                    base_ptr = gA2lFramePtr;
+                    addr_diff = addr_diff2;
+                    gA2lAutoAddrExt = XCP_ADDR_EXT_DYN; // Use frame pointer addressing mode
+                    DBG_PRINT5("Negative stack selected\n");
+                }
+                // Positive stack (function parameters)
+                else if (addr_high2 == 0) {
+                    base_ptr = gA2lFramePtr;
+                    addr_diff = addr_diff2;
+                    gA2lAutoAddrExt = XCP_ADDR_EXT_DYN; // Use frame pointer addressing mode
+                    DBG_PRINT5("Positive stack selected\n");
+                }
+                // Negative base
+                else if (addr_high1 == 0xFFFFFFFFFFFF) {
+                    DBG_PRINTF_ERROR("A2L dyn address overflow detected! negative base offset, addr: %p, base1: %p, base2: %p\n", p, (void *)gA2lBasePtr, (void *)gA2lFramePtr);
+                    assert(0);
+                    return 0;
+                }
+                // Overflow
+                else {
+                    DBG_PRINTF_ERROR("A2L dyn address overflow detected! addr: %p, base1: %p, base2: %p\n", p, (void *)gA2lBasePtr, (void *)gA2lFramePtr);
+                    assert(0);
+                    return 0;
+                }
+            }
+            // If only the frame pointer is set, use it as base pointer
+            else if (gA2lFramePtr != NULL) {
+                base_ptr = gA2lFramePtr;
+            }
+            // If only the base pointer is set, use it
+            else if (gA2lBasePtr != NULL) {
+                base_ptr = gA2lBasePtr;
+            }
+
+            if (base_ptr != NULL) {
+                addr_diff = (uint64_t)p - (uint64_t)base_ptr;
+                // Ensure the address difference does not overflow the value range for signed int16_t
+                uint64_t addr_high = (addr_diff >> 16);
+                if (addr_high != 0 && addr_high != 0xFFFFFFFFFFFF) {
+                    DBG_PRINTF_ERROR("A2L dyn address overflow detected! addr: %p, base: %p\n", p, (void *)base_ptr);
+                    assert(0);
+                    return 0;
+                }
+            }
+            return XcpAddrEncodeDyn(addr_diff, gA2lFixedEvent);
+        }
+
+        else if (XcpAddrIsAbs(gA2lAddrExt)) {
             return XcpAddrEncodeAbs(p);
         }
 
 #ifdef XCP_ENABLE_REL_ADDRESSING
-        else if (XcpAddrIsRel(gAl2AddrExt)) {
+        else if (XcpAddrIsRel(gA2lAddrExt)) {
             uint64_t addr_diff = 0;
-            if (gA2lAddrBase != NULL) {
-                addr_diff = (uint64_t)p - (uint64_t)gA2lAddrBase;
+            if (gA2lBasePtr != NULL) {
+                addr_diff = (uint64_t)p - (uint64_t)gA2lBasePtr;
                 // Ensure the address difference does not overflow the value range for signed int32_t
                 uint64_t addr_high = (addr_diff >> 32);
                 if (addr_high != 0 && addr_high != 0xFFFFFFFF) {
-                    DBG_PRINTF_ERROR("A2L rel address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lAddrBase);
+                    DBG_PRINTF_ERROR("A2L rel address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lBasePtr);
                     assert(0);
                     return 0;
                 }
@@ -840,28 +960,31 @@ uint32_t A2lGetAddr_(const void *p) {
             return XcpAddrEncodeRel(addr_diff);
         }
 #endif
-        else if (XcpAddrIsDyn(gAl2AddrExt)) {
+
+        else if (XcpAddrIsDyn(gA2lAddrExt)) {
             uint64_t addr_diff = 0;
-            if (gA2lAddrBase != NULL) {
-                addr_diff = (uint64_t)p - (uint64_t)gA2lAddrBase;
+            if (gA2lBasePtr != NULL) {
+                addr_diff = (uint64_t)p - (uint64_t)gA2lBasePtr;
                 // Ensure the address difference does not overflow the value range for signed int16_t
                 uint64_t addr_high = (addr_diff >> 16);
                 if (addr_high != 0 && addr_high != 0xFFFFFFFFFFFF) {
-                    DBG_PRINTF_ERROR("A2L dyn address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lAddrBase);
+                    DBG_PRINTF_ERROR("A2L dyn address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lBasePtr);
                     assert(0);
                     return 0;
                 }
             }
             return XcpAddrEncodeDyn(addr_diff, gA2lFixedEvent);
-        } else
+        }
+
+        else
 #ifdef XCP_ENABLE_CALSEG_LIST
-            if (XcpAddrIsSeg(gAl2AddrExt)) {
+            if (XcpAddrIsSeg(gA2lAddrExt)) {
             uint64_t addr_diff = 0;
-            if (gA2lAddrBase != NULL) {
-                addr_diff = (uint64_t)p - (uint64_t)gA2lAddrBase;
+            if (gA2lBasePtr != NULL) {
+                addr_diff = (uint64_t)p - (uint64_t)gA2lBasePtr;
                 // Ensure the relative address does not overflow the 16 Bit A2L address offset for calibration segment relative addressing
                 if ((addr_diff >> 16) != 0) {
-                    DBG_PRINTF_ERROR("A2L seg relative address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lAddrBase);
+                    DBG_PRINTF_ERROR("A2L seg relative address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lBasePtr);
                     assert(0);
                     return 0;
                 }
@@ -870,7 +993,7 @@ uint32_t A2lGetAddr_(const void *p) {
         } else
 #endif
         {
-            DBG_PRINTF_ERROR("A2L address extension %u is not supported!\n", gAl2AddrExt);
+            DBG_PRINTF_ERROR("A2L address extension %u is not supported!\n", gA2lAddrExt);
         }
     } // if (gA2lFile != NULL)
 
@@ -1047,7 +1170,7 @@ void A2lTypedefParameterComponent_(const char *name, const char *type_name, uint
     }
 }
 
-void A2lCreateTypedefMeasurementInstance_(const char *instance_name, const char *typeName, uint16_t x_dim, uint8_t ext, uint32_t addr, const char *comment) {
+void A2lCreateTypedefMeasurementInstance_(const char *instance_name, const char *typeName, uint16_t x_dim, uint32_t addr, uint8_t ext, const char *comment) {
     if (gA2lFile != NULL) {
         if (gA2lAutoGroups) {
             A2lAddToGroup(instance_name);
@@ -1056,7 +1179,8 @@ void A2lCreateTypedefMeasurementInstance_(const char *instance_name, const char 
         printAddrExt(ext);
         if (x_dim > 1)
             fprintf(gA2lFile, " MATRIX_DIM %u", x_dim);
-        if (XcpAddrIsAbs(gAl2AddrExt) || XcpAddrIsDyn(gAl2AddrExt)) { // Absolute and dynamic mode allows write access
+        uint8_t addr_ext = A2lGetAddrExt_();
+        if (XcpAddrIsAbs(addr_ext) || XcpAddrIsDyn(addr_ext)) { // Absolute and dynamic mode allows write access
             fprintf(gA2lFile, " READ_WRITE");
         }
         A2lCreateMeasurement_IF_DATA();
@@ -1065,7 +1189,7 @@ void A2lCreateTypedefMeasurementInstance_(const char *instance_name, const char 
     }
 }
 
-void A2lCreateTypedefParameterInstance_(const char *instance_name, const char *typeName, uint8_t ext, uint32_t addr, const char *comment) {
+void A2lCreateTypedefParameterInstance_(const char *instance_name, const char *typeName, uint32_t addr, uint8_t ext, const char *comment) {
     if (gA2lFile != NULL) {
         if (gA2lAutoGroups) {
             A2lAddToGroup(instance_name);
@@ -1080,7 +1204,7 @@ void A2lCreateTypedefParameterInstance_(const char *instance_name, const char *t
 //----------------------------------------------------------------------------------
 // Measurements
 
-void A2lCreateMeasurement_(const char *instance_name, const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, const char *unit_or_conversion, double phys_min,
+void A2lCreateMeasurement_(const char *instance_name, const char *name, tA2lTypeId type, uint32_t addr, uint8_t ext, const char *unit_or_conversion, double phys_min,
                            double phys_max, const char *comment) {
 
     if (gA2lFile != NULL) {
@@ -1105,7 +1229,8 @@ void A2lCreateMeasurement_(const char *instance_name, const char *name, tA2lType
         fprintf(gA2lFile, "/begin MEASUREMENT %s \"%s\" %s %s 0 0 %g %g ECU_ADDRESS 0x%X", symbol_name, comment, A2lGetA2lTypeName(type), conv, min, max, addr);
         printAddrExt(ext);
         printPhysUnit(gA2lFile, unit_or_conversion);
-        if (XcpAddrIsAbs(gAl2AddrExt) || XcpAddrIsDyn(gAl2AddrExt)) { // Absolute and dynamic mode allows write access
+        uint8_t addr_ext = A2lGetAddrExt_();
+        if (XcpAddrIsAbs(addr_ext) || XcpAddrIsDyn(addr_ext)) { // Absolute and dynamic mode allows write access
             fprintf(gA2lFile, " READ_WRITE");
         }
         A2lCreateMeasurement_IF_DATA();
@@ -1114,7 +1239,7 @@ void A2lCreateMeasurement_(const char *instance_name, const char *name, tA2lType
     }
 }
 
-void A2lCreateMeasurementArray_(const char *instance_name, const char *name, tA2lTypeId type, int x_dim, int y_dim, uint8_t ext, uint32_t addr, const char *unit_or_conversion,
+void A2lCreateMeasurementArray_(const char *instance_name, const char *name, tA2lTypeId type, int x_dim, int y_dim, uint32_t addr, uint8_t ext, const char *unit_or_conversion,
                                 double phys_min, double phys_max, const char *comment) {
     if (gA2lFile != NULL) {
         const char *symbol_name = A2lGetSymbolName(instance_name, name);
@@ -1146,7 +1271,7 @@ void A2lCreateMeasurementArray_(const char *instance_name, const char *name, tA2
 //----------------------------------------------------------------------------------
 // Parameters
 
-void A2lCreateParameter_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, const char *comment, const char *unit_or_conversion, double phys_min, double phys_max) {
+void A2lCreateParameter_(const char *name, tA2lTypeId type, uint32_t addr, uint8_t ext, const char *comment, const char *unit_or_conversion, double phys_min, double phys_max) {
 
     if (gA2lFile != NULL) {
         if (gA2lAutoGroups) {
@@ -1172,7 +1297,7 @@ void A2lCreateParameter_(const char *name, tA2lTypeId type, uint8_t ext, uint32_
     }
 }
 
-void A2lCreateMap_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, uint32_t xdim, uint32_t ydim, const char *comment, const char *unit, double min, double max,
+void A2lCreateMap_(const char *name, tA2lTypeId type, uint32_t addr, uint8_t ext, uint32_t xdim, uint32_t ydim, const char *comment, const char *unit, double min, double max,
                    const char *x_axis, const char *y_axis) {
 
     if (gA2lFile != NULL) {
@@ -1198,7 +1323,7 @@ void A2lCreateMap_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr
     }
 }
 
-void A2lCreateCurve_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, uint32_t xdim, const char *comment, const char *unit, double min, double max,
+void A2lCreateCurve_(const char *name, tA2lTypeId type, uint32_t addr, uint8_t ext, uint32_t xdim, const char *comment, const char *unit, double min, double max,
                      const char *x_axis) {
 
     if (gA2lFile != NULL) {
@@ -1220,7 +1345,7 @@ void A2lCreateCurve_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t ad
     }
 }
 
-void A2lCreateAxis_(const char *name, tA2lTypeId type, uint8_t ext, uint32_t addr, uint32_t xdim, const char *comment, const char *unit, double min, double max) {
+void A2lCreateAxis_(const char *name, tA2lTypeId type, uint32_t addr, uint8_t ext, uint32_t xdim, const char *comment, const char *unit, double min, double max) {
 
     if (gA2lFile != NULL) {
         if (gA2lAutoGroups) {

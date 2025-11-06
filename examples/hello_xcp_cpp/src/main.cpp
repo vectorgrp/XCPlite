@@ -41,17 +41,6 @@ template <size_t N> class FloatingAverage {
 
 template <size_t N> FloatingAverage<N>::FloatingAverage() : samples_{}, current_index_(0), sample_count_(0), sum_(0.0) {
 
-    // Create a measurement event "avg_calc"
-    XcpCreateDaqEvent(avg_calc);
-
-    if (A2lOnce()) {
-        // Register member variables for XCP measurement using 'this' as the base address for relative mode
-        A2lSetRelativeAddrMode(avg_calc, this);
-        A2lCreateMeasurement(current_index_, "Current position in ring buffer");
-        A2lCreateMeasurement(sample_count_, "Number of samples collected");
-        A2lCreateMeasurement(sum_, "Running sum of all samples");
-    }
-
     std::cout << "FloatingAverage<" << N << "> instance created" << std::endl;
 }
 
@@ -71,9 +60,13 @@ template <size_t N> double FloatingAverage<N>::calculate(double input) {
     average = sum_ / static_cast<double>(sample_count_);
     current_index_ = (current_index_ + 1) % N;
 
-    XcpTriggerDaqEvent(avg_calc,                                                      // Event
-                       (input, "Input value for floating average", "V", 0.0, 1000.0), // input value in Volts from 0..1000
-                       (average, "Current calculated average")                        // calculated average
+    XcpDaqEventRelative(avg_calc, this,                                                //
+                        (input, "Input value for floating average", "V", 0.0, 1000.0), //
+                        (average, "Current calculated average"),                       //
+                        (current_index_, "Current position in ring buffer"),           //
+                        (sample_count_, "Number of samples collected"),                //
+                        (sum_, "Running sum of all samples")
+
     );
 
     return average;
@@ -149,26 +142,27 @@ int main() {
     // It supports XCP/ECU independent page switching, checksum calculation and reinitialization (copy reference page to working page)
     gCalSeg.emplace("Parameters", &kParameters);
 
-    // Add the calibration segment description as a typedef and an instance to the A2L file
+    // Register the calibration segment description as a typedef and add an instance to the A2L file
     A2lTypedefBegin(ParametersT, "A2L Typedef for ParametersT");
     A2lTypedefParameterComponent(min, ParametersT, "Minimum random number value", "", -100.0, 100.0);
     A2lTypedefParameterComponent(max, ParametersT, "Maximum random number value", "", -100.0, 100.0);
     A2lTypedefEnd();
     gCalSeg->CreateA2lTypedefInstance("ParametersT", "Random number generator parameters");
 
-    // Create a FloatingAverage calculator instance with 128 samples
-    floating_average::FloatingAverage<128> average;
+    // Create a FloatingAverage calculator instance with 128 samples (maybe on stack or heap, both works without changing code instrumentation)
+    auto average = new floating_average::FloatingAverage<128>();
+    // floating_average::FloatingAverage<128> average;
 
     // Main loop
-    std::cout << "Demo class instance created. Starting main loop... (Press Ctrl+C to exit)" << std::endl;
+    std::cout << "Starting main loop... (Press Ctrl+C to exit)" << std::endl;
     while (gRun) {
 
         double voltage = random_number();
-        double average_voltage = average.calculate(voltage);
+        double average_voltage = average->calculate(voltage);
 
-        XcpDaqEvent(mainloop,                                                        //
-                    (voltage, "Input value for floating average", "V", 0.0, 1000.0), //
-                    (average_voltage, "Calculated voltage average")                  //
+        XcpDaqEvent(mainloop,                                                //
+                    (voltage, "Input voltage", "V", 0.0, 1000.0),            //
+                    (average_voltage, "Calculated voltage floating average") //
         );
 
         sleepUs(1000);

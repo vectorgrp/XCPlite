@@ -108,11 +108,11 @@ template <typename T> CalSeg<T> CreateCalSeg(const char *name, const T *default_
 #define A2L_UNPACK_AND_REG_SELECT_IMPL_(N) A2L_UNPACK_AND_REG_##N##_
 
 // Measurement: (var, comment)
-#define A2L_UNPACK_AND_REG_2_(var, comment) A2lCreateMeasurement_(NULL, #var, A2lGetTypeId(var), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&(var)), NULL, 0.0, 0.0, comment);
+#define A2L_UNPACK_AND_REG_2_(var, comment) A2lCreateMeasurement_(NULL, #var, A2lGetTypeId(var), A2lGetAddr_((uint8_t *)&(var)), A2lGetAddrExt_(), NULL, 0.0, 0.0, comment);
 
 // Physical measurement: (var, comment, unit_or_conversion, min, max)
 #define A2L_UNPACK_AND_REG_5_(var, comment, unit_or_conversion, min, max)                                                                                                          \
-    A2lCreateMeasurement_(NULL, #var, A2lGetTypeId(var), A2lGetAddrExt_(), A2lGetAddr_((uint8_t *)&(var)), unit_or_conversion, min, max, comment);
+    A2lCreateMeasurement_(NULL, #var, A2lGetTypeId(var), A2lGetAddr_((uint8_t *)&(var)), A2lGetAddrExt_(), unit_or_conversion, min, max, comment);
 
 // Main unpacking macro - dispatches to the right version
 #define A2L_UNPACK_AND_REG_(...) A2L_UNPACK_AND_REG_DISPATCH_((__VA_ARGS__))
@@ -206,14 +206,24 @@ template <typename T> CalSeg<T> CreateCalSeg(const char *name, const T *default_
 // Create the daq event (just for unique naming scheme)
 #define XcpCreateDaqEvent DaqCreateEvent
 
-// Registers measurements once and triggers an already created event with this pointer relative addressing mode
+// Register measurements once and trigger an already created event with stack addressing mode
 #define XcpTriggerDaqEvent(event_name, ...)                                                                                                                                        \
     do {                                                                                                                                                                           \
         if (A2lOnceLock()) {                                                                                                                                                       \
             A2lSetStackAddrMode__s(#event_name, xcp_get_frame_addr());                                                                                                             \
             XCPLIB_FOR_EACH_MEAS_(A2L_UNPACK_AND_REG_, __VA_ARGS__)                                                                                                                \
         }                                                                                                                                                                          \
-        DaqTriggerEvent1(event_name, this);                                                                                                                                        \
+        DaqTriggerEvent(event_name);                                                                                                                                               \
+    } while (0)
+
+// Register measurements once and trigger an already created event with stack or relative addressing mode
+#define XcpTriggerDaqEventRelative(event_name, base, ...)                                                                                                                          \
+    do {                                                                                                                                                                           \
+        if (A2lOnceLock()) {                                                                                                                                                       \
+            A2lSetAutoAddrMode__s(#event_name, xcp_get_frame_addr(), (const uint8_t *)base);                                                                                       \
+            XCPLIB_FOR_EACH_MEAS_(A2L_UNPACK_AND_REG_, __VA_ARGS__)                                                                                                                \
+        }                                                                                                                                                                          \
+        DaqTriggerEvent1(event_name, base);                                                                                                                                        \
     } while (0)
 
 // =============================================================================
@@ -223,21 +233,35 @@ template <typename T> CalSeg<T> CreateCalSeg(const char *name, const T *default_
 // Create event, register stack measurements once and trigger an event with stack addressing mode
 #define XcpDaqEvent(event_name, ...)                                                                                                                                               \
     do {                                                                                                                                                                           \
-        DaqCreateEvent(event_name);                                                                                                                                                \
-        if (A2lOnceLock()) {                                                                                                                                                       \
-            A2lSetStackAddrMode__s(#event_name, xcp_get_frame_addr());                                                                                                             \
-            XCPLIB_FOR_EACH_MEAS_(A2L_UNPACK_AND_REG_, __VA_ARGS__)                                                                                                                \
+        if (XcpIsActivated()) {                                                                                                                                                    \
+            static THREAD_LOCAL tXcpEventId evt__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                            \
+            if (evt__##event_name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                     \
+                evt__##event_name = XcpCreateEvent(#event_name, 0, 0);                                                                                                             \
+                if (A2lOnceLock()) {                                                                                                                                               \
+                    A2lSetStackAddrMode__s(#event_name, xcp_get_frame_addr());                                                                                                     \
+                    XCPLIB_FOR_EACH_MEAS_(A2L_UNPACK_AND_REG_, __VA_ARGS__)                                                                                                        \
+                }                                                                                                                                                                  \
+            }                                                                                                                                                                      \
+            static THREAD_LOCAL tXcpEventId trg__AAS__##event_name = evt__##event_name;                                                                                            \
+            const uint8_t *__base[4] = {xcp_get_base_addr(), xcp_get_base_addr(), xcp_get_frame_addr(), NULL};                                                                     \
+            XcpEventExt_(trg__AAS__##event_name, __base);                                                                                                                          \
         }                                                                                                                                                                          \
-        DaqTriggerEvent(event_name);                                                                                                                                               \
     } while (0)
 
-// Create event, register member variables or heap once and trigger an event with relative addressing mode
+// Create event, register once and trigger an event with stack or relative addressing mode
 #define XcpDaqEventRelative(event_name, base, ...)                                                                                                                                 \
     do {                                                                                                                                                                           \
-        DaqCreateEvent(event_name);                                                                                                                                                \
-        if (A2lOnceLock()) {                                                                                                                                                       \
-            A2lSetRelativeAddrMode__s(#event_name, base);                                                                                                                          \
-            XCPLIB_FOR_EACH_MEAS_(A2L_UNPACK_AND_REG_, __VA_ARGS__)                                                                                                                \
+        if (XcpIsActivated()) {                                                                                                                                                    \
+            static THREAD_LOCAL tXcpEventId evt__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                            \
+            if (evt__##event_name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                     \
+                evt__##event_name = XcpCreateEvent(#event_name, 0, 0);                                                                                                             \
+                if (A2lOnceLock()) {                                                                                                                                               \
+                    A2lSetAutoAddrMode__s(#event_name, xcp_get_frame_addr(), (const uint8_t *)base);                                                                               \
+                    XCPLIB_FOR_EACH_MEAS_(A2L_UNPACK_AND_REG_, __VA_ARGS__)                                                                                                        \
+                }                                                                                                                                                                  \
+            }                                                                                                                                                                      \
+            static THREAD_LOCAL tXcpEventId trg__AASD__##event_name = evt__##event_name;                                                                                           \
+            const uint8_t *__base[4] = {xcp_get_base_addr(), xcp_get_base_addr(), xcp_get_frame_addr(), (const uint8_t *)base};                                                    \
+            XcpEventExt_(trg__AASD__##event_name, __base);                                                                                                                         \
         }                                                                                                                                                                          \
-        DaqTriggerEvent1(event_name, base);                                                                                                                                        \
     } while (0)
