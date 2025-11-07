@@ -31,7 +31,7 @@ SignalGenerator::SignalGenerator(const char *instance_name, const SignalParamete
 
         params->lookup.A2lRegisterTypedef(); // Register the lookup table typedef
 
-        A2lTypedefBegin(SignalParametersT, "A2L typedef for SignalParametersT");
+        A2lTypedefBegin(SignalParametersT, params, "A2L typedef for SignalParametersT");
         A2lCreateEnumConversion(signal_type_enum, "5 0 \"SINE\" 1 \"SQUARE\" 2 \"TRIANGLE\" 3 \"SAWTOOTH\" 4 \"ARBITRARY\"");
         A2lTypedefParameterComponent(signal_type, SignalParametersT, "Signal type", "conv.signal_type_enum", 0, 4);
         A2lTypedefParameterComponent(ampl, SignalParametersT, "Amplitude", "Volt", 0, 100);
@@ -39,7 +39,7 @@ SignalGenerator::SignalGenerator(const char *instance_name, const SignalParamete
         A2lTypedefParameterComponent(offset, SignalParametersT, "Offset", "Volt", -100, 100);
         A2lTypedefParameterComponent(period, SignalParametersT, "Period", "s", 0.01, 10.0);
         A2lTypedefParameterComponent(delay_us, SignalParametersT, "Delay time in us", "us", 0, 100000);
-        A2lTypedefComponent(lookup, LookupTableT, 1, SignalParametersT);
+        A2lTypedefComponent(lookup, LookupTableT, 1);
         A2lTypedefEnd();
     }
 

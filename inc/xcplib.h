@@ -442,6 +442,7 @@ static inline void *xcp_get_tls_base_addr(void) {
 #define DaqEventRelative_i DaqTriggerEvent1_i
 
 // New naming which makes it clear, if the macro creates or only triggers an event
+#define DaqTriggerEventRelative DaqTriggerEvent1
 #define DaqTriggerEventRelative_s DaqTriggerEvent1_s
 #define DaqTriggerEventRelative_i DaqTriggerEvent1_i
 

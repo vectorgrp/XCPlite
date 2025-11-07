@@ -79,7 +79,7 @@ template <typename T> class CalSeg {
     void CreateA2lTypedefInstance(const char *type_name, const char *comment) {
         A2lLock();
         A2lSetSegmentAddrMode__i(segment_index_, NULL);
-        A2lCreateTypedefInstance_(XcpGetCalSegName(segment_index_), type_name, 0, XCP_ADDR_EXT_SEG, XcpGetCalSegBaseAddress(segment_index_), comment);
+        A2lCreateTypedefInstance_(XcpGetCalSegName(segment_index_), type_name, 0, XcpGetCalSegBaseAddress(segment_index_), XCP_ADDR_EXT_SEG, comment);
         A2lUnlock();
     }
 };

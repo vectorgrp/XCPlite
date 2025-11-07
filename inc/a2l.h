@@ -428,36 +428,50 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Create typedefs and typedef components
 
-#define A2lTypedefBegin(type_name, comment) A2lTypedefBegin_(#type_name, (uint32_t)sizeof(type_name), comment);
+#define A2lTypedefBegin(typedef_name, type_instance, ...)                                                                                                                          \
+    const typedef_name *__A2lTypedefBegin_instance = type_instance;                                                                                                                \
+    A2lTypedefBegin_(#typedef_name, (uint32_t)sizeof(typedef_name), __VA_ARGS__);
 
-#define A2lTypedefComponent(field_name, field_type_name, field_dim, typedef_name)                                                                                                  \
-    A2lTypedefComponent_(#field_name, #field_type_name, field_dim, offsetof(typedef_name, field_name));
+// For scalar or one dimensional measurement and parameter components of specified type
+// field_type_name is the name of another typedef, typedef_measurement or typedef_characteristic
+#define A2lTypedefComponent(field_name, field_type_name, field_dim)                                                                                                                \
+    A2lTypedefComponent_(#field_name, #field_type_name, field_dim, (uint32_t)((uint8_t *)&(__A2lTypedefBegin_instance->field_name) - (uint8_t *)__A2lTypedefBegin_instance))
 
 #define A2lTypedefEnd() A2lTypedefEnd_()
 
 // Measurement components
+// Implicitly create a TYPEDEF_MEASUREMENT
 
-#define A2lTypedefMeasurementComponent(field_name, typedef_name)                                                                                                                   \
+#define A2lTypedefMeasurementComponent(field_name, comment)                                                                                                                        \
     do {                                                                                                                                                                           \
-        typedef_name instance;                                                                                                                                                     \
-        A2lTypedefComponent_(#field_name, A2lGetTypeName_M(instance.field_name), 1, (uint32_t)((uint8_t *)&(instance.field_name) - (uint8_t *)&instance));                         \
+        A2lTypedefMeasurementComponent_(#field_name, A2lGetTypeName(__A2lTypedefBegin_instance->field_name), 1,                                                                    \
+                                        (uint32_t)((uint8_t *)&(__A2lTypedefBegin_instance->field_name) - (uint8_t *)__A2lTypedefBegin_instance), comment, NULL, 0.0, 0.0);        \
     } while (0)
 
-#define A2lTypedefPhysMeasurementComponent(field_name, typedef_name, comment, unit_or_conversion, min, max)                                                                        \
+#define A2lTypedefMeasurementArrayComponent(field_name, comment)                                                                                                                   \
     do {                                                                                                                                                                           \
-        typedef_name instance;                                                                                                                                                     \
-        A2lTypedefMeasurementComponent_(#field_name, A2lGetTypeName(instance.field_name), (uint32_t)((uint8_t *)&(instance.field_name) - (uint8_t *)&instance), comment,           \
-                                        unit_or_conversion, min, max);                                                                                                             \
+        A2lTypedefMeasurementComponent_(#field_name, A2lGetTypeName1D(__A2lTypedefBegin_instance->field_name),                                                                     \
+                                        sizeof(__A2lTypedefBegin_instance->field_name) / sizeof(__A2lTypedefBegin_instance->field_name[0]),                                        \
+                                        (uint32_t)((uint8_t *)&(__A2lTypedefBegin_instance->field_name) - (uint8_t *)__A2lTypedefBegin_instance), comment, NULL, 0.0, 0.0);        \
     } while (0)
 
-#define A2lTypedefMeasurementArrayComponent(field_name, typedef_name)                                                                                                              \
+#define A2lTypedefPhysMeasurementComponent(field_name, comment, unit_or_conversion, min, max)                                                                                      \
     do {                                                                                                                                                                           \
-        typedef_name instance;                                                                                                                                                     \
-        A2lTypedefComponent_(#field_name, A2lGetTypeName1D_M(instance.field_name), sizeof(instance.field_name) / sizeof(instance.field_name[0]),                                   \
-                             (uint32_t)((uint8_t *)&(instance.field_name[0]) - (uint8_t *)&instance));                                                                             \
+        A2lTypedefMeasurementComponent_(#field_name, A2lGetTypeName(__A2lTypedefBegin_instance->field_name), 1,                                                                    \
+                                        (uint32_t)((uint8_t *)&(__A2lTypedefBegin_instance->field_name) - (uint8_t *)__A2lTypedefBegin_instance), comment, unit_or_conversion,     \
+                                        min, max);                                                                                                                                 \
+    } while (0)
+
+#define A2lTypedefPhysMeasurementArrayComponent(field_name, comment, unit_or_conversion, min, max)                                                                                 \
+    do {                                                                                                                                                                           \
+        A2lTypedefMeasurementComponent_(#field_name, A2lGetTypeName1D(__A2lTypedefBegin_instance->field_name),                                                                     \
+                                        sizeof(__A2lTypedefBegin_instance->field_name) / sizeof(__A2lTypedefBegin_instance->field_name[0]),                                        \
+                                        (uint32_t)((uint8_t *)&(__A2lTypedefBegin_instance->field_name) - (uint8_t *)__A2lTypedefBegin_instance), comment, unit_or_conversion,     \
+                                        min, max);                                                                                                                                 \
     } while (0)
 
 // Parameter components
+// Implicitly create a TYPEDEF_CHARACTERISTIC
 
 #define A2lTypedefParameterComponent(field_name, typeName, comment, unit, min, max)                                                                                                \
     do {                                                                                                                                                                           \
@@ -629,15 +643,16 @@ void A2lCreateMeasurementArray_(const char *instance_name, const char *name, tA2
                                 double phys_min, double phys_max, const char *comment);
 
 // Create typedefs
-void A2lTypedefBegin_(const char *name, uint32_t size, const char *comment);
+void A2lTypedefBegin_(const char *name, uint32_t size, const char *format, ...);
 void A2lTypedefEnd_(void);
-void A2lTypedefComponent_(const char *name, const char *type_name, uint16_t x_dim, uint32_t offset);
-void A2lTypedefMeasurementComponent_(const char *name, const char *type_name, uint32_t offset, const char *comment, const char *unit_or_conversion, double min, double max);
-void A2lTypedefParameterComponent_(const char *name, const char *type_name, uint16_t x_dim, uint16_t y_dim, uint32_t offset, const char *comment, const char *unit, double min,
+void A2lTypedefComponent_(const char *name, const char *typedef_name, uint16_t x_dim, uint32_t offset);
+void A2lTypedefMeasurementComponent_(const char *name, const char *typedef_name, uint16_t x_dim, uint32_t offset, const char *comment, const char *unit_or_conversion, double min,
+                                     double max);
+void A2lTypedefParameterComponent_(const char *name, const char *typedef_name, uint16_t x_dim, uint16_t y_dim, uint32_t offset, const char *comment, const char *unit, double min,
                                    double max, const char *x_axis, const char *y_axis);
 
 // Create an instance of a typedef
-void A2lCreateTypedefInstance_(const char *instance_name, const char *type_name, uint16_t x_dim, uint32_t addr, uint8_t ext, const char *comment);
+void A2lCreateTypedefInstance_(const char *instance_name, const char *typedef_name, uint16_t x_dim, uint32_t addr, uint8_t ext, const char *comment);
 
 #ifdef __cplusplus
 } // extern "C"

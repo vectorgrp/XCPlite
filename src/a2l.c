@@ -456,7 +456,7 @@ static bool A2lOpen(const char *filename) {
 #ifdef EMBED_AML_FILES
     fprintf(gA2lFile, gA2lAml); // main file
 #endif
-    fprintf(gA2lFile, gA2lHeader2);
+    fprintf(gA2lFile, "%s", gA2lHeader2);
 
     fprintf(gA2lTypedefsFile, "\n/* Typedefs */\n");       // typedefs temporary file
     fprintf(gA2lGroupsFile, "\n/* Groups */\n");           // groups temporary file
@@ -1067,8 +1067,18 @@ const char *A2lCreateEnumConversion_(const char *name, const char *enum_descript
 // Typedefs
 
 // Begin a typedef structure
-void A2lTypedefBegin_(const char *name, uint32_t size, const char *comment) {
+void A2lTypedefBegin_(const char *name, uint32_t size, const char *format, ...) {
     if (gA2lFile != NULL) {
+
+        // Format the comment string
+        char comment[256];
+        va_list args;
+        va_start(args, format);
+        vsnprintf(comment, sizeof(comment), format, args);
+        va_end(args);
+
+        DBG_PRINTF4("A2lTypedefBegin_: %s, size=%u, comment='%s'\n", name, size, comment);
+
         fprintf(gA2lFile, "\n/begin TYPEDEF_STRUCTURE %s \"%s\" 0x%X\n", name, comment, size);
         gA2lTypedefs++;
     }
@@ -1077,6 +1087,7 @@ void A2lTypedefBegin_(const char *name, uint32_t size, const char *comment) {
 // End a typedef structure
 void A2lTypedefEnd_(void) {
     if (gA2lFile != NULL) {
+        DBG_PRINT4("A2lTypedefEnd_\n");
         fprintf(gA2lFile, "/end TYPEDEF_STRUCTURE\n");
     }
 }
@@ -1085,6 +1096,7 @@ void A2lTypedefEnd_(void) {
 // type_name is the name of another typedef, typedef_measurement or typedef_characteristic
 void A2lTypedefComponent_(const char *name, const char *type_name, uint16_t x_dim, uint32_t offset) {
     if (gA2lFile != NULL) {
+        DBG_PRINTF4("A2lTypedefComponent_: %s, %s, x_dim=%u, offset=0x%X\n", name, type_name, x_dim, offset);
         fprintf(gA2lFile, "  /begin STRUCTURE_COMPONENT %s %s 0x%X", name, type_name, offset);
         if (x_dim > 1)
             fprintf(gA2lFile, " MATRIX_DIM %u", x_dim);
@@ -1094,8 +1106,11 @@ void A2lTypedefComponent_(const char *name, const char *type_name, uint16_t x_di
 }
 
 // For measurement components with TYPEDEF_MEASUREMENT for fields with comment, unit, min, max
-void A2lTypedefMeasurementComponent_(const char *name, const char *type_name, uint32_t offset, const char *comment, const char *unit_or_conversion, double min, double max) {
+void A2lTypedefMeasurementComponent_(const char *name, const char *type_name, uint16_t x_dim, uint32_t offset, const char *comment, const char *unit_or_conversion, double min,
+                                     double max) {
     if (gA2lFile != NULL) {
+        DBG_PRINTF4("A2lTypedefMeasurementComponent_: %s, %s, x_dim=%u, offset=0x%X\n", name, type_name, x_dim, offset);
+
         // TYPEDEF_MEASUREMENT
         const char *conv = getConversion(unit_or_conversion, NULL, NULL);
         assert(gA2lTypedefsFile != NULL);
@@ -1104,8 +1119,10 @@ void A2lTypedefMeasurementComponent_(const char *name, const char *type_name, ui
         fprintf(gA2lTypedefsFile, " /end TYPEDEF_MEASUREMENT\n");
 
         // STRUCTURE_COMPONENT
-        fprintf(gA2lFile, "  /begin STRUCTURE_COMPONENT %s M_%s 0x%X /end STRUCTURE_COMPONENT\n", name, name, offset);
-
+        fprintf(gA2lFile, "  /begin STRUCTURE_COMPONENT %s M_%s 0x%X", name, name, offset);
+        if (x_dim > 1)
+            fprintf(gA2lFile, " MATRIX_DIM %u", x_dim);
+        fprintf(gA2lFile, " /end STRUCTURE_COMPONENT\n");
         gA2lComponents++;
     }
 }
@@ -1114,8 +1131,7 @@ void A2lTypedefMeasurementComponent_(const char *name, const char *type_name, ui
 void A2lTypedefParameterComponent_(const char *name, const char *type_name, uint16_t x_dim, uint16_t y_dim, uint32_t offset, const char *comment, const char *unit_or_conversion,
                                    double min, double max, const char *x_axis, const char *y_axis) {
     if (gA2lFile != NULL) {
-
-        assert(gA2lTypedefsFile != NULL);
+        DBG_PRINTF4("A2lTypedefParameterComponent_: %s, %s, x_dim=%u, y_dim=%u, offset=0x%X\n", name, type_name, x_dim, y_dim, offset);
 
         // TYPEDEF_AXIS (y_dim==0)
         if (y_dim == 0 && x_dim > 1) {
@@ -1172,6 +1188,8 @@ void A2lTypedefParameterComponent_(const char *name, const char *type_name, uint
 
 void A2lCreateTypedefInstance_(const char *instance_name, const char *typeName, uint16_t x_dim, uint32_t addr, uint8_t ext, const char *comment) {
     if (gA2lFile != NULL) {
+        DBG_PRINTF4("A2lCreateTypedefInstance_: %s, \"%s\", %s, 0x%X\n", instance_name, comment, typeName, addr);
+
         if (gA2lAutoGroups) {
             A2lAddToGroup(instance_name);
         }

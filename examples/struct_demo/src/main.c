@@ -79,18 +79,22 @@ int main(void) {
     }
 
     // Create a A2L typedef for struct2_t
-    A2lTypedefBegin(struct2_t, "A2L typedef for struct2_t");
-    A2lTypedefMeasurementComponent(byte_field, struct2_t);
-    A2lTypedefMeasurementComponent(word_field, struct2_t);
-    A2lTypedefEnd();
+    {
+        A2lTypedefBegin(struct2_t, &static_struct2, "A2L typedef for struct2_t");
+        A2lTypedefMeasurementComponent(byte_field, "Byte field");
+        A2lTypedefMeasurementComponent(word_field, "Word field");
+        A2lTypedefEnd();
+    }
 
     // Create a typedef for struct1_t
-    A2lTypedefBegin(struct1_t, "A2L typedef for struct1_t");
-    A2lTypedefMeasurementComponent(byte_field, struct1_t);
-    A2lTypedefMeasurementComponent(word_field, struct1_t);
-    A2lTypedefMeasurementArrayComponent(array_field, struct1_t);
-    A2lTypedefComponent(struct_field, struct2_t, 1, struct1_t);
-    A2lTypedefEnd();
+    {
+        A2lTypedefBegin(struct1_t, &static_struct1, "A2L typedef for struct1_t");
+        A2lTypedefMeasurementComponent(byte_field, "Byte field");
+        A2lTypedefMeasurementComponent(word_field, "Word field");
+        A2lTypedefMeasurementArrayComponent(array_field, "Array field of 256 bytes");
+        A2lTypedefComponent(struct_field, struct2_t, 1);
+        A2lTypedefEnd();
+    }
 
     // Local stack measurement variables
     uint16_t local_counter = 0;                                                                                                           // Local counter variable for measurement

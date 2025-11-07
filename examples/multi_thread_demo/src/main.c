@@ -145,9 +145,9 @@ static uint16_t XcpCreateContext(const char *context_name, uint16_t context_inde
     // Uses the predefined enum conversion rule for the event names
     A2lOnce() {
         A2lLock();
-        A2lTypedefBegin(tXcpContext, "A2L typedef for tXcpContext");
-        A2lTypedefPhysMeasurementComponent(span_id, tXcpContext, "function span id", "conv.events", 0, 32);
-        A2lTypedefMeasurementComponent(level, tXcpContext);
+        A2lTypedefBegin(tXcpContext, &gXcpContext, "A2L typedef for tXcpContext");
+        A2lTypedefPhysMeasurementComponent(span_id, "function span id", "conv.events", 0, 32);
+        A2lTypedefMeasurementComponent(level, "function span nesting level");
         A2lTypedefEnd();
         A2lUnlock();
     }

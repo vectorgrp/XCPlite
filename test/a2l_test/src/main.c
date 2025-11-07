@@ -311,27 +311,29 @@ int main() {
     // It supports XCP/ECU independent page switching, checksum calculation and reinitialization (copy reference page to working page)
     tXcpCalSegIndex calseg1 = XcpCreateCalSeg("params", (const void *)&params, sizeof(params));
     assert(calseg1 != XCP_UNDEFINED_CALSEG); // Ensure the calibration segment was created successfully
-    A2lTypedefBegin(params_t, "comment");
-    A2lTypedefParameterComponent(uint8, params_t, "Parameter typedef field", "unit", 0, 255);
-    A2lTypedefParameterComponent(uint16, params_t, "Parameter typedef field", "unit", 0, 65535);
-    A2lTypedefParameterComponent(uint32, params_t, "Parameter typedef field", "unit", 0, 4294967295);
-    A2lTypedefParameterComponent(uint_64, params_t, "Parameter typedef field", "unit", 0, 1e15);
-    A2lTypedefParameterComponent(int8, params_t, "Parameter typedef field", "unit", -128, 127);
-    A2lTypedefParameterComponent(int16, params_t, "Parameter typedef field", "unit", -32768, 32767);
-    A2lTypedefParameterComponent(int32, params_t, "Parameter typedef field", "unit", -2147483647 - 1, 2147483647);
-    A2lTypedefParameterComponent(int_64, params_t, "Parameter typedef field", "unit", -1e6, 1e6);
-    A2lTypedefParameterComponent(float4, params_t, "Parameter typedef field", "unit", -1000.0, 1000.0);
-    A2lTypedefParameterComponent(double8, params_t, "Parameter typedef field", "unit", -1000.0, 1000.0);
-    A2lTypedefCurveComponent(curve1, params_t, 8, "Parameter typedef field", "unit", -20, 20);
-    A2lTypedefCurveComponentWithSharedAxis(curve2, params_t, 8, "Parameter typedef field", "unit", 0, 1000.0, "curve2_axis");
-    A2lTypedefAxisComponent(curve2_axis, params_t, 8, "Parameter typedef field", "unit", 0, 20);
-    A2lTypedefMapComponent(map1, params_t, 8, 8, "Parameter typedef field", "", -128, 127);
-    A2lTypedefMapComponentWithSharedAxis(map2, params_t, 8, 4, "Parameter typedef field", "", -128, 127, "map2_x_axis", "map2_y_axis");
-    A2lTypedefAxisComponent(map2_x_axis, params_t, 8, "Parameter typedef field", "unit", 0, 1000.0);
-    A2lTypedefAxisComponent(map2_y_axis, params_t, 4, "Parameter typedef field", "unit", 0, 500.0);
-    A2lTypedefMapComponentWithSharedAxis(map3, params_t, 8, 4, "Parameter typedef field", "", 0, 127, "map3_x_axis", NULL);
-    A2lTypedefAxisComponent(map3_x_axis, params_t, 8, "Parameter typedef field", "unit", 0, 1000.0);
-    A2lTypedefEnd();
+    {
+        A2lTypedefBegin(params_t, &params, "Calibration parameters typedef");
+        A2lTypedefParameterComponent(uint8, params_t, "Parameter typedef field", "unit", 0, 255);
+        A2lTypedefParameterComponent(uint16, params_t, "Parameter typedef field", "unit", 0, 65535);
+        A2lTypedefParameterComponent(uint32, params_t, "Parameter typedef field", "unit", 0, 4294967295);
+        A2lTypedefParameterComponent(uint_64, params_t, "Parameter typedef field", "unit", 0, 1e15);
+        A2lTypedefParameterComponent(int8, params_t, "Parameter typedef field", "unit", -128, 127);
+        A2lTypedefParameterComponent(int16, params_t, "Parameter typedef field", "unit", -32768, 32767);
+        A2lTypedefParameterComponent(int32, params_t, "Parameter typedef field", "unit", -2147483647 - 1, 2147483647);
+        A2lTypedefParameterComponent(int_64, params_t, "Parameter typedef field", "unit", -1e6, 1e6);
+        A2lTypedefParameterComponent(float4, params_t, "Parameter typedef field", "unit", -1000.0, 1000.0);
+        A2lTypedefParameterComponent(double8, params_t, "Parameter typedef field", "unit", -1000.0, 1000.0);
+        A2lTypedefCurveComponent(curve1, params_t, 8, "Parameter typedef field", "unit", -20, 20);
+        A2lTypedefCurveComponentWithSharedAxis(curve2, params_t, 8, "Parameter typedef field", "unit", 0, 1000.0, "curve2_axis");
+        A2lTypedefAxisComponent(curve2_axis, params_t, 8, "Parameter typedef field", "unit", 0, 20);
+        A2lTypedefMapComponent(map1, params_t, 8, 8, "Parameter typedef field", "", -128, 127);
+        A2lTypedefMapComponentWithSharedAxis(map2, params_t, 8, 4, "Parameter typedef field", "", -128, 127, "map2_x_axis", "map2_y_axis");
+        A2lTypedefAxisComponent(map2_x_axis, params_t, 8, "Parameter typedef field", "unit", 0, 1000.0);
+        A2lTypedefAxisComponent(map2_y_axis, params_t, 4, "Parameter typedef field", "unit", 0, 500.0);
+        A2lTypedefMapComponentWithSharedAxis(map3, params_t, 8, 4, "Parameter typedef field", "", 0, 127, "map3_x_axis", NULL);
+        A2lTypedefAxisComponent(map3_x_axis, params_t, 8, "Parameter typedef field", "unit", 0, 1000.0);
+        A2lTypedefEnd();
+    }
 
     A2lSetSegmentAddrMode(calseg1, params);
     A2lCreateTypedefInstance(params, params_t, "Parameter typedef instance in calibration segment");
@@ -417,16 +419,20 @@ int main() {
     A2lCreatePhysMeasurementMatrix(local_matrix, "double matrix", "conv.linear_conversion", 0.0, 10.0);
 
     // Register measurement structs
-    A2lTypedefBegin(struct2_t, "A2L typedef for struct2_t");
-    A2lTypedefMeasurementComponent(byte_field, struct2_t);
-    A2lTypedefMeasurementComponent(word_field, struct2_t);
-    A2lTypedefEnd();
-    A2lTypedefBegin(struct1_t, "A2L typedef for struct1_t");
-    A2lTypedefMeasurementComponent(byte_field, struct1_t);
-    A2lTypedefMeasurementComponent(word_field, struct1_t);
-    A2lTypedefMeasurementArrayComponent(array_field, struct1_t);
-    A2lTypedefComponent(struct_field, struct2_t, 1, struct1_t);
-    A2lTypedefEnd();
+    {
+        A2lTypedefBegin(struct2_t, &struct2, "A2L typedef for struct2_t");
+        A2lTypedefMeasurementComponent(byte_field, "Byte field");
+        A2lTypedefMeasurementComponent(word_field, "Word field");
+        A2lTypedefEnd();
+    }
+    {
+        A2lTypedefBegin(struct1_t, &struct1, "A2L typedef for struct1_t");
+        A2lTypedefMeasurementComponent(byte_field, "Byte field");
+        A2lTypedefMeasurementComponent(word_field, "Word field");
+        A2lTypedefComponent(array_field, int16_t, 16);
+        A2lTypedefComponent(struct_field, struct1_t, 1);
+        A2lTypedefEnd();
+    }
 
     // Local (Stack) variables of struct type
     struct2_t local_struct2 = {.byte_field = 1, .word_field = 2};                                                                                  // Single instance of struct2_t

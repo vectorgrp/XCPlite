@@ -101,19 +101,21 @@ int main(void) {
     assert(calseg != XCP_UNDEFINED_CALSEG); // Ensure the calibration segment was created successfully
 
     // Create a typedef struct for the calibration parameters
-    A2lTypedefBegin(params_t, "Calibration parameters typedef");
-    A2lTypedefParameterComponent(test_byte1, params_t, "Test byte for calibration consistency test", "", -128, 127);
-    A2lTypedefParameterComponent(test_byte2, params_t, "Test byte for calibration consistency test", "", -128, 127);
-    A2lTypedefParameterComponent(counter_max, params_t, "", "", 0, 2000);
-    A2lTypedefParameterComponent(delay_us, params_t, "Mainloop sleep time in us", "us", 0, 1000000);
-    A2lTypedefMapComponent(map, params_t, 8, 8, "Demo map", "", -128, 127);
+    {
+        A2lTypedefBegin(params_t, &params, "Calibration parameters typedef");
+        A2lTypedefParameterComponent(test_byte1, params_t, "Test byte for calibration consistency test", "", -128, 127);
+        A2lTypedefParameterComponent(test_byte2, params_t, "Test byte for calibration consistency test", "", -128, 127);
+        A2lTypedefParameterComponent(counter_max, params_t, "", "", 0, 2000);
+        A2lTypedefParameterComponent(delay_us, params_t, "Mainloop sleep time in us", "us", 0, 1000000);
+        A2lTypedefMapComponent(map, params_t, 8, 8, "Demo map", "", -128, 127);
 #ifdef OPTION_CANAPE_24
-    A2lTypedefCurveComponentWithSharedAxis(curve, params_t, 8, "Demo curve with shared axis curve_axis", "Volt", 0, 1000.0, "curve_axis");
-    A2lTypedefAxisComponent(curve_axis, params_t, 8, "Demo axis for curve", "Nm", 0, 20);
+        A2lTypedefCurveComponentWithSharedAxis(curve, params_t, 8, "Demo curve with shared axis curve_axis", "Volt", 0, 1000.0, "curve_axis");
+        A2lTypedefAxisComponent(curve_axis, params_t, 8, "Demo axis for curve", "Nm", 0, 20);
 #else
-    A2lTypedefCurveComponent(curve, params_t, 8, "Demo curve with fixed axis", "Volt", 0, 1000.0);
+        A2lTypedefCurveComponent(curve, params_t, 8, "Demo curve with fixed axis", "Volt", 0, 1000.0);
 #endif
-    A2lTypedefEnd();
+        A2lTypedefEnd();
+    }
 
     // Register the calibration parameter struct in the calibration segment
     A2lSetSegmentAddrMode(calseg, params);
@@ -177,16 +179,18 @@ int main(void) {
 
     // Create a measurement typedef for the calibration parameter struct
     typedef params_t params_measurement_t;
-    A2lTypedefBegin(params_measurement_t, "The calibration parameter struct as measurement typedef");
-    A2lTypedefMeasurementComponent(test_byte1, params_measurement_t);
-    A2lTypedefMeasurementComponent(test_byte2, params_measurement_t);
-    A2lTypedefMeasurementComponent(counter_max, params_measurement_t);
-    A2lTypedefMeasurementComponent(delay_us, params_measurement_t);
-    A2lTypedefEnd();
+    static params_measurement_t params_copy;
+    {
+        A2lTypedefBegin(params_measurement_t, &params_copy, "The calibration parameter struct as measurement typedef");
+        A2lTypedefMeasurementComponent(test_byte1, "Test byte for calibration consistency test");
+        A2lTypedefMeasurementComponent(test_byte2, "Test byte for calibration consistency test");
+        A2lTypedefMeasurementComponent(counter_max, "Maximum counter value");
+        A2lTypedefMeasurementComponent(delay_us, "Mainloop delay time in us");
+        A2lTypedefEnd();
+    }
 
     // Demo
     // Create a static measurement variable which is a copy of the calibration parameter segment to verify calibration changes and consistency
-    static params_measurement_t params_copy;
     A2lSetAbsoluteAddrMode(mainloop);
     A2lCreateTypedefInstance(params_copy, params_measurement_t, "A copy of the current calibration parameters");
 

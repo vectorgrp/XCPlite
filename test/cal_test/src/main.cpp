@@ -196,10 +196,12 @@ int main(int argc, char *argv[]) {
     auto calseg1 = xcplib::CreateCalSeg("kParameters", &kParameters);
 
     // Add the calibration segment description as a typedef instance to the A2L file
-    A2lTypedefBegin(ParametersT, "A2L Typedef for ParametersT");
-    A2lTypedefParameterComponent(run, ParametersT, "Run or stop test", "", 0, 1);
-    A2lTypedefMeasurementArrayComponent(data, ParametersT);
-    A2lTypedefEnd();
+    {
+        A2lTypedefBegin(ParametersT, &kParameters, "A2L Typedef for ParametersT");
+        A2lTypedefParameterComponent(run, ParametersT, "Run or stop test", "", 0, 1);
+        A2lTypedefParameterArrayComponent(data, ParametersT, "Test data array");
+        A2lTypedefEnd();
+    }
     calseg1.CreateA2lTypedefInstance("test_params_t", "Test parameters");
 
     // Store the pointer to the calibration segment wrapper

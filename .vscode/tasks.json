@@ -98,6 +98,29 @@
         },
         {
             "type": "shell",
+            "label": "XCPlite: build hello_xcp_cpp",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build",
+                "--target",
+                "hello_xcp_cpp"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Build hello_xcp_cpp target using CMake",
+            "dependsOn": "cmake configure"
+        },
+        {
+            "type": "shell",
             "label": "XCPlite: build c_demo",
             "command": "cmake",
             "args": [
