@@ -435,6 +435,7 @@ static inline void *xcp_get_tls_base_addr(void) {
 
 // Compatibility macros with older naming
 #define DaqEvent DaqTriggerEvent
+#define DaqEventAt DaqTriggerEventAt
 #define DaqEventRelative DaqTriggerEvent1
 #define DaqEventExt DaqTriggerEvent1
 #define DaqEventRelative_s DaqTriggerEvent1_s

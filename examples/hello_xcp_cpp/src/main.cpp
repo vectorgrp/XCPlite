@@ -131,7 +131,7 @@ int main() {
     }
 
     // Enable A2L generation
-    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         std::cerr << "Failed to initialize A2L generator" << std::endl;
         return 1;
     }
@@ -142,7 +142,7 @@ int main() {
     // It supports XCP/ECU independent page switching, checksum calculation and reinitialization (copy reference page to working page)
     gCalSeg.emplace("Parameters", &kParameters);
 
-    // Register the calibration segment description as a typedef and add an instance to the A2L file
+    // Register the calibration segment description as a typedef and an instance in the A2L file
     A2lTypedefBegin(ParametersT, "A2L Typedef for ParametersT");
     A2lTypedefParameterComponent(min, ParametersT, "Minimum random number value", "", -100.0, 100.0);
     A2lTypedefParameterComponent(max, ParametersT, "Maximum random number value", "", -100.0, 100.0);

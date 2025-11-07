@@ -795,7 +795,7 @@ void A2lSetRelativeAddrMode__s(const char *event_name, uint8_t i, const uint8_t 
         assert(event_id != XCP_UNDEFINED_EVENT_ID);
         A2lSetDynAddrMode(event_id, i, (uint8_t *)base_addr);
         beginEventGroup(event_id);
-        fprintf(gA2lFile, "\n/* Relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_);
+        fprintf(gA2lFile, "\n/* Relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_());
     }
 }
 void A2lSetRelativeAddrMode__i(tXcpEventId event_id, uint8_t i, const uint8_t *base_addr) {
@@ -804,7 +804,7 @@ void A2lSetRelativeAddrMode__i(tXcpEventId event_id, uint8_t i, const uint8_t *b
         assert(event_name != NULL);
         A2lSetDynAddrMode(event_id, i, (uint8_t *)base_addr);
         beginEventGroup(event_id);
-        fprintf(gA2lFile, "\n/* Relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_);
+        fprintf(gA2lFile, "\n/* Relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_());
     }
 }
 
@@ -816,7 +816,7 @@ void A2lSetStackAddrMode__s(const char *event_name, const uint8_t *stack_frame) 
         assert(event_id != XCP_UNDEFINED_EVENT_ID);
         A2lSetDynAddrMode(event_id, 0, stack_frame);
         beginEventGroup(event_id);
-        fprintf(gA2lFile, "\n/* Stack frame relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_);
+        fprintf(gA2lFile, "\n/* Stack frame relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_());
     }
 }
 void A2lSetStackAddrMode__i(tXcpEventId event_id, const uint8_t *stack_frame) {
@@ -825,7 +825,7 @@ void A2lSetStackAddrMode__i(tXcpEventId event_id, const uint8_t *stack_frame) {
         assert(event_name != NULL);
         A2lSetDynAddrMode(event_id, 0, stack_frame);
         beginEventGroup(event_id);
-        fprintf(gA2lFile, "\n/* Stack frame relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_);
+        fprintf(gA2lFile, "\n/* Stack frame relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_());
     }
 }
 
@@ -836,7 +836,7 @@ void A2lSetAbsoluteAddrMode__s(const char *event_name) {
         A2lSetAbsAddrMode(event_id);
         if (event_id != XCP_UNDEFINED_EVENT_ID) {
             beginEventGroup(event_id);
-            fprintf(gA2lFile, "\n/* Absolute addressing mode: default_event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_);
+            fprintf(gA2lFile, "\n/* Absolute addressing mode: default_event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_());
         }
     }
 }
@@ -847,7 +847,7 @@ void A2lSetAbsoluteAddrMode__i(tXcpEventId event_id) {
         A2lSetAbsAddrMode(event_id);
         if (event_id != XCP_UNDEFINED_EVENT_ID) {
             beginEventGroup(event_id);
-            fprintf(gA2lFile, "\n/* Stack frame absolute addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_);
+            fprintf(gA2lFile, "\n/* Stack frame absolute addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_());
         }
     }
 }
@@ -881,8 +881,8 @@ uint32_t A2lGetAddr_(const void *p) {
                 uint64_t addr_high1 = (addr_diff1 >> 16);
                 uint64_t addr_diff2 = (uint64_t)p - (uint64_t)gA2lFramePtr;
                 uint64_t addr_high2 = (addr_diff2 >> 16);
-                DBG_PRINTF5("A2L auto dyn address mode: addr=%p, base1=%p, diff1=%llX, base2=%p, diff2=%llX\n", p, (void *)gA2lBasePtr, addr_diff1, (void *)gA2lFramePtr,
-                            addr_diff2);
+                DBG_PRINTF5("A2L auto dyn address mode: addr=%p, base1=%p, diff1=%llX, base2=%p, diff2=%llX\n", p, (void *)gA2lBasePtr, (unsigned long long)addr_diff1,
+                            (void *)gA2lFramePtr, (unsigned long long)addr_diff2);
                 // Prefer positive this, then negative stack, then positive stack
                 // Positive base (heap or this relative)
                 if (addr_high1 == 0) {
@@ -1170,32 +1170,24 @@ void A2lTypedefParameterComponent_(const char *name, const char *type_name, uint
     }
 }
 
-void A2lCreateTypedefMeasurementInstance_(const char *instance_name, const char *typeName, uint16_t x_dim, uint32_t addr, uint8_t ext, const char *comment) {
+void A2lCreateTypedefInstance_(const char *instance_name, const char *typeName, uint16_t x_dim, uint32_t addr, uint8_t ext, const char *comment) {
     if (gA2lFile != NULL) {
         if (gA2lAutoGroups) {
             A2lAddToGroup(instance_name);
         }
         fprintf(gA2lFile, "/begin INSTANCE %s \"%s\" %s 0x%X", instance_name, comment, typeName, addr);
         printAddrExt(ext);
-        if (x_dim > 1)
+
+        // For measurements only: add MATRIX_DIM, READ_WRITE and IF_DATAif applicable
+        if (x_dim > 1) { // Array of instance
             fprintf(gA2lFile, " MATRIX_DIM %u", x_dim);
+        }
         uint8_t addr_ext = A2lGetAddrExt_();
-        if (XcpAddrIsAbs(addr_ext) || XcpAddrIsDyn(addr_ext)) { // Absolute and dynamic mode allows write access
+        if (XcpAddrIsAbs(addr_ext) || XcpAddrIsDyn(addr_ext)) { // Measurements in absolute and dynamic mode allows write access
             fprintf(gA2lFile, " READ_WRITE");
         }
-        A2lCreateMeasurement_IF_DATA();
-        fprintf(gA2lFile, " /end INSTANCE\n");
-        gA2lInstances++;
-    }
-}
+        A2lCreateMeasurement_IF_DATA(); // Create event definition for measurements
 
-void A2lCreateTypedefParameterInstance_(const char *instance_name, const char *typeName, uint32_t addr, uint8_t ext, const char *comment) {
-    if (gA2lFile != NULL) {
-        if (gA2lAutoGroups) {
-            A2lAddToGroup(instance_name);
-        }
-        fprintf(gA2lFile, "/begin INSTANCE %s \"%s\" %s 0x%X", instance_name, comment, typeName, addr);
-        printAddrExt(ext);
         fprintf(gA2lFile, " /end INSTANCE\n");
         gA2lInstances++;
     }

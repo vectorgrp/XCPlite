@@ -409,22 +409,21 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
 
 // Single instance of typedef
 // A2L instance name and symbol name are the same
-#define A2lCreateTypedefInstance(name, typeName, comment) A2lCreateTypedefMeasurementInstance_(#name, #typeName, 0, A2lGetAddr_((uint8_t *)&name), A2lGetAddrExt_(), comment);
+#define A2lCreateTypedefInstance(name, typeName, comment) A2lCreateTypedefInstance_(#name, #typeName, 0, A2lGetAddr_((uint8_t *)&name), A2lGetAddrExt_(), comment);
 
 // Single instance of typedef
 // A2L instance name and symbol name are different
 #define A2lCreateTypedefNamedInstance(name, instance, typeName, comment)                                                                                                           \
-    A2lCreateTypedefMeasurementInstance_(name, #typeName, 0, A2lGetAddr_((uint8_t *)&instance), A2lGetAddrExt_(), comment);
+    A2lCreateTypedefInstance_(name, #typeName, 0, A2lGetAddr_((uint8_t *)&instance), A2lGetAddrExt_(), comment);
 
 // Array of typedef instances
-#define A2lCreateTypedefArray(name, typeName, dim, comment) A2lCreateTypedefMeasurementInstance_(#name, #typeName, dim, A2lGetAddr_((uint8_t *)&name), A2lGetAddrExt_(), comment);
+#define A2lCreateTypedefArray(name, typeName, dim, comment) A2lCreateTypedefInstance_(#name, #typeName, dim, A2lGetAddr_((uint8_t *)&name), A2lGetAddrExt_(), comment);
 
 // Pointer to typedef instance
-#define A2lCreateTypedefReference(name, typeName, comment) A2lCreateTypedefMeasurementInstance_(#name, #typeName, 0, A2lGetAddr_((uint8_t *)name), A2lGetAddrExt_(), comment);
+#define A2lCreateTypedefReference(name, typeName, comment) A2lCreateTypedefInstance_(#name, #typeName, 0, A2lGetAddr_((uint8_t *)name), A2lGetAddrExt_(), comment);
 
 // Pointer to array of typedef instances
-#define A2lCreateTypedefArrayReference(name, typeName, dim, comment)                                                                                                               \
-    A2lCreateTypedefMeasurementInstance_(#name, #typeName, dim, A2lGetAddr_((uint8_t *)name), A2lGetAddrExt_(), comment);
+#define A2lCreateTypedefArrayReference(name, typeName, dim, comment) A2lCreateTypedefInstance_(#name, #typeName, dim, A2lGetAddr_((uint8_t *)name), A2lGetAddrExt_(), comment);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Create typedefs and typedef components
@@ -637,9 +636,8 @@ void A2lTypedefMeasurementComponent_(const char *name, const char *type_name, ui
 void A2lTypedefParameterComponent_(const char *name, const char *type_name, uint16_t x_dim, uint16_t y_dim, uint32_t offset, const char *comment, const char *unit, double min,
                                    double max, const char *x_axis, const char *y_axis);
 
-// Create instances if typedefs
-void A2lCreateTypedefMeasurementInstance_(const char *instance_name, const char *type_name, uint16_t x_dim, uint32_t addr, uint8_t ext, const char *comment);
-void A2lCreateTypedefParameterInstance_(const char *instance_name, const char *type_name, uint32_t addr, uint8_t ext, const char *comment);
+// Create an instance of a typedef
+void A2lCreateTypedefInstance_(const char *instance_name, const char *type_name, uint16_t x_dim, uint32_t addr, uint8_t ext, const char *comment);
 
 #ifdef __cplusplus
 } // extern "C"

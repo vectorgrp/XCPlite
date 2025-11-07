@@ -104,8 +104,8 @@ static inline const char *XcpGetContextName(void) { return gXcpContext.name; }
 #define BeginSpan(name)                                                                                                                                                            \
     uint64_t span_t1 = ApplXcpGetClock64();                                                                                                                                        \
     uint64_t span_dt;                                                                                                                                                              \
-    static atomic_uint_fast16_t span_id = XCP_UNDEFINED_EVENT_ID;                                                                                                                  \
-    uint16_t old_span_id = XCP_UNDEFINED_EVENT_ID;                                                                                                                                 \
+    static _Atomic tXcpEventId span_id = XCP_UNDEFINED_EVENT_ID;                                                                                                                   \
+    tXcpEventId old_span_id = XCP_UNDEFINED_EVENT_ID;                                                                                                                              \
     if (atomic_compare_exchange_strong_explicit(&span_id, &old_span_id, 1, memory_order_relaxed, memory_order_relaxed)) {                                                          \
         A2lLock();                                                                                                                                                                 \
         span_id = XcpCreateEvent(name, 0, 0);                                                                                                                                      \
