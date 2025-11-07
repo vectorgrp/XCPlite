@@ -33,12 +33,12 @@ SignalGenerator::SignalGenerator(const char *instance_name, const SignalParamete
 
         A2lTypedefBegin(SignalParametersT, params, "A2L typedef for SignalParametersT");
         A2lCreateEnumConversion(signal_type_enum, "5 0 \"SINE\" 1 \"SQUARE\" 2 \"TRIANGLE\" 3 \"SAWTOOTH\" 4 \"ARBITRARY\"");
-        A2lTypedefParameterComponent(signal_type, SignalParametersT, "Signal type", "conv.signal_type_enum", 0, 4);
-        A2lTypedefParameterComponent(ampl, SignalParametersT, "Amplitude", "Volt", 0, 100);
-        A2lTypedefParameterComponent(phase, SignalParametersT, "Phase", "", 0, k2Pi);
-        A2lTypedefParameterComponent(offset, SignalParametersT, "Offset", "Volt", -100, 100);
-        A2lTypedefParameterComponent(period, SignalParametersT, "Period", "s", 0.01, 10.0);
-        A2lTypedefParameterComponent(delay_us, SignalParametersT, "Delay time in us", "us", 0, 100000);
+        A2lTypedefParameterComponent(signal_type, "Signal type", "conv.signal_type_enum", 0, 4);
+        A2lTypedefParameterComponent(ampl, "Amplitude", "Volt", 0, 100);
+        A2lTypedefParameterComponent(phase, "Phase", "", 0, k2Pi);
+        A2lTypedefParameterComponent(offset, "Offset", "Volt", -100, 100);
+        A2lTypedefParameterComponent(period, "Period", "s", 0.01, 10.0);
+        A2lTypedefParameterComponent(delay_us, "Delay time in us", "us", 0, 100000);
         A2lTypedefComponent(lookup, LookupTableT, 1);
         A2lTypedefEnd();
     }

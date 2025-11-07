@@ -18,7 +18,7 @@
 #define OPTION_SERVER_PORT 5555             // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}     // Bind addr, 0.0.0.0 = ANY
 #define OPTION_QUEUE_SIZE (1024 * 64)       // Size of the measurement queue in bytes
-#define OPTION_LOG_LEVEL 4                  // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_LOG_LEVEL 3                  // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 //-----------------------------------------------------------------------------------------------------
 // Floating average calculation class
@@ -41,7 +41,7 @@ template <size_t N> class FloatingAverage {
 
 template <size_t N> FloatingAverage<N>::FloatingAverage() : samples_{}, current_index_(0), sample_count_(0), sum_(0.0) {
 
-    // Optional: Create a typedef for the of the FloatingAverage class in the A2L file
+    // Optional: Create a typedef for the FloatingAverage class in the A2L file
     if (A2lOnce()) {
         A2lTypedefBegin(FloatingAverage, this, "Typedef for FloatingAverage<%u>", N);
         A2lTypedefMeasurementComponent(current_index_, "Current position in the ring buffer");
@@ -141,7 +141,7 @@ int main() {
     }
 
     // Enable A2L generation
-    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         std::cerr << "Failed to initialize A2L generator" << std::endl;
         return 1;
     }
@@ -155,8 +155,8 @@ int main() {
     // Register the calibration segment description as a typedef and an instance in the A2L file
     {
         A2lTypedefBegin(ParametersT, &kParameters, "Typedef for ParametersT");
-        A2lTypedefParameterComponent(min, ParametersT, "Minimum random number value", "", -100.0, 100.0);
-        A2lTypedefParameterComponent(max, ParametersT, "Maximum random number value", "", -100.0, 100.0);
+        A2lTypedefParameterComponent(min, "Minimum random number value", "", -100.0, 100.0);
+        A2lTypedefParameterComponent(max, "Maximum random number value", "", -100.0, 100.0);
         A2lTypedefEnd();
     }
     gCalSeg->CreateA2lTypedefInstance("ParametersT", "Random number generator parameters");
@@ -168,7 +168,7 @@ int main() {
     // on heap
     auto average128 = new floating_average::FloatingAverage<128>();
 
-    // Optional: Register the complete instance as measurement for a event average128
+    // Optional: Register the complete instance on heap as measurement with event average128
     DaqCreateEvent(average128);
     A2lSetRelativeAddrMode(average128, average128);
     A2lCreateTypedefReference(average128, FloatingAverage, "Instance average128 of FloatingAverage<128>");
@@ -185,7 +185,7 @@ int main() {
                     (average_voltage, "Calculated voltage floating average") //
         );
 
-        // Optional: Trigger the event for the FloatingAverage instance 'average128' to measure all it on heap
+        // Optional: Trigger the event for the FloatingAverage heap instance 'average128'
         DaqTriggerEventRelative(average128, average128);
 
         sleepUs(1000);

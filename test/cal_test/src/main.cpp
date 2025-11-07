@@ -48,7 +48,6 @@ uint8_t XcpCalSegSetCalPage(uint8_t segment, uint8_t page, uint8_t mode);
 typedef struct {
     uint32_t checksum;
     bool run;
-    // Number of threads to create
     uint8_t data[TEST_DATA_SIZE];
 
 } ParametersT;
@@ -198,8 +197,8 @@ int main(int argc, char *argv[]) {
     // Add the calibration segment description as a typedef instance to the A2L file
     {
         A2lTypedefBegin(ParametersT, &kParameters, "A2L Typedef for ParametersT");
-        A2lTypedefParameterComponent(run, ParametersT, "Run or stop test", "", 0, 1);
-        A2lTypedefParameterArrayComponent(data, ParametersT, "Test data array");
+        A2lTypedefParameterComponent(run, "Run or stop test", "", 0, 1);
+        A2lTypedefCurveComponent(data, TEST_DATA_SIZE, "Test data array", "", 0, 255);
         A2lTypedefEnd();
     }
     calseg1.CreateA2lTypedefInstance("test_params_t", "Test parameters");

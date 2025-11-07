@@ -26,19 +26,19 @@ ALIGNMENT_INT64 1
 /begin CHARACTERISTIC params.flow_rate "Flow rate" VALUE 0x80010008 F32 0 NO_COMPU_METHOD 0 2 PHYS_UNIT "m3/h" /end CHARACTERISTIC
 
 /* Absolute addressing mode: default_event=mainloop (1), addr_ext=1 */
-/begin MEASUREMENT outside_temperature "Temperature in °C read from outside sensor" UBYTE conv.temperature 0 0 -20 50 ECU_ADDRESS 0x3022A ECU_ADDRESS_EXTENSION 1 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x1 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT inside_temperature "Temperature in °C read from inside sensor" UBYTE conv.temperature 0 0 0 40 ECU_ADDRESS 0x3022B ECU_ADDRESS_EXTENSION 1 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x1 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT heat_energy "Accumulated heat energy in kWh" FLOAT64_IEEE NO_COMPU_METHOD 0 0 0 10000 ECU_ADDRESS 0x30278 ECU_ADDRESS_EXTENSION 1 PHYS_UNIT "kWh" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x1 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT global_counter "Global free running counter" ULONG NO_COMPU_METHOD 0 0 0 4.29497e+09 ECU_ADDRESS 0x30280 ECU_ADDRESS_EXTENSION 1 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x1 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT outside_temperature "Temperature in °C read from outside sensor" UBYTE conv.temperature 0 0 -20 50 ECU_ADDRESS 0x24002 ECU_ADDRESS_EXTENSION 1 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x1 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT inside_temperature "Temperature in °C read from inside sensor" UBYTE conv.temperature 0 0 0 40 ECU_ADDRESS 0x24003 ECU_ADDRESS_EXTENSION 1 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x1 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT heat_energy "Accumulated heat energy in kWh" FLOAT64_IEEE NO_COMPU_METHOD 0 0 0 10000 ECU_ADDRESS 0x240B0 ECU_ADDRESS_EXTENSION 1 PHYS_UNIT "kWh" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x1 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT global_counter "Global free running counter" ULONG NO_COMPU_METHOD 0 0 0 4.29497e+09 ECU_ADDRESS 0x240B8 ECU_ADDRESS_EXTENSION 1 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x1 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 
 /* Stack frame relative addressing mode: event=mainloop (1), addr_ext=2 */
-/begin MEASUREMENT loop_counter "Loop counter, local measurement variable on stack" UWORD NO_COMPU_METHOD 0 0 0 65535 ECU_ADDRESS 0x1004E ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT loop_counter "Loop counter, local measurement variable on stack" UWORD NO_COMPU_METHOD 0 0 0 65535 ECU_ADDRESS 0x1FFCE ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 
 /* Stack frame relative addressing mode: event=calc_power (2), addr_ext=2 */
-/begin MEASUREMENT calc_power.t1 "Parameter t1 in function calc_power" UBYTE conv.temperature 0 0 -55 200 ECU_ADDRESS 0x2002F ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT calc_power.t2 "Parameter t2 in function calc_power" UBYTE conv.temperature 0 0 -55 200 ECU_ADDRESS 0x2002E ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT calc_power.diff_temp "Local variable diff temperature in function calc_power" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100 ECU_ADDRESS 0x20060 ECU_ADDRESS_EXTENSION 2 PHYS_UNIT "K" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT calc_power.heat_power "Local variable calculated heat power in function calc_power" FLOAT64_IEEE NO_COMPU_METHOD 0 0 0 10 ECU_ADDRESS 0x20058 ECU_ADDRESS_EXTENSION 2 PHYS_UNIT "W" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT calc_power.t1 "Parameter t1 in function calc_power" UBYTE conv.temperature 0 0 -55 200 ECU_ADDRESS 0x2FFD7 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT calc_power.t2 "Parameter t2 in function calc_power" UBYTE conv.temperature 0 0 -55 200 ECU_ADDRESS 0x2FFD6 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT calc_power.diff_temp "Local variable diff temperature in function calc_power" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100 ECU_ADDRESS 0x2FFC8 ECU_ADDRESS_EXTENSION 2 PHYS_UNIT "K" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT calc_power.heat_power "Local variable calculated heat power in function calc_power" FLOAT64_IEEE NO_COMPU_METHOD 0 0 0 10 ECU_ADDRESS 0x2FFC0 ECU_ADDRESS_EXTENSION 2 PHYS_UNIT "W" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 
 /* Typedefs */
 /begin RECORD_LAYOUT U8 FNC_VALUES 1 UBYTE ROW_DIR DIRECT /end RECORD_LAYOUT
@@ -84,10 +84,10 @@ ALIGNMENT_INT64 1
 
 
 /* Groups */
-/begin GROUP params "Calibration Segment" /begin REF_CHARACTERISTIC params.counter_max params.delay_us params.flow_rate /end REF_CHARACTERISTIC /end GROUP
-/begin GROUP mainloop "Measurement event group" /begin REF_MEASUREMENT outside_temperature inside_temperature heat_energy global_counter loop_counter /end REF_MEASUREMENT /end GROUP
-/begin GROUP calc_power "Measurement event group" /begin REF_MEASUREMENT calc_power.t1 calc_power.t2 calc_power.diff_temp calc_power.heat_power /end REF_MEASUREMENT /end GROUP
-/begin GROUP Events "Events" ROOT /begin SUB_GROUP async mainloop calc_power /end SUB_GROUP /end GROUP
+/begin GROUP params "Calibration Segment" ROOT /begin REF_CHARACTERISTIC params.counter_max params.delay_us params.flow_rate /end REF_CHARACTERISTIC /end GROUP
+/begin GROUP mainloop "Measurement event group"  /begin REF_MEASUREMENT outside_temperature inside_temperature heat_energy global_counter loop_counter /end REF_MEASUREMENT /end GROUP
+/begin GROUP calc_power "Measurement event group"  /begin REF_MEASUREMENT calc_power.t1 calc_power.t2 calc_power.diff_temp calc_power.heat_power /end REF_MEASUREMENT /end GROUP
+/begin GROUP Events "Events" ROOT /begin SUB_GROUP mainloop calc_power /end SUB_GROUP /end GROUP
 
 /* Conversions */
 /begin COMPU_METHOD conv.bool "" TAB_VERB "%.0" "" COMPU_TAB_REF conv.bool.table /end COMPU_METHOD
@@ -99,8 +99,8 @@ ALIGNMENT_INT64 1
 /end COMPU_VTAB
 
 /begin MOD_PAR ""
-EPK "v21_10_17_30" ADDR_EPK 0x80000000
-/begin MEMORY_SEGMENT epk "" DATA FLASH INTERN 0x80000000 12 -1 -1 -1 -1 -1
+EPK "14_51_37" ADDR_EPK 0x80000000
+/begin MEMORY_SEGMENT epk "" DATA FLASH INTERN 0x80000000 8 -1 -1 -1 -1 -1
 /begin IF_DATA XCP
 /begin SEGMENT 0 2 0 0 0
 /begin CHECKSUM XCP_CRC_16_CITT MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION "" /end CHECKSUM
@@ -168,7 +168,7 @@ DYNAMIC 0 3 0 OPTIMISATION_TYPE_DEFAULT ADDRESS_EXTENSION_FREE IDENTIFICATION_FI
 /begin EVENT "calc_power" "calc_power" 0x2 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
 /end DAQ
 /begin XCP_ON_TCP_IP
-  0x104 5555 ADDRESS "192.168.0.206"
+  0x104 5555 ADDRESS "192.168.0.101"
 /end XCP_ON_TCP_IP
 /end IF_DATA
 

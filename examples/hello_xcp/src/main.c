@@ -142,9 +142,9 @@ int main(void) {
     // XCP: Option2: Register the calibration segment as a typedef instance
     // {
     // A2lTypedefBegin(parameters_t, &params, "Calibration parameters typedef");
-    // A2lTypedefParameterComponent(counter_max, parameters_t, "Maximum counter value", "", 0, 2000);
-    // A2lTypedefParameterComponent(delay_us, parameters_t, "Mainloop delay time in us", "us", 0, 999999);
-    // A2lTypedefParameterComponent(flow_rate, parameters_t, "Flow rate", "m3/h", 0.0, 2.0);
+    // A2lTypedefParameterComponent(counter_max, "Maximum counter value", "", 0, 2000);
+    // A2lTypedefParameterComponent(delay_us, "Mainloop delay time in us", "us", 0, 999999);
+    // A2lTypedefParameterComponent(flow_rate, "Flow rate", "m3/h", 0.0, 2.0);
     // A2lTypedefEnd();
     // A2lSetSegmentAddrMode(calseg, params);
     // A2lCreateTypedefInstance(params, parameters_t, "Calibration parameters");

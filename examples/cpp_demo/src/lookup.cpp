@@ -26,14 +26,14 @@ void lookup_table::LookupTableT::A2lRegisterTypedef() const {
 #ifdef CANAPE_24
         // New feature in CANape 24, shared axis in typedefs
         A2lTypedefBegin(LookupTableT, this, "A2L typedef for LookupTableT");
-        A2lTypedefCurveComponentWithSharedAxis(values, LookupTableT, kLookupTableSize, "Lookup table with shared axis", "", -1.0, 1.0, "lookup_axis");
-        A2lTypedefAxisComponent(lookup_axis, LookupTableT, kLookupTableSize, "Axis for lookup table in", "", -0.0, 1.0);
+        A2lTypedefCurveComponentWithSharedAxis(values, kLookupTableSize, "Lookup table with shared axis", "", -1.0, 1.0, "lookup_axis");
+        A2lTypedefAxisComponent(lookup_axis, kLookupTableSize, "Axis for lookup table in", "", -0.0, 1.0);
         A2lTypedefEnd();
 #else
         // No support for shared axis in nested typedefs, which means, it is not possible to reference an individual axis in typedef instance
         // Using a fixed axis instead
         A2lTypedefBegin(LookupTableT, this, "A2L typedef for LookupTableT");
-        A2lTypedefCurveComponent(values, LookupTableT, kLookupTableSize, "Lookup table", "", -1.0, 1.0);
+        A2lTypedefCurveComponent(values, kLookupTableSize, "Lookup table", "", -1.0, 1.0);
         A2lTypedefEnd();
 #endif
     }

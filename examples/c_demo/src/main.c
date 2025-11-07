@@ -103,16 +103,16 @@ int main(void) {
     // Create a typedef struct for the calibration parameters
     {
         A2lTypedefBegin(params_t, &params, "Calibration parameters typedef");
-        A2lTypedefParameterComponent(test_byte1, params_t, "Test byte for calibration consistency test", "", -128, 127);
-        A2lTypedefParameterComponent(test_byte2, params_t, "Test byte for calibration consistency test", "", -128, 127);
-        A2lTypedefParameterComponent(counter_max, params_t, "", "", 0, 2000);
-        A2lTypedefParameterComponent(delay_us, params_t, "Mainloop sleep time in us", "us", 0, 1000000);
-        A2lTypedefMapComponent(map, params_t, 8, 8, "Demo map", "", -128, 127);
+        A2lTypedefParameterComponent(test_byte1, "Test byte for calibration consistency test", "", -128, 127);
+        A2lTypedefParameterComponent(test_byte2, "Test byte for calibration consistency test", "", -128, 127);
+        A2lTypedefParameterComponent(counter_max, "", "", 0, 2000);
+        A2lTypedefParameterComponent(delay_us, "Mainloop sleep time in us", "us", 0, 1000000);
+        A2lTypedefMapComponent(map, 8, 8, "Demo map", "", -128, 127);
 #ifdef OPTION_CANAPE_24
-        A2lTypedefCurveComponentWithSharedAxis(curve, params_t, 8, "Demo curve with shared axis curve_axis", "Volt", 0, 1000.0, "curve_axis");
-        A2lTypedefAxisComponent(curve_axis, params_t, 8, "Demo axis for curve", "Nm", 0, 20);
+        A2lTypedefCurveComponentWithSharedAxis(curve, 8, "Demo curve with shared axis curve_axis", "Volt", 0, 1000.0, "curve_axis");
+        A2lTypedefAxisComponent(curve_axis, 8, "Demo axis for curve", "Nm", 0, 20);
 #else
-        A2lTypedefCurveComponent(curve, params_t, 8, "Demo curve with fixed axis", "Volt", 0, 1000.0);
+        A2lTypedefCurveComponent(curve, 8, "Demo curve with fixed axis", "Volt", 0, 1000.0);
 #endif
         A2lTypedefEnd();
     }
