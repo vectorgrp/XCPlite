@@ -112,7 +112,7 @@ void SignalGenerator::Task() {
         }
 
         // XCP event by event name, event lookup is once and will be cached in a static thread local variable
-        DaqEventRelative_s(instance_name_, this); // Trigger with this as dynamic addressing base to make member variables accessible
+        DaqTriggerEventExt_s(instance_name_, this); // Trigger with this as dynamic addressing base to make member variables accessible
 
         // Sleep for delay_us microseconds
         // Be sure the lock is held as short as possible !

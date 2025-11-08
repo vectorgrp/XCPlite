@@ -57,7 +57,7 @@ Key features:
 
 6. **Create calibration segments and events** as required (see sections 3.2 & 3.3).  
 
-7. **Add DAQ triggers**, trigger DAQ events with the `DaqTriggerEvent`/`DaqTriggerEventRelative` macros.  
+7. **Add DAQ triggers**, trigger DAQ events with the `DaqTriggerEvent`/`DaqTriggerEventExt` macros.  
 
 8. On shutdown, call `XcpEthServerShutdown()`.  
 

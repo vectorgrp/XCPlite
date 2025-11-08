@@ -3,7 +3,7 @@
 
 /*----------------------------------------------------------------------------
 | File:
-|   a2l.h
+|   a2l.h - Public C API for A2L generation
 |
 | Description:
 |   Public header for A2L generation
@@ -316,10 +316,6 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
 #define A2lSetRelativeAddrMode(event_name, base_addr) A2lSetRelativeAddrMode__s(#event_name, 1, (const uint8_t *)base_addr);
 #define A2lSetRelativeAddrMode_s(event_name, base_addr) A2lSetRelativeAddrMode__s(event_name, 1, (const uint8_t *)base_addr);
 #define A2lSetRelativeAddrMode_i(event_id, base_addr) A2lSetRelativeAddrMode__i(event_id, 1, (const uint8_t *)base_addr);
-#define A2lSetRelativeAddrMode1(event_name) A2lSetRelativeAddrMode__s(#event_name, 1, NULL);
-#define A2lSetRelativeAddrMode2(event_name) A2lSetRelativeAddrMode__s(#event_name, 2, NULL);
-#define A2lSetRelativeAddrMode2_s(event_name, base_addr) A2lSetRelativeAddrMode__s(event_name, 2, (const uint8_t *)base_addr);
-#define A2lSetRelativeAddrMode2_i(event_id, base_addr) A2lSetRelativeAddrMode__i(event_id, 2, (const uint8_t *)base_addr);
 
 // Set addressing mode to auto (stack or base address) and event 'event_name'
 // Error if the event does not exist

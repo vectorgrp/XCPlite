@@ -3,7 +3,7 @@
 
 /*-----------------------------------------------------------------------------
 | File:
-|   a2l.hpp
+|   a2l.hpp - Public C++ API for A2L generation
 |
 | Description:
 |   Public C++ header for A2L generation

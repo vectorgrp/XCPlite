@@ -113,7 +113,6 @@ struct test_struct global_test_struct = {1, -2, 0.3f, {1, 2, 3}};
 void *task(void *p) {
 
     printf("Start thread %u ...\n", get_thread_id());
-    printf("TLS base address = %p\n", xcp_get_tls_base_addr());
 
     // Thread local measurement variables
     static THREAD_LOCAL volatile uint16_t thread_local_counter = 0;
@@ -136,7 +135,6 @@ void *task(void *p) {
     heap_struct->d[2] = 33;
 
     DaqCreateEvent(task);
-    // tXcpEventId event = DaqCreateEventInstance(task); // Create a measurement event instance for each instance of the this thread
 
     while (global_running) {
 
@@ -149,7 +147,7 @@ void *task(void *p) {
         // The DAQ capture method does not work for TLS
         // DaqCapture(task, thread_local_counter);
 
-        DaqEventExt(task, heap_struct);
+        DaqTriggerEventExt(task, heap_struct);
 
         sleepUs(1000);
     }

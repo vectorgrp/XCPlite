@@ -233,7 +233,7 @@ int main(void) {
         XcpUnlockCalSeg(calseg);
 
         // Trigger the measurement event for global and local variables on stack
-        DaqEvent(mainloop);
+        DaqTriggerEvent(mainloop);
 
         // Check server status
         if (!XcpEthServerStatus()) {

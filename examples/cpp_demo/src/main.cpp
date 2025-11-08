@@ -201,7 +201,7 @@ int main() {
             speed = 0; // Reset speed to 0 km/h
 
         // Trigger the XCP measurement mainloop for temperature, speed, loop_counter and sum
-        DaqEvent(mainloop);
+        DaqTriggerEvent(mainloop);
 
         sleepUs(calseg.lock()->delay_us);
     } // while (running)

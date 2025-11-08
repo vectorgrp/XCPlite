@@ -3,7 +3,7 @@
 
 /*----------------------------------------------------------------------------
 | File:
-|   xcplib.hpp
+|   xcplib.hpp - Public xcplib C++ API
 |
 | Description:
 |   C++ header file for the XCPlite library xcplib application programming interface
@@ -200,7 +200,7 @@ template <typename T> CalSeg<T> CreateCalSeg(const char *name, const T *default_
 #define XCPLIB_APPLY_(m, args) m args
 
 // =============================================================================
-// Variadic DAQ macros to be used in member functions (this pointer available)
+// Variadic DAQ macros which register measurments and trigger already created events
 // =============================================================================
 
 // Create the daq event (just for unique naming scheme)
@@ -217,13 +217,13 @@ template <typename T> CalSeg<T> CreateCalSeg(const char *name, const T *default_
     } while (0)
 
 // Register measurements once and trigger an already created event with stack or relative addressing mode
-#define XcpTriggerDaqEventRelative(event_name, base, ...)                                                                                                                          \
+#define XcpTriggerDaqEventExt(event_name, base, ...)                                                                                                                               \
     do {                                                                                                                                                                           \
         if (A2lOnceLock()) {                                                                                                                                                       \
             A2lSetAutoAddrMode__s(#event_name, xcp_get_frame_addr(), (const uint8_t *)base);                                                                                       \
             XCPLIB_FOR_EACH_MEAS_(A2L_UNPACK_AND_REG_, __VA_ARGS__)                                                                                                                \
         }                                                                                                                                                                          \
-        DaqTriggerEvent1(event_name, base);                                                                                                                                        \
+        DaqTriggerEventExt(event_name, base);                                                                                                                                      \
     } while (0)
 
 // =============================================================================
@@ -248,7 +248,7 @@ template <typename T> CalSeg<T> CreateCalSeg(const char *name, const T *default_
     } while (0)
 
 // Create event, register once and trigger an event with stack or relative addressing mode
-#define XcpDaqEventRelative(event_name, base, ...)                                                                                                                                 \
+#define XcpDaqEventExt(event_name, base, ...)                                                                                                                                      \
     do {                                                                                                                                                                           \
         if (XcpIsActivated()) {                                                                                                                                                    \
             static THREAD_LOCAL tXcpEventId evt__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                            \

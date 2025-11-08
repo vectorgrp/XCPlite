@@ -70,12 +70,12 @@ template <size_t N> double FloatingAverage<N>::calculate(double input) {
     current_index_ = (current_index_ + 1) % N;
 
     //  Create event 'avg_calc' and registerindividual local or member variables for measurement
-    XcpDaqEventRelative(avg_calc1, this,                                               //
-                        (input, "Input value for floating average", "V", 0.0, 1000.0), //
-                        (average, "Current calculated average"),                       //
-                        (current_index_, "Current position in ring buffer"),           //
-                        (sample_count_, "Number of samples collected"),                //
-                        (sum_, "Running sum of all samples")
+    XcpDaqEventExt(avg_calc1, this,                                               //
+                   (input, "Input value for floating average", "V", 0.0, 1000.0), //
+                   (average, "Current calculated average"),                       //
+                   (current_index_, "Current position in ring buffer"),           //
+                   (sample_count_, "Number of samples collected"),                //
+                   (sum_, "Running sum of all samples")
 
     );
 
@@ -187,7 +187,7 @@ int main() {
         );
 
         // Optional: Trigger the event "average128" to measure the FloatingAverage heap instance 'average128' externally
-        DaqTriggerEventRelative(average128, average128);
+        DaqTriggerEventExt(average128, average128);
 
         sleepUs(1000);
         A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect

@@ -412,7 +412,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
         XcpPrint(buffer);
         printf("%s\n", buffer);
 
-        DaqEventAt(process_event, TO_XCP_TIMESTAMP(e->timestamp));
+        DaqTriggerEventAt(process_event, TO_XCP_TIMESTAMP(e->timestamp));
 
     }
 
@@ -459,7 +459,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
         // XcpPrint("Syscall: %s [%u] called %s (%u) on CPU%u\n", e->data.syscall.comm, e->data.syscall.pid, syscall_name, syscall_nr, syscall_cpu_id);
 
         // Trigger general syscall event for each syscall
-        DaqEventAt(syscall_event, TO_XCP_TIMESTAMP(e->timestamp));
+        DaqTriggerEventAt(syscall_event, TO_XCP_TIMESTAMP(e->timestamp));
 
         // Trigger individual syscall event if a specific syscall is monitored
         if (syscall_nr < MAX_SYSCALL_NR) {
@@ -664,7 +664,7 @@ int main(int argc, char *argv[]) {
         ring_buffer__poll(rb, 10); // 10ms timeout
 
         // Trigger DAQ event for periodic measurements
-        DaqEvent(mainloop_event);
+        DaqTriggerEvent(mainloop_event);
 
         // Sleep for a short period
         sleepUs(100000); // 100ms
