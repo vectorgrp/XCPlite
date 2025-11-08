@@ -61,11 +61,17 @@ void XcpDisconnect(void);
 typedef uint16_t tXcpEventId;
 
 // Trigger a XCP data acquisition event
-void XcpEventExt_At(tXcpEventId event, const uint8_t **bases, uint64_t clock);
-void XcpEventExt_(tXcpEventId event, const uint8_t **bases);
 void XcpEventExtAt(tXcpEventId event, const uint8_t *base, uint64_t clock);
 void XcpEventExt(tXcpEventId event, const uint8_t *base);
+void XcpEventAt(tXcpEventId event, uint64_t clock);
 void XcpEvent(tXcpEventId event);
+
+// Trigger a XCP data acquisition event
+// Variadic version for more call convenience
+#if defined(XCP_ENABLE_DYN_ADDRESSING) && (XCP_ADDR_EXT_DYN == 2) && (XCP_ADDR_EXT_DYN_MAX == 4)
+void XcpEventExt_Var(tXcpEventId event, uint8_t count, ...);
+void XcpEventExtAt_Var(tXcpEventId event, uint64_t clock, uint8_t count, ...);
+#endif
 
 // Send a XCP event message
 void XcpSendEvent(uint8_t evc, const uint8_t *d, uint8_t l);

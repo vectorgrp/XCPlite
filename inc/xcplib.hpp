@@ -243,8 +243,7 @@ template <typename T> CalSeg<T> CreateCalSeg(const char *name, const T *default_
                 }                                                                                                                                                                  \
             }                                                                                                                                                                      \
             static THREAD_LOCAL tXcpEventId trg__AAS__##event_name = evt__##event_name;                                                                                            \
-            const uint8_t *__base[4] = {xcp_get_base_addr(), xcp_get_base_addr(), xcp_get_frame_addr(), NULL};                                                                     \
-            XcpEventExt_(trg__AAS__##event_name, __base);                                                                                                                          \
+            XcpEventExt_Var(trg__AAS__##event_name, 1, xcp_get_frame_addr());                                                                                                      \
         }                                                                                                                                                                          \
     } while (0)
 
@@ -261,7 +260,6 @@ template <typename T> CalSeg<T> CreateCalSeg(const char *name, const T *default_
                 }                                                                                                                                                                  \
             }                                                                                                                                                                      \
             static THREAD_LOCAL tXcpEventId trg__AASD__##event_name = evt__##event_name;                                                                                           \
-            const uint8_t *__base[4] = {xcp_get_base_addr(), xcp_get_base_addr(), xcp_get_frame_addr(), (const uint8_t *)base};                                                    \
-            XcpEventExt_(trg__AASD__##event_name, __base);                                                                                                                         \
+            XcpEventExt_Var(trg__AASD__##event_name, 2, xcp_get_frame_addr(), (const uint8_t *)base);                                                                              \
         }                                                                                                                                                                          \
     } while (0)

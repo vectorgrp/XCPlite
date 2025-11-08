@@ -40,12 +40,13 @@ typedef pthread_t THREAD;
 //-----------------------------------------------------------------------------------------------------
 
 #define XCP_MAX_EVENT_NAME 15
-#define THREAD_COUNT 8              // Number of threads to create
-#define THREAD_DELAY_US 1000        // Delay in microseconds for the thread loops
-#define MAX_THREAD_NAME_LENGTH 32   // Maximum length of thread name
-#define EXPERIMENTAL_THREAD_CONTEXT // Enable demonstration of tracking thread context and span of the clip and filter function
-#define FILTER_SLEEP_US 100         // Simulated work in filter function
-#define CLIP_SLEEP_US 50            // Simulated work in clip function
+#define THREAD_COUNT 8            // Number of threads to create
+#define THREAD_DELAY_US 1000      // Delay in microseconds for the thread loops
+#define MAX_THREAD_NAME_LENGTH 32 // Maximum length of thread name
+
+// #define EXPERIMENTAL_THREAD_CONTEXT // Enable demonstration of tracking thread context and span of the clip and filter function
+// #define FILTER_SLEEP_US 100 // Simulated work in filter function
+// #define CLIP_SLEEP_US 50    // Simulated work in clip function
 
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
@@ -180,8 +181,10 @@ static uint16_t XcpCreateContext(const char *context_name, uint16_t context_inde
 // Clip a value to a range defined in the calibration segment
 double clip(double input) {
 
+#ifdef EXPERIMENTAL_THREAD_CONTEXT
     // Instrumentation: Begin span for clip function
     BeginSpan("clip");
+#endif
 
 // Simulate some more expensive work
 #ifdef CLIP_SLEEP_US
@@ -200,19 +203,23 @@ double clip(double input) {
 
     XcpUnlockCalSeg(calseg);
 
+#ifdef EXPERIMENTAL_THREAD_CONTEXT
     // Instrumentation: End span for filter function
     EndSpan();
+#endif
 
     return output;
 }
 
 // Filter function that applies a simple low-pass filter to the input signal
+// Demonstrates observation of function called in different threads and contexts
 double filter(double input) {
 
     double filtered_input = 0;
     double clipped_output = 0;
     static THREAD_LOCAL double last = 0.0; // Thread-local state for the filter, simplified example, one filter instance per thread
 
+#ifdef EXPERIMENTAL_THREAD_CONTEXT
     // Instrumentation: Begin span for filter function
     BeginSpan("filter");
 
@@ -223,7 +230,7 @@ double filter(double input) {
         A2lCreateMeasurement(filtered_input, "Filter result");
         A2lUnlock();
     }
-
+#endif
 // Simulate some more expensive work
 #ifdef FILTER_SLEEP_US
     sleepUs(FILTER_SLEEP_US);
@@ -240,8 +247,10 @@ double filter(double input) {
     // Clip the filter output
     clipped_output = clip(filtered_input);
 
+#ifdef EXPERIMENTAL_THREAD_CONTEXT
     // Instrumentation: End span for filter function
     EndSpan();
+#endif
 
     return clipped_output;
 }
@@ -313,10 +322,9 @@ void *task(void *p)
 
             time = (double)(clockGetUs() - start_time) / 1000000;                         // Calculate elapsed time in seconds
             double normalized_time = M_2PI * fmod(time, params->period) / params->period; // Normalize time ([0.0..M_2PI[ to the period
-
-            channel1 = params->ampl * sin(normalized_time);                    // Sine wave
-            channel2 = params->ampl * ((normalized_time < M_PI) ? 1.0 : -1.0); // Square wave
-            channel3 = params->ampl * (normalized_time - M_PI) / M_PI;         // Sawtooth wave
+            channel1 = params->ampl * sin(normalized_time);                               // Sine wave
+            channel2 = params->ampl * ((normalized_time < M_PI) ? 1.0 : -1.0);            // Square wave
+            channel3 = params->ampl * (normalized_time - M_PI) / M_PI;                    // Sawtooth wave
 
             // Sleep time
             delay_us = params->delay_us;

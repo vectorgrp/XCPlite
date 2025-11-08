@@ -466,9 +466,7 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
             uint16_t event_id = syscall_events[syscall_nr];
             if (event_id != 0) {
                 // @@@@ TODO: Filter on PID
-                // @@@@ TODO: Create a macro for this kind of call
-                const uint8_t *__base[4] = {xcp_get_base_addr(), xcp_get_base_addr(), xcp_get_frame_addr(), NULL};
-                XcpEventExt_(event_id, __base);
+                XcpEventExt(event_id, xcp_get_frame_addr());
             }
         }
     }

@@ -48,13 +48,13 @@ uint8_t outside_temperature = -5 + 55;
 uint8_t inside_temperature = 20 + 55;
 // Heat Energy in kW
 double heat_energy = 0.0f;
-
+// A global counter limited by the calibration parameter counter_max
 uint32_t global_counter = 0;
 
 //-----------------------------------------------------------------------------------------------------
 // Read sensor values
 
-// Simulate reading the outside temperature sensor, by writing to the global variable
+// Simulate reading temperature sensors
 #define read_outside_sensor() (outside_temperature)
 #define read_inside_sensor() (inside_temperature)
 
@@ -68,10 +68,10 @@ float calc_power(uint8_t t1, uint8_t t2) {
     double diff_temp = (double)t2 - (double)t1; // Diff temperature in Kelvin
     double heat_power = diff_temp * 10.0f;      // Heat power in kW
 
-    // XCP: Create a measurement event and once register local measurement variables for current_speed and new_speed
+    // XCP: Create a measurement event and once register local measurement variables
     DaqCreateEvent(calc_power);
     A2lOnce() {
-        A2lSetStackAddrMode(calc_power); // Set stack relative addressing mode with fixed event heat_power
+        A2lSetStackAddrMode(calc_power); // Set stack relative addressing mode with fixed event calc_power
         A2lCreatePhysMeasurementInstance("calc_power", t1, "Parameter t1 in function calc_power", "conv.temperature", -55.0, 200.0);
         A2lCreatePhysMeasurementInstance("calc_power", t2, "Parameter t2 in function calc_power", "conv.temperature", -55.0, 200.0);
         A2lCreatePhysMeasurementInstance("calc_power", diff_temp, "Local variable diff temperature in function calc_power", "K", -100.0, 100.0);
@@ -109,7 +109,7 @@ int main(void) {
 
     // XCP: Initialize the XCP singleton, activate XCP, must be called before starting the server
     // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, true);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, true /* activate */);
 
     // XCP: Initialize the XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;
@@ -117,12 +117,12 @@ int main(void) {
         return 1;
     }
 
-    // XCP: Enable inline A2L generation
+    // XCP: Enable runtime A2L generation for data declaration as code
     // In WRITE_ONCE mode:
     //   If the A2l file aready exists, check if software version (EPK) still matches and load calibration values from the binary persistence file (.bin)
     //   If not, create a new A2L file (.a2l) and binary persistence file (.bin) with default calibration values
     // In WRITE_ALWAYS mode:
-    //   Recreate the A2L file on each application start, calibration values will be initialized to default
+    //   Recreate the A2L file on each application start, calibration values will always be initialized to default
     //   Binary persistence is not supported
     // Finalize the A2L file on XCP connect
     // Optionally create A2L groups for calibration segments and events
@@ -153,7 +153,7 @@ int main(void) {
     // XCP: Create a measurement event named "mainloop"
     DaqCreateEvent(mainloop);
 
-    // XCP: Register global measurement variables
+    // XCP: Register global measurement variables on event "mainloop"
     A2lSetAbsoluteAddrMode(mainloop);
     A2lCreateLinearConversion(temperature, "Temperature in °C from unsigned byte", "C", 1.0, -55.0);
     A2lCreatePhysMeasurement(outside_temperature, "Temperature in °C read from outside sensor", "conv.temperature", -20, 50);
@@ -161,7 +161,7 @@ int main(void) {
     A2lCreatePhysMeasurement(heat_energy, "Accumulated heat energy in kWh", "kWh", 0.0, 10000.0);
     A2lCreateMeasurement(global_counter, "Global free running counter");
 
-    // XCP: Register local measurement variables
+    // XCP: Register local measurement variables on event "mainloop"
     uint16_t loop_counter = 0;
     A2lSetStackAddrMode(mainloop); // Set stack relative addressing mode with fixed event mainloop
     A2lCreateMeasurement(loop_counter, "Loop counter, local measurement variable on stack");
