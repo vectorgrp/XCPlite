@@ -165,17 +165,18 @@ C++ Example:
 7. **Create and trigger measurement events** to capture variables.
 
 C or C++ Example:
+Basic example: Measure a local variable on stack or a global variable
 
 ```c
    // Local or global variable to measure
    int8_t temperature = 0;
 
-   // Create a measurement event named "MyEvent" and register the local variable 'temperature' for measurement
+   // Create a measurement event named "MyEvent" and register the local variable 'temperature' for measurement on this event
    DaqCreateEvent(MyEvent);
    A2lSetStackAddrMode(temperature);  // or SetAbsoluteAddrMode(temperature);
    A2lCreatePhysMeasurement(temperature, "temperature", "Deg Celcius", -50, 80);
 
-   // Trigger event 'MyEvent' to measure the local variable when changed
+   // Trigger event 'MyEvent' to measure the variable when changed
    // Creates a precise timestamp and captures consistent data
    temperature = read_temp_sensor();
    DaqTriggerEvent(MyEvent);               
@@ -183,7 +184,7 @@ C or C++ Example:
 ```
 
 C++ Example:  
-In a member function of a class  
+Instrument a member function of a class  
 
 ```cpp
 
@@ -193,13 +194,14 @@ public:
       void calc_energy(double );
 private:
       double energy_;
+      double last_time_;
 };
 
-void calc_energy(double voltage, double current) {
+double calc_energy(double voltage, double current) {
 
    // ... do some calcultions ...
-   double power_ = voltage * current;
-   double energy = ...
+   double power = voltage * current; // kW
+   double energy_ += power * get_elapsed_time(); // kWh
 
    //  Create event 'calc_energy', register individual local or member variables and trigger the event
     XcpDaqEventExt(calc_energy, this,                                               
@@ -207,9 +209,42 @@ void calc_energy(double voltage, double current) {
                    (current, "Input current", "A", 0.0, 500.0), // A function parameter
                    (power, "Current calculated energy", "kWh", 0.0, 1000.0),   // A local variable                     
                    (energy_, "Current power", "kW", 0.0, 1000.0), // A member variable accessed via 'this' pointer                 
-                    );          
+                    );   
+                    
+   return energy_;       
 }
 ```
+
+C++ example:
+Measure an instance of a class on heap
+
+```cpp
+
+   // In the constructor or any place where we can access private members of the class
+    if (A2lOnce()) {
+        A2lTypedefBegin(PowerMeter, this, "Typedef for PowerMeter");
+        A2lTypedefMeasurementComponent(energy_, "Current energy", "kWh", 0.0, 1000.0   );
+        A2lTypedefMeasurementComponent(last_time_, "Last calculation time", "ms"  );
+        A2lTypedefEnd();
+    }
+
+   // Create a heap instance of the class PowerMeter
+   PowerMeter* meter1 = new PowerMeter();
+   
+   // Some where in the code, create an event to measure the heap instance
+   // Register the complete PowerMeter instance on heap as measurement with event my_meter
+   DaqCreateEvent(my_meter);
+   A2lSetRelativeAddrMode(my_meter, meter1);
+   A2lCreateTypedefReference(meter1, PowerMeter, "Instance my_meter of PowerMeter");
+
+   // Something happens in the instance
+   my_meter->calc_energy(voltage, current);
+
+   // Trigger the event "my_meter" to measure the 'PowerMeter' heap instance 'my_meter'
+   DaqTriggerEventExt(my_meter, my_meter);
+
+```
+
 
 8. On shutdown, call `XcpEthServerShutdown()`.  
 
