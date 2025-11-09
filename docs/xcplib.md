@@ -31,33 +31,185 @@ Key features:
 
 1. **Include headers**
 
+Code Example:
+
 ```c
 #include "xcplib.h"
-#include "a2l.h" // for A2l generation
+#include "a2l.h" 
 ```
+
+C++ Example:
+
+```cpp
+#include "a2l.hpp"    
+#include "xcplib.hpp" 
+
+```
+
 
 2. **Set log level (optional)**
 
+C and C++ Examples:
+
 ```c
-   XcpSetLogLevel(3); // (1=error, 2=warning, 3=info, 4=debug (XCP commands), 5=trace)
+   XcpSetLogLevel(3); // (1=error, 2=warning, 3=info, 4=debug (prints all XCP commands), 5=trace)
 ```
 
 3. **Initialise the XCP core** *once*:
 
 ```c
-   XcpInit("MyProject", "V1.0.1",true);
+   XcpInit("MyProject" /* Project name*/, "V1.0.1" /* EPK version string*/, true /* activate XCP */);
 ```
 
-4. **Start the Ethernet server** (TCP or UDP, IP addr, port):
+4. **Start the Ethernet server**  *once*:
 
 ```c
-   const uint8_t addr[4] = {0,0,0,0};
-   XcpEthServerInit(addr, 5555, false /* UDP */, 32*1024 /* DAQ queue size */);
+   const uint8_t addr[4] = {0,0,0,0}; // bind to any address
+   XcpEthServerInit(addr, 5555 /* port */, false /* UDP */, 32*1024 /* DAQ queue size */);
 ```
 
-6. **Create calibration segments and events** as required (see sections 3.2 & 3.3).  
+5. **Create calibration parameter segments**.  
 
-7. **Add DAQ triggers**, trigger DAQ events with the `DaqTriggerEvent`/`DaqTriggerEventExt` macros.  
+C Example:
+```c
+   // Calibration parameters structure
+   typedef struct params {
+      uint16_t counter_max; // Maximum value for the counter
+      uint32_t delay_us;    // Sleep time in microseconds for the main loop
+      float flow_rate;      // Flow rate in m3/h
+   } parameters_t;
+
+   // Default values (reference page, "FLASH") for the calibration parameters
+   const parameters_t params = {.counter_max = 1024, .delay_us = 1000, .flow_rate = 0.300f};
+
+   // A global calibration segment handle for the calibration parameters
+   // A calibration segment has a working page ("RAM") and a reference page ("FLASH"), it is described by a MEMORY_SEGMENT in the A2L file
+   // Using the calibration segment to access parameters assures safe (thread safe against XCP modifications), wait-free and consistent access
+   // It supports RAM/FLASH page switching, reinitialization (copy FLASH to RAM page) and persistence (save RAM page to BIN file)
+   tXcpCalSegIndex calseg = XCP_UNDEFINED_CALSEG;
+
+   // Create a calibration segment named 'Parameters' for the calibration parameter struct instance 'params' as reference page
+   calseg = XcpCreateCalSeg("params", &params, sizeof(params));
+
+    // Option1: Register the individual calibration parameters in the calibration segment
+   A2lSetSegmentAddrMode(calseg, params);
+   A2lCreateParameter(params.counter_max, "Maximum counter value", "", 0, 2000);
+   A2lCreateParameter(params.delay_us, "Mainloop delay time in us", "us", 0, 999999);
+   
+   // Option2: Register the calibration segment as a typedef instance
+   {
+    A2lTypedefBegin(parameters_t, &params, "Calibration parameters typedef");
+    A2lTypedefParameterComponent(counter_max, "Maximum counter value", "", 0, 2000);
+    A2lTypedefParameterComponent(delay_us, "Mainloop delay time in us", "us", 0, 999999);
+    A2lTypedefEnd();
+    A2lSetSegmentAddrMode(calseg, params);
+    A2lCreateTypedefInstance(params, parameters_t, "Calibration parameters");
+   }
+```
+
+C++ Example:
+
+```cpp
+   // Calibration parameters for the random number generator
+   struct ParametersT {
+      double min; // Minimum random number value
+      double max; // Maximum random number value
+   };
+
+   // Default parameter values
+   const ParametersT kParameters = {.min = 2.0, .max = 3.0};
+
+   // A calibration segment wrapper for the parameters
+   std::optional<xcplib::CalSeg<ParametersT>> gCalSeg;
+
+    // Create a global calibration segment wrapper for the struct 'ParametersT' and use its default values in constant 'kParameters'
+    // This calibration segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
+    // It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
+    // It supports XCP/ECU independent page switching, checksum calculation and reinitialization (copy reference page to working page)
+    gCalSeg.emplace("Parameters", &kParameters);
+
+    // Register the calibration segment description as a typedef and an instance in the A2L file
+    {
+        A2lTypedefBegin(ParametersT, &kParameters, "Typedef for ParametersT");
+        A2lTypedefParameterComponent(min, "Minimum random number value", "", -100.0, 100.0);
+        A2lTypedefParameterComponent(max, "Maximum random number value", "", -100.0, 100.0);
+        A2lTypedefEnd();
+    }
+    gCalSeg->CreateA2lTypedefInstance("ParametersT", "Random number generator parameters");
+
+```
+6. **Access calibration parameters** via the calibration segment.
+
+C Example:
+
+```c
+   // Lock access to calibration parameters
+    const parameters_t *params = (parameters_t *)XcpLockCalSeg(calseg);
+
+    printf("Current parameters: counter_max=%u, delay_us=%u\n",params->counter_max,params->delay_us);
+
+    // Unlock calibration segment
+    XcpUnlockCalSeg(calseg);
+
+```
+
+C++ Example:
+
+```cpp
+   {
+      auto params = gCalSeg->lock(); // RAII lock guard for calibration segment
+      std::cout << "Current parameters: min=" << params->min << ", max=" << params->max << std::endl;
+   }
+```
+
+7. **Create and trigger measurement events** to capture variables.
+
+C or C++ Example:
+
+```c
+   // Local or global variable to measure
+   int8_t temperature = 0;
+
+   // Create a measurement event named "MyEvent" and register the local variable 'temperature' for measurement
+   DaqCreateEvent(MyEvent);
+   A2lSetStackAddrMode(temperature);  // or SetAbsoluteAddrMode(temperature);
+   A2lCreatePhysMeasurement(temperature, "temperature", "Deg Celcius", -50, 80);
+
+   // Trigger event 'MyEvent' to measure the local variable when changed
+   // Creates a precise timestamp and captures consistent data
+   temperature = read_temp_sensor();
+   DaqTriggerEvent(MyEvent);               
+   
+```
+
+C++ Example:  
+In a member function of a class  
+
+```cpp
+
+class power_meter {
+public:
+    power_meter() : energy_(0.0) {}  
+      void calc_energy(double );
+private:
+      double energy_;
+};
+
+void calc_energy(double voltage, double current) {
+
+   // ... do some calcultions ...
+   double power_ = voltage * current;
+   double energy = ...
+
+   //  Create event 'calc_energy', register individual local or member variables and trigger the event
+    XcpDaqEventExt(calc_energy, this,                                               
+                   (voltage, "Input voltage", "V", 0.0, 1000.0), // A function parameter
+                   (current, "Input current", "A", 0.0, 500.0), // A function parameter
+                   (power, "Current calculated energy", "kWh", 0.0, 1000.0),   // A local variable                     
+                   (energy_, "Current power", "kW", 0.0, 1000.0), // A member variable accessed via 'this' pointer                 
+                    );          
+}
+```
 
 8. On shutdown, call `XcpEthServerShutdown()`.  
 

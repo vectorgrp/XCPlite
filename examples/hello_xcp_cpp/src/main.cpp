@@ -69,7 +69,7 @@ template <size_t N> double FloatingAverage<N>::calculate(double input) {
     average = sum_ / static_cast<double>(sample_count_);
     current_index_ = (current_index_ + 1) % N;
 
-    //  Create event 'avg_calc' and registerindividual local or member variables for measurement
+    //  Create event 'avg_calc', register individual local or member variables and trigger the event
     XcpDaqEventExt(avg_calc1, this,                                               //
                    (input, "Input value for floating average", "V", 0.0, 1000.0), //
                    (average, "Current calculated average"),                       //
@@ -168,7 +168,7 @@ int main() {
     // on heap
     auto average128 = new floating_average::FloatingAverage<128>();
 
-    // Optional: Register the complete instance on heap as measurement with event average128
+    // Optional: Register the complete FloatingAverage instance on heap as measurement with event average128
     DaqCreateEvent(average128);
     A2lSetRelativeAddrMode(average128, average128);
     A2lCreateTypedefReference(average128, FloatingAverage, "Instance average128 of FloatingAverage<128>");
@@ -180,13 +180,14 @@ int main() {
         double voltage = random_number();
         double average_voltage = average128->calculate(voltage);
 
-        // Create event "mainloop" and register measurements for the local variables 'voltage' and 'average_voltage' via event 'mainloop'
+        // Once create event "mainloop" and register measurements for the local variables 'voltage' and 'average_voltage' via event 'mainloop'
+        // Trigger the event "mainloop" to measure the local variables
         XcpDaqEvent(mainloop,                                                //
                     (voltage, "Input voltage", "V", 0.0, 1000.0),            //
                     (average_voltage, "Calculated voltage floating average") //
         );
 
-        // Optional: Trigger the event "average128" to measure the FloatingAverage heap instance 'average128' externally
+        // Optional: Trigger the event "average128" to measure the 'FloatingAverage' heap instance 'average128'
         DaqTriggerEventExt(average128, average128);
 
         sleepUs(1000);
