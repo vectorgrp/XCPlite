@@ -518,7 +518,7 @@ void XcpPrint(const char *str);
 uint64_t ApplXcpGetClock64(void);
 
 // Register XCP callbacks
-void ApplXcpRegisterConnectCallback(bool (*cb_connect)(void));
+void ApplXcpRegisterConnectCallback(bool (*cb_connect)(uint8_t mode));
 void ApplXcpRegisterPrepareDaqCallback(uint8_t (*cb_prepare_daq)(void));
 void ApplXcpRegisterStartDaqCallback(uint8_t (*cb_start_daq)(void));
 void ApplXcpRegisterStopDaqCallback(void (*cb_stop_daq)(void));
@@ -530,7 +530,7 @@ void ApplXcpRegisterInitCalCallback(uint8_t (*cb_init_cal)(uint8_t src_page, uin
 void ApplXcpRegisterReadCallback(uint8_t (*cb_read)(uint32_t src, uint8_t size, uint8_t *dst));
 void ApplXcpRegisterWriteCallback(uint8_t (*cb_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay));
 void ApplXcpRegisterFlushCallback(uint8_t (*cb_flush)(void)); // Internal function used by the Rust API
-void ApplXcpRegisterCallbacks(bool (*cb_connect)(void), uint8_t (*cb_prepare_daq)(void), uint8_t (*cb_start_daq)(void), void (*cb_stop_daq)(void),
+void ApplXcpRegisterCallbacks(bool (*cb_connect)(uint8_t mode), uint8_t (*cb_prepare_daq)(void), uint8_t (*cb_start_daq)(void), void (*cb_stop_daq)(void),
                               uint8_t (*cb_freeze_daq)(uint8_t clear, uint16_t config_id), uint8_t (*cb_get_cal_page)(uint8_t segment, uint8_t mode),
                               uint8_t (*cb_set_cal_page)(uint8_t segment, uint8_t page, uint8_t mode), uint8_t (*cb_freeze_cal)(void),
                               uint8_t (*cb_init_cal)(uint8_t src_page, uint8_t dst_page), uint8_t (*cb_read)(uint32_t src, uint8_t size, uint8_t *dst),

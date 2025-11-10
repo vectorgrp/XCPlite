@@ -37,7 +37,7 @@ static bool __write_delayed = false;
 // Callbacks
 /**************************************************************************/
 
-static bool (*__callback_connect)(void) = NULL;
+static bool (*__callback_connect)(uint8_t mode) = NULL;
 static uint8_t (*__callback_prepare_daq)(void) = NULL;
 static uint8_t (*__callback_start_daq)(void) = NULL;
 static void (*__callback_stop_daq)(void) = NULL;
@@ -50,7 +50,7 @@ static uint8_t (*__callback_read)(uint32_t src, uint8_t size, uint8_t *dst) = NU
 static uint8_t (*__callback_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay) = NULL;
 static uint8_t (*__callback_flush)(void) = NULL;
 
-void ApplXcpRegisterConnectCallback(bool (*cb_connect)(void)) { __callback_connect = cb_connect; }
+void ApplXcpRegisterConnectCallback(bool (*cb_connect)(uint8_t mode)) { __callback_connect = cb_connect; }
 void ApplXcpRegisterPrepareDaqCallback(uint8_t (*cb_prepare_daq)(void)) { __callback_prepare_daq = cb_prepare_daq; }
 void ApplXcpRegisterStartDaqCallback(uint8_t (*cb_start_daq)(void)) { __callback_start_daq = cb_start_daq; }
 void ApplXcpRegisterStopDaqCallback(void (*cb_stop_daq)(void)) { __callback_stop_daq = cb_stop_daq; }
@@ -64,7 +64,7 @@ void ApplXcpRegisterWriteCallback(uint8_t (*cb_write)(uint32_t dst, uint8_t size
 void ApplXcpRegisterFlushCallback(uint8_t (*cb_flush)(void)) { __callback_flush = cb_flush; }
 
 // Internal function used by the Rust API
-void ApplXcpRegisterCallbacks(bool (*cb_connect)(void), uint8_t (*cb_prepare_daq)(void), uint8_t (*cb_start_daq)(void), void (*cb_stop_daq)(void),
+void ApplXcpRegisterCallbacks(bool (*cb_connect)(uint8_t mode), uint8_t (*cb_prepare_daq)(void), uint8_t (*cb_start_daq)(void), void (*cb_stop_daq)(void),
                               uint8_t (*cb_freeze_daq)(uint8_t clear, uint16_t config_id), uint8_t (*cb_get_cal_page)(uint8_t segment, uint8_t mode),
                               uint8_t (*cb_set_cal_page)(uint8_t segment, uint8_t page, uint8_t mode), uint8_t (*cb_freeze_cal)(void),
                               uint8_t (*cb_init_cal)(uint8_t src_page, uint8_t dst_page), uint8_t (*cb_read)(uint32_t src, uint8_t size, uint8_t *dst),
@@ -89,13 +89,13 @@ void ApplXcpRegisterCallbacks(bool (*cb_connect)(void), uint8_t (*cb_prepare_daq
 // General notifications from protocol layer
 /**************************************************************************/
 
-bool ApplXcpConnect(void) {
-    DBG_PRINT4("ApplXcpConnect\n");
+bool ApplXcpConnect(uint8_t mode) {
+    DBG_PRINTF4("ApplXcpConnect mode=%u\n", mode);
 #ifdef XCP_ENABLE_USER_COMMAND
     __write_delayed = false;
 #endif
     if (__callback_connect != NULL)
-        return __callback_connect();
+        return __callback_connect(mode);
     return true;
 }
 

@@ -38,30 +38,32 @@
 
 //----------------------------------------------------------------------------------
 
-static FILE *gA2lFile = NULL;
-static bool gA2lFileFinalized = false;
-
-static char gA2lFilename[256];
-
-static bool gA2lFinalizeOnConnect = false; // Finalize A2L file on connect
-static bool gA2lWriteAlways = true;        // Write A2L file always, even if no changes were made
-
-static MUTEX gA2lMutex;
-
-static FILE *gA2lTypedefsFile = NULL;
-static FILE *gA2lGroupsFile = NULL;
-
-static FILE *gA2lConversionsFile = NULL;
-static char gA2lConvName[256];
-
-static bool gA2lAutoGroups = true;            // Automatically create groups for measurements and parameters
-static const char *gA2lAutoGroupName = NULL;  // Current open group
-static bool gA2lAutoGroupIsParameter = false; // Group is a parameter group
-
+// A2L global options
 static bool gA2lUseTCP = false;
 static uint16_t gA2lOptionPort = 5555;
 static uint8_t gA2lOptionBindAddr[4] = {0, 0, 0, 0};
+static uint8_t gA2lMode = A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS;
+static bool gA2lFinalizeOnConnect = true; // Finalize A2L file on connect
+static bool gA2lWriteAlways = true;       // Write A2L file always, even if no changes were made
+static bool gA2lAutoGroups = true;        // Automatically create groups for measurements and parameters
 
+// A2L file handles and state
+static char gA2lFilename[256];
+static bool gA2lFileFinalized = false;
+static FILE *gA2lFile = NULL;
+static FILE *gA2lTypedefsFile = NULL;
+static FILE *gA2lGroupsFile = NULL;
+static FILE *gA2lConversionsFile = NULL;
+static MUTEX gA2lMutex;
+
+// Conversion name buffer
+static char gA2lConvName[256];
+
+// Auto grouping
+static const char *gA2lAutoGroupName = NULL;  // Current open group
+static bool gA2lAutoGroupIsParameter = false; // Group is a parameter group
+
+// Addressing mode
 static tXcpEventId gA2lFixedEvent = XCP_UNDEFINED_EVENT_ID;
 static tXcpEventId gA2lDefaultEvent = XCP_UNDEFINED_EVENT_ID;
 static uint8_t gA2lAddrExt = XCP_ADDR_EXT_ABS;           // Address extension (addressing mode, default absolute)
@@ -70,6 +72,7 @@ static const uint8_t *gA2lFramePtr = NULL;               // Frame address for re
 static const uint8_t *gA2lBasePtr = NULL;                // Base address for rel and dyn mode
 static tXcpCalSegIndex gA2lAddrIndex = 0;                // Segment index for seg mode
 
+// Statistics
 static uint32_t gA2lMeasurements;
 static uint32_t gA2lParameters;
 static uint32_t gA2lTypedefs;
@@ -424,12 +427,18 @@ static double getTypeMax(tA2lTypeId type) {
 
 static bool A2lOpen(const char *filename) {
 
-    assert(!gA2lFileFinalized);
-
+    gA2lFileFinalized = false;
     gA2lFile = NULL;
     gA2lTypedefsFile = NULL;
-    gA2lFixedEvent = XCP_UNDEFINED_EVENT_ID;
+    gA2lFile = NULL;
+    gA2lTypedefsFile = NULL;
+    gA2lGroupsFile = NULL;
+    gA2lConversionsFile = NULL;
+
+    A2lRstAddrMode();
+
     gA2lMeasurements = gA2lParameters = gA2lTypedefs = gA2lInstances = gA2lConversions = gA2lComponents = 0;
+
     if (fexists(filename)) {
         DBG_PRINTF_WARNING("A2L filename %s already exists!\n", filename);
     }
@@ -437,7 +446,6 @@ static bool A2lOpen(const char *filename) {
     gA2lTypedefsFile = fopen("typedefs.a2l", "w");
     gA2lGroupsFile = fopen("groups.a2l", "w");
     gA2lConversionsFile = fopen("conversions.a2l", "w");
-
     if (gA2lFile == 0 || gA2lTypedefsFile == 0 || gA2lGroupsFile == 0 || gA2lConversionsFile == 0) {
         DBG_PRINT_ERROR("Could not create A2L file!\n");
         return false;
@@ -1511,7 +1519,7 @@ static bool includeFile(FILE **filep, const char *filename) {
 }
 
 // Callback on XCP client tool connect
-bool A2lCheckFinalizeOnConnect(void) {
+bool A2lCheckFinalizeOnConnect(u_int8_t connect_mode) {
 
     // Finalize A2l once on connect
     if (gA2lFinalizeOnConnect) {
@@ -1639,6 +1647,7 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
     gA2lUseTCP = useTCP;
 
     // Save mode
+    gA2lMode = mode;
     gA2lWriteAlways = !!(mode & A2L_MODE_WRITE_ALWAYS);
 #ifndef OPTION_CAL_PERSISTENCE
     assert(gA2lWriteAlways);

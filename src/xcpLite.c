@@ -2315,14 +2315,15 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
     if (CRO_LEN >= CRO_CONNECT_LEN && CRO_CMD == CC_CONNECT)
 #endif
     {
+        uint8_t mode = CRO_CONNECT_MODE;
 #ifdef DBG_LEVEL
-        DBG_PRINTF3("CONNECT mode=%u\n", CRO_CONNECT_MODE);
+        DBG_PRINTF3("CONNECT mode=%u\n", mode);
         if ((gXcp.SessionStatus & SS_CONNECTED) != 0)
             DBG_PRINT_WARNING("Already connected! DAQ setup cleared! Legacy mode activated!\n");
 #endif
 
         // Check application is ready for XCP connect
-        if (!ApplXcpConnect())
+        if (!ApplXcpConnect(mode))
             return CRC_CMD_OK; // Application not ready, ignore
 
         // Initialize Session Status

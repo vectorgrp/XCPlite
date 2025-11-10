@@ -12,7 +12,7 @@
 #include "xcpLite.h"
 
 //  Not public API
-extern bool A2lCheckFinalizeOnConnect(void);
+extern bool A2lCheckFinalizeOnConnect(uint8_t connect_mode);
 
 // static bool file_exists(const char *path) {
 //     FILE *file = fopen(path, "r");
@@ -23,7 +23,7 @@ extern bool A2lCheckFinalizeOnConnect(void);
 //     return false;
 // }
 
-#define A2lTOOL_PATH "../a2ltool/target/debug/a2ltool"
+#define A2lTOOL_PATH "a2ltool"
 
 #define OPTION_PROJECT_NAME "a2l_test"  // A2L project name
 #define OPTION_PROJECT_EPK __TIME__     // EPK version string
@@ -461,7 +461,7 @@ int main() {
     A2lCreateTypedefReference(heap_struct1, struct1_t, "Pointer to struct1_t on heap");
 
     A2lFinalize();
-    assert(A2lCheckFinalizeOnConnect()); // XCP connect is now allowed, the A2L file is finalized
+    assert(A2lCheckFinalizeOnConnect(0)); // XCP connect is now allowed, the A2L file is finalized
 
     // Execute A2L checker using Rust a2ltool https://github.com/DanielT/a2ltool
     /*
