@@ -169,8 +169,8 @@ int main() {
     auto average128 = new floating_average::FloatingAverage<128>();
 
     // Optional: Register the complete FloatingAverage instance on heap as measurement with event average128
-    DaqCreateEvent(average128);
-    A2lSetRelativeAddrMode(average128, average128);
+    DaqCreateEvent(average);
+    A2lSetRelativeAddrMode(average, average128);
     A2lCreateTypedefReference(average128, FloatingAverage, "Instance average128 of FloatingAverage<128>");
 
     // Main loop
@@ -188,7 +188,7 @@ int main() {
         );
 
         // Optional: Trigger the event "average128" to measure the 'FloatingAverage' heap instance 'average128'
-        DaqTriggerEventExt(average128, average128);
+        DaqTriggerEventExt(average, average128);
 
         sleepUs(1000);
         A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect

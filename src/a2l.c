@@ -49,12 +49,15 @@ static bool gA2lAutoGroups = true;        // Automatically create groups for mea
 
 // A2L file handles and state
 static char gA2lFilename[256];
-static bool gA2lFileFinalized = false;
+static bool gA2lFileWritten = false;
 static FILE *gA2lFile = NULL;
 static FILE *gA2lTypedefsFile = NULL;
 static FILE *gA2lGroupsFile = NULL;
 static FILE *gA2lConversionsFile = NULL;
+
+// Thread safety and one time execution
 static MUTEX gA2lMutex;
+A2L_ONCE_TYPE gA2lOncePass = 1; // Allows to rerun the once checkers
 
 // Conversion name buffer
 static char gA2lConvName[256];
@@ -79,6 +82,11 @@ static uint32_t gA2lTypedefs;
 static uint32_t gA2lComponents;
 static uint32_t gA2lInstances;
 static uint32_t gA2lConversions;
+
+//----------------------------------------------------------------------------------
+
+static bool A2lOpen(void);
+static bool A2lCheckFinalizeOnConnect(u_int8_t connect_mode);
 
 //----------------------------------------------------------------------------------
 static const char *gA2lHeader1 = "ASAP2_VERSION 1 71\n"
@@ -425,11 +433,10 @@ static double getTypeMax(tA2lTypeId type) {
     return max;
 }
 
-static bool A2lOpen(const char *filename) {
+// Start A2L file generation
+// Filename gA2lFilename
+static bool A2lOpen(void) {
 
-    gA2lFileFinalized = false;
-    gA2lFile = NULL;
-    gA2lTypedefsFile = NULL;
     gA2lFile = NULL;
     gA2lTypedefsFile = NULL;
     gA2lGroupsFile = NULL;
@@ -439,10 +446,15 @@ static bool A2lOpen(const char *filename) {
 
     gA2lMeasurements = gA2lParameters = gA2lTypedefs = gA2lInstances = gA2lConversions = gA2lComponents = 0;
 
-    if (fexists(filename)) {
-        DBG_PRINTF_WARNING("A2L filename %s already exists!\n", filename);
+    // Register a callback on XCP connect
+    ApplXcpRegisterConnectCallback(A2lCheckFinalizeOnConnect);
+
+    // Start A2L generator
+    DBG_PRINTF3("Start A2L generator, file=%s, write_always=%u, finalize_on_connect=%u, auto_groups=%u\n", gA2lFilename, gA2lWriteAlways, gA2lFinalizeOnConnect, gA2lAutoGroups);
+    if (fexists(gA2lFilename)) {
+        DBG_PRINTF_WARNING("A2L filename %s already exists!\n", gA2lFilename);
     }
-    gA2lFile = fopen(filename, "w");
+    gA2lFile = fopen(gA2lFilename, "w");
     gA2lTypedefsFile = fopen("typedefs.a2l", "w");
     gA2lGroupsFile = fopen("groups.a2l", "w");
     gA2lConversionsFile = fopen("conversions.a2l", "w");
@@ -576,8 +588,9 @@ static void A2lCreate_IF_DATA_DAQ(void) {
             timeUnit++;
         }
 
-        // @@@@ TODO: How to define the short A2L event names correctly? Short event names must be unique and <= 8 characters
-        fprintf(gA2lFile, "/begin EVENT \"%s\" \"%s\" 0x%X DAQ 0xFF %u %u %u CONSISTENCY EVENT", XcpGetEventName(id), XcpGetEventName(id), id, timeCycle, timeUnit,
+        // @@@@ TODO: Clarify
+        // Short event names (the second name) must not be unique, but <= 8 characters ?
+        fprintf(gA2lFile, "/begin EVENT \"%s\" \"%.8s\" 0x%X DAQ 0xFF %u %u %u CONSISTENCY EVENT", XcpGetEventName(id), XcpGetEventName(id), id, timeCycle, timeUnit,
                 event->priority);
 
         fprintf(gA2lFile, " /end EVENT\n");
@@ -1486,7 +1499,7 @@ void A2lCreateParameterGroupFromList(const char *name, const char *pNames[], int
 bool A2lOnce_(A2L_ONCE_TYPE *value) {
     if (gA2lFile != NULL) {
         A2L_ONCE_TYPE old_value = 0;
-        if (atomic_compare_exchange_strong_explicit((A2L_ONCE_ATOMIC_TYPE *)value, &old_value, 1, memory_order_relaxed, memory_order_relaxed)) {
+        if (atomic_compare_exchange_strong_explicit((A2L_ONCE_ATOMIC_TYPE *)value, &old_value, gA2lOncePass, memory_order_relaxed, memory_order_relaxed)) {
             return true; // Return true if A2L file is open
         }
     }
@@ -1523,21 +1536,28 @@ bool A2lCheckFinalizeOnConnect(u_int8_t connect_mode) {
 
     // Finalize A2l once on connect
     if (gA2lFinalizeOnConnect) {
-        if (gA2lFileFinalized) {
-            return true; // A2L file already finalized, allow connect
-        } else {
-            return A2lFinalize(); // Finalize A2L file generation
-        }
+        A2lFinalize(); // Finalize A2L file generation, if open
     } else {
+
+        // For testing
+        // Regenerate A2L file in mode==0xAA
+        if (connect_mode == 0xAA) {
+            A2lFinalize();    // Finalize previous A2L file generation, if open
+            A2lOpen();        // Re-initialize A2L file generation
+            gA2lOncePass = 2; // Change A2L once flags for a second pass
+            sleepMs(1000);    // Wait 1s for the A2L registrations to be done
+            A2lFinalize();    // Finalize A2L file generation
+            return true;
+        }
 
         // If A2l generation is active, refuse connect
         if (gA2lFile != NULL) {
-            DBG_PRINT_WARNING("A2L file not finalized, XCP connect refused!\n");
-            return false; // Refuse connect
+            DBG_PRINT_WARNING("A2L file not finalized yet, XCP connect refused!\n");
+            return false; // Refuse connect, waiting for finalization by application
         }
     }
 
-    return true; // Do not refuse connect
+    return true;
 }
 
 // Finalize A2L file generation
@@ -1595,7 +1615,7 @@ bool A2lFinalize(void) {
 
         fclose(gA2lFile);
         gA2lFile = NULL;
-        gA2lFileFinalized = true;
+        gA2lFileWritten = true;
 
         DBG_PRINTF3("A2L created: %u measurements, %u params, %u typedefs, %u components, %u instances, %u conversions\n", gA2lMeasurements, gA2lParameters, gA2lTypedefs,
                     gA2lComponents, gA2lInstances, gA2lConversions);
@@ -1665,8 +1685,10 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
         SNPRINTF(gA2lFilename, sizeof(gA2lFilename), "%s_%s.a2l", XcpGetProjectName(), gA2lWriteAlways ? "" : XcpGetEpk());
     }
 
+    // In A2L_WRITE_ONCE mode:
     // Check if the A2L file already exists and the persistence BIN file has been loaded and checked
     // If yes, skip generation if not write always
+    gA2lFileWritten = false;
     if (!gA2lWriteAlways && (XcpGetSessionStatus() & SS_PERSISTENCE_LOADED) && fexists(gA2lFilename)) {
         // Notify XCP that there is an A2L file available for upload by the XCP client
         XcpSetA2lName(gA2lFilename);
@@ -1674,16 +1696,11 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
         return true;
     }
 
-    DBG_PRINTF3("Start A2L generator, file=%s, write_always=%u, finalize_on_connect=%u, auto_groups=%u\n", gA2lFilename, gA2lWriteAlways, gA2lFinalizeOnConnect, gA2lAutoGroups);
-
     // Open A2L file for generation
-    if (!A2lOpen(gA2lFilename)) {
+    if (!A2lOpen()) {
         printf("Failed to open A2L file %s\n", gA2lFilename);
         return false;
     }
-
-    // Register a callback on XCP connect
-    ApplXcpRegisterConnectCallback(A2lCheckFinalizeOnConnect);
 
     return true;
 }

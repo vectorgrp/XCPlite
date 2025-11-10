@@ -11,18 +11,11 @@
 
 #include "xcpLite.h"
 
-//  Not public API
+//  Not public API, external linkage for testing
 extern bool A2lCheckFinalizeOnConnect(uint8_t connect_mode);
 
-// static bool file_exists(const char *path) {
-//     FILE *file = fopen(path, "r");
-//     if (file) {
-//         fclose(file);
-//         return true;
-//     }
-//     return false;
-// }
-
+// a2ltool from crates.io
+// Set the correct path or install it
 #define A2lTOOL_PATH "a2ltool"
 
 #define OPTION_PROJECT_NAME "a2l_test"  // A2L project name

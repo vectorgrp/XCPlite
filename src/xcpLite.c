@@ -1355,7 +1355,7 @@ tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cyc
     // Check name length
     size_t nameLen = STRNLEN(name, XCP_MAX_EVENT_NAME + 1);
     if (nameLen > XCP_MAX_EVENT_NAME) {
-        DBG_PRINTF_ERROR("event name '%.*s...' too long (%zu > %d chars)\n", XCP_MAX_EVENT_NAME, name, nameLen, XCP_MAX_EVENT_NAME);
+        DBG_PRINTF_ERROR("event name '%.*s' too long (%zu > %d chars)\n", XCP_MAX_EVENT_NAME, name, nameLen, XCP_MAX_EVENT_NAME);
         return XCP_UNDEFINED_EVENT_ID;
     }
 

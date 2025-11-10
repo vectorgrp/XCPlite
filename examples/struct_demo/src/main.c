@@ -118,7 +118,7 @@ int main(void) {
 
     // Create measurement events
     DaqCreateEvent(event);
-    DaqCreateEvent(event_heap); // Relative heap addressing mode needs an individual event for each pointer
+    DaqCreateEvent(event2); // Relative heap addressing mode needs an individual event for each pointer
 
     // Create a A2L measurement variables for the counters
     // Create A2L typedef instances for the structs and the array of structs
@@ -138,8 +138,8 @@ int main(void) {
     A2lCreateTypedefArray(static_struct1_array, struct1_t, 8, "Array [10] of struct1_t");
 
     // Heap
-    A2lSetRelativeAddrMode(event_heap1, heap_struct1); // relative addressing mode for heap_struct1_array
-    A2lCreateTypedefInstance(heap_struct1, struct1_t, "Pointer to struct1_t on heap");
+    A2lSetRelativeAddrMode(event2, heap_struct1); // relative addressing mode for heap_struct1
+    A2lCreateTypedefReference(heap_struct1, struct1_t, "Pointer to struct1_t on heap");
 
     A2lFinalize(); // Optional: Finalize the A2L file generation early, to write the A2L immediately, not when the client connects
 
@@ -158,7 +158,7 @@ int main(void) {
 
         // Trigger the measurement events
         DaqTriggerEvent(event);
-        DaqTriggerEventExt(event_heap, heap_struct1);
+        DaqTriggerEventExt(event2, heap_struct1);
 
         sleepUs(1000);
     } // for(;;)
