@@ -446,9 +446,6 @@ static bool A2lOpen(void) {
 
     gA2lMeasurements = gA2lParameters = gA2lTypedefs = gA2lInstances = gA2lConversions = gA2lComponents = 0;
 
-    // Register a callback on XCP connect
-    ApplXcpRegisterConnectCallback(A2lCheckFinalizeOnConnect);
-
     // Start A2L generator
     DBG_PRINTF3("Start A2L generator, file=%s, write_always=%u, finalize_on_connect=%u, auto_groups=%u\n", gA2lFilename, gA2lWriteAlways, gA2lFinalizeOnConnect, gA2lAutoGroups);
     if (fexists(gA2lFilename)) {
@@ -1532,28 +1529,29 @@ static bool includeFile(FILE **filep, const char *filename) {
 }
 
 // Callback on XCP client tool connect
-bool A2lCheckFinalizeOnConnect(u_int8_t connect_mode) {
+bool A2lCheckFinalizeOnConnect(uint8_t connect_mode) {
 
-    // Finalize A2l once on connect
-    if (gA2lFinalizeOnConnect) {
-        A2lFinalize(); // Finalize A2L file generation, if open
-    } else {
+    // Finalize A2l once on connect, if A2L generation is active
+    if (gA2lFinalizeOnConnect && gA2lFile != NULL) {
+        A2lFinalize();
+    }
 
-        // For testing
-        // Regenerate A2L file in mode==0xAA
+    // If A2l generation is active, refuse connect
+    else if (gA2lFile != NULL) {
+        DBG_PRINT_WARNING("A2L file not finalized yet, XCP connect refused!\n");
+        return false; // Refuse connect, waiting for finalization by application
+    }
+
+    // If A2L generation is not active
+    // Give the client a way to delete A2L and BIN file
+    else {
         if (connect_mode == 0xAA) {
-            A2lFinalize();    // Finalize previous A2L file generation, if open
-            A2lOpen();        // Re-initialize A2L file generation
-            gA2lOncePass = 2; // Change A2L once flags for a second pass
-            sleepMs(1000);    // Wait 1s for the A2L registrations to be done
-            A2lFinalize();    // Finalize A2L file generation
-            return true;
-        }
-
-        // If A2l generation is active, refuse connect
-        if (gA2lFile != NULL) {
-            DBG_PRINT_WARNING("A2L file not finalized yet, XCP connect refused!\n");
-            return false; // Refuse connect, waiting for finalization by application
+            DBG_PRINT_WARNING("Delete A2L and BIN file (connect_mode=0xAA)!\n");
+            remove(gA2lFilename);
+#ifdef OPTION_CAL_PERSISTENCE
+            XcpBinDelete();
+#endif
+            return false;
         }
     }
 
@@ -1684,6 +1682,9 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
     } else {
         SNPRINTF(gA2lFilename, sizeof(gA2lFilename), "%s_%s.a2l", XcpGetProjectName(), gA2lWriteAlways ? "" : XcpGetEpk());
     }
+
+    // Register a callback on XCP connect
+    ApplXcpRegisterConnectCallback(A2lCheckFinalizeOnConnect);
 
     // In A2L_WRITE_ONCE mode:
     // Check if the A2L file already exists and the persistence BIN file has been loaded and checked

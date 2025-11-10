@@ -423,4 +423,11 @@ bool XcpBinLoad(void) {
     return false;
 }
 
+void XcpBinDelete(void) {
+    buildBinFilename();
+    if (remove(gXcpBinFilename) == 0) {
+        DBG_PRINTF3("Deleted persistency file '%s'\n", gXcpBinFilename);
+    }
+}
+
 #endif // OPTION_CAL_PERSISTENCE

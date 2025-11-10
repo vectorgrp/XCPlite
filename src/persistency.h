@@ -27,6 +27,7 @@ extern "C" {
 
 bool XcpBinWrite(uint8_t page);
 bool XcpBinLoad(void);
+void XcpBinDelete(void);
 bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg);
 
 #ifdef __cplusplus
