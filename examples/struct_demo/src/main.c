@@ -74,7 +74,7 @@ int main(void) {
     }
 
     // Enable A2L generation and prepare the A2L file, finalize the A2L file on XCP connect
-    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         return 1;
     }
 
@@ -97,7 +97,7 @@ int main(void) {
     }
 
     // Local stack measurement variables
-    uint16_t local_counter = 0;                                                                                                           // Local counter variable for measurement
+    uint16_t counter = 0;                                                                                                                 // Local counter variable for measurement
     struct2_t local_struct2 = {.byte_field = 1, .word_field = 2};                                                                         // Single instance of struct2_t
     struct1_t local_struct1 = {.byte_field = 1, .word_field = 2, .array_field = {0}, .struct_field = {.byte_field = 1, .word_field = 2}}; // Single instance of struct1_t
     struct1_t local_struct1_array[8];                                                                                                     // Array of struct1_t
@@ -125,7 +125,7 @@ int main(void) {
 
     // Stack
     A2lSetStackAddrMode(event); // stack relative addressing mode
-    A2lCreateMeasurement(local_counter, "Stack measurement variable");
+    A2lCreateMeasurement(counter, "Mainloop counter");
     A2lCreateTypedefInstance(local_struct2, struct2_t, "Instance of test_struct2_t");
     A2lCreateTypedefInstance(local_struct1, struct1_t, "Instance of test_struct1_t");
     A2lCreateTypedefArray(local_struct1_array, struct1_t, 8, "Array [10] of struct1_t");
@@ -146,12 +146,12 @@ int main(void) {
     while (running) {
 
         // Modify some static and stack variables
-        local_counter++;
+        counter++;
         static_counter++;
-        local_struct1_array[local_counter % 8].word_field = local_counter;
-        local_struct1_array[local_counter % 8].struct_field.word_field = local_counter;
-        static_struct1_array[local_counter % 8].word_field = local_counter;
-        static_struct1_array[local_counter % 8].struct_field.word_field = local_counter;
+        local_struct1_array[counter % 8].word_field = counter;
+        local_struct1_array[counter % 8].struct_field.word_field = counter;
+        static_struct1_array[counter % 8].word_field = counter;
+        static_struct1_array[counter % 8].struct_field.word_field = counter;
         heap_struct1->word_field++; // Modify the heap variable
         heap_struct1->struct_field.word_field++;
         heap_struct2->word_field++;

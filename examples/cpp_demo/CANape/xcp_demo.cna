@@ -397,7 +397,7 @@ MeaCfgLabellistName=
 
 [MEASUREMENT_OBJECT_1]
 Module=xcp_demo
-Name=loop_counter
+Name=counter
 Disabled=0
 Mode=2147483649
 Rate=0

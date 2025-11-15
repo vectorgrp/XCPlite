@@ -127,7 +127,7 @@ int main() {
     calseg.CreateA2lTypedefInstance("ParametersT", "Main parameters");
 
     // Local variables
-    uint16_t loop_counter = 0;
+    uint16_t counter = 0;
     uint64_t loop_time = 0;
     uint64_t loop_cycletime = 0;
     constexpr size_t kHistogramSize = 256;
@@ -146,7 +146,7 @@ int main() {
 
     // Register the local measurement variables 'loop_counter', 'loop_time', 'loop_cycletime', 'loop_histogram' and 'sum'
     A2lSetStackAddrMode(mainloop);
-    A2lCreateMeasurement(loop_counter, "Mainloop loop counter");
+    A2lCreateMeasurement(counter, "Mainloop loop counter");
     A2lCreateLinearConversion(clock_ticks, "Conversion from clock ticks to milliseconds", "ms", 1.0 / 1000.0, 0.0);
     A2lCreatePhysMeasurement(loop_cycletime, "Mainloop cycle time", "conv.clock_ticks", 0.0, 0.05);
     A2lCreateMeasurementArray(loop_histogram, "Mainloop cycle time histogram");
@@ -173,9 +173,9 @@ int main() {
             auto parameters = calseg.lock();
 
             // Increment the local measurement variable 'loop_counter' using the calibration parameter 'counter_max' as a limit
-            loop_counter++;
-            if (loop_counter > parameters->counter_max)
-                loop_counter = 0;
+            counter++;
+            if (counter > parameters->counter_max)
+                counter = 0;
 
         } // Guard automatically unlocks here
 
@@ -191,7 +191,7 @@ int main() {
         sum = channel1 + channel2;
 
         // Update some more local and global variables
-        if (loop_counter == 0) {
+        if (counter == 0) {
             temperature += 1;
             if (temperature > 150)
                 temperature = 0; // Reset temperature to -50 °C

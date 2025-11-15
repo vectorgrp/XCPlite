@@ -225,30 +225,18 @@ int main(void) {
     // XCP: Create a calibration segment named 'params' for the calibration parameters in 'const struct params params' as reference page
     CalSegCreate(params);
 
-    // Create 2 threads
+    // Create threads
     THREAD __t1 = 0;
     create_thread(&__t1, task);
-    // THREAD __t2 = 0;
-    // create_thread(&__t2, task);
 
     // Local measurement variable
-    volatile uint32_t counter = 0;
+    volatile uint16_t counter = 0;
 
     // Local scope static measurement variable
     volatile static uint16_t static_counter = 0;
 
     // XCP: Create a measurement event named "mainloop"
     DaqCreateEvent(mainloop);
-
-    // Test output
-    /*
-    printf("volatile base address = %p:\n", xcp_get_base_addr());
-    printf("Stackframe = %p\n", xcp_get_frame_addr());
-    A2lSetDynAddrMode(XcpFindEvent("mainloop", NULL), 0, xcp_get_frame_addr());
-    printf("&counter = %p, volatile-addr = %u:0x%08X\n", &counter, A2lGetAddrExt_(), A2lGetAddr_(&counter));
-    printf("&static_counter = %p, volatile-addr = 0x%08X\n", &static_counter, ApplXcpGetAddr((void *)&static_counter));
-    printf("&params = %p, volatile-addr = 0x%08X, size = %u\n", &params, ApplXcpGetAddr((void *)&params), (uint32_t)sizeof(params));
-    */
 
     // Mainloop
     printf("Start main loop...\n");

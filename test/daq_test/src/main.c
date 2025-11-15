@@ -57,7 +57,7 @@ typedef struct params {
 } params_t;
 
 // Default parameters
-static const params_t params = {.counter_max = 1000, .delay_us = THREAD_DELAY_US, .run = true};
+static const params_t params = {.counter_max = 1024, .delay_us = THREAD_DELAY_US, .run = true};
 
 // Global calibration segment handle
 static tXcpCalSegIndex calseg = XCP_UNDEFINED_CALSEG;
@@ -101,7 +101,7 @@ void *task(void *p)
     // Create measurement variables for this task instance
     A2lLock();
     A2lSetStackAddrMode_i(task_event_id);
-    A2lCreateMeasurementInstance(task_name, counter, "task loop counter");
+    A2lCreateMeasurementInstance(task_name, counter, "Taskloop counter");
     A2lCreateMeasurementArrayInstance(task_name, array, "task array (to increase measurement workload)");
     A2lUnlock();
 
@@ -170,7 +170,7 @@ int main(void) {
 
     // Register calibration parameters in the calibration segment
     A2lSetSegmentAddrMode(calseg, params);
-    A2lCreateParameter(params.counter_max, "Max counter value, wrap around", "", 0, 10000.0);
+    A2lCreateParameter(params.counter_max, "Max counter value, wrap around", "", 0, 65535);
     A2lCreateParameter(params.delay_us, "task delay time in us", "us", 0, 1000000);
     A2lCreateParameter(params.run, "stop task", "", 0, 1);
 
@@ -185,7 +185,9 @@ int main(void) {
     A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
 
     // Wait for signal to stop
+    uint16_t counter = 0;
     while (gRun) {
+        counter++;
         sleepUs(100000); // 100ms
     }
 

@@ -135,7 +135,7 @@ int main(void) {
 
     // XCP: Option1: Register the individual calibration parameters in the calibration segment
     A2lSetSegmentAddrMode(calseg, params);
-    A2lCreateParameter(params.counter_max, "Maximum counter value", "", 0, 2000);
+    A2lCreateParameter(params.counter_max, "Maximum counter value", "", 0, 65535);
     A2lCreateParameter(params.delay_us, "Mainloop delay time in us", "us", 0, 999999);
     A2lCreateParameter(params.flow_rate, "Flow rate", "m3/h", 0.0, 2.0);
 
@@ -162,9 +162,9 @@ int main(void) {
     A2lCreateMeasurement(global_counter, "Global free running counter");
 
     // XCP: Register local measurement variables on event "mainloop"
-    uint16_t loop_counter = 0;
+    uint16_t counter = 0;
     A2lSetStackAddrMode(mainloop); // Set stack relative addressing mode with fixed event mainloop
-    A2lCreateMeasurement(loop_counter, "Loop counter, local measurement variable on stack");
+    A2lCreateMeasurement(counter, "Mainloop counter");
 
     // Mainloop
     printf("Start main loop...\n");
@@ -177,10 +177,10 @@ int main(void) {
         uint32_t delay_us = params->delay_us; // Get the delay calibration parameter in microseconds
 
         // Local variables
-        loop_counter++;
-        if (loop_counter > params->counter_max) { // Get the counter_max calibration value and reset loop_counter
-            printf("%u: params.counter_max = %u\n", global_counter, params->counter_max);
-            loop_counter = 0;
+        counter++;
+        if (counter > params->counter_max) { // Get the counter_max calibration value and reset counter
+            printf("%u: params.counter_max = %u\n", counter, params->counter_max);
+            counter = 0;
         }
 
         // Global variables

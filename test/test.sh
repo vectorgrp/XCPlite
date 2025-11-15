@@ -92,6 +92,9 @@ if [ "$DO_CLEAN" = true ]; then
     echo ""
 fi
 
+
+
+
 # Create log file based on what's being tested
 if [ -n "$SPECIFIC_EXAMPLE" ]; then
     # Remove .out extension for log filename
@@ -129,12 +132,7 @@ if [ ! -d "$BUILD_DIR" ]; then
     exit 1
 fi
 
-# Clean up all .bin and .hex files before starting
-log_plain "${BLUE}Cleaning up old .bin, .hex, and .a2l files...${NC}"
-find "$WORKSPACE_ROOT" -maxdepth 1 -name "*.bin" -type f -delete 2>/dev/null || true
-find "$WORKSPACE_ROOT" -maxdepth 1 -name "*.hex" -type f -delete 2>/dev/null || true
-find "$WORKSPACE_ROOT" -maxdepth 1 -name "*.a2l" -type f -delete 2>/dev/null || true
-log_plain ""
+
 
 # List of all available examples (order matters - simpler ones first)
 ALL_EXAMPLES=(
@@ -305,6 +303,11 @@ run_example() {
         
         # Give the server a moment to finish writing the A2L file
         sleep 0.2
+
+      # Run xcp_client a second time in test mode
+      # "$XCPCLIENT" "$protocol_flag" "--test"
+
+
     fi
    
 
@@ -368,8 +371,11 @@ run_example() {
     # Check for .bin files created by this example
     # Format: example_name_HH_MM_SS.bin (where HH_MM_SS is from __TIME__)
     # Check both BUILD_DIR and WORKSPACE_ROOT (examples write to current directory)
+    # Each example creates exactly one BIN file
     local example_basename="${example%.out}"
-    local bin_files=$(find "$BUILD_DIR" "$WORKSPACE_ROOT" -maxdepth 1 -name "${example_basename}_*.bin" -type f 2>/dev/null)
+    # Find BIN files matching the pattern and filter to exact matches (not substrings)
+    # Use grep to ensure the filename ends with _HH_MM_SS.bin pattern
+    local bin_files=$(find "$BUILD_DIR" "$WORKSPACE_ROOT" -maxdepth 1 -name "${example_basename}_*.bin" -type f 2>/dev/null | grep -E "/${example_basename}_[0-9]{2}_[0-9]{2}_[0-9]{2}\.bin$" | head -1)
     
     if [ -n "$bin_files" ]; then
         log_plain "${BLUE}  Found .bin file(s):${NC}"
@@ -453,8 +459,9 @@ run_example() {
     # Check for .a2l files created by this example
     # Format: example_name_HH_MM_SS.a2l (where HH_MM_SS is from __TIME__)
     # Check both BUILD_DIR and WORKSPACE_ROOT (examples write to current directory)
-    # Find the most recent A2L file for this example
-    local a2l_files=$(find "$BUILD_DIR" "$WORKSPACE_ROOT" -maxdepth 1 \( -name "${example_basename}_*.a2l" -o -name "${example_basename}.a2l" \) -type f 2>/dev/null | head -1)
+    # Each example creates exactly one A2L file
+    # Use grep to ensure the filename ends with _HH_MM_SS.a2l pattern or exact match
+    local a2l_files=$(find "$BUILD_DIR" "$WORKSPACE_ROOT" -maxdepth 1 \( -name "${example_basename}_*.a2l" -o -name "${example_basename}.a2l" \) -type f 2>/dev/null | grep -E "(/${example_basename}_[0-9]{2}_[0-9]{2}_[0-9]{2}\.a2l$|/${example_basename}\.a2l$)" | head -1)
     
     if [ -n "$a2l_files" ]; then
         log_plain "${BLUE}  Found .a2l file(s):${NC}"

@@ -86,7 +86,6 @@ static uint32_t gA2lConversions;
 //----------------------------------------------------------------------------------
 
 static bool A2lOpen(void);
-static bool A2lCheckFinalizeOnConnect(u_int8_t connect_mode);
 
 //----------------------------------------------------------------------------------
 static const char *gA2lHeader1 = "ASAP2_VERSION 1 71\n"

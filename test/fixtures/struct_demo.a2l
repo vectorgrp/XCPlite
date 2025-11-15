@@ -33,7 +33,7 @@ ALIGNMENT_INT64 1
 /end TYPEDEF_STRUCTURE
 
 /* Stack frame relative addressing mode: event=event (1), addr_ext=2 */
-/begin MEASUREMENT local_counter "Stack measurement variable" UWORD NO_COMPU_METHOD 0 0 0 65535 ECU_ADDRESS 0x1F686 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT counter "Stack measurement variable" UWORD NO_COMPU_METHOD 0 0 0 65535 ECU_ADDRESS 0x1F686 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin INSTANCE local_struct2 "Instance of test_struct2_t" struct2_t 0x1F680 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end INSTANCE
 /begin INSTANCE local_struct1 "Instance of test_struct1_t" struct1_t 0x1FEE0 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end INSTANCE
 /begin INSTANCE local_struct1_array "Array [10] of struct1_t" struct1_t 0x1F6A0 ECU_ADDRESS_EXTENSION 2 MATRIX_DIM 8 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end INSTANCE
@@ -96,7 +96,7 @@ ALIGNMENT_INT64 1
 /begin TYPEDEF_MEASUREMENT M_array_field "Array field of 256 bytes" UBYTE NO_COMPU_METHOD 0 0 0 0 /end TYPEDEF_MEASUREMENT
 
 /* Groups */
-/begin GROUP event "Measurement event group"  /begin REF_MEASUREMENT local_counter local_struct2 local_struct1 local_struct1_array static_counter static_struct2 static_struct1 static_struct1_array /end REF_MEASUREMENT /end GROUP
+/begin GROUP event "Measurement event group"  /begin REF_MEASUREMENT counter local_struct2 local_struct1 local_struct1_array static_counter static_struct2 static_struct1 static_struct1_array /end REF_MEASUREMENT /end GROUP
 /begin GROUP event2 "Measurement event group"  /begin REF_MEASUREMENT heap_struct1 /end REF_MEASUREMENT /end GROUP
 /begin GROUP Events "Events" ROOT /begin SUB_GROUP event event2 /end SUB_GROUP /end GROUP
 
@@ -109,7 +109,7 @@ ALIGNMENT_INT64 1
 /end COMPU_VTAB
 
 /begin MOD_PAR ""
-EPK "16_38_46" ADDR_EPK 0x80000000
+EPK "13_16_43" ADDR_EPK 0x80000000
 /end MOD_PAR
 
 

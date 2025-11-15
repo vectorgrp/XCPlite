@@ -3348,11 +3348,12 @@ void XcpInit(const char *name, const char *epk, bool activate) {
     // Create the EPK calibration segment
     // Make sure it has index 0
     // @@@@ TODO: Currently the EPK segment is treated like any other segment, even if it is read-only and does not need 2 pages
-    tXcpCalSegIndex epk_seg = XcpCreateCalSeg("epk", XcpGetEpk(), STRNLEN(XcpGetEpk(), XCP_EPK_MAX_LENGTH));
-    assert(epk_seg == 0);
-#endif
-#endif
+    static tXcpCalSegIndex cal__epk = XCP_UNDEFINED_CALSEG; // Create the linker file marker for the EPK segment
+    cal__epk = XcpCreateCalSeg("epk", XcpGetEpk(), STRNLEN(XcpGetEpk(), XCP_EPK_MAX_LENGTH));
+    assert(cal__epk == 0);
 }
+#endif
+#endif
 
 // Start XCP protocol layer
 // Assume the transport layer is running

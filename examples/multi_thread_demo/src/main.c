@@ -74,7 +74,7 @@ typedef struct params {
 } params_t;
 
 // Default parameters
-static const params_t params = {.counter_max = 1000, .ampl = 100.0, .period = 3.0, .filter = 0.07, .clip_max = 80.0, .clip_min = -100.0, .delay_us = THREAD_DELAY_US, .run = true};
+static const params_t params = {.counter_max = 1024, .ampl = 100.0, .period = 3.0, .filter = 0.07, .clip_max = 80.0, .clip_min = -100.0, .delay_us = THREAD_DELAY_US, .run = true};
 
 // Global calibration segment handle
 static tXcpCalSegIndex calseg = XCP_UNDEFINED_CALSEG;
@@ -298,7 +298,7 @@ void *task(void *p)
     // Create measurement variables for this task instance
     A2lLock();
     A2lSetStackAddrMode_i(task_event_id);
-    A2lCreateMeasurementInstance(task_name, counter, "task loop counter");
+    A2lCreateMeasurementInstance(task_name, counter, "Mainloop counter");
     A2lCreateMeasurementInstance(task_name, channel1, "task sine wave signal");
     A2lCreateMeasurementInstance(task_name, channel2, "task square wave signal");
     A2lCreateMeasurementInstance(task_name, channel3, "task sawtooth signal");
@@ -374,7 +374,9 @@ int main(void) {
     }
 
     // Enable A2L generation and prepare the A2L file, finalize the A2L file on XCP connect, auto grouping
-    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    // In this demo, with A2L_MODE_WRITE_ALWAYS, the A2L file is unstable, because the thread creation order is undeterministic
+    // It is still ok to use A2L_MODE_WRITE_ONCE, the A2l file content is equivalent, as the events numbers associated to the thread don't have an individual identity
+    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         return 1;
     }
 
@@ -387,7 +389,7 @@ int main(void) {
 
     // Register calibration parameters in the calibration segment
     A2lSetSegmentAddrMode(calseg, params);
-    A2lCreateParameter(params.counter_max, "Max counter value, wrap around", "", 0, 10000.0);
+    A2lCreateParameter(params.counter_max, "Max counter value, wrap around", "", 0.0, 65535.0);
     A2lCreateParameter(params.ampl, "Amplitude", "Volt", 0, 100.0);
     A2lCreateParameter(params.period, "Period", "s", 0.1, 10.0);
     A2lCreateParameter(params.filter, "Filter coefficient", "", 0.0, 1.0);

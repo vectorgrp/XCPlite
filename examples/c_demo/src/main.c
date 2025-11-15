@@ -36,7 +36,7 @@ typedef struct params {
 } params_t;
 
 const params_t params = {
-    .counter_max = 1000,
+    .counter_max = 1024,
     .delay_us = 1000,
     .test_byte1 = -1,
     .test_byte2 = 1,
@@ -122,7 +122,7 @@ int main(void) {
     A2lCreateTypedefInstance(params, params_t, "Calibration parameters");
 
     // Alternative: Without using a typedef, create the calibration parameters directly
-    // A2lCreateParameter(params.counter_max, "maximum counter value", "", 0, 2000);
+    // A2lCreateParameter(params.counter_max, "maximum counter value", "", 0, 65535);
     // A2lCreateParameter(params.delay_us, "mainloop delay time in us", "us", 0, 1000000);
     // A2lCreateParameter(params.test_byte1, "", "", -128, 127);
     // A2lCreateParameter(params.test_byte2, "", "", -128, 127);
@@ -130,6 +130,7 @@ int main(void) {
     // A2lCreateMap(params.map, 8, 8, "", "", -128, 127);
 
     // Variables on stack
+    uint16_t counter = 0;
     uint8_t counter8 = 0;
     uint16_t counter16 = 0;
     uint32_t counter32 = 0;
@@ -144,6 +145,8 @@ int main(void) {
 
     // Register global measurement variables
     A2lSetAbsoluteAddrMode(mainloop);
+    A2lCreateMeasurement(counter, "Mainloop counter");
+
     A2lCreateMeasurement(g_counter8, "Measurement variable");
     A2lCreateMeasurement(g_counter16, "Measurement variable");
     A2lCreateMeasurement(g_counter32, "Measurement variable");
@@ -210,9 +213,9 @@ int main(void) {
         }
 
         // Local variables for measurement
-        counter16++;
-        if (counter16 > params->counter_max) {
-            counter16 = 0;
+        counter++;
+        if (counter > params->counter_max) {
+            counter = 0;
         }
 
         // Calibration demo
@@ -241,7 +244,7 @@ int main(void) {
             break;
         }
 
-        if (counter16 == 0) {
+        if (counter == 0) {
             for (int i = 0; i < 8; i++) {
                 array_f32[i] += i;
                 if (array_f32[i] > 2000) {
@@ -256,11 +259,12 @@ int main(void) {
             }
         }
 
-        counter8 = (uint8_t)(counter16 & 0xFF);
-        counter32 = (uint32_t)counter16;
-        counter64 = (uint64_t)counter16;
+        counter8 = (uint8_t)(counter & 0xFF);
+        counter16 = (uint16_t)counter;
+        counter32 = (uint32_t)counter;
+        counter64 = (uint64_t)counter;
         counter8s = (int8_t)counter8;
-        counter16s = (int16_t)counter16;
+        counter16s = (int16_t)counter;
         counter32s = (int32_t)counter32;
         counter64s = (int64_t)counter64;
 

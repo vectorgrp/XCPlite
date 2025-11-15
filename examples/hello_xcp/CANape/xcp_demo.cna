@@ -280,9 +280,9 @@ AxisTemplate=
 GUID=DISPLAY_c01d273d-0a2c-4eb3-bdd7-5a04fab797c7
 
 [FUNCTION_OBJECT_1_INPUTSIG_1]
-Name=loop_counter
+Name=counter
 SymbolName=x
-LinkedObjectIdentifier=DEVICE:"xcp_demo":"loop_counter":M
+LinkedObjectIdentifier=DEVICE:"xcp_demo":"counter":M
 FormatPhy=1
 IsOutput=0
 ObjectType=8
@@ -321,7 +321,7 @@ MeaCfgLabellistName=
 
 [MEASUREMENT_OBJECT_1]
 Module=xcp_demo
-Name=loop_counter
+Name=counter
 Disabled=0
 Mode=2147483649
 Rate=0

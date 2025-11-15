@@ -175,14 +175,17 @@ int main() {
 
     // Main loop
     std::cout << "Starting main loop... (Press Ctrl+C to exit)" << std::endl;
+    uint16_t counter = 0;
     while (gRun) {
 
+        counter++;
         double voltage = random_number();
         double average_voltage = average128->calculate(voltage);
 
         // Once create event "mainloop" and register measurements for the local variables 'voltage' and 'average_voltage' via event 'mainloop'
         // Trigger the event "mainloop" to measure the local variables
         XcpDaqEvent(mainloop,                                                //
+                    (counter, "Mainloop counter"),                           //
                     (voltage, "Input voltage", "V", 0.0, 1000.0),            //
                     (average_voltage, "Calculated voltage floating average") //
         );
