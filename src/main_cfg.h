@@ -66,6 +66,9 @@
 // Maximum number of calibration segments
 #define OPTION_CAL_SEGMENT_COUNT 8
 
+// Single page mode
+// #define OPTION_CAL_SEGMENTS_SINGLE_PAGE
+
 // Enable calibration segment persistence, a binary (.BIN) file is used to store calibration segments
 // This allows to safely build the A2L file only once per build, even if the creation order of events and segments changes
 #define OPTION_CAL_PERSISTENCE
@@ -84,8 +87,8 @@
 // This decides which pages (reference/FLASH or working/RAM) are stored to the calibration segment binary file (.BIN) on XCP freeze request
 // #define OPTION_CAL_REFERENCE_PAGE_PERSISTENCY
 
-// Start on reference/default page or on working page
-#define OPTION_CAL_SEGMENT_START_ON_REFERENCE_PAGE
+// Start on reference/default page instead of on working page
+// #define OPTION_CAL_SEGMENTS_START_ON_REFERENCE_PAGE
 
 // Automatically persist the working page on XCP disconnect
 // #define OPTION_CAL_PERSIST_ON_DISCONNECT

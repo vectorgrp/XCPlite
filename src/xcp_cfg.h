@@ -206,14 +206,33 @@ xcp-lite for Rust XCPLITE__CADR:
 /*----------------------------------------------------------------------------*/
 /* Protocol features and commands */
 
-#define XCP_ENABLE_CAL_PAGE // Enable calibration page commands (GET/SET_CAL_PAGE)
-#ifdef XCP_ENABLE_CAL_PAGE
+// Enable calibration page commands (GET/SET_CAL_PAGE and COPY_CAL_PAGE) and 2 explicit pages (reference and working page) per segment
+#ifndef OPTION_CAL_SEGMENTS_SINGLE_PAGE
+
+// Enable calibration page management with 2 pages (reference and working)
+#define XCP_ENABLE_CAL_PAGE
+#define XCP_ENABLE_COPY_CAL_PAGE
 
 // Enable calibration page initialization (COPY_CAL_PAGE, FLASH->RAM copy only)
-#define XCP_ENABLE_COPY_CAL_PAGE
 // Activate workaround for CANape issue with COPY_CAL_PAGE command
 // COPY_CAL_PAGE always copies all segments from default to working, this is not compliant to the XCP specification
 #define XCP_ENABLE_COPY_CAL_PAGE_WORKAROUND
+
+#endif
+#ifdef XCP_ENABLE_CAL_PAGE
+
+#ifdef OPTION_CAL_SEGMENTS_START_ON_REFERENCE_PAGE
+#define XCP_START_ON_REFERENCE_PAGE
+#endif
+
+// Single page mode
+#else
+
+#ifdef OPTION_CAL_SEGMENTS_START_ON_REFERENCE_PAGE
+#error "START_ON_REFERENCE_PAGE is not supported in single page mode!"
+#endif
+
+#endif // XCP_ENABLE_CAL_PAGE
 
 // Enable working page freeze request
 // There are 2 modes:
@@ -231,9 +250,7 @@ xcp-lite for Rust XCPLITE__CADR:
 #define XCP_ENABLE_REFERENCE_PAGE_PERSISTENCY
 #endif
 
-#endif
-
-#endif // XCP_ENABLE_CAL_PAGE
+#endif // OPTION_CAL_PERSISTENCE
 
 // Enable checksum calculation command
 #define XCP_ENABLE_CHECKSUM

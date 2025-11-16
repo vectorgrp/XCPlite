@@ -579,7 +579,7 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
         // New ECU page version not updated
         atomic_store_explicit(&c->ecu_page_next, (uintptr_t)c->ecu_page, memory_order_relaxed);
 
-#ifdef OPTION_CAL_SEGMENT_START_ON_REFERENCE_PAGE
+#ifdef XCP_START_ON_REFERENCE_PAGE
         // Enable access to the reference page
         c->xcp_access = XCP_CALPAGE_DEFAULT_PAGE;                                              // Default page for XCP access is the reference page
         atomic_store_explicit(&c->ecu_access, XCP_CALPAGE_DEFAULT_PAGE, memory_order_relaxed); // Default page for ECU access is the reference page
@@ -850,8 +850,13 @@ uint8_t XcpGetSegPageInfo(tXcpCalSegNumber segment, uint8_t page) {
 
     if (segment >= gXcp.CalSegList.count)
         return CRC_OUT_OF_RANGE;
+#ifdef XCP_ENABLE_CAL_PAGE // If GET/SET_CAL_PAGE enabled, support 2 pages
     if (page > 1)
         return CRC_PAGE_NOT_VALID;
+#else
+    if (page != 0)
+        return CRC_PAGE_NOT_VALID;
+#endif
 
     // PAGE 0: ECU_ACCESS_DONT_CARE, XCP_READ_ACCESS_DONT_CARE, XCP_WRITE_ACCESS_DONT_CARE
     // PAGE 1: ECU_ACCESS_DONT_CARE, XCP_READ_ACCESS_DONT_CARE, XCP_WRITE_ACCESS_NOT_ALLOWED
@@ -864,7 +869,7 @@ uint8_t XcpGetSegPageInfo(tXcpCalSegNumber segment, uint8_t page) {
     return CRC_CMD_OK;
 }
 
-#ifdef XCP_ENABLE_CAL_PAGE
+#ifdef XCP_ENABLE_CAL_PAGE // Calibration page support with GET/SET_CAL_PAGE and COPY_CAL_PAGE enabled
 
 // Get active ecu or xcp calibration page
 // Note: XCP/A2L segment numbers are bytes, 0 is reserved for the EPK segment, tXcpCalSegIndex is the XCP/A2L segment number - 1
@@ -950,7 +955,8 @@ static uint8_t XcpCalSegCopyCalPage(tXcpCalSegNumber srcSeg, uint8_t srcPage, tX
 
 #endif
 }
-#endif
+#endif // XCP_ENABLE_COPY_CAL_PAGE
+#endif // XCP_ENABLE_CAL_PAGE
 
 // Handle atomic calibration segment commands
 #ifdef XCP_ENABLE_USER_COMMAND
@@ -1021,8 +1027,6 @@ void XcpResetAllCalSegs(void) {
 }
 
 #endif // XCP_ENABLE_FREEZE_CAL_PAGE
-
-#endif // XCP_ENABLE_CAL_PAGE
 
 #endif // XCP_ENABLE_CALSEG_LIST
 
@@ -2672,6 +2676,7 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
 #endif
         } break;
 #endif // XCP_ENABLE_COPY_CAL_PAGE
+#endif // XCP_ENABLE_CAL_PAGE
 
 #ifdef XCP_ENABLE_CALSEG_LIST
 
@@ -2721,7 +2726,6 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
         } break;
 
 #endif // XCP_ENABLE_CALSEG_LIST
-#endif // XCP_ENABLE_CAL_PAGE
 
 #ifdef XCP_ENABLE_CHECKSUM
         case CC_BUILD_CHECKSUM: {

@@ -112,21 +112,34 @@ static const char *gA2lAml = "";
 
 //----------------------------------------------------------------------------------
 #ifdef XCP_ENABLE_CALSEG_LIST
-static const char *gA2lMemorySegment = "/begin MEMORY_SEGMENT %s \"\" DATA FLASH INTERN 0x%08X %u -1 -1 -1 -1 -1\n" // name, start, size
-                                       "/begin IF_DATA XCP\n"
-                                       "/begin SEGMENT %u 2 0 0 0\n" // index
-                                       "/begin CHECKSUM XCP_CRC_16_CITT MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION \"\" /end CHECKSUM\n"
-                                       // 2 calibration pages, 0=working page (RAM), 1=initial readonly page (FLASH), independent access to ECU and XCP page possible
-                                       "/begin PAGE 0 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_DONT_CARE /end PAGE\n"
-                                       "/begin PAGE 1 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_NOT_ALLOWED /end PAGE\n"
-                                       "/end SEGMENT\n"
-                                       "/end IF_DATA\n"
-#ifdef OPTION_CAL_SEGMENTS_ABS
-                                       "/begin IF_DATA CANAPE_ADDRESS_UPDATE\n"
-                                       "/begin MEMORY_SEGMENT \"%s\" FIRST \"%s\" 0 LAST \"%s\" %u /end MEMORY_SEGMENT\n"
-                                       "/end IF_DATA\n"
+static const char *gA2lMemorySegment =
+#ifdef XCP_ENABLE_CAL_PAGE
+    // 2 calibration pages, 0=working page (RAM), 1=initial readonly page (FLASH), independent access to ECU and XCP page possible using GET/SET_CAL_PAGE
+    // DATA = program data allowed for online calibration
+    "/begin MEMORY_SEGMENT %s \"\" DATA FLASH INTERN 0x%08X %u -1 -1 -1 -1 -1\n" // name, start addr, size
+    "/begin IF_DATA XCP\n"
+    "  /begin SEGMENT %u 2 0 0 0\n" // index
+    "  /begin CHECKSUM XCP_CRC_16_CITT MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION \"\" /end CHECKSUM\n"
+    "  /begin PAGE 0 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_DONT_CARE /end PAGE\n"
+    "  /begin PAGE 1 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_NOT_ALLOWED /end PAGE\n"
+    "  /end SEGMENT\n"
+    "/end IF_DATA\n"
+#else
+    // 1 calibration page
+    "/begin MEMORY_SEGMENT %s \"\" DATA RAM INTERN 0x%08X %u -1 -1 -1 -1 -1\n" // name, start addr, size
+    "/begin IF_DATA XCP\n"
+    "  /begin SEGMENT %u 1 0 0 0\n" // index
+    "  /begin CHECKSUM XCP_CRC_16_CITT MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION \"\" /end CHECKSUM\n"
+    "  /begin PAGE 0 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_WITH_ECU_ONLY XCP_WRITE_ACCESS_WITH_ECU_ONLY /end PAGE\n"
+    "  /end SEGMENT\n"
+    "/end IF_DATA\n"
 #endif
-                                       "/end MEMORY_SEGMENT\n";
+#ifdef OPTION_CAL_SEGMENTS_ABS
+    "/begin IF_DATA CANAPE_ADDRESS_UPDATE\n"
+    "/begin MEMORY_SEGMENT \"%s\" FIRST \"%s\" 0 LAST \"%s\" %u /end MEMORY_SEGMENT\n"
+    "/end IF_DATA\n"
+#endif
+    "/end MEMORY_SEGMENT\n";
 
 #endif
 
@@ -154,6 +167,7 @@ static const char *gA2lIfDataProtocolLayer = // Parameter: XCP_PROTOCOL_LAYER_VE
 #ifdef XCP_ENABLE_COPY_CAL_PAGE
     "OPTIONAL_CMD COPY_CAL_PAGE\n"
 #endif
+#endif // XCP_ENABLE_CAL_PAGE
 #ifdef XCP_ENABLE_CALSEG_LIST
     "OPTIONAL_CMD GET_PAG_PROCESSOR_INFO\n"
     "OPTIONAL_CMD GET_SEGMENT_INFO\n"
@@ -163,7 +177,6 @@ static const char *gA2lIfDataProtocolLayer = // Parameter: XCP_PROTOCOL_LAYER_VE
     "OPTIONAL_CMD SET_SEGMENT_MODE\n"
 #endif // XCP_ENABLE_FREEZE_CAL_PAGE
 #endif // XCP_ENABLE_CALSEG_LIST
-#endif // XCP_ENABLE_CAL_PAGE
 #ifdef XCP_ENABLE_CHECKSUM
     "OPTIONAL_CMD BUILD_CHECKSUM\n"
 #endif
