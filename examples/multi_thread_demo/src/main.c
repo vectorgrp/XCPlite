@@ -44,7 +44,7 @@ typedef pthread_t THREAD;
 #define THREAD_DELAY_US 1000      // Delay in microseconds for the thread loops
 #define MAX_THREAD_NAME_LENGTH 32 // Maximum length of thread name
 
-// #define EXPERIMENTAL_THREAD_CONTEXT // Enable demonstration of tracking thread context and span of the clip and filter function
+#define EXPERIMENTAL_THREAD_CONTEXT // Enable demonstration of tracking thread context and span of the clip and filter function
 // #define FILTER_SLEEP_US 100 // Simulated work in filter function
 // #define CLIP_SLEEP_US 50    // Simulated work in clip function
 
@@ -118,8 +118,7 @@ static inline const char *XcpGetContextName(void) { return gXcpContext.name; }
     tXcpEventId previous_span_id = ctx->span_id;                                                                                                                                   \
     ctx->span_id = span_id;                                                                                                                                                        \
     ctx->level++;                                                                                                                                                                  \
-    const uint8_t *span_base[4] = {xcp_get_base_addr(), xcp_get_base_addr(), xcp_get_frame_addr(), (const uint8_t *)ctx};                                                          \
-    XcpEventExt_At(ctx->id, span_base, span_t1);
+    XcpEventExtAt_Var(ctx->id, span_t1, 2, xcp_get_frame_addr(), (const uint8_t *)ctx);
 
 // End span
 // Trigger the span event and the context event on exit
@@ -127,10 +126,10 @@ static inline const char *XcpGetContextName(void) { return gXcpContext.name; }
 #define EndSpan()                                                                                                                                                                  \
     uint64_t span_t2 = ApplXcpGetClock64();                                                                                                                                        \
     span_dt = span_t2 - span_t1;                                                                                                                                                   \
-    XcpEventExt_At(ctx->span_id, span_base, span_t2);                                                                                                                              \
+    XcpEventExtAt_Var(ctx->span_id, span_t2, 2, xcp_get_frame_addr(), (const uint8_t *)ctx);                                                                                       \
     ctx->span_id = previous_span_id;                                                                                                                                               \
     ctx->level--;                                                                                                                                                                  \
-    XcpEventExt_At(ctx->id, span_base, span_t2);
+    XcpEventExtAt_Var(ctx->id, span_t2, 2, xcp_get_frame_addr(), (const uint8_t *)ctx);
 
 // Create a named context
 // Create the context event (name is 'context_name'_'context_index')

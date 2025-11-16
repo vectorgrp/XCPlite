@@ -251,7 +251,7 @@ void XcpEvent(tXcpEventId event);
 /// Trigger the XCP event 'event' for absolute or relative mode with explicitly given base address (for XCP_ADDR_EXT_DYN)
 /// @param event
 /// @param base address pointer for the relative (XCP_ADDR_EXT_DYN) addressing mode
-void XcpEventExt(tXcpEventId event, const uint8_t *base);
+void XcpEventExt(tXcpEventId event, const uint8_t *base2);
 
 // Variadic versions for more call convenience
 
@@ -260,11 +260,10 @@ void XcpEventExt(tXcpEventId event, const uint8_t *base);
 /// @param count Number of base address pointers passed
 void XcpEventExt_Var(tXcpEventId event, uint8_t count, ...);
 
-/// Trigger the XCP event 'event' with explicitly given base addresses for all addressing modes (address extensions XCP_ADDR_EXT_DYN, ...)
-/// For explicitly setting the event time stamp (clock > 0)
-/// @param event
-/// @param clock time stamp in CLOCK_TICKS_PER_S units
-/// @param count Number of base address pointers passed
+/// Internal use by some macros and the Rust API
+void XcpEventExtAt(tXcpEventId event, const uint8_t *base2, uint64_t clock);
+void XcpEventExt2(tXcpEventId event, const uint8_t *base2, const uint8_t *base3);
+void XcpEventExt2At(tXcpEventId event, const uint8_t *base2, const uint8_t *base3, uint64_t clock);
 void XcpEventExtAt_Var(tXcpEventId event, uint64_t clock, uint8_t count, ...);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -368,7 +367,7 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
     if (XcpIsActivated()) {                                                                                                                                                        \
         static THREAD_LOCAL tXcpEventId trg__AAS__##name = event_id;                                                                                                               \
         trg__AAS__##name = event_id;                                                                                                                                               \
-        XcpEventExt_At(event_id, xcp_get_frame_addr(), clock);                                                                                                                     \
+        XcpEventExtAt(event_id, xcp_get_frame_addr(), clock);                                                                                                                      \
     }
 
 /// Trigger the XCP event 'name' for absolute, stack and relative addressing mode with given individual base address (from A2lSetRelativeAddrMode(base_addr))

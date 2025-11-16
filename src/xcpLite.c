@@ -2092,8 +2092,22 @@ static void XcpEventExt_(tXcpEventId event, const uint8_t **bases) {
 //----------------------------------------------------------------------------
 // Public API
 
-#ifdef XCP_ENABLE_ABS_ADDRESSING
+#ifdef XCP_ADDRESS_MODE_XCPLITE__C_DR
 
+// Internal function used by the Rust API
+// Supports XCP_ADDR_EXT_DYN and XCP_ADDR_EXT_REL with given base pointers
+void XcpEventExt2(tXcpEventId event, const uint8_t *base_dyn, const uint8_t *base_rel) {
+    const uint8_t *bases[4] = {NULL, NULL, base_dyn, base_rel};
+    XcpEventExt_(event, bases);
+}
+void XcpEventExt2At(tXcpEventId event, const uint8_t *base_dyn, const uint8_t *base_rel, uint64_t clock) {
+    const uint8_t *bases[5] = {NULL, NULL, base_rel, base_dyn, base_rel};
+    XcpEventExtAt_(event, bases, clock);
+}
+
+#else
+
+// Supports XCP_ADDR_EXT_ABS and XCP_ADDR_EXT_DYN with given base pointer
 void XcpEventExt(tXcpEventId event, const uint8_t *base) {
 #if defined(XCP_ADDRESS_MODE_XCPLITE__ACSDD)
     const uint8_t *bases[5] = {xcp_get_base_addr(), NULL, NULL, base, NULL};
@@ -2104,7 +2118,6 @@ void XcpEventExt(tXcpEventId event, const uint8_t *base) {
 #endif
     XcpEventExt_(event, bases);
 }
-
 void XcpEventExtAt(tXcpEventId event, const uint8_t *base, uint64_t clock) {
 #if defined(XCP_ADDRESS_MODE_XCPLITE__ACSDD)
     const uint8_t *bases[5] = {xcp_get_base_addr(), NULL, NULL, base, NULL};
@@ -2116,6 +2129,7 @@ void XcpEventExtAt(tXcpEventId event, const uint8_t *base, uint64_t clock) {
     XcpEventExtAt_(event, bases, clock);
 }
 
+// Supports XCP_ADDR_EXT_ABS only
 void XcpEvent(tXcpEventId event) {
     if (!isDaqRunning())
         return; // DAQ not running
@@ -2140,6 +2154,8 @@ void XcpEventAt(tXcpEventId event, uint64_t clock) {
 #endif
     XcpTriggerDaqEvent_(gXcp.Queue, event, bases, clock);
 }
+
+#endif
 
 #if defined(XCP_ENABLE_DYN_ADDRESSING) && (XCP_ADDR_EXT_DYN == 2) && (XCP_ADDR_EXT_DYN_MAX == 4)
 // Function is partly hardcoded for performance reasons, supports exactly up to 5 different base pointers
@@ -2200,9 +2216,7 @@ void XcpEventExtAt_Var(tXcpEventId event, uint64_t clock, uint8_t count, ...) {
 
     XcpTriggerDaqEvent_(gXcp.Queue, event, bases, clock);
 }
-#endif // XCP_ENABLE_DYN_ADDRESSING
-
-#endif // XCP_ENABLE_ABS_ADDRESSING
+#endif // XCP_ENABLE_DYN_ADDRESSING && (XCP_ADDR_EXT_DYN == 2) && (XCP_ADDR_EXT_DYN_MAX == 4)
 
 /****************************************************************************/
 /* Command Processor                                                        */
@@ -3351,9 +3365,9 @@ void XcpInit(const char *name, const char *epk, bool activate) {
     static tXcpCalSegIndex cal__epk = XCP_UNDEFINED_CALSEG; // Create the linker file marker for the EPK segment
     cal__epk = XcpCreateCalSeg("epk", XcpGetEpk(), STRNLEN(XcpGetEpk(), XCP_EPK_MAX_LENGTH));
     assert(cal__epk == 0);
+#endif
+#endif
 }
-#endif
-#endif
 
 // Start XCP protocol layer
 // Assume the transport layer is running
