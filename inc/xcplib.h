@@ -479,6 +479,9 @@ void XcpSetLogLevel(uint8_t level);
 /// @param activate If true, the XCP library is activated
 void XcpInit(const char *name, const char *epk, bool activate);
 
+/// Reset XCP library to initial state
+void XcpReset(void);
+
 /// Check if XCP has been activated
 bool XcpIsActivated(void);
 
@@ -486,7 +489,6 @@ bool XcpIsActivated(void);
 bool XcpIsConnected(void);
 
 // Project name
-void XcpSetProjectName(const char *name);
 const char *XcpGetProjectName(void);
 
 // A2L file name
@@ -495,7 +497,6 @@ void XcpSetA2lName(const char *name);
 const char *XcpGetA2lName(void);
 
 // EPK software version identifier
-void XcpSetEpk(const char *epk);
 const char *XcpGetEpk(void);
 
 /// Force Disconnect

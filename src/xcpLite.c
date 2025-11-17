@@ -329,7 +329,7 @@ uint32_t XcpGetDaqOverflowCount(void) { return gXcp.DaqOverflowCount; }
 /**************************************************************************/
 
 // Set the project name
-void XcpSetProjectName(const char *name) {
+static void XcpSetProjectName(const char *name) {
 
     assert(name != NULL);
 
@@ -351,7 +351,7 @@ const char *XcpGetProjectName(void) {
 /**************************************************************************/
 
 // Set the EPK
-void XcpSetEpk(const char *epk) {
+static void XcpSetEpk(const char *epk) {
 
     assert(epk != NULL);
 
@@ -2116,10 +2116,14 @@ static void XcpEventExt_(tXcpEventId event, const uint8_t **bases) {
 // Internal function used by the Rust API
 // Supports XCP_ADDR_EXT_DYN and XCP_ADDR_EXT_REL with given base pointers
 void XcpEventExt2(tXcpEventId event, const uint8_t *base_dyn, const uint8_t *base_rel) {
+    if (!isDaqRunning())
+        return; // DAQ not running
     const uint8_t *bases[4] = {NULL, NULL, base_dyn, base_rel};
     XcpEventExt_(event, bases);
 }
 void XcpEventExt2At(tXcpEventId event, const uint8_t *base_dyn, const uint8_t *base_rel, uint64_t clock) {
+    if (!isDaqRunning())
+        return; // DAQ not running
     const uint8_t *bases[5] = {NULL, NULL, base_rel, base_dyn, base_rel};
     XcpEventExtAt_(event, bases, clock);
 }
@@ -2128,6 +2132,8 @@ void XcpEventExt2At(tXcpEventId event, const uint8_t *base_dyn, const uint8_t *b
 
 // Supports XCP_ADDR_EXT_ABS and XCP_ADDR_EXT_DYN with given base pointer
 void XcpEventExt(tXcpEventId event, const uint8_t *base) {
+    if (!isDaqRunning())
+        return; // DAQ not running
 #if defined(XCP_ADDRESS_MODE_XCPLITE__ACSDD)
     const uint8_t *bases[5] = {xcp_get_base_addr(), NULL, NULL, base, NULL};
 #elif defined(XCP_ADDRESS_MODE_XCPLITE__CASDD)
@@ -2138,6 +2144,8 @@ void XcpEventExt(tXcpEventId event, const uint8_t *base) {
     XcpEventExt_(event, bases);
 }
 void XcpEventExtAt(tXcpEventId event, const uint8_t *base, uint64_t clock) {
+    if (!isDaqRunning())
+        return; // DAQ not running
 #if defined(XCP_ADDRESS_MODE_XCPLITE__ACSDD)
     const uint8_t *bases[5] = {xcp_get_base_addr(), NULL, NULL, base, NULL};
 #elif defined(XCP_ADDRESS_MODE_XCPLITE__CASDD)
@@ -3320,6 +3328,12 @@ void XcpInit(const char *name, const char *epk, bool activate) {
         return;
     }
 
+    // name and epk are mandatory
+    if (name == NULL || epk == NULL || STRNLEN(name, XCP_PROJECT_NAME_MAX_LENGTH) == 0 || STRNLEN(epk, XCP_EPK_MAX_LENGTH) == 0) {
+        DBG_PRINT_ERROR("XcpInit: Project name or EPK invalid!\n");
+        return;
+    }
+
     // Clear XCP state
     memset((uint8_t *)&gXcp, 0, sizeof(gXcp));
 
@@ -3342,15 +3356,11 @@ void XcpInit(const char *name, const char *epk, bool activate) {
     // Initialize high resolution clock
     clockInit();
 
-    // Set the EPK
-    if (epk != NULL) {
-        XcpSetEpk(epk);
-    }
-
     // Set the project name
-    if (name != NULL) {
-        XcpSetProjectName(name);
-    }
+    XcpSetProjectName(name);
+
+    // Set the EPK
+    XcpSetEpk(epk);
 
 #ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
     gXcp.ClusterId = XCP_MULTICAST_CLUSTER_ID; // XCP default cluster id (multicast addr 239,255,0,1, group 127,0,1 (mac 01-00-5E-7F-00-01)
@@ -3369,6 +3379,7 @@ void XcpInit(const char *name, const char *epk, bool activate) {
     gXcp.SessionStatus |= SS_ACTIVATED;
 
 // Check if the BIN file exists and load it
+// Needs a valid EPK to check for correct version
 // If successful, do not start the A2L generation process, but still provide the existing A2L file to the XCP client
 #ifdef XCP_ENABLE_CAL_PERSISTENCE
     if (XcpBinLoad()) {
@@ -3544,13 +3555,21 @@ void XcpReset(void) {
         return;
     }
 
-    free(gXcp.DaqLists);
+    assert(!XcpIsDaqRunning());
+
+    // Free DAQ list memory allocation
+    if (gXcp.DaqLists) {
+        free(gXcp.DaqLists);
+    }
     gXcp.DaqLists = NULL;
+
+    // Free calibration list memory allocations
 #ifdef XCP_ENABLE_CALSEG_LIST
     XcpFreeCalSegList();
 #endif
 
-    XcpInit(NULL, NULL, false); // Reset XCP state
+    // Reset XCP state to not initialized
+    gXcp.SessionStatus = 0;
 }
 
 /****************************************************************************/
