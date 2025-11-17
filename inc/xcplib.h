@@ -104,9 +104,10 @@ bool XcpFreezeAllCalSeg(void);
 /// Maybe used in emergency situations.
 bool XcpResetAllCalSegs(void);
 
-// Get the XCP/A2L address of a calibration segment
-// Internal function used for A2L generation
+// Internal functions
 uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg);
+uint16_t XcpGetCalSegCount(void);
+uint16_t XcpGetCalSegSize(tXcpCalSegIndex calseg);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Calibration segment convenience macros

@@ -16,9 +16,9 @@
 */
 
 // Version
-#define OPTION_VERSION_MAJOR 0
-#define OPTION_VERSION_MINOR 9
-#define OPTION_VERSION_PATCH 3
+#define OPTION_VERSION_MAJOR 1
+#define OPTION_VERSION_MINOR 0
+#define OPTION_VERSION_PATCH 0
 
 #ifdef XCPLIB_FOR_RUST // Configuration for Rust xcp-lite
 

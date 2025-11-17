@@ -223,6 +223,9 @@ typedef struct {
 // Get calibration segment  list
 const tXcpCalSegList *XcpGetCalSegList(void);
 
+// Get the number of calibration segments
+uint16_t XcpGetCalSegCount(void);
+
 // Find a calibration segment by name, returns XCP_UNDEFINED_CALSEG if not found
 tXcpCalSegIndex XcpFindCalSeg(const char *name);
 
@@ -231,6 +234,9 @@ tXcpCalSeg *XcpGetCalSeg(tXcpCalSegIndex calseg);
 
 // Get the name of the calibration segment
 const char *XcpGetCalSegName(tXcpCalSegIndex calseg);
+
+// Get the size of the calibration segment
+uint16_t XcpGetCalSegSize(tXcpCalSegIndex calseg);
 
 // Get the XCP/A2L address of a calibration segment
 uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg);

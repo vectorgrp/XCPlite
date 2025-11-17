@@ -420,6 +420,12 @@ const tXcpCalSegList *XcpGetCalSegList(void) {
     return &gXcp.CalSegList;
 }
 
+// Get the number of calibration segments
+uint16_t XcpGetCalSegCount(void) {
+    assert(isInitialized());
+    return gXcp.CalSegList.count;
+}
+
 // Get a pointer to the calibration segment struct of calseg index
 tXcpCalSeg *XcpGetCalSeg(tXcpCalSegIndex calseg) {
     assert(isInitialized());
@@ -457,6 +463,13 @@ const char *XcpGetCalSegName(tXcpCalSegIndex calseg) {
     assert(isInitialized());
     assert(calseg < gXcp.CalSegList.count);
     return gXcp.CalSegList.calseg[calseg].name;
+}
+
+// Get the size of a calibration segment
+uint16_t XcpGetCalSegSize(tXcpCalSegIndex calseg) {
+    assert(isInitialized());
+    assert(calseg < gXcp.CalSegList.count);
+    return gXcp.CalSegList.calseg[calseg].size;
 }
 
 // Get the XCP/A2L address (address mode XCP_ADDR_MODE_SEG or XCP_ADDR_MODE_ABS) of a calibration segment
