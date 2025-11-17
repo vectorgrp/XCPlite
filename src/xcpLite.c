@@ -3329,8 +3329,16 @@ void XcpInit(const char *name, const char *epk, bool activate) {
     }
 
     // name and epk are mandatory
-    if (name == NULL || epk == NULL || STRNLEN(name, XCP_PROJECT_NAME_MAX_LENGTH) == 0 || STRNLEN(epk, XCP_EPK_MAX_LENGTH) == 0) {
-        DBG_PRINT_ERROR("XcpInit: Project name or EPK invalid!\n");
+    if (name == NULL) {
+        name = "XCPlite";
+    } else if (STRNLEN(name, XCP_PROJECT_NAME_MAX_LENGTH) == 0) {
+        DBG_PRINT_ERROR("XcpInit: Project name invalid!\n");
+        return;
+    }
+    if (epk == NULL) {
+        epk = __TIME__;
+    } else if (STRNLEN(epk, XCP_EPK_MAX_LENGTH) == 0) {
+        DBG_PRINT_ERROR("XcpInit: EPK invalid!\n");
         return;
     }
 
@@ -3342,7 +3350,7 @@ void XcpInit(const char *name, const char *epk, bool activate) {
         return; // Do not activate XCP protocol layer, state is safe now
     }
 
-    // Initialize the base address for absolute addressing
+// Initialize the base address for absolute addressing
 #ifdef XCP_ENABLE_ABS_ADDRESSING
     ApplXcpGetBaseAddr();
     assert(xcp_get_base_addr() != NULL);

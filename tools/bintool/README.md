@@ -60,33 +60,116 @@ cargo build --release
 cargo install --path .  
 ```
 
+### Examples
 
 
-### Example Output
+```bash
 
-```
+bintool cpp_demo.bin
+  Converted 4 calibration segment(s) from 'cpp_demo.bin'
+  Output written to 'cpp_demo.hex'
+
+
+bintool --apply-hex cpp_demo.hex cpp_demo.bin
+  Updated 4 of 4 segment(s) in 'cpp_demo.bin'
+
+
+bintool cpp_demo.bin  --dump  --verbose
+
+
 ========================================
 BIN File: cpp_demo.bin
 ========================================
 
 HEADER:
   Signature:    XCPLITE__BINARY
-  Version:      0x0100
-  EPK:          v10_21_01_18
+  Version:      0x0204
+  EPK:          21_41_01
   Event Count:  4
   CalSeg Count: 4
+
+EVENTS:
+
+Event 0:
+  Name:         async
+  ID:           0
+  Index:        0
+  Cycle Time:   1000000 ns
+  Priority:     0
+
+Event 1:
+  Name:         mainloop
+  ID:           1
+  Index:        0
+  Cycle Time:   0 ns
+  Priority:     0
+
+Event 2:
+  Name:         SigGen1
+  ID:           2
+  Index:        0
+  Cycle Time:   0 ns
+  Priority:     0
+
+Event 3:
+  Name:         SigGen2
+  ID:           3
+  Index:        0
+  Cycle Time:   0 ns
+  Priority:     0
 
 CALIBRATION SEGMENTS:
 
 Segment 0:
   Name:    epk
   Index:   0
-  Size:    12 bytes
-  Address: 0x80000000 (XCP address)
+  Size:    8 bytes
+  Address: 0x80000000
 
   Data (hex dump):
-    0000:  76 31 30 5F 32 31 5F 30  31 5F 31 38              |v10_21_01_18|
+    80000000:  32 31 5F 34 31 5F 30 31                           |21_41_01|
+
+Segment 1:
+  Name:    kParameters
+  Index:   1
+  Size:    8 bytes
+  Address: 0x80010000
+
+  Data (hex dump):
+    80010000:  E8 03 00 00 E8 03 00 00                           |........|
+
+Segment 2:
+  Name:    SigGen1
+  Index:   2
+  Size:    88 bytes
+  Address: 0x80020000
+
+  Data (hex dump):
+    80020000:  00 00 00 00 00 00 29 40  00 00 00 00 00 00 00 00  |......)@........|
+    80020010:  00 00 00 00 00 00 00 00  9A 99 99 99 99 99 D9 3F  |...............?|
+    80020020:  00 00 00 00 00 00 00 3F  00 00 80 3F 00 00 00 3F  |.......?...?...?|
+    80020030:  00 00 00 00 00 00 00 BF  00 00 80 BF 00 00 00 BF  |................|
+    80020040:  00 00 00 00 00 00 00 00  00 00 00 00 E8 03 00 00  |................|
+    80020050:  00 00 00 00 00 00 00 00                           |........|
+
+Segment 3:
+  Name:    SigGen2
+  Index:   3
+  Size:    88 bytes
+  Address: 0x80030000
+
+  Data (hex dump):
+    80030000:  00 00 00 00 00 00 54 40  18 2D 44 54 FB 21 F9 3F  |......T@.-DT.!.?|
+    80030010:  00 00 00 00 00 00 00 00  00 00 00 00 00 00 24 40  |..............$@|
+    80030020:  00 00 00 00 CD CC CC 3D  9A 99 99 3E 9A 99 19 3F  |.......=...>...?|
+    80030030:  CD CC 4C 3F 00 00 80 3F  CD CC 4C 3F 9A 99 19 3F  |..L?...?..L?...?|
+    80030040:  9A 99 99 3E CD CC CC 3D  00 00 00 00 E8 03 00 00  |...>...=........|
+    80030050:  00 00 00 00 00 00 00 00                           |........|
+
+
 ```
+
+
 
 ## Intel-Hex Output
 
