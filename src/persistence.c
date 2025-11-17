@@ -1,16 +1,16 @@
 /*----------------------------------------------------------------------------
 | File:
-|   persistency.c
+|   persistence.c
 |
 | Description:
-|   Read and write binary file for calibration segment persistency
+|   Read and write binary file for calibration segment persistence
 |
 | Copyright (c) Vector Informatik GmbH. All rights reserved.
 | Licensed under the MIT license. See LICENSE file in the project root for details.
 |
  ----------------------------------------------------------------------------*/
 
-#include "persistency.h"
+#include "persistence.h"
 
 #include <assert.h>   // for assert
 #include <inttypes.h> // for PRIu64
@@ -32,7 +32,7 @@
 #ifdef OPTION_CAL_PERSISTENCE
 
 #if !defined(XCP_ENABLE_DAQ_EVENT_LIST) || !defined(XCP_ENABLE_CALSEG_LIST)
-#error "XCP_ENABLE_DAQ_EVENT_LIST and XCP_ENABLE_CALSEG_LIST must be enabled for calibration segment persistency"
+#error "XCP_ENABLE_DAQ_EVENT_LIST and XCP_ENABLE_CALSEG_LIST must be enabled for calibration segment persistence"
 #endif
 
 #define BIN_SIGNATURE "XCPLITE__BINARY"
@@ -181,7 +181,7 @@ static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, tXcpCalSeg *seg, uin
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
-/// Write the binary persistency file.
+/// Write the binary persistence file.
 /// This function writes the current state of the XCP events and calibration segments to a binary file.
 /// It creates a file with the specified filename and writes the header, events, and calibration segments.
 /// The tool must not be connected at that time
@@ -193,7 +193,7 @@ bool XcpBinWrite(uint8_t page) {
     buildBinFilename();
 
     if (XcpIsConnected() && page == XCP_CALPAGE_WORKING_PAGE) {
-        DBG_PRINT_ERROR("Cannot write persistency file while XCP is connected\n");
+        DBG_PRINT_ERROR("Cannot write persistence file while XCP is connected\n");
         return false;
     }
 
@@ -229,14 +229,14 @@ bool XcpBinWrite(uint8_t page) {
 
     fclose(file);
 
-    DBG_PRINTF3("Persistency data written to file '%s'\n", gXcpBinFilename);
+    DBG_PRINTF3("Persistence data written to file '%s'\n", gXcpBinFilename);
     return true;
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
-/// Freeze the active page of a calibration segment to the binary persistency file.
-/// This function writes the active page of the specified calibration segment to the binary persistency file.
+/// Freeze the active page of a calibration segment to the binary persistence file.
+/// This function writes the active page of the specified calibration segment to the binary persistence file.
 /// @param calseg Calibration segment index
 /// @return
 /// Returns true if the operation was successful.
@@ -284,7 +284,7 @@ bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg) {
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
-// Load the binary persistency file.
+// Load the binary persistence file.
 // @param filename The pathname of the file (with extension) to read
 // @param epk The expected EPK string for verification
 // @return
@@ -323,7 +323,7 @@ static bool load(const char *filename, const char *epk) {
     // Load events
     // Event list must be empty at this point
     if (gXcp.EventList.count != 0) {
-        DBG_PRINT_ERROR("Event list not empty prior to loading persistency file\n");
+        DBG_PRINT_ERROR("Event list not empty prior to loading persistence file\n");
         fclose(file);
         return false;
     }
@@ -343,7 +343,7 @@ static bool load(const char *filename, const char *epk) {
         // As it is created in the original order, the event ID must match
         event_id = XcpCreateIndexedEvent(desc.name, desc.index, desc.cycleTimeNs, desc.priority);
         if (event_id == XCP_UNDEFINED_EVENT_ID || event_id != desc.id) { // Should not happen
-            DBG_PRINTF_ERROR("Failed to create event '%s' from persistency file\n", desc.name);
+            DBG_PRINTF_ERROR("Failed to create event '%s' from persistence file\n", desc.name);
             fclose(file);
             return false;
         }
@@ -352,7 +352,7 @@ static bool load(const char *filename, const char *epk) {
     // Load calibration segments
     // Calibration segment list must be empty at this point
     if (gXcp.CalSegList.count != 0) {
-        DBG_PRINT_ERROR("Calibration segment list not empty prior to loading persistency file\n");
+        DBG_PRINT_ERROR("Calibration segment list not empty prior to loading persistence file\n");
         fclose(file);
         return false;
     }
@@ -384,8 +384,8 @@ static bool load(const char *filename, const char *epk) {
 #endif
 
         // The persisted data will become the preliminary reference page
-        // Providing a heap allocated default page may not work for absolute segment addressing mode in reference page persistency mode
-        // In working page persistency mode, the default page will be moved to working page in the later XcpCreateCalSeg called by the user, otherwise fail
+        // Providing a heap allocated default page may not work for absolute segment addressing mode in reference page persistence mode
+        // In working page persistence mode, the default page will be moved to working page in the later XcpCreateCalSeg called by the user, otherwise fail
         calseg = XcpCreateCalSeg(desc.name, page, desc.size);
         if (calseg != desc.index) {
             DBG_PRINT_ERROR("Failed to create calibration segment\n");
@@ -403,7 +403,7 @@ static bool load(const char *filename, const char *epk) {
     return true;
 }
 
-// Load the binary persistency file.
+// Load the binary persistence file.
 // This function reads the binary file containing calibration segment descriptors and data and event descriptors
 // It verifies the file signature and EPK, and creates the events and calibration segments
 // This must be done early, before any event or segments are created
@@ -426,7 +426,7 @@ bool XcpBinLoad(void) {
 void XcpBinDelete(void) {
     buildBinFilename();
     if (remove(gXcpBinFilename) == 0) {
-        DBG_PRINTF3("Deleted persistency file '%s'\n", gXcpBinFilename);
+        DBG_PRINTF3("Deleted persistence file '%s'\n", gXcpBinFilename);
     }
 }
 

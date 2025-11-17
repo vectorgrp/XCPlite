@@ -6,7 +6,7 @@ use std::mem;
 
 use crate::Bin2HexError;
 
-// Compatibility with C code in persistency.h
+// Compatibility with C code in persistence.h
 // The BIN_VERSION check at runtime is the actual protection against format mismatches.
 // If the C code changes the format, it should bump BIN_VERSION, and this tool will reject the file.
 const BIN_SIGNATURE: &str = "XCPLITE__BINARY";

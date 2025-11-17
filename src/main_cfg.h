@@ -20,6 +20,12 @@
 #define OPTION_VERSION_MINOR 9
 #define OPTION_VERSION_PATCH 3
 
+#ifdef XCPLIB_FOR_RUST // Configuration for Rust xcp-lite
+
+#include "xcplib_cfg.h" // for Rust xcp-lite specific configuration
+
+#else
+
 //-------------------------------------------------------------------------------
 // Logging
 
@@ -57,8 +63,6 @@
 //-------------------------------------------------------------------------------
 // CAL setting
 
-#ifndef XCPLIB_FOR_RUST // Disable for Rust, the Rust wrapper for XCPlite currently has its own calibration segment management and uses the callbacks in xcpAppl.c
-
 // Enable calibration segment management
 // (otherwise the callbacks in xcpAppl.c are used for calibration segment commands and memory read/write)
 #define OPTION_CAL_SEGMENTS
@@ -83,9 +87,9 @@
 // Requirement is, that the address of all reference pages must be stable and in address range of 0x0000_0000 to 0xFFFF_FFFF
 // #define OPTION_CAL_SEGMENTS_ABS
 
-// Enable persistency (freeze) to reference page or to working page on next application restart
+// Enable persistence (freeze) to reference page or to working page on next application restart
 // This decides which pages (reference/FLASH or working/RAM) are stored to the calibration segment binary file (.BIN) on XCP freeze request
-// #define OPTION_CAL_REFERENCE_PAGE_PERSISTENCY
+// #define OPTION_CAL_REFERENCE_PAGE_PERSISTENCE
 
 // Start on reference/default page instead of on working page
 // #define OPTION_CAL_SEGMENTS_START_ON_REFERENCE_PAGE
@@ -93,8 +97,7 @@
 // Automatically persist the working page on XCP disconnect
 // #define OPTION_CAL_PERSIST_ON_DISCONNECT
 
-#endif
-
+#
 //-------------------------------------------------------------------------------
 // DAQ settings
 
@@ -121,3 +124,5 @@
 // Not designed for non x86 platforms, needs strong memory ordering
 // Used for testing on Windows
 // #define OPTION_ATOMIC_EMULATION
+
+#endif // !XCPLIB_FOR_RUST

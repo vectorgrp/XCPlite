@@ -93,7 +93,7 @@ const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg);
 void XcpUnlockCalSeg(tXcpCalSegIndex calseg);
 
 /// Freeze all calibration segments
-/// The current working page is written to the persistency file
+/// The current working page is written to the persistence file
 /// It will be the new default page on next application start
 /// Freeze can also be required by the XCP client tool.
 /// Requires option XCP_ENABLE_FREEZE_CAL_PAGE.

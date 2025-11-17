@@ -64,7 +64,7 @@
 #include <string.h>   // for memcpy, memset, strlen
 
 #include "dbg_print.h"   // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
-#include "persistency.h" // for XcpBinFreezeCalSeg
+#include "persistence.h" // for XcpBinFreezeCalSeg
 #include "platform.h"    // for atomics
 #include "xcp.h"         // XCP protocol definitions
 #include "xcpEthTl.h"    // for transport layer XcpTlWaitForTransmitQueueEmpty and XcpTlSendCrm
@@ -493,7 +493,7 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
     tXcpCalSeg *c = NULL;
     tXcpCalSegIndex index = XcpFindCalSeg(name);
     if (index != XCP_UNDEFINED_CALSEG) {
-#ifdef XCP_ENABLE_FREEZE_CAL_PAGE
+#ifdef XCP_ENABLE_CAL_PERSISTENCE
         // Check if this is a preloaded segment
         // Preloaded segments have the correct size and a valid default page, loaded from the binary calibration segment image file on startup
         c = &gXcp.CalSegList.calseg[index];
@@ -516,7 +516,7 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
         c->name[XCP_MAX_CALSEG_NAME] = 0;
         c->size = size;
         c->default_page = (uint8_t *)default_page;
-#ifdef XCP_ENABLE_FREEZE_CAL_PAGE
+#ifdef XCP_ENABLE_CAL_PERSISTENCE
         c->file_pos = 0;
 #endif
         DBG_PRINTF3("Create CalSeg %u: %s index=%u, size=%u\n", index, c->name, index, c->size);
@@ -541,37 +541,39 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
         memcpy(c->ecu_page, c->default_page, size); // Copy default page to ECU working page copy
 
         // Allocate the xcp working page (RAM page)
-#ifdef XCP_ENABLE_REFERENCE_PAGE_PERSISTENCY
-// No persistency possible in absolute segment addressing mode
+#if defined(XCP_ENABLE_CAL_PERSISTENCE) && defined(XCP_ENABLE_REFERENCE_PAGE_PERSISTENCE)
+// No persistence possible in absolute segment addressing mode
 #if defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0
-#error "XCP_ENABLE_REFERENCE_PAGE_PERSISTENCY requires segment relative addressing mode!"
+#error "XCP_ENABLE_REFERENCE_PAGE_PERSISTENCE requires segment relative addressing mode!"
 #endif
 
-        // Reference page persistency
+        // Reference page persistence
         // Allocate the  working page
         c->xcp_page = malloc(size);
         memcpy(c->xcp_page, c->default_page, size); // Copy default page to working page
         if (c->mode & PAG_PROPERTY_PRELOAD) {
             DBG_PRINTF3("Persistence data loaded into reference page of CalSeg %u: %s size=%u\n", index, c->name, c->size);
         }
-#else  // XCP_ENABLE_REFERENCE_PAGE_PERSISTENCY
+#else // XCP_ENABLE_REFERENCE_PAGE_PERSISTENCE
 
-        // Working page persistency
+        // Working page persistence
         // If it is a preloaded segment with a heap allocated default page, use this default page as XCP working page
+#ifdef XCP_ENABLE_CAL_PERSISTENCE
         if (c->mode & PAG_PROPERTY_PRELOAD) {
             c->xcp_page = (uint8_t *)c->default_page; // Swap XCP working page and preloaded default page
             c->default_page = default_page;
             memcpy(c->ecu_page, c->xcp_page, size); // Copy XCP working page to ECU working page copy as well
             DBG_PRINTF3("Persistence data loaded into working page of CalSeg %u: %s addr=0x%08X, size=%u\n", index, c->name, XcpGetCalSegBaseAddress(index), c->size);
-        }
+        } else
+#endif
         // else allocate and initialize the working page
-        else {
+        {
 
             // Allocate the XCP working page
             c->xcp_page = malloc(size);
             memcpy(c->xcp_page, default_page, size); // Copy default page to working page
         }
-#endif // !XCP_ENABLE_REFERENCE_PAGE_PERSISTENCY
+#endif // !XCP_ENABLE_REFERENCE_PAGE_PERSISTENCE
 
         // Allocate a free uninitialized page
         atomic_store_explicit(&c->free_page, (uintptr_t)malloc(size), memory_order_relaxed);
@@ -590,7 +592,7 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
 #endif
     }
 
-#ifdef XCP_ENABLE_FREEZE_CAL_PAGE
+#ifdef XCP_ENABLE_CAL_PERSISTENCE
     c->mode = 0; // Default mode is freeze not enabled, set by XCP command SET_SEGMENT_MODE, clear the preloaded flag
 #endif
 
@@ -2246,7 +2248,7 @@ void XcpDisconnect(void) {
         ApplXcpDisconnect();
 
         // Must be done in disconnected state
-#if defined(OPTION_CAL_PERSISTENCE) && defined(OPTION_CAL_PERSIST_ON_DISCONNECT)
+#if defined(XCP_ENABLE_CAL_PERSISTENCE) && defined(XCP_ENABLE_FREEZE_ON_DISCONNECT)
         XcpBinWrite(XCP_CALPAGE_WORKING_PAGE);
 #endif
     }
@@ -3355,7 +3357,7 @@ void XcpInit(const char *name, const char *epk, bool activate) {
 
 // Check if the BIN file exists and load it
 // If successful, do not start the A2L generation process, but still provide the existing A2L file to the XCP client
-#ifdef OPTION_CAL_PERSISTENCE
+#ifdef XCP_ENABLE_CAL_PERSISTENCE
     if (XcpBinLoad()) {
         gXcp.SessionStatus |= SS_PERSISTENCE_LOADED;
     }

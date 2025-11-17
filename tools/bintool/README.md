@@ -1,14 +1,14 @@
 # bintool - XCPlite BIN File Tool
 
-A command-line tool for XCPlite `.BIN` persistency files.  
-Persistency features in XCPlite are enabled with OPTION_CAL_PERSISTENCE.  
+A command-line tool for XCPlite `.BIN` persistence files.  
+Persistence features in XCPlite are enabled with OPTION_CAL_PERSISTENCE.  
 For safety, it is essential to use the EPK version segment. This can be enabled with OPTION_CAL_SEGMENT_EPK.  
 
 Disclaimer: This is an AI generated tool. Don't use it for production. Improper use may corrupt calibration data.  
 
 ## Overview
 
-This tool provides comprehensive management of XCPlite binary persistency files:
+This tool provides comprehensive management of XCPlite binary persistence files:
 - **BIN to HEX**: Extract calibration segment data to Intel-Hex format
 - **HEX to BIN**: Update calibration segment data in a BIN file from Intel-Hex files
 - **Dump/Inspect**: View file structure, events, segments, and hex dumps

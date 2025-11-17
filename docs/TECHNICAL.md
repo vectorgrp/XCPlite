@@ -56,7 +56,7 @@ A copy of all calibration parameter segments and events definitions and of the p
 
 The existing A2L file is provided for upload to the XCP client or may be provided to the tool by copying it.
 
-As a side effect, calibration segment persistency (freeze command) is supported.
+As a side effect, calibration segment persistence (freeze command) is supported.
 
 ### Option 3: External A2L Update Tools
 
@@ -230,7 +230,7 @@ function try_publish(segment) -> bool {
 ### System Resources
 
 **File system:** `fopen`, `fprintf`
-- Used for A2L generation and optional parameter persistency to a binary file
+- Used for A2L generation and optional parameter persistence to a binary file
 
 **Heap allocation:** `malloc`, `free`
 - Transmit queue (`XcpEthServerInit`, parameter queue size)

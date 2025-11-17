@@ -240,14 +240,17 @@ xcp-lite for Rust XCPLITE__CADR:
 //   2. Just persist the working page
 #ifdef OPTION_CAL_PERSISTENCE
 
-// Enable the FREEZE_CAL_PAGE command
-// Required for calibration segment persistency
-#define XCP_ENABLE_FREEZE_CAL_PAGE
+// Enable persistence of calibration segments
+#define XCP_ENABLE_CAL_PERSISTENCE
 
-// Enable persistency of reference (default) page, instead of working page
+// Enable the FREEZE_CAL_PAGE command
+#define XCP_ENABLE_FREEZE_CAL_PAGE
+// #define XCP_ENABLE_FREEZE_ON_DISCONNECT
+
+// Enable persistence of reference (default) page, instead of working page
 // This requires segment relative addressing mode !
-#ifdef OPTION_CAL_REFERENCE_PAGE_PERSISTENCY
-#define XCP_ENABLE_REFERENCE_PAGE_PERSISTENCY
+#ifdef OPTION_CAL_REFERENCE_PAGE_PERSISTENCE
+#define XCP_ENABLE_REFERENCE_PAGE_PERSISTENCE
 #endif
 
 #endif // OPTION_CAL_PERSISTENCE
