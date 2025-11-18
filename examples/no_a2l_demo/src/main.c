@@ -11,8 +11,10 @@
 #include <stdlib.h>  // for malloc, free
 #include <string.h>  // for sprintf
 
+#include "xcplib.h" // for xcplib application programming interface
+
+// Internal xcplib includes to simplify multi platform support
 #include "platform.h" // for platform abstraction for thread local, threads, mutex, sockets, sleepUs, ...
-#include "xcplib.h"   // for xcplib application programming interface
 
 static volatile bool global_running = true;
 static void sig_handler(int sig) { global_running = false; }
@@ -110,8 +112,12 @@ struct test_struct global_test_struct = {1, -2, 0.3f, {1, 2, 3}};
 //-----------------------------------------------------------------------------------------------------
 // Demo thread
 
-void *task(void *p) {
-
+#ifdef _WIN32 // Windows 32 or 64 bit
+DWORD WINAPI task(LPVOID p)
+#else
+void *task(void *p)
+#endif
+{
     printf("Start thread %u ...\n", get_thread_id());
 
     // Thread local measurement variables
@@ -143,7 +149,7 @@ void *task(void *p) {
         thread_local_counter = global_counter;
 
         // @@@@ TODO: Thread local variables
-        // The volatile creator can not handle thread local variables yet
+        // The A2L creator in xcp_client can not handle thread local variables yet
         // The DAQ capture method does not work for TLS
         // DaqCapture(task, thread_local_counter);
 

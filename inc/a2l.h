@@ -425,15 +425,18 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
 // Create typedefs and typedef components
 
 #define A2lTypedefBegin(typedef_name, type_instance, ...)                                                                                                                          \
-    const typedef_name *__A2lTypedefBegin_instance = type_instance;                                                                                                                \
-    A2lTypedefBegin_(#typedef_name, (uint32_t)sizeof(typedef_name), __VA_ARGS__);
+    {                                                                                                                                                                              \
+        const typedef_name *__A2lTypedefBegin_instance = type_instance;                                                                                                            \
+        A2lTypedefBegin_(#typedef_name, (uint32_t)sizeof(typedef_name), __VA_ARGS__);
 
 // For scalar or one dimensional measurement and parameter components of specified type
 // field_type_name is the name of another typedef, typedef_measurement or typedef_characteristic
 #define A2lTypedefComponent(field_name, field_type_name, field_dim)                                                                                                                \
     A2lTypedefComponent_(#field_name, #field_type_name, field_dim, (uint32_t)((uint8_t *)&(__A2lTypedefBegin_instance->field_name) - (uint8_t *)__A2lTypedefBegin_instance))
 
-#define A2lTypedefEnd() A2lTypedefEnd_()
+#define A2lTypedefEnd()                                                                                                                                                            \
+    }                                                                                                                                                                              \
+    A2lTypedefEnd_()
 
 // Measurement components
 // Implicitly create a TYPEDEF_MEASUREMENT

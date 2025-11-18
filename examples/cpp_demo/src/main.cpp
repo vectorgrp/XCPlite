@@ -118,12 +118,10 @@ int main() {
     auto calseg = xcplib::CreateCalSeg("kParameters", &kParameters);
 
     // Add the calibration segment description as a typedef instance to the A2L file
-    {
-        A2lTypedefBegin(ParametersT, &kParameters, "A2L Typedef for ParametersT");
-        A2lTypedefParameterComponent(counter_max, "Maximum counter value", "", 0, 2000);
-        A2lTypedefParameterComponent(delay_us, "Mainloop delay time in us", "us", 0, 999999);
-        A2lTypedefEnd();
-    }
+    A2lTypedefBegin(ParametersT, &kParameters, "A2L Typedef for ParametersT");
+    A2lTypedefParameterComponent(counter_max, "Maximum counter value", "", 0, 2000);
+    A2lTypedefParameterComponent(delay_us, "Mainloop delay time in us", "us", 0, 999999);
+    A2lTypedefEnd();
     calseg.CreateA2lTypedefInstance("ParametersT", "Main parameters");
 
     // Local variables

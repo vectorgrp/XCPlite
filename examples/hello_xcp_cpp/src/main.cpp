@@ -153,12 +153,10 @@ int main() {
     gCalSeg.emplace("Parameters", &kParameters);
 
     // Register the calibration segment description as a typedef and an instance in the A2L file
-    {
-        A2lTypedefBegin(ParametersT, &kParameters, "Typedef for ParametersT");
-        A2lTypedefParameterComponent(min, "Minimum random number value", "", -100.0, 100.0);
-        A2lTypedefParameterComponent(max, "Maximum random number value", "", -100.0, 100.0);
-        A2lTypedefEnd();
-    }
+    A2lTypedefBegin(ParametersT, &kParameters, "Typedef for ParametersT");
+    A2lTypedefParameterComponent(min, "Minimum random number value", "", -100.0, 100.0);
+    A2lTypedefParameterComponent(max, "Maximum random number value", "", -100.0, 100.0);
+    A2lTypedefEnd();
     gCalSeg->CreateA2lTypedefInstance("ParametersT", "Random number generator parameters");
 
     // Create a FloatingAverage calculator instance with a 128 samples ring buffer
