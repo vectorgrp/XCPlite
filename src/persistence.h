@@ -1,12 +1,12 @@
 #pragma once
-#define __PERSISTENCY_H__
+#define __PERSISTENCE_H__
 
 /*----------------------------------------------------------------------------
 | File:
-|   persistency.h
+|   persistence.h
 |
 | Description:
-|   XCPlite internal header file for persistency.c
+|   XCPlite internal header file for persistence.c
 |
 | Copyright (c) Vector Informatik GmbH. All rights reserved.
 | See LICENSE file in the project root for details.
@@ -25,8 +25,9 @@
 extern "C" {
 #endif
 
-bool XcpBinWrite(const char *filename);
-bool XcpBinLoad(const char *filename, const char *epk);
+bool XcpBinWrite(uint8_t page);
+bool XcpBinLoad(void);
+void XcpBinDelete(void);
 bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg);
 
 #ifdef __cplusplus

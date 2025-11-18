@@ -24,22 +24,22 @@ constexpr double kPi = 3.14159265358979323846;
 constexpr double k2Pi = (kPi * 2);
 
 // Constructor - creates the signal generator with the given instance name and parameters
-SignalGenerator::SignalGenerator(const char *instance_name, SignalParametersT params) : signal_parameters_(instance_name, params), instance_name_(instance_name) {
+SignalGenerator::SignalGenerator(const char *instance_name, const SignalParametersT *params) : signal_parameters_(instance_name, params), instance_name_(instance_name) {
 
     // Global once A2l registration of SignalParametersT typedef
     if (A2lOnce()) {
 
-        params.lookup.A2lRegisterTypedef(); // Register the lookup table typedef
+        params->lookup.A2lRegisterTypedef(); // Register the lookup table typedef
 
-        A2lTypedefBegin(SignalParametersT, "A2L typedef for SignalParametersT");
+        A2lTypedefBegin(SignalParametersT, params, "A2L typedef for SignalParametersT");
         A2lCreateEnumConversion(signal_type_enum, "5 0 \"SINE\" 1 \"SQUARE\" 2 \"TRIANGLE\" 3 \"SAWTOOTH\" 4 \"ARBITRARY\"");
-        A2lTypedefParameterComponent(signal_type, SignalParametersT, "Signal type", "conv.signal_type_enum", 0, 4);
-        A2lTypedefParameterComponent(ampl, SignalParametersT, "Amplitude", "Volt", 0, 100);
-        A2lTypedefParameterComponent(phase, SignalParametersT, "Phase", "", 0, k2Pi);
-        A2lTypedefParameterComponent(offset, SignalParametersT, "Offset", "Volt", -100, 100);
-        A2lTypedefParameterComponent(period, SignalParametersT, "Period", "s", 0.01, 10.0);
-        A2lTypedefParameterComponent(delay_us, SignalParametersT, "Delay time in us", "us", 0, 100000);
-        A2lTypedefComponent(lookup, LookupTableT, 1, SignalParametersT);
+        A2lTypedefParameterComponent(signal_type, "Signal type", "conv.signal_type_enum", 0, 4);
+        A2lTypedefParameterComponent(ampl, "Amplitude", "Volt", 0, 100);
+        A2lTypedefParameterComponent(phase, "Phase", "", 0, k2Pi);
+        A2lTypedefParameterComponent(offset, "Offset", "Volt", -100, 100);
+        A2lTypedefParameterComponent(period, "Period", "s", 0.01, 10.0);
+        A2lTypedefParameterComponent(delay_us, "Delay time in us", "us", 0, 100000);
+        A2lTypedefComponent(lookup, LookupTableT, 1);
         A2lTypedefEnd();
     }
 
@@ -112,7 +112,7 @@ void SignalGenerator::Task() {
         }
 
         // XCP event by event name, event lookup is once and will be cached in a static thread local variable
-        DaqEventRelative_s(instance_name_, this); // Trigger with this as dynamic addressing base to make member variables accessible
+        DaqTriggerEventExt_s(instance_name_, this); // Trigger with this as dynamic addressing base to make member variables accessible
 
         // Sleep for delay_us microseconds
         // Be sure the lock is held as short as possible !

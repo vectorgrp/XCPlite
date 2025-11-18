@@ -2,6 +2,26 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Debug hello_xcp_cpp",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/hello_xcp_cpp.out",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "XCPlite: build hello_xcp_cpp"
+        },
+        {
             "name": "Debug cpp_demo",
             "type": "cppdbg",
             "request": "launch",

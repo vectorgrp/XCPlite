@@ -13,6 +13,7 @@
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
 #define OPTION_PROJECT_NAME "hello_xcp_cpp" // A2L project name
+#define OPTION_PROJECT_EPK __TIME__         // EPK version string
 #define OPTION_USE_TCP true                 // TCP or UDP, use TCP
 #define OPTION_SERVER_PORT 5555             // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}     // Bind addr, 0.0.0.0 = ANY
@@ -20,17 +21,17 @@
 #define OPTION_LOG_LEVEL 3                  // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 //-----------------------------------------------------------------------------------------------------
-// Floating average calculation class
+// Demo floating average calculation class
 
 namespace floating_average {
 
 template <size_t N> class FloatingAverage {
 
   private:
-    std::array<double, N> samples_; // Ring buffer for storing samples
     size_t current_index_;          // Current position in the ring buffer
     size_t sample_count_;           // Number of samples collected so far
     double sum_;                    // Running sum of all samples
+    std::array<double, N> samples_; // Ring buffer for storing samples
 
   public:
     FloatingAverage();
@@ -40,16 +41,13 @@ template <size_t N> class FloatingAverage {
 
 template <size_t N> FloatingAverage<N>::FloatingAverage() : samples_{}, current_index_(0), sample_count_(0), sum_(0.0) {
 
-    // Create a measurement event "avg_calc" for this member function
-    DaqCreateEvent(avg_calc);
-
+    // Optional: Create a typedef for the FloatingAverage class in the A2L file
     if (A2lOnce()) {
-        // Register member variables for XCP measurement
-        // Using 'this' as the base address for relative mode
-        A2lSetRelativeAddrMode(avg_calc, this);
-        A2lCreateMeasurement(current_index_, "Current position in ring buffer");
-        A2lCreateMeasurement(sample_count_, "Number of samples collected");
-        A2lCreateMeasurement(sum_, "Running sum of all samples");
+        A2lTypedefBegin(FloatingAverage, this, "Typedef for FloatingAverage<%u>", N);
+        A2lTypedefMeasurementComponent(current_index_, "Current position in the ring buffer");
+        A2lTypedefMeasurementComponent(sample_count_, "Number of samples collected so far");
+        A2lTypedefMeasurementComponent(sum_, "Running sum of all samples");
+        A2lTypedefEnd();
     }
 
     std::cout << "FloatingAverage<" << N << "> instance created" << std::endl;
@@ -59,16 +57,6 @@ template <size_t N> FloatingAverage<N>::FloatingAverage() : samples_{}, current_
 template <size_t N> double FloatingAverage<N>::calculate(double input) {
 
     double average; // Current calculated average
-
-    if (A2lOnce()) {
-
-        // Register local variables and parameters of this function
-        // Note: This forces the compiler to spill function parameters from registers to stack to make them accessible by XCP, it causes minimal runtime impact, but does not create
-        // undefined behaviour
-        A2lSetStackAddrMode(avg_calc);
-        A2lCreateMeasurement(input, "Input value for floating average");
-        A2lCreateMeasurement(average, "Current calculated average");
-    }
 
     // Calculate the floating average over N samples
     if (sample_count_ >= N) {
@@ -81,9 +69,15 @@ template <size_t N> double FloatingAverage<N>::calculate(double input) {
     average = sum_ / static_cast<double>(sample_count_);
     current_index_ = (current_index_ + 1) % N;
 
-    // Trigger XCP measurement event "avg_calc"
-    // Use relative addressing and provide this to make member variables accessible
-    DaqEventRelative(avg_calc, this);
+    //  Create event 'avg_calc', register individual local or member variables and trigger the event
+    XcpDaqEventExt(avg_calc1, this,                                               //
+                   (input, "Input value for floating average", "V", 0.0, 1000.0), //
+                   (average, "Current calculated average"),                       //
+                   (current_index_, "Current position in ring buffer"),           //
+                   (sample_count_, "Number of samples collected"),                //
+                   (sum_, "Running sum of all samples")
+
+    );
 
     return average;
 }
@@ -91,15 +85,16 @@ template <size_t N> double FloatingAverage<N>::calculate(double input) {
 } // namespace floating_average
 
 //-----------------------------------------------------------------------------------------------------
-// Calibration parameters for the random number generator
+// Demo random number generator with calibration parameters
 
+// Calibration parameters for the random number generator
 struct ParametersT {
     double min; // Minimum random number value
     double max; // Maximum random number value
 };
 
 // Default parameter values
-constexpr ParametersT kParameters = {.min = -1.0, .max = 1.0};
+const ParametersT kParameters = {.min = 2.0, .max = 3.0};
 
 // A calibration segment wrapper for the parameters
 std::optional<xcplib::CalSeg<ParametersT>> gCalSeg;
@@ -109,9 +104,8 @@ double random_number() {
     static unsigned int seed = 12345;
     seed = seed * 1103515245 + 12345;
 
-    // Lock access to calibration parameters RAII guard
+    // Lock access to calibration parameters with RAII guard "params"
     auto params = gCalSeg->lock();
-
     double random = params->min + ((seed / 65536) % 32768) / 32768.0 * (params->max - params->min);
     return random;
 };
@@ -121,7 +115,7 @@ double random_number() {
 // Signal handler for graceful exit on Ctrl+C
 std::atomic<bool> gRun{true};
 void signal_handler(int signal) {
-    if (signal == SIGINT) {
+    if (signal == SIGINT || signal == SIGTERM) {
         gRun = false;
     }
 }
@@ -129,6 +123,7 @@ void signal_handler(int signal) {
 int main() {
 
     std::signal(SIGINT, signal_handler);
+    std::signal(SIGTERM, signal_handler);
 
     std::cout << "\nXCP on Ethernet demo - simple C++ example\n" << std::endl;
 
@@ -136,7 +131,7 @@ int main() {
     XcpSetLogLevel(OPTION_LOG_LEVEL);
 
     // Initialize the XCP singleton, activate XCP
-    XcpInit(true);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, true /* activate */);
 
     // Initialize the XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;
@@ -145,8 +140,8 @@ int main() {
         return 1;
     }
 
-    // Enable A2L generation
-    if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    // Enable runtime A2L generation for data declaration as code
+    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         std::cerr << "Failed to initialize A2L generator" << std::endl;
         return 1;
     }
@@ -155,27 +150,49 @@ int main() {
     // This calibration segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
     // It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
     // It supports XCP/ECU independent page switching, checksum calculation and reinitialization (copy reference page to working page)
-    gCalSeg.emplace("Parameters", kParameters);
+    gCalSeg.emplace("Parameters", &kParameters);
 
-    // Add the calibration segment description as a typedef and an instance to the A2L file
-    A2lTypedefBegin(ParametersT, "A2L Typedef for ParametersT");
-    A2lTypedefParameterComponent(min, ParametersT, "Minimum random number value", "", -100.0, 100.0);
-    A2lTypedefParameterComponent(max, ParametersT, "Maximum random number value", "", -100.0, 100.0);
+    // Register the calibration segment description as a typedef and an instance in the A2L file
+    A2lTypedefBegin(ParametersT, &kParameters, "Typedef for ParametersT");
+    A2lTypedefParameterComponent(min, "Minimum random number value", "", -100.0, 100.0);
+    A2lTypedefParameterComponent(max, "Maximum random number value", "", -100.0, 100.0);
     A2lTypedefEnd();
     gCalSeg->CreateA2lTypedefInstance("ParametersT", "Random number generator parameters");
 
-    // Create a FloatingAverage calculator instance with 128 samples
-    floating_average::FloatingAverage<128> average;
+    // Create a FloatingAverage calculator instance with a 128 samples ring buffer
+    // May be allocated on stack or heap, both can be measured via XCP
+    // on stack
+    // floating_average::FloatingAverage<128> average128;
+    // on heap
+    auto average128 = new floating_average::FloatingAverage<128>();
+
+    // Optional: Register the complete FloatingAverage instance on heap as measurement with event average128
+    DaqCreateEvent(average);
+    A2lSetRelativeAddrMode(average, average128);
+    A2lCreateTypedefReference(average128, FloatingAverage, "Instance average128 of FloatingAverage<128>");
 
     // Main loop
-    std::cout << "Demo class instance created. Starting main loop... (Press Ctrl+C to exit)" << std::endl;
+    std::cout << "Starting main loop... (Press Ctrl+C to exit)" << std::endl;
+    uint16_t counter = 0;
     while (gRun) {
 
-        double current_average = average.calculate(random_number());
+        counter++;
+        double voltage = random_number();
+        double average_voltage = average128->calculate(voltage);
+
+        // Once create event "mainloop" and register measurements for the local variables 'voltage' and 'average_voltage' via event 'mainloop'
+        // Trigger the event "mainloop" to measure the local variables
+        XcpDaqEvent(mainloop,                                                //
+                    (counter, "Mainloop counter"),                           //
+                    (voltage, "Input voltage", "V", 0.0, 1000.0),            //
+                    (average_voltage, "Calculated voltage floating average") //
+        );
+
+        // Optional: Trigger the event "average128" to measure the 'FloatingAverage' heap instance 'average128'
+        DaqTriggerEventExt(average, average128);
 
         sleepUs(1000);
-
-        A2lFinalize(); // @@@@ Test: Manually finalize the A2L file to make it visible without XCP tool connect
+        A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
     }
 
     // Cleanup

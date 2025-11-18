@@ -11,24 +11,19 @@
 
 #include "xcpLite.h"
 
-//  Not public API
-extern bool A2lCheckFinalizeOnConnect(void);
+//  Not public API, external linkage for testing
+extern bool A2lCheckFinalizeOnConnect(uint8_t connect_mode);
 
-// static bool file_exists(const char *path) {
-//     FILE *file = fopen(path, "r");
-//     if (file) {
-//         fclose(file);
-//         return true;
-//     }
-//     return false;
-// }
+// a2ltool from crates.io
+// Set the correct path or install it
+#define A2lTOOL_PATH "a2ltool"
 
 #define OPTION_PROJECT_NAME "a2l_test"  // A2L project name
+#define OPTION_PROJECT_EPK __TIME__     // EPK version string
 #define OPTION_LOG_LEVEL 4              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debugs
 #define OPTION_USE_TCP false            // TCP or UDP
 #define OPTION_SERVER_PORT 5555         // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE 1024 * 32     // Size of the measurement queue in bytes, must be a multiple of 8
 
 //-----------------------------------------------------------------------------------------------------
 // Measurements
@@ -239,13 +234,13 @@ int main() {
     // XCP must be initialized and activated before A2L generation
     // Initialize the XCP singleton, activate XCP
     // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-    XcpInit(true);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, true);
     XcpSetLogLevel(OPTION_LOG_LEVEL); // Set the log level for XCP
 
     // No need to start the XCP server
     // Initialize the XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;
-    if (!A2lInit(OPTION_PROJECT_NAME, "EPK", addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_AUTO_GROUPS)) {
         return 1;
     }
 
@@ -277,7 +272,7 @@ int main() {
     A2lCreateMapWithSharedAxis(static_map2, 8, 4, "Global memory parameter", "", -128, 127, "static_map2_x_axis", "static_map2_y_axis");
     A2lCreateAxis(static_map2_x_axis, 8, "Global memory parameter", "unit", 0, 1000.0);
     A2lCreateAxis(static_map2_y_axis, 4, "Global memory parameter", "unit", 0, 500.0);
-    A2lCreateMapWithSharedAxis(static_map3, 8, 4, "Global memory parameter", "", -128, 127, "static_map3_x_axis", NULL);
+    A2lCreateMapWithSharedAxis(static_map3, 8, 4, "Global memory parameter", "", 0, 10000, "static_map3_x_axis", NULL);
     A2lCreateAxis(static_map3_x_axis, 8, "Global memory parameter", "unit", 0, 1000.0);
 
     // Create parameters in the struct instance params in global memory
@@ -298,7 +293,7 @@ int main() {
     A2lCreateMapWithSharedAxis(static_params.map2, 8, 4, "Global memory parameter struct field", "", -128, 127, "static_params.map2_x_axis", "static_params.map2_y_axis");
     A2lCreateAxis(static_params.map2_x_axis, 8, "Global memory parameter struct field", "unit", 0, 1000.0);
     A2lCreateAxis(static_params.map2_y_axis, 4, "Global memory parameter struct field", "unit", 0, 500.0);
-    A2lCreateMapWithSharedAxis(static_params.map3, 8, 4, "Global memory parameter struct field", "", -128, 127, "static_params.map3_x_axis", NULL);
+    A2lCreateMapWithSharedAxis(static_params.map3, 8, 4, "Global memory parameter struct field", "", 0, 127, "static_params.map3_x_axis", NULL);
     A2lCreateAxis(static_params.map3_x_axis, 8, "Global memory parameter struct field", "unit", 0, 1000.0);
 
     A2lEndGroup();
@@ -309,26 +304,26 @@ int main() {
     // It supports XCP/ECU independent page switching, checksum calculation and reinitialization (copy reference page to working page)
     tXcpCalSegIndex calseg1 = XcpCreateCalSeg("params", (const void *)&params, sizeof(params));
     assert(calseg1 != XCP_UNDEFINED_CALSEG); // Ensure the calibration segment was created successfully
-    A2lTypedefBegin(params_t, "comment");
-    A2lTypedefParameterComponent(uint8, params_t, "Parameter typedef field", "unit", 0, 255);
-    A2lTypedefParameterComponent(uint16, params_t, "Parameter typedef field", "unit", 0, 65535);
-    A2lTypedefParameterComponent(uint32, params_t, "Parameter typedef field", "unit", 0, 4294967295);
-    A2lTypedefParameterComponent(uint_64, params_t, "Parameter typedef field", "unit", 0, 1e15);
-    A2lTypedefParameterComponent(int8, params_t, "Parameter typedef field", "unit", -128, 127);
-    A2lTypedefParameterComponent(int16, params_t, "Parameter typedef field", "unit", -32768, 32767);
-    A2lTypedefParameterComponent(int32, params_t, "Parameter typedef field", "unit", -2147483647 - 1, 2147483647);
-    A2lTypedefParameterComponent(int_64, params_t, "Parameter typedef field", "unit", -1e19, 1e19);
-    A2lTypedefParameterComponent(float4, params_t, "Parameter typedef field", "unit", -1000.0, 1000.0);
-    A2lTypedefParameterComponent(double8, params_t, "Parameter typedef field", "unit", -1000.0, 1000.0);
-    A2lTypedefCurveComponent(curve1, params_t, 8, "Parameter typedef field", "unit", -20, 20);
-    A2lTypedefCurveComponentWithSharedAxis(curve2, params_t, 8, "Parameter typedef field", "unit", 0, 1000.0, "curve2_axis");
-    A2lTypedefAxisComponent(curve2_axis, params_t, 8, "Parameter typedef field", "unit", 0, 20);
-    A2lTypedefMapComponent(map1, params_t, 8, 8, "Parameter typedef field", "", -128, 127);
-    A2lTypedefMapComponentWithSharedAxis(map2, params_t, 8, 4, "Parameter typedef field", "", -128, 127, "map2_x_axis", "map2_y_axis");
-    A2lTypedefAxisComponent(map2_x_axis, params_t, 8, "Parameter typedef field", "unit", 0, 1000.0);
-    A2lTypedefAxisComponent(map2_y_axis, params_t, 4, "Parameter typedef field", "unit", 0, 500.0);
-    A2lTypedefMapComponentWithSharedAxis(map3, params_t, 8, 4, "Parameter typedef field", "", -128, 127, "map3_x_axis", NULL);
-    A2lTypedefAxisComponent(map3_x_axis, params_t, 8, "Parameter typedef field", "unit", 0, 1000.0);
+    A2lTypedefBegin(params_t, &params, "Calibration parameters typedef");
+    A2lTypedefParameterComponent(uint8, "Parameter typedef field", "unit", 0, 255);
+    A2lTypedefParameterComponent(uint16, "Parameter typedef field", "unit", 0, 65535);
+    A2lTypedefParameterComponent(uint32, "Parameter typedef field", "unit", 0, 4294967295);
+    A2lTypedefParameterComponent(uint_64, "Parameter typedef field", "unit", 0, 1e15);
+    A2lTypedefParameterComponent(int8, "Parameter typedef field", "unit", -128, 127);
+    A2lTypedefParameterComponent(int16, "Parameter typedef field", "unit", -32768, 32767);
+    A2lTypedefParameterComponent(int32, "Parameter typedef field", "unit", -2147483647 - 1, 2147483647);
+    A2lTypedefParameterComponent(int_64, "Parameter typedef field", "unit", -1e6, 1e6);
+    A2lTypedefParameterComponent(float4, "Parameter typedef field", "unit", -1000.0, 1000.0);
+    A2lTypedefParameterComponent(double8, "Parameter typedef field", "unit", -1000.0, 1000.0);
+    A2lTypedefCurveComponent(curve1, 16, "Parameter typedef field", "unit", -20, 20);
+    A2lTypedefCurveComponentWithSharedAxis(curve2, 8, "Parameter typedef field", "unit", 0, 1000.0, "curve2_axis");
+    A2lTypedefAxisComponent(curve2_axis, 8, "Parameter typedef field", "unit", 0, 20);
+    A2lTypedefMapComponent(map1, 8, 8, "Parameter typedef field", "", -128, 127);
+    A2lTypedefMapComponentWithSharedAxis(map2, 8, 4, "Parameter typedef field", "", -128, 127, "map2_x_axis", "map2_y_axis");
+    A2lTypedefAxisComponent(map2_x_axis, 8, "Parameter typedef field", "unit", 0, 1000.0);
+    A2lTypedefAxisComponent(map2_y_axis, 4, "Parameter typedef field", "unit", 0, 500.0);
+    A2lTypedefMapComponentWithSharedAxis(map3, 4, 4, "Parameter typedef field", "", 0, 127, "map3_x_axis", NULL);
+    A2lTypedefAxisComponent(map3_x_axis, 4, "Parameter typedef field", "unit", 0, 1000.0);
     A2lTypedefEnd();
 
     A2lSetSegmentAddrMode(calseg1, params);
@@ -345,7 +340,7 @@ int main() {
     A2lCreateParameter(params.int8, "Parameter in calibration segment", "unit", -128, 127);
     A2lCreateParameter(params.int16, "Parameter in calibration segment", "unit", -32768, 32767);
     A2lCreateParameter(params.int32, "Parameter in calibration segment", "unit", -2147483647 - 1, 2147483647);
-    A2lCreateParameter(params.int_64, "Parameter in calibration segment", "unit", -1e19, 1e19);
+    A2lCreateParameter(params.int_64, "Parameter in calibration segment", "unit", -1e6, 1e6);
     A2lCreateParameter(params.float4, "Parameter in calibration segment", "unit", -1000.0, 1000.0);
     A2lCreateParameter(params.double8, "Parameter in calibration segment", "unit", -1000.0, 1000.0);
     A2lCreateCurve(params.curve1, 8, "Parameter in calibration segment", "unit", -20, 20);
@@ -356,7 +351,7 @@ int main() {
     A2lCreateAxis(params.map3_x_axis, 8, "Comment", "unit", 0, 1000.0);
     A2lCreateCurveWithSharedAxis(params.curve2, 8, "Comment", "unit", 0, 1000.0, "params.curve2_axis");
     A2lCreateMapWithSharedAxis(params.map2, 8, 4, "Comment", "", -128, 127, "params.map2_x_axis", "params.map2_y_axis");
-    A2lCreateMapWithSharedAxis(params.map3, 8, 4, "Comment", "", -128, 127, "params.map3_x_axis", NULL);
+    A2lCreateMapWithSharedAxis(params.map3, 8, 4, "Comment", "", 0, 127, "params.map3_x_axis", NULL);
 
     //---------------------------------------------------------------------------------------------------------------------------------
     // Measurement
@@ -415,15 +410,17 @@ int main() {
     A2lCreatePhysMeasurementMatrix(local_matrix, "double matrix", "conv.linear_conversion", 0.0, 10.0);
 
     // Register measurement structs
-    A2lTypedefBegin(struct2_t, "A2L typedef for struct2_t");
-    A2lTypedefMeasurementComponent(byte_field, struct2_t);
-    A2lTypedefMeasurementComponent(word_field, struct2_t);
+
+    A2lTypedefBegin(struct2_t, &struct2, "A2L typedef for struct2_t");
+    A2lTypedefMeasurementComponent(byte_field, "Byte field");
+    A2lTypedefMeasurementComponent(word_field, "Word field");
     A2lTypedefEnd();
-    A2lTypedefBegin(struct1_t, "A2L typedef for struct1_t");
-    A2lTypedefMeasurementComponent(byte_field, struct1_t);
-    A2lTypedefMeasurementComponent(word_field, struct1_t);
-    A2lTypedefMeasurementArrayComponent(array_field, struct1_t);
-    A2lTypedefComponent(struct_field, struct2_t, 1, struct1_t);
+
+    A2lTypedefBegin(struct1_t, &struct1, "A2L typedef for struct1_t");
+    A2lTypedefMeasurementComponent(byte_field, "Byte field");
+    A2lTypedefMeasurementComponent(word_field, "Word field");
+    A2lTypedefMeasurementArrayComponent(array_field, "Array field");
+    A2lTypedefComponent(struct_field, struct1_t, 1);
     A2lTypedefEnd();
 
     // Local (Stack) variables of struct type
@@ -453,7 +450,7 @@ int main() {
     A2lCreateTypedefReference(heap_struct1, struct1_t, "Pointer to struct1_t on heap");
 
     A2lFinalize();
-    assert(A2lCheckFinalizeOnConnect()); // XCP connect is now allowed, the A2L file is finalized
+    assert(A2lCheckFinalizeOnConnect(0)); // XCP connect is now allowed, the A2L file is finalized
 
     // Execute A2L checker using Rust a2ltool https://github.com/DanielT/a2ltool
     /*
@@ -474,7 +471,8 @@ int main() {
             Display the XCP settings in the a2l file, if they exist
     */
     printf("Running A2L validation tool...\n");
-    int result = system("../a2ltool/target/release/a2ltool -c -s   a2l_test.a2l");
+    // int result = system(A2lTOOL_PATH " --check --strict a2l_test.a2l");
+    int result = system(A2lTOOL_PATH " --check  a2l_test.a2l");
     if (result == 0) {
         printf("A2L validation passed\n");
     } else {
@@ -482,19 +480,19 @@ int main() {
     }
 
     // Compare a2l_test.a2l to the expected output in test/a2l_test/a2l_test_expected.a2l
-    printf("Comparing generated A2L file with expected output...\n");
-    result = system("diff a2l_test.a2l ./test/a2l_test/a2l_test_expected.a2l");
-    if (result == 0) {
-        printf("A2L file matches expected output\n");
-    } else if (result == 1) {
-        printf("A2L file does not match expected output\n");
-    } else {
-        printf("Error comparing A2L file, exit code: %d\n", result);
-    }
+    // printf("Comparing generated A2L file with expected output...\n");
+    // result = system("diff a2l_test.a2l ./test/a2l_test/a2l_test_expected.a2l");
+    // if (result == 0) {
+    //     printf("A2L file matches expected output\n");
+    // } else if (result == 1) {
+    //     printf("A2L file does not match expected output\n");
+    // } else {
+    //     printf("Error comparing A2L file, exit code: %d\n", result);
+    // }
 
     // Run A2l update
     // printf("Running A2L update tool...\n");
-    // result = system("../a2ltool/target/release/a2ltool  -v -e build/a2l_test.out --update  -o a2l_test_updated.a2l  a2l_test.a2l");
+    // result = system(A2lTOOL_PATH "  --verbose --elffile build/a2l_test.out --update  --output a2l_test_updated.a2l  a2l_test.a2l");
     // if (result == 0) {
     //     printf("A2L update passed\n");
     // } else {

@@ -1,7 +1,5 @@
-
 #!/bin/bash
 
-# ccmake -B build -S .
 
 # Parse command line arguments
 BUILD_TYPE="Debug"  # Default to Debug build
@@ -14,14 +12,14 @@ show_usage() {
     echo "Usage: $0 [build_type] [compiler] [target] [options]"
     echo ""
     echo "Parameters:"
-    echo "  build_type: debug|release (default: debug)"
+    echo "  build_type: debug|release|relwithdebinfo (default: debug)"
     echo "  compiler:   gcc|clang"
     echo "  target:     lib|examples|tests|bpf|all (default: examples)"
     echo ""
     echo "Build Targets:"
     echo "  lib:        Build only the xcplib library"
     echo "  examples:   Build library + examples (excluding bpf_demo) [DEFAULT]"
-    echo "  tests:      Build library + test targets (a2l_test, cal_test, type_detection tests)"
+    echo "  tests:      Build library + test targets (a2l_test, cal_test, daq_test, type_detection tests)"
     echo "  bpf:        Build library + examples including bpf_demo (Linux only)"
     echo "  all:        Build everything (library + examples + tests + bpf_demo)"
     echo ""
@@ -49,7 +47,7 @@ show_usage() {
     echo "  bpf_demo:             Only built on Linux systems (requires BPF support)"
 }
 
-# Parse arguments
+# Parse arguments and set correct case for CMake
 for arg in "$@"; do
     # Convert to lowercase for comparison
     arg_lower=$(echo "$arg" | tr '[:upper:]' '[:lower:]')
@@ -59,6 +57,9 @@ for arg in "$@"; do
             ;;
         release)
             BUILD_TYPE="Release"
+            ;;
+        relwithdebinfo)
+            BUILD_TYPE="RelWithDebInfo"
             ;;
         gcc)
             COMPILER_CHOICE="gcc"
@@ -129,8 +130,7 @@ case "$COMPILER_CHOICE" in
         ;;
 esac
 
-BUILD_TYPE_UPPER=$(echo "$BUILD_TYPE" | tr '[:lower:]' '[:upper:]')
-echo "Building in $BUILD_TYPE_UPPER mode with $COMPILER_NAME compiler"
+echo "Building in $BUILD_TYPE mode with $COMPILER_NAME compiler"
 echo "Build directory: $BUILD_DIR"
 echo "Build target: $BUILD_TARGET"
 
@@ -181,6 +181,7 @@ LIBRARY_TARGET="xcplib"
 EXAMPLE_TARGETS=(
     "hello_xcp" 
     "hello_xcp_cpp"
+    "no_a2l_demo"
     "c_demo"
     "cpp_demo"
     "struct_demo"
@@ -190,6 +191,7 @@ EXAMPLE_TARGETS=(
 TEST_TARGETS=(
     "a2l_test"
     "cal_test"
+    "daq_test"
     "type_detection_test_c"
     "type_detection_test_cpp"
 )
@@ -350,7 +352,7 @@ echo ""
 echo "==================================================================="
 echo "BUILD SUMMARY"
 echo "==================================================================="
-echo "Build Configuration: $BUILD_TYPE_UPPER mode with $COMPILER_NAME compiler"
+echo "Build Configuration: $BUILD_TYPE mode with $COMPILER_NAME compiler"
 if [ "$COMPILER_CHOICE" = "" ] || [ "$COMPILER_CHOICE" = "default" ]; then
     echo "System Compiler: $ACTUAL_COMPILER"
 fi
@@ -395,19 +397,20 @@ echo "==================================================================="
 # Exit with error code if any target failed
 if [ ${#FAILED_TARGETS[@]} -gt 0 ]; then
     if [ "$COMPILER_CHOICE" = "" ] || [ "$COMPILER_CHOICE" = "default" ]; then
-        echo "Total: ${#SUCCESSFUL_TARGETS[@]} successful, ${#FAILED_TARGETS[@]} failed ($BUILD_TYPE_UPPER build with $COMPILER_NAME - $ACTUAL_COMPILER)"
+        echo "Total: ${#SUCCESSFUL_TARGETS[@]} successful, ${#FAILED_TARGETS[@]} failed ($BUILD_TYPE build with $COMPILER_NAME - $ACTUAL_COMPILER)"
     else
-        echo "Total: ${#SUCCESSFUL_TARGETS[@]} successful, ${#FAILED_TARGETS[@]} failed ($BUILD_TYPE_UPPER build with $COMPILER_NAME)"
+        echo "Total: ${#SUCCESSFUL_TARGETS[@]} successful, ${#FAILED_TARGETS[@]} failed ($BUILD_TYPE build with $COMPILER_NAME)"
     fi
     echo "==================================================================="
     exit 1
 else
     if [ "$COMPILER_CHOICE" = "" ] || [ "$COMPILER_CHOICE" = "default" ]; then
-        echo "Build completed successfully: $BUILD_TYPE_UPPER mode with $COMPILER_NAME compiler ($ACTUAL_COMPILER)"
+        echo "Build completed successfully: $BUILD_TYPE mode with $COMPILER_NAME compiler ($ACTUAL_COMPILER)"
     else
-        echo "Build completed successfully: $BUILD_TYPE_UPPER mode with $COMPILER_NAME compiler"
+        echo "Build completed successfully: $BUILD_TYPE mode with $COMPILER_NAME compiler"
     fi
     echo "==================================================================="
+    echo ""
     exit 0
 fi
 

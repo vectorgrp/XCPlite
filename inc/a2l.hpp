@@ -3,7 +3,7 @@
 
 /*-----------------------------------------------------------------------------
 | File:
-|   a2l.hpp
+|   a2l.hpp - Public C++ API for A2L generation
 |
 | Description:
 |   Public C++ header for A2L generation
@@ -13,8 +13,10 @@
 |
  ----------------------------------------------------------------------------*/
 
+// =============================================================================
 // Helper macros for C++ one time and thread safe A2L registrations
 // Mutex protection is needed in multi-threaded contexts, because the A2L registration macros are not thread-safe
+// =============================================================================
 
 /*
 Usage examples:

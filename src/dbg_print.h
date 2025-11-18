@@ -18,6 +18,20 @@
 #error "Please define OPTION_DEFAULT_DBG_LEVEL or OPTION_FIXED_DBG_LEVEL"
 #endif
 
+#ifdef OPTION_ENABLE_DBG_METRICS
+#ifdef __cplusplus
+extern "C" {
+#endif
+extern uint32_t gXcpWritePendingCount;
+extern uint32_t gXcpCalSegPublishAllCount;
+extern uint32_t gXcpDaqEventCount;
+extern uint32_t gXcpTxPacketCount;
+extern uint32_t gXcpRxPacketCount;
+#ifdef __cplusplus
+}
+#endif
+#endif
+
 #ifdef OPTION_ENABLE_DBG_PRINTS
 
 /*
@@ -28,11 +42,24 @@
 5 - Debug
 */
 
+// ANSI color codes
+#define ANSI_COLOR_RED "\x1b[31m"
+#define ANSI_COLOR_YELLOW "\x1b[33m"
+#define ANSI_COLOR_GREEN "\x1b[32m"
+#define ANSI_COLOR_BLUE "\x1b[34m"
+#define ANSI_COLOR_RESET "\x1b[0m"
+
 #ifdef OPTION_FIXED_DBG_LEVEL
 #define DBG_LEVEL OPTION_FIXED_DBG_LEVEL
 #else
-extern uint8_t gDebugLevel;
-#define DBG_LEVEL gDebugLevel
+#ifdef __cplusplus
+extern "C" {
+#endif
+extern uint8_t gXcpDebugLevel;
+#ifdef __cplusplus
+}
+#endif
+#define DBG_LEVEL gXcpDebugLevel
 #endif
 
 #define DBG_PRINTF(format, ...) printf(format, __VA_ARGS__)
@@ -41,23 +68,23 @@ extern uint8_t gDebugLevel;
 #define DBG_PRINTF_ERROR(format, ...)                                                                                                                                              \
     do {                                                                                                                                                                           \
         if (DBG_LEVEL >= 1)                                                                                                                                                        \
-            fprintf(stderr, "[XCP  ] ERROR: " format, __VA_ARGS__);                                                                                                                \
+            fprintf(stderr, ANSI_COLOR_RED "[XCP  ] ERROR: " ANSI_COLOR_RESET format, __VA_ARGS__);                                                                                \
     } while (0)
 #define DBG_PRINTF_WARNING(format, ...)                                                                                                                                            \
     do {                                                                                                                                                                           \
         if (DBG_LEVEL >= 2)                                                                                                                                                        \
-            fprintf(stderr, "[XCP  ] WARNING: " format, __VA_ARGS__);                                                                                                              \
+            fprintf(stderr, ANSI_COLOR_YELLOW "[XCP  ] WARNING: " ANSI_COLOR_RESET format, __VA_ARGS__);                                                                           \
     } while (0)
 #else
 #define DBG_PRINTF_ERROR(format, ...)                                                                                                                                              \
     do {                                                                                                                                                                           \
         if (DBG_LEVEL >= 1)                                                                                                                                                        \
-            printf("[XCP  ] ERROR: " format, __VA_ARGS__);                                                                                                                         \
+            printf(ANSI_COLOR_RED "[XCP  ] ERROR: " ANSI_COLOR_RESET format, __VA_ARGS__);                                                                                         \
     } while (0)
 #define DBG_PRINTF_WARNING(format, ...)                                                                                                                                            \
     do {                                                                                                                                                                           \
         if (DBG_LEVEL >= 2)                                                                                                                                                        \
-            printf("[XCP  ] WARNING: " format, __VA_ARGS__);                                                                                                                       \
+            printf(ANSI_COLOR_YELLOW "[XCP  ] WARNING: " ANSI_COLOR_RESET format, __VA_ARGS__);                                                                                    \
     } while (0)
 #endif
 #define DBG_PRINTF3(format, ...)                                                                                                                                                   \
@@ -83,23 +110,23 @@ extern uint8_t gDebugLevel;
 #define DBG_PRINT_ERROR(format)                                                                                                                                                    \
     do {                                                                                                                                                                           \
         if (DBG_LEVEL >= 1)                                                                                                                                                        \
-            fprintf(stderr, "[XCP  ] ERROR: " format);                                                                                                                             \
+            fprintf(stderr, ANSI_COLOR_RED "[XCP  ] ERROR: " ANSI_COLOR_RESET format);                                                                                             \
     } while (0)
 #define DBG_PRINT_WARNING(format)                                                                                                                                                  \
     do {                                                                                                                                                                           \
         if (DBG_LEVEL >= 2)                                                                                                                                                        \
-            fprintf(stderr, "[XCP  ] WARNING: " format);                                                                                                                           \
+            fprintf(stderr, ANSI_COLOR_YELLOW "[XCP  ] WARNING: " ANSI_COLOR_RESET format);                                                                                        \
     } while (0)
 #else
 #define DBG_PRINT_ERROR(format)                                                                                                                                                    \
     do {                                                                                                                                                                           \
         if (DBG_LEVEL >= 1)                                                                                                                                                        \
-            printf("[XCP  ] ERROR: " format);                                                                                                                                      \
+            printf(ANSI_COLOR_RED "[XCP  ] ERROR: " ANSI_COLOR_RESET format);                                                                                                      \
     } while (0)
 #define DBG_PRINT_WARNING(format)                                                                                                                                                  \
     do {                                                                                                                                                                           \
         if (DBG_LEVEL >= 2)                                                                                                                                                        \
-            printf("[XCP  ] WARNING: " format);                                                                                                                                    \
+            printf(ANSI_COLOR_YELLOW "[XCP  ] WARNING: " ANSI_COLOR_RESET format);                                                                                                 \
     } while (0)
 #endif
 #define DBG_PRINT3(format)                                                                                                                                                         \

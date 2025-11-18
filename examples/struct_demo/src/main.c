@@ -19,6 +19,7 @@
 
 // XCP parameters
 #define OPTION_PROJECT_NAME "struct_demo" // A2L project name
+#define OPTION_PROJECT_EPK __TIME__       // EPK version string
 #define OPTION_USE_TCP true               // TCP or UDP
 #define OPTION_SERVER_PORT 5555           // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}   // Bind addr, 0.0.0.0 = ANY
@@ -64,7 +65,7 @@ int main(void) {
 
     // Initialize the XCP singleton, activate XCP, must be called before starting the server
     // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-    XcpInit(true);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, true);
 
     // Initialize the XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;
@@ -73,26 +74,26 @@ int main(void) {
     }
 
     // Enable A2L generation and prepare the A2L file, finalize the A2L file on XCP connect
-    if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         return 1;
     }
 
     // Create a A2L typedef for struct2_t
-    A2lTypedefBegin(struct2_t, "A2L typedef for struct2_t");
-    A2lTypedefMeasurementComponent(byte_field, struct2_t);
-    A2lTypedefMeasurementComponent(word_field, struct2_t);
+    A2lTypedefBegin(struct2_t, &static_struct2, "A2L typedef for struct2_t");
+    A2lTypedefMeasurementComponent(byte_field, "Byte field");
+    A2lTypedefMeasurementComponent(word_field, "Word field");
     A2lTypedefEnd();
 
     // Create a typedef for struct1_t
-    A2lTypedefBegin(struct1_t, "A2L typedef for struct1_t");
-    A2lTypedefMeasurementComponent(byte_field, struct1_t);
-    A2lTypedefMeasurementComponent(word_field, struct1_t);
-    A2lTypedefMeasurementArrayComponent(array_field, struct1_t);
-    A2lTypedefComponent(struct_field, struct2_t, 1, struct1_t);
+    A2lTypedefBegin(struct1_t, &static_struct1, "A2L typedef for struct1_t");
+    A2lTypedefMeasurementComponent(byte_field, "Byte field");
+    A2lTypedefMeasurementComponent(word_field, "Word field");
+    A2lTypedefMeasurementArrayComponent(array_field, "Array field of 256 bytes");
+    A2lTypedefComponent(struct_field, struct2_t, 1);
     A2lTypedefEnd();
 
     // Local stack measurement variables
-    uint16_t local_counter = 0;                                                                                                           // Local counter variable for measurement
+    uint16_t counter = 0;                                                                                                                 // Local counter variable for measurement
     struct2_t local_struct2 = {.byte_field = 1, .word_field = 2};                                                                         // Single instance of struct2_t
     struct1_t local_struct1 = {.byte_field = 1, .word_field = 2, .array_field = {0}, .struct_field = {.byte_field = 1, .word_field = 2}}; // Single instance of struct1_t
     struct1_t local_struct1_array[8];                                                                                                     // Array of struct1_t
@@ -113,14 +114,14 @@ int main(void) {
 
     // Create measurement events
     DaqCreateEvent(event);
-    DaqCreateEvent(event_heap); // Relative heap addressing mode needs an individual event for each pointer
+    DaqCreateEvent(event2); // Relative heap addressing mode needs an individual event for each pointer
 
     // Create a A2L measurement variables for the counters
     // Create A2L typedef instances for the structs and the array of structs
 
     // Stack
     A2lSetStackAddrMode(event); // stack relative addressing mode
-    A2lCreateMeasurement(local_counter, "Stack measurement variable");
+    A2lCreateMeasurement(counter, "Mainloop counter");
     A2lCreateTypedefInstance(local_struct2, struct2_t, "Instance of test_struct2_t");
     A2lCreateTypedefInstance(local_struct1, struct1_t, "Instance of test_struct1_t");
     A2lCreateTypedefArray(local_struct1_array, struct1_t, 8, "Array [10] of struct1_t");
@@ -133,29 +134,27 @@ int main(void) {
     A2lCreateTypedefArray(static_struct1_array, struct1_t, 8, "Array [10] of struct1_t");
 
     // Heap
-    A2lSetRelativeAddrMode1(event_heap); // relative addressing mode for heap_struct1_array, first base pointer
-    A2lCreateTypedefInstance(heap_struct1, struct1_t, "Pointer to struct1_t on heap");
-    A2lSetRelativeAddrMode2(event_heap); // relative addressing mode for heap_struct2_array, second base pointer
-    A2lCreateTypedefInstance(heap_struct2, struct2_t, "Pointer to struct2_t on heap");
+    A2lSetRelativeAddrMode(event2, heap_struct1); // relative addressing mode for heap_struct1
+    A2lCreateTypedefReference(heap_struct1, struct1_t, "Pointer to struct1_t on heap");
 
     A2lFinalize(); // Optional: Finalize the A2L file generation early, to write the A2L immediately, not when the client connects
 
     while (running) {
 
         // Modify some static and stack variables
-        local_counter++;
+        counter++;
         static_counter++;
-        local_struct1_array[local_counter % 8].word_field = local_counter;
-        local_struct1_array[local_counter % 8].struct_field.word_field = local_counter;
-        static_struct1_array[local_counter % 8].word_field = local_counter;
-        static_struct1_array[local_counter % 8].struct_field.word_field = local_counter;
+        local_struct1_array[counter % 8].word_field = counter;
+        local_struct1_array[counter % 8].struct_field.word_field = counter;
+        static_struct1_array[counter % 8].word_field = counter;
+        static_struct1_array[counter % 8].struct_field.word_field = counter;
         heap_struct1->word_field++; // Modify the heap variable
         heap_struct1->struct_field.word_field++;
         heap_struct2->word_field++;
 
         // Trigger the measurement events
-        DaqEvent(event);
-        DaqEvent2(event_heap, heap_struct1, heap_struct2);
+        DaqTriggerEvent(event);
+        DaqTriggerEventExt(event2, heap_struct1);
 
         sleepUs(1000);
     } // for(;;)

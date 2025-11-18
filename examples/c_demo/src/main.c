@@ -1,6 +1,7 @@
 ﻿// c_demo xcplib example
 
 #include <assert.h>  // for assert
+#include <signal.h>  // for signal handling
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uintxx_t
 #include <stdio.h>   // for printf
@@ -13,6 +14,7 @@
 
 // XCP parameters
 #define OPTION_PROJECT_NAME "c_demo"    // A2L project name
+#define OPTION_PROJECT_EPK __TIME__     // EPK version string
 #define OPTION_USE_TCP false            // TCP or UDP
 #define OPTION_SERVER_PORT 5555         // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
@@ -34,7 +36,7 @@ typedef struct params {
 } params_t;
 
 const params_t params = {
-    .counter_max = 1000,
+    .counter_max = 1024,
     .delay_us = 1000,
     .test_byte1 = -1,
     .test_byte2 = 1,
@@ -62,17 +64,23 @@ int64_t g_counter64s = 0;
 
 //-----------------------------------------------------------------------------------------------------
 
+// Signal handler for clean shutdown
+static volatile bool running = true;
+static void sig_handler(int sig) { running = false; }
+
 // Demo main
 int main(void) {
 
     printf("\nXCP on Ethernet C xcplib demo\n");
+    signal(SIGINT, sig_handler);
+    signal(SIGTERM, sig_handler);
 
     // Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
     XcpSetLogLevel(OPTION_LOG_LEVEL);
 
     // Initialize the XCP singleton, activate XCP, must be called before starting the server
     // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-    XcpInit(true);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, true);
 
     // Initialize the XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;
@@ -81,7 +89,7 @@ int main(void) {
     }
 
     // Enable A2L generation and prepare the A2L file, finalize the A2L file on XCP connect
-    if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         return 1;
     }
 
@@ -89,21 +97,21 @@ int main(void) {
     // This segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
     // It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
     // It supports XCP/ECU independent page switching, checksum calculation and reinitialization (copy reference page to working page)
-    tXcpCalSegIndex calseg = XcpCreateCalSeg("Parameters", &params, sizeof(params));
+    tXcpCalSegIndex calseg = XcpCreateCalSeg("params", &params, sizeof(params));
     assert(calseg != XCP_UNDEFINED_CALSEG); // Ensure the calibration segment was created successfully
 
     // Create a typedef struct for the calibration parameters
-    A2lTypedefBegin(params_t, "Calibration parameters typedef");
-    A2lTypedefParameterComponent(test_byte1, params_t, "Test byte for calibration consistency test", "", -128, 127);
-    A2lTypedefParameterComponent(test_byte2, params_t, "Test byte for calibration consistency test", "", -128, 127);
-    A2lTypedefParameterComponent(counter_max, params_t, "", "", 0, 2000);
-    A2lTypedefParameterComponent(delay_us, params_t, "Mainloop sleep time in us", "us", 0, 1000000);
-    A2lTypedefMapComponent(map, params_t, 8, 8, "Demo map", "", -128, 127);
+    A2lTypedefBegin(params_t, &params, "Calibration parameters typedef");
+    A2lTypedefParameterComponent(test_byte1, "Test byte for calibration consistency test", "", -128, 127);
+    A2lTypedefParameterComponent(test_byte2, "Test byte for calibration consistency test", "", -128, 127);
+    A2lTypedefParameterComponent(counter_max, "", "", 0, 2000);
+    A2lTypedefParameterComponent(delay_us, "Mainloop sleep time in us", "us", 0, 1000000);
+    A2lTypedefMapComponent(map, 8, 8, "Demo map", "", -128, 127);
 #ifdef OPTION_CANAPE_24
-    A2lTypedefCurveComponentWithSharedAxis(curve, params_t, 8, "Demo curve with shared axis curve_axis", "Volt", 0, 1000.0, "curve_axis");
-    A2lTypedefAxisComponent(curve_axis, params_t, 8, "Demo axis for curve", "Nm", 0, 20);
+    A2lTypedefCurveComponentWithSharedAxis(curve, 8, "Demo curve with shared axis curve_axis", "Volt", 0, 1000.0, "curve_axis");
+    A2lTypedefAxisComponent(curve_axis, 8, "Demo axis for curve", "Nm", 0, 20);
 #else
-    A2lTypedefCurveComponent(curve, params_t, 8, "Demo curve with fixed axis", "Volt", 0, 1000.0);
+    A2lTypedefCurveComponent(curve, 8, "Demo curve with fixed axis", "Volt", 0, 1000.0);
 #endif
     A2lTypedefEnd();
 
@@ -112,7 +120,7 @@ int main(void) {
     A2lCreateTypedefInstance(params, params_t, "Calibration parameters");
 
     // Alternative: Without using a typedef, create the calibration parameters directly
-    // A2lCreateParameter(params.counter_max, "maximum counter value", "", 0, 2000);
+    // A2lCreateParameter(params.counter_max, "maximum counter value", "", 0, 65535);
     // A2lCreateParameter(params.delay_us, "mainloop delay time in us", "us", 0, 1000000);
     // A2lCreateParameter(params.test_byte1, "", "", -128, 127);
     // A2lCreateParameter(params.test_byte2, "", "", -128, 127);
@@ -120,6 +128,7 @@ int main(void) {
     // A2lCreateMap(params.map, 8, 8, "", "", -128, 127);
 
     // Variables on stack
+    uint16_t counter = 0;
     uint8_t counter8 = 0;
     uint16_t counter16 = 0;
     uint32_t counter32 = 0;
@@ -134,6 +143,8 @@ int main(void) {
 
     // Register global measurement variables
     A2lSetAbsoluteAddrMode(mainloop);
+    A2lCreateMeasurement(counter, "Mainloop counter");
+
     A2lCreateMeasurement(g_counter8, "Measurement variable");
     A2lCreateMeasurement(g_counter16, "Measurement variable");
     A2lCreateMeasurement(g_counter32, "Measurement variable");
@@ -169,25 +180,27 @@ int main(void) {
 
     // Create a measurement typedef for the calibration parameter struct
     typedef params_t params_measurement_t;
-    A2lTypedefBegin(params_measurement_t, "The calibration parameter struct as measurement typedef");
-    A2lTypedefMeasurementComponent(test_byte1, params_measurement_t);
-    A2lTypedefMeasurementComponent(test_byte2, params_measurement_t);
-    A2lTypedefMeasurementComponent(counter_max, params_measurement_t);
-    A2lTypedefMeasurementComponent(delay_us, params_measurement_t);
-    A2lTypedefEnd();
+    static params_measurement_t params_copy;
+    {
+        A2lTypedefBegin(params_measurement_t, &params_copy, "The calibration parameter struct as measurement typedef");
+        A2lTypedefMeasurementComponent(test_byte1, "Test byte for calibration consistency test");
+        A2lTypedefMeasurementComponent(test_byte2, "Test byte for calibration consistency test");
+        A2lTypedefMeasurementComponent(counter_max, "Maximum counter value");
+        A2lTypedefMeasurementComponent(delay_us, "Mainloop delay time in us");
+        A2lTypedefEnd();
+    }
 
     // Demo
     // Create a static measurement variable which is a copy of the calibration parameter segment to verify calibration changes and consistency
-    static params_measurement_t params_copy;
     A2lSetAbsoluteAddrMode(mainloop);
     A2lCreateTypedefInstance(params_copy, params_measurement_t, "A copy of the current calibration parameters");
 
     uint32_t delay_us = 1000;
-    for (;;) {
+    while (running) {
         // Lock the calibration parameter segment for consistent and safe access
         // Calibration segment locking is completely lock-free and wait-free (no mutexes, system calls or CAS operations )
         // It returns a pointer to the active page (working or reference) of the calibration segment
-        params_t *params = (params_t *)XcpLockCalSeg(calseg);
+        const params_t *params = (params_t *)XcpLockCalSeg(calseg);
 
         if (delay_us != params->delay_us) {
             delay_us = params->delay_us;
@@ -198,9 +211,9 @@ int main(void) {
         }
 
         // Local variables for measurement
-        counter16++;
-        if (counter16 > params->counter_max) {
-            counter16 = 0;
+        counter++;
+        if (counter > params->counter_max) {
+            counter = 0;
         }
 
         // Calibration demo
@@ -221,7 +234,7 @@ int main(void) {
         XcpUnlockCalSeg(calseg);
 
         // Trigger the measurement event for global and local variables on stack
-        DaqEvent(mainloop);
+        DaqTriggerEvent(mainloop);
 
         // Check server status
         if (!XcpEthServerStatus()) {
@@ -229,7 +242,7 @@ int main(void) {
             break;
         }
 
-        if (counter16 == 0) {
+        if (counter == 0) {
             for (int i = 0; i < 8; i++) {
                 array_f32[i] += i;
                 if (array_f32[i] > 2000) {
@@ -244,11 +257,12 @@ int main(void) {
             }
         }
 
-        counter8 = (uint8_t)(counter16 & 0xFF);
-        counter32 = (uint32_t)counter16;
-        counter64 = (uint64_t)counter16;
+        counter8 = (uint8_t)(counter & 0xFF);
+        counter16 = (uint16_t)counter;
+        counter32 = (uint32_t)counter;
+        counter64 = (uint64_t)counter;
         counter8s = (int8_t)counter8;
-        counter16s = (int16_t)counter16;
+        counter16s = (int16_t)counter;
         counter32s = (int32_t)counter32;
         counter64s = (int64_t)counter64;
 
@@ -264,9 +278,9 @@ int main(void) {
         // Sleep for the specified delay parameter in microseconds
         sleepUs(delay_us);
 
-        A2lFinalize(); // Optional: Finalize the A2L file generation early, to write the A2L now, not when the client connects
+        A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
 
-    } // for (;;)
+    } // while (running)
 
     // Force disconnect the XCP client
     XcpDisconnect();

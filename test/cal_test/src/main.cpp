@@ -9,33 +9,45 @@
 #include <thread>   // for std::thread
 #include <vector>
 
+// Public xcplib API
 #include "a2l.hpp"    // for xcplib A2l generation application programming interface
 #include "xcplib.hpp" // for xcplib application programming interface
 
-#include "xcp_cfg.h"
+// Internal xcplib includes
+// Note: Take care for include order, when using internal xcplib headers !!
+// xcp_cfg.h would includes main_cfg.h and platform.h, which enables atomic emulation under Windows, we use <atomic> in this file
+#include "main_cfg.h"
+#undef OPTION_ATOMIC_EMULATION
+#include "dbg_print.h"
+#include "platform.h"
+#include "xcp_cfg.h" // For XcpAddrEncodeSegIndex
 
 // Internally used XCP functions for testing
 extern "C" {
 uint8_t XcpWriteMta(uint8_t size, const uint8_t *data);
 uint8_t XcpSetMta(uint8_t ext, uint32_t addr);
 uint8_t XcpCalSegCommand(uint8_t cmd);
+uint8_t XcpCalSegSetCalPage(uint8_t segment, uint8_t page, uint8_t mode);
 }
 
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
 
 #define OPTION_PROJECT_NAME "cal_test"  // A2L project name
+#define OPTION_PROJECT_EPK __TIME__     // EPK version string
 #define OPTION_USE_TCP false            // TCP or UDP
 #define OPTION_SERVER_PORT 5555         // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
 #define OPTION_QUEUE_SIZE (1024 * 256)  // Size of the measurement queue in bytes, must be a multiple of 8
 #define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
-#define DEFAULT_THREAD_COUNT 10         // Default number of threads
-#define DEFAULT_TEST_WRITE_COUNT 100000 // Default test writes
-#define DEFAULT_TASK_LOOP_DELAY_US 250  // Task loop delay in us
-#define DEFAULT_MAIN_LOOP_DELAY_US 50   // Write loop delay in us
-#define DEFAULT_TEST_DATA_SIZE 16       // Default test data size
+#define TEST_THREAD_COUNT 32        // Number of threads
+#define TEST_WRITE_COUNT 20000      // Test writes
+#define TEST_ATOMIC_CAL             // Test with atomic begin/end calibration segment access
+#define TEST_TASK_LOOP_DELAY_US 50  // Task loop delay in us
+#define TEST_TASK_LOCK_DELAY_US 0   // Task lock delay in us
+#define TEST_MAIN_LOOP_DELAY_US 200 // Write loop delay in us
+#define TEST_DATA_SIZE 128          // Default test data size
 
 //-----------------------------------------------------------------------------------------------------
 // Demo calibration parameters
@@ -43,13 +55,12 @@ uint8_t XcpCalSegCommand(uint8_t cmd);
 typedef struct {
     uint32_t checksum;
     bool run;
-    // Number of threads to create
-    uint8_t data[DEFAULT_TEST_DATA_SIZE];
+    uint8_t data[TEST_DATA_SIZE];
 
 } ParametersT;
 
 // Default parameters - make this global/static so the address is stable
-static ParametersT kParameters = {.checksum = 0, .run = true, .data = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}};
+static ParametersT kParameters = {.checksum = 0, .run = true, .data = {0}};
 
 // Global calibration segment handle
 static xcplib::CalSeg<ParametersT> *calseg = nullptr; // Pointer to the calibration segment wrapper
@@ -59,10 +70,13 @@ static xcplib::CalSeg<ParametersT> *calseg = nullptr; // Pointer to the calibrat
 
 // Thread statistics
 struct ThreadStats {
+
+    uint32_t thread_id{0};
+
     std::atomic<uint64_t> read_count{0};
     std::atomic<uint64_t> change_count{0};
     std::atomic<uint64_t> read_time_ns{0};
-    uint32_t thread_id{0};
+    std::atomic<uint64_t> max_read_time_ns{0};
 
     // Delete copy and move constructors
     ThreadStats() = default;
@@ -87,7 +101,7 @@ void worker_thread(uint32_t thread_id) {
     stats.thread_id = thread_id;
 
     uint32_t counter = 0;
-    uint8_t first_byte = 0;
+    uint16_t first_byte = 0x100;
 
     // Create thread-specific XCP event for measurements
     char event_name[32];
@@ -102,23 +116,23 @@ void worker_thread(uint32_t thread_id) {
 
     printf("Thread %u started with event ID %u\n", thread_id, event_id);
 
-    while (test_running.load()) {
+    while (test_running.load(std::memory_order_relaxed)) {
 
         uint64_t start_time = clockGetNs();
 
-        // Read from calibration segment
+        // Lock and read from calibration segment
         {
             auto parameters = calseg->lock();
 
             // Check the parameter data for consistency and change
-            if (first_byte != parameters->data[0]) {
+            if (first_byte != (uint16_t)parameters->data[0]) {
                 stats.change_count++;
             }
-            first_byte = parameters->data[0];
+            first_byte = (uint16_t)parameters->data[0];
             for (size_t i = 0; i < sizeof(parameters->data); i++) {
                 if (parameters->data[i] != (uint8_t)(first_byte + i)) {
                     uint64_t errors = error_count.fetch_add(1);
-                    printf("Thread %u: Data mismatch\n", thread_id);
+                    printf("Thread %u: Fatal error - Data mismatch\n", thread_id);
                     printf("At index %zu: expected %u, got: %u, errors=%llu\n", i, (uint8_t)(first_byte + i), parameters->data[i], errors);
                     break;
                 }
@@ -126,25 +140,33 @@ void worker_thread(uint32_t thread_id) {
 
             // Check if test should continue
             if (!parameters->run) {
-                test_running.store(false);
+                test_running.store(false, std::memory_order_relaxed);
                 break;
             }
-        }
 
-        stats.read_time_ns += clockGetNs() - start_time;
-        stats.read_count++;
+#if defined(TEST_TASK_LOCK_DELAY_US) && TEST_TASK_LOCK_DELAY_US > 0
+            sleepUs(TEST_TASK_LOCK_DELAY_US); // Simulate some work
+#endif
+        } // unlock calibration segment
+
+        uint64_t read_time_ns = clockGetNs() - start_time;
+        if (read_time_ns > stats.max_read_time_ns.load(std::memory_order_relaxed)) { // @@@@ Not threads safe, but good enough for max measurement
+            stats.max_read_time_ns.store(read_time_ns, std::memory_order_relaxed);
+        }
+        stats.read_time_ns.fetch_add(read_time_ns, std::memory_order_relaxed);
+        stats.read_count.fetch_add(1, std::memory_order_relaxed);
 
         counter++;
-        if (counter % 10000 == 0) {
+        if (counter % 0x10000 == 0) {
             printf("Thread %u: read_count=%llu, change_count=%llu, errors=%llu\n", thread_id, (unsigned long long)stats.read_count, (unsigned long long)stats.change_count,
                    (unsigned long long)error_count.load());
         }
 
         // Trigger XCP measurement event
-        DaqEvent_i(event_id);
+        DaqTriggerEvent_i(event_id);
 
         // Record timing
-        sleepUs(DEFAULT_TASK_LOOP_DELAY_US);
+        sleepUs(TEST_TASK_LOOP_DELAY_US);
     }
 
     printf("Thread %u finished: reads=%llu\n", thread_id, (unsigned long long)stats.read_count.load());
@@ -161,7 +183,7 @@ int main(int argc, char *argv[]) {
     XcpSetLogLevel(OPTION_LOG_LEVEL);
 
     // Initialize XCP
-    XcpInit(true);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, true);
 
     // Initialize XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;
@@ -171,35 +193,45 @@ int main(int argc, char *argv[]) {
     }
 
     // Initialize A2L generation
-    if (!A2lInit(OPTION_PROJECT_NAME, nullptr, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         printf("Failed to initialize A2L generation\n");
         return 1;
     }
 
     // Create the test calibration segment
-    auto calseg1 = xcplib::CreateCalSeg("TestParameters", kParameters);
+    auto calseg1 = xcplib::CreateCalSeg("kParameters", &kParameters);
 
     // Add the calibration segment description as a typedef instance to the A2L file
-    A2lTypedefBegin(ParametersT, "A2L Typedef for ParametersT");
-    A2lTypedefParameterComponent(run, ParametersT, "Run or stop test", "", 0, 1);
-    A2lTypedefMeasurementArrayComponent(data, ParametersT);
+    A2lTypedefBegin(ParametersT, &kParameters, "A2L Typedef for ParametersT");
+    A2lTypedefParameterComponent(run, "Run or stop test", "", 0, 1);
+    A2lTypedefCurveComponent(data, TEST_DATA_SIZE, "Test data array", "", 0, 255);
     A2lTypedefEnd();
     calseg1.CreateA2lTypedefInstance("test_params_t", "Test parameters");
 
     // Store the pointer to the calibration segment wrapper
     calseg = &calseg1;
 
-    // Initialize thread statistics
+    // Initialize test data
+    uint8_t test_data[TEST_DATA_SIZE];
+    for (size_t i = 0; i < sizeof(test_data); i++) {
+        test_data[i] = (uint8_t)(i);
+    }
+    XcpCalSegSetCalPage(1, 0, 0x83);
+    XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(1, offsetof(ParametersT, data)));
+    XcpWriteMta(TEST_DATA_SIZE, &test_data[0]);
+    sleepMs(100);
+
+    // Initialize test statistics
     thread_stats.clear();
-    thread_stats.reserve(DEFAULT_THREAD_COUNT);
-    for (uint32_t i = 0; i < DEFAULT_THREAD_COUNT; i++) {
+    thread_stats.reserve(TEST_THREAD_COUNT);
+    for (uint32_t i = 0; i < TEST_THREAD_COUNT; i++) {
         thread_stats.emplace_back(std::make_unique<ThreadStats>());
     }
 
-    // Create and start worker threads
-    printf("Starting %u worker threads...\n", DEFAULT_THREAD_COUNT);
+    // Create and start test threads
+    printf("Starting %u worker threads...\n", TEST_THREAD_COUNT);
     std::vector<std::thread> threads;
-    for (uint32_t i = 0; i < DEFAULT_THREAD_COUNT; i++) {
+    for (uint32_t i = 0; i < TEST_THREAD_COUNT; i++) {
         threads.emplace_back(worker_thread, i);
     }
 
@@ -208,31 +240,31 @@ int main(int argc, char *argv[]) {
     A2lFinalize();
 
     // Let the test run for the specified duration
-    printf("Test running for %u ms...\n", DEFAULT_TEST_WRITE_COUNT);
-
+    printf("Test running for %u ms...\n", TEST_WRITE_COUNT);
     for (;;) {
 
         // Sleep for the specified duration
-        sleepUs(DEFAULT_MAIN_LOOP_DELAY_US);
+        sleepUs(TEST_MAIN_LOOP_DELAY_US);
 
         // Simulate modification of calibration data
-        uint8_t test_data[DEFAULT_TEST_DATA_SIZE];
         uint8_t d0 = (uint8_t)(write_count << 1);
         for (size_t i = 0; i < sizeof(test_data); i++) {
             test_data[i] = (uint8_t)(d0 + i);
         }
-        if (write_count & 1) {
-            XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(0, offsetof(ParametersT, data)));
-            XcpWriteMta(DEFAULT_TEST_DATA_SIZE, &test_data[0]);
-
-        } else {
+#ifdef TEST_ATOMIC_CAL
+        if ((write_count & 0xFF) == 0xFF) {
             XcpCalSegCommand(0x01); // Begin atomic calibration operation
-            XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(0, offsetof(ParametersT, data)));
-            XcpWriteMta(DEFAULT_TEST_DATA_SIZE / 2, &test_data[0]);
+            XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(1, offsetof(ParametersT, data)));
+            XcpWriteMta(TEST_DATA_SIZE / 2, &test_data[0]);
             sleepUs(100);
-            XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(0, offsetof(ParametersT, data) + DEFAULT_TEST_DATA_SIZE / 2));
-            XcpWriteMta(DEFAULT_TEST_DATA_SIZE / 2, &test_data[DEFAULT_TEST_DATA_SIZE / 2]);
+            XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(1, offsetof(ParametersT, data) + TEST_DATA_SIZE / 2));
+            XcpWriteMta(TEST_DATA_SIZE / 2, &test_data[TEST_DATA_SIZE / 2]);
             XcpCalSegCommand(0x02); // End atomic calibration operation
+        } else
+#endif
+        {
+            XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(1, offsetof(ParametersT, data)));
+            XcpWriteMta(TEST_DATA_SIZE, &test_data[0]);
         }
 
         write_count++;
@@ -241,10 +273,13 @@ int main(int argc, char *argv[]) {
         }
 
         // Check if the test should continue
-        if (!test_running.load() || write_count >= DEFAULT_TEST_WRITE_COUNT) {
+        if (!test_running.load(std::memory_order_relaxed) || write_count >= TEST_WRITE_COUNT) {
             break;
         }
     }
+
+    // Wait a moment before stopping, to let the threads observe the last changes
+    sleepUs(200000);
 
     // Signal threads to stop
     printf("Stopping test...\n");
@@ -261,25 +296,35 @@ int main(int argc, char *argv[]) {
     uint64_t total_read_count = 0;
     uint64_t total_change_count = 0;
     uint64_t total_read_time_ns = 0;
+    uint64_t total_max_read_time_ns = 0;
     uint64_t total_errors = error_count.load();
-    for (uint32_t i = 0; i < DEFAULT_THREAD_COUNT; i++) {
+    for (uint32_t i = 0; i < TEST_THREAD_COUNT; i++) {
         const auto &stats = *thread_stats[i];
         total_read_count += stats.read_count.load();
         total_change_count += stats.change_count.load();
         total_read_time_ns += stats.read_time_ns.load();
-        printf("Thread %u: reads=%llu, changes=%llu, avg_time=%.2fus\n", i, (unsigned long long)stats.read_count.load(), (unsigned long long)stats.change_count.load(),
-               stats.read_count.load() > 0 ? (double)stats.read_time_ns.load() / stats.read_count.load() / 1000.0 : 0.0);
+        if (stats.max_read_time_ns.load() > total_max_read_time_ns) {
+            total_max_read_time_ns = stats.max_read_time_ns;
+        }
+        printf("Thread %u: reads=%llu, changes=%llu, avg_time=%.2fus, max_time=%.2fus\n", i, (unsigned long long)stats.read_count.load(),
+               (unsigned long long)stats.change_count.load(), stats.read_count.load() > 0 ? (double)stats.read_time_ns.load() / stats.read_count.load() / 1000.0 : 0.0,
+               (double)stats.max_read_time_ns.load() / 1000.0);
     }
-    printf("\nTotals:\n");
-    printf("  Total reads: %llu\n", (unsigned long long)total_read_count);
-    printf("  Total changes: %llu\n", (unsigned long long)total_change_count);
+    printf("\nTotal Results:\n");
     printf("  Total writes: %llu\n", (unsigned long long)write_count);
+    printf("  Total reads: %llu\n", (unsigned long long)total_read_count);
+    printf("  Total changes observed: %llu\n", (unsigned long long)total_change_count);
+#ifdef OPTION_ENABLE_DBG_METRICS
+    printf("  Total writes pending: %u\n", gXcpWritePendingCount);
+    printf("  Total publish all count: %u (expected %llu)\n", gXcpCalSegPublishAllCount, (unsigned long long)(write_count / 256) + gXcpWritePendingCount);
+#endif
     printf("  Total errors: %llu\n", (unsigned long long)error_count.load());
-    printf("  Average access time: %.2f us\n", total_read_count > 0 ? (double)total_read_time_ns / total_read_count / 1000.0 : 0.0);
+    printf("  Average lock time: %.2f us\n", total_read_count > 0 ? (double)total_read_time_ns / total_read_count / 1000.0 : 0.0);
+    printf("  Maximum lock time: %.2f us\n", (double)total_max_read_time_ns / 1000.0);
     if (total_errors > 0) {
-        printf("  ERROR: %llu errors occurred during the test!\n", (unsigned long long)total_errors);
+        printf("ERROR: %llu errors occurred during the test!\n", (unsigned long long)total_errors);
     } else {
-        printf("  SUCCESS: No errors occurred during the test\n");
+        printf("SUCCESS: No errors occurred during the test\n");
     }
 
     // Shutdown XCP

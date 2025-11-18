@@ -93,9 +93,32 @@ elseif(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
     set(COMMON_WARNING_FLAGS /W3)
 endif()
 
+# Custom build type configurations for debug symbols in release builds
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    # For Release builds: use -O2 optimization and remove debug symbols and assertions
+    set(CMAKE_C_FLAGS_RELEASE "-O2  -DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELEASE "-O2  -DNDEBUG")
+    # For RelWithDebInfo builds: release build with moderate optimization and with debug symbols, preserve stack frames
+    # -fno-omit-frame-pointer: Always generate frame pointer for better stack traces
+    # -fno-optimize-sibling-calls: Prevent tail call optimization that can confuse debuggers
+    set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls -DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls -DNDEBUG")
+    # For Debug builds: no optimization, full debug symbols
+    set(CMAKE_C_FLAGS_DEBUG "-O0 -g")
+    set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
+    message(STATUS "Custom compiler flags set")
+elseif(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
+    # MSVC equivalent settings
+    set(CMAKE_C_FLAGS_RELEASE "/O2 /Zi /DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /Zi /DNDEBUG")
+    # /Oy- disables frame pointer omission (equivalent to -fno-omit-frame-pointer)
+    set(CMAKE_C_FLAGS_RELWITHDEBINFO "/O2 /Zi /Oy- /DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "/O2 /Zi /Oy- /DNDEBUG")
+    message(STATUS "Custom MSVC flags set")
+endif()
 
 # xcplib sources
-set(xcplib_SOURCES src/xcpAppl.c src/xcpLite.c src/xcpEthServer.c src/xcpEthTl.c src/xcpQueue32.c src/xcpQueue64.c src/a2l.c src/persistency.c src/platform.c)   
+set(xcplib_SOURCES src/xcpAppl.c src/xcpLite.c src/xcpEthServer.c src/xcpEthTl.c src/xcpQueue32.c src/xcpQueue64.c src/a2l.c src/persistence.c src/platform.c)   
 
 set(PROJECT_ROOT ${CMAKE_CURRENT_LIST_DIR})
 message(STATUS "PROJECT_ROOT is: ${PROJECT_ROOT}")
@@ -133,6 +156,13 @@ set_source_files_properties(${hello_xcp_SOURCES} PROPERTIES LANGUAGE C)
 add_executable(hello_xcp ${hello_xcp_SOURCES})
 target_include_directories(hello_xcp PUBLIC "${PROJECT_ROOT}/inc")
 target_link_libraries(hello_xcp PRIVATE xcplib)
+
+# Example no_a2l_demo
+set(no_a2l_demo_SOURCES examples/no_a2l_demo/src/main.c)   
+set_source_files_properties(${no_a2l_demo_SOURCES} PROPERTIES LANGUAGE C)
+add_executable(no_a2l_demo ${no_a2l_demo_SOURCES})
+target_include_directories(no_a2l_demo PUBLIC "${PROJECT_ROOT}/inc")
+target_link_libraries(no_a2l_demo PRIVATE xcplib)
 
 # Example hello_xcp_cpp
 add_executable(hello_xcp_cpp examples/hello_xcp_cpp/src/main.cpp )
@@ -204,6 +234,11 @@ if(BUILD_TEST)
     add_executable(cal_test test/cal_test/src/main.cpp)
     target_include_directories(cal_test PUBLIC "${PROJECT_ROOT}/inc")
     target_link_libraries(cal_test PRIVATE xcplib)
+
+    # Data acquisition multi-threading test (C version)
+    add_executable(daq_test test/daq_test/src/main.c)
+    target_include_directories(daq_test PUBLIC "${PROJECT_ROOT}/inc")
+    target_link_libraries(daq_test PRIVATE xcplib)
 endif()
 
 
@@ -219,6 +254,7 @@ else()
 
     # Set .out suffix for executables on non-Windows platforms
     set_target_properties(hello_xcp PROPERTIES SUFFIX ".out")
+    set_target_properties(no_a2l_demo PROPERTIES SUFFIX ".out")
     set_target_properties(hello_xcp_cpp PROPERTIES SUFFIX ".out")
     set_target_properties(c_demo PROPERTIES SUFFIX ".out")
     set_target_properties(cpp_demo PROPERTIES SUFFIX ".out")
@@ -231,6 +267,7 @@ else()
         set_target_properties(type_detection_test_cpp PROPERTIES SUFFIX ".out")
         set_target_properties(a2l_test PROPERTIES SUFFIX ".out")
         set_target_properties(cal_test PROPERTIES SUFFIX ".out")
+        set_target_properties(daq_test PROPERTIES SUFFIX ".out")
     endif()
 endif()
 

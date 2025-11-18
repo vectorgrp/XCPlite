@@ -17,7 +17,7 @@
 // Platform defines
 
 // 64 Bit or 32 Bit platform
-#if defined(__x86_64__) || defined(_M_X64) || defined(__aarch64__) || defined(_WIN64)
+#if defined(_ix64_) || defined(__x86_64__) || defined(_M_X64) || defined(__aarch64__) || defined(_WIN64)
 #define PLATFORM_64BIT
 #else
 #define PLATFORM_32BIT
@@ -28,45 +28,31 @@
 
 #define _WIN
 
-// For Windows compatibility, we must use an emulation for atomic operations and fallback to the 32 bit transmit queue
-// MSVC does not support C11 stdatomic.h
-#define OPTION_ATOMIC_EMULATION
-
-#if defined(_LINUX) || defined(_LINUX64) || defined(_LINUX32)
-#error "defined(_LINUX) || defined(_LINUX64) || defined(_LINUX32)"
-#endif
-
-// Linux or macOS
-#else
-
-#define _LINUX
-
-#if defined(_ix64_) || defined(__x86_64__) || defined(__aarch64__)
-#define _LINUX64
-#ifdef __APPLE__
-#define _MACOS
-#endif
-#else
-#error "32 Bit OS not supported"
-#define _LINUX32
-#ifdef __APPLE__
-#define _MACOS32
-#endif
-#endif
-
-#if defined(_WIN) || defined(_WIN64) || defined(_WIN32)
-#error "defined(_WIN) || defined(_WIN64) || defined(_WIN32)"
-#endif
-
-#endif
-
-#ifdef _WIN
 #define WIN32_LEAN_AND_MEAN
 
+// Linux or macOS or QNX
+#else
+
+#if defined(PLATFORM_64BIT)
+
+#if defined(__APPLE__)
+#define _MACOS
+#elif defined(__QNXNTO__) || defined(__QNX__)
+#define _QNX
+#else
+#define _LINUX
 #endif
 
-#if !defined(_WIN) && !defined(_LINUX) && !defined(_MACOS)
-#error "Please define platform _WIN or _MACOS or _LINUX"
+#else
+
+#error "32 Bit *X OS currently not supported"
+
+#endif
+
+#endif
+
+#if !defined(_WIN) && !defined(_LINUX) && !defined(_MACOS) && !defined(_QNX)
+#error "Please define platform _WIN or _MACOS or _LINUX or _QNX"
 #endif
 
 //-------------------------------------------------------------------------------------------------
@@ -92,7 +78,7 @@
 #include <stdlib.h> // for malloc, free
 #endif
 
-#elif defined(_LINUX) || defined(_MACOS) // Linux
+#else
 
 // Define feature test macros before any includes to ensure POSIX functions are available
 #ifndef _DEFAULT_SOURCE
@@ -126,10 +112,6 @@
 #endif
 #endif
 
-#else
-
-#error "Please define platform _WIN or _MACOS or _LINUX"
-
 #endif
 
 //-------------------------------------------------------------------------------
@@ -142,14 +124,16 @@
 
 #ifdef OPTION_ENABLE_KEYBOARD
 
-#ifdef _LINUX
+#if !defined(_WIN) // Non-Windows platforms
+
 #include <termios.h>
 int _getch(void);
 int _kbhit(void);
-#endif
 
-#ifdef _WIN
+#else
+
 #include <conio.h>
+
 #endif
 
 #endif // PLATFORM_ENABLE_KEYBOARD
@@ -163,8 +147,10 @@ int _kbhit(void);
 // Portable implementation of strnlen for systems that don't have it
 static inline size_t safe_strnlen(const char *s, size_t maxlen) {
     size_t len = 0;
-    while (len < maxlen && s[len] != '\0') {
-        len++;
+    if (s != NULL) {
+        while (len < maxlen && s[len] != '\0') {
+            len++;
+        }
     }
     return len;
 }
@@ -176,7 +162,7 @@ static inline size_t safe_strnlen(const char *s, size_t maxlen) {
 #define STRNCPY(dest, src, n) strncpy(dest, src, n)
 #define STRNLEN(s, n) strnlen_s(s, n)
 
-#elif defined(_LINUX) // Linux
+#else
 
 #define SPRINTF(dest, format, ...) snprintf((char *)dest, sizeof(dest), format, __VA_ARGS__)
 #define SNPRINTF(dest, len, format, ...) snprintf((char *)dest, len, format, __VA_ARGS__)
@@ -208,7 +194,7 @@ void sleepMs(uint32_t ms);
 #define mutexLock EnterCriticalSection
 #define mutexUnlock LeaveCriticalSection
 
-#elif defined(_LINUX) // Linux
+#else
 
 #define MUTEX pthread_mutex_t
 #define MUTEX_INTIALIZER PTHREAD_MUTEX_INITIALIZER
@@ -234,8 +220,9 @@ typedef HANDLE THREAD;
         WaitForSingleObject(h, 1000);                                                                                                                                              \
         CloseHandle(h);                                                                                                                                                            \
     }
+#define get_thread_id() GetCurrentThreadId()
 
-#elif defined(_LINUX) // Linux
+#else
 
 typedef pthread_t THREAD;
 #define create_thread(h, t) pthread_create(h, NULL, t, NULL)
@@ -246,6 +233,7 @@ typedef pthread_t THREAD;
         pthread_cancel(h);                                                                                                                                                         \
     }
 #define yield_thread(void) sched_yield(void)
+#define get_thread_id() ((uint32_t)(uintptr_t)pthread_self())
 
 #endif
 
@@ -270,7 +258,7 @@ typedef pthread_t THREAD;
 
 #if defined(OPTION_ENABLE_TCP) || defined(OPTION_ENABLE_UDP)
 
-#ifdef _LINUX // Linux or macOS sockets
+#if !defined(_WIN) // Non-Windows platforms
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -293,9 +281,7 @@ typedef pthread_t THREAD;
 
 #define socketGetLastError(void) errno
 
-#endif
-
-#if defined(_WIN) // Windows // Windows sockets or XL-API
+#else // Windows sockets
 
 #include <winsock2.h>
 #include <ws2tcpip.h>

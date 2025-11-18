@@ -59,9 +59,9 @@
 // Assume a maximum cache line size of 128 bytes
 #define CACHE_LINE_SIZE 128u // Cache line size, used to align the queue header
 
-// Check for 64 Bit platform
-#if (!defined(_LINUX64) && !defined(_MACOS)) || !defined(PLATFORM_64BIT)
-#error "This implementation requires a 64 Bit Posix platform (_LINUX64 or _MACOS)"
+// Check for 64 Bit non Windows platform
+#if !defined(PLATFORM_64BIT) || defined(_WIN)
+#error "This implementation requires a 64 Bit Posix platform"
 #endif
 static_assert(sizeof(void *) == 8, "This implementation requires a 64 Bit platform");
 
@@ -711,7 +711,7 @@ tQueueBuffer QueuePeek(tQueueHandle queueHandle, bool flush, uint32_t *packets_l
     total_len = dlc + XCPTL_TRANSPORT_LAYER_HEADER_SIZE; // Include the transport layer header size
 
 // Check for more packets to concatenate in a message segment with maximum of XCPTL_MAX_SEGMENT_SIZE, by repeating this procedure
-// @@@@ TODO maybe optimize the duplicate code below
+// @@@@ TODO: maybe optimize the duplicate code below
 #ifdef QUEUE_ACCUMULATE_PACKETS
     uint32_t offset = first_offset + total_len;
     uint32_t max_offset = first_offset + level - 1;

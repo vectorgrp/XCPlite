@@ -1,5 +1,5 @@
 #pragma once
-#define __XCP_LITE_H__
+#define __XCPLITE_H__
 
 /*----------------------------------------------------------------------------
 | File:
@@ -34,17 +34,16 @@ extern "C" {
 /****************************************************************************/
 
 // Initialization for the XCP Protocol Layer
-void XcpInit(bool activate);
+void XcpInit(const char *name, const char *epk, bool activate);
 bool XcpIsInitialized(void);
 bool XcpIsActivated(void);
 void XcpStart(tQueueHandle queueHandle, bool resumeMode);
 void XcpReset(void);
 
+// Project name
+const char *XcpGetProjectName(void);
+
 // EPK software version identifier
-#ifndef XCP_EPK_MAX_LENGTH
-#define XCP_EPK_MAX_LENGTH 31 // Maximum length of EPK string
-#endif
-void XcpSetEpk(const char *epk);
 const char *XcpGetEpk(void);
 
 // XCP command processor
@@ -62,11 +61,19 @@ void XcpDisconnect(void);
 typedef uint16_t tXcpEventId;
 
 // Trigger a XCP data acquisition event
-void XcpEventExt_At(tXcpEventId event, const uint8_t **bases, uint64_t clock);
-void XcpEventExt_(tXcpEventId event, const uint8_t **bases);
-void XcpEventExtAt(tXcpEventId event, const uint8_t *base, uint64_t clock);
-void XcpEventExt(tXcpEventId event, const uint8_t *base);
+void XcpEventExtAt(tXcpEventId event, const uint8_t *base2, uint64_t clock);
+void XcpEventExt(tXcpEventId event, const uint8_t *base2);
+void XcpEventExt2(tXcpEventId event, const uint8_t *base2, const uint8_t *base3);
+void XcpEventExt2At(tXcpEventId event, const uint8_t *base2, const uint8_t *base3, uint64_t clock);
+void XcpEventAt(tXcpEventId event, uint64_t clock);
 void XcpEvent(tXcpEventId event);
+
+// Trigger a XCP data acquisition event
+// Variadic version for more call convenience
+#if defined(XCP_ENABLE_DYN_ADDRESSING) && (XCP_ADDR_EXT_DYN == 2) && (XCP_ADDR_EXT_DYN_MAX == 4)
+void XcpEventExt_Var(tXcpEventId event, uint8_t count, ...);
+void XcpEventExtAt_Var(tXcpEventId event, uint64_t clock, uint8_t count, ...);
+#endif
 
 // Send a XCP event message
 void XcpSendEvent(uint8_t evc, const uint8_t *d, uint8_t l);
@@ -119,12 +126,15 @@ void XcpSetLogLevel(uint8_t level);
 #endif
 
 typedef struct {
-    uint16_t daqList;                  // associated DAQ list
-    uint16_t index;                    // Event instance index, 0 = single instance, 1.. = multiple instances
-    uint32_t cycleTimeNs;              // cycle time in nanoseconds, 0 means sporadic event
-    uint8_t priority;                  // priority 0 = queued, 1 = pushing, 2 = realtime
-    uint8_t res;                       // reserved
-    char name[XCP_MAX_EVENT_NAME + 1]; // event name
+    uint32_t cycleTimeNs; // Cycle time in nanoseconds, 0 means sporadic event
+    uint16_t index;       // Event instance index, 0 = single instance, 1.. = multiple instances
+    uint16_t daq_first;   // First associated DAQ list, linked list
+    uint8_t priority;     // Priority 0 = queued, >=1 flushing
+#ifdef XCP_ENABLE_DAQ_PRESCALER
+    uint8_t daq_prescaler;     // Current prescaler set with SET_DAQ_LIST_MODE
+    uint8_t daq_prescaler_cnt; // Current prescaler counter
+#endif
+    char name[XCP_MAX_EVENT_NAME + 1]; // Event name
 } tXcpEvent;
 
 typedef struct {
@@ -136,9 +146,9 @@ typedef struct {
 // Create an XCP event (internal use)
 tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cycleTimeNs, uint8_t priority);
 // Add a measurement event to event list, return event number (0..MAX_EVENT-1)
-tXcpEventId XcpCreateEvent(const char *name, uint32_t cycleTimeNs /* ns */, uint8_t priority /* 0-normal, >=1 realtime*/);
+tXcpEventId XcpCreateEvent(const char *name, uint32_t cycleTimeNs /* ns */, uint8_t priority /* 0 = queued, >=1 flushing*/);
 // Add a measurement event to event list, return event number (0..MAX_EVENT-1), thread safe, if name exists, an instance id is appended to the name
-tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycleTimeNs /* ns */, uint8_t priority /* 0-normal, >=1 realtime*/);
+tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycleTimeNs /* ns */, uint8_t priority /* 0 = queued, >=1 flushing */);
 
 // Get event list
 tXcpEventList *XcpGetEventList(void);
@@ -172,23 +182,6 @@ tXcpEvent *XcpGetEvent(tXcpEventId event);
 #define XCP_MAX_CALSEG_NAME 15
 #endif
 
-/*
-lock-free, wait-free CalSeg RCU:
-    XCP receive thread command handler:
-        On XCP write access
-        if free_page != NULL
-            Copy xcp_page to free_page
-            NULL -> free_page --> xcp_page --> ecu_page_next
-    ECU thread XcpCalSegLock:
-        if ecu_page_next != ecu_page
-            ecu_page_next --> ecu_page --> free_page
-
-    Shared state between the XCP thread and the ECU thread is:
-        - ecu_page_next: the next page to be accessed by the ECU thread
-        - free_page: the page freed by the ECU thread
-        - ecu_access
-*/
-
 // Calibration segment number
 // Used in A2l and XCP commands to identify a calibration segment
 // Currently only 256 segments are supported
@@ -212,9 +205,9 @@ typedef struct {
     uint8_t xcp_access;    // page number for XCP access
     bool write_pending;    // write pending because write delay
     bool free_page_hazard; // safe free page use is not guaranteed yet, it may be in use
-#ifdef XCP_ENABLE_FREEZE_CAL_PAGE
-    uint8_t mode;      // reuested for freeze and preload
-    uint32_t file_pos; // position of the calibration segment in the persistency file
+#ifdef XCP_ENABLE_CAL_PERSISTENCE
+    uint8_t mode;      // requested for freeze and preload
+    uint32_t file_pos; // position of the calibration segment in the persistence file
 #endif
     char name[XCP_MAX_CALSEG_NAME + 1];
 } tXcpCalSeg;
@@ -228,7 +221,10 @@ typedef struct {
 } tXcpCalSegList;
 
 // Get calibration segment  list
-tXcpCalSegList const *XcpGetCalSegList(void);
+const tXcpCalSegList *XcpGetCalSegList(void);
+
+// Get the number of calibration segments
+uint16_t XcpGetCalSegCount(void);
 
 // Find a calibration segment by name, returns XCP_UNDEFINED_CALSEG if not found
 tXcpCalSegIndex XcpFindCalSeg(const char *name);
@@ -239,6 +235,9 @@ tXcpCalSeg *XcpGetCalSeg(tXcpCalSegIndex calseg);
 // Get the name of the calibration segment
 const char *XcpGetCalSegName(tXcpCalSegIndex calseg);
 
+// Get the size of the calibration segment
+uint16_t XcpGetCalSegSize(tXcpCalSegIndex calseg);
+
 // Get the XCP/A2L address of a calibration segment
 uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg);
 
@@ -248,7 +247,7 @@ uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg);
 tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint16_t size);
 
 // Lock a calibration segment and return a pointer to the ECU page
-uint8_t const *XcpLockCalSeg(tXcpCalSegIndex calseg);
+const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg);
 
 // Unlock a calibration segment
 // Single threaded, must be used in the thread it was created
@@ -315,8 +314,8 @@ typedef struct {
     uint16_t config_id;
     uint16_t res1;
 #endif
-#ifdef XCP_MAX_EVENT_COUNT
-    uint16_t daq_first[XCP_MAX_EVENT_COUNT]; // Event channel to DAQ list mapping
+#if !defined(XCP_ENABLE_DAQ_EVENT_LIST) && defined(XCP_MAX_EVENT_COUNT)
+    uint16_t daq_first[XCP_MAX_EVENT_COUNT]; // Event channel to DAQ list mapping when there is no event management
 #endif
 
     // DAQ array
@@ -385,6 +384,9 @@ typedef struct {
     uint64_t DaqStartClock64;  // DAQ start time
     uint32_t DaqOverflowCount; // DAQ queue overflow
 
+    /* Project Name */
+    char ProjectName[XCP_PROJECT_NAME_MAX_LENGTH + 1]; // Project name string, null terminated
+
     /* EPK */
     char Epk[XCP_EPK_MAX_LENGTH + 1]; // EPK string, null terminated
 
@@ -427,7 +429,7 @@ typedef struct {
 // All callback functions supplied by the application ust be thread save
 
 /* Callbacks on connect, disconnect, measurement prepare, start and stop */
-bool ApplXcpConnect(void);
+bool ApplXcpConnect(uint8_t mode);
 void ApplXcpDisconnect(void);
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0104
 bool ApplXcpPrepareDaq(void);
@@ -437,8 +439,13 @@ void ApplXcpStopDaq(void);
 
 /* Address conversions from A2L address to pointer and vice versa in absolute addressing mode */
 #ifdef XCP_ENABLE_ABS_ADDRESSING
+extern const uint8_t *gXcpBaseAddr;        // For runtime optimization, use xcp_get_base_addr() instead of ApplXcpGetBaseAddr()
+const uint8_t *ApplXcpGetBaseAddr(void);   // Get the base address for DAQ data access */
+#define xcp_get_base_addr() gXcpBaseAddr   // For runtime optimization, use xcp_get_base_addr() instead of ApplXcpGetBaseAddr()
 uint32_t ApplXcpGetAddr(const uint8_t *p); // Calculate the xcpAddr address from a pointer
-uint8_t *ApplXcpGetBaseAddr(void);         // Get the base address for DAQ data access */
+#else
+#define ApplXcpGetBaseAddr()
+#define xcp_get_base_addr() NULL
 #endif
 
 /* Read and write memory */
@@ -494,10 +501,8 @@ bool ApplXcpGetClockInfoGrandmaster(uint8_t *uuid, uint8_t *epoch, uint8_t *stra
 
 /* DAQ resume */
 #ifdef XCP_ENABLE_DAQ_RESUME
-
 uint8_t ApplXcpDaqResumeStore(uint16_t config_id);
 uint8_t ApplXcpDaqResumeClear(void);
-
 #endif
 
 /* Get info for GET_ID command (pointer to and length of data) */
@@ -511,11 +516,8 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen);
 bool ApplXcpReadA2L(uint8_t size, uint32_t offset, uint8_t *data);
 #endif
 
-// Logging
-void ApplXcpSetLogLevel(uint8_t level);
-
 // Register XCP callbacks
-void ApplXcpRegisterConnectCallback(bool (*cb_connect)(void));
+void ApplXcpRegisterConnectCallback(bool (*cb_connect)(uint8_t mode));
 void ApplXcpRegisterPrepareDaqCallback(uint8_t (*cb_prepare_daq)(void));
 void ApplXcpRegisterStartDaqCallback(uint8_t (*cb_start_daq)(void));
 void ApplXcpRegisterStopDaqCallback(void (*cb_stop_daq)(void));
@@ -528,17 +530,9 @@ void ApplXcpRegisterReadCallback(uint8_t (*cb_read)(uint32_t src, uint8_t size, 
 void ApplXcpRegisterWriteCallback(uint8_t (*cb_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay));
 void ApplXcpRegisterFlushCallback(uint8_t (*cb_flush)(void));
 
-// Internal function used by the Rust API
-void ApplXcpRegisterCallbacks(bool (*cb_connect)(void), uint8_t (*cb_prepare_daq)(void), uint8_t (*cb_start_daq)(void), void (*cb_stop_daq)(void),
-                              uint8_t (*cb_freeze_daq)(uint8_t clear, uint16_t config_id), uint8_t (*cb_get_cal_page)(uint8_t segment, uint8_t mode),
-                              uint8_t (*cb_set_cal_page)(uint8_t segment, uint8_t page, uint8_t mode), uint8_t (*cb_freeze_cal)(void),
-                              uint8_t (*cb_init_cal)(uint8_t src_page, uint8_t dst_page), uint8_t (*cb_read)(uint32_t src, uint8_t size, uint8_t *dst),
-                              uint8_t (*cb_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay), uint8_t (*cb_flush)(void));
-
-// Set/get the A2L file name (for GET_ID IDT_ASAM_NAME, IDT_ASAM_NAME and for IDT_ASAM_UPLOAD)
-#define XCP_A2L_FILENAME_MAX_LENGTH 255 // Maximum length of A2L filename with extension
-void ApplXcpSetA2lName(const char *name);
-const char *ApplXcpGetA2lName(void);
+// Set/get the A2L file name (for GET_ID IDT_ASAM_NAME and for IDT_ASAM_UPLOAD)
+void XcpSetA2lName(const char *name);
+const char *XcpGetA2lName(void);
 
 #ifdef __cplusplus
 } // extern "C"

@@ -1,6 +1,7 @@
 // cpp_demo xcplib C++ example
 
 #include <atomic>   // for std::atomic
+#include <csignal>  // for signal(), SIGINT, SIGTERM
 #include <cstdint>  // for uintxx_t
 #include <cstring>  // for memset
 #include <iostream> // for std::cout
@@ -15,6 +16,7 @@
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
 #define OPTION_PROJECT_NAME "cpp_demo"  // A2L project name
+#define OPTION_PROJECT_EPK __TIME__     // EPK version string
 #define OPTION_USE_TCP false            // TCP or UDP
 #define OPTION_SERVER_PORT 5555         // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
@@ -30,7 +32,7 @@ struct ParametersT {
 };
 
 // Default values
-constexpr ParametersT kParameters = {.counter_max = 1000, .delay_us = 1000};
+const ParametersT kParameters = {.counter_max = 1000, .delay_us = 1000};
 
 //-----------------------------------------------------------------------------------------------------
 // Demo global measurement values
@@ -78,16 +80,22 @@ const signal_generator::SignalParametersT kSignalParameters2 = {
 
 //-----------------------------------------------------------------------------------------------------
 
+// Signal handler for clean shutdown
+static volatile bool running = true;
+static void sig_handler(int sig) { running = false; }
+
 int main() {
 
     std::cout << "\nXCP on Ethernet cpp_demo C++ xcplib demo\n" << std::endl;
+    signal(SIGINT, sig_handler);
+    signal(SIGTERM, sig_handler);
 
     // Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
     XcpSetLogLevel(OPTION_LOG_LEVEL);
 
     // Initialize the XCP singleton, activate XCP, must be called before starting the server
     // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-    XcpInit(true);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, true);
 
     // Initialize the XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;
@@ -98,7 +106,7 @@ int main() {
 
     // Enable A2L generation
     // Set mode to write once to create stable A2L files, this also enables calibration segment persistence and freeze support
-    if (!A2lInit(OPTION_PROJECT_NAME, NULL, addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         std::cerr << "Failed to initialize A2L generator" << std::endl;
         return 1;
     }
@@ -107,17 +115,17 @@ int main() {
     // This calibration segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
     // It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
     // It supports XCP/ECU independent page switching, checksum calculation and reinitialization (copy reference page to working page)
-    auto calseg = xcplib::CreateCalSeg("Parameters", kParameters);
+    auto calseg = xcplib::CreateCalSeg("kParameters", &kParameters);
 
     // Add the calibration segment description as a typedef instance to the A2L file
-    A2lTypedefBegin(ParametersT, "A2L Typedef for ParametersT");
-    A2lTypedefParameterComponent(counter_max, ParametersT, "Maximum counter value", "", 0, 2000);
-    A2lTypedefParameterComponent(delay_us, ParametersT, "Mainloop delay time in us", "us", 0, 999999);
+    A2lTypedefBegin(ParametersT, &kParameters, "A2L Typedef for ParametersT");
+    A2lTypedefParameterComponent(counter_max, "Maximum counter value", "", 0, 2000);
+    A2lTypedefParameterComponent(delay_us, "Mainloop delay time in us", "us", 0, 999999);
     A2lTypedefEnd();
     calseg.CreateA2lTypedefInstance("ParametersT", "Main parameters");
 
     // Local variables
-    uint16_t loop_counter = 0;
+    uint16_t counter = 0;
     uint64_t loop_time = 0;
     uint64_t loop_cycletime = 0;
     constexpr size_t kHistogramSize = 256;
@@ -136,7 +144,7 @@ int main() {
 
     // Register the local measurement variables 'loop_counter', 'loop_time', 'loop_cycletime', 'loop_histogram' and 'sum'
     A2lSetStackAddrMode(mainloop);
-    A2lCreateMeasurement(loop_counter, "Mainloop loop counter");
+    A2lCreateMeasurement(counter, "Mainloop loop counter");
     A2lCreateLinearConversion(clock_ticks, "Conversion from clock ticks to milliseconds", "ms", 1.0 / 1000.0, 0.0);
     A2lCreatePhysMeasurement(loop_cycletime, "Mainloop cycle time", "conv.clock_ticks", 0.0, 0.05);
     A2lCreateMeasurementArray(loop_histogram, "Mainloop cycle time histogram");
@@ -148,25 +156,24 @@ int main() {
     // Note that the signal generator threads register measurements in the A2L file as well
     // This is not in conflict because the main thread has already registered its measurements above
     // Otherwise use A2lLock() and A2lUnlock() to avoid race conditions when registering measurements, the A2L generator macros for are not thread safe by itself
-    signal_generator::SignalGenerator signal_generator_1("SigGen1", kSignalParameters1);
-    signal_generator::SignalGenerator signal_generator_2("SigGen2", kSignalParameters2);
+    signal_generator::SignalGenerator signal_generator_1("SigGen1", &kSignalParameters1);
+    signal_generator::SignalGenerator signal_generator_2("SigGen2", &kSignalParameters2);
 
-    // Optional for testing: Force finalizing the A2L file, otherwise it will be finalized on XCP tool connect
     sleepUs(100000);
-    A2lFinalize();
+    A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
 
     // Main loop
     std::cout << "Starting main loop..." << std::endl;
-    for (;;) {
+    while (running) {
         // Access the calibration parameters 'delay' and 'counter_max' safely
         // Use RAII guard for automatic lock/unlock the calibration parameter segment 'calseg'
         {
             auto parameters = calseg.lock();
 
             // Increment the local measurement variable 'loop_counter' using the calibration parameter 'counter_max' as a limit
-            loop_counter++;
-            if (loop_counter > parameters->counter_max)
-                loop_counter = 0;
+            counter++;
+            if (counter > parameters->counter_max)
+                counter = 0;
 
         } // Guard automatically unlocks here
 
@@ -182,7 +189,7 @@ int main() {
         sum = channel1 + channel2;
 
         // Update some more local and global variables
-        if (loop_counter == 0) {
+        if (counter == 0) {
             temperature += 1;
             if (temperature > 150)
                 temperature = 0; // Reset temperature to -50 °C
@@ -192,10 +199,10 @@ int main() {
             speed = 0; // Reset speed to 0 km/h
 
         // Trigger the XCP measurement mainloop for temperature, speed, loop_counter and sum
-        DaqEvent(mainloop);
+        DaqTriggerEvent(mainloop);
 
         sleepUs(calseg.lock()->delay_us);
-    } // mainloop
+    } // while (running)
 
     // Cleanup
     XcpDisconnect();

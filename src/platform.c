@@ -3,7 +3,7 @@
 |   platform.c
 |
 | Description:
-|   Platform (Linux/Windows/MACOS) abstraction layer
+|   Platform (Linux/Windows/MACOS/QNX) abstraction layer
 |     Atomics
 |     Sleep
 |     Threads
@@ -35,7 +35,7 @@
 // Keyboard
 /**************************************************************************/
 
-#ifdef _LINUX
+#if !defined(_WIN) // Non-Windows platforms
 
 #ifdef PLATFORM_ENABLE_KEYBOARD
 
@@ -82,7 +82,7 @@ int _kbhit(void) {
 // Sleep
 /**************************************************************************/
 
-#if defined(_LINUX) // Linux
+#if !defined(_WIN)
 
 #include <time.h>   // for timespec, nanosleep, CLOCK_MONOTONIC_RAW
 #include <unistd.h> // for sleep
@@ -110,7 +110,7 @@ void sleepMs(uint32_t ms) {
     }
 }
 
-#elif defined(_WIN) // Windows
+#else // Windows
 
 void sleepUs(uint32_t us) {
 
@@ -222,7 +222,7 @@ bool atomic_compare_exchange_strong_explicit(uint64_t *a, uint64_t *b, uint64_t 
 // Mutex
 /**************************************************************************/
 
-#if defined(_LINUX)
+#if !defined(_WIN) // Non-Windows platforms
 
 void mutexInit(MUTEX *m, bool recursive, uint32_t spinCount) {
     (void)spinCount;
@@ -238,7 +238,7 @@ void mutexInit(MUTEX *m, bool recursive, uint32_t spinCount) {
 
 void mutexDestroy(MUTEX *m) { pthread_mutex_destroy(m); }
 
-#elif defined(_WIN)
+#else // Windows
 
 void mutexInit(MUTEX *m, bool recursive, uint32_t spinCount) {
     (void)recursive;
@@ -256,7 +256,7 @@ void mutexDestroy(MUTEX *m) { DeleteCriticalSection(m); }
 
 #if defined(OPTION_ENABLE_TCP) || defined(OPTION_ENABLE_UDP)
 
-#ifdef _LINUX
+#if !defined(_WIN) // Non-Windows platforms
 
 bool socketStartup(void) { return true; }
 
@@ -320,13 +320,13 @@ bool socketClose(SOCKET *sp) {
 
 #ifdef OPTION_ENABLE_GET_LOCAL_ADDR
 
-#ifndef _MACOS
+#if !defined(_MACOS) && !defined(_QNX)
 #include <linux/if_packet.h>
 #else
 #include <ifaddrs.h>
 #include <net/if_dl.h>
 #endif
-#ifdef _LINUX
+#if !defined(_WIN) // Non-Windows platforms
 #include <ifaddrs.h>
 #endif
 
@@ -335,7 +335,7 @@ static bool GetMAC(char *ifname, uint8_t *mac) {
     if (getifaddrs(&ifaddrs) == 0) {
         for (ifa = ifaddrs; ifa != NULL; ifa = ifa->ifa_next) {
             if (!strcmp(ifa->ifa_name, ifname)) {
-#ifdef _MACOS
+#if defined(_MACOS) || defined(_QNX)
                 if (ifa->ifa_addr->sa_family == AF_LINK) {
                     memcpy(mac, (uint8_t *)LLADDR((struct sockaddr_dl *)ifa->ifa_addr), 6);
                     DBG_PRINTF4("  %s: MAC = %02X-%02X-%02X-%02X-%02X-%02X\n", ifa->ifa_name, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
@@ -357,12 +357,12 @@ static bool GetMAC(char *ifname, uint8_t *mac) {
 }
 
 bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr) {
-    static uint32_t addr1 = 0;
-    static uint8_t mac1[6] = {0, 0, 0, 0, 0, 0};
+    static uint32_t __addr1 = 0;
+    static uint8_t __mac1[6] = {0, 0, 0, 0, 0, 0};
 #ifdef DBG_LEVEL
     char strbuf[64];
 #endif
-    if (addr1 == 0) {
+    if (__addr1 == 0) {
         struct ifaddrs *ifaddrs, *ifa;
         struct ifaddrs *ifa1 = NULL;
         if (-1 != getifaddrs(&ifaddrs)) {
@@ -370,33 +370,33 @@ bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr) {
                 if ((NULL != ifa->ifa_addr) && (AF_INET == ifa->ifa_addr->sa_family)) { // IPV4
                     struct sockaddr_in *sa = (struct sockaddr_in *)(ifa->ifa_addr);
                     if (0x100007f != sa->sin_addr.s_addr) { /* not 127.0.0.1 */
-                        if (addr1 == 0) {
-                            addr1 = sa->sin_addr.s_addr;
+                        if (__addr1 == 0) {
+                            __addr1 = sa->sin_addr.s_addr;
                             ifa1 = ifa;
                             break;
                         }
                     }
                 }
             }
-            if (addr1 != 0 && ifa1 != NULL) {
-                GetMAC(ifa1->ifa_name, mac1);
+            if (__addr1 != 0 && ifa1 != NULL) {
+                GetMAC(ifa1->ifa_name, __mac1);
 #ifdef DBG_LEVEL
                 if (DBG_LEVEL >= 5) {
-                    inet_ntop(AF_INET, &addr1, strbuf, sizeof(strbuf));
+                    inet_ntop(AF_INET, &__addr1, strbuf, sizeof(strbuf));
                     printf("  Use IPV4 adapter %s with IP=%s, MAC=%02X-%02X-%02X-%02X-%02X-%02X for A2L info and clock "
                            "UUID\n",
-                           ifa1->ifa_name, strbuf, mac1[0], mac1[1], mac1[2], mac1[3], mac1[4], mac1[5]);
+                           ifa1->ifa_name, strbuf, __mac1[0], __mac1[1], __mac1[2], __mac1[3], __mac1[4], __mac1[5]);
                 }
 #endif
             }
             freeifaddrs(ifaddrs);
         }
     }
-    if (addr1 != 0) {
+    if (__addr1 != 0) {
         if (mac)
-            memcpy(mac, mac1, 6);
+            memcpy(mac, __mac1, 6);
         if (addr)
-            memcpy(addr, &addr1, 4);
+            memcpy(addr, &__addr1, 4);
         return true;
     } else {
         return false;
@@ -405,9 +405,7 @@ bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr) {
 
 #endif // OPTION_ENABLE_GET_LOCAL_ADDR
 
-#endif // _LINUX
-
-#if defined(_WIN)
+#else
 
 uint32_t socketGetTimestampMode(uint8_t *clockType) {
 
@@ -548,14 +546,14 @@ bool socketClose(SOCKET *sockp) {
 
 bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr) {
 
-    static uint8_t addr1[4] = {0, 0, 0, 0};
-    static uint8_t mac1[6] = {0, 0, 0, 0, 0, 0};
+    static uint8_t __addr1[4] = {0, 0, 0, 0};
+    static uint8_t __mac1[6] = {0, 0, 0, 0, 0, 0};
     uint32_t a;
     PIP_ADAPTER_INFO pAdapterInfo;
     PIP_ADAPTER_INFO pAdapter = NULL;
     DWORD dwRetVal = 0;
 
-    if (addr1[0] == 0) {
+    if (__addr1[0] == 0) {
 
         ULONG ulOutBufLen = sizeof(IP_ADAPTER_INFO);
         pAdapterInfo = (IP_ADAPTER_INFO *)malloc(sizeof(IP_ADAPTER_INFO));
@@ -586,9 +584,9 @@ bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr) {
                         // if (pAdapter->DhcpEnabled) DBG_PRINTF5(" DHCP");
                         DBG_PRINT5("\n");
 #endif
-                        if (addr1[0] == 0) {
-                            memcpy(addr1, (uint8_t *)&a, 4);
-                            memcpy(mac1, pAdapter->Address, 6);
+                        if (__addr1[0] == 0) {
+                            memcpy(__addr1, (uint8_t *)&a, 4);
+                            memcpy(__mac1, pAdapter->Address, 6);
                         }
                     }
                 }
@@ -599,11 +597,11 @@ bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr) {
             free(pAdapterInfo);
     }
 
-    if (addr1[0] != 0) {
+    if (__addr1[0] != 0) {
         if (mac)
-            memcpy(mac, mac1, 6);
+            memcpy(mac, __mac1, 6);
         if (addr)
-            memcpy(addr, addr1, 4);
+            memcpy(addr, __addr1, 4);
         return true;
     }
     return false;
@@ -700,10 +698,8 @@ int16_t socketSendTo(SOCKET sock, const uint8_t *buffer, uint16_t size, const ui
     sa.sin_family = AF_INET;
 #if defined(_WIN) // Windows
     memcpy(&sa.sin_addr.S_un.S_addr, addr, 4);
-#elif defined(_LINUX) // Linux
-    memcpy(&sa.sin_addr.s_addr, addr, 4);
 #else
-#error
+    memcpy(&sa.sin_addr.s_addr, addr, 4);
 #endif
     sa.sin_port = htons(port);
     if (time != NULL)
@@ -721,13 +717,13 @@ int16_t socketSend(SOCKET sock, const uint8_t *buffer, uint16_t size) { return (
 // Clock
 /**************************************************************************/
 
-static uint64_t sClock = 0;
+static uint64_t __gClock = 0;
 
 // Get the last known clock value
 // Save CPU load, clockGet may take resonable run time, depending on platform
 // For slow timeouts and timers, it is sufficient to rely on the relatively high call frequency of clockGet() by other
 // parts of the application
-uint64_t clockGetLast(void) { return sClock; }
+uint64_t clockGetLast(void) { return __gClock; }
 
 // Not used, might be faster on macOS
 // #ifdef _MACOS
@@ -740,14 +736,13 @@ uint64_t clockGetLast(void) { return sClock; }
 // }
 // #endif
 
-#if defined(_LINUX) // Linux or macOS
+#if !defined(_WIN) // Non-Windows platforms
 
 #if !defined(OPTION_CLOCK_EPOCH_PTP) && !defined(OPTION_CLOCK_EPOCH_ARB)
 #error "Please define OPTION_CLOCK_EPOCH_ARB or OPTION_CLOCK_EPOCH_PTP"
 #endif
 
 /*
-
 Clock options
 
     OPTION_CLOCK_EPOCH_ARB      arbitrary epoch
@@ -755,21 +750,35 @@ Clock options
     OPTION_CLOCK_TICKS_1NS      resolution 1ns or 1us, granularity depends on platform
     OPTION_CLOCK_TICKS_1US
 
-Clock types used
-    CLOCK_REALTIME      This clock may be affected by incremental adjustments performed by NTP
-                        Epoch ns since 1.1.1970
-                        Works on all platforms
-                        1us granularity on MacOS
+Clock types
+    CLOCK_REALTIME
+        This clock may be affected by incremental adjustments performed by NTP.
+        Epoch ns since 1.1.1970.
+        Works on all platforms.
+        1us granularity on MacOS.
 
-    CLOCK_TAI           This clock does not experience discontinuities and backwards jumps caused by NTP or inserting
-leap seconds as CLOCK_REALTIME does. Epoch ns since 1.1.1970 Not available on Linux and MacOS
+    CLOCK_TAI
+        This clock does not experience discontinuities and backwards jumps caused by NTP or inserting leap seconds as CLOCK_REALTIME does.
+        Epoch ns since 1.1.1970 Not available on Linux and MacOS.
 
-    CLOCK_MONOTONIC_RAW Provides a monotonic clock without time drift adjustments by NTP, giving higher stability and
-resolution Epoch ns since OS or process start Works on all platforms <1us granularity on MACOS,
+    CLOCK_MONOTONIC_RAW
+        Provides a monotonic clock without time drift adjustments by NTP, giving higher stability and resolution Epoch ns since OS or process start.
+        Works on all platforms except QNX, <1us granularity on MACOS.
+
+    CLOCK_MONOTONIC
+        Provides a monotonic clock that might be adjusted in frequency by NTP to compensate drifts (on Linux and MACOS).
+        On QNX, this clock cannot be adjusted and is ensured to increase at a constant rate.
+        Epoch ns since OS or process start.
+        Available on all platforms.
+        <1us granularity on MACOS.
 */
 
 #ifdef OPTION_CLOCK_EPOCH_ARB
-#define CLOCK_TYPE CLOCK_MONOTONIC_RAW // Works on all OS
+#ifdef _QNX
+#define CLOCK_TYPE CLOCK_MONOTONIC // Same behaviour as CLOCK_MONOTONIC_RAW on the other os
+#else
+#define CLOCK_TYPE CLOCK_MONOTONIC_RAW
+#endif
 #else
 #ifdef _WIN
 #define CLOCK_TYPE CLOCK_TAI
@@ -810,7 +819,7 @@ bool clockInit(void) {
     DBG_PRINT3("  ticks = OPTION_CLOCK_TICKS_1NS\n");
 #endif
 
-    sClock = 0;
+    __gClock = 0;
 
 #ifdef DBG_LEVEL
     if (DBG_LEVEL >= 3) { // Test
@@ -845,14 +854,14 @@ uint64_t clockGet(void) {
     struct timespec ts;
     clock_gettime(CLOCK_TYPE, &ts);
 #ifdef OPTION_CLOCK_TICKS_1NS // ns
-    return sClock = (((uint64_t)(ts.tv_sec) * 1000000000ULL) + (uint64_t)(ts.tv_nsec));
+    return __gClock = (((uint64_t)(ts.tv_sec) * 1000000000ULL) + (uint64_t)(ts.tv_nsec));
 #else // us
-    return sClock = (((uint64_t)(ts.tv_sec) * 1000000ULL) + (uint64_t)(ts.tv_nsec / 1000)); // us
-    // return sClock = (((uint64_t)(ts.tv_sec - gts0.tv_sec) * 1000000ULL) + (uint64_t)(ts.tv_nsec / 1000));
+    return __gClock = (((uint64_t)(ts.tv_sec) * 1000000ULL) + (uint64_t)(ts.tv_nsec / 1000)); // us
+    // return __gClock = (((uint64_t)(ts.tv_sec - gts0.tv_sec) * 1000000ULL) + (uint64_t)(ts.tv_nsec / 1000));
 #endif
 }
 
-#elif defined(_WIN) // Windows
+#else // Windows
 
 // Performance counter to clock conversion
 static uint64_t sFactor = 0; // ticks per us
@@ -916,7 +925,7 @@ bool clockInit(void) {
 #endif
     DBG_PRINTF4("  CLOCK_TICKS_PER_S = %u\n\n", CLOCK_TICKS_PER_S);
 
-    sClock = 0;
+    __gClock = 0;
 
     // Get current performance counter frequency
     // Determine conversion to CLOCK_TICKS_PER_S -> sDivide/sFactor
@@ -1010,7 +1019,7 @@ uint64_t clockGet(void) {
     } else {
         t = t * sFactor + sOffset;
     }
-    sClock = t;
+    __gClock = t;
     return t;
 }
 
@@ -1023,7 +1032,7 @@ uint64_t clockGetNs(void) { return clockGet(); }
 // File system utilities
 /**************************************************************************/
 
-#if defined(_WIN32)
+#ifdef _WIN
 #include <io.h> // for _access
 #else
 #include <unistd.h> // for access
@@ -1036,7 +1045,7 @@ bool fexists(const char *filename) {
         return false;
     }
 
-#ifdef _WIN32
+#ifdef _WIN
     // Windows: use _access from io.h
     return (_access(filename, 0) == 0);
 #else
