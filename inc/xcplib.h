@@ -424,7 +424,9 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Build time A2L file generation helpers
+
 // @@@@ NOTE: Work in progress
+#if 0
 
 #define _XCP_STRING(var_name, suffix, value) static const char __attribute__((section(XCP_STRING_SECTION), used)) __xcp_str_##var_name##suffix[] = value
 
@@ -445,6 +447,12 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
     static const double __attribute__((section(XCP_META_SECTION), used)) __a2l_min_##name = min;                                                                                   \
     static const double __attribute__((section(XCP_META_SECTION), used)) __a2l_max_##name = max;
 
+#else
+#define XCP_COMMENT (name, comment)
+#define XCP_UNIT(name, unit)
+#define XCP_LIMITS(name, min, max)
+#endif
+
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Measurement of stack variables
 
@@ -455,7 +463,6 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
 /// Attribute to mark a variable as measurable by XCP/A2L
 /// Example usage: XCP_MEA int32_t my_var = 0;
 #define XCP_MEA volatile
-// #define XCP_MEA volatile __attribute__((used))
 
 /// Capture a local variable for measurement with a specific event
 /// The variable must be in scope when the event is triggered with DaqTriggerEvent
