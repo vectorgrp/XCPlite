@@ -3250,9 +3250,23 @@ void XcpBackgroundTasks(void) {
 
 // Publish all modified calibration segments
 #ifdef XCP_ENABLE_CALSEG_LAZY_WRITE
-    if (CRC_CMD_OK != XcpCalSegPublishAll(false)) {
+    static uint64_t last_success_time = 0;
+    bool res = XcpCalSegPublishAll(false);
+    if (res != CRC_CMD_OK && res != CRC_CMD_PENDING) {
         DBG_PRINT_WARNING("XcpBackgroundTasks: Calibration segment publish failed!\n");
     }
+    if (res == CRC_CMD_OK) {
+        // All segments published
+        last_success_time = clockGetLast();
+    } else if (res == CRC_CMD_PENDING) {
+        // Warn if delayed by more than 200ms
+        if (clockGetLast() - last_success_time > CLOCK_TICKS_PER_MS * 200) {
+            if (last_success_time != 0)
+                DBG_PRINT_WARNING("XcpBackgroundTasks: Calibration segment publish delayed by more than 200ms!\n");
+            last_success_time = clockGetLast();
+        }
+    }
+
 #endif
 }
 
