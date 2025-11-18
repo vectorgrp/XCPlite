@@ -19,13 +19,17 @@
 #endif
 
 #ifdef OPTION_ENABLE_DBG_METRICS
-
+#ifdef __cplusplus
+extern "C" {
+#endif
 extern uint32_t gXcpWritePendingCount;
 extern uint32_t gXcpCalSegPublishAllCount;
 extern uint32_t gXcpDaqEventCount;
 extern uint32_t gXcpTxPacketCount;
 extern uint32_t gXcpRxPacketCount;
-
+#ifdef __cplusplus
+}
+#endif
 #endif
 
 #ifdef OPTION_ENABLE_DBG_PRINTS
@@ -48,7 +52,13 @@ extern uint32_t gXcpRxPacketCount;
 #ifdef OPTION_FIXED_DBG_LEVEL
 #define DBG_LEVEL OPTION_FIXED_DBG_LEVEL
 #else
+#ifdef __cplusplus
+extern "C" {
+#endif
 extern uint8_t gXcpDebugLevel;
+#ifdef __cplusplus
+}
+#endif
 #define DBG_LEVEL gXcpDebugLevel
 #endif
 

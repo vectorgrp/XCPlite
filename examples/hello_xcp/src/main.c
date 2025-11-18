@@ -89,7 +89,7 @@ float calc_power(uint8_t t1, uint8_t t2) {
     // XCP: Trigger the measurement event "calc_power"
     DaqTriggerEvent(calc_power);
 
-    return heat_power;
+    return (float)heat_power;
 }
 
 //-----------------------------------------------------------------------------------------------------

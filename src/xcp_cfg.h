@@ -166,7 +166,7 @@ xcp-lite >=V1.0.0 for Rust XCPLITE__C_DR:
 #if defined(XCP_ENABLE_EPK_CALSEG) && XCP_ADDR_EXT_SEG == 0
 
 #define XCP_ADDR_EPK 0x80000000 // Segment relative EPK address
-#define XcpAddrEncodeSegIndex(seg_index, offset) (0x80000000 + ((uint32_t)((seg_index)) << 16) + (offset))
+#define XcpAddrEncodeSegIndex(seg_index, offset) (uint32_t)(0x80000000 + ((uint32_t)((seg_index)) << 16) + (offset))
 // Assuming the EPK calibration segment has the lowest segment index (0)
 
 #else

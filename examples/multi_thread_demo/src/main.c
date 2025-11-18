@@ -1,19 +1,25 @@
 ﻿// multi_thread_demo xcplib example
 
-#include <assert.h>    // for assert
-#include <math.h>      // for M_PI, sin
-#include <signal.h>    // for signal handling
+#include <assert.h> // for assert
+#include <math.h>   // for M_PI, sin
+#include <signal.h> // for signal handling
+#ifndef _WIN32
 #include <stdatomic.h> // for atomic_
-#include <stdbool.h>   // for bool
-#include <stdint.h>    // for uintxx_t
-#include <stdio.h>     // for printf
-#include <string.h>    // for sprintf
-
-#include "dbg_print.h"
-#include "main_cfg.h"
+#endif
+#include <stdbool.h> // for bool
+#include <stdint.h>  // for uintxx_t
+#include <stdio.h>   // for printf
+#include <string.h>  // for sprintf
 
 #include "a2l.h"    // for xcplib A2l generation
 #include "xcplib.h" // for xcplib application programming interface
+
+// Internal xcplib includes to simplify multi platform support
+#include "main_cfg.h"
+#include "platform.h" // for THREAD
+#ifdef OPTION_ENABLE_DBG_METRICS
+#include "dbg_print.h" // for statistics: XcpDaqEventCount, gXcpTxPacketCount, gXcpRxPacketCount
+#endif
 
 //-----------------------------------------------------------------------------------------------------
 
@@ -24,19 +30,6 @@
 #define M_2PI (M_PI * 2)
 #endif
 
-// Threads
-#ifdef _WIN32 // Windows 32 or 64 bit
-#include <windows.h>
-typedef HANDLE THREAD;
-#define create_thread(h, t) *h = CreateThread(0, 0, t, NULL, 0, NULL)
-#define join_thread(h) WaitForSingleObject(h, INFINITE);
-#else
-#include <pthread.h>
-typedef pthread_t THREAD;
-#define create_thread(h, t) pthread_create(h, NULL, t, NULL)
-#define join_thread(h) pthread_join(h, NULL)
-#endif
-
 //-----------------------------------------------------------------------------------------------------
 
 #define XCP_MAX_EVENT_NAME 15
@@ -44,9 +37,11 @@ typedef pthread_t THREAD;
 #define THREAD_DELAY_US 1000      // Delay in microseconds for the thread loops
 #define MAX_THREAD_NAME_LENGTH 32 // Maximum length of thread name
 
+#ifndef _WIN32
 #define EXPERIMENTAL_THREAD_CONTEXT // Enable demonstration of tracking thread context and span of the clip and filter function
-// #define FILTER_SLEEP_US 100 // Simulated work in filter function
-// #define CLIP_SLEEP_US 50    // Simulated work in clip function
+#define FILTER_SLEEP_US 100         // Simulated work in filter function
+#define CLIP_SLEEP_US 50            // Simulated work in clip function
+#endif
 
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters

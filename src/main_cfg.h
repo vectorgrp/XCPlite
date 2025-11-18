@@ -118,11 +118,13 @@
 //-------------------------------------------------------------------------------
 // Miscellaneous options
 
-// Enable atomic emulation for platforms without stdatomic.h
-// This is used on Windows and automatically set in platform.h in this case
+// Enable atomic emulation for Windows without stdatomic.h for C
 // Switches to 32 bit transmit queue implementation
 // Not designed for non x86 platforms, needs strong memory ordering
 // Used for testing on Windows
-// #define OPTION_ATOMIC_EMULATION
+
+#if defined(_WIN32) || defined(_WIN64)
+#define OPTION_ATOMIC_EMULATION
+#endif
 
 #endif // !XCPLIB_FOR_RUST

@@ -842,10 +842,10 @@ static uint8_t XcpGetSegInfo(tXcpCalSegNumber segment, uint8_t mode, uint8_t seg
             CRM_GET_SEGMENT_INFO_BASIC_INFO = XcpGetCalSegBaseAddress(calseg);
             return CRC_CMD_OK;
         } else if (seg_info == 1) { // Get length
-            CRM_GET_SEGMENT_INFO_BASIC_INFO = c->size;
+            CRM_GET_SEGMENT_INFO_BASIC_INFO = (uint32_t)c->size;
             return CRC_CMD_OK;
         } else if (seg_info == 2) { // Get segment name (Vector extension, name via MTA and upload)
-            CRM_GET_SEGMENT_INFO_BASIC_INFO = strlen(c->name);
+            CRM_GET_SEGMENT_INFO_BASIC_INFO = (uint32_t)strlen(c->name);
             gXcp.MtaPtr = (uint8_t *)c->name;
             gXcp.MtaExt = XCP_ADDR_EXT_PTR;
             return CRC_CMD_OK;
@@ -3424,7 +3424,7 @@ void XcpInit(const char *name, const char *epk, bool activate) {
     // Make sure it has index 0
     // @@@@ TODO: Currently the EPK segment is treated like any other segment, even if it is read-only and does not need 2 pages
     static tXcpCalSegIndex cal__epk = XCP_UNDEFINED_CALSEG; // Create the linker file marker for the EPK segment
-    cal__epk = XcpCreateCalSeg("epk", XcpGetEpk(), STRNLEN(XcpGetEpk(), XCP_EPK_MAX_LENGTH));
+    cal__epk = XcpCreateCalSeg("epk", XcpGetEpk(), (uint16_t)STRNLEN(XcpGetEpk(), XCP_EPK_MAX_LENGTH));
     assert(cal__epk == 0);
 #endif
 #endif

@@ -1,34 +1,27 @@
 ﻿// daq_test
 
-#include <assert.h>    // for assert
-#include <math.h>      // for M_PI, sin
-#include <signal.h>    // for signal handling
+#include <assert.h> // for assert
+#include <math.h>   // for M_PI, sin
+#include <signal.h> // for signal handling
+#ifndef _WIN32
 #include <stdatomic.h> // for atomic_
-#include <stdbool.h>   // for bool
-#include <stdint.h>    // for uintxx_t
-#include <stdio.h>     // for printf
-#include <string.h>    // for sprintf
+#endif
+#include <stdbool.h> // for bool
+#include <stdint.h>  // for uintxx_t
+#include <stdio.h>   // for printf
+#include <string.h>  // for sprintf
 
-#include "dbg_print.h"
-#include "main_cfg.h"
-
-#include "a2l.h"    // for xcplib A2l generation
+// Public xcplib API
+#include "a2l.h"    // for xcplib A2l generation application programming interface
 #include "xcplib.h" // for xcplib application programming interface
 
-//-----------------------------------------------------------------------------------------------------
-
-// Threads
-#ifdef _WIN32 // Windows 32 or 64 bit
-#include <windows.h>
-typedef HANDLE THREAD;
-#define create_thread(h, t) *h = CreateThread(0, 0, t, NULL, 0, NULL)
-#define join_thread(h) WaitForSingleObject(h, INFINITE);
-#else
-#include <pthread.h>
-typedef pthread_t THREAD;
-#define create_thread(h, t) pthread_create(h, NULL, t, NULL)
-#define join_thread(h) pthread_join(h, NULL)
-#endif
+// Internal xcplib includes
+// Note: Take care for include order, when using internal xcplib headers !!
+// xcp_cfg.h would includes main_cfg.h and platform.h
+#include "dbg_print.h"
+#include "main_cfg.h"
+#include "platform.h"
+#include "xcp_cfg.h"
 
 //-----------------------------------------------------------------------------------------------------
 

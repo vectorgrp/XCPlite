@@ -28,10 +28,6 @@
 
 #define _WIN
 
-// For Windows compatibility, we must use an emulation for atomic operations and fallback to the 32 bit transmit queue
-// MSVC does not support C11 stdatomic.h
-#define OPTION_ATOMIC_EMULATION
-
 #define WIN32_LEAN_AND_MEAN
 
 // Linux or macOS or QNX

@@ -9,11 +9,18 @@
 #include <thread>   // for std::thread
 #include <vector>
 
+// Public xcplib API
 #include "a2l.hpp"    // for xcplib A2l generation application programming interface
 #include "xcplib.hpp" // for xcplib application programming interface
 
+// Internal xcplib includes
+// Note: Take care for include order, when using internal xcplib headers !!
+// xcp_cfg.h would includes main_cfg.h and platform.h, which enables atomic emulation under Windows, we use <atomic> in this file
+#include "main_cfg.h"
+#undef OPTION_ATOMIC_EMULATION
 #include "dbg_print.h"
-#include "xcp_cfg.h"
+#include "platform.h"
+#include "xcp_cfg.h" // For XcpAddrEncodeSegIndex
 
 // Internally used XCP functions for testing
 extern "C" {
