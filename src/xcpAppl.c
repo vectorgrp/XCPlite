@@ -63,28 +63,6 @@ void ApplXcpRegisterReadCallback(uint8_t (*cb_read)(uint32_t src, uint8_t size, 
 void ApplXcpRegisterWriteCallback(uint8_t (*cb_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay)) { __callback_write = cb_write; }
 void ApplXcpRegisterFlushCallback(uint8_t (*cb_flush)(void)) { __callback_flush = cb_flush; }
 
-// Internal function used by the Rust API
-void ApplXcpRegisterCallbacks(bool (*cb_connect)(uint8_t mode), uint8_t (*cb_prepare_daq)(void), uint8_t (*cb_start_daq)(void), void (*cb_stop_daq)(void),
-                              uint8_t (*cb_freeze_daq)(uint8_t clear, uint16_t config_id), uint8_t (*cb_get_cal_page)(uint8_t segment, uint8_t mode),
-                              uint8_t (*cb_set_cal_page)(uint8_t segment, uint8_t page, uint8_t mode), uint8_t (*cb_freeze_cal)(void),
-                              uint8_t (*cb_init_cal)(uint8_t src_page, uint8_t dst_page), uint8_t (*cb_read)(uint32_t src, uint8_t size, uint8_t *dst),
-                              uint8_t (*cb_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay), uint8_t (*cb_flush)(void))
-
-{
-    __callback_connect = cb_connect;
-    __callback_prepare_daq = cb_prepare_daq;
-    __callback_start_daq = cb_start_daq;
-    __callback_stop_daq = cb_stop_daq;
-    __callback_freeze_daq = cb_freeze_daq;
-    __callback_get_cal_page = cb_get_cal_page;
-    __callback_set_cal_page = cb_set_cal_page;
-    __callback_freeze_cal = cb_freeze_cal;
-    __callback_init_cal = cb_init_cal;
-    __callback_read = cb_read;
-    __callback_write = cb_write;
-    __callback_flush = cb_flush;
-}
-
 /**************************************************************************/
 // General notifications from protocol layer
 /**************************************************************************/
