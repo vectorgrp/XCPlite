@@ -51,7 +51,7 @@ void cpp_version_test() {
     printf("Coroutines (C++20): %ld\n", __cpp_coroutines);
 #endif
 #ifdef __cpp_constexpr
-    printf("Constexpr: %d\n", __cpp_constexpr);
+    printf("Constexpr: %ld\n", __cpp_constexpr);
 #endif
 #ifdef __cpp_lambdas
     printf("Lambdas (C++11): %ld\n", __cpp_lambdas);
@@ -60,7 +60,7 @@ void cpp_version_test() {
     printf("Auto type deduction (C++11): %ld\n", __cpp_auto_type);
 #endif
 #ifdef __cpp_range_based_for
-    printf("Range-based for loops (C++11): %d\n", __cpp_range_based_for);
+    printf("Range-based for loops (C++11): %ld\n", (long)__cpp_range_based_for);
 #endif
 #ifdef __cpp_decltype
     printf("Decltype (C++11): %ld\n", __cpp_decltype);
