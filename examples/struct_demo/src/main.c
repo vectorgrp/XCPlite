@@ -30,22 +30,34 @@
 // Measurement variables and structs
 
 typedef struct {
-    uint8_t byte_field; // Basic type fields
     int16_t word_field;
+    uint8_t byte_field;
+    // Compiler adds 1 byte trailing padding here to align the struct size for array usage
 } struct2_t;
+
+static_assert(sizeof(struct2_t) == 4, "struct2_t size incorrect");
 
 typedef struct {
     uint8_t byte_field;
+    // Compiler adds 1 byte alignment padding here to align the next field
     int16_t word_field;
-    uint8_t array_field[256]; // Array field
-    struct2_t struct_field;   // Struct field
+    uint8_t array_field[256];         // Array field
+    struct2_t struct_field;           // Struct field
+    struct2_t array_struct_field[10]; // Array of struct field
 } struct1_t;
 
+static_assert(sizeof(struct1_t) == 4 + 256 + 4 + 4 * 10, "struct1_t size incorrect");
+
 // Global measurement variables
-static uint16_t static_counter = 0;                                   // Local counter variable for measurement
-static struct2_t static_struct2 = {.byte_field = 1, .word_field = 2}; // Single instance of struct2_t
-static struct1_t static_struct1 = {.byte_field = 1, .word_field = 2, .array_field = {0}, .struct_field = {.byte_field = 1, .word_field = 2}}; // Single instance of struct1_t
-static struct1_t static_struct1_array[10];                                                                                                    // Array of struct1_t
+static uint16_t static_counter = 0;
+static struct2_t static_struct2 = {.byte_field = 1, .word_field = 2};
+static struct1_t static_struct1 = {
+    .byte_field = 1, .word_field = 2, .array_field = {0}, .struct_field = {.byte_field = 1, .word_field = 2}, .array_struct_field = {{.byte_field = 1, .word_field = 2}}};
+static struct1_t static_struct1_array[10];
+static struct2_t static_struct2_array[10];
+
+static_assert(sizeof(static_struct1_array) == (sizeof(struct1_t) * 10), "static_struct1_array size incorrect");
+static_assert(sizeof(static_struct2_array) == (sizeof(struct2_t) * 10), "static_struct2_array size incorrect");
 
 //-----------------------------------------------------------------------------------------------------
 
@@ -90,6 +102,7 @@ int main(void) {
     A2lTypedefMeasurementComponent(word_field, "Word field");
     A2lTypedefMeasurementArrayComponent(array_field, "Array field of 256 bytes");
     A2lTypedefComponent(struct_field, struct2_t, 1);
+    A2lTypedefComponent(array_struct_field, struct2_t, 8);
     A2lTypedefEnd();
 
     // Local stack measurement variables
