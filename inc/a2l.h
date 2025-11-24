@@ -405,21 +405,20 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
 
 // Single instance of typedef
 // A2L instance name and symbol name are the same
-#define A2lCreateTypedefInstance(name, typeName, comment) A2lCreateTypedefInstance_(#name, #typeName, 0, A2lGetAddr_((uint8_t *)&name), A2lGetAddrExt_(), comment);
+#define A2lCreateTypedefInstance(name, typeName, comment) A2lCreateInstance(#name, #typeName, 0, (const uint8_t *)&name, comment);
 
 // Single instance of typedef
 // A2L instance name and symbol name are different
-#define A2lCreateTypedefNamedInstance(name, instance, typeName, comment)                                                                                                           \
-    A2lCreateTypedefInstance_(name, #typeName, 0, A2lGetAddr_((uint8_t *)&instance), A2lGetAddrExt_(), comment);
+#define A2lCreateTypedefNamedInstance(name, instance, typeName, comment) A2lCreateInstance(name, #typeName, 0, (const uint8_t *)&instance, comment);
 
 // Array of typedef instances
-#define A2lCreateTypedefArray(name, typeName, dim, comment) A2lCreateTypedefInstance_(#name, #typeName, dim, A2lGetAddr_((uint8_t *)&name), A2lGetAddrExt_(), comment);
+#define A2lCreateTypedefArray(name, typeName, dim, comment) A2lCreateInstance(#name, #typeName, dim, (const uint8_t *)&name, comment);
 
 // Pointer to typedef instance
-#define A2lCreateTypedefReference(name, typeName, comment) A2lCreateTypedefInstance_(#name, #typeName, 0, A2lGetAddr_((uint8_t *)name), A2lGetAddrExt_(), comment);
+#define A2lCreateTypedefReference(name, typeName, comment) A2lCreateInstance(#name, #typeName, 0, (const uint8_t *)name, comment);
 
 // Pointer to array of typedef instances
-#define A2lCreateTypedefArrayReference(name, typeName, dim, comment) A2lCreateTypedefInstance_(#name, #typeName, dim, A2lGetAddr_((uint8_t *)name), A2lGetAddrExt_(), comment);
+#define A2lCreateTypedefArrayReference(name, typeName, dim, comment) A2lCreateInstance(#name, #typeName, dim, (const uint8_t *)name, comment);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Create typedefs and typedef components
@@ -651,7 +650,7 @@ void A2lTypedefParameterComponent_(const char *name, const char *typedef_name, u
                                    double max, const char *x_axis, const char *y_axis);
 
 // Create an instance of a typedef
-void A2lCreateTypedefInstance_(const char *instance_name, const char *typedef_name, uint16_t x_dim, uint32_t addr, uint8_t ext, const char *comment);
+void A2lCreateInstance(const char *instance_name, const char *typeName, uint16_t x_dim, const void *ptr, const char *comment);
 
 #ifdef __cplusplus
 } // extern "C"

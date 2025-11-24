@@ -19,7 +19,10 @@
 
 namespace xcplib {
 
-constexpr uint8_t XCP_ADDR_EXT_SEG = 0;
+// xcplib configuration parameters
+extern "C" {
+extern uint8_t XCP_ADDR_MODE_SEG;
+}
 
 // =============================================================================
 // RAII wrapper for structs with calibration parameters
@@ -79,7 +82,9 @@ template <typename T> class CalSeg {
     void CreateA2lTypedefInstance(const char *type_name, const char *comment) {
         A2lLock();
         A2lSetSegmentAddrMode__i(segment_index_, NULL);
-        A2lCreateTypedefInstance_(XcpGetCalSegName(segment_index_), type_name, 0, XcpGetCalSegBaseAddress(segment_index_), XCP_ADDR_EXT_SEG, comment);
+        // This requires segment relative addressing mode, if XCP_ADDR_EXT_SEG != 0 it will not work with CANape
+        assert(XCP_ADDR_MODE_SEG == 0);
+        A2lCreateInstance(XcpGetCalSegName(segment_index_), type_name, 0, NULL, comment);
         A2lUnlock();
     }
 };

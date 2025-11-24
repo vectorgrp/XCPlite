@@ -12,13 +12,13 @@
 
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
-#define OPTION_PROJECT_NAME "hello_xcp_cpp" // A2L project name
-#define OPTION_PROJECT_EPK __TIME__         // EPK version string
-#define OPTION_USE_TCP true                 // TCP or UDP, use TCP
-#define OPTION_SERVER_PORT 5555             // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0}     // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE (1024 * 64)       // Size of the measurement queue in bytes
-#define OPTION_LOG_LEVEL 3                  // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+
+constexpr const char *OPTION_PROJECT_NAME = "hello_xcp_cpp";
+constexpr bool OPTION_USE_TCP = true;
+constexpr uint16_t OPTION_SERVER_PORT = 5555;
+constexpr size_t OPTION_QUEUE_SIZE = 1024 * 64;
+constexpr int OPTION_LOG_LEVEL = 3;
+constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};
 
 //-----------------------------------------------------------------------------------------------------
 // Demo floating average calculation class
@@ -41,7 +41,7 @@ template <size_t N> class FloatingAverage {
 
 template <size_t N> FloatingAverage<N>::FloatingAverage() : samples_{}, current_index_(0), sample_count_(0), sum_(0.0) {
 
-    // Optional: Create a typedef for the FloatingAverage class in the A2L file
+    // Optional: For measurement of the complete instance, create an A2L typedef for this class
     if (A2lOnce()) {
         A2lTypedefBegin(FloatingAverage, this, "Typedef for FloatingAverage<%u>", N);
         A2lTypedefMeasurementComponent(current_index_, "Current position in the ring buffer");
@@ -53,10 +53,8 @@ template <size_t N> FloatingAverage<N>::FloatingAverage() : samples_{}, current_
     std::cout << "FloatingAverage<" << N << "> instance created" << std::endl;
 }
 
-// Floating avarage calculate function - instrumented for XCP measurement
-template <size_t N> double FloatingAverage<N>::calculate(double input) {
-
-    double average; // Current calculated average
+// Floating average calculate function - instrumented for XCP measurement
+template <size_t N> [[nodiscard]] double FloatingAverage<N>::calculate(double input) {
 
     // Calculate the floating average over N samples
     if (sample_count_ >= N) {
@@ -66,18 +64,16 @@ template <size_t N> double FloatingAverage<N>::calculate(double input) {
     }
     samples_[current_index_] = input;
     sum_ += input;
-    average = sum_ / static_cast<double>(sample_count_);
+    const double average = sum_ / static_cast<double>(sample_count_);
     current_index_ = (current_index_ + 1) % N;
 
-    //  Create event 'avg_calc', register individual local or member variables and trigger the event
-    XcpDaqEventExt(avg_calc1, this,                                               //
+    // Trigger event 'calc' (create, if not exists) and register individual local variables and member variables
+    XcpDaqEventExt(calc, this,                                                    //
                    (input, "Input value for floating average", "V", 0.0, 1000.0), //
                    (average, "Current calculated average"),                       //
                    (current_index_, "Current position in ring buffer"),           //
                    (sample_count_, "Number of samples collected"),                //
-                   (sum_, "Running sum of all samples")
-
-    );
+                   (sum_, "Running sum of all samples"));
 
     return average;
 }
@@ -100,8 +96,8 @@ const ParametersT kParameters = {.min = 2.0, .max = 3.0};
 std::optional<xcplib::CalSeg<ParametersT>> gCalSeg;
 
 // Simple random number generation between min and max calibration parameters
-double random_number() {
-    static unsigned int seed = 12345;
+[[nodiscard]] double random_number() {
+    static unsigned int seed{12345};
     seed = seed * 1103515245 + 12345;
 
     // Lock access to calibration parameters with RAII guard "params"
@@ -131,17 +127,16 @@ int main() {
     XcpSetLogLevel(OPTION_LOG_LEVEL);
 
     // Initialize the XCP singleton, activate XCP
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, true /* activate */);
+    XcpInit(OPTION_PROJECT_NAME, "V1.0_" __TIME__ /* EPK version*/, true /* activate */);
 
     // Initialize the XCP Server
-    uint8_t addr[4] = OPTION_SERVER_ADDR;
-    if (!XcpEthServerInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_QUEUE_SIZE)) {
+    if (!XcpEthServerInit(OPTION_SERVER_ADDR, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_QUEUE_SIZE)) {
         std::cerr << "Failed to initialize XCP server" << std::endl;
         return 1;
     }
 
     // Enable runtime A2L generation for data declaration as code
-    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(OPTION_SERVER_ADDR, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         std::cerr << "Failed to initialize A2L generator" << std::endl;
         return 1;
     }
@@ -159,37 +154,29 @@ int main() {
     A2lTypedefEnd();
     gCalSeg->CreateA2lTypedefInstance("ParametersT", "Random number generator parameters");
 
-    // Create a FloatingAverage calculator instance with a 128 samples ring buffer
-    // May be allocated on stack or heap, both can be measured via XCP
-    // on stack
-    // floating_average::FloatingAverage<128> average128;
-    // on heap
-    auto average128 = new floating_average::FloatingAverage<128>();
+    // Create a FloatingAverage calculator instance with 128 samples
+    floating_average::FloatingAverage<128> average_filter;
 
-    // Optional: Register the complete FloatingAverage instance on heap as measurement with event average128
-    DaqCreateEvent(average);
-    A2lSetRelativeAddrMode(average, average128);
-    A2lCreateTypedefReference(average128, FloatingAverage, "Instance average128 of FloatingAverage<128>");
+    // Optional: Register the complete FloatingAverage instance as measurement with event 'mainloop' (typedef 'FloatingAverage' created in constructor)
+    DaqCreateEvent(mainloop);
+    A2lSetStackAddrMode(mainloop);
+    A2lCreateTypedefInstance(average_filter, FloatingAverage, "Stack instance of FloatingAverage<128>");
 
     // Main loop
     std::cout << "Starting main loop... (Press Ctrl+C to exit)" << std::endl;
-    uint16_t counter = 0;
+    uint16_t counter{0};
     while (gRun) {
 
         counter++;
         double voltage = random_number();
-        double average_voltage = average128->calculate(voltage);
+        double average_voltage = average_filter.calculate(voltage);
 
-        // Once create event "mainloop" and register measurements for the local variables 'voltage' and 'average_voltage' via event 'mainloop'
-        // Trigger the event "mainloop" to measure the local variables
+        // Trigger event "mainloop" (create, if not already exists), register local variable measurements
         XcpDaqEvent(mainloop,                                                //
                     (counter, "Mainloop counter"),                           //
                     (voltage, "Input voltage", "V", 0.0, 1000.0),            //
                     (average_voltage, "Calculated voltage floating average") //
         );
-
-        // Optional: Trigger the event "average128" to measure the 'FloatingAverage' heap instance 'average128'
-        DaqTriggerEventExt(average, average128);
 
         sleepUs(1000);
         A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect

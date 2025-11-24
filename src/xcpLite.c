@@ -393,6 +393,8 @@ const char *XcpGetEpk(void) {
 #error "XCP_MAX_CALSEG_NAME must be <128 and odd for null termination"
 #endif
 
+uint8_t XCP_ADDR_MODE_SEG = XCP_ADDR_EXT_SEG;
+
 // Initialize the calibration segment list
 static void XcpInitCalSegList(void) {
     gXcp.CalSegList.count = 0;

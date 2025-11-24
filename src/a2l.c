@@ -994,13 +994,17 @@ uint32_t A2lGetAddr_(const void *p) {
         else if (XcpAddrIsDyn(gA2lAddrExt)) {
             uint64_t addr_diff = 0;
             if (gA2lBasePtr != NULL) {
-                addr_diff = (uint64_t)p - (uint64_t)gA2lBasePtr;
-                // Ensure the address difference does not overflow the value range for signed int16_t
-                uint64_t addr_high = (addr_diff >> 16);
-                if (addr_high != 0 && addr_high != 0xFFFFFFFFFFFF) {
-                    DBG_PRINTF_ERROR("A2L dyn address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lBasePtr);
-                    assert(0);
-                    return 0;
+                if (p != NULL) {
+                    addr_diff = (uint64_t)p - (uint64_t)gA2lBasePtr;
+                    // Ensure the address difference does not overflow the value range for signed int16_t
+                    uint64_t addr_high = (addr_diff >> 16);
+                    if (addr_high != 0 && addr_high != 0xFFFFFFFFFFFF) {
+                        DBG_PRINTF_ERROR("A2L dyn address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lBasePtr);
+                        assert(0);
+                        return 0;
+                    }
+                } else {
+                    addr_diff = 0;
                 }
             }
             return XcpAddrEncodeDyn(addr_diff, gA2lFixedEvent);
@@ -1216,9 +1220,12 @@ void A2lTypedefParameterComponent_(const char *name, const char *type_name, uint
     }
 }
 
-void A2lCreateTypedefInstance_(const char *instance_name, const char *typeName, uint16_t x_dim, uint32_t addr, uint8_t ext, const char *comment) {
+void A2lCreateInstance(const char *instance_name, const char *typeName, const uint16_t x_dim, const void *ptr, const char *comment) {
+
+    uint32_t addr = A2lGetAddr_((const void *)ptr);
+    uint8_t ext = A2lGetAddrExt_();
     if (gA2lFile != NULL) {
-        DBG_PRINTF4("A2lCreateTypedefInstance_: %s, \"%s\", %s, 0x%X\n", instance_name, comment, typeName, addr);
+        DBG_PRINTF4("A2lCreateInstance: %s, \"%s\", %s, 0x%X\n", instance_name, comment, typeName, addr);
 
         if (gA2lAutoGroups) {
             A2lAddToGroup(instance_name);
