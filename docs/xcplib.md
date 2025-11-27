@@ -205,12 +205,12 @@ double calc_energy(double voltage, double current) {
 
    //  Create event 'calc_energy', register individual local or member variables and trigger the event
     XcpDaqEventExt(calc_energy, this,                                               
-                   (voltage, "Input voltage", "V", 0.0, 1000.0), // A function parameter
-                   (current, "Input current", "A", 0.0, 500.0), // A function parameter
-                   (power, "Current calculated energy", "kWh", 0.0, 1000.0),   // A local variable                     
-                   (energy_, "Current power", "kW", 0.0, 1000.0), // A member variable accessed via 'this' pointer                 
-                    );   
-                    
+                   A2L_MEAS_PHYS(voltage, "Input voltage", "V", 0.0, 1000.0), // A function parameter
+                   A2L_MEAS_PHYS(current, "Input current", "A", 0.0, 500.0), // A function parameter
+                   A2L_MEAS_PHYS(power, "Current calculated energy", "kWh", 0.0, 1000.0),   // A local variable
+                   A2L_MEAS_PHYS(energy_, "Current power", "kW", 0.0, 1000.0) // A member variable accessed via 'this' pointer
+                   );
+
    return energy_;       
 }
 ```

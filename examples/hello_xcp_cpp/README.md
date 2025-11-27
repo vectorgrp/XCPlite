@@ -9,7 +9,7 @@
     auto average_filter = std::make_unique<floating_average::FloatingAverage<128>>();
     DaqCreateEvent(evt_heap);
     A2lSetRelativeAddrMode(evt_heap, average_filter.get());
-    A2lCreateInstance("average_filter", "FloatingAverage", 1, average_filter.get(), "Heap instance of FloatingAverage<128>");
+    A2lCreateInstance(average_filter, FloatingAverage, 1, average_filter.get(), "Heap instance of FloatingAverage<128>");
     
 ...
 

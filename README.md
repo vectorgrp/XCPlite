@@ -21,11 +21,12 @@ Designed exclusively for **Ethernet transport** (TCP/UDP with jumbo frames), XCP
 - **Runtime A2L generation** - Define events, parameters, and metadata as code; A2L description file generated and uploaded automatically
 - **Complex type support** - Handle basic types, structs, arrays, and nested structures
 - **Calibration segments** - Page switching, consistent atomic modification, and parameter persistence (freeze)
-- **PTP timestamps** - Prepared for high-precision synchronized timestamps
+- **PTP timestamps** - Prepared for high-precision PTP synchronized timestamps
 
-The API provides instrumentation macros for developers to define measurement points, calibration parameters, and meta data. Lock-free implementation ensures thread safety and data consistency without blocking latencies, even under high contention on multicore systems.
+The API provides instrumentation macros for developers to define measurement points, calibration parameters, and meta data.  
+Lock-free implementation ensures thread safety and data consistency without blocking latencies, even under high contention on multicore systems.
 
-Optimized for 64-bit architectures, compatible with 32-bit platforms. Requires C11 (C++20 for C++ support). Serves as the C library foundation for [XCP-Lite Rust](https://github.com/vectorgrp/xcp-lite).
+XCPlite is optimized for 64-bit architectures, compatible with 32-bit platforms. Requires C11 (C++20 for C++ support). Serves as the C library foundation for [XCP-Lite Rust](https://github.com/vectorgrp/xcp-lite).
 
 **Other XCP Implementations:**
 - **XCPbasic** - Free implementation for smaller Microcontrollers (8-bit+), optimized for CAN
@@ -45,16 +46,17 @@ Multiple examples demonstrating different features are available in the [example
 **Advanced examples:**
 - `c_demo` - Complex data objects, calibration objects, and page switching
 - `struct_demo` - Nested structs and multidimensional arrays
-- `multi_thread_demo` - Multi-threaded measurement and parameter sharing
+- `multi_thread_demo` - Multi-threaded measurement and parameter sharing among threads
 - `cpp_demo` - C++ class instrumentation and RAII wrappers
 - `no_a2l_demo` - Workflow without runtime A2L generation (experimental)
-- `bpf_demo` - Experimental syscall tracing (experimental)
+- `bpf_demo` - eBPF based syscall tracing (experimental)
 
 For detailed information about each example and how to set up CANape projects, see the [examples documentation](examples/README.md).
 
 **Requirements:**
 
-XCPlite examples are designed to showcase advanced XCP capabilities and are tested with **CANape 23+** (free demo version available). The examples leverage:
+XCPlite examples are designed to showcase advanced XCP capabilities and are tested with **CANape 23+** (free demo version available).  
+The examples leverage:
 
 - **Runtime A2L upload** - No manual A2L file management required
 - **A2L TYPEDEFs** - Complex data structures with reusable type definitions
@@ -67,23 +69,10 @@ These features enable efficient workflows for modern multicore HPC applications.
 
 ### Build
 
-**Linux/macOS:**
-```bash
-./build.sh                  # Build all targets
-# or
-cmake -S . -B build && cmake --build build --target hello_xcp
-```
+XCPlite uses CMake as the build system.  
+For quick builds of all examples, use the provided build scripts.  
+Details how to build for Linux, QNX, macOS, and Windows are in the [building documentation](docs/BUILDING.md).
 
-**Windows:**
-```bash
-./build.bat                 # Creates Visual Studio solution
-# or
-cmake -S . -B build-msvc && cmake --build build-msvc --target hello_xcp
-```
-
-**Note:** Windows has some limitations (atomic operations emulated, mutex-based transmit queue).
-
-For detailed build instructions and troubleshooting, see [Building Documentation](docs/BUILDING.md).
 
 ## Documentation
 

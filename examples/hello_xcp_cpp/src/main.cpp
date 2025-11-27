@@ -13,7 +13,8 @@
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
 
-constexpr const char *OPTION_PROJECT_NAME = "hello_xcp_cpp";
+constexpr const char OPTION_PROJECT_NAME[] = "hello_xcp_cpp";
+constexpr const char OPTION_PROJECT_VERSION[] = "V1.2";
 constexpr bool OPTION_USE_TCP = true;
 constexpr uint16_t OPTION_SERVER_PORT = 5555;
 constexpr size_t OPTION_QUEUE_SIZE = 1024 * 64;
@@ -36,7 +37,7 @@ template <size_t N> class FloatingAverage {
   public:
     FloatingAverage();
     ~FloatingAverage() = default;
-    double calculate(double input);
+    double calc(double input);
 };
 
 template <size_t N> FloatingAverage<N>::FloatingAverage() : samples_{}, current_index_(0), sample_count_(0), sum_(0.0) {
@@ -54,7 +55,7 @@ template <size_t N> FloatingAverage<N>::FloatingAverage() : samples_{}, current_
 }
 
 // Floating average calculate function - instrumented for XCP measurement
-template <size_t N> [[nodiscard]] double FloatingAverage<N>::calculate(double input) {
+template <size_t N> [[nodiscard]] double FloatingAverage<N>::calc(double input) {
 
     // Calculate the floating average over N samples
     if (sample_count_ >= N) {
@@ -64,18 +65,18 @@ template <size_t N> [[nodiscard]] double FloatingAverage<N>::calculate(double in
     }
     samples_[current_index_] = input;
     sum_ += input;
-    const double average = sum_ / static_cast<double>(sample_count_);
+    XCP_MEAS double average = sum_ / static_cast<double>(sample_count_);
     current_index_ = (current_index_ + 1) % N;
 
     // Trigger event 'calc' (create, if not exists) and register individual local variables and member variables
-    XcpDaqEventExt(calc, this,                                                    //
-                   (input, "Input value for floating average", "V", 0.0, 1000.0), //
-                   (average, "Current calculated average"),                       //
-                   (current_index_, "Current position in ring buffer"),           //
-                   (sample_count_, "Number of samples collected"),                //
-                   (sum_, "Running sum of all samples"));
+    XcpDaqEventExt(calc, this,                                                                 //
+                   A2L_MEAS_PHYS(input, "Input value for floating average", "V", 0.0, 1000.0), //
+                   A2L_MEAS(average, "Current calculated average"),                            //
+                   A2L_MEAS(current_index_, "Current position in ring buffer"),                //
+                   A2L_MEAS(sample_count_, "Number of samples collected"),                     //
+                   A2L_MEAS(sum_, "Running sum of all samples"));
 
-    return average;
+    return -average;
 }
 
 } // namespace floating_average
@@ -127,7 +128,7 @@ int main() {
     XcpSetLogLevel(OPTION_LOG_LEVEL);
 
     // Initialize the XCP singleton, activate XCP
-    XcpInit(OPTION_PROJECT_NAME, "V1.0_" __TIME__ /* EPK version*/, true /* activate */);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION /* EPK version*/, true /* activate */);
 
     // Initialize the XCP Server
     if (!XcpEthServerInit(OPTION_SERVER_ADDR, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_QUEUE_SIZE)) {
@@ -157,25 +158,27 @@ int main() {
     // Create a FloatingAverage calculator instance with 128 samples
     floating_average::FloatingAverage<128> average_filter;
 
+    // Main loop
+    std::cout << "Starting main loop... (Press Ctrl+C to exit)" << std::endl;
+    XCP_MEAS uint16_t counter{0};
+
     // Optional: Register the complete FloatingAverage instance as measurement with event 'mainloop' (typedef 'FloatingAverage' created in constructor)
     DaqCreateEvent(mainloop);
     A2lSetStackAddrMode(mainloop);
     A2lCreateTypedefInstance(average_filter, FloatingAverage, "Stack instance of FloatingAverage<128>");
 
-    // Main loop
-    std::cout << "Starting main loop... (Press Ctrl+C to exit)" << std::endl;
-    uint16_t counter{0};
     while (gRun) {
 
         counter++;
-        double voltage = random_number();
-        double average_voltage = average_filter.calculate(voltage);
+
+        XCP_MEAS double voltage = random_number();
+        XCP_MEAS double average_voltage = average_filter.calc(voltage);
 
         // Trigger event "mainloop" (create, if not already exists), register local variable measurements
-        XcpDaqEvent(mainloop,                                                //
-                    (counter, "Mainloop counter"),                           //
-                    (voltage, "Input voltage", "V", 0.0, 1000.0),            //
-                    (average_voltage, "Calculated voltage floating average") //
+        XcpDaqEvent(mainloop,                                                        //
+                    A2L_MEAS(counter, "Mainloop counter"),                           //
+                    A2L_MEAS_PHYS(voltage, "Input voltage", "V", 0.0, 1000.0),       //
+                    A2L_MEAS(average_voltage, "Calculated voltage floating average") //
         );
 
         sleepUs(1000);

@@ -22,8 +22,8 @@
 Usage examples:
 
 if (A2lOnce()) {
-    // This block executes exactly once globally across all threads
     // Not Thread-safe !
+    // This block executes exactly once globally across all threads
 }
 
 if (A2lOnceLock()) {

@@ -17,6 +17,11 @@
 
 #include "xcplib.h"
 
+// Options for variadic measurement/event macros/templates
+// Note: The template versions do not provide static markers for event creation and triggering
+// #define OPTION_USE_VARIADIC_MACROS
+#define OPTION_USE_VARIADIC_TEMPLATES
+
 namespace xcplib {
 
 // xcplib configuration parameters
@@ -84,7 +89,7 @@ template <typename T> class CalSeg {
         A2lSetSegmentAddrMode__i(segment_index_, NULL);
         // This requires segment relative addressing mode, if XCP_ADDR_EXT_SEG != 0 it will not work with CANape
         assert(XCP_ADDR_MODE_SEG == 0);
-        A2lCreateInstance(XcpGetCalSegName(segment_index_), type_name, 0, NULL, comment);
+        A2lCreateInstance_(XcpGetCalSegName(segment_index_), type_name, 0, NULL, comment);
         A2lUnlock();
     }
 };
@@ -96,9 +101,97 @@ template <typename T> CalSeg<T> CreateCalSeg(const char *name, const T *default_
 } // namespace xcplib
 
 // =============================================================================
-// Variadic event trigger convinience macros
-// Option to reate event, register measurements and trigger event in one call
+// Convenience macros and variadic templates
+// For XCP DAQ event creation, measurement registration and triggering
 // =============================================================================
+
+#ifdef OPTION_USE_VARIADIC_TEMPLATES
+
+// Portable always inline attribute for C++
+// Critical for functions that use xcp_get_frame_addr() to ensure they capture the caller's stack frame
+#if defined(_MSC_VER)
+#define XCPLIB_ALWAYS_INLINE __forceinline
+#elif defined(__GNUC__) || defined(__clang__)
+#define XCPLIB_ALWAYS_INLINE __attribute__((always_inline)) inline
+#else
+#define XCPLIB_ALWAYS_INLINE inline
+#warning "XCPLIB_ALWAYS_INLINE may not guarantee inlining on this compiler - stack frame addresses may be incorrect"
+#endif
+
+// Helper macros for creating measurement info objects, variable name stringification and address capture
+#define A2L_MEAS(var, comment) xcplib::MeasurementInfo(#var, &(var), var, comment)
+#define A2L_MEAS_PHYS(var, comment, unit, min, max) xcplib::MeasurementInfo(#var, &(var), var, comment, unit, min, max)
+
+// Convenience macros that stringify the event name and capture the caller's stack frame
+#define XcpDaqEvent(event_name, ...) xcplib::DaqEventTemplate(#event_name, __VA_ARGS__)
+#define XcpDaqEventExt(event_name, base, ...) xcplib::DaqEventExtTemplate(#event_name, base, __VA_ARGS__)
+
+namespace xcplib {
+
+// Helper struct to hold measurement information
+template <typename T> struct MeasurementInfo {
+    const char *name;
+    const T *addr;
+    const T &value;
+    const char *comment;
+    const char *unit;
+    double min;
+    double max;
+
+    // Constructor for basic measurement: (var, comment)
+    constexpr MeasurementInfo(const char *n, const T *a, const T &v, const char *c) : name(n), addr(a), value(v), comment(c), unit(nullptr), min(0.0), max(0.0) {}
+
+    // Constructor for physical measurement: (var, comment, unit, min, max)
+    constexpr MeasurementInfo(const char *n, const T *a, const T &v, const char *c, const char *u, double mn, double mx)
+        : name(n), addr(a), value(v), comment(c), unit(u), min(mn), max(mx) {}
+};
+
+// Helper to register a single measurement
+template <typename T> XCPLIB_ALWAYS_INLINE void registerMeasurement(const MeasurementInfo<T> &info) {
+    A2lCreateMeasurement_(nullptr, info.name, A2lTypeTraits::GetTypeIdFromExpr(info.value), (const void *)info.addr, info.unit, info.min, info.max, info.comment);
+}
+
+// @@@@ TODO Add markers
+// Create event: evt__##event_name
+// Trigger event: trg__AASD__##event_name
+
+// Main template functions for event handling
+template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventExtTemplate(const char *event_name, const void *base, Measurements &&...measurements) {
+    if (XcpIsActivated()) {
+        static thread_local tXcpEventId event_id = XCP_UNDEFINED_EVENT_ID;
+        if (event_id == XCP_UNDEFINED_EVENT_ID) {
+            event_id = XcpCreateEvent(event_name, 0, 0);
+            if (A2lOnceLock()) {
+                A2lSetAutoAddrMode__i(event_id, (const uint8_t *)xcp_get_frame_addr(), (const uint8_t *)base);
+                (registerMeasurement(measurements), ...);
+            }
+        }
+        XcpEventExt_Var(event_id, 2, (const uint8_t *)xcp_get_frame_addr(), (const uint8_t *)base);
+    }
+}
+
+template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventTemplate(const char *event_name, Measurements &&...measurements) {
+    if (XcpIsActivated()) {
+        static thread_local tXcpEventId event_id = XCP_UNDEFINED_EVENT_ID;
+        if (event_id == XCP_UNDEFINED_EVENT_ID) {
+            event_id = XcpCreateEvent(event_name, 0, 0);
+            if (A2lOnceLock()) {
+                A2lSetStackAddrMode__i(event_id, (const uint8_t *)xcp_get_frame_addr());
+                (registerMeasurement(measurements), ...);
+            }
+        }
+        XcpEventExt_Var(event_id, 1, (const uint8_t *)xcp_get_frame_addr());
+    }
+}
+
+} // namespace xcplib
+
+#endif
+
+#ifdef OPTION_USE_VARIADIC_MACROS
+
+#define A2L_MEAS_PHYS
+#define A2L_MEAS
 
 // Macro to count arguments in a tuple
 #define A2L_TUPLE_SIZE_(...) A2L_TUPLE_SIZE_IMPL_(__VA_ARGS__, 5, 4, 3, 2, 1, 0)
@@ -113,11 +206,10 @@ template <typename T> CalSeg<T> CreateCalSeg(const char *name, const T *default_
 #define A2L_UNPACK_AND_REG_SELECT_IMPL_(N) A2L_UNPACK_AND_REG_##N##_
 
 // Measurement: (var, comment)
-#define A2L_UNPACK_AND_REG_2_(var, comment) A2lCreateMeasurement_(NULL, #var, A2lGetTypeId(var), A2lGetAddr_((uint8_t *)&(var)), A2lGetAddrExt_(), NULL, 0.0, 0.0, comment);
+#define A2L_UNPACK_AND_REG_2_(var, comment) A2lCreateMeasurement_(NULL, #var, A2lGetTypeId(var), &(var), NULL, 0.0, 0.0, comment);
 
 // Physical measurement: (var, comment, unit_or_conversion, min, max)
-#define A2L_UNPACK_AND_REG_5_(var, comment, unit_or_conversion, min, max)                                                                                                          \
-    A2lCreateMeasurement_(NULL, #var, A2lGetTypeId(var), A2lGetAddr_((uint8_t *)&(var)), A2lGetAddrExt_(), unit_or_conversion, min, max, comment);
+#define A2L_UNPACK_AND_REG_5_(var, comment, unit_or_conversion, min, max) A2lCreateMeasurement_(NULL, #var, A2lGetTypeId(var), &(var), unit_or_conversion, min, max, comment);
 
 // Main unpacking macro - dispatches to the right version
 #define A2L_UNPACK_AND_REG_(...) A2L_UNPACK_AND_REG_DISPATCH_((__VA_ARGS__))
@@ -204,10 +296,6 @@ template <typename T> CalSeg<T> CreateCalSeg(const char *name, const T *default_
 // Strips the outer parentheses from (var, comment) and passes to macro as two separate arguments
 #define XCPLIB_APPLY_(m, args) m args
 
-// =============================================================================
-// Variadic DAQ macros which register measurments and trigger already created events
-// =============================================================================
-
 // Create the daq event (just for unique naming scheme)
 #define XcpCreateDaqEvent DaqCreateEvent
 
@@ -233,7 +321,6 @@ template <typename T> CalSeg<T> CreateCalSeg(const char *name, const T *default_
 
 // =============================================================================
 // Variadic DAQ macros which create, register variables and trigger events in one call
-// =============================================================================
 
 // Create event, register stack measurements once and trigger an event with stack addressing mode
 #define XcpDaqEvent(event_name, ...)                                                                                                                                               \
@@ -242,7 +329,7 @@ template <typename T> CalSeg<T> CreateCalSeg(const char *name, const T *default_
             static THREAD_LOCAL tXcpEventId evt__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                            \
             if (evt__##event_name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                     \
                 evt__##event_name = XcpCreateEvent(#event_name, 0, 0);                                                                                                             \
-                if (A2lOnceLock()) {                                                                                                                                               \
+                if (A2lOnce()) {                                                                                                                                                   \
                     A2lSetStackAddrMode__s(#event_name, xcp_get_frame_addr());                                                                                                     \
                     XCPLIB_FOR_EACH_MEAS_(A2L_UNPACK_AND_REG_, __VA_ARGS__)                                                                                                        \
                 }                                                                                                                                                                  \
@@ -259,7 +346,7 @@ template <typename T> CalSeg<T> CreateCalSeg(const char *name, const T *default_
             static THREAD_LOCAL tXcpEventId evt__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                            \
             if (evt__##event_name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                     \
                 evt__##event_name = XcpCreateEvent(#event_name, 0, 0);                                                                                                             \
-                if (A2lOnceLock()) {                                                                                                                                               \
+                if (A2lOnce()) {                                                                                                                                                   \
                     A2lSetAutoAddrMode__s(#event_name, xcp_get_frame_addr(), (const uint8_t *)base);                                                                               \
                     XCPLIB_FOR_EACH_MEAS_(A2L_UNPACK_AND_REG_, __VA_ARGS__)                                                                                                        \
                 }                                                                                                                                                                  \
@@ -268,3 +355,5 @@ template <typename T> CalSeg<T> CreateCalSeg(const char *name, const T *default_
             XcpEventExt_Var(trg__AASD__##event_name, 2, xcp_get_frame_addr(), (const uint8_t *)base);                                                                              \
         }                                                                                                                                                                          \
     } while (0)
+
+#endif

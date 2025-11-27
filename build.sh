@@ -160,11 +160,31 @@ if [ "$CLEAN_BUILD" = true ]; then
     rm -rf "$BUILD_DIR"
 fi
 
-# Gcc has lesser compatibility problems, use gcc for raspberry pi builds, if problems with atomic_uint_least32_t
+echo ""
 echo "==================================================================="
 echo "Configuring CMake build system..."
 echo "==================================================================="
 cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE -S . -B $BUILD_DIR $CMAKE_COMPILER_ARGS
+
+echo ""
+if [ -f "$BUILD_DIR/CMakeCache.txt" ]; then
+    echo "Active Build Type: $BUILD_TYPE"
+    case "$BUILD_TYPE" in
+        "Debug")
+            echo "C Flags:   $(grep "CMAKE_C_FLAGS_DEBUG:STRING=" $BUILD_DIR/CMakeCache.txt | cut -d= -f2-)"
+            echo "C++ Flags: $(grep "CMAKE_CXX_FLAGS_DEBUG:STRING=" $BUILD_DIR/CMakeCache.txt | cut -d= -f2-)"
+            ;;
+        "Release")
+            echo "C Flags:   $(grep "CMAKE_C_FLAGS_RELEASE:STRING=" $BUILD_DIR/CMakeCache.txt | cut -d= -f2-)"
+            echo "C++ Flags: $(grep "CMAKE_CXX_FLAGS_RELEASE:STRING=" $BUILD_DIR/CMakeCache.txt | cut -d= -f2-)"
+            ;;
+        "RelWithDebInfo")
+            echo "C Flags:   $(grep "CMAKE_C_FLAGS_RELWITHDEBINFO:STRING=" $BUILD_DIR/CMakeCache.txt | cut -d= -f2-)"
+            echo "C++ Flags: $(grep "CMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=" $BUILD_DIR/CMakeCache.txt | cut -d= -f2-)"
+            ;;
+    esac
+fi
+echo ""
 
 # Be sure EPK is updated before building
 touch src/a2l.c

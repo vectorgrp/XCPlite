@@ -436,13 +436,13 @@ int main() {
     A2lSetStackAddrMode(event); // stack relative addressing mode
     A2lCreateTypedefInstance(local_struct2, struct2_t, "Instance of test_struct2_t");
     A2lCreateTypedefInstance(local_struct1, struct1_t, "Instance of test_struct1_t");
-    A2lCreateTypedefArray(local_struct1_array, struct1_t, 8, "Array [10] of struct1_t");
+    A2lCreateTypedefInstanceArray(local_struct1_array, struct1_t, 8, "Array [10] of struct1_t");
 
     // static/global
     A2lSetAbsoluteAddrMode(event); // absolute addressing mode
     A2lCreateTypedefInstance(struct2, struct2_t, "Instance of test_struct2_t");
     A2lCreateTypedefInstance(struct1, struct1_t, "Instance of test_struct1_t");
-    A2lCreateTypedefArray(struct1_array, struct1_t, 16, "Array [16] of struct1_t");
+    A2lCreateTypedefInstanceArray(struct1_array, struct1_t, 16, "Array [16] of struct1_t");
 
     // Heap
     DaqCreateEvent(event_heap);

@@ -137,14 +137,14 @@ int main(void) {
     A2lCreateMeasurement(counter, "Mainloop counter");
     A2lCreateTypedefInstance(local_struct2, struct2_t, "Instance of test_struct2_t");
     A2lCreateTypedefInstance(local_struct1, struct1_t, "Instance of test_struct1_t");
-    A2lCreateTypedefArray(local_struct1_array, struct1_t, 8, "Array [10] of struct1_t");
+    A2lCreateTypedefInstanceArray(local_struct1_array, struct1_t, 8, "Array [10] of struct1_t");
 
     // static/global
     A2lSetAbsoluteAddrMode(event); // absolute addressing mode
     A2lCreateMeasurement(static_counter, "Global measurement variable ");
     A2lCreateTypedefInstance(static_struct2, struct2_t, "Instance of test_struct2_t");
     A2lCreateTypedefInstance(static_struct1, struct1_t, "Instance of test_struct1_t");
-    A2lCreateTypedefArray(static_struct1_array, struct1_t, 8, "Array [10] of struct1_t");
+    A2lCreateTypedefInstanceArray(static_struct1_array, struct1_t, 8, "Array [10] of struct1_t");
 
     // Heap
     A2lSetRelativeAddrMode(event2, heap_struct1); // relative addressing mode for heap_struct1

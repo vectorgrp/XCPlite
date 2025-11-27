@@ -622,6 +622,7 @@ static void A2lCreate_ETH_IF_DATA(bool useTCP, const uint8_t *addr, uint16_t por
 
         // Transport Layer info
         uint8_t addr0[] = {127, 0, 0, 1}; // Use localhost if no other option
+        // uint8_t addr0[] = {0, 0, 0, 0}; // Use 0.0.0.0 to indicate undefined, but considered a valid address by CANape instead of using tool side default
         if (addr != NULL && addr[0] != 0) {
             memcpy(addr0, addr, 4);
         } else {
@@ -1220,12 +1221,11 @@ void A2lTypedefParameterComponent_(const char *name, const char *type_name, uint
     }
 }
 
-void A2lCreateInstance(const char *instance_name, const char *typeName, const uint16_t x_dim, const void *ptr, const char *comment) {
-
-    uint32_t addr = A2lGetAddr_((const void *)ptr);
-    uint8_t ext = A2lGetAddrExt_();
+void A2lCreateInstance_(const char *instance_name, const char *typeName, const uint16_t x_dim, const void *ptr, const char *comment) {
     if (gA2lFile != NULL) {
-        DBG_PRINTF4("A2lCreateInstance: %s, \"%s\", %s, 0x%X\n", instance_name, comment, typeName, addr);
+        uint32_t addr = A2lGetAddr_(ptr);
+        uint8_t ext = A2lGetAddrExt_();
+        DBG_PRINTF4("A2lCreateInstance_: %s, \"%s\", %s, 0x%X\n", instance_name, comment, typeName, addr);
 
         if (gA2lAutoGroups) {
             A2lAddToGroup(instance_name);
@@ -1251,11 +1251,14 @@ void A2lCreateInstance(const char *instance_name, const char *typeName, const ui
 //----------------------------------------------------------------------------------
 // Measurements
 
-void A2lCreateMeasurement_(const char *instance_name, const char *name, tA2lTypeId type, uint32_t addr, uint8_t ext, const char *unit_or_conversion, double phys_min,
-                           double phys_max, const char *comment) {
-
+void A2lCreateMeasurement_(const char *instance_name, const char *name, tA2lTypeId type, const void *ptr, const char *unit_or_conversion, double phys_min, double phys_max,
+                           const char *comment) {
     if (gA2lFile != NULL) {
+        uint32_t addr = A2lGetAddr_(ptr);
+        uint8_t ext = A2lGetAddrExt_();
         const char *symbol_name = A2lGetSymbolName(instance_name, name);
+        DBG_PRINTF4("A2lCreateMeasurement_:  name=%s, addr=%p, unit=%s, min=%g, max=%g, addr=0x%08X, addr_ext=%u\n", symbol_name, ptr,
+                    unit_or_conversion ? unit_or_conversion : "null", phys_min, phys_max, addr, ext);
         if (gA2lAutoGroups) {
             A2lAddToGroup(symbol_name);
         }
@@ -1286,9 +1289,11 @@ void A2lCreateMeasurement_(const char *instance_name, const char *name, tA2lType
     }
 }
 
-void A2lCreateMeasurementArray_(const char *instance_name, const char *name, tA2lTypeId type, int x_dim, int y_dim, uint32_t addr, uint8_t ext, const char *unit_or_conversion,
+void A2lCreateMeasurementArray_(const char *instance_name, const char *name, tA2lTypeId type, int x_dim, int y_dim, const void *ptr, const char *unit_or_conversion,
                                 double phys_min, double phys_max, const char *comment) {
     if (gA2lFile != NULL) {
+        uint32_t addr = A2lGetAddr_((const void *)ptr);
+        uint8_t ext = A2lGetAddrExt_();
         const char *symbol_name = A2lGetSymbolName(instance_name, name);
         if (gA2lAutoGroups) {
             A2lAddToGroup(symbol_name);
@@ -1318,9 +1323,11 @@ void A2lCreateMeasurementArray_(const char *instance_name, const char *name, tA2
 //----------------------------------------------------------------------------------
 // Parameters
 
-void A2lCreateParameter_(const char *name, tA2lTypeId type, uint32_t addr, uint8_t ext, const char *comment, const char *unit_or_conversion, double phys_min, double phys_max) {
+void A2lCreateParameter_(const char *name, tA2lTypeId type, const void *ptr, const char *comment, const char *unit_or_conversion, double phys_min, double phys_max) {
 
     if (gA2lFile != NULL) {
+        uint32_t addr = A2lGetAddr_(ptr);
+        uint8_t ext = A2lGetAddrExt_();
         if (gA2lAutoGroups) {
             A2lAddToGroup(name);
         }
@@ -1344,10 +1351,12 @@ void A2lCreateParameter_(const char *name, tA2lTypeId type, uint32_t addr, uint8
     }
 }
 
-void A2lCreateMap_(const char *name, tA2lTypeId type, uint32_t addr, uint8_t ext, uint32_t xdim, uint32_t ydim, const char *comment, const char *unit, double min, double max,
+void A2lCreateMap_(const char *name, tA2lTypeId type, const void *ptr, uint32_t xdim, uint32_t ydim, const char *comment, const char *unit, double min, double max,
                    const char *x_axis, const char *y_axis) {
 
     if (gA2lFile != NULL) {
+        uint32_t addr = A2lGetAddr_(ptr);
+        uint8_t ext = A2lGetAddrExt_();
         if (gA2lAutoGroups) {
             A2lAddToGroup(name);
         }
@@ -1370,10 +1379,11 @@ void A2lCreateMap_(const char *name, tA2lTypeId type, uint32_t addr, uint8_t ext
     }
 }
 
-void A2lCreateCurve_(const char *name, tA2lTypeId type, uint32_t addr, uint8_t ext, uint32_t xdim, const char *comment, const char *unit, double min, double max,
-                     const char *x_axis) {
+void A2lCreateCurve_(const char *name, tA2lTypeId type, const void *ptr, uint32_t xdim, const char *comment, const char *unit, double min, double max, const char *x_axis) {
 
     if (gA2lFile != NULL) {
+        uint32_t addr = A2lGetAddr_(ptr);
+        uint8_t ext = A2lGetAddrExt_();
         if (gA2lAutoGroups) {
             A2lAddToGroup(name);
         }
@@ -1392,9 +1402,11 @@ void A2lCreateCurve_(const char *name, tA2lTypeId type, uint32_t addr, uint8_t e
     }
 }
 
-void A2lCreateAxis_(const char *name, tA2lTypeId type, uint32_t addr, uint8_t ext, uint32_t xdim, const char *comment, const char *unit, double min, double max) {
+void A2lCreateAxis_(const char *name, tA2lTypeId type, const void *ptr, uint32_t xdim, const char *comment, const char *unit, double min, double max) {
 
     if (gA2lFile != NULL) {
+        uint32_t addr = A2lGetAddr_(ptr);
+        uint8_t ext = A2lGetAddrExt_();
         if (gA2lAutoGroups) {
             A2lAddToGroup(name);
         }

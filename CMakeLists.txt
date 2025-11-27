@@ -96,25 +96,25 @@ endif()
 # Custom build type configurations for debug symbols in release builds
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     # For Release builds: use -O2 optimization and remove debug symbols and assertions
-    set(CMAKE_C_FLAGS_RELEASE "-O2  -DNDEBUG")
-    set(CMAKE_CXX_FLAGS_RELEASE "-O2  -DNDEBUG")
+    set(CMAKE_C_FLAGS_RELEASE "-O2  -DNDEBUG" CACHE STRING "C flags for Release build" FORCE)
+    set(CMAKE_CXX_FLAGS_RELEASE "-O2  -DNDEBUG" CACHE STRING "C++ flags for Release build" FORCE)
     # For RelWithDebInfo builds: release build with moderate optimization and with debug symbols, preserve stack frames
     # -fno-omit-frame-pointer: Always generate frame pointer for better stack traces
     # -fno-optimize-sibling-calls: Prevent tail call optimization that can confuse debuggers
-    set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls -DNDEBUG")
-    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls -DNDEBUG")
+    set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls -DNDEBUG" CACHE STRING "C flags for RelWithDebInfo build" FORCE)
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls -DNDEBUG" CACHE STRING "C++ flags for RelWithDebInfo build" FORCE)
     # For Debug builds: no optimization, full debug symbols
-    set(CMAKE_C_FLAGS_DEBUG "-O0 -g")
-    set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
-    message(STATUS "Custom compiler flags set")
+    set(CMAKE_C_FLAGS_DEBUG "-O0 -g" CACHE STRING "C flags for Debug build" FORCE)
+    set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g" CACHE STRING "C++ flags for Debug build" FORCE)
 elseif(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
     # MSVC equivalent settings
-    set(CMAKE_C_FLAGS_RELEASE "/O2 /Zi /DNDEBUG")
-    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /Zi /DNDEBUG")
+    set(CMAKE_C_FLAGS_RELEASE "/O2 /Zi /DNDEBUG" CACHE STRING "C flags for Release build" FORCE)
+    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /Zi /DNDEBUG" CACHE STRING "C++ flags for Release build" FORCE)
     # /Oy- disables frame pointer omission (equivalent to -fno-omit-frame-pointer)
-    set(CMAKE_C_FLAGS_RELWITHDEBINFO "/O2 /Zi /Oy- /DNDEBUG")
-    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "/O2 /Zi /Oy- /DNDEBUG")
-    message(STATUS "Custom MSVC flags set")
+    set(CMAKE_C_FLAGS_RELWITHDEBINFO "/O2 /Zi /Oy- /DNDEBUG" CACHE STRING "C flags for RelWithDebInfo build" FORCE)
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "/O2 /Zi /Oy- /DNDEBUG" CACHE STRING "C++ flags for RelWithDebInfo build" FORCE)
+    set(CMAKE_C_FLAGS_DEBUG "/Od /Zi" CACHE STRING "C flags for Debug build" FORCE)
+    set(CMAKE_CXX_FLAGS_DEBUG "/Od /Zi" CACHE STRING "C++ flags for Debug build" FORCE)
 endif()
 
 # xcplib sources
