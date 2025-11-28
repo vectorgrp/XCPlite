@@ -75,6 +75,9 @@ void XcpEventExt_Var(tXcpEventId event, uint8_t count, ...);
 void XcpEventExtAt_Var(tXcpEventId event, uint64_t clock, uint8_t count, ...);
 #endif
 
+// Enable or disable a XCP DAQ event
+void XcpEventEnable(tXcpEventId event, bool enable);
+
 // Send a XCP event message
 void XcpSendEvent(uint8_t evc, const uint8_t *d, uint8_t l);
 
@@ -125,11 +128,14 @@ void XcpSetLogLevel(uint8_t level);
 #define XCP_MAX_EVENT_NAME 15
 #endif
 
+#define XCP_DAQ_EVENT_FLAG_DISABLED 0x01 // Event is disabled
+#define XCP_DAQ_EVENT_FLAG_PRIORITY 0x02 // Event priority flag
+
 typedef struct {
     uint32_t cycleTimeNs; // Cycle time in nanoseconds, 0 means sporadic event
     uint16_t index;       // Event instance index, 0 = single instance, 1.. = multiple instances
     uint16_t daq_first;   // First associated DAQ list, linked list
-    uint8_t priority;     // Priority 0 = queued, >=1 flushing
+    uint8_t flags;        // Control flags for the event
 #ifdef XCP_ENABLE_DAQ_PRESCALER
     uint8_t daq_prescaler;     // Current prescaler set with SET_DAQ_LIST_MODE
     uint8_t daq_prescaler_cnt; // Current prescaler counter
@@ -139,11 +145,11 @@ typedef struct {
 
 typedef struct {
     MUTEX mutex;
-    uint16_t count;                       // number of events
+    atomic_uint_fast16_t count;           // number of events
     tXcpEvent event[XCP_MAX_EVENT_COUNT]; // event list
 } tXcpEventList;
 
-// Create an XCP event (internal use)
+// Create an XCP event (internal use only, not thread safe)
 tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cycleTimeNs, uint8_t priority);
 // Add a measurement event to event list, return event number (0..MAX_EVENT-1)
 tXcpEventId XcpCreateEvent(const char *name, uint32_t cycleTimeNs /* ns */, uint8_t priority /* 0 = queued, >=1 flushing*/);
@@ -152,6 +158,9 @@ tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycleTimeNs /* ns 
 
 // Get event list
 tXcpEventList *XcpGetEventList(void);
+
+// Get the number of events in the XCP event list
+uint16_t XcpGetEventCount(void);
 
 // Get event id by name, returns XCP_UNDEFINED_EVENT_ID if not found
 tXcpEventId XcpFindEvent(const char *name, uint16_t *count);

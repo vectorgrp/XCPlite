@@ -123,8 +123,8 @@ template <typename T> CalSeg<T> CreateCalSeg(const char *name, const T *default_
 #define A2L_MEAS_PHYS(var, comment, unit, min, max) xcplib::MeasurementInfo(#var, &(var), var, comment, unit, min, max)
 
 // Convenience macros that stringify the event name and capture the caller's stack frame
-#define XcpDaqEvent(event_name, ...) xcplib::DaqEventTemplate(#event_name, __VA_ARGS__)
-#define XcpDaqEventExt(event_name, base, ...) xcplib::DaqEventExtTemplate(#event_name, base, __VA_ARGS__)
+#define DaqEventVar(event_name, ...) xcplib::DaqEventTemplate(#event_name, __VA_ARGS__)
+#define DaqEventExtVar(event_name, base, ...) xcplib::DaqEventExtTemplate(#event_name, base, __VA_ARGS__)
 
 namespace xcplib {
 
@@ -176,7 +176,7 @@ template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventTemplate(c
         if (event_id == XCP_UNDEFINED_EVENT_ID) {
             event_id = XcpCreateEvent(event_name, 0, 0);
             if (A2lOnceLock()) {
-                A2lSetStackAddrMode__i(event_id, (const uint8_t *)xcp_get_frame_addr());
+                A2lSetAutoAddrMode__i(event_id, (const uint8_t *)xcp_get_frame_addr(), NULL);
                 (registerMeasurement(measurements), ...);
             }
         }
@@ -323,7 +323,7 @@ template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventTemplate(c
 // Variadic DAQ macros which create, register variables and trigger events in one call
 
 // Create event, register stack measurements once and trigger an event with stack addressing mode
-#define XcpDaqEvent(event_name, ...)                                                                                                                                               \
+#define DaqEventVar(event_name, ...)                                                                                                                                               \
     do {                                                                                                                                                                           \
         if (XcpIsActivated()) {                                                                                                                                                    \
             static THREAD_LOCAL tXcpEventId evt__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                            \

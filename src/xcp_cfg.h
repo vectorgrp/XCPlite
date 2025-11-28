@@ -308,6 +308,9 @@ xcp-lite >=V1.0.0 for Rust XCPLITE__C_DR:
 // Enable prescaler for DAQ events, requires XCP_ENABLE_DAQ_EVENT_LIST
 #define XCP_ENABLE_DAQ_PRESCALER
 
+// Enable event control for DAQ events (enable/disable), requires XCP_ENABLE_DAQ_EVENT_LIST
+#define XCP_ENABLE_DAQ_CONTROL
+
 // Overrun indication via PID
 // Not needed for Ethernet, client detects data loss via transport layer counter gaps
 // #define XCP_ENABLE_OVERRUN_INDICATION_PID

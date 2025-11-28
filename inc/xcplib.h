@@ -185,17 +185,38 @@ uint16_t XcpGetEventIndex(tXcpEventId event);
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Dynamic DAQ event creation convenience macros
 
+// Needs thread local storage
+#ifndef THREAD_LOCAL
+#ifdef __cplusplus
+#define THREAD_LOCAL thread_local
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#define THREAD_LOCAL _Thread_local
+#elif defined(__GNUC__)
+#define THREAD_LOCAL __thread
+#elif defined(_MSC_VER)
+#define THREAD_LOCAL __declspec(thread)
+#else
+#define THREAD_LOCAL static // Fallback to static (not thread-safe)
+#error "Thread-local storage not supported"
+#endif
+#endif // THREAD_LOCAL
+
 // Create XCP events by 'name' as identifier or string
 // Cycle time is set to sporadic and priority to normal
 // Setting the cycle time would only have the benefit for the XCP client tool to estimate the expected data rate of a DAQ setup
 // To create an XCP event with increased priority, use XcpCreateEvent
 
+// Note on thread safety of the once patterns below:
+// The XcpCreateEventXxx functions are thread safe by using a mutex for event list access and there are atomic aquire/release operations on event count to handle event visibility
+// Using a non atomic variable to check the once state, has no considerable risk of reading torn values on a >=32 microprocessor architecture
+// The existing race condition is irrelevant
+
 /// Global event
 /// Macro may be used anywhere in the code, even in loops
-/// TLS once pattern (the first call creates the event, the first call per thread does the event lookup)
+/// The first call creates the event, XcpCreateEvent is thread safe and just returns the existing event on subsequent calls
 /// @param name Name given as identifier
 #define DaqCreateEvent(name)                                                                                                                                                       \
-    static THREAD_LOCAL tXcpEventId evt__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                          \
+    static tXcpEventId evt__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                                       \
     if (XcpIsActivated()) {                                                                                                                                                        \
         if (evt__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                               \
             evt__##name = XcpCreateEvent(#name, 0, 0);                                                                                                                             \
@@ -204,10 +225,10 @@ uint16_t XcpGetEventIndex(tXcpEventId event);
 
 /// Global event
 /// Macro may be used anywhere in the code, even in loops
-/// TLS once pattern (the first call creates the event, the first call per thread does the event lookup)
+/// The first call creates the event, XcpCreateEvent is thread safe and just returns the existing event on subsequent calls
 /// @param name Name given as string
 #define DaqCreateEvent_s(name)                                                                                                                                                     \
-    static THREAD_LOCAL tXcpEventId evt__dynname = XCP_UNDEFINED_EVENT_ID;                                                                                                         \
+    static tXcpEventId evt__dynname = XCP_UNDEFINED_EVENT_ID;                                                                                                                      \
     if (XcpIsActivated()) {                                                                                                                                                        \
         if (evt__dynname == XCP_UNDEFINED_EVENT_ID) {                                                                                                                              \
             evt__dynname = XcpCreateEvent(name, 0, 0);                                                                                                                             \
@@ -216,16 +237,16 @@ uint16_t XcpGetEventIndex(tXcpEventId event);
 
 /// Multi instance event
 /// No once pattern, a new event instance is created for each call
-/// If the name exists, an incrementing instance id is appended to the name <name>_xxx
+/// If the name exists, an incrementing instance index is appended to the event <name>_xxx
 /// @param name Name given as identifier
 #define DaqCreateEventInstance(name)                                                                                                                                               \
-    static THREAD_LOCAL tXcpEventId evt__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                          \
+    static tXcpEventId evt__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                                       \
     if (XcpIsActivated()) {                                                                                                                                                        \
         evt__##name = XcpCreateEventInstance(#name, 0, 0);                                                                                                                         \
     }
 
 /// Thread instance event
-/// TLS once pattern (the first call per thread creates the event, an incrementing instance id is appended to the name <name>_xxx
+/// TLS once pattern (the first call per thread creates the event, an incrementing instance index is appended to the name <name>_xxx
 /// @param name Name given as identifier
 #define DaqCreateEventThreadInstance(name)                                                                                                                                         \
     static THREAD_LOCAL tXcpEventId evt__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                          \
@@ -266,6 +287,9 @@ void XcpEventExtAt(tXcpEventId event, const uint8_t *base2, uint64_t clock);
 void XcpEventExt2(tXcpEventId event, const uint8_t *base2, const uint8_t *base3);
 void XcpEventExt2At(tXcpEventId event, const uint8_t *base2, const uint8_t *base3, uint64_t clock);
 void XcpEventExtAt_Var(tXcpEventId event, uint64_t clock, uint8_t count, ...);
+
+// Enable or disable a XCP DAQ event
+void XcpEventEnable(tXcpEventId event, bool enable);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Get stack frame pointer
@@ -317,28 +341,16 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
 // Uses thread local storage to create a thread safe once pattern for the event lookup
 // All macros can be used to measure variables registered in absolute addressing mode as well
 
-// Needs thread local storage
-#ifndef THREAD_LOCAL
-#ifdef __cplusplus
-#define THREAD_LOCAL thread_local
-#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
-#define THREAD_LOCAL _Thread_local
-#elif defined(__GNUC__)
-#define THREAD_LOCAL __thread
-#elif defined(_MSC_VER)
-#define THREAD_LOCAL __declspec(thread)
-#else
-#define THREAD_LOCAL static // Fallback to static (not thread-safe)
-#error "Thread-local storage not supported"
-#endif
-#endif // THREAD_LOCAL
+// All macros assert that the event is found in the one time lookup, which means an event has to exist, before it is triggered the first time
+// The asserts may be removed with the consequence, that the event lookup takes place every trigger, before the event is created, which is the additional runtime overhead of a
+// linear search in the event list
 
 /// Trigger the XCP event 'name' for stack relative or absolute addressing
 /// Cache the event name lookup
 /// @param name Name given as identifier
 #define DaqTriggerEvent(name)                                                                                                                                                      \
     if (XcpIsActivated()) {                                                                                                                                                        \
-        static THREAD_LOCAL tXcpEventId trg__AAS__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                 \
+        static tXcpEventId trg__AAS__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                              \
         if (trg__AAS__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                          \
             trg__AAS__##name = XcpFindEvent(#name, NULL);                                                                                                                          \
             assert(trg__AAS__##name != XCP_UNDEFINED_EVENT_ID);                                                                                                                    \
@@ -347,7 +359,7 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
     }
 #define DaqTriggerEventAt(name, clock)                                                                                                                                             \
     if (XcpIsActivated()) {                                                                                                                                                        \
-        static THREAD_LOCAL tXcpEventId trg__AAS__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                 \
+        static tXcpEventId trg__AAS__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                              \
         if (trg__AAS__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                          \
             trg__AAS__##name = XcpFindEvent(#name, NULL);                                                                                                                          \
             assert(trg__AAS__##name != XCP_UNDEFINED_EVENT_ID);                                                                                                                    \
@@ -360,14 +372,12 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
 /// @param name Event given as id
 #define DaqTriggerEvent_i(event_id)                                                                                                                                                \
     if (XcpIsActivated()) {                                                                                                                                                        \
-        static THREAD_LOCAL tXcpEventId trg__AAS__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                 \
-        trg__AAS__##name = event_id;                                                                                                                                               \
+        static tXcpEventId trg__AAS__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                              \
         XcpEventExt(event_id, xcp_get_frame_addr());                                                                                                                               \
     }
 #define DaqTriggerEventAt_i(event_id, clock)                                                                                                                                       \
     if (XcpIsActivated()) {                                                                                                                                                        \
-        static THREAD_LOCAL tXcpEventId trg__AAS__##name = event_id;                                                                                                               \
-        trg__AAS__##name = event_id;                                                                                                                                               \
+        static tXcpEventId trg__AAS__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                              \
         XcpEventExtAt(event_id, xcp_get_frame_addr(), clock);                                                                                                                      \
     }
 
@@ -375,7 +385,7 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
 /// Cache the event name lookup
 #define DaqTriggerEventExt(name, base_addr)                                                                                                                                        \
     if (XcpIsActivated()) {                                                                                                                                                        \
-        static THREAD_LOCAL tXcpEventId trg__AASD__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                \
+        static tXcpEventId trg__AASD__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                             \
         if (trg__AASD__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                         \
             trg__AASD__##name = XcpFindEvent(#name, NULL);                                                                                                                         \
             assert(trg__AASD__##name != XCP_UNDEFINED_EVENT_ID);                                                                                                                   \
@@ -390,7 +400,7 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
 /// @param base_addr Base address pointer for relative addressing mode
 #define DaqTriggerEventExt_s(name, base_addr)                                                                                                                                      \
     if (XcpIsActivated()) {                                                                                                                                                        \
-        static THREAD_LOCAL tXcpEventId trg__AASD__ = XCP_UNDEFINED_EVENT_ID;                                                                                                      \
+        static tXcpEventId trg__AASD__ = XCP_UNDEFINED_EVENT_ID;                                                                                                                   \
         if (trg__AASD__ == XCP_UNDEFINED_EVENT_ID) {                                                                                                                               \
             trg__AASD__ = XcpFindEvent(name, NULL);                                                                                                                                \
             assert(trg__AASD__ != XCP_UNDEFINED_EVENT_ID);                                                                                                                         \
@@ -404,8 +414,8 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
 /// @param base_addr Base address pointer for relative addressing mode
 #define DaqTriggerEventExt_i(event_id, base_addr)                                                                                                                                  \
     if (XcpIsActivated()) {                                                                                                                                                        \
-        static THREAD_LOCAL tXcpEventId trg__AASD__##name = event_id;                                                                                                              \
-        XcpEventExt_Var(trg__AASD__##name, 2, xcp_get_frame_addr(), (const uint8_t *)base_addr);                                                                                   \
+        static tXcpEventId trg__AASD__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                             \
+        XcpEventExt_Var(event_id, 2, xcp_get_frame_addr(), (const uint8_t *)base_addr);                                                                                            \
     }
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -413,13 +423,36 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
 
 #define DaqCreateAndTriggerEvent(name)                                                                                                                                             \
     if (XcpIsActivated()) {                                                                                                                                                        \
-        static THREAD_LOCAL tXcpEventId evt__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                      \
-        static THREAD_LOCAL tXcpEventId trg__AAS__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                 \
+        static tXcpEventId evt__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                                   \
+        static tXcpEventId trg__AAS__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                              \
         if (trg__AAS__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                          \
             evt__##name = trg__AAS__##name;                                                                                                                                        \
             trg__AAS__##name = XcpCreateEvent(#name, 0, 0);                                                                                                                        \
         }                                                                                                                                                                          \
         XcpEventExt_Var(trg__AAS__##name, 1, xcp_get_frame_addr());                                                                                                                \
+    }
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Enable/disable events
+
+#define DaqEventEnable(name)                                                                                                                                                       \
+    if (XcpIsActivated()) {                                                                                                                                                        \
+        static tXcpEventId ena__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                                   \
+        if (ena__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                               \
+            ena__##name = XcpFindEvent(#name, NULL);                                                                                                                               \
+            assert(ena__##name != XCP_UNDEFINED_EVENT_ID);                                                                                                                         \
+        }                                                                                                                                                                          \
+        XcpEventEnable(ena__##name, true);                                                                                                                                         \
+    }
+
+#define DaqEventDisable(name)                                                                                                                                                      \
+    if (XcpIsActivated()) {                                                                                                                                                        \
+        static tXcpEventId ena__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                                   \
+        if (ena__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                               \
+            ena__##name = XcpFindEvent(#name, NULL);                                                                                                                               \
+            assert(ena__##name != XCP_UNDEFINED_EVENT_ID);                                                                                                                         \
+        }                                                                                                                                                                          \
+        XcpEventEnable(ena__##name, false);                                                                                                                                        \
     }
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -458,8 +491,8 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
 
 // Mark a (local) variable as volatile and used to prevent compiler optimizations and force spilling it to a memory location
 // XCPlite can measure stack variables but not registers
-// The A2L updater or creator can handle only simple location expressions such as absolute addresses, stack relative addresses (CFA) and calibration segment relative addresses
-// For complex cases, use the DaqCapture macro to capture the variable in a hidden static variable
+// The A2L updater or creator can handle only simple location expressions such as absolute addresses, stack relative addresses (CFA) and calibration segment
+// relative addresses For complex cases, use the DaqCapture macro to capture the variable in a hidden static variable
 /// Attribute to mark a variable as measurable by XCP/A2L
 /// Example usage: XCP_MEA int32_t my_var = 0;
 #define XCP_MEA volatile
@@ -473,7 +506,8 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
 
 /// Capture a local variable for measurement with a specific event
 /// The variable must be in scope when the event is triggered with DaqTriggerEvent
-/// The build time A2L file generator will find the hidden static variable 'daq__##event##__##var' and create the measurement with approriate addressing mode and event association
+/// The build time A2L file generator will find the hidden static variable 'daq__##event##__##var' and create the measurement with approriate addressing mode and
+/// event association
 #define DaqCapture(event, var)                                                                                                                                                     \
     do {                                                                                                                                                                           \
         static __typeof__(var) daq__##event##__##var;                                                                                                                              \
@@ -567,7 +601,7 @@ void sleepUs(uint32_t us);
 #endif
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// Variadic C event trigger convinience macros XcpDaqEvent and XcpDaqEventExt
+// Variadic C event trigger convinience macros DaqEventVar and DaqEventExtVar
 // Option to create event, register measurements and trigger event in one call
 
 #ifndef __cplusplus
@@ -621,32 +655,38 @@ void sleepUs(uint32_t us);
 #define XCPLIB_FE_7_(m, x1, x2, x3, x4, x5, x6, x7)                                                                                                                                \
     XCPLIB_APPLY_(m, x1) XCPLIB_APPLY_(m, x2) XCPLIB_APPLY_(m, x3) XCPLIB_APPLY_(m, x4) XCPLIB_APPLY_(m, x5) XCPLIB_APPLY_(m, x6) XCPLIB_APPLY_(m, x7)
 #define XCPLIB_FE_8_(m, x1, x2, x3, x4, x5, x6, x7, x8)                                                                                                                            \
-    XCPLIB_APPLY_(m, x1) XCPLIB_APPLY_(m, x2) XCPLIB_APPLY_(m, x3) XCPLIB_APPLY_(m, x4) XCPLIB_APPLY_(m, x5) XCPLIB_APPLY_(m, x6) XCPLIB_APPLY_(m, x7) XCPLIB_APPLY_(m, x8)
+    XCPLIB_APPLY_(m, x1)                                                                                                                                                           \
+    XCPLIB_APPLY_(m, x2) XCPLIB_APPLY_(m, x3) XCPLIB_APPLY_(m, x4) XCPLIB_APPLY_(m, x5) XCPLIB_APPLY_(m, x6) XCPLIB_APPLY_(m, x7) XCPLIB_APPLY_(m, x8)
 #define XCPLIB_FE_9_(m, x1, x2, x3, x4, x5, x6, x7, x8, x9)                                                                                                                        \
     XCPLIB_APPLY_(m, x1)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x2) XCPLIB_APPLY_(m, x3) XCPLIB_APPLY_(m, x4) XCPLIB_APPLY_(m, x5) XCPLIB_APPLY_(m, x6) XCPLIB_APPLY_(m, x7) XCPLIB_APPLY_(m, x8) XCPLIB_APPLY_(m, x9)
+    XCPLIB_APPLY_(m, x2)                                                                                                                                                           \
+    XCPLIB_APPLY_(m, x3) XCPLIB_APPLY_(m, x4) XCPLIB_APPLY_(m, x5) XCPLIB_APPLY_(m, x6) XCPLIB_APPLY_(m, x7) XCPLIB_APPLY_(m, x8) XCPLIB_APPLY_(m, x9)
 #define XCPLIB_FE_10_(m, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10)                                                                                                                  \
     XCPLIB_APPLY_(m, x1)                                                                                                                                                           \
     XCPLIB_APPLY_(m, x2)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x3) XCPLIB_APPLY_(m, x4) XCPLIB_APPLY_(m, x5) XCPLIB_APPLY_(m, x6) XCPLIB_APPLY_(m, x7) XCPLIB_APPLY_(m, x8) XCPLIB_APPLY_(m, x9) XCPLIB_APPLY_(m, x10)
+    XCPLIB_APPLY_(m, x3)                                                                                                                                                           \
+    XCPLIB_APPLY_(m, x4) XCPLIB_APPLY_(m, x5) XCPLIB_APPLY_(m, x6) XCPLIB_APPLY_(m, x7) XCPLIB_APPLY_(m, x8) XCPLIB_APPLY_(m, x9) XCPLIB_APPLY_(m, x10)
 #define XCPLIB_FE_11_(m, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11)                                                                                                             \
     XCPLIB_APPLY_(m, x1)                                                                                                                                                           \
     XCPLIB_APPLY_(m, x2)                                                                                                                                                           \
     XCPLIB_APPLY_(m, x3)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x4) XCPLIB_APPLY_(m, x5) XCPLIB_APPLY_(m, x6) XCPLIB_APPLY_(m, x7) XCPLIB_APPLY_(m, x8) XCPLIB_APPLY_(m, x9) XCPLIB_APPLY_(m, x10) XCPLIB_APPLY_(m, x11)
+    XCPLIB_APPLY_(m, x4)                                                                                                                                                           \
+    XCPLIB_APPLY_(m, x5) XCPLIB_APPLY_(m, x6) XCPLIB_APPLY_(m, x7) XCPLIB_APPLY_(m, x8) XCPLIB_APPLY_(m, x9) XCPLIB_APPLY_(m, x10) XCPLIB_APPLY_(m, x11)
 #define XCPLIB_FE_12_(m, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12)                                                                                                        \
     XCPLIB_APPLY_(m, x1)                                                                                                                                                           \
     XCPLIB_APPLY_(m, x2)                                                                                                                                                           \
     XCPLIB_APPLY_(m, x3)                                                                                                                                                           \
     XCPLIB_APPLY_(m, x4)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x5) XCPLIB_APPLY_(m, x6) XCPLIB_APPLY_(m, x7) XCPLIB_APPLY_(m, x8) XCPLIB_APPLY_(m, x9) XCPLIB_APPLY_(m, x10) XCPLIB_APPLY_(m, x11) XCPLIB_APPLY_(m, x12)
+    XCPLIB_APPLY_(m, x5)                                                                                                                                                           \
+    XCPLIB_APPLY_(m, x6) XCPLIB_APPLY_(m, x7) XCPLIB_APPLY_(m, x8) XCPLIB_APPLY_(m, x9) XCPLIB_APPLY_(m, x10) XCPLIB_APPLY_(m, x11) XCPLIB_APPLY_(m, x12)
 #define XCPLIB_FE_13_(m, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13)                                                                                                   \
     XCPLIB_APPLY_(m, x1)                                                                                                                                                           \
     XCPLIB_APPLY_(m, x2)                                                                                                                                                           \
     XCPLIB_APPLY_(m, x3)                                                                                                                                                           \
     XCPLIB_APPLY_(m, x4)                                                                                                                                                           \
     XCPLIB_APPLY_(m, x5)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x6) XCPLIB_APPLY_(m, x7) XCPLIB_APPLY_(m, x8) XCPLIB_APPLY_(m, x9) XCPLIB_APPLY_(m, x10) XCPLIB_APPLY_(m, x11) XCPLIB_APPLY_(m, x12) XCPLIB_APPLY_(m, x13)
+    XCPLIB_APPLY_(m, x6)                                                                                                                                                           \
+    XCPLIB_APPLY_(m, x7) XCPLIB_APPLY_(m, x8) XCPLIB_APPLY_(m, x9) XCPLIB_APPLY_(m, x10) XCPLIB_APPLY_(m, x11) XCPLIB_APPLY_(m, x12) XCPLIB_APPLY_(m, x13)
 #define XCPLIB_FE_14_(m, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14)                                                                                              \
     XCPLIB_APPLY_(m, x1)                                                                                                                                                           \
     XCPLIB_APPLY_(m, x2)                                                                                                                                                           \
@@ -654,7 +694,8 @@ void sleepUs(uint32_t us);
     XCPLIB_APPLY_(m, x4)                                                                                                                                                           \
     XCPLIB_APPLY_(m, x5)                                                                                                                                                           \
     XCPLIB_APPLY_(m, x6)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x7) XCPLIB_APPLY_(m, x8) XCPLIB_APPLY_(m, x9) XCPLIB_APPLY_(m, x10) XCPLIB_APPLY_(m, x11) XCPLIB_APPLY_(m, x12) XCPLIB_APPLY_(m, x13) XCPLIB_APPLY_(m, x14)
+    XCPLIB_APPLY_(m, x7)                                                                                                                                                           \
+    XCPLIB_APPLY_(m, x8) XCPLIB_APPLY_(m, x9) XCPLIB_APPLY_(m, x10) XCPLIB_APPLY_(m, x11) XCPLIB_APPLY_(m, x12) XCPLIB_APPLY_(m, x13) XCPLIB_APPLY_(m, x14)
 #define XCPLIB_FE_15_(m, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15)                                                                                         \
     XCPLIB_APPLY_(m, x1)                                                                                                                                                           \
     XCPLIB_APPLY_(m, x2)                                                                                                                                                           \
@@ -663,7 +704,8 @@ void sleepUs(uint32_t us);
     XCPLIB_APPLY_(m, x5)                                                                                                                                                           \
     XCPLIB_APPLY_(m, x6)                                                                                                                                                           \
     XCPLIB_APPLY_(m, x7)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x8) XCPLIB_APPLY_(m, x9) XCPLIB_APPLY_(m, x10) XCPLIB_APPLY_(m, x11) XCPLIB_APPLY_(m, x12) XCPLIB_APPLY_(m, x13) XCPLIB_APPLY_(m, x14) XCPLIB_APPLY_(m, x15)
+    XCPLIB_APPLY_(m, x8)                                                                                                                                                           \
+    XCPLIB_APPLY_(m, x9) XCPLIB_APPLY_(m, x10) XCPLIB_APPLY_(m, x11) XCPLIB_APPLY_(m, x12) XCPLIB_APPLY_(m, x13) XCPLIB_APPLY_(m, x14) XCPLIB_APPLY_(m, x15)
 #define XCPLIB_FE_16_(m, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16)                                                                                    \
     XCPLIB_APPLY_(m, x1)                                                                                                                                                           \
     XCPLIB_APPLY_(m, x2)                                                                                                                                                           \
@@ -673,7 +715,8 @@ void sleepUs(uint32_t us);
     XCPLIB_APPLY_(m, x6)                                                                                                                                                           \
     XCPLIB_APPLY_(m, x7)                                                                                                                                                           \
     XCPLIB_APPLY_(m, x8)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x9) XCPLIB_APPLY_(m, x10) XCPLIB_APPLY_(m, x11) XCPLIB_APPLY_(m, x12) XCPLIB_APPLY_(m, x13) XCPLIB_APPLY_(m, x14) XCPLIB_APPLY_(m, x15) XCPLIB_APPLY_(m, x16)
+    XCPLIB_APPLY_(m, x9)                                                                                                                                                           \
+    XCPLIB_APPLY_(m, x10) XCPLIB_APPLY_(m, x11) XCPLIB_APPLY_(m, x12) XCPLIB_APPLY_(m, x13) XCPLIB_APPLY_(m, x14) XCPLIB_APPLY_(m, x15) XCPLIB_APPLY_(m, x16)
 
 // Apply macro to unpacked tuple arguments
 // Strips the outer parentheses from (var, comment) and passes to macro as two separate arguments
@@ -710,7 +753,7 @@ void sleepUs(uint32_t us);
 // Variadic DAQ macros which create, register variables and trigger events in one call
 
 // Create event, register stack measurements once and trigger an event with stack addressing mode
-#define XcpDaqEvent(event_name, ...)                                                                                                                                               \
+#define DaqEventVar(event_name, ...)                                                                                                                                               \
     do {                                                                                                                                                                           \
         if (XcpIsActivated()) {                                                                                                                                                    \
             static THREAD_LOCAL tXcpEventId evt__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                            \
@@ -729,7 +772,7 @@ void sleepUs(uint32_t us);
     } while (0)
 
 // Create event, register once and trigger an event with stack or relative addressing mode
-#define XcpDaqEventExt(event_name, base, ...)                                                                                                                                      \
+#define DaqEventExtVar(event_name, base, ...)                                                                                                                                      \
     do {                                                                                                                                                                           \
         if (XcpIsActivated()) {                                                                                                                                                    \
             static THREAD_LOCAL tXcpEventId evt__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                            \

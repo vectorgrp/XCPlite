@@ -600,7 +600,7 @@ static void A2lCreate_IF_DATA_DAQ(void) {
         // @@@@ TODO: Clarify
         // Short event names (the second name) must not be unique, but <= 8 characters ?
         fprintf(gA2lFile, "/begin EVENT \"%s\" \"%.8s\" 0x%X DAQ 0xFF %u %u %u CONSISTENCY EVENT", XcpGetEventName(id), XcpGetEventName(id), id, timeCycle, timeUnit,
-                event->priority);
+                (event->flags & XCP_DAQ_EVENT_FLAG_PRIORITY) ? 0xFF : 0x00);
 
         fprintf(gA2lFile, " /end EVENT\n");
     }
@@ -951,10 +951,12 @@ uint32_t A2lGetAddr_(const void *p) {
             }
             // If only the frame pointer is set, use it as base pointer
             else if (gA2lFramePtr != NULL) {
+                gA2lAutoAddrExt = XCP_ADDR_EXT_DYN;
                 base_ptr = gA2lFramePtr;
             }
             // If only the base pointer is set, use it
             else if (gA2lBasePtr != NULL) {
+                gA2lAutoAddrExt = XCP_ADDR_EXT_DYN + 1;
                 base_ptr = gA2lBasePtr;
             }
 
@@ -963,12 +965,15 @@ uint32_t A2lGetAddr_(const void *p) {
                 // Ensure the address difference does not overflow the value range for signed int16_t
                 uint64_t addr_high = (addr_diff >> 16);
                 if (addr_high != 0 && addr_high != 0xFFFFFFFFFFFF) {
-                    DBG_PRINTF_ERROR("A2L dyn address overflow detected! addr: %p, base: %p\n", p, (void *)base_ptr);
-                    assert(0);
-                    return 0;
+                    DBG_PRINTF5("A2L dyn address overflow detected! addr: %p, base: %p, trying absolute\n", p, (void *)base_ptr);
+                    gA2lAutoAddrExt = XCP_ADDR_EXT_ABS;
+                    return XcpAddrEncodeAbs(p);
                 }
+                return XcpAddrEncodeDyn(addr_diff, gA2lFixedEvent);
+            } else {
+                gA2lAutoAddrExt = XCP_ADDR_EXT_ABS;
+                return XcpAddrEncodeAbs(p);
             }
-            return XcpAddrEncodeDyn(addr_diff, gA2lFixedEvent);
         }
 
         else if (XcpAddrIsAbs(gA2lAddrExt)) {

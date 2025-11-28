@@ -138,7 +138,7 @@ static bool writeEvent(FILE *file, tXcpEventId event_id, const tXcpEvent *event)
     strncpy(desc.name, event->name, XCP_MAX_EVENT_NAME);
     desc.name[XCP_MAX_EVENT_NAME] = '\0'; // Ensure null termination
     desc.cycleTimeNs = event->cycleTimeNs;
-    desc.priority = event->priority;
+    desc.priority = event->flags & XCP_DAQ_EVENT_FLAG_PRIORITY ? 0xFF : 0x00;
     desc.id = event_id;
     desc.index = XcpGetEventIndex(event_id);
     size_t written = fwrite(&desc, sizeof(tEventDescriptor), 1, file);
@@ -203,13 +203,14 @@ bool XcpBinWrite(uint8_t page) {
         DBG_PRINTF3("Failed to open file %s for writing: %s\n", gXcpBinFilename, strerror(errno));
         return false;
     }
-    if (!writeHeader(file, XcpGetEpk(), gXcp.EventList.count, gXcp.CalSegList.count)) {
+    if (!writeHeader(file, XcpGetEpk(), XcpGetEventCount(), XcpGetCalSegCount())) {
         fclose(file);
         return false;
     }
 
     // Write events
-    for (tXcpEventId i = 0; i < gXcp.EventList.count; i++) {
+    uint16_t event_count = XcpGetEventCount();
+    for (tXcpEventId i = 0; i < event_count; i++) {
         const tXcpEvent *event = XcpGetEvent(i);
         if (!writeEvent(file, i, event)) {
             fclose(file);
@@ -218,7 +219,8 @@ bool XcpBinWrite(uint8_t page) {
     }
 
     // Write calibration segments descriptors and data
-    for (tXcpCalSegIndex i = 0; i < gXcp.CalSegList.count; i++) {
+    uint16_t calseg_count = XcpGetCalSegCount();
+    for (tXcpCalSegIndex i = 0; i < calseg_count; i++) {
         tXcpCalSeg *seg = XcpGetCalSeg(i);
         assert(seg != NULL);
         if (!writeCalseg(file, i, seg, page)) {
@@ -322,7 +324,7 @@ static bool load(const char *filename, const char *epk) {
 
     // Load events
     // Event list must be empty at this point
-    if (gXcp.EventList.count != 0) {
+    if (XcpGetEventCount() != 0) {
         DBG_PRINT_ERROR("Event list not empty prior to loading persistence file\n");
         fclose(file);
         return false;
@@ -341,7 +343,9 @@ static bool load(const char *filename, const char *epk) {
 
         // Create the event
         // As it is created in the original order, the event ID must match
+        mutexLock(&gXcp.EventList.mutex);
         event_id = XcpCreateIndexedEvent(desc.name, desc.index, desc.cycleTimeNs, desc.priority);
+        mutexUnlock(&gXcp.EventList.mutex);
         if (event_id == XCP_UNDEFINED_EVENT_ID || event_id != desc.id) { // Should not happen
             DBG_PRINTF_ERROR("Failed to create event '%s' from persistence file\n", desc.name);
             fclose(file);
