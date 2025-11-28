@@ -19,6 +19,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define OPTION_USE_VARIADIC_MACROS
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -588,13 +590,15 @@ void sleepUs(uint32_t us);
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Compatibility V0.9.3 to V1.0.0
 
-// Deprecated macros
+// Renamed deprecated macros
 #define DaqEvent DaqTriggerEvent
 #define DaqEventRelative DaqTriggerEventExt
 #define DaqEventRelative_s DaqTriggerEventExt_s
 #define DaqEventRelative_i DaqTriggerEventExt_i
 #define DaqCreateEventInstance_s DaqCreateEventInstance
 #define DaqEvent_i DaqTriggerEvent_i
+#define XcpDaqEvent DaqEventVar
+#define XcpDaqEventExt DaqEventExtVar
 
 #ifdef __cplusplus
 } // extern "C"
@@ -623,7 +627,7 @@ void sleepUs(uint32_t us);
 #define A2L_UNPACK_AND_REG_SELECT_IMPL_(N) A2L_UNPACK_AND_REG_##N##_
 
 // Measurement: (var, comment)
-#define A2L_UNPACK_AND_REG_2_(var, comment) A2lCreateMeasurement_(NULL, #var, A2lGetTypeId(var), A2lGetAddr_((uint8_t *)&(var)), A2lGetAddrExt_(), NULL, 0.0, 0.0, comment);
+#define A2L_UNPACK_AND_REG_2_(var, comment) A2lCreateMeasurement_(NULL, #var, A2lGetTypeId(var), &(var), NULL, 0.0, 0.0, comment);
 
 // Physical measurement: (var, comment, unit_or_conversion, min, max)
 #define A2L_UNPACK_AND_REG_5_(var, comment, unit_or_conversion, min, max) A2lCreateMeasurement_(NULL, #var, A2lGetTypeId(var), &(var), unit_or_conversion, min, max, comment);
@@ -756,18 +760,18 @@ void sleepUs(uint32_t us);
 #define DaqEventVar(event_name, ...)                                                                                                                                               \
     do {                                                                                                                                                                           \
         if (XcpIsActivated()) {                                                                                                                                                    \
-            static THREAD_LOCAL tXcpEventId evt__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                            \
+            static tXcpEventId evt__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                                         \
             if (evt__##event_name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                     \
                 evt__##event_name = XcpCreateEvent(#event_name, 0, 0);                                                                                                             \
                 A2lOnce() {                                                                                                                                                        \
                     A2lLock();                                                                                                                                                     \
-                    A2lSetStackAddrMode__s(#event_name, xcp_get_frame_addr());                                                                                                     \
+                    A2lSetAutoAddrMode__s(#event_name, xcp_get_frame_addr(), NULL);                                                                                                \
                     XCPLIB_FOR_EACH_MEAS_(A2L_UNPACK_AND_REG_, __VA_ARGS__)                                                                                                        \
                     A2lUnlock();                                                                                                                                                   \
                 }                                                                                                                                                                  \
             }                                                                                                                                                                      \
-            static THREAD_LOCAL tXcpEventId trg__AAS__##event_name = evt__##event_name;                                                                                            \
-            XcpEventExt_Var(trg__AAS__##event_name, 1, xcp_get_frame_addr());                                                                                                      \
+            static tXcpEventId trg__AAS__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                                    \
+            XcpEventExt_Var(evt__##event_name, 1, xcp_get_frame_addr());                                                                                                           \
         }                                                                                                                                                                          \
     } while (0)
 
@@ -775,7 +779,7 @@ void sleepUs(uint32_t us);
 #define DaqEventExtVar(event_name, base, ...)                                                                                                                                      \
     do {                                                                                                                                                                           \
         if (XcpIsActivated()) {                                                                                                                                                    \
-            static THREAD_LOCAL tXcpEventId evt__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                            \
+            static tXcpEventId evt__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                                         \
             if (evt__##event_name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                     \
                 evt__##event_name = XcpCreateEvent(#event_name, 0, 0);                                                                                                             \
                 A2lOnce() {                                                                                                                                                        \
@@ -784,8 +788,8 @@ void sleepUs(uint32_t us);
                     XCPLIB_FOR_EACH_MEAS_(A2L_UNPACK_AND_REG_, __VA_ARGS__)                                                                                                        \
                     A2lUnlock();                                                                                                                                                   \
                 }                                                                                                                                                                  \
-                static THREAD_LOCAL tXcpEventId trg__AASD__##event_name = evt__##event_name;                                                                                       \
-                XcpEventExt_Var(trg__AASD__##event_name, 2, xcp_get_frame_addr(), (const uint8_t *)base);                                                                          \
+                static tXcpEventId trg__AASD__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                               \
+                XcpEventExt_Var(evt__##event_name, 2, xcp_get_frame_addr(), (const uint8_t *)base);                                                                                \
             }                                                                                                                                                                      \
         }                                                                                                                                                                          \
     } while (0)

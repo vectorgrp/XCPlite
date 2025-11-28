@@ -86,6 +86,8 @@ static uint32_t gA2lConversions;
 //----------------------------------------------------------------------------------
 
 static bool A2lOpen(void);
+static uint32_t A2lGetAddr_(const void *addr);
+static uint8_t A2lGetAddrExt_(void);
 
 //----------------------------------------------------------------------------------
 static const char *gA2lHeader1 = "ASAP2_VERSION 1 71\n"
@@ -889,7 +891,7 @@ void A2lSetAbsoluteAddrMode__i(tXcpEventId event_id) {
 
 // Get the current address extension
 // Must be called after A2lGetAddr to get the correct address extension in case of auto addressing mode
-uint8_t A2lGetAddrExt_(void) {
+static uint8_t A2lGetAddrExt_(void) {
 
     if (gA2lAddrExt == XCP_UNDEFINED_ADDR_EXT) {
         return gA2lAutoAddrExt;
@@ -899,7 +901,7 @@ uint8_t A2lGetAddrExt_(void) {
 
 // Get encoded address for pointer p according to current address extension
 // If auto addressing mode (address extension is undefined) is selected, the addressing extension is detected
-uint32_t A2lGetAddr_(const void *p) {
+static uint32_t A2lGetAddr_(const void *p) {
 
     if (gA2lFile != NULL) {
 

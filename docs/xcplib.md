@@ -204,7 +204,7 @@ double calc_energy(double voltage, double current) {
    double energy_ += power * get_elapsed_time(); // kWh
 
    //  Create event 'calc_energy', register individual local or member variables and trigger the event
-    XcpDaqEventExt(calc_energy, this,                                               
+    DaqEventExtVar(calc_energy, this,                                               
                    A2L_MEAS_PHYS(voltage, "Input voltage", "V", 0.0, 1000.0), // A function parameter
                    A2L_MEAS_PHYS(current, "Input current", "A", 0.0, 500.0), // A function parameter
                    A2L_MEAS_PHYS(power, "Current calculated energy", "kWh", 0.0, 1000.0),   // A local variable

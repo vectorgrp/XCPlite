@@ -19,8 +19,8 @@
 
 // Options for variadic measurement/event macros/templates
 // Note: The template versions do not provide static markers for event creation and triggering
-// #define OPTION_USE_VARIADIC_MACROS
-#define OPTION_USE_VARIADIC_TEMPLATES
+#define OPTION_USE_VARIADIC_MACROS
+// #define OPTION_USE_VARIADIC_TEMPLATES
 
 namespace xcplib {
 
@@ -206,10 +206,11 @@ template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventTemplate(c
 #define A2L_UNPACK_AND_REG_SELECT_IMPL_(N) A2L_UNPACK_AND_REG_##N##_
 
 // Measurement: (var, comment)
-#define A2L_UNPACK_AND_REG_2_(var, comment) A2lCreateMeasurement_(NULL, #var, A2lGetTypeId(var), &(var), NULL, 0.0, 0.0, comment);
+#define A2L_UNPACK_AND_REG_2_(var, comment) A2lCreateMeasurement_(NULL, #var, A2lGetTypeId(var), (const void *)&(var), NULL, 0.0, 0.0, comment);
 
 // Physical measurement: (var, comment, unit_or_conversion, min, max)
-#define A2L_UNPACK_AND_REG_5_(var, comment, unit_or_conversion, min, max) A2lCreateMeasurement_(NULL, #var, A2lGetTypeId(var), &(var), unit_or_conversion, min, max, comment);
+#define A2L_UNPACK_AND_REG_5_(var, comment, unit_or_conversion, min, max)                                                                                                          \
+    A2lCreateMeasurement_(NULL, #var, A2lGetTypeId(var), (const void *)&(var), unit_or_conversion, min, max, comment);
 
 // Main unpacking macro - dispatches to the right version
 #define A2L_UNPACK_AND_REG_(...) A2L_UNPACK_AND_REG_DISPATCH_((__VA_ARGS__))
@@ -326,7 +327,7 @@ template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventTemplate(c
 #define DaqEventVar(event_name, ...)                                                                                                                                               \
     do {                                                                                                                                                                           \
         if (XcpIsActivated()) {                                                                                                                                                    \
-            static THREAD_LOCAL tXcpEventId evt__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                            \
+            static tXcpEventId evt__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                                         \
             if (evt__##event_name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                     \
                 evt__##event_name = XcpCreateEvent(#event_name, 0, 0);                                                                                                             \
                 if (A2lOnce()) {                                                                                                                                                   \
@@ -334,16 +335,16 @@ template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventTemplate(c
                     XCPLIB_FOR_EACH_MEAS_(A2L_UNPACK_AND_REG_, __VA_ARGS__)                                                                                                        \
                 }                                                                                                                                                                  \
             }                                                                                                                                                                      \
-            static THREAD_LOCAL tXcpEventId trg__AAS__##event_name = evt__##event_name;                                                                                            \
+            static tXcpEventId trg__AAS__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                                    \
             XcpEventExt_Var(trg__AAS__##event_name, 1, xcp_get_frame_addr());                                                                                                      \
         }                                                                                                                                                                          \
     } while (0)
 
 // Create event, register once and trigger an event with stack or relative addressing mode
-#define XcpDaqEventExt(event_name, base, ...)                                                                                                                                      \
+#define DaqEventExtVar(event_name, base, ...)                                                                                                                                      \
     do {                                                                                                                                                                           \
         if (XcpIsActivated()) {                                                                                                                                                    \
-            static THREAD_LOCAL tXcpEventId evt__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                            \
+            static tXcpEventId evt__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                                         \
             if (evt__##event_name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                     \
                 evt__##event_name = XcpCreateEvent(#event_name, 0, 0);                                                                                                             \
                 if (A2lOnce()) {                                                                                                                                                   \
@@ -351,7 +352,7 @@ template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventTemplate(c
                     XCPLIB_FOR_EACH_MEAS_(A2L_UNPACK_AND_REG_, __VA_ARGS__)                                                                                                        \
                 }                                                                                                                                                                  \
             }                                                                                                                                                                      \
-            static THREAD_LOCAL tXcpEventId trg__AASD__##event_name = evt__##event_name;                                                                                           \
+            static tXcpEventId trg__AASD__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                                   \
             XcpEventExt_Var(trg__AASD__##event_name, 2, xcp_get_frame_addr(), (const uint8_t *)base);                                                                              \
         }                                                                                                                                                                          \
     } while (0)

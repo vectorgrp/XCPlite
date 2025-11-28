@@ -614,10 +614,6 @@ void A2lSetAbsoluteAddrMode__i(tXcpEventId event_id);
 // Once pattern helper
 bool A2lOnce_(uint64_t *once);
 
-// Address encoding
-uint32_t A2lGetAddr_(const void *addr);
-uint8_t A2lGetAddrExt_(void);
-
 // Create parameters
 void A2lCreateParameter_(const char *name, tA2lTypeId type, const void *ptr, const char *comment, const char *unit, double min, double max);
 void A2lCreateMap_(const char *name, tA2lTypeId type, const void *ptr, uint32_t xdim, uint32_t ydim, const char *comment, const char *unit, double min, double max,

@@ -53,7 +53,7 @@ void XcpInit(const char *name, const char *epk, bool activate);
 - XCP_ENABLE_COPY_CAL_PAGE_WORKAROUND to enable workaround for CANape init calibration segments bug
 - Variadic macro to create, trigger, and register local and member variables in one call with automatic addressing mode deduction (see hello_xcp_cpp example)
 ```c
-    XcpDaqEventExt(avg_calc1, this,                                               //
+    DaqEventExtVar(avg_calc1, this,                                               //
                    (input, "Input value for floating average", "V", 0.0, 1000.0), //
                    (average, "Current calculated average"),                       //
                    (current_index_, "Current position in ring buffer"),           //
