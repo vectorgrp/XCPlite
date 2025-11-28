@@ -19,8 +19,8 @@
 
 // Options for variadic measurement/event macros/templates
 // Note: The template versions do not provide static markers for event creation and triggering
-#define OPTION_USE_VARIADIC_MACROS
-// #define OPTION_USE_VARIADIC_TEMPLATES
+// #define OPTION_USE_VARIADIC_MACROS
+#define OPTION_USE_VARIADIC_TEMPLATES
 
 namespace xcplib {
 

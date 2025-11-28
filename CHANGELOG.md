@@ -2,10 +2,27 @@
 
 All notable changes to XCPlite are documented in this file.
 
+## [V1.1.0]
+
+### Added
+- Variadic DAQ macro for C and C++ (`DaqEventExtVar` and `DaqrEventVar`)
+- Template based implementation for C++, macros used for stringifications only (OPTION_USE_VARIADIC_TEMPLATES in `xcplib.hpp`)
+- Support for enabling and disabling DAQ events at runtime (`DaqEnableEvent`, `DaqDisableEvent`)
+- Auto addressing mode now supports absolute and relative addressing
+
+### Improvements
+- Improved thread safety of event creation to avoid the THREAD_LOCAL state for once initializations
+- Optimized A2L generation macros, inlined address calculations removed
+- More idiomatic C++ code in examples
+
+
+### Fixed
+- Bug in transmit thread queue handling causing too many packets sent
+
+
 ## [V1.0.0]
 
 ### Breaking API Changes
-
 
 - XcpInit signature changed to
 ```c

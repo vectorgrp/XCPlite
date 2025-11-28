@@ -4,7 +4,7 @@
 |
 |  Description:
 |    Implementation of the ASAM XCP Protocol Layer V1.4
-|    Version V1.0.0
+|    Version V1.1.0
 |       - Designed and optimized for 64 bit POSIX based platforms (Linux or MacOS)
 |       - Tested on x86 strong and ARM weak memory model
 |       - Can be adapted for 32 bit platforms

@@ -588,7 +588,7 @@ uint64_t clockGetUs(void);
 void sleepUs(uint32_t us);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// Compatibility V0.9.3 to V1.0.0
+// Compatibility
 
 // Renamed deprecated macros
 #define DaqEvent DaqTriggerEvent
