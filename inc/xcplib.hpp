@@ -331,7 +331,7 @@ template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventTemplate(c
             if (evt__##event_name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                     \
                 evt__##event_name = XcpCreateEvent(#event_name, 0, 0);                                                                                                             \
                 if (A2lOnce()) {                                                                                                                                                   \
-                    A2lSetStackAddrMode__s(#event_name, xcp_get_frame_addr());                                                                                                     \
+                    A2lSetAutoAddrMode__s(#event_name, xcp_get_frame_addr(), NULL);                                                                                                \
                     XCPLIB_FOR_EACH_MEAS_(A2L_UNPACK_AND_REG_, __VA_ARGS__)                                                                                                        \
                 }                                                                                                                                                                  \
             }                                                                                                                                                                      \

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+rm *.bin
+rm *.a2l
 
 # Parse command line arguments
 BUILD_TYPE="Debug"  # Default to Debug build
