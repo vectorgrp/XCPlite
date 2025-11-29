@@ -263,8 +263,14 @@ uint8_t gXcpDebugLevel = OPTION_DEFAULT_DBG_LEVEL;
 
 // Set the log level
 void XcpSetLogLevel(uint8_t level) {
-    if (level > 3)
+#ifdef OPTION_MAX_DBG_LEVEL
+    if (level > OPTION_MAX_DBG_LEVEL) {
+        DBG_PRINTF_ERROR("Set log level %u > OPTION_MAX_DBG_LEVEL %u\n", level, OPTION_MAX_DBG_LEVEL);
+    } else
+#endif
+        if (level > 3) {
         DBG_PRINTF_WARNING("Set log level %u -> %u\n", gXcpDebugLevel, level);
+    }
     gXcpDebugLevel = level;
 }
 
@@ -273,7 +279,7 @@ void XcpSetLogLevel(uint8_t level) {
 // Set the log level dummy, log level is a constant or logging is off
 void XcpSetLogLevel(uint8_t level) {
     (void)level;
-    DBG_PRINT_WARNING("XcpSetLogLevel ignored\n");
+    DBG_PRINTF_ERROR("XcpSetLogLevel ignored, fixed log level = %u\n", OPTION_FIXED_DBG_LEVEL);
 }
 
 #endif

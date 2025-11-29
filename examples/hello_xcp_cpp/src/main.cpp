@@ -7,8 +7,8 @@
 #include <iostream> // for std::cout
 #include <optional> // for std::optional
 
-#include "a2l.hpp"    // for xcplib A2l generation application programming interface
-#include "xcplib.hpp" // for xcplib application programming interface
+#include <a2l.hpp>    // for xcplib A2l generation application programming interface
+#include <xcplib.hpp> // for xcplib application programming interface
 
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
@@ -18,7 +18,7 @@ constexpr const char OPTION_PROJECT_VERSION[] = "V1.5";
 constexpr bool OPTION_USE_TCP = true;
 constexpr uint16_t OPTION_SERVER_PORT = 5555;
 constexpr size_t OPTION_QUEUE_SIZE = 1024 * 64;
-constexpr int OPTION_LOG_LEVEL = 5;
+constexpr int OPTION_LOG_LEVEL = 4;
 constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};
 
 //-----------------------------------------------------------------------------------------------------
@@ -26,11 +26,11 @@ constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};
 
 namespace floating_average {
 
-template <size_t N> class FloatingAverage {
+template <uint8_t N> class FloatingAverage {
 
   private:
     size_t current_index_;          // Current position in the ring buffer
-    size_t sample_count_;           // Number of samples collected so far
+    uint8_t sample_count_;          // Number of samples collected so far
     double sum_;                    // Running sum of all samples
     std::array<double, N> samples_; // Ring buffer for storing samples
 
@@ -40,7 +40,7 @@ template <size_t N> class FloatingAverage {
     double calc(double input);
 };
 
-template <size_t N> FloatingAverage<N>::FloatingAverage() : samples_{}, current_index_(0), sample_count_(0), sum_(0.0) {
+template <uint8_t N> FloatingAverage<N>::FloatingAverage() : samples_{}, current_index_(0), sample_count_(0), sum_(0.0) {
 
     // Optional: For measurement of the complete instance, create an A2L typedef for this class
     if (A2lOnce()) {
@@ -51,11 +51,11 @@ template <size_t N> FloatingAverage<N>::FloatingAverage() : samples_{}, current_
         A2lTypedefEnd();
     }
 
-    std::cout << "FloatingAverage<" << N << "> instance created" << std::endl;
+    std::cout << "FloatingAverage<" << (unsigned int)N << "> instance created" << std::endl;
 }
 
 // Floating average calculate function - instrumented for XCP measurement
-template <size_t N> [[nodiscard]] double FloatingAverage<N>::calc(double input) {
+template <uint8_t N> [[nodiscard]] double FloatingAverage<N>::calc(double input) {
 
     // Calculate the floating average over N samples
     if (sample_count_ >= N) {
@@ -65,7 +65,7 @@ template <size_t N> [[nodiscard]] double FloatingAverage<N>::calc(double input) 
     }
     samples_[current_index_] = input;
     sum_ += input;
-    XCP_MEAS double average = sum_ / static_cast<double>(sample_count_);
+    double average = sum_ / static_cast<double>(sample_count_);
     current_index_ = (current_index_ + 1) % N;
 
     // Trigger event 'calc' (create, if not exists) and register individual local variables and member variables
@@ -101,7 +101,7 @@ std::optional<xcplib::CalSeg<ParametersT>> gCalSeg;
     static unsigned int seed{12345};
     seed = seed * 1103515245 + 12345;
 
-    // Lock access to calibration parameters with RAII guard "params"
+    // Acquire access to calibration parameters with RAII guard "params", this is thread-safe, lock-free and reentrant
     auto params = gCalSeg->lock();
     double random = params->min + ((seed / 65536) % 32768) / 32768.0 * (params->max - params->min);
     return random;
@@ -117,6 +117,7 @@ void signal_handler(int signal) {
     }
 }
 
+// Define a global variable to be measured later in the main loop
 uint16_t global_counter{0};
 
 int main() {
@@ -173,8 +174,9 @@ int main() {
     A2lSetRelativeAddrMode(evt_heap, average_filter2.get());
     A2lCreateInstance(average_filter2, FloatingAverage, 1, average_filter2.get(), "Heap instance of FloatingAverage<128>");
 
-    // Prefix a local variable with XCP_MEAS, to make sure it is visible for measurement, even in release builds
-    XCP_MEAS uint16_t counter{0};
+    // Define a local variable to be measured later in the main loop
+    // Prefixing a local variable with XCP_MEAS is not needed in this example, as it only uses the combined variadic trigger and register templates
+    uint16_t counter{0};
 
     // Main loop
     std::cout << "Starting main loop... (Press Ctrl+C to exit)" << std::endl;
@@ -183,9 +185,8 @@ int main() {
         counter++;
         global_counter++;
 
-        XCP_MEAS double voltage = random_number();
-
-        XCP_MEAS double average_voltage = average_filter.calc(voltage + 10.0); // Offset input to differentiate from average_filter2
+        double voltage = random_number();
+        double average_voltage = average_filter.calc(voltage); // Offset input to differentiate from average_filter2
 
         // Trigger event "mainloop" (create, if not already exists), register local variable measurements
         DaqEventVar(mainloop,                                                        //
@@ -197,11 +198,11 @@ int main() {
 
         // Optional: Another FloatingAverage instance on heap
         // Note that the event 'calc' instrumented inside the FloatingAverage<>::calc() method, will trigger on each call of any instance (average_filter and average_filter2)
-        // Events may be disabled and enabled, to filter out a particular instance to observe
+        // Events may be disabled and enabled, to filter out a particular instances to observe
         DaqEventEnable(calc);
-        double average_voltage2 = average_filter2->calc(voltage - 10.0);
+        double average_voltage2 = average_filter2->calc(voltage - 10.0); // Add anoffset to differentiate from the other instance 'average_filter'
         DaqEventDisable(calc);
-        assert(abs((average_voltage2 + 10.0) - (average_voltage - 10.0)) < 0.00000001); // Should be identical
+        assert(abs((average_voltage2 + 10.0) - (average_voltage)) < 0.00000001); // Should be identical
 
         // Trigger the event "evt_heap" to measure heap instance average_filter2
         DaqTriggerEventExt(evt_heap, average_filter2.get());

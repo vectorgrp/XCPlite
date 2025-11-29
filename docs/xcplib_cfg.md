@@ -57,7 +57,8 @@ This section describes the configuration parameters in main_cfg.h.
 |-----------|-------------|
 | `OPTION_ENABLE_DBG_PRINTS` | Enables debug print statements throughout the library |
 | `OPTION_DEFAULT_DBG_LEVEL` | Sets default logging level: 1=Error, 2=Warning, 3=Info, 4=Trace, 5=Debug (default: 2) |
-| `OPTION_FIXED_DBG_LEVEL` | Sets fixex logging level, for optimization of unused log prints |
+| `OPTION_MAX_DBG_LEVEL` | Maximum runtime adjustable debug level, higher level optimized out |
+| `OPTION_FIXED_DBG_LEVEL` | Sets a fixed, not runtime adjustable logging level |
 
 ## 2 · xcptl_cfg.h
 

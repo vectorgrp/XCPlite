@@ -673,7 +673,7 @@ static void A2lCreateMeasurement_IF_DATA(void) {
 // Raw functions to set addressing mode unchecked (by calibration segment index or event id)
 
 // Debug print address and address extension (adressing mode, event, offset)
-#ifdef OPTION_ENABLE_DBG_PRINTS
+#if defined(OPTION_ENABLE_DBG_PRINTS) && (OPTION_MAX_DBG_LEVEL >= 4)
 static const char *dbgPrintfAddrExt(uint8_t addr_ext, uint32_t addr) {
     static char buf1[64] = {0};
     static char buf2[64] = {0};

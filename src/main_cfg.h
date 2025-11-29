@@ -34,18 +34,20 @@
 // Enable debug print errors and warnings go to stderr
 #define OPTION_ENABLE_DBG_STDERR
 // Default log level: 1 - Error, 2 - Warn, 3 - Info, 4 - Trace, 5 - Debug
-// Use level 4 print all XCP commands
+// Use level 4 to print all XCP commands
 #define OPTION_DEFAULT_DBG_LEVEL 3
-// Optimize code size, only errors and warnings enabled, other levels optimized out
-// #define OPTION_FIXED_DBG_LEVEL 2
+// Optimize code size, higher levels optimized out
+#define OPTION_MAX_DBG_LEVEL 4
+// Optimize code size, fixed log level, not changeable at runtime
+// #define OPTION_FIXED_DBG_LEVEL 3
 // Enable debug metrics
-#define OPTION_ENABLE_DBG_METRICS
+#define OPTION_ENABLE_DBG_METRICS // Requires OPTION_ENABLE_DBG_PRINTS
 
 //-------------------------------------------------------------------------------
 // Clock
 
 // Epoch options (only one must be defined)
-#define OPTION_CLOCK_EPOCH_ARB // Arbitrary epoch -> uses CLOCK_MONOTONIC_RAW
+#define OPTION_CLOCK_EPOCH_ARB    // Arbitrary epoch -> uses CLOCK_MONOTONIC_RAW
 // #define OPTION_CLOCK_EPOCH_PTP // Precision Time Protocol epoch -> uses CLOCK_REALTIME
 
 // Resolution 1ns or 1us, granularity depends on platform (only one must be defined)
