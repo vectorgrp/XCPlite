@@ -672,6 +672,44 @@ static void A2lCreateMeasurement_IF_DATA(void) {
 //----------------------------------------------------------------------------------
 // Raw functions to set addressing mode unchecked (by calibration segment index or event id)
 
+// Debug print address and address extension (adressing mode, event, offset)
+#ifdef OPTION_ENABLE_DBG_PRINTS
+static const char *dbgPrintfAddrExt(uint8_t addr_ext, uint32_t addr) {
+    static char buf1[64] = {0};
+    static char buf2[64] = {0};
+    const char *addr_str = NULL;
+
+#ifdef XCP_ENABLE_ABS_ADDRESSING
+    if (XcpAddrIsAbs(addr_ext)) {
+        addr_str = "ABS";
+    } else
+#endif
+#ifdef XCP_ENABLE_CALSEG_LIST
+        if (XcpAddrIsSeg(addr_ext)) {
+        addr_str = "SEG";
+    } else
+#endif
+#ifdef XCP_ENABLE_DYN_ADDRESSING
+        if (XcpAddrIsDyn(addr_ext)) {
+        addr_str = buf2;
+        SNPRINTF(buf2, 64, "DYN%u(e=%u,o=%d)", addr_ext - XCP_ADDR_EXT_DYN, XcpAddrDecodeDynEvent(addr), XcpAddrDecodeDynOffset(addr));
+
+    } else
+#endif
+#ifdef XCP_ENABLE_REL_ADDRESSING
+        if (XcpAddrIsRel(addr_ext)) {
+        addr_str = "REL";
+    } else
+#endif
+    {
+        SNPRINTF(buf1, 64, "%u:0x%08X", addr_ext, addr);
+        return buf1;
+    }
+    SNPRINTF(buf1, 64, "%s:0x%08X", addr_str, addr);
+    return buf1;
+}
+#endif
+
 // Calibration segment addressing mode
 // Used for calibration parameters ins a XCP calibration segment (A2L MEMORY_SEGMENT)
 #if defined(XCP_ENABLE_CALSEG_LIST)
@@ -1232,7 +1270,7 @@ void A2lCreateInstance_(const char *instance_name, const char *typeName, const u
     if (gA2lFile != NULL) {
         uint32_t addr = A2lGetAddr_(ptr);
         uint8_t ext = A2lGetAddrExt_();
-        DBG_PRINTF4("A2lCreateInstance_: %s, \"%s\", %s, 0x%X\n", instance_name, comment, typeName, addr);
+        DBG_PRINTF4("A2lCreateInstance_: %s, \"%s\", %s, %s\n", instance_name, comment, typeName, dbgPrintfAddrExt(ext, addr));
 
         if (gA2lAutoGroups) {
             A2lAddToGroup(instance_name);
@@ -1264,8 +1302,8 @@ void A2lCreateMeasurement_(const char *instance_name, const char *name, tA2lType
         uint32_t addr = A2lGetAddr_(ptr);
         uint8_t ext = A2lGetAddrExt_();
         const char *symbol_name = A2lGetSymbolName(instance_name, name);
-        DBG_PRINTF4("A2lCreateMeasurement_:  name=%s, addr=%p, unit=%s, min=%g, max=%g, addr=0x%08X, addr_ext=%u\n", symbol_name, ptr,
-                    unit_or_conversion ? unit_or_conversion : "null", phys_min, phys_max, addr, ext);
+        DBG_PRINTF4("A2lCreateMeasurement_: %s, \"%s\", addr=%p, unit=\"%s\", min=%g, max=%g, %s\n", symbol_name, comment != NULL ? comment : "", ptr,
+                    unit_or_conversion != NULL ? unit_or_conversion : "", phys_min, phys_max, dbgPrintfAddrExt(ext, addr));
         if (gA2lAutoGroups) {
             A2lAddToGroup(symbol_name);
         }
@@ -1302,6 +1340,8 @@ void A2lCreateMeasurementArray_(const char *instance_name, const char *name, tA2
         uint32_t addr = A2lGetAddr_((const void *)ptr);
         uint8_t ext = A2lGetAddrExt_();
         const char *symbol_name = A2lGetSymbolName(instance_name, name);
+        DBG_PRINTF4("A2lCreateMeasurementArray_: %s, \"%s\", addr=%p, x_dim=%d, y_dim=%d, unit=\"%s\", min=%g, max=%g, %s\n", symbol_name, comment != NULL ? comment : "", ptr,
+                    x_dim, y_dim, unit_or_conversion != NULL ? unit_or_conversion : "", phys_min, phys_max, dbgPrintfAddrExt(ext, addr));
         if (gA2lAutoGroups) {
             A2lAddToGroup(symbol_name);
         }
@@ -1335,6 +1375,8 @@ void A2lCreateParameter_(const char *name, tA2lTypeId type, const void *ptr, con
     if (gA2lFile != NULL) {
         uint32_t addr = A2lGetAddr_(ptr);
         uint8_t ext = A2lGetAddrExt_();
+        DBG_PRINTF4("A2lCreateParameter_: %s, \"%s\", addr=%p, unit=\"%s\", min=%g, max=%g, %s\n", name, comment != NULL ? comment : "", ptr,
+                    unit_or_conversion != NULL ? unit_or_conversion : "", phys_min, phys_max, dbgPrintfAddrExt(ext, addr));
         if (gA2lAutoGroups) {
             A2lAddToGroup(name);
         }
@@ -1364,6 +1406,8 @@ void A2lCreateMap_(const char *name, tA2lTypeId type, const void *ptr, uint32_t 
     if (gA2lFile != NULL) {
         uint32_t addr = A2lGetAddr_(ptr);
         uint8_t ext = A2lGetAddrExt_();
+        DBG_PRINTF4("A2lCreateMap_: %s, \"%s\", addr=%p, x_dim=%d, y_dim=%d, unit=\"%s\", min=%g, max=%g, %s\n", name, comment != NULL ? comment : "", ptr, xdim, ydim,
+                    unit != NULL ? unit : "", min, max, dbgPrintfAddrExt(ext, addr));
         if (gA2lAutoGroups) {
             A2lAddToGroup(name);
         }
@@ -1391,6 +1435,8 @@ void A2lCreateCurve_(const char *name, tA2lTypeId type, const void *ptr, uint32_
     if (gA2lFile != NULL) {
         uint32_t addr = A2lGetAddr_(ptr);
         uint8_t ext = A2lGetAddrExt_();
+        DBG_PRINTF4("A2lCreateCurve_: %s, \"%s\", addr=%p, x_dim=%d, unit=\"%s\", min=%g, max=%g, %s\n", name, comment != NULL ? comment : "", ptr, xdim, unit != NULL ? unit : "",
+                    min, max, dbgPrintfAddrExt(ext, addr));
         if (gA2lAutoGroups) {
             A2lAddToGroup(name);
         }
@@ -1414,6 +1460,8 @@ void A2lCreateAxis_(const char *name, tA2lTypeId type, const void *ptr, uint32_t
     if (gA2lFile != NULL) {
         uint32_t addr = A2lGetAddr_(ptr);
         uint8_t ext = A2lGetAddrExt_();
+        DBG_PRINTF4("A2lCreateAxis_: %s, \"%s\", addr=%p, x_dim=%d, unit=\"%s\", min=%g, max=%g, %s\n", name, comment != NULL ? comment : "", ptr, xdim, unit != NULL ? unit : "",
+                    min, max, dbgPrintfAddrExt(ext, addr));
         if (gA2lAutoGroups) {
             A2lAddToGroup(name);
         }
@@ -1731,13 +1779,13 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
     if (!gA2lWriteAlways && (XcpGetSessionStatus() & SS_PERSISTENCE_LOADED) && fexists(gA2lFilename)) {
         // Notify XCP that there is an A2L file available for upload by the XCP client
         XcpSetA2lName(gA2lFilename);
-        DBG_PRINTF3("A2L file %s already exists, disable A2L generation\n", gA2lFilename);
+        DBG_PRINTF_WARNING("A2L file %s already exists, assuming it is still valid, disabling A2L generation\n", gA2lFilename);
         return true;
     }
 
     // Open A2L file for generation
     if (!A2lOpen()) {
-        printf("Failed to open A2L file %s\n", gA2lFilename);
+        DBG_PRINTF_ERROR("Failed to open A2L file %s\n", gA2lFilename);
         return false;
     }
 
