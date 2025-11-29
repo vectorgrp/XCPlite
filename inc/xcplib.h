@@ -794,5 +794,5 @@ void sleepUs(uint32_t us);
         }                                                                                                                                                                          \
     } while (0)
 
-#endif
-#endif // __cplusplus
+#endif // OPTION_USE_VARIADIC_MACROS
+#endif // !__cplusplus

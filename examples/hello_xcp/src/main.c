@@ -7,16 +7,14 @@
 #include <stdio.h>   // for printf
 #include <string.h>  // for sprintf
 
-#include "a2l.h"    // for xcplib A2l generation
-#include "xcplib.h" // for xcplib application programming interface
-
-#define USE_VARIADIC_MACROS
+#include <a2l.h>    // for xcplib A2l generation
+#include <xcplib.h> // for xcplib application programming interface
 
 //-----------------------------------------------------------------------------------------------------
 // XCP params
 
 #define OPTION_PROJECT_NAME "hello_xcp" // Project name, used to build the A2L and BIN file name
-#define OPTION_PROJECT_EPK "V1.0"       // EPK version string
+#define OPTION_PROJECT_EPK __TIME__     // EPK version string
 #define OPTION_USE_TCP true             // TCP or UDP
 #define OPTION_SERVER_PORT 5555         // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
@@ -70,7 +68,7 @@ float calc_power(uint8_t t1, uint8_t t2) {
     double diff_temp = (double)t2 - (double)t1; // Diff temperature in Kelvin
     double heat_power = diff_temp * 10.0f;      // Heat power in kW
 
-#ifndef USE_VARIADIC_MACROS
+#ifndef OPTION_USE_VARIADIC_MACROS
     // XCP: Create a measurement event and once register local measurement variables
     DaqCreateEvent(calc_power);
     A2lOnce() {
@@ -90,7 +88,7 @@ float calc_power(uint8_t t1, uint8_t t2) {
     // XCP: Unlock the calibration segment
     XcpUnlockCalSeg(calseg);
 
-#ifndef USE_VARIADIC_MACROS
+#ifndef OPTION_USE_VARIADIC_MACROS
     // XCP: Trigger the measurement event "calc_power"
     DaqTriggerEvent(calc_power);
 #else
@@ -164,7 +162,7 @@ int main(void) {
 
     uint16_t counter = 0;
 
-#ifndef USE_VARIADIC_MACROS
+#ifndef OPTION_USE_VARIADIC_MACROS
     // XCP: Create a measurement event named "mainloop"
     DaqCreateEvent(mainloop);
 
@@ -208,7 +206,7 @@ int main(void) {
         // XCP: Unlock the calibration segment
         XcpUnlockCalSeg(calseg);
 
-#ifndef USE_VARIADIC_MACROS
+#ifndef OPTION_USE_VARIADIC_MACROS
         // XCP: Trigger the measurement event "mainloop"
         DaqTriggerEvent(mainloop);
 #else

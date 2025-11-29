@@ -14,7 +14,7 @@
 // XCP parameters
 
 constexpr const char OPTION_PROJECT_NAME[] = "hello_xcp_cpp";
-constexpr const char OPTION_PROJECT_VERSION[] = "V1.5";
+constexpr const char OPTION_PROJECT_VERSION[] = __TIME__;
 constexpr bool OPTION_USE_TCP = true;
 constexpr uint16_t OPTION_SERVER_PORT = 5555;
 constexpr size_t OPTION_QUEUE_SIZE = 1024 * 64;

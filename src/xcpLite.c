@@ -2103,8 +2103,6 @@ static void XcpTriggerDaqEvent_(tQueueHandle queueHandle, tXcpEventId event_id, 
 // Async command processing for pending command
 #ifdef XCP_ENABLE_DYN_ADDRESSING
 static void XcpProcessPendingCommand(tXcpEventId event, const uint8_t **bases) {
-    if (!isStarted())
-        return;
     if (atomic_load_explicit(&gXcp.CmdPending, memory_order_acquire)) {
         // Check if the pending command can be executed in this context
         if (XcpAddrIsDyn(gXcp.MtaExt) && XcpAddrDecodeDynEvent(gXcp.MtaAddr) == event) {
@@ -2122,6 +2120,13 @@ static void XcpProcessPendingCommand(tXcpEventId event, const uint8_t **bases) {
 
 static void XcpEventExtAt_(tXcpEventId event, const uint8_t **bases, uint64_t clock) {
 
+    if (!isStarted())
+        return;
+    if (event >= getEventCount()) {
+        DBG_PRINTF_ERROR("Event id %u out of range\n", event);
+        return;
+    }
+
     // Async command processing for pending command
 #ifdef XCP_ENABLE_DYN_ADDRESSING
     XcpProcessPendingCommand(event, bases);
@@ -2134,6 +2139,13 @@ static void XcpEventExtAt_(tXcpEventId event, const uint8_t **bases, uint64_t cl
 }
 
 static void XcpEventExt_(tXcpEventId event, const uint8_t **bases) {
+
+    if (!isStarted())
+        return;
+    if (event >= getEventCount()) {
+        DBG_PRINTF_ERROR("Event id %u out of range\n", event);
+        return;
+    }
 
     // Async command processing for pending command
 #ifdef XCP_ENABLE_DYN_ADDRESSING
@@ -2151,14 +2163,10 @@ static void XcpEventExt_(tXcpEventId event, const uint8_t **bases) {
 // Internal function used by the Rust API
 // Supports XCP_ADDR_EXT_DYN and XCP_ADDR_EXT_REL with given base pointers
 void XcpEventExt2(tXcpEventId event, const uint8_t *base_dyn, const uint8_t *base_rel) {
-    if (!isDaqRunning())
-        return; // DAQ not running
     const uint8_t *bases[4] = {NULL, NULL, base_dyn, base_rel};
     XcpEventExt_(event, bases);
 }
 void XcpEventExt2At(tXcpEventId event, const uint8_t *base_dyn, const uint8_t *base_rel, uint64_t clock) {
-    if (!isDaqRunning())
-        return; // DAQ not running
     const uint8_t *bases[5] = {NULL, NULL, base_rel, base_dyn, base_rel};
     XcpEventExtAt_(event, bases, clock);
 }
@@ -2167,8 +2175,6 @@ void XcpEventExt2At(tXcpEventId event, const uint8_t *base_dyn, const uint8_t *b
 
 // Supports XCP_ADDR_EXT_ABS and XCP_ADDR_EXT_DYN with given base pointer
 void XcpEventExt(tXcpEventId event, const uint8_t *base) {
-    if (!isDaqRunning())
-        return; // DAQ not running
 #if defined(XCP_ADDRESS_MODE_XCPLITE__ACSDD)
     const uint8_t *bases[5] = {xcp_get_base_addr(), NULL, NULL, base, NULL};
 #elif defined(XCP_ADDRESS_MODE_XCPLITE__CASDD)
@@ -2179,8 +2185,6 @@ void XcpEventExt(tXcpEventId event, const uint8_t *base) {
     XcpEventExt_(event, bases);
 }
 void XcpEventExtAt(tXcpEventId event, const uint8_t *base, uint64_t clock) {
-    if (!isDaqRunning())
-        return; // DAQ not running
 #if defined(XCP_ADDRESS_MODE_XCPLITE__ACSDD)
     const uint8_t *bases[5] = {xcp_get_base_addr(), NULL, NULL, base, NULL};
 #elif defined(XCP_ADDRESS_MODE_XCPLITE__CASDD)
@@ -2195,6 +2199,10 @@ void XcpEventExtAt(tXcpEventId event, const uint8_t *base, uint64_t clock) {
 void XcpEvent(tXcpEventId event) {
     if (!isDaqRunning())
         return; // DAQ not running
+    if (event >= getEventCount()) {
+        DBG_PRINTF_ERROR("Event id %u out of range\n", event);
+        return;
+    }
 #if defined(XCP_ADDRESS_MODE_XCPLITE__ACSDD)
     const uint8_t *bases[5] = {xcp_get_base_addr(), NULL, NULL, NULL, NULL};
 #elif defined(XCP_ADDRESS_MODE_XCPLITE__CASDD)
@@ -2202,11 +2210,17 @@ void XcpEvent(tXcpEventId event) {
 #else
     static_assert(false);
 #endif
+
     XcpTriggerDaqEvent_(gXcp.Queue, event, bases, ApplXcpGetClock64());
 }
 void XcpEventAt(tXcpEventId event, uint64_t clock) {
     if (!isDaqRunning())
         return; // DAQ not running
+    if (event >= getEventCount()) {
+        DBG_PRINTF_ERROR("Event id %u out of range\n", event);
+        return;
+    }
+
 #if defined(XCP_ADDRESS_MODE_XCPLITE__ACSDD)
     const uint8_t *bases[5] = {xcp_get_base_addr(), NULL, NULL, NULL, NULL};
 #elif defined(XCP_ADDRESS_MODE_XCPLITE__CASDD)
@@ -2214,6 +2228,7 @@ void XcpEventAt(tXcpEventId event, uint64_t clock) {
 #else
     static_assert(false);
 #endif
+
     XcpTriggerDaqEvent_(gXcp.Queue, event, bases, clock);
 }
 
@@ -2222,6 +2237,14 @@ void XcpEventAt(tXcpEventId event, uint64_t clock) {
 #if defined(XCP_ENABLE_DYN_ADDRESSING) && (XCP_ADDR_EXT_DYN == 2) && (XCP_ADDR_EXT_DYN_MAX == 4)
 // Function is partly hardcoded for performance reasons, supports exactly up to 5 different base pointers
 void XcpEventExt_Var(tXcpEventId event, uint8_t count, ...) {
+
+    if (!isStarted())
+        return;
+    if (event >= getEventCount()) {
+        DBG_PRINTF_ERROR("Event id %u out of range\n", event);
+        return;
+    }
+
     va_list args;
     va_start(args, count);
     const uint8_t *bases[5] = {xcp_get_base_addr(), xcp_get_base_addr(), NULL, NULL, NULL};
@@ -2251,6 +2274,14 @@ void XcpEventExt_Var(tXcpEventId event, uint8_t count, ...) {
 }
 
 void XcpEventExtAt_Var(tXcpEventId event, uint64_t clock, uint8_t count, ...) {
+
+    if (!isStarted())
+        return;
+    if (event >= getEventCount()) {
+        DBG_PRINTF_ERROR("Event id %u out of range\n", event);
+        return;
+    }
+
     va_list args;
     va_start(args, count);
     const uint8_t *bases[5] = {xcp_get_base_addr(), xcp_get_base_addr(), NULL, NULL, NULL};

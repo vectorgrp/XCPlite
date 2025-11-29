@@ -75,6 +75,16 @@ extern uint8_t gXcpDebugLevel;
 
 #endif // OPTION_FIXED_DBG_LEVEL
 
+// #define DBG_PRINT_ERROR_LOCATION // Uncomment to include file and line number in error messages
+#ifdef DBG_PRINT_ERROR_LOCATION
+#define DBG_STRINGIFY(x) #x
+#define DBG_TOSTRING(x) DBG_STRINGIFY(x)
+#define DBG_PRINT_ERROR_STR "[XCP  ] " ANSI_COLOR_RED "ERROR" ANSI_COLOR_RESET " in " __FILE__ "-" DBG_TOSTRING(__LINE__) ": "
+#else
+#define DBG_PRINT_ERROR_STR "[XCP  ] " ANSI_COLOR_RED "ERROR: " ANSI_COLOR_RESET
+#endif
+#define DBG_PRINT_WARNING_STR "[XCP  ] " ANSI_COLOR_YELLOW "WARNING: " ANSI_COLOR_RESET
+
 #define DBG_PRINTF(format, ...) printf(format, __VA_ARGS__)
 
 #ifdef OPTION_ENABLE_DBG_STDERR
@@ -82,23 +92,23 @@ extern uint8_t gXcpDebugLevel;
 #define DBG_PRINTF_ERROR(format, ...)                                                                                                                                              \
     do {                                                                                                                                                                           \
         if (DBG_LEVEL >= 1)                                                                                                                                                        \
-            fprintf(stderr, ANSI_COLOR_RED "[XCP  ] ERROR: " ANSI_COLOR_RESET format, __VA_ARGS__);                                                                                \
+            fprintf(stderr, DBG_PRINT_ERROR_STR format, __VA_ARGS__);                                                                                                              \
     } while (0)
 #define DBG_PRINT_ERROR(format)                                                                                                                                                    \
     do {                                                                                                                                                                           \
         if (DBG_LEVEL >= 1)                                                                                                                                                        \
-            fprintf(stderr, ANSI_COLOR_RED "[XCP  ] ERROR: " ANSI_COLOR_RESET format);                                                                                             \
+            fprintf(stderr, DBG_PRINT_ERROR_STR format);                                                                                                                           \
     } while (0)
 
 #define DBG_PRINTF_WARNING(format, ...)                                                                                                                                            \
     do {                                                                                                                                                                           \
         if (DBG_LEVEL >= 2)                                                                                                                                                        \
-            fprintf(stderr, ANSI_COLOR_YELLOW "[XCP  ] WARNING: " ANSI_COLOR_RESET format, __VA_ARGS__);                                                                           \
+            fprintf(stderr, DBG_PRINT_WARNING_STR format, __VA_ARGS__);                                                                                                            \
     } while (0)
 #define DBG_PRINT_WARNING(format)                                                                                                                                                  \
     do {                                                                                                                                                                           \
         if (DBG_LEVEL >= 2)                                                                                                                                                        \
-            fprintf(stderr, ANSI_COLOR_YELLOW "[XCP  ] WARNING: " ANSI_COLOR_RESET format);                                                                                        \
+            fprintf(stderr, DBG_PRINT_WARNING_STR format);                                                                                                                         \
     } while (0)
 
 #else // OPTION_ENABLE_DBG_STDERR

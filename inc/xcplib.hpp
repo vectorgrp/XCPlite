@@ -19,7 +19,7 @@
 
 // Options for variadic measurement/event macros/templates
 // Note: The template versions do not provide static markers for event creation and triggering
-// #define OPTION_USE_VARIADIC_MACROS
+// #define OPTION_USE_CPP_VARIADIC_MACROS // Deprecated - use variadic templates instead
 #define OPTION_USE_VARIADIC_TEMPLATES
 
 namespace xcplib {
@@ -158,9 +158,10 @@ template <typename T> XCPLIB_ALWAYS_INLINE void registerMeasurement(const Measur
 // Main template functions for event handling
 template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventExtTemplate(const char *event_name, const void *base, Measurements &&...measurements) {
     if (XcpIsActivated()) {
-        static thread_local tXcpEventId event_id = XCP_UNDEFINED_EVENT_ID;
+        static tXcpEventId event_id = XCP_UNDEFINED_EVENT_ID;
         if (event_id == XCP_UNDEFINED_EVENT_ID) {
             event_id = XcpCreateEvent(event_name, 0, 0);
+            assert(event_id != XCP_UNDEFINED_EVENT_ID);
             if (A2lOnceLock()) {
                 A2lSetAutoAddrMode__i(event_id, (const uint8_t *)xcp_get_frame_addr(), (const uint8_t *)base);
                 (registerMeasurement(measurements), ...);
@@ -172,9 +173,10 @@ template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventExtTemplat
 
 template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventTemplate(const char *event_name, Measurements &&...measurements) {
     if (XcpIsActivated()) {
-        static thread_local tXcpEventId event_id = XCP_UNDEFINED_EVENT_ID;
+        static tXcpEventId event_id = XCP_UNDEFINED_EVENT_ID;
         if (event_id == XCP_UNDEFINED_EVENT_ID) {
             event_id = XcpCreateEvent(event_name, 0, 0);
+            assert(event_id != XCP_UNDEFINED_EVENT_ID);
             if (A2lOnceLock()) {
                 A2lSetAutoAddrMode__i(event_id, (const uint8_t *)xcp_get_frame_addr(), NULL);
                 (registerMeasurement(measurements), ...);
@@ -188,7 +190,7 @@ template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventTemplate(c
 
 #endif
 
-#ifdef OPTION_USE_VARIADIC_MACROS
+#ifdef OPTION_USE_CPP_VARIADIC_MACROS
 
 #define A2L_MEAS_PHYS
 #define A2L_MEAS

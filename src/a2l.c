@@ -565,7 +565,7 @@ static void A2lCreate_MOD_PAR(void) {
 static void A2lCreate_IF_DATA_DAQ(void) {
 
 #if defined(XCP_ENABLE_DAQ_EVENT_LIST)
-    tXcpEventList *eventList;
+    tXcpEventList *eventList = NULL;
 #endif
     uint16_t eventCount = 0;
 
@@ -579,8 +579,8 @@ static void A2lCreate_IF_DATA_DAQ(void) {
 
     // Event list in A2L file (if event info by XCP is not active)
 #if defined(XCP_ENABLE_DAQ_EVENT_LIST)
+    eventCount = XcpGetEventCount();
     eventList = XcpGetEventList();
-    eventCount = eventList != NULL ? eventList->count : 0;
 #endif
 
     fprintf(gA2lFile, gA2lIfDataBeginDAQ, eventCount, XCP_TIMESTAMP_UNIT_S);
@@ -705,7 +705,7 @@ static const char *dbgPrintfAddrExt(uint8_t addr_ext, uint32_t addr) {
         SNPRINTF(buf1, 64, "%u:0x%08X", addr_ext, addr);
         return buf1;
     }
-    SNPRINTF(buf1, 64, "%s:0x%08X", addr_str, addr);
+    SNPRINTF(buf1, 64, "%.32s:0x%08X", addr_str, addr);
     return buf1;
 }
 #endif
@@ -1657,13 +1657,14 @@ bool A2lFinalize(void) {
 
         // Create event groups
 #if defined(XCP_ENABLE_DAQ_EVENT_LIST)
+        uint16_t eventCount = XcpGetEventCount();
         tXcpEventList *eventList = XcpGetEventList();
-        if (eventList != NULL && eventList->count > 0) {
+        if (eventList != NULL && eventCount > 0) {
 
             // Create a enum conversion with all event ids
             fprintf(gA2lConversionsFile, "/begin COMPU_METHOD conv.events \"\" TAB_VERB \"%%.0 \" \"\" COMPU_TAB_REF conv.events.table /end COMPU_METHOD\n");
-            fprintf(gA2lConversionsFile, "/begin COMPU_VTAB conv.events.table \"\" TAB_VERB %u\n", eventList->count);
-            for (uint32_t id = 0; id < eventList->count; id++) {
+            fprintf(gA2lConversionsFile, "/begin COMPU_VTAB conv.events.table \"\" TAB_VERB %u\n", eventCount);
+            for (uint32_t id = 0; id < eventCount; id++) {
                 fprintf(gA2lConversionsFile, " %u \"%s\"", id, XcpGetEventName(id));
             }
             fprintf(gA2lConversionsFile, "\n/end COMPU_VTAB\n");
@@ -1676,7 +1677,7 @@ bool A2lFinalize(void) {
 #else
                 uint32_t id = 0;
 #endif
-                for (; id < eventList->count; id++) {
+                for (; id < eventCount; id++) {
                     fprintf(gA2lGroupsFile, " %s", XcpGetEventName(id));
                 }
                 fprintf(gA2lGroupsFile, " /end SUB_GROUP /end GROUP\n");

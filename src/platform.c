@@ -830,22 +830,6 @@ bool clockInit(void) {
 #endif
 
     clockGet(); // Initialize ClockGetLast()
-
-#ifdef DBG_LEVEL
-    if (DBG_LEVEL >= 3) { // Test
-        uint64_t t1, t2;
-        char s[128];
-        t1 = clockGet();
-        sleepMs(100);
-        t2 = clockGet();
-        DBG_PRINTF5("  now      : %" PRIu64 " %s\n", t1, clockGetString(s, sizeof(s), t1));
-        DBG_PRINTF5("  now+100ms: %" PRIu64 " %s (dt=%u)\n", t2, clockGetString(s, sizeof(s), t2), (uint32_t)(t2 - t1));
-        // t1 = clockGet(); sleepMs(100); t2 = clockGet();
-        // DBG_PRINTF4("  +0us:   %" PRIu64 " %s\n", t1, clockGetString(s, sizeof(s), t1));
-        // DBG_PRINTF4("  +100ms: %" PRIu64 " %s (dt=%u)\n", t2, clockGetString(s, sizeof(s), t2), (uint32_t)(t2 - t1));
-    }
-#endif
-
     return true;
 }
 
