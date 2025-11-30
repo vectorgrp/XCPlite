@@ -19,8 +19,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define OPTION_USE_VARIADIC_MACROS
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -185,7 +183,17 @@ tXcpEventId XcpFindEvent(const char *name, uint16_t *count);
 uint16_t XcpGetEventIndex(tXcpEventId event);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// Dynamic DAQ event creation convenience macros
+// Dynamic DAQ event creation convenience macros with once execution patterns
+
+// Create XCP events by 'name' given as identifier or string
+// Event cycle time is set to sporadic and priority to normal
+// Setting the cycle time would only have the benefit for the XCP client tool to estimate the expected data rate of a DAQ setup
+// To create an XCP event with increased priority, use XcpCreateEvent
+
+// Note on thread safety of the once patterns using static state instead of thread local state:
+// The XcpCreateEventXxx functions are thread safe by using a mutex for event list access and there are atomic aquire/release operations on event count to handle event visibility
+// Using a static non atomic variable to check the once state, has no considerable risk of reading torn values on a >=32 microprocessor architecture
+// The existing race condition is irrelevant
 
 // Needs thread local storage
 #ifndef THREAD_LOCAL
@@ -203,19 +211,10 @@ uint16_t XcpGetEventIndex(tXcpEventId event);
 #endif
 #endif // THREAD_LOCAL
 
-// Create XCP events by 'name' as identifier or string
-// Cycle time is set to sporadic and priority to normal
-// Setting the cycle time would only have the benefit for the XCP client tool to estimate the expected data rate of a DAQ setup
-// To create an XCP event with increased priority, use XcpCreateEvent
-
-// Note on thread safety of the once patterns below:
-// The XcpCreateEventXxx functions are thread safe by using a mutex for event list access and there are atomic aquire/release operations on event count to handle event visibility
-// Using a non atomic variable to check the once state, has no considerable risk of reading torn values on a >=32 microprocessor architecture
-// The existing race condition is irrelevant
-
-/// Global event
+/// Create a global event
 /// Macro may be used anywhere in the code, even in loops
-/// The first call creates the event, XcpCreateEvent is thread safe and just returns the existing event on subsequent calls
+/// Thread safe global once pattern, the first call creates the event
+/// May be called multiple times in different code locations, no error if the the event name already exists
 /// @param name Name given as identifier
 #define DaqCreateEvent(name)                                                                                                                                                       \
     static tXcpEventId evt__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                                       \
@@ -225,12 +224,14 @@ uint16_t XcpGetEventIndex(tXcpEventId event);
         }                                                                                                                                                                          \
     }
 
-/// Global event
+/// Create a thread local event with dynamic name
 /// Macro may be used anywhere in the code, even in loops
-/// The first call creates the event, XcpCreateEvent is thread safe and just returns the existing event on subsequent calls
+/// The first call in a thread creates the event, must be unique per thread and per code location
+/// Name may be different per code location in different threads
+/// Calling again in the same thread is ignored, no error if the the event name is different
 /// @param name Name given as string
 #define DaqCreateEvent_s(name)                                                                                                                                                     \
-    static tXcpEventId evt__dynname = XCP_UNDEFINED_EVENT_ID;                                                                                                                      \
+    static THREAD_LOCAL tXcpEventId evt__dynname = XCP_UNDEFINED_EVENT_ID;                                                                                                         \
     if (XcpIsActivated()) {                                                                                                                                                        \
         if (evt__dynname == XCP_UNDEFINED_EVENT_ID) {                                                                                                                              \
             evt__dynname = XcpCreateEvent(name, 0, 0);                                                                                                                             \
@@ -239,23 +240,12 @@ uint16_t XcpGetEventIndex(tXcpEventId event);
 
 /// Multi instance event
 /// No once pattern, a new event instance is created for each call
-/// If the name exists, an incrementing instance index is appended to the event <name>_xxx
+/// If the name exists, an incrementing instance index is generated and appended to the event <name>_xxx in the A2L file
 /// @param name Name given as identifier
 #define DaqCreateEventInstance(name)                                                                                                                                               \
     static tXcpEventId evt__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                                       \
     if (XcpIsActivated()) {                                                                                                                                                        \
         evt__##name = XcpCreateEventInstance(#name, 0, 0);                                                                                                                         \
-    }
-
-/// Thread instance event
-/// TLS once pattern (the first call per thread creates the event, an incrementing instance index is appended to the name <name>_xxx
-/// @param name Name given as identifier
-#define DaqCreateEventThreadInstance(name)                                                                                                                                         \
-    static THREAD_LOCAL tXcpEventId evt__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                          \
-    if (XcpIsActivated()) {                                                                                                                                                        \
-        if (evt__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                               \
-            evt__##name = XcpCreateEventInstance(#name, 0, 0);                                                                                                                     \
-        }                                                                                                                                                                          \
     }
 
 /// Get event instance id
@@ -340,15 +330,16 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
 // Event name parameter is a symbol, a string (_s) or an event index (_i)
 // Creates linker map file markers (static variables: trg__xxxx_'eventname' ) for the XCP event id used
 // No need to take care to store the event id
-// Uses thread local storage to create a thread safe once pattern for the event lookup
+// Uses local scope static or thread local storage to create a once pattern for the event lookup to save runtime overhead
 // All macros can be used to measure variables registered in absolute addressing mode as well
 
+// Note:
 // All macros assert that the event is found in the one time lookup, which means an event has to exist, before it is triggered the first time
-// The asserts may be removed with the consequence, that the event lookup takes place every trigger, before the event is created, which is the additional runtime overhead of a
-// linear search in the event list
+// The asserts may be removed with the consequence, that the event lookup takes place on every trigger, before the event is created
+// This might add unwanted runtime overhead (a linear search in the event list) on every trigger call
 
-/// Trigger the XCP event 'name' for stack relative or absolute addressing
-/// Cache the event name lookup
+/// Trigger the global XCP event 'name' for stack relative or absolute addressing
+/// Cache the event name lookup in global storage, can not be called with different names in its code location
 /// @param name Name given as identifier
 #define DaqTriggerEvent(name)                                                                                                                                                      \
     if (XcpIsActivated()) {                                                                                                                                                        \
@@ -370,7 +361,7 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
     }
 
 /// Trigger the XCP event by handle 'event_id' for stack relative or absolute addressing
-/// No lookup
+/// No lookup overhead, event id must be valid
 /// @param name Event given as id
 #define DaqTriggerEvent_i(event_id)                                                                                                                                                \
     if (XcpIsActivated()) {                                                                                                                                                        \
@@ -384,7 +375,9 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
     }
 
 /// Trigger the XCP event 'name' for absolute, stack and relative addressing mode with given individual base address (from A2lSetRelativeAddrMode(base_addr))
-/// Cache the event name lookup
+/// Cache the event name lookup in global storage, can not be called with different names in its code location
+/// @param name Name given as identifier
+/// @param base_addr Base address pointer for relative addressing mode
 #define DaqTriggerEventExt(name, base_addr)                                                                                                                                        \
     if (XcpIsActivated()) {                                                                                                                                                        \
         static tXcpEventId trg__AASD__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                             \
@@ -396,13 +389,12 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
     }
 
 /// Trigger the XCP event 'name' for absolute, stack and relative addressing mode with given individual base address (from A2lSetRelativeAddrMode(base_addr))
-/// Name is a character string, but must not be a string literal
-/// Cache the event lookup
-/// @param name Name given as identifier
+/// Cache the event lookup in thread local storage, can be called with different names in the same code location in different threads
+/// @param name Name given as string, must be unique per thread and code location
 /// @param base_addr Base address pointer for relative addressing mode
 #define DaqTriggerEventExt_s(name, base_addr)                                                                                                                                      \
     if (XcpIsActivated()) {                                                                                                                                                        \
-        static tXcpEventId trg__AASD__ = XCP_UNDEFINED_EVENT_ID;                                                                                                                   \
+        static THREAD_LOCAL tXcpEventId trg__AASD__ = XCP_UNDEFINED_EVENT_ID;                                                                                                      \
         if (trg__AASD__ == XCP_UNDEFINED_EVENT_ID) {                                                                                                                               \
             trg__AASD__ = XcpFindEvent(name, NULL);                                                                                                                                \
             assert(trg__AASD__ != XCP_UNDEFINED_EVENT_ID);                                                                                                                         \
@@ -411,18 +403,22 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
     }
 
 /// Trigger the XCP event by handle 'event_id' for absolute, stack and relative addressing mode with given individual base address (from A2lSetRelativeAddrMode(base_addr))
-/// No lookup
+/// No lookup overhead, event id must be valid
 /// @param event_id Event given as id
 /// @param base_addr Base address pointer for relative addressing mode
 #define DaqTriggerEventExt_i(event_id, base_addr)                                                                                                                                  \
     if (XcpIsActivated()) {                                                                                                                                                        \
-        static tXcpEventId trg__AASD__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                             \
+        static tXcpEventId trg__AASD = XCP_UNDEFINED_EVENT_ID;                                                                                                                     \
         XcpEventExt_Var(event_id, 2, xcp_get_frame_addr(), (const uint8_t *)base_addr);                                                                                            \
     }
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Combined create and trigger DAQ event macros
 
+/// Create and trigger the global XCP event 'name' for stack relative or absolute addressing
+/// Cache the event name lookup in global storage, can not be called with different names in its code location
+/// The first call creates the event
+/// @param name Name given as identifier
 #define DaqCreateAndTriggerEvent(name)                                                                                                                                             \
     if (XcpIsActivated()) {                                                                                                                                                        \
         static tXcpEventId evt__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                                   \
@@ -437,9 +433,10 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Enable/disable events
 
+/// Enable the XCP event 'name'
 #define DaqEventEnable(name)                                                                                                                                                       \
     if (XcpIsActivated()) {                                                                                                                                                        \
-        static tXcpEventId ena__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                                   \
+        static THREAD_LOCAL tXcpEventId ena__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                      \
         if (ena__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                               \
             ena__##name = XcpFindEvent(#name, NULL);                                                                                                                               \
             assert(ena__##name != XCP_UNDEFINED_EVENT_ID);                                                                                                                         \
@@ -447,9 +444,10 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
         XcpEventEnable(ena__##name, true);                                                                                                                                         \
     }
 
+/// Disable the XCP event 'name'
 #define DaqEventDisable(name)                                                                                                                                                      \
     if (XcpIsActivated()) {                                                                                                                                                        \
-        static tXcpEventId ena__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                                   \
+        static THREAD_LOCAL tXcpEventId ena__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                      \
         if (ena__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                               \
             ena__##name = XcpFindEvent(#name, NULL);                                                                                                                               \
             assert(ena__##name != XCP_UNDEFINED_EVENT_ID);                                                                                                                         \
@@ -489,18 +487,23 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
 #endif
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// Measurement of stack variables
+// Measurement of local variables and function parameters without A2L runtime generation enabled
 
-// Mark a (local) variable as volatile and used to prevent compiler optimizations and force spilling it to a memory location
-// XCPlite can measure stack variables but not registers
-// The A2L updater or creator can handle only simple location expressions such as absolute addresses, stack relative addresses (CFA) and calibration segment
-// relative addresses For complex cases, use the DaqCapture macro to capture the variable in a hidden static variable
-/// Attribute to mark a variable as measurable by XCP/A2L
-/// Example usage: XCP_MEA int32_t my_var = 0;
+// Note on local variable and function parameter visibility:
+// When runtime A2L generation is not used, the compiler may optimize local variables and function parameters to be stored in CPU registers only, without a memory location on the
+// stack In this case, XCPlite can not measure these variables since there is no memory location to read from, reading the register value is not supported yet To prevent this
+// optimization, the variable must be marked as 'volatile' to force the compiler to always read and write it from/to memory The XCP_MEA and XCP_MEAS macros mark a (local) variable
+// as volatile for this purpose An alternative is to use the DaqCapture macro to capture the variable in a hidden static variable for measurement
+
+// The A2L updater/creator in xcp_client can handle only simple location expressions such as absolute addresses, stack relative addresses (CFA) and calibration segment relative
+// addresses For complex cases, use the DaqCapture macro to capture the variable in a hidden static variable
+
+/// Attribute to mark a local variable as measurable
+/// Example usage: XCP_MEAS int32_t my_var = 0;
 #define XCP_MEA volatile
 #define XCP_MEAS volatile
 
-// Macro to force a variable to be stored on the stack
+// Macro to force a function parameter to be stored on the stack
 #define XCP_FORCE_TO_STACK(var) asm volatile("" ::"m"(var) : "memory")
 
 // Compiler memory barrier to prevent reordering of memory accesses across this point
@@ -609,7 +612,6 @@ void sleepUs(uint32_t us);
 // Option to create event, register measurements and trigger event in one call
 
 #ifndef __cplusplus
-#ifdef OPTION_USE_VARIADIC_MACROS
 
 #define A2L_MEAS_PHYS
 #define A2L_MEAS
@@ -794,5 +796,4 @@ void sleepUs(uint32_t us);
         }                                                                                                                                                                          \
     } while (0)
 
-#endif // OPTION_USE_VARIADIC_MACROS
 #endif // !__cplusplus

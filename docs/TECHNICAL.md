@@ -278,3 +278,35 @@ function try_publish(segment) -> bool {
 ### Other Issues
 
 - CANape ignores address extension of `loop_histogram` in ccp_demo, when saving calibration values to a parameter file. `loop_histogram` is a CHARACTERISTIC array, but it is in a measurement group
+
+
+## 5 · Appendix
+
+### Static Instrumentation Markers
+
+The code instrumentations creates static variables, to help an A2L Updater/Creator or an XCP tool to build an A2L file or its database from  linker map and debug information only.  
+The markers make it possible to detect calibration segments, events, capture buffers and the scope where an event is triggered in the ELF/DWARF file.
+Runtime A2L generation can be turned off. Measurement and calibration metadata may be added with the usual methods.  
+  
+This is currently in experimental state.  
+The xcp-client tool from the Rust xcp-lite version has support to read this information from an ELF/DWARF file.  
+CPP is not supported yet.  
+
+
+```c
+//Create calibration segment macro segment index once pattern
+static tXcpCalSegIndex cal__##name;
+
+// Create measurement event macro event id once pattern
+// From  DaqCreateXxx(name), 
+static tXcpEventId evt__##name
+static tXcpEventId evt__dynname
+
+// Daq capture macro (DaqCapture(event, var)) capture buffer
+static __typeof__(var) daq__##event##__##var
+
+// Daq event trigger macro event id once pattern
+// From C macros DaqCreateAndTriggerXxx(name), DaqEventVar(name, ...), DaqEventExtVar(name, ...), ...)
+static tXcpEventId evt__AAS__##name
+static tXcpEventId evt__AASD__##name
+```

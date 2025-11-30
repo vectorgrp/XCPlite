@@ -9,7 +9,7 @@ An instance of struct LookupTable creates a calibratable curve with axis points
 
 // Uses a typedef
 // Note: typedefs with maps or curves with shared axis require CANape 24
-#define CANAPE_24
+// #define CANAPE_24
 
 // Lookup table for arbitrary waveforms
 namespace lookup_table {

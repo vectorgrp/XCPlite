@@ -842,7 +842,11 @@ static void beginEventGroup(tXcpEventId event_id) {
 void A2lSetAutoAddrMode__s(const char *event_name, const uint8_t *stack_frame, const uint8_t *base_addr) {
     if (gA2lFile != NULL) {
         tXcpEventId event_id = XcpFindEvent(event_name, NULL);
-        assert(event_id != XCP_UNDEFINED_EVENT_ID);
+        if (event_id == XCP_UNDEFINED_EVENT_ID) {
+            DBG_PRINTF_ERROR("A2lSetAutoAddrMode__s: Event %s not found!\n", event_name);
+            A2lRstAddrMode();
+            return;
+        }
         A2lSetAutoAddrMode(event_id, stack_frame, base_addr);
         beginEventGroup(event_id);
         fprintf(gA2lFile, "\n/* Auto addressing mode: event=%s (%u) */\n", event_name, event_id);
@@ -851,7 +855,11 @@ void A2lSetAutoAddrMode__s(const char *event_name, const uint8_t *stack_frame, c
 void A2lSetAutoAddrMode__i(tXcpEventId event_id, const uint8_t *stack_frame, const uint8_t *base_addr) {
     if (gA2lFile != NULL) {
         const char *event_name = XcpGetEventName(event_id);
-        assert(event_name != NULL);
+        if (event_name == NULL) {
+            DBG_PRINTF_ERROR("A2lSetAutoAddrMode__i: Event %s not found!\n", event_name);
+            A2lRstAddrMode();
+            return;
+        }
         A2lSetAutoAddrMode(event_id, stack_frame, base_addr);
         beginEventGroup(event_id);
         fprintf(gA2lFile, "\n/* Auto addressing mode: event=%s (%u) */\n", event_name, event_id);
@@ -863,7 +871,11 @@ void A2lSetAutoAddrMode__i(tXcpEventId event_id, const uint8_t *stack_frame, con
 void A2lSetRelativeAddrMode__s(const char *event_name, uint8_t i, const uint8_t *base_addr) {
     if (gA2lFile != NULL) {
         tXcpEventId event_id = XcpFindEvent(event_name, NULL);
-        assert(event_id != XCP_UNDEFINED_EVENT_ID);
+        if (event_id == XCP_UNDEFINED_EVENT_ID) {
+            DBG_PRINTF_ERROR("A2lSetRelativeAddrMode__s: Event %s not found!\n", event_name);
+            A2lRstAddrMode();
+            return;
+        }
         A2lSetDynAddrMode(event_id, i, (uint8_t *)base_addr);
         beginEventGroup(event_id);
         fprintf(gA2lFile, "\n/* Relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_());
@@ -872,7 +884,11 @@ void A2lSetRelativeAddrMode__s(const char *event_name, uint8_t i, const uint8_t 
 void A2lSetRelativeAddrMode__i(tXcpEventId event_id, uint8_t i, const uint8_t *base_addr) {
     if (gA2lFile != NULL) {
         const char *event_name = XcpGetEventName(event_id);
-        assert(event_name != NULL);
+        if (event_name == NULL) {
+            DBG_PRINTF_ERROR("A2lSetRelativeAddrMode__i: Event %s not found!\n", event_name);
+            A2lRstAddrMode();
+            return;
+        }
         A2lSetDynAddrMode(event_id, i, (uint8_t *)base_addr);
         beginEventGroup(event_id);
         fprintf(gA2lFile, "\n/* Relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_());
@@ -884,7 +900,11 @@ void A2lSetRelativeAddrMode__i(tXcpEventId event_id, uint8_t i, const uint8_t *b
 void A2lSetStackAddrMode__s(const char *event_name, const uint8_t *stack_frame) {
     if (gA2lFile != NULL) {
         tXcpEventId event_id = XcpFindEvent(event_name, NULL);
-        assert(event_id != XCP_UNDEFINED_EVENT_ID);
+        if (event_id == XCP_UNDEFINED_EVENT_ID) {
+            DBG_PRINTF_ERROR("A2lSetRelativeAddrMode__s: Event %s not found!\n", event_name);
+            A2lRstAddrMode();
+            return;
+        }
         A2lSetDynAddrMode(event_id, 0, stack_frame);
         beginEventGroup(event_id);
         fprintf(gA2lFile, "\n/* Stack frame relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_());
@@ -893,7 +913,11 @@ void A2lSetStackAddrMode__s(const char *event_name, const uint8_t *stack_frame) 
 void A2lSetStackAddrMode__i(tXcpEventId event_id, const uint8_t *stack_frame) {
     if (gA2lFile != NULL) {
         const char *event_name = XcpGetEventName(event_id);
-        assert(event_name != NULL);
+        if (event_name == NULL) {
+            DBG_PRINTF_ERROR("A2lSetRelativeAddrMode__i: Event %s not found!\n", event_name);
+            A2lRstAddrMode();
+            return;
+        }
         A2lSetDynAddrMode(event_id, 0, stack_frame);
         beginEventGroup(event_id);
         fprintf(gA2lFile, "\n/* Stack frame relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_());

@@ -59,7 +59,7 @@ Step 3: A2L Fix:
 - Make sure the event trigger location and the variable location have the same CFA (have not seen any violations yet)
 - Heap measurement variables
     The A2L creator can not handle heap variables yet
-    Needs to detect trg__AASD or trg__AASDD type and analyze the argument type of DaqTriggerEvent(), pointer to type
+    Needs to detect trg__AAS or trg__AASD type and analyze the argument type of DaqTriggerEvent(), pointer to type
 - Thread local variables
     The A2L creator can not handle thread local variables yet
     The DAQ capture method does not work for TLS, need a ApplXcpGetTlsBaseAddress() function, maybe introduce AAST type

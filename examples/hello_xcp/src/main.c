@@ -21,6 +21,9 @@
 #define OPTION_QUEUE_SIZE 1024 * 16     // Size of the measurement queue in bytes, must be a multiple of 8
 #define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
+// New option in V1.1: Enable variadic all in one macros for simple arithmetic types, see examples below
+#define OPTION_USE_VARIADIC_MACROS
+
 //-----------------------------------------------------------------------------------------------------
 // Demo calibration parameters
 
@@ -69,7 +72,7 @@ float calc_power(uint8_t t1, uint8_t t2) {
     double heat_power = diff_temp * 10.0f;      // Heat power in kW
 
 #ifndef OPTION_USE_VARIADIC_MACROS
-    // XCP: Create a measurement event and once register local measurement variables
+    // XCP: Create a measurement event 'calc_power' and register local measurement variables and function parameters
     DaqCreateEvent(calc_power);
     A2lOnce() {
         A2lSetStackAddrMode(calc_power); // Set stack relative addressing mode with fixed event calc_power
@@ -92,6 +95,7 @@ float calc_power(uint8_t t1, uint8_t t2) {
     // XCP: Trigger the measurement event "calc_power"
     DaqTriggerEvent(calc_power);
 #else
+    // XCP: Trigger the measurement event "calc_power" and register local measurement variables and parameters
     DaqEventVar(calc_power,                                                            //
                 (t1, "Parameter t1 in function calc_power"),                           //
                 (t2, "Parameter t2 in function calc_power"),                           //

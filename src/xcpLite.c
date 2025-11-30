@@ -310,6 +310,8 @@ static void XcpPrintDaqList(uint16_t daq);
 
 uint16_t XcpGetSessionStatus(void) { return gXcp.SessionStatus; }
 
+// @@@@ TODO: Optimize (inline) XcpIsActivated(), which is called very often by the public API macros
+
 bool XcpIsInitialized(void) { return isInitialized(); }
 bool XcpIsActivated(void) { return isActivated(); }
 bool XcpIsStarted(void) { return isStarted(); }

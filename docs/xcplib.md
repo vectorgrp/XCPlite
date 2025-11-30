@@ -7,9 +7,6 @@
 1. [Overview](#1-overview)
 2. [Getting Started](#2-getting-started)
 3. [API Reference](#3-api-reference)
-4. [Example Application](#4-example-application)
-5. [A2l Creator](#5-a2l-creator)
-6. [Glossary](#6-glossary)
 
 ---
 
@@ -43,7 +40,6 @@ C++ Example:
 ```cpp
 #include "a2l.hpp"    
 #include "xcplib.hpp" 
-
 ```
 
 
@@ -366,31 +362,6 @@ All definitions of instances follow the same principle: Set the addressing mode 
 
 ---
 
-## 4 · Example Applications
 
-See examples folder and README.md for a short descriptions of the example applications.
-
-## 5 · Appendix
-
-### Static Markers
-
-The code instrumentations creates static variables, to help the A2L Creater or an XCP tool reading linker map files, to identify calibration segments, events, capture buffers and the scope where an event is triggered.
-
-```c
-//Create calibration segment macro segment index once pattern
-static tXcpCalSegIndex cal__##name;
-
-// Create measurement event macro event id once pattern
-static THREAD_LOCAL tXcpEventId evt__##name
-static THREAD_LOCAL tXcpEventId evt__
-
-// Daq capture macro capture buffer
-static __typeof__(var) daq__##event##__##var
-
-// Daq event macro event id once pattern
-static THREAD_LOCAL tXcpEventId evt___aas0__##name
-static THREAD_LOCAL tXcpEventId evt___aasr__##name
-static THREAD_LOCAL tXcpEventId evt___aasrr__##name
-```
 
 *End of document.*
