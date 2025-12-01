@@ -18,7 +18,7 @@ constexpr const char OPTION_PROJECT_VERSION[] = __TIME__;
 constexpr bool OPTION_USE_TCP = true;
 constexpr uint16_t OPTION_SERVER_PORT = 5555;
 constexpr size_t OPTION_QUEUE_SIZE = 1024 * 64;
-constexpr int OPTION_LOG_LEVEL = 4;
+constexpr int OPTION_LOG_LEVEL = 3;
 constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};
 
 //-----------------------------------------------------------------------------------------------------
@@ -158,11 +158,11 @@ int main() {
     A2lTypedefEnd();
     gCalSeg->CreateA2lTypedefInstance("ParametersT", "Random number generator parameters");
 
-    // Create FloatingAverage calculator instances with 128 samples
+    // Create FloatingAverage calculator instances
     // Local stack instance
     floating_average::FloatingAverage<128> average_filter;
     // Heap instance behind a unique_ptr
-    auto average_filter2 = std::make_unique<floating_average::FloatingAverage<128>>();
+    auto average_filter2 = std::make_unique<floating_average::FloatingAverage<64>>();
 
     // Optional: Register the complete FloatingAverage instance as measurement on event 'mainloop' (a typedef 'FloatingAverage' is created in the constructor)
     DaqCreateEvent(mainloop);
@@ -186,7 +186,13 @@ int main() {
         global_counter++;
 
         double voltage = random_number();
+
+        // Calculate floating average of voltage
+        // Note that the event 'calc' instrumented inside the FloatingAverage<>::calc() method, will trigger on each call of any instance (average_filter and average_filter2)
+        // Events may be disabled and enabled, to filter out a particular instance to observe
+        DaqEventEnable(calc);
         double average_voltage = average_filter.calc(voltage); // Offset input to differentiate from average_filter2
+        DaqEventDisable(calc);
 
         // Trigger event "mainloop" (create, if not already exists), register local variable measurements
         DaqEventVar(mainloop,                                                        //
@@ -197,12 +203,7 @@ int main() {
         );
 
         // Optional: Another FloatingAverage instance on heap
-        // Note that the event 'calc' instrumented inside the FloatingAverage<>::calc() method, will trigger on each call of any instance (average_filter and average_filter2)
-        // Events may be disabled and enabled, to filter out a particular instances to observe
-        DaqEventEnable(calc);
-        double average_voltage2 = average_filter2->calc(voltage - 10.0); // Add anoffset to differentiate from the other instance 'average_filter'
-        DaqEventDisable(calc);
-        assert(abs((average_voltage2 + 10.0) - (average_voltage)) < 0.00000001); // Should be identical
+        double average_voltage2 = average_filter2->calc(voltage - 10.0); // Add an offset to differentiate from the other instance 'average_filter'
 
         // Trigger the event "evt_heap" to measure heap instance average_filter2
         DaqTriggerEventExt(evt_heap, average_filter2.get());

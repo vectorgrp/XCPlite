@@ -436,7 +436,6 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
         static THREAD_LOCAL tXcpEventId ena__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                      \
         if (ena__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                               \
             ena__##name = XcpFindEvent(#name, NULL);                                                                                                                               \
-            assert(ena__##name != XCP_UNDEFINED_EVENT_ID);                                                                                                                         \
         }                                                                                                                                                                          \
         XcpEventEnable(ena__##name, true);                                                                                                                                         \
     }
@@ -447,7 +446,6 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
         static THREAD_LOCAL tXcpEventId ena__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                      \
         if (ena__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                               \
             ena__##name = XcpFindEvent(#name, NULL);                                                                                                                               \
-            assert(ena__##name != XCP_UNDEFINED_EVENT_ID);                                                                                                                         \
         }                                                                                                                                                                          \
         XcpEventEnable(ena__##name, false);                                                                                                                                        \
     }
@@ -755,7 +753,8 @@ void sleepUs(uint32_t us);
 // =============================================================================
 // Variadic DAQ macros which create, register variables and trigger events in one call
 
-// Create event, register stack measurements once and trigger an event with stack addressing mode
+/// Trigger an event, create the event once and register global and local measurement variables once
+/// Supports absolute, stack and relative addressing mode measurements
 #define DaqEventVar(event_name, ...)                                                                                                                                               \
     do {                                                                                                                                                                           \
         if (XcpIsActivated()) {                                                                                                                                                    \
@@ -774,7 +773,8 @@ void sleepUs(uint32_t us);
         }                                                                                                                                                                          \
     } while (0)
 
-// Create event, register once and trigger an event with stack or relative addressing mode
+/// Trigger an event, create the event once and register global, local and relative addressing mode measurement variables once
+/// Supports absolute, stack and relative addressing mode measurements
 #define DaqEventExtVar(event_name, base, ...)                                                                                                                                      \
     do {                                                                                                                                                                           \
         if (XcpIsActivated()) {                                                                                                                                                    \

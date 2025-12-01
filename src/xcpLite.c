@@ -1322,6 +1322,7 @@ static uint8_t calcChecksum(uint32_t checksum_size, uint32_t *checksum_result) {
 #define getEventCount() atomic_load_explicit(&gXcp.EventList.count, memory_order_acquire)
 #define setEventCount(c) atomic_store_explicit(&gXcp.EventList.count, c, memory_order_release)
 
+// Initialize the XCP event list
 void XcpInitEventList(void) {
 
     setEventCount(0); // Reset event list
@@ -1473,6 +1474,11 @@ tXcpEventId XcpCreateEvent(const char *name, uint32_t cycleTimeNs, uint8_t prior
     return id;
 }
 
+#else  // XCP_ENABLE_DAQ_EVENT_LIST
+const char *XcpGetEventName(tXcpEventId event) {
+    (void)event;
+    return "";
+}
 #endif // XCP_ENABLE_DAQ_EVENT_LIST
 
 /****************************************************************************/
@@ -2316,8 +2322,12 @@ void XcpEventExtAt_Var(tXcpEventId event, uint64_t clock, uint8_t count, ...) {
 void XcpEventEnable(tXcpEventId event, bool enable) {
     if (!isStarted())
         return;
+    if (event == XCP_UNDEFINED_EVENT_ID) {
+        DBG_PRINT_WARNING("XcpEventEnable: Undefined event id\n");
+        return;
+    }
     if (event >= getEventCount()) {
-        DBG_PRINTF_ERROR("Event id %u out of range\n", event);
+        DBG_PRINTF_WARNING("XcpEventEnableInvalid event id %u\n", event);
         return;
     }
     tXcpEvent *evt = &gXcp.EventList.event[event];
@@ -3756,7 +3766,7 @@ static void XcpPrintCmd(const tXcpCto *cmdBuf) {
         printf(" GET_DAQ_RESOLUTION_INFO\n");
         break;
     case CC_GET_DAQ_EVENT_INFO:
-        printf(" GET_DAQ_EVENT_INFO event=%u\n", CRO_GET_DAQ_EVENT_INFO_EVENT);
+        printf(" GET_DAQ_EVENT_INFO event=%u (%s)\n", CRO_GET_DAQ_EVENT_INFO_EVENT, XcpGetEventName(CRO_GET_DAQ_EVENT_INFO_EVENT));
         break;
     case CC_FREE_DAQ:
         printf(" FREE_DAQ\n");
@@ -3774,7 +3784,8 @@ static void XcpPrintCmd(const tXcpCto *cmdBuf) {
         printf(" GET_DAQ_LIST_MODE daq=%u\n", CRO_GET_DAQ_LIST_MODE_DAQ);
         break;
     case CC_SET_DAQ_LIST_MODE:
-        printf(" SET_DAQ_LIST_MODE daq=%u, mode=%02Xh, eventchannel=%u\n", CRO_SET_DAQ_LIST_MODE_DAQ, CRO_SET_DAQ_LIST_MODE_MODE, CRO_SET_DAQ_LIST_MODE_EVENTCHANNEL);
+        printf(" SET_DAQ_LIST_MODE daq=%u, mode=%02Xh, event=%u (%s)\n", CRO_SET_DAQ_LIST_MODE_DAQ, CRO_SET_DAQ_LIST_MODE_MODE, CRO_SET_DAQ_LIST_MODE_EVENTCHANNEL,
+               XcpGetEventName(CRO_SET_DAQ_LIST_MODE_EVENTCHANNEL));
         break;
     case CC_SET_DAQ_PTR:
         printf(" SET_DAQ_PTR daq=%u,odt=%u,idx=%u\n", CRO_SET_DAQ_PTR_DAQ, CRO_SET_DAQ_PTR_ODT, CRO_SET_DAQ_PTR_IDX);
@@ -4097,7 +4108,7 @@ static void XcpPrintDaqList(uint16_t daq) {
         return;
 
     printf("  DAQ %u:", daq);
-    printf(" eventchannel=%04Xh,", DaqListEventChannel(daq));
+    printf(" event=%u (%s),", DaqListEventChannel(daq), XcpGetEventName(DaqListEventChannel(daq)));
     printf(" ext=%02Xh,", DaqListAddrExt(daq));
     printf(" firstOdt=%u,", DaqListFirstOdt(daq));
     printf(" lastOdt=%u,", DaqListLastOdt(daq));
