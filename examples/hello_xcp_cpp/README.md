@@ -18,9 +18,6 @@
     double average_voltage2 = average_filter2->calc(voltage);
     DaqTriggerEventExt(evt_heap, average_filter2.get());
 
-
-
-
 ```
 
 
