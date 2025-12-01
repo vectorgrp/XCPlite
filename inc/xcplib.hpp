@@ -15,6 +15,8 @@
 |
  ----------------------------------------------------------------------------*/
 
+#include <mutex> // for std::once_flag, std::call_once
+
 #include <xcplib.h>
 
 namespace xcplib {
@@ -156,30 +158,34 @@ template <typename T> XCPLIB_ALWAYS_INLINE void registerMeasurement(const Measur
 template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventExtTemplate(const char *event_name, const void *base, Measurements &&...measurements) {
     if (XcpIsActivated()) {
         static tXcpEventId event_id = XCP_UNDEFINED_EVENT_ID;
-        if (event_id == XCP_UNDEFINED_EVENT_ID) {
+        static std::once_flag once_flag;
+        const uint8_t *frame_addr = (const uint8_t *)xcp_get_frame_addr(); // Capture caller's frame address before lambda
+        std::call_once(once_flag, [&]() {
             event_id = XcpCreateEvent(event_name, 0, 0);
             assert(event_id != XCP_UNDEFINED_EVENT_ID);
-            if (A2lOnceLock()) {
-                A2lSetAutoAddrMode__i(event_id, (const uint8_t *)xcp_get_frame_addr(), (const uint8_t *)base);
-                (registerMeasurement(measurements), ...);
-            }
-        }
-        XcpEventExt_Var(event_id, 2, (const uint8_t *)xcp_get_frame_addr(), (const uint8_t *)base);
+            A2lLock();
+            A2lSetAutoAddrMode__i(event_id, frame_addr, (const uint8_t *)base);
+            (registerMeasurement(measurements), ...);
+            A2lUnlock();
+        });
+        XcpEventExt_Var(event_id, 2, frame_addr, (const uint8_t *)base);
     }
 }
 
 template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventTemplate(const char *event_name, Measurements &&...measurements) {
     if (XcpIsActivated()) {
         static tXcpEventId event_id = XCP_UNDEFINED_EVENT_ID;
-        if (event_id == XCP_UNDEFINED_EVENT_ID) {
+        static std::once_flag once_flag;
+        const uint8_t *frame_addr = (const uint8_t *)xcp_get_frame_addr(); // Capture caller's frame address before lambda
+        std::call_once(once_flag, [&]() {
             event_id = XcpCreateEvent(event_name, 0, 0);
             assert(event_id != XCP_UNDEFINED_EVENT_ID);
-            if (A2lOnceLock()) {
-                A2lSetAutoAddrMode__i(event_id, (const uint8_t *)xcp_get_frame_addr(), NULL);
-                (registerMeasurement(measurements), ...);
-            }
-        }
-        XcpEventExt_Var(event_id, 1, (const uint8_t *)xcp_get_frame_addr());
+            A2lLock();
+            A2lSetAutoAddrMode__i(event_id, frame_addr, NULL);
+            (registerMeasurement(measurements), ...);
+            A2lUnlock();
+        });
+        XcpEventExt_Var(event_id, 1, frame_addr);
     }
 }
 
