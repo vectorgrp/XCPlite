@@ -216,12 +216,12 @@ int main(void) {
 #else
         // XCP: Create and trigger measurement event mainloop, register global and local measurement variables
         A2lCreateLinearConversion(temperature, "Temperature in °C from unsigned byte", "C", 1.0, -55.0);
-        DaqEventVar(mainloop,                                                                                         //
-                    (outside_temperature, "Temperature in °C read from outside sensor", "conv.temperature", -20, 50), //
-                    (inside_temperature, "Temperature in °C read from inside sensor", "conv.temperature", 0, 40),     //
-                    (heat_energy, "Accumulated heat energy in kWh", "kWh", 0.0, 10000.0),                             //
-                    (global_counter, "Global free running counter"),                                                  //
-                    (counter, "Mainloop counter"));
+        DaqEventVar(mainloop,                                                                                                 //
+                    A2L_MEAS(outside_temperature, "Temperature in °C read from outside sensor", "conv.temperature", -20, 50), //
+                    A2L_MEAS(inside_temperature, "Temperature in °C read from inside sensor", "conv.temperature", 0, 40),     //
+                    A2L_MEAS(heat_energy, "Accumulated heat energy in kWh", "kWh", 0.0, 10000.0),                             //
+                    A2L_MEAS(global_counter, "Global free running counter"),                                                  //
+                    A2L_MEAS(counter, "Mainloop counter"));
 #endif
 
         // Sleep for the specified delay parameter in microseconds, don't sleep with the XCP lock held to give the XCP client a chance to update params

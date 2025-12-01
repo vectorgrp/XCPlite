@@ -362,7 +362,7 @@ All functions are thread safe and lock-free.
 See technical reference for details.
 
 
-Convenience macros to create and trigger events without the need to pass around event handles and specify base addresses:
+Convenience macros to create, control and trigger events without the need to pass around event handles and specify base addresses:
 
 Macros to create events:
 ```c
@@ -372,7 +372,7 @@ Macros to create events:
 /// Thread safe global once pattern, the first call creates the event
 /// May be called multiple times in different code locations, ignored if the the event name already exists
 /// @param name Name given as identifier
-DaqCreateEvent(name)                                                                                                                                                       \
+DaqCreateEvent(event_name)                                                                                                                                                       \
 ```
 
 Macros to trigger events:
@@ -380,14 +380,49 @@ Macros to trigger events:
 /// Trigger a global event for stack relative or absolute addressing
 /// Cache the event name lookup in global storage
 /// @param name Name given as identifier
-#define DaqTriggerEvent(name) 
+#define DaqTriggerEvent(event_name) 
 
 /// Trigger a global event for absolute, stack and relative addressing mode with given individual base address (from A2lSetRelativeAddrMode(base_addr))
 /// Cache the event name lookup in global storage
 /// @param name Name given as identifier
 /// @param base_addr Base address pointer for relative addressing mode
-#define DaqTriggerEventExt(name, base_addr)
+#define DaqTriggerEventExt(event_name, base_addr)
 ```
+
+
+Macros to control events:
+```c
+/// Enable the XCP event 'name'
+DaqEventEnable(event_name)                                                                                                                                                       \
+
+/// Disable the XCP event 'name'
+DaqEventDisable(event_name)        
+```
+
+
+Combined variadic macros to trigger events and register measurements in one call.  
+Available for c and c++:
+```c
+/// Trigger an event, create the event once and register global and local measurement variables once
+/// Supports absolute, stack and relative addressing mode measurements
+DaqEventVar(event_name, ...) 
+
+/// Trigger an event, create the event once and register global, local and relative addressing mode measurement variables once
+/// Supports absolute, stack and relative addressing mode measurements
+DaqEventExtVar(event_name, ...) 
+
+/// Helper macros for creating measurement meta data, variable name stringification and address capture
+A2L_MEAS(var, comment)
+A2L_MEAS_PHYS(var, comment, unit, min, max)
+
+// Example:
+DaqEventVar(event_name,                                                                                                 
+                    A2L_MEAS(variable1, "Comment", "Unit", -20, 50), //
+                    A2L_MEAS(variable2, "Comment", "Unit", 0, 40));
+
+```
+
+
 
 Note:
 For workflows without runtime A2L generation, the event creation macros have to be used.  

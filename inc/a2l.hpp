@@ -41,7 +41,7 @@ if (A2lOncePerThread()) {
 #include <thread>
 #endif
 
-#include "a2l.h"
+#include <a2l.h>
 
 #ifdef __cplusplus
 

@@ -15,7 +15,7 @@
 |
  ----------------------------------------------------------------------------*/
 
-#include "xcplib.h"
+#include <xcplib.h>
 
 namespace xcplib {
 
@@ -115,8 +115,12 @@ template <typename T> CalSeg<T> CreateCalSeg(const char *name, const T *default_
 #define A2L_MEAS(var, comment) xcplib::MeasurementInfo(#var, &(var), var, comment)
 #define A2L_MEAS_PHYS(var, comment, unit, min, max) xcplib::MeasurementInfo(#var, &(var), var, comment, unit, min, max)
 
-// Convenience macros that stringify the event name and capture the caller's stack frame
+/// Trigger an event, create the event once and register global and local measurement variables once
+/// Supports absolute, stack and relative addressing mode measurements
 #define DaqEventVar(event_name, ...) xcplib::DaqEventTemplate(#event_name, __VA_ARGS__)
+
+/// Trigger an event, create the event once and register global, local and relative addressing mode measurement variables once
+/// Supports absolute, stack and relative addressing mode measurements
 #define DaqEventExtVar(event_name, base, ...) xcplib::DaqEventExtTemplate(#event_name, base, __VA_ARGS__)
 
 namespace xcplib {
@@ -146,7 +150,7 @@ template <typename T> XCPLIB_ALWAYS_INLINE void registerMeasurement(const Measur
 
 // @@@@ TODO Add markers
 // Create event: evt__##event_name
-// Trigger event: trg__AASD__##event_name
+// Trigger event: trg__CASD__##event_name
 
 // Main template functions for event handling
 template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventExtTemplate(const char *event_name, const void *base, Measurements &&...measurements) {
