@@ -381,6 +381,7 @@ bool fexists(const char *filename);
 #define atomic_uint_fast64_t uint64_t
 #define atomic_uintptr_t uintptr_t
 #define atomic_uint_fast8_t uint64_t
+#define atomic_uint_fast16_t uint64_t
 
 #define ATOMIC_BOOL_TYPE uint64_t
 #define ATOMIC_BOOL uint64_t

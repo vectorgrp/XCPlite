@@ -1319,7 +1319,7 @@ static uint8_t calcChecksum(uint32_t checksum_size, uint32_t *checksum_result) {
 
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
 
-#define getEventCount() atomic_load_explicit(&gXcp.EventList.count, memory_order_acquire)
+#define getEventCount() (uint16_t)atomic_load_explicit(&gXcp.EventList.count, memory_order_acquire)
 #define setEventCount(c) atomic_store_explicit(&gXcp.EventList.count, c, memory_order_release)
 
 // Initialize the XCP event list
