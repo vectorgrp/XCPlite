@@ -162,7 +162,7 @@ typedef uint16_t tXcpEventId;
 tXcpEventId XcpCreateEvent(const char *name, uint32_t cycleTimeNs /* ns */, uint8_t priority /* 0-normal, >=1 realtime*/);
 
 /// Add a measurement event to event list, return event id (0..XCP_MAX_EVENT_COUNT-1)
-/// If name exists, a new event instance index is generated (will be the postfix of the event name in the A2L file)
+/// If the event name exists, a new event instance index is generated (will be the postfix of the event name in the A2L file)
 /// Function is thread safe by using a mutex for event list access.
 /// @param name Name of the event.
 /// @param cycleTimeNs Cycle time in nanoseconds. 0 means sporadic event.
@@ -214,7 +214,7 @@ uint16_t XcpGetEventIndex(tXcpEventId event);
 /// Create a global event
 /// Macro may be used anywhere in the code, even in loops
 /// Thread safe global once pattern, the first call creates the event
-/// May be called multiple times in different code locations, no error if the the event name already exists
+/// May be called multiple times in different code locations, ignored if the the event name already exists
 /// @param name Name given as identifier
 #define DaqCreateEvent(name)                                                                                                                                                       \
     static tXcpEventId evt__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                                       \
@@ -228,7 +228,7 @@ uint16_t XcpGetEventIndex(tXcpEventId event);
 /// Macro may be used anywhere in the code, even in loops
 /// The first call in a thread creates the event, must be unique per thread and per code location
 /// Name may be different per code location in different threads
-/// Calling again in the same thread is ignored, no error if the the event name is different
+/// Calling again in the same thread is ignored, ignored if the the event name is different
 /// @param name Name given as string
 #define DaqCreateEvent_s(name)                                                                                                                                                     \
     static THREAD_LOCAL tXcpEventId evt__dynname = XCP_UNDEFINED_EVENT_ID;                                                                                                         \
@@ -258,26 +258,23 @@ uint16_t XcpGetEventIndex(tXcpEventId event);
 /// Trigger timestamped measurement events and transfer XCP tool configured associated data
 /// Function are thread safe and look-free, depending on the transmit queue configuration and platform. See technical reference for details.
 
-/// Trigger the XCP event 'event' for stack absolute addressing mode (XCP_ADDR_EXT_ABS)
+/// Trigger the XCP event 'event' for absolute addressing mode (XCP_ADDR_EXT_ABS)
 /// @param event Event id.
 void XcpEvent(tXcpEventId event);
 
-/// Trigger the XCP event 'event' for absolute or relative mode with explicitly given base address (for XCP_ADDR_EXT_DYN)
+/// Trigger the XCP event 'event' for absolute or relative addressing mode with explicitly given base address (address extension = 2)
 /// @param event
-/// @param base address pointer for the relative (XCP_ADDR_EXT_DYN) addressing mode
+/// @param base address pointer
 void XcpEventExt(tXcpEventId event, const uint8_t *base2);
 
-// Variadic versions for more call convenience
-
-/// Trigger the XCP event 'event' with explicitly given base addresses for all addressing modes (address extensions XCP_ADDR_EXT_DYN, ...)
+/// Trigger the XCP event 'event' for absolute or relative addressing mode with explicitly given base addresses for multiple relative addressing modes (address extensions = [2..4])
 /// @param event
-/// @param count Number of base address pointers passed
+/// @param count Number of base address pointers passed (max 3 possible)
 void XcpEventExt_Var(tXcpEventId event, uint8_t count, ...);
 
 /// Internal use by some macros and the Rust API
-void XcpEventExtAt(tXcpEventId event, const uint8_t *base2, uint64_t clock);
 void XcpEventExt2(tXcpEventId event, const uint8_t *base2, const uint8_t *base3);
-void XcpEventExt2At(tXcpEventId event, const uint8_t *base2, const uint8_t *base3, uint64_t clock);
+void XcpEventExtAt(tXcpEventId event, const uint8_t *base2, uint64_t clock);
 void XcpEventExtAt_Var(tXcpEventId event, uint64_t clock, uint8_t count, ...);
 
 // Enable or disable a XCP DAQ event

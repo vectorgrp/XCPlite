@@ -140,7 +140,7 @@
 #endif
 
 /****************************************************************************/
-/* XCPlite memoryy signature (XCPLITE__XXXXX)                               */
+/* XCPlite memory signature (XCPLITE__XXXXX)                               */
 /****************************************************************************/
 
 // Current supported addressing schemes are:
@@ -2160,17 +2160,15 @@ static void XcpEventExt_(tXcpEventId event, const uint8_t **bases) {
 //----------------------------------------------------------------------------
 // Public API
 
+// @@@@ TODO: Get rid off the magic number 5 below here
+
 #ifdef XCP_ADDRESS_MODE_XCPLITE__C_DR
 
 // Internal function used by the Rust API
 // Supports XCP_ADDR_EXT_DYN and XCP_ADDR_EXT_REL with given base pointers
 void XcpEventExt2(tXcpEventId event, const uint8_t *base_dyn, const uint8_t *base_rel) {
-    const uint8_t *bases[4] = {NULL, NULL, base_dyn, base_rel};
+    const uint8_t *bases[5] = {NULL, NULL, base_dyn, base_rel, NULL};
     XcpEventExt_(event, bases);
-}
-void XcpEventExt2At(tXcpEventId event, const uint8_t *base_dyn, const uint8_t *base_rel, uint64_t clock) {
-    const uint8_t *bases[5] = {NULL, NULL, base_rel, base_dyn, base_rel};
-    XcpEventExtAt_(event, bases, clock);
 }
 
 #else
@@ -2178,7 +2176,7 @@ void XcpEventExt2At(tXcpEventId event, const uint8_t *base_dyn, const uint8_t *b
 // Supports XCP_ADDR_EXT_ABS and XCP_ADDR_EXT_DYN with given base pointer
 void XcpEventExt(tXcpEventId event, const uint8_t *base) {
 #if defined(XCP_ADDRESS_MODE_XCPLITE__ACSDD)
-    const uint8_t *bases[5] = {xcp_get_base_addr(), NULL, NULL, base, NULL};
+    const uint8_t *bases[5] = {xcp_get_base_addr(), NULL, base, NULL, NULL};
 #elif defined(XCP_ADDRESS_MODE_XCPLITE__CASDD)
     const uint8_t *bases[5] = {NULL, xcp_get_base_addr(), base, NULL, NULL};
 #else
@@ -2188,7 +2186,7 @@ void XcpEventExt(tXcpEventId event, const uint8_t *base) {
 }
 void XcpEventExtAt(tXcpEventId event, const uint8_t *base, uint64_t clock) {
 #if defined(XCP_ADDRESS_MODE_XCPLITE__ACSDD)
-    const uint8_t *bases[5] = {xcp_get_base_addr(), NULL, NULL, base, NULL};
+    const uint8_t *bases[5] = {xcp_get_base_addr(), NULL, base, NULL, NULL};
 #elif defined(XCP_ADDRESS_MODE_XCPLITE__CASDD)
     const uint8_t *bases[5] = {NULL, xcp_get_base_addr(), base, NULL, NULL};
 #else
