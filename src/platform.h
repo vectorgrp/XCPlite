@@ -69,14 +69,10 @@
 #include <inttypes.h> // for PRIx32, PRIu64
 #include <stdbool.h>  // for bool
 #include <stdint.h>   // for uintxx_t, uint_fastxx_t
-#include <stdio.h>
-#include <stdio.h> // for printf
+#include <stdio.h>    // for printf
+#include <stdlib.h>   // for malloc, free
 #include <time.h>
 #include <windows.h>
-
-#if defined(_WIN)
-#include <stdlib.h> // for malloc, free
-#endif
 
 #else
 

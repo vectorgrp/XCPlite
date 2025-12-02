@@ -112,7 +112,7 @@ uint16_t XcpGetCalSegSize(tXcpCalSegIndex calseg);
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Calibration segment convenience macros
 
-// Convienienc macros to create and access calibration segments by identifier without providing explicit handles and the need to pass them around
+// Convenience macros to create and access calibration segments by identifier without providing explicit handles and the need to pass them around
 
 /// Create calibration segment macro
 /// Name given as identifier, type name and segment name are identical
@@ -292,18 +292,23 @@ void XcpEventEnable(tXcpEventId event, bool enable);
 // MSVC compiler
 #elif defined(_MSC_VER)
 
-// Workaround to get the stackframe address with the MS compiler
-// The __forceinline ensures this gets inlined, so effectively zero function call overhead
-// The local variable approach compiles to a single LEA instruction
-// Suppress the warning since this is intentional behavior for stack frame detection
-#pragma warning(push)
-#pragma warning(disable : 4172) // returning address of local variable - intentional
-static __forceinline const uint8_t *xcp_get_frame_addr_msvc(void) {
-    volatile char stack_marker = 0;
-    return (const uint8_t *)&stack_marker;
+#if defined(PLATFORM_64BIT)
+
+// x64 architecture - inline assembly not supported by MSVC x64, use _AddressOfReturnAddress intrinsic
+#include <intrin.h>
+#pragma intrinsic(_AddressOfReturnAddress)
+static __forceinline const uint8_t *xcp_get_frame_addr(void) {
+    // _AddressOfReturnAddress() returns the address where the return address is stored (RSP + offset to return address)
+    // The saved RBP is stored at [RSP + offset to saved RBP] in the function prologue
+    // With /Oy- (frame pointer not omitted), this provides a consistent reference point
+    void **return_addr_ptr = (void **)_AddressOfReturnAddress();
+    // The saved frame pointer is typically at return_addr_ptr - 1
+    // This gives us a consistent base address for stack-relative addressing
+    return (const uint8_t *)(return_addr_ptr - 1);
 }
-#pragma warning(pop)
-#define xcp_get_frame_addr() xcp_get_frame_addr_msvc()
+#else
+#error "Unsupported MSVC architecture for frame pointer detection"
+#endif
 
 // Other compilers
 #else
