@@ -692,7 +692,7 @@ static const char *dbgPrintfAddrExt(uint8_t addr_ext, uint32_t addr) {
 #ifdef XCP_ENABLE_DYN_ADDRESSING
         if (XcpAddrIsDyn(addr_ext)) {
         addr_str = buf2;
-        SNPRINTF(buf2, 64, "DYN%u(e=%u,o=%d)", addr_ext - XCP_ADDR_EXT_DYN, XcpAddrDecodeDynEvent(addr), XcpAddrDecodeDynOffset(addr));
+        SNPRINTF(buf2, 64, "DYN%u(event=%u,offset=%d)", addr_ext - XCP_ADDR_EXT_DYN, XcpAddrDecodeDynEvent(addr), XcpAddrDecodeDynOffset(addr));
 
     } else
 #endif

@@ -112,7 +112,8 @@ xcp-lite >=V1.0.0 for Rust XCPLITE__C_DR:
 #endif
 #define XCP_ENABLE_DYN_ADDRESSING
 #define XCP_ADDR_EXT_DYN 0x02
-#define XCP_ADDR_EXT_DYN_MAX 0x04
+#define XCP_ADDR_EXT_DYN_COUNT 8
+#define XCP_ADDR_EXT_DYN_MAX (0x02 + XCP_ADDR_EXT_DYN_COUNT - 1)
 
 #endif
 

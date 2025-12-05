@@ -2126,7 +2126,7 @@ static void XcpProcessPendingCommand(tXcpEventId event, const uint8_t **bases) {
 }
 #endif // XCP_ENABLE_DYN_ADDRESSING
 
-static void XcpEventExtAt_(tXcpEventId event, const uint8_t **bases, uint64_t clock) {
+void XcpEventExtAt_(tXcpEventId event, const uint8_t **bases, uint64_t clock) {
 
     if (!isStarted())
         return;
@@ -2146,7 +2146,7 @@ static void XcpEventExtAt_(tXcpEventId event, const uint8_t **bases, uint64_t cl
     XcpTriggerDaqEvent_(gXcp.Queue, event, bases, clock);
 }
 
-static void XcpEventExt_(tXcpEventId event, const uint8_t **bases) {
+void XcpEventExt_(tXcpEventId event, const uint8_t **bases) {
 
     if (!isStarted())
         return;
@@ -2165,8 +2165,6 @@ static void XcpEventExt_(tXcpEventId event, const uint8_t **bases) {
 
 //----------------------------------------------------------------------------
 // Public API
-
-// @@@@ TODO: Get rid off the magic number 5 below here
 
 #ifdef XCP_ADDRESS_MODE_XCPLITE__C_DR
 
@@ -2240,7 +2238,7 @@ void XcpEventAt(tXcpEventId event, uint64_t clock) {
 
 #endif
 
-#if defined(XCP_ENABLE_DYN_ADDRESSING) && (XCP_ADDR_EXT_DYN == 2) && (XCP_ADDR_EXT_DYN_MAX == 4)
+#if defined(XCP_ENABLE_DYN_ADDRESSING)
 // Function is partly hardcoded for performance reasons, supports exactly up to 5 different base pointers
 void XcpEventExt_Var(tXcpEventId event, uint8_t count, ...) {
 
@@ -2253,20 +2251,10 @@ void XcpEventExt_Var(tXcpEventId event, uint8_t count, ...) {
 
     va_list args;
     va_start(args, count);
-    const uint8_t *bases[5] = {xcp_get_base_addr(), xcp_get_base_addr(), NULL, NULL, NULL};
-    switch (count) {
-    case 3:
-        bases[2] = va_arg(args, uint8_t *);
-        bases[3] = va_arg(args, uint8_t *);
-        bases[4] = va_arg(args, uint8_t *);
-        break;
-    case 2:
-        bases[2] = va_arg(args, uint8_t *);
-        bases[3] = va_arg(args, uint8_t *);
-        break;
-    case 1:
-        bases[2] = va_arg(args, uint8_t *);
-        break;
+    const uint8_t *bases[XCP_ADDR_EXT_DYN_MAX + 1] = {xcp_get_base_addr(), xcp_get_base_addr()};
+    for (uint8_t i = 0; i < count; i++) {
+        bases[XCP_ADDR_EXT_DYN + i] = va_arg(args, uint8_t *);
+        DBG_PRINTF3("XcpEventExt_Var: Base %u: %p\n", XCP_ADDR_EXT_DYN + i, bases[XCP_ADDR_EXT_DYN + i]);
     }
     va_end(args);
 
@@ -2290,20 +2278,10 @@ void XcpEventExtAt_Var(tXcpEventId event, uint64_t clock, uint8_t count, ...) {
 
     va_list args;
     va_start(args, count);
-    const uint8_t *bases[5] = {xcp_get_base_addr(), xcp_get_base_addr(), NULL, NULL, NULL};
-    switch (count) {
-    case 3:
-        bases[2] = va_arg(args, uint8_t *);
-        bases[3] = va_arg(args, uint8_t *);
-        bases[4] = va_arg(args, uint8_t *);
-        break;
-    case 2:
-        bases[2] = va_arg(args, uint8_t *);
-        bases[3] = va_arg(args, uint8_t *);
-        break;
-    case 1:
-        bases[2] = va_arg(args, uint8_t *);
-        break;
+    const uint8_t *bases[XCP_ADDR_EXT_DYN_MAX + 1] = {xcp_get_base_addr(), xcp_get_base_addr()};
+    for (uint8_t i = 0; i < count; i++) {
+        bases[XCP_ADDR_EXT_DYN + i] = va_arg(args, uint8_t *);
+        DBG_PRINTF3("XcpEventExtAt_Var: Base %u: %p\n", XCP_ADDR_EXT_DYN + i, bases[XCP_ADDR_EXT_DYN + i]);
     }
     va_end(args);
 
@@ -2315,7 +2293,7 @@ void XcpEventExtAt_Var(tXcpEventId event, uint64_t clock, uint8_t count, ...) {
 
     XcpTriggerDaqEvent_(gXcp.Queue, event, bases, clock);
 }
-#endif // XCP_ENABLE_DYN_ADDRESSING && (XCP_ADDR_EXT_DYN == 2) && (XCP_ADDR_EXT_DYN_MAX == 4)
+#endif // XCP_ENABLE_DYN_ADDRESSING
 
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
 #ifdef XCP_ENABLE_DAQ_CONTROL

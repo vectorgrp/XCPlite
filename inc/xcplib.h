@@ -258,6 +258,10 @@ uint16_t XcpGetEventIndex(tXcpEventId event);
 /// Trigger timestamped measurement events and transfer XCP tool configured associated data
 /// Function are thread safe and look-free, depending on the transmit queue configuration and platform. See technical reference for details.
 
+// Internal for use by some macros
+void XcpEventExtAt_(tXcpEventId event, const uint8_t **bases, uint64_t clock);
+void XcpEventExt_(tXcpEventId event, const uint8_t **bases);
+
 /// Trigger the XCP event 'event' for absolute addressing mode (XCP_ADDR_EXT_ABS)
 /// @param event Event id.
 void XcpEvent(tXcpEventId event);
@@ -292,7 +296,7 @@ void XcpEventEnable(tXcpEventId event, bool enable);
 // MSVC compiler
 #elif defined(_MSC_VER)
 
-#if defined(PLATFORM_64BIT)
+#if defined(_M_X64)
 
 // x64 architecture - inline assembly not supported by MSVC x64, use _AddressOfReturnAddress intrinsic
 #include <intrin.h>
