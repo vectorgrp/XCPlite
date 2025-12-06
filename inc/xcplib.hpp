@@ -290,17 +290,15 @@ template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventVarTemplat
             assert(event_id != XCP_UNDEFINED_EVENT_ID);
             // Register measurements with individual DYN address extensions
             A2lLock();
-            uint8_t index = 0;
+            uint8_t index = 1; // Start at 1, 0 is reserved for frame pointer relative addressing mode
             (registerDynMeasurement(index++, event_id, measurements), ...);
             A2lUnlock();
         });
 
         // Always
         // Create base pointer list and trigger
-        const uint8_t *bases[] = {xcp_get_base_addr(), xcp_get_base_addr(), (const uint8_t *)measurements.addr...};
+        const uint8_t *bases[] = {xcp_get_base_addr(), xcp_get_base_addr(), xcp_get_frame_addr(), (const uint8_t *)measurements.addr...};
         XcpEventExt_(event_id, bases);
-
-        // XcpEventExt_Var(event_id, sizeof...(Measurements), measurements.addr...);
     }
 }
 
@@ -318,7 +316,11 @@ template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventVarTemplat
 #else
 
 /// Trigger an event with measurements using individual relative addressing mode for each measurement variable
-#define DaqEventVar(event_name, ...) xcplib::DaqEventVarTemplate(#event_name, __VA_ARGS__)
+#define DaqEventVar(event_name, ...)                                                                                                                                               \
+    {                                                                                                                                                                              \
+        static tXcpEventId trg__AASDD__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                                      \
+        xcplib::DaqEventVarTemplate(#event_name, __VA_ARGS__);                                                                                                                     \
+    }
 
 #endif
 

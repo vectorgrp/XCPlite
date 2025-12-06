@@ -53,8 +53,7 @@ XCPlite absolute addressing: XCPLITE__ACSDD (default)
 0x00        - Calibration segment relative addressing mode (XCP_ADDR_EXT_SEG with u16 offset)
 0x01        - Absolute addressing mode (XCP_ADDR_EXT_ABS)
 0x02        - Stackframe relative (Event based relative addressing mode with asynchronous access and i16 offset)
-0x03-0x04   - Pointer relative (Event based relative addressing mode with asynchronous access and i16 offset)
-0x05-0xFC   - Reserved
+0x03...     - Pointer relative (Event based relative addressing mode with asynchronous access and i16 offset)
 0xFD        - A2L upload memory space (XCP_ADDR_EXT_A2L)
 0xFE        - MTA pointer address space (XCP_ADDR_EXT_PTR)
 0xFF        - Undefined address extension (XCP_UNDEFINED_ADDR_EXT)
@@ -62,12 +61,8 @@ XCPlite absolute addressing: XCPLITE__ACSDD (default)
 XCPlite relative addressing: XCPLITE__CASDD:
 0x00        - Absolute addressing mode (XCP_ADDR_EXT_ABS)
 0x01        - Calibration segment relative addressing mode (XCP_ADDR_EXT_SEG)
+...
 
-xcp-lite >=V1.0.0 for Rust XCPLITE__C_DR:
-0x00        - Calibration segment relative addressing mode (XCP_ADDR_EXT_SEG with u16 offset)
-0x01        - Absolute addressing mode (XCP_ADDR_EXT_ABS) not used
-0x02        - Pointer relative  (XCP_ADDR_EXT_DYN) (Event based relative addressing mode with asynchronous access and i16 offset)
-0x03        - Stackframe relative (XCP_ADDR_EXT_REL) (Not event based address enoding, with i32 offset)
 
 */
 

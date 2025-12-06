@@ -2254,7 +2254,7 @@ void XcpEventExt_Var(tXcpEventId event, uint8_t count, ...) {
     const uint8_t *bases[XCP_ADDR_EXT_DYN_MAX + 1] = {xcp_get_base_addr(), xcp_get_base_addr()};
     for (uint8_t i = 0; i < count; i++) {
         bases[XCP_ADDR_EXT_DYN + i] = va_arg(args, uint8_t *);
-        DBG_PRINTF3("XcpEventExt_Var: Base %u: %p\n", XCP_ADDR_EXT_DYN + i, bases[XCP_ADDR_EXT_DYN + i]);
+        DBG_PRINTF5("XcpEventExt_Var: Base %u: %p\n", XCP_ADDR_EXT_DYN + i, bases[XCP_ADDR_EXT_DYN + i]);
     }
     va_end(args);
 
@@ -2281,7 +2281,7 @@ void XcpEventExtAt_Var(tXcpEventId event, uint64_t clock, uint8_t count, ...) {
     const uint8_t *bases[XCP_ADDR_EXT_DYN_MAX + 1] = {xcp_get_base_addr(), xcp_get_base_addr()};
     for (uint8_t i = 0; i < count; i++) {
         bases[XCP_ADDR_EXT_DYN + i] = va_arg(args, uint8_t *);
-        DBG_PRINTF3("XcpEventExtAt_Var: Base %u: %p\n", XCP_ADDR_EXT_DYN + i, bases[XCP_ADDR_EXT_DYN + i]);
+        DBG_PRINTF5("XcpEventExtAt_Var: Base %u: %p\n", XCP_ADDR_EXT_DYN + i, bases[XCP_ADDR_EXT_DYN + i]);
     }
     va_end(args);
 

@@ -69,12 +69,12 @@ template <uint8_t N> [[nodiscard]] double FloatingAverage<N>::calc(double input)
     current_index_ = (current_index_ + 1) % N;
 
     // Trigger event 'calc' (create, if not exists) and register individual local variables and member variables
-    DaqEventExtVar(calc, this,                                                                 //
-                   A2L_MEAS_PHYS(input, "Input value for floating average", "V", 0.0, 1000.0), //
-                   A2L_MEAS(average, "Current calculated average"),                            //
-                   A2L_MEAS(current_index_, "Current position in ring buffer"),                //
-                   A2L_MEAS(sample_count_, "Number of samples collected"),                     //
-                   A2L_MEAS(sum_, "Running sum of all samples"));
+    DaqEventVar(calc,                                                                       //
+                A2L_MEAS_PHYS(input, "Input value for floating average", "V", 0.0, 1000.0), //
+                A2L_MEAS(average, "Current calculated average"),                            //
+                A2L_MEAS(current_index_, "Current position in ring buffer"),                //
+                A2L_MEAS(sample_count_, "Number of samples collected"),                     //
+                A2L_MEAS(sum_, "Running sum of all samples"));
 
     return average;
 }
