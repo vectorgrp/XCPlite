@@ -42,7 +42,7 @@ template <uint8_t N> class FloatingAverage {
 
 template <uint8_t N> FloatingAverage<N>::FloatingAverage() : samples_{}, current_index_(0), sample_count_(0), sum_(0.0) {
 
-    // Optional: For measurement of the complete instance, create an A2L typedef for this class
+    // Optional: For measurement of the complete instance, create an A2L typedef for this class (as template, not variant with parameter N)
     if (A2lOnce()) {
         A2lTypedefBegin(FloatingAverage, this, "Typedef for FloatingAverage<%u>", N);
         A2lTypedefMeasurementComponent(current_index_, "Current position in the ring buffer");
@@ -68,21 +68,26 @@ template <uint8_t N> [[nodiscard]] double FloatingAverage<N>::calc(double input)
     double average = sum_ / static_cast<double>(sample_count_);
     current_index_ = (current_index_ + 1) % N;
 
-    // Trigger event 'calc' (create, if not exists) and register individual local variables and member variables
-    DaqEventVar(calc,                                                                       //
-                A2L_MEAS_PHYS(input, "Input value for floating average", "V", 0.0, 1000.0), //
-                A2L_MEAS(average, "Current calculated average"),                            //
-                A2L_MEAS(current_index_, "Current position in ring buffer"),                //
-                A2L_MEAS(sample_count_, "Number of samples collected"),                     //
-                A2L_MEAS(sum_, "Running sum of all samples"));
+    // Observe variant N=64
+    // Trigger event 'calc64' and register event and individual local variables and member variables once
+    if (N == 64) {
+        DaqEventVar(calc64,                                                                     //
+                    A2L_MEAS_PHYS(input, "Input value for floating average", "V", 0.0, 1000.0), //
+                    A2L_MEAS(average, "Current calculated average"),                            //
+                    A2L_MEAS(current_index_, "Current position in ring buffer"),                //
+                    A2L_MEAS(sample_count_, "Number of samples collected"),                     //
+                    A2L_MEAS(sum_, "Running sum of all samples")                                //
+        );
+    }
 
+    // A2L_MEAS_THIS(this, "FloatingAverage", "Any instance of FloatingAverage")//
     return average;
 }
 
 } // namespace floating_average
 
 //-----------------------------------------------------------------------------------------------------
-// Demo random number generator with calibration parameters
+// Demo random number generator with global calibration parameters
 
 // Calibration parameters for the random number generator
 struct ParametersT {
@@ -93,10 +98,11 @@ struct ParametersT {
 // Default parameter values
 const ParametersT kParameters = {.min = -2.0, .max = +2.0};
 
-// A calibration segment wrapper for the parameters
+// A global calibration parameter segment handle for struct 'ParametersT'
+// Initialized in main(), after XCP initialization
 std::optional<xcplib::CalSeg<ParametersT>> gCalSeg;
 
-// Simple random number generation between min and max calibration parameters
+// Simple random number generation in range [min ..= max] using global calibration parameters
 [[nodiscard]] double random_number() {
     static unsigned int seed{12345};
     seed = seed * 1103515245 + 12345;
@@ -130,7 +136,7 @@ int main() {
     // Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
     XcpSetLogLevel(OPTION_LOG_LEVEL);
 
-    // Initialize the XCP singleton, activate XCP
+    // Initialize the XCP singleton and activate XCP
     XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION /* EPK version*/, true /* activate */);
 
     // Initialize the XCP Server
@@ -140,6 +146,7 @@ int main() {
     }
 
     // Enable runtime A2L generation for data declaration as code
+    // The A2L file will be created when the XCP tool connects and, if it does not already exist on local file system and the version did not change
     if (!A2lInit(OPTION_SERVER_ADDR, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         std::cerr << "Failed to initialize A2L generator" << std::endl;
         return 1;
@@ -158,25 +165,16 @@ int main() {
     A2lTypedefEnd();
     gCalSeg->CreateA2lTypedefInstance("ParametersT", "Random number generator parameters");
 
-    // Create FloatingAverage calculator instances
-    // Local stack instance
-    floating_average::FloatingAverage<128> average_filter;
-    // Heap instance behind a unique_ptr
-    auto average_filter2 = std::make_unique<floating_average::FloatingAverage<64>>();
-
-    // Optional: Register the complete FloatingAverage instance as measurement on event 'mainloop' (a typedef 'FloatingAverage' is created in the constructor)
-    DaqCreateEvent(mainloop);
-    A2lSetStackAddrMode(mainloop);
-    A2lCreateTypedefInstance(average_filter, FloatingAverage, "Stack instance of FloatingAverage<128>");
-
-    // Optional: Register the heap FloatingAverage instance as measurement on event 'evt_heap'
-    DaqCreateEvent(evt_heap);
-    A2lSetRelativeAddrMode(evt_heap, average_filter2.get());
-    A2lCreateInstance(average_filter2, FloatingAverage, 1, average_filter2.get(), "Heap instance of FloatingAverage<128>");
-
-    // Define a local variable to be measured later in the main loop
-    // Prefixing a local variable with XCP_MEAS is not needed in this example, as it only uses the combined variadic trigger and register templates
+    // Create a simple arithmetic local variable
     uint16_t counter{0};
+
+    // Create FloatingAverage calculator instances
+    // Example1: On local stack with N=128
+    floating_average::FloatingAverage<128> average_filter1;
+    // Example2: On heap, instance behind a unique_ptr with N=64
+    auto average_filter2 = std::make_unique<floating_average::FloatingAverage<64>>();
+    // Example3:  On heap with N=64
+    auto average_filter3 = new floating_average::FloatingAverage<64>();
 
     // Main loop
     std::cout << "Starting main loop... (Press Ctrl+C to exit)" << std::endl;
@@ -185,31 +183,35 @@ int main() {
         counter++;
         global_counter++;
 
-        double voltage = random_number();
+        double input_voltage = random_number();
 
-        // Calculate floating average of voltage
-        // Note that the event 'calc' instrumented inside the FloatingAverage<>::calc() method, will trigger on each call of any instance (average_filter and average_filter2)
+        // Calculate floating average 128 of input_voltage
+        double average_voltage1 = average_filter1.calc(input_voltage); // Offset input to differentiate from average_filter2
+
+        // Calculate floating average 64 with the 2 instances on heap
+        // Note that the event 'calc64' instrumented inside the FloatingAverage<64>::calc() method, will trigger on each call of any instance (average_filter2 and average_filter3)
         // Events may be disabled and enabled, to filter out a particular instance to observe
-        DaqEventEnable(calc);
-        double average_voltage = average_filter.calc(voltage); // Offset input to differentiate from average_filter2
-        DaqEventDisable(calc);
+        DaqEventEnable(calc64);
+        double average_voltage2 = average_filter2->calc(input_voltage - 10.0);
+        DaqEventDisable(calc64);
+        double average_voltage3 = average_filter3->calc(input_voltage + 10.0);
 
-        // Trigger event "mainloop" (create, if not already exists), register local variable measurements
-        DaqEventVar(mainloop,                                                        //
-                    A2L_MEAS(global_counter, "Global counter variable"),             //
-                    A2L_MEAS(counter, "Local counter variable"),                     //
-                    A2L_MEAS_PHYS(voltage, "Input voltage", "V", 0.0, 1000.0),       //
-                    A2L_MEAS(average_voltage, "Calculated voltage floating average") //
+        // Trigger data acquisition event "mainloop", once register event, global and local variables, and heap instance measurements
+        DaqEventVar(mainloop,                                                                                            //
+                    A2L_MEAS(global_counter, "Global counter variable"),                                                 //
+                    A2L_MEAS(counter, "Local counter variable"),                                                         //
+                    A2L_MEAS_PHYS(input_voltage, "Input voltage", "V", -100.0, 100.0),                                   //
+                    A2L_MEAS(average_voltage1, "Calculated average <128> on input_voltage"),                             //
+                    A2L_MEAS_INST(average_filter1, "FloatingAverage", "Local (stack) instance of FloatingAverage<128>"), //
+                    A2L_MEAS(average_voltage2, "Calculated average <64>on input_voltage-10"),                            //
+                    A2L_MEAS_PTR(average_filter2, "FloatingAverage", "Heap RAII instance of FloatingAverage<64>"),       //
+                    A2L_MEAS(average_voltage3, "Calculated average <64> on input_voltage+10"),                           //
+                    A2L_MEAS_REF(average_filter3, "FloatingAverage", "Heap instance of FloatingAverage<64>")
+
         );
 
-        // Optional: Another FloatingAverage instance on heap
-        double average_voltage2 = average_filter2->calc(voltage - 10.0); // Add an offset to differentiate from the other instance 'average_filter'
-
-        // Trigger the event "evt_heap" to measure heap instance average_filter2
-        DaqTriggerEventExt(evt_heap, average_filter2.get());
-
         sleepUs(1000);
-        A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
+        A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible on file system without XCP tool connect
     }
 
     // Cleanup

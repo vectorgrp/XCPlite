@@ -22,15 +22,25 @@ Note: Some of the examples use display windows without title bars to make it loo
 
 ### hello_xcp
 
-Demonstrates how to start the XCP on Ethernet server and use the runtime A2L generator.  
-Shows how to create a calibration parameter segment structure, register the parameters in the segment and access them safely.  
-Defines events for measurement of global and local (stack) variables.  
-Demonstrates the different addressing modes for measurement variables and calibration parameters.  
-Defines a function, registers local variables and function parameters and creates and triggers a measurement event in the function.  
+An example in pure C. Compiles a C or C++. Demonstrates the basic C API.  
+- Start the XCP on Ethernet server and use the runtime A2L generator.  
+- Create a global calibration parameter segment structure, register the parameters in the segment and access them safely.  
+- Define events for measurement of global and local (stack) variables.  
+- Use the different addressing modes for measurement variables and calibration parameters.  
+- Instrument a function, register local variables and function parameters and create and trigger a measurement event in the function.  
 
 ### hello_xcp_cpp
 
-Demonstrates how to instrument a member function of a C++ class and how to register and access parameters in C++.  
+An example in C++ using more idiomatic C++ to demonstrate the capabilities of the additional C++ API.  
+- Start the XCP on Ethernet server and use the runtime A2L generator.  
+- Create a global calibration parameter segment structure, register the parameters in the segment and access them safely with a RAII wrapper.  
+- Define events for measurement of global, local (stack), and  heap variables and instances.  
+- Use the variadic C++ macro/template API.  
+- Instrument a member function: Register and measure local function variables and parameters.  
+
+
+
+
 
 ### c_demo
 
