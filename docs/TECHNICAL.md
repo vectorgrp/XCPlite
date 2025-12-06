@@ -282,7 +282,7 @@ function try_publish(segment) -> bool {
 
 ## 5 · Appendix
 
-### Static Instrumentation Markers
+### Static Instrumentation Markers for A2L Updater/Creator Tools
 
 The code instrumentations creates static variables, to help an A2L Updater/Creator or an XCP tool to build an A2L file or its database from  linker map and debug information only.  
 The markers make it possible to detect calibration segments, events, capture buffers and the scope where an event is triggered in the ELF/DWARF file.
@@ -307,6 +307,7 @@ static __typeof__(var) daq__##event##__##var
 
 // Daq event trigger macro event id once pattern
 // From C macros DaqCreateAndTriggerXxx(name), DaqEventVar(name, ...), DaqEventExtVar(name, ...), ...)
-static tXcpEventId evt__AAS__##name
-static tXcpEventId evt__AASD__##name
+static tXcpEventId trg__AAS__##name // For absloute and stack relative addressing [XCP_ADDR_EXT_ABS and XCP_ADDR_EXT_DYN]
+static tXcpEventId trg__AASD__##name // For absolute, stack and relative addressing [XCP_ADDR_EXT_ABS, XCP_ADDR_EXT_DYN, XCP_ADDR_EXT_DYN+1]
+static tXcpEventId trg__AASDD__##name // for multiple DYN address extensions [XCP_ADDR_EXT_DYN+1 ..= XCP_ADDR_EXT_DYN_MAX] 
 ```

@@ -107,7 +107,7 @@ XCPlite relative addressing: XCPLITE__CASDD:
 #endif
 #define XCP_ENABLE_DYN_ADDRESSING
 #define XCP_ADDR_EXT_DYN 0x02
-#define XCP_ADDR_EXT_DYN_COUNT 16
+#define XCP_ADDR_EXT_DYN_COUNT 14
 #define XCP_ADDR_EXT_DYN_MAX (0x02 + XCP_ADDR_EXT_DYN_COUNT - 1)
 
 #endif
