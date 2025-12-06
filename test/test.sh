@@ -142,7 +142,7 @@ ALL_EXAMPLES=(
     "cpp_demo.out"
     "struct_demo.out"
     "multi_thread_demo.out"
-    
+    "point_cloud_demo.out"
 )
 
 # Determine which examples to run
@@ -170,7 +170,7 @@ fi
 get_example_protocol() {
     local example_name="$1"
     case "$example_name" in
-        hello_xcp.out|hello_xcp_cpp.out|struct_demo.out)
+        hello_xcp.out|hello_xcp_cpp.out|point_cloud_demo.out|struct_demo.out)
             echo "tcp"
             ;;
         c_demo.out|cpp_demo.out|multi_thread_demo.out)

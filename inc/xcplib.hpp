@@ -141,6 +141,7 @@ template <typename... Bases> XCPLIB_ALWAYS_INLINE void DaqTriggerVarTemplate(con
 #define A2L_MEAS(var, comment) xcplib::MeasurementInfo(#var, &(var), var, comment)
 #define A2L_MEAS_PHYS(var, comment, unit, min, max) xcplib::MeasurementInfo(#var, &(var), var, comment, unit, min, max)
 #define A2L_MEAS_INST(var, type_name, comment) xcplib::InstanceInfo(#var, &(var), type_name, comment)
+#define A2L_MEAS_INST_ARRAY(var, type_name, comment) xcplib::InstanceInfo(#var, &(var), type_name, sizeof(var) / sizeof((var)[0]), comment)
 #define A2L_MEAS_PTR(var, type_name, comment) xcplib::InstanceInfo(#var, var.get(), type_name, comment)
 #define A2L_MEAS_REF(var, type_name, comment) xcplib::InstanceInfo(#var, var, type_name, comment)
 #define A2L_MEAS_THIS(this_ptr, type_name, comment) xcplib::InstanceInfo(type_name, this_ptr, type_name, comment)
@@ -156,11 +157,11 @@ template <typename T> struct MeasurementInfo {
     double max;
 
     // Constructor for basic measurement: (var, comment)
-    constexpr MeasurementInfo(const char *n, const T *a, const T &v, const char *c) : name(n), addr(a), value(v), comment(c), unit(nullptr), min(0.0), max(0.0) {}
+    constexpr MeasurementInfo(const char *name, const T *a, const T &v, const char *c) : name(name), addr(a), value(v), comment(c), unit(nullptr), min(0.0), max(0.0) {}
 
     // Constructor for physical measurement: (var, comment, unit, min, max)
-    constexpr MeasurementInfo(const char *n, const T *a, const T &v, const char *c, const char *u, double mn, double mx)
-        : name(n), addr(a), value(v), comment(c), unit(u), min(mn), max(mx) {}
+    constexpr MeasurementInfo(const char *name, const T *a, const T &v, const char *c, const char *unit, double min, double max)
+        : name(name), addr(a), value(v), comment(c), unit(unit), min(min), max(max) {}
 };
 
 // Helper struct to hold typedef instance information
@@ -168,10 +169,13 @@ template <typename T> struct InstanceInfo {
     const char *name;
     const T *addr;
     const char *type_name;
+    const size_t dim; // 1 = scalar, >1 = array
     const char *comment;
 
     // Constructor (var, type_name, comment)
-    constexpr InstanceInfo(const char *n, const T *a, const char *tn, const char *c) : name(n), addr(a), type_name(tn), comment(c) {}
+    constexpr InstanceInfo(const char *name, const T *a, const char *type_name, const char *c) : name(name), addr(a), type_name(type_name), dim(1), comment(c) {}
+    // Constructor (var, type_name, dim, comment)
+    constexpr InstanceInfo(const char *name, const T *a, const char *type_name, size_t d, const char *c) : name(name), addr(a), type_name(type_name), dim(d), comment(c) {}
 };
 
 // =============================================================================
@@ -237,7 +241,7 @@ template <typename T> XCPLIB_ALWAYS_INLINE void registerDynMeasurement(uint8_t i
 // Helper template to register a single typedef instance with relative addressing mode XCP_ADDR_EXT_DYN + index
 template <typename T> XCPLIB_ALWAYS_INLINE void registerDynMeasurement(uint8_t index, tXcpEventId event_id, const InstanceInfo<T> &info) {
     A2lSetRelativeAddrMode__i(event_id, index, (const uint8_t *)info.addr);
-    A2lCreateInstance_(info.name, info.type_name, 1, (const void *)info.addr, info.comment);
+    A2lCreateInstance_(info.name, info.type_name, info.dim, (const void *)info.addr, info.comment);
 }
 
 // Main template function for once event creation and registration with individual relative addressing mode, and event triggering

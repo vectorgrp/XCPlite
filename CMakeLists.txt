@@ -169,6 +169,12 @@ add_executable(hello_xcp_cpp examples/hello_xcp_cpp/src/main.cpp )
 target_include_directories(hello_xcp_cpp PUBLIC "${PROJECT_ROOT}/inc")
 target_link_libraries(hello_xcp_cpp PRIVATE xcplib)
 
+# Example point_cloud_demo
+add_executable(point_cloud_demo examples/point_cloud_demo/src/main.cpp )
+target_include_directories(point_cloud_demo PUBLIC "${PROJECT_ROOT}/inc")
+target_link_libraries(point_cloud_demo PRIVATE xcplib)
+
+
 # Example c_demo
 set(c_demo_SOURCES examples/c_demo/src/main.c)
 set_source_files_properties(${c_demo_SOURCES} PROPERTIES LANGUAGE C)
@@ -248,14 +254,16 @@ if(WIN32)
 else()
     # Unix/Linux/macOS specific settings
     
-    # Link math library for multi_thread_demo and hello_xcp_cpp (uses sin, cos, etc.)
+    # Link math library 
     target_link_libraries(multi_thread_demo PRIVATE m)
     target_link_libraries(hello_xcp_cpp PRIVATE m)
+    target_link_libraries(point_cloud_demo PRIVATE m)
 
     # Set .out suffix for executables on non-Windows platforms
     set_target_properties(hello_xcp PROPERTIES SUFFIX ".out")
     set_target_properties(no_a2l_demo PROPERTIES SUFFIX ".out")
     set_target_properties(hello_xcp_cpp PROPERTIES SUFFIX ".out")
+    set_target_properties(point_cloud_demo PROPERTIES SUFFIX ".out")
     set_target_properties(c_demo PROPERTIES SUFFIX ".out")
     set_target_properties(cpp_demo PROPERTIES SUFFIX ".out")
     set_target_properties(struct_demo PROPERTIES SUFFIX ".out")
