@@ -141,7 +141,7 @@ template <typename... Bases> XCPLIB_ALWAYS_INLINE void DaqTriggerVarTemplate(con
 #define A2L_MEAS(var, comment) xcplib::MeasurementInfo(#var, &(var), var, comment)
 #define A2L_MEAS_PHYS(var, comment, unit, min, max) xcplib::MeasurementInfo(#var, &(var), var, comment, unit, min, max)
 #define A2L_MEAS_INST(var, type_name, comment) xcplib::InstanceInfo(#var, &(var), type_name, comment)
-#define A2L_MEAS_INST_ARRAY(var, type_name, comment) xcplib::InstanceInfo(#var, &(var), type_name, sizeof(var) / sizeof((var)[0]), comment)
+#define A2L_MEAS_INST_ARRAY(var, type_name, comment) xcplib::InstanceInfo(#var, &(var), type_name, (uint16_t)(sizeof(var) / sizeof((var)[0])), comment)
 #define A2L_MEAS_PTR(var, type_name, comment) xcplib::InstanceInfo(#var, var.get(), type_name, comment)
 #define A2L_MEAS_REF(var, type_name, comment) xcplib::InstanceInfo(#var, var, type_name, comment)
 #define A2L_MEAS_THIS(this_ptr, type_name, comment) xcplib::InstanceInfo(type_name, this_ptr, type_name, comment)
@@ -169,13 +169,13 @@ template <typename T> struct InstanceInfo {
     const char *name;
     const T *addr;
     const char *type_name;
-    const size_t dim; // 1 = scalar, >1 = array
+    const uint16_t dim; // 1 = scalar, >1 = array
     const char *comment;
 
     // Constructor (var, type_name, comment)
     constexpr InstanceInfo(const char *name, const T *a, const char *type_name, const char *c) : name(name), addr(a), type_name(type_name), dim(1), comment(c) {}
     // Constructor (var, type_name, dim, comment)
-    constexpr InstanceInfo(const char *name, const T *a, const char *type_name, size_t d, const char *c) : name(name), addr(a), type_name(type_name), dim(d), comment(c) {}
+    constexpr InstanceInfo(const char *name, const T *a, const char *type_name, uint16_t d, const char *c) : name(name), addr(a), type_name(type_name), dim(d), comment(c) {}
 };
 
 // =============================================================================

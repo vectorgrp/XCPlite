@@ -25,24 +25,46 @@ constexpr int OPTION_LOG_LEVEL = 3;
 constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};
 
 //-----------------------------------------------------------------------------------------------------
-// Demo floating average calculation class
+
+// Calibration parameters for the random number generator
+struct ParametersT {
+
+    double boundary;     // Boundary box size in m
+    double max_radius;   // Point radius in m
+    double max_velocity; // Maximum point velocity in m/s
+    double ttl;          // Time to live in s
+    uint16_t spawn_rate; // Points to spawn per second
+    double gravity;      // Gravity in m/s²
+    uint32_t delay_us;   // Delay per simulation step in microseconds
+};
+
+// Default parameter values
+const ParametersT kParameters = {
+
+    .boundary = 10.0,      // boundary in m
+    .max_radius = 0.1,     // max_radius in m
+    .max_velocity = 100.0, // max_velocity in m/s
+    .ttl = 10.0,           // ttl in seconds
+    .gravity = 9.81,       // gravity in m/s²
+    .delay_us = 20000      // delay_us in microseconds
+};
+
+// A global calibration parameter segment handle for struct 'ParametersT'
+// Initialized in main(), after XCP initialization
+std::optional<xcplib::CalSeg<ParametersT>> gCalSeg;
+
+//-----------------------------------------------------------------------------------------------------
 
 namespace point_cloud {
 
 struct Point {
-    float x;
-    float y;
-    float z;
-    float v_x; // m/s
-    float v_y; // m/s
-    float v_z; // m/s
-
-    // Create a point at (0,0,0) with random velocity (v_x, v_y, v_z) between -10.0 and +10.0 m/s
-    Point() : x(0.0f), y(0.0f), z(0.0f) {
-        v_x = static_cast<float>(rand()) / RAND_MAX * 20.0f - 10.0f;
-        v_y = static_cast<float>(rand()) / RAND_MAX * 20.0f - 10.0f;
-        v_z = static_cast<float>(rand()) / RAND_MAX * 20.0f - 10.0f;
-    };
+    float x;   // x coord in m
+    float y;   // y coord in m
+    float z;   // z coord in m
+    float v_x; // x velocity in m/s
+    float v_y; // y velocity in m/s
+    float v_z; // z velocity in m/s
+    float r;   // radius in m
 };
 
 template <uint16_t N> class PointCloud {
@@ -51,26 +73,65 @@ template <uint16_t N> class PointCloud {
     uint16_t count_;
     std::array<Point, N> points_;
 
-    const double radius_{0.1};   // radius of each point in m
-    const double delta_t{0.02};  // time step in seconds
-    const double boundary{10.0}; // boundary limit in each direction in m
-
   public:
+    // Invalidate point
+    void clear_point(uint16_t index) {
+        Point &point = points_[index];
+        point.x = 0.0f;
+        point.y = 0.0f;
+        point.z = 0.0f;
+        point.v_x = 0.0f;
+        point.v_y = 0.0f;
+        point.v_z = 0.0f;
+        point.r = 0.0f;
+    }
+
+    // Add a new point to the cloud
+    // Create a point at (0,0,0) with random velocity (v_x, v_y, v_z) between -10.0 and +10.0 m/s
+    void add_point() {
+        if (count_ < N) {
+            auto params = gCalSeg->lock();
+            float max_vel = static_cast<float>(params->max_velocity);
+            float max_rad = static_cast<float>(params->max_radius);
+            Point p = {.x = 0.0f,
+                       .y = 0.0f,
+                       .z = 0.0f,
+                       .v_x = static_cast<float>(rand()) / RAND_MAX * 2.0f * max_vel - max_vel,
+                       .v_y = static_cast<float>(rand()) / RAND_MAX * 2.0f * max_vel - max_vel,
+                       .v_z = static_cast<float>(rand()) / RAND_MAX * 2.0f * max_vel - max_vel,
+                       .r = static_cast<float>(rand()) / RAND_MAX * max_rad};
+            points_[count_] = p;
+            count_++;
+        }
+    };
+
+    // Remove a point from the cloud by index
+    void remove_point(uint16_t index) {
+        if (index < count_) {
+            points_[index] = points_[count_ - 1];
+            count_--;
+            clear_point(count_);
+        }
+    };
+
     // Move a point by (dx, dy, dz)
-    void move_point(Point &point, float dx, float dy, float dz) {
-        point.x += dx;
-        point.y += dy;
-        point.z += dz;
+    void move_point(Point &point, double dx, double dy, double dz) {
+        point.x += (float)dx;
+        point.y += (float)dy;
+        point.z += (float)dz;
     }
 
     // Calculate Euclidean distance between two points
     double calc_distance(const Point &p1, const Point &p2) const { return sqrt(pow(p2.x - p1.x, 2) + pow(p2.y - p1.y, 2) + pow(p2.z - p1.z, 2)); }
 
     // Check if two points are colliding
-    bool check_collision(const Point &point1, const Point &point2) const { return calc_distance(point1, point2) < 2.0 * radius_; }
+    bool check_collision(const Point &point1, const Point &point2) const { return calc_distance(point1, point2) < point1.r + point2.r; }
 
     // Check for boundary collisions and respond
     void check_boundary_collisions() {
+
+        double boundary = gCalSeg->lock()->boundary;
+
         for (uint16_t i = 0; i < count_; i++) {
             if (points_[i].x < -boundary || points_[i].x > boundary) {
                 points_[i].v_x = -points_[i].v_x;
@@ -98,14 +159,35 @@ template <uint16_t N> class PointCloud {
         }
     }
 
+    // Check and remove points that have exceeded their lifetime (shrinking to zero radius)
+    void check_lifetime() {
+        auto params = gCalSeg->lock();
+        double ttl = params->ttl;
+        double delta_r = (double)params->delay_us / 1e6; // s
+
+        for (uint16_t i = 0; i < count_; i++) {
+            if (points_[i].r > 0.0) {
+                points_[i].r -= (float)delta_r;
+                if (points_[i].r <= 0.0f) {
+                    remove_point(i);
+                    i--; // Check the swapped point in the next iteration
+                }
+            }
+        }
+    }
+
     // Perform a simulation step: move points, check for collisions
     void step() {
+
+        double delta_t = (double)gCalSeg->lock()->delay_us / 1e6; // s
+
         for (uint16_t i = 0; i < count_; i++) {
-            move_point(points_[i], points_[i].v_x * delta_t, points_[i].v_y * delta_t, points_[i].v_z * delta_t);
+            move_point(points_[i], (double)points_[i].v_x * delta_t, (double)points_[i].v_y * delta_t, (double)points_[i].v_z * delta_t);
         }
 
         check_boundary_collisions();
         check_point_collisions();
+        check_lifetime();
 
         DaqEventVar(step,                                                        //
                     A2L_MEAS(count_, "Current point count"),                     //
@@ -116,14 +198,6 @@ template <uint16_t N> class PointCloud {
 
     PointCloud();
     ~PointCloud() = default;
-
-    // Add a new point to the cloud
-    void add_point(const Point &point) {
-        if (count_ < N) {
-            points_[count_] = point;
-            count_++;
-        }
-    };
 
     // Getters
     uint16_t get_count() const { return count_; }
@@ -145,7 +219,25 @@ template <uint16_t N> class PointCloud {
 // PointCloud constructor with A2L typedef registration
 template <uint16_t N> PointCloud<N>::PointCloud() : count_(0) {
 
+    // Create a global calibration segment wrapper for the struct 'ParametersT' and use its default values in constant 'kParameters'
+    // This calibration segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
+    // It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
+    // It supports XCP/ECU independent page switching, checksum calculation and reinitialization (copy reference page to working page)
+    gCalSeg.emplace("Parameters", &kParameters);
+
     if (A2lOnce()) {
+
+        // Register the calibration segment description as a typedef and an instance in the A2L file
+        A2lTypedefBegin(ParametersT, &kParameters, "Typedef for ParametersT");
+        A2lTypedefParameterComponent(boundary, "Boundary box size in meters", "m", 0.1, 1000.0);
+        A2lTypedefParameterComponent(gravity, "Gravity in meters per second squared", "m/s²", 0.1, 1000.0);
+        A2lTypedefParameterComponent(max_radius, "Maximum point radius in meters", "m", 0.01, 10.0);
+        A2lTypedefParameterComponent(max_velocity, "Maximum point velocity in meters per second", "m/s", 0.1, 1000.0);
+        A2lTypedefParameterComponent(ttl, "Time to live for points in seconds", "s", 0.1, 1000.0);
+        A2lTypedefParameterComponent(spawn_rate, "Points to spawn per second", "1/s", 1, 1000);
+        A2lTypedefParameterComponent(delay_us, "Delay per simulation step in microseconds", "us", 0, 1000000);
+        A2lTypedefEnd();
+        gCalSeg->CreateA2lTypedefInstance("ParametersT", "Random number generator parameters");
 
         // Register Point typedef first - this must be done before PointCloud typedef
         // because PointCloud contains an array of Points
@@ -154,6 +246,7 @@ template <uint16_t N> PointCloud<N>::PointCloud() : count_(0) {
         A2lTypedefMeasurementComponent(x, "X coordinate of the point");
         A2lTypedefMeasurementComponent(y, "Y coordinate of the point");
         A2lTypedefMeasurementComponent(z, "Z coordinate of the point");
+        A2lTypedefMeasurementComponent(r, "Radius of the point");
         A2lTypedefMeasurementComponent(v_x, "X velocity of the point");
         A2lTypedefMeasurementComponent(v_y, "Y velocity of the point");
         A2lTypedefMeasurementComponent(v_z, "Z velocity of the point");
@@ -170,22 +263,6 @@ template <uint16_t N> PointCloud<N>::PointCloud() : count_(0) {
 }
 
 } // namespace point_cloud
-
-//-----------------------------------------------------------------------------------------------------
-// Demo random number generator with global calibration parameters
-
-// Calibration parameters for the random number generator
-struct ParametersT {
-    double min; // Minimum random number value
-    double max; // Maximum random number value
-};
-
-// Default parameter values
-const ParametersT kParameters = {.min = -2.0, .max = +2.0};
-
-// A global calibration parameter segment handle for struct 'ParametersT'
-// Initialized in main(), after XCP initialization
-std::optional<xcplib::CalSeg<ParametersT>> gCalSeg;
 
 //-----------------------------------------------------------------------------------------------------
 
@@ -226,54 +303,40 @@ int main() {
         return 1;
     }
 
-    // Create a global calibration segment wrapper for the struct 'ParametersT' and use its default values in constant 'kParameters'
-    // This calibration segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
-    // It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
-    // It supports XCP/ECU independent page switching, checksum calculation and reinitialization (copy reference page to working page)
-    gCalSeg.emplace("Parameters", &kParameters);
-
-    // Register the calibration segment description as a typedef and an instance in the A2L file
-    A2lTypedefBegin(ParametersT, &kParameters, "Typedef for ParametersT");
-    A2lTypedefParameterComponent(min, "Minimum random number value", "", -100.0, 100.0);
-    A2lTypedefParameterComponent(max, "Maximum random number value", "", -100.0, 100.0);
-    A2lTypedefEnd();
-    gCalSeg->CreateA2lTypedefInstance("ParametersT", "Random number generator parameters");
-
     // Create a simple arithmetic local variable
     uint16_t counter{0};
 
     // Initialize random seed for point generation
     srand(static_cast<unsigned int>(time(nullptr)));
 
-    // Create PointCloud instance with N=1024 points
-    point_cloud::PointCloud<32> point_cloud;
-
-    // Add some initial points
-    std::cout << "\nAdding all 32 initial points to the cloud..." << std::endl;
-    for (int i = 0; i < 32; i++) {
-        point_cloud::Point p;
-        point_cloud.add_point(p);
-    }
-
-    std::cout << "\nInitial point cloud state:" << std::endl;
-    point_cloud.print_stats();
+    // Create PointCloud instance with max N=64 points
+    point_cloud::PointCloud<64> point_cloud;
 
     // Main loop
     std::cout << "\nStarting main loop... (Press Ctrl+C to exit)" << std::endl;
     uint32_t step_counter = 0;
+    uint64_t last_time = clockGetUs();
     while (gRun) {
 
+        uint64_t time = clockGetUs();
         global_counter++;
-        step_counter++;
 
-        // Calculate a simulation step
-        point_cloud.step();
+        std::cout << "\n--- Step " << global_counter << " (t=" << time << "us)" << std::endl;
 
-        // Print stats every 100 steps (every 2 seconds at 20ms per step)
-        if (step_counter % 100 == 0) {
-            std::cout << "\n--- Step " << step_counter << " (t=" << (step_counter * 0.02) << "s) ---" << std::endl;
+        // Add a new point to the point count according to spawn rate
+        if (time - last_time >= 1000000 / gCalSeg->lock()->spawn_rate) {
+            last_time = time;
+
+            point_cloud.add_point();
+
+            // Print stats
             point_cloud.print_stats();
         }
+
+        std::cout << "\n--- Step " << global_counter << " (t=" << time << "us)" << std::endl;
+
+        // Calculate a simulation step
+        // point_cloud.step();
 
         // Trigger data acquisition event "mainloop", once register event, global and local variables, and heap instance measurements
         DaqEventVar(mainloop,                                           //
@@ -281,7 +344,10 @@ int main() {
 
         );
 
-        sleepUs(20000); // 20ms per step (50 Hz)
+        // Sleep, use delay from calibration parameters
+        uint32_t delay_us = gCalSeg->lock()->delay_us;
+        sleepUs(delay_us);
+
         if (step_counter == 1) {
             A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file after first step
         }

@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<GfxStorageModel Hash="72-AB-4C-AE-7B-8E-88-1B-F5-03-E3-AF-A6-0A-1C-9F" HashVersion="2.0.0.0">
+<GfxStorageModel Hash="4A-88-A5-CE-17-DE-75-DC-36-7F-5C-BB-5B-5B-F4-8B" HashVersion="2.0.0.0">
   <BindingIdToViewId>
     <Item XmlSingularArray="true">
       <Key>f17dc15d-2edb-4bc2-a9eb-11f071445f6c</Key>
@@ -15,12 +15,13 @@
         <Version>2</Version>
         <ObjectName>points_</ObjectName>
         <SourceName>point_cloud_demo</SourceName>
+        <TypeName>points__Array</TypeName>
         <MessageName>point_cloud_demo</MessageName>
       </SourceIdentifier>
       <Model IsCreatedByView="False">
         <UniqueName>points_.points_[*]_1</UniqueName>
         <DataSource>
-          <SourceIdentifier>{"ObjectName":"points_","SourceName":"point_cloud_demo","MessageName":"point_cloud_demo"}</SourceIdentifier>
+          <SourceIdentifier>{"ObjectName":"points_","SourceName":"point_cloud_demo","TypeName":"points__Array","MessageName":"point_cloud_demo"}</SourceIdentifier>
           <TemplateSourceName>points_</TemplateSourceName>
           <NativeTemplateSourceName>points_</NativeTemplateSourceName>
           <DisplayedSourceName>points_[*]</DisplayedSourceName>
@@ -29,7 +30,7 @@
             <IsTemplate>false</IsTemplate>
             <DataDimensions>
               <DataDimensionModel XmlSingularArray="true">
-                <DimensionSize>32</DimensionSize>
+                <DimensionSize>64</DimensionSize>
                 <SelectedIndex>0</SelectedIndex>
                 <SelectedAmount>0</SelectedAmount>
                 <IsAssigned>true</IsAssigned>
@@ -37,9 +38,9 @@
             </DataDimensions>
           </DataDimensions>
           <CompositionType>3</CompositionType>
-          <ObjectType>points__Array, Vector.DA.DynamicObject.91-3C-15-EB-FE-30-25-52-CB-CC-77-EA-02-80-60-79.23.0.20.3237, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null</ObjectType>
+          <ObjectType>points__Array, Vector.DA.DynamicObject.B1-4F-1E-E9-42-9E-CC-43-53-A1-8B-2E-EF-C8-D0-2E.24.0.0.2264.NET 8.0.22, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null</ObjectType>
           <Parent>
-            <SourceIdentifier>{"ObjectName":"points_","SourceName":"point_cloud_demo","MessageName":"point_cloud_demo"}</SourceIdentifier>
+            <SourceIdentifier>{"ObjectName":"points_","SourceName":"point_cloud_demo","TypeName":"points__Array","MessageName":"point_cloud_demo"}</SourceIdentifier>
             <TemplateSourceName>points_</TemplateSourceName>
             <NativeTemplateSourceName>points_</NativeTemplateSourceName>
             <DisplayedSourceName>points_</DisplayedSourceName>
@@ -49,18 +50,18 @@
               <DataDimensions />
             </DataDimensions>
             <CompositionType>0</CompositionType>
-            <ObjectType>points__Array, Vector.DA.DynamicObject.91-3C-15-EB-FE-30-25-52-CB-CC-77-EA-02-80-60-79.23.0.20.3237, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null</ObjectType>
+            <ObjectType>points__Array, Vector.DA.DynamicObject.B1-4F-1E-E9-42-9E-CC-43-53-A1-8B-2E-EF-C8-D0-2E.24.0.0.2264.NET 8.0.22, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null</ObjectType>
             <Properties>
               <Property XmlSingularArray="true">
                 <Name>points_[*]</Name>
                 <TemplateName>points_</TemplateName>
                 <HasChildren>true</HasChildren>
-                <TypeName>points__Element, Vector.DA.DynamicObject.91-3C-15-EB-FE-30-25-52-CB-CC-77-EA-02-80-60-79.23.0.20.3237</TypeName>
+                <TypeName>points__Element, Vector.DA.DynamicObject.B1-4F-1E-E9-42-9E-CC-43-53-A1-8B-2E-EF-C8-D0-2E.24.0.0.2264.NET 8.0.22</TypeName>
                 <DataDimensions>
                   <IsTemplate>false</IsTemplate>
                   <DataDimensions>
                     <DataDimensionModel XmlSingularArray="true">
-                      <DimensionSize>32</DimensionSize>
+                      <DimensionSize>64</DimensionSize>
                       <SelectedIndex>0</SelectedIndex>
                       <SelectedAmount>0</SelectedAmount>
                       <IsAssigned>true</IsAssigned>
@@ -70,10 +71,20 @@
                 <Entity>Array</Entity>
                 <Children>
                   <Source>
+                    <Name>r</Name>
+                    <TemplateName>r</TemplateName>
+                    <HasChildren>false</HasChildren>
+                    <TypeName>System.Single, System.Private.CoreLib</TypeName>
+                    <DataDimensions>
+                      <IsTemplate>false</IsTemplate>
+                      <DataDimensions />
+                    </DataDimensions>
+                  </Source>
+                  <Source>
                     <Name>v_x</Name>
                     <TemplateName>v_x</TemplateName>
                     <HasChildren>false</HasChildren>
-                    <TypeName>System.Single, mscorlib</TypeName>
+                    <TypeName>System.Single, System.Private.CoreLib</TypeName>
                     <DataDimensions>
                       <IsTemplate>false</IsTemplate>
                       <DataDimensions />
@@ -83,7 +94,7 @@
                     <Name>v_y</Name>
                     <TemplateName>v_y</TemplateName>
                     <HasChildren>false</HasChildren>
-                    <TypeName>System.Single, mscorlib</TypeName>
+                    <TypeName>System.Single, System.Private.CoreLib</TypeName>
                     <DataDimensions>
                       <IsTemplate>false</IsTemplate>
                       <DataDimensions />
@@ -93,7 +104,7 @@
                     <Name>v_z</Name>
                     <TemplateName>v_z</TemplateName>
                     <HasChildren>false</HasChildren>
-                    <TypeName>System.Single, mscorlib</TypeName>
+                    <TypeName>System.Single, System.Private.CoreLib</TypeName>
                     <DataDimensions>
                       <IsTemplate>false</IsTemplate>
                       <DataDimensions />
@@ -103,7 +114,7 @@
                     <Name>x</Name>
                     <TemplateName>x</TemplateName>
                     <HasChildren>false</HasChildren>
-                    <TypeName>System.Single, mscorlib</TypeName>
+                    <TypeName>System.Single, System.Private.CoreLib</TypeName>
                     <DataDimensions>
                       <IsTemplate>false</IsTemplate>
                       <DataDimensions />
@@ -113,7 +124,7 @@
                     <Name>y</Name>
                     <TemplateName>y</TemplateName>
                     <HasChildren>false</HasChildren>
-                    <TypeName>System.Single, mscorlib</TypeName>
+                    <TypeName>System.Single, System.Private.CoreLib</TypeName>
                     <DataDimensions>
                       <IsTemplate>false</IsTemplate>
                       <DataDimensions />
@@ -123,7 +134,7 @@
                     <Name>z</Name>
                     <TemplateName>z</TemplateName>
                     <HasChildren>false</HasChildren>
-                    <TypeName>System.Single, mscorlib</TypeName>
+                    <TypeName>System.Single, System.Private.CoreLib</TypeName>
                     <DataDimensions>
                       <IsTemplate>false</IsTemplate>
                       <DataDimensions />
@@ -137,8 +148,8 @@
         <BindingType>Explicit</BindingType>
         <CoordinateSystem>Cartesian</CoordinateSystem>
         <GfxModel>
-          <TypeName>Vector.DA.Gfx.Cross, Vector.DA.Gfx</TypeName>
-          <DisplayName>Cross</DisplayName>
+          <TypeName>Vector.DA.Gfx.Ellipsoid, Vector.DA.Gfx</TypeName>
+          <DisplayName>Ellipsoid</DisplayName>
           <Properties>
             <Name>GfxProperties</Name>
             <TypeName>Vector.DA.PropertyAssignment.PropertyCollection, Vector.DA.PropertyAssignment</TypeName>
@@ -161,7 +172,7 @@
                   <Description>Description of the BasePoint.</Description>
                   <Browsable>true</Browsable>
                   <ReadOnly>false</ReadOnly>
-                  <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System</TypeConverter>
+                  <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System.ComponentModel.TypeConverter</TypeConverter>
                   <CustomAttributes />
                 </Settings>
                 <TypeDisplayName>CartesianPoint</TypeDisplayName>
@@ -170,7 +181,7 @@
                 <Properties>
                   <Property IsGfx="true" Key="X">
                     <Name>X</Name>
-                    <TypeName>System.Double, mscorlib</TypeName>
+                    <TypeName>System.Double, System.Private.CoreLib</TypeName>
                     <Settings>
                       <DisplayName>X</DisplayName>
                       <EditorId>NumericDecimalEditor</EditorId>
@@ -181,9 +192,35 @@ X-position of a point with cartesian coordinates</Description>
                       <CustomAttributes />
                     </Settings>
                     <TypeDisplayName>Double</TypeDisplayName>
-                    <IsConstant>true</IsConstant>
+                    <IsConstant>false</IsConstant>
                     <IsAssignable>true</IsAssignable>
-                    <Value>0</Value>
+                    <Assignment>
+                      <Name>x</Name>
+                      <TemplateName>x</TemplateName>
+                      <HasChildren>false</HasChildren>
+                      <TypeName>System.Single, System.Private.CoreLib</TypeName>
+                      <DataDimensions>
+                        <IsTemplate>false</IsTemplate>
+                        <DataDimensions />
+                      </DataDimensions>
+                      <Parent>
+                        <Name>points_[*]</Name>
+                        <TemplateName>points_</TemplateName>
+                        <TypeName>points__Element, Vector.DA.DynamicObject.B1-4F-1E-E9-42-9E-CC-43-53-A1-8B-2E-EF-C8-D0-2E.24.0.0.2264.NET 8.0.22</TypeName>
+                        <DataDimensions>
+                          <IsTemplate>false</IsTemplate>
+                          <DataDimensions>
+                            <DataDimensionModel XmlSingularArray="true">
+                              <DimensionSize>64</DimensionSize>
+                              <SelectedIndex>0</SelectedIndex>
+                              <SelectedAmount>0</SelectedAmount>
+                              <IsAssigned>true</IsAssigned>
+                            </DataDimensionModel>
+                          </DataDimensions>
+                        </DataDimensions>
+                        <Entity>Array</Entity>
+                      </Parent>
+                    </Assignment>
                     <PhysicalQuantity>Length</PhysicalQuantity>
                     <PhysicalQuantityConversion>
                       <Unit>Meter</Unit>
@@ -193,7 +230,7 @@ X-position of a point with cartesian coordinates</Description>
                   </Property>
                   <Property IsGfx="true" Key="Y">
                     <Name>Y</Name>
-                    <TypeName>System.Double, mscorlib</TypeName>
+                    <TypeName>System.Double, System.Private.CoreLib</TypeName>
                     <Settings>
                       <DisplayName>Y</DisplayName>
                       <EditorId>NumericDecimalEditor</EditorId>
@@ -204,9 +241,35 @@ Y-position of a point with cartesian coordinates</Description>
                       <CustomAttributes />
                     </Settings>
                     <TypeDisplayName>Double</TypeDisplayName>
-                    <IsConstant>true</IsConstant>
+                    <IsConstant>false</IsConstant>
                     <IsAssignable>true</IsAssignable>
-                    <Value>0</Value>
+                    <Assignment>
+                      <Name>y</Name>
+                      <TemplateName>y</TemplateName>
+                      <HasChildren>false</HasChildren>
+                      <TypeName>System.Single, System.Private.CoreLib</TypeName>
+                      <DataDimensions>
+                        <IsTemplate>false</IsTemplate>
+                        <DataDimensions />
+                      </DataDimensions>
+                      <Parent>
+                        <Name>points_[*]</Name>
+                        <TemplateName>points_</TemplateName>
+                        <TypeName>points__Element, Vector.DA.DynamicObject.B1-4F-1E-E9-42-9E-CC-43-53-A1-8B-2E-EF-C8-D0-2E.24.0.0.2264.NET 8.0.22</TypeName>
+                        <DataDimensions>
+                          <IsTemplate>false</IsTemplate>
+                          <DataDimensions>
+                            <DataDimensionModel XmlSingularArray="true">
+                              <DimensionSize>64</DimensionSize>
+                              <SelectedIndex>0</SelectedIndex>
+                              <SelectedAmount>0</SelectedAmount>
+                              <IsAssigned>true</IsAssigned>
+                            </DataDimensionModel>
+                          </DataDimensions>
+                        </DataDimensions>
+                        <Entity>Array</Entity>
+                      </Parent>
+                    </Assignment>
                     <PhysicalQuantity>Length</PhysicalQuantity>
                     <PhysicalQuantityConversion>
                       <Unit>Meter</Unit>
@@ -216,7 +279,7 @@ Y-position of a point with cartesian coordinates</Description>
                   </Property>
                   <Property IsGfx="true" Key="Z">
                     <Name>Z</Name>
-                    <TypeName>System.Double, mscorlib</TypeName>
+                    <TypeName>System.Double, System.Private.CoreLib</TypeName>
                     <Settings>
                       <DisplayName>Z</DisplayName>
                       <EditorId>NumericDecimalEditor</EditorId>
@@ -227,9 +290,35 @@ Z-position of a point with cartesian coordinates</Description>
                       <CustomAttributes />
                     </Settings>
                     <TypeDisplayName>Double</TypeDisplayName>
-                    <IsConstant>true</IsConstant>
+                    <IsConstant>false</IsConstant>
                     <IsAssignable>true</IsAssignable>
-                    <Value>0</Value>
+                    <Assignment>
+                      <Name>z</Name>
+                      <TemplateName>z</TemplateName>
+                      <HasChildren>false</HasChildren>
+                      <TypeName>System.Single, System.Private.CoreLib</TypeName>
+                      <DataDimensions>
+                        <IsTemplate>false</IsTemplate>
+                        <DataDimensions />
+                      </DataDimensions>
+                      <Parent>
+                        <Name>points_[*]</Name>
+                        <TemplateName>points_</TemplateName>
+                        <TypeName>points__Element, Vector.DA.DynamicObject.B1-4F-1E-E9-42-9E-CC-43-53-A1-8B-2E-EF-C8-D0-2E.24.0.0.2264.NET 8.0.22</TypeName>
+                        <DataDimensions>
+                          <IsTemplate>false</IsTemplate>
+                          <DataDimensions>
+                            <DataDimensionModel XmlSingularArray="true">
+                              <DimensionSize>64</DimensionSize>
+                              <SelectedIndex>0</SelectedIndex>
+                              <SelectedAmount>0</SelectedAmount>
+                              <IsAssigned>true</IsAssigned>
+                            </DataDimensionModel>
+                          </DataDimensions>
+                        </DataDimensions>
+                        <Entity>Array</Entity>
+                      </Parent>
+                    </Assignment>
                     <PhysicalQuantity>Length</PhysicalQuantity>
                     <PhysicalQuantityConversion>
                       <Unit>Meter</Unit>
@@ -239,60 +328,195 @@ Z-position of a point with cartesian coordinates</Description>
                   </Property>
                 </Properties>
               </PropertyCollection>
-              <PropertyCollection Key="CoordinatePlanes">
-                <Name>CoordinatePlanes</Name>
-                <TypeName>Vector.DA.Gfx.CoordinatePlanes, Vector.DA.Gfx</TypeName>
+              <PropertyCollection Key="CuboidBoundaries">
+                <Name>CuboidBoundaries</Name>
+                <TypeName>Vector.DA.Gfx.CuboidBoundaries, Vector.DA.Gfx</TypeName>
                 <Settings>
-                  <DisplayName>Coordinate planes</DisplayName>
-                  <Category>Base</Category>
-                  <Description>Coordinate planes of the object</Description>
+                  <DisplayName>Cuboid Boundaries</DisplayName>
+                  <Category>Type dependent</Category>
+                  <Description>Cuboid boundaries of the object</Description>
                   <Browsable>true</Browsable>
                   <ReadOnly>false</ReadOnly>
-                  <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System</TypeConverter>
+                  <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System.ComponentModel.TypeConverter</TypeConverter>
                   <CustomAttributes />
                 </Settings>
-                <TypeDisplayName>CoordinatePlanes</TypeDisplayName>
+                <TypeDisplayName>CuboidBoundaries</TypeDisplayName>
                 <Entity>Struct</Entity>
                 <IsSimpleCollection>false</IsSimpleCollection>
                 <Properties>
-                  <Property IsGfx="true" Key="ScenePlane">
-                    <Name>ScenePlane</Name>
-                    <TypeName>Vector.DA.Gfx.CoordinatePlane, Vector.DA.Gfx</TypeName>
+                  <Property IsGfx="true" Key="Width">
+                    <Name>Width</Name>
+                    <TypeName>System.Double, System.Private.CoreLib</TypeName>
                     <Settings>
-                      <DisplayName>Scene plane</DisplayName>
-                      <EditorId>EnumEditor</EditorId>
-                      <Category>Base</Category>
-                      <Description>Coordinate plane in which the object is drawn in a Scene view</Description>
+                      <DisplayName>Width</DisplayName>
+                      <EditorId>NumericDecimalEditor</EditorId>
+                      <Description>Data type: Double, Unit: Cartesian/Spherical/Geographic: Meter, View/Image: Pixel
+Cuboid width</Description>
                       <Browsable>true</Browsable>
                       <ReadOnly>false</ReadOnly>
                       <CustomAttributes />
                     </Settings>
-                    <TypeDisplayName>CoordinatePlane</TypeDisplayName>
+                    <TypeDisplayName>Double</TypeDisplayName>
                     <IsConstant>true</IsConstant>
                     <IsAssignable>true</IsAssignable>
-                    <Value>XY</Value>
+                    <Value>1</Value>
+                    <PhysicalQuantity>Length</PhysicalQuantity>
+                    <PhysicalQuantityConversion>
+                      <Unit>Meter</Unit>
+                      <Factor>1</Factor>
+                      <Offset>0</Offset>
+                    </PhysicalQuantityConversion>
+                  </Property>
+                  <Property IsGfx="true" Key="Height">
+                    <Name>Height</Name>
+                    <TypeName>System.Double, System.Private.CoreLib</TypeName>
+                    <Settings>
+                      <DisplayName>Height</DisplayName>
+                      <EditorId>NumericDecimalEditor</EditorId>
+                      <Description>Data type: Double, Unit: Cartesian/Spherical/Geographic: Meter, View/Image: Pixel
+Cuboid height</Description>
+                      <Browsable>true</Browsable>
+                      <ReadOnly>false</ReadOnly>
+                      <CustomAttributes />
+                    </Settings>
+                    <TypeDisplayName>Double</TypeDisplayName>
+                    <IsConstant>true</IsConstant>
+                    <IsAssignable>true</IsAssignable>
+                    <Value>1</Value>
+                    <PhysicalQuantity>Length</PhysicalQuantity>
+                    <PhysicalQuantityConversion>
+                      <Unit>Meter</Unit>
+                      <Factor>1</Factor>
+                      <Offset>0</Offset>
+                    </PhysicalQuantityConversion>
+                  </Property>
+                  <Property IsGfx="true" Key="Depth">
+                    <Name>Depth</Name>
+                    <TypeName>System.Double, System.Private.CoreLib</TypeName>
+                    <Settings>
+                      <DisplayName>Depth</DisplayName>
+                      <EditorId>NumericDecimalEditor</EditorId>
+                      <Description>Data type: Double, Unit: Cartesian/Spherical/Geographic: Meter, View/Image: Pixel
+Cuboid depth</Description>
+                      <Browsable>true</Browsable>
+                      <ReadOnly>false</ReadOnly>
+                      <CustomAttributes />
+                    </Settings>
+                    <TypeDisplayName>Double</TypeDisplayName>
+                    <IsConstant>false</IsConstant>
+                    <IsAssignable>true</IsAssignable>
+                    <Assignment>
+                      <Name>r</Name>
+                      <TemplateName>r</TemplateName>
+                      <HasChildren>false</HasChildren>
+                      <TypeName>System.Single, System.Private.CoreLib</TypeName>
+                      <DataDimensions>
+                        <IsTemplate>false</IsTemplate>
+                        <DataDimensions />
+                      </DataDimensions>
+                      <Parent>
+                        <Name>points_[*]</Name>
+                        <TemplateName>points_</TemplateName>
+                        <TypeName>points__Element, Vector.DA.DynamicObject.B1-4F-1E-E9-42-9E-CC-43-53-A1-8B-2E-EF-C8-D0-2E.24.0.0.2264.NET 8.0.22</TypeName>
+                        <DataDimensions>
+                          <IsTemplate>false</IsTemplate>
+                          <DataDimensions>
+                            <DataDimensionModel XmlSingularArray="true">
+                              <DimensionSize>64</DimensionSize>
+                              <SelectedIndex>0</SelectedIndex>
+                              <SelectedAmount>0</SelectedAmount>
+                              <IsAssigned>true</IsAssigned>
+                            </DataDimensionModel>
+                          </DataDimensions>
+                        </DataDimensions>
+                        <Entity>Array</Entity>
+                      </Parent>
+                    </Assignment>
+                    <PhysicalQuantity>Length</PhysicalQuantity>
+                    <PhysicalQuantityConversion>
+                      <Unit>Meter</Unit>
+                      <Factor>1</Factor>
+                      <Offset>0</Offset>
+                    </PhysicalQuantityConversion>
+                  </Property>
+                </Properties>
+              </PropertyCollection>
+              <PropertyCollection Key="CuboidBoundedPointPlacement">
+                <Name>CuboidBoundedPointPlacement</Name>
+                <TypeName>Vector.DA.Gfx.CuboidBoundedPointPlacement, Vector.DA.Gfx</TypeName>
+                <Settings>
+                  <DisplayName>Base Point Placement</DisplayName>
+                  <Category>Type dependent</Category>
+                  <Description>Base Point placement</Description>
+                  <Browsable>true</Browsable>
+                  <ReadOnly>false</ReadOnly>
+                  <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System.ComponentModel.TypeConverter</TypeConverter>
+                  <CustomAttributes />
+                </Settings>
+                <TypeDisplayName>CuboidBoundedPointPlacement</TypeDisplayName>
+                <Entity>Struct</Entity>
+                <IsSimpleCollection>false</IsSimpleCollection>
+                <Properties>
+                  <Property IsGfx="true" Key="SpatialBasePointPlacement">
+                    <Name>SpatialBasePointPlacement</Name>
+                    <TypeName>Vector.DA.Gfx.SpatialPointPlacement, Vector.DA.Gfx</TypeName>
+                    <Settings>
+                      <DisplayName>Spatial</DisplayName>
+                      <EditorId>EnumEditor</EditorId>
+                      <Category>Type dependent</Category>
+                      <Description>Spatial base point placement</Description>
+                      <Browsable>true</Browsable>
+                      <ReadOnly>false</ReadOnly>
+                      <CustomAttributes />
+                    </Settings>
+                    <TypeDisplayName>SpatialPointPlacement</TypeDisplayName>
+                    <IsConstant>true</IsConstant>
+                    <IsAssignable>true</IsAssignable>
+                    <Value>Center</Value>
                     <PhysicalQuantity />
                     <PhysicalQuantityConversion>
                       <Factor>1</Factor>
                       <Offset>0</Offset>
                     </PhysicalQuantityConversion>
                   </Property>
-                  <Property IsGfx="true" Key="VideoPlane">
-                    <Name>VideoPlane</Name>
-                    <TypeName>Vector.DA.Gfx.CoordinatePlane, Vector.DA.Gfx</TypeName>
+                  <Property IsGfx="true" Key="HorizontalBasePointPlacement">
+                    <Name>HorizontalBasePointPlacement</Name>
+                    <TypeName>Vector.DA.Gfx.HorizontalPointPlacement, Vector.DA.Gfx</TypeName>
                     <Settings>
-                      <DisplayName>Video plane</DisplayName>
+                      <DisplayName>Horizontal</DisplayName>
                       <EditorId>EnumEditor</EditorId>
-                      <Category>Base</Category>
-                      <Description>Coordinate plane in which the object is drawn in a Video view</Description>
+                      <Category>Type dependent</Category>
+                      <Description>Horizontal base point placement</Description>
                       <Browsable>true</Browsable>
                       <ReadOnly>false</ReadOnly>
                       <CustomAttributes />
                     </Settings>
-                    <TypeDisplayName>CoordinatePlane</TypeDisplayName>
+                    <TypeDisplayName>HorizontalPointPlacement</TypeDisplayName>
                     <IsConstant>true</IsConstant>
                     <IsAssignable>true</IsAssignable>
-                    <Value>XZ</Value>
+                    <Value>Center</Value>
+                    <PhysicalQuantity />
+                    <PhysicalQuantityConversion>
+                      <Factor>1</Factor>
+                      <Offset>0</Offset>
+                    </PhysicalQuantityConversion>
+                  </Property>
+                  <Property IsGfx="true" Key="VerticalBasePointPlacement">
+                    <Name>VerticalBasePointPlacement</Name>
+                    <TypeName>Vector.DA.Gfx.VerticalPointPlacement, Vector.DA.Gfx</TypeName>
+                    <Settings>
+                      <DisplayName>Vertical</DisplayName>
+                      <EditorId>EnumEditor</EditorId>
+                      <Category>Type dependent</Category>
+                      <Description>Vertical base point placement</Description>
+                      <Browsable>true</Browsable>
+                      <ReadOnly>false</ReadOnly>
+                      <CustomAttributes />
+                    </Settings>
+                    <TypeDisplayName>VerticalPointPlacement</TypeDisplayName>
+                    <IsConstant>true</IsConstant>
+                    <IsAssignable>true</IsAssignable>
+                    <Value>Center</Value>
                     <PhysicalQuantity />
                     <PhysicalQuantityConversion>
                       <Factor>1</Factor>
@@ -311,7 +535,7 @@ Z-position of a point with cartesian coordinates</Description>
                   <Description>Determines how the fill color is calculated. Options are constant and linear gradient color calculation.</Description>
                   <Browsable>true</Browsable>
                   <ReadOnly>false</ReadOnly>
-                  <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System</TypeConverter>
+                  <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System.ComponentModel.TypeConverter</TypeConverter>
                   <CustomAttributes />
                 </Settings>
                 <TypeDisplayName>ConstantColorFunction</TypeDisplayName>
@@ -331,7 +555,7 @@ Z-position of a point with cartesian coordinates</Description>
                     <TypeDisplayName>Color</TypeDisplayName>
                     <IsConstant>true</IsConstant>
                     <IsAssignable>true</IsAssignable>
-                    <Value>#00000000</Value>
+                    <Value>#FFFFFF00</Value>
                     <PhysicalQuantity />
                     <PhysicalQuantityConversion>
                       <Factor>1</Factor>
@@ -340,7 +564,7 @@ Z-position of a point with cartesian coordinates</Description>
                   </Property>
                   <Property IsGfx="true" Key="Name">
                     <Name>Name</Name>
-                    <TypeName>System.String, mscorlib</TypeName>
+                    <TypeName>System.String, System.Private.CoreLib</TypeName>
                     <Settings>
                       <DisplayName>Name</DisplayName>
                       <EditorId>TextEditor</EditorId>
@@ -371,7 +595,7 @@ Z-position of a point with cartesian coordinates</Description>
                   <Description>Parameters to define history settings. The history feature is only available in scene view. Setting small minimal time differences or long history time spans may result in reduced performance.</Description>
                   <Browsable>true</Browsable>
                   <ReadOnly>false</ReadOnly>
-                  <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System</TypeConverter>
+                  <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System.ComponentModel.TypeConverter</TypeConverter>
                   <CustomAttributes />
                 </Settings>
                 <TypeDisplayName>HistoryParameters</TypeDisplayName>
@@ -402,7 +626,7 @@ Determines whether historic values of this object shall be drawn.</Description>
                   </Property>
                   <Property IsGfx="true" Key="HistoryTimeSpan">
                     <Name>HistoryTimeSpan</Name>
-                    <TypeName>System.Double, mscorlib</TypeName>
+                    <TypeName>System.Double, System.Private.CoreLib</TypeName>
                     <Settings>
                       <DisplayName>Timespan</DisplayName>
                       <EditorId>NumericDecimalEditor</EditorId>
@@ -425,7 +649,7 @@ Timespan in seconds determining the length of historic objects to be drawn.</Des
                   </Property>
                   <Property IsGfx="true" Key="MinimalTimeDifference">
                     <Name>MinimalTimeDifference</Name>
-                    <TypeName>System.Double, mscorlib</TypeName>
+                    <TypeName>System.Double, System.Private.CoreLib</TypeName>
                     <Settings>
                       <DisplayName>Minimal Time Difference</DisplayName>
                       <EditorId>NumericDecimalEditor</EditorId>
@@ -479,7 +703,7 @@ Determines whether historic values of this object should be faded out the furthe
                   <Description>Identification of the object. If unset, a default identification will be used depending on the definition and instance index.</Description>
                   <Browsable>true</Browsable>
                   <ReadOnly>false</ReadOnly>
-                  <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System</TypeConverter>
+                  <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System.ComponentModel.TypeConverter</TypeConverter>
                   <CustomAttributes />
                 </Settings>
                 <TypeDisplayName>NumericIdentification</TypeDisplayName>
@@ -488,7 +712,7 @@ Determines whether historic values of this object should be faded out the furthe
                 <Properties>
                   <Property IsGfx="true" Key="Numeric" XmlSingularArray="true">
                     <Name>Numeric</Name>
-                    <TypeName>System.UInt32, mscorlib</TypeName>
+                    <TypeName>System.UInt32, System.Private.CoreLib</TypeName>
                     <Settings>
                       <DisplayName>Numeric</DisplayName>
                       <EditorId>NumericUnsignedIntEditor</EditorId>
@@ -511,8 +735,8 @@ Numeric ID of the object that is unique during runtime</Description>
                 </Properties>
               </PropertyCollection>
               <PropertyCollection Key="QuickInformation">
-                <Name>QuickInformation</Name>
-                <TypeName>Vector.DA.Gfx.QuickInformation.QuickInfo, Vector.DA.Gfx</TypeName>
+                <Name>QuickInfoDataList</Name>
+                <TypeName>Vector.DA.Gfx.QuickInformation.QuickInfoData, Vector.DA.Gfx</TypeName>
                 <Settings>
                   <DisplayName>Quick Information</DisplayName>
                   <EditorId>QuickInfoEditor</EditorId>
@@ -520,21 +744,138 @@ Numeric ID of the object that is unique during runtime</Description>
                   <Description>Configures additional information which is displayed when hovering over objects.</Description>
                   <Browsable>true</Browsable>
                   <ReadOnly>false</ReadOnly>
-                  <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System</TypeConverter>
+                  <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System.ComponentModel.TypeConverter</TypeConverter>
                   <CustomAttributes />
                 </Settings>
-                <TypeDisplayName>QuickInformation</TypeDisplayName>
+                <TypeDisplayName>QuickInfoDataList</TypeDisplayName>
                 <Entity>Simple</Entity>
                 <IsSimpleCollection>false</IsSimpleCollection>
                 <Properties>
-                  <PropertyCollection Key="QuickInfoDataList" XmlSingularArray="true">
+                  <Property IsGfx="true" Key="DisplayObjectName">
+                    <Name>DisplayObjectName</Name>
+                    <TypeName>System.Boolean, System.Private.CoreLib</TypeName>
+                    <Settings>
+                      <DisplayName>DisplayObjectName</DisplayName>
+                      <EditorId>EmptyTemplate</EditorId>
+                      <Browsable>false</Browsable>
+                      <ReadOnly>false</ReadOnly>
+                      <CustomAttributes />
+                    </Settings>
+                    <TypeDisplayName>Boolean</TypeDisplayName>
+                    <IsConstant>true</IsConstant>
+                    <IsAssignable>true</IsAssignable>
+                    <Value>true</Value>
+                    <PhysicalQuantity />
+                    <PhysicalQuantityConversion>
+                      <Factor>1</Factor>
+                      <Offset>0</Offset>
+                    </PhysicalQuantityConversion>
+                  </Property>
+                  <Property IsGfx="true" Key="Format">
+                    <Name>Format</Name>
+                    <TypeName>System.String, System.Private.CoreLib</TypeName>
+                    <Settings>
+                      <DisplayName>Format</DisplayName>
+                      <EditorId>FormatEditor</EditorId>
+                      <Browsable>false</Browsable>
+                      <ReadOnly>false</ReadOnly>
+                      <CustomAttributes />
+                    </Settings>
+                    <TypeDisplayName>String</TypeDisplayName>
+                    <IsConstant>true</IsConstant>
+                    <IsAssignable>true</IsAssignable>
+                    <Value />
+                    <PhysicalQuantity />
+                    <PhysicalQuantityConversion>
+                      <Factor>1</Factor>
+                      <Offset>0</Offset>
+                    </PhysicalQuantityConversion>
+                  </Property>
+                  <Property IsGfx="true" Key="InfoType">
+                    <Name>InfoType</Name>
+                    <TypeName>Vector.DA.Gfx.QuickInformation.FormatTemplate, Vector.DA.Gfx</TypeName>
+                    <Settings>
+                      <DisplayName>InfoType</DisplayName>
+                      <EditorId>EnumEditor</EditorId>
+                      <Browsable>false</Browsable>
+                      <ReadOnly>false</ReadOnly>
+                      <CustomAttributes />
+                    </Settings>
+                    <TypeDisplayName>FormatTemplate</TypeDisplayName>
+                    <IsConstant>true</IsConstant>
+                    <IsAssignable>true</IsAssignable>
+                    <Value>Custom</Value>
+                    <PhysicalQuantity />
+                    <PhysicalQuantityConversion>
+                      <Factor>1</Factor>
+                      <Offset>0</Offset>
+                    </PhysicalQuantityConversion>
+                  </Property>
+                  <PropertyCollection Key="Values">
+                    <Name>Values</Name>
+                    <TypeName>System.Collections.Generic.Dictionary`2[[System.String, System.Private.CoreLib],[System.Double, System.Private.CoreLib]], System.Private.CoreLib</TypeName>
+                    <Settings>
+                      <DisplayName>Values</DisplayName>
+                      <Browsable>false</Browsable>
+                      <ReadOnly>false</ReadOnly>
+                      <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System.ComponentModel.TypeConverter</TypeConverter>
+                      <CustomAttributes />
+                    </Settings>
+                    <TypeDisplayName>0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]</TypeDisplayName>
+                    <Entity>Collection</Entity>
+                    <IsSimpleCollection>false</IsSimpleCollection>
+                    <ItemType>System.Collections.Generic.KeyValuePair`2[[System.String, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.Double, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]], System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e</ItemType>
+                    <Properties>
+                      <Property IsGfx="true" Key="Key">
+                        <Name>Key</Name>
+                        <TypeName>System.String, System.Private.CoreLib</TypeName>
+                        <Settings>
+                          <DisplayName>Key</DisplayName>
+                          <EditorId>TextEditor</EditorId>
+                          <Browsable>true</Browsable>
+                          <ReadOnly>true</ReadOnly>
+                          <CustomAttributes />
+                        </Settings>
+                        <TypeDisplayName>String</TypeDisplayName>
+                        <IsConstant>true</IsConstant>
+                        <IsAssignable>true</IsAssignable>
+                        <Value />
+                        <PhysicalQuantity />
+                        <PhysicalQuantityConversion>
+                          <Factor>1</Factor>
+                          <Offset>0</Offset>
+                        </PhysicalQuantityConversion>
+                      </Property>
+                      <Property IsGfx="true" Key="Value">
+                        <Name>Value</Name>
+                        <TypeName>System.Double, System.Private.CoreLib</TypeName>
+                        <Settings>
+                          <DisplayName>Value</DisplayName>
+                          <EditorId>NumericDecimalEditor</EditorId>
+                          <Browsable>true</Browsable>
+                          <ReadOnly>true</ReadOnly>
+                          <CustomAttributes />
+                        </Settings>
+                        <TypeDisplayName>Double</TypeDisplayName>
+                        <IsConstant>true</IsConstant>
+                        <IsAssignable>true</IsAssignable>
+                        <Value>0</Value>
+                        <PhysicalQuantity />
+                        <PhysicalQuantityConversion>
+                          <Factor>1</Factor>
+                          <Offset>0</Offset>
+                        </PhysicalQuantityConversion>
+                      </Property>
+                    </Properties>
+                  </PropertyCollection>
+                  <PropertyCollection Key="QuickInfoDataList">
                     <Name>QuickInfoDataList</Name>
-                    <TypeName>System.Collections.Generic.List`1[[Vector.DA.Gfx.QuickInformation.QuickInfoData, Vector.DA.Gfx]], mscorlib</TypeName>
+                    <TypeName>System.Collections.Generic.List`1[[Vector.DA.Gfx.QuickInformation.QuickInfoData, Vector.DA.Gfx]], System.Private.CoreLib</TypeName>
                     <Settings>
                       <DisplayName>QuickInfoDataList</DisplayName>
                       <Browsable>false</Browsable>
                       <ReadOnly>false</ReadOnly>
-                      <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System</TypeConverter>
+                      <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System.ComponentModel.TypeConverter</TypeConverter>
                       <CustomAttributes />
                     </Settings>
                     <TypeDisplayName>0, Culture=neutral, PublicKeyToken=null]]</TypeDisplayName>
@@ -544,12 +885,12 @@ Numeric ID of the object that is unique during runtime</Description>
                     <Properties>
                       <PropertyCollection Key="Values" XmlSingularArray="true">
                         <Name>Values</Name>
-                        <TypeName>System.Collections.Generic.Dictionary`2[[System.String, mscorlib],[System.Double, mscorlib]], mscorlib</TypeName>
+                        <TypeName>System.Collections.Generic.Dictionary`2[[System.String, System.Private.CoreLib],[System.Double, System.Private.CoreLib]], System.Private.CoreLib</TypeName>
                         <Settings>
                           <DisplayName>Values</DisplayName>
                           <Browsable>false</Browsable>
                           <ReadOnly>false</ReadOnly>
-                          <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System</TypeConverter>
+                          <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System.ComponentModel.TypeConverter</TypeConverter>
                           <CustomAttributes />
                         </Settings>
                         <TypeDisplayName>0, Culture=neutral, PublicKeyToken=b77a5c561934e089]]</TypeDisplayName>
@@ -559,7 +900,7 @@ Numeric ID of the object that is unique during runtime</Description>
                         <Properties>
                           <Property IsGfx="true" Key="Key">
                             <Name>Key</Name>
-                            <TypeName>System.String, mscorlib</TypeName>
+                            <TypeName>System.String, System.Private.CoreLib</TypeName>
                             <Settings>
                               <DisplayName>Key</DisplayName>
                               <EditorId>TextEditor</EditorId>
@@ -579,7 +920,7 @@ Numeric ID of the object that is unique during runtime</Description>
                           </Property>
                           <Property IsGfx="true" Key="Value">
                             <Name>Value</Name>
-                            <TypeName>System.Double, mscorlib</TypeName>
+                            <TypeName>System.Double, System.Private.CoreLib</TypeName>
                             <Settings>
                               <DisplayName>Value</DisplayName>
                               <EditorId>NumericDecimalEditor</EditorId>
@@ -601,7 +942,7 @@ Numeric ID of the object that is unique during runtime</Description>
                       </PropertyCollection>
                       <Property IsGfx="true" Key="Format">
                         <Name>Format</Name>
-                        <TypeName>System.String, mscorlib</TypeName>
+                        <TypeName>System.String, System.Private.CoreLib</TypeName>
                         <Settings>
                           <DisplayName>Format</DisplayName>
                           <EditorId>FormatEditor</EditorId>
@@ -641,26 +982,6 @@ Numeric ID of the object that is unique during runtime</Description>
                       </Property>
                     </Properties>
                   </PropertyCollection>
-                  <Property IsGfx="true" Key="DisplayObjectName" XmlSingularArray="true">
-                    <Name>DisplayObjectName</Name>
-                    <TypeName>System.Boolean, mscorlib</TypeName>
-                    <Settings>
-                      <DisplayName>DisplayObjectName</DisplayName>
-                      <EditorId>EmptyTemplate</EditorId>
-                      <Browsable>false</Browsable>
-                      <ReadOnly>false</ReadOnly>
-                      <CustomAttributes />
-                    </Settings>
-                    <TypeDisplayName>Boolean</TypeDisplayName>
-                    <IsConstant>true</IsConstant>
-                    <IsAssignable>true</IsAssignable>
-                    <Value>true</Value>
-                    <PhysicalQuantity />
-                    <PhysicalQuantityConversion>
-                      <Factor>1</Factor>
-                      <Offset>0</Offset>
-                    </PhysicalQuantityConversion>
-                  </Property>
                 </Properties>
                 <QuickInfoDataList>
                   <item XmlSingularArray="true">
@@ -673,16 +994,102 @@ Numeric ID of the object that is unique during runtime</Description>
                       <Description>Extends the formatted data preview.</Description>
                       <Browsable>false</Browsable>
                       <ReadOnly>true</ReadOnly>
-                      <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System</TypeConverter>
+                      <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System.ComponentModel.TypeConverter</TypeConverter>
                       <CustomAttributes />
                     </Settings>
                     <TypeDisplayName>QuickInfoData</TypeDisplayName>
                     <Entity>Simple</Entity>
                     <IsSimpleCollection>false</IsSimpleCollection>
                     <Properties>
+                      <PropertyCollection Key="Values" XmlSingularArray="true">
+                        <Name>Values</Name>
+                        <TypeName>System.Collections.Generic.Dictionary`2[[System.String, System.Private.CoreLib],[System.Double, System.Private.CoreLib]], System.Private.CoreLib</TypeName>
+                        <Settings>
+                          <DisplayName>Values</DisplayName>
+                          <Browsable>false</Browsable>
+                          <ReadOnly>false</ReadOnly>
+                          <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System.ComponentModel.TypeConverter</TypeConverter>
+                          <CustomAttributes />
+                        </Settings>
+                        <TypeDisplayName>0, Culture=neutral, PublicKeyToken=b77a5c561934e089]]</TypeDisplayName>
+                        <Entity>Collection</Entity>
+                        <IsSimpleCollection>false</IsSimpleCollection>
+                        <ItemType>System.Collections.Generic.KeyValuePair`2[[System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089],[System.Double, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089]], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</ItemType>
+                        <Properties>
+                          <Property IsGfx="true" Key="X">
+                            <Name>X</Name>
+                            <TypeName>System.Double, System.Private.CoreLib</TypeName>
+                            <Settings>
+                              <DisplayName>Quick Information</DisplayName>
+                              <EditorId>QuickInfoEditor</EditorId>
+                              <Category>Display</Category>
+                              <Description>Extends the formatted data preview.</Description>
+                              <Browsable>false</Browsable>
+                              <ReadOnly>true</ReadOnly>
+                              <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System.ComponentModel.TypeConverter</TypeConverter>
+                              <CustomAttributes />
+                            </Settings>
+                            <TypeDisplayName>Double</TypeDisplayName>
+                            <IsConstant>true</IsConstant>
+                            <IsAssignable>true</IsAssignable>
+                            <Value>0</Value>
+                            <PhysicalQuantity />
+                            <PhysicalQuantityConversion>
+                              <Factor>1</Factor>
+                              <Offset>0</Offset>
+                            </PhysicalQuantityConversion>
+                          </Property>
+                          <Property IsGfx="true" Key="Y">
+                            <Name>Y</Name>
+                            <TypeName>System.Double, System.Private.CoreLib</TypeName>
+                            <Settings>
+                              <DisplayName>Quick Information</DisplayName>
+                              <EditorId>QuickInfoEditor</EditorId>
+                              <Category>Display</Category>
+                              <Description>Extends the formatted data preview.</Description>
+                              <Browsable>false</Browsable>
+                              <ReadOnly>true</ReadOnly>
+                              <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System.ComponentModel.TypeConverter</TypeConverter>
+                              <CustomAttributes />
+                            </Settings>
+                            <TypeDisplayName>Double</TypeDisplayName>
+                            <IsConstant>true</IsConstant>
+                            <IsAssignable>true</IsAssignable>
+                            <Value>0</Value>
+                            <PhysicalQuantity />
+                            <PhysicalQuantityConversion>
+                              <Factor>1</Factor>
+                              <Offset>0</Offset>
+                            </PhysicalQuantityConversion>
+                          </Property>
+                          <Property IsGfx="true" Key="Z">
+                            <Name>Z</Name>
+                            <TypeName>System.Double, System.Private.CoreLib</TypeName>
+                            <Settings>
+                              <DisplayName>Quick Information</DisplayName>
+                              <EditorId>QuickInfoEditor</EditorId>
+                              <Category>Display</Category>
+                              <Description>Extends the formatted data preview.</Description>
+                              <Browsable>false</Browsable>
+                              <ReadOnly>true</ReadOnly>
+                              <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System.ComponentModel.TypeConverter</TypeConverter>
+                              <CustomAttributes />
+                            </Settings>
+                            <TypeDisplayName>Double</TypeDisplayName>
+                            <IsConstant>true</IsConstant>
+                            <IsAssignable>true</IsAssignable>
+                            <Value>0</Value>
+                            <PhysicalQuantity />
+                            <PhysicalQuantityConversion>
+                              <Factor>1</Factor>
+                              <Offset>0</Offset>
+                            </PhysicalQuantityConversion>
+                          </Property>
+                        </Properties>
+                      </PropertyCollection>
                       <Property IsGfx="true" Key="DisplayObjectName">
                         <Name>DisplayObjectName</Name>
-                        <TypeName>System.Boolean, mscorlib</TypeName>
+                        <TypeName>System.Boolean, System.Private.CoreLib</TypeName>
                         <Settings>
                           <DisplayName>Quick Information</DisplayName>
                           <EditorId>QuickInfoEditor</EditorId>
@@ -690,7 +1097,7 @@ Numeric ID of the object that is unique during runtime</Description>
                           <Description>Extends the formatted data preview.</Description>
                           <Browsable>false</Browsable>
                           <ReadOnly>true</ReadOnly>
-                          <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System</TypeConverter>
+                          <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System.ComponentModel.TypeConverter</TypeConverter>
                           <CustomAttributes />
                         </Settings>
                         <TypeDisplayName>Boolean</TypeDisplayName>
@@ -705,7 +1112,7 @@ Numeric ID of the object that is unique during runtime</Description>
                       </Property>
                       <Property IsGfx="true" Key="Format">
                         <Name>Format</Name>
-                        <TypeName>System.String, mscorlib</TypeName>
+                        <TypeName>System.String, System.Private.CoreLib</TypeName>
                         <Settings>
                           <DisplayName>Format</DisplayName>
                           <EditorId>FormatEditor</EditorId>
@@ -743,120 +1150,35 @@ Numeric ID of the object that is unique during runtime</Description>
                           <Offset>0</Offset>
                         </PhysicalQuantityConversion>
                       </Property>
-                      <PropertyCollection Key="Values" XmlSingularArray="true">
-                        <Name>Values</Name>
-                        <TypeName>System.Collections.Generic.Dictionary`2[[System.String, mscorlib],[System.Double, mscorlib]], mscorlib</TypeName>
-                        <Settings>
-                          <DisplayName>Values</DisplayName>
-                          <Browsable>false</Browsable>
-                          <ReadOnly>false</ReadOnly>
-                          <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System</TypeConverter>
-                          <CustomAttributes />
-                        </Settings>
-                        <TypeDisplayName>0, Culture=neutral, PublicKeyToken=b77a5c561934e089]]</TypeDisplayName>
-                        <Entity>Collection</Entity>
-                        <IsSimpleCollection>false</IsSimpleCollection>
-                        <ItemType>System.Collections.Generic.KeyValuePair`2[[System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089],[System.Double, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089]], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</ItemType>
-                        <Properties>
-                          <Property IsGfx="true" Key="X">
-                            <Name>X</Name>
-                            <TypeName>System.Double, mscorlib</TypeName>
-                            <Settings>
-                              <DisplayName>Quick Information</DisplayName>
-                              <EditorId>QuickInfoEditor</EditorId>
-                              <Category>Display</Category>
-                              <Description>Extends the formatted data preview.</Description>
-                              <Browsable>false</Browsable>
-                              <ReadOnly>true</ReadOnly>
-                              <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System</TypeConverter>
-                              <CustomAttributes />
-                            </Settings>
-                            <TypeDisplayName>Double</TypeDisplayName>
-                            <IsConstant>true</IsConstant>
-                            <IsAssignable>true</IsAssignable>
-                            <Value>0</Value>
-                            <PhysicalQuantity />
-                            <PhysicalQuantityConversion>
-                              <Factor>1</Factor>
-                              <Offset>0</Offset>
-                            </PhysicalQuantityConversion>
-                          </Property>
-                          <Property IsGfx="true" Key="Y">
-                            <Name>Y</Name>
-                            <TypeName>System.Double, mscorlib</TypeName>
-                            <Settings>
-                              <DisplayName>Quick Information</DisplayName>
-                              <EditorId>QuickInfoEditor</EditorId>
-                              <Category>Display</Category>
-                              <Description>Extends the formatted data preview.</Description>
-                              <Browsable>false</Browsable>
-                              <ReadOnly>true</ReadOnly>
-                              <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System</TypeConverter>
-                              <CustomAttributes />
-                            </Settings>
-                            <TypeDisplayName>Double</TypeDisplayName>
-                            <IsConstant>true</IsConstant>
-                            <IsAssignable>true</IsAssignable>
-                            <Value>0</Value>
-                            <PhysicalQuantity />
-                            <PhysicalQuantityConversion>
-                              <Factor>1</Factor>
-                              <Offset>0</Offset>
-                            </PhysicalQuantityConversion>
-                          </Property>
-                          <Property IsGfx="true" Key="Z">
-                            <Name>Z</Name>
-                            <TypeName>System.Double, mscorlib</TypeName>
-                            <Settings>
-                              <DisplayName>Quick Information</DisplayName>
-                              <EditorId>QuickInfoEditor</EditorId>
-                              <Category>Display</Category>
-                              <Description>Extends the formatted data preview.</Description>
-                              <Browsable>false</Browsable>
-                              <ReadOnly>true</ReadOnly>
-                              <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System</TypeConverter>
-                              <CustomAttributes />
-                            </Settings>
-                            <TypeDisplayName>Double</TypeDisplayName>
-                            <IsConstant>true</IsConstant>
-                            <IsAssignable>true</IsAssignable>
-                            <Value>0</Value>
-                            <PhysicalQuantity />
-                            <PhysicalQuantityConversion>
-                              <Factor>1</Factor>
-                              <Offset>0</Offset>
-                            </PhysicalQuantityConversion>
-                          </Property>
-                        </Properties>
-                      </PropertyCollection>
                     </Properties>
                   </item>
                 </QuickInfoDataList>
               </PropertyCollection>
-              <PropertyCollection Key="RectangularBoundaries">
-                <Name>RectangularBoundaries</Name>
-                <TypeName>Vector.DA.Gfx.RectangularBoundaries, Vector.DA.Gfx</TypeName>
+              <PropertyCollection Key="SpacialRotation">
+                <Name>SpacialRotation</Name>
+                <TypeName>Vector.DA.Gfx.EulerRotation, Vector.DA.Gfx</TypeName>
                 <Settings>
-                  <DisplayName>Rectangular Boundaries</DisplayName>
-                  <Category>Type dependent</Category>
-                  <Description>Rectangular boundaries of the object</Description>
+                  <DisplayName>Spacial Rotation</DisplayName>
+                  <EditorId>SpacialRotationsEditor</EditorId>
+                  <Category>Base</Category>
+                  <Description>Describes rotation of an object by Euler angles and a given rotation order.</Description>
                   <Browsable>true</Browsable>
                   <ReadOnly>false</ReadOnly>
-                  <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System</TypeConverter>
+                  <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System.ComponentModel.TypeConverter</TypeConverter>
                   <CustomAttributes />
                 </Settings>
-                <TypeDisplayName>RectangularBoundaries</TypeDisplayName>
+                <TypeDisplayName>EulerRotation</TypeDisplayName>
                 <Entity>Struct</Entity>
                 <IsSimpleCollection>false</IsSimpleCollection>
                 <Properties>
-                  <Property IsGfx="true" Key="Width">
-                    <Name>Width</Name>
-                    <TypeName>System.Double, mscorlib</TypeName>
+                  <Property IsGfx="true" Key="X">
+                    <Name>X</Name>
+                    <TypeName>System.Double, System.Private.CoreLib</TypeName>
                     <Settings>
-                      <DisplayName>Width</DisplayName>
+                      <DisplayName>X</DisplayName>
                       <EditorId>NumericDecimalEditor</EditorId>
-                      <Description>Data type: Double, Unit: Cartesian/Spherical/Geographic: Meter, View/Image: Pixel
-Width of the rectangle boundaries</Description>
+                      <Description>Data type: Double, Unit: Degree
+The angle to rotate around the X-axis</Description>
                       <Browsable>true</Browsable>
                       <ReadOnly>false</ReadOnly>
                       <CustomAttributes />
@@ -864,22 +1186,22 @@ Width of the rectangle boundaries</Description>
                     <TypeDisplayName>Double</TypeDisplayName>
                     <IsConstant>true</IsConstant>
                     <IsAssignable>true</IsAssignable>
-                    <Value>1</Value>
-                    <PhysicalQuantity>Length</PhysicalQuantity>
+                    <Value>0</Value>
+                    <PhysicalQuantity>Angle</PhysicalQuantity>
                     <PhysicalQuantityConversion>
-                      <Unit>Meter</Unit>
+                      <Unit>Degree</Unit>
                       <Factor>1</Factor>
                       <Offset>0</Offset>
                     </PhysicalQuantityConversion>
                   </Property>
-                  <Property IsGfx="true" Key="Height">
-                    <Name>Height</Name>
-                    <TypeName>System.Double, mscorlib</TypeName>
+                  <Property IsGfx="true" Key="Y">
+                    <Name>Y</Name>
+                    <TypeName>System.Double, System.Private.CoreLib</TypeName>
                     <Settings>
-                      <DisplayName>Height</DisplayName>
+                      <DisplayName>Y</DisplayName>
                       <EditorId>NumericDecimalEditor</EditorId>
-                      <Description>Data type: Double, Unit: Cartesian/Spherical/Geographic: Meter, View/Image: Pixel
-Height of the rectangle boundaries</Description>
+                      <Description>Data type: Double, Unit: Degree
+The angle to rotate around the Y-axis</Description>
                       <Browsable>true</Browsable>
                       <ReadOnly>false</ReadOnly>
                       <CustomAttributes />
@@ -887,70 +1209,53 @@ Height of the rectangle boundaries</Description>
                     <TypeDisplayName>Double</TypeDisplayName>
                     <IsConstant>true</IsConstant>
                     <IsAssignable>true</IsAssignable>
-                    <Value>1</Value>
-                    <PhysicalQuantity>Length</PhysicalQuantity>
+                    <Value>0</Value>
+                    <PhysicalQuantity>Angle</PhysicalQuantity>
                     <PhysicalQuantityConversion>
-                      <Unit>Meter</Unit>
+                      <Unit>Degree</Unit>
                       <Factor>1</Factor>
                       <Offset>0</Offset>
                     </PhysicalQuantityConversion>
                   </Property>
-                </Properties>
-              </PropertyCollection>
-              <PropertyCollection Key="RectangularBoundedPointPlacement">
-                <Name>RectangularBoundedPointPlacement</Name>
-                <TypeName>Vector.DA.Gfx.RectangularBoundedPointPlacement, Vector.DA.Gfx</TypeName>
-                <Settings>
-                  <DisplayName>Base Point Placement</DisplayName>
-                  <Category>Type dependent</Category>
-                  <Description>Base Point placement</Description>
-                  <Browsable>true</Browsable>
-                  <ReadOnly>false</ReadOnly>
-                  <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System</TypeConverter>
-                  <CustomAttributes />
-                </Settings>
-                <TypeDisplayName>RectangularBoundedPointPlacement</TypeDisplayName>
-                <Entity>Struct</Entity>
-                <IsSimpleCollection>false</IsSimpleCollection>
-                <Properties>
-                  <Property IsGfx="true" Key="HorizontalBasePointPlacement">
-                    <Name>HorizontalBasePointPlacement</Name>
-                    <TypeName>Vector.DA.Gfx.HorizontalPointPlacement, Vector.DA.Gfx</TypeName>
+                  <Property IsGfx="true" Key="Z">
+                    <Name>Z</Name>
+                    <TypeName>System.Double, System.Private.CoreLib</TypeName>
                     <Settings>
-                      <DisplayName>Horizontal</DisplayName>
-                      <EditorId>EnumEditor</EditorId>
-                      <Category>Type dependent</Category>
-                      <Description>Horizontal base point placement</Description>
+                      <DisplayName>Z</DisplayName>
+                      <EditorId>NumericDecimalEditor</EditorId>
+                      <Description>Data type: Double, Unit: Degree
+The angle to rotate around the Z-axis</Description>
                       <Browsable>true</Browsable>
                       <ReadOnly>false</ReadOnly>
                       <CustomAttributes />
                     </Settings>
-                    <TypeDisplayName>HorizontalPointPlacement</TypeDisplayName>
+                    <TypeDisplayName>Double</TypeDisplayName>
                     <IsConstant>true</IsConstant>
                     <IsAssignable>true</IsAssignable>
-                    <Value>Center</Value>
-                    <PhysicalQuantity />
+                    <Value>0</Value>
+                    <PhysicalQuantity>Angle</PhysicalQuantity>
                     <PhysicalQuantityConversion>
+                      <Unit>Degree</Unit>
                       <Factor>1</Factor>
                       <Offset>0</Offset>
                     </PhysicalQuantityConversion>
                   </Property>
-                  <Property IsGfx="true" Key="VerticalBasePointPlacement">
-                    <Name>VerticalBasePointPlacement</Name>
-                    <TypeName>Vector.DA.Gfx.VerticalPointPlacement, Vector.DA.Gfx</TypeName>
+                  <Property IsGfx="true" Key="Order">
+                    <Name>Order</Name>
+                    <TypeName>Vector.DA.Gfx.EulerOrder, Vector.DA.Gfx</TypeName>
                     <Settings>
-                      <DisplayName>Vertical</DisplayName>
+                      <DisplayName>Order</DisplayName>
                       <EditorId>EnumEditor</EditorId>
-                      <Category>Type dependent</Category>
-                      <Description>Vertical base point placement</Description>
+                      <Description>Data type: EulerOrder
+The order in which rotations are performed</Description>
                       <Browsable>true</Browsable>
                       <ReadOnly>false</ReadOnly>
                       <CustomAttributes />
                     </Settings>
-                    <TypeDisplayName>VerticalPointPlacement</TypeDisplayName>
+                    <TypeDisplayName>EulerOrder</TypeDisplayName>
                     <IsConstant>true</IsConstant>
                     <IsAssignable>true</IsAssignable>
-                    <Value>Center</Value>
+                    <Value>ZXY</Value>
                     <PhysicalQuantity />
                     <PhysicalQuantityConversion>
                       <Factor>1</Factor>
@@ -968,7 +1273,7 @@ Height of the rectangle boundaries</Description>
                   <Description>Parameters to define stroke settings</Description>
                   <Browsable>true</Browsable>
                   <ReadOnly>false</ReadOnly>
-                  <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System</TypeConverter>
+                  <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System.ComponentModel.TypeConverter</TypeConverter>
                   <CustomAttributes />
                 </Settings>
                 <TypeDisplayName>StrokeParameters</TypeDisplayName>
@@ -985,7 +1290,7 @@ Height of the rectangle boundaries</Description>
                       <Description>Determines how the stroke color is calculated. Options are constant and linear gradient color calculation.</Description>
                       <Browsable>true</Browsable>
                       <ReadOnly>false</ReadOnly>
-                      <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System</TypeConverter>
+                      <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System.ComponentModel.TypeConverter</TypeConverter>
                       <CustomAttributes />
                     </Settings>
                     <TypeDisplayName>ConstantColorFunction</TypeDisplayName>
@@ -1014,7 +1319,7 @@ Height of the rectangle boundaries</Description>
                       </Property>
                       <Property IsGfx="true" Key="Name">
                         <Name>Name</Name>
-                        <TypeName>System.String, mscorlib</TypeName>
+                        <TypeName>System.String, System.Private.CoreLib</TypeName>
                         <Settings>
                           <DisplayName>Name</DisplayName>
                           <EditorId>TextEditor</EditorId>
@@ -1033,12 +1338,12 @@ Height of the rectangle boundaries</Description>
                         </PhysicalQuantityConversion>
                       </Property>
                     </Properties>
-                    <ColorFunctionName>ConstantColor_3</ColorFunctionName>
+                    <ColorFunctionName>ConstantColor_0</ColorFunctionName>
                     <MultiColoredObject>false</MultiColoredObject>
                   </PropertyCollection>
                   <Property IsGfx="true" Key="Thickness" XmlSingularArray="true">
                     <Name>Thickness</Name>
-                    <TypeName>System.Double, mscorlib</TypeName>
+                    <TypeName>System.Double, System.Private.CoreLib</TypeName>
                     <Settings>
                       <DisplayName>Thickness</DisplayName>
                       <EditorId>NumericDecimalEditor</EditorId>
@@ -1069,7 +1374,7 @@ Stroke thickness</Description>
                   <Description>Contains parameters to change the font and size of the values text</Description>
                   <Browsable>true</Browsable>
                   <ReadOnly>false</ReadOnly>
-                  <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System</TypeConverter>
+                  <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System.ComponentModel.TypeConverter</TypeConverter>
                   <CustomAttributes />
                 </Settings>
                 <TypeDisplayName>FontParameters</TypeDisplayName>
@@ -1078,7 +1383,7 @@ Stroke thickness</Description>
                 <Properties>
                   <Property IsGfx="true" Key="FontSize">
                     <Name>FontSize</Name>
-                    <TypeName>System.UInt32, mscorlib</TypeName>
+                    <TypeName>System.UInt32, System.Private.CoreLib</TypeName>
                     <Settings>
                       <DisplayName>Font Size</DisplayName>
                       <EditorId>NumericUnsignedIntEditor</EditorId>
@@ -1099,7 +1404,7 @@ Stroke thickness</Description>
                   </Property>
                   <Property IsGfx="true" Key="Font">
                     <Name>Font</Name>
-                    <TypeName>System.String, mscorlib</TypeName>
+                    <TypeName>System.String, System.Private.CoreLib</TypeName>
                     <Settings>
                       <DisplayName>Font</DisplayName>
                       <EditorId>FontEditor</EditorId>
@@ -1129,7 +1434,7 @@ Stroke thickness</Description>
                   <Description>Parameters to define value settings.</Description>
                   <Browsable>true</Browsable>
                   <ReadOnly>false</ReadOnly>
-                  <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System</TypeConverter>
+                  <TypeConverter>System.ComponentModel.ExpandableObjectConverter, System.ComponentModel.TypeConverter</TypeConverter>
                   <CustomAttributes />
                 </Settings>
                 <TypeDisplayName>ValueParameters</TypeDisplayName>
@@ -1138,7 +1443,7 @@ Stroke thickness</Description>
                 <Properties>
                   <Property IsGfx="true" Key="Value">
                     <Name>Value</Name>
-                    <TypeName>System.Double, mscorlib</TypeName>
+                    <TypeName>System.Double, System.Private.CoreLib</TypeName>
                     <Settings>
                       <DisplayName>Value</DisplayName>
                       <EditorId>NumericDecimalEditor</EditorId>
@@ -1160,7 +1465,7 @@ Value to display with the object formatted with a specified value format</Descri
                   </Property>
                   <Property IsGfx="true" Key="Format">
                     <Name>Format</Name>
-                    <TypeName>System.String, mscorlib</TypeName>
+                    <TypeName>System.String, System.Private.CoreLib</TypeName>
                     <Settings>
                       <DisplayName>Format</DisplayName>
                       <EditorId>FormatEditor</EditorId>
@@ -1206,7 +1511,7 @@ Value format like "{0:F2} m". '0' within the braces is the placeholder for the v
               </Property>
               <Property IsGfx="true" Key="Priority">
                 <Name>Priority</Name>
-                <TypeName>System.UInt32, mscorlib</TypeName>
+                <TypeName>System.UInt32, System.Private.CoreLib</TypeName>
                 <Settings>
                   <DisplayName>Priority</DisplayName>
                   <EditorId>NumericUnsignedIntEditor</EditorId>
@@ -1223,30 +1528,6 @@ Priority (draw order) of the object. 1 = highest priority -&gt; drawn on top, 0 
                 <Value>1</Value>
                 <PhysicalQuantity />
                 <PhysicalQuantityConversion>
-                  <Factor>1</Factor>
-                  <Offset>0</Offset>
-                </PhysicalQuantityConversion>
-              </Property>
-              <Property IsGfx="true" Key="RotationAngle">
-                <Name>RotationAngle</Name>
-                <TypeName>System.Double, mscorlib</TypeName>
-                <Settings>
-                  <DisplayName>Rotation Angle</DisplayName>
-                  <EditorId>NumericDecimalEditor</EditorId>
-                  <Category>Base</Category>
-                  <Description>Data type: Double, Unit: Degree
-Angle to rotate the object on the plane. In general, a positive angle is defined counterclockwise; interpreted as a geographic course (declination), it is defined clockwise.</Description>
-                  <Browsable>true</Browsable>
-                  <ReadOnly>false</ReadOnly>
-                  <CustomAttributes />
-                </Settings>
-                <TypeDisplayName>Double</TypeDisplayName>
-                <IsConstant>true</IsConstant>
-                <IsAssignable>true</IsAssignable>
-                <Value>0</Value>
-                <PhysicalQuantity>Angle</PhysicalQuantity>
-                <PhysicalQuantityConversion>
-                  <Unit>Degree</Unit>
                   <Factor>1</Factor>
                   <Offset>0</Offset>
                 </PhysicalQuantityConversion>
@@ -1285,12 +1566,12 @@ Angle to rotate the object on the plane. In general, a positive angle is defined
     <GlobalColorFunctions />
     <LocalColorFunctions>
       <ConstantColor>
-        <Name>ConstantColor_3</Name>
-        <Color>#FFFFA500</Color>
+        <Name>ConstantColor_2</Name>
+        <Color>#FFFFFF00</Color>
       </ConstantColor>
       <ConstantColor>
-        <Name>ConstantColor_2</Name>
-        <Color>#00000000</Color>
+        <Name>ConstantColor_0</Name>
+        <Color>#FFFFA500</Color>
       </ConstantColor>
     </LocalColorFunctions>
   </ColorFunctions>
