@@ -790,10 +790,10 @@ void A2lSetSegmentAddrMode__i(tXcpCalSegIndex calseg_index, const uint8_t *calse
         }
 #if XCP_ADDR_EXT_SEG == 0x00
         A2lSetSegAddrMode(calseg_index, (const uint8_t *)calseg_instance_addr);
-        fprintf(gA2lFile, "\n/* Segment relative addressing mode: calseg=%s */\n", calseg->name);
+        // fprintf(gA2lFile, "\n/* Segment relative addressing mode: calseg=%s */\n", calseg->name);
 #else
         A2lSetAbsAddrMode(XCP_UNDEFINED_EVENT_ID);
-        fprintf(gA2lFile, "\n/* Absolute segment addressing mode: calseg=%s */\n", calseg->name);
+        // fprintf(gA2lFile, "\n/* Absolute segment addressing mode: calseg=%s */\n", calseg->name);
 #endif
         if (gA2lAutoGroups) {
             A2lBeginGroup(calseg->name, "Calibration Segment", true);
@@ -816,10 +816,10 @@ void A2lSetSegmentAddrMode__s(const char *calseg_name, const uint8_t *calseg_ins
         }
 #if XCP_ADDR_EXT_SEG == 0x00
         A2lSetSegAddrMode(calseg_index, (const uint8_t *)calseg_instance_addr);
-        fprintf(gA2lFile, "\n/* Segment relative addressing mode: calseg=%s */\n", calseg->name);
+        // fprintf(gA2lFile, "\n/* Segment relative addressing mode: calseg=%s */\n", calseg->name);
 #else
         A2lSetAbsAddrMode(XCP_UNDEFINED_EVENT_ID);
-        fprintf(gA2lFile, "\n/* Absolute segment addressing mode: calseg=%s */\n", calseg->name);
+        // fprintf(gA2lFile, "\n/* Absolute segment addressing mode: calseg=%s */\n", calseg->name);
 #endif
         if (gA2lAutoGroups) {
             A2lBeginGroup(calseg->name, "Calibration Segment", true);
@@ -849,7 +849,7 @@ void A2lSetAutoAddrMode__s(const char *event_name, const uint8_t *stack_frame, c
         }
         A2lSetAutoAddrMode(event_id, stack_frame, base_addr);
         beginEventGroup(event_id);
-        fprintf(gA2lFile, "\n/* Auto addressing mode: event=%s (%u) */\n", event_name, event_id);
+        // fprintf(gA2lFile, "\n/* Auto addressing mode: event=%s (%u) */\n", event_name, event_id);
     }
 }
 void A2lSetAutoAddrMode__i(tXcpEventId event_id, const uint8_t *stack_frame, const uint8_t *base_addr) {
@@ -862,7 +862,7 @@ void A2lSetAutoAddrMode__i(tXcpEventId event_id, const uint8_t *stack_frame, con
         }
         A2lSetAutoAddrMode(event_id, stack_frame, base_addr);
         beginEventGroup(event_id);
-        fprintf(gA2lFile, "\n/* Auto addressing mode: event=%s (%u) */\n", event_name, event_id);
+        // fprintf(gA2lFile, "\n/* Auto addressing mode: event=%s (%u) */\n", event_name, event_id);
     }
 }
 
@@ -878,7 +878,7 @@ void A2lSetRelativeAddrMode__s(const char *event_name, uint8_t i, const uint8_t 
         }
         A2lSetDynAddrMode(event_id, i, (uint8_t *)base_addr);
         beginEventGroup(event_id);
-        fprintf(gA2lFile, "\n/* Relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_());
+        // fprintf(gA2lFile, "\n/* Relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_());
     }
 }
 void A2lSetRelativeAddrMode__i(tXcpEventId event_id, uint8_t i, const uint8_t *base_addr) {
@@ -891,7 +891,7 @@ void A2lSetRelativeAddrMode__i(tXcpEventId event_id, uint8_t i, const uint8_t *b
         }
         A2lSetDynAddrMode(event_id, i, (uint8_t *)base_addr);
         beginEventGroup(event_id);
-        fprintf(gA2lFile, "\n/* Relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_());
+        // fprintf(gA2lFile, "\n/* Relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_());
     }
 }
 
@@ -907,7 +907,7 @@ void A2lSetStackAddrMode__s(const char *event_name, const uint8_t *stack_frame) 
         }
         A2lSetDynAddrMode(event_id, 0, stack_frame);
         beginEventGroup(event_id);
-        fprintf(gA2lFile, "\n/* Stack frame relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_());
+        // fprintf(gA2lFile, "\n/* Stack frame relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_());
     }
 }
 void A2lSetStackAddrMode__i(tXcpEventId event_id, const uint8_t *stack_frame) {
@@ -920,7 +920,7 @@ void A2lSetStackAddrMode__i(tXcpEventId event_id, const uint8_t *stack_frame) {
         }
         A2lSetDynAddrMode(event_id, 0, stack_frame);
         beginEventGroup(event_id);
-        fprintf(gA2lFile, "\n/* Stack frame relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_());
+        // fprintf(gA2lFile, "\n/* Stack frame relative addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_());
     }
 }
 
@@ -931,7 +931,7 @@ void A2lSetAbsoluteAddrMode__s(const char *event_name) {
         A2lSetAbsAddrMode(event_id);
         if (event_id != XCP_UNDEFINED_EVENT_ID) {
             beginEventGroup(event_id);
-            fprintf(gA2lFile, "\n/* Absolute addressing mode: default_event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_());
+            // fprintf(gA2lFile, "\n/* Absolute addressing mode: default_event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_());
         }
     }
 }
@@ -942,7 +942,7 @@ void A2lSetAbsoluteAddrMode__i(tXcpEventId event_id) {
         A2lSetAbsAddrMode(event_id);
         if (event_id != XCP_UNDEFINED_EVENT_ID) {
             beginEventGroup(event_id);
-            fprintf(gA2lFile, "\n/* Stack frame absolute addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_());
+            // fprintf(gA2lFile, "\n/* Stack frame absolute addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_());
         }
     }
 }
@@ -1192,7 +1192,7 @@ void A2lTypedefBegin_(const char *name, uint32_t size, const char *format, ...) 
 void A2lTypedefEnd_(void) {
     if (gA2lFile != NULL) {
         DBG_PRINT4("A2lTypedefEnd_\n");
-        fprintf(gA2lFile, "/end TYPEDEF_STRUCTURE\n");
+        fprintf(gA2lFile, "/end TYPEDEF_STRUCTURE\n\n");
     }
 }
 

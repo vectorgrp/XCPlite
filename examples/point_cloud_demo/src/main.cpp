@@ -1,4 +1,6 @@
-// point_cloud_demo - simple xcplib C++ example
+// point_cloud_demo - xcplib C++ example
+// Simulates a 3D point cloud with simple physics to demonstrate visualization of 3-dimensional objects in CANapes 3D scene window
+// All XCPlite related instrumentation code is marked with "XCP:" comments
 
 #include <algorithm> // for std::min
 #include <array>     // for std::array
@@ -14,7 +16,7 @@
 #include <xcplib.hpp> // for xcplib application programming interface
 
 //-----------------------------------------------------------------------------------------------------
-// XCP parameters
+// XCP: Configuration
 
 constexpr const char OPTION_PROJECT_NAME[] = "point_cloud_demo";
 constexpr const char OPTION_PROJECT_VERSION[] = __TIME__;
@@ -28,21 +30,18 @@ constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};
 
 namespace point_cloud {
 
-// Calibration parameters
+// Calibration parameters of the point cloud simulation
 struct ParametersT {
-
     double boundary;     // boundary_ box size in m
     double max_radius;   // Point radius in m
     double max_velocity; // Maximum point velocity in m/s
     double ttl;          // Time to live in s
-    uint16_t spawn_rate; // Points to spawn per second
     double gravity;      // Gravity in m/s²
     uint32_t delay_us;   // Delay per simulation step in microseconds
 };
 
 // Default parameter values
 const ParametersT kParameters = {
-
     .boundary = 10.0,     // boundary_ in m
     .max_radius = 0.5,    // max_radius in m
     .max_velocity = 20.0, // max_velocity in m/s
@@ -53,6 +52,7 @@ const ParametersT kParameters = {
 
 //-----------------------------------------------------------------------------------------------------
 
+// Point struct representing a point in 3D space with velocity and radius
 struct Point {
     float x;   // x coord in m
     float y;   // y coord in m
@@ -87,34 +87,31 @@ struct Point {
 template <uint16_t N> class PointCloud {
 
   private:
-    uint32_t step_counter_;
-    uint16_t last_time;
-    uint16_t count_;
-    double boundary_;
-    std::array<Point, N> points_;
-    xcplib::CalSeg<ParametersT> params_;
+    xcplib::CalSeg<ParametersT> params_; // XCP: Calibration parameter segment RAII wrapper for the ParametersT struct
+    double boundary_;                    // Current boundary_ box size in m
+    uint32_t step_counter_;              // Global step counter
+    uint16_t last_time;                  // Last time a simulation step was performed
+    uint16_t count_;                     // Current number of points in the cloud
+    std::array<Point, N> points_;        // Array of points
 
   private:
+    // XCP: Register A2L typedefs
     void createA2L() {
 
         if (A2lOnce()) {
 
-            // Register the calibration segment description as a typedef and an instance in the A2L file
+            // Register the calibration paramneter sruct
             A2lTypedefBegin(ParametersT, &kParameters, "Typedef for ParametersT");
             A2lTypedefParameterComponent(boundary, "boundary_ box size in meters", "m", 0.1, 1000.0);
             A2lTypedefParameterComponent(gravity, "Gravity in meters per second squared", "m/s²", 0.1, 1000.0);
             A2lTypedefParameterComponent(max_radius, "Maximum point radius in meters", "m", 0.01, 10.0);
             A2lTypedefParameterComponent(max_velocity, "Maximum point velocity in meters per second", "m/s", 0.1, 1000.0);
             A2lTypedefParameterComponent(ttl, "Time to live for points in seconds", "s", 0.1, 1000.0);
-            A2lTypedefParameterComponent(spawn_rate, "Points to spawn per second", "1/s", 1, 1000);
             A2lTypedefParameterComponent(delay_us, "Delay per simulation step in microseconds", "us", 0, 1000000);
             A2lTypedefEnd();
-            params_.CreateA2lTypedefInstance("ParametersT", "Random number generator parameters");
 
-            // Register Point typedef first - this must be done before PointCloud typedef
-            // because PointCloud contains an array of Points
-
-            A2lTypedefBegin(Point, NULL, "Typedef for Point");
+            // Register the Point struct
+            A2lTypedefBegin(Point, nullptr, "Typedef for Point");
             A2lTypedefMeasurementComponent(x, "X coordinate of the point");
             A2lTypedefMeasurementComponent(y, "Y coordinate of the point");
             A2lTypedefMeasurementComponent(z, "Z coordinate of the point");
@@ -124,12 +121,12 @@ template <uint16_t N> class PointCloud {
             A2lTypedefMeasurementComponent(v_z, "Z velocity of the point");
             A2lTypedefEnd();
 
-            // Register PointCloud typedef - now Point typedef exists
-            A2lTypedefBegin(PointCloud, this, "Typedef for PointCloud");
-            A2lTypedefMeasurementComponent(count_, "Current number of points in the cloud");
-            A2lTypedefMeasurementComponent(step_counter_, "Global step counter");
-            A2lTypedefComponent(points_, Point, N); // Array of N Points
-            A2lTypedefEnd();
+            // Not used
+            // A2lTypedefBegin(PointCloud, this, "Typedef for PointCloud");
+            // A2lTypedefMeasurementComponent(count_, "Current number of points in the cloud");
+            // A2lTypedefMeasurementComponent(step_counter_, "Global step counter");
+            // A2lTypedefComponent(points_, Point, N); // Array of N Points
+            // A2lTypedefEnd();
         }
     }
 
@@ -211,7 +208,6 @@ template <uint16_t N> class PointCloud {
     }
 
     // Check and remove points that have exceeded their lifetime (shrinking to zero radius)
-
     void check_lifetime() {
         auto params = params_.lock();
         double ttl = params->ttl;
@@ -232,14 +228,22 @@ template <uint16_t N> class PointCloud {
     }
 
   public:
+    // Constructor
     PointCloud() : step_counter_(0), last_time(clockGetUs()), count_(0), boundary_(kParameters.boundary), params_("Parameters", &kParameters) {
         for (uint16_t i = 0; i < N; i++) {
             points_[i].clear();
         }
+
+        // XCP: A2L type registrations
         createA2L();
+
+        // XCP: Create the A2L instance for the calibration parameters
+        params_.CreateA2lTypedefInstance("ParametersT", "Point cloud simulation parameters");
+
         std::cout << "PointCloud<" << (unsigned int)N << "> instance created" << std::endl;
     }
 
+    // Destructor
     ~PointCloud() = default;
 
     // Getters
@@ -286,7 +290,7 @@ template <uint16_t N> class PointCloud {
         // Lifetime
         check_lifetime();
 
-        // XCP measurement event
+        // XCP: Model step measurement event
         DaqEventVar(step,                                                        //
                     A2L_MEAS(count_, "Current point count"),                     //
                     A2L_MEAS(step_counter_, "Step counter"),                     //
@@ -313,26 +317,20 @@ int main() {
     std::signal(SIGINT, signal_handler);
     std::signal(SIGTERM, signal_handler);
 
-    std::cout << "\nXCP on Ethernet demo - simple C++ example\n" << std::endl;
+    std::cout << "\nXCPlite point cloud demo\n" << std::endl;
 
     // Initialize random seed
     srand(static_cast<unsigned int>(time(nullptr)));
 
-    // Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
-    XcpSetLogLevel(OPTION_LOG_LEVEL);
-
-    // Initialize the XCP singleton and activate XCP
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION /* EPK version*/, true /* activate */);
-
-    // Initialize the XCP Server
-    if (!XcpEthServerInit(OPTION_SERVER_ADDR, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_QUEUE_SIZE)) {
+    // XCP: Initialize
+    XcpSetLogLevel(OPTION_LOG_LEVEL);                                                                   // Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION /* EPK version*/, true /* activate */);         // Initialize the XCP singleton and activate XCP
+    if (!XcpEthServerInit(OPTION_SERVER_ADDR, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_QUEUE_SIZE)) { // Initialize the XCP Server
         std::cerr << "Failed to initialize XCP server" << std::endl;
         return 1;
     }
-
-    // Enable runtime A2L generation for data declaration as code
-    // The A2L file will be created when the XCP tool connects and, if it does not already exist on local file system and the version did not change
-    if (!A2lInit(OPTION_SERVER_ADDR, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(OPTION_SERVER_ADDR, OPTION_SERVER_PORT, OPTION_USE_TCP,
+                 A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) { // Enable runtime A2L generation for data declaration as code
         std::cerr << "Failed to initialize A2L generator" << std::endl;
         return 1;
     }
@@ -351,8 +349,9 @@ int main() {
         A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file after first step
     }
 
-    // Cleanup
     std::cout << "\nExiting ..." << std::endl;
+
+    // XCP: Shutdown
     XcpDisconnect();
     XcpEthServerShutdown();
 

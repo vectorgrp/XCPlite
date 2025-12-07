@@ -253,8 +253,8 @@ template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventVarTemplat
         static tXcpEventId event_id = XCP_UNDEFINED_EVENT_ID;
         static std::once_flag once_flag;
         std::call_once(once_flag, [&]() {
-            // Create event
-            event_id = XcpCreateEventInstance(event_name, 0, 0);
+            // Create event, ignore if already created
+            event_id = XcpCreateEvent(event_name, 0, 0);
             assert(event_id != XCP_UNDEFINED_EVENT_ID);
             // Register measurements with individual DYN address extensions
             A2lLock();
