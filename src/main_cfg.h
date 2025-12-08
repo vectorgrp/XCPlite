@@ -105,7 +105,7 @@
 
 #define OPTION_DAQ_MEM_SIZE (1024 * 8) // Memory bytes used for XCP DAQ tables - 6 bytes per measurement signal/block needed
 #define OPTION_DAQ_EVENT_COUNT 256     // Maximum number of DAQ events (integer value, must be even)
-#define OPTION_DAQ_ASYNC_EVENT         // Create an asynchronous, cyclic DAQ event for asynchronous data acquisition
+// #define OPTION_DAQ_ASYNC_EVENT         // Create an asynchronous, cyclic DAQ event for asynchronous data acquisition
 
 //-------------------------------------------------------------------------------
 // A2L generation settings
@@ -115,7 +115,7 @@
 
 // Enable socketGetLocalAddr and XcpEthTlGetInfo
 // Used for convenience to get an existing ip address in A2L, when bound to ANY 0.0.0.0
-#define OPTION_ENABLE_GET_LOCAL_ADDR
+// #define OPTION_ENABLE_GET_LOCAL_ADDR
 
 //-------------------------------------------------------------------------------
 // Miscellaneous options

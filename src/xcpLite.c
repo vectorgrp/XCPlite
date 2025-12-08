@@ -1610,13 +1610,15 @@ static uint8_t XcpAllocOdt(uint16_t daq, uint8_t odtCount) {
 // Increase current ODT size (absolute ODT index) size by n
 static bool XcpAdjustOdtSize(uint16_t daq, uint16_t odt, uint8_t n) {
 
-    DaqListOdtTable[odt].size = (uint16_t)(DaqListOdtTable[odt].size + n);
+    uint16_t size = (uint16_t)(DaqListOdtTable[odt].size + n);
+    DaqListOdtTable[odt].size = size;
 
 #ifdef XCP_ENABLE_TEST_CHECKS
     assert(odt >= DaqListFirstOdt(daq));
-    uint16_t max_size = (XCPTL_MAX_DTO_SIZE - ODT_HEADER_SIZE) - ((odt - DaqListFirstOdt(daq)) == 0 ? 4 : 0); // Leave space for ODT header and timestamp in first ODT
-    if (DaqListOdtTable[odt].size > max_size) {
-        DBG_PRINTF_ERROR("DAQ %u, ODT %u overflow, max ODT = %u!\n", daq, odt - DaqListFirstOdt(daq), max_size);
+    uint16_t daq_odt = odt - DaqListFirstOdt(daq);
+    uint16_t max_size = (XCPTL_MAX_DTO_SIZE - ODT_HEADER_SIZE) - (daq_odt == 0 ? 4 : 0); // Leave space for ODT header and timestamp in first ODT
+    if (size > max_size) {
+        DBG_PRINTF_ERROR("DAQ %u, ODT %u overflow, %u bytes requested, max ODT size = %u, DTO size = %u!\n", daq, daq_odt, size, max_size, XCPTL_MAX_DTO_SIZE);
         return false;
     }
 #else

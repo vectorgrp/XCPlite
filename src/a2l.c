@@ -632,14 +632,14 @@ static void A2lCreate_ETH_IF_DATA(bool useTCP, const uint8_t *addr, uint16_t por
             socketGetLocalAddr(NULL, addr0);
 #endif
         }
-        char addrs[17];
-        SPRINTF(addrs, "%u.%u.%u.%u", addr0[0], addr0[1], addr0[2], addr0[3]);
-        char *prot = useTCP ? (char *)"TCP" : (char *)"UDP";
-        fprintf(gA2lFile, gA2lIfDataEth, prot, XCP_TRANSPORT_LAYER_VERSION, port, addrs, prot);
-
+        if (addr0[0] != 0 && addr0[1] != 0 && addr0[2] != 0 && addr0[3] != 0) {
+            char addrs[17];
+            SPRINTF(addrs, "%u.%u.%u.%u", addr0[0], addr0[1], addr0[2], addr0[3]);
+            char *prot = useTCP ? (char *)"TCP" : (char *)"UDP";
+            fprintf(gA2lFile, gA2lIfDataEth, prot, XCP_TRANSPORT_LAYER_VERSION, port, addrs, prot);
+            DBG_PRINTF3("A2L IF_DATA XCP_ON_%s, ip=%s, port=%u\n", prot, addrs, port);
+        }
         fprintf(gA2lFile, gA2lIfDataEnd);
-
-        DBG_PRINTF3("A2L IF_DATA XCP_ON_%s, ip=%s, port=%u\n", prot, addrs, port);
     }
 }
 

@@ -224,6 +224,17 @@ uint16_t XcpGetEventIndex(tXcpEventId event);
         }                                                                                                                                                                          \
     }
 
+/// Create a global event with cycle time
+/// @param name Name given as identifier
+/// @param cycle_time Cycle time in microseconds
+#define DaqCreateCyclicEvent(name, cycle_time)                                                                                                                                     \
+    static tXcpEventId evt__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                                       \
+    if (XcpIsActivated()) {                                                                                                                                                        \
+        if (evt__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                               \
+            evt__##name = XcpCreateEvent(#name, cycle_time * 1000, 0);                                                                                                             \
+        }                                                                                                                                                                          \
+    }
+
 /// Create a thread local event with dynamic name
 /// Macro may be used anywhere in the code, even in loops
 /// The first call in a thread creates the event, must be unique per thread and per code location

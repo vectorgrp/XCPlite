@@ -245,7 +245,7 @@ template <typename T> XCPLIB_ALWAYS_INLINE void registerDynMeasurement(uint8_t i
 }
 
 // Main template function for once event creation and registration with individual relative addressing mode, and event triggering
-template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventVarTemplate(const char *event_name, Measurements &&...measurements) {
+template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventVarTemplate(const char *event_name, uint64_t clock, Measurements &&...measurements) {
 
     if (XcpIsActivated()) {
 
@@ -266,7 +266,7 @@ template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventVarTemplat
         // Always
         // Create base pointer list and trigger
         const uint8_t *bases[] = {xcp_get_base_addr(), xcp_get_base_addr(), xcp_get_frame_addr(), (const uint8_t *)measurements.addr...};
-        XcpEventExt_(event_id, bases);
+        XcpEventExtAt_(event_id, bases, clock);
     }
 }
 
@@ -274,7 +274,13 @@ template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventVarTemplat
 #define DaqEventVar(event_name, ...)                                                                                                                                               \
     {                                                                                                                                                                              \
         static tXcpEventId trg__AASDD__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                                      \
-        xcplib::DaqEventVarTemplate(#event_name, __VA_ARGS__);                                                                                                                     \
+        xcplib::DaqEventVarTemplate(#event_name, 0, __VA_ARGS__);                                                                                                                  \
+    }
+
+#define DaqEventAtVar(event_name, clock, ...)                                                                                                                                      \
+    {                                                                                                                                                                              \
+        static tXcpEventId trg__AASDD__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                                      \
+        xcplib::DaqEventVarTemplate(#event_name, clock, __VA_ARGS__);                                                                                                              \
     }
 
 #endif
