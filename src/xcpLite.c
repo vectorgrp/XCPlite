@@ -3992,7 +3992,7 @@ static void XcpPrintRes(const tXcpCto *crm) {
             break;
 
         case CC_GET_DAQ_RESOLUTION_INFO:
-            printf(" <- mode=%02Xh, , ticks=%02Xh\n", CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_MODE, CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_TICKS);
+            printf(" <- mode=%02Xh, ticks=%02Xh\n", CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_MODE, CRM_GET_DAQ_RESOLUTION_INFO_TIMESTAMP_TICKS);
             break;
 
         case CC_GET_DAQ_PROCESSOR_INFO:

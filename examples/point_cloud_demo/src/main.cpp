@@ -440,7 +440,7 @@ int main() {
         return 1;
     }
 
-    // Create a PointCloud instance with max N=256 points
+    // Create a PointCloud instance with max N points
     point_cloud::PointCloud<1000> point_cloud;
 
     // Main loop
