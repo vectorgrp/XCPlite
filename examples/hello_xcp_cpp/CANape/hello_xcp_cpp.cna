@@ -10,7 +10,7 @@ PrgDate=16.06.2025
 Description=
 CreationTime=19:03
 CreationDate=12/06/2025 ; Month/Day/Year
-ModificationTime=20:19
+ModificationTime=21:54
 ModificationDate=12/09/2025 ; Month/Day/Year
 Protected=0
 CurrentWindowsACP=1252
@@ -113,8 +113,21 @@ GUID=DISPLAY_PAGE_58544e03-2ae9-4bc8-8d18-ffd23d01b0d1
 [DISPLAY_PAGE_1_DisplayElements]
 Count=0
 
+[DISPLAY_PAGE_2]
+Name=Trace
+Comment=
+Maximized=0
+ActiveWindow=9
+IsReportPage=0
+TimeAxisSynchronized=0
+PrintLayout=Default
+GUID=DISPLAY_PAGE_133d5829-2adc-45cd-b26d-ac3f0c6ef321
+
+[DISPLAY_PAGE_2_DisplayElements]
+Count=0
+
 [DISPLAY_PAGES]
-Count=1
+Count=2
 Active=0
 
 [DYNAMIC_COLUMNS]
@@ -1668,8 +1681,8 @@ WindowTextExtended=1
 WindowTextExtendedNew=1
 WindowSymbols=1
 GlobalCursor=1
-GlobalCursorTime=10168
-GlobalCursorTimeNs=10168598524
+GlobalCursorTime=10315
+GlobalCursorTimeNs=10315784041
 MainWindowPos=1, 151, 159, 2952, 1670 ;cmd, x, y, w, h
 
 [PAR_COMMENT]
@@ -1871,10 +1884,10 @@ DisplayMask=1 ; pages 1
 
 [WINDOW_2]
 XLen=34323
-XMin=168
-XMinNs=168598524
-XMax=20168
-XMaxNs=20168598524
+XMin=0
+XMinNs=0
+XMax=17964
+XMaxNs=17964252916
 Grid=1
 Mark=1
 YValue=1
@@ -1908,7 +1921,7 @@ YAxisDynScaleEnabled=0
 YAxisDynScaleEnlarge=25
 TimeStickToZero=0
 XYModeRedrawEnabled=0
-MARKER_TIME_1=10168598524
+MARKER_TIME_1=10315784041
 MARKER_TIME_2=15744000
 OscilloscopeEnabled=0
 OsciEventCount=0
@@ -1944,10 +1957,10 @@ COL_1_dpi96=1048578, 57
 
 [WINDOW_3]
 XLen=34323
-XMin=168
-XMinNs=168598524
-XMax=20168
-XMaxNs=20168598524
+XMin=0
+XMinNs=0
+XMax=17964
+XMaxNs=17964252916
 Grid=1
 Mark=1
 YValue=1
@@ -1981,7 +1994,7 @@ YAxisDynScaleEnabled=0
 YAxisDynScaleEnlarge=25
 TimeStickToZero=0
 XYModeRedrawEnabled=0
-MARKER_TIME_1=10168598524
+MARKER_TIME_1=10315784041
 MARKER_TIME_2=15744000
 OscilloscopeEnabled=0
 OsciEventCount=0
@@ -2281,8 +2294,64 @@ COUNT=1
 COL_0=31, 398
 COL_0_dpi96=31, 199
 
+[WINDOW_9]
+ProgID=CNPTRACE.TraceCtrl.1
+PROPERTIES_COUNT=22
+PROPERTY_1=DeviceItems={"CaptureEvents":"1","ShowEvents":"0","NodeCount":"1","Node0":{"DeviceName":"hello_xcp_cpp","CaptureEvents":"1","ShowEvents":"1","NodeCount":"3","Node0":{"Channel":"2","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node1":{"Channel":"3","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node2":{"Channel":"4","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"}}}
+PROPERTY_2=NetworkItems={"Items":"0"}
+PROPERTY_3=ColumnConfigs={"ConfigCount":"1","Config0":{"Layout":"1","Name":"Initial","Column0":{"Width":"210","Position":"0","Name":"Time","IsDefaultName":"1"},"Column1":{"Width":"120","Position":"1","Name":"Channel","IsDefaultName":"1"},"Column2":{"Width":"60","Position":"2","Name":"ID","IsDefaultName":"1"},"Column3":{"Width":"90","Position":"3","Name":"Name","IsDefaultName":"1"},"Column5":{"Width":"60","Position":"5","Name":"Dir","IsDefaultName":"1"},"Column6":{"Width":"100","Position":"6","Name":"Length","IsDefaultName":"1"},"Column7":{"Width":"320","Position":"7","Name":"Data","IsDefaultName":"1"},"Column16":{"Width":"150","Position":"4","Name":"Type","IsDefaultName":"1"},"Column52":{"Width":"300","Position":"8","Name":"Protocol Interpretation","IsDefaultName":"1"}},"Active":"6","ActiveLayout":"25"}
+PROPERTY_4=PinningEvents={"EventCount":"0"}
+PROPERTY_5=ExpandedEvents={"EventCount":"0"}
+PROPERTY_6=AnalysisGroups={"GroupCount":"1","Group0":{"Enabled":"1","Expanded":"1","Name":"Filter Group 0","FilterCount":"2","Filter0":{"Stop":"1","Enabled":"1","ConditionCount":"0"},"Filter1":{"Stop":"0","Enabled":"0","ConditionCount":"0"}}}
+PROPERTY_7=AnalysisDataChangeFilter=0
+PROPERTY_8=SequenceFilters={"IsEnabled":"1","FilterCount":"0"}
+PROPERTY_9=SearchPatterns={"EventCount":"0"}
+PROPERTY_10=ExplorerConfig={"VSplitPos":"300","VSplitExpanded":"true","HSplitPos":"580","HSplitExpanded":"false","ActiveExplorerView":"1","ActiveSearchType":"0"}
+PROPERTY_11=ContinuousMode=1
+PROPERTY_12=AbsoluteTimeMode=1
+PROPERTY_13=HighPrioritySBClient=0
+PROPERTY_14=EventFading=0
+PROPERTY_15=ByteFading=0
+PROPERTY_16=BufferEntries=10000
+PROPERTY_17=ClearStart=true
+PROPERTY_18=OnlyMeasurement=false
+PROPERTY_19=CopyColumnTitles=true
+PROPERTY_20=LoggingEnabled=false
+PROPERTY_21=LoggingFilePath=
+PROPERTY_22=LoggingOverwriteOnConfigLoad=false
+OBJECTS_COUNT=0
+ObjectCount=0
+HiddenDisplayCount=0
+TraceChannelCount=2
+DeltaTimeEnabled=0
+Title=Trace window {DISPLAYED_FILENAME}
+Type=16384
+Comment=ActiveX Window
+Number=9
+GUID=WINDOW_621832d3-b2fe-48f9-ac87-a44c3d935273
+ScreenDPIinSection=192
+Position=0, 24, 20, 2384, 1218 ;cmd, x, y, w, h
+Position_dpi96=0, 12, 10, 1192, 609 ;cmd, x, y, w, h
+Position_Page02=0, 24, 20, 2384, 1218 ;cmd, x, y, w, h
+Position_Page02_dpi96=0, 12, 10, 1192, 609 ;cmd, x, y, w, h
+FloatingWindow=0
+ShowSignalComments=1
+DisplayMask=2 ; pages 2
+
+[WINDOW_9_CHANNEL_1]
+Module=hello_xcp_cpp
+Channel=0
+CustomColorFlag=0
+Color=0
+
+[WINDOW_9_CHANNEL_2]
+Module=hello_xcp_cpp
+Channel=1
+CustomColorFlag=0
+Color=0
+
 [WINDOWS]
-Count=8
+Count=9
 
 [Y_COMMON_AXIS_1]
 YMin=-12.5

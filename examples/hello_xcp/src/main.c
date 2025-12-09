@@ -96,11 +96,11 @@ float calc_power(uint8_t t1, uint8_t t2) {
     DaqTriggerEvent(calc_power);
 #else
     // XCP: Trigger the measurement event "calc_power" and register local measurement variables and parameters
-    DaqEventVar(calc_power,                                                            //
-                (t1, "Parameter t1 in function calc_power"),                           //
-                (t2, "Parameter t2 in function calc_power"),                           //
-                (diff_temp, "Local variable diff temperature in function calc_power"), //
-                (heat_power, "Local variable calculated heat power in function calc_power"));
+    DaqEventVar(calc_power,                                                                    //
+                A2L_MEAS(t1, "Parameter t1 in function calc_power"),                           //
+                A2L_MEAS(t2, "Parameter t2 in function calc_power"),                           //
+                A2L_MEAS(diff_temp, "Local variable diff temperature in function calc_power"), //
+                A2L_MEAS(heat_power, "Local variable calculated heat power in function calc_power"));
 #endif
 
     return (float)heat_power;
