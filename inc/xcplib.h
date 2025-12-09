@@ -269,10 +269,6 @@ uint16_t XcpGetEventIndex(tXcpEventId event);
 /// Trigger timestamped measurement events and transfer XCP tool configured associated data
 /// Function are thread safe and look-free, depending on the transmit queue configuration and platform. See technical reference for details.
 
-// Internal for use by some macros
-void XcpEventExtAt_(tXcpEventId event, const uint8_t **bases, uint64_t clock);
-void XcpEventExt_(tXcpEventId event, const uint8_t **bases);
-
 /// Trigger the XCP event 'event' for absolute addressing mode (XCP_ADDR_EXT_ABS)
 /// @param event Event id.
 void XcpEvent(tXcpEventId event);
@@ -287,8 +283,10 @@ void XcpEventExt(tXcpEventId event, const uint8_t *base2);
 /// @param count Number of base address pointers passed (max 3 possible)
 void XcpEventExt_Var(tXcpEventId event, uint8_t count, ...);
 
-/// Internal use by some macros and the Rust API
-void XcpEventExt2(tXcpEventId event, const uint8_t *base2, const uint8_t *base3);
+// Internal use by some macros and the Rust API
+void XcpEventExt_(tXcpEventId event, uint8_t count, const uint8_t **bases);
+void XcpEventExtAt_(tXcpEventId event, uint8_t count, const uint8_t **bases, uint64_t clock);
+void XcpEventExt2(tXcpEventId event, const uint8_t *base2, const uint8_t *base3); // for Rust API
 void XcpEventExtAt(tXcpEventId event, const uint8_t *base2, uint64_t clock);
 void XcpEventExtAt_Var(tXcpEventId event, uint64_t clock, uint8_t count, ...);
 

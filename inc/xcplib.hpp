@@ -266,7 +266,7 @@ template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventVarTemplat
         // Always
         // Create base pointer list and trigger
         const uint8_t *bases[] = {xcp_get_base_addr(), xcp_get_base_addr(), xcp_get_frame_addr(), (const uint8_t *)measurements.addr...};
-        XcpEventExtAt_(event_id, bases, clock);
+        XcpEventExtAt_(event_id, (uint8_t)(sizeof(bases) / sizeof(bases[0])), bases, clock);
     }
 }
 

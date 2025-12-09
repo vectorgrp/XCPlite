@@ -25,7 +25,6 @@ ALIGNMENT_INT64 1
   /begin STRUCTURE_COMPONENT max C_max 0x8 /end STRUCTURE_COMPONENT
 /end TYPEDEF_STRUCTURE
 
-/* Segment relative addressing mode: calseg=Parameters */
 /begin INSTANCE Parameters "Random number generator parameters" ParametersT 0x80010000 /end INSTANCE
 
 /begin TYPEDEF_STRUCTURE FloatingAverage "Typedef for FloatingAverage<128>" 0x418
@@ -34,47 +33,20 @@ ALIGNMENT_INT64 1
   /begin STRUCTURE_COMPONENT sum_ M_sum_ 0x10 /end STRUCTURE_COMPONENT
 /end TYPEDEF_STRUCTURE
 
-/* Relative addressing mode: event=calc64_1 (1), addr_ext=3 */
-/begin MEASUREMENT input "Input value for floating average" FLOAT64_IEEE NO_COMPU_METHOD 0 0 0 1000 ECU_ADDRESS 0x10000 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "V" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-
-/* Relative addressing mode: event=calc64_1 (1), addr_ext=4 */
-/begin MEASUREMENT average "Current calculated average" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -1e+12 1e+12 ECU_ADDRESS 0x10000 ECU_ADDRESS_EXTENSION 4 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-
-/* Relative addressing mode: event=calc64_1 (1), addr_ext=5 */
-/begin MEASUREMENT current_index_ "Current position in ring buffer" A_UINT64 NO_COMPU_METHOD 0 0 0 1e+12 ECU_ADDRESS 0x10000 ECU_ADDRESS_EXTENSION 5 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-
-/* Relative addressing mode: event=calc64_1 (1), addr_ext=6 */
-/begin MEASUREMENT sample_count_ "Number of samples collected" UBYTE NO_COMPU_METHOD 0 0 0 255 ECU_ADDRESS 0x10000 ECU_ADDRESS_EXTENSION 6 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-
-/* Relative addressing mode: event=calc64_1 (1), addr_ext=7 */
-/begin MEASUREMENT sum_ "Running sum of all samples" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -1e+12 1e+12 ECU_ADDRESS 0x10000 ECU_ADDRESS_EXTENSION 7 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-
-/* Relative addressing mode: event=mainloop_1 (2), addr_ext=3 */
-/begin MEASUREMENT global_counter "Global counter variable" UWORD NO_COMPU_METHOD 0 0 0 65535 ECU_ADDRESS 0x20000 ECU_ADDRESS_EXTENSION 3 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-
-/* Relative addressing mode: event=mainloop_1 (2), addr_ext=4 */
-/begin MEASUREMENT counter "Local counter variable" UWORD NO_COMPU_METHOD 0 0 0 65535 ECU_ADDRESS 0x20000 ECU_ADDRESS_EXTENSION 4 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-
-/* Relative addressing mode: event=mainloop_1 (2), addr_ext=5 */
-/begin MEASUREMENT input_voltage "Input voltage" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100 ECU_ADDRESS 0x20000 ECU_ADDRESS_EXTENSION 5 PHYS_UNIT "V" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-
-/* Relative addressing mode: event=mainloop_1 (2), addr_ext=6 */
-/begin MEASUREMENT average_voltage1 "Calculated average <128> on input_voltage" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -1e+12 1e+12 ECU_ADDRESS 0x20000 ECU_ADDRESS_EXTENSION 6 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-
-/* Relative addressing mode: event=mainloop_1 (2), addr_ext=7 */
-/begin INSTANCE average_filter1 "Local (stack) instance of FloatingAverage<128>" FloatingAverage 0x20000 ECU_ADDRESS_EXTENSION 7 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end INSTANCE
-
-/* Relative addressing mode: event=mainloop_1 (2), addr_ext=8 */
-/begin MEASUREMENT average_voltage2 "Calculated average <64>on input_voltage-10" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -1e+12 1e+12 ECU_ADDRESS 0x20000 ECU_ADDRESS_EXTENSION 8 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-
-/* Relative addressing mode: event=mainloop_1 (2), addr_ext=9 */
-/begin INSTANCE average_filter2 "Heap RAII instance of FloatingAverage<64>" FloatingAverage 0x20000 ECU_ADDRESS_EXTENSION 9 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end INSTANCE
-
-/* Relative addressing mode: event=mainloop_1 (2), addr_ext=10 */
-/begin MEASUREMENT average_voltage3 "Calculated average <64> on input_voltage+10" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -1e+12 1e+12 ECU_ADDRESS 0x20000 ECU_ADDRESS_EXTENSION 10 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-
-/* Relative addressing mode: event=mainloop_1 (2), addr_ext=11 */
-/begin INSTANCE average_filter3 "Heap instance of FloatingAverage<64>" FloatingAverage 0x20000 ECU_ADDRESS_EXTENSION 11 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end INSTANCE
+/begin MEASUREMENT input "Input value for floating average" FLOAT64_IEEE NO_COMPU_METHOD 0 0 0 1000 ECU_ADDRESS 0x0 ECU_ADDRESS_EXTENSION 3 PHYS_UNIT "V" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT average "Current calculated average" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -1e+12 1e+12 ECU_ADDRESS 0x0 ECU_ADDRESS_EXTENSION 4 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT current_index_ "Current position in ring buffer" A_UINT64 NO_COMPU_METHOD 0 0 0 1e+12 ECU_ADDRESS 0x0 ECU_ADDRESS_EXTENSION 5 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT sample_count_ "Number of samples collected" UBYTE NO_COMPU_METHOD 0 0 0 255 ECU_ADDRESS 0x0 ECU_ADDRESS_EXTENSION 6 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT sum_ "Running sum of all samples" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -1e+12 1e+12 ECU_ADDRESS 0x0 ECU_ADDRESS_EXTENSION 7 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT global_counter "Global counter variable" UWORD NO_COMPU_METHOD 0 0 0 65535 ECU_ADDRESS 0x10000 ECU_ADDRESS_EXTENSION 3 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT counter "Local counter variable" UWORD NO_COMPU_METHOD 0 0 0 65535 ECU_ADDRESS 0x10000 ECU_ADDRESS_EXTENSION 4 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT input_voltage "Input voltage" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100 ECU_ADDRESS 0x10000 ECU_ADDRESS_EXTENSION 5 PHYS_UNIT "V" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT average_voltage1 "Calculated average <128> on input_voltage" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -1e+12 1e+12 ECU_ADDRESS 0x10000 ECU_ADDRESS_EXTENSION 6 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin INSTANCE average_filter1 "Local (stack) instance of FloatingAverage<128>" FloatingAverage 0x10000 ECU_ADDRESS_EXTENSION 7 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end INSTANCE
+/begin MEASUREMENT average_voltage2 "Calculated average <64>on input_voltage-10" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -1e+12 1e+12 ECU_ADDRESS 0x10000 ECU_ADDRESS_EXTENSION 8 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin INSTANCE average_filter2 "Heap RAII instance of FloatingAverage<64>" FloatingAverage 0x10000 ECU_ADDRESS_EXTENSION 9 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end INSTANCE
+/begin MEASUREMENT average_voltage3 "Calculated average <64> on input_voltage+10" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -1e+12 1e+12 ECU_ADDRESS 0x10000 ECU_ADDRESS_EXTENSION 10 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin INSTANCE average_filter3 "Heap instance of FloatingAverage<64>" FloatingAverage 0x10000 ECU_ADDRESS_EXTENSION 11 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end INSTANCE
 
 /* Typedefs */
 /begin RECORD_LAYOUT U8 FNC_VALUES 1 UBYTE ROW_DIR DIRECT /end RECORD_LAYOUT
@@ -126,20 +98,20 @@ ALIGNMENT_INT64 1
 
 /* Groups */
 /begin GROUP Parameters "Calibration Segment" ROOT /begin REF_CHARACTERISTIC Parameters /end REF_CHARACTERISTIC /end GROUP
-/begin GROUP calc64_1 "Measurement event group"  /begin REF_MEASUREMENT input average current_index_ sample_count_ sum_ /end REF_MEASUREMENT /end GROUP
-/begin GROUP mainloop_1 "Measurement event group"  /begin REF_MEASUREMENT global_counter counter input_voltage average_voltage1 average_filter1 average_voltage2 average_filter2 average_voltage3 average_filter3 /end REF_MEASUREMENT /end GROUP
-/begin GROUP Events "Events" ROOT /begin SUB_GROUP calc64_1 mainloop_1 /end SUB_GROUP /end GROUP
+/begin GROUP calc64 "Measurement event group"  /begin REF_MEASUREMENT input average current_index_ sample_count_ sum_ /end REF_MEASUREMENT /end GROUP
+/begin GROUP mainloop "Measurement event group"  /begin REF_MEASUREMENT global_counter counter input_voltage average_voltage1 average_filter1 average_voltage2 average_filter2 average_voltage3 average_filter3 /end REF_MEASUREMENT /end GROUP
+/begin GROUP Events "Events" ROOT /begin SUB_GROUP calc64 mainloop /end SUB_GROUP /end GROUP
 
 /* Conversions */
 /begin COMPU_METHOD conv.bool "" TAB_VERB "%.0" "" COMPU_TAB_REF conv.bool.table /end COMPU_METHOD
 /begin COMPU_VTAB conv.bool.table "" TAB_VERB 2 0 "false" 1 "true" /end COMPU_VTAB
 /begin COMPU_METHOD conv.events "" TAB_VERB "%.0 " "" COMPU_TAB_REF conv.events.table /end COMPU_METHOD
-/begin COMPU_VTAB conv.events.table "" TAB_VERB 3
- 0 "async" 1 "calc64_1" 2 "mainloop_1"
+/begin COMPU_VTAB conv.events.table "" TAB_VERB 2
+ 0 "calc64" 1 "mainloop"
 /end COMPU_VTAB
 
 /begin MOD_PAR ""
-EPK "13_39_22" ADDR_EPK 0x80000000
+EPK "20_09_42" ADDR_EPK 0x80000000
 /begin MEMORY_SEGMENT epk "" DATA FLASH INTERN 0x80000000 8 -1 -1 -1 -1 -1
 /begin IF_DATA XCP
   /begin SEGMENT 0 2 0 0 0
@@ -201,15 +173,11 @@ OPTIONAL_CMD TIME_CORRELATION_PROPERTIES
 OPTIONAL_LEVEL1_CMD GET_VERSION
 /end PROTOCOL_LAYER
 /begin DAQ
-DYNAMIC 0 3 0 OPTIMISATION_TYPE_DEFAULT ADDRESS_EXTENSION_FREE IDENTIFICATION_FIELD_TYPE_RELATIVE_BYTE GRANULARITY_ODT_ENTRY_SIZE_DAQ_BYTE 0xF8 OVERLOAD_INDICATION_PID PRESCALER_SUPPORTED
+DYNAMIC 0 2 0 OPTIMISATION_TYPE_DEFAULT ADDRESS_EXTENSION_FREE IDENTIFICATION_FIELD_TYPE_RELATIVE_BYTE GRANULARITY_ODT_ENTRY_SIZE_DAQ_BYTE 0xF8 OVERLOAD_INDICATION_PID
 /begin TIMESTAMP_SUPPORTED 0x1 SIZE_DWORD UNIT_1NS TIMESTAMP_FIXED /end TIMESTAMP_SUPPORTED
-/begin EVENT "async" "async" 0x0 DAQ 0xFF 100 4 0 CONSISTENCY EVENT /end EVENT
-/begin EVENT "calc64_1" "calc64_1" 0x1 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
-/begin EVENT "mainloop_1" "mainloop" 0x2 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
+/begin EVENT "calc64" "calc64" 0x0 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
+/begin EVENT "mainloop" "mainloop" 0x1 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
 /end DAQ
-/begin XCP_ON_TCP_IP
-  0x104 5555 ADDRESS "192.168.0.206"
-/end XCP_ON_TCP_IP
 /end IF_DATA
 
 /end MODULE

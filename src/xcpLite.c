@@ -1951,7 +1951,7 @@ static void XcpStopSelectedDaqLists(void) {
 
 // Trigger DAQ list
 #ifdef XCP_ENABLE_DAQ_ADDREXT
-static void XcpTriggerDaqList_(tQueueHandle queueHandle, uint16_t daq, const uint8_t **bases, uint64_t clock) {
+static void XcpTriggerDaqList_(tQueueHandle queueHandle, uint16_t daq, uint8_t count, const uint8_t **bases, uint64_t clock) {
 #else
 static void XcpTriggerDaqList_(tQueueHandle queueHandle, uint16_t daq, const uint8_t *base, uint64_t clock) {
 #endif
@@ -2017,10 +2017,16 @@ static void XcpTriggerDaqList_(tQueueHandle queueHandle, uint16_t daq, const uin
 #endif
             while (e <= el) {
                 uint8_t n = *size_ptr++;
-                assert(n != 0);
 #ifdef XCP_ENABLE_DAQ_ADDREXT
+#ifdef XCP_ENABLE_TEST_CHECKS
+                assert(n != 0);
+                assert(*addr_ext_ptr < count && bases[*addr_ext_ptr] != NULL);
+#endif
                 const uint8_t *src = (const uint8_t *)&bases[*addr_ext_ptr++][*addr_ptr++];
 #else
+#ifdef XCP_ENABLE_TEST_CHECKS
+                assert(n != 0);
+#endif
                 const uint8_t *src = (const uint8_t *)&base[*addr_ptr++];
 #endif
                 memcpy(dst, src, n);
@@ -2036,11 +2042,16 @@ static void XcpTriggerDaqList_(tQueueHandle queueHandle, uint16_t daq, const uin
 
 // Trigger DAQ event
 // DAQ lists must be valid and DAQ must be running
-static void XcpTriggerDaqEvent_(tQueueHandle queueHandle, tXcpEventId event_id, const uint8_t **bases, uint64_t clock) {
+static void XcpTriggerDaqEvent_(tQueueHandle queueHandle, tXcpEventId event_id, uint8_t count, const uint8_t **bases, uint64_t clock) {
 
 #ifdef OPTION_ENABLE_DBG_METRICS
     gXcpDaqEventCount++;
 #endif
+
+    // Take event timestamp if not already done
+    if (clock == 0) {
+        clock = ApplXcpGetClock64();
+    }
 
 #ifndef XCP_MAX_EVENT_COUNT // Basic mode for arbitrary event ids
 
@@ -2055,9 +2066,10 @@ static void XcpTriggerDaqEvent_(tQueueHandle queueHandle, tXcpEventId event_id, 
         // Address extension unique per DAQ list
         // Build base pointer for this DAQ list
         uint8_t ext = DaqListAddrExt(daq);
+        assert(ext < count);
         XcpTriggerDaqList_(queueHandle, daq, bases[ext], clock); // Trigger DAQ list
 #else
-        XcpTriggerDaqList_(queueHandle, daq, bases, clock); // Trigger DAQ list
+        XcpTriggerDaqList_(queueHandle, daq, count, bases, clock); // Trigger DAQ list
 #endif
 
     } /* daq */
@@ -2103,7 +2115,7 @@ static void XcpTriggerDaqEvent_(tQueueHandle queueHandle, tXcpEventId event_id, 
             uint8_t ext = DaqListAddrExt(daq);
             XcpTriggerDaqList_(queueHandle, daq, base[ext], clock); // Trigger DAQ list
 #else
-            XcpTriggerDaqList_(queueHandle, daq, bases, clock); // Trigger DAQ list
+            XcpTriggerDaqList_(queueHandle, daq, count, bases, clock); // Trigger DAQ list
 #endif
         }
     }
@@ -2112,13 +2124,14 @@ static void XcpTriggerDaqEvent_(tQueueHandle queueHandle, tXcpEventId event_id, 
 
 // Async command processing for pending command
 #ifdef XCP_ENABLE_DYN_ADDRESSING
-static void XcpProcessPendingCommand(tXcpEventId event, const uint8_t **bases) {
+static void XcpProcessPendingCommand(tXcpEventId event, uint8_t count, const uint8_t **bases) {
     if (atomic_load_explicit(&gXcp.CmdPending, memory_order_acquire)) {
         // Check if the pending command can be executed in this context
         if (XcpAddrIsDyn(gXcp.MtaExt) && XcpAddrDecodeDynEvent(gXcp.MtaAddr) == event) {
             ATOMIC_BOOL_TYPE old_value = true;
             if (atomic_compare_exchange_weak_explicit(&gXcp.CmdPending, &old_value, false, memory_order_release, memory_order_relaxed)) {
                 // Convert relative signed 16 bit addr in MtaAddr to pointer MtaPtr
+                assert(gXcp.MtaExt < count);
                 gXcp.MtaPtr = (uint8_t *)(bases[gXcp.MtaExt] + XcpAddrDecodeDynOffset(gXcp.MtaAddr));
                 gXcp.MtaExt = XCP_ADDR_EXT_PTR;
                 XcpAsyncCommand(true, (const uint32_t *)&gXcp.CmdPendingCrm, gXcp.CmdPendingCrmLen);
@@ -2128,7 +2141,7 @@ static void XcpProcessPendingCommand(tXcpEventId event, const uint8_t **bases) {
 }
 #endif // XCP_ENABLE_DYN_ADDRESSING
 
-void XcpEventExtAt_(tXcpEventId event, const uint8_t **bases, uint64_t clock) {
+void XcpEventExtAt_(tXcpEventId event, uint8_t count, const uint8_t **bases, uint64_t clock) {
 
     if (!isStarted())
         return;
@@ -2139,16 +2152,16 @@ void XcpEventExtAt_(tXcpEventId event, const uint8_t **bases, uint64_t clock) {
 
     // Async command processing for pending command
 #ifdef XCP_ENABLE_DYN_ADDRESSING
-    XcpProcessPendingCommand(event, bases);
+    XcpProcessPendingCommand(event, count, bases);
 #endif // XCP_ENABLE_DYN_ADDRESSING
 
     // Daq
     if (!isDaqRunning())
         return; // DAQ not running
-    XcpTriggerDaqEvent_(gXcp.Queue, event, bases, clock);
+    XcpTriggerDaqEvent_(gXcp.Queue, event, count, bases, clock);
 }
 
-void XcpEventExt_(tXcpEventId event, const uint8_t **bases) {
+void XcpEventExt_(tXcpEventId event, uint8_t count, const uint8_t **bases) {
 
     if (!isStarted())
         return;
@@ -2159,10 +2172,10 @@ void XcpEventExt_(tXcpEventId event, const uint8_t **bases) {
 
     // Async command processing for pending command
 #ifdef XCP_ENABLE_DYN_ADDRESSING
-    XcpProcessPendingCommand(event, bases);
+    XcpProcessPendingCommand(event, count, bases);
 #endif // XCP_ENABLE_DYN_ADDRESSING
 
-    XcpTriggerDaqEvent_(gXcp.Queue, event, bases, ApplXcpGetClock64());
+    XcpTriggerDaqEvent_(gXcp.Queue, event, count, bases, ApplXcpGetClock64());
 }
 
 //----------------------------------------------------------------------------
@@ -2173,8 +2186,8 @@ void XcpEventExt_(tXcpEventId event, const uint8_t **bases) {
 // Internal function used by the Rust API
 // Supports XCP_ADDR_EXT_DYN and XCP_ADDR_EXT_REL with given base pointers
 void XcpEventExt2(tXcpEventId event, const uint8_t *base_dyn, const uint8_t *base_rel) {
-    const uint8_t *bases[5] = {NULL, NULL, base_dyn, base_rel, NULL};
-    XcpEventExt_(event, bases);
+    const uint8_t *bases[4] = {NULL, NULL, base_dyn, base_rel};
+    XcpEventExt_(event, 4, bases);
 }
 
 #else
@@ -2182,23 +2195,23 @@ void XcpEventExt2(tXcpEventId event, const uint8_t *base_dyn, const uint8_t *bas
 // Supports XCP_ADDR_EXT_ABS and XCP_ADDR_EXT_DYN with given base pointer
 void XcpEventExt(tXcpEventId event, const uint8_t *base) {
 #if defined(XCP_ADDRESS_MODE_XCPLITE__ACSDD)
-    const uint8_t *bases[5] = {xcp_get_base_addr(), NULL, base, NULL, NULL};
+    const uint8_t *bases[3] = {xcp_get_base_addr(), NULL, base};
 #elif defined(XCP_ADDRESS_MODE_XCPLITE__CASDD)
-    const uint8_t *bases[5] = {NULL, xcp_get_base_addr(), base, NULL, NULL};
+    const uint8_t *bases[3] = {NULL, xcp_get_base_addr(), base};
 #else
     static_assert(false);
 #endif
-    XcpEventExt_(event, bases);
+    XcpEventExt_(event, 3, bases);
 }
 void XcpEventExtAt(tXcpEventId event, const uint8_t *base, uint64_t clock) {
 #if defined(XCP_ADDRESS_MODE_XCPLITE__ACSDD)
-    const uint8_t *bases[5] = {xcp_get_base_addr(), NULL, base, NULL, NULL};
+    const uint8_t *bases[3] = {xcp_get_base_addr(), NULL, base};
 #elif defined(XCP_ADDRESS_MODE_XCPLITE__CASDD)
-    const uint8_t *bases[5] = {NULL, xcp_get_base_addr(), base, NULL, NULL};
+    const uint8_t *bases[3] = {NULL, xcp_get_base_addr(), base};
 #else
     static_assert(false);
 #endif
-    XcpEventExtAt_(event, bases, clock);
+    XcpEventExtAt_(event, 3, bases, clock);
 }
 
 // Supports XCP_ADDR_EXT_ABS only
@@ -2210,14 +2223,14 @@ void XcpEvent(tXcpEventId event) {
         return;
     }
 #if defined(XCP_ADDRESS_MODE_XCPLITE__ACSDD)
-    const uint8_t *bases[5] = {xcp_get_base_addr(), NULL, NULL, NULL, NULL};
+    const uint8_t *bases[2] = {xcp_get_base_addr(), NULL};
 #elif defined(XCP_ADDRESS_MODE_XCPLITE__CASDD)
-    const uint8_t *bases[5] = {NULL, xcp_get_base_addr(), NULL, NULL, NULL};
+    const uint8_t *bases[2] = {NULL, xcp_get_base_addr()};
 #else
     static_assert(false);
 #endif
 
-    XcpTriggerDaqEvent_(gXcp.Queue, event, bases, ApplXcpGetClock64());
+    XcpTriggerDaqEvent_(gXcp.Queue, event, 2, bases, ApplXcpGetClock64());
 }
 void XcpEventAt(tXcpEventId event, uint64_t clock) {
     if (!isDaqRunning())
@@ -2228,21 +2241,21 @@ void XcpEventAt(tXcpEventId event, uint64_t clock) {
     }
 
 #if defined(XCP_ADDRESS_MODE_XCPLITE__ACSDD)
-    const uint8_t *bases[5] = {xcp_get_base_addr(), NULL, NULL, NULL, NULL};
+    const uint8_t *bases[2] = {xcp_get_base_addr(), NULL};
 #elif defined(XCP_ADDRESS_MODE_XCPLITE__CASDD)
-    const uint8_t *bases[5] = {NULL, xcp_get_base_addr(), NULL, NULL, NULL};
+    const uint8_t *bases[2] = {NULL, xcp_get_base_addr()};
 #else
     static_assert(false);
 #endif
 
-    XcpTriggerDaqEvent_(gXcp.Queue, event, bases, clock);
+    XcpTriggerDaqEvent_(gXcp.Queue, event, 2, bases, clock);
 }
 
 #endif
 
 #if defined(XCP_ENABLE_DYN_ADDRESSING)
 // Function is partly hardcoded for performance reasons, supports exactly up to 5 different base pointers
-void XcpEventExt_Var(tXcpEventId event, uint8_t count, ...) {
+void XcpEventExt_Var(tXcpEventId event, uint8_t args_count, ...) {
 
     if (!isStarted())
         return;
@@ -2252,24 +2265,24 @@ void XcpEventExt_Var(tXcpEventId event, uint8_t count, ...) {
     }
 
     va_list args;
-    va_start(args, count);
+    va_start(args, args_count);
     const uint8_t *bases[XCP_ADDR_EXT_DYN_MAX + 1] = {xcp_get_base_addr(), xcp_get_base_addr()};
-    for (uint8_t i = 0; i < count; i++) {
+    assert(args_count < XCP_ADDR_EXT_DYN_COUNT);
+    for (uint8_t i = 0; i < args_count; i++) {
         bases[XCP_ADDR_EXT_DYN + i] = va_arg(args, uint8_t *);
-        DBG_PRINTF5("XcpEventExt_Var: Base %u: %p\n", XCP_ADDR_EXT_DYN + i, bases[XCP_ADDR_EXT_DYN + i]);
     }
     va_end(args);
 
     // Async command processing for pending command
-    XcpProcessPendingCommand(event, bases);
+    XcpProcessPendingCommand(event, XCP_ADDR_EXT_DYN + args_count, bases);
 
     if (!isDaqRunning())
         return; // DAQ not running
 
-    XcpTriggerDaqEvent_(gXcp.Queue, event, bases, ApplXcpGetClock64());
+    XcpTriggerDaqEvent_(gXcp.Queue, event, XCP_ADDR_EXT_DYN + args_count, bases, ApplXcpGetClock64());
 }
 
-void XcpEventExtAt_Var(tXcpEventId event, uint64_t clock, uint8_t count, ...) {
+void XcpEventExtAt_Var(tXcpEventId event, uint64_t clock, uint8_t args_count, ...) {
 
     if (!isStarted())
         return;
@@ -2279,21 +2292,21 @@ void XcpEventExtAt_Var(tXcpEventId event, uint64_t clock, uint8_t count, ...) {
     }
 
     va_list args;
-    va_start(args, count);
+    va_start(args, args_count);
     const uint8_t *bases[XCP_ADDR_EXT_DYN_MAX + 1] = {xcp_get_base_addr(), xcp_get_base_addr()};
-    for (uint8_t i = 0; i < count; i++) {
+    assert(args_count < XCP_ADDR_EXT_DYN_COUNT);
+    for (uint8_t i = 0; i < args_count; i++) {
         bases[XCP_ADDR_EXT_DYN + i] = va_arg(args, uint8_t *);
-        DBG_PRINTF5("XcpEventExtAt_Var: Base %u: %p\n", XCP_ADDR_EXT_DYN + i, bases[XCP_ADDR_EXT_DYN + i]);
     }
     va_end(args);
 
     // Async command processing for pending command
-    XcpProcessPendingCommand(event, bases);
+    XcpProcessPendingCommand(event, XCP_ADDR_EXT_DYN + args_count, bases);
 
     if (!isDaqRunning())
         return; // DAQ not running
 
-    XcpTriggerDaqEvent_(gXcp.Queue, event, bases, clock);
+    XcpTriggerDaqEvent_(gXcp.Queue, event, XCP_ADDR_EXT_DYN + args_count, bases, clock);
 }
 #endif // XCP_ENABLE_DYN_ADDRESSING
 
