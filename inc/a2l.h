@@ -363,9 +363,10 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Create measurements on stack or in global memory
 
-#define A2lCreateMeasurement(name, comment) A2lCreateMeasurement_(NULL, #name, A2lGetTypeId(name), &name, NULL, 0.0, 0.0, comment);
+#define A2lCreateMeasurement(name, comment) A2lCreateMeasurement_(NULL, #name, A2lGetTypeId(name), 1, &name, NULL, 0.0, 0.0, comment);
 
-#define A2lCreatePhysMeasurement(name, comment, unit_or_conversion, min, max) A2lCreateMeasurement_(NULL, #name, A2lGetTypeId(name), &name, unit_or_conversion, min, max, comment);
+#define A2lCreatePhysMeasurement(name, comment, unit_or_conversion, min, max)                                                                                                      \
+    A2lCreateMeasurement_(NULL, #name, A2lGetTypeId(name), 1, &name, unit_or_conversion, min, max, comment);
 
 #define A2lCreateMeasurementArray(name, comment)                                                                                                                                   \
     A2lCreateMeasurementArray_(NULL, #name, A2lGetArray1DElementTypeId(name), sizeof(name) / sizeof(name[0]), 1, &name[0], NULL, 0.0, 0.0, comment);
@@ -382,10 +383,10 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
                                unit_or_conversion, min, max, comment);
 
 // With instance name
-#define A2lCreateMeasurementInstance(instance_name, name, comment) A2lCreateMeasurement_(instance_name, #name, A2lGetTypeId(name), &name, NULL, 0.0, 0.0, comment);
+#define A2lCreateMeasurementInstance(instance_name, name, comment) A2lCreateMeasurement_(instance_name, #name, A2lGetTypeId(name), 1, &name, NULL, 0.0, 0.0, comment);
 
 #define A2lCreatePhysMeasurementInstance(instance_name, name, comment, unit_or_conversion, min, max)                                                                               \
-    A2lCreateMeasurement_(instance_name, #name, A2lGetTypeId(name), &name, unit_or_conversion, min, max, comment);
+    A2lCreateMeasurement_(instance_name, #name, A2lGetTypeId(name), 1, &name, unit_or_conversion, min, max, comment);
 
 #define A2lCreateMeasurementArrayInstance(instance_name, name, comment)                                                                                                            \
     A2lCreateMeasurementArray_(instance_name, #name, A2lGetArray1DElementTypeId(name), sizeof(name) / sizeof(name[0]), 1, &name[0], NULL, 0.0, 0.0, comment);
@@ -626,7 +627,7 @@ const char *A2lCreateLinearConversion_(const char *name, const char *comment, co
 const char *A2lCreateEnumConversion_(const char *name, const char *enum_description);
 
 // Create measurements
-void A2lCreateMeasurement_(const char *instance_name, const char *name, tA2lTypeId type, const void *ptr, const char *unit_or_conversion, double min, double max,
+void A2lCreateMeasurement_(const char *instance_name, const char *name, tA2lTypeId type, uint16_t dim, const void *ptr, const char *unit_or_conversion, double min, double max,
                            const char *comment);
 void A2lCreateMeasurementArray_(const char *instance_name, const char *name, tA2lTypeId type, int x_dim, int y_dim, const void *ptr, const char *unit_or_conversion,
                                 double phys_min, double phys_max, const char *comment);

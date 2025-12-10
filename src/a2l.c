@@ -1322,8 +1322,8 @@ void A2lCreateInstance_(const char *instance_name, const char *typeName, const u
 //----------------------------------------------------------------------------------
 // Measurements
 
-void A2lCreateMeasurement_(const char *instance_name, const char *name, tA2lTypeId type, const void *ptr, const char *unit_or_conversion, double phys_min, double phys_max,
-                           const char *comment) {
+void A2lCreateMeasurement_(const char *instance_name, const char *name, tA2lTypeId type, uint16_t dim, const void *ptr, const char *unit_or_conversion, double phys_min,
+                           double phys_max, const char *comment) {
     if (gA2lFile != NULL) {
         uint32_t addr = A2lGetAddr_(ptr);
         uint8_t ext = A2lGetAddrExt_();
@@ -1347,7 +1347,11 @@ void A2lCreateMeasurement_(const char *instance_name, const char *name, tA2lType
             max = phys_max;
             conv = getConversion(unit_or_conversion, NULL, NULL);
         }
-        fprintf(gA2lFile, "/begin MEASUREMENT %s \"%s\" %s %s 0 0 %g %g ECU_ADDRESS 0x%X", symbol_name, comment, A2lGetA2lTypeName(type), conv, min, max, addr);
+        fprintf(gA2lFile, "/begin MEASUREMENT %s \"%s\" %s %s 0 0 %g %g ", symbol_name, comment, A2lGetA2lTypeName(type), conv, min, max);
+        if (dim > 1) {
+            fprintf(gA2lFile, "MATRIX_DIM %u ", dim);
+        }
+        fprintf(gA2lFile, " ECU_ADDRESS 0x%X", addr);
         printAddrExt(ext);
         printPhysUnit(gA2lFile, unit_or_conversion);
         uint8_t addr_ext = A2lGetAddrExt_();

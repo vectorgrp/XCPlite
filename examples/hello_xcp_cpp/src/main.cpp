@@ -69,18 +69,18 @@ template <uint8_t N> [[nodiscard]] double FloatingAverage<N>::calc(double input)
     current_index_ = (current_index_ + 1) % N;
 
     // Observe variant N=64
-    // Trigger event 'calc64' and register event and individual local variables and member variables once
+    // Trigger event 'calc64' and register event and individual parameters, local variables and member variables once
     if (N == 64) {
         DaqEventVar(calc64,                                                                     //
-                    A2L_MEAS_PHYS(input, "Input value for floating average", "V", 0.0, 1000.0), //
-                    A2L_MEAS(average, "Current calculated average"),                            //
-                    A2L_MEAS(current_index_, "Current position in ring buffer"),                //
-                    A2L_MEAS(sample_count_, "Number of samples collected"),                     //
-                    A2L_MEAS(sum_, "Running sum of all samples")                                //
-        );
+                    A2L_MEAS_PHYS(input, "Input value for floating average", "V", 0.0, 1000.0), // Measure parameter 'input' as physical value in Volt
+                    A2L_MEAS(average, "Current calculated average"),                            // Measure local variable 'average'
+                    A2L_MEAS(current_index_, "Current position in ring buffer"),                // Measure member variable 'current_index_'
+                    A2L_MEAS(sample_count_, "Number of samples collected"),                     // Measure member variable 'sample_count_'
+                    A2L_MEAS(sum_, "Running sum of all samples"),                               // Measure member variable 'sum_'
+                    A2L_MEAS_INST_PTR(FloatingAverage, this, "FloatingAverage",
+                                      "This instance of FloatingAverage")); // Redundant, just to show we also can measure this instance as a whole with a typedef instance
     }
 
-    // A2L_MEAS_THIS(this, "FloatingAverage", "Any instance of FloatingAverage")//
     return average;
 }
 
@@ -197,16 +197,16 @@ int main() {
         double average_voltage3 = average_filter3->calc(input_voltage + 10.0);
 
         // Trigger data acquisition event "mainloop", once register event, global and local variables, and heap instance measurements
-        DaqEventVar(mainloop,                                                                                            //
-                    A2L_MEAS(global_counter, "Global counter variable"),                                                 //
-                    A2L_MEAS(counter, "Local counter variable"),                                                         //
-                    A2L_MEAS_PHYS(input_voltage, "Input voltage", "V", -100.0, 100.0),                                   //
-                    A2L_MEAS(average_voltage1, "Calculated average <128> on input_voltage"),                             //
-                    A2L_MEAS_INST(average_filter1, "FloatingAverage", "Local (stack) instance of FloatingAverage<128>"), //
-                    A2L_MEAS(average_voltage2, "Calculated average <64>on input_voltage-10"),                            //
-                    A2L_MEAS_PTR(average_filter2, "FloatingAverage", "Heap RAII instance of FloatingAverage<64>"),       //
-                    A2L_MEAS(average_voltage3, "Calculated average <64> on input_voltage+10"),                           //
-                    A2L_MEAS_REF(average_filter3, "FloatingAverage", "Heap instance of FloatingAverage<64>")
+        DaqEventVar(mainloop,                                                                                                                  //
+                    A2L_MEAS(global_counter, "Global counter variable"),                                                                       //
+                    A2L_MEAS(counter, "Local counter variable"),                                                                               //
+                    A2L_MEAS_PHYS(input_voltage, "Input voltage", "V", -100.0, 100.0),                                                         //
+                    A2L_MEAS(average_voltage1, "Calculated average <128> on input_voltage"),                                                   //
+                    A2L_MEAS(average_voltage2, "Calculated average <64>on input_voltage-10"),                                                  //
+                    A2L_MEAS(average_voltage3, "Calculated average <64> on input_voltage+10"),                                                 //
+                    A2L_MEAS_INST(average_filter1, "FloatingAverage", "Local (stack) instance of FloatingAverage<128>"),                       //
+                    A2L_MEAS_INST_PTR(average_filter2, average_filter2.get(), "FloatingAverage", "Heap RAII instance of FloatingAverage<64>"), //
+                    A2L_MEAS_INST_PTR(average_filter3, average_filter3, "FloatingAverage", "Heap instance of FloatingAverage<64>")
 
         );
 

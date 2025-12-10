@@ -642,10 +642,10 @@ void sleepUs(uint32_t us);
 #define A2L_UNPACK_AND_REG_SELECT_IMPL_(N) A2L_UNPACK_AND_REG_##N##_
 
 // Measurement: (var, comment)
-#define A2L_UNPACK_AND_REG_2_(var, comment) A2lCreateMeasurement_(NULL, #var, A2lGetTypeId(var), &(var), NULL, 0.0, 0.0, comment);
+#define A2L_UNPACK_AND_REG_2_(var, comment) A2lCreateMeasurement_(NULL, #var, A2lGetTypeId(var), 1, &(var), NULL, 0.0, 0.0, comment);
 
 // Physical measurement: (var, comment, unit_or_conversion, min, max)
-#define A2L_UNPACK_AND_REG_5_(var, comment, unit_or_conversion, min, max) A2lCreateMeasurement_(NULL, #var, A2lGetTypeId(var), &(var), unit_or_conversion, min, max, comment);
+#define A2L_UNPACK_AND_REG_5_(var, comment, unit_or_conversion, min, max) A2lCreateMeasurement_(NULL, #var, A2lGetTypeId(var), 1, &(var), unit_or_conversion, min, max, comment);
 
 // Main unpacking macro - dispatches to the right version
 #define A2L_UNPACK_AND_REG_(...) A2L_UNPACK_AND_REG_DISPATCH_((__VA_ARGS__))

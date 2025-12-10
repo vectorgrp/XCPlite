@@ -1,7 +1,6 @@
 #!/bin/bash
 
-rm *.bin
-rm *.a2l
+
 
 # Parse command line arguments
 BUILD_TYPE="Debug"  # Default to Debug build
@@ -91,9 +90,13 @@ for arg in "$@"; do
             CLEAN_BUILD=true
             ;;
         cleanall)
-            echo "Cleaning all build directories..."
+            echo "Cleaning all build and test artefacts ..."
             rm -rf build build-gcc build-clang
             echo "✅ All build directories cleaned"
+            rm -f *.bin
+            rm -f *.hex
+            rm -f *.a2l
+            echo "✅ All hex and a2l files cleaned"
             exit 0
             ;;
         -h|--help|help)
@@ -187,10 +190,6 @@ if [ -f "$BUILD_DIR/CMakeCache.txt" ]; then
     esac
 fi
 echo ""
-
-# Be sure EPK is updated before building
-touch src/a2l.c
-
 echo ""
 echo "==================================================================="
 echo "Building targets..."

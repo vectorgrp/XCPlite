@@ -649,7 +649,7 @@ int main(int argc, char *argv[]) {
                 // If no specifc syscall event is defined, default event is 0
                 uint16_t syscall_event_id = syscall_events[syscall_nr];
                 A2lSetAbsoluteAddrMode(syscall_event_id);
-                A2lCreateMeasurement_(NULL, name, A2L_TYPE_UINT32, (uint8_t *)&(syscall_event_counters[syscall_nr]), NULL, 0.0, 0.0, "");
+                A2lCreateMeasurement_(NULL, name, A2L_TYPE_UINT32, 1, (uint8_t *)&(syscall_event_counters[syscall_nr]), NULL, 0.0, 0.0, "");
             }
         }
     }

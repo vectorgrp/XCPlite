@@ -12,6 +12,9 @@
 #include "lookup.hpp"  // for lookup_table::LookupTableT
 #include "sig_gen.hpp" // for signal_generator::SignalGenerator
 
+// New option in V1.1: Enable variadic all in one macros, see examples below
+#define OPTION_USE_VARIADIC_MACROS
+
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
 
@@ -136,22 +139,26 @@ int main() {
     // @@@@ TODO: Add support for C-style arrays to the variadic alternative
     // See hello_xcp_cpp for example how to use the variadic macros for measurement registration of simple arithmetic type
 
+    // Create conversion rules for physical measurements
+    A2lCreateLinearConversion(temperature, "Temperature in °C from unsigned byte", "°C", 1.0, -50.0);
+    A2lCreateLinearConversion(clock_ticks, "Conversion from clock ticks to milliseconds", "ms", 1.0 / 1000.0, 0.0);
+
+#ifndef OPTION_USE_VARIADIC_MACROS
     // Create a measurement event 'mainloop'
     DaqCreateEvent(mainloop);
 
     // Register the global measurement variables 'temperature' and 'speed'
     A2lSetAbsoluteAddrMode(mainloop);
-    A2lCreateLinearConversion(temperature, "Temperature in °C from unsigned byte", "°C", 1.0, -50.0);
     A2lCreatePhysMeasurement(temperature, "Motor temperature in °C", "conv.temperature", -50.0, 200.0);
     A2lCreatePhysMeasurement(speed, "Speed in km/h", "km/h", 0, 250.0);
 
     // Register the local measurement variables 'loop_counter', 'loop_cycletime', 'loop_histogram' and 'sum'
     A2lSetStackAddrMode(mainloop);
     A2lCreateMeasurement(counter, "Mainloop loop counter");
-    A2lCreateLinearConversion(clock_ticks, "Conversion from clock ticks to milliseconds", "ms", 1.0 / 1000.0, 0.0);
+    A2lCreateMeasurement(sum, "Sum of SigGen1 and SigGen2 value");
     A2lCreatePhysMeasurement(loop_cycletime, "Mainloop cycle time", "conv.clock_ticks", 0.0, 0.05);
     A2lCreateMeasurementArray(loop_histogram, "Mainloop cycle time histogram");
-    A2lCreateMeasurement(sum, "Sum of SigGen1 and SigGen2 value");
+#endif
 
     // Signal generator C++ class demo
     // See sig_gen.cpp for details how to measure instance members and stack variables in member functions
@@ -163,7 +170,6 @@ int main() {
     signal_generator::SignalGenerator signal_generator_2("SigGen2", &kSignalParameters2);
 
     sleepUs(100000);
-    A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
 
     // Main loop
     std::cout << "Starting main loop..." << std::endl;
@@ -182,7 +188,7 @@ int main() {
 
         } // Guard automatically unlocks here
 
-        // Measure and calculate the mainloop cycle time
+        // Measure and calculate the mainloop cycle time, build histogram
         last_loop_time = loop_time;
         loop_time = clockGetUs();
         loop_cycletime = loop_time - last_loop_time;
@@ -203,10 +209,24 @@ int main() {
         if (speed > 245.0f)
             speed = 0; // Reset speed to 0 km/h
 
-        // Trigger the XCP measurement mainloop for temperature, speed, loop_counter and sum
+        // Trigger the XCP measurement mainloop for temperature, speed, counter and sum
+#ifndef OPTION_USE_VARIADIC_MACROS
         DaqTriggerEvent(mainloop);
+#else
+        DaqEventVar(mainloop,                                                                                //
+                    A2L_MEAS_PHYS(temperature, "Motor temperature in °C", "conv.temperature", -50.0, 200.0), //
+                    A2L_MEAS_PHYS(speed, "Speed in km/h", "km/h", 0, 250.0),                                 //
+                    A2L_MEAS(counter, "Mainloop loop counter"),                                              //
+                    A2L_MEAS(sum, "Sum of SigGen1 and SigGen2 value"),                                       //
+                    A2L_MEAS_PHYS(loop_cycletime, "Mainloop cycle time", "conv.clock_ticks", 0.0, 0.05),     //
+                    A2L_MEAS_ARRAY(loop_histogram, "Mainloop cycle time histogram")                          //
+        );
+#endif
 
         sleepUs(calseg.lock()->delay_us);
+
+        A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
+
     } // while (running)
 
     // Cleanup

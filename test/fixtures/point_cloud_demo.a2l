@@ -1,0 +1,41 @@
+ASAP2_VERSION 1 71
+/begin PROJECT point_cloud_demo ""
+
+/begin HEADER "" VERSION "1.0" PROJECT_NO XCPLITE__CASDD /end HEADER
+
+/begin MODULE point_cloud_demo ""
+
+/include "XCP_104.aml"
+
+/begin MOD_COMMON ""
+BYTE_ORDER MSB_LAST
+ALIGNMENT_BYTE 1
+ALIGNMENT_WORD 1
+ALIGNMENT_LONG 1
+ALIGNMENT_FLOAT16_IEEE 1
+ALIGNMENT_FLOAT32_IEEE 1
+ALIGNMENT_FLOAT64_IEEE 1
+ALIGNMENT_INT64 1
+/end MOD_COMMON
+
+
+
+/begin TYPEDEF_STRUCTURE ParametersT "Typedef for ParametersT" 0x10
+  /begin STRUCTURE_COMPONENT min C_min 0x0 /end STRUCTURE_COMPONENT
+  /begin STRUCTURE_COMPONENT max C_max 0x8 /end STRUCTURE_COMPONENT
+/end TYPEDEF_STRUCTURE
+
+/* Segment relative addressing mode: calseg=Parameters */
+/begin INSTANCE Parameters "Random number generator parameters" ParametersT 0x80010000 /end INSTANCE
+
+/begin TYPEDEF_STRUCTURE Point "Typedef for Point" 0x18
+  /begin STRUCTURE_COMPONENT x M_x 0x0 /end STRUCTURE_COMPONENT
+  /begin STRUCTURE_COMPONENT y M_y 0x4 /end STRUCTURE_COMPONENT
+  /begin STRUCTURE_COMPONENT z M_z 0x8 /end STRUCTURE_COMPONENT
+  /begin STRUCTURE_COMPONENT v_x M_v_x 0xC /end STRUCTURE_COMPONENT
+  /begin STRUCTURE_COMPONENT v_y M_v_y 0x10 /end STRUCTURE_COMPONENT
+  /begin STRUCTURE_COMPONENT v_z M_v_z 0x14 /end STRUCTURE_COMPONENT
+/end TYPEDEF_STRUCTURE
+
+/begin TYPEDEF_STRUCTURE PointCloud "Typedef for PointCloud" 0x6020
+  /begin STRUCTURE_COMPONENT count_ M_count_ 0x0 /end STRUCTURE_COMPONENT

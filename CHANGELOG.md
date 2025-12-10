@@ -5,20 +5,26 @@ All notable changes to XCPlite are documented in this file.
 ## [V1.1.0]
 
 ### Added
-- Variadic DAQ macro for C and C++ (`DaqEventExtVar` and `DaqEventVar`)
-- Template based implementation for C++, macros used for stringifications only (OPTION_USE_VARIADIC_TEMPLATES in `xcplib.hpp`)
-- Support for enabling and disabling DAQ events at runtime (`DaqEnableEvent`, `DaqDisableEvent`)
-- Auto addressing mode now supports absolute and relative addressing
+- New variadic data acquisition C macro or C++ macro/template  (`DaqEventVar`)
+- Support for enabling and disabling individual DAQ events at runtime (`DaqEnableEvent`, `DaqDisableEvent`)
+- New demo `point_cloud_demo` demonstrating how to visualize arrays of objects in the CANape 3D scene window
 
 ### Improvements
-- Improved thread safety of event creation to avoid the THREAD_LOCAL state for once initializations
-- Optimized A2L generation macros, inlined address calculations removed
+- Improved thread safety of event creation to avoid unnecessary THREAD_LOCAL state
+- Optimized A2L generation macros, inlined address calculations moved into A2L creator functions
+- Auto addressing mode now supports absolute and relative addressing
 - More idiomatic C++ code in examples
-
 
 ### Fixed
 - Bug in transmit thread queue handling causing too many packets sent
 - Fixed cpp_demo assertion
+
+### Minor Changes
+- A2L transport layer section removed when bound to ANY and IP address auto-detection is off
+- Async event and prescaler turned off by default
+- Improved code documentation and comments
+- Refactored example applications for better clarity
+- Various minor code improvements and optimizations
 
 
 ## [V1.0.0]
