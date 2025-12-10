@@ -622,17 +622,19 @@ static void A2lCreate_ETH_IF_DATA(bool useTCP, const uint8_t *addr, uint16_t por
         // DAQ info
         A2lCreate_IF_DATA_DAQ();
 
-        // Transport Layer info
-        uint8_t addr0[] = {127, 0, 0, 1}; // Use localhost if no other option
-        // uint8_t addr0[] = {0, 0, 0, 0}; // Use 0.0.0.0 to indicate undefined, but considered a valid address by CANape instead of using tool side default
+        // Transport Layer info (protocol, address, port)
+        // Skip transport layer info completely, if no valid address is configured or detected
+        // @@@@ (protocol, port, 0.0.0.0) is no option, as CANape considers this to be a valid address and tries to connect to it, instead of using the user configured address
+        uint8_t addr0[] = {0, 0, 0, 0};
         if (addr != NULL && addr[0] != 0) {
             memcpy(addr0, addr, 4);
-        } else {
-#ifdef OPTION_ENABLE_GET_LOCAL_ADDR
-            socketGetLocalAddr(NULL, addr0);
-#endif
         }
-        if (addr0[0] != 0 && addr0[1] != 0 && addr0[2] != 0 && addr0[3] != 0) {
+#ifdef OPTION_ENABLE_GET_LOCAL_ADDR
+        else {
+            socketGetLocalAddr(NULL, addr0);
+        }
+#endif
+        if (addr0[0] != 0) {
             char addrs[17];
             SPRINTF(addrs, "%u.%u.%u.%u", addr0[0], addr0[1], addr0[2], addr0[3]);
             char *prot = useTCP ? (char *)"TCP" : (char *)"UDP";
