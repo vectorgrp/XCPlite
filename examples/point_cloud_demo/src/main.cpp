@@ -46,14 +46,14 @@ struct ParametersT {
 
 // Default parameter values
 const ParametersT kParameters = {
-    .max_points = 10,     // points in the cloud
+    .max_points = 50,     // points in the cloud
     .boundary = 1.0,      // boundary_ in m
-    .min_radius = 0.01,   // min_radius in m
-    .max_radius = 0.05,   // max_radius in m
+    .min_radius = 0.02,   // min_radius in m
+    .max_radius = 0.1,    // max_radius in m
     .min_velocity = 0.1,  // min_velocity in m/s
-    .max_velocity = 1.0,  // max_velocity in m/s
-    .ttl_min = 3.0,       // ttl in seconds
-    .ttl_max = 5.0,       // ttl in seconds
+    .max_velocity = 2.0,  // max_velocity in m/s
+    .ttl_min = 5.0,       // ttl in seconds
+    .ttl_max = 30.0,      // ttl in seconds
     .gravity = 0.0,       // gravity in m/s²
     .cycle_time_us = 1000 // cycle_time_us in microseconds
 };

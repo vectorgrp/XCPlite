@@ -2145,10 +2145,13 @@ void XcpEventExtAt_(tXcpEventId event, uint8_t count, const uint8_t **bases, uin
 
     if (!isStarted())
         return;
+
+#ifdef XCP_ENABLE_DAQ_EVENT_LIST
     if (event >= getEventCount()) {
         DBG_PRINTF_ERROR("Event id %u out of range\n", event);
         return;
     }
+#endif
 
     // Async command processing for pending command
 #ifdef XCP_ENABLE_DYN_ADDRESSING
@@ -2165,10 +2168,13 @@ void XcpEventExt_(tXcpEventId event, uint8_t count, const uint8_t **bases) {
 
     if (!isStarted())
         return;
+
+#ifdef XCP_ENABLE_DAQ_EVENT_LIST
     if (event >= getEventCount()) {
         DBG_PRINTF_ERROR("Event id %u out of range\n", event);
         return;
     }
+#endif
 
     // Async command processing for pending command
 #ifdef XCP_ENABLE_DYN_ADDRESSING
@@ -2218,10 +2224,14 @@ void XcpEventExtAt(tXcpEventId event, const uint8_t *base, uint64_t clock) {
 void XcpEvent(tXcpEventId event) {
     if (!isDaqRunning())
         return; // DAQ not running
+
+#ifdef XCP_ENABLE_DAQ_EVENT_LIST
     if (event >= getEventCount()) {
         DBG_PRINTF_ERROR("Event id %u out of range\n", event);
         return;
     }
+#endif
+
 #if defined(XCP_ADDRESS_MODE_XCPLITE__ACSDD)
     const uint8_t *bases[2] = {xcp_get_base_addr(), NULL};
 #elif defined(XCP_ADDRESS_MODE_XCPLITE__CASDD)
@@ -2235,10 +2245,13 @@ void XcpEvent(tXcpEventId event) {
 void XcpEventAt(tXcpEventId event, uint64_t clock) {
     if (!isDaqRunning())
         return; // DAQ not running
+
+#ifdef XCP_ENABLE_DAQ_EVENT_LIST
     if (event >= getEventCount()) {
         DBG_PRINTF_ERROR("Event id %u out of range\n", event);
         return;
     }
+#endif
 
 #if defined(XCP_ADDRESS_MODE_XCPLITE__ACSDD)
     const uint8_t *bases[2] = {xcp_get_base_addr(), NULL};
@@ -2259,10 +2272,13 @@ void XcpEventExt_Var(tXcpEventId event, uint8_t args_count, ...) {
 
     if (!isStarted())
         return;
+
+#ifdef XCP_ENABLE_DAQ_EVENT_LIST
     if (event >= getEventCount()) {
         DBG_PRINTF_ERROR("Event id %u out of range\n", event);
         return;
     }
+#endif
 
     va_list args;
     va_start(args, args_count);
@@ -2286,10 +2302,13 @@ void XcpEventExtAt_Var(tXcpEventId event, uint64_t clock, uint8_t args_count, ..
 
     if (!isStarted())
         return;
+
+#ifdef XCP_ENABLE_DAQ_EVENT_LIST
     if (event >= getEventCount()) {
         DBG_PRINTF_ERROR("Event id %u out of range\n", event);
         return;
     }
+#endif
 
     va_list args;
     va_start(args, args_count);

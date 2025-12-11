@@ -67,7 +67,7 @@ Step 3: A2L Fix:
     The DaqCapture macros as an alternative, does not work yet
 - EPK
     Detect if the target application has a EPK segment or not
-    Currently not EPK segment is generated, switched off in XCPlite
+    Currently no EPK segment is generated, switched off in XCPlite
 - Function parameters
     Define a macro to declare function parameters as XCP_MEA, which sills them to stack
     A2L Creator ELF reader parser must detect the function parameters with the CFA offset in the stack frame
