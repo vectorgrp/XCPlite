@@ -279,7 +279,7 @@ XCPlite relative addressing: XCPLITE__CASDD:
 // #define XCP_ENABLE_DAQ_RESUME
 
 // Enable prescaler for DAQ events, requires XCP_ENABLE_DAQ_EVENT_LIST
-#define XCP_ENABLE_DAQ_PRESCALER
+// #define XCP_ENABLE_DAQ_PRESCALER
 
 // Enable event control for DAQ events (enable/disable), requires XCP_ENABLE_DAQ_EVENT_LIST
 #define XCP_ENABLE_DAQ_CONTROL
@@ -370,4 +370,4 @@ XCPlite relative addressing: XCPLITE__CASDD:
 
 // Enable extended error checks and additional asserts
 // Small performance penalty (base address count and NULL pointer checks) in the inner DAQ loop !
-// #define XCP_ENABLE_TEST_CHECKS
+#define XCP_ENABLE_TEST_CHECKS

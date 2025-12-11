@@ -2011,18 +2011,17 @@ static void XcpTriggerDaqList_(tQueueHandle queueHandle, uint16_t daq, const uin
 #endif
             while (e <= el) {
                 uint8_t n = *size_ptr++;
-#ifdef XCP_ENABLE_DAQ_ADDREXT
 #ifdef XCP_ENABLE_TEST_CHECKS
                 assert(n != 0);
+#endif
+#ifdef XCP_ENABLE_DAQ_ADDREXT
+#ifdef XCP_ENABLE_TEST_CHECKS
                 assert(*addr_ext_ptr < count && bases[*addr_ext_ptr] != NULL);
 #else
                 (void)count;
 #endif
                 const uint8_t *src = (const uint8_t *)&bases[*addr_ext_ptr++][*addr_ptr++];
 #else
-#ifdef XCP_ENABLE_TEST_CHECKS
-                assert(n != 0);
-#endif
                 const uint8_t *src = (const uint8_t *)&base[*addr_ptr++];
 #endif
                 memcpy(dst, src, n);
