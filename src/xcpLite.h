@@ -61,20 +61,18 @@ void XcpDisconnect(void);
 typedef uint16_t tXcpEventId;
 
 // Trigger a XCP data acquisition event
-void XcpEventExtAt_(tXcpEventId event, uint8_t count, const uint8_t **bases, uint64_t clock);
-void XcpEventExt_(tXcpEventId event, uint8_t count, const uint8_t **bases);
-void XcpEventExtAt(tXcpEventId event, const uint8_t *base2, uint64_t clock);
-void XcpEventExt(tXcpEventId event, const uint8_t *base2);
-void XcpEventExt2(tXcpEventId event, const uint8_t *base2, const uint8_t *base3);
-void XcpEventAt(tXcpEventId event, uint64_t clock);
+// Absolute base address only
 void XcpEvent(tXcpEventId event);
-
-// Trigger a XCP data acquisition event
-// Variadic version for more call convenience
-#if defined(XCP_ENABLE_DYN_ADDRESSING)
-void XcpEventExt_Var(tXcpEventId event, uint8_t count, ...);
-void XcpEventExtAt_Var(tXcpEventId event, uint64_t clock, uint8_t count, ...);
-#endif
+void XcpEventAt(tXcpEventId event, uint64_t clock);
+// Single dyn base address
+void XcpEventExt(tXcpEventId event, const uint8_t *base2);
+void XcpEventExtAt(tXcpEventId event, const uint8_t *base2, uint64_t clock);
+// Explicit dyn base address list
+void XcpEventExt_(tXcpEventId event, int count, const uint8_t **bases);
+void XcpEventExtAt_(tXcpEventId event, int count, const uint8_t **bases, uint64_t clock);
+// Variadic dyn base address list
+void XcpEventExt_Var(tXcpEventId event, int count, ...);
+void XcpEventExtAt_Var(tXcpEventId event, uint64_t clock, int count, ...);
 
 // Enable or disable a XCP DAQ event
 void XcpEventEnable(tXcpEventId event, bool enable);

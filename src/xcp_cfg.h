@@ -66,27 +66,6 @@ XCPlite relative addressing: XCPLITE__CASDD:
 
 */
 
-// @@@@ TODO: Move the Rust xcp-lite addressing mode configuration to xcplib_cfg.h
-#ifdef XCPLIB_FOR_RUST // XCPLIB_FOR_RUST is set by the Rust build script
-
-// Rust xcp-lite uses only relative addressing (0x03) and dynamic addressing (0x02)
-// Since version 1.0.0, calibration segment management and calibration access are handled by xcplib
-#define XCP_ADDRESS_MODE_XCPLITE__C_DR
-#define XCP_ADDRESS_MODE "XCPLITE__C_DR"
-// #define XCP_ENABLE_APP_ADDRESSING
-// #define XCP_ADDR_EXT_APP 0x00
-#define XCP_ENABLE_SEG_ADDRESSING
-#define XCP_ADDR_EXT_SEG 0x00
-// #define XCP_ENABLE_ABS_ADDRESSING
-// #define XCP_ADDR_EXT_ABS 0x01
-#define XCP_ENABLE_DYN_ADDRESSING
-#define XCP_ADDR_EXT_DYN 0x02
-#define XCP_ADDR_EXT_DYN_MAX 0x02
-#define XCP_ENABLE_REL_ADDRESSING
-#define XCP_ADDR_EXT_REL 0x03
-
-#else
-
 // C/C++ XCPlite uses absolute, dynamic and calibration segment relative addressing
 #if !defined(XCP_ENABLE_CALSEG_LIST) || defined(OPTION_CAL_SEGMENTS_ABS)
 // Absolute calibration segment addressing mode
@@ -109,8 +88,6 @@ XCPlite relative addressing: XCPLITE__CASDD:
 #define XCP_ADDR_EXT_DYN 0x02
 #define XCP_ADDR_EXT_DYN_COUNT 14
 #define XCP_ADDR_EXT_DYN_MAX (0x02 + XCP_ADDR_EXT_DYN_COUNT - 1)
-
-#endif
 
 // --- Relative addressing modes without asynchronous access and i32 offset
 #ifdef XCP_ENABLE_REL_ADDRESSING
@@ -391,6 +368,6 @@ XCPlite relative addressing: XCPLITE__CASDD:
 //-------------------------------------------------------------------------------
 // Debug
 
-// Enable extended error checks and addition assert
+// Enable extended error checks and additional asserts
 // Small performance penalty (base address count and NULL pointer checks) in the inner DAQ loop !
-#define XCP_ENABLE_TEST_CHECKS
+// #define XCP_ENABLE_TEST_CHECKS

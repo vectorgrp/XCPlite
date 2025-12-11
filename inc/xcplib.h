@@ -273,22 +273,21 @@ uint16_t XcpGetEventIndex(tXcpEventId event);
 /// @param event Event id.
 void XcpEvent(tXcpEventId event);
 
-/// Trigger the XCP event 'event' for absolute or relative addressing mode with explicitly given base address (address extension = 2)
+/// Trigger the XCP event 'event' for absolute or dyn addressing mode with explicitly given base address (address extension = 2)
 /// @param event
 /// @param base address pointer
 void XcpEventExt(tXcpEventId event, const uint8_t *base2);
 
-/// Trigger the XCP event 'event' for absolute or relative addressing mode with explicitly given base addresses for multiple relative addressing modes (address extensions = [2..4])
+/// Trigger the XCP event 'event' for absolute or relative addressing mode with explicitly given base addresses for multiple relative addressing modes (address extensions = [2..])
 /// @param event
 /// @param count Number of base address pointers passed (max 3 possible)
-void XcpEventExt_Var(tXcpEventId event, uint8_t count, ...);
+void XcpEventExt_Var(tXcpEventId event, int count, ...);
 
-// Internal use by some macros and the Rust API
-void XcpEventExt_(tXcpEventId event, uint8_t count, const uint8_t **bases);
-void XcpEventExtAt_(tXcpEventId event, uint8_t count, const uint8_t **bases, uint64_t clock);
-void XcpEventExt2(tXcpEventId event, const uint8_t *base2, const uint8_t *base3); // for Rust API
+// At timestamp variants (clock==0 -> same as non timestamped versions)
+void XcpEventAt(tXcpEventId event, uint64_t clock);
 void XcpEventExtAt(tXcpEventId event, const uint8_t *base2, uint64_t clock);
-void XcpEventExtAt_Var(tXcpEventId event, uint64_t clock, uint8_t count, ...);
+void XcpEventExtAt_(tXcpEventId event, int count, const uint8_t **bases, uint64_t clock); // Used by variadic C++ macro/template
+void XcpEventExtAt_Var(tXcpEventId event, uint64_t clock, int count, ...);
 
 // Enable or disable a XCP DAQ event
 void XcpEventEnable(tXcpEventId event, bool enable);
