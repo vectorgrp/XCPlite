@@ -264,7 +264,7 @@ void socketCleanup(void) {}
 
 bool socketOpen(SOCKET *sp, bool useTCP, bool nonBlocking, bool reuseaddr, bool timestamps) {
     (void)nonBlocking;
-    (void)timestamps;
+
     // Create a socket
     *sp = socket(AF_INET, useTCP ? SOCK_STREAM : SOCK_DGRAM, 0);
     if (*sp < 0) {
@@ -275,6 +275,23 @@ bool socketOpen(SOCKET *sp, bool useTCP, bool nonBlocking, bool reuseaddr, bool 
     if (reuseaddr) {
         int yes = 1;
         setsockopt(*sp, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+    }
+
+    // Enable timestamps if requested
+    if (timestamps) {
+#if defined(OPTION_SOCKET_HW_TIMESTAMPS)
+#if defined(_LINUX)
+        int yes = 1;
+        // Linux uses SO_TIMESTAMPNS which provides struct timespec (nanosecond precision)
+        if (setsockopt(*sp, SOL_SOCKET, SO_TIMESTAMPNS, &yes, sizeof(yes)) < 0) {
+            DBG_PRINTF_ERROR("WARNING: Failed to enable SO_TIMESTAMPNS (errno=%d), using system time instead\n", errno);
+        } else {
+            DBG_PRINT3("SO_TIMESTAMPNS enabled successfully\n");
+        }
+#else
+        DBG_PRINT_ERROR("Hardware timestamps not supported on this platform, using system time instead\n");
+#endif
+#endif
     }
 
     return true;
@@ -647,8 +664,27 @@ bool socketJoin(SOCKET sock, uint8_t *maddr) {
 int16_t socketRecvFrom(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, uint8_t *addr, uint16_t *port, uint64_t *time) {
 
     SOCKADDR_IN src;
+
+#if defined(OPTION_SOCKET_HW_TIMESTAMPS) && defined(_LINUX)
+    struct iovec iov;
+    struct msghdr msg;
+    char control[256];
+    iov.iov_base = buffer;
+    iov.iov_len = bufferSize;
+    memset(&msg, 0, sizeof(msg));
+    msg.msg_name = &src;
+    msg.msg_namelen = sizeof(src);
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+    msg.msg_control = control;
+    msg.msg_controllen = sizeof(control);
+    int16_t n = (int16_t)recvmsg(sock, &msg, 0);
+#else
     socklen_t srclen = sizeof(src);
     int16_t n = (int16_t)recvfrom(sock, (char *)buffer, bufferSize, 0, (SOCKADDR *)&src, &srclen);
+
+#endif
+
     if (n == 0) {
         return 0;
     } else if (n < 0) {
@@ -658,15 +694,45 @@ int16_t socketRecvFrom(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, uint8_
         if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR) {
             return 0; // Socket closed
         }
-        DBG_PRINTF_ERROR("%u - recvfrom failed (result=%d)!\n", err, n);
+        DBG_PRINTF_ERROR("%u - recvmsg failed (result=%d)!\n", err, n);
         return -1;
     }
-    if (time != NULL)
+
+    // Extract timestamp from control messages if available
+    if (time != NULL) {
+#if defined(OPTION_SOCKET_HW_TIMESTAMPS) && defined(_LINUX)
+        *time = 0;
+        struct cmsghdr *cmsg;
+        for (cmsg = CMSG_FIRSTHDR(&msg); cmsg != NULL; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+            // DBG_PRINTF5("socketRecvFrom: cmsg_level=%d cmsg_type=%d (looking for SOL_SOCKET=%d SCM_TIMESTAMPNS=%d)\n", cmsg->cmsg_level, cmsg->cmsg_type,
+            // SOL_SOCKET,SCM_TIMESTAMPNS);
+            if (cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_TIMESTAMPNS) {
+                struct timespec *ts = (struct timespec *)CMSG_DATA(cmsg);
+                *time = (uint64_t)ts->tv_sec * 1000000000ULL + (uint64_t)ts->tv_nsec;
+                // DBG_PRINTF5("socketRecvFrom: HW timestamp found: %llu ns (sec=%ld, nsec=%ld)\n", (unsigned long long)*time, ts->tv_sec, ts->tv_nsec);
+                break;
+            }
+        }
+        if (*time == 0) {
+            DBG_PRINT_WARNING("socketRecvFrom: No HW timestamp found in control messages\n");
+        }
+#ifdef OPTION_ENABLE_DBG_METRICS
+        uint64_t system_time = clockGet();
+        uint64_t dt = system_time - *time;
+        DBG_PRINTF3("socketRecvFrom: received %u bytes from %u.%u.%u.%u:%u at %llu (dt = %llu)\n", n, ((uint8_t *)&src.sin_addr.s_addr)[0], ((uint8_t *)&src.sin_addr.s_addr)[1],
+                    ((uint8_t *)&src.sin_addr.s_addr)[2], ((uint8_t *)&src.sin_addr.s_addr)[3], ntohs(src.sin_port), (time ? (unsigned long long)*time : 0),
+                    (unsigned long long)dt);
+#endif
+#else
         *time = clockGet();
+#endif
+    }
+
     if (port)
         *port = htons(src.sin_port);
     if (addr)
         memcpy(addr, &src.sin_addr.s_addr, 4);
+
     return n;
 }
 

@@ -47,8 +47,8 @@
 // Clock
 
 // Epoch options (only one must be defined)
-#define OPTION_CLOCK_EPOCH_ARB    // Arbitrary epoch -> uses CLOCK_MONOTONIC_RAW
-// #define OPTION_CLOCK_EPOCH_PTP // Precision Time Protocol epoch -> uses CLOCK_REALTIME
+// #define OPTION_CLOCK_EPOCH_ARB    // Arbitrary epoch -> uses CLOCK_MONOTONIC_RAW
+#define OPTION_CLOCK_EPOCH_PTP    // Precision Time Protocol epoch -> uses CLOCK_REALTIME
 
 // Resolution 1ns or 1us, granularity depends on platform (only one must be defined)
 #define OPTION_CLOCK_TICKS_1NS
@@ -61,6 +61,7 @@
 #define OPTION_ENABLE_UDP
 #define OPTION_MTU 8000                     // Ethernet packet size (MTU), must be %8 - Jumbo frames supported
 #define OPTION_SERVER_FORCEFULL_TERMINATION // Don't wait for the rx and tx thread to finish, just terminate them
+#define OPTION_SOCKET_HW_TIMESTAMPS         // Enable hardware timestamps on socket if available
 
 //-------------------------------------------------------------------------------
 // CAL setting
@@ -99,7 +100,6 @@
 // Automatically persist the working page on XCP disconnect
 // #define OPTION_CAL_PERSIST_ON_DISCONNECT
 
-#
 //-------------------------------------------------------------------------------
 // DAQ settings
 
