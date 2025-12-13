@@ -174,7 +174,6 @@ add_executable(point_cloud_demo examples/point_cloud_demo/src/main.cpp )
 target_include_directories(point_cloud_demo PUBLIC "${PROJECT_ROOT}/inc")
 target_link_libraries(point_cloud_demo PRIVATE xcplib)
 
-
 # Example c_demo
 set(c_demo_SOURCES examples/c_demo/src/main.c)
 set_source_files_properties(${c_demo_SOURCES} PROPERTIES LANGUAGE C)
@@ -200,6 +199,13 @@ set_source_files_properties(${multi_thread_demo_SOURCES} PROPERTIES LANGUAGE C)
 add_executable(multi_thread_demo ${multi_thread_demo_SOURCES})
 target_include_directories(multi_thread_demo PUBLIC "${PROJECT_ROOT}/inc")
 target_link_libraries(multi_thread_demo PRIVATE xcplib)
+
+# Example ptp_demo
+set(ptp_demo_SOURCES examples/ptp_demo/src/main.c)
+set_source_files_properties(${ptp_demo_SOURCES} PROPERTIES LANGUAGE C)
+add_executable(ptp_demo ${ptp_demo_SOURCES})
+target_include_directories(ptp_demo PUBLIC "${PROJECT_ROOT}/inc")
+target_link_libraries(ptp_demo PRIVATE xcplib)
 
 # Example bpf_demo
 set(bpf_demo_SOURCES examples/bpf_demo/src/main.c)   
@@ -255,6 +261,7 @@ else()
     # Unix/Linux/macOS specific settings
     
     # Link math library 
+    target_link_libraries(ptp_demo PRIVATE m)
     target_link_libraries(multi_thread_demo PRIVATE m)
     target_link_libraries(hello_xcp_cpp PRIVATE m)
     target_link_libraries(point_cloud_demo PRIVATE m)
@@ -268,6 +275,7 @@ else()
     set_target_properties(cpp_demo PROPERTIES SUFFIX ".out")
     set_target_properties(struct_demo PROPERTIES SUFFIX ".out")
     set_target_properties(multi_thread_demo PROPERTIES SUFFIX ".out")
+    set_target_properties(ptp_demo PROPERTIES SUFFIX ".out")
     set_target_properties(bpf_demo PROPERTIES SUFFIX ".out")
     
     if(BUILD_TEST)

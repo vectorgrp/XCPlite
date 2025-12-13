@@ -55,13 +55,17 @@
 // #define OPTION_CLOCK_TICKS_1US
 
 //-------------------------------------------------------------------------------
+// Socket options
+
+#define OPTION_SOCKET_HW_TIMESTAMPS // Enable hardware timestamps on UDP sockets if available
+
+//-------------------------------------------------------------------------------
 // XCP server options
 
 #define OPTION_ENABLE_TCP
 #define OPTION_ENABLE_UDP
 #define OPTION_MTU 8000                     // Ethernet packet size (MTU), must be %8 - Jumbo frames supported
 #define OPTION_SERVER_FORCEFULL_TERMINATION // Don't wait for the rx and tx thread to finish, just terminate them
-#define OPTION_SOCKET_HW_TIMESTAMPS         // Enable hardware timestamps on socket if available
 
 //-------------------------------------------------------------------------------
 // CAL setting
