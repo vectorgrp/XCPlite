@@ -258,6 +258,11 @@ void mutexDestroy(MUTEX *m) { DeleteCriticalSection(m); }
 
 #if !defined(_WIN) // Non-Windows platforms
 
+#if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
+#include <linux/errqueue.h>
+#include <linux/net_tstamp.h>
+#endif
+
 bool socketStartup(void) { return true; }
 
 void socketCleanup(void) {}
@@ -282,11 +287,20 @@ bool socketOpen(SOCKET *sp, bool useTCP, bool nonBlocking, bool reuseaddr, bool 
 #if defined(OPTION_SOCKET_HW_TIMESTAMPS)
 #if defined(_LINUX)
         int yes = 1;
-        // Linux uses SO_TIMESTAMPNS which provides struct timespec (nanosecond precision)
+        // Enable RX timestamping - Linux uses SO_TIMESTAMPNS which provides struct timespec (nanosecond precision)
         if (setsockopt(*sp, SOL_SOCKET, SO_TIMESTAMPNS, &yes, sizeof(yes)) < 0) {
             DBG_PRINTF_ERROR("WARNING: Failed to enable SO_TIMESTAMPNS (errno=%d), using system time instead\n", errno);
         } else {
             DBG_PRINT3("SO_TIMESTAMPNS enabled successfully\n");
+        }
+
+        // Enable TX timestamping - timestamps will be available via error queue after send
+        uint32_t flags = SOF_TIMESTAMPING_TX_HARDWARE | SOF_TIMESTAMPING_TX_SOFTWARE | SOF_TIMESTAMPING_RX_HARDWARE | SOF_TIMESTAMPING_RX_SOFTWARE | SOF_TIMESTAMPING_SOFTWARE |
+                         SOF_TIMESTAMPING_RAW_HARDWARE;
+        if (setsockopt(*sp, SOL_SOCKET, SO_TIMESTAMPING, &flags, sizeof(flags)) < 0) {
+            DBG_PRINTF_ERROR("WARNING: Failed to enable SO_TIMESTAMPING (errno=%d), TX timestamps not available\n", errno);
+        } else {
+            DBG_PRINT3("SO_TIMESTAMPING enabled successfully for TX timestamps\n");
         }
 #else
         DBG_PRINT_ERROR("Hardware timestamps not supported on this platform, using system time instead\n");
@@ -423,22 +437,6 @@ bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr) {
 #endif // OPTION_ENABLE_GET_LOCAL_ADDR
 
 #else
-
-uint32_t socketGetTimestampMode(uint8_t *clockType) {
-
-    if (clockType != NULL)
-        *clockType = SOCKET_TIMESTAMP_FREE_RUNNING;
-    return SOCKET_TIMESTAMP_PC;
-}
-
-bool socketSetTimestampMode(uint8_t m) {
-
-    if (m != SOCKET_TIMESTAMP_NONE && m != SOCKET_TIMESTAMP_PC) {
-        DBG_PRINT_ERROR("unsupported timestamp mode!\n");
-        return false;
-    }
-    return true;
-}
 
 int32_t socketGetLastError(void) { return WSAGetLastError(); }
 
@@ -778,9 +776,63 @@ int16_t socketSendTo(SOCKET sock, const uint8_t *buffer, uint16_t size, const ui
 int16_t socketSend(SOCKET sock, const uint8_t *buffer, uint16_t size) { return (int16_t)send(sock, (const char *)buffer, size, 0); }
 
 // Get send time of last sent packet
+// Retrieves TX hardware timestamp from socket error queue
+// Returns 0 if no timestamp available or on error
 uint64_t socketGetSendTime(SOCKET sock) {
+#if defined(OPTION_SOCKET_HW_TIMESTAMPS) && defined(_LINUX)
+    char control[512];
+    char data[1];
+    struct iovec iov;
+    struct msghdr msg;
+    struct cmsghdr *cmsg;
+    struct timespec *ts = NULL;
+
+    iov.iov_base = data;
+    iov.iov_len = sizeof(data);
+
+    memset(&msg, 0, sizeof(msg));
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+    msg.msg_control = control;
+    msg.msg_controllen = sizeof(control);
+
+    // Read from error queue (non-blocking)
+    int ret = recvmsg(sock, &msg, MSG_ERRQUEUE | MSG_DONTWAIT);
+    if (ret < 0) {
+        if (errno != EAGAIN && errno != EWOULDBLOCK) {
+            DBG_PRINTF4("socketGetSendTime: recvmsg error queue failed (errno=%d)\n", errno);
+        }
+        return 0;
+    }
+
+    // Look for timestamp in control messages
+    for (cmsg = CMSG_FIRSTHDR(&msg); cmsg != NULL; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+        if (cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SO_TIMESTAMPING) {
+            // SO_TIMESTAMPING returns 3 timespec structures: software, deprecated, hardware
+            struct timespec *ts_array = (struct timespec *)CMSG_DATA(cmsg);
+
+            // Try hardware timestamp first (index 2)
+            if (ts_array[2].tv_sec != 0 || ts_array[2].tv_nsec != 0) {
+                ts = &ts_array[2];
+                DBG_PRINTF4("socketGetSendTime: HW TX timestamp: %ld.%09ld\n", ts->tv_sec, ts->tv_nsec);
+            }
+            // Fall back to software timestamp (index 0)
+            else if (ts_array[0].tv_sec != 0 || ts_array[0].tv_nsec != 0) {
+                ts = &ts_array[0];
+                DBG_PRINTF4("socketGetSendTime: SW TX timestamp: %ld.%09ld\n", ts->tv_sec, ts->tv_nsec);
+            }
+
+            if (ts != NULL) {
+                uint64_t timestamp = (uint64_t)ts->tv_sec * 1000000000ULL + (uint64_t)ts->tv_nsec;
+                return timestamp;
+            }
+        }
+    }
+
+    DBG_PRINT4("socketGetSendTime: No TX timestamp found in error queue\n");
+#else
     (void)sock;
-    // Not implemented
+#endif
     return 0;
 }
 

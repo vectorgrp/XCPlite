@@ -178,14 +178,8 @@ uint64_t ptpClockGet64() {
         return clockGet();
     }
 
-    // Get the local (XL-API) time
-
-    // Note:
-    // XL-API time can not be read anytime
-    // #ifndef OPTION_ENABLE_XLAPI_PC_TIME socketGetTime just returns the last received XL-API event timestamp
-    // XCPsim application does not rely on accurate time, time is just used for GET_DAQ_CLOCK and to advance the simulation time
-    assert(0);
-    local_time = 0; // @@@@@@@@@@@@@@@@ socketGetTime();
+    // Get the local time
+    local_time = clockGet();
     if (!gPtp.s.Sync) {
         last_master_time = 0;
         return local_time;
