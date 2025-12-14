@@ -18,14 +18,16 @@
 #include <stdio.h>   // for printf
 #include <string.h>  // for sprintf
 
-#include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
+#include "ptp_cfg.h"
+#ifdef OPTION_ENABLE_PTP_CLOCK
+
 #include "platform.h"
 
 #include <a2l.h>    // for xcplib A2l generation
 #include <xcplib.h> // for xcplib application programming interface
 
-#include "ptp.h"
 #include "ptpClient.h"
+#include "ptpMaster.h"
 #include "util.h"
 #include "xcpLite.h"
 
@@ -257,7 +259,7 @@ bool ptpClockGetXcpGrandmasterInfo(uint8_t *uuid, uint8_t *epoch, uint8_t *strat
     return true;
 }
 
-// Prepare to start XCp DAQ
+// Prepare to start XCP DAQ
 // Return false if not possible
 bool ptpClockPrepareDaq() {
 
@@ -270,9 +272,9 @@ bool ptpClockPrepareDaq() {
 #ifdef ENABLE_DEBUG_PRINTS
         tPtpMaster *m = ptpClientGetGrandmaster();
         if (m == NULL) {
-            DBG_PRINT1("WARNING: Start DAQ, no PTP grandmaster!\n");
+            printf("WARNING: Start DAQ, no PTP grandmaster!\n");
         } else if (!gPtp.s.Sync) {
-            DBG_PRINT1("WARNING: Start DAQ, no PTP sync!\n");
+            printf("WARNING: Start DAQ, no PTP sync!\n");
         }
 #endif
         // return false // Prevent start of daq without sync
@@ -309,12 +311,9 @@ int ptpShutdown() {
 
 // Test
 // Use XCP to measure PTP events and variables
-#ifdef OPTION_ENABLE_PTP_TEST
-
-#if OPTION_ENABLE_A2L_GEN
+#ifdef OPTION_ENABLE_PTP_XCP
+void ptpCreateXcpEvents() { ptpClientCreateXcpEvents(); }
 void ptpCreateA2lDescription() { ptpClientCreateA2lDescription(); }
 #endif
-
-void ptpCreateXcpEvents() { ptpClientCreateXcpEvents(); }
 
 #endif

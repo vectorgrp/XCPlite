@@ -10,6 +10,14 @@
 #include <a2l.h>    // for xcplib A2l generation
 #include <xcplib.h> // for xcplib application programming interface
 
+#include "ptp/ptp_cfg.h" // for OPTION_ENABLE_PTP_MASTER, OPTION_ENABLE_PTP_OBSERVER
+#ifdef OPTION_ENABLE_PTP_MASTER
+#include "ptp/ptpMaster.h"
+#endif
+#ifdef OPTION_ENABLE_PTP_OBSERVER
+#include "ptp/ptpObserver.h"
+#endif
+
 //-----------------------------------------------------------------------------------------------------
 // XCP params
 
@@ -71,10 +79,33 @@ int main(void) {
     A2lSetSegmentAddrMode(calseg, params);
     A2lCreateParameter(params.delay_us, "Mainloop delay time in us", "us", 0, 999999);
 
-    uint16_t counter = 0;
+// Start a PTP master
+#ifdef OPTION_ENABLE_PTP_MASTER
+    printf("Starting PTP master...\n");
+    const uint8_t *uuid = (const uint8_t[]){0x00, 0x1A, 0xB6, 0x00, 0x00, 0x00, 0x00, 0x01};
+    uint8_t domain = 0;
+    uint8_t bindAddr[4] = {192, 168, 0, 206};
+    if (!ptpMasterInit(uuid, domain, bindAddr)) {
+        printf("Failed to start PTP master\n");
+        return 1;
+    }
+#endif
+
+// Start a PTP observer
+#ifdef OPTION_ENABLE_PTP_OBSERVER
+    printf("Starting PTP observer...\n");
+
+    uint8_t obs_domain = 0;
+    uint8_t obs_bindAddr[4] = {0, 0, 0, 0};
+    if (!ptpObserverInit(obs_domain, obs_bindAddr)) {
+        printf("Failed to start PTP observer\n");
+        return 1;
+    }
+#endif
 
     // Mainloop
     printf("Start main loop...\n");
+    uint16_t counter = 0;
     while (running) {
 
         counter++;
@@ -89,6 +120,13 @@ int main(void) {
         A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
 
     } // for (;;)
+
+#ifdef OPTION_ENABLE_PTP_MASTER
+    ptpMasterShutdown();
+#endif
+#ifdef OPTION_ENABLE_PTP_OBSERVER
+    ptpObserverShutdown();
+#endif
 
     XcpDisconnect();
     XcpEthServerShutdown();

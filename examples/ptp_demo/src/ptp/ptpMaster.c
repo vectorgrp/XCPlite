@@ -15,18 +15,18 @@
 #include <stdlib.h>  // for malloc, free
 #include <string.h>  // for sprintf
 
-#include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
+#include "ptp_cfg.h"
+
+#ifdef OPTION_ENABLE_PTP_MASTER
+
 #include "platform.h"
 
 #include <a2l.h>    // for xcplib A2l generation
 #include <xcplib.h> // for xcplib application programming interface
 
-#include "util.h"
-
 #include "ptpHdr.h"
 #include "ptpMaster.h"
-
-uint32_t gPtpDebugLevel = 1; // OPTION_PTP_DEBUG_LEVEL;
+#include "util.h"
 
 #define OPTION_TEST_TIME 0
 #define OPTION_TEST_TEST_TIME 0
@@ -35,7 +35,7 @@ uint32_t gPtpDebugLevel = 1; // OPTION_PTP_DEBUG_LEVEL;
 #define MAX_CLIENTS 16
 
 //-------------------------------------------------------------------------------------------------------
-// PTP client (test instrumentation)
+// PTP client description
 
 // PTP client description
 typedef struct {
@@ -53,18 +53,56 @@ typedef struct {
     // uint64_t path_delay;
 } tPtpClient;
 
-// PTP master description
-typedef struct {
-    unsigned int index;
-    uint8_t domain;
-    uint8_t id[8];
-    uint8_t addr[4];
+//-------------------------------------------------------------------------------------------------------
+// PTP master parameters
 
-    struct announce a;
+struct announce_parameters {
+    uint16_t utcOffset;     // PTP ANNOUNCE parameter
+    uint8_t clockClass;     // PTP ANNOUNCE parameter
+    uint8_t clockAccuraccy; // PTP ANNOUNCE parameter
+    uint16_t clockVariance; // PTP ANNOUNCE parameter
+    uint16_t stepsRemoved;  // PTP ANNOUNCE parameter
+    uint8_t timeSource;     // PTP ANNOUNCE parameter
+    uint8_t priority1;      // PTP ANNOUNCE parameter
+    uint8_t priority2;      // PTP ANNOUNCE parameter
+};
 
-} tPtpMaster;
+// Master clock quality
+// lower value takes precedence in BMCA
+const struct announce_parameters kAnnounceParameters = {
+    .utcOffset = 37,
+    .clockClass = PTP_CLOCK_CLASS_PTP_PRIMARY,
+    .clockAccuraccy = PTP_CLOCK_ACC_GPS,
+    .clockVariance = 0,
+    .stepsRemoved = 0,
+    .timeSource = PTP_TIME_SOURCE_GPS,
+    .priority1 = 0,
+    .priority2 = 0,
+};
 
+struct master_parameters {
+    uint8_t domain;               // PTP domain
+    uint32_t announceCycleTimeMs; // ANNOUNCE interval in ms
+    uint32_t syncCycleTimeMs;     // SYNC interval in ms
+#if OPTION_TEST_TIME
+    uint32_t drift;  // PTP master time drift in ns/s
+    uint32_t offset; // PTP master time offset in ns
+#endif
+};
+
+const struct master_parameters kMasterParameters = {
+    .domain = 0,
+    .announceCycleTimeMs = 2000, // 2s
+    .syncCycleTimeMs = 1000,     // 1s
+#if OPTION_TEST_TIME
+    .drift = 0,
+    .offset = 0,
+#endif
+};
+
+//-------------------------------------------------------------------------------------------------------
 // PTP master status
+
 typedef struct {
 
     bool enabled; // PTP enabled
@@ -74,9 +112,11 @@ typedef struct {
     uint8_t addr[4];  // local addr
     uint8_t maddr[4]; // multicast addr
 
+    // Parameters
+    struct master_parameters master_parameters;
+    struct announce_parameters announce_parameters;
+
     // Timers
-    uint32_t announceCycleTimeMs;
-    uint32_t syncCycleTimeMs;
     uint64_t syncTxTimestamp;
 
     // Sockets
@@ -90,16 +130,6 @@ typedef struct {
     uint16_t sequenceIdAnnounce;
     uint16_t sequenceIdSync;
     MUTEX syncMutex;
-
-    // Parameters for announce (in intel byte order)
-    uint16_t utcOffset;
-    uint8_t clockClass;
-    uint8_t clockAccuraccy;
-    uint16_t clockVariance;
-    uint16_t stepsRemoved;
-    uint8_t timeSource;
-    uint8_t priority1;
-    uint8_t priority2;
 
     // List of all announced foreign masters
     uint16_t masterCount;
@@ -189,8 +219,10 @@ static uint64_t testTimeCalc(uint64_t originTime) {
         printf("ERROR: old delay request ! (dt=-%" PRIu64 ")\n", gPtpM.originTimeSync - originTime);
     }
 
+#if OPTION_ENABLE_PTP_XCP
     // XCP event
     XcpEvent(gPtpM.ptpEvent);
+#endif
 
     return gPtpM.testTime;
 }
@@ -272,12 +304,12 @@ static void initMasterList() { gPtpM.masterCount = 0; }
 static void printMaster(const tPtpMaster *m) {
 
     const char *timesource = (m->a.timeSource == PTP_TIME_SOURCE_INTERNAL) ? "internal oscilator" : (m->a.timeSource == PTP_TIME_SOURCE_GPS) ? "GPS" : "Unknown";
-    DBG_PRINTF_ERROR("Master %u:\n"
-                     "    domain=%u, addr=%u.%u.%u.%u, id=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X\n"
-                     "    timesource=%s (%02X), utcOffset=%u, prio1=%u, class=%u, acc=%u, var=%u, prio2=%u, steps=%u\n",
-                     m->index, m->domain, m->addr[0], m->addr[1], m->addr[2], m->addr[3], m->id[0], m->id[1], m->id[2], m->id[3], m->id[4], m->id[5], m->id[6], m->id[7],
-                     timesource, m->a.timeSource, htons(m->a.utcOffset), m->a.priority1, m->a.clockClass, m->a.clockAccuraccy, htons(m->a.clockVariance), m->a.priority2,
-                     htons(m->a.stepsRemoved));
+    printf("Master %u:\n"
+           "    domain=%u, addr=%u.%u.%u.%u, id=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X\n"
+           "    timesource=%s (%02X), utcOffset=%u, prio1=%u, class=%u, acc=%u, var=%u, prio2=%u, steps=%u\n",
+           m->index, m->domain, m->addr[0], m->addr[1], m->addr[2], m->addr[3], m->uuid[0], m->uuid[1], m->uuid[2], m->uuid[3], m->uuid[4], m->uuid[5], m->uuid[6], m->uuid[7],
+           timesource, m->a.timeSource, htons(m->a.utcOffset), m->a.priority1, m->a.clockClass, m->a.clockAccuraccy, htons(m->a.clockVariance), m->a.priority2,
+           htons(m->a.stepsRemoved));
 }
 
 // Find a grandmaster in the grandmaster list
@@ -285,7 +317,7 @@ static tPtpMaster *lookupMaster(const uint8_t *id, const uint8_t *addr, uint8_t 
 
     unsigned int i;
     for (i = 0; i < gPtpM.masterCount; i++) {
-        if (memcmp(gPtpM.masterList[i].id, id, 8) == 0 && memcmp(gPtpM.masterList[i].addr, addr, 4) == 0 && gPtpM.masterList[i].domain == domain) {
+        if (memcmp(gPtpM.masterList[i].uuid, id, 8) == 0 && memcmp(gPtpM.masterList[i].addr, addr, 4) == 0 && gPtpM.masterList[i].domain == domain) {
             return &gPtpM.masterList[i];
         }
     }
@@ -299,7 +331,7 @@ static tPtpMaster *addMaster(const uint8_t *id, const uint8_t *addr, uint8_t dom
     memset(m, 0, sizeof(tPtpMaster));
     m->index = gPtpM.masterCount;
     if (id != NULL)
-        memcpy(m->id, id, 8);
+        memcpy(m->uuid, id, 8);
     if (addr != NULL)
         memcpy(m->addr, addr, 4);
     m->domain = domain;
@@ -348,15 +380,15 @@ static bool ptpSendAnnounce() {
     int16_t l;
 
     initHeader(&h, PTP_ANNOUNCE, 64, 0, ++gPtpM.sequenceIdAnnounce);
-    h.u.a.utcOffset = htons(gPtpM.utcOffset);
-    h.u.a.stepsRemoved = htons(gPtpM.stepsRemoved);
+    h.u.a.utcOffset = htons(gPtpM.announce_parameters.utcOffset);
+    h.u.a.stepsRemoved = htons(gPtpM.announce_parameters.stepsRemoved);
     memcpy(h.u.a.grandmasterId, gPtpM.uuid, 8);
-    h.u.a.clockVariance = htons(gPtpM.clockVariance); // Allan deviation
-    h.u.a.clockAccuraccy = gPtpM.clockAccuraccy;
-    h.u.a.clockClass = gPtpM.clockClass;
-    h.u.a.priority1 = gPtpM.priority1;
-    h.u.a.priority2 = gPtpM.priority2;
-    h.u.a.timeSource = gPtpM.timeSource;
+    h.u.a.clockVariance = htons(gPtpM.announce_parameters.clockVariance); // Allan deviation
+    h.u.a.clockAccuraccy = gPtpM.announce_parameters.clockAccuraccy;
+    h.u.a.clockClass = gPtpM.announce_parameters.clockClass;
+    h.u.a.priority1 = gPtpM.announce_parameters.priority1;
+    h.u.a.priority2 = gPtpM.announce_parameters.priority2;
+    h.u.a.timeSource = gPtpM.announce_parameters.timeSource;
     l = socketSendTo(gPtpM.sock320, (uint8_t *)&h, 64, gPtpM.maddr, 320, NULL);
 
     if (gPtpDebugLevel >= 2) {
@@ -367,19 +399,30 @@ static bool ptpSendAnnounce() {
     return (l == 64);
 }
 
-static bool ptpSendSync() {
+static bool ptpSendSync(uint64_t *sync_txTimestamp) {
 
     struct ptphdr h;
     int16_t l;
 
+    assert(sync_txTimestamp != NULL);
+
     initHeader(&h, PTP_SYNC, 44, PTP_FLAG_TWO_STEP, ++gPtpM.sequenceIdSync);
-    l = socketSendTo(gPtpM.sock319, (uint8_t *)&h, 44, gPtpM.maddr, 319, NULL);
-
-    if (gPtpDebugLevel >= 2) {
-        printf("TX SYNC %u\n", gPtpM.sequenceIdSync);
+    l = socketSendTo(gPtpM.sock319, (uint8_t *)&h, 44, gPtpM.maddr, 319, sync_txTimestamp /* request tx time stamp */);
+    if (l != 44) {
+        printf("ERROR: ptpSendSync: socketSendTo failed, returned l = %d\n", l);
+        return false;
     }
-
-    return (l == 44);
+    if (*sync_txTimestamp == 0) { // If timestamp not obtained during send, get it now
+        *sync_txTimestamp = socketGetSendTime(gPtpM.sock319);
+        if (*sync_txTimestamp == 0) {
+            printf("ERROR: ptpSendSync: socketGetSendTime failed, no tx timestamp available\n");
+            return false;
+        }
+    }
+    if (gPtpDebugLevel >= 2) {
+        printf("TX SYNC %u, tx time = %" PRIu64 "\n", gPtpM.sequenceIdSync, *sync_txTimestamp);
+    }
+    return true;
 }
 
 static bool ptpSendSyncFollowUp(uint64_t sync_txTimestamp) {
@@ -519,8 +562,10 @@ static bool ptpHandleFrame(SOCKET sock, int n, struct ptphdr *ptp, uint8_t *addr
             gPtpM.client[i].counter++;
             gPtpM.client[i].lastSeenTime = rxTimestamp;
 
+#ifdef OPTION_ENABLE_PTP_XCP
             // XCP event on delay request
             XcpEvent(gPtpM.client[i].event);
+#endif
 
             // Log
             if (gPtpDebugLevel >= 1 && newClient) {
@@ -554,12 +599,10 @@ static void *ptpThread(void *par)
 {
     (void)par;
 
-    sleepMs(2000);
-
     // Send the first ANNOUNCE immediately, first SYNC after 100ms
     uint64_t t = clockGet();
     uint64_t announceCycleTimer = 0;
-    uint64_t syncCycleTimer = t + 100 * CLOCK_TICKS_PER_MS - gPtpM.syncCycleTimeMs * CLOCK_TICKS_PER_MS;
+    uint64_t syncCycleTimer = t + 100 * CLOCK_TICKS_PER_MS - gPtpM.master_parameters.syncCycleTimeMs * CLOCK_TICKS_PER_MS;
 
     for (;;) {
 
@@ -567,39 +610,50 @@ static void *ptpThread(void *par)
         t = clockGet();
 
         // Announce cycle
-        if (gPtpM.announceCycleTimeMs > 0 && t - announceCycleTimer > gPtpM.announceCycleTimeMs * CLOCK_TICKS_PER_MS) {
+        if (gPtpM.master_parameters.announceCycleTimeMs > 0 && t - announceCycleTimer > gPtpM.master_parameters.announceCycleTimeMs * CLOCK_TICKS_PER_MS) {
             announceCycleTimer = t;
             if (!ptpSendAnnounce())
                 break;
 
+#ifdef OPTION_ENABLE_PTP_XCP
             // XCP event on announce
             XcpEvent(gPtpM.announceEvent);
+#endif
         }
 
         // Sync cycle
-        if (gPtpM.syncCycleTimeMs > 0 && t - syncCycleTimer > gPtpM.syncCycleTimeMs * CLOCK_TICKS_PER_MS) {
+        if (gPtpM.master_parameters.syncCycleTimeMs > 0 && t - syncCycleTimer > gPtpM.master_parameters.syncCycleTimeMs * CLOCK_TICKS_PER_MS) {
             syncCycleTimer = t;
 
             mutexLock(&gPtpM.syncMutex);
-            if (!ptpSendSync())
+            if (!ptpSendSync(&gPtpM.syncTxTimestamp)) {
+                printf("ERROR: Failed to send SYNC\n");
+                mutexUnlock(&gPtpM.syncMutex);
                 break;
-            uint64_t tsync = clockGet();
-            sleepMs(10); // Wait to be sure transmit ackknowledge for last SYNC has been received
-            gPtpM.syncTxTimestamp = socketGetSendTime(gPtpM.sock319);
+            }
 
+            if (gPtpM.syncTxTimestamp == 0) {
+                printf("ERROR: SYNC tx timestamp not available !\n");
+            } else {
 #if OPTION_TEST_TIME
 #if !OPTION_TEST_TEST_TIME // Enable test time modifications in drift and offset
-            testTimeSync(gPtpM.syncTxTimestamp);
+                testTimeSync(gPtpM.syncTxTimestamp);
 #else
-            testTimeSync(t);
+                testTimeSync(t);
 #endif
 #endif
-            if (!ptpSendSyncFollowUp(gPtpM.syncTxTimestamp))
-                break;
+                if (!ptpSendSyncFollowUp(gPtpM.syncTxTimestamp)) {
+                    printf("ERROR:Failed to send SYNC FOLLOW UP\n");
+                    mutexUnlock(&gPtpM.syncMutex);
+                    break;
+                }
+            }
             mutexUnlock(&gPtpM.syncMutex);
 
+#ifdef OPTION_ENABLE_PTP_XCP
             // XCP
-            XcpEventAt(gPtpM.syncEvent, tsync);
+            XcpEvent(gPtpM.syncEvent);
+#endif
         }
 
 #if OPTION_TEST_TEST_TIME
@@ -669,6 +723,7 @@ static void *ptpThread320(void *par)
 //-------------------------------------------------------------------------------------------------------
 // XCP
 
+#ifdef OPTION_ENABLE_PTP_XCP
 static void createXCPEvents() {
 
     uint16_t i;
@@ -681,6 +736,7 @@ static void createXCPEvents() {
         gPtpM.client[i].event = XcpCreateEvent(gPtpM.client[i].eventName, 0, 0);
     }
 }
+#endif
 
 //-------------------------------------------------------------------------------------------------------
 // Public functions
@@ -688,7 +744,6 @@ static void createXCPEvents() {
 // Start PTP master
 bool ptpMasterInit(const uint8_t *uuid, uint8_t domain, const uint8_t *bindAddr) {
 
-    sleepMs(100);
     memset(&gPtpM, 0, sizeof(gPtpM));
 
     printf("\nStart PTP master on %u.%u.%u.%u uuid %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X domain %u\n", bindAddr[0], bindAddr[1], bindAddr[2], bindAddr[3], uuid[0], uuid[1],
@@ -697,8 +752,10 @@ bool ptpMasterInit(const uint8_t *uuid, uint8_t domain, const uint8_t *bindAddr)
 
     gPtpM.domain = domain;
     memcpy(gPtpM.uuid, uuid, 8);
-    gPtpM.announceCycleTimeMs = 10000;
-    gPtpM.syncCycleTimeMs = 1000;
+
+    gPtpM.master_parameters = kMasterParameters;
+    gPtpM.announce_parameters = kAnnounceParameters;
+
     gPtpM.syncTxTimestamp = 0;
     mutexInit(&gPtpM.syncMutex, 0, 1000);
     gPtpM.sequenceIdSync = 0;
@@ -706,21 +763,10 @@ bool ptpMasterInit(const uint8_t *uuid, uint8_t domain, const uint8_t *bindAddr)
     initMasterList();
     initClientList();
 
-    // Initial parameters for ANNOUNCE
-    // Master clock quality
-    // lower value takes precedence in BMCA
-    gPtpM.utcOffset = 37;
-    gPtpM.stepsRemoved = 0;
-    gPtpM.clockVariance = 0;
-    gPtpM.clockAccuraccy = PTP_CLOCK_ACC_GPS;
-    gPtpM.clockClass = PTP_CLOCK_CLASS_PTP_PRIMARY;
-    gPtpM.priority1 = 0;
-    gPtpM.priority2 = 0;
-    gPtpM.timeSource = PTP_TIME_SOURCE_GPS;
-
-    // XCP
+#ifdef OPTION_ENABLE_PTP_XCP
     // Create events for XCP test instrumentation
     createXCPEvents();
+#endif
 
     // Init offset and drift calculation
 #if OPTION_TEST_TIME
@@ -807,8 +853,8 @@ void ptpMasterPrintInfo() {
            gPtpM.uuid[7]);
     printf("IP:     %u.%u.%u.%u\n", gPtpM.addr[0], gPtpM.addr[1], gPtpM.addr[2], gPtpM.addr[3]);
     printf("Domain: %u\n", gPtpM.domain);
-    printf("Announce cycle: %ums\n", gPtpM.announceCycleTimeMs);
-    printf("Sync cycle:     %ums\n", gPtpM.syncCycleTimeMs);
+    printf("Announce cycle: %ums\n", gPtpM.master_parameters.announceCycleTimeMs);
+    printf("Sync cycle:     %ums\n", gPtpM.master_parameters.syncCycleTimeMs);
     printf("Clients seen:         %u\n", gPtpM.clientCount);
     printf("Foreign masters seen: %u\n", gPtpM.masterCount);
     // printf("Offset: %d ns\n", gPtpM.offset);
@@ -822,63 +868,9 @@ void ptpMasterPrintInfo() {
 //-------------------------------------------------------------------------------------------------------
 // A2L for XCP
 
-#if OPTION_ENABLE_A2L_GEN
+#ifdef OPTION_ENABLE_PTP_XCP
+
 void ptpMasterCreateA2lDescription() {
-
-#ifdef __cplusplus
-
-    A2lCreateParameterWithLimits(gPtpM.domain, "PTP domain", "", 0, 255);
-    A2lCreateParameterWithLimits(gPtpM.announceCycleTimeMs, "ANNOUNCE cycle time in ms", "ms", 1, 10000);
-    A2lCreateParameterWithLimits(gPtpM.syncCycleTimeMs, "SYNC cycle time in ms", "ms", 10, 10000);
-#if OPTION_TEST_TIME
-    A2lCreateParameterWithLimits(gPtpM.offset, "PTP master time offset", "ns", -1000000000, +1000000000);
-    A2lCreateParameterWithLimits(gPtpM.drift, "PTP master time drift", "ns/s", -100000, +100000);
-#endif
-    A2lCreateParameterWithLimits(gPtpM.utcOffset, "PTP ANNOUNCE parameter", "", 0, 0xFFFF);
-    A2lCreateParameterWithLimits(gPtpM.stepsRemoved, "PTP ANNOUNCE parameter", "", 0, 0xFFFF);
-    A2lCreateParameterWithLimits(gPtpM.clockVariance, "PTP ANNOUNCE parameter", "", 0, 0xFFFF);
-    A2lCreateParameterWithLimits(gPtpM.clockAccuraccy, "PTP ANNOUNCE parameter", "", 0, 255);
-    A2lCreateParameterWithLimits(gPtpM.clockClass, "PTP ANNOUNCE parameter", "", 0, 255);
-    A2lCreateParameterWithLimits(gPtpM.priority1, "PTP ANNOUNCE parameter", "", 0, 255);
-    A2lCreateParameterWithLimits(gPtpM.priority2, "PTP ANNOUNCE parameter", "", 0, 255);
-    A2lCreateParameterWithLimits(gPtpM.timeSource, "PTP ANNOUNCE parameter", "", 0, 255);
-    A2lParameterGroup("PTP_ANNOUNCE", 8, "gPtpM.utcOffset", "gPtpM.stepsRemoved", "gPtpM.clockVariance", "gPtpM.clockAccuraccy", "gPtpM.clockClass", "gPtpM.priority1",
-                      "gPtpM.priority2", "gPtpM.timeSource");
-
-#if OPTION_TEST_TIME
-    A2lSetFixedEvent(gPtpM.ptpEvent);
-    A2lCreateMeasurement(gPtpM.testTime, "testTime");
-    A2lCreatePhysMeasurement(gPtpM.testTimeDiff, "testTimeDiff", 0.000001, 0, "ms");
-#endif
-    A2lSetFixedEvent(gPtpM.syncEvent);
-    A2lCreateMeasurement(gPtpM.clientCount, "Number of clients");
-    A2lCreateMeasurement(gPtpM.sequenceIdSync, "SYNC sequence number");
-    A2lSetFixedEvent(gPtpM.announceEvent);
-    A2lCreateMeasurement(gPtpM.sequenceIdAnnounce, "ANNOUNCE sequence number");
-
-    uint16_t i;
-    for (i = 0; i < MAX_CLIENTS; i++) {
-        A2lSetFixedEvent(gPtpM.client[i].event);
-        char name[32];
-        sprintf(name, "Addr%u", i);
-        A2lCreateMeasurement_(NULL, name, A2lGetType(gPtpM.client[i].addr[3]), 0, A2lGetAddr((uint8_t *)&(gPtpM.client[i].addr[3])), 1.0, 0.0, "", "DELAY_REQ x.x.x.Addr", NULL);
-        sprintf(name, "Corr%u", i);
-        A2lCreateMeasurement_(NULL, name, A2lGetType(gPtpM.client[i].corr), 0, A2lGetAddr((uint8_t *)&gPtpM.client[i].corr), 0.000001, 0.0, "ms", "DELAY_REQ correction value",
-                              NULL);
-        sprintf(name, "Time%u", i);
-        A2lCreateMeasurement_(NULL, name, A2lGetType(gPtpM.client[i].time), 0, A2lGetAddr((uint8_t *)&gPtpM.client[i].time), 0.000001, 0.0, "ms", "DELAY_REQ timestamp", NULL);
-        sprintf(name, "Diff%u", i);
-        A2lCreateMeasurement_(NULL, name, A2lGetType(gPtpM.client[i].diff), 0, A2lGetAddr((uint8_t *)&gPtpM.client[i].diff), 0.000001, 0.0, "ms", "DELAY_REQ rxTime-timestamp",
-                              NULL);
-        sprintf(name, "Cycle%u", i);
-        A2lCreateMeasurement_(NULL, name, A2lGetType(gPtpM.client[i].cycle), 0, A2lGetAddr((uint8_t *)&gPtpM.client[i].cycle), 0.000001, 0.0, "ms", "DELAY_REQ cycle time", NULL);
-        sprintf(name, "Counter%u", i);
-        A2lCreateMeasurement_(NULL, name, A2lGetType(gPtpM.client[i].counter), 0, A2lGetAddr((uint8_t *)&gPtpM.client[i].counter), 1.0, 0.0, "", "DELAY_REQ cycle time", NULL);
-        // sprintf(name, "PathDelay%u", i);
-        // A2lCreateMeasurement_(NULL, name, A2lGetType(gPtpM.client[i].path_delay), 0, A2lGetAddr((uint8_t*)&gPtpM.client[i].counter), 1.0, 0.0, "", "DELAY_REQ cycle time", NULL);
-    }
-
-#else
 
     /*
     #define A2L_TYPE_UINT8    1
@@ -893,28 +885,28 @@ void ptpMasterCreateA2lDescription() {
     #define A2L_TYPE_DOUBLE  -10
     */
 
-    A2lCreateParameterWithLimits(gPtpM.domain, A2L_TYPE_UINT8, "PTP domain", "", 0, 255);
-    A2lCreateParameterWithLimits(gPtpM.announceCycleTimeMs, A2L_TYPE_UINT32, "ANNOUNCE cycle time in ms", "ms", 1, 10000);
-    A2lCreateParameterWithLimits(gPtpM.syncCycleTimeMs, A2L_TYPE_UINT32, "SYNC cycle time in ms", "ms", 10, 10000);
-#if OPTION_TEST_TIME
-    A2lCreateParameterWithLimits(gPtpM.offset, A2L_TYPE_UINT32, "PTP master time offset", "ns", -1000000000, +1000000000);
-    A2lCreateParameterWithLimits(gPtpM.drift, A2L_TYPE_UINT32, "PTP master time drift", "ns/s", -100000, +100000);
-#endif
+    //     A2lCreateParameter(gPtpM.domain, A2L_TYPE_UINT8, "PTP domain", "", 0, 255);
+    //     A2lCreateParameter(gPtpM.announceCycleTimeMs, A2L_TYPE_UINT32, "ANNOUNCE cycle time in ms", "ms", 1, 10000);
+    //     A2lCreateParameter(gPtpM.syncCycleTimeMs, A2L_TYPE_UINT32, "SYNC cycle time in ms", "ms", 10, 10000);
+    // #if OPTION_TEST_TIME
+    //     A2lCreateParameter(gPtpM.offset, A2L_TYPE_UINT32, "PTP master time offset", "ns", -1000000000, +1000000000);
+    //     A2lCreateParameter(gPtpM.drift, A2L_TYPE_UINT32, "PTP master time drift", "ns/s", -100000, +100000);
+    // #endif
 
-    A2lCreateParameterWithLimits(gPtpM.domain, A2L_TYPE_UINT8, "PTP domain", "", 0, 255);
-    A2lCreateParameterWithLimits(gPtpM.announceCycleTimeMs, A2L_TYPE_UINT32, "ANNOUNCE cycle time in ms", "ms", 1, 10000);
-    A2lCreateParameterWithLimits(gPtpM.syncCycleTimeMs, A2L_TYPE_UINT32, "SYNC cycle time in ms", "ms", 10, 10000);
-    A2lCreateParameterWithLimits(gPtpM.utcOffset, A2L_TYPE_UINT16, "PTP ANNOUNCE parameter", "", 0, 0xFFFF);
-    A2lCreateParameterWithLimits(gPtpM.stepsRemoved, A2L_TYPE_UINT16, "PTP ANNOUNCE parameter", "", 0, 0xFFFF);
-    A2lCreateParameterWithLimits(gPtpM.clockVariance, A2L_TYPE_UINT16, "PTP ANNOUNCE parameter", "", 0, 0xFFFF);
-    A2lCreateParameterWithLimits(gPtpM.clockAccuraccy, A2L_TYPE_UINT8, "PTP ANNOUNCE parameter", "", 0, 255);
-    A2lCreateParameterWithLimits(gPtpM.clockClass, A2L_TYPE_UINT8, "PTP ANNOUNCE parameter", "", 0, 255);
-    A2lCreateParameterWithLimits(gPtpM.priority1, A2L_TYPE_UINT8, "PTP ANNOUNCE parameter", "", 0, 255);
-    A2lCreateParameterWithLimits(gPtpM.priority2, A2L_TYPE_UINT8, "PTP ANNOUNCE parameter", "", 0, 255);
-    A2lCreateParameterWithLimits(gPtpM.timeSource, A2L_TYPE_UINT8, "PTP ANNOUNCE parameter", "", 0, 255);
-    A2lParameterGroup("PTP_ANNOUNCE", 8, "gPtpM.utcOffset", "gPtpM.stepsRemoved", "gPtpM.clockVariance", "gPtpM.clockAccuraccy", "gPtpM.clockClass", "gPtpM.priority1",
-                      "gPtpM.priority2", "gPtpM.timeSource");
-
-#endif
+    // A2lCreateParameter(gPtpM.domain, A2L_TYPE_UINT8, "PTP domain", "", 0, 255);
+    // A2lCreateParameter(gPtpM.announceCycleTimeMs, A2L_TYPE_UINT32, "ANNOUNCE cycle time in ms", "ms", 1, 10000);
+    // A2lCreateParameter(gPtpM.syncCycleTimeMs, A2L_TYPE_UINT32, "SYNC cycle time in ms", "ms", 10, 10000);
+    // A2lCreateParameter(gPtpM.utcOffset, A2L_TYPE_UINT16, "PTP ANNOUNCE parameter", "", 0, 0xFFFF);
+    // A2lCreateParameter(gPtpM.stepsRemoved, A2L_TYPE_UINT16, "PTP ANNOUNCE parameter", "", 0, 0xFFFF);
+    // A2lCreateParameter(gPtpM.clockVariance, A2L_TYPE_UINT16, "PTP ANNOUNCE parameter", "", 0, 0xFFFF);
+    // A2lCreateParameter(gPtpM.clockAccuraccy, A2L_TYPE_UINT8, "PTP ANNOUNCE parameter", "", 0, 255);
+    // A2lCreateParameter(gPtpM.clockClass, A2L_TYPE_UINT8, "PTP ANNOUNCE parameter", "", 0, 255);
+    // A2lCreateParameter(gPtpM.priority1, A2L_TYPE_UINT8, "PTP ANNOUNCE parameter", "", 0, 255);
+    // A2lCreateParameter(gPtpM.priority2, A2L_TYPE_UINT8, "PTP ANNOUNCE parameter", "", 0, 255);
+    // A2lCreateParameter(gPtpM.timeSource, A2L_TYPE_UINT8, "PTP ANNOUNCE parameter", "", 0, 255);
+    // A2lParameterGroup("PTP_ANNOUNCE", 8, "gPtpM.utcOffset", "gPtpM.stepsRemoved", "gPtpM.clockVariance", "gPtpM.clockAccuraccy", "gPtpM.clockClass", "gPtpM.priority1",
+    //                   "gPtpM.priority2", "gPtpM.timeSource");
 }
+
+#endif
 #endif

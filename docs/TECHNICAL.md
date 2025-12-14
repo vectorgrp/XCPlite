@@ -147,7 +147,7 @@ This is used to realize calibration consistency requirements, were the collectio
 Drawback of this simple approach is, that calibration updates may starve, when there is always at least one reader holding a lock.
 Worst case is, that a calibration update may time out.
 
-'''
+```
     Shared mutable atomic state between the XCP thread and the ECU thread is:
         - ecu_page_next: a page with newer data, taken over into ecu_page 
         - free_page: the page freed when new_page is taken over 
@@ -217,7 +217,7 @@ function try_publish(segment) -> bool {
     return true;
 }
 
-'''
+```
 
 
 ## Platform and Language Standard Requirements

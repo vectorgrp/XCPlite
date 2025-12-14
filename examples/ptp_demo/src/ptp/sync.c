@@ -17,7 +17,6 @@
 #include <stdio.h>   // for printf
 #include <string.h>  // for sprintf
 
-#include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
 #include "platform.h"
 
 #include <a2l.h>    // for xcplib A2l generation
@@ -66,11 +65,12 @@ void syncInit(sync_state_t *s, uint64_t clock2, int32_t clock2Drift, uint64_t cl
     s->clock2Drift = clock2Drift;
     s->clock2DriftFract = f & 0xFFFFFFFF;
 
-    DBG_PRINT3("Init clock transformation:\n");
-    DBG_PRINTF3("  clock2 = %" PRIu64 " clock1 = %" PRIu64 " diff = %" PRIi64 "\n", clock2, clock1, (int64_t)clock2 - (int64_t)clock1);
-    DBG_PRINTF3("  drift of clock2 is %d ns per s (%g ppm)\n", s->clock2Drift, (double)s->clock2Drift / 1E3);
-    DBG_PRINTF3("  32 bit fraction increment of clock2 per ns is %u >> 32 (%g ns)\n", s->clock2DriftFract, (double)s->clock2Drift / 1E9);
-
+    if (gPtpDebugLevel >= 3) {
+        printf("Init clock transformation:\n");
+        printf("  clock2 = %" PRIu64 " clock1 = %" PRIu64 " diff = %" PRIi64 "\n", clock2, clock1, (int64_t)clock2 - (int64_t)clock1);
+        printf("  drift of clock2 is %d ns per s (%g ppm)\n", s->clock2Drift, (double)s->clock2Drift / 1E3);
+        printf("  32 bit fraction increment of clock2 per ns is %u >> 32 (%g ns)\n", s->clock2DriftFract, (double)s->clock2Drift / 1E9);
+    }
     // Test
     uint64_t a, b;
     uint128_t r;

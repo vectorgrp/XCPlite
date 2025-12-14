@@ -15,7 +15,6 @@
 #include <stdio.h>   // for printf
 #include <string.h>  // for sprintf
 
-#include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
 #include "platform.h"
 
 #include "util.h"

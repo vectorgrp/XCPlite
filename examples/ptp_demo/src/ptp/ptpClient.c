@@ -14,14 +14,16 @@
 #include <stdio.h>   // for printf
 #include <string.h>  // for sprintf
 
-#include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
+#include "ptp_cfg.h"
+#ifdef OPTION_ENABLE_PTP_CLIENT
+
 #include "platform.h"
 
 #include <a2l.h>    // for xcplib A2l generation
 #include <xcplib.h> // for xcplib application programming interface
 
-#include "ptp.h"
 #include "ptpClient.h"
+#include "ptpMaster.h"
 #include "util.h"
 
 //-------------------------------------------------------------------------------------------------------
@@ -30,7 +32,23 @@
 #define GRANDMASTER_LOST_TIMEOUT 10 // s
 #define MASTER_DRIFT_FILTER_SIZE 16
 
-// PTP client status
+// PTP client parameters structure
+struct parameters {
+    uint32_t delayReqCorrectionNs; // Parameter DELAY_REQ correction in ns
+    uint32_t delayReqDelayMs;      // Parameter DELAY_REQ delay to SYNC
+    uint32_t delayReqJitterMs;     // Parameter DELAY_REQ time jitter in ms
+    uint16_t delayReqCycle;        // Parameter DELAY_REQ every nth SYNC
+} parameters;
+
+// Default PTP client parameters
+static const struct parameters kParameters = {
+    .delayReqCorrectionNs = 0,
+    .delayReqDelayMs = 30,
+    .delayReqJitterMs = 20,
+    .delayReqCycle = 1 //  Every nth SYNC with delay and jitter, with n = 2^delay_req.logMessageInterval
+};
+
+// PTP client status structure
 typedef struct {
 
     bool enabled; // PTP enabled
@@ -66,10 +84,10 @@ typedef struct {
     uint64_t gmLastSeenTime; // Last message seen from current grandmaster
 
     // PTP algorithm parameters
-    uint32_t delayReqCorrectionNs; // Parameter DELAY_REQ correction in ns
-    uint32_t delayReqDelayMs;      // Parameter DELAY_REQ delay to SYNC
-    uint32_t delayReqJitterMs;     // Parameter DELAY_REQ time jitter in ms
-    uint16_t delayReqCycle;        // Parameter DELAY_REQ every nth SYNC
+#ifdef OPTION_ENABLE_PTP_XCP
+    tXcpCalSegIndex params_calseg;
+#endif
+    struct parameters *params; // Pointer to current parameters structure
 
     // PTP timing values
     uint64_t path_delay;
@@ -121,7 +139,7 @@ typedef struct {
 
 static tPtpC gPtpC;
 
-#ifdef OPTION_ENABLE_PTP_TEST
+#ifdef OPTION_ENABLE_PTP_XCP
 // XCP test instrumentation events
 static uint16_t gPtpC_syncEvent = XCP_UNDEFINED_EVENT_ID;   // on SYNC
 static uint16_t gPtpC_delayEvent = XCP_UNDEFINED_EVENT_ID;  // on DELAY_RESP
@@ -146,10 +164,12 @@ static void printMaster(const tPtpMaster *m) {
            m->par.timeSource, htons(m->par.utcOffset), m->par.priority1, m->par.clockClass, m->par.clockAccuraccy, htons(m->par.clockVariance), m->par.priority2,
            htons(m->par.stepsRemoved));
 
+#ifdef OPTION_ENABLE_PTP_TEST
     if (m->path_delay > 0) {
         char ts1[64];
         printf("    mean_path_delay=%" PRIu64 "ns, offset=%s, drift=%gppm\n", m->path_delay, clockGetTimeString(ts1, sizeof(ts1), m->offset), (double)m->drift / 1000.0);
     }
+#endif
 }
 
 // Find a grandmaster in the grandmaster list
@@ -265,14 +285,25 @@ static bool ptpSendDelayRequest() {
     struct ptphdr h;
     int16_t l;
 
-    initHeader(&h, PTP_DELAY_REQ, 44, 0, ++gPtpC.delay_req_sequenceId, gPtpC.delayReqCorrectionNs);
+#ifdef OPTION_ENABLE_PTP_XCP
+    gPtpC.params = XcpLockCalSeg(gPtpC.params_calseg);
+#endif
+    initHeader(&h, PTP_DELAY_REQ, 44, 0, ++gPtpC.delay_req_sequenceId, gPtpC.params->delayReqCorrectionNs);
+#ifdef OPTION_ENABLE_PTP_XCP
+    XcpUnlockCalSeg(gPtpC.params_calseg);
+#endif
+
     l = socketSendTo(gPtpC.sock319, (uint8_t *)&h, 44, gPtpC.maddr, 319, &gPtpC.delay_req_local_time);
     if (l == 44) {
+        if (gPtpC.delay_req_local_time == 0) {
+            gPtpC.delay_req_local_time = socketGetSendTime(gPtpC.sock319);
+        }
         if (gPtpDebugLevel >= 3 && gXcpDebugLevel > 0) {
-            printf("TX DELAY_REQ %u\n", htons(h.sequenceId));
+            printf("TX DELAY_REQ %u, tx time = %" PRIu64 "\n", htons(h.sequenceId), gPtpC.delay_req_local_time);
         }
         return true;
     } else {
+        printf("ERROR: ptpSendDelayRequest: socketSendTo failed\n");
         return false;
     }
 }
@@ -311,7 +342,7 @@ static void syncUpdate(uint64_t t1, uint64_t correction, uint64_t t2) {
     gPtpC.t1_t2_correction = correction;
     gPtpC.t1_t2_diff = t2 - t1;
     gPtpC.syncUpdate++;
-#ifdef OPTION_ENABLE_PTP_TEST
+#ifdef OPTION_ENABLE_PTP_XCP
     XcpEvent(gPtpC_syncEvent);
 #endif
     if (gPtpDebugLevel >= 5 && gXcpDebugLevel > 0) {
@@ -328,7 +359,7 @@ static void delayUpdate(uint64_t t3, uint64_t correction, uint64_t t4) {
     gPtpC.t3_t4_correction = correction;
     gPtpC.t3_t4_diff = t4 - t3;
     gPtpC.delayUpdate++;
-#ifdef OPTION_ENABLE_PTP_TEST
+#ifdef OPTION_ENABLE_PTP_XCP
     XcpEvent(gPtpC_delayEvent);
 #endif
     if (gPtpDebugLevel >= 5 && gXcpDebugLevel > 0) {
@@ -448,9 +479,10 @@ static tPtpMaster *ptpHandleFrame(int n, struct ptphdr *ptp, uint8_t *addr, uint
                         gPtpC.delay_resp_correction = (uint32_t)(htonll(ptp->correction) >> 16);
                         gPtpC.delay_resp_logMessageInterval = ptp->logMessageInterval;
 
-                        // update DELAY_REQ cycle time ( DELAY_REQ has constant delay to SYNC (parameter gPtpC.delayReqDelayMs), logMessageInterval is realized by skipping SYNCs
-                        if (gPtpC.delayReqCycle == 0)
-                            gPtpC.delayReqCycle = 1 << gPtpC.delay_resp_logMessageInterval;
+                        // update DELAY_REQ cycletime (DELAY_REQ has constant delay to SYNC (parameter delayReqDelayMs), logMessageInterval is realized by skipping SYNCs
+                        // @@@@ Not implemented yet
+                        // if (delayReqCycle == 0)
+                        //     delayReqCycle = 1 << gPtpC.delay_resp_logMessageInterval;
 
                         // delay update
                         delayUpdate(gPtpC.delay_req_local_time, gPtpC.delay_resp_correction, gPtpC.delay_resp_master_time);
@@ -547,8 +579,14 @@ static void *ptpThread(void *par)
             if (gPtpC.syncUpdate != lastSyncUpdate && delayReqTimer == 0xFFFFFFFFFFFFFFFF) {
                 lastSyncUpdate = gPtpC.syncUpdate;
                 if (--delayReqCycle <= 0) {
-                    delayReqCycle = gPtpC.delayReqCycle;
-                    delayReqTimer = t + ((uint64_t)gPtpC.delayReqDelayMs * 1000000) + ((uint64_t)gPtpC.delayReqJitterMs * 1000000 / 65536 * random16());
+#ifdef OPTION_ENABLE_PTP_XCP
+                    gPtpC.params = XcpLockCalSeg(gPtpC.params_calseg);
+#endif
+                    delayReqCycle = gPtpC.params->delayReqCycle;
+                    delayReqTimer = t + ((uint64_t)gPtpC.params->delayReqDelayMs * 1000000) + ((uint64_t)gPtpC.params->delayReqJitterMs * 1000000 / 65536 * random16());
+#ifdef OPTION_ENABLE_PTP_XCP
+                    XcpUnlockCalSeg(gPtpC.params_calseg);
+#endif
                 }
             }
 
@@ -603,8 +641,10 @@ static void *ptpThread(void *par)
                     gPtpC.ptpClientCallback(gPtpC.master_time, gPtpC.client_time, (int32_t)gPtpC.master_drift);
                 }
 #ifdef OPTION_ENABLE_PTP_TEST
-                XcpEvent(gPtpC_updateEvent);
 
+#ifdef OPTION_ENABLE_PTP_XCP
+                XcpEvent(gPtpC_updateEvent);
+#endif
                 if (gPtpDebugLevel >= 1 && gXcpDebugLevel > 0) {
                     if (gPtpC.gm != NULL && gPtpC.path_delay > 0) {
 
@@ -700,7 +740,7 @@ static void *ptpThread320(void *par)
 // Create A2L description for measurements and parameters
 // Create XCP events
 
-#ifdef OPTION_ENABLE_PTP_TEST
+#ifdef OPTION_ENABLE_PTP_XCP
 
 void ptpClientCreateXcpEvents() {
 
@@ -709,11 +749,10 @@ void ptpClientCreateXcpEvents() {
     gPtpC_updateEvent = XcpCreateEvent("PTP_UPDATE", 0, 0);
 }
 
-#if OPTION_ENABLE_A2L_GEN
 void ptpClientCreateA2lDescription() {
 
     // Event measurements
-    A2lSetFixedEvent(gPtpC_syncEvent);
+    A2lSetAbsoluteAddrMode__i(gPtpC_syncEvent);
     A2lCreateMeasurement(gPtpC.sync_local_time, "SYNC RX timestamp");
     A2lCreateMeasurement(gPtpC.sync_master_time, "SYNC timestamp");
     A2lCreateMeasurement(gPtpC.sync_correction, "SYNC correction");
@@ -721,59 +760,58 @@ void ptpClientCreateA2lDescription() {
     A2lCreateMeasurement(gPtpC.sync_steps, "SYNC mode");
     A2lCreateMeasurement(gPtpC.flup_master_time, "FOLLOW_UP timestamp");
     A2lCreateMeasurement(gPtpC.flup_sequenceId, "FOLLOW_UP sequence counter");
-    A2lCreatePhysMeasurement(gPtpC.flup_duration, "FOLLOW_UP duration time after SYNC", 0.000001, 0.0, "ms");
-    A2lCreatePhysMeasurement(gPtpC.t1_t2_diff, "", 1.0, 0.0, "ns");
-    A2lCreatePhysMeasurement(gPtpC.t1_t2_correction, "", 1.0, 0.0, "ns");
-    A2lCreatePhysMeasurement(gPtpC.t1, "", 1.0, 0.0, "ns");
-    A2lCreatePhysMeasurement(gPtpC.t2, "", 1.0, 0.0, "ns");
-    A2lCreatePhysMeasurement(gPtpC.sync_cycle_time, "SYNC cycle time", 0.000001, 0.0, "ms");
+    A2lCreatePhysMeasurement(gPtpC.flup_duration, "FOLLOW_UP duration time after SYNC", "ms", 0.000001, 0.0);
+    A2lCreatePhysMeasurement(gPtpC.t1_t2_diff, "", "ns", 1.0, 0.0);
+    A2lCreatePhysMeasurement(gPtpC.t1_t2_correction, "", "ns", 1.0, 0.0);
+    A2lCreatePhysMeasurement(gPtpC.t1, "", "ns", 1.0, 0.0);
+    A2lCreatePhysMeasurement(gPtpC.t2, "", "ns", 1.0, 0.0);
+    A2lCreatePhysMeasurement(gPtpC.sync_cycle_time, "SYNC cycle time", "ms", 0.000001, 0.0);
     A2lCreateMeasurement(gPtpC.flup_correction, "FOLLOW_UP correction");
-    A2lCreatePhysMeasurement(gPtpC.master_drift_raw, "", 0.001, 0.0, "ppm");
-    A2lCreatePhysMeasurement(gPtpC.master_drift, "", 0.001, 0.0, "ppm");
+    A2lCreatePhysMeasurement(gPtpC.master_drift_raw, "", "ppm", 0.001, 0.0);
+    A2lCreatePhysMeasurement(gPtpC.master_drift, "", "ppm", 0.001, 0.0);
 
-    A2lSetFixedEvent(gPtpC_delayEvent);
+    A2lSetAbsoluteAddrMode__i(gPtpC_delayEvent);
     A2lCreateMeasurement(gPtpC.delay_resp_logMessageInterval, "DELAY_RESP delay req message intervall");
     A2lCreateMeasurement(gPtpC.delay_resp_correction, "DELAY_RESP correction");
-    A2lCreatePhysMeasurement(gPtpC.delay_resp_duration, "DELAY_RESP response duration time", 0.000001, 0.0, "ms");
+    A2lCreatePhysMeasurement(gPtpC.delay_resp_duration, "DELAY_RESP response duration time", "ms", 0.000001, 0.0);
     A2lCreateMeasurement(gPtpC.delay_req_local_time, "DELAY_REQ TX timestamp");
     A2lCreateMeasurement(gPtpC.delay_req_sequenceId, "DELAY_REQ sequence counter");
     A2lCreateMeasurement(gPtpC.delay_resp_local_time, "DELAY_RESP RX timestamp");
     A2lCreateMeasurement(gPtpC.delay_resp_master_time, "DELAY_RESP timestamp");
     A2lCreateMeasurement(gPtpC.delay_resp_sequenceId, "DELAY_RESP sequence counter");
-    A2lCreatePhysMeasurement(gPtpC.t3_t4_diff, "", 1.0, 0.0, "ns");
-    A2lCreatePhysMeasurement(gPtpC.t3_t4_correction, "", 1.0, 0.0, "ns");
-    A2lCreatePhysMeasurement(gPtpC.t3, "", 1.0, 0.0, "ns");
-    A2lCreatePhysMeasurement(gPtpC.t4, "", 1.0, 0.0, "ns");
+    A2lCreatePhysMeasurement(gPtpC.t3_t4_diff, "", "ns", 1.0, 0.0);
+    A2lCreatePhysMeasurement(gPtpC.t3_t4_correction, "", "ns", 1.0, 0.0);
+    A2lCreatePhysMeasurement(gPtpC.t3, "", "ns", 1.0, 0.0);
+    A2lCreatePhysMeasurement(gPtpC.t4, "", "ns", 1.0, 0.0);
 
-    A2lSetFixedEvent(gPtpC_updateEvent);
-    A2lCreatePhysMeasurement(gPtpC.path_delay, "", 1.0, 0.0, "ns");
-    A2lCreatePhysMeasurement(gPtpC.path_asymmetry, "", 1.0, 0.0, "ns");
-    A2lCreatePhysMeasurement(gPtpC.path_asymmetry_avg, "", 1.0, 0.0, "ns");
-    A2lCreatePhysMeasurement(gPtpC.master_offset, "", 0.000001, 0.0, "ms");
-    A2lCreatePhysMeasurement(gPtpC.master_time, "", 1.0, 0.0, "ns");
-    A2lCreatePhysMeasurement(gPtpC.client_time, "", 1.0, 0.0, "ns");
-
-    A2lMeasurementGroup("PTPtest", 5 + 1 + 4, "gPtpC.sync_correction", "gPtpC.sync_cycle_time", "gPtpC.flup_correction", "gPtpC.master_drift_raw", "gPtpC.master_drift",
-                        "gPtpC.delay_resp_logMessageInterval", "gPtpC.path_delay", "gPtpC.master_offset", "gPtpC.master_time", "gPtpC.client_time");
+    A2lSetAbsoluteAddrMode__i(gPtpC_updateEvent);
+    A2lCreatePhysMeasurement(gPtpC.path_delay, "", "ns", 1.0, 0.0);
+    A2lCreatePhysMeasurement(gPtpC.path_asymmetry, "", "ns", 1.0, 0.0);
+    A2lCreatePhysMeasurement(gPtpC.path_asymmetry_avg, "", "ns", 1.0, 0.0);
+    A2lCreatePhysMeasurement(gPtpC.master_offset, "", "ms", 0.000001, 0.0);
+    A2lCreatePhysMeasurement(gPtpC.master_time, "", "ns", 1.0, 0.0);
+    A2lCreatePhysMeasurement(gPtpC.client_time, "", "ns", 1.0, 0.0);
+    // A2lCreateMeasurementGroup("PTPtest", 5 + 1 + 4, "gPtpC.sync_correction", "gPtpC.sync_cycle_time", "gPtpC.flup_correction", "gPtpC.master_drift_raw",
+    // "gPtpC.master_drift","gPtpC.delay_resp_logMessageInterval", "gPtpC.path_delay", "gPtpC.master_offset", "gPtpC.master_time", "gPtpC.client_time");
 
     // Status measurements
-    A2lRstFixedEvent();
+    A2lSetAbsoluteAddrMode__i(gPtpC_syncEvent);
     A2lCreateMeasurement(gPtpC.masterCount, "");
     A2lCreateMeasurement(gPtpC.gmIndex, "Master Index");
     A2lCreateMeasurement(gPtpC.gmDomain, "Master Domain");
     A2lCreateMeasurement(gPtpC.gmAddr, "Master IP ADDR as uint32_t");
     A2lCreateMeasurement(gPtpC.gmId, "Master UUID as uint64_t");
-    A2lMeasurementGroup("PTPstatus", 5, "gPtpC.masterCount", "gPtpC.gmIndex", "gPtpC.gmDomain", "gPtpC.gmAddr", "gPtpC.gmId");
+    // A2lCreateMeasurementGroup("PTPstatus", 5, "gPtpC.masterCount", "gPtpC.gmIndex", "gPtpC.gmDomain", "gPtpC.gmAddr", "gPtpC.gmId");
 
     // Parameters
-    A2lCreateParameterWithLimits(gPtpC.delayReqCorrectionNs, "DELAY_REQ correction in ns", "ns", 0, 10000);
-    A2lCreateParameterWithLimits(gPtpC.delayReqDelayMs, "DELAY_REQ delay to SYNC in ms", "ms", 1, 10000);
-    A2lCreateParameterWithLimits(gPtpC.delayReqJitterMs, "DELAY_REQ jitter in ms", "ms", 1, 10000);
-    A2lCreateParameterWithLimits(gPtpC.delayReqCycle, "DELAY_REQ cycle ", "", 0, 10);
-    A2lParameterGroup("PTPparams", 3, "gPtpC.delayReqDelayMs", "gPtpC.delayReqJitterMs", "gPtpC.delayReqCycle");
+    gPtpC.params_calseg = XcpCreateCalSeg("params", &kParameters, sizeof(kParameters));
+    A2lSetSegmentAddrMode(gPtpC.params_calseg, kParameters);
+    A2lCreateParameter(kParameters.delayReqCorrectionNs, "DELAY_REQ correction in ns", "ns", 0, 10000);
+    A2lCreateParameter(kParameters.delayReqDelayMs, "DELAY_REQ delay to SYNC in ms", "ms", 1, 10000);
+    A2lCreateParameter(kParameters.delayReqJitterMs, "DELAY_REQ jitter in ms", "ms", 1, 10000);
+    A2lCreateParameter(kParameters.delayReqCycle, "DELAY_REQ cycle ", "", 0, 10);
+    // A2lCreateParameterGroup("PTPparams", 3, "gPtpC.delayReqDelayMs", "gPtpC.delayReqJitterMs", "gPtpC.delayReqCycle");
 }
-#endif
-
 #endif
 
 //-------------------------------------------------------------------------------------------------------
@@ -792,12 +830,8 @@ bool ptpClientInit(const uint8_t *uuid, uint8_t domain, uint8_t *bindAddr, void 
     memcpy(gPtpC.uuid, uuid, 8);
     gPtpC.ptpClientCallback = ptpClientCallback;
 
-    // PTP client timing parameters
-    gPtpC.delayReqCorrectionNs = 0;
-    gPtpC.delayReqDelayMs = 30;
-    gPtpC.delayReqJitterMs = 20;
-    gPtpC.delayReqCycle = 1; // Every SYNC with delay and jitter
-    // gPtpC.delayReqCycle = 0; // Every nth SYNC with delay and jitter, with n = 2^delay_req.logMessageInterval
+    // Parameters
+    gPtpC.params = &kParameters;
 
     // PTP client active master and master history list
     gPtpC.gm = NULL;
@@ -887,3 +921,5 @@ void ptpClientPrintInfo() {
     }
     printf("\n");
 }
+
+#endif

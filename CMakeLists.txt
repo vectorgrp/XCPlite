@@ -201,7 +201,7 @@ target_include_directories(multi_thread_demo PUBLIC "${PROJECT_ROOT}/inc")
 target_link_libraries(multi_thread_demo PRIVATE xcplib)
 
 # Example ptp_demo
-set(ptp_demo_SOURCES examples/ptp_demo/src/main.c examples/ptp_demo/src/ptp/ptp.c examples/ptp_demo/src/ptp/ptpClient.c examples/ptp_demo/src/ptp/ptpMaster.c examples/ptp_demo/src/ptp/sync.c examples/ptp_demo/src/ptp/util.c)
+set(ptp_demo_SOURCES examples/ptp_demo/src/main.c examples/ptp_demo/src/ptp/ptp.c examples/ptp_demo/src/ptp/ptpObserver.c examples/ptp_demo/src/ptp/ptpClient.c examples/ptp_demo/src/ptp/ptpMaster.c examples/ptp_demo/src/ptp/sync.c examples/ptp_demo/src/ptp/util.c)
 set_source_files_properties(${ptp_demo_SOURCES} PROPERTIES LANGUAGE C)
 add_executable(ptp_demo ${ptp_demo_SOURCES})
 target_include_directories(ptp_demo PUBLIC "${PROJECT_ROOT}/inc")
