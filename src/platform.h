@@ -313,6 +313,7 @@ int16_t socketRecv(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, bool waitA
 int16_t socketRecvFrom(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, uint8_t *srcAddr, uint16_t *srcPort, uint64_t *time);
 int16_t socketSend(SOCKET sock, const uint8_t *buffer, uint16_t bufferSize);
 int16_t socketSendTo(SOCKET sock, const uint8_t *buffer, uint16_t bufferSize, const uint8_t *addr, uint16_t port, uint64_t *time);
+uint64_t socketGetSendTime(SOCKET sock);
 bool socketShutdown(SOCKET sock);
 bool socketClose(SOCKET *sp);
 #ifdef OPTION_ENABLE_GET_LOCAL_ADDR

@@ -777,6 +777,13 @@ int16_t socketSendTo(SOCKET sock, const uint8_t *buffer, uint16_t size, const ui
 // Must be thread save
 int16_t socketSend(SOCKET sock, const uint8_t *buffer, uint16_t size) { return (int16_t)send(sock, (const char *)buffer, size, 0); }
 
+// Get send time of last sent packet
+uint64_t socketGetSendTime(SOCKET sock) {
+    (void)sock;
+    // Not implemented
+    return 0;
+}
+
 #endif
 
 /**************************************************************************/
@@ -938,24 +945,6 @@ char *clockGetString(char *str, uint32_t l, uint64_t c) {
     return str;
 }
 
-char *clockGetTimeString(char *str, uint32_t l, int64_t t) {
-
-#ifdef OPTION_CLOCK_EPOCH_ARB
-    SNPRINTF(str, l, "%gs", (double)t / CLOCK_TICKS_PER_S);
-#else
-    char sign = '+';
-    if (t < 0) {
-        sign = '-';
-        t = -t;
-    }
-    uint64_t s = t / CLOCK_TICKS_PER_S;
-    uint64_t ns = t % CLOCK_TICKS_PER_S;
-    SNPRINTF(str, l, "%c%" PRIu64 "d%" PRIu64 "h%" PRIu64 "m%" PRIu64 "s+%" PRIu64 "ns", sign, s / (3600 * 24), (s % (3600 * 24)) / 3600, ((s % (3600 * 24)) % 3600) / 60,
-             ((s % (3600 * 24)) % 3600) % 60, ns);
-#endif
-    return str;
-}
-
 #include <sys/timeb.h>
 
 bool clockInit(void) {
@@ -1077,6 +1066,24 @@ uint64_t clockGet(void) {
 
 uint64_t clockGetUs(void) { return clockGet() / CLOCK_TICKS_PER_US; }
 uint64_t clockGetNs(void) { return clockGet(); }
+
+char *clockGetTimeString(char *str, uint32_t l, int64_t t) {
+
+#ifdef OPTION_CLOCK_EPOCH_ARB
+    SNPRINTF(str, l, "%gs", (double)t / CLOCK_TICKS_PER_S);
+#else
+    char sign = '+';
+    if (t < 0) {
+        sign = '-';
+        t = -t;
+    }
+    uint64_t s = t / CLOCK_TICKS_PER_S;
+    uint64_t ns = t % CLOCK_TICKS_PER_S;
+    SNPRINTF(str, l, "%c%" PRIu64 "d%" PRIu64 "h%" PRIu64 "m%" PRIu64 "s+%" PRIu64 "ns", sign, s / (3600 * 24), (s % (3600 * 24)) / 3600, ((s % (3600 * 24)) % 3600) / 60,
+             ((s % (3600 * 24)) % 3600) % 60, ns);
+#endif
+    return str;
+}
 
 /**************************************************************************/
 // File system utilities
