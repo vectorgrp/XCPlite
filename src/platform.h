@@ -306,6 +306,7 @@ bool socketStartup(void);
 void socketCleanup(void);
 bool socketOpen(SOCKET *sp, bool useTCP, bool nonBlocking, bool reuseaddr, bool timestamps);
 bool socketBind(SOCKET sock, uint8_t *addr, uint16_t port);
+bool socketEnableHwTimestamps(SOCKET sock, const char *ifname); // Enable NIC hardware timestamping (Linux only, requires root)
 bool socketJoin(SOCKET sock, uint8_t *maddr);
 bool socketListen(SOCKET sock);
 SOCKET socketAccept(SOCKET sock, uint8_t *addr);

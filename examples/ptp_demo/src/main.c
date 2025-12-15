@@ -27,7 +27,7 @@
 #define OPTION_SERVER_PORT 5555         // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
 #define OPTION_QUEUE_SIZE 1024 * 16     // Size of the measurement queue in bytes, must be a multiple of 8
-#define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_LOG_LEVEL 4              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 // New option in V1.1: Enable variadic all in one macros for simple arithmetic types, see examples below
 #define OPTION_USE_VARIADIC_MACROS
@@ -110,7 +110,7 @@ int main(void) {
 
         counter++;
 
-        DaqEventVar(mainloop, A2L_MEAS(counter, "Mainloop counter"));
+        // DaqEventVar(mainloop, A2L_MEAS(counter, "Mainloop counter"));
 
         const parameters_t *params = (parameters_t *)XcpLockCalSeg(calseg);
         uint32_t delay_us = params->delay_us; // Get the delay calibration parameter in microseconds

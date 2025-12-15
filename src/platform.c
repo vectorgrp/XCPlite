@@ -260,8 +260,12 @@ void mutexDestroy(MUTEX *m) { DeleteCriticalSection(m); }
 #if !defined(_WIN) // Non-Windows platforms
 
 #if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
+#include <ifaddrs.h> // for getifaddrs, freeifaddrs
 #include <linux/errqueue.h>
 #include <linux/net_tstamp.h>
+#include <linux/sockios.h> // for SIOCSHWTSTAMP
+#include <net/if.h>        // for struct ifreq, IFNAMSIZ
+#include <sys/ioctl.h>     // for ioctl
 #endif
 
 bool socketStartup(void) { return true; }
@@ -286,43 +290,37 @@ bool socketOpen(SOCKET *sp, bool useTCP, bool nonBlocking, bool reuseaddr, bool 
     // Enable timestamps if requested
     if (timestamps) {
 #if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
-        int yes = 1;
+        // Enable SO_TIMESTAMPING for full hardware and software timestamping support
+        // This is required for PTP SYNC message timestamping
+        // SO_TIMESTAMPING supersedes SO_TIMESTAMPNS and provides:
+        //   - Hardware RX/TX timestamps (if NIC/driver supports it)
+        //   - Software RX/TX timestamps (always available as fallback)
+        //   - Raw hardware clock access
+        //
+        // The timestamp array returned in control messages:
+        //   [0] = Software timestamp
+        //   [1] = Deprecated (legacy)
+        //   [2] = Hardware timestamp (from NIC PHY)
 
-        // Enable timestamping
-        // Linux uses SO_TIMESTAMPNS which provides struct timespec (nanosecond precision)
-        if (setsockopt(*sp, SOL_SOCKET, SO_TIMESTAMPNS, &yes, sizeof(yes)) < 0) {
-            DBG_PRINTF_ERROR("WARNING: Failed to enable SO_TIMESTAMPNS (errno=%d)\n", errno);
-        } else {
-            DBG_PRINT3("SO_TIMESTAMPNS enabled successfully\n");
-        }
-
-        // Enable TX timestamping
-        // Timestamps will be available via error queue after send
-        // SOF_TIMESTAMPING_TX_HARDWARE: Request HW TX timestamps
-        // SOF_TIMESTAMPING_TX_SOFTWARE: Fallback to SW timestamps
-        // SOF_TIMESTAMPING_RX_HARDWARE/SOFTWARE: Enable RX timestamps
-        // SOF_TIMESTAMPING_SOFTWARE: Generate software timestamps
-        // SOF_TIMESTAMPING_RAW_HARDWARE: Use raw hardware clock
-        // SOF_TIMESTAMPING_OPT_TSONLY: Only return timestamp, not packet data
-        // Note: TX timestamps require either TX_SCHED or TX_ACK events
-        uint32_t flags = SOF_TIMESTAMPING_TX_SOFTWARE | // Software TX timestamp (always available)
-                         SOF_TIMESTAMPING_SOFTWARE |    // Enable software timestamps
-                         SOF_TIMESTAMPING_OPT_TSONLY;   // Return only timestamp, not packet data
-
-// Try to add hardware TX timestamp support if available
-#ifdef SOF_TIMESTAMPING_TX_HARDWARE
-        flags |= SOF_TIMESTAMPING_TX_HARDWARE;
-#endif
-
-// Use raw hardware clock if available
-#ifdef SOF_TIMESTAMPING_RAW_HARDWARE
-        flags |= SOF_TIMESTAMPING_RAW_HARDWARE | SOF_TIMESTAMPING_RX_HARDWARE | SOF_TIMESTAMPING_RX_SOFTWARE;
-#endif
+        uint32_t flags = SOF_TIMESTAMPING_TX_SOFTWARE |  // Software TX timestamp (always available)
+                         SOF_TIMESTAMPING_RX_SOFTWARE |  // Software RX timestamp (always available)
+                         SOF_TIMESTAMPING_SOFTWARE |     // Enable software timestamp generation
+                         SOF_TIMESTAMPING_TX_HARDWARE |  // Hardware TX timestamp (if available)
+                         SOF_TIMESTAMPING_RX_HARDWARE |  // Hardware RX timestamp (if available)
+                         SOF_TIMESTAMPING_RAW_HARDWARE | // Use raw hardware clock
+                         SOF_TIMESTAMPING_OPT_TSONLY;    // Return only timestamp, not packet data
 
         if (setsockopt(*sp, SOL_SOCKET, SO_TIMESTAMPING, &flags, sizeof(flags)) < 0) {
-            DBG_PRINTF_ERROR("WARNING: Failed to enable SO_TIMESTAMPING (errno=%d), TX timestamps not available\n", errno);
+            DBG_PRINTF_ERROR("WARNING: Failed to enable SO_TIMESTAMPING (errno=%d), HW timestamps not available\n", errno);
+            // Fall back to SO_TIMESTAMPNS for basic software RX timestamps
+            int yes = 1;
+            if (setsockopt(*sp, SOL_SOCKET, SO_TIMESTAMPNS, &yes, sizeof(yes)) < 0) {
+                DBG_PRINTF_ERROR("WARNING: Failed to enable SO_TIMESTAMPNS (errno=%d)\n", errno);
+            } else {
+                DBG_PRINT3("SO_TIMESTAMPNS enabled as fallback\n");
+            }
         } else {
-            DBG_PRINTF3("SO_TIMESTAMPING enabled successfully (flags=0x%X) for TX timestamps\n", flags);
+            DBG_PRINTF3("SO_TIMESTAMPING enabled (flags=0x%X) for PTP hardware timestamping\n", flags);
         }
 #endif
     }
@@ -348,6 +346,86 @@ bool socketBind(SOCKET sock, uint8_t *addr, uint16_t port) {
 
     return true;
 }
+
+#if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
+
+// Enable hardware timestamping on a network interface
+// This configures the NIC driver to generate hardware timestamps for PTP packets
+// Must be called after socket is created and bound
+// ifname: Network interface name (e.g., "eth0"). If NULL, uses first non-loopback interface.
+// Returns true on success, false on failure (falls back to software timestamps)
+bool socketEnableHwTimestamps(SOCKET sock, const char *ifname) {
+    struct ifreq ifr;
+    struct hwtstamp_config hwconfig;
+
+    memset(&ifr, 0, sizeof(ifr));
+    memset(&hwconfig, 0, sizeof(hwconfig));
+
+    // If no interface specified, try to find the first non-loopback interface
+    if (ifname == NULL || ifname[0] == '\0') {
+        struct ifaddrs *ifaddrs, *ifa;
+        if (getifaddrs(&ifaddrs) == 0) {
+            for (ifa = ifaddrs; ifa != NULL; ifa = ifa->ifa_next) {
+                if (ifa->ifa_addr != NULL && ifa->ifa_addr->sa_family == AF_INET) {
+                    struct sockaddr_in *sa = (struct sockaddr_in *)ifa->ifa_addr;
+                    if (sa->sin_addr.s_addr != htonl(INADDR_LOOPBACK)) {
+                        strncpy(ifr.ifr_name, ifa->ifa_name, IFNAMSIZ - 1);
+                        break;
+                    }
+                }
+            }
+            freeifaddrs(ifaddrs);
+        }
+        if (ifr.ifr_name[0] == '\0') {
+            DBG_PRINT_WARNING("socketEnableHwTimestamps: No suitable interface found\n");
+            return false;
+        }
+    } else {
+        strncpy(ifr.ifr_name, ifname, IFNAMSIZ - 1);
+    }
+
+    // Configure hardware timestamping:
+    // tx_type: HWTSTAMP_TX_ON enables TX timestamps for all packets
+    // rx_filter: HWTSTAMP_FILTER_ALL or HWTSTAMP_FILTER_PTP_V2_EVENT for PTP packets
+    hwconfig.flags = 0;
+    hwconfig.tx_type = HWTSTAMP_TX_ON;        // Enable TX hardware timestamps
+    hwconfig.rx_filter = HWTSTAMP_FILTER_ALL; // Timestamp all incoming packets (or use HWTSTAMP_FILTER_PTP_V2_EVENT for PTP only)
+
+    ifr.ifr_data = (char *)&hwconfig;
+
+    if (ioctl(sock, SIOCSHWTSTAMP, &ifr) < 0) {
+        // SIOCSHWTSTAMP requires CAP_NET_ADMIN or root privileges
+        // Some NICs may not support it, or the filter mode may not be supported
+        DBG_PRINTF_WARNING("socketEnableHwTimestamps: ioctl SIOCSHWTSTAMP failed for %s (errno=%d: %s)\n", ifr.ifr_name, errno, strerror(errno));
+        DBG_PRINT_WARNING("  Hardware timestamping may require root privileges or may not be supported by this NIC\n");
+
+        // Try with a less restrictive filter
+        hwconfig.rx_filter = HWTSTAMP_FILTER_NONE; // No RX filter, just enable TX
+        hwconfig.tx_type = HWTSTAMP_TX_ON;
+        if (ioctl(sock, SIOCSHWTSTAMP, &ifr) < 0) {
+            DBG_PRINTF_WARNING("socketEnableHwTimestamps: Fallback also failed (errno=%d: %s)\n", errno, strerror(errno));
+            return false;
+        }
+        DBG_PRINTF3("socketEnableHwTimestamps: Enabled TX-only hardware timestamps on %s\n", ifr.ifr_name);
+        return true;
+    }
+
+    DBG_PRINTF3("socketEnableHwTimestamps: Hardware timestamping enabled on %s (tx_type=%d, rx_filter=%d)\n", ifr.ifr_name, hwconfig.tx_type, hwconfig.rx_filter);
+    return true;
+}
+
+#else
+
+// Hardware timestamping not supported on this platform
+// Stub for non-Linux platforms
+bool socketEnableHwTimestamps(SOCKET sock, const char *ifname) {
+    (void)sock;
+    (void)ifname;
+    DBG_PRINT_ERROR("socketEnableHwTimestamps: Hardware timestamping not supported on this platform!\n");
+    return false;
+}
+
+#endif
 
 // Shutdown socket
 // Block rx and tx direction
@@ -685,16 +763,20 @@ int16_t socketRecvFrom(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, uint8_
     SOCKADDR_IN src;
     int16_t n = 0;
 
+    DBG_PRINTF5("socketRecvFrom: sock=%d\n", sock);
+
 #if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
     if (time != NULL) {
+
         struct iovec iov;
         struct msghdr msg;
-        char control[256];
+        char control[256]; // char ctrl[CMSG_SPACE(sizeof(struct timespec) * 3)];
         iov.iov_base = buffer;
         iov.iov_len = bufferSize;
         memset(&msg, 0, sizeof(msg));
         msg.msg_name = &src;
         msg.msg_namelen = sizeof(src);
+        msg.msg_flags = 0;
         msg.msg_iov = &iov;
         msg.msg_iovlen = 1;
         msg.msg_control = control;
@@ -718,17 +800,19 @@ int16_t socketRecvFrom(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, uint8_
         struct timespec *hw = NULL;
         struct timespec *sw = NULL;
         struct cmsghdr *cmsg;
+        uint16_t n = 0;
         for (cmsg = CMSG_FIRSTHDR(&msg); cmsg != NULL; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
-
+            n++;
             // From PTP4L
             int level = cmsg->cmsg_level;
             int type = cmsg->cmsg_type;
-            DBG_PRINTF3("socketRecvFrom: cmsg level=%d type=%d \n", level, type);
+            DBG_PRINTF4("socketRecvFrom: cmsg level=%d type=%d (%s) \n", level, type, (level == SOL_SOCKET && type == SO_TIMESTAMPING) ? "SO_TIMESTAMPING" : "SO_TIMESTAMPNS");
             if (SOL_SOCKET == level && SO_TIMESTAMPING == type) {
                 if (cmsg->cmsg_len < sizeof(struct timespec) * 3) {
                     DBG_PRINT_WARNING("short SO_TIMESTAMPING message");
                     break;
                 }
+                assert(hw == NULL);
                 hw = (struct timespec *)CMSG_DATA(cmsg);
             }
             if (SOL_SOCKET == level && SO_TIMESTAMPNS == type) {
@@ -746,6 +830,10 @@ int16_t socketRecvFrom(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, uint8_
             //     // DBG_PRINTF5("socketRecvFrom: HW timestamp found: %llu ns (sec=%ld, nsec=%ld)\n", (unsigned long long)*time, ts->tv_sec, ts->tv_nsec);
             //     break;
             // }
+        }
+
+        if (n == 0) {
+            DBG_PRINT_WARNING("socketRecvFrom: No control messages received\n");
         }
 
         uint64_t t = 0;
@@ -808,6 +896,8 @@ int16_t socketRecvFrom(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, uint8_
         *port = htons(src.sin_port);
     if (addr)
         memcpy(addr, &src.sin_addr.s_addr, 4);
+
+    DBG_PRINTF5("socketRecvFrom: sock=%d returned n=%u\n", sock, n);
 
     return n;
 }

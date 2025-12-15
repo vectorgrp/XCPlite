@@ -7,7 +7,8 @@
 |
  ----------------------------------------------------------------------------*/
 
-#include <assert.h>  // for assert
+#include <assert.h> // for assert
+#include <math.h>
 #include <signal.h>  // for signal handling
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uintxx_t
@@ -15,6 +16,7 @@
 #include <string.h>  // for sprintf
 
 #include "ptp_cfg.h"
+
 #ifdef OPTION_ENABLE_PTP_OBSERVER
 
 #include "platform.h"
@@ -30,7 +32,8 @@
 
 //-------------------------------------------------------------------------------------------------------
 
-#define MASTER_DRIFT_FILTER_SIZE 16
+#define MASTER_DRIFT_FILTER_SIZE 30
+#define MASTER_JITTER_FILTER_SIZE 16
 
 // PTP client parameters structure
 struct parameters {
@@ -65,34 +68,40 @@ typedef struct {
 #endif
     struct parameters *params; // Pointer to current parameters structure
 
-    // PTP timing values
-    uint64_t path_delay;
-    int64_t master_offset;
-    int64_t master_drift_raw;
-    int64_t master_drift;
-    filter_average_t master_drift_filter;
-
-    uint64_t master_time; // In client clock domain
-    uint64_t client_time; // Client time domain
-
-    uint64_t t1, t2, t3, t4;
-    uint64_t t1_t2_correction, t3_t4_correction;
-    int64_t t1_t2_diff, t3_t4_diff;
-    uint32_t syncUpdate;
-    uint32_t delayUpdate;
-    uint64_t sync_cycle_time;
-    uint64_t flup_duration;
-    uint64_t delay_resp_duration;
-
-    // Master SYNC and FOLLOW_UP values
+    // Master SYNC and FOLLOW_UP measurements
     uint64_t sync_local_time;
     uint64_t sync_master_time;
     uint32_t sync_correction;
     uint16_t sync_sequenceId;
+    uint64_t sync_cycle_time;
     uint8_t sync_steps;
+
     uint64_t flup_master_time;
     uint32_t flup_correction;
     uint16_t flup_sequenceId;
+
+    // PTP timing values
+
+    // Input
+    uint64_t t1, t2;
+    uint64_t t1_t2_correction;
+
+    // Normalization offsets
+    uint64_t t1_offset, t2_offset;
+
+    // Calculated drift
+    int64_t master_drift_raw;
+    int64_t master_drift;
+
+    int64_t master_offset_raw;          // raw offset
+    int64_t master_offset_norm;         // normalized
+    int64_t master_offset_compensation; // normalized master_offset servo compensation
+    int64_t master_offset;              // normalized master_offset
+    int64_t master_jitter;              // jitter
+    double master_jitter_rms;           // jitter RMS
+
+    filter_average_t master_drift_filter;
+    filter_average_t master_jitter_filter;
 
 } tPtpC;
 
@@ -131,22 +140,42 @@ static void syncUpdate(uint64_t t1, uint64_t correction, uint64_t t2) {
 
     char ts1[64], ts2[64];
 
-    // Master drift estimation
+    // t1 - master, t2 - local clock
 
-    if (!(t1 > gPtpC.t1 && t2 > gPtpC.t2)) { // Plausibility checking
+    if (gPtpDebugLevel >= 4) {
+        printf("syncUpdate:\n");
+        printf("  t1 (SYNC tx) = %s (%" PRIu64 ")\n", clockGetString(ts1, sizeof(ts1), t1), t1);
+        printf("  correction     = %" PRIu32 "ns\n", correction);
+        printf("  t2 (SYNC rx)  = %s (%" PRIu64 ")\n", clockGetString(ts2, sizeof(ts2), t2), t2);
+    }
+
+    // Master drift estimation from SYNC messages t1/t2
+    // Plausibility checking
+    if (!(t1 > gPtpC.t1 && t2 > gPtpC.t2)) {
         assert(0);
-    } else if (gPtpC.t1 == 0 || gPtpC.t2 == 0) { // First round, init
-        gPtpC.t1 = t1;                           // sync tx time on master clock
-        gPtpC.t2 = t2;                           // sync rx time on slave clock
-    } else {
+    }
+    // First round, init
+    else if (gPtpC.t1 == 0 || gPtpC.t2 == 0) {
+        gPtpC.t1 = t1; // sync tx time on master clock
+        gPtpC.t2 = t2; // sync rx time on slave clock
 
+        // Normalize time offsets for t1,t2
+        gPtpC.t1_offset = t1;
+        gPtpC.t2_offset = t2;
+    }
+
+    // Analysis
+    else {
+
+        // Time differences since last SYNC, with correction applied to master time
         uint64_t c1, c2;
-        c1 = t1 - gPtpC.t1; // time since last sync on master clock
-        c2 = t2 - gPtpC.t2; // time since last sync on slave clock
+        c1 = (int64_t)(t1 + correction) - (int64_t)(gPtpC.t1 + gPtpC.t1_t2_correction); // time since last sync on master clock
+        c2 = t2 - gPtpC.t2;                                                             // time since last sync on local clock
         assert(c1 < 0x8000000000000000);
         assert(c2 < 0x8000000000000000);
 
-        int64_t diff = c2 - c1;
+        // Drift calculation
+        int64_t diff = c2 - c1;                 // Positive diff = master clock faster than local clock
         if (diff < -200000 || diff > +200000) { // Plausibility checking of absolute drift (max 200us per cycle)
             printf("WARNING: Master drift too high! dt=%lldns \n", diff);
         } else {
@@ -154,13 +183,52 @@ static void syncUpdate(uint64_t t1, uint64_t correction, uint64_t t2) {
             gPtpC.master_drift_raw = diff * 1000000000 / (int64_t)c2; // Drift in ns/s (1/1000 ppm)
             gPtpC.master_drift = average_calc(&gPtpC.master_drift_filter, gPtpC.master_drift_raw);
         }
+        if (gPtpDebugLevel >= 3) {
+            printf("  master_drift     = %" PRIi64 "ns/s\n", gPtpC.master_drift);
+        }
+
+        // Master offset
+        // @@@@ TODO apply correction
+        gPtpC.master_offset_raw = (int64_t)t1 - (int64_t)t2; // Positive master_offset means master is ahead
+        gPtpC.master_offset_norm = (int64_t)(t1 - gPtpC.t1_offset) - (int64_t)(t2 - gPtpC.t2_offset);
+        if (gPtpC.master_offset_compensation == 0) {
+            // Initialize compensation
+            gPtpC.master_offset_compensation = gPtpC.master_offset_norm;
+        } else {
+            // Compensate drift
+            gPtpC.master_offset_compensation += (gPtpC.master_drift * (int64_t)gPtpC.sync_cycle_time) / 1000000000;
+        }
+
+        gPtpC.master_offset = gPtpC.master_offset_norm + gPtpC.master_offset_compensation;
+        {
+            // Simple offset servo
+            int64_t offset_error = gPtpC.master_offset;
+            const int64_t kp = 3; // Integral gain (1/10)
+            gPtpC.master_offset_compensation -= (kp * offset_error) / 10;
+        }
+
+        if (gPtpDebugLevel >= 3) {
+            printf("  cycle_time          = %" PRIi64 "ns\n", gPtpC.sync_cycle_time);
+            printf("  master_offset_raw   = %" PRIi64 "ns\n", gPtpC.master_offset_raw);
+            printf("  master_offset_norm  = %" PRIi64 "ns\n", gPtpC.master_offset_norm);
+            printf("  master_offset_comp  = %" PRIi64 "ns\n", gPtpC.master_offset_compensation);
+            printf("  master_offset       = %" PRIi64 "ns\n", gPtpC.master_offset);
+        }
+
+        // Jitter
+        gPtpC.master_jitter = gPtpC.master_offset_norm + gPtpC.master_offset_compensation;
+        gPtpC.master_jitter_rms = sqrt((double)average_calc(&gPtpC.master_jitter_filter, gPtpC.master_jitter * gPtpC.master_jitter));
+        if (gPtpDebugLevel >= 3) {
+            printf("  master_jitter       = %" PRIi64 "ns\n", gPtpC.master_jitter);
+            printf("  master_jitter_rms   = %gns\n", gPtpC.master_jitter_rms);
+        }
     }
 
+    // Remember last input values
     gPtpC.t1 = t1; // sync tx time on master clock
     gPtpC.t2 = t2; // sync rx time on slave clock
     gPtpC.t1_t2_correction = correction;
-    gPtpC.t1_t2_diff = t2 - t1;
-    gPtpC.syncUpdate++;
+
 #ifdef OPTION_ENABLE_PTP_XCP
     XcpEvent(gPtpC_syncEvent);
 #endif
@@ -172,7 +240,7 @@ static void syncUpdate(uint64_t t1, uint64_t correction, uint64_t t2) {
 //-------------------------------------------------------------------------------------------------------
 // PTP protocol message handler
 
-static void ptpPrintFrame(struct ptphdr *ptp, uint8_t *addr) {
+static void ptpPrintFrame(struct ptphdr *ptp, uint8_t *addr, uint32_t rx_timestamp) {
 
     const char *s = NULL;
     switch (ptp->type) {
@@ -211,8 +279,8 @@ static void ptpPrintFrame(struct ptphdr *ptp, uint8_t *addr) {
         break;
     }
     if (s != NULL) {
-        printf("%s from %u.%u.%u.%u - %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X", s, addr[0], addr[1], addr[2], addr[3], ptp->clockId[0], ptp->clockId[1], ptp->clockId[2],
-               ptp->clockId[3], ptp->clockId[4], ptp->clockId[5], ptp->clockId[6], ptp->clockId[7]);
+        printf("%s (seqId=%u, timestamp= %" PRIu64 " from %u.%u.%u.%u - %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X", s, htons(ptp->sequenceId), rx_timestamp, addr[0], addr[1],
+               addr[2], addr[3], ptp->clockId[0], ptp->clockId[1], ptp->clockId[2], ptp->clockId[3], ptp->clockId[4], ptp->clockId[5], ptp->clockId[6], ptp->clockId[7]);
         if (ptp->type == PTP_DELAY_RESP)
             printf("  to %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X", ptp->u.r.clockId[0], ptp->u.r.clockId[1], ptp->u.r.clockId[2], ptp->u.r.clockId[3], ptp->u.r.clockId[4],
                    ptp->u.r.clockId[5], ptp->u.r.clockId[6], ptp->u.r.clockId[7]);
@@ -228,6 +296,10 @@ static bool ptpHandleFrame(int n, struct ptphdr *ptp, uint8_t *addr, uint64_t ti
 
             if (ptp->type == PTP_SYNC || ptp->type == PTP_FOLLOW_UP) {
                 if (ptp->type == PTP_SYNC) {
+                    if (timestamp == 0) {
+                        printf("WARNING: PTP SYNC received without timestamp!\n");
+                        return false;
+                    }
                     gPtpC.sync_local_time = timestamp;
                     gPtpC.sync_master_time = htonl(ptp->timestamp.timestamp_s) * 1000000000ULL + htonl(ptp->timestamp.timestamp_ns);
                     gPtpC.sync_sequenceId = htons(ptp->sequenceId);
@@ -239,7 +311,7 @@ static bool ptpHandleFrame(int n, struct ptphdr *ptp, uint8_t *addr, uint64_t ti
                         syncUpdate(gPtpC.sync_master_time, gPtpC.sync_correction, gPtpC.sync_local_time);
                     }
                 } else {
-                    gPtpC.flup_duration = timestamp - gPtpC.sync_local_time;
+
                     gPtpC.flup_master_time = htonl(ptp->timestamp.timestamp_s) * 1000000000ULL + htonl(ptp->timestamp.timestamp_ns);
                     gPtpC.flup_sequenceId = htons(ptp->sequenceId);
                     gPtpC.flup_correction = (uint32_t)(htonll(ptp->correction) >> 16);
@@ -285,15 +357,13 @@ static void *ptpThread319(void *par)
         n = socketRecvFrom(gPtpC.sock319, buffer, (uint16_t)sizeof(buffer), addr, NULL, &rxTime);
         if (n <= 0)
             break; // Terminate on error or socket close
-        if (rxTime == 0)
-            break; // Invalid time
         mutexLock(&gPtpC.mutex);
+        if (gPtpDebugLevel >= 3)
+            ptpPrintFrame((struct ptphdr *)buffer, addr, rxTime); // Print incoming PTP traffic
         ptpHandleFrame(n, (struct ptphdr *)buffer, addr, rxTime);
         mutexUnlock(&gPtpC.mutex);
-        if (gPtpDebugLevel >= 3)
-            ptpPrintFrame((struct ptphdr *)buffer, addr); // Print incoming PTP traffic
     }
-    if (gPtpDebugLevel >= 4)
+    if (gPtpDebugLevel >= 3)
         printf("Terminate PTP multicast 319 thread\n");
     socketClose(&gPtpC.sock319);
     return 0;
@@ -301,6 +371,7 @@ static void *ptpThread319(void *par)
 
 // General messages (Announce, Follow_Up, Delay_Resp) on port 320
 // To keep track of other master activities
+// Does not need rx timestamping
 #if defined(_WIN) // Windows
 static DWORD WINAPI ptpThread320(LPVOID par)
 #else
@@ -314,18 +385,16 @@ static void *ptpThread320(void *par)
 
     (void)par;
     for (;;) {
-        n = socketRecvFrom(gPtpC.sock320, buffer, (uint16_t)sizeof(buffer), addr, NULL, &rxTime);
+        n = socketRecvFrom(gPtpC.sock320, buffer, (uint16_t)sizeof(buffer), addr, NULL, NULL);
         if (n <= 0)
             break; // Terminate on error or socket close
-        if (rxTime == 0)
-            break; // Invalid time
         mutexLock(&gPtpC.mutex);
-        ptpHandleFrame(n, (struct ptphdr *)buffer, addr, rxTime);
-        mutexUnlock(&gPtpC.mutex);
         if (gPtpDebugLevel >= 3)
-            ptpPrintFrame((struct ptphdr *)buffer, addr); // Print incoming PTP traffic
+            ptpPrintFrame((struct ptphdr *)buffer, addr, 0); // Print incoming PTP traffic
+        ptpHandleFrame(n, (struct ptphdr *)buffer, addr, 0);
+        mutexUnlock(&gPtpC.mutex);
     }
-    if (gPtpDebugLevel >= 4)
+    if (gPtpDebugLevel >= 3)
         printf("Terminate PTP multicast 320 thread\n");
     socketClose(&gPtpC.sock320);
     return 0;
@@ -354,9 +423,7 @@ void ptpObserverCreateA2lDescription() {
     A2lCreateMeasurement(gPtpC.flup_master_time, "FOLLOW_UP timestamp");
     A2lCreateMeasurement(gPtpC.flup_sequenceId, "FOLLOW_UP sequence counter");
     A2lCreateMeasurement(gPtpC.flup_correction, "FOLLOW_UP correction");
-    A2lCreatePhysMeasurement(gPtpC.flup_duration, "FOLLOW_UP duration time after SYNC", "ms", 0.000001, 0.0);
 
-    A2lCreatePhysMeasurement(gPtpC.t1_t2_diff, "", "ns", 1.0, 0.0);
     A2lCreatePhysMeasurement(gPtpC.t1_t2_correction, "", "ns", 1.0, 0.0);
     A2lCreatePhysMeasurement(gPtpC.t1, "", "ns", 1.0, 0.0);
     A2lCreatePhysMeasurement(gPtpC.t2, "", "ns", 1.0, 0.0);
@@ -364,6 +431,13 @@ void ptpObserverCreateA2lDescription() {
 
     A2lCreatePhysMeasurement(gPtpC.master_drift_raw, "", "ppm", 0.001, 0.0);
     A2lCreatePhysMeasurement(gPtpC.master_drift, "", "ppm", 0.001, 0.0);
+    A2lCreatePhysMeasurement(gPtpC.master_offset_raw, "", "ns", -1000000, +1000000);
+    A2lCreatePhysMeasurement(gPtpC.master_offset_norm, "", "ns", -1000000, +1000000);
+    A2lCreatePhysMeasurement(gPtpC.master_offset_compensation, "", "ns", -1000, +1000);
+    A2lCreatePhysMeasurement(gPtpC.master_offset, "", "ns", -1000, +1000);
+
+    A2lCreatePhysMeasurement(gPtpC.master_jitter, "offset jitter raw value", "ns", -1000, +1000);
+    A2lCreatePhysMeasurement(gPtpC.master_jitter_rms, "Jitter root mean square", "ns", -1000, +1000);
 
     // Parameters
     gPtpC.params_calseg = XcpCreateCalSeg("params", &kParameters, sizeof(kParameters));
@@ -393,11 +467,15 @@ bool ptpObserverInit(uint8_t domain, uint8_t *bindAddr) {
     gPtpC.t1 = 0;
     gPtpC.t2 = 0;
     gPtpC.t1_t2_correction = 0;
-    gPtpC.syncUpdate = 0;
-
     gPtpC.master_drift_raw = 0;
     gPtpC.master_drift = 0;
+    gPtpC.master_offset_raw = 0;
+    gPtpC.master_offset_norm = 0;
+    gPtpC.master_jitter = 0;
+    gPtpC.master_jitter_rms = 0;
+    gPtpC.master_offset_compensation = 0;
     average_init(&gPtpC.master_drift_filter, MASTER_DRIFT_FILTER_SIZE);
+    average_init(&gPtpC.master_jitter_filter, MASTER_JITTER_FILTER_SIZE);
 
     mutexInit(&gPtpC.mutex, 0, 1000);
 
@@ -406,14 +484,25 @@ bool ptpObserverInit(uint8_t domain, uint8_t *bindAddr) {
 
     // Create XL-API sockets for event (319) and general messages (320)
     gPtpC.sock319 = gPtpC.sock320 = INVALID_SOCKET;
+
+    // SYNC tx, DELAY_REQ - with rx timestamps
     if (!socketOpen(&gPtpC.sock319, false /* useTCP */, false /*nonblocking*/, true /*reusable*/, true /* timestamps*/))
-        return false; // SYNC tx, DELAY_REQ rx timestamps
+        return false;
+    if (!socketBind(gPtpC.sock319, bindAddr, 319))
+        return false;
+    // General messages ANNOUNCE, FOLLOW_UP, DELAY_RESP - without rx timestamps
     if (!socketOpen(&gPtpC.sock320, false /* useTCP */, false /*nonblocking*/, true /*reusable*/, false /* timestamps*/))
         return false;
     if (!socketBind(gPtpC.sock320, bindAddr, 320))
         return false;
-    if (!socketBind(gPtpC.sock319, bindAddr, 319))
-        return false;
+
+    // Try to enable hardware timestamps (requires root privileges)
+    // This is optional - software timestamps from SO_TIMESTAMPING will still work
+    if (!socketEnableHwTimestamps(gPtpC.sock319, "eth0")) {
+        if (gPtpDebugLevel >= 2)
+            printf("  WARNING: Hardware timestamping not enabled (may need root), using software timestamps\n");
+    }
+
     if (gPtpDebugLevel >= 2)
         printf("  Bound PTP sockets to %u.%u.%u.%u:320/319\n", bindAddr[0], bindAddr[1], bindAddr[2], bindAddr[3]);
     if (gPtpDebugLevel >= 2)
@@ -424,6 +513,11 @@ bool ptpObserverInit(uint8_t domain, uint8_t *bindAddr) {
         return false;
     if (!socketJoin(gPtpC.sock320, gPtpC.maddr))
         return false;
+
+#ifdef OPTION_ENABLE_PTP_XCP
+    ptpObserverCreateXcpEvents();
+    ptpObserverCreateA2lDescription();
+#endif
 
     // Start all PTP threads
     create_thread(&gPtpC.threadHandle320, ptpThread320);
