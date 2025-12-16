@@ -10,8 +10,8 @@ PrgDate=16.06.2025
 Description=
 CreationTime=21:05
 CreationDate=07/07/2024 ; Month/Day/Year
-ModificationTime=20:30
-ModificationDate=12/15/2025 ; Month/Day/Year
+ModificationTime=18:28
+ModificationDate=12/16/2025 ; Month/Day/Year
 Protected=0
 CurrentWindowsACP=1252
 
@@ -33,7 +33,20 @@ DisplayCount=0
 Count=0
 
 [CALIBRATION_LIST]
-Count=0
+Count=1
+
+[CALIBRATION_OBJECT_1]
+EditOffset=1
+EditFactor=2
+EditFormat=2
+ShowWorkingPoint=0
+FollowWorkingPoint=0
+OverwriteWorkingPointInputX=
+OverwriteWorkingPointInputY=
+Module=xcp_demo
+Name=params.reset
+StimMode=0
+IsFallback=0
 
 [CANAPE_ENVIRONMENT]
 OBJECT_COUNT=0
@@ -44,8 +57,19 @@ COUNT=0
 [CUSTOM_TIME_AXIS_TEMPLATE_LIST]
 COUNT=0
 
+[DataFlow_0]
+DataFlowName=
+RuntimeType=0
+IsPinned=0
+IsLost=0
+ZoomFactor=1
+Function_0=VIRTUAL:"CalculateJitter"
+VIRTUAL:"CalculateJitter"_PlacementState=2
+VIRTUAL:"CalculateJitter"_X=50
+VIRTUAL:"CalculateJitter"_Y=100
+
 [DATAFLOW_LIST]
-Count=0
+Count=1
 
 [DATAMINING]
 AnalysisFilename=Analysis-{YEAR}-{MONTH}-{DAY}_{HOUR}-{MINUTE}-{SECOND}
@@ -78,7 +102,7 @@ Count=0
 Name=Measurement and Calibration Demo
 Comment=
 Maximized=0
-ActiveWindow=7
+ActiveWindow=8
 IsReportPage=0
 TimeAxisSynchronized=0
 PrintLayout=Default
@@ -137,8 +161,101 @@ COUNT=5
 4=  return diffTime(x);
 5=}
 
+[FUNCTION_2]
+NAME=CalculateJitter
+COMMENT=
+COUNT=88
+1=// Function: CalculateJitter
+2=// Purpose: Detrends time difference data by removing linear drift, returning flat jitter values
+3=// Input: timeDiffGM - time difference in SECONDS(T1-T2) 
+4=//        timeStamp->T2- timestamp in NANOSECONDS (time(T1) function also returns nanoseconds)
+5=// Output: Detrended time difference (delta_flat) in NANOSECONDS
+6=function CalculateJitter (double timeDiffGM_ns, double timeStamp_ns)
+7={
+8=
+9=double timeDiffGM = 0;
+10=timeDiffGM = timeDiffGM_ns / 1.0e9;
+11=double timeStamp = 0;
+12=timeStamp = timeStamp_ns /  1.0e9;
+13=
+14=// Static variables persist across function calls to track state
+15=  static double T2_initial_timestamp = 0;  // First timestamp in seconds (reference point)
+16=  static double T2_initial_timeDiff = 0;   // First time difference in seconds (y-intercept)
+17=  static double calculated_slope = 0;      // Calculated drift rate in seconds/second
+18=  static int first_call = 1;               // Flag to detect first function call
+19=  static double prev_timestamp = 0;        // Previous timestamp in seconds
+20=  static double prev_timeDiff = 0;         // Previous time difference in seconds
+21=  
+22=  // Local variables for current calculation
+23=  double T2_current_timestamp = 0;   // Current timestamp in seconds
+24=  double slopexTime = 0;             // Linear trend value: slope × time (seconds)
+25=  double delta_flat = 0;             // Detrended result in seconds
+26=  double delta_time = 0;             // Time elapsed since previous point (seconds)
+27=  double relative_time = 0;          // Time elapsed since initial point (seconds)
+28=  double delta_value = 0;            // Change in timeDiffGM since previous point (seconds)
+29=  
+30=  // ===== INITIALIZATION: First data point becomes reference (time = 0) =====
+31=  if (first_call)
+32=  {
+33=    T2_initial_timestamp = timeStamp;  // Convert nanoseconds to seconds
+34=    T2_initial_timeDiff = timeDiffGM;            // Store first time difference (seconds)
+35=    prev_timestamp = T2_initial_timestamp;       // Initialize previous timestamp
+36=    prev_timeDiff = timeDiffGM;                  // Initialize previous time difference
+37=    first_call = 0;                              // Clear first call flag
+38=    
+39=    Write("T2_initial_timestamp = %g s", T2_initial_timestamp);
+40=    Write("T2_initial_timeDiff = %g s", T2_initial_timeDiff);
+41=    
+42=    return 0;  // First point has zero jitter (reference point)
+43=  }
+44=  
+45=  // ===== CALCULATE DRIFT (SLOPE) from consecutive data points =====
+46=  T2_current_timestamp = timeStamp;  // Convert current timestamp to seconds
+47=  
+48=  // Calculate time elapsed since previous data point (seconds)
+49=  delta_time = T2_current_timestamp - prev_timestamp;
+50=  
+51=  // Calculate change in time difference since previous point (seconds)
+52=  delta_value = timeDiffGM - prev_timeDiff;
+53=  
+54=  // Calculate instantaneous slope between last two points
+55=  // slope = ?y / ?x = (change in time difference) / (change in time)
+56=  // Units: seconds / seconds = dimensionless (or s/s)
+57=  if (delta_time > 0)
+58=  {
+59=    calculated_slope = delta_value / delta_time;
+60=  }
+61=  
+62=  // ===== DETREND: Remove linear component to flatten the data =====
+63=  
+64=  // Calculate time elapsed since initial reference point (seconds)
+65=  relative_time = T2_current_timestamp - T2_initial_timestamp;
+66=  
+67=  // Calculate expected linear trend value at current time
+68=  // Using point-slope form: y = mx + b, where b is T2_initial_timeDiff
+69=  slopexTime = calculated_slope * relative_time;  // mx term (seconds)
+70=  
+71=  // Remove linear trend: actual value - predicted linear value
+72=  // This centers the data around zero, showing only deviations from the trend
+73=  delta_flat = timeDiffGM - (slopexTime + T2_initial_timeDiff);  // Result in seconds
+74=  
+75=  // ===== UPDATE STATE for next iteration =====
+76=  prev_timestamp = T2_current_timestamp;
+77=  prev_timeDiff = timeDiffGM;
+78=  
+79=  // ===== CONVERT OUTPUT to nanoseconds =====
+80=  return -delta_flat * 1e9;  // Convert seconds to nanoseconds
+81=}
+82=
+83=
+84=
+85=
+86=
+87=
+88=
+
 [FUNCTION_OBJECT_1]
-Number=1
+Number=4
 Unit=
 Components=0
 TimeSeriesSaveMode=0
@@ -224,11 +341,112 @@ InitialValue=0
 IsParameterFunctionResult=0
 Module=xcp_demo
 
+[FUNCTION_OBJECT_2]
+Number=24
+Unit=
+Components=0
+TimeSeriesSaveMode=0
+StimMode=0
+Name=CalculateJitter
+ObjectType=1
+TextFormula=CalculateJitter
+Disabled=0
+FromLibrary=0
+BurstSensitivity=10
+LPcount=0
+Formula=0
+Precision=-1
+HasInitialValue=0
+InitialValue=0
+NumberOfInputSignals=2
+Module=Functions
+Mode=5
+Rate=0
+ModeIsDefault=0
+ModeModule=xcp_demo
+ModeName=1,"PTP_SYNC" "xcp_demo"
+Row=0
+Column=0
+MeaReferenced=1
+ArchivBy_1=Recorder1
+IsFallback=0
+DisplayCount=1
+
+[FUNCTION_OBJECT_2_DISPLAY_1]
+Window=2
+Index=0
+Color=65280
+ApplyColorToBackground=0
+ColorFunction=0
+ColorFunctionScope=1
+LineTyp=2
+YMinHome=-50
+YMaxHome=50
+YMin=-39.9212674697
+YMax=67.4529149303
+XOffsetNS=0
+XOffset=0
+ValueFormat=3
+BitMask=1
+ShowYAxis=1
+Width=10
+LineStyle=1
+MarkerType=1
+SRMainValue=0
+InvalidValueDrawMode=3
+LineWidth=1
+Precision=-2
+Digits=6
+Enabled=0
+StoredFocused=0
+SublMask=1
+MeaSublMask=3
+LockScaling=0
+RightAxis=0
+MapMode=2
+OverlayGridColor=0
+ShadingMode=3
+EditOffset=1
+EditFactor=2
+WAxisLabel=
+XAxisLabel=
+YAxisLabel=
+AxisCaption=
+Row=0
+Col=0
+YAxis_ID=1
+AxisTemplate=
+GUID=DISPLAY_092e3383-fdd1-479d-8793-ad0be3683a0f
+
+[FUNCTION_OBJECT_2_INPUTSIG_1]
+Name=gPtpC.master_offset_norm
+SymbolName=timeDiffGM_ns
+LinkedObjectIdentifier=DEVICE:"xcp_demo":"gPtpC.master_offset_norm":M
+FormatPhy=1
+IsOutput=0
+ObjectType=8
+HasInitialValue=0
+InitialValue=0
+IsParameterFunctionResult=0
+Module=xcp_demo
+
+[FUNCTION_OBJECT_2_INPUTSIG_2]
+Name=gPtpC.t2_norm
+SymbolName=timeStamp_ns
+LinkedObjectIdentifier=DEVICE:"xcp_demo":"gPtpC.t2_norm":M
+FormatPhy=1
+IsOutput=0
+ObjectType=8
+HasInitialValue=0
+InitialValue=0
+IsParameterFunctionResult=0
+Module=xcp_demo
+
 [FUNCTION_OBJECT_LIST]
-count=1
+count=2
 
 [FUNCTIONS]
-COUNT=1
+COUNT=2
 COUNT_LIBRARY=0
 
 [GFX_VISUALIZATION]
@@ -247,7 +465,7 @@ SubConfigsCount=0
 Count=0
 
 [MEASUREMENT_LIST]
-Count=20
+Count=23
 OfflineFileName=xcp_demo.mf4
 OfflineFileCount=1
 MeaCfgLabellistName=
@@ -269,67 +487,6 @@ DisplayCount=1
 
 [MEASUREMENT_OBJECT_10]
 Module=xcp_demo
-Name=gPtpC.master_offset_norm
-Disabled=0
-Mode=2147483648
-Rate=0
-ModeIsDefault=1
-Row=0
-Column=0
-MeaReferenced=1
-ArchivBy_1=Recorder1
-IsFallback=0
-HasManagedDisplay=0
-DisplayCount=1
-
-[MEASUREMENT_OBJECT_10_DISPLAY_1]
-Window=6
-Index=10
-Color=204
-ApplyColorToBackground=0
-ColorFunction=0
-ColorFunctionScope=1
-LineTyp=2
-YMinHome=0
-YMaxHome=100
-YMin=0
-YMax=100
-XOffsetNS=0
-XOffset=0
-ValueFormat=3
-BitMask=1
-ShowYAxis=1
-Width=10
-LineStyle=1
-MarkerType=1
-SRMainValue=0
-InvalidValueDrawMode=3
-LineWidth=1
-Precision=-2
-Digits=6
-Enabled=1
-StoredFocused=0
-SublMask=1
-MeaSublMask=0
-LockScaling=0
-RightAxis=0
-MapMode=2
-OverlayGridColor=0
-ShadingMode=3
-EditOffset=1
-EditFactor=2
-WAxisLabel=
-XAxisLabel=
-YAxisLabel=
-AxisCaption=
-Row=0
-Col=0
-YAxis_ID=0
-AxisTemplate=
-GUID=DISPLAY_9ecee2f1-7443-4819-8812-4673a26be064
-
-[MEASUREMENT_OBJECT_11]
-Module=xcp_demo
 Name=gPtpC.master_offset_raw
 Disabled=0
 Mode=2147483648
@@ -343,7 +500,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_11_DISPLAY_1]
+[MEASUREMENT_OBJECT_10_DISPLAY_1]
 Window=6
 Index=9
 Color=28784
@@ -389,7 +546,98 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_4f9dfe9c-b838-41fa-ba48-4665a333d967
 
+[MEASUREMENT_OBJECT_11]
+Module=xcp_demo
+Name=gPtpC.t1_norm
+Disabled=0
+Mode=2147483648
+Rate=0
+ModeIsDefault=1
+Row=0
+Column=0
+MeaReferenced=1
+ArchivBy_1=Recorder1
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=0
+
 [MEASUREMENT_OBJECT_12]
+Module=xcp_demo
+Name=gPtpC.t2_norm
+Disabled=0
+Mode=2147483648
+Rate=0
+ModeIsDefault=1
+Row=0
+Column=0
+MeaReferenced=1
+ArchivBy_1=Recorder1
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=0
+
+[MEASUREMENT_OBJECT_13]
+Module=xcp_demo
+Name=gPtpC.master_offset_norm
+Disabled=0
+Mode=2147483648
+Rate=0
+ModeIsDefault=1
+Row=0
+Column=0
+MeaReferenced=1
+ArchivBy_1=Recorder1
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=1
+
+[MEASUREMENT_OBJECT_13_DISPLAY_1]
+Window=6
+Index=10
+Color=204
+ApplyColorToBackground=0
+ColorFunction=0
+ColorFunctionScope=1
+LineTyp=2
+YMinHome=0
+YMaxHome=100
+YMin=0
+YMax=100
+XOffsetNS=0
+XOffset=0
+ValueFormat=3
+BitMask=1
+ShowYAxis=1
+Width=10
+LineStyle=1
+MarkerType=1
+SRMainValue=0
+InvalidValueDrawMode=3
+LineWidth=1
+Precision=-2
+Digits=6
+Enabled=1
+StoredFocused=0
+SublMask=1
+MeaSublMask=0
+LockScaling=0
+RightAxis=0
+MapMode=2
+OverlayGridColor=0
+ShadingMode=3
+EditOffset=1
+EditFactor=2
+WAxisLabel=
+XAxisLabel=
+YAxisLabel=
+AxisCaption=
+Row=0
+Col=0
+YAxis_ID=0
+AxisTemplate=
+GUID=DISPLAY_9ecee2f1-7443-4819-8812-4673a26be064
+
+[MEASUREMENT_OBJECT_14]
 Module=xcp_demo
 Name=gPtpC.sync_correction
 Disabled=0
@@ -404,7 +652,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_12_DISPLAY_1]
+[MEASUREMENT_OBJECT_14_DISPLAY_1]
 Window=6
 Index=8
 Color=16755200
@@ -450,7 +698,7 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_6b866970-b472-4786-9da6-778902c2aee6
 
-[MEASUREMENT_OBJECT_13]
+[MEASUREMENT_OBJECT_15]
 Module=xcp_demo
 Name=gPtpC.sync_cycle_time
 Disabled=0
@@ -465,7 +713,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=3
 
-[MEASUREMENT_OBJECT_13_DISPLAY_1]
+[MEASUREMENT_OBJECT_15_DISPLAY_1]
 Window=6
 Index=7
 Color=16711850
@@ -511,7 +759,7 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_eb3423cc-758b-47e9-994a-e5ed6c5f358a
 
-[MEASUREMENT_OBJECT_13_DISPLAY_2]
+[MEASUREMENT_OBJECT_15_DISPLAY_2]
 Window=7
 Index=1
 Color=16711850
@@ -557,7 +805,7 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_80a4656c-d0b2-485b-bf9b-536832c13bef
 
-[MEASUREMENT_OBJECT_13_DISPLAY_3]
+[MEASUREMENT_OBJECT_15_DISPLAY_3]
 Window=5
 Index=0
 Color=16711850
@@ -603,7 +851,7 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_82860d37-23e5-4f4f-956d-9247081b7a86
 
-[MEASUREMENT_OBJECT_14]
+[MEASUREMENT_OBJECT_16]
 Module=xcp_demo
 Name=gPtpC.sync_local_time
 Disabled=0
@@ -618,7 +866,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_14_DISPLAY_1]
+[MEASUREMENT_OBJECT_16_DISPLAY_1]
 Window=6
 Index=6
 Color=21930
@@ -664,7 +912,7 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_cb849479-3be7-497f-b410-6a4b0a1263fc
 
-[MEASUREMENT_OBJECT_15]
+[MEASUREMENT_OBJECT_17]
 Module=xcp_demo
 Name=gPtpC.sync_master_time
 Disabled=0
@@ -679,7 +927,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_15_DISPLAY_1]
+[MEASUREMENT_OBJECT_17_DISPLAY_1]
 Window=6
 Index=5
 Color=11162965
@@ -725,7 +973,7 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_8e53e12d-54af-4179-95a2-42a3d9400673
 
-[MEASUREMENT_OBJECT_16]
+[MEASUREMENT_OBJECT_18]
 Module=xcp_demo
 Name=gPtpC.sync_sequenceId
 Disabled=0
@@ -740,7 +988,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_16_DISPLAY_1]
+[MEASUREMENT_OBJECT_18_DISPLAY_1]
 Window=6
 Index=4
 Color=11206655
@@ -786,7 +1034,7 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_6d0c9f07-ed73-4c87-9c3d-7d5f0bad7712
 
-[MEASUREMENT_OBJECT_17]
+[MEASUREMENT_OBJECT_19]
 Module=xcp_demo
 Name=gPtpC.sync_steps
 Disabled=0
@@ -801,7 +1049,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_17_DISPLAY_1]
+[MEASUREMENT_OBJECT_19_DISPLAY_1]
 Window=6
 Index=3
 Color=65450
@@ -846,128 +1094,6 @@ Col=0
 YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_b725d358-48a6-4dfa-a8ff-e1f7086f6fe2
-
-[MEASUREMENT_OBJECT_18]
-Module=xcp_demo
-Name=gPtpC.t1
-Disabled=0
-Mode=2147483648
-Rate=0
-ModeIsDefault=1
-Row=0
-Column=0
-MeaReferenced=1
-ArchivBy_1=Recorder1
-IsFallback=0
-HasManagedDisplay=0
-DisplayCount=1
-
-[MEASUREMENT_OBJECT_18_DISPLAY_1]
-Window=6
-Index=2
-Color=8421631
-ApplyColorToBackground=0
-ColorFunction=0
-ColorFunctionScope=1
-LineTyp=2
-YMinHome=0
-YMaxHome=100
-YMin=0
-YMax=100
-XOffsetNS=0
-XOffset=0
-ValueFormat=3
-BitMask=1
-ShowYAxis=1
-Width=10
-LineStyle=1
-MarkerType=1
-SRMainValue=0
-InvalidValueDrawMode=3
-LineWidth=1
-Precision=-2
-Digits=6
-Enabled=1
-StoredFocused=0
-SublMask=1
-MeaSublMask=0
-LockScaling=0
-RightAxis=0
-MapMode=2
-OverlayGridColor=0
-ShadingMode=3
-EditOffset=1
-EditFactor=2
-WAxisLabel=
-XAxisLabel=
-YAxisLabel=
-AxisCaption=
-Row=0
-Col=0
-YAxis_ID=0
-AxisTemplate=
-GUID=DISPLAY_417b248b-1d9d-4216-a5f7-678b280b5fde
-
-[MEASUREMENT_OBJECT_19]
-Module=xcp_demo
-Name=gPtpC.t1_t2_correction
-Disabled=0
-Mode=2147483648
-Rate=0
-ModeIsDefault=1
-Row=0
-Column=0
-MeaReferenced=1
-ArchivBy_1=Recorder1
-IsFallback=0
-HasManagedDisplay=0
-DisplayCount=1
-
-[MEASUREMENT_OBJECT_19_DISPLAY_1]
-Window=6
-Index=1
-Color=43690
-ApplyColorToBackground=0
-ColorFunction=0
-ColorFunctionScope=1
-LineTyp=2
-YMinHome=0
-YMaxHome=100
-YMin=0
-YMax=100
-XOffsetNS=0
-XOffset=0
-ValueFormat=3
-BitMask=1
-ShowYAxis=1
-Width=10
-LineStyle=1
-MarkerType=1
-SRMainValue=0
-InvalidValueDrawMode=3
-LineWidth=1
-Precision=-2
-Digits=6
-Enabled=1
-StoredFocused=0
-SublMask=1
-MeaSublMask=0
-LockScaling=0
-RightAxis=0
-MapMode=2
-OverlayGridColor=0
-ShadingMode=3
-EditOffset=1
-EditFactor=2
-WAxisLabel=
-XAxisLabel=
-YAxisLabel=
-AxisCaption=
-Row=0
-Col=0
-YAxis_ID=0
-AxisTemplate=
-GUID=DISPLAY_d34a2d2c-58b7-46f9-bdcb-14b7a737d504
 
 [MEASUREMENT_OBJECT_1_DISPLAY_1]
 Window=6
@@ -1032,7 +1158,7 @@ DisplayCount=1
 
 [MEASUREMENT_OBJECT_20]
 Module=xcp_demo
-Name=gPtpC.t2
+Name=gPtpC.t1
 Disabled=0
 Mode=2147483648
 Rate=0
@@ -1046,6 +1172,128 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_20_DISPLAY_1]
+Window=6
+Index=2
+Color=8421631
+ApplyColorToBackground=0
+ColorFunction=0
+ColorFunctionScope=1
+LineTyp=2
+YMinHome=0
+YMaxHome=100
+YMin=0
+YMax=100
+XOffsetNS=0
+XOffset=0
+ValueFormat=3
+BitMask=1
+ShowYAxis=1
+Width=10
+LineStyle=1
+MarkerType=1
+SRMainValue=0
+InvalidValueDrawMode=3
+LineWidth=1
+Precision=-2
+Digits=6
+Enabled=1
+StoredFocused=0
+SublMask=1
+MeaSublMask=0
+LockScaling=0
+RightAxis=0
+MapMode=2
+OverlayGridColor=0
+ShadingMode=3
+EditOffset=1
+EditFactor=2
+WAxisLabel=
+XAxisLabel=
+YAxisLabel=
+AxisCaption=
+Row=0
+Col=0
+YAxis_ID=0
+AxisTemplate=
+GUID=DISPLAY_417b248b-1d9d-4216-a5f7-678b280b5fde
+
+[MEASUREMENT_OBJECT_21]
+Module=xcp_demo
+Name=gPtpC.t1_t2_correction
+Disabled=0
+Mode=2147483648
+Rate=0
+ModeIsDefault=1
+Row=0
+Column=0
+MeaReferenced=1
+ArchivBy_1=Recorder1
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=1
+
+[MEASUREMENT_OBJECT_21_DISPLAY_1]
+Window=6
+Index=1
+Color=43690
+ApplyColorToBackground=0
+ColorFunction=0
+ColorFunctionScope=1
+LineTyp=2
+YMinHome=0
+YMaxHome=100
+YMin=0
+YMax=100
+XOffsetNS=0
+XOffset=0
+ValueFormat=3
+BitMask=1
+ShowYAxis=1
+Width=10
+LineStyle=1
+MarkerType=1
+SRMainValue=0
+InvalidValueDrawMode=3
+LineWidth=1
+Precision=-2
+Digits=6
+Enabled=1
+StoredFocused=0
+SublMask=1
+MeaSublMask=0
+LockScaling=0
+RightAxis=0
+MapMode=2
+OverlayGridColor=0
+ShadingMode=3
+EditOffset=1
+EditFactor=2
+WAxisLabel=
+XAxisLabel=
+YAxisLabel=
+AxisCaption=
+Row=0
+Col=0
+YAxis_ID=0
+AxisTemplate=
+GUID=DISPLAY_d34a2d2c-58b7-46f9-bdcb-14b7a737d504
+
+[MEASUREMENT_OBJECT_22]
+Module=xcp_demo
+Name=gPtpC.t2
+Disabled=0
+Mode=2147483648
+Rate=0
+ModeIsDefault=1
+Row=0
+Column=0
+MeaReferenced=1
+ArchivBy_1=Recorder1
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=1
+
+[MEASUREMENT_OBJECT_22_DISPLAY_1]
 Window=6
 Index=0
 Color=11184640
@@ -1090,6 +1338,67 @@ Col=0
 YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_9542bfdd-ae51-4a90-b6fc-e4feff503a17
+
+[MEASUREMENT_OBJECT_23]
+Module=xcp_demo
+Name=gPtpC.master_jitter_avg
+Disabled=0
+Mode=2147483648
+Rate=0
+ModeIsDefault=1
+Row=0
+Column=0
+MeaReferenced=1
+ArchivBy_1=Recorder1
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=1
+
+[MEASUREMENT_OBJECT_23_DISPLAY_1]
+Window=2
+Index=2
+Color=65535
+ApplyColorToBackground=0
+ColorFunction=0
+ColorFunctionScope=1
+LineTyp=2
+YMinHome=-50
+YMaxHome=50
+YMin=-39.9212674697
+YMax=67.4529149303
+XOffsetNS=0
+XOffset=0
+ValueFormat=3
+BitMask=1
+ShowYAxis=1
+Width=10
+LineStyle=1
+MarkerType=1
+SRMainValue=0
+InvalidValueDrawMode=3
+LineWidth=1
+Precision=-2
+Digits=6
+Enabled=1
+StoredFocused=1
+SublMask=1
+MeaSublMask=3
+LockScaling=0
+RightAxis=0
+MapMode=2
+OverlayGridColor=0
+ShadingMode=3
+EditOffset=1
+EditFactor=2
+WAxisLabel=
+XAxisLabel=
+YAxisLabel=
+AxisCaption=
+Row=0
+Col=0
+YAxis_ID=1
+AxisTemplate=
+GUID=DISPLAY_b8aae766-1a0e-4310-acdc-999633863edb
 
 [MEASUREMENT_OBJECT_2_DISPLAY_1]
 Window=6
@@ -1261,7 +1570,7 @@ GUID=DISPLAY_f0a1eb5c-2380-421e-8641-4ae00790fddf
 
 [MEASUREMENT_OBJECT_4_DISPLAY_2]
 Window=2
-Index=2
+Index=4
 Color=16776960
 ApplyColorToBackground=0
 ColorFunction=0
@@ -1269,8 +1578,8 @@ ColorFunctionScope=1
 LineTyp=2
 YMinHome=-28941.175018
 YMaxHome=-27415.2961117
-YMin=-29093.7629086
-YMax=-27567.8840023
+YMin=-28787.3857643
+YMax=-27148.9857642
 XOffsetNS=0
 XOffset=0
 ValueFormat=3
@@ -1475,7 +1784,7 @@ GUID=DISPLAY_4b905aca-2c55-4398-8c3f-f9cea7b6e13e
 
 [MEASUREMENT_OBJECT_6_DISPLAY_2]
 Window=2
-Index=1
+Index=3
 Color=33023
 ApplyColorToBackground=0
 ColorFunction=0
@@ -1483,8 +1792,8 @@ ColorFunctionScope=1
 LineTyp=2
 YMinHome=-50
 YMaxHome=50
-YMin=-50
-YMax=50
+YMin=-39.9212674697
+YMax=67.4529149303
 XOffsetNS=0
 XOffset=0
 ValueFormat=3
@@ -1499,7 +1808,7 @@ LineWidth=1
 Precision=-2
 Digits=6
 Enabled=1
-StoredFocused=1
+StoredFocused=0
 SublMask=1
 MeaSublMask=3
 LockScaling=0
@@ -1582,7 +1891,7 @@ GUID=DISPLAY_e8693788-e6d7-4cb4-8a60-8b5f8b6ccc15
 
 [MEASUREMENT_OBJECT_7_DISPLAY_2]
 Window=2
-Index=0
+Index=1
 Color=255
 ApplyColorToBackground=0
 ColorFunction=0
@@ -1590,8 +1899,8 @@ ColorFunctionScope=1
 LineTyp=2
 YMinHome=-50
 YMaxHome=50
-YMin=-50
-YMax=50
+YMin=-39.9212674697
+YMax=67.4529149303
 XOffsetNS=0
 XOffset=0
 ValueFormat=3
@@ -2047,14 +2356,16 @@ TreeExpand_12=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\params\params
 TreeExpand_13=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events\calc_power
 TreeExpand_14=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Software structure
 TreeExpand_15=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events\PTP_SYNC
-TreeExpand_16=$All\Devices
-TreeExpand_17=#All\Devices
-TreeExpand_18=@All\Devices\xcp_demo
-TreeExpand_19=$All\Devices\xcp_demo\xcp_demo_autodetect.a2l
-TreeExpand_20=#All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events\PTP_SYNC\gPtpC.sync_cycle_time
-TreeExpand_21=@All\Measurement list
-TreeExpand_22=$All\Measurement list\All signals
-TreeExpand_23=#All\Measurement list\All signals\Dt
+TreeExpand_16=All\Measurement list\Functions
+TreeExpand_17=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Software structure\params
+TreeExpand_18=$All\Devices
+TreeExpand_19=#All\Devices
+TreeExpand_20=@All\Devices\xcp_demo
+TreeExpand_21=$All\Devices\xcp_demo\xcp_demo_autodetect.a2l
+TreeExpand_22=#All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events\PTP_SYNC\gPtpC.master_jitter_avg
+TreeExpand_23=@All\Measurement list
+TreeExpand_24=$All\Measurement list\All signals
+TreeExpand_25=#All\Measurement list\Functions\CalculateJitter
 TextSearchCaseSensitive=0
 TextSearchUseMode=1
 TextSearchSearchFullText=1
@@ -2072,20 +2383,20 @@ Comment=Multi view window
 Number=1
 GUID=WINDOW_3f306d17-7bdd-464f-bbd8-ead5b31ddbd8
 ScreenDPIinSection=192
-Position=0, 43, 765, 2204, 1086 ;cmd, x, y, w, h
+Position=0, 44, 766, 2204, 1086 ;cmd, x, y, w, h
 Position_dpi96=0, 22, 383, 1102, 543 ;cmd, x, y, w, h
-Position_Page01=0, 43, 765, 2204, 1086 ;cmd, x, y, w, h
+Position_Page01=0, 44, 766, 2204, 1086 ;cmd, x, y, w, h
 Position_Page01_dpi96=0, 22, 383, 1102, 543 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
 DisplayMask=1 ; pages 1
 
 [WINDOW_2]
-XLen=415734
+XLen=1518656
 XMin=0
 XMinNs=0
-XMax=540476
-XMaxNs=540476673195
+XMax=235521
+XMaxNs=235521240306
 Grid=1
 Mark=1
 YValue=1
@@ -2103,11 +2414,11 @@ XYModeIndexP1=-1
 DisplayModeAuto=0
 XStart=0
 AbsoluteTimeMode=0
-YAxisWidth=205
+YAxisWidth=206
 YAxisWidth_dpi96=103
 RightYAxisWidth=0
 RightYAxisWidth_dpi96=0
-ObjectMode=1
+ObjectMode=0
 DisplayMode=2
 ShowSignalMode=0
 AxisScrollPos2=0
@@ -2148,7 +2459,7 @@ DisplayMask=1 ; pages 1
 [WINDOW_2_LEG_COLUMNS]
 ScreenDPIinSection=192
 COUNT=3
-COL_0=31, 337
+COL_0=31, 338
 COL_0_dpi96=31, 169
 COL_1=1048578, 162
 COL_1_dpi96=1048578, 81
@@ -2245,11 +2556,11 @@ CustomColorFlag=0
 Color=0
 
 [WINDOW_5]
-XLen=415734
+XLen=1518656
 XMin=0
 XMinNs=0
-XMax=540476
-XMaxNs=540476673195
+XMax=235521
+XMaxNs=235521240306
 Grid=1
 Mark=1
 YValue=1
@@ -2267,11 +2578,11 @@ XYModeIndexP1=-1
 DisplayModeAuto=0
 XStart=0
 AbsoluteTimeMode=0
-YAxisWidth=205
+YAxisWidth=206
 YAxisWidth_dpi96=103
 RightYAxisWidth=0
 RightYAxisWidth_dpi96=0
-ObjectMode=0
+ObjectMode=1
 DisplayMode=0
 ShowSignalMode=0
 AxisScrollPos2=0
@@ -2312,7 +2623,7 @@ DisplayMask=1 ; pages 1
 [WINDOW_5_LEG_COLUMNS]
 ScreenDPIinSection=192
 COUNT=3
-COL_0=31, 337
+COL_0=31, 338
 COL_0_dpi96=31, 169
 COL_1=1048578, 162
 COL_1_dpi96=1048578, 81
@@ -2323,7 +2634,7 @@ COL_2_dpi96=16, 33
 ScaleFont=1
 ShowLegend=1
 ShowLegendHeader=0
-LegendPixWidth=403
+LegendPixWidth=404
 LegendPixWidth_dpi96=202
 GridStyle=0
 DisplayColors=1
@@ -2342,9 +2653,9 @@ Comment=Numeric Window
 Number=6
 GUID=WINDOW_c79fb995-dbf1-4b9a-bffc-e2dc7d70d92c
 ScreenDPIinSection=192
-Position=0, 1387, 23, 860, 682 ;cmd, x, y, w, h
+Position=0, 1388, 24, 860, 682 ;cmd, x, y, w, h
 Position_dpi96=0, 694, 12, 430, 341 ;cmd, x, y, w, h
-Position_Page01=0, 1387, 23, 860, 682 ;cmd, x, y, w, h
+Position_Page01=0, 1388, 24, 860, 682 ;cmd, x, y, w, h
 Position_Page01_dpi96=0, 694, 12, 430, 341 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
@@ -2355,7 +2666,7 @@ DisplayMask=1 ; pages 1
 [WINDOW_6_LEG_COLUMNS]
 ScreenDPIinSection=192
 COUNT=1
-COL_0=31, 403
+COL_0=31, 404
 COL_0_dpi96=31, 202
 
 [WINDOW_7]
@@ -2381,10 +2692,10 @@ Comment=Numeric Window
 Number=7
 GUID=WINDOW_9a1d980b-b290-4a3d-b2f4-09eada6ee315
 ScreenDPIinSection=192
-Position=0, 28, 23, 1336, 371 ;cmd, x, y, w, h
-Position_dpi96=0, 14, 12, 668, 186 ;cmd, x, y, w, h
-Position_Page01=0, 28, 23, 1336, 371 ;cmd, x, y, w, h
-Position_Page01_dpi96=0, 14, 12, 668, 186 ;cmd, x, y, w, h
+Position=0, 28, 24, 1336, 322 ;cmd, x, y, w, h
+Position_dpi96=0, 14, 12, 668, 161 ;cmd, x, y, w, h
+Position_Page01=0, 28, 24, 1336, 322 ;cmd, x, y, w, h
+Position_Page01_dpi96=0, 14, 12, 668, 161 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
 LEGEND_HSCROLL_POS=0
@@ -2397,12 +2708,83 @@ COUNT=1
 COL_0=31, 314
 COL_0_dpi96=31, 157
 
+[WINDOW_8]
+ProgID=
+PROPERTIES_COUNT=1
+PROPERTY_1={"Version":"1.3.0.0","Configuration":{"ArrayWindowSubControlConfiguration":{"NumericGraphicCompositeWidth":317,"NumericGraphicCompositeHeight":84,"LegendCoordinatePoint":{"X":0,"Y":0},"LegendWidth":0,"LegendHeight":0,"LegendLayoutGroupSizeWidth":0,"LegendLayoutGroupSizeHeight":0,"NumericCoordinatePoint":{"X":1,"Y":24},"NumericWidth":315,"NumericHeight":59,"NumericLayoutGroupSizeWidth":315,"NumericLayoutGroupSizeHeight":59,"Intersection2DXWCoordinatePoint":{"X":0,"Y":0},"Intersection2DXWWidth":0,"Intersection2DXWHeight":0,"Intersection2DXWLayoutGroupSizeWidth":0,"Intersection2DXWLayoutGroupSizeHeight":0,"Intersection2DYWCoordinatePoint":{"X":0,"Y":0},"Intersection2DYWWidth":0,"Intersection2DYWHeight":0,"Intersection2DYWLayoutGroupSizeWidth":0,"Intersection2DYWLayoutGroupSizeHeight":0,"Graphic3DCoordinatePoint":{"X":0,"Y":0},"Graphic3DWidth":0,"Graphic3DHeight":0,"Graphic3DLayoutGroupSizeWidth":0,"Graphic3DLayoutGroupSizeHeight":0},"ShowCalibrationBar":true,"ShowHorizontalChartLines":false,"ShowVerticalChartLines":false,"NonSelectedIntersectionLineTransparency":0.100000024,"FocusedValueSymbol":"DEVICE:\"xcp_demo\":\"params.reset\":P","ValueObjectConfigurations":[{"Symbol":"DEVICE:\"xcp_demo\":\"params.reset\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ValueFormat":0,"AxisValueFormats":[],"NumericFormat":4,"AxisNumericFormats":[],"NumericFormatDigits":6,"IsActive":true,"CurrentChartViewType":2,"PointMarker":1,"IsValueAnnotationEnabled":false,"ValueAxisMin":0,"ValueAxisMax":1,"ValueAxisMinHome":0,"ValueAxisMaxHome":1,"ValueAxisPosition":0,"CommonValueAxisName":null,"CommonValueAxisLabel":"","CommonValueAxisMin":0,"CommonValueAxisMax":0,"CommonValueAxisMinHome":0,"CommonValueAxisMaxHome":0,"SerializationCommonValueAxisColor":{"R":0,"G":0,"B":0,"A":0},"CommonValueAxisID":0,"CommonValueAxisFormat":null,"CommonValueAxisPosition":0,"CommonXAxisLabel":"","CommonYAxisLabel":"","CustomAxisLabels":["","","","","",""]}],"NumericGraphicControlPosition":0,"NumericGraphicControlSelectedTab":0,"GraphicControlPosition":0,"Height2DXControl":1,"Height2DYControl":1,"Height3DControl":2,"HeightNumericControl":1,"HeightChartControl":1,"HeightLegendControl":0.44999998807907104,"Width2DXControl":1,"Width2DYControl":1,"Width3DControl":2,"WidthNumericControl":2,"WidthChartControl":2,"WidthLegendControl":0.30000001192092896,"HeightValueControl":1,"WidthValueControl":1,"HeightNumericGraphicControl":1,"WidthNumericGraphicControl":1,"Height2DChartsControl":1,"Width2DChartsControl":1,"IsXAxisHeightSynchronizedBetweenCharts":true,"IsYAxisAreaWidthSynchronizedBetweenCharts":true,"SyncedXAxisHeight":NaN,"XWChartXAxisHeight":NaN,"YWChartXAxisHeight":NaN,"SyncedLeftAxisAreaWidth":NaN,"XWChartLeftAxisAreaWidth":NaN,"YWChartLeftAxisAreaWidth":NaN,"SyncedRightAxisAreaWidth":NaN,"XWChartRightAxisAreaWidth":NaN,"YWChartRightAxisAreaWidth":NaN,"LegendPosition":0,"LegendViewType":0,"LegendTableColumnAttributes":[{"TypeId":"1048594","Size":40},{"TypeId":"1048601","Size":45},{"TypeId":"31","Size":100},{"TypeId":"3","Size":250},{"TypeId":"16","Size":70},{"TypeId":"1048627","Size":100},{"TypeId":"1048631","Size":100},{"TypeId":"1048634","Size":100}],"LegendTabItemAttributes":[{"TypeId":"31","Size":100}],"FlipAxes":false,"AxisDisplayNameMode":3,"ReversedAxis":[false,false],"ShowUnits":false,"ShowObjectColor":true,"SortDescending":false,"SortAttributeId":null,"ShowWorkingPointHistory":false,"NumericViewValueObjectDisplayOption":1,"ValueColumnWidth":60,"ValueColumnWidthDouble":60,"ParameterGroup":"","ModuleName":"","GroupIsFunction":false,"NumericControlAxisAttributes":[],"NumericControlColumnAttributes":[{"TypeId":"31","Size":107}],"ChartViewValueObjectDisplayOption":1,"SerializationCameraPosition":{"X":1,"Y":1,"Z":-1},"SerializationCameraTarget":{"X":0,"Y":0.5,"Z":0},"IsValueAnnotationRotated":false,"EquidistantAxisPoints":false,"BarThickness":0.6,"WorkingPointMarker":0,"LinearWorkingPointInterpolation":true,"ShowAllIntersectionLines":false,"IsValueAxisIndependent":true,"TickLabelRotationAngle":-90,"IsTickLabelRotationEnabled":false,"IsTickLabelRightAligned":false,"ShowBoundarySurface":true,"ShowBoundarySurfaceGradient":false,"ShowCursorAsCrosshair":false,"XAxisAutoRange":true,"ValueAxisAutoRange":true,"ShowAllValueAxes":false,"DrawAxisBands":false,"CurrentColumnChartType":0,"SerializationCursorCrosshairColor":{"R":0,"G":0,"B":0,"A":255},"AlignBarToZero":true,"DefaultChartViewType":2,"AttributeColumnPositioning":1}}
+OBJECTS_COUNT=1
+OBJECT_1=DEVICE:"xcp_demo":"params.reset":P
+ObjectCount=1
+HiddenDisplayCount=0
+Title=Parameters
+Type=137438953472
+Comment=Parameters
+Number=8
+GUID=WINDOW_b079efa8-d473-4e6f-89b5-207e0e25b00a
+ScreenDPIinSection=192
+Position=0, 28, 366, 640, 174 ;cmd, x, y, w, h
+Position_dpi96=0, 14, 183, 320, 87 ;cmd, x, y, w, h
+Position_Page01=0, 28, 366, 640, 174 ;cmd, x, y, w, h
+Position_Page01_dpi96=0, 14, 183, 320, 87 ;cmd, x, y, w, h
+FloatingWindow=0
+ShowSignalComments=1
+DisplayMask=1 ; pages 1
+
+[WINDOW_8_OBJECT_1]
+Type=2
+Module=xcp_demo
+Name=params.reset
+Window=8
+Index=0
+Color=0
+ApplyColorToBackground=0
+ColorFunction=0
+ColorFunctionScope=1
+LineTyp=2
+YMinHome=0
+YMaxHome=1
+YMin=0
+YMax=1
+XOffsetNS=0
+XOffset=0
+ValueFormat=3
+BitMask=1
+ShowYAxis=1
+Width=10
+LineStyle=1
+MarkerType=1
+SRMainValue=0
+InvalidValueDrawMode=3
+LineWidth=1
+Precision=-2
+Digits=6
+Enabled=1
+StoredFocused=0
+SublMask=0
+MeaSublMask=0
+LockScaling=0
+RightAxis=0
+MapMode=2
+OverlayGridColor=0
+ShadingMode=3
+EditOffset=1
+EditFactor=2
+WAxisLabel=
+XAxisLabel=
+YAxisLabel=
+AxisCaption=
+Row=0
+Col=0
+YAxis_ID=0
+AxisTemplate=
+GUID=DISPLAY_2ef6323f-d0b6-445d-8a3b-4730394b0ff2
+
 [WINDOWS]
-Count=7
+Count=8
 
 [Y_COMMON_AXIS_1]
-YMin=-50
-YMax=50
+YMin=-39.9212674697
+YMax=67.4529149303
 ValueFormat=3
 AxisTemplate=
 LockScaling=0

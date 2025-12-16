@@ -10,9 +10,8 @@
 
 extern bool ptpObserverInit(uint8_t domain, uint8_t *bind_addr);
 extern void ptpObserverShutdown();
-
-extern tPtpMaster *ptpObserverGetGrandmaster();
 extern void ptpObserverPrintInfo();
+extern void ptpObserverReset();
 
 #ifdef OPTION_ENABLE_PTP_XCP
 extern void ptpObserverCreateXcpEvents();

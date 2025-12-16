@@ -468,7 +468,7 @@ bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, bool blocking
 #ifdef XCPTL_ENABLE_TCP
     gXcpTl.ListenSock = INVALID_SOCKET;
     if (useTCP) { // TCP
-        if (!socketOpen(&gXcpTl.ListenSock, true /* useTCP */, !blockingRx, true /*reuseAddr*/, false /* timestamps*/))
+        if (!socketOpen(&gXcpTl.ListenSock, SOCKET_MODE_TCP | (blockingRx ? SOCKET_MODE_BLOCKING : 0)))
             return false;
         if (!socketBind(gXcpTl.ListenSock, bind_addr, gXcpTl.ServerPort))
             return false;
@@ -483,7 +483,7 @@ bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, bool blocking
     } else
 #endif
     { // UDP
-        if (!socketOpen(&gXcpTl.Sock, false /* useTCP */, !blockingRx, true /*reuseAddr*/, false /* timestamps*/))
+        if (!socketOpen(&gXcpTl.Sock, (blockingRx ? SOCKET_MODE_BLOCKING : 0)))
             return false;
         if (!socketBind(gXcpTl.Sock, bind_addr, port))
             return false; // Bind on ANY, when serverAddr=255.255.255.255
@@ -509,7 +509,7 @@ bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, bool blocking
 #ifdef XCPTL_ENABLE_MULTICAST
 
     // Open a socket for GET_DAQ_CLOCK_MULTICAST and join its multicast group
-    if (!socketOpen(&gXcpTl.MulticastSock, false /*useTCP*/, false /*nonblocking*/, true /*reusable*/, false /* timestamps*/))
+    if (!socketOpen(&gXcpTl.MulticastSock, (blockingRx ? SOCKET_MODE_BLOCKING : 0)))
         return false;
     DBG_PRINTF3("  Bind XCP multicast socket to %u.%u.%u.%u:%u\n", bind_addr[0], bind_addr[1], bind_addr[2], bind_addr[3], XCPTL_MULTICAST_PORT);
     if (!socketBind(gXcpTl.MulticastSock, bind_addr, XCPTL_MULTICAST_PORT))

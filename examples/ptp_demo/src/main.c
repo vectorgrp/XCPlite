@@ -38,10 +38,11 @@
 // Calibration parameters structure
 typedef struct params {
     uint32_t delay_us; // Sleep time in microseconds for the main loop
+    uint8_t reset;     // Reset PTP observer state
 } parameters_t;
 
 // Default values (reference page, "FLASH") for the calibration parameters
-const parameters_t params = {.delay_us = 1000};
+const parameters_t params = {.delay_us = 1000, .reset = false};
 
 // A global calibration segment handle for the calibration parameters
 // A calibration segment has a working page ("RAM") and a reference page ("FLASH"), it is described by a MEMORY_SEGMENT in the A2L file
@@ -78,6 +79,7 @@ int main(void) {
     // XCP: Option1: Register the individual calibration parameters in the calibration segment
     A2lSetSegmentAddrMode(calseg, params);
     A2lCreateParameter(params.delay_us, "Mainloop delay time in us", "us", 0, 999999);
+    A2lCreateParameter(params.reset, "Reset PTP observer state", "", 0, 1);
 
 // Start a PTP master
 #ifdef OPTION_ENABLE_PTP_MASTER
@@ -112,9 +114,19 @@ int main(void) {
 
         // DaqEventVar(mainloop, A2L_MEAS(counter, "Mainloop counter"));
 
-        const parameters_t *params = (parameters_t *)XcpLockCalSeg(calseg);
+        parameters_t *params = (parameters_t *)XcpLockCalSeg(calseg);
         uint32_t delay_us = params->delay_us; // Get the delay calibration parameter in microseconds
+        uint8_t reset = params->reset;        // Get the reset calibration parameter
+        params->reset = 0;                    // Clear the reset request
         XcpUnlockCalSeg(calseg);
+
+        if (reset) {
+#ifdef OPTION_ENABLE_PTP_OBSERVER
+            printf("PTP observer reset requested via calibration parameter\n");
+            ptpObserverReset();
+#endif
+        }
+
         sleepUs(delay_us);
 
         A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect

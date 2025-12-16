@@ -778,9 +778,9 @@ bool ptpMasterInit(const uint8_t *uuid, uint8_t domain, const uint8_t *bindAddr)
 
     // Create XL-API sockets and threads for PTP
     gPtpM.sock319 = gPtpM.sock320 = INVALID_SOCKET;
-    if (!socketOpen(&gPtpM.sock319, false /* useTCP */, false /*nonblocking*/, true /*reusable*/, true /* timestamps*/))
+    if (!socketOpen(&gPtpM.sock319, SOCKET_MODE_BLOCKING | SOCKET_MODE_TIMESTAMPING ))
         return false; // SYNC tx, DELAY_REQ rx timestamps
-    if (!socketOpen(&gPtpM.sock320, false /* useTCP */, false /*nonblocking*/, true /*reusable*/, true /* timestamps*/))
+    if (!socketOpen(&gPtpM.sock320, SOCKET_MODE_BLOCKING))
         return false;
     if (gPtpDebugLevel >= 3)
         printf("  Bind PTP sockets to port 320/319\n");

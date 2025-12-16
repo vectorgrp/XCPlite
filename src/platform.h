@@ -302,9 +302,16 @@ int32_t socketGetLastError(void);
 #define SOCKET_TIMESTAMP_FREE_RUNNING 0
 #define SOCKET_TIMESTAMP_SOFTWARE_SYNC 1
 
+// Socket mode flags
+#define SOCKET_MODE_TIMESTAMPING 0x01
+#define SOCKET_MODE_BLOCKING 0x02
+#define SOCKET_MODE_TCP 0x04
+
+
+// Socket functions
 bool socketStartup(void);
 void socketCleanup(void);
-bool socketOpen(SOCKET *sp, bool useTCP, bool nonBlocking, bool reuseaddr, bool timestamps);
+bool socketOpen(SOCKET *sp, uint16_t flags );
 bool socketBind(SOCKET sock, uint8_t *addr, uint16_t port);
 bool socketEnableHwTimestamps(SOCKET sock, const char *ifname); // Enable NIC hardware timestamping (Linux only, requires root)
 bool socketJoin(SOCKET sock, uint8_t *maddr);

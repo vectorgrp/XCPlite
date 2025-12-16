@@ -845,9 +845,9 @@ bool ptpClientInit(const uint8_t *uuid, uint8_t domain, uint8_t *bindAddr, void 
 
     // Create XL-API sockets for event (319) and general messages (320)
     gPtpC.sock319 = gPtpC.sock320 = INVALID_SOCKET;
-    if (!socketOpen(&gPtpC.sock319, false /* useTCP */, false /*nonblocking*/, true /*reusable*/, true /* timestamps*/))
+    if (!socketOpen(&gPtpC.sock319, SOCKET_MODE_BLOCKING | SOCKET_MODE_TIMESTAMPING ))
         return false; // SYNC tx, DELAY_REQ rx timestamps
-    if (!socketOpen(&gPtpC.sock320, false /* useTCP */, false /*nonblocking*/, true /*reusable*/, false /* timestamps*/))
+    if (!socketOpen(&gPtpC.sock320, SOCKET_MODE_BLOCKING))
         return false;
     if (!socketBind(gPtpC.sock320, bindAddr, 320))
         return false;

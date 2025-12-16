@@ -272,8 +272,14 @@ bool socketStartup(void) { return true; }
 
 void socketCleanup(void) {}
 
-bool socketOpen(SOCKET *sp, bool useTCP, bool nonBlocking, bool reuseaddr, bool timestamps) {
-    (void)nonBlocking;
+bool socketOpen(SOCKET *sp, uint16_t flags) {
+
+    bool useTCP = flags & SOCKET_MODE_TCP;
+    bool nonBlocking = !(flags & SOCKET_MODE_BLOCKING);
+    bool reuseaddr = true;
+    bool timestamps = flags & SOCKET_MODE_TIMESTAMPING;
+
+    assert(nonBlocking == false); // Non-blocking sockets not implemented yet
 
     // Create a socket
     *sp = socket(AF_INET, useTCP ? SOCK_STREAM : SOCK_DGRAM, 0);
@@ -566,9 +572,14 @@ void socketCleanup(void) { WSACleanup(); }
 
 // Create a socket, TCP or UDP
 // Note: Enabling HW timestamps may have impact on throughput
-bool socketOpen(SOCKET *sp, bool useTCP, bool nonBlocking, bool reuseaddr, bool timestamps) {
+bool socketOpen(SOCKET *sp, uint16_t flags) {
 
-    (void)timestamps;
+    bool useTCP = flags & SOCKET_MODE_TCP;
+    bool nonBlocking = !(flags & SOCKET_MODE_BLOCKING);
+    bool reuseaddr = true;
+    bool timestamps = flags & SOCKET_MODE_TIMESTAMPING;
+
+    assert(timestamps == false); // Timestamps not implemented yet
 
     // Create a socket
     if (!useTCP) {
