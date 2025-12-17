@@ -56,6 +56,7 @@ typedef struct {
     uint64_t sync_master_time;
     uint32_t sync_correction;
     uint16_t sync_sequenceId;
+    uint64_t sync_cycle_time;
     uint8_t sync_steps;
     uint64_t flup_master_time;
     uint32_t flup_correction;
@@ -63,9 +64,7 @@ typedef struct {
 
     // PTP timing analysis state
     uint32_t cycle_count;
-    uint64_t t1, t2; // Input
-    uint64_t sync_cycle_time;
-    uint64_t t1_t2_correction;
+    uint64_t t1, t2;               // Input
     uint64_t t1_offset, t2_offset; // Normalization offsets
     int64_t master_drift_raw;      // Calculated drift
     int64_t master_drift;
@@ -141,7 +140,6 @@ static void syncInit() {
 
     gPtpC.t1 = 0;
     gPtpC.t2 = 0;
-    gPtpC.t1_t2_correction = 0;
 
     gPtpC.sync_cycle_time = 1000000000;
 
@@ -166,17 +164,18 @@ static void syncUpdate(uint64_t t1, uint64_t correction, uint64_t t2) {
 
     char ts1[64], ts2[64];
 
-    t1 += correction;
-
     // t1 - master, t2 - local clock
     gPtpC.cycle_count++;
 
     if (gPtpDebugLevel >= 4) {
-        printf("  t1 (SYNC tx)  = %s (%" PRIu64 ")\n", clockGetString(ts1, sizeof(ts1), t1), t1);
+        printf("  t1 (SYNC tx on master (via PTP))  = %s (%" PRIu64 ")\n", clockGetString(ts1, sizeof(ts1), t1), t1);
         printf("  t2 (SYNC rx)  = %s (%" PRIu64 ")\n", clockGetString(ts2, sizeof(ts2), t2), t2);
         printf("  correction    = %" PRIu32 "ns\n", correction);
         printf("  cycle_count   = %u\n", gPtpC.cycle_count);
     }
+
+    // Apply correction to t1
+    t1 += correction;
 
     // Master drift estimation from SYNC messages t1/t2
     // Plausibility checking
@@ -186,10 +185,11 @@ static void syncUpdate(uint64_t t1, uint64_t correction, uint64_t t2) {
 
     // First round, init
     if (gPtpC.t1 == 0 || gPtpC.t2 == 0) {
-        gPtpC.t1 = t1; // sync tx time on master clock
+
+        gPtpC.t1 = t1; // corrected sync tx time on master clock
         gPtpC.t2 = t2; // sync rx time on slave clock
 
-        // Normalize time offsets for t1,t2
+        // Normalize time offsets for t1 (corrected),t2
         gPtpC.t1_offset = t1;
         gPtpC.t2_offset = t2;
     }
@@ -199,8 +199,8 @@ static void syncUpdate(uint64_t t1, uint64_t correction, uint64_t t2) {
 
         // Time differences since last SYNC, with correction applied to master time
         uint64_t c1, c2;
-        c1 = (int64_t)(t1 + correction) - (int64_t)(gPtpC.t1 + gPtpC.t1_t2_correction); // time since last sync on master clock
-        c2 = t2 - gPtpC.t2;                                                             // time since last sync on local clock
+        c1 = (int64_t)t1 - (int64_t)gPtpC.t1; // time since last sync on master clock
+        c2 = t2 - gPtpC.t2;                   // time since last sync on local clock
         assert(c1 < 0x8000000000000000);
         assert(c2 < 0x8000000000000000);
 
@@ -240,9 +240,12 @@ static void syncUpdate(uint64_t t1, uint64_t correction, uint64_t t2) {
             gPtpC.master_offset_jitter = gPtpC.master_offset_norm - gPtpC.master_offset_compensation;
             {
                 // Simple offset servo
-                int64_t offset_error = gPtpC.master_offset_jitter;
-                const int64_t kp = 4;
-                gPtpC.master_offset_compensation += offset_error > 0 ? kp : -kp;
+                int64_t d = (gPtpC.master_offset_jitter / 10);
+                if (d > 5)
+                    d = 5;
+                if (d < -5)
+                    d = -5;
+                gPtpC.master_offset_compensation += d;
             }
 
             if (gPtpDebugLevel >= 3) {
@@ -259,9 +262,14 @@ static void syncUpdate(uint64_t t1, uint64_t correction, uint64_t t2) {
             gPtpC.master_jitter = gPtpC.master_offset_jitter;
             gPtpC.master_jitter_rms = sqrt((double)average_calc(&gPtpC.master_jitter_rms_filter, gPtpC.master_jitter * gPtpC.master_jitter));
             gPtpC.master_jitter_avg = average_calc(&gPtpC.master_jitter_avg_filter, gPtpC.master_jitter);
+
+            // Reset run away compensation to average jitter every MASTER_JITTER_AVG_FILTER_SIZE cycles
             if (gPtpC.cycle_count % MASTER_JITTER_AVG_FILTER_SIZE == 0) {
-                gPtpC.master_offset_compensation += gPtpC.master_jitter_avg; // Reset compensation to average jitter to avoid long term drift
+                if (gPtpC.master_jitter_avg < -50 || gPtpC.master_jitter_avg > +50) {
+                    gPtpC.master_offset_compensation += gPtpC.master_jitter_avg; // Reset compensation to average jitter to avoid long term drift
+                }
             }
+
             if (gPtpDebugLevel >= 3) {
                 printf("  master_jitter       = %" PRIi64 " ns\n", gPtpC.master_jitter);
                 printf("  master_jitter_avg   = %g ns\n", gPtpC.master_jitter_avg);
@@ -273,7 +281,6 @@ static void syncUpdate(uint64_t t1, uint64_t correction, uint64_t t2) {
     // Remember last input values
     gPtpC.t1 = t1; // sync tx time on master clock
     gPtpC.t2 = t2; // sync rx time on slave clock
-    gPtpC.t1_t2_correction = correction;
 
 #ifdef OPTION_ENABLE_PTP_XCP
     XcpEvent(gPtpC_syncEvent);
@@ -302,18 +309,18 @@ void ptpObserverCreateA2lDescription() {
     A2lCreateMeasurement(gPtpC.sync_correction, "SYNC correction");
     A2lCreateMeasurement(gPtpC.sync_sequenceId, "SYNC sequence counter");
     A2lCreateMeasurement(gPtpC.sync_steps, "SYNC mode");
+    A2lCreateMeasurement(gPtpC.sync_cycle_time, "SYNC cycle time");
 
     A2lCreateMeasurement(gPtpC.flup_master_time, "FOLLOW_UP timestamp");
     A2lCreateMeasurement(gPtpC.flup_sequenceId, "FOLLOW_UP sequence counter");
     A2lCreateMeasurement(gPtpC.flup_correction, "FOLLOW_UP correction");
 
-    A2lCreatePhysMeasurement(gPtpC.t1_t2_correction, "PTP correction from SYNC message", "ns", 1.0, 0.0);
     A2lCreatePhysMeasurement(gPtpC.t1, "Master timestamp", "ns", 1.0, 0.0);
     A2lCreatePhysMeasurement(gPtpC.t2, "Reference timestamp", "ns", 1.0, 0.0);
-    A2lCreatePhysMeasurement(gPtpC.sync_cycle_time, "SYNC cycle time", "ms", 0.000001, 0.0);
 
-    A2lCreatePhysMeasurement(gPtpC.master_drift_raw, "", "ppm*1000", 0.001, 0.0);
-    A2lCreatePhysMeasurement(gPtpC.master_drift, "", "ppm*1000", 0.001, 0.0);
+    A2lCreatePhysMeasurement(gPtpC.master_drift_raw, "", "ppm*1000", -100, +100);
+    A2lCreatePhysMeasurement(gPtpC.master_drift, "", "ppm*1000", -100, +100);
+    A2lCreatePhysMeasurement(gPtpC.master_drift_drift, "", "ppm*1000", -10, +10);
 
     A2lCreatePhysMeasurement(gPtpC.master_offset_raw, "t1-t2 raw value (not used)", "ns", -1000000, +1000000);
     A2lCreatePhysMeasurement(gPtpC.t1_norm, "t1 normalized to startup reference time t1_offset", "ns", 0, +1000000);
