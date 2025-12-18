@@ -1,6 +1,9 @@
 /* ptp_cfg.h */
 
-#define gPtpDebugLevel 4
+// #define PTP_INTERFACE "eth0" // Network interface for PTP hardware timestamping if uto detection does not work
+#define PTP_INTERFACE NULL
+
+#define gPtpDebugLevel 3
 
 #define OPTION_ENABLE_PTP_OBSERVER
 

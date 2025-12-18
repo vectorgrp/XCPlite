@@ -853,19 +853,19 @@ int16_t socketRecvFrom(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, uint8_
             ts = &hw[2];
             t = (uint64_t)ts->tv_sec * 1000000000ULL + (uint64_t)ts->tv_nsec;
             if (t != 0) {
-                DBG_PRINT3("socketRecvFrom: timestamp taken from control messages SO_TIMESTAMPING [2]\n");
+                DBG_PRINT4("socketRecvFrom: timestamp taken from control messages SO_TIMESTAMPING [2]\n");
             } else {
                 ts = &hw[0];
                 t = (uint64_t)ts->tv_sec * 1000000000ULL + (uint64_t)ts->tv_nsec;
                 if (t != 0) {
-                    DBG_PRINT3("socketRecvFrom: timestamp taken from control messages SO_TIMESTAMPING [0]\n");
+                    DBG_PRINT4("socketRecvFrom: timestamp taken from control messages SO_TIMESTAMPING [0]\n");
                 }
             }
         }
         if (t == 0 && sw != NULL) {
             struct timespec *ts = sw;
             t = (uint64_t)ts->tv_sec * 1000000000ULL + (uint64_t)ts->tv_nsec;
-            DBG_PRINT3("socketRecvFrom: timestamp taken from control messages SO_TIMESTAMPNS\n");
+            DBG_PRINT4("socketRecvFrom: timestamp taken from control messages SO_TIMESTAMPNS\n");
         }
         if (t == 0) {
             DBG_PRINT_WARNING("socketRecvFrom: No timestamp found in control messages\n");

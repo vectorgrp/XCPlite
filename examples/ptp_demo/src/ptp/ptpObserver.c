@@ -29,9 +29,6 @@
 #include <xcplib.h> // for xcplib application programming interface
 #endif
 
-// Calibration parameters
-#include "../ptp_demo.h"
-
 //-------------------------------------------------------------------------------------------------------
 // PTP master descriptor
 
@@ -50,7 +47,7 @@ typedef struct {
 
 //-------------------------------------------------------------------------------------------------------
 
-// PTP client status structure
+// PTP observer status
 typedef struct {
 
     uint8_t domain;
@@ -69,7 +66,7 @@ typedef struct {
     bool gmValid;
     tPtpMaster gm;
 
-    // Master SYNC and FOLLOW_UP measurements
+    // Grandmaster SYNC and FOLLOW_UP measurements
     uint64_t sync_local_time;
     uint64_t sync_master_time;
     uint32_t sync_correction;
@@ -82,25 +79,20 @@ typedef struct {
 
     // PTP timing analysis state, all values in nanoseconds and per second units
     uint32_t cycle_count;
-    uint64_t t1_norm, t2_norm;     // Input normalized timestamps
-    uint64_t t1_offset, t2_offset; // Normalization offsets
-    int64_t master_drift_raw;      // Raw momentary drift
-    int64_t master_drift;          // Filtered drift over MASTER_DRIFT_FILTER_SIZE cycles
-    int64_t master_drift_drift;    // Drift of the drift
-
+    uint64_t t1_norm, t2_norm;          // Input normalized timestamps
+    uint64_t t1_offset, t2_offset;      // Normalization offsets
+    int64_t master_drift_raw;           // Raw momentary drift
+    int64_t master_drift;               // Filtered drift over MASTER_DRIFT_FILTER_SIZE cycles
+    int64_t master_drift_drift;         // Drift of the drift
     int64_t master_offset_raw;          // momentary raw master offset t1-t2
     int64_t master_offset_norm;         // normailzed master offset t1_norm-t2_norm
     int64_t master_offset_compensation; // normalized master_offset compensation servo offset
     int64_t master_offset_detrended;    // normalized master_offset error (detrended master_offset_norm)
-
-    int64_t master_jitter;    // jitter
-    double master_jitter_rms; // jitter root mean square
-    double master_jitter_avg; // jitter average
-
-    // PI servo controller state
-    double servo_integral;    // Integral accumulator for I-term
-    int64_t servo_correction; // Total servo correction applied
-
+    int64_t master_jitter;              // jitter
+    double master_jitter_rms;           // jitter root mean square
+    double master_jitter_avg;           // jitter average
+    double servo_integral;              // PI servo controller state: Integral accumulator for I-term
+    int64_t servo_correction;           // PI servo controller state: Total servo correction applied
     filter_average_t master_drift_filter;
     filter_average_t master_jitter_rms_filter;
     filter_average_t master_jitter_avg_filter;
@@ -120,7 +112,6 @@ static uint16_t gPtpC_syncEvent = XCP_UNDEFINED_EVENT_ID; // on SYNC
 static void printMaster(const tPtpMaster *m) {
 
     printf("  Master %u:\n", m->index);
-
     const char *timesource = (m->a.timeSource == PTP_TIME_SOURCE_INTERNAL) ? "internal oscilator" : (m->a.timeSource == PTP_TIME_SOURCE_GPS) ? "GPS" : "Unknown";
     printf("    domain=%u, addr=%u.%u.%u.%u, id=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X\n"
            "    timesource=%s (%02X), utcOffset=%u, prio1=%u, class=%u, acc=%u, var=%u, prio2=%u, steps=%u\n",
@@ -147,8 +138,8 @@ void ptpObserverPrintInfo() {
 // PTP master timing analysis
 
 #define MASTER_DRIFT_FILTER_SIZE 16
-#define MASTER_JITTER_RMS_FILTER_SIZE 16
-#define MASTER_JITTER_AVG_FILTER_SIZE 16
+#define MASTER_JITTER_RMS_FILTER_SIZE 32
+#define MASTER_JITTER_AVG_FILTER_SIZE 32
 
 // PI servo controller initialization
 // Gains tuned for typical PTP SYNC rates (1-8 Hz)
@@ -182,23 +173,17 @@ tXcpCalSegIndex gParams = XCP_UNDEFINED_CALSEG;
 static void syncInit() {
 
     gPtpC.cycle_count = 0;
-
     gPtpC.t1_norm = 0;
     gPtpC.t2_norm = 0;
-
     gPtpC.sync_cycle_time = 1000000000;
-
     gPtpC.master_offset_raw = 0;
-
     gPtpC.master_drift_raw = 0;
     average_init(&gPtpC.master_drift_filter, MASTER_DRIFT_FILTER_SIZE);
     gPtpC.master_drift = 0;
     gPtpC.master_drift_drift = 0; // Drift of the drift
-
     gPtpC.master_offset_compensation = 0;
     gPtpC.servo_integral = 0.0;
     gPtpC.servo_correction = 0;
-
     gPtpC.master_jitter = 0;
     average_init(&gPtpC.master_jitter_rms_filter, MASTER_JITTER_RMS_FILTER_SIZE);
     gPtpC.master_jitter_rms = 0;
@@ -334,40 +319,31 @@ static void syncUpdate(uint64_t t1_in, uint64_t correction, uint64_t t2_in) {
                 }
             }
 
-            if (gPtpDebugLevel >= 3) {
+            if (gPtpDebugLevel >= 5) {
                 printf("  cycle_time          = %" PRIi64 "ns\n", gPtpC.sync_cycle_time);
                 printf("  master_offset = %" PRIi64 " ns (detrended)\n", gPtpC.master_offset_detrended);
-                if (gPtpDebugLevel >= 5) {
-                    printf("  master_offset_raw   = %" PRIi64 " ns\n", gPtpC.master_offset_raw);
-                    printf("  master_offset_norm  = %" PRIi64 " ns\n", gPtpC.master_offset_norm);
-                    printf("  master_offset_comp  = %" PRIi64 " ns\n", gPtpC.master_offset_compensation);
-                }
+                printf("  master_offset_raw   = %" PRIi64 " ns\n", gPtpC.master_offset_raw);
+                printf("  master_offset_norm  = %" PRIi64 " ns\n", gPtpC.master_offset_norm);
+                printf("  master_offset_comp  = %" PRIi64 " ns\n", gPtpC.master_offset_compensation);
             }
 
             // Jitter
             gPtpC.master_jitter = gPtpC.master_offset_detrended;
             gPtpC.master_jitter_rms = sqrt((double)average_calc(&gPtpC.master_jitter_rms_filter, gPtpC.master_jitter * gPtpC.master_jitter));
             gPtpC.master_jitter_avg = average_calc(&gPtpC.master_jitter_avg_filter, gPtpC.master_jitter);
-
-            // Reset run away compensation to average jitter every MASTER_JITTER_AVG_FILTER_SIZE cycles
-            if ((gPtpC.cycle_count % MASTER_JITTER_AVG_FILTER_SIZE) == 0) {
-
-                // if (gPtpC.master_jitter_avg < -50 || gPtpC.master_jitter_avg > +50) {
-                //     gPtpC.master_offset_compensation += gPtpC.master_jitter_avg; // Reset compensation to average jitter to avoid long term drift
-                // }
-            }
-
             if (gPtpDebugLevel >= 3) {
                 printf("  master_jitter       = %" PRIi64 " ns\n", gPtpC.master_jitter);
                 printf("  master_jitter_avg   = %g ns\n", gPtpC.master_jitter_avg);
-                printf("  master_jitter_rms   = %g ns\n", gPtpC.master_jitter_rms);
+                printf("  master_jitter_rms   = %g ns\n\n", gPtpC.master_jitter_rms);
             }
         }
-        // Remember last input values
+
+        // Remember last normalized input values
         gPtpC.t1_norm = t1_norm; // sync tx time on master clock
         gPtpC.t2_norm = t2_norm; // sync rx time on slave clock
     }
 
+    // XCP measurement event
 #ifdef OPTION_ENABLE_PTP_XCP
     XcpEvent(gPtpC_syncEvent);
 #endif
@@ -377,6 +353,7 @@ static void syncUpdate(uint64_t t1_in, uint64_t correction, uint64_t t2_in) {
 // A2L and XCP
 // Create A2L description for measurements and parameters
 // Create XCP events
+// Create XCP calibration segments for parameters
 
 #ifndef OPTION_ENABLE_PTP_XCP
 
@@ -554,7 +531,7 @@ static void *ptpThread319(void *par)
         if (n <= 0)
             break; // Terminate on error or socket close
         mutexLock(&gPtpC.mutex);
-        if (gPtpDebugLevel >= 3)
+        if (gPtpDebugLevel >= 4)
             ptpPrintFrame((struct ptphdr *)buffer, addr, rxTime); // Print incoming PTP traffic
         ptpHandleFrame(n, (struct ptphdr *)buffer, addr, rxTime);
         mutexUnlock(&gPtpC.mutex);
@@ -585,7 +562,7 @@ static void *ptpThread320(void *par)
         if (n <= 0)
             break; // Terminate on error or socket close
         mutexLock(&gPtpC.mutex);
-        if (gPtpDebugLevel >= 3)
+        if (gPtpDebugLevel >= 4)
             ptpPrintFrame((struct ptphdr *)buffer, addr, 0); // Print incoming PTP traffic
         ptpHandleFrame(n, (struct ptphdr *)buffer, addr, 0);
         mutexUnlock(&gPtpC.mutex);
@@ -639,7 +616,7 @@ bool ptpObserverInit(uint8_t domain, uint8_t *bindAddr) {
 
     // Try to enable hardware timestamps (requires root privileges)
     // This is optional - software timestamps from SO_TIMESTAMPING will still work
-    if (!socketEnableHwTimestamps(gPtpC.sock319, "eth0")) {
+    if (!socketEnableHwTimestamps(gPtpC.sock319, PTP_INTERFACE)) {
         if (gPtpDebugLevel >= 2)
             printf("  WARNING: Hardware timestamping not enabled (may need root), using software timestamps\n");
     }
@@ -685,7 +662,6 @@ void ptpObserverLoop(void) {
 
     // Status print
     if (gPtpDebugLevel >= 2) {
-
         if (gPtpC.gmValid && first) {
             printf("PTP observer status:\n");
             printf("  domain=%u, addr=%u.%u.%u.%u\n", gPtpC.domain, gPtpC.addr[0], gPtpC.addr[1], gPtpC.addr[2], gPtpC.addr[3]);
@@ -717,7 +693,6 @@ void ptpObserverShutdown() {
     cancel_thread(gPtpC.threadHandle);
     cancel_thread(gPtpC.threadHandle320);
     cancel_thread(gPtpC.threadHandle319);
-
     sleepMs(200);
     socketClose(&gPtpC.sock319);
     socketClose(&gPtpC.sock320);
