@@ -6,29 +6,32 @@ This demo showcases a PTP (Precision Time Protocol, IEEE 1588) observer instrume
 The observer captures PTP SYNC and FOLLOW_UP messages and calculates overall drift and jitter.  
 Running on a Linux system with good hardware time stamping support, the observer can measure the quality of the PTP master.  
 
-The implementation of PTP is very basic and assumes there is only one PTP master and one clock domain on the network. The filtering and clock servo algorithms are also simplistic and need significant time to stabilize to obtain a reliable estimation of master clock jitter.  
+The implementation of PTP is very basic and assumes there is only one PTP master and one clock domain on the network.  
+The filtering and clock servo algorithms are also simplistic and need significant time to stabilize to obtain a reliable estimation of master clock jitter.  
 
 The demo must be run with root privileges to access hardware time stamping features and the PTP ports.
 
 ```bash
 sudo ./build/ptp_demo.out
 
-SYNC (seqId=7266, timestamp= 2912265698 from 172.31.31.6 - 00:00:00:00:00:00:00:00
-FOLLOW_UP (seqId=7266, timestamp= 0 from 172.31.31.6 - 00:00:00:00:00:00:00:00
-syncUpdate:
-  t1 (SYNC tx) = 15.12.2025 19:38:58 +986476716ns (1765827538986476716)
-  correction     = 368ns
-  t2 (SYNC rx)  = 15.12.2025 19:38:21 +165487586ns (1765827501165487586)
-  master_drift     = -27650ns/s
-  cycle_time          = 999999040ns
-  master_offset_raw   = 37820989130ns
-  master_offset_norm  = 40863820ns
-  master_offset_comp  = -40863830ns
-  master_offset       = -13ns
-  master_jitter       = -10ns
-  master_jitter_rms   = 6.9282ns
+  t1 (SYNC tx on master (via PTP))  = 1.1.1970 03:34:01 +231742000ns (12841231742000) 
+  t2 (SYNC rx)  = 18.12.2025 18:22:13 +673412218ns (1766082133673412218) 
+  correction          = 376ns
+  cycle_count         = 1059
+  master_drift        = -27670ns/s
+  master_drift_drift  = -1ns/s2
+  master_jitter_rms   = 7.68115 ns
+
 
 ```
+
+## PTP Master
+
+The demo can also be run as a simple PTP master, sending SYNC and FOLLOW_UP messages periodically and reponding to DELAY_REQUEST messages.  
+This can be enabled by defining the `OPTION_ENABLE_PTP_MASTER` macro in `ptp_cfg.h`.  
+The master implementation is very basic and does not implement all required PTP features.  
+
+
 
 
 ## Hardware Requirements

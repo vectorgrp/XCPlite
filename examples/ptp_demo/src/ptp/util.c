@@ -37,36 +37,48 @@ unsigned int random16() {
 // Filter
 /**************************************************************************/
 
-// Average Filter with smooth startup
+// Moving Average Filter
 // Calculate average over last <size> values
 void average_init(filter_average_t *f, uint8_t size) {
 
-    uint8_t i;
     if (size > FILTER_MAX_SIZE)
         size = FILTER_MAX_SIZE;
-    f->size = f->am = size;
+    f->size = size;
     f->ai = 0;
     f->as = 0;
-    for (i = 0; i < FILTER_MAX_SIZE; i++)
+    f->count = 0;
+    for (uint8_t i = 0; i < FILTER_MAX_SIZE; i++)
         f->a[i] = 0;
 }
 
 int64_t average_calc(filter_average_t *f, int64_t v) {
 
-    uint8_t i, n;
-    for (n = 0; n < f->am; n++) {
-        i = f->ai;
-        f->as -= f->a[i];
-        f->as += v;
-        f->a[i] = v;
-        if (++i >= f->size)
-            i = 0;
-        f->ai = i;
+    // Subtract the oldest value from sum (only if buffer is full)
+    if (f->count == f->size) {
+        f->as -= f->a[f->ai];
+    } else {
+        f->count++;
     }
-    if (f->am > 1) {
-        f->am /= 2;
+
+    // Add new value to buffer and sum
+    f->a[f->ai] = v;
+    f->as += v;
+
+    // Advance circular buffer index
+    if (++f->ai >= f->size)
+        f->ai = 0;
+
+    // Return average (sum divided by actual count)
+    return f->as / f->count;
+}
+
+// Add an offset correction to the current filter state
+void average_add(filter_average_t *f, int64_t offset) {
+
+    for (uint8_t i = 0; i < f->count; i++) {
+        f->a[i] += offset;
     }
-    return (int64_t)(f->as / f->size);
+    f->as += offset * f->count;
 }
 
 // Median filter

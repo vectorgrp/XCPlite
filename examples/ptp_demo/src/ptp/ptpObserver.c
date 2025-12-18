@@ -19,16 +19,34 @@
 
 #ifdef OPTION_ENABLE_PTP_OBSERVER
 
-#include "platform.h"
-#include "ptpMaster.h" // for tPtpMaster
+#include "platform.h" // for SOCKET, socketSendTo, socketGetSendTime, ...
 #include "ptpObserver.h"
-#include "util.h"
+#include "util.h" // for filter_average_t, average_init, average_calc
 
 // XCP
 #ifdef OPTION_ENABLE_PTP_XCP
 #include <a2l.h>    // for xcplib A2l generation
 #include <xcplib.h> // for xcplib application programming interface
 #endif
+
+// Calibration parameters
+#include "../ptp_demo.h"
+
+//-------------------------------------------------------------------------------------------------------
+// PTP master descriptor
+
+#include "ptpHdr.h" // for struct announce from the PTP protocol
+
+typedef struct {
+
+    uint16_t index;
+    uint8_t domain;
+    uint8_t uuid[8];
+    uint8_t addr[4];
+
+    struct announce a; // Announce header from the announce protocol message of this master
+
+} tPtpMaster;
 
 //-------------------------------------------------------------------------------------------------------
 
@@ -62,22 +80,27 @@ typedef struct {
     uint32_t flup_correction;
     uint16_t flup_sequenceId;
 
-    // PTP timing analysis state
+    // PTP timing analysis state, all values in nanoseconds and per second units
     uint32_t cycle_count;
-    uint64_t t1, t2;               // Input
+    uint64_t t1_norm, t2_norm;     // Input normalized timestamps
     uint64_t t1_offset, t2_offset; // Normalization offsets
-    int64_t master_drift_raw;      // Calculated drift
-    int64_t master_drift;
-    int64_t master_drift_drift;         // Drift of the drift
-    int64_t master_offset_raw;          // raw offset t1-t2
-    int64_t t1_norm;                    // normalized
-    int64_t t2_norm;                    // normalized
-    int64_t master_offset_norm;         // normalized
-    int64_t master_offset_compensation; // normalized master_offset servo compensation
-    int64_t master_offset_jitter;       // normalized master_offset error (detrended)
-    int64_t master_jitter;              // jitter
-    double master_jitter_rms;           // jitter root mean square
-    double master_jitter_avg;           // jitter average
+    int64_t master_drift_raw;      // Raw momentary drift
+    int64_t master_drift;          // Filtered drift over MASTER_DRIFT_FILTER_SIZE cycles
+    int64_t master_drift_drift;    // Drift of the drift
+
+    int64_t master_offset_raw;          // momentary raw master offset t1-t2
+    int64_t master_offset_norm;         // normailzed master offset t1_norm-t2_norm
+    int64_t master_offset_compensation; // normalized master_offset compensation servo offset
+    int64_t master_offset_detrended;    // normalized master_offset error (detrended master_offset_norm)
+
+    int64_t master_jitter;    // jitter
+    double master_jitter_rms; // jitter root mean square
+    double master_jitter_avg; // jitter average
+
+    // PI servo controller state
+    double servo_integral;    // Integral accumulator for I-term
+    int64_t servo_correction; // Total servo correction applied
+
     filter_average_t master_drift_filter;
     filter_average_t master_jitter_rms_filter;
     filter_average_t master_jitter_avg_filter;
@@ -103,13 +126,6 @@ static void printMaster(const tPtpMaster *m) {
            "    timesource=%s (%02X), utcOffset=%u, prio1=%u, class=%u, acc=%u, var=%u, prio2=%u, steps=%u\n",
            m->domain, m->addr[0], m->addr[1], m->addr[2], m->addr[3], m->uuid[0], m->uuid[1], m->uuid[2], m->uuid[3], m->uuid[4], m->uuid[5], m->uuid[6], m->uuid[7], timesource,
            m->a.timeSource, htons(m->a.utcOffset), m->a.priority1, m->a.clockClass, m->a.clockAccuraccy, htons(m->a.clockVariance), m->a.priority2, htons(m->a.stepsRemoved));
-
-#ifdef OPTION_ENABLE_PTP_TEST
-    if (m->path_delay > 0) {
-        char ts1[64];
-        printf("    mean_path_delay=%" PRIu64 "ns, offset=%s, drift=%gppm\n", m->path_delay, clockGetTimeString(ts1, sizeof(ts1), m->offset), (double)m->drift / 1000.0);
-    }
-#endif
 }
 
 // Print info
@@ -130,21 +146,49 @@ void ptpObserverPrintInfo() {
 //-------------------------------------------------------------------------------------------------------
 // PTP master timing analysis
 
-#define MASTER_DRIFT_FILTER_SIZE 32
-#define MASTER_JITTER_RMS_FILTER_SIZE 32
-#define MASTER_JITTER_AVG_FILTER_SIZE 32
+#define MASTER_DRIFT_FILTER_SIZE 16
+#define MASTER_JITTER_RMS_FILTER_SIZE 16
+#define MASTER_JITTER_AVG_FILTER_SIZE 16
+
+// PI servo controller initialization
+// Gains tuned for typical PTP SYNC rates (1-8 Hz)
+// P-gain provides fast initial convergence
+// I-gain eliminates steady-state error from drift estimation errors
+// servo_p_gain = 0.2;   // Proportional gain: moderate response
+// servo_i_gain = 0.005; // Integral gain: slow accumulation to avoid oscillation
+
+// Calibration parameters structure
+typedef struct params {
+    uint8_t reset;       // Reset PTP observer state
+    int32_t correction;  // Correction to apply to t1 timestamps
+    double servo_p_gain; // Proportional gain (typically 0.1 - 0.5)
+    double servo_i_gain; // Integral gain (typically 0.001 - 0.01)
+} parameters_t;
+
+// Default values (reference page, "FLASH") for the calibration parameters
+const parameters_t params = {.reset = false, .correction = 4, .servo_p_gain = 0.4, .servo_i_gain = 0.01};
+
+// A global calibration segment handle for the calibration parameters
+// A calibration segment has a working page ("RAM") and a reference page ("FLASH"), it is described by a MEMORY_SEGMENT in the A2L file
+// Using the calibration segment to access parameters assures safe (thread safe against XCP modifications), wait-free and consistent access
+// It supports RAM/FLASH page switching, reinitialization (copy FLASH to RAM page) and persistence (save RAM page to BIN file)
+#ifdef OPTION_ENABLE_PTP_XCP
+tXcpCalSegIndex gParams = XCP_UNDEFINED_CALSEG;
+#else
+#define XcpLockCalSeg(x) ((void *)&params)
+#define XcpUnlockCalSeg(x)
+#endif
 
 static void syncInit() {
 
     gPtpC.cycle_count = 0;
 
-    gPtpC.t1 = 0;
-    gPtpC.t2 = 0;
+    gPtpC.t1_norm = 0;
+    gPtpC.t2_norm = 0;
 
     gPtpC.sync_cycle_time = 1000000000;
 
     gPtpC.master_offset_raw = 0;
-    gPtpC.master_offset_norm = 0;
 
     gPtpC.master_drift_raw = 0;
     average_init(&gPtpC.master_drift_filter, MASTER_DRIFT_FILTER_SIZE);
@@ -152,6 +196,8 @@ static void syncInit() {
     gPtpC.master_drift_drift = 0; // Drift of the drift
 
     gPtpC.master_offset_compensation = 0;
+    gPtpC.servo_integral = 0.0;
+    gPtpC.servo_correction = 0;
 
     gPtpC.master_jitter = 0;
     average_init(&gPtpC.master_jitter_rms_filter, MASTER_JITTER_RMS_FILTER_SIZE);
@@ -160,7 +206,7 @@ static void syncInit() {
     gPtpC.master_jitter_avg = 0;
 }
 
-static void syncUpdate(uint64_t t1, uint64_t correction, uint64_t t2) {
+static void syncUpdate(uint64_t t1_in, uint64_t correction, uint64_t t2_in) {
 
     char ts1[64], ts2[64];
 
@@ -168,39 +214,51 @@ static void syncUpdate(uint64_t t1, uint64_t correction, uint64_t t2) {
     gPtpC.cycle_count++;
 
     if (gPtpDebugLevel >= 4) {
-        printf("  t1 (SYNC tx on master (via PTP))  = %s (%" PRIu64 ")\n", clockGetString(ts1, sizeof(ts1), t1), t1);
-        printf("  t2 (SYNC rx)  = %s (%" PRIu64 ")\n", clockGetString(ts2, sizeof(ts2), t2), t2);
-        printf("  correction    = %" PRIu32 "ns\n", correction);
+        printf("  t1 (SYNC tx on master (via PTP))  = %s (%" PRIu64 ") (%08X)\n", clockGetString(ts1, sizeof(ts1), t1_in), t1_in, (uint32_t)t1_in);
+        printf("  t2 (SYNC rx)  = %s (%" PRIu64 ") (%08X)\n", clockGetString(ts2, sizeof(ts2), t2_in), t2_in, (uint32_t)t2_in);
+        printf("  correction    = %" PRIu64 "ns\n", correction);
         printf("  cycle_count   = %u\n", gPtpC.cycle_count);
     }
 
+    // Apply rounding to t1 assuming ( Vector VN/VX PTP master has 8ns resolution)
+    parameters_t *params = (parameters_t *)XcpLockCalSeg(gParams);
+    t1_in = t1_in + params->correction;
+    XcpUnlockCalSeg(gParams);
+
     // Apply correction to t1
-    t1 += correction;
+    t1_in += correction;
+
+    // Master offset raw value
+    gPtpC.master_offset_raw = (int64_t)t1_in - (int64_t)t2_in; // Positive master_offset means master is ahead
 
     // Master drift estimation from SYNC messages t1/t2
     // Plausibility checking
-    if (!(t1 > gPtpC.t1 && t2 > gPtpC.t2)) {
+    if (!(t1_in > gPtpC.t1_norm && t2_in > gPtpC.t2_norm)) {
         assert(0);
     }
 
     // First round, init
-    if (gPtpC.t1 == 0 || gPtpC.t2 == 0) {
+    if (gPtpC.t1_offset == 0 || gPtpC.t2_offset == 0) {
 
-        gPtpC.t1 = t1; // corrected sync tx time on master clock
-        gPtpC.t2 = t2; // sync rx time on slave clock
+        gPtpC.t1_norm = 0; // corrected sync tx time on master clock
+        gPtpC.t2_norm = 0; // sync rx time on slave clock
 
-        // Normalize time offsets for t1 (corrected),t2
-        gPtpC.t1_offset = t1;
-        gPtpC.t2_offset = t2;
+        // Normalization time offsets for t1,t2
+        gPtpC.t1_offset = t1_in;
+        gPtpC.t2_offset = t2_in;
     }
 
     // Analysis
     else {
 
+        // Normaiize t1,t2 to startup time
+        uint64_t t1_norm = t1_in - gPtpC.t1_offset;
+        uint64_t t2_norm = t2_in - gPtpC.t2_offset;
+
         // Time differences since last SYNC, with correction applied to master time
         uint64_t c1, c2;
-        c1 = (int64_t)t1 - (int64_t)gPtpC.t1; // time since last sync on master clock
-        c2 = t2 - gPtpC.t2;                   // time since last sync on local clock
+        c1 = (int64_t)t1_norm - (int64_t)gPtpC.t1_norm; // time since last sync on master clock
+        c2 = t2_norm - gPtpC.t2_norm;                   // time since last sync on local clock
         assert(c1 < 0x8000000000000000);
         assert(c2 < 0x8000000000000000);
 
@@ -225,10 +283,7 @@ static void syncUpdate(uint64_t t1, uint64_t correction, uint64_t t2) {
 
             // Master offset
             // @@@@ TODO apply correction
-            gPtpC.master_offset_raw = (int64_t)t1 - (int64_t)t2; // Positive master_offset means master is ahead
-            gPtpC.t1_norm = t1 - gPtpC.t1_offset;
-            gPtpC.t2_norm = t2 - gPtpC.t2_offset;
-            gPtpC.master_offset_norm = gPtpC.t1_norm - gPtpC.t2_norm;
+            gPtpC.master_offset_norm = (int64_t)t1_norm - (int64_t)t2_norm; // Positive master_offset means master is ahead
             if (gPtpC.master_offset_compensation == 0) {
                 // Initialize compensation
                 gPtpC.master_offset_compensation = gPtpC.master_offset_norm;
@@ -237,37 +292,69 @@ static void syncUpdate(uint64_t t1, uint64_t correction, uint64_t t2) {
                 gPtpC.master_offset_compensation -= ((gPtpC.master_drift) * (int64_t)gPtpC.sync_cycle_time) / 1000000000;
             }
 
-            gPtpC.master_offset_jitter = gPtpC.master_offset_norm - gPtpC.master_offset_compensation;
+            gPtpC.master_offset_detrended = gPtpC.master_offset_norm - gPtpC.master_offset_compensation;
+
+            // PI Servo Controller to prevent offset runaway
+            // The offset error (master_offset_detrended) should ideally be zero-mean jitter.
+            // Any persistent non-zero mean indicates drift estimation error that needs correction.
             {
-                // Simple offset servo
-                int64_t d = (gPtpC.master_offset_jitter / 10);
-                if (d > 5)
-                    d = 5;
-                if (d < -5)
-                    d = -5;
-                gPtpC.master_offset_compensation += d;
+                double error = (double)gPtpC.master_offset_detrended;
+
+                parameters_t *params = (parameters_t *)XcpLockCalSeg(gParams);
+
+                // Proportional term: immediate correction proportional to error
+                double p_term = params->servo_p_gain * error;
+
+                // Integral term: accumulate error over time to eliminate steady-state offset
+                // Apply anti-windup: limit integral to prevent excessive accumulation
+                gPtpC.servo_integral += params->servo_i_gain * error;
+                double integral_limit = 10000.0; // Limit integral to +/- 10us
+                if (gPtpC.servo_integral > integral_limit)
+                    gPtpC.servo_integral = integral_limit;
+                if (gPtpC.servo_integral < -integral_limit)
+                    gPtpC.servo_integral = -integral_limit;
+
+                XcpUnlockCalSeg(gParams);
+
+                // Total servo correction
+                double correction = p_term + gPtpC.servo_integral;
+
+                // Apply correction to compensation (with rate limiting to avoid large jumps)
+                double max_correction_per_cycle = 100.0; // Max 100ns correction per cycle
+                if (correction > max_correction_per_cycle)
+                    correction = max_correction_per_cycle;
+                if (correction < -max_correction_per_cycle)
+                    correction = -max_correction_per_cycle;
+
+                gPtpC.servo_correction = (int64_t)correction;
+                gPtpC.master_offset_compensation += gPtpC.servo_correction;
+
+                if (gPtpDebugLevel >= 4) {
+                    printf("  servo: error=%.1f p=%.1f i=%.1f corr=%" PRIi64 "\n", error, p_term, gPtpC.servo_integral, gPtpC.servo_correction);
+                }
             }
 
             if (gPtpDebugLevel >= 3) {
                 printf("  cycle_time          = %" PRIi64 "ns\n", gPtpC.sync_cycle_time);
+                printf("  master_offset = %" PRIi64 " ns (detrended)\n", gPtpC.master_offset_detrended);
                 if (gPtpDebugLevel >= 5) {
                     printf("  master_offset_raw   = %" PRIi64 " ns\n", gPtpC.master_offset_raw);
                     printf("  master_offset_norm  = %" PRIi64 " ns\n", gPtpC.master_offset_norm);
                     printf("  master_offset_comp  = %" PRIi64 " ns\n", gPtpC.master_offset_compensation);
-                    printf("  master_offset_jitter= %" PRIi64 " ns\n", gPtpC.master_offset_jitter);
                 }
             }
 
             // Jitter
-            gPtpC.master_jitter = gPtpC.master_offset_jitter;
+            gPtpC.master_jitter = gPtpC.master_offset_detrended;
             gPtpC.master_jitter_rms = sqrt((double)average_calc(&gPtpC.master_jitter_rms_filter, gPtpC.master_jitter * gPtpC.master_jitter));
             gPtpC.master_jitter_avg = average_calc(&gPtpC.master_jitter_avg_filter, gPtpC.master_jitter);
 
             // Reset run away compensation to average jitter every MASTER_JITTER_AVG_FILTER_SIZE cycles
-            if (gPtpC.cycle_count % MASTER_JITTER_AVG_FILTER_SIZE == 0) {
-                if (gPtpC.master_jitter_avg < -50 || gPtpC.master_jitter_avg > +50) {
-                    gPtpC.master_offset_compensation += gPtpC.master_jitter_avg; // Reset compensation to average jitter to avoid long term drift
-                }
+            if ((gPtpC.cycle_count % MASTER_JITTER_AVG_FILTER_SIZE) == 0) {
+
+                // if (gPtpC.master_jitter_avg < -50 || gPtpC.master_jitter_avg > +50) {
+                //     gPtpC.master_offset_compensation += gPtpC.master_jitter_avg; // Reset compensation to average jitter to avoid long term drift
+                // }
             }
 
             if (gPtpDebugLevel >= 3) {
@@ -276,18 +363,14 @@ static void syncUpdate(uint64_t t1, uint64_t correction, uint64_t t2) {
                 printf("  master_jitter_rms   = %g ns\n", gPtpC.master_jitter_rms);
             }
         }
+        // Remember last input values
+        gPtpC.t1_norm = t1_norm; // sync tx time on master clock
+        gPtpC.t2_norm = t2_norm; // sync rx time on slave clock
     }
-
-    // Remember last input values
-    gPtpC.t1 = t1; // sync tx time on master clock
-    gPtpC.t2 = t2; // sync rx time on slave clock
 
 #ifdef OPTION_ENABLE_PTP_XCP
     XcpEvent(gPtpC_syncEvent);
 #endif
-    if (gPtpDebugLevel >= 5) {
-        printf("  t1 = %s (%" PRIu64 ")\n  t2 = %s (%" PRIu64 ")\n", clockGetString(ts1, sizeof(ts1), gPtpC.t1), gPtpC.t1, clockGetString(ts2, sizeof(ts2), gPtpC.t2), gPtpC.t2);
-    }
 }
 
 //-------------------------------------------------------------------------------------------------------
@@ -295,9 +378,23 @@ static void syncUpdate(uint64_t t1, uint64_t correction, uint64_t t2) {
 // Create A2L description for measurements and parameters
 // Create XCP events
 
-#ifdef OPTION_ENABLE_PTP_XCP
+#ifndef OPTION_ENABLE_PTP_XCP
+
+#else
 
 void ptpObserverCreateXcpEvents() { gPtpC_syncEvent = XcpCreateEvent("PTP_SYNC", 0, 0); }
+
+void ptpObserverCreateXcpParameters() {
+
+    gParams = XcpCreateCalSeg("params", &params, sizeof(params));
+
+    A2lSetSegmentAddrMode(gParams, params);
+
+    A2lCreateParameter(params.reset, "Reset PTP observer state", "", 0, 1);
+    A2lCreateParameter(params.correction, "Correction for t1", "", -100, 100);
+    A2lCreateParameter(params.servo_i_gain, "Integral gain for servo", "", 0.0, 1.0);
+    A2lCreateParameter(params.servo_p_gain, "Proportional gain for servo", "", 0.0, 1.0);
+}
 
 void ptpObserverCreateA2lDescription() {
 
@@ -315,24 +412,24 @@ void ptpObserverCreateA2lDescription() {
     A2lCreateMeasurement(gPtpC.flup_sequenceId, "FOLLOW_UP sequence counter");
     A2lCreateMeasurement(gPtpC.flup_correction, "FOLLOW_UP correction");
 
-    A2lCreatePhysMeasurement(gPtpC.t1, "Master timestamp", "ns", 1.0, 0.0);
-    A2lCreatePhysMeasurement(gPtpC.t2, "Reference timestamp", "ns", 1.0, 0.0);
+    A2lCreatePhysMeasurement(gPtpC.t1_norm, "t1 normalized to startup reference time t1_offset", "ns", 0, +1000000);
+    A2lCreatePhysMeasurement(gPtpC.t2_norm, "t2 normalized to startup reference time t2_offset", "ns", 0, +1000000);
 
     A2lCreatePhysMeasurement(gPtpC.master_drift_raw, "", "ppm*1000", -100, +100);
     A2lCreatePhysMeasurement(gPtpC.master_drift, "", "ppm*1000", -100, +100);
     A2lCreatePhysMeasurement(gPtpC.master_drift_drift, "", "ppm*1000", -10, +10);
 
     A2lCreatePhysMeasurement(gPtpC.master_offset_raw, "t1-t2 raw value (not used)", "ns", -1000000, +1000000);
-    A2lCreatePhysMeasurement(gPtpC.t1_norm, "t1 normalized to startup reference time t1_offset", "ns", 0, +1000000);
-    A2lCreatePhysMeasurement(gPtpC.t2_norm, "t2 normalized to startup reference time t2_offset", "ns", 0, +1000000);
-    A2lCreatePhysMeasurement(gPtpC.master_offset_norm, "normalized master offset (t1-t2)", "ns", -1000000, +1000000);
-
     A2lCreatePhysMeasurement(gPtpC.master_offset_compensation, "offset for detrending", "ns", -1000, +1000);
-    A2lCreatePhysMeasurement(gPtpC.master_offset_jitter, "filtered detrended master offset", "ns", -1000, +1000);
+    A2lCreatePhysMeasurement(gPtpC.master_offset_detrended, "detrended master offset", "ns", -1000, +1000);
 
     A2lCreatePhysMeasurement(gPtpC.master_jitter, "offset jitter raw value", "ns", -1000, +1000);
     A2lCreatePhysMeasurement(gPtpC.master_jitter_rms, "Jitter root mean square", "ns", -1000, +1000);
     A2lCreatePhysMeasurement(gPtpC.master_jitter_avg, "Jitter average", "ns", -1000, +1000);
+
+    // PI Servo measurements
+    A2lCreatePhysMeasurement(gPtpC.servo_integral, "Servo integral accumulator", "ns", -10000, +10000);
+    A2lCreatePhysMeasurement(gPtpC.servo_correction, "Servo correction per cycle", "ns", -100, +100);
 }
 #endif
 
@@ -378,8 +475,8 @@ static void ptpPrintFrame(struct ptphdr *ptp, uint8_t *addr, uint32_t rx_timesta
         break;
     }
     if (s != NULL) {
-        printf("%s (seqId=%u, timestamp= %" PRIu64 " from %u.%u.%u.%u - %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X", s, htons(ptp->sequenceId), rx_timestamp, addr[0], addr[1],
-               addr[2], addr[3], ptp->clockId[0], ptp->clockId[1], ptp->clockId[2], ptp->clockId[3], ptp->clockId[4], ptp->clockId[5], ptp->clockId[6], ptp->clockId[7]);
+        printf("%s (seqId=%u, timestamp=%" PRIu64 " from %u.%u.%u.%u - %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X", s, htons(ptp->sequenceId), rx_timestamp, addr[0], addr[1], addr[2],
+               addr[3], ptp->clockId[0], ptp->clockId[1], ptp->clockId[2], ptp->clockId[3], ptp->clockId[4], ptp->clockId[5], ptp->clockId[6], ptp->clockId[7]);
         if (ptp->type == PTP_DELAY_RESP)
             printf("  to %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X", ptp->u.r.clockId[0], ptp->u.r.clockId[1], ptp->u.r.clockId[2], ptp->u.r.clockId[3], ptp->u.r.clockId[4],
                    ptp->u.r.clockId[5], ptp->u.r.clockId[6], ptp->u.r.clockId[7]);
@@ -502,7 +599,7 @@ static void *ptpThread320(void *par)
 //-------------------------------------------------------------------------------------------------------
 // Public functions
 
-// Start PTP Client
+// Start PTP Observer
 bool ptpObserverInit(uint8_t domain, uint8_t *bindAddr) {
 
     memset(&gPtpC, 0, sizeof(gPtpC));
@@ -560,6 +657,7 @@ bool ptpObserverInit(uint8_t domain, uint8_t *bindAddr) {
 
 #ifdef OPTION_ENABLE_PTP_XCP
     ptpObserverCreateXcpEvents();
+    ptpObserverCreateXcpParameters();
     ptpObserverCreateA2lDescription();
 #endif
 
@@ -571,14 +669,49 @@ bool ptpObserverInit(uint8_t domain, uint8_t *bindAddr) {
     return true;
 }
 
-// Reset PTP analysis state
+// Reset PTP observer analysis state
 void ptpObserverReset() {
     mutexLock(&gPtpC.mutex);
     syncInit();
     mutexUnlock(&gPtpC.mutex);
 }
 
-// Stop PTP client
+// PTP observer main loop
+// This is called from the main loop of the application on a regular basis
+// It prints the status and checks for reset requests via calibration parameters
+void ptpObserverLoop(void) {
+
+    static bool first = true;
+
+    // Status print
+    if (gPtpDebugLevel >= 2) {
+
+        if (gPtpC.gmValid && first) {
+            printf("PTP observer status:\n");
+            printf("  domain=%u, addr=%u.%u.%u.%u\n", gPtpC.domain, gPtpC.addr[0], gPtpC.addr[1], gPtpC.addr[2], gPtpC.addr[3]);
+            printf("  Grandmaster:\n");
+            printMaster(&gPtpC.gm);
+            first = false;
+        }
+    }
+
+    // Reset request via calibration parameter
+    parameters_t *params = (parameters_t *)XcpLockCalSeg(gParams);
+    uint8_t reset = params->reset; // Get the reset calibration parameter
+    params->reset = 0;             // Clear the reset request
+    XcpUnlockCalSeg(gParams);
+    if (reset) {
+        printf("PTP observer reset requested via calibration parameter\n");
+        first = true; // Reset first flag to print status again
+        // Reset grandmaster info
+        gPtpC.gmValid = false;
+        // Reset PTP analysis state
+        ptpObserverReset();
+    }
+}
+
+// Stop PTP observer
+// This is called from the main application shutdown routine
 void ptpObserverShutdown() {
 
     cancel_thread(gPtpC.threadHandle);
@@ -589,7 +722,5 @@ void ptpObserverShutdown() {
     socketClose(&gPtpC.sock319);
     socketClose(&gPtpC.sock320);
 }
-
-tPtpMaster *ptpObserverGetGrandmaster() { return gPtpC.gmValid ? &gPtpC.gm : NULL; }
 
 #endif

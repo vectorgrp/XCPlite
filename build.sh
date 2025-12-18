@@ -95,6 +95,8 @@ for arg in "$@"; do
             echo "✅ All build directories cleaned"
             rm -f *.bin
             rm -f *.hex
+            rm -f *.log
+            rm -f *.mf4
             rm -f *.a2l
             echo "✅ All hex and a2l files cleaned"
             exit 0

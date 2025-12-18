@@ -15,6 +15,9 @@
 #include <string.h>  // for sprintf
 
 #include "ptp_cfg.h"
+
+#define OPTION_ENABLE_PTP_TEST
+
 #ifdef OPTION_ENABLE_PTP_CLIENT
 
 #include "platform.h"
@@ -845,7 +848,7 @@ bool ptpClientInit(const uint8_t *uuid, uint8_t domain, uint8_t *bindAddr, void 
 
     // Create XL-API sockets for event (319) and general messages (320)
     gPtpC.sock319 = gPtpC.sock320 = INVALID_SOCKET;
-    if (!socketOpen(&gPtpC.sock319, SOCKET_MODE_BLOCKING | SOCKET_MODE_TIMESTAMPING ))
+    if (!socketOpen(&gPtpC.sock319, SOCKET_MODE_BLOCKING | SOCKET_MODE_TIMESTAMPING))
         return false; // SYNC tx, DELAY_REQ rx timestamps
     if (!socketOpen(&gPtpC.sock320, SOCKET_MODE_BLOCKING))
         return false;

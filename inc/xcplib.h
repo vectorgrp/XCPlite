@@ -601,6 +601,7 @@ void ApplXcpRegisterFlushCallback(uint8_t (*cb_flush)(void));
 uint64_t clockGetNs(void);
 uint64_t clockGetUs(void);
 void sleepUs(uint32_t us);
+void sleepMs(uint32_t ms);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Compatibility
