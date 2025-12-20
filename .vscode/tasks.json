@@ -354,6 +354,134 @@
             },
             "detail": "Download executable files (*.out, *.a) from Raspberry Pi build directory"
         },
+        {
+            "type": "shell",
+            "label": "XCPlite: sync to VP6450",
+            "command": "rsync",
+            "args": [
+                "-avz",
+                "--delete",
+                "--exclude=build/",
+                "--exclude=.git/",
+                "--exclude=\"*.o\"",
+                "--exclude=\"*.out\"",
+                "--exclude=\"*.a\"",
+                "./",
+                "rainer@192.168.0.143:~/XCPlite-RainerZ/"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "detail": "rsync to VP6450 rainer@192.168.0.143:~/XCPlite-RainerZ/"
+        },
+        {
+            "type": "shell",
+            "label": "XCPlite: Remote configure CMake on VP6450",
+            "command": "ssh",
+            "args": [
+                "VP6450",
+                "cd ~/XCPlite-RainerZ && cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug"
+            ],
+            "group": "build",
+            "dependsOn": "XCPlite: sync to VP6450",
+            "detail": "Configure CMake build system on VP6450"
+        },
+        {
+            "type": "shell",
+            "label": "XCPlite: Remote build hello_xcp on VP6450",
+            "command": "ssh",
+            "args": [
+                "VP6450",
+                "cd ~/XCPlite-RainerZ && cmake --build build --target hello_xcp"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "dependsOn": "XCPlite: Remote configure CMake on VP6450",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Build hello_xcp target on VP6450"
+        },
+        {
+            "type": "shell",
+            "label": "XCPlite: Remote build cpp_demo on VP6450",
+            "command": "ssh",
+            "args": [
+                "VP6450",
+                "cd ~/XCPlite-RainerZ && cmake --build build --target cpp_demo"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "dependsOn": "XCPlite: Remote configure CMake on VP6450",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Build cpp_demo target on VP6450"
+        },
+        {
+            "type": "shell",
+            "label": "XCPlite: Remote build all on VP6450",
+            "command": "ssh",
+            "args": [
+                "VP6450",
+                "cd ~/XCPlite-RainerZ && cmake --build build"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "dependsOn": "XCPlite: Remote configure CMake on VP6450",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Build all targets on VP6450"
+        },
+        {
+            "type": "shell",
+            "label": "XCPlite: Remote kill XCP processes on VP6450",
+            "command": "ssh",
+            "args": [
+                "VP6450",
+                "pkill -f 'hello_xcp\\|cpp_demo\\|c_demo\\|multi_thread_demo' || true"
+            ],
+            "group": "build",
+            "detail": "Kill any running XCP demo processes on VP6450"
+        },
+        {
+            "type": "shell",
+            "label": "XCPlite: Download executables from VP6450",
+            "command": "rsync",
+            "args": [
+                "-avz",
+                "--include=\"*.out\"",
+                "--include=\"*.a2l\"",
+                "--exclude=\"*\"",
+                "rainer@192.168.0.143:~/XCPlite-RainerZ/build/",
+                "./vp6450/"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "detail": "Download executable files (*.out, *.a2l) from VP6450 build directory"
+        }
     ],
     "version": "2.0.0"
 }
