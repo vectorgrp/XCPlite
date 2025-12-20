@@ -360,7 +360,7 @@ bool socketBind(SOCKET sock, uint8_t *addr, uint16_t port) {
 // Must be called after socket is created and bound
 // ifname: Network interface name (e.g., "eth0"). If NULL, uses first non-loopback interface.
 // Returns true on success, false on failure (falls back to software timestamps)
-bool socketEnableHwTimestamps(SOCKET sock, const char *ifname) {
+bool socketEnableHwTimestamps(SOCKET sock, const char *ifname, bool ptpOnly) {
     struct ifreq ifr;
     struct hwtstamp_config hwconfig;
 
@@ -383,7 +383,7 @@ bool socketEnableHwTimestamps(SOCKET sock, const char *ifname) {
             freeifaddrs(ifaddrs);
         }
         if (ifr.ifr_name[0] == '\0') {
-            DBG_PRINT_WARNING("socketEnableHwTimestamps: No suitable interface found\n");
+            DBG_PRINT_ERROR("socketEnableHwTimestamps: No suitable interface found\n");
             return false;
         }
     } else {
@@ -394,16 +394,17 @@ bool socketEnableHwTimestamps(SOCKET sock, const char *ifname) {
     // tx_type: HWTSTAMP_TX_ON enables TX timestamps for all packets
     // rx_filter: HWTSTAMP_FILTER_ALL or HWTSTAMP_FILTER_PTP_V2_EVENT for PTP packets
     hwconfig.flags = 0;
-    hwconfig.tx_type = HWTSTAMP_TX_ON;        // Enable TX hardware timestamps
-    hwconfig.rx_filter = HWTSTAMP_FILTER_ALL; // Timestamp all incoming packets (or use HWTSTAMP_FILTER_PTP_V2_EVENT for PTP only)
+    hwconfig.tx_type = HWTSTAMP_TX_ON;                                                 // Enable TX hardware timestamps
+    hwconfig.rx_filter = ptpOnly ? HWTSTAMP_FILTER_PTP_V2_EVENT : HWTSTAMP_FILTER_ALL; // Timestamp all incoming packets (or use HWTSTAMP_FILTER_PTP_V2_EVENT for PTP only)
 
     ifr.ifr_data = (char *)&hwconfig;
 
     if (ioctl(sock, SIOCSHWTSTAMP, &ifr) < 0) {
+
         // SIOCSHWTSTAMP requires CAP_NET_ADMIN or root privileges
         // Some NICs may not support it, or the filter mode may not be supported
         DBG_PRINTF_WARNING("socketEnableHwTimestamps: ioctl SIOCSHWTSTAMP failed for %s (errno=%d: %s)\n", ifr.ifr_name, errno, strerror(errno));
-        DBG_PRINT_WARNING("  Hardware timestamping may require root privileges or may not be supported by this NIC\n");
+        DBG_PRINT_WARNING("Hardware timestamping may require root privileges or may not be supported by this NIC\n");
 
         // Try with a less restrictive filter
         hwconfig.rx_filter = HWTSTAMP_FILTER_NONE; // No RX filter, just enable TX
@@ -412,7 +413,7 @@ bool socketEnableHwTimestamps(SOCKET sock, const char *ifname) {
             DBG_PRINTF_WARNING("socketEnableHwTimestamps: Fallback also failed (errno=%d: %s)\n", errno, strerror(errno));
             return false;
         }
-        DBG_PRINTF3("socketEnableHwTimestamps: Enabled TX-only hardware timestamps on %s\n", ifr.ifr_name);
+        DBG_PRINTF_WARNING("socketEnableHwTimestamps: Enabled TX-only hardware timestamps on %s\n", ifr.ifr_name);
         return true;
     }
 
@@ -424,9 +425,10 @@ bool socketEnableHwTimestamps(SOCKET sock, const char *ifname) {
 
 // Hardware timestamping not supported on this platform
 // Stub for non-Linux platforms
-bool socketEnableHwTimestamps(SOCKET sock, const char *ifname) {
+bool socketEnableHwTimestamps(SOCKET sock, const char *ifname, bool ptpOnly) {
     (void)sock;
     (void)ifname;
+    (void)ptpOnly;
     DBG_PRINT_ERROR("socketEnableHwTimestamps: Hardware timestamping not supported on this platform!\n");
     return false;
 }

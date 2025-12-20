@@ -307,13 +307,12 @@ int32_t socketGetLastError(void);
 #define SOCKET_MODE_BLOCKING 0x02
 #define SOCKET_MODE_TCP 0x04
 
-
 // Socket functions
 bool socketStartup(void);
 void socketCleanup(void);
-bool socketOpen(SOCKET *sp, uint16_t flags );
+bool socketOpen(SOCKET *sp, uint16_t flags);
 bool socketBind(SOCKET sock, uint8_t *addr, uint16_t port);
-bool socketEnableHwTimestamps(SOCKET sock, const char *ifname); // Enable NIC hardware timestamping (Linux only, requires root)
+bool socketEnableHwTimestamps(SOCKET sock, const char *ifname, bool ptpOnly); // Enable NIC hardware timestamping (Linux only, requires root)
 bool socketJoin(SOCKET sock, uint8_t *maddr);
 bool socketListen(SOCKET sock);
 SOCKET socketAccept(SOCKET sock, uint8_t *addr);
