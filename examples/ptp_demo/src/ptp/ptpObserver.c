@@ -283,7 +283,6 @@ static void syncUpdate(uint64_t t1_in, uint64_t correction, uint64_t t2_in) {
                 // gPtpC.master_offset_compensation -= ((gPtpC.master_drift) * (double)gPtpC.sync_cycle_time) / 1000000000;
                 // Compensate drift and drift of drift
                 double n = average_filter_count(&gPtpC.master_drift_filter) / 2;
-                double f = n * (n + 1) / 2.0;
                 gPtpC.master_offset_compensation -= ((gPtpC.master_drift + gPtpC.master_drift_drift * n) * (double)gPtpC.sync_cycle_time) / 1000000000;
             }
             gPtpC.master_offset_detrended = (double)gPtpC.master_offset_norm - gPtpC.master_offset_compensation;
