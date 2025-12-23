@@ -39,19 +39,23 @@ unsigned int random16() {
 
 // Moving Average Filter
 // Calculate average over last <size> values
-void average_init(filter_average_t *f, uint8_t size) {
+void average_filter_init(tAverageFilter *f, size_t size) {
 
-    if (size > FILTER_MAX_SIZE)
-        size = FILTER_MAX_SIZE;
+    if (size > AVERAGE_FILTER_MAX_SIZE) {
+        size = AVERAGE_FILTER_MAX_SIZE;
+        printf("WARNING: average_filter_init: size %zu too large, limiting to %d\n", size, AVERAGE_FILTER_MAX_SIZE);
+    }
     f->size = size;
     f->ai = 0;
     f->as = 0;
     f->count = 0;
-    for (uint8_t i = 0; i < FILTER_MAX_SIZE; i++)
+    for (size_t i = 0; i < AVERAGE_FILTER_MAX_SIZE; i++)
         f->a[i] = 0;
 }
 
-int64_t average_calc(filter_average_t *f, int64_t v) {
+size_t average_filter_count(tAverageFilter *f) { return f->count; }
+
+tAverageFilterValue average_filter_calc(tAverageFilter *f, tAverageFilterValue v) {
 
     // Subtract the oldest value from sum (only if buffer is full)
     if (f->count == f->size) {
@@ -73,35 +77,10 @@ int64_t average_calc(filter_average_t *f, int64_t v) {
 }
 
 // Add an offset correction to the current filter state
-void average_add(filter_average_t *f, int64_t offset) {
+void average_filter_add(tAverageFilter *f, tAverageFilterValue offset) {
 
-    for (uint8_t i = 0; i < f->count; i++) {
+    for (size_t i = 0; i < f->count; i++) {
         f->a[i] += offset;
     }
     f->as += offset * f->count;
-}
-
-// Median filter
-// Calculate average between current value[0] and value[-n]
-void median_init(filter_median_t *f, uint8_t n, uint64_t t) {
-
-    uint8_t i;
-    if (n > FILTER_MAX_SIZE)
-        n = FILTER_MAX_SIZE;
-    f->n = n;
-    f->ai = 0;
-    for (i = 0; i < FILTER_MAX_SIZE; i++)
-        f->a[i] = t;
-}
-
-uint64_t median_calc(filter_median_t *f, uint64_t v) {
-
-    uint8_t i;
-
-    i = f->ai;
-    f->a[i] = v;
-    if (++i >= f->n)
-        i = 0;
-    f->ai = i;
-    return f->a[i] + (v - f->a[i]) / 2;
 }

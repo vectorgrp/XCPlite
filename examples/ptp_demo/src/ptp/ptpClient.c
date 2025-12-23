@@ -31,9 +31,7 @@
 
 //-------------------------------------------------------------------------------------------------------
 
-#define MAX_MASTERS 16
-#define GRANDMASTER_LOST_TIMEOUT 10 // s
-#define MASTER_DRIFT_FILTER_SIZE 16
+
 
 // PTP client parameters structure
 struct parameters {
