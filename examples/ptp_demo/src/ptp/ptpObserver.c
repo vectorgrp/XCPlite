@@ -15,13 +15,17 @@
 #include <stdio.h>   // for printf
 #include <string.h>  // for sprintf
 
-#include "ptp_cfg.h"
+// #define PTP_INTERFACE NULL
+#define PTP_INTERFACE "eth0" // Network interface for PTP hardware timestamping if auto detection (NULL) does not work
 
-#ifdef OPTION_ENABLE_PTP_OBSERVER
+#define gPtpDebugLevel 3
 
-#include "platform.h" // for SOCKET, socketSendTo, socketGetSendTime, ...
+#define OPTION_ENABLE_PTP_XCP
+
+#include "filter.h"   // for average filter
+#include "platform.h" // from xcplib for SOCKET, socketSendTo, socketGetSendTime, ...
+
 #include "ptpObserver.h"
-#include "util.h" // for average filter
 
 // XCP
 #ifdef OPTION_ENABLE_PTP_XCP
@@ -36,7 +40,6 @@
 
 typedef struct {
 
-    uint16_t index;
     uint8_t domain;
     uint8_t uuid[8];
     uint8_t addr[4];
@@ -84,7 +87,7 @@ typedef struct {
     int64_t t1_norm, t2_norm;                // Input normalized timestamps
     int64_t master_offset_norm;              // normalized master offset t1_norm-t2_norm
     double master_drift_raw;                 // Raw momentary drift
-    double master_drift;                     // Filtered drift over MASTER_DRIFT_FILTER_SIZE cycles
+    double master_drift;                     // Filtered drift over n cycles
     double master_drift_drift;               // Drift of the drift
     double master_offset_compensation;       // normalized master_offset compensation servo offset
     double master_offset_detrended;          // normalized master_offset error (detrended master_offset_norm)
@@ -111,7 +114,7 @@ static uint16_t gPtpC_syncEvent = XCP_UNDEFINED_EVENT_ID; // on SYNC
 // Print information on a grandmaster
 static void printMaster(const tPtpMaster *m) {
 
-    printf("  Master %u:\n", m->index);
+    printf("PTP Master:\n");
     const char *timesource = (m->a.timeSource == PTP_TIME_SOURCE_INTERNAL) ? "internal oscilator" : (m->a.timeSource == PTP_TIME_SOURCE_GPS) ? "GPS" : "Unknown";
     printf("    domain=%u, addr=%u.%u.%u.%u, id=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X\n"
            "    timesource=%s (%02X), utcOffset=%u, prio1=%u, class=%u, acc=%u, var=%u, prio2=%u, steps=%u\n",
@@ -119,54 +122,28 @@ static void printMaster(const tPtpMaster *m) {
            m->a.timeSource, htons(m->a.utcOffset), m->a.priority1, m->a.clockClass, m->a.clockAccuraccy, htons(m->a.clockVariance), m->a.priority2, htons(m->a.stepsRemoved));
 }
 
-// Print info
-void ptpObserverPrintInfo() {
-
-    printf("\nClient Info:\n");
-    printf("UUID:   %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n", gPtpC.gm.uuid[0], gPtpC.gm.uuid[1], gPtpC.gm.uuid[2], gPtpC.gm.uuid[3], gPtpC.gm.uuid[4], gPtpC.gm.uuid[5],
-           gPtpC.gm.uuid[6], gPtpC.gm.uuid[7]);
-    printf("IP:     %u.%u.%u.%u\n", gPtpC.addr[0], gPtpC.addr[1], gPtpC.addr[2], gPtpC.addr[3]);
-    printf("Domain: %u\n", gPtpC.domain);
-    if (gPtpC.gmValid) {
-        printf("Master: \n");
-        printMaster(&gPtpC.gm);
-    }
-    printf("\n");
-}
-
 //-------------------------------------------------------------------------------------------------------
 // PTP master timing analysis
-
-// PI servo controller initialization
-// Gains tuned for typical PTP SYNC rates (1-8 Hz)
-// P-gain provides fast initial convergence
-// I-gain eliminates steady-state error from drift estimation errors
-// servo_p_gain = 0.2;   // Proportional gain: moderate response
-// servo_i_gain = 0.005; // Integral gain: slow accumulation to avoid oscillation
 
 // Calibration parameters structure
 typedef struct params {
     uint8_t reset;                  // Reset PTP observer state
     int32_t t1_correction;          // Correction to apply to t1 timestamps
-    int32_t drift_correction;       // Correction to apply to drift values
     uint8_t drift_filter_size;      // Size of the drift average filter
     uint8_t jitter_rms_filter_size; // Size of the jitter RMS average filter
     uint8_t jitter_avg_filter_size; // Size of the jitter average filter
     double max_correction;          // Maximum allowed servo correction per SYNC interval
     double servo_p_gain;            // Proportional gain (typically 0.1 - 0.5)
-    double servo_i_gain;            // Integral gain (typically 0.001 - 0.01)
 } parameters_t;
 
-// Default values (reference page, "FLASH") for the calibration parameters
+// Default values for the calibration parameters
 const parameters_t params = {.reset = false,
-                             .t1_correction = 4,    // Apply 4ns correction to t1 to compensate for master timestamp rounding
-                             .drift_correction = 0, // No drift correction
-                             .drift_filter_size = MASTER_DRIFT_FILTER_SIZE,
-                             .jitter_rms_filter_size = MASTER_JITTER_RMS_FILTER_SIZE,
-                             .jitter_avg_filter_size = MASTER_JITTER_AVG_FILTER_SIZE,
-                             .max_correction = 100.0, // 100ns maximum correction per SYNC interval
-                             .servo_p_gain = 1.0,
-                             .servo_i_gain = 0.01};
+                             .t1_correction = 3, // Apply 4ns correction to t1 to compensate for master timestamp rounding
+                             .drift_filter_size = 30,
+                             .jitter_rms_filter_size = 30,
+                             .jitter_avg_filter_size = 30,
+                             .max_correction = 1000.0, // 1000ns maximum correction per SYNC interval
+                             .servo_p_gain = 1.0};
 
 // A global calibration segment handle for the calibration parameters
 // A calibration segment has a working page ("RAM") and a reference page ("FLASH"), it is described by a MEMORY_SEGMENT in the A2L file
@@ -190,10 +167,9 @@ static void syncInit() {
     gPtpC.master_drift_raw = 0;
     average_filter_init(&gPtpC.master_drift_filter, params->drift_filter_size);
     gPtpC.master_drift = 0;
-    gPtpC.master_drift_drift = 0; // Drift of the drift
+    gPtpC.master_drift_drift = 0;
     gPtpC.master_offset_compensation = 0;
     gPtpC.servo_integral = 0.0;
-    // gPtpC.servo_correction = 0;
     gPtpC.master_jitter = 0;
     average_filter_init(&gPtpC.master_jitter_rms_filter, params->jitter_rms_filter_size);
     gPtpC.master_jitter_rms = 0;
@@ -241,6 +217,8 @@ static void syncUpdate(uint64_t t1_in, uint64_t correction, uint64_t t2_in) {
         gPtpC.t1_offset = t1_in;
         gPtpC.t2_offset = t2_in;
 
+        gPtpC.master_offset_compensation = 0;
+
         if (gPtpDebugLevel >= 3)
             printf("  Initial offsets: t1_offset=%" PRIu64 ", t2_offset=%" PRIu64 "\n", gPtpC.t1_offset, gPtpC.t2_offset);
     }
@@ -259,6 +237,7 @@ static void syncUpdate(uint64_t t1_in, uint64_t correction, uint64_t t2_in) {
         int64_t c1, c2;
         c1 = t1_norm - gPtpC.t1_norm; // time since last sync on master clock
         c2 = t2_norm - gPtpC.t2_norm; // time since last sync on local clock
+        gPtpC.sync_cycle_time = c2;   // Update last cycle time
 
         if (gPtpDebugLevel >= 4)
             printf("  Cycle times: c1=%" PRIi64 ", c2=%" PRIi64 "\n", c1, c2);
@@ -270,22 +249,18 @@ static void syncUpdate(uint64_t t1_in, uint64_t correction, uint64_t t2_in) {
         if (diff < -200000 || diff > +200000) { // Plausibility checking of cycle drift (max 200us per cycle)
             printf("WARNING: Master drift too high! dt=%lld ns \n", diff);
         } else {
-            gPtpC.sync_cycle_time = c2;                              // Update last cycle time
             gPtpC.master_drift_raw = (double)diff * 1000000000 / c2; // Calculate drift in ppm instead of drift per cycle (drift is in ns/s (1/1000 ppm)
             double drift = average_filter_calc(&gPtpC.master_drift_filter, gPtpC.master_drift_raw); // Filter drift
             gPtpC.master_drift_drift = ((drift - gPtpC.master_drift) * 1000000000) / c2; // Calculate drift of drift in ns/s2 (should be close to zero when temperature is stable )
             gPtpC.master_drift = drift;
         }
 
-        // Apply drift correction_
-        parameters_t *params = (parameters_t *)XcpLockCalSeg(gParams);
-        gPtpC.master_drift += params->drift_correction;
-        XcpUnlockCalSeg(gParams);
-
         // Check if drift filter is warmed up
-        if (average_filter_count(&gPtpC.master_drift_filter) < MASTER_DRIFT_FILTER_SIZE) {
-            if (gPtpDebugLevel >= 3)
-                printf("  Master drift filter warming up (%zu/%u)\n", average_filter_count(&gPtpC.master_drift_filter), MASTER_DRIFT_FILTER_SIZE);
+        if (average_filter_count(&gPtpC.master_drift_filter) < average_filter_size(&gPtpC.master_drift_filter)) {
+            if (gPtpDebugLevel >= 3) {
+                printf("  Master drift filter warming up (%u)\n", average_filter_count(&gPtpC.master_drift_filter));
+                printf("    master_drift_raw    = %g ns/s\n", gPtpC.master_drift_raw);
+            }
         } else {
             if (gPtpDebugLevel >= 3) {
                 printf("  Drift calculation:\n");
@@ -305,8 +280,11 @@ static void syncUpdate(uint64_t t1_in, uint64_t correction, uint64_t t2_in) {
                 gPtpC.master_offset_compensation = gPtpC.master_offset_norm;
             } else {
                 // Compensate drift
-                gPtpC.master_offset_compensation -=
-                    ((gPtpC.master_drift + gPtpC.master_drift_drift * average_filter_count(&gPtpC.master_drift_filter) / 2) * (double)gPtpC.sync_cycle_time) / 1000000000;
+                // gPtpC.master_offset_compensation -= ((gPtpC.master_drift) * (double)gPtpC.sync_cycle_time) / 1000000000;
+                // Compensate drift and drift of drift
+                double n = average_filter_count(&gPtpC.master_drift_filter) / 2;
+                double f = n * (n + 1) / 2.0;
+                gPtpC.master_offset_compensation -= ((gPtpC.master_drift + gPtpC.master_drift_drift * n) * (double)gPtpC.sync_cycle_time) / 1000000000;
             }
             gPtpC.master_offset_detrended = (double)gPtpC.master_offset_norm - gPtpC.master_offset_compensation;
             gPtpC.master_offset_detrended_filtered = average_filter_calc(&gPtpC.master_jitter_avg_filter, gPtpC.master_offset_detrended);
@@ -317,48 +295,10 @@ static void syncUpdate(uint64_t t1_in, uint64_t correction, uint64_t t2_in) {
                 printf("    master_offset = %g ns (detrended)\n", gPtpC.master_offset_detrended);
                 printf("    master_offset = %g ns (filtered detrended)\n", gPtpC.master_offset_detrended_filtered);
             }
+
             // PI Servo Controller to prevent offset runaway
             // The offset error should ideally be zero-mean jitter.
             // Any persistent non-zero mean indicates drift estimation error that needs correction.
-            // {
-            //     double error = (double)gPtpC.master_offset_detrended_filtered;
-
-            //     parameters_t *params = (parameters_t *)XcpLockCalSeg(gParams);
-
-            //     // Proportional term: immediate correction proportional to error
-            //     double p_term = params->servo_p_gain * error;
-
-            //     // Integral term: accumulate error over time to eliminate steady-state offset
-            //     // Apply anti-windup: limit integral to prevent excessive accumulation
-            //     gPtpC.servo_integral += params->servo_i_gain * error;
-            //     double integral_limit = 10000.0; // Limit integral to +/- 10us
-            //     if (gPtpC.servo_integral > integral_limit)
-            //         gPtpC.servo_integral = integral_limit;
-            //     if (gPtpC.servo_integral < -integral_limit)
-            //         gPtpC.servo_integral = -integral_limit;
-
-            //     XcpUnlockCalSeg(gParams);
-
-            //     // Total servo correction
-            //     double correction = p_term + gPtpC.servo_integral;
-
-            //     // Apply correction to compensation (with rate limiting to avoid large jumps)
-            //     const double max_correction_per_cycle = 100.0; // Max 100ns correction per cycle
-            //     if (correction > max_correction_per_cycle)
-            //         correction = max_correction_per_cycle;
-            //     if (correction < -max_correction_per_cycle)
-            //         correction = -max_correction_per_cycle;
-
-            //     gPtpC.servo_correction = (int64_t)correction;
-            //     if (gPtpDebugLevel >= 5) {
-            //         printf("  servo: error=%.1f p=%.1f i=%.1f corr=%" PRIi64 "\n", error, p_term, gPtpC.servo_integral, gPtpC.servo_correction);
-            //     }
-            // }
-
-            // Apply servo correction to the compensation and to the jitter average filter
-            // gPtpC.master_offset_compensation += gPtpC.servo_correction;
-            // average_filter_add(&gPtpC.master_jitter_avg_filter, gPtpC.servo_correction);
-
             double correction = gPtpC.master_offset_detrended_filtered;
 
             // P-term
@@ -421,18 +361,12 @@ void ptpObserverCreateXcpParameters() {
 
     A2lCreateParameter(params.reset, "Reset PTP observer state", "", 0, 1);
     A2lCreateParameter(params.t1_correction, "Correction for t1", "", -100, 100);
-    A2lCreateParameter(params.drift_correction, "Correction for drift", "", -100000, 100000);
-
-    uint8_t drift_filter_size;      // Size of the drift average filter
-    uint8_t jitter_rms_filter_size; // Size of the jitter RMS average filter
-    uint8_t jitter_avg_filter_size; // Size of the jitter average filter
 
     A2lCreateParameter(params.drift_filter_size, "Drift filter size", "", 1, 300);
     A2lCreateParameter(params.jitter_rms_filter_size, "Jitter RMS filter size", "", 1.0, 300.0);
     A2lCreateParameter(params.jitter_avg_filter_size, "Jitter average filter size", "", 1.0, 300.0);
 
-    A2lCreateParameter(params.max_correction, "Maximum correction per cycle", "ns", 0.0, 100.0);
-    A2lCreateParameter(params.servo_i_gain, "Integral gain for servo", "", 0.0, 1.0);
+    A2lCreateParameter(params.max_correction, "Maximum correction per cycle", "ns", 0.0, 1000.0);
     A2lCreateParameter(params.servo_p_gain, "Proportional gain for servo", "", 0.0, 1.0);
 }
 
@@ -442,8 +376,8 @@ void ptpObserverCreateA2lDescription() {
     A2lSetAbsoluteAddrMode__i(gPtpC_syncEvent);
 
     A2lCreateMeasurement(gPtpC.gm.domain, "domain");
-    A2lCreateMeasurementArray(gPtpC.gm.uuid, "grandmaster UUID");
-    A2lCreateMeasurementArray(gPtpC.gm.addr, "grandmaster IP address");
+    A2lCreateMeasurementArray(gPtpC.gm.uuid, "Grandmaster UUID");
+    A2lCreateMeasurementArray(gPtpC.gm.addr, "Grandmaster IP address");
 
     A2lCreateMeasurement(gPtpC.sync_local_time, "SYNC RX timestamp");
     A2lCreateMeasurement(gPtpC.sync_master_time, "SYNC timestamp");
@@ -535,7 +469,7 @@ static bool ptpHandleFrame(int n, struct ptphdr *ptp, uint8_t *addr, uint64_t ti
 
         if (gPtpC.domain == ptp->domain) {
 
-            if (ptp->type == PTP_SYNC || ptp->type == PTP_FOLLOW_UP) {
+            if (gPtpC.gmValid && (ptp->type == PTP_SYNC || ptp->type == PTP_FOLLOW_UP)) {
                 if (ptp->type == PTP_SYNC) {
                     if (timestamp == 0) {
                         printf("WARNING: PTP SYNC received without timestamp!\n");
@@ -564,10 +498,13 @@ static bool ptpHandleFrame(int n, struct ptphdr *ptp, uint8_t *addr, uint64_t ti
                 }
 
             } else if (ptp->type == PTP_ANNOUNCE) {
-
-                if (memcmp(&gPtpC.gm.a, &ptp->u.a, sizeof(ptp->u.a)) != 0) {
+                if (!gPtpC.gmValid) {
+                    printf("Found active PTP master:\n");
+                    gPtpC.gmValid = true;
                     gPtpC.gm.a = ptp->u.a;
-                    printf("PTP: Master parameters updated\n");
+                    gPtpC.gm.domain = ptp->domain;
+                    memcpy(gPtpC.gm.uuid, ptp->clockId, 8);
+                    memcpy(gPtpC.gm.addr, addr, 4);
                     printMaster(&gPtpC.gm);
                 }
             }
@@ -727,19 +664,6 @@ void ptpObserverReset() {
 // It prints the status and checks for reset requests via calibration parameters
 void ptpObserverLoop(void) {
 
-    static bool first = true;
-
-    // Status print
-    if (gPtpDebugLevel >= 2) {
-        if (gPtpC.gmValid && first) {
-            printf("PTP observer status:\n");
-            printf("  domain=%u, addr=%u.%u.%u.%u\n", gPtpC.domain, gPtpC.addr[0], gPtpC.addr[1], gPtpC.addr[2], gPtpC.addr[3]);
-            printf("  Grandmaster:\n");
-            printMaster(&gPtpC.gm);
-            first = false;
-        }
-    }
-
     // Reset request via calibration parameter
     parameters_t *params = (parameters_t *)XcpLockCalSeg(gParams);
     uint8_t reset = params->reset; // Get the reset calibration parameter
@@ -747,7 +671,6 @@ void ptpObserverLoop(void) {
     XcpUnlockCalSeg(gParams);
     if (reset) {
         printf("PTP observer reset requested via calibration parameter\n");
-        first = true; // Reset first flag to print status again
         // Reset grandmaster info
         gPtpC.gmValid = false;
         // Reset PTP analysis state
@@ -766,5 +689,3 @@ void ptpObserverShutdown() {
     socketClose(&gPtpC.sock319);
     socketClose(&gPtpC.sock320);
 }
-
-#endif

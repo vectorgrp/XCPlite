@@ -1,9 +1,9 @@
 /*----------------------------------------------------------------------------
 | File:
-|   util.c
+|   filter.c
 |
 | Description:
-|   Some helper functions
+|   Floating point moving average filter implementation
 |
 |   Code released into public domain, no attribution required
  ----------------------------------------------------------------------------*/
@@ -17,7 +17,7 @@
 
 #include "platform.h"
 
-#include "util.h"
+#include "filter.h"
 
 /**************************************************************************/
 // Pseudo random
@@ -53,6 +53,7 @@ void average_filter_init(tAverageFilter *f, size_t size) {
         f->a[i] = 0;
 }
 
+size_t average_filter_size(tAverageFilter *f) { return f->size; }
 size_t average_filter_count(tAverageFilter *f) { return f->count; }
 
 tAverageFilterValue average_filter_calc(tAverageFilter *f, tAverageFilterValue v) {

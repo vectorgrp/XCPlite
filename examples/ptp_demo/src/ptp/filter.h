@@ -1,18 +1,9 @@
 #pragma once
 
-/* util.h */
+/* filter.h */
 /*
 | Code released into public domain, no attribution required
 */
-
-//-------------------------------------------------------------------------------
-// Fast pseudo random
-
-extern void seed16(unsigned int seed);
-extern unsigned int random16();
-
-//-------------------------------------------------------------------------------
-// Moving Average Filter
 
 #define AVERAGE_FILTER_MAX_SIZE 120
 
@@ -28,5 +19,6 @@ typedef struct average_filter {
 
 extern void average_filter_init(tAverageFilter *f, size_t size);
 extern tAverageFilterValue average_filter_calc(tAverageFilter *f, tAverageFilterValue v);
+extern size_t average_filter_size(tAverageFilter *f);
 extern size_t average_filter_count(tAverageFilter *f);
 extern void average_filter_add(tAverageFilter *f, tAverageFilterValue offset);

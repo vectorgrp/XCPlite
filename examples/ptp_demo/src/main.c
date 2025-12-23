@@ -10,19 +10,13 @@
 #include <a2l.h>    // for xcplib A2l generation
 #include <xcplib.h> // for xcplib application programming interface
 
-#include "ptp/ptp_cfg.h" // for OPTION_ENABLE_PTP_MASTER, OPTION_ENABLE_PTP_OBSERVER
-#ifdef OPTION_ENABLE_PTP_MASTER
-#include "ptp/ptpMaster.h"
-#endif
-#ifdef OPTION_ENABLE_PTP_OBSERVER
 #include "ptp/ptpObserver.h"
-#endif
 
 //-----------------------------------------------------------------------------------------------------
 // XCP params
 
 #define OPTION_PROJECT_NAME "ptp_demo"      // Project name, used to build the A2L and BIN file name
-#define OPTION_PROJECT_EPK "V1.1_" __TIME__ // EPK version string
+#define OPTION_PROJECT_EPK "V1.2_" __TIME__ // EPK version string
 #define OPTION_USE_TCP false                // TCP or UDP
 #define OPTION_SERVER_PORT 5555             // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}     // Bind addr, 0.0.0.0 = ANY
@@ -39,7 +33,7 @@ static void sig_handler(int sig) { running = false; }
 
 int main(void) {
 
-    printf("\nXCP on Ethernet ptp_demo C xcplib demo\n");
+    printf("\nPTP observer with XCP demo\n");
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 
@@ -54,20 +48,7 @@ int main(void) {
         return 1;
     }
 
-// Start a PTP master
-#ifdef OPTION_ENABLE_PTP_MASTER
-    printf("Starting PTP master...\n");
-    const uint8_t *uuid = (const uint8_t[]){0x00, 0x1A, 0xB6, 0x00, 0x00, 0x00, 0x00, 0x01};
-    uint8_t domain = 0;
-    uint8_t bindAddr[4] = {192, 168, 0, 206};
-    if (!ptpMasterInit(uuid, domain, bindAddr)) {
-        printf("Failed to start PTP master\n");
-        return 1;
-    }
-#endif
-
-// Start a PTP observer
-#ifdef OPTION_ENABLE_PTP_OBSERVER
+    // Start the PTP observer
     printf("Starting PTP observer...\n");
     uint8_t obs_domain = 0;
     uint8_t obs_bindAddr[4] = {0, 0, 0, 0};
@@ -75,22 +56,17 @@ int main(void) {
         printf("Failed to start PTP observer\n");
         return 1;
     }
-#endif
+
+    A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
 
     // Mainloop
     printf("Start main loop...\n");
     while (running) {
         ptpObserverLoop();
         sleepMs(1000); // 1s
-        A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
     } // for (;;)
 
-#ifdef OPTION_ENABLE_PTP_MASTER
-    ptpMasterShutdown();
-#endif
-#ifdef OPTION_ENABLE_PTP_OBSERVER
     ptpObserverShutdown();
-#endif
 
     XcpDisconnect();
     XcpEthServerShutdown();
