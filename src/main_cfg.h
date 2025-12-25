@@ -41,14 +41,14 @@
 // Optimize code size, fixed log level, not changeable at runtime
 // #define OPTION_FIXED_DBG_LEVEL 3
 // Enable debug metrics
-#define OPTION_ENABLE_DBG_METRICS // Requires OPTION_ENABLE_DBG_PRINTS
+// #define OPTION_ENABLE_DBG_METRICS // Requires OPTION_ENABLE_DBG_PRINTS
 
 //-------------------------------------------------------------------------------
 // Clock
 
 // Epoch options (only one must be defined)
 // #define OPTION_CLOCK_EPOCH_ARB    // Arbitrary epoch -> uses CLOCK_MONOTONIC_RAW
-#define OPTION_CLOCK_EPOCH_PTP    // Precision Time Protocol epoch -> uses CLOCK_REALTIME
+#define OPTION_CLOCK_EPOCH_PTP // Precision Time Protocol epoch -> uses CLOCK_REALTIME
 
 // Resolution 1ns or 1us, granularity depends on platform (only one must be defined)
 #define OPTION_CLOCK_TICKS_1NS

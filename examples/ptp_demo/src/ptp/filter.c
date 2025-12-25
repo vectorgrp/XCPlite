@@ -42,8 +42,8 @@ unsigned int random16() {
 void average_filter_init(tAverageFilter *f, size_t size) {
 
     if (size > AVERAGE_FILTER_MAX_SIZE) {
-        size = AVERAGE_FILTER_MAX_SIZE;
         printf("WARNING: average_filter_init: size %zu too large, limiting to %d\n", size, AVERAGE_FILTER_MAX_SIZE);
+        size = AVERAGE_FILTER_MAX_SIZE;
     }
     f->size = size;
     f->ai = 0;

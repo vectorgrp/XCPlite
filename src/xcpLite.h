@@ -545,3 +545,18 @@ const char *XcpGetA2lName(void);
 #ifdef __cplusplus
 } // extern "C"
 #endif
+
+// Some metrics collected by the XCP protocol layer for debugging and performance analysis
+#ifdef OPTION_ENABLE_DBG_METRICS
+#ifdef __cplusplus
+extern "C" {
+#endif
+extern uint32_t gXcpWritePendingCount;
+extern uint32_t gXcpCalSegPublishAllCount;
+extern uint32_t gXcpDaqEventCount;
+extern uint32_t gXcpTxPacketCount;
+extern uint32_t gXcpRxPacketCount;
+#ifdef __cplusplus
+}
+#endif
+#endif // OPTION_ENABLE_DBG_METRICS

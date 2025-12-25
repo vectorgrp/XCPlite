@@ -259,6 +259,10 @@ void mutexDestroy(MUTEX *m) { DeleteCriticalSection(m); }
 
 #if !defined(_WIN) // Non-Windows platforms
 
+#if defined(_LINUX)
+#include <net/if.h> // for if_nametoindex
+#endif
+
 #if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
 #include <ifaddrs.h> // for getifaddrs, freeifaddrs
 #include <linux/errqueue.h>
@@ -351,6 +355,27 @@ bool socketBind(SOCKET sock, uint8_t *addr, uint16_t port) {
     }
 
     return true;
+}
+
+// Bind socket to a specific network interface by name (Linux only)
+// This is useful for multicast reception on a specific interface while binding to INADDR_ANY
+// Requires root privileges on Linux
+bool socketBindToDevice(SOCKET sock, const char *ifname) {
+#if defined(_LINUX)
+    if (ifname != NULL && ifname[0] != '\0') {
+        if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, ifname, strlen(ifname)) < 0) {
+            DBG_PRINTF_ERROR("%d - failed to bind socket to device %s (requires root privileges)!\n", socketGetLastError(), ifname);
+            return false;
+        }
+        DBG_PRINTF3("Socket bound to device %s\n", ifname);
+    }
+    return true;
+#else
+    (void)sock;
+    (void)ifname;
+    DBG_PRINTF_WARNING("socketBindToDevice(%s): SO_BINDTODEVICE not supported on this platform, request ignored!\n", ifname ? ifname : "(null)");
+    return true;
+#endif
 }
 
 #if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
@@ -755,15 +780,51 @@ SOCKET socketAccept(SOCKET sock, uint8_t *addr) {
     return s;
 }
 
-bool socketJoin(SOCKET sock, uint8_t *maddr) {
+bool socketJoin(SOCKET sock, uint8_t *maddr, uint8_t *ifaddr, const char *ifname) {
 
-    struct ip_mreq group;
+#if defined(_LINUX)
+    // On Linux, use ip_mreqn which allows specifying interface by name or index
+    struct ip_mreqn group;
+    memset(&group, 0, sizeof(group));
     group.imr_multiaddr.s_addr = *(uint32_t *)maddr;
-    group.imr_interface.s_addr = htonl(INADDR_ANY);
+
+    // Priority: interface name > interface address > INADDR_ANY
+    if (ifname != NULL && ifname[0] != '\0') {
+        // Use interface name (most reliable for multicast on Linux)
+        group.imr_ifindex = if_nametoindex(ifname);
+        if (group.imr_ifindex == 0) {
+            DBG_PRINTF_ERROR("Interface %s not found!\n", ifname);
+            return 0;
+        }
+        DBG_PRINTF3("Joining multicast group on interface %s (index %d)\n", ifname, group.imr_ifindex);
+    } else if (ifaddr != NULL && !(ifaddr[0] == 0 && ifaddr[1] == 0 && ifaddr[2] == 0 && ifaddr[3] == 0)) {
+        // Use interface address
+        group.imr_address.s_addr = *(uint32_t *)ifaddr;
+    } else {
+        // Use INADDR_ANY (kernel picks interface based on routing)
+        group.imr_address.s_addr = htonl(INADDR_ANY);
+    }
+
     if (0 > setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const char *)&group, sizeof(group))) {
         DBG_PRINTF_ERROR("%d - failed to set multicast socket option IP_ADD_MEMBERSHIP!\n", socketGetLastError());
         return 0;
     }
+#else
+    // Non-Linux platforms: use standard struct ip_mreq (address-based only)
+    struct ip_mreq group;
+    group.imr_multiaddr.s_addr = *(uint32_t *)maddr;
+    // Use the specified interface address, or INADDR_ANY if NULL or 0.0.0.0
+    if (ifaddr == NULL || (ifaddr[0] == 0 && ifaddr[1] == 0 && ifaddr[2] == 0 && ifaddr[3] == 0)) {
+        group.imr_interface.s_addr = htonl(INADDR_ANY);
+    } else {
+        group.imr_interface.s_addr = *(uint32_t *)ifaddr;
+    }
+    if (0 > setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const char *)&group, sizeof(group))) {
+        DBG_PRINTF_ERROR("%d - failed to set multicast socket option IP_ADD_MEMBERSHIP!\n", socketGetLastError());
+        return 0;
+    }
+    (void)ifname; // Unused on non-Linux platforms
+#endif
     return 1;
 }
 

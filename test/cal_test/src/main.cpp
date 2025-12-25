@@ -20,6 +20,7 @@
 #undef OPTION_ATOMIC_EMULATION
 #include "dbg_print.h"
 #include "platform.h"
+// #include "xcpLite.h" // for metrics
 #include "xcp_cfg.h" // For XcpAddrEncodeSegIndex
 
 // Internally used XCP functions for testing

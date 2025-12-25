@@ -15,22 +15,20 @@
 #include <stdio.h>   // for printf
 #include <string.h>  // for sprintf
 
-// #define PTP_INTERFACE NULL
-#define PTP_INTERFACE "eth0" // Network interface for PTP hardware timestamping if auto detection (NULL) does not work
+#include "dbg_print.h" // for DBG_PRINT_ERROR, DBG_PRINTF_WARNING, ...
+#include "filter.h"    // for average filter
+#include "platform.h"  // from xcplib for SOCKET, socketSendTo, socketGetSendTime, ...
 
-#define gPtpDebugLevel 3
+#include "ptp.h"
 
-#define OPTION_ENABLE_PTP_XCP
-
-#include "filter.h"   // for average filter
-#include "platform.h" // from xcplib for SOCKET, socketSendTo, socketGetSendTime, ...
-
-#include "ptpObserver.h"
-
+//-------------------------------------------------------------------------------------------------------
 // XCP
-#ifdef OPTION_ENABLE_PTP_XCP
+#define OPTION_ENABLE_XCP
+#ifdef OPTION_ENABLE_XCP
 #include <a2l.h>    // for xcplib A2l generation
 #include <xcplib.h> // for xcplib application programming interface
+// XCP test instrumentation events
+static uint16_t gPtpC_syncEvent = XCP_UNDEFINED_EVENT_ID; // on SYNC
 #endif
 
 //-------------------------------------------------------------------------------------------------------
@@ -49,15 +47,16 @@ typedef struct {
 } tPtpMaster;
 
 //-------------------------------------------------------------------------------------------------------
+// PTP state
 
-// PTP observer status
 typedef struct {
 
     uint8_t domain;
 
     // Sockets and communication
-    uint8_t addr[4];  // local addr
-    uint8_t maddr[4]; // multicast addr
+    uint8_t addr[4];    // local addr
+    uint8_t maddr[4];   // multicast addr
+    char interface[32]; // network interface name
     THREAD threadHandle;
     THREAD threadHandle320;
     THREAD threadHandle319;
@@ -69,7 +68,7 @@ typedef struct {
     bool gmValid;
     tPtpMaster gm;
 
-    // Grandmaster SYNC and FOLLOW_UP measurements
+    // Protocol SYNC and FOLLOW_UP state
     uint64_t sync_local_time;
     uint64_t sync_master_time;
     uint32_t sync_correction;
@@ -80,7 +79,7 @@ typedef struct {
     uint32_t flup_correction;
     uint16_t flup_sequenceId;
 
-    // PTP timing analysis state, all values in nanoseconds and per second units
+    // PTP observer timing analysis state, all values in nanoseconds and per second units
     uint32_t cycle_count;
     int64_t master_offset_raw;               // momentary raw master offset t1-t2
     uint64_t t1_offset, t2_offset;           // Normalization offsets
@@ -102,12 +101,12 @@ typedef struct {
 
 } tPtpC;
 
-static tPtpC gPtpC;
+//-------------------------------------------------------------------------------------------------------
+// Global PTP state
 
-#ifdef OPTION_ENABLE_PTP_XCP
-// XCP test instrumentation events
-static uint16_t gPtpC_syncEvent = XCP_UNDEFINED_EVENT_ID; // on SYNC
-#endif
+static uint8_t gPtpDebugLevel = 3;
+static uint8_t gPtpMode = PTP_MODE_OBSERVER;
+static tPtpC gPtpC;
 
 //-------------------------------------------------------------------------------------------------------
 
@@ -123,9 +122,10 @@ static void printMaster(const tPtpMaster *m) {
 }
 
 //-------------------------------------------------------------------------------------------------------
-// PTP master timing analysis
+//-------------------------------------------------------------------------------------------------------
+// PTP observer for master timing analysis
 
-// Calibration parameters structure
+// (XCP tunable) parameters
 typedef struct params {
     uint8_t reset;                  // Reset PTP observer state
     int32_t t1_correction;          // Correction to apply to t1 timestamps
@@ -136,49 +136,52 @@ typedef struct params {
     double servo_p_gain;            // Proportional gain (typically 0.1 - 0.5)
 } parameters_t;
 
-// Default values for the calibration parameters
-const parameters_t params = {.reset = false,
-                             .t1_correction = 3, // Apply 4ns correction to t1 to compensate for master timestamp rounding
-                             .drift_filter_size = 30,
-                             .jitter_rms_filter_size = 30,
-                             .jitter_avg_filter_size = 30,
-                             .max_correction = 1000.0, // 1000ns maximum correction per SYNC interval
-                             .servo_p_gain = 1.0};
+// Default parameter values
+static parameters_t params = {.reset = 0,
+                              .t1_correction = 3, // Apply 4ns correction to t1 to compensate for master timestamp rounding
+                              .drift_filter_size = 30,
+                              .jitter_rms_filter_size = 30,
+                              .jitter_avg_filter_size = 30,
+                              .max_correction = 1000.0, // 1000ns maximum correction per SYNC interval
+                              .servo_p_gain = 1.0};
 
 // A global calibration segment handle for the calibration parameters
 // A calibration segment has a working page ("RAM") and a reference page ("FLASH"), it is described by a MEMORY_SEGMENT in the A2L file
 // Using the calibration segment to access parameters assures safe (thread safe against XCP modifications), wait-free and consistent access
 // It supports RAM/FLASH page switching, reinitialization (copy FLASH to RAM page) and persistence (save RAM page to BIN file)
-#ifdef OPTION_ENABLE_PTP_XCP
-tXcpCalSegIndex gParams = XCP_UNDEFINED_CALSEG;
+#ifdef OPTION_ENABLE_XCP
+tXcpCalSegIndex gParamsHandle = XCP_UNDEFINED_CALSEG;
 #else
 #define XcpLockCalSeg(x) ((void *)&params)
 #define XcpUnlockCalSeg(x)
 #endif
 
-static void syncInit() {
+// Initialize the PTP observer state
+static void observerInit() {
 
-    parameters_t *params = (parameters_t *)XcpLockCalSeg(gParams);
+    parameters_t *p = (parameters_t *)XcpLockCalSeg(gParamsHandle);
     gPtpC.cycle_count = 0;
     gPtpC.t1_norm = 0;
     gPtpC.t2_norm = 0;
     gPtpC.sync_cycle_time = 1000000000;
     gPtpC.master_offset_raw = 0;
     gPtpC.master_drift_raw = 0;
-    average_filter_init(&gPtpC.master_drift_filter, params->drift_filter_size);
+    average_filter_init(&gPtpC.master_drift_filter, p->drift_filter_size);
+    gPtpC.master_drift_raw = 0;
     gPtpC.master_drift = 0;
     gPtpC.master_drift_drift = 0;
     gPtpC.master_offset_compensation = 0;
     gPtpC.servo_integral = 0.0;
     gPtpC.master_jitter = 0;
-    average_filter_init(&gPtpC.master_jitter_rms_filter, params->jitter_rms_filter_size);
+    average_filter_init(&gPtpC.master_jitter_rms_filter, p->jitter_rms_filter_size);
     gPtpC.master_jitter_rms = 0;
-    average_filter_init(&gPtpC.master_jitter_avg_filter, params->jitter_avg_filter_size);
+    average_filter_init(&gPtpC.master_jitter_avg_filter, p->jitter_avg_filter_size);
     gPtpC.master_jitter_avg = 0;
-    XcpUnlockCalSeg(gParams);
+    XcpUnlockCalSeg(gParamsHandle);
 }
 
-static void syncUpdate(uint64_t t1_in, uint64_t correction, uint64_t t2_in) {
+// Update the PTP observer state with each new SYNC (t1,t2) timestamps
+static void observerUpdate(uint64_t t1_in, uint64_t correction, uint64_t t2_in) {
 
     char ts1[64], ts2[64];
 
@@ -194,9 +197,9 @@ static void syncUpdate(uint64_t t1_in, uint64_t correction, uint64_t t2_in) {
     }
 
     // Apply rounding correction to t1 ( Vector VN/VX PTP master has 8ns resolution, which leads to a systematic error )
-    parameters_t *params = (parameters_t *)XcpLockCalSeg(gParams);
-    t1_in = t1_in + params->t1_correction;
-    XcpUnlockCalSeg(gParams);
+    parameters_t *p = (parameters_t *)XcpLockCalSeg(gParamsHandle);
+    t1_in = t1_in + p->t1_correction;
+    XcpUnlockCalSeg(gParamsHandle);
 
     // Apply correction to t1
     t1_in += correction;
@@ -258,7 +261,7 @@ static void syncUpdate(uint64_t t1_in, uint64_t correction, uint64_t t2_in) {
         // Check if drift filter is warmed up
         if (average_filter_count(&gPtpC.master_drift_filter) < average_filter_size(&gPtpC.master_drift_filter)) {
             if (gPtpDebugLevel >= 3) {
-                printf("  Master drift filter warming up (%u)\n", average_filter_count(&gPtpC.master_drift_filter));
+                printf("  Master drift filter warming up (%zu)\n", average_filter_count(&gPtpC.master_drift_filter));
                 printf("    master_drift_raw    = %g ns/s\n", gPtpC.master_drift_raw);
             }
         } else {
@@ -301,16 +304,16 @@ static void syncUpdate(uint64_t t1_in, uint64_t correction, uint64_t t2_in) {
             double correction = gPtpC.master_offset_detrended_filtered;
 
             // P-term
-            parameters_t *params = (parameters_t *)XcpLockCalSeg(gParams);
-            correction *= params->servo_p_gain;
+            parameters_t *p = (parameters_t *)XcpLockCalSeg(gParamsHandle);
+            correction *= p->servo_p_gain;
 
             // Correction rate limiting
-            if (correction > params->max_correction)
-                correction = params->max_correction;
-            if (correction < -params->max_correction)
-                correction = -params->max_correction;
+            if (correction > p->max_correction)
+                correction = p->max_correction;
+            if (correction < -p->max_correction)
+                correction = -p->max_correction;
 
-            XcpUnlockCalSeg(gParams);
+            XcpUnlockCalSeg(gParamsHandle);
 
             // Apply correction
             gPtpC.master_offset_compensation += correction;
@@ -335,28 +338,27 @@ static void syncUpdate(uint64_t t1_in, uint64_t correction, uint64_t t2_in) {
     }
 
     // XCP measurement event
-#ifdef OPTION_ENABLE_PTP_XCP
+#ifdef OPTION_ENABLE_XCP
     XcpEvent(gPtpC_syncEvent);
 #endif
 }
 
 //-------------------------------------------------------------------------------------------------------
-// A2L and XCP
-// Create A2L description for measurements and parameters
-// Create XCP events
-// Create XCP calibration segments for parameters
+// A2L and XCP for the PTP observer
 
-#ifndef OPTION_ENABLE_PTP_XCP
+#ifndef OPTION_ENABLE_XCP
 
 #else
 
+// Create XCP events
 void ptpObserverCreateXcpEvents() { gPtpC_syncEvent = XcpCreateEvent("PTP_SYNC", 0, 0); }
 
+// Create XCP calibration parameters
 void ptpObserverCreateXcpParameters() {
 
-    gParams = XcpCreateCalSeg("params", &params, sizeof(params));
+    gParamsHandle = XcpCreateCalSeg("params", &params, sizeof(params));
 
-    A2lSetSegmentAddrMode(gParams, params);
+    A2lSetSegmentAddrMode(gParamsHandle, params);
 
     A2lCreateParameter(params.reset, "Reset PTP observer state", "", 0, 1);
     A2lCreateParameter(params.t1_correction, "Correction for t1", "", -100, 100);
@@ -369,6 +371,7 @@ void ptpObserverCreateXcpParameters() {
     A2lCreateParameter(params.servo_p_gain, "Proportional gain for servo", "", 0.0, 1.0);
 }
 
+// Create A2L description for measurements
 void ptpObserverCreateA2lDescription() {
 
     // Event measurements
@@ -404,15 +407,12 @@ void ptpObserverCreateA2lDescription() {
     A2lCreatePhysMeasurement(gPtpC.master_jitter, "offset jitter raw value", "ns", -1000, +1000);
     A2lCreatePhysMeasurement(gPtpC.master_jitter_rms, "Jitter root mean square", "ns", -1000, +1000);
     A2lCreatePhysMeasurement(gPtpC.master_jitter_avg, "Jitter average", "ns", -1000, +1000);
-
-    // PI Servo measurements
-    A2lCreatePhysMeasurement(gPtpC.servo_integral, "Servo integral accumulator", "ns", -10000, +10000);
-    // A2lCreatePhysMeasurement(gPtpC.servo_correction, "Servo correction per cycle", "ns", -100, +100);
 }
 #endif
 
 //-------------------------------------------------------------------------------------------------------
-// PTP protocol message handler
+//-------------------------------------------------------------------------------------------------------
+// PTP protocol
 
 static void ptpPrintFrame(struct ptphdr *ptp, uint8_t *addr, uint32_t rx_timestamp) {
 
@@ -462,7 +462,23 @@ static void ptpPrintFrame(struct ptphdr *ptp, uint8_t *addr, uint32_t rx_timesta
     }
 }
 
-static bool ptpHandleFrame(int n, struct ptphdr *ptp, uint8_t *addr, uint64_t timestamp) {
+void ptpProtocolInit() {
+
+    // Grandmaster info
+    gPtpC.gmValid = false;
+
+    // Init protocol state
+    gPtpC.sync_local_time = 0;
+    gPtpC.sync_master_time = 0;
+    gPtpC.sync_correction = 0;
+    gPtpC.sync_sequenceId = 0;
+    gPtpC.sync_steps = 0;
+    gPtpC.flup_master_time = 0;
+    gPtpC.flup_correction = 0;
+    gPtpC.flup_sequenceId = 0;
+}
+
+static bool ptpProtocolHandleFrame(int n, struct ptphdr *ptp, uint8_t *addr, uint64_t timestamp) {
 
     if (n >= 44 && n <= 64) {
 
@@ -471,7 +487,7 @@ static bool ptpHandleFrame(int n, struct ptphdr *ptp, uint8_t *addr, uint64_t ti
             if (gPtpC.gmValid && (ptp->type == PTP_SYNC || ptp->type == PTP_FOLLOW_UP)) {
                 if (ptp->type == PTP_SYNC) {
                     if (timestamp == 0) {
-                        printf("WARNING: PTP SYNC received without timestamp!\n");
+                        DBG_PRINT_WARNING("PTP SYNC received without timestamp!\n");
                         return false;
                     }
                     gPtpC.sync_local_time = timestamp;
@@ -482,7 +498,7 @@ static bool ptpHandleFrame(int n, struct ptphdr *ptp, uint8_t *addr, uint64_t ti
 
                     // 1 step sync update
                     if (gPtpC.sync_steps == 1) {
-                        syncUpdate(gPtpC.sync_master_time, gPtpC.sync_correction, gPtpC.sync_local_time);
+                        observerUpdate(gPtpC.sync_master_time, gPtpC.sync_correction, gPtpC.sync_local_time);
                     }
                 } else {
 
@@ -493,7 +509,7 @@ static bool ptpHandleFrame(int n, struct ptphdr *ptp, uint8_t *addr, uint64_t ti
 
                 // 2 step sync update, SYNC and FOLLOW_UP may be received in any order (thread319 and thread320)
                 if (gPtpC.sync_steps == 2 && gPtpC.sync_sequenceId == gPtpC.flup_sequenceId) {
-                    syncUpdate(gPtpC.flup_master_time, gPtpC.sync_correction, gPtpC.sync_local_time); // 2 step
+                    observerUpdate(gPtpC.flup_master_time, gPtpC.sync_correction, gPtpC.sync_local_time); // 2 step
                 }
 
             } else if (ptp->type == PTP_ANNOUNCE) {
@@ -537,7 +553,7 @@ static void *ptpThread319(void *par)
         mutexLock(&gPtpC.mutex);
         if (gPtpDebugLevel >= 4)
             ptpPrintFrame((struct ptphdr *)buffer, addr, rxTime); // Print incoming PTP traffic
-        ptpHandleFrame(n, (struct ptphdr *)buffer, addr, rxTime);
+        ptpProtocolHandleFrame(n, (struct ptphdr *)buffer, addr, rxTime);
         mutexUnlock(&gPtpC.mutex);
     }
     if (gPtpDebugLevel >= 3)
@@ -568,7 +584,7 @@ static void *ptpThread320(void *par)
         mutexLock(&gPtpC.mutex);
         if (gPtpDebugLevel >= 4)
             ptpPrintFrame((struct ptphdr *)buffer, addr, 0); // Print incoming PTP traffic
-        ptpHandleFrame(n, (struct ptphdr *)buffer, addr, 0);
+        ptpProtocolHandleFrame(n, (struct ptphdr *)buffer, addr, 0);
         mutexUnlock(&gPtpC.mutex);
     }
     if (gPtpDebugLevel >= 3)
@@ -580,67 +596,76 @@ static void *ptpThread320(void *par)
 //-------------------------------------------------------------------------------------------------------
 // Public functions
 
-// Start PTP Observer
-bool ptpObserverInit(uint8_t domain, uint8_t *bindAddr) {
+// Start PTP
+// If bindAddr = INADDR_ANY, bind to given interface
+// Enable hardware timestamps on interface (requires root privileges)
+bool ptpInit(uint8_t mode, uint8_t domain, uint8_t *bindAddr, char *interface, uint8_t debugLevel) {
+
+    gPtpDebugLevel = debugLevel;
+    gPtpMode = mode;
+    memset(&gPtpC, 0, sizeof(gPtpC));
+
+    // PTP parameters
+    memcpy(gPtpC.addr, bindAddr, 4);
+    strncpy(gPtpC.interface, interface ? interface : "", sizeof(gPtpC.interface) - 1);
+    gPtpC.domain = domain;
 
     // Init XCP
-#ifdef OPTION_ENABLE_PTP_XCP
+#ifdef OPTION_ENABLE_XCP
     ptpObserverCreateXcpEvents();
     ptpObserverCreateXcpParameters();
     ptpObserverCreateA2lDescription();
 #endif
 
-    memset(&gPtpC, 0, sizeof(gPtpC));
-
-    // PTP client communication parameters
-    memcpy(gPtpC.addr, bindAddr, 4);
-    gPtpC.domain = domain;
-
-    // Grandmaster info
-    gPtpC.gmValid = false;
-
-    // Init protocol state
-    gPtpC.sync_local_time = 0;
-    gPtpC.sync_master_time = 0;
-    gPtpC.sync_correction = 0;
-    gPtpC.sync_sequenceId = 0;
-    gPtpC.sync_steps = 0;
-    gPtpC.flup_master_time = 0;
-    gPtpC.flup_correction = 0;
-    gPtpC.flup_sequenceId = 0;
-
-    // Init analysis state
-    syncInit();
+    ptpProtocolInit();
+    if (mode == PTP_MODE_OBSERVER)
+        observerInit();
 
     // Create sockets for event (319) and general messages (320)
     gPtpC.sock319 = gPtpC.sock320 = INVALID_SOCKET;
+
+    // For multicast reception on a specific interface:
+    // - When bindAddr is INADDR_ANY and interface is specified: bind to ANY and use socketBindToDevice (SO_BINDTODEVICE)
+    // - When bindAddr is specific: bind to that address (works only if multicast source is on same subnet)
+    bool useBindToDevice = (interface != NULL && bindAddr[0] == 0 && bindAddr[1] == 0 && bindAddr[2] == 0 && bindAddr[3] == 0);
+
     // SYNC tx, DELAY_REQ - with rx timestamps
     if (!socketOpen(&gPtpC.sock319, SOCKET_MODE_BLOCKING | SOCKET_MODE_TIMESTAMPING))
         return false;
     if (!socketBind(gPtpC.sock319, bindAddr, 319))
         return false;
+    if (useBindToDevice && !socketBindToDevice(gPtpC.sock319, interface))
+        return false;
+
     // General messages ANNOUNCE, FOLLOW_UP, DELAY_RESP - without rx timestamps
     if (!socketOpen(&gPtpC.sock320, SOCKET_MODE_BLOCKING))
         return false;
     if (!socketBind(gPtpC.sock320, bindAddr, 320))
         return false;
+    if (useBindToDevice && !socketBindToDevice(gPtpC.sock320, interface))
+        return false;
 
-    // Try to enable hardware timestamps (requires root privileges)
-    // This is optional - software timestamps from SO_TIMESTAMPING will still work
-    if (!socketEnableHwTimestamps(gPtpC.sock319, PTP_INTERFACE, true /* tx + rx PTP only*/)) {
-        if (gPtpDebugLevel >= 2)
-            printf("WARNING: Hardware timestamping not enabled (may need root), using software timestamps\n");
+    // Enable hardware timestamps for SYNC tx and DELAY_REQ messages (requires root privileges)
+    if (!socketEnableHwTimestamps(gPtpC.sock319, interface, true /* tx + rx PTP only*/)) {
+        DBG_PRINT_ERROR("Hardware timestamping not enabled (may need root), using software timestamps\n");
+        // return false;
     }
 
+    if (gPtpDebugLevel >= 2) {
+        if (useBindToDevice)
+            printf("  Bound PTP sockets to interface %s\n", interface);
+        else
+            printf("  Bound PTP sockets to %u.%u.%u.%u:320/319\n", bindAddr[0], bindAddr[1], bindAddr[2], bindAddr[3]);
+    }
+
+    // Join PTP multicast group
     if (gPtpDebugLevel >= 2)
-        printf("  Bound PTP sockets to %u.%u.%u.%u:320/319\n", bindAddr[0], bindAddr[1], bindAddr[2], bindAddr[3]);
-    if (gPtpDebugLevel >= 2)
-        printf("  Listening for PTP multicast on 224.0.1.129\n");
+        printf("  Listening for PTP multicast on 224.0.1.129 %s\n", interface ? interface : "");
     uint8_t maddr[4] = {224, 0, 1, 129};
     memcpy(gPtpC.maddr, maddr, 4);
-    if (!socketJoin(gPtpC.sock319, gPtpC.maddr))
+    if (!socketJoin(gPtpC.sock319, gPtpC.maddr, bindAddr, interface))
         return false;
-    if (!socketJoin(gPtpC.sock320, gPtpC.maddr))
+    if (!socketJoin(gPtpC.sock320, gPtpC.maddr, bindAddr, interface))
         return false;
 
     // Start all PTP threads
@@ -652,34 +677,33 @@ bool ptpObserverInit(uint8_t domain, uint8_t *bindAddr) {
 }
 
 // Reset PTP observer analysis state
-void ptpObserverReset() {
+void ptpReset() {
     mutexLock(&gPtpC.mutex);
-    syncInit();
+    // Reset grandmaster info
+    gPtpC.gmValid = false;
+    // Reset PTP observer analysis state
+    observerInit();
     mutexUnlock(&gPtpC.mutex);
 }
 
-// PTP observer main loop
-// This is called from the main loop of the application on a regular basis
-// It prints the status and checks for reset requests via calibration parameters
-void ptpObserverLoop(void) {
+// Perform PTP background tasks
+// This is called from the application on a regular basis
+// It monitors the status and checks for reset requests via calibration parameters
+void ptpBackgroundTask(void) {
 
     // Reset request via calibration parameter
-    parameters_t *params = (parameters_t *)XcpLockCalSeg(gParams);
-    uint8_t reset = params->reset; // Get the reset calibration parameter
-    params->reset = 0;             // Clear the reset request
-    XcpUnlockCalSeg(gParams);
-    if (reset) {
+    parameters_t *p = (parameters_t *)XcpLockCalSeg(gParamsHandle);
+    uint8_t reset = p->reset; // Get the reset calibration parameter
+    p->reset = 0;             // Clear the reset request
+    XcpUnlockCalSeg(gParamsHandle);
+    if (reset != 0) {
         printf("PTP observer reset requested via calibration parameter\n");
-        // Reset grandmaster info
-        gPtpC.gmValid = false;
-        // Reset PTP analysis state
-        ptpObserverReset();
+        ptpReset();
     }
 }
 
-// Stop PTP observer
-// This is called from the main application shutdown routine
-void ptpObserverShutdown() {
+// Stop PTP
+void ptpShutdown() {
 
     cancel_thread(gPtpC.threadHandle);
     cancel_thread(gPtpC.threadHandle320);

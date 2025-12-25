@@ -518,7 +518,7 @@ bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, bool blocking
     uint8_t maddr[4] = {239, 255, 0, 0}; // XCPTL_MULTICAST_ADDR = 0xEFFFiiii;
     maddr[2] = (uint8_t)(cid >> 8);
     maddr[3] = (uint8_t)(cid);
-    if (!socketJoin(gXcpTl.MulticastSock, maddr))
+    if (!socketJoin(gXcpTl.MulticastSock, maddr, addr, NULL))
         return false;
     DBG_PRINTF3("  Listening for XCP GET_DAQ_CLOCK multicast on %u.%u.%u.%u\n", maddr[0], maddr[1], maddr[2], maddr[3]);
 

@@ -29,20 +29,9 @@
 #error "Please define OPTION_DEFAULT_DBG_LEVEL or OPTION_FIXED_DBG_LEVEL"
 #endif
 
-// Some metrics collected by the XCP protocol layer for debugging and performance analysis
-#ifdef OPTION_ENABLE_DBG_METRICS
-#ifdef __cplusplus
-extern "C" {
-#endif
-extern uint32_t gXcpWritePendingCount;
-extern uint32_t gXcpCalSegPublishAllCount;
-extern uint32_t gXcpDaqEventCount;
-extern uint32_t gXcpTxPacketCount;
-extern uint32_t gXcpRxPacketCount;
-#ifdef __cplusplus
-}
-#endif
-#endif // OPTION_ENABLE_DBG_METRICS
+// Prefixes
+// #define DBG_PRINT_PREFIX "[XCP  ] "
+#define DBG_PRINT_PREFIX
 
 // ANSI color codes
 #define ANSI_COLOR_RED "\x1b[31m"
@@ -79,11 +68,11 @@ extern uint8_t gXcpDebugLevel;
 #ifdef DBG_PRINT_ERROR_LOCATION
 #define DBG_STRINGIFY(x) #x
 #define DBG_TOSTRING(x) DBG_STRINGIFY(x)
-#define DBG_PRINT_ERROR_STR "[XCP  ] " ANSI_COLOR_RED "ERROR" ANSI_COLOR_RESET " in " __FILE__ "-" DBG_TOSTRING(__LINE__) ": "
+#define DBG_PRINT_ERROR_STR DBG_PRINT_PREFIX ANSI_COLOR_RED "ERROR" ANSI_COLOR_RESET " in " __FILE__ "-" DBG_TOSTRING(__LINE__) ": "
 #else
-#define DBG_PRINT_ERROR_STR "[XCP  ] " ANSI_COLOR_RED "ERROR: " ANSI_COLOR_RESET
+#define DBG_PRINT_ERROR_STR DBG_PRINT_PREFIX ANSI_COLOR_RED "ERROR: " ANSI_COLOR_RESET
 #endif
-#define DBG_PRINT_WARNING_STR "[XCP  ] " ANSI_COLOR_YELLOW "WARNING: " ANSI_COLOR_RESET
+#define DBG_PRINT_WARNING_STR DBG_PRINT_PREFIX ANSI_COLOR_YELLOW "WARNING: " ANSI_COLOR_RESET
 
 #define DBG_PRINTF(format, ...) printf(format, __VA_ARGS__)
 
@@ -140,34 +129,34 @@ extern uint8_t gXcpDebugLevel;
 #define DBG_PRINTF3(format, ...)                                                                                                                                                   \
     do {                                                                                                                                                                           \
         if (DBG_LEVEL >= 3)                                                                                                                                                        \
-            printf("[XCP  ] " format, __VA_ARGS__);                                                                                                                                \
+            printf(DBG_PRINT_PREFIX format, __VA_ARGS__);                                                                                                                          \
     } while (0)
 #define DBG_PRINT3(format)                                                                                                                                                         \
     do {                                                                                                                                                                           \
         if (DBG_LEVEL >= 3)                                                                                                                                                        \
-            printf("[XCP  ] " format);                                                                                                                                             \
+            printf(DBG_PRINT_PREFIX format);                                                                                                                                       \
     } while (0)
 
 #define DBG_PRINTF4(format, ...)                                                                                                                                                   \
     do {                                                                                                                                                                           \
         if (DBG_LEVEL >= 4)                                                                                                                                                        \
-            printf("[XCP  ] " format, __VA_ARGS__);                                                                                                                                \
+            printf(DBG_PRINT_PREFIX format, __VA_ARGS__);                                                                                                                          \
     } while (0)
 #define DBG_PRINT4(format)                                                                                                                                                         \
     do {                                                                                                                                                                           \
         if (DBG_LEVEL >= 4)                                                                                                                                                        \
-            printf("[XCP  ] " format);                                                                                                                                             \
+            printf(DBG_PRINT_PREFIX format);                                                                                                                                       \
     } while (0)
 
 #define DBG_PRINTF5(format, ...)                                                                                                                                                   \
     do {                                                                                                                                                                           \
         if (DBG_LEVEL >= 5)                                                                                                                                                        \
-            printf("[XCP  ] " format, __VA_ARGS__);                                                                                                                                \
+            printf(DBG_PRINT_PREFIX format, __VA_ARGS__);                                                                                                                          \
     } while (0)
 #define DBG_PRINT5(format)                                                                                                                                                         \
     do {                                                                                                                                                                           \
         if (DBG_LEVEL >= 5)                                                                                                                                                        \
-            printf("[XCP  ] " format);                                                                                                                                             \
+            printf(DBG_PRINT_PREFIX format);                                                                                                                                       \
     } while (0)
 
 // Convenience macros for format-only strings (no additional arguments)

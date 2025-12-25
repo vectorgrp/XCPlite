@@ -14,12 +14,10 @@
 #include "a2l.h"    // for xcplib A2l generation
 #include "xcplib.h" // for xcplib application programming interface
 
-// Internal xcplib includes to simplify multi platform support
-#include "main_cfg.h"
+// Internal xcplib includes to simplify multi platform threading and print XCP metrics
+#include "main_cfg.h" // for OPTION_xxx
 #include "platform.h" // for THREAD
-#ifdef OPTION_ENABLE_DBG_METRICS
-#include "dbg_print.h" // for statistics: XcpDaqEventCount, gXcpTxPacketCount, gXcpRxPacketCount
-#endif
+#include "xcpLite.h"  // for metrics gXcpDaqEventCount, ...
 
 //-----------------------------------------------------------------------------------------------------
 
