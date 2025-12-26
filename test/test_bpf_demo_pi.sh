@@ -30,7 +30,6 @@ rsync -avz --delete \
     --exclude=build/ \
     --exclude=.git/ \
     --exclude="*.o" \
-    --exclude="*.out" \
     --exclude="*.a" \
     ./ "$TARGET_HOST:$PROJECT_DIR/"
 
@@ -48,13 +47,13 @@ run_on_pi "cd $PROJECT_DIR && cmake --build build --target bpf_demo"
 
 echo
 echo "Step 5: Checking BPF demo binary..."
-run_on_pi "cd $PROJECT_DIR && ls -la build/bpf_demo.out"
+run_on_pi "cd $PROJECT_DIR && ls -la build/bpf_demo"
 
 echo
 echo "=== Build completed successfully! ==="
 echo
 echo "To run the BPF demo manually:"
-echo "  ssh -t $TARGET_HOST 'cd $PROJECT_DIR && sudo ./build/bpf_demo.out'"
+echo "  ssh -t $TARGET_HOST 'cd $PROJECT_DIR && sudo ./build/bpf_demo'"
 echo
 echo "To test process creation:"
 echo "  ssh $TARGET_HOST 'cd $PROJECT_DIR/examples/bpf_demo && ./test_processes.sh'"
@@ -67,7 +66,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo "Starting BPF demo on Pi..."
     echo "Press Ctrl+C to stop the demo"
     echo "---"
-    run_on_pi_interactive "cd $PROJECT_DIR && sudo ./build/bpf_demo.out"
+    run_on_pi_interactive "cd $PROJECT_DIR && sudo ./build/bpf_demo"
 else
     echo "Manual test skipped. Use the commands above to run manually."
 fi

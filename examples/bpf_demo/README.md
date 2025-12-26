@@ -51,7 +51,7 @@ sudo pacman -S clang llvm libbpf linux-headers
 
 ```bash
 # Root privileges required for BPF programs
-sudo ./build/bpf_demo.out
+sudo ./build/bpf_demo
 ```
 
 ## Troubleshooting

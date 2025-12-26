@@ -2,9 +2,12 @@
 
 /* ptp.h */
 
-#define PTP_MODE_OBSERVER 0
+#define OPTION_ENABLE_XCP
 
-extern bool ptpInit(uint8_t mode, uint8_t domain, uint8_t *bindAddr, char *interface, uint8_t debugLevel);
+#define PTP_MODE_OBSERVER 0x01
+#define PTP_MODE_MASTER 0x02
+
+extern bool ptpInit(uint8_t mode, uint8_t domain, uint8_t *uuid, uint8_t *bindAddr, char *interface, uint8_t debugLevel);
+extern bool ptpCheckStatus(void);
 extern void ptpShutdown();
-extern void ptpBackgroundTask(void);
 extern void ptpReset();

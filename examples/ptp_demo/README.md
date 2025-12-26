@@ -12,7 +12,7 @@ The filtering and clock servo algorithms are also simplistic and need significan
 The demo must be run with root privileges to access hardware time stamping features and the PTP ports.
 
 ```bash
-sudo ./build/ptp_demo.out
+sudo ./build/ptp_demo
 
   t1 (SYNC tx on master (via PTP))  = 1.1.1970 03:34:01 +231742000ns (12841231742000) 
   t2 (SYNC rx)  = 18.12.2025 18:22:13 +673412218ns (1766082133673412218) 

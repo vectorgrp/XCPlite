@@ -112,7 +112,7 @@ On failure try to force gcc:
 If build fails and if `type_detection_test_c` builds ok, run it:
 
 ```bash
-./build/type_detection_test_c.out
+./build/type_detection_test_c
 ```
 
 Copy & paste the complete output and provide it.
@@ -120,7 +120,7 @@ Copy & paste the complete output and provide it.
 Same with `type_detection_test_cpp`:
 
 ```bash
-./build/type_detection_test_cpp.out
+./build/type_detection_test_cpp
 ```
 
 ## Platform-Specific Notes

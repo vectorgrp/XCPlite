@@ -492,7 +492,7 @@ int main() {
 
     // Run A2l update
     // printf("Running A2L update tool...\n");
-    // result = system(A2lTOOL_PATH "  --verbose --elffile build/a2l_test.out --update  --output a2l_test_updated.a2l  a2l_test.a2l");
+    // result = system(A2lTOOL_PATH "  --verbose --elffile build/a2l_test --update  --output a2l_test_updated.a2l  a2l_test.a2l");
     // if (result == 0) {
     //     printf("A2L update passed\n");
     // } else {

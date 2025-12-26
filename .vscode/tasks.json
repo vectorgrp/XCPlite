@@ -10,7 +10,6 @@
                 "--exclude=build/",
                 "--exclude=.git/",
                 "--exclude=\"*.o\"",
-                "--exclude=\"*.out\"",
                 "--exclude=\"*.a\"",
                 "./",
                 "rainer@192.168.0.206:~/XCPlite-RainerZ/"
@@ -40,7 +39,6 @@
                 "--exclude=build/",
                 "--exclude=.git/",
                 "--exclude=\"*.o\"",
-                "--exclude=\"*.out\"",
                 "--exclude=\"*.a\"",
                 "./",
                 "admin@172.31.31.125:~/XCPlite-RainerZ/"
@@ -362,30 +360,6 @@
         },
         {
             "type": "shell",
-            "label": "XCPlite: Download executables from Pi",
-            "command": "rsync",
-            "args": [
-                "-avz",
-                "--include=\"*.out\"",
-                "--include=\"*.a2l\"",
-                "--exclude=\"*\"",
-                "rainer@192.168.0.206:~/XCPlite-RainerZ/build/",
-                "./pi/"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared"
-            },
-            "detail": "Download executable files (*.out, *.a) from Raspberry Pi build directory"
-        },
-        {
-            "type": "shell",
             "label": "XCPlite: sync to VP6450",
             "command": "rsync",
             "args": [
@@ -394,7 +368,6 @@
                 "--exclude=build/",
                 "--exclude=.git/",
                 "--exclude=\"*.o\"",
-                "--exclude=\"*.out\"",
                 "--exclude=\"*.a\"",
                 "./",
                 "rainer@192.168.0.143:~/XCPlite-RainerZ/"
@@ -488,30 +461,6 @@
             "group": "build",
             "detail": "Kill any running XCP demo processes on VP6450"
         },
-        {
-            "type": "shell",
-            "label": "XCPlite: Download executables from VP6450",
-            "command": "rsync",
-            "args": [
-                "-avz",
-                "--include=\"*.out\"",
-                "--include=\"*.a2l\"",
-                "--exclude=\"*\"",
-                "rainer@192.168.0.143:~/XCPlite-RainerZ/build/",
-                "./vp6450/"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared"
-            },
-            "detail": "Download executable files (*.out, *.a2l) from VP6450 build directory"
-        }
     ],
     "version": "2.0.0"
 }

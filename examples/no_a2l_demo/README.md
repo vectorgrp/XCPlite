@@ -98,13 +98,13 @@ Example: Create an A2L template from binary file with debug information:
 (Note that the protocol information is only needed, to store it in the A2L file, the A2L file will be consistent, but the event ids and calibration memory segment numbers may be wrong!)
 
 ```bash
-$xcp_client   --dest-addr=$TARGET_HOST:5555 --tcp --offline --elf no_a2l_demo.out --create-a2l --a2l no_a2l_demo.a2l
+$xcp_client   --dest-addr=$TARGET_HOST:5555 --tcp --offline --elf no_a2l_demo --create-a2l --a2l no_a2l_demo.a2l
 ```
 
 Example: Create measurement and calibration variables from a binary file with ELF/DWARF debug information and add variable from specified compilation units filtered by a regular expression
 
 ```bash
-$xcp_client   --dest-addr=$TARGET_HOST:5555 --tcp --offline --elf no_a2l_demo.out  --a2l no_a2l_demo.a2l
+$xcp_client   --dest-addr=$TARGET_HOST:5555 --tcp --offline --elf no_a2l_demo  --a2l no_a2l_demo.a2l
 ```
 
 Refer to the xcp_client command line parameter description for details.  
@@ -141,7 +141,7 @@ Example:
 Add the calibration segment 'params' and the measurment variable 'counter' to the A2L template:
 
 ```bash
-a2ltool  --update --measurement-regex "counter"  --characteristic-regex "params" --elffile  no_a2l_demo.out  --enable-structures --output no_a2l_demo.out no_a2l_demo.out 
+a2ltool  --update --measurement-regex "counter"  --characteristic-regex "params" --elffile  no_a2l_demo  --enable-structures --output no_a2l_demo no_a2l_demo 
 ```
 
 ### Demo
@@ -157,5 +157,5 @@ The demo script create_a2l.sh automates the complete remote build and A2L genera
 This is currently experimental.  
 The approach will be used for the upcoming ThreadX demo with build time A2L generation.
 
-objdump -W no_a2l_demo.out
-objdump --all-headers no_a2l_demo.out
+objdump -W no_a2l_demo
+objdump --all-headers no_a2l_demo

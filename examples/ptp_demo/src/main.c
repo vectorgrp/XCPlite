@@ -1,4 +1,5 @@
 ﻿// ptp_demo xcplib example
+// PTP observer or PTP master with XCP interface
 
 #include <assert.h>  // for assert
 #include <signal.h>  // for signal handling
@@ -13,8 +14,6 @@
 
 //-----------------------------------------------------------------------------------------------------
 // XCP
-
-#define OPTION_ENABLE_XCP
 
 #ifdef OPTION_ENABLE_XCP
 
@@ -36,17 +35,23 @@
 
 #define PTP_LOG_LEVEL 3
 
-// #define PTP_INTERFACE NULL
-// Network interface for PTP hardware timestamping if auto detection (NULL) and bind to ANY is not appropriate
 #define PTP_DOMAIN 0
+#define PTP_UUID {0x00, 0x1A, 0xB6, 0x00, 0x00, 0x00, 0x00, 0x01} // Example UUID, should be unique per device
 
-// Bind to INADDR_ANY and use interface name for SO_BINDTODEVICE (recommended for multicast)
+// Default bind to INADDR_ANY and use interface name for SO_BINDTODEVICE (recommended for multicast)
 #define PTP_ADDRESS {0, 0, 0, 0} // ANY
+
+// Network interface for PTP hardware timestamping if auto detection (NULL) and bind to ANY is not specific enough
+// #define PTP_INTERFACE NULL
+#define PTP_INTERFACE "eth0" // Pi
 // #define PTP_INTERFACE "en0" // MacOS
-// #define PTP_INTERFACE "eth0" // Pi
 // #define PTP_INTERFACE "enp4s0" // VP6450 1G1
-#define PTP_INTERFACE "enp2s0f1" // VP6450 10G1
+// #define PTP_INTERFACE "enp2s0f1" // VP6450 10G1
 // #define PTP_INTERFACE "eno1" // VP6450 mgmt
+
+// Default mode
+#define PTP_MODE PTP_MODE_OBSERVER
+// #define PTP_MODE PTP_MODE_MASTER
 
 //-----------------------------------------------------------------------------------------------------
 // Demo main
@@ -54,9 +59,61 @@
 static volatile bool running = true;
 static void sig_handler(int sig) { running = false; }
 
-int main(void) {
+static void print_usage(const char *prog_name) {
+    printf("Usage: %s [options]\n", prog_name);
+    printf("Options:\n");
+    printf("  -i, --interface <name>  Network interface name (default: eth0)\n");
+    printf("  -m, --mode <mode>       PTP mode: observer or master (default: observer)\n");
+    printf("  -h, --help              Show this help message\n");
+    printf("\nExample:\n");
+    printf("  %s -i en0 -m master\n", prog_name);
+}
 
-    printf("\nPTP observer with XCP demo\n");
+int main(int argc, char *argv[]) {
+
+    // Default values
+    char *ptp_interface = PTP_INTERFACE;
+    int ptp_mode = PTP_MODE;
+
+    // Parse command line arguments
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            print_usage(argv[0]);
+            return 0;
+        } else if (strcmp(argv[i], "-i") == 0 || strcmp(argv[i], "--interface") == 0) {
+            if (i + 1 < argc) {
+                ptp_interface = argv[++i];
+            } else {
+                printf("Error: -i/--interface requires an argument\n");
+                print_usage(argv[0]);
+                return 1;
+            }
+        } else if (strcmp(argv[i], "-m") == 0 || strcmp(argv[i], "--mode") == 0) {
+            if (i + 1 < argc) {
+                i++;
+                if (strcmp(argv[i], "observer") == 0) {
+                    ptp_mode = PTP_MODE_OBSERVER;
+                } else if (strcmp(argv[i], "master") == 0) {
+                    ptp_mode = PTP_MODE_MASTER;
+                } else {
+                    printf("Error: Invalid mode '%s'. Use 'observer' or 'master'\n", argv[i]);
+                    print_usage(argv[0]);
+                    return 1;
+                }
+            } else {
+                printf("Error: -m/--mode requires an argument\n");
+                print_usage(argv[0]);
+                return 1;
+            }
+        } else {
+            printf("Error: Unknown option '%s'\n", argv[i]);
+            print_usage(argv[0]);
+            return 1;
+        }
+    }
+
+    printf("\nPTP %s at %s\n", ptp_mode == PTP_MODE_MASTER ? "master" : "observer", ptp_interface);
+
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 
@@ -73,13 +130,13 @@ int main(void) {
     }
 #endif
 
-    // Start the PTP observer
-    printf("Starting PTP observer...\n");
+    // Start the PTP observer or master
+    printf("Starting PTP ...\n");
     uint8_t ptp_domain = PTP_DOMAIN;
     uint8_t ptp_bindAddr[4] = PTP_ADDRESS;
-    char *ptp_interface = PTP_INTERFACE;
-    if (!ptpInit(PTP_MODE_OBSERVER, ptp_domain, ptp_bindAddr, ptp_interface, PTP_LOG_LEVEL)) {
-        printf("Failed to start PTP observer\n");
+    uint8_t ptp_uuid[8] = PTP_UUID;
+    if (!ptpInit(ptp_mode, ptp_domain, ptp_uuid, ptp_bindAddr, ptp_interface, PTP_LOG_LEVEL)) {
+        printf("Failed to start PTP\n");
         return 1;
     }
 
@@ -90,7 +147,8 @@ int main(void) {
     // Mainloop
     printf("Start main loop...\n");
     while (running) {
-        ptpBackgroundTask();
+        if (!ptpCheckStatus())
+            break;
         sleepMs(1000); // 1s
     } // for (;;)
 
