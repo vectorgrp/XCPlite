@@ -482,6 +482,15 @@ static bool observerHandleFrame(SOCKET sock, int n, struct ptphdr *ptp, uint8_t 
     return true;
 }
 
+void observerPrintState() {
+
+    if (gPtpC.gmValid) {
+        printMaster(&gPtpC.gm);
+    } else {
+        printf("No active PTP master detected\n");
+    }
+}
+
 //-------------------------------------------------------------------------------------------------------
 // A2L and XCP for the PTP observer
 
@@ -810,9 +819,7 @@ static uint16_t addClient(uint8_t *addr, uint8_t *uuid, uint8_t domain) {
 
 //-------------------------------------------------------------------------------------------------------
 
-// Print info
-void masterPrintInfo() {
-
+static void masterPrintState() {
     char ts[64];
     uint64_t t;
 
@@ -1173,10 +1180,6 @@ bool ptpCheckStatus(void) {
         }
     }
 
-    if (gPtpMode == PTP_MODE_MASTER) {
-        masterPrintInfo();
-    }
-
     return true;
 }
 
@@ -1189,4 +1192,14 @@ void ptpShutdown() {
     sleepMs(200);
     socketClose(&gPtp.sock319);
     socketClose(&gPtp.sock320);
+}
+
+void ptpPrintStatusInfo() {
+
+    if (gPtpMode == PTP_MODE_MASTER) {
+        masterPrintState();
+    }
+    if (gPtpMode == PTP_MODE_OBSERVER) {
+        observerPrintState();
+    }
 }

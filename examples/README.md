@@ -69,8 +69,17 @@ Share a parameter segment among multiple threads.
 Thread safe and consistent access to parameters.  
 Experimental code to demonstrate how to create context and spans using the XCP instrumentation API.  
 
+### point_cloud_demo
 
-![CANape Screenshot](cpp_demo/cpp_demo.png)
+Demonstrates how to visualize dynamic data structures in the CANape 3D scene window.  
+Creates and measures an array of structures representing 3D points with additional information.
+
+### ptp_demo
+
+Demonstrates a PTP observer and PTP master with XCP instrumentation.  
+The PTP observer listens for PTP messages on the network and separates drift and jitter of the master clock in relation to the observer clock. 
+The PTP master sends SYNC and FOLLOW_UP messages periodically and responds to DELAY_REQUEST messages, while tracking the number of connected PTP slaves.
+
 
 ### no_a2l_demo
 

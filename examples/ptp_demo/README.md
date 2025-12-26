@@ -1,10 +1,32 @@
 # PTP Demo
 
+## Overview
+
+This demo application implements a simple PTP (Precision Time Protocol, IEEE 1588) observer and a basic PTP master.
+
+### Commandline Options
+
+```
+ptp_demo [options]  
+Options:
+  -i, --interface <name>        Network interface name (default: eth0)
+  -m, --mode <mode>             PTP mode: observer or master (default: observer)
+  -d, --domain <number>         PTP domain number 0-255 (default: 0)
+  -u, --uuid <hex>              PTP UUID as 16 hex digits (default: 001AB60000000001)
+  -h, --help                    Show this help message
+
+Example:
+  ptp_demo -i en0 -m master -d 1 -u 001AB60000000002
+```
+
+
+
 ## PTP Observer
 
 This demo showcases a PTP (Precision Time Protocol, IEEE 1588) observer instrumented with XCP.  
-The observer captures PTP SYNC and FOLLOW_UP messages and calculates overall drift and jitter.  
-Running on a Linux system with good hardware time stamping support, the observer can measure the quality of the PTP master.  
+The observer captures PTP SYNC and FOLLOW_UP messages and calculates drift and jitter.  
+Running on a Linux system with good hardware time stamping support, the observer can give an estimate of the clock quality of a PTP master. 
+
 
 The implementation of PTP is very basic and assumes there is only one PTP master and one clock domain on the network.  
 The filtering and clock servo algorithms are also simplistic and need significant time to stabilize to obtain a reliable estimation of master clock jitter.  

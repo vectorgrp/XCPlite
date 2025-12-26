@@ -11,3 +11,5 @@ extern bool ptpInit(uint8_t mode, uint8_t domain, uint8_t *uuid, uint8_t *bindAd
 extern bool ptpCheckStatus(void);
 extern void ptpShutdown();
 extern void ptpReset();
+
+extern void ptpPrintStatusInfo();

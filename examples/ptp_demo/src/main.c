@@ -6,6 +6,7 @@
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uintxx_t
 #include <stdio.h>   // for printf
+#include <stdlib.h>  // for atoi, strtol
 #include <string.h>  // for sprintf
 
 #include "platform.h" // for sleepMs, ...
@@ -20,13 +21,13 @@
 #include <a2l.h>    // for xcplib A2l generation
 #include <xcplib.h> // for xcplib application programming interface
 
-#define OPTION_PROJECT_NAME "ptp_demo"      // Project name, used to build the A2L and BIN file name
-#define OPTION_PROJECT_EPK "V1.2_" __TIME__ // EPK version string
-#define OPTION_USE_TCP false                // TCP or UDP
-#define OPTION_SERVER_PORT 5555             // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0}     // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE 1024 * 16         // Size of the measurement queue in bytes, must be a multiple of 8
-#define OPTION_LOG_LEVEL 3                  // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_PROJECT_NAME "ptp_demo" // Project name, used to build the A2L and BIN file name
+#define OPTION_PROJECT_VERSION "v1.0"
+#define OPTION_USE_TCP false            // TCP or UDP
+#define OPTION_SERVER_PORT 5555         // Port
+#define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
+#define OPTION_QUEUE_SIZE 1024 * 16     // Size of the measurement queue in bytes, must be a multiple of 8
+#define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 #endif
 
@@ -64,9 +65,11 @@ static void print_usage(const char *prog_name) {
     printf("Options:\n");
     printf("  -i, --interface <name>  Network interface name (default: eth0)\n");
     printf("  -m, --mode <mode>       PTP mode: observer or master (default: observer)\n");
+    printf("  -d, --domain <number>   PTP domain number 0-255 (default: 0)\n");
+    printf("  -u, --uuid <hex>        PTP UUID as 16 hex digits (default: 001AB60000000001)\n");
     printf("  -h, --help              Show this help message\n");
     printf("\nExample:\n");
-    printf("  %s -i en0 -m master\n", prog_name);
+    printf("  %s -i en0 -m master -d 1 -u 001AB60000000002\n", prog_name);
 }
 
 int main(int argc, char *argv[]) {
@@ -74,6 +77,8 @@ int main(int argc, char *argv[]) {
     // Default values
     char *ptp_interface = PTP_INTERFACE;
     int ptp_mode = PTP_MODE;
+    int ptp_domain = PTP_DOMAIN;
+    uint8_t ptp_uuid[8] = PTP_UUID;
 
     // Parse command line arguments
     for (int i = 1; i < argc; i++) {
@@ -105,6 +110,47 @@ int main(int argc, char *argv[]) {
                 print_usage(argv[0]);
                 return 1;
             }
+        } else if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--domain") == 0) {
+            if (i + 1 < argc) {
+                i++;
+                int domain = atoi(argv[i]);
+                if (domain >= 0 && domain <= 255) {
+                    ptp_domain = domain;
+                } else {
+                    printf("Error: Invalid domain '%s'. Must be 0-255\n", argv[i]);
+                    print_usage(argv[0]);
+                    return 1;
+                }
+            } else {
+                printf("Error: -d/--domain requires an argument\n");
+                print_usage(argv[0]);
+                return 1;
+            }
+        } else if (strcmp(argv[i], "-u") == 0 || strcmp(argv[i], "--uuid") == 0) {
+            if (i + 1 < argc) {
+                i++;
+                // Parse UUID from hex string (16 hex digits = 8 bytes)
+                if (strlen(argv[i]) != 16) {
+                    printf("Error: UUID must be exactly 16 hexadecimal digits\n");
+                    print_usage(argv[0]);
+                    return 1;
+                }
+                for (int j = 0; j < 8; j++) {
+                    char hex[3] = {argv[i][j * 2], argv[i][j * 2 + 1], '\0'};
+                    char *endptr;
+                    long val = strtol(hex, &endptr, 16);
+                    if (*endptr != '\0' || val < 0 || val > 255) {
+                        printf("Error: Invalid UUID hex string '%s'\n", argv[i]);
+                        print_usage(argv[0]);
+                        return 1;
+                    }
+                    ptp_uuid[j] = (uint8_t)val;
+                }
+            } else {
+                printf("Error: -u/--uuid requires an argument\n");
+                print_usage(argv[0]);
+                return 1;
+            }
         } else {
             printf("Error: Unknown option '%s'\n", argv[i]);
             print_usage(argv[0]);
@@ -112,7 +158,8 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    printf("\nPTP %s at %s\n", ptp_mode == PTP_MODE_MASTER ? "master" : "observer", ptp_interface);
+    char *mode_str = (ptp_mode == PTP_MODE_MASTER) ? "master" : "observer";
+    printf("\nPTP %s at %s\n", mode_str, ptp_interface);
 
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
@@ -120,7 +167,9 @@ int main(int argc, char *argv[]) {
 #ifdef OPTION_ENABLE_XCP
     // XCP: Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
     XcpSetLogLevel(OPTION_LOG_LEVEL);
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, true /* activate */);
+    char epk[32];
+    snprintf(epk, sizeof(epk), "%s_%s_%s", OPTION_PROJECT_VERSION, mode_str, __TIME__); // Use
+    XcpInit(OPTION_PROJECT_NAME, epk, true /* activate */);
     uint8_t addr[4] = OPTION_SERVER_ADDR;
     if (!XcpEthServerInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_QUEUE_SIZE)) {
         return 1;
@@ -132,9 +181,7 @@ int main(int argc, char *argv[]) {
 
     // Start the PTP observer or master
     printf("Starting PTP ...\n");
-    uint8_t ptp_domain = PTP_DOMAIN;
     uint8_t ptp_bindAddr[4] = PTP_ADDRESS;
-    uint8_t ptp_uuid[8] = PTP_UUID;
     if (!ptpInit(ptp_mode, ptp_domain, ptp_uuid, ptp_bindAddr, ptp_interface, PTP_LOG_LEVEL)) {
         printf("Failed to start PTP\n");
         return 1;
@@ -144,6 +191,9 @@ int main(int argc, char *argv[]) {
     A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
 #endif
 
+    sleepMs(5000); // Wait a bit for PTP to start and collect data
+    ptpPrintStatusInfo();
+
     // Mainloop
     printf("Start main loop...\n");
     while (running) {
@@ -152,12 +202,12 @@ int main(int argc, char *argv[]) {
         sleepMs(1000); // 1s
     } // for (;;)
 
-    ptpShutdown();
-
 #ifdef OPTION_ENABLE_XCP
     XcpDisconnect();
     XcpEthServerShutdown();
 #endif
+
+    ptpShutdown();
 
     return 0;
 }

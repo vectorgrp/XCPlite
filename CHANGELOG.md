@@ -8,6 +8,7 @@ All notable changes to XCPlite are documented in this file.
 - New variadic data acquisition C macro or C++ macro/template  (`DaqEventVar`)
 - Support for enabling and disabling individual DAQ events at runtime (`DaqEnableEvent`, `DaqDisableEvent`)
 - New demo `point_cloud_demo` demonstrating how to visualize arrays of objects in the CANape 3D scene window
+- New demo `ptp_demo` demonstrating a PTP observer and PTP master with XCP instrumentation (see README.md of `ptp_demo` for details)
 
 ### Improvements
 - Improved thread safety of event creation to avoid unnecessary THREAD_LOCAL state
