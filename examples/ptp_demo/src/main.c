@@ -42,10 +42,9 @@
 // Default bind to INADDR_ANY and use interface name for SO_BINDTODEVICE (recommended for multicast)
 #define PTP_ADDRESS {0, 0, 0, 0} // ANY
 
-// Network interface for PTP hardware timestamping if auto detection (NULL) and bind to ANY is not specific enough
+// Default network interface for PTP hardware timestamping if auto detection (NULL) and bind to ANY is not specific enough
 // #define PTP_INTERFACE NULL
-#define PTP_INTERFACE "eth0" // Pi
-// #define PTP_INTERFACE "en0" // MacOS
+#define PTP_INTERFACE "eth0"
 // #define PTP_INTERFACE "enp4s0" // VP6450 1G1
 // #define PTP_INTERFACE "enp2s0f1" // VP6450 10G1
 // #define PTP_INTERFACE "eno1" // VP6450 mgmt
@@ -195,8 +194,12 @@ int main(int argc, char *argv[]) {
     printf("Start main task ...\n");
     while (running) {
         if (!ptpTask())
-            break;
-        sleepMs(1000); // 1s
+            running = false;
+#ifdef OPTION_ENABLE_XCP
+        if (!XcpEthServerStatus())
+            running = false;
+#endif
+        sleepMs(10); // 10ms (100Hz determines the granularity of the PTP SYNC and ANNOUNCE messages)
     } // for (;;)
 
 #ifdef OPTION_ENABLE_XCP

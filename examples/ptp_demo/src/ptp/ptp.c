@@ -21,6 +21,7 @@
 #include "platform.h"  // from xcplib for SOCKET, socketSendTo, socketGetSendTime, ...
 
 #include "ptp.h"
+#include "ptpHdr.h" // PTP protocol message structures
 
 //-------------------------------------------------------------------------------------------------------
 // XCP
@@ -31,45 +32,9 @@
 #include <xcplib.h> // for xcplib application programming interface
 
 // Global XCP event id
-// XCP test instrumentation events
-static uint16_t gPtp_syncEvent = XCP_UNDEFINED_EVENT_ID; // on SYNC
-
-void XcpUpdateCalSeg(void **calPage) {
-
-    // tXcpCalSegIndex = XcpFindCalSeg(*calPage);
-    // if (calSegIndex != XCP_INVALID_CAL_SEG_INDEX) {
-
-    // }
-}
+static uint16_t gPtp_syncEvent = XCP_UNDEFINED_EVENT_ID; // on master SYNC or observer SYNC/FOLLOW_UP update
 
 #endif
-
-//-------------------------------------------------------------------------------------------------------
-// PTP master descriptor
-
-#include "ptpHdr.h" // for struct announce from the PTP protocol
-
-typedef struct {
-    uint8_t domain;
-    uint8_t uuid[8];
-    uint8_t addr[4];
-    struct announce a; // Announce header from the announce protocol message of this master
-} tPtpMaster;
-
-//-------------------------------------------------------------------------------------------------------
-// PTP client descriptor
-
-typedef struct {
-    uint8_t addr[4];      // IP addr
-    uint8_t id[8];        // clock UUID
-    uint64_t time;        // DELAY_REQ time stmap
-    int64_t diff;         // DELAY_REQ current timestamp - delay req timestamp
-    int64_t lastSeenTime; // Last rx timestamp
-    int64_t cycle;        // Last cycle time
-    int64_t counter;      // Cycle counter
-    uint32_t corr;        // PTP correction
-    uint8_t domain;       // PTP domain
-} tPtpClient;
 
 //-------------------------------------------------------------------------------------------------------
 // PTP state
@@ -94,17 +59,6 @@ static uint8_t gPtpMode = PTP_MODE_OBSERVER;
 static tPtp gPtp;
 
 //-------------------------------------------------------------------------------------------------------
-
-// Print information on a grandmaster
-static void printMaster(const tPtpMaster *m) {
-
-    printf("PTP Master:\n");
-    const char *timesource = (m->a.timeSource == PTP_TIME_SOURCE_INTERNAL) ? "internal oscilator" : (m->a.timeSource == PTP_TIME_SOURCE_GPS) ? "GPS" : "Unknown";
-    printf("    domain=%u, addr=%u.%u.%u.%u, id=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X\n"
-           "    timesource=%s (%02X), utcOffset=%u, prio1=%u, class=%u, acc=%u, var=%u, prio2=%u, steps=%u\n",
-           m->domain, m->addr[0], m->addr[1], m->addr[2], m->addr[3], m->uuid[0], m->uuid[1], m->uuid[2], m->uuid[3], m->uuid[4], m->uuid[5], m->uuid[6], m->uuid[7], timesource,
-           m->a.timeSource, htons(m->a.utcOffset), m->a.priority1, m->a.clockClass, m->a.clockAccuraccy, htons(m->a.clockVariance), m->a.priority2, htons(m->a.stepsRemoved));
-}
 
 // Print a PTP frame
 static void printFrame(char *prefix, struct ptphdr *ptp, uint8_t *addr, uint64_t rx_timestamp) {
@@ -171,13 +125,21 @@ typedef struct {
 } observer_parameters_t;
 
 // Default observer parameter values
-const observer_parameters_t observer_params = {.reset = 0,
-                                               .t1_correction = 3, // Apply 4ns correction to t1 to compensate for master timestamp rounding
-                                               .drift_filter_size = 30,
-                                               .jitter_rms_filter_size = 30,
-                                               .jitter_avg_filter_size = 30,
-                                               .max_correction = 1000.0, // 1000ns maximum correction per SYNC interval
-                                               .servo_p_gain = 1.0};
+static const observer_parameters_t observer_params = {.reset = 0,
+                                                      .t1_correction = 3, // Apply 4ns correction to t1 to compensate for master timestamp rounding
+                                                      .drift_filter_size = 30,
+                                                      .jitter_rms_filter_size = 30,
+                                                      .jitter_avg_filter_size = 30,
+                                                      .max_correction = 1000.0, // 1000ns maximum correction per SYNC interval
+                                                      .servo_p_gain = 1.0};
+
+// PTP observer master descriptor
+typedef struct {
+    uint8_t domain;
+    uint8_t uuid[8];
+    uint8_t addr[4];
+    struct announce a; // Announce header from the announce protocol message of this master
+} tPtpMaster;
 
 // PTP observer state
 typedef struct {
@@ -245,7 +207,7 @@ static void observerInit(uint8_t domain) {
     A2lCreateParameter(observer_params.jitter_avg_filter_size, "Jitter average filter size", "", 1.0, 300.0);
     A2lCreateParameter(observer_params.max_correction, "Maximum correction per cycle", "ns", 0.0, 1000.0);
     A2lCreateParameter(observer_params.servo_p_gain, "Proportional gain for servo", "", 0.0, 1.0);
-    XcpUpdateCalSeg(&gPtpC.params); // Initial update of calibration segment (for persistence)
+    gPtpC.params = (const observer_parameters_t *)XcpLockCalSeg(h); // Initial lock of the calibration segment (to enable calibration persistence)
 
     // Create XCP event and associated measurements
     gPtp_syncEvent = XcpCreateEvent("SYNC", 0, 0);
@@ -291,6 +253,7 @@ static void observerInit(uint8_t domain) {
     gPtpC.flup_correction = 0;
     gPtpC.flup_sequenceId = 0;
 
+    // Init timing analysis state
     gPtpC.cycle_count = 0;
     gPtpC.t1_norm = 0;
     gPtpC.t2_norm = 0;
@@ -310,10 +273,37 @@ static void observerInit(uint8_t domain) {
     gPtpC.master_jitter_avg = 0;
 }
 
+// Print information on the grandmaster
+static void observerPrintMaster(const tPtpMaster *m) {
+
+    printf("PTP Master:\n");
+    const char *timesource = (m->a.timeSource == PTP_TIME_SOURCE_INTERNAL) ? "internal oscilator" : (m->a.timeSource == PTP_TIME_SOURCE_GPS) ? "GPS" : "Unknown";
+    printf("    domain=%u, addr=%u.%u.%u.%u, id=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X\n"
+           "    timesource=%s (%02X), utcOffset=%u, prio1=%u, class=%u, acc=%u, var=%u, prio2=%u, steps=%u\n",
+           m->domain, m->addr[0], m->addr[1], m->addr[2], m->addr[3], m->uuid[0], m->uuid[1], m->uuid[2], m->uuid[3], m->uuid[4], m->uuid[5], m->uuid[6], m->uuid[7], timesource,
+           m->a.timeSource, htons(m->a.utcOffset), m->a.priority1, m->a.clockClass, m->a.clockAccuraccy, htons(m->a.clockVariance), m->a.priority2, htons(m->a.stepsRemoved));
+}
+
+// Print the current PTP observer state
+static void observerPrintState() {
+
+    if (gPtpC.gmValid) {
+        observerPrintMaster(&gPtpC.gm);
+    } else {
+        printf("No active PTP master detected\n");
+    }
+}
+
 // Update the PTP observer state with each new SYNC (t1,t2) timestamps
 static void observerUpdate(uint64_t t1_in, uint64_t correction, uint64_t t2_in) {
 
     char ts1[64], ts2[64];
+
+    // Update observer parameters (update XCP calibrations)
+    // Single threaded access assumed, called from ptpThread319 (1 step mode) or ptpThread320 (2 step mode) only
+#ifdef OPTION_ENABLE_XCP
+    XcpUpdateCalSeg(&gPtpC.params);
+#endif
 
     // t1 - master, t2 - local clock
     gPtpC.cycle_count++;
@@ -510,7 +500,7 @@ static bool observerHandleFrame(SOCKET sock, int n, struct ptphdr *ptp, uint8_t 
                     gPtpC.gm.domain = ptp->domain;
                     memcpy(gPtpC.gm.uuid, ptp->clockId, 8);
                     memcpy(gPtpC.gm.addr, addr, 4);
-                    printMaster(&gPtpC.gm);
+                    observerPrintState();
                 }
             }
 
@@ -525,23 +515,10 @@ static bool observerHandleFrame(SOCKET sock, int n, struct ptphdr *ptp, uint8_t 
     return true;
 }
 
-bool observerTask(void) {
+static bool observerTask(void) {
 
-    // Update XCP calibrations
-#ifdef OPTION_ENABLE_XCP
-    XcpUpdateCalSeg(&gPtpC.params);
-#endif
-
+    // Nothing to do yet
     return true;
-}
-
-void observerPrintState() {
-
-    if (gPtpC.gmValid) {
-        printMaster(&gPtpC.gm);
-    } else {
-        printf("No active PTP master detected\n");
-    }
 }
 
 //-------------------------------------------------------------------------------------------------------
@@ -564,7 +541,7 @@ typedef struct {
 
 // Default master clock quality parameters for ANNOUNCE message
 // lower value takes precedence in BMCA
-static announce_parameters_t announce_params = {
+static const announce_parameters_t announce_params = {
     .utcOffset = 37,
     .clockClass = PTP_CLOCK_CLASS_PTP_PRIMARY,
     .clockAccuraccy = PTP_CLOCK_ACC_GPS,
@@ -582,10 +559,23 @@ typedef struct master_params {
 } master_parameters_t;
 
 // Default master parameter values
-const master_parameters_t master_params = {
+static const master_parameters_t master_params = {
     .announceCycleTimeMs = 2000, // Announce every 2s
     .syncCycleTimeMs = 1000      // SYNC every 1s
 };
+
+// PTP client descriptor
+typedef struct {
+    uint8_t addr[4];      // IP addr
+    uint8_t id[8];        // clock UUID
+    uint64_t time;        // DELAY_REQ time stmap
+    int64_t diff;         // DELAY_REQ current timestamp - delay req timestamp
+    int64_t lastSeenTime; // Last rx timestamp
+    int64_t cycle;        // Last cycle time
+    int64_t counter;      // Cycle counter
+    uint32_t corr;        // PTP correction
+    uint8_t domain;       // PTP domain
+} tPtpClient;
 
 typedef struct master_state {
     u_int8_t domain;
@@ -797,6 +787,7 @@ static uint16_t addClient(uint8_t *addr, uint8_t *uuid, uint8_t domain) {
 }
 
 //-------------------------------------------------------------------------------------------------------
+// PTP master state machine
 
 static void masterPrintState() {
     char ts[64];
@@ -808,8 +799,6 @@ static void masterPrintState() {
     printf(" IP:             %u.%u.%u.%u\n", gPtp.addr[0], gPtp.addr[1], gPtp.addr[2], gPtp.addr[3]);
     printf(" Interface:      %s\n", gPtp.interface);
     printf(" Domain:         %u\n", gPtpM.domain);
-    printf(" Announce cycle: %ums\n", gPtpM.params->announceCycleTimeMs);
-    printf(" Sync cycle:     %ums\n", gPtpM.params->syncCycleTimeMs);
     printf("Client list:\n");
     for (uint16_t i = 0; i < gPtpM.clientCount; i++) {
         printClient(i);
@@ -830,7 +819,8 @@ static void masterInit(uint8_t domain, uint8_t *uuid) {
     A2lSetSegmentAddrMode(h, master_params);
     A2lCreateParameter(master_params.announceCycleTimeMs, "Announce cycle time (ms)", "", 0, 10000);
     A2lCreateParameter(master_params.syncCycleTimeMs, "Sync cycle time (ms)", "", 0, 10000);
-    XcpUpdateCalSeg(&gPtpM.params); // Initial update of calibration segment (for persistence)
+    gPtpM.params = XcpLockCalSeg(h);
+    ; // Initial lock of the calibration segment (for persistence)
 
     // Create a A2L typedef for the PTP client structure
     A2lTypedefBegin(tPtpClient, NULL, "PTP client structure");
@@ -869,49 +859,55 @@ static void masterInit(uint8_t domain, uint8_t *uuid) {
 // Master main cycle
 static bool masterTask() {
 
-    for (;;) {
-
-        uint64_t t = clockGet();
-
-        // Update XCP calibrations
+    // Update master parameters (update XCP calibrations)
 #ifdef OPTION_ENABLE_XCP
-        XcpUpdateCalSeg(&gPtpM.params);
+    XcpUpdateCalSeg(&gPtpM.params);
 #endif
 
-        uint32_t announceCycleTimeMs = gPtpM.params->announceCycleTimeMs; // Announce message cycle time in ms
-        uint32_t syncCycleTimeMs = gPtpM.params->syncCycleTimeMs;         // SYNC message cycle time in ms
+    uint64_t t = clockGet();
+    uint32_t announceCycleTimeMs = gPtpM.params->announceCycleTimeMs; // Announce message cycle time in ms
+    uint32_t syncCycleTimeMs = gPtpM.params->syncCycleTimeMs;         // SYNC message cycle time in ms
 
-        // Announce cycle
-        if (announceCycleTimeMs > 0 && t - gPtpM.announceCycleTimer > announceCycleTimeMs * CLOCK_TICKS_PER_MS) {
-            gPtpM.announceCycleTimer = t;
-            if (!ptpSendAnnounce())
-                break;
-        }
-
-        // Sync cycle
-        if (syncCycleTimeMs > 0 && t - gPtpM.syncCycleTimer > syncCycleTimeMs * CLOCK_TICKS_PER_MS) {
-            gPtpM.syncCycleTimer = t;
-
-            mutexLock(&gPtp.mutex);
-            if (!ptpSendSync(&gPtpM.syncTxTimestamp)) {
-                printf("ERROR: Failed to send SYNC\n");
-                mutexUnlock(&gPtp.mutex);
-                break;
-            }
-
-            if (gPtpM.syncTxTimestamp == 0) {
-                printf("ERROR: SYNC tx timestamp not available !\n");
-            } else {
-                if (!ptpSendSyncFollowUp(gPtpM.syncTxTimestamp)) {
-                    printf("ERROR:Failed to send SYNC FOLLOW UP\n");
-                    mutexUnlock(&gPtp.mutex);
-                    break;
-                }
-            }
-            mutexUnlock(&gPtp.mutex);
-        }
+    // Announce cycle
+    if (announceCycleTimeMs > 0 && t - gPtpM.announceCycleTimer > announceCycleTimeMs * CLOCK_TICKS_PER_MS) {
+        gPtpM.announceCycleTimer = t;
+        if (!ptpSendAnnounce())
+            return false;
     }
+
+    // Sync cycle
+    if (syncCycleTimeMs > 0 && t - gPtpM.syncCycleTimer > syncCycleTimeMs * CLOCK_TICKS_PER_MS) {
+        gPtpM.syncCycleTimer = t;
+
+        mutexLock(&gPtp.mutex);
+        if (!ptpSendSync(&gPtpM.syncTxTimestamp)) {
+            printf("ERROR: Failed to send SYNC\n");
+            mutexUnlock(&gPtp.mutex);
+            return false;
+        }
+
+        if (gPtpM.syncTxTimestamp == 0) {
+            printf("ERROR: SYNC tx timestamp not available !\n");
+        } else {
+            if (!ptpSendSyncFollowUp(gPtpM.syncTxTimestamp)) {
+                printf("ERROR:Failed to send SYNC FOLLOW UP\n");
+                mutexUnlock(&gPtp.mutex);
+                return false;
+            }
+        }
+        mutexUnlock(&gPtp.mutex);
+
+        // XCP measurement event
+#ifdef OPTION_ENABLE_XCP
+        XcpEvent(gPtp_syncEvent);
+#endif
+    }
+
+    return true;
 }
+
+//-------------------------------------------------------------------------------------------------------
+// PTP master frame handling
 
 // Handle a received Delay Request message
 static bool masterHandleFrame(SOCKET sock, int n, struct ptphdr *ptp, uint8_t *addr, uint64_t rxTimestamp) {
@@ -934,6 +930,7 @@ static bool masterHandleFrame(SOCKET sock, int n, struct ptphdr *ptp, uint8_t *a
             bool newClient = (i >= MAX_CLIENTS);
             if (newClient) {
                 i = addClient(addr, ptp->clockId, ptp->domain);
+                masterPrintState(); // Print state when a new client is added
             }
 
             // Some clients send non zero timestamp values in their DELAY_REQ which allows to visualize information on time synchronisation quality
@@ -943,11 +940,6 @@ static bool masterHandleFrame(SOCKET sock, int n, struct ptphdr *ptp, uint8_t *a
             gPtpM.client[i].cycle = rxTimestamp - gPtpM.client[i].lastSeenTime;
             gPtpM.client[i].counter++;
             gPtpM.client[i].lastSeenTime = rxTimestamp;
-
-            // Log
-            if (gPtpDebugLevel >= 1 && newClient) {
-                printClient(i);
-            }
         }
     }
     return true;
@@ -955,7 +947,7 @@ static bool masterHandleFrame(SOCKET sock, int n, struct ptphdr *ptp, uint8_t *a
 
 //-------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------
-// Threads
+// PTP threads for socket handling (319, 320) for both master and observer mode
 
 // Time critical event messages (Sync, Delay_Req) on port 319
 #if defined(_WIN) // Windows
@@ -988,8 +980,6 @@ static void *ptpThread319(void *par)
 }
 
 // General messages (Announce, Follow_Up, Delay_Resp) on port 320
-// To keep track of other master activities
-// Does not need rx timestamping
 #if defined(_WIN) // Windows
 static DWORD WINAPI ptpThread320(LPVOID par)
 #else
@@ -1033,7 +1023,7 @@ bool ptpInit(uint8_t mode, uint8_t domain, uint8_t *uuid, uint8_t *bindAddr, cha
     gPtpMode = mode;
     memset(&gPtpC, 0, sizeof(gPtpC));
 
-    // PTP parameters
+    // PTP communication parameters
     memcpy(gPtp.addr, bindAddr, 4);
     strncpy(gPtp.interface, interface ? interface : "", sizeof(gPtp.interface) - 1);
 
@@ -1124,6 +1114,7 @@ void ptpShutdown() {
     socketClose(&gPtp.sock320);
 }
 
+// Print PTP status information
 void ptpPrintStatusInfo() {
 
     if (gPtpMode == PTP_MODE_MASTER) {

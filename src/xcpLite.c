@@ -459,6 +459,18 @@ tXcpCalSegIndex XcpFindCalSeg(const char *name) {
     return XCP_UNDEFINED_CALSEG; // Not found
 }
 
+// Find a calibration segment by a page pointer (default page or ecu_page), returns XCP_UNDEFINED_CALSEG if not found
+tXcpCalSegIndex XcpFindCalPage(const void *page) {
+    assert(isInitialized());
+    for (tXcpCalSegIndex i = 0; i < gXcp.CalSegList.count; i++) {
+        tXcpCalSeg *calseg = &gXcp.CalSegList.calseg[i];
+        if (calseg->default_page == page || calseg->ecu_page == page) {
+            return i;
+        }
+    }
+    return XCP_UNDEFINED_CALSEG; // Not found
+}
+
 // Get the index of a calibration segment by address (inside of the default page)
 tXcpCalSegIndex XcpFindCalSegByAddr(uint8_t *addr) {
     assert(isInitialized());
@@ -675,17 +687,35 @@ const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg) {
 // Unlock a calibration segment
 // Thread safe
 // Shared state is lock_count
-void XcpUnlockCalSeg(tXcpCalSegIndex calseg) {
+uint8_t XcpUnlockCalSeg(tXcpCalSegIndex calseg) {
 
     if (!isActivated())
-        return;
+        return 0;
 
     if (calseg >= gXcp.CalSegList.count) {
         DBG_PRINT_ERROR("XCP not initialized or invalid calseg\n");
-        return; // Uninitialized or invalid calseg
+        return 0; // Uninitialized or invalid calseg
     }
 
-    atomic_fetch_sub_explicit(&gXcp.CalSegList.calseg[calseg].lock_count, 1, memory_order_relaxed); // Decrement the lock count
+    uint8_t oldLockCount = atomic_fetch_sub_explicit(&gXcp.CalSegList.calseg[calseg].lock_count, 1, memory_order_relaxed); // Decrement the lock count
+    assert(oldLockCount > 0);                                                                                              // Check for underflow
+    return oldLockCount;
+}
+
+// Update a calibration parameter segment pointer
+// Single threaded calibration segment access assumed
+// Calibration segment is continuously locked and only updated here
+// It is the users responsibility to ensure single threaded usage and initial locking of the segment
+void XcpUpdateCalSeg(void **calPage) {
+
+    tXcpCalSegIndex calSegIndex = XcpFindCalPage(*calPage);
+    if (calSegIndex != XCP_UNDEFINED_CALSEG) {
+        // Release the lock on the old page
+        uint8_t oldLockCount = XcpUnlockCalSeg(calSegIndex);
+        assert(oldLockCount == 1); // Check the assumption of single threaded access
+        // If there are calibration changes, frees the old page memory and replaces with the new one
+        *calPage = XcpLockCalSeg(calSegIndex);
+    }
 }
 
 // XCP client memory read

@@ -237,6 +237,9 @@ uint16_t XcpGetCalSegCount(void);
 // Find a calibration segment by name, returns XCP_UNDEFINED_CALSEG if not found
 tXcpCalSegIndex XcpFindCalSeg(const char *name);
 
+// Find a calibration segment by its default page pointer, returns XCP_UNDEFINED_CALSEG if not found
+tXcpCalSegIndex XcpFindCalPage(const void *default_page);
+
 // Get a pointer to the calibration segment struct
 tXcpCalSeg *XcpGetCalSeg(tXcpCalSegIndex calseg);
 
@@ -259,7 +262,13 @@ const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg);
 
 // Unlock a calibration segment
 // Single threaded, must be used in the thread it was created
-void XcpUnlockCalSeg(tXcpCalSegIndex calseg);
+uint8_t XcpUnlockCalSeg(tXcpCalSegIndex calseg);
+
+// Update a calibration parameter segment pointer
+// Single threaded calibration segment access assumed
+// Calibration segment is continuously locked and only updated here
+// It is the users responsibility to ensure single threaded usage and initial locking of the segment
+void XcpUpdateCalSeg(void **calPage);
 
 #endif // XCP_ENABLE_CALSEG_LIST
 

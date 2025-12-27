@@ -76,6 +76,9 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
 /// Find a calibration segment by name, returns XCP_UNDEFINED_CALSEG if not found
 tXcpCalSegIndex XcpFindCalSeg(const char *name);
 
+/// Find a calibration segment by its default page pointer, returns XCP_UNDEFINED_CALSEG if not found
+tXcpCalSegIndex XcpFindCalPage(const void *default_page);
+
 /// Get the name of the calibration segment
 /// @return the name of the calibration segment or NULL if the index is invalid.
 const char *XcpGetCalSegName(tXcpCalSegIndex calseg);
@@ -90,7 +93,13 @@ const char *XcpGetCalSegName(tXcpCalSegIndex calseg);
 const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg);
 
 /// Unlock a calibration segment
-void XcpUnlockCalSeg(tXcpCalSegIndex calseg);
+uint8_t XcpUnlockCalSeg(tXcpCalSegIndex calseg);
+
+/// Update a calibration parameter segment pointer
+/// Single threaded calibration segment access assumed
+/// Calibration segment is continuously locked and only updated here
+/// It is the users responsibility to ensure single threaded usage and initial locking of the segment
+void XcpUpdateCalSeg(void **calPage);
 
 /// Freeze all calibration segments
 /// The current working page is written to the persistence file
