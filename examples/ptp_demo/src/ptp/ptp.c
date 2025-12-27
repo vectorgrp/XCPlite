@@ -30,8 +30,17 @@
 #include <a2l.h>    // for xcplib A2l generation
 #include <xcplib.h> // for xcplib application programming interface
 
+// Global XCP event id
 // XCP test instrumentation events
 static uint16_t gPtp_syncEvent = XCP_UNDEFINED_EVENT_ID; // on SYNC
+
+void XcpUpdateCalSeg(void **calPage) {
+
+    // tXcpCalSegIndex = XcpFindCalSeg(*calPage);
+    // if (calSegIndex != XCP_INVALID_CAL_SEG_INDEX) {
+
+    // }
+}
 
 #endif
 
@@ -71,7 +80,6 @@ typedef struct {
     uint8_t addr[4];    // local addr
     uint8_t maddr[4];   // multicast addr
     char interface[32]; // network interface name
-    THREAD threadHandle;
     THREAD threadHandle320;
     THREAD threadHandle319;
     SOCKET sock320;
@@ -80,6 +88,7 @@ typedef struct {
 
 } tPtp;
 
+// Global PTP state
 static uint8_t gPtpDebugLevel = 3;
 static uint8_t gPtpMode = PTP_MODE_OBSERVER;
 static tPtp gPtp;
@@ -150,7 +159,7 @@ static void printFrame(char *prefix, struct ptphdr *ptp, uint8_t *addr, uint64_t
 //-------------------------------------------------------------------------------------------------------
 // PTP observer for master timing analysis
 
-// (XCP tunable) parameters
+// Observer parameter structure
 typedef struct {
     uint8_t reset;                  // Reset PTP observer state
     int32_t t1_correction;          // Correction to apply to t1 timestamps
@@ -161,24 +170,14 @@ typedef struct {
     double servo_p_gain;            // Proportional gain (typically 0.1 - 0.5)
 } observer_parameters_t;
 
-// Default parameter values
-static observer_parameters_t observer_params = {.reset = 0,
-                                                .t1_correction = 3, // Apply 4ns correction to t1 to compensate for master timestamp rounding
-                                                .drift_filter_size = 30,
-                                                .jitter_rms_filter_size = 30,
-                                                .jitter_avg_filter_size = 30,
-                                                .max_correction = 1000.0, // 1000ns maximum correction per SYNC interval
-                                                .servo_p_gain = 1.0};
-
-#ifdef OPTION_ENABLE_XCP
-// Create a tunable calibration segment handle for the observer parameters
-tXcpCalSegIndex gParamsHandle = XCP_UNDEFINED_CALSEG;
-#define lockObserverParams() (observer_parameters_t *)XcpLockCalSeg(gParamsHandle);
-#define unlockObserverParams() XcpUnlockCalSeg(gParamsHandle);
-#else
-#define lockObserverParams() (&observer_params)
-#define unlockObserverParams()
-#endif
+// Default observer parameter values
+const observer_parameters_t observer_params = {.reset = 0,
+                                               .t1_correction = 3, // Apply 4ns correction to t1 to compensate for master timestamp rounding
+                                               .drift_filter_size = 30,
+                                               .jitter_rms_filter_size = 30,
+                                               .jitter_avg_filter_size = 30,
+                                               .max_correction = 1000.0, // 1000ns maximum correction per SYNC interval
+                                               .servo_p_gain = 1.0};
 
 // PTP observer state
 typedef struct {
@@ -220,12 +219,63 @@ typedef struct {
     tAverageFilter master_jitter_rms_filter;
     tAverageFilter master_jitter_avg_filter;
 
+    // Observer parameters
+    const observer_parameters_t *params;
+
 } tPtpC;
 
+// Global PTP observer state
 static tPtpC gPtpC;
 
 // Initialize the PTP observer state
 static void observerInit(uint8_t domain) {
+
+    gPtpC.params = &observer_params;
+
+    // XCP instrumentation
+#ifdef OPTION_ENABLE_XCP
+
+    // Create XCP calibration segment for observer parameters
+    tXcpCalSegIndex h = XcpCreateCalSeg("observer_params", &observer_params, sizeof(observer_params));
+    A2lSetSegmentAddrMode(h, observer_params);
+    A2lCreateParameter(observer_params.reset, "Reset PTP observer state", "", 0, 1);
+    A2lCreateParameter(observer_params.t1_correction, "Correction for t1", "", -100, 100);
+    A2lCreateParameter(observer_params.drift_filter_size, "Drift filter size", "", 1, 300);
+    A2lCreateParameter(observer_params.jitter_rms_filter_size, "Jitter RMS filter size", "", 1.0, 300.0);
+    A2lCreateParameter(observer_params.jitter_avg_filter_size, "Jitter average filter size", "", 1.0, 300.0);
+    A2lCreateParameter(observer_params.max_correction, "Maximum correction per cycle", "ns", 0.0, 1000.0);
+    A2lCreateParameter(observer_params.servo_p_gain, "Proportional gain for servo", "", 0.0, 1.0);
+    XcpUpdateCalSeg(&gPtpC.params); // Initial update of calibration segment (for persistence)
+
+    // Create XCP event and associated measurements
+    gPtp_syncEvent = XcpCreateEvent("SYNC", 0, 0);
+    A2lSetAbsoluteAddrMode__i(gPtp_syncEvent);
+    A2lCreateMeasurement(gPtpC.gm.domain, "domain");
+    A2lCreateMeasurementArray(gPtpC.gm.uuid, "Grandmaster UUID");
+    A2lCreateMeasurementArray(gPtpC.gm.addr, "Grandmaster IP address");
+    A2lCreateMeasurement(gPtpC.sync_local_time, "SYNC RX timestamp");
+    A2lCreateMeasurement(gPtpC.sync_master_time, "SYNC timestamp");
+    A2lCreatePhysMeasurement(gPtpC.sync_correction, "SYNC correction", "ns", 0, 1000000);
+    A2lCreateMeasurement(gPtpC.sync_sequenceId, "SYNC sequence counter");
+    A2lCreateMeasurement(gPtpC.sync_steps, "SYNC mode");
+    A2lCreatePhysMeasurement(gPtpC.sync_cycle_time, "SYNC cycle time", "ns", 999999900, 1000000100);
+    A2lCreateMeasurement(gPtpC.flup_master_time, "FOLLOW_UP timestamp");
+    A2lCreateMeasurement(gPtpC.flup_sequenceId, "FOLLOW_UP sequence counter");
+    A2lCreatePhysMeasurement(gPtpC.flup_correction, "FOLLOW_UP correction", "ns", 0, 1000000);
+    A2lCreatePhysMeasurement(gPtpC.t1_norm, "t1 normalized to startup reference time t1_offset", "ns", 0, +1000000);
+    A2lCreatePhysMeasurement(gPtpC.t2_norm, "t2 normalized to startup reference time t2_offset", "ns", 0, +1000000);
+    A2lCreatePhysMeasurement(gPtpC.master_drift_raw, "", "ppm*1000", -100, +100);
+    A2lCreatePhysMeasurement(gPtpC.master_drift, "", "ppm*1000", -100, +100);
+    A2lCreatePhysMeasurement(gPtpC.master_drift_drift, "", "ppm*1000", -10, +10);
+    A2lCreatePhysMeasurement(gPtpC.master_offset_raw, "t1-t2 raw value (not used)", "ns", -1000000, +1000000);
+    A2lCreatePhysMeasurement(gPtpC.master_offset_compensation, "offset for detrending", "ns", -1000, +1000);
+    A2lCreatePhysMeasurement(gPtpC.master_offset_detrended, "detrended master offset", "ns", -1000, +1000);
+    A2lCreatePhysMeasurement(gPtpC.master_offset_detrended_filtered, "filtered detrended master offset", "ns", -1000, +1000);
+    A2lCreatePhysMeasurement(gPtpC.master_jitter, "offset jitter raw value", "ns", -1000, +1000);
+    A2lCreatePhysMeasurement(gPtpC.master_jitter_rms, "Jitter root mean square", "ns", -1000, +1000);
+    A2lCreatePhysMeasurement(gPtpC.master_jitter_avg, "Jitter average", "ns", -1000, +1000);
+
+#endif
 
     // Grandmaster info
     gPtpC.gmValid = false;
@@ -241,25 +291,23 @@ static void observerInit(uint8_t domain) {
     gPtpC.flup_correction = 0;
     gPtpC.flup_sequenceId = 0;
 
-    observer_parameters_t *p = lockObserverParams();
     gPtpC.cycle_count = 0;
     gPtpC.t1_norm = 0;
     gPtpC.t2_norm = 0;
     gPtpC.sync_cycle_time = 1000000000;
     gPtpC.master_offset_raw = 0;
     gPtpC.master_drift_raw = 0;
-    average_filter_init(&gPtpC.master_drift_filter, p->drift_filter_size);
+    average_filter_init(&gPtpC.master_drift_filter, gPtpC.params->drift_filter_size);
     gPtpC.master_drift_raw = 0;
     gPtpC.master_drift = 0;
     gPtpC.master_drift_drift = 0;
     gPtpC.master_offset_compensation = 0;
     gPtpC.servo_integral = 0.0;
     gPtpC.master_jitter = 0;
-    average_filter_init(&gPtpC.master_jitter_rms_filter, p->jitter_rms_filter_size);
+    average_filter_init(&gPtpC.master_jitter_rms_filter, gPtpC.params->jitter_rms_filter_size);
     gPtpC.master_jitter_rms = 0;
-    average_filter_init(&gPtpC.master_jitter_avg_filter, p->jitter_avg_filter_size);
+    average_filter_init(&gPtpC.master_jitter_avg_filter, gPtpC.params->jitter_avg_filter_size);
     gPtpC.master_jitter_avg = 0;
-    unlockObserverParams();
 }
 
 // Update the PTP observer state with each new SYNC (t1,t2) timestamps
@@ -279,9 +327,7 @@ static void observerUpdate(uint64_t t1_in, uint64_t correction, uint64_t t2_in) 
     }
 
     // Apply rounding correction to t1 ( Vector VN/VX PTP master has 8ns resolution, which leads to a systematic error )
-    observer_parameters_t *p = lockObserverParams();
-    t1_in = t1_in + p->t1_correction;
-    unlockObserverParams();
+    t1_in = t1_in + gPtpC.params->t1_correction;
 
     // Apply correction to t1
     t1_in += correction;
@@ -386,16 +432,13 @@ static void observerUpdate(uint64_t t1_in, uint64_t correction, uint64_t t2_in) 
             double correction = gPtpC.master_offset_detrended_filtered;
 
             // P-term
-            observer_parameters_t *p = lockObserverParams();
-            correction *= p->servo_p_gain;
+            correction *= gPtpC.params->servo_p_gain;
 
             // Correction rate limiting
-            if (correction > p->max_correction)
-                correction = p->max_correction;
-            if (correction < -p->max_correction)
-                correction = -p->max_correction;
-
-            unlockObserverParams();
+            if (correction > gPtpC.params->max_correction)
+                correction = gPtpC.params->max_correction;
+            if (correction < -gPtpC.params->max_correction)
+                correction = -gPtpC.params->max_correction;
 
             // Apply correction
             gPtpC.master_offset_compensation += correction;
@@ -482,6 +525,16 @@ static bool observerHandleFrame(SOCKET sock, int n, struct ptphdr *ptp, uint8_t 
     return true;
 }
 
+bool observerTask(void) {
+
+    // Update XCP calibrations
+#ifdef OPTION_ENABLE_XCP
+    XcpUpdateCalSeg(&gPtpC.params);
+#endif
+
+    return true;
+}
+
 void observerPrintState() {
 
     if (gPtpC.gmValid) {
@@ -490,71 +543,6 @@ void observerPrintState() {
         printf("No active PTP master detected\n");
     }
 }
-
-//-------------------------------------------------------------------------------------------------------
-// A2L and XCP for the PTP observer
-
-#ifdef OPTION_ENABLE_XCP
-
-// Create XCP events
-void observerCreateXcpEvents() { gPtp_syncEvent = XcpCreateEvent("SYNC", 0, 0); }
-
-// Create XCP calibration parameters
-void observerCreateXcpParameters() {
-
-    gParamsHandle = XcpCreateCalSeg("observer_params", &observer_params, sizeof(observer_params));
-
-    A2lSetSegmentAddrMode(gParamsHandle, observer_params);
-
-    A2lCreateParameter(observer_params.reset, "Reset PTP observer state", "", 0, 1);
-    A2lCreateParameter(observer_params.t1_correction, "Correction for t1", "", -100, 100);
-
-    A2lCreateParameter(observer_params.drift_filter_size, "Drift filter size", "", 1, 300);
-    A2lCreateParameter(observer_params.jitter_rms_filter_size, "Jitter RMS filter size", "", 1.0, 300.0);
-    A2lCreateParameter(observer_params.jitter_avg_filter_size, "Jitter average filter size", "", 1.0, 300.0);
-
-    A2lCreateParameter(observer_params.max_correction, "Maximum correction per cycle", "ns", 0.0, 1000.0);
-    A2lCreateParameter(observer_params.servo_p_gain, "Proportional gain for servo", "", 0.0, 1.0);
-}
-
-// Create A2L description for measurements
-void observerCreateA2lDescription() {
-
-    // Event measurements
-    A2lSetAbsoluteAddrMode__i(gPtp_syncEvent);
-
-    A2lCreateMeasurement(gPtpC.gm.domain, "domain");
-    A2lCreateMeasurementArray(gPtpC.gm.uuid, "Grandmaster UUID");
-    A2lCreateMeasurementArray(gPtpC.gm.addr, "Grandmaster IP address");
-
-    A2lCreateMeasurement(gPtpC.sync_local_time, "SYNC RX timestamp");
-    A2lCreateMeasurement(gPtpC.sync_master_time, "SYNC timestamp");
-    A2lCreatePhysMeasurement(gPtpC.sync_correction, "SYNC correction", "ns", 0, 1000000);
-    A2lCreateMeasurement(gPtpC.sync_sequenceId, "SYNC sequence counter");
-    A2lCreateMeasurement(gPtpC.sync_steps, "SYNC mode");
-    A2lCreatePhysMeasurement(gPtpC.sync_cycle_time, "SYNC cycle time", "ns", 999999900, 1000000100);
-
-    A2lCreateMeasurement(gPtpC.flup_master_time, "FOLLOW_UP timestamp");
-    A2lCreateMeasurement(gPtpC.flup_sequenceId, "FOLLOW_UP sequence counter");
-    A2lCreatePhysMeasurement(gPtpC.flup_correction, "FOLLOW_UP correction", "ns", 0, 1000000);
-
-    A2lCreatePhysMeasurement(gPtpC.t1_norm, "t1 normalized to startup reference time t1_offset", "ns", 0, +1000000);
-    A2lCreatePhysMeasurement(gPtpC.t2_norm, "t2 normalized to startup reference time t2_offset", "ns", 0, +1000000);
-
-    A2lCreatePhysMeasurement(gPtpC.master_drift_raw, "", "ppm*1000", -100, +100);
-    A2lCreatePhysMeasurement(gPtpC.master_drift, "", "ppm*1000", -100, +100);
-    A2lCreatePhysMeasurement(gPtpC.master_drift_drift, "", "ppm*1000", -10, +10);
-
-    A2lCreatePhysMeasurement(gPtpC.master_offset_raw, "t1-t2 raw value (not used)", "ns", -1000000, +1000000);
-    A2lCreatePhysMeasurement(gPtpC.master_offset_compensation, "offset for detrending", "ns", -1000, +1000);
-    A2lCreatePhysMeasurement(gPtpC.master_offset_detrended, "detrended master offset", "ns", -1000, +1000);
-    A2lCreatePhysMeasurement(gPtpC.master_offset_detrended_filtered, "filtered detrended master offset", "ns", -1000, +1000);
-
-    A2lCreatePhysMeasurement(gPtpC.master_jitter, "offset jitter raw value", "ns", -1000, +1000);
-    A2lCreatePhysMeasurement(gPtpC.master_jitter_rms, "Jitter root mean square", "ns", -1000, +1000);
-    A2lCreatePhysMeasurement(gPtpC.master_jitter_avg, "Jitter average", "ns", -1000, +1000);
-}
-#endif
 
 //-------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------
@@ -587,27 +575,17 @@ static announce_parameters_t announce_params = {
     .priority2 = 0,
 };
 
-// (XCP tunable) master parameters
+// Master parameter structure
 typedef struct master_params {
     uint32_t announceCycleTimeMs; // Announce message cycle time in ms
     uint32_t syncCycleTimeMs;     // SYNC message cycle time in ms
 } master_parameters_t;
 
 // Default master parameter values
-static master_parameters_t master_params = {
+const master_parameters_t master_params = {
     .announceCycleTimeMs = 2000, // Announce every 2s
     .syncCycleTimeMs = 1000      // SYNC every 1s
 };
-
-#ifdef OPTION_ENABLE_XCP
-// Create a tunable calibration segment handle for the master parameters
-tXcpCalSegIndex gMasterParamsHandle = XCP_UNDEFINED_CALSEG;
-#define LockMasterParams() ((void *)XcpLockCalSeg(gMasterParamsHandle))
-#define UnlockMasterParams(x) XcpUnlockCalSeg(gMasterParamsHandle)
-#else
-#define LockMasterParams() (&master_params)
-#define UnlockMasterParams(x)
-#endif
 
 typedef struct master_state {
     u_int8_t domain;
@@ -622,8 +600,13 @@ typedef struct master_state {
     // PTP client list
     uint16_t clientCount;
     tPtpClient client[MAX_CLIENTS];
+
+    // PTP master parameters
+    const master_parameters_t *params;
+
 } master_state_t;
 
+// Global PTP master state
 static master_state_t gPtpM;
 
 //---------------------------------------------------------------------------------------
@@ -631,8 +614,6 @@ static master_state_t gPtpM;
 
 // Init constant values in PTP header
 static void initHeader(struct ptphdr *h, uint8_t type, uint16_t len, uint16_t flags, uint16_t sequenceId) {
-
-    master_parameters_t *p = (master_parameters_t *)LockMasterParams();
 
     memset(h, 0, sizeof(struct ptphdr));
     h->version = 2;
@@ -644,8 +625,6 @@ static void initHeader(struct ptphdr *h, uint8_t type, uint16_t len, uint16_t fl
     h->len = htons(len);
     h->flags = htons(flags);
     h->sequenceId = htons(sequenceId);
-
-    UnlockMasterParams(p);
 
     // Deprecated
     switch (type) {
@@ -829,9 +808,8 @@ static void masterPrintState() {
     printf(" IP:             %u.%u.%u.%u\n", gPtp.addr[0], gPtp.addr[1], gPtp.addr[2], gPtp.addr[3]);
     printf(" Interface:      %s\n", gPtp.interface);
     printf(" Domain:         %u\n", gPtpM.domain);
-    master_parameters_t *p = (master_parameters_t *)LockMasterParams();
-    printf(" Announce cycle: %ums\n", p->announceCycleTimeMs);
-    printf(" Sync cycle:     %ums\n", p->syncCycleTimeMs);
+    printf(" Announce cycle: %ums\n", gPtpM.params->announceCycleTimeMs);
+    printf(" Sync cycle:     %ums\n", gPtpM.params->syncCycleTimeMs);
     printf("Client list:\n");
     for (uint16_t i = 0; i < gPtpM.clientCount; i++) {
         printClient(i);
@@ -842,35 +820,66 @@ static void masterPrintState() {
 // Initialize the PTP master state
 static void masterInit(uint8_t domain, uint8_t *uuid) {
 
+    gPtpM.params = &master_params;
+
+    // XCP instrumentation
+#ifdef OPTION_ENABLE_XCP
+
+    // Create XCP calibration parameter segment
+    tXcpCalSegIndex h = XcpCreateCalSeg("master_params", &master_params, sizeof(master_params));
+    A2lSetSegmentAddrMode(h, master_params);
+    A2lCreateParameter(master_params.announceCycleTimeMs, "Announce cycle time (ms)", "", 0, 10000);
+    A2lCreateParameter(master_params.syncCycleTimeMs, "Sync cycle time (ms)", "", 0, 10000);
+    XcpUpdateCalSeg(&gPtpM.params); // Initial update of calibration segment (for persistence)
+
+    // Create a A2L typedef for the PTP client structure
+    A2lTypedefBegin(tPtpClient, NULL, "PTP client structure");
+    A2lTypedefMeasurementComponent(counter, "cycle counter");
+    A2lTypedefPhysMeasurementComponent(cycle, "Cycle time", "ns", 0, 1000000000);
+    A2lTypedefMeasurementArrayComponent(addr, "IP address");
+    A2lTypedefMeasurementArrayComponent(id, "Clock UUID");
+    A2lTypedefMeasurementComponent(time, "DELAY_REQ timestamp (t3)");
+    A2lTypedefMeasurementComponent(corr, "DELAY_REQ correction");
+    A2lTypedefPhysMeasurementComponent(diff, "Timestamp difference (t4 - t3)", "ns", -1000000000, +1000000000);
+    A2lTypedefEnd();
+
+    // Create XCP event and associated measurements
+    gPtp_syncEvent = XcpCreateEvent("SYNC", 0, 0);
+    A2lSetAbsoluteAddrMode__i(gPtp_syncEvent);
+    A2lCreateMeasurement(gPtpM.clientCount, "Number of PTP clients");
+    A2lCreateTypedefInstanceArray(gPtpM.client, tPtpClient, MAX_CLIENTS, "PTP client list");
+    A2lCreateMeasurement(gPtpM.syncTxTimestamp, "SYNC tx timestamp");
+    A2lCreateMeasurement(gPtpM.sequenceIdAnnounce, "Announce sequence id");
+    A2lCreateMeasurement(gPtpM.sequenceIdSync, "SYNC sequence id");
+
+#endif
+
     gPtpM.domain = domain;
     memcpy(gPtpM.uuid, uuid, sizeof(gPtpM.uuid));
     initClientList();
 
-    master_parameters_t *p = (master_parameters_t *)LockMasterParams();
-
     uint64_t t = clockGet();
-    gPtpM.announceCycleTimer = 0;                                                                  // Send announce immediately
-    gPtpM.syncCycleTimer = t + 100 * CLOCK_TICKS_PER_MS - p->syncCycleTimeMs * CLOCK_TICKS_PER_MS; // First SYNC after 100ms
+    gPtpM.announceCycleTimer = 0;                                                                             // Send announce immediately
+    gPtpM.syncCycleTimer = t + 100 * CLOCK_TICKS_PER_MS - gPtpM.params->syncCycleTimeMs * CLOCK_TICKS_PER_MS; // First SYNC after 100ms
     gPtpM.syncTxTimestamp = 0;
     gPtpM.sequenceIdAnnounce = 0;
     gPtpM.sequenceIdSync = 0;
-
-    UnlockMasterParams();
 }
 
 // Master main cycle
-static void masterCycle() {
-
-    printf("c");
+static bool masterTask() {
 
     for (;;) {
 
         uint64_t t = clockGet();
 
-        master_parameters_t *p = (master_parameters_t *)LockMasterParams();
-        uint32_t announceCycleTimeMs = p->announceCycleTimeMs; // Announce message cycle time in ms
-        uint32_t syncCycleTimeMs = p->syncCycleTimeMs;         // SYNC message cycle time in ms
-        UnlockMasterParams();
+        // Update XCP calibrations
+#ifdef OPTION_ENABLE_XCP
+        XcpUpdateCalSeg(&gPtpM.params);
+#endif
+
+        uint32_t announceCycleTimeMs = gPtpM.params->announceCycleTimeMs; // Announce message cycle time in ms
+        uint32_t syncCycleTimeMs = gPtpM.params->syncCycleTimeMs;         // SYNC message cycle time in ms
 
         // Announce cycle
         if (announceCycleTimeMs > 0 && t - gPtpM.announceCycleTimer > announceCycleTimeMs * CLOCK_TICKS_PER_MS) {
@@ -945,45 +954,6 @@ static bool masterHandleFrame(SOCKET sock, int n, struct ptphdr *ptp, uint8_t *a
 }
 
 //-------------------------------------------------------------------------------------------------------
-// A2L and XCP for the PTP observer
-
-#ifdef OPTION_ENABLE_XCP
-
-// Create XCP events
-void masterCreateXcpEvents() { gPtp_syncEvent = XcpCreateEvent("SYNC", 0, 0); }
-
-// Create XCP calibration parameters
-void masterCreateXcpParameters() {
-
-    gMasterParamsHandle = XcpCreateCalSeg("master_params", &master_params, sizeof(master_params));
-    A2lSetSegmentAddrMode(gMasterParamsHandle, master_params);
-    A2lCreateParameter(master_params.announceCycleTimeMs, "Announce cycle time (ms)", "", 0, 10000);
-    A2lCreateParameter(master_params.syncCycleTimeMs, "Sync cycle time (ms)", "", 0, 10000);
-}
-
-// Create A2L description for measurements
-void masterCreateA2lDescription() {
-
-    A2lTypedefBegin(tPtpClient, NULL, "PTP client structure");
-    A2lTypedefMeasurementComponent(counter, "cycle counter");
-    A2lTypedefPhysMeasurementComponent(cycle, "Cycle time", "ns", 0, 1000000000);
-    A2lTypedefMeasurementArrayComponent(addr, "IP address");
-    A2lTypedefMeasurementArrayComponent(id, "Clock UUID");
-    A2lTypedefMeasurementComponent(time, "DELAY_REQ timestamp (t3)");
-    A2lTypedefMeasurementComponent(corr, "DELAY_REQ correction");
-    A2lTypedefPhysMeasurementComponent(diff, "Timestamp difference (t4 - t3)", "ns", -1000000000, +1000000000);
-    A2lTypedefEnd();
-
-    A2lSetAbsoluteAddrMode__i(gPtp_syncEvent);
-    A2lCreateMeasurement(gPtpM.clientCount, "Number of PTP clients");
-    A2lCreateTypedefInstanceArray(gPtpM.client, tPtpClient, MAX_CLIENTS, "PTP client list");
-    A2lCreateMeasurement(gPtpM.syncTxTimestamp, "SYNC tx timestamp");
-    A2lCreateMeasurement(gPtpM.sequenceIdAnnounce, "Announce sequence id");
-    A2lCreateMeasurement(gPtpM.sequenceIdSync, "SYNC sequence id");
-}
-#endif
-
-//-------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------
 // Threads
 
@@ -1050,24 +1020,6 @@ static void *ptpThread320(void *par)
     return 0;
 }
 
-#ifdef _WIN
-static DWORD WINAPI ptpThread(LPVOID par)
-#else
-static void *ptpThread(void *par)
-#endif
-{
-    (void)par;
-
-    for (;;) {
-        sleepMs(10);
-        if (gPtpMode == PTP_MODE_MASTER) {
-            masterCycle();
-        }
-    }
-
-    return 0;
-}
-
 //-------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------
 // Public functions
@@ -1086,19 +1038,9 @@ bool ptpInit(uint8_t mode, uint8_t domain, uint8_t *uuid, uint8_t *bindAddr, cha
     strncpy(gPtp.interface, interface ? interface : "", sizeof(gPtp.interface) - 1);
 
     if (mode == PTP_MODE_OBSERVER) {
-#ifdef OPTION_ENABLE_XCP
-        observerCreateXcpEvents();
-        observerCreateXcpParameters();
-        observerCreateA2lDescription();
-#endif
         observerInit(domain);
     }
     if (mode == PTP_MODE_MASTER) {
-#ifdef OPTION_ENABLE_XCP
-        masterCreateXcpEvents();
-        masterCreateXcpParameters();
-        masterCreateA2lDescription();
-#endif
         masterInit(domain, uuid);
     }
 
@@ -1153,40 +1095,28 @@ bool ptpInit(uint8_t mode, uint8_t domain, uint8_t *uuid, uint8_t *bindAddr, cha
     mutexInit(&gPtp.mutex, true, 1000);
     create_thread(&gPtp.threadHandle320, ptpThread320);
     create_thread(&gPtp.threadHandle319, ptpThread319);
-    create_thread(&gPtp.threadHandle, ptpThread);
 
     return true;
 }
 
-// Check health status and perform some background tasks
+// Perform background tasks
 // This is called from the application on a regular basis
-// It monitors the status and checks for reset requests via calibration parameters
-bool ptpCheckStatus(void) {
+// Observer: It monitors the status and checks for reset requests via calibration parameter
+// Master: Send SYNC and ANNOUNCE messages
+bool ptpTask(void) {
 
     if (gPtpMode == PTP_MODE_OBSERVER) {
-
-        // Reset request via calibration parameter
-        observer_parameters_t *p = lockObserverParams();
-        uint8_t reset = p->reset; // Get the reset calibration parameter
-        p->reset = 0;             // Clear the reset request
-        unlockObserverParams();
-        if (reset != 0) {
-            printf("PTP observer reset requested via calibration parameter\n");
-            // Reset grandmaster info
-            gPtpC.gmValid = false;
-            sleepMs(100);
-            // Reset PTP observer analysis state
-            observerInit(gPtpC.domain);
-        }
+        return observerTask();
     }
-
+    if (gPtpMode == PTP_MODE_MASTER) {
+        return masterTask();
+    }
     return true;
 }
 
 // Stop PTP
 void ptpShutdown() {
 
-    cancel_thread(gPtp.threadHandle);
     cancel_thread(gPtp.threadHandle320);
     cancel_thread(gPtp.threadHandle319);
     sleepMs(200);

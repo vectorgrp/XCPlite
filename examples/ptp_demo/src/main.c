@@ -191,13 +191,10 @@ int main(int argc, char *argv[]) {
     A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
 #endif
 
-    sleepMs(5000); // Wait a bit for PTP to start and collect data
-    ptpPrintStatusInfo();
-
     // Mainloop
-    printf("Start main loop...\n");
+    printf("Start main task ...\n");
     while (running) {
-        if (!ptpCheckStatus())
+        if (!ptpTask())
             break;
         sleepMs(1000); // 1s
     } // for (;;)
