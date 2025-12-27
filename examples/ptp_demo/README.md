@@ -3,6 +3,8 @@
 ## Overview
 
 This demo application implements a simple PTP (Precision Time Protocol, IEEE 1588) observer and a basic PTP master.
+For analyzing PTP masters and testing PTP client stability
+Supports IEEE 1588-2008 PTPv2 over UDP/IPv4 in E2E mode
 
 ### Commandline Options
 
@@ -31,7 +33,7 @@ Running on a Linux system with good hardware time stamping support, the observer
 The implementation of PTP is very basic and assumes there is only one PTP master and one clock domain on the network.  
 The filtering and clock servo algorithms are also simplistic and need significant time to stabilize to obtain a reliable estimation of master clock jitter.  
 
-The demo must be run with root privileges to access hardware time stamping features and the PTP ports.
+The demo must be run with root privileges to access to hardware time stamping features and the PTP ports.
 
 ```bash
 sudo ./build/ptp_demo
@@ -50,7 +52,7 @@ sudo ./build/ptp_demo
 ## PTP Master
 
 The demo can also be run as a simple PTP master, sending SYNC and FOLLOW_UP messages periodically and reponding to DELAY_REQUEST messages.  
-This can be enabled by defining the `OPTION_ENABLE_PTP_MASTER` macro in `ptp_cfg.h`.  
+This can be enabled by defining the `OPTION_ENABLE_PTP_MASTER` macro in `ptp_cfg.h` or via command line options.  
 The master implementation is very basic and does not implement all required PTP features.  
 
 

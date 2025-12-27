@@ -1,8 +1,9 @@
 #pragma once
 
 /* ptpHdr.h */
-
-//-------------------------------------------------------------------------------------------------------
+/*
+| Code released into public domain, no attribution required
+*/
 
 #pragma pack(push, 1)
 

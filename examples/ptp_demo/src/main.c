@@ -1,5 +1,7 @@
 ﻿// ptp_demo xcplib example
 // PTP observer or PTP master with XCP interface
+// For analyzing PTP masters and testing PTP client stability
+// Supports IEEE 1588-2008 PTPv2 over UDP/IPv4 in E2E mode
 
 #include <assert.h>  // for assert
 #include <signal.h>  // for signal handling

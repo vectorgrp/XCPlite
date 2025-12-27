@@ -78,7 +78,7 @@ Creates and measures an array of structures representing 3D points with addition
 
 Demonstrates a PTP observer and PTP master with XCP instrumentation.  
 The PTP observer listens for PTP messages on the network and separates drift and jitter of the master clock in relation to the observer clock. 
-The PTP master sends SYNC and FOLLOW_UP messages periodically and responds to DELAY_REQUEST messages, while tracking the number of connected PTP slaves.
+The PTP master sends SYNC and FOLLOW_UP messages periodically and responds to DELAY_REQUEST messages, while tracking the number of connected PTP clients.
 
 
 ### no_a2l_demo

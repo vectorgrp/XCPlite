@@ -5,6 +5,9 @@
 | Description:
 |   PTP observer and master with XCP instrumentation
 |   For analyzing PTP masters and testing PTP client stability
+|   Supports IEEE 1588-2008 PTPv2 over UDP/IPv4 in E2E mode
+|
+|  Code released into public domain, no attribution required
 |
  ----------------------------------------------------------------------------*/
 
