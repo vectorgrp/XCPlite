@@ -7,8 +7,12 @@ All notable changes to XCPlite are documented in this file.
 ### Added
 - New variadic data acquisition C macro or C++ macro/template  (`DaqEventVar`)
 - Support for enabling and disabling individual DAQ events at runtime (`DaqEnableEvent`, `DaqDisableEvent`)
+- New function XcpUpdateCalSeg for simplified single thread calibration segment updates
 - New demo `point_cloud_demo` demonstrating how to visualize arrays of objects in the CANape 3D scene window
 - New demo `ptp_demo` demonstrating a PTP observer and PTP master with XCP instrumentation (see README.md of `ptp_demo` for details)
+
+### Changed
+- Removed .out extension from the binaries on Linux and macOS builds
 
 ### Improvements
 - Improved thread safety of event creation to avoid unnecessary THREAD_LOCAL state
@@ -22,6 +26,7 @@ All notable changes to XCPlite are documented in this file.
 
 ### Minor Changes
 - A2L transport layer section removed when bound to ANY and IP address auto-detection is off
+- Support for hardware timestamping in platform.c for Linux
 - Async event and prescaler turned off by default
 - Improved code documentation and comments
 - Refactored example applications for better clarity
