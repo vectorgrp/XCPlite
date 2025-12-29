@@ -183,7 +183,7 @@ int main(int argc, char *argv[]) {
     // Start the PTP observer or master
     printf("Starting PTP ...\n");
     uint8_t ptp_bindAddr[4] = PTP_ADDRESS;
-    if (!ptpInit(ptp_mode, ptp_domain, ptp_uuid, ptp_bindAddr, ptp_interface, PTP_LOG_LEVEL)) {
+    if (!ptpInit("PTP", ptp_mode, ptp_domain, ptp_uuid, ptp_bindAddr, ptp_interface, PTP_LOG_LEVEL)) {
         printf("Failed to start PTP\n");
         return 1;
     }

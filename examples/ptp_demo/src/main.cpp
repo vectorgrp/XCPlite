@@ -169,7 +169,8 @@ int main(int argc, char *argv[]) {
     std::cout << "Starting PTP ..." << std::endl;
     uint8_t ptp_bindAddr[4];
     std::memcpy(ptp_bindAddr, PTP_ADDRESS, sizeof(ptp_bindAddr));
-    if (!ptpInit(ptp_mode, ptp_domain, ptp_uuid, ptp_bindAddr, const_cast<char *>(ptp_interface.c_str()), PTP_LOG_LEVEL)) {
+    tPtpHandle ptp;
+    if (NULL == (ptp = ptpInit("PTP", ptp_mode, ptp_domain, ptp_uuid, ptp_bindAddr, const_cast<char *>(ptp_interface.c_str()), PTP_LOG_LEVEL))) {
         std::cerr << "Failed to start PTP" << std::endl;
         return 1;
     }
@@ -180,7 +181,7 @@ int main(int argc, char *argv[]) {
 
     std::cout << "Start main task ..." << std::endl;
     while (running) {
-        if (!ptpTask())
+        if (!ptpTask(ptp))
             running = false;
 #ifdef OPTION_ENABLE_XCP
         if (!XcpEthServerStatus())
@@ -194,6 +195,6 @@ int main(int argc, char *argv[]) {
     XcpEthServerShutdown();
 #endif
 
-    ptpShutdown();
+    ptpShutdown(ptp);
     return 0;
 }
