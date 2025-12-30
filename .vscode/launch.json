@@ -42,6 +42,26 @@
             "preLaunchTask": "XCPlite: build cpp_demo"
         },
         {
+            "name": "Debug ptp_demo",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/ptp_demo",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "XCPlite: build ptp_demo"
+        },
+        {
             "name": "Debug multi_thread_demo",
             "type": "cppdbg",
             "request": "launch",

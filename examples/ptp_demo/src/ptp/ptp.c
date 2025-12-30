@@ -45,12 +45,16 @@
 struct ptp_observer;
 struct ptp_master;
 
+#define PTP_MAGIC 0x50545021 // "PTP!"
+
 struct ptp {
 
+    uint32_t magic; // Magic number for validation
+
     // Sockets and communication
-    uint8_t addr[4];    // local addr
+    uint8_t if_addr[4]; // local addr
+    char if_name[32];   // network interface name
     uint8_t maddr[4];   // multicast addr
-    char interface[32]; // network interface name
     THREAD threadHandle320;
     THREAD threadHandle319;
     SOCKET sock320;
@@ -59,9 +63,8 @@ struct ptp {
 
     uint8_t log_level;
 
-    uint8_t mode;
-    struct ptp_master *m;
-    struct ptp_observer *c;
+    struct ptp_master *master_list;
+    struct ptp_observer *observer_list;
 
 #ifdef OPTION_ENABLE_XCP
 
@@ -159,10 +162,17 @@ typedef struct {
 // PTP observer state
 struct ptp_observer {
 
+    // Filter master identification
     uint8_t domain;
+    uint8_t uuid[8];
+    uint8_t addr[4];
+
+    struct ptp_observer *next; // next observer in list
+
+    uint8_t log_level;
 
     // Grandmaster info
-    bool gmValid;
+    bool gmValid; // locked onto a valid grandmaster
     tPtpObserverMaster gm;
 
     // Protocol SYNC and FOLLOW_UP state
@@ -203,9 +213,12 @@ struct ptp_observer {
 typedef struct ptp_observer tPtpObserver;
 
 // Initialize the PTP observer state
-static void observerInit(tPtp *ptp, uint8_t domain) {
+static void observerInit(tPtpObserver *obs, uint8_t domain, const uint8_t *uuid, const uint8_t *addr) {
 
-    ptp->c->params = &observer_params;
+    assert(obs != NULL);
+
+    obs->params = &observer_params;
+    obs->next = NULL;
 
     // XCP instrumentation
 #ifdef OPTION_ENABLE_XCP
@@ -213,7 +226,7 @@ static void observerInit(tPtp *ptp, uint8_t domain) {
     // Create observer parameters
     // All observers share the same calibration segment
     tXcpCalSegIndex h = XcpCreateCalSeg("observer_params", &observer_params, sizeof(observer_params));
-    ptp->c->params = (const observer_parameters_t *)XcpLockCalSeg(h); // Initial lock of the calibration segment (to enable calibration persistence)
+    obs->params = (const observer_parameters_t *)XcpLockCalSeg(h); // Initial lock of the calibration segment (to enable calibration persistence)
 
     A2lOnce() {
 
@@ -259,37 +272,41 @@ static void observerInit(tPtp *ptp, uint8_t domain) {
 #endif
 
     // Grandmaster info
-    ptp->c->gmValid = false;
-    ptp->c->domain = domain;
+    obs->gmValid = false;
+    obs->domain = domain;
+    if (uuid != NULL)
+        memcpy(obs->uuid, uuid, 8);
+    if (addr != NULL)
+        memcpy(obs->addr, addr, 4);
 
     // Init protocol state
-    ptp->c->sync_local_time = 0;
-    ptp->c->sync_master_time = 0;
-    ptp->c->sync_correction = 0;
-    ptp->c->sync_sequenceId = 0;
-    ptp->c->sync_steps = 0;
-    ptp->c->flup_master_time = 0;
-    ptp->c->flup_correction = 0;
-    ptp->c->flup_sequenceId = 0;
+    obs->sync_local_time = 0;
+    obs->sync_master_time = 0;
+    obs->sync_correction = 0;
+    obs->sync_sequenceId = 0;
+    obs->sync_steps = 0;
+    obs->flup_master_time = 0;
+    obs->flup_correction = 0;
+    obs->flup_sequenceId = 0;
 
     // Init timing analysis state
-    ptp->c->cycle_count = 0;
-    ptp->c->t1_norm = 0;
-    ptp->c->t2_norm = 0;
-    ptp->c->sync_cycle_time = 1000000000;
-    ptp->c->master_offset_raw = 0;
-    ptp->c->master_drift_raw = 0;
-    average_filter_init(&ptp->c->master_drift_filter, ptp->c->params->drift_filter_size);
-    ptp->c->master_drift_raw = 0;
-    ptp->c->master_drift = 0;
-    ptp->c->master_drift_drift = 0;
-    ptp->c->master_offset_compensation = 0;
-    ptp->c->servo_integral = 0.0;
-    ptp->c->master_jitter = 0;
-    average_filter_init(&ptp->c->master_jitter_rms_filter, ptp->c->params->jitter_rms_filter_size);
-    ptp->c->master_jitter_rms = 0;
-    average_filter_init(&ptp->c->master_jitter_avg_filter, ptp->c->params->jitter_avg_filter_size);
-    ptp->c->master_jitter_avg = 0;
+    obs->cycle_count = 0;
+    obs->t1_norm = 0;
+    obs->t2_norm = 0;
+    obs->sync_cycle_time = 1000000000;
+    obs->master_offset_raw = 0;
+    obs->master_drift_raw = 0;
+    average_filter_init(&obs->master_drift_filter, obs->params->drift_filter_size);
+    obs->master_drift_raw = 0;
+    obs->master_drift = 0;
+    obs->master_drift_drift = 0;
+    obs->master_offset_compensation = 0;
+    obs->servo_integral = 0.0;
+    obs->master_jitter = 0;
+    average_filter_init(&obs->master_jitter_rms_filter, obs->params->jitter_rms_filter_size);
+    obs->master_jitter_rms = 0;
+    average_filter_init(&obs->master_jitter_avg_filter, obs->params->jitter_avg_filter_size);
+    obs->master_jitter_avg = 0;
 }
 
 // Print information on the grandmaster
@@ -304,192 +321,192 @@ static void observerPrintMaster(const tPtpObserverMaster *m) {
 }
 
 // Print the current PTP observer state
-static void observerPrintState(tPtp *ptp) {
+static void observerPrintState(tPtpObserver *obs) {
 
-    if (ptp->c->gmValid) {
-        observerPrintMaster(&ptp->c->gm);
+    if (obs->gmValid) {
+        observerPrintMaster(&obs->gm);
     } else {
         printf("No active PTP master detected\n");
     }
 }
 
 // Update the PTP observer state with each new SYNC (t1,t2) timestamps
-static void observerUpdate(tPtp *ptp, uint64_t t1_in, uint64_t correction, uint64_t t2_in) {
+static void observerUpdate(tPtpObserver *obs, uint64_t t1_in, uint64_t correction, uint64_t t2_in) {
+
+    assert(obs != NULL);
 
     char ts1[64], ts2[64];
 
     // Update observer parameters (update XCP calibrations)
     // Single threaded access assumed, called from ptpThread319 (1 step mode) or ptpThread320 (2 step mode) only
 #ifdef OPTION_ENABLE_XCP
-    // Each instance holds its lock continiously, so it may take about a second to make calibration changes effective
-    XcpUpdateCalSeg(&ptp->c->params);
+    // Each instance holds its lock continuously, so it may take about a second to make calibration changes effective
+    XcpUpdateCalSeg((void **)&obs->params);
 #endif
 
     // t1 - master, t2 - local clock
-    ptp->c->cycle_count++;
+    obs->cycle_count++;
 
-    if (ptp->log_level >= 3)
-        printf("PTP SYNC cycle %u:\n", ptp->c->cycle_count);
-    if (ptp->log_level >= 4) {
+    if (obs->log_level >= 3)
+        printf("PTP SYNC cycle %u:\n", obs->cycle_count);
+    if (obs->log_level >= 4) {
         printf("  t1 (SYNC tx on master (via PTP))  = %s (%" PRIu64 ") (%08X)\n", clockGetString(ts1, sizeof(ts1), t1_in), t1_in, (uint32_t)t1_in);
         printf("  t2 (SYNC rx)  = %s (%" PRIu64 ") (%08X)\n", clockGetString(ts2, sizeof(ts2), t2_in), t2_in, (uint32_t)t2_in);
         printf("  correction    = %" PRIu64 "ns\n", correction);
     }
 
     // Apply rounding correction to t1 ( Vector VN/VX PTP master has 8ns resolution, which leads to a systematic error )
-    t1_in = t1_in + ptp->c->params->t1_correction;
+    t1_in = t1_in + obs->params->t1_correction;
 
     // Apply correction to t1
     t1_in += correction;
 
     // Master offset raw value
-    ptp->c->master_offset_raw = (int64_t)(t1_in - t2_in); // Positive master_offset means master is ahead
-    if (ptp->log_level >= 4) {
-        printf("    master_offset_raw   = %" PRIi64 " ns\n", ptp->c->master_offset_raw);
+    obs->master_offset_raw = (int64_t)(t1_in - t2_in); // Positive master_offset means master is ahead
+    if (obs->log_level >= 4) {
+        printf("    master_offset_raw   = %" PRIi64 " ns\n", obs->master_offset_raw);
     }
 
     // First round, init
-    if (ptp->c->t1_offset == 0 || ptp->c->t2_offset == 0) {
+    if (obs->t1_offset == 0 || obs->t2_offset == 0) {
 
-        ptp->c->t1_norm = 0; // corrected sync tx time on master clock
-        ptp->c->t2_norm = 0; // sync rx time on slave clock
+        obs->t1_norm = 0; // corrected sync tx time on master clock
+        obs->t2_norm = 0; // sync rx time on slave clock
 
         // Normalization time offsets for t1,t2
-        ptp->c->t1_offset = t1_in;
-        ptp->c->t2_offset = t2_in;
+        obs->t1_offset = t1_in;
+        obs->t2_offset = t2_in;
 
-        ptp->c->master_offset_compensation = 0;
+        obs->master_offset_compensation = 0;
 
-        if (ptp->log_level >= 3)
-            printf("  Initial offsets: t1_offset=%" PRIu64 ", t2_offset=%" PRIu64 "\n", ptp->c->t1_offset, ptp->c->t2_offset);
+        if (obs->log_level >= 3)
+            printf("  Initial offsets: t1_offset=%" PRIu64 ", t2_offset=%" PRIu64 "\n", obs->t1_offset, obs->t2_offset);
     }
 
     // Analysis
     else {
 
         // Normalize t1,t2 to first round start time (may be negative in the beginning)
-        int64_t t1_norm = (int64_t)(t1_in - ptp->c->t1_offset);
-        int64_t t2_norm = (int64_t)(t2_in - ptp->c->t2_offset);
+        int64_t t1_norm = (int64_t)(t1_in - obs->t1_offset);
+        int64_t t2_norm = (int64_t)(t2_in - obs->t2_offset);
 
-        if (ptp->log_level >= 4)
+        if (obs->log_level >= 4)
             printf("  Normalized time: t1_norm=%" PRIi64 ", t2_norm=%" PRIi64 "\n", t1_norm, t2_norm);
 
         // Time differences since last SYNC, with correction applied to master time
         int64_t c1, c2;
-        c1 = t1_norm - ptp->c->t1_norm; // time since last sync on master clock
-        c2 = t2_norm - ptp->c->t2_norm; // time since last sync on local clock
-        ptp->c->sync_cycle_time = c2;   // Update last cycle time
+        c1 = t1_norm - obs->t1_norm; // time since last sync on master clock
+        c2 = t2_norm - obs->t2_norm; // time since last sync on local clock
+        obs->sync_cycle_time = c2;   // Update last cycle time
 
-        if (ptp->log_level >= 4)
+        if (obs->log_level >= 4)
             printf("  Cycle times: c1=%" PRIi64 ", c2=%" PRIi64 "\n", c1, c2);
 
         // Drift calculation
         int64_t diff = c2 - c1; // Positive diff = master clock faster than local clock
-        if (ptp->log_level >= 4)
+        if (obs->log_level >= 4)
             printf("  Cycle time diff: diff=%" PRIi64 "\n", diff);
         if (diff < -200000 || diff > +200000) { // Plausibility checking of cycle drift (max 200us per cycle)
             printf("WARNING: Master drift too high! dt=%lld ns \n", diff);
         } else {
-            ptp->c->master_drift_raw = (double)diff * 1000000000 / c2; // Calculate drift in ppm instead of drift per cycle (drift is in ns/s (1/1000 ppm)
-            double drift = average_filter_calc(&ptp->c->master_drift_filter, ptp->c->master_drift_raw); // Filter drift
-            ptp->c->master_drift_drift =
-                ((drift - ptp->c->master_drift) * 1000000000) / c2; // Calculate drift of drift in ns/s2 (should be close to zero when temperature is stable )
-            ptp->c->master_drift = drift;
+            obs->master_drift_raw = (double)diff * 1000000000 / c2; // Calculate drift in ppm instead of drift per cycle (drift is in ns/s (1/1000 ppm)
+            double drift = average_filter_calc(&obs->master_drift_filter, obs->master_drift_raw); // Filter drift
+            obs->master_drift_drift = ((drift - obs->master_drift) * 1000000000) / c2; // Calculate drift of drift in ns/s2 (should be close to zero when temperature is stable )
+            obs->master_drift = drift;
         }
 
         // Check if drift filter is warmed up
-        if (average_filter_count(&ptp->c->master_drift_filter) < average_filter_size(&ptp->c->master_drift_filter)) {
-            if (ptp->log_level >= 3) {
-                printf("  Master drift filter warming up (%zu)\n", average_filter_count(&ptp->c->master_drift_filter));
-                printf("    master_drift_raw    = %g ns/s\n", ptp->c->master_drift_raw);
+        if (average_filter_count(&obs->master_drift_filter) < average_filter_size(&obs->master_drift_filter)) {
+            if (obs->log_level >= 3) {
+                printf("  Master drift filter warming up (%zu)\n", average_filter_count(&obs->master_drift_filter));
+                printf("    master_drift_raw    = %g ns/s\n", obs->master_drift_raw);
             }
         } else {
-            if (ptp->log_level >= 3) {
+            if (obs->log_level >= 3) {
                 printf("  Drift calculation:\n");
-                printf("    master_drift_raw    = %g ns/s\n", ptp->c->master_drift_raw);
-                printf("    master_drift        = %g ns/s\n", ptp->c->master_drift);
-                printf("    master_drift_drift  = %g ns/s2\n", ptp->c->master_drift_drift);
+                printf("    master_drift_raw    = %g ns/s\n", obs->master_drift_raw);
+                printf("    master_drift        = %g ns/s\n", obs->master_drift);
+                printf("    master_drift_drift  = %g ns/s2\n", obs->master_drift_drift);
             }
 
             // Calculate momentary master offset by detrending with current average drift
-            ptp->c->master_offset_norm = t1_norm - t2_norm; // Positive master_offset means master is ahead
-            if (ptp->log_level >= 4) {
-                printf("    master_offset_norm  = %" PRIi64 " ns\n", ptp->c->master_offset_norm);
+            obs->master_offset_norm = t1_norm - t2_norm; // Positive master_offset means master is ahead
+            if (obs->log_level >= 4) {
+                printf("    master_offset_norm  = %" PRIi64 " ns\n", obs->master_offset_norm);
             }
 
-            if (ptp->c->master_offset_compensation == 0) {
+            if (obs->master_offset_compensation == 0) {
                 // Initialize compensation
-                ptp->c->master_offset_compensation = ptp->c->master_offset_norm;
+                obs->master_offset_compensation = obs->master_offset_norm;
             } else {
                 // Compensate drift
-                // ptp->c->master_offset_compensation -= ((ptp->c->master_drift) * (double)ptp->c->sync_cycle_time) / 1000000000;
+                // obs->master_offset_compensation -= ((obs->master_drift) * (double)obs->sync_cycle_time) / 1000000000;
                 // Compensate drift and drift of drift
-                double n = average_filter_count(&ptp->c->master_drift_filter) / 2;
-                ptp->c->master_offset_compensation -= ((ptp->c->master_drift + ptp->c->master_drift_drift * n) * (double)ptp->c->sync_cycle_time) / 1000000000;
+                double n = average_filter_count(&obs->master_drift_filter) / 2;
+                obs->master_offset_compensation -= ((obs->master_drift + obs->master_drift_drift * n) * (double)obs->sync_cycle_time) / 1000000000;
             }
-            ptp->c->master_offset_detrended = (double)ptp->c->master_offset_norm - ptp->c->master_offset_compensation;
-            ptp->c->master_offset_detrended_filtered = average_filter_calc(&ptp->c->master_jitter_avg_filter, ptp->c->master_offset_detrended);
-            if (ptp->log_level >= 4) {
-                printf("    master_offset_comp  = %g ns\n", ptp->c->master_offset_compensation);
+            obs->master_offset_detrended = (double)obs->master_offset_norm - obs->master_offset_compensation;
+            obs->master_offset_detrended_filtered = average_filter_calc(&obs->master_jitter_avg_filter, obs->master_offset_detrended);
+            if (obs->log_level >= 4) {
+                printf("    master_offset_comp  = %g ns\n", obs->master_offset_compensation);
             }
-            if (ptp->log_level >= 3) {
-                printf("    master_offset = %g ns (detrended)\n", ptp->c->master_offset_detrended);
-                printf("    master_offset = %g ns (filtered detrended)\n", ptp->c->master_offset_detrended_filtered);
+            if (obs->log_level >= 3) {
+                printf("    master_offset = %g ns (detrended)\n", obs->master_offset_detrended);
+                printf("    master_offset = %g ns (filtered detrended)\n", obs->master_offset_detrended_filtered);
             }
 
             // PI Servo Controller to prevent offset runaway
             // The offset error should ideally be zero-mean jitter.
             // Any persistent non-zero mean indicates drift estimation error that needs correction.
-            double correction = ptp->c->master_offset_detrended_filtered;
+            double correction = obs->master_offset_detrended_filtered;
 
             // P-term
-            correction *= ptp->c->params->servo_p_gain;
+            correction *= obs->params->servo_p_gain;
 
             // Correction rate limiting
-            if (correction > ptp->c->params->max_correction)
-                correction = ptp->c->params->max_correction;
-            if (correction < -ptp->c->params->max_correction)
-                correction = -ptp->c->params->max_correction;
+            if (correction > obs->params->max_correction)
+                correction = obs->params->max_correction;
+            if (correction < -obs->params->max_correction)
+                correction = -obs->params->max_correction;
 
             // Apply correction
-            ptp->c->master_offset_compensation += correction;
-            average_filter_add(&ptp->c->master_jitter_avg_filter, -correction);
+            obs->master_offset_compensation += correction;
+            average_filter_add(&obs->master_jitter_avg_filter, -correction);
             printf("Applied compensation correction: %g ns\n", correction);
 
             // Jitter
-            ptp->c->master_jitter = ptp->c->master_offset_detrended; // Jitter is the unfiltered detrended master offset
-            ptp->c->master_jitter_rms =
-                sqrt((double)average_filter_calc(&ptp->c->master_jitter_rms_filter, ptp->c->master_jitter * ptp->c->master_jitter)); // Filter jitter and calculate RMS
-            if (ptp->log_level >= 3) {
+            obs->master_jitter = obs->master_offset_detrended; // Jitter is the unfiltered detrended master offset
+            obs->master_jitter_rms = sqrt((double)average_filter_calc(&obs->master_jitter_rms_filter, obs->master_jitter * obs->master_jitter)); // Filter jitter and calculate RMS
+            if (obs->log_level >= 3) {
                 printf("  Jitter analysis:\n");
-                printf("    master_jitter       = %g ns\n", ptp->c->master_jitter);
-                printf("    master_jitter_avg   = %g ns\n", ptp->c->master_jitter_avg);
-                printf("    master_jitter_rms   = %g ns\n\n", ptp->c->master_jitter_rms);
+                printf("    master_jitter       = %g ns\n", obs->master_jitter);
+                printf("    master_jitter_avg   = %g ns\n", obs->master_jitter_avg);
+                printf("    master_jitter_rms   = %g ns\n\n", obs->master_jitter_rms);
             }
         }
 
         // Remember last normalized input values
-        ptp->c->t1_norm = t1_norm; // sync tx time on master clock
-        ptp->c->t2_norm = t2_norm; // sync rx time on slave clock
+        obs->t1_norm = t1_norm; // sync tx time on master clock
+        obs->t2_norm = t2_norm; // sync rx time on slave clock
     }
 
     // XCP measurement event (relative addressing mode to observer instance)
 #ifdef OPTION_ENABLE_XCP
-    XcpEventExt(ptp->xcp_event, (const uint8_t *)&ptp->c);
+    XcpEventExt(ptp->xcp_event, (const uint8_t *)obs);
 #endif
 }
 
-static bool observerHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr, uint64_t timestamp) {
+static bool observerHandleFrame(tPtp *ptp, tPtpObserver *obs, int n, struct ptphdr *ptp_msg, uint8_t *addr, uint64_t timestamp) {
 
     if (n >= 44 && n <= 64) {
 
-        tPtpObserver *obs = ptp->c;
-        if (obs->domain == ptp_msg->domain) {
+        // From active master ?
+        if (obs->gmValid && obs->domain == ptp_msg->domain && (memcmp(obs->gm.uuid, ptp_msg->clockId, 8) == 0) && (memcmp(obs->gm.addr, addr, 4) == 0)) {
 
             if (obs->gmValid && (ptp_msg->type == PTP_SYNC || ptp_msg->type == PTP_FOLLOW_UP)) {
                 if (ptp_msg->type == PTP_SYNC) {
                     if (timestamp == 0) {
-                        DBG_PRINT_WARNING("PTP SYNC received without timestamp!\n");
+                        DBG_PRINT_WARNING("Observer: PTP SYNC received without timestamp!\n");
                         return false;
                     }
                     obs->sync_local_time = timestamp;
@@ -500,7 +517,7 @@ static bool observerHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_
 
                     // 1 step sync update
                     if (obs->sync_steps == 1) {
-                        observerUpdate(ptp, obs->sync_master_time, obs->sync_correction, obs->sync_local_time);
+                        observerUpdate(obs, obs->sync_master_time, obs->sync_correction, obs->sync_local_time);
                     }
                 } else {
 
@@ -511,35 +528,47 @@ static bool observerHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_
 
                 // 2 step sync update, SYNC and FOLLOW_UP may be received in any order (thread319 and thread320)
                 if (obs->sync_steps == 2 && obs->sync_sequenceId == obs->flup_sequenceId) {
-                    observerUpdate(ptp, obs->flup_master_time, obs->sync_correction, obs->sync_local_time); // 2 step
+                    observerUpdate(obs, obs->flup_master_time, obs->sync_correction, obs->sync_local_time); // 2 step
                 }
+            }
 
-            } else if (ptp_msg->type == PTP_ANNOUNCE) {
-                if (!obs->gmValid) {
-                    printf("Found active PTP master:\n");
+        } // SYNC or FOLLOW_UP from active master
+
+        // Announce from any master
+        if (ptp_msg->type == PTP_ANNOUNCE) {
+
+            // Not locked onto a grandmaster yet
+            if (!obs->gmValid) {
+
+                // Check if uuid and addr match (if specified)
+                if ((memcmp(obs->uuid, ptp_msg->clockId, 8) != 0 && memcmp(obs->uuid, "\0\0\0\0\0\0\0\0", 8) != 0) ||
+                    (memcmp(obs->addr, addr, 4) != 0 && memcmp(obs->addr, "\0\0\0", 4) != 0)) {
+                    if (ptp->log_level >= 4) {
+                        printf("Observer: PTP ANNOUNCE received from non-matching master, ignoring\n");
+                        printFrame("RX", ptp_msg, addr, timestamp);
+                    }
+
+                } else {
+                    printf("Observer: Found matching PTP master:\n");
                     obs->gmValid = true;
                     obs->gm.a = ptp_msg->u.a;
                     obs->gm.domain = ptp_msg->domain;
                     memcpy(obs->gm.uuid, ptp_msg->clockId, 8);
                     memcpy(obs->gm.addr, addr, 4);
-                    observerPrintState(ptp);
+                    observerPrintState(obs);
                 }
             }
 
-        } // from active master
-    } else {
-        if (ptp->log_level >= 3) {
-            printf("Received PTP frame of type %d with length %d, not handled\n", ptp_msg->type, n);
-            printFrame("RX", ptp_msg, addr, timestamp);
+            // Already locked onto a grandmaster, ignore other announces
+            else {
+                if (ptp->log_level >= 4) {
+                    printf("Observer: PTP ANNOUNCE received from non-active master, ignoring\n");
+                    printFrame("RX", ptp_msg, addr, timestamp);
+                }
+            }
         }
     }
 
-    return true;
-}
-
-static bool observerTask(tPtp *ptp) {
-
-    // Nothing to do yet
     return true;
 }
 
@@ -602,8 +631,13 @@ typedef struct ptp_client tPtpClient;
 
 // PTP master state
 struct ptp_master {
+
+    // Master identification
     u_int8_t domain;
     uint8_t uuid[8];
+
+    struct ptp_master *next; // next master in list
+    uint8_t log_level;
 
     uint64_t announceCycleTimer;
     uint64_t syncCycleTimer;
@@ -625,12 +659,12 @@ typedef struct ptp_master tPtpMaster;
 // PTP master message sending
 
 // Init constant values in PTP header
-static void initHeader(tPtp *ptp, struct ptphdr *h, uint8_t type, uint16_t len, uint16_t flags, uint16_t sequenceId) {
+static void initHeader(tPtp *ptp, tPtpMaster *master, struct ptphdr *h, uint8_t type, uint16_t len, uint16_t flags, uint16_t sequenceId) {
 
     memset(h, 0, sizeof(struct ptphdr));
     h->version = 2;
-    h->domain = ptp->m->domain;
-    memcpy(h->clockId, ptp->m->uuid, 8);
+    h->domain = master->domain;
+    memcpy(h->clockId, master->uuid, 8);
     h->sourcePortId = htons(1);
     h->logMessageInterval = 0;
     h->type = type;
@@ -657,15 +691,15 @@ static void initHeader(tPtp *ptp, struct ptphdr *h, uint8_t type, uint16_t len, 
     }
 }
 
-static bool ptpSendAnnounce(tPtp *ptp) {
+static bool ptpSendAnnounce(tPtp *ptp, tPtpMaster *master) {
 
     struct ptphdr h;
     int16_t l;
 
-    initHeader(ptp, &h, PTP_ANNOUNCE, 64, 0, ++ptp->m->sequenceIdAnnounce);
+    initHeader(ptp, master, &h, PTP_ANNOUNCE, 64, 0, ++master->sequenceIdAnnounce);
     h.u.a.utcOffset = htons(announce_params.utcOffset);
     h.u.a.stepsRemoved = htons(announce_params.stepsRemoved);
-    memcpy(h.u.a.grandmasterId, ptp->m->uuid, 8);
+    memcpy(h.u.a.grandmasterId, master->uuid, 8);
     h.u.a.clockVariance = htons(announce_params.clockVariance); // Allan deviation
     h.u.a.clockAccuraccy = announce_params.clockAccuraccy;
     h.u.a.clockClass = announce_params.clockClass;
@@ -675,21 +709,21 @@ static bool ptpSendAnnounce(tPtp *ptp) {
     l = socketSendTo(ptp->sock320, (uint8_t *)&h, 64, ptp->maddr, 320, NULL);
 
     if (ptp->log_level >= 2) {
-        printf("TX ANNOUNCE %u %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n", ptp->m->sequenceIdAnnounce, h.clockId[0], h.clockId[1], h.clockId[2], h.clockId[3], h.clockId[4],
+        printf("TX ANNOUNCE %u %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n", master->sequenceIdAnnounce, h.clockId[0], h.clockId[1], h.clockId[2], h.clockId[3], h.clockId[4],
                h.clockId[5], h.clockId[6], h.clockId[7]);
     }
 
     return (l == 64);
 }
 
-static bool ptpSendSync(tPtp *ptp, uint64_t *sync_txTimestamp) {
+static bool ptpSendSync(tPtp *ptp, tPtpMaster *master, uint64_t *sync_txTimestamp) {
 
     struct ptphdr h;
     int16_t l;
 
     assert(sync_txTimestamp != NULL);
 
-    initHeader(ptp, &h, PTP_SYNC, 44, PTP_FLAG_TWO_STEP, ++ptp->m->sequenceIdSync);
+    initHeader(ptp, master, &h, PTP_SYNC, 44, PTP_FLAG_TWO_STEP, ++master->sequenceIdSync);
     l = socketSendTo(ptp->sock319, (uint8_t *)&h, 44, ptp->maddr, 319, sync_txTimestamp /* request tx time stamp */);
     if (l != 44) {
         printf("ERROR: ptpSendSync: socketSendTo failed, returned l = %d\n", l);
@@ -703,17 +737,17 @@ static bool ptpSendSync(tPtp *ptp, uint64_t *sync_txTimestamp) {
         }
     }
     if (ptp->log_level >= 2) {
-        printf("TX SYNC %u, tx time = %" PRIu64 "\n", ptp->m->sequenceIdSync, *sync_txTimestamp);
+        printf("TX SYNC %u, tx time = %" PRIu64 "\n", master->sequenceIdSync, *sync_txTimestamp);
     }
     return true;
 }
 
-static bool ptpSendSyncFollowUp(tPtp *ptp, uint64_t sync_txTimestamp) {
+static bool ptpSendSyncFollowUp(tPtp *ptp, tPtpMaster *master, uint64_t sync_txTimestamp) {
 
     struct ptphdr h;
     int16_t l;
 
-    initHeader(ptp, &h, PTP_FOLLOW_UP, 44, 0, ptp->m->sequenceIdSync);
+    initHeader(ptp, master, &h, PTP_FOLLOW_UP, 44, 0, master->sequenceIdSync);
     uint64_t t1 = sync_txTimestamp;
 #if OPTION_TEST_TIME && !OPTION_TEST_TEST_TIME // Enable test time modifications in drift and offset
     t1 = testTimeCalc(t1);
@@ -729,20 +763,20 @@ static bool ptpSendSyncFollowUp(tPtp *ptp, uint64_t sync_txTimestamp) {
 
     if (ptp->log_level >= 2) {
         char ts[64];
-        printf("TX FLUP %u t1 = %s (%" PRIu64 ")\n", ptp->m->sequenceIdSync, clockGetString(ts, sizeof(ts), t1), t1);
+        printf("TX FLUP %u t1 = %s (%" PRIu64 ")\n", master->sequenceIdSync, clockGetString(ts, sizeof(ts), t1), t1);
     }
     return (l == 44);
 }
 
-static bool ptpSendDelayResponse(tPtp *ptp, struct ptphdr *req, uint64_t delayreg_rxTimestamp) {
+static bool ptpSendDelayResponse(tPtp *ptp, tPtpMaster *master, struct ptphdr *req, uint64_t delayreg_rxTimestamp) {
 
     struct ptphdr h;
     int16_t l;
 
-    initHeader(ptp, &h, PTP_DELAY_RESP, 54, 0, htons(req->sequenceId)); // copy sequence id
-    h.correction = req->correction;                                     // copy correction
-    h.u.r.sourcePortId = req->sourcePortId;                             // copy request egress port id
-    memcpy(h.u.r.clockId, req->clockId, 8);                             // copy request clock id
+    initHeader(ptp, master, &h, PTP_DELAY_RESP, 54, 0, htons(req->sequenceId)); // copy sequence id
+    h.correction = req->correction;                                             // copy correction
+    h.u.r.sourcePortId = req->sourcePortId;                                     // copy request egress port id
+    memcpy(h.u.r.clockId, req->clockId, 8);                                     // copy request clock id
 
     // Set t4
     uint64_t t4 = delayreg_rxTimestamp;
@@ -772,75 +806,75 @@ static bool ptpSendDelayResponse(tPtp *ptp, struct ptphdr *req, uint64_t delayre
 //-------------------------------------------------------------------------------------------------------
 // Client list
 
-static void initClientList(tPtp *ptp) {
-    ptp->m->clientCount = 0;
-    for (uint16_t i = 0; i < ptp->m->clientCount; i++)
-        memset(&ptp->m->client[i], 0, sizeof(ptp->m->client[i]));
+static void initClientList(tPtpMaster *master) {
+    master->clientCount = 0;
+    for (uint16_t i = 0; i < master->clientCount; i++)
+        memset(&master->client[i], 0, sizeof(master->client[i]));
 }
 
-void printClient(tPtp *ptp, uint16_t i) {
+void printClient(tPtpMaster *master, uint16_t i) {
 
     char ts[64];
-    printf("%u: addr=x.x.x.%u: domain=%u uuid=%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X time=%s corr=%u diff=%" PRId64 " cycle=%" PRId64 " \n", i, ptp->m->client[i].addr[3],
-           ptp->m->client[i].domain, ptp->m->client[i].id[0], ptp->m->client[i].id[1], ptp->m->client[i].id[2], ptp->m->client[i].id[3], ptp->m->client[i].id[4],
-           ptp->m->client[i].id[5], ptp->m->client[i].id[6], ptp->m->client[i].id[7], clockGetString(ts, sizeof(ts), ptp->m->client[i].time), ptp->m->client[i].corr,
-           ptp->m->client[i].diff, ptp->m->client[i].cycle);
+    printf("%u: addr=x.x.x.%u: domain=%u uuid=%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X time=%s corr=%u diff=%" PRId64 " cycle=%" PRId64 " \n", i, master->client[i].addr[3],
+           master->client[i].domain, master->client[i].id[0], master->client[i].id[1], master->client[i].id[2], master->client[i].id[3], master->client[i].id[4],
+           master->client[i].id[5], master->client[i].id[6], master->client[i].id[7], clockGetString(ts, sizeof(ts), master->client[i].time), master->client[i].corr,
+           master->client[i].diff, master->client[i].cycle);
 }
 
-static uint16_t lookupClient(tPtp *ptp, uint8_t *addr, uint8_t *uuid) {
+static uint16_t lookupClient(tPtpMaster *master, uint8_t *addr, uint8_t *uuid) {
     uint16_t i;
-    for (i = 0; i < ptp->m->clientCount; i++) {
-        if (memcmp(addr, ptp->m->client[i].addr, 4) == 0)
+    for (i = 0; i < master->clientCount; i++) {
+        if (memcmp(addr, master->client[i].addr, 4) == 0)
             return i;
     }
     return 0xFFFF;
 }
 
-static uint16_t addClient(tPtp *ptp, uint8_t *addr, uint8_t *uuid, uint8_t domain) {
+static uint16_t addClient(tPtpMaster *master, uint8_t *addr, uint8_t *uuid, uint8_t domain) {
 
-    uint16_t i = lookupClient(ptp, addr, uuid);
+    uint16_t i = lookupClient(master, addr, uuid);
     if (i < MAX_CLIENTS)
         return i;
-    i = ptp->m->clientCount;
-    ptp->m->client[i].domain = domain;
-    memcpy(ptp->m->client[i].addr, addr, 4);
-    memcpy(ptp->m->client[i].id, uuid, 8);
-    ptp->m->clientCount++;
+    i = master->clientCount;
+    master->client[i].domain = domain;
+    memcpy(master->client[i].addr, addr, 4);
+    memcpy(master->client[i].id, uuid, 8);
+    master->clientCount++;
     return i;
 }
 
 //-------------------------------------------------------------------------------------------------------
 // PTP master state machine
 
-static void masterPrintState(tPtp *ptp) {
+static void masterPrintState(tPtp *ptp, tPtpMaster *master) {
     char ts[64];
     uint64_t t;
 
-    tPtpMaster *ptpM = ptp->m;
     printf("\nMaster Info:\n");
-    printf(" UUID:           %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n", ptpM->uuid[0], ptpM->uuid[1], ptpM->uuid[2], ptpM->uuid[3], ptpM->uuid[4], ptpM->uuid[5], ptpM->uuid[6],
-           ptpM->uuid[7]);
-    printf(" IP:             %u.%u.%u.%u\n", ptp->addr[0], ptp->addr[1], ptp->addr[2], ptp->addr[3]);
-    printf(" Interface:      %s\n", ptp->interface);
-    printf(" Domain:         %u\n", ptpM->domain);
+    printf(" UUID:           %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n", master->uuid[0], master->uuid[1], master->uuid[2], master->uuid[3], master->uuid[4], master->uuid[5],
+           master->uuid[6], master->uuid[7]);
+    printf(" IP:             %u.%u.%u.%u\n", ptp->if_addr[0], ptp->if_addr[1], ptp->if_addr[2], ptp->if_addr[3]);
+    printf(" Interface:      %s\n", ptp->if_name);
+    printf(" Domain:         %u\n", master->domain);
     printf("Client list:\n");
-    for (uint16_t i = 0; i < ptpM->clientCount; i++) {
-        printClient(ptp, i);
+    for (uint16_t i = 0; i < master->clientCount; i++) {
+        printClient(master, i);
     }
     printf("\n");
 }
 
 // Initialize the PTP master state
-static void masterInit(tPtp *ptp, uint8_t domain, uint8_t *uuid) {
+static void masterInit(tPtpMaster *master, uint8_t domain, uint8_t *uuid) {
 
-    ptp->m->params = &master_params;
+    master->params = &master_params;
+    master->next = NULL;
 
     // XCP instrumentation
 #ifdef OPTION_ENABLE_XCP
 
     // Create XCP calibration parameter segment, if not already existing
     tXcpCalSegIndex h = XcpCreateCalSeg("master_params", &master_params, sizeof(master_params));
-    ptp->m->params = XcpLockCalSeg(h); // Initial lock of the calibration segment (for persistence)
+    master->params = (master_parameters_t *)XcpLockCalSeg(h); // Initial lock of the calibration segment (for persistence)
 
     A2lOnce() {
 
@@ -863,62 +897,65 @@ static void masterInit(tPtp *ptp, uint8_t domain, uint8_t *uuid) {
         // Create A2L measurement definitions for master state
         tPtpMaster master; // Dummy structure for A2L address calculations
         A2lSetRelativeAddrMode__i(ptp->xcp_event, 0, (const uint8_t *)&master);
-        A2lCreateMeasurement(master.clientCount, "Number of PTP clients");
-        A2lCreateTypedefInstanceArray(master.client, tPtpObserverlient, MAX_CLIENTS, "PTP client list");
-        A2lCreateMeasurement(master.syncTxTimestamp, "SYNC tx timestamp");
-        A2lCreateMeasurement(master.sequenceIdAnnounce, "Announce sequence id");
-        A2lCreateMeasurement(master.sequenceIdSync, "SYNC sequence id");
+        A2lCreateMeasurementInstance(ptp->name, master.clientCount, "Number of PTP clients");
+        char name[32];
+        snprintf(name, sizeof(name), "%s.master.client", ptp->name);
+        A2lCreateInstance(name, tPtpClient, MAX_CLIENTS, master.client, "PTP client list");
+        A2lCreateMeasurementInstance(ptp->name, master.syncTxTimestamp, "SYNC tx timestamp");
+        A2lCreateMeasurementInstance(ptp->name, master.sequenceIdAnnounce, "Announce sequence id");
+        A2lCreateMeasurementInstance(ptp->name, master.sequenceIdSync, "SYNC sequence id");
     }
 
 #endif
 
-    ptp->m->domain = domain;
-    memcpy(ptp->m->uuid, uuid, sizeof(ptp->m->uuid));
-    initClientList(ptp);
+    master->domain = domain;
+    memcpy(master->uuid, uuid, sizeof(master->uuid));
+    initClientList(master);
 
     uint64_t t = clockGet();
-    ptp->m->announceCycleTimer = 0;                                                                               // Send announce immediately
-    ptp->m->syncCycleTimer = t + 100 * CLOCK_TICKS_PER_MS - ptp->m->params->syncCycleTimeMs * CLOCK_TICKS_PER_MS; // First SYNC after 100ms
-    ptp->m->syncTxTimestamp = 0;
-    ptp->m->sequenceIdAnnounce = 0;
-    ptp->m->sequenceIdSync = 0;
+    master->announceCycleTimer = 0;                                                                               // Send announce immediately
+    master->syncCycleTimer = t + 100 * CLOCK_TICKS_PER_MS - master->params->syncCycleTimeMs * CLOCK_TICKS_PER_MS; // First SYNC after 100ms
+    master->syncTxTimestamp = 0;
+    master->sequenceIdAnnounce = 0;
+    master->sequenceIdSync = 0;
 }
 
 // Master main cycle
-static bool masterTask(tPtp *ptp) {
+static bool masterTask(tPtp *ptp, tPtpMaster *master) {
 
     // Update master parameters (update XCP calibrations)
 #ifdef OPTION_ENABLE_XCP
     // Each master instance holds its parameter lock continuously, so it may take about a second to make calibration changes effective (until all updates are done)
-    XcpUpdateCalSeg(&ptp->m->params);
+    XcpUpdateCalSeg(&master->params);
 #endif
 
     uint64_t t = clockGet();
-    uint32_t announceCycleTimeMs = ptp->m->params->announceCycleTimeMs; // Announce message cycle time in ms
-    uint32_t syncCycleTimeMs = ptp->m->params->syncCycleTimeMs;         // SYNC message cycle time in ms
+    uint32_t announceCycleTimeMs = master->params->announceCycleTimeMs; // Announce message cycle time in ms
+    uint32_t syncCycleTimeMs = master->params->syncCycleTimeMs;         // SYNC message cycle time in ms
 
     // Announce cycle
-    if (announceCycleTimeMs > 0 && t - ptp->m->announceCycleTimer > announceCycleTimeMs * CLOCK_TICKS_PER_MS) {
-        ptp->m->announceCycleTimer = t;
-        if (!ptpSendAnnounce(ptp))
-            return false;
+    if (announceCycleTimeMs > 0 && t - master->announceCycleTimer > announceCycleTimeMs * CLOCK_TICKS_PER_MS) {
+        master->announceCycleTimer = t;
+        if (!ptpSendAnnounce(ptp, master)) {
+            printf("ERROR: Failed to send ANNOUNCE\n");
+        }
     }
 
     // Sync cycle
-    if (syncCycleTimeMs > 0 && t - ptp->m->syncCycleTimer > syncCycleTimeMs * CLOCK_TICKS_PER_MS) {
-        ptp->m->syncCycleTimer = t;
+    if (syncCycleTimeMs > 0 && t - master->syncCycleTimer > syncCycleTimeMs * CLOCK_TICKS_PER_MS) {
+        master->syncCycleTimer = t;
 
         mutexLock(&ptp->mutex);
-        if (!ptpSendSync(ptp, &ptp->m->syncTxTimestamp)) {
+        if (!ptpSendSync(ptp, master, &master->syncTxTimestamp)) {
             printf("ERROR: Failed to send SYNC\n");
             mutexUnlock(&ptp->mutex);
             return false;
         }
 
-        if (ptp->m->syncTxTimestamp == 0) {
+        if (master->syncTxTimestamp == 0) {
             printf("ERROR: SYNC tx timestamp not available !\n");
         } else {
-            if (!ptpSendSyncFollowUp(ptp, ptp->m->syncTxTimestamp)) {
+            if (!ptpSendSyncFollowUp(ptp, master, master->syncTxTimestamp)) {
                 printf("ERROR:Failed to send SYNC FOLLOW UP\n");
                 mutexUnlock(&ptp->mutex);
                 return false;
@@ -928,7 +965,7 @@ static bool masterTask(tPtp *ptp) {
 
         // XCP measurement event (relative addressing mode for this master instance)
 #ifdef OPTION_ENABLE_XCP
-        XcpEventExt(ptp->xcp_event, &ptp->m);
+        XcpEventExt(ptp->xcp_event, &master);
 #endif
     }
 
@@ -939,36 +976,36 @@ static bool masterTask(tPtp *ptp) {
 // PTP master frame handling
 
 // Handle a received Delay Request message
-static bool masterHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr, uint64_t rxTimestamp) {
+static bool masterHandleFrame(tPtp *ptp, tPtpMaster *master, int n, struct ptphdr *ptp_msg, uint8_t *addr, uint64_t rxTimestamp) {
 
     if (n >= 44 && n <= 64) {
 
         if (ptp_msg->type == PTP_DELAY_REQ) {
 
-            if (ptp_msg->domain == ptp->m->domain) {
+            if (ptp_msg->domain == master->domain) {
                 bool ok;
                 mutexLock(&ptp->mutex);
-                ok = ptpSendDelayResponse(ptp, ptp_msg, rxTimestamp);
+                ok = ptpSendDelayResponse(ptp, master, ptp_msg, rxTimestamp);
                 mutexUnlock(&ptp->mutex);
                 if (!ok)
                     return false;
             }
 
             // Maintain PTP client list
-            uint16_t i = lookupClient(ptp, addr, ptp_msg->clockId);
+            uint16_t i = lookupClient(master, addr, ptp_msg->clockId);
             bool newClient = (i >= MAX_CLIENTS);
             if (newClient) {
-                i = addClient(ptp, addr, ptp_msg->clockId, ptp_msg->domain);
-                masterPrintState(ptp); // Print state when a new client is added
+                i = addClient(master, addr, ptp_msg->clockId, ptp_msg->domain);
+                masterPrintState(ptp, master); // Print state when a new client is added
             }
 
             // Some clients send non zero timestamp values in their DELAY_REQ which allows to visualize information on time synchronisation quality
-            ptp->m->client[i].time = htonl(ptp_msg->timestamp.timestamp_s) * 1000000000ULL + htonl(ptp_msg->timestamp.timestamp_ns);
-            ptp->m->client[i].diff = rxTimestamp - ptp->m->client[i].time;
-            ptp->m->client[i].corr = (uint32_t)(htonll(ptp_msg->correction) >> 16);
-            ptp->m->client[i].cycle = rxTimestamp - ptp->m->client[i].lastSeenTime;
-            ptp->m->client[i].counter++;
-            ptp->m->client[i].lastSeenTime = rxTimestamp;
+            master->client[i].time = htonl(ptp_msg->timestamp.timestamp_s) * 1000000000ULL + htonl(ptp_msg->timestamp.timestamp_ns);
+            master->client[i].diff = rxTimestamp - master->client[i].time;
+            master->client[i].corr = (uint32_t)(htonll(ptp_msg->correction) >> 16);
+            master->client[i].cycle = rxTimestamp - master->client[i].lastSeenTime;
+            master->client[i].counter++;
+            master->client[i].lastSeenTime = rxTimestamp;
         }
     }
     return true;
@@ -991,17 +1028,20 @@ static void *ptpThread319(void *par)
     int n;
 
     tPtp *ptp = (tPtp *)par;
-
+    assert(ptp != NULL && ptp->magic == PTP_MAGIC);
     for (;;) {
         n = socketRecvFrom(ptp->sock319, buffer, (uint16_t)sizeof(buffer), addr, NULL, &rxTime);
         if (n <= 0)
             break; // Terminate on error or socket close
         if (ptp->log_level >= 4)
             printFrame("RX", (struct ptphdr *)buffer, addr, rxTime); // Print incoming PTP traffic
-        if (ptp->mode == PTP_MODE_MASTER)
-            masterHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, rxTime);
-        if (ptp->mode == PTP_MODE_OBSERVER)
-            observerHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, rxTime);
+
+        for (struct ptp_master *m = ptp->master_list; m != NULL; m = m->next) {
+            masterHandleFrame(ptp, m, n, (struct ptphdr *)buffer, addr, rxTime);
+        }
+        for (struct ptp_observer *c = ptp->observer_list; c != NULL; c = c->next) {
+            observerHandleFrame(ptp, c, n, (struct ptphdr *)buffer, addr, rxTime);
+        }
     }
     if (ptp->log_level >= 3)
         printf("Terminate PTP multicast 319 thread\n");
@@ -1022,16 +1062,19 @@ static void *ptpThread320(void *par)
     int n;
 
     tPtp *ptp = (tPtp *)par;
+    assert(ptp != NULL && ptp->magic == PTP_MAGIC);
     for (;;) {
         n = socketRecvFrom(ptp->sock320, buffer, (uint16_t)sizeof(buffer), addr, NULL, NULL);
         if (n <= 0)
             break; // Terminate on error or socket close
         if (ptp->log_level >= 4)
             printFrame("RX", (struct ptphdr *)buffer, addr, 0); // Print incoming PTP traffic
-        if (ptp->mode == PTP_MODE_OBSERVER)
-            observerHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, 0);
-        if (ptp->mode == PTP_MODE_MASTER) {
-            masterHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, 0);
+
+        for (struct ptp_master *m = ptp->master_list; m != NULL; m = m->next) {
+            masterHandleFrame(ptp, m, n, (struct ptphdr *)buffer, addr, 0);
+        }
+        for (struct ptp_observer *c = ptp->observer_list; c != NULL; c = c->next) {
+            observerHandleFrame(ptp, c, n, (struct ptphdr *)buffer, addr, 0);
         }
     }
     if (ptp->log_level >= 3)
@@ -1049,130 +1092,157 @@ static void *ptpThread320(void *par)
 // mode: PTP_MODE_OBSERVER or PTP_MODE_MASTER
 // domain: PTP domain to use (0-127)
 // uuid: 8 byte clock UUID
-// If bindAddr = INADDR_ANY, bind to given interface
+// If if_addr = INADDR_ANY, bind to given interface
 // Enable hardware timestamps on interface (requires root privileges)
-tPtpHandle ptpInit(const char *instance_name, uint8_t mode, uint8_t domain, uint8_t *uuid, uint8_t *bindAddr, char *interface, uint8_t log_level) {
+tPtpInterfaceHandle ptpCreateInterface(const uint8_t *if_addr, const char *if_name, uint8_t log_level) {
 
     tPtp *ptp = (tPtp *)malloc(sizeof(tPtp));
     memset(ptp, 0, sizeof(tPtp));
+    ptp->magic = PTP_MAGIC;
 
     ptp->log_level = log_level;
-    ptp->mode = mode;
 
     // PTP communication parameters
-    memcpy(ptp->addr, bindAddr, 4);
-    strncpy(ptp->interface, interface ? interface : "", sizeof(ptp->interface) - 1);
+    memcpy(ptp->if_addr, if_addr, 4);
+    strncpy(ptp->if_name, if_name ? if_name : "", sizeof(ptp->if_name) - 1);
 
 #ifdef OPTION_ENABLE_XCP
     // Create an individual XCP event for measurement of this instance
-    // @@@@ TODO: Use interface name ????
+    // @@@@ TODO: Use if_name name ????
     ptp->xcp_event = XcpCreateEvent(instance_name, 0, 0);
 #endif
-
-    if (mode == PTP_MODE_OBSERVER) {
-        tPtpObserver *ptpC = malloc(sizeof(tPtpObserver));
-        memset(ptpC, 0, sizeof(tPtpObserver));
-        ptp->c = ptpC;
-        observerInit(ptp, domain);
-    }
-    if (mode == PTP_MODE_MASTER) {
-        tPtpMaster *ptpM = malloc(sizeof(tPtpMaster));
-        memset(ptpM, 0, sizeof(tPtpMaster));
-        ptp->m = ptpM;
-        masterInit(ptp, domain, uuid);
-    }
 
     // Create sockets for event (319) and general messages (320)
     ptp->sock319 = ptp->sock320 = INVALID_SOCKET;
 
     // For multicast reception on a specific interface:
-    // - When bindAddr is INADDR_ANY and interface is specified: bind to ANY and use socketBindToDevice (SO_BINDTODEVICE)
-    // - When bindAddr is specific: bind to that address (works only if multicast source is on same subnet)
-    bool useBindToDevice = (interface != NULL && bindAddr[0] == 0 && bindAddr[1] == 0 && bindAddr[2] == 0 && bindAddr[3] == 0);
+    // - When if_addr is INADDR_ANY and interface is specified: bind to ANY and use socketBindToDevice (SO_BINDTODEVICE)
+    // - When if_addr is specific: bind to that address (works only if multicast source is on same subnet)
+    bool useBindToDevice = (if_name != NULL && if_addr[0] == 0 && if_addr[1] == 0 && if_addr[2] == 0 && if_addr[3] == 0);
 
     // SYNC with tx (master) or rx (observer) timestamp, DELAY_REQ - with rx timestamps
     if (!socketOpen(&ptp->sock319, SOCKET_MODE_BLOCKING | SOCKET_MODE_TIMESTAMPING))
         return NULL;
-    if (!socketBind(ptp->sock319, bindAddr, 319))
+    if (!socketBind(ptp->sock319, if_addr, 319))
         return NULL;
-    if (useBindToDevice && !socketBindToDevice(ptp->sock319, interface))
+    if (useBindToDevice && !socketBindToDevice(ptp->sock319, if_name))
         return NULL;
 
     // General messages ANNOUNCE, FOLLOW_UP, DELAY_RESP - without rx timestamps
     if (!socketOpen(&ptp->sock320, SOCKET_MODE_BLOCKING))
         return NULL;
-    if (!socketBind(ptp->sock320, bindAddr, 320))
+    if (!socketBind(ptp->sock320, if_addr, 320))
         return NULL;
-    if (useBindToDevice && !socketBindToDevice(ptp->sock320, interface))
+    if (useBindToDevice && !socketBindToDevice(ptp->sock320, if_name))
         return NULL;
 
     // Enable hardware timestamps for SYNC tx and DELAY_REQ messages (requires root privileges)
-    if (!socketEnableHwTimestamps(ptp->sock319, interface, true /* tx + rx PTP only*/)) {
+    if (!socketEnableHwTimestamps(ptp->sock319, if_name, true /* tx + rx PTP only*/)) {
         DBG_PRINT_ERROR("Hardware timestamping not enabled (may need root), using software timestamps\n");
         // return false;
     }
 
     if (ptp->log_level >= 2) {
         if (useBindToDevice)
-            printf("  Bound PTP sockets to interface %s\n", interface);
+            printf("  Bound PTP sockets to if_name %s\n", if_name);
         else
-            printf("  Bound PTP sockets to %u.%u.%u.%u:320/319\n", bindAddr[0], bindAddr[1], bindAddr[2], bindAddr[3]);
+            printf("  Bound PTP sockets to %u.%u.%u.%u:320/319\n", if_addr[0], if_addr[1], if_addr[2], if_addr[3]);
     }
 
     // Join PTP multicast group
     if (ptp->log_level >= 2)
-        printf("  Listening for PTP multicast on 224.0.1.129 %s\n", interface ? interface : "");
+        printf("  Listening for PTP multicast on 224.0.1.129 %s\n", if_name ? if_name : "");
     uint8_t maddr[4] = {224, 0, 1, 129};
     memcpy(ptp->maddr, maddr, 4);
-    if (!socketJoin(ptp->sock319, ptp->maddr, bindAddr, interface))
+    if (!socketJoin(ptp->sock319, ptp->maddr, if_addr, if_name))
         return NULL;
-    if (!socketJoin(ptp->sock320, ptp->maddr, bindAddr, interface))
+    if (!socketJoin(ptp->sock320, ptp->maddr, if_addr, if_name))
         return NULL;
 
     // Start all PTP threads
     mutexInit(&ptp->mutex, true, 1000);
-    create_thread(&ptp->threadHandle320, ptpThread320);
-    create_thread(&ptp->threadHandle319, ptpThread319);
+    create_thread_arg(&ptp->threadHandle320, ptpThread320, ptp);
+    create_thread_arg(&ptp->threadHandle319, ptpThread319, ptp);
 
-    return ptp;
+    return (tPtpInterfaceHandle)ptp;
+}
+
+tPtpObserverHandle ptpCreateObserver(const char *instance_name, tPtpInterfaceHandle ptp_handle, uint8_t domain, const uint8_t *uuid, const uint8_t *addr) {
+
+    tPtp *ptp = (tPtp *)ptp_handle;
+    assert(ptp != NULL && ptp->magic == PTP_MAGIC);
+
+    tPtpObserver *observer = (tPtpObserver *)malloc(sizeof(tPtpObserver));
+    memset(observer, 0, sizeof(tPtpObserver));
+
+    observerInit(observer, domain, uuid, addr);
+
+    // Register the observer instance
+    observer->next = ptp->observer_list;
+    ptp->observer_list = observer;
+
+    return (tPtpObserverHandle)observer;
+}
+
+tPtpMasterHandle ptpCreateMaster(const char *instance_name, tPtpInterfaceHandle ptp_handle, uint8_t domain, const uint8_t *uuid) {
+
+    tPtp *ptp = (tPtp *)ptp_handle;
+    assert(ptp != NULL && ptp->magic == PTP_MAGIC);
+
+    tPtpMaster *master = (tPtpMaster *)malloc(sizeof(tPtpMaster));
+    memset(master, 0, sizeof(tPtpMaster));
+
+    masterInit(master, domain, (uint8_t *)uuid);
+
+    // Register the master instance
+    master->next = ptp->master_list;
+    ptp->master_list = master;
+
+    return (tPtpMasterHandle)master;
 }
 
 // Perform background tasks
 // This is called from the application on a regular basis
 // Observer: It monitors the status and checks for reset requests via calibration parameter
 // Master: Send SYNC and ANNOUNCE messages
-bool ptpTask(tPtpHandle tPtpHandle) {
+bool ptpTask(tPtpInterfaceHandle ptp_handle) {
 
-    tPtp *ptp = (tPtp *)tPtpHandle;
+    tPtp *ptp = (tPtp *)ptp_handle;
+    assert(ptp != NULL && ptp->magic == PTP_MAGIC);
 
-    if (ptp->mode == PTP_MODE_OBSERVER) {
-        return observerTask(ptp);
-    }
-    if (ptp->mode == PTP_MODE_MASTER) {
-        return masterTask(ptp);
+    for (struct ptp_master *m = ptp->master_list; m != NULL; m = m->next) {
+        if (!masterTask(ptp, m))
+            return false;
     }
     return true;
 }
 
 // Stop PTP
-void ptpShutdown(tPtpHandle tPtpHandle) {
+void ptpShutdown(tPtpInterfaceHandle ptp_handle) {
 
-    tPtp *ptp = (tPtp *)tPtpHandle;
+    tPtp *ptp = (tPtp *)ptp_handle;
+    assert(ptp != NULL && ptp->magic == PTP_MAGIC);
+
     cancel_thread(ptp->threadHandle320);
     cancel_thread(ptp->threadHandle319);
     sleepMs(200);
     socketClose(&ptp->sock319);
     socketClose(&ptp->sock320);
-}
 
-// Print PTP status information
-void ptpPrintStatusInfo(tPtpHandle ptpHandle) {
+    for (struct ptp_master *m = ptp->master_list; m != NULL;) {
+        struct ptp_master *next = m->next;
+        free(m);
+        m = next;
+    }
+    ptp->master_list = NULL;
 
-    tPtp *ptp = (tPtp *)ptpHandle;
-    if (ptp->mode == PTP_MODE_MASTER) {
-        masterPrintState(ptp);
+    for (tPtpObserver *c = ptp->observer_list; c != NULL;) {
+        tPtpObserver *next = c->next;
+        free(c);
+        c = next;
     }
-    if (ptp->mode == PTP_MODE_OBSERVER) {
-        observerPrintState(ptp);
-    }
+    ptp->observer_list = NULL;
+
+    ptp->magic = 0;
+    free(ptp);
 }

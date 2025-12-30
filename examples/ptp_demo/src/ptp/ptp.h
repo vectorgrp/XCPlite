@@ -2,22 +2,22 @@
 
 /* ptp.h */
 
-#define OPTION_ENABLE_XCP
-
-#define PTP_MODE_OBSERVER 0x01
-#define PTP_MODE_MASTER 0x02
+// #define OPTION_ENABLE_XCP
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef void *tPtpHandle;
+typedef void *tPtpInterfaceHandle;
+typedef void *tPtpMasterHandle;
+typedef void *tPtpObserverHandle;
 
-extern tPtpHandle ptpInit(const char *instance_name, uint8_t mode, uint8_t domain, uint8_t *uuid, uint8_t *bindAddr, char *interface, uint8_t debugLevel);
-extern bool ptpTask(tPtpHandle ptp);
-extern void ptpShutdown(tPtpHandle ptp);
-extern void ptpReset(tPtpHandle ptp);
-extern void ptpPrintStatusInfo(tPtpHandle ptp);
+extern tPtpInterfaceHandle ptpCreateInterface(const uint8_t *ifname, const char *if_name, uint8_t debugLevel);
+extern tPtpObserverHandle ptpCreateObserver(const char *instance_name, tPtpInterfaceHandle interface, uint8_t domain, const uint8_t *uuid, const uint8_t *addr);
+extern tPtpMasterHandle ptpCreateMaster(const char *instance_name, tPtpInterfaceHandle interface, uint8_t domain, const uint8_t *uuid);
+
+extern bool ptpTask(tPtpInterfaceHandle ptp);
+extern void ptpShutdown(tPtpInterfaceHandle ptp);
 
 #ifdef __cplusplus
 } // extern "C"

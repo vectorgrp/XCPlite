@@ -540,10 +540,15 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
         } else
 #endif
         {
-            // Error if segment already exists
             mutexUnlock(&gXcp.CalSegList.mutex);
-            DBG_PRINTF_ERROR("Calibration segment '%s' already exists with size %u\n", name, c->size);
-            return XCP_UNDEFINED_CALSEG;
+            // Error if segment already exists and size mismatch
+            if (size != c->size) {
+                DBG_PRINTF_ERROR("Calibration segment '%s' already exists with size %u\n", name, c->size);
+                return XCP_UNDEFINED_CALSEG;
+            } else {
+                DBG_PRINTF3("Calibration segment '%s' already exists\n", name);
+                return index;
+            }
         }
     } else {
         // Create a new calibration segment with given default page

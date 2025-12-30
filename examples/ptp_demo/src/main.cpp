@@ -37,12 +37,16 @@ constexpr int OPTION_LOG_LEVEL = 3;
 //-----------------------------------------------------------------------------------------------------
 // PTP params
 
-constexpr int PTP_LOG_LEVEL = 3;
+constexpr uint8_t PTP_BIND_ADDRESS[4] = {0, 0, 0, 0};
+constexpr const char PTP_INTERFACE[] = "en0";
+
 constexpr int PTP_DOMAIN = 0;
-constexpr uint8_t PTP_UUID[8] = {0x00, 0x1A, 0xB6, 0x00, 0x00, 0x00, 0x00, 0x01};
-constexpr uint8_t PTP_ADDRESS[4] = {0, 0, 0, 0};
-constexpr const char PTP_INTERFACE[] = "eth0";
+constexpr uint8_t PTP_UUID[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+#define PTP_MODE_OBSERVER 0x01
+#define PTP_MODE_MASTER 0x02
 constexpr int PTP_MODE = PTP_MODE_OBSERVER;
+
+constexpr int PTP_LOG_LEVEL = 3;
 
 //-----------------------------------------------------------------------------------------------------
 // Demo main
@@ -166,13 +170,36 @@ int main(int argc, char *argv[]) {
     }
 #endif
 
-    std::cout << "Starting PTP ..." << std::endl;
-    uint8_t ptp_bindAddr[4];
-    std::memcpy(ptp_bindAddr, PTP_ADDRESS, sizeof(ptp_bindAddr));
-    tPtpHandle ptp;
-    if (NULL == (ptp = ptpInit("PTP", ptp_mode, ptp_domain, ptp_uuid, ptp_bindAddr, const_cast<char *>(ptp_interface.c_str()), PTP_LOG_LEVEL))) {
-        std::cerr << "Failed to start PTP" << std::endl;
+    std::cout << "Starting PTP on " << ptp_interface << "..." << std::endl;
+
+    tPtpInterfaceHandle ptp;
+    if (NULL == (ptp = ptpCreateInterface(PTP_BIND_ADDRESS, const_cast<char *>(ptp_interface.c_str()), PTP_LOG_LEVEL))) {
+        std::cerr << "Failed to start PTP interface" << std::endl;
         return 1;
+    }
+
+    if (ptp_mode == PTP_MODE_OBSERVER) {
+
+        // Create an observer on interface ptp
+        // The PTP observer will listen to a master with ptp_domain, ptp_uuid and any address
+        // If multiple masters are present, the first one matching will be selected
+        uint8_t ptp_address[4] = {0, 0, 0, 0}; // Listen on all addresses
+        tPtpObserverHandle ptpObs = ptpCreateObserver("Observer1", ptp, ptp_domain, ptp_uuid, ptp_address);
+        if (NULL == ptpObs) {
+            std::cerr << "Failed to create PTP observer" << std::endl;
+            ptpShutdown(ptp);
+            return 1;
+        }
+
+    } else if (ptp_mode == PTP_MODE_MASTER) {
+
+        // Create a master on interface ptp
+        tPtpMasterHandle ptpMaster = ptpCreateMaster("Master1", ptp, ptp_domain, ptp_uuid);
+        if (NULL == ptpMaster) {
+            std::cerr << "Failed to create PTP master" << std::endl;
+            ptpShutdown(ptp);
+            return 1;
+        }
     }
 
 #ifdef OPTION_ENABLE_XCP
@@ -183,6 +210,7 @@ int main(int argc, char *argv[]) {
     while (running) {
         if (!ptpTask(ptp))
             running = false;
+
 #ifdef OPTION_ENABLE_XCP
         if (!XcpEthServerStatus())
             running = false;

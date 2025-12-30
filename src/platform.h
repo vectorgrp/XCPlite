@@ -222,6 +222,7 @@ typedef HANDLE THREAD;
 
 typedef pthread_t THREAD;
 #define create_thread(h, t) pthread_create(h, NULL, t, NULL)
+#define create_thread_arg(h, t, p) pthread_create(h, NULL, t, p)
 #define join_thread(h) pthread_join(h, NULL)
 #define cancel_thread(h)                                                                                                                                                           \
     {                                                                                                                                                                              \
@@ -311,10 +312,10 @@ int32_t socketGetLastError(void);
 bool socketStartup(void);
 void socketCleanup(void);
 bool socketOpen(SOCKET *sp, uint16_t flags);
-bool socketBind(SOCKET sock, uint8_t *addr, uint16_t port);
+bool socketBind(SOCKET sock, const uint8_t *addr, uint16_t port);
 bool socketBindToDevice(SOCKET sock, const char *ifname);                     // Bind socket to a specific network interface (Linux only, requires root for non-INADDR_ANY)
 bool socketEnableHwTimestamps(SOCKET sock, const char *ifname, bool ptpOnly); // Enable NIC hardware timestamping (Linux only, requires root)
-bool socketJoin(SOCKET sock, uint8_t *maddr, uint8_t *ifaddr, const char *ifname);
+bool socketJoin(SOCKET sock, const uint8_t *maddr, const uint8_t *ifaddr, const char *ifname);
 bool socketListen(SOCKET sock);
 SOCKET socketAccept(SOCKET sock, uint8_t *addr);
 int16_t socketRecv(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, bool waitAll);

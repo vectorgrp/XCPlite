@@ -338,7 +338,7 @@ bool socketOpen(SOCKET *sp, uint16_t flags) {
     return true;
 }
 
-bool socketBind(SOCKET sock, uint8_t *addr, uint16_t port) {
+bool socketBind(SOCKET sock, const uint8_t *addr, uint16_t port) {
 
     // Bind the socket to any address and the specified port
     SOCKADDR_IN a;
@@ -780,7 +780,7 @@ SOCKET socketAccept(SOCKET sock, uint8_t *addr) {
     return s;
 }
 
-bool socketJoin(SOCKET sock, uint8_t *maddr, uint8_t *ifaddr, const char *ifname) {
+bool socketJoin(SOCKET sock, const uint8_t *maddr, const uint8_t *ifaddr, const char *ifname) {
 
 #if defined(_LINUX)
     // On Linux, use ip_mreqn which allows specifying interface by name or index

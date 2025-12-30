@@ -399,7 +399,7 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
 // Create instances from typedefs
 
 // Create an instance of a typedef
-#define A2lCreateInstance(name, typeName, dim, ptr, comment) A2lCreateInstance_(#name, #typeName, dim, ptr, comment);
+#define A2lCreateInstance(name, typeName, dim, ptr, comment) A2lCreateInstance_(name, #typeName, dim, ptr, comment);
 
 // Single instance of typedef
 // A2L instance name and symbol name are the same
