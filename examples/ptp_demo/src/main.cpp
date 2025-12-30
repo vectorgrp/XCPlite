@@ -30,7 +30,7 @@ constexpr bool OPTION_USE_TCP = false;
 constexpr uint8_t OPTION_SERVER_ADDR[4] = {0, 0, 0, 0};
 constexpr uint16_t OPTION_SERVER_PORT = 5555;
 constexpr size_t OPTION_QUEUE_SIZE = 1024 * 16;
-constexpr int OPTION_LOG_LEVEL = 3;
+constexpr int OPTION_LOG_LEVEL = 2; // 0=none, 1=error, 2=warning, 3=info
 
 #endif
 
@@ -47,7 +47,7 @@ constexpr uint8_t PTP_UUID[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 #define PTP_MODE_AUTO_OBSERVER 0x03
 constexpr int PTP_MODE = PTP_MODE_AUTO_OBSERVER;
 
-constexpr int PTP_LOG_LEVEL = 3;
+constexpr int PTP_LOG_LEVEL = 1;
 
 //-----------------------------------------------------------------------------------------------------
 // Demo main
@@ -208,11 +208,8 @@ int main(int argc, char *argv[]) {
         }
     }
 
-#ifdef OPTION_ENABLE_XCP
-    A2lFinalize();
-#endif
-
     std::cout << "Start main task ..." << std::endl;
+    std::chrono::steady_clock::time_point last_status_print = std::chrono::steady_clock::now();
     while (running) {
         if (!ptpTask(ptp))
             running = false;
@@ -221,6 +218,13 @@ int main(int argc, char *argv[]) {
         if (!XcpEthServerStatus())
             running = false;
 #endif
+
+        // Every 5s  status print
+        if (std::chrono::steady_clock::now() - last_status_print >= std::chrono::seconds(5)) {
+            ptpPrintState(ptp);
+            last_status_print = std::chrono::steady_clock::now();
+        }
+
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 

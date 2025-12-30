@@ -248,8 +248,8 @@ static void observerInit(tPtpObserver *obs, uint8_t domain, const uint8_t *uuid,
 
     // Create observer measurements
     // Each observer has its own set of measurements by relative addressing mode on the observer instance address
-    tPtpObserver o;                                                 // Temporary instance for address calculations
-    A2lSetRelativeAddrMode__i(o.xcp_event, 0, (const uint8_t *)&o); // Set relative addressing base addr 0 as the observer instance
+    tPtpObserver o;                                                    // Temporary instance for address calculations
+    A2lSetRelativeAddrMode__i(obs->xcp_event, 0, (const uint8_t *)&o); // Use base address index 0
     A2lCreateMeasurementInstance(obs->name, o.gm.domain, "domain");
     A2lCreateMeasurementArrayInstance(obs->name, o.gm.uuid, "Grandmaster UUID");
     A2lCreateMeasurementArrayInstance(obs->name, o.gm.addr, "Grandmaster IP address");
@@ -318,10 +318,10 @@ static void observerInit(tPtpObserver *obs, uint8_t domain, const uint8_t *uuid,
 // Print information on the grandmaster
 static void observerPrintMaster(const tPtpObserverMaster *m) {
 
-    printf("PTP Master:\n");
+    printf("    PTP Master:\n");
     const char *timesource = (m->a.timeSource == PTP_TIME_SOURCE_INTERNAL) ? "internal oscilator" : (m->a.timeSource == PTP_TIME_SOURCE_GPS) ? "GPS" : "Unknown";
-    printf("    domain=%u, addr=%u.%u.%u.%u, id=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X\n"
-           "    timesource=%s (%02X), utcOffset=%u, prio1=%u, class=%u, acc=%u, var=%u, prio2=%u, steps=%u\n",
+    printf("      domain=%u, addr=%u.%u.%u.%u, id=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X\n"
+           "      timesource=%s (%02X), utcOffset=%u, prio1=%u, class=%u, acc=%u, var=%u, prio2=%u, steps=%u\n",
            m->domain, m->addr[0], m->addr[1], m->addr[2], m->addr[3], m->uuid[0], m->uuid[1], m->uuid[2], m->uuid[3], m->uuid[4], m->uuid[5], m->uuid[6], m->uuid[7], timesource,
            m->a.timeSource, htons(m->a.utcOffset), m->a.priority1, m->a.clockClass, m->a.clockAccuraccy, htons(m->a.clockVariance), m->a.priority2, htons(m->a.stepsRemoved));
 }
@@ -329,10 +329,16 @@ static void observerPrintMaster(const tPtpObserverMaster *m) {
 // Print the current PTP observer state
 static void observerPrintState(tPtpObserver *obs) {
 
+    printf("  Observer '%s':\n", obs->name);
     if (obs->gmValid) {
         observerPrintMaster(&obs->gm);
+        printf("    master_drift        = %g ns/s\n", obs->master_drift);
+        printf("    master_drift_drift  = %g ns/s2\n", obs->master_drift_drift);
+        printf("    master_jitter       = %g ns\n", obs->master_jitter);
+        printf("    master_jitter_avg   = %g ns\n", obs->master_jitter_avg);
+        printf("    master_jitter_rms   = %g ns\n\n", obs->master_jitter_rms);
     } else {
-        printf("No active PTP master detected\n");
+        printf("    No active PTP master detected\n");
     }
 }
 
@@ -478,12 +484,13 @@ static void observerUpdate(tPtpObserver *obs, uint64_t t1_in, uint64_t correctio
             // Apply correction
             obs->master_offset_compensation += correction;
             average_filter_add(&obs->master_jitter_avg_filter, -correction);
-            printf("Applied compensation correction: %g ns\n", correction);
+            if (obs->log_level >= 5)
+                printf("Applied compensation correction: %g ns\n", correction);
 
             // Jitter
             obs->master_jitter = obs->master_offset_detrended; // Jitter is the unfiltered detrended master offset
             obs->master_jitter_rms = sqrt((double)average_filter_calc(&obs->master_jitter_rms_filter, obs->master_jitter * obs->master_jitter)); // Filter jitter and calculate RMS
-            if (obs->log_level >= 3) {
+            if (obs->log_level >= 2) {
                 printf("  Jitter analysis:\n");
                 printf("    master_jitter       = %g ns\n", obs->master_jitter);
                 printf("    master_jitter_avg   = %g ns\n", obs->master_jitter_avg);
@@ -498,7 +505,7 @@ static void observerUpdate(tPtpObserver *obs, uint64_t t1_in, uint64_t correctio
 
     // XCP measurement event (relative addressing mode to observer instance)
 #ifdef OPTION_ENABLE_XCP
-    XcpEventExt(obs->xcp_event, (const uint8_t *)obs);
+    XcpEventExt_Var(obs->xcp_event, 1, (const uint8_t *)obs); // Base address 0 (addr ext = 2) is observer instance
 #endif
 }
 
@@ -547,9 +554,9 @@ static bool observerHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_
                     }
                 }
 
-            } // SYNC or FOLLOW_UP from active observer master
+                return true; // Processed by this observer
+            } // match
 
-            return true; // Processed by this observer
         }
 
         // Not yet locked onto a grandmaster
@@ -560,7 +567,7 @@ static bool observerHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_
                 // Check if domain, uuid and addr match (if specified)
                 if ((obs->domain == ptp_msg->domain) && (memcmp(obs->uuid, ptp_msg->clockId, 8) == 0 || memcmp(obs->uuid, "\0\0\0\0\0\0\0\0", 8) != 0) &&
                     (memcmp(obs->addr, addr, 4) == 0 || memcmp(obs->addr, "\0\0\0", 4) == 0)) {
-                    if (ptp->log_level >= 3) {
+                    if (ptp->log_level >= 1) {
                         printf("PTP Announce received from a master matching observer '%s' filter\n", obs->name);
                     }
                     obs->gmValid = true;
@@ -569,7 +576,6 @@ static bool observerHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_
                     memcpy(obs->gm.uuid, ptp_msg->clockId, 8);
                     memcpy(obs->gm.addr, addr, 4);
                     observerPrintState(obs);
-
                     return true; // Locked onto a grandmaster
                 }
             }
@@ -586,7 +592,7 @@ static bool observerHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_
             snprintf(name, sizeof(name), "obs_%u.%u_%u", addr[2], addr[3], ptp_msg->domain);
             tPtpObserverHandle ptpObs = ptpCreateObserver(name, ptp, ptp_msg->domain, ptp_msg->clockId, addr);
         } else {
-            if (ptp->log_level >= 3) {
+            if (ptp->log_level >= 1) {
                 printf("PTP Announce received from unknown master %u.%u.%u.%u (domain=%u), auto observer disabled\n", addr[0], addr[1], addr[2], addr[3], ptp_msg->domain);
             }
         }
@@ -737,7 +743,7 @@ static bool ptpSendAnnounce(tPtp *ptp, tPtpMaster *master) {
     h.u.a.timeSource = announce_params.timeSource;
     l = socketSendTo(ptp->sock320, (uint8_t *)&h, 64, ptp->maddr, 320, NULL);
 
-    if (ptp->log_level >= 2) {
+    if (ptp->log_level >= 3) {
         printf("TX ANNOUNCE %u %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n", master->sequenceIdAnnounce, h.clockId[0], h.clockId[1], h.clockId[2], h.clockId[3], h.clockId[4],
                h.clockId[5], h.clockId[6], h.clockId[7]);
     }
@@ -765,7 +771,7 @@ static bool ptpSendSync(tPtp *ptp, tPtpMaster *master, uint64_t *sync_txTimestam
             return false;
         }
     }
-    if (ptp->log_level >= 2) {
+    if (ptp->log_level >= 3) {
         printf("TX SYNC %u, tx time = %" PRIu64 "\n", master->sequenceIdSync, *sync_txTimestamp);
     }
     return true;
@@ -790,7 +796,7 @@ static bool ptpSendSyncFollowUp(tPtp *ptp, tPtpMaster *master, uint64_t sync_txT
 
     l = socketSendTo(ptp->sock320, (uint8_t *)&h, 44, ptp->maddr, 320, NULL);
 
-    if (ptp->log_level >= 2) {
+    if (ptp->log_level >= 3) {
         char ts[64];
         printf("TX FLUP %u t1 = %s (%" PRIu64 ")\n", master->sequenceIdSync, clockGetString(ts, sizeof(ts), t1), t1);
     }
@@ -821,7 +827,7 @@ static bool ptpSendDelayResponse(tPtp *ptp, tPtpMaster *master, struct ptphdr *r
 
     l = socketSendTo(ptp->sock320, (uint8_t *)&h, 54, ptp->maddr, 320, NULL);
 
-    if (ptp->log_level >= 2) {
+    if (ptp->log_level >= 4) {
         char ts[64];
         struct ptphdr *ptp = &h;
         printf("TX DELAY_RESP %u to %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X  t4 = %s (%" PRIu64 ")\n", htons(h.sequenceId), ptp->u.r.clockId[0], ptp->u.r.clockId[1],
@@ -930,8 +936,8 @@ static void masterInit(tPtpMaster *master, uint8_t domain, uint8_t *uuid) {
     }
 
     // Create A2L measurements for master state
-    tPtpMaster m; // Dummy structure for A2L address calculations
-    A2lSetRelativeAddrMode__i(master->xcp_event, 0, (const uint8_t *)&m);
+    tPtpMaster m;                                                         // Dummy structure for A2L address calculations
+    A2lSetRelativeAddrMode__i(master->xcp_event, 0, (const uint8_t *)&m); // Use base address index 0
     A2lCreateMeasurementInstance(master->name, m.clientCount, "Number of PTP clients");
     char name[32];
     snprintf(name, sizeof(name), "%s.master.client", master->name);
@@ -999,7 +1005,8 @@ static bool masterTask(tPtp *ptp, tPtpMaster *master) {
 
         // XCP measurement event (relative addressing mode for this master instance)
 #ifdef OPTION_ENABLE_XCP
-        XcpEventExt(master->xcp_event, master);
+        XcpEventExt_Var(master->xcp_event, 1, (const uint8_t *)master); // Base address 0 (addr ext = 2) is master instance
+
 #endif
     }
 
@@ -1284,4 +1291,28 @@ bool ptpEnableAutoObserver(tPtpInterfaceHandle ptp_handle) {
     assert(ptp != NULL && ptp->magic == PTP_MAGIC);
     ptp->auto_observer_enabled = true;
     return true;
+}
+
+void ptpPrintState(tPtpInterfaceHandle ptp_handle) {
+
+    tPtp *ptp = (tPtp *)ptp_handle;
+    assert(ptp != NULL && ptp->magic == PTP_MAGIC);
+
+    if (ptp->master_list != NULL) {
+        for (tPtpMaster *m = ptp->master_list; m != NULL; m = m->next) {
+            masterPrintState(ptp, m);
+        }
+    } else {
+        printf("No PTP master instances\n");
+    }
+    if (ptp->observer_list != NULL) {
+        printf("\nPTP Observer States:\n");
+        for (tPtpObserver *obs = ptp->observer_list; obs != NULL; obs = obs->next) {
+            observerPrintState(obs);
+        }
+        printf("\n");
+    } else {
+        printf("No PTP observer instances\n");
+        return;
+    }
 }

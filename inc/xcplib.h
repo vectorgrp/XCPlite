@@ -289,7 +289,7 @@ void XcpEventExt(tXcpEventId event, const uint8_t *base2);
 
 /// Trigger the XCP event 'event' for absolute or relative addressing mode with explicitly given base addresses for multiple relative addressing modes (address extensions = [2..])
 /// @param event
-/// @param count Number of base address pointers passed (max 3 possible)
+/// @param count Number of base address pointers passed
 void XcpEventExt_Var(tXcpEventId event, int count, ...);
 
 // At timestamp variants (clock==0 -> same as non timestamped versions)

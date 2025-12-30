@@ -20,6 +20,7 @@ extern bool ptpTask(tPtpInterfaceHandle ptp);
 extern void ptpShutdown(tPtpInterfaceHandle ptp);
 
 extern bool ptpEnableAutoObserver(tPtpInterfaceHandle interface);
+extern void ptpPrintState(tPtpInterfaceHandle ptp_handle);
 
 #ifdef __cplusplus
 } // extern "C"

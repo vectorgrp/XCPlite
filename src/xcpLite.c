@@ -703,21 +703,19 @@ uint8_t XcpUnlockCalSeg(tXcpCalSegIndex calseg) {
     }
 
     uint8_t oldLockCount = atomic_fetch_sub_explicit(&gXcp.CalSegList.calseg[calseg].lock_count, 1, memory_order_relaxed); // Decrement the lock count
-    assert(oldLockCount > 0);                                                                                              // Check for underflow
+    assert(oldLockCount > 0);                                                                                              // Calling XcpUnlockCalSeg without a prior lock
     return oldLockCount;
 }
 
-// Update a calibration parameter segment pointer
-// Single threaded calibration segment access assumed
+// Update a calibration parameter segment by pointer to the actual page
 // Calibration segment is continuously locked and only updated here
-// It is the users responsibility to ensure single threaded usage and initial locking of the segment
+// It is the users responsibility to ensure initial locking of the segment
 void XcpUpdateCalSeg(void **calPage) {
 
     tXcpCalSegIndex calSegIndex = XcpFindCalPage(*calPage);
     if (calSegIndex != XCP_UNDEFINED_CALSEG) {
         // Release the lock on the old page
-        uint8_t oldLockCount = XcpUnlockCalSeg(calSegIndex);
-        assert(oldLockCount == 1); // Check the assumption of single threaded access
+        XcpUnlockCalSeg(calSegIndex);
         // If there are calibration changes, frees the old page memory and replaces with the new one
         *calPage = XcpLockCalSeg(calSegIndex);
     }
