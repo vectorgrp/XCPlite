@@ -62,6 +62,7 @@ struct ptp {
     MUTEX mutex;
 
     uint8_t log_level;
+    bool auto_observer_enabled;
 
     struct ptp_master *master_list;
     struct ptp_observer *observer_list;
@@ -161,6 +162,8 @@ typedef struct {
 
 // PTP observer state
 struct ptp_observer {
+
+    char name[32];
 
     // Filter master identification
     uint8_t domain;
@@ -348,7 +351,7 @@ static void observerUpdate(tPtpObserver *obs, uint64_t t1_in, uint64_t correctio
     obs->cycle_count++;
 
     if (obs->log_level >= 3)
-        printf("PTP SYNC cycle %u:\n", obs->cycle_count);
+        printf("Observer %s: PTP SYNC cycle %u:\n", obs->name, obs->cycle_count);
     if (obs->log_level >= 4) {
         printf("  t1 (SYNC tx on master (via PTP))  = %s (%" PRIu64 ") (%08X)\n", clockGetString(ts1, sizeof(ts1), t1_in), t1_in, (uint32_t)t1_in);
         printf("  t2 (SYNC rx)  = %s (%" PRIu64 ") (%08X)\n", clockGetString(ts2, sizeof(ts2), t2_in), t2_in, (uint32_t)t2_in);
@@ -418,7 +421,7 @@ static void observerUpdate(tPtpObserver *obs, uint64_t t1_in, uint64_t correctio
         // Check if drift filter is warmed up
         if (average_filter_count(&obs->master_drift_filter) < average_filter_size(&obs->master_drift_filter)) {
             if (obs->log_level >= 3) {
-                printf("  Master drift filter warming up (%zu)\n", average_filter_count(&obs->master_drift_filter));
+                printf("  Master drift filter warming up (%zu/%zu)\n", average_filter_count(&obs->master_drift_filter), average_filter_size(&obs->master_drift_filter));
                 printf("    master_drift_raw    = %g ns/s\n", obs->master_drift_raw);
             }
         } else {
@@ -496,75 +499,92 @@ static void observerUpdate(tPtpObserver *obs, uint64_t t1_in, uint64_t correctio
 #endif
 }
 
-static bool observerHandleFrame(tPtp *ptp, tPtpObserver *obs, int n, struct ptphdr *ptp_msg, uint8_t *addr, uint64_t timestamp) {
+static bool observerHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr, uint64_t timestamp) {
 
-    if (n >= 44 && n <= 64) {
+    if (!(n >= 44 && n <= 64)) {
+        DBG_PRINT_ERROR("Invalid PTP message size\n");
+        return false; // PTP message too small or too large
+    }
 
-        // From active master ?
-        if (obs->gmValid && obs->domain == ptp_msg->domain && (memcmp(obs->gm.uuid, ptp_msg->clockId, 8) == 0) && (memcmp(obs->gm.addr, addr, 4) == 0)) {
+    // For all observers
+    for (struct ptp_observer *obs = ptp->observer_list; obs != NULL; obs = obs->next) {
 
-            if (obs->gmValid && (ptp_msg->type == PTP_SYNC || ptp_msg->type == PTP_FOLLOW_UP)) {
-                if (ptp_msg->type == PTP_SYNC) {
-                    if (timestamp == 0) {
-                        DBG_PRINT_WARNING("Observer: PTP SYNC received without timestamp!\n");
-                        return false;
+        // Check if this observer is locked onto a grandmaster
+        if (obs->gmValid) {
+
+            // Check if SYNC or FOLLOW_UP match this observers master
+            if (obs->domain == ptp_msg->domain && (memcmp(obs->gm.uuid, ptp_msg->clockId, 8) == 0) && (memcmp(obs->gm.addr, addr, 4) == 0)) {
+
+                if (obs->gmValid && (ptp_msg->type == PTP_SYNC || ptp_msg->type == PTP_FOLLOW_UP)) {
+                    if (ptp_msg->type == PTP_SYNC) {
+                        if (timestamp == 0) {
+                            DBG_PRINTF_WARNING("Observer %s: PTP SYNC received without timestamp!\n", obs->name);
+                            return false;
+                        }
+                        obs->sync_local_time = timestamp;
+                        obs->sync_master_time = htonl(ptp_msg->timestamp.timestamp_s) * 1000000000ULL + htonl(ptp_msg->timestamp.timestamp_ns);
+                        obs->sync_sequenceId = htons(ptp_msg->sequenceId);
+                        obs->sync_correction = (uint32_t)(htonll(ptp_msg->correction) >> 16);
+                        obs->sync_steps = (htons(ptp_msg->flags) & PTP_FLAG_TWO_STEP) ? 2 : 1;
+
+                        // 1 step sync update
+                        if (obs->sync_steps == 1) {
+                            observerUpdate(obs, obs->sync_master_time, obs->sync_correction, obs->sync_local_time);
+                        }
+                    } else {
+
+                        obs->flup_master_time = htonl(ptp_msg->timestamp.timestamp_s) * 1000000000ULL + htonl(ptp_msg->timestamp.timestamp_ns);
+                        obs->flup_sequenceId = htons(ptp_msg->sequenceId);
+                        obs->flup_correction = (uint32_t)(htonll(ptp_msg->correction) >> 16);
                     }
-                    obs->sync_local_time = timestamp;
-                    obs->sync_master_time = htonl(ptp_msg->timestamp.timestamp_s) * 1000000000ULL + htonl(ptp_msg->timestamp.timestamp_ns);
-                    obs->sync_sequenceId = htons(ptp_msg->sequenceId);
-                    obs->sync_correction = (uint32_t)(htonll(ptp_msg->correction) >> 16);
-                    obs->sync_steps = (htons(ptp_msg->flags) & PTP_FLAG_TWO_STEP) ? 2 : 1;
 
-                    // 1 step sync update
-                    if (obs->sync_steps == 1) {
-                        observerUpdate(obs, obs->sync_master_time, obs->sync_correction, obs->sync_local_time);
+                    // 2 step sync update, SYNC and FOLLOW_UP may be received in any order (thread319 and thread320)
+                    if (obs->sync_steps == 2 && obs->sync_sequenceId == obs->flup_sequenceId) {
+                        observerUpdate(obs, obs->flup_master_time, obs->sync_correction, obs->sync_local_time); // 2 step
                     }
-                } else {
-
-                    obs->flup_master_time = htonl(ptp_msg->timestamp.timestamp_s) * 1000000000ULL + htonl(ptp_msg->timestamp.timestamp_ns);
-                    obs->flup_sequenceId = htons(ptp_msg->sequenceId);
-                    obs->flup_correction = (uint32_t)(htonll(ptp_msg->correction) >> 16);
                 }
 
-                // 2 step sync update, SYNC and FOLLOW_UP may be received in any order (thread319 and thread320)
-                if (obs->sync_steps == 2 && obs->sync_sequenceId == obs->flup_sequenceId) {
-                    observerUpdate(obs, obs->flup_master_time, obs->sync_correction, obs->sync_local_time); // 2 step
-                }
-            }
+            } // SYNC or FOLLOW_UP from active observer master
 
-        } // SYNC or FOLLOW_UP from active master
+            return true; // Processed by this observer
+        }
 
-        // Announce from any master
-        if (ptp_msg->type == PTP_ANNOUNCE) {
+        // Not yet locked onto a grandmaster
+        else {
+            // Check if Announce from any master match this observers master filter
+            if (ptp_msg->type == PTP_ANNOUNCE) {
 
-            // Not locked onto a grandmaster yet
-            if (!obs->gmValid) {
-
-                // Check if uuid and addr match (if specified)
-                if ((memcmp(obs->uuid, ptp_msg->clockId, 8) != 0 && memcmp(obs->uuid, "\0\0\0\0\0\0\0\0", 8) != 0) ||
-                    (memcmp(obs->addr, addr, 4) != 0 && memcmp(obs->addr, "\0\0\0", 4) != 0)) {
-                    if (ptp->log_level >= 4) {
-                        printf("Observer: PTP ANNOUNCE received from non-matching master, ignoring\n");
-                        printFrame("RX", ptp_msg, addr, timestamp);
+                // Check if domain, uuid and addr match (if specified)
+                if ((obs->domain == ptp_msg->domain) && (memcmp(obs->uuid, ptp_msg->clockId, 8) == 0 || memcmp(obs->uuid, "\0\0\0\0\0\0\0\0", 8) != 0) &&
+                    (memcmp(obs->addr, addr, 4) == 0 || memcmp(obs->addr, "\0\0\0", 4) == 0)) {
+                    if (ptp->log_level >= 3) {
+                        printf("PTP Announce received from a master matching observer '%s' filter\n", obs->name);
                     }
-
-                } else {
-                    printf("Observer: Found matching PTP master:\n");
                     obs->gmValid = true;
                     obs->gm.a = ptp_msg->u.a;
                     obs->gm.domain = ptp_msg->domain;
                     memcpy(obs->gm.uuid, ptp_msg->clockId, 8);
                     memcpy(obs->gm.addr, addr, 4);
                     observerPrintState(obs);
+
+                    return true; // Locked onto a grandmaster
                 }
             }
+        }
 
-            // Already locked onto a grandmaster, ignore other announces
-            else {
-                if (ptp->log_level >= 4) {
-                    printf("Observer: PTP ANNOUNCE received from non-active master, ignoring\n");
-                    printFrame("RX", ptp_msg, addr, timestamp);
-                }
+    } // Observer list
+
+    // Check announce messages from unknown masters
+    if (ptp_msg->type == PTP_ANNOUNCE) {
+        if (ptp->auto_observer_enabled) {
+            // Create new observer for this master
+            // Generate a name
+            char name[32];
+            snprintf(name, sizeof(name), "obs_%u.%u_%u", addr[2], addr[3], ptp_msg->domain);
+            tPtpObserverHandle ptpObs = ptpCreateObserver(name, ptp, ptp_msg->domain, ptp_msg->clockId, addr);
+        } else {
+            if (ptp->log_level >= 3) {
+                printf("PTP Announce received from unknown master %u.%u.%u.%u (domain=%u), auto observer disabled\n", addr[0], addr[1], addr[2], addr[3], ptp_msg->domain);
             }
         }
     }
@@ -638,6 +658,7 @@ struct ptp_master {
 
     struct ptp_master *next; // next master in list
     uint8_t log_level;
+    char name[32];
 
     uint64_t announceCycleTimer;
     uint64_t syncCycleTimer;
@@ -1035,13 +1056,10 @@ static void *ptpThread319(void *par)
             break; // Terminate on error or socket close
         if (ptp->log_level >= 4)
             printFrame("RX", (struct ptphdr *)buffer, addr, rxTime); // Print incoming PTP traffic
-
         for (struct ptp_master *m = ptp->master_list; m != NULL; m = m->next) {
             masterHandleFrame(ptp, m, n, (struct ptphdr *)buffer, addr, rxTime);
         }
-        for (struct ptp_observer *c = ptp->observer_list; c != NULL; c = c->next) {
-            observerHandleFrame(ptp, c, n, (struct ptphdr *)buffer, addr, rxTime);
-        }
+        observerHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, rxTime);
     }
     if (ptp->log_level >= 3)
         printf("Terminate PTP multicast 319 thread\n");
@@ -1069,13 +1087,10 @@ static void *ptpThread320(void *par)
             break; // Terminate on error or socket close
         if (ptp->log_level >= 4)
             printFrame("RX", (struct ptphdr *)buffer, addr, 0); // Print incoming PTP traffic
-
         for (struct ptp_master *m = ptp->master_list; m != NULL; m = m->next) {
             masterHandleFrame(ptp, m, n, (struct ptphdr *)buffer, addr, 0);
         }
-        for (struct ptp_observer *c = ptp->observer_list; c != NULL; c = c->next) {
-            observerHandleFrame(ptp, c, n, (struct ptphdr *)buffer, addr, 0);
-        }
+        observerHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, 0);
     }
     if (ptp->log_level >= 3)
         printf("Terminate PTP multicast 320 thread\n");
@@ -1167,32 +1182,40 @@ tPtpInterfaceHandle ptpCreateInterface(const uint8_t *if_addr, const char *if_na
     return (tPtpInterfaceHandle)ptp;
 }
 
-tPtpObserverHandle ptpCreateObserver(const char *instance_name, tPtpInterfaceHandle ptp_handle, uint8_t domain, const uint8_t *uuid, const uint8_t *addr) {
+tPtpObserverHandle ptpCreateObserver(const char *name, tPtpInterfaceHandle ptp_handle, uint8_t domain, const uint8_t *uuid, const uint8_t *addr) {
 
     tPtp *ptp = (tPtp *)ptp_handle;
     assert(ptp != NULL && ptp->magic == PTP_MAGIC);
 
-    tPtpObserver *observer = (tPtpObserver *)malloc(sizeof(tPtpObserver));
-    memset(observer, 0, sizeof(tPtpObserver));
-
-    observerInit(observer, domain, uuid, addr);
+    // Create observer instance
+    tPtpObserver *obs = (tPtpObserver *)malloc(sizeof(tPtpObserver));
+    memset(obs, 0, sizeof(tPtpObserver));
+    strncpy(obs->name, name, sizeof(obs->name) - 1);
+    observerInit(obs, domain, uuid, addr); // Initialize observer state
+    obs->log_level = ptp->log_level;
 
     // Register the observer instance
-    observer->next = ptp->observer_list;
-    ptp->observer_list = observer;
+    obs->next = ptp->observer_list;
+    ptp->observer_list = obs;
 
-    return (tPtpObserverHandle)observer;
+    if (obs->log_level >= 1) {
+        printf("Created PTP observer instance %s, listening on domain %u, addr=%u.%u.%u.%u, uuid=%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n", obs->name, obs->domain, obs->addr[0],
+               obs->addr[1], obs->addr[2], obs->addr[3], obs->uuid[0], obs->uuid[1], obs->uuid[2], obs->uuid[3], obs->uuid[4], obs->uuid[5], obs->uuid[6], obs->uuid[7]);
+    }
+
+    return (tPtpObserverHandle)obs;
 }
 
-tPtpMasterHandle ptpCreateMaster(const char *instance_name, tPtpInterfaceHandle ptp_handle, uint8_t domain, const uint8_t *uuid) {
+tPtpMasterHandle ptpCreateMaster(const char *name, tPtpInterfaceHandle ptp_handle, uint8_t domain, const uint8_t *uuid) {
 
     tPtp *ptp = (tPtp *)ptp_handle;
     assert(ptp != NULL && ptp->magic == PTP_MAGIC);
 
     tPtpMaster *master = (tPtpMaster *)malloc(sizeof(tPtpMaster));
     memset(master, 0, sizeof(tPtpMaster));
-
+    strncpy(master->name, name, sizeof(master->name) - 1);
     masterInit(master, domain, (uint8_t *)uuid);
+    master->log_level = ptp->log_level;
 
     // Register the master instance
     master->next = ptp->master_list;
@@ -1245,4 +1268,13 @@ void ptpShutdown(tPtpInterfaceHandle ptp_handle) {
 
     ptp->magic = 0;
     free(ptp);
+}
+
+// Set auto observer mode (accept announce from any master and create a new observer instance)
+bool ptpEnableAutoObserver(tPtpInterfaceHandle ptp_handle) {
+
+    tPtp *ptp = (tPtp *)ptp_handle;
+    assert(ptp != NULL && ptp->magic == PTP_MAGIC);
+    ptp->auto_observer_enabled = true;
+    return true;
 }

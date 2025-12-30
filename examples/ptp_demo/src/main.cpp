@@ -38,13 +38,14 @@ constexpr int OPTION_LOG_LEVEL = 3;
 // PTP params
 
 constexpr uint8_t PTP_BIND_ADDRESS[4] = {0, 0, 0, 0};
-constexpr const char PTP_INTERFACE[] = "en0";
+constexpr const char PTP_INTERFACE[] = "eth0";
 
 constexpr int PTP_DOMAIN = 0;
 constexpr uint8_t PTP_UUID[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 #define PTP_MODE_OBSERVER 0x01
 #define PTP_MODE_MASTER 0x02
-constexpr int PTP_MODE = PTP_MODE_OBSERVER;
+#define PTP_MODE_AUTO_OBSERVER 0x03
+constexpr int PTP_MODE = PTP_MODE_AUTO_OBSERVER;
 
 constexpr int PTP_LOG_LEVEL = 3;
 
@@ -178,7 +179,12 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    if (ptp_mode == PTP_MODE_OBSERVER) {
+    if (ptp_mode == PTP_MODE_AUTO_OBSERVER) {
+        // Create observers for all masters seen on any address, uuid and domain
+        std::cout << "Enable auto observer mode" << std::endl;
+        ptpEnableAutoObserver(ptp);
+
+    } else if (ptp_mode == PTP_MODE_OBSERVER) {
 
         // Create an observer on interface ptp
         // The PTP observer will listen to a master with ptp_domain, ptp_uuid and any address

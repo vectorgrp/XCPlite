@@ -19,6 +19,8 @@ extern tPtpMasterHandle ptpCreateMaster(const char *instance_name, tPtpInterface
 extern bool ptpTask(tPtpInterfaceHandle ptp);
 extern void ptpShutdown(tPtpInterfaceHandle ptp);
 
+extern bool ptpEnableAutoObserver(tPtpInterfaceHandle interface);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
