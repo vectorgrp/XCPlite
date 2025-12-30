@@ -39,14 +39,12 @@ constexpr int OPTION_LOG_LEVEL = 2; // 0=none, 1=error, 2=warning, 3=info
 
 constexpr uint8_t PTP_BIND_ADDRESS[4] = {0, 0, 0, 0};
 constexpr const char PTP_INTERFACE[] = "eth0";
-
 constexpr int PTP_DOMAIN = 0;
 constexpr uint8_t PTP_UUID[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 #define PTP_MODE_OBSERVER 0x01
 #define PTP_MODE_MASTER 0x02
 #define PTP_MODE_AUTO_OBSERVER 0x03
 constexpr int PTP_MODE = PTP_MODE_AUTO_OBSERVER;
-
 constexpr int PTP_LOG_LEVEL = 1;
 
 //-----------------------------------------------------------------------------------------------------
@@ -59,9 +57,11 @@ static void print_usage(const char *prog_name) {
     std::cout << "Usage: " << prog_name << " [options]\n"
               << "Options:\n"
               << "  -i, --interface <name>  Network interface name (default: eth0)\n"
-              << "  -m, --mode <mode>       PTP mode: observer or master (default: observer)\n"
-              << "  -d, --domain <number>   PTP domain number 0-255 (default: 0)\n"
-              << "  -u, --uuid <hex>        PTP UUID as 16 hex digits (default: 001AB60000000001)\n"
+              << "  -m, --master            Creates a PTP master with uuid and domain\n"
+              << "  -o, --observer          Observer for uuid and domain (default: multi observer)\n"
+              << "  -d, --domain <number>   Domain number 0-255 (default: 0)\n"
+              << "  -u, --uuid <hex>        UUID as 16 hex digits (default: 001AB60000000001)\n"
+              << "  -l, --loglevel <level>  Set log level (0..5)\n"
               << "  -h, --help              Show this help message\n\n"
               << "Example:\n  " << prog_name << " -i en0 -m master -d 1 -u 001AB60000000002\n";
 }
@@ -72,6 +72,7 @@ int main(int argc, char *argv[]) {
     std::string ptp_interface = PTP_INTERFACE;
     int ptp_mode = PTP_MODE;
     int ptp_domain = PTP_DOMAIN;
+    int ptp_log_level = PTP_LOG_LEVEL;
     uint8_t ptp_uuid[8];
     std::memcpy(ptp_uuid, PTP_UUID, sizeof(ptp_uuid));
 
@@ -88,24 +89,15 @@ int main(int argc, char *argv[]) {
                 print_usage(argv[0]);
                 return 1;
             }
-        } else if (std::strcmp(argv[i], "-m") == 0 || std::strcmp(argv[i], "--mode") == 0) {
-            if (i + 1 < argc) {
-                i++;
-                if (std::strcmp(argv[i], "observer") == 0) {
-                    ptp_mode = PTP_MODE_OBSERVER;
-                } else if (std::strcmp(argv[i], "master") == 0) {
-                    ptp_mode = PTP_MODE_MASTER;
-                } else {
-                    std::cerr << "Error: Invalid mode '" << argv[i] << "'. Use 'observer' or 'master'\n";
-                    print_usage(argv[0]);
-                    return 1;
-                }
-            } else {
-                std::cerr << "Error: -m/--mode requires an argument\n";
-                print_usage(argv[0]);
-                return 1;
-            }
-        } else if (std::strcmp(argv[i], "-d") == 0 || std::strcmp(argv[i], "--domain") == 0) {
+        }
+
+        else if (std::strcmp(argv[i], "-m") == 0 || std::strcmp(argv[i], "--master") == 0) {
+            ptp_mode = PTP_MODE_MASTER;
+        } else if (std::strcmp(argv[i], "-o") == 0 || std::strcmp(argv[i], "--observer") == 0) {
+            ptp_mode = PTP_MODE_OBSERVER;
+        }
+
+        else if (std::strcmp(argv[i], "-d") == 0 || std::strcmp(argv[i], "--domain") == 0) {
             if (i + 1 < argc) {
                 i++;
                 int domain = std::atoi(argv[i]);
@@ -118,6 +110,22 @@ int main(int argc, char *argv[]) {
                 }
             } else {
                 std::cerr << "Error: -d/--domain requires an argument\n";
+                print_usage(argv[0]);
+                return 1;
+            }
+        } else if (std::strcmp(argv[i], "-l") == 0 || std::strcmp(argv[i], "--loglevel") == 0) {
+            if (i + 1 < argc) {
+                i++;
+                int log_level = std::atoi(argv[i]);
+                if (log_level >= 0 && log_level <= 5) {
+                    ptp_log_level = log_level;
+                } else {
+                    std::cerr << "Error: Invalid log level '" << argv[i] << "'. Must be 0-5\n";
+                    print_usage(argv[0]);
+                    return 1;
+                }
+            } else {
+                std::cerr << "Error: -l/--loglevel requires an argument\n";
                 print_usage(argv[0]);
                 return 1;
             }
@@ -174,7 +182,7 @@ int main(int argc, char *argv[]) {
     std::cout << "Starting PTP on " << ptp_interface << "..." << std::endl;
 
     tPtpInterfaceHandle ptp;
-    if (NULL == (ptp = ptpCreateInterface(PTP_BIND_ADDRESS, const_cast<char *>(ptp_interface.c_str()), PTP_LOG_LEVEL))) {
+    if (NULL == (ptp = ptpCreateInterface(PTP_BIND_ADDRESS, const_cast<char *>(ptp_interface.c_str()), ptp_log_level))) {
         std::cerr << "Failed to start PTP interface" << std::endl;
         return 1;
     }
@@ -219,8 +227,8 @@ int main(int argc, char *argv[]) {
             running = false;
 #endif
 
-        // Every 5s  status print
-        if (std::chrono::steady_clock::now() - last_status_print >= std::chrono::seconds(5)) {
+        // Status print
+        if (std::chrono::steady_clock::now() - last_status_print >= std::chrono::seconds(1)) {
             ptpPrintState(ptp);
             last_status_print = std::chrono::steady_clock::now();
         }

@@ -423,7 +423,7 @@ static void observerUpdate(tPtpObserver *obs, uint64_t t1_in, uint64_t correctio
         } else {
             obs->master_drift_raw = (double)diff * 1000000000 / c2; // Calculate drift in ppm instead of drift per cycle (drift is in ns/s (1/1000 ppm)
             double drift = average_filter_calc(&obs->master_drift_filter, obs->master_drift_raw); // Filter drift
-            obs->master_drift_drift = ((drift - obs->master_drift) * 1000000000) / c2; // Calculate drift of drift in ns/s2 (should be close to zero when temperature is stable )
+            obs->master_drift_drift = drift - obs->master_drift; // Calculate drift of drift in ns/(s*s) (should be close to zero when temperature is stable )
             obs->master_drift = drift;
         }
 
@@ -592,8 +592,8 @@ static bool observerHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_
             snprintf(name, sizeof(name), "obs_%u.%u_%u", addr[2], addr[3], ptp_msg->domain);
             tPtpObserverHandle ptpObs = ptpCreateObserver(name, ptp, ptp_msg->domain, ptp_msg->clockId, addr);
         } else {
-            if (ptp->log_level >= 1) {
-                printf("PTP Announce received from unknown master %u.%u.%u.%u (domain=%u), auto observer disabled\n", addr[0], addr[1], addr[2], addr[3], ptp_msg->domain);
+            if (ptp->log_level >= 4) {
+                printf("PTP ignored announce from unknown master %u.%u.%u.%u (domain=%u)\n", addr[0], addr[1], addr[2], addr[3], ptp_msg->domain);
             }
         }
     }
@@ -607,6 +607,8 @@ static bool observerHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_
 // PTP master
 
 #define MAX_CLIENTS 16
+#define SYNC_CYCLE_TIME_MS_DEFAULT 500
+#define ANNOUNCE_CYCLE_TIME_MS_DEFAULT 2000
 
 typedef struct {
     uint16_t utcOffset;     // PTP ANNOUNCE parameter
@@ -640,21 +642,21 @@ typedef struct master_params {
 
 // Default master parameter values
 static const master_parameters_t master_params = {
-    .announceCycleTimeMs = 2000, // Announce every 2s
-    .syncCycleTimeMs = 1000      // SYNC every 1s
+    .announceCycleTimeMs = ANNOUNCE_CYCLE_TIME_MS_DEFAULT, // ANNOUNCE rate
+    .syncCycleTimeMs = SYNC_CYCLE_TIME_MS_DEFAULT          // SYNC rate
 };
 
 // PTP client descriptor
 struct ptp_client {
-    uint8_t addr[4];      // IP addr
-    uint8_t id[8];        // clock UUID
-    uint64_t time;        // DELAY_REQ time stmap
-    int64_t diff;         // DELAY_REQ current timestamp - delay req timestamp
-    int64_t lastSeenTime; // Last rx timestamp
-    int64_t cycle;        // Last cycle time
-    int64_t counter;      // Cycle counter
-    uint32_t corr;        // PTP correction
-    uint8_t domain;       // PTP domain
+    uint8_t addr[4];       // IP addr
+    uint8_t id[8];         // clock UUID
+    uint64_t time;         // DELAY_REQ timestamp
+    int64_t diff;          // DELAY_REQ current timestamp - delay req timestamp
+    int64_t lastSeenTime;  // Last rx timestamp
+    uint64_t cycle_time;   // Last cycle time in ns
+    int32_t cycle_counter; // Cycle counter
+    uint32_t corr;         // PTP correction
+    uint8_t domain;        // PTP domain
 };
 typedef struct ptp_client tPtpClient;
 
@@ -850,10 +852,10 @@ static void initClientList(tPtpMaster *master) {
 void printClient(tPtpMaster *master, uint16_t i) {
 
     char ts[64];
-    printf("%u: addr=x.x.x.%u: domain=%u uuid=%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X time=%s corr=%u diff=%" PRId64 " cycle=%" PRId64 " \n", i, master->client[i].addr[3],
+    printf("%u: addr=x.x.x.%u: domain=%u uuid=%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X time=%s corr=%uns diff=%" PRIi64 " cycle=%u cycle_time=%gs\n", i, master->client[i].addr[3],
            master->client[i].domain, master->client[i].id[0], master->client[i].id[1], master->client[i].id[2], master->client[i].id[3], master->client[i].id[4],
            master->client[i].id[5], master->client[i].id[6], master->client[i].id[7], clockGetString(ts, sizeof(ts), master->client[i].time), master->client[i].corr,
-           master->client[i].diff, master->client[i].cycle);
+           master->client[i].diff, master->client[i].cycle_counter, (double)master->client[i].cycle_time / 1e9);
 }
 
 static uint16_t lookupClient(tPtpMaster *master, uint8_t *addr, uint8_t *uuid) {
@@ -891,6 +893,9 @@ static void masterPrintState(tPtp *ptp, tPtpMaster *master) {
     printf(" IP:             %u.%u.%u.%u\n", ptp->if_addr[0], ptp->if_addr[1], ptp->if_addr[2], ptp->if_addr[3]);
     printf(" Interface:      %s\n", ptp->if_name);
     printf(" Domain:         %u\n", master->domain);
+    printf(" ANNOUNCE cycle: %ums\n", master->params->announceCycleTimeMs);
+    printf(" SYNC cycle:     %ums\n", master->params->syncCycleTimeMs);
+
     printf("Client list:\n");
     for (uint16_t i = 0; i < master->clientCount; i++) {
         printClient(master, i);
@@ -925,8 +930,8 @@ static void masterInit(tPtpMaster *master, uint8_t domain, uint8_t *uuid) {
 
         // Create a A2L typedef for the PTP client structure
         A2lTypedefBegin(tPtpClient, NULL, "PTP client structure");
-        A2lTypedefMeasurementComponent(counter, "cycle counter");
-        A2lTypedefPhysMeasurementComponent(cycle, "Cycle time", "ns", 0, 1000000000);
+        A2lTypedefMeasurementComponent(cycle_counter, "Cycle counter");
+        A2lTypedefPhysMeasurementComponent(cycle_time, "Cycle time", "ns", 0, 1E10);
         A2lTypedefMeasurementArrayComponent(addr, "IP address");
         A2lTypedefMeasurementArrayComponent(id, "Clock UUID");
         A2lTypedefMeasurementComponent(time, "DELAY_REQ timestamp (t3)");
@@ -1044,9 +1049,9 @@ static bool masterHandleFrame(tPtp *ptp, tPtpMaster *master, int n, struct ptphd
             master->client[i].time = htonl(ptp_msg->timestamp.timestamp_s) * 1000000000ULL + htonl(ptp_msg->timestamp.timestamp_ns);
             master->client[i].diff = rxTimestamp - master->client[i].time;
             master->client[i].corr = (uint32_t)(htonll(ptp_msg->correction) >> 16);
-            master->client[i].cycle = rxTimestamp - master->client[i].lastSeenTime;
-            master->client[i].counter++;
+            master->client[i].cycle_time = rxTimestamp - master->client[i].lastSeenTime;
             master->client[i].lastSeenTime = rxTimestamp;
+            master->client[i].cycle_counter++;
         }
     }
     return true;
@@ -1302,8 +1307,6 @@ void ptpPrintState(tPtpInterfaceHandle ptp_handle) {
         for (tPtpMaster *m = ptp->master_list; m != NULL; m = m->next) {
             masterPrintState(ptp, m);
         }
-    } else {
-        printf("No PTP master instances\n");
     }
     if (ptp->observer_list != NULL) {
         printf("\nPTP Observer States:\n");
@@ -1311,8 +1314,5 @@ void ptpPrintState(tPtpInterfaceHandle ptp_handle) {
             observerPrintState(obs);
         }
         printf("\n");
-    } else {
-        printf("No PTP observer instances\n");
-        return;
     }
 }

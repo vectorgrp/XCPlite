@@ -717,7 +717,7 @@ void XcpUpdateCalSeg(void **calPage) {
         // Release the lock on the old page
         XcpUnlockCalSeg(calSegIndex);
         // If there are calibration changes, frees the old page memory and replaces with the new one
-        *calPage = XcpLockCalSeg(calSegIndex);
+        *calPage = (void *)XcpLockCalSeg(calSegIndex);
     }
 }
 
