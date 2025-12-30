@@ -66,13 +66,6 @@ struct ptp {
 
     struct ptp_master *master_list;
     struct ptp_observer *observer_list;
-
-#ifdef OPTION_ENABLE_XCP
-
-    // XCP event id
-    tXcpEventId xcp_event; // on master SYNC or observer SYNC/FOLLOW_UP update
-
-#endif
 };
 typedef struct ptp tPtp;
 
@@ -211,6 +204,11 @@ struct ptp_observer {
 
     // Observer parameters
     const observer_parameters_t *params;
+
+    // XCP event id
+#ifdef OPTION_ENABLE_XCP
+    tXcpEventId xcp_event; // on observer SYNC/FOLLOW_UP update
+#endif
 };
 
 typedef struct ptp_observer tPtpObserver;
@@ -226,9 +224,14 @@ static void observerInit(tPtpObserver *obs, uint8_t domain, const uint8_t *uuid,
     // XCP instrumentation
 #ifdef OPTION_ENABLE_XCP
 
+    // Create an individual XCP event for measurement of this instance
+    obs->xcp_event = XcpCreateEvent(obs->name, 0, 0);
+    assert(obs->xcp_event != XCP_UNDEFINED_EVENT_ID);
+
     // Create observer parameters
     // All observers share the same calibration segment
     tXcpCalSegIndex h = XcpCreateCalSeg("observer_params", &observer_params, sizeof(observer_params));
+    assert(h != XCP_UNDEFINED_CALSEG);
     obs->params = (const observer_parameters_t *)XcpLockCalSeg(h); // Initial lock of the calibration segment (to enable calibration persistence)
 
     A2lOnce() {
@@ -241,36 +244,36 @@ static void observerInit(tPtpObserver *obs, uint8_t domain, const uint8_t *uuid,
         A2lCreateParameter(observer_params.jitter_avg_filter_size, "Jitter average filter size", "", 1.0, 300.0);
         A2lCreateParameter(observer_params.max_correction, "Maximum correction per cycle", "ns", 0.0, 1000.0);
         A2lCreateParameter(observer_params.servo_p_gain, "Proportional gain for servo", "", 0.0, 1.0);
-
-        // Create observer measurements
-        // Each observer has its own set of measurements by relative addressing mode on observer instance address
-        tPtpObserver observer;                                                    // Temporary instance for address calculations
-        A2lSetRelativeAddrMode__i(ptp->xcp_event, 0, (const uint8_t *)&observer); // Set relative addressing base addr 0 as the observer instance
-        A2lCreateMeasurement(observer.gm.domain, "domain");
-        A2lCreateMeasurementArray(observer.gm.uuid, "Grandmaster UUID");
-        A2lCreateMeasurementArray(observer.gm.addr, "Grandmaster IP address");
-        A2lCreateMeasurement(observer.sync_local_time, "SYNC RX timestamp");
-        A2lCreateMeasurement(observer.sync_master_time, "SYNC timestamp");
-        A2lCreatePhysMeasurement(observer.sync_correction, "SYNC correction", "ns", 0, 1000000);
-        A2lCreateMeasurement(observer.sync_sequenceId, "SYNC sequence counter");
-        A2lCreateMeasurement(observer.sync_steps, "SYNC mode");
-        A2lCreatePhysMeasurement(observer.sync_cycle_time, "SYNC cycle time", "ns", 999999900, 1000000100);
-        A2lCreateMeasurement(observer.flup_master_time, "FOLLOW_UP timestamp");
-        A2lCreateMeasurement(observer.flup_sequenceId, "FOLLOW_UP sequence counter");
-        A2lCreatePhysMeasurement(observer.flup_correction, "FOLLOW_UP correction", "ns", 0, 1000000);
-        A2lCreatePhysMeasurement(observer.t1_norm, "t1 normalized to startup reference time t1_offset", "ns", 0, +1000000);
-        A2lCreatePhysMeasurement(observer.t2_norm, "t2 normalized to startup reference time t2_offset", "ns", 0, +1000000);
-        A2lCreatePhysMeasurement(observer.master_drift_raw, "", "ppm*1000", -100, +100);
-        A2lCreatePhysMeasurement(observer.master_drift, "", "ppm*1000", -100, +100);
-        A2lCreatePhysMeasurement(observer.master_drift_drift, "", "ppm*1000", -10, +10);
-        A2lCreatePhysMeasurement(observer.master_offset_raw, "t1-t2 raw value (not used)", "ns", -1000000, +1000000);
-        A2lCreatePhysMeasurement(observer.master_offset_compensation, "offset for detrending", "ns", -1000, +1000);
-        A2lCreatePhysMeasurement(observer.master_offset_detrended, "detrended master offset", "ns", -1000, +1000);
-        A2lCreatePhysMeasurement(observer.master_offset_detrended_filtered, "filtered detrended master offset", "ns", -1000, +1000);
-        A2lCreatePhysMeasurement(observer.master_jitter, "offset jitter raw value", "ns", -1000, +1000);
-        A2lCreatePhysMeasurement(observer.master_jitter_rms, "Jitter root mean square", "ns", -1000, +1000);
-        A2lCreatePhysMeasurement(observer.master_jitter_avg, "Jitter average", "ns", -1000, +1000);
     }
+
+    // Create observer measurements
+    // Each observer has its own set of measurements by relative addressing mode on the observer instance address
+    tPtpObserver o;                                                 // Temporary instance for address calculations
+    A2lSetRelativeAddrMode__i(o.xcp_event, 0, (const uint8_t *)&o); // Set relative addressing base addr 0 as the observer instance
+    A2lCreateMeasurementInstance(obs->name, o.gm.domain, "domain");
+    A2lCreateMeasurementArrayInstance(obs->name, o.gm.uuid, "Grandmaster UUID");
+    A2lCreateMeasurementArrayInstance(obs->name, o.gm.addr, "Grandmaster IP address");
+    A2lCreateMeasurementInstance(obs->name, o.sync_local_time, "SYNC RX timestamp");
+    A2lCreateMeasurementInstance(obs->name, o.sync_master_time, "SYNC timestamp");
+    A2lCreatePhysMeasurementInstance(obs->name, o.sync_correction, "SYNC correction", "ns", 0, 1000000);
+    A2lCreateMeasurementInstance(obs->name, o.sync_sequenceId, "SYNC sequence counter");
+    A2lCreateMeasurementInstance(obs->name, o.sync_steps, "SYNC mode");
+    A2lCreatePhysMeasurementInstance(obs->name, o.sync_cycle_time, "SYNC cycle time", "ns", 999999900, 1000000100);
+    A2lCreateMeasurementInstance(obs->name, o.flup_master_time, "FOLLOW_UP timestamp");
+    A2lCreateMeasurementInstance(obs->name, o.flup_sequenceId, "FOLLOW_UP sequence counter");
+    A2lCreatePhysMeasurementInstance(obs->name, o.flup_correction, "FOLLOW_UP correction", "ns", 0, 1000000);
+    A2lCreatePhysMeasurementInstance(obs->name, o.t1_norm, "t1 normalized to startup reference time t1_offset", "ns", 0, +1000000);
+    A2lCreatePhysMeasurementInstance(obs->name, o.t2_norm, "t2 normalized to startup reference time t2_offset", "ns", 0, +1000000);
+    A2lCreatePhysMeasurementInstance(obs->name, o.master_drift_raw, "", "ppm*1000", -100, +100);
+    A2lCreatePhysMeasurementInstance(obs->name, o.master_drift, "", "ppm*1000", -100, +100);
+    A2lCreatePhysMeasurementInstance(obs->name, o.master_drift_drift, "", "ppm*1000", -10, +10);
+    A2lCreatePhysMeasurementInstance(obs->name, o.master_offset_raw, "t1-t2 raw value (not used)", "ns", -1000000, +1000000);
+    A2lCreatePhysMeasurementInstance(obs->name, o.master_offset_compensation, "offset for detrending", "ns", -1000, +1000);
+    A2lCreatePhysMeasurementInstance(obs->name, o.master_offset_detrended, "detrended master offset", "ns", -1000, +1000);
+    A2lCreatePhysMeasurementInstance(obs->name, o.master_offset_detrended_filtered, "filtered detrended master offset", "ns", -1000, +1000);
+    A2lCreatePhysMeasurementInstance(obs->name, o.master_jitter, "offset jitter raw value", "ns", -1000, +1000);
+    A2lCreatePhysMeasurementInstance(obs->name, o.master_jitter_rms, "Jitter root mean square", "ns", -1000, +1000);
+    A2lCreatePhysMeasurementInstance(obs->name, o.master_jitter_avg, "Jitter average", "ns", -1000, +1000);
 
 #endif
 
@@ -495,7 +498,7 @@ static void observerUpdate(tPtpObserver *obs, uint64_t t1_in, uint64_t correctio
 
     // XCP measurement event (relative addressing mode to observer instance)
 #ifdef OPTION_ENABLE_XCP
-    XcpEventExt(ptp->xcp_event, (const uint8_t *)obs);
+    XcpEventExt(obs->xcp_event, (const uint8_t *)obs);
 #endif
 }
 
@@ -672,6 +675,11 @@ struct ptp_master {
 
     // PTP master parameters
     const master_parameters_t *params;
+
+    // XCP event id
+#ifdef OPTION_ENABLE_XCP
+    tXcpEventId xcp_event; // on master SYNC
+#endif
 };
 
 typedef struct ptp_master tPtpMaster;
@@ -893,8 +901,13 @@ static void masterInit(tPtpMaster *master, uint8_t domain, uint8_t *uuid) {
     // XCP instrumentation
 #ifdef OPTION_ENABLE_XCP
 
+    // Create XCP event for master SYNC messages
+    master->xcp_event = XcpCreateEvent(master->name, 0, 0);
+    assert(master->xcp_event != XCP_UNDEFINED_EVENT_ID);
+
     // Create XCP calibration parameter segment, if not already existing
     tXcpCalSegIndex h = XcpCreateCalSeg("master_params", &master_params, sizeof(master_params));
+    assert(h != XCP_UNDEFINED_CALSEG);
     master->params = (master_parameters_t *)XcpLockCalSeg(h); // Initial lock of the calibration segment (for persistence)
 
     A2lOnce() {
@@ -914,18 +927,18 @@ static void masterInit(tPtpMaster *master, uint8_t domain, uint8_t *uuid) {
         A2lTypedefMeasurementComponent(corr, "DELAY_REQ correction");
         A2lTypedefPhysMeasurementComponent(diff, "Timestamp difference (t4 - t3)", "ns", -1000000000, +1000000000);
         A2lTypedefEnd();
-
-        // Create A2L measurement definitions for master state
-        tPtpMaster master; // Dummy structure for A2L address calculations
-        A2lSetRelativeAddrMode__i(ptp->xcp_event, 0, (const uint8_t *)&master);
-        A2lCreateMeasurementInstance(ptp->name, master.clientCount, "Number of PTP clients");
-        char name[32];
-        snprintf(name, sizeof(name), "%s.master.client", ptp->name);
-        A2lCreateInstance(name, tPtpClient, MAX_CLIENTS, master.client, "PTP client list");
-        A2lCreateMeasurementInstance(ptp->name, master.syncTxTimestamp, "SYNC tx timestamp");
-        A2lCreateMeasurementInstance(ptp->name, master.sequenceIdAnnounce, "Announce sequence id");
-        A2lCreateMeasurementInstance(ptp->name, master.sequenceIdSync, "SYNC sequence id");
     }
+
+    // Create A2L measurements for master state
+    tPtpMaster m; // Dummy structure for A2L address calculations
+    A2lSetRelativeAddrMode__i(master->xcp_event, 0, (const uint8_t *)&m);
+    A2lCreateMeasurementInstance(master->name, m.clientCount, "Number of PTP clients");
+    char name[32];
+    snprintf(name, sizeof(name), "%s.master.client", master->name);
+    A2lCreateInstance(name, tPtpClient, MAX_CLIENTS, m.client, "PTP client list"); // Array of clients
+    A2lCreateMeasurementInstance(master->name, m.syncTxTimestamp, "SYNC tx timestamp");
+    A2lCreateMeasurementInstance(master->name, m.sequenceIdAnnounce, "Announce sequence id");
+    A2lCreateMeasurementInstance(master->name, m.sequenceIdSync, "SYNC sequence id");
 
 #endif
 
@@ -947,7 +960,7 @@ static bool masterTask(tPtp *ptp, tPtpMaster *master) {
     // Update master parameters (update XCP calibrations)
 #ifdef OPTION_ENABLE_XCP
     // Each master instance holds its parameter lock continuously, so it may take about a second to make calibration changes effective (until all updates are done)
-    XcpUpdateCalSeg(&master->params);
+    XcpUpdateCalSeg((void **)&master->params);
 #endif
 
     uint64_t t = clockGet();
@@ -986,7 +999,7 @@ static bool masterTask(tPtp *ptp, tPtpMaster *master) {
 
         // XCP measurement event (relative addressing mode for this master instance)
 #ifdef OPTION_ENABLE_XCP
-        XcpEventExt(ptp->xcp_event, &master);
+        XcpEventExt(master->xcp_event, master);
 #endif
     }
 
@@ -1120,12 +1133,6 @@ tPtpInterfaceHandle ptpCreateInterface(const uint8_t *if_addr, const char *if_na
     // PTP communication parameters
     memcpy(ptp->if_addr, if_addr, 4);
     strncpy(ptp->if_name, if_name ? if_name : "", sizeof(ptp->if_name) - 1);
-
-#ifdef OPTION_ENABLE_XCP
-    // Create an individual XCP event for measurement of this instance
-    // @@@@ TODO: Use if_name name ????
-    ptp->xcp_event = XcpCreateEvent(instance_name, 0, 0);
-#endif
 
     // Create sockets for event (319) and general messages (320)
     ptp->sock319 = ptp->sock320 = INVALID_SOCKET;

@@ -2,7 +2,7 @@
 
 /* ptp.h */
 
-// #define OPTION_ENABLE_XCP
+#define OPTION_ENABLE_XCP
 
 #ifdef __cplusplus
 extern "C" {

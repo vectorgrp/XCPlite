@@ -383,6 +383,7 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
                                unit_or_conversion, min, max, comment);
 
 // With instance name
+// Instance name is used as prefix for the A2L symbol name
 #define A2lCreateMeasurementInstance(instance_name, name, comment) A2lCreateMeasurement_(instance_name, #name, A2lGetTypeId(name), 1, &name, NULL, 0.0, 0.0, comment);
 
 #define A2lCreatePhysMeasurementInstance(instance_name, name, comment, unit_or_conversion, min, max)                                                                               \
