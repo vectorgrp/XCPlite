@@ -4,6 +4,46 @@
 
 #define OPTION_ENABLE_XCP
 
+//-------------------------------------------------------------------------------------------------------
+// PTP state
+
+#include <stdbool.h> // for bool
+#include <stdint.h>  // for uintxx_t
+
+#include "filter.h"   // for average filter
+#include "platform.h" // from xcplib for SOCKET, socketSendTo, socketGetSendTime, ...
+
+#include "ptp.h"
+#include "ptpHdr.h" // PTP protocol message structures
+
+// Forward declarations
+struct ptp_observer;
+struct ptp_master;
+
+#define PTP_MAGIC 0x50545021 // "PTP!"
+
+struct ptp {
+
+    uint32_t magic; // Magic number for validation
+
+    // Sockets and communication
+    uint8_t if_addr[4]; // local addr
+    char if_name[32];   // network interface name
+    uint8_t maddr[4];   // multicast addr
+    THREAD threadHandle320;
+    THREAD threadHandle319;
+    SOCKET sock320;
+    SOCKET sock319;
+    MUTEX mutex;
+
+    uint8_t log_level;
+    bool auto_observer_enabled;
+
+    struct ptp_master *master_list;
+    struct ptp_observer *observer_list;
+};
+typedef struct ptp tPtp;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
