@@ -607,7 +607,7 @@ static bool observerHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_
 // PTP master
 
 #define MAX_CLIENTS 16
-#define SYNC_CYCLE_TIME_MS_DEFAULT 500
+#define SYNC_CYCLE_TIME_MS_DEFAULT 1000
 #define ANNOUNCE_CYCLE_TIME_MS_DEFAULT 2000
 
 typedef struct {
@@ -662,6 +662,8 @@ typedef struct ptp_client tPtpClient;
 
 // PTP master state
 struct ptp_master {
+
+    bool active;
 
     // Master identification
     u_int8_t domain;
@@ -888,26 +890,88 @@ static void masterPrintState(tPtp *ptp, tPtpMaster *master) {
     uint64_t t;
 
     printf("\nMaster Info:\n");
+
     printf(" UUID:           %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n", master->uuid[0], master->uuid[1], master->uuid[2], master->uuid[3], master->uuid[4], master->uuid[5],
            master->uuid[6], master->uuid[7]);
     printf(" IP:             %u.%u.%u.%u\n", ptp->if_addr[0], ptp->if_addr[1], ptp->if_addr[2], ptp->if_addr[3]);
     printf(" Interface:      %s\n", ptp->if_name);
     printf(" Domain:         %u\n", master->domain);
-    printf(" ANNOUNCE cycle: %ums\n", master->params->announceCycleTimeMs);
-    printf(" SYNC cycle:     %ums\n", master->params->syncCycleTimeMs);
-
-    printf("Client list:\n");
-    for (uint16_t i = 0; i < master->clientCount; i++) {
-        printClient(master, i);
+    if (!master->active) {
+        printf(" Status:         INACTIVE\n");
+    } else {
+        printf(" ANNOUNCE cycle: %ums\n", master->params->announceCycleTimeMs);
+        printf(" SYNC cycle:     %ums\n", master->params->syncCycleTimeMs);
+        printf("Client list:\n");
+        for (uint16_t i = 0; i < master->clientCount; i++) {
+            printClient(master, i);
+        }
     }
     printf("\n");
 }
 
-// Initialize the PTP master state
-static void masterInit(tPtpMaster *master, uint8_t domain, uint8_t *uuid) {
+#if !defined(_MACOS) && !defined(_QNX)
+#include <linux/if_packet.h>
+#else
+#include <ifaddrs.h>
+#include <net/if_dl.h>
+#endif
+#if !defined(_WIN) // Non-Windows platforms
+#include <ifaddrs.h>
+#endif
 
-    master->params = &master_params;
+static bool GetMAC(char *ifname, uint8_t *mac) {
+    struct ifaddrs *ifaddrs, *ifa;
+    if (getifaddrs(&ifaddrs) == 0) {
+        for (ifa = ifaddrs; ifa != NULL; ifa = ifa->ifa_next) {
+            if (!strcmp(ifa->ifa_name, ifname)) {
+#if defined(_MACOS) || defined(_QNX)
+                if (ifa->ifa_addr->sa_family == AF_LINK) {
+                    memcpy(mac, (uint8_t *)LLADDR((struct sockaddr_dl *)ifa->ifa_addr), 6);
+                }
+#else
+                if (ifa->ifa_addr->sa_family == AF_PACKET) {
+                    struct sockaddr_ll *s = (struct sockaddr_ll *)ifa->ifa_addr;
+                    memcpy(mac, s->sll_addr, 6);
+                    break;
+                }
+#endif
+            }
+        }
+        freeifaddrs(ifaddrs);
+        return (ifa != NULL);
+    }
+    return false;
+}
+
+// Initialize the PTP master state
+static void masterInit(tPtp *ptp, tPtpMaster *master, uint8_t domain, const uint8_t *uuid) {
+
+    master->domain = domain;
+
+    // Generate UUID from MAC address if not provided
+    if (uuid == NULL || memcmp(uuid, "\0\0\0\0\0\0\0\0", 8) == 0) {
+        uint8_t mac[6];
+        if (GetMAC(ptp->if_name, mac)) {
+            // Use MAC address to generate UUID (EUI-64 format)
+            master->uuid[0] = mac[0] ^ 0x02; // locally administered
+            master->uuid[1] = mac[1];
+            master->uuid[2] = mac[2];
+            master->uuid[3] = 0xFF;
+            master->uuid[4] = 0xFE;
+            master->uuid[5] = mac[3];
+            master->uuid[6] = mac[4];
+            master->uuid[7] = mac[5];
+        } else {
+            printf("ERROR: Failed to get MAC address for interface %s, using zero UUID\n", ptp->if_name);
+            memset(master->uuid, 0, 8);
+        }
+    } else {
+        memcpy(master->uuid, uuid, 8);
+    }
+
     master->next = NULL;
+    initClientList(master);
+    master->params = &master_params;
 
     // XCP instrumentation
 #ifdef OPTION_ENABLE_XCP
@@ -953,16 +1017,14 @@ static void masterInit(tPtpMaster *master, uint8_t domain, uint8_t *uuid) {
 
 #endif
 
-    master->domain = domain;
-    memcpy(master->uuid, uuid, sizeof(master->uuid));
-    initClientList(master);
-
     uint64_t t = clockGet();
     master->announceCycleTimer = 0;                                                                               // Send announce immediately
     master->syncCycleTimer = t + 100 * CLOCK_TICKS_PER_MS - master->params->syncCycleTimeMs * CLOCK_TICKS_PER_MS; // First SYNC after 100ms
     master->syncTxTimestamp = 0;
     master->sequenceIdAnnounce = 0;
     master->sequenceIdSync = 0;
+
+    master->active = true;
 }
 
 // Master main cycle
@@ -973,6 +1035,9 @@ static bool masterTask(tPtp *ptp, tPtpMaster *master) {
     // Each master instance holds its parameter lock continuously, so it may take about a second to make calibration changes effective (until all updates are done)
     XcpUpdateCalSeg((void **)&master->params);
 #endif
+
+    if (!master->active)
+        return true;
 
     uint64_t t = clockGet();
     uint32_t announceCycleTimeMs = master->params->announceCycleTimeMs; // Announce message cycle time in ms
@@ -1024,18 +1089,34 @@ static bool masterTask(tPtp *ptp, tPtpMaster *master) {
 // Handle a received Delay Request message
 static bool masterHandleFrame(tPtp *ptp, tPtpMaster *master, int n, struct ptphdr *ptp_msg, uint8_t *addr, uint64_t rxTimestamp) {
 
-    if (n >= 44 && n <= 64) {
+    if (!(n >= 44 && n <= 64)) {
+        DBG_PRINT_ERROR("Invalid PTP message size\n");
+        return false; // PTP message too small or too large
+    }
 
-        if (ptp_msg->type == PTP_DELAY_REQ) {
+    if (!master->active)
+        return true;
 
-            if (ptp_msg->domain == master->domain) {
-                bool ok;
-                mutexLock(&ptp->mutex);
-                ok = ptpSendDelayResponse(ptp, master, ptp_msg, rxTimestamp);
-                mutexUnlock(&ptp->mutex);
-                if (!ok)
-                    return false;
-            }
+    if (ptp_msg->type == PTP_ANNOUNCE) {
+        if (ptp_msg->domain == master->domain && memcmp(ptp_msg->clockId, master->uuid, 8) != 0) {
+            // There is another master on the network with the same domain and a different UUID
+            printf("PTP Master '%s': Received ANNOUNCE from another master with same domain %u (UUID %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X)\n", master->name, ptp_msg->domain,
+                   ptp_msg->clockId[0], ptp_msg->clockId[1], ptp_msg->clockId[2], ptp_msg->clockId[3], ptp_msg->clockId[4], ptp_msg->clockId[5], ptp_msg->clockId[6],
+                   ptp_msg->clockId[7]);
+            printf("PTP Master '%s': Best master algorithm is not supported!\n");
+            master->active = false;
+        }
+    }
+
+    if (ptp_msg->type == PTP_DELAY_REQ) {
+
+        if (ptp_msg->domain == master->domain) {
+            bool ok;
+            mutexLock(&ptp->mutex);
+            ok = ptpSendDelayResponse(ptp, master, ptp_msg, rxTimestamp);
+            mutexUnlock(&ptp->mutex);
+            if (!ok)
+                return false;
 
             // Maintain PTP client list
             uint16_t i = lookupClient(master, addr, ptp_msg->clockId);
@@ -1054,6 +1135,7 @@ static bool masterHandleFrame(tPtp *ptp, tPtpMaster *master, int n, struct ptphd
             master->client[i].cycle_counter++;
         }
     }
+
     return true;
 }
 
@@ -1233,7 +1315,7 @@ tPtpMasterHandle ptpCreateMaster(const char *name, tPtpInterfaceHandle ptp_handl
     tPtpMaster *master = (tPtpMaster *)malloc(sizeof(tPtpMaster));
     memset(master, 0, sizeof(tPtpMaster));
     strncpy(master->name, name, sizeof(master->name) - 1);
-    masterInit(master, domain, (uint8_t *)uuid);
+    masterInit(ptp, master, domain, uuid);
     master->log_level = ptp->log_level;
 
     // Register the master instance

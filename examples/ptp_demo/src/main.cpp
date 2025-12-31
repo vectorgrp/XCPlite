@@ -40,7 +40,6 @@ constexpr int OPTION_LOG_LEVEL = 2; // 0=none, 1=error, 2=warning, 3=info
 constexpr uint8_t PTP_BIND_ADDRESS[4] = {0, 0, 0, 0};
 constexpr const char PTP_INTERFACE[] = "eth0";
 constexpr int PTP_DOMAIN = 0;
-constexpr uint8_t PTP_UUID[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 #define PTP_MODE_OBSERVER 0x01
 #define PTP_MODE_MASTER 0x02
 #define PTP_MODE_AUTO_OBSERVER 0x03
@@ -73,8 +72,7 @@ int main(int argc, char *argv[]) {
     int ptp_mode = PTP_MODE;
     int ptp_domain = PTP_DOMAIN;
     int ptp_log_level = PTP_LOG_LEVEL;
-    uint8_t ptp_uuid[8];
-    std::memcpy(ptp_uuid, PTP_UUID, sizeof(ptp_uuid));
+    uint8_t ptp_uuid[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}; // default create from MAC in ptpCreateMaster
 
     // Parse command line arguments
     for (int i = 1; i < argc; i++) {
