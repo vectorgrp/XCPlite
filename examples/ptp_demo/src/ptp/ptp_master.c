@@ -322,7 +322,6 @@ void masterInit(tPtp *ptp, tPtpMaster *master, uint8_t domain, const uint8_t *uu
         memcpy(master->uuid, uuid, 8);
     }
 
-    master->next = NULL;
     initClientList(master);
     master->params = &master_params;
 
@@ -440,55 +439,59 @@ bool masterTask(tPtp *ptp, tPtpMaster *master) {
 // PTP master frame handling
 
 // Handle a received Delay Request message
-bool masterHandleFrame(tPtp *ptp, tPtpMaster *master, int n, struct ptphdr *ptp_msg, uint8_t *addr, uint64_t rxTimestamp) {
+bool masterHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr, uint64_t rxTimestamp) {
 
     if (!(n >= 44 && n <= 64)) {
         DBG_PRINT_ERROR("Invalid PTP message size\n");
         return false; // PTP message too small or too large
     }
 
-    if (!master->active)
-        return true;
+    for (int i = 0; i < ptp->master_count; i++) {
+        tPtpMaster *master = ptp->master_list[i];
 
-    if (ptp_msg->type == PTP_ANNOUNCE) {
-        if (ptp_msg->domain == master->domain && memcmp(ptp_msg->clockId, master->uuid, 8) != 0) {
-            // There is another master on the network with the same domain and a different UUID
-            printf("PTP Master '%s': Received ANNOUNCE from another master with same domain %u (UUID %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X)\n", master->name, ptp_msg->domain,
-                   ptp_msg->clockId[0], ptp_msg->clockId[1], ptp_msg->clockId[2], ptp_msg->clockId[3], ptp_msg->clockId[4], ptp_msg->clockId[5], ptp_msg->clockId[6],
-                   ptp_msg->clockId[7]);
-            printf("PTP Master '%s': Best master algorithm is not supported!\n");
-            master->active = false;
-        }
-    }
+        if (!master->active)
+            continue;
+        ;
 
-    if (ptp_msg->type == PTP_DELAY_REQ) {
-
-        if (ptp_msg->domain == master->domain) {
-            bool ok;
-            mutexLock(&ptp->mutex);
-            ok = ptpSendDelayResponse(ptp, master, ptp_msg, rxTimestamp);
-            mutexUnlock(&ptp->mutex);
-            if (!ok)
-                return false;
-
-            // Maintain PTP client list
-            uint16_t i = lookupClient(master, addr, ptp_msg->clockId);
-            bool newClient = (i >= MAX_CLIENTS);
-            if (newClient) {
-                i = addClient(master, addr, ptp_msg->clockId, ptp_msg->domain);
-                masterPrintState(ptp, master); // Print state when a new client is added
+        if (ptp_msg->type == PTP_ANNOUNCE) {
+            if (ptp_msg->domain == master->domain && memcmp(ptp_msg->clockId, master->uuid, 8) != 0) {
+                // There is another master on the network with the same domain and a different UUID
+                printf("PTP Master '%s': Received ANNOUNCE from another master with same domain %u (UUID %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X)\n", master->name, ptp_msg->domain,
+                       ptp_msg->clockId[0], ptp_msg->clockId[1], ptp_msg->clockId[2], ptp_msg->clockId[3], ptp_msg->clockId[4], ptp_msg->clockId[5], ptp_msg->clockId[6],
+                       ptp_msg->clockId[7]);
+                printf("PTP Master '%s': Best master algorithm is not supported!\n", master->name);
+                master->active = false;
             }
+        }
 
-            // Some clients send non zero timestamp values in their DELAY_REQ which allows to visualize information on time synchronisation quality
-            master->client[i].time = htonl(ptp_msg->timestamp.timestamp_s) * 1000000000ULL + htonl(ptp_msg->timestamp.timestamp_ns);
-            master->client[i].diff = rxTimestamp - master->client[i].time;
-            master->client[i].corr = (uint32_t)(htonll(ptp_msg->correction) >> 16);
-            master->client[i].cycle_time = rxTimestamp - master->client[i].lastSeenTime;
-            master->client[i].lastSeenTime = rxTimestamp;
-            master->client[i].cycle_counter++;
+        if (ptp_msg->type == PTP_DELAY_REQ) {
+
+            if (ptp_msg->domain == master->domain) {
+                bool ok;
+                mutexLock(&ptp->mutex);
+                ok = ptpSendDelayResponse(ptp, master, ptp_msg, rxTimestamp);
+                mutexUnlock(&ptp->mutex);
+                if (!ok)
+                    return false;
+
+                // Maintain PTP client list
+                uint16_t i = lookupClient(master, addr, ptp_msg->clockId);
+                bool newClient = (i >= MAX_CLIENTS);
+                if (newClient) {
+                    i = addClient(master, addr, ptp_msg->clockId, ptp_msg->domain);
+                    masterPrintState(ptp, master); // Print state when a new client is added
+                }
+
+                // Some clients send non zero timestamp values in their DELAY_REQ which allows to visualize information on time synchronisation quality
+                master->client[i].time = htonl(ptp_msg->timestamp.timestamp_s) * 1000000000ULL + htonl(ptp_msg->timestamp.timestamp_ns);
+                master->client[i].diff = rxTimestamp - master->client[i].time;
+                master->client[i].corr = (uint32_t)(htonll(ptp_msg->correction) >> 16);
+                master->client[i].cycle_time = rxTimestamp - master->client[i].lastSeenTime;
+                master->client[i].lastSeenTime = rxTimestamp;
+                master->client[i].cycle_counter++;
+            }
         }
     }
-
     return true;
 }
 
@@ -497,6 +500,12 @@ tPtpMasterHandle ptpCreateMaster(const char *name, tPtpInterfaceHandle ptp_handl
     tPtp *ptp = (tPtp *)ptp_handle;
     assert(ptp != NULL && ptp->magic == PTP_MAGIC);
 
+    if (ptp->master_count >= PTP_MAX_MASTERS) {
+        DBG_PRINT_ERROR("Maximum number of PTP masters reached\n");
+        return NULL;
+    }
+
+    // Create and initialize master instance
     tPtpMaster *master = (tPtpMaster *)malloc(sizeof(tPtpMaster));
     memset(master, 0, sizeof(tPtpMaster));
     strncpy(master->name, name, sizeof(master->name) - 1);
@@ -504,8 +513,7 @@ tPtpMasterHandle ptpCreateMaster(const char *name, tPtpInterfaceHandle ptp_handl
     master->log_level = ptp->log_level;
 
     // Register the master instance
-    master->next = ptp->master_list;
-    ptp->master_list = master;
+    ptp->master_list[ptp->master_count++] = master;
 
     return (tPtpMasterHandle)master;
 }

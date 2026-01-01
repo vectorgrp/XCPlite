@@ -116,9 +116,7 @@ static void *ptpThread319(void *par)
             break; // Terminate on error or socket close
         if (ptp->log_level >= 4)
             printFrame("RX", (struct ptphdr *)buffer, addr, rxTime); // Print incoming PTP traffic
-        for (struct ptp_master *m = ptp->master_list; m != NULL; m = m->next) {
-            masterHandleFrame(ptp, m, n, (struct ptphdr *)buffer, addr, rxTime);
-        }
+        masterHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, rxTime);
         observerHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, rxTime);
     }
     if (ptp->log_level >= 3)
@@ -147,9 +145,7 @@ static void *ptpThread320(void *par)
             break; // Terminate on error or socket close
         if (ptp->log_level >= 4)
             printFrame("RX", (struct ptphdr *)buffer, addr, 0); // Print incoming PTP traffic
-        for (struct ptp_master *m = ptp->master_list; m != NULL; m = m->next) {
-            masterHandleFrame(ptp, m, n, (struct ptphdr *)buffer, addr, 0);
-        }
+        masterHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, 0);
         observerHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, 0);
     }
     if (ptp->log_level >= 3)
@@ -245,11 +241,14 @@ bool ptpTask(tPtpInterfaceHandle ptp_handle) {
     tPtp *ptp = (tPtp *)ptp_handle;
     assert(ptp != NULL && ptp->magic == PTP_MAGIC);
 
-    for (struct ptp_master *m = ptp->master_list; m != NULL; m = m->next) {
-        if (!masterTask(ptp, m))
-            return false;
+    bool res = true;
+    for (int i = 0; i < ptp->master_count; i++) {
+        res &= masterTask(ptp, ptp->master_list[i]);
     }
-    return true;
+    for (int i = 0; i < ptp->observer_count; i++) {
+        res &= observerTask(ptp, ptp->observer_list[i]);
+    }
+    return res;
 }
 
 // Stop PTP
@@ -264,19 +263,17 @@ void ptpShutdown(tPtpInterfaceHandle ptp_handle) {
     socketClose(&ptp->sock319);
     socketClose(&ptp->sock320);
 
-    for (struct ptp_master *m = ptp->master_list; m != NULL;) {
-        struct ptp_master *next = m->next;
-        free(m);
-        m = next;
+    for (int i = 0; i < ptp->master_count; i++) {
+        free(ptp->master_list[i]);
+        ptp->master_list[i] = NULL;
     }
-    ptp->master_list = NULL;
+    ptp->master_count = 0;
 
-    for (tPtpObserver *c = ptp->observer_list; c != NULL;) {
-        tPtpObserver *next = c->next;
-        free(c);
-        c = next;
+    for (int i = 0; i < ptp->observer_count; i++) {
+        free(ptp->observer_list[i]);
+        ptp->observer_list[i] = NULL;
     }
-    ptp->observer_list = NULL;
+    ptp->observer_count = 0;
 
     ptp->magic = 0;
     free(ptp);
@@ -296,15 +293,16 @@ void ptpPrintState(tPtpInterfaceHandle ptp_handle) {
     tPtp *ptp = (tPtp *)ptp_handle;
     assert(ptp != NULL && ptp->magic == PTP_MAGIC);
 
-    if (ptp->master_list != NULL) {
-        for (tPtpMaster *m = ptp->master_list; m != NULL; m = m->next) {
-            masterPrintState(ptp, m);
+    if (ptp->master_count > 0) {
+        printf("\nPTP Master States:\n");
+        for (int i = 0; i < ptp->master_count; i++) {
+            masterPrintState(ptp, ptp->master_list[i]);
         }
     }
-    if (ptp->observer_list != NULL) {
+    if (ptp->observer_count > 0) {
         printf("\nPTP Observer States:\n");
-        for (tPtpObserver *obs = ptp->observer_list; obs != NULL; obs = obs->next) {
-            observerPrintState(obs);
+        for (int i = 0; i < ptp->observer_count; i++) {
+            observerPrintState(ptp, ptp->observer_list[i]);
         }
         printf("\n");
     }

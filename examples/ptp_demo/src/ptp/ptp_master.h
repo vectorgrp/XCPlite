@@ -74,7 +74,6 @@ struct ptp_master {
     u_int8_t domain;
     uint8_t uuid[8];
 
-    struct ptp_master *next; // next master in list
     uint8_t log_level;
     char name[32];
 
@@ -101,5 +100,5 @@ typedef struct ptp_master tPtpMaster;
 
 void masterPrintState(tPtp *ptp, tPtpMaster *master);
 bool masterTask(tPtp *ptp, tPtpMaster *master);
-bool masterHandleFrame(tPtp *ptp, tPtpMaster *master, int n, struct ptphdr *ptp_msg, uint8_t *addr, uint64_t rxTimestamp);
+bool masterHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr, uint64_t rxTimestamp);
 tPtpMasterHandle ptpCreateMaster(const char *name, tPtpInterfaceHandle ptp_handle, uint8_t domain, const uint8_t *uuid);

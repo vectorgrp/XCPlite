@@ -22,6 +22,9 @@ struct ptp_master;
 
 #define PTP_MAGIC 0x50545021 // "PTP!"
 
+#define PTP_MAX_MASTERS 16
+#define PTP_MAX_OBSERVERS 16
+
 struct ptp {
 
     uint32_t magic; // Magic number for validation
@@ -39,8 +42,11 @@ struct ptp {
     uint8_t log_level;
     bool auto_observer_enabled;
 
-    struct ptp_master *master_list;
-    struct ptp_observer *observer_list;
+    int master_count;
+    struct ptp_master *master_list[PTP_MAX_MASTERS];
+
+    int observer_count;
+    struct ptp_observer *observer_list[PTP_MAX_OBSERVERS];
 };
 typedef struct ptp tPtp;
 
