@@ -877,7 +877,6 @@ int16_t socketRecvFrom(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, uint8_
         uint16_t n = 0;
         for (cmsg = CMSG_FIRSTHDR(&msg); cmsg != NULL; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
             n++;
-            // From PTP4L
             int level = cmsg->cmsg_level;
             int type = cmsg->cmsg_type;
             DBG_PRINTF4("socketRecvFrom: cmsg level=%d type=%d (%s) \n", level, type, (level == SOL_SOCKET && type == SO_TIMESTAMPING) ? "SO_TIMESTAMPING" : "SO_TIMESTAMPNS");

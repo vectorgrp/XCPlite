@@ -18,17 +18,20 @@
 
 // Observer parameter structure
 typedef struct {
-    uint8_t reset;                     // Reset PTP observer state
-    int32_t t1_correction;             // Correction to apply to t1 timestamps
-    uint8_t drift_filter_size;         // Size of the drift average filter
-    uint8_t drift_drift_filter_size;   // Size of the drift of drift average filter
+    uint8_t reset;             // Reset PTP observer state
+    int32_t t1_correction;     // Correction to apply to t1 timestamps
+    uint8_t drift_filter_size; // Size of the drift average filter
+#ifdef OBSERVER_LINREG
     uint8_t linreg_filter_size;        // Size of the linear regression filter
     uint8_t linreg_offset_filter_size; // Size of the linear regression offset filter
     uint8_t linreg_jitter_filter_size; // Size of the linear regression jitter filter
-    uint8_t jitter_rms_filter_size;    // Size of the jitter RMS average filter
-    uint8_t jitter_avg_filter_size;    // Size of the jitter average filter
-    double max_correction;             // Maximum allowed servo correction per SYNC interval
-    double servo_p_gain;               // Proportional gain (typically 0.1 - 0.5)
+#endif
+#ifdef OBSERVER_SERVO
+    double max_correction; // Maximum allowed servo correction per SYNC interval
+    double servo_p_gain;   // Proportional gain (typically 0.1 - 0.5)
+#endif
+    uint8_t jitter_rms_filter_size; // Size of the jitter RMS average filter
+    uint8_t jitter_avg_filter_size; // Size of the jitter average filter
 } observer_parameters_t;
 
 // Master descriptor for observers
@@ -106,7 +109,7 @@ struct ptp_observer {
     tAverageFilter master_jitter_rms_filter;
     tAverageFilter master_jitter_avg_filter;
 
-    // Offset and driftof this observers master clock compared to any other observer
+    // Offset and drift of this observers master clock compared to any other observer
     int64_t offset_to[PTP_MAX_OBSERVERS];
     double drift_to[PTP_MAX_OBSERVERS];
 

@@ -39,18 +39,23 @@
 //---------------------------------------------------------------------------------------
 
 // Default observer parameter values
-static const observer_parameters_t observer_params = {.reset = 0,
-                                                      .t1_correction = 3, // Apply 4ns correction to t1 to compensate for master timestamp rounding
-                                                      .drift_filter_size = 30,
+static const observer_parameters_t observer_params = {
+    .reset = 0,
+    .t1_correction = 3, // Apply 4ns correction to t1 to compensate for master timestamp rounding
+    .drift_filter_size = 30,
 #ifdef OBSERVER_LINREG
-                                                      .linreg_filter_size = 30,
-                                                      .linreg_offset_filter_size = 10,
-                                                      .linreg_jitter_filter_size = 30,
+    .linreg_filter_size = 30,
+    .linreg_offset_filter_size = 10,
+    .linreg_jitter_filter_size = 30,
 #endif
-                                                      .jitter_rms_filter_size = 30,
-                                                      .jitter_avg_filter_size = 30,
-                                                      .max_correction = 1000.0, // 1000ns maximum correction per SYNC interval
-                                                      .servo_p_gain = 1.0};
+#ifdef OBSERVER_SERVO
+    .max_correction = 1000.0, // 1000ns maximum correction per SYNC interval
+    .servo_p_gain = 1.0
+#endif
+                        .jitter_rms_filter_size = 30,
+    .jitter_avg_filter_size = 30,
+
+};
 
 //---------------------------------------------------------------------------------------
 // PTP observer initialization
@@ -81,17 +86,17 @@ void observerInit(tPtpObserver *obs, uint8_t domain, const uint8_t *uuid, const 
         A2lCreateParameter(observer_params.reset, "Reset PTP observer state", "", 0, 1);
         A2lCreateParameter(observer_params.t1_correction, "Correction for t1", "", -100, 100);
         A2lCreateParameter(observer_params.drift_filter_size, "Drift filter size", "", 1, 300);
-
 #ifdef OBSERVER_LINREG
         A2lCreateParameter(observer_params.linreg_filter_size, "Linear regression filter size", "", 1, 300);
         A2lCreateParameter(observer_params.linreg_offset_filter_size, "Linear regression offset filter size", "", 1, 300);
         A2lCreateParameter(observer_params.linreg_jitter_filter_size, "Linear regression jitter filter size", "", 1, 300);
 #endif
-
-        A2lCreateParameter(observer_params.jitter_rms_filter_size, "Jitter RMS filter size", "", 1.0, 300.0);
-        A2lCreateParameter(observer_params.jitter_avg_filter_size, "Jitter average filter size", "", 1.0, 300.0);
+#ifdef OBSERVER_SERVO
         A2lCreateParameter(observer_params.max_correction, "Maximum correction per cycle", "ns", 0.0, 1000.0);
         A2lCreateParameter(observer_params.servo_p_gain, "Proportional gain for servo", "", 0.0, 1.0);
+#endif
+        A2lCreateParameter(observer_params.jitter_rms_filter_size, "Jitter RMS filter size", "", 1.0, 300.0);
+        A2lCreateParameter(observer_params.jitter_avg_filter_size, "Jitter average filter size", "", 1.0, 300.0);
     }
 
     // Create observer measurements
@@ -127,6 +132,9 @@ void observerInit(tPtpObserver *obs, uint8_t domain, const uint8_t *uuid, const 
     A2lCreatePhysMeasurementInstance(obs->name, o.master_offset_detrended, "detrended master offset", "ns", -1000, +1000);
     A2lCreatePhysMeasurementInstance(obs->name, o.master_offset_detrended_filtered, "filtered detrended master offset", "ns", -1000, +1000);
 #endif
+
+    A2lCreateMeasurementArrayInstance(obs->name, o.offset_to, "Offset to other observers");
+    A2lCreateMeasurementArrayInstance(obs->name, o.drift_to, "Offset to other observers");
 
 #endif
 
@@ -241,7 +249,7 @@ static void observerUpdate(tPtp *ptp, tPtpObserver *obs, uint64_t t1_in, uint64_
 
     obs->cycle_count++;
 
-    if (obs->log_level >= 3)
+    if (obs->log_level >= 2)
         printf("Observer %s: PTP SYNC cycle %u:\n", obs->name, obs->cycle_count);
     if (obs->log_level >= 4) {
         printf("  t1 (SYNC tx on master (via PTP))  = %s (%" PRIu64 ") (%08X)\n", clockGetString(ts1, sizeof(ts1), t1_in), t1_in, (uint32_t)t1_in);
@@ -317,7 +325,7 @@ static void observerUpdate(tPtp *ptp, tPtpObserver *obs, uint64_t t1_in, uint64_
             obs->master_drift = master_drift;
         }
         if (obs->log_level >= 3) {
-            printf("  Average filtered drift calculation results at t2 = %g ns: \n", (double)t2_norm);
+            printf("  Average filtered drift calculation results at t2 = %lld ns: \n", t2_norm);
             printf("    master_drift        = %g ns/s\n", obs->master_drift);
             printf("    master_drift_drift  = %g ns/s2\n", obs->master_drift_drift);
         }
@@ -341,7 +349,7 @@ static void observerUpdate(tPtp *ptp, tPtpObserver *obs, uint64_t t1_in, uint64_
         obs->linreg_jitter_avg = average_filter_calc(&obs->linreg_jitter_filter, obs->linreg_jitter);
 
         if (obs->log_level >= 3) {
-            printf("  Linear regression results at t2 = %g ns: \n", (double)t2_norm);
+            printf("  Linear regression results at t2 = %lld ns: \n", t2_norm);
             printf("    linreg drift = %g ns/s\n", obs->linreg_drift);
             printf("    linreg drift_drift = %g ns/s2\n", obs->linreg_drift_drift);
             printf("    linreg offset = %g ns\n", obs->linreg_offset);
@@ -414,7 +422,7 @@ static void observerUpdate(tPtp *ptp, tPtpObserver *obs, uint64_t t1_in, uint64_
             printf("  Jitter analysis:\n");
             printf("    master_jitter       = %g ns\n", obs->master_jitter);
             printf("    master_jitter_avg   = %g ns\n", obs->master_jitter_avg);
-            printf("    master_jitter_rms   = %g ns\n\n", obs->master_jitter_rms);
+            printf("    master_jitter_rms   = %g ns\n", obs->master_jitter_rms);
         }
 
         // Calculate offsets to other observers with different master clocks
@@ -422,7 +430,9 @@ static void observerUpdate(tPtp *ptp, tPtpObserver *obs, uint64_t t1_in, uint64_
             for (int j = 0; j < ptp->observer_count; j++) {
                 tPtpObserver *obs_other = ptp->observer_list[j];
                 if (obs != obs_other && obs_other->gmValid) {
-                    obs->offset_to[j] = obs->master_offset_raw - obs_other->master_offset_raw; // @@@@ TODO needs linear regression
+                    double dt = obs->t2 - obs_other->t2;
+                    obs->offset_to[j] =
+                        (double)(obs->t1 - obs_other->t1) - dt - (((double)dt * obs_other->linreg_drift) / 1000000000.0); // Compensate for different local receive times
                     obs->drift_to[j] = obs->master_drift - obs_other->master_drift;
                     if (obs->log_level >= 2) {
                         printf("    offset to %s: %" PRIi64 " ns (%g ms)\n", obs_other->name, obs->offset_to[j], obs->offset_to[j] / 1000000.0);
@@ -431,6 +441,9 @@ static void observerUpdate(tPtp *ptp, tPtpObserver *obs, uint64_t t1_in, uint64_
                 }
             }
         }
+
+        if (obs->log_level >= 2)
+            printf("\n");
 
         // Remember last normalized input values
         obs->t1_norm = t1_norm; // sync tx time on master clock
