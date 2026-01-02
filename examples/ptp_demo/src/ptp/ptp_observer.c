@@ -251,10 +251,11 @@ static void observerUpdate(tPtp *ptp, tPtpObserver *obs, uint64_t t1_in, uint64_
 
     if (obs->log_level >= 2)
         printf("Observer %s: PTP SYNC cycle %u:\n", obs->name, obs->cycle_count);
-    if (obs->log_level >= 4) {
+    if (obs->log_level >= 3) {
         printf("  t1 (SYNC tx on master (via PTP))  = %s (%" PRIu64 ") (%08X)\n", clockGetString(ts1, sizeof(ts1), t1_in), t1_in, (uint32_t)t1_in);
         printf("  t2 (SYNC rx)  = %s (%" PRIu64 ") (%08X)\n", clockGetString(ts2, sizeof(ts2), t2_in), t2_in, (uint32_t)t2_in);
         printf("  correction    = %" PRIu64 "ns\n", correction);
+        printf("  cycle time    = %" PRIu64 "ns\n", obs->sync_cycle_time);
     }
 
     // Master timestamps with correction applied

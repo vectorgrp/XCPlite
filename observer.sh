@@ -1,1 +1,0 @@
-sudo ./build/ptp_demo

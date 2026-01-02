@@ -2,7 +2,7 @@
 
 ## Overview
 
-This demo application implements a simple PTP (Precision Time Protocol, IEEE 1588) observer and a basic PTP master.
+This demo application implements a simple PTP (Precision Time Protocol, IEEE 1588) observer and a basic PTP time server.
 Use case may be analyzing PTP masters and testing PTP client stability
 Supports IEEE 1588-2008 PTPv2 over UDP/IPv4 in E2E mode
 
@@ -15,8 +15,8 @@ Options:
   -m, --master            Creates a PTP master with uuid and domain
   -o, --observer          Observer for uuid and domain (default: multi observer)
   -d, --domain <number>   Domain number 0-255 (default: 0)
-  -u, --uuid <hex>        UUID as 16 hex digits (default: 001AB60000000001)
-  -l, --loglevel <level>  Set log level (0..5)
+  -u, --uuid <hex>        UUID as 16 hex digits (default generated from MAC address)
+  -l, --loglevel <level>  Set log level (0..5, default: 1)
   -h, --help              Show this help message
 
 Example:
@@ -26,21 +26,21 @@ Example:
 
 ## PTP Master
 
-The demo can be run as a simple PTP master, sending SYNC and FOLLOW_UP messages periodically and responding to DELAY_REQUEST messages.  
+The demo can be run as a simple PTP grandmaster, sending SYNC and FOLLOW_UP messages periodically and responding to DELAY_REQUEST messages.  
 The master implementation is very basic and does not implement all required PTP features.  
 
-The master clock has adjustable offset, jitter and frequency by XCP calibration parameters.  
+The grandmaster clock has adjustable offset, jitter and frequency by XCP calibration parameters.  
 Typical use case is to test PTP clients or to provide multiple PTP masters on different network interfaces with different clock qualities.
 
 
 
 ## PTP Observer
 
-In observer mode, the application creates a PTP (Precision Time Protocol, IEEE 1588) master observer instrumented with XCP.  
+In observer mode, the application creates a PTP (Precision Time Protocol, IEEE 1588) observer instrumented with XCP.  
 The observer captures PTP SYNC and FOLLOW_UP messages from a PTP time provider on the given domain and uuid and calculates drift and jitter.  
-Running on a Linux system with good hardware time stamping support, the observer can give an estimate of the clock quality of one or multiple  PTP master.  
+Running on a Linux system with good hardware time stamping support, the observer can give an estimate of the clock quality of one or multiple  PTP grandmasters.  
   
-If no mode is specified, the application creates multiple observers for each PTP master with any domain and uuid seen.  
+If no mode is specified, the application creates multiple observers for each PTP grandmaster with any domain and uuid seen.  
 It calculates drift and time offsets between the different masters.  
 Typical use case is to compare different PTP4L instances running on a logging PC with multiple network interfaces, while the associated PHC clocks are synchronized by PHC2SYS.  
   
@@ -55,15 +55,33 @@ Example: multi observer mode:
 ```bash
 
 # Start two PTP masters on different interfaces (in separate terminals or background)
-sudo ./build/ptp_demo --master -i enp4s0
-sudo ./build/ptp_demo --master -i enp5s0
+
+# Using ptp_demo time servers
+sudo ./build/ptp_demo -m -i enp4s0 -d 0
+sudo ./build/ptp_demo -m -i enp5s0 -d 1
+
+# Using ptp4l time servers
+sudo ptp4l -i enp4s0  -p /dev/ptp0  -m -l 6  -H  --domainNumber=0 
+sudo ptp4l -i enp5s0  -p /dev/ptp1  -m -l 6  -H  --domainNumber=1 
+
+# Other options:
+# --serverOnly=1 (should the same as -m)
+# --time_stamping=hardware  (should be default and the same a -H)
+# --BMCA=noop
+# --free_running=1  
+# --clock_servo=nullf
+# --logSyncInterval=-1
+
+
+
+
 # Sync PHC clocks of both interfaces
 sudo phc2sys -s enp4s0 -c enp5s0 -m -l 7 -O 0
 
-# Run multi observer to compare both masters
+# Run multi observer on a different PC over a PTP transparent network switch to compare both masters
 sudo ./build/ptp_demo
 
-  Observer obs_4.10_0: PTP SYNC cycle 26:
+  Observer obs_4.10_1: PTP SYNC cycle 26:
   Average filtered drift calculation results at t2 = 25183419120 ns: 
     master_drift        = 8565.2 ns/s
     master_drift_drift  = 13.6506 ns/s2
@@ -117,7 +135,7 @@ Observer obs_3.10_0: PTP SYNC cycle 27:
 Check ethernet interface supports hardware time stamping:
 ```bash
 ip link show # Find your ethernet interface name, e.g., eth0
-sudo ethtool -T eth0  # Replace eth0 with your interface name
+sudo /usr/sbin/ethtool -T eth0  # Replace eth0 with your interface name
 ```
 
 Check for PTP hardware clock devices:
@@ -127,8 +145,56 @@ ls -l /dev/ptp*
 
 Check kernel support:
 ```bash
-cat /boot/config-$(uname -r) | grep -i timestamp
+cat /boot/config-$(uname -r) | grep -i timestamping
 ```
+
+
+# Tools
+
+Check phc clock frequency adjustment:
+
+```bash 
+sudo phc_ctl /dev/ptp0 freq
+
+```
+
+
+Check which PHC belongs to which interface
+
+```bash 
+for iface in /sys/class/net/*; do
+  if [ -d "$iface/device/ptp" ]; then
+    echo "Interface: $(basename $iface)"
+    ls -l $iface/device/ptp/
+  fi
+done
+```
+
+
+
+
+# Debugging Guide
+
+```bash
+# Trace for correct enabling of hardware time stamping
+sudo strace -e trace=setsockopt ./build/ptp_demo --master -i enp4s0 
+```
+
+Build linuxptp with debug symbols:
+
+```bash
+cd ~/linuxptp
+make clean
+make CFLAGS="-g -O0"
+sudo make install
+```      
+
+
+
+
+
+
+
 
 
 

@@ -44,7 +44,7 @@ constexpr int PTP_DOMAIN = 0;
 #define PTP_MODE_MASTER 0x02
 #define PTP_MODE_AUTO_OBSERVER 0x03
 constexpr int PTP_MODE = PTP_MODE_AUTO_OBSERVER;
-constexpr int PTP_LOG_LEVEL = 3;
+constexpr int PTP_LOG_LEVEL = 1; // 1=state print every second, 2..=more detailed logs
 
 //-----------------------------------------------------------------------------------------------------
 // Demo main
@@ -226,7 +226,7 @@ int main(int argc, char *argv[]) {
 #endif
 
         // Status print
-        if (PTP_LOG_LEVEL == 1) {
+        if (ptp_log_level == 1) {
             if (std::chrono::steady_clock::now() - last_status_print >= std::chrono::seconds(1)) {
                 ptpPrintState(ptp);
                 last_status_print = std::chrono::steady_clock::now();

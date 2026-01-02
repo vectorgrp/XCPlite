@@ -45,7 +45,9 @@ typedef struct linreg_filter {
 } tLinregFilter;
 
 extern void linreg_filter_init(tLinregFilter *f, size_t size);
-extern bool linreg_filter_calc(tLinregFilter *f, double x, double y, double *slope_out, double *intercept_out);
+// slope_out is the calculated slope
+// y_out is the interpolated y value at x (not the intercept!)
+extern bool linreg_filter_calc(tLinregFilter *f, double x, double y, double *slope_out, double *y_out);
 extern size_t linreg_filter_size(tLinregFilter *f);
 extern size_t linreg_filter_count(tLinregFilter *f);
 

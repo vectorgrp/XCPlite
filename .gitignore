@@ -30,9 +30,9 @@ typedefs.a2l
 # Other
 .vscode
 .DS_Store
-run_remote.sh
-run.sh
-test_bpf_demo_pi.sh
-test_bin2hex_pi.sh
-pi
-dwarf
+/tools/DEBUG_PTP4L.md
+/tools/analyze_ptp4l_flags.sh
+/tools/debug_ptp4l_timestamps.sh
+/tools/instrument_ptp4l.sh
+/tools/ptp4l_debug.patch
+/tools/setup_ptp4l_debug.sh

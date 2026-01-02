@@ -1,1 +1,0 @@
-sudo ./build/ptp_demo --master -i enp5s0

@@ -76,7 +76,7 @@ Creates and measures an array of structures representing 3D points with addition
 
 ### ptp_demo
 
-Demonstrates a PTP observer and PTP master with XCP instrumentation.  
+Demonstrates a PTP observer and PTP time server with XCP instrumentation.  
 The PTP observer listens for PTP messages on the network and separates drift and jitter of the master clock in relation to the observer clock. 
 The PTP master sends SYNC and FOLLOW_UP messages periodically and responds to DELAY_REQUEST messages, while tracking the number of connected PTP clients.
 
