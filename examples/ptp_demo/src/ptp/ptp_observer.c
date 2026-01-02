@@ -427,16 +427,19 @@ static void observerUpdate(tPtp *ptp, tPtpObserver *obs, uint64_t t1_in, uint64_
 
         // Calculate offsets to other observers with different master clocks
         if (ptp->observer_count > 1) {
+            printf("  Comparisons to other observers:\n");
             for (int j = 0; j < ptp->observer_count; j++) {
                 tPtpObserver *obs_other = ptp->observer_list[j];
                 if (obs != obs_other && obs_other->gmValid) {
-                    double dt = obs->t2 - obs_other->t2;
-                    obs->offset_to[j] =
-                        (double)(obs->t1 - obs_other->t1) - dt - (((double)dt * obs_other->linreg_drift) / 1000000000.0); // Compensate for different local receive times
-                    obs->drift_to[j] = obs->master_drift - obs_other->master_drift;
-                    if (obs->log_level >= 2) {
-                        printf("    offset to %s: %" PRIi64 " ns (%g ms)\n", obs_other->name, obs->offset_to[j], obs->offset_to[j] / 1000000.0);
-                        printf("    drift diff to %s: %g ns/s\n", obs_other->name, obs->drift_to[j]);
+                    double dt = (int64_t)(obs->t2 - obs_other->t2);
+                    if (obs->t1 > obs_other->t1) {
+                        obs->offset_to[j] =
+                            (double)(obs->t1 - obs_other->t1) - dt - (((double)dt * obs_other->linreg_drift) / 1000000000.0); // Compensate for different local receive times
+                        obs->drift_to[j] = obs->master_drift - obs_other->master_drift;
+                        if (obs->log_level >= 2) {
+                            printf("    offset to %s: %" PRIi64 " ns (%g ms)\n", obs_other->name, obs->offset_to[j], obs->offset_to[j] / 1000000.0);
+                            printf("    drift diff to %s: %g ns/s\n", obs_other->name, obs->drift_to[j]);
+                        }
                     }
                 }
             }
