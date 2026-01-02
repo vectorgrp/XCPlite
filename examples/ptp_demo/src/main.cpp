@@ -44,7 +44,7 @@ constexpr int PTP_DOMAIN = 0;
 #define PTP_MODE_MASTER 0x02
 #define PTP_MODE_AUTO_OBSERVER 0x03
 constexpr int PTP_MODE = PTP_MODE_AUTO_OBSERVER;
-constexpr int PTP_LOG_LEVEL = 1;
+constexpr int PTP_LOG_LEVEL = 3;
 
 //-----------------------------------------------------------------------------------------------------
 // Demo main
@@ -67,7 +67,7 @@ static void print_usage(const char *prog_name) {
 
 int main(int argc, char *argv[]) {
 
-    // Default values
+       // Default values
     std::string ptp_interface = PTP_INTERFACE;
     int ptp_mode = PTP_MODE;
     int ptp_domain = PTP_DOMAIN;
@@ -226,9 +226,11 @@ int main(int argc, char *argv[]) {
 #endif
 
         // Status print
-        if (std::chrono::steady_clock::now() - last_status_print >= std::chrono::seconds(1)) {
-            ptpPrintState(ptp);
-            last_status_print = std::chrono::steady_clock::now();
+        if (PTP_LOG_LEVEL == 3) {
+            if (std::chrono::steady_clock::now() - last_status_print >= std::chrono::seconds(1)) {
+                ptpPrintState(ptp);
+                last_status_print = std::chrono::steady_clock::now();
+            }
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(10));

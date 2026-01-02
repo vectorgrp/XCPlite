@@ -139,6 +139,13 @@ void observerInit(tPtpObserver *obs, uint8_t domain, const uint8_t *uuid, const 
     obs->t1_norm = 0;
     obs->t2_norm = 0;
     obs->sync_cycle_time = 1000000000;
+
+    obs->linreg_drift = 0;
+    obs->linreg_offset = 0;
+    obs->linreg_drift_drift = 0;
+    linreg_filter_init(&obs->linreg_filter, obs->params->drift_filter_size);
+    average_filter_init(&obs->linreg_drift_drift_filter, obs->params->drift_drift_filter_size);
+
     obs->master_offset_raw = 0;
     obs->master_drift_raw = 0;
     average_filter_init(&obs->master_drift_filter, obs->params->drift_filter_size);
@@ -148,6 +155,7 @@ void observerInit(tPtpObserver *obs, uint8_t domain, const uint8_t *uuid, const 
     obs->master_drift_drift = 0;
     obs->master_offset_compensation = 0;
     obs->servo_integral = 0.0;
+
     obs->master_jitter = 0;
     average_filter_init(&obs->master_jitter_rms_filter, obs->params->jitter_rms_filter_size);
     obs->master_jitter_rms = 0;
@@ -257,23 +265,35 @@ static void observerUpdate(tPtp *ptp, tPtpObserver *obs, uint64_t t1_in, uint64_
     // Analysis
     else {
 
-        // Normalize t1,t2 to first round start time (may be negative in the beginning)
+        // Normalize t1,t2 to first round start values
         int64_t t1_norm = (int64_t)(t1 - obs->t1_offset);
         int64_t t2_norm = (int64_t)(t2 - obs->t2_offset);
-
         if (obs->log_level >= 4)
             printf("  Normalized time: t1_norm=%" PRIi64 ", t2_norm=%" PRIi64 "\n", t1_norm, t2_norm);
 
+        // Drift and offset calculation by linear regression methof
+        double linreg_slope = 0.0;
+        double linreg_intercept = 0.0;
+        linreg_filter_calc(&obs->linreg_filter, t2_norm, t1_norm, &linreg_slope, &linreg_intercept);
+        double linreg_drift = (linreg_slope - 1.0) * 1E9;
+        obs->linreg_drift_drift =
+            average_filter_calc(&obs->linreg_drift_drift_filter,
+                                linreg_drift - obs->linreg_drift); // Calculate drift of drift in ns/(s*s) (should be close to zero when temperature is stable )
+        obs->linreg_drift = linreg_drift;
+        obs->linreg_offset = linreg_intercept + linreg_slope * t2_norm;
+        if (obs->log_level >= 3) {
+            printf("  Linear regression: \n");
+            printf("    offset=%g ns\n", obs->linreg_offset);
+            printf("    drift=%g ns/s\n", obs->linreg_drift);
+            printf("    drift_drift=%g ns/s2\n", obs->linreg_drift_drift);
+        }
+
+        // Drift calculation by floating avverage method
         // Time differences since last SYNC, with correction applied to master time
         int64_t c1 = t1_norm - obs->t1_norm; // time since last sync on master clock
         int64_t c2 = t2_norm - obs->t2_norm; // time since last sync on local clock
         obs->sync_cycle_time = c2;           // Update last cycle time
         int64_t diff = c2 - c1;              // Positive diff = master clock faster than local clock
-
-        if (obs->log_level >= 4)
-            printf("  Cycle times: c1=%" PRIi64 ", c2=%" PRIi64 ", diff=%" PRIi64 "\n", c1, c2, diff);
-
-        // Drift calculation
         double master_drift = 0.0;
         double master_drift_drift = 0.0;
         if (diff < -200000 || diff > +200000) { // Plausibility checking of cycle drift (max 200us per cycle)

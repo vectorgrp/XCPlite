@@ -65,11 +65,18 @@ struct ptp_observer {
 
     // PTP observer timing analysis state, all values in nanoseconds and per second units
     uint32_t cycle_count;
-    bool is_sync;                            // true if observer has synchronized to master
-    uint64_t t1, t2;                         // Current corrected timestamp pair t1 - master, t2 - local clock
-    int64_t master_offset_raw;               // Current master offset t1-t2
-    uint64_t t1_offset, t2_offset;           // Normalization offsets
-    int64_t t1_norm, t2_norm;                // Normalized timestamp pair t1_norm - master, t2_norm - local clock
+    bool is_sync;                  // true if observer has synchronized to master
+    uint64_t t1, t2;               // Current corrected timestamp pair t1 - master, t2 - local clock
+    int64_t master_offset_raw;     // Current master offset t1-t2
+    uint64_t t1_offset, t2_offset; // Normalization offsets
+    int64_t t1_norm, t2_norm;      // Normalized timestamp pair t1_norm - master, t2_norm - local clock
+
+    double linreg_drift;       // Drift by linear regression in 1000*ppm
+    double linreg_offset;      // Offset by linear regression in ns
+    double linreg_drift_drift; // Drift of the drift by linear regression in 1000*ppm/s*s
+    tLinregFilter linreg_filter;
+    tAverageFilter linreg_drift_drift_filter;
+
     int64_t master_offset_norm;              // Normalized master offset t1_norm-t2_norm
     double master_drift_raw;                 // Current cycle drift in 1000*ppm
     double master_drift;                     // Filtered cycle drift over last n cycles
