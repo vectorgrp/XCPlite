@@ -18,14 +18,17 @@
 
 // Observer parameter structure
 typedef struct {
-    uint8_t reset;                   // Reset PTP observer state
-    int32_t t1_correction;           // Correction to apply to t1 timestamps
-    uint8_t drift_filter_size;       // Size of the drift average filter
-    uint8_t drift_drift_filter_size; // Size of the drift of drift average filter
-    uint8_t jitter_rms_filter_size;  // Size of the jitter RMS average filter
-    uint8_t jitter_avg_filter_size;  // Size of the jitter average filter
-    double max_correction;           // Maximum allowed servo correction per SYNC interval
-    double servo_p_gain;             // Proportional gain (typically 0.1 - 0.5)
+    uint8_t reset;                     // Reset PTP observer state
+    int32_t t1_correction;             // Correction to apply to t1 timestamps
+    uint8_t drift_filter_size;         // Size of the drift average filter
+    uint8_t drift_drift_filter_size;   // Size of the drift of drift average filter
+    uint8_t linreg_filter_size;        // Size of the linear regression filter
+    uint8_t linreg_offset_filter_size; // Size of the linear regression offset filter
+    uint8_t linreg_jitter_filter_size; // Size of the linear regression jitter filter
+    uint8_t jitter_rms_filter_size;    // Size of the jitter RMS average filter
+    uint8_t jitter_avg_filter_size;    // Size of the jitter average filter
+    double max_correction;             // Maximum allowed servo correction per SYNC interval
+    double servo_p_gain;               // Proportional gain (typically 0.1 - 0.5)
 } observer_parameters_t;
 
 // Master descriptor for observers
@@ -65,31 +68,41 @@ struct ptp_observer {
 
     // PTP observer timing analysis state, all values in nanoseconds and per second units
     uint32_t cycle_count;
-    bool is_sync;                  // true if observer has synchronized to master
+    bool master_sync;              // true if observer has synchronized to master
     uint64_t t1, t2;               // Current corrected timestamp pair t1 - master, t2 - local clock
     int64_t master_offset_raw;     // Current master offset t1-t2
     uint64_t t1_offset, t2_offset; // Normalization offsets
     int64_t t1_norm, t2_norm;      // Normalized timestamp pair t1_norm - master, t2_norm - local clock
+    int64_t master_offset_norm;    // Normalized master offset t1_norm-t2_norm
 
-    double linreg_drift;       // Drift by linear regression in 1000*ppm
-    double linreg_offset;      // Offset by linear regression in ns
-    double linreg_drift_drift; // Drift of the drift by linear regression in 1000*ppm/s*s
-    tLinregFilter linreg_filter;
-    tAverageFilter linreg_drift_drift_filter;
+    double master_drift_raw; // Current cycle drift in 1000*ppm
+    tAverageFilter master_drift_filter;
+    tAverageFilter master_drift_drift_filter;
 
-    int64_t master_offset_norm;              // Normalized master offset t1_norm-t2_norm
-    double master_drift_raw;                 // Current cycle drift in 1000*ppm
-    double master_drift;                     // Filtered cycle drift over last n cycles
-    double master_drift_drift;               // Drift of the drift in 1000*ppm/s*s
+#ifdef OBSERVER_LINREG
+    tLinregFilter linreg_filter; // Linear regression filter for drift and offset calculation
+    double linreg_drift;         // Drift by linear regression in 1000*ppm
+    double linreg_drift_drift;   // Drift of the drift by linear regression in 1000*ppm/s*s
+    double linreg_offset;        // Offset by linear regression in ns
+    tAverageFilter linreg_offset_filter;
+    double linreg_offset_avg; // Average of linreg_offset in ns
+    double linreg_jitter;     // Jitter by linear regression in ns
+    tAverageFilter linreg_jitter_filter;
+    double linreg_jitter_avg; // Average jitter by linear regression in ns
+#endif
+
+#ifdef OBSERVER_SERVO
     double master_offset_compensation;       // normalized master_offset compensation servo offset
     double master_offset_detrended;          // normalized master_offset error (detrended master_offset_norm)
     double master_offset_detrended_filtered; // filtered normalized master_offset error (detrended master_offset_norm)
-    double master_jitter;                    // jitter
-    double master_jitter_rms;                // jitter root mean square
-    double master_jitter_avg;                // jitter average
-    double servo_integral;                   // PI servo controller state: Integral accumulator for I-term
-    tAverageFilter master_drift_filter;
-    tAverageFilter master_drift_drift_filter;
+#endif
+
+    double master_drift;       // Filtered cycle drift over last n cycles
+    double master_drift_drift; // Drift of the drift in 1000*ppm/s*s
+
+    double master_jitter;     // jitter
+    double master_jitter_rms; // jitter root mean square
+    double master_jitter_avg; // jitter average
     tAverageFilter master_jitter_rms_filter;
     tAverageFilter master_jitter_avg_filter;
 

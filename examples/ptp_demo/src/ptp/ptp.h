@@ -2,6 +2,8 @@
 
 /* ptp.h */
 
+#define OBSERVER_LINREG
+// #define OBSERVER_SERVO
 #define OPTION_ENABLE_XCP
 
 //-------------------------------------------------------------------------------------------------------

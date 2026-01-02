@@ -188,7 +188,7 @@ static int linreg(const double *x, const double *y, const int n, double *slope_o
     return 0;
 }
 
-#define LINREG_TEST
+// #define LINREG_TEST
 #ifdef LINREG_TEST
 
 #define DATA_POINTS (64)
@@ -265,7 +265,9 @@ void linreg_filter_init(tLinregFilter *f, size_t size) {
 size_t linreg_filter_size(tLinregFilter *f) { return f->size; }
 size_t linreg_filter_count(tLinregFilter *f) { return f->count; }
 
-bool linreg_filter_calc(tLinregFilter *f, double x, double y, double *slope_out, double *intercept_out) {
+// slope_out is the calculated slope
+// y_out is the interpolated y value at x
+bool linreg_filter_calc(tLinregFilter *f, double x, double y, double *slope_out, double *y_out) {
 
     if (f->count < f->size) {
         f->count++;
@@ -275,11 +277,19 @@ bool linreg_filter_calc(tLinregFilter *f, double x, double y, double *slope_out,
     if (++f->ai >= f->size)
         f->ai = 0;
 
+    // Normalize values to current x,y to improve numeric stability
+    double x_norm[LINREG_FILTER_MAX_SIZE];
+    double y_norm[LINREG_FILTER_MAX_SIZE];
+    for (size_t i = 0; i < f->count; i++) {
+        x_norm[i] = f->x[i] - x;
+        y_norm[i] = f->y[i] - y;
+    }
+
     double rmse = 0.0;
     double r2 = 0.0;
     double mae = 0.0;
     double mse = 0.0;
-    int res = linreg(f->x, f->y, f->count, slope_out, intercept_out, &r2, &mae, &mse, &rmse);
+    int res = linreg(x_norm, y_norm, f->count, slope_out, y_out, &r2, &mae, &mse, &rmse);
     if (res < 0) {
         printf("ERROR: linreg failed, error = %d\n", res);
         return false;
