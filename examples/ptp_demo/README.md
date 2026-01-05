@@ -61,8 +61,8 @@ sudo ./build/ptp_demo -m -i enp4s0 -d 1
 sudo ./build/ptp_demo -m -i enp5s0 -d 2
 
 # Using ptp4l time servers
-sudo ptp4l -H -i enp4s0  -p /dev/ptp0  -m  --tx_timestamp_timeout=100 --domainNumber=0 -l 7  --verbose=1
-sudo ptp4l -H -i enp5s0  -p /dev/ptp1  -m  --tx_timestamp_timeout=100 --domainNumber=1 -l 7  --verbose=1
+sudo ptp4l -H -i enp4s0  -p /dev/ptp0  -m  --tx_timestamp_timeout=100 --domainNumber=1 -l 7  --verbose=1
+sudo ptp4l -H -i enp5s0  -p /dev/ptp1  -m  --tx_timestamp_timeout=100 --domainNumber=2 -l 7  --verbose=1
 
 # Other options:
 # --masterOnly=1 (should the same as -m)

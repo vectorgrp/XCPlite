@@ -27,7 +27,7 @@
 #include <xcplib.hpp> // for xcplib application programming interface
 
 constexpr const char OPTION_PROJECT_NAME[] = "ptp_demo";
-constexpr const char OPTION_PROJECT_VERSION[] = "v1.4.0" __TIME__;
+constexpr const char OPTION_PROJECT_VERSION[] = "v1.4.1" __TIME__;
 constexpr bool OPTION_USE_TCP = false;
 constexpr uint8_t OPTION_SERVER_ADDR[4] = {0, 0, 0, 0};
 constexpr uint16_t OPTION_SERVER_PORT = 5555;
