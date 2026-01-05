@@ -98,7 +98,15 @@ struct ptp_master {
 
 typedef struct ptp_master tPtpMaster;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void masterPrintState(tPtp *ptp, tPtpMaster *master);
 bool masterTask(tPtp *ptp, tPtpMaster *master);
 bool masterHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr, uint64_t rxTimestamp);
 tPtpMasterHandle ptpCreateMaster(const char *name, tPtpInterfaceHandle ptp_handle, uint8_t domain, const uint8_t *uuid);
+
+#ifdef __cplusplus
+}
+#endif

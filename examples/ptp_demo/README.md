@@ -57,20 +57,22 @@ Example: multi observer mode:
 # Start two PTP masters on different interfaces (in separate terminals or background)
 
 # Using ptp_demo time servers
-sudo ./build/ptp_demo -m -i enp4s0 -d 0
-sudo ./build/ptp_demo -m -i enp5s0 -d 1
+sudo ./build/ptp_demo -m -i enp4s0 -d 1
+sudo ./build/ptp_demo -m -i enp5s0 -d 2
 
 # Using ptp4l time servers
-sudo ptp4l -i enp4s0  -p /dev/ptp0  -m -l 6  -H  --domainNumber=0 
-sudo ptp4l -i enp5s0  -p /dev/ptp1  -m -l 6  -H  --domainNumber=1 
+sudo ptp4l -H -i enp4s0  -p /dev/ptp0  -m  --tx_timestamp_timeout=100 --domainNumber=0 -l 7  --verbose=1
+sudo ptp4l -H -i enp5s0  -p /dev/ptp1  -m  --tx_timestamp_timeout=100 --domainNumber=1 -l 7  --verbose=1
 
 # Other options:
-# --serverOnly=1 (should the same as -m)
+# --masterOnly=1 (should the same as -m)
 # --time_stamping=hardware  (should be default and the same a -H)
+# --verbose=1 (should be default)
 # --BMCA=noop
 # --free_running=1  
 # --clock_servo=nullf
 # --logSyncInterval=-1
+# --tx_timestamp_timeout 100
 
 
 

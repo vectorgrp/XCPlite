@@ -15,6 +15,8 @@
 #include <thread>
 
 #include "ptp/ptp.h"
+#include "ptp/ptp_master.h"
+#include "ptp/ptp_observer.h"
 
 //-----------------------------------------------------------------------------------------------------
 // XCP
@@ -25,7 +27,7 @@
 #include <xcplib.hpp> // for xcplib application programming interface
 
 constexpr const char OPTION_PROJECT_NAME[] = "ptp_demo";
-constexpr const char OPTION_PROJECT_VERSION[] = "v1.0";
+constexpr const char OPTION_PROJECT_VERSION[] = "v1.4.0" __TIME__;
 constexpr bool OPTION_USE_TCP = false;
 constexpr uint8_t OPTION_SERVER_ADDR[4] = {0, 0, 0, 0};
 constexpr uint16_t OPTION_SERVER_PORT = 5555;
@@ -185,12 +187,21 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    // Automatic observer mode: Create observers for all masters seen on any address, uuid and domain
     if (ptp_mode == PTP_MODE_AUTO_OBSERVER) {
-        // Create observers for all masters seen on any address, uuid and domain
+#ifdef OPTION_ENABLE_XCP
+        // Preload the observer list from file, to keep the index of known master stable, which leads to a stable A2L file and CANape configurations
         std::cout << "Enable auto observer mode" << std::endl;
+        if (!ptpLoadObserverList(ptp, "ptp_observers.lst")) {
+            std::cout << "No observer list loaded" << std::endl;
+        }
+#endif
         ptpEnableAutoObserver(ptp);
 
-    } else if (ptp_mode == PTP_MODE_OBSERVER) {
+    }
+
+    // Specific observer mode: Create one observer for given uuid, domain and any address
+    else if (ptp_mode == PTP_MODE_OBSERVER) {
 
         // Create an observer on interface ptp
         // The PTP observer will listen to a master with ptp_domain, ptp_uuid and any address
@@ -203,7 +214,9 @@ int main(int argc, char *argv[]) {
             return 1;
         }
 
-    } else if (ptp_mode == PTP_MODE_MASTER) {
+    }
+    // Master mode: Create a master for given uuid and domain
+    else if (ptp_mode == PTP_MODE_MASTER) {
 
         // Create a master on interface ptp
         tPtpMasterHandle ptpMaster = ptpCreateMaster("Master1", ptp, ptp_domain, ptp_uuid);
@@ -239,6 +252,15 @@ int main(int argc, char *argv[]) {
 #ifdef OPTION_ENABLE_XCP
     XcpDisconnect();
     XcpEthServerShutdown();
+#endif
+
+#ifdef OPTION_ENABLE_XCP
+    // Save observer list to file
+    if (ptp_mode == PTP_MODE_AUTO_OBSERVER) {
+        if (!ptpSaveObserverList(ptp, "ptp_observers.lst")) {
+            std::cout << "Failed to save observer list" << std::endl;
+        }
+    }
 #endif
 
     ptpShutdown(ptp);

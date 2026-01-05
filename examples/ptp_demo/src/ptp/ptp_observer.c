@@ -39,10 +39,12 @@
 //---------------------------------------------------------------------------------------
 
 // Default observer parameter values
-static const observer_parameters_t observer_params = {
+static const observer_parameters_t observer_params = { //
     .reset = 0,
-    .t1_correction = 3, // Apply 4ns correction to t1 to compensate for master timestamp rounding
+    .t1_correction = 0, // Apply 3ns correction to t1 to compensate for VN56xx master timestamp rounding
     .drift_filter_size = 30,
+    .jitter_rms_filter_size = 30,
+    .jitter_avg_filter_size = 30,
 #ifdef OBSERVER_LINREG
     .linreg_filter_size = 30,
     .linreg_offset_filter_size = 10,
@@ -52,13 +54,69 @@ static const observer_parameters_t observer_params = {
     .max_correction = 1000.0, // 1000ns maximum correction per SYNC interval
     .servo_p_gain = 1.0
 #endif
-                        .jitter_rms_filter_size = 30,
-    .jitter_avg_filter_size = 30,
 
 };
 
 //---------------------------------------------------------------------------------------
 // PTP observer initialization
+
+// Reset the PTP observer state
+void observerReset(tPtpObserver *obs) {
+    assert(obs != NULL);
+
+    // Init protocol state
+    obs->sync_local_time = 0;  // Local receive timestamp of SYNC
+    obs->sync_master_time = 0; // SYNC timestamp
+    obs->sync_correction = 0;  // SYNC correction
+    obs->sync_sequenceId = 0;  // SYNC sequence Id
+    obs->sync_cycle_time = 0;  // Master SYNC cycle time
+    obs->sync_steps = 0;       // SYNC steps removed
+    obs->flup_master_time = 0; // FOLLOW_UP timestamp
+    obs->flup_correction = 0;  // FOLLOW_UP correction
+    obs->flup_sequenceId = 0;  // FOLLOW_UP sequence Id
+
+    // Init timing analysis state
+    obs->cycle_count = 0; // SYNC cycle counter
+    obs->master_sync = false;
+    obs->t1 = 0;
+    obs->t2 = 0;
+    obs->master_offset_raw = 0;
+    obs->t1_offset = 0;
+    obs->t2_offset = 0;
+    obs->t1_norm = 0;
+    obs->t2_norm = 0;
+    obs->master_offset_norm = 0;
+    obs->master_drift_raw = 0;
+    obs->master_drift_drift = 0;
+    obs->master_drift = 0;
+    average_filter_init(&obs->master_drift_filter, obs->params->drift_filter_size);
+    average_filter_init(&obs->master_drift_drift_filter, obs->params->drift_filter_size);
+
+#ifdef OBSERVER_LINREG
+    obs->linreg_drift = 0.0;
+    obs->linreg_offset = 0.0;
+    obs->linreg_offset_avg = 0.0;
+    obs->linreg_drift_drift = 0.0;
+    obs->linreg_jitter = 0.0;
+    obs->linreg_jitter_avg = 0.0;
+    linreg_filter_init(&obs->linreg_filter, obs->params->linreg_filter_size);
+    average_filter_init(&obs->linreg_offset_filter, obs->params->linreg_offset_filter_size);
+    average_filter_init(&obs->linreg_jitter_filter, obs->params->linreg_jitter_filter_size);
+#endif
+
+#ifdef OBSERVER_SERVO
+    obs->master_drift_raw = 0;
+    obs->master_offset_compensation = 0;
+    obs->master_offset_detrended = 0;
+    obs->master_offset_detrended_filtered = 0;
+#endif
+
+    obs->master_jitter = 0;
+    average_filter_init(&obs->master_jitter_rms_filter, obs->params->jitter_rms_filter_size);
+    obs->master_jitter_rms = 0;
+    average_filter_init(&obs->master_jitter_avg_filter, obs->params->jitter_avg_filter_size);
+    obs->master_jitter_avg = 0;
+}
 
 // Initialize the PTP observer state
 void observerInit(tPtpObserver *obs, uint8_t domain, const uint8_t *uuid, const uint8_t *addr) {
@@ -140,62 +198,20 @@ void observerInit(tPtpObserver *obs, uint8_t domain, const uint8_t *uuid, const 
 
     // Grandmaster info
     obs->gmValid = false;
+    obs->gm_last_update_time = 0;
     obs->domain = domain;
     if (uuid != NULL)
         memcpy(obs->uuid, uuid, 8);
     if (addr != NULL)
         memcpy(obs->addr, addr, 4);
 
-    // Init protocol state
-    obs->sync_local_time = 0;
-    obs->sync_master_time = 0;
-    obs->sync_correction = 0;
-    obs->sync_sequenceId = 0;
-    obs->sync_steps = 0;
-    obs->flup_master_time = 0;
-    obs->flup_correction = 0;
-    obs->flup_sequenceId = 0;
-
-    obs->sync_cycle_time = 1000000000;
-
-    // Init timing analysis state
-    obs->cycle_count = 0;
-    obs->master_sync = false;
-    obs->t1_norm = 0;
-    obs->t2_norm = 0;
-    obs->master_offset_raw = 0;
-
-    obs->master_drift_drift = 0;
-    obs->master_drift = 0;
-    average_filter_init(&obs->master_drift_filter, obs->params->drift_filter_size);
-
-#ifdef OBSERVER_LINREG
-    obs->linreg_drift = 0.0;
-    obs->linreg_offset = 0.0;
-    obs->linreg_offset_avg = 0.0;
-    obs->linreg_drift_drift = 0.0;
-    obs->linreg_jitter = 0.0;
-    obs->linreg_jitter_avg = 0.0;
-    linreg_filter_init(&obs->linreg_filter, obs->params->linreg_filter_size);
-    average_filter_init(&obs->linreg_offset_filter, obs->params->linreg_offset_filter_size);
-    average_filter_init(&obs->linreg_jitter_filter, obs->params->linreg_jitter_filter_size);
-
-#endif
-
-#ifdef OBSERVER_SERVO
-    obs->master_drift_raw = 0;
-    obs->master_offset_compensation = 0;
-#endif
-
-    obs->master_jitter = 0;
-    average_filter_init(&obs->master_jitter_rms_filter, obs->params->jitter_rms_filter_size);
-    obs->master_jitter_rms = 0;
-    average_filter_init(&obs->master_jitter_avg_filter, obs->params->jitter_avg_filter_size);
-    obs->master_jitter_avg = 0;
+    observerReset(obs);
 }
 
 // Print information on the grandmaster
-static void observerPrintMaster(const tPtpObserverMaster *m) {
+static void observerPrintMaster(const tPtpObserver *obs) {
+    assert(obs != NULL);
+    const tPtpObserverMaster *m = &obs->gm;
 
     printf("    PTP Master:\n");
     const char *timesource = (m->a.timeSource == PTP_TIME_SOURCE_INTERNAL) ? "internal oscilator" : (m->a.timeSource == PTP_TIME_SOURCE_GPS) ? "GPS" : "Unknown";
@@ -210,14 +226,12 @@ void observerPrintState(tPtp *ptp, tPtpObserver *obs) {
 
     printf("  Observer '%s' (%u):\n", obs->name, obs->cycle_count);
     if (obs->gmValid) {
-        observerPrintMaster(&obs->gm);
+        observerPrintMaster(obs);
         printf("    drift        = %g ns/s\n", obs->master_drift);
         printf("    drift_drift  = %g ns/s2\n", obs->master_drift_drift);
-
         printf("    jitter       = %g ns\n", obs->master_jitter);
         printf("    jitter_avg   = %g ns\n", obs->master_jitter_avg);
         printf("    jitter_rms   = %g ns\n", obs->master_jitter_rms);
-
         for (int j = 0; j < ptp->observer_count; j++) {
             tPtpObserver *obs_other = ptp->observer_list[j];
             if (obs != obs_other && obs_other->gmValid) {
@@ -298,8 +312,13 @@ static void observerUpdate(tPtp *ptp, tPtpObserver *obs, uint64_t t1_in, uint64_
     else {
 
         // Normalize t1,t2 to first round start values
+        // Avoid conversion loss, when using double precision floating point calculations later
+        // The largest uint64_t value that can be converted to double without loss of precision is 2^53 (9,007,199,254,740,992).
         int64_t t1_norm = (int64_t)(t1 - obs->t1_offset);
         int64_t t2_norm = (int64_t)(t2 - obs->t2_offset);
+        assert(t1_norm >= 0 && t2_norm >= 0);                                 // Should never happen
+        assert((t2_norm < 0x20000000000000) && (t1_norm < 0x20000000000000)); // Should never happen (loss of precision after ≈ 104.25 days
+
         if (obs->log_level >= 4)
             printf("  Normalized time: t1_norm = %" PRIi64 " ns, t2_norm = %" PRIi64 " ns\n", t1_norm, t2_norm);
 
@@ -359,16 +378,18 @@ static void observerUpdate(tPtp *ptp, tPtpObserver *obs, uint64_t t1_in, uint64_
             printf("    linreg jitter average = %g ns\n", obs->linreg_jitter_avg);
         }
 
-        if (obs->cycle_count > 8 && fabs(obs->linreg_drift_drift) < 5.0) { // @@@@ TODO: parameterize in sync condition
-            obs->master_sync = true;
-        }
-
         // Use the linear regression results when master is synchronized
         if (obs->master_sync) {
             obs->master_drift = obs->linreg_drift;
             obs->master_drift_drift = obs->linreg_drift_drift;
-            obs->master_jitter = obs->linreg_jitter; // Jitter is the deviation from the linear regression line !!!!
+            obs->master_jitter = obs->linreg_jitter;                              // Jitter is the deviation from the linear regression line !!!!
+        } else if (obs->cycle_count > 8 && fabs(obs->linreg_drift_drift) < 5.0) { // @@@@ TODO: parameterize in sync condition
+            obs->master_sync = true;
+        } else {
+            if (obs->log_level >= 2)
+                printf("Observer %s: Warming up\n", obs->name);
         }
+
 #endif
 
 #if OBSERVER_SERVO
@@ -477,6 +498,9 @@ bool observerHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr
             if (obs->domain == ptp_msg->domain && (memcmp(obs->gm.uuid, ptp_msg->clockId, 8) == 0) && (memcmp(obs->gm.addr, addr, 4) == 0)) {
 
                 if (obs->gmValid && (ptp_msg->type == PTP_SYNC || ptp_msg->type == PTP_FOLLOW_UP)) {
+
+                    obs->gm_last_update_time = clockGet(); // Last update in system time
+
                     if (ptp_msg->type == PTP_SYNC) {
                         if (timestamp == 0) {
                             DBG_PRINTF_WARNING("Observer %s: PTP SYNC received without timestamp!\n", obs->name);
@@ -515,7 +539,7 @@ bool observerHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr
             // Check if Announce from any master match this observers master filter
             if (ptp_msg->type == PTP_ANNOUNCE) {
 
-                // Check if domain, uuid and addr match (if specified)
+                // Check if domain, uuid (if specified) and addr (if specified) match
                 if ((obs->domain == ptp_msg->domain) && (memcmp(obs->uuid, ptp_msg->clockId, 8) == 0 || memcmp(obs->uuid, "\0\0\0\0\0\0\0\0", 8) != 0) &&
                     (memcmp(obs->addr, addr, 4) == 0 || memcmp(obs->addr, "\0\0\0", 4) == 0)) {
                     if (ptp->log_level >= 1) {
@@ -523,11 +547,12 @@ bool observerHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr
                     }
                     obs->gmValid = true;
                     obs->gm.a = ptp_msg->u.a;
-                    obs->gm.domain = ptp_msg->domain;
-                    memcpy(obs->gm.uuid, ptp_msg->clockId, 8);
                     memcpy(obs->gm.addr, addr, 4);
-                    observerPrintState(ptp, obs);
-                    return true; // Locked onto a grandmaster
+                    memcpy(obs->gm.uuid, ptp_msg->clockId, 8);
+                    observerReset(obs); // Reset observer state
+                    observerPrintMaster(obs);
+                    obs->gm_last_update_time = clockGet(); // Timeout from now
+                    return true;                           // Locked onto a grandmaster
                 }
             }
         }
@@ -548,7 +573,17 @@ bool observerHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr
 }
 
 bool observerTask(tPtp *ptp, tPtpObserver *observer) {
-    // Currently no periodic tasks required
+    // Check for grandmaster timeout
+    if (observer->gmValid) {
+        uint64_t now = clockGet();
+        uint64_t elapsed = now - observer->gm_last_update_time;
+        if (elapsed / (double)CLOCK_TICKS_PER_S > PTP_OBSERVER_GM_TIMEOUT_S) {
+            if (observer->log_level >= 1) {
+                printf("PTP Observer %s: Grandmaster lost! timeout after %us. Last seen %gs ago\n", observer->name, PTP_OBSERVER_GM_TIMEOUT_S, elapsed / (double)CLOCK_TICKS_PER_S);
+            }
+            observer->gmValid = false;
+        }
+    }
     return true;
 }
 
@@ -566,8 +601,9 @@ tPtpObserverHandle ptpCreateObserver(const char *name, tPtpInterfaceHandle ptp_h
     tPtpObserver *obs = (tPtpObserver *)malloc(sizeof(tPtpObserver));
     memset(obs, 0, sizeof(tPtpObserver));
     strncpy(obs->name, name, sizeof(obs->name) - 1);
-    observerInit(obs, domain, uuid, addr); // Initialize observer state
     obs->log_level = ptp->log_level;
+    observerInit(obs, domain, uuid, addr); // Initialize observer state
+    obs->gm_last_update_time = clockGet(); // Timeout from now
 
     // Register the observer instance
     ptp->observer_list[ptp->observer_count++] = obs;
@@ -578,4 +614,64 @@ tPtpObserverHandle ptpCreateObserver(const char *name, tPtpInterfaceHandle ptp_h
     }
 
     return (tPtpObserverHandle)obs;
+}
+
+// Write the observer list to a simple ASCII file, where each line contains one observer index, name, domain, uuid and addr
+bool ptpSaveObserverList(tPtpInterfaceHandle ptp_handle, const char *filename) {
+    tPtp *ptp = (tPtp *)ptp_handle;
+    assert(ptp != NULL && ptp->magic == PTP_MAGIC);
+
+    FILE *f = fopen(filename, "w");
+    if (f == NULL) {
+        DBG_PRINT_ERROR("Failed to open observer list file for writing\n");
+        return false;
+    }
+
+    for (int i = 0; i < ptp->observer_count; i++) {
+        tPtpObserver *obs = ptp->observer_list[i];
+        fprintf(f, "%u: %s %u %02X%02X%02X%02X%02X%02X%02X%02X %u.%u.%u.%u\n", i, obs->name, obs->domain, obs->uuid[0], obs->uuid[1], obs->uuid[2], obs->uuid[3], obs->uuid[4],
+                obs->uuid[5], obs->uuid[6], obs->uuid[7], obs->addr[0], obs->addr[1], obs->addr[2], obs->addr[3]);
+    }
+
+    fclose(f);
+    return true;
+}
+
+// Read the observer list from a simple ASCII file, where each line contains one observer index, name, domain, uuid and addr
+bool ptpLoadObserverList(tPtpInterfaceHandle ptp_handle, const char *filename) {
+    tPtp *ptp = (tPtp *)ptp_handle;
+    assert(ptp != NULL && ptp->magic == PTP_MAGIC);
+    FILE *f = fopen(filename, "r");
+    if (f == NULL) {
+        DBG_PRINTF_WARNING("Observer list file (%s) not found\n", filename);
+        return false;
+    }
+    char line[128];
+    while (fgets(line, sizeof(line), f) != NULL) {
+        unsigned int index;
+        char name[32];
+        unsigned int domain;
+        unsigned int uuid[8];
+        unsigned int addr[4];
+        int ret = sscanf(line, "%u: %31s %u %02X%02X%02X%02X%02X%02X%02X%02X %u.%u.%u.%u", &index, name, &domain, &uuid[0], &uuid[1], &uuid[2], &uuid[3], &uuid[4], &uuid[5],
+                         &uuid[6], &uuid[7], &addr[0], &addr[1], &addr[2], &addr[3]);
+        if (ret == 15) {
+            uint8_t uuid_bytes[8];
+            uint8_t addr_bytes[4];
+            for (int i = 0; i < 8; i++) {
+                uuid_bytes[i] = (uint8_t)uuid[i];
+            }
+            for (int i = 0; i < 4; i++) {
+                addr_bytes[i] = (uint8_t)addr[i];
+            }
+            tPtpObserverHandle obs_handle = ptpCreateObserver(name, ptp_handle, domain, uuid_bytes, addr_bytes);
+            if (obs_handle == NULL) {
+                DBG_PRINT_ERROR("Failed to create observer from list\n");
+            }
+        } else {
+            DBG_PRINTF_ERROR("Invalid line in observer list file (%u): %s\n", ret, line);
+        }
+    }
+    fclose(f);
+    return true;
 }
