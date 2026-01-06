@@ -51,12 +51,12 @@ static const master_parameters_t master_params = {
 // PTP master message sending
 
 // Init constant values in PTP header
-static void initHeader(tPtp *ptp, tPtpMaster *master, struct ptphdr *h, uint8_t type, uint16_t len, uint16_t flags, uint16_t sequenceId) {
+static void initHeader(tPtp *ptp, struct ptphdr *h, uint8_t domain, const uint8_t *uuid, uint8_t type, uint16_t len, uint16_t flags, uint16_t sequenceId) {
 
     memset(h, 0, sizeof(struct ptphdr));
     h->version = 2;
-    h->domain = master->domain;
-    memcpy(h->clockId, master->uuid, 8);
+    h->domain = domain;
+    memcpy(h->clockId, uuid, 8);
     h->sourcePortId = htons(1);
     h->logMessageInterval = 0;
     h->type = type;
@@ -83,15 +83,15 @@ static void initHeader(tPtp *ptp, tPtpMaster *master, struct ptphdr *h, uint8_t 
     }
 }
 
-static bool ptpSendAnnounce(tPtp *ptp, tPtpMaster *master) {
+static bool ptpSendAnnounce(tPtp *ptp, uint8_t domain, const uint8_t *uuid, uint16_t sequenceId) {
 
     struct ptphdr h;
     int16_t l;
 
-    initHeader(ptp, master, &h, PTP_ANNOUNCE, 64, 0, ++master->sequenceIdAnnounce);
+    initHeader(ptp, &h, domain, uuid, PTP_ANNOUNCE, 64, 0, sequenceId);
     h.u.a.utcOffset = htons(announce_params.utcOffset);
     h.u.a.stepsRemoved = htons(announce_params.stepsRemoved);
-    memcpy(h.u.a.grandmasterId, master->uuid, 8);
+    memcpy(h.u.a.grandmasterId, uuid, 8);
     h.u.a.clockVariance = htons(announce_params.clockVariance); // Allan deviation
     h.u.a.clockAccuraccy = announce_params.clockAccuraccy;
     h.u.a.clockClass = announce_params.clockClass;
@@ -101,21 +101,21 @@ static bool ptpSendAnnounce(tPtp *ptp, tPtpMaster *master) {
     l = socketSendTo(ptp->sock320, (uint8_t *)&h, 64, ptp->maddr, 320, NULL);
 
     if (ptp->log_level >= 3) {
-        printf("TX ANNOUNCE %u %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n", master->sequenceIdAnnounce, h.clockId[0], h.clockId[1], h.clockId[2], h.clockId[3], h.clockId[4],
-               h.clockId[5], h.clockId[6], h.clockId[7]);
+        printf("TX ANNOUNCE %u %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n", sequenceId, h.clockId[0], h.clockId[1], h.clockId[2], h.clockId[3], h.clockId[4], h.clockId[5],
+               h.clockId[6], h.clockId[7]);
     }
 
     return (l == 64);
 }
 
-static bool ptpSendSync(tPtp *ptp, tPtpMaster *master, uint64_t *sync_txTimestamp) {
+static bool ptpSendSync(tPtp *ptp, uint8_t domain, const uint8_t *uuid, uint64_t *sync_txTimestamp, uint16_t sequenceId) {
 
     struct ptphdr h;
     int16_t l;
 
     assert(sync_txTimestamp != NULL);
 
-    initHeader(ptp, master, &h, PTP_SYNC, 44, PTP_FLAG_TWO_STEP, ++master->sequenceIdSync);
+    initHeader(ptp, &h, domain, uuid, PTP_SYNC, 44, PTP_FLAG_TWO_STEP, sequenceId);
     l = socketSendTo(ptp->sock319, (uint8_t *)&h, 44, ptp->maddr, 319, sync_txTimestamp /* request tx time stamp */);
     if (l != 44) {
         printf("ERROR: ptpSendSync: socketSendTo failed, returned l = %d\n", l);
@@ -129,17 +129,17 @@ static bool ptpSendSync(tPtp *ptp, tPtpMaster *master, uint64_t *sync_txTimestam
         }
     }
     if (ptp->log_level >= 3) {
-        printf("TX SYNC %u, tx time = %" PRIu64 "\n", master->sequenceIdSync, *sync_txTimestamp);
+        printf("TX SYNC %u, tx time = %" PRIu64 "\n", sequenceId, *sync_txTimestamp);
     }
     return true;
 }
 
-static bool ptpSendSyncFollowUp(tPtp *ptp, tPtpMaster *master, uint64_t sync_txTimestamp) {
+static bool ptpSendSyncFollowUp(tPtp *ptp, uint8_t domain, const uint8_t *uuid, uint64_t sync_txTimestamp, uint16_t sequenceId) {
 
     struct ptphdr h;
     int16_t l;
 
-    initHeader(ptp, master, &h, PTP_FOLLOW_UP, 44, 0, master->sequenceIdSync);
+    initHeader(ptp, &h, domain, uuid, PTP_FOLLOW_UP, 44, 0, sequenceId);
     uint64_t t1 = sync_txTimestamp;
 #if OPTION_TEST_TIME && !OPTION_TEST_TEST_TIME // Enable test time modifications in drift and offset
     t1 = testTimeCalc(t1);
@@ -155,20 +155,20 @@ static bool ptpSendSyncFollowUp(tPtp *ptp, tPtpMaster *master, uint64_t sync_txT
 
     if (ptp->log_level >= 3) {
         char ts[64];
-        printf("TX FLUP %u t1 = %s (%" PRIu64 ")\n", master->sequenceIdSync, clockGetString(ts, sizeof(ts), t1), t1);
+        printf("TX FLUP %u t1 = %s (%" PRIu64 ")\n", sequenceId, clockGetString(ts, sizeof(ts), t1), t1);
     }
     return (l == 44);
 }
 
-static bool ptpSendDelayResponse(tPtp *ptp, tPtpMaster *master, struct ptphdr *req, uint64_t delayreg_rxTimestamp) {
+static bool ptpSendDelayResponse(tPtp *ptp, uint8_t domain, const uint8_t *uuid, struct ptphdr *req, uint64_t delayreg_rxTimestamp) {
 
     struct ptphdr h;
     int16_t l;
 
-    initHeader(ptp, master, &h, PTP_DELAY_RESP, 54, 0, htons(req->sequenceId)); // copy sequence id
-    h.correction = req->correction;                                             // copy correction
-    h.u.r.sourcePortId = req->sourcePortId;                                     // copy request egress port id
-    memcpy(h.u.r.clockId, req->clockId, 8);                                     // copy request clock id
+    initHeader(ptp, &h, domain, uuid, PTP_DELAY_RESP, 54, 0, htons(req->sequenceId)); // copy sequence id
+    h.correction = req->correction;                                                   // copy correction
+    h.u.r.sourcePortId = req->sourcePortId;                                           // copy request egress port id
+    memcpy(h.u.r.clockId, req->clockId, 8);                                           // copy request clock id
 
     // Set t4
     uint64_t t4 = delayreg_rxTimestamp;
@@ -398,7 +398,7 @@ bool masterTask(tPtp *ptp, tPtpMaster *master) {
     // Announce cycle
     if (announceCycleTimeMs > 0 && t - master->announceCycleTimer > announceCycleTimeMs * CLOCK_TICKS_PER_MS) {
         master->announceCycleTimer = t;
-        if (!ptpSendAnnounce(ptp, master)) {
+        if (!ptpSendAnnounce(ptp, master->domain, master->uuid, ++master->sequenceIdAnnounce)) {
             printf("ERROR: Failed to send ANNOUNCE\n");
         }
     }
@@ -408,7 +408,7 @@ bool masterTask(tPtp *ptp, tPtpMaster *master) {
         master->syncCycleTimer = t;
 
         mutexLock(&ptp->mutex);
-        if (!ptpSendSync(ptp, master, &master->syncTxTimestamp)) {
+        if (!ptpSendSync(ptp, master->domain, master->uuid, &master->syncTxTimestamp, ++master->sequenceIdSync)) {
             printf("ERROR: Failed to send SYNC\n");
             mutexUnlock(&ptp->mutex);
             return false;
@@ -417,7 +417,7 @@ bool masterTask(tPtp *ptp, tPtpMaster *master) {
         if (master->syncTxTimestamp == 0) {
             printf("ERROR: SYNC tx timestamp not available !\n");
         } else {
-            if (!ptpSendSyncFollowUp(ptp, master, master->syncTxTimestamp)) {
+            if (!ptpSendSyncFollowUp(ptp, master->domain, master->uuid, ++master->syncTxTimestamp, master->sequenceIdSync)) {
                 printf("ERROR:Failed to send SYNC FOLLOW UP\n");
                 mutexUnlock(&ptp->mutex);
                 return false;
@@ -469,7 +469,7 @@ bool masterHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr, 
             if (ptp_msg->domain == master->domain) {
                 bool ok;
                 mutexLock(&ptp->mutex);
-                ok = ptpSendDelayResponse(ptp, master, ptp_msg, rxTimestamp);
+                ok = ptpSendDelayResponse(ptp, master->domain, master->uuid, ptp_msg, rxTimestamp);
                 mutexUnlock(&ptp->mutex);
                 if (!ok)
                     return false;
