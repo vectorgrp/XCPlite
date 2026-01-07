@@ -92,6 +92,188 @@ static void printFrame(char *prefix, struct ptphdr *ptp_msg, uint8_t *addr, uint
     }
 }
 
+//---------------------------------------------------------------------------------------
+// PTP message sending
+
+// Init constant values in PTP header
+static void initHeader(tPtp *ptp, struct ptphdr *h, uint8_t domain, const uint8_t *uuid, uint8_t type, uint16_t len, uint16_t flags, uint16_t sequenceId) {
+
+    memset(h, 0, sizeof(struct ptphdr));
+    h->version = 2;
+    h->domain = domain;
+    memcpy(h->clockId, uuid, 8);
+    h->sourcePortId = htons(1);
+    h->logMessageInterval = 0;
+    h->type = type;
+    h->len = htons(len);
+    h->flags = htons(flags);
+    h->sequenceId = htons(sequenceId);
+
+    // Deprecated
+    switch (type) {
+    case PTP_ANNOUNCE:
+        h->controlField = 0x05;
+        break;
+    case PTP_SYNC:
+        h->controlField = 0x00;
+        break;
+    case PTP_FOLLOW_UP:
+        h->controlField = 0x02;
+        break;
+    case PTP_DELAY_REQ:
+        h->controlField = 0x01;
+        break;
+    case PTP_DELAY_RESP:
+        h->controlField = 0x03;
+        break;
+    default:
+        assert(0);
+    }
+}
+
+bool ptpSendAnnounce(tPtp *ptp, uint8_t master_domain, const uint8_t *master_uuid, uint16_t sequenceId) {
+
+    struct ptphdr h;
+    int16_t l;
+
+    initHeader(ptp, &h, master_domain, master_uuid, PTP_ANNOUNCE, 64, 0, sequenceId);
+    h.u.a.utcOffset = htons(announce_params.utcOffset);
+    h.u.a.stepsRemoved = htons(announce_params.stepsRemoved);
+    memcpy(h.u.a.grandmasterId, master_uuid, 8);
+    h.u.a.clockVariance = htons(announce_params.clockVariance); // Allan deviation
+    h.u.a.clockAccuraccy = announce_params.clockAccuraccy;
+    h.u.a.clockClass = announce_params.clockClass;
+    h.u.a.priority1 = announce_params.priority1;
+    h.u.a.priority2 = announce_params.priority2;
+    h.u.a.timeSource = announce_params.timeSource;
+    l = socketSendTo(ptp->sock320, (uint8_t *)&h, 64, ptp->maddr, 320, NULL);
+
+    if (ptp->log_level >= 3) {
+        printf("TX: ANNOUNCE %u %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n", sequenceId, h.clockId[0], h.clockId[1], h.clockId[2], h.clockId[3], h.clockId[4], h.clockId[5],
+               h.clockId[6], h.clockId[7]);
+    }
+
+    return (l == 64);
+}
+bool ptpSendSync(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid, uint64_t *sync_txTimestamp, uint16_t sequenceId) {
+
+    struct ptphdr h;
+    int16_t l;
+
+    assert(sync_txTimestamp != NULL);
+
+    initHeader(ptp, &h, domain, master_uuid, PTP_SYNC, 44, PTP_FLAG_TWO_STEP, sequenceId);
+    *sync_txTimestamp = 0xFFFFFFFFFFFFFFFF;
+    l = socketSendTo(ptp->sock319, (uint8_t *)&h, 44, ptp->maddr, 319, sync_txTimestamp /* != NULL request tx time stamp */);
+    if (l != 44) {
+        printf("ERROR: ptpSendSync: socketSendTo failed, returned l = %d\n", l);
+        return false;
+    }
+    if (*sync_txTimestamp == 0) { // If timestamp not obtained during send, get it now
+        *sync_txTimestamp = socketGetSendTime(ptp->sock319);
+        if (*sync_txTimestamp == 0) {
+            printf("ERROR: ptpSendSync: socketGetSendTime failed, no tx timestamp available\n");
+            return false;
+        }
+    }
+    if (ptp->log_level >= 3) {
+        printf("TX: SYNC %u, tx time = %" PRIu64 "\n", sequenceId, *sync_txTimestamp);
+    }
+    return true;
+}
+
+bool ptpSendSyncFollowUp(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid, uint64_t sync_txTimestamp, uint16_t sequenceId) {
+
+    struct ptphdr h;
+    int16_t l;
+
+    initHeader(ptp, &h, domain, master_uuid, PTP_FOLLOW_UP, 44, 0, sequenceId);
+    uint64_t t1 = sync_txTimestamp;
+#if OPTION_TEST_TIME && !OPTION_TEST_TEST_TIME // Enable test time modifications in drift and offset
+    t1 = testTimeCalc(t1);
+#endif
+    uint32_t ti;
+    h.timestamp.timestamp_s_hi = 0;
+    ti = (uint32_t)(t1 / CLOCK_TICKS_PER_S);
+    h.timestamp.timestamp_s = htonl(ti);
+    ti = (uint32_t)(t1 % CLOCK_TICKS_PER_S);
+    h.timestamp.timestamp_ns = htonl(ti);
+
+    l = socketSendTo(ptp->sock320, (uint8_t *)&h, 44, ptp->maddr, 320, NULL);
+
+    if (ptp->log_level >= 3) {
+        char ts[64];
+        printf("TX: FLUP %u t1 = %s (%" PRIu64 ")\n", sequenceId, clockGetString(ts, sizeof(ts), t1), t1);
+    }
+    return (l == 44);
+}
+
+bool ptpSendDelayRequest(tPtp *ptp, uint8_t domain, const uint8_t *client_uuid, uint16_t sequenceId, uint64_t *txTimestamp) {
+
+    struct ptphdr h;
+    int16_t l;
+
+    assert(txTimestamp != NULL);
+
+    initHeader(ptp, &h, domain, client_uuid, PTP_DELAY_REQ, 44, 0, sequenceId);
+    *txTimestamp = 0xFFFFFFFFFFFFFFFF;
+    l = socketSendTo(ptp->sock319, (uint8_t *)&h, 44, ptp->maddr, 319, txTimestamp /* != NULL request tx time stamp */);
+    if (l == 44) {
+        if (*txTimestamp == 0) { // If timestamp not obtained during send, get it now
+            *txTimestamp = socketGetSendTime(ptp->sock319);
+            if (*txTimestamp == 0) {
+                DBG_PRINT_ERROR("ptpSendDelayRequest: socketGetSendTime failed, no tx timestamp available\n");
+                return false;
+            }
+        }
+        if (ptp->log_level >= 3) {
+            printf("TX: DELAY_REQ %u, domain=%u, client_uuid=%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X, tx timestamp t3 = %" PRIu64 "\n", sequenceId, domain, client_uuid[0],
+                   client_uuid[1], client_uuid[2], client_uuid[3], client_uuid[4], client_uuid[5], client_uuid[6], client_uuid[7], *txTimestamp);
+        }
+        return true;
+    } else {
+        return false;
+    }
+}
+
+bool ptpSendDelayResponse(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid, struct ptphdr *client_req, uint64_t delayreg_rxTimestamp) {
+
+    struct ptphdr h;
+    int16_t l;
+
+    assert(client_req != NULL);
+    assert(client_req->type == PTP_DELAY_REQ);
+
+    initHeader(ptp, &h, domain, master_uuid, PTP_DELAY_RESP, 54, 0, htons(client_req->sequenceId)); // copy sequence id
+    h.correction = client_req->correction;                                                          // copy correction
+    h.u.r.sourcePortId = client_req->sourcePortId;                                                  // copy from request egress port id
+    memcpy(h.u.r.clockId, client_req->clockId, 8);                                                  // copy from request clock id
+
+    // Set t4
+    uint64_t t4 = delayreg_rxTimestamp;
+#if OPTION_TEST_TIME && !OPTION_TEST_TEST_TIME // Enable test time modifications in drift and offset
+    t4 = testTimeCalc(t4);
+#endif
+    uint32_t ti;
+    h.timestamp.timestamp_s_hi = 0;
+    ti = (uint32_t)(t4 / CLOCK_TICKS_PER_S);
+    h.timestamp.timestamp_s = htonl(ti);
+    ti = (uint32_t)(t4 % CLOCK_TICKS_PER_S);
+    h.timestamp.timestamp_ns = htonl(ti);
+
+    l = socketSendTo(ptp->sock320, (uint8_t *)&h, 54, ptp->maddr, 320, NULL);
+
+    if (ptp->log_level >= 3) {
+        char ts[64];
+        struct ptphdr *ptp = &h;
+        printf("TX: DELAY_RESP %u to %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X  t4 = %s (%" PRIu64 ")\n", htons(h.sequenceId), ptp->u.r.clockId[0], ptp->u.r.clockId[1],
+               ptp->u.r.clockId[2], ptp->u.r.clockId[3], ptp->u.r.clockId[4], ptp->u.r.clockId[5], ptp->u.r.clockId[6], ptp->u.r.clockId[7], clockGetString(ts, sizeof(ts), t4),
+               t4);
+    }
+
+    return (l == 54);
+}
+
 //-------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------
 // PTP threads for socket handling (319, 320) for both master and observer mode
@@ -165,7 +347,7 @@ static void *ptpThread320(void *par)
 // uuid: 8 byte clock UUID
 // If if_addr = INADDR_ANY, bind to given interface
 // Enable hardware timestamps on interface (requires root privileges)
-tPtpInterfaceHandle ptpCreateInterface(const uint8_t *if_addr, const char *if_name, uint8_t log_level) {
+tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name, uint8_t log_level) {
 
     tPtp *ptp = (tPtp *)malloc(sizeof(tPtp));
     memset(ptp, 0, sizeof(tPtp));
@@ -229,32 +411,25 @@ tPtpInterfaceHandle ptpCreateInterface(const uint8_t *if_addr, const char *if_na
     create_thread_arg(&ptp->threadHandle320, ptpThread320, ptp);
     create_thread_arg(&ptp->threadHandle319, ptpThread319, ptp);
 
-    return (tPtpInterfaceHandle)ptp;
+    return ptp;
 }
 
 // Perform background tasks
 // This is called from the application on a regular basis
 // Observer: It monitors the status and checks for reset requests via calibration parameter
 // Master: Send SYNC and ANNOUNCE messages
-bool ptpTask(tPtpInterfaceHandle ptp_handle) {
+bool ptpTask(tPtp *ptp) {
 
-    tPtp *ptp = (tPtp *)ptp_handle;
     assert(ptp != NULL && ptp->magic == PTP_MAGIC);
-
     bool res = true;
-    for (int i = 0; i < ptp->master_count; i++) {
-        res &= masterTask(ptp, ptp->master_list[i]);
-    }
-    for (int i = 0; i < ptp->observer_count; i++) {
-        res &= observerTask(ptp, ptp->observer_list[i]);
-    }
+    res &= masterTask(ptp);
+    res &= observerTask(ptp);
     return res;
 }
 
 // Stop PTP
-void ptpShutdown(tPtpInterfaceHandle ptp_handle) {
+void ptpShutdown(tPtp *ptp) {
 
-    tPtp *ptp = (tPtp *)ptp_handle;
     assert(ptp != NULL && ptp->magic == PTP_MAGIC);
 
     cancel_thread(ptp->threadHandle320);
@@ -280,17 +455,16 @@ void ptpShutdown(tPtpInterfaceHandle ptp_handle) {
 }
 
 // Set auto observer mode (accept announce from any master and create a new observer instance)
-bool ptpEnableAutoObserver(tPtpInterfaceHandle ptp_handle) {
+bool ptpEnableAutoObserver(tPtp *ptp, bool active_mode) {
 
-    tPtp *ptp = (tPtp *)ptp_handle;
     assert(ptp != NULL && ptp->magic == PTP_MAGIC);
-    ptp->auto_observer_enabled = true;
+    ptp->auto_observer = true;
+    ptp->auto_observer_active_mode = active_mode;
     return true;
 }
 
-void ptpPrintState(tPtpInterfaceHandle ptp_handle) {
+void ptpPrintState(tPtp *ptp) {
 
-    tPtp *ptp = (tPtp *)ptp_handle;
     assert(ptp != NULL && ptp->magic == PTP_MAGIC);
 
     if (ptp->master_count > 0) {

@@ -103,9 +103,9 @@ extern "C" {
 #endif
 
 void masterPrintState(tPtp *ptp, tPtpMaster *master);
-bool masterTask(tPtp *ptp, tPtpMaster *master);
+bool masterTask(tPtp *ptp);
 bool masterHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr, uint64_t rxTimestamp);
-tPtpMasterHandle ptpCreateMaster(const char *name, tPtpInterfaceHandle ptp_handle, uint8_t domain, const uint8_t *uuid);
+tPtpMasterHandle ptpCreateMaster(tPtp *ptp, const char *name, uint8_t domain, const uint8_t *uuid);
 
 #ifdef __cplusplus
 }

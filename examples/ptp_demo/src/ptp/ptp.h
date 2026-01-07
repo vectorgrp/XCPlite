@@ -40,7 +40,8 @@ struct ptp {
     MUTEX mutex;
 
     uint8_t log_level;
-    bool auto_observer_enabled;
+    bool auto_observer;
+    bool auto_observer_active_mode;
 
     int master_count;
     struct ptp_master *master_list[PTP_MAX_MASTERS];
@@ -54,19 +55,25 @@ typedef struct ptp tPtp;
 extern "C" {
 #endif
 
-typedef void *tPtpInterfaceHandle;
 typedef void *tPtpMasterHandle;
 typedef void *tPtpObserverHandle;
 
-extern tPtpInterfaceHandle ptpCreateInterface(const uint8_t *ifname, const char *if_name, uint8_t debugLevel);
-extern tPtpObserverHandle ptpCreateObserver(const char *instance_name, tPtpInterfaceHandle interface, uint8_t domain, const uint8_t *uuid, const uint8_t *addr);
-extern tPtpMasterHandle ptpCreateMaster(const char *instance_name, tPtpInterfaceHandle interface, uint8_t domain, const uint8_t *uuid);
+tPtp *ptpCreateInterface(const uint8_t *ifname, const char *if_name, uint8_t debugLevel);
+tPtpObserverHandle ptpCreateObserver(tPtp *interface, const char *name, bool active_mode, uint8_t domain, const uint8_t *uuid, const uint8_t *addr);
+tPtpMasterHandle ptpCreateMaster(tPtp *interface, const char *name, uint8_t domain, const uint8_t *uuid);
 
-extern bool ptpTask(tPtpInterfaceHandle ptp);
-extern void ptpShutdown(tPtpInterfaceHandle ptp);
+bool ptpTask(tPtp *ptp);
+void ptpShutdown(tPtp *ptp);
 
-extern bool ptpEnableAutoObserver(tPtpInterfaceHandle interface);
-extern void ptpPrintState(tPtpInterfaceHandle ptp_handle);
+bool ptpEnableAutoObserver(tPtp *interface, bool active_mode);
+void ptpPrintState(tPtp *ptp_handle);
+
+bool ptpSendAnnounce(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid, uint16_t sequenceId);
+bool ptpSendSync(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid, uint64_t *sync_txTimestamp, uint16_t sequenceId);
+bool ptpSendSyncFollowUp(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid, uint64_t sync_txTimestamp, uint16_t sequenceId);
+bool ptpSendDelayResponse(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid, struct ptphdr *client_delay_req, uint64_t client_delay_req_rxTimestamp);
+
+bool ptpSendDelayRequest(tPtp *ptp, uint8_t domain, const uint8_t *client_uuid, uint16_t sequenceId, uint64_t *txTimestamp);
 
 #ifdef __cplusplus
 } // extern "C"

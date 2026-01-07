@@ -202,7 +202,7 @@
                 "cd ~/XCPlite-RainerZ && cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug"
             ],
             "group": "build",
-            "dependsOn": "XCPlite: sync to Pi",
+            "dependsOn": "XCPlite: sync to CM5",
             "detail": "Configure CMake build system on CM5"
         },
         {

@@ -277,6 +277,15 @@ bool linreg_filter_calc(tLinregFilter *f, double x, double y, double *slope_out,
     if (++f->ai >= f->size)
         f->ai = 0;
 
+    // First entry has not enough data
+    if (f->count < 2) {
+        if (slope_out)
+            *slope_out = 1.0;
+        if (y_out)
+            *y_out = y;
+        return false;
+    }
+
     // Normalize values to current x,y to improve numeric stability
     double x_norm[LINREG_FILTER_MAX_SIZE];
     double y_norm[LINREG_FILTER_MAX_SIZE];

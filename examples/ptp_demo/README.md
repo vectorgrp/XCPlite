@@ -57,6 +57,7 @@ Example: multi observer mode:
 # Start two PTP masters on different interfaces (in separate terminals or background)
 
 # Using ptp_demo time servers
+sudo ./build/ptp_demo -m -i eth0 -d 0
 sudo ./build/ptp_demo -m -i enp4s0 -d 1
 sudo ./build/ptp_demo -m -i enp5s0 -d 2
 

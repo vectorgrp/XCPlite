@@ -27,7 +27,7 @@
 #include <xcplib.hpp> // for xcplib application programming interface
 
 constexpr const char OPTION_PROJECT_NAME[] = "ptp_demo";
-constexpr const char OPTION_PROJECT_VERSION[] = "v1.4.1" __TIME__;
+constexpr const char OPTION_PROJECT_VERSION[] = "v1.4.2" __TIME__;
 constexpr bool OPTION_USE_TCP = false;
 constexpr uint8_t OPTION_SERVER_ADDR[4] = {0, 0, 0, 0};
 constexpr uint16_t OPTION_SERVER_PORT = 5555;
@@ -39,14 +39,15 @@ constexpr int OPTION_LOG_LEVEL = 2; // 0=none, 1=error, 2=warning, 3=info
 //-----------------------------------------------------------------------------------------------------
 // PTP params
 
-constexpr uint8_t PTP_BIND_ADDRESS[4] = {0, 0, 0, 0};
-constexpr const char PTP_INTERFACE[] = "eth0";
-constexpr int PTP_DOMAIN = 0;
 #define PTP_MODE_OBSERVER 0x01
 #define PTP_MODE_MASTER 0x02
 #define PTP_MODE_AUTO_OBSERVER 0x03
-constexpr int PTP_MODE = PTP_MODE_AUTO_OBSERVER;
-constexpr int PTP_LOG_LEVEL = 1; // 1=state print every second, 2..=more detailed logs
+
+constexpr uint8_t PTP_BIND_ADDRESS[4] = {0, 0, 0, 0}; // Default bind to any addresses
+constexpr const char PTP_INTERFACE[] = "eth0";        // Default network interface
+constexpr int PTP_DOMAIN = 0;                         // Default domain: 0
+constexpr int PTP_MODE = PTP_MODE_AUTO_OBSERVER;      // Default observer mode: automatic observer in passive mode
+constexpr int PTP_LOG_LEVEL = 1;                      // Default log level: 1=state print every second, 2..=more detailed logs
 
 //-----------------------------------------------------------------------------------------------------
 // Demo main
@@ -60,6 +61,7 @@ static void print_usage(const char *prog_name) {
               << "  -i, --interface <name>  Network interface name (default: eth0)\n"
               << "  -m, --master            Creates a PTP master with uuid and domain\n"
               << "  -o, --observer          Observer for uuid and domain (default: multi observer)\n"
+              << "  -p, --passive           Passive observer mode (default: active)\n"
               << "  -d, --domain <number>   Domain number 0-255 (default: 0)\n"
               << "  -u, --uuid <hex>        UUID as 16 hex digits (default: 001AB60000000001)\n"
               << "  -l, --loglevel <level>  Set log level (0..5)\n"
@@ -74,6 +76,7 @@ int main(int argc, char *argv[]) {
     int ptp_mode = PTP_MODE;
     int ptp_domain = PTP_DOMAIN;
     int ptp_log_level = PTP_LOG_LEVEL;
+    int ptp_active_mode = true;
     uint8_t ptp_uuid[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}; // default create from MAC in ptpCreateMaster
 
     // Parse command line arguments
@@ -95,6 +98,10 @@ int main(int argc, char *argv[]) {
             ptp_mode = PTP_MODE_MASTER;
         } else if (std::strcmp(argv[i], "-o") == 0 || std::strcmp(argv[i], "--observer") == 0) {
             ptp_mode = PTP_MODE_OBSERVER;
+        }
+
+        else if (std::strcmp(argv[i], "-p") == 0 || std::strcmp(argv[i], "--passive") == 0) {
+            ptp_active_mode = false;
         }
 
         else if (std::strcmp(argv[i], "-d") == 0 || std::strcmp(argv[i], "--domain") == 0) {
@@ -181,7 +188,7 @@ int main(int argc, char *argv[]) {
 
     std::cout << "Starting PTP on " << ptp_interface << "..." << std::endl;
 
-    tPtpInterfaceHandle ptp;
+    tPtp *ptp;
     if (NULL == (ptp = ptpCreateInterface(PTP_BIND_ADDRESS, const_cast<char *>(ptp_interface.c_str()), ptp_log_level))) {
         std::cerr << "Failed to start PTP interface" << std::endl;
         return 1;
@@ -189,14 +196,14 @@ int main(int argc, char *argv[]) {
 
     // Automatic observer mode: Create observers for all masters seen on any address, uuid and domain
     if (ptp_mode == PTP_MODE_AUTO_OBSERVER) {
-#ifdef OPTION_ENABLE_XCP
+#ifdef PTP_OBSERVER_LIST
         // Preload the observer list from file, to keep the index of known master stable, which leads to a stable A2L file and CANape configurations
         std::cout << "Enable auto observer mode" << std::endl;
         if (!ptpLoadObserverList(ptp, "ptp_observers.lst")) {
             std::cout << "No observer list loaded" << std::endl;
         }
 #endif
-        ptpEnableAutoObserver(ptp);
+        ptpEnableAutoObserver(ptp, ptp_active_mode);
 
     }
 
@@ -207,7 +214,7 @@ int main(int argc, char *argv[]) {
         // The PTP observer will listen to a master with ptp_domain, ptp_uuid and any address
         // If multiple masters are present, the first one matching will be selected
         uint8_t ptp_address[4] = {0, 0, 0, 0}; // Listen on all addresses
-        tPtpObserverHandle ptpObs = ptpCreateObserver("Observer1", ptp, ptp_domain, ptp_uuid, ptp_address);
+        tPtpObserverHandle ptpObs = ptpCreateObserver(ptp, "Observer1", ptp_active_mode, ptp_domain, ptp_uuid, ptp_address);
         if (NULL == ptpObs) {
             std::cerr << "Failed to create PTP observer" << std::endl;
             ptpShutdown(ptp);
@@ -219,7 +226,7 @@ int main(int argc, char *argv[]) {
     else if (ptp_mode == PTP_MODE_MASTER) {
 
         // Create a master on interface ptp
-        tPtpMasterHandle ptpMaster = ptpCreateMaster("Master1", ptp, ptp_domain, ptp_uuid);
+        tPtpMasterHandle ptpMaster = ptpCreateMaster(ptp, "Master1", ptp_domain, ptp_uuid);
         if (NULL == ptpMaster) {
             std::cerr << "Failed to create PTP master" << std::endl;
             ptpShutdown(ptp);
