@@ -449,29 +449,27 @@ static void observerUpdate(tPtp *ptp, tPtpObserver *obs, uint64_t t1_in, uint64_
 void observerDelayUpdate(tPtpObserver *obs) {
     assert(obs != NULL);
 
-    uint64_t t1 = obs->sync_master_time;      // master clock
-    uint64_t t2 = obs->sync_local_time;       // local clock
-    uint64_t t3 = obs->delay_req_local_time;  // local clock
-    uint64_t t4 = obs->delay_req_master_time; // master clock
+    uint64_t t1 = (obs->sync_steps == 1) ? obs->sync_master_time : obs->flup_master_time; // master clock
+    uint64_t t2 = obs->sync_local_time;                                                   // local clock
+    uint64_t t3 = obs->delay_req_local_time;                                              // local clock
+    uint64_t t4 = obs->delay_req_master_time;                                             // master clock
 
-    // Update path_delay and master_offset when new data from SYNC and DELAY_REQ is available
+    // Update path_delay and master_offset only, when new data from SYNC and DELAY_REQ is available
+    if (t4 < t1)
+        return;
 
     /* PTP protocol
        Master   Client
-           t1             t1 = FOLLOW_UP.sync_tx_timestamp
+           t1             t1 = SYNC master tx timestamp
               \
                 t2        t2 = SYNC client rx timestamp
                 t3        t3 = DELAY_REQUEST client tx timestamp
               /
-           t4             t4 = DELAY_RESPONSE.req_rx_timestamp
+           t4             t4 = DELAY_RESPONSE master rx timestamp
     */
-
-    if (t4 < t1)
-        return;
 
     // Drift correction for t4
     int64_t t4_drift_correction = (int64_t)(t4 - t1) * obs->master_drift / 1.0E9;
-    // t4_drift_correction = 0; // @@@@ TODO: disable for now
 
     // Calculate mean path delay
     uint64_t t21 = (t2 - t1 - obs->sync_correction);

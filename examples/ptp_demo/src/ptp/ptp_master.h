@@ -17,6 +17,9 @@
 #include <xcplib.h> // for tXcpEventId
 #endif
 
+// Enable master time drift, drift_drift, offset and jitter simulation
+#define MASTER_TIME_ADJUST
+
 #define MAX_CLIENTS 16
 #define SYNC_CYCLE_TIME_MS_DEFAULT 1000
 #define ANNOUNCE_CYCLE_TIME_MS_DEFAULT 2000
@@ -49,6 +52,13 @@ static const announce_parameters_t announce_params = {
 typedef struct master_params {
     uint32_t announceCycleTimeMs; // Announce message cycle time in ms
     uint32_t syncCycleTimeMs;     // SYNC message cycle time in ms
+#ifdef MASTER_TIME_ADJUST
+    int32_t drift;       // PTP master time drift in ns/s
+    int32_t drift_drift; // PTP master time drift drift in ns/s2
+    int32_t offset;      // PTP master time offset in ns
+    int32_t jitter;      // PTP master time jitter in ns
+
+#endif
 } master_parameters_t;
 
 // PTP client descriptor for master
@@ -93,6 +103,18 @@ struct ptp_master {
     // XCP event id
 #ifdef OPTION_ENABLE_XCP
     tXcpEventId xcp_event; // on master SYNC
+#endif
+
+// Master drift, drift_drift, offset and jitter
+#ifdef MASTER_TIME_ADJUST
+
+    // Test time state
+    int32_t testTimeDrift;
+    int32_t testTimeCurrentDrift;    // Current drift including drift_drift
+    int64_t testTimeSyncDriftOffset; // Current offset from drift accumulated on sync: testTime = originTime+testTimeSyncDriftOffset
+    uint64_t testTimeLast;           // Current test time
+    uint64_t testTimeLastSync;       // Original time of last sync
+    MUTEX testTimeMutex;
 #endif
 };
 

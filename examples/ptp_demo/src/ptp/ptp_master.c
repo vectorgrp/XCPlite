@@ -44,8 +44,116 @@
 // Default master parameter values
 static const master_parameters_t master_params = {
     .announceCycleTimeMs = ANNOUNCE_CYCLE_TIME_MS_DEFAULT, // ANNOUNCE rate
-    .syncCycleTimeMs = SYNC_CYCLE_TIME_MS_DEFAULT          // SYNC rate
+    .syncCycleTimeMs = SYNC_CYCLE_TIME_MS_DEFAULT,         // SYNC rate
+#ifdef MASTER_TIME_ADJUST
+    .drift = 0,       // PTP master time drift in ns/s
+    .drift_drift = 0, // PTP master time drift drift in ns/s2
+    .offset = 0,      // PTP master time offset in ns
+    .jitter = 0,    // PTP master time jitter in ns
+#endif
 };
+
+//-------------------------------------------------------------------------------------------------------
+// Master time drift, drift_drift, jitter and offset calculation
+
+#ifdef MASTER_TIME_ADJUST
+
+// Initialize test time parameters
+static void testTimeInit(tPtpMaster *master) {
+    assert(master != NULL);
+    master->testTimeDrift = 0;           // Current drift in ns/s
+    master->testTimeCurrentDrift = 0;    // Current drift including drift_drift
+    master->testTimeSyncDriftOffset = 0; // Current offset: testTime = originTime+testTimeSyncDriftOffset
+    master->testTimeLast = 0;            // Current test time
+    master->testTimeLastSync = 0;        // Original time of last sync
+    mutexInit(&master->testTimeMutex, 0, 1000);
+}
+
+// Calculate simulated test time from origin time applying drift, drift_drift, offset and jitter
+static uint64_t testTimeAdjust(tPtpMaster *master, uint64_t originTime) {
+
+    uint64_t t = originTime;
+
+    assert(t >= master->testTimeLastSync);
+
+    mutexLock(&master->testTimeMutex);
+
+    // time since last sync
+    uint64_t dt = t - master->testTimeLastSync;
+
+    //  Apply drift offset
+    int64_t drift_offset = (int64_t)((master->testTimeCurrentDrift * (int64_t)dt) / 1000000000) + master->testTimeSyncDriftOffset;
+    t += drift_offset;
+
+    // Apply jitter
+    int64_t jitter_offset = 0;
+    if (master->params->jitter > 0) {
+        jitter_offset = (int64_t)(((double)rand() / (double)RAND_MAX) * 2.0 * (double)(master->params->jitter + 1) - (double)(master->params->jitter + 1));
+        t += jitter_offset;
+    }
+
+    // Apply offset
+    t += master->params->offset;
+
+    mutexUnlock(&master->testTimeMutex);
+
+    // warn if time is non monotonic
+    if (t < master->testTimeLast) {
+        DBG_PRINTF_ERROR("Non monotonic time ! (dt=-%" PRIu64 ")\n", master->testTimeLast - t);
+    }
+
+    if (master->log_level >= 4) {
+        printf("    testTimeAdjust: originTime=%" PRIu64 " ns, drift_offset=%" PRIi64 " ns, jitter=%" PRIi64 " ns, offset=%d ns => testTime=%" PRIu64 " ns\n", originTime,
+               drift_offset, jitter_offset, master->params->offset, t);
+    }
+
+    master->testTimeLast = t;
+    return t;
+}
+
+// Recalculate test time sync offset and zero test time drift offset
+// At drift 100ppm, calculation would overflow after 2,8s
+static void testTimeSync(tPtpMaster *master, uint64_t originTime) {
+
+    if (originTime < master->testTimeLastSync)
+        return; // Ignore non monotonic time
+
+    // Check if drift parameter has changed since last sync
+    assert(master->params->drift >= -100000 && master->params->drift <= +100000);
+    if (master->params->drift != master->testTimeDrift) {
+        master->testTimeDrift = master->testTimeCurrentDrift = master->params->drift;
+        if (master->log_level >= 2) {
+            printf("PTP Master %s: new drift=%d ns/s\n", master->name, master->testTimeDrift);
+        }
+    }
+
+    mutexLock(&master->testTimeMutex);
+
+    if (master->testTimeLastSync > 0) {
+
+        // time since last sync
+        uint64_t dt = originTime - master->testTimeLastSync;
+        assert(dt < 2000000000); // Be sure integer calculation does not overflow
+
+        int64_t o = (int64_t)((master->testTimeCurrentDrift * (int64_t)dt) / 1000000000);
+        master->testTimeSyncDriftOffset += o;
+        // printf("sync dt=%" PRIu64 ", driftOffset=%d, timeOffset=%d\n", dt, master->testTimeDriftOffset, master->testTimeSyncDriftOffset);
+
+        // Apply drift drift
+        master->testTimeCurrentDrift += (int32_t)((master->params->drift_drift * (int64_t)dt) / 1000000000);
+    }
+
+    master->testTimeLastSync = originTime;
+
+    if (master->log_level >= 5) {
+        printf("    testTimeSync: originTime=%" PRIu64 " ns, testTimeSyncDriftOffset=%" PRIi64 " ns, testTimeCurrentDrift=%d ns/s\n", originTime, master->testTimeSyncDriftOffset,
+               master->testTimeCurrentDrift);
+    }
+
+    mutexUnlock(&master->testTimeMutex);
+}
+
+#endif
 
 //-------------------------------------------------------------------------------------------------------
 // Client list
@@ -197,6 +305,10 @@ void masterInit(tPtp *ptp, tPtpMaster *master, uint8_t domain, const uint8_t *uu
         A2lSetSegmentAddrMode(h, master_params);
         A2lCreateParameter(master_params.announceCycleTimeMs, "Announce cycle time (ms)", "", 0, 10000);
         A2lCreateParameter(master_params.syncCycleTimeMs, "Sync cycle time (ms)", "", 0, 10000);
+        A2lCreateParameter(master_params.drift, "Master time drift (ns/s)", "", -100000, +100000);
+        A2lCreateParameter(master_params.drift_drift, "Master time drift drift (ns/s2)", "", -1000, +1000);
+        A2lCreateParameter(master_params.jitter, "Master time jitter (ns)", "", 0, 1000000);
+        A2lCreateParameter(master_params.offset, "Master time offset (ns)", "", -1000000000, +1000000000);
 
         // Create a A2L typedef for the PTP client structure
         A2lTypedefBegin(tPtpClient, NULL, "PTP client structure");
@@ -274,7 +386,15 @@ bool masterTask(tPtp *ptp) {
                 if (master->syncTxTimestamp == 0) {
                     printf("ERROR: SYNC tx timestamp not available !\n");
                 } else {
-                    if (!ptpSendSyncFollowUp(ptp, master->domain, master->uuid, master->syncTxTimestamp, master->sequenceIdSync)) {
+
+#ifdef MASTER_TIME_ADJUST
+                    testTimeSync(master, master->syncTxTimestamp); // Adjust test time parameters at SYNC, not at DELAY_REQ
+                    uint64_t t = testTimeAdjust(master, master->syncTxTimestamp);
+#else
+                    uint64_t t = master->syncTxTimestamp;
+#endif
+
+                    if (!ptpSendSyncFollowUp(ptp, master->domain, master->uuid, t, master->sequenceIdSync)) {
                         printf("ERROR: Failed to send SYNC FOLLOW UP\n");
                     }
                 }
@@ -326,8 +446,13 @@ bool masterHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr, 
 
             if (ptp_msg->domain == master->domain) {
                 bool ok;
+#ifdef MASTER_TIME_ADJUST
+                uint64_t t4 = testTimeAdjust(master, rxTimestamp);
+#else
+                uint64_t t4 = rxTimestamp;
+#endif
                 mutexLock(&ptp->mutex);
-                ok = ptpSendDelayResponse(ptp, master->domain, master->uuid, ptp_msg, rxTimestamp);
+                ok = ptpSendDelayResponse(ptp, master->domain, master->uuid, ptp_msg, t4);
                 mutexUnlock(&ptp->mutex);
                 if (!ok)
                     return false;
@@ -372,6 +497,11 @@ tPtpMasterHandle ptpCreateMaster(tPtp *ptp, const char *name, uint8_t domain, co
     strncpy(master->name, name, sizeof(master->name) - 1);
     masterInit(ptp, master, domain, uuid);
     master->log_level = ptp->log_level;
+
+    // Init offset and drift calculation
+#ifdef MASTER_TIME_ADJUST
+    testTimeInit(master);
+#endif
 
     // Register the master instance
     ptp->master_list[ptp->master_count++] = master;

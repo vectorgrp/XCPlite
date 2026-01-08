@@ -189,9 +189,6 @@ bool ptpSendSyncFollowUp(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid, 
 
     initHeader(ptp, &h, domain, master_uuid, PTP_FOLLOW_UP, 44, 0, sequenceId);
     uint64_t t1 = sync_txTimestamp;
-#if OPTION_TEST_TIME && !OPTION_TEST_TEST_TIME // Enable test time modifications in drift and offset
-    t1 = testTimeCalc(t1);
-#endif
     uint32_t ti;
     h.timestamp.timestamp_s_hi = 0;
     ti = (uint32_t)(t1 / CLOCK_TICKS_PER_S);
@@ -251,9 +248,6 @@ bool ptpSendDelayResponse(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid,
 
     // Set t4
     uint64_t t4 = delayreg_rxTimestamp;
-#if OPTION_TEST_TIME && !OPTION_TEST_TEST_TIME // Enable test time modifications in drift and offset
-    t4 = testTimeCalc(t4);
-#endif
     uint32_t ti;
     h.timestamp.timestamp_s_hi = 0;
     ti = (uint32_t)(t4 / CLOCK_TICKS_PER_S);
