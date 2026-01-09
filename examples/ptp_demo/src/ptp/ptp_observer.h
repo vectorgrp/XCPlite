@@ -20,23 +20,17 @@
 #define PTP_OBSERVER_GM_TIMEOUT_S 5
 
 // Enable persistent observer allocation
-// #define PTP_OBSERVER_LIST
-
-// Offset and drift analysis options
-#define OBSERVER_LINREG
-// #define OBSERVER_SERVO
+#define PTP_OBSERVER_LIST
 
 // Time analyser parameter structure
 typedef struct {
 
-    int32_t t1_correction;       // Correction to apply to t1 timestamps
-    uint8_t delay_req_burst_len; // Number of DELAY_REQ messages to send after each SYNC in active mode
-    uint8_t drift_filter_size;   // Size of the drift average filter
-#ifdef OBSERVER_LINREG
+    int32_t t1_correction;             // Correction to apply to t1 timestamps
+    uint8_t delay_req_burst_len;       // Number of DELAY_REQ messages to send after each SYNC in active mode
+    uint8_t avg_drift_filter_size;     // Size of the drift average filter
     uint8_t linreg_filter_size;        // Size of the linear regression filter
     uint8_t linreg_offset_filter_size; // Size of the linear regression offset filter
     uint8_t linreg_jitter_filter_size; // Size of the linear regression jitter filter
-#endif
 #ifdef OBSERVER_SERVO
     double max_correction; // Maximum allowed servo correction per SYNC interval
     double servo_p_gain;   // Proportional gain (typically 0.1 - 0.5)
@@ -65,10 +59,13 @@ struct ptp_clock_analyzer {
     int64_t t1_norm, t2_norm;      // Normalized timestamp pair t1_norm - master, t2_norm - local clock
     int64_t offset_norm;           // Normalized master offset t1_norm-t2_norm
 
-    double drift_raw; // Current cycle drift in 1000*ppm
-    tAverageFilter drift_filter;
-    tAverageFilter drift_drift_filter;
-#ifdef OBSERVER_LINREG
+    // Method 1:
+    double avg_drift;       // Average filtered drift value
+    double avg_drift_drift; // Average filtered drift of the drift value
+    tAverageFilter avg_drift_filter;
+    tAverageFilter avg_drift_drift_filter;
+
+    // Method 2:
     tLinregFilter linreg_filter; // Linear regression filter for drift and offset calculation
     double linreg_drift;         // Drift by linear regression in 1000*ppm
     double linreg_drift_drift;   // Drift of the drift by linear regression in 1000*ppm/s*s
@@ -78,7 +75,7 @@ struct ptp_clock_analyzer {
     double linreg_jitter;     // Jitter by linear regression in ns
     tAverageFilter linreg_jitter_filter;
     double linreg_jitter_avg; // Average jitter by linear regression in ns
-#endif
+
 #ifdef OBSERVER_SERVO
     double master_offset_compensation;       // normalized master_offset compensation servo offset
     double master_offset_detrended;          // normalized master_offset error (detrended offset_norm)
@@ -140,6 +137,19 @@ struct ptp_observer {
     uint32_t flup_correction;
     uint16_t flup_sequenceId;
 
+    tPtpClockAnalyzer a12; // Clock analyzer state for t1,t2 timestamp pairs
+    tPtpClockAnalyzer a34; // Clock analyzer state for t3,t4 timestamp pairs
+
+    // Passive mode: Calculated master drift and jitter from SYNC messages (passive mode)
+    double master_drift;       // Filtered cycle drift over last n cycles
+    double master_drift_drift; // Drift of the drift in 1000*ppm/s*s
+    double master_jitter;      // jitter
+    double master_jitter_rms;  // jitter root mean square
+    double master_jitter_avg;  // jitter average
+
+    int64_t offset_to[PTP_MAX_OBSERVERS]; // Offset and drift of this observers master clock compared to any other observer
+    double drift_to[PTP_MAX_OBSERVERS];
+
     // Active mode: Protocol DELAY_REQ and DELAY_RESP state
     uint8_t client_uuid[8];
     uint16_t delay_req_sequenceId;  // Sequence id for last DELAY_REQ
@@ -150,22 +160,11 @@ struct ptp_observer {
     uint16_t delay_resp_sequenceId;
     uint16_t delay_resp_logMessageInterval;
 
-    tPtpClockAnalyzer a12; // Clock analyzer state for t1,t2 timestamp pairs
-    tPtpClockAnalyzer a34; // Clock analyzer state for t3,t4 timestamp pairs
-
-    // Calculated master drift and jitter from SYNC messages (passive mode)
-    double master_drift;       // Filtered cycle drift over last n cycles
-    double master_drift_drift; // Drift of the drift in 1000*ppm/s*s
-    double master_jitter;      // jitter
-    double master_jitter_rms;  // jitter root mean square
-    double master_jitter_avg;  // jitter average
-
-    int64_t offset_to[PTP_MAX_OBSERVERS]; // Offset and drift of this observers master clock compared to any other observer
-    double drift_to[PTP_MAX_OBSERVERS];
-
     // Active mode: calculated path delay and master offset
-    uint64_t path_delay;   // Current path delay
-    int64_t master_offset; // Current master offset
+    uint16_t sync_sequenceId_last;       // Last processed SYNC sequence Id
+    uint16_t delay_resp_sequenceId_last; // Last processed DELAY_RESP sequence Id
+    uint64_t path_delay;                 // Current path delay
+    int64_t master_offset;               // Current master offset
 };
 
 typedef struct ptp_observer tPtpObserver;

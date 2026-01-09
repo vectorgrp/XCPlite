@@ -40,19 +40,19 @@
 // Clock Analyzer
 
 // Default analyzer parameter values
-static const observer_parameters_t observer_params = { //
-
-    .t1_correction = 0,       // Apply 3ns correction to t1 to compensate for VN56xx master timestamp rounding
-    .delay_req_burst_len = 3, // Number of DELAY_REQ messages to send after each SYNC in active mode
-    .drift_filter_size = 30,  .jitter_rms_filter_size = 30,    .jitter_avg_filter_size = 30,
-#ifdef OBSERVER_LINREG
-    .linreg_filter_size = 30, .linreg_offset_filter_size = 10, .linreg_jitter_filter_size = 30,
-#endif
+static observer_parameters_t observer_params = { //
+    .t1_correction = 0,                          // Apply 3ns correction to t1 to compensate for VN56xx master timestamp rounding
+    .delay_req_burst_len = 0,                    // Number of DELAY_REQ messages to send after each SYNC in active mode
+    .avg_drift_filter_size = 30,                 // Size of the drift average filter
+    .linreg_filter_size = 30,                    // Size of the linear regression filter
+    .linreg_offset_filter_size = 10,             // Size of the linear regression offset filter
+    .linreg_jitter_filter_size = 30,             // Size of the linear regression jitter filter
+    .jitter_rms_filter_size = 30,                // Size of the jitter RMS average filter
+    .jitter_avg_filter_size = 30,                // Size of the jitter average filter
 #ifdef OBSERVER_SERVO
     .max_correction = 1000.0, // 1000ns maximum correction per SYNC interval
     .servo_p_gain = 1.0
 #endif
-
 };
 
 void analyzerInit(tPtpClockAnalyzer *a, observer_parameters_t *params) {
@@ -68,11 +68,12 @@ void analyzerInit(tPtpClockAnalyzer *a, observer_parameters_t *params) {
     a->t1_norm = 0;
     a->t2_norm = 0;
     a->offset_norm = 0;
-    a->drift_raw = 0;
-    average_filter_init(&a->drift_filter, params->drift_filter_size);
-    average_filter_init(&a->drift_drift_filter, params->drift_filter_size);
 
-#ifdef OBSERVER_LINREG
+    a->avg_drift = 0.0;
+    a->avg_drift_drift = 0.0;
+    average_filter_init(&a->avg_drift_filter, params->avg_drift_filter_size);
+    average_filter_init(&a->avg_drift_drift_filter, params->avg_drift_filter_size);
+
     a->linreg_drift = 0.0;
     a->linreg_offset = 0.0;
     a->linreg_offset_avg = 0.0;
@@ -82,10 +83,8 @@ void analyzerInit(tPtpClockAnalyzer *a, observer_parameters_t *params) {
     linreg_filter_init(&a->linreg_filter, params->linreg_filter_size);
     average_filter_init(&a->linreg_offset_filter, params->linreg_offset_filter_size);
     average_filter_init(&a->linreg_jitter_filter, params->linreg_jitter_filter_size);
-#endif
 
 #ifdef OBSERVER_SERVO
-    a->drift_raw = 0;
     a->master_offset_compensation = 0;
     a->master_offset_detrended = 0;
     a->master_offset_detrended_filtered = 0;
@@ -113,7 +112,7 @@ static void analyzerUpdate(const char *observer_name, const char *analyzer_name,
     a->t2 = t2;
 
     if (log_level >= 3) {
-        printf("    Analyzer %s %s: t1 = %" PRIu64 ", t2 = %" PRIu64 "\n", observer_name, analyzer_name, t1, t2);
+        printf("  Analyzer %s %s: t1 = %" PRIu64 ", t2 = %" PRIu64 "\n", observer_name, analyzer_name, t1, t2);
     }
 
     // Master offset raw value
@@ -162,32 +161,28 @@ static void analyzerUpdate(const char *observer_name, const char *analyzer_name,
         int64_t c1 = t1_norm - a->t1_norm; // time since last sync on master clock
         int64_t c2 = t2_norm - a->t2_norm; // time since last sync on local clock
 
-// Drift and drift of drift calculation by floating average method
-#ifdef OBSERVER_SERVO
+        // Drift and drift of drift calculation by floating average method
         {
             int64_t diff = c1 - c2; // Positive diff = master clock faster than local clock
-            double master_drift = 0.0;
-            double master_drift_drift = 0.0;
+            double drift = 0.0;
+            double drift_drift = 0.0;
             if (diff < -200000 || diff > +200000) { // Plausibility checking of cycle drift (max 200us per cycle)
-                printf("WARNING: Master drift too high! dt=%lld ns \n", diff);
+                DBG_PRINTF_WARNING("WARNING: Master drift too high! dt=%lld ns \n", diff);
             } else {
-                obs->drift_raw = (double)diff * 1000000000 / c2;                        // Calculate drift in ppm instead of drift per cycle (drift is in ns/s (1/1000 ppm)
-                master_drift = average_filter_calc(&obs->drift_filter, obs->drift_raw); // Filter drift
-                master_drift_drift = master_drift - obs->master_drift; // Calculate drift of drift in ns/(s*s) (should be close to zero when temperature is stable )
-                obs->master_drift_drift = master_drift_drift;
-                obs->master_drift = master_drift;
+                double drift_raw = (double)diff * 1000000000 / c2;                   // Calculate drift in ppm instead of drift per cycle (drift is in ns/s (1/1000 ppm)
+                double drift = average_filter_calc(&a->avg_drift_filter, drift_raw); // Filter drift
+                a->avg_drift_drift = drift - a->avg_drift;                           // Calculate drift of drift in ns/(s*s) (should be close to zero when temperature is stable )
+                a->avg_drift = drift;
             }
             if (log_level >= 3) {
-                printf("    Average filtered drift calculation results at t2 = %lld ns: \n", t2_norm);
-                printf("      master_drift        = %g ns/s\n", obs->master_drift);
-                printf("      master_drift_drift  = %g ns/s2\n", obs->master_drift_drift);
+                printf("  Analyzer %s %s: Average filter results at t2 = %lld ns: \n", observer_name, analyzer_name, t2_norm);
+                printf("    avg drift        = %g ns/s\n", a->avg_drift);
+                printf("    avg drift_drift  = %g ns/s2\n", a->avg_drift_drift);
             }
         }
-#endif
 
-// Drift, drift of drift and jitter calculation by linear regression method
-// Drift of drift in ns/(s*s) (should be close to zero when temperature is stable )
-#ifdef OBSERVER_LINREG
+        // Drift, drift of drift and jitter calculation by linear regression method
+        // Drift of drift in ns/(s*s) (should be close to zero when temperature is stable )
         double linreg_slope = 0.0;
         double linreg_offset = 0.0;
         if (linreg_filter_calc(&a->linreg_filter, (double)t2_norm, (double)t1_norm, &linreg_slope, &linreg_offset)) {
@@ -227,9 +222,7 @@ static void analyzerUpdate(const char *observer_name, const char *analyzer_name,
         a->drift_drift = a->linreg_drift_drift; // Drift of the drift in 1000*ppm/s*s
         a->jitter = a->linreg_jitter;           // Jitter in ns
 
-#endif
-
-#if OBSERVER_SERVO
+#ifdef OBSERVER_SERVO
 
         if (obs->master_offset_compensation == 0) {
             // Initialize compensation
@@ -320,13 +313,16 @@ void observerReset(tPtpObserver *obs) {
     analyzerInit(&obs->a12, obs->params); // Init timing analysis state for t1,t2 SYNC timestamps
     analyzerInit(&obs->a34, obs->params); // Init timing analysis state for t3,t4 DELAY timestamps
 
-    // Clock analyzer results (from a12)
+    // Clock analyzer results (from a12 in passive or a34 in active mode)
     obs->master_drift_drift = 0;
     obs->master_drift = 0;
     obs->master_jitter = 0;
     obs->master_jitter_rms = 0;
     obs->master_jitter_avg = 0;
 
+    // Path delay and master offset
+    obs->sync_sequenceId_last = 0;
+    obs->delay_resp_sequenceId_last = 0;
     obs->path_delay = 0;    // Current path delay
     obs->master_offset = 0; // Current master offset
 
@@ -355,13 +351,14 @@ void observerPrintState(tPtp *ptp, tPtpObserver *obs) {
     if (obs->gmValid) {
         observerPrintMaster(obs);
 
-        if (obs->a12.is_sync) {
-            printf("    t12 drift        = %g ns/s\n", obs->a12.drift);
-            printf("    t12 drift_drift  = %g ns/s2\n", obs->a12.drift_drift);
-            printf("    t12 jitter       = %g ns\n", obs->a12.jitter);
-            printf("    t12 jitter_avg   = %g ns\n", obs->a12.jitter_avg);
-            printf("    t12 jitter_rms   = %g ns\n", obs->a12.jitter_rms);
-
+        if (obs->log_level >= 2) {
+            if (obs->a12.is_sync) {
+                printf("    t12 drift        = %g ns/s\n", obs->a12.drift);
+                printf("    t12 drift_drift  = %g ns/s2\n", obs->a12.drift_drift);
+                printf("    t12 jitter       = %g ns\n", obs->a12.jitter);
+                printf("    t12 jitter_avg   = %g ns\n", obs->a12.jitter_avg);
+                printf("    t12 jitter_rms   = %g ns\n", obs->a12.jitter_rms);
+            }
             if (obs->activeMode) {
                 if (obs->a34.is_sync) {
                     printf("    t34 drift        = %g ns/s\n", obs->a34.drift);
@@ -370,20 +367,27 @@ void observerPrintState(tPtp *ptp, tPtpObserver *obs) {
                     printf("    t34 jitter_avg   = %g ns\n", obs->a34.jitter_avg);
                     printf("    t34 jitter_rms   = %g ns\n", obs->a34.jitter_rms);
                 }
-                printf("    path_delay     = %" PRIu64 " ns\n", obs->path_delay);
-                printf("    master_offset  = %" PRIi64 " ns\n", obs->master_offset);
             }
+        }
+        if (obs->a12.is_sync || obs->a34.is_sync) {
+            printf("    drift        = %g ns/s\n", obs->master_drift);
+            printf("    drift_drift  = %g ns/s2\n", obs->master_drift_drift);
+            printf("    jitter       = %g ns\n", obs->master_jitter);
+            printf("    jitter_avg   = %g ns\n", obs->master_jitter_avg);
+            printf("    jitter_rms   = %g ns\n", obs->master_jitter_rms);
+        }
+        if (obs->activeMode) {
+            printf("    path_delay     = %" PRIu64 " ns\n", obs->path_delay);
+            printf("    master_offset  = %" PRIi64 " ns\n", obs->master_offset);
+        }
 
-            for (int j = 0; j < ptp->observer_count; j++) {
-                tPtpObserver *obs_other = ptp->observer_list[j];
-                if (obs != obs_other && obs_other->gmValid) {
-                    printf("    to %s:\n", obs_other->name);
-                    printf("      offset diff: %" PRIi64 " ns (%g ms)\n", obs->offset_to[j], obs->offset_to[j] / 1000000.0);
-                    printf("      drift diff: %g ppm\n", obs->drift_to[j] / 1000.0);
-                }
+        for (int j = 0; j < ptp->observer_count; j++) {
+            tPtpObserver *obs_other = ptp->observer_list[j];
+            if (obs != obs_other && obs_other->gmValid) {
+                printf("    to %s:\n", obs_other->name);
+                printf("      offset diff: %" PRIi64 " ns (%g ms)\n", obs->offset_to[j], obs->offset_to[j] / 1000000.0);
+                printf("      drift diff: %g ppm\n", obs->drift_to[j] / 1000.0);
             }
-        } else {
-            printf("    Not yet synchronized\n");
         }
     } else {
         printf("    No active PTP master yet\n");
@@ -444,15 +448,16 @@ static void observerSyncUpdate(tPtp *ptp, tPtpObserver *obs) {
     analyzerUpdate(obs->name, "a12", &obs->a12, t1 + correction, t2, obs->log_level);
     if (obs->a12.is_sync) {
 
-        // Copy results
-        obs->master_drift = obs->a12.drift;
-        obs->master_drift_drift = obs->a12.drift_drift;
-        obs->master_jitter = obs->a12.jitter;
-        obs->master_jitter = obs->a12.jitter_avg;
-        obs->master_jitter = obs->a12.jitter_rms;
+        // Use as results in passive mode
+        if (!obs->activeMode) {
+            obs->master_drift = obs->a12.drift;
+            obs->master_drift_drift = obs->a12.drift_drift;
+            obs->master_jitter = obs->a12.jitter;
+            obs->master_jitter_avg = obs->a12.jitter_avg;
+            obs->master_jitter_rms = obs->a12.jitter_rms;
+        }
 
-        // Calculate offsets to other observers with different master clocks
-        // @@@@ TODO: Check if this is correct, t1 includes correction
+        // Compare to other observers for different master clocks
         if (ptp->observer_count > 1) {
             if (obs->log_level >= 2)
                 printf("  Comparisons to other observers:\n");
@@ -461,8 +466,17 @@ static void observerSyncUpdate(tPtp *ptp, tPtpObserver *obs) {
                 if (obs != obs_other && obs_other->gmValid && obs_other->a12.is_sync) {
                     double dt = (int64_t)(obs->a12.t2 - obs_other->a12.t2);
                     if (obs->a12.t1 > obs_other->a12.t1) {
-                        obs->offset_to[j] = (double)(obs->a12.t1 - obs_other->a12.t1) - dt -
-                                            (((double)dt * obs_other->master_drift) / 1000000000.0); // Compensate for different local receive times
+                        // Master offset to other observer
+                        // t1 includes correction
+                        // In active mode , compensate individual path delay
+                        if (obs->activeMode) {
+                            obs->offset_to[j] = (double)(obs->a12.t1 - obs->path_delay - obs_other->a12.t1 - obs_other->path_delay) // Compensate path_delay
+                                                - dt - (((double)dt * obs_other->master_drift) / 1000000000.0);                     // Compensate for different local receive times
+                        } else {
+                            obs->offset_to[j] = (double)(obs->a12.t1 - obs_other->a12.t1) - dt -
+                                                (((double)dt * obs_other->master_drift) / 1000000000.0); // Compensate for different local receive times
+                        }
+                        // Drift difference to other observer
                         obs->drift_to[j] = obs->master_drift - obs_other->master_drift;
                         if (obs->log_level >= 2) {
                             printf("    offset     to %s: %" PRIi64 " ns (%g ms)\n", obs_other->name, obs->offset_to[j], obs->offset_to[j] / 1000000.0);
@@ -494,48 +508,60 @@ void observerDelayUpdate(tPtpObserver *obs) {
     uint64_t correction = obs->delay_resp_correction; // for master timestamp t4
 
     analyzerUpdate(obs->name, "a34", &obs->a34, t4 - correction, t3, obs->log_level);
+    // Use as results in active mode
+    if (obs->activeMode && obs->a34.is_sync) {
+        obs->master_drift = obs->a34.drift;
+        obs->master_drift_drift = obs->a12.drift_drift;
+        obs->master_jitter = obs->a12.jitter;
+        obs->master_jitter_avg = obs->a12.jitter_avg;
+        obs->master_jitter_rms = obs->a12.jitter_rms;
+    }
 
     // Update path_delay and master_offset only, when new data from SYNC and DELAY_REQ is available
-    if (t4 < t1)
-        return;
+    assert(t4 > t1);
+    if (obs->delay_resp_sequenceId != obs->delay_resp_sequenceId_last && obs->sync_sequenceId != obs->sync_sequenceId_last) {
 
-    /* PTP protocol
-       Master   Client
-           t1             t1 = SYNC master tx timestamp
-              \
-                t2        t2 = SYNC client rx timestamp
-                t3        t3 = DELAY_REQUEST client tx timestamp
-              /
-           t4             t4 = DELAY_RESPONSE master rx timestamp
-    */
+        obs->delay_resp_sequenceId_last = obs->delay_resp_sequenceId;
+        obs->sync_sequenceId_last = obs->sync_sequenceId;
 
-    // Drift correction for t4
-    int64_t t4_drift_correction = (int64_t)(t4 - t1) * obs->master_drift / 1.0E9;
+        /* PTP protocol
+           Master   Client
+               t1             t1 = SYNC master tx timestamp
+                  \
+                    t2        t2 = SYNC client rx timestamp
+                    t3        t3 = DELAY_REQUEST client tx timestamp
+                  /
+               t4             t4 = DELAY_RESPONSE master rx timestamp
+        */
 
-    // Calculate mean path delay
-    uint64_t t21 = (t2 - t1 - obs->sync_correction);
-    uint64_t t43 = (t4 - t3 - obs->delay_resp_correction - t4_drift_correction);
-    obs->path_delay = (t21 + t43) / 2;
+        // Drift correction for t4
+        int64_t t4_drift_correction = (int64_t)(t4 - t1) * obs->master_drift / 1.0E9;
 
-    // Calculate master offset
-    obs->master_offset = t21 - obs->path_delay;
+        // Calculate mean path delay
+        uint64_t t21 = (t2 - t1 - obs->sync_correction);
+        uint64_t t43 = (t4 - t3 - obs->delay_resp_correction - t4_drift_correction);
+        obs->path_delay = (t21 + t43) / 2;
 
-    if (obs->log_level >= 3) {
-        printf("Observer %s: DELAY_REQ/RESP update:\n", obs->name);
-        printf("  t1 (SYNC tx on master)         = %" PRIu64 " ns\n", t1);
-        printf("  t2 (SYNC rx)                   = %" PRIu64 " ns\n", t2);
-        printf("  t3 (DELAY_REQ tx)              = %" PRIu64 " ns\n", t3);
-        printf("  t4 (DELAY_RESP rx on master)   = %" PRIu64 " ns\n", t4);
-        printf("  t2 - t1                        = %" PRIu64 " ns\n", t2 - t1);
-        printf("  sync_correction                = %" PRIu64 " ns\n", obs->sync_correction);
-        printf("  t2 - t1 - correction           = %" PRIu64 " ns\n", t21);
-        printf("  t4 - t3                        = %" PRIu64 " ns\n", t4 - t3);
-        printf("  delay_resp_correction          = %" PRIu64 " ns\n", obs->delay_resp_correction);
-        printf("  t4_drift_correction            = %" PRIi64 " ns\n", t4_drift_correction);
-        printf("  t4 - t3 - correction           = %" PRIu64 " ns\n", t43);
-        printf("  path_delay                     = %" PRIu64 " ns\n", obs->path_delay);
-        printf("  master_offset                  = %" PRIi64 " ns\n", obs->master_offset);
-        printf("\n");
+        // Calculate master offset
+        obs->master_offset = t21 - obs->path_delay;
+
+        if (obs->log_level >= 4) {
+            printf("Observer %s: DELAY_REQ/RESP update:\n", obs->name);
+            printf("  t1 (SYNC tx on master)         = %" PRIu64 " ns\n", t1);
+            printf("  t2 (SYNC rx)                   = %" PRIu64 " ns\n", t2);
+            printf("  t3 (DELAY_REQ tx)              = %" PRIu64 " ns\n", t3);
+            printf("  t4 (DELAY_RESP rx on master)   = %" PRIu64 " ns\n", t4);
+            printf("  t2 - t1                        = %" PRIu64 " ns\n", t2 - t1);
+            printf("  sync_correction                = %u ns\n", obs->sync_correction);
+            printf("  t2 - t1 - correction           = %" PRIu64 " ns\n", t21);
+            printf("  t4 - t3                        = %" PRIu64 " ns\n", t4 - t3);
+            printf("  delay_resp_correction          = %u ns\n", obs->delay_resp_correction);
+            printf("  t4_drift_correction            = %" PRIu64 " ns\n", t4_drift_correction);
+            printf("  t4 - t3 - correction           = %" PRIu64 " ns\n", t43);
+            printf("  path_delay                     = %" PRIu64 " ns\n", obs->path_delay);
+            printf("  master_offset                  = %" PRIi64 " ns\n", obs->master_offset);
+            printf("\n");
+        }
     }
 }
 
@@ -812,12 +838,10 @@ tPtpObserverHandle ptpCreateObserver(tPtp *ptp, const char *name, bool active_mo
 
         A2lCreateParameter(observer_params.t1_correction, "Correction for t1", "", -100, 100);
         A2lCreateParameter(observer_params.delay_req_burst_len, "Number of DELAY_REQ per SYNC", "", 1, 10);
-        A2lCreateParameter(observer_params.drift_filter_size, "Drift filter size", "", 1, 300);
-#ifdef OBSERVER_LINREG
+        A2lCreateParameter(observer_params.avg_drift_filter_size, "Drift filter size", "", 1, 300);
         A2lCreateParameter(observer_params.linreg_filter_size, "Linear regression filter size", "", 1, 300);
         A2lCreateParameter(observer_params.linreg_offset_filter_size, "Linear regression offset filter size", "", 1, 300);
         A2lCreateParameter(observer_params.linreg_jitter_filter_size, "Linear regression jitter filter size", "", 1, 300);
-#endif
 #ifdef OBSERVER_SERVO
         A2lCreateParameter(observer_params.max_correction, "Maximum correction per cycle", "ns", 0.0, 1000.0);
         A2lCreateParameter(observer_params.servo_p_gain, "Proportional gain for servo", "", 0.0, 1.0);
@@ -847,10 +871,8 @@ tPtpObserverHandle ptpCreateObserver(tPtp *ptp, const char *name, bool active_mo
     A2lCreatePhysMeasurementInstance(obs->name, o.master_jitter, "offset jitter raw value", "ns", -1000, +1000);
     A2lCreatePhysMeasurementInstance(obs->name, o.master_jitter_rms, "Jitter root mean square", "ns", -1000, +1000);
     A2lCreatePhysMeasurementInstance(obs->name, o.master_jitter_avg, "Jitter average", "ns", -1000, +1000);
-
     A2lCreatePhysMeasurementInstance(obs->name, o.path_delay, "Path delay", "ns", 0, 1000000000);
     A2lCreatePhysMeasurementInstance(obs->name, o.master_offset, "Master offset", "ns", -1000000000, +1000000000);
-
     A2lCreateMeasurementArrayInstance(obs->name, o.offset_to, "Offset to other observers");
     A2lCreateMeasurementArrayInstance(obs->name, o.drift_to, "Offset to other observers");
 
