@@ -12,6 +12,8 @@
 |
  ----------------------------------------------------------------------------*/
 
+#include <stdint.h> // for uintxx_t
+
 #include "main_cfg.h" // for OPTION_ENABLE_DBG_PRINTS, OPTION_DEFAULT_DBG_LEVEL, OPTION_MAX_DBG_LEVEL, OPTION_FIXED_DBG_LEVEL
 
 #ifdef OPTION_ENABLE_DBG_PRINTS
@@ -53,6 +55,9 @@
 #if defined(OPTION_MAX_DBG_LEVEL) && OPTION_MAX_DBG_LEVEL < OPTION_DEFAULT_DBG_LEVEL
 #error "OPTION_MAX_DBG_LEVEL should be >= OPTION_DEFAULT_DBG_LEVEL"
 #endif
+
+// Use log level for XCP if not defined DBG_LEVEL
+#ifndef DBG_LEVEL
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -61,6 +66,7 @@ extern uint8_t gXcpDebugLevel;
 }
 #endif
 #define DBG_LEVEL gXcpDebugLevel
+#endif
 
 #endif // OPTION_FIXED_DBG_LEVEL
 

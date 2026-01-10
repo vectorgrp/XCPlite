@@ -98,4 +98,16 @@ int phc_has_writephase(clockid_t clkid);
  */
 int phc_get_pin_index(clockid_t clkid, const char *pin_name);
 
+/**
+ * Get PHC device path for a network interface
+ * Returns phc_index, or -1 on error
+ */
+int phc_get_index(const char *if_name);
+
+/**
+ * Initialize PHC to system time for master mode
+ * Returns true if PHC was successfully set or is already synchronized
+ */
+bool phc_init_to_system_time(const char *if_name, int32_t offset_ns);
+
 #endif

@@ -56,6 +56,25 @@ Example: multi observer mode:
 
 # Start two PTP masters on different interfaces (in separate terminals or background)
 
+# Note: PHC synchronization
+# The PHC (PTP Hardware Clock) must be synchronized before meaningful measurements.
+# If ptp_demo reports "PHC is NOT synchronized", the hardware clock needs to be set.
+#
+# Option 1: Let ptp_demo in master mode initialize it (starts with system time)
+# Option 2: Run ptp4l which will synchronize the PHC to a PTP master  
+#
+# Note: On some systems (e.g., Raspberry Pi with Cadence GEM), the PHC may be locked
+# by the network driver and cannot be manually set. This is a known limitation.
+# In this case, only PTP synchronization (running as slave to a PTP master) can
+# update the PHC. The warning about PHC not being synchronized is informational -
+# it means the system just booted and PTP hasn't synchronized yet.
+#
+# Note: Once synchronized by PTP, the PHC maintains its own time and may drift
+# from system time. This is normal - PTP keeps the PHC accurate, not system time.
+
+
+
+
 # Using ptp_demo time servers
 sudo ./build/ptp_demo -m -i eth0 -d 0
 sudo ./build/ptp_demo -m -i enp4s0 -d 1

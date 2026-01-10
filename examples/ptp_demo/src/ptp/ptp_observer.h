@@ -111,8 +111,6 @@ typedef struct ptp_observer {
     bool activeMode;                // observer active mode (sends DELAY_REQ)
     uint32_t delay_req_burst_count; // Number of DELAY_REQ messages to send after each SYNC in active mode
 
-    uint8_t log_level; // observer log level 0 .. 5
-
     MUTEX mutex;
 
     // Grandmaster info

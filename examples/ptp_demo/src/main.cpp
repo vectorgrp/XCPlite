@@ -50,6 +50,14 @@ constexpr int PTP_MODE = PTP_MODE_AUTO_OBSERVER;      // Default observer mode: 
 constexpr int PTP_LOG_LEVEL = 1;                      // Default log level
 
 //-----------------------------------------------------------------------------------------------------
+// Logging
+
+#define DBG_LEVEL ptp_log_level
+#include "dbg_print.h" // for DBG_PRINT_ERROR, DBG_PRINTF_WARNING, ...
+
+int ptp_log_level = PTP_LOG_LEVEL;
+
+//-----------------------------------------------------------------------------------------------------
 // Demo main
 
 static volatile bool running = true;
@@ -75,7 +83,7 @@ int main(int argc, char *argv[]) {
     std::string ptp_interface = PTP_INTERFACE;
     int ptp_mode = PTP_MODE;
     int ptp_domain = PTP_DOMAIN;
-    int ptp_log_level = PTP_LOG_LEVEL;
+
     int ptp_active_mode = true;
     uint8_t ptp_uuid[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}; // default create from MAC in ptpCreateMaster
 
@@ -189,7 +197,7 @@ int main(int argc, char *argv[]) {
     std::cout << "Starting PTP on " << ptp_interface << "..." << std::endl;
 
     tPtp *ptp;
-    if (NULL == (ptp = ptpCreateInterface(PTP_BIND_ADDRESS, const_cast<char *>(ptp_interface.c_str()), ptp_log_level))) {
+    if (NULL == (ptp = ptpCreateInterface(PTP_BIND_ADDRESS, const_cast<char *>(ptp_interface.c_str())))) {
         std::cerr << "Failed to start PTP interface" << std::endl;
         return 1;
     }

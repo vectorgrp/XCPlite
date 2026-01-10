@@ -11,19 +11,32 @@
 |
  ----------------------------------------------------------------------------*/
 
+#define _GNU_SOURCE
 #include <assert.h>   // for assert
+#include <fcntl.h>    // for open
 #include <inttypes.h> // for PRIu64
 #include <math.h>     // for fabs
-#include <signal.h>   // for signal handling
-#include <stdbool.h>  // for bool
-#include <stdint.h>   // for uintxx_t
-#include <stdio.h>    // for printf
-#include <stdlib.h>   // for malloc, free
-#include <string.h>   // for sprintf
+#include <net/if.h>
+#include <signal.h>  // for signal handling
+#include <stdbool.h> // for bool
+#include <stdint.h>  // for uintxx_t
+#include <stdio.h>   // for printf
+#include <stdlib.h>  // for malloc, free
+#include <string.h>  // for sprintf
+#include <sys/ioctl.h>
+#include <unistd.h> // for close
 
+#include "platform.h" // from xcplib for SOCKET, socketSendTo, socketGetSendTime, ...
+
+#include "filter.h" // for average filter
+
+extern uint8_t ptp_log_level;
+#define DBG_LEVEL ptp_log_level
 #include "dbg_print.h" // for DBG_PRINT_ERROR, DBG_PRINTF_WARNING, ...
-#include "filter.h"    // for average filter
-#include "platform.h"  // from xcplib for SOCKET, socketSendTo, socketGetSendTime, ...
+
+#ifdef _LINUX
+#include "phc.h"
+#endif
 
 #include "ptp.h"
 #include "ptpHdr.h" // PTP protocol message structures
@@ -148,7 +161,7 @@ bool ptpSendAnnounce(tPtp *ptp, uint8_t master_domain, const uint8_t *master_uui
     h.u.a.timeSource = announce_params.timeSource;
     l = socketSendTo(ptp->sock320, (uint8_t *)&h, 64, ptp->maddr, 320, NULL);
 
-    if (ptp->log_level >= 3) {
+    if (ptp_log_level >= 3) {
         printf("TX: ANNOUNCE %u %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n", sequenceId, h.clockId[0], h.clockId[1], h.clockId[2], h.clockId[3], h.clockId[4], h.clockId[5],
                h.clockId[6], h.clockId[7]);
     }
@@ -177,7 +190,7 @@ bool ptpSendSync(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid, uint64_t
             return false;
         }
     }
-    if (ptp->log_level >= 3) {
+    if (ptp_log_level >= 3) {
         printf("TX: SYNC %u, tx time = %" PRIu64 "\n", sequenceId, *sync_txTimestamp);
     }
     return true;
@@ -199,7 +212,7 @@ bool ptpSendSyncFollowUp(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid, 
 
     l = socketSendTo(ptp->sock320, (uint8_t *)&h, 44, ptp->maddr, 320, NULL);
 
-    if (ptp->log_level >= 3) {
+    if (ptp_log_level >= 3) {
         char ts[64];
         printf("TX: FLUP %u t1 = %s (%" PRIu64 ")\n", sequenceId, clockGetString(ts, sizeof(ts), t1), t1);
     }
@@ -224,7 +237,7 @@ bool ptpSendDelayRequest(tPtp *ptp, uint8_t domain, const uint8_t *client_uuid, 
                 return false;
             }
         }
-        if (ptp->log_level >= 3) {
+        if (ptp_log_level >= 3) {
             printf("TX: DELAY_REQ %u, domain=%u, client_uuid=%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X, tx timestamp t3 = %" PRIu64 "\n", sequenceId, domain, client_uuid[0],
                    client_uuid[1], client_uuid[2], client_uuid[3], client_uuid[4], client_uuid[5], client_uuid[6], client_uuid[7], *txTimestamp);
         }
@@ -258,7 +271,7 @@ bool ptpSendDelayResponse(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid,
 
     l = socketSendTo(ptp->sock320, (uint8_t *)&h, 54, ptp->maddr, 320, NULL);
 
-    if (ptp->log_level >= 3) {
+    if (ptp_log_level >= 3) {
         char ts[64];
         struct ptphdr *ptp = &h;
         printf("TX: DELAY_RESP %u to %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X  t4 = %s (%" PRIu64 ")\n", htons(h.sequenceId), ptp->u.r.clockId[0], ptp->u.r.clockId[1],
@@ -291,12 +304,12 @@ static void *ptpThread319(void *par)
         n = socketRecvFrom(ptp->sock319, buffer, (uint16_t)sizeof(buffer), addr, NULL, &rxTime);
         if (n <= 0)
             break; // Terminate on error or socket close
-        if (ptp->log_level >= 4)
+        if (ptp_log_level >= 4)
             printFrame("RX", (struct ptphdr *)buffer, addr, rxTime); // Print incoming PTP traffic
         masterHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, rxTime);
         observerHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, rxTime);
     }
-    if (ptp->log_level >= 3)
+    if (ptp_log_level >= 3)
         printf("Terminate PTP multicast 319 thread\n");
     socketClose(&ptp->sock319);
     return 0;
@@ -320,12 +333,12 @@ static void *ptpThread320(void *par)
         n = socketRecvFrom(ptp->sock320, buffer, (uint16_t)sizeof(buffer), addr, NULL, NULL);
         if (n <= 0)
             break; // Terminate on error or socket close
-        if (ptp->log_level >= 4)
+        if (ptp_log_level >= 4)
             printFrame("RX", (struct ptphdr *)buffer, addr, 0); // Print incoming PTP traffic
         masterHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, 0);
         observerHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, 0);
     }
-    if (ptp->log_level >= 3)
+    if (ptp_log_level >= 3)
         printf("Terminate PTP multicast 320 thread\n");
     socketClose(&ptp->sock320);
     return 0;
@@ -338,13 +351,11 @@ static void *ptpThread320(void *par)
 // Start a PTP interface instance
 // If if_addr = INADDR_ANY, bind to given interface
 // Enables hardware timestamps on interface (requires root privileges)
-tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name, uint8_t log_level) {
+tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name) {
 
     tPtp *ptp = (tPtp *)malloc(sizeof(tPtp));
     memset(ptp, 0, sizeof(tPtp));
     ptp->magic = PTP_MAGIC;
-
-    ptp->log_level = log_level;
 
     // PTP communication parameters
     memcpy(ptp->if_addr, if_addr, 4);
@@ -366,6 +377,71 @@ tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name, uint8_t lo
     if (useBindToDevice && !socketBindToDevice(ptp->sock319, if_name))
         return NULL;
 
+// @@@@ Test: Read hardware clock to check if adjusted to PTP timescale
+#ifdef _LINUX
+    if (useBindToDevice) {
+
+        // Get PHC device path for the network interface
+        int phc_index = phc_get_index(if_name);
+        DBG_PRINTF3("PHC index for %s is %d\n", if_name, phc_index);
+        if (phc_index >= 0) {
+            char phc_device[32];
+            snprintf(phc_device, sizeof(phc_device), "/dev/ptp%d", phc_index);
+            DBG_PRINTF3("Attempting to open %s...\n", phc_device);
+
+            clockid_t clkid = phc_open(phc_device);
+            if (clkid != CLOCK_INVALID) {
+                struct timespec phc_ts, sys_ts;
+                if (clock_gettime(clkid, &phc_ts) == 0 && clock_gettime(CLOCK_REALTIME, &sys_ts) == 0) {
+                    DBG_PRINTF3("Interface %s uses %s\n", if_name, phc_device);
+
+                    // Calculate time difference
+                    long diff_sec = phc_ts.tv_sec - sys_ts.tv_sec;
+                    long abs_diff_sec = labs(diff_sec); // absolute difference in seconds
+                    long diff_nsec = phc_ts.tv_nsec - sys_ts.tv_nsec;
+                    long abs_diff_nsec = labs(diff_nsec);
+
+                    // Convert to human-readable format
+                    struct tm phc_tm, sys_tm;
+                    gmtime_r(&phc_ts.tv_sec, &phc_tm);
+                    gmtime_r(&sys_ts.tv_sec, &sys_tm);
+
+                    char phc_str[64], sys_str[64];
+                    strftime(phc_str, sizeof(phc_str), "%Y-%m-%d %H:%M:%S UTC", &phc_tm);
+                    strftime(sys_str, sizeof(sys_str), "%Y-%m-%d %H:%M:%S UTC", &sys_tm);
+
+                    DBG_PRINTF3("PHC time:    %s (%ld.%09ld)\n", phc_str, phc_ts.tv_sec, phc_ts.tv_nsec);
+                    DBG_PRINTF3("System time: %s (%ld.%09ld)\n", sys_str, sys_ts.tv_sec, sys_ts.tv_nsec);
+
+                    // Check if clock appears to be synchronized (within 1 second)
+                    if (abs_diff_sec == 0 && abs_diff_nsec < 1000000 /* 1 millisecond */) {
+                        DBG_PRINTF3("PHC is synchronized (diff: %ld nanoseconds)\n", diff_nsec);
+                    } else {
+                        if (abs_diff_sec == 0) {
+                            DBG_PRINTF_WARNING("PHC is NOT synchronized, diff = %ld ns, PHC is %s)\n", diff_nsec, diff_nsec < 0 ? "behind" : "ahead");
+                        } else {
+                            long hours = abs_diff_sec / 3600;
+                            long mins = (abs_diff_sec % 3600) / 60;
+                            long secs = abs_diff_sec % 60;
+                            DBG_PRINTF_WARNING("PHC is NOT synchronized (diff = %ld s = %ldh %ldm %lds, PHC is %s)\n", abs_diff_sec, hours, mins, secs,
+                                               diff_sec < 0 ? "behind" : "ahead");
+                        }
+
+                        // Initialize PHC to system time (best effort)
+                        DBG_PRINT3("Sync PHC\n");
+                        phc_init_to_system_time(ptp->if_name, 5000000 /* offset in ns */);
+                    }
+                } else {
+                    DBG_PRINT_ERROR("Failed to read PHC time\n");
+                }
+                phc_close(clkid);
+            } else {
+                DBG_PRINTF_ERROR("Failed to open %s (check permissions or run with sudo)\n", phc_device);
+            }
+        }
+    }
+#endif // _LINUX
+
     // General messages ANNOUNCE, FOLLOW_UP, DELAY_RESP - without rx timestamps
     if (!socketOpen(&ptp->sock320, SOCKET_MODE_BLOCKING))
         return NULL;
@@ -380,7 +456,7 @@ tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name, uint8_t lo
         // return false;
     }
 
-    if (ptp->log_level >= 2) {
+    if (ptp_log_level >= 2) {
         if (useBindToDevice)
             printf("  Bound PTP sockets to if_name %s\n", if_name);
         else
@@ -388,7 +464,7 @@ tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name, uint8_t lo
     }
 
     // Join PTP multicast group
-    if (ptp->log_level >= 2)
+    if (ptp_log_level >= 2)
         printf("  Listening for PTP multicast on 224.0.1.129 %s\n", if_name ? if_name : "");
     uint8_t maddr[4] = {224, 0, 1, 129};
     memcpy(ptp->maddr, maddr, 4);
@@ -462,11 +538,13 @@ void ptpPrintState(tPtp *ptp) {
     if (ptp->master_count > 0) {
         printf("\nPTP Master States:\n");
         for (int i = 0; i < ptp->master_count; i++) {
-            masterPrintState(ptp, ptp->master_list[i]);
+            masterPrintState(ptp, i);
         }
     }
     if (ptp->observer_count > 0) {
-        printf("\nPTP Observer States:\n");
+        char ts[64];
+        uint64_t t = clockGet();
+        printf("\nPTP Observer States: (Systemtime = %s\n", clockGetString(ts, sizeof(ts), t));
         for (int i = 0; i < ptp->observer_count; i++) {
             observerPrintState(ptp, ptp->observer_list[i]);
         }

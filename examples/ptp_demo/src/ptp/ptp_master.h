@@ -91,7 +91,6 @@ typedef struct ptp_master {
     u_int8_t domain;
     uint8_t uuid[8];
 
-    uint8_t log_level;
     char name[32];
 
     uint64_t announceCycleTimer;
@@ -130,7 +129,7 @@ typedef struct ptp_master {
 extern "C" {
 #endif
 
-void masterPrintState(tPtp *ptp, tPtpMaster *master);
+void masterPrintState(tPtp *ptp, int index);
 bool masterTask(tPtp *ptp);
 bool masterHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr, uint64_t rxTimestamp);
 tPtpMaster *ptpCreateMaster(tPtp *ptp, const char *name, uint8_t domain, const uint8_t *uuid);

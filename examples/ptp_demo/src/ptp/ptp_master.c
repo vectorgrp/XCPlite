@@ -21,13 +21,19 @@
 #include <stdlib.h>   // for malloc, free
 #include <string.h>   // for sprintf
 
+#include "filter.h"   // for average filter
+#include "platform.h" // from xcplib for SOCKET, socketSendTo, socketGetSendTime, ...
+
+extern uint8_t ptp_log_level;
+#define DBG_LEVEL ptp_log_level
 #include "dbg_print.h" // for DBG_PRINT_ERROR, DBG_PRINTF_WARNING, ...
-#include "filter.h"    // for average filter
-#include "platform.h"  // from xcplib for SOCKET, socketSendTo, socketGetSendTime, ...
 
 #include "ptp.h"
 #include "ptpHdr.h" // PTP protocol message structures
 #include "ptp_master.h"
+#ifdef _LINUX
+#include "phc.h"
+#endif
 
 //-------------------------------------------------------------------------------------------------------
 // XCP
@@ -102,7 +108,7 @@ static uint64_t testTimeAdjust(tPtpMaster *master, uint64_t originTime) {
         DBG_PRINTF_ERROR("Non monotonic time ! (dt=-%" PRIu64 ")\n", master->testTimeLast - t);
     }
 
-    if (master->log_level >= 4) {
+    if (ptp_log_level >= 4) {
         printf("    testTimeAdjust: originTime=%" PRIu64 " ns, drift_offset=%" PRIi64 " ns, jitter=%" PRIi64 " ns, offset=%d ns => testTime=%" PRIu64 " ns\n", originTime,
                drift_offset, jitter_offset, master->params->offset, t);
     }
@@ -122,7 +128,7 @@ static void testTimeSync(tPtpMaster *master, uint64_t originTime) {
     assert(master->params->drift >= -100000 && master->params->drift <= +100000);
     if (master->params->drift != master->testTimeDrift) {
         master->testTimeDrift = master->testTimeCurrentDrift = master->params->drift;
-        if (master->log_level >= 2) {
+        if (ptp_log_level >= 2) {
             printf("PTP Master %s: new drift=%d ns/s\n", master->name, master->testTimeDrift);
         }
     }
@@ -145,7 +151,7 @@ static void testTimeSync(tPtpMaster *master, uint64_t originTime) {
 
     master->testTimeLastSync = originTime;
 
-    if (master->log_level >= 5) {
+    if (ptp_log_level >= 5) {
         printf("    testTimeSync: originTime=%" PRIu64 " ns, testTimeSyncDriftOffset=%" PRIi64 " ns, testTimeCurrentDrift=%d ns/s\n", originTime, master->testTimeSyncDriftOffset,
                master->testTimeCurrentDrift);
     }
@@ -200,12 +206,16 @@ static uint16_t addClient(tPtpMaster *master, uint8_t *addr, uint8_t *uuid, uint
 //-------------------------------------------------------------------------------------------------------
 // PTP master state machine
 
-void masterPrintState(tPtp *ptp, tPtpMaster *master) {
+void masterPrintState(tPtp *ptp, int index) {
+
+    assert(index >= 0 && index < ptp->master_count);
+    tPtpMaster *master = ptp->master_list[index];
+    assert(master != NULL);
+
     char ts[64];
     uint64_t t;
 
-    printf("\nMaster Info:\n");
-
+    printf("\nMaster %u:\n", index + 1);
     printf("  UUID:           %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n", master->uuid[0], master->uuid[1], master->uuid[2], master->uuid[3], master->uuid[4], master->uuid[5],
            master->uuid[6], master->uuid[7]);
     printf("  IP:             %u.%u.%u.%u\n", ptp->if_addr[0], ptp->if_addr[1], ptp->if_addr[2], ptp->if_addr[3]);
@@ -216,11 +226,14 @@ void masterPrintState(tPtp *ptp, tPtpMaster *master) {
     } else {
         printf("  ANNOUNCE cycle: %ums\n", master->params->announceCycleTimeMs);
         printf("  SYNC cycle:     %ums\n", master->params->syncCycleTimeMs);
-        printf("  Client list:\n");
-        for (uint16_t i = 0; i < master->clientCount; i++) {
-            printClient(master, i);
+        if (master->clientCount > 0) {
+            printf("  Client list:\n");
+            for (uint16_t i = 0; i < master->clientCount; i++) {
+                printClient(master, i);
+            }
         }
     }
+
     printf("\n");
 }
 
@@ -462,7 +475,7 @@ bool masterHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr, 
                 bool newClient = (i >= MAX_CLIENTS);
                 if (newClient) {
                     i = addClient(master, addr, ptp_msg->clockId, ptp_msg->domain);
-                    if (ptp->log_level >= 2) {
+                    if (ptp_log_level >= 2) {
                         printf("\nPTP Master '%s': New client %u.%u.%u.%u domain %u UUID %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n\n", master->name, addr[0], addr[1], addr[2],
                                addr[3], ptp_msg->domain, ptp_msg->clockId[0], ptp_msg->clockId[1], ptp_msg->clockId[2], ptp_msg->clockId[3], ptp_msg->clockId[4],
                                ptp_msg->clockId[5], ptp_msg->clockId[6], ptp_msg->clockId[7]);
@@ -496,7 +509,6 @@ tPtpMaster *ptpCreateMaster(tPtp *ptp, const char *name, uint8_t domain, const u
     memset(master, 0, sizeof(tPtpMaster));
     strncpy(master->name, name, sizeof(master->name) - 1);
     masterInit(ptp, master, domain, uuid);
-    master->log_level = ptp->log_level;
 
     // Init offset and drift calculation
 #ifdef MASTER_TIME_ADJUST

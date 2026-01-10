@@ -36,7 +36,6 @@ struct ptp {
     SOCKET sock319;
     MUTEX mutex;
 
-    uint8_t log_level;
     bool auto_observer;
     bool auto_observer_active_mode;
 
@@ -52,7 +51,7 @@ typedef struct ptp tPtp;
 extern "C" {
 #endif
 
-tPtp *ptpCreateInterface(const uint8_t *ifname, const char *if_name, uint8_t debugLevel);
+tPtp *ptpCreateInterface(const uint8_t *ifname, const char *if_name);
 struct ptp_observer *ptpCreateObserver(tPtp *interface, const char *name, bool active_mode, uint8_t domain, const uint8_t *uuid, const uint8_t *addr);
 struct ptp_master *ptpCreateMaster(tPtp *interface, const char *name, uint8_t domain, const uint8_t *uuid);
 
