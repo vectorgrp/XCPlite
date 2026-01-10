@@ -155,6 +155,7 @@ bool ptpSendAnnounce(tPtp *ptp, uint8_t master_domain, const uint8_t *master_uui
 
     return (l == 64);
 }
+
 bool ptpSendSync(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid, uint64_t *sync_txTimestamp, uint16_t sequenceId) {
 
     struct ptphdr h;
@@ -334,13 +335,9 @@ static void *ptpThread320(void *par)
 //-------------------------------------------------------------------------------------------------------
 // Public functions
 
-// Start A PTP master or observer instance
-// instance_name: Name of the PTP instance for XCP event creation
-// mode: PTP_MODE_OBSERVER or PTP_MODE_MASTER
-// domain: PTP domain to use (0-127)
-// uuid: 8 byte clock UUID
+// Start a PTP interface instance
 // If if_addr = INADDR_ANY, bind to given interface
-// Enable hardware timestamps on interface (requires root privileges)
+// Enables hardware timestamps on interface (requires root privileges)
 tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name, uint8_t log_level) {
 
     tPtp *ptp = (tPtp *)malloc(sizeof(tPtp));
@@ -410,7 +407,7 @@ tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name, uint8_t lo
 
 // Perform background tasks
 // This is called from the application on a regular basis
-// Observer: It monitors the status and checks for reset requests via calibration parameter
+// Observer: It monitors the status
 // Master: Send SYNC and ANNOUNCE messages
 bool ptpTask(tPtp *ptp) {
 
@@ -421,7 +418,7 @@ bool ptpTask(tPtp *ptp) {
     return res;
 }
 
-// Stop PTP
+// Stop a PTP interface
 void ptpShutdown(tPtp *ptp) {
 
     assert(ptp != NULL && ptp->magic == PTP_MAGIC);
@@ -433,13 +430,13 @@ void ptpShutdown(tPtp *ptp) {
     socketClose(&ptp->sock320);
 
     for (int i = 0; i < ptp->master_count; i++) {
-        free(ptp->master_list[i]);
+        ptpMasterShutdown(ptp->master_list[i]);
         ptp->master_list[i] = NULL;
     }
     ptp->master_count = 0;
 
     for (int i = 0; i < ptp->observer_count; i++) {
-        free(ptp->observer_list[i]);
+        ptpObserverShutdown(ptp->observer_list[i]);
         ptp->observer_list[i] = NULL;
     }
     ptp->observer_count = 0;
@@ -457,6 +454,7 @@ bool ptpEnableAutoObserver(tPtp *ptp, bool active_mode) {
     return true;
 }
 
+// Print current state
 void ptpPrintState(tPtp *ptp) {
 
     assert(ptp != NULL && ptp->magic == PTP_MAGIC);

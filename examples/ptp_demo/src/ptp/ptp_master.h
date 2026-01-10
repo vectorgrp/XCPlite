@@ -67,10 +67,10 @@ typedef struct master_params {
     int32_t jitter;      // PTP master time jitter in ns
 
 #endif
-} master_parameters_t;
+} tMasterParams;
 
 // PTP client descriptor for master
-struct ptp_client {
+typedef struct ptp_client {
     uint8_t addr[4];       // IP addr
     uint8_t id[8];         // clock UUID
     uint64_t time;         // DELAY_REQ timestamp
@@ -80,11 +80,10 @@ struct ptp_client {
     int32_t cycle_counter; // Cycle counter
     uint32_t corr;         // PTP correction
     uint8_t domain;        // PTP domain
-};
-typedef struct ptp_client tPtpClient;
+} tPtpClient;
 
 // PTP master state
-struct ptp_master {
+typedef struct ptp_master {
 
     bool active;
 
@@ -106,11 +105,12 @@ struct ptp_master {
     tPtpClient client[MAX_CLIENTS];
 
     // PTP master parameters
-    const master_parameters_t *params;
+    const tMasterParams *params;
 
     // XCP event id
 #ifdef OPTION_ENABLE_XCP
-    tXcpEventId xcp_event; // on master SYNC
+    tXcpCalSegIndex xcp_calseg; // master parameters calibration segment
+    tXcpEventId xcp_event;      // on master SYNC
 #endif
 
 // Master drift, drift_drift, offset and jitter
@@ -124,9 +124,7 @@ struct ptp_master {
     uint64_t testTimeLastSync;       // Original time of last sync
     MUTEX testTimeMutex;
 #endif
-};
-
-typedef struct ptp_master tPtpMaster;
+} tPtpMaster;
 
 #ifdef __cplusplus
 extern "C" {
@@ -135,7 +133,8 @@ extern "C" {
 void masterPrintState(tPtp *ptp, tPtpMaster *master);
 bool masterTask(tPtp *ptp);
 bool masterHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr, uint64_t rxTimestamp);
-tPtpMasterHandle ptpCreateMaster(tPtp *ptp, const char *name, uint8_t domain, const uint8_t *uuid);
+tPtpMaster *ptpCreateMaster(tPtp *ptp, const char *name, uint8_t domain, const uint8_t *uuid);
+void ptpMasterShutdown(tPtpMaster *master);
 
 #ifdef __cplusplus
 }

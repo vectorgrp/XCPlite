@@ -3,7 +3,7 @@
 /* filter.h */
 
 /*
- * Simple floating average filter
+ * Simple floating average and linear regression sequential filters
  */
 
 #ifdef __cplusplus

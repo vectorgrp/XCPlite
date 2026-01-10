@@ -42,14 +42,14 @@
 //---------------------------------------------------------------------------------------
 
 // Default master parameter values
-static const master_parameters_t master_params = {
+static const tMasterParams master_params = {
     .announceCycleTimeMs = ANNOUNCE_CYCLE_TIME_MS_DEFAULT, // ANNOUNCE rate
     .syncCycleTimeMs = SYNC_CYCLE_TIME_MS_DEFAULT,         // SYNC rate
 #ifdef MASTER_TIME_ADJUST
     .drift = 0,       // PTP master time drift in ns/s
     .drift_drift = 0, // PTP master time drift drift in ns/s2
     .offset = 0,      // PTP master time offset in ns
-    .jitter = 0,    // PTP master time jitter in ns
+    .jitter = 0,      // PTP master time jitter in ns
 #endif
 };
 
@@ -295,14 +295,14 @@ void masterInit(tPtp *ptp, tPtpMaster *master, uint8_t domain, const uint8_t *uu
     assert(master->xcp_event != XCP_UNDEFINED_EVENT_ID);
 
     // Create XCP calibration parameter segment, if not already existing
-    tXcpCalSegIndex h = XcpCreateCalSeg("master_params", &master_params, sizeof(master_params));
-    assert(h != XCP_UNDEFINED_CALSEG);
-    master->params = (master_parameters_t *)XcpLockCalSeg(h); // Initial lock of the calibration segment (for persistence)
+    master->xcp_calseg = XcpCreateCalSeg("master_params", &master_params, sizeof(master_params));
+    assert(master->xcp_calseg != XCP_UNDEFINED_CALSEG);
+    master->params = (tMasterParams *)XcpLockCalSeg(master->xcp_calseg); // Initial lock of the calibration segment (for persistence)
 
     A2lOnce() {
 
         // Create A2L parameter definitions for master parameters
-        A2lSetSegmentAddrMode(h, master_params);
+        A2lSetSegmentAddrMode(master->xcp_calseg, master_params);
         A2lCreateParameter(master_params.announceCycleTimeMs, "Announce cycle time (ms)", "", 0, 10000);
         A2lCreateParameter(master_params.syncCycleTimeMs, "Sync cycle time (ms)", "", 0, 10000);
         A2lCreateParameter(master_params.drift, "Master time drift (ns/s)", "", -100000, +100000);
@@ -482,7 +482,7 @@ bool masterHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr, 
     return true;
 }
 
-tPtpMasterHandle ptpCreateMaster(tPtp *ptp, const char *name, uint8_t domain, const uint8_t *uuid) {
+tPtpMaster *ptpCreateMaster(tPtp *ptp, const char *name, uint8_t domain, const uint8_t *uuid) {
 
     assert(ptp != NULL && ptp->magic == PTP_MAGIC);
 
@@ -506,5 +506,22 @@ tPtpMasterHandle ptpCreateMaster(tPtp *ptp, const char *name, uint8_t domain, co
     // Register the master instance
     ptp->master_list[ptp->master_count++] = master;
 
-    return (tPtpMasterHandle)master;
+    return master;
+}
+
+void ptpMasterShutdown(tPtpMaster *master) {
+
+    assert(master != NULL);
+
+    // Terminate master activity
+    master->active = false;
+
+// XCP cleanup
+#ifdef OPTION_ENABLE_XCP
+    if (master->params != NULL) {
+        XcpUnlockCalSeg(master->xcp_calseg);
+        master->params = NULL;
+    }
+#endif
+    free(master);
 }

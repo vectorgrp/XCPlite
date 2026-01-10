@@ -52,12 +52,9 @@ typedef struct ptp tPtp;
 extern "C" {
 #endif
 
-typedef void *tPtpMasterHandle;
-typedef void *tPtpObserverHandle;
-
 tPtp *ptpCreateInterface(const uint8_t *ifname, const char *if_name, uint8_t debugLevel);
-tPtpObserverHandle ptpCreateObserver(tPtp *interface, const char *name, bool active_mode, uint8_t domain, const uint8_t *uuid, const uint8_t *addr);
-tPtpMasterHandle ptpCreateMaster(tPtp *interface, const char *name, uint8_t domain, const uint8_t *uuid);
+struct ptp_observer *ptpCreateObserver(tPtp *interface, const char *name, bool active_mode, uint8_t domain, const uint8_t *uuid, const uint8_t *addr);
+struct ptp_master *ptpCreateMaster(tPtp *interface, const char *name, uint8_t domain, const uint8_t *uuid);
 
 bool ptpTask(tPtp *ptp);
 void ptpShutdown(tPtp *ptp);

@@ -7,7 +7,7 @@
 #include "filter.h"   // Average and linreg filter
 #include "platform.h" // from xcplib for SOCKET, MUTEX, ...
 
-#include "ptp.h"    // for tPtp
+#include "ptp.h"    // for tPtp, OPTION_ENABLE_XCP
 #include "ptpHdr.h" // PTP protocol message structures
 
 #ifdef OPTION_ENABLE_XCP
@@ -125,7 +125,8 @@ typedef struct ptp_observer {
 
     // XCP event id
 #ifdef OPTION_ENABLE_XCP
-    tXcpEventId xcp_event; // XCP event triggered on observer SYNC/FOLLOW_UP update
+    tXcpCalSegIndex xcp_cal_seg; // observer parameters calibration segment
+    tXcpEventId xcp_event;       // XCP event triggered on observer SYNC/FOLLOW_UP update
 #endif
 
     // Protocol SYNC and FOLLOW_UP state
@@ -177,11 +178,12 @@ extern "C" {
 void observerPrintState(tPtp *ptp, tPtpObserver *obs);
 bool observerTask(tPtp *ptp);
 bool observerHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr, uint64_t timestamp);
-tPtpObserverHandle ptpCreateObserver(tPtp *ptp, const char *name, bool active_mode, uint8_t domain, const uint8_t *uuid, const uint8_t *addr);
+tPtpObserver *ptpCreateObserver(tPtp *ptp, const char *name, bool active_mode, uint8_t domain, const uint8_t *uuid, const uint8_t *addr);
+void ptpObserverShutdown(tPtpObserver *obs);
 
 #ifdef PTP_OBSERVER_LIST
-bool ptpLoadObserverList(tPtp *ptp_handle, const char *filename, bool active_mode);
-bool ptpSaveObserverList(tPtp *ptp_handle, const char *filename);
+bool ptpLoadObserverList(tPtp *ptp, const char *filename, bool active_mode);
+bool ptpSaveObserverList(tPtp *ptp, const char *filename);
 #endif
 
 #ifdef __cplusplus

@@ -1,10 +1,10 @@
 /*----------------------------------------------------------------------------
 | File:
-|   ptp_master.c
+|   ptp_observer.c
 |
 | Description:
-|   PTP master with XCP instrumentation
-|   For testing PTP client stability
+|   PTP observer/analyzer with XCP instrumentation
+|   For testing PTP master stability and multi master ssynchronization
 |   Supports IEEE 1588-2008 PTPv2 over UDP/IPv4 in E2E mode
 |
 |  Code released into public domain, no attribution required
@@ -397,7 +397,7 @@ void observerPrintState(tPtp *ptp, tPtpObserver *obs) {
 
 // Send delay requests in active mode
 static bool observerSendDelayRequest(tPtp *ptp, tPtpObserver *obs) {
-    assert(ptp != NULL);
+    assert(ptp != NULL && ptp->magic == PTP_MAGIC);
     assert(obs != NULL);
     assert(obs->gmValid);
     assert(obs->activeMode);
@@ -735,7 +735,7 @@ bool observerHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr
             // Generate a name
             char name[32];
             snprintf(name, sizeof(name), "obs_%u.%u_%u", addr[2], addr[3], ptp_msg->domain);
-            tPtpObserverHandle ptpObs = ptpCreateObserver(ptp, name, ptp->auto_observer_active_mode, ptp_msg->domain, ptp_msg->clockId, addr);
+            ptpCreateObserver(ptp, name, ptp->auto_observer_active_mode, ptp_msg->domain, ptp_msg->clockId, addr);
         }
     }
 
@@ -780,7 +780,7 @@ bool observerTask(tPtp *ptp) {
     return true;
 }
 
-tPtpObserverHandle ptpCreateObserver(tPtp *ptp, const char *name, bool active_mode, uint8_t target_domain, const uint8_t *target_uuid, const uint8_t *target_addr) {
+tPtpObserver *ptpCreateObserver(tPtp *ptp, const char *name, bool active_mode, uint8_t target_domain, const uint8_t *target_uuid, const uint8_t *target_addr) {
 
     assert(ptp != NULL && ptp->magic == PTP_MAGIC);
 
@@ -828,14 +828,13 @@ tPtpObserverHandle ptpCreateObserver(tPtp *ptp, const char *name, bool active_mo
 
     // Create observer parameters
     // All observers share the same calibration segment
-    tXcpCalSegIndex h = XcpCreateCalSeg("observer_params", &observer_params, sizeof(observer_params));
-    assert(h != XCP_UNDEFINED_CALSEG);
-    obs->params = (tPtpObserverParameters *)XcpLockCalSeg(h); // Initial lock of the calibration segment (to enable calibration persistence)
+    obs->xcp_cal_seg = XcpCreateCalSeg("observer_params", &observer_params, sizeof(observer_params));
+    assert(obs->xcp_cal_seg != XCP_UNDEFINED_CALSEG);
+    obs->params = (tPtpObserverParameters *)XcpLockCalSeg(obs->xcp_cal_seg); // Initial lock of the calibration segment (to enable calibration persistence)
 
     A2lOnce() {
 
-        A2lSetSegmentAddrMode(h, observer_params);
-
+        A2lSetSegmentAddrMode(obs->xcp_cal_seg, observer_params);
         A2lCreateParameter(observer_params.t1_correction, "Correction for t1", "", -100, 100);
         A2lCreateParameter(observer_params.delay_req_burst_len, "Number of DELAY_REQ per SYNC", "", 1, 10);
         A2lCreateParameter(observer_params.avg_drift_filter_size, "Drift filter size", "", 1, 300);
@@ -893,7 +892,19 @@ tPtpObserverHandle ptpCreateObserver(tPtp *ptp, const char *name, bool active_mo
         }
     }
 
-    return (tPtpObserverHandle)obs;
+    return obs;
+}
+
+void ptpObserverShutdown(tPtpObserver *obs) {
+    assert(obs != NULL);
+
+    // XCP instrumentation
+#ifdef OPTION_ENABLE_XCP
+    XcpUnlockCalSeg(obs->xcp_cal_seg);
+#endif
+
+    mutexDestroy(&obs->mutex);
+    free(obs);
 }
 
 #ifdef PTP_OBSERVER_LIST
@@ -947,8 +958,8 @@ bool ptpLoadObserverList(tPtp *ptp, const char *filename, bool active_mode) {
             for (int i = 0; i < 4; i++) {
                 addr_bytes[i] = (uint8_t)addr[i];
             }
-            tPtpObserverHandle obs_handle = ptpCreateObserver(ptp, name, active_mode, domain, uuid_bytes, addr_bytes);
-            if (obs_handle == NULL) {
+            tPtpObserver *obs = ptpCreateObserver(ptp, name, active_mode, domain, uuid_bytes, addr_bytes);
+            if (obs == NULL) {
                 DBG_PRINT_ERROR("Failed to create observer from list\n");
             }
         } else {

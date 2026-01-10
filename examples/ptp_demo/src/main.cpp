@@ -214,8 +214,8 @@ int main(int argc, char *argv[]) {
         // The PTP observer will listen to a master with ptp_domain, ptp_uuid and any address
         // If multiple masters are present, the first one matching will be selected
         uint8_t ptp_address[4] = {0, 0, 0, 0}; // Listen on all addresses
-        tPtpObserverHandle ptpObs = ptpCreateObserver(ptp, "Observer1", ptp_active_mode, ptp_domain, ptp_uuid, ptp_address);
-        if (NULL == ptpObs) {
+        tPtpObserver *obs = ptpCreateObserver(ptp, "Observer1", ptp_active_mode, ptp_domain, ptp_uuid, ptp_address);
+        if (NULL == obs) {
             std::cerr << "Failed to create PTP observer" << std::endl;
             ptpShutdown(ptp);
             return 1;
@@ -226,7 +226,7 @@ int main(int argc, char *argv[]) {
     else if (ptp_mode == PTP_MODE_MASTER) {
 
         // Create a master on interface ptp
-        tPtpMasterHandle ptpMaster = ptpCreateMaster(ptp, "Master1", ptp_domain, ptp_uuid);
+        tPtpMaster *ptpMaster = ptpCreateMaster(ptp, "Master1", ptp_domain, ptp_uuid);
         if (NULL == ptpMaster) {
             std::cerr << "Failed to create PTP master" << std::endl;
             ptpShutdown(ptp);
@@ -257,12 +257,6 @@ int main(int argc, char *argv[]) {
     }
 
 #ifdef OPTION_ENABLE_XCP
-    XcpDisconnect();
-    XcpEthServerShutdown();
-    A2lFinalize(); // Finalize A2L generation, if not done yet
-#endif
-
-#ifdef OPTION_ENABLE_XCP
     // Save observer list to file
     if (ptp_mode == PTP_MODE_AUTO_OBSERVER) {
         if (!ptpSaveObserverList(ptp, "ptp_demo_observers.lst")) {
@@ -272,5 +266,12 @@ int main(int argc, char *argv[]) {
 #endif
 
     ptpShutdown(ptp);
+
+#ifdef OPTION_ENABLE_XCP
+    XcpDisconnect();
+    A2lFinalize(); // Finalize A2L generation, if not done yet
+    XcpEthServerShutdown();
+#endif
+
     return 0;
 }
