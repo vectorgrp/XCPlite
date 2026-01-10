@@ -162,7 +162,7 @@ This section describes the XCP protocol layer configuration parameters in xcp_cf
 | `XCP_TIMESTAMP_UNIT` | Timestamp unit (DAQ_TIMESTAMP_UNIT_1US or DAQ_TIMESTAMP_UNIT_1NS) |
 | `XCP_TIMESTAMP_TICKS` | Ticks per timestamp unit (default: 1) |
 | `XCP_ENABLE_PTP` | Enables PTP (Precision Time Protocol) grandmaster clock support |
-| `XCP_DAQ_CLOCK_UIID` | UUID for DAQ clock identification |
+
 
 ### Multicast Clock Synchronization
 

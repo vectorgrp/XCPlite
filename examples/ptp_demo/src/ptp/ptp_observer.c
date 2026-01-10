@@ -216,7 +216,7 @@ static void analyzerUpdate(const char *observer_name, const char *analyzer_name,
             else if (a->cycle_count > 8 && fabs(a->linreg_drift_drift) < 5.0) { // @@@@ TODO: parameterize in sync condition
                 a->is_sync = true;
             } else {
-                if (ptp_log_level >= 2)
+                if (ptp_log_level >= 3)
                     printf("Analyzer %s %s: Warming up\n", observer_name, analyzer_name);
             }
         }
@@ -350,19 +350,16 @@ static void observerPrintMaster(const tPtpObserver *obs) {
 // Print the current PTP observer state
 void observerPrintState(tPtp *ptp, tPtpObserver *obs) {
 
-    char ts[64];
-
-    uint64_t t = clockGet();
-
-    printf("  Observer '%s' (%u) %s:\n", obs->name, obs->a12.cycle_count, clockGetString(ts, sizeof(ts), t));
+    printf("  Observer '%s' (%u):\n", obs->name, obs->a12.cycle_count);
     if (obs->gmValid) {
 
         observerPrintMaster(obs);
 
+        char ts[64];
         uint64_t t1 = obs->sync_master_time;
         printf("    t1 = %s (%" PRIu64 ")\n", clockGetString(ts, sizeof(ts), t1), t1);
 
-        if (ptp_log_level >= 2) {
+        if (ptp_log_level >= 3) {
             if (obs->a12.is_sync) {
                 printf("    t12 drift        = %g ns/s\n", obs->a12.drift);
                 printf("    t12 drift_drift  = %g ns/s2\n", obs->a12.drift_drift);
@@ -470,7 +467,7 @@ static void observerSyncUpdate(tPtp *ptp, tPtpObserver *obs) {
 
         // Compare to other observers for different master clocks
         if (ptp->observer_count > 1) {
-            if (ptp_log_level >= 2)
+            if (ptp_log_level >= 3)
                 printf("  Comparisons to other observers:\n");
             for (int j = 0; j < ptp->observer_count; j++) {
                 tPtpObserver *obs_other = ptp->observer_list[j];
@@ -489,7 +486,7 @@ static void observerSyncUpdate(tPtp *ptp, tPtpObserver *obs) {
                         }
                         // Drift difference to other observer
                         obs->drift_to[j] = obs->master_drift - obs_other->master_drift;
-                        if (ptp_log_level >= 2) {
+                        if (ptp_log_level >= 3) {
                             printf("    offset     to %s: %" PRIi64 " ns (%g ms)\n", obs_other->name, obs->offset_to[j], obs->offset_to[j] / 1000000.0);
                             printf("    drift diff to %s: %g ns/s\n", obs_other->name, obs->drift_to[j]);
                         }
@@ -498,7 +495,7 @@ static void observerSyncUpdate(tPtp *ptp, tPtpObserver *obs) {
             }
         }
 
-        if (ptp_log_level >= 2)
+        if (ptp_log_level >= 3)
             printf("\n");
     }
 
@@ -713,7 +710,7 @@ bool observerHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr
                 // Check if domain, uuid (if specified) and addr (if specified) match
                 if ((obs->target_domain == ptp_msg->domain) && (memcmp(obs->target_uuid, ptp_msg->clockId, 8) == 0 || memcmp(obs->target_uuid, "\0\0\0\0\0\0\0\0", 8) != 0) &&
                     (memcmp(obs->target_addr, addr, 4) == 0 || memcmp(obs->target_addr, "\0\0\0", 4) == 0)) {
-                    if (ptp_log_level >= 1) {
+                    if (ptp_log_level >= 3) {
                         printf("PTP Announce received from a master matching observer '%s' filter. ClockId = %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n", obs->name,
                                ptp_msg->clockId[0], ptp_msg->clockId[1], ptp_msg->clockId[2], ptp_msg->clockId[3], ptp_msg->clockId[4], ptp_msg->clockId[5], ptp_msg->clockId[6],
                                ptp_msg->clockId[7]);
@@ -766,7 +763,7 @@ bool observerTask(tPtp *ptp) {
             uint64_t now = clockGet();
             uint64_t elapsed = now - obs->gm_last_update_time;
             if (elapsed / (double)CLOCK_TICKS_PER_S > PTP_OBSERVER_GM_TIMEOUT_S) {
-                if (ptp_log_level >= 1) {
+                if (ptp_log_level >= 3) {
                     printf("PTP Observer %s: Grandmaster lost! timeout after %us. Last seen %gs ago\n", obs->name, PTP_OBSERVER_GM_TIMEOUT_S, elapsed / (double)CLOCK_TICKS_PER_S);
                 }
                 obs->gmValid = false;
@@ -892,7 +889,7 @@ tPtpObserver *ptpCreateObserver(tPtp *ptp, const char *name, bool active_mode, u
     // Register the observer instance
     ptp->observer_list[ptp->observer_count++] = obs;
 
-    if (ptp_log_level >= 1) {
+    if (ptp_log_level >= 3) {
         printf("Created PTP observer instance %s, listening on domain %u, addr=%u.%u.%u.%u, uuid=%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n", obs->name, obs->target_domain,
                obs->target_addr[0], obs->target_addr[1], obs->target_addr[2], obs->target_addr[3], obs->target_uuid[0], obs->target_uuid[1], obs->target_uuid[2],
                obs->target_uuid[3], obs->target_uuid[4], obs->target_uuid[5], obs->target_uuid[6], obs->target_uuid[7]);

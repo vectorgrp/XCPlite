@@ -516,6 +516,11 @@ uint8_t ApplXcpGetClockState(void);
 bool ApplXcpGetClockInfoGrandmaster(uint8_t *uuid, uint8_t *epoch, uint8_t *stratum);
 #endif
 
+// Register clock callbacks
+void ApplXcpRegisterGetClockCallback(uint64_t (*cb_get_clock)(void));
+void ApplXcpRegisterGetClockStateCallback(uint8_t (*cb_get_clock_state)(void));
+void ApplXcpRegisterGetClockInfoGrandmasterCallback(bool (*cb_get_clock_info_grandmaster)(uint8_t *uuid, uint8_t *epoch, uint8_t *stratum));
+
 /* DAQ resume */
 #ifdef XCP_ENABLE_DAQ_RESUME
 uint8_t ApplXcpDaqResumeStore(uint16_t config_id);

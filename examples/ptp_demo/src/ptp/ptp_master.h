@@ -70,7 +70,7 @@ typedef struct master_params {
 } tMasterParams;
 
 // PTP client descriptor for master
-typedef struct ptp_client {
+typedef struct ptp_master_client {
     uint8_t addr[4];       // IP addr
     uint8_t id[8];         // clock UUID
     uint64_t time;         // DELAY_REQ timestamp
@@ -80,7 +80,7 @@ typedef struct ptp_client {
     int32_t cycle_counter; // Cycle counter
     uint32_t corr;         // PTP correction
     uint8_t domain;        // PTP domain
-} tPtpClient;
+} tPtpMasterClient;
 
 // PTP master state
 typedef struct ptp_master {
@@ -101,7 +101,7 @@ typedef struct ptp_master {
 
     // PTP client list
     uint16_t clientCount;
-    tPtpClient client[MAX_CLIENTS];
+    tPtpMasterClient client[MAX_CLIENTS];
 
     // PTP master parameters
     const tMasterParams *params;

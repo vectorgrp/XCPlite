@@ -895,14 +895,6 @@ int16_t socketRecvFrom(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, uint8_
                 }
                 sw = (struct timespec *)CMSG_DATA(cmsg);
             }
-
-            // @@@@ Claude solution - uses SCM_TIMESTAMPNS, what is different here?
-            // assert(SCM_TIMESTAMPNS == SO_TIMESTAMPNS);
-            // if (cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_TIMESTAMPNS) {
-            //     struct timespec *ts = (struct timespec *)CMSG_DATA(cmsg);
-            //     // DBG_PRINTF5("socketRecvFrom: HW timestamp found: %llu ns (sec=%ld, nsec=%ld)\n", (unsigned long long)*time, ts->tv_sec, ts->tv_nsec);
-            //     break;
-            // }
         }
 
         if (n == 0) {
@@ -923,6 +915,12 @@ int16_t socketRecvFrom(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, uint8_
                     DBG_PRINT4("socketRecvFrom: timestamp taken from control messages SO_TIMESTAMPING [0]\n");
                 }
             }
+
+            // {
+            //     uint64_t t_hw = hw[2].tv_sec * 1000000000ULL + hw[2].tv_nsec;
+            //     uint64_t t_sw = hw[0].tv_sec * 1000000000ULL + hw[0].tv_nsec;
+            //     printf("socketRecvFrom: HW timestamp = %" PRIu64 " ns, SW timestamp = %" PRIu64 " ns, diff = %" PRIi64 " ns\n", t_hw, t_sw, (int64_t)(t_hw - t_sw));
+            // }
         }
         if (t == 0 && sw != NULL) {
             struct timespec *ts = sw;
@@ -933,13 +931,6 @@ int16_t socketRecvFrom(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, uint8_
             DBG_PRINT_WARNING("socketRecvFrom: No timestamp found in control messages\n");
         }
         *time = t;
-
-        // if (gPtpDebugLevel >= 4) {
-        //     uint64_t system_time = clockGet();
-        //     uint64_t dt = system_time - t;
-        //     DBG_PRINTF4("socketRecvFrom: received %u bytes from %u.%u.%u.%u:%u t = %" PRIu64 " (dt = %" PRIu64 ")\n", n, ((uint8_t *)&src.sin_addr.s_addr)[0],
-        //                 ((uint8_t *)&src.sin_addr.s_addr)[1], ((uint8_t *)&src.sin_addr.s_addr)[2], ((uint8_t *)&src.sin_addr.s_addr)[3], ntohs(src.sin_port), t, dt);
-        // }
     } else
 #endif
 

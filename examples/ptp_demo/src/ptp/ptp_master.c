@@ -128,7 +128,7 @@ static void testTimeSync(tPtpMaster *master, uint64_t originTime) {
     assert(master->params->drift >= -100000 && master->params->drift <= +100000);
     if (master->params->drift != master->testTimeDrift) {
         master->testTimeDrift = master->testTimeCurrentDrift = master->params->drift;
-        if (ptp_log_level >= 2) {
+        if (ptp_log_level >= 3) {
             printf("PTP Master %s: new drift=%d ns/s\n", master->name, master->testTimeDrift);
         }
     }
@@ -324,7 +324,7 @@ void masterInit(tPtp *ptp, tPtpMaster *master, uint8_t domain, const uint8_t *uu
         A2lCreateParameter(master_params.offset, "Master time offset (ns)", "", -1000000000, +1000000000);
 
         // Create a A2L typedef for the PTP client structure
-        A2lTypedefBegin(tPtpClient, NULL, "PTP client structure");
+        A2lTypedefBegin(tPtpMasterClient, NULL, "PTP client structure");
         A2lTypedefMeasurementComponent(cycle_counter, "Cycle counter");
         A2lTypedefPhysMeasurementComponent(cycle_time, "Cycle time", "ns", 0, 1E10);
         A2lTypedefMeasurementArrayComponent(addr, "IP address");
@@ -341,7 +341,7 @@ void masterInit(tPtp *ptp, tPtpMaster *master, uint8_t domain, const uint8_t *uu
     A2lCreateMeasurementInstance(master->name, m.clientCount, "Number of PTP clients");
     char name[32];
     snprintf(name, sizeof(name), "%s.master.client", master->name);
-    A2lCreateInstance(name, tPtpClient, MAX_CLIENTS, m.client, "PTP client list"); // Array of clients
+    A2lCreateInstance(name, tPtpMasterClient, MAX_CLIENTS, m.client, "PTP client list"); // Array of clients
     A2lCreateMeasurementInstance(master->name, m.syncTxTimestamp, "SYNC tx timestamp");
     A2lCreateMeasurementInstance(master->name, m.sequenceIdAnnounce, "Announce sequence id");
     A2lCreateMeasurementInstance(master->name, m.sequenceIdSync, "SYNC sequence id");
@@ -475,7 +475,7 @@ bool masterHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr, 
                 bool newClient = (i >= MAX_CLIENTS);
                 if (newClient) {
                     i = addClient(master, addr, ptp_msg->clockId, ptp_msg->domain);
-                    if (ptp_log_level >= 2) {
+                    if (ptp_log_level >= 3) {
                         printf("\nPTP Master '%s': New client %u.%u.%u.%u domain %u UUID %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n\n", master->name, addr[0], addr[1], addr[2],
                                addr[3], ptp_msg->domain, ptp_msg->clockId[0], ptp_msg->clockId[1], ptp_msg->clockId[2], ptp_msg->clockId[3], ptp_msg->clockId[4],
                                ptp_msg->clockId[5], ptp_msg->clockId[6], ptp_msg->clockId[7]);

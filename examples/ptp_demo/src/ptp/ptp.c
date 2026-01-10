@@ -3,6 +3,7 @@
 |   ptp.c
 |
 | Description:
+|   PTP demo client, observer and master implementation
 |   PTP observer and master with XCP instrumentation
 |   For analyzing PTP masters and testing PTP client stability
 |   Supports IEEE 1588-2008 PTPv2 over UDP/IPv4 in E2E mode
@@ -40,6 +41,7 @@ extern uint8_t ptp_log_level;
 
 #include "ptp.h"
 #include "ptpHdr.h" // PTP protocol message structures
+#include "ptp_client.h"
 #include "ptp_master.h"
 #include "ptp_observer.h"
 
@@ -306,6 +308,7 @@ static void *ptpThread319(void *par)
             break; // Terminate on error or socket close
         if (ptp_log_level >= 4)
             printFrame("RX", (struct ptphdr *)buffer, addr, rxTime); // Print incoming PTP traffic
+        clientHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, rxTime);
         masterHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, rxTime);
         observerHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, rxTime);
     }
@@ -335,6 +338,7 @@ static void *ptpThread320(void *par)
             break; // Terminate on error or socket close
         if (ptp_log_level >= 4)
             printFrame("RX", (struct ptphdr *)buffer, addr, 0); // Print incoming PTP traffic
+        clientHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, 0);
         masterHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, 0);
         observerHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, 0);
     }
@@ -351,7 +355,7 @@ static void *ptpThread320(void *par)
 // Start a PTP interface instance
 // If if_addr = INADDR_ANY, bind to given interface
 // Enables hardware timestamps on interface (requires root privileges)
-tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name) {
+tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name, bool sync_phc) {
 
     tPtp *ptp = (tPtp *)malloc(sizeof(tPtp));
     memset(ptp, 0, sizeof(tPtp));
@@ -379,7 +383,7 @@ tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name) {
 
 // @@@@ Test: Read hardware clock to check if adjusted to PTP timescale
 #ifdef _LINUX
-    if (useBindToDevice) {
+    if (useBindToDevice && sync_phc) {
 
         // Get PHC device path for the network interface
         int phc_index = phc_get_index(if_name);
@@ -456,7 +460,7 @@ tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name) {
         // return false;
     }
 
-    if (ptp_log_level >= 2) {
+    if (ptp_log_level >= 3) {
         if (useBindToDevice)
             printf("  Bound PTP sockets to if_name %s\n", if_name);
         else
@@ -464,7 +468,7 @@ tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name) {
     }
 
     // Join PTP multicast group
-    if (ptp_log_level >= 2)
+    if (ptp_log_level >= 3)
         printf("  Listening for PTP multicast on 224.0.1.129 %s\n", if_name ? if_name : "");
     uint8_t maddr[4] = {224, 0, 1, 129};
     memcpy(ptp->maddr, maddr, 4);
@@ -489,6 +493,7 @@ bool ptpTask(tPtp *ptp) {
 
     assert(ptp != NULL && ptp->magic == PTP_MAGIC);
     bool res = true;
+    res &= clientTask(ptp);
     res &= masterTask(ptp);
     res &= observerTask(ptp);
     return res;
@@ -504,6 +509,8 @@ void ptpShutdown(tPtp *ptp) {
     sleepMs(200);
     socketClose(&ptp->sock319);
     socketClose(&ptp->sock320);
+
+    ptpClientShutdown(ptp);
 
     for (int i = 0; i < ptp->master_count; i++) {
         ptpMasterShutdown(ptp->master_list[i]);

@@ -110,21 +110,36 @@ void ApplXcpStopDaq(void) {
 // Get information about clock synchronization state and grandmaster UUID
 /**************************************************************************/
 
+static uint64_t (*__callback_get_clock)(void) = NULL;
+void ApplXcpRegisterGetClockCallback(uint64_t (*cb_get_clock)(void)) { __callback_get_clock = cb_get_clock; }
+
 uint64_t ApplXcpGetClock64(void) {
 
     /* Return value is clock with
         Clock timestamp resolution defined in xcp_cfg.h
         Clock must be monotonic !!!
     */
+    if (__callback_get_clock != NULL)
+        return __callback_get_clock();
     return clockGet();
 }
+
+static uint8_t (*__callback_get_clock_state)(void) = NULL;
+void ApplXcpRegisterGetClockStateCallback(uint8_t (*cb_get_clock_state)(void)) { __callback_get_clock_state = cb_get_clock_state; }
 
 uint8_t ApplXcpGetClockState(void) {
 
     /* Return value may be one of the following:
         CLOCK_STATE_SYNCH, CLOCK_STATE_SYNCH_IN_PROGRESS, CLOCK_STATE_FREE_RUNNING, CLOCK_STATE_GRANDMASTER_STATE_SYNCH
     */
+    if (__callback_get_clock_state != NULL)
+        return __callback_get_clock_state();
     return CLOCK_STATE_FREE_RUNNING; // Clock is a free running counter
+}
+
+static bool (*__callback_get_clock_info_grandmaster)(uint8_t *uuid, uint8_t *epoch, uint8_t *stratum) = NULL;
+void ApplXcpRegisterGetClockInfoGrandmasterCallback(bool (*cb_get_clock_info_grandmaster)(uint8_t *uuid, uint8_t *epoch, uint8_t *stratum)) {
+    __callback_get_clock_info_grandmaster = cb_get_clock_info_grandmaster;
 }
 
 bool ApplXcpGetClockInfoGrandmaster(uint8_t *uuid, uint8_t *epoch, uint8_t *stratum) {
@@ -137,6 +152,10 @@ bool ApplXcpGetClockInfoGrandmaster(uint8_t *uuid, uint8_t *epoch, uint8_t *stra
         stratum: XCP_STRATUM_LEVEL_UNKNOWN, XCP_STRATUM_LEVEL_RTC,XCP_STRATUM_LEVEL_GPS
         epoch: XCP_EPOCH_TAI, XCP_EPOCH_UTC, XCP_EPOCH_ARB
     */
+
+    if (__callback_get_clock_info_grandmaster != NULL)
+        return __callback_get_clock_info_grandmaster(uuid, epoch, stratum);
+
     return false; // No PTP support
 }
 
