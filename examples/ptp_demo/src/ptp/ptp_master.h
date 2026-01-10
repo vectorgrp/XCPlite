@@ -1,7 +1,5 @@
+/* ptp_master.h */
 #pragma once
-
-//-------------------------------------------------------------------------------------------------------
-// PTP master
 
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uintxx_t
@@ -9,20 +7,28 @@
 #include "filter.h"   // for average filter
 #include "platform.h" // from xcplib for SOCKET, socketSendTo, socketGetSendTime, ...
 
-#include "ptp.h"
+#include "ptp.h"    // for tPtp, OPTION_ENABLE_XCP
 #include "ptpHdr.h" // PTP protocol message structures
-#include "ptp_master.h"
 
 #ifdef OPTION_ENABLE_XCP
 #include <xcplib.h> // for tXcpEventId
 #endif
 
+//-------------------------------------------------------------------------------------------------------
+// Options
+
 // Enable master time drift, drift_drift, offset and jitter simulation
 #define MASTER_TIME_ADJUST
 
+// Maximum number of PTP clients
 #define MAX_CLIENTS 16
+
+// Default master parameters
 #define SYNC_CYCLE_TIME_MS_DEFAULT 1000
 #define ANNOUNCE_CYCLE_TIME_MS_DEFAULT 2000
+
+//-------------------------------------------------------------------------------------------------------
+// Announce message clock quality parameters
 
 typedef struct {
     uint16_t utcOffset;     // PTP ANNOUNCE parameter
@@ -47,6 +53,8 @@ static const announce_parameters_t announce_params = {
     .priority1 = 0,
     .priority2 = 0,
 };
+
+//-------------------------------------------------------------------------------------------------------
 
 // Master parameter structure
 typedef struct master_params {

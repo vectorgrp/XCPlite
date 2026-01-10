@@ -1,9 +1,8 @@
-#pragma once
-
 /* ptpHdr.h */
-/*
-| Code released into public domain, no attribution required
-*/
+
+// PTP protocol message structures and definitions
+
+#pragma once
 
 #pragma pack(push, 1)
 

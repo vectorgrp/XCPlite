@@ -40,22 +40,22 @@
 // Clock Analyzer
 
 // Default analyzer parameter values
-static observer_parameters_t observer_params = { //
-    .t1_correction = 0,                          // Apply 3ns correction to t1 to compensate for VN56xx master timestamp rounding
-    .delay_req_burst_len = 0,                    // Number of DELAY_REQ messages to send after each SYNC in active mode
-    .avg_drift_filter_size = 30,                 // Size of the drift average filter
-    .linreg_filter_size = 30,                    // Size of the linear regression filter
-    .linreg_offset_filter_size = 10,             // Size of the linear regression offset filter
-    .linreg_jitter_filter_size = 30,             // Size of the linear regression jitter filter
-    .jitter_rms_filter_size = 30,                // Size of the jitter RMS average filter
-    .jitter_avg_filter_size = 30,                // Size of the jitter average filter
+static tPtpObserverParameters observer_params = { //
+    .t1_correction = 0,                           // Apply 3ns correction to t1 to compensate for VN56xx master timestamp rounding
+    .delay_req_burst_len = 0,                     // Number of DELAY_REQ messages to send after each SYNC in active mode
+    .avg_drift_filter_size = 30,                  // Size of the drift average filter
+    .linreg_filter_size = 30,                     // Size of the linear regression filter
+    .linreg_offset_filter_size = 10,              // Size of the linear regression offset filter
+    .linreg_jitter_filter_size = 30,              // Size of the linear regression jitter filter
+    .jitter_rms_filter_size = 30,                 // Size of the jitter RMS average filter
+    .jitter_avg_filter_size = 30,                 // Size of the jitter average filter
 #ifdef OBSERVER_SERVO
     .max_correction = 1000.0, // 1000ns maximum correction per SYNC interval
     .servo_p_gain = 1.0
 #endif
 };
 
-void analyzerInit(tPtpClockAnalyzer *a, observer_parameters_t *params) {
+static void analyzerInit(tPtpClockAnalyzer *a, tPtpObserverParameters *params) {
 
     // Init timing analysis state
     a->cycle_count = 0; // cycle counter
@@ -287,7 +287,7 @@ static void analyzerUpdate(const char *observer_name, const char *analyzer_name,
 // PTP observer initialization
 
 // Reset the PTP observer state
-void observerReset(tPtpObserver *obs) {
+static void observerReset(tPtpObserver *obs) {
     assert(obs != NULL);
 
     // Init protocol state
@@ -396,7 +396,7 @@ void observerPrintState(tPtp *ptp, tPtpObserver *obs) {
 }
 
 // Send delay requests in active mode
-bool observerSendDelayRequest(tPtp *ptp, tPtpObserver *obs) {
+static bool observerSendDelayRequest(tPtp *ptp, tPtpObserver *obs) {
     assert(ptp != NULL);
     assert(obs != NULL);
     assert(obs->gmValid);
@@ -498,7 +498,7 @@ static void observerSyncUpdate(tPtp *ptp, tPtpObserver *obs) {
 }
 
 // New t3,t4 pair available from DELAY_REQ/RESP messages
-void observerDelayUpdate(tPtpObserver *obs) {
+static void observerDelayUpdate(tPtpObserver *obs) {
     assert(obs != NULL);
 
     uint64_t t1 = (obs->sync_steps == 1) ? obs->sync_master_time : obs->flup_master_time; // master clock
@@ -830,7 +830,7 @@ tPtpObserverHandle ptpCreateObserver(tPtp *ptp, const char *name, bool active_mo
     // All observers share the same calibration segment
     tXcpCalSegIndex h = XcpCreateCalSeg("observer_params", &observer_params, sizeof(observer_params));
     assert(h != XCP_UNDEFINED_CALSEG);
-    obs->params = (observer_parameters_t *)XcpLockCalSeg(h); // Initial lock of the calibration segment (to enable calibration persistence)
+    obs->params = (tPtpObserverParameters *)XcpLockCalSeg(h); // Initial lock of the calibration segment (to enable calibration persistence)
 
     A2lOnce() {
 
@@ -896,6 +896,8 @@ tPtpObserverHandle ptpCreateObserver(tPtp *ptp, const char *name, bool active_mo
     return (tPtpObserverHandle)obs;
 }
 
+#ifdef PTP_OBSERVER_LIST
+
 // Write the observer list to a simple ASCII file, where each line contains one observer index, name, domain, uuid and addr
 bool ptpSaveObserverList(tPtp *ptp, const char *filename) {
 
@@ -956,3 +958,5 @@ bool ptpLoadObserverList(tPtp *ptp, const char *filename, bool active_mode) {
     fclose(f);
     return true;
 }
+
+#endif

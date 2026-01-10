@@ -1,29 +1,32 @@
+/* ptp_observer.h */
 #pragma once
-
-//-------------------------------------------------------------------------------------------------------
-// PTP observer for master timing analysis
 
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uintxx_t
 
-#include "filter.h"   // for average filter
-#include "platform.h" // from xcplib for SOCKET, socketSendTo, socketGetSendTime, ...
+#include "filter.h"   // Average and linreg filter
+#include "platform.h" // from xcplib for SOCKET, MUTEX, ...
 
-#include "ptp.h"    //
+#include "ptp.h"    // for tPtp
 #include "ptpHdr.h" // PTP protocol message structures
 
 #ifdef OPTION_ENABLE_XCP
 #include <xcplib.h> // for tXcpEventId
 #endif
 
-// Timeout for grandmaster validity in nanoseconds (e.g. 5 seconds)
+//-------------------------------------------------------------------------------------------------------
+// Options
+
+// Timeout for grandmaster validity in seconds
 #define PTP_OBSERVER_GM_TIMEOUT_S 5
 
 // Enable persistent observer allocation
 #define PTP_OBSERVER_LIST
 
-// Time analyser parameter structure
-typedef struct {
+//-------------------------------------------------------------------------------------------------------
+// Time analyzer parameters
+
+typedef struct ptp_observer_parameters {
 
     int32_t t1_correction;             // Correction to apply to t1 timestamps
     uint8_t delay_req_burst_len;       // Number of DELAY_REQ messages to send after each SYNC in active mode
@@ -37,10 +40,12 @@ typedef struct {
 #endif
     uint8_t jitter_rms_filter_size; // Size of the jitter RMS average filter
     uint8_t jitter_avg_filter_size; // Size of the jitter average filter
-} observer_parameters_t;
+} tPtpObserverParameters;
+
+//-------------------------------------------------------------------------------------------------------
 
 // Master descriptor for observers
-typedef struct {
+typedef struct ptp_observer_master {
     uint8_t domain;
     uint8_t uuid[8];
     uint8_t addr[4];
@@ -48,7 +53,7 @@ typedef struct {
 } tPtpObserverMaster;
 
 // Clock analyzer state
-struct ptp_clock_analyzer {
+typedef struct ptp_clock_analyzer {
 
     // PTP observer timing analysis state, all values in nanoseconds and per second units
     uint32_t cycle_count;
@@ -91,12 +96,10 @@ struct ptp_clock_analyzer {
     double jitter_avg; // jitter average
     tAverageFilter jitter_rms_filter;
     tAverageFilter jitter_avg_filter;
-};
+} tPtpClockAnalyzer;
 
-typedef struct ptp_clock_analyzer tPtpClockAnalyzer;
-
-// Observer states
-struct ptp_observer {
+// Observer state
+typedef struct ptp_observer {
 
     char name[32]; // Observer name
 
@@ -118,7 +121,7 @@ struct ptp_observer {
     tPtpObserverMaster gm;        // Grandmaster info
 
     // Observer parameters
-    observer_parameters_t *params; // Pointer to observer parameter structure, adjustable by XCP, shared for all observers
+    tPtpObserverParameters *params; // Pointer to observer parameter structure, adjustable by XCP, shared for all observers
 
     // XCP event id
 #ifdef OPTION_ENABLE_XCP
@@ -165,9 +168,7 @@ struct ptp_observer {
     uint16_t delay_resp_sequenceId_last; // Last processed DELAY_RESP sequence Id
     uint64_t path_delay;                 // Current path delay
     int64_t master_offset;               // Current master offset
-};
-
-typedef struct ptp_observer tPtpObserver;
+} tPtpObserver;
 
 #ifdef __cplusplus
 extern "C" {
@@ -178,8 +179,10 @@ bool observerTask(tPtp *ptp);
 bool observerHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr, uint64_t timestamp);
 tPtpObserverHandle ptpCreateObserver(tPtp *ptp, const char *name, bool active_mode, uint8_t domain, const uint8_t *uuid, const uint8_t *addr);
 
+#ifdef PTP_OBSERVER_LIST
 bool ptpLoadObserverList(tPtp *ptp_handle, const char *filename, bool active_mode);
 bool ptpSaveObserverList(tPtp *ptp_handle, const char *filename);
+#endif
 
 #ifdef __cplusplus
 }

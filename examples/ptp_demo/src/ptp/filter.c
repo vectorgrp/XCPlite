@@ -3,7 +3,7 @@
 |   filter.c
 |
 | Description:
-|   Floating point moving average filter implementation
+|   Floating point moving average and linear regression filter implementation
 |
 |   Code released into public domain, no attribution required
  ----------------------------------------------------------------------------*/

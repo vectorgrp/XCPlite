@@ -1,29 +1,26 @@
-#pragma once
-
 /* ptp.h */
-
-#define OPTION_ENABLE_XCP
-
-//-------------------------------------------------------------------------------------------------------
-// PTP state
+#pragma once
 
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uintxx_t
 
 #include "filter.h"   // for average filter
 #include "platform.h" // from xcplib for SOCKET, socketSendTo, socketGetSendTime, ...
+#include "ptpHdr.h"   // for struct ptphdr
 
-#include "ptp.h"
-#include "ptpHdr.h" // PTP protocol message structures
+//-------------------------------------------------------------------------------------------------------
+// Options
+
+#define OPTION_ENABLE_XCP
+
+#define PTP_MAX_MASTERS 16
+#define PTP_MAX_OBSERVERS 16
 
 // Forward declarations
 struct ptp_observer;
 struct ptp_master;
 
 #define PTP_MAGIC 0x50545021 // "PTP!"
-
-#define PTP_MAX_MASTERS 16
-#define PTP_MAX_OBSERVERS 16
 
 struct ptp {
 
