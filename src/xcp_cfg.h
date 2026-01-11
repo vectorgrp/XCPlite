@@ -353,9 +353,11 @@ XCPlite relative addressing: XCPLITE__CASDD:
 #error "Please define clock resolution"
 #endif
 
-// Grandmaster clock (optional, use XcpSetGrandmasterClockInfo, implement ApplXcpGetClockInfoGrandmaster)
+// PTP support
 #define XCP_ENABLE_PTP
-#define XCP_DAQ_CLOCK_UIID {0xdc, 0xa6, 0x32, 0xFF, 0xFE, 0x7e, 0x66, 0xdc}
+// Default client clock UUID for unsynchronized clocks
+// (implement ApplXcpGetClockInfoGrandmaster to provide actual UUID of PTP synchronized clock)
+#define XCP_DAQ_CLOCK_UUID {0xdc, 0xa6, 0x32, 0xFF, 0xFE, 0x7e, 0x66, 0xdc}
 
 // Enable GET_DAQ_CLOCK_MULTICAST
 // Not recommended

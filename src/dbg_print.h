@@ -61,11 +61,11 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-extern uint8_t gXcpDebugLevel;
+extern uint8_t gXcpLogLevel;
 #ifdef __cplusplus
 }
 #endif
-#define DBG_LEVEL gXcpDebugLevel
+#define DBG_LEVEL gXcpLogLevel
 #endif
 
 #endif // OPTION_FIXED_DBG_LEVEL

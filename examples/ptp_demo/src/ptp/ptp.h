@@ -5,20 +5,29 @@
 #include <stdint.h>  // for uintxx_t
 
 #include "filter.h"   // for average filter
-#include "platform.h" // from xcplib for SOCKET, socketSendTo, socketGetSendTime, ...
+#include "platform.h" // from xcplib for SOCKET, THREAD, ...
 #include "ptpHdr.h"   // for struct ptphdr
 
 //-------------------------------------------------------------------------------------------------------
 // Options
 
+// Enable PTP master mode
+#define OPTION_ENABLE_PTP_MASTER
+
+// Enable PTP observer mode (master analyzer)
+#define OPTION_ENABLE_PTP_OBSERVER
+
+// Enable XCP for observer or master measurements
 #define OPTION_ENABLE_XCP
 
-#define PTP_MAX_MASTERS 16
+#ifdef OPTION_ENABLE_PTP_OBSERVER
 #define PTP_MAX_OBSERVERS 16
-
-// Forward declarations
 struct ptp_observer;
+#endif
+#ifdef OPTION_ENABLE_PTP_MASTER
+#define PTP_MAX_MASTERS 16
 struct ptp_master;
+#endif
 
 #define PTP_MAGIC 0x50545021 // "PTP!"
 
@@ -36,13 +45,17 @@ struct ptp {
     SOCKET sock319;
     MUTEX mutex;
 
+#ifdef OPTION_ENABLE_PTP_MASTER
     int master_count;
     struct ptp_master *master_list[PTP_MAX_MASTERS];
+#endif
 
+#ifdef OPTION_ENABLE_PTP_OBSERVER
     bool auto_observer;
     bool auto_observer_active_mode;
     int observer_count;
     struct ptp_observer *observer_list[PTP_MAX_OBSERVERS];
+#endif
 };
 typedef struct ptp tPtp;
 
@@ -51,8 +64,14 @@ extern "C" {
 #endif
 
 tPtp *ptpCreateInterface(const uint8_t *ifname, const char *if_name, bool sync_phc);
+
+#ifdef OPTION_ENABLE_PTP_OBSERVER
 struct ptp_observer *ptpCreateObserver(tPtp *interface, const char *name, bool active_mode, uint8_t domain, const uint8_t *uuid, const uint8_t *addr);
+#endif
+
+#ifdef OPTION_ENABLE_PTP_MASTER
 struct ptp_master *ptpCreateMaster(tPtp *interface, const char *name, uint8_t domain, const uint8_t *uuid);
+#endif
 
 bool ptpTask(tPtp *ptp);
 void ptpShutdown(tPtp *ptp);

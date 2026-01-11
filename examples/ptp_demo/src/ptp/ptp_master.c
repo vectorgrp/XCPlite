@@ -21,14 +21,16 @@
 #include <stdlib.h>   // for malloc, free
 #include <string.h>   // for sprintf
 
-#include "filter.h"   // for average filter
-#include "platform.h" // from xcplib for SOCKET, socketSendTo, socketGetSendTime, ...
+#include "ptp.h"
+
+#ifdef OPTION_ENABLE_PTP_MASTER
 
 extern uint8_t ptp_log_level;
 #define DBG_LEVEL ptp_log_level
 #include "dbg_print.h" // for DBG_PRINT_ERROR, DBG_PRINTF_WARNING, ...
 
-#include "ptp.h"
+#include "filter.h" // for average filter
+
 #include "ptpHdr.h" // PTP protocol message structures
 #include "ptp_master.h"
 #ifdef _LINUX
@@ -537,3 +539,5 @@ void ptpMasterShutdown(tPtpMaster *master) {
 #endif
     free(master);
 }
+
+#endif // OPTION_ENABLE_PTP_MASTER

@@ -11,7 +11,7 @@
 #include "ptpHdr.h" // PTP protocol message structures
 
 #ifdef OPTION_ENABLE_XCP
-#include <xcplib.h> // for tXcpEventId
+#include <xcplib.h> // for tXcpEventId, tXcpCalSegIndex
 #endif
 
 //-------------------------------------------------------------------------------------------------------

@@ -234,22 +234,22 @@ static void clientReset(tPtpClient *client) {
     gPtpClient->gm_last_update_time = 0;
 
     // Init protocol state
-    client->sync_local_time = 0;                                        // Local receive timestamp of SYNC
-    client->sync_local_time_last = 0;                                   // Local receive timestamp of previous SYNC
-    client->sync_cycle_time = 0;                                        // Master SYNC cycle time
-    client->sync_master_time = 0;                                       // SYNC timestamp
-    client->sync_correction = 0;                                        // SYNC correction
-    client->sync_sequenceId = 0;                                        // SYNC sequence Id
-    client->sync_steps = 0;                                             // SYNC steps removed
-    client->flup_master_time = 0;                                       // FOLLOW_UP timestamp
-    client->flup_correction = 0;                                        // FOLLOW_UP correction
-    client->flup_sequenceId = 0;                                        // FOLLOW_UP sequence Id
-    client->delay_req_system_time = clockGet() + 3 * CLOCK_TICKS_PER_S; // System time when last DELAY_REQ was sent
-    client->delay_req_local_time = 0;                                   // Local send timestamp of DELAY_REQ
-    client->delay_req_sequenceId = 0;                                   // Sequence Id of last DELAY_REQ message sent
-    client->delay_req_master_time = 0;                                  // DELAY_RESP timestamp
-    client->delay_resp_correction = 0;                                  // DELAY_RESP correction
-    client->delay_resp_sequenceId = 0;                                  // Sequence Id of last DELAY_RESP message received
+    client->sync_local_time = 0;       // Local receive timestamp of SYNC
+    client->sync_local_time_last = 0;  // Local receive timestamp of previous SYNC
+    client->sync_cycle_time = 0;       // Master SYNC cycle time
+    client->sync_master_time = 0;      // SYNC timestamp
+    client->sync_correction = 0;       // SYNC correction
+    client->sync_sequenceId = 0;       // SYNC sequence Id
+    client->sync_steps = 0;            // SYNC steps removed
+    client->flup_master_time = 0;      // FOLLOW_UP timestamp
+    client->flup_correction = 0;       // FOLLOW_UP correction
+    client->flup_sequenceId = 0;       // FOLLOW_UP sequence Id
+    client->delay_req_system_time = 0; // System time when last DELAY_REQ was sent
+    client->delay_req_local_time = 0;  // Local send timestamp of DELAY_REQ
+    client->delay_req_sequenceId = 0;  // Sequence Id of last DELAY_REQ message sent
+    client->delay_req_master_time = 0; // DELAY_RESP timestamp
+    client->delay_resp_correction = 0; // DELAY_RESP correction
+    client->delay_resp_sequenceId = 0; // Sequence Id of last DELAY_RESP message received
     client->delay_resp_logMessageInterval = 0;
 
     // Clock analyzer state
@@ -367,7 +367,7 @@ static void clientDelayUpdate(tPtpClient *client) {
 }
 
 // Handle PTP messages (SYNC, FOLLOW_UP, DELAY_RESP) for the PTP client
-bool clientHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr, uint64_t rx_timestamp) {
+bool ptpClientHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr, uint64_t rx_timestamp) {
 
     tPtpClient *client = gPtpClient;
     if (client == NULL)
@@ -522,11 +522,11 @@ bool clientHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr, 
     return true;
 }
 
-bool clientTask(tPtp *ptp) {
+uint8_t ptpClientTask(tPtp *ptp) {
 
     tPtpClient *client = gPtpClient;
     if (client == NULL)
-        return false; // No client instance
+        return CLOCK_STATE_FREE_RUNNING; // No client instance
 
     mutexLock(&client->mutex);
 
@@ -535,9 +535,7 @@ bool clientTask(tPtp *ptp) {
         uint64_t now = clockGet();
         uint64_t elapsed = now - client->gm_last_update_time;
         if (elapsed / (double)CLOCK_TICKS_PER_S > params.gm_timeout_s) {
-
             DBG_PRINTF3("PTP client: Grandmaster lost !!! timeout after %us. Last seen %gs ago\n", params.gm_timeout_s, elapsed / (double)CLOCK_TICKS_PER_S);
-
             client->gmValid = false;
             client->is_sync = false;
         }
@@ -545,7 +543,7 @@ bool clientTask(tPtp *ptp) {
 
     mutexUnlock(&client->mutex);
 
-    return true;
+    return ptpClientGetClockState();
 }
 
 // Create a PTP client singleton instance
@@ -592,61 +590,88 @@ void ptpClientShutdown(tPtp *ptp) {
 // XCP application interface for PTP clock support
 //------------------------------------------------------------------------
 
-uint64_t CallbackXcpGetClock64(void) {
+uint64_t ptpClientGetClock(void) {
 
     /* Return value is clock with
         Clock timestamp resolution defined in xcp_cfg.h
         Clock must be monotonic !!!
     */
+
+    if (gPtpClient != NULL) {
+        if (gPtpClient->gmValid) {
+
+            /*
+
+            PTP clock: system_clock = 1768143562 689047466,
+              delay_req_system_time = 1768143562 079462648,
+               delay_req_local_time = 1768101705 872924490,
+              delay_req_master_time = 1768143562 060550504
+
+              printf("PTP clock: system_clock = %llu, delay_req_system_time = %llu, delay_req_local_time = %llu, delay_req_master_time = %llu\n", //
+                     system_clock,                                                                                                                //
+                     gPtpClient->delay_req_system_time,                                                                                           //
+                     gPtpClient->delay_req_local_time,                                                                                            //
+                     gPtpClient->delay_req_master_time);
+            */
+
+            uint64_t system_clock = clockGet();
+
+            return system_clock; // @@@@ TODO: Return synchronized clock value
+        }
+    }
+
     return clockGet();
 }
 
-uint8_t CallbackXcpGetClockState(void) {
+uint8_t ptpClientGetClockState(void) {
 
-    /* Return value may be one of the following:
-        CLOCK_STATE_SYNCH, CLOCK_STATE_SYNCH_IN_PROGRESS, CLOCK_STATE_FREE_RUNNING, CLOCK_STATE_GRANDMASTER_STATE_SYNCH
+    /* Possible return values:
+        CLOCK_STATE_SYNCH, CLOCK_STATE_SYNCH_IN_PROGRESS, CLOCK_STATE_FREE_RUNNING
     */
 
     if (gPtpClient != NULL) {
-        mutexLock(&gPtpClient->mutex);
         if (gPtpClient->gmValid) {
-            // Check if master is synchronized
-            if (gPtpClient->a12.is_sync || gPtpClient->a34.is_sync) {
-                mutexUnlock(&gPtpClient->mutex);
+            // Check if master is sufficiently synchronized
+            if (gPtpClient->a34.is_sync) {
                 return CLOCK_STATE_SYNCH; // Clock is synchronized to grandmaster
             } else {
-                mutexUnlock(&gPtpClient->mutex);
                 return CLOCK_STATE_SYNCH_IN_PROGRESS; // Clock is synchronizing to grandmaster
             }
         }
-        mutexUnlock(&gPtpClient->mutex);
     }
 
     return CLOCK_STATE_FREE_RUNNING; // Clock is a free running counter
 }
 
-bool CallbackXcpGetClockInfoGrandmaster(uint8_t *uuid, uint8_t *epoch, uint8_t *stratum) {
+bool ptpClientGetClockInfo(uint8_t *client_uuid, uint8_t *grandmaster_uuid, uint8_t *epoch, uint8_t *stratum) {
 
     /*
-    Return value true, please set the following parameters:
+      Possible return values:
         stratum: XCP_STRATUM_LEVEL_UNKNOWN, XCP_STRATUM_LEVEL_RTC,XCP_STRATUM_LEVEL_GPS
         epoch: XCP_EPOCH_TAI, XCP_EPOCH_UTC, XCP_EPOCH_ARB
     */
 
-    if (gPtpClient != NULL && gPtpClient->gmValid) {
-        mutexLock(&gPtpClient->mutex);
-        memcpy(uuid, gPtpClient->gm.uuid, 8);
-        *epoch = CLOCK_EPOCH_TAI;
-        *stratum = CLOCK_STRATUM_LEVEL_UNKNOWN;
-        mutexUnlock(&gPtpClient->mutex);
-        return true;
+    if (gPtpClient != NULL) {
+        if (client_uuid != NULL)
+            memcpy(client_uuid, gPtpClient->client_uuid, 8);
+        if (grandmaster_uuid != NULL)
+            memset(grandmaster_uuid, 0, 8);
+        if (epoch != NULL)
+            *epoch = CLOCK_EPOCH_TAI; // @@@@ TODO: Determine actual epoch from grandmaster info
+        if (stratum != NULL)
+            *stratum = CLOCK_STRATUM_LEVEL_UNKNOWN; // @@@@ TODO: Determine actual stratum from grandmaster info
+        if (gPtpClient->gmValid) {
+            if (grandmaster_uuid != NULL)
+                memcpy(grandmaster_uuid, gPtpClient->gm.uuid, 8);
+            return true;
+        }
     }
 
     return false; // No PTP support
 }
 
 void ptpClientRegisterClockCallbacks(void) {
-    ApplXcpRegisterGetClockCallback(CallbackXcpGetClock64);
-    ApplXcpRegisterGetClockStateCallback(CallbackXcpGetClockState);
-    ApplXcpRegisterGetClockInfoGrandmasterCallback(CallbackXcpGetClockInfoGrandmaster);
+    ApplXcpRegisterGetClockCallback(ptpClientGetClock);
+    ApplXcpRegisterGetClockStateCallback(ptpClientGetClockState);
+    ApplXcpRegisterGetClockInfoGrandmasterCallback(ptpClientGetClockInfo);
 }

@@ -253,7 +253,7 @@ uint32_t gXcpRxPacketCount;
 
 #if defined(OPTION_ENABLE_DBG_PRINTS) && !defined(OPTION_FIXED_DBG_LEVEL) && defined(OPTION_DEFAULT_DBG_LEVEL)
 
-uint8_t gXcpDebugLevel = OPTION_DEFAULT_DBG_LEVEL;
+uint8_t gXcpLogLevel = OPTION_DEFAULT_DBG_LEVEL;
 
 // Set the log level
 void XcpSetLogLevel(uint8_t level) {
@@ -263,9 +263,9 @@ void XcpSetLogLevel(uint8_t level) {
     } else
 #endif
         if (level > 3) {
-        DBG_PRINTF_WARNING("Set log level %u -> %u\n", gXcpDebugLevel, level);
+        DBG_PRINTF_WARNING("Set log level %u -> %u\n", gXcpLogLevel, level);
     }
-    gXcpDebugLevel = level;
+    gXcpLogLevel = level;
 }
 
 #else
@@ -3179,7 +3179,7 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             CRM_TIME_SYNCH_PROPERTIES_SYNCH_STATE = LOCAL_CLOCK_STATE_FREE_RUNNING;
             CRM_TIME_SYNCH_PROPERTIES_CLOCK_INFO = CLOCK_INFO_SERVER;
 #else                                                                                                               // XCP_ENABLE_PTP
-            if (ApplXcpGetClockInfoGrandmaster(gXcp.ClockInfo.grandmaster.UUID, &gXcp.ClockInfo.grandmaster.epochOfGrandmaster,
+            if (ApplXcpGetClockInfoGrandmaster(gXcp.ClockInfo.server.UUID, gXcp.ClockInfo.grandmaster.UUID, &gXcp.ClockInfo.grandmaster.epochOfGrandmaster,
                                                &gXcp.ClockInfo.grandmaster.stratumLevel)) { // Update UUID and clock details
                 CRM_TIME_SYNCH_PROPERTIES_OBSERVABLE_CLOCKS = LOCAL_CLOCK_SYNCHED | GRANDM_CLOCK_READABLE | ECU_CLOCK_NONE;
                 DBG_PRINTF4("  GrandmasterClock: UUID=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X stratumLevel=%u, epoch=%u\n", gXcp.ClockInfo.grandmaster.UUID[0],
@@ -3196,7 +3196,7 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             }
 #endif                                                                                                              // XCP_ENABLE_PTP
             if ((CRO_TIME_SYNCH_PROPERTIES_GET_PROPERTIES_REQUEST & TIME_SYNCH_GET_PROPERTIES_GET_CLK_INFO) != 0) { // check whether MTA based upload is requested
-                gXcp.MtaPtr = (uint8_t *)&gXcp.ClockInfo.server;
+                gXcp.MtaPtr = (uint8_t *)&gXcp.ClockInfo.server;                                                    // updated above
                 gXcp.MtaExt = XCP_ADDR_EXT_PTR;
             }
         } break;
@@ -3642,13 +3642,9 @@ void XcpStart(tQueueHandle queueHandle, bool resumeMode) {
 #endif // XCP_PROTOCOL_LAYER_VERSION >= 0x0103
 #ifdef XCP_ENABLE_PTP
 
-    uint8_t uuid[8] = XCP_DAQ_CLOCK_UIID;
+    // Default UUID of the XCP server clock
+    uint8_t uuid[8] = XCP_DAQ_CLOCK_UUID;
     memcpy(gXcp.ClockInfo.server.UUID, uuid, 8);
-
-    DBG_PRINTF4("  ServerClock: ticks=%u, unit=%s, size=%u, UUID=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X\n", gXcp.ClockInfo.server.timestampTicks,
-                (gXcp.ClockInfo.server.timestampUnit == DAQ_TIMESTAMP_UNIT_1NS) ? "ns" : "us", gXcp.ClockInfo.server.nativeTimestampSize, gXcp.ClockInfo.server.UUID[0],
-                gXcp.ClockInfo.server.UUID[1], gXcp.ClockInfo.server.UUID[2], gXcp.ClockInfo.server.UUID[3], gXcp.ClockInfo.server.UUID[4], gXcp.ClockInfo.server.UUID[5],
-                gXcp.ClockInfo.server.UUID[6], gXcp.ClockInfo.server.UUID[7]);
 
     // If the server clock is PTP synchronized, both origin and local timestamps are considered to be the same.
     gXcp.ClockInfo.relation.timestampLocal = 0;
@@ -3661,13 +3657,20 @@ void XcpStart(tQueueHandle queueHandle, bool resumeMode) {
     gXcp.ClockInfo.grandmaster.valueBeforeWrapAround = 0xFFFFFFFFFFFFFFFFULL;
     gXcp.ClockInfo.grandmaster.stratumLevel = XCP_STRATUM_LEVEL_UNKNOWN;
     gXcp.ClockInfo.grandmaster.epochOfGrandmaster = XCP_EPOCH_ARB;
-    if (ApplXcpGetClockInfoGrandmaster(gXcp.ClockInfo.grandmaster.UUID, &gXcp.ClockInfo.grandmaster.epochOfGrandmaster, &gXcp.ClockInfo.grandmaster.stratumLevel)) {
+    if (ApplXcpGetClockInfoGrandmaster(gXcp.ClockInfo.server.UUID, gXcp.ClockInfo.grandmaster.UUID, &gXcp.ClockInfo.grandmaster.epochOfGrandmaster,
+                                       &gXcp.ClockInfo.grandmaster.stratumLevel)) {
         DBG_PRINTF5("  GrandmasterClock: UUID=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X stratumLevel=%u, epoch=%u\n", gXcp.ClockInfo.grandmaster.UUID[0],
                     gXcp.ClockInfo.grandmaster.UUID[1], gXcp.ClockInfo.grandmaster.UUID[2], gXcp.ClockInfo.grandmaster.UUID[3], gXcp.ClockInfo.grandmaster.UUID[4],
                     gXcp.ClockInfo.grandmaster.UUID[5], gXcp.ClockInfo.grandmaster.UUID[6], gXcp.ClockInfo.grandmaster.UUID[7], gXcp.ClockInfo.grandmaster.stratumLevel,
                     gXcp.ClockInfo.grandmaster.epochOfGrandmaster);
         DBG_PRINT5("  ClockRelation: local=0, origin=0\n");
     }
+
+    DBG_PRINTF4("  ClientClock: ticks=%u, unit=%s, size=%u, UUID=%02X-%02X-%02X-%02X-%02X-%02X-%02X-%02X\n", gXcp.ClockInfo.server.timestampTicks,
+                (gXcp.ClockInfo.server.timestampUnit == DAQ_TIMESTAMP_UNIT_1NS) ? "ns" : "us", gXcp.ClockInfo.server.nativeTimestampSize, gXcp.ClockInfo.server.UUID[0],
+                gXcp.ClockInfo.server.UUID[1], gXcp.ClockInfo.server.UUID[2], gXcp.ClockInfo.server.UUID[3], gXcp.ClockInfo.server.UUID[4], gXcp.ClockInfo.server.UUID[5],
+                gXcp.ClockInfo.server.UUID[6], gXcp.ClockInfo.server.UUID[7]);
+
 #endif // PTP
 #endif // XCP_ENABLE_PROTOCOL_LAYER_ETH
 

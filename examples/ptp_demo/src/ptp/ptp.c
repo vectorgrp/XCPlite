@@ -40,19 +40,15 @@ extern uint8_t ptp_log_level;
 #endif
 
 #include "ptp.h"
+
 #include "ptpHdr.h" // PTP protocol message structures
 #include "ptp_client.h"
+
+#ifdef OPTION_ENABLE_PTP_MASTER
 #include "ptp_master.h"
+#endif
+#ifdef OPTION_ENABLE_PTP_OBSERVER
 #include "ptp_observer.h"
-
-//-------------------------------------------------------------------------------------------------------
-// XCP
-
-#ifdef OPTION_ENABLE_XCP
-
-#include <a2l.h>    // for xcplib A2l generation
-#include <xcplib.h> // for xcplib application programming interface
-
 #endif
 
 //-------------------------------------------------------------------------------------------------------
@@ -146,6 +142,7 @@ static void initHeader(tPtp *ptp, struct ptphdr *h, uint8_t domain, const uint8_
     }
 }
 
+#ifdef OPTION_ENABLE_PTP_MASTER
 bool ptpSendAnnounce(tPtp *ptp, uint8_t master_domain, const uint8_t *master_uuid, uint16_t sequenceId) {
 
     struct ptphdr h;
@@ -221,34 +218,6 @@ bool ptpSendSyncFollowUp(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid, 
     return (l == 44);
 }
 
-bool ptpSendDelayRequest(tPtp *ptp, uint8_t domain, const uint8_t *client_uuid, uint16_t sequenceId, uint64_t *txTimestamp) {
-
-    struct ptphdr h;
-    int16_t l;
-
-    assert(txTimestamp != NULL);
-
-    initHeader(ptp, &h, domain, client_uuid, PTP_DELAY_REQ, 44, 0, sequenceId);
-    *txTimestamp = 0xFFFFFFFFFFFFFFFF;
-    l = socketSendTo(ptp->sock319, (uint8_t *)&h, 44, ptp->maddr, 319, txTimestamp /* != NULL request tx time stamp */);
-    if (l == 44) {
-        if (*txTimestamp == 0) { // If timestamp not obtained during send, get it now
-            *txTimestamp = socketGetSendTime(ptp->sock319);
-            if (*txTimestamp == 0) {
-                DBG_PRINT_ERROR("ptpSendDelayRequest: socketGetSendTime failed, no tx timestamp available\n");
-                return false;
-            }
-        }
-        if (ptp_log_level >= 3) {
-            printf("TX: DELAY_REQ %u, domain=%u, client_uuid=%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X, tx timestamp t3 = %" PRIu64 "\n", sequenceId, domain, client_uuid[0],
-                   client_uuid[1], client_uuid[2], client_uuid[3], client_uuid[4], client_uuid[5], client_uuid[6], client_uuid[7], *txTimestamp);
-        }
-        return true;
-    } else {
-        return false;
-    }
-}
-
 bool ptpSendDelayResponse(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid, struct ptphdr *client_req, uint64_t delayreg_rxTimestamp) {
 
     struct ptphdr h;
@@ -284,6 +253,36 @@ bool ptpSendDelayResponse(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid,
     return (l == 54);
 }
 
+#endif
+
+bool ptpSendDelayRequest(tPtp *ptp, uint8_t domain, const uint8_t *client_uuid, uint16_t sequenceId, uint64_t *txTimestamp) {
+
+    struct ptphdr h;
+    int16_t l;
+
+    assert(txTimestamp != NULL);
+
+    initHeader(ptp, &h, domain, client_uuid, PTP_DELAY_REQ, 44, 0, sequenceId);
+    *txTimestamp = 0xFFFFFFFFFFFFFFFF;
+    l = socketSendTo(ptp->sock319, (uint8_t *)&h, 44, ptp->maddr, 319, txTimestamp /* != NULL request tx time stamp */);
+    if (l == 44) {
+        if (*txTimestamp == 0) { // If timestamp not obtained during send, get it now
+            *txTimestamp = socketGetSendTime(ptp->sock319);
+            if (*txTimestamp == 0) {
+                DBG_PRINT_ERROR("ptpSendDelayRequest: socketGetSendTime failed, no tx timestamp available\n");
+                return false;
+            }
+        }
+        if (ptp_log_level >= 3) {
+            printf("TX: DELAY_REQ %u, domain=%u, client_uuid=%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X, tx timestamp t3 = %" PRIu64 "\n", sequenceId, domain, client_uuid[0],
+                   client_uuid[1], client_uuid[2], client_uuid[3], client_uuid[4], client_uuid[5], client_uuid[6], client_uuid[7], *txTimestamp);
+        }
+        return true;
+    } else {
+        return false;
+    }
+}
+
 //-------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------
 // PTP threads for socket handling (319, 320) for both master and observer mode
@@ -308,9 +307,13 @@ static void *ptpThread319(void *par)
             break; // Terminate on error or socket close
         if (ptp_log_level >= 4)
             printFrame("RX", (struct ptphdr *)buffer, addr, rxTime); // Print incoming PTP traffic
-        clientHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, rxTime);
+        ptpClientHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, rxTime);
+#ifdef OPTION_ENABLE_PTP_MASTER
         masterHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, rxTime);
+#endif
+#ifdef OPTION_ENABLE_PTP_OBSERVER
         observerHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, rxTime);
+#endif
     }
     if (ptp_log_level >= 3)
         printf("Terminate PTP multicast 319 thread\n");
@@ -338,9 +341,13 @@ static void *ptpThread320(void *par)
             break; // Terminate on error or socket close
         if (ptp_log_level >= 4)
             printFrame("RX", (struct ptphdr *)buffer, addr, 0); // Print incoming PTP traffic
-        clientHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, 0);
+        ptpClientHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, 0);
+#ifdef OPTION_ENABLE_PTP_MASTER
         masterHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, 0);
+#endif
+#ifdef OPTION_ENABLE_PTP_OBSERVER
         observerHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, 0);
+#endif
     }
     if (ptp_log_level >= 3)
         printf("Terminate PTP multicast 320 thread\n");
@@ -492,11 +499,14 @@ tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name, bool sync_
 bool ptpTask(tPtp *ptp) {
 
     assert(ptp != NULL && ptp->magic == PTP_MAGIC);
-    bool res = true;
-    res &= clientTask(ptp);
-    res &= masterTask(ptp);
-    res &= observerTask(ptp);
-    return res;
+    ptpClientTask(ptp);
+#ifdef OPTION_ENABLE_PTP_MASTER
+    masterTask(ptp);
+#endif
+#ifdef OPTION_ENABLE_PTP_OBSERVER
+    observerTask(ptp);
+#endif
+    return true;
 }
 
 // Stop a PTP interface
@@ -512,23 +522,28 @@ void ptpShutdown(tPtp *ptp) {
 
     ptpClientShutdown(ptp);
 
+#ifdef OPTION_ENABLE_PTP_MASTER
     for (int i = 0; i < ptp->master_count; i++) {
         ptpMasterShutdown(ptp->master_list[i]);
         ptp->master_list[i] = NULL;
     }
     ptp->master_count = 0;
+#endif
 
+#ifdef OPTION_ENABLE_PTP_OBSERVER
     for (int i = 0; i < ptp->observer_count; i++) {
         ptpObserverShutdown(ptp->observer_list[i]);
         ptp->observer_list[i] = NULL;
     }
     ptp->observer_count = 0;
+#endif
 
     ptp->magic = 0;
     free(ptp);
 }
 
 // Set auto observer mode (accept announce from any master and create a new observer instance)
+#ifdef OPTION_ENABLE_PTP_OBSERVER
 bool ptpEnableAutoObserver(tPtp *ptp, bool active_mode) {
 
     assert(ptp != NULL && ptp->magic == PTP_MAGIC);
@@ -536,18 +551,22 @@ bool ptpEnableAutoObserver(tPtp *ptp, bool active_mode) {
     ptp->auto_observer_active_mode = active_mode;
     return true;
 }
+#endif
 
 // Print current state
 void ptpPrintState(tPtp *ptp) {
 
     assert(ptp != NULL && ptp->magic == PTP_MAGIC);
 
+#ifdef OPTION_ENABLE_PTP_MASTER
     if (ptp->master_count > 0) {
         printf("\nPTP Master States:\n");
         for (int i = 0; i < ptp->master_count; i++) {
             masterPrintState(ptp, i);
         }
     }
+#endif
+#ifdef OPTION_ENABLE_PTP_OBSERVER
     if (ptp->observer_count > 0) {
         char ts[64];
         uint64_t t = clockGet();
@@ -557,4 +576,5 @@ void ptpPrintState(tPtp *ptp) {
         }
         printf("\n");
     }
+#endif
 }

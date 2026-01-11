@@ -21,10 +21,11 @@
 #include <stdlib.h>   // for malloc, free
 #include <string.h>   // for sprintf
 
-#include "filter.h"   // for average filter
-#include "platform.h" // from xcplib for SOCKET, socketSendTo, socketGetSendTime, ...
-
 #include "ptp.h"
+
+#ifdef OPTION_ENABLE_PTP_OBSERVER
+
+#include "filter.h" // for average filter
 #include "ptpHdr.h" // PTP protocol message structures
 #include "ptp_observer.h"
 
@@ -978,3 +979,5 @@ bool ptpLoadObserverList(tPtp *ptp, const char *filename, bool active_mode) {
 }
 
 #endif
+
+#endif // OPTION_PTP_OBSERVER

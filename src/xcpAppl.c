@@ -130,23 +130,20 @@ void ApplXcpRegisterGetClockStateCallback(uint8_t (*cb_get_clock_state)(void)) {
 uint8_t ApplXcpGetClockState(void) {
 
     /* Return value may be one of the following:
-        CLOCK_STATE_SYNCH, CLOCK_STATE_SYNCH_IN_PROGRESS, CLOCK_STATE_FREE_RUNNING, CLOCK_STATE_GRANDMASTER_STATE_SYNCH
+        CLOCK_STATE_SYNCH, CLOCK_STATE_SYNCH_IN_PROGRESS, CLOCK_STATE_FREE_RUNNING
     */
     if (__callback_get_clock_state != NULL)
         return __callback_get_clock_state();
     return CLOCK_STATE_FREE_RUNNING; // Clock is a free running counter
 }
 
-static bool (*__callback_get_clock_info_grandmaster)(uint8_t *uuid, uint8_t *epoch, uint8_t *stratum) = NULL;
-void ApplXcpRegisterGetClockInfoGrandmasterCallback(bool (*cb_get_clock_info_grandmaster)(uint8_t *uuid, uint8_t *epoch, uint8_t *stratum)) {
+static bool (*__callback_get_clock_info_grandmaster)(uint8_t *client_uuid, uint8_t *grandmaster_uuid, uint8_t *epoch, uint8_t *stratum) = NULL;
+void ApplXcpRegisterGetClockInfoGrandmasterCallback(bool (*cb_get_clock_info_grandmaster)(uint8_t *client_uuid, uint8_t *grandmaster_uuid, uint8_t *epoch, uint8_t *stratum)) {
     __callback_get_clock_info_grandmaster = cb_get_clock_info_grandmaster;
 }
 
-bool ApplXcpGetClockInfoGrandmaster(uint8_t *uuid, uint8_t *epoch, uint8_t *stratum) {
+bool ApplXcpGetClockInfoGrandmaster(uint8_t *client_uuid, uint8_t *grandmaster_uuid, uint8_t *epoch, uint8_t *stratum) {
 
-    (void)uuid;
-    (void)epoch;
-    (void)stratum;
     /*
     Return value true, please set the following parameters:
         stratum: XCP_STRATUM_LEVEL_UNKNOWN, XCP_STRATUM_LEVEL_RTC,XCP_STRATUM_LEVEL_GPS
@@ -154,7 +151,7 @@ bool ApplXcpGetClockInfoGrandmaster(uint8_t *uuid, uint8_t *epoch, uint8_t *stra
     */
 
     if (__callback_get_clock_info_grandmaster != NULL)
-        return __callback_get_clock_info_grandmaster(uuid, epoch, stratum);
+        return __callback_get_clock_info_grandmaster(client_uuid, grandmaster_uuid, epoch, stratum);
 
     return false; // No PTP support
 }
