@@ -1,4 +1,6 @@
 // ptp_demo xcplib example (C++ version)
+// Demonstrates how enable PTP synchronization for the XCP DAQ clock
+// Example can be used as:
 // PTP observer or PTP master with XCP interface
 // For analyzing PTP masters and testing PTP client stability
 // Supports IEEE 1588-2008 PTPv2 over UDP/IPv4 in E2E mode
@@ -15,7 +17,9 @@
 #include <thread>
 
 #include "ptp/ptp.h"
+#ifdef OPTION_ENABLE_PTP_CLIENT
 #include "ptp/ptp_client.h"
+#endif
 #ifdef OPTION_ENABLE_PTP_MASTER
 #include "ptp/ptp_master.h"
 #endif
@@ -63,6 +67,97 @@ constexpr int PTP_LOG_LEVEL = 1;                      // Default log level
 #include "dbg_print.h" // for DBG_PRINT_ERROR, DBG_PRINTF_WARNING, ...
 
 int ptp_log_level = PTP_LOG_LEVEL;
+
+//-----------------------------------------------------------------------------------------------------
+// PTP client clock callbacks for XCP
+
+// Get current clock value in nanoseconds
+uint64_t ptpClientGetClock(void) {
+
+    /* Return value is clock with
+        Clock timestamp resolution defined in xcp_cfg.h
+        Clock must be monotonic !!!
+    */
+
+#ifdef OPTION_ENABLE_PTP_CLIENT
+    if (gPtpClient != NULL) {
+        if (gPtpClient->gmValid) {
+
+            // Return synchronized clock value
+            uint64_t ptp_clock = clockGet();
+            return ptp_clock; // @@@@ TODO: Return synchronized clock value
+        }
+    }
+#endif
+
+    return clockGet();
+}
+
+// Get current clock state
+// @return CLOCK_STATE_SYNCH, CLOCK_STATE_SYNCH_IN_PROGRESS, CLOCK_STATE_FREE_RUNNING
+uint8_t ptpClientGetClockState(void) {
+
+    /* Possible return values:
+        CLOCK_STATE_SYNCH, CLOCK_STATE_SYNCH_IN_PROGRESS, CLOCK_STATE_FREE_RUNNING
+    */
+
+#ifdef OPTION_ENABLE_PTP_CLIENT
+    if (gPtpClient != NULL) {
+        if (gPtpClient->gmValid) {
+            // Check if master is sufficiently synchronized
+            if (gPtpClient->a34.is_sync) {
+                return CLOCK_STATE_SYNCH; // Clock is synchronized to grandmaster
+            } else {
+                return CLOCK_STATE_SYNCH_IN_PROGRESS; // Clock is synchronizing to grandmaster
+            }
+        }
+    }
+#endif
+
+    return CLOCK_STATE_FREE_RUNNING; // Clock is a free running counter
+}
+
+// Get client and grandmaster clock uuid, stratum level and epoch
+// @param client_uuid Pointer to 8 byte array to store the client UUID
+// @param grandmaster_uuid Pointer to 8 byte array to store the grandmaster UUID
+// @param epoch Pointer to store the epoch
+// @param stratum Pointer to store the stratum level
+// @return true if PTP is available and grandmaster found, must not be sync yet
+bool ptpClientGetClockInfo(uint8_t *client_uuid, uint8_t *grandmaster_uuid, uint8_t *epoch, uint8_t *stratum) {
+
+    /*
+      Possible return values:
+        stratum: XCP_STRATUM_LEVEL_UNKNOWN, XCP_STRATUM_LEVEL_RTC,XCP_STRATUM_LEVEL_GPS
+        epoch: XCP_EPOCH_TAI, XCP_EPOCH_UTC, XCP_EPOCH_ARB
+    */
+
+#ifdef OPTION_ENABLE_PTP_CLIENT
+    if (gPtpClient != NULL) {
+        if (client_uuid != NULL)
+            memcpy(client_uuid, gPtpClient->client_uuid, 8);
+        if (grandmaster_uuid != NULL)
+            memset(grandmaster_uuid, 0, 8);
+        if (epoch != NULL)
+            *epoch = CLOCK_EPOCH_TAI; // @@@@ TODO: Determine actual epoch from grandmaster info
+        if (stratum != NULL)
+            *stratum = CLOCK_STRATUM_LEVEL_UNKNOWN; // @@@@ TODO: Determine actual stratum from grandmaster info
+        if (gPtpClient->gmValid) {
+            if (grandmaster_uuid != NULL)
+                memcpy(grandmaster_uuid, gPtpClient->gm.uuid, 8);
+            return true;
+        }
+    }
+#endif
+
+    return false; // No PTP support
+}
+
+// Register PTP client clock callbacks for XCP
+void ptpClientRegisterClockCallbacks(void) {
+    ApplXcpRegisterGetClockCallback(ptpClientGetClock);
+    ApplXcpRegisterGetClockStateCallback(ptpClientGetClockState);
+    ApplXcpRegisterGetClockInfoGrandmasterCallback(ptpClientGetClockInfo);
+}
 
 //-----------------------------------------------------------------------------------------------------
 // Demo main
@@ -213,15 +308,20 @@ int main(int argc, char *argv[]) {
     std::snprintf(epk, sizeof(epk), "%s_%s_%s", XCP_OPTION_PROJECT_VERSION, mode_str, __TIME__);
     XcpInit(XCP_OPTION_PROJECT_NAME, epk, true);
 
-    // Create a PTP synchronized clock for XCP
+    // Enable PTP synchronized clock for XCP
     if (XCP_OPTION_PTP) {
+
+#ifdef OPTION_ENABLE_PTP_CLIENT
+
+        // Create a PTP synchronized clock for XCP
+        // Experimental feature, work in progress
+        // Usually, a PTP disciplined system clock exists and XCP uses the system clock directly
         tPtpClient *obs = ptpCreateClient(ptp);
         if (NULL == obs) {
             std::cerr << "Failed to create PTP client" << std::endl;
             ptpShutdown(ptp);
             return 1;
         }
-
         // Wait until PTP clock is locked onto a grandmaster and grandmaster UUID is known
         // Must not be synchronized before starting XCP DAQ measurement
         std::cout << "Waiting for PTP clock ";
@@ -244,8 +344,9 @@ int main(int argc, char *argv[]) {
             ptpShutdown(ptp);
             return 0;
         }
+#endif
 
-        // Register XCP clock callbacks
+        // Register XCP clock callbacks, provides PTP synchronized timestamps to XCP and information about clock state and identity
         ptpClientRegisterClockCallbacks();
     }
 
@@ -330,11 +431,6 @@ int main(int argc, char *argv[]) {
                 last_status_print = std::chrono::steady_clock::now();
             }
         }
-
-        // Test PTP client clock for XCP
-        uint64_t ptp_clock = ptpClientGetClock();
-        uint64_t system_clock = clockGet();
-        printf("%u: t_ptp = %llu, t_system = %llu (diff = %lld)\n", counter, ptp_clock, (unsigned long long)system_clock, (long long)(ptp_clock - system_clock));
 
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     } // while running

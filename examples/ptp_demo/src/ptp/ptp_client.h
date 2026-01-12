@@ -7,7 +7,10 @@
 #include "filter.h"   // Average and linreg filter
 #include "platform.h" // from xcplib for SOCKET, MUTEX, ...
 
-#include "ptp.h"    // for tPtp, OPTION_ENABLE_XCP
+#include "ptp.h" // for tPtp, OPTION_ENABLE_XCP
+
+#ifdef OPTION_ENABLE_PTP_CLIENT
+
 #include "ptpHdr.h" // PTP protocol message structures
 
 //-------------------------------------------------------------------------------------------------------
@@ -100,12 +103,14 @@ typedef struct ptp_client {
     int64_t master_offset; // Current master offset
 } tPtpClient;
 
+extern tPtpClient *gPtpClient;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 // PTP client background processing task
-// @return ptpClientGetClockState() result
+// @return clock state
 uint8_t ptpClientTask(tPtp *ptp);
 // Handle incoming PTP message for client
 bool ptpClientHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr, uint64_t timestamp);
@@ -113,26 +118,9 @@ bool ptpClientHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *add
 tPtpClient *ptpCreateClient(tPtp *ptp);
 // Shutdown and free PTP client instance
 void ptpClientShutdown(tPtp *ptp);
-// Register PTP client clock callbacks for XCP
-void ptpClientRegisterClockCallbacks(void);
-
-// Clock callbacks for XCP
-
-// Get client and grandmaster clock uuid, stratum level and epoch
-// @param client_uuid Pointer to 8 byte array to store the client UUID
-// @param grandmaster_uuid Pointer to 8 byte array to store the grandmaster UUID
-// @param epoch Pointer to store the epoch
-// @param stratum Pointer to store the stratum level
-// @return true if PTP is available and grandmaster found, must not be sync yet
-bool ptpClientGetClockInfo(uint8_t *client_uuid, uint8_t *grandmaster_uuid, uint8_t *epoch, uint8_t *stratum);
-
-// Get current clock value in nanoseconds
-uint64_t ptpClientGetClock(void);
-
-// Get current clock state
-// @return CLOCK_STATE_SYNCH, CLOCK_STATE_SYNCH_IN_PROGRESS, CLOCK_STATE_FREE_RUNNING
-uint8_t ptpClientGetClockState(void);
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

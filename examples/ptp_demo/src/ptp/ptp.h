@@ -11,13 +11,16 @@
 //-------------------------------------------------------------------------------------------------------
 // Options
 
-// Enable PTP master mode
+// Enable buildin PTP client clock
+// #define OPTION_ENABLE_PTP_CLIENT
+
+// Enable buildin PTP master
 #define OPTION_ENABLE_PTP_MASTER
 
-// Enable PTP observer mode (master analyzer)
+// Enable buildin PTP observer mode (master analyzer)
 #define OPTION_ENABLE_PTP_OBSERVER
 
-// Enable XCP for observer or master measurements
+// Enable XCP instrumentation for observer or master measurements
 #define OPTION_ENABLE_XCP
 
 #ifdef OPTION_ENABLE_PTP_OBSERVER
@@ -63,10 +66,11 @@ typedef struct ptp tPtp;
 extern "C" {
 #endif
 
-tPtp *ptpCreateInterface(const uint8_t *ifname, const char *if_name, bool sync_phc);
+tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name, bool sync_phc);
 
 #ifdef OPTION_ENABLE_PTP_OBSERVER
 struct ptp_observer *ptpCreateObserver(tPtp *interface, const char *name, bool active_mode, uint8_t domain, const uint8_t *uuid, const uint8_t *addr);
+bool ptpEnableAutoObserver(tPtp *interface, bool active_mode);
 #endif
 
 #ifdef OPTION_ENABLE_PTP_MASTER
@@ -75,8 +79,6 @@ struct ptp_master *ptpCreateMaster(tPtp *interface, const char *name, uint8_t do
 
 bool ptpTask(tPtp *ptp);
 void ptpShutdown(tPtp *ptp);
-
-bool ptpEnableAutoObserver(tPtp *interface, bool active_mode);
 void ptpPrintState(tPtp *ptp_handle);
 
 bool ptpSendAnnounce(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid, uint16_t sequenceId);

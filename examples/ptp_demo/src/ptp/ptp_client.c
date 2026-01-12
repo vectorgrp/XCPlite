@@ -4,7 +4,7 @@
 |
 | Description:
 |   PTP client for XCP
-|   For demonstratinf PTP support in XCP
+|   For demonstrating PTP support in XCP
 |   Supports IEEE 1588-2008 PTPv2 over UDP/IPv4 in E2E mode
 |
 |  Code released into public domain, no attribution required
@@ -21,12 +21,16 @@
 #include <stdlib.h>   // for malloc, free
 #include <string.h>   // for sprintf
 
-#include "filter.h"   // for average filter
 #include "platform.h" // from xcplib for SOCKET, socketSendTo, socketGetSendTime, ...
+
+#include "ptp.h"
+
+#ifdef OPTION_ENABLE_PTP_CLIENT
+
+#include "filter.h" // for average filter
 
 #include <xcplib.h> // for xcplib application programming interface
 
-#include "ptp.h"
 #include "ptpHdr.h" // PTP protocol message structures
 #include "ptp_client.h"
 
@@ -34,10 +38,10 @@
 
 extern uint8_t ptp_log_level;
 
-static tPtpClient *gPtpClient = NULL;
+tPtpClient *gPtpClient = NULL;
 
 //---------------------------------------------------------------------------------------
-// Clock Analyzer
+// Clock synchronization
 
 //-------------------------------------------------------------------------------------------------------
 // Parameters
@@ -70,7 +74,7 @@ static tPtpClientParameters params = {
 
 };
 
-static void analyzerInit(tPtpClientClockAnalyzer *a, tPtpClientParameters *params) {
+static void syncInit(tPtpClientClockAnalyzer *a, tPtpClientParameters *params) {
 
     // Init timing analysis state
     a->cycle_count = 0; // cycle counter
@@ -101,7 +105,7 @@ static void analyzerInit(tPtpClientClockAnalyzer *a, tPtpClientParameters *param
 }
 
 // Update the PTP client state with each new SYNC (t1,t2) timestamps
-static void analyzerUpdate(const char *client_name, const char *analyzer_name, tPtpClientClockAnalyzer *a, uint64_t t1_in, uint64_t t2_in) {
+static void syncUpdate(const char *client_name, const char *analyzer_name, tPtpClientClockAnalyzer *a, uint64_t t1_in, uint64_t t2_in) {
 
     assert(a != NULL);
 
@@ -253,8 +257,8 @@ static void clientReset(tPtpClient *client) {
     client->delay_resp_logMessageInterval = 0;
 
     // Clock analyzer state
-    analyzerInit(&client->a12, &params); // Init timing analysis state for t1,t2 SYNC timestamps
-    analyzerInit(&client->a34, &params); // Init timing analysis state for t3,t4 DELAY timestamps
+    syncInit(&client->a12, &params); // Init timing analysis state for t1,t2 SYNC timestamps
+    syncInit(&client->a34, &params); // Init timing analysis state for t3,t4 DELAY timestamps
 
     // Path delay and master offset
     client->sync_sequenceId_last = 0;
@@ -300,7 +304,7 @@ static void clientSyncUpdate(tPtp *ptp, tPtpClient *client) {
     uint64_t t2 = client->sync_local_time;                                                         // local clock
     uint64_t correction = client->sync_correction;                                                 // for master timestamp t1
 
-    analyzerUpdate("client", "a12", &client->a12, t1 + correction, t2);
+    syncUpdate("client", "t12", &client->a12, t1 + correction, t2);
     if (client->a12.is_sync) {
         client->drift = client->a12.drift;
         client->drift_drift = client->a12.drift_drift;
@@ -317,7 +321,7 @@ static void clientDelayUpdate(tPtpClient *client) {
     uint64_t t4 = client->delay_req_master_time;
     uint64_t correction = client->delay_resp_correction; // for master timestamp t4
 
-    analyzerUpdate("client", "a34", &client->a34, t4 - correction, t3);
+    syncUpdate("client", "t34", &client->a34, t4 - correction, t3);
     if (client->a34.is_sync) {
         client->drift = client->a34.drift;
         client->drift_drift = client->a34.drift_drift;
@@ -543,7 +547,17 @@ uint8_t ptpClientTask(tPtp *ptp) {
 
     mutexUnlock(&client->mutex);
 
-    return ptpClientGetClockState();
+    // Return clock state
+    if (gPtpClient->gmValid) {
+        // Check if master is sufficiently synchronized
+        if (gPtpClient->a34.is_sync) {
+            return CLOCK_STATE_SYNCH; // Clock is synchronized to grandmaster
+        } else {
+            return CLOCK_STATE_SYNCH_IN_PROGRESS; // Clock is synchronizing to grandmaster
+        }
+    } else {
+        return CLOCK_STATE_FREE_RUNNING; // No master locked
+    }
 }
 
 // Create a PTP client singleton instance
@@ -586,92 +600,4 @@ void ptpClientShutdown(tPtp *ptp) {
     gPtpClient = NULL;
 }
 
-//------------------------------------------------------------------------
-// XCP application interface for PTP clock support
-//------------------------------------------------------------------------
-
-uint64_t ptpClientGetClock(void) {
-
-    /* Return value is clock with
-        Clock timestamp resolution defined in xcp_cfg.h
-        Clock must be monotonic !!!
-    */
-
-    if (gPtpClient != NULL) {
-        if (gPtpClient->gmValid) {
-
-            /*
-
-            PTP clock: system_clock = 1768143562 689047466,
-              delay_req_system_time = 1768143562 079462648,
-               delay_req_local_time = 1768101705 872924490,
-              delay_req_master_time = 1768143562 060550504
-
-              printf("PTP clock: system_clock = %llu, delay_req_system_time = %llu, delay_req_local_time = %llu, delay_req_master_time = %llu\n", //
-                     system_clock,                                                                                                                //
-                     gPtpClient->delay_req_system_time,                                                                                           //
-                     gPtpClient->delay_req_local_time,                                                                                            //
-                     gPtpClient->delay_req_master_time);
-            */
-
-            uint64_t system_clock = clockGet();
-
-            return system_clock; // @@@@ TODO: Return synchronized clock value
-        }
-    }
-
-    return clockGet();
-}
-
-uint8_t ptpClientGetClockState(void) {
-
-    /* Possible return values:
-        CLOCK_STATE_SYNCH, CLOCK_STATE_SYNCH_IN_PROGRESS, CLOCK_STATE_FREE_RUNNING
-    */
-
-    if (gPtpClient != NULL) {
-        if (gPtpClient->gmValid) {
-            // Check if master is sufficiently synchronized
-            if (gPtpClient->a34.is_sync) {
-                return CLOCK_STATE_SYNCH; // Clock is synchronized to grandmaster
-            } else {
-                return CLOCK_STATE_SYNCH_IN_PROGRESS; // Clock is synchronizing to grandmaster
-            }
-        }
-    }
-
-    return CLOCK_STATE_FREE_RUNNING; // Clock is a free running counter
-}
-
-bool ptpClientGetClockInfo(uint8_t *client_uuid, uint8_t *grandmaster_uuid, uint8_t *epoch, uint8_t *stratum) {
-
-    /*
-      Possible return values:
-        stratum: XCP_STRATUM_LEVEL_UNKNOWN, XCP_STRATUM_LEVEL_RTC,XCP_STRATUM_LEVEL_GPS
-        epoch: XCP_EPOCH_TAI, XCP_EPOCH_UTC, XCP_EPOCH_ARB
-    */
-
-    if (gPtpClient != NULL) {
-        if (client_uuid != NULL)
-            memcpy(client_uuid, gPtpClient->client_uuid, 8);
-        if (grandmaster_uuid != NULL)
-            memset(grandmaster_uuid, 0, 8);
-        if (epoch != NULL)
-            *epoch = CLOCK_EPOCH_TAI; // @@@@ TODO: Determine actual epoch from grandmaster info
-        if (stratum != NULL)
-            *stratum = CLOCK_STRATUM_LEVEL_UNKNOWN; // @@@@ TODO: Determine actual stratum from grandmaster info
-        if (gPtpClient->gmValid) {
-            if (grandmaster_uuid != NULL)
-                memcpy(grandmaster_uuid, gPtpClient->gm.uuid, 8);
-            return true;
-        }
-    }
-
-    return false; // No PTP support
-}
-
-void ptpClientRegisterClockCallbacks(void) {
-    ApplXcpRegisterGetClockCallback(ptpClientGetClock);
-    ApplXcpRegisterGetClockStateCallback(ptpClientGetClockState);
-    ApplXcpRegisterGetClockInfoGrandmasterCallback(ptpClientGetClockInfo);
-}
+#endif

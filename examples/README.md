@@ -38,10 +38,6 @@ An example in C++ using more idiomatic C++ to demonstrate the capabilities of th
 - Use the variadic C++ macro/template API.  
 - Instrument a member function: Register and measure local function variables and parameters.  
 
-
-
-
-
 ### c_demo
 
 Shows more complex data objects (structs, arrays) and calibration objects (axis, maps and curves).  
@@ -76,9 +72,11 @@ Creates and measures an array of structures representing 3D points with addition
 
 ### ptp_demo
 
-Demonstrates a PTP observer and PTP time server with XCP instrumentation.  
+Demonstrates PTP (Precision Time Protocol) support in XCP.  
+
+Includes a PTP observer and PTP time server with XCP instrumentation.  
 The PTP observer listens for PTP messages on the network and separates drift and jitter of the master clock in relation to the observer clock. 
-The PTP master sends SYNC and FOLLOW_UP messages periodically and responds to DELAY_REQUEST messages, while tracking the number of connected PTP clients.
+The PTP master sends SYNC and FOLLOW_UP messages periodically and responds to DELAY_REQUEST messages, while tracking the number of connected PTP clients.  
 
 
 ### no_a2l_demo

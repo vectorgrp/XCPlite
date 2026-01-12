@@ -307,7 +307,9 @@ static void *ptpThread319(void *par)
             break; // Terminate on error or socket close
         if (ptp_log_level >= 4)
             printFrame("RX", (struct ptphdr *)buffer, addr, rxTime); // Print incoming PTP traffic
+#ifdef OPTION_ENABLE_PTP_CLIENT
         ptpClientHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, rxTime);
+#endif
 #ifdef OPTION_ENABLE_PTP_MASTER
         masterHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, rxTime);
 #endif
@@ -341,7 +343,9 @@ static void *ptpThread320(void *par)
             break; // Terminate on error or socket close
         if (ptp_log_level >= 4)
             printFrame("RX", (struct ptphdr *)buffer, addr, 0); // Print incoming PTP traffic
+#ifdef OPTION_ENABLE_PTP_CLIENT
         ptpClientHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, 0);
+#endif
 #ifdef OPTION_ENABLE_PTP_MASTER
         masterHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, 0);
 #endif
@@ -499,7 +503,9 @@ tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name, bool sync_
 bool ptpTask(tPtp *ptp) {
 
     assert(ptp != NULL && ptp->magic == PTP_MAGIC);
+#ifdef OPTION_ENABLE_PTP_CLIENT
     ptpClientTask(ptp);
+#endif
 #ifdef OPTION_ENABLE_PTP_MASTER
     masterTask(ptp);
 #endif
@@ -520,7 +526,9 @@ void ptpShutdown(tPtp *ptp) {
     socketClose(&ptp->sock319);
     socketClose(&ptp->sock320);
 
+#ifdef OPTION_ENABLE_PTP_CLIENT
     ptpClientShutdown(ptp);
+#endif
 
 #ifdef OPTION_ENABLE_PTP_MASTER
     for (int i = 0; i < ptp->master_count; i++) {

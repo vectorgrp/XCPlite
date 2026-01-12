@@ -36,3 +36,4 @@ typedefs.a2l
 /tools/instrument_ptp4l.sh
 /tools/ptp4l_debug.patch
 /tools/setup_ptp4l_debug.sh
+/ptp_observers.lst

@@ -2,9 +2,12 @@
 
 ## Overview
 
-This demo application implements a simple PTP (Precision Time Protocol, IEEE 1588) observer and a basic PTP time server.
-Use case may be analyzing PTP masters and testing PTP client stability
-Supports IEEE 1588-2008 PTPv2 over UDP/IPv4 in E2E mode
+This demo shows how to use XCP on Ethernet with PTP (Precision Time Protocol) synchronized DAQ timestamps.  
+
+It also implements a simple PTP observer and a basic PTP time server.
+This may be used for analyzing PTP masters and testing PTP client stability.  
+
+Supports IEEE 1588-2008 PTPv2 over UDP/IPv4 in E2E mode.  
 
 ### Commandline Options
 
@@ -13,10 +16,12 @@ Usage: ./build/ptp_demo [options]
 Options:
   -i, --interface <name>  Network interface name (default: eth0)
   -m, --master            Creates a PTP master with uuid and domain
-  -o, --observer          Observer for uuid and domain (default: multi observer)
+  -o, --observer          Observer for uuid and domain
+  -a, --auto              Multi observer mode
+  -p, --passive           Passive observer mode (default: active)
   -d, --domain <number>   Domain number 0-255 (default: 0)
-  -u, --uuid <hex>        UUID as 16 hex digits (default generated from MAC address)
-  -l, --loglevel <level>  Set log level (0..5, default: 1)
+  -u, --uuid <hex>        UUID as 16 hex digits (default: 001AB60000000001)
+  -l, --loglevel <level>  Set PTP log level (0..5, default: 1)
   -h, --help              Show this help message
 
 Example:
