@@ -96,25 +96,25 @@ endif()
 # Custom build type configurations for debug symbols in release builds
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     # For Release builds: use -O2 optimization and remove debug symbols and assertions
-    set(CMAKE_C_FLAGS_RELEASE "-O2  -DNDEBUG")
-    set(CMAKE_CXX_FLAGS_RELEASE "-O2  -DNDEBUG")
+    set(CMAKE_C_FLAGS_RELEASE "-O2  -DNDEBUG" CACHE STRING "C flags for Release build" FORCE)
+    set(CMAKE_CXX_FLAGS_RELEASE "-O2  -DNDEBUG" CACHE STRING "C++ flags for Release build" FORCE)
     # For RelWithDebInfo builds: release build with moderate optimization and with debug symbols, preserve stack frames
     # -fno-omit-frame-pointer: Always generate frame pointer for better stack traces
     # -fno-optimize-sibling-calls: Prevent tail call optimization that can confuse debuggers
-    set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls -DNDEBUG")
-    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls -DNDEBUG")
+    set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls -DNDEBUG" CACHE STRING "C flags for RelWithDebInfo build" FORCE)
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls -DNDEBUG" CACHE STRING "C++ flags for RelWithDebInfo build" FORCE)
     # For Debug builds: no optimization, full debug symbols
-    set(CMAKE_C_FLAGS_DEBUG "-O0 -g")
-    set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
-    message(STATUS "Custom compiler flags set")
+    set(CMAKE_C_FLAGS_DEBUG "-O0 -g" CACHE STRING "C flags for Debug build" FORCE)
+    set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g" CACHE STRING "C++ flags for Debug build" FORCE)
 elseif(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
     # MSVC equivalent settings
-    set(CMAKE_C_FLAGS_RELEASE "/O2 /Zi /DNDEBUG")
-    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /Zi /DNDEBUG")
+    set(CMAKE_C_FLAGS_RELEASE "/O2 /Zi /DNDEBUG" CACHE STRING "C flags for Release build" FORCE)
+    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /Zi /DNDEBUG" CACHE STRING "C++ flags for Release build" FORCE)
     # /Oy- disables frame pointer omission (equivalent to -fno-omit-frame-pointer)
-    set(CMAKE_C_FLAGS_RELWITHDEBINFO "/O2 /Zi /Oy- /DNDEBUG")
-    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "/O2 /Zi /Oy- /DNDEBUG")
-    message(STATUS "Custom MSVC flags set")
+    set(CMAKE_C_FLAGS_RELWITHDEBINFO "/O2 /Zi /Oy- /DNDEBUG" CACHE STRING "C flags for RelWithDebInfo build" FORCE)
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "/O2 /Zi /Oy- /DNDEBUG" CACHE STRING "C++ flags for RelWithDebInfo build" FORCE)
+    set(CMAKE_C_FLAGS_DEBUG "/Od /Zi" CACHE STRING "C flags for Debug build" FORCE)
+    set(CMAKE_CXX_FLAGS_DEBUG "/Od /Zi" CACHE STRING "C++ flags for Debug build" FORCE)
 endif()
 
 # xcplib sources
@@ -169,6 +169,11 @@ add_executable(hello_xcp_cpp examples/hello_xcp_cpp/src/main.cpp )
 target_include_directories(hello_xcp_cpp PUBLIC "${PROJECT_ROOT}/inc")
 target_link_libraries(hello_xcp_cpp PRIVATE xcplib)
 
+# Example point_cloud_demo
+add_executable(point_cloud_demo examples/point_cloud_demo/src/main.cpp )
+target_include_directories(point_cloud_demo PUBLIC "${PROJECT_ROOT}/inc")
+target_link_libraries(point_cloud_demo PRIVATE xcplib)
+
 # Example c_demo
 set(c_demo_SOURCES examples/c_demo/src/main.c)
 set_source_files_properties(${c_demo_SOURCES} PROPERTIES LANGUAGE C)
@@ -195,21 +200,26 @@ add_executable(multi_thread_demo ${multi_thread_demo_SOURCES})
 target_include_directories(multi_thread_demo PUBLIC "${PROJECT_ROOT}/inc")
 target_link_libraries(multi_thread_demo PRIVATE xcplib)
 
-# Example bpf_demo
-set(bpf_demo_SOURCES examples/bpf_demo/src/main.c)   
-set_source_files_properties(${bpf_demo_SOURCES} PROPERTIES LANGUAGE C)
-add_executable(bpf_demo ${bpf_demo_SOURCES})
-target_include_directories(bpf_demo PUBLIC "${PROJECT_ROOT}/inc")
-target_link_libraries(bpf_demo PRIVATE xcplib)
+# Example ptp_demo (main.cpp as C++, rest as C)
+set(ptp_demo_CPP_SOURCES examples/ptp_demo/src/main.cpp)
+set(ptp_demo_C_SOURCES examples/ptp_demo/src/ptp/ptp.c examples/ptp_demo/src/ptp/ptp_client.c examples/ptp_demo/src/ptp/ptp_observer.c examples/ptp_demo/src/ptp/ptp_master.c examples/ptp_demo/src/ptp/filter.c  examples/ptp_demo/src/ptp/phc.c)
+set_source_files_properties(${ptp_demo_C_SOURCES} PROPERTIES LANGUAGE C)
+add_executable(ptp_demo ${ptp_demo_CPP_SOURCES} ${ptp_demo_C_SOURCES})
+target_include_directories(ptp_demo PUBLIC "${PROJECT_ROOT}/inc")
+target_link_libraries(ptp_demo PRIVATE xcplib)
 
-# Add libbpf dependency for Linux builds
+# Example bpf_demo (only build on Linux with libbpf available)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     find_library(LIBBPF_LIBRARY bpf)
     if(LIBBPF_LIBRARY)
-        target_link_libraries(bpf_demo PRIVATE ${LIBBPF_LIBRARY})
-        message(STATUS "Found libbpf: ${LIBBPF_LIBRARY}")
+        set(bpf_demo_SOURCES examples/bpf_demo/src/main.c)   
+        set_source_files_properties(${bpf_demo_SOURCES} PROPERTIES LANGUAGE C)
+        add_executable(bpf_demo ${bpf_demo_SOURCES})
+        target_include_directories(bpf_demo PUBLIC "${PROJECT_ROOT}/inc")
+        target_link_libraries(bpf_demo PRIVATE xcplib ${LIBBPF_LIBRARY})
+        message(STATUS "Found libbpf: ${LIBBPF_LIBRARY} - building bpf_demo")
     else()
-        message(WARNING "libbpf not found. BPF functionality will be disabled.")
+        message(STATUS "libbpf not found - skipping bpf_demo")
     endif()
 endif()
 
@@ -248,26 +258,10 @@ if(WIN32)
 else()
     # Unix/Linux/macOS specific settings
     
-    # Link math library for multi_thread_demo and hello_xcp_cpp (uses sin, cos, etc.)
+    # Link math library 
+    target_link_libraries(ptp_demo PRIVATE m)
     target_link_libraries(multi_thread_demo PRIVATE m)
     target_link_libraries(hello_xcp_cpp PRIVATE m)
-
-    # Set .out suffix for executables on non-Windows platforms
-    set_target_properties(hello_xcp PROPERTIES SUFFIX ".out")
-    set_target_properties(no_a2l_demo PROPERTIES SUFFIX ".out")
-    set_target_properties(hello_xcp_cpp PROPERTIES SUFFIX ".out")
-    set_target_properties(c_demo PROPERTIES SUFFIX ".out")
-    set_target_properties(cpp_demo PROPERTIES SUFFIX ".out")
-    set_target_properties(struct_demo PROPERTIES SUFFIX ".out")
-    set_target_properties(multi_thread_demo PROPERTIES SUFFIX ".out")
-    set_target_properties(bpf_demo PROPERTIES SUFFIX ".out")
-    
-    if(BUILD_TEST)
-        set_target_properties(type_detection_test_c PROPERTIES SUFFIX ".out")
-        set_target_properties(type_detection_test_cpp PROPERTIES SUFFIX ".out")
-        set_target_properties(a2l_test PROPERTIES SUFFIX ".out")
-        set_target_properties(cal_test PROPERTIES SUFFIX ".out")
-        set_target_properties(daq_test PROPERTIES SUFFIX ".out")
-    endif()
+    target_link_libraries(point_cloud_demo PRIVATE m)
 endif()
 

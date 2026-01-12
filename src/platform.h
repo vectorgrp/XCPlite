@@ -69,14 +69,10 @@
 #include <inttypes.h> // for PRIx32, PRIu64
 #include <stdbool.h>  // for bool
 #include <stdint.h>   // for uintxx_t, uint_fastxx_t
-#include <stdio.h>
-#include <stdio.h> // for printf
+#include <stdio.h>    // for printf
+#include <stdlib.h>   // for malloc, free
 #include <time.h>
 #include <windows.h>
-
-#if defined(_WIN)
-#include <stdlib.h> // for malloc, free
-#endif
 
 #else
 
@@ -226,6 +222,7 @@ typedef HANDLE THREAD;
 
 typedef pthread_t THREAD;
 #define create_thread(h, t) pthread_create(h, NULL, t, NULL)
+#define create_thread_arg(h, t, p) pthread_create(h, NULL, t, p)
 #define join_thread(h) pthread_join(h, NULL)
 #define cancel_thread(h)                                                                                                                                                           \
     {                                                                                                                                                                              \
@@ -306,17 +303,26 @@ int32_t socketGetLastError(void);
 #define SOCKET_TIMESTAMP_FREE_RUNNING 0
 #define SOCKET_TIMESTAMP_SOFTWARE_SYNC 1
 
+// Socket mode flags
+#define SOCKET_MODE_TIMESTAMPING 0x01
+#define SOCKET_MODE_BLOCKING 0x02
+#define SOCKET_MODE_TCP 0x04
+
+// Socket functions
 bool socketStartup(void);
 void socketCleanup(void);
-bool socketOpen(SOCKET *sp, bool useTCP, bool nonBlocking, bool reuseaddr, bool timestamps);
-bool socketBind(SOCKET sock, uint8_t *addr, uint16_t port);
-bool socketJoin(SOCKET sock, uint8_t *maddr);
+bool socketOpen(SOCKET *sp, uint16_t flags);
+bool socketBind(SOCKET sock, const uint8_t *addr, uint16_t port);
+bool socketBindToDevice(SOCKET sock, const char *ifname);                     // Bind socket to a specific network interface (Linux only, requires root for non-INADDR_ANY)
+bool socketEnableHwTimestamps(SOCKET sock, const char *ifname, bool ptpOnly); // Enable NIC hardware timestamping (Linux only, requires root)
+bool socketJoin(SOCKET sock, const uint8_t *maddr, const uint8_t *ifaddr, const char *ifname);
 bool socketListen(SOCKET sock);
 SOCKET socketAccept(SOCKET sock, uint8_t *addr);
 int16_t socketRecv(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, bool waitAll);
 int16_t socketRecvFrom(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, uint8_t *srcAddr, uint16_t *srcPort, uint64_t *time);
 int16_t socketSend(SOCKET sock, const uint8_t *buffer, uint16_t bufferSize);
 int16_t socketSendTo(SOCKET sock, const uint8_t *buffer, uint16_t bufferSize, const uint8_t *addr, uint16_t port, uint64_t *time);
+uint64_t socketGetSendTime(SOCKET sock);
 bool socketShutdown(SOCKET sock);
 bool socketClose(SOCKET *sp);
 #ifdef OPTION_ENABLE_GET_LOCAL_ADDR
@@ -331,10 +337,10 @@ bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr);
 #ifdef OPTION_CLOCK_TICKS_1NS
 
 #define CLOCK_TICKS_PER_M (1000000000ULL * 60)
-#define CLOCK_TICKS_PER_S 1000000000
-#define CLOCK_TICKS_PER_MS 1000000
-#define CLOCK_TICKS_PER_US 1000
-#define CLOCK_TICKS_PER_NS 1
+#define CLOCK_TICKS_PER_S 1000000000ULL
+#define CLOCK_TICKS_PER_MS 1000000ULL
+#define CLOCK_TICKS_PER_US 1000ULL
+#define CLOCK_TICKS_PER_NS 1ULL
 
 #else
 
@@ -381,6 +387,7 @@ bool fexists(const char *filename);
 #define atomic_uint_fast64_t uint64_t
 #define atomic_uintptr_t uintptr_t
 #define atomic_uint_fast8_t uint64_t
+#define atomic_uint_fast16_t uint64_t
 
 #define ATOMIC_BOOL_TYPE uint64_t
 #define ATOMIC_BOOL uint64_t

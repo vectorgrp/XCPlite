@@ -28,7 +28,7 @@ echo ""
 
 # Copy to build directory if it exists
 if [ -d "../../../build" ]; then
-    echo "Installing BPF object to the build directory, where bpf_demo.out is located ..."
+    echo "Installing BPF object to the build directory, where bpf_demo is located ..."
     make install
     echo "BPF program built and installed successfully!"
 else
@@ -39,4 +39,4 @@ fi
 echo ""
 echo "To run the demo on Linux with BPF support:"
 echo "1. Ensure you have root privileges (needed for BPF programs)"
-echo "2. Run: sudo ./bpf_demo.out"
+echo "2. Run: sudo ./bpf_demo"

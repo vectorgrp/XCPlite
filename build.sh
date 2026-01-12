@@ -1,6 +1,7 @@
 #!/bin/bash
 
 
+
 # Parse command line arguments
 BUILD_TYPE="Debug"  # Default to Debug build
 COMPILER_CHOICE=""  # Default to system default compiler (no forcing)
@@ -89,9 +90,15 @@ for arg in "$@"; do
             CLEAN_BUILD=true
             ;;
         cleanall)
-            echo "Cleaning all build directories..."
+            echo "Cleaning all build and test artefacts ..."
             rm -rf build build-gcc build-clang
             echo "✅ All build directories cleaned"
+            rm -f *.bin
+            rm -f *.hex
+            rm -f *.log
+            rm -f *.mf4
+            rm -f *.a2l
+            echo "✅ All hex and a2l files cleaned"
             exit 0
             ;;
         -h|--help|help)
@@ -160,15 +167,31 @@ if [ "$CLEAN_BUILD" = true ]; then
     rm -rf "$BUILD_DIR"
 fi
 
-# Gcc has lesser compatibility problems, use gcc for raspberry pi builds, if problems with atomic_uint_least32_t
+echo ""
 echo "==================================================================="
 echo "Configuring CMake build system..."
 echo "==================================================================="
 cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE -S . -B $BUILD_DIR $CMAKE_COMPILER_ARGS
 
-# Be sure EPK is updated before building
-touch src/a2l.c
-
+echo ""
+if [ -f "$BUILD_DIR/CMakeCache.txt" ]; then
+    echo "Active Build Type: $BUILD_TYPE"
+    case "$BUILD_TYPE" in
+        "Debug")
+            echo "C Flags:   $(grep "CMAKE_C_FLAGS_DEBUG:STRING=" $BUILD_DIR/CMakeCache.txt | cut -d= -f2-)"
+            echo "C++ Flags: $(grep "CMAKE_CXX_FLAGS_DEBUG:STRING=" $BUILD_DIR/CMakeCache.txt | cut -d= -f2-)"
+            ;;
+        "Release")
+            echo "C Flags:   $(grep "CMAKE_C_FLAGS_RELEASE:STRING=" $BUILD_DIR/CMakeCache.txt | cut -d= -f2-)"
+            echo "C++ Flags: $(grep "CMAKE_CXX_FLAGS_RELEASE:STRING=" $BUILD_DIR/CMakeCache.txt | cut -d= -f2-)"
+            ;;
+        "RelWithDebInfo")
+            echo "C Flags:   $(grep "CMAKE_C_FLAGS_RELWITHDEBINFO:STRING=" $BUILD_DIR/CMakeCache.txt | cut -d= -f2-)"
+            echo "C++ Flags: $(grep "CMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=" $BUILD_DIR/CMakeCache.txt | cut -d= -f2-)"
+            ;;
+    esac
+fi
+echo ""
 echo ""
 echo "==================================================================="
 echo "Building targets..."
@@ -181,11 +204,13 @@ LIBRARY_TARGET="xcplib"
 EXAMPLE_TARGETS=(
     "hello_xcp" 
     "hello_xcp_cpp"
-    "no_a2l_demo"
     "c_demo"
     "cpp_demo"
     "struct_demo"
     "multi_thread_demo"
+    "point_cloud_demo"
+    "no_a2l_demo"
+    "ptp_demo"
 )
 
 TEST_TARGETS=(

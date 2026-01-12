@@ -22,15 +22,21 @@ Note: Some of the examples use display windows without title bars to make it loo
 
 ### hello_xcp
 
-Demonstrates how to start the XCP on Ethernet server and use the runtime A2L generator.  
-Shows how to create a calibration parameter segment structure, register the parameters in the segment and access them safely.  
-Defines events for measurement of global and local (stack) variables.  
-Demonstrates the different addressing modes for measurement variables and calibration parameters.  
-Defines a function, registers local variables and function parameters and creates and triggers a measurement event in the function.  
+An example in pure C. Compiles a C or C++. Demonstrates the basic C API.  
+- Start the XCP on Ethernet server and use the runtime A2L generator.  
+- Create a global calibration parameter segment structure, register the parameters in the segment and access them safely.  
+- Define events for measurement of global and local (stack) variables.  
+- Use the different addressing modes for measurement variables and calibration parameters.  
+- Instrument a function, register local variables and function parameters and create and trigger a measurement event in the function.  
 
 ### hello_xcp_cpp
 
-Demonstrates how to instrument a member function of a C++ class and how to register and access parameters in C++.  
+An example in C++ using more idiomatic C++ to demonstrate the capabilities of the additional C++ API.  
+- Start the XCP on Ethernet server and use the runtime A2L generator.  
+- Create a global calibration parameter segment structure, register the parameters in the segment and access them safely with a RAII wrapper.  
+- Define events for measurement of global, local (stack), and  heap variables and instances.  
+- Use the variadic C++ macro/template API.  
+- Instrument a member function: Register and measure local function variables and parameters.  
 
 ### c_demo
 
@@ -59,8 +65,19 @@ Share a parameter segment among multiple threads.
 Thread safe and consistent access to parameters.  
 Experimental code to demonstrate how to create context and spans using the XCP instrumentation API.  
 
+### point_cloud_demo
 
-![CANape Screenshot](cpp_demo/cpp_demo.png)
+Demonstrates how to visualize dynamic data structures in the CANape 3D scene window.  
+Creates and measures an array of structures representing 3D points with additional information.
+
+### ptp_demo
+
+Demonstrates PTP (Precision Time Protocol) support in XCP.  
+
+Includes a PTP observer and PTP time server with XCP instrumentation.  
+The PTP observer listens for PTP messages on the network and separates drift and jitter of the master clock in relation to the observer clock. 
+The PTP master sends SYNC and FOLLOW_UP messages periodically and responds to DELAY_REQUEST messages, while tracking the number of connected PTP clients.  
+
 
 ### no_a2l_demo
 

@@ -10,7 +10,6 @@
                 "--exclude=build/",
                 "--exclude=.git/",
                 "--exclude=\"*.o\"",
-                "--exclude=\"*.out\"",
                 "--exclude=\"*.a\"",
                 "./",
                 "rainer@192.168.0.206:~/XCPlite-RainerZ/"
@@ -32,8 +31,18 @@
         },
         {
             "type": "shell",
-            "label": "XCPlite: sync to Pi (sync.sh)",
-            "command": "./sync.sh",
+            "label": "XCPlite: sync to CM5",
+            "command": "rsync",
+            "args": [
+                "-avz",
+                "--delete",
+                "--exclude=build/",
+                "--exclude=.git/",
+                "--exclude=\"*.o\"",
+                "--exclude=\"*.a\"",
+                "./",
+                "admin@192.168.0.207:~/XCPlite-RainerZ/"
+            ],
             "options": {
                 "cwd": "${workspaceFolder}"
             },
@@ -47,7 +56,87 @@
                 "focus": false,
                 "panel": "shared"
             },
-            "detail": "Call ./sync.sh - rsync to Raspberry Pi rainer@192.168.0.206:~/XCPlite-RainerZ/"
+            "detail": "rsync to Raspberry CM5 admin@192.168.0.207:~/XCPlite-RainerZ/"
+        },
+        {
+            "type": "shell",
+            "label": "XCPlite: sync to VP6450",
+            "command": "rsync",
+            "args": [
+                "-avz",
+                "--delete",
+                "--exclude=build/",
+                "--exclude=.git/",
+                "--exclude=\"*.o\"",
+                "--exclude=\"*.a\"",
+                "./",
+                "rainer@192.168.0.143:~/XCPlite-RainerZ/"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "detail": "rsync to VP6450 rainer@192.168.0.143:~/XCPlite-RainerZ/"
+        },
+        {
+            "type": "shell",
+            "label": "XCPlite: Remote build all on Pi",
+            "command": "ssh",
+            "args": [
+                "rainer@192.168.0.206",
+                "cd ~/XCPlite-RainerZ && cmake --build build"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "dependsOn": "XCPlite: Remote configure CMake on Pi",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Build all targets on Raspberry Pi"
+        },
+        {
+            "type": "shell",
+            "label": "XCPlite: Remote build all on CM5",
+            "command": "ssh",
+            "args": [
+                "admin@192.168.0.207",
+                "cd ~/XCPlite-RainerZ && cmake --build build"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "dependsOn": "XCPlite: Remote configure CMake on CM5",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Build all targets on CM5"
+        },
+        {
+            "type": "shell",
+            "label": "XCPlite: Remote build all on VP6450",
+            "command": "ssh",
+            "args": [
+                "VP6450",
+                "cd ~/XCPlite-RainerZ && cmake --build build"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "dependsOn": "XCPlite: Remote configure CMake on VP6450",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Build all targets on VP6450"
         },
         {
             "type": "cppbuild",
@@ -72,167 +161,6 @@
                 "isDefault": true
             },
             "detail": "Vom Debugger generierte Aufgabe."
-        },
-        {
-            "type": "shell",
-            "label": "XCPlite: build hello_xcp",
-            "command": "cmake",
-            "args": [
-                "--build",
-                "build",
-                "--target",
-                "hello_xcp"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "group": {
-                "kind": "build",
-                "isDefault": false
-            },
-            "problemMatcher": [
-                "$gcc"
-            ],
-            "detail": "Build hello_xcp target using CMake",
-            "dependsOn": "cmake configure"
-        },
-        {
-            "type": "shell",
-            "label": "XCPlite: build hello_xcp_cpp",
-            "command": "cmake",
-            "args": [
-                "--build",
-                "build",
-                "--target",
-                "hello_xcp_cpp"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "group": {
-                "kind": "build",
-                "isDefault": false
-            },
-            "problemMatcher": [
-                "$gcc"
-            ],
-            "detail": "Build hello_xcp_cpp target using CMake",
-            "dependsOn": "cmake configure"
-        },
-        {
-            "type": "shell",
-            "label": "XCPlite: build c_demo",
-            "command": "cmake",
-            "args": [
-                "--build",
-                "build",
-                "--target",
-                "c_demo"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "group": {
-                "kind": "build",
-                "isDefault": false
-            },
-            "problemMatcher": [
-                "$gcc"
-            ],
-            "detail": "Build c_demo target using CMake",
-            "dependsOn": "cmake configure"
-        },
-        {
-            "type": "shell",
-            "label": "XCPlite: build struct_demo",
-            "command": "cmake",
-            "args": [
-                "--build",
-                "build",
-                "--target",
-                "struct_demo"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "group": {
-                "kind": "build",
-                "isDefault": false
-            },
-            "problemMatcher": [
-                "$gcc"
-            ],
-            "detail": "Build struct_demo target using CMake",
-            "dependsOn": "cmake configure"
-        },
-        {
-            "type": "shell",
-            "label": "XCPlite: build multi_thread_demo",
-            "command": "cmake",
-            "args": [
-                "--build",
-                "build",
-                "--target",
-                "multi_thread_demo"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "group": {
-                "kind": "build",
-                "isDefault": false
-            },
-            "problemMatcher": [
-                "$gcc"
-            ],
-            "detail": "Build multi_thread_demo target using CMake",
-            "dependsOn": "cmake configure"
-        },
-        {
-            "type": "shell",
-            "label": "XCPlite: build a2l_test",
-            "command": "cmake",
-            "args": [
-                "--build",
-                "build",
-                "--target",
-                "a2l_test"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "group": {
-                "kind": "build",
-                "isDefault": false
-            },
-            "problemMatcher": [
-                "$gcc"
-            ],
-            "detail": "Build a2l_test target using CMake",
-            "dependsOn": "cmake configure"
-        },
-        {
-            "type": "shell",
-            "label": "XCPlite: build cpp_demo",
-            "command": "cmake",
-            "args": [
-                "--build",
-                "build",
-                "--target",
-                "cpp_demo"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "group": {
-                "kind": "build",
-                "isDefault": false
-            },
-            "problemMatcher": [
-                "$gcc"
-            ],
-            "detail": "Build cpp_demo target using CMake",
-            "dependsOn": "cmake configure"
         },
         {
             "type": "shell",
@@ -267,57 +195,27 @@
         },
         {
             "type": "shell",
-            "label": "XCPlite: Remote build hello_xcp on Pi",
+            "label": "XCPlite: Remote configure CMake on CM5",
             "command": "ssh",
             "args": [
-                "rainer@192.168.0.206",
-                "cd ~/XCPlite-RainerZ && cmake --build build --target hello_xcp"
+                "admin@192.168.0.207",
+                "cd ~/XCPlite-RainerZ && cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug"
             ],
-            "group": {
-                "kind": "build",
-                "isDefault": false
-            },
-            "dependsOn": "XCPlite: Remote configure CMake on Pi",
-            "problemMatcher": [
-                "$gcc"
-            ],
-            "detail": "Build hello_xcp target on Raspberry Pi"
+            "group": "build",
+            "dependsOn": "XCPlite: sync to CM5",
+            "detail": "Configure CMake build system on CM5"
         },
         {
             "type": "shell",
-            "label": "XCPlite: Remote build cpp_demo on Pi",
+            "label": "XCPlite: Remote configure CMake on VP6450",
             "command": "ssh",
             "args": [
-                "rainer@192.168.0.206",
-                "cd ~/XCPlite-RainerZ && cmake --build build --target cpp_demo"
+                "VP6450",
+                "cd ~/XCPlite-RainerZ && cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug"
             ],
-            "group": {
-                "kind": "build",
-                "isDefault": false
-            },
-            "dependsOn": "XCPlite: Remote configure CMake on Pi",
-            "problemMatcher": [
-                "$gcc"
-            ],
-            "detail": "Build cpp_demo target on Raspberry Pi"
-        },
-        {
-            "type": "shell",
-            "label": "XCPlite: Remote build all on Pi",
-            "command": "ssh",
-            "args": [
-                "rainer@192.168.0.206",
-                "cd ~/XCPlite-RainerZ && cmake --build build"
-            ],
-            "group": {
-                "kind": "build",
-                "isDefault": false
-            },
-            "dependsOn": "XCPlite: Remote configure CMake on Pi",
-            "problemMatcher": [
-                "$gcc"
-            ],
-            "detail": "Build all targets on Raspberry Pi"
+            "group": "build",
+            "dependsOn": "XCPlite: sync to VP6450",
+            "detail": "Configure CMake build system on VP6450"
         },
         {
             "type": "shell",
@@ -325,34 +223,21 @@
             "command": "ssh",
             "args": [
                 "rainer@192.168.0.206",
-                "pkill -f 'hello_xcp\\|cpp_demo\\|c_demo\\|multi_thread_demo' || true"
+                "pkill -f 'hello_xcp\\|hello_xcp_cpp\\|cpp_demo\\|c_demo\\|multi_thread_demo' || true"
             ],
             "group": "build",
             "detail": "Kill any running XCP demo processes on Raspberry Pi"
         },
         {
             "type": "shell",
-            "label": "XCPlite: Download executables from Pi",
-            "command": "rsync",
+            "label": "XCPlite: Remote kill XCP processes on VP6450",
+            "command": "ssh",
             "args": [
-                "-avz",
-                "--include=\"*.out\"",
-                "--include=\"*.a2l\"",
-                "--exclude=\"*\"",
-                "rainer@192.168.0.206:~/XCPlite-RainerZ/build/",
-                "./pi/"
+                "VP6450",
+                "pkill -f 'hello_xcp\\|cpp_demo\\|c_demo\\|multi_thread_demo' || true"
             ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
             "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared"
-            },
-            "detail": "Download executable files (*.out, *.a) from Raspberry Pi build directory"
+            "detail": "Kill any running XCP demo processes on VP6450"
         },
     ],
     "version": "2.0.0"

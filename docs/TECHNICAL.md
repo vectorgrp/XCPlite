@@ -147,7 +147,7 @@ This is used to realize calibration consistency requirements, were the collectio
 Drawback of this simple approach is, that calibration updates may starve, when there is always at least one reader holding a lock.
 Worst case is, that a calibration update may time out.
 
-'''
+```
     Shared mutable atomic state between the XCP thread and the ECU thread is:
         - ecu_page_next: a page with newer data, taken over into ecu_page 
         - free_page: the page freed when new_page is taken over 
@@ -217,7 +217,7 @@ function try_publish(segment) -> bool {
     return true;
 }
 
-'''
+```
 
 
 ## Platform and Language Standard Requirements
@@ -278,3 +278,36 @@ function try_publish(segment) -> bool {
 ### Other Issues
 
 - CANape ignores address extension of `loop_histogram` in ccp_demo, when saving calibration values to a parameter file. `loop_histogram` is a CHARACTERISTIC array, but it is in a measurement group
+
+
+## 5 · Appendix
+
+### Static Instrumentation Markers for A2L Updater/Creator Tools
+
+The code instrumentations creates static variables, to help an A2L Updater/Creator or an XCP tool to build an A2L file or its database from  linker map and debug information only.  
+The markers make it possible to detect calibration segments, events, capture buffers and the scope where an event is triggered in the ELF/DWARF file.
+Runtime A2L generation can be turned off. Measurement and calibration metadata may be added with the usual methods.  
+  
+This is currently in experimental state.  
+The xcp-client tool from the Rust xcp-lite version has support to read this information from an ELF/DWARF file.  
+CPP is not supported yet.  
+
+
+```c
+//Create calibration segment macro segment index once pattern
+static tXcpCalSegIndex cal__##name;
+
+// Create measurement event macro event id once pattern
+// From  DaqCreateXxx(name), 
+static tXcpEventId evt__##name
+static tXcpEventId evt__dynname
+
+// Daq capture macro (DaqCapture(event, var)) capture buffer
+static __typeof__(var) daq__##event##__##var
+
+// Daq event trigger macro event id once pattern
+// From C macros DaqCreateAndTriggerXxx(name), DaqEventVar(name, ...), DaqEventExtVar(name, ...), ...)
+static tXcpEventId trg__AAS__##name // For absloute and stack relative addressing [XCP_ADDR_EXT_ABS and XCP_ADDR_EXT_DYN]
+static tXcpEventId trg__AASD__##name // For absolute, stack and relative addressing [XCP_ADDR_EXT_ABS, XCP_ADDR_EXT_DYN, XCP_ADDR_EXT_DYN+1]
+static tXcpEventId trg__AASDD__##name // for multiple DYN address extensions [XCP_ADDR_EXT_DYN+1 ..= XCP_ADDR_EXT_DYN_MAX] 
+```

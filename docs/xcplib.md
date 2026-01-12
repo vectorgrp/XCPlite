@@ -7,9 +7,6 @@
 1. [Overview](#1-overview)
 2. [Getting Started](#2-getting-started)
 3. [API Reference](#3-api-reference)
-4. [Example Application](#4-example-application)
-5. [A2l Creator](#5-a2l-creator)
-6. [Glossary](#6-glossary)
 
 ---
 
@@ -25,6 +22,10 @@ Key features:
 - Timestamped measurement events to capture global, stack and heap data
 - Optional A2L file meta data and type generation at runtime
 
+It is up to the user how to build and link the library into the host application.\
+There is an cmakelists.txt to build the library and all the examples in the `examples/` folder.
+
+
 ---
 
 ## 2 · Getting Started
@@ -34,23 +35,39 @@ Key features:
 Code Example:
 
 ```c
-#include "xcplib.h"
-#include "a2l.h" 
+#include <xcplib.h>
+#include <a2l.h> 
 ```
 
 C++ Example:
 
 ```cpp
-#include "a2l.hpp"    
-#include "xcplib.hpp" 
-
+#include <xcplib.hpp> 
+#include <a2l.hpp>    
 ```
 
 
 2. **Set log level (optional)**
 
-C and C++ Examples:
+The log level can be set at runtime to control the verbosity of log output.  
+To save resources, it is recommended to set the log level to a fixed minimal level in production systems, or even to a fixed level not adjustable at runtime.
 
+In main_cfg.h:
+```c
+/* Set maximum runtime adjustable log level:
+   1 - Error
+   2 - Warn
+   3 - Info
+   4 - Trace
+   5 - Debug
+*/
+   #define OPTION_MAX_DBG_LEVEL 3 
+   // #define OPTION_FIXED_DBG_LEVEL 3
+
+```
+
+
+C and C++ Examples:
 ```c
    XcpSetLogLevel(3); // (1=error, 2=warning, 3=info, 4=debug (prints all XCP commands), 5=trace)
 ```
@@ -171,7 +188,7 @@ Basic example: Measure a local variable on stack or a global variable
    // Local or global variable to measure
    int8_t temperature = 0;
 
-   // Create a measurement event named "MyEvent" and register the local variable 'temperature' for measurement on this event
+   // Create a global measurement event named "MyEvent" and register the local variable 'temperature' for measurement on this event
    DaqCreateEvent(MyEvent);
    A2lSetStackAddrMode(temperature);  // or SetAbsoluteAddrMode(temperature);
    A2lCreatePhysMeasurement(temperature, "temperature", "Deg Celcius", -50, 80);
@@ -204,13 +221,13 @@ double calc_energy(double voltage, double current) {
    double energy_ += power * get_elapsed_time(); // kWh
 
    //  Create event 'calc_energy', register individual local or member variables and trigger the event
-    XcpDaqEventExt(calc_energy, this,                                               
-                   (voltage, "Input voltage", "V", 0.0, 1000.0), // A function parameter
-                   (current, "Input current", "A", 0.0, 500.0), // A function parameter
-                   (power, "Current calculated energy", "kWh", 0.0, 1000.0),   // A local variable                     
-                   (energy_, "Current power", "kW", 0.0, 1000.0), // A member variable accessed via 'this' pointer                 
-                    );   
-                    
+    DaqEventExtVar(calc_energy, this,                                               
+                   A2L_MEAS_PHYS(voltage, "Input voltage", "V", 0.0, 1000.0), // A function parameter
+                   A2L_MEAS_PHYS(current, "Input current", "A", 0.0, 500.0), // A function parameter
+                   A2L_MEAS_PHYS(power, "Current calculated energy", "kWh", 0.0, 1000.0),   // A local variable
+                   A2L_MEAS_PHYS(energy_, "Current power", "kW", 0.0, 1000.0) // A member variable accessed via 'this' pointer
+                   );
+
    return energy_;       
 }
 ```
@@ -301,7 +318,116 @@ See function and macro documentation in xcplib.h
 
 ### 3.3 Events
 
-See function and macro documentation in xcplib.h
+Events are used to capture timestamped measurements of local variables on stack, global memory or heap instances.  
+An event is created once and may be triggered periodically to capture consistent data at the time of the trigger.  
+Events have a globally unique name and identification number (tXcpEventId which is a 16 Bit value).  
+
+To trigger an event, a library function (XcpEvent(), XcpEventExt(),...) or one of the convenience macros (DaqTriggerEvent(), DaqEvent(), ..) is called in a particular code location. The event is associated to this code location and triggered every time the code is executed. Measurement variables associated to the event must be visible and valid in this code location.  
+
+Triggering the same event in multiple code locations is possible, but it is in the users responsibility to make sure that all measurements associated to the event event are accessible and valid. This not recommended as it makes the measurement data hard to interpret.  
+
+A global event is triggered always from the same code location, independent of the call stack or thread context. To filter events depending on their execution context, events may be enabled or disabled via library calls (DaqEventEnable(), DaqEventDisable()).    
+Advanced techniques like context dependent events (e.g. per thread or per class instance in a class member function) are supported, but require more complex code instrumentation. There are examples available demonstrating these techniques.   
+
+Library function to create events:
+
+```c  
+/// Add a measurement event to the event list, returns the event id  (0..XCP_MAX_EVENT_COUNT-1)
+/// If the event name already exists, returns the existing event event number
+/// Function is thread safe by using a mutex for event list access.
+/// @param name Name of the event.
+/// @param cycleTimeNs Cycle time in nanoseconds. 0 means sporadic event.
+/// @param priority Priority of the event. 0 means normal, >=1 means realtime.
+/// @return The event id or XCP_UNDEFINED_EVENT_ID if out of event list memory.
+tXcpEventId XcpCreateEvent(const char *name, uint32_t cycleTimeNs /* ns */, uint8_t priority /* 0-normal, >=1 realtime*/);
+```
+
+Library functions to trigger and control events:
+
+```c
+/// Trigger the XCP event 'event' for absolute addressing mode
+/// @param event Event id.
+void XcpEvent(tXcpEventId event);
+
+/// Trigger the XCP event 'event' for absolute or relative addressing mode with explicitly given base address (address extension = 2)
+/// @param event
+/// @param base address pointer
+void XcpEventExt(tXcpEventId event, const uint8_t *base2);
+
+// Enable or disable a XCP DAQ event
+void XcpEventEnable(tXcpEventId event, bool enable);
+```
+
+All functions are thread safe and lock-free.  
+See technical reference for details.
+
+
+Convenience macros to create, control and trigger events without the need to pass around event handles and specify base addresses:
+
+Macros to create events:
+```c
+
+/// Create a global event
+/// Macro may be used anywhere in the code, even in loops
+/// Thread safe global once pattern, the first call creates the event
+/// May be called multiple times in different code locations, ignored if the the event name already exists
+/// @param name Name given as identifier
+DaqCreateEvent(event_name)                                                                                                                                                       \
+```
+
+Macros to trigger events:
+```c
+/// Trigger a global event for stack relative or absolute addressing
+/// Cache the event name lookup in global storage
+/// @param name Name given as identifier
+#define DaqTriggerEvent(event_name) 
+
+/// Trigger a global event for absolute, stack and relative addressing mode with given individual base address (from A2lSetRelativeAddrMode(base_addr))
+/// Cache the event name lookup in global storage
+/// @param name Name given as identifier
+/// @param base_addr Base address pointer for relative addressing mode
+#define DaqTriggerEventExt(event_name, base_addr)
+```
+
+
+Macros to control events:
+```c
+/// Enable the XCP event 'name'
+DaqEventEnable(event_name)                                                                                                                                                       \
+
+/// Disable the XCP event 'name'
+DaqEventDisable(event_name)        
+```
+
+
+Combined variadic macros to trigger events and register measurements in one call.  
+Available for c and c++:
+```c
+/// Trigger an event, create the event once and register global and local measurement variables once
+/// Supports absolute, stack and relative addressing mode measurements
+DaqEventVar(event_name, ...) 
+
+/// Trigger an event, create the event once and register global, local and relative addressing mode measurement variables once
+/// Supports absolute, stack and relative addressing mode measurements
+DaqEventExtVar(event_name, ...) 
+
+/// Helper macros for creating measurement meta data, variable name stringification and address capture
+A2L_MEAS(var, comment)
+A2L_MEAS_PHYS(var, comment, unit, min, max)
+
+// Example:
+DaqEventVar(event_name,                                                                                                 
+                    A2L_MEAS(variable1, "Comment", "Unit", -20, 50), //
+                    A2L_MEAS(variable2, "Comment", "Unit", 0, 40));
+
+```
+
+
+
+Note:
+For workflows without runtime A2L generation, the event creation macros have to be used.  
+They create static markers in the code to identify events and event trigger code locations by reading the ELF/DWARF debug information.  
+
 
 ---
 
@@ -366,31 +492,6 @@ All definitions of instances follow the same principle: Set the addressing mode 
 
 ---
 
-## 4 · Example Applications
 
-See examples folder and README.md for a short descriptions of the example applications.
-
-## 5 · Appendix
-
-### Static Markers
-
-The code instrumentations creates static variables, to help the A2L Creater or an XCP tool reading linker map files, to identify calibration segments, events, capture buffers and the scope where an event is triggered.
-
-```c
-//Create calibration segment macro segment index once pattern
-static tXcpCalSegIndex cal__##name;
-
-// Create measurement event macro event id once pattern
-static THREAD_LOCAL tXcpEventId evt__##name
-static THREAD_LOCAL tXcpEventId evt__
-
-// Daq capture macro capture buffer
-static __typeof__(var) daq__##event##__##var
-
-// Daq event macro event id once pattern
-static THREAD_LOCAL tXcpEventId evt___aas0__##name
-static THREAD_LOCAL tXcpEventId evt___aasr__##name
-static THREAD_LOCAL tXcpEventId evt___aasrr__##name
-```
 
 *End of document.*

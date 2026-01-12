@@ -7,10 +7,10 @@
 #   If 'clean' is given, all generated files (.a2l, .bin, .hex) will be deleted before running tests
 # Examples:
 #   ./test.sh              # Run all examples
-#   ./test.sh hello_xcp    # Run only hello_xcp.out
-#   ./test.sh c_demo       # Run only c_demo.out
+#   ./test.sh hello_xcp    # Run only hello_xcp
+#   ./test.sh c_demo       # Run only c_demo
 #   ./test.sh clean        # Clean and run all examples
-#   ./test.sh clean hello_xcp  # Clean and run only hello_xcp.out
+#   ./test.sh clean hello_xcp  # Clean and run only hello_xcp
 
 # Exit on error
 set -e
@@ -52,17 +52,11 @@ if [ $# -gt 0 ]; then
         shift
         if [ $# -gt 0 ]; then
             SPECIFIC_EXAMPLE="$1"
-            # Add .out extension if not provided
-            if [[ ! "$SPECIFIC_EXAMPLE" =~ \.out$ ]]; then
-                SPECIFIC_EXAMPLE="${SPECIFIC_EXAMPLE}.out"
-            fi
+
         fi
     else
         SPECIFIC_EXAMPLE="$1"
-        # Add .out extension if not provided
-        if [[ ! "$SPECIFIC_EXAMPLE" =~ \.out$ ]]; then
-            SPECIFIC_EXAMPLE="${SPECIFIC_EXAMPLE}.out"
-        fi
+
     fi
 fi
 
@@ -97,8 +91,8 @@ fi
 
 # Create log file based on what's being tested
 if [ -n "$SPECIFIC_EXAMPLE" ]; then
-    # Remove .out extension for log filename
-    LOG_NAME="${SPECIFIC_EXAMPLE%.out}"
+    # Use example name for log filename
+    LOG_NAME="${SPECIFIC_EXAMPLE}"
     LOG_FILE="${SCRIPT_DIR}/test_${LOG_NAME}.log"
 else
     LOG_FILE="${SCRIPT_DIR}/test_all.log"
@@ -136,13 +130,13 @@ fi
 
 # List of all available examples (order matters - simpler ones first)
 ALL_EXAMPLES=(
-    "hello_xcp.out"
-    "hello_xcp_cpp.out"
-    "c_demo.out"
-    "cpp_demo.out"
-    "struct_demo.out"
-    "multi_thread_demo.out"
-    
+    "hello_xcp"
+    "hello_xcp_cpp"
+    "c_demo"
+    "cpp_demo"
+    "struct_demo"
+    "multi_thread_demo"
+    "point_cloud_demo"
 )
 
 # Determine which examples to run
@@ -156,7 +150,7 @@ if [ -n "$SPECIFIC_EXAMPLE" ]; then
         log_plain "${RED}Error: Unknown example '${SPECIFIC_EXAMPLE}'${NC}"
         log_plain "${YELLOW}Available examples:${NC}"
         for ex in "${ALL_EXAMPLES[@]}"; do
-            log_plain "  - ${ex%.out}"
+            log_plain "  - ${ex}"
         done
         exit 1
     fi
@@ -170,10 +164,10 @@ fi
 get_example_protocol() {
     local example_name="$1"
     case "$example_name" in
-        hello_xcp.out|hello_xcp_cpp.out|struct_demo.out)
+        hello_xcp|hello_xcp_cpp|point_cloud_demo|struct_demo)
             echo "tcp"
             ;;
-        c_demo.out|cpp_demo.out|multi_thread_demo.out)
+        c_demo|cpp_demo|multi_thread_demo)
             echo "udp"
             ;;
         *)
@@ -372,7 +366,7 @@ run_example() {
     # Format: example_name_HH_MM_SS.bin (where HH_MM_SS is from __TIME__)
     # Check both BUILD_DIR and WORKSPACE_ROOT (examples write to current directory)
     # Each example creates exactly one BIN file
-    local example_basename="${example%.out}"
+    local example_basename="${example}"
     # Find BIN files matching the pattern and filter to exact matches (not substrings)
     # Use grep to ensure the filename ends with _HH_MM_SS.bin pattern
     local bin_files=$(find "$BUILD_DIR" "$WORKSPACE_ROOT" -maxdepth 1 -name "${example_basename}_*.bin" -type f 2>/dev/null | grep -E "/${example_basename}_[0-9]{2}_[0-9]{2}_[0-9]{2}\.bin$" | head -1)

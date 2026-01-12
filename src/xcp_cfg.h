@@ -53,8 +53,7 @@ XCPlite absolute addressing: XCPLITE__ACSDD (default)
 0x00        - Calibration segment relative addressing mode (XCP_ADDR_EXT_SEG with u16 offset)
 0x01        - Absolute addressing mode (XCP_ADDR_EXT_ABS)
 0x02        - Stackframe relative (Event based relative addressing mode with asynchronous access and i16 offset)
-0x03-0x04   - Pointer relative (Event based relative addressing mode with asynchronous access and i16 offset)
-0x05-0xFC   - Reserved
+0x03...     - Pointer relative (Event based relative addressing mode with asynchronous access and i16 offset)
 0xFD        - A2L upload memory space (XCP_ADDR_EXT_A2L)
 0xFE        - MTA pointer address space (XCP_ADDR_EXT_PTR)
 0xFF        - Undefined address extension (XCP_UNDEFINED_ADDR_EXT)
@@ -62,35 +61,10 @@ XCPlite absolute addressing: XCPLITE__ACSDD (default)
 XCPlite relative addressing: XCPLITE__CASDD:
 0x00        - Absolute addressing mode (XCP_ADDR_EXT_ABS)
 0x01        - Calibration segment relative addressing mode (XCP_ADDR_EXT_SEG)
+...
 
-xcp-lite >=V1.0.0 for Rust XCPLITE__C_DR:
-0x00        - Calibration segment relative addressing mode (XCP_ADDR_EXT_SEG with u16 offset)
-0x01        - Absolute addressing mode (XCP_ADDR_EXT_ABS) not used
-0x02        - Pointer relative  (XCP_ADDR_EXT_DYN) (Event based relative addressing mode with asynchronous access and i16 offset)
-0x03        - Stackframe relative (XCP_ADDR_EXT_REL) (Not event based address enoding, with i32 offset)
 
 */
-
-// @@@@ TODO: Move the Rust xcp-lite addressing mode configuration to xcplib_cfg.h
-#ifdef XCPLIB_FOR_RUST // XCPLIB_FOR_RUST is set by the Rust build script
-
-// Rust xcp-lite uses only relative addressing (0x03) and dynamic addressing (0x02)
-// Since version 1.0.0, calibration segment management and calibration access are handled by xcplib
-#define XCP_ADDRESS_MODE_XCPLITE__C_DR
-#define XCP_ADDRESS_MODE "XCPLITE__C_DR"
-// #define XCP_ENABLE_APP_ADDRESSING
-// #define XCP_ADDR_EXT_APP 0x00
-#define XCP_ENABLE_SEG_ADDRESSING
-#define XCP_ADDR_EXT_SEG 0x00
-// #define XCP_ENABLE_ABS_ADDRESSING
-// #define XCP_ADDR_EXT_ABS 0x01
-#define XCP_ENABLE_DYN_ADDRESSING
-#define XCP_ADDR_EXT_DYN 0x02
-#define XCP_ADDR_EXT_DYN_MAX 0x02
-#define XCP_ENABLE_REL_ADDRESSING
-#define XCP_ADDR_EXT_REL 0x03
-
-#else
 
 // C/C++ XCPlite uses absolute, dynamic and calibration segment relative addressing
 #if !defined(XCP_ENABLE_CALSEG_LIST) || defined(OPTION_CAL_SEGMENTS_ABS)
@@ -112,9 +86,8 @@ xcp-lite >=V1.0.0 for Rust XCPLITE__C_DR:
 #endif
 #define XCP_ENABLE_DYN_ADDRESSING
 #define XCP_ADDR_EXT_DYN 0x02
-#define XCP_ADDR_EXT_DYN_MAX 0x04
-
-#endif
+#define XCP_ADDR_EXT_DYN_COUNT 14
+#define XCP_ADDR_EXT_DYN_MAX (0x02 + XCP_ADDR_EXT_DYN_COUNT - 1)
 
 // --- Relative addressing modes without asynchronous access and i32 offset
 #ifdef XCP_ENABLE_REL_ADDRESSING
@@ -306,7 +279,10 @@ xcp-lite >=V1.0.0 for Rust XCPLITE__C_DR:
 // #define XCP_ENABLE_DAQ_RESUME
 
 // Enable prescaler for DAQ events, requires XCP_ENABLE_DAQ_EVENT_LIST
-#define XCP_ENABLE_DAQ_PRESCALER
+// #define XCP_ENABLE_DAQ_PRESCALER
+
+// Enable event control for DAQ events (enable/disable), requires XCP_ENABLE_DAQ_EVENT_LIST
+#define XCP_ENABLE_DAQ_CONTROL
 
 // Overrun indication via PID
 // Not needed for Ethernet, client detects data loss via transport layer counter gaps
@@ -377,9 +353,11 @@ xcp-lite >=V1.0.0 for Rust XCPLITE__C_DR:
 #error "Please define clock resolution"
 #endif
 
-// Grandmaster clock (optional, use XcpSetGrandmasterClockInfo, implement ApplXcpGetClockInfoGrandmaster)
+// PTP support
 #define XCP_ENABLE_PTP
-#define XCP_DAQ_CLOCK_UIID {0xdc, 0xa6, 0x32, 0xFF, 0xFE, 0x7e, 0x66, 0xdc}
+// Default client clock UUID for unsynchronized clocks
+// (implement ApplXcpGetClockInfoGrandmaster to provide actual UUID of PTP synchronized clock)
+#define XCP_DAQ_CLOCK_UUID {0xdc, 0xa6, 0x32, 0xFF, 0xFE, 0x7e, 0x66, 0xdc}
 
 // Enable GET_DAQ_CLOCK_MULTICAST
 // Not recommended
@@ -392,5 +370,6 @@ xcp-lite >=V1.0.0 for Rust XCPLITE__C_DR:
 //-------------------------------------------------------------------------------
 // Debug
 
-// Enable extended error checks, performance penalty !!!
+// Enable extended error checks and additional asserts
+// Small performance penalty (base address count and NULL pointer checks) in the inner DAQ loop !
 #define XCP_ENABLE_TEST_CHECKS

@@ -2,10 +2,40 @@
 
 All notable changes to XCPlite are documented in this file.
 
+## [V1.1.0]
+
+### Added
+- New variadic data acquisition C macro or C++ macro/template  (`DaqEventVar`)
+- Support for enabling and disabling individual DAQ events at runtime (`DaqEnableEvent`, `DaqDisableEvent`)
+- New function XcpUpdateCalSeg for simplified single thread calibration segment updates
+- New demo `point_cloud_demo` demonstrating how to visualize arrays of objects in the CANape 3D scene window
+- New demo `ptp_demo` demonstrating a PTP observer and PTP time server with XCP instrumentation (see README.md of `ptp_demo` for details)
+
+### Changed
+- Removed .out extension from the binaries on Linux and macOS builds
+
+### Improvements
+- Improved thread safety of event creation to avoid unnecessary THREAD_LOCAL state
+- Optimized A2L generation macros, inlined address calculations moved into A2L creator functions
+- Auto addressing mode now supports absolute and relative addressing
+- More idiomatic C++ code in examples
+
+### Fixed
+- Bug in transmit thread queue handling causing too many packets sent
+- Fixed cpp_demo assertion
+
+### Minor Changes
+- A2L transport layer section removed when bound to ANY and IP address auto-detection is off
+- Support for hardware timestamping in platform.c for Linux
+- Async event and prescaler turned off by default
+- Improved code documentation and comments
+- Refactored example applications for better clarity
+- Various minor code improvements and optimizations
+
+
 ## [V1.0.0]
 
 ### Breaking API Changes
-
 
 - XcpInit signature changed to
 ```c
@@ -53,7 +83,7 @@ void XcpInit(const char *name, const char *epk, bool activate);
 - XCP_ENABLE_COPY_CAL_PAGE_WORKAROUND to enable workaround for CANape init calibration segments bug
 - Variadic macro to create, trigger, and register local and member variables in one call with automatic addressing mode deduction (see hello_xcp_cpp example)
 ```c
-    XcpDaqEventExt(avg_calc1, this,                                               //
+    DaqEventExtVar(avg_calc1, this,                                               //
                    (input, "Input value for floating average", "V", 0.0, 1000.0), //
                    (average, "Current calculated average"),                       //
                    (current_index_, "Current position in ring buffer"),           //

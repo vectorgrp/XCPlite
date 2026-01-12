@@ -34,23 +34,30 @@
 // Enable debug print errors and warnings go to stderr
 #define OPTION_ENABLE_DBG_STDERR
 // Default log level: 1 - Error, 2 - Warn, 3 - Info, 4 - Trace, 5 - Debug
-// Use level 4 print all XCP commands
+// Use level 4 to print all XCP commands
 #define OPTION_DEFAULT_DBG_LEVEL 3
-// Optimize code size, only errors and warnings enabled, other levels optimized out
-// #define OPTION_FIXED_DBG_LEVEL 2
+// Optimize code size, higher levels optimized out
+#define OPTION_MAX_DBG_LEVEL 4
+// Optimize code size, fixed log level, not changeable at runtime
+// #define OPTION_FIXED_DBG_LEVEL 3
 // Enable debug metrics
-#define OPTION_ENABLE_DBG_METRICS
+// #define OPTION_ENABLE_DBG_METRICS // Requires OPTION_ENABLE_DBG_PRINTS
 
 //-------------------------------------------------------------------------------
 // Clock
 
 // Epoch options (only one must be defined)
-#define OPTION_CLOCK_EPOCH_ARB // Arbitrary epoch -> uses CLOCK_MONOTONIC_RAW
-// #define OPTION_CLOCK_EPOCH_PTP // Precision Time Protocol epoch -> uses CLOCK_REALTIME
+// #define OPTION_CLOCK_EPOCH_ARB    // Arbitrary epoch -> uses CLOCK_MONOTONIC_RAW
+#define OPTION_CLOCK_EPOCH_PTP // Precision Time Protocol epoch -> uses CLOCK_REALTIME
 
 // Resolution 1ns or 1us, granularity depends on platform (only one must be defined)
 #define OPTION_CLOCK_TICKS_1NS
 // #define OPTION_CLOCK_TICKS_1US
+
+//-------------------------------------------------------------------------------
+// Socket options
+
+#define OPTION_SOCKET_HW_TIMESTAMPS // Enable hardware timestamps on UDP sockets if available
 
 //-------------------------------------------------------------------------------
 // XCP server options
@@ -97,13 +104,12 @@
 // Automatically persist the working page on XCP disconnect
 // #define OPTION_CAL_PERSIST_ON_DISCONNECT
 
-#
 //-------------------------------------------------------------------------------
 // DAQ settings
 
 #define OPTION_DAQ_MEM_SIZE (1024 * 8) // Memory bytes used for XCP DAQ tables - 6 bytes per measurement signal/block needed
 #define OPTION_DAQ_EVENT_COUNT 256     // Maximum number of DAQ events (integer value, must be even)
-#define OPTION_DAQ_ASYNC_EVENT         // Create an asynchronous, cyclic DAQ event for asynchronous data acquisition
+// #define OPTION_DAQ_ASYNC_EVENT         // Create an asynchronous, cyclic DAQ event for asynchronous data acquisition
 
 //-------------------------------------------------------------------------------
 // A2L generation settings
@@ -113,7 +119,7 @@
 
 // Enable socketGetLocalAddr and XcpEthTlGetInfo
 // Used for convenience to get an existing ip address in A2L, when bound to ANY 0.0.0.0
-#define OPTION_ENABLE_GET_LOCAL_ADDR
+// #define OPTION_ENABLE_GET_LOCAL_ADDR
 
 //-------------------------------------------------------------------------------
 // Miscellaneous options

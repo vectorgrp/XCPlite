@@ -15,11 +15,16 @@
 |
  ----------------------------------------------------------------------------*/
 
-#include "xcplib.h"
+#include <mutex> // for std::once_flag, std::call_once
+
+#include <xcplib.h>
 
 namespace xcplib {
 
-constexpr uint8_t XCP_ADDR_EXT_SEG = 0;
+// xcplib configuration parameters
+extern "C" {
+extern uint8_t XCP_ADDR_MODE_SEG;
+}
 
 // =============================================================================
 // RAII wrapper for structs with calibration parameters
@@ -79,7 +84,9 @@ template <typename T> class CalSeg {
     void CreateA2lTypedefInstance(const char *type_name, const char *comment) {
         A2lLock();
         A2lSetSegmentAddrMode__i(segment_index_, NULL);
-        A2lCreateTypedefInstance_(XcpGetCalSegName(segment_index_), type_name, 0, XcpGetCalSegBaseAddress(segment_index_), XCP_ADDR_EXT_SEG, comment);
+        // This requires segment relative addressing mode, if XCP_ADDR_EXT_SEG != 0 it will not work with CANape
+        assert(XCP_ADDR_MODE_SEG == 0);
+        A2lCreateInstance_(XcpGetCalSegName(segment_index_), type_name, 0, NULL, comment);
         A2lUnlock();
     }
 };
@@ -91,175 +98,205 @@ template <typename T> CalSeg<T> CreateCalSeg(const char *name, const T *default_
 } // namespace xcplib
 
 // =============================================================================
-// Variadic event trigger convinience macros
-// Option to reate event, register measurements and trigger event in one call
-// =============================================================================
+// Helper macros
 
-// Macro to count arguments in a tuple
-#define A2L_TUPLE_SIZE_(...) A2L_TUPLE_SIZE_IMPL_(__VA_ARGS__, 5, 4, 3, 2, 1, 0)
-#define A2L_TUPLE_SIZE_IMPL_(_1, _2, _3, _4, _5, N, ...) N
+// Portable always inline attribute for C++
+// Critical for functions that use xcp_get_frame_addr() to ensure they capture the caller's stack frame
+#if defined(_MSC_VER)
+#define XCPLIB_ALWAYS_INLINE __forceinline
+#elif defined(__GNUC__) || defined(__clang__)
+#define XCPLIB_ALWAYS_INLINE __attribute__((always_inline)) inline
+#else
+#define XCPLIB_ALWAYS_INLINE inline
+#warning "XCPLIB_ALWAYS_INLINE may not guarantee inlining on this compiler - stack frame addresses may be incorrect"
+#endif
 
-// Dispatch macro based on tuple size
-#define A2L_UNPACK_AND_REG_DISPATCH_(tuple) A2L_UNPACK_AND_REG_DISPATCH_IMPL_ tuple
-#define A2L_UNPACK_AND_REG_DISPATCH_IMPL_(...) A2L_UNPACK_AND_REG_SELECT_(A2L_TUPLE_SIZE_(__VA_ARGS__))(__VA_ARGS__)
-
-// Select the appropriate registration macro based on argument count
-#define A2L_UNPACK_AND_REG_SELECT_(N) A2L_UNPACK_AND_REG_SELECT_IMPL_(N)
-#define A2L_UNPACK_AND_REG_SELECT_IMPL_(N) A2L_UNPACK_AND_REG_##N##_
-
-// Measurement: (var, comment)
-#define A2L_UNPACK_AND_REG_2_(var, comment) A2lCreateMeasurement_(NULL, #var, A2lGetTypeId(var), A2lGetAddr_((uint8_t *)&(var)), A2lGetAddrExt_(), NULL, 0.0, 0.0, comment);
-
-// Physical measurement: (var, comment, unit_or_conversion, min, max)
-#define A2L_UNPACK_AND_REG_5_(var, comment, unit_or_conversion, min, max)                                                                                                          \
-    A2lCreateMeasurement_(NULL, #var, A2lGetTypeId(var), A2lGetAddr_((uint8_t *)&(var)), A2lGetAddrExt_(), unit_or_conversion, min, max, comment);
-
-// Main unpacking macro - dispatches to the right version
-#define A2L_UNPACK_AND_REG_(...) A2L_UNPACK_AND_REG_DISPATCH_((__VA_ARGS__))
-
-// Macro helpers for FOR_EACH pattern
-// These expand the variadic arguments and apply a macro to each one
-#define XCPLIB_FOR_EACH_MEAS_(macro, ...) XCPLIB_FOR_EACH_MEAS_IMPL_(macro, __VA_ARGS__)
-
-// Implementation helper - handles up to 16 measurements
-// Each XCPLIB_APPLY_ expands to macro(args) where args is (var, comment)
-#define XCPLIB_FOR_EACH_MEAS_IMPL_(m, ...)                                                                                                                                         \
-    XCPLIB_GET_MACRO_(__VA_ARGS__, XCPLIB_FE_16_, XCPLIB_FE_15_, XCPLIB_FE_14_, XCPLIB_FE_13_, XCPLIB_FE_12_, XCPLIB_FE_11_, XCPLIB_FE_10_, XCPLIB_FE_9_, XCPLIB_FE_8_,            \
-                      XCPLIB_FE_7_, XCPLIB_FE_6_, XCPLIB_FE_5_, XCPLIB_FE_4_, XCPLIB_FE_3_, XCPLIB_FE_2_, XCPLIB_FE_1_, XCPLIB_FE_0_)(m, __VA_ARGS__)
-
-// Selector macro - picks the right expander based on argument count
-#define XCPLIB_GET_MACRO_(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, NAME, ...) NAME
-
-// Expander macros for different argument counts
-#define XCPLIB_FE_0_(m)
-#define XCPLIB_FE_1_(m, x1) XCPLIB_APPLY_(m, x1)
-#define XCPLIB_FE_2_(m, x1, x2) XCPLIB_APPLY_(m, x1) XCPLIB_APPLY_(m, x2)
-#define XCPLIB_FE_3_(m, x1, x2, x3) XCPLIB_APPLY_(m, x1) XCPLIB_APPLY_(m, x2) XCPLIB_APPLY_(m, x3)
-#define XCPLIB_FE_4_(m, x1, x2, x3, x4) XCPLIB_APPLY_(m, x1) XCPLIB_APPLY_(m, x2) XCPLIB_APPLY_(m, x3) XCPLIB_APPLY_(m, x4)
-#define XCPLIB_FE_5_(m, x1, x2, x3, x4, x5) XCPLIB_APPLY_(m, x1) XCPLIB_APPLY_(m, x2) XCPLIB_APPLY_(m, x3) XCPLIB_APPLY_(m, x4) XCPLIB_APPLY_(m, x5)
-#define XCPLIB_FE_6_(m, x1, x2, x3, x4, x5, x6) XCPLIB_APPLY_(m, x1) XCPLIB_APPLY_(m, x2) XCPLIB_APPLY_(m, x3) XCPLIB_APPLY_(m, x4) XCPLIB_APPLY_(m, x5) XCPLIB_APPLY_(m, x6)
-#define XCPLIB_FE_7_(m, x1, x2, x3, x4, x5, x6, x7)                                                                                                                                \
-    XCPLIB_APPLY_(m, x1) XCPLIB_APPLY_(m, x2) XCPLIB_APPLY_(m, x3) XCPLIB_APPLY_(m, x4) XCPLIB_APPLY_(m, x5) XCPLIB_APPLY_(m, x6) XCPLIB_APPLY_(m, x7)
-#define XCPLIB_FE_8_(m, x1, x2, x3, x4, x5, x6, x7, x8)                                                                                                                            \
-    XCPLIB_APPLY_(m, x1) XCPLIB_APPLY_(m, x2) XCPLIB_APPLY_(m, x3) XCPLIB_APPLY_(m, x4) XCPLIB_APPLY_(m, x5) XCPLIB_APPLY_(m, x6) XCPLIB_APPLY_(m, x7) XCPLIB_APPLY_(m, x8)
-#define XCPLIB_FE_9_(m, x1, x2, x3, x4, x5, x6, x7, x8, x9)                                                                                                                        \
-    XCPLIB_APPLY_(m, x1)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x2) XCPLIB_APPLY_(m, x3) XCPLIB_APPLY_(m, x4) XCPLIB_APPLY_(m, x5) XCPLIB_APPLY_(m, x6) XCPLIB_APPLY_(m, x7) XCPLIB_APPLY_(m, x8) XCPLIB_APPLY_(m, x9)
-#define XCPLIB_FE_10_(m, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10)                                                                                                                  \
-    XCPLIB_APPLY_(m, x1)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x2)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x3) XCPLIB_APPLY_(m, x4) XCPLIB_APPLY_(m, x5) XCPLIB_APPLY_(m, x6) XCPLIB_APPLY_(m, x7) XCPLIB_APPLY_(m, x8) XCPLIB_APPLY_(m, x9) XCPLIB_APPLY_(m, x10)
-#define XCPLIB_FE_11_(m, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11)                                                                                                             \
-    XCPLIB_APPLY_(m, x1)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x2)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x3)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x4) XCPLIB_APPLY_(m, x5) XCPLIB_APPLY_(m, x6) XCPLIB_APPLY_(m, x7) XCPLIB_APPLY_(m, x8) XCPLIB_APPLY_(m, x9) XCPLIB_APPLY_(m, x10) XCPLIB_APPLY_(m, x11)
-#define XCPLIB_FE_12_(m, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12)                                                                                                        \
-    XCPLIB_APPLY_(m, x1)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x2)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x3)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x4)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x5) XCPLIB_APPLY_(m, x6) XCPLIB_APPLY_(m, x7) XCPLIB_APPLY_(m, x8) XCPLIB_APPLY_(m, x9) XCPLIB_APPLY_(m, x10) XCPLIB_APPLY_(m, x11) XCPLIB_APPLY_(m, x12)
-#define XCPLIB_FE_13_(m, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13)                                                                                                   \
-    XCPLIB_APPLY_(m, x1)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x2)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x3)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x4)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x5)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x6) XCPLIB_APPLY_(m, x7) XCPLIB_APPLY_(m, x8) XCPLIB_APPLY_(m, x9) XCPLIB_APPLY_(m, x10) XCPLIB_APPLY_(m, x11) XCPLIB_APPLY_(m, x12) XCPLIB_APPLY_(m, x13)
-#define XCPLIB_FE_14_(m, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14)                                                                                              \
-    XCPLIB_APPLY_(m, x1)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x2)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x3)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x4)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x5)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x6)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x7) XCPLIB_APPLY_(m, x8) XCPLIB_APPLY_(m, x9) XCPLIB_APPLY_(m, x10) XCPLIB_APPLY_(m, x11) XCPLIB_APPLY_(m, x12) XCPLIB_APPLY_(m, x13) XCPLIB_APPLY_(m, x14)
-#define XCPLIB_FE_15_(m, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15)                                                                                         \
-    XCPLIB_APPLY_(m, x1)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x2)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x3)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x4)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x5)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x6)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x7)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x8) XCPLIB_APPLY_(m, x9) XCPLIB_APPLY_(m, x10) XCPLIB_APPLY_(m, x11) XCPLIB_APPLY_(m, x12) XCPLIB_APPLY_(m, x13) XCPLIB_APPLY_(m, x14) XCPLIB_APPLY_(m, x15)
-#define XCPLIB_FE_16_(m, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16)                                                                                    \
-    XCPLIB_APPLY_(m, x1)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x2)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x3)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x4)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x5)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x6)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x7)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x8)                                                                                                                                                           \
-    XCPLIB_APPLY_(m, x9) XCPLIB_APPLY_(m, x10) XCPLIB_APPLY_(m, x11) XCPLIB_APPLY_(m, x12) XCPLIB_APPLY_(m, x13) XCPLIB_APPLY_(m, x14) XCPLIB_APPLY_(m, x15) XCPLIB_APPLY_(m, x16)
-
-// Apply macro to unpacked tuple arguments
-// Strips the outer parentheses from (var, comment) and passes to macro as two separate arguments
-#define XCPLIB_APPLY_(m, args) m args
+namespace xcplib {
 
 // =============================================================================
-// Variadic DAQ macros which register measurments and trigger already created events
+// Convenience macros and variadic templates
+// For XCP DAQ event creation, measurement registration and triggering
 // =============================================================================
 
-// Create the daq event (just for unique naming scheme)
-#define XcpCreateDaqEvent DaqCreateEvent
+/// Trigger an event with variadic base address list
+#define DaqTriggerEventVar(event_name, ...) xcplib::DaqTriggerVarTemplate(#event_name, __VA_ARGS__)
 
-// Register measurements once and trigger an already created event with stack addressing mode
-#define XcpTriggerDaqEvent(event_name, ...)                                                                                                                                        \
-    do {                                                                                                                                                                           \
-        if (A2lOnceLock()) {                                                                                                                                                       \
-            A2lSetStackAddrMode__s(#event_name, xcp_get_frame_addr());                                                                                                             \
-            XCPLIB_FOR_EACH_MEAS_(A2L_UNPACK_AND_REG_, __VA_ARGS__)                                                                                                                \
-        }                                                                                                                                                                          \
-        DaqTriggerEvent(event_name);                                                                                                                                               \
-    } while (0)
+// Main template function for event triggering with variadic base address list
+template <typename... Bases> XCPLIB_ALWAYS_INLINE void DaqTriggerVarTemplate(const char *event_name, Bases const &...bases) {
 
-// Register measurements once and trigger an already created event with stack or relative addressing mode
-#define XcpTriggerDaqEventExt(event_name, base, ...)                                                                                                                               \
-    do {                                                                                                                                                                           \
-        if (A2lOnceLock()) {                                                                                                                                                       \
-            A2lSetAutoAddrMode__s(#event_name, xcp_get_frame_addr(), (const uint8_t *)base);                                                                                       \
-            XCPLIB_FOR_EACH_MEAS_(A2L_UNPACK_AND_REG_, __VA_ARGS__)                                                                                                                \
-        }                                                                                                                                                                          \
-        DaqTriggerEventExt(event_name, base);                                                                                                                                      \
-    } while (0)
+    if (XcpIsActivated()) {
+        static tXcpEventId event_id = XCP_UNDEFINED_EVENT_ID;
+        static std::once_flag once_flag;
+        std::call_once(once_flag, [&]() {
+            event_id = XcpCreateEvent(event_name, 0, 0);
+            assert(event_id != XCP_UNDEFINED_EVENT_ID);
+        });
+        XcpEventExt_Var(event_id, sizeof...(Bases), &bases...);
+    }
+}
 
 // =============================================================================
-// Variadic DAQ macros which create, register variables and trigger events in one call
+
+// Helper macros for creating measurement or instance info objects, variable name stringification and address capture
+#define A2L_MEAS(var, comment) xcplib::MeasurementInfo(#var, &(var), var, comment)
+#define A2L_MEAS_PHYS(var, comment, unit, min, max) xcplib::MeasurementInfo(#var, &(var), var, comment, unit, min, max)
+
+#define A2L_MEAS_ARRAY(var, comment) xcplib::MeasurementInfo(#var, &(var[0]), var[0], (uint16_t)(sizeof(var) / sizeof((var)[0])), comment)
+#define A2L_MEAS_ARRAY_PHYS(var, comment, unit, min, max) xcplib::MeasurementInfo(#var, &(var[0]), var[0], (uint16_t)(sizeof(var) / sizeof((var)[0])), comment, unit, min, max)
+
+#define A2L_MEAS_INST(var, type_name, comment) xcplib::InstanceInfo(#var, &(var), type_name, comment)
+#define A2L_MEAS_INST_ARRAY(var, type_name, comment) xcplib::InstanceInfo(#var, &(var), type_name, (uint16_t)(sizeof(var) / sizeof((var)[0])), comment)
+
+#define A2L_MEAS_INST_PTR(var, ptr, type_name, comment) xcplib::InstanceInfo(#var, ptr, type_name, comment)
+#define A2L_MEAS_INST_ARRAY_PTR(var, ptr, type_name, comment) xcplib::InstanceInfo(#var, ptr, type_name, (uint16_t)(sizeof(var) / sizeof((var)[0])), comment)
+
+// Helper struct to hold measurement information
+template <typename T> struct MeasurementInfo {
+    const char *name;
+    const T *addr;
+    const T &value;
+    const uint16_t dim; // 1 = scalar, >1 = array
+    const char *comment;
+    const char *unit;
+    double min;
+    double max;
+
+    // Constructor for basic measurement (var, ptr, value, comment)
+    constexpr MeasurementInfo(const char *name, const T *a, const T &v, const char *c) : name(name), addr(a), value(v), dim(1), comment(c), unit(nullptr), min(0.0), max(0.0) {}
+
+    // Constructor for array of basic measurement (var, ptr, value, dim, comment)
+    constexpr MeasurementInfo(const char *name, const T *a, const T &v, uint16_t dim, const char *c)
+        : name(name), addr(a), value(v), dim(dim), comment(c), unit(nullptr), min(0.0), max(0.0) {}
+
+    // Constructor for physical measurement (var, ptr, value, comment, unit, min, max)
+    constexpr MeasurementInfo(const char *name, const T *a, const T &v, const char *c, const char *unit, double min, double max)
+        : name(name), addr(a), value(v), dim(1), comment(c), unit(unit), min(min), max(max) {}
+
+    // Constructor for array of physical measurement (var, ptr, value, dim, comment, unit, min, max)
+    constexpr MeasurementInfo(const char *name, const T *a, const T &v, uint16_t dim, const char *c, const char *unit, double min, double max)
+        : name(name), addr(a), value(v), dim(dim), comment(c), unit(unit), min(min), max(max) {}
+};
+
+// Helper struct to hold typedef instance information
+template <typename T> struct InstanceInfo {
+    const char *name;
+    const T *addr;
+    const char *type_name;
+    const uint16_t dim; // 1 = scalar, >1 = array
+    const char *comment;
+
+    // Constructor (var, type_name, comment)
+    constexpr InstanceInfo(const char *name, const T *a, const char *type_name, const char *c) : name(name), addr(a), type_name(type_name), dim(1), comment(c) {}
+
+    // Constructor (var, type_name, dim, comment)
+    constexpr InstanceInfo(const char *name, const T *a, const char *type_name, uint16_t dim, const char *c) : name(name), addr(a), type_name(type_name), dim(dim), comment(c) {}
+};
+
 // =============================================================================
 
-// Create event, register stack measurements once and trigger an event with stack addressing mode
-#define XcpDaqEvent(event_name, ...)                                                                                                                                               \
-    do {                                                                                                                                                                           \
-        if (XcpIsActivated()) {                                                                                                                                                    \
-            static THREAD_LOCAL tXcpEventId evt__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                            \
-            if (evt__##event_name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                     \
-                evt__##event_name = XcpCreateEvent(#event_name, 0, 0);                                                                                                             \
-                if (A2lOnceLock()) {                                                                                                                                               \
-                    A2lSetStackAddrMode__s(#event_name, xcp_get_frame_addr());                                                                                                     \
-                    XCPLIB_FOR_EACH_MEAS_(A2L_UNPACK_AND_REG_, __VA_ARGS__)                                                                                                        \
-                }                                                                                                                                                                  \
-            }                                                                                                                                                                      \
-            static THREAD_LOCAL tXcpEventId trg__AAS__##event_name = evt__##event_name;                                                                                            \
-            XcpEventExt_Var(trg__AAS__##event_name, 1, xcp_get_frame_addr());                                                                                                      \
-        }                                                                                                                                                                          \
-    } while (0)
+#ifdef USE_AUTO_ADDRESSING_MODE // not used
 
-// Create event, register once and trigger an event with stack or relative addressing mode
-#define XcpDaqEventExt(event_name, base, ...)                                                                                                                                      \
-    do {                                                                                                                                                                           \
-        if (XcpIsActivated()) {                                                                                                                                                    \
-            static THREAD_LOCAL tXcpEventId evt__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                            \
-            if (evt__##event_name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                     \
-                evt__##event_name = XcpCreateEvent(#event_name, 0, 0);                                                                                                             \
-                if (A2lOnceLock()) {                                                                                                                                               \
-                    A2lSetAutoAddrMode__s(#event_name, xcp_get_frame_addr(), (const uint8_t *)base);                                                                               \
-                    XCPLIB_FOR_EACH_MEAS_(A2L_UNPACK_AND_REG_, __VA_ARGS__)                                                                                                        \
-                }                                                                                                                                                                  \
-            }                                                                                                                                                                      \
-            static THREAD_LOCAL tXcpEventId trg__AASD__##event_name = evt__##event_name;                                                                                           \
-            XcpEventExt_Var(trg__AASD__##event_name, 2, xcp_get_frame_addr(), (const uint8_t *)base);                                                                              \
-        }                                                                                                                                                                          \
-    } while (0)
+// Helper to register a single measurement
+template <typename T> XCPLIB_ALWAYS_INLINE void registerMeasurement(const MeasurementInfo<T> &info) {
+    A2lCreateMeasurement_(nullptr, info.name, A2lTypeTraits::GetTypeIdFromExpr(info.value), info.dim, (const void *)info.addr, info.unit, info.min, info.max, info.comment);
+}
+
+// Main template function for once event creation and registration with automatic addressing mode, and event triggering with base address
+template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventExtTemplate(const char *event_name, const void *base, Measurements &&...measurements) {
+    if (XcpIsActivated()) {
+        static tXcpEventId event_id = XCP_UNDEFINED_EVENT_ID;
+        static std::once_flag once_flag;
+        const uint8_t *frame_addr = (const uint8_t *)xcp_get_frame_addr(); // Capture caller's frame address before lambda
+        std::call_once(once_flag, [&]() {
+            event_id = XcpCreateEvent(event_name, 0, 0);
+            assert(event_id != XCP_UNDEFINED_EVENT_ID);
+            A2lLock();
+            A2lSetAutoAddrMode__i(event_id, frame_addr, (const uint8_t *)base);
+            (registerMeasurement(measurements), ...);
+            A2lUnlock();
+        });
+        XcpEventExt_Var(event_id, 2, frame_addr, (const uint8_t *)base);
+    }
+}
+
+// Main template function for once event creation and registration with automatic addressing mode, and event triggering
+template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventTemplate(const char *event_name, Measurements &&...measurements) {
+    if (XcpIsActivated()) {
+        static tXcpEventId event_id = XCP_UNDEFINED_EVENT_ID;
+        static std::once_flag once_flag;
+        const uint8_t *frame_addr = (const uint8_t *)xcp_get_frame_addr(); // Capture caller's frame address before lambda
+        std::call_once(once_flag, [&]() {
+            event_id = XcpCreateEvent(event_name, 0, 0);
+            assert(event_id != XCP_UNDEFINED_EVENT_ID);
+            A2lLock();
+            A2lSetAutoAddrMode__i(event_id, frame_addr, NULL);
+            (registerMeasurement(measurements), ...);
+            A2lUnlock();
+        });
+        XcpEventExt_Var(event_id, 1, frame_addr);
+    }
+}
+
+/// Trigger an event, create the event once and register global, local and relative addressing mode measurement variables once
+/// Supports absolute, stack and relative addressing mode measurements
+#define DaqEventExtVar(event_name, base, ...) xcplib::DaqEventExtTemplate(#event_name, base, __VA_ARGS__)
+
+/// Supports absolute, stack and relative addressing mode measurements
+#define DaqEventVar(event_name, ...) xcplib::DaqEventTemplate(#event_name, __VA_ARGS__)
+
+#else
+
+// Helper template to register a single measurement with relative addressing mode XCP_ADDR_EXT_DYN + index
+template <typename T> XCPLIB_ALWAYS_INLINE void registerDynMeasurement(uint8_t index, tXcpEventId event_id, const MeasurementInfo<T> &info) {
+    A2lSetRelativeAddrMode__i(event_id, index, (const uint8_t *)info.addr);
+    A2lCreateMeasurement_(nullptr, info.name, A2lTypeTraits::GetTypeIdFromExpr(info.value), info.dim, (const void *)info.addr, info.unit, info.min, info.max, info.comment);
+}
+
+// Helper template to register a single typedef instance with relative addressing mode XCP_ADDR_EXT_DYN + index
+template <typename T> XCPLIB_ALWAYS_INLINE void registerDynMeasurement(uint8_t index, tXcpEventId event_id, const InstanceInfo<T> &info) {
+    A2lSetRelativeAddrMode__i(event_id, index, (const uint8_t *)info.addr);
+    A2lCreateInstance_(info.name, info.type_name, info.dim, (const void *)info.addr, info.comment);
+}
+
+// Main template function for once event creation and registration with individual relative addressing mode, and event triggering
+template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventVarTemplate(const char *event_name, uint64_t clock, Measurements &&...measurements) {
+
+    if (XcpIsActivated()) {
+
+        // Once
+        static tXcpEventId event_id = XCP_UNDEFINED_EVENT_ID;
+        static std::once_flag once_flag;
+        std::call_once(once_flag, [&]() {
+            // Create event, ignore if already created
+            event_id = XcpCreateEvent(event_name, 0, 0);
+            assert(event_id != XCP_UNDEFINED_EVENT_ID);
+            // Register measurements with individual DYN address extensions
+            A2lLock();
+            uint8_t index = 1; // Start at 1, 0 is reserved for frame pointer relative addressing mode
+            (registerDynMeasurement(index++, event_id, measurements), ...);
+            A2lUnlock();
+        });
+
+        // Always
+        // Create base pointer list and trigger
+        const uint8_t *bases[] = {xcp_get_base_addr(), xcp_get_base_addr(), xcp_get_frame_addr(), (const uint8_t *)measurements.addr...};
+        XcpEventExtAt_(event_id, (sizeof(bases) / sizeof(bases[0])), bases, clock);
+    }
+}
+
+/// Trigger an event with measurements using individual relative addressing mode for each measurement variable
+#define DaqEventVar(event_name, ...)                                                                                                                                               \
+    {                                                                                                                                                                              \
+        static tXcpEventId trg__AASDD__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                                      \
+        xcplib::DaqEventVarTemplate(#event_name, 0, __VA_ARGS__);                                                                                                                  \
+    }
+
+#define DaqEventAtVar(event_name, clock, ...)                                                                                                                                      \
+    {                                                                                                                                                                              \
+        static tXcpEventId trg__AASDD__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                                      \
+        xcplib::DaqEventVarTemplate(#event_name, clock, __VA_ARGS__);                                                                                                              \
+    }
+
+#endif
+
+} // namespace xcplib

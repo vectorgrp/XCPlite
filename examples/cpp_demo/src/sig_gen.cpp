@@ -6,8 +6,9 @@ An instance of class SignalGenerator creates various waveforms, such as sine, sq
 Depending on calibration parameters ampl, phase, offset and period
 */
 
-#include <cmath>   // for fmod, sin
-#include <cstdint> // for uintxx_t
+#include <cmath>    // for fmod, sin
+#include <cstdint>  // for uintxx_t
+#include <iostream> // for std::cout
 #include <thread>
 
 #include "a2l.hpp"    // for xcplib A2l generation application programming interface
@@ -47,6 +48,8 @@ SignalGenerator::SignalGenerator(const char *instance_name, const SignalParamete
     signal_parameters_.CreateA2lTypedefInstance("SignalParametersT", "Signal parameters for the signal generator");
 
     // Start thread
+    std::cout << "Starting task: " << instance_name_ << std::endl;
+
     thread_ = new std::thread([this]() { Task(); });
 }
 
@@ -63,7 +66,6 @@ SignalGenerator::~SignalGenerator() {
 void SignalGenerator::Task() {
 
     double time = 0;
-    uint32_t delay_us = 1000;                                        // us
     double start_time = static_cast<double>(clockGetUs()) / 1000000; // time in s since start of the signal generator
 
     // Create a measurement event with individual name 'instance_name_' for each instance of SignalGenerator

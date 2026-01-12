@@ -57,7 +57,8 @@ This section describes the configuration parameters in main_cfg.h.
 |-----------|-------------|
 | `OPTION_ENABLE_DBG_PRINTS` | Enables debug print statements throughout the library |
 | `OPTION_DEFAULT_DBG_LEVEL` | Sets default logging level: 1=Error, 2=Warning, 3=Info, 4=Trace, 5=Debug (default: 2) |
-| `OPTION_FIXED_DBG_LEVEL` | Sets fixex logging level, for optimization of unused log prints |
+| `OPTION_MAX_DBG_LEVEL` | Maximum runtime adjustable debug level, higher level optimized out |
+| `OPTION_FIXED_DBG_LEVEL` | Sets a fixed, not runtime adjustable logging level |
 
 ## 2 · xcptl_cfg.h
 
@@ -109,7 +110,8 @@ This section describes the XCP protocol layer configuration parameters in xcp_cf
 | `XCP_ENABLE_REL_ADDRESSING` | Enables event-based relative addressing modes without asynchronous access |
 | `XCP_ADDR_EXT_REL` | Address extension code for relative address format (default: 0x03) |
 | `XCP_ENABLE_DYN_ADDRESSING` | Enables event-based addressing modes with asynchronous access |
-| `XCP_ADDR_EXT_DYN` | Address extension code for dynamic addressing (default: 0x02) |
+| `XCP_ADDR_EXT_DYN` | Address extension for dynamic addressing (default: 0x02) |
+| `XCP_ADDR_EXT_DYN_COUNT` | Max number of DYN address extensions for dynamic addressing (default: 14) |
 | `XCP_ENABLE_ABS_ADDRESSING` | Enables asynchronous absolute addressing mode (not thread safe) |
 | `XCP_ADDR_EXT_ABS` | Address extension code for absolute addressing (default: 0x01) |
 | `XCP_ADDR_EXT_SEG` | Address extension for segment relative addressing (must be 0x00) |
@@ -160,7 +162,7 @@ This section describes the XCP protocol layer configuration parameters in xcp_cf
 | `XCP_TIMESTAMP_UNIT` | Timestamp unit (DAQ_TIMESTAMP_UNIT_1US or DAQ_TIMESTAMP_UNIT_1NS) |
 | `XCP_TIMESTAMP_TICKS` | Ticks per timestamp unit (default: 1) |
 | `XCP_ENABLE_PTP` | Enables PTP (Precision Time Protocol) grandmaster clock support |
-| `XCP_DAQ_CLOCK_UIID` | UUID for DAQ clock identification |
+
 
 ### Multicast Clock Synchronization
 

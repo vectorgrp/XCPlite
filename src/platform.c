@@ -20,6 +20,7 @@
 #include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
 #include "main_cfg.h"  // for OPTION_xxx ...
 #include <inttypes.h>  // for PRIu64
+#include <string.h>    // for strerror
 
 /**************************************************************************/
 // Winsock
@@ -258,13 +259,32 @@ void mutexDestroy(MUTEX *m) { DeleteCriticalSection(m); }
 
 #if !defined(_WIN) // Non-Windows platforms
 
+#if defined(_LINUX)
+#include <net/if.h> // for if_nametoindex
+#endif
+
+#if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
+#include <ifaddrs.h> // for getifaddrs, freeifaddrs
+#include <linux/errqueue.h>
+#include <linux/net_tstamp.h>
+#include <linux/sockios.h> // for SIOCSHWTSTAMP
+#include <net/if.h>        // for struct ifreq, IFNAMSIZ
+#include <sys/ioctl.h>     // for ioctl
+#endif
+
 bool socketStartup(void) { return true; }
 
 void socketCleanup(void) {}
 
-bool socketOpen(SOCKET *sp, bool useTCP, bool nonBlocking, bool reuseaddr, bool timestamps) {
-    (void)nonBlocking;
-    (void)timestamps;
+bool socketOpen(SOCKET *sp, uint16_t flags) {
+
+    bool useTCP = flags & SOCKET_MODE_TCP;
+    bool nonBlocking = !(flags & SOCKET_MODE_BLOCKING);
+    bool reuseaddr = true;
+    bool timestamps = flags & SOCKET_MODE_TIMESTAMPING;
+
+    assert(nonBlocking == false); // Non-blocking sockets not implemented yet
+
     // Create a socket
     *sp = socket(AF_INET, useTCP ? SOCK_STREAM : SOCK_DGRAM, 0);
     if (*sp < 0) {
@@ -277,10 +297,48 @@ bool socketOpen(SOCKET *sp, bool useTCP, bool nonBlocking, bool reuseaddr, bool 
         setsockopt(*sp, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
     }
 
+    // Enable timestamps if requested
+    if (timestamps) {
+#if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
+        // Enable SO_TIMESTAMPING for full hardware and software timestamping support
+        // This is required for PTP SYNC message timestamping
+        // SO_TIMESTAMPING supersedes SO_TIMESTAMPNS and provides:
+        //   - Hardware RX/TX timestamps (if NIC/driver supports it)
+        //   - Software RX/TX timestamps (always available as fallback)
+        //   - Raw hardware clock access
+        //
+        // The timestamp array returned in control messages:
+        //   [0] = Software timestamp
+        //   [1] = Deprecated (legacy)
+        //   [2] = Hardware timestamp (from NIC PHY)
+
+        uint32_t flags = SOF_TIMESTAMPING_TX_SOFTWARE |  // Software TX timestamp (always available)
+                         SOF_TIMESTAMPING_RX_SOFTWARE |  // Software RX timestamp (always available)
+                         SOF_TIMESTAMPING_SOFTWARE |     // Enable software timestamp generation
+                         SOF_TIMESTAMPING_TX_HARDWARE |  // Hardware TX timestamp (if available)
+                         SOF_TIMESTAMPING_RX_HARDWARE |  // Hardware RX timestamp (if available)
+                         SOF_TIMESTAMPING_RAW_HARDWARE | // Use raw hardware clock
+                         SOF_TIMESTAMPING_OPT_TSONLY;    // Return only timestamp, not packet data
+
+        if (setsockopt(*sp, SOL_SOCKET, SO_TIMESTAMPING, &flags, sizeof(flags)) < 0) {
+            DBG_PRINTF_ERROR("Failed to enable socket hardware timestamps (SO_TIMESTAMPING, errno=%d), HW timestamps not available\n", errno);
+            // Fall back to SO_TIMESTAMPNS for basic software RX timestamps
+            int yes = 1;
+            if (setsockopt(*sp, SOL_SOCKET, SO_TIMESTAMPNS, &yes, sizeof(yes)) < 0) {
+                DBG_PRINTF_ERROR("Failed to enable socket software timestamps (SO_TIMESTAMPNS, errno=%d)\n", errno);
+            } else {
+                DBG_PRINT_WARNING("Software timestamps enabled on socket (SO_TIMESTAMPNS) as fallback\n");
+            }
+        } else {
+            DBG_PRINTF3("Hardware timestamping enabled on socket (SO_TIMESTAMPING flags=0x%X)\n", flags);
+        }
+#endif
+    }
+
     return true;
 }
 
-bool socketBind(SOCKET sock, uint8_t *addr, uint16_t port) {
+bool socketBind(SOCKET sock, const uint8_t *addr, uint16_t port) {
 
     // Bind the socket to any address and the specified port
     SOCKADDR_IN a;
@@ -298,6 +356,109 @@ bool socketBind(SOCKET sock, uint8_t *addr, uint16_t port) {
 
     return true;
 }
+
+// Bind socket to a specific network interface by name (Linux only)
+// This is useful for multicast reception on a specific interface while binding to INADDR_ANY
+// Requires root privileges on Linux
+bool socketBindToDevice(SOCKET sock, const char *ifname) {
+#if defined(_LINUX)
+    if (ifname != NULL && ifname[0] != '\0') {
+        if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, ifname, strlen(ifname)) < 0) {
+            DBG_PRINTF_ERROR("%d - failed to bind socket to device %s !\n", socketGetLastError(), ifname);
+            return false;
+        }
+        DBG_PRINTF4("Socket bound to device %s\n", ifname);
+    }
+    return true;
+#else
+    (void)sock;
+    (void)ifname;
+    DBG_PRINTF_WARNING("socketBindToDevice(%s): SO_BINDTODEVICE not supported on this platform, request ignored!\n", ifname ? ifname : "(null)");
+    return true;
+#endif
+}
+
+#if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
+
+// Enable hardware timestamping on a network interface
+// This configures the NIC driver to generate hardware timestamps for PTP packets
+// Must be called after socket is created and bound
+// ifname: Network interface name (e.g., "eth0"). If NULL, uses first non-loopback interface.
+// Returns true on success, false on failure (falls back to software timestamps)
+bool socketEnableHwTimestamps(SOCKET sock, const char *ifname, bool ptpOnly) {
+    struct ifreq ifr;
+    struct hwtstamp_config hwconfig;
+
+    memset(&ifr, 0, sizeof(ifr));
+    memset(&hwconfig, 0, sizeof(hwconfig));
+
+    // If no interface specified, try to find the first non-loopback interface
+    if (ifname == NULL || ifname[0] == '\0') {
+        struct ifaddrs *ifaddrs, *ifa;
+        if (getifaddrs(&ifaddrs) == 0) {
+            for (ifa = ifaddrs; ifa != NULL; ifa = ifa->ifa_next) {
+                if (ifa->ifa_addr != NULL && ifa->ifa_addr->sa_family == AF_INET) {
+                    struct sockaddr_in *sa = (struct sockaddr_in *)ifa->ifa_addr;
+                    if (sa->sin_addr.s_addr != htonl(INADDR_LOOPBACK)) {
+                        strncpy(ifr.ifr_name, ifa->ifa_name, IFNAMSIZ - 1);
+                        break;
+                    }
+                }
+            }
+            freeifaddrs(ifaddrs);
+        }
+        if (ifr.ifr_name[0] == '\0') {
+            DBG_PRINT_ERROR("socketEnableHwTimestamps: No suitable interface found\n");
+            return false;
+        }
+    } else {
+        strncpy(ifr.ifr_name, ifname, IFNAMSIZ - 1);
+    }
+
+    // Configure hardware timestamping:
+    // tx_type: HWTSTAMP_TX_ON enables TX timestamps for all packets
+    // rx_filter: HWTSTAMP_FILTER_ALL or HWTSTAMP_FILTER_PTP_V2_EVENT for PTP packets
+    hwconfig.flags = 0;
+    hwconfig.tx_type = HWTSTAMP_TX_ON;                                                 // Enable TX hardware timestamps
+    hwconfig.rx_filter = ptpOnly ? HWTSTAMP_FILTER_PTP_V2_EVENT : HWTSTAMP_FILTER_ALL; // Timestamp all incoming packets (or use HWTSTAMP_FILTER_PTP_V2_EVENT for PTP only)
+
+    ifr.ifr_data = (char *)&hwconfig;
+
+    if (ioctl(sock, SIOCSHWTSTAMP, &ifr) < 0) {
+
+        // SIOCSHWTSTAMP requires CAP_NET_ADMIN or root privileges
+        // Some NICs may not support it, or the filter mode may not be supported
+        DBG_PRINTF_WARNING("socketEnableHwTimestamps: ioctl SIOCSHWTSTAMP failed for %s (errno=%d: %s)\n", ifr.ifr_name, errno, strerror(errno));
+        DBG_PRINT_WARNING("Hardware timestamping may require root privileges or may not be supported by this NIC\n");
+
+        // Try with a less restrictive filter
+        hwconfig.rx_filter = HWTSTAMP_FILTER_NONE; // No RX filter, just enable TX
+        hwconfig.tx_type = HWTSTAMP_TX_ON;
+        if (ioctl(sock, SIOCSHWTSTAMP, &ifr) < 0) {
+            DBG_PRINTF_WARNING("socketEnableHwTimestamps: Fallback also failed (errno=%d: %s)\n", errno, strerror(errno));
+            return false;
+        }
+        DBG_PRINTF_WARNING("socketEnableHwTimestamps: Enabled TX-only hardware timestamps on %s\n", ifr.ifr_name);
+        return true;
+    }
+
+    DBG_PRINTF3("Hardware timestamping enabled on %s (tx_type=%d, rx_filter=%d)\n", ifr.ifr_name, hwconfig.tx_type, hwconfig.rx_filter);
+    return true;
+}
+
+#else
+
+// Hardware timestamping not supported on this platform
+// Stub for non-Linux platforms
+bool socketEnableHwTimestamps(SOCKET sock, const char *ifname, bool ptpOnly) {
+    (void)sock;
+    (void)ifname;
+    (void)ptpOnly;
+    DBG_PRINT_ERROR("socketEnableHwTimestamps: Hardware timestamping not supported on this platform!\n");
+    return false;
+}
+
+#endif
 
 // Shutdown socket
 // Block rx and tx direction
@@ -407,22 +568,6 @@ bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr) {
 
 #else
 
-uint32_t socketGetTimestampMode(uint8_t *clockType) {
-
-    if (clockType != NULL)
-        *clockType = SOCKET_TIMESTAMP_FREE_RUNNING;
-    return SOCKET_TIMESTAMP_PC;
-}
-
-bool socketSetTimestampMode(uint8_t m) {
-
-    if (m != SOCKET_TIMESTAMP_NONE && m != SOCKET_TIMESTAMP_PC) {
-        DBG_PRINT_ERROR("unsupported timestamp mode!\n");
-        return false;
-    }
-    return true;
-}
-
 int32_t socketGetLastError(void) { return WSAGetLastError(); }
 
 bool socketStartup(void) {
@@ -454,9 +599,14 @@ void socketCleanup(void) { WSACleanup(); }
 
 // Create a socket, TCP or UDP
 // Note: Enabling HW timestamps may have impact on throughput
-bool socketOpen(SOCKET *sp, bool useTCP, bool nonBlocking, bool reuseaddr, bool timestamps) {
+bool socketOpen(SOCKET *sp, uint16_t flags) {
 
-    (void)timestamps;
+    bool useTCP = flags & SOCKET_MODE_TCP;
+    bool nonBlocking = !(flags & SOCKET_MODE_BLOCKING);
+    bool reuseaddr = true;
+    bool timestamps = flags & SOCKET_MODE_TIMESTAMPING;
+
+    assert(timestamps == false); // Timestamps not implemented yet
 
     // Create a socket
     if (!useTCP) {
@@ -630,48 +780,194 @@ SOCKET socketAccept(SOCKET sock, uint8_t *addr) {
     return s;
 }
 
-bool socketJoin(SOCKET sock, uint8_t *maddr) {
+bool socketJoin(SOCKET sock, const uint8_t *maddr, const uint8_t *ifaddr, const char *ifname) {
 
-    struct ip_mreq group;
+#if defined(_LINUX)
+    // On Linux, use ip_mreqn which allows specifying interface by name or index
+    struct ip_mreqn group;
+    memset(&group, 0, sizeof(group));
     group.imr_multiaddr.s_addr = *(uint32_t *)maddr;
-    group.imr_interface.s_addr = htonl(INADDR_ANY);
+
+    // Priority: interface name > interface address > INADDR_ANY
+    if (ifname != NULL && ifname[0] != '\0') {
+        // Use interface name (most reliable for multicast on Linux)
+        group.imr_ifindex = if_nametoindex(ifname);
+        if (group.imr_ifindex == 0) {
+            DBG_PRINTF_ERROR("Interface %s not found!\n", ifname);
+            return 0;
+        }
+        DBG_PRINTF4("Joining multicast group on interface %s (index %d)\n", ifname, group.imr_ifindex);
+    } else if (ifaddr != NULL && !(ifaddr[0] == 0 && ifaddr[1] == 0 && ifaddr[2] == 0 && ifaddr[3] == 0)) {
+        // Use interface address
+        group.imr_address.s_addr = *(uint32_t *)ifaddr;
+    } else {
+        // Use INADDR_ANY (kernel picks interface based on routing)
+        group.imr_address.s_addr = htonl(INADDR_ANY);
+    }
+
     if (0 > setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const char *)&group, sizeof(group))) {
         DBG_PRINTF_ERROR("%d - failed to set multicast socket option IP_ADD_MEMBERSHIP!\n", socketGetLastError());
         return 0;
     }
+#else
+    // Non-Linux platforms: use standard struct ip_mreq (address-based only)
+    struct ip_mreq group;
+    group.imr_multiaddr.s_addr = *(uint32_t *)maddr;
+    // Use the specified interface address, or INADDR_ANY if NULL or 0.0.0.0
+    if (ifaddr == NULL || (ifaddr[0] == 0 && ifaddr[1] == 0 && ifaddr[2] == 0 && ifaddr[3] == 0)) {
+        group.imr_interface.s_addr = htonl(INADDR_ANY);
+    } else {
+        group.imr_interface.s_addr = *(uint32_t *)ifaddr;
+    }
+    if (0 > setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const char *)&group, sizeof(group))) {
+        DBG_PRINTF_ERROR("%d - failed to set multicast socket option IP_ADD_MEMBERSHIP!\n", socketGetLastError());
+        return 0;
+    }
+    (void)ifname; // Unused on non-Linux platforms
+#endif
     return 1;
 }
 
-// Receive from socket
-// Return number of bytes received, 0 when socket closed, would block or empty UDP packet received, -1 on error
+// Receive from UDP socket
+// Returns optional receive timestamps if (time != NULL)
+// Support hardware timestamps if enabled on the socket and with OPTION_SOCKET_HW_TIMESTAMPS defined, otherwise system time is used
+// Return number of bytes received, 0 when socket closed, would block or empty UDP packet received, or -1 on error
 int16_t socketRecvFrom(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, uint8_t *addr, uint16_t *port, uint64_t *time) {
 
     SOCKADDR_IN src;
-    socklen_t srclen = sizeof(src);
-    int16_t n = (int16_t)recvfrom(sock, (char *)buffer, bufferSize, 0, (SOCKADDR *)&src, &srclen);
-    if (n == 0) {
-        return 0;
-    } else if (n < 0) {
-        int32_t err = socketGetLastError();
-        if (err == SOCKET_ERROR_WBLOCK)
+    int16_t n = 0;
+
+    DBG_PRINTF5("socketRecvFrom: sock=%d\n", sock);
+
+#if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
+    if (time != NULL) {
+
+        struct iovec iov;
+        struct msghdr msg;
+        char control[256]; // char ctrl[CMSG_SPACE(sizeof(struct timespec) * 3)];
+        iov.iov_base = buffer;
+        iov.iov_len = bufferSize;
+        memset(&msg, 0, sizeof(msg));
+        msg.msg_name = &src;
+        msg.msg_namelen = sizeof(src);
+        msg.msg_flags = 0;
+        msg.msg_iov = &iov;
+        msg.msg_iovlen = 1;
+        msg.msg_control = control;
+        msg.msg_controllen = sizeof(control);
+        n = (int16_t)recvmsg(sock, &msg, 0);
+        if (n == 0) {
             return 0;
-        if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR) {
-            return 0; // Socket closed
+        } else if (n < 0) {
+            int32_t err = socketGetLastError();
+            if (err == SOCKET_ERROR_WBLOCK)
+                return 0;
+            if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR) {
+                return 0; // Socket closed
+            }
+            DBG_PRINTF_ERROR("%u - recvmsg failed (result=%d)!\n", err, n);
+            return -1;
         }
-        DBG_PRINTF_ERROR("%u - recvfrom failed (result=%d)!\n", err, n);
-        return -1;
+
+        // Extract timestamp from control messages if available
+        *time = 0;
+        struct timespec *hw = NULL;
+        struct timespec *sw = NULL;
+        struct cmsghdr *cmsg;
+        uint16_t n = 0;
+        for (cmsg = CMSG_FIRSTHDR(&msg); cmsg != NULL; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+            n++;
+            int level = cmsg->cmsg_level;
+            int type = cmsg->cmsg_type;
+            DBG_PRINTF5("socketRecvFrom: cmsg level=%d type=%d (%s) \n", level, type, (level == SOL_SOCKET && type == SO_TIMESTAMPING) ? "SO_TIMESTAMPING" : "SO_TIMESTAMPNS");
+            if (SOL_SOCKET == level && SO_TIMESTAMPING == type) {
+                if (cmsg->cmsg_len < sizeof(struct timespec) * 3) {
+                    DBG_PRINT_WARNING("short SO_TIMESTAMPING message");
+                    break;
+                }
+                assert(hw == NULL);
+                hw = (struct timespec *)CMSG_DATA(cmsg);
+            }
+            if (SOL_SOCKET == level && SO_TIMESTAMPNS == type) {
+                if (cmsg->cmsg_len < sizeof(struct timespec)) {
+                    DBG_PRINT_WARNING("short SO_TIMESTAMPNS message");
+                    break;
+                }
+                sw = (struct timespec *)CMSG_DATA(cmsg);
+            }
+        }
+
+        if (n == 0) {
+            DBG_PRINT_WARNING("socketRecvFrom: No control messages received\n");
+        }
+
+        uint64_t t = 0;
+        if (hw != NULL) {
+            struct timespec *ts;
+            ts = &hw[2];
+            t = (uint64_t)ts->tv_sec * 1000000000ULL + (uint64_t)ts->tv_nsec;
+            if (t != 0) {
+                DBG_PRINT5("socketRecvFrom: timestamp taken from control messages SO_TIMESTAMPING [2]\n");
+            } else {
+                ts = &hw[0];
+                t = (uint64_t)ts->tv_sec * 1000000000ULL + (uint64_t)ts->tv_nsec;
+                if (t != 0) {
+                    DBG_PRINT5("socketRecvFrom: timestamp taken from control messages SO_TIMESTAMPING [0]\n");
+                }
+            }
+
+            // {
+            //     uint64_t t_hw = hw[2].tv_sec * 1000000000ULL + hw[2].tv_nsec;
+            //     uint64_t t_sw = hw[0].tv_sec * 1000000000ULL + hw[0].tv_nsec;
+            //     printf("socketRecvFrom: HW timestamp = %" PRIu64 " ns, SW timestamp = %" PRIu64 " ns, diff = %" PRIi64 " ns\n", t_hw, t_sw, (int64_t)(t_hw - t_sw));
+            // }
+        }
+        if (t == 0 && sw != NULL) {
+            struct timespec *ts = sw;
+            t = (uint64_t)ts->tv_sec * 1000000000ULL + (uint64_t)ts->tv_nsec;
+            DBG_PRINT5("socketRecvFrom: timestamp taken from control messages SO_TIMESTAMPNS\n");
+        }
+        if (t == 0) {
+            DBG_PRINT_WARNING("socketRecvFrom: No timestamp found in control messages\n");
+        }
+        *time = t;
+    } else
+#endif
+
+    {
+        socklen_t srclen = sizeof(src);
+        n = (int16_t)recvfrom(sock, (char *)buffer, bufferSize, 0, (SOCKADDR *)&src, &srclen);
+
+        if (n == 0) {
+            return 0;
+        } else if (n < 0) {
+            int32_t err = socketGetLastError();
+            if (err == SOCKET_ERROR_WBLOCK)
+                return 0;
+            if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR) {
+                return 0; // Socket closed
+            }
+            DBG_PRINTF_ERROR("%u - recvmsg failed (result=%d)!\n", err, n);
+            return -1;
+        }
+
+        if (time != NULL) {
+            *time = clockGet();
+        }
     }
-    if (time != NULL)
-        *time = clockGet();
+
     if (port)
         *port = htons(src.sin_port);
     if (addr)
         memcpy(addr, &src.sin_addr.s_addr, 4);
+
+    DBG_PRINTF5("socketRecvFrom: sock=%d returned n=%u\n", sock, n);
+
     return n;
 }
 
-// Receive from socket
-// Return number of bytes received, 0 when socket closed, would block or empty UDP packet received, -1 on error
+// Receive from TCP or UDP socket, blocking or non-blocking
+// Return number of bytes received, 0 when socket closed, would block or empty UDP packet received, or -1 on error
 int16_t socketRecv(SOCKET sock, uint8_t *buffer, uint16_t size, bool waitAll) {
 
     int16_t n = (int16_t)recv(sock, (char *)buffer, size, waitAll ? MSG_WAITALL : 0);
@@ -690,8 +986,11 @@ int16_t socketRecv(SOCKET sock, uint8_t *buffer, uint16_t size, bool waitAll) {
     return n;
 }
 
-// Send datagram on socket
-// Must be thread save
+// Send datagram on UDP socket
+// Returns number of bytes sent or -1 on error
+// Requests and may returns optional send time if (time != NULL)
+// Support hardware timestamps if enabled on the socket and with OPTION_SOCKET_HW_TIMESTAMPS defined, otherwise system time is used
+// If *time = 0 on return, no timestamp is available yet, has to obtained with socketGetSendTime()
 int16_t socketSendTo(SOCKET sock, const uint8_t *buffer, uint16_t size, const uint8_t *addr, uint16_t port, uint64_t *time) {
 
     SOCKADDR_IN sa;
@@ -702,14 +1001,137 @@ int16_t socketSendTo(SOCKET sock, const uint8_t *buffer, uint16_t size, const ui
     memcpy(&sa.sin_addr.s_addr, addr, 4);
 #endif
     sa.sin_port = htons(port);
+
+#if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
+    if (time != NULL) {
+        // On Linux, we need to use sendmsg() with SO_TIMESTAMPING control message
+        // to request TX timestamp generation for this specific packet
+        struct iovec iov;
+        struct msghdr msg;
+        char control[CMSG_SPACE(sizeof(uint32_t))];
+        struct cmsghdr *cmsg;
+
+        iov.iov_base = (void *)buffer;
+        iov.iov_len = size;
+
+        memset(&msg, 0, sizeof(msg));
+        msg.msg_name = &sa;
+        msg.msg_namelen = sizeof(sa);
+        msg.msg_iov = &iov;
+        msg.msg_iovlen = 1;
+        msg.msg_control = control;
+        msg.msg_controllen = sizeof(control);
+
+        // Add control message to request timestamp generation
+        cmsg = CMSG_FIRSTHDR(&msg);
+        cmsg->cmsg_level = SOL_SOCKET;
+        cmsg->cmsg_type = SO_TIMESTAMPING;
+        cmsg->cmsg_len = CMSG_LEN(sizeof(uint32_t));
+
+        // Request both hardware and software timestamps
+        // Hardware timestamp will be used if available, otherwise fall back to software
+        uint32_t ts_flags = SOF_TIMESTAMPING_TX_SOFTWARE | SOF_TIMESTAMPING_TX_HARDWARE;
+        memcpy(CMSG_DATA(cmsg), &ts_flags, sizeof(ts_flags));
+        *time = 0; // Clear time, may be obtained later with socketGetSendTime()
+
+        return (int16_t)sendmsg(sock, &msg, 0);
+    }
+#else
+
     if (time != NULL)
         *time = clockGet();
+
+#endif
+
     return (int16_t)sendto(sock, (const char *)buffer, size, 0, (SOCKADDR *)&sa, (uint16_t)sizeof(sa));
 }
 
 // Send datagram on socket
 // Must be thread save
 int16_t socketSend(SOCKET sock, const uint8_t *buffer, uint16_t size) { return (int16_t)send(sock, (const char *)buffer, size, 0); }
+
+// Get send time of last sent packet
+// Retrieves TX hardware timestamp from socket error queue
+// Returns 0 if no timestamp available or on error
+uint64_t socketGetSendTime(SOCKET sock) {
+#if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
+    char control[512];
+    char data[1];
+    struct iovec iov;
+    struct msghdr msg;
+    struct cmsghdr *cmsg;
+    struct timespec *ts = NULL;
+
+    iov.iov_base = data;
+    iov.iov_len = sizeof(data);
+
+    memset(&msg, 0, sizeof(msg));
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+    msg.msg_control = control;
+    msg.msg_controllen = sizeof(control);
+
+    DBG_PRINT5("socketGetSendTime: Reading from error queue...\n");
+
+    // Read from error queue with retries
+    int ret = -1;
+    for (uint32_t attempt = 0; attempt < 10; attempt++) {
+        ret = recvmsg(sock, &msg, MSG_ERRQUEUE | MSG_DONTWAIT);
+        if (ret >= 0) {
+            DBG_PRINTF5("socketGetSendTime: Got message from error queue after %u attempts, ret=%d\n", attempt, ret);
+            break;
+        }
+        if (errno != EAGAIN && errno != EWOULDBLOCK) {
+            DBG_PRINTF_ERROR("socketGetSendTime: recvmsg error queue failed with errno=%d (%s)\n", errno, strerror(errno));
+            return 0;
+        }
+        // Wait a bit and retry
+        sleepUs(1000); // 1ms
+    }
+
+    if (ret < 0) {
+        DBG_PRINT_WARNING("socketGetSendTime: Timeout, no TX timestamp available after retries\n");
+        return 0;
+    }
+
+    // Look for timestamp in control messages
+    bool found = false;
+    for (cmsg = CMSG_FIRSTHDR(&msg); cmsg != NULL; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+        DBG_PRINTF5("socketGetSendTime: Found cmsg level=%d type=%d (SOL_SOCKET=%d SO_TIMESTAMPING=%d)\n", cmsg->cmsg_level, cmsg->cmsg_type, SOL_SOCKET, SO_TIMESTAMPING);
+        if (cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SO_TIMESTAMPING) {
+            // SO_TIMESTAMPING returns 3 timespec structures: software, deprecated, hardware
+            struct timespec *ts_array = (struct timespec *)CMSG_DATA(cmsg);
+
+            DBG_PRINTF5("socketGetSendTime: ts[0]=%ld.%09ld ts[1]=%ld.%09ld ts[2]=%ld.%09ld\n", ts_array[0].tv_sec, ts_array[0].tv_nsec, ts_array[1].tv_sec, ts_array[1].tv_nsec,
+                        ts_array[2].tv_sec, ts_array[2].tv_nsec);
+
+            // Try hardware timestamp first (index 2)
+            if (ts_array[2].tv_sec != 0 || ts_array[2].tv_nsec != 0) {
+                ts = &ts_array[2];
+                DBG_PRINTF5("socketGetSendTime: Using HW TX timestamp: %ld.%09ld\n", ts->tv_sec, ts->tv_nsec);
+            }
+            // Fall back to software timestamp (index 0)
+            else if (ts_array[0].tv_sec != 0 || ts_array[0].tv_nsec != 0) {
+                ts = &ts_array[0];
+                DBG_PRINTF_WARNING("socketGetSendTime: Using SW TX timestamp: %ld.%09ld\n", ts->tv_sec, ts->tv_nsec);
+            }
+
+            if (ts != NULL) {
+                uint64_t timestamp = (uint64_t)ts->tv_sec * 1000000000ULL + (uint64_t)ts->tv_nsec;
+                found = true;
+                return timestamp;
+            }
+        }
+    }
+
+    if (!found) {
+        DBG_PRINT_ERROR("socketGetSendTime: No SO_TIMESTAMPING control message found\n");
+    }
+#else
+    (void)sock;
+#endif
+    return 0;
+}
 
 #endif
 
@@ -830,22 +1252,6 @@ bool clockInit(void) {
 #endif
 
     clockGet(); // Initialize ClockGetLast()
-
-#ifdef DBG_LEVEL
-    if (DBG_LEVEL >= 3) { // Test
-        uint64_t t1, t2;
-        char s[128];
-        t1 = clockGet();
-        sleepMs(100);
-        t2 = clockGet();
-        DBG_PRINTF5("  now      : %" PRIu64 " %s\n", t1, clockGetString(s, sizeof(s), t1));
-        DBG_PRINTF5("  now+100ms: %" PRIu64 " %s (dt=%u)\n", t2, clockGetString(s, sizeof(s), t2), (uint32_t)(t2 - t1));
-        // t1 = clockGet(); sleepMs(100); t2 = clockGet();
-        // DBG_PRINTF4("  +0us:   %" PRIu64 " %s\n", t1, clockGetString(s, sizeof(s), t1));
-        // DBG_PRINTF4("  +100ms: %" PRIu64 " %s (dt=%u)\n", t2, clockGetString(s, sizeof(s), t2), (uint32_t)(t2 - t1));
-    }
-#endif
-
     return true;
 }
 
@@ -884,24 +1290,6 @@ char *clockGetString(char *str, uint32_t l, uint64_t c) {
         gmtime_s(&tm, &t);
         SNPRINTF(str, l, "%u.%u.%u %02u:%02u:%02u +%" PRIu64 "ns", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, tm.tm_hour % 24, tm.tm_min, tm.tm_sec, ns);
     }
-#endif
-    return str;
-}
-
-char *clockGetTimeString(char *str, uint32_t l, int64_t t) {
-
-#ifdef OPTION_CLOCK_EPOCH_ARB
-    SNPRINTF(str, l, "%gs", (double)t / CLOCK_TICKS_PER_S);
-#else
-    char sign = '+';
-    if (t < 0) {
-        sign = '-';
-        t = -t;
-    }
-    uint64_t s = t / CLOCK_TICKS_PER_S;
-    uint64_t ns = t % CLOCK_TICKS_PER_S;
-    SNPRINTF(str, l, "%c%" PRIu64 "d%" PRIu64 "h%" PRIu64 "m%" PRIu64 "s+%" PRIu64 "ns", sign, s / (3600 * 24), (s % (3600 * 24)) / 3600, ((s % (3600 * 24)) % 3600) / 60,
-             ((s % (3600 * 24)) % 3600) % 60, ns);
 #endif
     return str;
 }
@@ -1027,6 +1415,24 @@ uint64_t clockGet(void) {
 
 uint64_t clockGetUs(void) { return clockGet() / CLOCK_TICKS_PER_US; }
 uint64_t clockGetNs(void) { return clockGet(); }
+
+char *clockGetTimeString(char *str, uint32_t l, int64_t t) {
+
+#ifdef OPTION_CLOCK_EPOCH_ARB
+    SNPRINTF(str, l, "%gs", (double)t / CLOCK_TICKS_PER_S);
+#else
+    char sign = '+';
+    if (t < 0) {
+        sign = '-';
+        t = -t;
+    }
+    uint64_t s = t / CLOCK_TICKS_PER_S;
+    uint64_t ns = t % CLOCK_TICKS_PER_S;
+    SNPRINTF(str, l, "%c%" PRIu64 "d%" PRIu64 "h%" PRIu64 "m%" PRIu64 "s+%" PRIu64 "ns", sign, s / (3600 * 24), (s % (3600 * 24)) / 3600, ((s % (3600 * 24)) % 3600) / 60,
+             ((s % (3600 * 24)) % 3600) % 60, ns);
+#endif
+    return str;
+}
 
 /**************************************************************************/
 // File system utilities

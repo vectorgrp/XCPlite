@@ -14,12 +14,10 @@
 #include "a2l.h"    // for xcplib A2l generation
 #include "xcplib.h" // for xcplib application programming interface
 
-// Internal xcplib includes to simplify multi platform support
-#include "main_cfg.h"
+// Internal xcplib includes to simplify multi platform threading and print XCP metrics
+#include "main_cfg.h" // for OPTION_xxx
 #include "platform.h" // for THREAD
-#ifdef OPTION_ENABLE_DBG_METRICS
-#include "dbg_print.h" // for statistics: XcpDaqEventCount, gXcpTxPacketCount, gXcpRxPacketCount
-#endif
+#include "xcpLite.h"  // for metrics gXcpDaqEventCount, ...
 
 //-----------------------------------------------------------------------------------------------------
 
@@ -38,9 +36,9 @@
 #define MAX_THREAD_NAME_LENGTH 32 // Maximum length of thread name
 
 #ifndef _WIN32
-#define EXPERIMENTAL_THREAD_CONTEXT // Enable demonstration of tracking thread context and span of the clip and filter function
-#define FILTER_SLEEP_US 100         // Simulated work in filter function
-#define CLIP_SLEEP_US 50            // Simulated work in clip function
+// #define EXPERIMENTAL_THREAD_CONTEXT // Enable demonstration of tracking thread context and span of the clip and filter function
+#define FILTER_SLEEP_US 100 // Simulated work in filter function
+#define CLIP_SLEEP_US 50    // Simulated work in clip function
 #endif
 
 //-----------------------------------------------------------------------------------------------------
@@ -69,7 +67,8 @@ typedef struct params {
 } params_t;
 
 // Default parameters
-static const params_t params = {.counter_max = 1024, .ampl = 100.0, .period = 3.0, .filter = 0.07, .clip_max = 80.0, .clip_min = -100.0, .delay_us = THREAD_DELAY_US, .run = true};
+static const params_t params = {
+    .counter_max = 1024, .ampl = 100.0, .period = 3.0, .filter = 0.07, .clip_max = -100.0, .clip_min = -100.0, .delay_us = THREAD_DELAY_US, .run = true};
 
 // Global calibration segment handle
 static tXcpCalSegIndex calseg = XCP_UNDEFINED_CALSEG;

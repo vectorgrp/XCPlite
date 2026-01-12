@@ -8,7 +8,9 @@ build-*
 *.mf4
 *.cnaxml
 *.tmp
+CANape.aml
 CANapeTmpMea.ini
+RecycleBin.ini
 
 
 # Examples .a2l and .bin files
@@ -26,16 +28,12 @@ typedefs.a2l
 
 
 # Other
-/run_remote.sh
-/run.sh
-pi
-dwarf
 .vscode
 .DS_Store
-test_bpf_demo_pi.sh
-test_bin2hex_pi.sh
-CANape.aml
-tools/gimli_demo/
-tools/dwarf_reader/
-tools/bintool/USAGE_EXAMPLES.md
-/examples/hello_xcp/CANape/vCDMstudioUiConfiguration.xml
+/tools/DEBUG_PTP4L.md
+/tools/analyze_ptp4l_flags.sh
+/tools/debug_ptp4l_timestamps.sh
+/tools/instrument_ptp4l.sh
+/tools/ptp4l_debug.patch
+/tools/setup_ptp4l_debug.sh
+/ptp_observers.lst

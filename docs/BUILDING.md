@@ -4,7 +4,7 @@
 
 - **C Standard:** C11
 - **C++ Standard:** C++20 (for C++ support)
-- **Platforms:** Linux, macOS, Windows (with limitations)
+- **Platforms:** Linux, macOS, QNX, Windows (with limitations)
 
 Most of the examples require **CANape 23 or later**, because they use A2L TYPEDEFs and relative memory addressing.
 
@@ -112,7 +112,7 @@ On failure try to force gcc:
 If build fails and if `type_detection_test_c` builds ok, run it:
 
 ```bash
-./build/type_detection_test_c.out
+./build/type_detection_test_c
 ```
 
 Copy & paste the complete output and provide it.
@@ -120,7 +120,7 @@ Copy & paste the complete output and provide it.
 Same with `type_detection_test_cpp`:
 
 ```bash
-./build/type_detection_test_cpp.out
+./build/type_detection_test_cpp
 ```
 
 ## Platform-Specific Notes

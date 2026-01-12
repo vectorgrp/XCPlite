@@ -24,7 +24,7 @@ A2LFILE="examples/no_a2l_demo/CANape/no_a2l_demo.a2l"
 A2LFILE_TEMPLATE="examples/no_a2l_demo/CANape/no_a2l_demo.template.a2l"
 
 # Path to ELF file in local machine CANape project folder
-ELFFILE="examples/no_a2l_demo/CANape/no_a2l_demo.out"
+ELFFILE="examples/no_a2l_demo/CANape/no_a2l_demo"
 
 # Build type for target executable: Release, RelWithDebInfo or Debug
 # RelWithDebInfo is default to demonstrate operation with with -O1 and NDEBUG
@@ -58,7 +58,7 @@ OFFLINE_A2L_CREATION_AND_FIX=false
 # Target connection details
 TARGET_USER="rainer"
 TARGET_HOST="192.168.0.206"
-TARGET_PATH="~/XCPlite-RainerZ/build/no_a2l_demo.out"
+TARGET_PATH="~/XCPlite-RainerZ/build/no_a2l_demo"
 
 # Path to a2ltool executable
 A2LTOOL="../a2ltool-RainerZ/target/debug/a2ltool"
@@ -88,7 +88,7 @@ if [ $ECU_ONLINE == true ]; then
 
 # Sync target
 echo "Sync target ..."            
-rsync -avz --delete --exclude=build/ --exclude=.git/ --exclude="*.o" --exclude="*.out" --exclude="*.a" ./ rainer@192.168.0.206:~/XCPlite-RainerZ/ 1> /dev/null
+rsync -avz --delete --exclude=build/ --exclude=.git/ --exclude="*.o" --exclude="*.a" ./ rainer@192.168.0.206:~/XCPlite-RainerZ/ 1> /dev/null
 if [ $? -ne 0 ]; then
     echo "❌ FAILED: Rsync with target"
     exit 1
@@ -111,12 +111,12 @@ if [ $? -ne 0 ]; then
     echo "❌ FAILED: Download $TARGET_PATH"
     exit 1
 fi
-cp $ELFFILE ../xcp-lite-RainerZ/fixtures/no_a2l_demo.out
+cp $ELFFILE ../xcp-lite-RainerZ/fixtures/no_a2l_demo
 
 
 # Run target executable with XCP on Ethernet in background#
 if [ $XCP_ONLINE == true ]; then
-ssh $TARGET_USER@$TARGET_HOST "pkill -f no_a2l_demo.out" 1> /dev/null
+ssh $TARGET_USER@$TARGET_HOST "pkill -f no_a2l_demo" 1> /dev/null
 echo ""
 echo "Starting executable $TARGET_PATH on Target ..."
 ssh $TARGET_USER@$TARGET_HOST "cd ~/XCPlite-RainerZ && $TARGET_PATH" &
@@ -206,8 +206,8 @@ if kill -0 $SSH_PID 2>/dev/null; then
     kill $SSH_PID
 fi
 # Also kill the remote process by name to be sure
-# ssh rainer@192.168.0.206  "pkill -f no_a2l_demo.out" 
-ssh $TARGET_USER@$TARGET_HOST "pkill -f no_a2l_demo.out" 2>/dev/null || true
+# ssh rainer@192.168.0.206  "pkill -f no_a2l_demo" 
+ssh $TARGET_USER@$TARGET_HOST "pkill -f no_a2l_demo" 2>/dev/null || true
 # Give target some time to shutdown
 sleep 1
 
@@ -235,7 +235,7 @@ echo "Start a test measurement"
 ssh $TARGET_USER@$TARGET_HOST "cd ~/XCPlite-RainerZ && $TARGET_PATH" &
 sleep 1
 $XCPCLIENT --log-level=3  --dest-addr=$TARGET_HOST:5555 --tcp  --a2l $A2LFILE  --mea ".*" --time-ms 100
-ssh $TARGET_USER@$TARGET_HOST "pkill -f no_a2l_demo.out" 
+ssh $TARGET_USER@$TARGET_HOST "pkill -f no_a2l_demo" 
 
 
 fi

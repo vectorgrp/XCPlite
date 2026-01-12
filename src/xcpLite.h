@@ -61,19 +61,21 @@ void XcpDisconnect(void);
 typedef uint16_t tXcpEventId;
 
 // Trigger a XCP data acquisition event
-void XcpEventExtAt(tXcpEventId event, const uint8_t *base2, uint64_t clock);
-void XcpEventExt(tXcpEventId event, const uint8_t *base2);
-void XcpEventExt2(tXcpEventId event, const uint8_t *base2, const uint8_t *base3);
-void XcpEventExt2At(tXcpEventId event, const uint8_t *base2, const uint8_t *base3, uint64_t clock);
-void XcpEventAt(tXcpEventId event, uint64_t clock);
+// Absolute base address only
 void XcpEvent(tXcpEventId event);
+void XcpEventAt(tXcpEventId event, uint64_t clock);
+// Single dyn base address
+void XcpEventExt(tXcpEventId event, const uint8_t *base2);
+void XcpEventExtAt(tXcpEventId event, const uint8_t *base2, uint64_t clock);
+// Explicit dyn base address list
+void XcpEventExt_(tXcpEventId event, int count, const uint8_t **bases);
+void XcpEventExtAt_(tXcpEventId event, int count, const uint8_t **bases, uint64_t clock);
+// Variadic dyn base address list
+void XcpEventExt_Var(tXcpEventId event, int count, ...);
+void XcpEventExtAt_Var(tXcpEventId event, uint64_t clock, int count, ...);
 
-// Trigger a XCP data acquisition event
-// Variadic version for more call convenience
-#if defined(XCP_ENABLE_DYN_ADDRESSING) && (XCP_ADDR_EXT_DYN == 2) && (XCP_ADDR_EXT_DYN_MAX == 4)
-void XcpEventExt_Var(tXcpEventId event, uint8_t count, ...);
-void XcpEventExtAt_Var(tXcpEventId event, uint64_t clock, uint8_t count, ...);
-#endif
+// Enable or disable a XCP DAQ event
+void XcpEventEnable(tXcpEventId event, bool enable);
 
 // Send a XCP event message
 void XcpSendEvent(uint8_t evc, const uint8_t *d, uint8_t l);
@@ -125,11 +127,14 @@ void XcpSetLogLevel(uint8_t level);
 #define XCP_MAX_EVENT_NAME 15
 #endif
 
+#define XCP_DAQ_EVENT_FLAG_DISABLED 0x01 // Event is disabled
+#define XCP_DAQ_EVENT_FLAG_PRIORITY 0x02 // Event priority flag
+
 typedef struct {
     uint32_t cycleTimeNs; // Cycle time in nanoseconds, 0 means sporadic event
     uint16_t index;       // Event instance index, 0 = single instance, 1.. = multiple instances
     uint16_t daq_first;   // First associated DAQ list, linked list
-    uint8_t priority;     // Priority 0 = queued, >=1 flushing
+    uint8_t flags;        // Control flags for the event
 #ifdef XCP_ENABLE_DAQ_PRESCALER
     uint8_t daq_prescaler;     // Current prescaler set with SET_DAQ_LIST_MODE
     uint8_t daq_prescaler_cnt; // Current prescaler counter
@@ -139,11 +144,11 @@ typedef struct {
 
 typedef struct {
     MUTEX mutex;
-    uint16_t count;                       // number of events
+    atomic_uint_fast16_t count;           // number of events
     tXcpEvent event[XCP_MAX_EVENT_COUNT]; // event list
 } tXcpEventList;
 
-// Create an XCP event (internal use)
+// Create an XCP event (internal use only, not thread safe)
 tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cycleTimeNs, uint8_t priority);
 // Add a measurement event to event list, return event number (0..MAX_EVENT-1)
 tXcpEventId XcpCreateEvent(const char *name, uint32_t cycleTimeNs /* ns */, uint8_t priority /* 0 = queued, >=1 flushing*/);
@@ -152,6 +157,9 @@ tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycleTimeNs /* ns 
 
 // Get event list
 tXcpEventList *XcpGetEventList(void);
+
+// Get the number of events in the XCP event list
+uint16_t XcpGetEventCount(void);
 
 // Get event id by name, returns XCP_UNDEFINED_EVENT_ID if not found
 tXcpEventId XcpFindEvent(const char *name, uint16_t *count);
@@ -229,6 +237,9 @@ uint16_t XcpGetCalSegCount(void);
 // Find a calibration segment by name, returns XCP_UNDEFINED_CALSEG if not found
 tXcpCalSegIndex XcpFindCalSeg(const char *name);
 
+// Find a calibration segment by its default page pointer, returns XCP_UNDEFINED_CALSEG if not found
+tXcpCalSegIndex XcpFindCalPage(const void *default_page);
+
 // Get a pointer to the calibration segment struct
 tXcpCalSeg *XcpGetCalSeg(tXcpCalSegIndex calseg);
 
@@ -251,7 +262,13 @@ const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg);
 
 // Unlock a calibration segment
 // Single threaded, must be used in the thread it was created
-void XcpUnlockCalSeg(tXcpCalSegIndex calseg);
+uint8_t XcpUnlockCalSeg(tXcpCalSegIndex calseg);
+
+// Update a calibration parameter segment pointer
+// Single threaded calibration segment access assumed
+// Calibration segment is continuously locked and only updated here
+// It is the users responsibility to ensure single threaded usage and initial locking of the segment
+void XcpUpdateCalSeg(void **calPage);
 
 #endif // XCP_ENABLE_CALSEG_LIST
 
@@ -486,18 +503,23 @@ uint64_t ApplXcpGetClock64(void);
 #define CLOCK_STATE_SYNCH_IN_PROGRESS (0)
 #define CLOCK_STATE_SYNCH (1)
 #define CLOCK_STATE_FREE_RUNNING (7)
-#define CLOCK_STATE_GRANDMASTER_STATE_SYNCH (1 << 3)
+#define CLOCK_STATE_GRANDMASTER_STATE_SYNCH (1 << 3) // @@@@ not used yet
 uint8_t ApplXcpGetClockState(void);
 
 #ifdef XCP_ENABLE_PTP
 #define CLOCK_STRATUM_LEVEL_UNKNOWN 255
-#define CLOCK_STRATUM_LEVEL_ARB 16 // unsychronized
-#define CLOCK_STRATUM_LEVEL_UTC 0  // Atomic reference clock
-#define CLOCK_EPOCH_TAI 0          // Atomic monotonic time since 1.1.1970 (TAI)
-#define CLOCK_EPOCH_UTC 1          // Universal Coordinated Time (with leap seconds) since 1.1.1970 (UTC)
-#define CLOCK_EPOCH_ARB 2          // Arbitrary (epoch unknown)
-bool ApplXcpGetClockInfoGrandmaster(uint8_t *uuid, uint8_t *epoch, uint8_t *stratum);
+#define CLOCK_STRATUM_LEVEL_ARB 16
+#define CLOCK_STRATUM_LEVEL_UTC 0 // Atomic reference clock
+#define CLOCK_EPOCH_TAI 0         // Atomic monotonic time since 1.1.1970 (TAI)
+#define CLOCK_EPOCH_UTC 1         // Universal Coordinated Time (with leap seconds) since 1.1.1970 (UTC)
+#define CLOCK_EPOCH_ARB 2         // Arbitrary (epoch unknown)
+bool ApplXcpGetClockInfoGrandmaster(uint8_t *client_uuid, uint8_t *grandmaster_uuid, uint8_t *epoch, uint8_t *stratum);
 #endif
+
+// Register clock callbacks
+void ApplXcpRegisterGetClockCallback(uint64_t (*cb_get_clock)(void));
+void ApplXcpRegisterGetClockStateCallback(uint8_t (*cb_get_clock_state)(void));
+void ApplXcpRegisterGetClockInfoGrandmasterCallback(bool (*cb_get_clock_info_grandmaster)(uint8_t *client_uuid, uint8_t *grandmaster_uuid, uint8_t *epoch, uint8_t *stratum));
 
 /* DAQ resume */
 #ifdef XCP_ENABLE_DAQ_RESUME
@@ -537,3 +559,18 @@ const char *XcpGetA2lName(void);
 #ifdef __cplusplus
 } // extern "C"
 #endif
+
+// Some metrics collected by the XCP protocol layer for debugging and performance analysis
+#ifdef OPTION_ENABLE_DBG_METRICS
+#ifdef __cplusplus
+extern "C" {
+#endif
+extern uint32_t gXcpWritePendingCount;
+extern uint32_t gXcpCalSegPublishAllCount;
+extern uint32_t gXcpDaqEventCount;
+extern uint32_t gXcpTxPacketCount;
+extern uint32_t gXcpRxPacketCount;
+#ifdef __cplusplus
+}
+#endif
+#endif // OPTION_ENABLE_DBG_METRICS

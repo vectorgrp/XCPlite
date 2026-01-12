@@ -22,8 +22,8 @@
 Usage examples:
 
 if (A2lOnce()) {
-    // This block executes exactly once globally across all threads
     // Not Thread-safe !
+    // This block executes exactly once globally across all threads
 }
 
 if (A2lOnceLock()) {
@@ -41,7 +41,7 @@ if (A2lOncePerThread()) {
 #include <thread>
 #endif
 
-#include "a2l.h"
+#include <a2l.h>
 
 #ifdef __cplusplus
 

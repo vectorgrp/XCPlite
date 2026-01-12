@@ -7,8 +7,8 @@
 #include <stdio.h>   // for printf
 #include <string.h>  // for sprintf
 
-#include "a2l.h"    // for xcplib A2l generation
-#include "xcplib.h" // for xcplib application programming interface
+#include <a2l.h>    // for xcplib A2l generation
+#include <xcplib.h> // for xcplib application programming interface
 
 //-----------------------------------------------------------------------------------------------------
 // XCP params
@@ -20,6 +20,9 @@
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
 #define OPTION_QUEUE_SIZE 1024 * 16     // Size of the measurement queue in bytes, must be a multiple of 8
 #define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+
+// New option in V1.1: Enable variadic all in one macros for simple arithmetic types, see examples below
+#define OPTION_USE_VARIADIC_MACROS
 
 //-----------------------------------------------------------------------------------------------------
 // Demo calibration parameters
@@ -68,7 +71,8 @@ float calc_power(uint8_t t1, uint8_t t2) {
     double diff_temp = (double)t2 - (double)t1; // Diff temperature in Kelvin
     double heat_power = diff_temp * 10.0f;      // Heat power in kW
 
-    // XCP: Create a measurement event and once register local measurement variables
+#ifndef OPTION_USE_VARIADIC_MACROS
+    // XCP: Create a measurement event 'calc_power' and register local measurement variables and function parameters
     DaqCreateEvent(calc_power);
     A2lOnce() {
         A2lSetStackAddrMode(calc_power); // Set stack relative addressing mode with fixed event calc_power
@@ -77,6 +81,7 @@ float calc_power(uint8_t t1, uint8_t t2) {
         A2lCreatePhysMeasurementInstance("calc_power", diff_temp, "Local variable diff temperature in function calc_power", "K", -100.0, 100.0);
         A2lCreatePhysMeasurementInstance("calc_power", heat_power, "Local variable calculated heat power in function calc_power", "W", 0.0, 10.0);
     }
+#endif
 
     // XCP: Lock access to calibration parameters
     const parameters_t *params = (parameters_t *)XcpLockCalSeg(calseg);
@@ -86,8 +91,17 @@ float calc_power(uint8_t t1, uint8_t t2) {
     // XCP: Unlock the calibration segment
     XcpUnlockCalSeg(calseg);
 
+#ifndef OPTION_USE_VARIADIC_MACROS
     // XCP: Trigger the measurement event "calc_power"
     DaqTriggerEvent(calc_power);
+#else
+    // XCP: Trigger the measurement event "calc_power" and register local measurement variables and parameters
+    DaqEventVar(calc_power,                                                                    //
+                A2L_MEAS(t1, "Parameter t1 in function calc_power"),                           //
+                A2L_MEAS(t2, "Parameter t2 in function calc_power"),                           //
+                A2L_MEAS(diff_temp, "Local variable diff temperature in function calc_power"), //
+                A2L_MEAS(heat_power, "Local variable calculated heat power in function calc_power"));
+#endif
 
     return (float)heat_power;
 }
@@ -150,6 +164,9 @@ int main(void) {
     // A2lCreateTypedefInstance(params, parameters_t, "Calibration parameters");
     // }
 
+    uint16_t counter = 0;
+
+#ifndef OPTION_USE_VARIADIC_MACROS
     // XCP: Create a measurement event named "mainloop"
     DaqCreateEvent(mainloop);
 
@@ -162,9 +179,9 @@ int main(void) {
     A2lCreateMeasurement(global_counter, "Global free running counter");
 
     // XCP: Register local measurement variables on event "mainloop"
-    uint16_t counter = 0;
     A2lSetStackAddrMode(mainloop); // Set stack relative addressing mode with fixed event mainloop
     A2lCreateMeasurement(counter, "Mainloop counter");
+#endif
 
     // Mainloop
     printf("Start main loop...\n");
@@ -193,8 +210,19 @@ int main(void) {
         // XCP: Unlock the calibration segment
         XcpUnlockCalSeg(calseg);
 
+#ifndef OPTION_USE_VARIADIC_MACROS
         // XCP: Trigger the measurement event "mainloop"
         DaqTriggerEvent(mainloop);
+#else
+        // XCP: Create and trigger measurement event mainloop, register global and local measurement variables
+        A2lCreateLinearConversion(temperature, "Temperature in °C from unsigned byte", "C", 1.0, -55.0);
+        DaqEventVar(mainloop,                                                                                                 //
+                    A2L_MEAS(outside_temperature, "Temperature in °C read from outside sensor", "conv.temperature", -20, 50), //
+                    A2L_MEAS(inside_temperature, "Temperature in °C read from inside sensor", "conv.temperature", 0, 40),     //
+                    A2L_MEAS(heat_energy, "Accumulated heat energy in kWh", "kWh", 0.0, 10000.0),                             //
+                    A2L_MEAS(global_counter, "Global free running counter"),                                                  //
+                    A2L_MEAS(counter, "Mainloop counter"));
+#endif
 
         // Sleep for the specified delay parameter in microseconds, don't sleep with the XCP lock held to give the XCP client a chance to update params
         sleepUs(delay_us);

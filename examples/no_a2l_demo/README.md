@@ -59,7 +59,7 @@ Step 3: A2L Fix:
 - Make sure the event trigger location and the variable location have the same CFA (have not seen any violations yet)
 - Heap measurement variables
     The A2L creator can not handle heap variables yet
-    Needs to detect trg__AASD or trg__AASDD type and analyze the argument type of DaqTriggerEvent(), pointer to type
+    Needs to detect trg__AAS or trg__AASD type and analyze the argument type of DaqTriggerEvent(), pointer to type
 - Thread local variables
     The A2L creator can not handle thread local variables yet
     The DAQ capture method does not work for TLS, need a ApplXcpGetTlsBaseAddress() function, maybe introduce AAST type
@@ -67,7 +67,7 @@ Step 3: A2L Fix:
     The DaqCapture macros as an alternative, does not work yet
 - EPK
     Detect if the target application has a EPK segment or not
-    Currently not EPK segment is generated, switched off in XCPlite
+    Currently no EPK segment is generated, switched off in XCPlite
 - Function parameters
     Define a macro to declare function parameters as XCP_MEA, which sills them to stack
     A2L Creator ELF reader parser must detect the function parameters with the CFA offset in the stack frame
@@ -98,13 +98,13 @@ Example: Create an A2L template from binary file with debug information:
 (Note that the protocol information is only needed, to store it in the A2L file, the A2L file will be consistent, but the event ids and calibration memory segment numbers may be wrong!)
 
 ```bash
-$xcp_client   --dest-addr=$TARGET_HOST:5555 --tcp --offline --elf no_a2l_demo.out --create-a2l --a2l no_a2l_demo.a2l
+$xcp_client   --dest-addr=$TARGET_HOST:5555 --tcp --offline --elf no_a2l_demo --create-a2l --a2l no_a2l_demo.a2l
 ```
 
 Example: Create measurement and calibration variables from a binary file with ELF/DWARF debug information and add variable from specified compilation units filtered by a regular expression
 
 ```bash
-$xcp_client   --dest-addr=$TARGET_HOST:5555 --tcp --offline --elf no_a2l_demo.out  --a2l no_a2l_demo.a2l
+$xcp_client   --dest-addr=$TARGET_HOST:5555 --tcp --offline --elf no_a2l_demo  --a2l no_a2l_demo.a2l
 ```
 
 Refer to the xcp_client command line parameter description for details.  
@@ -141,7 +141,7 @@ Example:
 Add the calibration segment 'params' and the measurment variable 'counter' to the A2L template:
 
 ```bash
-a2ltool  --update --measurement-regex "counter"  --characteristic-regex "params" --elffile  no_a2l_demo.out  --enable-structures --output no_a2l_demo.out no_a2l_demo.out 
+a2ltool  --update --measurement-regex "counter"  --characteristic-regex "params" --elffile  no_a2l_demo  --enable-structures --output no_a2l_demo no_a2l_demo 
 ```
 
 ### Demo
@@ -157,5 +157,5 @@ The demo script create_a2l.sh automates the complete remote build and A2L genera
 This is currently experimental.  
 The approach will be used for the upcoming ThreadX demo with build time A2L generation.
 
-objdump -W no_a2l_demo.out
-objdump --all-headers no_a2l_demo.out
+objdump -W no_a2l_demo
+objdump --all-headers no_a2l_demo

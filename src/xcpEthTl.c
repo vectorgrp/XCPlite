@@ -468,7 +468,7 @@ bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, bool blocking
 #ifdef XCPTL_ENABLE_TCP
     gXcpTl.ListenSock = INVALID_SOCKET;
     if (useTCP) { // TCP
-        if (!socketOpen(&gXcpTl.ListenSock, true /* useTCP */, !blockingRx, true /*reuseAddr*/, false /* timestamps*/))
+        if (!socketOpen(&gXcpTl.ListenSock, SOCKET_MODE_TCP | (blockingRx ? SOCKET_MODE_BLOCKING : 0)))
             return false;
         if (!socketBind(gXcpTl.ListenSock, bind_addr, gXcpTl.ServerPort))
             return false;
@@ -483,7 +483,7 @@ bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, bool blocking
     } else
 #endif
     { // UDP
-        if (!socketOpen(&gXcpTl.Sock, false /* useTCP */, !blockingRx, true /*reuseAddr*/, false /* timestamps*/))
+        if (!socketOpen(&gXcpTl.Sock, (blockingRx ? SOCKET_MODE_BLOCKING : 0)))
             return false;
         if (!socketBind(gXcpTl.Sock, bind_addr, port))
             return false; // Bind on ANY, when serverAddr=255.255.255.255
@@ -509,7 +509,7 @@ bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, bool blocking
 #ifdef XCPTL_ENABLE_MULTICAST
 
     // Open a socket for GET_DAQ_CLOCK_MULTICAST and join its multicast group
-    if (!socketOpen(&gXcpTl.MulticastSock, false /*useTCP*/, false /*nonblocking*/, true /*reusable*/, false /* timestamps*/))
+    if (!socketOpen(&gXcpTl.MulticastSock, (blockingRx ? SOCKET_MODE_BLOCKING : 0)))
         return false;
     DBG_PRINTF3("  Bind XCP multicast socket to %u.%u.%u.%u:%u\n", bind_addr[0], bind_addr[1], bind_addr[2], bind_addr[3], XCPTL_MULTICAST_PORT);
     if (!socketBind(gXcpTl.MulticastSock, bind_addr, XCPTL_MULTICAST_PORT))
@@ -518,7 +518,7 @@ bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, bool blocking
     uint8_t maddr[4] = {239, 255, 0, 0}; // XCPTL_MULTICAST_ADDR = 0xEFFFiiii;
     maddr[2] = (uint8_t)(cid >> 8);
     maddr[3] = (uint8_t)(cid);
-    if (!socketJoin(gXcpTl.MulticastSock, maddr))
+    if (!socketJoin(gXcpTl.MulticastSock, maddr, addr, NULL))
         return false;
     DBG_PRINTF3("  Listening for XCP GET_DAQ_CLOCK multicast on %u.%u.%u.%u\n", maddr[0], maddr[1], maddr[2], maddr[3]);
 
@@ -618,6 +618,7 @@ int32_t XcpTlHandleTransmitQueue(void) {
             mutexLock(&gXcpTl.CtrMutex);
             uint32_t lost = 0;
             tQueueBuffer queueBuffer = QueuePeek(gXcpTl.Queue, flush, &lost);
+            flush = false;                // Reset flush flag
             gXcpTl.Ctr += (uint16_t)lost; // Increase packet counter by lost packets
             uint16_t l = queueBuffer.size;
             const uint8_t *b = queueBuffer.buffer;
