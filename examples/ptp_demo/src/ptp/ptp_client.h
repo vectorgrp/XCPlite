@@ -24,7 +24,7 @@ typedef struct ptp_client_master {
 } tPtpClientMaster;
 
 // Clock analyzer state
-typedef struct ptp_client_clock_analyzer {
+typedef struct {
 
     // PTP client timing analysis state, all values in nanoseconds and per second units
     uint32_t cycle_count;
@@ -54,7 +54,7 @@ typedef struct ptp_client_clock_analyzer {
     double jitter_avg; // jitter average
     tAverageFilter jitter_rms_filter;
     tAverageFilter jitter_avg_filter;
-} tPtpClientClockAnalyzer;
+} tPtpClockSynchronizer;
 
 // Client state
 typedef struct ptp_client {
@@ -78,8 +78,9 @@ typedef struct ptp_client {
     uint32_t flup_correction;
     uint16_t flup_sequenceId;
 
-    tPtpClientClockAnalyzer a12; // Clock analyzer state for t1,t2 timestamp pairs
-    tPtpClientClockAnalyzer a34; // Clock analyzer state for t3,t4 timestamp pairs
+    tPtpClockSynchronizer a12; // Clock analyzer state for t1,t2 timestamp pairs from SYNC/FOLLOW_UP, hw -> master
+    tPtpClockSynchronizer a34; // Clock analyzer state for t3,t4 timestamp pairs from DELAY_REQ/DELAY_RESP
+    tPtpClockSynchronizer asw; // Clock analyzer state for hw,sw timestamp pairs from DELAY_REQ, system time sw -> hw
 
     // Active mode: Protocol DELAY_REQ and DELAY_RESP state
     uint8_t client_uuid[8];

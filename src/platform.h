@@ -304,17 +304,18 @@ int32_t socketGetLastError(void);
 #define SOCKET_TIMESTAMP_SOFTWARE_SYNC 1
 
 // Socket mode flags
-#define SOCKET_MODE_TIMESTAMPING 0x01
+#define SOCKET_MODE_SW_TIMESTAMPING 0x04
+#define SOCKET_MODE_HW_TIMESTAMPING 0x03
 #define SOCKET_MODE_BLOCKING 0x02
-#define SOCKET_MODE_TCP 0x04
+#define SOCKET_MODE_TCP 0x01
 
 // Socket functions
 bool socketStartup(void);
 void socketCleanup(void);
 bool socketOpen(SOCKET *sp, uint16_t flags);
 bool socketBind(SOCKET sock, const uint8_t *addr, uint16_t port);
-bool socketBindToDevice(SOCKET sock, const char *ifname);                     // Bind socket to a specific network interface (Linux only, requires root for non-INADDR_ANY)
-bool socketEnableHwTimestamps(SOCKET sock, const char *ifname, bool ptpOnly); // Enable NIC hardware timestamping (Linux only, requires root)
+bool socketBindToDevice(SOCKET sock, const char *ifname);                   // Bind socket to a specific network interface (Linux only, requires root for non-INADDR_ANY)
+bool socketEnableTimestamps(SOCKET sock, const char *ifname, bool ptpOnly); // Enable timestamping (Linux only, requires root)
 bool socketJoin(SOCKET sock, const uint8_t *maddr, const uint8_t *ifaddr, const char *ifname);
 bool socketListen(SOCKET sock);
 SOCKET socketAccept(SOCKET sock, uint8_t *addr);
@@ -322,7 +323,7 @@ int16_t socketRecv(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, bool waitA
 int16_t socketRecvFrom(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, uint8_t *srcAddr, uint16_t *srcPort, uint64_t *time);
 int16_t socketSend(SOCKET sock, const uint8_t *buffer, uint16_t bufferSize);
 int16_t socketSendTo(SOCKET sock, const uint8_t *buffer, uint16_t bufferSize, const uint8_t *addr, uint16_t port, uint64_t *time);
-uint64_t socketGetSendTime(SOCKET sock);
+bool socketGetSendTime(SOCKET sock, uint64_t *txHwTime, uint64_t *txSwTime);
 bool socketShutdown(SOCKET sock);
 bool socketClose(SOCKET *sp);
 #ifdef OPTION_ENABLE_GET_LOCAL_ADDR

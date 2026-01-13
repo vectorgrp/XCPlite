@@ -27,7 +27,7 @@
 #include <sys/ioctl.h>
 #include <unistd.h> // for close
 
-#include "platform.h" // from xcplib for SOCKET, socketSendTo, socketGetSendTime, ...
+#include "platform.h" // from xcplib for SOCKET, ...
 
 #include "filter.h" // for average filter
 
@@ -183,8 +183,7 @@ bool ptpSendSync(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid, uint64_t
         return false;
     }
     if (*sync_txTimestamp == 0) { // If timestamp not obtained during send, get it now
-        *sync_txTimestamp = socketGetSendTime(ptp->sock319);
-        if (*sync_txTimestamp == 0) {
+        if (!socketGetSendTime(ptp->sock319, sync_txTimestamp, NULL)) {
             printf("ERROR: ptpSendSync: socketGetSendTime failed, no tx timestamp available\n");
             return false;
         }
@@ -255,27 +254,28 @@ bool ptpSendDelayResponse(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid,
 
 #endif
 
-bool ptpSendDelayRequest(tPtp *ptp, uint8_t domain, const uint8_t *client_uuid, uint16_t sequenceId, uint64_t *txTimestamp) {
+bool ptpSendDelayRequest(tPtp *ptp, uint8_t domain, const uint8_t *client_uuid, uint16_t sequenceId, uint64_t *txHwTime, uint64_t *txSwTime) {
 
     struct ptphdr h;
     int16_t l;
 
-    assert(txTimestamp != NULL);
-
     initHeader(ptp, &h, domain, client_uuid, PTP_DELAY_REQ, 44, 0, sequenceId);
-    *txTimestamp = 0xFFFFFFFFFFFFFFFF;
-    l = socketSendTo(ptp->sock319, (uint8_t *)&h, 44, ptp->maddr, 319, txTimestamp /* != NULL request tx time stamp */);
+    uint64_t t = 0xFFFFFFFFFFFFFFFF;
+    l = socketSendTo(ptp->sock319, (uint8_t *)&h, 44, ptp->maddr, 319, &t /* != NULL request tx time stamp */);
     if (l == 44) {
-        if (*txTimestamp == 0) { // If timestamp not obtained during send, get it now
-            *txTimestamp = socketGetSendTime(ptp->sock319);
-            if (*txTimestamp == 0) {
+        if (t == 0) { // If timestamp not obtained during send, get it now
+            if (!socketGetSendTime(ptp->sock319, txHwTime, txSwTime)) {
                 DBG_PRINT_ERROR("ptpSendDelayRequest: socketGetSendTime failed, no tx timestamp available\n");
                 return false;
             }
+        } else {
+            assert(0); // @@@@ assumed that socketGetSendTime is used to get both timestamps
         }
         if (ptp_log_level >= 3) {
-            printf("TX: DELAY_REQ %u, domain=%u, client_uuid=%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X, tx timestamp t3 = %" PRIu64 "\n", sequenceId, domain, client_uuid[0],
-                   client_uuid[1], client_uuid[2], client_uuid[3], client_uuid[4], client_uuid[5], client_uuid[6], client_uuid[7], *txTimestamp);
+            printf("TX: DELAY_REQ %u, domain=%u, client_uuid=%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X, tx timestamp phc=%" PRIu64 ", sys=%" PRIu64 "\n", sequenceId, domain,
+                   client_uuid[0], client_uuid[1], client_uuid[2], client_uuid[3], client_uuid[4], client_uuid[5], client_uuid[6], client_uuid[7], //
+                   txHwTime ? *txHwTime : 0, txSwTime ? *txSwTime : 0);
+            ;
         }
         return true;
     } else {
@@ -385,7 +385,7 @@ tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name, bool sync_
     bool useBindToDevice = (if_name != NULL && if_addr[0] == 0 && if_addr[1] == 0 && if_addr[2] == 0 && if_addr[3] == 0);
 
     // SYNC with tx (master) or rx (observer) timestamp, DELAY_REQ - with rx timestamps
-    if (!socketOpen(&ptp->sock319, SOCKET_MODE_BLOCKING | SOCKET_MODE_TIMESTAMPING))
+    if (!socketOpen(&ptp->sock319, SOCKET_MODE_BLOCKING | SOCKET_MODE_HW_TIMESTAMPING | SOCKET_MODE_SW_TIMESTAMPING))
         return NULL;
     if (!socketBind(ptp->sock319, if_addr, 319))
         return NULL;
@@ -466,9 +466,9 @@ tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name, bool sync_
         return NULL;
 
     // Enable hardware timestamps for SYNC tx and DELAY_REQ messages (requires root privileges)
-    if (!socketEnableHwTimestamps(ptp->sock319, if_name, true /* tx + rx PTP only*/)) {
-        DBG_PRINT_ERROR("Hardware timestamping not enabled (may need root), using software timestamps\n");
-        // return false;
+    if (!socketEnableTimestamps(ptp->sock319, if_name, true /* enable tx + rx timestamps (hw and sw) for PTP only */)) {
+        DBG_PRINT_ERROR("Hardware timestamping not enabled (may need root)\n");
+        return false;
     }
 
     if (ptp_log_level >= 3) {

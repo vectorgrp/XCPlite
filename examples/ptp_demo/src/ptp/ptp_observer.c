@@ -295,22 +295,22 @@ static void observerReset(tPtpObserver *obs) {
     assert(obs != NULL);
 
     // Init protocol state
-    obs->sync_local_time = 0;                                        // Local receive timestamp of SYNC
-    obs->sync_local_time_last = 0;                                   // Local receive timestamp of previous SYNC
-    obs->sync_cycle_time = 0;                                        // Master SYNC cycle time
-    obs->sync_master_time = 0;                                       // SYNC timestamp
-    obs->sync_correction = 0;                                        // SYNC correction
-    obs->sync_sequenceId = 0;                                        // SYNC sequence Id
-    obs->sync_steps = 0;                                             // SYNC steps removed
-    obs->flup_master_time = 0;                                       // FOLLOW_UP timestamp
-    obs->flup_correction = 0;                                        // FOLLOW_UP correction
-    obs->flup_sequenceId = 0;                                        // FOLLOW_UP sequence Id
-    obs->delay_req_system_time = clockGet() + 3 * CLOCK_TICKS_PER_S; // System time when last DELAY_REQ was sent
-    obs->delay_req_local_time = 0;                                   // Local send timestamp of DELAY_REQ
-    obs->delay_req_sequenceId = 0;                                   // Sequence Id of last DELAY_REQ message sent
-    obs->delay_req_master_time = 0;                                  // DELAY_RESP timestamp
-    obs->delay_resp_correction = 0;                                  // DELAY_RESP correction
-    obs->delay_resp_sequenceId = 0;                                  // Sequence Id of last DELAY_RESP message received
+    obs->sync_local_time = 0;       // Local receive timestamp of SYNC
+    obs->sync_local_time_last = 0;  // Local receive timestamp of previous SYNC
+    obs->sync_cycle_time = 0;       // Master SYNC cycle time
+    obs->sync_master_time = 0;      // SYNC timestamp
+    obs->sync_correction = 0;       // SYNC correction
+    obs->sync_sequenceId = 0;       // SYNC sequence Id
+    obs->sync_steps = 0;            // SYNC steps removed
+    obs->flup_master_time = 0;      // FOLLOW_UP timestamp
+    obs->flup_correction = 0;       // FOLLOW_UP correction
+    obs->flup_sequenceId = 0;       // FOLLOW_UP sequence Id
+    obs->delay_req_system_time = 0; // System time when last DELAY_REQ was sent
+    obs->delay_req_local_time = 0;  // Local send timestamp of DELAY_REQ
+    obs->delay_req_sequenceId = 0;  // Sequence Id of last DELAY_REQ message sent
+    obs->delay_req_master_time = 0; // DELAY_RESP timestamp
+    obs->delay_resp_correction = 0; // DELAY_RESP correction
+    obs->delay_resp_sequenceId = 0; // Sequence Id of last DELAY_RESP message received
     obs->delay_resp_logMessageInterval = 0;
 
     // Clock analyzer state
@@ -410,18 +410,15 @@ static bool observerSendDelayRequest(tPtp *ptp, tPtpObserver *obs) {
     assert(obs != NULL);
     assert(obs->gmValid);
     assert(obs->activeMode);
-    uint64_t now = clockGet();
     if (obs->delay_req_sequenceId != obs->delay_resp_sequenceId) {
         DBG_PRINTF_WARNING("PTP Observer %s: Skipping DELAY_REQ, previous request (seqID=%u) has not been answered yet\n", obs->name, obs->delay_req_sequenceId);
         return false;
     } else {
         // Send a delay request to our grandmaster
-        if (!ptpSendDelayRequest(ptp, obs->gm.domain, obs->client_uuid, ++obs->delay_req_sequenceId, &obs->delay_req_local_time)) {
+        if (!ptpSendDelayRequest(ptp, obs->gm.domain, obs->client_uuid, ++obs->delay_req_sequenceId, &obs->delay_req_local_time, &obs->delay_req_system_time)) {
             DBG_PRINTF_ERROR("PTP Observer %s: Failed to send DELAY_REQ\n", obs->name);
             obs->delay_req_sequenceId--;
             return false;
-        } else {
-            obs->delay_req_system_time = now;
         }
     }
 

@@ -21,7 +21,7 @@
 #include <stdlib.h>   // for malloc, free
 #include <string.h>   // for sprintf
 
-#include "platform.h" // from xcplib for SOCKET, socketSendTo, socketGetSendTime, ...
+#include "platform.h" // from xcplib for SOCKET, ...
 
 #include "ptp.h"
 
@@ -41,11 +41,8 @@ extern uint8_t ptp_log_level;
 tPtpClient *gPtpClient = NULL;
 
 //---------------------------------------------------------------------------------------
-// Clock synchronization
 
-//-------------------------------------------------------------------------------------------------------
 // Parameters
-
 typedef struct ptp_client_parameters {
     uint8_t gm_timeout_s;              // Grandmaster timeout in seconds
     uint8_t delay_request_burst;       // Delay request burt after lock onto grandmaster
@@ -59,7 +56,7 @@ typedef struct ptp_client_parameters {
     uint8_t jitter_avg_filter_size;    // Size of the jitter average filter
 } tPtpClientParameters;
 
-// Default analyzer parameter values
+// Default parameter values
 static tPtpClientParameters params = {
     .gm_timeout_s = 4,               // Grandmaster timeout in seconds
     .delay_request_burst = 16,       // Delay request burt after lock onto grandmaster
@@ -74,9 +71,12 @@ static tPtpClientParameters params = {
 
 };
 
-static void syncInit(tPtpClientClockAnalyzer *a, tPtpClientParameters *params) {
+//---------------------------------------------------------------------------------------
+// PTP client clock synchronizer
 
-    // Init timing analysis state
+// Initialize clock synchronizer state
+static void syncInit(tPtpClockSynchronizer *a, tPtpClientParameters *params) {
+
     a->cycle_count = 0; // cycle counter
     a->is_sync = false;
     a->t1 = 0;
@@ -104,23 +104,39 @@ static void syncInit(tPtpClientClockAnalyzer *a, tPtpClientParameters *params) {
     a->jitter_avg = 0;
 }
 
-// Update the PTP client state with each new SYNC (t1,t2) timestamps
-static void syncUpdate(const char *client_name, const char *analyzer_name, tPtpClientClockAnalyzer *a, uint64_t t1_in, uint64_t t2_in) {
+// Interpolate t1 from t2
+// Function is lock free for fast response
+uint64_t syncInterpolateT1(tPtpClockSynchronizer *a, uint64_t t2) {
+    assert(a != NULL);
+
+    if (!a->is_sync) {
+        DBG_PRINT_ERROR("PTP client: syncCalculateT2 called while not synchronized\n");
+        return t2;
+    }
+
+    int64_t t2_norm = (int64_t)(t2 - a->t2_offset);
+    assert(t2_norm >= 0);
+    int64_t dt = t2_norm - a->t2_norm; // time since last sync update
+    int64_t t1_norm = a->t1_norm + (int64_t)(dt * (1.0 + a->drift / 1.0E9));
+
+    return (uint64_t)(t1_norm + a->t1_offset);
+}
+
+// Update clock synchronizer state with new (t1,t2) timestamp pair
+// For example from PTP SYNC messages:
+// t1 - corrected master timestamp
+// t2 - local clock timestamp
+static void syncUpdate(const char *client_name, const char *analyzer_name, tPtpClockSynchronizer *a, uint64_t t1, uint64_t t2) {
 
     assert(a != NULL);
 
     a->cycle_count++;
 
-    // Master timestamps with correction applied
-    uint64_t t1 = t1_in;
     a->t1 = t1;
-
-    // Local timestamp
-    uint64_t t2 = t2_in;
     a->t2 = t2;
 
     if (ptp_log_level >= 3 || (gPtpClient->delay_request_burst > 0 && ptp_log_level >= 2)) {
-        printf("  Analyzer %s %s: t1 = %" PRIu64 ", t2 = %" PRIu64 "\n", client_name, analyzer_name, t1, t2);
+        printf("  Sync %s %s: t1 = %" PRIu64 ", t2 = %" PRIu64 "\n", client_name, analyzer_name, t1, t2);
     }
 
     // Master offset raw value
@@ -138,9 +154,6 @@ static void syncUpdate(const char *client_name, const char *analyzer_name, tPtpC
         // Normalization time offsets for t1,t2
         a->t1_offset = t1;
         a->t2_offset = t2;
-#ifdef OBSERVER_SERVO
-        client->master_offset_compensation = 0;
-#endif
 
         if (ptp_log_level >= 4)
             printf("      t1_offset = %" PRIu64 " ns, t2_offset = %" PRIu64 " ns\n", a->t1_offset, a->t2_offset);
@@ -185,10 +198,8 @@ static void syncUpdate(const char *client_name, const char *analyzer_name, tPtpC
             a->linreg_jitter = linreg_offset - a->linreg_offset_avg;
             a->linreg_jitter_avg = average_filter_calc(&a->linreg_jitter_filter, a->linreg_jitter);
 
-            // Use the linear regression results when master is synchronized
-
             if ((a->is_sync && ptp_log_level >= 3) || (gPtpClient->delay_request_burst > 0 && ptp_log_level >= 2)) {
-                printf("  Analyzer %s %s: Linear regression results at t2 = %lld ns: \n", client_name, analyzer_name, t2_norm);
+                printf("  Sync %s %s: Linear regression results at t2 = %lld ns: \n", client_name, analyzer_name, t2_norm);
                 printf("    linreg drift = %g ns/s\n", a->linreg_drift);
                 printf("    linreg drift_drift = %g ns/s2\n", a->linreg_drift_drift);
                 printf("    linreg offset = %g ns\n", a->linreg_offset);
@@ -220,9 +231,15 @@ static void syncUpdate(const char *client_name, const char *analyzer_name, tPtpC
             printf("      jitter_rms   = %g ns\n", a->jitter_rms);
         }
 
+        printf("  Sync %s %s: drift = %g ns/s, drift_drift = %g ns/s2, offset = %g ns, jitter = %g ns\n", client_name, analyzer_name, a->drift, a->drift_drift, a->linreg_offset,
+               a->jitter);
+
+        // uint64_t test1 = syncInterpolateT1(a, t2);
+        // printf("    Interpolated t1 = %" PRIu64 " ns (diff = %" PRIi64 "), t2 = %" PRIu64 " ns \n", test1, (int64_t)test1 - (int64_t)t1, t2);
+
         // Remember last normalized input values
-        a->t1_norm = t1_norm; // sync tx time on master clock
-        a->t2_norm = t2_norm; // sync rx time on slave clock
+        a->t1_norm = t1_norm;
+        a->t2_norm = t2_norm;
     }
 }
 
@@ -257,8 +274,9 @@ static void clientReset(tPtpClient *client) {
     client->delay_resp_logMessageInterval = 0;
 
     // Clock analyzer state
-    syncInit(&client->a12, &params); // Init timing analysis state for t1,t2 SYNC timestamps
-    syncInit(&client->a34, &params); // Init timing analysis state for t3,t4 DELAY timestamps
+    syncInit(&client->a12, &params); // Init sync state for t1,t2 SYNC timestamps
+    syncInit(&client->a34, &params); // Init SYNC state for t3,t4 DELAY timestamps
+    syncInit(&client->asw, &params); // Init SYNC state for hw,sw DELAY_REQ timestamps
 
     // Path delay and master offset
     client->sync_sequenceId_last = 0;
@@ -273,25 +291,24 @@ static void clientReset(tPtpClient *client) {
     client->gm_last_update_time = clockGet(); // Timeout from now
 }
 
-// Send delay requests in active mode
+// Send delay requests
 static bool clientSendDelayRequest(tPtp *ptp, tPtpClient *client) {
     assert(ptp != NULL && ptp->magic == PTP_MAGIC);
     assert(client != NULL);
     assert(client->gmValid);
 
-    uint64_t now = clockGet();
     if (client->delay_req_sequenceId != client->delay_resp_sequenceId) {
         DBG_PRINTF_WARNING("PTP client: Skipping DELAY_REQ, previous request (seqID=%u) has not been answered yet\n", client->delay_req_sequenceId);
         return false;
     } else {
         // Send a delay request to our grandmaster
-        if (!ptpSendDelayRequest(ptp, client->gm.domain, client->client_uuid, ++client->delay_req_sequenceId, &client->delay_req_local_time)) {
+        if (!ptpSendDelayRequest(ptp, client->gm.domain, client->client_uuid, ++client->delay_req_sequenceId, &client->delay_req_local_time, &client->delay_req_system_time)) {
             DBG_PRINT_ERROR("PTP client: Failed to send DELAY_REQ\n");
             client->delay_req_sequenceId--;
             return false;
-        } else {
-            client->delay_req_system_time = now;
         }
+        // Sync sw to hw time
+        syncUpdate("client", "asw", &client->asw, client->delay_req_local_time, client->delay_req_system_time);
     }
 
     return false;

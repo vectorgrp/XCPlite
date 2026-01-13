@@ -12,7 +12,7 @@
 // Options
 
 // Enable buildin PTP client clock
-// #define OPTION_ENABLE_PTP_CLIENT
+#define OPTION_ENABLE_PTP_CLIENT
 
 // Enable buildin PTP master
 #define OPTION_ENABLE_PTP_MASTER
@@ -82,11 +82,11 @@ void ptpShutdown(tPtp *ptp);
 void ptpPrintState(tPtp *ptp_handle);
 
 bool ptpSendAnnounce(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid, uint16_t sequenceId);
-bool ptpSendSync(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid, uint64_t *sync_txTimestamp, uint16_t sequenceId);
-bool ptpSendSyncFollowUp(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid, uint64_t sync_txTimestamp, uint16_t sequenceId);
-bool ptpSendDelayResponse(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid, struct ptphdr *client_delay_req, uint64_t client_delay_req_rxTimestamp);
+bool ptpSendSync(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid, uint64_t *sync_txLocalTime, uint16_t sequenceId);
+bool ptpSendSyncFollowUp(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid, uint64_t sync_txLocalTime, uint16_t sequenceId);
+bool ptpSendDelayResponse(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid, struct ptphdr *delay_req, uint64_t delay_req_rxLocalTime);
 
-bool ptpSendDelayRequest(tPtp *ptp, uint8_t domain, const uint8_t *client_uuid, uint16_t sequenceId, uint64_t *txTimestamp);
+bool ptpSendDelayRequest(tPtp *ptp, uint8_t domain, const uint8_t *client_uuid, uint16_t sequenceId, uint64_t *txLocalTime, uint64_t *txSystemTime);
 
 #ifdef __cplusplus
 } // extern "C"
