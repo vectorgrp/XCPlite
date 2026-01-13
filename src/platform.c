@@ -333,7 +333,7 @@ bool socketOpen(SOCKET *sp, uint16_t flags) {
         if (setsockopt(*sp, SOL_SOCKET, SO_TIMESTAMPNS, &yes, sizeof(yes)) < 0) {
             DBG_PRINTF_ERROR("Failed to enable socket software timestamps (SO_TIMESTAMPNS, errno=%d)\n", errno);
         } else {
-            DBG_PRINT_WARNING("Software timestamps enabled on socket (SO_TIMESTAMPNS)\n");
+            DBG_PRINT3("Software timestamps enabled on socket (SO_TIMESTAMPNS)\n");
         }
     }
 #endif
@@ -609,6 +609,9 @@ bool socketOpen(SOCKET *sp, uint16_t flags) {
     bool reuseaddr = true;
     bool hw_timestamps = flags & SOCKET_MODE_HW_TIMESTAMPING;
     bool sw_timestamps = flags & SOCKET_MODE_SW_TIMESTAMPING;
+
+    assert(!hw_timestamps); // Hardware timestamps not supported on Windows
+    assert(!sw_timestamps); // Software timestamps not supported on Windows
 
     // Create a socket
     if (!useTCP) {

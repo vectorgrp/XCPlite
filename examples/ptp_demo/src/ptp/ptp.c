@@ -385,7 +385,7 @@ tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name, bool sync_
     bool useBindToDevice = (if_name != NULL && if_addr[0] == 0 && if_addr[1] == 0 && if_addr[2] == 0 && if_addr[3] == 0);
 
     // SYNC with tx (master) or rx (observer) timestamp, DELAY_REQ - with rx timestamps
-    if (!socketOpen(&ptp->sock319, SOCKET_MODE_BLOCKING | SOCKET_MODE_HW_TIMESTAMPING | SOCKET_MODE_SW_TIMESTAMPING))
+    if (!socketOpen(&ptp->sock319, SOCKET_MODE_BLOCKING | SOCKET_MODE_HW_TIMESTAMPING /*| SOCKET_MODE_SW_TIMESTAMPING*/))
         return NULL;
     if (!socketBind(ptp->sock319, if_addr, 319))
         return NULL;
@@ -468,7 +468,7 @@ tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name, bool sync_
     // Enable hardware timestamps for SYNC tx and DELAY_REQ messages (requires root privileges)
     if (!socketEnableTimestamps(ptp->sock319, if_name, true /* enable tx + rx timestamps (hw and sw) for PTP only */)) {
         DBG_PRINT_ERROR("Hardware timestamping not enabled (may need root)\n");
-        return false;
+        return NULL;
     }
 
     if (ptp_log_level >= 3) {
