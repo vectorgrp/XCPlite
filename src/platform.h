@@ -304,10 +304,10 @@ int32_t socketGetLastError(void);
 #define SOCKET_TIMESTAMP_SOFTWARE_SYNC 1
 
 // Socket mode flags
-#define SOCKET_MODE_SW_TIMESTAMPING 0x04
-#define SOCKET_MODE_HW_TIMESTAMPING 0x03
-#define SOCKET_MODE_BLOCKING 0x02
-#define SOCKET_MODE_TCP 0x01
+#define SOCKET_MODE_TCP (1 << 0)
+#define SOCKET_MODE_BLOCKING (1 << 1)
+#define SOCKET_MODE_HW_TIMESTAMPING (1 << 2)
+#define SOCKET_MODE_SW_TIMESTAMPING (1 << 3)
 
 // Socket functions
 bool socketStartup(void);

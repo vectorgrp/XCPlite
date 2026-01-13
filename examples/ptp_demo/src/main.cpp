@@ -41,7 +41,7 @@ constexpr bool XCP_OPTION_USE_TCP = false;
 constexpr uint8_t XCP_OPTION_SERVER_ADDR[4] = {0, 0, 0, 0};
 constexpr uint16_t XCP_OPTION_SERVER_PORT = 5555;
 constexpr size_t XCP_OPTION_QUEUE_SIZE = 1024 * 16;
-constexpr int XCP_OPTION_LOG_LEVEL = 4; // XCP log level: 0=none, 1=error, 2=warning, 3=info, 4=XCP protocol debug, 5=very verbose
+constexpr int XCP_OPTION_LOG_LEVEL = 2; // Default XCP log level: 0=none, 1=error, 2=warning, 3=info, 4=XCP protocol debug, 5=very verbose
 constexpr bool XCP_OPTION_PTP = true;
 
 #endif
@@ -82,10 +82,7 @@ uint64_t ptpClientGetClock(void) {
 #ifdef OPTION_ENABLE_PTP_CLIENT
     if (gPtpClient != NULL) {
         if (gPtpClient->gmValid) {
-
-            // Return synchronized clock value
-            uint64_t ptp_clock = clockGet();
-            return ptp_clock; // @@@@ TODO: Return synchronized clock value
+            return ptpClientGetGrandmasterClock();
         }
     }
 #endif
@@ -105,7 +102,7 @@ uint8_t ptpClientGetClockState(void) {
     if (gPtpClient != NULL) {
         if (gPtpClient->gmValid) {
             // Check if master is sufficiently synchronized
-            if (gPtpClient->a34.is_sync) {
+            if (gPtpClient->is_sync) {
                 return CLOCK_STATE_SYNCH; // Clock is synchronized to grandmaster
             } else {
                 return CLOCK_STATE_SYNCH_IN_PROGRESS; // Clock is synchronizing to grandmaster
@@ -179,7 +176,8 @@ static void print_usage(const char *prog_name) {
 #endif
               << "  -d, --domain <number>   Domain number 0-255 (default: 0)\n"
               << "  -u, --uuid <hex>        UUID as 16 hex digits (default: 001AB60000000001)\n"
-              << "  -l, --loglevel <level>  Set PTP log level (0..5, default: 1)\n"
+              << "  -l, --ptp_log_level <level>  Set PTP log level (0..5, default: 1)\n"
+              << "  -x, --xcp_log_level <level>  Set XCP log level (0..5, default: 2)\n"
               << "  -h, --help              Show this help message\n\n"
               << "Example:\n  " << prog_name << " -i en0 -m master -d 1 -u 001AB60000000002\n";
 }
@@ -187,6 +185,7 @@ static void print_usage(const char *prog_name) {
 int main(int argc, char *argv[]) {
 
     // Default values
+    uint8_t xcp_log_level = XCP_OPTION_LOG_LEVEL;
     std::string ptp_interface = PTP_INTERFACE;
     int ptp_mode = PTP_MODE;
     int ptp_domain = PTP_DOMAIN;
@@ -238,7 +237,7 @@ int main(int argc, char *argv[]) {
                 print_usage(argv[0]);
                 return 1;
             }
-        } else if (std::strcmp(argv[i], "-l") == 0 || std::strcmp(argv[i], "--loglevel") == 0) {
+        } else if (std::strcmp(argv[i], "-l") == 0 || std::strcmp(argv[i], "--ptp_log_level") == 0) {
             if (i + 1 < argc) {
                 i++;
                 int log_level = std::atoi(argv[i]);
@@ -250,11 +249,31 @@ int main(int argc, char *argv[]) {
                     return 1;
                 }
             } else {
-                std::cerr << "Error: -l/--loglevel requires an argument\n";
+                std::cerr << "Error: -l/--ptp_log_level requires an argument\n";
                 print_usage(argv[0]);
                 return 1;
             }
-        } else if (std::strcmp(argv[i], "-u") == 0 || std::strcmp(argv[i], "--uuid") == 0) {
+        }
+
+        else if (std::strcmp(argv[i], "-x") == 0 || std::strcmp(argv[i], "--xcp_log_level") == 0) {
+            if (i + 1 < argc) {
+                i++;
+                int log_level = std::atoi(argv[i]);
+                if (log_level >= 0 && log_level <= 5) {
+                    xcp_log_level = log_level;
+                } else {
+                    std::cerr << "Error: Invalid log level '" << argv[i] << "'. Must be 0-5\n";
+                    print_usage(argv[0]);
+                    return 1;
+                }
+            } else {
+                std::cerr << "Error: -x/--xcp_log_level requires an argument\n";
+                print_usage(argv[0]);
+                return 1;
+            }
+        }
+
+        else if (std::strcmp(argv[i], "-u") == 0 || std::strcmp(argv[i], "--uuid") == 0) {
             if (i + 1 < argc) {
                 i++;
                 if (std::strlen(argv[i]) != 16) {
@@ -301,7 +320,7 @@ int main(int argc, char *argv[]) {
 
     // Initialize XCP server
 #ifdef OPTION_ENABLE_XCP
-    XcpSetLogLevel(XCP_OPTION_LOG_LEVEL);
+    XcpSetLogLevel(xcp_log_level);
 
     // Initialize XCP
     char epk[32];
@@ -432,7 +451,7 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     } // while running
 
 #ifdef OPTION_ENABLE_PTP_OBSERVER

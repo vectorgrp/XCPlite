@@ -10,8 +10,8 @@ PrgDate=16.06.2025
 Description=
 CreationTime=12:39
 CreationDate=01/11/2026 ; Month/Day/Year
-ModificationTime=16:04
-ModificationDate=01/11/2026 ; Month/Day/Year
+ModificationTime=22:33
+ModificationDate=01/13/2026 ; Month/Day/Year
 Protected=0
 CurrentWindowsACP=1252
 
@@ -76,7 +76,7 @@ Count=0
 Name=
 Comment=
 Maximized=0
-ActiveWindow=5
+ActiveWindow=6
 IsReportPage=0
 TimeAxisSynchronized=0
 PrintLayout=Default
@@ -103,61 +103,59 @@ Count=0
 5="Comment",""
 Count=5
 
-[FUNCTION_OBJECT_LIST]
-count=0
+[FUNCTION_1]
+NAME=Dt
+COMMENT=
+COUNT=5
+1=function Dt (x)
+2={
+3=  // Add your code here
+4=  return diffTime(x);
+5=}
 
-[FUNCTIONS]
-COUNT=0
-COUNT_LIBRARY=0
-
-[GFX_VISUALIZATION]
-EnableRendering=1
-
-[JOB_LIST]
-Count=0
-
-[MASTER_CONFIG]
-CommentCOUNT=0
-DisplayName=ptp_client
-ColorUsed=0
-SubConfigsCount=0
-
-[MDF_LIST]
-Count=0
-
-[MEASUREMENT_LIST]
-Count=1
-OfflineFileName=Recorder_2026-01-11_15-52-20.mf4
-OfflineFileCount=1
-MeaCfgLabellistName=
-
-[MEASUREMENT_OBJECT_1]
-Module=xcp_demo
-Name=counter
+[FUNCTION_OBJECT_1]
+Number=2
+Unit=
+Components=0
+TimeSeriesSaveMode=0
+StimMode=0
+Name=Dt
+ObjectType=1
+TextFormula=Dt
 Disabled=0
-Mode=2147483648
+FromLibrary=0
+BurstSensitivity=10
+LPcount=0
+Formula=0
+Precision=-1
+HasInitialValue=0
+InitialValue=0
+NumberOfInputSignals=1
+Module=Functions
+Mode=5
 Rate=0
-ModeIsDefault=1
+ModeIsDefault=0
+ModeModule=xcp_demo
+ModeName=1,"mainloop" "xcp_demo"
 Row=0
 Column=0
 MeaReferenced=1
 ArchivBy_1=Recorder
 IsFallback=0
-HasManagedDisplay=0
-DisplayCount=2
+DisplayCount=1
 
-[MEASUREMENT_OBJECT_1_DISPLAY_1]
-Window=2
+[FUNCTION_OBJECT_1_DISPLAY_1]
+Window=6
 Index=0
-Color=65280
+Color=255
 ApplyColorToBackground=0
 ColorFunction=0
 ColorFunctionScope=1
 LineTyp=2
-YMinHome=0
-YMaxHome=250
-YMin=0
-YMax=250
+YMinHome=0.0098
+YMaxHome=0.0103
+YMin=0.007
+YMax=0.012
 XOffsetNS=0
 XOffset=0
 ValueFormat=3
@@ -190,9 +188,64 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_2b49d840-c240-4519-8a46-b11ff38d4256
+GUID=DISPLAY_68166bcb-2143-433b-9cb7-93d0123ee30c
 
-[MEASUREMENT_OBJECT_1_DISPLAY_2]
+[FUNCTION_OBJECT_1_INPUTSIG_1]
+Name=counter
+SymbolName=x
+LinkedObjectIdentifier=DEVICE:"xcp_demo":"counter":M
+FormatPhy=1
+IsOutput=0
+ObjectType=8
+HasInitialValue=0
+InitialValue=0
+IsParameterFunctionResult=0
+Module=xcp_demo
+
+[FUNCTION_OBJECT_LIST]
+count=1
+
+[FUNCTIONS]
+COUNT=1
+COUNT_LIBRARY=0
+
+[GFX_VISUALIZATION]
+EnableRendering=1
+
+[JOB_LIST]
+Count=0
+
+[MASTER_CONFIG]
+CommentCOUNT=0
+DisplayName=ptp_client
+ColorUsed=0
+SubConfigsCount=0
+
+[MDF_LIST]
+Count=0
+
+[MEASUREMENT_LIST]
+Count=1
+OfflineFileName=Recorder_2026-01-13_22-31-40.mf4
+OfflineFileCount=1
+MeaCfgLabellistName=
+
+[MEASUREMENT_OBJECT_1]
+Module=xcp_demo
+Name=counter
+Disabled=0
+Mode=2147483648
+Rate=0
+ModeIsDefault=1
+Row=0
+Column=0
+MeaReferenced=1
+ArchivBy_1=Recorder
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=2
+
+[MEASUREMENT_OBJECT_1_DISPLAY_1]
 Window=3
 Index=0
 Color=65280
@@ -237,6 +290,52 @@ Col=0
 YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_dad091c4-3ff1-4380-bdb5-f5c8c2b493fd
+
+[MEASUREMENT_OBJECT_1_DISPLAY_2]
+Window=2
+Index=0
+Color=65280
+ApplyColorToBackground=0
+ColorFunction=0
+ColorFunctionScope=1
+LineTyp=2
+YMinHome=0
+YMaxHome=250
+YMin=0
+YMax=250
+XOffsetNS=0
+XOffset=0
+ValueFormat=3
+BitMask=1
+ShowYAxis=1
+Width=10
+LineStyle=1
+MarkerType=1
+SRMainValue=0
+InvalidValueDrawMode=3
+LineWidth=1
+Precision=-2
+Digits=6
+Enabled=1
+StoredFocused=1
+SublMask=1
+MeaSublMask=3
+LockScaling=0
+RightAxis=0
+MapMode=2
+OverlayGridColor=0
+ShadingMode=3
+EditOffset=1
+EditFactor=2
+WAxisLabel=
+XAxisLabel=
+YAxisLabel=
+AxisCaption=
+Row=0
+Col=0
+YAxis_ID=0
+AxisTemplate=
+GUID=DISPLAY_aac8af46-0717-49af-a30f-cbcf00752b77
 
 [MEASUREMENT_OPTIONS]
 RemainingRecordingTime=5000
@@ -323,11 +422,11 @@ WindowTextExtended=1
 WindowTextExtendedNew=1
 WindowSymbols=1
 GlobalCursor=1
-GlobalCursorTime=413317
-GlobalCursorTimeNs=413317436542
+GlobalCursorTime=6053
+GlobalCursorTimeNs=6053234708
 GlobalTimeAxis=1
 GlobalTimeAxisStartTime=0
-GlobalTimeAxisEndTime=433984358369
+GlobalTimeAxisEndTime=29182554525
 MainWindowPos=1, 1, 1, 2871, 1802 ;cmd, x, y, w, h
 
 [PAR_COMMENT]
@@ -477,7 +576,7 @@ Count=0
 [SIGNSELWND]
 FocusID=2004
 ActiveTab=0
-FilterNodeID=All\Devices\xcp_demo
+FilterNodeID=All\Measurement list
 TreeExpand_0=@All
 TreeExpand_1=All\Devices
 TreeExpand_2=All\Devices\xcp_demo
@@ -505,10 +604,10 @@ TreeExpand_23=$All\Devices
 TreeExpand_24=#All\Devices
 TreeExpand_25=@All\Devices\xcp_demo
 TreeExpand_26=$All\Devices\xcp_demo\xcp_demo_autodetect.a2l
-TreeExpand_27=#All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events\mainloop\counter
+TreeExpand_27=#All\Devices\xcp_demo\User-defined filters
 TreeExpand_28=@All\Measurement list
 TreeExpand_29=$All\Measurement list\All signals
-TreeExpand_30=#All\Measurement list\Functions\CalculateJitter
+TreeExpand_30=#All\Measurement list\Functions\Dt
 TextSearchCaseSensitive=0
 TextSearchUseMode=1
 TextSearchSearchFullText=1
@@ -519,27 +618,27 @@ TextSearchSearchInDisplayNames=1
 Count=0
 
 [WINDOW_1]
-ComponentCount=1
+ComponentCount=2
 Title=
 Type=65536
 Comment=Multi view window
 Number=1
 GUID=WINDOW_601827a2-ce73-4b93-ae1b-ab27957c0fcd
 ScreenDPIinSection=192
-Position=0, 26, 24, 1730, 506 ;cmd, x, y, w, h
-Position_dpi96=0, 13, 12, 865, 253 ;cmd, x, y, w, h
-Position_Page01=0, 26, 24, 1730, 506 ;cmd, x, y, w, h
-Position_Page01_dpi96=0, 13, 12, 865, 253 ;cmd, x, y, w, h
+Position=0, 26, 24, 2274, 1154 ;cmd, x, y, w, h
+Position_dpi96=0, 13, 12, 1137, 577 ;cmd, x, y, w, h
+Position_Page01=0, 26, 24, 2274, 1154 ;cmd, x, y, w, h
+Position_Page01_dpi96=0, 13, 12, 1137, 577 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
 DisplayMask=1 ; pages 1
 
 [WINDOW_2]
-XLen=192279
+XLen=29961
 XMin=0
 XMinNs=0
-XMax=433984
-XMaxNs=433984358369
+XMax=29182
+XMaxNs=29182554525
 Grid=1
 Mark=1
 YValue=1
@@ -561,7 +660,7 @@ YAxisWidth=178
 YAxisWidth_dpi96=89
 RightYAxisWidth=0
 RightYAxisWidth_dpi96=0
-ObjectMode=0
+ObjectMode=1
 DisplayMode=0
 ShowSignalMode=0
 AxisScrollPos2=0
@@ -573,7 +672,7 @@ YAxisDynScaleEnabled=0
 YAxisDynScaleEnlarge=25
 TimeStickToZero=0
 XYModeRedrawEnabled=0
-MARKER_TIME_1=413317436542
+MARKER_TIME_1=6053234708
 MARKER_TIME_2=15000000000
 OscilloscopeEnabled=0
 OsciEventCount=0
@@ -593,7 +692,7 @@ FloatingWindow=0
 JointIndex=1
 ShowSignalComments=1
 ComponentOrder=0
-ComponentSpace=100
+ComponentSpace=50
 LEGEND_HSCROLL_POS=0
 LEGEND_SHARED_COLUMNS=1
 TimeAxisTemplate=<default>
@@ -738,8 +837,81 @@ FloatingWindow=0
 ShowSignalComments=1
 DisplayMask=1 ; pages 1
 
+[WINDOW_6]
+XLen=29961
+XMin=0
+XMinNs=0
+XMax=29182
+XMaxNs=29182554525
+Grid=1
+Mark=1
+YValue=1
+ShowLegend=2
+ShowLegendHeader=1
+LegendPixWidth=260
+LegendPixWidth_dpi96=130
+LegendPixHeight=196
+LegendPixHeight_dpi96=98
+LegendPos=2
+Optimize=1
+Average=0
+ShowMinMax=1
+XYModeIndexP1=-1
+DisplayModeAuto=0
+XStart=0
+AbsoluteTimeMode=0
+YAxisWidth=178
+YAxisWidth_dpi96=89
+RightYAxisWidth=0
+RightYAxisWidth_dpi96=0
+ObjectMode=1
+DisplayMode=1
+ShowSignalMode=0
+AxisScrollPos2=0
+LegendScrollPos=0
+LegendShowLifeValues=1
+ShowXScrollbar=1
+ShowWholeTimeRange=0
+YAxisDynScaleEnabled=0
+YAxisDynScaleEnlarge=25
+TimeStickToZero=0
+XYModeRedrawEnabled=0
+MARKER_TIME_1=6053234708
+MARKER_TIME_2=15000000000
+OscilloscopeEnabled=0
+OsciEventCount=0
+EventCompareModeEnabled=0
+ObjectCount=0
+Title=Graphic {DISPLAYED_FILENAME}
+Type=1
+Comment=Graphic Window
+Number=6
+GUID=WINDOW_69eb898d-16aa-4009-9e16-91cb60d0d3e5
+ScreenDPIinSection=192
+Position=0, 126, 126, 1000, 400 ;cmd, x, y, w, h
+Position_dpi96=0, 63, 63, 500, 200 ;cmd, x, y, w, h
+Position_Page01=0, 126, 126, 1000, 400 ;cmd, x, y, w, h
+Position_Page01_dpi96=0, 63, 63, 500, 200 ;cmd, x, y, w, h
+FloatingWindow=0
+JointIndex=1
+ShowSignalComments=1
+ComponentOrder=1
+ComponentSpace=50
+LEGEND_HSCROLL_POS=0
+LEGEND_SHARED_COLUMNS=1
+TimeAxisTemplate=<default>
+DisplayMask=1 ; pages 1
+
+[WINDOW_6_LEG_COLUMNS]
+ScreenDPIinSection=192
+COUNT=2
+COL_0=31, 166
+COL_0_dpi96=31, 83
+COL_1=1048578, 88
+COL_1_dpi96=1048578, 44
+
 [WINDOWS]
-Count=5
+Count=6
 
 [Y_COMMON_AXIS_LIST]
 Count=0

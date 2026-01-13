@@ -1141,7 +1141,8 @@ bool socketGetSendTime(SOCKET sock, uint64_t *hw_time, uint64_t *sw_time) {
     }
 
     if ((hw_time == NULL || *hw_time != 0) && (sw_time == NULL || *sw_time != 0)) {
-        return true; // Got both timestamps
+        DBG_PRINTF5("socketGetSendTime: hw=%" PRIu64 ", sw=%" PRIu64 ", sys= %" PRIu64 "\n", hw_time ? *hw_time : 0, sw_time ? *sw_time : 0, clockGet());
+        return true; // Got all requested timestamps
     }
     if (hw_time != NULL && *hw_time == 0)
         DBG_PRINT_WARNING("socketGetSendTime: No hardware TX timestamp found\n");

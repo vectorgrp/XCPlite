@@ -34,9 +34,9 @@
 #include "ptpHdr.h" // PTP protocol message structures
 #include "ptp_client.h"
 
-#include "dbg_print.h" // for DBG_PRINT_ERROR, DBG_PRINTF_WARNING, ...
-
 extern uint8_t ptp_log_level;
+#define DBG_LEVEL ptp_log_level
+#include "dbg_print.h" // for DBG_PRINT_ERROR, DBG_PRINTF_WARNING, ...
 
 tPtpClient *gPtpClient = NULL;
 
@@ -110,7 +110,7 @@ uint64_t syncInterpolateT1(tPtpClockSynchronizer *a, uint64_t t2) {
     assert(a != NULL);
 
     if (!a->is_sync) {
-        DBG_PRINT_ERROR("PTP client: syncCalculateT2 called while not synchronized\n");
+        DBG_PRINT_ERROR("PTP client: syncInterpolateT1 called while not synchronized\n");
         return t2;
     }
 
@@ -135,15 +135,11 @@ static void syncUpdate(const char *client_name, const char *analyzer_name, tPtpC
     a->t1 = t1;
     a->t2 = t2;
 
-    if (ptp_log_level >= 3 || (gPtpClient->delay_request_burst > 0 && ptp_log_level >= 2)) {
-        printf("  Sync %s %s: t1 = %" PRIu64 ", t2 = %" PRIu64 "\n", client_name, analyzer_name, t1, t2);
-    }
+    DBG_PRINTF4("  Sync %s %s: t1 = %" PRIu64 ", t2 = %" PRIu64 "\n", client_name, analyzer_name, t1, t2);
 
     // Master offset raw value
     a->offset_raw = (int64_t)(t1 - t2); // Positive master_offset means master is ahead
-    if (ptp_log_level >= 4) {
-        printf("      offset_raw = %" PRIi64 " ns\n", a->offset_raw);
-    }
+    DBG_PRINTF4("      offset_raw = %" PRIi64 " ns\n", a->offset_raw);
 
     // First round, init
     if (a->t1_offset == 0 || a->t2_offset == 0) {
@@ -155,8 +151,7 @@ static void syncUpdate(const char *client_name, const char *analyzer_name, tPtpC
         a->t1_offset = t1;
         a->t2_offset = t2;
 
-        if (ptp_log_level >= 4)
-            printf("      t1_offset = %" PRIu64 " ns, t2_offset = %" PRIu64 " ns\n", a->t1_offset, a->t2_offset);
+        DBG_PRINTF4("      t1_offset = %" PRIu64 " ns, t2_offset = %" PRIu64 " ns\n", a->t1_offset, a->t2_offset);
     }
 
     // Analysis
@@ -169,14 +164,11 @@ static void syncUpdate(const char *client_name, const char *analyzer_name, tPtpC
         int64_t t2_norm = (int64_t)(t2 - a->t2_offset);
         assert(t1_norm >= 0 && t2_norm >= 0);                                 // Should never happen
         assert((t2_norm < 0x20000000000000) && (t1_norm < 0x20000000000000)); // Should never happen (loss of precision after ≈ 104.25 days
-        if (ptp_log_level >= 4)
-            printf("      t1_norm = %" PRIi64 " ns, t2_norm = %" PRIi64 " ns\n", t1_norm, t2_norm);
+        DBG_PRINTF4("      t1_norm = %" PRIi64 " ns, t2_norm = %" PRIi64 " ns\n", t1_norm, t2_norm);
 
         // Calculate momentary master offset
         a->offset_norm = t1_norm - t2_norm; // Positive master_offset means master is ahead
-        if (ptp_log_level >= 4) {
-            printf("      offset_norm = %" PRIi64 " ns\n", a->offset_norm);
-        }
+        DBG_PRINTF4("      offset_norm = %" PRIi64 " ns\n", a->offset_norm);
 
         // Calculate cycle time on local (c2) and master clock (c1)
         int64_t c1 = t1_norm - a->t1_norm; // time since last sync on master clock
@@ -198,22 +190,19 @@ static void syncUpdate(const char *client_name, const char *analyzer_name, tPtpC
             a->linreg_jitter = linreg_offset - a->linreg_offset_avg;
             a->linreg_jitter_avg = average_filter_calc(&a->linreg_jitter_filter, a->linreg_jitter);
 
-            if ((a->is_sync && ptp_log_level >= 3) || (gPtpClient->delay_request_burst > 0 && ptp_log_level >= 2)) {
-                printf("  Sync %s %s: Linear regression results at t2 = %lld ns: \n", client_name, analyzer_name, t2_norm);
-                printf("    linreg drift = %g ns/s\n", a->linreg_drift);
-                printf("    linreg drift_drift = %g ns/s2\n", a->linreg_drift_drift);
-                printf("    linreg offset = %g ns\n", a->linreg_offset);
-                printf("    linreg offset average = %g ns\n", a->linreg_offset_avg);
-                printf("    linreg jitter = %g ns\n", a->linreg_jitter);
-                printf("    linreg jitter average = %g ns\n", a->linreg_jitter_avg);
-            }
+            DBG_PRINTF4("  Sync %s %s: Linear regression results at t2 = %lld ns: \n", client_name, analyzer_name, t2_norm);
+            DBG_PRINTF4("    linreg drift = %g ns/s\n", a->linreg_drift);
+            DBG_PRINTF4("    linreg drift_drift = %g ns/s2\n", a->linreg_drift_drift);
+            DBG_PRINTF4("    linreg offset = %g ns\n", a->linreg_offset);
+            DBG_PRINTF4("    linreg offset average = %g ns\n", a->linreg_offset_avg);
+            DBG_PRINTF4("    linreg jitter = %g ns\n", a->linreg_jitter);
+            DBG_PRINTF4("    linreg jitter average = %g ns\n", a->linreg_jitter_avg);
 
-            else if (a->cycle_count > params.min_sync_cycles && fabs(a->linreg_drift_drift) < params.min_sync_drift_drift) {
+            if (a->cycle_count > params.min_sync_cycles && fabs(a->linreg_drift_drift) < params.min_sync_drift_drift) {
                 a->is_sync = true;
-
+                DBG_PRINTF3("Analyzer %s %s: Sync\n", client_name, analyzer_name);
             } else {
-                if (ptp_log_level >= 3)
-                    printf("Analyzer %s %s: Warming up\n", client_name, analyzer_name);
+                DBG_PRINTF3("Analyzer %s %s: Warming up\n", client_name, analyzer_name);
             }
         }
 
@@ -224,15 +213,14 @@ static void syncUpdate(const char *client_name, const char *analyzer_name, tPtpC
         // Jitter analysis
         a->jitter_avg = average_filter_calc(&a->jitter_avg_filter, a->jitter);                           // Filter jitter
         a->jitter_rms = sqrt((double)average_filter_calc(&a->jitter_rms_filter, a->jitter * a->jitter)); // Filter jitter and calculate RMS
-        if (ptp_log_level >= 3) {
-            printf("    Jitter analysis:\n");
-            printf("      jitter       = %g ns\n", a->jitter);
-            printf("      jitter_avg   = %g ns\n", a->jitter_avg);
-            printf("      jitter_rms   = %g ns\n", a->jitter_rms);
-        }
 
-        printf("  Sync %s %s: drift = %g ns/s, drift_drift = %g ns/s2, offset = %g ns, jitter = %g ns\n", client_name, analyzer_name, a->drift, a->drift_drift, a->linreg_offset,
-               a->jitter);
+        DBG_PRINT4("    Jitter analysis:\n");
+        DBG_PRINTF4("      jitter       = %g ns\n", a->jitter);
+        DBG_PRINTF4("      jitter_avg   = %g ns\n", a->jitter_avg);
+        DBG_PRINTF4("      jitter_rms   = %g ns\n", a->jitter_rms);
+
+        DBG_PRINTF2("  %s: %s (%u) drift = %g ns/s, drift_drift = %g ns/s2, offset = %g ns, jitter = %g ns\n", analyzer_name, a->is_sync ? "SYNC" : "", a->cycle_count, a->drift,
+                    a->drift_drift, a->linreg_offset, a->jitter);
 
         // uint64_t test1 = syncInterpolateT1(a, t2);
         // printf("    Interpolated t1 = %" PRIu64 " ns (diff = %" PRIi64 "), t2 = %" PRIu64 " ns \n", test1, (int64_t)test1 - (int64_t)t1, t2);
@@ -361,7 +349,7 @@ static void clientDelayUpdate(tPtpClient *client) {
                t4             t4 = DELAY_RESPONSE master rx timestamp
         */
 
-        if (client->a12.is_sync || client->a34.is_sync) {
+        if (client->a12.is_sync || client->a34.is_sync) { // Drift available from SYNC or DELAY timestamps
 
             // Drift correction for t4
             int64_t t4_drift_correction = (int64_t)(t4 - t1) * client->drift / 1.0E9;
@@ -374,14 +362,11 @@ static void clientDelayUpdate(tPtpClient *client) {
             // Calculate master offset
             client->master_offset = t21 - client->path_delay;
 
-            if (!client->is_sync || ptp_log_level >= 2) {
-                DBG_PRINTF3("PTP client: Sync !!! (path delay = %" PRIu64 " ns, master offset = %" PRIi64 " ns, drift = %g ppm, drift_drift =%g ppm/s, jitter_rms = %g ns)\n",
-                            client->path_delay, client->master_offset, client->drift / 1000.0, client->drift_drift / 1000, client->a34.jitter_rms);
-            }
-
             // Set synchronized flag
             if (!client->is_sync) {
                 client->is_sync = true;
+                DBG_PRINTF1("PTP clock synchronized ! (path delay = %" PRIu64 " ns, master offset = %" PRIi64 " ns, drift = %g ppm, drift_drift =%g ppm/s, jitter_rms = %g ns)\n",
+                            client->path_delay, client->master_offset, client->drift / 1000.0, client->drift_drift / 1000, client->a34.jitter_rms);
             }
         }
     }
@@ -462,10 +447,10 @@ bool ptpClientHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *add
                     // @@@@ Not implemented yet
                     // if (delayReqCycle == 0)
                     //     delayReqCycle = 1 << gPtpC.delay_resp_logMessageInterval;
-                    if (ptp_log_level >= 3)
-                        printf("PTP client: DELAY_RESP received from %u.%u.%u.%u: seqID=%u, t3=%llu, t4=%llu, corr=%u\n", addr[0], addr[1], addr[2], addr[3],
-                               client->delay_resp_sequenceId, (unsigned long long)client->delay_req_local_time, (unsigned long long)client->delay_req_master_time,
-                               client->delay_resp_correction);
+
+                    DBG_PRINTF4("PTP client: DELAY_RESP received from %u.%u.%u.%u: seqID=%u, t3=%llu, t4=%llu, corr=%u\n", addr[0], addr[1], addr[2], addr[3],
+                                client->delay_resp_sequenceId, (unsigned long long)client->delay_req_local_time, (unsigned long long)client->delay_req_master_time,
+                                client->delay_resp_correction);
                     clientDelayUpdate(client);
 
                     if (client->delay_request_burst > 0) {
@@ -473,20 +458,16 @@ bool ptpClientHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *add
                         sleepUs(params.delay_request_delay_us);
                         clientSendDelayRequest(ptp, client);
                         client->delay_request_burst--;
-                        if (ptp_log_level >= 2) {
-                            printf("PTP client: DELAY_REQ burst, remaining %u\n", client->delay_request_burst);
-                        }
+
+                        DBG_PRINTF3("PTP client: DELAY_REQ burst, remaining %u\n", client->delay_request_burst);
                     }
 
                 } else {
+                    DBG_PRINTF4("PTP client: DELAY_RESP received for another slave clock %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n", ptp_msg->u.r.clockId[0],
+                                ptp_msg->u.r.clockId[1], ptp_msg->u.r.clockId[2], ptp_msg->u.r.clockId[3], ptp_msg->u.r.clockId[4], ptp_msg->u.r.clockId[5],
+                                ptp_msg->u.r.clockId[6], ptp_msg->u.r.clockId[7]
 
-                    if (ptp_log_level >= 4)
-                        printf("PTP client: DELAY_RESP received for another slave clock %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n",
-
-                               ptp_msg->u.r.clockId[0], ptp_msg->u.r.clockId[1], ptp_msg->u.r.clockId[2], ptp_msg->u.r.clockId[3], ptp_msg->u.r.clockId[4], ptp_msg->u.r.clockId[5],
-                               ptp_msg->u.r.clockId[6], ptp_msg->u.r.clockId[7]
-
-                        );
+                    );
                 }
             }
 
@@ -556,7 +537,7 @@ uint8_t ptpClientTask(tPtp *ptp) {
         uint64_t now = clockGet();
         uint64_t elapsed = now - client->gm_last_update_time;
         if (elapsed / (double)CLOCK_TICKS_PER_S > params.gm_timeout_s) {
-            DBG_PRINTF3("PTP client: Grandmaster lost !!! timeout after %us. Last seen %gs ago\n", params.gm_timeout_s, elapsed / (double)CLOCK_TICKS_PER_S);
+            DBG_PRINTF1("PTP grandmaster lost ! timeout after %us. Last seen %gs ago\n", params.gm_timeout_s, elapsed / (double)CLOCK_TICKS_PER_S);
             client->gmValid = false;
             client->is_sync = false;
         }
@@ -567,7 +548,7 @@ uint8_t ptpClientTask(tPtp *ptp) {
     // Return clock state
     if (gPtpClient->gmValid) {
         // Check if master is sufficiently synchronized
-        if (gPtpClient->a34.is_sync) {
+        if (gPtpClient->is_sync) {
             return CLOCK_STATE_SYNCH; // Clock is synchronized to grandmaster
         } else {
             return CLOCK_STATE_SYNCH_IN_PROGRESS; // Clock is synchronizing to grandmaster
@@ -615,6 +596,30 @@ void ptpClientShutdown(tPtp *ptp) {
     mutexDestroy(&gPtpClient->mutex);
     free(gPtpClient);
     gPtpClient = NULL;
+}
+
+uint64_t ptpClientGetGrandmasterClock() {
+    // System clock value
+    uint64_t sys_clock = clockGet();
+
+    if (gPtpClient == NULL || !gPtpClient->is_sync) {
+        DBG_PRINT1("PTP client: ptpClientGetGrandmasterClock: Not synchronized to grandmaster\n");
+        return sys_clock; // Not synchronized, return system clock
+    }
+
+    mutexLock(&client->mutex);
+
+    // Convert system time to local hardware clock
+    uint64_t ptp_client_clock = syncInterpolateT1(&gPtpClient->asw, sys_clock);
+
+    // Convert local hardware clock to  to grandmaster clock
+    uint64_t ptp_master_clock = syncInterpolateT1(&gPtpClient->a12, ptp_client_clock) + gPtpClient->path_delay + gPtpClient->master_offset;
+
+    DBG_PRINTF4("Grandmaster clock = %" PRIu64 "\n", ptp_master_clock);
+
+    mutexUnlock(&client->mutex);
+
+    return ptp_master_clock;
 }
 
 #endif

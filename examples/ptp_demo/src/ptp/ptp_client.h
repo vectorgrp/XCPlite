@@ -110,6 +110,9 @@ extern tPtpClient *gPtpClient;
 extern "C" {
 #endif
 
+// Get grandmaster synchronized clock
+uint64_t ptpClientGetGrandmasterClock();
+
 // PTP client background processing task
 // @return clock state
 uint8_t ptpClientTask(tPtp *ptp);

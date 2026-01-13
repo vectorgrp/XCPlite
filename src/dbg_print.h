@@ -53,7 +53,7 @@
 
 // Runtime adjustable log level, limited by OPTION_MAX_DBG_LEVEL
 #if defined(OPTION_MAX_DBG_LEVEL) && OPTION_MAX_DBG_LEVEL < OPTION_DEFAULT_DBG_LEVEL
-#error "OPTION_MAX_DBG_LEVEL should be >= OPTION_DEFAULT_DBG_LEVEL"
+#error "OPTION_MAX_DBG_LEVEL should be >= OPTION_DEFAULT_DBG_LEVEL and >=2 "
 #endif
 
 // Use log level for XCP if not defined DBG_LEVEL
@@ -132,6 +132,28 @@ extern uint8_t gXcpLogLevel;
 
 #endif // !OPTION_ENABLE_DBG_STDERR
 
+#define DBG_PRINTF1(format, ...)                                                                                                                                                   \
+    do {                                                                                                                                                                           \
+        if (DBG_LEVEL >= 1)                                                                                                                                                        \
+            printf(DBG_PRINT_PREFIX format, __VA_ARGS__);                                                                                                                          \
+    } while (0)
+#define DBG_PRINT1(format)                                                                                                                                                         \
+    do {                                                                                                                                                                           \
+        if (DBG_LEVEL >= 1)                                                                                                                                                        \
+            printf(DBG_PRINT_PREFIX format);                                                                                                                                       \
+    } while (0)
+
+#define DBG_PRINTF2(format, ...)                                                                                                                                                   \
+    do {                                                                                                                                                                           \
+        if (DBG_LEVEL >= 2)                                                                                                                                                        \
+            printf(DBG_PRINT_PREFIX format, __VA_ARGS__);                                                                                                                          \
+    } while (0)
+#define DBG_PRINT2(format)                                                                                                                                                         \
+    do {                                                                                                                                                                           \
+        if (DBG_LEVEL >= 2)                                                                                                                                                        \
+            printf(DBG_PRINT_PREFIX format);                                                                                                                                       \
+    } while (0)
+
 #define DBG_PRINTF3(format, ...)                                                                                                                                                   \
     do {                                                                                                                                                                           \
         if (DBG_LEVEL >= 3)                                                                                                                                                        \
@@ -168,20 +190,6 @@ extern uint8_t gXcpLogLevel;
 // Convenience macros for format-only strings (no additional arguments)
 #define DBG_PRINT(format) printf(format)
 
-#if OPTION_MAX_DBG_LEVEL < 1
-#undef DBG_PRINTF_ERROR
-#define DBG_PRINTF_ERROR(s, ...) // printf(s,__VA_ARGS__)
-#undef DBG_PRINT_ERROR
-#define DBG_PRINT_ERROR(s) // printf(s,__VA_ARGS__)
-#endif
-
-#if OPTION_MAX_DBG_LEVEL < 2
-#undef DBG_PRINTF_WARNING
-#define DBG_PRINTF_WARNING(s, ...) // printf(s,__VA_ARGS__)
-#undef DBG_PRINT_WARNING
-#define DBG_PRINT_WARNING(s) // printf(s,__VA_ARGS__)
-#endif
-
 #if OPTION_MAX_DBG_LEVEL < 3
 #undef DBG_PRINTF3
 #define DBG_PRINTF3(s, ...)
@@ -210,6 +218,8 @@ extern uint8_t gXcpLogLevel;
 #define DBG_PRINTF(s, ...)
 #define DBG_PRINTF_ERROR(s, ...) // printf(s,__VA_ARGS__)
 #define DBG_PRINTF_WARNING(s, ...)
+#define DBG_PRINTF1(s, ...)
+#define DBG_PRINTF2(s, ...)
 #define DBG_PRINTF3(s, ...)
 #define DBG_PRINTF4(s, ...)
 #define DBG_PRINTF5(s, ...)
@@ -217,6 +227,8 @@ extern uint8_t gXcpLogLevel;
 #define DBG_PRINT(s)
 #define DBG_PRINT_ERROR(s) // printf(s,__VA_ARGS__)
 #define DBG_PRINT_WARNING(s)
+#define DBG_PRINT1(s)
+#define DBG_PRINT2(s)
 #define DBG_PRINT3(s)
 #define DBG_PRINT4(s)
 #define DBG_PRINT5(s)
