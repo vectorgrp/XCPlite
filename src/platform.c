@@ -312,7 +312,6 @@ bool socketOpen(SOCKET *sp, uint16_t flags) {
         //   [0] = Software timestamp
         //   [1] = Deprecated (legacy)
         //   [2] = Hardware timestamp (from NIC PHY)
-
         uint32_t flags = SOF_TIMESTAMPING_TX_SOFTWARE |  // Software TX timestamp (always available)
                          SOF_TIMESTAMPING_RX_SOFTWARE |  // Software RX timestamp (always available)
                          SOF_TIMESTAMPING_SOFTWARE |     // Enable software timestamp generation
@@ -321,7 +320,7 @@ bool socketOpen(SOCKET *sp, uint16_t flags) {
                          SOF_TIMESTAMPING_RAW_HARDWARE | // Use raw hardware clock
                          SOF_TIMESTAMPING_OPT_TSONLY;    // Return only timestamp, not packet data
         if (setsockopt(*sp, SOL_SOCKET, SO_TIMESTAMPING, &flags, sizeof(flags)) < 0) {
-            DBG_PRINTF_ERROR("Failed to enable socket hardware timestamps (SO_TIMESTAMPING, errno=%d), HW timestamps not available\n", errno);
+            DBG_PRINTF_ERROR("Failed to enable socket hardware timestamps (SO_TIMESTAMPING, errno=%d)\n", errno);
         } else {
             DBG_PRINTF3("Hardware timestamping enabled on socket (SO_TIMESTAMPING flags=0x%X)\n", flags);
         }
@@ -334,7 +333,7 @@ bool socketOpen(SOCKET *sp, uint16_t flags) {
         if (setsockopt(*sp, SOL_SOCKET, SO_TIMESTAMPNS, &yes, sizeof(yes)) < 0) {
             DBG_PRINTF_ERROR("Failed to enable socket software timestamps (SO_TIMESTAMPNS, errno=%d)\n", errno);
         } else {
-            DBG_PRINT_WARNING("Software timestamps enabled on socket (SO_TIMESTAMPNS) as fallback\n");
+            DBG_PRINT_WARNING("Software timestamps enabled on socket (SO_TIMESTAMPNS)\n");
         }
     }
 #endif
