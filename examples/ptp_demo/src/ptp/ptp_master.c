@@ -50,9 +50,9 @@ extern uint8_t ptp_log_level;
 //---------------------------------------------------------------------------------------
 
 // Default master parameter values
-static const tMasterParams master_params = {
-    .announceCycleTimeMs = ANNOUNCE_CYCLE_TIME_MS_DEFAULT, // ANNOUNCE rate
-    .syncCycleTimeMs = SYNC_CYCLE_TIME_MS_DEFAULT,         // SYNC rate
+static tMasterParams master_params = {
+    .announce_interval_ms = ANNOUNCE_CYCLE_TIME_MS_DEFAULT, // ANNOUNCE rate
+    .sync_interval_ms = SYNC_CYCLE_TIME_MS_DEFAULT,         // SYNC rate
 #ifdef MASTER_TIME_ADJUST
     .drift = 0,       // PTP master time drift in ns/s
     .drift_drift = 0, // PTP master time drift drift in ns/s2
@@ -226,8 +226,8 @@ void masterPrintState(tPtp *ptp, int index) {
     if (!master->active) {
         printf(" Status:         INACTIVE\n");
     } else {
-        printf("  ANNOUNCE cycle: %ums\n", master->params->announceCycleTimeMs);
-        printf("  SYNC cycle:     %ums\n", master->params->syncCycleTimeMs);
+        printf("  ANNOUNCE cycle: %ums\n", master->params->announce_interval_ms);
+        printf("  SYNC cycle:     %ums\n", master->params->sync_interval_ms);
         if (master->clientCount > 0) {
             printf("  Client list:\n");
             for (uint16_t i = 0; i < master->clientCount; i++) {
@@ -318,8 +318,8 @@ void masterInit(tPtp *ptp, tPtpMaster *master, uint8_t domain, const uint8_t *uu
 
         // Create A2L parameter definitions for master parameters
         A2lSetSegmentAddrMode(master->xcp_calseg, master_params);
-        A2lCreateParameter(master_params.announceCycleTimeMs, "Announce cycle time (ms)", "", 0, 10000);
-        A2lCreateParameter(master_params.syncCycleTimeMs, "Sync cycle time (ms)", "", 0, 10000);
+        A2lCreateParameter(master_params.announce_interval_ms, "Announce cycle time (ms)", "", 0, 10000);
+        A2lCreateParameter(master_params.sync_interval_ms, "Sync cycle time (ms)", "", 0, 10000);
         A2lCreateParameter(master_params.drift, "Master time drift (ns/s)", "", -100000, +100000);
         A2lCreateParameter(master_params.drift_drift, "Master time drift drift (ns/s2)", "", -1000, +1000);
         A2lCreateParameter(master_params.jitter, "Master time jitter (ns)", "", 0, 1000000);
@@ -351,13 +351,19 @@ void masterInit(tPtp *ptp, tPtpMaster *master, uint8_t domain, const uint8_t *uu
 #endif
 
     uint64_t t = clockGet();
-    master->announceCycleTimer = 0;                                                                               // Send announce immediately
-    master->syncCycleTimer = t + 100 * CLOCK_TICKS_PER_MS - master->params->syncCycleTimeMs * CLOCK_TICKS_PER_MS; // First SYNC after 100ms
+    master->announceCycleTimer = 0;                                                                                // Send announce immediately
+    master->syncCycleTimer = t + 100 * CLOCK_TICKS_PER_MS - master->params->sync_interval_ms * CLOCK_TICKS_PER_MS; // First SYNC after 100ms
     master->syncTxTimestamp = 0;
     master->sequenceIdAnnounce = 0;
     master->sequenceIdSync = 0;
 
     master->active = true;
+
+    if (ptp_log_level >= 3) {
+        printf("PTP Master '%s' initialized: domain=%u, UUID=%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n", master->name, master->domain, master->uuid[0], master->uuid[1],
+               master->uuid[2], master->uuid[3], master->uuid[4], master->uuid[5], master->uuid[6], master->uuid[7]);
+        printf(" PTP Master '%s': Announce interval=%ums, SYNC interval=%ums\n", master->name, master->params->announce_interval_ms, master->params->sync_interval_ms);
+    }
 }
 
 // Master main cycle
@@ -378,11 +384,11 @@ bool masterTask(tPtp *ptp) {
         ;
 
         uint64_t t = clockGet();
-        uint32_t announceCycleTimeMs = master->params->announceCycleTimeMs; // Announce message cycle time in ms
-        uint32_t syncCycleTimeMs = master->params->syncCycleTimeMs;         // SYNC message cycle time in ms
+        uint32_t announce_interval_ms = master->params->announce_interval_ms; // Announce message cycle time in ms
+        uint32_t sync_interval_ms = master->params->sync_interval_ms;         // SYNC message cycle time in ms
 
         // Announce cycle
-        if (announceCycleTimeMs > 0 && t - master->announceCycleTimer > announceCycleTimeMs * CLOCK_TICKS_PER_MS) {
+        if (announce_interval_ms > 0 && t - master->announceCycleTimer > announce_interval_ms * CLOCK_TICKS_PER_MS) {
             master->announceCycleTimer = t;
             if (!ptpSendAnnounce(ptp, master->domain, master->uuid, ++master->sequenceIdAnnounce)) {
                 printf("ERROR: Failed to send ANNOUNCE\n");
@@ -390,7 +396,7 @@ bool masterTask(tPtp *ptp) {
         }
 
         // Sync cycle
-        if (syncCycleTimeMs > 0 && t - master->syncCycleTimer > syncCycleTimeMs * CLOCK_TICKS_PER_MS) {
+        if (sync_interval_ms > 0 && t - master->syncCycleTimer > sync_interval_ms * CLOCK_TICKS_PER_MS) {
             master->syncCycleTimer = t;
 
             mutexLock(&ptp->mutex);
@@ -497,7 +503,8 @@ bool masterHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr, 
     return true;
 }
 
-tPtpMaster *ptpCreateMaster(tPtp *ptp, const char *name, uint8_t domain, const uint8_t *uuid) {
+tPtpMaster *ptpCreateMaster(tPtp *ptp, const char *name, uint8_t domain, const uint8_t *uuid, uint32_t announce_interval_ms, uint32_t sync_interval_ms, int32_t offset,
+                            int32_t drift, int32_t drift_drift, int32_t jitter) {
 
     assert(ptp != NULL && ptp->magic == PTP_MAGIC);
 
@@ -505,6 +512,18 @@ tPtpMaster *ptpCreateMaster(tPtp *ptp, const char *name, uint8_t domain, const u
         DBG_PRINT_ERROR("Maximum number of PTP masters reached\n");
         return NULL;
     }
+
+    // Set master parameters
+    if (announce_interval_ms > 0)
+        master_params.announce_interval_ms = announce_interval_ms;
+    if (sync_interval_ms > 0)
+        master_params.sync_interval_ms = sync_interval_ms;
+#ifdef MASTER_TIME_ADJUST
+    master_params.offset = offset;
+    master_params.drift = drift;
+    master_params.drift_drift = drift_drift;
+    master_params.jitter = jitter;
+#endif
 
     // Create and initialize master instance
     tPtpMaster *master = (tPtpMaster *)malloc(sizeof(tPtpMaster));

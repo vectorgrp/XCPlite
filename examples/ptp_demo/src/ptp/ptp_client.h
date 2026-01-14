@@ -97,11 +97,15 @@ typedef struct ptp_client {
     uint16_t delay_request_burst;
 
     // Current drift, path delay and master offset
-    bool is_sync;          // true if synchronized to grandmaster
-    double drift;          // Current drift in 1000*ppm
-    double drift_drift;    // Current drift of the drift in 1000*ppm/s*s
-    uint64_t path_delay;   // Current path delay
-    int64_t master_offset; // Current master offset
+    bool is_sync;                              // true if synchronized to grandmaster
+    double drift;                              // Current drift in 1000*ppm
+    double drift_drift;                        // Current drift of the drift in 1000*ppm/s*s
+    int64_t raw_path_delay;                    // Current path delay
+    int64_t path_delay;                        // Filtered path delay
+    tAverageFilter path_delay_avg_filter;      // Average filter for path delay
+    int64_t raw_master_offset;                 // Current master offset
+    tLinregFilter master_offset_linreg_filter; // Linear regression filter for master offset
+    int64_t master_offset;                     // Filtered master offset
 } tPtpClient;
 
 extern tPtpClient *gPtpClient;

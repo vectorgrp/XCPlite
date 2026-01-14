@@ -81,9 +81,7 @@ uint64_t ptpClientGetClock(void) {
 
 #ifdef OPTION_ENABLE_PTP_CLIENT
     if (gPtpClient != NULL) {
-        if (gPtpClient->gmValid) {
-            return ptpClientGetGrandmasterClock();
-        }
+        return ptpClientGetGrandmasterClock();
     }
 #endif
 
@@ -165,20 +163,26 @@ static void sig_handler(int sig) { running = false; }
 static void print_usage(const char *prog_name) {
     std::cout << "Usage: " << prog_name << " [options]\n"
               << "Options:\n"
-              << "  -i, --interface <name>  Network interface name (default: eth0)\n"
+              << "  -i, --interface <name>        Network interface name (default: eth0)\n"
 #ifdef OPTION_ENABLE_PTP_MASTER
-              << "  -m, --master            Creates a PTP master with uuid and domain\n"
+              << "  -m, --master                  Creates a PTP master with uuid and domain\n"
+              << "      --announce_interval <ms>  Announce interval in ms (default: 1000)\n"
+              << "      --sync_interval <ms>      SYNC interval in ms (default: 1000)\n"
+              << "      --offset <ns>             PTP master time offset in ns (default: 0)\n"
+              << "      --drift <ns/s>            PTP master time drift in ns/s (default: 0)\n"
+              << "      --drift_drift <ns/s2>     PTP master time drift drift in ns/s2 (default: 0)\n"
+              << "      --jitter <ns>             PTP master time jitter in ns (default: 0)\n"
 #endif
 #ifdef OPTION_ENABLE_PTP_OBSERVER
-              << "  -o, --observer          Observer for uuid and domain\n"
-              << "  -a, --auto              Multi observer mode\n"
-              << "  -p, --passive           Passive observer mode (default: active)\n"
+              << "  -o, --observer                Observer for uuid and domain\n"
+              << "  -a, --auto                    Multi observer mode\n"
+              << "  -p, --passive                 Passive observer mode (default: active)\n"
 #endif
-              << "  -d, --domain <number>   Domain number 0-255 (default: 0)\n"
-              << "  -u, --uuid <hex>        UUID as 16 hex digits (default: 001AB60000000001)\n"
+              << "  -d, --domain <number>        Domain number 0-255 (default: 0)\n"
+              << "  -u, --uuid <hex>             UUID as 16 hex digits (default: 001AB60000000001)\n"
               << "  -l, --ptp_log_level <level>  Set PTP log level (0..5, default: 1)\n"
               << "  -x, --xcp_log_level <level>  Set XCP log level (0..5, default: 2)\n"
-              << "  -h, --help              Show this help message\n\n"
+              << "  -h, --help                   Show this help message\n\n"
               << "Example:\n  " << prog_name << " -i en0 -m master -d 1 -u 001AB60000000002\n";
 }
 
@@ -191,6 +195,14 @@ int main(int argc, char *argv[]) {
     int ptp_domain = PTP_DOMAIN;
     int ptp_active_mode = true;
     uint8_t ptp_uuid[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}; // default create from MAC in ptpCreateMaster
+#ifdef OPTION_ENABLE_PTP_MASTER
+    uint32_t ptp_announce_interval_ms = 0; // use default
+    uint32_t ptp_sync_interval_ms = 0;     // use default
+    int32_t ptp_master_offset = 0;
+    int32_t ptp_master_drift = 0;
+    int32_t ptp_master_drift_drift = 0;
+    int32_t ptp_master_jitter = 0;
+#endif
 
     // Parse command line arguments
     for (int i = 1; i < argc; i++) {
@@ -200,6 +212,7 @@ int main(int argc, char *argv[]) {
         } else if (std::strcmp(argv[i], "-i") == 0 || std::strcmp(argv[i], "--interface") == 0) {
             if (i + 1 < argc) {
                 ptp_interface = argv[++i];
+                std::cout << "PTP interface set to " << ptp_interface << "\n";
             } else {
                 std::cerr << "Error: -i/--interface requires an argument\n";
                 print_usage(argv[0]);
@@ -210,23 +223,84 @@ int main(int argc, char *argv[]) {
 #ifdef OPTION_ENABLE_PTP_MASTER
         else if (std::strcmp(argv[i], "-m") == 0 || std::strcmp(argv[i], "--master") == 0) {
             ptp_mode = PTP_MODE_MASTER;
+            std::cout << "PTP master mode selected\n";
+        } else if (std::strcmp(argv[i], "--announce_interval") == 0) {
+            if (i + 1 < argc) {
+                ptp_announce_interval_ms = std::atoi(argv[++i]);
+                std::cout << "PTP master announce interval set to " << ptp_announce_interval_ms << " ms\n";
+            } else {
+                std::cerr << "Error: --announce_interval requires an argument\n";
+                print_usage(argv[0]);
+                return 1;
+            }
+        } else if (std::strcmp(argv[i], "--sync_interval") == 0) {
+            if (i + 1 < argc) {
+                ptp_sync_interval_ms = std::atoi(argv[++i]);
+                std::cout << "PTP master sync interval set to " << ptp_sync_interval_ms << " ms\n";
+            } else {
+                std::cerr << "Error: --sync_interval requires an argument\n";
+                print_usage(argv[0]);
+                return 1;
+            }
+        } else if (std::strcmp(argv[i], "--offset") == 0) {
+            if (i + 1 < argc) {
+                ptp_master_offset = std::atoi(argv[++i]);
+                std::cout << "PTP master offset set to " << ptp_master_offset << " ns\n";
+            } else {
+                std::cerr << "Error: --offset requires an argument\n";
+                print_usage(argv[0]);
+                return 1;
+            }
+        } else if (std::strcmp(argv[i], "--drift") == 0) {
+            if (i + 1 < argc) {
+                ptp_master_drift = std::atoi(argv[++i]);
+                std::cout << "PTP master drift set to " << ptp_master_drift << " ns/s\n";
+            } else {
+                std::cerr << "Error: --drift requires an argument\n";
+                print_usage(argv[0]);
+                return 1;
+            }
+        } else if (std::strcmp(argv[i], "--drift_drift") == 0) {
+            if (i + 1 < argc) {
+                ptp_master_drift_drift = std::atoi(argv[++i]);
+                std::cout << "PTP master drift drift set to " << ptp_master_drift_drift << " ns/s2\n";
+            } else {
+                std::cerr << "Error: --drift_drift requires an argument\n";
+                print_usage(argv[0]);
+                return 1;
+            }
+        } else if (std::strcmp(argv[i], "--jitter") == 0) {
+            if (i + 1 < argc) {
+                ptp_master_jitter = std::atoi(argv[++i]);
+                std::cout << "PTP master jitter set to " << ptp_master_jitter << " ns\n";
+            } else {
+                std::cerr << "Error: --jitter requires an argument\n";
+                print_usage(argv[0]);
+                return 1;
+            }
         }
 #endif
+
 #ifdef OPTION_ENABLE_PTP_OBSERVER
         else if (std::strcmp(argv[i], "-o") == 0 || std::strcmp(argv[i], "--observer") == 0) {
             ptp_mode = PTP_MODE_OBSERVER;
+            std::cout << "PTP observer mode selected\n";
         } else if (std::strcmp(argv[i], "-a") == 0 || std::strcmp(argv[i], "--auto") == 0) {
             ptp_mode = PTP_MODE_AUTO_OBSERVER;
+            std::cout << "PTP auto observer mode selected\n";
         } else if (std::strcmp(argv[i], "-p") == 0 || std::strcmp(argv[i], "--passive") == 0) {
             ptp_active_mode = false;
+            std::cout << "PTP passive observer mode selected\n";
         }
 #endif
+
         else if (std::strcmp(argv[i], "-d") == 0 || std::strcmp(argv[i], "--domain") == 0) {
             if (i + 1 < argc) {
                 i++;
                 int domain = std::atoi(argv[i]);
                 if (domain >= 0 && domain <= 255) {
                     ptp_domain = domain;
+                    std::cout << "PTP domain set to " << ptp_domain << "\n";
                 } else {
                     std::cerr << "Error: Invalid domain '" << argv[i] << "'. Must be 0-255\n";
                     print_usage(argv[0]);
@@ -331,42 +405,44 @@ int main(int argc, char *argv[]) {
     if (XCP_OPTION_PTP) {
 
 #ifdef OPTION_ENABLE_PTP_CLIENT
-
-        // Create a PTP synchronized clock for XCP
-        // Experimental feature, work in progress
-        // Usually, a PTP disciplined system clock exists and XCP uses the system clock directly
-        tPtpClient *obs = ptpCreateClient(ptp);
-        if (NULL == obs) {
-            std::cerr << "Failed to create PTP client" << std::endl;
-            ptpShutdown(ptp);
-            return 1;
-        }
-        // Wait until PTP clock is locked onto a grandmaster and grandmaster UUID is known
-        // Must not be synchronized before starting XCP DAQ measurement
-        std::cout << "Waiting for PTP clock ";
-        while (running) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            uint8_t clock_state = ptpClientTask(ptp);
-            if (clock_state == CLOCK_STATE_SYNCH_IN_PROGRESS) {
-                std::cout << std::endl << "PTP clock synchronization in progress..." << std::endl;
-                break;
-
-            } else if (clock_state == CLOCK_STATE_SYNCH) {
-                std::cout << std::endl << "PTP clock synchronized to grandmaster." << std::endl;
-                break;
+        if (ptp_mode != PTP_MODE_MASTER && ptp_mode != PTP_MODE_OBSERVER && ptp_mode != PTP_MODE_AUTO_OBSERVER) {
+            // Create a PTP synchronized clock for XCP
+            // Experimental feature, work in progress
+            // Usually, a PTP disciplined system clock exists and XCP uses the system clock directly
+            tPtpClient *obs = ptpCreateClient(ptp);
+            if (NULL == obs) {
+                std::cerr << "Failed to create PTP client" << std::endl;
+                ptpShutdown(ptp);
+                return 1;
             }
-            std::cout << ".";
-            std::cout.flush();
-        }
-        if (!running) { // Ctrl-C while waiting
-            std::cout << std::endl;
-            ptpShutdown(ptp);
-            return 0;
+            // Wait until PTP clock is locked onto a grandmaster and grandmaster UUID is known
+            // Must not be synchronized before starting XCP DAQ measurement
+            std::cout << "Waiting for PTP clock ";
+            while (running) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                uint8_t clock_state = ptpClientTask(ptp);
+                if (clock_state == CLOCK_STATE_SYNCH_IN_PROGRESS) {
+                    std::cout << std::endl << "PTP clock synchronization in progress..." << std::endl;
+                    break;
+
+                } else if (clock_state == CLOCK_STATE_SYNCH) {
+                    std::cout << std::endl << "PTP clock synchronized to grandmaster." << std::endl;
+                    break;
+                }
+                std::cout << ".";
+                std::cout.flush();
+            }
+            if (!running) { // Ctrl-C while waiting
+                std::cout << std::endl;
+                ptpShutdown(ptp);
+                return 0;
+            }
+
+            // Enable PTP in XCP
+            // Register XCP clock callbacks, provides PTP synchronized timestamps to XCP and information about clock state and identity
+            ptpClientRegisterClockCallbacks();
         }
 #endif
-
-        // Register XCP clock callbacks, provides PTP synchronized timestamps to XCP and information about clock state and identity
-        ptpClientRegisterClockCallbacks();
     }
 
     // Create XCP on Ethernet server
@@ -417,7 +493,8 @@ int main(int argc, char *argv[]) {
     if (ptp_mode == PTP_MODE_MASTER) {
 
         // Create a master on interface ptp
-        tPtpMaster *ptpMaster = ptpCreateMaster(ptp, "Master1", ptp_domain, ptp_uuid);
+        tPtpMaster *ptpMaster = ptpCreateMaster(ptp, "Master1", ptp_domain, ptp_uuid, ptp_announce_interval_ms, ptp_sync_interval_ms, ptp_master_offset, ptp_master_drift,
+                                                ptp_master_drift_drift, ptp_master_jitter);
         if (NULL == ptpMaster) {
             std::cerr << "Failed to create PTP master" << std::endl;
             ptpShutdown(ptp);
@@ -428,10 +505,12 @@ int main(int argc, char *argv[]) {
 
     std::cout << "Start main task ..." << std::endl;
     std::chrono::steady_clock::time_point last_status_print = std::chrono::steady_clock::now();
+#ifdef OPTION_ENABLE_XCP
+    // Measurement variables
     uint8_t counter{0};
+    uint64_t clock{0};
+#endif
     while (running) {
-
-        counter++;
 
         if (!ptpTask(ptp))
             running = false;
@@ -440,7 +519,9 @@ int main(int argc, char *argv[]) {
         if (!XcpEthServerStatus())
             running = false;
 
-        DaqEventVar(mainloop, A2L_MEAS(counter, "Local counter variable"));
+        counter++;
+        clock = ApplXcpGetClock64();
+        DaqEventVar(mainloop, A2L_MEAS(counter, "Local counter variable"), A2L_MEAS(clock, "Current XCP clock value"));
 #endif
 
         // Status print
@@ -450,8 +531,8 @@ int main(int argc, char *argv[]) {
                 last_status_print = std::chrono::steady_clock::now();
             }
         }
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        int delay = rand() % 200 + 1; // 1..200 ms
+        std::this_thread::sleep_for(std::chrono::milliseconds(delay));
     } // while running
 
 #ifdef OPTION_ENABLE_PTP_OBSERVER

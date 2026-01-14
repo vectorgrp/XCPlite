@@ -176,8 +176,9 @@ extern "C" {
 void observerPrintState(tPtp *ptp, tPtpObserver *obs);
 bool observerTask(tPtp *ptp);
 bool observerHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr, uint64_t timestamp);
-tPtpObserver *ptpCreateObserver(tPtp *ptp, const char *name, bool active_mode, uint8_t domain, const uint8_t *uuid, const uint8_t *addr);
+struct ptp_observer *ptpCreateObserver(tPtp *interface, const char *name, bool active_mode, uint8_t domain, const uint8_t *uuid, const uint8_t *addr);
 void ptpObserverShutdown(tPtpObserver *obs);
+bool ptpEnableAutoObserver(tPtp *interface, bool active_mode);
 
 #ifdef PTP_OBSERVER_LIST
 bool ptpLoadObserverList(tPtp *ptp, const char *filename, bool active_mode);

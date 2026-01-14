@@ -58,14 +58,13 @@ static const announce_parameters_t announce_params = {
 
 // Master parameter structure
 typedef struct master_params {
-    uint32_t announceCycleTimeMs; // Announce message cycle time in ms
-    uint32_t syncCycleTimeMs;     // SYNC message cycle time in ms
+    uint32_t announce_interval_ms; // Announce message cycle time in ms
+    uint32_t sync_interval_ms;     // SYNC message cycle time in ms
 #ifdef MASTER_TIME_ADJUST
     int32_t drift;       // PTP master time drift in ns/s
     int32_t drift_drift; // PTP master time drift drift in ns/s2
     int32_t offset;      // PTP master time offset in ns
     int32_t jitter;      // PTP master time jitter in ns
-
 #endif
 } tMasterParams;
 
@@ -132,7 +131,8 @@ extern "C" {
 void masterPrintState(tPtp *ptp, int index);
 bool masterTask(tPtp *ptp);
 bool masterHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr, uint64_t rxTimestamp);
-tPtpMaster *ptpCreateMaster(tPtp *ptp, const char *name, uint8_t domain, const uint8_t *uuid);
+tPtpMaster *ptpCreateMaster(tPtp *ptp, const char *name, uint8_t domain, const uint8_t *uuid, uint32_t announce_interval_ms, uint32_t sync_interval_ms, int32_t offset,
+                            int32_t drift, int32_t drift_drift, int32_t jitter);
 void ptpMasterShutdown(tPtpMaster *master);
 
 #ifdef __cplusplus

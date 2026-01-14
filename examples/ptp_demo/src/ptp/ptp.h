@@ -68,15 +68,6 @@ extern "C" {
 
 tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name, bool sync_phc);
 
-#ifdef OPTION_ENABLE_PTP_OBSERVER
-struct ptp_observer *ptpCreateObserver(tPtp *interface, const char *name, bool active_mode, uint8_t domain, const uint8_t *uuid, const uint8_t *addr);
-bool ptpEnableAutoObserver(tPtp *interface, bool active_mode);
-#endif
-
-#ifdef OPTION_ENABLE_PTP_MASTER
-struct ptp_master *ptpCreateMaster(tPtp *interface, const char *name, uint8_t domain, const uint8_t *uuid);
-#endif
-
 bool ptpTask(tPtp *ptp);
 void ptpShutdown(tPtp *ptp);
 void ptpPrintState(tPtp *ptp_handle);
