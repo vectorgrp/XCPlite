@@ -78,7 +78,9 @@ static tPtpClientParameters params = {
 // PTP client clock synchronizer
 
 // Initialize clock synchronizer state
-static void syncInit(tPtpClockSynchronizer *a, tPtpClientParameters *params) {
+static void syncInit(tPtpClockSynchronizer *a, const char *name, tPtpClientParameters *params) {
+
+    a->name = name;
 
     a->cycle_count = 0; // cycle counter
     a->is_sync = false;
@@ -91,6 +93,13 @@ static void syncInit(tPtpClockSynchronizer *a, tPtpClientParameters *params) {
     a->t2_norm = 0;
     a->offset_norm = 0;
 
+    // Results
+    a->offset = 0;
+    a->drift = 0.0;
+    a->drift_drift = 0.0;
+    a->jitter = 0.0;
+
+    // Linear regression filter state
     a->linreg_drift = 0.0;
     a->linreg_offset = 0.0;
     a->linreg_offset_avg = 0.0;
@@ -101,50 +110,55 @@ static void syncInit(tPtpClockSynchronizer *a, tPtpClientParameters *params) {
     average_filter_init(&a->linreg_offset_filter, params->linreg_offset_filter_size);
     average_filter_init(&a->linreg_jitter_filter, params->linreg_jitter_filter_size);
 
+    // Jitter anaylsis state
+    a->jitter = 0.0;
     average_filter_init(&a->jitter_rms_filter, params->jitter_rms_filter_size);
     a->jitter_rms = 0;
     average_filter_init(&a->jitter_avg_filter, params->jitter_avg_filter_size);
     a->jitter_avg = 0;
 }
 
-// Interpolate t1 from t2
+// Interpolate t1 on target clock from t2 on reference clock
 // Function is lock free for fast response
-uint64_t syncInterpolateT1(tPtpClockSynchronizer *a, uint64_t t2) {
+static uint64_t syncInterpolateT1(tPtpClockSynchronizer *a, uint64_t t2) {
     assert(a != NULL);
 
     if (!a->is_sync) {
-        DBG_PRINT_ERROR("PTP client: syncInterpolateT1 called while not synchronized\n");
+        DBG_PRINTF_ERROR("%s: syncInterpolateT1 called while not synchronized\n", a->name);
         return t2;
     }
 
-    int64_t t2_norm = (int64_t)(t2 - a->t2_offset);
-    assert(t2_norm >= 0);
-    int64_t dt = t2_norm - a->t2_norm; // time since last sync update
-    int64_t t1_norm = a->t1_norm + (int64_t)(dt * (1.0 + a->drift / 1.0E9));
+    // Delta time since last sync reference clock
+    int64_t dt2 = (int64_t)(t2 - a->t2);
 
-    return (uint64_t)(t1_norm + a->t1_offset);
+    // Estimate corresponding delta time on target clock using last syncs drift
+    double dt1 = (double)dt2 * (1.0 + a->drift / 1.0E9);
+
+    // Calculate t1 on target clock using last syncs t1 value and its linear regression offset
+    return (uint64_t)(a->t1 + a->linreg_offset + (uint64_t)dt1);
 }
 
-// Update clock synchronizer state with new (t1,t2) timestamp pair
+// Update clock synchronizer state with new (t1 - target clock, t2 - reference clock) timestamp pair
 // For example from PTP SYNC messages:
 // t1 - corrected master timestamp
 // t2 - local clock timestamp
-static void syncUpdate(const char *client_name, const char *analyzer_name, tPtpClockSynchronizer *a, uint64_t t1, uint64_t t2) {
+static void syncUpdate(tPtpClockSynchronizer *a, uint64_t t1, uint64_t t2) {
 
     assert(a != NULL);
 
     a->cycle_count++;
 
+    // Save current original timestamp pair
     a->t1 = t1;
     a->t2 = t2;
 
-    DBG_PRINTF5("  Sync %s %s: t1 = %" PRIu64 ", t2 = %" PRIu64 "\n", client_name, analyzer_name, t1, t2);
+    DBG_PRINTF5("  Sync %s: t1 = %" PRIu64 ", t2 = %" PRIu64 "\n", a->name, t1, t2);
 
     // Master offset raw value
     a->offset_raw = (int64_t)(t1 - t2); // Positive means master is ahead
     DBG_PRINTF5("      offset_raw = %" PRIi64 " ns\n", a->offset_raw);
 
-    // First round, init
+    // First round, init normalization offsets
     if (a->t1_offset == 0 || a->t2_offset == 0) {
 
         a->t1_norm = 0; // corrected sync tx time on master clock
@@ -159,6 +173,10 @@ static void syncUpdate(const char *client_name, const char *analyzer_name, tPtpC
 
     // Analysis
     else {
+
+        uint64_t t2_interpolated_1 = 0, t2_interpolated_2 = 0;
+        if (a->is_sync)
+            t2_interpolated_1 = syncInterpolateT1(a, t2);
 
         // Normalize t1,t2 to first round start values
         // Avoid conversion loss, when using double precision floating point calculations later
@@ -193,7 +211,7 @@ static void syncUpdate(const char *client_name, const char *analyzer_name, tPtpC
             a->linreg_jitter = linreg_offset - a->linreg_offset_avg;
             a->linreg_jitter_avg = average_filter_calc(&a->linreg_jitter_filter, a->linreg_jitter);
 
-            DBG_PRINTF5("  Sync %s %s: Linear regression results at t2 = %lld ns: \n", client_name, analyzer_name, t2_norm);
+            DBG_PRINTF5("  Sync %s: Linear regression results at t2 = %lld ns: \n", a->name, t2_norm);
             DBG_PRINTF5("    linreg drift = %g ns/s\n", a->linreg_drift);
             DBG_PRINTF5("    linreg drift_drift = %g ns/s2\n", a->linreg_drift_drift);
             DBG_PRINTF5("    linreg offset = %g ns\n", a->linreg_offset);
@@ -203,12 +221,14 @@ static void syncUpdate(const char *client_name, const char *analyzer_name, tPtpC
 
             if (a->cycle_count > params.min_sync_cycles) {
                 a->is_sync = true;
-                DBG_PRINTF4("Analyzer %s %s: Sync\n", client_name, analyzer_name);
+                DBG_PRINTF4("Analyzer %s: Sync\n", a->name);
             } else {
-                DBG_PRINTF4("Analyzer %s %s: Warming up\n", client_name, analyzer_name);
+                DBG_PRINTF4("Analyzer %s: Warming up\n", a->name);
             }
         }
 
+        // Update linear regression output values
+        a->offset = (int64_t)a->linreg_offset;  // Offset to current t1
         a->drift = a->linreg_drift;             // Drift in 1000*ppm
         a->drift_drift = a->linreg_drift_drift; // Drift of the drift in 1000*ppm/s*s
         a->jitter = a->linreg_jitter;           // Jitter in ns
@@ -222,15 +242,20 @@ static void syncUpdate(const char *client_name, const char *analyzer_name, tPtpC
         DBG_PRINTF5("      jitter_avg   = %g ns\n", a->jitter_avg);
         DBG_PRINTF5("      jitter_rms   = %g ns\n", a->jitter_rms);
 
-        DBG_PRINTF3("  %s: %s (%u) drift = %g ns/s, drift_drift = %g ns/s2, offset = %g ns, jitter = %g ns\n", analyzer_name, a->is_sync ? "SYNC" : "", a->cycle_count, a->drift,
-                    a->drift_drift, a->linreg_offset, a->jitter);
+        DBG_PRINTF3("  %s: %s (%u) drift = %g ns/s, drift_drift = %g ns/s2, offset = %" PRIi64 " ns, jitter = %g ns\n", a->name, a->is_sync ? "SYNC" : "", a->cycle_count, a->drift,
+                    a->drift_drift, a->offset, a->jitter);
 
         // uint64_t test1 = syncInterpolateT1(a, t2);
         // printf("    Interpolated t1 = %" PRIu64 " ns (diff = %" PRIi64 "), t2 = %" PRIu64 " ns \n", test1, (int64_t)test1 - (int64_t)t1, t2);
 
-        // Remember last normalized input values
+        // Save last normalized input values
         a->t1_norm = t1_norm;
         a->t2_norm = t2_norm;
+
+        if (a->is_sync) {
+            t2_interpolated_2 = syncInterpolateT1(a, t2);
+            DBG_PRINTF3("  %s: Sync gap = %" PRIi64 " ns \n", a->name, (int64_t)(t2_interpolated_1 - t2_interpolated_2));
+        }
     }
 }
 
@@ -264,17 +289,19 @@ static void clientReset(tPtpClient *client) {
     client->delay_resp_logMessageInterval = 0;
 
     // Clock analyzer state
-    syncInit(&client->a12, &params); // Init sync state for t1,t2 SYNC timestamps
-    syncInit(&client->a34, &params); // Init SYNC state for t3,t4 DELAY timestamps
-    syncInit(&client->asw, &params); // Init SYNC state for hw,sw DELAY_REQ timestamps
+    syncInit(&client->a12, "a12", &params); // Init sync state for t1,t2 SYNC timestamps
+    syncInit(&client->a34, "a34", &params); // Init SYNC state for t3,t4 DELAY timestamps
+    syncInit(&client->asw, "asw", &params); // Init SYNC state for hw,sw DELAY_REQ timestamps
 
     // Path delay and master offset
     client->sync_sequenceId_last = 0;
     client->delay_resp_sequenceId_last = 0;
     client->delay_request_burst = 0;
-    client->is_sync = false;    // true if synchronized to grandmaster
-    client->drift = 0.0;        // Current drift in 1000*ppm
-    client->drift_drift = 0.0;  // Current drift of the drift in 1000*ppm/s*s
+    client->is_sync = false; // true if synchronized to grandmaster
+
+    // client->drift = 0.0;        // Current drift in 1000*ppm
+    // client->drift_drift = 0.0;  // Current drift of the drift in 1000*ppm/s*s
+
     client->raw_path_delay = 0; // Current path delay
     client->path_delay = 0;     // Path delay
     average_filter_init(&client->path_delay_avg_filter, params.path_delay_avg_filter_size);
@@ -301,8 +328,9 @@ static bool clientSendDelayRequest(tPtp *ptp, tPtpClient *client) {
             client->delay_req_sequenceId--;
             return false;
         }
+
         // Sync sw to hw time
-        syncUpdate("client", "asw", &client->asw, client->delay_req_local_time, client->delay_req_system_time);
+        syncUpdate(&client->asw, client->delay_req_local_time, client->delay_req_system_time);
     }
 
     return false;
@@ -317,11 +345,11 @@ static void clientSyncUpdate(tPtp *ptp, tPtpClient *client) {
     uint64_t t2 = client->sync_local_time;                                                         // local clock
     uint64_t correction = client->sync_correction;                                                 // for master timestamp t1
 
-    syncUpdate("client", "t12", &client->a12, t1 + correction, t2);
-    if (client->a12.is_sync) {
-        client->drift = client->a12.drift;
-        client->drift_drift = client->a12.drift_drift;
-    }
+    syncUpdate(&client->a12, t1 + correction, t2);
+    // if (client->a12.is_sync) {
+    //     client->drift = client->a12.drift;
+    //     client->drift_drift = client->a12.drift_drift;
+    // }
 }
 
 //---------------------------------------------------------------------------------------
@@ -336,11 +364,11 @@ static void clientDelayUpdate(tPtpClient *client) {
     uint64_t t4 = client->delay_req_master_time;
     uint64_t correction = client->delay_resp_correction; // for master timestamp t4
 
-    syncUpdate("client", "t34", &client->a34, t4 - correction, t3);
-    if (client->a34.is_sync) {
-        client->drift = client->a34.drift;
-        client->drift_drift = client->a34.drift_drift;
-    }
+    syncUpdate(&client->a34, t4 - correction, t3);
+    // if (client->a34.is_sync) {
+    //     client->drift = client->a34.drift;
+    //     client->drift_drift = client->a34.drift_drift;
+    // }
 
     // Update path_delay and master_offset only, when new data from SYNC and DELAY_REQ is available
     assert(t4 > t1);
@@ -369,10 +397,10 @@ static void clientDelayUpdate(tPtpClient *client) {
                t4             t4 = DELAY_RESPONSE master rx timestamp
         */
 
-        if (client->a12.is_sync || client->a34.is_sync) { // Drift available from SYNC or DELAY timestamps
+        if (client->a34.is_sync) { // Drift available from DELAY timestamps
 
             // Drift correction for t4
-            int64_t t4_drift_correction = (int64_t)(t4 - t1) * client->drift / 1.0E9;
+            int64_t t4_drift_correction = (int64_t)(t4 - t1) * client->a34.drift / 1.0E9;
 
             // Calculate mean path delay
             int64_t t21 = ((int64_t)(t2 - t1) - client->sync_correction);
@@ -388,20 +416,23 @@ static void clientDelayUpdate(tPtpClient *client) {
             double linreg_slope = 0.0;
             double linreg_offset = 0.0;
             if (linreg_filter_calc(&client->master_offset_linreg_filter, (double)t3, (double)client->raw_master_offset, &linreg_slope, &linreg_offset)) {
+                DBG_PRINTF4(" Client master offset linear regression at t3 = %llu ns: \n", (unsigned long long)t3);
+                DBG_PRINTF4("    linreg slope = %g\n", linreg_slope);
+                DBG_PRINTF4("    linreg offset = %g ns\n", linreg_offset);
                 client->master_offset = client->raw_master_offset + (int64_t)linreg_offset;
             } else {
                 client->master_offset = client->raw_master_offset;
             }
 
             DBG_PRINTF4("t1=%" PRIu64 " ns, t2=%" PRIu64 " ns, t3=%" PRIu64 " ns, t4=%" PRIu64 " ns, t4_drift_correction=%" PRIi64 " ns\n", t1, t2, t3, t4, t4_drift_correction);
-            DBG_PRINTF3("path delay = %" PRIi64 " ns, master offset = %" PRIi64 " ns, master_drift = %g ppm\n", client->path_delay, client->master_offset, client->drift / 1000.0,
-                        client->drift_drift / 1000, client->a34.jitter_rms);
+            DBG_PRINTF3("path delay = %" PRIi64 " ns, master offset = %" PRIi64 " ns, master_drift = %g ppm\n", client->path_delay, client->master_offset,
+                        client->a34.drift / 1000.0, client->a34.drift_drift / 1000, client->a34.jitter_rms);
 
             // Set synchronized flag if drift and sw->hw sync is available
             if (!client->is_sync && client->asw.is_sync && client->a34.is_sync) {
                 client->is_sync = true;
                 DBG_PRINTF3("PTP clock synchronized ! (path delay = %" PRIi64 " ns, master offset = %" PRIi64 " ns, drift = %g ppm, drift_drift =%g ppm/s, jitter_rms = %g ns)\n",
-                            client->path_delay, client->master_offset, client->drift / 1000.0, client->drift_drift / 1000, client->a34.jitter_rms);
+                            client->path_delay, client->master_offset, client->a34.drift / 1000.0, client->a34.drift_drift / 1000, client->a34.jitter_rms);
             }
         }
     }
@@ -612,7 +643,7 @@ tPtpClient *ptpCreateClient(tPtp *ptp) {
     gPtpClient = (tPtpClient *)malloc(sizeof(tPtpClient));
     memset(gPtpClient, 0, sizeof(tPtpClient));
 
-    // If in active mode , generate a random client UUID
+    // Generate a random client UUID
     // TODO: use MAC address or other unique identifier
     // TODO: Use the same as XCP slave UUID
     for (int i = 0; i < 8; i++) {
@@ -687,7 +718,7 @@ uint64_t ptpClientGetGrandmasterClock() {
     if (last_master_clock != 0 && last_sys_clock != 0) {
         int64_t clock_diff_master = (int64_t)(master_clock - last_master_clock);
         int64_t clock_diff_sys = (int64_t)(sys_clock - last_sys_clock);
-        static const double MAX_PPM = 100; // 100 ppm
+        static const double MAX_PPM = 200; // ppm
         double ppm = (double)llabs(clock_diff_master - clock_diff_sys) / clock_diff_sys * 1e6;
         if (ppm > MAX_PPM) {
             DBG_PRINTF_WARNING("PTP client: ptpClientGetGrandmasterClock: clock difference between grandmaster and system clock is %g ppm > 100 ppm! master diff = %" PRIi64

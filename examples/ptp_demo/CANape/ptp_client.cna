@@ -10,8 +10,8 @@ PrgDate=16.06.2025
 Description=
 CreationTime=12:39
 CreationDate=01/11/2026 ; Month/Day/Year
-ModificationTime=22:33
-ModificationDate=01/13/2026 ; Month/Day/Year
+ModificationTime=19:39
+ModificationDate=01/17/2026 ; Month/Day/Year
 Protected=0
 CurrentWindowsACP=1252
 
@@ -152,10 +152,10 @@ ApplyColorToBackground=0
 ColorFunction=0
 ColorFunctionScope=1
 LineTyp=2
-YMinHome=0.0098
-YMaxHome=0.0103
-YMin=0.007
-YMax=0.012
+YMinHome=0.00998
+YMaxHome=0.01018
+YMin=0.00988
+YMax=0.01028
 XOffsetNS=0
 XOffset=0
 ValueFormat=3
@@ -226,7 +226,7 @@ Count=0
 
 [MEASUREMENT_LIST]
 Count=1
-OfflineFileName=Recorder_2026-01-13_22-31-40.mf4
+OfflineFileName=Recorder_2026-01-17_19-37-51.mf4
 OfflineFileCount=1
 MeaCfgLabellistName=
 
@@ -299,10 +299,10 @@ ApplyColorToBackground=0
 ColorFunction=0
 ColorFunctionScope=1
 LineTyp=2
-YMinHome=0
-YMaxHome=250
-YMin=0
-YMax=250
+YMinHome=-100
+YMaxHome=400
+YMin=-100
+YMax=400
 XOffsetNS=0
 XOffset=0
 ValueFormat=3
@@ -422,12 +422,12 @@ WindowTextExtended=1
 WindowTextExtendedNew=1
 WindowSymbols=1
 GlobalCursor=1
-GlobalCursorTime=6053
-GlobalCursorTimeNs=6053234708
+GlobalCursorTime=3852
+GlobalCursorTimeNs=3852380041
 GlobalTimeAxis=1
 GlobalTimeAxisStartTime=0
-GlobalTimeAxisEndTime=29182554525
-MainWindowPos=1, 1, 1, 2871, 1802 ;cmd, x, y, w, h
+GlobalTimeAxisEndTime=102536970985
+MainWindowPos=2, 0, 0, 1794, 1110 ;cmd, x, y, w, h
 
 [PAR_COMMENT]
 1="Name",""
@@ -450,7 +450,7 @@ ScriptName=
 ScriptName=
 
 [PRINTING]
-ScreenDPI=192
+ScreenDPI=120
 
 [PROFILE_MDF_OBJECT_1]
 Unit=
@@ -624,11 +624,11 @@ Type=65536
 Comment=Multi view window
 Number=1
 GUID=WINDOW_601827a2-ce73-4b93-ae1b-ab27957c0fcd
-ScreenDPIinSection=192
-Position=0, 26, 24, 2274, 1154 ;cmd, x, y, w, h
-Position_dpi96=0, 13, 12, 1137, 577 ;cmd, x, y, w, h
-Position_Page01=0, 26, 24, 2274, 1154 ;cmd, x, y, w, h
-Position_Page01_dpi96=0, 13, 12, 1137, 577 ;cmd, x, y, w, h
+ScreenDPIinSection=120
+Position=0, 16, 0, 1421, 605 ;cmd, x, y, w, h
+Position_dpi96=0, 13, 0, 1137, 484 ;cmd, x, y, w, h
+Position_Page01=0, 16, 0, 1421, 605 ;cmd, x, y, w, h
+Position_Page01_dpi96=0, 13, 0, 1137, 484 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
 DisplayMask=1 ; pages 1
@@ -637,16 +637,16 @@ DisplayMask=1 ; pages 1
 XLen=29961
 XMin=0
 XMinNs=0
-XMax=29182
-XMaxNs=29182554525
+XMax=102536
+XMaxNs=102536970985
 Grid=1
 Mark=1
 YValue=1
 ShowLegend=2
 ShowLegendHeader=1
-LegendPixWidth=260
+LegendPixWidth=163
 LegendPixWidth_dpi96=130
-LegendPixHeight=196
+LegendPixHeight=123
 LegendPixHeight_dpi96=98
 LegendPos=2
 Optimize=1
@@ -656,7 +656,7 @@ XYModeIndexP1=-1
 DisplayModeAuto=0
 XStart=0
 AbsoluteTimeMode=0
-YAxisWidth=178
+YAxisWidth=111
 YAxisWidth_dpi96=89
 RightYAxisWidth=0
 RightYAxisWidth_dpi96=0
@@ -672,7 +672,7 @@ YAxisDynScaleEnabled=0
 YAxisDynScaleEnlarge=25
 TimeStickToZero=0
 XYModeRedrawEnabled=0
-MARKER_TIME_1=6053234708
+MARKER_TIME_1=3852380041
 MARKER_TIME_2=15000000000
 OscilloscopeEnabled=0
 OsciEventCount=0
@@ -683,7 +683,7 @@ Type=1
 Comment=Graphic Window
 Number=2
 GUID=WINDOW_790d30ff-55d5-4410-8ed6-9e072cb02a20
-ScreenDPIinSection=192
+ScreenDPIinSection=120
 Position=0, 0, 0, 0, 0 ;cmd, x, y, w, h
 Position_dpi96=0, 0, 0, 0, 0 ;cmd, x, y, w, h
 Position_Page01=0, 0, 0, 0, 0 ;cmd, x, y, w, h
@@ -699,18 +699,18 @@ TimeAxisTemplate=<default>
 DisplayMask=1 ; pages 1
 
 [WINDOW_2_LEG_COLUMNS]
-ScreenDPIinSection=192
+ScreenDPIinSection=120
 COUNT=2
-COL_0=31, 166
-COL_0_dpi96=31, 83
-COL_1=1048578, 88
+COL_0=31, 103
+COL_0_dpi96=31, 82
+COL_1=1048578, 55
 COL_1_dpi96=1048578, 44
 
 [WINDOW_3]
 ScaleFont=1
 ShowLegend=1
 ShowLegendHeader=0
-LegendPixWidth=224
+LegendPixWidth=140
 LegendPixWidth_dpi96=112
 GridStyle=0
 DisplayColors=1
@@ -721,18 +721,18 @@ ShowActivity=0
 ExceedLimitWarning=0
 OnlyHighlightOnViolation=0
 LegendScrollPos=0
-DotLinePos=163
+DotLinePos=99
 ObjectCount=0
 Title=Numeric {DISPLAYED_FILENAME}
 Type=4
 Comment=Numeric Window
 Number=3
 GUID=WINDOW_55896be2-2d5b-4b0f-8f76-b983cfc24760
-ScreenDPIinSection=192
-Position=0, 68, 778, 786, 200 ;cmd, x, y, w, h
-Position_dpi96=0, 34, 389, 393, 100 ;cmd, x, y, w, h
-Position_Page01=0, 68, 778, 786, 200 ;cmd, x, y, w, h
-Position_Page01_dpi96=0, 34, 389, 393, 100 ;cmd, x, y, w, h
+ScreenDPIinSection=120
+Position=0, 42, 471, 491, 125 ;cmd, x, y, w, h
+Position_dpi96=0, 34, 377, 393, 100 ;cmd, x, y, w, h
+Position_Page01=0, 42, 471, 491, 125 ;cmd, x, y, w, h
+Position_Page01_dpi96=0, 34, 377, 393, 100 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
 LEGEND_HSCROLL_POS=0
@@ -740,9 +740,9 @@ LEGEND_SHARED_COLUMNS=1
 DisplayMask=1 ; pages 1
 
 [WINDOW_3_LEG_COLUMNS]
-ScreenDPIinSection=192
+ScreenDPIinSection=120
 COUNT=1
-COL_0=31, 224
+COL_0=31, 140
 COL_0_dpi96=31, 112
 
 [WINDOW_4]
@@ -750,14 +750,14 @@ ProgID=CNPTRACE.TraceCtrl.1
 PROPERTIES_COUNT=22
 PROPERTY_1=DeviceItems={"CaptureEvents":"1","ShowEvents":"0","NodeCount":"1","Node0":{"DeviceName":"xcp_demo","CaptureEvents":"1","ShowEvents":"1","NodeCount":"3","Node0":{"Channel":"2","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node1":{"Channel":"3","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node2":{"Channel":"4","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"}}}
 PROPERTY_2=NetworkItems={"Items":"0"}
-PROPERTY_3=ColumnConfigs={"ConfigCount":"1","Config0":{"Layout":"1","Name":"Initial","Column0":{"Width":"210","Position":"0","Name":"Time","IsDefaultName":"1"},"Column2":{"Width":"60","Position":"1","Name":"ID","IsDefaultName":"1"},"Column3":{"Width":"90","Position":"2","Name":"Name","IsDefaultName":"1"},"Column5":{"Width":"75","Position":"3","Name":"Dir","IsDefaultName":"1"},"Column6":{"Width":"103","Position":"4","Name":"Length","IsDefaultName":"1"},"Column7":{"Width":"581","Position":"6","Name":"Data","IsDefaultName":"1"},"Column52":{"Width":"719","Position":"5","Name":"Protocol Interpretation","IsDefaultName":"1"}},"Active":"0","ActiveLayout":"1"}
+PROPERTY_3=ColumnConfigs={"ConfigCount":"1","Config0":{"Layout":"1","Name":"Initial","Column0":{"Width":"131","Position":"0","Name":"Time","IsDefaultName":"1"},"Column2":{"Width":"38","Position":"1","Name":"ID","IsDefaultName":"1"},"Column3":{"Width":"56","Position":"2","Name":"Name","IsDefaultName":"1"},"Column5":{"Width":"47","Position":"3","Name":"Dir","IsDefaultName":"1"},"Column6":{"Width":"64","Position":"4","Name":"Length","IsDefaultName":"1"},"Column7":{"Width":"363","Position":"6","Name":"Data","IsDefaultName":"1"},"Column52":{"Width":"449","Position":"5","Name":"Protocol Interpretation","IsDefaultName":"1"}},"Active":"0","ActiveLayout":"1"}
 PROPERTY_4=PinningEvents={"EventCount":"0"}
 PROPERTY_5=ExpandedEvents={"EventCount":"0"}
 PROPERTY_6=AnalysisGroups={"GroupCount":"1","Group0":{"Enabled":"1","Expanded":"1","Name":"Filter Group 0","FilterCount":"2","Filter0":{"Stop":"1","Enabled":"1","ConditionCount":"0"},"Filter1":{"Stop":"0","Enabled":"0","ConditionCount":"0"}}}
 PROPERTY_7=AnalysisDataChangeFilter=0
 PROPERTY_8=SequenceFilters={"IsEnabled":"1","FilterCount":"0"}
 PROPERTY_9=SearchPatterns={"EventCount":"0"}
-PROPERTY_10=ExplorerConfig={"VSplitPos":"300","VSplitExpanded":"true","HSplitPos":"580","HSplitExpanded":"false","ActiveExplorerView":"1","ActiveSearchType":"0"}
+PROPERTY_10=ExplorerConfig={"VSplitPos":"188","VSplitExpanded":"true","HSplitPos":"363","HSplitExpanded":"false","ActiveExplorerView":"1","ActiveSearchType":"0"}
 PROPERTY_11=ContinuousMode=1
 PROPERTY_12=AbsoluteTimeMode=1
 PROPERTY_13=HighPrioritySBClient=0
@@ -775,24 +775,24 @@ ObjectCount=0
 HiddenDisplayCount=0
 TraceChannelCount=2
 ColumnCount=7
-Column_0=0, 210
-Column_1=257, 60
-Column_2=4, 90
-Column_3=1, 75
-Column_4=2, 103
-Column_5=513, 719
-Column_6=3, 581
+Column_0=0, 131
+Column_1=257, 38
+Column_2=4, 56
+Column_3=1, 47
+Column_4=2, 64
+Column_5=513, 449
+Column_6=3, 363
 DeltaTimeEnabled=0
 Title=Trace window {DISPLAYED_FILENAME}
 Type=16384
 Comment=ActiveX Window
 Number=4
 GUID=WINDOW_56cefde2-01ce-4f21-99e0-591611ef9909
-ScreenDPIinSection=192
-Position=0, 26, 556, 2274, 512 ;cmd, x, y, w, h
-Position_dpi96=0, 13, 278, 1137, 256 ;cmd, x, y, w, h
-Position_Page01=0, 26, 556, 2274, 512 ;cmd, x, y, w, h
-Position_Page01_dpi96=0, 13, 278, 1137, 256 ;cmd, x, y, w, h
+ScreenDPIinSection=120
+Position=0, 16, 332, 1421, 320 ;cmd, x, y, w, h
+Position_dpi96=0, 13, 266, 1137, 256 ;cmd, x, y, w, h
+Position_Page01=0, 16, 332, 1421, 320 ;cmd, x, y, w, h
+Position_Page01_dpi96=0, 13, 266, 1137, 256 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
 DisplayMask=1 ; pages 1
@@ -817,22 +817,22 @@ ClearStart=1
 AbsoluteTimeEnabled=0
 ShowGridLines=0
 ColumnCount=3
-Column_0=21, 80
+Column_0=21, 50
 Column_0_dpi96=21, 40
-Column_1=22, 180
+Column_1=22, 112
 Column_1_dpi96=22, 90
-Column_2=23, 1300
+Column_2=23, 812
 Column_2_dpi96=23, 650
 Title=Write
 Type=128
 Comment=Write Window
 Number=5
 GUID=WINDOW_8df4e3b9-d387-49f0-9328-d9901a5bb352
-ScreenDPIinSection=192
-Position=0, 26, 1084, 2274, 306 ;cmd, x, y, w, h
-Position_dpi96=0, 13, 542, 1137, 153 ;cmd, x, y, w, h
-Position_Page01=0, 26, 1084, 2274, 306 ;cmd, x, y, w, h
-Position_Page01_dpi96=0, 13, 542, 1137, 153 ;cmd, x, y, w, h
+ScreenDPIinSection=120
+Position=0, 16, 596, 1421, 156 ;cmd, x, y, w, h
+Position_dpi96=0, 13, 477, 1137, 125 ;cmd, x, y, w, h
+Position_Page01=0, 16, 596, 1421, 156 ;cmd, x, y, w, h
+Position_Page01_dpi96=0, 13, 477, 1137, 125 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
 DisplayMask=1 ; pages 1
@@ -841,16 +841,16 @@ DisplayMask=1 ; pages 1
 XLen=29961
 XMin=0
 XMinNs=0
-XMax=29182
-XMaxNs=29182554525
+XMax=102536
+XMaxNs=102536970985
 Grid=1
 Mark=1
 YValue=1
 ShowLegend=2
 ShowLegendHeader=1
-LegendPixWidth=260
+LegendPixWidth=163
 LegendPixWidth_dpi96=130
-LegendPixHeight=196
+LegendPixHeight=123
 LegendPixHeight_dpi96=98
 LegendPos=2
 Optimize=1
@@ -860,7 +860,7 @@ XYModeIndexP1=-1
 DisplayModeAuto=0
 XStart=0
 AbsoluteTimeMode=0
-YAxisWidth=178
+YAxisWidth=111
 YAxisWidth_dpi96=89
 RightYAxisWidth=0
 RightYAxisWidth_dpi96=0
@@ -876,7 +876,7 @@ YAxisDynScaleEnabled=0
 YAxisDynScaleEnlarge=25
 TimeStickToZero=0
 XYModeRedrawEnabled=0
-MARKER_TIME_1=6053234708
+MARKER_TIME_1=3852380041
 MARKER_TIME_2=15000000000
 OscilloscopeEnabled=0
 OsciEventCount=0
@@ -887,11 +887,11 @@ Type=1
 Comment=Graphic Window
 Number=6
 GUID=WINDOW_69eb898d-16aa-4009-9e16-91cb60d0d3e5
-ScreenDPIinSection=192
-Position=0, 126, 126, 1000, 400 ;cmd, x, y, w, h
-Position_dpi96=0, 63, 63, 500, 200 ;cmd, x, y, w, h
-Position_Page01=0, 126, 126, 1000, 400 ;cmd, x, y, w, h
-Position_Page01_dpi96=0, 63, 63, 500, 200 ;cmd, x, y, w, h
+ScreenDPIinSection=120
+Position=0, 78, 78, 625, 250 ;cmd, x, y, w, h
+Position_dpi96=0, 62, 62, 500, 200 ;cmd, x, y, w, h
+Position_Page01=0, 78, 78, 625, 250 ;cmd, x, y, w, h
+Position_Page01_dpi96=0, 62, 62, 500, 200 ;cmd, x, y, w, h
 FloatingWindow=0
 JointIndex=1
 ShowSignalComments=1
@@ -903,11 +903,11 @@ TimeAxisTemplate=<default>
 DisplayMask=1 ; pages 1
 
 [WINDOW_6_LEG_COLUMNS]
-ScreenDPIinSection=192
+ScreenDPIinSection=120
 COUNT=2
-COL_0=31, 166
-COL_0_dpi96=31, 83
-COL_1=1048578, 88
+COL_0=31, 103
+COL_0_dpi96=31, 82
+COL_1=1048578, 55
 COL_1_dpi96=1048578, 44
 
 [WINDOWS]

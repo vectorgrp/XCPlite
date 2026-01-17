@@ -20,6 +20,7 @@ ALIGNMENT_INT64 1
 
 
 /begin MEASUREMENT counter "Local counter variable" UBYTE NO_COMPU_METHOD 0 0 0 255  ECU_ADDRESS 0x0 ECU_ADDRESS_EXTENSION 3 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT clock "Current XCP clock value" A_UINT64 NO_COMPU_METHOD 0 0 0 1e+12  ECU_ADDRESS 0x0 ECU_ADDRESS_EXTENSION 4 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 
 /* Typedefs */
 /begin RECORD_LAYOUT U8 FNC_VALUES 1 UBYTE ROW_DIR DIRECT /end RECORD_LAYOUT
@@ -65,7 +66,7 @@ ALIGNMENT_INT64 1
 
 
 /* Groups */
-/begin GROUP mainloop "Measurement event group"  /begin REF_MEASUREMENT counter /end REF_MEASUREMENT /end GROUP
+/begin GROUP mainloop "Measurement event group"  /begin REF_MEASUREMENT counter clock /end REF_MEASUREMENT /end GROUP
 /begin GROUP Events "Events" ROOT /begin SUB_GROUP mainloop /end SUB_GROUP /end GROUP
 
 /* Conversions */
@@ -77,7 +78,7 @@ ALIGNMENT_INT64 1
 /end COMPU_VTAB
 
 /begin MOD_PAR ""
-EPK "V1.4.2_client_21_20_54" ADDR_EPK 0x80000000
+EPK "V1.4.2_client_18_30_28" ADDR_EPK 0x80000000
 /end MOD_PAR
 
 

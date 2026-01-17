@@ -58,7 +58,7 @@ constexpr uint8_t PTP_BIND_ADDRESS[4] = {0, 0, 0, 0}; // Default bind to any add
 constexpr const char PTP_INTERFACE[] = "eth0";        // Default network interface
 constexpr int PTP_DOMAIN = 0;                         // Default domain: 0
 constexpr int PTP_MODE = PTP_MODE_CLIENT_ONLY;        // Default observer mode: client only
-constexpr int PTP_LOG_LEVEL = 1;                      // Default log level
+constexpr int PTP_LOG_LEVEL = 3;                      // Default log level
 
 //-----------------------------------------------------------------------------------------------------
 // Logging
@@ -531,7 +531,8 @@ int main(int argc, char *argv[]) {
                 last_status_print = std::chrono::steady_clock::now();
             }
         }
-        int delay = rand() % 200 + 1; // 1..200 ms
+        // int delay = rand() % 200 + 1; // 1..200 ms
+        int delay = 10; // 10 ms
         std::this_thread::sleep_for(std::chrono::milliseconds(delay));
     } // while running
 

@@ -160,7 +160,7 @@ bool ptpSendAnnounce(tPtp *ptp, uint8_t master_domain, const uint8_t *master_uui
     h.u.a.timeSource = announce_params.timeSource;
     l = socketSendTo(ptp->sock320, (uint8_t *)&h, 64, ptp->maddr, 320, NULL);
 
-    if (ptp_log_level >= 3) {
+    if (ptp_log_level >= 4) {
         printf("TX: ANNOUNCE %u %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n", sequenceId, h.clockId[0], h.clockId[1], h.clockId[2], h.clockId[3], h.clockId[4], h.clockId[5],
                h.clockId[6], h.clockId[7]);
     }
@@ -188,7 +188,7 @@ bool ptpSendSync(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid, uint64_t
             return false;
         }
     }
-    if (ptp_log_level >= 3) {
+    if (ptp_log_level >= 4) {
         printf("TX: SYNC %u, tx time = %" PRIu64 "\n", sequenceId, *sync_txTimestamp);
     }
     return true;
@@ -210,7 +210,7 @@ bool ptpSendSyncFollowUp(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid, 
 
     l = socketSendTo(ptp->sock320, (uint8_t *)&h, 44, ptp->maddr, 320, NULL);
 
-    if (ptp_log_level >= 3) {
+    if (ptp_log_level >= 4) {
         char ts[64];
         printf("TX: FLUP %u t1 = %s (%" PRIu64 ")\n", sequenceId, clockGetString(ts, sizeof(ts), t1), t1);
     }
@@ -241,7 +241,7 @@ bool ptpSendDelayResponse(tPtp *ptp, uint8_t domain, const uint8_t *master_uuid,
 
     l = socketSendTo(ptp->sock320, (uint8_t *)&h, 54, ptp->maddr, 320, NULL);
 
-    if (ptp_log_level >= 3) {
+    if (ptp_log_level >= 4) {
         char ts[64];
         struct ptphdr *ptp = &h;
         printf("TX: DELAY_RESP %u to %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X  t4 = %s (%" PRIu64 ")\n", htons(h.sequenceId), ptp->u.r.clockId[0], ptp->u.r.clockId[1],
@@ -271,7 +271,7 @@ bool ptpSendDelayRequest(tPtp *ptp, uint8_t domain, const uint8_t *client_uuid, 
         } else {
             assert(0); // @@@@ assumed that socketGetSendTime is used to get both timestamps
         }
-        if (ptp_log_level >= 3) {
+        if (ptp_log_level >= 4) {
             printf("TX: DELAY_REQ %u, domain=%u, client_uuid=%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X, tx timestamp phc=%" PRIu64 ", sys=%" PRIu64 "\n", sequenceId, domain,
                    client_uuid[0], client_uuid[1], client_uuid[2], client_uuid[3], client_uuid[4], client_uuid[5], client_uuid[6], client_uuid[7], //
                    txHwTime ? *txHwTime : 0, txSwTime ? *txSwTime : 0);
@@ -305,7 +305,7 @@ static void *ptpThread319(void *par)
         n = socketRecvFrom(ptp->sock319, buffer, (uint16_t)sizeof(buffer), addr, NULL, &rxTime);
         if (n <= 0)
             break; // Terminate on error or socket close
-        if (ptp_log_level >= 4)
+        if (ptp_log_level >= 5)
             printFrame("RX", (struct ptphdr *)buffer, addr, rxTime); // Print incoming PTP traffic
 #ifdef OPTION_ENABLE_PTP_CLIENT
         ptpClientHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, rxTime);
@@ -341,7 +341,7 @@ static void *ptpThread320(void *par)
         n = socketRecvFrom(ptp->sock320, buffer, (uint16_t)sizeof(buffer), addr, NULL, NULL);
         if (n <= 0)
             break; // Terminate on error or socket close
-        if (ptp_log_level >= 4)
+        if (ptp_log_level >= 5)
             printFrame("RX", (struct ptphdr *)buffer, addr, 0); // Print incoming PTP traffic
 #ifdef OPTION_ENABLE_PTP_CLIENT
         ptpClientHandleFrame(ptp, n, (struct ptphdr *)buffer, addr, 0);

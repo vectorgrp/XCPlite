@@ -26,7 +26,9 @@ typedef struct ptp_client_master {
 // Clock analyzer state
 typedef struct {
 
-    // PTP client timing analysis state, all values in nanoseconds and per second units
+    const char *name;
+
+        // PTP client timing analysis state, all values in nanoseconds and per second units
     uint32_t cycle_count;
     bool is_sync;                  // true if client has synchronized
     uint64_t t1, t2;               // Current corrected timestamp pair t1 - master clock, t2 - local clock
@@ -35,6 +37,7 @@ typedef struct {
     int64_t t1_norm, t2_norm;      // Normalized timestamp pair t1_norm - master, t2_norm - local clock
     int64_t offset_norm;           // Normalized master offset t1_norm-t2_norm
 
+    // Linear regression filter state
     tLinregFilter linreg_filter; // Linear regression filter for drift and offset calculation
     double linreg_drift;         // Drift by linear regression in 1000*ppm
     double linreg_drift_drift;   // Drift of the drift by linear regression in 1000*ppm/s*s
@@ -46,14 +49,17 @@ typedef struct {
     double linreg_jitter_avg; // Average jitter by linear regression in ns
 
     // Results
+    int64_t offset;     // Linear regression offset to last target clock value
     double drift;       // Drift  in 1000*ppm
     double drift_drift; // Drift of the drift in 1000*ppm/s*s
     double jitter;      // Jitter in ns
 
+    // Jitter anaylsis result and state
     double jitter_rms; // jitter root mean square
     double jitter_avg; // jitter average
     tAverageFilter jitter_rms_filter;
     tAverageFilter jitter_avg_filter;
+
 } tPtpClockSynchronizer;
 
 // Client state
@@ -96,11 +102,14 @@ typedef struct ptp_client {
     uint16_t delay_resp_sequenceId_last; // Last processed DELAY_RESP sequence Id
     uint16_t delay_request_burst;
 
+    // Results
     // Current drift, path delay and master offset
-    bool is_sync;                              // true if synchronized to grandmaster
-    double drift;                              // Current drift in 1000*ppm
-    double drift_drift;                        // Current drift of the drift in 1000*ppm/s*s
-    int64_t raw_path_delay;                    // Current path delay
+    bool is_sync; // true if synchronized to grandmaster
+    // uint64_t offset;        // Linear regression offset to last target clock value
+    double drift; // Current drift in 1000*ppm
+    // double drift_drift;     // Current drift of the drift in 1000*ppm/s*s
+    int64_t raw_path_delay; // Current path delay
+
     int64_t path_delay;                        // Filtered path delay
     tAverageFilter path_delay_avg_filter;      // Average filter for path delay
     int64_t raw_master_offset;                 // Current master offset
