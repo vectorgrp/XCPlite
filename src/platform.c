@@ -1265,16 +1265,18 @@ bool clockInit(void) {
 #endif
 
     __gClock = 0;
+    uint64_t clock = clockGet(); // Initialize ClockGetLast()
 
 #ifdef DBG_LEVEL
     if (DBG_LEVEL >= 3) { // Test
         struct timespec gtr;
         clock_getres(CLOCK_TYPE, &gtr);
         DBG_PRINTF3("  resolution = %ldns!\n", gtr.tv_nsec);
+        char ts[64];
+        clockGetString(ts, sizeof(ts), clock);
+        DBG_PRINTF3("  initial clock = %" PRIu64 " %s\n", clock, ts);
     }
 #endif
-
-    clockGet(); // Initialize ClockGetLast()
     return true;
 }
 

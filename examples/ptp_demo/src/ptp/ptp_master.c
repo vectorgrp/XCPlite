@@ -127,7 +127,7 @@ static void testTimeSync(tPtpMaster *master, uint64_t originTime) {
         return; // Ignore non monotonic time
 
     // Check if drift parameter has changed since last sync
-    assert(master->params->drift >= -100000 && master->params->drift <= +100000);
+    assert(master->params->drift >= -1000000 && master->params->drift <= +1000000);
     if (master->params->drift != master->testTimeDrift) {
         master->testTimeDrift = master->testTimeCurrentDrift = master->params->drift;
         if (ptp_log_level >= 3) {
@@ -367,7 +367,7 @@ void masterInit(tPtp *ptp, tPtpMaster *master, uint8_t domain, const uint8_t *uu
 }
 
 // Master main cycle
-bool masterTask(tPtp *ptp) {
+void masterTask(tPtp *ptp) {
 
     for (int i = 0; i < ptp->master_count; i++) {
         tPtpMaster *master = ptp->master_list[i];
@@ -430,8 +430,6 @@ bool masterTask(tPtp *ptp) {
 #endif
         }
     }
-
-    return true;
 }
 
 //-------------------------------------------------------------------------------------------------------

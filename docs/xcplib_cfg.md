@@ -40,8 +40,8 @@ This section describes the configuration parameters in main_cfg.h.
 
 | Parameter | Description |
 |-----------|-------------|
-| `OPTION_CLOCK_EPOCH_ARB` | Uses arbitrary epoch (CLOCK_MONOTONIC_RAW) for time synchronization |
-| `OPTION_CLOCK_EPOCH_PTP` | Uses PTP epoch (CLOCK_REALTIME) for time synchronization |
+| `OPTION_CLOCK_EPOCH_ARB` | Uses arbitrary epoch (CLOCK_MONOTONIC_RAW on Linux, CLOCK_MONOTONIC on QNX) for DAQ timestamps  |
+| `OPTION_CLOCK_EPOCH_PTP` | Uses PTP epoch (CLOCK_REALTIME which may be disciplined by NTP or PTP4L on Linux) for DAQ timestamps  |
 | `OPTION_CLOCK_TICKS_1NS` | Sets clock resolution to 1 nanosecond |
 | `OPTION_CLOCK_TICKS_1US` | Sets clock resolution to 1 microsecond |
 

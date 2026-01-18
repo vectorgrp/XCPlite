@@ -129,7 +129,7 @@ extern "C" {
 #endif
 
 void masterPrintState(tPtp *ptp, int index);
-bool masterTask(tPtp *ptp);
+void masterTask(tPtp *ptp);
 bool masterHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr, uint64_t rxTimestamp);
 tPtpMaster *ptpCreateMaster(tPtp *ptp, const char *name, uint8_t domain, const uint8_t *uuid, uint32_t announce_interval_ms, uint32_t sync_interval_ms, int32_t offset,
                             int32_t drift, int32_t drift_drift, int32_t jitter);

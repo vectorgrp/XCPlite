@@ -353,10 +353,11 @@ XCPlite relative addressing: XCPLITE__CASDD:
 #error "Please define clock resolution"
 #endif
 
-// PTP support
+// Enable PTP support in XCP
+// Register the necessary callbacks to provide clock, synchronization state and clock info
+// If not registered, the configured DAQ clock will be used, and even if it is disciplined by PTP4L, the clock will be considered unsynchronized
 #define XCP_ENABLE_PTP
 // Default client clock UUID for unsynchronized clocks
-// (implement ApplXcpGetClockInfoGrandmaster to provide actual UUID of PTP synchronized clock)
 #define XCP_DAQ_CLOCK_UUID {0xdc, 0xa6, 0x32, 0xFF, 0xFE, 0x7e, 0x66, 0xdc}
 
 // Enable GET_DAQ_CLOCK_MULTICAST

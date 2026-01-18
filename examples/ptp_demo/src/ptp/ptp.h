@@ -68,7 +68,7 @@ extern "C" {
 
 tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name, bool sync_phc);
 
-bool ptpTask(tPtp *ptp);
+uint8_t ptpTask(tPtp *ptp);
 void ptpShutdown(tPtp *ptp);
 void ptpPrintState(tPtp *ptp_handle);
 

@@ -28,7 +28,7 @@ typedef struct {
 
     const char *name;
 
-        // PTP client timing analysis state, all values in nanoseconds and per second units
+    // PTP client timing analysis state, all values in nanoseconds and per second units
     uint32_t cycle_count;
     bool is_sync;                  // true if client has synchronized
     uint64_t t1, t2;               // Current corrected timestamp pair t1 - master clock, t2 - local clock
@@ -135,6 +135,8 @@ bool ptpClientHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *add
 tPtpClient *ptpCreateClient(tPtp *ptp);
 // Shutdown and free PTP client instance
 void ptpClientShutdown(tPtp *ptp);
+// Print PTP client state
+void ptpClientPrintState(tPtp *ptp);
 
 #ifdef __cplusplus
 }

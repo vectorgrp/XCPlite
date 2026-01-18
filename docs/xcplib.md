@@ -488,7 +488,7 @@ All definitions of instances follow the same principle: Set the addressing mode 
 | `void XcpDisconnect(void);`                                      | Force client disconnect, stop DAQ, flush pending operations.    |
 | `void XcpSendTerminateSessionEvent(void);`                       | Notify client of a terminated session.                          |
 | `void XcpPrint(const char *str);`                                | Send arbitrary text to the client (channel 0xFF).               |
-| `uint64_t ApplXcpGetClock64(void);`                              | Retrieve 64‑bit DAQ timestamp.                                  |
+| `uint64_t ApplXcpGetClock64(void);`                              | Get 64-bit DAQ timestamp from whatever is configured.           |
 
 ---
 

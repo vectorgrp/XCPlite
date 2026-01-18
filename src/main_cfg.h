@@ -47,8 +47,8 @@
 // Clock
 
 // Epoch options (only one must be defined)
-// #define OPTION_CLOCK_EPOCH_ARB    // Arbitrary epoch -> uses CLOCK_MONOTONIC_RAW
-#define OPTION_CLOCK_EPOCH_PTP // Precision Time Protocol epoch -> uses CLOCK_REALTIME
+#define OPTION_CLOCK_EPOCH_ARB // Arbitrary epoch -> uses CLOCK_MONOTONIC_RAW on Linux, CLOCK_MONOTONIC on QNX
+// #define OPTION_CLOCK_EPOCH_PTP // Precision Time Protocol epoch (since 1.1.1970) -> uses CLOCK_REALTIME, which may be disciplined by NTP
 
 // Resolution 1ns or 1us, granularity depends on platform (only one must be defined)
 #define OPTION_CLOCK_TICKS_1NS

@@ -174,7 +174,7 @@ extern "C" {
 #endif
 
 void observerPrintState(tPtp *ptp, tPtpObserver *obs);
-bool observerTask(tPtp *ptp);
+void observerTask(tPtp *ptp);
 bool observerHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr, uint64_t timestamp);
 struct ptp_observer *ptpCreateObserver(tPtp *interface, const char *name, bool active_mode, uint8_t domain, const uint8_t *uuid, const uint8_t *addr);
 void ptpObserverShutdown(tPtpObserver *obs);

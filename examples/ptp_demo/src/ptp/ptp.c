@@ -3,9 +3,10 @@
 |   ptp.c
 |
 | Description:
-|   PTP demo client, observer and master implementation
-|   PTP observer and master with XCP instrumentation
-|   For analyzing PTP masters and testing PTP client stability
+|   Simplified PTP client, observer and master implementation
+|.  1. PTP client to demonstrate PTP support in XCP on Ethernet, does not need write access for frequency adjusting of system or hardware clock devices
+|   2. PTP observer for analyzing PTP master with XCP instrumentation
+|   3. PTP master for testing PTP system stability with XCP tunable parameters
 |   Supports IEEE 1588-2008 PTPv2 over UDP/IPv4 in E2E mode
 |
 |  Code released into public domain, no attribution required
@@ -42,8 +43,9 @@ extern uint8_t ptp_log_level;
 #include "ptp.h"
 
 #include "ptpHdr.h" // PTP protocol message structures
+#ifdef OPTION_ENABLE_PTP_CLIENT
 #include "ptp_client.h"
-
+#endif
 #ifdef OPTION_ENABLE_PTP_MASTER
 #include "ptp_master.h"
 #endif
@@ -500,19 +502,20 @@ tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name, bool sync_
 // This is called from the application on a regular basis
 // Observer: It monitors the status
 // Master: Send SYNC and ANNOUNCE messages
-bool ptpTask(tPtp *ptp) {
+uint8_t ptpTask(tPtp *ptp) {
 
     assert(ptp != NULL && ptp->magic == PTP_MAGIC);
-#ifdef OPTION_ENABLE_PTP_CLIENT
-    ptpClientTask(ptp);
-#endif
 #ifdef OPTION_ENABLE_PTP_MASTER
     masterTask(ptp);
 #endif
 #ifdef OPTION_ENABLE_PTP_OBSERVER
     observerTask(ptp);
 #endif
-    return true;
+#ifdef OPTION_ENABLE_PTP_CLIENT
+    return ptpClientTask(ptp);
+    #else
+    return CLOCK_STATE_SYNCH;
+    #endif
 }
 
 // Stop a PTP interface
@@ -565,6 +568,10 @@ bool ptpEnableAutoObserver(tPtp *ptp, bool active_mode) {
 void ptpPrintState(tPtp *ptp) {
 
     assert(ptp != NULL && ptp->magic == PTP_MAGIC);
+
+#ifdef OPTION_ENABLE_PTP_CLIENT
+    ptpClientPrintState(ptp);
+#endif
 
 #ifdef OPTION_ENABLE_PTP_MASTER
     if (ptp->master_count > 0) {

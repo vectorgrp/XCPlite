@@ -16,6 +16,8 @@
 #include <string>
 #include <thread>
 
+#include "platform.h" // for clockGet
+
 #include "ptp/ptp.h"
 #ifdef OPTION_ENABLE_PTP_CLIENT
 #include "ptp/ptp_client.h"
@@ -450,8 +452,8 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Initialize A2L generation
-    if (!A2lInit(XCP_OPTION_SERVER_ADDR, XCP_OPTION_SERVER_PORT, XCP_OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    // Initialize A2L generation, no parameter persistence
+    if (!A2lInit(XCP_OPTION_SERVER_ADDR, XCP_OPTION_SERVER_PORT, XCP_OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         return 1;
     }
 #endif
@@ -504,36 +506,49 @@ int main(int argc, char *argv[]) {
 #endif
 
     std::cout << "Start main task ..." << std::endl;
-    std::chrono::steady_clock::time_point last_status_print = std::chrono::steady_clock::now();
-#ifdef OPTION_ENABLE_XCP
-    // Measurement variables
+    std::chrono::steady_clock::time_point clock = std::chrono::steady_clock::now();
+    double sys_time = 0.0;
+    uint64_t sys_time_0 = 0;
+    double ptp_time = 0.0;
+    uint64_t ptp_time_0 = 0;
     uint8_t counter{0};
-    uint64_t clock{0};
-#endif
+    int delay_ms = 10;
     while (running) {
 
-        if (!ptpTask(ptp))
-            running = false;
+        counter++;
+
+        // PTP clock and system clock relative to start
+        if (ptpTask(ptp) == CLOCK_STATE_SYNCH) {
+            if (sys_time_0 == 0) {
+                sys_time_0 = clockGet();
+                ptp_time_0 = ptpClientGetClock();
+            } else {
+                ptp_time = (double)(ptpClientGetClock() - ptp_time_0);
+                sys_time = (double)(clockGet() - sys_time_0);
+            }
+        }
 
 #ifdef OPTION_ENABLE_XCP
         if (!XcpEthServerStatus())
             running = false;
 
-        counter++;
-        clock = ApplXcpGetClock64();
-        DaqEventVar(mainloop, A2L_MEAS(counter, "Local counter variable"), A2L_MEAS(clock, "Current XCP clock value"));
+        DaqEventVar(mainloop,                                                                                    //
+                    A2L_MEAS(counter, "Local counter variable"),                                                 //
+                    A2L_MEAS_PHYS(delay_ms, "Loop delay in milliseconds", "ms", 0.0, 1E3),                       //
+                    A2L_MEAS_PHYS(ptp_time, "Current PTP clock value in double ns since start", "ns", 0.0, 1E6), //
+                    A2L_MEAS_PHYS(sys_time, "Current system clock value in double ns since start", "ns", 0.0, 1E6));
 #endif
 
         // Status print
-        if (ptp_log_level == 1 || ptp_log_level == 2) {
-            if (std::chrono::steady_clock::now() - last_status_print >= std::chrono::seconds(1)) {
-                ptpPrintState(ptp);
-                last_status_print = std::chrono::steady_clock::now();
-            }
-        }
-        // int delay = rand() % 200 + 1; // 1..200 ms
-        int delay = 10; // 10 ms
-        std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+        // if (std::chrono::steady_clock::now() - clock >= std::chrono::seconds(1)) {
+        //     ptpPrintState(ptp);
+        //     clock = std::chrono::steady_clock::now();
+        // }
+
+        // delay_ms = rand() % 200 + 1; // 1..200 ms
+        delay_ms = 10; // 10 ms
+        std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
+
     } // while running
 
 #ifdef OPTION_ENABLE_PTP_OBSERVER

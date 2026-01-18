@@ -748,7 +748,7 @@ bool observerHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr
     return true;
 }
 
-bool observerTask(tPtp *ptp) {
+void observerTask(tPtp *ptp) {
 
     for (int i = 0; i < ptp->observer_count; i++) {
         tPtpObserver *obs = ptp->observer_list[i];
@@ -782,8 +782,6 @@ bool observerTask(tPtp *ptp) {
 
         mutexUnlock(&obs->mutex);
     }
-
-    return true;
 }
 
 tPtpObserver *ptpCreateObserver(tPtp *ptp, const char *name, bool active_mode, uint8_t target_domain, const uint8_t *target_uuid, const uint8_t *target_addr) {

@@ -118,8 +118,30 @@ static void syncInit(tPtpClockSynchronizer *a, const char *name, tPtpClientParam
     a->jitter_avg = 0;
 }
 
+// Print synchronizer state
+void syncPrintState(tPtpClockSynchronizer *a) {
+    assert(a != NULL);
+
+    printf("Clock Synchronizer %s state:\n", a->name);
+    printf("  cycle_count = %u\n", a->cycle_count);
+    printf("  is_sync = %s\n", a->is_sync ? "true" : "false");
+    printf("  t1 = %" PRIu64 "\n", a->t1);
+    printf("  t2 = %" PRIu64 "\n", a->t2);
+    printf("  offset_raw = %" PRIi64 "\n", a->offset_raw);
+    printf("  t1_offset = %" PRIu64 "\n", a->t1_offset);
+    printf("  t2_offset = %" PRIu64 "\n", a->t2_offset);
+    printf("  t1_norm = %" PRIi64 "\n", a->t1_norm);
+    printf("  t2_norm = %" PRIi64 "\n", a->t2_norm);
+    printf("  offset_norm = %" PRIi64 "\n", a->offset_norm);
+    printf("  offset = %" PRIi64 "\n", a->offset);
+    printf("  drift = %g\n", a->drift);
+    printf("  drift_drift = %g\n", a->drift_drift);
+    printf("  jitter = %g\n", a->jitter);
+}
+
 // Interpolate t1 on target clock from t2 on reference clock
 // Function is lock free for fast response
+// @@@@ TODO: Thread safety, t2, drift and linreg_offset must be read atomically and consistently
 static uint64_t syncInterpolateT1(tPtpClockSynchronizer *a, uint64_t t2) {
     assert(a != NULL);
 
@@ -254,7 +276,7 @@ static void syncUpdate(tPtpClockSynchronizer *a, uint64_t t1, uint64_t t2) {
 
         if (a->is_sync) {
             t2_interpolated_2 = syncInterpolateT1(a, t2);
-            DBG_PRINTF3("  %s: Sync gap = %" PRIi64 " ns \n", a->name, (int64_t)(t2_interpolated_1 - t2_interpolated_2));
+            DBG_PRINTF4("  %s: Sync gap = %" PRIi64 " ns \n", a->name, (int64_t)(t2_interpolated_1 - t2_interpolated_2));
         }
     }
 }
@@ -426,7 +448,7 @@ static void clientDelayUpdate(tPtpClient *client) {
 
             DBG_PRINTF4("t1=%" PRIu64 " ns, t2=%" PRIu64 " ns, t3=%" PRIu64 " ns, t4=%" PRIu64 " ns, t4_drift_correction=%" PRIi64 " ns\n", t1, t2, t3, t4, t4_drift_correction);
             DBG_PRINTF3("path delay = %" PRIi64 " ns, master offset = %" PRIi64 " ns, master_drift = %g ppm\n", client->path_delay, client->master_offset,
-                        client->a34.drift / 1000.0, client->a34.drift_drift / 1000, client->a34.jitter_rms);
+                        client->a34.drift / 1000.0);
 
             // Set synchronized flag if drift and sw->hw sync is available
             if (!client->is_sync && client->asw.is_sync && client->a34.is_sync) {
@@ -675,74 +697,126 @@ void ptpClientShutdown(tPtp *ptp) {
 
 //---------------------------------------------------------------------------------------
 
+#define ENABLE_CHECKS
+
 // Get grandmaster clock time in nanoseconds
 // If not synchronized, return system clock time
+// @@@@ TODO: Must be thread safe and lock free
 uint64_t ptpClientGetGrandmasterClock() {
-    static uint64_t last_master_clock = 0;
+
+#ifdef ENABLE_CHECKS
+    static uint64_t last_master_clock = 0; // @@@@ TODO: Not thread safe checks, disable for multi threaded use
     static uint64_t last_sys_clock = 0;
     static uint64_t last_client_clock = 0;
+#endif
 
-    // System clock value
+    // Interpolate the current grandmaster clock value from the configured local system clock
+    // This requires the system clock is not discontinuous (e.g. NTP adjustments)
+#if !defined(OPTION_CLOCK_EPOCH_ARB) || !defined(OPTION_CLOCK_TICKS_1NS)
+#error "xcplib clock configuration not supported for ptpClientGetGrandmasterClock()"
+#endif
     uint64_t sys_clock = clockGet();
 
     if (gPtpClient == NULL || !gPtpClient->is_sync) {
-        DBG_PRINT3("PTP client: ptpClientGetGrandmasterClock: Not synchronized to grandmaster\n");
+        DBG_PRINT3("ptpClientGetGrandmasterClock: Not synchronized to grandmaster\n");
         return sys_clock; // Not synchronized, return system clock
     }
 
     assert(gPtpClient->a34.is_sync);
     assert(gPtpClient->asw.is_sync);
 
-    mutexLock(&gPtpClient->mutex); // @@@@ TODO Lock free version needed for fast response
+    // mutexLock(&gPtpClient->mutex); // @@@@ TODO Lock free version needed for fast response
 
-    // Convert system time to local hardware clock
+    // Convert system clock to local hardware clock
     uint64_t client_clock = syncInterpolateT1(&gPtpClient->asw, sys_clock);
 
-    // Check for large drift between local hardware clock and system clock
+// Check for large drift between local hardware clock and system clock
+#ifdef ENABLE_CHECKS
     if (last_client_clock != 0 && last_sys_clock != 0) {
         int64_t clock_diff_client = (int64_t)(client_clock - last_client_clock);
         int64_t clock_diff_sys = (int64_t)(sys_clock - last_sys_clock);
-        static const double MAX_PPM = 100; // 100 ppm
-        double ppm = (double)llabs(clock_diff_client - clock_diff_sys) / clock_diff_sys * 1e6;
-        if (ppm > MAX_PPM) {
-            DBG_PRINTF_WARNING("PTP client: ptpClientGetGrandmasterClock: clock difference between local hw clock and system clock is %g ppm > 100 ppm! hw diff = %" PRIi64
-                               " ns, sys diff = %" PRIi64 " ns\n",
-                               ppm, clock_diff_client, clock_diff_sys);
+        if (clock_diff_client == 0) {
+            DBG_PRINT_WARNING("ptpClientGetGrandmasterClock: Local hardware clock not moving!\n");
+            syncPrintState(&gPtpClient->asw);
+        };
+        if (clock_diff_client > 1000 && clock_diff_sys > 1000) {
+            static const double MAX_PPM = 500; // 100 ppm
+            double ppm = (double)llabs(clock_diff_client - clock_diff_sys) / clock_diff_sys * 1e6;
+            if (ppm > MAX_PPM) {
+                DBG_PRINTF3("ptpClientGetGrandmasterClock: Clock difference between local hw clock and system clock is %g ppm > 100 ppm! hw diff = %" PRIi64
+                            " ns, sys diff = %" PRIi64 " ns\n",
+                            ppm, clock_diff_client, clock_diff_sys);
+            }
         }
     }
+#endif
 
-    // Convert local hardware clock to  to grandmaster clock
-    uint64_t master_clock = syncInterpolateT1(&gPtpClient->a34, client_clock) + gPtpClient->path_delay + gPtpClient->master_offset;
+    // Convert local hardware clock to grandmaster clock
+    uint64_t master_clock = syncInterpolateT1(&gPtpClient->a34, client_clock);
+    master_clock += gPtpClient->path_delay;
+    //+ gPtpClient->master_offset;
 
-    // Check for large drift between grandmaster clock and system clock
+// Check for large drift between grandmaster clock and system clock
+#ifdef ENABLE_CHECKS
     if (last_master_clock != 0 && last_sys_clock != 0) {
         int64_t clock_diff_master = (int64_t)(master_clock - last_master_clock);
         int64_t clock_diff_sys = (int64_t)(sys_clock - last_sys_clock);
-        static const double MAX_PPM = 200; // ppm
-        double ppm = (double)llabs(clock_diff_master - clock_diff_sys) / clock_diff_sys * 1e6;
-        if (ppm > MAX_PPM) {
-            DBG_PRINTF_WARNING("PTP client: ptpClientGetGrandmasterClock: clock difference between grandmaster and system clock is %g ppm > 100 ppm! master diff = %" PRIi64
-                               " ns, sys diff = %" PRIi64 " ns\n",
-                               ppm, clock_diff_master, clock_diff_sys);
+        if (clock_diff_master > 1000 && clock_diff_sys > 1000) {
+            static const double MAX_PPM = 500; // ppm
+            double ppm = (double)llabs(clock_diff_master - clock_diff_sys) / clock_diff_sys * 1e6;
+            if (ppm > MAX_PPM) {
+                DBG_PRINTF3("ptpClientGetGrandmasterClock: Clock difference between grandmaster and system clock is %g ppm > 100 ppm! master diff = %" PRIi64
+                            " ns, sys diff = %" PRIi64 " ns\n",
+                            ppm, clock_diff_master, clock_diff_sys);
+            }
         }
     }
+#endif
 
     // Check for clocks going backwards
     if (master_clock < last_master_clock) {
-        DBG_PRINTF_WARNING("PTP client: ptpClientGetGrandmasterClock: Grandmaster clock went backwards! last = %" PRIu64 ", now = %" PRIu64 "\n", last_master_clock, master_clock);
+        DBG_PRINTF_WARNING("ptpClientGetGrandmasterClock: Grandmaster clock went backwards! last = %" PRIu64 ", now = %" PRIu64 "\n", last_master_clock, master_clock);
     }
     if (sys_clock < last_sys_clock) {
-        DBG_PRINTF_WARNING("PTP client: ptpClientGetGrandmasterClock: System clock went backwards! last = %" PRIu64 ", now = %" PRIu64 "\n", last_sys_clock, sys_clock);
+        DBG_PRINTF_WARNING("ptpClientGetGrandmasterClock: System clock went backwards! last = %" PRIu64 ", now = %" PRIu64 "\n", last_sys_clock, sys_clock);
     }
 
-    mutexUnlock(&gPtpClient->mutex); // @@@@ TODO Lock free version needed for fast response
+    // mutexUnlock(&gPtpClient->mutex); // @@@@ TODO Lock free version needed for fast response
 
+#ifdef ENABLE_CHECKS
     last_master_clock = master_clock;
     last_sys_clock = sys_clock;
     last_client_clock = client_clock;
+#endif
 
-    DBG_PRINTF5("Grandmaster clock = %" PRIu64 ", System clock = %" PRIu64 "\n", master_clock, sys_clock);
+    DBG_PRINTF3("Grandmaster clock = %" PRIu64 ", Client clock = %" PRIu64 ", System clock = %" PRIu64 "\n", master_clock, client_clock, sys_clock);
     return master_clock;
+}
+
+void ptpClientPrintState(tPtp *ptp) {
+    tPtpClient *client = gPtpClient;
+    if (client == NULL) {
+        DBG_PRINT_ERROR("No PTP client instance\n");
+        return;
+    }
+
+    mutexLock(&client->mutex);
+
+    if (client->gmValid) {
+        printf("PTP Client State:\n");
+        printf("  Grandmaster clockId: %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n", client->gm.uuid[0], client->gm.uuid[1], client->gm.uuid[2], client->gm.uuid[3],
+               client->gm.uuid[4], client->gm.uuid[5], client->gm.uuid[6], client->gm.uuid[7]);
+        printf("  Synchronized: %s\n", client->is_sync ? "Yes" : "No");
+        printf("  Path delay: %" PRIi64 " ns\n", client->path_delay);
+        printf("  Master offset: %" PRIi64 " ns\n", client->master_offset);
+        printf("  Master drift: %g ppm\n", client->a34.drift / 1000.0);
+        printf("  Master drift of drift: %g ppm/s\n", client->a34.drift_drift / 1000.0);
+        printf("  Master jitter RMS: %g ns\n", client->a34.jitter_rms);
+    } else {
+        printf("PTP Client State: No grandmaster locked\n");
+    }
+
+    mutexUnlock(&client->mutex);
 }
 
 #endif
