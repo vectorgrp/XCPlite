@@ -75,7 +75,6 @@ void *task(void *p)
 
     bool run = true;
     uint32_t delay_us = 1;
-    uint64_t start_time = clockGetUs(); // Get the start time
 
     // Task local measurement variables on stack
     uint16_t counter = 0;

@@ -173,7 +173,7 @@ int main() {
 
     // Main loop
     std::cout << "Starting main loop..." << std::endl;
-    uint64_t loop_time = clockGetUs();
+    uint64_t loop_time = clockGetMonotonicUs();
     uint64_t last_loop_time = loop_time;
     while (running) {
         // Access the calibration parameters 'delay' and 'counter_max' safely
@@ -190,7 +190,7 @@ int main() {
 
         // Measure and calculate the mainloop cycle time, build histogram
         last_loop_time = loop_time;
-        loop_time = clockGetUs();
+        loop_time = clockGetMonotonicUs();
         loop_cycletime = loop_time - last_loop_time;
         loop_histogram[(loop_cycletime >= (kHistogramBin * (kHistogramSize - 1))) ? (kHistogramSize - 1) : (loop_cycletime / kHistogramBin)]++;
 

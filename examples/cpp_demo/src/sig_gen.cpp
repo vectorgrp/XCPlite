@@ -66,7 +66,7 @@ SignalGenerator::~SignalGenerator() {
 void SignalGenerator::Task() {
 
     double time = 0;
-    double start_time = static_cast<double>(clockGetUs()) / 1000000; // time in s since start of the signal generator
+    double start_time = static_cast<double>(clockGetMonotonicUs()) / 1000000; // time in s since start of the signal generator
 
     // Create a measurement event with individual name 'instance_name_' for each instance of SignalGenerator
     DaqCreateEvent_s(instance_name_);
@@ -83,7 +83,7 @@ void SignalGenerator::Task() {
 
     for (;;) {
 
-        time = static_cast<double>(clockGetUs()) / 1000000 - start_time; // time in s since start of the signal generator
+        time = static_cast<double>(clockGetMonotonicUs()) / 1000000 - start_time; // time in s since start of the signal generator
 
         // Calculate the waveform value based on the current time and signal parameters
         {

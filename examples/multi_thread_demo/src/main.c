@@ -268,7 +268,7 @@ void *task(void *p)
 
     bool run = true;
     uint32_t delay_us = 1000;
-    uint64_t start_time = clockGetUs(); // Get the start time
+    uint64_t start_time = clockGetMonotonicUs(); // Get the start time
 
     // Task local measurement variables on stack
     uint16_t counter = 0;
@@ -314,7 +314,7 @@ void *task(void *p)
                 counter = 0;
             }
 
-            time = (double)(clockGetUs() - start_time) / 1000000;                         // Calculate elapsed time in seconds
+            time = (double)(clockGetMonotonicUs() - start_time) / 1000000;                // Calculate elapsed time in seconds
             double normalized_time = M_2PI * fmod(time, params->period) / params->period; // Normalize time ([0.0..M_2PI[ to the period
             channel1 = params->ampl * sin(normalized_time);                               // Sine wave
             channel2 = params->ampl * ((normalized_time < M_PI) ? 1.0 : -1.0);            // Square wave

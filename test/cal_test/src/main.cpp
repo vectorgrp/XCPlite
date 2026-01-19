@@ -119,7 +119,7 @@ void worker_thread(uint32_t thread_id) {
 
     while (test_running.load(std::memory_order_relaxed)) {
 
-        uint64_t start_time = clockGetNs();
+        uint64_t start_time = clockGetMonotonicNs();
 
         // Lock and read from calibration segment
         {
@@ -150,7 +150,7 @@ void worker_thread(uint32_t thread_id) {
 #endif
         } // unlock calibration segment
 
-        uint64_t read_time_ns = clockGetNs() - start_time;
+        uint64_t read_time_ns = clockGetMonotonicNs() - start_time;
         if (read_time_ns > stats.max_read_time_ns.load(std::memory_order_relaxed)) { // @@@@ Not threads safe, but good enough for max measurement
             stats.max_read_time_ns.store(read_time_ns, std::memory_order_relaxed);
         }

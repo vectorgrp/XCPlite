@@ -355,14 +355,19 @@ bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr);
 
 #endif
 
-// Clock
+// Clock (as used by XCP, epoch and resolution configured in main_cfg.h)
 bool clockInit(void);
 uint64_t clockGet(void);
 uint64_t clockGetLast(void);
-uint64_t clockGetUs(void);
-uint64_t clockGetNs(void);
 char *clockGetString(char *s, uint32_t l, uint64_t c);
 char *clockGetTimeString(char *s, uint32_t l, int64_t c);
+
+// Monotonic system clock in nanoseconds
+uint64_t clockGetMonotonicNs(void);
+// Monotonic system clock in microseconds
+uint64_t clockGetMonotonicUs(void);
+// Realtime system clock in nanoseconds
+uint64_t clockGetRealtimeNs(void);
 
 //-------------------------------------------------------------------------------
 // File system utilities

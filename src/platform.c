@@ -1225,12 +1225,14 @@ Clock types
 #define CLOCK_TYPE CLOCK_MONOTONIC_RAW
 #endif
 #else
-#ifdef _WIN
-#define CLOCK_TYPE CLOCK_TAI
-#else
 #define CLOCK_TYPE CLOCK_REALTIME
 #endif
+#ifdef _QNX
+#define CLOCK_MONOTONIC_TYPE CLOCK_MONOTONIC
+#else
+#define CLOCK_MONOTONIC_TYPE CLOCK_MONOTONIC_RAW
 #endif
+#define CLOCK_REALTIME_TYPE CLOCK_REALTIME
 
 char *clockGetString(char *s, uint32_t l, uint64_t c) {
 
@@ -1290,6 +1292,24 @@ uint64_t clockGet(void) {
     return __gClock = (((uint64_t)(ts.tv_sec) * 1000000ULL) + (uint64_t)(ts.tv_nsec / 1000)); // us
     // return __gClock = (((uint64_t)(ts.tv_sec - gts0.tv_sec) * 1000000ULL) + (uint64_t)(ts.tv_nsec / 1000));
 #endif
+}
+
+uint64_t clockGetMonotonicNs(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC_TYPE, &ts);
+    return (((uint64_t)(ts.tv_sec) * 1000000000ULL) + (uint64_t)(ts.tv_nsec));
+}
+
+uint64_t clockGetMonotonicUs(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC_TYPE, &ts);
+    return (((uint64_t)(ts.tv_sec) * 1000000ULL) + (uint64_t)(ts.tv_nsec / 1000));
+}
+
+uint64_t clockGetRealtimeNs(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME_TYPE, &ts);
+    return (((uint64_t)(ts.tv_sec) * 1000000000ULL) + (uint64_t)(ts.tv_nsec));
 }
 
 #else // Windows
@@ -1437,9 +1457,6 @@ uint64_t clockGet(void) {
 }
 
 #endif // Windows
-
-uint64_t clockGetUs(void) { return clockGet() / CLOCK_TICKS_PER_US; }
-uint64_t clockGetNs(void) { return clockGet(); }
 
 char *clockGetTimeString(char *str, uint32_t l, int64_t t) {
 
