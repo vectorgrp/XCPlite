@@ -796,7 +796,6 @@ uint64_t ptpClientGetGrandmasterClock() {
 void ptpClientPrintState(tPtp *ptp) {
     tPtpClient *client = gPtpClient;
     if (client == NULL) {
-        DBG_PRINT_ERROR("No PTP client instance\n");
         return;
     }
 

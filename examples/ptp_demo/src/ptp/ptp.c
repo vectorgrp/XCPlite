@@ -513,9 +513,9 @@ uint8_t ptpTask(tPtp *ptp) {
 #endif
 #ifdef OPTION_ENABLE_PTP_CLIENT
     return ptpClientTask(ptp);
-    #else
+#else
     return CLOCK_STATE_SYNCH;
-    #endif
+#endif
 }
 
 // Stop a PTP interface
@@ -571,6 +571,7 @@ void ptpPrintState(tPtp *ptp) {
 
 #ifdef OPTION_ENABLE_PTP_CLIENT
     ptpClientPrintState(ptp);
+    printf("\n");
 #endif
 
 #ifdef OPTION_ENABLE_PTP_MASTER
@@ -579,6 +580,7 @@ void ptpPrintState(tPtp *ptp) {
         for (int i = 0; i < ptp->master_count; i++) {
             masterPrintState(ptp, i);
         }
+        printf("\n");
     }
 #endif
 #ifdef OPTION_ENABLE_PTP_OBSERVER

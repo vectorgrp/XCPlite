@@ -110,9 +110,11 @@ static uint64_t testTimeAdjust(tPtpMaster *master, uint64_t originTime) {
         DBG_PRINTF_ERROR("Non monotonic time ! (dt=-%" PRIu64 ")\n", master->testTimeLast - t);
     }
 
-    if (ptp_log_level >= 4) {
-        printf("    testTimeAdjust: originTime=%" PRIu64 " ns, drift_offset=%" PRIi64 " ns, jitter=%" PRIi64 " ns, offset=%d ns => testTime=%" PRIu64 " ns\n", originTime,
-               drift_offset, jitter_offset, master->params->offset, t);
+    if (ptp_log_level >= 5) {
+        if (originTime != t) {
+            printf("    testTimeAdjust: originTime=%" PRIu64 " ns, drift_offset=%" PRIi64 " ns, jitter=%" PRIi64 " ns, offset=%d ns => testTime=%" PRIu64 " ns\n", originTime,
+                   drift_offset, jitter_offset, master->params->offset, t);
+        }
     }
 
     master->testTimeLast = t;

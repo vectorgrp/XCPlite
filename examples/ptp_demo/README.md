@@ -28,6 +28,20 @@ Example:
   ./build/ptp_demo -i en0 -m master -d 1 -u 001AB60000000002
 ```
 
+## PTP client mode
+
+```bash
+
+# Start PTP4L and PHC2SYS in parallel to provide PTP synchronized system realtime clock
+sudo ptp4l -4 -H -i eth0 -s --tx_timestamp_timeout 100 -l 7 -m 
+sudo phc2sys -c CLOCK_REALTIME -s eth0 -w  -l 7 -m
+
+# Use XCP with PTP4L and PHC2SYS synchronized PTP hardware clock
+sudo ./build/ptp_demo -c -i eth0
+
+```
+
+
 
 ## PTP Master
 
@@ -79,7 +93,6 @@ Example: multi observer mode:
 
 
 
-
 # Using ptp_demo time servers
 sudo ./build/ptp_demo -m -i eth0 -d 0
 sudo ./build/ptp_demo -m -i enp4s0 -d 1
@@ -88,6 +101,8 @@ sudo ./build/ptp_demo -m -i enp5s0 -d 2
 # Using ptp4l time servers
 sudo ptp4l -H -i enp4s0  -p /dev/ptp0  -m  --tx_timestamp_timeout=100 --domainNumber=1 -l 7  --verbose=1
 sudo ptp4l -H -i enp5s0  -p /dev/ptp1  -m  --tx_timestamp_timeout=100 --domainNumber=2 -l 7  --verbose=1
+
+
 
 # Other options:
 # --masterOnly=1 (should the same as -m)
@@ -104,6 +119,8 @@ sudo ptp4l -H -i enp5s0  -p /dev/ptp1  -m  --tx_timestamp_timeout=100 --domainNu
 
 # Sync PHC clocks of both interfaces
 sudo phc2sys -s enp4s0 -c enp5s0 -m -l 7 -O 0
+
+
 
 # Run multi observer on a different PC over a PTP transparent network switch to compare both masters
 sudo ./build/ptp_demo

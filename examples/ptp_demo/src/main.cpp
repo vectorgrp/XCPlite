@@ -74,20 +74,20 @@ int ptp_log_level = PTP_LOG_LEVEL;
 // PTP client clock callbacks for XCP
 
 // Get current clock value in nanoseconds
+// Return value is assumed to be from a PTP synchronized clock with ns resolution and PTP or ARB epoch */
 uint64_t ptpClientGetClock(void) {
 
-    /* Return value is clock with
-        Clock timestamp resolution defined in xcp_cfg.h
-        Clock must be monotonic !!!
-    */
-
-#ifdef OPTION_ENABLE_PTP_CLIENT
+    // Use the PTP client clock,instead of the system realtime clock
+#ifdef OPTION_ENABLE_PTP_CLIENT_CLOCK
     if (gPtpClient != NULL) {
+        // Interpolate grandmaster clock from last known offset and drift
         return ptpClientGetGrandmasterClock();
     }
 #endif
 
-    return clockGet();
+    // Return the system realtime clock, which must be synchronized to PTP grandmaster by other means
+    // For example by running a PTP4L and PHC2SYS on Linux
+    return clockGetRealtimeNs();
 }
 
 // Get current clock state
@@ -166,6 +166,9 @@ static void print_usage(const char *prog_name) {
     std::cout << "Usage: " << prog_name << " [options]\n"
               << "Options:\n"
               << "  -i, --interface <name>        Network interface name (default: eth0)\n"
+#ifdef OPTION_ENABLE_PTP_CLIENT
+              << "  -c, --client                  Enable PTP client mode\n"
+#endif
 #ifdef OPTION_ENABLE_PTP_MASTER
               << "  -m, --master                  Creates a PTP master with uuid and domain\n"
               << "      --announce_interval <ms>  Announce interval in ms (default: 1000)\n"
@@ -195,8 +198,11 @@ int main(int argc, char *argv[]) {
     std::string ptp_interface = PTP_INTERFACE;
     int ptp_mode = PTP_MODE;
     int ptp_domain = PTP_DOMAIN;
-    int ptp_active_mode = true;
+    int ptp_client_mode = false;
     uint8_t ptp_uuid[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}; // default create from MAC in ptpCreateMaster
+#ifdef OPTION_ENABLE_PTP_OBSERVER
+    int ptp_passive_mode = false;
+#endif
 #ifdef OPTION_ENABLE_PTP_MASTER
     uint32_t ptp_announce_interval_ms = 0; // use default
     uint32_t ptp_sync_interval_ms = 0;     // use default
@@ -220,8 +226,10 @@ int main(int argc, char *argv[]) {
                 print_usage(argv[0]);
                 return 1;
             }
+        } else if (std::strcmp(argv[i], "-c") == 0 || std::strcmp(argv[i], "--client") == 0) {
+            ptp_client_mode = true;
+            std::cout << "Client mode selected\n";
         }
-
 #ifdef OPTION_ENABLE_PTP_MASTER
         else if (std::strcmp(argv[i], "-m") == 0 || std::strcmp(argv[i], "--master") == 0) {
             ptp_mode = PTP_MODE_MASTER;
@@ -291,9 +299,10 @@ int main(int argc, char *argv[]) {
             ptp_mode = PTP_MODE_AUTO_OBSERVER;
             std::cout << "PTP auto observer mode selected\n";
         } else if (std::strcmp(argv[i], "-p") == 0 || std::strcmp(argv[i], "--passive") == 0) {
-            ptp_active_mode = false;
-            std::cout << "PTP passive observer mode selected\n";
+            ptp_passive_mode = true;
+            std::cout << "Passive observer mode selected\n";
         }
+
 #endif
 
         else if (std::strcmp(argv[i], "-d") == 0 || std::strcmp(argv[i], "--domain") == 0) {
@@ -407,10 +416,10 @@ int main(int argc, char *argv[]) {
     if (XCP_OPTION_PTP) {
 
 #ifdef OPTION_ENABLE_PTP_CLIENT
-        if (ptp_mode != PTP_MODE_MASTER && ptp_mode != PTP_MODE_OBSERVER && ptp_mode != PTP_MODE_AUTO_OBSERVER) {
-            // Create a PTP synchronized clock for XCP
-            // Experimental feature, work in progress
-            // Usually, a PTP disciplined system clock exists and XCP uses the system clock directly
+        if (ptp_client_mode && ptp_mode != PTP_MODE_MASTER && ptp_mode != PTP_MODE_OBSERVER && ptp_mode != PTP_MODE_AUTO_OBSERVER) {
+            // Create a PTP client
+            // To obtain grandmaster and client clock UUID
+            // To test PTP clock synchronization stability
             tPtpClient *obs = ptpCreateClient(ptp);
             if (NULL == obs) {
                 std::cerr << "Failed to create PTP client" << std::endl;
@@ -468,11 +477,11 @@ int main(int argc, char *argv[]) {
 #ifdef PTP_OBSERVER_LIST
         // Preload the observer list from file, to keep the index of known master stable, which leads to a stable A2L file and CANape configurations
         std::cout << "Enable auto observer mode" << std::endl;
-        if (!ptpLoadObserverList(ptp, "ptp_demo_observers.lst", ptp_active_mode)) {
+        if (!ptpLoadObserverList(ptp, "ptp_demo_observers.lst", !ptp_passive_mode)) {
             std::cout << "No observer list loaded" << std::endl;
         }
 #endif
-        ptpEnableAutoObserver(ptp, ptp_active_mode);
+        ptpEnableAutoObserver(ptp, !ptp_passive_mode);
 
     } else if (ptp_mode == PTP_MODE_OBSERVER) {
 
@@ -480,7 +489,7 @@ int main(int argc, char *argv[]) {
         // The PTP observer will listen to a master with ptp_domain, ptp_uuid and any address
         // If multiple masters are present, the first one matching will be selected
         uint8_t ptp_address[4] = {0, 0, 0, 0}; // Listen on all addresses
-        tPtpObserver *obs = ptpCreateObserver(ptp, "Observer1", ptp_active_mode, ptp_domain, ptp_uuid, ptp_address);
+        tPtpObserver *obs = ptpCreateObserver(ptp, "Observer1", !ptp_passive_mode, ptp_domain, ptp_uuid, ptp_address);
         if (NULL == obs) {
             std::cerr << "Failed to create PTP observer" << std::endl;
             ptpShutdown(ptp);
@@ -539,11 +548,13 @@ int main(int argc, char *argv[]) {
                     A2L_MEAS_PHYS(sys_time, "Current system clock value in double ns since start", "ns", 0.0, 1E6));
 #endif
 
-        // Status print
-        // if (std::chrono::steady_clock::now() - clock >= std::chrono::seconds(1)) {
-        //     ptpPrintState(ptp);
-        //     clock = std::chrono::steady_clock::now();
-        // }
+        // Status print every second, in log levels >3 more detailled info are printed inside observer, master and client tasks
+        if (ptp_log_level == 3) {
+            if (std::chrono::steady_clock::now() - clock >= std::chrono::seconds(1)) {
+                ptpPrintState(ptp);
+                clock = std::chrono::steady_clock::now();
+            }
+        }
 
         // delay_ms = rand() % 200 + 1; // 1..200 ms
         delay_ms = 10; // 10 ms
