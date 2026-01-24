@@ -25,11 +25,11 @@ typedef struct average_filter {
     size_t count;                                   // current number of samples in buffer
 } tAverageFilter;
 
-extern void average_filter_init(tAverageFilter *f, size_t size);
-extern tAverageFilterValue average_filter_calc(tAverageFilter *f, tAverageFilterValue v);
-extern size_t average_filter_size(tAverageFilter *f);
-extern size_t average_filter_count(tAverageFilter *f);
-extern void average_filter_add(tAverageFilter *f, tAverageFilterValue offset);
+void average_filter_init(tAverageFilter *f, size_t size);
+tAverageFilterValue average_filter_calc(tAverageFilter *f, tAverageFilterValue v);
+size_t average_filter_size(tAverageFilter *f);
+size_t average_filter_count(tAverageFilter *f);
+void average_filter_add(tAverageFilter *f, tAverageFilterValue offset);
 
 //-------------------------------------------------------------------------------------
 // Linreg filter
@@ -42,14 +42,19 @@ typedef struct linreg_filter {
     size_t size;                      // filter window size (max samples)
     size_t ai;                        // current index in circular buffer
     size_t count;                     // current number of samples in buffer
+
+    // State variables for interpolation
+    double y_out; // last calculated y output value
+    double slope; // last calculated slope
 } tLinregFilter;
 
-extern void linreg_filter_init(tLinregFilter *f, size_t size);
+void linreg_filter_init(tLinregFilter *f, size_t size);
 // slope_out is the calculated slope
 // y_out is the interpolated y value at x (not the intercept!)
-extern bool linreg_filter_calc(tLinregFilter *f, double x, double y, double *slope_out, double *y_out);
-extern size_t linreg_filter_size(tLinregFilter *f);
-extern size_t linreg_filter_count(tLinregFilter *f);
+bool linreg_filter_calc(tLinregFilter *f, double x, double y, double *slope_out, double *y_out);
+bool linreg_filter_compare(tLinregFilter *f1, tLinregFilter *f2, double x, double *slope_diff, double *y_diff);
+size_t linreg_filter_size(tLinregFilter *f);
+size_t linreg_filter_count(tLinregFilter *f);
 
 #ifdef __cplusplus
 }

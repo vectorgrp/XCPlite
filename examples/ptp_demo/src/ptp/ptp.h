@@ -56,6 +56,7 @@ struct ptp {
 #ifdef OPTION_ENABLE_PTP_OBSERVER
     bool auto_observer;
     bool auto_observer_active_mode;
+    uint64_t local_clock_offset;
     int observer_count;
     struct ptp_observer *observer_list[PTP_MAX_OBSERVERS];
 #endif

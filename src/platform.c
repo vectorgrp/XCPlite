@@ -1190,8 +1190,8 @@ uint64_t clockGetLast(void) { return __gClock; }
 /*
 Clock options
 
-    OPTION_CLOCK_EPOCH_ARB      arbitrary epoch
-    OPTION_CLOCK_EPOCH_PTP      since 1.1.1970
+    OPTION_CLOCK_EPOCH_ARB      arbitrary epoch, clock is monotonic, no corrections by NTP, PTP, ...
+    OPTION_CLOCK_EPOCH_PTP      real time clock in ns or us since 1.1.1970
     OPTION_CLOCK_TICKS_1NS      resolution 1ns or 1us, granularity depends on platform
     OPTION_CLOCK_TICKS_1US
 
@@ -1236,18 +1236,18 @@ Clock types
 
 char *clockGetString(char *s, uint32_t l, uint64_t c) {
 
-#ifdef OPTION_CLOCK_EPOCH_ARB
-    SNPRINTF(s, l, "%gs", (double)c / CLOCK_TICKS_PER_S);
-#else
-    time_t t = (time_t)(c / CLOCK_TICKS_PER_S); // s since 1.1.1970
-    struct tm tm;
-    gmtime_r(&t, &tm);
-    uint64_t fns = c % CLOCK_TICKS_PER_S;
+    if (c < 1742965200000000000ULL) { // Don't print time and date, probably non PTP epoch
+        SNPRINTF(s, l, "%gs", (double)c / CLOCK_TICKS_PER_S);
+    } else {
+        time_t t = (time_t)(c / CLOCK_TICKS_PER_S); // s since 1.1.1970
+        struct tm tm;
+        gmtime_r(&t, &tm);
+        uint64_t fns = c % CLOCK_TICKS_PER_S;
 #ifdef OPTION_CLOCK_TICKS_1US
-    fns *= 1000;
+        fns *= 1000;
 #endif
-    SNPRINTF(s, l, "%u.%u.%u %02u:%02u:%02u +%" PRIu64 "ns", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, tm.tm_hour % 24, tm.tm_min, tm.tm_sec, fns);
-#endif
+        SNPRINTF(s, l, "%u.%u.%u %02u:%02u:%02u +%" PRIu64 "ns", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, tm.tm_hour % 24, tm.tm_min, tm.tm_sec, fns);
+    }
     return s;
 }
 
@@ -1321,21 +1321,21 @@ static uint64_t sOffset = 0; // offset
 
 char *clockGetString(char *str, uint32_t l, uint64_t c) {
 
-#ifdef OPTION_CLOCK_EPOCH_ARB
-    SNPRINTF(str, l, "%gs", (double)c / CLOCK_TICKS_PER_S);
-#else
-    uint64_t s = c / CLOCK_TICKS_PER_S;
-    uint64_t ns = c % CLOCK_TICKS_PER_S;
-    if (s < 3600 * 24 * 365 * 30) { // ARB epoch
-        SNPRINTF(str, l, "%" PRIu64 "d%" PRIu64 "h%" PRIu64 "m%" PRIu64 "s+%" PRIu64 "ns", s / (3600 * 24), (s % (3600 * 24)) / 3600, ((s % (3600 * 24)) % 3600) / 60,
-                 ((s % (3600 * 24)) % 3600) % 60, ns);
-    } else { // UNIX epoch
-        struct tm tm;
-        time_t t = s;
-        gmtime_s(&tm, &t);
-        SNPRINTF(str, l, "%u.%u.%u %02u:%02u:%02u +%" PRIu64 "ns", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, tm.tm_hour % 24, tm.tm_min, tm.tm_sec, ns);
+    if (c < 1742965200000000000ULL) { // Don't print time and date, probably non PTP epoch
+        SNPRINTF(str, l, "%gs", (double)c / CLOCK_TICKS_PER_S);
+    } else {
+        uint64_t s = c / CLOCK_TICKS_PER_S;
+        uint64_t ns = c % CLOCK_TICKS_PER_S;
+        if (s < 3600 * 24 * 365 * 30) { // ARB epoch
+            SNPRINTF(str, l, "%" PRIu64 "d%" PRIu64 "h%" PRIu64 "m%" PRIu64 "s+%" PRIu64 "ns", s / (3600 * 24), (s % (3600 * 24)) / 3600, ((s % (3600 * 24)) % 3600) / 60,
+                     ((s % (3600 * 24)) % 3600) % 60, ns);
+        } else { // UNIX epoch
+            struct tm tm;
+            time_t t = s;
+            gmtime_s(&tm, &t);
+            SNPRINTF(str, l, "%u.%u.%u %02u:%02u:%02u +%" PRIu64 "ns", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, tm.tm_hour % 24, tm.tm_min, tm.tm_sec, ns);
+        }
     }
-#endif
     return str;
 }
 

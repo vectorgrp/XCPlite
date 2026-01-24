@@ -65,9 +65,6 @@ constexpr int PTP_LOG_LEVEL = 3;                      // Default log level
 //-----------------------------------------------------------------------------------------------------
 // Logging
 
-#define DBG_LEVEL ptp_log_level
-#include "dbg_print.h" // for DBG_PRINT_ERROR, DBG_PRINTF_WARNING, ...
-
 int ptp_log_level = PTP_LOG_LEVEL;
 
 //-----------------------------------------------------------------------------------------------------
@@ -185,8 +182,8 @@ static void print_usage(const char *prog_name) {
 #endif
               << "  -d, --domain <number>        Domain number 0-255 (default: 0)\n"
               << "  -u, --uuid <hex>             UUID as 16 hex digits (default: 001AB60000000001)\n"
-              << "  -l, --ptp_log_level <level>  Set PTP log level (0..5, default: 1)\n"
-              << "  -x, --xcp_log_level <level>  Set XCP log level (0..5, default: 2)\n"
+              << "  -l, --ptp_log_level <level>  Set PTP log level (3..7, default: 3)\n"
+              << "  -x, --xcp_log_level <level>  Set XCP log level (0..5, default: 2 - errors+warnings)\n"
               << "  -h, --help                   Show this help message\n\n"
               << "Example:\n  " << prog_name << " -i en0 -m master -d 1 -u 001AB60000000002\n";
 }
@@ -326,10 +323,10 @@ int main(int argc, char *argv[]) {
             if (i + 1 < argc) {
                 i++;
                 int log_level = std::atoi(argv[i]);
-                if (log_level >= 0 && log_level <= 5) {
+                if (log_level >= 3 && log_level <= 7) {
                     ptp_log_level = log_level;
                 } else {
-                    std::cerr << "Error: Invalid log level '" << argv[i] << "'. Must be 0-5\n";
+                    std::cerr << "Error: Invalid log level '" << argv[i] << "'. Must be 3-7\n";
                     print_usage(argv[0]);
                     return 1;
                 }
@@ -347,6 +344,12 @@ int main(int argc, char *argv[]) {
                 if (log_level >= 0 && log_level <= 5) {
                     xcp_log_level = log_level;
                 } else {
+                    if (log_level < 2) {
+                        std::cerr << "Warning: XCP log level less than 2 may disable important warnings.\n";
+                    }
+                    if (log_level < 1) {
+                        std::cerr << "Warning: XCP log level 0 disables all logging, including errors.\n";
+                    }
                     std::cerr << "Error: Invalid log level '" << argv[i] << "'. Must be 0-5\n";
                     print_usage(argv[0]);
                     return 1;
@@ -548,8 +551,8 @@ int main(int argc, char *argv[]) {
                     A2L_MEAS_PHYS(sys_time, "Current system clock value in double ns since start", "ns", 0.0, 1E6));
 #endif
 
-        // Status print every second, in log levels >3 more detailled info are printed inside observer, master and client tasks
-        if (ptp_log_level == 3) {
+        // Status print every second, in log levels >=5, more detailed info are printed inside observer, master and client tasks
+        if (ptp_log_level == 3 || ptp_log_level == 4) {
             if (std::chrono::steady_clock::now() - clock >= std::chrono::seconds(1)) {
                 ptpPrintState(ptp);
                 clock = std::chrono::steady_clock::now();

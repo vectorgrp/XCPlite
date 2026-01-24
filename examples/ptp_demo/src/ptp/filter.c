@@ -260,6 +260,9 @@ void linreg_filter_init(tLinregFilter *f, size_t size) {
         f->x[i] = 0;
     for (size_t i = 0; i < LINREG_FILTER_MAX_SIZE; i++)
         f->y[i] = 0;
+
+    f->y_out = 0.0;
+    f->slope = 0.0;
 }
 
 size_t linreg_filter_size(tLinregFilter *f) { return f->size; }
@@ -298,15 +301,63 @@ bool linreg_filter_calc(tLinregFilter *f, double x, double y, double *slope_out,
     double r2 = 0.0;
     double mae = 0.0;
     double mse = 0.0;
-    int res = linreg(x_norm, y_norm, f->count, slope_out, y_out, &r2, &mae, &mse, &rmse);
+    double s = 0.0;
+    double o = 0.0;
+    int res = linreg(x_norm, y_norm, f->count, &s, &o, &r2, &mae, &mse, &rmse);
     if (res < 0) {
         printf("ERROR: linreg failed, error = %d\n", res);
         return false;
     }
+    f->slope = s;
+    f->y_out = o;
+    if (slope_out)
+        *slope_out = s;
+    if (y_out)
+        *y_out = o;
 
     // printf("r2: %f\n", r2);
     // printf("mae: %f\n", mae);
     // printf("mse: %f\n", mse);
     // printf("rmse: %f\n", rmse);
+    return true;
+}
+
+// Compare two linear regression filters at position x
+// slope_diff: difference of slopes f1 - f2
+// y_diff: difference of interpolated y values at x, f1 - f2
+// Assuming that both filters have the same time scale and epoch for x
+bool linreg_filter_compare(tLinregFilter *f1, tLinregFilter *f2, double x, double *slope_diff, double *y_diff) {
+
+    assert(f1 != NULL);
+    assert(f2 != NULL);
+
+    if (f1->count < 3 || f2->count < 3) {
+        return false;
+    }
+
+    // Last inserted point
+    // Use this as reference for interpolation and normalization of y_out
+    size_t i_1 = (f1->ai + f1->size - 1) % f1->size;
+    size_t i_2 = (f2->ai + f2->size - 1) % f2->size;
+    double x_last_1 = f1->x[i_1];
+    double x_last_2 = f2->x[i_2];
+    double y_last_1 = f1->y[i_1];
+    double y_last_2 = f2->y[i_2];
+
+    // Interpolated offset diff at x
+    double y_out_1 = f1->y_out;
+    double y_out_2 = f2->y_out;
+    double slope_1 = f1->slope;
+    double slope_2 = f2->slope;
+    double dx_1 = x - x_last_1;
+    double dx_2 = x - x_last_2;
+    double diff = (y_out_1 + slope_1 * dx_1) - (y_out_2 + slope_2 * dx_2);
+    diff = diff + y_last_1 - y_last_2;
+    if (y_diff)
+        *y_diff = diff;
+
+    // Slope diff
+    if (slope_diff)
+        *slope_diff = slope_1 - slope_2;
     return true;
 }

@@ -34,12 +34,8 @@ typedef struct ptp_observer_parameters {
     uint8_t linreg_filter_size;        // Size of the linear regression filter
     uint8_t linreg_offset_filter_size; // Size of the linear regression offset filter
     uint8_t linreg_jitter_filter_size; // Size of the linear regression jitter filter
-#ifdef OBSERVER_SERVO
-    double max_correction; // Maximum allowed servo correction per SYNC interval
-    double servo_p_gain;   // Proportional gain (typically 0.1 - 0.5)
-#endif
-    uint8_t jitter_rms_filter_size; // Size of the jitter RMS average filter
-    uint8_t jitter_avg_filter_size; // Size of the jitter average filter
+    uint8_t jitter_rms_filter_size;    // Size of the jitter RMS average filter
+    uint8_t jitter_avg_filter_size;    // Size of the jitter average filter
 } tPtpObserverParameters;
 
 //-------------------------------------------------------------------------------------------------------
@@ -57,12 +53,13 @@ typedef struct ptp_clock_analyzer {
 
     // PTP observer timing analysis state, all values in nanoseconds and per second units
     uint32_t cycle_count;
-    bool is_sync;                  // true if observer has synchronized
-    uint64_t t1, t2;               // Current corrected timestamp pair t1 - master clock, t2 - local clock
-    int64_t offset_raw;            // Current offset t1-t2
-    uint64_t t1_offset, t2_offset; // Normalization offsets
-    int64_t t1_norm, t2_norm;      // Normalized timestamp pair t1_norm - master, t2_norm - local clock
-    int64_t offset_norm;           // Normalized master offset t1_norm-t2_norm
+    bool is_sync;       // true if observer has synchronized
+    uint64_t t1, t2;    // Current corrected timestamp pair t1 - master clock, t2 - local clock
+    int64_t offset_raw; // Current offset t1-t2
+    uint64_t t1_offset; // Normalization offsets
+    // Note that with multiple observers, all have the same t2_offset zero point, so their local clock values can be compared among each other
+    uint64_t t2_offset;
+    int64_t t1_norm, t2_norm; // Normalized timestamp pair t1_norm - master, t2_norm - local clock
 
     // Method 1:
     double avg_drift;       // Average filtered drift value
@@ -81,12 +78,6 @@ typedef struct ptp_clock_analyzer {
     tAverageFilter linreg_jitter_filter;
     double linreg_jitter_avg; // Average jitter by linear regression in ns
 
-#ifdef OBSERVER_SERVO
-    double master_offset_compensation;       // normalized master_offset compensation servo offset
-    double master_offset_detrended;          // normalized master_offset error (detrended offset_norm)
-    double master_offset_detrended_filtered; // filtered normalized master_offset error (detrended offset_norm)
-#endif
-
     // Results
     double drift;       // Drift  in 1000*ppm
     double drift_drift; // Drift of the drift in 1000*ppm/s*s
@@ -101,7 +92,8 @@ typedef struct ptp_clock_analyzer {
 // Observer state
 typedef struct ptp_observer {
 
-    char name[32]; // Observer name
+    char name[32];  // Observer name
+    uint16_t index; // Observer index
 
     // Filter master identification
     uint8_t target_domain;
@@ -115,7 +107,7 @@ typedef struct ptp_observer {
 
     // Grandmaster info
     bool gmValid;                 // Grandmaster found and valid
-    uint64_t gm_last_update_time; // Grandmasterlast update time in local clock time
+    uint64_t gm_last_update_time; // Grandmaster last update time in local clock time
     tPtpObserverMaster gm;        // Grandmaster info
 
     // Observer parameters
