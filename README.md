@@ -49,6 +49,7 @@ Multiple examples demonstrating different features are available in the [example
 - `struct_demo` - Nested structs and multidimensional arrays
 - `multi_thread_demo` - Multi-threaded measurement and parameter sharing among threads
 - `point_cloud_demo` - Visualizing dynamic data structures in CANape 3D scene window
+- `ptp4l_demo` - Using a PTP synchronized clock as XCP timestamp source
 - `ptp_demo` - PTP observer and PTP time server with XCP instrumentation
 - `no_a2l_demo` - Workflow without runtime A2L generation (experimental)
 - `bpf_demo` - eBPF based syscall tracing (experimental)

@@ -462,9 +462,9 @@ static bool A2lOpen(void) {
 
     // Start A2L generator
     DBG_PRINTF3("Start A2L generator, file=%s, write_always=%u, finalize_on_connect=%u, auto_groups=%u\n", gA2lFilename, gA2lWriteAlways, gA2lFinalizeOnConnect, gA2lAutoGroups);
-    if (fexists(gA2lFilename)) {
-        DBG_PRINTF_WARNING("A2L filename %s already exists!\n", gA2lFilename);
-    }
+    // if (fexists(gA2lFilename)) {
+    //     DBG_PRINTF_WARNING("A2L filename %s already exists!\n", gA2lFilename);
+    // }
     gA2lFile = fopen(gA2lFilename, "w");
     gA2lTypedefsFile = fopen("typedefs.a2l", "w");
     gA2lGroupsFile = fopen("groups.a2l", "w");

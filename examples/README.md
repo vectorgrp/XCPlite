@@ -70,13 +70,15 @@ Experimental code to demonstrate how to create context and spans using the XCP i
 Demonstrates how to visualize dynamic data structures in the CANape 3D scene window.  
 Creates and measures an array of structures representing 3D points with additional information.
 
+### ptp4l_demo
+
+Demonstrates how to use a PTP (Precision Time Protocol) synchronized clock as XCP data acquisition timestamp source.  
+
 ### ptp_demo
 
-Demonstrates PTP (Precision Time Protocol) support in XCP.  
-
-Includes a PTP observer and PTP time server with XCP instrumentation.  
-The PTP observer listens for PTP messages on the network and separates drift and jitter of the master clock in relation to the observer clock. 
-The PTP master sends SYNC and FOLLOW_UP messages periodically and responds to DELAY_REQUEST messages, while tracking the number of connected PTP clients.  
+A small command line tool which acts as a PTP observer or PTP time server with XCP instrumentation for testing PTP synchronization.  
+The PTP observer listens for PTP messages on the network and separates drift and jitter of the master clock in relation to the observers local clock. 
+The PTP master sends SYNC and FOLLOW_UP messages periodically and responds to DELAY_REQUEST messages, while tracking the number of connected PTP clients. Drift and jitter of the master clock may be modified by XCP, for testing the stability of PTP client clocks. 
 
 
 ### no_a2l_demo

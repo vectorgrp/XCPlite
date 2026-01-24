@@ -210,6 +210,7 @@ EXAMPLE_TARGETS=(
     "multi_thread_demo"
     "point_cloud_demo"
     "no_a2l_demo"
+    "ptp4l_demo"
     "ptp_demo"
 )
 

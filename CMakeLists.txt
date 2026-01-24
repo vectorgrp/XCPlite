@@ -200,6 +200,12 @@ add_executable(multi_thread_demo ${multi_thread_demo_SOURCES})
 target_include_directories(multi_thread_demo PUBLIC "${PROJECT_ROOT}/inc")
 target_link_libraries(multi_thread_demo PRIVATE xcplib)
 
+# Example ptp4l_demo
+set(ptp4l_demo_CPP_SOURCES examples/ptp4l_demo/src/main.cpp)
+add_executable(ptp4l_demo ${ptp4l_demo_CPP_SOURCES})
+target_include_directories(ptp4l_demo PUBLIC "${PROJECT_ROOT}/inc")
+target_link_libraries(ptp4l_demo PRIVATE xcplib)
+
 # Example ptp_demo (main.cpp as C++, rest as C)
 set(ptp_demo_CPP_SOURCES examples/ptp_demo/src/main.cpp)
 set(ptp_demo_C_SOURCES examples/ptp_demo/src/ptp/ptp.c examples/ptp_demo/src/ptp/ptp_client.c examples/ptp_demo/src/ptp/ptp_observer.c examples/ptp_demo/src/ptp/ptp_master.c examples/ptp_demo/src/ptp/filter.c  examples/ptp_demo/src/ptp/phc.c)
