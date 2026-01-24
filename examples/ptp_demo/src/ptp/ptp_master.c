@@ -241,40 +241,6 @@ void masterPrintState(tPtp *ptp, int index) {
     printf("\n");
 }
 
-#if !defined(_MACOS) && !defined(_QNX)
-#include <linux/if_packet.h>
-#else
-#include <ifaddrs.h>
-#include <net/if_dl.h>
-#endif
-#if !defined(_WIN) // Non-Windows platforms
-#include <ifaddrs.h>
-#endif
-
-static bool GetMAC(char *ifname, uint8_t *mac) {
-    struct ifaddrs *ifaddrs, *ifa;
-    if (getifaddrs(&ifaddrs) == 0) {
-        for (ifa = ifaddrs; ifa != NULL; ifa = ifa->ifa_next) {
-            if (!strcmp(ifa->ifa_name, ifname)) {
-#if defined(_MACOS) || defined(_QNX)
-                if (ifa->ifa_addr->sa_family == AF_LINK) {
-                    memcpy(mac, (uint8_t *)LLADDR((struct sockaddr_dl *)ifa->ifa_addr), 6);
-                }
-#else
-                if (ifa->ifa_addr->sa_family == AF_PACKET) {
-                    struct sockaddr_ll *s = (struct sockaddr_ll *)ifa->ifa_addr;
-                    memcpy(mac, s->sll_addr, 6);
-                    break;
-                }
-#endif
-            }
-        }
-        freeifaddrs(ifaddrs);
-        return (ifa != NULL);
-    }
-    return false;
-}
-
 // Initialize the PTP master state
 void masterInit(tPtp *ptp, tPtpMaster *master, uint8_t domain, const uint8_t *uuid) {
 
@@ -282,23 +248,10 @@ void masterInit(tPtp *ptp, tPtpMaster *master, uint8_t domain, const uint8_t *uu
 
     // Generate UUID from MAC address if not provided
     if (uuid == NULL || memcmp(uuid, "\0\0\0\0\0\0\0\0", 8) == 0) {
-        uint8_t mac[6];
-        if (GetMAC(ptp->if_name, mac)) {
-            // Use MAC address to generate UUID (EUI-64 format)
-            master->uuid[0] = mac[0] ^ 0x02; // locally administered
-            master->uuid[1] = mac[1];
-            master->uuid[2] = mac[2];
-            master->uuid[3] = 0xFF;
-            master->uuid[4] = 0xFE;
-            master->uuid[5] = mac[3];
-            master->uuid[6] = mac[4];
-            master->uuid[7] = mac[5];
-        } else {
-            printf("ERROR: Failed to get MAC address for interface %s, using zero UUID\n", ptp->if_name);
+        if (!ptpGenerateLocalClockUUID(ptp->if_name, master->uuid)) {
+            printf("ERROR: Failed to get MAC based for interface %s, using zero UUID\n", ptp->if_name);
             memset(master->uuid, 0, 8);
         }
-    } else {
-        memcpy(master->uuid, uuid, 8);
     }
 
     initClientList(master);

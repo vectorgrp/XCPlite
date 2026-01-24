@@ -106,6 +106,62 @@ static void printFrame(char *prefix, struct ptphdr *ptp_msg, uint8_t *addr, uint
 }
 
 //---------------------------------------------------------------------------------------
+// Generate a clock UUID for a ethernet interface
+
+#if !defined(_MACOS) && !defined(_QNX)
+#include <linux/if_packet.h>
+#else
+#include <ifaddrs.h>
+#include <net/if_dl.h>
+#endif
+#if !defined(_WIN) // Non-Windows platforms
+#include <ifaddrs.h>
+#endif
+
+static bool GetMAC(char *if_name, uint8_t *mac) {
+    struct ifaddrs *ifaddrs, *ifa;
+    if (getifaddrs(&ifaddrs) == 0) {
+        for (ifa = ifaddrs; ifa != NULL; ifa = ifa->ifa_next) {
+            if (!strcmp(ifa->ifa_name, if_name)) {
+#if defined(_MACOS) || defined(_QNX)
+                if (ifa->ifa_addr->sa_family == AF_LINK) {
+                    memcpy(mac, (uint8_t *)LLADDR((struct sockaddr_dl *)ifa->ifa_addr), 6);
+                }
+#else
+                if (ifa->ifa_addr->sa_family == AF_PACKET) {
+                    struct sockaddr_ll *s = (struct sockaddr_ll *)ifa->ifa_addr;
+                    memcpy(mac, s->sll_addr, 6);
+                    break;
+                }
+#endif
+            }
+        }
+        freeifaddrs(ifaddrs);
+        return (ifa != NULL);
+    }
+    return false;
+}
+
+// Use MAC address to generate UUID (EUI-64 format)
+bool ptpGenerateLocalClockUUID(char *if_name, uint8_t *uuid) {
+
+    assert(if_name != NULL && uuid != NULL);
+    uint8_t mac[6];
+    if (GetMAC(if_name, mac)) {
+        uuid[0] = mac[0] ^ 0x02; // locally administered
+        uuid[1] = mac[1];
+        uuid[2] = mac[2];
+        uuid[3] = 0xFF;
+        uuid[4] = 0xFE;
+        uuid[5] = mac[3];
+        uuid[6] = mac[4];
+        uuid[7] = mac[5];
+        return true;
+    }
+    return false;
+}
+
+//---------------------------------------------------------------------------------------
 // PTP message sending
 
 // Init constant values in PTP header

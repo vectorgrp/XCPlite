@@ -68,6 +68,7 @@ extern "C" {
 #endif
 
 tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name, bool sync_phc);
+bool ptpGenerateLocalClockUUID(char *if_name, uint8_t *uuid);
 
 uint8_t ptpTask(tPtp *ptp);
 void ptpShutdown(tPtp *ptp);
