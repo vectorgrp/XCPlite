@@ -74,12 +74,6 @@ Creates and measures an array of structures representing 3D points with addition
 
 Demonstrates how to use a PTP (Precision Time Protocol) synchronized clock as XCP data acquisition timestamp source.  
 
-### ptp_demo
-
-A small command line tool which acts as a PTP observer or PTP time server with XCP instrumentation for testing PTP synchronization.  
-The PTP observer listens for PTP messages on the network and separates drift and jitter of the master clock in relation to the observers local clock. 
-The PTP master sends SYNC and FOLLOW_UP messages periodically and responds to DELAY_REQUEST messages, while tracking the number of connected PTP clients. Drift and jitter of the master clock may be modified by XCP, for testing the stability of PTP client clocks. 
-
 
 ### no_a2l_demo
 

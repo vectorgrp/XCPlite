@@ -1,6 +1,4 @@
-// ptp_demo xcplib example (C++ version)
-// Demonstrates how enable PTP synchronization for the XCP DAQ clock
-// Example can be used as:
+// ptptool
 // PTP observer or PTP master with XCP interface
 // For analyzing PTP masters and testing PTP client stability
 // Supports IEEE 1588-2008 PTPv2 over UDP/IPv4 in E2E mode
@@ -16,15 +14,21 @@
 #include <string>
 #include <thread>
 
-#include "platform.h" // for clockGet
+#include "platform.h" // for clockGetMonotonicNs, clockGetRealtimeNs, clockGet
 
 #include "ptp/ptp.h"
+
+// PTP client clock implementation for debugging XCP PTP support
 #ifdef OPTION_ENABLE_PTP_CLIENT
 #include "ptp/ptp_client.h"
 #endif
+
+// PTP master to test client stability
 #ifdef OPTION_ENABLE_PTP_MASTER
 #include "ptp/ptp_master.h"
 #endif
+
+// PTP observer to monitor multiple PTP masters
 #ifdef OPTION_ENABLE_PTP_OBSERVER
 #include "ptp/ptp_observer.h"
 #endif
@@ -37,8 +41,8 @@
 #include <a2l.hpp>    // for xcplib A2l generation application programming interface
 #include <xcplib.hpp> // for xcplib application programming interface
 
-constexpr const char XCP_OPTION_PROJECT_NAME[] = "ptp_demo";
-constexpr const char XCP_OPTION_PROJECT_VERSION[] = "V1.4.2";
+constexpr const char XCP_OPTION_PROJECT_NAME[] = "ptptool";
+constexpr const char XCP_OPTION_PROJECT_VERSION[] = "V0.0.1";
 constexpr bool XCP_OPTION_USE_TCP = false;
 constexpr uint8_t XCP_OPTION_SERVER_ADDR[4] = {0, 0, 0, 0};
 constexpr uint16_t XCP_OPTION_SERVER_PORT = 5555;
@@ -46,9 +50,8 @@ constexpr size_t XCP_OPTION_QUEUE_SIZE = 1024 * 16;
 constexpr int XCP_OPTION_LOG_LEVEL = 2; // Default XCP log level: 0=none, 1=error, 2=warning, 3=info, 4=XCP protocol debug, 5=very verbose
 
 #define XCP_OPTION_PTP
-uint8_t XCP_GRANDMASTER_UUID[] = {0x68, 0xB9, 0x83, 0xFF, 0xFE, 0x00, 0x8E, 0x9F}; // Example grandmaster UUID
-uint8_t XCP_CLIENT_UUID[] = {0x68, 0xB9, 0x83, 0xFF, 0xFE, 0x00, 0x8E, 0x9F};      // Example client UUID
-
+uint8_t XCP_GRANDMASTER_UUID[] = {0x68, 0xB9, 0x83, 0xFF, 0xFE, 0x00, 0x8E, 0x9F}; // Grandmaster UUID
+uint8_t XCP_CLIENT_UUID[] = {0x68, 0xB9, 0x83, 0xFF, 0xFE, 0x00, 0x8E, 0x9F};      // Local clock UUID
 #endif
 
 //-----------------------------------------------------------------------------------------------------
@@ -493,7 +496,7 @@ int main(int argc, char *argv[]) {
 #ifdef PTP_OBSERVER_LIST
         // Preload the observer list from file, to keep the index of known master stable, which leads to a stable A2L file and CANape configurations
         std::cout << "Enable auto observer mode" << std::endl;
-        if (!ptpLoadObserverList(ptp, "ptp_demo_observers.lst", !ptp_passive_mode)) {
+        if (!ptpLoadObserverList(ptp, "ptptool.obs", !ptp_passive_mode)) {
             std::cout << "No observer list loaded" << std::endl;
         }
 #endif
@@ -582,7 +585,7 @@ int main(int argc, char *argv[]) {
 #ifdef OPTION_ENABLE_XCP
     // Save observer list to file
     if (ptp_mode == PTP_MODE_AUTO_OBSERVER) {
-        if (!ptpSaveObserverList(ptp, "ptp_demo_observers.lst")) {
+        if (!ptpSaveObserverList(ptp, "ptptool.obs")) {
             std::cout << "Failed to save observer list" << std::endl;
         }
     }

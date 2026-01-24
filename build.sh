@@ -211,10 +211,11 @@ EXAMPLE_TARGETS=(
     "point_cloud_demo"
     "no_a2l_demo"
     "ptp4l_demo"
-    "ptp_demo"
+    
 )
 
 TEST_TARGETS=(
+    "ptptool"
     "a2l_test"
     "cal_test"
     "daq_test"

@@ -12,7 +12,7 @@
 // Options
 
 // Enable buildin PTP client clock
-#define OPTION_ENABLE_PTP_CLIENT
+// #define OPTION_ENABLE_PTP_CLIENT
 
 // Enable buildin PTP master
 #define OPTION_ENABLE_PTP_MASTER

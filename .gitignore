@@ -30,10 +30,9 @@ typedefs.a2l
 # Other
 .vscode
 .DS_Store
-/tools/DEBUG_PTP4L.md
-/tools/analyze_ptp4l_flags.sh
-/tools/debug_ptp4l_timestamps.sh
-/tools/instrument_ptp4l.sh
-/tools/ptp4l_debug.patch
-/tools/setup_ptp4l_debug.sh
-/ptp_observers.lst
+/tools/ptptool/DEBUG_PTP4L.md
+/tools/ptptool/analyze_ptp4l_flags.sh
+/tools/ptptool/debug_ptp4l_timestamps.sh
+/tools/ptptool/instrument_ptp4l.sh
+/tools/ptptool/ptp4l_debug.patch
+/tools/ptptool/setup_ptp4l_debug.sh

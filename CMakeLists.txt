@@ -206,13 +206,6 @@ add_executable(ptp4l_demo ${ptp4l_demo_CPP_SOURCES})
 target_include_directories(ptp4l_demo PUBLIC "${PROJECT_ROOT}/inc")
 target_link_libraries(ptp4l_demo PRIVATE xcplib)
 
-# Example ptp_demo (main.cpp as C++, rest as C)
-set(ptp_demo_CPP_SOURCES examples/ptp_demo/src/main.cpp)
-set(ptp_demo_C_SOURCES examples/ptp_demo/src/ptp/ptp.c examples/ptp_demo/src/ptp/ptp_client.c examples/ptp_demo/src/ptp/ptp_observer.c examples/ptp_demo/src/ptp/ptp_master.c examples/ptp_demo/src/ptp/filter.c  examples/ptp_demo/src/ptp/phc.c)
-set_source_files_properties(${ptp_demo_C_SOURCES} PROPERTIES LANGUAGE C)
-add_executable(ptp_demo ${ptp_demo_CPP_SOURCES} ${ptp_demo_C_SOURCES})
-target_include_directories(ptp_demo PUBLIC "${PROJECT_ROOT}/inc")
-target_link_libraries(ptp_demo PRIVATE xcplib)
 
 # Example bpf_demo (only build on Linux with libbpf available)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -231,6 +224,15 @@ endif()
 
 # Tests
 if(BUILD_TEST)
+
+    # ptptool (main.cpp as C++, rest as C)
+    set(ptptool_CPP_SOURCES tools/ptptool/src/main.cpp)
+    set(ptptool_C_SOURCES tools/ptptool/src/ptp/ptp.c tools/ptptool/src/ptp/ptp_client.c tools/ptptool/src/ptp/ptp_observer.c tools/ptptool/src/ptp/ptp_master.c tools/ptptool/src/ptp/filter.c  tools/ptptool/src/ptp/phc.c)
+    set_source_files_properties(${ptptool_C_SOURCES} PROPERTIES LANGUAGE C)
+    add_executable(ptptool ${ptptool_CPP_SOURCES} ${ptptool_C_SOURCES})
+    target_include_directories(ptptool PUBLIC "${PROJECT_ROOT}/inc")
+    target_link_libraries(ptptool PRIVATE xcplib)
+
     # Type detection test (C version)
     add_executable(type_detection_test_c test/type_detection_test/src/main.c test/type_detection_test/src/c_version_test.c)
     target_include_directories(type_detection_test_c PUBLIC "${PROJECT_ROOT}/inc")
@@ -265,7 +267,7 @@ else()
     # Unix/Linux/macOS specific settings
     
     # Link math library 
-    target_link_libraries(ptp_demo PRIVATE m)
+    target_link_libraries(ptptool PRIVATE m)
     target_link_libraries(multi_thread_demo PRIVATE m)
     target_link_libraries(hello_xcp_cpp PRIVATE m)
     target_link_libraries(point_cloud_demo PRIVATE m)

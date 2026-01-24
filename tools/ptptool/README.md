@@ -1,11 +1,10 @@
-# PTP Demo
+# PTP Tool
 
 ## Overview
 
-This demo shows how to use XCP on Ethernet with PTP (Precision Time Protocol) synchronized DAQ timestamps.  
-
-It also implements a simple PTP observer and a basic PTP time server.
-This may be used for analyzing PTP masters and testing PTP client stability.  
+A command line tool which acts as a PTP observer or PTP time server with XCP instrumentation for testing PTP synchronization.  
+The PTP observer listens for PTP messages on the network and separates drift and jitter of the master clock in relation to the observers local clock. 
+The PTP master sends SYNC and FOLLOW_UP messages periodically and responds to DELAY_REQUEST messages, while tracking the number of connected PTP clients. Drift and jitter of the master clock may be modified by XCP, for testing the stability of PTP client clocks. 
 
 Supports IEEE 1588-2008 PTPv2 over UDP/IPv4 in E2E mode.  
 
