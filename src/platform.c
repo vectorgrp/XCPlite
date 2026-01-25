@@ -317,8 +317,10 @@ bool socketOpen(SOCKET *sp, uint16_t flags) {
                          SOF_TIMESTAMPING_SOFTWARE |     // Enable software timestamp generation
                          SOF_TIMESTAMPING_TX_HARDWARE |  // Hardware TX timestamp (if available)
                          SOF_TIMESTAMPING_RX_HARDWARE |  // Hardware RX timestamp (if available)
-                         SOF_TIMESTAMPING_RAW_HARDWARE | // Use raw hardware clock
-                         SOF_TIMESTAMPING_OPT_TSONLY;    // Return only timestamp, not packet data
+                         SOF_TIMESTAMPING_RAW_HARDWARE | // Use raw hardware clock (required for HW timestamps)
+                         SOF_TIMESTAMPING_OPT_TSONLY |   // Return only timestamp, not packet data
+                         // SOF_TIMESTAMPING_OPT_TX_SWHW |  // Generate both SW and HW TX timestamps
+                         0;
         if (setsockopt(*sp, SOL_SOCKET, SO_TIMESTAMPING, &flags, sizeof(flags)) < 0) {
             DBG_PRINTF_ERROR("Failed to enable socket hardware timestamps (SO_TIMESTAMPING, errno=%d)\n", errno);
         } else {
@@ -966,7 +968,7 @@ int16_t socketRecvFrom(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, uint8_
     if (addr)
         memcpy(addr, &src.sin_addr.s_addr, 4);
 
-    DBG_PRINTF5("socketRecvFrom: sock=%d returned n=%u\n", sock, n);
+    DBG_PRINTF5("socketRecvFrom: sock=%d returned n=%u, time =%" PRIu64 "\n", sock, n, time ? *time : 0);
 
     return n;
 }
@@ -1148,6 +1150,7 @@ bool socketGetSendTime(SOCKET sock, uint64_t *hw_time, uint64_t *sw_time) {
         DBG_PRINT_WARNING("socketGetSendTime: No hardware TX timestamp found\n");
     if (sw_time != NULL && *sw_time == 0)
         DBG_PRINT_WARNING("socketGetSendTime: No software TX timestamp found\n");
+
     return false;
 
 #else
@@ -1236,7 +1239,7 @@ Clock types
 
 char *clockGetString(char *s, uint32_t l, uint64_t c) {
 
-    if (c < 1742965200000000000ULL) { // Don't print time and date, probably non PTP epoch
+    if (c < 1000000000000000000ULL) { // Don't print time and date, if too old
         SNPRINTF(s, l, "%gs", (double)c / CLOCK_TICKS_PER_S);
     } else {
         time_t t = (time_t)(c / CLOCK_TICKS_PER_S); // s since 1.1.1970
@@ -1321,7 +1324,7 @@ static uint64_t sOffset = 0; // offset
 
 char *clockGetString(char *str, uint32_t l, uint64_t c) {
 
-    if (c < 1742965200000000000ULL) { // Don't print time and date, probably non PTP epoch
+    if (c < 1000000000000000000ULL) { // Don't print time and date, if too old
         SNPRINTF(str, l, "%gs", (double)c / CLOCK_TICKS_PER_S);
     } else {
         uint64_t s = c / CLOCK_TICKS_PER_S;

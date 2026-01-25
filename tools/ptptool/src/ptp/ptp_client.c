@@ -596,6 +596,7 @@ bool ptpClientHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *add
                 clientReset(client); // Reset client state
                 memcpy(client->gm.addr, addr, 4);
                 memcpy(client->gm.uuid, ptp_msg->clockId, 8);
+                client->gm.domain = ptp_msg->domain;
                 client->gm.a = ptp_msg->u.a;
                 client->gm_last_update_time = clockGet(); // Timeout from now
                 client->gmValid = true;

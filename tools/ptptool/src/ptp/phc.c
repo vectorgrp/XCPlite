@@ -1,7 +1,8 @@
 #include "platform.h" // for _LINUX
 
 // Linux only code, not for MacOS or Windows
-#ifdef _LINUX
+#if 0
+//#ifdef _LINUX
 
 // logging replaced by ptp module logging
 extern uint8_t ptp_log_level;
@@ -55,6 +56,8 @@ extern uint8_t ptp_log_level;
 #include <linux/ethtool.h>
 #include <linux/ptp_clock.h>
 #include <linux/sockios.h>
+
+#include <sys/syscall.h>
 
 #include "phc.h"
 

@@ -131,6 +131,11 @@ static void analyzerUpdate(tPtp *ptp, tPtpObserver *obs, tPtpClockAnalyzer *a, u
         // Normalization global time offset for t2 local clock
         if (ptp->local_clock_offset != 0) {
             a->t2_offset = ptp->local_clock_offset;
+            if (a->t2_offset > t2) {
+                DBG_PRINTF_WARNING("Analyzer %s %s: local_clock_offset > t2! local_clock_offset=%" PRIu64 ", t2=%" PRIu64 ", diff=%" PRIu64 "\n", obs->name,
+                                   a == &obs->a12 ? "a12" : "a34", ptp->local_clock_offset, t2, a->t2_offset - t2);
+                a->t2_offset = ptp->local_clock_offset = t2;
+            }
         } else {
             a->t2_offset = ptp->local_clock_offset = t2;
         }
@@ -151,98 +156,102 @@ static void analyzerUpdate(tPtp *ptp, tPtpObserver *obs, tPtpClockAnalyzer *a, u
         // The largest uint64_t value that can be converted to double without loss of precision is 2^53 (9,007,199,254,740,992).
         int64_t t1_norm = (int64_t)(t1 - a->t1_offset);
         int64_t t2_norm = (int64_t)(t2 - a->t2_offset);
-        assert(t1_norm >= 0 && t2_norm >= 0);                                 // Should never happen
-        assert((t2_norm < 0x20000000000000) && (t1_norm < 0x20000000000000)); // Should never happen (loss of precision after ≈ 104.25 days
-        if (ptp_log_level >= 7)
-            printf("      t1_norm = %" PRIi64 " ns, t2_norm = %" PRIi64 " ns\n", t1_norm, t2_norm);
+        if ((t1_norm >= 0) && (t2_norm >= 0) && (t2_norm < 0x20000000000000) && (t1_norm < 0x20000000000000)) {
 
-        // Calculate cycle time on local (c2) and master clock (c1)
-        int64_t c1 = t1_norm - a->t1_norm; // time since last sync on master clock
-        int64_t c2 = t2_norm - a->t2_norm; // time since last sync on local clock
+            if (ptp_log_level >= 7)
+                printf("      t1_norm = %" PRIi64 " ns, t2_norm = %" PRIi64 " ns\n", t1_norm, t2_norm);
 
-        // Drift and drift of drift calculation by floating average method
-        {
-            int64_t diff = c1 - c2; // Positive diff = master clock faster than local clock
-            double drift = 0.0;
-            double drift_drift = 0.0;
-            if (diff < -200000 || diff > +200000) { // Plausibility checking of cycle drift (max 200us per cycle)
-                DBG_PRINTF_WARNING("WARNING: Master drift too high! dt=%lld ns \n", diff);
-            } else {
-                double drift_raw = (double)diff * 1000000000 / c2;                   // Calculate drift in ppm instead of drift per cycle (drift is in ns/s (1/1000 ppm)
-                double drift = average_filter_calc(&a->avg_drift_filter, drift_raw); // Filter drift
-                a->avg_drift_drift = drift - a->avg_drift;                           // Calculate drift of drift in ns/(s*s) (should be close to zero when temperature is stable )
-                a->avg_drift = drift;
-            }
-            if (ptp_log_level >= 6) {
-                printf("  Analyzer %s %s: Average filter results at t2 = %lld ns: \n", obs->name, a == &obs->a12 ? "a12" : "a34", t2_norm);
-                printf("    avg drift        = %g ns/s\n", a->avg_drift);
-                printf("    avg drift_drift  = %g ns/s2\n", a->avg_drift_drift);
-            }
-        }
+            // Calculate cycle time on local (c2) and master clock (c1)
+            int64_t c1 = t1_norm - a->t1_norm; // time since last sync on master clock
+            int64_t c2 = t2_norm - a->t2_norm; // time since last sync on local clock
 
-        // Drift, drift of drift and jitter calculation by linear regression method
-        // Drift of drift in ns/(s*s) (should be close to zero when temperature is stable )
-        double linreg_slope = 0.0;
-        double linreg_offset = 0.0;
-        if (linreg_filter_calc(&a->linreg_filter, (double)t2_norm, (double)t1_norm, &linreg_slope, &linreg_offset)) {
-            double linreg_drift = (linreg_slope - 1.0) * 1E9;
-            a->linreg_drift_drift = linreg_drift - a->linreg_drift;
-            a->linreg_drift = linreg_drift;
-            a->linreg_offset = linreg_offset;
-            // Jitter is the deviation from the linear regression line at t2 !!!!
-            // While drift of drift is not zero, linreg_offset is not jitter!
-            // Calculate average linreg offset to compensate offset for jitter calculation, avarage of jitter should be zero
-            a->linreg_offset_avg = average_filter_calc(&a->linreg_offset_filter, linreg_offset);
-            a->linreg_jitter = linreg_offset - a->linreg_offset_avg;
-            a->linreg_jitter_avg = average_filter_calc(&a->linreg_jitter_filter, a->linreg_jitter);
-
-            // Use the linear regression results when master is synchronized
-            if (a->is_sync) {
+            // Drift and drift of drift calculation by floating average method
+            {
+                int64_t diff = c1 - c2; // Positive diff = master clock faster than local clock
+                double drift = 0.0;
+                double drift_drift = 0.0;
+                if (diff < -200000 || diff > +200000) { // Plausibility checking of cycle drift (max 200us per cycle)
+                    DBG_PRINTF_WARNING("WARNING: Master drift too high! dt=%lld ns \n", diff);
+                } else {
+                    double drift_raw = (double)diff * 1000000000 / c2;                   // Calculate drift in ppm instead of drift per cycle (drift is in ns/s (1/1000 ppm)
+                    double drift = average_filter_calc(&a->avg_drift_filter, drift_raw); // Filter drift
+                    a->avg_drift_drift = drift - a->avg_drift; // Calculate drift of drift in ns/(s*s) (should be close to zero when temperature is stable )
+                    a->avg_drift = drift;
+                }
                 if (ptp_log_level >= 6) {
-                    printf("  Analyzer %s %s: Linear regression results at t2 = %lld ns: \n", obs->name, a == &obs->a12 ? "a12" : "a34", t2_norm);
-                    printf("    linreg drift = %g ns/s\n", a->linreg_drift);
-                    printf("    linreg drift_drift = %g ns/s2\n", a->linreg_drift_drift);
-                    printf("    linreg offset = %g ns\n", a->linreg_offset);
-                    printf("    linreg offset average = %g ns\n", a->linreg_offset_avg);
-                    printf("    linreg jitter = %g ns\n", a->linreg_jitter);
-                    printf("    linreg jitter average = %g ns\n", a->linreg_jitter_avg);
+                    printf("  Analyzer %s %s: Average filter results at t2 = %lld ns: \n", obs->name, a == &obs->a12 ? "a12" : "a34", t2_norm);
+                    printf("    avg drift        = %g ns/s\n", a->avg_drift);
+                    printf("    avg drift_drift  = %g ns/s2\n", a->avg_drift_drift);
                 }
             }
 
-            else if (a->cycle_count > 8 && fabs(a->linreg_drift_drift) < 5.0) { // @@@@ TODO: parameterize in sync condition
-                a->is_sync = true;
-            } else {
-                if (ptp_log_level >= 4)
-                    printf("Analyzer %s %s: Warming up\n", obs->name, a == &obs->a12 ? "a12" : "a34");
+            // Drift, drift of drift and jitter calculation by linear regression method
+            // Drift of drift in ns/(s*s) (should be close to zero when temperature is stable )
+            double linreg_slope = 0.0;
+            double linreg_offset = 0.0;
+            if (linreg_filter_calc(&a->linreg_filter, (double)t2_norm, (double)t1_norm, &linreg_slope, &linreg_offset)) {
+                double linreg_drift = (linreg_slope - 1.0) * 1E9;
+                a->linreg_drift_drift = linreg_drift - a->linreg_drift;
+                a->linreg_drift = linreg_drift;
+                a->linreg_offset = linreg_offset;
+                // Jitter is the deviation from the linear regression line at t2 !!!!
+                // While drift of drift is not zero, linreg_offset is not jitter!
+                // Calculate average linreg offset to compensate offset for jitter calculation, avarage of jitter should be zero
+                a->linreg_offset_avg = average_filter_calc(&a->linreg_offset_filter, linreg_offset);
+                a->linreg_jitter = linreg_offset - a->linreg_offset_avg;
+                a->linreg_jitter_avg = average_filter_calc(&a->linreg_jitter_filter, a->linreg_jitter);
+
+                // Use the linear regression results when master is synchronized
+                if (a->is_sync) {
+                    if (ptp_log_level >= 6) {
+                        printf("  Analyzer %s %s: Linear regression results at t2 = %lld ns: \n", obs->name, a == &obs->a12 ? "a12" : "a34", t2_norm);
+                        printf("    linreg drift = %g ns/s\n", a->linreg_drift);
+                        printf("    linreg drift_drift = %g ns/s2\n", a->linreg_drift_drift);
+                        printf("    linreg offset = %g ns\n", a->linreg_offset);
+                        printf("    linreg offset average = %g ns\n", a->linreg_offset_avg);
+                        printf("    linreg jitter = %g ns\n", a->linreg_jitter);
+                        printf("    linreg jitter average = %g ns\n", a->linreg_jitter_avg);
+                    }
+                }
+
+                else if (a->cycle_count > 8 && fabs(a->linreg_drift_drift) < 5.0) { // @@@@ TODO: parameterize in sync condition
+                    a->is_sync = true;
+                } else {
+                    if (ptp_log_level >= 4)
+                        printf("Analyzer %s %s: Warming up\n", obs->name, a == &obs->a12 ? "a12" : "a34");
+                }
             }
+
+            a->drift = a->linreg_drift;             // Drift in 1000*ppm
+            a->drift_drift = a->linreg_drift_drift; // Drift of the drift in 1000*ppm/s*s
+            a->jitter = a->linreg_jitter;           // Jitter in ns
+
+            // Jitter analysis
+            a->jitter_avg = average_filter_calc(&a->jitter_avg_filter, a->jitter);                           // Filter jitter
+            a->jitter_rms = sqrt((double)average_filter_calc(&a->jitter_rms_filter, a->jitter * a->jitter)); // Filter jitter and calculate RMS
+            if (ptp_log_level >= 6) {
+                printf("    Jitter analysis:\n");
+                printf("      jitter       = %g ns\n", a->jitter);
+                printf("      jitter_avg   = %g ns\n", a->jitter_avg);
+                printf("      jitter_rms   = %g ns\n", a->jitter_rms);
+            }
+
+            // Remember last normalized input values
+            a->t1_norm = t1_norm; // time on master clock
+            a->t2_norm = t2_norm; // time on slave clock
         }
 
-        a->drift = a->linreg_drift;             // Drift in 1000*ppm
-        a->drift_drift = a->linreg_drift_drift; // Drift of the drift in 1000*ppm/s*s
-        a->jitter = a->linreg_jitter;           // Jitter in ns
-
-        // Jitter analysis
-        a->jitter_avg = average_filter_calc(&a->jitter_avg_filter, a->jitter);                           // Filter jitter
-        a->jitter_rms = sqrt((double)average_filter_calc(&a->jitter_rms_filter, a->jitter * a->jitter)); // Filter jitter and calculate RMS
-        if (ptp_log_level >= 6) {
-            printf("    Jitter analysis:\n");
-            printf("      jitter       = %g ns\n", a->jitter);
-            printf("      jitter_avg   = %g ns\n", a->jitter_avg);
-            printf("      jitter_rms   = %g ns\n", a->jitter_rms);
+        else {
+            // Should never happen (loss of precision after ≈ 104.25 days
+            DBG_PRINTF_WARNING("WARNING: Analyzer %s %s: t1_norm or t2_norm out of range! t1_norm=%" PRIi64 ", t2_norm=%" PRIi64 "\n", obs->name, a == &obs->a12 ? "a12" : "a34",
+                               t1_norm, t2_norm);
         }
-
-        // Remember last normalized input values
-        a->t1_norm = t1_norm; // time on master clock
-        a->t2_norm = t2_norm; // time on slave clock
     }
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------------------------------------------------------
 // Observer
-
-//-----------------------------------------------------------------------------------------------------------------------------------------
-// PTP observer initialization
 
 // Reset the PTP observer state
 static void observerReset(tPtpObserver *obs) {
@@ -287,6 +296,20 @@ static void observerReset(tPtpObserver *obs) {
     obs->gm_last_update_time = clockGet(); // Timeout from now
 }
 
+// Find an observer by name
+static tPtpObserver *ptpFindObserverByName(tPtp *ptp, const char *name) {
+    assert(ptp != NULL);
+    assert(name != NULL);
+
+    for (int i = 0; i < ptp->observer_count; i++) {
+        tPtpObserver *obs = ptp->observer_list[i];
+        if (strcmp(obs->name, name) == 0) {
+            return obs;
+        }
+    }
+    return NULL;
+}
+
 //-----------------------------------------------------------------------------------------------------------------------------------------
 // PTP observer status printing
 
@@ -306,22 +329,34 @@ static void observerPrintMaster(const tPtpObserver *obs) {
 }
 
 // Print the current PTP observer state
-void observerPrintState(tPtp *ptp, tPtpObserver *obs) {
+static void observerPrintState1(tPtp *ptp, tPtpObserver *obs) {
 
     printf("  Observer '%s' (%u):\n", obs->name, obs->a12.cycle_count);
-    if (obs->gmValid) {
 
-        observerPrintMaster(obs);
+    if (!obs->gmValid) {
+        printf("    No active PTP master yet\n");
+        return;
+    }
 
-        char ts[64];
-        uint64_t t1 = obs->sync_master_time;
-        printf("    SYNC t1 = %s (%" PRIu64 ")\n", clockGetString(ts, sizeof(ts), t1), t1);
-        uint64_t t2 = obs->sync_local_time;
-        printf("    SYNC t2 = %s (%" PRIu64 ")\n", clockGetString(ts, sizeof(ts), t2), t2);
-        uint64_t corr = obs->sync_correction;
-        printf("    SYNC correction = %" PRIu64 " ns\n", corr);
+    observerPrintMaster(obs);
 
-        if (ptp_log_level >= 4) {
+    if (obs->sync_steps == 0) {
+        printf("    No SYNC received yet\n");
+        return;
+    }
+
+    // Print SYNC analysis
+    char ts[64];
+    uint64_t t1 = (obs->sync_steps == 1) ? obs->sync_master_time : obs->flup_master_time;
+    printf("    SYNC t1 = %s  (%" PRIu64 ") (steps %u)\n", clockGetString(ts, sizeof(ts), t1), t1, obs->sync_steps);
+    uint64_t t2 = obs->sync_local_time;
+    printf("    SYNC t2 = %s (%" PRIu64 ")\n", clockGetString(ts, sizeof(ts), t2), t2);
+    uint64_t corr = obs->sync_correction;
+    printf("    SYNC correction = %" PRIu64 " ns\n", corr);
+
+    // Print SYNC and DELAY analysis
+    if (ptp_log_level >= 4) {
+        if (obs->activeMode) {
             if (obs->a12.is_sync) {
                 printf("    t12 drift        = %g ns/s\n", obs->a12.drift);
                 printf("    t12 drift_drift  = %g ns/s2\n", obs->a12.drift_drift);
@@ -329,28 +364,31 @@ void observerPrintState(tPtp *ptp, tPtpObserver *obs) {
                 printf("    t12 jitter_avg   = %g ns\n", obs->a12.jitter_avg);
                 printf("    t12 jitter_rms   = %g ns\n", obs->a12.jitter_rms);
             }
-            if (obs->activeMode) {
-                if (obs->a34.is_sync) {
-                    printf("    t34 drift        = %g ns/s\n", obs->a34.drift);
-                    printf("    t34 drift_drift  = %g ns/s2\n", obs->a34.drift_drift);
-                    printf("    t34 jitter       = %g ns\n", obs->a34.jitter);
-                    printf("    t34 jitter_avg   = %g ns\n", obs->a34.jitter_avg);
-                    printf("    t34 jitter_rms   = %g ns\n", obs->a34.jitter_rms);
-                }
+            if (obs->a34.is_sync) {
+                printf("    t34 drift        = %g ns/s\n", obs->a34.drift);
+                printf("    t34 drift_drift  = %g ns/s2\n", obs->a34.drift_drift);
+                printf("    t34 jitter       = %g ns\n", obs->a34.jitter);
+                printf("    t34 jitter_avg   = %g ns\n", obs->a34.jitter_avg);
+                printf("    t34 jitter_rms   = %g ns\n", obs->a34.jitter_rms);
             }
         }
-        if (obs->a12.is_sync || obs->a34.is_sync) {
-            printf("    drift        = %g ns/s\n", obs->master_drift);
-            printf("    drift_drift  = %g ns/s2\n", obs->master_drift_drift);
-            printf("    jitter       = %g ns\n", obs->master_jitter);
-            printf("    jitter_avg   = %g ns\n", obs->master_jitter_avg);
-            printf("    jitter_rms   = %g ns\n", obs->master_jitter_rms);
-        }
-        if (obs->activeMode) {
-            printf("    path_delay     = %" PRIu64 " ns\n", obs->path_delay);
-            printf("    master_offset  = %" PRIi64 " ns\n", obs->master_offset);
-        }
+    } // if ptp_log_level >= 4
 
+    // Print master analysis
+    if (obs->a12.is_sync || obs->a34.is_sync) {
+        printf("    drift        = %g ns/s\n", obs->master_drift);
+        printf("    drift_drift  = %g ns/s2\n", obs->master_drift_drift);
+        printf("    jitter       = %g ns\n", obs->master_jitter);
+        printf("    jitter_avg   = %g ns\n", obs->master_jitter_avg);
+        printf("    jitter_rms   = %g ns\n", obs->master_jitter_rms);
+    }
+    if (obs->activeMode && obs->a34.is_sync) {
+        printf("    path_delay     = %" PRIu64 " ns\n", obs->path_delay);
+        printf("    master_offset  = %" PRIi64 " ns\n", obs->master_offset);
+    }
+
+    // Print observer to observer differences
+    if (ptp_log_level >= 4) {
         for (int j = 0; j < ptp->observer_count; j++) {
             tPtpObserver *obs_other = ptp->observer_list[j];
             if (obs != obs_other && obs_other->gmValid && (obs->drift_to[j] != 0.0 || obs->offset_to[j] != 0)) {
@@ -359,29 +397,99 @@ void observerPrintState(tPtp *ptp, tPtpObserver *obs) {
                 printf("      drift diff: %g ns/s\n", obs->drift_to[j]);
             }
         }
-    } else {
-        printf("    No active PTP master yet\n");
+    } // if ptp_log_level >= 4
+}
+
+void observerPrintState(tPtp *ptp) {
+    assert(ptp != NULL && ptp->magic == PTP_MAGIC);
+    if (ptp->observer_count > 0) {
+        char ts[64];
+        uint64_t t = clockGet();
+        printf("\nPTP Observer States: (Systemtime = %s)\n", clockGetString(ts, sizeof(ts), t));
+        for (int i = 0; i < ptp->observer_count; i++) {
+            observerPrintState1(ptp, ptp->observer_list[i]);
+        }
+        printf("\n");
+
+        // Printf drift matrix
+        if (ptp->observer_count > 1) {
+            printf("PTP Observer Drift Matrix (ns/s):\n             ");
+            for (int j = 0; j < ptp->observer_count; j++) {
+                tPtpObserver *obs_j = ptp->observer_list[j];
+                printf("%12s", obs_j->name);
+            }
+            printf("\n\n");
+            for (int i = 0; i < ptp->observer_count; i++) {
+                tPtpObserver *obs_i = ptp->observer_list[i];
+                printf("%12s", obs_i->name);
+                for (int j = 0; j < ptp->observer_count; j++) {
+                    if (i == j) {
+                        printf("%12s", "-");
+                    } else {
+                        printf("%12.1f", obs_i->drift_to[j]);
+                    }
+                }
+                printf("\n\n");
+            }
+            printf("\n");
+        }
+
+        // Print delay matrix
+        if (ptp->observer_count > 1) {
+            printf("PTP Observer Delay Matrix (ns):\n             ");
+            for (int j = 0; j < ptp->observer_count; j++) {
+                tPtpObserver *obs_j = ptp->observer_list[j];
+                printf("%12s", obs_j->name);
+            }
+            printf("\n\n");
+            for (int i = 0; i < ptp->observer_count; i++) {
+                tPtpObserver *obs_i = ptp->observer_list[i];
+                printf("%12s", obs_i->name);
+                for (int j = 0; j < ptp->observer_count; j++) {
+                    if (i == j) {
+                        printf("%12s", "-");
+                    } else {
+                        printf("%12" PRIi64, obs_i->offset_to[j]);
+                    }
+                }
+                printf("\n\n");
+            }
+            printf("\n");
+        }
     }
 }
 
 //-----------------------------------------------------------------------------------------------------------------------------------------
 // Send delay requests in active mode
+
+#define DELAY_RESP_TIMEOUT 200000000ULL // 200 milliseconds
+
 static bool observerSendDelayRequest(tPtp *ptp, tPtpObserver *obs) {
     assert(ptp != NULL && ptp->magic == PTP_MAGIC);
     assert(obs != NULL);
     assert(obs->gmValid);
     assert(obs->activeMode);
     if (obs->delay_req_sequenceId != obs->delay_resp_sequenceId) {
-        DBG_PRINTF_WARNING("PTP Observer %s: Skipping DELAY_REQ, previous request (seqID=%u) has not been answered yet\n", obs->name, obs->delay_req_sequenceId);
-        return false;
-    } else {
-        // Send a delay request to our grandmaster
-        if (!ptpSendDelayRequest(ptp, obs->gm.domain, obs->client_uuid, ++obs->delay_req_sequenceId, &obs->delay_req_local_time, &obs->delay_req_system_time)) {
-            DBG_PRINTF_ERROR("PTP Observer %s: Failed to send DELAY_REQ\n", obs->name);
-            obs->delay_req_sequenceId--;
+
+        uint64_t now = clockGetMonotonicNs();
+        uint64_t elapsed = now - obs->delay_req_system_time;
+        if (elapsed < DELAY_RESP_TIMEOUT) {
+            DBG_PRINTF_WARNING("PTP Observer %s: Skipping DELAY_REQ, previous request (seqID=%u, elapsed=%" PRIu64 " ms) has not been answered yet\n", obs->name,
+                               obs->delay_req_sequenceId, elapsed / 1000000);
             return false;
+        } else {
+            DBG_PRINTF_WARNING("PTP Observer %s: Previous DELAY_REQ (seqID=%u) timed out after %" PRIu64 " ms, sending new request\n", obs->name, obs->delay_req_sequenceId,
+                               elapsed / 1000000);
         }
     }
+
+    // Send a delay request to our grandmaster
+    if (!ptpSendDelayRequest(ptp, obs->gm.domain, obs->client_uuid, ++obs->delay_req_sequenceId, &obs->delay_req_local_time, NULL)) {
+        DBG_PRINTF_ERROR("PTP Observer %s: Failed to send DELAY_REQ\n", obs->name);
+        obs->delay_req_sequenceId--;
+        return false;
+    }
+    obs->delay_req_system_time = clockGetMonotonicNs(); // Remember monotonic system time for timeout calculation
 
     return false;
 }
@@ -445,10 +553,9 @@ static void observerSyncUpdate(tPtp *ptp, tPtpObserver *obs) {
                     if (obs_other->gmValid && obs_other->a12.is_sync) {
                         double delta_t2 = (int64_t)(obs->a12.t2 - obs_other->a12.t2); // local clock time scale
 
-                        // if (delta_t2 > cycle_time / 2) {
-                        //     // Don't calculate over the longer time distance
-                        //     // @@@@ TODO: Because this may be always true, just copy the inverted results from the other matrix side
-                        // } else
+                        if (delta_t2 > cycle_time / 2) {
+                            // Don't calculate over the longer time distance
+                        } else
 
                         {
 
@@ -470,8 +577,10 @@ static void observerSyncUpdate(tPtp *ptp, tPtpObserver *obs) {
                                 offset_diff -= (int64_t)(obs_other->path_delay - obs->path_delay);
                             }
 
-                            obs->offset_to[j] = offset_diff;     // in ns
+                            obs->offset_to[j] = offset_diff; // in ns
+                            ptp->observer_list[j]->offset_to[i] = -offset_diff;
                             obs->drift_to[j] = slope_diff * 1E9; // in ns/s
+                            ptp->observer_list[j]->drift_to[i] = -slope_diff * 1E9;
 
                             if (ptp_log_level >= 6) {
                                 printf("    offset     to %s: %" PRIi64 " ns (%g ms)\n", obs_other->name, obs->offset_to[j], obs->offset_to[j] / 1000000.0);
@@ -504,7 +613,7 @@ static void observerDelayUpdate(tPtp *ptp, tPtpObserver *obs) {
     uint64_t t3 = obs->delay_req_local_time;                                              // local clock
     uint64_t t4 = obs->delay_req_master_time;
     uint64_t correction = obs->delay_resp_correction; // for master timestamp t4
-
+    // assert(t2 < t3);
     analyzerUpdate(ptp, obs, &obs->a34, t4 - correction, t3);
 
     // Use as results in active mode
@@ -547,10 +656,11 @@ static void observerDelayUpdate(tPtp *ptp, tPtpObserver *obs) {
         obs->master_offset = t21 - obs->path_delay;
 
         if (ptp_log_level >= 7) {
+            char ts[64];
             printf("Observer %s: DELAY_REQ/RESP update:\n", obs->name);
             printf("  t1 (SYNC tx on master)         = %" PRIu64 " ns\n", t1);
-            printf("  t2 (SYNC rx)                   = %" PRIu64 " ns\n", t2);
-            printf("  t3 (DELAY_REQ tx)              = %" PRIu64 " ns\n", t3);
+            printf("  t2 (SYNC rx)                   = %" PRIu64 " ns (%s)\n", t2, clockGetString(ts, sizeof(ts), t2));
+            printf("  t3 (DELAY_REQ tx)              = %" PRIu64 " ns (%s)\n", t3, clockGetString(ts, sizeof(ts), t3));
             printf("  t4 (DELAY_RESP rx on master)   = %" PRIu64 " ns\n", t4);
             printf("  t2 - t1                        = %" PRIu64 " ns\n", t2 - t1);
             printf("  sync_correction                = %u ns\n", obs->sync_correction);
@@ -637,30 +747,33 @@ bool observerHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr
 
                     if (memcmp(obs->client_uuid, ptp_msg->u.r.clockId, 8) == 0) { // Check delay request response is for us
                         obs->delay_req_master_time = htonl(ptp_msg->timestamp.timestamp_s) * 1000000000ULL + htonl(ptp_msg->timestamp.timestamp_ns);
-                        obs->delay_resp_sequenceId = htons(ptp_msg->sequenceId);
-                        if (obs->delay_resp_sequenceId != obs->delay_req_sequenceId) {
-                            DBG_PRINTF_WARNING("Observer %s: DELAY_RESP sequenceId %u does not match last DELAY_REQ sequenceId %u\n", obs->name, obs->delay_resp_sequenceId,
-                                               obs->delay_req_sequenceId);
+                        if (obs->delay_req_master_time == 0) {
+                            DBG_PRINTF_WARNING("Observer %s: DELAY_RESP invalid master timestamp %" PRIu64 "\n", obs->name, obs->delay_req_master_time);
+                        } else {
+                            obs->delay_resp_sequenceId = htons(ptp_msg->sequenceId);
+                            if (obs->delay_resp_sequenceId != obs->delay_req_sequenceId) {
+                                DBG_PRINTF_WARNING("Observer %s: DELAY_RESP sequenceId %u does not match last DELAY_REQ sequenceId %u\n", obs->name, obs->delay_resp_sequenceId,
+                                                   obs->delay_req_sequenceId);
+                            }
+                            obs->delay_resp_correction = (uint32_t)(htonll(ptp_msg->correction) >> 16);
+                            obs->delay_resp_logMessageInterval = ptp_msg->logMessageInterval;
+
+                            // update DELAY_REQ cycletime (DELAY_REQ has constant delay to SYNC (parameter delayReqDelayMs), logMessageInterval is realized by skipping SYNCs
+                            // @@@@ Not implemented yet
+                            // if (delayReqCycle == 0)
+                            //     delayReqCycle = 1 << gPtpC.delay_resp_logMessageInterval;
+                            if (ptp_log_level >= 5)
+                                printf("Observer %s: DELAY_RESP received from %u.%u.%u.%u: seqID=%u, t3=%llu, t4=%llu, corr=%u\n", obs->name, addr[0], addr[1], addr[2], addr[3],
+                                       obs->delay_resp_sequenceId, (unsigned long long)obs->delay_req_local_time, (unsigned long long)obs->delay_req_master_time,
+                                       obs->delay_resp_correction);
+                            observerDelayUpdate(ptp, obs);
+
+                            // Send additional delay requests in active mode
+                            if (obs->activeMode && obs->delay_req_burst_count > 1) {
+                                observerSendDelayRequest(ptp, obs);
+                                obs->delay_req_burst_count--;
+                            }
                         }
-                        obs->delay_resp_correction = (uint32_t)(htonll(ptp_msg->correction) >> 16);
-                        obs->delay_resp_logMessageInterval = ptp_msg->logMessageInterval;
-
-                        // update DELAY_REQ cycletime (DELAY_REQ has constant delay to SYNC (parameter delayReqDelayMs), logMessageInterval is realized by skipping SYNCs
-                        // @@@@ Not implemented yet
-                        // if (delayReqCycle == 0)
-                        //     delayReqCycle = 1 << gPtpC.delay_resp_logMessageInterval;
-                        if (ptp_log_level >= 5)
-                            printf("Observer %s: DELAY_RESP received from %u.%u.%u.%u: seqID=%u, t3=%llu, t4=%llu, corr=%u\n", obs->name, addr[0], addr[1], addr[2], addr[3],
-                                   obs->delay_resp_sequenceId, (unsigned long long)obs->delay_req_local_time, (unsigned long long)obs->delay_req_master_time,
-                                   obs->delay_resp_correction);
-                        observerDelayUpdate(ptp, obs);
-
-                        // Send additional delay requests in active mode
-                        if (obs->activeMode && obs->delay_req_burst_count > 1) {
-                            observerSendDelayRequest(ptp, obs);
-                            obs->delay_req_burst_count--;
-                        }
-
                     } else {
 
                         if (ptp_log_level >= 5)
@@ -683,7 +796,7 @@ bool observerHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr
                     }
                 }
 
-                // Unknown message type
+                // Unknown message type from our master
                 else {
                     DBG_PRINTF_WARNING("Observer %s: Unexpected PTP message type %u from grandmaster\n", obs->name, ptp_msg->type);
                 }
@@ -698,31 +811,31 @@ bool observerHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr
 
         // Observer has not yet seen his grandmaster
         else {
-            // Check if announce messages from any master if match this observers master filter
+            // Check for announce messages from any master to match this observers master filter
             if (ptp_msg->type == PTP_ANNOUNCE) {
 
                 // Check if domain, uuid (if specified) and addr (if specified) match
                 if ((obs->target_domain == ptp_msg->domain) && (memcmp(obs->target_uuid, ptp_msg->clockId, 8) == 0 || memcmp(obs->target_uuid, "\0\0\0\0\0\0\0\0", 8) != 0) &&
                     (memcmp(obs->target_addr, addr, 4) == 0 || memcmp(obs->target_addr, "\0\0\0", 4) == 0)) {
-                    if (ptp_log_level >= 5) {
-                        printf("PTP Announce received from a master matching observer '%s' filter. ClockId = %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n", obs->name,
-                               ptp_msg->clockId[0], ptp_msg->clockId[1], ptp_msg->clockId[2], ptp_msg->clockId[3], ptp_msg->clockId[4], ptp_msg->clockId[5], ptp_msg->clockId[6],
-                               ptp_msg->clockId[7]);
-                    }
 
                     mutexLock(&obs->mutex);
 
+                    // Locked onto a grandmaster
                     obs->gmValid = true;
                     obs->gm.a = ptp_msg->u.a;
+                    obs->gm.domain = ptp_msg->domain;
                     memcpy(obs->gm.addr, addr, 4);
                     memcpy(obs->gm.uuid, ptp_msg->clockId, 8);
-                    observerReset(obs); // Reset observer state
-                    if (ptp_log_level >= 5)
-                        observerPrintMaster(obs);
+                    observerReset(obs);                    // Reset observer state
                     obs->gm_last_update_time = clockGet(); // Timeout from now
-                    // Locked onto a grandmaster
 
                     mutexUnlock(&obs->mutex);
+
+                    if (ptp_log_level >= 3) {
+                        printf("PTP Announce received from a master matching observer '%s'. ClockId = %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n", obs->name, ptp_msg->clockId[0],
+                               ptp_msg->clockId[1], ptp_msg->clockId[2], ptp_msg->clockId[3], ptp_msg->clockId[4], ptp_msg->clockId[5], ptp_msg->clockId[6], ptp_msg->clockId[7]);
+                        observerPrintMaster(obs);
+                    }
 
                     return true; // Message handled
                 }
@@ -731,14 +844,18 @@ bool observerHandleFrame(tPtp *ptp, int n, struct ptphdr *ptp_msg, uint8_t *addr
 
     } // for each observer
 
-    // Check announce messages from unknown masters
+    // Check announce messages from yet unknown masters
     if (ptp_msg->type == PTP_ANNOUNCE) {
         if (ptp->auto_observer) {
             // Create new observer for this master
             // Generate a name
             char name[32];
             snprintf(name, sizeof(name), "obs_%u.%u_%u", addr[2], addr[3], ptp_msg->domain);
-            ptpCreateObserver(ptp, name, ptp->auto_observer_active_mode, ptp_msg->domain, ptp_msg->clockId, addr);
+            if (NULL == ptpFindObserverByName(ptp, name)) {
+                ptpCreateObserver(ptp, name, ptp->auto_observer_active_mode, ptp_msg->domain, ptp_msg->clockId, addr);
+            } else {
+                DBG_PRINTF_WARNING("PTP Auto Observer: Observer with name '%s' already exists\n", name);
+            }
         }
     }
 
@@ -770,7 +887,7 @@ void observerTask(tPtp *ptp) {
 #ifdef PTP_OBSERVER_DELAY_REQ_CYCLIC
         // Send delay requests
         if (obs->gmValid && obs->activeMode) {
-            uint64_t now = clockGet();
+            uint64_t now = clockGetMonotonicNs();
             uint64_t elapsed = now - obs->delay_req_system_time;
             // double interval_s = 1 << obs->delay_req_logMessageInterval;
             if (elapsed / (double)CLOCK_TICKS_PER_S >= 1.0) { // Send DELAY_REQ every second @@@@ TODO: use logMessageInterval

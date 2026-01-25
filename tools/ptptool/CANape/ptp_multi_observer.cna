@@ -1,8 +1,8 @@
 [FILE_INFO]
 Identification=CANape-Configuration-File
 FileName=ptp_multi_observer.cna
-FileNameAbsolute=Y:\XCPlite-RainerZ\examples\ptp_demo\CANape\ptp_multi_observer.cna
-WorkingDirectory=Y:\XCPlite-RainerZ\examples\ptp_demo\CANape
+FileNameAbsolute=\\Mac\git\XCPlite-RainerZ\tools\ptptool\CANape\ptp_multi_observer.cna
+WorkingDirectory=\\Mac\git\XCPlite-RainerZ\tools\ptptool\CANape
 ProjectId=07e8-0007-0007-0015-0002-0030-0000
 FileVersion=2200
 PrgVersion=Version 23.0.20.3237 
@@ -10,8 +10,8 @@ PrgDate=16.06.2025
 Description=
 CreationTime=21:55
 CreationDate=01/02/2026 ; Month/Day/Year
-ModificationTime=19:01
-ModificationDate=01/24/2026 ; Month/Day/Year
+ModificationTime=00:35
+ModificationDate=01/25/2026 ; Month/Day/Year
 Protected=0
 CurrentWindowsACP=1252
 
@@ -76,7 +76,7 @@ Count=0
 Name=PTP Jitter, Offset, Drift
 Comment=
 Maximized=0
-ActiveWindow=2
+ActiveWindow=1
 IsReportPage=0
 TimeAxisSynchronized=0
 PrintLayout=Default
@@ -191,7 +191,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_10_DISPLAY_1]
-Window=6
+Window=5
 Index=2
 Color=204
 ApplyColorToBackground=0
@@ -255,7 +255,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_11_DISPLAY_1]
-Window=6
+Window=5
 Index=1
 Color=28784
 ApplyColorToBackground=0
@@ -319,7 +319,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_12_DISPLAY_1]
-Window=6
+Window=5
 Index=0
 Color=16755200
 ApplyColorToBackground=0
@@ -380,7 +380,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_13_DISPLAY_1]
-Window=7
+Window=6
 Index=3
 Color=16711850
 ApplyColorToBackground=0
@@ -441,7 +441,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_14_DISPLAY_1]
-Window=7
+Window=6
 Index=1
 Color=21930
 ApplyColorToBackground=0
@@ -502,7 +502,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_15_DISPLAY_1]
-Window=7
+Window=6
 Index=2
 Color=11162965
 ApplyColorToBackground=0
@@ -563,7 +563,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_16_DISPLAY_1]
-Window=7
+Window=6
 Index=0
 Color=11206655
 ApplyColorToBackground=0
@@ -624,7 +624,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_17_DISPLAY_1]
-Window=8
+Window=7
 Index=3
 Color=65450
 ApplyColorToBackground=0
@@ -685,7 +685,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_18_DISPLAY_1]
-Window=8
+Window=7
 Index=1
 Color=8421631
 ApplyColorToBackground=0
@@ -746,7 +746,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_19_DISPLAY_1]
-Window=8
+Window=7
 Index=2
 Color=43690
 ApplyColorToBackground=0
@@ -792,7 +792,7 @@ AxisTemplate=
 GUID=DISPLAY_e20ac981-c35f-41cc-a1f6-1a2226719451
 
 [MEASUREMENT_OBJECT_1_DISPLAY_1]
-Window=3
+Window=2
 Index=3
 Color=65280
 ApplyColorToBackground=0
@@ -868,7 +868,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_20_DISPLAY_1]
-Window=8
+Window=7
 Index=0
 Color=11184640
 ApplyColorToBackground=0
@@ -929,7 +929,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_21_DISPLAY_1]
-Window=9
+Window=8
 Index=3
 Color=16755455
 ApplyColorToBackground=0
@@ -990,7 +990,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_22_DISPLAY_1]
-Window=9
+Window=8
 Index=1
 Color=11184895
 ApplyColorToBackground=0
@@ -1051,7 +1051,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_23_DISPLAY_1]
-Window=9
+Window=8
 Index=2
 Color=16755370
 ApplyColorToBackground=0
@@ -1112,7 +1112,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_24_DISPLAY_1]
-Window=9
+Window=8
 Index=0
 Color=11206570
 ApplyColorToBackground=0
@@ -1173,7 +1173,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_25_DISPLAY_1]
-Window=10
+Window=9
 Index=3
 Color=65280
 ApplyColorToBackground=0
@@ -1234,7 +1234,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_26_DISPLAY_1]
-Window=10
+Window=9
 Index=1
 Color=255
 ApplyColorToBackground=0
@@ -1295,7 +1295,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_27_DISPLAY_1]
-Window=10
+Window=9
 Index=2
 Color=65535
 ApplyColorToBackground=0
@@ -1356,7 +1356,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_28_DISPLAY_1]
-Window=10
+Window=9
 Index=0
 Color=16776960
 ApplyColorToBackground=0
@@ -1406,7 +1406,7 @@ Module=xcp_demo
 Name=obs_1.1_0.o.sync_master_time
 Disabled=0
 Mode=2147483650
-Rate=1000
+Rate=0
 ModeIsDefault=1
 Row=0
 Column=0
@@ -1417,7 +1417,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_29_DISPLAY_1]
-Window=11
+Window=10
 Index=3
 Color=16711935
 ApplyColorToBackground=0
@@ -1463,7 +1463,7 @@ AxisTemplate=
 GUID=DISPLAY_6183c42f-a33e-4956-a720-a4c7ee6f31f7
 
 [MEASUREMENT_OBJECT_2_DISPLAY_1]
-Window=3
+Window=2
 Index=1
 Color=255
 ApplyColorToBackground=0
@@ -1528,7 +1528,7 @@ Module=xcp_demo
 Name=obs_10.1_0.o.sync_master_time
 Disabled=0
 Mode=2147483648
-Rate=1000
+Rate=0
 ModeIsDefault=1
 Row=0
 Column=0
@@ -1539,7 +1539,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_30_DISPLAY_1]
-Window=11
+Window=10
 Index=1
 Color=33023
 ApplyColorToBackground=0
@@ -1589,7 +1589,7 @@ Module=xcp_demo
 Name=obs_2.1_0.o.sync_master_time
 Disabled=0
 Mode=2147483651
-Rate=1000
+Rate=0
 ModeIsDefault=1
 Row=0
 Column=0
@@ -1600,7 +1600,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_31_DISPLAY_1]
-Window=11
+Window=10
 Index=2
 Color=16744576
 ApplyColorToBackground=0
@@ -1650,7 +1650,7 @@ Module=xcp_demo
 Name=obs_20.1_0.o.sync_master_time
 Disabled=0
 Mode=2147483649
-Rate=1000
+Rate=0
 ModeIsDefault=1
 Row=0
 Column=0
@@ -1661,7 +1661,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_32_DISPLAY_1]
-Window=11
+Window=10
 Index=0
 Color=16777215
 ApplyColorToBackground=0
@@ -1711,7 +1711,7 @@ Module=xcp_demo
 Name=obs_1.1_0.o.sync_cycle_time
 Disabled=0
 Mode=2147483650
-Rate=1000
+Rate=0
 ModeIsDefault=1
 Row=0
 Column=0
@@ -1722,7 +1722,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_33_DISPLAY_1]
-Window=12
+Window=11
 Index=3
 Color=43520
 ApplyColorToBackground=0
@@ -1772,7 +1772,7 @@ Module=xcp_demo
 Name=obs_10.1_0.o.sync_cycle_time
 Disabled=0
 Mode=2147483648
-Rate=1000
+Rate=0
 ModeIsDefault=1
 Row=0
 Column=0
@@ -1783,7 +1783,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_34_DISPLAY_1]
-Window=12
+Window=11
 Index=2
 Color=204
 ApplyColorToBackground=0
@@ -1833,7 +1833,7 @@ Module=xcp_demo
 Name=obs_2.1_0.o.sync_cycle_time
 Disabled=0
 Mode=2147483651
-Rate=1000
+Rate=0
 ModeIsDefault=1
 Row=0
 Column=0
@@ -1844,7 +1844,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_35_DISPLAY_1]
-Window=12
+Window=11
 Index=1
 Color=28784
 ApplyColorToBackground=0
@@ -1894,7 +1894,7 @@ Module=xcp_demo
 Name=obs_20.1_0.o.sync_cycle_time
 Disabled=0
 Mode=2147483649
-Rate=1000
+Rate=0
 ModeIsDefault=1
 Row=0
 Column=0
@@ -1905,7 +1905,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_36_DISPLAY_1]
-Window=12
+Window=11
 Index=0
 Color=16755200
 ApplyColorToBackground=0
@@ -1951,7 +1951,7 @@ AxisTemplate=
 GUID=DISPLAY_485fc488-7d1c-44c2-8fd5-2ed81d160073
 
 [MEASUREMENT_OBJECT_3_DISPLAY_1]
-Window=3
+Window=2
 Index=2
 Color=65535
 ApplyColorToBackground=0
@@ -2012,7 +2012,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_4_DISPLAY_1]
-Window=3
+Window=2
 Index=0
 Color=16776960
 ApplyColorToBackground=0
@@ -2076,7 +2076,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_5_DISPLAY_1]
-Window=5
+Window=4
 Index=3
 Color=16711935
 ApplyColorToBackground=0
@@ -2140,7 +2140,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_6_DISPLAY_1]
-Window=5
+Window=4
 Index=2
 Color=33023
 ApplyColorToBackground=0
@@ -2204,7 +2204,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_7_DISPLAY_1]
-Window=5
+Window=4
 Index=1
 Color=16744576
 ApplyColorToBackground=0
@@ -2268,7 +2268,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_8_DISPLAY_1]
-Window=5
+Window=4
 Index=0
 Color=16777215
 ApplyColorToBackground=0
@@ -2332,7 +2332,7 @@ HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_9_DISPLAY_1]
-Window=6
+Window=5
 Index=3
 Color=43520
 ApplyColorToBackground=0
@@ -2510,8 +2510,8 @@ GlobalCursorTime=7720
 GlobalCursorTimeNs=7720332481
 GlobalTimeAxis=1
 GlobalTimeAxisStartTime=0
-GlobalTimeAxisEndTime=2190478722909
-MainWindowPos=1, 1, 1, 1498, 880 ;cmd, x, y, w, h
+GlobalTimeAxisEndTime=282373897357
+MainWindowPos=1, 1, 1, 1797, 1056 ;cmd, x, y, w, h
 
 [PAR_COMMENT]
 1="Name",""
@@ -2534,7 +2534,7 @@ ScriptName=
 ScriptName=
 
 [PRINTING]
-ScreenDPI=120
+ScreenDPI=144
 
 [PROFILE_MDF_OBJECT_1]
 Unit=
@@ -2683,22 +2683,21 @@ TreeExpand_10=All\Measurement list\Functions
 TreeExpand_11=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Software structure\params
 TreeExpand_12=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\master_params
 TreeExpand_13=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Software structure\observer_params
-TreeExpand_14=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events
-TreeExpand_15=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events\obs_3.10_0
-TreeExpand_16=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events\obs_4.10_0
-TreeExpand_17=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events\obs_0.207_0
-TreeExpand_18=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events\obs_3.10_1
-TreeExpand_19=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events\obs_4.10_2
-TreeExpand_20=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events\mainloop
-TreeExpand_21=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events\obs_1.1_0
-TreeExpand_22=$All\Devices
-TreeExpand_23=#All\Devices
-TreeExpand_24=@All\Devices\xcp_demo
-TreeExpand_25=$All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events\obs_1.1_0\obs_1.1_0.o.flup_correction
-TreeExpand_26=#All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events\obs_1.1_0\obs_1.1_0.o.gm.uuid
-TreeExpand_27=@All\Measurement list
-TreeExpand_28=$All\Measurement list\All signals
-TreeExpand_29=#All\Measurement list\Functions\CalculateJitter
+TreeExpand_14=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events\obs_3.10_0
+TreeExpand_15=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events\obs_4.10_0
+TreeExpand_16=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events\obs_0.207_0
+TreeExpand_17=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events\obs_3.10_1
+TreeExpand_18=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events\obs_4.10_2
+TreeExpand_19=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events\mainloop
+TreeExpand_20=All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events\obs_1.1_0
+TreeExpand_21=$All\Devices
+TreeExpand_22=#All\Devices
+TreeExpand_23=@All\Devices\xcp_demo
+TreeExpand_24=$All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events
+TreeExpand_25=#All\Devices\xcp_demo\xcp_demo_autodetect.a2l\Events\mainloop
+TreeExpand_26=@All\Measurement list
+TreeExpand_27=$All\Measurement list\All signals
+TreeExpand_28=#All\Measurement list\Functions\CalculateJitter
 TextSearchCaseSensitive=0
 TextSearchUseMode=1
 TextSearchSearchFullText=1
@@ -2713,12 +2712,12 @@ ComponentCount=3
 Title=
 Type=65536
 Comment=Multi view window
-Number=2
+Number=1
 GUID=WINDOW_66e60eab-2a51-4938-8bb5-95064a7e811c
-ScreenDPIinSection=120
-Position=0, 1, 0, 1111, 620 ;cmd, x, y, w, h
+ScreenDPIinSection=144
+Position=0, 1, 0, 1333, 744 ;cmd, x, y, w, h
 Position_dpi96=0, 1, 0, 889, 496 ;cmd, x, y, w, h
-Position_Page01=0, 1, 0, 1111, 620 ;cmd, x, y, w, h
+Position_Page01=0, 1, 0, 1333, 744 ;cmd, x, y, w, h
 Position_Page01_dpi96=0, 1, 0, 889, 496 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
@@ -2728,7 +2727,7 @@ DisplayMask=1 ; pages 1
 ScaleFont=1
 ShowLegend=1
 ShowLegendHeader=0
-LegendPixWidth=237
+LegendPixWidth=285
 LegendPixWidth_dpi96=190
 GridStyle=0
 DisplayColors=1
@@ -2739,17 +2738,17 @@ ShowActivity=0
 ExceedLimitWarning=0
 OnlyHighlightOnViolation=1
 LegendScrollPos=0
-DotLinePos=90
+DotLinePos=109
 ObjectCount=0
 Title=Numeric {DISPLAYED_FILENAME}
 Type=4
 Comment=Numeric Window
-Number=11
+Number=10
 GUID=WINDOW_1107b18c-ca2e-4159-9b4b-5c107f998c57
-ScreenDPIinSection=120
-Position=0, 554, 20, 558, 125 ;cmd, x, y, w, h
+ScreenDPIinSection=144
+Position=0, 664, 24, 669, 150 ;cmd, x, y, w, h
 Position_dpi96=0, 443, 16, 446, 100 ;cmd, x, y, w, h
-Position_Page02=0, 554, 20, 558, 125 ;cmd, x, y, w, h
+Position_Page02=0, 664, 24, 669, 150 ;cmd, x, y, w, h
 Position_Page02_dpi96=0, 443, 16, 446, 100 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
@@ -2758,16 +2757,16 @@ LEGEND_SHARED_COLUMNS=1
 DisplayMask=2 ; pages 2
 
 [WINDOW_10_LEG_COLUMNS]
-ScreenDPIinSection=120
+ScreenDPIinSection=144
 COUNT=1
-COL_0=31, 237
+COL_0=31, 285
 COL_0_dpi96=31, 190
 
 [WINDOW_11]
 ScaleFont=1
 ShowLegend=1
 ShowLegendHeader=0
-LegendPixWidth=233
+LegendPixWidth=279
 LegendPixWidth_dpi96=186
 GridStyle=0
 DisplayColors=1
@@ -2778,17 +2777,17 @@ ShowActivity=0
 ExceedLimitWarning=0
 OnlyHighlightOnViolation=0
 LegendScrollPos=0
-DotLinePos=92
+DotLinePos=111
 ObjectCount=0
 Title=Numeric {DISPLAYED_FILENAME}
 Type=4
 Comment=Numeric Window
-Number=12
+Number=11
 GUID=WINDOW_55cd627c-57e3-4bd4-936f-81f6629a85bd
-ScreenDPIinSection=120
-Position=0, 554, 297, 558, 125 ;cmd, x, y, w, h
+ScreenDPIinSection=144
+Position=0, 664, 357, 669, 150 ;cmd, x, y, w, h
 Position_dpi96=0, 443, 238, 446, 100 ;cmd, x, y, w, h
-Position_Page02=0, 554, 297, 558, 125 ;cmd, x, y, w, h
+Position_Page02=0, 664, 357, 669, 150 ;cmd, x, y, w, h
 Position_Page02_dpi96=0, 443, 238, 446, 100 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
@@ -2797,25 +2796,25 @@ LEGEND_SHARED_COLUMNS=1
 DisplayMask=2 ; pages 2
 
 [WINDOW_11_LEG_COLUMNS]
-ScreenDPIinSection=120
+ScreenDPIinSection=144
 COUNT=1
-COL_0=31, 233
+COL_0=31, 279
 COL_0_dpi96=31, 186
 
 [WINDOW_2]
 XLen=86199
 XMin=0
 XMinNs=0
-XMax=2190478
-XMaxNs=2190478722909
+XMax=282373
+XMaxNs=282373897357
 Grid=1
 Mark=1
 YValue=1
 ShowLegend=2
 ShowLegendHeader=1
-LegendPixWidth=325
+LegendPixWidth=390
 LegendPixWidth_dpi96=260
-LegendPixHeight=123
+LegendPixHeight=147
 LegendPixHeight_dpi96=98
 LegendPos=2
 Optimize=1
@@ -2825,7 +2824,7 @@ XYModeIndexP1=-1
 DisplayModeAuto=0
 XStart=0
 AbsoluteTimeMode=0
-YAxisWidth=73
+YAxisWidth=87
 YAxisWidth_dpi96=58
 RightYAxisWidth=0
 RightYAxisWidth_dpi96=0
@@ -2850,15 +2849,15 @@ ObjectCount=0
 Title=Graphic {DISPLAYED_FILENAME}
 Type=1
 Comment=Graphic Window
-Number=3
+Number=2
 GUID=WINDOW_0eadef2e-6ce0-4c35-8c0a-35c43d90aa60
-ScreenDPIinSection=120
+ScreenDPIinSection=144
 Position=0, 0, 0, 0, 0 ;cmd, x, y, w, h
 Position_dpi96=0, 0, 0, 0, 0 ;cmd, x, y, w, h
 Position_Page01=0, 0, 0, 0, 0 ;cmd, x, y, w, h
 Position_Page01_dpi96=0, 0, 0, 0, 0 ;cmd, x, y, w, h
 FloatingWindow=0
-JointIndex=2
+JointIndex=1
 ShowSignalComments=1
 ComponentOrder=0
 ComponentSpace=32.6732673267
@@ -2868,11 +2867,11 @@ TimeAxisTemplate=<default>
 DisplayMask=1 ; pages 1
 
 [WINDOW_2_LEG_COLUMNS]
-ScreenDPIinSection=120
+ScreenDPIinSection=144
 COUNT=2
-COL_0=31, 230
-COL_0_dpi96=31, 184
-COL_1=1048578, 93
+COL_0=31, 282
+COL_0_dpi96=31, 188
+COL_1=1048578, 111
 COL_1_dpi96=1048578, 74
 
 [WINDOW_3]
@@ -2883,21 +2882,21 @@ ClearStart=1
 AbsoluteTimeEnabled=0
 ShowGridLines=0
 ColumnCount=3
-Column_0=21, 50
+Column_0=21, 60
 Column_0_dpi96=21, 40
-Column_1=22, 112
+Column_1=22, 135
 Column_1_dpi96=22, 90
-Column_2=23, 812
+Column_2=23, 975
 Column_2_dpi96=23, 650
 Title=Write
 Type=128
 Comment=Write Window
-Number=4
+Number=3
 GUID=WINDOW_f79e1550-11ed-42d2-87cd-6962a7126a07
-ScreenDPIinSection=120
-Position=0, 13, 13, 1077, 591 ;cmd, x, y, w, h
+ScreenDPIinSection=144
+Position=0, 15, 15, 1293, 709 ;cmd, x, y, w, h
 Position_dpi96=0, 10, 10, 862, 473 ;cmd, x, y, w, h
-Position_Page03=0, 13, 13, 1077, 591 ;cmd, x, y, w, h
+Position_Page03=0, 15, 15, 1293, 709 ;cmd, x, y, w, h
 Position_Page03_dpi96=0, 10, 10, 862, 473 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
@@ -2907,16 +2906,16 @@ DisplayMask=4 ; pages 3
 XLen=86199
 XMin=0
 XMinNs=0
-XMax=2190478
-XMaxNs=2190478722909
+XMax=282373
+XMaxNs=282373897357
 Grid=1
 Mark=1
 YValue=1
 ShowLegend=2
 ShowLegendHeader=1
-LegendPixWidth=325
+LegendPixWidth=390
 LegendPixWidth_dpi96=260
-LegendPixHeight=123
+LegendPixHeight=147
 LegendPixHeight_dpi96=98
 LegendPos=2
 Optimize=1
@@ -2926,7 +2925,80 @@ XYModeIndexP1=-1
 DisplayModeAuto=0
 XStart=0
 AbsoluteTimeMode=0
-YAxisWidth=73
+YAxisWidth=87
+YAxisWidth_dpi96=58
+RightYAxisWidth=0
+RightYAxisWidth_dpi96=0
+ObjectMode=1
+DisplayMode=0
+ShowSignalMode=0
+AxisScrollPos2=0
+LegendScrollPos=0
+LegendShowLifeValues=1
+ShowXScrollbar=1
+ShowWholeTimeRange=0
+YAxisDynScaleEnabled=0
+YAxisDynScaleEnlarge=25
+TimeStickToZero=0
+XYModeRedrawEnabled=0
+MARKER_TIME_1=7720332481
+MARKER_TIME_2=15000000000
+OscilloscopeEnabled=0
+OsciEventCount=0
+EventCompareModeEnabled=0
+ObjectCount=0
+Title=Graphic {DISPLAYED_FILENAME}
+Type=1
+Comment=Graphic Window
+Number=4
+GUID=WINDOW_02df253c-5dc3-453e-9fd3-76ca521e178d
+ScreenDPIinSection=144
+Position=0, 150, 150, 750, 300 ;cmd, x, y, w, h
+Position_dpi96=0, 100, 100, 500, 200 ;cmd, x, y, w, h
+Position_Page01=0, 150, 150, 750, 300 ;cmd, x, y, w, h
+Position_Page01_dpi96=0, 100, 100, 500, 200 ;cmd, x, y, w, h
+FloatingWindow=0
+JointIndex=1
+ShowSignalComments=1
+ComponentOrder=1
+ComponentSpace=30.198019802
+LEGEND_HSCROLL_POS=0
+LEGEND_SHARED_COLUMNS=1
+TimeAxisTemplate=<default>
+DisplayMask=1 ; pages 1
+
+[WINDOW_4_LEG_COLUMNS]
+ScreenDPIinSection=144
+COUNT=2
+COL_0=31, 282
+COL_0_dpi96=31, 188
+COL_1=1048578, 111
+COL_1_dpi96=1048578, 74
+
+[WINDOW_5]
+XLen=86199
+XMin=0
+XMinNs=0
+XMax=282373
+XMaxNs=282373897357
+Grid=1
+Mark=1
+YValue=1
+ShowLegend=2
+ShowLegendHeader=1
+LegendPixWidth=390
+LegendPixWidth_dpi96=260
+LegendPixHeight=147
+LegendPixHeight_dpi96=98
+LegendPos=2
+Optimize=1
+Average=0
+ShowMinMax=1
+XYModeIndexP1=-1
+DisplayModeAuto=0
+XStart=0
+AbsoluteTimeMode=0
+YAxisWidth=87
 YAxisWidth_dpi96=58
 RightYAxisWidth=0
 RightYAxisWidth_dpi96=0
@@ -2952,87 +3024,14 @@ Title=Graphic {DISPLAYED_FILENAME}
 Type=1
 Comment=Graphic Window
 Number=5
-GUID=WINDOW_02df253c-5dc3-453e-9fd3-76ca521e178d
-ScreenDPIinSection=120
-Position=0, 125, 125, 625, 250 ;cmd, x, y, w, h
-Position_dpi96=0, 100, 100, 500, 200 ;cmd, x, y, w, h
-Position_Page01=0, 125, 125, 625, 250 ;cmd, x, y, w, h
-Position_Page01_dpi96=0, 100, 100, 500, 200 ;cmd, x, y, w, h
-FloatingWindow=0
-JointIndex=2
-ShowSignalComments=1
-ComponentOrder=1
-ComponentSpace=30.198019802
-LEGEND_HSCROLL_POS=0
-LEGEND_SHARED_COLUMNS=1
-TimeAxisTemplate=<default>
-DisplayMask=1 ; pages 1
-
-[WINDOW_4_LEG_COLUMNS]
-ScreenDPIinSection=120
-COUNT=2
-COL_0=31, 230
-COL_0_dpi96=31, 184
-COL_1=1048578, 93
-COL_1_dpi96=1048578, 74
-
-[WINDOW_5]
-XLen=86199
-XMin=0
-XMinNs=0
-XMax=2190478
-XMaxNs=2190478722909
-Grid=1
-Mark=1
-YValue=1
-ShowLegend=2
-ShowLegendHeader=1
-LegendPixWidth=325
-LegendPixWidth_dpi96=260
-LegendPixHeight=123
-LegendPixHeight_dpi96=98
-LegendPos=2
-Optimize=1
-Average=0
-ShowMinMax=1
-XYModeIndexP1=-1
-DisplayModeAuto=0
-XStart=0
-AbsoluteTimeMode=0
-YAxisWidth=73
-YAxisWidth_dpi96=58
-RightYAxisWidth=0
-RightYAxisWidth_dpi96=0
-ObjectMode=1
-DisplayMode=0
-ShowSignalMode=0
-AxisScrollPos2=0
-LegendScrollPos=0
-LegendShowLifeValues=1
-ShowXScrollbar=1
-ShowWholeTimeRange=0
-YAxisDynScaleEnabled=0
-YAxisDynScaleEnlarge=25
-TimeStickToZero=0
-XYModeRedrawEnabled=0
-MARKER_TIME_1=7720332481
-MARKER_TIME_2=15000000000
-OscilloscopeEnabled=0
-OsciEventCount=0
-EventCompareModeEnabled=0
-ObjectCount=0
-Title=Graphic {DISPLAYED_FILENAME}
-Type=1
-Comment=Graphic Window
-Number=6
 GUID=WINDOW_3dfd37bb-0f31-4505-9cbd-397cdc8c4499
-ScreenDPIinSection=120
-Position=0, 0, 0, 625, 250 ;cmd, x, y, w, h
+ScreenDPIinSection=144
+Position=0, 0, 0, 750, 300 ;cmd, x, y, w, h
 Position_dpi96=0, 0, 0, 500, 200 ;cmd, x, y, w, h
-Position_Page01=0, 0, 0, 625, 250 ;cmd, x, y, w, h
+Position_Page01=0, 0, 0, 750, 300 ;cmd, x, y, w, h
 Position_Page01_dpi96=0, 0, 0, 500, 200 ;cmd, x, y, w, h
 FloatingWindow=0
-JointIndex=2
+JointIndex=1
 ShowSignalComments=1
 ComponentOrder=2
 ComponentSpace=37.1287128713
@@ -3042,18 +3041,18 @@ TimeAxisTemplate=<default>
 DisplayMask=1 ; pages 1
 
 [WINDOW_5_LEG_COLUMNS]
-ScreenDPIinSection=120
+ScreenDPIinSection=144
 COUNT=2
-COL_0=31, 230
-COL_0_dpi96=31, 184
-COL_1=1048578, 93
+COL_0=31, 282
+COL_0_dpi96=31, 188
+COL_1=1048578, 111
 COL_1_dpi96=1048578, 74
 
 [WINDOW_6]
 ScaleFont=1
 ShowLegend=1
 ShowLegendHeader=0
-LegendPixWidth=229
+LegendPixWidth=275
 LegendPixWidth_dpi96=183
 GridStyle=0
 DisplayColors=1
@@ -3064,17 +3063,17 @@ ShowActivity=0
 ExceedLimitWarning=0
 OnlyHighlightOnViolation=1
 LegendScrollPos=0
-DotLinePos=86
+DotLinePos=105
 ObjectCount=0
 Title=Numeric {DISPLAYED_FILENAME}
 Type=4
 Comment=Numeric Window
-Number=7
+Number=6
 GUID=WINDOW_b1804ef8-7399-4898-9995-7e37e0e23cd3
-ScreenDPIinSection=120
-Position=0, 8, 20, 536, 125 ;cmd, x, y, w, h
+ScreenDPIinSection=144
+Position=0, 9, 24, 643, 150 ;cmd, x, y, w, h
 Position_dpi96=0, 6, 16, 429, 100 ;cmd, x, y, w, h
-Position_Page02=0, 8, 20, 536, 125 ;cmd, x, y, w, h
+Position_Page02=0, 9, 24, 643, 150 ;cmd, x, y, w, h
 Position_Page02_dpi96=0, 6, 16, 429, 100 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
@@ -3083,16 +3082,16 @@ LEGEND_SHARED_COLUMNS=1
 DisplayMask=2 ; pages 2
 
 [WINDOW_6_LEG_COLUMNS]
-ScreenDPIinSection=120
+ScreenDPIinSection=144
 COUNT=1
-COL_0=31, 229
+COL_0=31, 275
 COL_0_dpi96=31, 183
 
 [WINDOW_7]
 ScaleFont=1
 ShowLegend=1
 ShowLegendHeader=0
-LegendPixWidth=229
+LegendPixWidth=275
 LegendPixWidth_dpi96=183
 GridStyle=0
 DisplayColors=1
@@ -3103,17 +3102,17 @@ ShowActivity=0
 ExceedLimitWarning=0
 OnlyHighlightOnViolation=1
 LegendScrollPos=0
-DotLinePos=86
+DotLinePos=105
 ObjectCount=0
 Title=Numeric {DISPLAYED_FILENAME}
 Type=4
 Comment=Numeric Window
-Number=8
+Number=7
 GUID=WINDOW_b44fb874-5f50-415f-be48-25037a21e94b
-ScreenDPIinSection=120
-Position=0, 8, 156, 536, 125 ;cmd, x, y, w, h
+ScreenDPIinSection=144
+Position=0, 9, 187, 643, 150 ;cmd, x, y, w, h
 Position_dpi96=0, 6, 125, 429, 100 ;cmd, x, y, w, h
-Position_Page02=0, 8, 156, 536, 125 ;cmd, x, y, w, h
+Position_Page02=0, 9, 187, 643, 150 ;cmd, x, y, w, h
 Position_Page02_dpi96=0, 6, 125, 429, 100 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
@@ -3122,16 +3121,16 @@ LEGEND_SHARED_COLUMNS=1
 DisplayMask=2 ; pages 2
 
 [WINDOW_7_LEG_COLUMNS]
-ScreenDPIinSection=120
+ScreenDPIinSection=144
 COUNT=1
-COL_0=31, 229
+COL_0=31, 275
 COL_0_dpi96=31, 183
 
 [WINDOW_8]
 ScaleFont=1
 ShowLegend=1
 ShowLegendHeader=0
-LegendPixWidth=232
+LegendPixWidth=279
 LegendPixWidth_dpi96=186
 GridStyle=0
 DisplayColors=1
@@ -3142,17 +3141,17 @@ ShowActivity=0
 ExceedLimitWarning=0
 OnlyHighlightOnViolation=1
 LegendScrollPos=0
-DotLinePos=85
+DotLinePos=103
 ObjectCount=0
 Title=Numeric {DISPLAYED_FILENAME}
 Type=4
 Comment=Numeric Window
-Number=9
+Number=8
 GUID=WINDOW_eed45198-2572-417f-8ee8-e46e7abb0689
-ScreenDPIinSection=120
-Position=0, 8, 297, 536, 125 ;cmd, x, y, w, h
+ScreenDPIinSection=144
+Position=0, 9, 357, 643, 150 ;cmd, x, y, w, h
 Position_dpi96=0, 6, 238, 429, 100 ;cmd, x, y, w, h
-Position_Page02=0, 8, 297, 536, 125 ;cmd, x, y, w, h
+Position_Page02=0, 9, 357, 643, 150 ;cmd, x, y, w, h
 Position_Page02_dpi96=0, 6, 238, 429, 100 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
@@ -3161,16 +3160,16 @@ LEGEND_SHARED_COLUMNS=1
 DisplayMask=2 ; pages 2
 
 [WINDOW_8_LEG_COLUMNS]
-ScreenDPIinSection=120
+ScreenDPIinSection=144
 COUNT=1
-COL_0=31, 232
+COL_0=31, 279
 COL_0_dpi96=31, 186
 
 [WINDOW_9]
 ScaleFont=1
 ShowLegend=1
 ShowLegendHeader=0
-LegendPixWidth=235
+LegendPixWidth=282
 LegendPixWidth_dpi96=188
 GridStyle=0
 DisplayColors=1
@@ -3181,17 +3180,17 @@ ShowActivity=0
 ExceedLimitWarning=0
 OnlyHighlightOnViolation=0
 LegendScrollPos=0
-DotLinePos=91
+DotLinePos=110
 ObjectCount=0
 Title=Numeric {DISPLAYED_FILENAME}
 Type=4
 Comment=Numeric Window
-Number=10
+Number=9
 GUID=WINDOW_4708a3d0-bf84-4708-ba76-238c0a27ccfa
-ScreenDPIinSection=120
-Position=0, 554, 156, 558, 125 ;cmd, x, y, w, h
+ScreenDPIinSection=144
+Position=0, 664, 187, 669, 150 ;cmd, x, y, w, h
 Position_dpi96=0, 443, 125, 446, 100 ;cmd, x, y, w, h
-Position_Page02=0, 554, 156, 558, 125 ;cmd, x, y, w, h
+Position_Page02=0, 664, 187, 669, 150 ;cmd, x, y, w, h
 Position_Page02_dpi96=0, 443, 125, 446, 100 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
@@ -3200,9 +3199,9 @@ LEGEND_SHARED_COLUMNS=1
 DisplayMask=2 ; pages 2
 
 [WINDOW_9_LEG_COLUMNS]
-ScreenDPIinSection=120
+ScreenDPIinSection=144
 COUNT=1
-COL_0=31, 235
+COL_0=31, 282
 COL_0_dpi96=31, 188
 
 [WINDOWS]

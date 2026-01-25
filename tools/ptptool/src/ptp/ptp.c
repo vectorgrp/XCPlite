@@ -56,24 +56,29 @@ extern uint8_t ptp_log_level;
 //-------------------------------------------------------------------------------------------------------
 
 // Print a PTP frame
-static void printFrame(char *prefix, struct ptphdr *ptp_msg, uint8_t *addr, uint64_t rx_timestamp) {
+static void printFrame(char *prefix, struct ptphdr *ptp_msg, uint8_t *addr, uint64_t local_timestamp) {
 
     const char *s = NULL;
+    uint64_t t = 0;
+    ;
     switch (ptp_msg->type) {
     case PTP_ANNOUNCE:
         s = "ANNOUNCE";
         break;
     case PTP_SYNC:
         s = "SYNC";
+        t = htonl(ptp_msg->timestamp.timestamp_s) * 1000000000ULL + htonl(ptp_msg->timestamp.timestamp_ns);
         break;
     case PTP_FOLLOW_UP:
         s = "FOLLOW_UP";
+        t = htonl(ptp_msg->timestamp.timestamp_s) * 1000000000ULL + htonl(ptp_msg->timestamp.timestamp_ns);
         break;
     case PTP_DELAY_REQ:
         s = "DELAY_REQ";
         break;
     case PTP_DELAY_RESP:
         s = "DELAY_RESP";
+        t = htonl(ptp_msg->timestamp.timestamp_s) * 1000000000ULL + htonl(ptp_msg->timestamp.timestamp_ns);
         break;
     case PTP_PDELAY_REQ:
         s = "PDELAY_REQ";
@@ -95,9 +100,10 @@ static void printFrame(char *prefix, struct ptphdr *ptp_msg, uint8_t *addr, uint
         break;
     }
     if (s != NULL) {
-        printf("%s: %s (seqId=%u, timestamp=%" PRIu64 " from %u.%u.%u.%u - %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X", prefix, s, htons(ptp_msg->sequenceId), rx_timestamp, addr[0],
-               addr[1], addr[2], addr[3], ptp_msg->clockId[0], ptp_msg->clockId[1], ptp_msg->clockId[2], ptp_msg->clockId[3], ptp_msg->clockId[4], ptp_msg->clockId[5],
-               ptp_msg->clockId[6], ptp_msg->clockId[7]);
+
+        printf("%s at t=%" PRIu64 ": %s seqid=%u timestamp=%" PRIu64 " from %u.%u.%u.%u - %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X", prefix, local_timestamp, s,
+               htons(ptp_msg->sequenceId), t, addr[0], addr[1], addr[2], addr[3], ptp_msg->clockId[0], ptp_msg->clockId[1], ptp_msg->clockId[2], ptp_msg->clockId[3],
+               ptp_msg->clockId[4], ptp_msg->clockId[5], ptp_msg->clockId[6], ptp_msg->clockId[7]);
         if (ptp_msg->type == PTP_DELAY_RESP)
             printf("  to %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X", ptp_msg->u.r.clockId[0], ptp_msg->u.r.clockId[1], ptp_msg->u.r.clockId[2], ptp_msg->u.r.clockId[3],
                    ptp_msg->u.r.clockId[4], ptp_msg->u.r.clockId[5], ptp_msg->u.r.clockId[6], ptp_msg->u.r.clockId[7]);
@@ -451,7 +457,8 @@ tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name, bool sync_
         return NULL;
 
 // @@@@ Test: Read hardware clock to check if adjusted to PTP timescale
-#ifdef _LINUX
+// #ifdef _LINUX
+#if 0
     if (useBindToDevice && sync_phc) {
 
         // Get PHC device path for the network interface
@@ -641,14 +648,6 @@ void ptpPrintState(tPtp *ptp) {
     }
 #endif
 #ifdef OPTION_ENABLE_PTP_OBSERVER
-    if (ptp->observer_count > 0) {
-        char ts[64];
-        uint64_t t = clockGet();
-        printf("\nPTP Observer States: (Systemtime = %s\n", clockGetString(ts, sizeof(ts), t));
-        for (int i = 0; i < ptp->observer_count; i++) {
-            observerPrintState(ptp, ptp->observer_list[i]);
-        }
-        printf("\n");
-    }
+    observerPrintState(ptp);
 #endif
 }

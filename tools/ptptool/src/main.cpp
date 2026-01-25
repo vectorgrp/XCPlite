@@ -341,10 +341,10 @@ int main(int argc, char *argv[]) {
             if (i + 1 < argc) {
                 i++;
                 int log_level = std::atoi(argv[i]);
-                if (log_level >= 3 && log_level <= 7) {
+                if (log_level >= 2 && log_level <= 7) {
                     ptp_log_level = log_level;
                 } else {
-                    std::cerr << "Error: Invalid log level '" << argv[i] << "'. Must be 3-7\n";
+                    std::cerr << "Error: Invalid log level '" << argv[i] << "'. Must be 2-7\n";
                     print_usage(argv[0]);
                     return 1;
                 }

@@ -11,7 +11,7 @@ Supports IEEE 1588-2008 PTPv2 over UDP/IPv4 in E2E mode.
 ### Commandline Options
 
 ```
-Usage: ./build/ptp_demo [options]
+Usage: ./build/ptptool [options]
 Options:
   -i, --interface <name>  Network interface name (default: eth0)
   -m, --master            Creates a PTP master with uuid and domain
@@ -24,7 +24,7 @@ Options:
   -h, --help              Show this help message
 
 Example:
-  ./build/ptp_demo -i en0 -m master -d 1 -u 001AB60000000002
+  ./build/ptptool -i en0 -m master -d 1 -u 001AB60000000002
 ```
 
 ## PTP client mode
@@ -36,7 +36,7 @@ sudo ptp4l -4 -H -i eth0 -s --tx_timestamp_timeout 100 -l 7 -m
 sudo phc2sys -c CLOCK_REALTIME -s eth0 -w  -l 7 -m
 
 # Use XCP with PTP4L and PHC2SYS synchronized PTP hardware clock
-sudo ./build/ptp_demo -c -i eth0
+sudo ./build/ptptool -c -i eth0
 
 ```
 
@@ -76,9 +76,9 @@ Example: multi observer mode:
 
 # Note: PHC synchronization
 # The PHC (PTP Hardware Clock) must be synchronized before meaningful measurements.
-# If ptp_demo reports "PHC is NOT synchronized", the hardware clock needs to be set.
+# If ptptool reports "PHC is NOT synchronized", the hardware clock needs to be set.
 #
-# Option 1: Let ptp_demo in master mode initialize it (starts with system time)
+# Option 1: Let ptptool in master mode initialize it (starts with system time)
 # Option 2: Run ptp4l which will synchronize the PHC to a PTP master  
 #
 # Note: On some systems (e.g., Raspberry Pi with Cadence GEM), the PHC may be locked
@@ -92,15 +92,22 @@ Example: multi observer mode:
 
 
 
-# Using ptp_demo time servers
-sudo ./build/ptp_demo -m -i eth0 -d 0
-sudo ./build/ptp_demo -m -i enp4s0 -d 1
-sudo ./build/ptp_demo -m -i enp5s0 -d 2
+# Using ptptool time servers
+# On a Raspberry Pi 5
+sudo ./build/ptptool -m -i eth0 -d 0
+# On a VP6450
+sudo ./build/ptptool -m -i eno0 -d 0
+sudo ./build/ptptool -m -i enp4s0 -d 1
+sudo ./build/ptptool -m -i enp5s0 -d 2
+sudo ./build/ptptool -m -i enp2s0f0 -d 3
+sudo ./build/ptptool -m -i enp2s0f1 -d 4
+
 
 # Using ptp4l time servers
-sudo ptp4l -H -i enp4s0  -p /dev/ptp0  -m  --tx_timestamp_timeout=100 --domainNumber=1 -l 7  --verbose=1
-sudo ptp4l -H -i enp5s0  -p /dev/ptp1  -m  --tx_timestamp_timeout=100 --domainNumber=2 -l 7  --verbose=1
-
+sudo ptp4l -H -i enp2s0f0  -p /dev/ptp3  -m  --tx_timestamp_timeout=100 --domainNumber=2 -l 7  --verbose=1
+sudo ptp4l -H -i enp2s0f1  -p /dev/ptp4  -m  --tx_timestamp_timeout=100 --domainNumber=2 -l 7  --verbose=1
+sudo ptp4l -H -i enp4s0  -p /dev/ptp1  -m  --tx_timestamp_timeout=100 --domainNumber=1 -l 7  --verbose=1
+sudo ptp4l -H -i enp5s0  -p /dev/ptp0  -m  --tx_timestamp_timeout=100 --domainNumber=2 -l 7  --verbose=1
 
 
 # Other options:
@@ -113,55 +120,21 @@ sudo ptp4l -H -i enp5s0  -p /dev/ptp1  -m  --tx_timestamp_timeout=100 --domainNu
 # --logSyncInterval=-1
 # --tx_timestamp_timeout 100
 
+# Sync PHC clocks from system realtime clock
+sudo phc2sys -s CLOCK_REALTIME  -c enp5s0   -m -l 7 -O 0 
+sudo phc2sys -s CLOCK_REALTIME  -c enp2s0f0   -m -l 7 -O 0 
+# Check PHC frequency adjustment
+sudo phc_ctl /dev/ptp0 freq
+sudo phc_ctl /dev/ptp3 freq
 
-
-
-# Sync PHC clocks of both interfaces
-sudo phc2sys -s enp4s0 -c enp5s0 -m -l 7 -O 0
-
+# Sync PHC clocks of 2 interfaces
+sudo phc2sys -s enp5s0 -c enp2s0f0 -m -l 7 -O 0
 
 
 # Run multi observer on a different PC over a PTP transparent network switch to compare both masters
-sudo ./build/ptp_demo
+sudo ./build/ptptool -a
 
-  Observer obs_4.10_1: PTP SYNC cycle 26:
-  Average filtered drift calculation results at t2 = 25183419120 ns: 
-    master_drift        = 8565.2 ns/s
-    master_drift_drift  = 13.6506 ns/s2
-  Linear regression results at t2 = 25183419120 ns: 
-    linreg drift = 8552.45 ns/s
-    linreg drift_drift = 0.896657 ns/s2
-    linreg offset = -83.1948 ns
-    linreg offset average = 1.63328 ns
-    linreg jitter = -84.8281 ns
-    linreg jitter average = -2.07255 ns
-  Jitter analysis:
-    master_jitter       = -84.8281 ns
-    master_jitter_avg   = -7.47743 ns
-    master_jitter_rms   = 86.5982 ns
-  Comparisons to other observers:
-    offset to obs_3.10_0: 20 ns (2e-05 ms)
-    drift diff to obs_3.10_0: -9.79223 ns/s
-
-Observer obs_3.10_0: PTP SYNC cycle 27:
-  Average filtered drift calculation results at t2 = 26191148000 ns: 
-    master_drift        = 8562.4 ns/s
-    master_drift_drift  = 0.165029 ns/s2
-  Linear regression results at t2 = 26191148000 ns: 
-    linreg drift = 8563.18 ns/s
-    linreg drift_drift = 0.935543 ns/s2
-    linreg offset = -94.3429 ns
-    linreg offset average = 32.1495 ns
-    linreg jitter = -126.492 ns
-    linreg jitter average = 1.02404 ns
-  Jitter analysis:
-    master_jitter       = -126.492 ns
-    master_jitter_avg   = 3.78518 ns
-    master_jitter_rms   = 167.315 ns
-  Comparisons to other observers:
-    offset to obs_4.10_0: 172 ns (0.000172 ms)
-    drift diff to obs_4.10_0: 10.7278 ns/s
-
+  
 
 ```
 
@@ -220,7 +193,7 @@ done
 
 ```bash
 # Trace for correct enabling of hardware time stamping
-sudo strace -e trace=setsockopt ./build/ptp_demo --master -i enp4s0 
+sudo strace -e trace=setsockopt ./build/ptptool --master -i enp4s0 
 ```
 
 Build linuxptp with debug symbols:
