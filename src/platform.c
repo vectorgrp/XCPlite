@@ -280,7 +280,8 @@ bool socketOpen(SOCKET *sp, uint16_t flags) {
 
     bool useTCP = flags & SOCKET_MODE_TCP;
     bool nonBlocking = !(flags & SOCKET_MODE_BLOCKING);
-    bool reuseaddr = true;
+    bool reuseaddr = flags & SOCKET_MODE_REUSEADDR;
+    bool getifinfo = flags & SOCKET_MODE_GET_IF_INFO;
     bool hw_timestamps = flags & SOCKET_MODE_HW_TIMESTAMPING;
     bool sw_timestamps = flags & SOCKET_MODE_SW_TIMESTAMPING;
 
@@ -295,7 +296,16 @@ bool socketOpen(SOCKET *sp, uint16_t flags) {
 
     if (reuseaddr) {
         int yes = 1;
-        setsockopt(*sp, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+        if (setsockopt(*sp, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0) {
+            DBG_PRINTF_WARNING("Failed to enable SO_REUSEADDR on socket (errno=%d)\n", errno);
+        }
+    }
+
+    if (getifinfo) {
+        int yes = 1;
+        if (setsockopt(*sp, IPPROTO_IP, IP_PKTINFO, &yes, sizeof(yes)) < 0) {
+            DBG_PRINTF_WARNING("Failed to enable IP_PKTINFO on socket (errno=%d)\n", errno);
+        }
     }
 
 // Enable timestamps if requested
@@ -608,12 +618,14 @@ bool socketOpen(SOCKET *sp, uint16_t flags) {
 
     bool useTCP = flags & SOCKET_MODE_TCP;
     bool nonBlocking = !(flags & SOCKET_MODE_BLOCKING);
-    bool reuseaddr = true;
+    bool reuseaddr = flags & SOCKET_MODE_REUSEADDR;
+    bool getifinfo = flags & SOCKET_MODE_GET_IF_INFO;
     bool hw_timestamps = flags & SOCKET_MODE_HW_TIMESTAMPING;
     bool sw_timestamps = flags & SOCKET_MODE_SW_TIMESTAMPING;
 
     assert(!hw_timestamps); // Hardware timestamps not supported on Windows
     assert(!sw_timestamps); // Software timestamps not supported on Windows
+    assert(!getifinfo);     // IP_PKTINFO not supported on Windows
 
     // Create a socket
     if (!useTCP) {
@@ -645,7 +657,9 @@ bool socketOpen(SOCKET *sp, uint16_t flags) {
     // Make addr reusable
     if (reuseaddr) {
         uint32_t one = 1;
-        setsockopt(*sp, SOL_SOCKET, SO_REUSEADDR, (const char *)&one, sizeof(one));
+        if (setsockopt(*sp, SOL_SOCKET, SO_REUSEADDR, (const char *)&one, sizeof(one)) < 0) {
+            DBG_PRINTF_WARNING("Failed to enable SO_REUSEADDR on socket (errno=%d)\n", socketGetLastError());
+        }
     }
 
     return true;
@@ -844,14 +858,14 @@ int16_t socketRecvFrom(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, uint8_
     SOCKADDR_IN src;
     int16_t n = 0;
 
-    DBG_PRINTF5("socketRecvFrom: sock=%d\n", sock);
+    DBG_PRINTF6("socketRecvFrom: sock=%d\n", sock);
 
 #if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
     if (time != NULL) {
 
         struct iovec iov;
         struct msghdr msg;
-        char control[256]; // char ctrl[CMSG_SPACE(sizeof(struct timespec) * 3)];
+        char control[CMSG_SPACE(sizeof(struct timespec) * 3) + CMSG_SPACE(sizeof(struct in_pktinfo))];
         iov.iov_base = buffer;
         iov.iov_len = bufferSize;
         memset(&msg, 0, sizeof(msg));
@@ -876,7 +890,7 @@ int16_t socketRecvFrom(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, uint8_
             return -1;
         }
 
-        // Extract timestamp from control messages if available
+        // Extract timestamp and interface info from control messages if available
         *time = 0;
         struct timespec *hw = NULL;
         struct timespec *sw = NULL;
@@ -886,7 +900,17 @@ int16_t socketRecvFrom(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, uint8_
             n++;
             int level = cmsg->cmsg_level;
             int type = cmsg->cmsg_type;
-            DBG_PRINTF5("socketRecvFrom: cmsg level=%d type=%d (%s) \n", level, type, (level == SOL_SOCKET && type == SO_TIMESTAMPING) ? "SO_TIMESTAMPING" : "SO_TIMESTAMPNS");
+
+            // Enhanced debug output to show all control message types
+            const char *type_str = "UNKNOWN";
+            if (level == SOL_SOCKET && type == SO_TIMESTAMPING)
+                type_str = "SO_TIMESTAMPING";
+            else if (level == SOL_SOCKET && type == SO_TIMESTAMPNS)
+                type_str = "SO_TIMESTAMPNS";
+            else if (level == IPPROTO_IP && type == IP_PKTINFO)
+                type_str = "IP_PKTINFO";
+            DBG_PRINTF5("socketRecvFrom: cmsg level=%d type=%d (%s)\n", level, type, type_str);
+
             if (SOL_SOCKET == level && SO_TIMESTAMPING == type) {
                 if (cmsg->cmsg_len < sizeof(struct timespec) * 3) {
                     DBG_PRINT_WARNING("short SO_TIMESTAMPING message");
@@ -894,13 +918,18 @@ int16_t socketRecvFrom(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, uint8_
                 }
                 assert(hw == NULL);
                 hw = (struct timespec *)CMSG_DATA(cmsg);
-            }
-            if (SOL_SOCKET == level && SO_TIMESTAMPNS == type) {
+            } else if (SOL_SOCKET == level && SO_TIMESTAMPNS == type) {
                 if (cmsg->cmsg_len < sizeof(struct timespec)) {
                     DBG_PRINT_WARNING("short SO_TIMESTAMPNS message");
                     break;
                 }
                 sw = (struct timespec *)CMSG_DATA(cmsg);
+            } else if (IPPROTO_IP == level && IP_PKTINFO == type) {
+                struct in_pktinfo *pktinfo = (struct in_pktinfo *)CMSG_DATA(cmsg);
+                DBG_PRINTF5("socketRecvFrom: IP_PKTINFO - ipi_ifindex=%d, ipi_addr=%08x, ipi_spec_dst=%08x\n", pktinfo->ipi_ifindex, ntohl(pktinfo->ipi_addr.s_addr),
+                            ntohl(pktinfo->ipi_spec_dst.s_addr));
+                // Note: Currently no mechanism to return this info to caller
+                // Consider extending function signature if interface info is needed
             }
         }
 
@@ -968,7 +997,7 @@ int16_t socketRecvFrom(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, uint8_
     if (addr)
         memcpy(addr, &src.sin_addr.s_addr, 4);
 
-    DBG_PRINTF5("socketRecvFrom: sock=%d returned n=%u, time =%" PRIu64 "\n", sock, n, time ? *time : 0);
+    DBG_PRINTF6("socketRecvFrom: sock=%d returned n=%u, time=%" PRIu64 "\n", sock, n, time ? *time : 0);
 
     return n;
 }

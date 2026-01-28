@@ -93,8 +93,10 @@ Example: multi observer mode:
 
 
 # Using ptptool time servers
+
 # On a Raspberry Pi 5
 sudo ./build/ptptool -m -i eth0 -d 0
+
 # On a VP6450
 sudo ./build/ptptool -m -i eno0 -d 0
 sudo ./build/ptptool -m -i enp4s0 -d 1
@@ -108,6 +110,7 @@ sudo ptp4l -H -i enp2s0f0  -p /dev/ptp3  -m  --tx_timestamp_timeout=100 --domain
 sudo ptp4l -H -i enp2s0f1  -p /dev/ptp4  -m  --tx_timestamp_timeout=100 --domainNumber=2 -l 7  --verbose=1
 sudo ptp4l -H -i enp4s0  -p /dev/ptp1  -m  --tx_timestamp_timeout=100 --domainNumber=1 -l 7  --verbose=1
 sudo ptp4l -H -i enp5s0  -p /dev/ptp0  -m  --tx_timestamp_timeout=100 --domainNumber=2 -l 7  --verbose=1
+
 
 
 # Other options:
@@ -135,6 +138,18 @@ sudo phc2sys -s enp5s0 -c enp2s0f0 -m -l 7 -O 0
 sudo ./build/ptptool -a
 
   
+  ### Test on VP6450 on Debian Linux 
+  
+Create PTP masters in 2 interfaces enp2s0f0 (10G1, /dev/ptp3) and enp5s0 (1G2, /dev/ptp0)
+Sync both PHC clocks with /dev/ptp0 as reference
+
+enp2s0f0 (10G1, MAC=68:b9:83:01:47:98, UUID=68b983.fffe.014798) with /dev/ptp3
+enp5s0 (1G2, MAC=68:b9:83:01:47:99, UUID=68b983.fffe.014799) with /dev/ptp0
+
+```bash
+sudo ptp4l -H -i enp2s0f0  -p /dev/ptp3  -m  --tx_timestamp_timeout=100 --domainNumber=2 -l 7  --verbose=1
+sudo ptp4l -H -i enp5s0  -p /dev/ptp0  -m  --tx_timestamp_timeout=100 --domainNumber=2 -l 7  --verbose=1
+sudo phc2sys -s /dev/ptp0 -c enp2s0f0 -m -l 7 -O 0
 
 ```
 

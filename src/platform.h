@@ -308,6 +308,8 @@ int32_t socketGetLastError(void);
 #define SOCKET_MODE_BLOCKING (1 << 1)
 #define SOCKET_MODE_HW_TIMESTAMPING (1 << 2)
 #define SOCKET_MODE_SW_TIMESTAMPING (1 << 3)
+#define SOCKET_MODE_REUSEADDR (1 << 4)
+#define SOCKET_MODE_GET_IF_INFO (1 << 5)
 
 // Socket functions
 bool socketStartup(void);

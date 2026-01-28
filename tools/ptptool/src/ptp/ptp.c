@@ -36,9 +36,9 @@ extern uint8_t ptp_log_level;
 #define DBG_LEVEL ptp_log_level
 #include "dbg_print.h" // for DBG_PRINT_ERROR, DBG_PRINTF_WARNING, ...
 
-#ifdef _LINUX
-#include "phc.h"
-#endif
+// #ifdef _LINUX
+// #include "phc.h"
+// #endif
 
 #include "ptp.h"
 
@@ -449,7 +449,8 @@ tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name, bool sync_
     bool useBindToDevice = (if_name != NULL && if_addr[0] == 0 && if_addr[1] == 0 && if_addr[2] == 0 && if_addr[3] == 0);
 
     // SYNC with tx (master) or rx (observer) timestamp, DELAY_REQ - with rx timestamps
-    if (!socketOpen(&ptp->sock319, SOCKET_MODE_BLOCKING | SOCKET_MODE_HW_TIMESTAMPING | SOCKET_MODE_SW_TIMESTAMPING))
+    if (!socketOpen(&ptp->sock319,
+                    SOCKET_MODE_BLOCKING | SOCKET_MODE_HW_TIMESTAMPING | SOCKET_MODE_SW_TIMESTAMPING | (useBindToDevice ? SOCKET_MODE_REUSEADDR | SOCKET_MODE_GET_IF_INFO : 0)))
         return NULL;
     if (!socketBind(ptp->sock319, if_addr, 319))
         return NULL;
@@ -523,7 +524,7 @@ tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name, bool sync_
 #endif // _LINUX
 
     // General messages ANNOUNCE, FOLLOW_UP, DELAY_RESP - without rx timestamps
-    if (!socketOpen(&ptp->sock320, SOCKET_MODE_BLOCKING))
+    if (!socketOpen(&ptp->sock320, SOCKET_MODE_BLOCKING | SOCKET_MODE_REUSEADDR))
         return NULL;
     if (!socketBind(ptp->sock320, if_addr, 320))
         return NULL;

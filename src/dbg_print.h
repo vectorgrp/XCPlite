@@ -165,6 +165,17 @@ extern uint8_t gXcpLogLevel;
             printf(DBG_PRINT_PREFIX format);                                                                                                                                       \
     } while (0)
 
+#define DBG_PRINTF6(format, ...)                                                                                                                                                   \
+    do {                                                                                                                                                                           \
+        if (DBG_LEVEL >= 6)                                                                                                                                                        \
+            printf(DBG_PRINT_PREFIX format, __VA_ARGS__);                                                                                                                          \
+    } while (0)
+#define DBG_PRINT6(format)                                                                                                                                                         \
+    do {                                                                                                                                                                           \
+        if (DBG_LEVEL >= 6)                                                                                                                                                        \
+            printf(DBG_PRINT_PREFIX format);                                                                                                                                       \
+    } while (0)
+
 // Convenience macros for format-only strings (no additional arguments)
 #define DBG_PRINT(format) printf(format)
 
@@ -189,6 +200,12 @@ extern uint8_t gXcpLogLevel;
 #define DBG_PRINT5(s)
 #endif
 
+#if OPTION_MAX_DBG_LEVEL < 6
+#undef DBG_PRINTF6
+#define DBG_PRINTF6(s, ...)
+#undef DBG_PRINT6
+#define DBG_PRINT6(s)
+#endif
 #else // OPTION_ENABLE_DBG_PRINTS
 
 #undef DBG_LEVEL
@@ -199,6 +216,7 @@ extern uint8_t gXcpLogLevel;
 #define DBG_PRINTF3(s, ...)
 #define DBG_PRINTF4(s, ...)
 #define DBG_PRINTF5(s, ...)
+#define DBG_PRINTF6(s, ...)
 
 #define DBG_PRINT(s)
 #define DBG_PRINT_ERROR(s) // printf(s,__VA_ARGS__)

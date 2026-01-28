@@ -33,9 +33,10 @@ extern uint8_t ptp_log_level;
 
 #include "ptpHdr.h" // PTP protocol message structures
 #include "ptp_master.h"
-#ifdef _LINUX
-#include "phc.h"
-#endif
+
+// #ifdef _LINUX
+// #include "phc.h"
+// #endif
 
 //-------------------------------------------------------------------------------------------------------
 // XCP
