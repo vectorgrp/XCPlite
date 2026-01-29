@@ -1,4 +1,4 @@
-﻿// struct_demo xcplib example
+﻿// struct_demo XCPlite example
 
 // This is a pure measurement only example, no calibration segments used
 // Demonstrates how to create typedefs for nested structs and arrays of struct
@@ -12,8 +12,8 @@
 #include <stdlib.h>  // for free, malloc
 #include <string.h>  // for sprintf
 
-#include "a2l.h"    // for xcplib A2l generation
-#include "xcplib.h" // for xcplib application programming interface
+#include "a2l.h"    // for A2l generation
+#include "xcplib.h" // for application programming interface
 
 //-----------------------------------------------------------------------------------------------------
 
@@ -70,7 +70,7 @@ int main(void) {
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 
-    printf("\nXCP on Ethernet struct measurement xcplib demo\n");
+    printf("\nXCP on Ethernet struct measurement demo\n");
 
     // Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
     XcpSetLogLevel(OPTION_LOG_LEVEL);

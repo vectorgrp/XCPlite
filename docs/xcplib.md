@@ -12,7 +12,7 @@
 
 ## 1 · Overview
 
-This guide documents the C API exposed by **xcplib** and demonstrates its integration in a host application.\
+This guide documents the C API exposed by **libxcplite** and demonstrates its integration in a host application.\
 All functions are *C linkage* and can therefore be consumed directly from C/C++, or via FFI from Rust and other languages.
 
 Key features:

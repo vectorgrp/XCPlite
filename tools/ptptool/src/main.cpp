@@ -38,8 +38,9 @@
 
 #ifdef OPTION_ENABLE_XCP
 
-#include <a2l.hpp>    // for xcplib A2l generation application programming interface
-#include <xcplib.hpp> // for xcplib application programming interface
+// Include XCPlite/libxcplite C++ headers
+#include <a2l.hpp>    // for A2l generation application programming interface
+#include <xcplib.hpp> // for application programming interface
 
 constexpr const char XCP_OPTION_PROJECT_NAME[] = "ptptool";
 constexpr const char XCP_OPTION_PROJECT_VERSION[] = "V0.0.1";

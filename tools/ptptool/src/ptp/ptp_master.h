@@ -5,7 +5,7 @@
 #include <stdint.h>  // for uintxx_t
 
 #include "filter.h"   // for average filter
-#include "platform.h" // from xcplib for SOCKET, ...
+#include "platform.h" // from linxcplite for SOCKET, ...
 
 #include "ptp.h"    // for tPtp, OPTION_ENABLE_XCP
 #include "ptpHdr.h" // PTP protocol message structures

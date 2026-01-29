@@ -1,11 +1,11 @@
-// external_example - Demonstrates using xcplib as an external library
+// external_example - Demonstrates using libxcplite as an external library
 //
-// This example shows how to use xcplib when it's installed as a binary
+// This example shows how to use libxcplite when it's installed as a binary
 // library (either system-wide or in a local staging directory).
 //
 // The code is a simplified version of hello_xcp to demonstrate:
-// - Including xcplib headers from an installed location
-// - Linking against the pre-built xcplib library
+// - Including libxcplite headers from an installed location
+// - Linking against the pre-built libxcplite library
 // - Basic XCP measurement and calibration functionality
 
 #include <signal.h>
@@ -14,7 +14,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
-// Include xcplib headers from the installed location
+// Include libxcplite headers from the installed location
 #include <a2l.h>
 #include <xcplib.h>
 
@@ -57,10 +57,10 @@ static void signalHandler(int sig) {
 int main(void) {
 
     printf("\n");
-    printf("external_example - Using xcplib as external library\n");
+    printf("external_example - Using libxcplite as external library\n");
     printf("====================================================\n\n");
     printf("This example demonstrates:\n");
-    printf("- Building against an installed xcplib binary\n");
+    printf("- Building against an installed libxcplite binary\n");
     printf("- Basic XCP measurement and calibration\n");
     printf("- Independent CMakeLists.txt configuration\n\n");
 

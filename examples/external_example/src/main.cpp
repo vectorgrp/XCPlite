@@ -1,11 +1,11 @@
-// external_example_cpp - C++ version demonstrating xcplib as external library
+// external_example_cpp - C++ version demonstrating libxcplite as external library
 
 #include <csignal>
 #include <cstdint>
 #include <iostream>
 #include <unistd.h>
 
-// Include xcplib C++ headers from the installed location
+// Include XCPlite/libxcplite C++ headers from the installed location
 #include <a2l.hpp>
 #include <xcplib.hpp>
 
@@ -43,10 +43,10 @@ static void signalHandler(int sig) {
 int main() {
 
     std::cout << "\n";
-    std::cout << "external_example_cpp - C++ Using xcplib as external library\n";
+    std::cout << "external_example_cpp - C++ Using libxcplite as external library\n";
     std::cout << "===========================================================\n\n";
     std::cout << "This example demonstrates:\n";
-    std::cout << "- Building C++ code against installed xcplib binary\n";
+    std::cout << "- Building C++ code against installed libxcplite binary\n";
     std::cout << "- Using C++ API and headers\n";
     std::cout << "- Simple XCP instrumentation in C++\n\n";
 

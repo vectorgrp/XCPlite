@@ -6,7 +6,7 @@
 |   main_cfg.h
 |
 | Description:
-|   General configuration and build options for XCPlite / xcplib
+|   General configuration and build options for XCPlite / libxcplite
 |
  ----------------------------------------------------------------------------*/
 

@@ -1,4 +1,4 @@
-﻿// multi_thread_demo xcplib example
+﻿// multi_thread_demo XCPlite example
 
 #include <assert.h> // for assert
 #include <math.h>   // for M_PI, sin
@@ -11,10 +11,10 @@
 #include <stdio.h>   // for printf
 #include <string.h>  // for sprintf
 
-#include "a2l.h"    // for xcplib A2l generation
-#include "xcplib.h" // for xcplib application programming interface
+#include "a2l.h"    // for A2l generation
+#include "xcplib.h" // for application programming interface
 
-// Internal xcplib includes to simplify multi platform threading and print XCP metrics
+// Internal libxcplite includes to simplify multi platform threading and print XCP metrics
 #include "main_cfg.h" // for OPTION_xxx
 #include "platform.h" // for THREAD
 #include "xcpLite.h"  // for metrics gXcpDaqEventCount, ...
@@ -349,7 +349,7 @@ void *task(void *p)
 // Demo main
 int main(void) {
 
-    printf("\nXCP on Ethernet multi thread xcplib demo\n");
+    printf("\nXCP on Ethernet multi thread demo\n");
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 

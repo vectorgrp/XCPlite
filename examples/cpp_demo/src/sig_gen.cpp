@@ -11,8 +11,9 @@ Depending on calibration parameters ampl, phase, offset and period
 #include <iostream> // for std::cout
 #include <thread>
 
-#include "a2l.hpp"    // for xcplib A2l generation application programming interface
-#include "xcplib.hpp" // for xcplib application programming interface
+// Include XCPlite/libxcplite C++ headers
+#include "a2l.hpp"    // for A2l generation application programming interface
+#include "xcplib.hpp" // for application programming interface
 
 #include "sig_gen.hpp"
 

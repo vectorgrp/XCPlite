@@ -1,4 +1,4 @@
-// hello_xcp_cpp - simple xcplib C++ example
+// hello_xcp_cpp - simple XCPlite/libxcplite C++ example
 
 #include <array>    // for std::array
 #include <atomic>   // for std::atomic
@@ -7,8 +7,9 @@
 #include <iostream> // for std::cout
 #include <optional> // for std::optional
 
-#include <a2l.hpp>    // for xcplib A2l generation application programming interface
-#include <xcplib.hpp> // for xcplib application programming interface
+// Include XCPlite/libxcplite C++ headers
+#include <a2l.hpp>    // for A2l generation application programming interface
+#include <xcplib.hpp> // for application programming interface
 
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters

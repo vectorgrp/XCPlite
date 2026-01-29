@@ -1,4 +1,4 @@
-﻿// no_a2l_demo xcplib example
+﻿// no_a2l_demo XCPlite example
 // Demonstrates XCPlite operation without runtime A2L generation
 // See ../README.md for details
 // Requires manual or tool based XCPlite specific A2L file creation and update process
@@ -11,9 +11,9 @@
 #include <stdlib.h>  // for malloc, free
 #include <string.h>  // for sprintf
 
-#include "xcplib.h" // for xcplib application programming interface
+#include "xcplib.h" // for application programming interface
 
-// Internal xcplib includes to simplify multi platform support
+// Internal libxcplite includes to simplify multi platform support
 #include "platform.h" // for platform abstraction for thread local, threads, mutex, sockets, sleepUs, ...
 
 static volatile bool global_running = true;
@@ -198,7 +198,7 @@ void foo(void) {
 
 int main(void) {
 
-    printf("\nXCP on Ethernet no_a2l_demo C xcplib demo\n");
+    printf("\nXCP on Ethernet no_a2l_demo C demo\n");
 
     // Print build configuration
 #ifdef NDEBUG

@@ -5,7 +5,7 @@
 #include <stdint.h>  // for uintxx_t
 
 #include "filter.h"   // Average and linreg filter
-#include "platform.h" // from xcplib for SOCKET, MUTEX, ...
+#include "platform.h" // from linxcplite for SOCKET, MUTEX, ...
 
 #include "ptp.h" // for tPtp, OPTION_ENABLE_XCP
 

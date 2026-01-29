@@ -1,4 +1,4 @@
-// ptp4l_demo xcplib example (C++ version)
+// ptp4l_demo XCPlite/libxcplite example (C++ version)
 // Demonstrates how to use a PTP (from linuxptp/ptp4l) synchronized local clock for XCP data acquisition timestamping
 
 #include <cassert>
@@ -17,8 +17,9 @@
 //-----------------------------------------------------------------------------------------------------
 // XCP
 
-#include <a2l.hpp>    // for xcplib A2l generation application programming interface
-#include <xcplib.hpp> // for xcplib application programming interface
+// Include XCPlite/libxcplite C++ headers
+#include <a2l.hpp>    // for A2l generation application programming interface
+#include <xcplib.hpp> // for application programming interface
 
 constexpr const char XCP_OPTION_PROJECT_NAME[] = "ptp4l_demo";
 constexpr const char XCP_OPTION_PROJECT_VERSION[] = "V1.2.0";

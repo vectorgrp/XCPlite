@@ -22,7 +22,7 @@
 #include <stdlib.h>   // for malloc, free
 #include <string.h>   // for sprintf
 
-#include "platform.h" // from xcplib for SOCKET, ...
+#include "platform.h" // from linxcplite for SOCKET, ...
 
 #include "ptp.h"
 
@@ -30,7 +30,7 @@
 
 #include "filter.h" // for average filter
 
-#include <xcplib.h> // for xcplib application programming interface
+#include <xcplib.h> // for application programming interface
 
 #include "ptpHdr.h" // PTP protocol message structures
 #include "ptp_client.h"
@@ -714,7 +714,7 @@ uint64_t ptpClientGetGrandmasterClock() {
     // Interpolate the current grandmaster clock value from the configured local system clock
     // This requires the system clock is not discontinuous (e.g. NTP adjustments)
 #if !defined(OPTION_CLOCK_EPOCH_ARB) || !defined(OPTION_CLOCK_TICKS_1NS)
-#error "xcplib clock configuration not supported for ptpClientGetGrandmasterClock()"
+#error "clock configuration not supported for ptpClientGetGrandmasterClock()"
 #endif
     uint64_t sys_clock = clockGet();
 

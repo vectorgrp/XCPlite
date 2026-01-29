@@ -1,4 +1,4 @@
-// cal_test xcplib example - Multi-threaded calibration segment access test
+// cal_test XCPlite/libxcplite example - Multi-threaded calibration segment access test
 
 #include <atomic>   // for std::atomic
 #include <cassert>  // for assert
@@ -9,12 +9,12 @@
 #include <thread>   // for std::thread
 #include <vector>
 
-// Public xcplib API
-#include "a2l.hpp"    // for xcplib A2l generation application programming interface
-#include "xcplib.hpp" // for xcplib application programming interface
+// Public XCPlite/libxcplite API
+#include "a2l.hpp"    // for A2l generation application programming interface
+#include "xcplib.hpp" // for application programming interface
 
-// Internal xcplib includes
-// Note: Take care for include order, when using internal xcplib headers !!
+// Internal libxcplite includes
+// Note: Take care for include order, when using internal libxcplite headers !!
 // xcp_cfg.h would includes main_cfg.h and platform.h, which enables atomic emulation under Windows, we use <atomic> in this file
 #include "main_cfg.h"
 #undef OPTION_ATOMIC_EMULATION

@@ -43,8 +43,8 @@ extern uint8_t ptp_log_level;
 
 #ifdef OPTION_ENABLE_XCP
 
-#include <a2l.h>    // for xcplib A2l generation
-#include <xcplib.h> // for xcplib application programming interface
+#include <a2l.h>    // for A2l generation
+#include <xcplib.h> // for application programming interface
 
 #endif
 

@@ -1,4 +1,4 @@
-﻿// c_demo xcplib example
+﻿// c_demo XCPlite example
 
 #include <assert.h>  // for assert
 #include <signal.h>  // for signal handling
@@ -7,8 +7,8 @@
 #include <stdio.h>   // for printf
 #include <string.h>  // for sprintf
 
-#include "a2l.h"    // for xcplib A2l generation
-#include "xcplib.h" // for xcplib application programming interface
+#include "a2l.h"    // for A2l generation
+#include "xcplib.h" // for application programming interface
 
 //-----------------------------------------------------------------------------------------------------
 
@@ -71,7 +71,7 @@ static void sig_handler(int sig) { running = false; }
 // Demo main
 int main(void) {
 
-    printf("\nXCP on Ethernet C xcplib demo\n");
+    printf("\nXCP on Ethernet C demo\n");
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 

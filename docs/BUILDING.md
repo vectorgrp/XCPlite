@@ -12,7 +12,7 @@ Most of the examples require **CANape 23 or later**, because they use A2L TYPEDE
 
 ### Linux or macOS
 
-Use the build script to build the library xcplib, example targets and get comprehensive output on issues:
+Use the build script to build the library libxcplite, example targets and get comprehensive output on issues:
 
 ```bash
 ./build.sh

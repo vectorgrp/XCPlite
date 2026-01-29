@@ -11,12 +11,12 @@
 #include <stdio.h>   // for printf
 #include <string.h>  // for sprintf
 
-// Public xcplib API
-#include "a2l.h"    // for xcplib A2l generation application programming interface
-#include "xcplib.h" // for xcplib application programming interface
+// Public XCPlite API
+#include "a2l.h"    // for A2l generation application programming interface
+#include "xcplib.h" // for application programming interface
 
-// Internal xcplib includes
-// Note: Take care for include order, when using internal xcplib headers !!
+// Internal libxcplite includes
+// Note: Take care for include order, when using internal libxcplite headers !!
 // xcp_cfg.h would includes main_cfg.h and platform.h
 #include "dbg_print.h"
 #include "main_cfg.h"
@@ -131,7 +131,7 @@ void *task(void *p)
 // Demo main
 int main(void) {
 
-    printf("\nXCP on Ethernet multi thread xcplib demo\n");
+    printf("\nXCP on Ethernet multi thread demo\n");
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 

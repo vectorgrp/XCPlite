@@ -13,7 +13,7 @@
 |
  ----------------------------------------------------------------------------*/
 
-#include "platform.h" // from xcplib for SOCKET, ...
+#include "platform.h" // from linxcplite for SOCKET, ...
 
 #include <assert.h>    // for assert
 #include <fcntl.h>     // for open

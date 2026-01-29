@@ -3,11 +3,11 @@
 
 /*----------------------------------------------------------------------------
 | File:
-|   xcplib.h - Public xcplib C API
+|   xcplib.h - Public libxcplite C API
 |
 | Description:
-|   C header file for the XCPlite library xcplib application programming interface
-|   Used for Rust bindgen to generate FFI bindings for xcplib
+|   C header file for the XCPlite library libxcplite application programming interface
+|   Used for Rust bindgen to generate FFI bindings for libxcplite
 |   Supporting functions and macros for A2L generation are in a2l.h
 |
 | Copyright (c) Vector Informatik GmbH. All rights reserved.
@@ -567,7 +567,7 @@ bool XcpIsConnected(void);
 const char *XcpGetProjectName(void);
 
 // A2L file name
-// Notify xcplib there is a valid A2L with this name to be provided for upload via XCP command GET_ID
+// Notify XCPlite there is a valid A2L with this name to be provided for upload via XCP command GET_ID
 void XcpSetA2lName(const char *name);
 const char *XcpGetA2lName(void);
 
@@ -635,7 +635,7 @@ void ApplXcpRegisterReadCallback(uint8_t (*cb_read)(uint32_t src, uint8_t size, 
 void ApplXcpRegisterWriteCallback(uint8_t (*cb_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay));
 void ApplXcpRegisterFlushCallback(uint8_t (*cb_flush)(void));
 
-// xcplib utility functions (from platform.c) used for the demos to keep them clean and platform-independent
+// utility functions (from platform.c) used for the demos to keep them clean and platform-independent
 uint64_t clockGetMonotonicNs(void);
 uint64_t clockGetMonotonicUs(void);
 void sleepUs(uint32_t us);

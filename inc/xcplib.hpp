@@ -3,10 +3,10 @@
 
 /*----------------------------------------------------------------------------
 | File:
-|   xcplib.hpp - Public xcplib C++ API
+|   xcplib.hpp - Public XCPlite/libxcplite C++ API
 |
 | Description:
-|   C++ header file for the XCPlite library xcplib application programming interface
+|   C++ header file for the XCPlite library XCPlite/libxcplite application programming interface
 |   Generic C++ RAII wrapper for calibration parameter segments
 |   Provides automatic lock/unlock management using a guard pattern
 |
@@ -22,7 +22,7 @@
 
 namespace xcplib {
 
-// xcplib configuration parameters
+// XCPlite/libxcplite configuration parameters
 extern "C" {
 extern uint8_t XCP_ADDR_MODE_SEG;
 }

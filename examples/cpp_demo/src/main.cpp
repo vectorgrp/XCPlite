@@ -1,4 +1,4 @@
-// cpp_demo xcplib C++ example
+// cpp_demo XCPlite/libxcplite C++ example
 
 #include <atomic>   // for std::atomic
 #include <csignal>  // for signal(), SIGINT, SIGTERM
@@ -6,8 +6,9 @@
 #include <iostream> // for std::cout
 #include <thread>   // for std::thread
 
-#include "a2l.hpp"    // for xcplib A2l generation application programming interface
-#include "xcplib.hpp" // for xcplib application programming interface
+// Include XCPlite/libxcplite C++ headers
+#include "a2l.hpp"    // for A2l generation application programming interface
+#include "xcplib.hpp" // for application programming interface
 
 #include "lookup.hpp"  // for lookup_table::LookupTableT
 #include "sig_gen.hpp" // for signal_generator::SignalGenerator
@@ -89,7 +90,7 @@ static void sig_handler(int sig) { running = false; }
 
 int main() {
 
-    std::cout << "\nXCP on Ethernet cpp_demo C++ xcplib demo\n" << std::endl;
+    std::cout << "\nXCP on Ethernet cpp_demo C++ demo\n" << std::endl;
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 

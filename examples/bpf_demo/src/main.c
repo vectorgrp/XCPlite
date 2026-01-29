@@ -1,4 +1,4 @@
-﻿// bpf_demo xcplib example
+﻿// bpf_demo XCPlite example
 
 #include <assert.h>  // for assert
 #include <errno.h>   // for errno
@@ -17,8 +17,8 @@
 #error "This example only works on Linux systems with BPF support"
 #endif
 
-#include "a2l.h"    // for xcplib A2l generation
-#include "xcplib.h" // for xcplib application programming interface
+#include "a2l.h"    // for A2l generation
+#include "xcplib.h" // for application programming interface
 
 //-----------------------------------------------------------------------------------------------------
 // XCP params

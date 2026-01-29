@@ -121,13 +121,13 @@ This would be possible when only using segment relative addressing mode, but is 
 
 To check compatibility of target ECU, A2L and binary parameter files, the so called EPK is used. It is a software version string specified in the A2L file, with an additional address where it is located in the ECU.
 
-The EPK does not have an explicit address extension, which means it defaults to 0. However the address extension 0 is defined in xcplib, as absolute or segment relative mode, the EPK may be accessed by its memory address. In addition, there is a special XCP info command `GET_ID` mode=5 to obtain the EPK from the ECU.
+The EPK does not have an explicit address extension, which means it defaults to 0. However the address extension 0 is defined in xcplite, as absolute or segment relative mode, the EPK may be accessed by its memory address. In addition, there is a special XCP info command `GET_ID` mode=5 to obtain the EPK from the ECU.
 
 ### EPK and Binary Parameter Files
 
 To be able to check the compatibility of binary parameter files, which store only parameter data in calibration parameter segments, an EPK memory segment is needed. This is important, because if CANape persists and caches calibration parameter segments in binary files and if the EPK is not in the address range of a memory segment, there is no way to check compatibility of the binary files.
 
-In XCPlite, the EPK may be specified with an xcplib API function or is generated from build time and date when calibration segment persistence mode is enabled.
+In XCPlite, the EPK may be specified with an API function or is generated from build time and date when calibration segment persistence mode is enabled.
 
 
 ### The XCPlite RCU Algorithm for calibration segment updates

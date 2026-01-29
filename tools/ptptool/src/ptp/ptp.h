@@ -5,7 +5,7 @@
 #include <stdint.h>  // for uintxx_t
 
 #include "filter.h"   // for average filter
-#include "platform.h" // from xcplib for SOCKET, THREAD, ...
+#include "platform.h" // from linxcplite for SOCKET, THREAD, ...
 #include "ptpHdr.h"   // for struct ptphdr
 
 //-------------------------------------------------------------------------------------------------------

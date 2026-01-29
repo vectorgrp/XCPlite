@@ -1,4 +1,4 @@
-// point_cloud_demo - xcplib C++ example
+// point_cloud_demo - XCPlite/libxcplite C++ example
 // Simulates a 3D point cloud with simple physics to demonstrate visualization of 3-dimensional objects in CANapes 3D scene window
 // All XCPlite related instrumentation code is marked with "XCP:" comments
 
@@ -12,8 +12,9 @@
 #include <iostream>  // for std::cout
 #include <optional>  // for std::optional
 
-#include <a2l.hpp>    // for xcplib A2l generation application programming interface
-#include <xcplib.hpp> // for xcplib application programming interface
+// Include XCPlite/libxcplite C++ headers
+#include <a2l.hpp>    // for A2l generation application programming interface
+#include <xcplib.hpp> // for application programming interface
 
 //-----------------------------------------------------------------------------------------------------
 // XCP: Configuration
@@ -341,7 +342,7 @@ template <uint16_t N> class PointCloud {
         real_time_ = ApplXcpGetClock64();
 
         // Cycle timer
-        uint64_t delta_time = params_.lock()->cycle_time_us * 1000; // in ns, assumes xcplib is compiled with OPTION_CLOCK_TICKS_1NS
+        uint64_t delta_time = params_.lock()->cycle_time_us * 1000; // in ns, assumes libxcplite is compiled with OPTION_CLOCK_TICKS_1NS
         if (real_time_ - simulation_time_ < delta_time) {
             return false; // not time yet
         }
