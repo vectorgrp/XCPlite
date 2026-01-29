@@ -214,10 +214,9 @@ int main() {
         A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible on file system without XCP tool connect
     }
 
-    // Cleanup
-    std::cout << "\nExiting ..." << std::endl;
-    XcpDisconnect();
-    XcpEthServerShutdown();
+    XcpDisconnect();        // Force disconnect the XCP client
+    A2lFinalize();          // Finalize A2L generation, if not done yet
+    XcpEthServerShutdown(); // Stop the XCP server
 
     return 0;
 }

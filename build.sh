@@ -18,7 +18,7 @@ show_usage() {
     echo "  target:     lib|examples|tests|bpf|all (default: examples)"
     echo ""
     echo "Build Targets:"
-    echo "  lib:        Build only the xcplib library"
+    echo "  lib:        Build only the xcplite library"
     echo "  examples:   Build library + examples (excluding bpf_demo) [DEFAULT]"
     echo "  tests:      Build library + test targets (a2l_test, cal_test, daq_test, type_detection tests)"
     echo "  bpf:        Build library + examples including bpf_demo (Linux only)"
@@ -162,7 +162,7 @@ if [ "$COMPILER_CHOICE" = "" ] || [ "$COMPILER_CHOICE" = "default" ]; then
 fi
 
 # Define all targets to build based on BUILD_TARGET (must be done before cmake configure)
-LIBRARY_TARGET="xcplib"
+LIBRARY_TARGET="xcplite"
 
 # Define target groups
 EXAMPLE_TARGETS=(
@@ -380,7 +380,7 @@ else
     if [ ${#LIBRARY_DEPENDENT_TARGETS[@]} -gt 0 ]; then
         echo "📋 SKIPPED TARGETS (due to library failure):"
         for target in "${LIBRARY_DEPENDENT_TARGETS[@]}"; do
-            echo "   - $target (skipped - requires xcplib)"
+            echo "   - $target (skipped - requires xcplite)"
         done
         echo ""
     fi
@@ -429,7 +429,7 @@ else
     echo ""
     echo "❌ FAILED TARGETS (${#FAILED_TARGETS[@]}):"
     for target in "${FAILED_TARGETS[@]}"; do
-        if [ "$target" = "xcplib" ]; then
+        if [ "$target" = "xcplite" ]; then
             echo "   - $target (CRITICAL - core library failure)"
         else
             echo "   - $target"
@@ -437,8 +437,8 @@ else
     done
 
     echo ""
-    if [[ " ${FAILED_TARGETS[@]} " =~ " xcplib " ]]; then
-        echo "💥 LIBRARY FAILURE: Core library (xcplib) failed to compile."
+    if [[ " ${FAILED_TARGETS[@]} " =~ " xcplite " ]]; then
+        echo "💥 LIBRARY FAILURE: Core library (xcplite) failed to compile."
         echo "   Library-dependent targets were skipped."
     fi
 fi

@@ -459,9 +459,8 @@ int main() {
 
     std::cout << "\nExiting ..." << std::endl;
 
-    // XCP: Shutdown
-    XcpDisconnect();
-    XcpEthServerShutdown();
-
+    XcpDisconnect();        // Force disconnect the XCP client
+    A2lFinalize();          // Finalize A2L generation, if not done yet
+    XcpEthServerShutdown(); // Stop the XCP server
     return 0;
 }

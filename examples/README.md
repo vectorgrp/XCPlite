@@ -38,6 +38,15 @@ An example in C++ using more idiomatic C++ to demonstrate the capabilities of th
 - Use the variadic C++ macro/template API.  
 - Instrument a member function: Register and measure local function variables and parameters.  
 
+### external_example
+
+**Demonstrates using xcplib as a pre-built external library** - independent from the main build system.  
+- Shows how to build against an installed xcplib binary (system-wide or local staging).  
+- Independent CMakeLists.txt using `find_package(xcplib)`.  
+- Typical workflow for production deployments where xcplib is distributed as a library package.  
+- No system installation required for development - uses local staging directory.  
+- See [external_example/README.md](external_example/README.md) for detailed instructions.  
+
 ### c_demo
 
 Shows more complex data objects (structs, arrays) and calibration objects (axis, maps and curves).  

@@ -328,9 +328,9 @@ int main(int argc, char *argv[]) {
         printf("SUCCESS: No errors occurred during the test\n");
     }
 
-    // Shutdown XCP
-    XcpDisconnect();
-    XcpEthServerShutdown();
+    XcpDisconnect();        // Force disconnect the XCP client
+    A2lFinalize();          // Finalize A2L generation, if not done yet
+    XcpEthServerShutdown(); // Stop the XCP server
 
     printf("\nTest completed successfully!\n");
     return total_errors > 0 ? 1 : 0;

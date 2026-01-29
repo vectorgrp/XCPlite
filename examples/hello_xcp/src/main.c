@@ -231,11 +231,8 @@ int main(void) {
 
     } // for (;;)
 
-    // XCP: Force disconnect the XCP client
     XcpDisconnect();
-
-    // XCP: Stop the XCP server
+    A2lFinalize(); // Finalize A2L generation, if not done yet
     XcpEthServerShutdown();
-
     return 0;
 }

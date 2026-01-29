@@ -2,8 +2,9 @@
 
 All notable changes to XCPlite are documented in this file.
 
-## [V1.1.1]
+## [V1.2.0]
 
+- Renamed to libxcplite, external package name `xcplite`
 - Pragmatic solution to specify input quantities for axis
 - New functions in platform.c: clockGetMonotonicNs() and clockGetRealtimeNs() 
 - ptp4l_demo and ptptool seperated,

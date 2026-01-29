@@ -21,7 +21,7 @@
 #include <xcplib.hpp> // for xcplib application programming interface
 
 constexpr const char XCP_OPTION_PROJECT_NAME[] = "ptp4l_demo";
-constexpr const char XCP_OPTION_PROJECT_VERSION[] = "V1.1.0";
+constexpr const char XCP_OPTION_PROJECT_VERSION[] = "V1.2.0";
 constexpr bool XCP_OPTION_USE_TCP = false;
 constexpr uint8_t XCP_OPTION_SERVER_ADDR[4] = {0, 0, 0, 0};
 constexpr uint16_t XCP_OPTION_SERVER_PORT = 5555;
@@ -200,9 +200,8 @@ int main(int argc, char *argv[]) {
 
     } // while running
 
-    XcpDisconnect();
-    A2lFinalize(); // Finalize A2L generation, if not done yet
-    XcpEthServerShutdown();
-
+    XcpDisconnect();        // Force disconnect the XCP client
+    A2lFinalize();          // Finalize A2L generation, if not done yet
+    XcpEthServerShutdown(); // Stop the XCP server
     return 0;
 }

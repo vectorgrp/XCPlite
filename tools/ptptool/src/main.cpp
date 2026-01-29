@@ -600,9 +600,9 @@ int main(int argc, char *argv[]) {
     ptpShutdown(ptp);
 
 #ifdef OPTION_ENABLE_XCP
-    XcpDisconnect();
-    A2lFinalize(); // Finalize A2L generation, if not done yet
-    XcpEthServerShutdown();
+    XcpDisconnect();        // Force disconnect the XCP client
+    A2lFinalize();          // Finalize A2L generation, if not done yet
+    XcpEthServerShutdown(); // Stop the XCP server
 #endif
 
     return 0;

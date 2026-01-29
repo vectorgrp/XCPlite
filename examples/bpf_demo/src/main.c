@@ -670,8 +670,8 @@ int main(int argc, char *argv[]) {
         sleepUs(100000); // 100ms
     }
 
-    printf("Shutting down ...\n");
-    cleanup_bpf();
-    XcpEthServerShutdown();
+    XcpDisconnect();        // Force disconnect the XCP client
+    A2lFinalize();          // Finalize A2L generation, if not done yet
+    XcpEthServerShutdown(); // Stop the XCP server
     return 0;
 }

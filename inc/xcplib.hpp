@@ -17,6 +17,7 @@
 
 #include <mutex> // for std::once_flag, std::call_once
 
+#include <a2l.h>
 #include <xcplib.h>
 
 namespace xcplib {

@@ -1,0 +1,21 @@
+@PACKAGE_INIT@
+
+# xcplite CMake package configuration file
+# 
+# This file allows other CMake projects to find and use xcplite
+# via find_package(xcplite)
+
+include(CMakeFindDependencyMacro)
+
+# Find required dependencies
+find_dependency(Threads REQUIRED)
+
+# Include the exported targets
+include("${CMAKE_CURRENT_LIST_DIR}/xcpliteTargets.cmake")
+
+# Provide legacy variables for backward compatibility
+set(xcplite_LIBRARIES xcplite::xcplite)
+set(xcplite_INCLUDE_DIRS "${PACKAGE_PREFIX_DIR}/include")
+
+# Check that the library target exists
+check_required_components(xcplite)
