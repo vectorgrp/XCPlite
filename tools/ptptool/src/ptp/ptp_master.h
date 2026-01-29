@@ -61,10 +61,11 @@ typedef struct master_params {
     uint32_t announce_interval_ms; // Announce message cycle time in ms
     uint32_t sync_interval_ms;     // SYNC message cycle time in ms
 #ifdef MASTER_TIME_ADJUST
-    int32_t drift;       // PTP master time drift in ns/s
-    int32_t drift_drift; // PTP master time drift drift in ns/s2
-    int32_t offset;      // PTP master time offset in ns
-    int32_t jitter;      // PTP master time jitter in ns
+    bool enable_test_time_adjustment; //
+    int32_t drift;                    // PTP master time drift in ns/s
+    int32_t drift_drift;              // PTP master time drift drift in ns/s2
+    int32_t offset;                   // PTP master time offset in ns
+    int32_t jitter;                   // PTP master time jitter in ns
 #endif
 } tMasterParams;
 

@@ -645,6 +645,10 @@ void A2lTypedefParameterComponent_(const char *name, const char *typedef_name, u
 // Create an instance of a typedef
 void A2lCreateInstance_(const char *instance_name, const char *typeName, uint16_t x_dim, const void *ptr, const char *comment);
 
+// Set input quantity strings for X and Y axes
+void A2lSetInputQuantity_x(const char *measurement_variable_name);
+void A2lSetInputQuantity_y(const char *measurement_variable_name);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

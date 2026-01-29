@@ -49,7 +49,7 @@ This section describes the configuration parameters in main_cfg.h.
 
 | Parameter | Description |
 |-----------|-------------|
-| `OPTION_ENABLE_GET_LOCAL_ADDR` | Enables automatic determination of local IP address for A2L files when bound to ANY (0.0.0.0). Note: May crash on Windows |
+| `OPTION_ENABLE_GET_LOCAL_ADDR` | Enables automatic determination of local IP address for A2L files when bound to ANY (0.0.0.0). |
 
 ### Logging Options
 

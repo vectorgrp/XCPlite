@@ -39,9 +39,9 @@ struct ptp {
     uint32_t magic; // Magic number for validation
 
     // Sockets and communication
-    uint8_t if_addr[4]; // local addr
-    char if_name[32];   // network interface name
-    uint8_t maddr[4];   // multicast addr
+    uint8_t ifaddr[4]; // local addr
+    char ifname[32];   // network interface name
+    uint8_t maddr[4];  // multicast addr
     THREAD threadHandle320;
     THREAD threadHandle319;
     SOCKET sock320;
@@ -67,8 +67,8 @@ typedef struct ptp tPtp;
 extern "C" {
 #endif
 
-tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name, bool sync_phc);
-bool ptpGenerateLocalClockUUID(char *if_name, uint8_t *uuid);
+tPtp *ptpCreateInterface(const uint8_t *ifaddr, const char *ifname, bool sync_phc);
+bool ptpGenerateLocalClockUUID(char *ifname, uint8_t *uuid);
 
 uint8_t ptpTask(tPtp *ptp);
 void ptpShutdown(tPtp *ptp);

@@ -68,7 +68,7 @@ typedef struct params {
 
 // Default parameters
 static const params_t params = {
-    .counter_max = 1024, .ampl = 100.0, .period = 3.0, .filter = 0.07, .clip_max = -100.0, .clip_min = -100.0, .delay_us = THREAD_DELAY_US, .run = true};
+    .counter_max = 1024, .ampl = 100.0, .period = 3.0, .filter = 0.07, .clip_max = +100.0, .clip_min = -100.0, .delay_us = THREAD_DELAY_US, .run = true};
 
 // Global calibration segment handle
 static tXcpCalSegIndex calseg = XCP_UNDEFINED_CALSEG;

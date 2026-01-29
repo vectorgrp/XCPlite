@@ -88,26 +88,26 @@ void SignalGenerator::Task() {
         // Calculate the waveform value based on the current time and signal parameters
         {
             auto p = signal_parameters_.lock();
-            double normalized_time = fmod(time, p->period) / p->period; // Normalize time ([0.0..1.0[ to the period
+            normalized_time_ = fmod(time, p->period) / p->period; // Normalize time ([0.0..1.0[ to the period
             double v = 0;
             switch (p->signal_type) {
             case SignalTypeT::SQUARE:
-                v = (normalized_time < 0.5) ? +1.0 : -1.0;
+                v = (normalized_time_ < 0.5) ? +1.0 : -1.0;
                 break;
             case SignalTypeT::TRIANGLE:
-                v = (normalized_time - 0.5);
-                v = (normalized_time < 0.5) ? v : -v;
+                v = (normalized_time_ - 0.5);
+                v = (normalized_time_ < 0.5) ? v : -v;
                 v = (v + 0.25) * 4.0;
                 break;
             case SignalTypeT::SAWTOOTH:
-                v = (normalized_time - 0.5) * 2.0;
+                v = (normalized_time_ - 0.5) * 2.0;
                 break;
             case SignalTypeT::ARBITRARY: {
                 // Find the index in the lookup table based on the time
-                v = p->lookup.Lookup((float)normalized_time);
+                v = p->lookup.Lookup((float)normalized_time_);
             } break;
             default:
-                v = sin((normalized_time * k2Pi) + p->phase);
+                v = sin((normalized_time_ * k2Pi) + p->phase);
                 break;
             }
             value_ = (p->ampl * v) + p->offset;

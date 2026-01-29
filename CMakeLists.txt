@@ -135,7 +135,11 @@ endif()
 
 # Platform-specific compile definitions
 if(WIN32)
+    # Define _CRT_SECURE_NO_WARNINGS for Windows to suppress secure CRT warnings
     target_compile_definitions(xcplib PRIVATE _CRT_SECURE_NO_WARNINGS)
+else()
+    # Define _GNU_SOURCE for Linux/Unix to make POSIX/BSD extensions available
+    target_compile_definitions(xcplib PRIVATE _GNU_SOURCE)
 endif()
 
 # Link threads library to xcplib (needed for pthread usage in platform.h)

@@ -54,7 +54,7 @@ const signal_generator::SignalParametersT kSignalParameters1 = {
     .ampl = 12.5,
     .phase = 0.0,
     .offset = 0.0,
-    .period = 0.4, // s
+    .period = 1.0, // s
     .lookup =
         {
             .values = {0.0f, 0.5f, 1.0f, 0.50f, 0.0f, -0.5f, -1.0f, -0.5f, 0.0f, 0.0f, 0.0f},
@@ -62,8 +62,8 @@ const signal_generator::SignalParametersT kSignalParameters1 = {
             .lookup_axis = {0.0f, 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f},
 #endif
         },
-    .delay_us = 1000,                                   // us
-    .signal_type = signal_generator::SignalTypeT::SINE, // Type of the signal
+    .delay_us = 1000,                                       // us
+    .signal_type = signal_generator::SignalTypeT::TRIANGLE, // Type of the signal
 };
 const signal_generator::SignalParametersT kSignalParameters2 = {
     .ampl = 80.0,

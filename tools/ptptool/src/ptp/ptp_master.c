@@ -55,6 +55,7 @@ static tMasterParams master_params = {
     .announce_interval_ms = ANNOUNCE_CYCLE_TIME_MS_DEFAULT, // ANNOUNCE rate
     .sync_interval_ms = SYNC_CYCLE_TIME_MS_DEFAULT,         // SYNC rate
 #ifdef MASTER_TIME_ADJUST
+    .enable_test_time_adjustment = false,
     .drift = 0,       // PTP master time drift in ns/s
     .drift_drift = 0, // PTP master time drift drift in ns/s2
     .offset = 0,      // PTP master time offset in ns
@@ -83,38 +84,41 @@ static uint64_t testTimeAdjust(tPtpMaster *master, uint64_t originTime) {
 
     uint64_t t = originTime;
 
-    assert(t >= master->testTimeLastSync);
+    if (master->params->enable_test_time_adjustment) {
 
-    mutexLock(&master->testTimeMutex);
+        assert(t >= master->testTimeLastSync);
 
-    // time since last sync
-    uint64_t dt = t - master->testTimeLastSync;
+        mutexLock(&master->testTimeMutex);
 
-    //  Apply drift offset
-    int64_t drift_offset = (int64_t)((master->testTimeCurrentDrift * (int64_t)dt) / 1000000000) + master->testTimeSyncDriftOffset;
-    t += drift_offset;
+        // time since last sync
+        uint64_t dt = t - master->testTimeLastSync;
 
-    // Apply jitter
-    int64_t jitter_offset = 0;
-    if (master->params->jitter > 0) {
-        jitter_offset = (int64_t)(((double)rand() / (double)RAND_MAX) * 2.0 * (double)(master->params->jitter + 1) - (double)(master->params->jitter + 1));
-        t += jitter_offset;
-    }
+        //  Apply drift offset
+        int64_t drift_offset = (int64_t)((master->testTimeCurrentDrift * (int64_t)dt) / 1000000000) + master->testTimeSyncDriftOffset;
+        t += drift_offset;
 
-    // Apply offset
-    t += master->params->offset;
+        // Apply jitter
+        int64_t jitter_offset = 0;
+        if (master->params->jitter > 0) {
+            jitter_offset = (int64_t)(((double)rand() / (double)RAND_MAX) * 2.0 * (double)(master->params->jitter + 1) - (double)(master->params->jitter + 1));
+            t += jitter_offset;
+        }
 
-    mutexUnlock(&master->testTimeMutex);
+        // Apply offset
+        t += master->params->offset;
 
-    // warn if time is non monotonic
-    if (t < master->testTimeLast) {
-        DBG_PRINTF_ERROR("Non monotonic time ! (dt=-%" PRIu64 ")\n", master->testTimeLast - t);
-    }
+        mutexUnlock(&master->testTimeMutex);
 
-    if (ptp_log_level >= 5) {
-        if (originTime != t) {
-            printf("    testTimeAdjust: originTime=%" PRIu64 " ns, drift_offset=%" PRIi64 " ns, jitter=%" PRIi64 " ns, offset=%d ns => testTime=%" PRIu64 " ns\n", originTime,
-                   drift_offset, jitter_offset, master->params->offset, t);
+        // warn if time is non monotonic
+        if (t < master->testTimeLast) {
+            DBG_PRINTF_ERROR("Non monotonic time ! (dt=-%" PRIu64 ")\n", master->testTimeLast - t);
+        }
+
+        if (ptp_log_level >= 5) {
+            if (originTime != t) {
+                printf("TEST: time adjust: originTime=%" PRIu64 " ns, drift_offset=%" PRIi64 " ns, jitter=%" PRIi64 " ns, offset=%d ns => testTime=%" PRIu64 " ns\n", originTime,
+                       drift_offset, jitter_offset, master->params->offset, t);
+            }
         }
     }
 
@@ -156,7 +160,7 @@ static void testTimeSync(tPtpMaster *master, uint64_t originTime) {
 
     master->testTimeLastSync = originTime;
 
-    if (ptp_log_level >= 5) {
+    if (ptp_log_level >= 5 && (master->testTimeSyncDriftOffset) != 0 || master->testTimeCurrentDrift != 0) {
         printf("    testTimeSync: originTime=%" PRIu64 " ns, testTimeSyncDriftOffset=%" PRIi64 " ns, testTimeCurrentDrift=%d ns/s\n", originTime, master->testTimeSyncDriftOffset,
                master->testTimeCurrentDrift);
     }
@@ -223,8 +227,8 @@ void masterPrintState(tPtp *ptp, int index) {
     printf("\nMaster %u:\n", index + 1);
     printf("  UUID:           %02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X\n", master->uuid[0], master->uuid[1], master->uuid[2], master->uuid[3], master->uuid[4], master->uuid[5],
            master->uuid[6], master->uuid[7]);
-    printf("  IP:             %u.%u.%u.%u\n", ptp->if_addr[0], ptp->if_addr[1], ptp->if_addr[2], ptp->if_addr[3]);
-    printf("  Interface:      %s\n", ptp->if_name);
+    printf("  IP:             %u.%u.%u.%u\n", ptp->ifaddr[0], ptp->ifaddr[1], ptp->ifaddr[2], ptp->ifaddr[3]);
+    printf("  Interface:      %s\n", ptp->ifname);
     printf("  Domain:         %u\n", master->domain);
     if (!master->active) {
         printf(" Status:         INACTIVE\n");
@@ -249,8 +253,8 @@ void masterInit(tPtp *ptp, tPtpMaster *master, uint8_t domain, const uint8_t *uu
 
     // Generate UUID from MAC address if not provided
     if (uuid == NULL || memcmp(uuid, "\0\0\0\0\0\0\0\0", 8) == 0) {
-        if (!ptpGenerateLocalClockUUID(ptp->if_name, master->uuid)) {
-            printf("ERROR: Failed to get MAC based for interface %s, using zero UUID\n", ptp->if_name);
+        if (!ptpGenerateLocalClockUUID(ptp->ifname, master->uuid)) {
+            printf("ERROR: Failed to get MAC based for interface %s, using zero UUID\n", ptp->ifname);
             memset(master->uuid, 0, 8);
         }
     }
@@ -276,6 +280,7 @@ void masterInit(tPtp *ptp, tPtpMaster *master, uint8_t domain, const uint8_t *uu
         A2lSetSegmentAddrMode(master->xcp_calseg, master_params);
         A2lCreateParameter(master_params.announce_interval_ms, "Announce cycle time (ms)", "", 0, 10000);
         A2lCreateParameter(master_params.sync_interval_ms, "Sync cycle time (ms)", "", 0, 10000);
+        A2lCreateParameter(master_params.enable_test_time_adjustment, "Enable test time adjustment", "", 0, 1);
         A2lCreateParameter(master_params.drift, "Master time drift (ns/s)", "", -100000, +100000);
         A2lCreateParameter(master_params.drift_drift, "Master time drift drift (ns/s2)", "", -1000, +1000);
         A2lCreateParameter(master_params.jitter, "Master time jitter (ns)", "", 0, 1000000);
@@ -473,6 +478,7 @@ tPtpMaster *ptpCreateMaster(tPtp *ptp, const char *name, uint8_t domain, const u
     if (sync_interval_ms > 0)
         master_params.sync_interval_ms = sync_interval_ms;
 #ifdef MASTER_TIME_ADJUST
+    master_params.enable_test_time_adjustment = offset != 0 || drift != 0 || drift_drift != 0 || jitter != 0;
     master_params.offset = offset;
     master_params.drift = drift;
     master_params.drift_drift = drift_drift;

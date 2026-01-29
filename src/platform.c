@@ -19,8 +19,6 @@
 
 #include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
 #include "main_cfg.h"  // for OPTION_xxx ...
-#include <inttypes.h>  // for PRIu64
-#include <string.h>    // for strerror
 
 /**************************************************************************/
 // Winsock
@@ -259,57 +257,78 @@ void mutexDestroy(MUTEX *m) { DeleteCriticalSection(m); }
 
 #if !defined(_WIN) // Non-Windows platforms
 
-#if defined(_LINUX)
-#include <net/if.h> // for if_nametoindex
-#endif
+#if defined(_LINUX) // Linux
 
-#if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
 #include <ifaddrs.h> // for getifaddrs, freeifaddrs
+#include <net/if.h>  // for if_nametoindex, struct ifreq, IFNAMSIZ
+
+#if defined(OPTION_SOCKET_HW_TIMESTAMPS)
 #include <linux/errqueue.h>
 #include <linux/net_tstamp.h>
 #include <linux/sockios.h> // for SIOCSHWTSTAMP
-#include <net/if.h>        // for struct ifreq, IFNAMSIZ
 #include <sys/ioctl.h>     // for ioctl
+#endif
+
+#endif
+
+#if !defined(_MACOS) && !defined(_QNX) // Non-MacOS/Non-QNX platforms
+#include <linux/if_packet.h>
+#else
+#include <net/if_dl.h>
+#endif
+
+#if !defined(_WIN) // Non-Windows platforms
+#include <ifaddrs.h>
 #endif
 
 bool socketStartup(void) { return true; }
 
 void socketCleanup(void) {}
 
-bool socketOpen(SOCKET *sp, uint16_t flags) {
+// Create a socket, TCP or UDP
+bool socketOpen(SOCKET *socketp, uint16_t flags) {
+
+    assert(socketp != NULL);
+    int sock = -1;
 
     bool useTCP = flags & SOCKET_MODE_TCP;
     bool nonBlocking = !(flags & SOCKET_MODE_BLOCKING);
     bool reuseaddr = flags & SOCKET_MODE_REUSEADDR;
     bool getifinfo = flags & SOCKET_MODE_GET_IF_INFO;
-    bool hw_timestamps = flags & SOCKET_MODE_HW_TIMESTAMPING;
-    bool sw_timestamps = flags & SOCKET_MODE_SW_TIMESTAMPING;
 
     assert(nonBlocking == false); // Non-blocking sockets not implemented yet
 
     // Create a socket
-    *sp = socket(AF_INET, useTCP ? SOCK_STREAM : SOCK_DGRAM, 0);
-    if (*sp < 0) {
+    sock = socket(AF_INET, useTCP ? SOCK_STREAM : SOCK_DGRAM, 0);
+    if (sock < 0) {
         DBG_PRINT_ERROR("cannot open socket!\n");
         return 0;
     }
 
     if (reuseaddr) {
         int yes = 1;
-        if (setsockopt(*sp, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0) {
+        if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0) {
             DBG_PRINTF_WARNING("Failed to enable SO_REUSEADDR on socket (errno=%d)\n", errno);
+        } else {
+            DBG_PRINT3("SO_REUSEADDR enabled on socket\n");
         }
     }
 
     if (getifinfo) {
         int yes = 1;
-        if (setsockopt(*sp, IPPROTO_IP, IP_PKTINFO, &yes, sizeof(yes)) < 0) {
+        if (setsockopt(sock, IPPROTO_IP, IP_PKTINFO, &yes, sizeof(yes)) < 0) {
             DBG_PRINTF_WARNING("Failed to enable IP_PKTINFO on socket (errno=%d)\n", errno);
+        } else {
+            DBG_PRINT3("IP_PKTINFO enabled\n");
         }
     }
 
 // Enable timestamps if requested
 #if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
+
+    bool hw_timestamps = flags & SOCKET_MODE_HW_TIMESTAMPING;
+    bool sw_timestamps = flags & SOCKET_MODE_SW_TIMESTAMPING;
+
     if (hw_timestamps) {
         // Enable SO_TIMESTAMPING for full hardware and software timestamping support
         // This is required for PTP SYNC message timestamping
@@ -331,7 +350,7 @@ bool socketOpen(SOCKET *sp, uint16_t flags) {
                          SOF_TIMESTAMPING_OPT_TSONLY |   // Return only timestamp, not packet data
                          // SOF_TIMESTAMPING_OPT_TX_SWHW |  // Generate both SW and HW TX timestamps
                          0;
-        if (setsockopt(*sp, SOL_SOCKET, SO_TIMESTAMPING, &flags, sizeof(flags)) < 0) {
+        if (setsockopt(sock, SOL_SOCKET, SO_TIMESTAMPING, &flags, sizeof(flags)) < 0) {
             DBG_PRINTF_ERROR("Failed to enable socket hardware timestamps (SO_TIMESTAMPING, errno=%d)\n", errno);
         } else {
             DBG_PRINTF3("Hardware timestamping enabled on socket (SO_TIMESTAMPING flags=0x%X)\n", flags);
@@ -342,7 +361,7 @@ bool socketOpen(SOCKET *sp, uint16_t flags) {
 
         // Enable software timestamps, if required
         int yes = 1;
-        if (setsockopt(*sp, SOL_SOCKET, SO_TIMESTAMPNS, &yes, sizeof(yes)) < 0) {
+        if (setsockopt(sock, SOL_SOCKET, SO_TIMESTAMPNS, &yes, sizeof(yes)) < 0) {
             DBG_PRINTF_ERROR("Failed to enable socket software timestamps (SO_TIMESTAMPNS, errno=%d)\n", errno);
         } else {
             DBG_PRINT3("Software timestamps enabled on socket (SO_TIMESTAMPNS)\n");
@@ -350,10 +369,18 @@ bool socketOpen(SOCKET *sp, uint16_t flags) {
     }
 #endif
 
+    SOCKET socket = (struct socket *)malloc(sizeof(struct socket));
+    memset(socket, 0, sizeof(struct socket));
+    socket->sock = sock;
+    socket->flags = flags;
+    *socketp = socket;
     return true;
 }
 
-bool socketBind(SOCKET sock, const uint8_t *addr, uint16_t port) {
+bool socketBind(SOCKET socket, const uint8_t *addr, uint16_t port) {
+
+    assert(socket != NULL);
+    int sock = socket->sock;
 
     // Bind the socket to any address and the specified port
     SOCKADDR_IN a;
@@ -369,24 +396,38 @@ bool socketBind(SOCKET sock, const uint8_t *addr, uint16_t port) {
         return 0;
     }
 
+    socket->port = port;
+    socket->addr = *(uint32_t *)addr;
     return true;
 }
 
-// Bind socket to a specific network interface by name (Linux only)
+// Bind socket to a specific network interface by name (Linux only, OPTION_SOCKET_HW_TIMESTAMPS only)
 // This is useful for multicast reception on a specific interface while binding to INADDR_ANY
 // Requires root privileges on Linux
-bool socketBindToDevice(SOCKET sock, const char *ifname) {
+bool socketBindToDevice(SOCKET socket, const char *ifname) {
+
+    assert(socket != NULL);
+
 #if defined(_LINUX)
+    int sock = socket->sock;
     if (ifname != NULL && ifname[0] != '\0') {
         if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, ifname, strlen(ifname)) < 0) {
             DBG_PRINTF_ERROR("%d - failed to bind socket to device %s !\n", socketGetLastError(), ifname);
             return false;
         }
-        DBG_PRINTF4("Socket bound to device %s\n", ifname);
+        DBG_PRINTF3("Socket bound to device %s\n", ifname);
+
+        // Store interface name
+        strncpy(socket->ifname, ifname, sizeof(socket->ifname) - 1);
+        socket->ifname[sizeof(socket->ifname) - 1] = '\0';
+
+        // Store interface index
+        unsigned int ifindex = if_nametoindex(ifname);
+        socket->ifindex = ifindex;
     }
     return true;
 #else
-    (void)sock;
+    (void)socket;
     (void)ifname;
     DBG_PRINTF_WARNING("socketBindToDevice(%s): SO_BINDTODEVICE not supported on this platform, request ignored!\n", ifname ? ifname : "(null)");
     return true;
@@ -400,15 +441,23 @@ bool socketBindToDevice(SOCKET sock, const char *ifname) {
 // Must be called after socket is created and bound
 // ifname: Network interface name (e.g., "eth0"). If NULL, uses first non-loopback interface.
 // Returns true on success, false on failure (falls back to software timestamps)
-bool socketEnableTimestamps(SOCKET sock, const char *ifname, bool ptpOnly) {
+bool socketEnableTimestamps(SOCKET socket, bool ptpOnly) {
+
+    assert(socket != NULL);
+    int sock = socket->sock;
+
     struct ifreq ifr;
     struct hwtstamp_config hwconfig;
+
+    // Use socket's ifname
+    const char *ifname = socket->ifname[0] != '\0' ? socket->ifname : NULL;
 
     memset(&ifr, 0, sizeof(ifr));
     memset(&hwconfig, 0, sizeof(hwconfig));
 
     // If no interface specified, try to find the first non-loopback interface
-    if (ifname == NULL || ifname[0] == '\0') {
+    if (ifname == NULL) {
+        DBG_PRINT_WARNING("socketEnableTimestamps: No ifname specified, searching for first non-loopback interface\n");
         struct ifaddrs *ifaddrs, *ifa;
         if (getifaddrs(&ifaddrs) == 0) {
             for (ifa = ifaddrs; ifa != NULL; ifa = ifa->ifa_next) {
@@ -429,6 +478,8 @@ bool socketEnableTimestamps(SOCKET sock, const char *ifname, bool ptpOnly) {
     } else {
         strncpy(ifr.ifr_name, ifname, IFNAMSIZ - 1);
     }
+
+    DBG_PRINTF3("socketEnableTimestamps: Enabling timestamps on interface %s\n", ifr.ifr_name);
 
     // Configure hardware timestamping:
     // tx_type: HWTSTAMP_TX_ON enables TX timestamps for all packets
@@ -465,11 +516,10 @@ bool socketEnableTimestamps(SOCKET sock, const char *ifname, bool ptpOnly) {
 
 // Hardware timestamping not supported on this platform
 // Stub for non-Linux platforms
-bool socketEnableTimestamps(SOCKET sock, const char *ifname, bool ptpOnly) {
-    (void)sock;
-    (void)ifname;
+bool socketEnableTimestamps(SOCKET socket, bool ptpOnly) {
+    (void)socket;
     (void)ptpOnly;
-    DBG_PRINT_ERROR("socketEnableTimestamps: Hardware timestamping not supported on this platform!\n");
+    DBG_PRINT_ERROR("socketEnableTimestamps: Socket hardware timestamping not supported on this platform!\n");
     return false;
 }
 
@@ -477,36 +527,30 @@ bool socketEnableTimestamps(SOCKET sock, const char *ifname, bool ptpOnly) {
 
 // Shutdown socket
 // Block rx and tx direction
-bool socketShutdown(SOCKET sock) {
-    if (sock != INVALID_SOCKET) {
-        shutdown(sock, SHUT_RDWR);
+bool socketShutdown(SOCKET socket) {
+    if (socket != NULL) {
+        if (socket->sock > 0)
+            shutdown(socket->sock, SHUT_RDWR);
     }
     return true;
 }
 
 // Close socket
 // Make addr reusable
-bool socketClose(SOCKET *sp) {
-    if (*sp != INVALID_SOCKET) {
-        close(*sp);
-        *sp = INVALID_SOCKET;
+bool socketClose(SOCKET *socketp) {
+    assert(socketp != NULL);
+    if (*socketp != NULL) {
+        close((*socketp)->sock);
+        free(*socketp);
+        *socketp = NULL;
     }
     return true;
 }
 
-#ifdef OPTION_ENABLE_GET_LOCAL_ADDR
+// Get MAC address of a network interface by name
+bool socketGetMAC(char *ifname, uint8_t *mac) {
 
-#if !defined(_MACOS) && !defined(_QNX)
-#include <linux/if_packet.h>
-#else
-#include <ifaddrs.h>
-#include <net/if_dl.h>
-#endif
-#if !defined(_WIN) // Non-Windows platforms
-#include <ifaddrs.h>
-#endif
-
-static bool GetMAC(char *ifname, uint8_t *mac) {
+    assert(ifname != NULL);
     struct ifaddrs *ifaddrs, *ifa;
     if (getifaddrs(&ifaddrs) == 0) {
         for (ifa = ifaddrs; ifa != NULL; ifa = ifa->ifa_next) {
@@ -532,6 +576,9 @@ static bool GetMAC(char *ifname, uint8_t *mac) {
     return false;
 }
 
+#ifdef OPTION_ENABLE_GET_LOCAL_ADDR
+
+// Get local IP address and MAC address of the first non-loopback interface
 bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr) {
     static uint32_t __addr1 = 0;
     static uint8_t __mac1[6] = {0, 0, 0, 0, 0, 0};
@@ -555,7 +602,7 @@ bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr) {
                 }
             }
             if (__addr1 != 0 && ifa1 != NULL) {
-                GetMAC(ifa1->ifa_name, __mac1);
+                socketGetMAC(ifa1->ifa_name, __mac1);
 #ifdef DBG_LEVEL
                 if (DBG_LEVEL >= 5) {
                     inet_ntop(AF_INET, &__addr1, strbuf, sizeof(strbuf));
@@ -613,8 +660,10 @@ bool socketStartup(void) {
 void socketCleanup(void) { WSACleanup(); }
 
 // Create a socket, TCP or UDP
-// Note: Enabling HW timestamps may have impact on throughput
-bool socketOpen(SOCKET *sp, uint16_t flags) {
+bool socketOpen(SOCKET *socketp, uint16_t flags) {
+
+    assert(socketp != NULL);
+    int sock = -1;
 
     bool useTCP = flags & SOCKET_MODE_TCP;
     bool nonBlocking = !(flags & SOCKET_MODE_BLOCKING);
@@ -662,10 +711,18 @@ bool socketOpen(SOCKET *sp, uint16_t flags) {
         }
     }
 
+    SOCKET socket = (struct socket *)malloc(sizeof(struct socket));
+    memset(socket, 0, sizeof(struct socket));
+    socket->sock = sock;
+    socket->flags = flags;
+    *socketp = socket;
     return true;
 }
 
-bool socketBind(SOCKET sock, uint8_t *addr, uint16_t port) {
+bool socketBind(SOCKET socket, uint8_t *addr, uint16_t port) {
+
+    assert(socket != NULL);
+    int sock = socket->sock;
 
     // Bind the socket to any address and the specified port
     SOCKADDR_IN a;
@@ -690,9 +747,12 @@ bool socketBind(SOCKET sock, uint8_t *addr, uint16_t port) {
 
 // Shutdown socket
 // Block rx and tx direction
-bool socketShutdown(SOCKET sock) {
+bool socketShutdown(SOCKET socket) {
 
-    if (sock != INVALID_SOCKET) {
+    assert(socket != NULL);
+    int sock = socket->sock;
+
+    if (sock != -1) {
         shutdown(sock, SD_BOTH);
     }
     return true;
@@ -700,11 +760,13 @@ bool socketShutdown(SOCKET sock) {
 
 // Close socket
 // Make addr reusable
-bool socketClose(SOCKET *sockp) {
+bool socketClose(SOCKET *socketp) {
 
-    if (*sockp != INVALID_SOCKET) {
-        closesocket(*sockp);
-        *sockp = INVALID_SOCKET;
+    assert(socketp != NULL);
+    if (*socketp != NULL) {
+        closesocket((*socketp)->sock);
+        free(*socketp);
+        *socketp = NULL;
     }
     return true;
 }
@@ -782,26 +844,44 @@ bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr) {
 
 #endif // _WIN
 
-bool socketListen(SOCKET sock) {
-
-    if (listen(sock, 5)) {
+// Listen on a TCP socket
+bool socketListen(SOCKET socket) {
+    assert(socket != NULL);
+    if (listen(socket->sock, 5)) {
         DBG_PRINTF_ERROR("%d - listen failed!\n", socketGetLastError());
         return 0;
     }
     return 1;
 }
 
-SOCKET socketAccept(SOCKET sock, uint8_t *addr) {
-
+// Accept a connection on a listening TCP socket
+// Returns the remote address if addr != NULL
+SOCKET socketAccept(SOCKET listenSocket, uint8_t *addr) {
+    assert(listenSocket != NULL);
     struct sockaddr_in sa;
     socklen_t sa_size = sizeof(sa);
-    SOCKET s = accept(sock, (struct sockaddr *)&sa, &sa_size);
+    int sock = accept(listenSocket->sock, (struct sockaddr *)&sa, &sa_size);
     if (addr)
         *(uint32_t *)addr = sa.sin_addr.s_addr;
-    return s;
+
+    SOCKET socket = (struct socket *)malloc(sizeof(struct socket));
+    memset(socket, 0, sizeof(struct socket));
+    socket->sock = sock;
+#ifdef _LINUX
+    socket->ifindex = listenSocket->ifindex;
+    strncpy(socket->ifname, listenSocket->ifname, sizeof(socket->ifname) - 1);
+    socket->ifname[sizeof(socket->ifname) - 1] = '\0';
+#endif
+    socket->flags = listenSocket->flags;
+    return socket;
 }
 
-bool socketJoin(SOCKET sock, const uint8_t *maddr, const uint8_t *ifaddr, const char *ifname) {
+// Join a multicast group on a UDP socket
+// maddr: Multicast group address (network byte order)
+bool socketJoin(SOCKET socket, const uint8_t *maddr, const uint8_t *ifaddr, const char *ifname) {
+
+    assert(socket != NULL);
+    int sock = socket->sock;
 
 #if defined(_LINUX)
     // On Linux, use ip_mreqn which allows specifying interface by name or index
@@ -814,20 +894,35 @@ bool socketJoin(SOCKET sock, const uint8_t *maddr, const uint8_t *ifaddr, const 
         // Use interface name (most reliable for multicast on Linux)
         group.imr_ifindex = if_nametoindex(ifname);
         if (group.imr_ifindex == 0) {
-            DBG_PRINTF_ERROR("Interface %s not found!\n", ifname);
+            DBG_PRINTF_ERROR("socketJoin: Interface %s not found!\n", ifname);
             return 0;
         }
+        socket->ifindex = group.imr_ifindex;
+        strncpy(socket->ifname, ifname, sizeof(socket->ifname) - 1);
+        socket->ifname[sizeof(socket->ifname) - 1] = '\0';
         DBG_PRINTF4("Joining multicast group on interface %s (index %d)\n", ifname, group.imr_ifindex);
+
+        // Get MAC address for the interface and save it in the socket structure
+        if (!socketGetMAC(socket->ifname, socket->ifmac)) {
+            DBG_PRINTF_WARNING("socketJoin: Failed to get MAC address for interface %s!\n", ifname);
+        }
+
     } else if (ifaddr != NULL && !(ifaddr[0] == 0 && ifaddr[1] == 0 && ifaddr[2] == 0 && ifaddr[3] == 0)) {
         // Use interface address
         group.imr_address.s_addr = *(uint32_t *)ifaddr;
+        socket->ifaddr = *(uint32_t *)ifaddr;
+
+        DBG_PRINTF4("Joining multicast group on interface address %u.%u.%u.%u\n", ifaddr[0], ifaddr[1], ifaddr[2], ifaddr[3]);
+
     } else {
         // Use INADDR_ANY (kernel picks interface based on routing)
         group.imr_address.s_addr = htonl(INADDR_ANY);
+
+        DBG_PRINT4("Joining multicast group on INADDR_ANY\n");
     }
 
     if (0 > setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const char *)&group, sizeof(group))) {
-        DBG_PRINTF_ERROR("%d - failed to set multicast socket option IP_ADD_MEMBERSHIP!\n", socketGetLastError());
+        DBG_PRINTF_ERROR("socketJoin:  %d - failed to set multicast socket option IP_ADD_MEMBERSHIP!\n", socketGetLastError());
         return 0;
     }
 #else
@@ -841,7 +936,7 @@ bool socketJoin(SOCKET sock, const uint8_t *maddr, const uint8_t *ifaddr, const 
         group.imr_interface.s_addr = *(uint32_t *)ifaddr;
     }
     if (0 > setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const char *)&group, sizeof(group))) {
-        DBG_PRINTF_ERROR("%d - failed to set multicast socket option IP_ADD_MEMBERSHIP!\n", socketGetLastError());
+        DBG_PRINTF_ERROR("socketJoin: %d - failed to set multicast socket option IP_ADD_MEMBERSHIP!\n", socketGetLastError());
         return 0;
     }
     (void)ifname; // Unused on non-Linux platforms
@@ -853,16 +948,18 @@ bool socketJoin(SOCKET sock, const uint8_t *maddr, const uint8_t *ifaddr, const 
 // Returns optional receive timestamps if (time != NULL)
 // Support hardware timestamps if enabled on the socket and with OPTION_SOCKET_HW_TIMESTAMPS defined, otherwise system time is used
 // Return number of bytes received, 0 when socket closed, would block or empty UDP packet received, or -1 on error
-int16_t socketRecvFrom(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, uint8_t *addr, uint16_t *port, uint64_t *time) {
+int16_t socketRecvFrom(SOCKET socket, uint8_t *buffer, uint16_t bufferSize, uint8_t *addr, uint16_t *port, uint64_t *time) {
+
+    assert(socket != NULL);
+    int sock = socket->sock;
 
     SOCKADDR_IN src;
     int16_t n = 0;
 
-    DBG_PRINTF6("socketRecvFrom: sock=%d\n", sock);
-
 #if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
-    if (time != NULL) {
-
+    // Use recvmsg() to retrieve control messages (timestamps and/or IP_PKTINFO) if available
+    // This path is taken when timestamps are requested OR when IP_PKTINFO might be enabled
+    {
         struct iovec iov;
         struct msghdr msg;
         char control[CMSG_SPACE(sizeof(struct timespec) * 3) + CMSG_SPACE(sizeof(struct in_pktinfo))];
@@ -891,7 +988,8 @@ int16_t socketRecvFrom(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, uint8_
         }
 
         // Extract timestamp and interface info from control messages if available
-        *time = 0;
+        if (time != NULL)
+            *time = 0;
         struct timespec *hw = NULL;
         struct timespec *sw = NULL;
         struct cmsghdr *cmsg;
@@ -909,7 +1007,7 @@ int16_t socketRecvFrom(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, uint8_
                 type_str = "SO_TIMESTAMPNS";
             else if (level == IPPROTO_IP && type == IP_PKTINFO)
                 type_str = "IP_PKTINFO";
-            DBG_PRINTF5("socketRecvFrom: cmsg level=%d type=%d (%s)\n", level, type, type_str);
+            DBG_PRINTF6("socketRecvFrom: cmsg level=%d type=%d (%s)\n", level, type, type_str);
 
             if (SOL_SOCKET == level && SO_TIMESTAMPING == type) {
                 if (cmsg->cmsg_len < sizeof(struct timespec) * 3) {
@@ -926,50 +1024,52 @@ int16_t socketRecvFrom(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, uint8_
                 sw = (struct timespec *)CMSG_DATA(cmsg);
             } else if (IPPROTO_IP == level && IP_PKTINFO == type) {
                 struct in_pktinfo *pktinfo = (struct in_pktinfo *)CMSG_DATA(cmsg);
-                DBG_PRINTF5("socketRecvFrom: IP_PKTINFO - ipi_ifindex=%d, ipi_addr=%08x, ipi_spec_dst=%08x\n", pktinfo->ipi_ifindex, ntohl(pktinfo->ipi_addr.s_addr),
-                            ntohl(pktinfo->ipi_spec_dst.s_addr));
-                // Note: Currently no mechanism to return this info to caller
-                // Consider extending function signature if interface info is needed
+                // Always print IP_PKTINFO for debugging (use printf, not DBG_PRINTF)
+                DBG_PRINTF6("socketRecvFrom: IP_PKTINFO - ipi_ifindex=%d, ipi_addr=%08x, ipi_spec_dst=%08x, socket->ifindex=%d\n", pktinfo->ipi_ifindex,
+                            ntohl(pktinfo->ipi_addr.s_addr), ntohl(pktinfo->ipi_spec_dst.s_addr), socket->ifindex);
+                assert(socket->ifindex == 0 || socket->ifindex == pktinfo->ipi_ifindex);
+                // Note: Just to be sure, we always get timestamps from expected if. Currently no mechanism to return this info to caller
             }
         }
-
         if (n == 0) {
-            DBG_PRINT_WARNING("socketRecvFrom: No control messages received\n");
+            DBG_PRINT6("socketRecvFrom: No control messages received\n");
         }
 
-        uint64_t t = 0;
-        if (hw != NULL) {
-            struct timespec *ts;
-            ts = &hw[2];
-            t = (uint64_t)ts->tv_sec * 1000000000ULL + (uint64_t)ts->tv_nsec;
-            if (t != 0) {
-                DBG_PRINT5("socketRecvFrom: timestamp taken from control messages SO_TIMESTAMPING [2]\n");
-            } else {
-                ts = &hw[0];
+        // Process timestamps if requested
+        if (time != NULL) {
+            uint64_t t = 0;
+            if (hw != NULL) {
+                struct timespec *ts;
+                ts = &hw[2];
                 t = (uint64_t)ts->tv_sec * 1000000000ULL + (uint64_t)ts->tv_nsec;
                 if (t != 0) {
-                    DBG_PRINT5("socketRecvFrom: timestamp taken from control messages SO_TIMESTAMPING [0]\n");
+                    DBG_PRINT5("socketRecvFrom: timestamp taken from control messages SO_TIMESTAMPING [2]\n");
+                } else {
+                    ts = &hw[0];
+                    t = (uint64_t)ts->tv_sec * 1000000000ULL + (uint64_t)ts->tv_nsec;
+                    if (t != 0) {
+                        DBG_PRINT5("socketRecvFrom: timestamp taken from control messages SO_TIMESTAMPING [0]\n");
+                    }
                 }
+
+                // {
+                //     uint64_t t_hw = hw[2].tv_sec * 1000000000ULL + hw[2].tv_nsec;
+                //     uint64_t t_sw = hw[0].tv_sec * 1000000000ULL + hw[0].tv_nsec;
+                //     printf("socketRecvFrom: HW timestamp = %" PRIu64 " ns, SW timestamp = %" PRIu64 " ns, diff = %" PRIi64 " ns\n", t_hw, t_sw, (int64_t)(t_hw - t_sw));
+                // }
             }
-
-            // {
-            //     uint64_t t_hw = hw[2].tv_sec * 1000000000ULL + hw[2].tv_nsec;
-            //     uint64_t t_sw = hw[0].tv_sec * 1000000000ULL + hw[0].tv_nsec;
-            //     printf("socketRecvFrom: HW timestamp = %" PRIu64 " ns, SW timestamp = %" PRIu64 " ns, diff = %" PRIi64 " ns\n", t_hw, t_sw, (int64_t)(t_hw - t_sw));
-            // }
+            if (t == 0 && sw != NULL) {
+                struct timespec *ts = sw;
+                t = (uint64_t)ts->tv_sec * 1000000000ULL + (uint64_t)ts->tv_nsec;
+                DBG_PRINT5("socketRecvFrom: timestamp taken from control messages SO_TIMESTAMPNS\n");
+            }
+            if (t == 0) {
+                DBG_PRINT_WARNING("socketRecvFrom: No timestamp found in control messages\n");
+            }
+            *time = t;
         }
-        if (t == 0 && sw != NULL) {
-            struct timespec *ts = sw;
-            t = (uint64_t)ts->tv_sec * 1000000000ULL + (uint64_t)ts->tv_nsec;
-            DBG_PRINT5("socketRecvFrom: timestamp taken from control messages SO_TIMESTAMPNS\n");
-        }
-        if (t == 0) {
-            DBG_PRINT_WARNING("socketRecvFrom: No timestamp found in control messages\n");
-        }
-        *time = t;
-    } else
-#endif
-
+    }
+#else
     {
         socklen_t srclen = sizeof(src);
         n = (int16_t)recvfrom(sock, (char *)buffer, bufferSize, 0, (SOCKADDR *)&src, &srclen);
@@ -991,22 +1091,24 @@ int16_t socketRecvFrom(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, uint8_
             *time = clockGet();
         }
     }
+#endif
 
     if (port)
         *port = htons(src.sin_port);
     if (addr)
         memcpy(addr, &src.sin_addr.s_addr, 4);
 
-    DBG_PRINTF6("socketRecvFrom: sock=%d returned n=%u, time=%" PRIu64 "\n", sock, n, time ? *time : 0);
+    DBG_PRINTF6("socketRecvFrom: sock=%d, ifindex=%d returned n=%u, time=%" PRIu64 "\n", sock, socket->ifindex, n, time ? *time : 0);
 
     return n;
 }
 
 // Receive from TCP or UDP socket, blocking or non-blocking
 // Return number of bytes received, 0 when socket closed, would block or empty UDP packet received, or -1 on error
-int16_t socketRecv(SOCKET sock, uint8_t *buffer, uint16_t size, bool waitAll) {
+int16_t socketRecv(SOCKET socket, uint8_t *buffer, uint16_t size, bool waitAll) {
 
-    int16_t n = (int16_t)recv(sock, (char *)buffer, size, waitAll ? MSG_WAITALL : 0);
+    assert(socket != NULL);
+    int16_t n = (int16_t)recv(socket->sock, (char *)buffer, size, waitAll ? MSG_WAITALL : 0);
     if (n == 0) {
         return 0;
     } else if (n < 0) {
@@ -1028,7 +1130,12 @@ int16_t socketRecv(SOCKET sock, uint8_t *buffer, uint16_t size, bool waitAll) {
 // Support hardware timestamps if enabled on the socket and with OPTION_SOCKET_HW_TIMESTAMPS defined, otherwise system time is used
 // If *time = 0 on return, no timestamp is available yet, but can be obtained with socketGetSendTime()
 // On non-Linux platforms, *time is set to system time at send
-int16_t socketSendTo(SOCKET sock, const uint8_t *buffer, uint16_t size, const uint8_t *addr, uint16_t port, uint64_t *time) {
+int16_t socketSendTo(SOCKET socket, const uint8_t *buffer, uint16_t size, const uint8_t *addr, uint16_t port, uint64_t *time) {
+
+    assert(socket != NULL);
+    int sock = socket->sock;
+
+    DBG_PRINTF6("socketSendTo: sock=%d, ifindex=%d\n", sock, socket->ifindex);
 
     SOCKADDR_IN sa;
     sa.sin_family = AF_INET;
@@ -1085,7 +1192,13 @@ int16_t socketSendTo(SOCKET sock, const uint8_t *buffer, uint16_t size, const ui
 
 // Send datagram on socket
 // Thread safe
-int16_t socketSend(SOCKET sock, const uint8_t *buffer, uint16_t size) { return (int16_t)send(sock, (const char *)buffer, size, 0); }
+int16_t socketSend(SOCKET socket, const uint8_t *buffer, uint16_t size) {
+
+    assert(socket != NULL);
+    int sock = socket->sock;
+
+    return (int16_t)send(sock, (const char *)buffer, size, 0);
+}
 
 // Get send time of last sent packet
 // Retrieves TX hardware timestamp and kernel software timestamp from socket error queue
@@ -1093,7 +1206,10 @@ int16_t socketSend(SOCKET sock, const uint8_t *buffer, uint16_t size) { return (
 // On non-Linux platforms, this function always returns false
 // On Linux, requires OPTION_SOCKET_HW_TIMESTAMPS defined and hardware timestamping enabled on the socket
 // hw_time and sw_time are optional, set to NULL if not needed
-bool socketGetSendTime(SOCKET sock, uint64_t *hw_time, uint64_t *sw_time) {
+bool socketGetSendTime(SOCKET socket, uint64_t *hw_time, uint64_t *sw_time) {
+
+    assert(socket != NULL);
+    int sock = socket->sock;
 
     if (hw_time)
         *hw_time = 0;

@@ -80,9 +80,9 @@
 #ifndef _DEFAULT_SOURCE
 #define _DEFAULT_SOURCE
 #endif
-// #ifndef _GNU_SOURCE
-// #define _GNU_SOURCE
-// #endif
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 // #ifndef _POSIX_C_SOURCE
 // #define _POSIX_C_SOURCE 200809L
 // #endif
@@ -92,7 +92,9 @@
 #include <stdbool.h>  // for bool
 #include <stdint.h>   // for uintxx_t, uint_fastxx_t
 #include <stdio.h>    // for printf
+#include <stdlib.h>   // for malloc, free
 
+#include <net/if.h> // for IFNAMSIZ
 #include <pthread.h>
 
 #ifndef OPTION_ATOMIC_EMULATION
@@ -262,8 +264,23 @@ typedef pthread_t THREAD;
 #include <netinet/in.h>
 #include <sys/socket.h>
 
-#define SOCKET int
-#define INVALID_SOCKET (-1)
+// #define SOCKET int
+// #define INVALID_SOCKET (-1)
+
+struct socket {
+    int sock;      // Socket handle
+    uint32_t addr; // Bind address (network byte order) maybe INADDR_ANY
+    uint16_t port; // Port
+    uint8_t flags; // Socket mode flags
+
+    // Linux only:
+    unsigned int ifindex; // Interface index
+    char ifname[16];      // Interface name
+    uint32_t ifaddr;      // Interface address
+    uint8_t ifmac[6];     // Interface MAC address
+};
+typedef struct socket *SOCKET;
+#define INVALID_SOCKET NULL
 
 #define SOCKADDR_IN struct sockaddr_in
 #define SOCKADDR struct sockaddr
@@ -293,43 +310,35 @@ int32_t socketGetLastError(void);
 
 #endif
 
-// Timestamp mode
-#define SOCKET_TIMESTAMP_NONE 0    // No timestamps
-#define SOCKET_TIMESTAMP_HW 1      // Hardware clock
-#define SOCKET_TIMESTAMP_HW_SYNT 2 // Hardware clock syntonized to PC clock
-#define SOCKET_TIMESTAMP_PC 3      // PC clock
-
-// Clock mode
-#define SOCKET_TIMESTAMP_FREE_RUNNING 0
-#define SOCKET_TIMESTAMP_SOFTWARE_SYNC 1
-
 // Socket mode flags
-#define SOCKET_MODE_TCP (1 << 0)
-#define SOCKET_MODE_BLOCKING (1 << 1)
-#define SOCKET_MODE_HW_TIMESTAMPING (1 << 2)
-#define SOCKET_MODE_SW_TIMESTAMPING (1 << 3)
-#define SOCKET_MODE_REUSEADDR (1 << 4)
-#define SOCKET_MODE_GET_IF_INFO (1 << 5)
+#define SOCKET_MODE_TCP (1 << 0)       // TCP socket
+#define SOCKET_MODE_BLOCKING (1 << 1)  // Blocking socket
+#define SOCKET_MODE_REUSEADDR (1 << 2) // Allow reuse of local address
+
+#define SOCKET_MODE_HW_TIMESTAMPING (1 << 4) // Enable hardware timestamping (Linux only, requires root)
+#define SOCKET_MODE_SW_TIMESTAMPING (1 << 5) // Enable kernel software timestamping (Linux only, requires root)
+#define SOCKET_MODE_GET_IF_INFO (1 << 6)     // Check interface info on recv
 
 // Socket functions
 bool socketStartup(void);
 void socketCleanup(void);
-bool socketOpen(SOCKET *sp, uint16_t flags);
-bool socketBind(SOCKET sock, const uint8_t *addr, uint16_t port);
-bool socketBindToDevice(SOCKET sock, const char *ifname);                   // Bind socket to a specific network interface (Linux only, requires root for non-INADDR_ANY)
-bool socketEnableTimestamps(SOCKET sock, const char *ifname, bool ptpOnly); // Enable timestamping (Linux only, requires root)
-bool socketJoin(SOCKET sock, const uint8_t *maddr, const uint8_t *ifaddr, const char *ifname);
-bool socketListen(SOCKET sock);
-SOCKET socketAccept(SOCKET sock, uint8_t *addr);
-int16_t socketRecv(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, bool waitAll);
-int16_t socketRecvFrom(SOCKET sock, uint8_t *buffer, uint16_t bufferSize, uint8_t *srcAddr, uint16_t *srcPort, uint64_t *time);
-int16_t socketSend(SOCKET sock, const uint8_t *buffer, uint16_t bufferSize);
-int16_t socketSendTo(SOCKET sock, const uint8_t *buffer, uint16_t bufferSize, const uint8_t *addr, uint16_t port, uint64_t *time);
-bool socketGetSendTime(SOCKET sock, uint64_t *txHwTime, uint64_t *txSwTime);
-bool socketShutdown(SOCKET sock);
-bool socketClose(SOCKET *sp);
+bool socketOpen(SOCKET *socketp, uint16_t flags);
+bool socketBind(SOCKET socket, const uint8_t *addr, uint16_t port);
+bool socketBindToDevice(SOCKET socket, const char *ifname); // Bind socket to a specific network interface (Linux only, requires root for non-INADDR_ANY)
+bool socketEnableTimestamps(SOCKET socket, bool ptpOnly);   // Enable timestamping (Linux only, requires root)
+bool socketJoin(SOCKET socket, const uint8_t *maddr, const uint8_t *ifaddr, const char *ifname);
+bool socketListen(SOCKET socket);
+SOCKET socketAccept(SOCKET socket, uint8_t *addr);
+int16_t socketRecv(SOCKET socket, uint8_t *buffer, uint16_t bufferSize, bool waitAll);
+int16_t socketRecvFrom(SOCKET socket, uint8_t *buffer, uint16_t bufferSize, uint8_t *srcAddr, uint16_t *srcPort, uint64_t *time);
+int16_t socketSend(SOCKET socket, const uint8_t *buffer, uint16_t bufferSize);
+int16_t socketSendTo(SOCKET socket, const uint8_t *buffer, uint16_t bufferSize, const uint8_t *addr, uint16_t port, uint64_t *time);
+bool socketGetSendTime(SOCKET socket, uint64_t *txHwTime, uint64_t *txSwTime);
+bool socketShutdown(SOCKET socket);            // Shutdown socket for read and write
+bool socketClose(SOCKET *socketp);             // Close socket
+bool socketGetMAC(char *ifname, uint8_t *mac); // Helper to get MAC address of a network interface by name
 #ifdef OPTION_ENABLE_GET_LOCAL_ADDR
-bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr);
+bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr); // Helper to get local IP address and MAC address of the first non-loopback interface
 #endif
 
 #endif

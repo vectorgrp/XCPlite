@@ -13,22 +13,21 @@
 |
  ----------------------------------------------------------------------------*/
 
-#define _GNU_SOURCE
-#include <assert.h>   // for assert
-#include <fcntl.h>    // for open
-#include <inttypes.h> // for PRIu64
-#include <math.h>     // for fabs
-#include <net/if.h>
-#include <signal.h>  // for signal handling
-#include <stdbool.h> // for bool
-#include <stdint.h>  // for uintxx_t
-#include <stdio.h>   // for printf
-#include <stdlib.h>  // for malloc, free
-#include <string.h>  // for sprintf
-#include <sys/ioctl.h>
-#include <unistd.h> // for close
-
 #include "platform.h" // from xcplib for SOCKET, ...
+
+#include <assert.h>    // for assert
+#include <fcntl.h>     // for open
+#include <inttypes.h>  // for PRIu64
+#include <math.h>      // for fabs
+#include <net/if.h>    // for struct ifreq, IFNAMSIZ
+#include <signal.h>    // for signal handling
+#include <stdbool.h>   // for bool
+#include <stdint.h>    // for uintxx_t
+#include <stdio.h>     // for printf
+#include <stdlib.h>    // for malloc, free
+#include <string.h>    // for sprintf
+#include <sys/ioctl.h> // for ioctl
+#include <unistd.h>    // for close
 
 #include "filter.h" // for average filter
 
@@ -114,46 +113,12 @@ static void printFrame(char *prefix, struct ptphdr *ptp_msg, uint8_t *addr, uint
 //---------------------------------------------------------------------------------------
 // Generate a clock UUID for a ethernet interface
 
-#if !defined(_MACOS) && !defined(_QNX)
-#include <linux/if_packet.h>
-#else
-#include <ifaddrs.h>
-#include <net/if_dl.h>
-#endif
-#if !defined(_WIN) // Non-Windows platforms
-#include <ifaddrs.h>
-#endif
-
-static bool GetMAC(char *if_name, uint8_t *mac) {
-    struct ifaddrs *ifaddrs, *ifa;
-    if (getifaddrs(&ifaddrs) == 0) {
-        for (ifa = ifaddrs; ifa != NULL; ifa = ifa->ifa_next) {
-            if (!strcmp(ifa->ifa_name, if_name)) {
-#if defined(_MACOS) || defined(_QNX)
-                if (ifa->ifa_addr->sa_family == AF_LINK) {
-                    memcpy(mac, (uint8_t *)LLADDR((struct sockaddr_dl *)ifa->ifa_addr), 6);
-                }
-#else
-                if (ifa->ifa_addr->sa_family == AF_PACKET) {
-                    struct sockaddr_ll *s = (struct sockaddr_ll *)ifa->ifa_addr;
-                    memcpy(mac, s->sll_addr, 6);
-                    break;
-                }
-#endif
-            }
-        }
-        freeifaddrs(ifaddrs);
-        return (ifa != NULL);
-    }
-    return false;
-}
-
 // Use MAC address to generate UUID (EUI-64 format)
-bool ptpGenerateLocalClockUUID(char *if_name, uint8_t *uuid) {
+bool ptpGenerateLocalClockUUID(char *ifname, uint8_t *uuid) {
 
-    assert(if_name != NULL && uuid != NULL);
+    assert(ifname != NULL && uuid != NULL);
     uint8_t mac[6];
-    if (GetMAC(if_name, mac)) {
+    if (socketGetMAC(ifname, mac)) {
         uuid[0] = mac[0] ^ 0x02; // locally administered
         uuid[1] = mac[1];
         uuid[2] = mac[2];
@@ -428,43 +393,49 @@ static void *ptpThread320(void *par)
 // Public functions
 
 // Start a PTP interface instance
-// If if_addr = INADDR_ANY, bind to given interface
+// If ifaddr = INADDR_ANY, bind to given interface
 // Enables hardware timestamps on interface (requires root privileges)
-tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name, bool sync_phc) {
+tPtp *ptpCreateInterface(const uint8_t *ifaddr, const char *ifname, bool sync_phc) {
 
     tPtp *ptp = (tPtp *)malloc(sizeof(tPtp));
     memset(ptp, 0, sizeof(tPtp));
     ptp->magic = PTP_MAGIC;
 
     // PTP communication parameters
-    memcpy(ptp->if_addr, if_addr, 4);
-    strncpy(ptp->if_name, if_name ? if_name : "", sizeof(ptp->if_name) - 1);
+    memcpy(ptp->ifaddr, ifaddr, 4);
+    strncpy(ptp->ifname, ifname ? ifname : "", sizeof(ptp->ifname) - 1);
 
     // Create sockets for event (319) and general messages (320)
     ptp->sock319 = ptp->sock320 = INVALID_SOCKET;
 
     // For multicast reception on a specific interface:
-    // - When if_addr is INADDR_ANY and interface is specified: bind to ANY and use socketBindToDevice (SO_BINDTODEVICE)
-    // - When if_addr is specific: bind to that address (works only if multicast source is on same subnet)
-    bool useBindToDevice = (if_name != NULL && if_addr[0] == 0 && if_addr[1] == 0 && if_addr[2] == 0 && if_addr[3] == 0);
+    // - When ifaddr is INADDR_ANY and interface is specified: bind to ANY and use socketBindToDevice (SO_BINDTODEVICE)
+    // - When ifaddr is specific: bind to that address (works only if multicast source is on same subnet)
+    bool useBindToDevice = (ifname != NULL && ifaddr[0] == 0 && ifaddr[1] == 0 && ifaddr[2] == 0 && ifaddr[3] == 0);
+
+    DBG_PRINTF3("ptpCreateInterface: ifaddr=%u.%u.%u.%u, ifname=%s, useBindToDevice=%d, sync_phc=%d\n", ifaddr[0], ifaddr[1], ifaddr[2], ifaddr[3], ifname ? ifname : "NULL",
+                useBindToDevice, sync_phc);
 
     // SYNC with tx (master) or rx (observer) timestamp, DELAY_REQ - with rx timestamps
     if (!socketOpen(&ptp->sock319,
-                    SOCKET_MODE_BLOCKING | SOCKET_MODE_HW_TIMESTAMPING | SOCKET_MODE_SW_TIMESTAMPING | (useBindToDevice ? SOCKET_MODE_REUSEADDR | SOCKET_MODE_GET_IF_INFO : 0)))
+                    SOCKET_MODE_BLOCKING | SOCKET_MODE_HW_TIMESTAMPING | SOCKET_MODE_SW_TIMESTAMPING | SOCKET_MODE_GET_IF_INFO | (useBindToDevice ? SOCKET_MODE_REUSEADDR : 0)))
         return NULL;
-    if (!socketBind(ptp->sock319, if_addr, 319))
+    if (!socketBind(ptp->sock319, ifaddr, 319))
         return NULL;
-    if (useBindToDevice && !socketBindToDevice(ptp->sock319, if_name))
-        return NULL;
+    if (useBindToDevice) {
+        if (!socketBindToDevice(ptp->sock319, ifname))
+            return NULL;
+    }
 
-// @@@@ Test: Read hardware clock to check if adjusted to PTP timescale
-// #ifdef _LINUX
+    // @@@@ Test: Read hardware clock to check if adjusted to PTP timescale
+    // #ifdef _LINUX
+    assert(!sync_phc);
 #if 0
     if (useBindToDevice && sync_phc) {
 
         // Get PHC device path for the network interface
-        int phc_index = phc_get_index(if_name);
-        DBG_PRINTF3("PHC index for %s is %d\n", if_name, phc_index);
+        int phc_index = phc_get_index(ifname);
+        DBG_PRINTF3("PHC index for %s is %d\n", ifname, phc_index);
         if (phc_index >= 0) {
             char phc_device[32];
             snprintf(phc_device, sizeof(phc_device), "/dev/ptp%d", phc_index);
@@ -474,7 +445,7 @@ tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name, bool sync_
             if (clkid != CLOCK_INVALID) {
                 struct timespec phc_ts, sys_ts;
                 if (clock_gettime(clkid, &phc_ts) == 0 && clock_gettime(CLOCK_REALTIME, &sys_ts) == 0) {
-                    DBG_PRINTF3("Interface %s uses %s\n", if_name, phc_device);
+                    DBG_PRINTF3("Interface %s uses %s\n", ifname, phc_device);
 
                     // Calculate time difference
                     long diff_sec = phc_ts.tv_sec - sys_ts.tv_sec;
@@ -510,7 +481,7 @@ tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name, bool sync_
 
                         // Initialize PHC to system time (best effort)
                         DBG_PRINT3("Sync PHC\n");
-                        phc_init_to_system_time(ptp->if_name, 5000000 /* offset in ns */);
+                        phc_init_to_system_time(ptp->ifname, 5000000 /* offset in ns */);
                     }
                 } else {
                     DBG_PRINT_ERROR("Failed to read PHC time\n");
@@ -524,34 +495,37 @@ tPtp *ptpCreateInterface(const uint8_t *if_addr, const char *if_name, bool sync_
 #endif // _LINUX
 
     // General messages ANNOUNCE, FOLLOW_UP, DELAY_RESP - without rx timestamps
-    if (!socketOpen(&ptp->sock320, SOCKET_MODE_BLOCKING | SOCKET_MODE_REUSEADDR))
+    // Enable GET_IF_INFO and SW_TIMESTAMPING to receive control messages (IP_PKTINFO)
+    if (!socketOpen(&ptp->sock320, SOCKET_MODE_BLOCKING | SOCKET_MODE_REUSEADDR | SOCKET_MODE_GET_IF_INFO | SOCKET_MODE_SW_TIMESTAMPING))
         return NULL;
-    if (!socketBind(ptp->sock320, if_addr, 320))
+    if (!socketBind(ptp->sock320, ifaddr, 320))
         return NULL;
-    if (useBindToDevice && !socketBindToDevice(ptp->sock320, if_name))
-        return NULL;
+    if (useBindToDevice) {
+        if (!socketBindToDevice(ptp->sock320, ifname))
+            return NULL;
+    }
 
     // Enable hardware timestamps for SYNC tx and DELAY_REQ messages (requires root privileges)
-    if (!socketEnableTimestamps(ptp->sock319, if_name, true /* enable tx + rx timestamps (hw and sw) for PTP only */)) {
+    if (!socketEnableTimestamps(ptp->sock319, true /* enable tx + rx timestamps (hw and sw) for PTP only */)) {
         DBG_PRINT_ERROR("Hardware timestamping not enabled (may need root)\n");
         return NULL;
     }
 
     if (ptp_log_level >= 3) {
         if (useBindToDevice)
-            printf("  Bound PTP sockets to if_name %s\n", if_name);
+            printf("  Bound PTP sockets to ifname %s\n", ifname);
         else
-            printf("  Bound PTP sockets to %u.%u.%u.%u:320/319\n", if_addr[0], if_addr[1], if_addr[2], if_addr[3]);
+            printf("  Bound PTP sockets to %u.%u.%u.%u:320/319\n", ifaddr[0], ifaddr[1], ifaddr[2], ifaddr[3]);
     }
 
     // Join PTP multicast group
     if (ptp_log_level >= 3)
-        printf("  Listening for PTP multicast on 224.0.1.129 %s\n", if_name ? if_name : "");
+        printf("  Listening for PTP multicast on 224.0.1.129 %s\n", ifname ? ifname : "");
     uint8_t maddr[4] = {224, 0, 1, 129};
     memcpy(ptp->maddr, maddr, 4);
-    if (!socketJoin(ptp->sock319, ptp->maddr, if_addr, if_name))
+    if (!socketJoin(ptp->sock319, ptp->maddr, ifaddr, ifname))
         return NULL;
-    if (!socketJoin(ptp->sock320, ptp->maddr, if_addr, if_name))
+    if (!socketJoin(ptp->sock320, ptp->maddr, ifaddr, ifname))
         return NULL;
 
     // Start all PTP threads

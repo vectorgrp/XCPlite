@@ -359,7 +359,7 @@ int main(int argc, char *argv[]) {
             if (i + 1 < argc) {
                 i++;
                 int log_level = std::atoi(argv[i]);
-                if (log_level >= 0 && log_level <= 5) {
+                if (log_level >= 0 && log_level <= 6) {
                     xcp_log_level = log_level;
                 } else {
                     if (log_level < 2) {
@@ -368,7 +368,7 @@ int main(int argc, char *argv[]) {
                     if (log_level < 1) {
                         std::cerr << "Warning: XCP log level 0 disables all logging, including errors.\n";
                     }
-                    std::cerr << "Error: Invalid log level '" << argv[i] << "'. Must be 0-5\n";
+                    std::cerr << "Error: Invalid log level '" << argv[i] << "'. Must be 0-6\n";
                     print_usage(argv[0]);
                     return 1;
                 }

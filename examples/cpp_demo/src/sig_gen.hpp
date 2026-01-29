@@ -46,7 +46,8 @@ class SignalGenerator {
     const char *instance_name_; // Instance name
     std::thread *thread_;       // Thread for the signal generator task
 
-    double value_{0}; // Current value
+    double value_{0};           // Current value
+    double normalized_time_{0}; // Current normalized time in [0.0..1.0[
 
     void Task();
 

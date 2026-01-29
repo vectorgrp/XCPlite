@@ -75,6 +75,10 @@ static const uint8_t *gA2lFramePtr = NULL;               // Frame address for re
 static const uint8_t *gA2lBasePtr = NULL;                // Base address for rel and dyn mode
 static tXcpCalSegIndex gA2lAddrIndex = 0;                // Segment index for seg mode
 
+// Input quantities
+static const char *gA2lInputQuantity_x = NULL;
+static const char *gA2lInputQuantity_y = NULL;
+
 // Statistics
 static uint32_t gA2lMeasurements;
 static uint32_t gA2lParameters;
@@ -447,6 +451,18 @@ static double getTypeMax(tA2lTypeId type) {
     return max;
 }
 
+//----------------------------------------------------------------------------------
+
+void A2lSetInputQuantity_x(const char *input_quantity) { gA2lInputQuantity_x = input_quantity; }
+
+void A2lSetInputQuantity_y(const char *input_quantity) { gA2lInputQuantity_y = input_quantity; }
+
+static const char *A2lGetInputQuantity_x() { return gA2lInputQuantity_x ? gA2lInputQuantity_x : "NO_INPUT_QUANTITY"; }
+
+static const char *A2lGetInputQuantity_y() { return gA2lInputQuantity_y ? gA2lInputQuantity_y : "NO_INPUT_QUANTITY"; }
+
+//----------------------------------------------------------------------------------
+
 // Start A2L file generation
 // Filename gA2lFilename
 static bool A2lOpen(void) {
@@ -624,12 +640,13 @@ static void A2lCreate_ETH_IF_DATA(bool useTCP, const uint8_t *addr, uint16_t por
 
         // Transport Layer info (protocol, address, port)
         // Skip transport layer info completely, if no valid address is configured or detected
-        // @@@@ (protocol, port, 0.0.0.0) is no option, as CANape considers this to be a valid address and tries to connect to it, instead of using the user configured address
+        // @@@@ CANape: (protocol, port, 0.0.0.0) is no option, as CANape considers this to be a valid address and tries to connect to it, instead of using the user configured
+        // address
         uint8_t addr0[] = {0, 0, 0, 0};
         if (addr != NULL && addr[0] != 0) {
             memcpy(addr0, addr, 4);
         }
-#ifdef OPTION_ENABLE_GET_LOCAL_ADDR
+#ifdef OPTION_ENABLE_GET_LOCAL_ADDR // Guess the IP address of the local network interface if bound to ANY
         else {
             socketGetLocalAddr(NULL, addr0);
         }
@@ -1241,7 +1258,7 @@ void A2lTypedefParameterComponent_(const char *name, const char *type_name, uint
 
         // TYPEDEF_AXIS (y_dim==0)
         if (y_dim == 0 && x_dim > 1) {
-            fprintf(gA2lTypedefsFile, "/begin TYPEDEF_AXIS A_%s \"%s\" NO_INPUT_QUANTITY A_%s 0 NO_COMPU_METHOD %u %g %g", name, comment, type_name, x_dim, min, max);
+            fprintf(gA2lTypedefsFile, "/begin TYPEDEF_AXIS A_%s \"%s\" %s A_%s 0 NO_COMPU_METHOD %u %g %g", name, comment, A2lGetInputQuantity_x(), type_name, x_dim, min, max);
             printPhysUnit(gA2lTypedefsFile, unit_or_conversion);
             fprintf(gA2lTypedefsFile, " /end TYPEDEF_AXIS\n");
             fprintf(gA2lFile, "  /begin STRUCTURE_COMPONENT %s A_%s 0x%X /end STRUCTURE_COMPONENT\n", name, name, offset);
@@ -1254,24 +1271,27 @@ void A2lTypedefParameterComponent_(const char *name, const char *type_name, uint
             if (y_dim > 1) {
                 fprintf(gA2lTypedefsFile, "/begin TYPEDEF_CHARACTERISTIC C_%s \"%s\" MAP %s 0 NO_COMPU_METHOD %g %g", name, comment, type_name, min, max);
                 if (x_axis == NULL)
-                    fprintf(gA2lTypedefsFile, " /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR", x_dim, x_dim - 1,
-                            x_dim);
+                    fprintf(gA2lTypedefsFile, " /begin AXIS_DESCR FIX_AXIS %s NO_COMPU_METHOD %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR", A2lGetInputQuantity_x(), x_dim,
+                            x_dim - 1, x_dim);
                 else
-                    fprintf(gA2lTypedefsFile, " /begin AXIS_DESCR COM_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD %u 0.0 0.0 AXIS_PTS_REF THIS.%s /end AXIS_DESCR", x_dim, x_axis);
+                    fprintf(gA2lTypedefsFile, " /begin AXIS_DESCR COM_AXIS %s NO_COMPU_METHOD %u 0.0 0.0 AXIS_PTS_REF THIS.%s /end AXIS_DESCR", A2lGetInputQuantity_x(), x_dim,
+                            x_axis);
                 if (y_axis == NULL)
-                    fprintf(gA2lTypedefsFile, " /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR", y_dim, y_dim - 1,
-                            y_dim);
+                    fprintf(gA2lTypedefsFile, " /begin AXIS_DESCR FIX_AXIS %s NO_COMPU_METHOD %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR", A2lGetInputQuantity_y(), y_dim,
+                            y_dim - 1, y_dim);
                 else
-                    fprintf(gA2lTypedefsFile, " /begin AXIS_DESCR COM_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD %u 0.0 0.0 AXIS_PTS_REF THIS.%s /end AXIS_DESCR", y_dim, y_axis);
+                    fprintf(gA2lTypedefsFile, " /begin AXIS_DESCR COM_AXIS %s NO_COMPU_METHOD %u 0.0 0.0 AXIS_PTS_REF THIS.%s /end AXIS_DESCR", A2lGetInputQuantity_y(), y_dim,
+                            y_axis);
             }
             // CURVE
             else if (x_dim > 1) {
                 fprintf(gA2lTypedefsFile, "/begin TYPEDEF_CHARACTERISTIC C_%s \"%s\" CURVE %s 0 NO_COMPU_METHOD %g %g", name, comment, type_name, min, max);
                 if (x_axis == NULL)
-                    fprintf(gA2lTypedefsFile, " /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR", x_dim, x_dim - 1,
-                            x_dim);
+                    fprintf(gA2lTypedefsFile, " /begin AXIS_DESCR FIX_AXIS %s NO_COMPU_METHOD %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR", A2lGetInputQuantity_x(), x_dim,
+                            x_dim - 1, x_dim);
                 else
-                    fprintf(gA2lTypedefsFile, " /begin AXIS_DESCR COM_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD %u 0.0 0.0 AXIS_PTS_REF THIS.%s /end AXIS_DESCR", x_dim, x_axis);
+                    fprintf(gA2lTypedefsFile, " /begin AXIS_DESCR COM_AXIS %s NO_COMPU_METHOD %u 0.0 0.0 AXIS_PTS_REF THIS.%s /end AXIS_DESCR", A2lGetInputQuantity_x(), x_dim,
+                            x_axis);
             }
             // VALUE
             else if (x_dim == 1 && y_dim == 1) {
@@ -1443,14 +1463,14 @@ void A2lCreateMap_(const char *name, tA2lTypeId type, const void *ptr, uint32_t 
         }
         fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" MAP 0x%X %s 0 NO_COMPU_METHOD %g %g", name, comment, addr, A2lGetRecordLayoutName_(type), min, max);
         if (x_axis == NULL) {
-            fprintf(gA2lFile, " /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD  %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR", xdim, xdim - 1, xdim);
+            fprintf(gA2lFile, " /begin AXIS_DESCR FIX_AXIS %s NO_COMPU_METHOD %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR", A2lGetInputQuantity_x(), xdim, xdim - 1, xdim);
         } else {
-            fprintf(gA2lFile, " /begin AXIS_DESCR COM_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD  %u 0.0 0.0 AXIS_PTS_REF %s /end AXIS_DESCR", xdim, x_axis);
+            fprintf(gA2lFile, " /begin AXIS_DESCR COM_AXIS %s NO_COMPU_METHOD %u 0.0 0.0 AXIS_PTS_REF %s /end AXIS_DESCR", A2lGetInputQuantity_x(), xdim, x_axis);
         }
         if (y_axis == NULL) {
-            fprintf(gA2lFile, " /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD  %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR", ydim, ydim - 1, ydim);
+            fprintf(gA2lFile, " /begin AXIS_DESCR FIX_AXIS %s NO_COMPU_METHOD %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR", A2lGetInputQuantity_y(), ydim, ydim - 1, ydim);
         } else {
-            fprintf(gA2lFile, " /begin AXIS_DESCR COM_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD  %u 0.0 0.0 AXIS_PTS_REF %s /end AXIS_DESCR", ydim, y_axis);
+            fprintf(gA2lFile, " /begin AXIS_DESCR COM_AXIS %s NO_COMPU_METHOD %u 0.0 0.0 AXIS_PTS_REF %s /end AXIS_DESCR", A2lGetInputQuantity_y(), ydim, y_axis);
         }
         printPhysUnit(gA2lFile, unit);
         printAddrExt(ext);
@@ -1472,9 +1492,9 @@ void A2lCreateCurve_(const char *name, tA2lTypeId type, const void *ptr, uint32_
         }
         fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" CURVE 0x%X %s 0 NO_COMPU_METHOD %g %g", name, comment, addr, A2lGetRecordLayoutName_(type), min, max);
         if (x_axis == NULL) {
-            fprintf(gA2lFile, " /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD  %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR", xdim, xdim - 1, xdim);
+            fprintf(gA2lFile, " /begin AXIS_DESCR FIX_AXIS %s NO_COMPU_METHOD %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR", A2lGetInputQuantity_x(), xdim, xdim - 1, xdim);
         } else {
-            fprintf(gA2lFile, " /begin AXIS_DESCR COM_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD  %u 0.0 0.0 AXIS_PTS_REF %s /end AXIS_DESCR", xdim, x_axis);
+            fprintf(gA2lFile, " /begin AXIS_DESCR COM_AXIS %s NO_COMPU_METHOD %u 0.0 0.0 AXIS_PTS_REF %s /end AXIS_DESCR", A2lGetInputQuantity_x(), xdim, x_axis);
         }
         printPhysUnit(gA2lFile, unit);
         printAddrExt(ext);
@@ -1495,7 +1515,8 @@ void A2lCreateAxis_(const char *name, tA2lTypeId type, const void *ptr, uint32_t
         if (gA2lAutoGroups) {
             A2lAddToGroup(name);
         }
-        fprintf(gA2lFile, "/begin AXIS_PTS %s \"%s\" 0x%X NO_INPUT_QUANTITY A_%s 0 NO_COMPU_METHOD %u %g %g", name, comment, addr, A2lGetRecordLayoutName_(type), xdim, min, max);
+        fprintf(gA2lFile, "/begin AXIS_PTS %s \"%s\" 0x%X %s A_%s 0 NO_COMPU_METHOD %u %g %g", name, comment, addr, A2lGetInputQuantity_x(), A2lGetRecordLayoutName_(type), xdim,
+                min, max);
         printPhysUnit(gA2lFile, unit);
         printAddrExt(ext);
         A2lCreateMeasurement_IF_DATA();
