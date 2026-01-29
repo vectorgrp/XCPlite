@@ -161,6 +161,78 @@ if [ "$COMPILER_CHOICE" = "" ] || [ "$COMPILER_CHOICE" = "default" ]; then
     echo "System default compiler detected: $ACTUAL_COMPILER"
 fi
 
+# Define all targets to build based on BUILD_TARGET (must be done before cmake configure)
+LIBRARY_TARGET="xcplib"
+
+# Define target groups
+EXAMPLE_TARGETS=(
+    "hello_xcp" 
+    "hello_xcp_cpp"
+    "c_demo"
+    "cpp_demo"
+    "struct_demo"
+    "multi_thread_demo"
+    "point_cloud_demo"
+    "no_a2l_demo"
+    "ptp4l_demo"
+)
+
+TEST_TARGETS=(
+    "a2l_test"
+    "cal_test"
+    "daq_test"
+    "type_detection_test_c"
+    "type_detection_test_cpp"
+)
+
+TOOL_TARGETS=()
+# Add ptptool only on Linux systems
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    TOOL_TARGETS+=("ptptool")
+fi
+
+BPF_TARGETS=()
+# Add bpf_demo only on Linux systems
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    BPF_TARGETS+=("bpf_demo")
+fi
+
+# Determine which targets to build and set CMAKE_TEST_FLAG
+LIBRARY_DEPENDENT_TARGETS=()
+INDEPENDENT_TARGETS=()
+CMAKE_TEST_FLAG=""
+
+case "$BUILD_TARGET" in
+    "lib")
+        # Only build the library, no other targets
+        ;;
+    "examples")
+        LIBRARY_DEPENDENT_TARGETS=("${EXAMPLE_TARGETS[@]}")
+        ;;
+    "tests")
+        CMAKE_TEST_FLAG="-DBUILD_TEST=TRUE"
+        LIBRARY_DEPENDENT_TARGETS=("${TEST_TARGETS[@]}")
+        ;;
+    "bpf")
+        LIBRARY_DEPENDENT_TARGETS=("${EXAMPLE_TARGETS[@]}")
+        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+            LIBRARY_DEPENDENT_TARGETS+=("${BPF_TARGETS[@]}")
+        fi
+        ;;
+    "all")
+        CMAKE_TEST_FLAG="-DBUILD_TEST=TRUE"
+        LIBRARY_DEPENDENT_TARGETS=("${EXAMPLE_TARGETS[@]}" "${TEST_TARGETS[@]}" "${TOOL_TARGETS[@]}")
+        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+            LIBRARY_DEPENDENT_TARGETS+=("${BPF_TARGETS[@]}")
+        fi
+        ;;
+    *)
+        echo "Error: Unknown build target '$BUILD_TARGET'"
+        show_usage
+        exit 1
+        ;;
+esac
+
 # Clean build directory if requested
 if [ "$CLEAN_BUILD" = true ]; then
     echo "Cleaning build directory: $BUILD_DIR"
@@ -171,7 +243,7 @@ echo ""
 echo "==================================================================="
 echo "Configuring CMake build system..."
 echo "==================================================================="
-cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE -S . -B $BUILD_DIR $CMAKE_COMPILER_ARGS
+cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE $CMAKE_TEST_FLAG -S . -B $BUILD_DIR $CMAKE_COMPILER_ARGS
 
 echo ""
 if [ -f "$BUILD_DIR/CMakeCache.txt" ]; then
@@ -197,60 +269,20 @@ echo "==================================================================="
 echo "Building targets..."
 echo "==================================================================="
 
-# Define all targets to build based on BUILD_TARGET
-LIBRARY_TARGET="xcplib"
-
-# Define target groups
-EXAMPLE_TARGETS=(
-    "hello_xcp" 
-    "hello_xcp_cpp"
-    "c_demo"
-    "cpp_demo"
-    "struct_demo"
-    "multi_thread_demo"
-    "point_cloud_demo"
-    "no_a2l_demo"
-    "ptp4l_demo"
-    
-)
-
-TEST_TARGETS=(
-    "ptptool"
-    "a2l_test"
-    "cal_test"
-    "daq_test"
-    "type_detection_test_c"
-    "type_detection_test_cpp"
-)
-
-BPF_TARGETS=()
-# Add bpf_demo only on Linux systems
-if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    BPF_TARGETS+=("bpf_demo")
-fi
-
-# Determine which targets to build based on BUILD_TARGET
-LIBRARY_DEPENDENT_TARGETS=()
-INDEPENDENT_TARGETS=()
-
+# Display which targets will be built
 case "$BUILD_TARGET" in
     "lib")
         echo "Build target: Library only"
-        # Only build the library, no other targets
         ;;
     "examples")
         echo "Build target: Library + Examples (excluding bpf_demo)"
-        LIBRARY_DEPENDENT_TARGETS=("${EXAMPLE_TARGETS[@]}")
         ;;
     "tests")
         echo "Build target: Library + Tests"
-        LIBRARY_DEPENDENT_TARGETS=("${TEST_TARGETS[@]}")
         ;;
     "bpf")
         echo "Build target: Library + Examples (including bpf_demo)"
-        LIBRARY_DEPENDENT_TARGETS=("${EXAMPLE_TARGETS[@]}")
         if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-            LIBRARY_DEPENDENT_TARGETS+=("${BPF_TARGETS[@]}")
             echo "Linux system detected - bpf_demo will be built with BPF support"
         else
             echo "Non-Linux system detected - bpf_demo will be skipped (BPF only supported on Linux)"
@@ -258,18 +290,11 @@ case "$BUILD_TARGET" in
         ;;
     "all")
         echo "Build target: Everything (Library + Examples + Tests + BPF)"
-        LIBRARY_DEPENDENT_TARGETS=("${EXAMPLE_TARGETS[@]}" "${TEST_TARGETS[@]}")
         if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-            LIBRARY_DEPENDENT_TARGETS+=("${BPF_TARGETS[@]}")
             echo "Linux system detected - bpf_demo will be built with BPF support"
         else
             echo "Non-Linux system detected - bpf_demo will be skipped (BPF only supported on Linux)"
         fi
-        ;;
-    *)
-        echo "Error: Unknown build target '$BUILD_TARGET'"
-        show_usage
-        exit 1
         ;;
 esac
 

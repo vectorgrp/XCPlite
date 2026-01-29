@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.10)
 option(USE_CLANG "Use clang/clang++ compiler" OFF)
 option(USE_GCC "Use gcc/g++ compiler" OFF)
 
-# Set compilers based on options (before project call)
+# Set compilers based on options (must be set before project() call)
 if(USE_CLANG AND USE_GCC)
     message(FATAL_ERROR "Cannot specify both USE_CLANG and USE_GCC. Choose one or neither.")
 elseif(USE_CLANG)
@@ -24,12 +24,6 @@ project(xcplib VERSION 0.9.2 LANGUAGES C CXX)
 
 # Find required packages
 find_package(Threads REQUIRED)
-
-
-# Set default generator for Windows to Visual Studio 2022
-if(WIN32 AND NOT DEFINED CMAKE_GENERATOR)
-    set(CMAKE_GENERATOR "Visual Studio 17 2022")
-endif()
 
 # Enable compile commands for VS Code IntelliSense
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -50,9 +44,9 @@ endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Enable test
+# Enable test targets
 if(NOT DEFINED BUILD_TEST)
-    set(BUILD_TEST TRUE)
+    set(BUILD_TEST FALSE)
 endif()
 if(BUILD_TEST)
     message(STATUS "Build test targets enabled")    
@@ -61,22 +55,17 @@ endif()
 # Platform detection for library selection
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
     message(STATUS "64-bit platform")
-    set(PLATFORM_64BIT TRUE)
 else()
     message(STATUS "32-bit platform")
-    set(PLATFORM_32BIT TRUE)
 endif()
 
 # Platform-specific settings
 if(WIN32)
    message(STATUS "Building for Windows")
-   set(WINDOWS TRUE)
 elseif(APPLE)
    message(STATUS "Building for macOS")
-   set(MACOS TRUE)
 elseif(UNIX)
     message(STATUS "Building for Unix/Linux")
-    set(LINUX TRUE)
 endif()
 
 # Compiler-specific settings for better compatibility
@@ -120,13 +109,9 @@ endif()
 # xcplib sources
 set(xcplib_SOURCES src/xcpAppl.c src/xcpLite.c src/xcpEthServer.c src/xcpEthTl.c src/xcpQueue32.c src/xcpQueue64.c src/a2l.c src/persistence.c src/platform.c)   
 
-set(PROJECT_ROOT ${CMAKE_CURRENT_LIST_DIR})
-message(STATUS "PROJECT_ROOT is: ${PROJECT_ROOT}")
-
 # Create xcplib library
-set_source_files_properties(${xcplib_SOURCES} PROPERTIES LANGUAGE C)
 add_library(xcplib ${xcplib_SOURCES})
-target_include_directories(xcplib PUBLIC "${PROJECT_ROOT}/inc" "${PROJECT_ROOT}/src")
+target_include_directories(xcplib PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/inc" "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
 # Apply compiler-specific flags
 if(COMMON_WARNING_FLAGS)
@@ -145,6 +130,11 @@ endif()
 # Link threads library to xcplib (needed for pthread usage in platform.h)
 target_link_libraries(xcplib PUBLIC Threads::Threads)
 
+# Link math library on Unix/Linux/macOS (needed for math functions)
+if(UNIX)
+    target_link_libraries(xcplib PUBLIC m)
+endif()
+
 # Check for atomic library support (needed on some ARM platforms with clang)
 include(CheckLibraryExists)
 check_library_exists(atomic __atomic_store_4 "" HAVE_LIBATOMIC)
@@ -155,59 +145,39 @@ endif()
 
 
 # Example hello_xcp
-set(hello_xcp_SOURCES examples/hello_xcp/src/main.c)   
-set_source_files_properties(${hello_xcp_SOURCES} PROPERTIES LANGUAGE C)
-add_executable(hello_xcp ${hello_xcp_SOURCES})
-target_include_directories(hello_xcp PUBLIC "${PROJECT_ROOT}/inc")
+add_executable(hello_xcp examples/hello_xcp/src/main.c)
 target_link_libraries(hello_xcp PRIVATE xcplib)
 
 # Example no_a2l_demo
-set(no_a2l_demo_SOURCES examples/no_a2l_demo/src/main.c)   
-set_source_files_properties(${no_a2l_demo_SOURCES} PROPERTIES LANGUAGE C)
-add_executable(no_a2l_demo ${no_a2l_demo_SOURCES})
-target_include_directories(no_a2l_demo PUBLIC "${PROJECT_ROOT}/inc")
+add_executable(no_a2l_demo examples/no_a2l_demo/src/main.c)
 target_link_libraries(no_a2l_demo PRIVATE xcplib)
 
 # Example hello_xcp_cpp
-add_executable(hello_xcp_cpp examples/hello_xcp_cpp/src/main.cpp )
-target_include_directories(hello_xcp_cpp PUBLIC "${PROJECT_ROOT}/inc")
+add_executable(hello_xcp_cpp examples/hello_xcp_cpp/src/main.cpp)
 target_link_libraries(hello_xcp_cpp PRIVATE xcplib)
 
 # Example point_cloud_demo
-add_executable(point_cloud_demo examples/point_cloud_demo/src/main.cpp )
-target_include_directories(point_cloud_demo PUBLIC "${PROJECT_ROOT}/inc")
+add_executable(point_cloud_demo examples/point_cloud_demo/src/main.cpp)
 target_link_libraries(point_cloud_demo PRIVATE xcplib)
 
 # Example c_demo
-set(c_demo_SOURCES examples/c_demo/src/main.c)
-set_source_files_properties(${c_demo_SOURCES} PROPERTIES LANGUAGE C)
-add_executable(c_demo ${c_demo_SOURCES})
-target_include_directories(c_demo PUBLIC "${PROJECT_ROOT}/inc")
+add_executable(c_demo examples/c_demo/src/main.c)
 target_link_libraries(c_demo PRIVATE xcplib)
 
 # Example cpp_demo
 add_executable(cpp_demo examples/cpp_demo/src/main.cpp examples/cpp_demo/src/sig_gen.cpp examples/cpp_demo/src/lookup.cpp)
-target_include_directories(cpp_demo PUBLIC "${PROJECT_ROOT}/inc")
 target_link_libraries(cpp_demo PRIVATE xcplib)
 
 # Example struct_demo
-set(struct_demo_SOURCES examples/struct_demo/src/main.c)
-set_source_files_properties(${struct_demo_SOURCES} PROPERTIES LANGUAGE C)
-add_executable(struct_demo ${struct_demo_SOURCES})
-target_include_directories(struct_demo PUBLIC "${PROJECT_ROOT}/inc")
+add_executable(struct_demo examples/struct_demo/src/main.c)
 target_link_libraries(struct_demo PRIVATE xcplib)
 
 # Example multi_thread_demo
-set(multi_thread_demo_SOURCES examples/multi_thread_demo/src/main.c)
-set_source_files_properties(${multi_thread_demo_SOURCES} PROPERTIES LANGUAGE C)
-add_executable(multi_thread_demo ${multi_thread_demo_SOURCES})
-target_include_directories(multi_thread_demo PUBLIC "${PROJECT_ROOT}/inc")
+add_executable(multi_thread_demo examples/multi_thread_demo/src/main.c)
 target_link_libraries(multi_thread_demo PRIVATE xcplib)
 
 # Example ptp4l_demo
-set(ptp4l_demo_CPP_SOURCES examples/ptp4l_demo/src/main.cpp)
-add_executable(ptp4l_demo ${ptp4l_demo_CPP_SOURCES})
-target_include_directories(ptp4l_demo PUBLIC "${PROJECT_ROOT}/inc")
+add_executable(ptp4l_demo examples/ptp4l_demo/src/main.cpp)
 target_link_libraries(ptp4l_demo PRIVATE xcplib)
 
 
@@ -215,10 +185,7 @@ target_link_libraries(ptp4l_demo PRIVATE xcplib)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     find_library(LIBBPF_LIBRARY bpf)
     if(LIBBPF_LIBRARY)
-        set(bpf_demo_SOURCES examples/bpf_demo/src/main.c)   
-        set_source_files_properties(${bpf_demo_SOURCES} PROPERTIES LANGUAGE C)
-        add_executable(bpf_demo ${bpf_demo_SOURCES})
-        target_include_directories(bpf_demo PUBLIC "${PROJECT_ROOT}/inc")
+        add_executable(bpf_demo examples/bpf_demo/src/main.c)
         target_link_libraries(bpf_demo PRIVATE xcplib ${LIBBPF_LIBRARY})
         message(STATUS "Found libbpf: ${LIBBPF_LIBRARY} - building bpf_demo")
     else()
@@ -226,54 +193,41 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     endif()
 endif()
 
+# Tool ptptool (main.cpp as C++, rest as C)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(ptptool_CPP_SOURCES tools/ptptool/src/main.cpp)
+    set(ptptool_C_SOURCES tools/ptptool/src/ptp/ptp.c tools/ptptool/src/ptp/ptp_client.c tools/ptptool/src/ptp/ptp_observer.c tools/ptptool/src/ptp/ptp_master.c tools/ptptool/src/ptp/filter.c tools/ptptool/src/ptp/phc.c)
+    set_source_files_properties(${ptptool_C_SOURCES} PROPERTIES LANGUAGE C)
+    add_executable(ptptool ${ptptool_CPP_SOURCES} ${ptptool_C_SOURCES})
+    target_link_libraries(ptptool PRIVATE xcplib)
+else()
+    message(STATUS "Non Linux platform - skipping ptptool build")
+endif()
+
 # Tests
 if(BUILD_TEST)
 
-    # ptptool (main.cpp as C++, rest as C)
-    set(ptptool_CPP_SOURCES tools/ptptool/src/main.cpp)
-    set(ptptool_C_SOURCES tools/ptptool/src/ptp/ptp.c tools/ptptool/src/ptp/ptp_client.c tools/ptptool/src/ptp/ptp_observer.c tools/ptptool/src/ptp/ptp_master.c tools/ptptool/src/ptp/filter.c  tools/ptptool/src/ptp/phc.c)
-    set_source_files_properties(${ptptool_C_SOURCES} PROPERTIES LANGUAGE C)
-    add_executable(ptptool ${ptptool_CPP_SOURCES} ${ptptool_C_SOURCES})
-    target_include_directories(ptptool PUBLIC "${PROJECT_ROOT}/inc")
-    target_link_libraries(ptptool PRIVATE xcplib)
-
     # Type detection test (C version)
     add_executable(type_detection_test_c test/type_detection_test/src/main.c test/type_detection_test/src/c_version_test.c)
-    target_include_directories(type_detection_test_c PUBLIC "${PROJECT_ROOT}/inc")
+    target_include_directories(type_detection_test_c PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/inc")
     # target_link_libraries(type_detection_test_c PRIVATE xcplib)
 
     # Type detection test (C++ version)
     add_executable(type_detection_test_cpp test/type_detection_test/src/main.cpp test/type_detection_test/src/cpp_version_test.cpp)
-    target_include_directories(type_detection_test_cpp PUBLIC "${PROJECT_ROOT}/inc")
+    target_include_directories(type_detection_test_cpp PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/inc")
     # target_link_libraries(type_detection_test_cpp PRIVATE xcplib)
 
     # A2L generation test (C version)
     add_executable(a2l_test test/a2l_test/src/main.c)
-    target_include_directories(a2l_test PUBLIC "${PROJECT_ROOT}/inc")
     target_link_libraries(a2l_test PRIVATE xcplib)
 
     # Calibration segment multi-threading test (C++ version)
     add_executable(cal_test test/cal_test/src/main.cpp)
-    target_include_directories(cal_test PUBLIC "${PROJECT_ROOT}/inc")
     target_link_libraries(cal_test PRIVATE xcplib)
 
     # Data acquisition multi-threading test (C version)
     add_executable(daq_test test/daq_test/src/main.c)
-    target_include_directories(daq_test PUBLIC "${PROJECT_ROOT}/inc")
     target_link_libraries(daq_test PRIVATE xcplib)
 endif()
 
-
-# Platform-specific settings
-if(WIN32)
-    # Windows-specific settings (if any needed in the future)
-else()
-    # Unix/Linux/macOS specific settings
-    
-    # Link math library 
-    target_link_libraries(ptptool PRIVATE m)
-    target_link_libraries(multi_thread_demo PRIVATE m)
-    target_link_libraries(hello_xcp_cpp PRIVATE m)
-    target_link_libraries(point_cloud_demo PRIVATE m)
-endif()
 
