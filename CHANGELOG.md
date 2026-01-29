@@ -2,6 +2,18 @@
 
 All notable changes to XCPlite are documented in this file.
 
+## [V1.1.1]
+
+- Pragmatic solution to specify input quantities for axis
+- New functions in platform.c: clockGetMonotonicNs() and clockGetRealtimeNs() 
+- ptp4l_demo and ptptool seperated,
+- New demo `ptp4l_demo` demonstrating minimum requirement to achieve XCP PTP support
+- New tool `ptptool` is a PTP observer and PTP time server with XCP instrumentation (see README.md of `ptptool` for details)
+- Refactoring in platform.c: OPTION_SOCKET_HW_TIMESTAMPS, improved debug logging for socketRecvFrom to help diagnose interface index issues on Linux, SOCKET keeps track of configured interface
+- Fixed bug in socketRecvFrom where debug printfs were left in the code
+- Log level 6 for very verbose debug logging
+- Define GNU_SOURCE in cmakelists.txt
+
 ## [V1.1.0]
 
 ### Added
@@ -9,8 +21,6 @@ All notable changes to XCPlite are documented in this file.
 - Support for enabling and disabling individual DAQ events at runtime (`DaqEnableEvent`, `DaqDisableEvent`)
 - New function XcpUpdateCalSeg for simplified single thread calibration segment updates
 - New demo `point_cloud_demo` demonstrating how to visualize arrays of objects in the CANape 3D scene window
-- New demo `ptp4l_demo` demonstrating XCP PTP support
-- New tool `ptptool` is a PTP observer and PTP time server with XCP instrumentation (see README.md of `ptptool` for details)
 
 ### Changed
 - Removed .out extension from the binaries on Linux and macOS builds

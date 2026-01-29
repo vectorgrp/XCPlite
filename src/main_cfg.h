@@ -57,7 +57,7 @@
 //-------------------------------------------------------------------------------
 // Socket options
 
-#define OPTION_SOCKET_HW_TIMESTAMPS // Enable hardware timestamps on UDP sockets if available
+// #define OPTION_SOCKET_HW_TIMESTAMPS // Enable hardware timestamps on UDP sockets if available
 
 //-------------------------------------------------------------------------------
 // XCP server options

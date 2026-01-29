@@ -286,6 +286,8 @@ bool socketStartup(void) { return true; }
 void socketCleanup(void) {}
 
 // Create a socket, TCP or UDP
+// flag SOCKET_MODE_HW_TIMESTAMPING: Enable hardware timestamping (Linux only, requires root)
+// flag SOCKET_MODE_SW_TIMESTAMPING: Enable software timestamping (Linux only)
 bool socketOpen(SOCKET *socketp, uint16_t flags) {
 
     assert(socketp != NULL);
@@ -328,7 +330,6 @@ bool socketOpen(SOCKET *socketp, uint16_t flags) {
 
     bool hw_timestamps = flags & SOCKET_MODE_HW_TIMESTAMPING;
     bool sw_timestamps = flags & SOCKET_MODE_SW_TIMESTAMPING;
-
     if (hw_timestamps) {
         // Enable SO_TIMESTAMPING for full hardware and software timestamping support
         // This is required for PTP SYNC message timestamping
@@ -401,7 +402,7 @@ bool socketBind(SOCKET socket, const uint8_t *addr, uint16_t port) {
     return true;
 }
 
-// Bind socket to a specific network interface by name (Linux only, OPTION_SOCKET_HW_TIMESTAMPS only)
+// Bind socket to a specific network interface by name (Linux only)
 // This is useful for multicast reception on a specific interface while binding to INADDR_ANY
 // Requires root privileges on Linux
 bool socketBindToDevice(SOCKET socket, const char *ifname) {

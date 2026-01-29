@@ -417,6 +417,7 @@ tPtp *ptpCreateInterface(const uint8_t *ifaddr, const char *ifname, bool sync_ph
                 useBindToDevice, sync_phc);
 
     // SYNC with tx (master) or rx (observer) timestamp, DELAY_REQ - with rx timestamps
+    // Enable GET_IF_INFO and SW_TIMESTAMPING to receive control messages (IP_PKTINFO)
     if (!socketOpen(&ptp->sock319,
                     SOCKET_MODE_BLOCKING | SOCKET_MODE_HW_TIMESTAMPING | SOCKET_MODE_SW_TIMESTAMPING | SOCKET_MODE_GET_IF_INFO | (useBindToDevice ? SOCKET_MODE_REUSEADDR : 0)))
         return NULL;
@@ -427,7 +428,7 @@ tPtp *ptpCreateInterface(const uint8_t *ifaddr, const char *ifname, bool sync_ph
             return NULL;
     }
 
-    // @@@@ Test: Read hardware clock to check if adjusted to PTP timescale
+    // @@@@ Experimental: Read hardware clock to check if adjusted to PTP timescale
     // #ifdef _LINUX
     assert(!sync_phc);
 #if 0
@@ -495,8 +496,7 @@ tPtp *ptpCreateInterface(const uint8_t *ifaddr, const char *ifname, bool sync_ph
 #endif // _LINUX
 
     // General messages ANNOUNCE, FOLLOW_UP, DELAY_RESP - without rx timestamps
-    // Enable GET_IF_INFO and SW_TIMESTAMPING to receive control messages (IP_PKTINFO)
-    if (!socketOpen(&ptp->sock320, SOCKET_MODE_BLOCKING | SOCKET_MODE_REUSEADDR | SOCKET_MODE_GET_IF_INFO | SOCKET_MODE_SW_TIMESTAMPING))
+    if (!socketOpen(&ptp->sock320, SOCKET_MODE_BLOCKING | SOCKET_MODE_REUSEADDR | SOCKET_MODE_GET_IF_INFO))
         return NULL;
     if (!socketBind(ptp->sock320, ifaddr, 320))
         return NULL;
