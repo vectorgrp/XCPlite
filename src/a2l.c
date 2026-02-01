@@ -457,9 +457,9 @@ void A2lSetInputQuantity_x(const char *input_quantity) { gA2lInputQuantity_x = i
 
 void A2lSetInputQuantity_y(const char *input_quantity) { gA2lInputQuantity_y = input_quantity; }
 
-static const char *A2lGetInputQuantity_x() { return gA2lInputQuantity_x ? gA2lInputQuantity_x : "NO_INPUT_QUANTITY"; }
+static const char *A2lGetInputQuantity_x(void) { return gA2lInputQuantity_x ? gA2lInputQuantity_x : "NO_INPUT_QUANTITY"; }
 
-static const char *A2lGetInputQuantity_y() { return gA2lInputQuantity_y ? gA2lInputQuantity_y : "NO_INPUT_QUANTITY"; }
+static const char *A2lGetInputQuantity_y(void) { return gA2lInputQuantity_y ? gA2lInputQuantity_y : "NO_INPUT_QUANTITY"; }
 
 //----------------------------------------------------------------------------------
 

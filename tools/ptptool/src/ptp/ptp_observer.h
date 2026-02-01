@@ -157,7 +157,7 @@ typedef struct ptp_observer {
     // Active mode: calculated path delay and master offset
     uint16_t sync_sequenceId_last;       // Last processed SYNC sequence Id
     uint16_t delay_resp_sequenceId_last; // Last processed DELAY_RESP sequence Id
-    uint64_t path_delay;                 // Current path delay
+    int64_t path_delay;                  // Current path delay
     int64_t master_offset;               // Current master offset
 } tPtpObserver;
 

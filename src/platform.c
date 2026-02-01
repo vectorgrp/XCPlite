@@ -1000,15 +1000,11 @@ int16_t socketRecvFrom(SOCKET socket, uint8_t *buffer, uint16_t bufferSize, uint
             int level = cmsg->cmsg_level;
             int type = cmsg->cmsg_type;
 
-            // Enhanced debug output to show all control message types
-            const char *type_str = "UNKNOWN";
-            if (level == SOL_SOCKET && type == SO_TIMESTAMPING)
-                type_str = "SO_TIMESTAMPING";
-            else if (level == SOL_SOCKET && type == SO_TIMESTAMPNS)
-                type_str = "SO_TIMESTAMPNS";
-            else if (level == IPPROTO_IP && type == IP_PKTINFO)
-                type_str = "IP_PKTINFO";
-            DBG_PRINTF6("socketRecvFrom: cmsg level=%d type=%d (%s)\n", level, type, type_str);
+            DBG_PRINTF6("socketRecvFrom: cmsg level=%d type=%d (%s)\n", level, type, //
+                        (level == SOL_SOCKET && type == SO_TIMESTAMPING)  ? "SO_TIMESTAMPING"
+                        : (level == SOL_SOCKET && type == SO_TIMESTAMPNS) ? "SO_TIMESTAMPNS"
+                        : (level == IPPROTO_IP && type == IP_PKTINFO)     ? "IP_PKTINFO"
+                                                                          : "UNKNOWN");
 
             if (SOL_SOCKET == level && SO_TIMESTAMPING == type) {
                 if (cmsg->cmsg_len < sizeof(struct timespec) * 3) {

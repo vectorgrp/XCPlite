@@ -214,7 +214,7 @@ static void analyzerUpdate(tPtp *ptp, tPtpObserver *obs, tPtpClockAnalyzer *a, u
                     }
                 }
 
-                else if (a->cycle_count > 8 && fabs(a->linreg_drift_drift) < 5.0) { // @@@@ TODO: parameterize in sync condition
+                else if (a->cycle_count > 8 /*&& fabs(a->linreg_drift_drift) < 5.0*/) {
                     a->is_sync = true;
                 } else {
                     if (ptp_log_level >= 4)
@@ -383,7 +383,7 @@ static void observerPrintState1(tPtp *ptp, tPtpObserver *obs) {
         printf("    jitter_rms   = %g ns\n", obs->master_jitter_rms);
     }
     if (obs->activeMode && obs->a34.is_sync) {
-        printf("    path_delay     = %" PRIu64 " ns\n", obs->path_delay);
+        printf("    path_delay     = %" PRIi64 " ns\n", obs->path_delay);
         printf("    master_offset  = %" PRIi64 " ns\n", obs->master_offset);
     }
 
@@ -647,8 +647,8 @@ static void observerDelayUpdate(tPtp *ptp, tPtpObserver *obs) {
         int64_t t4_drift_correction = (int64_t)(t4 - t1) * obs->master_drift / 1.0E9;
 
         // Calculate mean path delay
-        uint64_t t21 = (t2 - t1 - obs->sync_correction);
-        uint64_t t43 = (t4 - t3 - obs->delay_resp_correction - t4_drift_correction);
+        int64_t t21 = (int64_t)(t2 - t1) - obs->sync_correction;
+        int64_t t43 = (int64_t)(t4 - t3) - obs->delay_resp_correction - t4_drift_correction;
         obs->path_delay = (t21 + t43) / 2;
         // obs->path_delay = average_filter_calc(&obs->path_delay_avg_filter, obs->raw_path_delay);
 
@@ -662,14 +662,14 @@ static void observerDelayUpdate(tPtp *ptp, tPtpObserver *obs) {
             printf("  t2 (SYNC rx)                   = %" PRIu64 " ns (%s)\n", t2, clockGetString(ts, sizeof(ts), t2));
             printf("  t3 (DELAY_REQ tx)              = %" PRIu64 " ns (%s)\n", t3, clockGetString(ts, sizeof(ts), t3));
             printf("  t4 (DELAY_RESP rx on master)   = %" PRIu64 " ns\n", t4);
-            printf("  t2 - t1                        = %" PRIu64 " ns\n", t2 - t1);
+            printf("  t2 - t1                        = %" PRIi64 " ns\n", (int64_t)(t2 - t1));
             printf("  sync_correction                = %u ns\n", obs->sync_correction);
-            printf("  t2 - t1 - correction           = %" PRIu64 " ns\n", t21);
-            printf("  t4 - t3                        = %" PRIu64 " ns\n", t4 - t3);
+            printf("  t2 - t1 - correction           = %" PRIi64 " ns\n", t21);
+            printf("  t4 - t3                        = %" PRIi64 " ns\n", (int64_t)(t4 - t3));
             printf("  delay_resp_correction          = %u ns\n", obs->delay_resp_correction);
-            printf("  t4_drift_correction            = %" PRIu64 " ns\n", t4_drift_correction);
-            printf("  t4 - t3 - correction           = %" PRIu64 " ns\n", t43);
-            printf("  path_delay                     = %" PRIu64 " ns\n", obs->path_delay);
+            printf("  t4_drift_correction            = %" PRIi64 " ns\n", t4_drift_correction);
+            printf("  t4 - t3 - correction           = %" PRIi64 " ns\n", t43);
+            printf("  path_delay                     = %" PRIi64 " ns\n", obs->path_delay);
             printf("  master_offset                  = %" PRIi64 " ns\n", obs->master_offset);
             printf("\n");
         }
