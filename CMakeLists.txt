@@ -20,7 +20,7 @@ else()
     message(STATUS "Using default system compiler")
 endif()
 
-project(xcplite VERSION 0.9.2 LANGUAGES C CXX)
+project(xcplite VERSION 1.2.0 LANGUAGES C CXX)
 
 # Find required packages
 find_package(Threads REQUIRED)

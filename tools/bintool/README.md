@@ -214,7 +214,4 @@ This ensures the original BIN file remains completely unchanged if any validatio
 
 MIT License - See LICENSE file in the project root.
 
-## Author
-
-RainerZ
 
