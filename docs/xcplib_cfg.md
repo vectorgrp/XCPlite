@@ -98,7 +98,7 @@ This section describes the XCP protocol layer configuration parameters in xcp_cf
 
 | Parameter | Description |
 |-----------|-------------|
-| `XCP_DRIVER_VERSION` | XCP driver version for GET_COMM_MODE_INFO command (default: 0x01) |
+| `XCP_DRIVER_VERSION` | XCP driver version for GET_COMM_MODE_INFO command |
 | `XCP_ENABLE_PROTOCOL_LAYER_ETH` | Enables Ethernet-specific protocol layer commands |
 | `XCP_PROTOCOL_LAYER_VERSION` | XCP protocol layer version (0x0104 - supports PACKED_MODE, CC_START_STOP_SYNCH) |
 

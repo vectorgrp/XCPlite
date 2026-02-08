@@ -1744,13 +1744,9 @@ static uint8_t XcpAddOdtEntry(uint32_t addr, uint8_t ext, uint8_t size) {
         } else
 #endif
 #ifdef XCP_ENABLE_ABS_ADDRESSING
-            // ABS addressing mode, base pointer will ApplXcpGetBaseAddr()
-            // Max address range 0-0x7FFFFFFF
-            // @@@@ TODO: This range checking here is too late, should be assured by the A2L creator
-            if (XcpAddrIsAbs(ext)) { // absolute addressing mode
-                base_offset = (int32_t)XcpAddrDecodeAbsOffset(addr);
-                if (base_offset & 0x80000000)
-                    return CRC_ACCESS_DENIED; // Access out of range, because ODT entry addr is signed
+            // ABS addressing mode
+            if (XcpAddrIsAbs(ext)) {
+                base_offset = XcpAddrDecodeAbsOffset(addr);
             } else
 #endif
                 return CRC_ACCESS_DENIED;

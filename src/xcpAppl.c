@@ -175,6 +175,28 @@ bool ApplXcpGetClockInfoGrandmaster(uint8_t *client_uuid, uint8_t *grandmaster_u
 const uint8_t *gXcpBaseAddr = NULL;
 uint8_t gXcpBaseAddrValid = 0;
 
+// Set the base address for absolute addressing mode, if the default base address is not suitable
+void ApplXcpSetBaseAddr(const uint8_t *addr) {
+    gXcpBaseAddr = addr;
+    gXcpBaseAddrValid = 1;
+    DBG_PRINTF4("ApplXcpSetBaseAddr() = %p\n", (void *)gXcpBaseAddr);
+}
+
+// Get the A2L unsigned 32 bit address for a given pointer
+// Note:
+// In XCPlite, internal address offsets are signed 32 bit values, so the valid address range is from base-0x8000000 to base+0x7FFFFFFF
+uint32_t ApplXcpGetAddr(const uint8_t *p) {
+    const uint8_t *b = ApplXcpGetBaseAddr();
+    int64_t diff = (int64_t)(p) - (int64_t)(b);
+    DBG_PRINTF5("ApplXcpGetAddr: base = %p, addr = %p, diff = %" PRId64 "\n", (void *)b, (void *)p, diff);
+    if (diff < -2147483648 || diff > 2147483647) { // Check XCP address range is sufficient
+        DBG_PRINTF_ERROR("Address out of range! base = %p, addr = %p\n", (void *)b, (void *)p);
+        assert(0);
+        return 0;
+    }
+    return (uint32_t)((uint64_t)diff & 0xffffffff);
+}
+
 //----------------------------
 // Windows 64 or 32 bit
 #ifdef _WIN
@@ -184,24 +206,13 @@ uint8_t gXcpBaseAddrValid = 0;
 const uint8_t *ApplXcpGetBaseAddr(void) {
 
     if (!gXcpBaseAddrValid) {
-        gXcpBaseAddr = (uint8_t *)GetModuleHandle(NULL);
-        gXcpBaseAddrValid = 1;
-        DBG_PRINTF4("ApplXcpGetBaseAddr() = 0x%I64X\n", (uint64_t)gXcpBaseAddr);
+        ApplXcpSetBaseAddr((uint8_t *)GetModuleHandle(NULL));
+        assert(gXcpBaseAddrValid);
     }
     return gXcpBaseAddr;
 }
 
-uint32_t ApplXcpGetAddr(const uint8_t *p) {
-
-    DBG_PRINTF5("Windows Address: base = %p, addr = %p, diff = %ld\n", (void *)ApplXcpGetBaseAddr(), (void *)p, (long)(p - ApplXcpGetBaseAddr()));
-    assert(p >= ApplXcpGetBaseAddr());
-#if defined(PLATFORM_64BIT)
-    assert(((uint64_t)p - (uint64_t)ApplXcpGetBaseAddr()) <= 0xffffffff); // be sure that XCP address range is sufficient
-#endif
-    return (uint32_t)(p - ApplXcpGetBaseAddr());
-}
-
-#endif
+#endif // _WIN
 
 //----------------------------
 // Linux 64 bit or QNX 64 bit
@@ -230,13 +241,13 @@ static int dump_phdr(const struct dl_phdr_info *pinfo, size_t size, void *data) 
         pName = pinfo->dlpi_name;
     }
     if (0 == strncmp(pName, pAppName, strlen(pAppName))) {
-        gXcpBaseAddr = pinfo->dlpi_addr;
+        ApplXcpSetBaseAddr((uint8_t *)pinfo->dlpi_addr);
     }
 #else
     // On QNX 7.1 or less, there is no API to retrieve the name of the current program
     // Name must be forwarded from args[0] to xcpAppl
     // Workaround for now: Assume that entry 0 always contains the application module
-    gXcpBaseAddr = (uint8_t *)pinfo->dlpi_addr;
+    ApplXcpSetBaseAddr((uint8_t *)pinfo->dlpi_addr);
 
 #endif
 
@@ -270,31 +281,21 @@ const uint8_t *ApplXcpGetBaseAddr(void) {
 
     if (!gXcpBaseAddrValid) {
         dl_iterate_phdr(dump_phdr, NULL);
-        assert(gXcpBaseAddr != NULL);
-        gXcpBaseAddrValid = 1;
-        DBG_PRINTF4("Base address for absolute addressing = %p\n", (void *)gXcpBaseAddr);
+        assert(gXcpBaseAddrValid);
     }
 
     return gXcpBaseAddr;
 }
 
-uint32_t ApplXcpGetAddr(const uint8_t *p) {
-    const uint8_t *b = ApplXcpGetBaseAddr();
-    DBG_PRINTF5("Linux Address: base = %p, addr = %p, diff = %ld\n", (void *)b, (void *)p, (long)(p - b));
-    assert(p >= b);
-    if (((uint64_t)p - (uint64_t)b) > 0xffffffff) { // be sure that XCP address range is sufficient
-        DBG_PRINTF_ERROR("Address out of range! base = %p, addr = %p\n", (void *)b, (void *)p);
-        assert(0);
-        return 0;
-    }
-    return (uint32_t)(p - b);
-}
-
-#endif
+#endif // (defined(_LINUX) || defined(_QNX)) && defined(PLATFORM_64BIT)
 
 //----------------------------
 // MACOS 64 bit
 #ifdef _MACOS
+
+#if defined(PLATFORM_32BIT)
+#error "32 bit platform not supported on MACOS"
+#endif
 
 #include <mach-o/dyld.h>
 
@@ -311,40 +312,29 @@ static int dump_so(void) {
 }
 */
 
+// Get the base address for absolute addressing mode
+// Use default base address, if not explicitly set by ApplXcpSetBaseAddr() before
 const uint8_t *ApplXcpGetBaseAddr(void) {
     if (!gXcpBaseAddrValid) {
         // dump_so();
-        gXcpBaseAddr = (uint8_t *)_dyld_get_image_header(0); // Module addr
-        assert(gXcpBaseAddr != NULL);
-        gXcpBaseAddrValid = 1;
-        DBG_PRINTF4("Base address for absolute addressing = %p\n", (void *)gXcpBaseAddr);
+        ApplXcpSetBaseAddr((uint8_t *)_dyld_get_image_header(0)); // Module addr
+        assert(gXcpBaseAddrValid);
     }
 
     return gXcpBaseAddr;
 }
 
-uint32_t ApplXcpGetAddr(const uint8_t *p) {
-    const uint8_t *b = ApplXcpGetBaseAddr();
-    DBG_PRINTF5("Mac Address: base = %p, addr = %p, diff = %ld\n", (void *)b, (void *)p, (long)(p - b));
-    if (p < b || ((uint64_t)p - (uint64_t)b) > 0xffffffff) { // be sure that XCP address range is sufficient
-        DBG_PRINTF_ERROR("Address out of range! base = %p, addr = %p\n", (void *)b, (void *)p);
-        assert(0); // Ensure the address is in range
-        return 0;
-    }
-    return (uint32_t)(p - b);
-}
-
-#endif
+#endif // _MACOS
 
 //----------------------------
 // Linux 32 bit
+
 #if defined(_LINUX) && defined(PLATFORM_32BIT)
 
+// On 32 bit Linux platforms, the entire 4GB address space is available for XCP, so the base address is 0 and the address conversion is a simple cast
 const uint8_t *ApplXcpGetBaseAddr(void) { return ((uint8_t *)0); }
 
-uint32_t ApplXcpGetAddr(const uint8_t *p) { return ((uint32_t)(p)); }
-
-#endif
+#endif // defined(_LINUX) && defined(PLATFORM_32BIT)
 
 #endif // XCP_ENABLE_ABS_ADDRESSING
 
