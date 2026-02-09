@@ -1,5 +1,13 @@
 // external_example_cpp - C++ version demonstrating libxcplite as external library
 
+// This example shows how to use libxcplite when it's installed as a binary
+// library (either system-wide or in a local staging directory).
+//
+// The code is designed to demonstrate:
+// - Including libxcplite headers from an installed location
+// - Linking against the pre-built libxcplite library
+// - Basic XCP measurement and calibration functionality for global variables
+
 #include <csignal>
 #include <cstdint>
 #include <iostream>
@@ -18,7 +26,7 @@
 #define OPTION_SERVER_PORT 5556
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}
 #define OPTION_QUEUE_SIZE 1024 * 16
-#define OPTION_LOG_LEVEL 3
+#define OPTION_LOG_LEVEL 4
 
 //-----------------------------------------------------------------------------------------------------
 // Application variables
@@ -41,14 +49,6 @@ static void signalHandler(int sig) {
 // Main
 
 int main() {
-
-    std::cout << "\n";
-    std::cout << "external_example_cpp - C++ Using libxcplite as external library\n";
-    std::cout << "===========================================================\n\n";
-    std::cout << "This example demonstrates:\n";
-    std::cout << "- Building C++ code against installed libxcplite binary\n";
-    std::cout << "- Using C++ API and headers\n";
-    std::cout << "- Simple XCP instrumentation in C++\n\n";
 
     // Install signal handlers
     std::signal(SIGINT, signalHandler);
@@ -75,10 +75,10 @@ int main() {
         return 1;
     }
 
-    // Create calibration parameter and measurement variables
+    // Create a global calibration parameter (not using a calibration segment, thread safety not guaranteed)
     A2lCreateParameter(loop_delay_us, "Loop delay in microseconds", "us", 100, 100000);
 
-    // Create measurement event
+    // Create measurement event and a global measurement variable
     DaqCreateEvent(MainTask);
     A2lCreateMeasurement(counter_value, "Counter value");
 

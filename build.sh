@@ -7,37 +7,42 @@ BUILD_TYPE="Debug"  # Default to Debug build
 COMPILER_CHOICE=""  # Default to system default compiler (no forcing)
 CLEAN_BUILD=false   # Whether to clean before building
 BUILD_TARGET="examples"  # Default to building library + examples (without bpf_demo)
+INSTALL_LIBRARY=false   # Whether to install library after building
+INSTALL_PREFIX=""       # Custom install prefix (empty = use CMake default)
 
 # Function to show usage
 show_usage() {
     echo "Usage: $0 [build_type] [compiler] [target] [options]"
     echo ""
     echo "Parameters:"
-    echo "  build_type: debug|release|relwithdebinfo (default: debug)"
-    echo "  compiler:   gcc|clang"
-    echo "  target:     lib|examples|tests|bpf|all (default: examples)"
+    echo "  build_type:    debug|release|relwithdebinfo (default: debug)"
+    echo "  compiler:      gcc|clang"
+    echo "  target:        lib|examples|tests|bpf|all (default: examples)"
     echo ""
     echo "Build Targets:"
-    echo "  lib:        Build only the xcplite library"
-    echo "  examples:   Build library + examples (excluding bpf_demo) [DEFAULT]"
-    echo "  tests:      Build library + test targets (a2l_test, cal_test, daq_test, type_detection tests)"
-    echo "  bpf:        Build library + examples including bpf_demo (Linux only)"
-    echo "  all:        Build everything (library + examples + tests + bpf_demo)"
+    echo "  lib:            Build only the xcplite library"
+    echo "  examples:       Build library + examples (excluding bpf_demo) [DEFAULT]"
+    echo "  tests:          Build library + test targets (a2l_test, cal_test, daq_test, type_detection tests)"
+    echo "  bpf:            Build library + examples including bpf_demo (Linux only)"
+    echo "  all:            Build everything (library + examples + tests + bpf_demo)"
     echo ""
     echo "Options:"
-    echo "  clean:      Clean build directory before building"
-    echo "  cleanall:   Clean all build directories (build-*, build)"
+    echo "  clean:          Clean build directory before building"
+    echo "  cleanall:       Clean all build directories (build-*, build)"
+    echo "  install:        Install library to staging directory after building (default location: <build-dir>/install)"
+    echo "  install=<path>: Install library to custom path (e.g., install=/usr/local)"
     echo ""
     echo "Examples:"
-    echo "  $0                    # Default: library + examples (no bpf_demo)"
-    echo "  $0 lib                # Build only the library"
-    echo "  $0 tests              # Build library + test targets"
-    echo "  $0 bpf                # Build library + examples including bpf_demo"
-    echo "  $0 all                # Build everything"
+    echo "  $0                    # Default: Build library + examples (no bpf_demo)"
     echo "  $0 clean              # Clean build and rebuild library + examples"
+    echo "  $0 cleanall           # Clean all build directories and exit"
+    echo "  $0 lib                # Build only the library"
+    echo "  $0 lib install        # Build library and install to staging directory"
+    echo "  $0 release install=/usr/local  # Release build and install to /usr/local"
+    echo "  $0 tests              # Build library + test targets"
+    echo "  $0 all                # Build everything"
     echo "  $0 release gcc all    # Release build with GCC, all targets"
     echo "  $0 debug clang tests  # Debug build with Clang, tests only"
-    echo "  $0 cleanall           # Clean all build directories and exit"
     echo ""
     echo "Build directories used:"
     echo "  build:                System default compiler builds"
@@ -46,12 +51,29 @@ show_usage() {
     echo ""
     echo "Platform-specific targets:"
     echo "  bpf_demo:             Only built on Linux systems (requires BPF support)"
+    echo ""
+    echo "Installation:"
+    echo "  By default, CMAKE_INSTALL_PREFIX is set to <build-dir>/install (local staging)."
+    echo "  Use 'install' to install to this default location after building."
+    echo "  Use 'install=<path>' to override the install prefix and install to a custom location."
+    echo "  The installed library can be used by external projects via CMAKE_PREFIX_PATH."
 }
 
 # Parse arguments and set correct case for CMake
 for arg in "$@"; do
     # Convert to lowercase for comparison
     arg_lower=$(echo "$arg" | tr '[:upper:]' '[:lower:]')
+    
+    # Check if argument is install with optional path
+    if [[ "$arg" == "install" ]]; then
+        INSTALL_LIBRARY=true
+        continue
+    elif [[ "$arg" == install=* ]]; then
+        INSTALL_LIBRARY=true
+        INSTALL_PREFIX="${arg#install=}"
+        continue
+    fi
+    
     case "$arg_lower" in
         debug)
             BUILD_TYPE="Debug"
@@ -243,7 +265,15 @@ echo ""
 echo "==================================================================="
 echo "Configuring CMake build system..."
 echo "==================================================================="
-cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE $CMAKE_TEST_FLAG -S . -B $BUILD_DIR $CMAKE_COMPILER_ARGS
+
+# Add custom install prefix if specified
+CMAKE_INSTALL_ARGS=""
+if [ -n "$INSTALL_PREFIX" ]; then
+    CMAKE_INSTALL_ARGS="-DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX"
+    echo "Custom install prefix: $INSTALL_PREFIX"
+fi
+
+cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE $CMAKE_TEST_FLAG -S . -B $BUILD_DIR $CMAKE_COMPILER_ARGS $CMAKE_INSTALL_ARGS
 
 echo ""
 if [ -f "$BUILD_DIR/CMakeCache.txt" ]; then
@@ -312,6 +342,37 @@ if make --directory ./$BUILD_DIR $LIBRARY_TARGET > /dev/null 2>&1; then
     echo "✅ SUCCESS: $LIBRARY_TARGET compiled successfully"
     echo ""
     SUCCESSFUL_TARGETS+=("$LIBRARY_TARGET")
+    
+    # Install library if requested
+    if [ "$INSTALL_LIBRARY" = true ]; then
+        echo ""
+        echo "-------------------------------------------------------------------"
+        echo "Installing xcplite library..."
+        echo "-------------------------------------------------------------------"
+        
+        if cmake --install $BUILD_DIR > /dev/null 2>&1; then
+            # Determine the actual install directory
+            if [ -n "$INSTALL_PREFIX" ]; then
+                ACTUAL_INSTALL_DIR="$INSTALL_PREFIX"
+            else
+                ACTUAL_INSTALL_DIR="$BUILD_DIR/install"
+            fi
+            
+            echo "✅ SUCCESS: Library installed to $ACTUAL_INSTALL_DIR"
+            echo ""
+            echo "   Library:  $ACTUAL_INSTALL_DIR/lib/"
+            echo "   Headers:  $ACTUAL_INSTALL_DIR/include/"
+            echo "   CMake:    $ACTUAL_INSTALL_DIR/lib/cmake/xcplite/"
+            echo ""
+            echo "   External projects can use this installation with:"
+            echo "   cmake -DCMAKE_PREFIX_PATH=$ACTUAL_INSTALL_DIR ..."
+        else
+            echo "❌ FAILED: Library installation failed"
+            echo "   Error details:"
+            cmake --install $BUILD_DIR 2>&1 | sed 's/^/   /'
+        fi
+        echo ""
+    fi
     
     # If BUILD_TARGET is "lib", we're done after building the library
     if [ "$BUILD_TARGET" = "lib" ]; then
@@ -410,6 +471,13 @@ if [ "$COMPILER_CHOICE" = "" ] || [ "$COMPILER_CHOICE" = "default" ]; then
 fi
 echo "Build Directory: $BUILD_DIR"
 echo "Build Target: $BUILD_TARGET"
+if [ "$INSTALL_LIBRARY" = true ]; then
+    if [ -n "$INSTALL_PREFIX" ]; then
+        echo "Install Location: $INSTALL_PREFIX"
+    else
+        echo "Install Location: $BUILD_DIR/install (local staging)"
+    fi
+fi
 echo ""
 
 if [ ${#FAILED_TARGETS[@]} -eq 0 ]; then

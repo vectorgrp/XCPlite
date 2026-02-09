@@ -1,12 +1,12 @@
-// external_example - Demonstrates using libxcplite as an external library
-//
+// external_example - C version demonstrating libxcplite as external library
+
 // This example shows how to use libxcplite when it's installed as a binary
 // library (either system-wide or in a local staging directory).
 //
-// The code is a simplified version of hello_xcp to demonstrate:
+// The code is designed to demonstrate:
 // - Including libxcplite headers from an installed location
 // - Linking against the pre-built libxcplite library
-// - Basic XCP measurement and calibration functionality
+// - Basic XCP measurement and calibration functionality for global variables
 
 #include <signal.h>
 #include <stdbool.h>
@@ -27,7 +27,7 @@
 #define OPTION_SERVER_PORT 5555
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}
 #define OPTION_QUEUE_SIZE 1024 * 16
-#define OPTION_LOG_LEVEL 3
+#define OPTION_LOG_LEVEL 4
 
 #define OPTION_USE_VARIADIC_MACROS
 
@@ -56,14 +56,6 @@ static void signalHandler(int sig) {
 
 int main(void) {
 
-    printf("\n");
-    printf("external_example - Using libxcplite as external library\n");
-    printf("====================================================\n\n");
-    printf("This example demonstrates:\n");
-    printf("- Building against an installed libxcplite binary\n");
-    printf("- Basic XCP measurement and calibration\n");
-    printf("- Independent CMakeLists.txt configuration\n\n");
-
     // Install signal handlers
     signal(SIGINT, signalHandler);
     signal(SIGTERM, signalHandler);
@@ -89,13 +81,11 @@ int main(void) {
         return 1;
     }
 
-    // Create calibration parameter
+    // Create a global calibration parameter (not using a calibration segment, thread safety not guaranteed)
     A2lCreateParameter(loop_delay_us, "Loop delay in microseconds", "us", 100, 100000);
 
-    // Create measurement event
+    // Create a measurement event and a global measurement variable
     DaqCreateEvent(MainTask);
-
-    // Register measurement variable
     A2lCreateMeasurement(counter, "Incrementing counter");
 
     printf("Starting main loop (press Ctrl+C to stop)...\n\n");

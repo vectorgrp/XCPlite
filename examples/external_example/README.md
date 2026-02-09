@@ -9,10 +9,10 @@ This example demonstrates how to use **xcplite as an external library** when you
 
 ## Key Features
 
-✅ **Independent CMakeLists.txt** - Self-contained project configuration  
-✅ **CMake find_package()** - Standard way to locate installed libraries  
-✅ **No system installation required** - Uses local staging directory for development  
-✅ **Cross-platform** - Works on Linux, macOS, and Windows  
+**Independent CMakeLists.txt** - Self-contained project configuration  
+**CMake find_package()** - Standard way to locate installed libraries  
+**No system installation required** - Uses local staging directory for development  
+**Cross-platform** - Works on Linux, macOS, and Windows  
 
 ## Project Structure
 
@@ -21,7 +21,8 @@ external_example/
 ├── CMakeLists.txt          # Independent build configuration
 ├── build.sh                # Automated build script
 ├── src/
-│   └── main.c             # Simple XCP example application
+│   └── main.c             # Simple XCP example application for C
+│   └── main.cpp           # Simple XCP example application for C++
 ├── CANape/                # CANape project files (optional)
 └── README.md              # This file
 ```
@@ -36,10 +37,8 @@ cd examples/external_example
 ```
 
 This script will:
-1. Build xcplite in the main repository
-2. Install xcplite to a local staging directory (`../../build/install`)
-3. Configure and build this external example against the installed library
-4. Print instructions for running the example
+1. Build xcplite in the main repository and install it to a local staging directory (`../../build/install`)
+2. Configure and build this external example against the installed library
 
 ## Manual Build Steps
 
@@ -51,13 +50,7 @@ From the repository root:
 
 ```bash
 # Configure xcplite (installs to build/install by default)
-cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug
-
-# Build the library
-cmake --build build --target xcplite
-
-# Install to local staging directory
-cmake --install build
+./build.sh release lib install
 ```
 
 This installs xcplite to `build/install/` with the following structure:
@@ -168,61 +161,8 @@ cmake -B build -S .
 cmake --build build
 ```
 
-## Windows Considerations
 
-On Windows with MSVC, follow the same pattern but note:
-- xcplite has some performance penalties on Windows
-- Use Visual Studio developer command prompt or specify the generator:
-  ```cmd
-  cmake -B build -S . -G "Visual Studio 17 2022" -DCMAKE_PREFIX_PATH=..\..\build\install
-  cmake --build build --config Debug
-  ```
 
-## Differences from Internal Examples
-
-This example differs from other examples in the repository:
-
-| Aspect | Internal Examples | This Example |
-|--------|------------------|--------------|
-| **Location** | Part of main build | Independent project |
-| **CMakeLists.txt** | Uses in-tree xcplite | Uses `find_package(xcplite)` |
-| **Include paths** | `#include <xcplite.h>` | `#include <xcplite/xcplite.h>` |
-| **Build integration** | Built with `cmake --build build` | Built separately |
-| **Use case** | Development/testing | Production deployment |
-
-## Troubleshooting
-
-### "Could not find a package configuration file provided by xcplite"
-
-CMake cannot find the installed xcplite. Solutions:
-
-1. Specify the install location:
-   ```bash
-   cmake -DCMAKE_PREFIX_PATH=/path/to/install -B build
-   ```
-
-2. Verify xcplite is actually installed:
-   ```bash
-   ls ../../build/install/lib/cmake/xcplite/
-   ```
-
-3. Check that you ran `cmake --install build` after building xcplite
-
-### Link errors
-
-If you get undefined references to xcplite symbols:
-
-1. Verify you're linking against `xcplite::xcplite` (not just `xcplite`)
-2. Check that the library was built for the same platform
-3. Ensure the library matches your build type (Debug/Release)
-
-### Include path errors
-
-If the compiler cannot find `<xcplite/xcplite.h>`:
-
-1. Note the path includes `xcplite/` subdirectory
-2. Verify headers are installed: `ls ../../build/install/include/xcplite/`
-3. The `xcplite::xcplite` target should automatically provide include paths
 
 ## See Also
 

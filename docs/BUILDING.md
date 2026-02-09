@@ -18,11 +18,92 @@ Use the build script to build the library libxcplite, example targets and get co
 ./build.sh
 ```
 
-Or build individual example targets:
+or build individual example targets:
 
 ```bash
 cmake -DCMAKE_BUILD_TYPE=Debug -S . -B build  
 make --directory ./build hello_xcp
+```
+
+or build the library
+```bash
+cmake --build build --target xcplite
+```
+
+## Installing the Library
+
+XCPlite can be installed for use by external projects. The library uses CMake's standard installation mechanism.
+
+### Installing to Local Staging Directory
+
+To build and install to a local staging directory (recommended for development):
+
+```bash
+./build.sh lib install
+```
+
+This installs the library to `build/install/` with the following structure:
+- `lib/` - Library files (`libxcplite.a` or `libxcplite.so`)
+- `include/` - Public header files
+- `lib/cmake/xcplite/` - CMake package configuration files
+
+### Installing to Custom Location
+
+To install to a custom location (e.g., system-wide installation):
+
+```bash
+./build.sh lib install=/usr/local
+```
+
+Or for release builds:
+
+```bash
+./build.sh release lib install=/usr/local
+```
+
+**Note:** System-wide installations may require sudo:
+
+```bash
+sudo ./build.sh release lib install=/usr/local
+```
+
+### Using the Installed Library
+
+External projects can use the installed library via CMake:
+
+```cmake
+# In your CMakeLists.txt
+find_package(xcplite REQUIRED)
+target_link_libraries(your_target PRIVATE xcplite::xcplite)
+```
+
+When configuring your external project, specify the install location:
+
+```bash
+cmake -B build -S . -DCMAKE_PREFIX_PATH=/path/to/install
+```
+
+For local staging directory:
+
+```bash
+cmake -B build -S . -DCMAKE_PREFIX_PATH=/path/to/XCPlite/build/install
+```
+
+See `examples/external_example/` for a complete working example.
+
+### Manual Installation with CMake
+
+You can also use CMake directly:
+
+```bash
+# Configure with custom install prefix
+cmake -B build -S . -DCMAKE_INSTALL_PREFIX=/usr/local
+
+# Build the library
+cmake --build build --target xcplite
+
+# Install
+cmake --install build
 ```
 
 ### QNX 
