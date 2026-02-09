@@ -289,12 +289,14 @@ template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventVarTemplat
 #define DaqEventVar(event_name, ...)                                                                                                                                               \
     {                                                                                                                                                                              \
         static tXcpEventId trg__AASDD__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                                      \
+        (void)trg__AASDD__##event_name;                                                                                                                                            \
         xcplib::DaqEventVarTemplate(#event_name, 0, __VA_ARGS__);                                                                                                                  \
     }
 
 #define DaqEventAtVar(event_name, clock, ...)                                                                                                                                      \
     {                                                                                                                                                                              \
         static tXcpEventId trg__AASDD__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                                      \
+        (void)trg__AASDD__##event_name;                                                                                                                                            \
         xcplib::DaqEventVarTemplate(#event_name, clock, __VA_ARGS__);                                                                                                              \
     }
 
