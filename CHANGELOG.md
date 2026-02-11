@@ -5,8 +5,9 @@ All notable changes to XCPlite are documented in this file.
 ## [V1.2.0]
 
 - Renamed to 'libxcplite', external package name `xcplite`
-- Changed default encoding for dynamic addressing to 10 Bit event and 22 Bit signed offset, allowing for up to 4GB total addressable range with 1024 events
-- Pragmatic solution to specify input quantities for axis
+- Changed default encoding for dynamic addressing to 10 Bit event and 22 Bit signed offset, allowing for up to 4GB addressable range per event with max 1024 events
+- New API functions to specify input quantities for axis
+- Examples how to modify parameters thread-safe without using calibration segments by using event synchronization
 - New functions in platform.c: clockGetMonotonicNs() and clockGetRealtimeNs() 
 - ptp4l_demo and ptptool seperated,
 - New demo `ptp4l_demo` demonstrating minimum requirement to achieve XCP PTP support
@@ -15,6 +16,7 @@ All notable changes to XCPlite are documented in this file.
 - Fixed bug in socketRecvFrom where debug printfs were left in the code
 - Log level 6 for very verbose debug logging
 - Define GNU_SOURCE in cmakelists.txt
+
 
 ## [V1.1.0]
 

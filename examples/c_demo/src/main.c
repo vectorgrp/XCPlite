@@ -23,8 +23,8 @@
 // #define OPTION_CANAPE_24                // Enable CANape 24 shared axis support for typedefs
 
 //-----------------------------------------------------------------------------------------------------
-
 // Demo calibration parameters
+
 typedef struct params {
     uint16_t counter_max; // Maximum value for the counters
     uint32_t delay_us;    // Delay in microseconds for the main loop
@@ -52,6 +52,13 @@ const params_t params = {
     .curve_axis = {0, 1, 2, 4, 6, 9, 13, 15},
 };
 
+volatile uint8_t g_param8 = 8;
+volatile uint16_t g_param16 = 16;
+volatile uint32_t g_param32 = 32;
+volatile uint64_t g_param64 = 64;
+
+//-----------------------------------------------------------------------------------------------------
+
 // Global measurement variables
 uint8_t g_counter8 = 0;
 uint16_t g_counter16 = 0;
@@ -61,6 +68,8 @@ int8_t g_counter8s = 0;
 int16_t g_counter16s = 0;
 int32_t g_counter32s = 0;
 int64_t g_counter64s = 0;
+
+uint64_t g_param_sum = 0; // Test variable for the sum of the parameters, updated in the main loop and used for measurement
 
 //-----------------------------------------------------------------------------------------------------
 
@@ -127,6 +136,25 @@ int main(void) {
     // A2lCreateCurve(params.curve, 8, "", "", -128, 127);
     // A2lCreateMap(params.map, 8, 8, "", "", -128, 127);
 
+    // Create a measurement and calibration event 'mainloop' for the main thread
+    DaqCreateEvent(mainloop);
+
+    // Global variables as calibration parameters
+    // Register the global parameters (g_paramxx)for access without using a calibration segment
+    // Calibration access without using a calibration segment is not guaranteed to be thread safe and consistent
+    // With XCPlite and CANape, aligned parameters of basic type (uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t) can be safely accessed from multiple
+    // threads without using calibration segment, but the concurrent access from the XCP thread is theoretically in conflict and so this is undefined behavior
+    // A2lSetAbsoluteAddrMode(mainloop); // Works for aligned basic types, but still considered undefined behavior
+    // To be safe in a single threaded scenario, access can be done in relative addressing mode with event synchronization as shown below
+    // Write access relative to the module load address happens in the XcpEventExt(mainloop,ApplXcpGetModuleAddr()) call
+    // To make the compiler aware of this, the variables are volatile
+    // The same approach would work to modify local variables on the stack or in any other memory location
+    A2lSetRelativeAddrMode(mainloop, ApplXcpGetModuleAddr());
+    A2lCreateParameter(g_param8, "test calibration parameter without calibration segment", "", 0, 255);
+    A2lCreateParameter(g_param16, "test calibration parameter without calibration segment", "", 0, 65535);
+    A2lCreateParameter(g_param32, "test calibration parameter without calibration segment", "", 0, 4294967295);
+    A2lCreateParameter(g_param64, "test calibration parameter without calibration segment", "", 0, 18446744073709551615U);
+
     // Variables on stack
     uint16_t counter = 0;
     uint8_t counter8 = 0;
@@ -138,12 +166,10 @@ int main(void) {
     int32_t counter32s = 0;
     int64_t counter64s = 0;
 
-    // Create a measurement event for local variables
-    DaqCreateEvent(mainloop);
-
     // Register global measurement variables
     A2lSetAbsoluteAddrMode(mainloop);
     A2lCreateMeasurement(counter, "Mainloop counter");
+    A2lCreateMeasurement(g_param_sum, "Sum of g_paramxx for consistency check");
 
     A2lCreateMeasurement(g_counter8, "Measurement variable");
     A2lCreateMeasurement(g_counter16, "Measurement variable");
@@ -233,8 +259,8 @@ int main(void) {
         // Unlock the calibration segment
         XcpUnlockCalSeg(calseg);
 
-        // Trigger the measurement event for global and local variables on stack
-        DaqTriggerEvent(mainloop);
+        // Trigger the measurement event for globals, local variables on stack, and event synchronized calibration access without using a calibration segment
+        DaqTriggerEventExt(mainloop, ApplXcpGetModuleAddr());
 
         // Check server status
         if (!XcpEthServerStatus()) {
@@ -274,6 +300,8 @@ int main(void) {
         g_counter16s = counter16s;
         g_counter32s = counter32s;
         g_counter64s = counter64s;
+
+        g_param_sum = g_param8 + g_param16 + g_param32 + g_param64;
 
         // Sleep for the specified delay parameter in microseconds
         sleepUs(delay_us);
