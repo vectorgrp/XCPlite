@@ -1724,12 +1724,10 @@ static uint8_t XcpAddOdtEntry(uint32_t addr, uint8_t ext, uint8_t size) {
 
     int32_t base_offset = 0;
 #ifdef XCP_ENABLE_DYN_ADDRESSING
-    // DYN addressing mode, base pointer will given to XcpEventExt
-    // Max address range base-0x8000 - base+0x7FFF
+    // DYN addressing mode, base pointer will given to XcpEventExt, event is encoded in the address
     if (XcpAddrIsDyn(ext)) {
         uint16_t event = XcpAddrDecodeDynEvent(addr);
-        int16_t offset = XcpAddrDecodeDynOffset(addr);
-        base_offset = (int32_t)offset; // sign extend to 32 bit, the relative address may be negative
+        base_offset = XcpAddrDecodeDynOffset(addr);
         uint16_t e0 = DaqListEventChannel(gXcp.WriteDaqDaq);
         if (e0 != XCP_UNDEFINED_EVENT_ID && e0 != event)
             return CRC_OUT_OF_RANGE; // Error event channel redefinition

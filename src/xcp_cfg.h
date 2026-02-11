@@ -35,6 +35,37 @@
 #define XCP_PROJECT_NAME_MAX_LENGTH 31
 
 /*----------------------------------------------------------------------------*/
+/* DAQ event management */
+
+// Enable event list
+#ifndef XCPLIB_FOR_RUST // // Set by the Rust build script, not needed for Rust xcp-lite, currently has its own event management
+#define XCP_ENABLE_DAQ_EVENT_LIST
+#endif
+
+#ifdef XCP_ENABLE_DAQ_EVENT_LIST
+
+#if defined(OPTION_DAQ_EVENT_COUNT) && (OPTION_DAQ_EVENT_COUNT > 0)
+#define XCP_MAX_EVENT_COUNT OPTION_DAQ_EVENT_COUNT
+#else
+#error "Please define OPTION_DAQ_EVENT_COUNT"
+#endif
+
+// Enable XCP_GET_EVENT_INFO, if this is enabled, event information can be queried by the XCP client tool
+#define XCP_ENABLE_DAQ_EVENT_INFO
+
+// Maximum length of event name without the trailing 0
+#define XCP_MAX_EVENT_NAME 15
+
+#else                           // XCP_ENABLE_DAQ_EVENT_LIST
+
+// If XCP_MAX_EVENT_COUNT is defined and DAQ event management is not used, DAQ list to event association lookup will be optimized
+// Set the maximum number of DAQ events (the highest DAQ event number used), XCP_MAX_EVENT_COUNT must be even
+// Requires XCP_MAX_EVENT_COUNT * 2 bytes of memory
+#define XCP_MAX_EVENT_COUNT 256 // For available event numbers from 0 to 255
+
+#endif // !XCP_ENABLE_DAQ_EVENT_LIST
+
+/*----------------------------------------------------------------------------*/
 // Enable calibration segment list management
 #ifdef OPTION_CAL_SEGMENTS
 #define XCP_ENABLE_CALSEG_LIST
@@ -84,10 +115,23 @@ XCPlite relative addressing: XCPLITE__CASDD:
 #define XCP_ENABLE_ABS_ADDRESSING
 #define XCP_ADDR_EXT_ABS 0x01
 #endif
+
 #define XCP_ENABLE_DYN_ADDRESSING
-#define XCP_ADDR_EXT_DYN 0x02
-#define XCP_ADDR_EXT_DYN_COUNT 14
-#define XCP_ADDR_EXT_DYN_MAX (0x02 + XCP_ADDR_EXT_DYN_COUNT - 1)
+#define XCP_ADDR_EXT_DYN 0x02     // Address extensions from 0x02 to 0x0F are used for dynamic event based relative addressing with asynchronous access
+#define XCP_ADDR_EXT_DYN_COUNT 14 // Size of the base pointer array - 2
+#define XCP_ADDR_EXT_DYN_MAX (0x02 + XCP_ADDR_EXT_DYN_COUNT - 1) // Maximum value for dynamic address extensions
+
+// Relative addr format (dyn_base + (((10 Bit event | 22 Bit signed offset))
+#define XCP_DYN_ADDR_EVENT_BITS 10
+#define XCP_DYN_ADDR_EVENT_MASK 0x3FF
+#define XCP_DYN_ADDR_OFFSET_BITS 22
+#define XCP_DYN_ADDR_OFFSET_MASK 0x3FFFFF
+
+// Relative addr format (dyn_base + (((16 Bit event | 16 Bit signed offset))
+// #define XCP_DYN_ADDR_EVENT_BITS 16
+// #define XCP_DYN_ADDR_EVENT_MASK 0xFFFF
+// #define XCP_DYN_ADDR_OFFSET_BITS 16
+// #define XCP_DYN_ADDR_OFFSET_MASK 0xFFFF
 
 // --- Relative addressing modes without asynchronous access and i32 offset
 #ifdef XCP_ENABLE_REL_ADDRESSING
@@ -96,18 +140,22 @@ XCPlite relative addressing: XCPLITE__CASDD:
 // Used for stack frame relative addressing
 #define XcpAddrIsRel(addr_ext) ((addr_ext) == XCP_ADDR_EXT_REL)
 #define XcpAddrEncodeRel(signed_int32_offset) ((uint32_t)(signed_int32_offset & 0xFFFFFFFF))
-#define XcpAddrDecodeRelOffset(addr) (int32_t)(addr) // signed address offset
+#define XcpAddrDecodeRelOffset(addr) (int32_t)(addr) // signed 32 bit address offset
 
 #endif // XCP_ENABLE_REL_ADDRESSING
 
-// --- Event based relative addressing modes with asynchronous access and i16 offset
+// --- Event based relative addressing modes with asynchronous access and signed offset
 #ifdef XCP_ENABLE_DYN_ADDRESSING
 
-// Relative addr format (dyn_base + (((event as uint16_t) <<16) | offset as int16_t))
 #define XcpAddrIsDyn(addr_ext) (((addr_ext) >= XCP_ADDR_EXT_DYN && (addr_ext) <= XCP_ADDR_EXT_DYN_MAX))
-#define XcpAddrEncodeDyn(signed_int16_offset, event) (((uint32_t)(event) << 16) | ((signed_int16_offset) & 0xFFFF))
-#define XcpAddrDecodeDynEvent(addr) (uint16_t)((addr) >> 16)    // event
-#define XcpAddrDecodeDynOffset(addr) (int16_t)((addr) & 0xFFFF) // signed address offset
+
+#define XcpAddrEncodeDyn(signed_offset, event) (uint32_t)(((uint32_t)(event) << XCP_DYN_ADDR_OFFSET_BITS) | (uint32_t)((signed_offset) & XCP_DYN_ADDR_OFFSET_MASK))
+#define XcpAddrDecodeDynEvent(addr) (uint16_t)((addr) >> XCP_DYN_ADDR_OFFSET_BITS)                                        // event number as uint16_t
+#define XcpAddrDecodeDynOffset(addr) (int32_t)(((int32_t)((addr) << XCP_DYN_ADDR_EVENT_BITS)) >> XCP_DYN_ADDR_EVENT_BITS) // sign extension of address offset to uint32_t
+
+#if !defined(XCP_MAX_EVENT_COUNT) || XCP_MAX_EVENT_COUNT > (1 << XCP_DYN_ADDR_EVENT_BITS)
+#error "XCP_MAX_EVENT_COUNT too large for XCP_DYN_ADDR_EVENT_BITS!"
+#endif
 
 #endif // XCP_ENABLE_DYN_ADDRESSING
 
@@ -287,37 +335,6 @@ XCPlite relative addressing: XCPLITE__CASDD:
 // Overrun indication via PID
 // Not needed for Ethernet, client detects data loss via transport layer counter gaps
 // #define XCP_ENABLE_OVERRUN_INDICATION_PID
-
-/*----------------------------------------------------------------------------*/
-/* DAQ event management */
-
-// Enable event list
-#ifndef XCPLIB_FOR_RUST // // Set by the Rust build script, not needed for Rust xcp-lite, currently has its own event management
-#define XCP_ENABLE_DAQ_EVENT_LIST
-#endif
-
-#ifdef XCP_ENABLE_DAQ_EVENT_LIST
-
-#if defined(OPTION_DAQ_EVENT_COUNT) && (OPTION_DAQ_EVENT_COUNT > 0)
-#define XCP_MAX_EVENT_COUNT OPTION_DAQ_EVENT_COUNT
-#else
-#error "Please define OPTION_DAQ_EVENT_COUNT"
-#endif
-
-// Enable XCP_GET_EVENT_INFO, if this is enabled, event information can be queried by the XCP client tool
-#define XCP_ENABLE_DAQ_EVENT_INFO
-
-// Maximum length of event name without the trailing 0
-#define XCP_MAX_EVENT_NAME 15
-
-#else                           // XCP_ENABLE_DAQ_EVENT_LIST
-
-// If XCP_MAX_EVENT_COUNT is defined and DAQ event management is not used, DAQ list to event association lookup will be optimized
-// Set the maximum number of DAQ events (the highest DAQ event number used), XCP_MAX_EVENT_COUNT must be even
-// Requires XCP_MAX_EVENT_COUNT * 2 bytes of memory
-#define XCP_MAX_EVENT_COUNT 256 // For available event numbers from 0 to 255
-
-#endif // !XCP_ENABLE_DAQ_EVENT_LIST
 
 /*----------------------------------------------------------------------------*/
 /* Calibration segment management */

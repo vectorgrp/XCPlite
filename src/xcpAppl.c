@@ -173,12 +173,12 @@ bool ApplXcpGetClockInfoGrandmaster(uint8_t *client_uuid, uint8_t *grandmaster_u
 // xcp_get_base_addr() uses gXcpBaseAddr directly, not ApplXcpGetBaseAddr(), assuming XCP has been initialized before
 
 const uint8_t *gXcpBaseAddr = NULL;
-uint8_t gXcpBaseAddrValid = 0;
+bool gXcpBaseAddrValid = false;
 
 // Set the base address for absolute addressing mode, if the default base address is not suitable
 void ApplXcpSetBaseAddr(const uint8_t *addr) {
     gXcpBaseAddr = addr;
-    gXcpBaseAddrValid = 1;
+    gXcpBaseAddrValid = true;
     DBG_PRINTF4("ApplXcpSetBaseAddr() = %p\n", (void *)gXcpBaseAddr);
 }
 
@@ -201,14 +201,16 @@ uint32_t ApplXcpGetAddr(const uint8_t *p) {
 // Windows 64 or 32 bit
 #ifdef _WIN
 
+const uint8_t *ApplXcpGetModuleAddr(void) { return (uint8_t *)GetModuleHandle(NULL); }
+
 // Get base pointer for the XCP address range
 // This function is time sensitive, as it is called once on every XCP event
 const uint8_t *ApplXcpGetBaseAddr(void) {
 
-    if (!gXcpBaseAddrValid) {
-        ApplXcpSetBaseAddr((uint8_t *)GetModuleHandle(NULL));
-        assert(gXcpBaseAddrValid);
-    }
+    if (gXcpBaseAddrValid)
+        return gXcpBaseAddr;
+    ApplXcpSetBaseAddr(ApplXcpGetModuleAddr()); // Set module addr as default base address
+    assert(gXcpBaseAddrValid);
     return gXcpBaseAddr;
 }
 
@@ -263,27 +265,35 @@ static int dump_phdr(const struct dl_phdr_info *pinfo, size_t size, void *data) 
 #endif
 #include <link.h>
 
+static const uint8_t *gModuleAddr = NULL;
+static bool gModuleAddrValid = false;
+
 static int dump_phdr(struct dl_phdr_info *pinfo, size_t size, void *data) {
-    // DBG_PRINTF3("name=%s (%d segments)\n", pinfo->dlpi_name, pinfo->dlpi_phnum);
-
-    // Application module has no name
-    if (0 == strlen(pinfo->dlpi_name)) {
-        gXcpBaseAddr = (uint8_t *)pinfo->dlpi_addr;
+    // DBG_PRINTF5("name=%s (%d segments)\n", pinfo->dlpi_name, pinfo->dlpi_phnum);
+    if (0 == strlen(pinfo->dlpi_name)) { // Application module has no name
+        gModuleAddr = (uint8_t *)pinfo->dlpi_addr;
+        gModuleAddrValid = true;
     }
-
     (void)size;
     (void)data;
     return 0;
 }
 #endif
 
+const uint8_t *ApplXcpGetModuleAddr(void) {
+    if (gModuleAddrValid)
+        return gModuleAddr;
+    dl_iterate_phdr(dump_phdr, NULL);
+    assert(gModuleAddrValid);
+    return gModuleAddr;
+}
+
 const uint8_t *ApplXcpGetBaseAddr(void) {
 
-    if (!gXcpBaseAddrValid) {
-        dl_iterate_phdr(dump_phdr, NULL);
-        assert(gXcpBaseAddrValid);
-    }
-
+    if (gXcpBaseAddrValid)
+        return gXcpBaseAddr;
+    ApplXcpSetBaseAddr(ApplXcpGetModuleAddr()); // Set module addr as default base address
+    assert(gXcpBaseAddrValid);
     return gXcpBaseAddr;
 }
 
@@ -312,12 +322,14 @@ static int dump_so(void) {
 }
 */
 
+const uint8_t *ApplXcpGetModuleAddr(void) { return (uint8_t *)_dyld_get_image_header(0); }
+
 // Get the base address for absolute addressing mode
 // Use default base address, if not explicitly set by ApplXcpSetBaseAddr() before
 const uint8_t *ApplXcpGetBaseAddr(void) {
     if (!gXcpBaseAddrValid) {
         // dump_so();
-        ApplXcpSetBaseAddr((uint8_t *)_dyld_get_image_header(0)); // Module addr
+        ApplXcpSetBaseAddr(ApplXcpGetModuleAddr()); // Set module addr
         assert(gXcpBaseAddrValid);
     }
 
@@ -331,8 +343,10 @@ const uint8_t *ApplXcpGetBaseAddr(void) {
 
 #if defined(_LINUX) && defined(PLATFORM_32BIT)
 
+const uint8_t *ApplXcpGetModuleAddr(void) { return ((uint8_t *)0); }
+
 // On 32 bit Linux platforms, the entire 4GB address space is available for XCP, so the base address is 0 and the address conversion is a simple cast
-const uint8_t *ApplXcpGetBaseAddr(void) { return ((uint8_t *)0); }
+const uint8_t *ApplXcpGetBaseAddr(void) { return ApplXcpGetModuleAddr(); }
 
 #endif // defined(_LINUX) && defined(PLATFORM_32BIT)
 

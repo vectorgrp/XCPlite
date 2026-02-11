@@ -443,8 +443,6 @@ typedef struct {
 /* Protocol layer external dependencies                                     */
 /****************************************************************************/
 
-// All callback functions supplied by the application ust be thread save
-
 /* Callbacks on connect, disconnect, measurement prepare, start and stop */
 bool ApplXcpConnect(uint8_t mode);
 void ApplXcpDisconnect(void);
@@ -456,14 +454,16 @@ void ApplXcpStopDaq(void);
 
 /* Address conversions from A2L address to pointer and vice versa in absolute addressing mode */
 #ifdef XCP_ENABLE_ABS_ADDRESSING
-extern const uint8_t *gXcpBaseAddr;        // For runtime optimization, use xcp_get_base_addr() instead of ApplXcpGetBaseAddr()
-const uint8_t *ApplXcpGetBaseAddr(void);   // Get the base address for DAQ data access */
-#define xcp_get_base_addr() gXcpBaseAddr   // For runtime optimization, use xcp_get_base_addr() instead of ApplXcpGetBaseAddr()
-uint32_t ApplXcpGetAddr(const uint8_t *p); // Calculate the xcpAddr address from a pointer
+const uint8_t *ApplXcpGetBaseAddr(void);      // Get the base address for absolute addressing mode */
+void ApplXcpSetBaseAddr(const uint8_t *addr); // Set base address for absolute addressing mode, only needed for special cases where the default base addr is not suitable
+extern const uint8_t *gXcpBaseAddr;
+#define xcp_get_base_addr() gXcpBaseAddr   // For runtime optimization, some macros use xcp_get_base_addr() instead of ApplXcpGetBaseAddr()
+uint32_t ApplXcpGetAddr(const uint8_t *p); // Calculate the absolute XCP/A2L 32 bit address from a pointer
 #else
 #define ApplXcpGetBaseAddr()
 #define xcp_get_base_addr() NULL
 #endif
+const uint8_t *ApplXcpGetModuleAddr(void); // Get the module base address, used as default base address for absolute addressing mode
 
 /* Read and write memory */
 #ifdef XCP_ENABLE_APP_ADDRESSING

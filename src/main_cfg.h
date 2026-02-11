@@ -108,7 +108,7 @@
 // DAQ settings
 
 #define OPTION_DAQ_MEM_SIZE (1024 * 8) // Memory bytes used for XCP DAQ tables - 6 bytes per measurement signal/block needed
-#define OPTION_DAQ_EVENT_COUNT 256     // Maximum number of DAQ events (integer value, must be even)
+#define OPTION_DAQ_EVENT_COUNT 128     // Maximum number of DAQ events (integer value, must be even)
 // #define OPTION_DAQ_ASYNC_EVENT         // Create an asynchronous, cyclic DAQ event for asynchronous data acquisition
 
 //-------------------------------------------------------------------------------

@@ -691,7 +691,7 @@ static void A2lCreateMeasurement_IF_DATA(void) {
 //----------------------------------------------------------------------------------
 // Raw functions to set addressing mode unchecked (by calibration segment index or event id)
 
-// Debug print address and address extension (adressing mode, event, offset)
+// Debug print address and address extension (addressing mode, event, offset)
 #if defined(OPTION_ENABLE_DBG_PRINTS) && (OPTION_MAX_DBG_LEVEL >= 4)
 static const char *dbgPrintfAddrExt(uint8_t addr_ext, uint32_t addr) {
     static char buf1[64] = {0};
@@ -992,9 +992,9 @@ static uint32_t A2lGetAddr_(const void *p) {
             // If both base pointers are set, auto detect appropriate base pointer and addressing mode
             if (gA2lBasePtr != NULL && gA2lFramePtr != NULL) {
                 uint64_t addr_diff1 = (uint64_t)p - (uint64_t)gA2lBasePtr;
-                uint64_t addr_high1 = (addr_diff1 >> 16);
+                uint64_t addr_high1 = (addr_diff1 >> XCP_DYN_ADDR_OFFSET_BITS); // remaining bits of the address after shifting out the offset bits
                 uint64_t addr_diff2 = (uint64_t)p - (uint64_t)gA2lFramePtr;
-                uint64_t addr_high2 = (addr_diff2 >> 16);
+                uint64_t addr_high2 = (addr_diff2 >> XCP_DYN_ADDR_OFFSET_BITS);
                 DBG_PRINTF5("A2L auto dyn address mode: addr=%p, base1=%p, diff1=%llX, base2=%p, diff2=%llX\n", p, (void *)gA2lBasePtr, (unsigned long long)addr_diff1,
                             (void *)gA2lFramePtr, (unsigned long long)addr_diff2);
                 // Prefer positive this, then negative stack, then positive stack
@@ -1003,25 +1003,29 @@ static uint32_t A2lGetAddr_(const void *p) {
                     base_ptr = gA2lBasePtr;
                     addr_diff = addr_diff1;
                     gA2lAutoAddrExt = XCP_ADDR_EXT_DYN + 1; // Use base pointer addressing mode with index 1
-                    DBG_PRINT5("Positive base selected\n");
+                    DBG_PRINT5("Positive to base selected\n");
                 }
-                // Negative stack (local variables)
-                else if (addr_high2 == 0xFFFFFFFFFFFF) {
+                // Negative stack (local variables), no limit checking
+                else if (addr_high2 == ((1ULL << (64 - XCP_DYN_ADDR_OFFSET_BITS)) - 1)) {
                     base_ptr = gA2lFramePtr;
                     addr_diff = addr_diff2;
                     gA2lAutoAddrExt = XCP_ADDR_EXT_DYN; // Use frame pointer addressing mode
                     DBG_PRINT5("Negative stack selected\n");
                 }
-                // Positive stack (function parameters)
-                else if (addr_high2 == 0) {
+                // Positive stack (function parameters) limited to 1024 Bytes distance to frame pointer)
+                else if (addr_high2 == 0 && addr_diff2 < 1024) {
                     base_ptr = gA2lFramePtr;
                     addr_diff = addr_diff2;
                     gA2lAutoAddrExt = XCP_ADDR_EXT_DYN; // Use frame pointer addressing mode
                     DBG_PRINT5("Positive stack selected\n");
                 }
-                // Negative base
-                else if (addr_high1 == 0xFFFFFFFFFFFF) {
+                // Negative base, not allowed
+                else if (addr_high1 == ((1ULL << (64 - XCP_DYN_ADDR_OFFSET_BITS)) - 1)) {
                     DBG_PRINTF_ERROR("A2L dyn address overflow detected! negative base offset, addr: %p, base1: %p, base2: %p\n", p, (void *)gA2lBasePtr, (void *)gA2lFramePtr);
+                    // base_ptr = gA2lBasePtr;
+                    // addr_diff = addr_diff1;
+                    // gA2lAutoAddrExt = XCP_ADDR_EXT_DYN + 1; // Use base pointer addressing mode with index 1
+                    // DBG_PRINT5("Negative to base selected\n");
                     assert(0);
                     return 0;
                 }
@@ -1045,9 +1049,9 @@ static uint32_t A2lGetAddr_(const void *p) {
 
             if (base_ptr != NULL) {
                 addr_diff = (uint64_t)p - (uint64_t)base_ptr;
-                // Ensure the address difference does not overflow the value range for signed int16_t
-                uint64_t addr_high = (addr_diff >> 16);
-                if (addr_high != 0 && addr_high != 0xFFFFFFFFFFFF) {
+                // Ensure the address difference does not overflow the value range for signed offset
+                uint64_t addr_high = (addr_diff >> XCP_DYN_ADDR_OFFSET_BITS);
+                if (addr_high != 0 && addr_high != ((1ULL << (64 - XCP_DYN_ADDR_OFFSET_BITS)) - 1)) {
                     DBG_PRINTF5("A2L dyn address overflow detected! addr: %p, base: %p, trying absolute\n", p, (void *)base_ptr);
                     gA2lAutoAddrExt = XCP_ADDR_EXT_ABS;
                     return XcpAddrEncodeAbs(p);
@@ -1085,9 +1089,9 @@ static uint32_t A2lGetAddr_(const void *p) {
             if (gA2lBasePtr != NULL) {
                 if (p != NULL) {
                     addr_diff = (uint64_t)p - (uint64_t)gA2lBasePtr;
-                    // Ensure the address difference does not overflow the value range for signed int16_t
-                    uint64_t addr_high = (addr_diff >> 16);
-                    if (addr_high != 0 && addr_high != 0xFFFFFFFFFFFF) {
+                    // Ensure the address difference does not overflow the value range of the signed offset
+                    uint64_t addr_high = (addr_diff >> XCP_DYN_ADDR_OFFSET_BITS);
+                    if (addr_high != 0 && addr_high != ((1ULL << (64 - XCP_DYN_ADDR_OFFSET_BITS)) - 1)) {
                         DBG_PRINTF_ERROR("A2L dyn address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lBasePtr);
                         assert(0);
                         return 0;
