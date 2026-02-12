@@ -136,7 +136,6 @@ This section describes the XCP protocol layer configuration parameters in xcp_cf
 | Parameter | Description |
 |-----------|-------------|
 | `XCP_MAX_EVENT_COUNT` | Maximum number of DAQ events. Must be even. Optimizes DAQ list to event association lookup (default: 256) |
-| `XCP_MAX_DAQ_COUNT` | Maximum number of DAQ lists. Must be ≤ 0xFFFE (default: 1024) |
 | `XCP_DAQ_MEM_SIZE` | Static memory allocation for DAQ tables. Each ODT entry needs 5 bytes, each DAQ list 12 bytes, each ODT 8 bytes |
 | `XCP_ENABLE_DAQ_RESUME` | Enables DAQ resume mode functionality |
 | `XCP_ENABLE_DAQ_PRESCALER` | Enables DAQ prescaler (downsampling) |

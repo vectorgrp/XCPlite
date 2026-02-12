@@ -309,11 +309,6 @@ XCPlite relative addressing: XCPLITE__CASDD:
 // Enable individual address extensions for each ODT entry, otherwise address extension must be unique for each DAQ list
 #define XCP_ENABLE_DAQ_ADDREXT
 
-// Maximum number of DAQ lists
-// Must be <= 0xFFFE
-// Numbers smaller than 256 will switch to 2 byte transport layer header DAQ_HDR_ODT_DAQB
-#define XCP_MAX_DAQ_COUNT 1024
-
 // Static allocated memory for DAQ tables
 // Amount of memory for DAQ tables, each ODT entry (e.g. measurement variable) needs 5 bytes, each DAQ list 12 bytes and
 // each ODT 8 bytes

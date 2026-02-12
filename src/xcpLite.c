@@ -120,16 +120,6 @@
 #error "Please define XCP_DAQ_MEM_SIZE"
 #endif
 
-/* Check XCP_MAX_DAQ_COUNT */
-/* Default 256 - 2 Byte ODT header */
-#if defined(XCP_MAX_DAQ_COUNT)
-#if (XCP_MAX_DAQ_COUNT > 0xFFFE)
-#error "XCP_MAX_DAQ_COUNT must be <= 0xFFFE"
-#endif
-#else
-#define XCP_MAX_DAQ_COUNT 256
-#endif
-
 /* Check length of of names with null termination must be even*/
 #if XCP_EPK_MAX_LENGTH & 1 == 0 || XCP_EPK_MAX_LENGTH >= 128
 #error "XCP_EPK_MAX_LENGTH must be <128 and odd for null termination"
@@ -1513,12 +1503,7 @@ const char *XcpGetEventName(tXcpEventId event) {
 /****************************************************************************/
 
 // ODT header size is hardcoded to 4 bytes
-// Switch to smaller 2 byte ODT header, if maximum required number of DAQ list is <= 256
-#if XCP_MAX_DAQ_COUNT > 256
 #define ODT_HEADER_SIZE 4 // ODT,align,DAQ_WORD header
-#else
-#define ODT_HEADER_SIZE 2 // ODT,DAQ header
-#endif
 
 // Timestamp size is hardcoded to 4 bytes
 #define ODT_TIMESTAMP_SIZE 4
@@ -1589,7 +1574,7 @@ static uint8_t XcpAllocDaq(uint16_t daqCount) {
 
     if (gXcp.DaqLists == NULL || gXcp.DaqLists->odt_count != 0 || gXcp.DaqLists->odt_entry_count != 0)
         return CRC_SEQUENCE;
-    if (daqCount == 0 || daqCount > XCP_MAX_DAQ_COUNT)
+    if (daqCount == 0)
         return CRC_OUT_OF_RANGE;
 
     // Initialize
