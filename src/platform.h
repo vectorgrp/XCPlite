@@ -75,9 +75,7 @@ OPTION_ENABLE_GET_LOCAL_ADDR
 OPTION_CLOCK_TICKS_1NS or OPTION_CLOCK_TICKS_1US
 OPTION_CLOCK_EPOCH_ARB or OPTION_CLOCK_EPOCH_PTP
 */
-#ifndef __MAIN_CFG_H__
 #include "xcplib_cfg.h" // for OPTION_xxx
-#endif
 
 //-------------------------------------------------------------------------------------------------
 // Platform specific functions

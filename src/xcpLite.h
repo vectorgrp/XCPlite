@@ -18,12 +18,13 @@
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uint16_t, uint32_t, uint8_t
 
-#include "dbg_print.h" // for DBG_LEVEL, DBG_PRINTF, DBG_PRINT, ...
-#include "platform.h"  // for atomics
-#include "xcp.h"       // for XCP protocol definitions
-#include "xcpQueue.h"  // for tQueueHandle
-#include "xcp_cfg.h"   // for XCP_PROTOCOL_LAYER_VERSION, XCP_ENABLE_...
-#include "xcptl_cfg.h" // for XCPTL_MAX_CTO_SIZE
+#include "dbg_print.h"  // for DBG_LEVEL, DBG_PRINTF, DBG_PRINT, ...
+#include "platform.h"   // for atomics
+#include "xcp.h"        // for XCP protocol definitions
+#include "xcpQueue.h"   // for tQueueHandle
+#include "xcp_cfg.h"    // for XCP_PROTOCOL_LAYER_VERSION, XCP_ENABLE_...
+#include "xcplib_cfg.h" // for OPTION_xxx
+#include "xcptl_cfg.h"  // for XCPTL_MAX_CTO_SIZE
 
 #ifdef __cplusplus
 extern "C" {
