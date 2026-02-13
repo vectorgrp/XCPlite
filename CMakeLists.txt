@@ -22,6 +22,14 @@ endif()
 
 project(xcplite VERSION 1.2.0 LANGUAGES C CXX)
 
+# Option to build examples when xcplite is a subproject
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+    set(XCPLITE_BUILD_EXAMPLES_DEFAULT ON)
+else()
+    set(XCPLITE_BUILD_EXAMPLES_DEFAULT OFF)
+endif()
+option(XCPLITE_BUILD_EXAMPLES "Build xcplite example targets" ${XCPLITE_BUILD_EXAMPLES_DEFAULT})
+
 # Find required packages
 find_package(Threads REQUIRED)
 
@@ -159,64 +167,66 @@ if(HAVE_LIBATOMIC)
 endif()
 
 
-# Example hello_xcp
-add_executable(hello_xcp examples/hello_xcp/src/main.c)
-target_link_libraries(hello_xcp PRIVATE xcplite)
+if(XCPLITE_BUILD_EXAMPLES)
+    # Example hello_xcp
+    add_executable(hello_xcp examples/hello_xcp/src/main.c)
+    target_link_libraries(hello_xcp PRIVATE xcplite)
 
-# Example no_a2l_demo
-add_executable(no_a2l_demo examples/no_a2l_demo/src/main.c)
-target_link_libraries(no_a2l_demo PRIVATE xcplite)
+    # Example no_a2l_demo
+    add_executable(no_a2l_demo examples/no_a2l_demo/src/main.c)
+    target_link_libraries(no_a2l_demo PRIVATE xcplite)
 
-# Example hello_xcp_cpp
-add_executable(hello_xcp_cpp examples/hello_xcp_cpp/src/main.cpp)
-target_link_libraries(hello_xcp_cpp PRIVATE xcplite)
+    # Example hello_xcp_cpp
+    add_executable(hello_xcp_cpp examples/hello_xcp_cpp/src/main.cpp)
+    target_link_libraries(hello_xcp_cpp PRIVATE xcplite)
 
-# Example point_cloud_demo
-add_executable(point_cloud_demo examples/point_cloud_demo/src/main.cpp)
-target_link_libraries(point_cloud_demo PRIVATE xcplite)
+    # Example point_cloud_demo
+    add_executable(point_cloud_demo examples/point_cloud_demo/src/main.cpp)
+    target_link_libraries(point_cloud_demo PRIVATE xcplite)
 
-# Example c_demo
-add_executable(c_demo examples/c_demo/src/main.c)
-target_link_libraries(c_demo PRIVATE xcplite)
+    # Example c_demo
+    add_executable(c_demo examples/c_demo/src/main.c)
+    target_link_libraries(c_demo PRIVATE xcplite)
 
-# Example cpp_demo
-add_executable(cpp_demo examples/cpp_demo/src/main.cpp examples/cpp_demo/src/sig_gen.cpp examples/cpp_demo/src/lookup.cpp)
-target_link_libraries(cpp_demo PRIVATE xcplite)
+    # Example cpp_demo
+    add_executable(cpp_demo examples/cpp_demo/src/main.cpp examples/cpp_demo/src/sig_gen.cpp examples/cpp_demo/src/lookup.cpp)
+    target_link_libraries(cpp_demo PRIVATE xcplite)
 
-# Example struct_demo
-add_executable(struct_demo examples/struct_demo/src/main.c)
-target_link_libraries(struct_demo PRIVATE xcplite)
+    # Example struct_demo
+    add_executable(struct_demo examples/struct_demo/src/main.c)
+    target_link_libraries(struct_demo PRIVATE xcplite)
 
-# Example multi_thread_demo
-add_executable(multi_thread_demo examples/multi_thread_demo/src/main.c)
-target_link_libraries(multi_thread_demo PRIVATE xcplite)
+    # Example multi_thread_demo
+    add_executable(multi_thread_demo examples/multi_thread_demo/src/main.c)
+    target_link_libraries(multi_thread_demo PRIVATE xcplite)
 
-# Example ptp4l_demo
-add_executable(ptp4l_demo examples/ptp4l_demo/src/main.cpp)
-target_link_libraries(ptp4l_demo PRIVATE xcplite)
+    # Example ptp4l_demo
+    add_executable(ptp4l_demo examples/ptp4l_demo/src/main.cpp)
+    target_link_libraries(ptp4l_demo PRIVATE xcplite)
 
 
-# Example bpf_demo (only build on Linux with libbpf available)
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    find_library(LIBBPF_LIBRARY bpf)
-    if(LIBBPF_LIBRARY)
-        add_executable(bpf_demo examples/bpf_demo/src/main.c)
-        target_link_libraries(bpf_demo PRIVATE xcplite ${LIBBPF_LIBRARY})
-        message(STATUS "Found libbpf: ${LIBBPF_LIBRARY} - building bpf_demo")
-    else()
-        message(STATUS "libbpf not found - skipping bpf_demo")
+    # Example bpf_demo (only build on Linux with libbpf available)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        find_library(LIBBPF_LIBRARY bpf)
+        if(LIBBPF_LIBRARY)
+            add_executable(bpf_demo examples/bpf_demo/src/main.c)
+            target_link_libraries(bpf_demo PRIVATE xcplite ${LIBBPF_LIBRARY})
+            message(STATUS "Found libbpf: ${LIBBPF_LIBRARY} - building bpf_demo")
+        else()
+            message(STATUS "libbpf not found - skipping bpf_demo")
+        endif()
     endif()
-endif()
 
-# Tool ptptool (main.cpp as C++, rest as C)
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    set(ptptool_CPP_SOURCES tools/ptptool/src/main.cpp)
-    set(ptptool_C_SOURCES tools/ptptool/src/ptp/ptp.c tools/ptptool/src/ptp/ptp_client.c tools/ptptool/src/ptp/ptp_observer.c tools/ptptool/src/ptp/ptp_master.c tools/ptptool/src/ptp/filter.c tools/ptptool/src/ptp/phc.c)
-    set_source_files_properties(${ptptool_C_SOURCES} PROPERTIES LANGUAGE C)
-    add_executable(ptptool ${ptptool_CPP_SOURCES} ${ptptool_C_SOURCES})
-    target_link_libraries(ptptool PRIVATE xcplite)
-else()
-    message(STATUS "Non Linux platform - skipping ptptool build")
+    # Tool ptptool (main.cpp as C++, rest as C)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        set(ptptool_CPP_SOURCES tools/ptptool/src/main.cpp)
+        set(ptptool_C_SOURCES tools/ptptool/src/ptp/ptp.c tools/ptptool/src/ptp/ptp_client.c tools/ptptool/src/ptp/ptp_observer.c tools/ptptool/src/ptp/ptp_master.c tools/ptptool/src/ptp/filter.c tools/ptptool/src/ptp/phc.c)
+        set_source_files_properties(${ptptool_C_SOURCES} PROPERTIES LANGUAGE C)
+        add_executable(ptptool ${ptptool_CPP_SOURCES} ${ptptool_C_SOURCES})
+        target_link_libraries(ptptool PRIVATE xcplite)
+    else()
+        message(STATUS "Non Linux platform - skipping ptptool build")
+    endif()
 endif()
 
 # Tests
@@ -264,6 +274,11 @@ install(TARGETS xcplite
 install(DIRECTORY inc/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
+)
+
+# Install platform.h for platform abstraction usage by consumers
+install(FILES src/platform.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
 # Install CMake package configuration files

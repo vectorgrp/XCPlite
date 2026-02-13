@@ -692,7 +692,7 @@ uint8_t XcpUnlockCalSeg(tXcpCalSegIndex calseg) {
         return 0; // Uninitialized or invalid calseg
     }
 
-    uint8_t oldLockCount = atomic_fetch_sub_explicit(&gXcp.CalSegList.calseg[calseg].lock_count, 1, memory_order_relaxed); // Decrement the lock count
+    uint8_t oldLockCount = (uint8_t)atomic_fetch_sub_explicit(&gXcp.CalSegList.calseg[calseg].lock_count, 1, memory_order_relaxed); // Decrement the lock count
     assert(oldLockCount > 0);                                                                                              // Calling XcpUnlockCalSeg without a prior lock
     return oldLockCount;
 }

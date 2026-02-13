@@ -68,9 +68,9 @@ static struct {
     uint64_t queue_event_time;
 #endif
 
-    SOCKET Socket;
+    SOCKET_HANDLE Socket;
 #ifdef XCPTL_ENABLE_TCP
-    SOCKET ListenSocket;
+    SOCKET_HANDLE ListenSocket;
 #endif
     uint8_t ServerMac[6];
     uint8_t ServerAddr[4];
@@ -84,13 +84,13 @@ static struct {
     // Multicast
 #ifdef XCPTL_ENABLE_MULTICAST
     THREAD MulticastThreadHandle;
-    SOCKET MulticastSock;
+    SOCKET_HANDLE MulticastSock;
 #endif
 
 } gXcpTl;
 
 #if defined(XCPTL_ENABLE_TCP) && defined(XCPTL_ENABLE_UDP)
-#define isTCP() (gXcpTl.ListenSocket != INVALID_SOCKET)
+#define isTCP() (gXcpTl.ListenSocket != INVALID_SOCKET_HANDLE)
 #else
 #ifdef XCPTL_ENABLE_TCP
 #define isTCP() true
@@ -298,10 +298,10 @@ bool XcpEthTlHandleCommands(uint32_t timeout_ms) {
     if (isTCP()) {
 
         // Listen to incoming TCP connection if not connected
-        if (gXcpTl.Socket == INVALID_SOCKET) {
+        if (gXcpTl.Socket == INVALID_SOCKET_HANDLE) {
             DBG_PRINT5("Waiting for TCP connection ...\n");
             gXcpTl.Socket = socketAccept(gXcpTl.ListenSocket, gXcpTl.MasterAddr); // Wait here for incoming connection
-            if (gXcpTl.Socket == INVALID_SOCKET) {
+            if (gXcpTl.Socket == INVALID_SOCKET_HANDLE) {
                 return true; // Ignore error from accept
             } else {
                 DBG_PRINTF3("XCP master %u.%u.%u.%u accepted!\n", gXcpTl.MasterAddr[0], gXcpTl.MasterAddr[1], gXcpTl.MasterAddr[2], gXcpTl.MasterAddr[3]);
@@ -460,11 +460,11 @@ bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, bool blocking
     gXcpTl.ServerUseTCP = useTCP;
     gXcpTl.blockingRx = blockingRx;
     gXcpTl.MasterAddrValid = false;
-    gXcpTl.Socket = INVALID_SOCKET;
+    gXcpTl.Socket = INVALID_SOCKET_HANDLE;
 
     // Unicast UDP or TCP commands
 #ifdef XCPTL_ENABLE_TCP
-    gXcpTl.ListenSocket = INVALID_SOCKET;
+    gXcpTl.ListenSocket = INVALID_SOCKET_HANDLE;
     if (useTCP) { // TCP
         if (!socketOpen(&gXcpTl.ListenSocket, SOCKET_MODE_TCP | (blockingRx ? SOCKET_MODE_BLOCKING : 0) | SOCKET_MODE_REUSEADDR))
             return false;

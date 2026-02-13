@@ -189,7 +189,7 @@ uint32_t ApplXcpGetAddr(const uint8_t *p) {
     const uint8_t *b = ApplXcpGetBaseAddr();
     int64_t diff = (int64_t)(p) - (int64_t)(b);
     DBG_PRINTF5("ApplXcpGetAddr: base = %p, addr = %p, diff = %" PRId64 "\n", (void *)b, (void *)p, diff);
-    if (diff < -2147483648 || diff > 2147483647) { // Check XCP address range is sufficient
+    if (diff < -2147483648LL || diff > 2147483647LL) { // Check XCP address range is sufficient
         DBG_PRINTF_ERROR("Address out of range! base = %p, addr = %p\n", (void *)b, (void *)p);
         assert(0);
         return 0;
