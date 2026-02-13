@@ -11,8 +11,8 @@
 | Code released into public domain, no attribution required
  ----------------------------------------------------------------------------*/
 
-#include "main_cfg.h" // for OPTION_xxx
-#include "platform.h" // for CLOCK_TICKS_PER_xx
+#include "platform.h"   // for CLOCK_TICKS_PER_xx
+#include "xcplib_cfg.h" // for OPTION_xxx
 
 /*----------------------------------------------------------------------------*/
 /* Version */

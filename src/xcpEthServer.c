@@ -20,13 +20,13 @@
 #include <stdio.h>    // for printf
 
 #include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
-#include "main_cfg.h"  // for OPTION_xxx
 #include "platform.h"  // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
 #include "xcp.h"       // for CRC_XXX
 #include "xcpEthTl.h"  // for tXcpCtoMessage, xcpTlXxxx, xcpEthTlxxx
 #include "xcpLite.h"   // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
 #include "xcpQueue.h"
-#include "xcptl_cfg.h" // for XCPTL_xxx
+#include "xcplib_cfg.h" // for OPTION_xxx
+#include "xcptl_cfg.h"  // for XCPTL_xxx
 
 #if !defined(_WIN) && !defined(_LINUX) && !defined(_MACOS) && !defined(_QNX)
 #error "Please define platform _WIN, _MACOS or _LINUX or _QNX"

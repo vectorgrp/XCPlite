@@ -21,9 +21,9 @@ Most important parameters are:
 
 The size of the transmission queue is a runtime parameter.
 
-## 1 · main_cfg.h
+## 1 · xcplib_cfg.h
 
-This section describes the configuration parameters in main_cfg.h.
+This section describes the configuration parameters in xcplib_cfg.h.
 
 ### XCP Protocol Options
 

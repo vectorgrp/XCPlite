@@ -17,11 +17,11 @@
 
 // Internal libxcplite includes
 // Note: Take care for include order, when using internal libxcplite headers !!
-// xcp_cfg.h would includes main_cfg.h and platform.h
+// xcp_cfg.h would includes xcplib_cfg.h and platform.h
 #include "dbg_print.h"
-#include "main_cfg.h"
 #include "platform.h"
 #include "xcp_cfg.h"
+#include "xcplib_cfg.h"
 
 //-----------------------------------------------------------------------------------------------------
 

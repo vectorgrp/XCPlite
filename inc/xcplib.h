@@ -588,7 +588,7 @@ void XcpPrint(const char *str);
 
 /// Get the current DAQ clock value
 /// @return time in CLOCK_TICKS_PER_S units
-/// Resolution and epoch is defined in main_cfg.h
+/// Resolution and epoch is defined in xcplib_cfg.h
 /// Epoch may be PTP or arbitrary
 /// Resolution is 1ns or 1us
 uint64_t ApplXcpGetClock64(void);

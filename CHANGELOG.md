@@ -88,11 +88,11 @@ void XcpInit(const char *name, const char *epk, bool activate);
 
 
 ### Added
-- Absolute or relative calibration parameter segment addressing (`OPTION_CAL_SEGMENTS_ABS` in `main_cfg.h`)
+- Absolute or relative calibration parameter segment addressing (`OPTION_CAL_SEGMENTS_ABS` in `xcplib_cfg.h`)
 - More flexible addressing scheme configuration (see `xcp_cfg.h`)
 - Generated A2L file uses the `project_no` identifier to indicate the configured addressing schema (currently ACSDD or CASDD)
 - Support for more than one base address in relative address mode, variadic function to trigger event with multiple base addresses
-- Optional async event with 1ms cycle time and prescaler support (`OPTION_DAQ_ASYNC_EVENT` in `main_cfg.h`)
+- Optional async event with 1ms cycle time and prescaler support (`OPTION_DAQ_ASYNC_EVENT` in `xcplib_cfg.h`)
 - Different options to control the behavior of calibration segment persistence and freeze
 - Memory optimization for event/daq-list mapping
 - XCP_ENABLE_COPY_CAL_PAGE_WORKAROUND to enable workaround for CANape init calibration segments bug
@@ -110,7 +110,7 @@ void XcpInit(const char *name, const char *epk, bool activate);
 
 ### Changed
 - Signature of `xcplib::CreateCalSeg` changed, pointer to reference page
-- Automatic EPK segment is now optional (`OPTION_CAL_SEGMENT_EPK` in `main_cfg.h`)
+- Automatic EPK segment is now optional (`OPTION_CAL_SEGMENT_EPK` in `xcplib_cfg.h`)
 
 ### Experimental
 - Tool `bintool` to convert XCPlite-specific BIN files to Intel-HEX format and apply Intel-HEX files to BIN files

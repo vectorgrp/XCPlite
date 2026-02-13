@@ -11,7 +11,7 @@
 | Code released into public domain, no attribution required
  ----------------------------------------------------------------------------*/
 
-#include "main_cfg.h" // for OPTION_xxx
+#include "xcplib_cfg.h" // for OPTION_xxx
 
 #if defined(OPTION_ENABLE_UDP)
 #define XCPTL_ENABLE_UDP

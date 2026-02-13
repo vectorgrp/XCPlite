@@ -21,12 +21,12 @@
 #include <string.h>   // for strlen, strncpy
 
 #include "dbg_print.h"   // for DBG_PRINTF3, DBG_PRINT4, DBG_PRINTF4, DBG...
-#include "main_cfg.h"    // for OPTION_xxx
 #include "persistence.h" // for XcpBinWrite
 #include "platform.h"    // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
 #include "xcp.h"         // for CRC_XXX
 #include "xcpLite.h"     // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
 #include "xcp_cfg.h"     // for XCP_xxx
+#include "xcplib_cfg.h"  // for OPTION_xxx
 #include "xcptl_cfg.h"   // for XCPTL_xxx
 
 #ifdef OPTION_ENABLE_A2L_GENERATOR

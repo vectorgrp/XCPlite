@@ -15,8 +15,8 @@
 
 // Internal libxcplite includes
 // Note: Take care for include order, when using internal libxcplite headers !!
-// xcp_cfg.h would includes main_cfg.h and platform.h, which enables atomic emulation under Windows, we use <atomic> in this file
-#include "main_cfg.h"
+// xcp_cfg.h would includes xcplib_cfg.h and platform.h, which enables atomic emulation under Windows, we use <atomic> in this file
+#include "xcplib_cfg.h"
 #undef OPTION_ATOMIC_EMULATION
 #include "dbg_print.h"
 #include "platform.h"

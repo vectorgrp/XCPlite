@@ -3,7 +3,7 @@
 
 /*----------------------------------------------------------------------------
 | File:
-|   main_cfg.h
+|   xcplib_cfg.h
 |
 | Description:
 |   General configuration and build options for XCPlite / libxcplite
@@ -22,7 +22,7 @@
 
 #ifdef XCPLIB_FOR_RUST // Configuration for Rust xcp-lite
 
-#include "xcplib_cfg.h" // for Rust xcp-lite specific configuration
+#include "xcplib_rust_cfg.h" // for Rust xcp-lite specific configuration
 
 #else
 

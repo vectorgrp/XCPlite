@@ -17,12 +17,12 @@
 #include <stdio.h>   // for fclose, fopen, fread, fseek, ftell
 #include <string.h>  // for strlen, strncpy
 
-#include "dbg_print.h" // for DBG_PRINTF3, DBG_PRINT4, DBG_PRINTF4, DBG...
-#include "main_cfg.h"  // for OPTION_xxx
-#include "platform.h"  // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
-#include "xcp.h"       // for CRC_XXX
-#include "xcpLite.h"   // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
-#include "xcp_cfg.h"   // for XCP_ENABLE_xxx
+#include "dbg_print.h"  // for DBG_PRINTF3, DBG_PRINT4, DBG_PRINTF4, DBG...
+#include "platform.h"   // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
+#include "xcp.h"        // for CRC_XXX
+#include "xcpLite.h"    // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
+#include "xcp_cfg.h"    // for XCP_ENABLE_xxx
+#include "xcplib_cfg.h" // for OPTION_xxx
 
 #if !defined(_WIN) && !defined(_LINUX) && !defined(_MACOS) && !defined(_QNX)
 #error "Please define platform _WIN, _MACOS or _LINUX or _QNX"

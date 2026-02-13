@@ -70,7 +70,7 @@ Data acquisition of variables on stack and relative addressing is not possible t
 
 Disable A2L generation or don't use the A2L generation functions at all.
 
-Enable absolute addressing for calibration segments (`#define OPTION_CAL_SEGMENTS_ABS` in `main_cfg.h`).
+Enable absolute addressing for calibration segments (`#define OPTION_CAL_SEGMENTS_ABS` in `xcplib_cfg.h`).
 
 Use only absolute addressing mode, which is in this mode associated to address extension 0.
 
@@ -103,7 +103,7 @@ The addressing mode is indicated by the address extension:
 
 ### CASDD vs ACSDD
 
-Depending on `#define OPTION_CAL_SEGMENTS_ABS` in `main_cfg.h`, address extension 0 is either the absolute addressing mode or the segment relative addressing mode.
+Depending on `#define OPTION_CAL_SEGMENTS_ABS` in `xcplib_cfg.h`, address extension 0 is either the absolute addressing mode or the segment relative addressing mode.
 
 The 2 modes are named **CASDD** and **ACSDD**. The A2L `project_no` is used to indicate the addressing mode to A2L creators or updaters.
 
@@ -234,7 +234,7 @@ function try_publish(segment) -> bool {
 
 **Heap allocation:** `malloc`, `free`
 - Transmit queue (`XcpEthServerInit`, parameter queue size)
-- DAQ table memory (`XcpInit`, `OPTION_DAQ_MEM_SIZE` in `main_cfg.h`)
+- DAQ table memory (`XcpInit`, `OPTION_DAQ_MEM_SIZE` in `xcplib_cfg.h`)
 - Calibration segments page memory (`XcpCreateCalSeg`, 3 copies of the default page for working page, xcp page and RCU)
 
 **Atomics:** C11 `stdatomic.h`

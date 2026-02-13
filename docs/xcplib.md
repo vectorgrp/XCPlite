@@ -52,7 +52,7 @@ C++ Example:
 The log level can be set at runtime to control the verbosity of log output.  
 To save resources, it is recommended to set the log level to a fixed minimal level in production systems, or even to a fixed level not adjustable at runtime.
 
-In main_cfg.h:
+In xcplib_cfg.h:
 ```c
 /* Set maximum runtime adjustable log level:
    1 - Error

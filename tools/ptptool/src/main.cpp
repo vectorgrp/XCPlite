@@ -210,7 +210,7 @@ static void print_usage(const char *prog_name) {
 int main(int argc, char *argv[]) {
 
 #ifndef OPTION_SOCKET_HW_TIMESTAMPS
-    printf("Please enable OPTION_SOCKET_HW_TIMESTAMPS in src/main_cfg.h for PTP tool\n");
+    printf("Please enable OPTION_SOCKET_HW_TIMESTAMPS in src/xcplib_cfg.h for PTP tool\n");
     return 1;
 #endif
 

@@ -259,15 +259,13 @@ install(TARGETS xcplite
 )
 
 # Install public headers
-install(DIRECTORY inc/
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
-)
+install(DIRECTORY inc/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp" )
+
+# Install xcplib_cfg.h for configuration options 
+install(FILES src/xcplib_cfg.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 # Install platform.h for platform abstraction usage by consumers
-install(FILES src/platform.h
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-)
+install(FILES src/platform.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 # Install CMake package configuration files
 install(EXPORT xcpliteTargets

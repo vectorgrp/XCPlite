@@ -48,9 +48,9 @@
 |  from Vector Informatik GmbH, please contact Vector
 |***************************************************************************/
 
-#include "main_cfg.h"  // for OPTION_xxx
-#include "xcp_cfg.h"   // XCP protocol layer configuration parameters (XCP_xxx)
-#include "xcptl_cfg.h" // XCP transport layer configuration parameters (XCPTL_xxx)
+#include "xcp_cfg.h"    // XCP protocol layer configuration parameters (XCP_xxx)
+#include "xcplib_cfg.h" // for OPTION_xxx
+#include "xcptl_cfg.h"  // XCP transport layer configuration parameters (XCPTL_xxx)
 
 #include "xcpLite.h" // XCP protocol layer interface functions
 
@@ -693,7 +693,7 @@ uint8_t XcpUnlockCalSeg(tXcpCalSegIndex calseg) {
     }
 
     uint8_t oldLockCount = (uint8_t)atomic_fetch_sub_explicit(&gXcp.CalSegList.calseg[calseg].lock_count, 1, memory_order_relaxed); // Decrement the lock count
-    assert(oldLockCount > 0);                                                                                              // Calling XcpUnlockCalSeg without a prior lock
+    assert(oldLockCount > 0);                                                                                                       // Calling XcpUnlockCalSeg without a prior lock
     return oldLockCount;
 }
 

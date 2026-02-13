@@ -66,7 +66,18 @@
 //-------------------------------------------------------------------------------------------------
 // Compilation options
 
-#include "main_cfg.h" // for OPTION_xxx
+/*
+OPTION_ATOMIC_EMULATION
+OPTION_ENABLE_KEYBOARD
+OPTION_ENABLE_TCP and/or OPTION_ENABLE_UDP
+OPTION_SOCKET_HW_TIMESTAMPS
+OPTION_ENABLE_GET_LOCAL_ADDR
+OPTION_CLOCK_TICKS_1NS or OPTION_CLOCK_TICKS_1US
+OPTION_CLOCK_EPOCH_ARB or OPTION_CLOCK_EPOCH_PTP
+*/
+#ifndef __MAIN_CFG_H__
+#include "xcplib_cfg.h" // for OPTION_xxx
+#endif
 
 //-------------------------------------------------------------------------------------------------
 // Platform specific functions
@@ -119,11 +130,6 @@
 #endif
 
 #endif
-
-//-------------------------------------------------------------------------------
-// Compile options
-
-#include "main_cfg.h" // for OPTION_xxx
 
 //-------------------------------------------------------------------------------
 // Keyboard
@@ -394,7 +400,7 @@ bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr); // Helper to get local IP 
 
 #endif
 
-// Clock (as used by XCP, epoch and resolution configured in main_cfg.h)
+// Clock (as used by XCP, epoch and resolution configured in xcplib_cfg.h)
 bool clockInit(void);
 uint64_t clockGet(void);
 uint64_t clockGetLast(void);
