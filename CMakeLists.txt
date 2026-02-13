@@ -1,33 +1,24 @@
 
 cmake_minimum_required(VERSION 3.10)
 
-# Compiler selection options (must be set before project() call)
-option(USE_CLANG "Use clang/clang++ compiler" OFF)
-option(USE_GCC "Use gcc/g++ compiler" OFF)
-
-# Set compilers based on options (must be set before project() call)
-if(USE_CLANG AND USE_GCC)
-    message(FATAL_ERROR "Cannot specify both USE_CLANG and USE_GCC. Choose one or neither.")
-elseif(USE_CLANG)
-    message(STATUS "Forcing clang compiler")
-    set(CMAKE_C_COMPILER clang)
-    set(CMAKE_CXX_COMPILER clang++)
-elseif(USE_GCC)
-    message(STATUS "Forcing GCC compiler")
-    set(CMAKE_C_COMPILER gcc)
-    set(CMAKE_CXX_COMPILER g++)
-else()
-    message(STATUS "Using default system compiler")
-endif()
-
 project(xcplite VERSION 1.2.0 LANGUAGES C CXX)
 
-# Option to build examples when xcplite is a subproject
+# Conditional building of examples based on project context
+# When xcplite is the top-level project (standalone build), examples are built by default.
+# When xcplite is included as a subproject (e.g., via add_subdirectory or FetchContent),
+# examples are disabled by default to avoid polluting the parent project with unnecessary targets.
+# CMAKE_SOURCE_DIR = root of the entire CMake build tree (top-level project)
+# PROJECT_SOURCE_DIR = root of this project (xcplite)
+# If they're equal, xcplite is being built standalone
 if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
     set(XCPLITE_BUILD_EXAMPLES_DEFAULT ON)
 else()
     set(XCPLITE_BUILD_EXAMPLES_DEFAULT OFF)
 endif()
+
+# Create a user-configurable CMake option for building examples
+# Users can override the default via: cmake -DXCPLITE_BUILD_EXAMPLES=ON/OFF
+# This value is stored in CMakeCache.txt and persists across CMake runs
 option(XCPLITE_BUILD_EXAMPLES "Build xcplite example targets" ${XCPLITE_BUILD_EXAMPLES_DEFAULT})
 
 # Find required packages
@@ -59,13 +50,10 @@ endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Enable test targets
-if(NOT DEFINED BUILD_TEST)
-    set(BUILD_TEST FALSE)
-endif()
-if(BUILD_TEST)
-    message(STATUS "Build test targets enabled")    
-endif()
+# Create a user-configurable CMake option for building test targets
+# Users can override via: cmake -DXCPLITE_BUILD_TESTS=ON/OFF
+# This value is stored in CMakeCache.txt and persists across CMake runs
+option(XCPLITE_BUILD_TESTS "Build xcplite test targets" OFF)
 
 # Platform detection for library selection
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
@@ -230,7 +218,7 @@ if(XCPLITE_BUILD_EXAMPLES)
 endif()
 
 # Tests
-if(BUILD_TEST)
+if(XCPLITE_BUILD_TESTS)
 
     # Type detection test (C version)
     add_executable(type_detection_test_c test/type_detection_test/src/main.c test/type_detection_test/src/c_version_test.c)

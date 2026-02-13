@@ -18,7 +18,17 @@ Use the build script to build the library libxcplite, example targets and get co
 ./build.sh
 ```
 
-or build individual example targets:
+To select a specific compiler, use standard CMake environment variables:
+
+```bash
+# Use GCC
+CC=gcc CXX=g++ ./build.sh
+
+# Use Clang
+CC=clang CXX=clang++ ./build.sh
+```
+
+Or build individual example targets:
 
 ```bash
 cmake -DCMAKE_BUILD_TYPE=Debug -S . -B build  
@@ -154,15 +164,17 @@ If this is not an option, the mutex based 32-bit queue may be used instead.
 
 ### Testing Different Compilers
 
+Use standard CMake environment variables to test different compilers:
+
 ```bash
 # Test with system default
 cmake -B build -S . && cmake --build build
 
-# Test with clang
-cmake -B build-clang -S . -DUSE_CLANG=ON && cmake --build build-clang
+# Test with GCC
+CC=gcc CXX=g++ cmake -B build -S . && cmake --build build
 
-# Test with GCC  
-cmake -B build-gcc -S . -DUSE_GCC=ON && cmake --build build-gcc
+# Test with Clang
+CC=clang CXX=clang++ cmake -B build -S . && cmake --build build
 ```
 
 ### Using build.sh for Diagnostics
@@ -174,18 +186,26 @@ If there are failures, copy & paste the complete output and provide it.
 ./build.sh
 ```
 
-`build.sh` has command line parameters to select a release or debug build and force the compiler to be used:
+`build.sh` has command line parameters to select a release or debug build and target selection:
 
 ```bash
 ./build.sh --help
 ```
 
-Default is the system default compiler and debug build.
-
-On failure try to force gcc:
+Examples:
 
 ```bash
-./build.sh gcc
+# Debug build with examples (default)
+./build.sh
+
+# Release build with all targets
+./build.sh release all
+
+# Build with GCC compiler
+CC=gcc CXX=g++ ./build.sh release all
+
+# Build tests only
+./build.sh tests
 ```
 
 ### Type Detection Tests

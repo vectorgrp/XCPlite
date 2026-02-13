@@ -956,12 +956,11 @@ void A2lSetAbsoluteAddrMode__s(const char *event_name) {
 }
 void A2lSetAbsoluteAddrMode__i(tXcpEventId event_id) {
     if (gA2lFile != NULL) {
-        const char *event_name = XcpGetEventName(event_id);
-        assert(event_name != NULL || event_id == XCP_UNDEFINED_EVENT_ID);
+        assert(event_id == XCP_UNDEFINED_EVENT_ID || XcpGetEventName(event_id) != NULL);
         A2lSetAbsAddrMode(event_id);
         if (event_id != XCP_UNDEFINED_EVENT_ID) {
             beginEventGroup(event_id);
-            // fprintf(gA2lFile, "\n/* Stack frame absolute addressing mode: event=%s (%u), addr_ext=%u */\n", event_name, event_id, A2lGetAddrExt_());
+            // fprintf(gA2lFile, "\n/* Stack frame absolute addressing mode: event=%s (%u), addr_ext=%u */\n", XcpGetEventName(event_id), event_id, A2lGetAddrExt_());
         }
     }
 }

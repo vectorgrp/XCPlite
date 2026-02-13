@@ -327,6 +327,7 @@ bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
     bool getifinfo = flags & SOCKET_MODE_GET_IF_INFO;
 
     assert(nonBlocking == false); // Non-blocking sockets not implemented yet
+    (void)nonBlocking;
 
     // Create a socket
     sock = socket(AF_INET, useTCP ? SOCK_STREAM : SOCK_DGRAM, 0);
