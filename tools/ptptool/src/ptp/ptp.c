@@ -13,7 +13,7 @@
 |
  ----------------------------------------------------------------------------*/
 
-#include "platform.h" // from linxcplite for SOCKET, ...
+#include "platform.h" // from libxcplite for SOCKET_HANDLE, ...
 
 #include <assert.h>    // for assert
 #include <fcntl.h>     // for open
@@ -406,7 +406,7 @@ tPtp *ptpCreateInterface(const uint8_t *ifaddr, const char *ifname, bool sync_ph
     strncpy(ptp->ifname, ifname ? ifname : "", sizeof(ptp->ifname) - 1);
 
     // Create sockets for event (319) and general messages (320)
-    ptp->sock319 = ptp->sock320 = INVALID_SOCKET;
+    ptp->sock319 = ptp->sock320 = INVALID_SOCKET_HANDLE;
 
     // For multicast reception on a specific interface:
     // - When ifaddr is INADDR_ANY and interface is specified: bind to ANY and use socketBindToDevice (SO_BINDTODEVICE)

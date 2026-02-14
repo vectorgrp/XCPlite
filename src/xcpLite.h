@@ -163,7 +163,7 @@ tXcpEventList *XcpGetEventList(void);
 uint16_t XcpGetEventCount(void);
 
 // Get event id by name, returns XCP_UNDEFINED_EVENT_ID if not found
-tXcpEventId XcpFindEvent(const char *name, uint16_t *count);
+tXcpEventId XcpFindEvent(const char *name);
 
 // Get event name by id, returns NULL if not found
 const char *XcpGetEventName(tXcpEventId event);
@@ -346,16 +346,16 @@ typedef struct {
     //  uint8_t[]     - ODT entry addr extension array (optional)
     union {
         // DAQ array
-        tXcpDaqList daq_list[XCP_DAQ_MEM_SIZE / sizeof(tXcpDaqList)];
+        tXcpDaqList daq_list[(size_t)XCP_DAQ_MEM_SIZE / sizeof(tXcpDaqList)];
         // ODT array
-        tXcpOdt odt[XCP_DAQ_MEM_SIZE / sizeof(tXcpOdt)];
+        tXcpOdt odt[(size_t)XCP_DAQ_MEM_SIZE / sizeof(tXcpOdt)];
         // ODT entry addr array
-        uint32_t odt_entry_addr[XCP_DAQ_MEM_SIZE / 4];
+        uint32_t odt_entry_addr[(size_t)XCP_DAQ_MEM_SIZE / 4];
         // ODT entry size array
-        uint8_t odt_entry_size[XCP_DAQ_MEM_SIZE / 1];
+        uint8_t odt_entry_size[(size_t)XCP_DAQ_MEM_SIZE / 1];
         // ODT entry addr extension array
 #ifdef XCP_ENABLE_DAQ_ADDREXT
-        uint8_t odt_entry_addr_ext[XCP_DAQ_MEM_SIZE / 1];
+        uint8_t odt_entry_addr_ext[(size_t)XCP_DAQ_MEM_SIZE / 1];
 #endif
         uint64_t b[XCP_DAQ_MEM_SIZE / 8 + 1];
     } u;

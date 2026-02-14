@@ -5,7 +5,7 @@
 #include <stdint.h>  // for uintxx_t
 
 #include "filter.h"   // for average filter
-#include "platform.h" // from linxcplite for SOCKET, THREAD, ...
+#include "platform.h" // from libxcplite for SOCKET_HANDLE, THREAD, ...
 #include "ptpHdr.h"   // for struct ptphdr
 
 //-------------------------------------------------------------------------------------------------------
@@ -44,8 +44,8 @@ struct ptp {
     uint8_t maddr[4];  // multicast addr
     THREAD threadHandle320;
     THREAD threadHandle319;
-    SOCKET sock320;
-    SOCKET sock319;
+    SOCKET_HANDLE sock320;
+    SOCKET_HANDLE sock319;
     MUTEX mutex;
 
 #ifdef OPTION_ENABLE_PTP_MASTER

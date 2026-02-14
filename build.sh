@@ -1,6 +1,6 @@
 #!/bin/bash
 
-
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Parse command line arguments
 BUILD_TYPE="Debug"  # Default to Debug build
@@ -8,6 +8,7 @@ CLEAN_BUILD=false   # Whether to clean before building
 BUILD_TARGET="examples"  # Default to building library + examples (without bpf_demo)
 INSTALL_LIBRARY=false   # Whether to install library after building
 INSTALL_PREFIX=""       # Custom install prefix (empty = use CMake default)
+RUN_CLANG_TIDY=false    # Whether to run clang-tidy on library sources
 
 # Function to show usage
 show_usage() {
@@ -28,6 +29,7 @@ show_usage() {
     echo "  cleanall:       Clean all build directories and artifacts"
     echo "  install:        Install library to staging directory after building (default location: build/install)"
     echo "  install=<path>: Install library to custom path (e.g., install=/usr/local)"
+    echo "  tidy:           Run clang-tidy on library sources after building"
     echo ""
     echo "Compiler Selection:"
     echo "  Use standard CMake environment variables to select compiler:"
@@ -45,6 +47,7 @@ show_usage() {
     echo "  $0 all                           # Build everything"
     echo "  CC=gcc CXX=g++ $0 release all    # Release build with GCC, all targets"
     echo "  CC=clang CXX=clang++ $0 tests    # Build with Clang, tests only"
+    echo "  $0 lib tidy                      # Build library and run clang-tidy"
     echo ""
     echo "Platform-specific targets:"
     echo "  bpf_demo:             Only built on Linux when libbpf is available (automatic detection)"
@@ -68,6 +71,12 @@ for arg in "$@"; do
     elif [[ "$arg" == install=* ]]; then
         INSTALL_LIBRARY=true
         INSTALL_PREFIX="${arg#install=}"
+        continue
+    fi
+    
+    # Check if argument is tidy
+    if [[ "$arg" == "tidy" ]]; then
+        RUN_CLANG_TIDY=true
         continue
     fi
     
@@ -217,6 +226,61 @@ if [ "$INSTALL_LIBRARY" = true ] && [ "$BUILD_SUCCESS" = true ]; then
         echo "Library installation failed"
         cmake --install $BUILD_DIR 2>&1 | sed 's/^/  /'
         BUILD_SUCCESS=false
+    fi
+fi
+
+# Run clang-tidy if requested and build succeeded
+if [ "$RUN_CLANG_TIDY" = true ] && [ "$BUILD_SUCCESS" = true ]; then
+    echo ""
+    echo "==================================================================="
+    echo "Running clang-tidy on library sources..."
+    
+    # Check if clang-tidy is available
+    CLANG_TIDY="clang-tidy"
+    if ! command -v ${CLANG_TIDY} &> /dev/null; then
+        echo "Error: clang-tidy not found. Please install it first."
+        echo "On macOS: brew install llvm"
+        BUILD_SUCCESS=false
+    else
+        # Ensure compile_commands.json exists
+        if [ ! -f "${BUILD_DIR}/compile_commands.json" ]; then
+            echo "compile_commands.json not found. Regenerating..."
+            cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -S . -B ${BUILD_DIR}
+        fi
+        
+        # XCPlite library source files
+        XCPLITE_SOURCES=(
+            "src/xcpAppl.c"
+            "src/xcpLite.c"
+            "src/xcpEthServer.c"
+            "src/xcpEthTl.c"
+            "src/xcpQueue32.c"
+            "src/xcpQueue64.c"
+            "src/a2l.c"
+            "src/persistence.c"
+            "src/platform.c"
+        )
+        
+        echo "Build directory: ${BUILD_DIR}"
+        
+        TOTAL_FILES=0
+        
+        for src in "${XCPLITE_SOURCES[@]}"; do
+            if [ ! -f "${SCRIPT_DIR}/${src}" ]; then
+                echo "Warning: Source file not found: ${src}"
+                continue
+            fi
+            
+            TOTAL_FILES=$((TOTAL_FILES + 1))
+            echo "Analyzing: ${src}"
+            
+            # Run clang-tidy and filter out the suppressed warnings message
+            ${CLANG_TIDY} -p=${BUILD_DIR} ${SCRIPT_DIR}/${src} 2>&1 | grep -v "warnings generated\|Suppressed.*warnings\|Use -header-filter"
+        done
+        
+        echo ""
+        echo "Analysis Complete"
+        echo "Files analyzed: ${TOTAL_FILES}"
     fi
 fi
 

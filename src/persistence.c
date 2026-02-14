@@ -399,11 +399,13 @@ static bool load(const char *filename, const char *epk) {
         }
 
         // Mark the segment as pre initialized
+        // NOLINTNEXTLINE(clang-analyzer-unix.Malloc)
         tXcpCalSeg *seg = XcpGetCalSeg(calseg);
         seg->mode = PAG_PROPERTY_PRELOAD;
         seg->file_pos = (uint32_t)ftell(file) - desc.size; // Save the position of the segment page data in the file
     }
 
+    fclose(file);
     return true;
 }
 

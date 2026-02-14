@@ -201,10 +201,10 @@ void XcpEthTlSendMulticastCrm(const uint8_t *packet, uint16_t packet_size, const
 
 static bool handleXcpCommand(tXcpCtoMessage *p, uint8_t *srcAddr, uint16_t srcPort) {
 
-    bool connected;
+    assert(p != NULL);
+    assert(srcAddr != NULL);
 
-    // gXcpTl.LastCrmCtr = p->ctr;
-    connected = XcpIsConnected();
+    bool connected = XcpIsConnected();
 
 #ifdef DBG_LEVEL
     if (DBG_LEVEL >= 5) {

@@ -1,6 +1,7 @@
 
 build
 build-*
+clang_tidy
 
 
 # CANape artefacts
@@ -31,3 +32,4 @@ typedefs.a2l
 .vscode
 .DS_Store
 /ptptool.obs
+

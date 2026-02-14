@@ -271,6 +271,7 @@ static bool gModuleAddrValid = false;
 static int dump_phdr(struct dl_phdr_info *pinfo, size_t size, void *data) {
     // DBG_PRINTF5("name=%s (%d segments)\n", pinfo->dlpi_name, pinfo->dlpi_phnum);
     if (0 == strlen(pinfo->dlpi_name)) { // Application module has no name
+        // NOLINTNEXTLINE(performance-no-int-to-ptr)
         gModuleAddr = (uint8_t *)pinfo->dlpi_addr;
         gModuleAddrValid = true;
     }
@@ -506,7 +507,7 @@ static uint32_t openA2lFile(void) {
 
     fseek(gXcpFile, 0, SEEK_END);
     gXcpFileLength = (uint32_t)ftell(gXcpFile);
-    rewind(gXcpFile);
+    fseek(gXcpFile, 0, SEEK_SET);
     assert(gXcpFileLength > 0);
     DBG_PRINTF4("A2L file %s ready for upload, size=%u\n", filename, gXcpFileLength);
     return gXcpFileLength;
@@ -620,6 +621,8 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen) {
             case IDT_VECTOR_GET_A2LOBJECTS_FROM_ECU:
                 // Not implemented
         */
+    default:
+        DBG_PRINTF_WARNING("ApplXcpGetId GET_ID%u not implemented\n", id);
     }
     return len;
 }

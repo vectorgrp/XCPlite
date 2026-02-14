@@ -22,7 +22,7 @@
 #include <stdlib.h>   // for malloc, free
 #include <string.h>   // for sprintf
 
-#include "platform.h" // from linxcplite for SOCKET, ...
+#include "platform.h" // from libxcplite for SOCKET_HANDLE, ...
 
 #include "ptp.h"
 

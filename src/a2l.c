@@ -272,7 +272,7 @@ static const char *const gA2lFooter = "/end MODULE\n"
 //----------------------------------------------------------------------------------
 
 #define printAddrExt(ext)                                                                                                                                                          \
-    if (ext > 0)                                                                                                                                                                   \
+    if ((ext) > 0)                                                                                                                                                                 \
         fprintf(gA2lFile, " ECU_ADDRESS_EXTENSION %u", ext);
 
 const char *A2lGetSymbolName(const char *instance_name, const char *name) {
@@ -410,11 +410,7 @@ static double getTypeMin(tA2lTypeId type) {
         min = -2147483647 - 1;
         break;
     case A2L_TYPE_INT64:
-        min = -1e12;
-        break;
     case A2L_TYPE_FLOAT:
-        min = -1e12;
-        break;
     case A2L_TYPE_DOUBLE:
         min = -1e12;
         break;
@@ -860,7 +856,7 @@ static void beginEventGroup(tXcpEventId event_id) {
 // Will result in using (ADDR_EXT_DYN+0) with stackframe pointer or (ADDR_EXT_DYN+1) user defined base addresses selected when a variable is created
 void A2lSetAutoAddrMode__s(const char *event_name, const uint8_t *stack_frame, const uint8_t *base_addr) {
     if (gA2lFile != NULL) {
-        tXcpEventId event_id = XcpFindEvent(event_name, NULL);
+        tXcpEventId event_id = XcpFindEvent(event_name);
         if (event_id == XCP_UNDEFINED_EVENT_ID) {
             DBG_PRINTF_ERROR("A2lSetAutoAddrMode__s: Event %s not found!\n", event_name);
             A2lRstAddrMode();
@@ -889,7 +885,7 @@ void A2lSetAutoAddrMode__i(tXcpEventId event_id, const uint8_t *stack_frame, con
 // Will result in using (ADDR_EXT_DYN+i) with user defined base addresses
 void A2lSetRelativeAddrMode__s(const char *event_name, uint8_t i, const uint8_t *base_addr) {
     if (gA2lFile != NULL) {
-        tXcpEventId event_id = XcpFindEvent(event_name, NULL);
+        tXcpEventId event_id = XcpFindEvent(event_name);
         if (event_id == XCP_UNDEFINED_EVENT_ID) {
             DBG_PRINTF_ERROR("A2lSetRelativeAddrMode__s: Event %s not found!\n", event_name);
             A2lRstAddrMode();
@@ -918,7 +914,7 @@ void A2lSetRelativeAddrMode__i(tXcpEventId event_id, uint8_t i, const uint8_t *b
 // Will result in using (ADDR_EXT_DYN+0) with stack frame pointer as base address
 void A2lSetStackAddrMode__s(const char *event_name, const uint8_t *stack_frame) {
     if (gA2lFile != NULL) {
-        tXcpEventId event_id = XcpFindEvent(event_name, NULL);
+        tXcpEventId event_id = XcpFindEvent(event_name);
         if (event_id == XCP_UNDEFINED_EVENT_ID) {
             DBG_PRINTF_ERROR("A2lSetRelativeAddrMode__s: Event %s not found!\n", event_name);
             A2lRstAddrMode();
@@ -946,7 +942,7 @@ void A2lSetStackAddrMode__i(tXcpEventId event_id, const uint8_t *stack_frame) {
 // Set absolute address mode with with default event name or event id (optional)
 void A2lSetAbsoluteAddrMode__s(const char *event_name) {
     if (gA2lFile != NULL) {
-        tXcpEventId event_id = XcpFindEvent(event_name, NULL);
+        tXcpEventId event_id = XcpFindEvent(event_name);
         A2lSetAbsAddrMode(event_id);
         if (event_id != XCP_UNDEFINED_EVENT_ID) {
             beginEventGroup(event_id);
@@ -986,7 +982,7 @@ static uint32_t A2lGetAddr_(const void *p) {
     if (gA2lFile != NULL) {
 
         if (gA2lAddrExt == XCP_UNDEFINED_ADDR_EXT) {
-            uint64_t addr_diff = 0;
+
             const uint8_t *base_ptr = NULL;
             // If both base pointers are set, auto detect appropriate base pointer and addressing mode
             if (gA2lBasePtr != NULL && gA2lFramePtr != NULL) {
@@ -1000,21 +996,18 @@ static uint32_t A2lGetAddr_(const void *p) {
                 // Positive base (heap or this relative)
                 if (addr_high1 == 0) {
                     base_ptr = gA2lBasePtr;
-                    addr_diff = addr_diff1;
                     gA2lAutoAddrExt = XCP_ADDR_EXT_DYN + 1; // Use base pointer addressing mode with index 1
                     DBG_PRINT5("Positive to base selected\n");
                 }
                 // Negative stack (local variables), no limit checking
                 else if (addr_high2 == ((1ULL << (64 - XCP_DYN_ADDR_OFFSET_BITS)) - 1)) {
                     base_ptr = gA2lFramePtr;
-                    addr_diff = addr_diff2;
                     gA2lAutoAddrExt = XCP_ADDR_EXT_DYN; // Use frame pointer addressing mode
                     DBG_PRINT5("Negative stack selected\n");
                 }
                 // Positive stack (function parameters) limited to 1024 Bytes distance to frame pointer)
                 else if (addr_high2 == 0 && addr_diff2 < 1024) {
                     base_ptr = gA2lFramePtr;
-                    addr_diff = addr_diff2;
                     gA2lAutoAddrExt = XCP_ADDR_EXT_DYN; // Use frame pointer addressing mode
                     DBG_PRINT5("Positive stack selected\n");
                 }
@@ -1022,7 +1015,6 @@ static uint32_t A2lGetAddr_(const void *p) {
                 else if (addr_high1 == ((1ULL << (64 - XCP_DYN_ADDR_OFFSET_BITS)) - 1)) {
                     DBG_PRINTF_ERROR("A2L dyn address overflow detected! negative base offset, addr: %p, base1: %p, base2: %p\n", p, (void *)gA2lBasePtr, (void *)gA2lFramePtr);
                     // base_ptr = gA2lBasePtr;
-                    // addr_diff = addr_diff1;
                     // gA2lAutoAddrExt = XCP_ADDR_EXT_DYN + 1; // Use base pointer addressing mode with index 1
                     // DBG_PRINT5("Negative to base selected\n");
                     assert(0);
@@ -1047,7 +1039,7 @@ static uint32_t A2lGetAddr_(const void *p) {
             }
 
             if (base_ptr != NULL) {
-                addr_diff = (uint64_t)p - (uint64_t)base_ptr;
+                uint64_t addr_diff = (uint64_t)p - (uint64_t)base_ptr;
                 // Ensure the address difference does not overflow the value range for signed offset
                 uint64_t addr_high = (addr_diff >> XCP_DYN_ADDR_OFFSET_BITS);
                 if (addr_high != 0 && addr_high != ((1ULL << (64 - XCP_DYN_ADDR_OFFSET_BITS)) - 1)) {

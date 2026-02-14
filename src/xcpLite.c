@@ -409,6 +409,7 @@ static void XcpFreeCalSegList(void) {
         }
         uintptr_t free_page = atomic_load_explicit(&calseg->free_page, memory_order_relaxed);
         if (free_page != 0) {
+            // NOLINTNEXTLINE(performance-no-int-to-ptr)
             free((void *)free_page);
             atomic_store_explicit(&calseg->free_page, (uintptr_t)NULL, memory_order_relaxed);
         }
@@ -658,6 +659,7 @@ const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg) {
     if (0 == atomic_fetch_add_explicit(&c->lock_count, 1, memory_order_relaxed)) {
 
         // Update if there is a new page version, free the old page
+        // NOLINTNEXTLINE(performance-no-int-to-ptr)
         uint8_t *ecu_page_next = (uint8_t *)atomic_load_explicit(&c->ecu_page_next, memory_order_acquire);
         uint8_t *ecu_page = c->ecu_page;
         if (ecu_page != ecu_page_next) {
@@ -743,11 +745,14 @@ static uint8_t XcpCalSegPublish(tXcpCalSeg *c, bool wait) {
     // Im a multithreaded consumer use case, we must be sure the free page is really not in use anymore
     // We simply wait until all threads are updated, this is theoretically not free of starvation, but calibration changes are slow
     // Aquire/release semantics with XcpCalSegLock on the free page pointer
+    // NOLINTNEXTLINE(performance-no-int-to-ptr)
     uint8_t *free_page = (uint8_t *)atomic_load_explicit(&c->free_page, memory_order_acquire);
     if (wait) {
         // Wait and delay the XCP server receive thread, until a free page becomes available
+        // NOLINTNEXTLINE(performance-no-int-to-ptr)
         for (int timeout = 0; timeout < XCP_CALSEG_AQUIRE_FREE_PAGE_TIMEOUT && (free_page == NULL || c->free_page_hazard); timeout++) {
             sleepUs(1000);
+            // NOLINTNEXTLINE(performance-no-int-to-ptr)
             free_page = (uint8_t *)atomic_load_explicit(&c->free_page, memory_order_acquire);
         }
         if (free_page == NULL) {
@@ -1027,6 +1032,9 @@ uint8_t XcpCalSegCommand(uint8_t cmd) {
         gXcp.CalSegList.write_delayed = false; // Reset the write delay flag
         DBG_PRINT4("End atomic calibration operation\n");
         return XcpCalSegPublishAll(true); // Flush all pending writes
+
+    default:
+        break;
     }
     return CRC_SUBCMD_UNKNOWN;
 }
@@ -1385,24 +1393,27 @@ uint16_t XcpGetEventIndex(tXcpEventId event) {
     return gXcp.EventList.event[event].index;
 }
 
-// Find an event by name, return XCP_UNDEFINED_EVENT_ID if not found
-// Thread safe (atomic getEventCount())
-tXcpEventId XcpFindEvent(const char *name, uint16_t *pcount) {
+static tXcpEventId XcpFindEventInstances(const char *name, uint16_t *pcount) {
     uint16_t id = XCP_UNDEFINED_EVENT_ID;
+    if (pcount != NULL)
+        *pcount = 0;
     if (isActivated()) {
         uint16_t count = getEventCount();
-        if (pcount != NULL)
-            *pcount = 0;
         for (uint16_t i = 0; i < count; i++) {
             if (strcmp(gXcp.EventList.event[i].name, name) == 0) {
                 if (pcount != NULL)
                     *pcount += 1;
-                id = i; // Remember the last found event
+                if (id == XCP_UNDEFINED_EVENT_ID)
+                    id = i; // Remember the first found event
             }
         }
     }
     return id;
 }
+
+// Find an event by name, return XCP_UNDEFINED_EVENT_ID if not found
+// Thread safe
+tXcpEventId XcpFindEvent(const char *name) { return XcpFindEventInstances(name, NULL); }
 
 // Create an XCP event
 // Not thread safe
@@ -1460,10 +1471,10 @@ tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycleTimeNs, uint8
 
     uint16_t count = 0;
     mutexLock(&gXcp.EventList.mutex);
-    tXcpEventId id = XcpFindEvent(name, &count);
+    XcpFindEventInstances(name, &count);
     // @@@@ TODO: use preloaded event instances instead of creating a new instance
     // Event instances have no identity, could use any unused preload event instance with this name
-    id = XcpCreateIndexedEvent(name, count + 1, cycleTimeNs, priority);
+    tXcpEventId id = XcpCreateIndexedEvent(name, count + 1, cycleTimeNs, priority);
     mutexUnlock(&gXcp.EventList.mutex);
     return id;
 }
@@ -1479,7 +1490,7 @@ tXcpEventId XcpCreateEvent(const char *name, uint32_t cycleTimeNs, uint8_t prior
 
     uint16_t count = 0;
     mutexLock(&gXcp.EventList.mutex);
-    tXcpEventId id = XcpFindEvent(name, &count);
+    tXcpEventId id = XcpFindEventInstances(name, &count);
     if (id != XCP_UNDEFINED_EVENT_ID) {
         mutexUnlock(&gXcp.EventList.mutex);
         DBG_PRINTF4("Event '%s' already defined, id=%u\n", name, id);
@@ -1555,12 +1566,12 @@ static uint8_t XcpCheckMemory(void) {
         return CRC_MEMORY_OVERFLOW;
     }
 
-    assert(sizeof(tXcpDaqList) == 12);                  // Check size
-    assert(sizeof(tXcpOdt) == 8);                       // Check size
-    assert(((uint64_t)gXcp.DaqLists % 4) == 0);         // Check alignment
-    assert(((uint64_t)&DaqListOdtTable[0] % 4) == 0);   // Check alignment
-    assert(((uint64_t)&OdtEntryAddrTable[0] % 4) == 0); // Check alignment
-    assert(((uint64_t)&OdtEntrySizeTable[0] % 4) == 0); // Check alignment
+    static_assert(sizeof(tXcpDaqList) == 12, "Invalid tXcpDaqList size"); // Check size
+    static_assert(sizeof(tXcpOdt) == 8, "Invalid tXcpOdt size");          // Check size
+    assert(((uint64_t)gXcp.DaqLists % 4) == 0);                           // Check alignment
+    assert(((uint64_t)&DaqListOdtTable[0] % 4) == 0);                     // Check alignment
+    assert(((uint64_t)&OdtEntryAddrTable[0] % 4) == 0);                   // Check alignment
+    assert(((uint64_t)&OdtEntrySizeTable[0] % 4) == 0);                   // Check alignment
 
     DBG_PRINTF5("[XcpCheckMemory] %u of %u Bytes used\n", s, XCP_DAQ_MEM_SIZE);
     return 0;
@@ -2284,7 +2295,7 @@ void XcpEventExt_Var(tXcpEventId event, int args_count, ...) {
     va_start(args, args_count);
     const uint8_t *bases[XCP_ADDR_EXT_DYN_MAX + 1] = {xcp_get_base_addr(), xcp_get_base_addr()};
     assert(args_count < XCP_ADDR_EXT_DYN_COUNT);
-    for (uint8_t i = 0; i < args_count; i++) {
+    for (int i = 0; i < args_count; i++) {
         bases[XCP_ADDR_EXT_DYN + i] = va_arg(args, uint8_t *);
     }
     va_end(args);
@@ -2314,7 +2325,7 @@ void XcpEventExtAt_Var(tXcpEventId event, uint64_t clock, int args_count, ...) {
     va_start(args, args_count);
     const uint8_t *bases[XCP_ADDR_EXT_DYN_MAX + 1] = {xcp_get_base_addr(), xcp_get_base_addr()};
     assert(args_count < XCP_ADDR_EXT_DYN_COUNT);
-    for (uint8_t i = 0; i < args_count; i++) {
+    for (int i = 0; i < args_count; i++) {
         bases[XCP_ADDR_EXT_DYN + i] = va_arg(args, uint8_t *);
     }
     va_end(args);
@@ -3903,6 +3914,8 @@ static void XcpPrintCmd(const tXcpCto *cmdBuf) {
             break;
         } // switch (CRO_TL_SUBCOMMAND)
 
+    default:
+        printf(" UNKNOWN COMMAND %02X\n", CRO_CMD);
     } // switch (CRO_CMD)
 }
 
@@ -4065,12 +4078,14 @@ static void XcpPrintRes(const tXcpCto *crm) {
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0104
         case CC_LEVEL_1_COMMAND:
             switch (gXcp.CmdLast1) {
-
             case CC_GET_VERSION:
                 printf(" <- protocol layer version: major=%02Xh/minor=%02Xh, transport layer version: major=%02Xh/minor=%02Xh\n", CRM_GET_VERSION_PROTOCOL_VERSION_MAJOR,
                        CRM_GET_VERSION_PROTOCOL_VERSION_MINOR, CRM_GET_VERSION_TRANSPORT_VERSION_MAJOR, CRM_GET_VERSION_TRANSPORT_VERSION_MINOR);
                 break;
+            default:
+                break;
             }
+
             break;
 #endif
 
@@ -4094,17 +4109,19 @@ static void XcpPrintRes(const tXcpCto *crm) {
                     }
                     printf("\n");
                 }
+
             }
 
             break;
 #endif // XCP_ENABLE_DAQ_CLOCK_MULTICAST
-
 #ifdef XCPTL_ENABLE_MULTICAST
             case CC_TL_GET_SERVER_ID:
                 printf(" <- %u.%u.%u.%u:%u %s\n", CRM_TL_GET_SERVER_ID_ADDR(0), CRM_TL_GET_SERVER_ID_ADDR(1), CRM_TL_GET_SERVER_ID_ADDR(2), CRM_TL_GET_SERVER_ID_ADDR(3),
                        CRM_TL_GET_SERVER_ID_PORT, &CRM_TL_GET_SERVER_ID_ID);
                 break;
 #endif
+            default:
+                break;
             }
             break;
 

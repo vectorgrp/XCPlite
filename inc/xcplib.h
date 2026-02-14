@@ -181,10 +181,9 @@ tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycleTimeNs /* ns 
 
 /// Get event id by name, returns XCP_UNDEFINED_EVENT_ID if not found
 /// @param name Name of the event.
-/// @param count Optional (!=NULL) out parameter to return the number of event instances with the same name.
 /// @return The event id or XCP_UNDEFINED_EVENT_ID if not found.
 /// If multiple events instances with the same name exist, the first one is returned.
-tXcpEventId XcpFindEvent(const char *name, uint16_t *count);
+tXcpEventId XcpFindEvent(const char *name);
 
 /// Get the event instance index (1..)
 /// @param event Event id.
@@ -240,7 +239,7 @@ uint16_t XcpGetEventIndex(tXcpEventId event);
     static tXcpEventId evt__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                                       \
     if (XcpIsActivated()) {                                                                                                                                                        \
         if (evt__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                               \
-            evt__##name = XcpCreateEvent(#name, cycle_time * 1000, 0);                                                                                                             \
+            evt__##name = XcpCreateEvent(#name, (cycle_time) * 1000, 0);                                                                                                           \
         }                                                                                                                                                                          \
     }
 
@@ -368,7 +367,7 @@ extern const uint8_t *gXcpBaseAddr;
     if (XcpIsActivated()) {                                                                                                                                                        \
         static tXcpEventId trg__AAS__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                              \
         if (trg__AAS__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                          \
-            trg__AAS__##name = XcpFindEvent(#name, NULL);                                                                                                                          \
+            trg__AAS__##name = XcpFindEvent(#name);                                                                                                                                \
             assert(trg__AAS__##name != XCP_UNDEFINED_EVENT_ID);                                                                                                                    \
         }                                                                                                                                                                          \
         XcpEventExt_Var(trg__AAS__##name, 1, xcp_get_frame_addr());                                                                                                                \
@@ -377,7 +376,7 @@ extern const uint8_t *gXcpBaseAddr;
     if (XcpIsActivated()) {                                                                                                                                                        \
         static tXcpEventId trg__AAS__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                              \
         if (trg__AAS__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                          \
-            trg__AAS__##name = XcpFindEvent(#name, NULL);                                                                                                                          \
+            trg__AAS__##name = XcpFindEvent(#name);                                                                                                                                \
             assert(trg__AAS__##name != XCP_UNDEFINED_EVENT_ID);                                                                                                                    \
         }                                                                                                                                                                          \
         XcpEventExtAt_Var(trg__AAS__##name, clock, 1, xcp_get_frame_addr());                                                                                                       \
@@ -405,10 +404,10 @@ extern const uint8_t *gXcpBaseAddr;
     if (XcpIsActivated()) {                                                                                                                                                        \
         static tXcpEventId trg__AASD__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                             \
         if (trg__AASD__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                         \
-            trg__AASD__##name = XcpFindEvent(#name, NULL);                                                                                                                         \
+            trg__AASD__##name = XcpFindEvent(#name);                                                                                                                               \
             assert(trg__AASD__##name != XCP_UNDEFINED_EVENT_ID);                                                                                                                   \
         }                                                                                                                                                                          \
-        XcpEventExt_Var(trg__AASD__##name, 2, xcp_get_frame_addr(), (const uint8_t *)base_addr);                                                                                   \
+        XcpEventExt_Var(trg__AASD__##name, 2, xcp_get_frame_addr(), (const uint8_t *)(base_addr));                                                                                 \
     }
 
 /// Trigger the XCP event 'name' for absolute, stack and relative addressing mode with given individual base address (from A2lSetRelativeAddrMode(base_addr))
@@ -419,10 +418,10 @@ extern const uint8_t *gXcpBaseAddr;
     if (XcpIsActivated()) {                                                                                                                                                        \
         static THREAD_LOCAL tXcpEventId trg__AASD__ = XCP_UNDEFINED_EVENT_ID;                                                                                                      \
         if (trg__AASD__ == XCP_UNDEFINED_EVENT_ID) {                                                                                                                               \
-            trg__AASD__ = XcpFindEvent(name, NULL);                                                                                                                                \
+            trg__AASD__ = XcpFindEvent(name);                                                                                                                                      \
             assert(trg__AASD__ != XCP_UNDEFINED_EVENT_ID);                                                                                                                         \
         }                                                                                                                                                                          \
-        XcpEventExt_Var(trg__AASD__, 2, xcp_get_frame_addr(), (const uint8_t *)base_addr);                                                                                         \
+        XcpEventExt_Var(trg__AASD__, 2, xcp_get_frame_addr(), (const uint8_t *)(base_addr));                                                                                       \
     }
 
 /// Trigger the XCP event by handle 'event_id' for absolute, stack and relative addressing mode with given individual base address (from A2lSetRelativeAddrMode(base_addr))
@@ -432,7 +431,7 @@ extern const uint8_t *gXcpBaseAddr;
 #define DaqTriggerEventExt_i(event_id, base_addr)                                                                                                                                  \
     if (XcpIsActivated()) {                                                                                                                                                        \
         static tXcpEventId trg__AASD = XCP_UNDEFINED_EVENT_ID;                                                                                                                     \
-        XcpEventExt_Var(event_id, 2, xcp_get_frame_addr(), (const uint8_t *)base_addr);                                                                                            \
+        XcpEventExt_Var(event_id, 2, xcp_get_frame_addr(), (const uint8_t *)(base_addr));                                                                                          \
     }
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -461,7 +460,7 @@ extern const uint8_t *gXcpBaseAddr;
     if (XcpIsActivated()) {                                                                                                                                                        \
         static THREAD_LOCAL tXcpEventId ena__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                      \
         if (ena__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                               \
-            ena__##name = XcpFindEvent(#name, NULL);                                                                                                                               \
+            ena__##name = XcpFindEvent(#name);                                                                                                                                     \
         }                                                                                                                                                                          \
         XcpEventEnable(ena__##name, true);                                                                                                                                         \
     }
@@ -471,7 +470,7 @@ extern const uint8_t *gXcpBaseAddr;
     if (XcpIsActivated()) {                                                                                                                                                        \
         static THREAD_LOCAL tXcpEventId ena__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                      \
         if (ena__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                               \
-            ena__##name = XcpFindEvent(#name, NULL);                                                                                                                               \
+            ena__##name = XcpFindEvent(#name);                                                                                                                                     \
         }                                                                                                                                                                          \
         XcpEventEnable(ena__##name, false);                                                                                                                                        \
     }

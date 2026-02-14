@@ -84,7 +84,7 @@ void sleepUs(uint32_t us) {
         struct timespec timeout, timerem;
         assert(us < 1000000UL);
         timeout.tv_sec = 0;
-        timeout.tv_nsec = (int32_t)us * 1000;
+        timeout.tv_nsec = (long)us * 1000;
         nanosleep(&timeout, &timerem);
     }
 }
@@ -94,8 +94,8 @@ void sleepMs(uint32_t ms) {
         sleep(0);
     } else {
         struct timespec timeout, timerem;
-        timeout.tv_sec = (int32_t)ms / 1000;
-        timeout.tv_nsec = (int32_t)(ms % 1000) * 1000000;
+        timeout.tv_sec = (long)ms / 1000;
+        timeout.tv_nsec = (long)(ms % 1000) * 1000000;
         nanosleep(&timeout, &timerem);
     }
 }
@@ -276,38 +276,25 @@ void mutexDestroy(MUTEX *m) { DeleteCriticalSection(m); }
 
 #if defined(OPTION_ENABLE_TCP) || defined(OPTION_ENABLE_UDP)
 
-#if defined(_WIN) // Windows // Windows needs to link with Ws2_32.lib
-
-// Winsock
-#pragma comment(lib, "ws2_32.lib")
-
-#endif
-
+//--------------------------------------------------------------------------
 #if !defined(_WIN) // Non-Windows platforms
 
-#if defined(_LINUX) // Linux
+#include <ifaddrs.h>
 
-#include <ifaddrs.h> // for getifaddrs, freeifaddrs
-#include <net/if.h>  // for if_nametoindex, struct ifreq, IFNAMSIZ
-
+#if defined(_LINUX) // Linux platform
+#include <net/if.h> // for if_nametoindex, struct ifreq, IFNAMSIZ
 #if defined(OPTION_SOCKET_HW_TIMESTAMPS)
 #include <linux/errqueue.h>
+#include <linux/if_packet.h>
 #include <linux/net_tstamp.h>
 #include <linux/sockios.h> // for SIOCSHWTSTAMP
 #include <sys/ioctl.h>     // for ioctl
 #endif                     // OPTION_SOCKET_HW_TIMESTAMPS
+#endif                     // Linux
 
-#endif // Linux
-
-#if !defined(_MACOS) && !defined(_QNX) // Non-MacOS/Non-QNX platforms
-#include <linux/if_packet.h>
-#else
+#if defined(_MACOS) || defined(_QNX) // MacOS or QNX platforms
 #include <net/if_dl.h>
-#endif
-
-#if !defined(_WIN) // Non-Windows platforms
-#include <ifaddrs.h>
-#endif
+#endif // MacOS or QNX platforms
 
 bool socketStartup(void) { return true; }
 
@@ -410,6 +397,8 @@ bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
 bool socketBind(SOCKET_HANDLE socket, const uint8_t *addr, uint16_t port) {
 
     assert(socket != NULL);
+    assert(addr != NULL);
+
     int sock = socket->sock;
 
     // Bind the socket to any address and the specified port
@@ -658,7 +647,11 @@ bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr) {
 
 #endif // OPTION_ENABLE_GET_LOCAL_ADDR
 
-#else
+//--------------------------------------------------------------------------
+#else // Windows platform
+
+// Winsock
+#pragma comment(lib, "ws2_32.lib")
 
 int32_t socketGetLastError(void) { return WSAGetLastError(); }
 
@@ -873,6 +866,9 @@ bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr) {
 #endif // OPTION_ENABLE_GET_LOCAL_ADDR
 
 #endif // _WIN
+
+//--------------------------------------------------------------------------
+// All platforms
 
 // Listen on a TCP socket
 bool socketListen(SOCKET_HANDLE socket) {
@@ -1262,11 +1258,11 @@ bool socketGetSendTime(SOCKET_HANDLE socket, uint64_t *hw_time, uint64_t *sw_tim
     DBG_PRINT5("socketGetSendTime: Reading from error queue...\n");
 
     // Read from error queue with retries (timeout 10ms)
-    int ret = -1;
+    ssize_t ret = -1;
     for (uint32_t attempt = 0; attempt < 10; attempt++) {
         ret = recvmsg(sock, &msg, MSG_ERRQUEUE | MSG_DONTWAIT);
         if (ret >= 0) {
-            DBG_PRINTF5("socketGetSendTime: Got message from error queue after %u attempts, ret=%d\n", attempt, ret);
+            DBG_PRINTF5("socketGetSendTime: Got message from error queue after %u attempts, ret=%ld\n", attempt, ret);
             break;
         }
         if (errno != EAGAIN && errno != EWOULDBLOCK) {

@@ -4,12 +4,12 @@ All notable changes to XCPlite are documented in this file.
 
 ## [V1.2.0]
 
-- Renamed to 'libxcplite', external package name `xcplite`
+- Renamed to 'libxcplite' with external package name `xcplite`
 - Changed default encoding for dynamic addressing to 10 Bit event and 22 Bit signed offset, allowing for up to 4GB addressable range per event with max 1024 events
 - New API functions to specify input quantities for axis
 - Examples how to modify parameters thread-safe without using calibration segments by using event synchronization
-- New functions in platform.c: clockGetMonotonicNs() and clockGetRealtimeNs() 
-- ptp4l_demo and ptptool seperated,
+- New functions in platform.c: clockGetMonotonicNs() and clockGetRealtimeNs()
+- ptp4l_demo and ptptool separated
 - New demo `ptp4l_demo` demonstrating minimum requirement to achieve XCP PTP support
 - New tool `ptptool` is a PTP observer and PTP time server with XCP instrumentation (see README.md of `ptptool` for details)
 - Refactoring in platform.c: OPTION_SOCKET_HW_TIMESTAMPS, improved debug logging for socketRecvFrom to help diagnose interface index issues on Linux, SOCKET keeps track of configured interface
@@ -117,7 +117,7 @@ void XcpInit(const char *name, const char *epk, bool activate);
 - New demo `no_a2l_demo` to demonstrate workflows without runtime A2L generation (using a XCPlite-specific A2L creator, see README.md of `no_a2l_demo`)
 - New demo 'bpf_demo' to demonstrate usage of XCPlite together with eBPF programs for Linux kernel tracing (see README.md of `bpf_demo`)
 - Internal naming convention refactored to support A2L creation for dynamic objects from ELF/DWARF binaries
-- Rust xcp-lite V1.0.0 uses the calibration segment management of XCPlite instead of implementing its own
+- Rust xcp-lite >V1.0.0 uses the calibration segment management of XCPlite instead of implementing its own
 
 ### Fixed
 - Various bug fixes

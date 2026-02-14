@@ -1,6 +1,6 @@
 # XCPlite API Reference Guide
 
-**Version**: 1.0.0
+**Version**: 1.2.0
 
 ## Table of Contents
 

@@ -310,7 +310,7 @@ typedef struct socket *SOCKET_HANDLE;
 #define SOCKET_ERROR_WBLOCK EAGAIN
 
 #undef htonll
-#define htonll(val) ((((uint64_t)htonl((uint32_t)val)) << 32) + htonl((uint32_t)(val >> 32)))
+#define htonll(val) ((((uint64_t)htonl((uint32_t)(val))) << 32) + htonl((uint32_t)((val) >> 32)))
 
 #define socketGetLastError(void) errno
 
