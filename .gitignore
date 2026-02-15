@@ -33,3 +33,6 @@ typedefs.a2l
 .DS_Store
 /ptptool.obs
 
+/docs/CPP_TYPE_TRAITS_GUIDE.md
+/examples/example_auto_dimensions.cpp
+/examples/test_auto_dimensions.cpp

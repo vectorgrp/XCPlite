@@ -112,13 +112,14 @@ template <uint16_t N> class PointCloud {
 
         if (A2lOnce()) {
 
-            // Register the calibration paramneter struct
+            // Register the calibration parameter struct
+            // C style
             A2lTypedefBegin(ParametersT, &kParameters, "Typedef for ParametersT");
             A2lTypedefParameterComponent(max_points, "Maximum number of points in the cloud", "points", 1, N);
             A2lTypedefParameterComponent(boundary, "boundary_ box size in meters", "m", 0.1, 100.0);
             A2lTypedefParameterComponent(gravity, "Gravity in meters per second squared", "m/s²", 0.0, 1000.0);
-            A2lTypedefParameterComponent(max_radius, "Maximum point radius in meters", "m", 0.01, 1.0);
             A2lTypedefParameterComponent(min_radius, "Minimum point radius in meters", "m", 0.01, 1.0);
+            A2lTypedefParameterComponent(max_radius, "Maximum point radius in meters", "m", 0.01, 1.0);
             A2lTypedefParameterComponent(min_velocity, "Minimum point velocity in meters per second", "m/s", 0.001, 10.0);
             A2lTypedefParameterComponent(max_velocity, "Maximum point velocity in meters per second", "m/s", 0.001, 10.0);
             A2lTypedefParameterComponent(ttl_min, "Minimum time to live for points in seconds", "s", 0.1, 60.0);
@@ -127,22 +128,22 @@ template <uint16_t N> class PointCloud {
             A2lTypedefEnd();
 
             // Register the Point struct
-            A2lTypedefBegin(Point, nullptr, "Typedef for Point");
-            A2lTypedefMeasurementComponent(x, "X coordinate of the point");
-            A2lTypedefMeasurementComponent(y, "Y coordinate of the point");
-            A2lTypedefMeasurementComponent(z, "Z coordinate of the point");
-            A2lTypedefMeasurementComponent(r, "Radius of the point");
-            // A2lTypedefMeasurementComponent(v_x, "X velocity of the point");
-            // A2lTypedefMeasurementComponent(v_y, "Y velocity of the point");
-            // A2lTypedefMeasurementComponent(v_z, "Z velocity of the point");
-            A2lTypedefEnd();
+            // C++ style
+            A2lCreateTypedef(Point, "Typedef for Point",                                     //
+                             A2L_MEASUREMENT_COMPONENT(x, "X coordinate of the point", "m"), //
+                             A2L_MEASUREMENT_COMPONENT(y, "Y coordinate of the point", "m"), //
+                             A2L_MEASUREMENT_COMPONENT(z, "Z coordinate of the point", "m"), //
+                             A2L_MEASUREMENT_COMPONENT(r, "Radius of the point", "m"));
 
-            // Not used
-            // A2lTypedefBegin(PointCloud, this, "Typedef for PointCloud");
-            // A2lTypedefMeasurementComponent(count_, "Current number of points in the cloud");
-            // A2lTypedefMeasurementComponent(step_counter_, "Global step counter");
-            // A2lTypedefComponent(points_, Point, N); // Array of N Points
-            // A2lTypedefEnd();
+            // Register the PointCloud struct
+            // C++ style
+            A2lCreateTypedef(PointCloud, "Typedef for PointCloud",                                                     //
+                             A2L_MEASUREMENT_COMPONENT(boundary_, "Current boundary box size in meters", "m"),         //
+                             A2L_MEASUREMENT_COMPONENT(step_counter_, "Global step counter", ""),                      //
+                             A2L_MEASUREMENT_COMPONENT(simulation_time_, "Last simulation step time in seconds", "s"), //
+                             A2L_MEASUREMENT_COMPONENT(real_time_, "Current real time in seconds", "s"),               //
+                             A2L_MEASUREMENT_COMPONENT(count_, "Current number of points in the cloud", ""),           //
+                             A2L_TYPEDEF_COMPONENT(points_, "Point", N));
         }
     }
 

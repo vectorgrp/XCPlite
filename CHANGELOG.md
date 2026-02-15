@@ -6,6 +6,7 @@ All notable changes to XCPlite are documented in this file.
 
 - Renamed to 'libxcplite' with external package name `xcplite`
 - Changed default encoding for dynamic addressing to 10 Bit event and 22 Bit signed offset, allowing for up to 4GB addressable range per event with max 1024 events
+- New variadic C++ macro/template to create A2L typedefs and their components in one call with automatic type deduction (see hello_xcp_cpp example)
 - New API functions to specify input quantities for axis
 - Examples how to modify parameters thread-safe without using calibration segments by using event synchronization
 - New functions in platform.c: clockGetMonotonicNs() and clockGetRealtimeNs()

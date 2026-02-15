@@ -202,7 +202,6 @@ void XcpEthTlSendMulticastCrm(const uint8_t *packet, uint16_t packet_size, const
 static bool handleXcpCommand(tXcpCtoMessage *p, uint8_t *srcAddr, uint16_t srcPort) {
 
     assert(p != NULL);
-    assert(srcAddr != NULL);
 
     bool connected = XcpIsConnected();
 
@@ -222,6 +221,7 @@ static bool handleXcpCommand(tXcpCtoMessage *p, uint8_t *srcAddr, uint16_t srcPo
         if (!isTCP() && gXcpTl.MasterAddrValid) {
 
             // Check unicast ip address, not allowed to change
+            assert(srcAddr != NULL);
             if (memcmp(&gXcpTl.MasterAddr, srcAddr, sizeof(gXcpTl.MasterAddr)) != 0) { // Message from different master received
                 DBG_PRINTF_WARNING("message from unknown new master %u.%u.%u.%u, disconnecting!\n", srcAddr[0], srcAddr[1], srcAddr[2], srcAddr[3]);
                 XcpDisconnect();
@@ -250,6 +250,7 @@ static bool handleXcpCommand(tXcpCtoMessage *p, uint8_t *srcAddr, uint16_t srcPo
 
 #ifdef XCPTL_ENABLE_UDP
             if (!isTCP()) {
+                assert(srcAddr != NULL);
                 memcpy(gXcpTl.MasterAddr, srcAddr,
                        sizeof(gXcpTl.MasterAddr)); // Save master address, so XcpCommand can send the CONNECT response
                 gXcpTl.MasterPort = srcPort;

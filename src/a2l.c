@@ -1224,14 +1224,19 @@ void A2lTypedefComponent_(const char *name, const char *type_name, uint16_t x_di
 }
 
 // For measurement components with TYPEDEF_MEASUREMENT for fields with comment, unit, min, max
-void A2lTypedefMeasurementComponent_(const char *name, const char *type_name, uint16_t x_dim, uint32_t offset, const char *comment, const char *unit_or_conversion, double min,
+void A2lTypedefMeasurementComponent_(const char *name, tA2lTypeId type_id, uint16_t x_dim, uint32_t offset, const char *comment, const char *unit_or_conversion, double min,
                                      double max) {
     if (gA2lFile != NULL) {
+        const char *type_name = A2lGetTypeName(type_id);
         DBG_PRINTF4("A2lTypedefMeasurementComponent_: %s, %s, x_dim=%u, offset=0x%X\n", name, type_name, x_dim, offset);
 
         // TYPEDEF_MEASUREMENT
         const char *conv = getConversion(unit_or_conversion, NULL, NULL);
         assert(gA2lTypedefsFile != NULL);
+        if (min == 0.0 && max == 0.0) {
+            min = getTypeMin(type_id);
+            max = getTypeMax(type_id);
+        }
         fprintf(gA2lTypedefsFile, "/begin TYPEDEF_MEASUREMENT M_%s \"%s\" %s %s 0 0 %g %g", name, comment, type_name, conv, min, max);
         printPhysUnit(gA2lTypedefsFile, unit_or_conversion);
         fprintf(gA2lTypedefsFile, " /end TYPEDEF_MEASUREMENT\n");
@@ -1246,9 +1251,10 @@ void A2lTypedefMeasurementComponent_(const char *name, const char *type_name, ui
 }
 
 // For multidimensional parameter components with TYPEDEF_CHARACTERISTIC for fields with comment, unit, min, max
-void A2lTypedefParameterComponent_(const char *name, const char *type_name, uint16_t x_dim, uint16_t y_dim, uint32_t offset, const char *comment, const char *unit_or_conversion,
+void A2lTypedefParameterComponent_(const char *name, tA2lTypeId type_id, uint16_t x_dim, uint16_t y_dim, uint32_t offset, const char *comment, const char *unit_or_conversion,
                                    double min, double max, const char *x_axis, const char *y_axis) {
     if (gA2lFile != NULL) {
+        const char *type_name = A2lGetRecordLayoutName_(type_id);
         DBG_PRINTF4("A2lTypedefParameterComponent_: %s, %s, x_dim=%u, y_dim=%u, offset=0x%X\n", name, type_name, x_dim, y_dim, offset);
 
         // TYPEDEF_AXIS (y_dim==0)
