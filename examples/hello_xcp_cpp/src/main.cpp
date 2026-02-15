@@ -164,14 +164,14 @@ int main() {
     // It supports XCP/ECU independent page switching, checksum calculation and reinitialization (copy reference page to working page)
     gCalSeg.emplace("Parameters", &kParameters);
 
-    // Register the calibration segment description as a typedef and an instance in the A2L file
+    // Register the ParametersT calibration segment description as a typedef and an instance in the A2L file
     A2lCreateTypedef(ParametersT, "Typedef for ParametersT",                                         //
                      A2L_MAP_COMPONENT(map, "Demo map", "", 0, 100),                                 //
-                     A2L_CURVE_COMPONENT(curve, "Demo curve", "", 0, 100),                           //
                      A2L_AXIS_COMPONENT(axis, "Demo axis", "", 0, 100),                              //
+                     A2L_CURVE_WITH_AXIS_COMPONENT(curve, "Demo curve", "", 0, 100, axis),           //
                      A2L_PARAMETER_COMPONENT(min, "Minimum random number value", "", -100.0, 100.0), //
                      A2L_PARAMETER_COMPONENT(max, "Maximum random number value", "", -100.0, 100.0));
-    gCalSeg->CreateA2lTypedefInstance("ParametersT", "Random number generator parameters");
+    gCalSeg->CreateA2lTypedefInstance("ParametersT", "Demo calibration parameters for hello_xcp_cpp example");
 
     // Create a simple arithmetic local variable
     uint16_t counter{0};

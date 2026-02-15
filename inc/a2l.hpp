@@ -122,17 +122,26 @@ namespace xcplib {
     [](auto type_ptr) {                                                                                                                                                            \
         using StructType = std::remove_pointer_t<decltype(type_ptr)>;                                                                                                              \
         using FieldType = decltype(StructType::field_name);                                                                                                                        \
-        return xcplib::A2lParameterComponentInfo<FieldType>(#field_name, (uint16_t)offsetof(StructType, field_name), 1, 1, comment, unit, min, max);                               \
+        return xcplib::A2lParameterComponentInfo<FieldType>(#field_name, (uint16_t)offsetof(StructType, field_name), 1, 1, comment, unit, min, max, NULL, NULL);                   \
     }
 
 // Multi dimensional parameters (curve, map, axis), auto-detect array dimensions (automatic size detection from type)
+// Note: when y_dim is set to 0, it is used to identify axis
 #define A2L_CURVE_COMPONENT(field_name, comment, unit, min, max)                                                                                                                   \
     [](auto type_ptr) {                                                                                                                                                            \
         using StructType = std::remove_pointer_t<decltype(type_ptr)>;                                                                                                              \
         using FieldType = decltype(StructType::field_name);                                                                                                                        \
         using ElementType = std::remove_reference_t<decltype(std::declval<StructType>().field_name[0])>;                                                                           \
         constexpr size_t x_dim = std::extent_v<FieldType, 0>;                                                                                                                      \
-        return xcplib::A2lParameterComponentInfo<ElementType>(#field_name, (uint16_t)offsetof(StructType, field_name), x_dim, 1, comment, unit, min, max);                         \
+        return xcplib::A2lParameterComponentInfo<ElementType>(#field_name, (uint16_t)offsetof(StructType, field_name), x_dim, 1, comment, unit, min, max, NULL, NULL);             \
+    }
+#define A2L_CURVE_WITH_AXIS_COMPONENT(field_name, comment, unit, min, max, axis)                                                                                                   \
+    [](auto type_ptr) {                                                                                                                                                            \
+        using StructType = std::remove_pointer_t<decltype(type_ptr)>;                                                                                                              \
+        using FieldType = decltype(StructType::field_name);                                                                                                                        \
+        using ElementType = std::remove_reference_t<decltype(std::declval<StructType>().field_name[0])>;                                                                           \
+        constexpr size_t x_dim = std::extent_v<FieldType, 0>;                                                                                                                      \
+        return xcplib::A2lParameterComponentInfo<ElementType>(#field_name, (uint16_t)offsetof(StructType, field_name), x_dim, 1, comment, unit, min, max, #axis, NULL);            \
     }
 #define A2L_MAP_COMPONENT(field_name, comment, unit, min, max)                                                                                                                     \
     [](auto type_ptr) {                                                                                                                                                            \
@@ -141,7 +150,16 @@ namespace xcplib {
         using ElementType = std::remove_reference_t<decltype(std::declval<StructType>().field_name[0][0])>;                                                                        \
         constexpr size_t x_dim = std::extent_v<FieldType, 0>;                                                                                                                      \
         constexpr size_t y_dim = std::extent_v<FieldType, 1>;                                                                                                                      \
-        return xcplib::A2lParameterComponentInfo<ElementType>(#field_name, (uint16_t)offsetof(StructType, field_name), x_dim, y_dim, comment, unit, min, max);                     \
+        return xcplib::A2lParameterComponentInfo<ElementType>(#field_name, (uint16_t)offsetof(StructType, field_name), x_dim, y_dim, comment, unit, min, max, NULL, NULL);         \
+    }
+#define A2L_MAP_WITH_AXIS_COMPONENT(field_name, comment, unit, min, max, x_axis, y_axis)                                                                                           \
+    [](auto type_ptr) {                                                                                                                                                            \
+        using StructType = std::remove_pointer_t<decltype(type_ptr)>;                                                                                                              \
+        using FieldType = decltype(StructType::field_name);                                                                                                                        \
+        using ElementType = std::remove_reference_t<decltype(std::declval<StructType>().field_name[0][0])>;                                                                        \
+        constexpr size_t x_dim = std::extent_v<FieldType, 0>;                                                                                                                      \
+        constexpr size_t y_dim = std::extent_v<FieldType, 1>;                                                                                                                      \
+        return xcplib::A2lParameterComponentInfo<ElementType>(#field_name, (uint16_t)offsetof(StructType, field_name), x_dim, y_dim, comment, unit, min, max, #x_axis, #y_axis);   \
     }
 #define A2L_AXIS_COMPONENT(field_name, comment, unit, min, max)                                                                                                                    \
     [](auto type_ptr) {                                                                                                                                                            \
@@ -149,7 +167,7 @@ namespace xcplib {
         using FieldType = decltype(StructType::field_name);                                                                                                                        \
         using ElementType = std::remove_reference_t<decltype(std::declval<StructType>().field_name[0])>;                                                                           \
         constexpr size_t x_dim = std::extent_v<FieldType, 0>;                                                                                                                      \
-        return xcplib::A2lParameterComponentInfo<ElementType>(#field_name, (uint16_t)offsetof(StructType, field_name), x_dim, 1, comment, unit, min, max);                         \
+        return xcplib::A2lParameterComponentInfo<ElementType>(#field_name, (uint16_t)offsetof(StructType, field_name), x_dim, 0, comment, unit, min, max, NULL, NULL);             \
     }
 
 // Measurement
@@ -157,15 +175,17 @@ namespace xcplib {
     [](auto type_ptr) {                                                                                                                                                            \
         using StructType = std::remove_pointer_t<decltype(type_ptr)>;                                                                                                              \
         using FieldType = decltype(StructType::field_name);                                                                                                                        \
-        return xcplib::A2lMeasurementComponentInfo<FieldType>(#field_name /*, (FieldType *)nullptr*/, (uint16_t)offsetof(StructType, field_name), 1, comment, unit);               \
+        return xcplib::A2lMeasurementComponentInfo<FieldType>(#field_name, (uint16_t)offsetof(StructType, field_name), 1, comment, unit);                                          \
     }
+
+// Multi dimensional measurement
 #define A2L_MEASUREMENT_ARRAY_COMPONENT(field_name, comment, unit)                                                                                                                 \
     [](auto type_ptr) {                                                                                                                                                            \
         using StructType = std::remove_pointer_t<decltype(type_ptr)>;                                                                                                              \
         using FieldType = decltype(StructType::field_name);                                                                                                                        \
         using ElementType = std::remove_reference_t<decltype(std::declval<StructType>().field_name[0])>;                                                                           \
         constexpr size_t x_dim = std::extent_v<FieldType, 0>;                                                                                                                      \
-        return xcplib::A2lMeasurementComponentInfo<ElementType>(#field_name /*, (ElementType *)nullptr*/, (uint16_t)offsetof(StructType, field_name), x_dim, comment, unit);       \
+        return xcplib::A2lMeasurementComponentInfo<ElementType>(#field_name, (uint16_t)offsetof(StructType, field_name), x_dim, comment, unit);                                    \
     }
 
 // Typedef
@@ -187,10 +207,14 @@ template <typename FieldType> struct A2lParameterComponentInfo {
     const char *unit;
     double min;
     double max;
+    const char *x_axis;
+    const char *y_axis;
 
     // Constructor for 2 dimensional array parameter component with physical unit and limit (name, x_dim, y_dim, comment, unit, min, max)
-    constexpr A2lParameterComponentInfo(const char *name, uint16_t byte_offset, uint16_t x_dim, uint16_t y_dim, const char *comment, const char *unit, double min, double max)
-        : name(name), type_id(A2lTypeTraits::GetTypeId<FieldType>()), byte_offset(byte_offset), x_dim(x_dim), y_dim(y_dim), comment(comment), unit(unit), min(min), max(max) {}
+    constexpr A2lParameterComponentInfo(const char *name, uint16_t byte_offset, uint16_t x_dim, uint16_t y_dim, const char *comment, const char *unit, double min, double max,
+                                        const char *x_axis, const char *y_axis)
+        : name(name), type_id(A2lTypeTraits::GetTypeId<FieldType>()), byte_offset(byte_offset), x_dim(x_dim), y_dim(y_dim), comment(comment), unit(unit), min(min), max(max),
+          x_axis(x_axis), y_axis(y_axis) {}
 };
 
 // Helper struct to hold typedef component information for measurement components
@@ -223,7 +247,7 @@ template <typename FieldType> struct A2lTypedefComponentInfo {
 
 // Helper template to register a parameter component
 template <typename T> void A2lCreateTypedefComponentTemplate(const A2lParameterComponentInfo<T> &info) {
-    A2lTypedefParameterComponent_(info.name, info.type_id, info.x_dim, info.y_dim, info.byte_offset, info.comment, info.unit, info.min, info.max, NULL, NULL);
+    A2lTypedefParameterComponent_(info.name, info.type_id, info.x_dim, info.y_dim, info.byte_offset, info.comment, info.unit, info.min, info.max, info.x_axis, info.y_axis);
 }
 // Helper template to register a measurement component
 template <typename T> void A2lCreateTypedefComponentTemplate(const A2lMeasurementComponentInfo<T> &info) {
