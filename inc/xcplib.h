@@ -9,6 +9,10 @@
 |   C header file for the XCPlite library libxcplite application programming interface
 |   Used for Rust bindgen to generate FFI bindings for libxcplite
 |   Supporting functions and macros for A2L generation are in a2l.h
+|     C_API functions XcpXxxx
+|     C_API types tXcpCalSegIndex, tXcpEventId
+|     Macros CalSegXxxx, DaqXxxx, A2lXxxx, A2L_XXX
+|     Constants XCP_XXX
 |
 | Copyright (c) Vector Informatik GmbH. All rights reserved.
 | See LICENSE file in the project root for details.

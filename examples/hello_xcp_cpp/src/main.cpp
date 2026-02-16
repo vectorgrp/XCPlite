@@ -69,7 +69,7 @@ class FloatingAverage {
 FloatingAverage::FloatingAverage() : samples_{}, current_index_(0), sample_count_(0), sum_(0.0) {
 
     // Optional: For measurement of the complete instance, create an A2L typedef for this class (once executed and thread safe)
-    A2lCreateTypedef(FloatingAverage, "Typedef for FloatingAverage",                                       //
+    A2lCreateTypedef(FloatingAverage, "Typedef for FloatingAverage",                                       // @@@@ TODO: All types are wrong, fixit
                      A2L_MEASUREMENT_COMPONENT(current_index_, "Current position in the ring buffer", ""), //
                      A2L_MEASUREMENT_COMPONENT(sample_count_, "Number of samples collected so far", ""),   //
                      A2L_MEASUREMENT_COMPONENT(sum_, "Running sum of all samples", ""),                    //

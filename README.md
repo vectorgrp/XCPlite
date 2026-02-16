@@ -9,7 +9,6 @@ XCP is a measurement and parameter tuning (calibration) protocol commonly used i
 - [Virtual VectorAcademy E-Learning](https://elearning.vector.com/)
 
 
-
 ## About XCPlite
 
 XCPlite extends XCP use cases beyond traditional embedded microcontrollers to **modern multicore microprocessors** and SoCs running POSIX-compliant operating systems (Linux, QNX) or real-time operating systems (RTOS) such as ThreadX.
@@ -78,13 +77,14 @@ Details how to build for Linux, QNX, macOS, and Windows are in the [building doc
 
 ## Documentation
 
+- **[Changelog](CHANGELOG.md)** - Version history
+
 - **[API Reference](docs/xcplib.md)** - XCP instrumentation API
 - **[Configuration](docs/xcplib_cfg.md)** - Configuration options
 - **[Examples](examples/README.md)** - Example applications and CANape setup
 - **[Technical Details](docs/TECHNICAL.md)** - Addressing modes, A2L generation, instrumentation costs
 - **[Building](docs/BUILDING.md)** - Detailed build instructions and troubleshooting
 - **[XCP Introduction](docs/XCP_INTRODUCTION.md)** - What is XCP?
-- **[Changelog](CHANGELOG.md)** - Version history
 
 ## License
 

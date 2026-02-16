@@ -285,8 +285,8 @@ const char *A2lGetSymbolName(const char *instance_name, const char *name) {
     }
 }
 
-const char *A2lGetA2lTypeName(tA2lTypeId type) {
-    switch (type) {
+const char *A2lGetA2lTypeName(tA2lTypeId type_id) {
+    switch (type_id) {
     case A2L_TYPE_INT8:
         return "SBYTE";
     case A2L_TYPE_INT16:
@@ -313,8 +313,8 @@ const char *A2lGetA2lTypeName(tA2lTypeId type) {
     }
 }
 
-const char *A2lGetA2lTypeName_M(tA2lTypeId type) {
-    switch (type) {
+const char *A2lGetA2lTypeName_M(tA2lTypeId type_id) {
+    switch (type_id) {
     case A2L_TYPE_INT8:
         return "M_I8";
     case A2L_TYPE_INT16:
@@ -341,8 +341,8 @@ const char *A2lGetA2lTypeName_M(tA2lTypeId type) {
     }
 }
 
-const char *A2lGetA2lTypeName_C(tA2lTypeId type) {
-    switch (type) {
+const char *A2lGetA2lTypeName_C(tA2lTypeId type_id) {
+    switch (type_id) {
     case A2L_TYPE_INT8:
         return "C_I8";
     case A2L_TYPE_INT16:
@@ -369,8 +369,8 @@ const char *A2lGetA2lTypeName_C(tA2lTypeId type) {
     }
 }
 
-const char *A2lGetRecordLayoutName_(tA2lTypeId type) {
-    switch (type) {
+const char *A2lGetA2lRecordLayoutName(tA2lTypeId type_id) {
+    switch (type_id) {
     case A2L_TYPE_INT8:
         return "I8";
     case A2L_TYPE_INT16:
@@ -397,9 +397,9 @@ const char *A2lGetRecordLayoutName_(tA2lTypeId type) {
     }
 }
 
-static double getTypeMin(tA2lTypeId type) {
+static double getTypeMin(tA2lTypeId type_id) {
     double min;
-    switch (type) {
+    switch (type_id) {
     case A2L_TYPE_INT8:
         min = -128;
         break;
@@ -420,9 +420,9 @@ static double getTypeMin(tA2lTypeId type) {
     return min;
 }
 
-static double getTypeMax(tA2lTypeId type) {
+static double getTypeMax(tA2lTypeId type_id) {
     double max;
-    switch (type) {
+    switch (type_id) {
     case A2L_TYPE_INT8:
         max = 127;
         break;
@@ -518,7 +518,7 @@ static bool A2lOpen(void) {
         tA2lTypeId a2l_type_id = typeid_table[i];
         const char *a2l_type_name = A2lGetA2lTypeName(a2l_type_id);
         assert(a2l_type_name != NULL);
-        const char *a2l_record_layout_name = A2lGetRecordLayoutName_(a2l_type_id);
+        const char *a2l_record_layout_name = A2lGetA2lRecordLayoutName(a2l_type_id);
         assert(a2l_record_layout_name != NULL);
         // RECORD_LAYOUTs for standard types U8,I8,...,F64 (Position 1 increasing index)
         // Example: /begin RECORD_LAYOUT U64 FNC_VALUES 1 A_UINT64 ROW_DIR DIRECT /end RECORD_LAYOUT
@@ -1212,10 +1212,10 @@ void A2lTypedefEnd_(void) {
 
 // For scalar or one dimensional measurement and parameter components of specified type
 // type_name is the name of another typedef, typedef_measurement or typedef_characteristic
-void A2lTypedefComponent_(const char *name, const char *type_name, uint16_t x_dim, uint32_t offset) {
+void A2lTypedefComponent_(const char *name, const char *type_name, uint16_t x_dim, size_t offset) {
     if (gA2lFile != NULL) {
-        DBG_PRINTF4("A2lTypedefComponent_: %s, %s, x_dim=%u, offset=0x%X\n", name, type_name, x_dim, offset);
-        fprintf(gA2lFile, "  /begin STRUCTURE_COMPONENT %s %s 0x%X", name, type_name, offset);
+        DBG_PRINTF4("A2lTypedefComponent_: %s, %s, x_dim=%u, offset=0x%zX\n", name, type_name, x_dim, offset);
+        fprintf(gA2lFile, "  /begin STRUCTURE_COMPONENT %s %s 0x%zX", name, type_name, offset);
         if (x_dim > 1)
             fprintf(gA2lFile, " MATRIX_DIM %u", x_dim);
         fprintf(gA2lFile, " /end STRUCTURE_COMPONENT\n");
@@ -1224,11 +1224,11 @@ void A2lTypedefComponent_(const char *name, const char *type_name, uint16_t x_di
 }
 
 // For measurement components with TYPEDEF_MEASUREMENT for fields with comment, unit, min, max
-void A2lTypedefMeasurementComponent_(const char *name, tA2lTypeId type_id, uint16_t x_dim, uint32_t offset, const char *comment, const char *unit_or_conversion, double min,
+void A2lTypedefMeasurementComponent_(const char *name, tA2lTypeId type_id, uint16_t x_dim, size_t offset, const char *comment, const char *unit_or_conversion, double min,
                                      double max) {
     if (gA2lFile != NULL) {
-        const char *type_name = A2lGetTypeName(type_id);
-        DBG_PRINTF4("A2lTypedefMeasurementComponent_: %s, %s, x_dim=%u, offset=0x%X\n", name, type_name, x_dim, offset);
+        const char *type_name = A2lGetA2lTypeName(type_id);
+        DBG_PRINTF4("A2lTypedefMeasurementComponent_: %s, %s, x_dim=%u, offset=0x%zX\n", name, type_name, x_dim, offset);
 
         // TYPEDEF_MEASUREMENT
         const char *conv = getConversion(unit_or_conversion, NULL, NULL);
@@ -1242,7 +1242,7 @@ void A2lTypedefMeasurementComponent_(const char *name, tA2lTypeId type_id, uint1
         fprintf(gA2lTypedefsFile, " /end TYPEDEF_MEASUREMENT\n");
 
         // STRUCTURE_COMPONENT
-        fprintf(gA2lFile, "  /begin STRUCTURE_COMPONENT %s M_%s 0x%X", name, name, offset);
+        fprintf(gA2lFile, "  /begin STRUCTURE_COMPONENT %s M_%s 0x%zX", name, name, offset);
         if (x_dim > 1)
             fprintf(gA2lFile, " MATRIX_DIM %u", x_dim);
         fprintf(gA2lFile, " /end STRUCTURE_COMPONENT\n");
@@ -1251,18 +1251,18 @@ void A2lTypedefMeasurementComponent_(const char *name, tA2lTypeId type_id, uint1
 }
 
 // For multidimensional parameter components with TYPEDEF_CHARACTERISTIC for fields with comment, unit, min, max
-void A2lTypedefParameterComponent_(const char *name, tA2lTypeId type_id, uint16_t x_dim, uint16_t y_dim, uint32_t offset, const char *comment, const char *unit_or_conversion,
+void A2lTypedefParameterComponent_(const char *name, tA2lTypeId type_id, uint16_t x_dim, uint16_t y_dim, size_t offset, const char *comment, const char *unit_or_conversion,
                                    double min, double max, const char *x_axis, const char *y_axis) {
     if (gA2lFile != NULL) {
-        const char *type_name = A2lGetRecordLayoutName_(type_id);
-        DBG_PRINTF4("A2lTypedefParameterComponent_: %s, %s, x_dim=%u, y_dim=%u, offset=0x%X\n", name, type_name, x_dim, y_dim, offset);
+        const char *type_name = A2lGetA2lRecordLayoutName(type_id);
+        DBG_PRINTF4("A2lTypedefParameterComponent_: %s, %s, x_dim=%u, y_dim=%u, offset=0x%zX\n", name, type_name, x_dim, y_dim, offset);
 
         // TYPEDEF_AXIS (y_dim==0)
         if (y_dim == 0 && x_dim > 1) {
             fprintf(gA2lTypedefsFile, "/begin TYPEDEF_AXIS A_%s \"%s\" %s A_%s 0 NO_COMPU_METHOD %u %g %g", name, comment, A2lGetInputQuantity_x(), type_name, x_dim, min, max);
             printPhysUnit(gA2lTypedefsFile, unit_or_conversion);
             fprintf(gA2lTypedefsFile, " /end TYPEDEF_AXIS\n");
-            fprintf(gA2lFile, "  /begin STRUCTURE_COMPONENT %s A_%s 0x%X /end STRUCTURE_COMPONENT\n", name, name, offset);
+            fprintf(gA2lFile, "  /begin STRUCTURE_COMPONENT %s A_%s 0x%zX /end STRUCTURE_COMPONENT\n", name, name, offset);
 
         }
 
@@ -1306,7 +1306,7 @@ void A2lTypedefParameterComponent_(const char *name, tA2lTypeId type_id, uint16_
             }
             printPhysUnit(gA2lTypedefsFile, unit_or_conversion);
             fprintf(gA2lTypedefsFile, " /end TYPEDEF_CHARACTERISTIC\n");
-            fprintf(gA2lFile, "  /begin STRUCTURE_COMPONENT %s C_%s 0x%X /end STRUCTURE_COMPONENT\n", name, name, offset);
+            fprintf(gA2lFile, "  /begin STRUCTURE_COMPONENT %s C_%s 0x%zX /end STRUCTURE_COMPONENT\n", name, name, offset);
         }
 
         gA2lComponents++;
@@ -1343,7 +1343,7 @@ void A2lCreateInstance_(const char *instance_name, const char *typeName, const u
 //----------------------------------------------------------------------------------
 // Measurements
 
-void A2lCreateMeasurement_(const char *instance_name, const char *name, tA2lTypeId type, uint16_t dim, const void *ptr, const char *unit_or_conversion, double phys_min,
+void A2lCreateMeasurement_(const char *instance_name, const char *name, tA2lTypeId type_id, uint16_t dim, const void *ptr, const char *unit_or_conversion, double phys_min,
                            double phys_max, const char *comment) {
     if (gA2lFile != NULL) {
         uint32_t addr = A2lGetAddr_(ptr);
@@ -1360,15 +1360,15 @@ void A2lCreateMeasurement_(const char *instance_name, const char *name, tA2lType
         double min, max;
         const char *conv;
         if (phys_min == 0.0 && phys_max == 0.0) {
-            min = getTypeMin(type);
-            max = getTypeMax(type);
+            min = getTypeMin(type_id);
+            max = getTypeMax(type_id);
             conv = getConversion(unit_or_conversion, &min, &max);
         } else {
             min = phys_min;
             max = phys_max;
             conv = getConversion(unit_or_conversion, NULL, NULL);
         }
-        fprintf(gA2lFile, "/begin MEASUREMENT %s \"%s\" %s %s 0 0 %g %g ", symbol_name, comment, A2lGetA2lTypeName(type), conv, min, max);
+        fprintf(gA2lFile, "/begin MEASUREMENT %s \"%s\" %s %s 0 0 %g %g ", symbol_name, comment, A2lGetA2lTypeName(type_id), conv, min, max);
         if (dim > 1) {
             fprintf(gA2lFile, "MATRIX_DIM %u ", dim);
         }
@@ -1385,7 +1385,7 @@ void A2lCreateMeasurement_(const char *instance_name, const char *name, tA2lType
     }
 }
 
-void A2lCreateMeasurementArray_(const char *instance_name, const char *name, tA2lTypeId type, int x_dim, int y_dim, const void *ptr, const char *unit_or_conversion,
+void A2lCreateMeasurementArray_(const char *instance_name, const char *name, tA2lTypeId type_id, int x_dim, int y_dim, const void *ptr, const char *unit_or_conversion,
                                 double phys_min, double phys_max, const char *comment) {
     if (gA2lFile != NULL) {
         uint32_t addr = A2lGetAddr_((const void *)ptr);
@@ -1401,16 +1401,16 @@ void A2lCreateMeasurementArray_(const char *instance_name, const char *name, tA2
         double min, max;
         const char *conv;
         if (phys_min == 0.0 && phys_max == 0.0) {
-            min = getTypeMin(type);
-            max = getTypeMax(type);
+            min = getTypeMin(type_id);
+            max = getTypeMax(type_id);
             conv = getConversion(unit_or_conversion, &min, &max);
         } else {
             min = phys_min;
             max = phys_max;
             conv = getConversion(unit_or_conversion, NULL, NULL);
         }
-        fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" VAL_BLK 0x%X %s 0 %s %g %g MATRIX_DIM %u %u", symbol_name, comment, addr, A2lGetRecordLayoutName_(type), conv, min, max,
-                x_dim, y_dim);
+        fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" VAL_BLK 0x%X %s 0 %s %g %g MATRIX_DIM %u %u", symbol_name, comment, addr, A2lGetA2lRecordLayoutName(type_id), conv, min,
+                max, x_dim, y_dim);
         printAddrExt(ext);
         A2lCreateMeasurement_IF_DATA();
         fprintf(gA2lFile, " /end CHARACTERISTIC\n");
@@ -1442,7 +1442,7 @@ void A2lCreateParameter_(const char *name, tA2lTypeId type, const void *ptr, con
             max = phys_max;
             conv = getConversion(unit_or_conversion, NULL, NULL);
         }
-        fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" VALUE 0x%X %s 0 %s %g %g", name, comment, addr, A2lGetRecordLayoutName_(type), conv, min, max);
+        fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" VALUE 0x%X %s 0 %s %g %g", name, comment, addr, A2lGetA2lRecordLayoutName(type), conv, min, max);
         printPhysUnit(gA2lFile, unit_or_conversion);
         printAddrExt(ext);
         A2lCreateMeasurement_IF_DATA();
@@ -1451,7 +1451,7 @@ void A2lCreateParameter_(const char *name, tA2lTypeId type, const void *ptr, con
     }
 }
 
-void A2lCreateMap_(const char *name, tA2lTypeId type, const void *ptr, uint32_t xdim, uint32_t ydim, const char *comment, const char *unit, double min, double max,
+void A2lCreateMap_(const char *name, tA2lTypeId type_id, const void *ptr, uint32_t xdim, uint32_t ydim, const char *comment, const char *unit, double min, double max,
                    const char *x_axis, const char *y_axis) {
 
     if (gA2lFile != NULL) {
@@ -1462,7 +1462,7 @@ void A2lCreateMap_(const char *name, tA2lTypeId type, const void *ptr, uint32_t 
         if (gA2lAutoGroups) {
             A2lAddToGroup(name);
         }
-        fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" MAP 0x%X %s 0 NO_COMPU_METHOD %g %g", name, comment, addr, A2lGetRecordLayoutName_(type), min, max);
+        fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" MAP 0x%X %s 0 NO_COMPU_METHOD %g %g", name, comment, addr, A2lGetA2lRecordLayoutName(type_id), min, max);
         if (x_axis == NULL) {
             fprintf(gA2lFile, " /begin AXIS_DESCR FIX_AXIS %s NO_COMPU_METHOD %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR", A2lGetInputQuantity_x(), xdim, xdim - 1, xdim);
         } else {
@@ -1481,7 +1481,7 @@ void A2lCreateMap_(const char *name, tA2lTypeId type, const void *ptr, uint32_t 
     }
 }
 
-void A2lCreateCurve_(const char *name, tA2lTypeId type, const void *ptr, uint32_t xdim, const char *comment, const char *unit, double min, double max, const char *x_axis) {
+void A2lCreateCurve_(const char *name, tA2lTypeId type_id, const void *ptr, uint32_t xdim, const char *comment, const char *unit, double min, double max, const char *x_axis) {
 
     if (gA2lFile != NULL) {
         uint32_t addr = A2lGetAddr_(ptr);
@@ -1491,7 +1491,7 @@ void A2lCreateCurve_(const char *name, tA2lTypeId type, const void *ptr, uint32_
         if (gA2lAutoGroups) {
             A2lAddToGroup(name);
         }
-        fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" CURVE 0x%X %s 0 NO_COMPU_METHOD %g %g", name, comment, addr, A2lGetRecordLayoutName_(type), min, max);
+        fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" CURVE 0x%X %s 0 NO_COMPU_METHOD %g %g", name, comment, addr, A2lGetA2lRecordLayoutName(type_id), min, max);
         if (x_axis == NULL) {
             fprintf(gA2lFile, " /begin AXIS_DESCR FIX_AXIS %s NO_COMPU_METHOD %u 0 %u FIX_AXIS_PAR_DIST 0 1 %u /end AXIS_DESCR", A2lGetInputQuantity_x(), xdim, xdim - 1, xdim);
         } else {
@@ -1506,7 +1506,7 @@ void A2lCreateCurve_(const char *name, tA2lTypeId type, const void *ptr, uint32_
     }
 }
 
-void A2lCreateAxis_(const char *name, tA2lTypeId type, const void *ptr, uint32_t xdim, const char *comment, const char *unit, double min, double max) {
+void A2lCreateAxis_(const char *name, tA2lTypeId type_id, const void *ptr, uint32_t xdim, const char *comment, const char *unit, double min, double max) {
 
     if (gA2lFile != NULL) {
         uint32_t addr = A2lGetAddr_(ptr);
@@ -1516,8 +1516,8 @@ void A2lCreateAxis_(const char *name, tA2lTypeId type, const void *ptr, uint32_t
         if (gA2lAutoGroups) {
             A2lAddToGroup(name);
         }
-        fprintf(gA2lFile, "/begin AXIS_PTS %s \"%s\" 0x%X %s A_%s 0 NO_COMPU_METHOD %u %g %g", name, comment, addr, A2lGetInputQuantity_x(), A2lGetRecordLayoutName_(type), xdim,
-                min, max);
+        fprintf(gA2lFile, "/begin AXIS_PTS %s \"%s\" 0x%X %s A_%s 0 NO_COMPU_METHOD %u %g %g", name, comment, addr, A2lGetInputQuantity_x(), A2lGetA2lRecordLayoutName(type_id),
+                xdim, min, max);
         printPhysUnit(gA2lFile, unit);
         printAddrExt(ext);
         A2lCreateMeasurement_IF_DATA();

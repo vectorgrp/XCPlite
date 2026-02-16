@@ -137,7 +137,7 @@ C++ Example:
    const ParametersT kParameters = {.min = 2.0, .max = 3.0};
 
    // A calibration segment wrapper for the parameters
-   std::optional<xcplib::CalSeg<ParametersT>> gCalSeg;
+   std::optional<xcp::CalSeg<ParametersT>> gCalSeg;
 
     // Create a global calibration segment wrapper for the struct 'ParametersT' and use its default values in constant 'kParameters'
     // This calibration segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
