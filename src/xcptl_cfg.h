@@ -31,7 +31,7 @@
 // DTO size
 // Maximum size of a XCP data packet (DAQ,STIM)
 // Must be %8
-#define XCPTL_MAX_DTO_SIZE (512 - 4) // for optimal fixed size tl queue entry size
+#define XCPTL_MAX_DTO_SIZE (256 - 4) // for optimal fixed size tl queue entry size
 
 // Segment size is the maximum data buffer size given to sockets send/sendTo, for UDP it is the UDP MTU
 // Jumbo frames are supported, but it might be more efficient to use a smaller segment sizes

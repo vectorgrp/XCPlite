@@ -121,7 +121,7 @@ static int XcpEthTlSend(const uint8_t *data, uint16_t size, const uint8_t *addr,
 
     assert(size > 0 && size <= XCPTL_MAX_SEGMENT_SIZE);
     assert(data != NULL);
-    DBG_PRINTF5("XcpEthTlSend: msg_len = %u\n", size);
+    DBG_PRINTF6("XcpEthTlSend: msg_len = %u\n", size);
 
 #ifdef OPTION_ENABLE_DBG_METRICS
     gXcpTxPacketCount++;
@@ -630,7 +630,7 @@ int32_t XcpTlHandleTransmitQueue(void) {
             if (b == NULL) {
                 assert(l == 0);
                 mutexUnlock(&gXcpTl.CtrMutex);
-                break; // queue is empty
+                break; // queue is empty, break inner loop and sleep a bit
             } else {
                 // Send this frame
                 int r = XcpEthTlSend(b, l, NULL, 0);

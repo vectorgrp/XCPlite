@@ -34,10 +34,10 @@
 #include <stdlib.h>    // for free, malloc
 #include <string.h>    // for memcpy, strcmp
 
-#include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
+#include "dbg_print.h" // for DBG_PRINT
 
 #include "xcpEthTl.h"  // for XcpTlGetCtr
-#include "xcptl_cfg.h" // for XCPTL_TRANSPORT_LAYER_HEADER_SIZE, XCPTL_MAX_DTO_SIZE, XCPTL_MAX_SEGMENT_SIZE
+#include "xcptl_cfg.h" // for XCPTL_TRANSPORT_LAYER_HEADER_SIZE, XCPTL_MAX_DTO_SIZE
 
 // Turn of misaligned atomic access warnings
 // Alignment is assured by the queue header and the queue entry size alignment
@@ -85,14 +85,14 @@ Transport Layer segment, message, packet:
 
 #define TEST_ACQUIRE_LOCK_TIMING
 #ifdef TEST_ACQUIRE_LOCK_TIMING
-static MUTEX lockMutex = MUTEX_INTIALIZER;
-static uint64_t lockTimeMax = 0;
-static uint64_t lockTimeSum = 0;
-static uint64_t lockCount = 0;
-#define LOCK_TIME_HISTOGRAM_SIZE 100 // max 100us in 1us steps
-#define LOCK_TIME_HISTOGRAM_STEP 10
-#define HISTOGRAM_STEP 100
-static uint64_t lockTimeHistogram[LOCK_TIME_HISTOGRAM_SIZE] = {
+static MUTEX lock_mutex = MUTEX_INTIALIZER;
+static uint64_t lock_time_max = 0;
+static uint64_t lock_time_sum = 0;
+static uint64_t lock_count = 0;
+static uint64_t spin_count_max = 0;
+#define LOCK_TIME_HISTOGRAM_SIZE 100
+#define LOCK_TIME_HISTOGRAM_STEP 10 // 10ns steps, up to 1us
+static uint64_t lock_time_histogram[LOCK_TIME_HISTOGRAM_SIZE] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
@@ -110,15 +110,20 @@ static uint64_t get_timestamp_ns(void) {
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 
-// Check preconditions
+// Size of the queue entries, including the transport layer header
 #define MAX_ENTRY_SIZE (XCPTL_MAX_DTO_SIZE + XCPTL_TRANSPORT_LAYER_HEADER_SIZE)
-#if (MAX_ENTRY_SIZE % XCPTL_PACKET_ALIGNMENT) != 0
+
+// Check preconditions
+#if (MAX_ENTRY_SIZE % CACHE_LINE_SIZE) != 0
+#error "MAX_ENTRY_SIZE should be modulo CACHE_LINE_SIZE for optimal performance"
+#endif
+#if (MAX_ENTRY_SIZE % XCPTL_PACKET_ALIGNMENT) != 0 // Minumum alignment for transport layer packet concatenation, if cache line size would not be a requirement
 #error "MAX_ENTRY_SIZE should be aligned to XCPTL_PACKET_ALIGNMENT"
 #endif
 
-// Queue entry states
-#define CTR_RESERVED 0x0000u  // Reserved by producer
-#define CTR_COMMITTED 0xCCCCu // Committed by producer
+// Queue entry states (in the ctr of the transport layer header)
+// Must be 0 (initial state of all entries) or CTR_COMMITTED
+#define CTR_COMMITTED 0xCCCCu // ctr value id committed by the producer
 
 // Transport layer message header
 #pragma pack(push, 1)
@@ -142,7 +147,7 @@ typedef struct {
 
     // Constant
     uint32_t queue_size; // Size of queue in bytes (for entry offset wrapping)
-    uint8_t padding[CACHE_LINE_SIZE - 8 - 8 - 8 - 4 - 8 - 4];
+    uint8_t padding[MAX_ENTRY_SIZE - 8 - 8 - 8 - 4 - 8 - 4];
 } tQueueHeader;
 
 static_assert(((sizeof(tQueueHeader) % CACHE_LINE_SIZE) == 0), "QueueHeader size must be CACHE_LINE_SIZE");
@@ -174,26 +179,27 @@ tQueueHandle QueueInit(uint32_t queue_memory_size) {
 
     tQueue *queue = NULL;
 
-    // Allocate the queue memory, rounded up to cache line size, allocated memory includes the queue header
-    uint32_t aligned_size = (queue_memory_size + CACHE_LINE_SIZE) & ~(CACHE_LINE_SIZE - 1); // Round up to cache line size
-    queue = (tQueue *)aligned_alloc(CACHE_LINE_SIZE, aligned_size);
+    // Allocate the queue memory, rounded up to MAX_ENTRY_SIZE size
+    // Allocated memory includes the queue header
+    uint32_t aligned_memory_size = sizeof(tQueueHeader) + (queue_memory_size + (MAX_ENTRY_SIZE - 1)) & ~(MAX_ENTRY_SIZE - 1); // Round up to MAX_ENTRY_SIZE size
+    queue = (tQueue *)aligned_alloc(CACHE_LINE_SIZE, aligned_memory_size);
     assert(queue != NULL);
-    assert(((uint64_t)queue % CACHE_LINE_SIZE) == 0); // Check alignment
-    memset(queue, 0, aligned_size);                   // Clear memory
-    queue->h.queue_size = aligned_size - (uint32_t)sizeof(tQueueHeader);
+    assert(((uint64_t)queue % CACHE_LINE_SIZE) == 0); // Check alignment of the allocated memory
+    assert(((uint64_t)queue->buffer % CACHE_LINE_SIZE) == 0);
+    memset(queue, 0, aligned_memory_size); // Clear memory
+    queue->h.queue_size = aligned_memory_size - (uint32_t)sizeof(tQueueHeader);
+    assert((queue->h.queue_size % MAX_ENTRY_SIZE) == 0);
+    assert((queue->h.queue_size & (CACHE_LINE_SIZE - 1)) == 0);
+    assert((queue->h.queue_size & (XCPTL_PACKET_ALIGNMENT - 1)) == 0);
 
-    DBG_PRINT3("Init XCP transport layer queue\n");
-    DBG_PRINTF3("  XCPTL_MAX_SEGMENT_SIZE=%u, XCPTL_PACKET_ALIGNMENT=%u, queue: %u DTOs of max %u bytes, %uKiB\n", //
-                XCPTL_MAX_SEGMENT_SIZE, XCPTL_PACKET_ALIGNMENT, queue->h.queue_size / MAX_ENTRY_SIZE, MAX_ENTRY_SIZE - XCPTL_TRANSPORT_LAYER_HEADER_SIZE,
-                (uint32_t)(aligned_size / 1024));
+    DBG_PRINT3("Init XCP transport layer fixed entry size lockless queue\n");
+    DBG_PRINTF3("  %u entries of max %u payload bytes, %uKiB used\n", queue->h.queue_size / MAX_ENTRY_SIZE, MAX_ENTRY_SIZE - XCPTL_TRANSPORT_LAYER_HEADER_SIZE,
+                (uint32_t)(aligned_memory_size / 1024));
 
     QueueClear((tQueueHandle)queue); // Clear the queue
 
     // Checks
     assert(atomic_is_lock_free(&(queue->h.head)));
-    assert((queue->h.queue_size & (XCPTL_PACKET_ALIGNMENT - 1)) == 0);
-    assert((queue->h.queue_size & (CACHE_LINE_SIZE - 1)) == 0);
-    assert((queue->h.queue_size % MAX_ENTRY_SIZE) == 0);
 
     return (tQueueHandle)queue;
 }
@@ -205,14 +211,14 @@ void QueueDeinit(tQueueHandle queueHandle) {
 
     // Print statistics
 #ifdef TEST_ACQUIRE_LOCK_TIMING
-    printf("\nProducer acquire lock time statistics: lockCount=%" PRIu64 ", maxLockTime=%" PRIu64 "ns,  avgLockTime=%" PRIu64 "ns\n", lockCount, lockTimeMax,
-           lockTimeSum / lockCount);
+    printf("\nProducer acquire lock time statistics: lock count=%" PRIu64 ", max spincount=%" PRIu64 ", max locktime=%" PRIu64 "ns,  avg locktime=%" PRIu64 "ns\n", lock_count,
+           spin_count_max, lock_time_max, lock_time_sum / lock_count);
     for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE - 1; i++) {
-        if (lockTimeHistogram[i])
-            printf("%dus: %" PRIu64 "\n", i * LOCK_TIME_HISTOGRAM_STEP, lockTimeHistogram[i]);
+        if (lock_time_histogram[i])
+            printf("%dns: %" PRIu64 "\n", i * LOCK_TIME_HISTOGRAM_STEP, lock_time_histogram[i]);
     }
-    if (lockTimeHistogram[LOCK_TIME_HISTOGRAM_SIZE - 1])
-        printf(">%uus: %" PRIu64 "\n", LOCK_TIME_HISTOGRAM_SIZE * LOCK_TIME_HISTOGRAM_STEP, lockTimeHistogram[LOCK_TIME_HISTOGRAM_SIZE - 1]);
+    if (lock_time_histogram[LOCK_TIME_HISTOGRAM_SIZE - 1])
+        printf(">%dns: %" PRIu64 "\n", LOCK_TIME_HISTOGRAM_SIZE * LOCK_TIME_HISTOGRAM_STEP, lock_time_histogram[LOCK_TIME_HISTOGRAM_SIZE - 1]);
     printf("\n");
 #endif
 
@@ -237,68 +243,82 @@ tQueueBuffer QueueAcquire(tQueueHandle queueHandle, uint16_t packet_len) {
 
     tQueue *queue = (tQueue *)queueHandle;
     assert(queue != NULL);
-    assert(packet_len > 0 && packet_len <= XCPTL_MAX_DTO_SIZE);
+    assert(packet_len > 0);
 
-    tXcpDtoMessage *entry = NULL;
-
-    // Align the message length
-    uint16_t msg_len = packet_len + XCPTL_TRANSPORT_LAYER_HEADER_SIZE;
+    // Align the packet_len if required (improves the alignment of accumulated messages in a segment)
+    uint16_t aligned_packet_len = packet_len;
 #if XCPTL_PACKET_ALIGNMENT == 2
     msg_len = (uint16_t)((msg_len + 1) & 0xFFFE); // Add fill %2
 #error "XCPTL_PACKET_ALIGNMENT == 2 is not supported, use 4"
 #endif
 #if XCPTL_PACKET_ALIGNMENT == 4
-    msg_len = (uint16_t)((msg_len + 3) & 0xFFFC); // Add fill %4
+    aligned_packet_len = (uint16_t)((aligned_packet_len + 3) & 0xFFFC); // Add fill %4
 #endif
 #if XCPTL_PACKET_ALIGNMENT == 8
-    msg_len = (uint16_t)((msg_len + 7) & 0xFFF8); // Add fill %8
+    aligned_packet_len = (uint16_t)((aligned_packet_len + 7) & 0xFFF8); // Add fill %8
 #error "XCPTL_PACKET_ALIGNMENT == 8 is not supported, use 4"
 #endif
+    assert(packet_len <= XCPTL_MAX_DTO_SIZE);
+
+    // Calculate the message len (the number of bytes used in the fixed size entry including the header size)
+    uint16_t msg_len = aligned_packet_len + XCPTL_TRANSPORT_LAYER_HEADER_SIZE;
     assert(msg_len <= MAX_ENTRY_SIZE);
 
 #ifdef TEST_ACQUIRE_LOCK_TIMING
     uint64_t c = get_timestamp_ns();
+    uint32_t spin_count = 0;
 #endif
 
-    // Prepare a new entry in reserved state
-    // In reserved state, the message entry has a valid dlc and ctr is set to CTR_RESERVED
+    // Reserve a new entry
+    tXcpDtoMessage *entry = NULL;
+    // In reserved state, the message entry is between tail and head, has valid dlc and ctr must be 0
+    // This means the ctr must be 0 before the head is increment
     uint64_t tail = atomic_load_explicit(&queue->h.tail, memory_order_relaxed);
     uint64_t head = atomic_load_explicit(&queue->h.head, memory_order_acquire);
+    uint32_t level;
     for (;;) {
 
-        // Check for overrun this head
-        if (queue->h.queue_size - msg_len < head - tail) {
+        // Check for overrun with the current head
+        level = (uint32_t)(head - tail);
+        assert(queue->h.queue_size >= level);
+        assert((level % MAX_ENTRY_SIZE) == 0);
+        if (queue->h.queue_size == level) {
             break; // Overrun
         }
 
-        // Try to get and increment this head by fixed max entry size (MAX_ENTRY_SIZE)
-        // Compare exchange weak in acq_rel/acq mode serialize with other producers, false negatives will spin
+        // Try to increment the head
+        // Compare exchange weak in acq_rel/acq mode serializes with other producers, false negatives will spin
         if (atomic_compare_exchange_weak_explicit(&queue->h.head, &head, head + MAX_ENTRY_SIZE, memory_order_acq_rel, memory_order_acquire)) {
             entry = (tXcpDtoMessage *)(queue->buffer + (head % queue->h.queue_size));
-            atomic_store_explicit(&entry->ctr_dlc, (CTR_RESERVED << 16) | (uint32_t)(msg_len - XCPTL_TRANSPORT_LAYER_HEADER_SIZE), memory_order_release);
+            atomic_store_explicit(&entry->ctr_dlc, (uint32_t)packet_len, memory_order_release);
             break;
         }
+#ifdef TEST_ACQUIRE_LOCK_TIMING
+        spin_count++;
+#endif
     } // for (;;)
 
 #ifdef TEST_ACQUIRE_LOCK_TIMING
     uint64_t d = get_timestamp_ns() - c;
-    mutexLock(&lockMutex);
-    if (d > lockTimeMax)
-        lockTimeMax = d;
-    int i = (d / 1000) / LOCK_TIME_HISTOGRAM_STEP;
+    mutexLock(&lock_mutex);
+    if (spin_count > spin_count_max)
+        spin_count_max = spin_count;
+    if (d > lock_time_max)
+        lock_time_max = d;
+    int i = d / LOCK_TIME_HISTOGRAM_STEP;
     if (i < LOCK_TIME_HISTOGRAM_SIZE)
-        lockTimeHistogram[i]++;
+        lock_time_histogram[i]++;
     else
-        lockTimeHistogram[LOCK_TIME_HISTOGRAM_SIZE - 1]++;
-    lockTimeSum += d;
-    lockCount++;
-    mutexUnlock(&lockMutex);
+        lock_time_histogram[LOCK_TIME_HISTOGRAM_SIZE - 1]++;
+    lock_time_sum += d;
+    lock_count++;
+    mutexUnlock(&lock_mutex);
 #endif
 
     if (entry == NULL) { // Overflow
         uint32_t lost = (uint32_t)atomic_fetch_add_explicit(&queue->h.packets_lost, 1, memory_order_acq_rel);
         if (lost == 0)
-            DBG_PRINTF_WARNING("Queue overrun, msg_len=%u, h=%" PRIu64 ", t=%" PRIu64 ", level=%u, size=%u\n", msg_len, head, tail, (uint32_t)(head - tail), queue->h.queue_size);
+            DBG_PRINTF_WARNING("Queue overrun, msg_len=%u, h=%" PRIu64 ", t=%" PRIu64 ", level=%u, size=%u\n", msg_len, head, tail, level / MAX_ENTRY_SIZE, queue->h.queue_size);
         tQueueBuffer ret = {
             .buffer = NULL,
             .size = 0,
@@ -312,6 +332,9 @@ tQueueBuffer QueueAcquire(tQueueHandle queueHandle, uint16_t packet_len) {
         // Return the actual aligned size of the requested payload data size, which is the len stored in the transport layer header
         .size = msg_len - XCPTL_TRANSPORT_LAYER_HEADER_SIZE,
     };
+
+    assert((uint32_t)((uint8_t *)entry - queue->buffer) / MAX_ENTRY_SIZE < (queue->h.queue_size / MAX_ENTRY_SIZE));
+    DBG_PRINTF6("QueueAcquire: acquired entry %u with size %u\n", (uint32_t)((uint8_t *)entry - queue->buffer) / MAX_ENTRY_SIZE, ret.size);
     return ret;
 }
 
@@ -335,6 +358,8 @@ void QueuePush(tQueueHandle queueHandle, tQueueBuffer *const queueBuffer, bool f
     // Set commit state (in ctr) and keep the dlc in the transport layer header
     // Release - complete data is then visible to the consumer
     atomic_store_explicit(&entry->ctr_dlc, (CTR_COMMITTED << 16) | (uint32_t)(queueBuffer->size), memory_order_release);
+
+    DBG_PRINTF6("QueuePush: committed entry %u with size %u\n", (uint32_t)((uint8_t *)entry - queue->buffer) / MAX_ENTRY_SIZE, queueBuffer->size);
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -344,7 +369,7 @@ void QueuePush(tQueueHandle queueHandle, tQueueBuffer *const queueBuffer, bool f
 // Single consumer thread !!!!!!!!!!
 // The consumer does not contend against the providers
 
-// Get current transmit queue level in bytes (remaining after peek)
+// Get current transmit queue level in entries (remaining after peek)
 // Is thread safe (no undefined behaviour), but may have false negatives for queue not empty in other threads
 // Returns 0 when the queue is empty
 uint32_t QueueLevel(tQueueHandle queueHandle) {
@@ -352,10 +377,12 @@ uint32_t QueueLevel(tQueueHandle queueHandle) {
     if (queue == NULL)
         return 0;
     uint64_t head = atomic_load_explicit(&queue->h.head, memory_order_relaxed);
-    uint64_t peek_tail = atomic_load_explicit(&queue->h.tail, memory_order_relaxed) + atomic_load_explicit(&queue->h.peek_offset, memory_order_relaxed);
-    assert(head >= peek_tail);
-    assert(head - peek_tail <= queue->h.queue_size);
-    return (uint32_t)(head - peek_tail);
+    uint64_t tail = atomic_load_explicit(&queue->h.tail, memory_order_relaxed) + atomic_load_explicit(&queue->h.peek_offset, memory_order_relaxed);
+    assert(head >= tail);
+    uint32_t level = (uint32_t)(head - tail);
+    assert(level <= queue->h.queue_size);
+    assert((level % MAX_ENTRY_SIZE) == 0);
+    return level / MAX_ENTRY_SIZE;
 }
 
 // Check if there is a packet in the transmit queue
@@ -379,48 +406,45 @@ tQueueBuffer QueuePeek(tQueueHandle queueHandle, bool flush, uint32_t *packets_l
         }
     }
 
-    uint64_t head, tail;
-    uint32_t level;
-    uint32_t offset;
-    tXcpDtoMessage *entry;
-
-    tail = atomic_load_explicit(&queue->h.tail, memory_order_relaxed) + atomic_load_explicit(&queue->h.peek_offset, memory_order_relaxed);
-    head = atomic_load_explicit(&queue->h.head, memory_order_relaxed);
+    uint64_t tail = atomic_load_explicit(&queue->h.tail, memory_order_relaxed) + atomic_load_explicit(&queue->h.peek_offset, memory_order_relaxed);
+    uint64_t head = atomic_load_explicit(&queue->h.head, memory_order_relaxed);
 
     // Check if there is data in the queue
     assert(head >= tail);
-    level = (uint32_t)(head - tail);
+    uint32_t level = (uint32_t)(head - tail);
     assert(level <= queue->h.queue_size);
+    assert((level % MAX_ENTRY_SIZE) == 0);
     if (level == 0) { // Queue is empty
         tQueueBuffer ret = {
             .buffer = NULL,
             .size = 0,
         };
+        DBG_PRINT6("QueuePeek: queue is empty\n");
         return ret;
     }
 
     // Get a pointer to the entry in the queue
-    offset = (uint32_t)(tail % queue->h.queue_size);
-    entry = (tXcpDtoMessage *)(queue->buffer + offset);
+    tXcpDtoMessage *entry = (tXcpDtoMessage *)(queue->buffer + (tail % queue->h.queue_size));
 
-    // Check the entry commit state
+    //  Check the entry commit state
     uint32_t ctr_dlc = atomic_load_explicit(&entry->ctr_dlc, memory_order_acquire);
     uint16_t dlc = ctr_dlc & 0xFFFF;          // Transport layer packet data length
     uint16_t ctr = (uint16_t)(ctr_dlc >> 16); // Transport layer counter
     if (ctr != CTR_COMMITTED) {
 
         // This should never happen
-        // An entry is consistent, if it is neither in reserved or committed state
-        if (ctr != CTR_RESERVED) {
+        // An entry is consistent, if it is either in initial or committed state
+        if (ctr != 0) {
             DBG_PRINTF_ERROR("QueuePeek inconsistent reserved - h=%" PRIu64 ", t=%" PRIu64 ", level=%u, entry: (dlc=0x%04X, ctr=0x%04X)\n", head, tail, level, dlc, ctr);
             assert(false); // Fatal error, inconsistent state
         }
 
-        // Nothing to read, the first entry is still in reserved state
+        // Nothing to read, the first entry is still in reserved state, currently being written by the producer
         tQueueBuffer ret = {
             .buffer = NULL,
             .size = 0,
         };
+        DBG_PRINTF6("QueuePeek: entry %u is still in reserved state, queue level=%u \n", (uint32_t)((uint8_t *)entry - queue->buffer) / MAX_ENTRY_SIZE, level / MAX_ENTRY_SIZE);
         return ret;
     }
 
@@ -439,6 +463,7 @@ tQueueBuffer QueuePeek(tQueueHandle queueHandle, bool flush, uint32_t *packets_l
 
     // Set and increment the transport layer packet counter
     // The packet counter is obtained from the XCP transport layer
+    // Until QueueRelease clears it again, the entry may have the transport layer counter in ctr_dlc, as arbitrary state
     ctr_dlc = ((uint32_t)XcpTlGetCtr() << 16) | dlc;
     atomic_store_explicit(&entry->ctr_dlc, ctr_dlc, memory_order_relaxed);
 
@@ -449,6 +474,8 @@ tQueueBuffer QueuePeek(tQueueHandle queueHandle, bool flush, uint32_t *packets_l
         .buffer = (uint8_t *)entry,
         .size = dlc + XCPTL_TRANSPORT_LAYER_HEADER_SIZE, // Include the transport layer header size
     };
+
+    DBG_PRINTF6("QueuePeek: returning entry %u with size %u\n", (uint32_t)((uint8_t *)entry - queue->buffer) / MAX_ENTRY_SIZE, ret.size);
     return ret;
 }
 
@@ -460,8 +487,10 @@ void QueueRelease(tQueueHandle queueHandle, tQueueBuffer *const queueBuffer) {
     assert(queue != NULL);
     assert(queueBuffer->size > 0 && queueBuffer->size <= XCPTL_MAX_SEGMENT_SIZE);
 
-    // Clear the entries state
-    tXcpDtoMessage *entry = (tXcpDtoMessage *)queue->buffer;
+    DBG_PRINTF6("QueueRelease: releasing entry %u with size %u\n", (uint32_t)((uint8_t *)queueBuffer->buffer - queue->buffer) / MAX_ENTRY_SIZE, queueBuffer->size);
+
+    // Clear the entries state, so that it can never be in COMMITTED state when the producer increments the head !!
+    tXcpDtoMessage *entry = (tXcpDtoMessage *)queueBuffer->buffer;
     atomic_store_explicit(&entry->ctr_dlc, 0, memory_order_release);
 
     // Decrement peek offset

@@ -111,9 +111,18 @@
 #define OPTION_DAQ_EVENT_COUNT 128     // Maximum number of DAQ events (integer value, must be even)
 // #define OPTION_DAQ_ASYNC_EVENT         // Create an asynchronous, cyclic DAQ event for asynchronous data acquisition
 
-#define OPTION_QUEUE_64_FIX_SIZE
-// Transport layer queue, lockless fixed size (XCPTL_MAX_DTO_SIZE + XCPTL_TRANSPORT_LAYER_HEADER_SIZE (4))
+// Transport layer queue, lockless with variable queue entry size
+// For maximum memory efficiency, but more cache bouncing
+#define OPTION_QUEUE_64_VAR_SIZE
+
+// Transport layer queue, lockless with fixed queue entry size
+// For maximum performance, but less efficient memory usage with partially filled queue entries
+// Entry size is (XCPTL_MAX_DTO_SIZE (in xcptl_cfg.h currently set to 252) + XCPTL_TRANSPORT_LAYER_HEADER_SIZE (4))
 // Optimal overall queue size is multiple of cache line size
+// Tune XCPTL_MAX_DTO_SIZE for best compromise between memory efficiency and performance
+// Larger DTO size may not payoff, rely on transport layer message accumulation
+// Note that smaller DTO size than 252 would limit the CTO size as well
+// #define OPTION_QUEUE_64_FIX_SIZE
 
 //-------------------------------------------------------------------------------
 // A2L generation settings

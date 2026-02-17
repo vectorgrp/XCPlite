@@ -122,7 +122,6 @@ static uint64_t lockTimeSum = 0;
 static uint64_t lockCount = 0;
 #define LOCK_TIME_HISTOGRAM_SIZE 100 // max 100us in 1us steps
 #define LOCK_TIME_HISTOGRAM_STEP 10
-#define HISTOGRAM_STEP 100
 static uint64_t lockTimeHistogram[LOCK_TIME_HISTOGRAM_SIZE] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
