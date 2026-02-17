@@ -111,6 +111,10 @@
 #define OPTION_DAQ_EVENT_COUNT 128     // Maximum number of DAQ events (integer value, must be even)
 // #define OPTION_DAQ_ASYNC_EVENT         // Create an asynchronous, cyclic DAQ event for asynchronous data acquisition
 
+#define OPTION_QUEUE_64_FIX_SIZE
+// Transport layer queue, lockless fixed size (XCPTL_MAX_DTO_SIZE + XCPTL_TRANSPORT_LAYER_HEADER_SIZE (4))
+// Optimal overall queue size is multiple of cache line size
+
 //-------------------------------------------------------------------------------
 // A2L generation settings
 

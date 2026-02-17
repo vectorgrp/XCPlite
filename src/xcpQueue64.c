@@ -5,8 +5,7 @@
 | Description:
 |   XCP transport layer queue
 |   Multi producer single consumer queue (producer side is thread safe and lockless)
-|   Hardcoded for (ODT BYTE, fill BYTE, DAQ WORD,) 4 Byte XCP ODT header types
-|   Queue entries include XCP message header, queue can accumulate multiple XCP packets to a segment
+|   Queue entries include XCP transport layer message header, queue can accumulate multiple XCP packets to a segment
 |   Lock free with minimal wait implementation using a seq_lock and a spin loop on the producer side
 |   Optional mutex based mode for higher consumer throughput as a tradeoff for higher producer latency
 |   Tested on ARM weak memory model
@@ -21,6 +20,8 @@
 
 // Use xcpQueue32.c for 32 Bit platforms or on Windows
 #if defined(PLATFORM_64BIT) && !defined(_WIN) && !defined(OPTION_ATOMIC_EMULATION)
+
+#ifdef OPTION_QUEUE_64_VAR_SIZE
 
 #include "xcpQueue.h"
 
@@ -260,7 +261,7 @@ static tQueueHandle QueueInitFromMemory(void *queue_memory, uint32_t queue_memor
 
     DBG_PRINT3("Init XCP transport layer queue\n");
     DBG_PRINTF3("  XCPTL_MAX_SEGMENT_SIZE=%u, XCPTL_PACKET_ALIGNMENT=%u, queue: %u DTOs of max %u bytes, %uKiB\n", XCPTL_MAX_SEGMENT_SIZE, XCPTL_PACKET_ALIGNMENT,
-                queue->h.queue_size / MAX_ENTRY_SIZE, MAX_ENTRY_SIZE, (uint32_t)((queue->h.buffer_size + sizeof(tQueueHeader)) / 1024));
+                queue->h.queue_size / MAX_ENTRY_SIZE, MAX_ENTRY_SIZE - XCPTL_TRANSPORT_LAYER_HEADER_SIZE, (uint32_t)((queue->h.buffer_size + sizeof(tQueueHeader)) / 1024));
 #if defined(QUEUE_SEQ_LOCK)
     DBG_PRINT3("  QUEUE_SEQ_LOCK\n");
 #endif
@@ -798,4 +799,5 @@ void QueueRelease(tQueueHandle queueHandle, tQueueBuffer *const queueBuffer) {
 #endif
 }
 
+#endif // OPTION_QUEUE_64_VAR_SIZE
 #endif

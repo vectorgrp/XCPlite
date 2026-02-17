@@ -23,32 +23,34 @@ typedef struct tQueueHandleType *tQueueHandle;
 // Buffer acquired from the queue with `QueueAcquire` (producer) or from QueuePeek` (consumer)
 typedef struct {
     uint8_t *buffer;
+#if defined(PLATFORM_32BIT) || defined(_WIN) || defined(OPTION_ATOMIC_EMULATION)
     void *handle;
+#endif
     uint16_t size; // Size of the buffer in bytes
 } tQueueBuffer;
 
 // Create new heap allocated queue. Free using `QueueDeinit`
-tQueueHandle QueueInit(uint32_t buffer_size);
+tQueueHandle QueueInit(uint32_t size_in_bytes);
 
 // Deinitialize queue.
-void QueueDeinit(tQueueHandle queueHandle);
+void QueueDeinit(tQueueHandle queue_handle);
 
 // Acquire a queue buffer of size bytes
-tQueueBuffer QueueAcquire(tQueueHandle queueHandle, uint16_t size);
+tQueueBuffer QueueAcquire(tQueueHandle queue_handle, uint16_t size);
 
 // Push an aquired buffer to the queue
-void QueuePush(tQueueHandle queueHandle, tQueueBuffer *const handle, bool flush);
+void QueuePush(tQueueHandle queue_handle, tQueueBuffer *const queue_buffer, bool flush);
 
 // Single consumer: Get next buffer from the queue
-// Buffers must be released before aquiring a new one
-tQueueBuffer QueuePeek(tQueueHandle queueHandle, bool flush, uint32_t *packets_lost);
+// Buffers must be released before acquiring a new one
+tQueueBuffer QueuePeek(tQueueHandle queue_handle, bool flush, uint32_t *packets_lost);
 
 // Release buffer from `QueuePeek`
 // This is required to notify the queue that it can reuse a memory region.
-void QueueRelease(tQueueHandle queueHandle, tQueueBuffer *const queueBuffer);
+void QueueRelease(tQueueHandle queue_handle, tQueueBuffer *const queue_buffer);
 
 // Get amount of bytes in the queue, 0 if empty
-uint32_t QueueLevel(tQueueHandle queueHandle);
+uint32_t QueueLevel(tQueueHandle queue_handle);
 
 // Clear queue content
-void QueueClear(tQueueHandle queueHandle);
+void QueueClear(tQueueHandle queue_handle);

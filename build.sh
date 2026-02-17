@@ -256,6 +256,7 @@ if [ "$RUN_CLANG_TIDY" = true ] && [ "$BUILD_SUCCESS" = true ]; then
             "src/xcpEthTl.c"
             "src/xcpQueue32.c"
             "src/xcpQueue64.c"
+            "src/xcpQueue64f.c"
             "src/a2l.c"
             "src/persistence.c"
             "src/platform.c"

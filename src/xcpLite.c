@@ -93,12 +93,11 @@
 #if (XCPTL_MAX_DTO_SIZE < 8)
 #error "XCPTL_MAX_DTO_SIZE must be >= 8"
 #endif
-#else
-#error "Please define XCPTL_DTO_SIZE"
+#if (XCPTL_MAX_DTO_SIZE < XCPTL_MAX_CTO_SIZE)
+#error "XCPTL_MAX_DTO_SIZE must be >= XCPTL_MAX_CTO_SIZE"
 #endif
-
-#if XCPTL_MAX_CTO_SIZE > XCPTL_MAX_DTO_SIZE
-#error "XCPTL_MAX_CTO_SIZE>XCPTL_MAX_DTO_SIZE!"
+#else
+#error "Please define XCPTL_MAX_DTO_SIZE"
 #endif
 
 /* Max. size of an object referenced by an ODT entry XCP_MAX_ODT_ENTRY_SIZE may be limited  */
