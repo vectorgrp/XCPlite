@@ -32,10 +32,10 @@ int XcpTlSend(const uint8_t *data, uint16_t size, const uint8_t *addr, uint16_t 
 void XcpTlSendCrm(const uint8_t *data, uint8_t size);                                  // Transmit a packet (the packet contains a single XCP CRM command response message)
 uint16_t XcpTlGetCtr(void);                                                            // Get the next transmit message counter
 
-bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, bool blockingRx, tQueueHandle queue_handle); // Start transport layer
+bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, tQueueHandle queue_handle); // Start transport layer
 void XcpEthTlShutdown(void);
 void XcpEthTlGetInfo(bool *isTCP, uint8_t *mac, uint8_t *addr, uint16_t *port);
-bool XcpEthTlHandleCommands(uint32_t timeout_ms); // Handle all incoming XCP commands, (wait for at least timeout_ms)
+bool XcpEthTlHandleCommands(void); // Handle incoming XCP commands, blocking
 #ifdef XCPTL_ENABLE_MULTICAST
 void XcpEthTlSendMulticastCrm(const uint8_t *data, uint16_t n, const uint8_t *addr, uint16_t port); // Send multicast command response
 void XcpEthTlSetClusterId(uint16_t clusterId);                                                      // Set cluster id for GET_DAQ_CLOCK_MULTICAST reception

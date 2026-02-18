@@ -107,7 +107,7 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
         return false;
 
     // Initialize XCP transport layer
-    if (!XcpEthTlInit(addr, port, useTCP, true /*blocking rx*/, gXcpServer.TransmitQueue))
+    if (!XcpEthTlInit(addr, port, useTCP, gXcpServer.TransmitQueue))
         return false;
 
     // Start XCP protocol layer
@@ -169,7 +169,7 @@ extern void *XcpServerReceiveThread(void *par)
     // Receive XCP unicast commands loop
     gXcpServer.ReceiveThreadRunning = true;
     while (gXcpServer.ReceiveThreadRunning) {
-        if (!XcpEthTlHandleCommands(XCPTL_TIMEOUT_INFINITE)) { // Timeout Blocking
+        if (!XcpEthTlHandleCommands()) { // Blocking
             DBG_PRINT_ERROR("XcpEthTlHandleCommands failed!\n");
             break; // error -> terminate thread
         }

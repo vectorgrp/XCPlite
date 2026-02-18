@@ -304,10 +304,11 @@ typedef struct socket *SOCKET_HANDLE;
 #define SOCKADDR_IN struct sockaddr_in
 #define SOCKADDR struct sockaddr
 
-#define SOCKET_ERROR_ABORT EBADF
-#define SOCKET_ERROR_RESET EBADF
-#define SOCKET_ERROR_INTR EBADF
+#define SOCKET_ERROR_ABORT ECONNABORTED
+#define SOCKET_ERROR_RESET ECONNRESET
+#define SOCKET_ERROR_INTR EINTR
 #define SOCKET_ERROR_WBLOCK EAGAIN
+#define SOCKET_ERROR_PIPE EPIPE
 
 #undef htonll
 #define htonll(val) ((((uint64_t)htonl((uint32_t)(val))) << 32) + htonl((uint32_t)((val) >> 32)))
@@ -337,6 +338,7 @@ typedef struct socket *SOCKET_HANDLE;
 #define SOCKET_ERROR_ABORT WSAECONNABORTED
 #define SOCKET_ERROR_RESET WSAECONNRESET
 #define SOCKET_ERROR_INTR WSAEINTR
+#define SOCKET_ERROR_PIPE WSAECONNRESET // No EPIPE on Windows; connection reset is the closest equivalent
 
 int32_t socketGetLastError(void);
 
@@ -363,8 +365,12 @@ bool socketListen(SOCKET_HANDLE socket);
 SOCKET_HANDLE socketAccept(SOCKET_HANDLE socket, uint8_t *addr);
 int16_t socketRecv(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSize, bool waitAll);
 int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSize, uint8_t *srcAddr, uint16_t *srcPort, uint64_t *time);
-int16_t socketSend(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t bufferSize);
 int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t bufferSize, const uint8_t *addr, uint16_t port, uint64_t *time);
+int16_t socketSend(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t bufferSize);
+#if !defined(_WIN) // Non-Windows: vectored send functions
+int16_t socketSendToV(SOCKET_HANDLE socket, const uint8_t **buffers, const uint16_t *sizes, uint16_t count, const uint8_t *addr, uint16_t port);
+int16_t socketSendV(SOCKET_HANDLE socket, const uint8_t **buffers, const uint16_t *sizes, uint16_t count); // Non-Windows: vectored send for TCP using iovec (POSIX)
+#endif
 bool socketGetSendTime(SOCKET_HANDLE socket, uint64_t *txHwTime, uint64_t *txSwTime);
 bool socketShutdown(SOCKET_HANDLE socket);     // Shutdown socket for read and write
 bool socketClose(SOCKET_HANDLE *socketp);      // Close socket

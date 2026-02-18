@@ -695,9 +695,11 @@ bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
     bool hw_timestamps = flags & SOCKET_MODE_HW_TIMESTAMPING;
     bool sw_timestamps = flags & SOCKET_MODE_SW_TIMESTAMPING;
 
-    assert(!hw_timestamps); // Hardware timestamps not supported on Windows
-    assert(!sw_timestamps); // Software timestamps not supported on Windows
-    assert(!getifinfo);     // IP_PKTINFO not supported on Windows
+    assert(!hw_timestamps);       // Hardware timestamps not supported on Windows
+    assert(!sw_timestamps);       // Software timestamps not supported on Windows
+    assert(!getifinfo);           // IP_PKTINFO not supported on Windows
+    assert(nonBlocking == false); // Non-blocking sockets not implemented yet
+    (void)nonBlocking;
 
     // Create a socket
     if (!useTCP) {
@@ -720,11 +722,11 @@ bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
     }
 
     // Set nonblocking mode
-    u_long b = nonBlocking ? 1 : 0;
-    if (NO_ERROR != ioctlsocket(sock, FIONBIO, &b)) {
-        DBG_PRINTF_ERROR("%d - could not set non blocking mode!\n", socketGetLastError());
-        return false;
-    }
+    // u_long b = nonBlocking ? 1 : 0;
+    // if (NO_ERROR != ioctlsocket(sock, FIONBIO, &b)) {
+    //     DBG_PRINTF_ERROR("%d - could not set non blocking mode!\n", socketGetLastError());
+    //     return false;
+    // }
 
     // Make addr reusable
     if (reuseaddr) {
@@ -1005,7 +1007,7 @@ int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSiz
         } else if (n < 0) {
             int32_t err = socketGetLastError();
             if (err == SOCKET_ERROR_WBLOCK)
-                return 0;
+                return 0; // Would block, should never happen on a blocking socket
             if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR) {
                 return 0; // Socket closed
             }
@@ -1101,7 +1103,7 @@ int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSiz
         } else if (n < 0) {
             int32_t err = socketGetLastError();
             if (err == SOCKET_ERROR_WBLOCK)
-                return 0;
+                return 0; // Would block, should never happen on a blocking socket
             if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR) {
                 return 0; // Socket closed
             }
@@ -1136,7 +1138,7 @@ int16_t socketRecv(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t size, bool wa
     } else if (n < 0) {
         int32_t err = socketGetLastError();
         if (err == SOCKET_ERROR_WBLOCK)
-            return 0; // Would block
+            return 0; // Would block, should never happen on a blocking socket
         if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR) {
             return 0; // Socket closed
         }
@@ -1152,6 +1154,7 @@ int16_t socketRecv(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t size, bool wa
 // Support hardware timestamps if enabled on the socket and with OPTION_SOCKET_HW_TIMESTAMPS defined, otherwise system time is used
 // If *time = 0 on return, no timestamp is available yet, but can be obtained with socketGetSendTime()
 // On non-Linux platforms, *time is set to system time at send
+// Returns total number of bytes sent, 0 on socket closed or -1 on error
 int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t size, const uint8_t *addr, uint16_t port, uint64_t *time) {
 
     assert(socket != NULL);
@@ -1199,8 +1202,20 @@ int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t size,
         uint32_t ts_flags = SOF_TIMESTAMPING_TX_SOFTWARE | SOF_TIMESTAMPING_TX_HARDWARE;
         memcpy(CMSG_DATA(cmsg), &ts_flags, sizeof(ts_flags));
         *time = 0; // Clear time, to indicate that it may be obtained later with socketGetSendTime()
-
-        return (int16_t)sendmsg(sock, &msg, 0);
+        ssize_t n = sendmsg(sock, &msg, 0);
+        if (n < 0) {
+            int32_t err = socketGetLastError();
+            if (err == SOCKET_ERROR_WBLOCK) {
+                DBG_PRINT_ERROR("socketSendTo: unexpected WBLOCK\n");
+                return -1; // Should never happen on a blocking socket
+            }
+            if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR || err == SOCKET_ERROR_PIPE) {
+                return 0; // Socket closed
+            }
+            DBG_PRINTF_ERROR("socketSendTo: sendmsg failed with err=%d!\n", err);
+            return -1;
+        }
+        return (int16_t)n;
     }
 #else
 
@@ -1208,19 +1223,169 @@ int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t size,
         *time = clockGet(); // Return system time as send time on non-Linux platforms
 
 #endif
-
-    return (int16_t)sendto(sock, (const char *)buffer, size, 0, (SOCKADDR *)&sa, (uint16_t)sizeof(sa));
+    ssize_t n = sendto(sock, (const char *)buffer, size, 0, (SOCKADDR *)&sa, (uint16_t)sizeof(sa));
+    if (n < 0) {
+        int32_t err = socketGetLastError();
+        if (err == SOCKET_ERROR_WBLOCK) {
+            DBG_PRINT_ERROR("socketSendTo: unexpected WBLOCK\n");
+            return -1; // Should never happen on a blocking socket
+        }
+        if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR || err == SOCKET_ERROR_PIPE) {
+            return 0; // Socket closed
+        }
+        DBG_PRINTF_ERROR("socketSendTo: sendto failed with err=%d!\n", err);
+        return -1;
+    }
+    return (int16_t)n;
 }
 
-// Send datagram on socket
+// Send buffer on a TCP socket
 // Thread safe
+// Returns total number of bytes sent, 0 on socket closed or -1 on error
 int16_t socketSend(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t size) {
 
     assert(socket != NULL);
     SOCKET sock = socket->sock;
 
-    return (int16_t)send(sock, (const char *)buffer, size, 0);
+    ssize_t n = send(sock, (const char *)buffer, size, 0);
+    if (n < 0) {
+        int32_t err = socketGetLastError();
+        if (err == SOCKET_ERROR_WBLOCK) {
+            DBG_PRINT_ERROR("socketSend: unexpected WBLOCK\n");
+            return -1; // Should never happen on a blocking socket
+        }
+        if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR || err == SOCKET_ERROR_PIPE) {
+            return 0; // Socket closed
+        }
+        DBG_PRINTF_ERROR("socketSend: send failed with err=%d!\n", err);
+        return -1;
+    }
+    return (int16_t)n;
 }
+
+#if !defined(_WIN)
+
+// Send multiple datagrams on a UDP socket
+// Returns number of bytes sent or -1 on error
+// Send multiple buffers as a UDP datagram to a specific address/port
+// Using iovec for efficient scatter-gather I/O (POSIX: Linux, macOS, QNX)
+// Thread safe
+// buffers: array of pointers to data buffers
+// sizes:   array of buffer sizes, one per buffer
+// count:   number of buffers
+// Returns total number of bytes sent, 0 on socket closed or -1 on error
+int16_t socketSendToV(SOCKET_HANDLE socket, const uint8_t **buffers, const uint16_t *sizes, uint16_t count, const uint8_t *addr, uint16_t port) {
+
+    assert(socket != NULL);
+    assert(buffers != NULL);
+    assert(sizes != NULL);
+    assert(count > 0);
+    assert(addr != NULL);
+
+    SOCKET sock = socket->sock;
+
+    SOCKADDR_IN sa;
+    sa.sin_family = AF_INET;
+    memcpy(&sa.sin_addr.s_addr, addr, 4);
+    sa.sin_port = htons(port);
+
+    // Build iovec array on the stack - VLAs are acceptable here as count is usually small
+    struct iovec iov[count];
+    for (uint16_t i = 0; i < count; i++) {
+        iov[i].iov_base = (void *)buffers[i];
+        iov[i].iov_len = sizes[i];
+    }
+
+    struct msghdr msg;
+    memset(&msg, 0, sizeof(msg));
+    msg.msg_name = &sa;
+    msg.msg_namelen = sizeof(sa);
+    msg.msg_iov = iov;
+    msg.msg_iovlen = count;
+
+    ssize_t n = sendmsg(sock, &msg, 0);
+    if (n < 0) {
+        int32_t err = socketGetLastError();
+        if (err == SOCKET_ERROR_WBLOCK) {
+            DBG_PRINT_ERROR("socketSendToV: unexpected WBLOCK\n");
+            return -1; // Should never happen on a blocking socket
+        }
+        if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR || err == SOCKET_ERROR_PIPE) {
+            return 0; // Socket closed
+        }
+        DBG_PRINTF_ERROR("socketSendToV: sendmsg failed with err=%d!\n", err);
+        return -1;
+    }
+    return (int16_t)n;
+}
+
+// Send multiple buffers on a TCP socket
+// Using iovec for efficient scatter-gather I/O (POSIX: Linux, macOS, QNX)
+// Thread safe
+// buffers: array of pointers to data buffers
+// sizes:   array of buffer sizes, one per buffer
+// count:   number of buffers
+// Returns total number of bytes sent, 0 on socket closed or -1 on error
+int16_t socketSendV(SOCKET_HANDLE socket, const uint8_t **buffers, const uint16_t *sizes, uint16_t count) {
+
+    assert(socket != NULL);
+    assert(buffers != NULL);
+    assert(sizes != NULL);
+    assert(count > 0);
+
+    SOCKET sock = socket->sock;
+
+    // Build iovec array on the stack - VLAs are acceptable here as count is usually small
+    struct iovec iov[count];
+    for (uint16_t i = 0; i < count; i++) {
+        iov[i].iov_base = (void *)buffers[i];
+        iov[i].iov_len = sizes[i];
+    }
+
+    struct msghdr msg;
+    memset(&msg, 0, sizeof(msg));
+    msg.msg_iov = iov;
+    msg.msg_iovlen = count;
+
+    // TCP streams may deliver partial sends: loop until all data is accepted by the kernel
+    // Advance iovec entries as bytes are consumed to avoid re-sending already sent data
+    // Note: all sockets in this codebase are blocking (see socketOpen), so WBLOCK must not
+    // occur. If it does mid-loop, the iovec state is partially consumed and the caller cannot
+    // recover, so it is treated as an unrecoverable error rather than returning a partial count.
+    int16_t total = 0;
+    for (;;) {
+        ssize_t n = sendmsg(sock, &msg, 0);
+        if (n < 0) {
+            int32_t err = socketGetLastError();
+            if (err == SOCKET_ERROR_WBLOCK) {
+                DBG_PRINT_ERROR("socketSendV: unexpected WBLOCK\n");
+                return -1; // Should never happen on a blocking socket
+            }
+            if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR || err == SOCKET_ERROR_PIPE) {
+                return 0; // Socket closed
+            }
+            DBG_PRINTF_ERROR("socketSendV: sendmsg failed with err=%d!\n", err);
+            return -1;
+        }
+        total += (int16_t)n;
+
+        // Advance the iovec past the bytes already sent
+        size_t remaining = (size_t)n;
+        while (msg.msg_iovlen > 0 && remaining >= msg.msg_iov[0].iov_len) {
+            remaining -= msg.msg_iov[0].iov_len;
+            msg.msg_iov++;
+            msg.msg_iovlen--;
+        }
+        if (msg.msg_iovlen == 0)
+            break; // All data sent
+        // Adjust the first remaining iovec for the partial send
+        msg.msg_iov[0].iov_base = (uint8_t *)msg.msg_iov[0].iov_base + remaining;
+        msg.msg_iov[0].iov_len -= remaining;
+    }
+    return total;
+}
+
+#endif // !_WIN
 
 // Get send time of last sent packet
 // Retrieves TX hardware timestamp and kernel software timestamp from socket error queue

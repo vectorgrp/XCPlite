@@ -82,7 +82,6 @@ static struct {
     uint8_t ServerAddr[4];
     uint16_t ServerPort;
     bool ServerUseTCP;
-    bool blockingRx;
     uint8_t MasterAddr[4];
     uint16_t MasterPort;
     bool MasterAddrValid;
@@ -112,10 +111,10 @@ static int handleXcpMulticastCommand(int n, tXcpCtoMessage *p, uint8_t *dstAddr,
 //------------------------------------------------------------------------------
 // Ethernet transport layer socket functions
 
-// Transmit a UDP datagramm or TCP segment (contains multiple XCP DTO messages or a single CRM message
-// (len+ctr+packet+fill)) Must be thread safe, because it is called from CMD and from DAQ thread Returns -1 on would
-// block, 1 if ok, 0 on error
-static int XcpEthTlSend(const uint8_t *data, uint16_t size, const uint8_t *addr, uint16_t port) {
+// Transmit a UDP datagramm or TCP segment (contains multiple XCP DTO messages or a single CRM message (len+ctr+packet+fill))
+// Must be thread safe, because it is called from CMD and from DAQ thread
+// Returns false on error
+static bool XcpEthTlSend(const uint8_t *data, uint16_t size, const uint8_t *addr, uint16_t port) {
 
     int r;
 
@@ -140,7 +139,6 @@ static int XcpEthTlSend(const uint8_t *data, uint16_t size, const uint8_t *addr,
         } else { // Respond to active master
             if (!gXcpTl.MasterAddrValid) {
                 DBG_PRINT_ERROR("invalid master address!\n");
-                // gXcpTl.lastError = XCPTL_ERROR_INVALID_MASTER;
                 return 0;
             }
             r = socketSendTo(gXcpTl.Socket, data, size, gXcpTl.MasterAddr, gXcpTl.MasterPort, NULL);
@@ -149,17 +147,10 @@ static int XcpEthTlSend(const uint8_t *data, uint16_t size, const uint8_t *addr,
 #endif // UDP
 
     if (r != size) {
-        if (socketGetLastError() == SOCKET_ERROR_WBLOCK) {
-            // gXcpTl.lastError = XCPTL_ERROR_WOULD_BLOCK;
-            return -1; // Would block
-        } else {
-            DBG_PRINTF_ERROR("%d - XcpEthTlSend: send failed (result=%d)!\n", socketGetLastError(), r);
-            // gXcpTl.lastError = XCPTL_ERROR_SEND_FAILED;
-            return 0; // Error
-        }
+        DBG_PRINTF_ERROR("XcpEthTlSend: send failed (result=%d, size=%u)!\n", r, size);
+        return false;
     }
-
-    return 1; // Ok
+    return true;
 }
 
 //------------------------------------------------------------------------------
@@ -196,10 +187,9 @@ void XcpEthTlSendMulticastCrm(const uint8_t *packet, uint16_t packet_size, const
     p.dlc = (uint16_t)packet_size;
     p.ctr = 0;
     memcpy(p.packet, packet, packet_size);
-    r = XcpEthTlSend((uint8_t *)&p, (uint16_t)(packet_size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE), addr, port);
-    if (r == (-1)) { // Would block
-                     // @@@@ TODO: Handle this case
-    }
+
+    // No error handling, loosing a CRM message will lead to a timeout in the XCP client
+    XcpEthTlSend((uint8_t *)&p, (uint16_t)(packet_size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE), addr, port);
 }
 #endif
 
@@ -285,17 +275,11 @@ static bool handleXcpCommand(tXcpCtoMessage *p, uint8_t *srcAddr, uint16_t srcPo
 }
 
 // Handle incoming XCP commands
-// Blocking for timeout_ms, currently XCPTL_TIMEOUT_INFINITE only (blocking)
 // Returns false on error
-bool XcpEthTlHandleCommands(uint32_t timeout_ms) {
+bool XcpEthTlHandleCommands(void) {
 
     tXcpCtoMessage msgBuf;
     int16_t n;
-
-    // Timeout not used
-    // Behaviour depends on socket mode (blocking or non blocking)
-    (void)timeout_ms;
-    assert((!gXcpTl.blockingRx && timeout_ms == 0) || (gXcpTl.blockingRx && timeout_ms == XCPTL_TIMEOUT_INFINITE));
 
 #ifdef OPTION_ENABLE_DBG_METRICS
     gXcpRxPacketCount++;
@@ -438,7 +422,7 @@ extern void *XcpTlMulticastThread(void *par)
 
 // Initialize transport layer
 // Queue can be provided externally in Queue, if *Queue==NULL queue is returned
-bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, bool blockingRx, tQueueHandle Queue) {
+bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, tQueueHandle Queue) {
 
     DBG_PRINT3("Init XCP transport layer\n");
     DBG_PRINTF3("  MAX_CTO_SIZE=%u\n", XCPTL_MAX_CTO_SIZE);
@@ -465,7 +449,6 @@ bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, bool blocking
 
     gXcpTl.ServerPort = port;
     gXcpTl.ServerUseTCP = useTCP;
-    gXcpTl.blockingRx = blockingRx;
     gXcpTl.MasterAddrValid = false;
     gXcpTl.Socket = INVALID_SOCKET_HANDLE;
 
@@ -473,7 +456,7 @@ bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, bool blocking
 #ifdef XCPTL_ENABLE_TCP
     gXcpTl.ListenSocket = INVALID_SOCKET_HANDLE;
     if (useTCP) { // TCP
-        if (!socketOpen(&gXcpTl.ListenSocket, SOCKET_MODE_TCP | (blockingRx ? SOCKET_MODE_BLOCKING : 0) | SOCKET_MODE_REUSEADDR))
+        if (!socketOpen(&gXcpTl.ListenSocket, SOCKET_MODE_TCP | SOCKET_MODE_BLOCKING | SOCKET_MODE_REUSEADDR))
             return false;
         if (!socketBind(gXcpTl.ListenSocket, bind_addr, gXcpTl.ServerPort))
             return false;
@@ -488,7 +471,7 @@ bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, bool blocking
     } else
 #endif
     { // UDP
-        if (!socketOpen(&gXcpTl.Socket, (blockingRx ? SOCKET_MODE_BLOCKING : 0) | SOCKET_MODE_REUSEADDR))
+        if (!socketOpen(&gXcpTl.Socket, SOCKET_MODE_BLOCKING | SOCKET_MODE_REUSEADDR))
             return false;
         if (!socketBind(gXcpTl.Socket, bind_addr, port))
             return false; // Bind on ANY, when serverAddr=255.255.255.255
@@ -514,7 +497,7 @@ bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, bool blocking
 #ifdef XCPTL_ENABLE_MULTICAST
 
     // Open a socket for GET_DAQ_CLOCK_MULTICAST and join its multicast group
-    if (!socketOpen(&gXcpTl.MulticastSock, (blockingRx ? SOCKET_MODE_BLOCKING : 0) | SOCKET_MODE_REUSEADDR))
+    if (!socketOpen(&gXcpTl.MulticastSock, SOCKET_MODE_BLOCKING | SOCKET_MODE_REUSEADDR))
         return false;
     DBG_PRINTF3("  Bind XCP multicast socket to %u.%u.%u.%u:%u\n", bind_addr[0], bind_addr[1], bind_addr[2], bind_addr[3], XCPTL_MULTICAST_PORT);
     if (!socketBind(gXcpTl.MulticastSock, bind_addr, XCPTL_MULTICAST_PORT))
@@ -638,19 +621,15 @@ int32_t XcpTlHandleTransmitQueue(void) {
                 mutexUnlock(&gXcpTl.CtrMutex);
                 break; // queue is empty, break inner loop and sleep a bit
             } else {
-                // Send this frame
-                int r = XcpEthTlSend(b, l, NULL, 0);
+                // Send this frame (blocking)
+                bool r = XcpEthTlSend(b, l, NULL, 0);
                 mutexUnlock(&gXcpTl.CtrMutex);
 
                 // Free this buffer
                 QueueRelease(gXcpTl.Queue, &queueBuffer);
 
                 // Check result
-                if (r == (-1)) { // would block, packet lost
-                    b = NULL;
-                    break;
-                }
-                if (r == 0) { // error
+                if (!r) { // error
                     return -1;
                 }
                 n += l;
