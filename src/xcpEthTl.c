@@ -581,8 +581,14 @@ void XcpEthTlGetInfo(bool *isTcp, uint8_t *mac, uint8_t *addr, uint16_t *port) {
 //----------------------------------------------------------------------------
 // Generic transport layer functions
 
-// Transmit all completed and fully commited UDP frames
+// Transmit all completed and fully commited XCP DAQ and EVENT messages in the transmit queue as segments in UDP frames
 // Returns number of bytes sent or -1 on error
+#ifdef OPTION_QUEUE_64_FIX_SIZE
+
+int32_t XcpTlHandleTransmitQueue(void) { return 0; }
+
+#else
+
 int32_t XcpTlHandleTransmitQueue(void) {
 
     // Simply polling transmit queue
@@ -593,12 +599,12 @@ int32_t XcpTlHandleTransmitQueue(void) {
 
     // Burst rate
     const uint32_t max_inner_loops = 1000; // Maximum number of ethernet packets to send in a burst without sleeping
-#ifdef _WIN                                // Windows
+#ifdef _WIN // Windows
     // Timeout to give the caller a chance to do other heath checking or shutdown the server gracefully
     const uint32_t max_outer_loops = 10; // Number of outer loops before return
     // Sleep time in ms after burst or queue empty
     const uint32_t outer_loop_sleep_ms = 10; // Sleep time in ms for each outer loop
-#else                                        // Linux
+#else       // Linux
     // Timeout to give the caller a chance to do other heath checking or shutdown the server gracefully
     const uint32_t max_outer_loops = 100; // Number of outer loops before return
     // Sleep time in ms after burst or queue empty
@@ -622,7 +628,7 @@ int32_t XcpTlHandleTransmitQueue(void) {
             // Check if there is a segment with multiple messages in the transmit queue
             mutexLock(&gXcpTl.CtrMutex);
             uint32_t lost = 0;
-            tQueueBuffer queueBuffer = QueuePeek(gXcpTl.Queue, flush, &lost);
+            tQueueBuffer queueBuffer = QueuePop(gXcpTl.Queue, flush, &lost);
             flush = false;                // Reset flush flag
             gXcpTl.Ctr += (uint16_t)lost; // Increase packet counter by lost packets
             uint16_t l = queueBuffer.size;
@@ -665,6 +671,8 @@ int32_t XcpTlHandleTransmitQueue(void) {
     } // for(j)
     return n;
 }
+
+#endif
 
 // Wait (sleep) until transmit queue is empty
 // This function is thread safe, any thread can wait for transmit queue empty

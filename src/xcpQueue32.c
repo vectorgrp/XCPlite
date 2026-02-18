@@ -17,7 +17,7 @@
 #include "xcplib_cfg.h" // for OPTION_xxx
 
 // Use xcpQueue32.c for 32 Bit platforms or on Windows
-#if defined(PLATFORM_32BIT) || defined(_WIN) || defined(OPTION_ATOMIC_EMULATION)
+#if defined(PLATFORM_32BIT) || defined(_WIN) || defined(OPTION_ATOMIC_EMULATION) || (!defined(OPTION_QUEUE_64_FIX_SIZE) && !defined(OPTION_QUEUE_64_VAR_SIZE))
 
 #include "xcpQueue.h"
 
@@ -108,7 +108,7 @@ static void newSegmentBuffer(tQueue *queue) {
         queue->msg_ptr = b;
         queue->queue_len++;
         assert(queue->msg_ptr->magic == 0x12345678); // Check magic number
-        DBG_PRINTF5("getSegmentBuffer: queue_rp=%" PRIu32 ", queue_len=%" PRIu32 ", msg_ptr=%p\n", queue->queue_rp, queue->queue_len, queue->msg_ptr);
+        DBG_PRINTF5("getSegmentBuffer: queue_rp=%" PRIu32 ", queue_len=%" PRIu32 ", msg_ptr=%p\n", queue->queue_rp, queue->queue_len, (void *)queue->msg_ptr);
     }
 }
 
@@ -170,7 +170,7 @@ tQueueHandle QueueInit(uint32_t queue_buffer_size) {
 // Deinitialize and free the queue
 void QueueDeinit(tQueueHandle queueHandle) {
 
-    DBG_PRINTF4("QueueDeinit: queueHandle=%p\n", queueHandle);
+    DBG_PRINTF4("QueueDeinit: queueHandle=%p\n", (void *)queueHandle);
 
     tQueue *queue = (tQueue *)queueHandle;
     assert(queue != NULL);
@@ -196,7 +196,7 @@ tQueueBuffer QueueAcquire(tQueueHandle queueHandle, uint16_t packet_size) {
     tXcpSegmentBuffer *b = NULL;
     uint16_t msg_size;
 
-    DBG_PRINTF5("QueueAcquire: queueHandle=%p, packet_size=%" PRIu16 "\n", queueHandle, packet_size);
+    DBG_PRINTF5("QueueAcquire: queueHandle=%p, packet_size=%" PRIu16 "\n", (void *)queueHandle, packet_size);
 
     assert(packet_size > 0 && packet_size <= XCPTL_MAX_DTO_SIZE);
 
@@ -292,7 +292,7 @@ uint32_t QueueLevel(tQueueHandle queueHandle) {
 // Returns the number of packets lost since the last call to QueuePeek
 // May not be called twice, each buffer must be released with QueueRelease
 // Is not thread safe, must be called from the consumer thread only
-tQueueBuffer QueuePeek(tQueueHandle queueHandle, bool flush, uint32_t *packets_lost) {
+tQueueBuffer QueuePop(tQueueHandle queueHandle, bool flush, uint32_t *packets_lost) {
     tQueue *queue = (tQueue *)queueHandle;
     assert(queue != NULL);
 
@@ -350,7 +350,7 @@ tQueueBuffer QueuePeek(tQueueHandle queueHandle, bool flush, uint32_t *packets_l
             assert(m->dlc > 0 && m->dlc <= XCPTL_MAX_DTO_SIZE); // Check if the message length is valid
             assert(m->ctr == 0xCCCC);                           // Check if the message is in commited state
             m->ctr = XcpTlGetCtr();                             // Set the transport layer message counter
-            DBG_PRINTF5("QueuePeek: p=%p, dlc=%" PRIu16 ", ctr=0x%04X\n", p, m->dlc, m->ctr);
+            DBG_PRINTF5("QueuePeek: p=%p, dlc=%" PRIu16 ", ctr=0x%04X\n", (void *)p, m->dlc, m->ctr);
             p += m->dlc + XCPTL_TRANSPORT_LAYER_HEADER_SIZE;
         };
 

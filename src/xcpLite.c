@@ -1707,6 +1707,9 @@ static uint8_t XcpAddOdtEntry(uint32_t addr, uint8_t ext, uint8_t size) {
     if (XcpIsDaqRunning())
         return CRC_DAQ_ACTIVE;
 
+    DBG_PRINTF5("Add ODT entry, DAQ=%u, ODT=%u, idx=%u, addr=0x%X, ext=%u, size=%u\n", gXcp.WriteDaqDaq, gXcp.WriteDaqOdt,
+                gXcp.WriteDaqOdtEntry - DaqListOdtTable[gXcp.WriteDaqOdt].first_odt_entry, addr, ext, size);
+
     // DAQ list must have unique address extension
 #ifndef XCP_ENABLE_DAQ_ADDREXT
     uint8_t daq_ext = DaqListAddrExt(gXcp.WriteDaqDaq);
@@ -1724,8 +1727,10 @@ static uint8_t XcpAddOdtEntry(uint32_t addr, uint8_t ext, uint8_t size) {
         uint16_t event = XcpAddrDecodeDynEvent(addr);
         base_offset = XcpAddrDecodeDynOffset(addr);
         uint16_t e0 = DaqListEventChannel(gXcp.WriteDaqDaq);
-        if (e0 != XCP_UNDEFINED_EVENT_ID && e0 != event)
+        if (e0 != XCP_UNDEFINED_EVENT_ID && e0 != event) {
+            DBG_PRINTF_ERROR("DAQ list must have unique event channel, DAQ=%u, ODT=%u, event=%u, DaqListEventChannel=%u\n", gXcp.WriteDaqDaq, gXcp.WriteDaqOdt, event, e0);
             return CRC_OUT_OF_RANGE; // Error event channel redefinition
+        }
         DaqListEventChannel(gXcp.WriteDaqDaq) = event;
     } else
 #endif
@@ -1787,8 +1792,10 @@ static uint8_t XcpSetDaqListMode(uint16_t daq, uint16_t event_id, uint8_t mode, 
 
     // Check if the DAQ list requires a specific event and it matches
     uint16_t event_id0 = DaqListEventChannel(daq);
-    if (event_id0 != XCP_UNDEFINED_EVENT_ID && event_id != event_id0)
+    if (event_id0 != XCP_UNDEFINED_EVENT_ID && event_id != event_id0) {
+        DBG_PRINTF_ERROR("SET_DAQ_LIST_MODE (daq=%u,event=%u) event channel redefinition, DaqListEventChannel=%u\n", daq, event_id, event_id0);
         return CRC_DAQ_CONFIG; // Error event not unique
+    }
 
     // Check all DAQ lists with same event have the same address extension
     // @@@@ TODO: This restriction is not compliant to the XCP standard, must be ensured in the tool or the API

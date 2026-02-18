@@ -47,10 +47,12 @@ typedef struct params {
     uint16_t counter_max; // Maximum value of the counter
     uint32_t delay_us;    // Delay in microseconds for the thread loops
     bool run;             // Stop flag for the task
+    int8_t test_byte1;
+    int8_t test_byte2;
 } params_t;
 
 // Default parameters
-static const params_t params = {.counter_max = 1024, .delay_us = THREAD_DELAY_US, .run = true};
+static const params_t params = {.counter_max = 1024, .delay_us = THREAD_DELAY_US, .run = true, .test_byte1 = -1, .test_byte2 = 1};
 
 // Global calibration segment handle
 static tXcpCalSegIndex calseg = XCP_UNDEFINED_CALSEG;
@@ -97,6 +99,8 @@ void *task(void *p)
     A2lCreateMeasurementArrayInstance(task_name, array, "task array (to increase measurement workload)");
     A2lUnlock();
 
+    printf("thread %s running...\n", task_name);
+
     while (run && gRun) {
 
         {
@@ -131,7 +135,7 @@ void *task(void *p)
 // Demo main
 int main(void) {
 
-    printf("\nXCP on Ethernet multi thread demo\n");
+    printf("\nXCP on Ethernet multi thread daq test\n");
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 
@@ -165,6 +169,8 @@ int main(void) {
     A2lCreateParameter(params.counter_max, "Max counter value, wrap around", "", 0, 65535);
     A2lCreateParameter(params.delay_us, "task delay time in us", "us", 0, 1000000);
     A2lCreateParameter(params.run, "stop task", "", 0, 1);
+    A2lCreateParameter(params.test_byte1, "Test byte for calibration consistency test", "", -128, 127);
+    A2lCreateParameter(params.test_byte2, "Test byte for calibration consistency test", "", -128, 127);
 
     // Create multiple instances of task
     THREAD t[THREAD_COUNT];
@@ -173,14 +179,38 @@ int main(void) {
         create_thread(&t[i], task);
     }
 
-    sleepUs(200000);
-    A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
+    uint16_t counter = 0;
+
+    A2lLock();
+    DaqCreateEvent(mainloop);
+    A2lSetStackAddrMode(mainloop);
+    A2lCreateMeasurement(counter, "Main loop counter");
+    A2lUnlock();
+
+    sleepUs(200000); // Wait 200ms for the threads to start
+    A2lFinalize();   // Manually finalize the A2L file to make it visible without XCP tool connect
 
     // Wait for signal to stop
-    uint16_t counter = 0;
+    printf("main loop running - press Ctrl+C to stop...\n");
     while (gRun) {
+
         counter++;
-        sleepUs(100000); // 100ms
+
+        // Limit the counter by the max value from the calibration parameters, to test calibration access under heavy load
+        const params_t *params = (params_t *)XcpLockCalSeg(calseg);
+        if (counter > params->counter_max) {
+            counter = 0;
+        }
+
+        // Calibration consistency test under heavy load
+        if (params->test_byte1 != -params->test_byte2 && params->test_byte2 < 0) {
+            printf("Inconsistent %u:  %d -  %d\n", counter, params->test_byte1, params->test_byte2);
+        }
+
+        XcpUnlockCalSeg(calseg);
+
+        DaqTriggerEvent(mainloop);
+        sleepUs(100); // 100us
     }
 
     // Wait for all threads to finish

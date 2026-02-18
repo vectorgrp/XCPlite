@@ -542,7 +542,7 @@ uint32_t QueueLevel(tQueueHandle queueHandle) {
 // Returns the number of packets lost since the last call
 // May not be called twice, each buffer must be released immediately with QueueRelease
 // Is not thread safe, must be called from one consumer thread only
-tQueueBuffer QueuePeek(tQueueHandle queueHandle, bool flush, uint32_t *packets_lost) {
+tQueueBuffer QueuePop(tQueueHandle queueHandle, bool flush, uint32_t *packets_lost) {
     tQueue *queue = (tQueue *)queueHandle;
     assert(queue != NULL);
 

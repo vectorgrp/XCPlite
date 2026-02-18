@@ -3,11 +3,9 @@
 |   xcpQueue64f.c
 |
 | Description:
-|   XCP transport layer lockless, fixed max entry size queue
+|   Lockless, fixed max entry size queue used for the XCP on Ethernet transport layer
 |   Multi producer single consumer queue (producer side is thread safe and lockless)
-|   Queue entries include XCP transport layer message header, queue can accumulate multiple XCP packets to a segment
-|   Lock free with minimal wait implementation using a seq_lock and a spin loop on the producer side
-|   Optional mutex based mode for higher consumer throughput as a tradeoff for higher producer latency
+|   Queue entries include 32 bit XCP transport layer message header for zero copy transport layer message handling on the consumer side
 |   Tested on ARM weak memory model
 |
 | Copyright (c) Vector Informatik GmbH. All rights reserved.
@@ -39,6 +37,25 @@
 #include "xcpEthTl.h"  // for XcpTlGetCtr
 #include "xcptl_cfg.h" // for XCPTL_TRANSPORT_LAYER_HEADER_SIZE, XCPTL_MAX_DTO_SIZE
 
+/*
+XCP naming conventions for ethernet transport layer:
+Transport Layer segment, message, packet:
+    segment (UDP payload, MAX_SEGMENT_SIZE = UDP MTU) = message 1 + message 2 ... + message n
+    message = WORD len + WORD ctr + (protocol layer packet) + fill
+*/
+
+//-------------------------------------------------------------------------------------------------------------------------------------------------------
+// Settings
+
+// Size of the queue entries, including the transport layer header
+#define MAX_ENTRY_SIZE (XCPTL_MAX_DTO_SIZE + XCPTL_TRANSPORT_LAYER_HEADER_SIZE)
+
+// Assume a maximum cache line size of 128 bytes
+#define CACHE_LINE_SIZE 128u // Cache line size, used to align the queue header
+
+//-------------------------------------------------------------------------------------------------------------------------------------------------------
+// Checks
+
 // Turn of misaligned atomic access warnings
 // Alignment is assured by the queue header and the queue entry size alignment
 #ifdef __GNUC__
@@ -48,9 +65,6 @@
 #endif
 #ifdef _MSC_VER
 #endif
-
-// Assume a maximum cache line size of 128 bytes
-#define CACHE_LINE_SIZE 128u // Cache line size, used to align the queue header
 
 // Check for 64 Bit non Windows platform
 #if !defined(PLATFORM_64BIT) || defined(_WIN)
@@ -68,17 +82,18 @@ static_assert(sizeof(atomic_uint_least32_t) == 4, "atomic_uint_least32_t must be
 // static atomic_uint_least32_t _atomic_test_variable = 0;
 // static_assert(sizeof(_atomic_test_variable) == 4, "atomic_uint_least32_t must be usable");
 
-//-------------------------------------------------------------------------------------------------------------------------------------------------------
+// Preconditions
+#if (MAX_ENTRY_SIZE % CACHE_LINE_SIZE) != 0
+#error "MAX_ENTRY_SIZE should be modulo CACHE_LINE_SIZE for optimal performance"
+#endif
+#if (MAX_ENTRY_SIZE % XCPTL_PACKET_ALIGNMENT) != 0 // Minumum alignment for transport layer packet concatenation, if cache line size would not be a requirement
+#error "MAX_ENTRY_SIZE should be aligned to XCPTL_PACKET_ALIGNMENT"
+#endif
 
-/*
-Naming convention:
-Transport Layer segment, message, packet:
-    segment (UDP payload, MAX_SEGMENT_SIZE = UDP MTU) = message 1 + message 2 ... + message n
-    message = WORD len + WORD ctr + (protocol layer packet) + fill
-*/
-
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
-// Test queue acquire lock timing and spin performance test
+// Test
+
+// Queue acquire lock timing and spin performance test
 // For high contention use
 //   cargo test  --features=a2l_reader  -- --test-threads=1 --nocapture  --test test_multi_thread
 // Note that this tests have significant performance impact, do not turn on for production use !!!!!!!!!!!
@@ -109,31 +124,30 @@ static uint64_t get_timestamp_ns(void) {
 #endif
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
+// Types tQueueEntry, tQueueHeader, tQueue (tQueueBuffer defined in xcpQueue.h)
 
-// Size of the queue entries, including the transport layer header
-#define MAX_ENTRY_SIZE (XCPTL_MAX_DTO_SIZE + XCPTL_TRANSPORT_LAYER_HEADER_SIZE)
+// Queue entry states (in header)
+// Must be 0 (initial state of all entries) or ENTRY_COMMITTED
+#define ENTRY_COMMITTED 0xCCCCu // high word of the header if entry is committed by the producer, otherwise always 0
+#define ENTRY_SIZE_MASK 0xFFFFu // low word of the header encodes the size of the payload in bytes
 
-// Check preconditions
-#if (MAX_ENTRY_SIZE % CACHE_LINE_SIZE) != 0
-#error "MAX_ENTRY_SIZE should be modulo CACHE_LINE_SIZE for optimal performance"
-#endif
-#if (MAX_ENTRY_SIZE % XCPTL_PACKET_ALIGNMENT) != 0 // Minumum alignment for transport layer packet concatenation, if cache line size would not be a requirement
-#error "MAX_ENTRY_SIZE should be aligned to XCPTL_PACKET_ALIGNMENT"
-#endif
+// Queue entry
+// The atomic 32 bit header is used for producer/consumer acq/rel synchronization
+// It encodes the entry commit state and the entry payload length in a single atomic value
+// Payload size is therefore limitted to 65535 bytes
+// NOTE:
+// XCP relies on the fact that the queue header is fixed 4 bytes and can be used as the transport layer message header for the consumer
+// So a tQueueBuffer contains the packet payload for the producer and the transport layer message including the header for the consumer !!!
 
-// Queue entry states (in the ctr of the transport layer header)
-// Must be 0 (initial state of all entries) or CTR_COMMITTED
-#define CTR_COMMITTED 0xCCCCu // ctr value id committed by the producer
-
-// Transport layer message header
+// For XCP, the header is used as XCP on Ethernet transport layer message header (ctr+dlc)
 #pragma pack(push, 1)
 typedef struct {
-    atomic_uint_least32_t ctr_dlc;
+    atomic_uint_least32_t header;
     uint8_t data[];
-} tXcpDtoMessage;
+} tQueueEntry;
 #pragma pack(pop)
 
-static_assert(sizeof(tXcpDtoMessage) == XCPTL_TRANSPORT_LAYER_HEADER_SIZE, "tXcpDtoMessage size must be equal to XCPTL_TRANSPORT_LAYER_HEADER_SIZE");
+static_assert(sizeof(tQueueEntry) == XCPTL_TRANSPORT_LAYER_HEADER_SIZE, "tQueueEntry size must be equal to XCPTL_TRANSPORT_LAYER_HEADER_SIZE");
 
 // Queue header
 // Padded to cache line size
@@ -141,13 +155,12 @@ typedef struct {
     // Shared state
     atomic_uint_fast64_t head;         // Consumer reads from head
     atomic_uint_fast64_t tail;         // Producers write to tail
-    atomic_uint_fast64_t peek_offset;  // Current peek position
     atomic_uint_fast32_t packets_lost; // Packet lost counter, incremented by producers when a queue entry could not be acquired
     ATOMIC_BOOL flush;                 // Flush request from producer
 
     // Constant
     uint32_t queue_size; // Size of queue in bytes (for entry offset wrapping)
-    uint8_t padding[MAX_ENTRY_SIZE - 8 - 8 - 8 - 4 - 8 - 4];
+    uint8_t padding[MAX_ENTRY_SIZE - 8 - 8 - 4 - 8 - 4];
 } tQueueHeader;
 
 static_assert(((sizeof(tQueueHeader) % CACHE_LINE_SIZE) == 0), "QueueHeader size must be CACHE_LINE_SIZE");
@@ -159,6 +172,7 @@ typedef struct {
 } tQueue;
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
+// Implementation
 
 // Clear the queue
 void QueueClear(tQueueHandle queueHandle) {
@@ -169,7 +183,6 @@ void QueueClear(tQueueHandle queueHandle) {
     atomic_store_explicit(&queue->h.tail, 0, memory_order_relaxed);
     atomic_store_explicit(&queue->h.packets_lost, 0, memory_order_relaxed);
     atomic_store_explicit(&queue->h.flush, false, memory_order_relaxed);
-    atomic_store_explicit(&queue->h.peek_offset, 0, memory_order_relaxed);
 
     DBG_PRINT4("QueueClear\n");
 }
@@ -258,7 +271,7 @@ tQueueBuffer QueueAcquire(tQueueHandle queueHandle, uint16_t packet_len) {
     aligned_packet_len = (uint16_t)((aligned_packet_len + 7) & 0xFFF8); // Add fill %8
 #error "XCPTL_PACKET_ALIGNMENT == 8 is not supported, use 4"
 #endif
-    assert(packet_len <= XCPTL_MAX_DTO_SIZE);
+    assert(aligned_packet_len <= XCPTL_MAX_DTO_SIZE);
 
     // Calculate the message len (the number of bytes used in the fixed size entry including the header size)
     uint16_t msg_len = aligned_packet_len + XCPTL_TRANSPORT_LAYER_HEADER_SIZE;
@@ -270,7 +283,7 @@ tQueueBuffer QueueAcquire(tQueueHandle queueHandle, uint16_t packet_len) {
 #endif
 
     // Reserve a new entry
-    tXcpDtoMessage *entry = NULL;
+    tQueueEntry *entry = NULL;
     // In reserved state, the message entry is between tail and head, has valid dlc and ctr must be 0
     // This means the ctr must be 0 before the head is increment
     uint64_t tail = atomic_load_explicit(&queue->h.tail, memory_order_relaxed);
@@ -289,8 +302,8 @@ tQueueBuffer QueueAcquire(tQueueHandle queueHandle, uint16_t packet_len) {
         // Try to increment the head
         // Compare exchange weak in acq_rel/acq mode serializes with other producers, false negatives will spin
         if (atomic_compare_exchange_weak_explicit(&queue->h.head, &head, head + MAX_ENTRY_SIZE, memory_order_acq_rel, memory_order_acquire)) {
-            entry = (tXcpDtoMessage *)(queue->buffer + (head % queue->h.queue_size));
-            atomic_store_explicit(&entry->ctr_dlc, (uint32_t)packet_len, memory_order_release);
+            entry = (tQueueEntry *)(queue->buffer + (head % queue->h.queue_size));
+            atomic_store_explicit(&entry->header, (uint32_t)aligned_packet_len, memory_order_release);
             break;
         }
 #ifdef TEST_ACQUIRE_LOCK_TIMING
@@ -329,7 +342,7 @@ tQueueBuffer QueueAcquire(tQueueHandle queueHandle, uint16_t packet_len) {
     tQueueBuffer ret = {
         // Return a pointer to the payload data of this message entry
         .buffer = entry->data,
-        // Return the actual aligned size of the requested payload data size, which is the len stored in the transport layer header
+        // Return the actual aligned size of the requested payload data size, which is the len stored in the header
         .size = msg_len - XCPTL_TRANSPORT_LAYER_HEADER_SIZE,
     };
 
@@ -353,11 +366,11 @@ void QueuePush(tQueueHandle queueHandle, tQueueBuffer *const queueBuffer, bool f
 
     assert(queueBuffer != NULL);
     assert(queueBuffer->buffer != NULL);
-    tXcpDtoMessage *entry = (tXcpDtoMessage *)(queueBuffer->buffer - XCPTL_TRANSPORT_LAYER_HEADER_SIZE);
+    tQueueEntry *entry = (tQueueEntry *)(queueBuffer->buffer - XCPTL_TRANSPORT_LAYER_HEADER_SIZE);
 
-    // Set commit state (in ctr) and keep the dlc in the transport layer header
+    // Set commit state in the header
     // Release - complete data is then visible to the consumer
-    atomic_store_explicit(&entry->ctr_dlc, (CTR_COMMITTED << 16) | (uint32_t)(queueBuffer->size), memory_order_release);
+    atomic_store_explicit(&entry->header, (ENTRY_COMMITTED << 16) | (uint32_t)(queueBuffer->size), memory_order_release);
 
     DBG_PRINTF6("QueuePush: committed entry %u with size %u\n", (uint32_t)((uint8_t *)entry - queue->buffer) / MAX_ENTRY_SIZE, queueBuffer->size);
 }
@@ -369,7 +382,7 @@ void QueuePush(tQueueHandle queueHandle, tQueueBuffer *const queueBuffer, bool f
 // Single consumer thread !!!!!!!!!!
 // The consumer does not contend against the providers
 
-// Get current transmit queue level in entries (remaining after peek)
+// Get current transmit queue level in entries
 // Is thread safe (no undefined behaviour), but may have false negatives for queue not empty in other threads
 // Returns 0 when the queue is empty
 uint32_t QueueLevel(tQueueHandle queueHandle) {
@@ -377,7 +390,7 @@ uint32_t QueueLevel(tQueueHandle queueHandle) {
     if (queue == NULL)
         return 0;
     uint64_t head = atomic_load_explicit(&queue->h.head, memory_order_relaxed);
-    uint64_t tail = atomic_load_explicit(&queue->h.tail, memory_order_relaxed) + atomic_load_explicit(&queue->h.peek_offset, memory_order_relaxed);
+    uint64_t tail = atomic_load_explicit(&queue->h.tail, memory_order_relaxed);
     assert(head >= tail);
     uint32_t level = (uint32_t)(head - tail);
     assert(level <= queue->h.queue_size);
@@ -385,14 +398,15 @@ uint32_t QueueLevel(tQueueHandle queueHandle) {
     return level / MAX_ENTRY_SIZE;
 }
 
-// Check if there is a packet in the transmit queue
+// Check if there is a packet in the transmit queue at index
 // Return the packet length and a pointer to the message
 // Returns the number of packets lost since the last call
-// May be called multiple times, but the entries obtained must be released in the same order
-// Is not thread safe, must be called from one single consumer thread only
-tQueueBuffer QueuePeek(tQueueHandle queueHandle, bool flush, uint32_t *packets_lost) {
+// May be called multiple times, even with the same index, but the entries obtained must be released in sequential index order
+// Not thread safe, QueuePeek and QueueRelease must be called from one single consumer thread only
+tQueueBuffer QueuePeek(tQueueHandle queueHandle, int32_t index, bool flush, uint32_t *packets_lost) {
     tQueue *queue = (tQueue *)queueHandle;
     assert(queue != NULL);
+    assert(index == 0); // Only index 0 is supported in this implementation
 
     (void)flush; // Unused consumer flush request, suppress warning
     // @@@@ TODO: Handle flush requests from producer
@@ -406,40 +420,39 @@ tQueueBuffer QueuePeek(tQueueHandle queueHandle, bool flush, uint32_t *packets_l
         }
     }
 
-    uint64_t tail = atomic_load_explicit(&queue->h.tail, memory_order_relaxed) + atomic_load_explicit(&queue->h.peek_offset, memory_order_relaxed);
+    uint64_t tail = atomic_load_explicit(&queue->h.tail, memory_order_relaxed) + (index * MAX_ENTRY_SIZE);
     uint64_t head = atomic_load_explicit(&queue->h.head, memory_order_relaxed);
 
-    // Check if there is data in the queue
-    assert(head >= tail);
-    uint32_t level = (uint32_t)(head - tail);
-    assert(level <= queue->h.queue_size);
-    assert((level % MAX_ENTRY_SIZE) == 0);
-    if (level == 0) { // Queue is empty
+    // Check if there is data in the queue at index
+    if (head <= tail) {
         tQueueBuffer ret = {
             .buffer = NULL,
             .size = 0,
         };
-        DBG_PRINT6("QueuePeek: queue is empty\n");
+        DBG_PRINT6("QueuePeek: empty\n");
         return ret;
     }
+    uint32_t level = (uint32_t)(head - tail);
+    assert(level <= queue->h.queue_size);
+    assert((level % MAX_ENTRY_SIZE) == 0);
 
     // Get a pointer to the entry in the queue
-    tXcpDtoMessage *entry = (tXcpDtoMessage *)(queue->buffer + (tail % queue->h.queue_size));
+    tQueueEntry *entry = (tQueueEntry *)(queue->buffer + (tail % queue->h.queue_size));
 
     //  Check the entry commit state
-    uint32_t ctr_dlc = atomic_load_explicit(&entry->ctr_dlc, memory_order_acquire);
-    uint16_t dlc = ctr_dlc & 0xFFFF;          // Transport layer packet data length
-    uint16_t ctr = (uint16_t)(ctr_dlc >> 16); // Transport layer counter
-    if (ctr != CTR_COMMITTED) {
+    uint32_t header = atomic_load_explicit(&entry->header, memory_order_acquire);
+    uint16_t dlc = (uint16_t)(header & 0xFFFF); // Payload length
+    uint16_t ctr = (uint16_t)(header >> 16);    // Commit state
+    if (ctr != ENTRY_COMMITTED) {
 
         // This should never happen
         // An entry is consistent, if it is either in initial or committed state
         if (ctr != 0) {
-            DBG_PRINTF_ERROR("QueuePeek inconsistent reserved - h=%" PRIu64 ", t=%" PRIu64 ", level=%u, entry: (dlc=0x%04X, ctr=0x%04X)\n", head, tail, level, dlc, ctr);
+            DBG_PRINTF_ERROR("QueuePeek inconsistent reserved - h=%" PRIu64 ", t=%" PRIu64 ", level=%u, entry: (header=0x%04X)\n", head, tail, level, header);
             assert(false); // Fatal error, inconsistent state
         }
 
-        // Nothing to read, the first entry is still in reserved state, currently being written by the producer
+        // Nothing to read, the entry is still in reserved state, currently being written by the producer
         tQueueBuffer ret = {
             .buffer = NULL,
             .size = 0,
@@ -449,9 +462,10 @@ tQueueBuffer QueuePeek(tQueueHandle queueHandle, bool flush, uint32_t *packets_l
     }
 
     // This should never happen
+    // Assume this queue carries XCP DTO packets for consistency checks
     // An committed entry must have a valid length and an XCP ODT in it
-    if (!((ctr == CTR_COMMITTED) && (dlc > 0) && (dlc <= XCPTL_MAX_DTO_SIZE) && (entry->data[1] == 0xAA || entry->data[0] >= 0xFC))) {
-        DBG_PRINTF_ERROR("QueuePeek: inconsistent commit - h=%" PRIu64 ", t=%" PRIu64 ", level=%u, entry: (dlc=0x%04X, ctr=0x%04X, res=0x%02X)\n", head, tail, level, dlc, ctr,
+    if (!((ctr == ENTRY_COMMITTED) && (dlc > 0) && (dlc <= XCPTL_MAX_DTO_SIZE) && (entry->data[1] == 0xAA || entry->data[0] >= 0xFC))) {
+        DBG_PRINTF_ERROR("QueuePeek: inconsistent commit - h=%" PRIu64 ", t=%" PRIu64 ", level=%u, entry: (header=0x%04X, res=0x%02X)\n", head, tail, level, header,
                          entry->data[1]);
         assert(false); // Fatal error, corrupt committed state
         tQueueBuffer ret = {
@@ -463,12 +477,9 @@ tQueueBuffer QueuePeek(tQueueHandle queueHandle, bool flush, uint32_t *packets_l
 
     // Set and increment the transport layer packet counter
     // The packet counter is obtained from the XCP transport layer
-    // Until QueueRelease clears it again, the entry may have the transport layer counter in ctr_dlc, as arbitrary state
-    ctr_dlc = ((uint32_t)XcpTlGetCtr() << 16) | dlc;
-    atomic_store_explicit(&entry->ctr_dlc, ctr_dlc, memory_order_relaxed);
-
-    // Increment the peek offset
-    atomic_fetch_add_explicit(&queue->h.peek_offset, MAX_ENTRY_SIZE, memory_order_relaxed);
+    // Until QueueRelease clears it again, the entry may have the transport layer counter in header, as arbitrary state
+    header = ((uint32_t)XcpTlGetCtr() << 16) | dlc;
+    atomic_store_explicit(&entry->header, header, memory_order_relaxed);
 
     tQueueBuffer ret = {
         .buffer = (uint8_t *)entry,
@@ -480,7 +491,7 @@ tQueueBuffer QueuePeek(tQueueHandle queueHandle, bool flush, uint32_t *packets_l
 }
 
 // Advance the transmit queue tail
-// Entries obtained from QueuePeek must be released in the same order !!!
+// Entries obtained from QueuePeek must be released in correct order !!!
 // Is not thread safe, must be called from one single consumer thread only
 void QueueRelease(tQueueHandle queueHandle, tQueueBuffer *const queueBuffer) {
     tQueue *queue = (tQueue *)queueHandle;
@@ -490,15 +501,8 @@ void QueueRelease(tQueueHandle queueHandle, tQueueBuffer *const queueBuffer) {
     DBG_PRINTF6("QueueRelease: releasing entry %u with size %u\n", (uint32_t)((uint8_t *)queueBuffer->buffer - queue->buffer) / MAX_ENTRY_SIZE, queueBuffer->size);
 
     // Clear the entries state, so that it can never be in COMMITTED state when the producer increments the head !!
-    tXcpDtoMessage *entry = (tXcpDtoMessage *)queueBuffer->buffer;
-    atomic_store_explicit(&entry->ctr_dlc, 0, memory_order_release);
-
-    // Decrement peek offset
-    uint64_t peek_offset = atomic_fetch_sub_explicit(&queue->h.peek_offset, MAX_ENTRY_SIZE, memory_order_relaxed);
-    if (peek_offset == 0) {
-        DBG_PRINT_ERROR("QueueRelease: peek_offset underflow\n");
-        assert(false); // Fatal error, peek_offset underflow
-    }
+    tQueueEntry *entry = (tQueueEntry *)queueBuffer->buffer;
+    atomic_store_explicit(&entry->header, 0, memory_order_release);
 
     // Increment tail
     atomic_fetch_add_explicit(&queue->h.tail, MAX_ENTRY_SIZE, memory_order_release);
