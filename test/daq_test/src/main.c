@@ -23,11 +23,19 @@
 #include "xcp_cfg.h"
 #include "xcplib_cfg.h"
 
+#ifdef OPTION_ENABLE_DBG_METRICS
+extern uint32_t gXcpWritePendingCount;
+extern uint32_t gXcpCalSegPublishAllCount;
+extern uint32_t gXcpDaqEventCount;
+extern uint32_t gXcpTxPacketCount;
+extern uint32_t gXcpRxPacketCount;
+#endif
+
 //-----------------------------------------------------------------------------------------------------
 
 #define XCP_MAX_EVENT_NAME 15
-#define THREAD_COUNT 8      // Number of threads to create
-#define THREAD_DELAY_US 100 // Delay in microseconds for the thread loops
+#define THREAD_COUNT 8       // Number of threads to create
+#define THREAD_DELAY_US 1000 // Delay in microseconds for the thread loops
 
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
@@ -38,7 +46,7 @@
 #define OPTION_SERVER_PORT 5555             // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}     // Bind addr, 0.0.0.0 = ANY
 #define OPTION_QUEUE_SIZE (1024 * 1024 * 8) // Size of the measurement queue in bytes, should be large enough to cover at least 10ms of expected traffic
-#define OPTION_LOG_LEVEL 3                  // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_LOG_LEVEL 4                  // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 //-----------------------------------------------------------------------------------------------------
 // Demo calibration parameters
@@ -80,7 +88,7 @@ void *task(void *p)
 
     // Task local measurement variables on stack
     uint16_t counter = 0;
-    uint32_t array[256] = {0};
+    uint32_t array[64] = {0}; // 64*4=256 byte array
 
     // Instrumentation: Events and measurement variables
     // Register task local variables counter and channelx with stack addressing mode

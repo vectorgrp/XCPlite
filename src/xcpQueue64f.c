@@ -56,7 +56,7 @@
 // Overall size of the queue entries in the queue buffer
 // Including the user header and payload and the internal atomic queue entry state of 4 bytes
 // Should be a multiple of cache line size to optimize performance and to avoid false sharing
-#define QUEUE_ENTRY_SIZE (QUEUE_ENTRY_USER_SIZE + 4) // Includes entry_header
+#define QUEUE_ENTRY_SIZE (QUEUE_ENTRY_USER_SIZE + 4) // Includes entry_header sizeof(atomic_uint_least32_t) = 4 bytes
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 // Checks
@@ -129,35 +129,6 @@ Region              Events      % of total   Root cause
 280–3960 ns         13k          0.9%        SLC / interconnect fabric latency (flat tail)
 >3960 ns             1.4k        0.1%        macOS scheduler preemption
 
-
-Producer acquire lock time statistics: lock count=1448203, max spincount=3, max locktime=2736791ns,  avg locktime=119ns
-0ns: 49706
-40ns: 462944
-80ns: 281414
-120ns: 397774
-160ns: 150411
-200ns: 69710
-240ns: 17424
-280ns: 4951
-320ns: 2105
-360ns: 1088
-400ns: 1066
-440ns: 1160
-480ns: 503
-520ns: 454
-560ns: 379
-600ns: 308
-640ns: 259
-680ns: 227
-720ns: 232
-760ns: 214
-800ns: 246
-840ns: 228
-880ns: 231
-920ns: 201
-1000ns: 164
->3960ns: 1438
-
 */
 #endif
 
@@ -224,7 +195,7 @@ tQueueHandle QueueInit(uint32_t queue_memory_size) {
 
     // Allocate the queue memory, rounded up to (QUEUE_ENTRY_USER_PAYLOAD_SIZE+8) size
     // Allocated memory includes the queue descriptor
-    uint32_t aligned_memory_size = sizeof(tQueueHeader) + (queue_memory_size + (QUEUE_ENTRY_SIZE - 1)) & ~(QUEUE_ENTRY_SIZE - 1); // Round up to multiple of QUEUE_ENTRY_SIZE size
+    uint32_t aligned_memory_size = sizeof(tQueueHeader) + ((queue_memory_size + (QUEUE_ENTRY_SIZE - 1)) & ~(QUEUE_ENTRY_SIZE - 1)); // Round up to multiple of QUEUE_ENTRY_SIZE size
     queue = (tQueue *)aligned_alloc(CACHE_LINE_SIZE, aligned_memory_size);
     assert(queue != NULL);
     assert(((uint64_t)queue % CACHE_LINE_SIZE) == 0);                                  // Check alignment of the allocated memory
@@ -304,7 +275,7 @@ tQueueBuffer QueueAcquire(tQueueHandle queueHandle, uint16_t packet_len) {
 
     // Calculate the message len (the number of bytes used in the fixed size entry including the user header size)
     uint16_t msg_len = aligned_packet_len + QUEUE_ENTRY_USER_HEADER_SIZE;
-    assert(msg_len <= (QUEUE_ENTRY_SIZE - 8));
+    assert(msg_len <= QUEUE_ENTRY_USER_SIZE);
 
 #ifdef TEST_ACQUIRE_LOCK_TIMING
     uint64_t c = get_timestamp_ns();
@@ -399,7 +370,7 @@ void QueuePush(tQueueHandle queueHandle, tQueueBuffer *const queueBuffer, bool f
     // Get the pointer to the queue entry from the payload buffer pointer
     assert(queueBuffer != NULL);
     assert(queueBuffer->buffer != NULL);
-    tQueueEntry *entry = (tQueueEntry *)(queueBuffer->buffer - QUEUE_ENTRY_USER_HEADER_SIZE - sizeof(atomic_uint_least32_t));
+    tQueueEntry *entry = (tQueueEntry *)(queueBuffer->buffer - QUEUE_ENTRY_USER_HEADER_SIZE - 4);
     assert((uint32_t)((uint8_t *)entry - queue->buffer) % QUEUE_ENTRY_SIZE == 0); // Check that the entry pointer is correctly aligned to the entry size
 
     // Set commit state and the complete user payload size (header+payload) in the entry_header
@@ -514,8 +485,8 @@ tQueueBuffer QueuePeek(tQueueHandle queueHandle, int32_t index, bool flush, uint
     }
 
     tQueueBuffer ret = {
-        .buffer = (uint8_t *)entry + sizeof(atomic_uint_least32_t), // Return a byte pointer to the user header of this message entry, not to the payload
-        .size = payload_length,                                     // Includes the user header size
+        .buffer = (uint8_t *)entry + 4, // Return a byte pointer to the user header of this message entry, not to the payload
+        .size = payload_length,         // Includes the user header size
     };
     assert((uint32_t)((uint8_t *)entry - queue->buffer) % QUEUE_ENTRY_SIZE == 0);
     DBG_PRINTF5("QueuePeek: returning entry %u with payload size %u\n", (uint32_t)((uint8_t *)entry - queue->buffer) / QUEUE_ENTRY_SIZE, ret.size);
@@ -532,12 +503,11 @@ void QueueRelease(tQueueHandle queueHandle, tQueueBuffer *const queueBuffer) {
     assert(queueBuffer->buffer != NULL);
     assert(queueBuffer->size > 0 && queueBuffer->size <= XCPTL_MAX_SEGMENT_SIZE);
 
-    DBG_PRINTF5("QueueRelease: releasing entry %u with payload size %u\n",
-                (uint32_t)((uint8_t *)queueBuffer->buffer - queue->buffer - sizeof(atomic_uint_least32_t)) / QUEUE_ENTRY_SIZE, queueBuffer->size);
+    DBG_PRINTF5("QueueRelease: releasing entry %u with payload size %u\n", (uint32_t)((uint8_t *)queueBuffer->buffer - queue->buffer - 4) / QUEUE_ENTRY_SIZE, queueBuffer->size);
 
     // Clear the entries commit state
-    tQueueEntry *entry = (tQueueEntry *)(queueBuffer->buffer - sizeof(atomic_uint_least32_t)); // Get the pointer to the queue entry from the user header buffer pointer
-    assert((uint32_t)((uint8_t *)entry - queue->buffer) % QUEUE_ENTRY_SIZE == 0);              // Check that the entry pointer is correctly aligned to the entry size
+    tQueueEntry *entry = (tQueueEntry *)(queueBuffer->buffer - 4);                // Get the pointer to the queue entry from the user header buffer pointer
+    assert((uint32_t)((uint8_t *)entry - queue->buffer) % QUEUE_ENTRY_SIZE == 0); // Check that the entry pointer is correctly aligned to the entry size
     atomic_store_explicit(&entry->entry_header, 0, memory_order_release);
 
     // Increment the tail

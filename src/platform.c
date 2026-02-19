@@ -1300,9 +1300,11 @@ int16_t socketSendToV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t cou
 
     // Build iovec array on the stack - VLAs are acceptable here as count is usually small
     struct iovec iov[count];
+    int16_t total = 0;
     for (uint16_t i = 0; i < count; i++) {
         iov[i].iov_base = (void *)buffers[i].buffer;
         iov[i].iov_len = buffers[i].size;
+        total += (int16_t)buffers[i].size;
     }
 
     struct msghdr msg;
@@ -1326,6 +1328,7 @@ int16_t socketSendToV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t cou
         DBG_PRINTF_ERROR("socketSendToV: sendmsg failed with err=%d!\n", err);
         return -1;
     }
+    assert(total == n);
     return (int16_t)n;
 }
 
@@ -1392,6 +1395,7 @@ int16_t socketSendV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t count
         msg.msg_iov[0].iov_base = (uint8_t *)msg.msg_iov[0].iov_base + remaining;
         msg.msg_iov[0].iov_len -= remaining;
     }
+
     return total;
 }
 

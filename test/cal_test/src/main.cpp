@@ -20,7 +20,6 @@
 #undef OPTION_ATOMIC_EMULATION
 #include "dbg_print.h"
 #include "platform.h"
-// #include "xcpLite.h" // for metrics
 #include "xcp_cfg.h" // For XcpAddrEncodeSegIndex
 
 // Internally used XCP functions for testing
@@ -29,6 +28,14 @@ uint8_t XcpWriteMta(uint8_t size, const uint8_t *data);
 uint8_t XcpSetMta(uint8_t ext, uint32_t addr);
 uint8_t XcpCalSegCommand(uint8_t cmd);
 uint8_t XcpCalSegSetCalPage(uint8_t segment, uint8_t page, uint8_t mode);
+
+#ifdef OPTION_ENABLE_DBG_METRICS
+extern uint32_t gXcpWritePendingCount;
+extern uint32_t gXcpCalSegPublishAllCount;
+extern uint32_t gXcpDaqEventCount;
+extern uint32_t gXcpTxPacketCount;
+extern uint32_t gXcpRxPacketCount;
+#endif
 }
 
 //-----------------------------------------------------------------------------------------------------

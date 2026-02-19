@@ -232,8 +232,8 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
 uint32_t gXcpWritePendingCount = 0;
 uint32_t gXcpCalSegPublishAllCount = 0;
 uint32_t gXcpDaqEventCount = 0;
-uint32_t gXcpTxPacketCount;
-uint32_t gXcpRxPacketCount;
+uint32_t gXcpTxPacketCount = 0;
+uint32_t gXcpRxPacketCount = 0;
 #endif
 
 /****************************************************************************/

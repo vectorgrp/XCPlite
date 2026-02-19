@@ -605,10 +605,15 @@ void XcpEthTlGetInfo(bool *isTcp, uint8_t *mac, uint8_t *addr, uint16_t *port) {
 // Returns number of bytes sent or -1 on error
 #ifdef OPTION_QUEUE_64_FIX_SIZE
 
-#define MAX_BUFFERS (XCPTL_MAX_SEGMENT_SIZE / 32) // Max number of buffers that will be accumulated into a segment
-#define MIN_BYTES 32                              // Minimum number of bytes to accumulate into a segment
-#define MIN_UPDATE_TIME_MS 100                    // Update data at least every 100ms
-#define MAX_SLEEP_TIME_MS 1                       // 1ms sleep time when there is no segment ready to send
+// MTU currently set to 8000 (jumbo frames) -> XCPTL_MAX_SEGMENT_SIZE = 7968
+#define MAX_BUFFERS 128       // Max number of buffers that will be accumulated into a segment
+#define MIN_BYTES 4096        // Minimum number of bytes to accumulate into a segment
+#define MIN_UPDATE_TIME_MS 50 // Update data at least every 50ms
+#define MAX_SLEEP_TIME_MS 1   // 1ms sleep time when there is no segment ready to send
+
+#if MIN_BYTES > XCPTL_MAX_SEGMENT_SIZE
+#error "MIN_BYTES should be smaller than XCPTL_MAX_SEGMENT_SIZE"
+#endif
 
 int32_t XcpTlHandleTransmitQueue(void) {
 
