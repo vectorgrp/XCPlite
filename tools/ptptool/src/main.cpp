@@ -47,7 +47,7 @@ constexpr const char XCP_OPTION_PROJECT_VERSION[] = "V0.0.1";
 constexpr bool XCP_OPTION_USE_TCP = false;
 constexpr uint8_t XCP_OPTION_SERVER_ADDR[4] = {0, 0, 0, 0};
 constexpr uint16_t XCP_OPTION_SERVER_PORT = 5555;
-constexpr size_t XCP_OPTION_QUEUE_SIZE = 1024 * 16;
+constexpr size_t XCP_OPTION_QUEUE_SIZE = (1024 * 16);
 constexpr int XCP_OPTION_LOG_LEVEL = 2; // Default XCP log level: 0=none, 1=error, 2=warning, 3=info, 4=XCP protocol debug, 5=very verbose
 
 #define XCP_OPTION_PTP

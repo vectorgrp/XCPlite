@@ -26,7 +26,7 @@ constexpr const char XCP_OPTION_PROJECT_VERSION[] = "V1.2.0";
 constexpr bool XCP_OPTION_USE_TCP = false;
 constexpr uint8_t XCP_OPTION_SERVER_ADDR[4] = {0, 0, 0, 0};
 constexpr uint16_t XCP_OPTION_SERVER_PORT = 5555;
-constexpr size_t XCP_OPTION_QUEUE_SIZE = 1024 * 16;
+constexpr size_t XCP_OPTION_QUEUE_SIZE = (1024 * 32);
 constexpr int XCP_OPTION_LOG_LEVEL = 3; // Default XCP log level: 0=none, 1=error, 2=warning, 3=info, 4=XCP protocol debug, 5=very verbose
 
 uint8_t XCP_GRANDMASTER_UUID[] = {0x68, 0xB9, 0x83, 0xFF, 0xFE, 0x00, 0x8E, 0x9F}; // Grandmaster UUID

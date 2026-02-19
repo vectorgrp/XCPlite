@@ -1572,7 +1572,7 @@ static uint8_t XcpCheckMemory(void) {
     assert(((uint64_t)&OdtEntryAddrTable[0] % 4) == 0);                   // Check alignment
     assert(((uint64_t)&OdtEntrySizeTable[0] % 4) == 0);                   // Check alignment
 
-    DBG_PRINTF5("[XcpCheckMemory] %u of %u Bytes used\n", s, XCP_DAQ_MEM_SIZE);
+    DBG_PRINTF6("[XcpCheckMemory] %u of %u Bytes used\n", s, XCP_DAQ_MEM_SIZE);
     return 0;
 }
 

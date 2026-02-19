@@ -18,8 +18,8 @@
 #define OPTION_USE_TCP false            // TCP or UDP
 #define OPTION_SERVER_PORT 5555         // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE 1024 * 32     // Size of the measurement queue in bytes, must be a multiple of 8
-#define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_QUEUE_SIZE (1024 * 32)   // Size of the measurement queue in bytes
+#define OPTION_LOG_LEVEL 5              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 // #define OPTION_CANAPE_24                // Enable CANape 24 shared axis support for typedefs
 
 //-----------------------------------------------------------------------------------------------------
@@ -52,10 +52,11 @@ const params_t params = {
     .curve_axis = {0, 1, 2, 4, 6, 9, 13, 15},
 };
 
-volatile uint8_t g_param8 = 8;
-volatile uint16_t g_param16 = 16;
-volatile uint32_t g_param32 = 32;
-volatile uint64_t g_param64 = 64;
+// A2lGetTypeId does not work with volatile
+uint8_t g_param8 = 8;
+uint16_t g_param16 = 16;
+uint32_t g_param32 = 32;
+uint64_t g_param64 = 64;
 
 //-----------------------------------------------------------------------------------------------------
 
@@ -147,7 +148,7 @@ int main(void) {
     // A2lSetAbsoluteAddrMode(mainloop); // Works for aligned basic types, but still considered undefined behavior
     // To be safe in a single threaded scenario, access can be done in relative addressing mode with event synchronization as shown below
     // Write access relative to the module load address happens in the XcpEventExt(mainloop,ApplXcpGetModuleAddr()) call
-    // To make the compiler aware of this, the variables are volatile
+    // @@@@ TODO To make the compiler aware of this, the variables should volatile, A2lGetTypeId currently does not work with volatile
     // The same approach would work to modify local variables on the stack or in any other memory location
     A2lSetRelativeAddrMode(mainloop, ApplXcpGetModuleAddr());
     A2lCreateParameter(g_param8, "test calibration parameter without calibration segment", "", 0, 255);
@@ -168,9 +169,7 @@ int main(void) {
 
     // Register global measurement variables
     A2lSetAbsoluteAddrMode(mainloop);
-    A2lCreateMeasurement(counter, "Mainloop counter");
     A2lCreateMeasurement(g_param_sum, "Sum of g_paramxx for consistency check");
-
     A2lCreateMeasurement(g_counter8, "Measurement variable");
     A2lCreateMeasurement(g_counter16, "Measurement variable");
     A2lCreateMeasurement(g_counter32, "Measurement variable");
@@ -182,6 +181,7 @@ int main(void) {
 
     // Register measurement variables located on stack
     A2lSetStackAddrMode(mainloop);
+    A2lCreateMeasurement(counter, "Mainloop counter");
     A2lCreateMeasurement(counter8, "Measurement variable");
     A2lCreateMeasurement(counter16, "Measurement variable");
     A2lCreateMeasurement(counter32, "Measurement variable");

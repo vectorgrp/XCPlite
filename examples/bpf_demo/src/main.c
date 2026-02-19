@@ -28,7 +28,7 @@
 #define OPTION_USE_TCP true             // TCP or UDP
 #define OPTION_SERVER_PORT 5555         // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE 1024 * 512    // Size of the measurement queue in bytes, must be a multiple of 8
+#define OPTION_QUEUE_SIZE (1024 * 512)  // Size of the measurement queue in bytes
 #define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 // #define TO_XCP_TIMESTAMP(t) (t / 1000) // Convert to XCP timestamp in microseconds (OPTION_CLOCK_TICKS_1US)

@@ -61,7 +61,7 @@ In xcplib_cfg.h:
    4 - Trace
    5 - Debug
 */
-   #define OPTION_MAX_DBG_LEVEL 3 
+   #define OPTION_MAX_DBG_LEVEL 5 
    // #define OPTION_FIXED_DBG_LEVEL 3
 
 ```

@@ -1071,12 +1071,12 @@ int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSiz
                 ts = &hw[2];
                 t = (uint64_t)ts->tv_sec * 1000000000ULL + (uint64_t)ts->tv_nsec;
                 if (t != 0) {
-                    DBG_PRINT5("socketRecvFrom: timestamp taken from control messages SO_TIMESTAMPING [2]\n");
+                    DBG_PRINT6("socketRecvFrom: timestamp taken from control messages SO_TIMESTAMPING [2]\n");
                 } else {
                     ts = &hw[0];
                     t = (uint64_t)ts->tv_sec * 1000000000ULL + (uint64_t)ts->tv_nsec;
                     if (t != 0) {
-                        DBG_PRINT5("socketRecvFrom: timestamp taken from control messages SO_TIMESTAMPING [0]\n");
+                        DBG_PRINT6("socketRecvFrom: timestamp taken from control messages SO_TIMESTAMPING [0]\n");
                     }
                 }
 
@@ -1328,7 +1328,10 @@ int16_t socketSendToV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t cou
         DBG_PRINTF_ERROR("socketSendToV: sendmsg failed with err=%d!\n", err);
         return -1;
     }
-    assert(total == n);
+    if (total != n) {
+        DBG_PRINTF_WARNING("socketSendToV: partial send, sent %d of %d bytes\n", (int)n, (int)total);
+        return -1; // Treat partial sends as an error on UDP sockets, as the caller cannot recover
+    }
     return (int16_t)n;
 }
 

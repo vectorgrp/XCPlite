@@ -350,7 +350,7 @@ tQueueBuffer QueueAcquire(tQueueHandle queueHandle, uint16_t packet_len) {
     };
 
     assert((uint32_t)((uint8_t *)entry - queue->buffer) / QUEUE_ENTRY_SIZE < (queue->h.queue_buffer_size / (QUEUE_ENTRY_SIZE)));
-    DBG_PRINTF5("QueueAcquire: acquired entry %u with size %u\n", (uint32_t)((uint8_t *)entry - queue->buffer) / QUEUE_ENTRY_SIZE, ret.size);
+    DBG_PRINTF6("QueueAcquire: acquired entry %u with size %u\n", (uint32_t)((uint8_t *)entry - queue->buffer) / QUEUE_ENTRY_SIZE, ret.size);
     return ret;
 }
 
@@ -377,7 +377,7 @@ void QueuePush(tQueueHandle queueHandle, tQueueBuffer *const queueBuffer, bool f
     // Release store - complete data is then visible to the consumer
     atomic_store_explicit(&entry->entry_header, (ENTRY_COMMITTED << 16) | (uint32_t)(queueBuffer->size + QUEUE_ENTRY_USER_HEADER_SIZE), memory_order_release);
 
-    DBG_PRINTF5("QueuePush: committed entry %u with size %u\n", (uint32_t)((uint8_t *)entry - queue->buffer) / QUEUE_ENTRY_SIZE, queueBuffer->size);
+    DBG_PRINTF6("QueuePush: committed entry %u with size %u\n", (uint32_t)((uint8_t *)entry - queue->buffer) / QUEUE_ENTRY_SIZE, queueBuffer->size);
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -465,7 +465,7 @@ tQueueBuffer QueuePeek(tQueueHandle queueHandle, int32_t index, bool flush, uint
             .buffer = NULL,
             .size = 0,
         };
-        DBG_PRINTF5("QueuePeek: entry %u is still in reserved state, queue level=%u \n", (uint32_t)((uint8_t *)entry - queue->buffer) / QUEUE_ENTRY_SIZE, level / QUEUE_ENTRY_SIZE);
+        DBG_PRINTF6("QueuePeek: entry %u is still in reserved state, queue level=%u \n", (uint32_t)((uint8_t *)entry - queue->buffer) / QUEUE_ENTRY_SIZE, level / QUEUE_ENTRY_SIZE);
         return ret;
     }
 
@@ -489,7 +489,7 @@ tQueueBuffer QueuePeek(tQueueHandle queueHandle, int32_t index, bool flush, uint
         .size = payload_length,         // Includes the user header size
     };
     assert((uint32_t)((uint8_t *)entry - queue->buffer) % QUEUE_ENTRY_SIZE == 0);
-    DBG_PRINTF5("QueuePeek: returning entry %u with payload size %u\n", (uint32_t)((uint8_t *)entry - queue->buffer) / QUEUE_ENTRY_SIZE, ret.size);
+    DBG_PRINTF6("QueuePeek: returning entry %u with payload size %u\n", (uint32_t)((uint8_t *)entry - queue->buffer) / QUEUE_ENTRY_SIZE, ret.size);
     return ret;
 }
 
@@ -503,7 +503,7 @@ void QueueRelease(tQueueHandle queueHandle, tQueueBuffer *const queueBuffer) {
     assert(queueBuffer->buffer != NULL);
     assert(queueBuffer->size > 0 && queueBuffer->size <= XCPTL_MAX_SEGMENT_SIZE);
 
-    DBG_PRINTF5("QueueRelease: releasing entry %u with payload size %u\n", (uint32_t)((uint8_t *)queueBuffer->buffer - queue->buffer - 4) / QUEUE_ENTRY_SIZE, queueBuffer->size);
+    DBG_PRINTF6("QueueRelease: releasing entry %u with payload size %u\n", (uint32_t)((uint8_t *)queueBuffer->buffer - queue->buffer - 4) / QUEUE_ENTRY_SIZE, queueBuffer->size);
 
     // Clear the entries commit state
     tQueueEntry *entry = (tQueueEntry *)(queueBuffer->buffer - 4);                // Get the pointer to the queue entry from the user header buffer pointer

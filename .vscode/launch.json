@@ -42,6 +42,26 @@
             "preLaunchTask": "XCPlite: build cpp_demo"
         },
         {
+            "name": "Debug c_demo",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/c_demo",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "XCPlite: build c_demo"
+        },
+        {
             "name": "Debug ptp_demo",
             "type": "cppdbg",
             "request": "launch",

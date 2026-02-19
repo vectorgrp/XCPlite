@@ -102,6 +102,9 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
 
     // Create queue
     assert(queueSize > 0);
+    if (queueSize < XCPTL_MAX_SEGMENT_SIZE * 4) {
+        DBG_PRINT_WARNING("Queue size is smaller than XCPTL_MAX_SEGMENT_SIZE*4, may cause performance issues!\n");
+    }
     gXcpServer.TransmitQueue = QueueInit(queueSize);
     if (gXcpServer.TransmitQueue == NULL)
         return false;

@@ -723,7 +723,7 @@ tQueueBuffer QueuePop(tQueueHandle queueHandle, bool flush, uint32_t *packets_lo
     uint32_t max_offset = first_offset + level - 1;
     if (max_offset >= queue->h.queue_size) {
         max_offset = queue->h.queue_size - 1; // Don't read over wrap around
-        DBG_PRINTF5("%u-%u: QueuePeek: max_offset wrapped around, head=%" PRIu64 ", tail=%" PRIu64 ", level=%u, queue_size=%u\n", first_offset, max_offset, head, tail, level,
+        DBG_PRINTF6("%u-%u: QueuePeek: max_offset wrapped around, head=%" PRIu64 ", tail=%" PRIu64 ", level=%u, queue_size=%u\n", first_offset, max_offset, head, tail, level,
                     queue->h.queue_size);
     }
 

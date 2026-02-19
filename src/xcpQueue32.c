@@ -108,7 +108,7 @@ static void newSegmentBuffer(tQueue *queue) {
         queue->msg_ptr = b;
         queue->queue_len++;
         assert(queue->msg_ptr->magic == 0x12345678); // Check magic number
-        DBG_PRINTF5("getSegmentBuffer: queue_rp=%" PRIu32 ", queue_len=%" PRIu32 ", msg_ptr=%p\n", queue->queue_rp, queue->queue_len, (void *)queue->msg_ptr);
+        DBG_PRINTF6("getSegmentBuffer: queue_rp=%" PRIu32 ", queue_len=%" PRIu32 ", msg_ptr=%p\n", queue->queue_rp, queue->queue_len, (void *)queue->msg_ptr);
     }
 }
 
@@ -196,7 +196,7 @@ tQueueBuffer QueueAcquire(tQueueHandle queueHandle, uint16_t packet_size) {
     tXcpSegmentBuffer *b = NULL;
     uint16_t msg_size;
 
-    DBG_PRINTF5("QueueAcquire: queueHandle=%p, packet_size=%" PRIu16 "\n", (void *)queueHandle, packet_size);
+    DBG_PRINTF6("QueueAcquire: queueHandle=%p, packet_size=%" PRIu16 "\n", (void *)queueHandle, packet_size);
 
     assert(packet_size > 0 && packet_size <= XCPTL_MAX_DTO_SIZE);
 
@@ -225,7 +225,7 @@ tQueueBuffer QueueAcquire(tQueueHandle queueHandle, uint16_t packet_size) {
         p->dlc = (uint16_t)packet_size;
         b->size = (uint16_t)(b->size + msg_size);
         b->uncommitted++;
-        DBG_PRINTF5("QueueAcquire: size=%" PRIu16 ", uncommitted=%" PRIu16 "\n", b->size, b->uncommitted);
+        DBG_PRINTF6("QueueAcquire: size=%" PRIu16 ", uncommitted=%" PRIu16 "\n", b->size, b->uncommitted);
     } else {
         // No segment buffer available, queue overflow
         queue->packets_lost++;
@@ -253,7 +253,7 @@ void QueuePush(tQueueHandle queueHandle, tQueueBuffer *const queueBuffer, bool f
 
     tQueue *queue = (tQueue *)queueHandle;
 
-    DBG_PRINTF5("QueuePush: size=%" PRIu16 ", uncommitted=%" PRIu16 "\n", queueBuffer->size, ((tXcpSegmentBuffer *)queueBuffer->handle)->uncommitted);
+    DBG_PRINTF6("QueuePush: size=%" PRIu16 ", uncommitted=%" PRIu16 "\n", queueBuffer->size, ((tXcpSegmentBuffer *)queueBuffer->handle)->uncommitted);
 
     mutexLock(&queue->Mutex_Queue);
 
@@ -309,7 +309,7 @@ tQueueBuffer QueuePop(tQueueHandle queueHandle, bool flush, uint32_t *packets_lo
     if (packets_lost != NULL) {
         *packets_lost = queue->packets_lost;
         if (*packets_lost > 0)
-            DBG_PRINTF5("QueuePeek: packets_lost=%" PRIu32 "\n", *packets_lost);
+            DBG_PRINTF6("QueuePeek: packets_lost=%" PRIu32 "\n", *packets_lost);
         queue->packets_lost = 0; // Reset lost packets count
     }
 
@@ -322,7 +322,7 @@ tQueueBuffer QueuePop(tQueueHandle queueHandle, bool flush, uint32_t *packets_lo
 
         // Flush tail segment buffer if it is not empty
         if (queue->queue_len == 1 && b->size > 0 && flush) {
-            DBG_PRINT5("QueuePeek: flush\n");
+            DBG_PRINT6("QueuePeek: flush\n");
             newSegmentBuffer(queue);
         }
 
@@ -347,7 +347,7 @@ tQueueBuffer QueuePop(tQueueHandle queueHandle, bool flush, uint32_t *packets_lo
 
     else {
 
-        DBG_PRINTF5("QueuePeek: flush=%d, packets_lost=%" PRIu32 ", size=%" PRIu32 "\n", flush, *packets_lost, b->size);
+        DBG_PRINTF6("QueuePeek: flush=%d, packets_lost=%" PRIu32 ", size=%" PRIu32 "\n", flush, *packets_lost, b->size);
 
         // Update the transport layer message counters
         uint8_t *p = b->msg_buffer;
@@ -357,7 +357,7 @@ tQueueBuffer QueuePop(tQueueHandle queueHandle, bool flush, uint32_t *packets_lo
             assert(m->dlc > 0 && m->dlc <= XCPTL_MAX_DTO_SIZE); // Check if the message length is valid
             assert(m->ctr == 0xCCCC);                           // Check if the message is in commited state
             m->ctr = XcpTlGetCtr();                             // Set the transport layer message counter
-            DBG_PRINTF5("QueuePeek: p=%p, dlc=%" PRIu16 ", ctr=0x%04X\n", (void *)p, m->dlc, m->ctr);
+            DBG_PRINTF6("QueuePeek: p=%p, dlc=%" PRIu16 ", ctr=0x%04X\n", (void *)p, m->dlc, m->ctr);
             p += m->dlc + XCPTL_TRANSPORT_LAYER_HEADER_SIZE;
         };
 
@@ -374,7 +374,7 @@ tQueueBuffer QueuePop(tQueueHandle queueHandle, bool flush, uint32_t *packets_lo
 void QueueRelease(tQueueHandle queueHandle, tQueueBuffer *const queueBuffer) {
     tQueue *queue = (tQueue *)queueHandle;
 
-    DBG_PRINTF5("QueueRelease: size=%" PRIu16 "\n", queueBuffer->size);
+    DBG_PRINTF6("QueueRelease: size=%" PRIu16 "\n", queueBuffer->size);
 
     // Free this segment buffer when successfully sent
     mutexLock(&queue->Mutex_Queue);

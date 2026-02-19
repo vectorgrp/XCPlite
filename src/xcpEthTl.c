@@ -195,7 +195,7 @@ static bool XcpEthTlSendV(tQueueBuffer buffers[], uint16_t count) {
 void XcpTlSendCrm(const uint8_t *data, uint8_t size) {
     assert(size <= XCPTL_MAX_CTO_SIZE); // Check for buffer overflow
 
-    DBG_PRINTF5("XcpEthTlSendCrm: msg_len = %u\n", size);
+    DBG_PRINTF6("XcpEthTlSendCrm: msg_len = %u\n", size);
 
     mutexLock(&gXcpTl.CtrMutex);
 
@@ -239,7 +239,7 @@ static bool handleXcpCommand(tXcpCtoMessage *p, uint8_t *srcAddr, uint16_t srcPo
 
 #ifdef DBG_LEVEL
     if (DBG_LEVEL >= 5) {
-        DBG_PRINTF5("RX: CTR %04X LEN %04X DATA = ", p->ctr, p->dlc);
+        DBG_PRINTF6("RX: CTR %04X LEN %04X DATA = ", p->ctr, p->dlc);
         for (int i = 0; i < p->dlc; i++)
             printf("%0X ", p->packet[i]);
         printf("\n");
@@ -606,7 +606,8 @@ void XcpEthTlGetInfo(bool *isTcp, uint8_t *mac, uint8_t *addr, uint16_t *port) {
 #ifdef OPTION_QUEUE_64_FIX_SIZE
 
 // MTU currently set to 8000 (jumbo frames) -> XCPTL_MAX_SEGMENT_SIZE = 7968
-#define MAX_BUFFERS 128       // Max number of buffers that will be accumulated into a segment
+// Queue size currently typically at least 32KByte
+#define MAX_BUFFERS 128       // Max number of buffers that can be accumulated into a segment
 #define MIN_BYTES 4096        // Minimum number of bytes to accumulate into a segment
 #define MIN_UPDATE_TIME_MS 50 // Update data at least every 50ms
 #define MAX_SLEEP_TIME_MS 1   // 1ms sleep time when there is no segment ready to send
@@ -647,11 +648,12 @@ int32_t XcpTlHandleTransmitQueue(void) {
 
     // Check if we can (or want) to transmit a segment, if not sleep a bit to avoid busy waiting and return
     // Wait if there are less than MIN_BYTES and time since last transmit is shorter than MIN_UPDATE_TIME_MS
-    if (index == 0 || (length < MIN_BYTES && (clockGetLast() - gXcpTl.last_transmit_time) < (MIN_UPDATE_TIME_MS * CLOCK_TICKS_PER_MS))) {
+    if (length == 0 || (length < MIN_BYTES && (clockGet() - gXcpTl.last_transmit_time) < (MIN_UPDATE_TIME_MS * CLOCK_TICKS_PER_MS))) {
         // @@@@ TODO:
         // Optimize MAX_SLEEP_TIME_MS for max throughput versus number of packets send on low throughput scenarios
         sleepMs(MAX_SLEEP_TIME_MS);
-        DBG_PRINTF5("No segment ready to send, length=%u, sleep a bit\n", length);
+        if (length != 0)
+            DBG_PRINTF6("Queue has data, not ready to send, length=%u, sleep a bit\n", length);
         return 0; // No message to send
     }
 
@@ -675,11 +677,11 @@ int32_t XcpTlHandleTransmitQueue(void) {
 
     mutexUnlock(&gXcpTl.CtrMutex);
 
-    gXcpTl.last_transmit_time = clockGetLast(); // Update last transmit time
+    gXcpTl.last_transmit_time = clockGet(); // Update last transmit time
 
     // Free all queue buffers
     for (uint32_t i = 0; i < index; i++) {
-        DBG_PRINTF5("Releasing buffer %u, size=%u\n", i, queue_buffers[i].size);
+        DBG_PRINTF6("Releasing buffer %u, size=%u\n", i, queue_buffers[i].size);
         QueueRelease(gXcpTl.Queue, &queue_buffers[i]);
     }
 
@@ -777,14 +779,19 @@ int32_t XcpTlHandleTransmitQueue(void) {
 // Timeout after timeout_ms milliseconds
 bool XcpTlWaitForTransmitQueueEmpty(uint16_t timeout_ms) {
     DBG_PRINTF5("XcpTlWaitForTransmitQueueEmpty: timeout=%u\n", timeout_ms);
-    do {
+    for (;;) {
         sleepMs(20);
         if (timeout_ms < 20) { // Wait max timeout_ms until the transmit queue is empty
             DBG_PRINT5("XcpTlWaitForTransmitQueueEmpty: timeout reached\n");
             return false;
         };
         timeout_ms -= 20;
-    } while (QueueLevel(gXcpTl.Queue, NULL) != 0);
+        uint32_t max_level;
+        uint32_t level = QueueLevel(gXcpTl.Queue, &max_level);
+        DBG_PRINTF6("XcpTlWaitForTransmitQueueEmpty: level=%u, max_level=%u\n", level, max_level);
+        if (level == 0)
+            break; // Transmit queue is empty
+    }
     return true;
 }
 
