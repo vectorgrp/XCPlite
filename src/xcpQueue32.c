@@ -279,8 +279,15 @@ void QueuePush(tQueueHandle queueHandle, tQueueBuffer *const queueBuffer, bool f
 // Get transmit queue level in segments
 // This function is thread safe, any thread can ask for the queue level
 // Not used by the queue implementation itself
-uint32_t QueueLevel(tQueueHandle queueHandle) {
+uint32_t QueueLevel(tQueueHandle queueHandle, uint32_t *queue_max_level) {
     tQueue *queue = (tQueue *)queueHandle;
+    if (queue == NULL) {
+        if (queue_max_level != NULL)
+            *queue_max_level = 0;
+        return 0;
+    }
+    if (queue_max_level != NULL)
+        *queue_max_level = queue->queue_size;
     if (queue->queue_len > 1 || (queue->queue_len == 1 && queue->msg_ptr != NULL && queue->msg_ptr->size > 0)) {
         return queue->queue_len;
     }

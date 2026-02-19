@@ -411,7 +411,8 @@ bool socketBind(SOCKET_HANDLE socket, const uint8_t *addr, uint16_t port) {
     }
     a.sin_port = htons(port);
     if (bind(sock, (SOCKADDR *)&a, sizeof(a)) < 0) {
-        DBG_PRINTF_ERROR("%d - cannot bind on %u.%u.%u.%u port %u!\n", socketGetLastError(), addr ? addr[0] : 0, addr ? addr[1] : 0, addr ? addr[2] : 0, addr ? addr[3] : 0, port);
+        DBG_PRINTF_ERROR("socketBind failed (err=%d) - cannot bind on %u.%u.%u.%u port %u!\n", socketGetLastError(), addr ? addr[0] : 0, addr ? addr[1] : 0, addr ? addr[2] : 0,
+                         addr ? addr[3] : 0, port);
         return 0;
     }
 
@@ -431,7 +432,7 @@ bool socketBindToDevice(SOCKET_HANDLE socket, const char *ifname) {
     int sock = socket->sock;
     if (ifname != NULL && ifname[0] != '\0') {
         if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, ifname, strlen(ifname)) < 0) {
-            DBG_PRINTF_ERROR("%d - failed to bind socket to device %s !\n", socketGetLastError(), ifname);
+            DBG_PRINTF_ERROR("socketBindToDevice failed (err=%d) - cannot bind to device %s !\n", socketGetLastError(), ifname);
             return false;
         }
         DBG_PRINTF3("Socket bound to device %s\n", ifname);
@@ -717,14 +718,14 @@ bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
         sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     }
     if (sock == INVALID_SOCKET) {
-        DBG_PRINTF_ERROR("%d - could not create socket!\n", socketGetLastError());
+        DBG_PRINTF_ERROR("socketOpen failed (err=%d) - could not create socket!\n", socketGetLastError());
         return false;
     }
 
     // Set nonblocking mode
     // u_long b = nonBlocking ? 1 : 0;
     // if (NO_ERROR != ioctlsocket(sock, FIONBIO, &b)) {
-    //     DBG_PRINTF_ERROR("%d - could not set non blocking mode!\n", socketGetLastError());
+    //     DBG_PRINTF_ERROR("socketOpen failed (err=%d) - could not set non blocking mode!\n", socketGetLastError());
     //     return false;
     // }
 
@@ -732,11 +733,12 @@ bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
     if (reuseaddr) {
         uint32_t one = 1;
         if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const char *)&one, sizeof(one)) < 0) {
-            DBG_PRINTF_WARNING("Failed to enable SO_REUSEADDR on socket (errno=%d)\n", socketGetLastError());
+            DBG_PRINTF_WARNING("socketOpen failed (err=%d) - could not enable SO_REUSEADDR on socket\n", socketGetLastError());
         }
     }
 
     SOCKET_HANDLE socket = (struct socket *)malloc(sizeof(struct socket));
+    assert(socket != NULL);
     memset(socket, 0, sizeof(struct socket));
     socket->sock = sock;
     socket->flags = flags;
@@ -762,8 +764,8 @@ bool socketBind(SOCKET_HANDLE socket, const uint8_t *addr, uint16_t port) {
         if (socketGetLastError() == WSAEADDRINUSE) {
             DBG_PRINT_ERROR("Port is already in use!\n");
         } else {
-            DBG_PRINTF_ERROR("%d - cannot bind on %u.%u.%u.%u port %u!\n", socketGetLastError(), addr ? addr[0] : 0, addr ? addr[1] : 0, addr ? addr[2] : 0, addr ? addr[3] : 0,
-                             port);
+            DBG_PRINTF_ERROR("socketBind failed (err=%d) - cannot bind on %u.%u.%u.%u port %u!\n", socketGetLastError(), addr ? addr[0] : 0, addr ? addr[1] : 0, addr ? addr[2] : 0,
+                             addr ? addr[3] : 0, port);
         }
         return false;
     }
@@ -876,7 +878,7 @@ bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr) {
 bool socketListen(SOCKET_HANDLE socket) {
     assert(socket != NULL);
     if (listen(socket->sock, 5)) {
-        DBG_PRINTF_ERROR("%d - listen failed!\n", socketGetLastError());
+        DBG_PRINTF_ERROR("socketListen failed (err=%d)!\n", socketGetLastError());
         return 0;
     }
     return 1;
@@ -950,7 +952,7 @@ bool socketJoin(SOCKET_HANDLE socket, const uint8_t *maddr, const uint8_t *ifadd
     }
 
     if (0 > setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const char *)&group, sizeof(group))) {
-        DBG_PRINTF_ERROR("socketJoin:  %d - failed to set multicast socket option IP_ADD_MEMBERSHIP!\n", socketGetLastError());
+        DBG_PRINTF_ERROR("socketJoin failed (err=%d) - can't set multicast socket option IP_ADD_MEMBERSHIP!\n", socketGetLastError());
         return 0;
     }
 #else
@@ -964,7 +966,7 @@ bool socketJoin(SOCKET_HANDLE socket, const uint8_t *maddr, const uint8_t *ifadd
         group.imr_interface.s_addr = *(uint32_t *)ifaddr;
     }
     if (0 > setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const char *)&group, sizeof(group))) {
-        DBG_PRINTF_ERROR("socketJoin: %d - failed to set multicast socket option IP_ADD_MEMBERSHIP!\n", socketGetLastError());
+        DBG_PRINTF_ERROR("socketJoin failed (err=%d) - can't set multicast socket option IP_ADD_MEMBERSHIP!\n", socketGetLastError());
         return 0;
     }
     (void)ifname; // Unused on non-Linux platforms
@@ -1006,9 +1008,11 @@ int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSiz
             return 0;
         } else if (n < 0) {
             int32_t err = socketGetLastError();
-            if (err == SOCKET_ERROR_WBLOCK)
+            if (err == SOCKET_ERROR_WBLOCK) {
                 return 0; // Would block, should never happen on a blocking socket
-            if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR) {
+            }
+            if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_BADF || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR) {
+                DBG_PRINTF_WARNING("socketSendV: socket closed (err=%d)\n", err);
                 return 0; // Socket closed
             }
             DBG_PRINTF_ERROR("%u - recvmsg failed (result=%d)!\n", err, n);
@@ -1104,10 +1108,11 @@ int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSiz
             int32_t err = socketGetLastError();
             if (err == SOCKET_ERROR_WBLOCK)
                 return 0; // Would block, should never happen on a blocking socket
-            if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR) {
+            if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_BADF || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR) {
+                DBG_PRINTF_WARNING("socketRecvFrom: socket closed (err=%d)\n", err);
                 return 0; // Socket closed
             }
-            DBG_PRINTF_ERROR("%u - recvmsg failed (result=%d)!\n", err, n);
+            DBG_PRINTF_ERROR("socketRecvFrom: failed (err=%u - result=%d)!\n", err, n);
             return -1;
         }
 
@@ -1137,12 +1142,14 @@ int16_t socketRecv(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t size, bool wa
         return 0;
     } else if (n < 0) {
         int32_t err = socketGetLastError();
-        if (err == SOCKET_ERROR_WBLOCK)
+        if (err == SOCKET_ERROR_WBLOCK) {
             return 0; // Would block, should never happen on a blocking socket
-        if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR) {
+        }
+        if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_BADF || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR) {
+            DBG_PRINT_WARNING("socketRecv: socket closed\n");
             return 0; // Socket closed
         }
-        DBG_PRINTF_ERROR("%u - recvfrom failed (result=%d)!\n", err, n);
+        DBG_PRINTF_ERROR("%u - recv failed (result=%d)!\n", err, n);
         return -1; // Error
     }
     return n;
@@ -1209,7 +1216,8 @@ int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t size,
                 DBG_PRINT_ERROR("socketSendTo: unexpected WBLOCK\n");
                 return -1; // Should never happen on a blocking socket
             }
-            if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR || err == SOCKET_ERROR_PIPE) {
+            if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_BADF || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR || err == SOCKET_ERROR_PIPE) {
+                DBG_PRINTF_WARNING("socketSendTo: socket closed (err=%d)\n", err);
                 return 0; // Socket closed
             }
             DBG_PRINTF_ERROR("socketSendTo: sendmsg failed with err=%d!\n", err);
@@ -1230,7 +1238,8 @@ int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t size,
             DBG_PRINT_ERROR("socketSendTo: unexpected WBLOCK\n");
             return -1; // Should never happen on a blocking socket
         }
-        if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR || err == SOCKET_ERROR_PIPE) {
+        if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_BADF || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR || err == SOCKET_ERROR_PIPE) {
+            DBG_PRINTF_WARNING("socketSendTo: socket closed (err=%d)\n", err);
             return 0; // Socket closed
         }
         DBG_PRINTF_ERROR("socketSendTo: sendto failed with err=%d!\n", err);
@@ -1254,7 +1263,8 @@ int16_t socketSend(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t size) {
             DBG_PRINT_ERROR("socketSend: unexpected WBLOCK\n");
             return -1; // Should never happen on a blocking socket
         }
-        if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR || err == SOCKET_ERROR_PIPE) {
+        if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_BADF || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR || err == SOCKET_ERROR_PIPE) {
+            DBG_PRINTF_WARNING("socketSend: socket closed (err=%d)\n", err);
             return 0; // Socket closed
         }
         DBG_PRINTF_ERROR("socketSend: send failed with err=%d!\n", err);
@@ -1274,11 +1284,10 @@ int16_t socketSend(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t size) {
 // sizes:   array of buffer sizes, one per buffer
 // count:   number of buffers
 // Returns total number of bytes sent, 0 on socket closed or -1 on error
-int16_t socketSendToV(SOCKET_HANDLE socket, const uint8_t **buffers, const uint16_t *sizes, uint16_t count, const uint8_t *addr, uint16_t port) {
+int16_t socketSendToV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t count, const uint8_t *addr, uint16_t port) {
 
     assert(socket != NULL);
     assert(buffers != NULL);
-    assert(sizes != NULL);
     assert(count > 0);
     assert(addr != NULL);
 
@@ -1292,8 +1301,8 @@ int16_t socketSendToV(SOCKET_HANDLE socket, const uint8_t **buffers, const uint1
     // Build iovec array on the stack - VLAs are acceptable here as count is usually small
     struct iovec iov[count];
     for (uint16_t i = 0; i < count; i++) {
-        iov[i].iov_base = (void *)buffers[i];
-        iov[i].iov_len = sizes[i];
+        iov[i].iov_base = (void *)buffers[i].buffer;
+        iov[i].iov_len = buffers[i].size;
     }
 
     struct msghdr msg;
@@ -1310,7 +1319,8 @@ int16_t socketSendToV(SOCKET_HANDLE socket, const uint8_t **buffers, const uint1
             DBG_PRINT_ERROR("socketSendToV: unexpected WBLOCK\n");
             return -1; // Should never happen on a blocking socket
         }
-        if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR || err == SOCKET_ERROR_PIPE) {
+        if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_BADF || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR || err == SOCKET_ERROR_PIPE) {
+            DBG_PRINTF_WARNING("socketSendToV: socket closed (err=%d)\n", err);
             return 0; // Socket closed
         }
         DBG_PRINTF_ERROR("socketSendToV: sendmsg failed with err=%d!\n", err);
@@ -1326,11 +1336,10 @@ int16_t socketSendToV(SOCKET_HANDLE socket, const uint8_t **buffers, const uint1
 // sizes:   array of buffer sizes, one per buffer
 // count:   number of buffers
 // Returns total number of bytes sent, 0 on socket closed or -1 on error
-int16_t socketSendV(SOCKET_HANDLE socket, const uint8_t **buffers, const uint16_t *sizes, uint16_t count) {
+int16_t socketSendV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t count) {
 
     assert(socket != NULL);
     assert(buffers != NULL);
-    assert(sizes != NULL);
     assert(count > 0);
 
     SOCKET sock = socket->sock;
@@ -1338,8 +1347,8 @@ int16_t socketSendV(SOCKET_HANDLE socket, const uint8_t **buffers, const uint16_
     // Build iovec array on the stack - VLAs are acceptable here as count is usually small
     struct iovec iov[count];
     for (uint16_t i = 0; i < count; i++) {
-        iov[i].iov_base = (void *)buffers[i];
-        iov[i].iov_len = sizes[i];
+        iov[i].iov_base = (void *)buffers[i].buffer;
+        iov[i].iov_len = buffers[i].size;
     }
 
     struct msghdr msg;
@@ -1361,7 +1370,8 @@ int16_t socketSendV(SOCKET_HANDLE socket, const uint8_t **buffers, const uint16_
                 DBG_PRINT_ERROR("socketSendV: unexpected WBLOCK\n");
                 return -1; // Should never happen on a blocking socket
             }
-            if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR || err == SOCKET_ERROR_PIPE) {
+            if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_BADF || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR || err == SOCKET_ERROR_PIPE) {
+                DBG_PRINTF_WARNING("socketSendV: socket closed (err=%d)\n", err);
                 return 0; // Socket closed
             }
             DBG_PRINTF_ERROR("socketSendV: sendmsg failed with err=%d!\n", err);

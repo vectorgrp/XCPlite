@@ -173,7 +173,6 @@ extern void *XcpServerReceiveThread(void *par)
             DBG_PRINT_ERROR("XcpEthTlHandleCommands failed!\n");
             break; // error -> terminate thread
         }
-
         XcpBackgroundTasks(); // Handle background tasks, e.g. pending calibration updates
     }
     gXcpServer.ReceiveThreadRunning = false;
@@ -190,7 +189,6 @@ extern void *XcpServerTransmitThread(void *par)
 #endif
 {
     (void)par;
-    int32_t n;
 
     DBG_PRINT3("Start XCP transmit thread\n");
 
@@ -199,13 +197,12 @@ extern void *XcpServerTransmitThread(void *par)
     while (gXcpServer.TransmitThreadRunning) {
 
         // Transmit all committed messages from the transmit queue
-        n = XcpTlHandleTransmitQueue();
+        int32_t n = XcpTlHandleTransmitQueue();
         if (n < 0) {
             DBG_PRINT_ERROR("XcpTlHandleTransmitQueue failed!\n");
             break; // error - terminate thread
         }
-
-    } // for (;;)
+    }
     gXcpServer.TransmitThreadRunning = false;
 
     DBG_PRINT3("XCP transmit thread terminated!\n");

@@ -14,13 +14,13 @@
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
 
-constexpr const char OPTION_PROJECT_NAME[] = "hello_xcp_cpp";
-constexpr const char OPTION_PROJECT_VERSION[] = "V1"; // __TIME__;
-constexpr bool OPTION_USE_TCP = true;
-constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};
-constexpr uint16_t OPTION_SERVER_PORT = 5555;
-constexpr size_t OPTION_QUEUE_SIZE = 1024 * 64;
-constexpr int OPTION_LOG_LEVEL = 3;
+constexpr const char OPTION_PROJECT_NAME[] = "hello_xcp_cpp"; // Project name, used to build the A2L and BIN file name
+constexpr const char OPTION_PROJECT_VERSION[] = "V1";         // __TIME__; // EPK version string
+constexpr bool OPTION_USE_TCP = true;                         // TCP or UDP
+constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};        // Bind addr, 0.0.0.0 = ANY
+constexpr uint16_t OPTION_SERVER_PORT = 5555;                 // Port
+#define OPTION_QUEUE_SIZE 1024 * 16                           // Size of the queue in bytes, should be large enough to cover at least 10ms of expected traffic
+constexpr int OPTION_LOG_LEVEL = 3;                           // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 //-----------------------------------------------------------------------------------------------------
 // Global calibration parameters

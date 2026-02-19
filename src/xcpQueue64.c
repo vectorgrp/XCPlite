@@ -526,10 +526,15 @@ void QueuePush(tQueueHandle queueHandle, tQueueBuffer *const queueBuffer, bool f
 // This function is thread safe
 // Not used by the queue implementation itself
 // Returns 0 when the queue is empty
-uint32_t QueueLevel(tQueueHandle queueHandle) {
+uint32_t QueueLevel(tQueueHandle queueHandle, uint32_t *queue_max_level) {
     tQueue *queue = (tQueue *)queueHandle;
-    if (queue == NULL)
+    if (queue == NULL) {
+        if (queue_max_level != NULL)
+            *queue_max_level = 0;
         return 0;
+    }
+    if (queue_max_level != NULL)
+        *queue_max_level = queue->h.queue_size;
     uint64_t head = atomic_load_explicit(&queue->h.head, memory_order_relaxed);
     uint64_t tail = atomic_load_explicit(&queue->h.tail, memory_order_relaxed);
     assert(head >= tail);

@@ -109,9 +109,11 @@ tQueueBuffer QueuePop(tQueueHandle queue_handle, bool flush, uint32_t *packets_l
 /// @param queue_buffer Queue buffer to release.
 void QueueRelease(tQueueHandle queue_handle, tQueueBuffer *const queue_buffer);
 
-/// Get amount of bytes or entries (implementation specific)in the queue, 0 if queue is empty.
+/// Get current amount of bytes or entries (implementation specific) in the queue, 0 if queue is empty.
 /// @param queue_handle Queue handle.
-uint32_t QueueLevel(tQueueHandle queue_handle);
+/// @param queue_max_level Optional out parameter to get the maximum level possible.
+/// @return Current amount of bytes or entries in the queue.
+uint32_t QueueLevel(tQueueHandle queue_handle, uint32_t *queue_max_level);
 
 /// Clear queue content.
 /// @param queue_handle Queue handle.

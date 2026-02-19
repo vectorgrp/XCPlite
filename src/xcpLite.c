@@ -3920,8 +3920,12 @@ static void XcpPrintCmd(const tXcpCto *cmdBuf) {
             break;
         } // switch (CRO_TL_SUBCOMMAND)
 
+    case CC_NOP:
+        printf(" NOP\n");
+        break;
+
     default:
-        printf(" UNKNOWN COMMAND %02X\n", CRO_CMD);
+        printf(" UNKNOWN COMMAND 0x%02X\n", CRO_CMD);
     } // switch (CRO_CMD)
 }
 
