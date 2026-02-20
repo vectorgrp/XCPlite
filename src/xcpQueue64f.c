@@ -97,19 +97,24 @@ static_assert(sizeof(void *) == 8, "This implementation requires a 64 Bit platfo
 //   cargo test  --features=a2l_reader  -- --test-threads=1 --nocapture  --test test_multi_thread
 // Note that this tests have significant performance impact, do not turn on for production use !!!!!!!!!!!
 
-// #define TEST_ACQUIRE_LOCK_TIMING
+#define TEST_ACQUIRE_LOCK_TIMING
 #ifdef TEST_ACQUIRE_LOCK_TIMING
 static MUTEX lock_mutex = MUTEX_INTIALIZER;
 static uint64_t lock_time_max = 0;
 static uint64_t lock_time_sum = 0;
 static uint64_t lock_count = 0;
 static uint64_t spin_count_max = 0;
-#define LOCK_TIME_HISTOGRAM_SIZE 100
-#define LOCK_TIME_HISTOGRAM_STEP 40 // 40ns steps (= 1 tick of ARM 25MHz generic timer on RPi), up to 4us
-static uint64_t lock_time_histogram[LOCK_TIME_HISTOGRAM_SIZE] = {
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+// Variable-width lock timing histogram
+// Fine granularity for short latencies, coarser for long-tail latencies
+// Bin[i] counts events where EDGES[i-1] <= t < EDGES[i]; bin[SIZE-1] is the overflow (>EDGES[SIZE-2])
+#define LOCK_TIME_HISTOGRAM_SIZE 26
+static const uint64_t LOCK_TIME_HISTOGRAM_EDGES[LOCK_TIME_HISTOGRAM_SIZE - 1] = {
+    40,    80,    120,   160,    200,    240, 280, 320, 360, 400, // 10 bins: 40ns steps
+    600,   800,   1000,  1500,   2000,                            //  5 bins: 200-500ns steps (up to 2us)
+    3000,  4000,  6000,  8000,   10000,                           //  5 bins: 1-2us steps (up to 10us)
+    20000, 40000, 80000, 160000, 320000,                          //  5 bins: 10-160us steps (up to 320us, preemption range)
 };
+static uint64_t lock_time_histogram[LOCK_TIME_HISTOGRAM_SIZE] = {0};
 
 // There should be better alternatives in your target specific environment than this portable reference
 // Select a clock mode appropriate for your platform, CLOCK_MONOTONIC_RAW is a good choice for high resolution and monotonicity
@@ -120,14 +125,137 @@ static uint64_t get_timestamp_ns(void) {
     return ((uint64_t)ts.tv_sec) * kNanosecondsPerSecond + ((uint64_t)ts.tv_nsec);
 }
 
-/*
-Results on MacBook Pro with Apple M3 (ARM64) with 8 producers
+static void print_results(void) {
+    printf("\nProducer acquire lock time statistics:\n");
+    printf("  count=%" PRIu64 "  max_spins=%" PRIu64 "  max=%" PRIu64 "ns  avg=%" PRIu64 "ns\n", lock_count, spin_count_max, lock_time_max, lock_time_sum / lock_count);
 
-Region              Events      % of total   Root cause
-0–80 ns             794k        54.8%        Uncontended (commpage clock overhead floor)
-80–280 ns           640k        44.2%        Cross-cluster CAS coherence (P↔E cores)
-280–3960 ns         13k          0.9%        SLC / interconnect fabric latency (flat tail)
->3960 ns             1.4k        0.1%        macOS scheduler preemption
+    uint64_t histogram_sum = 0;
+    for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE; i++)
+        histogram_sum += lock_time_histogram[i];
+    uint64_t histogram_max = 0;
+    for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE; i++)
+        if (lock_time_histogram[i] > histogram_max)
+            histogram_max = lock_time_histogram[i];
+
+    printf("\nLock time histogram (%" PRIu64 " events):\n", histogram_sum);
+    printf("  %-20s  %10s  %7s  %s\n", "Range", "Count", "%", "Bar");
+    printf("  %-20s  %10s  %7s  %s\n", "--------------------", "----------", "-------", "------------------------------");
+
+    for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE; i++) {
+        if (!lock_time_histogram[i])
+            continue;
+        double pct = (double)lock_time_histogram[i] * 100.0 / (double)histogram_sum;
+
+        char range_str[32];
+        uint64_t lo = (i == 0) ? 0 : LOCK_TIME_HISTOGRAM_EDGES[i - 1];
+        if (i == LOCK_TIME_HISTOGRAM_SIZE - 1) {
+            snprintf(range_str, sizeof(range_str), ">%" PRIu64 "ns", lo);
+        } else {
+            snprintf(range_str, sizeof(range_str), "%" PRIu64 "-%" PRIu64 "ns", lo, LOCK_TIME_HISTOGRAM_EDGES[i]);
+        }
+
+        char bar[31];
+        int bar_len = (histogram_max > 0) ? (int)((double)lock_time_histogram[i] * 30.0 / (double)histogram_max) : 0;
+        if (bar_len > 30)
+            bar_len = 30;
+        for (int j = 0; j < bar_len; j++)
+            bar[j] = '#';
+        bar[bar_len] = '\0';
+
+        printf("  %-20s  %10" PRIu64 "  %6.2f%%  %s\n", range_str, lock_time_histogram[i], pct, bar);
+    }
+    printf("\n");
+}
+
+/*
+Results on MacBook Pro with Apple M3 (ARM64) with 32 producers
+---------------------------------------------------------------------------
+
+PProducer acquire lock time statistics:
+  count=2704571  max_spins=5  max=50917ns  avg=154ns
+
+Lock time histogram (2704571 events):
+  Range                      Count        %  Bar
+  --------------------  ----------  -------  ------------------------------
+  0-40ns                     39248    1.45%  #
+  40-80ns                   588168   21.75%  #############################
+  80-120ns                  520356   19.24%  #########################
+  120-160ns                 484637   17.92%  #######################
+  160-200ns                 605923   22.40%  ##############################
+  200-240ns                 336687   12.45%  ################
+  240-280ns                  62994    2.33%  ###
+  280-320ns                  22380    0.83%  #
+  320-360ns                   9113    0.34%
+  360-400ns                   5634    0.21%
+  400-600ns                  17621    0.65%
+  600-800ns                    909    0.03%
+  800-1000ns                   235    0.01%
+  1000-1500ns                  439    0.02%
+  1500-2000ns                  480    0.02%
+  2000-3000ns                  822    0.03%
+  3000-4000ns                  770    0.03%
+  4000-6000ns                 1403    0.05%
+  6000-8000ns                 1527    0.06%
+  8000-10000ns                2043    0.08%
+  10000-20000ns               3097    0.11%
+  20000-40000ns                 78    0.00%
+  40000-80000ns                  7    0.00%
+
+
+Results on Raspberry Pi 5 with 32 producers
+---------------------------------------------------------------------------
+
+Producer acquire lock time statistics:
+  count=1754810  max_spins=3  max=40370ns  avg=78ns
+
+Lock time histogram (1754810 events):
+  Range                      Count        %  Bar
+  --------------------  ----------  -------  ------------------------------
+  0-40ns                    427349   24.35%  ###############
+  40-80ns                   810975   46.21%  ##############################
+  80-120ns                   33407    1.90%  #
+  120-160ns                 360164   20.52%  #############
+  160-200ns                 111304    6.34%  ####
+  200-240ns                   7735    0.44%
+  240-280ns                   2680    0.15%
+  280-320ns                    781    0.04%
+  320-360ns                    206    0.01%
+  360-400ns                     28    0.00%
+  400-600ns                     36    0.00%
+  600-800ns                      4    0.00%
+  800-1000ns                     3    0.00%
+  1000-1500ns                   12    0.00%
+  1500-2000ns                    3    0.00%
+  2000-3000ns                   14    0.00%
+  3000-4000ns                   52    0.00%
+  4000-6000ns                   40    0.00%
+  6000-8000ns                   13    0.00%
+  8000-10000ns                   2    0.00%
+  10000-20000ns                  1    0.00%
+  40000-80000ns                  1    0.00%
+
+
+The M3 has two separate core clusters with separate L2 caches:
+
+4× P-cores (performance cluster)
+4× E-cores (efficiency cluster)
+When 32 threads are scheduled across both clusters, the atomic compare_exchange
+on the shared queue head causes the cache line to bounce between the P-cluster and
+E-cluster L2 caches via the SLC (system-level cache) interconnect. That inter-cluster
+coherence roundtrip costs ~80–280ns — exactly the broad peak visible in the M3 histogram.
+
+The RPi5's 4× Cortex-A76 cores are all in a single homogeneous cluster with a shared L2.
+Cache line ownership transfers between cores stay within the cluster at much lower cost,
+which is why the RPi5 histogram is tightly packed in 0–80ns even with higher oversubscription.
+
+                    M3 (8 cores, 2 clusters)	        RPi5 (4 cores, 1 cluster)
+Producers/cores	    32/8 = 4×	                        32/4 = 8×
+CAS coherence scope	Cross-cluster (P↔E via SLC)	        Intra-cluster
+Coherence cost	    80–280ns	                        ~40ns
+avg lock time	    154ns	                            78ns
+
+The takeaway: for highly-contended atomics, a homogeneous single-cluster ARM beats heterogeneous big.LITTLE-style designs,
+even at higher oversubscription. This is worth noting in the comment block in the source.
 
 */
 #endif
@@ -225,15 +353,7 @@ void QueueDeinit(tQueueHandle queueHandle) {
 
     // Print statistics
 #ifdef TEST_ACQUIRE_LOCK_TIMING
-    printf("\nProducer acquire lock time statistics: lock count=%" PRIu64 ", max spincount=%" PRIu64 ", max locktime=%" PRIu64 "ns,  avg locktime=%" PRIu64 "ns\n", lock_count,
-           spin_count_max, lock_time_max, lock_time_sum / lock_count);
-    for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE - 1; i++) {
-        if (lock_time_histogram[i])
-            printf("%dns: %" PRIu64 "\n", i * LOCK_TIME_HISTOGRAM_STEP, lock_time_histogram[i]);
-    }
-    if (lock_time_histogram[LOCK_TIME_HISTOGRAM_SIZE - 1])
-        printf(">%dns: %" PRIu64 "\n", (LOCK_TIME_HISTOGRAM_SIZE - 1) * LOCK_TIME_HISTOGRAM_STEP, lock_time_histogram[LOCK_TIME_HISTOGRAM_SIZE - 1]);
-    printf("\n");
+    print_results();
 #endif
 
     QueueClear(queueHandle);
@@ -320,11 +440,10 @@ tQueueBuffer QueueAcquire(tQueueHandle queueHandle, uint16_t packet_len) {
         spin_count_max = spin_count;
     if (d > lock_time_max)
         lock_time_max = d;
-    int i = d / LOCK_TIME_HISTOGRAM_STEP;
-    if (i < LOCK_TIME_HISTOGRAM_SIZE)
-        lock_time_histogram[i]++;
-    else
-        lock_time_histogram[LOCK_TIME_HISTOGRAM_SIZE - 1]++;
+    int i = 0;
+    while (i < LOCK_TIME_HISTOGRAM_SIZE - 1 && d >= LOCK_TIME_HISTOGRAM_EDGES[i])
+        i++;
+    lock_time_histogram[i]++;
     lock_time_sum += d;
     lock_count++;
     mutexUnlock(&lock_mutex);

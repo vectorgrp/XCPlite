@@ -34,8 +34,8 @@ extern uint32_t gXcpRxPacketCount;
 //-----------------------------------------------------------------------------------------------------
 
 #define XCP_MAX_EVENT_NAME 15
-#define THREAD_COUNT 8       // Number of threads to create
-#define THREAD_DELAY_US 1000 // Delay in microseconds for the thread loops
+#define THREAD_COUNT 32     // Number of threads to create
+#define THREAD_DELAY_US 100 // Delay in microseconds for the thread loops
 
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
