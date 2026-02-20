@@ -153,6 +153,7 @@ static bool XcpEthTlSend(const uint8_t *data, uint16_t size, const uint8_t *addr
 // Transmit a XCP segment with XCPTL_MAX_SEGMENT_SIZE (UDP or TCP) with multiple XCP DTO messages
 // Using vectored io
 // Returns false on error
+#ifdef OPTION_QUEUE_64_FIX_SIZE
 static bool XcpEthTlSendV(tQueueBuffer buffers[], uint16_t count) {
 
     assert(buffers != NULL);
@@ -188,6 +189,7 @@ static bool XcpEthTlSendV(tQueueBuffer buffers[], uint16_t count) {
     }
     return true;
 }
+#endif // OPTION_QUEUE_64_FIX_SIZE
 
 //------------------------------------------------------------------------------
 
@@ -468,8 +470,10 @@ bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, tQueueHandle 
     assert(Queue != NULL);
     gXcpTl.Queue = Queue;
     mutexInit(&gXcpTl.CtrMutex, false, 0);
-    gXcpTl.Ctr = 0;                // Reset packet counter
+    gXcpTl.Ctr = 0; // Reset packet counter
+#ifdef OPTION_QUEUE_64_FIX_SIZE
     gXcpTl.last_transmit_time = 0; // Reset last transmit time
+#endif
 
     // Initialize transport layer event
 #if defined(_WIN) // Windows

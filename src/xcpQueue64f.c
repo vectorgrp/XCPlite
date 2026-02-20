@@ -92,18 +92,18 @@ static_assert(sizeof(void *) == 8, "This implementation requires a 64 Bit platfo
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 // Test
 
-// Queue acquire lock timing and spin performance test
-// For high contention use
-//   cargo test  --features=a2l_reader  -- --test-threads=1 --nocapture  --test test_multi_thread
+// Queue acquire lock timing and spin
+// For high contention use example daq_test and xcp_client --upload-a2l --udp --mea .  --dest-addr 192.168.0.206
 // Note that this tests have significant performance impact, do not turn on for production use !!!!!!!!!!!
 
 #define TEST_ACQUIRE_LOCK_TIMING
 #ifdef TEST_ACQUIRE_LOCK_TIMING
+
 static MUTEX lock_mutex = MUTEX_INTIALIZER;
 static uint64_t lock_time_max = 0;
 static uint64_t lock_time_sum = 0;
 static uint64_t lock_count = 0;
-static uint64_t spin_count_max = 0;
+static uint64_t lock_spin_count_max = 0;
 // Variable-width lock timing histogram
 // Fine granularity for short latencies, coarser for long-tail latencies
 // Bin[i] counts events where EDGES[i-1] <= t < EDGES[i]; bin[SIZE-1] is the overflow (>EDGES[SIZE-2])
@@ -125,9 +125,24 @@ static uint64_t get_timestamp_ns(void) {
     return ((uint64_t)ts.tv_sec) * kNanosecondsPerSecond + ((uint64_t)ts.tv_nsec);
 }
 
-static void print_results(void) {
+void lock_test_add_sample(uint64_t d, uint32_t spin_count) {
+    mutexLock(&lock_mutex);
+    if (spin_count > lock_spin_count_max)
+        lock_spin_count_max = spin_count;
+    if (d > lock_time_max)
+        lock_time_max = d;
+    int i = 0;
+    while (i < LOCK_TIME_HISTOGRAM_SIZE - 1 && d >= LOCK_TIME_HISTOGRAM_EDGES[i])
+        i++;
+    lock_time_histogram[i]++;
+    lock_time_sum += d;
+    lock_count++;
+    mutexUnlock(&lock_mutex);
+}
+
+static void lock_test_print_results(void) {
     printf("\nProducer acquire lock time statistics:\n");
-    printf("  count=%" PRIu64 "  max_spins=%" PRIu64 "  max=%" PRIu64 "ns  avg=%" PRIu64 "ns\n", lock_count, spin_count_max, lock_time_max, lock_time_sum / lock_count);
+    printf("  count=%" PRIu64 "  max_spins=%" PRIu64 "  max=%" PRIu64 "ns  avg=%" PRIu64 "ns\n", lock_count, lock_spin_count_max, lock_time_max, lock_time_sum / lock_count);
 
     uint64_t histogram_sum = 0;
     for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE; i++)
@@ -171,92 +186,68 @@ static void print_results(void) {
 Results on MacBook Pro with Apple M3 (ARM64) with 32 producers
 ---------------------------------------------------------------------------
 
-PProducer acquire lock time statistics:
-  count=2704571  max_spins=5  max=50917ns  avg=154ns
+Producer acquire lock time statistics:
+  count=8178646  max_spins=5  max=55417ns  avg=95ns
 
-Lock time histogram (2704571 events):
+Lock time histogram (8178646 events):
   Range                      Count        %  Bar
   --------------------  ----------  -------  ------------------------------
-  0-40ns                     39248    1.45%  #
-  40-80ns                   588168   21.75%  #############################
-  80-120ns                  520356   19.24%  #########################
-  120-160ns                 484637   17.92%  #######################
-  160-200ns                 605923   22.40%  ##############################
-  200-240ns                 336687   12.45%  ################
-  240-280ns                  62994    2.33%  ###
-  280-320ns                  22380    0.83%  #
-  320-360ns                   9113    0.34%
-  360-400ns                   5634    0.21%
-  400-600ns                  17621    0.65%
-  600-800ns                    909    0.03%
-  800-1000ns                   235    0.01%
-  1000-1500ns                  439    0.02%
-  1500-2000ns                  480    0.02%
-  2000-3000ns                  822    0.03%
-  3000-4000ns                  770    0.03%
-  4000-6000ns                 1403    0.05%
-  6000-8000ns                 1527    0.06%
-  8000-10000ns                2043    0.08%
-  10000-20000ns               3097    0.11%
-  20000-40000ns                 78    0.00%
-  40000-80000ns                  7    0.00%
+  0-40ns                    442594    5.41%  ##
+  40-80ns                  4779332   58.44%  ##############################
+  80-120ns                 1637800   20.03%  ##########
+  120-160ns                 421861    5.16%  ##
+  160-200ns                 413763    5.06%  ##
+  200-240ns                 286929    3.51%  #
+  240-280ns                  77721    0.95%
+  280-320ns                  24987    0.31%
+  320-360ns                  10565    0.13%
+  360-400ns                   6956    0.09%
+  400-600ns                  40240    0.49%
+  600-800ns                   1853    0.02%
+  800-1000ns                  1132    0.01%
+  1000-1500ns                 3297    0.04%
+  1500-2000ns                 3155    0.04%
+  2000-3000ns                 4674    0.06%
+  3000-4000ns                 4387    0.05%
+  4000-6000ns                 3967    0.05%
+  6000-8000ns                 2245    0.03%
+  8000-10000ns                3315    0.04%
+  10000-20000ns               7418    0.09%
+  20000-40000ns                443    0.01%
+  40000-80000ns                 12    0.00%
 
 
 Results on Raspberry Pi 5 with 32 producers
 ---------------------------------------------------------------------------
 
 Producer acquire lock time statistics:
-  count=1754810  max_spins=3  max=40370ns  avg=78ns
+  count=5453269  max_spins=2  max=134037ns  avg=127ns
 
-Lock time histogram (1754810 events):
+Lock time histogram (5453269 events):
   Range                      Count        %  Bar
   --------------------  ----------  -------  ------------------------------
-  0-40ns                    427349   24.35%  ###############
-  40-80ns                   810975   46.21%  ##############################
-  80-120ns                   33407    1.90%  #
-  120-160ns                 360164   20.52%  #############
-  160-200ns                 111304    6.34%  ####
-  200-240ns                   7735    0.44%
-  240-280ns                   2680    0.15%
-  280-320ns                    781    0.04%
-  320-360ns                    206    0.01%
-  360-400ns                     28    0.00%
-  400-600ns                     36    0.00%
-  600-800ns                      4    0.00%
-  800-1000ns                     3    0.00%
-  1000-1500ns                   12    0.00%
-  1500-2000ns                    3    0.00%
-  2000-3000ns                   14    0.00%
-  3000-4000ns                   52    0.00%
-  4000-6000ns                   40    0.00%
-  6000-8000ns                   13    0.00%
-  8000-10000ns                   2    0.00%
-  10000-20000ns                  1    0.00%
-  40000-80000ns                  1    0.00%
-
-
-The M3 has two separate core clusters with separate L2 caches:
-
-4× P-cores (performance cluster)
-4× E-cores (efficiency cluster)
-When 32 threads are scheduled across both clusters, the atomic compare_exchange
-on the shared queue head causes the cache line to bounce between the P-cluster and
-E-cluster L2 caches via the SLC (system-level cache) interconnect. That inter-cluster
-coherence roundtrip costs ~80–280ns — exactly the broad peak visible in the M3 histogram.
-
-The RPi5's 4× Cortex-A76 cores are all in a single homogeneous cluster with a shared L2.
-Cache line ownership transfers between cores stay within the cluster at much lower cost,
-which is why the RPi5 histogram is tightly packed in 0–80ns even with higher oversubscription.
-
-                    M3 (8 cores, 2 clusters)	        RPi5 (4 cores, 1 cluster)
-Producers/cores	    32/8 = 4×	                        32/4 = 8×
-CAS coherence scope	Cross-cluster (P↔E via SLC)	        Intra-cluster
-Coherence cost	    80–280ns	                        ~40ns
-avg lock time	    154ns	                            78ns
-
-The takeaway: for highly-contended atomics, a homogeneous single-cluster ARM beats heterogeneous big.LITTLE-style designs,
-even at higher oversubscription. This is worth noting in the comment block in the source.
-
+  40-80ns                  1910357   35.03%  ##############################
+  80-120ns                  820903   15.05%  ############
+  120-160ns                 456866    8.38%  #######
+  160-200ns                1899104   34.83%  #############################
+  200-240ns                 319835    5.87%  #####
+  240-280ns                  37519    0.69%
+  280-320ns                   5498    0.10%
+  320-360ns                   1512    0.03%
+  360-400ns                    373    0.01%
+  400-600ns                    272    0.00%
+  600-800ns                      7    0.00%
+  1000-1500ns                   68    0.00%
+  1500-2000ns                   49    0.00%
+  2000-3000ns                  227    0.00%
+  3000-4000ns                  143    0.00%
+  4000-6000ns                  152    0.00%
+  6000-8000ns                  357    0.01%
+  8000-10000ns                  13    0.00%
+  10000-20000ns                  3    0.00%
+  20000-40000ns                  8    0.00%
+  40000-80000ns                  2    0.00%
+  80000-160000ns                 1    0.00%
 */
 #endif
 
@@ -353,7 +344,7 @@ void QueueDeinit(tQueueHandle queueHandle) {
 
     // Print statistics
 #ifdef TEST_ACQUIRE_LOCK_TIMING
-    print_results();
+    lock_test_print_results();
 #endif
 
     QueueClear(queueHandle);
@@ -398,7 +389,7 @@ tQueueBuffer QueueAcquire(tQueueHandle queueHandle, uint16_t packet_len) {
     assert(msg_len <= QUEUE_ENTRY_USER_SIZE);
 
 #ifdef TEST_ACQUIRE_LOCK_TIMING
-    uint64_t c = get_timestamp_ns();
+    uint64_t spin_start = get_timestamp_ns();
     uint32_t spin_count = 0;
 #endif
 
@@ -434,19 +425,7 @@ tQueueBuffer QueueAcquire(tQueueHandle queueHandle, uint16_t packet_len) {
     } // for (;;)
 
 #ifdef TEST_ACQUIRE_LOCK_TIMING
-    uint64_t d = get_timestamp_ns() - c;
-    mutexLock(&lock_mutex);
-    if (spin_count > spin_count_max)
-        spin_count_max = spin_count;
-    if (d > lock_time_max)
-        lock_time_max = d;
-    int i = 0;
-    while (i < LOCK_TIME_HISTOGRAM_SIZE - 1 && d >= LOCK_TIME_HISTOGRAM_EDGES[i])
-        i++;
-    lock_time_histogram[i]++;
-    lock_time_sum += d;
-    lock_count++;
-    mutexUnlock(&lock_mutex);
+    lock_test_add_sample(get_timestamp_ns() - spin_start, spin_count);
 #endif
 
     if (entry == NULL) { // Overflow
@@ -627,9 +606,10 @@ void QueueRelease(tQueueHandle queueHandle, tQueueBuffer *const queueBuffer) {
     // Clear the entries commit state
     tQueueEntry *entry = (tQueueEntry *)(queueBuffer->buffer - 4);                // Get the pointer to the queue entry from the user header buffer pointer
     assert((uint32_t)((uint8_t *)entry - queue->buffer) % QUEUE_ENTRY_SIZE == 0); // Check that the entry pointer is correctly aligned to the entry size
-    atomic_store_explicit(&entry->entry_header, 0, memory_order_release);
+    atomic_store_explicit(&entry->entry_header, 0,
+                          memory_order_release); // @@@@ CHECK: This release store is not strictly required for correctness, but removing it does not show any performance benefits
 
-    // Increment the tail
+    //  Increment the tail
     atomic_fetch_add_explicit(&queue->h.tail, QUEUE_ENTRY_SIZE, memory_order_release);
 }
 

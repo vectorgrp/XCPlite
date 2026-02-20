@@ -90,6 +90,9 @@ Transport Layer segment, message, packet:
 // The default implementation is a mutex based producer lock, no consumer lock and memory fences between producer and consumer.
 // Always benchmark, to find the best tradeoff for your use case !!!!
 
+// Use a spinlock for queue producers, this is a just a bad example
+// #define QUEUE_SPINLOCK
+
 // Use a mutex for queue producers, this is a convenient default
 // Might be the best solution for high throughput, when worst case producer latency is acceptable
 // #define QUEUE_MUTEX
@@ -109,23 +112,31 @@ Transport Layer segment, message, packet:
 #define QUEUE_PEEK_THRESHOLD XCPTL_MAX_SEGMENT_SIZE
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
-// Test queue acquire lock timing and spin lock performance test
-// For high contention use
-//   cargo test  --features=a2l_reader  -- --test-threads=1 --nocapture  --test test_multi_thread
+// Test
+
+// Queue acquire lock timing and spin
+// For high contention use example daq_test and xcp_client --upload-a2l --udp --mea .  --dest-addr 192.168.0.206
 // Note that this tests have significant performance impact, do not turn on for production use !!!!!!!!!!!
 
-// #define TEST_ACQUIRE_LOCK_TIMING
+#define TEST_ACQUIRE_LOCK_TIMING
 #ifdef TEST_ACQUIRE_LOCK_TIMING
-static MUTEX lockMutex = MUTEX_INTIALIZER;
-static uint64_t lockTimeMax = 0;
-static uint64_t lockTimeSum = 0;
-static uint64_t lockCount = 0;
-#define LOCK_TIME_HISTOGRAM_SIZE 100 // max 100us in 1us steps
-#define LOCK_TIME_HISTOGRAM_STEP 10
-static uint64_t lockTimeHistogram[LOCK_TIME_HISTOGRAM_SIZE] = {
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+
+static MUTEX lock_mutex = MUTEX_INTIALIZER;
+static uint64_t lock_time_max = 0;
+static uint64_t lock_time_sum = 0;
+static uint64_t lock_count = 0;
+static uint64_t lock_spin_count_max = 0;
+// Variable-width lock timing histogram
+// Fine granularity for short latencies, coarser for long-tail latencies
+// Bin[i] counts events where EDGES[i-1] <= t < EDGES[i]; bin[SIZE-1] is the overflow (>EDGES[SIZE-2])
+#define LOCK_TIME_HISTOGRAM_SIZE 26
+static const uint64_t LOCK_TIME_HISTOGRAM_EDGES[LOCK_TIME_HISTOGRAM_SIZE - 1] = {
+    40,    80,    120,   160,    200,    240, 280, 320, 360, 400, // 10 bins: 40ns steps
+    600,   800,   1000,  1500,   2000,                            //  5 bins: 200-500ns steps (up to 2us)
+    3000,  4000,  6000,  8000,   10000,                           //  5 bins: 1-2us steps (up to 10us)
+    20000, 40000, 80000, 160000, 320000,                          //  5 bins: 10-160us steps (up to 320us, preemption range)
 };
+static uint64_t lock_time_histogram[LOCK_TIME_HISTOGRAM_SIZE] = {0};
 
 // There should be better alternatives in your target specific environment than this portable reference
 // Select a clock mode appropriate for your platform, CLOCK_MONOTONIC_RAW is a good choice for high resolution and monotonicity
@@ -136,36 +147,205 @@ static uint64_t get_timestamp_ns(void) {
     return ((uint64_t)ts.tv_sec) * kNanosecondsPerSecond + ((uint64_t)ts.tv_nsec);
 }
 
-// inline auto RdtscNow() noexcept -> std::uint64_t {
-//     std::uint32_t low{0};
-//     std::uint64_t high{0};
-//     asm volatile("rdtsc" : "=a"(low), "=d"(high)); // NOLINT(hicpp-no-assembler)
-//     return (high << 32) | low;                     // NOLINT
-// }
+void lock_test_add_sample(uint64_t d, uint32_t spin_count) {
+    mutexLock(&lock_mutex);
+    if (spin_count > lock_spin_count_max)
+        lock_spin_count_max = spin_count;
+    if (d > lock_time_max)
+        lock_time_max = d;
+    int i = 0;
+    while (i < LOCK_TIME_HISTOGRAM_SIZE - 1 && d >= LOCK_TIME_HISTOGRAM_EDGES[i])
+        i++;
+    lock_time_histogram[i]++;
+    lock_time_sum += d;
+    lock_count++;
+    mutexUnlock(&lock_mutex);
+}
 
-#endif
+static void lock_test_print_results(void) {
+    printf("\nProducer acquire lock time statistics:\n");
+    printf("  count=%" PRIu64 "  max_spins=%" PRIu64 "  max=%" PRIu64 "ns  avg=%" PRIu64 "ns\n", lock_count, lock_spin_count_max, lock_time_max, lock_time_sum / lock_count);
 
-// #define TEST_ACQUIRE_SPIN_COUNT
-#ifdef TEST_ACQUIRE_SPIN_COUNT
-#define SPIN_COUNT_HISTOGRAM_SIZE 100 // Up to 100 loops
-static atomic_uint_fast32_t spinCountHistogramm[SPIN_COUNT_HISTOGRAM_SIZE] = {
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    uint64_t histogram_sum = 0;
+    for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE; i++)
+        histogram_sum += lock_time_histogram[i];
+    uint64_t histogram_max = 0;
+    for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE; i++)
+        if (lock_time_histogram[i] > histogram_max)
+            histogram_max = lock_time_histogram[i];
 
-};
-#endif
+    printf("\nLock time histogram (%" PRIu64 " events):\n", histogram_sum);
+    printf("  %-20s  %10s  %7s  %s\n", "Range", "Count", "%", "Bar");
+    printf("  %-20s  %10s  %7s  %s\n", "--------------------", "----------", "-------", "------------------------------");
 
-// #define TEST_CONSUMER_SEQ_LOCK_SPIN_COUNT
-#ifdef TEST_CONSUMER_SEQ_LOCK_SPIN_COUNT
-#define SEQ_LOCK_HISTOGRAM_SIZE 200  // Up to 200 loops
-static uint32_t seqLockMaxLevel = 0; // Maximum queue level reached
-static atomic_uint_fast32_t seqLockHistogramm[SEQ_LOCK_HISTOGRAM_SIZE] = {
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE; i++) {
+        if (!lock_time_histogram[i])
+            continue;
+        double pct = (double)lock_time_histogram[i] * 100.0 / (double)histogram_sum;
 
-};
+        char range_str[32];
+        uint64_t lo = (i == 0) ? 0 : LOCK_TIME_HISTOGRAM_EDGES[i - 1];
+        if (i == LOCK_TIME_HISTOGRAM_SIZE - 1) {
+            snprintf(range_str, sizeof(range_str), ">%" PRIu64 "ns", lo);
+        } else {
+            snprintf(range_str, sizeof(range_str), "%" PRIu64 "-%" PRIu64 "ns", lo, LOCK_TIME_HISTOGRAM_EDGES[i]);
+        }
+
+        char bar[31];
+        int bar_len = (histogram_max > 0) ? (int)((double)lock_time_histogram[i] * 30.0 / (double)histogram_max) : 0;
+        if (bar_len > 30)
+            bar_len = 30;
+        for (int j = 0; j < bar_len; j++)
+            bar[j] = '#';
+        bar[bar_len] = '\0';
+
+        printf("  %-20s  %10" PRIu64 "  %6.2f%%  %s\n", range_str, lock_time_histogram[i], pct, bar);
+    }
+    printf("\n");
+}
+
+/*
+
+Results on MacBook Pro with Apple M3 (ARM64) with 32 producers
+---------------------------------------------------------------------------
+
+QUEUE_NO_LOCK:
+
+Producer acquire lock time statistics:
+  count=7845111  max_spins=5  max=50542ns  avg=94ns
+
+Lock time histogram (7845111 events):
+  Range                      Count        %  Bar
+  --------------------  ----------  -------  ------------------------------
+  0-40ns                    252186    3.21%  #
+  40-80ns                  3994443   50.92%  ##############################
+  80-120ns                 2816917   35.91%  #####################
+  120-160ns                 204275    2.60%  #
+  160-200ns                 142489    1.82%  #
+  200-240ns                 221886    2.83%  #
+  240-280ns                 114354    1.46%  
+  280-320ns                  33043    0.42%  
+  320-360ns                  11807    0.15%  
+  360-400ns                   6870    0.09%  
+  400-600ns                  13727    0.17%  
+  600-800ns                   1716    0.02%  
+  800-1000ns                  1090    0.01%  
+  1000-1500ns                 2966    0.04%  
+  1500-2000ns                 2894    0.04%  
+  2000-3000ns                 4421    0.06%  
+  3000-4000ns                 3983    0.05%  
+  4000-6000ns                 3506    0.04%  
+  6000-8000ns                 1894    0.02%  
+  8000-10000ns                3147    0.04%  
+  10000-20000ns               7064    0.09%  
+  20000-40000ns                423    0.01%  
+  40000-80000ns                 10    0.00%  
+
+
+  QUEUE_MUTEX:
+
+  Producer acquire lock time statistics:
+  count=3336231  max_spins=0  max=113958ns  avg=335ns
+
+Lock time histogram (3336231 events):
+  Range                      Count        %  Bar
+  --------------------  ----------  -------  ------------------------------
+  0-40ns                     66998    2.01%  #
+  40-80ns                  1176131   35.25%  ######################
+  80-120ns                 1573225   47.16%  ##############################
+  120-160ns                 150378    4.51%  ##
+  160-200ns                  77050    2.31%  #
+  200-240ns                  63441    1.90%  #
+  240-280ns                  46252    1.39%
+  280-320ns                  28185    0.84%
+  320-360ns                   9663    0.29%
+  360-400ns                   3048    0.09%
+  400-600ns                   4978    0.15%
+  600-800ns                   6859    0.21%
+  800-1000ns                  8159    0.24%
+  1000-1500ns                19649    0.59%
+  1500-2000ns                12815    0.38%
+  2000-3000ns                15783    0.47%
+  3000-4000ns                 8822    0.26%
+  4000-6000ns                13618    0.41%
+  6000-8000ns                10567    0.32%
+  8000-10000ns                8859    0.27%
+  10000-20000ns              25467    0.76%
+  20000-40000ns               5831    0.17%
+  40000-80000ns                444    0.01%
+  80000-160000ns                 9    0.00%
+
+
+
+QUEUE_SPINLOCK:
+
+Producer acquire lock time statistics:
+  count=7553626  max_spins=0  max=62401625ns  avg=1519ns
+
+Lock time histogram (7553626 events):
+  Range                      Count        %  Bar
+  --------------------  ----------  -------  ------------------------------
+  0-40ns                    142110    1.88%  #
+  40-80ns                  2968972   39.31%  #########################
+  80-120ns                 3491038   46.22%  ##############################
+  120-160ns                 274184    3.63%  ##
+  160-200ns                 135015    1.79%  #
+  200-240ns                 154529    2.05%  #
+  240-280ns                 137639    1.82%  #
+  280-320ns                  71583    0.95%
+  320-360ns                  29692    0.39%
+  360-400ns                  17383    0.23%
+  400-600ns                  48639    0.64%
+  600-800ns                  12771    0.17%
+  800-1000ns                  4261    0.06%
+  1000-1500ns                 7009    0.09%
+  1500-2000ns                 5508    0.07%
+  2000-3000ns                 8575    0.11%
+  3000-4000ns                 7336    0.10%
+  4000-6000ns                 7946    0.11%
+  6000-8000ns                 6611    0.09%
+  8000-10000ns                8657    0.11%
+  10000-20000ns              12395    0.16%
+  20000-40000ns                756    0.01%
+  40000-80000ns                248    0.00%
+  80000-160000ns                27    0.00%
+  160000-320000ns                1    0.00%
+  >320000ns                    741    0.01%
+
+
+  QUEUE_SEQ_LOCK:
+
+  Producer acquire lock time statistics:
+  count=3512722  max_spins=6  max=57791ns  avg=111ns
+
+Lock time histogram (3512722 events):
+  Range                      Count        %  Bar
+  --------------------  ----------  -------  ------------------------------
+  0-40ns                     64331    1.83%  #
+  40-80ns                  1275979   36.32%  #######################
+  80-120ns                 1614503   45.96%  ##############################
+  120-160ns                 180286    5.13%  ###
+  160-200ns                  96038    2.73%  #
+  200-240ns                  86318    2.46%  #
+  240-280ns                  59670    1.70%  #
+  280-320ns                  37039    1.05%
+  320-360ns                  24750    0.70%
+  360-400ns                  17585    0.50%
+  400-600ns                  36853    1.05%
+  600-800ns                   7004    0.20%
+  800-1000ns                  1303    0.04%
+  1000-1500ns                  951    0.03%
+  1500-2000ns                  605    0.02%
+  2000-3000ns                  906    0.03%
+  3000-4000ns                  736    0.02%
+  4000-6000ns                 1253    0.04%
+  6000-8000ns                 1318    0.04%
+  8000-10000ns                2099    0.06%
+  10000-20000ns               3108    0.09%
+  20000-40000ns                 80    0.00%
+  40000-80000ns                  7    0.00%
+
+*/
 #endif
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -207,6 +387,8 @@ typedef struct {
     uint64_t seq_head; // Last head detected as consistent by the seq lock
 #elif defined(QUEUE_MUTEX)
     MUTEX mutex; // Mutex for queue producers, producers contend on each other but not on the consumer
+#elif defined(QUEUE_SPINLOCK)
+    atomic_int_fast64_t spinlock; // Spinlock for queue producers, producers contend on each other but not on the consumer
 #endif
     // Constant
     uint32_t queue_size;  // Size of queue in bytes (for entry offset wrapping)
@@ -222,6 +404,22 @@ typedef struct {
     tQueueHeader h;
     uint8_t buffer[];
 } tQueue;
+
+//-------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#if defined(QUEUE_SPINLOCK)
+
+static void spinlockLock(atomic_int_fast64_t *lock) {
+    int64_t expected = 0;
+    int64_t const desired = 1;
+    while (!atomic_compare_exchange_weak_explicit(lock, &expected, desired, memory_order_acquire, memory_order_relaxed)) {
+        expected = 0;
+    }
+}
+
+static void spinlockUnlock(atomic_int_fast64_t *lock) { atomic_store_explicit(lock, 0, memory_order_release); }
+
+#endif
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -270,6 +468,9 @@ static tQueueHandle QueueInitFromMemory(void *queue_memory, uint32_t queue_memor
 #if defined(QUEUE_MUTEX)
     DBG_PRINT3("  QUEUE_MUTEX\n");
 #endif
+#if defined(QUEUE_SPINLOCK)
+    DBG_PRINT3("  QUEUE_SPINLOCK\n");
+#endif
 
     if (clear_queue) {
 
@@ -278,6 +479,8 @@ static tQueueHandle QueueInitFromMemory(void *queue_memory, uint32_t queue_memor
         atomic_store_explicit(&queue->h.seq_lock, 0, memory_order_relaxed); // Initialize the seq_lock
 #elif defined(QUEUE_MUTEX)
         mutexInit(&queue->h.mutex, false, 1000);
+#elif defined(QUEUE_SPINLOCK)
+        queue->h.spinlock = 0;
 #endif
 
         QueueClear((tQueueHandle)queue); // Clear the queue
@@ -317,36 +520,7 @@ void QueueDeinit(tQueueHandle queueHandle) {
 
     // Print statistics
 #ifdef TEST_ACQUIRE_LOCK_TIMING
-    printf("\nProducer acquire lock time statistics: lockCount=%" PRIu64 ", maxLockTime=%" PRIu64 "ns,  avgLockTime=%" PRIu64 "ns\n", lockCount, lockTimeMax,
-           lockTimeSum / lockCount);
-    for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE - 1; i++) {
-        if (lockTimeHistogram[i])
-            printf("%dus: %" PRIu64 "\n", i * LOCK_TIME_HISTOGRAM_STEP, lockTimeHistogram[i]);
-    }
-    if (lockTimeHistogram[LOCK_TIME_HISTOGRAM_SIZE - 1])
-        printf(">%uus: %" PRIu64 "\n", LOCK_TIME_HISTOGRAM_SIZE * LOCK_TIME_HISTOGRAM_STEP, lockTimeHistogram[LOCK_TIME_HISTOGRAM_SIZE - 1]);
-    printf("\n");
-#endif
-#ifdef TEST_ACQUIRE_SPIN_COUNT
-    printf("Producer acquire spin count statistics: \n");
-    for (int i = 0; i < SPIN_COUNT_HISTOGRAM_SIZE - 1; i++) {
-        if (spinCountHistogramm[i] > 0)
-            printf("%d: %u\n", i + 1, spinCountHistogramm[i]);
-    }
-    if (spinCountHistogramm[SPIN_COUNT_HISTOGRAM_SIZE - 1] > 0)
-        printf(">%u: %u\n", SPIN_COUNT_HISTOGRAM_SIZE, spinCountHistogramm[SPIN_COUNT_HISTOGRAM_SIZE - 1]);
-    printf("\n");
-#endif
-#ifdef TEST_CONSUMER_SEQ_LOCK_SPIN_COUNT
-    printf("Consumer seq lock spin loop statistics: \n");
-    printf("Max queue level reached: %u of %u, %u%%\n", seqLockMaxLevel, queue->h.queue_size, (seqLockMaxLevel * 100) / queue->h.queue_size);
-    for (int i = 0; i < SEQ_LOCK_HISTOGRAM_SIZE - 1; i++) {
-        if (seqLockHistogramm[i] > 0)
-            printf("%d: %u\n", i + 1, seqLockHistogramm[i]);
-    }
-    if (seqLockHistogramm[SEQ_LOCK_HISTOGRAM_SIZE - 1] > 0)
-        printf(">%u: %u\n", SEQ_LOCK_HISTOGRAM_SIZE, seqLockHistogramm[SEQ_LOCK_HISTOGRAM_SIZE - 1]);
-    printf("\n");
+    lock_test_print_results();
 #endif
 
     QueueClear(queueHandle);
@@ -392,7 +566,8 @@ tQueueBuffer QueueAcquire(tQueueHandle queueHandle, uint16_t packet_len) {
     assert(msg_len <= MAX_ENTRY_SIZE);
 
 #ifdef TEST_ACQUIRE_LOCK_TIMING
-    uint64_t c = get_timestamp_ns();
+    uint64_t spin_start = get_timestamp_ns();
+    uint32_t spin_count = 0;
 #endif
 
     // Prepare a new entry in reserved state
@@ -410,9 +585,6 @@ tQueueBuffer QueueAcquire(tQueueHandle queueHandle, uint16_t packet_len) {
     atomic_fetch_add_explicit(&queue->h.seq_lock, 0x0000000100000000, memory_order_acq_rel);
 #endif
 
-#ifdef TEST_ACQUIRE_SPIN_COUNT
-    uint32_t spin_count = 0;
-#endif
     for (;;) {
 
         // Check for overrun
@@ -431,10 +603,8 @@ tQueueBuffer QueueAcquire(tQueueHandle queueHandle, uint16_t packet_len) {
         // Get spin count statistics
         // spin_loop_hint(); // No hint, spin count is usually low and the locked sequence should be as fast as possible
         // assert(spin_count < 100); // No reason to be afraid about the spin count, enable spin count statistics to check
-#ifdef TEST_ACQUIRE_SPIN_COUNT
-        if (spin_count++ >= SPIN_COUNT_HISTOGRAM_SIZE)
-            spin_count = SPIN_COUNT_HISTOGRAM_SIZE - 1;
-        atomic_fetch_add_explicit(&spinCountHistogramm[spin_count], 1, memory_order_relaxed);
+#ifdef TEST_ACQUIRE_LOCK_TIMING
+        spin_count++;
 #endif
 
     } // for (;;)
@@ -444,9 +614,13 @@ tQueueBuffer QueueAcquire(tQueueHandle queueHandle, uint16_t packet_len) {
 
     //----------------------------------------------
     // Use a mutex to protect the entry acquire
-#elif defined(QUEUE_MUTEX)
+#elif defined(QUEUE_MUTEX) || defined(QUEUE_SPINLOCK)
 
+#if defined(QUEUE_MUTEX)
     mutexLock(&queue->h.mutex);
+#else
+    spinlockLock(&queue->h.spinlock);
+#endif
 
     uint64_t tail = atomic_load_explicit(&queue->h.tail, memory_order_relaxed);
     uint64_t head = atomic_load_explicit(&queue->h.head, memory_order_acquire);
@@ -457,23 +631,16 @@ tQueueBuffer QueueAcquire(tQueueHandle queueHandle, uint16_t packet_len) {
         atomic_store_explicit(&queue->h.head, head + msg_len, memory_order_release);
     }
 
+#if defined(QUEUE_MUTEX)
     mutexUnlock(&queue->h.mutex);
+#else
+    spinlockUnlock(&queue->h.spinlock);
+#endif
 
 #endif
 
 #ifdef TEST_ACQUIRE_LOCK_TIMING
-    uint64_t d = get_timestamp_ns() - c;
-    mutexLock(&lockMutex);
-    if (d > lockTimeMax)
-        lockTimeMax = d;
-    int i = (d / 1000) / LOCK_TIME_HISTOGRAM_STEP;
-    if (i < LOCK_TIME_HISTOGRAM_SIZE)
-        lockTimeHistogram[i]++;
-    else
-        lockTimeHistogram[LOCK_TIME_HISTOGRAM_SIZE - 1]++;
-    lockTimeSum += d;
-    lockCount++;
-    mutexUnlock(&lockMutex);
+    lock_test_add_sample(get_timestamp_ns() - spin_start, spin_count);
 #endif
 
     if (entry == NULL) {
@@ -601,23 +768,14 @@ tQueueBuffer QueuePop(tQueueHandle queueHandle, bool flush, uint32_t *packets_lo
                 spin_count = 0; // Reset
             }
 
-            // Get spin count statistics
-#ifdef TEST_CONSUMER_SEQ_LOCK_SPIN_COUNT
-            if (spin_count >= SEQ_LOCK_HISTOGRAM_SIZE)
-                spin_count = SEQ_LOCK_HISTOGRAM_SIZE - 1;
-            atomic_fetch_add_explicit(&seqLockHistogramm[spin_count], 1, memory_order_relaxed);
-#endif
-
         } while ((seq_lock1 != seq_lock2) || ((seq_lock1 >> 32) != (seq_lock2 & 0xFFFFFFFF)));
 
         queue->h.seq_head = head; // Set the last head detected as consistent by the seq lock
     }
 
-#elif defined(QUEUE_MUTEX)
+#elif defined(QUEUE_MUTEX) || defined(QUEUE_SPINLOCK)
 
-    mutexLock(&queue->h.mutex);
     head = atomic_load_explicit(&queue->h.head, memory_order_relaxed);
-    mutexUnlock(&queue->h.mutex);
 
 #elif defined(QUEUE_NO_LOCK)
 
@@ -640,12 +798,6 @@ tQueueBuffer QueuePop(tQueueHandle queueHandle, bool flush, uint32_t *packets_lo
         };
         return ret;
     }
-
-#ifdef TEST_CONSUMER_SEQ_LOCK_SPIN_COUNT
-    if (level > seqLockMaxLevel) {
-        seqLockMaxLevel = level;
-    }
-#endif
 
     // Require a minimum amount of data, to optimize segment usage (less Ethernet frames)
     // Don't when there is a flush request from producer or consumer

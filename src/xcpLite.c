@@ -3542,6 +3542,7 @@ void XcpInit(const char *name, const char *epk, bool activate) {
     // @@@@ TODO: Currently the EPK segment is treated like any other segment, even if it is read-only and does not need 2 pages
     static tXcpCalSegIndex cal__epk = XCP_UNDEFINED_CALSEG; // Create the linker file marker for the EPK segment
     cal__epk = XcpCreateCalSeg("epk", XcpGetEpk(), (uint16_t)STRNLEN(XcpGetEpk(), XCP_EPK_MAX_LENGTH));
+    (void)cal__epk; // Avoid unused variable warning
     assert(cal__epk == 0);
 #endif
 #endif
