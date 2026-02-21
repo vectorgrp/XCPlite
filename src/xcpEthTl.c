@@ -759,7 +759,7 @@ int32_t XcpTlHandleTransmitQueue(void) {
             // Check if there is a segment with multiple messages in the transmit queue
             mutexLock(&gXcpTl.CtrMutex);
             uint32_t lost = 0;
-            tQueueBuffer queue_buffer = queuePop(gXcpTl.Queue, flush, &lost);
+            tQueueBuffer queue_buffer = queuePop(gXcpTl.Queue, true, flush, &lost);
             flush = false;                // Reset flush flag
             gXcpTl.Ctr += (uint16_t)lost; // Increase packet counter by lost packets
             uint16_t l = queue_buffer.size;

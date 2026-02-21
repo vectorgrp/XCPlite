@@ -162,6 +162,26 @@
             "preLaunchTask": "XCPlite: build a2l_test"
         },
         {
+            "name": "Debug queue_test",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/queue_test",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "XCPlite: build queue_test"
+        },
+        {
             "name": "Remote Debug: hello_xcp on Pi",
             "type": "cppdbg",
             "request": "launch",

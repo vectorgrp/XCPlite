@@ -43,6 +43,9 @@ Transport Layer segment, message, packet:
 */
 
 // Check preconditions
+#if QUEUE_ENTRY_USER_HEADER_SIZE != XCPTL_TRANSPORT_LAYER_HEADER_SIZE
+#error "QUEUE_ENTRY_USER_HEADER_SIZE must be equal to XCPTL_TRANSPORT_LAYER_HEADER_SIZE for this queue variant"
+#endif
 #define MAX_ENTRY_SIZE (XCPTL_MAX_DTO_SIZE + XCPTL_TRANSPORT_LAYER_HEADER_SIZE + 8)
 #if (MAX_ENTRY_SIZE % XCPTL_PACKET_ALIGNMENT) != 0
 #error "MAX_ENTRY_SIZE should be aligned to XCPTL_PACKET_ALIGNMENT"
@@ -299,9 +302,10 @@ uint32_t queueLevel(tQueueHandle queue_handle, uint32_t *queue_max_level) {
 // Returns the number of packets lost since the last call to queuePop
 // May not be called twice, each buffer must be released with queueRelease
 // Is not thread safe, must be called from the consumer thread only
-tQueueBuffer queuePop(tQueueHandle queue_handle, bool flush, uint32_t *packets_lost) {
+tQueueBuffer queuePop(tQueueHandle queue_handle, bool accumulate, bool flush, uint32_t *packets_lost) {
     tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
+    assert(accumulate == true);
 
     tXcpSegmentBuffer *b = NULL;
 

@@ -35,6 +35,83 @@
 
 #define QUEUE_SIZE (1024 * 1024 * 8)              // Size of the test queue in bytes
 #define QUEUE_PAYLOAD_SIZE (4 * sizeof(uint64_t)) // Size of the test payload
+#define QUEUE_PEEK                                // Use queuePeek(0) instead of queuePop
+
+// @@@@ TODO Testing queuePeek(n) is not implemented yet
+/*
+
+Results:
+
+OPTION_QUEUE_64_VAR_SIZE
+
+Producer acquire lock time statistics:
+  count=15843768  max_spins=10  max=83250ns  avg=56ns
+
+Lock time histogram (15843768 events):
+  Range                      Count        %  Bar
+  --------------------  ----------  -------  ------------------------------
+  0-40ns                   3230672   20.39%  #############
+  40-80ns                  7069609   44.62%  ##############################
+  80-120ns                 5046179   31.85%  #####################
+  120-160ns                 327939    2.07%  #
+  160-200ns                  59255    0.37%
+  200-240ns                  29012    0.18%
+  240-280ns                  14370    0.09%
+  280-320ns                   6562    0.04%
+  320-360ns                   4022    0.03%
+  360-400ns                   3057    0.02%
+  400-600ns                   9470    0.06%
+  600-800ns                   9037    0.06%
+  800-1000ns                  7589    0.05%
+  1000-1500ns                12568    0.08%
+  1500-2000ns                 4872    0.03%
+  2000-3000ns                 3419    0.02%
+  3000-4000ns                 1098    0.01%
+  4000-6000ns                 1144    0.01%
+  6000-8000ns                  507    0.00%
+  8000-10000ns                 776    0.00%
+  10000-20000ns               2075    0.01%
+  20000-40000ns                486    0.00%
+  40000-80000ns                 49    0.00%
+  80000-160000ns                 1    0.00%
+
+
+
+OPTION_QUEUE_64_VAR_SIZE
+
+
+  Producer acquire lock time statistics:
+  count=10700464  max_spins=8  max=60834ns  avg=129ns
+
+Lock time histogram (10700464 events):
+  Range                      Count        %  Bar
+  --------------------  ----------  -------  ------------------------------
+  0-40ns                   1151517   10.76%  ############
+  40-80ns                  2843906   26.58%  ##############################
+  80-120ns                 1735959   16.22%  ##################
+  120-160ns                1834476   17.14%  ###################
+  160-200ns                1673446   15.64%  #################
+  200-240ns                1163311   10.87%  ############
+  240-280ns                 141192    1.32%  #
+  280-320ns                  40214    0.38%
+  320-360ns                  14068    0.13%
+  360-400ns                   6130    0.06%
+  400-600ns                   7572    0.07%
+  600-800ns                  12378    0.12%
+  800-1000ns                 13293    0.12%
+  1000-1500ns                21039    0.20%
+  1500-2000ns                 8902    0.08%
+  2000-3000ns                 8382    0.08%
+  3000-4000ns                 3856    0.04%
+  4000-6000ns                 3900    0.04%
+  6000-8000ns                 2343    0.02%
+  8000-10000ns                4072    0.04%
+  10000-20000ns               9923    0.09%
+  20000-40000ns                570    0.01%
+  40000-80000ns                 15    0.00%
+
+
+*/
 
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
@@ -90,7 +167,6 @@ void *task(void *p)
             tQueueBuffer queue_buffer = queueAcquire(queue_handle, size);
             if (queue_buffer.size >= size) {
                 assert(queue_buffer.buffer != NULL);
-                assert((uint64_t)queue_buffer.buffer % 8 == 0);
 
                 // Simulate XCP DAQ header, because the queue implementation is not generic, it has some XCP specific asserts
                 // assert(entry->data[4 + 1] == 0xAA || entry->data[4 + 0] >=0xFC))) {
@@ -177,43 +253,69 @@ int main(void) {
     printf("main loop running - press Ctrl+C to stop...\n");
     while (gRun) {
 
+        // Poll the queue, break if empty
         for (;;) {
             uint32_t lost = 0;
-#ifdef OPTION_QUEUE_64_FIX_SIZE
+#ifdef QUEUE_PEEK
             tQueueBuffer buffer = queuePeek(queue_handle, 0, false, &lost);
-#else
-            tQueueBuffer buffer = queuePop(queue_handle, false, &lost);
-#endif
             msg_lost += lost;
-            if (buffer.size > 0) {
-                assert(buffer.buffer != NULL);
-                assert(buffer.size >= QUEUE_PAYLOAD_SIZE);
-                assert((uint64_t)buffer.buffer % 4 == 0);
-
-                uint64_t *b = (uint64_t *)(buffer.buffer + 8);
-                uint64_t task_index = b[0];
-                uint64_t size = b[1];
-                uint64_t counter = b[2];
-
-                assert(size == QUEUE_PAYLOAD_SIZE);
-                assert(task_index < THREAD_COUNT);
-                if (msg_count > 0) {
-                    if (counter != last_counter[task_index] + 1) {
-                        printf("Messages lost in task %u, expected counter %llu, got %llu\n", (uint32_t)task_index, last_counter[task_index] + 1, counter);
-                    } else {
-                        // printf("Task %u, counter %llu\n", (uint32_t)task_index, counter);
-                    }
-                }
-                last_counter[task_index] = counter;
-
-                msg_count++;
-                msg_bytes += buffer.size;
-
-                queueRelease(queue_handle, &buffer);
-            } else {
+            if (buffer.size == 0)
                 break; // No more messages in the queue
+#else
+            tQueueBuffer segment_buffer = queuePop(queue_handle, true, false, &lost); // May accumulate multiple messages in one segment (message has a transport layer header)
+            msg_lost += lost;
+            if (segment_buffer.size == 0)
+                break;
+
+            uint32_t segment_size = segment_buffer.size;
+            tQueueBuffer buffer;
+            buffer.size = *(uint16_t *)segment_buffer.buffer + sizeof(uint32_t); // Get the buffer size from transportlayer header dlc
+            buffer.buffer = segment_buffer.buffer;                               // Move the buffer pointer to the start of the message payload (to the transport layer header)
+            assert(buffer.size > 0 && buffer.size <= QUEUE_PAYLOAD_SIZE + 8);
+
+            // Iterate over all messages in the segment
+            for (;;) {
+
+#endif
+
+            assert(buffer.buffer != NULL);
+            assert(buffer.size >= QUEUE_PAYLOAD_SIZE);
+            assert((uint64_t)buffer.buffer % 2 == 0);
+
+            uint64_t *b = (uint64_t *)(buffer.buffer + 8); // Test payload starts + 8 (Transport layer header + XCP DAQ header)
+            uint64_t task_index = b[0];
+            uint64_t size = b[1];
+            uint64_t counter = b[2];
+
+            assert(size >= QUEUE_PAYLOAD_SIZE);
+            assert(task_index < THREAD_COUNT);
+            if (msg_count > 0) {
+                if (counter != last_counter[task_index] + 1) {
+                    printf("Messages lost in task %u, expected counter %llu, got %llu\n", (uint32_t)task_index, last_counter[task_index] + 1, counter);
+                }
             }
-        }
+
+            last_counter[task_index] = counter;
+
+            msg_count++;
+            msg_bytes += buffer.size;
+
+#ifdef QUEUE_PEEK
+            queueRelease(queue_handle, &buffer);
+#else
+                assert(segment_size >= buffer.size);
+                segment_size -= buffer.size;
+                if (segment_size == 0) {
+                    queueRelease(queue_handle, &segment_buffer);
+                    break; // No more messages in the segment
+                }
+
+                buffer.buffer += buffer.size;                                // Move to the next message in the segment (include the transport layer header size)
+                buffer.size = *(uint16_t *)buffer.buffer + sizeof(uint32_t); // Get the buffer size from transportlayer header dlc
+
+            } // for (;;)
+#endif
+        } // for (;;)
 
         DaqTriggerEvent(mainloop);
         sleepUs(500); // 500us
@@ -226,7 +328,7 @@ int main(void) {
             last_msg_bytes = msg_bytes;
             last_msg_count = msg_count;
         }
-    }
+    } // gRun
 
     // Wait for all threads to finish
     for (int i = 0; i < THREAD_COUNT; i++) {

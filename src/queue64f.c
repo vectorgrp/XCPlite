@@ -36,20 +36,6 @@
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 // Settings
 
-#include "xcptl_cfg.h" // for XCPTL_TRANSPORT_LAYER_HEADER_SIZE, XCPTL_MAX_DTO_SIZE
-
-// Queue entries include space for a consumer header with user defined size
-// This size is configured to be the XCP transport layer header size
-
-// Size of a queue entry from user perspective
-#define QUEUE_ENTRY_USER_HEADER_SIZE XCPTL_TRANSPORT_LAYER_HEADER_SIZE
-#define QUEUE_ENTRY_USER_PAYLOAD_SIZE XCPTL_MAX_DTO_SIZE
-#define QUEUE_ENTRY_USER_SIZE (XCPTL_MAX_DTO_SIZE + XCPTL_TRANSPORT_LAYER_HEADER_SIZE)
-
-// Note:
-//  On the producer side, queue buffers from queueAcquire don't include the user header space
-//  On the consumer side, queue buffers from queuePeek include the space for theuser header
-
 // Assume a cache line size of 128 bytes for alignment and padding to avoid false sharing and to optimize performance on high contention
 #define CACHE_LINE_SIZE 128u
 
@@ -60,6 +46,11 @@
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 // Checks
+
+// This queue implementation is designed for a XCP specific use case with XCP on Ethernet transport layer headers, but it can be adapted for other use cases as well.
+#if QUEUE_ENTRY_USER_HEADER_SIZE != XCPTL_TRANSPORT_LAYER_HEADER_SIZE
+#error "QUEUE_ENTRY_USER_HEADER_SIZE must be equal to XCPTL_TRANSPORT_LAYER_HEADER_SIZE for this queue variant"
+#endif
 
 // Turn of misaligned atomic access warnings for entry_header, alignment is assured
 #ifdef __GNUC__
@@ -93,7 +84,7 @@ static_assert(sizeof(void *) == 8, "This implementation requires a 64 Bit platfo
 // Test
 
 // Queue acquire lock timing and spin
-// For high contention use example daq_test and xcp_client --upload-a2l --udp --mea .  --dest-addr 192.168.0.206
+// For high contention test use example queue_test or daq_test with xcp_client --upload-a2l --udp --mea .  --dest-addr 192.168.0.206
 // Note that this tests have significant performance impact, do not turn on for production use !!!!!!!!!!!
 
 #define TEST_ACQUIRE_LOCK_TIMING
@@ -599,7 +590,7 @@ void queueRelease(tQueueHandle queue_handle, tQueueBuffer *const queue_buffer) {
     assert(queue != NULL);
     assert(queue_buffer != NULL);
     assert(queue_buffer->buffer != NULL);
-    assert(queue_buffer->size > 0 && queue_buffer->size <= XCPTL_MAX_SEGMENT_SIZE);
+    assert(queue_buffer->size > 0 && queue_buffer->size <= QUEUE_SEGMENT_SIZE);
 
     DBG_PRINTF6("queueRelease: releasing entry %u with payload size %u\n", (uint32_t)((uint8_t *)queue_buffer->buffer - queue->buffer - 4) / QUEUE_ENTRY_SIZE, queue_buffer->size);
 

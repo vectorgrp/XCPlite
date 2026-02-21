@@ -36,8 +36,7 @@
 
 #include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
 
-#include "xcpEthTl.h"  // for XcpTlGetCtr
-#include "xcptl_cfg.h" // for XCPTL_TRANSPORT_LAYER_HEADER_SIZE, XCPTL_MAX_DTO_SIZE, XCPTL_MAX_SEGMENT_SIZE
+#include "xcpEthTl.h" // for XcpTlGetCtr
 
 // Turn of misaligned atomic access warnings
 // Alignment is assured by the queue header and the queue entry size alignment
@@ -115,7 +114,7 @@ Transport Layer segment, message, packet:
 // Test
 
 // Queue acquire lock timing and spin
-// For high contention use example daq_test and xcp_client --upload-a2l --udp --mea .  --dest-addr 192.168.0.206
+// For high contention use test queue_test or example daq_test with xcp_client --upload-a2l --udp --mea .  --dest-addr 192.168.0.206
 // Note that this tests have significant performance impact, do not turn on for production use !!!!!!!!!!!
 
 #define TEST_ACQUIRE_LOCK_TIMING
@@ -714,10 +713,12 @@ uint32_t queueLevel(tQueueHandle queue_handle, uint32_t *queue_max_level) {
 // Returns the number of packets lost since the last call
 // May not be called twice, each buffer must be released immediately with queueRelease
 // Is not thread safe, must be called from one consumer thread only
-tQueueBuffer queuePop(tQueueHandle queue_handle, bool flush, uint32_t *packets_lost) {
+tQueueBuffer queuePop(tQueueHandle queue_handle, bool accumulate, bool flush, uint32_t *packets_lost) {
     tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
-
+#ifndef QUEUE_ACCUMULATE_PACKETS
+    assert(accumulate == false); // Accumulate not supported
+#endif
     // Return the number of packets lost in the queue
     if (packets_lost != NULL) {
         uint32_t lost = (uint32_t)atomic_exchange_explicit(&queue->h.packets_lost, 0, memory_order_acq_rel);
@@ -801,23 +802,24 @@ tQueueBuffer queuePop(tQueueHandle queue_handle, bool flush, uint32_t *packets_l
 
     // Require a minimum amount of data, to optimize segment usage (less Ethernet frames)
     // Don't when there is a flush request from producer or consumer
-#if defined(QUEUE_ACCUMULATE_PACKETS) && defined(QUEUE_PEEK_THRESHOLD)
+#ifdef QUEUE_ACCUMULATE_PACKETS
+    if (accumulate) {
 
-    // Flush request ?
-    if (atomic_load_explicit(&queue->h.flush, memory_order_relaxed)) {
-        flush = true; // Flush request, set by the producer
-        atomic_store_explicit(&queue->h.flush, false, memory_order_relaxed);
+        // Flush request ?
+        if (atomic_load_explicit(&queue->h.flush, memory_order_relaxed)) {
+            flush = true; // Flush request, set by the producer
+            atomic_store_explicit(&queue->h.flush, false, memory_order_relaxed);
+        }
+
+        if ((level <= QUEUE_PEEK_THRESHOLD && !flush)) { // Queue is not above the minimum segment size
+            tQueueBuffer ret = {
+                .buffer = NULL,
+                .size = 0,
+            };
+            return ret;
+        }
     }
-
-    if ((level <= QUEUE_PEEK_THRESHOLD && !flush)) { // Queue is not above the minimum segment size
-        tQueueBuffer ret = {
-            .buffer = NULL,
-            .size = 0,
-        };
-        return ret;
-    }
-
-#else
+#else // QUEUE_ACCUMULATE_PACKETS
     (void)flush; // Unused, suppress warning
 #endif
 
@@ -869,64 +871,65 @@ tQueueBuffer queuePop(tQueueHandle queue_handle, bool flush, uint32_t *packets_l
     total_len = dlc + XCPTL_TRANSPORT_LAYER_HEADER_SIZE; // Include the transport layer header size
 
 // Check for more packets to concatenate in a message segment with maximum of XCPTL_MAX_SEGMENT_SIZE, by repeating this procedure
-// @@@@ TODO: maybe optimize the duplicate code below
 #ifdef QUEUE_ACCUMULATE_PACKETS
-    uint32_t offset = first_offset + total_len;
-    uint32_t max_offset = first_offset + level - 1;
-    if (max_offset >= queue->h.queue_size) {
-        max_offset = queue->h.queue_size - 1; // Don't read over wrap around
-        DBG_PRINTF6("%u-%u: queuePop: max_offset wrapped around, head=%" PRIu64 ", tail=%" PRIu64 ", level=%u, queue_size=%u\n", first_offset, max_offset, head, tail, level,
-                    queue->h.queue_size);
-    }
-
-    for (;;) {
-        // Check if there is another entry in the queue to accumulate
-        // It is safe to read until max_offset calculated from the consistent head
-        // Just stop on wrap around
-        if (offset > max_offset) {
-            break; // Nothing more safe to read in queue
+    if (accumulate) {
+        uint32_t offset = first_offset + total_len;
+        uint32_t max_offset = first_offset + level - 1;
+        if (max_offset >= queue->h.queue_size) {
+            max_offset = queue->h.queue_size - 1; // Don't read over wrap around
+            DBG_PRINTF6("%u-%u: queuePop: max_offset wrapped around, head=%" PRIu64 ", tail=%" PRIu64 ", level=%u, queue_size=%u\n", first_offset, max_offset, head, tail, level,
+                        queue->h.queue_size);
         }
 
-        tXcpDtoMessage *entry = (tXcpDtoMessage *)(queue->buffer + offset);
-
-        // Check the entry commit state
-        uint32_t ctr_dlc = atomic_load_explicit(&entry->ctr_dlc, memory_order_acquire);
-        uint16_t dlc = ctr_dlc & 0xFFFF;          // Transport layer packet data length
-        uint16_t ctr = (uint16_t)(ctr_dlc >> 16); // Transport layer counter
-        if (ctr != CTR_COMMITTED) {
-
-            if (ctr != CTR_RESERVED) {
-                DBG_PRINTF_ERROR("queuePop: inconsistent reserved - h=%" PRIu64 ", t=%" PRIu64 ", level=%u, entry: (dlc=0x%04X, ctr=0x%04X)\n", head, tail, level, dlc, ctr);
-                assert(false);
+        for (;;) {
+            // Check if there is another entry in the queue to accumulate
+            // It is safe to read until max_offset calculated from the consistent head
+            // Just stop on wrap around
+            if (offset > max_offset) {
+                break; // Nothing more safe to read in queue
             }
 
-            // Nothing more to concat, the entry is still in reserved state
-            break;
-        }
+            tXcpDtoMessage *entry = (tXcpDtoMessage *)(queue->buffer + offset);
 
-        // Check consistency, this should never fail
-        if (!((ctr == CTR_COMMITTED) && (dlc > 0) && (dlc <= XCPTL_MAX_DTO_SIZE) && (entry->data[1] == 0xAA || entry->data[0] >= 0xFC))) {
-            DBG_PRINTF_ERROR("queuePop: inconsistent commit - h=%" PRIu64 ", t=%" PRIu64 ", level=%u, entry: (dlc=0x%04X, ctr=0x%04X, res=0x%02X)\n", head, tail, level, dlc, ctr,
-                             entry->data[1]);
-            assert(false); // Fatal error, corrupt committed state
-            break;
-        }
+            // Check the entry commit state
+            uint32_t ctr_dlc = atomic_load_explicit(&entry->ctr_dlc, memory_order_acquire);
+            uint16_t dlc = ctr_dlc & 0xFFFF;          // Transport layer packet data length
+            uint16_t ctr = (uint16_t)(ctr_dlc >> 16); // Transport layer counter
+            if (ctr != CTR_COMMITTED) {
 
-        uint16_t len = dlc + XCPTL_TRANSPORT_LAYER_HEADER_SIZE;
+                if (ctr != CTR_RESERVED) {
+                    DBG_PRINTF_ERROR("queuePop: inconsistent reserved - h=%" PRIu64 ", t=%" PRIu64 ", level=%u, entry: (dlc=0x%04X, ctr=0x%04X)\n", head, tail, level, dlc, ctr);
+                    assert(false);
+                }
 
-        // Check if this entry fits into the segment
-        if (total_len + len > XCPTL_MAX_SEGMENT_SIZE) {
-            break; // Max segment size reached
-        }
+                // Nothing more to concat, the entry is still in reserved state
+                break;
+            }
 
-        // Add this entry
-        total_len += len;
-        offset += len;
+            // Check consistency, this should never fail
+            if (!((ctr == CTR_COMMITTED) && (dlc > 0) && (dlc <= XCPTL_MAX_DTO_SIZE) && (entry->data[1] == 0xAA || entry->data[0] >= 0xFC))) {
+                DBG_PRINTF_ERROR("queuePop: inconsistent commit - h=%" PRIu64 ", t=%" PRIu64 ", level=%u, entry: (dlc=0x%04X, ctr=0x%04X, res=0x%02X)\n", head, tail, level, dlc,
+                                 ctr, entry->data[1]);
+                assert(false); // Fatal error, corrupt committed state
+                break;
+            }
 
-        ctr_dlc = ((uint32_t)XcpTlGetCtr() << 16) | dlc;
-        atomic_store_explicit(&entry->ctr_dlc, ctr_dlc, memory_order_release);
+            uint16_t len = dlc + XCPTL_TRANSPORT_LAYER_HEADER_SIZE;
 
-    } // for(;;)
+            // Check if this entry fits into the segment
+            if (total_len + len > XCPTL_MAX_SEGMENT_SIZE) {
+                break; // Max segment size reached
+            }
+
+            // Add this entry
+            total_len += len;
+            offset += len;
+
+            ctr_dlc = ((uint32_t)XcpTlGetCtr() << 16) | dlc;
+            atomic_store_explicit(&entry->ctr_dlc, ctr_dlc, memory_order_release);
+
+        } // for(;;)
+    }
 #endif // QUEUE_ACCUMULATE_PACKETS
 
     assert(total_len > 0 && total_len <= XCPTL_MAX_SEGMENT_SIZE);
@@ -953,6 +956,11 @@ void queueRelease(tQueueHandle queue_handle, tQueueBuffer *const queue_buffer) {
 #else
     atomic_fetch_add_explicit(&queue->h.tail, queue_buffer->size, memory_order_relaxed);
 #endif
+}
+
+tQueueBuffer queuePeek(tQueueHandle queue_handle, int32_t index, bool flush, uint32_t *packets_lost) {
+    assert(index == 0); // Only support peeking the first entry for now, this can be implemented later if needed
+    return queuePop(queue_handle, false, flush, packets_lost);
 }
 
 #endif // OPTION_QUEUE_64_VAR_SIZE
