@@ -47,11 +47,6 @@
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 // Checks
 
-// This queue implementation is designed for a XCP specific use case with XCP on Ethernet transport layer headers, but it can be adapted for other use cases as well.
-#if QUEUE_ENTRY_USER_HEADER_SIZE != XCPTL_TRANSPORT_LAYER_HEADER_SIZE
-#error "QUEUE_ENTRY_USER_HEADER_SIZE must be equal to XCPTL_TRANSPORT_LAYER_HEADER_SIZE for this queue variant"
-#endif
-
 // Turn of misaligned atomic access warnings for entry_header, alignment is assured
 #ifdef __GNUC__
 #endif
@@ -72,7 +67,7 @@ static_assert(sizeof(void *) == 8, "This implementation requires a 64 Bit platfo
 
 // Check for atomic support
 #ifdef __STDC_NO_ATOMICS__
-#error "C11 atomics are not supported on this platform, but required for queue64.c"
+#error "C11 atomics are not supported on this platform, but required for queue64f.c"
 #endif
 
 // For optimal performance
@@ -286,7 +281,6 @@ typedef struct {
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 // Implementation
 
-// Clear the queue
 void queueClear(tQueueHandle queue_handle) {
     tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
@@ -298,7 +292,6 @@ void queueClear(tQueueHandle queue_handle) {
     DBG_PRINT4("queueClear\n");
 }
 
-// Allocate and initialize a new queue with a given size in bytes
 tQueueHandle queueInit(uint32_t queue_memory_size) {
 
     tQueue *queue = NULL;
@@ -314,9 +307,9 @@ tQueueHandle queueInit(uint32_t queue_memory_size) {
     queue->h.queue_buffer_size = aligned_memory_size - (uint32_t)sizeof(tQueueHeader); // Set the queue buffer size (excluding the queue descriptor)
     assert((queue->h.queue_buffer_size % QUEUE_ENTRY_SIZE) == 0);                      // Check that the queue buffer size is a multiple of the entry size
     assert((queue->h.queue_buffer_size % CACHE_LINE_SIZE) == 0);                       // Check that the queue buffer size is a multiple of the cache line size
-    assert((queue->h.queue_buffer_size % XCPTL_PACKET_ALIGNMENT) == 0);                // Check that the queue buffer size is a multiple of the XCP transport layer packet alignment
+    assert((queue->h.queue_buffer_size % QUEUE_PAYLOAD_SIZE_ALIGNMENT) == 0);          // Check that the queue buffer size is a multiple of the required alignment
 
-    DBG_PRINT3("Init XCP transport layer fixed entry size lockless queue\n");
+    DBG_PRINT3("Init fixed entry size lockless queue\n");
     DBG_PRINTF3("  %u entries of max %u bytes user payload, %u bytes user header, %uKiB used\n", queue->h.queue_buffer_size / QUEUE_ENTRY_SIZE, QUEUE_ENTRY_USER_PAYLOAD_SIZE,
                 QUEUE_ENTRY_USER_HEADER_SIZE, (uint32_t)(aligned_memory_size / 1024));
 
@@ -328,7 +321,6 @@ tQueueHandle queueInit(uint32_t queue_memory_size) {
     return (tQueueHandle)queue;
 }
 
-// Deinitialize and free the queue
 void queueDeinit(tQueueHandle queue_handle) {
     tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
@@ -349,11 +341,6 @@ void queueDeinit(tQueueHandle queue_handle) {
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 // For multiple producers !!
 
-// Get a buffer for a XCP packet with at least packet_len bytes
-// Returns:
-//  tQueueBuffer::buffer - pointer to payload buffer
-//  tQueueBuffer:size - actual size of the buffer, at least requested packet_len
-// Lockless and with minimal spin wait serialization on contention with other producers
 tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
 
     tQueue *queue = (tQueue *)queue_handle;
@@ -362,18 +349,17 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
 
     // Align the packet_len if required (improves the alignment of accumulated messages in a segment)
     uint16_t aligned_packet_len = packet_len;
-#if XCPTL_PACKET_ALIGNMENT == 2
+#if QUEUE_PAYLOAD_SIZE_ALIGNMENT == 2
     msg_len = (uint16_t)((msg_len + 1) & 0xFFFE); // Add fill %2
-#error "XCPTL_PACKET_ALIGNMENT == 2 is not supported, use 4"
+#error "QUEUE_PAYLOAD_SIZE_ALIGNMENT == 2 is not supported, use 4"
 #endif
-#if XCPTL_PACKET_ALIGNMENT == 4
+#if QUEUE_PAYLOAD_SIZE_ALIGNMENT == 4
     aligned_packet_len = (uint16_t)((aligned_packet_len + 3) & 0xFFFC); // Add fill %4
 #endif
-#if XCPTL_PACKET_ALIGNMENT == 8
+#if QUEUE_PAYLOAD_SIZE_ALIGNMENT == 8
     aligned_packet_len = (uint16_t)((aligned_packet_len + 7) & 0xFFF8); // Add fill %8
-#error "XCPTL_PACKET_ALIGNMENT == 8 is not supported, use 4"
+#error "QUEUE_PAYLOAD_SIZE_ALIGNMENT == 8 is not supported, use 4"
 #endif
-    assert(aligned_packet_len <= XCPTL_MAX_DTO_SIZE);
 
     // Calculate the message len (the number of bytes used in the fixed size entry including the user header size)
     uint16_t msg_len = aligned_packet_len + QUEUE_ENTRY_USER_HEADER_SIZE;
@@ -443,9 +429,6 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
     return ret;
 }
 
-// Commit a buffer (which was returned from queueAcquire)
-// Lockless and waitfree
-// Indicate priority by setting flush = true
 void queuePush(tQueueHandle queue_handle, tQueueBuffer *const queue_buffer, bool flush) {
 
     tQueue *queue = (tQueue *)queue_handle;
@@ -476,9 +459,6 @@ void queuePush(tQueueHandle queue_handle, tQueueBuffer *const queue_buffer, bool
 // Single consumer thread !!!!!!!!!!
 // The consumer does not contend against the providers
 
-// Get current transmit queue level in entries
-// Is thread safe (no undefined behaviour), but may have false negatives for queue not empty in other threads
-// Returns 0 when the queue is empty
 uint32_t queueLevel(tQueueHandle queue_handle, uint32_t *queue_max_level) {
     tQueue *queue = (tQueue *)queue_handle;
     if (queue == NULL) {
@@ -561,7 +541,7 @@ tQueueBuffer queuePeek(tQueueHandle queue_handle, int32_t index, bool flush, uin
     // XCP use case specific consistency check for committed entries, can be adapted or deleted for other use cases
     // This should never happen
     // Assume this queue carries XCP DTO packets for consistency checks
-    // An committed entry must have a valid length and an XCP ODT in it
+    // An committed entry must have a valid length and an ODT in it
     if (!((commit_state == ENTRY_COMMITTED) && (payload_length > 0) && (payload_length <= QUEUE_ENTRY_USER_SIZE) && (entry->data[4 + 1] == 0xAA || entry->data[4 + 0] >= 0xFC))) {
         DBG_PRINTF_ERROR("queuePeek: inconsistent commit - h=%" PRIu64 ", t=%" PRIu64 ", level=%u, entry: (entry_header=%" PRIx32 ", res=0x%02X)\n", head, tail, level,
                          entry_header, entry->data[1]);
@@ -582,9 +562,6 @@ tQueueBuffer queuePeek(tQueueHandle queue_handle, int32_t index, bool flush, uin
     return ret;
 }
 
-// Advance the transmit queue tail
-// Entries obtained from queuePeek must be released in correct order !!!
-// Is not thread safe, must be called from one single consumer thread only
 void queueRelease(tQueueHandle queue_handle, tQueueBuffer *const queue_buffer) {
     tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);

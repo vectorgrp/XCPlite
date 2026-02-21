@@ -2,6 +2,9 @@
 | File:
 |   queue64.c
 |
+|  @@@@ Deprecated, this file is not maintained anymore
+|  This file is only kept for reference and testing of different queue implementations.
+|
 | Description:
 |   XCP transport layer queue
 |   Multi producer single consumer queue (producer side is thread safe and lockless)
@@ -15,13 +18,15 @@
 |
  ----------------------------------------------------------------------------*/
 
+#error "Deprecated queue implementation, this file is not maintained anymore"
+
 #include "platform.h"   // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex, spinlock
 #include "xcplib_cfg.h" // for OPTION_xxx
 
 // Use queue32.c for 32 Bit platforms or on Windows
 #if defined(PLATFORM_64BIT) && !defined(_WIN) && !defined(OPTION_ATOMIC_EMULATION)
 
-#ifdef OPTION_QUEUE_64_VAR_SIZE
+#if !defined(OPTION_QUEUE_64_VAR_SIZE) && !defined(OPTION_QUEUE_64_FIX_SIZE)
 
 #include "queue.h"
 
@@ -349,12 +354,6 @@ Lock time histogram (3512722 events):
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 
-// Check preconditions
-#define MAX_ENTRY_SIZE (XCPTL_MAX_DTO_SIZE + XCPTL_TRANSPORT_LAYER_HEADER_SIZE)
-#if (MAX_ENTRY_SIZE % XCPTL_PACKET_ALIGNMENT) != 0
-#error "MAX_ENTRY_SIZE should be aligned to XCPTL_PACKET_ALIGNMENT"
-#endif
-
 // Queue entry states
 #define CTR_RESERVED 0x0000u  // Reserved by producer
 #define CTR_COMMITTED 0xCCCCu // Committed by producer
@@ -436,7 +435,7 @@ static tQueueHandle queueInitFromMemory(void *queue_memory, uint32_t queue_memor
         memset(queue, 0, aligned_size);                            // Clear memory
         queue->h.from_memory = false;
         queue->h.buffer_size = queue_memory_size - (uint32_t)sizeof(tQueueHeader);
-        queue->h.queue_size = queue->h.buffer_size - MAX_ENTRY_SIZE;
+        queue->h.queue_size = queue->h.buffer_size - QUEUE_MAX_ENTRY_SIZE;
         clear_queue = true;
     }
     // Queue memory is provided by the caller
@@ -445,19 +444,20 @@ static tQueueHandle queueInitFromMemory(void *queue_memory, uint32_t queue_memor
         memset(queue, 0, queue_memory_size); // Clear memory
         queue->h.from_memory = true;
         queue->h.buffer_size = queue_memory_size - (uint32_t)sizeof(tQueueHeader);
-        queue->h.queue_size = queue->h.buffer_size - MAX_ENTRY_SIZE;
+        queue->h.queue_size = queue->h.buffer_size - QUEUE_MAX_ENTRY_SIZE;
     }
 
     // Queue is provided by the caller and already initialized
     else {
         queue = (tQueue *)queue_memory;
         assert(queue->h.from_memory == true);
-        assert(queue->h.queue_size == queue->h.buffer_size - MAX_ENTRY_SIZE);
+        assert(queue->h.queue_size == queue->h.buffer_size - QUEUE_MAX_ENTRY_SIZE);
     }
 
     DBG_PRINT3("Init XCP transport layer queue\n");
     DBG_PRINTF3("  XCPTL_MAX_SEGMENT_SIZE=%u, XCPTL_PACKET_ALIGNMENT=%u, queue: %u DTOs of max %u bytes, %uKiB\n", XCPTL_MAX_SEGMENT_SIZE, XCPTL_PACKET_ALIGNMENT,
-                queue->h.queue_size / MAX_ENTRY_SIZE, MAX_ENTRY_SIZE - XCPTL_TRANSPORT_LAYER_HEADER_SIZE, (uint32_t)((queue->h.buffer_size + sizeof(tQueueHeader)) / 1024));
+                queue->h.queue_size / QUEUE_MAX_ENTRY_SIZE, QUEUE_MAX_ENTRY_SIZE - XCPTL_TRANSPORT_LAYER_HEADER_SIZE,
+                (uint32_t)((queue->h.buffer_size + sizeof(tQueueHeader)) / 1024));
 #if defined(QUEUE_SEQ_LOCK)
     DBG_PRINT3("  QUEUE_SEQ_LOCK\n");
 #endif
@@ -562,7 +562,7 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
 #error "XCPTL_PACKET_ALIGNMENT == 8 is not supported, use 4"
 #endif
 
-    assert(msg_len <= MAX_ENTRY_SIZE);
+    assert(msg_len <= QUEUE_MAX_ENTRY_SIZE);
 
 #ifdef TEST_ACQUIRE_LOCK_TIMING
     uint64_t spin_start = get_timestamp_ns();

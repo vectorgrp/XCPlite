@@ -46,10 +46,6 @@ Transport Layer segment, message, packet:
 #if QUEUE_ENTRY_USER_HEADER_SIZE != XCPTL_TRANSPORT_LAYER_HEADER_SIZE
 #error "QUEUE_ENTRY_USER_HEADER_SIZE must be equal to XCPTL_TRANSPORT_LAYER_HEADER_SIZE for this queue variant"
 #endif
-#define MAX_ENTRY_SIZE (XCPTL_MAX_DTO_SIZE + XCPTL_TRANSPORT_LAYER_HEADER_SIZE + 8)
-#if (MAX_ENTRY_SIZE % XCPTL_PACKET_ALIGNMENT) != 0
-#error "MAX_ENTRY_SIZE should be aligned to XCPTL_PACKET_ALIGNMENT"
-#endif
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 // Message types

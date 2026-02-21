@@ -8,8 +8,9 @@
 | Description:
 |   XCPlite internal header file for the transmit queue
 |   There are 3 different implementations of the queue, which are selected based on the platform and configuration:
-|       queue64.c   - Lockless, variable entry size with message accumulation
-|       queue64f.x  - Lockless, fixed entry size
+|       queue64v.c  - Lockless, variable entry size
+|       queue64f.c  - Lockless, fixed entry size
+|       queue64.c   - Lockless, variable entry size with optional message accumulation (deprecated)
 |       queue32.c   - Locking, variable entry size with message accumulation (fallback for 32-bit platforms and Windows)
 |
 |   Note:
@@ -38,6 +39,14 @@ to 4 bytes for ctr+len.
 #define QUEUE_ENTRY_USER_PAYLOAD_SIZE (XCPTL_MAX_DTO_SIZE)
 #define QUEUE_ENTRY_USER_SIZE (XCPTL_MAX_DTO_SIZE + XCPTL_TRANSPORT_LAYER_HEADER_SIZE)
 #define QUEUE_SEGMENT_SIZE (XCPTL_MAX_SEGMENT_SIZE)
+#define QUEUE_PEEK_THRESHOLD (XCPTL_MAX_SEGMENT_SIZE)
+#define QUEUE_MAX_ENTRY_SIZE (XCPTL_MAX_DTO_SIZE + XCPTL_TRANSPORT_LAYER_HEADER_SIZE)
+#define QUEUE_PAYLOAD_SIZE_ALIGNMENT (XCPTL_PACKET_ALIGNMENT)
+
+// Check preconditions
+#if (MAX_ENTRY_SIZE % XCPTL_PACKET_ALIGNMENT) != 0
+#error "MAX_ENTRY_SIZE should be aligned to XCPTL_PACKET_ALIGNMENT"
+#endif
 
 // Note:
 // On the producer side, a tQueueBuffer from queueAcquire don't include the user header space

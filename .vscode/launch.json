@@ -182,6 +182,26 @@
             "preLaunchTask": "XCPlite: build queue_test"
         },
         {
+            "name": "Debug daq_test",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/daq_test",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "XCPlite: build daq_test"
+        },
+        {
             "name": "Remote Debug: hello_xcp on Pi",
             "type": "cppdbg",
             "request": "launch",

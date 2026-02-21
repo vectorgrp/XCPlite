@@ -35,9 +35,15 @@
 
 #define QUEUE_SIZE (1024 * 1024 * 8)              // Size of the test queue in bytes
 #define QUEUE_PAYLOAD_SIZE (4 * sizeof(uint64_t)) // Size of the test payload
-#define QUEUE_PEEK                                // Use queuePeek(0) instead of queuePop
+
+#if defined(OPTION_QUEUE_64_VAR_SIZE) || defined(OPTION_QUEUE_64_FIX_SIZE)
+#define QUEUE_PEEK // Use queuePeek(0) instead of queuePop
+#endif
+
+// #define USE_XCP
 
 // @@@@ TODO Testing queuePeek(n) is not implemented yet
+
 /*
 
 Results:
@@ -116,6 +122,7 @@ Lock time histogram (10700464 events):
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
 
+#ifdef USE_XCP
 #define OPTION_PROJECT_NAME "daq_test"  // Project name, used to build the A2L and BIN file name
 #define OPTION_PROJECT_EPK __TIME__     // EPK version string
 #define OPTION_USE_TCP false            // TCP or UDP
@@ -123,6 +130,7 @@ Lock time histogram (10700464 events):
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
 #define OPTION_QUEUE_SIZE (1024 * 32)   // Size of the measurement queue in bytes, should be large enough to cover at least 10ms of expected traffic
 #define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#endif
 
 //-----------------------------------------------------------------------------------------------------
 
@@ -198,6 +206,8 @@ int main(void) {
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 
+#ifdef USE_XCP
+
     // Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
     XcpSetLogLevel(OPTION_LOG_LEVEL);
 
@@ -215,6 +225,7 @@ int main(void) {
     if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         return 1;
     }
+#endif
 
     queue_handle = queueInit(QUEUE_SIZE); // Initialize the queue, the queue memory is allocated by the library, the queue buffer size is specified by OPTION_QUEUE_SIZE
     if (queue_handle == NULL) {
@@ -238,6 +249,7 @@ int main(void) {
     uint64_t last_counter[THREAD_COUNT];
     memset(last_counter, 0, sizeof(last_counter));
 
+#ifdef USE_XCP
     A2lLock();
     DaqCreateEvent(mainloop);
     A2lSetStackAddrMode(mainloop);
@@ -245,9 +257,9 @@ int main(void) {
     A2lCreateMeasurement(msg_lost, "Messages lost");
     A2lCreateMeasurement(msg_bytes, "Message bytes");
     A2lUnlock();
-
     sleepUs(200000); // Wait 200ms for the threads to start
     A2lFinalize();   // Manually finalize the A2L file to make it visible without XCP tool connect
+#endif
 
     // Wait for signal to stop
     printf("main loop running - press Ctrl+C to stop...\n");
@@ -317,7 +329,10 @@ int main(void) {
 #endif
         } // for (;;)
 
+#ifdef USE_XCP
         DaqTriggerEvent(mainloop);
+#endif
+
         sleepUs(500); // 500us
 
         // Print statistics every second
@@ -337,9 +352,10 @@ int main(void) {
     }
 
     queueDeinit(queue_handle); // Deinitialize the queue
-
+#ifdef USE_XCP
     XcpDisconnect();        // Force disconnect the XCP client
     A2lFinalize();          // Finalize A2L generation, if not done yet
     XcpEthServerShutdown(); // Stop the XCP server
+#endif
     return 0;
 }

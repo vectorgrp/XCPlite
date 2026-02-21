@@ -86,7 +86,7 @@ static struct {
     SOCKET_HANDLE MulticastSock;
 #endif
 
-#ifdef OPTION_QUEUE_64_FIX_SIZE
+#if defined(OPTION_QUEUE_64_FIX_SIZE) || defined(OPTION_QUEUE_64_VAR_SIZE)
     uint64_t last_transmit_time; // Last transmit time in ms
 #endif
 
@@ -153,7 +153,7 @@ static bool XcpEthTlSend(const uint8_t *data, uint16_t size, const uint8_t *addr
 // Transmit a XCP segment with XCPTL_MAX_SEGMENT_SIZE (UDP or TCP) with multiple XCP DTO messages
 // Using vectored io
 // Returns false on error
-#ifdef OPTION_QUEUE_64_FIX_SIZE
+#if defined(OPTION_QUEUE_64_FIX_SIZE) || defined(OPTION_QUEUE_64_VAR_SIZE)
 static bool XcpEthTlSendV(tQueueBuffer buffers[], uint16_t count) {
 
     assert(buffers != NULL);
@@ -471,7 +471,7 @@ bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, tQueueHandle 
     gXcpTl.Queue = Queue;
     mutexInit(&gXcpTl.CtrMutex, false, 0);
     gXcpTl.Ctr = 0; // Reset packet counter
-#ifdef OPTION_QUEUE_64_FIX_SIZE
+#if defined(OPTION_QUEUE_64_FIX_SIZE) || defined(OPTION_QUEUE_64_VAR_SIZE)
     gXcpTl.last_transmit_time = 0; // Reset last transmit time
 #endif
 
@@ -607,7 +607,7 @@ void XcpEthTlGetInfo(bool *isTcp, uint8_t *mac, uint8_t *addr, uint16_t *port) {
 // Transmit completed and fully commited XCP DAQ and EVENT messages in the transmit queue as segments in UDP frames
 // Uses vectored io to send multiple messages in one UDP frame, if possible
 // Returns number of bytes sent or -1 on error
-#ifdef OPTION_QUEUE_64_FIX_SIZE
+#if defined(OPTION_QUEUE_64_FIX_SIZE) || defined(OPTION_QUEUE_64_VAR_SIZE)
 
 // MTU currently set to 8000 (jumbo frames) -> XCPTL_MAX_SEGMENT_SIZE = 7968
 // Queue size currently typically at least 32KByte
