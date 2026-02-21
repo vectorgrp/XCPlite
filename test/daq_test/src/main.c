@@ -88,6 +88,10 @@ void *task(void *p)
 
     // Task local measurement variables on stack
     uint16_t counter = 0;
+    uint8_t counter8 = 0;
+    uint16_t counter16 = 0;
+    uint32_t counter32 = 0;
+    u_int64_t counter64 = 0;
     uint32_t array[64] = {0}; // 64*4=256 byte array
 
     // Instrumentation: Events and measurement variables
@@ -104,6 +108,10 @@ void *task(void *p)
     A2lLock();
     A2lSetStackAddrMode_i(task_event_id);
     A2lCreateMeasurementInstance(task_name, counter, "Taskloop counter");
+    A2lCreateMeasurementInstance(task_name, counter8, "Taskloop counter 8 bit");
+    A2lCreateMeasurementInstance(task_name, counter16, "Taskloop counter 16 bit");
+    A2lCreateMeasurementInstance(task_name, counter32, "Taskloop counter 32 bit");
+    A2lCreateMeasurementInstance(task_name, counter64, "Taskloop counter 64 bit");
     A2lCreateMeasurementArrayInstance(task_name, array, "task array (to increase measurement workload)");
     A2lUnlock();
 
@@ -118,6 +126,10 @@ void *task(void *p)
             if (counter > params->counter_max) {
                 counter = 0;
             }
+            counter8 = (uint8_t)counter;
+            counter16 = (uint16_t)counter;
+            counter32 = (uint32_t)counter;
+            counter64 = (uint64_t)counter;
 
             // Sleep time
             delay_us = params->delay_us;
