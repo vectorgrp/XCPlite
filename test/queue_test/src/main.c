@@ -27,8 +27,7 @@
 //-----------------------------------------------------------------------------------------------------
 
 // Test parameters
-// 1 million msg/s
-// 64 byte payload  -> 64 MByte/s
+// 64 byte payload  * THREAD_COUNT * 1000000/THREAD_DELAY_US = Throughput in byte/s
 
 #define THREAD_COUNT 10    // Number of threads to create
 #define THREAD_DELAY_US 10 // Delay in microseconds for the thread loops
@@ -37,7 +36,8 @@
 #define QUEUE_PAYLOAD_SIZE (4 * sizeof(uint64_t)) // Size of the test payload
 
 #if defined(OPTION_QUEUE_64_VAR_SIZE) || defined(OPTION_QUEUE_64_FIX_SIZE)
-#define QUEUE_PEEK // Use queuePeek(0) instead of queuePop
+#define QUEUE_PEEK               // Use queuePeek(0) instead of queuePop
+#define QUEUE_PEEK_MAX_INDEX (8) // Max offset for peeking ahead
 #endif
 
 // #define USE_XCP
@@ -266,14 +266,66 @@ int main(void) {
     while (gRun) {
 
         // Poll the queue, break if empty
-        for (;;) {
-            uint32_t lost = 0;
+
 #ifdef QUEUE_PEEK
-            tQueueBuffer buffer = queuePeek(queue_handle, 0, false, &lost);
-            msg_lost += lost;
-            if (buffer.size == 0)
+
+        while (gRun) {
+
+            tQueueBuffer buffer[QUEUE_PEEK_MAX_INDEX + 1];
+            uint32_t buffer_count = 0;
+
+            // Set max max_peek_index to a random number between 0 and QUEUE_PEEK_MAX_INDEX
+            uint32_t max_peek_index = rand() % (QUEUE_PEEK_MAX_INDEX + 1);
+            for (uint32_t index = 0; index <= max_peek_index; index++) {
+                uint32_t lost = 0;
+                buffer[index] = queuePeek(queue_handle, index, &lost);
+                msg_lost += lost;
+                if (buffer[index].size == 0) { // Empty buffer, no more messages in the queue
+                    break;
+                }
+                buffer_count++;
+                assert(buffer[index].buffer != NULL);
+                assert(buffer[index].size >= QUEUE_PAYLOAD_SIZE);
+                assert((uint64_t)buffer[index].buffer % 2 == 0);
+
+                uint64_t *b = (uint64_t *)(buffer[index].buffer + 8); // Test payload starts + 8 (Transport layer header + XCP DAQ header)
+                uint64_t task_index = b[0];
+                uint64_t size = b[1];
+                uint64_t counter = b[2];
+
+                // printf("Peeked index %u: task_index=%llu, size=%llu, counter=%llu\n", index, task_index, size, counter);
+
+                assert(size >= QUEUE_PAYLOAD_SIZE);
+                assert(task_index < THREAD_COUNT);
+                if (msg_count > 0) {
+                    if (counter != last_counter[task_index] + 1) {
+                        printf("Messages lost in task %u, expected counter %llu, got %llu\n", (uint32_t)task_index, last_counter[task_index] + 1, counter);
+                    }
+                }
+
+                last_counter[task_index] = counter;
+
+                msg_count++;
+                msg_bytes += buffer[index].size;
+            }
+
+            if (buffer_count == 0) {
                 break; // No more messages in the queue
+            }
+
+            // Release the buffers obtained by queuePeek so far
+            for (uint32_t i = 0; i < buffer_count; i++) {
+                assert(buffer[i].size > 0);
+                queueRelease(queue_handle, &buffer[i]);
+            }
+
+        } // for (;;)
+
 #else
+
+        for (;;) {
+
+            uint32_t lost = 0;
             tQueueBuffer segment_buffer = queuePop(queue_handle, true, false, &lost); // May accumulate multiple messages in one segment (message has a transport layer header)
             msg_lost += lost;
             if (segment_buffer.size == 0)
@@ -288,33 +340,28 @@ int main(void) {
             // Iterate over all messages in the segment
             for (;;) {
 
-#endif
+                assert(buffer.buffer != NULL);
+                assert(buffer.size >= QUEUE_PAYLOAD_SIZE);
+                assert((uint64_t)buffer.buffer % 2 == 0);
 
-            assert(buffer.buffer != NULL);
-            assert(buffer.size >= QUEUE_PAYLOAD_SIZE);
-            assert((uint64_t)buffer.buffer % 2 == 0);
+                uint64_t *b = (uint64_t *)(buffer.buffer + 8); // Test payload starts + 8 (Transport layer header + XCP DAQ header)
+                uint64_t task_index = b[0];
+                uint64_t size = b[1];
+                uint64_t counter = b[2];
 
-            uint64_t *b = (uint64_t *)(buffer.buffer + 8); // Test payload starts + 8 (Transport layer header + XCP DAQ header)
-            uint64_t task_index = b[0];
-            uint64_t size = b[1];
-            uint64_t counter = b[2];
-
-            assert(size >= QUEUE_PAYLOAD_SIZE);
-            assert(task_index < THREAD_COUNT);
-            if (msg_count > 0) {
-                if (counter != last_counter[task_index] + 1) {
-                    printf("Messages lost in task %u, expected counter %llu, got %llu\n", (uint32_t)task_index, last_counter[task_index] + 1, counter);
+                assert(size >= QUEUE_PAYLOAD_SIZE);
+                assert(task_index < THREAD_COUNT);
+                if (msg_count > 0) {
+                    if (counter != last_counter[task_index] + 1) {
+                        printf("Messages lost in task %u, expected counter %llu, got %llu\n", (uint32_t)task_index, last_counter[task_index] + 1, counter);
+                    }
                 }
-            }
 
-            last_counter[task_index] = counter;
+                last_counter[task_index] = counter;
 
-            msg_count++;
-            msg_bytes += buffer.size;
+                msg_count++;
+                msg_bytes += buffer.size;
 
-#ifdef QUEUE_PEEK
-            queueRelease(queue_handle, &buffer);
-#else
                 assert(segment_size >= buffer.size);
                 segment_size -= buffer.size;
                 if (segment_size == 0) {
@@ -326,8 +373,9 @@ int main(void) {
                 buffer.size = *(uint16_t *)buffer.buffer + sizeof(uint32_t); // Get the buffer size from transportlayer header dlc
 
             } // for (;;)
-#endif
         } // for (;;)
+
+#endif
 
 #ifdef USE_XCP
         DaqTriggerEvent(mainloop);

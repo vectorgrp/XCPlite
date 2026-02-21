@@ -108,15 +108,13 @@ void queuePush(tQueueHandle queue_handle, tQueueBuffer *const queue_buffer, bool
 /// Get a queue entry without removing it from the queue.
 /// Single consumer thread only, not thread safe.
 /// @param queue_handle         Queue handle.
-/// @param index                Peak ahead index. With OPTION_QUEUE_64_VAR_SIZE, index n may only be requested, if index n-1 was pushed !!! Can not peak ahead uncommitted
-/// entries!!!
-/// @param flush                Disable any optimizations to guarantee it returns any commited data currently available. No lazy updates, no false negatives.
+/// @param index                Peak ahead index. Can not peak ahead uncommitted entries!!!
 /// @param packets_lost         Optional out parameter to get the number of packets lost since the last call. Packet lost happens on the producer side when the queue is full
 /// @return Queue buffer, tQueueBuffer::size=0 if no buffer exists (with that index).
 /// NOTE: The returned buffer must be released using `queueRelease` and in the same order as they were obtained (sequential index order).
 /// NOTE: The payload already includes header space for the XCP transport layer header (ctr+len) in the buffer, but the transport layer counter is not set yet!
 /// NOTE: The function may be called multiple times with the same index, but the entries obtained must be released in sequential index order.
-tQueueBuffer queuePeek(tQueueHandle queue_handle, int32_t index, bool flush, uint32_t *packets_lost);
+tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t index, uint32_t *packets_lost);
 
 /// Get the next entry or multiple accumulated entries from the queue.
 /// Single consumer thread only, not thread safe.

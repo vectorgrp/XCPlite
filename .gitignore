@@ -33,3 +33,5 @@ typedefs.a2l
 .DS_Store
 /ptptool.obs
 /docs/CPP_TYPE_TRAITS_GUIDE.md
+/src/queue64v_old.c
+/test/queue_test/src/main_old.c

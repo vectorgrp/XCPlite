@@ -482,11 +482,9 @@ uint32_t queueLevel(tQueueHandle queue_handle, uint32_t *queue_max_level) {
 // Returns the number of packets lost since the last call
 // May be called multiple times, even with the same index, but the entries obtained must be released in sequential index order
 // Not thread safe, queuePeek and queueRelease must be called from one single consumer thread only
-tQueueBuffer queuePeek(tQueueHandle queue_handle, int32_t index, bool flush, uint32_t *packets_lost) {
+tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t index, uint32_t *packets_lost) {
     tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
-    (void)flush; // Unused consumer flush request, suppress warning
-    // @@@@ TODO: Handle flush requests from producer
 
     // Return the number of packets lost in the queue
     if (packets_lost != NULL) {

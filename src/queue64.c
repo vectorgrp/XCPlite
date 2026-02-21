@@ -958,9 +958,9 @@ void queueRelease(tQueueHandle queue_handle, tQueueBuffer *const queue_buffer) {
 #endif
 }
 
-tQueueBuffer queuePeek(tQueueHandle queue_handle, int32_t index, bool flush, uint32_t *packets_lost) {
+tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t index, uint32_t *packets_lost) {
     assert(index == 0); // Only support peeking the first entry for now, this can be implemented later if needed
-    return queuePop(queue_handle, false, flush, packets_lost);
+    return queuePop(queue_handle, false, false, packets_lost);
 }
 
 #endif // OPTION_QUEUE_64_VAR_SIZE

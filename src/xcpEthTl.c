@@ -620,13 +620,13 @@ void XcpEthTlGetInfo(bool *isTcp, uint8_t *mac, uint8_t *addr, uint16_t *port) {
 // Returns after timeout, if there is nothing to send
 int32_t XcpTlHandleTransmitQueue(void) {
 
-    int32_t length = 0;                      // Number of bytes collected for transmission
+    uint32_t length = 0;                     // Number of bytes collected for transmission
     uint32_t index = 0;                      // Index for peeking into the queue
     tQueueBuffer queue_buffers[MAX_BUFFERS]; // Buffer pointers for peeking into the queue, max segment size / min message size
     for (;;) {
 
         uint32_t lost = 0;
-        tQueueBuffer queue_buffer = queuePeek(gXcpTl.Queue, index, false, &lost);
+        tQueueBuffer queue_buffer = queuePeek(gXcpTl.Queue, index, &lost);
         gXcpTl.Ctr += (uint16_t)lost; // Increase packet counter by lost packets (must not be thread safe, used only to indicate error)
         uint16_t l = queue_buffer.size;
         if (l == 0) {

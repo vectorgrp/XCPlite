@@ -34,8 +34,8 @@ extern uint32_t gXcpRxPacketCount;
 //-----------------------------------------------------------------------------------------------------
 
 #define XCP_MAX_EVENT_NAME 15
-#define THREAD_COUNT 32    // Number of threads to create
-#define THREAD_DELAY_US 50 // Delay in microseconds for the thread loops
+#define THREAD_COUNT 8      // Number of threads to create
+#define THREAD_DELAY_US 500 // Delay in microseconds for the thread loops
 
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
@@ -60,7 +60,7 @@ typedef struct params {
 } params_t;
 
 // Default parameters
-static const params_t params = {.counter_max = 1024, .delay_us = THREAD_DELAY_US, .run = true, .test_byte1 = -1, .test_byte2 = 1};
+static const params_t params = {.counter_max = 100, .delay_us = THREAD_DELAY_US, .run = true, .test_byte1 = -1, .test_byte2 = 1};
 
 // Global calibration segment handle
 static tXcpCalSegIndex calseg = XCP_UNDEFINED_CALSEG;
@@ -230,7 +230,7 @@ int main(void) {
         XcpUnlockCalSeg(calseg);
 
         DaqTriggerEvent(mainloop);
-        sleepUs(100); // 100us
+        sleepUs(1000); // 1000us
     }
 
     // Wait for all threads to finish
