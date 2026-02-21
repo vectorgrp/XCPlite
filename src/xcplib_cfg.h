@@ -113,15 +113,15 @@
 
 // Transport layer queue, lockless with variable queue entry size
 // For maximum memory efficiency, but more cache bouncing
-// #define OPTION_QUEUE_64_VAR_SIZE
+#define OPTION_QUEUE_64_VAR_SIZE
 
 // Transport layer queue, lockless with fixed queue entry size
 // For maximum performance, but less efficient memory usage with partially filled queue entries
-// Entry size is defined in xcpQueue64f.c to (XCPTL_MAX_DTO_SIZE  + XCPTL_TRANSPORT_LAYER_HEADER_SIZE (4) + 4)
+// Entry size is defined in queue64f.c to (XCPTL_MAX_DTO_SIZE  + XCPTL_TRANSPORT_LAYER_HEADER_SIZE (4) + 4)
 // Optimal overall queue size is required to be a multiple of the cache line size (so XCPTL_MAX_DTO_SIZE in xcptl_cfg.h currently set to 244)
 // Tune XCPTL_MAX_DTO_SIZE for best compromise between memory efficiency and performance
 // Larger DTO size may not payoff, rely on transport layer message accumulation
-#define OPTION_QUEUE_64_FIX_SIZE
+// #define OPTION_QUEUE_64_FIX_SIZE
 
 //-------------------------------------------------------------------------------
 // A2L generation settings

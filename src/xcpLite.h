@@ -20,8 +20,8 @@
 
 #include "dbg_print.h"  // for DBG_LEVEL, DBG_PRINTF, DBG_PRINT, ...
 #include "platform.h"   // for atomics
+#include "queue.h"      // for tQueueHandle
 #include "xcp.h"        // for XCP protocol definitions
-#include "xcpQueue.h"   // for tQueueHandle
 #include "xcp_cfg.h"    // for XCP_PROTOCOL_LAYER_VERSION, XCP_ENABLE_...
 #include "xcplib_cfg.h" // for OPTION_xxx
 #include "xcptl_cfg.h"  // for XCPTL_MAX_CTO_SIZE
@@ -38,7 +38,7 @@ extern "C" {
 void XcpInit(const char *name, const char *epk, bool activate);
 bool XcpIsInitialized(void);
 bool XcpIsActivated(void);
-void XcpStart(tQueueHandle queueHandle, bool resumeMode);
+void XcpStart(tQueueHandle queue_handle, bool resumeMode);
 void XcpReset(void);
 
 // Project name

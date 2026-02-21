@@ -21,10 +21,10 @@
 
 #include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
 #include "platform.h"  // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
-#include "xcp.h"       // for CRC_XXX
-#include "xcpEthTl.h"  // for tXcpCtoMessage, xcpTlXxxx, xcpEthTlxxx
-#include "xcpLite.h"   // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
-#include "xcpQueue.h"
+#include "queue.h"
+#include "xcp.h"        // for CRC_XXX
+#include "xcpEthTl.h"   // for tXcpCtoMessage, xcpTlXxxx, xcpEthTlxxx
+#include "xcpLite.h"    // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
 #include "xcplib_cfg.h" // for OPTION_xxx
 #include "xcptl_cfg.h"  // for XCPTL_xxx
 
@@ -105,7 +105,7 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
     if (queueSize < XCPTL_MAX_SEGMENT_SIZE * 4) {
         DBG_PRINT_WARNING("Queue size is smaller than XCPTL_MAX_SEGMENT_SIZE*4, may cause performance issues!\n");
     }
-    gXcpServer.TransmitQueue = QueueInit(queueSize);
+    gXcpServer.TransmitQueue = queueInit(queueSize);
     if (gXcpServer.TransmitQueue == NULL)
         return false;
 
@@ -154,7 +154,7 @@ bool XcpEthServerShutdown(void) {
     }
 #endif
 
-    QueueDeinit(gXcpServer.TransmitQueue);
+    queueDeinit(gXcpServer.TransmitQueue);
 
     return true;
 }

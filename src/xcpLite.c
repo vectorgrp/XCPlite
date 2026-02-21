@@ -66,9 +66,9 @@
 #include "dbg_print.h"   // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
 #include "persistence.h" // for XcpBinFreezeCalSeg
 #include "platform.h"    // for atomics
+#include "queue.h"       // for QueueXxx transport queue layer interface
 #include "xcp.h"         // XCP protocol definitions
 #include "xcpEthTl.h"    // for transport layer XcpTlWaitForTransmitQueueEmpty and XcpTlSendCrm
-#include "xcpQueue.h"    // for QueueXxx transport queue layer interface
 
 /****************************************************************************/
 /* Defaults and checks                                                      */
@@ -1974,9 +1974,9 @@ static void XcpStopSelectedDaqLists(void) {
 
 // Trigger DAQ list
 #ifdef XCP_ENABLE_DAQ_ADDREXT
-static void XcpTriggerDaqList_(tQueueHandle queueHandle, uint16_t daq, int count, const uint8_t **bases, uint64_t clock) {
+static void XcpTriggerDaqList_(tQueueHandle queue_handle, uint16_t daq, int count, const uint8_t **bases, uint64_t clock) {
 #else
-static void XcpTriggerDaqList_(tQueueHandle queueHandle, uint16_t daq, const uint8_t *base, uint64_t clock) {
+static void XcpTriggerDaqList_(tQueueHandle queue_handle, uint16_t daq, const uint8_t *base, uint64_t clock) {
 #endif
     uint8_t *d0;
     uint16_t odt, hs;
@@ -1986,8 +1986,8 @@ static void XcpTriggerDaqList_(tQueueHandle queueHandle, uint16_t daq, const uin
     for (hs = ODT_HEADER_SIZE + ODT_TIMESTAMP_SIZE, odt = DaqListFirstOdt(daq); odt <= DaqListLastOdt(daq); hs = ODT_HEADER_SIZE, odt++) {
 
         // Get DTO buffer
-        tQueueBuffer queueBuffer = QueueAcquire(queueHandle, DaqListOdtTable[odt].size + hs);
-        d0 = queueBuffer.buffer;
+        tQueueBuffer queue_buffer = queueAcquire(queue_handle, DaqListOdtTable[odt].size + hs);
+        d0 = queue_buffer.buffer;
 
         // DAQ queue overflow
         if (d0 == NULL) {
@@ -2059,14 +2059,14 @@ static void XcpTriggerDaqList_(tQueueHandle queueHandle, uint16_t daq, const uin
             }
         }
 
-        QueuePush(queueHandle, &queueBuffer, DaqListPriority(daq) != 0 && odt == DaqListLastOdt(daq));
+        queuePush(queue_handle, &queue_buffer, DaqListPriority(daq) != 0 && odt == DaqListLastOdt(daq));
 
     } /* odt */
 }
 
 // Trigger DAQ event
 // DAQ lists must be valid and DAQ must be running
-static void XcpTriggerDaqEvent_(tQueueHandle queueHandle, tXcpEventId event_id, int count, const uint8_t **bases, uint64_t clock) {
+static void XcpTriggerDaqEvent_(tQueueHandle queue_handle, tXcpEventId event_id, int count, const uint8_t **bases, uint64_t clock) {
 
 #ifdef OPTION_ENABLE_DBG_METRICS
     gXcpDaqEventCount++;
@@ -2091,9 +2091,9 @@ static void XcpTriggerDaqEvent_(tQueueHandle queueHandle, tXcpEventId event_id, 
         // Build base pointer for this DAQ list
         uint8_t ext = DaqListAddrExt(daq);
         assert(ext < count);
-        XcpTriggerDaqList_(queueHandle, daq, bases[ext], clock); // Trigger DAQ list
+        XcpTriggerDaqList_(queue_handle, daq, bases[ext], clock); // Trigger DAQ list
 #else
-        XcpTriggerDaqList_(queueHandle, daq, count, bases, clock); // Trigger DAQ list
+        XcpTriggerDaqList_(queue_handle, daq, count, bases, clock); // Trigger DAQ list
 #endif
 
     } /* daq */
@@ -2137,9 +2137,9 @@ static void XcpTriggerDaqEvent_(tQueueHandle queueHandle, tXcpEventId event_id, 
             // Address extension unique per DAQ list
             // Build base pointer for this DAQ list
             uint8_t ext = DaqListAddrExt(daq);
-            XcpTriggerDaqList_(queueHandle, daq, base[ext], clock); // Trigger DAQ list
+            XcpTriggerDaqList_(queue_handle, daq, base[ext], clock); // Trigger DAQ list
 #else
-            XcpTriggerDaqList_(queueHandle, daq, count, bases, clock); // Trigger DAQ list
+            XcpTriggerDaqList_(queue_handle, daq, count, bases, clock); // Trigger DAQ list
 #endif
         }
     }
@@ -2406,10 +2406,10 @@ static void XcpSendResponse(bool async, const tXcpCto *crm, uint8_t crmLen) {
 
     // Send async command responses via the transmit queue
     if (async) {
-        tQueueBuffer queueBuffer = QueueAcquire(gXcp.Queue, crmLen);
-        if (queueBuffer.buffer != NULL) {
-            memcpy(queueBuffer.buffer, crm, crmLen);
-            QueuePush(gXcp.Queue, &queueBuffer, true); // High priority
+        tQueueBuffer queue_buffer = queueAcquire(gXcp.Queue, crmLen);
+        if (queue_buffer.buffer != NULL) {
+            memcpy(queue_buffer.buffer, crm, crmLen);
+            queuePush(gXcp.Queue, &queue_buffer, true); // High priority
         }
     } else {
         XcpTlSendCrm((const uint8_t *)crm, crmLen);
@@ -3408,8 +3408,8 @@ void XcpSendEvent(uint8_t evc, const uint8_t *d, uint8_t l) {
     if (l >= XCPTL_MAX_CTO_SIZE - 2)
         return;
 
-    tQueueBuffer queueBuffer = QueueAcquire(gXcp.Queue, l + 2);
-    tXcpCto *crm = (tXcpCto *)queueBuffer.buffer;
+    tQueueBuffer queue_buffer = queueAcquire(gXcp.Queue, l + 2);
+    tXcpCto *crm = (tXcpCto *)queue_buffer.buffer;
     if (crm != NULL) {
         crm->b[0] = PID_EV; /* Event */
         crm->b[1] = evc;    /* Eventcode */
@@ -3417,7 +3417,7 @@ void XcpSendEvent(uint8_t evc, const uint8_t *d, uint8_t l) {
             for (uint8_t i = 0; i < l; i++)
                 crm->b[i + 2] = d[i];
         }
-        QueuePush(gXcp.Queue, &queueBuffer, true);
+        queuePush(gXcp.Queue, &queue_buffer, true);
     } else { // Queue overflow
         DBG_PRINT_WARNING("queue overflow\n");
     }
@@ -3437,8 +3437,8 @@ void XcpPrint(const char *str) {
         return;
 
     uint16_t l = (uint16_t)STRNLEN(str, XCPTL_MAX_CTO_SIZE - 4);
-    tQueueBuffer queueBuffer = QueueAcquire(gXcp.Queue, l + 4);
-    uint8_t *crm = queueBuffer.buffer;
+    tQueueBuffer queue_buffer = queueAcquire(gXcp.Queue, l + 4);
+    uint8_t *crm = queue_buffer.buffer;
     if (crm != NULL) {
         crm[0] = PID_SERV; /* Event */
         crm[1] = 0x01;     /* Eventcode SERV_TEXT */
@@ -3447,7 +3447,7 @@ void XcpPrint(const char *str) {
             crm[i + 2] = (uint8_t)str[i];
         crm[i + 2] = '\n';
         crm[i + 3] = 0;
-        QueuePush(gXcp.Queue, &queueBuffer, true);
+        queuePush(gXcp.Queue, &queue_buffer, true);
     } else { // Queue overflow
         DBG_PRINT_WARNING("queue overflow\n");
     }
@@ -3550,7 +3550,7 @@ void XcpInit(const char *name, const char *epk, bool activate) {
 
 // Start XCP protocol layer
 // Assume the transport layer is running
-void XcpStart(tQueueHandle queueHandle, bool resumeMode) {
+void XcpStart(tQueueHandle queue_handle, bool resumeMode) {
 
     (void)resumeMode; // Start in resume mode, not implemented yet
 
@@ -3620,7 +3620,7 @@ void XcpStart(tQueueHandle queueHandle, bool resumeMode) {
     }
 #endif // DBG_LEVEL
 
-    gXcp.Queue = queueHandle;
+    gXcp.Queue = queue_handle;
 
 #ifdef XCP_ENABLE_PROTOCOL_LAYER_ETH
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0103

@@ -277,7 +277,7 @@ typedef pthread_t THREAD;
 
 #if !defined(_WIN) // Non-Windows platforms
 
-#include "xcpQueue.h" // for tQueueBuffer and vectored io functions
+#include "queue.h" // for tQueueBuffer and vectored io functions
 
 #include <arpa/inet.h>
 #include <errno.h>

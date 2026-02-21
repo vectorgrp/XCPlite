@@ -1,6 +1,6 @@
 /*----------------------------------------------------------------------------
 | File:
-|   xcpQueue64f.c
+|   queue64f.c
 |
 | Description:
 |   Lockless, fixed entry size queue
@@ -15,12 +15,12 @@
 #include "platform.h"   // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex, spinlock
 #include "xcplib_cfg.h" // for OPTION_xxx
 
-// Not for 32 Bit platforms or on Windows, use xcpQueue32.c instead
+// Not for 32 Bit platforms or on Windows, use queue32.c instead
 #if defined(PLATFORM_64BIT) && !defined(_WIN) && !defined(OPTION_ATOMIC_EMULATION)
 
 #ifdef OPTION_QUEUE_64_FIX_SIZE
 
-#include "xcpQueue.h"
+#include "queue.h"
 
 #include <assert.h>    // for assert
 #include <inttypes.h>  // for PRIu64
@@ -47,8 +47,8 @@
 #define QUEUE_ENTRY_USER_SIZE (XCPTL_MAX_DTO_SIZE + XCPTL_TRANSPORT_LAYER_HEADER_SIZE)
 
 // Note:
-//  On the producer side, queue buffers from QueueAcquire don't include the user header space
-//  On the consumer side, queue buffers from QueuePeek include the space for theuser header
+//  On the producer side, queue buffers from queueAcquire don't include the user header space
+//  On the consumer side, queue buffers from queuePeek include the space for theuser header
 
 // Assume a cache line size of 128 bytes for alignment and padding to avoid false sharing and to optimize performance on high contention
 #define CACHE_LINE_SIZE 128u
@@ -81,7 +81,7 @@ static_assert(sizeof(void *) == 8, "This implementation requires a 64 Bit platfo
 
 // Check for atomic support
 #ifdef __STDC_NO_ATOMICS__
-#error "C11 atomics are not supported on this platform, but required for xcpQueue64.c"
+#error "C11 atomics are not supported on this platform, but required for queue64.c"
 #endif
 
 // For optimal performance
@@ -252,7 +252,7 @@ Lock time histogram (5453269 events):
 #endif
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
-// Types tQueueEntry, tQueueHeader, tQueue (tQueueBuffer defined in xcpQueue.h)
+// Types tQueueEntry, tQueueHeader, tQueue (tQueueBuffer defined in queue.h)
 
 // Queue entry states
 #define ENTRY_COMMITTED 0xCCCCUL // high word of the entry_header if entry is committed by the producer, otherwise always 0
@@ -296,19 +296,19 @@ typedef struct {
 // Implementation
 
 // Clear the queue
-void QueueClear(tQueueHandle queueHandle) {
-    tQueue *queue = (tQueue *)queueHandle;
+void queueClear(tQueueHandle queue_handle) {
+    tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
     atomic_store_explicit(&queue->h.head, 0, memory_order_relaxed);
     atomic_store_explicit(&queue->h.tail, 0, memory_order_relaxed);
     atomic_store_explicit(&queue->h.packets_lost, 0, memory_order_relaxed);
     atomic_store_explicit(&queue->h.flush, false, memory_order_relaxed);
     memset(queue->buffer, 0, queue->h.queue_buffer_size); // Clear queue buffer memory
-    DBG_PRINT4("QueueClear\n");
+    DBG_PRINT4("queueClear\n");
 }
 
 // Allocate and initialize a new queue with a given size in bytes
-tQueueHandle QueueInit(uint32_t queue_memory_size) {
+tQueueHandle queueInit(uint32_t queue_memory_size) {
 
     tQueue *queue = NULL;
 
@@ -329,7 +329,7 @@ tQueueHandle QueueInit(uint32_t queue_memory_size) {
     DBG_PRINTF3("  %u entries of max %u bytes user payload, %u bytes user header, %uKiB used\n", queue->h.queue_buffer_size / QUEUE_ENTRY_SIZE, QUEUE_ENTRY_USER_PAYLOAD_SIZE,
                 QUEUE_ENTRY_USER_HEADER_SIZE, (uint32_t)(aligned_memory_size / 1024));
 
-    QueueClear((tQueueHandle)queue); // Clear the queue
+    queueClear((tQueueHandle)queue); // Clear the queue
 
     // Checks
     assert(atomic_is_lock_free(&(queue->h.head)));
@@ -338,8 +338,8 @@ tQueueHandle QueueInit(uint32_t queue_memory_size) {
 }
 
 // Deinitialize and free the queue
-void QueueDeinit(tQueueHandle queueHandle) {
-    tQueue *queue = (tQueue *)queueHandle;
+void queueDeinit(tQueueHandle queue_handle) {
+    tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
 
     // Print statistics
@@ -347,7 +347,7 @@ void QueueDeinit(tQueueHandle queueHandle) {
     lock_test_print_results();
 #endif
 
-    QueueClear(queueHandle);
+    queueClear(queue_handle);
     free(queue);
     DBG_PRINT4("QueueDeInit\n");
 }
@@ -363,9 +363,9 @@ void QueueDeinit(tQueueHandle queueHandle) {
 //  tQueueBuffer::buffer - pointer to payload buffer
 //  tQueueBuffer:size - actual size of the buffer, at least requested packet_len
 // Lockless and with minimal spin wait serialization on contention with other producers
-tQueueBuffer QueueAcquire(tQueueHandle queueHandle, uint16_t packet_len) {
+tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
 
-    tQueue *queue = (tQueue *)queueHandle;
+    tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
     assert(packet_len > 0 && packet_len <= QUEUE_ENTRY_USER_PAYLOAD_SIZE);
 
@@ -448,16 +448,16 @@ tQueueBuffer QueueAcquire(tQueueHandle queueHandle, uint16_t packet_len) {
     };
 
     assert((uint32_t)((uint8_t *)entry - queue->buffer) / QUEUE_ENTRY_SIZE < (queue->h.queue_buffer_size / (QUEUE_ENTRY_SIZE)));
-    DBG_PRINTF6("QueueAcquire: acquired entry %u with size %u\n", (uint32_t)((uint8_t *)entry - queue->buffer) / QUEUE_ENTRY_SIZE, ret.size);
+    DBG_PRINTF6("queueAcquire: acquired entry %u with size %u\n", (uint32_t)((uint8_t *)entry - queue->buffer) / QUEUE_ENTRY_SIZE, ret.size);
     return ret;
 }
 
-// Commit a buffer (which was returned from QueueAcquire)
+// Commit a buffer (which was returned from queueAcquire)
 // Lockless and waitfree
 // Indicate priority by setting flush = true
-void QueuePush(tQueueHandle queueHandle, tQueueBuffer *const queueBuffer, bool flush) {
+void queuePush(tQueueHandle queue_handle, tQueueBuffer *const queue_buffer, bool flush) {
 
-    tQueue *queue = (tQueue *)queueHandle;
+    tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
 
     // Set flush request
@@ -466,16 +466,16 @@ void QueuePush(tQueueHandle queueHandle, tQueueBuffer *const queueBuffer, bool f
     }
 
     // Get the pointer to the queue entry from the payload buffer pointer
-    assert(queueBuffer != NULL);
-    assert(queueBuffer->buffer != NULL);
-    tQueueEntry *entry = (tQueueEntry *)(queueBuffer->buffer - QUEUE_ENTRY_USER_HEADER_SIZE - 4);
+    assert(queue_buffer != NULL);
+    assert(queue_buffer->buffer != NULL);
+    tQueueEntry *entry = (tQueueEntry *)(queue_buffer->buffer - QUEUE_ENTRY_USER_HEADER_SIZE - 4);
     assert((uint32_t)((uint8_t *)entry - queue->buffer) % QUEUE_ENTRY_SIZE == 0); // Check that the entry pointer is correctly aligned to the entry size
 
     // Set commit state and the complete user payload size (header+payload) in the entry_header
     // Release store - complete data is then visible to the consumer
-    atomic_store_explicit(&entry->entry_header, (ENTRY_COMMITTED << 16) | (uint32_t)(queueBuffer->size + QUEUE_ENTRY_USER_HEADER_SIZE), memory_order_release);
+    atomic_store_explicit(&entry->entry_header, (ENTRY_COMMITTED << 16) | (uint32_t)(queue_buffer->size + QUEUE_ENTRY_USER_HEADER_SIZE), memory_order_release);
 
-    DBG_PRINTF6("QueuePush: committed entry %u with size %u\n", (uint32_t)((uint8_t *)entry - queue->buffer) / QUEUE_ENTRY_SIZE, queueBuffer->size);
+    DBG_PRINTF6("queuePush: committed entry %u with size %u\n", (uint32_t)((uint8_t *)entry - queue->buffer) / QUEUE_ENTRY_SIZE, queue_buffer->size);
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -488,8 +488,8 @@ void QueuePush(tQueueHandle queueHandle, tQueueBuffer *const queueBuffer, bool f
 // Get current transmit queue level in entries
 // Is thread safe (no undefined behaviour), but may have false negatives for queue not empty in other threads
 // Returns 0 when the queue is empty
-uint32_t QueueLevel(tQueueHandle queueHandle, uint32_t *queue_max_level) {
-    tQueue *queue = (tQueue *)queueHandle;
+uint32_t queueLevel(tQueueHandle queue_handle, uint32_t *queue_max_level) {
+    tQueue *queue = (tQueue *)queue_handle;
     if (queue == NULL) {
         if (queue_max_level != NULL)
             *queue_max_level = 0;
@@ -510,9 +510,9 @@ uint32_t QueueLevel(tQueueHandle queueHandle, uint32_t *queue_max_level) {
 // Return the packet length and a pointer to the message
 // Returns the number of packets lost since the last call
 // May be called multiple times, even with the same index, but the entries obtained must be released in sequential index order
-// Not thread safe, QueuePeek and QueueRelease must be called from one single consumer thread only
-tQueueBuffer QueuePeek(tQueueHandle queueHandle, int32_t index, bool flush, uint32_t *packets_lost) {
-    tQueue *queue = (tQueue *)queueHandle;
+// Not thread safe, queuePeek and queueRelease must be called from one single consumer thread only
+tQueueBuffer queuePeek(tQueueHandle queue_handle, int32_t index, bool flush, uint32_t *packets_lost) {
+    tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
     (void)flush; // Unused consumer flush request, suppress warning
     // @@@@ TODO: Handle flush requests from producer
@@ -522,7 +522,7 @@ tQueueBuffer QueuePeek(tQueueHandle queueHandle, int32_t index, bool flush, uint
         uint32_t lost = (uint32_t)atomic_exchange_explicit(&queue->h.packets_lost, 0, memory_order_acq_rel);
         *packets_lost = lost;
         if (lost) {
-            DBG_PRINTF_WARNING("QueuePeek: packets lost since last call: %u\n", lost);
+            DBG_PRINTF_WARNING("queuePeek: packets lost since last call: %u\n", lost);
         }
     }
 
@@ -554,7 +554,7 @@ tQueueBuffer QueuePeek(tQueueHandle queueHandle, int32_t index, bool flush, uint
         // This should never happen
         // An entry is consistent, if it is either in initial or committed state
         if (commit_state != 0) {
-            DBG_PRINTF_ERROR("QueuePeek inconsistent reserved - h=%" PRIu64 ", t=%" PRIu64 ", level=%u, entry: (entry_header=%" PRIx32 ")\n", head, tail, level, entry_header);
+            DBG_PRINTF_ERROR("queuePeek inconsistent reserved - h=%" PRIu64 ", t=%" PRIu64 ", level=%u, entry: (entry_header=%" PRIx32 ")\n", head, tail, level, entry_header);
             assert(false); // Fatal error, inconsistent state
         }
 
@@ -563,7 +563,7 @@ tQueueBuffer QueuePeek(tQueueHandle queueHandle, int32_t index, bool flush, uint
             .buffer = NULL,
             .size = 0,
         };
-        DBG_PRINTF6("QueuePeek: entry %u is still in reserved state, queue level=%u \n", (uint32_t)((uint8_t *)entry - queue->buffer) / QUEUE_ENTRY_SIZE, level / QUEUE_ENTRY_SIZE);
+        DBG_PRINTF6("queuePeek: entry %u is still in reserved state, queue level=%u \n", (uint32_t)((uint8_t *)entry - queue->buffer) / QUEUE_ENTRY_SIZE, level / QUEUE_ENTRY_SIZE);
         return ret;
     }
 
@@ -572,7 +572,7 @@ tQueueBuffer QueuePeek(tQueueHandle queueHandle, int32_t index, bool flush, uint
     // Assume this queue carries XCP DTO packets for consistency checks
     // An committed entry must have a valid length and an XCP ODT in it
     if (!((commit_state == ENTRY_COMMITTED) && (payload_length > 0) && (payload_length <= QUEUE_ENTRY_USER_SIZE) && (entry->data[4 + 1] == 0xAA || entry->data[4 + 0] >= 0xFC))) {
-        DBG_PRINTF_ERROR("QueuePeek: inconsistent commit - h=%" PRIu64 ", t=%" PRIu64 ", level=%u, entry: (entry_header=%" PRIx32 ", res=0x%02X)\n", head, tail, level,
+        DBG_PRINTF_ERROR("queuePeek: inconsistent commit - h=%" PRIu64 ", t=%" PRIu64 ", level=%u, entry: (entry_header=%" PRIx32 ", res=0x%02X)\n", head, tail, level,
                          entry_header, entry->data[1]);
         assert(false); // Fatal error, corrupt committed state
         tQueueBuffer ret = {
@@ -587,24 +587,24 @@ tQueueBuffer QueuePeek(tQueueHandle queueHandle, int32_t index, bool flush, uint
         .size = payload_length,         // Includes the user header size
     };
     assert((uint32_t)((uint8_t *)entry - queue->buffer) % QUEUE_ENTRY_SIZE == 0);
-    DBG_PRINTF6("QueuePeek: returning entry %u with payload size %u\n", (uint32_t)((uint8_t *)entry - queue->buffer) / QUEUE_ENTRY_SIZE, ret.size);
+    DBG_PRINTF6("queuePeek: returning entry %u with payload size %u\n", (uint32_t)((uint8_t *)entry - queue->buffer) / QUEUE_ENTRY_SIZE, ret.size);
     return ret;
 }
 
 // Advance the transmit queue tail
-// Entries obtained from QueuePeek must be released in correct order !!!
+// Entries obtained from queuePeek must be released in correct order !!!
 // Is not thread safe, must be called from one single consumer thread only
-void QueueRelease(tQueueHandle queueHandle, tQueueBuffer *const queueBuffer) {
-    tQueue *queue = (tQueue *)queueHandle;
+void queueRelease(tQueueHandle queue_handle, tQueueBuffer *const queue_buffer) {
+    tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
-    assert(queueBuffer != NULL);
-    assert(queueBuffer->buffer != NULL);
-    assert(queueBuffer->size > 0 && queueBuffer->size <= XCPTL_MAX_SEGMENT_SIZE);
+    assert(queue_buffer != NULL);
+    assert(queue_buffer->buffer != NULL);
+    assert(queue_buffer->size > 0 && queue_buffer->size <= XCPTL_MAX_SEGMENT_SIZE);
 
-    DBG_PRINTF6("QueueRelease: releasing entry %u with payload size %u\n", (uint32_t)((uint8_t *)queueBuffer->buffer - queue->buffer - 4) / QUEUE_ENTRY_SIZE, queueBuffer->size);
+    DBG_PRINTF6("queueRelease: releasing entry %u with payload size %u\n", (uint32_t)((uint8_t *)queue_buffer->buffer - queue->buffer - 4) / QUEUE_ENTRY_SIZE, queue_buffer->size);
 
     // Clear the entries commit state
-    tQueueEntry *entry = (tQueueEntry *)(queueBuffer->buffer - 4);                // Get the pointer to the queue entry from the user header buffer pointer
+    tQueueEntry *entry = (tQueueEntry *)(queue_buffer->buffer - 4);               // Get the pointer to the queue entry from the user header buffer pointer
     assert((uint32_t)((uint8_t *)entry - queue->buffer) % QUEUE_ENTRY_SIZE == 0); // Check that the entry pointer is correctly aligned to the entry size
     atomic_store_explicit(&entry->entry_header, 0,
                           memory_order_release); // @@@@ CHECK: This release store is not strictly required for correctness, but removing it does not show any performance benefits

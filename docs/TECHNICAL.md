@@ -239,7 +239,7 @@ function try_publish(segment) -> bool {
 
 **Atomics:** C11 `stdatomic.h`
 - Requires: `atomic_uintptr_t`, `atomic_uint_fast8_t`, `atomic_uint_fast64_t`, `exchange`, `compare_exchange`, `fetch_sub`, `fetch_add`
-- Used for: lock free queue (`xcpQueue64`), lock free calibration parameter segments, DYN address mode cmd pending state, DAQ running state
+- Used for: lock free queue (`queue64`), lock free calibration parameter segments, DYN address mode cmd pending state, DAQ running state
 
 **THREAD:** Linux: `pthread_create`, `pthread_join`, `pthread_cancel`
 - Used for XCP transmit and receive thread

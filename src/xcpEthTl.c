@@ -22,9 +22,9 @@
 
 #include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
 #include "platform.h"  // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
-#include "xcp.h"       // for CRC_XXX
-#include "xcpLite.h"   // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
-#include "xcpQueue.h"
+#include "queue.h"
+#include "xcp.h"        // for CRC_XXX
+#include "xcpLite.h"    // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
 #include "xcp_cfg.h"    // for XCP_xxx
 #include "xcplib_cfg.h" // for OPTION_xxx
 #include "xcptl_cfg.h"  // for XCPTL_xxx
@@ -292,7 +292,7 @@ static bool handleXcpCommand(tXcpCtoMessage *p, uint8_t *srcAddr, uint16_t srcPo
             }
 #endif // UDP
 
-            QueueClear(gXcpTl.Queue);
+            queueClear(gXcpTl.Queue);
             XcpCommand((const uint32_t *)&p->packet[0], (uint8_t)p->dlc); // Handle CONNECT command
         } else {
             DBG_PRINT_WARNING("handleXcpCommand: no valid CONNECT command\n");
@@ -626,7 +626,7 @@ int32_t XcpTlHandleTransmitQueue(void) {
     for (;;) {
 
         uint32_t lost = 0;
-        tQueueBuffer queue_buffer = QueuePeek(gXcpTl.Queue, index, false, &lost);
+        tQueueBuffer queue_buffer = queuePeek(gXcpTl.Queue, index, false, &lost);
         gXcpTl.Ctr += (uint16_t)lost; // Increase packet counter by lost packets (must not be thread safe, used only to indicate error)
         uint16_t l = queue_buffer.size;
         if (l == 0) {
@@ -645,7 +645,7 @@ int32_t XcpTlHandleTransmitQueue(void) {
             // Don't call this too often, because it adds cache coherency traffic to sync the queue head between threads
             if (length > 0) {
                 uint32_t max_level;
-                uint32_t level = QueueLevel(gXcpTl.Queue, &max_level);
+                uint32_t level = queueLevel(gXcpTl.Queue, &max_level);
                 if ((level * 100) / max_level > MAX_QUEUE_LEVEL) {
                     // DBG_PRINT3("L\n");
                     break; // Queue max level reached
@@ -707,7 +707,7 @@ int32_t XcpTlHandleTransmitQueue(void) {
 
     // Free all queue buffers
     for (uint32_t i = 0; i < index; i++) {
-        QueueRelease(gXcpTl.Queue, &queue_buffers[i]);
+        queueRelease(gXcpTl.Queue, &queue_buffers[i]);
     }
 
     if (res) {
@@ -759,11 +759,11 @@ int32_t XcpTlHandleTransmitQueue(void) {
             // Check if there is a segment with multiple messages in the transmit queue
             mutexLock(&gXcpTl.CtrMutex);
             uint32_t lost = 0;
-            tQueueBuffer queueBuffer = QueuePop(gXcpTl.Queue, flush, &lost);
+            tQueueBuffer queue_buffer = queuePop(gXcpTl.Queue, flush, &lost);
             flush = false;                // Reset flush flag
             gXcpTl.Ctr += (uint16_t)lost; // Increase packet counter by lost packets
-            uint16_t l = queueBuffer.size;
-            const uint8_t *b = queueBuffer.buffer;
+            uint16_t l = queue_buffer.size;
+            const uint8_t *b = queue_buffer.buffer;
             if (l == 0) {
                 mutexUnlock(&gXcpTl.CtrMutex);
                 break; // queue is empty, break inner loop and sleep a bit
@@ -773,7 +773,7 @@ int32_t XcpTlHandleTransmitQueue(void) {
                 mutexUnlock(&gXcpTl.CtrMutex);
 
                 // Free this buffer
-                QueueRelease(gXcpTl.Queue, &queueBuffer);
+                queueRelease(gXcpTl.Queue, &queue_buffer);
 
                 // Check result
                 if (!r) { // error
@@ -814,7 +814,7 @@ bool XcpTlWaitForTransmitQueueEmpty(uint16_t timeout_ms) {
         };
         timeout_ms -= TRANSMIT_QUEUE_EMPTY_SLEEP_MS;
         uint32_t max_level;
-        uint32_t level = QueueLevel(gXcpTl.Queue, &max_level);
+        uint32_t level = queueLevel(gXcpTl.Queue, &max_level);
         DBG_PRINTF6("XcpTlWaitForTransmitQueueEmpty: level=%u, max_level=%u\n", level, max_level);
         if (level == 0)
             break; // Transmit queue is empty

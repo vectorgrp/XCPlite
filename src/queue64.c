@@ -1,6 +1,6 @@
 /*----------------------------------------------------------------------------
 | File:
-|   xcpQueue64.c
+|   queue64.c
 |
 | Description:
 |   XCP transport layer queue
@@ -18,12 +18,12 @@
 #include "platform.h"   // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex, spinlock
 #include "xcplib_cfg.h" // for OPTION_xxx
 
-// Use xcpQueue32.c for 32 Bit platforms or on Windows
+// Use queue32.c for 32 Bit platforms or on Windows
 #if defined(PLATFORM_64BIT) && !defined(_WIN) && !defined(OPTION_ATOMIC_EMULATION)
 
 #ifdef OPTION_QUEUE_64_VAR_SIZE
 
-#include "xcpQueue.h"
+#include "queue.h"
 
 #include <assert.h>    // for assert
 #include <inttypes.h>  // for PRIu64
@@ -69,7 +69,7 @@ static_assert(sizeof(void *) == 8, "This implementation requires a 64 Bit platfo
 
 // Check for atomic support and atomic_uint_least32_t availability
 #ifdef __STDC_NO_ATOMICS__
-#error "C11 atomics are not supported on this platform, but required for xcpQueue64.c"
+#error "C11 atomics are not supported on this platform, but required for queue64.c"
 #endif
 
 // Test atomic_uint_least32_t availability
@@ -105,8 +105,8 @@ Transport Layer segment, message, packet:
 // Tradeoff between consumer spin activity and consumer cache activity, might be the optimal solution for medium throughput
 #define QUEUE_NO_LOCK
 
-// Accumulate XCP packets to multiple XCP messages in a segment obtained with QueuePeek
-#define QUEUE_ACCUMULATE_PACKETS // Accumulate XCP packets to multiple XCP messages obtained with QueuePeek
+// Accumulate XCP packets to multiple XCP messages in a segment obtained with queuePop
+#define QUEUE_ACCUMULATE_PACKETS // Accumulate XCP packets to multiple XCP messages obtained with queuePop
 
 // Wait for at least QUEUE_PEEK_THRESHOLD bytes in the queue before returning a segment, to optimize efficiency
 #define QUEUE_PEEK_THRESHOLD XCPTL_MAX_SEGMENT_SIZE
@@ -223,23 +223,23 @@ Lock time histogram (7845111 events):
   120-160ns                 204275    2.60%  #
   160-200ns                 142489    1.82%  #
   200-240ns                 221886    2.83%  #
-  240-280ns                 114354    1.46%  
-  280-320ns                  33043    0.42%  
-  320-360ns                  11807    0.15%  
-  360-400ns                   6870    0.09%  
-  400-600ns                  13727    0.17%  
-  600-800ns                   1716    0.02%  
-  800-1000ns                  1090    0.01%  
-  1000-1500ns                 2966    0.04%  
-  1500-2000ns                 2894    0.04%  
-  2000-3000ns                 4421    0.06%  
-  3000-4000ns                 3983    0.05%  
-  4000-6000ns                 3506    0.04%  
-  6000-8000ns                 1894    0.02%  
-  8000-10000ns                3147    0.04%  
-  10000-20000ns               7064    0.09%  
-  20000-40000ns                423    0.01%  
-  40000-80000ns                 10    0.00%  
+  240-280ns                 114354    1.46%
+  280-320ns                  33043    0.42%
+  320-360ns                  11807    0.15%
+  360-400ns                   6870    0.09%
+  400-600ns                  13727    0.17%
+  600-800ns                   1716    0.02%
+  800-1000ns                  1090    0.01%
+  1000-1500ns                 2966    0.04%
+  1500-2000ns                 2894    0.04%
+  2000-3000ns                 4421    0.06%
+  3000-4000ns                 3983    0.05%
+  4000-6000ns                 3506    0.04%
+  6000-8000ns                 1894    0.02%
+  8000-10000ns                3147    0.04%
+  10000-20000ns               7064    0.09%
+  20000-40000ns                423    0.01%
+  40000-80000ns                 10    0.00%
 
 
   QUEUE_MUTEX:
@@ -393,7 +393,7 @@ typedef struct {
     // Constant
     uint32_t queue_size;  // Size of queue in bytes (for entry offset wrapping)
     uint32_t buffer_size; // Size of overall queue data buffer in bytes
-    bool from_memory;     // Queue memory from QueueInitFromMemory
+    bool from_memory;     // Queue memory from queueInitFromMemory
     uint8_t reserved[7];  // Header must be 8 byte aligned
 } tQueueHeader;
 
@@ -424,7 +424,7 @@ static void spinlockUnlock(atomic_int_fast64_t *lock) { atomic_store_explicit(lo
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 
 // Initialize a queue from given memory, a given existing queue or allocate a new queue
-static tQueueHandle QueueInitFromMemory(void *queue_memory, uint32_t queue_memory_size, bool clear_queue) {
+static tQueueHandle queueInitFromMemory(void *queue_memory, uint32_t queue_memory_size, bool clear_queue) {
 
     tQueue *queue = NULL;
 
@@ -483,20 +483,20 @@ static tQueueHandle QueueInitFromMemory(void *queue_memory, uint32_t queue_memor
         queue->h.spinlock = 0;
 #endif
 
-        QueueClear((tQueueHandle)queue); // Clear the queue
+        queueClear((tQueueHandle)queue); // Clear the queue
     }
 
     // Checks
     assert(atomic_is_lock_free(&((tQueue *)queue_memory)->h.head));
     assert((queue->h.queue_size & (XCPTL_PACKET_ALIGNMENT - 1)) == 0);
 
-    DBG_PRINT4("QueueInitFromMemory\n");
+    DBG_PRINT4("queueInitFromMemory\n");
     return (tQueueHandle)queue;
 }
 
 // Clear the queue
-void QueueClear(tQueueHandle queueHandle) {
-    tQueue *queue = (tQueue *)queueHandle;
+void queueClear(tQueueHandle queue_handle) {
+    tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
 
     atomic_store_explicit(&queue->h.head, 0, memory_order_relaxed);
@@ -507,15 +507,15 @@ void QueueClear(tQueueHandle queueHandle) {
     queue->h.seq_head = 0;
     atomic_store_explicit(&queue->h.seq_lock, 0, memory_order_relaxed);
 #endif
-    DBG_PRINT4("QueueClear\n");
+    DBG_PRINT4("queueClear\n");
 }
 
 // Create and initialize a new queue with a given size
-tQueueHandle QueueInit(uint32_t queue_buffer_size) { return QueueInitFromMemory(NULL, queue_buffer_size + sizeof(tQueueHeader), true); }
+tQueueHandle queueInit(uint32_t queue_buffer_size) { return queueInitFromMemory(NULL, queue_buffer_size + sizeof(tQueueHeader), true); }
 
 // Deinitialize and free the queue
-void QueueDeinit(tQueueHandle queueHandle) {
-    tQueue *queue = (tQueue *)queueHandle;
+void queueDeinit(tQueueHandle queue_handle) {
+    tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
 
     // Print statistics
@@ -523,7 +523,7 @@ void QueueDeinit(tQueueHandle queueHandle) {
     lock_test_print_results();
 #endif
 
-    QueueClear(queueHandle);
+    queueClear(queue_handle);
 #if defined(QUEUE_MUTEX)
     mutexDestroy(&queue->h.mutex);
 #endif
@@ -541,9 +541,9 @@ void QueueDeinit(tQueueHandle queueHandle) {
 // For multiple producers !!
 
 // Get a buffer for a message with packet_len bytes
-tQueueBuffer QueueAcquire(tQueueHandle queueHandle, uint16_t packet_len) {
+tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
 
-    tQueue *queue = (tQueue *)queueHandle;
+    tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
     assert(packet_len > 0 && packet_len <= XCPTL_MAX_DTO_SIZE);
 
@@ -662,10 +662,10 @@ tQueueBuffer QueueAcquire(tQueueHandle queueHandle, uint16_t packet_len) {
     return ret;
 }
 
-// Commit a buffer (returned from QueueAcquire)
-void QueuePush(tQueueHandle queueHandle, tQueueBuffer *const queueBuffer, bool flush) {
+// Commit a buffer (returned from queueAcquire)
+void queuePush(tQueueHandle queue_handle, tQueueBuffer *const queue_buffer, bool flush) {
 
-    tQueue *queue = (tQueue *)queueHandle;
+    tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
 
     // Set flush request
@@ -673,13 +673,13 @@ void QueuePush(tQueueHandle queueHandle, tQueueBuffer *const queueBuffer, bool f
         atomic_store_explicit(&queue->h.flush, true, memory_order_relaxed); // Set flush flag, used by the consumer to prioritize packets
     }
 
-    assert(queueBuffer != NULL);
-    assert(queueBuffer->buffer != NULL);
-    tXcpDtoMessage *entry = (tXcpDtoMessage *)(queueBuffer->buffer - XCPTL_TRANSPORT_LAYER_HEADER_SIZE);
+    assert(queue_buffer != NULL);
+    assert(queue_buffer->buffer != NULL);
+    tXcpDtoMessage *entry = (tXcpDtoMessage *)(queue_buffer->buffer - XCPTL_TRANSPORT_LAYER_HEADER_SIZE);
 
     // Go to commit state
     // Complete data is then visible to the consumer
-    atomic_store_explicit(&entry->ctr_dlc, (CTR_COMMITTED << 16) | (uint32_t)(queueBuffer->size - XCPTL_TRANSPORT_LAYER_HEADER_SIZE), memory_order_release);
+    atomic_store_explicit(&entry->ctr_dlc, (CTR_COMMITTED << 16) | (uint32_t)(queue_buffer->size - XCPTL_TRANSPORT_LAYER_HEADER_SIZE), memory_order_release);
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -693,8 +693,8 @@ void QueuePush(tQueueHandle queueHandle, tQueueBuffer *const queueBuffer, bool f
 // This function is thread safe
 // Not used by the queue implementation itself
 // Returns 0 when the queue is empty
-uint32_t QueueLevel(tQueueHandle queueHandle, uint32_t *queue_max_level) {
-    tQueue *queue = (tQueue *)queueHandle;
+uint32_t queueLevel(tQueueHandle queue_handle, uint32_t *queue_max_level) {
+    tQueue *queue = (tQueue *)queue_handle;
     if (queue == NULL) {
         if (queue_max_level != NULL)
             *queue_max_level = 0;
@@ -712,10 +712,10 @@ uint32_t QueueLevel(tQueueHandle queueHandle, uint32_t *queue_max_level) {
 // Check if there is a message segment (one or more accumulated packets) in the transmit queue
 // Return the message length and a pointer to the message
 // Returns the number of packets lost since the last call
-// May not be called twice, each buffer must be released immediately with QueueRelease
+// May not be called twice, each buffer must be released immediately with queueRelease
 // Is not thread safe, must be called from one consumer thread only
-tQueueBuffer QueuePop(tQueueHandle queueHandle, bool flush, uint32_t *packets_lost) {
-    tQueue *queue = (tQueue *)queueHandle;
+tQueueBuffer queuePop(tQueueHandle queue_handle, bool flush, uint32_t *packets_lost) {
+    tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
 
     // Return the number of packets lost in the queue
@@ -723,7 +723,7 @@ tQueueBuffer QueuePop(tQueueHandle queueHandle, bool flush, uint32_t *packets_lo
         uint32_t lost = (uint32_t)atomic_exchange_explicit(&queue->h.packets_lost, 0, memory_order_acq_rel);
         *packets_lost = lost;
         if (lost) {
-            DBG_PRINTF_WARNING("QueuePeek: packets lost since last call: %u\n", lost);
+            DBG_PRINTF_WARNING("queuePop: packets lost since last call: %u\n", lost);
         }
     }
 
@@ -835,7 +835,7 @@ tQueueBuffer QueuePop(tQueueHandle queueHandle, bool flush, uint32_t *packets_lo
         // This should never happen
         // An entry is consistent, if it is neither in reserved or committed state
         if (ctr != CTR_RESERVED) {
-            DBG_PRINTF_ERROR("QueuePeek initial: inconsistent reserved - h=%" PRIu64 ", t=%" PRIu64 ", level=%u, entry: (dlc=0x%04X, ctr=0x%04X)\n", head, tail, level, dlc, ctr);
+            DBG_PRINTF_ERROR("queuePop initial: inconsistent reserved - h=%" PRIu64 ", t=%" PRIu64 ", level=%u, entry: (dlc=0x%04X, ctr=0x%04X)\n", head, tail, level, dlc, ctr);
             assert(false); // Fatal error, inconsistent state
         }
 
@@ -850,7 +850,7 @@ tQueueBuffer QueuePop(tQueueHandle queueHandle, bool flush, uint32_t *packets_lo
     // This should never fail
     // An committed entry must have a valid length and an XCP ODT in it
     if (!((ctr == CTR_COMMITTED) && (dlc > 0) && (dlc <= XCPTL_MAX_DTO_SIZE) && (first_entry->data[1] == 0xAA || first_entry->data[0] >= 0xFC))) {
-        DBG_PRINTF_ERROR("QueuePeek initial: inconsistent commit - h=%" PRIu64 ", t=%" PRIu64 ", level=%u, entry: (dlc=0x%04X, ctr=0x%04X, res=0x%02X)\n", head, tail, level, dlc,
+        DBG_PRINTF_ERROR("queuePop initial: inconsistent commit - h=%" PRIu64 ", t=%" PRIu64 ", level=%u, entry: (dlc=0x%04X, ctr=0x%04X, res=0x%02X)\n", head, tail, level, dlc,
                          ctr, first_entry->data[1]);
         assert(false); // Fatal error, corrupt committed state
         tQueueBuffer ret = {
@@ -875,7 +875,7 @@ tQueueBuffer QueuePop(tQueueHandle queueHandle, bool flush, uint32_t *packets_lo
     uint32_t max_offset = first_offset + level - 1;
     if (max_offset >= queue->h.queue_size) {
         max_offset = queue->h.queue_size - 1; // Don't read over wrap around
-        DBG_PRINTF6("%u-%u: QueuePeek: max_offset wrapped around, head=%" PRIu64 ", tail=%" PRIu64 ", level=%u, queue_size=%u\n", first_offset, max_offset, head, tail, level,
+        DBG_PRINTF6("%u-%u: queuePop: max_offset wrapped around, head=%" PRIu64 ", tail=%" PRIu64 ", level=%u, queue_size=%u\n", first_offset, max_offset, head, tail, level,
                     queue->h.queue_size);
     }
 
@@ -896,7 +896,7 @@ tQueueBuffer QueuePop(tQueueHandle queueHandle, bool flush, uint32_t *packets_lo
         if (ctr != CTR_COMMITTED) {
 
             if (ctr != CTR_RESERVED) {
-                DBG_PRINTF_ERROR("QueuePeek: inconsistent reserved - h=%" PRIu64 ", t=%" PRIu64 ", level=%u, entry: (dlc=0x%04X, ctr=0x%04X)\n", head, tail, level, dlc, ctr);
+                DBG_PRINTF_ERROR("queuePop: inconsistent reserved - h=%" PRIu64 ", t=%" PRIu64 ", level=%u, entry: (dlc=0x%04X, ctr=0x%04X)\n", head, tail, level, dlc, ctr);
                 assert(false);
             }
 
@@ -906,7 +906,7 @@ tQueueBuffer QueuePop(tQueueHandle queueHandle, bool flush, uint32_t *packets_lo
 
         // Check consistency, this should never fail
         if (!((ctr == CTR_COMMITTED) && (dlc > 0) && (dlc <= XCPTL_MAX_DTO_SIZE) && (entry->data[1] == 0xAA || entry->data[0] >= 0xFC))) {
-            DBG_PRINTF_ERROR("QueuePeek: inconsistent commit - h=%" PRIu64 ", t=%" PRIu64 ", level=%u, entry: (dlc=0x%04X, ctr=0x%04X, res=0x%02X)\n", head, tail, level, dlc, ctr,
+            DBG_PRINTF_ERROR("queuePop: inconsistent commit - h=%" PRIu64 ", t=%" PRIu64 ", level=%u, entry: (dlc=0x%04X, ctr=0x%04X, res=0x%02X)\n", head, tail, level, dlc, ctr,
                              entry->data[1]);
             assert(false); // Fatal error, corrupt committed state
             break;
@@ -937,21 +937,21 @@ tQueueBuffer QueuePop(tQueueHandle queueHandle, bool flush, uint32_t *packets_lo
     return ret;
 }
 
-// Advance the transmit queue tail by the message length obtained from the last QueuePeek call
-// Segments obtained from QueuePeek must be released immediately with this function
-void QueueRelease(tQueueHandle queueHandle, tQueueBuffer *const queueBuffer) {
-    tQueue *queue = (tQueue *)queueHandle;
+// Advance the transmit queue tail by the message length obtained from the last queuePop call
+// Segments obtained from queuePop must be released immediately with this function
+void queueRelease(tQueueHandle queue_handle, tQueueBuffer *const queue_buffer) {
+    tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
-    assert(queueBuffer->size > 0 && queueBuffer->size <= XCPTL_MAX_SEGMENT_SIZE);
+    assert(queue_buffer->size > 0 && queue_buffer->size <= XCPTL_MAX_SEGMENT_SIZE);
 
 #if defined(QUEUE_NO_LOCK)
     // Clear the entire memory completely, to avoid inconsistent reserved states after incrementing the head in the producer
     // This is the tradeoff of not using a seq lock, more cache activity, but no producer-consumer syncronization need
     // This might be optimal for medium data throughput
-    memset(queueBuffer->buffer, 0, queueBuffer->size);
-    atomic_fetch_add_explicit(&queue->h.tail, queueBuffer->size, memory_order_release);
+    memset(queue_buffer->buffer, 0, queue_buffer->size);
+    atomic_fetch_add_explicit(&queue->h.tail, queue_buffer->size, memory_order_release);
 #else
-    atomic_fetch_add_explicit(&queue->h.tail, queueBuffer->size, memory_order_relaxed);
+    atomic_fetch_add_explicit(&queue->h.tail, queue_buffer->size, memory_order_relaxed);
 #endif
 }
 

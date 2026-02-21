@@ -110,7 +110,7 @@ elseif(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
 endif()
 
 # xcplite sources
-set(xcplite_SOURCES src/xcpAppl.c src/xcpLite.c src/xcpEthServer.c src/xcpEthTl.c src/xcpQueue32.c src/xcpQueue64.c src/xcpQueue64f.c src/a2l.c src/persistence.c src/platform.c)   
+set(xcplite_SOURCES src/xcpAppl.c src/xcpLite.c src/xcpEthServer.c src/xcpEthTl.c src/queue32.c src/queue64.c src/queue64f.c src/a2l.c src/persistence.c src/platform.c)   
 
 # Create xcplite library
 add_library(xcplite ${xcplite_SOURCES})
@@ -241,6 +241,10 @@ if(XCPLITE_BUILD_TESTS)
     # Data acquisition multi-threading test (C version)
     add_executable(daq_test test/daq_test/src/main.c)
     target_link_libraries(daq_test PRIVATE xcplite)
+
+    # Queue stress test
+    add_executable(queue_test test/queue_test/src/main.c)
+    target_link_libraries(queue_test PRIVATE xcplite)
 endif()
 
 

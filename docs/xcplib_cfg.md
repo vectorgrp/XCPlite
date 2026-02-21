@@ -197,14 +197,14 @@ The queue implementation can be configured using one of three mutually exclusive
 
 | Parameter | Description |
 |-----------|-------------|
-| `QUEUE_ACCUMULATE_PACKETS` | Enables accumulation of multiple XCP packets into XCP messages within a segment obtained with `QueuePeek()`. This improves efficiency by reducing the number of network operations |
-| `QUEUE_PEEK_THRESHOLD` | Minimum number of bytes that must be in the queue before `QueuePeek()` returns a segment. Set to `XCPTL_MAX_SEGMENT_SIZE` by default to optimize transmission efficiency |
+| `QUEUE_ACCUMULATE_PACKETS` | Enables accumulation of multiple XCP packets into XCP messages within a segment obtained with `queuePeek()`. This improves efficiency by reducing the number of network operations |
+| `QUEUE_PEEK_THRESHOLD` | Minimum number of bytes that must be in the queue before `queuePeek()` returns a segment. Set to `XCPTL_MAX_SEGMENT_SIZE` by default to optimize transmission efficiency |
 | `CACHE_LINE_SIZE` | Cache line size used to align queue entries and queue header. Set to 128 bytes to accommodate most modern CPU architectures |
 | `MAX_ENTRY_SIZE` | Maximum size of a single queue entry, calculated as `XCPTL_MAX_DTO_SIZE + XCPTL_TRANSPORT_LAYER_HEADER_SIZE`. Must be aligned to `XCPTL_PACKET_ALIGNMENT` |
 
 ### Queue Runtime Configuration
 
-The queue size is configured at runtime when calling `QueueInit(buffer_size)`. The buffer size determines:
+The queue size is configured at runtime when calling `queueInit(buffer_size)`. The buffer size determines:
 
 - Total memory allocated for the queue
 - Number of queue entries that can be stored

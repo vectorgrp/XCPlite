@@ -20,7 +20,7 @@
 #include <stdint.h>
 
 #include "platform.h"  // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
-#include "xcpQueue.h"  // for QueueXxxx, tQueueHandle
+#include "queue.h"     // for QueueXxxx, tQueueHandle
 #include "xcptl_cfg.h" // for XCPTL_xxx
 
 #define XCPTL_TIMEOUT_INFINITE 0xFFFFFFFF // Infinite timeout (blocking mode)
