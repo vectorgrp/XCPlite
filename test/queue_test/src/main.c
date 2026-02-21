@@ -26,23 +26,22 @@
 
 //-----------------------------------------------------------------------------------------------------
 
+#define QUEUE_SIZE (1024 * 64) // Size of the test queue in bytes
+
 // Test parameters
 // 64 byte payload  * THREAD_COUNT * 1000000/THREAD_DELAY_US = Throughput in byte/s
 
-#define THREAD_COUNT 10    // Number of threads to create
-#define THREAD_DELAY_US 10 // Delay in microseconds for the thread loops
-
-#define QUEUE_SIZE (1024 * 1024 * 8)              // Size of the test queue in bytes
-#define QUEUE_PAYLOAD_SIZE (4 * sizeof(uint64_t)) // Size of the test payload
+// Parameters for 1000000 msg/s with 10 threads, 64 byte payload, 10us delay
+#define THREAD_COUNT 10                            // Number of threads to create
+#define THREAD_DELAY_US 10                         // Delay in microseconds for the thread loops
+#define THREAD_PAYLOAD_SIZE (4 * sizeof(uint64_t)) // Size of the test payload produced by the threads
 
 #if defined(OPTION_QUEUE_64_VAR_SIZE) || defined(OPTION_QUEUE_64_FIX_SIZE)
-#define QUEUE_PEEK               // Use queuePeek(0) instead of queuePop
+#define QUEUE_PEEK               // Use queuePeek(random(QUEUE_PEEK_MAX_INDEX)) instead of queuePop
 #define QUEUE_PEEK_MAX_INDEX (8) // Max offset for peeking ahead
 #endif
 
 // #define USE_XCP
-
-// @@@@ TODO Testing queuePeek(n) is not implemented yet
 
 /*
 
@@ -171,7 +170,7 @@ void *task(void *p)
 
             counter++;
 
-            uint16_t size = QUEUE_PAYLOAD_SIZE;
+            uint16_t size = THREAD_PAYLOAD_SIZE;
             tQueueBuffer queue_buffer = queueAcquire(queue_handle, size);
             if (queue_buffer.size >= size) {
                 assert(queue_buffer.buffer != NULL);
@@ -285,7 +284,7 @@ int main(void) {
                 }
                 buffer_count++;
                 assert(buffer[index].buffer != NULL);
-                assert(buffer[index].size >= QUEUE_PAYLOAD_SIZE);
+                assert(buffer[index].size >= THREAD_PAYLOAD_SIZE);
                 assert((uint64_t)buffer[index].buffer % 2 == 0);
 
                 uint64_t *b = (uint64_t *)(buffer[index].buffer + 8); // Test payload starts + 8 (Transport layer header + XCP DAQ header)
@@ -295,7 +294,7 @@ int main(void) {
 
                 // printf("Peeked index %u: task_index=%llu, size=%llu, counter=%llu\n", index, task_index, size, counter);
 
-                assert(size >= QUEUE_PAYLOAD_SIZE);
+                assert(size >= THREAD_PAYLOAD_SIZE);
                 assert(task_index < THREAD_COUNT);
                 if (msg_count > 0) {
                     if (counter != last_counter[task_index] + 1) {
@@ -335,13 +334,13 @@ int main(void) {
             tQueueBuffer buffer;
             buffer.size = *(uint16_t *)segment_buffer.buffer + sizeof(uint32_t); // Get the buffer size from transportlayer header dlc
             buffer.buffer = segment_buffer.buffer;                               // Move the buffer pointer to the start of the message payload (to the transport layer header)
-            assert(buffer.size > 0 && buffer.size <= QUEUE_PAYLOAD_SIZE + 8);
+            assert(buffer.size > 0 && buffer.size <= THREAD_PAYLOAD_SIZE + 8);
 
             // Iterate over all messages in the segment
             for (;;) {
 
                 assert(buffer.buffer != NULL);
-                assert(buffer.size >= QUEUE_PAYLOAD_SIZE);
+                assert(buffer.size >= THREAD_PAYLOAD_SIZE);
                 assert((uint64_t)buffer.buffer % 2 == 0);
 
                 uint64_t *b = (uint64_t *)(buffer.buffer + 8); // Test payload starts + 8 (Transport layer header + XCP DAQ header)
@@ -349,7 +348,7 @@ int main(void) {
                 uint64_t size = b[1];
                 uint64_t counter = b[2];
 
-                assert(size >= QUEUE_PAYLOAD_SIZE);
+                assert(size >= THREAD_PAYLOAD_SIZE);
                 assert(task_index < THREAD_COUNT);
                 if (msg_count > 0) {
                     if (counter != last_counter[task_index] + 1) {

@@ -205,19 +205,19 @@ typedef struct {
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 
-static tQueueHandle queueInitFromMemory(void *queue_memory, uint32_t queue_memory_size, bool clear_queue) {
+tQueueHandle queueInitFromMemory(void *queue_memory, size_t queue_memory_size, bool clear_queue, int64_t *out_buffer_size) {
 
     tQueue *queue = NULL;
 
     // Allocate the queue memory
     if (queue_memory == NULL) {
-        uint32_t aligned_size = (queue_memory_size + CACHE_LINE_SIZE - 1) & ~(CACHE_LINE_SIZE - 1); // Align to cache line size
+        size_t aligned_size = (queue_memory_size + CACHE_LINE_SIZE - 1) & ~(CACHE_LINE_SIZE - 1); // Align to cache line size
         queue = (tQueue *)aligned_alloc(CACHE_LINE_SIZE, aligned_size);
         assert(queue != NULL);
         assert(queue && ((uint64_t)queue % CACHE_LINE_SIZE) == 0); // Check alignment
         memset(queue, 0, aligned_size);                            // Clear memory
         queue->h.from_memory = false;
-        queue->h.buffer_size = queue_memory_size - (uint32_t)sizeof(tQueueHeader);
+        queue->h.buffer_size = queue_memory_size - sizeof(tQueueHeader);
         queue->h.queue_size = queue->h.buffer_size - QUEUE_MAX_ENTRY_SIZE;
         clear_queue = true;
     }
@@ -226,7 +226,7 @@ static tQueueHandle queueInitFromMemory(void *queue_memory, uint32_t queue_memor
         queue = (tQueue *)queue_memory;
         memset(queue, 0, queue_memory_size); // Clear memory
         queue->h.from_memory = true;
-        queue->h.buffer_size = queue_memory_size - (uint32_t)sizeof(tQueueHeader);
+        queue->h.buffer_size = queue_memory_size - sizeof(tQueueHeader);
         queue->h.queue_size = queue->h.buffer_size - QUEUE_MAX_ENTRY_SIZE;
     }
 
@@ -246,6 +246,10 @@ static tQueueHandle queueInitFromMemory(void *queue_memory, uint32_t queue_memor
     }
     queue->h.cached_peek_index = 0;
     queue->h.cached_peek_tail = 0;
+
+    if (out_buffer_size) {
+        *out_buffer_size = 0;
+    }
 
     // Checks
     assert(atomic_is_lock_free(&((tQueue *)queue_memory)->h.head));
@@ -269,7 +273,7 @@ void queueClear(tQueueHandle queue_handle) {
     DBG_PRINT4("queueClear\n");
 }
 
-tQueueHandle queueInit(uint32_t queue_buffer_size) { return queueInitFromMemory(NULL, queue_buffer_size + sizeof(tQueueHeader), true); }
+tQueueHandle queueInit(size_t queue_buffer_size) { return queueInitFromMemory(NULL, queue_buffer_size + sizeof(tQueueHeader), true, NULL); }
 
 void queueDeinit(tQueueHandle queue_handle) {
     tQueue *queue = (tQueue *)queue_handle;

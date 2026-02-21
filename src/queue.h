@@ -68,7 +68,7 @@ typedef struct {
 /// Create new heap allocated queue.
 /// Free using `queueDeinit`.
 /// @param buffer_size          Queue buffer size in bytes. Does not include the queue header size.
-tQueueHandle queueInit(uint32_t size_in_bytes);
+tQueueHandle queueInit(size_t queue_buffer_size);
 
 /// Creates a queue inside the user provided buffer.
 /// @precondition queue_buffer_size must at least fit the queue header and minimum payload size.
@@ -79,7 +79,7 @@ tQueueHandle queueInit(uint32_t size_in_bytes);
 /// @param out out_buffer_size  Optional out parameter can be used to get the remaining buffer size.
 /// @return Queue handle.
 /// NOTE: This is currently not implemented, but can be added if needed.
-/// tQueueHandle queueInitFromMemory(void *queue_buffer, int64_t queue_buffer_size, bool clear_queue, int64_t *out_buffer_size);
+tQueueHandle queueInitFromMemory(void *queue_buffer, size_t queue_buffer_size, bool clear_queue, int64_t *out_buffer_size);
 
 /// Deinitialize queue.
 /// Does **not** free user allocated memory provided by `queueInitFromMemory`.
@@ -146,3 +146,86 @@ uint32_t queueLevel(tQueueHandle queue_handle, uint32_t *queue_max_level);
 /// Clear queue content.
 /// @param queue_handle         Queue handle.
 void queueClear(tQueueHandle queue_handle);
+
+/// Compatibility macros for mc_daemon queue drop in replacement by queue64v.c
+#if QUEUE_ENTRY_USER_HEADER_SIZE == 0
+#define McQueueHandle tQueueHandle
+#define McQueueBuffer tQueueBuffer
+#define mc_queue_init(size) queueInit(uint32_t size)
+#define mc_queue_init_from_memory(queue_buffer, queue_buffer_size, clear_queue, out_buffer_size) queueInitFromMemory(queue_buffer, queue_buffer_size, clear_queue, out_buffer_size)
+#define mc_queue_deinit(queue_handle) queueDeinit(queue_handle)
+#define mc_queue_acquire(queue_handle, payload_size) queueAcquire(queue_handle, (uint16_t)payload_size)
+#define mc_queue_push(queue_handle, queue_buffer, flush) queuePush(queue_handle, queue_buffer, flush)
+#define mc_queue_peak(queue_handle, index) queuePeek(queue_handle, (uint32_t)index, NULL)
+#define mc_queue_pop(queue_handle) queuePeek(queue_handle, 0, NULL)
+#define mc_queue_release(queue_handle, queue_buffer) queueRelease(queue_handle, queue_buffer)
+#endif
+
+// @@@@ TODO:
+// Rename mc_queue_peak to mc_queue_peek
+// Clarify the semantics of mc_queue_pop, does need a release, documentation is misleading
+// Index can't be negative in mc_queue_peak, clarify in documentation, change to uint32_t
+// payload size in mc_queue_acquire is limited to uint16_t
+// Support QUEUE_ENTRY_USER_HEADER_SIZE = 0
+/*
+
+// ============================================================================
+// From reference.h
+// ============================================================================
+
+
+/// Create new heap allocated queue. Free using `QueueDeinit`.
+/// @param buffer_size Queue buffer size. Does not include the queue header size.
+McQueueHandle mc_queue_init(size_t buffer_size);
+
+/// Creates a queue inside the user provided buffer.
+/// @precondition queue_buffer_size must at least fit the queue header and kQueueMaxBufferPayloadSize size.
+/// This can be used to place the queue inside shared memory which is tested to work there as well.
+/// @param queue_buffer Buffer to place the queue in including the queue header.
+/// @param queue_buffer_size Buffer size including the queue header.
+/// @param clear_queue Clear the queue memory or keep the passed buffer untouched.
+/// @param out out_buffer_size Optional out parameter can be used to get the remaining buffer size.
+/// @return Queue handle.
+McQueueHandle mc_queue_init_from_memory(void* queue_buffer, size_t queue_buffer_size, bool clear_queue,
+                                        int64_t* out_buffer_size);
+
+/// Deinitialize queue. Does **not** free user allocated memory provided by `QueueInitFromMemory`.
+/// @param handle Queue handle.
+void mc_queue_deinit(McQueueHandle handle);
+
+/// Acquire a buffer to be pushed into the queue. The buffer can be written by the user but will not be popped until it
+/// is committed. The buffer must be released using `QueueRelease`.
+/// NOTE: the buffer size may exceed the requested size due to padding (may be aligned to the system cache line to avoid
+/// false sharing). The full returned buffer size can be safely read and written by the user even if it exceeds the
+/// requested size.
+/// @param handle Queue handle.
+/// @param payload_size Requested buffer size.
+/// @return Queue buffer.
+McQueueBuffer mc_queue_acquire(McQueueHandle handle, size_t payload_size);
+
+/// Release acquired buffer. This is required to notify the queue that it can reuse a memory region.
+/// @param handle Queue handle.
+/// @param queue_buffer Queue buffer.
+void mc_queue_release(McQueueHandle handle, McQueueBuffer const* queue_buffer);
+
+/// Push buffer to indicate that the data is written an can be popped from the queue.
+/// @param handle Queue handle.
+/// @param queue_buffer Queue buffer.
+/// @return Queue buffer.
+void mc_queue_push(McQueueHandle handle, McQueueBuffer const* queue_buffer);
+
+/// Pop buffer from the queue.
+/// @param handle Queue handle.
+/// @param queue_buffer Queue buffer.
+/// @return Queue buffer. Buffer size is 0 if no buffer can be popped from the queue.
+McQueueBuffer mc_queue_pop(McQueueHandle handle);
+
+/// Get the next queue buffer size without removing it from the queue.
+/// @param handle Queue handle.
+/// @param index Buffer index to peak from the current read index.
+///        E.g.: 0 returns the size of the next in line buffer to be popped.
+/// @return Queue buffer at given index relative to the current read index.
+///         Buffer size is 0 if no buffer exists or is ready at that index.
+McQueueBuffer mc_queue_peak(McQueueHandle handle, int64_t index);
+
+*/
