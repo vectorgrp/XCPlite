@@ -6,17 +6,16 @@
 |   queue.h
 |
 | Description:
-|   XCPlite internal header file for the transmit queue
-|   There are 3 different implementations of the queue, which are selected based on the platform and configuration:
-|       queue64v.c  - Lockless, variable entry size
-|       queue64f.c  - Lockless, fixed entry size
-|       queue64.c   - Lockless, variable entry size with optional message accumulation (deprecated)
-|       queue32.c   - Locking, variable entry size with message accumulation (fallback for 32-bit platforms and Windows)
+|   Generic queue API
+|   There are 4 different implementations of the queue API, which are selected based on platform and configuration:
+|       queue64v.c  - Generic, lockless, variable entry size
+|       queue64f.c  - Generic, lockless, fixed entry size
+|       queue64.c   - XCP specific, lockless, variable entry size with optional message accumulation (deprecated)
+|       queue32.c   - XCP specific, mutex based, variable entry size with message accumulation (fallback for 32-bit platforms and Windows)
 |
 |   Note:
-|     This queue implementation is not specific to the XCP on Ethernet transport layer, but it includes the 4 byte transport layer message headers (ctr+len) in the queue entries.
-|     The amount of reserved header space for the transport layer message header in the queue entries is defined by XCPTL_TRANSPORT_LAYER_HEADER_SIZE in xcptl_cfg.h, currently set
-to 4 bytes for ctr+len.
+|     The 2 generic queue implementations are not specific for the XCP on Ethernet transport layer
+|     But XCP uses a feature to include the 4 byte transport layer message headers (ctr+len) in the queue entries.
 |
 | Copyright (c) Vector Informatik GmbH. All rights reserved.
 | See LICENSE file in the project root for details.
@@ -26,22 +25,31 @@ to 4 bytes for ctr+len.
 #include <stdbool.h>
 #include <stdint.h>
 
-// Queue entries include space for a consumer header with user defined size
+// Queue entries may include space for a consumer header with user defined size
 // This allows the consumer to add a header to the queue entry without copying and merging data.
 // For XCP use cases, this size is configured to be the XCP transport layer header size (XCPTL_TRANSPORT_LAYER_HEADER_SIZE, which is 4 bytes for ctr+len).
 // Other use cases can use this space for other purposes, e.g. to store a timestamp or a protocol header, or it can be set to 0 if not needed.
 
-#include "xcptl_cfg.h" // for XCPTL_TRANSPORT_LAYER_HEADER_SIZE, XCPTL_MAX_DTO_SIZE
+// Queue parameter configuration:
 
-// Current configuration:
-// Size of a queue entry from user perspective
-#define QUEUE_ENTRY_USER_HEADER_SIZE (XCPTL_TRANSPORT_LAYER_HEADER_SIZE)
+// Configuration for XCP on Ethernet transport layer with 4 byte transport layer header (ctr+len)
+// Using XCP parameters from xcptl_cfg.h: XCPTL_MAX_DTO_SIZE, XCPTL_MAX_SEGMENT_SIZE, QUEUE_PAYLOAD_SIZE_ALIGNMENT:
+#include "xcptl_cfg.h" // for XCPTL_TRANSPORT_LAYER_HEADER_SIZE, XCPTL_MAX_DTO_SIZE, XCPTL_MAX_SEGMENT_SIZE, QUEUE_PAYLOAD_SIZE_ALIGNMENT
+#define QUEUE_ENTRY_USER_HEADER_SIZE (XCPTL_TRANSPORT_LAYER_HEADER_SIZE) // (for XCP transport layer header with XCPTL_TRANSPORT_LAYER_HEADER_SIZE)
 #define QUEUE_ENTRY_USER_PAYLOAD_SIZE (XCPTL_MAX_DTO_SIZE)
 #define QUEUE_ENTRY_USER_SIZE (XCPTL_MAX_DTO_SIZE + XCPTL_TRANSPORT_LAYER_HEADER_SIZE)
-#define QUEUE_SEGMENT_SIZE (XCPTL_MAX_SEGMENT_SIZE)
-#define QUEUE_PEEK_THRESHOLD (XCPTL_MAX_SEGMENT_SIZE)
+#define QUEUE_SEGMENT_SIZE (XCPTL_MAX_SEGMENT_SIZE) // for accumulating multiple messages in one segment with queuePop
 #define QUEUE_MAX_ENTRY_SIZE (XCPTL_MAX_DTO_SIZE + XCPTL_TRANSPORT_LAYER_HEADER_SIZE)
 #define QUEUE_PAYLOAD_SIZE_ALIGNMENT (XCPTL_PACKET_ALIGNMENT)
+
+// For generic uses case without header space reserved use the following configuration:
+/*
+#define QUEUE_ENTRY_USER_HEADER_SIZE (0)
+#define QUEUE_ENTRY_USER_PAYLOAD_SIZE (512)
+#define QUEUE_ENTRY_USER_SIZE (QUEUE_ENTRY_USER_PAYLOAD_SIZE)
+#define QUEUE_MAX_ENTRY_SIZE (QUEUE_ENTRY_USER_PAYLOAD_SIZE)
+#define QUEUE_PAYLOAD_SIZE_ALIGNMENT (4)
+*/
 
 // Check preconditions
 #if (MAX_ENTRY_SIZE % XCPTL_PACKET_ALIGNMENT) != 0
@@ -79,7 +87,7 @@ tQueueHandle queueInit(size_t queue_buffer_size);
 /// @param out out_buffer_size  Optional out parameter can be used to get the remaining buffer size.
 /// @return Queue handle.
 /// NOTE: This is currently not implemented, but can be added if needed.
-tQueueHandle queueInitFromMemory(void *queue_buffer, size_t queue_buffer_size, bool clear_queue, int64_t *out_buffer_size);
+tQueueHandle queueInitFromMemory(void *queue_buffer, size_t queue_buffer_size, bool clear_queue, uint64_t *out_buffer_size);
 
 /// Deinitialize queue.
 /// Does **not** free user allocated memory provided by `queueInitFromMemory`.
@@ -149,6 +157,7 @@ void queueClear(tQueueHandle queue_handle);
 
 /// Compatibility macros for mc_daemon queue drop in replacement by queue64v.c
 #if QUEUE_ENTRY_USER_HEADER_SIZE == 0
+
 #define McQueueHandle tQueueHandle
 #define McQueueBuffer tQueueBuffer
 #define mc_queue_init(size) queueInit(uint32_t size)

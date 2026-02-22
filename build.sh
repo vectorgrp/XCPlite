@@ -248,7 +248,7 @@ if [ "$RUN_CLANG_TIDY" = true ] && [ "$BUILD_SUCCESS" = true ]; then
             cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -S . -B ${BUILD_DIR}
         fi
         
-        # XCPlite library source files
+        # XCPlite library source files for clang tidy analysis
         XCPLITE_SOURCES=(
             "src/xcpAppl.c"
             "src/xcpLite.c"

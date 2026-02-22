@@ -26,7 +26,7 @@
 
 //-----------------------------------------------------------------------------------------------------
 
-#define QUEUE_SIZE (1024 * 64) // Size of the test queue in bytes
+#define QUEUE_SIZE (1024 * 256) // Size of the test queue in bytes
 
 // Test parameters
 // 64 byte payload  * THREAD_COUNT * 1000000/THREAD_DELAY_US = Throughput in byte/s
@@ -36,6 +36,7 @@
 #define THREAD_DELAY_US 10                         // Delay in microseconds for the thread loops
 #define THREAD_PAYLOAD_SIZE (4 * sizeof(uint64_t)) // Size of the test payload produced by the threads
 
+// queue62v.c and queue64f.c support peeking ahead
 #if defined(OPTION_QUEUE_64_VAR_SIZE) || defined(OPTION_QUEUE_64_FIX_SIZE)
 #define QUEUE_PEEK               // Use queuePeek(random(QUEUE_PEEK_MAX_INDEX)) instead of queuePop
 #define QUEUE_PEEK_MAX_INDEX (8) // Max offset for peeking ahead
@@ -121,6 +122,10 @@ Lock time histogram (10700464 events):
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
 
+// Queue logging enabled with log level 6
+// OPTION_MAX_DBG_LEVEL must be set to 6
+#define OPTION_LOG_LEVEL 5 // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug, 5 = trace, 6 = verbose
+
 #ifdef USE_XCP
 #define OPTION_PROJECT_NAME "daq_test"  // Project name, used to build the A2L and BIN file name
 #define OPTION_PROJECT_EPK __TIME__     // EPK version string
@@ -128,7 +133,6 @@ Lock time histogram (10700464 events):
 #define OPTION_SERVER_PORT 5555         // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
 #define OPTION_QUEUE_SIZE (1024 * 32)   // Size of the measurement queue in bytes, should be large enough to cover at least 10ms of expected traffic
-#define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 #endif
 
 //-----------------------------------------------------------------------------------------------------
@@ -170,12 +174,12 @@ void *task(void *p)
 
             counter++;
 
-            uint16_t size = THREAD_PAYLOAD_SIZE;
+            uint16_t size = THREAD_PAYLOAD_SIZE + rand() % 32; // Add some random size to the payload to increase the variability of the test
             tQueueBuffer queue_buffer = queueAcquire(queue_handle, size);
             if (queue_buffer.size >= size) {
                 assert(queue_buffer.buffer != NULL);
 
-                // Simulate XCP DAQ header, because the queue implementation is not generic, it has some XCP specific asserts
+                // Simulate XCP DAQ header, because some queue implementations is not generic, it has some XCP specific asserts
                 // assert(entry->data[4 + 1] == 0xAA || entry->data[4 + 0] >=0xFC))) {
                 *(uint32_t *)queue_buffer.buffer = 0x0000AAFC;
 
@@ -205,10 +209,32 @@ int main(void) {
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 
-#ifdef USE_XCP
-
-    // Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
+    // Set log level
     XcpSetLogLevel(OPTION_LOG_LEVEL);
+    DBG_PRINT3("queue_test\n");
+#ifdef QUEUE_PEEK
+    DBG_PRINT3("Using queue with peek support\n");
+#else
+    DBG_PRINT3("Using queue without peek support\n");
+#endif
+    DBG_PRINT3("\n");
+
+    DBG_PRINT3("Test parameters:\n");
+    DBG_PRINTF3("THREAD_COUNT=%d\n", THREAD_COUNT);
+    DBG_PRINTF3("THREAD_DELAY_US=%d\n", THREAD_DELAY_US);
+    DBG_PRINTF3("THREAD_PAYLOAD_SIZE=%zu\n", THREAD_PAYLOAD_SIZE);
+    DBG_PRINT3("\n");
+
+    DBG_PRINT3("Queue parameters:\n");
+    DBG_PRINTF3("QUEUE_ENTRY_USER_HEADER_SIZE=%d\n", QUEUE_ENTRY_USER_HEADER_SIZE);
+    DBG_PRINTF3("QUEUE_ENTRY_USER_PAYLOAD_SIZE=%u\n", QUEUE_ENTRY_USER_PAYLOAD_SIZE);
+    DBG_PRINTF3("QUEUE_ENTRY_USER_SIZE=%u\n", QUEUE_ENTRY_USER_SIZE);
+    DBG_PRINTF3("QUEUE_SEGMENT_SIZE=%u\n", QUEUE_SEGMENT_SIZE);
+    DBG_PRINTF3("QUEUE_MAX_ENTRY_SIZE=%u\n", QUEUE_MAX_ENTRY_SIZE);
+    DBG_PRINTF3("QUEUE_PAYLOAD_SIZE_ALIGNMENT=%u\n", QUEUE_PAYLOAD_SIZE_ALIGNMENT);
+    DBG_PRINT3("\n");
+
+#ifdef USE_XCP
 
     // Initialize the XCP singleton, activate XCP, must be called before starting the server
     // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
@@ -287,13 +313,16 @@ int main(void) {
                 assert(buffer[index].size >= THREAD_PAYLOAD_SIZE);
                 assert((uint64_t)buffer[index].buffer % 2 == 0);
 
-                uint64_t *b = (uint64_t *)(buffer[index].buffer + 8); // Test payload starts + 8 (Transport layer header + XCP DAQ header)
+                // Check test data
+                // Test payload starts + (User header (Transport layer header) + faked XCP DAQ header)
+                uint64_t *b = (uint64_t *)(buffer[index].buffer + QUEUE_ENTRY_USER_HEADER_SIZE + 4);
                 uint64_t task_index = b[0];
                 uint64_t size = b[1];
                 uint64_t counter = b[2];
 
                 // printf("Peeked index %u: task_index=%llu, size=%llu, counter=%llu\n", index, task_index, size, counter);
 
+                // Check counter incrementing
                 assert(size >= THREAD_PAYLOAD_SIZE);
                 assert(task_index < THREAD_COUNT);
                 if (msg_count > 0) {
@@ -301,8 +330,13 @@ int main(void) {
                         printf("Messages lost in task %u, expected counter %llu, got %llu\n", (uint32_t)task_index, last_counter[task_index] + 1, counter);
                     }
                 }
-
                 last_counter[task_index] = counter;
+
+                // Write to the user header
+#if QUEUE_ENTRY_USER_HEADER_SIZE >= 4
+                uint32_t *e = (uint32_t *)(buffer[index].buffer);
+                *e = 0xFFFFFFFF;
+#endif
 
                 msg_count++;
                 msg_bytes += buffer[index].size;

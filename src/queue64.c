@@ -18,15 +18,13 @@
 |
  ----------------------------------------------------------------------------*/
 
-#error "Deprecated queue implementation, this file is not maintained anymore"
-
 #include "platform.h"   // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex, spinlock
 #include "xcplib_cfg.h" // for OPTION_xxx
 
 // Use queue32.c for 32 Bit platforms or on Windows
 #if defined(PLATFORM_64BIT) && !defined(_WIN) && !defined(OPTION_ATOMIC_EMULATION)
 
-#if !defined(OPTION_QUEUE_64_VAR_SIZE) && !defined(OPTION_QUEUE_64_FIX_SIZE)
+#if !defined(OPTION_QUEUE_64_VAR_SIZE) && !defined(OPTION_QUEUE_64_FIX_SIZE) && !defined(OPTION_QUEUE_32)
 
 #include "queue.h"
 
@@ -111,9 +109,7 @@ Transport Layer segment, message, packet:
 
 // Accumulate XCP packets to multiple XCP messages in a segment obtained with queuePop
 #define QUEUE_ACCUMULATE_PACKETS // Accumulate XCP packets to multiple XCP messages obtained with queuePop
-
-// Wait for at least QUEUE_PEEK_THRESHOLD bytes in the queue before returning a segment, to optimize efficiency
-#define QUEUE_PEEK_THRESHOLD XCPTL_MAX_SEGMENT_SIZE
+#define QUEUE_ACCUMULATE_THRESHOLD (XCPTL_MAX_SEGMENT_SIZE / 2)
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 // Test
@@ -422,13 +418,13 @@ static void spinlockUnlock(atomic_int_fast64_t *lock) { atomic_store_explicit(lo
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 
 // Initialize a queue from given memory, a given existing queue or allocate a new queue
-static tQueueHandle queueInitFromMemory(void *queue_memory, uint32_t queue_memory_size, bool clear_queue) {
+tQueueHandle queueInitFromMemory(void *queue_memory, size_t queue_memory_size, bool clear_queue, uint64_t *out_queue_buffer_size) {
 
     tQueue *queue = NULL;
 
     // Allocate the queue memory
     if (queue_memory == NULL) {
-        uint32_t aligned_size = (queue_memory_size + CACHE_LINE_SIZE - 1) & ~(CACHE_LINE_SIZE - 1); // Align to cache line size
+        size_t aligned_size = (queue_memory_size + CACHE_LINE_SIZE - 1) & ~(CACHE_LINE_SIZE - 1); // Align to cache line size
         queue = (tQueue *)aligned_alloc(CACHE_LINE_SIZE, aligned_size);
         assert(queue != NULL);
         assert(queue && ((uint64_t)queue % CACHE_LINE_SIZE) == 0); // Check alignment
@@ -454,7 +450,7 @@ static tQueueHandle queueInitFromMemory(void *queue_memory, uint32_t queue_memor
         assert(queue->h.queue_size == queue->h.buffer_size - QUEUE_MAX_ENTRY_SIZE);
     }
 
-    DBG_PRINT3("Init XCP transport layer queue\n");
+    DBG_PRINT3("Init transport layer lockless queue (queue64)\n");
     DBG_PRINTF3("  XCPTL_MAX_SEGMENT_SIZE=%u, XCPTL_PACKET_ALIGNMENT=%u, queue: %u DTOs of max %u bytes, %uKiB\n", XCPTL_MAX_SEGMENT_SIZE, XCPTL_PACKET_ALIGNMENT,
                 queue->h.queue_size / QUEUE_MAX_ENTRY_SIZE, QUEUE_MAX_ENTRY_SIZE - XCPTL_TRANSPORT_LAYER_HEADER_SIZE,
                 (uint32_t)((queue->h.buffer_size + sizeof(tQueueHeader)) / 1024));
@@ -489,6 +485,10 @@ static tQueueHandle queueInitFromMemory(void *queue_memory, uint32_t queue_memor
     assert(atomic_is_lock_free(&((tQueue *)queue_memory)->h.head));
     assert((queue->h.queue_size & (XCPTL_PACKET_ALIGNMENT - 1)) == 0);
 
+    if (out_queue_buffer_size) {
+        *out_queue_buffer_size = 0;
+    }
+
     DBG_PRINT4("queueInitFromMemory\n");
     return (tQueueHandle)queue;
 }
@@ -510,7 +510,7 @@ void queueClear(tQueueHandle queue_handle) {
 }
 
 // Create and initialize a new queue with a given size
-tQueueHandle queueInit(uint32_t queue_buffer_size) { return queueInitFromMemory(NULL, queue_buffer_size + sizeof(tQueueHeader), true); }
+tQueueHandle queueInit(size_t queue_buffer_size) { return queueInitFromMemory(NULL, queue_buffer_size + sizeof(tQueueHeader), true, NULL); }
 
 // Deinitialize and free the queue
 void queueDeinit(tQueueHandle queue_handle) {
@@ -811,7 +811,7 @@ tQueueBuffer queuePop(tQueueHandle queue_handle, bool accumulate, bool flush, ui
             atomic_store_explicit(&queue->h.flush, false, memory_order_relaxed);
         }
 
-        if ((level <= QUEUE_PEEK_THRESHOLD && !flush)) { // Queue is not above the minimum segment size
+        if ((level <= QUEUE_ACCUMULATE_THRESHOLD && !flush)) { // Queue is not above the minimum segment size
             tQueueBuffer ret = {
                 .buffer = NULL,
                 .size = 0,

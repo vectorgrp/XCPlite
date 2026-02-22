@@ -292,13 +292,13 @@ void queueClear(tQueueHandle queue_handle) {
     DBG_PRINT4("queueClear\n");
 }
 
-tQueueHandle queueInit(uint32_t queue_memory_size) {
+tQueueHandle queueInit(size_t queue_memory_size) {
 
     tQueue *queue = NULL;
 
     // Allocate the queue memory, rounded up to (QUEUE_ENTRY_USER_PAYLOAD_SIZE+8) size
     // Allocated memory includes the queue descriptor
-    uint32_t aligned_memory_size = sizeof(tQueueHeader) + ((queue_memory_size + (QUEUE_ENTRY_SIZE - 1)) & ~(QUEUE_ENTRY_SIZE - 1)); // Round up to multiple of QUEUE_ENTRY_SIZE size
+    size_t aligned_memory_size = sizeof(tQueueHeader) + ((queue_memory_size + (QUEUE_ENTRY_SIZE - 1)) & ~(QUEUE_ENTRY_SIZE - 1)); // Round up to multiple of QUEUE_ENTRY_SIZE size
     queue = (tQueue *)aligned_alloc(CACHE_LINE_SIZE, aligned_memory_size);
     assert(queue != NULL);
     assert(((uint64_t)queue % CACHE_LINE_SIZE) == 0);                                  // Check alignment of the allocated memory
@@ -309,7 +309,7 @@ tQueueHandle queueInit(uint32_t queue_memory_size) {
     assert((queue->h.queue_buffer_size % CACHE_LINE_SIZE) == 0);                       // Check that the queue buffer size is a multiple of the cache line size
     assert((queue->h.queue_buffer_size % QUEUE_PAYLOAD_SIZE_ALIGNMENT) == 0);          // Check that the queue buffer size is a multiple of the required alignment
 
-    DBG_PRINT3("Init fixed entry size lockless queue\n");
+    DBG_PRINT3("Init transport layer lockless queue (queue64f)\n");
     DBG_PRINTF3("  %u entries of max %u bytes user payload, %u bytes user header, %uKiB used\n", queue->h.queue_buffer_size / QUEUE_ENTRY_SIZE, QUEUE_ENTRY_USER_PAYLOAD_SIZE,
                 QUEUE_ENTRY_USER_HEADER_SIZE, (uint32_t)(aligned_memory_size / 1024));
 

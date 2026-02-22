@@ -16,8 +16,9 @@
 #include "platform.h"   // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex, spinlock
 #include "xcplib_cfg.h" // for OPTION_xxx
 
-// Use queue32.c for 32 Bit platforms or on Windows
-#if defined(PLATFORM_32BIT) || defined(_WIN) || defined(OPTION_ATOMIC_EMULATION) || (!defined(OPTION_QUEUE_64_FIX_SIZE) && !defined(OPTION_QUEUE_64_VAR_SIZE))
+// Use queue32.c for 32 Bit platforms, on Windows or with atomic emulation
+// Explictly force with OPTION_QUEUE_32
+#if defined(OPTION_QUEUE_32) || defined(PLATFORM_32BIT) || defined(_WIN) || defined(OPTION_ATOMIC_EMULATION)
 
 #include "queue.h"
 
@@ -131,13 +132,13 @@ void queueClear(tQueueHandle queue_handle) {
 
 // Create and initialize a new queue with a given size in bytes
 // Will be rounded up to match alignment requirements
-tQueueHandle queueInit(uint32_t queue_buffer_size) {
+tQueueHandle queueInit(size_t queue_buffer_size) {
 
     tQueue *queue = (tQueue *)malloc(sizeof(tQueue));
     assert(queue != NULL);
 
     // Target size of the queue buffer in entries of type tXcpSegmentBuffer
-    uint32_t queue_entries = queue_buffer_size / sizeof(tXcpSegmentBuffer) + 1;
+    size_t queue_entries = queue_buffer_size / sizeof(tXcpSegmentBuffer) + 1;
 
     // Size of the queue buffer in bytes (rounded up to cache line size)
     queue->queue_buffer_size = ((queue_entries * sizeof(tXcpSegmentBuffer)) + CACHE_LINE_SIZE - 1) & ~(CACHE_LINE_SIZE - 1); // Align to cache line size
@@ -151,7 +152,8 @@ tQueueHandle queueInit(uint32_t queue_buffer_size) {
         queue->queue[i].size = 0;           // No data in this segment
     }
 
-    DBG_PRINTF4("queueInit: queue_buffer_size=%" PRIu32 ", queue_size=%" PRIu32 " (%" PRIu32 " Bytes)\n", queue->queue_buffer_size, queue->queue_size, queue->queue_buffer_size);
+    DBG_PRINT3("Init transport layer lockless queue (queue32)\n");
+    DBG_PRINTF3("  buffer_size=%" PRIu32 ", queue_size=%" PRIu32 " (%" PRIu32 " Bytes)\n", queue->queue_buffer_size, queue->queue_size, queue->queue_buffer_size);
 
     mutexInit(&queue->Mutex_Queue, false, 1000);
 

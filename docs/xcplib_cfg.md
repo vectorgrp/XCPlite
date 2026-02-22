@@ -162,7 +162,6 @@ This section describes the XCP protocol layer configuration parameters in xcp_cf
 | `XCP_TIMESTAMP_TICKS` | Ticks per timestamp unit (default: 1) |
 | `XCP_ENABLE_PTP` | Enables PTP (Precision Time Protocol) grandmaster clock support |
 
-
 ### Multicast Clock Synchronization
 
 | Parameter | Description |
@@ -170,37 +169,7 @@ This section describes the XCP protocol layer configuration parameters in xcp_cf
 | `XCP_ENABLE_DAQ_CLOCK_MULTICAST` | Enables GET_DAQ_CLOCK_MULTICAST functionality (not recommended) |
 | `XCP_MULTICAST_CLUSTER_ID` | XCP multicast cluster ID for time synchronization (default: 1) |
 
-### Debug Configuration
 
-| Parameter | Description |
-|-----------|-------------|
-| `XCP_ENABLE_TEST_CHECKS` | Enables extended error checks with performance penalty |
-| `XCP_ENABLE_OVERRUN_INDICATION_PID` | Enables overrun indication via PID (not needed for Ethernet) |
-
-## 4 · Transmit Queue Configuration
-
-The 64-bit transmit queue has several parameters to further optimize DAQ measurement performance and data capture side effects.
-
-### Queue Implementation Selection
-
-The queue implementation can be configured using one of three mutually exclusive defines that control the synchronization mechanism between producers and consumers:
-
-| Parameter | Description |
-|-----------|-------------|
-| `QUEUE_MUTEX` | Uses mutex-based producer locking. This is convenient and might be optimal for high throughput when worst-case producer latency is acceptable. No consumer lock, uses memory fences between producer and consumer |
-| `QUEUE_SEQ_LOCK` | Uses sequence lock to protect against inconsistency during entry acquire. The queue is lock-free with minimal CAS spin wait in contention. The consumer may spin heavily to acquire a safe consistent head |
-| `QUEUE_NO_LOCK` | No synchronization between producer and consumer. Producer uses CAS loop to increment head, consumer clears memory completely for consistent reservation state. Tradeoff between consumer spin activity and consumer cache activity - might be optimal for medium throughput |
-
-**Default**: `QUEUE_NO_LOCK` is enabled by default as it provides the best balance for medium throughput scenarios.
-
-### Queue Optimization Parameters
-
-| Parameter | Description |
-|-----------|-------------|
-| `QUEUE_ACCUMULATE_PACKETS` | Enables accumulation of multiple XCP packets into XCP messages within a segment obtained with `queuePeek()`. This improves efficiency by reducing the number of network operations |
-| `QUEUE_PEEK_THRESHOLD` | Minimum number of bytes that must be in the queue before `queuePeek()` returns a segment. Set to `XCPTL_MAX_SEGMENT_SIZE` by default to optimize transmission efficiency |
-| `CACHE_LINE_SIZE` | Cache line size used to align queue entries and queue header. Set to 128 bytes to accommodate most modern CPU architectures |
-| `MAX_ENTRY_SIZE` | Maximum size of a single queue entry, calculated as `XCPTL_MAX_DTO_SIZE + XCPTL_TRANSPORT_LAYER_HEADER_SIZE`. Must be aligned to `XCPTL_PACKET_ALIGNMENT` |
 
 ### Queue Runtime Configuration
 

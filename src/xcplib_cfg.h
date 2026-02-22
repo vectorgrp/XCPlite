@@ -37,7 +37,7 @@
 // Use level 4 to print all XCP commands
 #define OPTION_DEFAULT_DBG_LEVEL 3
 // Optimize code size, higher levels optimized out
-#define OPTION_MAX_DBG_LEVEL 5
+#define OPTION_MAX_DBG_LEVEL 6 // @@@@ TODO: >5 for testing only, reset to 4 or 5 for production use
 // Optimize code size, fixed log level, not changeable at runtime
 // #define OPTION_FIXED_DBG_LEVEL 3
 // Enable debug metrics
@@ -111,7 +111,7 @@
 #define OPTION_DAQ_EVENT_COUNT 128     // Maximum number of DAQ events (integer value, must be even)
 // #define OPTION_DAQ_ASYNC_EVENT         // Create an asynchronous, cyclic DAQ event for asynchronous data acquisition
 
-// Use the new vectored IO queues (fixed size or variable size)
+// Default: Use the new vectored IO variable entry size lockless queue
 
 // Transport layer queue, vectored IO lockless with variable queue entry size
 // Default for maximum memory efficiency
@@ -124,6 +124,9 @@
 // Tune XCPTL_MAX_DTO_SIZE for best compromise between memory efficiency and performance
 // Larger DTO size may not payoff, rely on transport layer message accumulation
 // #define OPTION_QUEUE_64_FIX_SIZE
+
+// Transport layer queue, with variable queue entry size, 32 bit not lockless with mutex synchronization
+// #define OPTION_QUEUE_32
 
 //-------------------------------------------------------------------------------
 // A2L generation settings
