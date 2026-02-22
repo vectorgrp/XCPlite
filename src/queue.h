@@ -60,18 +60,18 @@
 // On the producer side, a tQueueBuffer from queueAcquire don't include the user header space
 // On the consumer side, a tQueueBuffer from queuePeek includes the space for the user header
 
-/// Opaque queue handle for allowing multiple queues
-typedef struct tQueue *tQueueHandle;
-#define UNDEFINED_QUEUE_HANDLE NULL
-
 // Buffer acquired from the queue with `queueAcquire` (producer) or from queuePeek` (consumer)
-typedef struct {
+typedef struct QueueBuffer {
 #if defined(PLATFORM_32BIT) || defined(_WIN) || defined(OPTION_ATOMIC_EMULATION) || (!defined(OPTION_QUEUE_64_FIX_SIZE) && !defined(OPTION_QUEUE_64_VAR_SIZE))
     void *handle;
 #endif
     uint8_t *buffer; // Pointer to the buffer to the message payload
     uint16_t size;   // Size of the payload buffer in bytes
 } tQueueBuffer;
+
+/// Opaque queue handle for allowing multiple queues
+typedef struct Queue *tQueueHandle;
+#define UNDEFINED_QUEUE_HANDLE NULL
 
 /// Create new heap allocated queue.
 /// Free using `queueDeinit`.
@@ -87,7 +87,7 @@ tQueueHandle queueInit(size_t queue_buffer_size);
 /// @param out out_buffer_size  Optional out parameter can be used to get the remaining buffer size.
 /// @return Queue handle.
 /// NOTE: This is currently not implemented, but can be added if needed.
-tQueueHandle queueInitFromMemory(void *queue_buffer, size_t queue_buffer_size, bool clear_queue, uint64_t *out_buffer_size);
+tQueueHandle queueInitFromMemory(void *queue_memory, size_t queue_memory_size, bool clear_queue, uint64_t *out_buffer_size);
 
 /// Deinitialize queue.
 /// Does **not** free user allocated memory provided by `queueInitFromMemory`.
@@ -109,9 +109,9 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t payload_size);
 /// Commit an acquired buffer to the queue to indicate that the data written is complete and valid for the consumer.
 /// @param queue_handle         Queue handle.
 /// @param queue_buffer         Queue buffer.
-/// @param flush                Optional: Indicate producer priority, the queue may take measures to optimize. Implementation specific.
+/// @param priority             Optional: Indicate producer priority, the queue may take measures to optimize. Implementation specific.
 /// @return Queue buffer.
-void queuePush(tQueueHandle queue_handle, tQueueBuffer *const queue_buffer, bool flush);
+void queuePush(tQueueHandle queue_handle, const tQueueBuffer *queue_buffer, bool priority);
 
 /// Get a queue entry without removing it from the queue.
 /// Single consumer thread only, not thread safe.
@@ -134,7 +134,7 @@ tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t index, uint32_t *pack
 /// NOTE: The returned buffer must be released using `queueRelease` before any other call to queuePop.
 /// NOTE: As there may be multiple accumulated entries, queuePop initializes the XCP transport layer counter in the message by calling XcpTlGetCtr()
 #ifndef OPTION_QUEUE_64_FIX_SIZE
-tQueueBuffer queuePop(tQueueHandle queue_handle, bool accumulate, bool flush, uint32_t *packets_lost);
+tQueueBuffer queuePop(tQueueHandle queue_handle, bool accumulate, bool priority, uint32_t *packets_lost);
 #endif
 
 /// Release a buffer from `queuePeek` or `queuePop`.
@@ -143,7 +143,7 @@ tQueueBuffer queuePop(tQueueHandle queue_handle, bool accumulate, bool flush, ui
 /// Queue entries must be released in the same order as they were obtained from `queuePop` (FIFO order) or in sequential index order from `queuePeek`.
 /// @param queue_handle         Queue handle.
 /// @param queue_buffer         Queue buffer to release.
-void queueRelease(tQueueHandle queue_handle, tQueueBuffer *const queue_buffer);
+void queueRelease(tQueueHandle queue_handle, const tQueueBuffer *queue_buffer);
 
 /// Get current amount of bytes or entries (implementation specific) in the queue, 0 if queue is empty.
 /// @param queue_handle         Queue handle.
@@ -155,33 +155,39 @@ uint32_t queueLevel(tQueueHandle queue_handle, uint32_t *queue_max_level);
 /// @param queue_handle         Queue handle.
 void queueClear(tQueueHandle queue_handle);
 
-/// Compatibility macros for mc_daemon queue drop in replacement by queue64v.c
-#if QUEUE_ENTRY_USER_HEADER_SIZE == 0
+#if 0
 
-#define McQueueHandle tQueueHandle
-#define McQueueBuffer tQueueBuffer
-#define mc_queue_init(size) queueInit(uint32_t size)
-#define mc_queue_init_from_memory(queue_buffer, queue_buffer_size, clear_queue, out_buffer_size) queueInitFromMemory(queue_buffer, queue_buffer_size, clear_queue, out_buffer_size)
-#define mc_queue_deinit(queue_handle) queueDeinit(queue_handle)
-#define mc_queue_acquire(queue_handle, payload_size) queueAcquire(queue_handle, (uint16_t)payload_size)
-#define mc_queue_push(queue_handle, queue_buffer, flush) queuePush(queue_handle, queue_buffer, flush)
-#define mc_queue_peak(queue_handle, index) queuePeek(queue_handle, (uint32_t)index, NULL)
-#define mc_queue_pop(queue_handle) queuePeek(queue_handle, 0, NULL)
-#define mc_queue_release(queue_handle, queue_buffer) queueRelease(queue_handle, queue_buffer)
-#endif
-
-// @@@@ TODO:
-// Rename mc_queue_peak to mc_queue_peek
-// Clarify the semantics of mc_queue_pop, does need a release, documentation is misleading
-// Index can't be negative in mc_queue_peak, clarify in documentation, change to uint32_t
-// payload size in mc_queue_acquire is limited to uint16_t
-// Support QUEUE_ENTRY_USER_HEADER_SIZE = 0
-/*
 
 // ============================================================================
 // From reference.h
 // ============================================================================
 
+
+// mc_queue mapping
+typedef struct Queue *McQueueHandle;
+typedef struct QueueBuffer McQueueBuffer;
+#define tQueueHandle McQueueHandle
+#define tQueueBuffer McQueueBuffer
+#define queueInit mc_queue_init
+#define queueInitFromMemory mc_queue_init_from_memory
+#define queueDeinit mc_queue_deinit
+#define queueAcquire mc_queue_acquire
+#define queuePush mc_queue_push
+#define queuePeek mc_queue_peek
+#define queuePop mc_queue_pop
+#define queueRelease mc_queue_release
+
+// @@@@ Differences to mc_queue_xxx API:
+// Findings
+//   Renamed mc_queue_peak to mc_queue_peek
+//   Clarify the semantics of mc_queue_pop, does need a release, documentation is misleading
+// Signature changes:
+//   mc_queue_init_from_memory out_buffer_site is uint64_t * instead of int64_t *
+//   mc_queue_acquire has uint16_t size parameter, payload size is limited to uint16_t
+//   mc_queue_push has a priority parameter
+//   mc_queue_peek has a packet_lost out parameter
+//   mc_queue_peek parameter index is uint32_t
+//   Using const west for parameters
 
 /// Create new heap allocated queue. Free using `QueueDeinit`.
 /// @param buffer_size Queue buffer size. Does not include the queue header size.
@@ -195,8 +201,7 @@ McQueueHandle mc_queue_init(size_t buffer_size);
 /// @param clear_queue Clear the queue memory or keep the passed buffer untouched.
 /// @param out out_buffer_size Optional out parameter can be used to get the remaining buffer size.
 /// @return Queue handle.
-McQueueHandle mc_queue_init_from_memory(void* queue_buffer, size_t queue_buffer_size, bool clear_queue,
-                                        int64_t* out_buffer_size);
+McQueueHandle mc_queue_init_from_memory(void *queue_memory, size_t queue_memory_size, bool clear_queue, uint64_t *out_buffer_size);
 
 /// Deinitialize queue. Does **not** free user allocated memory provided by `QueueInitFromMemory`.
 /// @param handle Queue handle.
@@ -210,18 +215,14 @@ void mc_queue_deinit(McQueueHandle handle);
 /// @param handle Queue handle.
 /// @param payload_size Requested buffer size.
 /// @return Queue buffer.
-McQueueBuffer mc_queue_acquire(McQueueHandle handle, size_t payload_size);
-
-/// Release acquired buffer. This is required to notify the queue that it can reuse a memory region.
-/// @param handle Queue handle.
-/// @param queue_buffer Queue buffer.
-void mc_queue_release(McQueueHandle handle, McQueueBuffer const* queue_buffer);
+McQueueBuffer mc_queue_acquire(McQueueHandle handle, uint16_t payload_size);
 
 /// Push buffer to indicate that the data is written an can be popped from the queue.
 /// @param handle Queue handle.
 /// @param queue_buffer Queue buffer.
+/// @param priority Indicate producer priority, the queue may take measures to optimize. Implementation specific.
 /// @return Queue buffer.
-void mc_queue_push(McQueueHandle handle, McQueueBuffer const* queue_buffer);
+void mc_queue_push(McQueueHandle handle, const McQueueBuffer *queue_buffer, bool priority);
 
 /// Pop buffer from the queue.
 /// @param handle Queue handle.
@@ -235,6 +236,11 @@ McQueueBuffer mc_queue_pop(McQueueHandle handle);
 ///        E.g.: 0 returns the size of the next in line buffer to be popped.
 /// @return Queue buffer at given index relative to the current read index.
 ///         Buffer size is 0 if no buffer exists or is ready at that index.
-McQueueBuffer mc_queue_peak(McQueueHandle handle, int64_t index);
+McQueueBuffer mc_queue_peek(McQueueHandle handle, uint32_t index, uint32_t *packets_lost);
 
-*/
+/// Release acquired buffer. This is required to notify the queue that it can reuse a memory region.
+/// @param handle Queue handle.
+/// @param queue_buffer Queue buffer.
+void mc_queue_release(McQueueHandle handle, const McQueueBuffer *queue_buffer);
+
+#endif

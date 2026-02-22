@@ -394,7 +394,7 @@ typedef struct {
 static_assert(((sizeof(tQueueHeader) % 8) == 0), "QueueHeader size must be %8");
 
 // Queue
-typedef struct {
+typedef struct Queue {
     tQueueHeader h;
     uint8_t buffer[];
 } tQueue;
@@ -544,7 +544,15 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
 
     tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
-    assert(packet_len > 0 && packet_len <= XCPTL_MAX_DTO_SIZE);
+
+    if (!(packet_len > 0 && packet_len <= XCPTL_MAX_DTO_SIZE)) {
+        DBG_PRINTF_ERROR("Invalid packet_len %u, must be between 1 and %u\n", packet_len, XCPTL_MAX_DTO_SIZE);
+        tQueueBuffer ret = {
+            .buffer = NULL,
+            .size = 0,
+        };
+        return ret;
+    }
 
     tXcpDtoMessage *entry = NULL;
 
@@ -662,7 +670,7 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
 }
 
 // Commit a buffer (returned from queueAcquire)
-void queuePush(tQueueHandle queue_handle, tQueueBuffer *const queue_buffer, bool flush) {
+void queuePush(tQueueHandle queue_handle, const tQueueBuffer *queue_buffer, bool flush) {
 
     tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
@@ -942,7 +950,7 @@ tQueueBuffer queuePop(tQueueHandle queue_handle, bool accumulate, bool flush, ui
 
 // Advance the transmit queue tail by the message length obtained from the last queuePop call
 // Segments obtained from queuePop must be released immediately with this function
-void queueRelease(tQueueHandle queue_handle, tQueueBuffer *const queue_buffer) {
+void queueRelease(tQueueHandle queue_handle, const tQueueBuffer *queue_buffer) {
     tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
     assert(queue_buffer->size > 0 && queue_buffer->size <= XCPTL_MAX_SEGMENT_SIZE);

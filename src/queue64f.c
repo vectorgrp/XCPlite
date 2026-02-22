@@ -273,7 +273,7 @@ typedef struct {
 static_assert(((sizeof(tQueueHeader) % CACHE_LINE_SIZE) == 0), "QueueHeader size must be CACHE_LINE_SIZE");
 
 // Queue
-typedef struct {
+typedef struct Queue {
     tQueueHeader h;
     uint8_t buffer[];
 } tQueue;
@@ -345,7 +345,15 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
 
     tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
-    assert(packet_len > 0 && packet_len <= QUEUE_ENTRY_USER_PAYLOAD_SIZE);
+
+    if (!(packet_len > 0 && packet_len <= QUEUE_ENTRY_USER_PAYLOAD_SIZE)) {
+        DBG_PRINTF_ERROR("Invalid packet_len %u, must be between 1 and %u\n", packet_len, QUEUE_ENTRY_USER_PAYLOAD_SIZE);
+        tQueueBuffer ret = {
+            .buffer = NULL,
+            .size = 0,
+        };
+        return ret;
+    }
 
     // Align the packet_len if required (improves the alignment of accumulated messages in a segment)
     uint16_t aligned_packet_len = packet_len;
@@ -429,7 +437,7 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
     return ret;
 }
 
-void queuePush(tQueueHandle queue_handle, tQueueBuffer *const queue_buffer, bool flush) {
+void queuePush(tQueueHandle queue_handle, const tQueueBuffer *queue_buffer, bool flush) {
 
     tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
@@ -560,7 +568,7 @@ tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t index, uint32_t *pack
     return ret;
 }
 
-void queueRelease(tQueueHandle queue_handle, tQueueBuffer *const queue_buffer) {
+void queueRelease(tQueueHandle queue_handle, const tQueueBuffer *queue_buffer) {
     tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
     assert(queue_buffer != NULL);

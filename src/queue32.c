@@ -69,7 +69,7 @@ typedef struct {
     uint8_t msg_buffer[XCPTL_MAX_SEGMENT_SIZE]; // Segment/UDP MTU - concatenated transport layer messages tXcpMessage
 } tXcpSegmentBuffer;
 
-typedef struct {
+typedef struct Queue {
 
     uint32_t queue_buffer_size; // Size of queue memory allocated in bytes
     uint32_t queue_size;        // Size of queue in segments of type tXcpSegmentBuffer
@@ -197,9 +197,18 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_size) {
     tXcpSegmentBuffer *b = NULL;
     uint16_t msg_size;
 
-    DBG_PRINTF6("queueAcquire: queue_handle=%p, packet_size=%" PRIu16 "\n", (void *)queue_handle, packet_size);
+    DBG_PRINTF6("queueAcquire: queue_handle=%p, packet_size=%u\n", (void *)queue_handle, packet_size);
 
-    assert(packet_size > 0 && packet_size <= XCPTL_MAX_DTO_SIZE);
+    if (!(packet_size > 0 && packet_size <= XCPTL_MAX_DTO_SIZE)) {
+        DBG_PRINTF_ERROR("Invalid packet_len %u, must be between 1 and %u\n", packet_size, XCPTL_MAX_DTO_SIZE);
+
+        tQueueBuffer ret = {
+            .buffer = NULL,
+            .handle = NULL,
+            .size = 0,
+        };
+        return ret;
+    }
 
 #if XCPTL_PACKET_ALIGNMENT == 4
     packet_size = (uint16_t)((packet_size + 3) & 0xFFFC); // Add fill %4
@@ -226,11 +235,11 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_size) {
         p->dlc = (uint16_t)packet_size;
         b->size = (uint16_t)(b->size + msg_size);
         b->uncommitted++;
-        DBG_PRINTF6("queueAcquire: size=%" PRIu16 ", uncommitted=%" PRIu16 "\n", b->size, b->uncommitted);
+        DBG_PRINTF6("queueAcquire: size=%u, uncommitted=%u\n", b->size, b->uncommitted);
     } else {
         // No segment buffer available, queue overflow
         queue->packets_lost++;
-        DBG_PRINTF_ERROR("queueAcquire: queue overflow, packet_size=%" PRIu16 ", msg_size=%" PRIu16 ", queue_len=%" PRIu32 "\n", packet_size, msg_size, queue->queue_len);
+        DBG_PRINTF_ERROR("queueAcquire: queue overflow, packet_size=%u, msg_size=%u, queue_len=%u\n", packet_size, msg_size, queue->queue_len);
     }
 
     mutexUnlock(&queue->Mutex_Queue);
@@ -250,7 +259,7 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_size) {
 }
 
 // Commit a buffer (returned from XcpTlGetTransmitBuffer)
-void queuePush(tQueueHandle queue_handle, tQueueBuffer *const queue_buffer, bool flush) {
+void queuePush(tQueueHandle queue_handle, const tQueueBuffer *queue_buffer, bool flush) {
 
     tQueue *queue = (tQueue *)queue_handle;
 
@@ -373,7 +382,7 @@ tQueueBuffer queuePop(tQueueHandle queue_handle, bool accumulate, bool flush, ui
 }
 
 // Advance the transmit queue tail by the message length obtained from the last queuePop call
-void queueRelease(tQueueHandle queue_handle, tQueueBuffer *const queue_buffer) {
+void queueRelease(tQueueHandle queue_handle, const tQueueBuffer *queue_buffer) {
     tQueue *queue = (tQueue *)queue_handle;
 
     DBG_PRINTF6("queueRelease: size=%" PRIu16 "\n", queue_buffer->size);

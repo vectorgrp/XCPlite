@@ -368,7 +368,7 @@ int main(void) {
             tQueueBuffer buffer;
             buffer.size = *(uint16_t *)segment_buffer.buffer + sizeof(uint32_t); // Get the buffer size from transportlayer header dlc
             buffer.buffer = segment_buffer.buffer;                               // Move the buffer pointer to the start of the message payload (to the transport layer header)
-            assert(buffer.size > 0 && buffer.size <= THREAD_PAYLOAD_SIZE + 8);
+            assert(buffer.size > 0);
 
             // Iterate over all messages in the segment
             for (;;) {

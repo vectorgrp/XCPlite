@@ -32,8 +32,6 @@
 
 #include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
 
-// #include "xcpEthTl.h" // for XcpTlGetCtr
-
 // Turn of misaligned atomic access warnings
 // Alignment is assured by the queue header and the queue entry size alignment
 #ifdef __GNUC__
@@ -68,7 +66,7 @@ static_assert(sizeof(atomic_uint_least32_t) == 4, "atomic_uint_least32_t must be
 // For high contention use test queue_test or example daq_test with xcp_client --upload-a2l --udp --mea .  --dest-addr 192.168.0.206
 // Note that this tests have significant performance impact, do not turn on for production use !!!!!!!!!!!
 
-#define TEST_ACQUIRE_LOCK_TIMING
+// #define TEST_ACQUIRE_LOCK_TIMING
 #ifdef TEST_ACQUIRE_LOCK_TIMING
 
 static MUTEX lock_mutex = MUTEX_INTIALIZER;
@@ -198,7 +196,7 @@ typedef struct {
 static_assert(((sizeof(tQueueHeader) % 8) == 0), "QueueHeader size must be %8");
 
 // Queue
-typedef struct {
+typedef struct Queue {
     tQueueHeader h;
     uint8_t buffer[];
 } tQueue;
@@ -306,7 +304,15 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
 
     tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
-    assert(packet_len > 0 && packet_len <= QUEUE_ENTRY_USER_PAYLOAD_SIZE);
+
+    if (!(packet_len > 0 && packet_len <= QUEUE_ENTRY_USER_PAYLOAD_SIZE)) {
+        DBG_PRINTF_ERROR("Invalid packet_len %u, must be between 1 and %u\n", packet_len, QUEUE_ENTRY_USER_PAYLOAD_SIZE);
+        tQueueBuffer ret = {
+            .buffer = NULL,
+            .size = 0,
+        };
+        return ret;
+    }
 
     DBG_PRINTF6("queueAcquire: acquire entry of size %u\n", packet_len);
 
@@ -382,7 +388,7 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
     return ret;
 }
 
-void queuePush(tQueueHandle queue_handle, tQueueBuffer *const queue_buffer, bool flush) {
+void queuePush(tQueueHandle queue_handle, const tQueueBuffer *queue_buffer, bool flush) {
 
     tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
@@ -538,7 +544,7 @@ tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t peek_index, uint32_t 
     }
 }
 
-void queueRelease(tQueueHandle queue_handle, tQueueBuffer *const queue_buffer) {
+void queueRelease(tQueueHandle queue_handle, const tQueueBuffer *queue_buffer) {
     tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
     assert(queue_buffer->size > 0 && queue_buffer->size <= QUEUE_ENTRY_USER_SIZE);
