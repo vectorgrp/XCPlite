@@ -2384,7 +2384,7 @@ void XcpDisconnect(void) {
 
         if (isDaqRunning()) {
             XcpStopDaq();
-            XcpTlWaitForTransmitQueueEmpty(200);
+            XcpTlWaitForTransmitQueueEmpty(XCP_TRANSMIT_QUEUE_FLUSH_TIMEOUT_MS);
         }
 
 #ifdef XCP_ENABLE_CALSEG_LAZY_WRITE
@@ -3134,7 +3134,7 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
                 goto no_response; // Do not send response again
             case 0:               /* stop all */
                 XcpStopDaq();
-                if (!XcpTlWaitForTransmitQueueEmpty(1000 /* timeout_ms */)) { // Wait until daq transmit queue empty before sending command response
+                if (!XcpTlWaitForTransmitQueueEmpty(XCP_TRANSMIT_QUEUE_FLUSH_TIMEOUT_MS)) { // Wait until daq transmit queue empty before sending command response
                     DBG_PRINT_WARNING("Transmit queue flush timeout!\n");
                 }
                 break;

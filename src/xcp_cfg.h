@@ -331,6 +331,9 @@ XCPlite relative addressing: XCPLITE__CASDD:
 // Not needed for Ethernet, client detects data loss via transport layer counter gaps
 // #define XCP_ENABLE_OVERRUN_INDICATION_PID
 
+// Timeout waiting for transmit queue to be empty after stopping DAQ
+#define XCP_TRANSMIT_QUEUE_FLUSH_TIMEOUT_MS 60000
+
 /*----------------------------------------------------------------------------*/
 /* Calibration segment management */
 

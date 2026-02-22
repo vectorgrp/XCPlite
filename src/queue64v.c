@@ -269,7 +269,7 @@ void queueClear(tQueueHandle queue_handle) {
     atomic_store_explicit(&queue->h.flush, false, memory_order_relaxed);
     queue->h.cached_peek_index = 0;
     queue->h.cached_peek_tail = 0;
-    DBG_PRINT4("queueClear\n");
+    DBG_PRINT3("ClrqueueClear\n");
 }
 
 tQueueHandle queueInit(size_t queue_buffer_size) { return queueInitFromMemory(NULL, queue_buffer_size + sizeof(tQueueHeader), true, NULL); }
@@ -468,10 +468,7 @@ tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t peek_index, uint32_t 
     for (;;) {
 
         // Check if there is data in the queue at peek_tail
-        assert(head >= peek_tail);
-        uint32_t level = (uint32_t)(head - peek_tail);
-        assert(level <= queue->h.queue_size);
-        if (level == 0) { // Queue is empty
+        if (head <= peek_tail) {
             queue->h.cached_peek_index = index;
             queue->h.cached_peek_tail = peek_tail;
             tQueueBuffer ret = {
@@ -492,8 +489,8 @@ tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t peek_index, uint32_t 
             // This should never happen
             // An entry is consistent, if it is neither in reserved or committed state
             if (entry_state != CTR_RESERVED) {
-                DBG_PRINTF_ERROR("queuePeek: inconsistent reserved - h=%" PRIu64 ", t=%" PRIu64 ", level=%u, entry: (entry_size=0x%04X, entry_state=0x%04X)\n", head, peek_tail,
-                                 level, entry_size, entry_state);
+                DBG_PRINTF_ERROR("queuePeek: inconsistent reserved - h=%" PRIu64 ", t=%" PRIu64 ", entry: (entry_size=0x%04X, entry_state=0x%04X)\n", head, peek_tail, entry_size,
+                                 entry_state);
                 assert(false); // Fatal error, inconsistent state
                 tQueueBuffer ret = {
                     .buffer = NULL,
@@ -515,8 +512,8 @@ tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t peek_index, uint32_t 
         // This should never fail
         // An committed entry must have a valid length
         if (!((entry_state == CTR_COMMITTED) && (entry_size > 0) && (entry_size <= QUEUE_ENTRY_USER_SIZE))) {
-            DBG_PRINTF_ERROR("queuePeek: inconsistent commit - h=%" PRIu64 ", t=%" PRIu64 ", level=%u, entry: (entry_size=0x%04X, entry_state=0x%04X)\n", //
-                             head, peek_tail, level, entry_size, entry_state);
+            DBG_PRINTF_ERROR("queuePeek: inconsistent commit - h=%" PRIu64 ", t=%" PRIu64 ",  entry: (entry_size=0x%04X, entry_state=0x%04X)\n", //
+                             head, peek_tail, entry_size, entry_state);
             assert(false); // Fatal error, corrupt committed state
             tQueueBuffer ret = {
                 .buffer = NULL,
@@ -534,7 +531,7 @@ tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t peek_index, uint32_t 
             // Advance the cached peek index and tail for optimized peek loop
             // The consumer can savely overwrite the header
             queue->h.cached_peek_index = index + 1;
-            queue->h.cached_peek_tail = peek_tail + ret.size;
+            queue->h.cached_peek_tail = peek_tail + (entry_size + QUEUE_ENTRY_HEADER_SIZE);
             return ret;
         }
 

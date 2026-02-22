@@ -626,6 +626,7 @@ int32_t XcpTlHandleTransmitQueue(void) {
     for (;;) {
 
         uint32_t lost = 0;
+        // DBG_PRINTF3("P %u\n", index);
         tQueueBuffer queue_buffer = queuePeek(gXcpTl.Queue, index, &lost);
         gXcpTl.Ctr += (uint16_t)lost; // Increase packet counter by lost packets (must not be thread safe, used only to indicate error)
         uint16_t l = queue_buffer.size;

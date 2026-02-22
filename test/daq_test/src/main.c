@@ -33,9 +33,8 @@ extern uint32_t gXcpRxPacketCount;
 
 //-----------------------------------------------------------------------------------------------------
 
-#define XCP_MAX_EVENT_NAME 15
-#define THREAD_COUNT 8      // Number of threads to create
-#define THREAD_DELAY_US 500 // Delay in microseconds for the thread loops
+#define THREAD_COUNT 8       // Number of threads to create
+#define THREAD_DELAY_US 4000 // Delay in microseconds for the thread loops, calibration parameter
 
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
@@ -101,7 +100,7 @@ void *task(void *p)
 
     // Build the task name from the event index
     uint16_t task_index = XcpGetEventIndex(task_event_id); // Get the event index of this event instance
-    char task_name[XCP_MAX_EVENT_NAME + 1];
+    char task_name[16 + 1];
     snprintf(task_name, sizeof(task_name), "task_%u", task_index);
 
     // Create measurement variables for this task instance
