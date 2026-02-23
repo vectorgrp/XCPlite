@@ -81,29 +81,22 @@ void XcpSetLogLevel(uint8_t level);
 // Test parameters
 // 64 byte payload  * THREAD_COUNT * 1000000/THREAD_DELAY_US = Throughput in byte/s
 
-// Parameters for 1000000 msg/s with 10 threads, 64 byte payload, 10us delay
+// Parameters for 2000000 msg/s with 10 threads, 64 byte payload, 10us delay
 #define THREAD_COUNT 10                            // Number of threads to create
 #define THREAD_DELAY_US 10                         // Delay in microseconds for the thread loops
-#define THREAD_BURST_SIZE 4                        // Acquire and push this many entries in a burst before sleeping
+#define THREAD_BURST_SIZE 2                        // Acquire and push this many entries in a burst before sleeping
 #define THREAD_PAYLOAD_SIZE (4 * sizeof(uint64_t)) // Size of the test payload produced by the threads
 
-//
-
-// queue62v.c and queue64f.c support peeking ahead
+// The queue implementations in reference.c, queue62v.c and queue64f.c support peeking ahead
 #if defined(OPTION_QUEUE_64_VAR_SIZE) || defined(OPTION_QUEUE_64_FIX_SIZE)
 #define TEST_QUEUE_PEEK          // Use queuePeek(random(QUEUE_PEEK_MAX_INDEX)) instead of queuePop
-#define QUEUE_PEEK_MAX_INDEX (8) // Max offset for peeking ahead
-
-// reference.c also supports peeking ahead
-#elif defined(TEST_MC_QUEUE)
-#define TEST_QUEUE_PEEK          // MC queue also supports peeking ahead with mc_queue_peak
 #define QUEUE_PEEK_MAX_INDEX (8) // Max offset for peeking ahead
 #endif
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 // Acquire timing test
 
-// Queue acquire lock timing and spin
+// Queue acquire + push timing
 // For high contention use test queue_test or example daq_test with xcp_client --upload-a2l --udp --mea .  --dest-addr 192.168.0.206
 // Note that this tests have significant performance impact, do not turn on for production use !!!!!!!!!!!
 
@@ -113,7 +106,7 @@ static MUTEX lock_mutex = MUTEX_INTIALIZER;
 static uint64_t lock_time_max = 0;
 static uint64_t lock_time_sum = 0;
 static uint64_t lock_count = 0;
-static uint64_t lock_spin_count_max = 0;
+
 // Variable-width lock timing histogram
 // Fine granularity for short latencies, coarser for long-tail latencies
 // Bin[i] counts events where EDGES[i-1] <= t < EDGES[i]; bin[SIZE-1] is the overflow (>EDGES[SIZE-2])
@@ -137,10 +130,9 @@ static uint64_t get_timestamp_ns(void) {
 }
 #endif
 
-void lock_test_add_sample(uint64_t d, uint32_t spin_count) {
+static void lock_test_add_sample(uint64_t d) {
     mutexLock(&lock_mutex);
-    if (spin_count > lock_spin_count_max)
-        lock_spin_count_max = spin_count;
+
     if (d > lock_time_max)
         lock_time_max = d;
     int i = 0;
@@ -153,8 +145,8 @@ void lock_test_add_sample(uint64_t d, uint32_t spin_count) {
 }
 
 static void lock_test_print_results(void) {
-    printf("\nProducer acquire lock time statistics:\n");
-    printf("  count=%" PRIu64 "  max_spins=%" PRIu64 "  max=%" PRIu64 "ns  avg=%" PRIu64 "ns\n", lock_count, lock_spin_count_max, lock_time_max, lock_time_sum / lock_count);
+    printf("\nProducer acquire + push timing statistics:\n");
+    printf("  count=%" PRIu64 "  max=%" PRIu64 "ns  avg=%" PRIu64 "ns\n", lock_count, lock_time_max, lock_time_sum / lock_count);
 
     uint64_t histogram_sum = 0;
     for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE; i++)
@@ -164,7 +156,7 @@ static void lock_test_print_results(void) {
         if (lock_time_histogram[i] > histogram_max)
             histogram_max = lock_time_histogram[i];
 
-    printf("\nLock time histogram (%" PRIu64 " events):\n", histogram_sum);
+    printf("\nHistogram (%" PRIu64 " events):\n", histogram_sum);
     printf("  %-20s  %10s  %7s  %s\n", "Range", "Count", "%", "Bar");
     printf("  %-20s  %10s  %7s  %s\n", "--------------------", "----------", "-------", "------------------------------");
 
@@ -202,7 +194,7 @@ Results:
 
 OPTION_QUEUE_64_VAR_SIZE
 
-Producer acquire lock time statistics:
+Producer acquire+push time statistics:
   count=15843768  max_spins=10  max=83250ns  avg=56ns
 
 Lock time histogram (15843768 events):
@@ -238,7 +230,7 @@ Lock time histogram (15843768 events):
 OPTION_QUEUE_64_VAR_SIZE
 
 
-  Producer acquire lock time statistics:
+  Producer acquire+push time statistics:
   count=10700464  max_spins=8  max=60834ns  avg=129ns
 
 Lock time histogram (10700464 events):
@@ -290,6 +282,11 @@ static volatile bool gRun = true;
 static void sig_handler(int sig) { gRun = false; }
 
 //-----------------------------------------------------------------------------------------------------
+// Create or attach to a queue in shared memory for inter-process communication between a producer and consumer process
+
+// Mode flags set at startup from command-line arguments
+static bool g_shm_provider = false;
+static bool g_shm_consumer = false;
 
 #ifdef TEST_QUEUE_SHM
 
@@ -298,17 +295,14 @@ static void sig_handler(int sig) { gRun = false; }
 #define SHM_OVERHEAD (16 * 1024)             // Overhead for QueueHeader + McQueue internals (64+8208 bytes used, 16KB reserved)
 #define SHM_SIZE (QUEUE_SIZE + SHM_OVERHEAD) // Total SHM allocation
 
-// Mode flags set at startup from command-line arguments
-static bool g_shm_provider = false;
-static bool g_shm_consumer = false;
 // Track mmap'd memory so we can munmap on exit
 static void *g_shm_mem = NULL;
 
-// Race-free SHM open: uses acquire_lock (flock) to serialise creation.
-// is_provider=true: (re)creates the SHM object and initialises the queue.
-// is_provider=false: attaches to an existing SHM object without touching queue state.
+// Race-free SHM open: uses acquire_lock (flock) to serialize creation.
+// create=true: (re)creates the SHM object and initialises the queue.
+// create=false: attaches to an existing SHM object without touching queue state.
 // Returns a queue handle on success, NULL on failure (consumer: SHM not yet visible).
-static McQueueHandle queue_open_shm(bool is_provider) {
+static McQueueHandle queue_open_shm(bool create) {
 
     int lock_fd = acquire_lock(SHM_LOCK);
     if (lock_fd < 0) {
@@ -319,7 +313,7 @@ static McQueueHandle queue_open_shm(bool is_provider) {
     int shm_fd;
     bool created = false;
 
-    if (is_provider) {
+    if (create) {
         shm_unlink(SHM_NAME); // remove any stale object from a previous run
         shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
         if (shm_fd < 0) {
@@ -349,15 +343,15 @@ static McQueueHandle queue_open_shm(bool is_provider) {
     release_lock(lock_fd);
 
     if (mem == MAP_FAILED) {
-        printf("%s: mmap failed: %s\n", is_provider ? "PROVIDER" : "CONSUMER", strerror(errno));
+        printf("%s: mmap failed: %s\n", create ? "create" : "attach", strerror(errno));
         if (created)
             shm_unlink(SHM_NAME);
         return NULL;
     }
 
-    McQueueHandle h = mc_queue_init_from_memory(mem, SHM_SIZE, is_provider, NULL);
+    McQueueHandle h = mc_queue_init_from_memory(mem, SHM_SIZE, create, NULL);
     if (h == NULL) {
-        printf("%s: mc_queue_init_from_memory failed\n", is_provider ? "PROVIDER" : "CONSUMER");
+        printf("%s: mc_queue_init_from_memory failed\n", create ? "create" : "attach");
         munmap(mem, SHM_SIZE);
         if (created)
             shm_unlink(SHM_NAME);
@@ -365,7 +359,7 @@ static McQueueHandle queue_open_shm(bool is_provider) {
     }
 
     g_shm_mem = mem;
-    printf("%s: queue in shared memory '%s' (%u KB)\n", is_provider ? "PROVIDER" : "CONSUMER", SHM_NAME, (unsigned)(SHM_SIZE / 1024));
+    printf("%s: queue in shared memory '%s' (%u KB)\n", create ? "create" : "attach", SHM_NAME, (unsigned)(SHM_SIZE / 1024));
     return h;
 }
 
@@ -382,16 +376,14 @@ static tQueueHandle queue_handle = NULL;
 static atomic_uint_least16_t task_index_ctr = 0;
 
 // Task function that runs in a separate thread
-// Calculates a sine wave, square wave, and sawtooth wave signal
+// Simulates a producer that acquires buffers from the queue, fills them with test data and pushes them to the queue
 #ifdef _WIN32 // Windows 32 or 64 bit
 DWORD WINAPI task(LPVOID p)
 #else
 void *task(void *p)
 #endif
 {
-
     bool run = true;
-    uint32_t delay_us = 1;
 
     // Task local measurement variables on stack
     uint64_t counter = 0;
@@ -410,9 +402,11 @@ void *task(void *p)
             counter++;
 
             uint16_t size = THREAD_PAYLOAD_SIZE + rand() % 32; // Add some random size to the payload to increase the variability of the test
+
 #ifdef TEST_ACQUIRE_LOCK_TIMING
             uint64_t start_time = get_timestamp_ns();
 #endif
+
 #ifdef TEST_MC_QUEUE
             McQueueBuffer queue_buffer = mc_queue_acquire(queue_handle, (size_t)size);
             if (queue_buffer.size >= (int64_t)size) {
@@ -431,8 +425,7 @@ void *task(void *p)
             if (queue_buffer.size >= size) {
                 assert(queue_buffer.buffer != NULL);
 
-                // Simulate XCP DAQ header, because some queue implementations is not generic, it has some XCP specific asserts
-                // assert(entry->data[4 + 1] == 0xAA || entry->data[4 + 0] >=0xFC))) {
+                // Simulate XCP DAQ header, because some queue implementations are not generic and have XCP specific asserts
                 *(uint32_t *)queue_buffer.buffer = 0x0000AAFC;
 
                 // Test data
@@ -444,8 +437,9 @@ void *task(void *p)
                 queuePush(queue_handle, &queue_buffer, false);
             }
 #endif
+
 #ifdef TEST_ACQUIRE_LOCK_TIMING
-            lock_test_add_sample(get_timestamp_ns() - start_time, 0);
+            lock_test_add_sample(get_timestamp_ns() - start_time);
 #endif
         }
 
@@ -457,84 +451,10 @@ void *task(void *p)
 }
 
 //-----------------------------------------------------------------------------------------------------
+// Main function
 
-// Demo main
-int main(int argc, char *argv[]) {
+static void print_test_info(void) {
 
-    printf("\nXCP on Ethernet multi thread daq test\n");
-    signal(SIGINT, sig_handler);
-    signal(SIGTERM, sig_handler);
-
-#ifdef TEST_QUEUE_SHM
-    // Parse --provider / --consumer / --help before anything else
-    for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--provider") == 0)
-            g_shm_provider = true;
-        else if (strcmp(argv[i], "--consumer") == 0)
-            g_shm_consumer = true;
-        else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
-            printf("Usage: %s [--provider | --consumer | --help]\n\n", argv[0]);
-            printf("  (no args)    Single-process test: producers and consumer in one process\n");
-            printf("  --provider   Two-process test: create shared memory queue and run producers\n");
-            printf("               Start this first, then start --consumer in a second terminal\n");
-            printf("  --consumer   Two-process test: attach to shared memory queue and run consumer\n");
-            printf("  --help, -h   Show this help\n\n");
-            printf("Queue implementation:\n");
-#ifdef MC_USE_XCPLITE_QUEUE
-            printf("  mc_queue API -> XCPlite queue64v wrapper (MC_USE_XCPLITE_QUEUE)\n");
-#else
-            printf("  mc_queue API -> MC reference implementation\n");
-#endif
-            printf("  Shared memory: %s  (%u KB)\n", SHM_NAME, (unsigned)(SHM_SIZE / 1024));
-            printf("  Queue size:    %u bytes\n", QUEUE_SIZE);
-            printf("  Threads:       %d producers, payload %zu bytes, burst %d, delay %d us\n", THREAD_COUNT, (size_t)THREAD_PAYLOAD_SIZE, THREAD_BURST_SIZE, THREAD_DELAY_US);
-            return 0;
-        } else {
-            printf("Unknown option: %s  (use --help for usage)\n", argv[i]);
-            return 1;
-        }
-    }
-    if (g_shm_provider && g_shm_consumer) {
-        printf("Error: --provider and --consumer are mutually exclusive\n");
-        return 1;
-    }
-#else
-    for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
-            printf("Usage: %s [--help]\n\n", argv[0]);
-            printf("  Single-process queue stress test (no shared memory support in this build)\n\n");
-            printf("Queue implementation:\n");
-#ifdef TEST_MC_QUEUE
-#ifdef MC_USE_XCPLITE_QUEUE
-            printf("  mc_queue API -> XCPlite queue64v wrapper (MC_USE_XCPLITE_QUEUE)\n");
-#else
-            printf("  mc_queue API -> MC reference implementation\n");
-#endif
-#else
-#if defined(OPTION_QUEUE_64_VAR_SIZE)
-            printf("  XCPlite queue64v (64-bit variable-size entries)\n");
-#elif defined(OPTION_QUEUE_64_FIX_SIZE)
-            printf("  XCPlite queue64f (64-bit fixed-size entries)\n");
-#elif defined(OPTION_QUEUE_32)
-            printf("  XCPlite queue32 (32-bit variable-size entries)\n");
-#else
-            printf("  XCPlite queue (legacy queue64)\n");
-#endif
-#endif
-            printf("  Queue size:    %u bytes\n", QUEUE_SIZE);
-            printf("  Threads:       %d producers, payload %zu bytes, burst %d, delay %d us\n", THREAD_COUNT, (size_t)THREAD_PAYLOAD_SIZE, THREAD_BURST_SIZE, THREAD_DELAY_US);
-            return 0;
-        } else {
-            printf("Unknown option: %s  (use --help for usage)\n", argv[i]);
-            return 1;
-        }
-    }
-    (void)argc;
-    (void)argv;
-#endif
-
-    // Set log level
-    XcpSetLogLevel(OPTION_LOG_LEVEL);
 #ifdef TEST_MC_QUEUE
 #ifdef MC_USE_XCPLITE_QUEUE
     DBG_PRINT3("queue_test for mc_queue API XCPlite wrapper\n");
@@ -561,21 +481,18 @@ int main(int argc, char *argv[]) {
     DBG_PRINT3("Using old deprecated queue (queue64.c) with unknown configuration\n");
 #endif
 #endif
-
 #ifdef TEST_QUEUE_PEEK
     DBG_PRINT3("Testing peek support\n");
 #else
     DBG_PRINT3("Testing without peek support\n");
 #endif
     DBG_PRINT3("\n");
-
     DBG_PRINT3("Test parameters:\n");
     DBG_PRINTF3("THREAD_COUNT=%d\n", THREAD_COUNT);
     DBG_PRINTF3("THREAD_BURST_SIZE=%d\n", THREAD_BURST_SIZE);
     DBG_PRINTF3("THREAD_DELAY_US=%d\n", THREAD_DELAY_US);
     DBG_PRINTF3("THREAD_PAYLOAD_SIZE=%zu\n", THREAD_PAYLOAD_SIZE);
     DBG_PRINT3("\n");
-
     DBG_PRINT3("Queue parameters:\n");
     DBG_PRINTF3("QUEUE_ENTRY_USER_HEADER_SIZE=%d\n", QUEUE_ENTRY_USER_HEADER_SIZE);
 #ifndef TEST_MC_QUEUE
@@ -586,25 +503,110 @@ int main(int argc, char *argv[]) {
     DBG_PRINTF3("QUEUE_PAYLOAD_SIZE_ALIGNMENT=%u\n", QUEUE_PAYLOAD_SIZE_ALIGNMENT);
 #endif
     DBG_PRINT3("\n");
+}
 
-#ifdef USE_XCP
+static void print_help(void) {
 
-    // Initialize the XCP singleton, activate XCP, must be called before starting the server
-    // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, true);
+#ifdef TEST_QUEUE_SHM
 
-    // Initialize the XCP Server
-    uint8_t addr[4] = OPTION_SERVER_ADDR;
-    if (!XcpEthServerInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_QUEUE_SIZE)) {
+    printf("Usage: queue_test [--provider | --consumer | --help]\n\n");
+    printf("  (no args)    Single-process test: producers and consumer in one process\n");
+    printf("  --provider   Two-process test: create shared memory queue and run producers\n");
+    printf("               Start this first, then start --consumer in a second terminal\n");
+    printf("  --consumer   Two-process test: attach to shared memory queue and run consumer\n");
+    printf("  --help, -h   Show this help\n\n");
+    printf("Queue implementation:\n");
+#ifdef MC_USE_XCPLITE_QUEUE
+    printf("  mc_queue API -> XCPlite queue64v wrapper (MC_USE_XCPLITE_QUEUE)\n");
+#else
+    printf("  mc_queue API -> MC reference implementation\n");
+#endif
+    printf("  Shared memory: %s  (%u KB)\n", SHM_NAME, (unsigned)(SHM_SIZE / 1024));
+    printf("  Queue size:    %u bytes\n", QUEUE_SIZE);
+    printf("  Threads:       %d producers, payload %zu bytes, burst %d, delay %d us\n", THREAD_COUNT, (size_t)THREAD_PAYLOAD_SIZE, THREAD_BURST_SIZE, THREAD_DELAY_US);
+
+#else
+
+    printf("Usage: queue_test [--help]\n\n");
+    printf("  Single-process queue stress test (no shared memory support in this build)\n\n");
+    printf("Queue implementation:\n");
+#ifdef TEST_MC_QUEUE
+#ifdef MC_USE_XCPLITE_QUEUE
+    printf("  mc_queue API -> XCPlite queue64v wrapper (MC_USE_XCPLITE_QUEUE)\n");
+#else
+    printf("  mc_queue API -> MC reference implementation\n");
+#endif
+#else
+#if defined(OPTION_QUEUE_64_VAR_SIZE)
+    printf("  XCPlite queue64v (64-bit variable-size entries)\n");
+#elif defined(OPTION_QUEUE_64_FIX_SIZE)
+    printf("  XCPlite queue64f (64-bit fixed-size entries)\n");
+#elif defined(OPTION_QUEUE_32)
+    printf("  XCPlite queue32 (32-bit variable-size entries)\n");
+#else
+    printf("  XCPlite queue (legacy queue64)\n");
+#endif
+#endif
+    printf("  Queue size:    %u bytes\n", QUEUE_SIZE);
+    printf("  Threads:       %d producers, payload %zu bytes, burst %d, delay %d us\n", THREAD_COUNT, (size_t)THREAD_PAYLOAD_SIZE, THREAD_BURST_SIZE, THREAD_DELAY_US);
+
+#endif
+}
+
+int main(int argc, char *argv[]) {
+
+    printf("\nqueue_test\n");
+    signal(SIGINT, sig_handler);
+    signal(SIGTERM, sig_handler);
+
+    // Commandline argument parsing for test mode selection
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+            print_help();
+            return 0;
+        }
+#ifdef TEST_QUEUE_SHM
+        if (strcmp(argv[i], "--provider") == 0)
+            g_shm_provider = true;
+        else if (strcmp(argv[i], "--consumer") == 0)
+            g_shm_consumer = true;
+#endif
+        else {
+            printf("Unknown option: %s  (use --help for usage)\n", argv[i]);
+            return 1;
+        }
+    }
+    if (g_shm_provider && g_shm_consumer) {
+        printf("Error: --provider and --consumer are mutually exclusive\n");
         return 1;
     }
 
-    // Enable A2L generation and prepare the A2L file, finalize the A2L file on XCP connect, auto grouping
-    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
-        return 1;
+    // Set log level
+    XcpSetLogLevel(OPTION_LOG_LEVEL);
+
+    // Print info
+    print_test_info();
+
+#ifdef USE_XCP
+    if (!g_shm_producer) {
+        // Initialize the XCP singleton, activate XCP, must be called before starting the server
+        // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
+        XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, true);
+
+        // Initialize the XCP Server
+        uint8_t addr[4] = OPTION_SERVER_ADDR;
+        if (!XcpEthServerInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_QUEUE_SIZE)) {
+            return 1;
+        }
+
+        // Enable A2L generation and prepare the A2L file, finalize the A2L file on XCP connect, auto grouping
+        if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+            return 1;
+        }
     }
 #endif
 
+// Create or attach to a queue, depending on the test mode
 #ifdef TEST_MC_QUEUE
 #ifdef TEST_QUEUE_SHM
     if (g_shm_provider || g_shm_consumer) {
@@ -637,20 +639,18 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Create multiple instances of task
+    // Create multiple instances of the produces tasks (not in consumer only mode)
     THREAD t[THREAD_COUNT];
     for (int i = 0; i < THREAD_COUNT; i++) {
         t[i] = 0;
     }
-#ifdef TEST_QUEUE_SHM
-    if (!g_shm_consumer)
-#endif
-    {
+    if (!g_shm_consumer) {
         for (int i = 0; i < THREAD_COUNT; i++) {
             create_thread(&t[i], task);
         }
     }
 
+    // Local variables for the consumer loop
     uint32_t msg_count = 0;
     uint32_t msg_lost = 0;
     uint32_t msg_bytes = 0;
@@ -660,16 +660,19 @@ int main(int argc, char *argv[]) {
     uint64_t last_counter[THREAD_COUNT];
     memset(last_counter, 0, sizeof(last_counter));
 
+// Create XCP DAQ measurements
 #ifdef USE_XCP
-    A2lLock();
-    DaqCreateEvent(mainloop);
-    A2lSetStackAddrMode(mainloop);
-    A2lCreateMeasurement(msg_count, "Message count");
-    A2lCreateMeasurement(msg_lost, "Messages lost");
-    A2lCreateMeasurement(msg_bytes, "Message bytes");
-    A2lUnlock();
-    sleepUs(200000); // Wait 200ms for the threads to start
-    A2lFinalize();   // Manually finalize the A2L file to make it visible without XCP tool connect
+    if (!g_shm_producer) {
+        A2lLock();
+        DaqCreateEvent(mainloop);
+        A2lSetStackAddrMode(mainloop);
+        A2lCreateMeasurement(msg_count, "Message count");
+        A2lCreateMeasurement(msg_lost, "Messages lost");
+        A2lCreateMeasurement(msg_bytes, "Message bytes");
+        A2lUnlock();
+        sleepUs(200000); // Wait 200ms for the threads to start
+        A2lFinalize();   // Manually finalize the A2L file to make it visible without XCP tool connect
+    }
 #endif
 
     // Wait for signal to stop
@@ -764,6 +767,7 @@ int main(int argc, char *argv[]) {
 #else
 
 #ifdef TEST_MC_QUEUE
+        // mc_queue consumer loop
         for (;;) {
             McQueueBuffer buffer = mc_queue_pop(queue_handle);
             if (buffer.size == 0)
@@ -793,7 +797,9 @@ int main(int argc, char *argv[]) {
 
             mc_queue_release(queue_handle, &buffer);
         } // for (;;)
-#else
+#else  // TEST_MC_QUEUE
+
+        // XCPlite queue consumer loop
         for (;;) {
 
             uint32_t lost = 0;
@@ -845,7 +851,7 @@ int main(int argc, char *argv[]) {
 
             } // for (;;)
         } // for (;;)
-#endif // TEST_MC_QUEUE
+#endif // !TEST_MC_QUEUE
 
 #endif
 
@@ -854,18 +860,21 @@ int main(int argc, char *argv[]) {
 #endif
 
 #ifdef USE_XCP
-        DaqTriggerEvent(mainloop);
+        if (!g_shm_producer)
+            DaqTriggerEvent(mainloop);
 #endif
 
         sleepUs(500); // 500us
 
         // Print statistics every second
         if (clockGetMonotonicUs() - last_msg_time >= 1000000) {
-            printf("Messages received: %u, bytes received: %u, messages lost: %u, data rate: %u msg/s, %u kbytes/s\n", msg_count, msg_bytes, msg_lost, (msg_count - last_msg_count),
-                   (msg_bytes - last_msg_bytes) / 1024);
+            if (!g_shm_provider) {
+                printf("Messages received: %u, bytes received: %u, messages lost: %u, data rate: %u msg/s, %u kbytes/s\n", msg_count, msg_bytes, msg_lost,
+                       (msg_count - last_msg_count), (msg_bytes - last_msg_bytes) / 1024);
+                last_msg_bytes = msg_bytes;
+                last_msg_count = msg_count;
+            }
             last_msg_time = clockGetMonotonicUs();
-            last_msg_bytes = msg_bytes;
-            last_msg_count = msg_count;
         }
     } // gRun
 
@@ -882,8 +891,8 @@ int main(int argc, char *argv[]) {
     queueDeinit(queue_handle); // Deinitialize the queue
 #endif
 
+// Unmap shared memory; provider also removes the SHM object
 #ifdef TEST_QUEUE_SHM
-    // Unmap shared memory; provider also removes the SHM object
     if (g_shm_mem != NULL) {
         munmap(g_shm_mem, SHM_SIZE);
         g_shm_mem = NULL;
@@ -900,9 +909,11 @@ int main(int argc, char *argv[]) {
 #endif
 
 #ifdef USE_XCP
-    XcpDisconnect();        // Force disconnect the XCP client
-    A2lFinalize();          // Finalize A2L generation, if not done yet
-    XcpEthServerShutdown(); // Stop the XCP server
+    if (!g_shm_producer) {
+        XcpDisconnect();        // Force disconnect the XCP client
+        A2lFinalize();          // Finalize A2L generation, if not done yet
+        XcpEthServerShutdown(); // Stop the XCP server
+    }
 #endif
     return 0;
 }

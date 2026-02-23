@@ -176,7 +176,9 @@ Lock time histogram (17796132 events):
 - Unclear purpose of the offset field in McQueueBuffer, waste of resources
 - No spinlock hint in the producer spin loop, likely contributing to the large variance in lock times on non-real-time OS
 
+Both is_ready accesses have the wrong memory order: the producer's store needs memory_order_release and the consumer's load needs memory_order_acquire — otherwise on ARM (Apple Silicon) the size write isn't guaranteed visible when is_ready is observed as true, which can cause the consumer to read an uninitialized buffer and crash. This is likely the cause of the observed crashes on macOS.
 
+See comments with suggested fixes in reference.c.
 
 ## Inline wrappers to switch to the XCPlite queue in reference.h
 

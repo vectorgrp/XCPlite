@@ -95,7 +95,7 @@ static uint64_t get_timestamp_ns(void) {
     return ((uint64_t)ts.tv_sec) * kNanosecondsPerSecond + ((uint64_t)ts.tv_nsec);
 }
 
-void lock_test_add_sample(uint64_t d, uint32_t spin_count) {
+static void lock_test_add_sample(uint64_t d, uint32_t spin_count) {
     mutexLock(&lock_mutex);
     if (spin_count > lock_spin_count_max)
         lock_spin_count_max = spin_count;
@@ -269,7 +269,7 @@ void queueClear(tQueueHandle queue_handle) {
     atomic_store_explicit(&queue->h.flush, false, memory_order_relaxed);
     queue->h.cached_peek_index = 0;
     queue->h.cached_peek_tail = 0;
-    DBG_PRINT3("ClrqueueClear\n");
+    DBG_PRINT3("queueClear\n");
 }
 
 tQueueHandle queueInit(size_t queue_buffer_size) { return queueInitFromMemory(NULL, queue_buffer_size + sizeof(tQueueHeader), true, NULL); }
@@ -316,8 +316,6 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
 
     DBG_PRINTF6("queueAcquire: acquire entry of size %u\n", packet_len);
 
-    tQueueEntry *entry = NULL;
-
     // Align the entry length
     uint16_t entry_len = packet_len + QUEUE_ENTRY_USER_HEADER_SIZE;
 #if QUEUE_PAYLOAD_SIZE_ALIGNMENT == 2
@@ -338,9 +336,16 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
 #endif
 
     // Prepare a new entry in reserved state
+    tQueueEntry *entry = NULL;
+
+    // @@@@ TODO The tail is read relaxed (see argumentation below on tail refresh), this could theoretically lead to a very stale tail
+    // Maybe acquire load it here and benchmark the if differences become visible (same applies to queue64f.c)
     uint64_t tail = atomic_load_explicit(&queue->h.tail, memory_order_relaxed);
     uint64_t head = atomic_load_explicit(&queue->h.head, memory_order_acquire);
 
+    // Spin loop
+    // In reserved state, the message entry is between tail and head, has valid dlc and ctr must be 0
+    // This means the ctr must be 0 before the head is increment
     for (;;) {
 
         // Check for overrun
@@ -348,19 +353,26 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
             break; // Overrun
         }
 
-        // Try increment the head
-        // Compare exchange weak, false negative ok
+        // Try to increment the head
+        // Compare exchange weak in acq_rel/acq mode serializes with other producers, false negatives will spin
         if (atomic_compare_exchange_weak_explicit(&queue->h.head, &head, head + (entry_len + QUEUE_ENTRY_HEADER_SIZE), memory_order_acq_rel, memory_order_acquire)) {
             entry = (tQueueEntry *)(queue->buffer + (head % queue->h.queue_size));
             atomic_store_explicit(&entry->header, (CTR_RESERVED << 16) | (uint32_t)entry_len, memory_order_release);
             break;
         }
 
+        // Refresh tail on each iteration ?
+        // It is probably more efficient, to keep the tail stale and save the cost for the atomic load on each iteration
+        // If the queue is already saturated, packet loss will happen anyway
+        // tail = atomic_load_explicit(&queue->h.tail, memory_order_acquire);
+
+        // No hint, spin count is usually very low and we prefer the locked sequence as fast as possible
+        // spin_loop_hint();
+
         // Get spin count statistics
-        // spin_loop_hint(); // No hint, spin count is usually low and the locked sequence should be as fast as possible
-        // assert(spin_count < 100); // No reason to be afraid about the spin count, enable spin count statistics to check
 #ifdef TEST_ACQUIRE_LOCK_TIMING
         spin_count++;
+        // assert(spin_count < 100); // No reason to be afraid about the spin count, enable spin count statistics to check
 #endif
 
     } // for (;;)

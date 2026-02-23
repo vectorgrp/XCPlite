@@ -83,10 +83,15 @@ for arg in "$@"; do
     fi
 
     # Check if argument is mc_queue or mc_shm
+    # This configures the queue_test target 
+    # Build with the MC reference queue implementation instead of the XCPlite wrapper
+    
     if [[ "$arg_lower" == "mc_queue" ]]; then
         QUEUE_TEST_MC_QUEUE=true
         continue
     fi
+    # Enable test the queue in a two-process SHM configuration that is closer to the real use case
+    # This is currently only supported on Linux since it relies on robust mutexes for synchronization, but can be extended to other platforms if needed.
     if [[ "$arg_lower" == "mc_shm" ]]; then
         QUEUE_TEST_MC_SHM=true
         continue

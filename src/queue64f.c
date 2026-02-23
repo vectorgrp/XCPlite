@@ -111,7 +111,7 @@ static uint64_t get_timestamp_ns(void) {
     return ((uint64_t)ts.tv_sec) * kNanosecondsPerSecond + ((uint64_t)ts.tv_nsec);
 }
 
-void lock_test_add_sample(uint64_t d, uint32_t spin_count) {
+static void lock_test_add_sample(uint64_t d, uint32_t spin_count) {
     mutexLock(&lock_mutex);
     if (spin_count > lock_spin_count_max)
         lock_spin_count_max = spin_count;
@@ -378,16 +378,21 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
     uint32_t spin_count = 0;
 #endif
 
-    // Reserve a new entry
+    // Prepare a new entry in reserved state
     tQueueEntry *entry = NULL;
-    // In reserved state, the message entry is between tail and head, has valid dlc and ctr must be 0
-    // This means the ctr must be 0 before the head is increment
+
+    // @@@@ TODO The tail is read relaxed (see argumentation below on tail refresh), this could theoretically lead to a very stale tail
+    // Maybe acquire load it here and benchmark the if differences become visible (same applies to queue64f.c)
     uint64_t tail = atomic_load_explicit(&queue->h.tail, memory_order_relaxed);
     uint64_t head = atomic_load_explicit(&queue->h.head, memory_order_acquire);
     uint32_t level;
+
+    // Spin loop
+    // In reserved state, the message entry is between tail and head, has valid dlc and ctr must be 0
+    // This means the ctr must be 0 before the head is increment
     for (;;) {
 
-        // Check for overrun with the current head
+        // Check for overrun
         level = (uint32_t)(head - tail);
         assert(queue->h.queue_buffer_size >= level);
         assert((level % QUEUE_ENTRY_SIZE) == 0);

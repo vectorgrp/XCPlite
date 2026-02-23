@@ -147,7 +147,7 @@ static uint64_t get_timestamp_ns(void) {
     return ((uint64_t)ts.tv_sec) * kNanosecondsPerSecond + ((uint64_t)ts.tv_nsec);
 }
 
-void lock_test_add_sample(uint64_t d, uint32_t spin_count) {
+static void lock_test_add_sample(uint64_t d, uint32_t spin_count) {
     mutexLock(&lock_mutex);
     if (spin_count > lock_spin_count_max)
         lock_spin_count_max = spin_count;

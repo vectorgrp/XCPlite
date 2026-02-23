@@ -243,9 +243,9 @@ if(XCPLITE_BUILD_TESTS)
     target_link_libraries(daq_test PRIVATE xcplite)
 
     # Queue stress test
-    # Optionally build with the MC reference queue implementation (-DQUEUE_TEST_MC_QUEUE=ON)
+    # Optionally build queue_test with the MC reference queue implementation (-DQUEUE_TEST_MC_QUEUE=ON)
     option(QUEUE_TEST_MC_QUEUE "Test the MC reference queue API via the XCPlite queue wrapper" OFF)
-    # Optionally build for the two-process SHM test (-DQUEUE_TEST_MC_SHM=ON)
+    # Optionally build queue_testfor the two-process SHM test (-DQUEUE_TEST_MC_SHM=ON)
     # Uses the MC reference queue directly (no xcplite wrapper) and enables --provider/--consumer mode
     option(QUEUE_TEST_MC_SHM "Test the MC reference queue with shared memory two-process scenario" OFF)
 

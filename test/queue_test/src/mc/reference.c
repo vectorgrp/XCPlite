@@ -928,6 +928,16 @@ McResult mc_application_deinit(McAppId app_id) {
   state->applications[app_id] = NULL;
 
   // Deinitialize global shared memory when closing the last application
+  // REVIEW: memory_order_relaxed is insufficient here.
+  // When last_application_count reaches 1 (this is the last caller), the branch below
+  // accesses shared state (munmap, close) that must be fully ordered relative to the
+  // decrement.  A relaxed fetch_sub provides no ordering guarantees:
+  //   - Without release semantics, prior stores (free, munmap of per-app memory) in this
+  //     function may not be visible to other threads before the count drops.
+  //   - Without acquire semantics, the compiler/CPU may hoist the munmap of global memory
+  //     above the decrement, or a concurrent thread may not see the updated count.
+  // Fix: use memory_order_acq_rel so that the last-deinit cleanup is properly sequenced.
+  //   int64_t last_application_count = atomic_fetch_sub_explicit(&state->application_count, 1, memory_order_acq_rel);
   int64_t last_application_count = atomic_fetch_sub_explicit(&state->application_count, 1, memory_order_relaxed);
   if (last_application_count <= 1) {  // atomic fetch returns last value -> 1 on last deinit, not 0
     int global_unmap_result = munmap(state->global_shared_memory_pointer, state->global_shared_memory_size);
@@ -1790,6 +1800,13 @@ void mc_queue_push(McQueueHandle handle, McQueueBuffer const* queue_buffer) {
   int64_t wrapped_index = queue_buffer->offset % queue->header.buffer_size;
   uint8_t* node_data = &buffer[wrapped_index];
   NodeHeader* header = (NodeHeader*)node_data;
+  // REVIEW: memory_order_relaxed is incorrect here on weak-memory architectures (ARM).
+  // The producer writes payload data to buffer->buffer before calling mc_queue_push().
+  // Those plain writes must be visible to the consumer before it reads the payload after
+  // observing is_ready==1.  A relaxed store does NOT guarantee that the preceding payload
+  // writes are visible to other cores.
+  // Fix: use memory_order_release here, paired with memory_order_acquire in mc_queue_pop().
+  //   atomic_store_explicit(&header->is_ready, 1, memory_order_release);
   atomic_store_explicit(&header->is_ready, 1, memory_order_relaxed);
 }
 
@@ -1820,6 +1837,12 @@ McQueueBuffer mc_queue_pop(McQueueHandle handle) {
 
   // Each buffer contains an atomic is_ready flag, so the producer can copy the
   // data to the buffer before pushing it.
+  // REVIEW: memory_order_relaxed is incorrect here on weak-memory architectures (ARM).
+  // Without acquire ordering, the CPU/compiler is free to reorder the subsequent reads of
+  // node_header->size and the payload data before this load.  The consumer could observe
+  // is_ready==1 but still read stale (pre-write) payload bytes.
+  // Fix: use memory_order_acquire here, paired with memory_order_release in mc_queue_push().
+  //   if (!atomic_load_explicit(&node_header->is_ready, memory_order_acquire)) {
   if (!atomic_load_explicit(&node_header->is_ready, memory_order_relaxed)) {
     // Producer called acquire but not push yet which sets the ready flag.
     McQueueBuffer out = {
