@@ -1636,6 +1636,8 @@ typedef struct {
 } NodeHeader;
 // #pragma pack(pop)
 
+#ifndef MC_USE_XCPLITE_QUEUE
+
 static void spinlock_lock(atomic_int_fast64_t* lock) {
   int64_t expected = 0;
   int64_t const desired = 1;
@@ -1869,6 +1871,8 @@ void mc_queue_release(McQueueHandle handle, McQueueBuffer const* queue_buffer) {
   size_t const aligned_size = align_node_address((size_t)(queue_buffer->size) + sizeof(NodeHeader));
   atomic_fetch_add_explicit(&queue->header.read_index, (int64_t)aligned_size, memory_order_release);
 }
+
+#endif  // MC_USE_XCPLITE_QUEUE
 
 uint8_t const* mc_get_app_base_address(McAppId app_id) {
   assert(state->global_shared_memory_file_descriptor != -1);

@@ -46,7 +46,9 @@ void XcpSetLogLevel(uint8_t level);
 #include "mc/reference.h"
 // Undef
 #undef XCP_DAQ_MEM_SIZE
+
 // MC queue has no transport layer header space - define before queue.h gets pulled in via xcp_cfg.h
+#undef QUEUE_ENTRY_USER_HEADER_SIZE
 #define QUEUE_ENTRY_USER_HEADER_SIZE 0
 
 //-------------------------------------------------------------------------------------------------------
@@ -72,7 +74,7 @@ void XcpSetLogLevel(uint8_t level);
 // Parameters for 1000000 msg/s with 10 threads, 64 byte payload, 10us delay
 #define THREAD_COUNT 10                            // Number of threads to create
 #define THREAD_DELAY_US 10                         // Delay in microseconds for the thread loops
-#define THREAD_BURST_SIZE 3                        // Acquire and push this many entries in a burst before sleeping
+#define THREAD_BURST_SIZE 4                        // Acquire and push this many entries in a burst before sleeping
 #define THREAD_PAYLOAD_SIZE (4 * sizeof(uint64_t)) // Size of the test payload produced by the threads
 
 //
@@ -374,7 +376,11 @@ int main(void) {
     // Set log level
     XcpSetLogLevel(OPTION_LOG_LEVEL);
 #ifdef TEST_MC_QUEUE
-    DBG_PRINT3("queue_test for mc_queue\n");
+#ifdef MC_USE_XCPLITE_QUEUE
+    DBG_PRINT3("queue_test for mc_queue API XCPlite wrapper\n");
+#else
+    DBG_PRINT3("queue_test for mc_queue API reference implementation\n");
+#endif
 #else
     DBG_PRINT3("queue_test for XCPlite queue\n");
 #ifdef QUEUE_64_VAR_SIZE
@@ -397,6 +403,7 @@ int main(void) {
 
     DBG_PRINT3("Test parameters:\n");
     DBG_PRINTF3("THREAD_COUNT=%d\n", THREAD_COUNT);
+    DBG_PRINTF3("THREAD_BURST_SIZE=%d\n", THREAD_BURST_SIZE);
     DBG_PRINTF3("THREAD_DELAY_US=%d\n", THREAD_DELAY_US);
     DBG_PRINTF3("THREAD_PAYLOAD_SIZE=%zu\n", THREAD_PAYLOAD_SIZE);
     DBG_PRINT3("\n");

@@ -332,7 +332,7 @@ XCPlite relative addressing: XCPLITE__CASDD:
 // #define XCP_ENABLE_OVERRUN_INDICATION_PID
 
 // Timeout waiting for transmit queue to be empty after stopping DAQ
-#define XCP_TRANSMIT_QUEUE_FLUSH_TIMEOUT_MS 60000
+#define XCP_TRANSMIT_QUEUE_FLUSH_TIMEOUT_MS 250
 
 /*----------------------------------------------------------------------------*/
 /* Calibration segment management */
