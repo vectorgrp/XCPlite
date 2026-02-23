@@ -63,11 +63,12 @@ void XcpSetLogLevel(uint8_t level);
 // SHM two-process test - available with TEST_MC_QUEUE (both native MC and xcplite wrapper)
 #if defined(TEST_MC_QUEUE)
 #define TEST_QUEUE_SHM
-#include <errno.h>    // for errno, strerror
+#include <errno.h>    // for errno, strerror, ESRCH
 #include <fcntl.h>    // for shm_open, O_CREAT, O_RDWR
+#include <signal.h>   // for kill() - used to probe consumer liveness (signal 0 = existence check)
 #include <sys/mman.h> // for mmap, munmap, MAP_SHARED, MAP_FAILED
 #include <sys/stat.h> // for S_IRUSR, S_IWUSR
-#include <unistd.h>   // for close, ftruncate
+#include <unistd.h>   // for close, ftruncate, getpid()
 #endif
 
 //-----------------------------------------------------------------------------------------------------
@@ -83,6 +84,7 @@ void XcpSetLogLevel(uint8_t level);
 
 // Parameters for 2000000 msg/s with 10 threads, 64 byte payload, 10us delay
 #define THREAD_COUNT 10                            // Number of threads to create
+#define MAX_PRODUCERS 8                            // Max concurrent producer processes (SHM mode); also bounds last_counter[] in single-process mode
 #define THREAD_DELAY_US 10                         // Delay in microseconds for the thread loops
 #define THREAD_BURST_SIZE 2                        // Acquire and push this many entries in a burst before sleeping
 #define THREAD_PAYLOAD_SIZE (4 * sizeof(uint64_t)) // Size of the test payload produced by the threads
@@ -285,24 +287,41 @@ static void sig_handler(int sig) { gRun = false; }
 // Create or attach to a queue in shared memory for inter-process communication between a producer and consumer process
 
 // Mode flags set at startup from command-line arguments
-static bool g_shm_provider = false;
-static bool g_shm_consumer = false;
+static bool g_shm_producer = false;   // This process is a producer: attach to consumer-created queue
+static bool g_shm_consumer = false;   // This process is the consumer: create and own the queue
+static uint16_t g_producer_index = 0; // Claimed from SHM header in --producer mode (0 = single-process or first producer)
 
 #ifdef TEST_QUEUE_SHM
 
-#define SHM_NAME "/queue_test_shm"           // POSIX shared memory object name
-#define SHM_LOCK "/tmp/queue_test_lock"      // flock-based lock file for race-free SHM creation
-#define SHM_OVERHEAD (16 * 1024)             // Overhead for QueueHeader + McQueue internals (64+8208 bytes used, 16KB reserved)
-#define SHM_SIZE (QUEUE_SIZE + SHM_OVERHEAD) // Total SHM allocation
+#define SHM_NAME "/queue_test_shm"      // POSIX shared memory object name
+#define SHM_LOCK "/tmp/queue_test_lock" // flock-based lock file for race-free SHM creation
+#define SHM_OVERHEAD (16 * 1024)        // Overhead for QueueHeader + McQueue internals (64+8208 bytes used, 16KB reserved)
 
-// Track mmap'd memory so we can munmap on exit
-static void *g_shm_mem = NULL;
+// Small header prepended to the SHM region (before queue data).
+// consumer_pid: set to getpid() by the consumer after queue init, cleared to 0 on graceful exit.
+// Producers probe liveness with kill(consumer_pid, 0): ESRCH means the process is gone.
+// This detects both graceful termination and crashes, since the OS reclaims the PID on death.
+typedef struct {
+    atomic_int_least32_t consumer_pid;        // PID of the owning consumer process (0 = no consumer)
+    atomic_uint_least32_t producer_index_ctr; // Next producer-slot counter, claimed by each attaching producer via fetch_add
+    uint32_t pad[14];                         // pad to 64 bytes (one cache line)
+} tShmHeader;
+
+// SHM layout: [tShmHeader (64 B)] [queue memory (QUEUE_SIZE + SHM_OVERHEAD)]
+#define SHM_HEADER_SIZE ((size_t)sizeof(tShmHeader))
+#define SHM_SIZE (SHM_HEADER_SIZE + QUEUE_SIZE + SHM_OVERHEAD)
+
+// Pointers into the mmap'd SHM region
+static void *g_shm_mem = NULL;       // start of mmap'd SHM (== tShmHeader*)
+static tShmHeader *g_shm_hdr = NULL; // convenience alias for the header
 
 // Race-free SHM open: uses acquire_lock (flock) to serialize creation.
-// create=true: (re)creates the SHM object and initialises the queue.
-// create=false: attaches to an existing SHM object without touching queue state.
-// Returns a queue handle on success, NULL on failure (consumer: SHM not yet visible).
-static McQueueHandle queue_open_shm(bool create) {
+// consumer=true  (called by --consumer): (re)creates the SHM object, inits the queue,
+//                                        sets consumer_alive = 1.
+// consumer=false (called by --producer): opens an existing SHM object and attaches;
+//                                        returns NULL if consumer hasn't created it yet.
+// Returns a queue handle on success, NULL on failure.
+static McQueueHandle queue_open_shm(bool consumer) {
 
     int lock_fd = acquire_lock(SHM_LOCK);
     if (lock_fd < 0) {
@@ -311,26 +330,24 @@ static McQueueHandle queue_open_shm(bool create) {
     }
 
     int shm_fd;
-    bool created = false;
 
-    if (create) {
+    if (consumer) {
         shm_unlink(SHM_NAME); // remove any stale object from a previous run
         shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
         if (shm_fd < 0) {
-            printf("PROVIDER: shm_open failed: %s\n", strerror(errno));
+            printf("CONSUMER: shm_open failed: %s\n", strerror(errno));
             release_lock(lock_fd);
             return NULL;
         }
         if (ftruncate(shm_fd, (off_t)SHM_SIZE) < 0) {
-            printf("PROVIDER: ftruncate failed: %s\n", strerror(errno));
+            printf("CONSUMER: ftruncate failed: %s\n", strerror(errno));
             close(shm_fd);
             shm_unlink(SHM_NAME);
             release_lock(lock_fd);
             return NULL;
         }
-        created = true;
     } else {
-        // Consumer: just open – return NULL if provider hasn't created it yet
+        // Producer: open existing – return NULL if consumer hasn't created it yet
         shm_fd = shm_open(SHM_NAME, O_RDWR, 0);
         if (shm_fd < 0) {
             release_lock(lock_fd);
@@ -343,24 +360,59 @@ static McQueueHandle queue_open_shm(bool create) {
     release_lock(lock_fd);
 
     if (mem == MAP_FAILED) {
-        printf("%s: mmap failed: %s\n", create ? "create" : "attach", strerror(errno));
-        if (created)
+        printf("%s: mmap failed: %s\n", consumer ? "CONSUMER" : "PRODUCER", strerror(errno));
+        if (consumer)
             shm_unlink(SHM_NAME);
         return NULL;
     }
 
-    McQueueHandle h = mc_queue_init_from_memory(mem, SHM_SIZE, create, NULL);
-    if (h == NULL) {
-        printf("%s: mc_queue_init_from_memory failed\n", create ? "create" : "attach");
-        munmap(mem, SHM_SIZE);
-        if (created)
-            shm_unlink(SHM_NAME);
-        return NULL;
-    }
+    // consumer_alive is at offset 0 in SHM (before the queue data)
+    // The queue data sits after the tShmHeader
+    tShmHeader *hdr = (tShmHeader *)mem;
+    void *queue_mem = (uint8_t *)mem + SHM_HEADER_SIZE;
+    size_t queue_size = SHM_SIZE - SHM_HEADER_SIZE;
 
-    g_shm_mem = mem;
-    printf("%s: queue in shared memory '%s' (%u KB)\n", create ? "create" : "attach", SHM_NAME, (unsigned)(SHM_SIZE / 1024));
-    return h;
+    if (consumer) {
+        // Full init: clear queue structure then signal producers
+        McQueueHandle h = mc_queue_init_from_memory(queue_mem, queue_size, true, NULL);
+        if (h == NULL) {
+            printf("CONSUMER: mc_queue_init_from_memory failed\n");
+            munmap(mem, SHM_SIZE);
+            shm_unlink(SHM_NAME);
+            return NULL;
+        }
+        g_shm_mem = mem;
+        g_shm_hdr = hdr;
+        // Reset producer-slot counter (fresh SHM is zero-filled, but be explicit)
+        atomic_store_explicit(&g_shm_hdr->producer_index_ctr, 0, memory_order_relaxed);
+        // Publish PID AFTER queue is fully initialized so producers can safely attach
+        atomic_store_explicit(&g_shm_hdr->consumer_pid, (int32_t)getpid(), memory_order_release);
+        printf("CONSUMER: queue in shared memory '%s' (%u KB)\n", SHM_NAME, (unsigned)(SHM_SIZE / 1024));
+        return h;
+
+    } else {
+        // Producer attach: check consumer_pid FIRST, before touching queue internals.
+        // Consumer publishes its PID only after full queue init, so pid!=0 means the
+        // queue is ready AND the consumer is currently alive.
+        // If pid==0 the queue may not be initialized yet -> retry.
+        if (atomic_load_explicit(&hdr->consumer_pid, memory_order_acquire) == 0) {
+            munmap(mem, SHM_SIZE); // consumer not ready yet, retry
+            return NULL;
+        }
+        McQueueHandle h = mc_queue_init_from_memory(queue_mem, queue_size, false, NULL);
+        if (h == NULL) {
+            printf("PRODUCER: mc_queue_init_from_memory failed\n");
+            munmap(mem, SHM_SIZE);
+            return NULL;
+        }
+        g_shm_mem = mem;
+        g_shm_hdr = hdr;
+        // Claim a unique sequential producer index (0, 1, 2, ...).  Used to build a flat thread_id
+        // in the task threads: thread_id = producer_index * THREAD_COUNT + task_index.
+        g_producer_index = (uint16_t)atomic_fetch_add_explicit(&g_shm_hdr->producer_index_ctr, 1u, memory_order_relaxed);
+        printf("PRODUCER: attached to queue in shared memory '%s' (%u KB) as producer[%u]\n", SHM_NAME, (unsigned)(SHM_SIZE / 1024), (unsigned)g_producer_index);
+        return h;
+    }
 }
 
 #endif // TEST_QUEUE_SHM
@@ -390,12 +442,17 @@ void *task(void *p)
 
     // Build the task name from the event index
     uint16_t task_index = atomic_fetch_add(&task_index_ctr, 1);
+    // Flat thread ID unique across all producer processes: each producer gets a sequential
+    // producer_index, so thread IDs never collide even with multiple concurrent producers.
+    uint16_t thread_id = (uint16_t)(g_producer_index * THREAD_COUNT) + task_index;
     char task_name[16 + 1];
     snprintf(task_name, sizeof(task_name), "task_%u", task_index);
 
     printf("thread %s running...\n", task_name);
 
     while (run && gRun) {
+        // Consumer liveness is checked in the main loop (every 500us) which sets gRun=false.
+        // No per-thread kill() check here -- that would add 1M syscalls/s with 10 threads at 10us.
 
         for (int n = 0; n < THREAD_BURST_SIZE; n++) {
 
@@ -414,7 +471,7 @@ void *task(void *p)
 
                 // Test data (MC queue has no XCP transport layer or DAQ header prefix)
                 uint64_t *b = (uint64_t *)queue_buffer.buffer;
-                b[0] = task_index;
+                b[0] = thread_id;
                 b[1] = size;
                 b[2] = counter;
 
@@ -430,7 +487,7 @@ void *task(void *p)
 
                 // Test data
                 uint64_t *b = (uint64_t *)(queue_buffer.buffer + sizeof(uint32_t));
-                b[0] = task_index;
+                b[0] = thread_id;
                 b[1] = size;
                 b[2] = counter;
 
@@ -462,10 +519,10 @@ static void print_test_info(void) {
     DBG_PRINT3("queue_test for mc_queue API reference implementation\n");
 #endif
 #ifdef TEST_QUEUE_SHM
-    if (g_shm_provider)
-        DBG_PRINT3("MODE: provider (creates shared memory queue, runs producers)\n");
-    else if (g_shm_consumer)
-        DBG_PRINT3("MODE: consumer (attaches to shared memory queue, runs consumer)\n");
+    if (g_shm_consumer)
+        DBG_PRINT3("MODE: consumer (creates shared memory queue, runs consumer)\n");
+    else if (g_shm_producer)
+        DBG_PRINT3("MODE: producer (attaches to shared memory queue, runs producers)\n");
     else
         DBG_PRINT3("MODE: single-process (in-process queue)\n");
 #endif
@@ -509,11 +566,13 @@ static void print_help(void) {
 
 #ifdef TEST_QUEUE_SHM
 
-    printf("Usage: queue_test [--provider | --consumer | --help]\n\n");
+    printf("Usage: queue_test [--consumer | --producer | --help]\n\n");
     printf("  (no args)    Single-process test: producers and consumer in one process\n");
-    printf("  --provider   Two-process test: create shared memory queue and run producers\n");
-    printf("               Start this first, then start --consumer in a second terminal\n");
-    printf("  --consumer   Two-process test: attach to shared memory queue and run consumer\n");
+    printf("  --consumer   Two-process test: create shared memory queue and run consumer\n");
+    printf("               Start this first, then start --producer(s) in separate terminals\n");
+    printf("  --producer   Two-process test: attach to consumer-created queue and run producers\n");
+    printf("               Multiple --producer processes can run concurrently\n");
+    printf("               Exits gracefully when consumer terminates or crashes\n");
     printf("  --help, -h   Show this help\n\n");
     printf("Queue implementation:\n");
 #ifdef MC_USE_XCPLITE_QUEUE
@@ -566,8 +625,8 @@ int main(int argc, char *argv[]) {
             return 0;
         }
 #ifdef TEST_QUEUE_SHM
-        if (strcmp(argv[i], "--provider") == 0)
-            g_shm_provider = true;
+        if (strcmp(argv[i], "--producer") == 0)
+            g_shm_producer = true;
         else if (strcmp(argv[i], "--consumer") == 0)
             g_shm_consumer = true;
 #endif
@@ -576,8 +635,8 @@ int main(int argc, char *argv[]) {
             return 1;
         }
     }
-    if (g_shm_provider && g_shm_consumer) {
-        printf("Error: --provider and --consumer are mutually exclusive\n");
+    if (g_shm_producer && g_shm_consumer) {
+        printf("Error: --producer and --consumer are mutually exclusive\n");
         return 1;
     }
 
@@ -609,9 +668,17 @@ int main(int argc, char *argv[]) {
 // Create or attach to a queue, depending on the test mode
 #ifdef TEST_MC_QUEUE
 #ifdef TEST_QUEUE_SHM
-    if (g_shm_provider || g_shm_consumer) {
+    if (g_shm_consumer || g_shm_producer) {
         if (g_shm_consumer) {
-            printf("CONSUMER: waiting for provider to create shared memory queue...\n");
+            // Consumer creates and owns the queue
+            queue_handle = queue_open_shm(true);
+            if (queue_handle == NULL) {
+                printf("CONSUMER: failed to create shared memory queue\n");
+                return 1;
+            }
+        } else { // producer
+            // Producers attach – wait for consumer to create the queue first
+            printf("PRODUCER: waiting for consumer to create shared memory queue...\n");
             for (int retry = 0; retry < 100 && gRun; retry++) {
                 queue_handle = queue_open_shm(false);
                 if (queue_handle != NULL)
@@ -619,11 +686,9 @@ int main(int argc, char *argv[]) {
                 sleepUs(100000); // 100ms between retries, 10s total timeout
             }
             if (queue_handle == NULL) {
-                printf("CONSUMER: timeout waiting for provider (10s elapsed)\n");
+                printf("PRODUCER: timeout waiting for consumer (10s elapsed)\n");
                 return 1;
             }
-        } else { // provider
-            queue_handle = queue_open_shm(true);
         }
     } else {
         queue_handle = mc_queue_init(QUEUE_SIZE);
@@ -644,7 +709,7 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < THREAD_COUNT; i++) {
         t[i] = 0;
     }
-    if (!g_shm_consumer) {
+    if (!g_shm_consumer) { // consumer-only process has no producer threads
         for (int i = 0; i < THREAD_COUNT; i++) {
             create_thread(&t[i], task);
         }
@@ -657,7 +722,7 @@ int main(int argc, char *argv[]) {
     uint64_t last_msg_time = clockGetMonotonicUs();
     uint32_t last_msg_count = 0;
     uint32_t last_msg_bytes = 0;
-    uint64_t last_counter[THREAD_COUNT];
+    uint64_t last_counter[MAX_PRODUCERS * THREAD_COUNT];
     memset(last_counter, 0, sizeof(last_counter));
 
 // Create XCP DAQ measurements
@@ -680,9 +745,9 @@ int main(int argc, char *argv[]) {
     while (gRun) {
 
         // Poll the queue, break if empty
-        // In SHM provider mode the consumer runs in a separate process: skip polling here
+        // In SHM producer mode the consumer runs in a separate process: skip polling here
 #ifdef TEST_QUEUE_SHM
-        if (!g_shm_provider) {
+        if (!g_shm_producer) {
 #endif
 
 #ifdef TEST_QUEUE_PEEK
@@ -722,21 +787,21 @@ int main(int argc, char *argv[]) {
                     // Test payload starts + (User header (Transport layer header) + faked XCP DAQ header)
                     uint64_t *b = (uint64_t *)(buffer[index].buffer + QUEUE_ENTRY_USER_HEADER_SIZE + 4);
 #endif
-                    uint64_t task_index = b[0];
+                    uint64_t thread_id = b[0];
                     uint64_t size = b[1];
                     uint64_t counter = b[2];
 
-                    // printf("Peeked index %u: task_index=%llu, size=%llu, counter=%llu\n", index, task_index, size, counter);
+                    // printf("Peeked index %u: thread_id=%llu, size=%llu, counter=%llu\n", index, thread_id, size, counter);
 
                     // Check counter incrementing
                     assert(size >= THREAD_PAYLOAD_SIZE);
-                    assert(task_index < THREAD_COUNT);
+                    assert(thread_id < MAX_PRODUCERS * THREAD_COUNT);
                     if (msg_count > 0) {
-                        if (counter != last_counter[task_index] + 1) {
-                            printf("Messages lost in task %u, expected counter %llu, got %llu\n", (uint32_t)task_index, last_counter[task_index] + 1, counter);
+                        if (counter != last_counter[thread_id] + 1) {
+                            printf("Messages lost in thread %u, expected counter %llu, got %llu\n", (uint32_t)thread_id, last_counter[thread_id] + 1, counter);
                         }
                     }
-                    last_counter[task_index] = counter;
+                    last_counter[thread_id] = counter;
 
                     // Write to the user header
 #if QUEUE_ENTRY_USER_HEADER_SIZE >= 4
@@ -779,18 +844,18 @@ int main(int argc, char *argv[]) {
 
             // Test data (MC queue: no header prefix, data starts at offset 0)
             uint64_t *b = (uint64_t *)buffer.buffer;
-            uint64_t task_index = b[0];
+            uint64_t thread_id = b[0];
             uint64_t size = b[1];
             uint64_t counter = b[2];
 
             assert(size >= THREAD_PAYLOAD_SIZE);
-            assert(task_index < THREAD_COUNT);
+            assert(thread_id < MAX_PRODUCERS * THREAD_COUNT);
             if (msg_count > 0) {
-                if (counter != last_counter[task_index] + 1) {
-                    printf("Messages lost in task %u, expected counter %llu, got %llu\n", (uint32_t)task_index, last_counter[task_index] + 1, counter);
+                if (counter != last_counter[thread_id] + 1) {
+                    printf("Messages lost in thread %u, expected counter %llu, got %llu\n", (uint32_t)thread_id, last_counter[thread_id] + 1, counter);
                 }
             }
-            last_counter[task_index] = counter;
+            last_counter[thread_id] = counter;
 
             msg_count++;
             msg_bytes += (uint32_t)buffer.size;
@@ -822,19 +887,19 @@ int main(int argc, char *argv[]) {
                 assert((uint64_t)buffer.buffer % 2 == 0);
 
                 uint64_t *b = (uint64_t *)(buffer.buffer + 8); // Test payload starts + 8 (Transport layer header + XCP DAQ header)
-                uint64_t task_index = b[0];
+                uint64_t thread_id = b[0];
                 uint64_t size = b[1];
                 uint64_t counter = b[2];
 
                 assert(size >= THREAD_PAYLOAD_SIZE);
-                assert(task_index < THREAD_COUNT);
+                assert(thread_id < MAX_PRODUCERS * THREAD_COUNT);
                 if (msg_count > 0) {
-                    if (counter != last_counter[task_index] + 1) {
-                        printf("Messages lost in task %u, expected counter %llu, got %llu\n", (uint32_t)task_index, last_counter[task_index] + 1, counter);
+                    if (counter != last_counter[thread_id] + 1) {
+                        printf("Messages lost in thread %u, expected counter %llu, got %llu\n", (uint32_t)thread_id, last_counter[thread_id] + 1, counter);
                     }
                 }
 
-                last_counter[task_index] = counter;
+                last_counter[thread_id] = counter;
 
                 msg_count++;
                 msg_bytes += buffer.size;
@@ -856,7 +921,7 @@ int main(int argc, char *argv[]) {
 #endif
 
 #ifdef TEST_QUEUE_SHM
-        } // if (!g_shm_provider)
+        } // if (!g_shm_producer)
 #endif
 
 #ifdef USE_XCP
@@ -866,9 +931,22 @@ int main(int argc, char *argv[]) {
 
         sleepUs(500); // 500us
 
+        // Producer mode: check consumer liveness once per main loop iteration.
+        // kill(pid, 0) with ESRCH means the consumer process is gone (graceful or crash).
+        // Set gRun=false to exit the main loop and join all producer threads.
+#ifdef TEST_QUEUE_SHM
+        if (g_shm_producer && g_shm_hdr != NULL) {
+            int32_t cpid = atomic_load_explicit(&g_shm_hdr->consumer_pid, memory_order_relaxed);
+            if (cpid == 0 || (kill((pid_t)cpid, 0) == -1 && errno == ESRCH)) {
+                printf("PRODUCER: consumer gone (pid=%d), shutting down\n", (int)cpid);
+                gRun = false;
+            }
+        }
+#endif
+
         // Print statistics every second
         if (clockGetMonotonicUs() - last_msg_time >= 1000000) {
-            if (!g_shm_provider) {
+            if (!g_shm_producer) {
                 printf("Messages received: %u, bytes received: %u, messages lost: %u, data rate: %u msg/s, %u kbytes/s\n", msg_count, msg_bytes, msg_lost,
                        (msg_count - last_msg_count), (msg_bytes - last_msg_bytes) / 1024);
                 last_msg_bytes = msg_bytes;
@@ -891,15 +969,24 @@ int main(int argc, char *argv[]) {
     queueDeinit(queue_handle); // Deinitialize the queue
 #endif
 
-// Unmap shared memory; provider also removes the SHM object
+// Unmap shared memory; consumer signals producers to stop, then removes the SHM object
 #ifdef TEST_QUEUE_SHM
+    if (g_shm_consumer && g_shm_hdr != NULL) {
+        // Clear PID so producers detect the graceful exit immediately via the pid==0 fast path.
+        // (They would also detect it via kill()/ESRCH once this process exits, but clearing
+        // first lets them stop before the 500ms drain window expires.)
+        atomic_store_explicit(&g_shm_hdr->consumer_pid, 0, memory_order_release);
+        printf("CONSUMER: signaled producers to stop, waiting 500ms...\n");
+        sleepUs(500000);
+    }
     if (g_shm_mem != NULL) {
         munmap(g_shm_mem, SHM_SIZE);
         g_shm_mem = NULL;
+        g_shm_hdr = NULL;
     }
-    if (g_shm_provider) {
+    if (g_shm_consumer) {
         shm_unlink(SHM_NAME);
-        printf("PROVIDER: shared memory '%s' removed\n", SHM_NAME);
+        printf("CONSUMER: shared memory '%s' removed\n", SHM_NAME);
     }
 #endif
 
