@@ -31,7 +31,10 @@
 #include <qh/misc.h> /* qh_get_progname */
 #endif
 #else
+
+#if !defined(__APPLE__)
 #include <link.h>
+#endif
 
 #ifndef EOK
 #define EOK 0
@@ -80,6 +83,8 @@ static void sleep_ms(uint32_t ms) {
 #define CLOCK_TYPE CLOCK_MONOTONIC_RAW
 #endif
 
+#if !defined(__APPLE__)
+
 #if defined(__QNXNTO__)
 static int mc_dump_phdr(const struct dl_phdr_info* pinfo, size_t size, void* data) {
 #else
@@ -117,6 +122,9 @@ static int mc_dump_phdr(struct dl_phdr_info* pinfo, size_t size, void* data) {
   (void)size;
   return 0;
 }
+
+#endif
+
 
 // ============================================================================
 // General
@@ -258,6 +266,11 @@ static McUuid string_to_u128_fnv(char const* string, size_t string_length) {
   return result;
 }
 
+
+
+#if !defined(__APPLE__)
+
+
 static void init_robust_mutex(pthread_mutex_t* pMutex) {
   pthread_mutexattr_t attr;
   pthread_mutexattr_init(&attr);
@@ -285,6 +298,15 @@ static bool try_acquire_robust_mutex(pthread_mutex_t* pMutex) {
   mc_log_error("Locking mutex failed with err %d\n", err);
   return false;
 }
+
+#else
+
+static void init_robust_mutex(pthread_mutex_t* pMutex) {}
+static bool try_acquire_robust_mutex(pthread_mutex_t* pMutex) {
+  return true;
+}
+
+#endif
 
 void init_app_shm(void* pMemory) {
   // Zero-initialize EventTriggers to prevent garbage values in active_arg_count
@@ -782,6 +804,7 @@ McResult mc_application_init(char const* name, size_t name_length, McUuid binary
   atomic_store_explicit(bump_allocator_head, kMcAppDynamicBlocksOffset, memory_order_relaxed);
 
   uint8_t* base_address = NULL;
+  #ifndef __APPLE__
   dl_iterate_phdr(mc_dump_phdr, &base_address);
   if (base_address == NULL) {
     mc_log_error("Failed to retrieve base address\n");
@@ -789,6 +812,7 @@ McResult mc_application_init(char const* name, size_t name_length, McUuid binary
     *app = NULL;
     return MC_RESULT_ERROR;
   }
+  #endif
 
   Application new_app = {
       .pid = (int32_t)getpid(),
