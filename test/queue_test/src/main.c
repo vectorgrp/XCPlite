@@ -60,6 +60,16 @@ void XcpSetLogLevel(uint8_t level);
 
 #endif
 
+// SHM two-process test - available with TEST_MC_QUEUE (both native MC and xcplite wrapper)
+#if defined(TEST_MC_QUEUE)
+#define TEST_QUEUE_SHM
+#include <errno.h>    // for errno, strerror
+#include <fcntl.h>    // for shm_open, O_CREAT, O_RDWR
+#include <sys/mman.h> // for mmap, munmap, MAP_SHARED, MAP_FAILED
+#include <sys/stat.h> // for S_IRUSR, S_IWUSR
+#include <unistd.h>   // for close, ftruncate
+#endif
+
 //-----------------------------------------------------------------------------------------------------
 
 // Use the logger from XCPlite
@@ -281,6 +291,88 @@ static void sig_handler(int sig) { gRun = false; }
 
 //-----------------------------------------------------------------------------------------------------
 
+#ifdef TEST_QUEUE_SHM
+
+#define SHM_NAME "/queue_test_shm"           // POSIX shared memory object name
+#define SHM_LOCK "/tmp/queue_test_lock"      // flock-based lock file for race-free SHM creation
+#define SHM_OVERHEAD (16 * 1024)             // Overhead for QueueHeader + McQueue internals (64+8208 bytes used, 16KB reserved)
+#define SHM_SIZE (QUEUE_SIZE + SHM_OVERHEAD) // Total SHM allocation
+
+// Mode flags set at startup from command-line arguments
+static bool g_shm_provider = false;
+static bool g_shm_consumer = false;
+// Track mmap'd memory so we can munmap on exit
+static void *g_shm_mem = NULL;
+
+// Race-free SHM open: uses acquire_lock (flock) to serialise creation.
+// is_provider=true: (re)creates the SHM object and initialises the queue.
+// is_provider=false: attaches to an existing SHM object without touching queue state.
+// Returns a queue handle on success, NULL on failure (consumer: SHM not yet visible).
+static McQueueHandle queue_open_shm(bool is_provider) {
+
+    int lock_fd = acquire_lock(SHM_LOCK);
+    if (lock_fd < 0) {
+        printf("queue_open_shm: acquire_lock failed\n");
+        return NULL;
+    }
+
+    int shm_fd;
+    bool created = false;
+
+    if (is_provider) {
+        shm_unlink(SHM_NAME); // remove any stale object from a previous run
+        shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+        if (shm_fd < 0) {
+            printf("PROVIDER: shm_open failed: %s\n", strerror(errno));
+            release_lock(lock_fd);
+            return NULL;
+        }
+        if (ftruncate(shm_fd, (off_t)SHM_SIZE) < 0) {
+            printf("PROVIDER: ftruncate failed: %s\n", strerror(errno));
+            close(shm_fd);
+            shm_unlink(SHM_NAME);
+            release_lock(lock_fd);
+            return NULL;
+        }
+        created = true;
+    } else {
+        // Consumer: just open – return NULL if provider hasn't created it yet
+        shm_fd = shm_open(SHM_NAME, O_RDWR, 0);
+        if (shm_fd < 0) {
+            release_lock(lock_fd);
+            return NULL;
+        }
+    }
+
+    void *mem = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    close(shm_fd);
+    release_lock(lock_fd);
+
+    if (mem == MAP_FAILED) {
+        printf("%s: mmap failed: %s\n", is_provider ? "PROVIDER" : "CONSUMER", strerror(errno));
+        if (created)
+            shm_unlink(SHM_NAME);
+        return NULL;
+    }
+
+    McQueueHandle h = mc_queue_init_from_memory(mem, SHM_SIZE, is_provider, NULL);
+    if (h == NULL) {
+        printf("%s: mc_queue_init_from_memory failed\n", is_provider ? "PROVIDER" : "CONSUMER");
+        munmap(mem, SHM_SIZE);
+        if (created)
+            shm_unlink(SHM_NAME);
+        return NULL;
+    }
+
+    g_shm_mem = mem;
+    printf("%s: queue in shared memory '%s' (%u KB)\n", is_provider ? "PROVIDER" : "CONSUMER", SHM_NAME, (unsigned)(SHM_SIZE / 1024));
+    return h;
+}
+
+#endif // TEST_QUEUE_SHM
+
+//-----------------------------------------------------------------------------------------------------
+
 #ifdef TEST_MC_QUEUE
 static McQueueHandle queue_handle = NULL;
 #else
@@ -367,11 +459,28 @@ void *task(void *p)
 //-----------------------------------------------------------------------------------------------------
 
 // Demo main
-int main(void) {
+int main(int argc, char *argv[]) {
 
     printf("\nXCP on Ethernet multi thread daq test\n");
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
+
+#ifdef TEST_QUEUE_SHM
+    // Parse --provider / --consumer before anything else
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--provider") == 0)
+            g_shm_provider = true;
+        if (strcmp(argv[i], "--consumer") == 0)
+            g_shm_consumer = true;
+    }
+    if (g_shm_provider && g_shm_consumer) {
+        printf("Error: --provider and --consumer are mutually exclusive\n");
+        return 1;
+    }
+#else
+    (void)argc;
+    (void)argv;
+#endif
 
     // Set log level
     XcpSetLogLevel(OPTION_LOG_LEVEL);
@@ -380,6 +489,14 @@ int main(void) {
     DBG_PRINT3("queue_test for mc_queue API XCPlite wrapper\n");
 #else
     DBG_PRINT3("queue_test for mc_queue API reference implementation\n");
+#endif
+#ifdef TEST_QUEUE_SHM
+    if (g_shm_provider)
+        DBG_PRINT3("MODE: provider (creates shared memory queue, runs producers)\n");
+    else if (g_shm_consumer)
+        DBG_PRINT3("MODE: consumer (attaches to shared memory queue, runs consumer)\n");
+    else
+        DBG_PRINT3("MODE: single-process (in-process queue)\n");
 #endif
 #else
     DBG_PRINT3("queue_test for XCPlite queue\n");
@@ -438,7 +555,29 @@ int main(void) {
 #endif
 
 #ifdef TEST_MC_QUEUE
+#ifdef TEST_QUEUE_SHM
+    if (g_shm_provider || g_shm_consumer) {
+        if (g_shm_consumer) {
+            printf("CONSUMER: waiting for provider to create shared memory queue...\n");
+            for (int retry = 0; retry < 100 && gRun; retry++) {
+                queue_handle = queue_open_shm(false);
+                if (queue_handle != NULL)
+                    break;
+                sleepUs(100000); // 100ms between retries, 10s total timeout
+            }
+            if (queue_handle == NULL) {
+                printf("CONSUMER: timeout waiting for provider (10s elapsed)\n");
+                return 1;
+            }
+        } else { // provider
+            queue_handle = queue_open_shm(true);
+        }
+    } else {
+        queue_handle = mc_queue_init(QUEUE_SIZE);
+    }
+#else
     queue_handle = mc_queue_init(QUEUE_SIZE);
+#endif
 #else
     queue_handle = queueInit(QUEUE_SIZE); // Initialize the queue, the queue memory is allocated by the library, the queue buffer size is specified by OPTION_QUEUE_SIZE
 #endif
@@ -451,7 +590,14 @@ int main(void) {
     THREAD t[THREAD_COUNT];
     for (int i = 0; i < THREAD_COUNT; i++) {
         t[i] = 0;
-        create_thread(&t[i], task);
+    }
+#ifdef TEST_QUEUE_SHM
+    if (!g_shm_consumer)
+#endif
+    {
+        for (int i = 0; i < THREAD_COUNT; i++) {
+            create_thread(&t[i], task);
+        }
     }
 
     uint32_t msg_count = 0;
@@ -480,85 +626,89 @@ int main(void) {
     while (gRun) {
 
         // Poll the queue, break if empty
+        // In SHM provider mode the consumer runs in a separate process: skip polling here
+#ifdef TEST_QUEUE_SHM
+        if (!g_shm_provider) {
+#endif
 
 #ifdef TEST_QUEUE_PEEK
 
-        while (gRun) {
+            while (gRun) {
 
 #ifdef TEST_MC_QUEUE
-            McQueueBuffer buffer[QUEUE_PEEK_MAX_INDEX + 1];
+                McQueueBuffer buffer[QUEUE_PEEK_MAX_INDEX + 1];
 #else
-            tQueueBuffer buffer[QUEUE_PEEK_MAX_INDEX + 1];
+                tQueueBuffer buffer[QUEUE_PEEK_MAX_INDEX + 1];
 #endif
-            uint32_t buffer_count = 0;
+                uint32_t buffer_count = 0;
 
-            // Set max max_peek_index to a random number between 0 and QUEUE_PEEK_MAX_INDEX
-            uint32_t max_peek_index = rand() % (QUEUE_PEEK_MAX_INDEX + 1);
-            for (uint32_t index = 0; index <= max_peek_index; index++) {
+                // Set max max_peek_index to a random number between 0 and QUEUE_PEEK_MAX_INDEX
+                uint32_t max_peek_index = rand() % (QUEUE_PEEK_MAX_INDEX + 1);
+                for (uint32_t index = 0; index <= max_peek_index; index++) {
 #ifdef TEST_MC_QUEUE
-                buffer[index] = mc_queue_peak(queue_handle, (int64_t)index);
+                    buffer[index] = mc_queue_peak(queue_handle, (int64_t)index);
 #else
-                uint32_t lost = 0;
-                buffer[index] = queuePeek(queue_handle, index, &lost);
-                msg_lost += lost;
+                    uint32_t lost = 0;
+                    buffer[index] = queuePeek(queue_handle, index, &lost);
+                    msg_lost += lost;
 #endif
-                if (buffer[index].size == 0) { // Empty buffer, no more messages in the queue
-                    break;
-                }
-                buffer_count++;
-                assert(buffer[index].buffer != NULL);
-                assert(buffer[index].size >= THREAD_PAYLOAD_SIZE);
-                assert((uint64_t)buffer[index].buffer % 2 == 0);
-
-                // Check test data
-#ifdef TEST_MC_QUEUE
-                // MC queue: no transport layer or XCP DAQ header prefix – test data starts at offset 0
-                uint64_t *b = (uint64_t *)buffer[index].buffer;
-#else
-                // Test payload starts + (User header (Transport layer header) + faked XCP DAQ header)
-                uint64_t *b = (uint64_t *)(buffer[index].buffer + QUEUE_ENTRY_USER_HEADER_SIZE + 4);
-#endif
-                uint64_t task_index = b[0];
-                uint64_t size = b[1];
-                uint64_t counter = b[2];
-
-                // printf("Peeked index %u: task_index=%llu, size=%llu, counter=%llu\n", index, task_index, size, counter);
-
-                // Check counter incrementing
-                assert(size >= THREAD_PAYLOAD_SIZE);
-                assert(task_index < THREAD_COUNT);
-                if (msg_count > 0) {
-                    if (counter != last_counter[task_index] + 1) {
-                        printf("Messages lost in task %u, expected counter %llu, got %llu\n", (uint32_t)task_index, last_counter[task_index] + 1, counter);
+                    if (buffer[index].size == 0) { // Empty buffer, no more messages in the queue
+                        break;
                     }
-                }
-                last_counter[task_index] = counter;
+                    buffer_count++;
+                    assert(buffer[index].buffer != NULL);
+                    assert(buffer[index].size >= THREAD_PAYLOAD_SIZE);
+                    assert((uint64_t)buffer[index].buffer % 2 == 0);
 
-                // Write to the user header
-#if QUEUE_ENTRY_USER_HEADER_SIZE >= 4
-                uint32_t *e = (uint32_t *)(buffer[index].buffer);
-                *e = 0xFFFFFFFF;
-#endif
-
-                msg_count++;
-                msg_bytes += buffer[index].size;
-            }
-
-            if (buffer_count == 0) {
-                break; // No more messages in the queue
-            }
-
-            // Release the buffers obtained by queuePeek / mc_queue_peak so far
-            for (uint32_t i = 0; i < buffer_count; i++) {
-                assert(buffer[i].size > 0);
+                    // Check test data
 #ifdef TEST_MC_QUEUE
-                mc_queue_release(queue_handle, &buffer[i]);
+                    // MC queue: no transport layer or XCP DAQ header prefix – test data starts at offset 0
+                    uint64_t *b = (uint64_t *)buffer[index].buffer;
 #else
-                queueRelease(queue_handle, &buffer[i]);
+                    // Test payload starts + (User header (Transport layer header) + faked XCP DAQ header)
+                    uint64_t *b = (uint64_t *)(buffer[index].buffer + QUEUE_ENTRY_USER_HEADER_SIZE + 4);
 #endif
-            }
+                    uint64_t task_index = b[0];
+                    uint64_t size = b[1];
+                    uint64_t counter = b[2];
 
-        } // for (;;)
+                    // printf("Peeked index %u: task_index=%llu, size=%llu, counter=%llu\n", index, task_index, size, counter);
+
+                    // Check counter incrementing
+                    assert(size >= THREAD_PAYLOAD_SIZE);
+                    assert(task_index < THREAD_COUNT);
+                    if (msg_count > 0) {
+                        if (counter != last_counter[task_index] + 1) {
+                            printf("Messages lost in task %u, expected counter %llu, got %llu\n", (uint32_t)task_index, last_counter[task_index] + 1, counter);
+                        }
+                    }
+                    last_counter[task_index] = counter;
+
+                    // Write to the user header
+#if QUEUE_ENTRY_USER_HEADER_SIZE >= 4
+                    uint32_t *e = (uint32_t *)(buffer[index].buffer);
+                    *e = 0xFFFFFFFF;
+#endif
+
+                    msg_count++;
+                    msg_bytes += buffer[index].size;
+                }
+
+                if (buffer_count == 0) {
+                    break; // No more messages in the queue
+                }
+
+                // Release the buffers obtained by queuePeek / mc_queue_peak so far
+                for (uint32_t i = 0; i < buffer_count; i++) {
+                    assert(buffer[i].size > 0);
+#ifdef TEST_MC_QUEUE
+                    mc_queue_release(queue_handle, &buffer[i]);
+#else
+                    queueRelease(queue_handle, &buffer[i]);
+#endif
+                }
+
+            } // for (;;)
 
 #else
 
@@ -648,6 +798,10 @@ int main(void) {
 
 #endif
 
+#ifdef TEST_QUEUE_SHM
+        } // if (!g_shm_provider)
+#endif
+
 #ifdef USE_XCP
         DaqTriggerEvent(mainloop);
 #endif
@@ -675,6 +829,18 @@ int main(void) {
     mc_queue_deinit(queue_handle);
 #else
     queueDeinit(queue_handle); // Deinitialize the queue
+#endif
+
+#ifdef TEST_QUEUE_SHM
+    // Unmap shared memory; provider also removes the SHM object
+    if (g_shm_mem != NULL) {
+        munmap(g_shm_mem, SHM_SIZE);
+        g_shm_mem = NULL;
+    }
+    if (g_shm_provider) {
+        shm_unlink(SHM_NAME);
+        printf("PROVIDER: shared memory '%s' removed\n", SHM_NAME);
+    }
 #endif
 
 // Print queue statistics

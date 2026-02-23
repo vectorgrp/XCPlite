@@ -21,45 +21,121 @@ static bool try_acquire_robust_mutex(pthread_mutex_t* pMutex) {
 
 ### Test Results
 
-- Sporadic chrashes observed on macOS 
-- Maximum lock time is 8ms in the test use case, in XCP uses case it was 80ms. Anyway 8ms is not acceptable as well.
+- Sporadic crashes observed on macOS 
+- Maximum lock time is 10ms in the test use case, in XCP uses case it was 80ms. Anyway 10ms is not acceptable as well.
+- Test results have large variance, sometimes the max lock time is 10ms, sometimes it is up to 100ms. This is likely due to the fact that the test is running on a non-real-time OS and the scheduler can preempt the producer threads spinlock at any time while it holds the lock and there is no spinlock hint in the spin loop.. 
 
+New queue:
+XCPlite Queue:  (Burst size 3):
+-------------------------------
 
-XCPlite Queue:  (Burst size 3)
+On Raspberry Pi 5:
 
 Producer acquire lock time statistics:
-  count=49759515  max_spins=0  max=2811458ns  avg=72ns
+  count=6210636  max_spins=0  max=34407ns  avg=181ns
 
-Lock time histogram (49759515 events):
+Lock time histogram (6210636 events):
   Range                      Count        %  Bar
   --------------------  ----------  -------  ------------------------------
-  0-40ns                   7223459   14.52%  #########
-  40-80ns                 22427777   45.07%  ##############################
-  80-120ns                11513621   23.14%  ###############
-  120-160ns                6922343   13.91%  #########
-  160-200ns                 913257    1.84%  #
-  200-240ns                 187351    0.38%  
-  240-280ns                 146291    0.29%  
-  280-320ns                 100813    0.20%  
-  320-360ns                  57708    0.12%  
-  360-400ns                  27583    0.06%  
-  400-600ns                  36866    0.07%  
-  600-800ns                  44220    0.09%  
-  800-1000ns                 35382    0.07%  
-  1000-1500ns                53987    0.11%  
-  1500-2000ns                20737    0.04%  
-  2000-3000ns                14890    0.03%  
-  3000-4000ns                 5477    0.01%  
-  4000-6000ns                 6696    0.01%  
-  6000-8000ns                 3448    0.01%  
-  8000-10000ns                4896    0.01%  
-  10000-20000ns              10256    0.02%  
-  20000-40000ns               2213    0.00%  
-  40000-80000ns                234    0.00%  
-  80000-160000ns                 8    0.00%  
-  >320000ns                      2    0.00%  
+  80-120ns                  677202   10.90%  ######
+  120-160ns                3041621   48.97%  ##############################
+  160-200ns                 274267    4.42%  ##
+  200-240ns                 166816    2.69%  #
+  240-280ns                1651532   26.59%  ################
+  280-320ns                 252647    4.07%  ##
+  320-360ns                  78341    1.26%  
+  360-400ns                  33250    0.54%  
+  400-600ns                  33159    0.53%  
+  600-800ns                    882    0.01%  
+  800-1000ns                    82    0.00%  
+  1000-1500ns                   21    0.00%  
+  1500-2000ns                   74    0.00%  
+  2000-3000ns                  424    0.01%  
+  3000-4000ns                  180    0.00%  
+  4000-6000ns                  105    0.00%  
+  6000-8000ns                   20    0.00%  
+  8000-10000ns                   2    0.00%  
+  10000-20000ns                  6    0.00%  
+  20000-40000ns                  5    0.00%  
 
-Reference API: (Burst size 3)
+
+
+On Mac OS:
+
+Producer acquire lock time statistics:
+  count=19441424  max_spins=0  max=85959ns  avg=64ns
+
+Lock time histogram (19441424 events):
+  Range                      Count        %  Bar
+  --------------------  ----------  -------  ------------------------------
+  0-40ns                   3279521   16.87%  ##########
+  40-80ns                  9142758   47.03%  ##############################
+  80-120ns                 3977370   20.46%  #############
+  120-160ns                2490348   12.81%  ########
+  160-200ns                 358998    1.85%  #
+  200-240ns                  61438    0.32%  
+  240-280ns                  25566    0.13%  
+  280-320ns                  13315    0.07%  
+  320-360ns                   8234    0.04%  
+  360-400ns                   5224    0.03%  
+  400-600ns                  10693    0.06%  
+  600-800ns                  17580    0.09%  
+  800-1000ns                 13196    0.07%  
+  1000-1500ns                18339    0.09%  
+  1500-2000ns                 6505    0.03%  
+  2000-3000ns                 4163    0.02%  
+  3000-4000ns                 1352    0.01%  
+  4000-6000ns                 2162    0.01%  
+  6000-8000ns                  903    0.00%  
+  8000-10000ns                 900    0.00%  
+  10000-20000ns               2019    0.01%  
+  20000-40000ns                762    0.00%  
+  40000-80000ns                 76    0.00%  
+  80000-160000ns                 2    0.00%  
+
+
+
+
+
+Old queue:
+Reference API QUEUE: (Burst size 3)
+-----------------------------------
+
+On Raspberry Pi 5:
+
+Producer acquire lock time statistics:
+  count=5827268  max_spins=0  max=16980741ns  avg=2526ns
+
+Lock time histogram (5827268 events):
+  Range                      Count        %  Bar
+  --------------------  ----------  -------  ------------------------------
+  80-120ns                  489833    8.41%  ######
+  120-160ns                2286437   39.24%  ##############################
+  160-200ns                1307825   22.44%  #################
+  200-240ns                 429023    7.36%  #####
+  240-280ns                 460120    7.90%  ######
+  280-320ns                  70548    1.21%  
+  320-360ns                  51129    0.88%  
+  360-400ns                  43670    0.75%  
+  400-600ns                 187293    3.21%  ##
+  600-800ns                 148439    2.55%  #
+  800-1000ns                 86694    1.49%  #
+  1000-1500ns               106785    1.83%  #
+  1500-2000ns                49385    0.85%  
+  2000-3000ns                45016    0.77%  
+  3000-4000ns                23441    0.40%  
+  4000-6000ns                24395    0.42%  
+  6000-8000ns                 9907    0.17%  
+  8000-10000ns                3470    0.06%  
+  10000-20000ns                914    0.02%  
+  20000-40000ns                 14    0.00%  
+  40000-80000ns                  2    0.00%  
+  80000-160000ns                 1    0.00%  
+  >320000ns                   2927    0.05%  
+
+
+
+On Mac OS:
 
 Producer acquire lock time statistics:
   count=17796132  max_spins=0  max=10419834ns  avg=242ns
@@ -98,6 +174,8 @@ Lock time histogram (17796132 events):
 - Misspelled, rename mc_queue_peak to mc_queue_peek
 - Clarify the semantics of mc_queue_pop, it does need a release, documentation is misleading
 - Unclear purpose of the offset field in McQueueBuffer, waste of resources
+- No spinlock hint in the producer spin loop, likely contributing to the large variance in lock times on non-real-time OS
+
 
 
 ## Inline wrappers to switch to the XCPlite queue in reference.h

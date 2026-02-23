@@ -89,7 +89,6 @@ tQueueHandle queueInit(size_t queue_buffer_size);
 /// @param clear_queue          Clear the queue memory or keep the passed buffer untouched.
 /// @param out out_buffer_size  Optional out parameter can be used to get the remaining buffer size.
 /// @return Queue handle.
-/// NOTE: This is currently not implemented, but can be added if needed.
 tQueueHandle queueInitFromMemory(void *queue_memory, size_t queue_memory_size, bool clear_queue, uint64_t *out_buffer_size);
 
 /// Deinitialize queue.

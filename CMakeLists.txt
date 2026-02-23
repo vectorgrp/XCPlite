@@ -244,8 +244,23 @@ if(XCPLITE_BUILD_TESTS)
 
     # Queue stress test
     # Optionally build with the MC reference queue implementation (-DQUEUE_TEST_MC_QUEUE=ON)
-    option(QUEUE_TEST_MC_QUEUE "Test the MC reference queue implementation instead of the XCPlite queue" OFF)
-    if(QUEUE_TEST_MC_QUEUE)
+    option(QUEUE_TEST_MC_QUEUE "Test the MC reference queue API via the XCPlite queue wrapper" OFF)
+    # Optionally build for the two-process SHM test (-DQUEUE_TEST_MC_SHM=ON)
+    # Uses the MC reference queue directly (no xcplite wrapper) and enables --provider/--consumer mode
+    option(QUEUE_TEST_MC_SHM "Test the MC reference queue with shared memory two-process scenario" OFF)
+
+    if(QUEUE_TEST_MC_SHM)
+        add_executable(queue_test
+            test/queue_test/src/main.c
+            test/queue_test/src/mc/reference.c
+            test/queue_test/src/mc/mc_logger.c)
+        # Use the XCPlite queue wrapper so SHM init routes to the tested queueInitFromMemory
+        target_compile_definitions(queue_test PRIVATE TEST_MC_QUEUE MC_USE_XCPLITE_QUEUE)
+        # Link librt on Linux for shm_open/shm_unlink
+        if(UNIX AND NOT APPLE)
+            target_link_libraries(queue_test PRIVATE rt)
+        endif()
+    elseif(QUEUE_TEST_MC_QUEUE)
         add_executable(queue_test
             test/queue_test/src/main.c
             test/queue_test/src/mc/reference.c
