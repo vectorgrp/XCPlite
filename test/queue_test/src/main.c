@@ -466,18 +466,69 @@ int main(int argc, char *argv[]) {
     signal(SIGTERM, sig_handler);
 
 #ifdef TEST_QUEUE_SHM
-    // Parse --provider / --consumer before anything else
+    // Parse --provider / --consumer / --help before anything else
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--provider") == 0)
             g_shm_provider = true;
-        if (strcmp(argv[i], "--consumer") == 0)
+        else if (strcmp(argv[i], "--consumer") == 0)
             g_shm_consumer = true;
+        else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+            printf("Usage: %s [--provider | --consumer | --help]\n\n", argv[0]);
+            printf("  (no args)    Single-process test: producers and consumer in one process\n");
+            printf("  --provider   Two-process test: create shared memory queue and run producers\n");
+            printf("               Start this first, then start --consumer in a second terminal\n");
+            printf("  --consumer   Two-process test: attach to shared memory queue and run consumer\n");
+            printf("  --help, -h   Show this help\n\n");
+            printf("Queue implementation:\n");
+#ifdef MC_USE_XCPLITE_QUEUE
+            printf("  mc_queue API -> XCPlite queue64v wrapper (MC_USE_XCPLITE_QUEUE)\n");
+#else
+            printf("  mc_queue API -> MC reference implementation\n");
+#endif
+            printf("  Shared memory: %s  (%u KB)\n", SHM_NAME, (unsigned)(SHM_SIZE / 1024));
+            printf("  Queue size:    %u bytes\n", QUEUE_SIZE);
+            printf("  Threads:       %d producers, payload %zu bytes, burst %d, delay %d us\n", THREAD_COUNT, (size_t)THREAD_PAYLOAD_SIZE, THREAD_BURST_SIZE, THREAD_DELAY_US);
+            return 0;
+        } else {
+            printf("Unknown option: %s  (use --help for usage)\n", argv[i]);
+            return 1;
+        }
     }
     if (g_shm_provider && g_shm_consumer) {
         printf("Error: --provider and --consumer are mutually exclusive\n");
         return 1;
     }
 #else
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+            printf("Usage: %s [--help]\n\n", argv[0]);
+            printf("  Single-process queue stress test (no shared memory support in this build)\n\n");
+            printf("Queue implementation:\n");
+#ifdef TEST_MC_QUEUE
+#ifdef MC_USE_XCPLITE_QUEUE
+            printf("  mc_queue API -> XCPlite queue64v wrapper (MC_USE_XCPLITE_QUEUE)\n");
+#else
+            printf("  mc_queue API -> MC reference implementation\n");
+#endif
+#else
+#if defined(OPTION_QUEUE_64_VAR_SIZE)
+            printf("  XCPlite queue64v (64-bit variable-size entries)\n");
+#elif defined(OPTION_QUEUE_64_FIX_SIZE)
+            printf("  XCPlite queue64f (64-bit fixed-size entries)\n");
+#elif defined(OPTION_QUEUE_32)
+            printf("  XCPlite queue32 (32-bit variable-size entries)\n");
+#else
+            printf("  XCPlite queue (legacy queue64)\n");
+#endif
+#endif
+            printf("  Queue size:    %u bytes\n", QUEUE_SIZE);
+            printf("  Threads:       %d producers, payload %zu bytes, burst %d, delay %d us\n", THREAD_COUNT, (size_t)THREAD_PAYLOAD_SIZE, THREAD_BURST_SIZE, THREAD_DELAY_US);
+            return 0;
+        } else {
+            printf("Unknown option: %s  (use --help for usage)\n", argv[i]);
+            return 1;
+        }
+    }
     (void)argc;
     (void)argv;
 #endif
