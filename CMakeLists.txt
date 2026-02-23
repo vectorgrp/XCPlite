@@ -243,7 +243,17 @@ if(XCPLITE_BUILD_TESTS)
     target_link_libraries(daq_test PRIVATE xcplite)
 
     # Queue stress test
-    add_executable(queue_test test/queue_test/src/main.c)
+    # Optionally build with the MC reference queue implementation (-DQUEUE_TEST_MC_QUEUE=ON)
+    option(QUEUE_TEST_MC_QUEUE "Test the MC reference queue implementation instead of the XCPlite queue" OFF)
+    if(QUEUE_TEST_MC_QUEUE)
+        add_executable(queue_test
+            test/queue_test/src/main.c
+            test/queue_test/src/mc/reference.c
+            test/queue_test/src/mc/mc_logger.c)
+        target_compile_definitions(queue_test PRIVATE TEST_MC_QUEUE)
+    else()
+        add_executable(queue_test test/queue_test/src/main.c)
+    endif()
     target_link_libraries(queue_test PRIVATE xcplite)
 endif()
 

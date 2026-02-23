@@ -277,7 +277,9 @@ typedef pthread_t THREAD;
 
 #if !defined(_WIN) // Non-Windows platforms
 
+#ifndef OPTION_DISABLE_VECTORED_IO
 #include "queue.h" // for tQueueBuffer and vectored io functions
+#endif
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -371,7 +373,8 @@ int16_t socketRecv(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSize, b
 int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSize, uint8_t *srcAddr, uint16_t *srcPort, uint64_t *time);
 int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t bufferSize, const uint8_t *addr, uint16_t port, uint64_t *time);
 int16_t socketSend(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t bufferSize);
-#if !defined(_WIN) // Non-Windows: vectored send functions
+#if !defined(_WIN) && !defined(OPTION_DISABLE_VECTORED_IO)
+// Non-Windows: vectored send functions
 int16_t socketSendToV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t count, const uint8_t *addr, uint16_t port);
 int16_t socketSendV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t count);
 #endif

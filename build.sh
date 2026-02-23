@@ -9,6 +9,7 @@ BUILD_TARGET="examples"  # Default to building library + examples (without bpf_d
 INSTALL_LIBRARY=false   # Whether to install library after building
 INSTALL_PREFIX=""       # Custom install prefix (empty = use CMake default)
 RUN_CLANG_TIDY=false    # Whether to run clang-tidy on library sources
+QUEUE_TEST_MC_QUEUE=false # Whether to build queue_test with the MC reference queue
 
 # Function to show usage
 show_usage() {
@@ -77,6 +78,12 @@ for arg in "$@"; do
     # Check if argument is tidy
     if [[ "$arg" == "tidy" ]]; then
         RUN_CLANG_TIDY=true
+        continue
+    fi
+
+    # Check if argument is mc_queue
+    if [[ "$arg_lower" == "mc_queue" ]]; then
+        QUEUE_TEST_MC_QUEUE=true
         continue
     fi
     
@@ -187,7 +194,10 @@ if [ -n "$INSTALL_PREFIX" ]; then
     echo "Custom install prefix: $INSTALL_PREFIX"
 fi
 
-cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE $CMAKE_EXAMPLES_FLAG $CMAKE_TESTS_FLAG -S . -B $BUILD_DIR $CMAKE_INSTALL_ARGS
+CMAKE_MC_QUEUE_FLAG="-DQUEUE_TEST_MC_QUEUE=OFF"
+[ "$QUEUE_TEST_MC_QUEUE" = true ] && CMAKE_MC_QUEUE_FLAG="-DQUEUE_TEST_MC_QUEUE=ON"
+
+cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE $CMAKE_EXAMPLES_FLAG $CMAKE_TESTS_FLAG $CMAKE_MC_QUEUE_FLAG -S . -B $BUILD_DIR $CMAKE_INSTALL_ARGS
 
 echo ""
 echo "==================================================================="

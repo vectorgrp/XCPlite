@@ -1273,7 +1273,7 @@ int16_t socketSend(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t size) {
     return (int16_t)n;
 }
 
-#if !defined(_WIN)
+#if !defined(_WIN) && !defined(OPTION_DISABLE_VECTORED_IO)
 
 // Send multiple datagrams on a UDP socket
 // Returns number of bytes sent or -1 on error

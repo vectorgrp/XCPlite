@@ -11,20 +11,58 @@
 #include <stdio.h>   // for printf
 #include <string.h>  // for sprintf
 
+// Option to use XCP for online performance monitoring and logging of the queue test
+// #define USE_XCP
+
+// Option to enable timing statistics
+#define TEST_ACQUIRE_LOCK_TIMING
+
+// Note: Take care for include order
+
 // Public XCPlite API
-#include "a2l.h" // for A2l generation application programming interface
+#include "xcplib_cfg.h" // for OPTION_xxx
+// Disable socket support with vectored IO to avoid platform.h includes queue.h
+#undef OPTION_ENABLE_TCP
+#undef OPTION_ENABLE_UDP
 #include "platform.h"
+
+// Option XCP server for online performance monitoring and logging of the queue test
+#ifdef USE_XCP
+#include "a2l.h"    // for A2l generation application programming interface
 #include "xcplib.h" // for application programming interface
-#include "xcplib_cfg.h"
+#endif
+
+// Use the logger from XCPlite but don't include the rest of the API
+#include "dbg_print.h"
+void XcpSetLogLevel(uint8_t level);
+
+//-------------------------------------------------------------------------------------------------------
+// Test the mc_queue reference implementation
+#ifdef TEST_MC_QUEUE
+
+#ifdef __XCP_QUEUE_h__
+#error "queue.h included, please check your include order"
+#endif
+#include "mc/reference.h"
+// Undef
+#undef XCP_DAQ_MEM_SIZE
+// MC queue has no transport layer header space - define before queue.h gets pulled in via xcp_cfg.h
+#define QUEUE_ENTRY_USER_HEADER_SIZE 0
+
+//-------------------------------------------------------------------------------------------------------
+// Test the queue implementation from XCPlite
+#else
 
 // Internal libxcplite includes
-// Note: Take care for include order, when using internal libxcplite headers !!
-// xcp_cfg.h would includes xcplib_cfg.h and platform.h
 #include "../src/queue.h"
-#include "dbg_print.h"
-#include "xcp_cfg.h"
+
+#endif
 
 //-----------------------------------------------------------------------------------------------------
+
+// Use the logger from XCPlite
+// Note: If logging enabled with log level 6 OPTION_MAX_DBG_LEVEL must be set to 6
+#define OPTION_LOG_LEVEL 5 // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug, 5 = trace, 6 = verbose
 
 #define QUEUE_SIZE (1024 * 256) // Size of the test queue in bytes
 
@@ -34,15 +72,117 @@
 // Parameters for 1000000 msg/s with 10 threads, 64 byte payload, 10us delay
 #define THREAD_COUNT 10                            // Number of threads to create
 #define THREAD_DELAY_US 10                         // Delay in microseconds for the thread loops
+#define THREAD_BURST_SIZE 3                        // Acquire and push this many entries in a burst before sleeping
 #define THREAD_PAYLOAD_SIZE (4 * sizeof(uint64_t)) // Size of the test payload produced by the threads
+
+//
 
 // queue62v.c and queue64f.c support peeking ahead
 #if defined(OPTION_QUEUE_64_VAR_SIZE) || defined(OPTION_QUEUE_64_FIX_SIZE)
-#define QUEUE_PEEK               // Use queuePeek(random(QUEUE_PEEK_MAX_INDEX)) instead of queuePop
+#define TEST_QUEUE_PEEK          // Use queuePeek(random(QUEUE_PEEK_MAX_INDEX)) instead of queuePop
+#define QUEUE_PEEK_MAX_INDEX (8) // Max offset for peeking ahead
+
+// reference.c also supports peeking ahead
+#elif defined(TEST_MC_QUEUE)
+#define TEST_QUEUE_PEEK          // MC queue also supports peeking ahead with mc_queue_peak
 #define QUEUE_PEEK_MAX_INDEX (8) // Max offset for peeking ahead
 #endif
 
-// #define USE_XCP
+//-------------------------------------------------------------------------------------------------------------------------------------------------------
+// Acquire timing test
+
+// Queue acquire lock timing and spin
+// For high contention use test queue_test or example daq_test with xcp_client --upload-a2l --udp --mea .  --dest-addr 192.168.0.206
+// Note that this tests have significant performance impact, do not turn on for production use !!!!!!!!!!!
+
+#ifdef TEST_ACQUIRE_LOCK_TIMING
+
+static MUTEX lock_mutex = MUTEX_INTIALIZER;
+static uint64_t lock_time_max = 0;
+static uint64_t lock_time_sum = 0;
+static uint64_t lock_count = 0;
+static uint64_t lock_spin_count_max = 0;
+// Variable-width lock timing histogram
+// Fine granularity for short latencies, coarser for long-tail latencies
+// Bin[i] counts events where EDGES[i-1] <= t < EDGES[i]; bin[SIZE-1] is the overflow (>EDGES[SIZE-2])
+#define LOCK_TIME_HISTOGRAM_SIZE 26
+static const uint64_t LOCK_TIME_HISTOGRAM_EDGES[LOCK_TIME_HISTOGRAM_SIZE - 1] = {
+    40,    80,    120,   160,    200,    240, 280, 320, 360, 400, // 10 bins: 40ns steps
+    600,   800,   1000,  1500,   2000,                            //  5 bins: 200-500ns steps (up to 2us)
+    3000,  4000,  6000,  8000,   10000,                           //  5 bins: 1-2us steps (up to 10us)
+    20000, 40000, 80000, 160000, 320000,                          //  5 bins: 10-160us steps (up to 320us, preemption range)
+};
+static uint64_t lock_time_histogram[LOCK_TIME_HISTOGRAM_SIZE] = {0};
+
+// There should be better alternatives in your target specific environment than this portable reference
+// Select a clock mode appropriate for your platform, CLOCK_MONOTONIC_RAW is a good choice for high resolution and monotonicity
+#ifndef TEST_MC_QUEUE
+static uint64_t get_timestamp_ns(void) {
+    static const uint64_t kNanosecondsPerSecond = 1000000000ULL;
+    struct timespec ts = {0};
+    clock_gettime(CLOCK_MONOTONIC_RAW, &ts); // NOLINT(missing-includes) // do **not** include internal "bits" headers directly.
+    return ((uint64_t)ts.tv_sec) * kNanosecondsPerSecond + ((uint64_t)ts.tv_nsec);
+}
+#endif
+
+void lock_test_add_sample(uint64_t d, uint32_t spin_count) {
+    mutexLock(&lock_mutex);
+    if (spin_count > lock_spin_count_max)
+        lock_spin_count_max = spin_count;
+    if (d > lock_time_max)
+        lock_time_max = d;
+    int i = 0;
+    while (i < LOCK_TIME_HISTOGRAM_SIZE - 1 && d >= LOCK_TIME_HISTOGRAM_EDGES[i])
+        i++;
+    lock_time_histogram[i]++;
+    lock_time_sum += d;
+    lock_count++;
+    mutexUnlock(&lock_mutex);
+}
+
+static void lock_test_print_results(void) {
+    printf("\nProducer acquire lock time statistics:\n");
+    printf("  count=%" PRIu64 "  max_spins=%" PRIu64 "  max=%" PRIu64 "ns  avg=%" PRIu64 "ns\n", lock_count, lock_spin_count_max, lock_time_max, lock_time_sum / lock_count);
+
+    uint64_t histogram_sum = 0;
+    for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE; i++)
+        histogram_sum += lock_time_histogram[i];
+    uint64_t histogram_max = 0;
+    for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE; i++)
+        if (lock_time_histogram[i] > histogram_max)
+            histogram_max = lock_time_histogram[i];
+
+    printf("\nLock time histogram (%" PRIu64 " events):\n", histogram_sum);
+    printf("  %-20s  %10s  %7s  %s\n", "Range", "Count", "%", "Bar");
+    printf("  %-20s  %10s  %7s  %s\n", "--------------------", "----------", "-------", "------------------------------");
+
+    for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE; i++) {
+        if (!lock_time_histogram[i])
+            continue;
+        double pct = (double)lock_time_histogram[i] * 100.0 / (double)histogram_sum;
+
+        char range_str[32];
+        uint64_t lo = (i == 0) ? 0 : LOCK_TIME_HISTOGRAM_EDGES[i - 1];
+        if (i == LOCK_TIME_HISTOGRAM_SIZE - 1) {
+            snprintf(range_str, sizeof(range_str), ">%" PRIu64 "ns", lo);
+        } else {
+            snprintf(range_str, sizeof(range_str), "%" PRIu64 "-%" PRIu64 "ns", lo, LOCK_TIME_HISTOGRAM_EDGES[i]);
+        }
+
+        char bar[31];
+        int bar_len = (histogram_max > 0) ? (int)((double)lock_time_histogram[i] * 30.0 / (double)histogram_max) : 0;
+        if (bar_len > 30)
+            bar_len = 30;
+        for (int j = 0; j < bar_len; j++)
+            bar[j] = '#';
+        bar[bar_len] = '\0';
+
+        printf("  %-20s  %10" PRIu64 "  %6.2f%%  %s\n", range_str, lock_time_histogram[i], pct, bar);
+    }
+    printf("\n");
+}
+
+#endif
 
 /*
 
@@ -122,17 +262,13 @@ Lock time histogram (10700464 events):
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
 
-// Queue logging enabled with log level 6
-// OPTION_MAX_DBG_LEVEL must be set to 6
-#define OPTION_LOG_LEVEL 5 // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug, 5 = trace, 6 = verbose
-
 #ifdef USE_XCP
-#define OPTION_PROJECT_NAME "daq_test"  // Project name, used to build the A2L and BIN file name
-#define OPTION_PROJECT_EPK __TIME__     // EPK version string
-#define OPTION_USE_TCP false            // TCP or UDP
-#define OPTION_SERVER_PORT 5555         // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE (1024 * 32)   // Size of the measurement queue in bytes, should be large enough to cover at least 10ms of expected traffic
+#define OPTION_PROJECT_NAME "queue_test" // Project name, used to build the A2L and BIN file name
+#define OPTION_PROJECT_EPK "V1.0"        // EPK version string
+#define OPTION_USE_TCP false             // TCP or UDP
+#define OPTION_SERVER_PORT 5555          // Port
+#define OPTION_SERVER_ADDR {0, 0, 0, 0}  // Bind addr, 0.0.0.0 = ANY
+#define OPTION_QUEUE_SIZE (1024 * 32)    // Size of the measurement queue in bytes, should be large enough to cover at least 10ms of expected traffic
 #endif
 
 //-----------------------------------------------------------------------------------------------------
@@ -143,8 +279,13 @@ static void sig_handler(int sig) { gRun = false; }
 
 //-----------------------------------------------------------------------------------------------------
 
-static atomic_uint_least16_t task_index_ctr = 0;
+#ifdef TEST_MC_QUEUE
+static McQueueHandle queue_handle = NULL;
+#else
 static tQueueHandle queue_handle = NULL;
+#endif
+
+static atomic_uint_least16_t task_index_ctr = 0;
 
 // Task function that runs in a separate thread
 // Calculates a sine wave, square wave, and sawtooth wave signal
@@ -170,11 +311,28 @@ void *task(void *p)
 
     while (run && gRun) {
 
-        for (int n = 0; n < 2; n++) {
+        for (int n = 0; n < THREAD_BURST_SIZE; n++) {
 
             counter++;
 
             uint16_t size = THREAD_PAYLOAD_SIZE + rand() % 32; // Add some random size to the payload to increase the variability of the test
+#ifdef TEST_ACQUIRE_LOCK_TIMING
+            uint64_t start_time = get_timestamp_ns();
+#endif
+#ifdef TEST_MC_QUEUE
+            McQueueBuffer queue_buffer = mc_queue_acquire(queue_handle, (size_t)size);
+            if (queue_buffer.size >= (int64_t)size) {
+                assert(queue_buffer.buffer != NULL);
+
+                // Test data (MC queue has no XCP transport layer or DAQ header prefix)
+                uint64_t *b = (uint64_t *)queue_buffer.buffer;
+                b[0] = task_index;
+                b[1] = size;
+                b[2] = counter;
+
+                mc_queue_push(queue_handle, &queue_buffer);
+            }
+#else
             tQueueBuffer queue_buffer = queueAcquire(queue_handle, size);
             if (queue_buffer.size >= size) {
                 assert(queue_buffer.buffer != NULL);
@@ -191,6 +349,10 @@ void *task(void *p)
 
                 queuePush(queue_handle, &queue_buffer, false);
             }
+#endif
+#ifdef TEST_ACQUIRE_LOCK_TIMING
+            lock_test_add_sample(get_timestamp_ns() - start_time, 0);
+#endif
         }
 
         // Sleep for the specified delay parameter in microseconds, defines the approximate sampling rate
@@ -211,11 +373,25 @@ int main(void) {
 
     // Set log level
     XcpSetLogLevel(OPTION_LOG_LEVEL);
-    DBG_PRINT3("queue_test\n");
-#ifdef QUEUE_PEEK
-    DBG_PRINT3("Using queue with peek support\n");
+#ifdef TEST_MC_QUEUE
+    DBG_PRINT3("queue_test for mc_queue\n");
 #else
-    DBG_PRINT3("Using queue without peek support\n");
+    DBG_PRINT3("queue_test for XCPlite queue\n");
+#ifdef QUEUE_64_VAR_SIZE
+    DBG_PRINT3("Using queue (queue64v.c) with 64 bit variable size entries\n");
+#elif defined(QUEUE_64_FIX_SIZE)
+    DBG_PRINT3("Using queue (queue64f.c) with 64 bit fixed size entries\n");
+#elif defined(QUEUE_32)
+    DBG_PRINT3("Using queue (queue32.c) with 32 bit variable size entries\n");
+#else
+    DBG_PRINT3("Using old deprecated queue (queue64.c) with unknown configuration\n");
+#endif
+#endif
+
+#ifdef TEST_QUEUE_PEEK
+    DBG_PRINT3("Testing peek support\n");
+#else
+    DBG_PRINT3("Testing without peek support\n");
 #endif
     DBG_PRINT3("\n");
 
@@ -227,11 +403,13 @@ int main(void) {
 
     DBG_PRINT3("Queue parameters:\n");
     DBG_PRINTF3("QUEUE_ENTRY_USER_HEADER_SIZE=%d\n", QUEUE_ENTRY_USER_HEADER_SIZE);
+#ifndef TEST_MC_QUEUE
     DBG_PRINTF3("QUEUE_ENTRY_USER_PAYLOAD_SIZE=%u\n", QUEUE_ENTRY_USER_PAYLOAD_SIZE);
     DBG_PRINTF3("QUEUE_ENTRY_USER_SIZE=%u\n", QUEUE_ENTRY_USER_SIZE);
     DBG_PRINTF3("QUEUE_SEGMENT_SIZE=%u\n", QUEUE_SEGMENT_SIZE);
     DBG_PRINTF3("QUEUE_MAX_ENTRY_SIZE=%u\n", QUEUE_MAX_ENTRY_SIZE);
     DBG_PRINTF3("QUEUE_PAYLOAD_SIZE_ALIGNMENT=%u\n", QUEUE_PAYLOAD_SIZE_ALIGNMENT);
+#endif
     DBG_PRINT3("\n");
 
 #ifdef USE_XCP
@@ -252,7 +430,11 @@ int main(void) {
     }
 #endif
 
+#ifdef TEST_MC_QUEUE
+    queue_handle = mc_queue_init(QUEUE_SIZE);
+#else
     queue_handle = queueInit(QUEUE_SIZE); // Initialize the queue, the queue memory is allocated by the library, the queue buffer size is specified by OPTION_QUEUE_SIZE
+#endif
     if (queue_handle == NULL) {
         printf("Failed to initialize the queue\n");
         return 1;
@@ -292,19 +474,27 @@ int main(void) {
 
         // Poll the queue, break if empty
 
-#ifdef QUEUE_PEEK
+#ifdef TEST_QUEUE_PEEK
 
         while (gRun) {
 
+#ifdef TEST_MC_QUEUE
+            McQueueBuffer buffer[QUEUE_PEEK_MAX_INDEX + 1];
+#else
             tQueueBuffer buffer[QUEUE_PEEK_MAX_INDEX + 1];
+#endif
             uint32_t buffer_count = 0;
 
             // Set max max_peek_index to a random number between 0 and QUEUE_PEEK_MAX_INDEX
             uint32_t max_peek_index = rand() % (QUEUE_PEEK_MAX_INDEX + 1);
             for (uint32_t index = 0; index <= max_peek_index; index++) {
+#ifdef TEST_MC_QUEUE
+                buffer[index] = mc_queue_peak(queue_handle, (int64_t)index);
+#else
                 uint32_t lost = 0;
                 buffer[index] = queuePeek(queue_handle, index, &lost);
                 msg_lost += lost;
+#endif
                 if (buffer[index].size == 0) { // Empty buffer, no more messages in the queue
                     break;
                 }
@@ -314,8 +504,13 @@ int main(void) {
                 assert((uint64_t)buffer[index].buffer % 2 == 0);
 
                 // Check test data
+#ifdef TEST_MC_QUEUE
+                // MC queue: no transport layer or XCP DAQ header prefix – test data starts at offset 0
+                uint64_t *b = (uint64_t *)buffer[index].buffer;
+#else
                 // Test payload starts + (User header (Transport layer header) + faked XCP DAQ header)
                 uint64_t *b = (uint64_t *)(buffer[index].buffer + QUEUE_ENTRY_USER_HEADER_SIZE + 4);
+#endif
                 uint64_t task_index = b[0];
                 uint64_t size = b[1];
                 uint64_t counter = b[2];
@@ -346,16 +541,51 @@ int main(void) {
                 break; // No more messages in the queue
             }
 
-            // Release the buffers obtained by queuePeek so far
+            // Release the buffers obtained by queuePeek / mc_queue_peak so far
             for (uint32_t i = 0; i < buffer_count; i++) {
                 assert(buffer[i].size > 0);
+#ifdef TEST_MC_QUEUE
+                mc_queue_release(queue_handle, &buffer[i]);
+#else
                 queueRelease(queue_handle, &buffer[i]);
+#endif
             }
 
         } // for (;;)
 
 #else
 
+#ifdef TEST_MC_QUEUE
+        for (;;) {
+            McQueueBuffer buffer = mc_queue_pop(queue_handle);
+            if (buffer.size == 0)
+                break;
+
+            assert(buffer.buffer != NULL);
+            assert(buffer.size >= (int64_t)THREAD_PAYLOAD_SIZE);
+            assert((uint64_t)buffer.buffer % 2 == 0);
+
+            // Test data (MC queue: no header prefix, data starts at offset 0)
+            uint64_t *b = (uint64_t *)buffer.buffer;
+            uint64_t task_index = b[0];
+            uint64_t size = b[1];
+            uint64_t counter = b[2];
+
+            assert(size >= THREAD_PAYLOAD_SIZE);
+            assert(task_index < THREAD_COUNT);
+            if (msg_count > 0) {
+                if (counter != last_counter[task_index] + 1) {
+                    printf("Messages lost in task %u, expected counter %llu, got %llu\n", (uint32_t)task_index, last_counter[task_index] + 1, counter);
+                }
+            }
+            last_counter[task_index] = counter;
+
+            msg_count++;
+            msg_bytes += (uint32_t)buffer.size;
+
+            mc_queue_release(queue_handle, &buffer);
+        } // for (;;)
+#else
         for (;;) {
 
             uint32_t lost = 0;
@@ -407,6 +637,7 @@ int main(void) {
 
             } // for (;;)
         } // for (;;)
+#endif // TEST_MC_QUEUE
 
 #endif
 
@@ -432,7 +663,18 @@ int main(void) {
             join_thread(t[i]);
     }
 
+    // Deinitialize the queue
+#ifdef TEST_MC_QUEUE
+    mc_queue_deinit(queue_handle);
+#else
     queueDeinit(queue_handle); // Deinitialize the queue
+#endif
+
+// Print queue statistics
+#ifdef TEST_ACQUIRE_LOCK_TIMING
+    lock_test_print_results();
+#endif
+
 #ifdef USE_XCP
     XcpDisconnect();        // Force disconnect the XCP client
     A2lFinalize();          // Finalize A2L generation, if not done yet
