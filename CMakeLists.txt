@@ -265,10 +265,10 @@ if(XCPLITE_BUILD_TESTS)
             test/queue_test/src/main.c
             test/queue_test/src/mc/reference.c
             test/queue_test/src/mc/mc_logger.c)
-        # Use the XCPlite queue wrapper in reference.h instead of the original MC queue implementation
+        # Use the XCPlite queue wrapper in reference.h instead of the original spinlock MC queue implementation
         target_compile_definitions(queue_test PRIVATE TEST_MC_QUEUE MC_USE_XCPLITE_QUEUE)
-        # Use the original MC queue implementation in reference.h for testing
-        #target_compile_definitions(queue_test PRIVATE TEST_MC_QUEUE )
+        # Use the original spinlock MC queue implementation in reference.h for testing
+        # target_compile_definitions(queue_test PRIVATE TEST_MC_QUEUE )
     else()
         add_executable(queue_test test/queue_test/src/main.c)
     endif()

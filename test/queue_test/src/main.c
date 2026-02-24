@@ -992,7 +992,9 @@ int main(int argc, char *argv[]) {
 
 // Print queue statistics
 #ifdef TEST_ACQUIRE_LOCK_TIMING
-    lock_test_print_results();
+    if (!g_shm_consumer) {
+        lock_test_print_results();
+    }
 #endif
 
 #ifdef USE_XCP

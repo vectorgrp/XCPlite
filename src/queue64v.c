@@ -12,11 +12,11 @@
 |
  ----------------------------------------------------------------------------*/
 
-#include "platform.h"   // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex, spinlock
-#include "xcplib_cfg.h" // for OPTION_xxx
+#include "platform.h"   // for PLATFORM_64BIT
+#include "xcplib_cfg.h" // for OPTION_QUEUE_64_VAR_SIZE and OPTION_ENABLE_DBG_PRINTS
 
+// Only for 64 Bit platforms, no Windows, requires Atomics
 #if defined(PLATFORM_64BIT) && !defined(_WIN) && !defined(OPTION_ATOMIC_EMULATION)
-
 #ifdef OPTION_QUEUE_64_VAR_SIZE
 
 #include "queue.h"
@@ -30,7 +30,18 @@
 #include <stdlib.h>    // for free, malloc
 #include <string.h>    // for memcpy, strcmp
 
+#ifdef OPTION_ENABLE_DBG_PRINTS
 #include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
+#else
+#define DBG_PRINTF_ERROR(s, ...)
+#define DBG_PRINTF_WARNING(s, ...)
+#define DBG_PRINTF3(s, ...)
+#define DBG_PRINTF6(s, ...)
+#define DBG_PRINT_ERROR(s)
+#define DBG_PRINT_WARNING(s)
+#define DBG_PRINT3(s)
+#define DBG_PRINT6(s)
+#endif
 
 // Turn of misaligned atomic access warnings
 // Alignment is assured by the queue header and the queue entry size alignment
@@ -175,12 +186,13 @@ typedef struct {
 
 // Queue header
 // Aligned to cache line size
+#define QUEUE_HEADER_SIZE (8 + 8 + sizeof(atomic_uint_fast32_t) + sizeof(atomic_uint_fast32_t) + 4 + 8 + 4 + 4 + 8)
 typedef struct {
     // Shared state
     atomic_uint_fast64_t head;         // Consumer reads from head
     atomic_uint_fast64_t tail;         // Producers write to tail
     atomic_uint_fast32_t packets_lost; // Packet lost counter, incremented by producers when a queue entry could not be acquired
-    ATOMIC_BOOL flush;
+    atomic_uint_fast32_t flush;        // Flush request flag, set by producers to request the consumer to prioritize packets
 
     // Consumer state for optimized peek loop
     uint32_t cached_peek_index; // Cached index for optimized peek loop
@@ -189,11 +201,14 @@ typedef struct {
     // Constant
     uint32_t queue_size;  // Size of queue in bytes (for entry offset wrapping)
     uint32_t buffer_size; // Size of overall queue data buffer in bytes
-    bool from_memory;     // Queue memory from queueInitFromMemory
-    uint8_t reserved[3];  // Header must be 8 byte aligned
+    bool from_memory;
+
+    // Padding to cache line size// Queue memory from queueInitFromMemory
+    uint8_t padding[8 - (QUEUE_HEADER_SIZE % 8)];                                          // Padding to 8 byte aligned
+    uint8_t reserved[CACHE_LINE_SIZE - (QUEUE_HEADER_SIZE + (8 - QUEUE_HEADER_SIZE % 8))]; // Padding to cache line size
 } tQueueHeader;
 
-static_assert(((sizeof(tQueueHeader) % 8) == 0), "QueueHeader size must be %8");
+static_assert(((sizeof(tQueueHeader) % CACHE_LINE_SIZE) == 0), "QueueHeader size must be %CACHE_LINE_SIZE");
 
 // Queue
 typedef struct Queue {
@@ -206,6 +221,13 @@ typedef struct Queue {
 tQueueHandle queueInitFromMemory(void *queue_memory, size_t queue_memory_size, bool clear_queue, uint64_t *out_buffer_size) {
 
     tQueue *queue = NULL;
+
+    DBG_PRINTF3("queueInitFromMemory: queue_memory=%p, queue_memory_size=%zu, clear_queue=%d\n", queue_memory, queue_memory_size, clear_queue);
+    DBG_PRINTF3("  QUEUE_HEADER_SIZE = %zu\n", QUEUE_HEADER_SIZE);
+    DBG_PRINTF3("  sizeof(tQueueHeader) = %zu\n", sizeof(tQueueHeader));
+    DBG_PRINTF3("  CACHE_LINE_SIZE = %u\n", CACHE_LINE_SIZE);
+    DBG_PRINTF3("  padding size = %zu\n", sizeof(((tQueueHeader *)0)->padding));
+    DBG_PRINTF3("  reserved size = %zu\n", sizeof(((tQueueHeader *)0)->reserved));
 
     // Allocate the queue memory
     if (queue_memory == NULL) {
@@ -291,7 +313,7 @@ void queueDeinit(tQueueHandle queue_handle) {
         free(queue);
     }
 
-    DBG_PRINT4("QueueDeInit\n");
+    DBG_PRINT6("QueueDeInit\n");
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -571,4 +593,4 @@ void queueRelease(tQueueHandle queue_handle, const tQueueBuffer *queue_buffer) {
 }
 
 #endif // OPTION_QUEUE_64_VAR_SIZE
-#endif
+#endif // defined(PLATFORM_64BIT) && !defined(_WIN) && !defined(OPTION_ATOMIC_EMULATION)

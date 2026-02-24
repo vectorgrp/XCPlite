@@ -23,20 +23,16 @@
  ----------------------------------------------------------------------------*/
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
+// Queue parameter configuration:
+// Configuration for XCP on Ethernet transport layer with 4 byte transport layer header (ctr+len)
+// Using XCP parameters from xcptl_cfg.h: XCPTL_MAX_DTO_SIZE, XCPTL_MAX_SEGMENT_SIZE, QUEUE_PAYLOAD_SIZE_ALIGNMENT:
 // Queue entries may include space for a consumer header with user defined size
 // This allows the consumer to add a header to the queue entry without copying and merging data.
 // For XCP use cases, this size is configured to be the XCP transport layer header size (XCPTL_TRANSPORT_LAYER_HEADER_SIZE, which is 4 bytes for ctr+len).
 // Other use cases can use this space for other purposes, e.g. to store a timestamp or a protocol header, or it can be set to 0 if not needed.
-
-// Queue parameter configuration:
-#ifdef QUEUE_ENTRY_USER_HEADER_SIZE
-#error "QUEUE_ENTRY_USER_HEADER_SIZE already defined, please check your configuration"
-#endif
-
-// Configuration for XCP on Ethernet transport layer with 4 byte transport layer header (ctr+len)
-// Using XCP parameters from xcptl_cfg.h: XCPTL_MAX_DTO_SIZE, XCPTL_MAX_SEGMENT_SIZE, QUEUE_PAYLOAD_SIZE_ALIGNMENT:
 #include "xcptl_cfg.h" // for XCPTL_TRANSPORT_LAYER_HEADER_SIZE, XCPTL_MAX_DTO_SIZE, XCPTL_MAX_SEGMENT_SIZE, QUEUE_PAYLOAD_SIZE_ALIGNMENT
 #define QUEUE_ENTRY_USER_HEADER_SIZE (XCPTL_TRANSPORT_LAYER_HEADER_SIZE) // (for XCP transport layer header with XCPTL_TRANSPORT_LAYER_HEADER_SIZE)
 #define QUEUE_ENTRY_USER_PAYLOAD_SIZE (XCPTL_MAX_DTO_SIZE)
@@ -45,7 +41,7 @@
 #define QUEUE_MAX_ENTRY_SIZE (XCPTL_MAX_DTO_SIZE + XCPTL_TRANSPORT_LAYER_HEADER_SIZE)
 #define QUEUE_PAYLOAD_SIZE_ALIGNMENT (XCPTL_PACKET_ALIGNMENT)
 
-// For generic uses case without header space reserved use the following configuration:
+// For generic uses case without optional header space reserved, use the following configuration:
 /*
 #define QUEUE_ENTRY_USER_HEADER_SIZE (0)
 #define QUEUE_ENTRY_USER_PAYLOAD_SIZE (512)
@@ -55,8 +51,8 @@
 */
 
 // Check preconditions
-#if (MAX_ENTRY_SIZE % XCPTL_PACKET_ALIGNMENT) != 0
-#error "MAX_ENTRY_SIZE should be aligned to XCPTL_PACKET_ALIGNMENT"
+#if (QUEUE_MAX_ENTRY_SIZE % QUEUE_PAYLOAD_SIZE_ALIGNMENT) != 0
+#error "QUEUE_MAX_ENTRY_SIZE should be aligned to QUEUE_PAYLOAD_SIZE_ALIGNMENT"
 #endif
 
 // Note:

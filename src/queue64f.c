@@ -12,12 +12,11 @@
 |
  ----------------------------------------------------------------------------*/
 
-#include "platform.h"   // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex, spinlock
-#include "xcplib_cfg.h" // for OPTION_xxx
+#include "platform.h"   // for PLATFORM_64BIT
+#include "xcplib_cfg.h" // for OPTION_QUEUE_64_FIX_SIZE  and OPTION_ENABLE_DBG_PRINTS
 
-// Not for 32 Bit platforms or on Windows, use queue32.c instead
+// Only for 64 Bit platforms, no Windows, requires Atomics
 #if defined(PLATFORM_64BIT) && !defined(_WIN) && !defined(OPTION_ATOMIC_EMULATION)
-
 #ifdef OPTION_QUEUE_64_FIX_SIZE
 
 #include "queue.h"
@@ -31,8 +30,18 @@
 #include <stdlib.h>    // for free, malloc
 #include <string.h>    // for memcpy, strcmp
 
-#include "dbg_print.h" // for DBG_PRINT
-
+#ifdef OPTION_ENABLE_DBG_PRINTS
+#include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
+#else
+#define DBG_PRINTF_ERROR(s, ...)
+#define DBG_PRINTF_WARNING(s, ...)
+#define DBG_PRINTF3(s, ...)
+#define DBG_PRINTF6(s, ...)
+#define DBG_PRINT_ERROR(s)
+#define DBG_PRINT_WARNING(s)
+#define DBG_PRINT3(s)
+#define DBG_PRINT6(s)
+#endif
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 // Settings
 
@@ -289,7 +298,7 @@ void queueClear(tQueueHandle queue_handle) {
     atomic_store_explicit(&queue->h.packets_lost, 0, memory_order_relaxed);
     atomic_store_explicit(&queue->h.flush, false, memory_order_relaxed);
     memset(queue->buffer, 0, queue->h.queue_buffer_size); // Clear queue buffer memory
-    DBG_PRINT4("queueClear\n");
+    DBG_PRINT6("queueClear\n");
 }
 
 tQueueHandle queueInit(size_t queue_memory_size) {
@@ -332,7 +341,7 @@ void queueDeinit(tQueueHandle queue_handle) {
 
     queueClear(queue_handle);
     free(queue);
-    DBG_PRINT4("QueueDeInit\n");
+    DBG_PRINT6("QueueDeInit\n");
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -592,5 +601,5 @@ void queueRelease(tQueueHandle queue_handle, const tQueueBuffer *queue_buffer) {
     atomic_fetch_add_explicit(&queue->h.tail, QUEUE_ENTRY_SIZE, memory_order_release);
 }
 
-#endif
 #endif // OPTION_QUEUE_64_FIX_SIZE
+#endif // PLATFORM_64BIT && !defined(_WIN) && !defined(OPTION_ATOMIC_EMULATION)

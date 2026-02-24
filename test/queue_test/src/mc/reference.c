@@ -1648,17 +1648,26 @@ typedef struct {
 
 #ifndef MC_USE_XCPLITE_QUEUE
 
+// Hint to the CPU that we are spinning
+#if defined(__x86_64__) || defined(__i386__)
+#define spin_loop_hint() __asm__ volatile("pause" ::: "memory")
+#elif defined(__aarch64__) || defined(__arm__)
+#define spin_loop_hint() __asm__ volatile("yield" ::: "memory");
+#else
+#define spin_loop_hint() // Fallback: do nothing
+#endif
+
+
 static void spinlock_lock(atomic_int_fast64_t* lock) {
   int64_t expected = 0;
   int64_t const desired = 1;
   while (!atomic_compare_exchange_weak_explicit(lock, &expected, desired, memory_order_acquire, memory_order_relaxed)) {
     expected = 0;
+    // @@@@ NOTE: A call to your target specific spinlock hint should be placed here.
+    spin_loop_hint();
   }
-
-  // A call to your target specific spinlock hint should be placed here.
-  // For x86, _mm_pause from #include <immintrin.h> can be used. This reference
-  // does not provide an abstraction.
 }
+
 
 static void spinlock_unlock(atomic_int_fast64_t* lock) { atomic_store_explicit(lock, 0, memory_order_release); }
 
@@ -1806,8 +1815,8 @@ void mc_queue_push(McQueueHandle handle, McQueueBuffer const* queue_buffer) {
   // observing is_ready==1.  A relaxed store does NOT guarantee that the preceding payload
   // writes are visible to other cores.
   // Fix: use memory_order_release here, paired with memory_order_acquire in mc_queue_pop().
-  //   atomic_store_explicit(&header->is_ready, 1, memory_order_release);
-  atomic_store_explicit(&header->is_ready, 1, memory_order_relaxed);
+  atomic_store_explicit(&header->is_ready, 1, memory_order_release);
+  //atomic_store_explicit(&header->is_ready, 1, memory_order_relaxed); // @@@@ REVIEW: this is incorrect on weak-memory architectures (ARM)
 }
 
 McQueueBuffer mc_queue_pop(McQueueHandle handle) {
@@ -1842,8 +1851,8 @@ McQueueBuffer mc_queue_pop(McQueueHandle handle) {
   // node_header->size and the payload data before this load.  The consumer could observe
   // is_ready==1 but still read stale (pre-write) payload bytes.
   // Fix: use memory_order_acquire here, paired with memory_order_release in mc_queue_push().
-  //   if (!atomic_load_explicit(&node_header->is_ready, memory_order_acquire)) {
-  if (!atomic_load_explicit(&node_header->is_ready, memory_order_relaxed)) {
+  if (!atomic_load_explicit(&node_header->is_ready, memory_order_acquire)) {
+  //if (!atomic_load_explicit(&node_header->is_ready, memory_order_relaxed)) { // @@@@ REVIEW: this is incorrect on weak-memory architectures (ARM)
     // Producer called acquire but not push yet which sets the ready flag.
     McQueueBuffer out = {
         .size = 0,
