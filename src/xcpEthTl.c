@@ -830,5 +830,5 @@ bool XcpTlWaitForTransmitQueueEmpty(uint16_t timeout_ms) {
 //-------------------------------------------------------------------------------------------------------
 
 // Get the next transmit message counter
-// For queue32.c and queue64.c
+// For queue32.c
 uint16_t XcpTlGetCtr(void) { return gXcpTl.Ctr++; }

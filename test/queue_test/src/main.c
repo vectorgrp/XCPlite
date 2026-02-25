@@ -528,14 +528,14 @@ static void print_test_info(void) {
 #endif
 #else
     DBG_PRINT3("queue_test for XCPlite queue\n");
-#ifdef QUEUE_64_VAR_SIZE
+#if defined(OPTION_QUEUE_64_VAR_SIZE)
     DBG_PRINT3("Using queue (queue64v.c) with 64 bit variable size entries\n");
-#elif defined(QUEUE_64_FIX_SIZE)
+#elif defined(OPTION_QUEUE_64_FIX_SIZE)
     DBG_PRINT3("Using queue (queue64f.c) with 64 bit fixed size entries\n");
-#elif defined(QUEUE_32)
+#elif defined(OPTION_QUEUE_32)
     DBG_PRINT3("Using queue (queue32.c) with 32 bit variable size entries\n");
 #else
-    DBG_PRINT3("Using old deprecated queue (queue64.c) with unknown configuration\n");
+#error "Please select a valid queue implementation\n"
 #endif
 #endif
 #ifdef TEST_QUEUE_PEEK

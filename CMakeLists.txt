@@ -110,7 +110,7 @@ elseif(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
 endif()
 
 # xcplite sources
-set(xcplite_SOURCES src/xcpAppl.c src/xcpLite.c src/xcpEthServer.c src/xcpEthTl.c src/queue32.c src/queue64v.c src/queue64f.c src/queue64.c src/a2l.c src/persistence.c src/platform.c)   
+set(xcplite_SOURCES src/xcpAppl.c src/xcpLite.c src/xcpEthServer.c src/xcpEthTl.c src/queue32.c src/queue64v.c src/queue64f.c src/a2l.c src/persistence.c src/platform.c)   
 
 # Create xcplite library
 add_library(xcplite ${xcplite_SOURCES})
@@ -251,9 +251,7 @@ if(XCPLITE_BUILD_TESTS)
 
     if(QUEUE_TEST_MC_SHM)
         add_executable(queue_test
-            test/queue_test/src/main.c
-            test/queue_test/src/mc/reference.c
-            test/queue_test/src/mc/mc_logger.c)
+            test/queue_test/src/main.c test/queue_test/src/mc/reference.c)
         # Use the XCPlite queue wrapper so SHM init routes to the tested queueInitFromMemory
         target_compile_definitions(queue_test PRIVATE TEST_MC_QUEUE MC_USE_XCPLITE_QUEUE)
         # Link librt on Linux for shm_open/shm_unlink
@@ -262,9 +260,7 @@ if(XCPLITE_BUILD_TESTS)
         endif()
     elseif(QUEUE_TEST_MC_QUEUE)
         add_executable(queue_test
-            test/queue_test/src/main.c
-            test/queue_test/src/mc/reference.c
-            test/queue_test/src/mc/mc_logger.c)
+            test/queue_test/src/main.c test/queue_test/src/mc/reference.c)
         # Use the XCPlite queue wrapper in reference.h instead of the original spinlock MC queue implementation
         target_compile_definitions(queue_test PRIVATE TEST_MC_QUEUE MC_USE_XCPLITE_QUEUE)
         # Use the original spinlock MC queue implementation in reference.h for testing
