@@ -90,8 +90,6 @@ static_assert(sizeof(void *) == 8, "This implementation requires a 64 Bit platfo
 // Queue acquire lock timing and spin
 // For high contention test use example queue_test or daq_test with xcp_client --upload-a2l --udp --mea .  --dest-addr 192.168.0.206
 // Note that this tests have significant performance impact, do not turn on for production use !!!!!!!!!!!
-
-#define TEST_ACQUIRE_LOCK_TIMING
 #ifdef TEST_ACQUIRE_LOCK_TIMING
 
 static MUTEX lock_mutex = MUTEX_INTIALIZER;

@@ -412,14 +412,21 @@ int main(void) {
             join_thread(t[i]);
     }
 
-#ifdef OPTION_ENABLE_DBG_METRICS
-    printf("  Total DAQ events: %u\n", gXcpDaqEventCount);
-    printf("  Total TX packets: %u\n", gXcpTxPacketCount);
-    printf("  Total RX packets: %u\n", gXcpRxPacketCount);
+#ifdef TEST_ENABLE_DBG_METRICS
+    printf("  Total DAQ events:  %u\n", gXcpDaqEventCount);
+    printf("  Total TX packets:  %u\n", gXcpTxPacketCount);
+    printf("  Total TX messages: %u\n", gXcpTxMessageCount);
+    printf("  Total TX iovecs:   %u\n", gXcpTxIoVectorCount);
+    printf("  Total RX packets:  %u\n", gXcpRxPacketCount);
 #endif
 
     XcpDisconnect();        // Force disconnect the XCP client
     A2lFinalize();          // Finalize A2L generation, if not done yet
     XcpEthServerShutdown(); // Stop the XCP server
+
+#ifdef TEST_CLOCK_GET_STATISTIC
+    clockGetPrintStatistic();
+#endif
+
     return 0;
 }

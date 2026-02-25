@@ -46,10 +46,23 @@
 #define XCPTL_PACKET_ALIGNMENT 4 // Packet alignment for multiple XCP transport layer packets in a XCP transport layer message
 
 // Transport layer message header size
-// This is fixed, no other options supported
+// This is fixed, no other options supported yet
 #define XCPTL_TRANSPORT_LAYER_HEADER_SIZE 4
 
+// Use the transmit queue for CRM messages instead of sending them directly from the command processing thread
+// This may improve overall performance, but adds some latency for CRM messages (problem with GET_DAQ_CLOCK, no problem in PTP mode)
+// Default is the low latency concept
+// #define XCPTL_CRM_VIA_TRANSMIT_QUEUE
+
+// Use separate transport layer counter for DAQ and CRM messages
+// This avoids the need to maintain the transport layer counter consistency between DAQ and CRM messages in the XCP command processing and transmit queue handling threads
+// But it is not supported by all XCP tools
+// In CANape there is an option COUNTER_HANDLING with the mode 'exclude command response' and 'include command response'
+// 'include command response' is default !
+// #define XCPTL_EXCLUDE_CRM_FROM_CTR
+
 // Multicast (GET_DAQ_CLOCK_MULTICAST)
+// Not recommended setting
 // #define XCPTL_ENABLE_MULTICAST
 /*
 Use multicast time synchronisation to improve synchronisation of multiple XCP slaves

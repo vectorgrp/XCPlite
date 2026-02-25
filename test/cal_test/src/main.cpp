@@ -29,11 +29,12 @@ uint8_t XcpSetMta(uint8_t ext, uint32_t addr);
 uint8_t XcpCalSegCommand(uint8_t cmd);
 uint8_t XcpCalSegSetCalPage(uint8_t segment, uint8_t page, uint8_t mode);
 
-#ifdef OPTION_ENABLE_DBG_METRICS
+#ifdef TEST_ENABLE_DBG_METRICS
 extern uint32_t gXcpWritePendingCount;
 extern uint32_t gXcpCalSegPublishAllCount;
 extern uint32_t gXcpDaqEventCount;
 extern uint32_t gXcpTxPacketCount;
+extern uint32_t gXcpTxMessageCount;
 extern uint32_t gXcpRxPacketCount;
 #endif
 }
@@ -322,7 +323,7 @@ int main(int argc, char *argv[]) {
     printf("  Total writes: %llu\n", (unsigned long long)write_count);
     printf("  Total reads: %llu\n", (unsigned long long)total_read_count);
     printf("  Total changes observed: %llu\n", (unsigned long long)total_change_count);
-#ifdef OPTION_ENABLE_DBG_METRICS
+#ifdef TEST_ENABLE_DBG_METRICS
     printf("  Total writes pending: %u\n", gXcpWritePendingCount);
     printf("  Total publish all count: %u (expected %llu)\n", gXcpCalSegPublishAllCount, (unsigned long long)(write_count / 256) + gXcpWritePendingCount);
 #endif

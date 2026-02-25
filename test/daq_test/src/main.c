@@ -23,11 +23,13 @@
 #include "xcp_cfg.h"
 #include "xcplib_cfg.h"
 
-#ifdef OPTION_ENABLE_DBG_METRICS
+#ifdef TEST_ENABLE_DBG_METRICS
 extern uint32_t gXcpWritePendingCount;
 extern uint32_t gXcpCalSegPublishAllCount;
 extern uint32_t gXcpDaqEventCount;
 extern uint32_t gXcpTxPacketCount;
+extern uint32_t gXcpTxMessageCount;
+extern uint32_t gXcpTxIoVectorCount;
 extern uint32_t gXcpRxPacketCount;
 #endif
 
@@ -238,10 +240,12 @@ int main(void) {
             join_thread(t[i]);
     }
 
-#ifdef OPTION_ENABLE_DBG_METRICS
-    printf("  Total DAQ events: %u\n", gXcpDaqEventCount);
-    printf("  Total TX packets: %u\n", gXcpTxPacketCount);
-    printf("  Total RX packets: %u\n", gXcpRxPacketCount);
+#ifdef TEST_ENABLE_DBG_METRICS
+    printf("  Total DAQ events:  %u\n", gXcpDaqEventCount);
+    printf("  Total TX packets:  %u\n", gXcpTxPacketCount);
+    printf("  Total TX messages: %u\n", gXcpTxMessageCount);
+    printf("  Total TX iovecs:   %u\n", gXcpTxIoVectorCount);
+    printf("  Total RX packets:  %u\n", gXcpRxPacketCount);
 #endif
 
     XcpDisconnect();        // Force disconnect the XCP client

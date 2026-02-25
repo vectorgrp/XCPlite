@@ -425,6 +425,10 @@ uint64_t clockGetMonotonicUs(void);
 // Realtime system clock in nanoseconds
 uint64_t clockGetRealtimeNs(void);
 
+#ifdef TEST_CLOCK_GET_STATISTIC
+void clockGetPrintStatistic(void);
+#endif
+
 //-------------------------------------------------------------------------------
 // File system utilities
 

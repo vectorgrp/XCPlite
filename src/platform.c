@@ -1516,11 +1516,26 @@ bool socketGetSendTime(SOCKET_HANDLE socket, uint64_t *hw_time, uint64_t *sw_tim
 
 static uint64_t __gClock = 0;
 
+#ifdef TEST_CLOCK_GET_STATISTIC
+static atomic_uint_fast64_t gClockGetCtr = 0;
+static atomic_uint_fast64_t gClockGetLastCtr = 0;
+void clockGetPrintStatistic(void) {
+    uint64_t getCtr = atomic_load_explicit(&gClockGetCtr, memory_order_relaxed);
+    uint64_t getLastCtr = atomic_load_explicit(&gClockGetLastCtr, memory_order_relaxed);
+    DBG_PRINTF3("clockGet calls: %" PRIu64 ", clockGetLast calls: %" PRIu64 "\n", getCtr, getLastCtr);
+}
+#endif
+
 // Get the last known clock value
 // Save CPU load, clockGet may take reasonable run time, depending on platform
 // For slow timeouts and timers, it is sufficient to rely on the relatively high call frequency of clockGet() by other
 // parts of the application
-uint64_t clockGetLast(void) { return __gClock; }
+uint64_t clockGetLast(void) {
+#ifdef TEST_CLOCK_GET_STATISTIC
+    atomic_fetch_add_explicit(&gClockGetLastCtr, 1, memory_order_relaxed);
+#endif
+    return __gClock;
+}
 
 // Not used, might be faster on macOS
 // #ifdef _MACOS
@@ -1638,6 +1653,9 @@ bool clockInit(void) {
 uint64_t clockGet(void) {
     struct timespec ts;
     clock_gettime(CLOCK_TYPE, &ts);
+#ifdef TEST_CLOCK_GET_STATISTIC
+    atomic_fetch_add_explicit(&gClockGetCtr, 1, memory_order_relaxed);
+#endif
 #ifdef OPTION_CLOCK_TICKS_1NS // ns
     return __gClock = (((uint64_t)(ts.tv_sec) * 1000000000ULL) + (uint64_t)(ts.tv_nsec));
 #else // us
@@ -1805,6 +1823,9 @@ uint64_t clockGet(void) {
         t = t * sFactor + sOffset;
     }
     __gClock = t;
+#ifdef TEST_CLOCK_GET_STATISTIC
+    atomic_fetch_add_explicit(&gClockGetCtr, 1, memory_order_relaxed);
+#endif
     return t;
 }
 

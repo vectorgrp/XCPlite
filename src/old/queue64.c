@@ -117,8 +117,6 @@ Transport Layer segment, message, packet:
 // Queue acquire lock timing and spin
 // For high contention use test queue_test or example daq_test with xcp_client --upload-a2l --udp --mea .  --dest-addr 192.168.0.206
 // Note that this tests have significant performance impact, do not turn on for production use !!!!!!!!!!!
-
-#define TEST_ACQUIRE_LOCK_TIMING
 #ifdef TEST_ACQUIRE_LOCK_TIMING
 
 static MUTEX lock_mutex = MUTEX_INTIALIZER;

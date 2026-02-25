@@ -10,8 +10,8 @@ PrgDate=16.06.2025
 Description=
 CreationTime=12:42
 CreationDate=09/02/2025 ; Month/Day/Year
-ModificationTime=13:09
-ModificationDate=02/25/2026 ; Month/Day/Year
+ModificationTime=11:23
+ModificationDate=02/26/2026 ; Month/Day/Year
 Protected=0
 CurrentWindowsACP=1252
 
@@ -169,7 +169,7 @@ Count=0
 Name=Measurement and Calibration Demo
 Comment=
 Maximized=0
-ActiveWindow=2
+ActiveWindow=1
 IsReportPage=0
 TimeAxisSynchronized=0
 PrintLayout=Default
@@ -193,7 +193,7 @@ Count=0
 
 [DISPLAY_PAGES]
 Count=2
-Active=0
+Active=1
 
 [DYNAMIC_COLUMNS]
 Count=0
@@ -1367,12 +1367,12 @@ WindowTextExtended=1
 WindowTextExtendedNew=1
 WindowSymbols=1
 GlobalCursor=0
-GlobalCursorTime=1
-GlobalCursorTimeNs=1410125
+GlobalCursorTime=498
+GlobalCursorTimeNs=498414584
 GlobalTimeAxis=1
 GlobalTimeAxisStartTime=0
-GlobalTimeAxisEndTime=16625499564
-MainWindowPos=1, 1183, 914, 2354, 1292 ;cmd, x, y, w, h
+GlobalTimeAxisEndTime=37100163578
+MainWindowPos=1, 2208, 1469, 2354, 1292 ;cmd, x, y, w, h
 
 [PAR_COMMENT]
 1="Name",""
@@ -1614,7 +1614,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_856de6cd-1a12-4e3b-a157-f570a62673b7
+GUID=DISPLAY_c095957a-8ce6-4f68-88ee-e8d3c5f46c93
 
 [WINDOW_1_OBJECT_2]
 Type=2
@@ -1663,7 +1663,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_32ecd22a-3880-411d-9249-05e5d0883fd3
+GUID=DISPLAY_01e5446b-0c5a-41a6-9be6-fbee4f81a9b1
 
 [WINDOW_1_OBJECT_3]
 Type=2
@@ -1712,7 +1712,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_1697b655-604a-4878-bf57-a2a7869f2443
+GUID=DISPLAY_b192db96-aa41-4fdc-9d7e-b1774f3481c3
 
 [WINDOW_1_OBJECT_4]
 Type=2
@@ -1761,7 +1761,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_648ae4f4-c59c-4ef3-93a4-5137062a45fa
+GUID=DISPLAY_abbf75f5-d83d-4c88-805b-ad52ad233e00
 
 [WINDOW_1_OBJECT_5]
 Type=2
@@ -1810,7 +1810,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_af7f28ff-f0db-42ff-81f7-d42be17bb49f
+GUID=DISPLAY_853abe7a-428b-41c1-8a29-e6caf670c39b
 
 [WINDOW_1_OBJECT_6]
 Type=2
@@ -1859,7 +1859,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_fb64d50d-274e-467a-973a-3f7e45d2d40d
+GUID=DISPLAY_e8cf5711-a998-4fd5-b7e8-3dd35e88004f
 
 [WINDOW_1_OBJECT_7]
 Type=2
@@ -1908,7 +1908,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_b6f19a8a-39e3-4399-9870-5cec8151203a
+GUID=DISPLAY_ed75d22f-9b05-45ed-a916-a1cd0b849f86
 
 [WINDOW_2]
 ComponentCount=2
@@ -1930,8 +1930,8 @@ DisplayMask=1 ; pages 1
 XLen=11464
 XMin=0
 XMinNs=0
-XMax=16625
-XMaxNs=16625499564
+XMax=37100
+XMaxNs=37100163578
 Grid=1
 Mark=1
 YValue=2
@@ -2132,8 +2132,8 @@ COL_0_dpi96=31, 139
 XLen=11464
 XMin=0
 XMinNs=0
-XMax=16625
-XMaxNs=16625499564
+XMax=37100
+XMaxNs=37100163578
 Grid=1
 Mark=1
 YValue=1

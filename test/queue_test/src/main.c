@@ -121,17 +121,6 @@ static const uint64_t LOCK_TIME_HISTOGRAM_EDGES[LOCK_TIME_HISTOGRAM_SIZE - 1] = 
 };
 static uint64_t lock_time_histogram[LOCK_TIME_HISTOGRAM_SIZE] = {0};
 
-// There should be better alternatives in your target specific environment than this portable reference
-// Select a clock mode appropriate for your platform, CLOCK_MONOTONIC_RAW is a good choice for high resolution and monotonicity
-#ifndef TEST_MC_QUEUE
-static uint64_t get_timestamp_ns(void) {
-    static const uint64_t kNanosecondsPerSecond = 1000000000ULL;
-    struct timespec ts = {0};
-    clock_gettime(CLOCK_MONOTONIC_RAW, &ts); // NOLINT(missing-includes) // do **not** include internal "bits" headers directly.
-    return ((uint64_t)ts.tv_sec) * kNanosecondsPerSecond + ((uint64_t)ts.tv_nsec);
-}
-#endif
-
 static void lock_test_add_sample(uint64_t d) {
     mutexLock(&lock_mutex);
 
@@ -461,7 +450,7 @@ void *task(void *p)
             uint16_t size = THREAD_PAYLOAD_SIZE + rand() % 32; // Add some random size to the payload to increase the variability of the test
 
 #ifdef TEST_ACQUIRE_LOCK_TIMING
-            uint64_t start_time = get_timestamp_ns();
+            uint64_t start_time = clockGetMonotonicNs();
 #endif
 
 #ifdef TEST_MC_QUEUE
@@ -496,7 +485,7 @@ void *task(void *p)
 #endif
 
 #ifdef TEST_ACQUIRE_LOCK_TIMING
-            lock_test_add_sample(get_timestamp_ns() - start_time);
+            lock_test_add_sample(clockGetMonotonicNs() - start_time);
 #endif
         }
 
@@ -1004,5 +993,6 @@ int main(int argc, char *argv[]) {
         XcpEthServerShutdown(); // Stop the XCP server
     }
 #endif
+
     return 0;
 }

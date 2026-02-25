@@ -187,6 +187,11 @@ int main() {
 
     // Main loop
     std::cout << "Starting main loop... (Press Ctrl+C to exit)" << std::endl;
+
+    const uint32_t kDelayUs = 1000;                                             // Loop delay in microseconds
+    auto delay_us = CalVal(kDelayUs);                                           // Create a calibratable value for constant kDelayUs
+    A2lCreateParameter(kDelayUs, "Loop delay in microseconds", "", 0, 1000000); // Create the A2L parameter description
+
     while (gRun) {
         counter++;
         global_counter++;
@@ -194,7 +199,7 @@ int main() {
         double input_voltage = random_number();
         double average_voltage[3];
 
-        // Calculate floating averagfe of input_voltage
+        // Calculate floating average of input_voltage
         // Note that the event 'calcAvg' instrumented inside the FloatingAverage::calc() method, will trigger on each call of any instance (average_filter2 and average_filter3)
         // Events may be disabled and enabled, to filter out a particular instance to observe
         DaqEventEnable(calcAvg);
@@ -218,7 +223,10 @@ int main() {
 
         );
 
-        sleepUs(1000);
+        // Sleep for a while, use a calibratable value for the delay
+        auto l = delay_us.lock();
+        sleepUs(*l);
+
         A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible on file system without XCP tool connect
     }
 

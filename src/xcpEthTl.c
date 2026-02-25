@@ -112,6 +112,7 @@ static int handleXcpMulticastCommand(int n, tXcpCtoMessage *p, uint8_t *dstAddr,
 // Transmit a UDP datagramm or TCP segment (contains multiple XCP DTO messages or a single CRM message (len+ctr+packet+fill))
 // Must be thread safe, because it is called from CMD and from DAQ thread
 // Returns false on error
+#if !defined(OPTION_QUEUE_64_FIX_SIZE) && !defined(OPTION_QUEUE_64_VAR_SIZE)
 static bool XcpEthTlSend(const uint8_t *data, uint16_t size, const uint8_t *addr, uint16_t port) {
 
     int r;
@@ -120,7 +121,7 @@ static bool XcpEthTlSend(const uint8_t *data, uint16_t size, const uint8_t *addr
     assert(data != NULL);
     DBG_PRINTF6("XcpEthTlSend: msg_len = %u\n", size);
 
-#ifdef OPTION_ENABLE_DBG_METRICS
+#ifdef TEST_ENABLE_DBG_METRICS
     gXcpTxPacketCount++;
 #endif
 
@@ -149,6 +150,11 @@ static bool XcpEthTlSend(const uint8_t *data, uint16_t size, const uint8_t *addr
     }
     return true;
 }
+#endif
+
+#ifdef TEST_ENABLE_BUFFERCOUNT_HISTOGRAM
+static uint32_t gBufferCountHistogram[256] = {0xFFFFFFFF}; // For debugging, count the size of each iovec buffer sent
+#endif
 
 // Transmit a XCP segment with XCPTL_MAX_SEGMENT_SIZE (UDP or TCP) with multiple XCP DTO messages
 // Using vectored io
@@ -163,8 +169,17 @@ static bool XcpEthTlSendV(tQueueBuffer buffers[], uint16_t count) {
 
     DBG_PRINTF6("XcpEthTlSendV: buffers count = %u\n", count);
 
-#ifdef OPTION_ENABLE_DBG_METRICS
-    gXcpTxPacketCount++;
+#ifdef TEST_ENABLE_BUFFERCOUNT_HISTOGRAM
+    assert(count <= 256);
+    if (gBufferCountHistogram[0] == 0xFFFFFFFF) {
+        memset(gBufferCountHistogram, 0, sizeof(gBufferCountHistogram));
+    }
+    gBufferCountHistogram[count - 1]++;
+#endif
+
+#ifdef TEST_ENABLE_DBG_METRICS
+    gXcpTxMessageCount++;
+    gXcpTxIoVectorCount += count;
 #endif
 
 #ifdef XCPTL_ENABLE_TCP
@@ -194,6 +209,7 @@ static bool XcpEthTlSendV(tQueueBuffer buffers[], uint16_t count) {
 //------------------------------------------------------------------------------
 
 // Transmit a packet (the packet contains a single XCP CRM command response message)
+#ifndef XCPTL_CRM_VIA_TRANSMIT_QUEUE
 void XcpTlSendCrm(const uint8_t *data, uint8_t size) {
     assert(size <= XCPTL_MAX_CTO_SIZE); // Check for buffer overflow
 
@@ -207,12 +223,19 @@ void XcpTlSendCrm(const uint8_t *data, uint8_t size) {
     p.ctr = gXcpTl.Ctr++; // Get next response packet counter
     memcpy(p.packet, data, size);
 
-    // Send the packet
+    // Send the packet using the same sendmsg path as DAQ to avoid UDP datagram reordering
+    // At the NIC/kernel sendto vs sendmsg can be treated differently
     // No error handling, loosing a CRM message will lead to a timeout in the XCP client
+#if defined(OPTION_QUEUE_64_FIX_SIZE) || defined(OPTION_QUEUE_64_VAR_SIZE)
+    tQueueBuffer buf = {.buffer = (uint8_t *)&p, .size = (uint16_t)(size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE)};
+    XcpEthTlSendV(&buf, 1);
+#else
     XcpEthTlSend((const uint8_t *)&p, (uint16_t)(size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE), NULL, 0);
+#endif
 
     mutexUnlock(&gXcpTl.CtrMutex);
 }
+#endif
 
 // Transmit XCP multicast response
 #ifdef XCPTL_ENABLE_MULTICAST
@@ -292,7 +315,7 @@ static bool handleXcpCommand(tXcpCtoMessage *p, uint8_t *srcAddr, uint16_t srcPo
             }
 #endif // UDP
 
-            queueClear(gXcpTl.Queue);
+            queueClear(gXcpTl.Queue);                                     // Clear the transmit queue, just to be sure, should be already empty
             XcpCommand((const uint32_t *)&p->packet[0], (uint8_t)p->dlc); // Handle CONNECT command
         } else {
             DBG_PRINT_WARNING("handleXcpCommand: no valid CONNECT command\n");
@@ -319,10 +342,6 @@ bool XcpEthTlHandleCommands(void) {
     tXcpCtoMessage msgBuf;
     int16_t n;
 
-#ifdef OPTION_ENABLE_DBG_METRICS
-    gXcpRxPacketCount++;
-#endif
-
 #ifdef XCPTL_ENABLE_TCP
     if (isTCP()) {
 
@@ -344,6 +363,9 @@ bool XcpEthTlHandleCommands(void) {
         if (n == XCPTL_TRANSPORT_LAYER_HEADER_SIZE) {
             n = socketRecv(gXcpTl.Socket, (uint8_t *)&msgBuf.packet, msgBuf.dlc, true); // packet, recv blocking
             if (n > 0) {
+#ifdef TEST_ENABLE_DBG_METRICS
+                gXcpRxPacketCount++;
+#endif
                 if (n == msgBuf.dlc) {
                     return handleXcpCommand(&msgBuf, NULL, 0);
                 } else {
@@ -375,6 +397,9 @@ bool XcpEthTlHandleCommands(void) {
                 return 1; // Ok, timeout, no command pending
             return false; // Error
         } else {          // Ok
+#ifdef TEST_ENABLE_DBG_METRICS
+            gXcpRxPacketCount++;
+#endif
             if (msgBuf.dlc != n - XCPTL_TRANSPORT_LAYER_HEADER_SIZE) {
                 DBG_PRINT_ERROR("Corrupt message received!\n");
                 return false; // Error
@@ -576,6 +601,15 @@ void XcpEthTlShutdown(void) {
 #if defined(_WIN) // Windows
     CloseHandle(gXcpTl.queue_event);
 #endif
+
+#ifdef TEST_ENABLE_BUFFERCOUNT_HISTOGRAM
+    printf("Buffer size histogram for vectored sends:\n");
+    for (int i = 0; i < 256; i++) {
+        if (gBufferCountHistogram[i] != 0xFFFFFFFF && gBufferCountHistogram[i] > 0) {
+            printf(" %3u: %u\n", i, gBufferCountHistogram[i]);
+        }
+    }
+#endif
 }
 
 //-------------------------------------------------------------------------------------------------------
@@ -613,7 +647,7 @@ void XcpEthTlGetInfo(bool *isTcp, uint8_t *mac, uint8_t *addr, uint16_t *port) {
 // Queue size currently typically at least 32KByte
 #define MAX_BUFFERS 256       // Max number of buffers that can be accumulated into one segment
 #define MIN_UPDATE_TIME_MS 50 // Update data at least every 50ms
-#define MAX_QUEUE_LEVEL 50    // Transmit immediately, when the queue is more than 50% full
+#define MAX_QUEUE_LEVEL 50    // Transmit immediately, when the queue is more than 50% full and there is no more commited data
 #define MAX_SLEEP_TIME_MS 1   // 1ms sleep time when there is no segment ready to send
 
 // Collect queue buffers for one segment and transmit them
@@ -622,6 +656,7 @@ int32_t XcpTlHandleTransmitQueue(void) {
 
     uint32_t length = 0;                     // Number of bytes collected for transmission
     uint32_t index = 0;                      // Index for peeking into the queue
+    uint32_t total_lost = 0;                 // Accumulated lost packet count across all peeks
     tQueueBuffer queue_buffers[MAX_BUFFERS]; // Buffer pointers for peeking into the queue, max segment size / min message size
     for (;;) {
 
@@ -629,26 +664,25 @@ int32_t XcpTlHandleTransmitQueue(void) {
         bool flush = false;
         // DBG_PRINTF3("P %u\n", index);
         tQueueBuffer queue_buffer = queuePeek(gXcpTl.Queue, index, &lost, &flush);
-        if (lost > 0) {
-            gXcpTl.Ctr += (uint16_t)lost; // Increase packet counter by lost packets (must not be thread safe, used only to indicate error)
-            DBG_PRINTF_WARNING("Transmit queue overflow: lost %u packets, ctr=%u\n", lost, gXcpTl.Ctr);
-        }
+        total_lost += lost;
         uint16_t l = queue_buffer.size;
+
+        // Queue does not have more committed data to peek or is empty
         if (l == 0) {
 
-            // Queue does not have more committed data to peek or is empty
-
-            // If time since last transmit is longer than MIN_UPDATE_TIME_MS, break the loop and transmit any collected buffers
-            // (to avoid too long delays when there is only little data in the queue)
-            if ((clockGet() - gXcpTl.last_transmit_time) > (MIN_UPDATE_TIME_MS * CLOCK_TICKS_PER_MS)) {
-                // DBG_PRINT3("T\n");
-                break; // Timeout
-            }
-
-            // If the queue is more than MAX_QUEUE_LEVEL full, break the loop and transmit collected buffers
-            // (small queues may run full, without ever reaching the maximum segment size)
-            // Don't call this too often, because it adds cache coherency traffic to sync the queue head between threads
+            // If there is commited data
             if (length > 0) {
+
+                // If time since last transmit is longer than MIN_UPDATE_TIME_MS, break the loop and transmit any collected buffers
+                // (to avoid too long delays when there is only little data in the queue)
+                if ((clockGet() - gXcpTl.last_transmit_time) > (MIN_UPDATE_TIME_MS * CLOCK_TICKS_PER_MS)) {
+                    // DBG_PRINT3("T\n");
+                    break; // Timeout
+                }
+
+                // If the queue is more than MAX_QUEUE_LEVEL full, break the loop and transmit collected buffers
+                // (small queues may run full, without ever reaching the maximum segment size)
+                // Don't call this too often, because it adds cache coherency traffic to sync the queue head between threads
                 uint32_t max_level;
                 uint32_t level = queueLevel(gXcpTl.Queue, &max_level);
                 if ((level * 100) / max_level > MAX_QUEUE_LEVEL) {
@@ -697,6 +731,12 @@ int32_t XcpTlHandleTransmitQueue(void) {
     // The only tradeoff of this approach is increased latency of command responses, which is important for GET_DAQ_CLOCK responses
     mutexLock(&gXcpTl.CtrMutex);
 
+    // Account for any lost packets in the counter (must be inside the mutex to avoid race with XcpTlSendCrm)
+    if (total_lost > 0) {
+        gXcpTl.Ctr += (uint16_t)total_lost;
+        DBG_PRINTF_WARNING("Transmit queue overflow: lost %u packets, ctr=%u\n", total_lost, gXcpTl.Ctr);
+    }
+
     // Update the transport layer header (ctr+len) for all collected messages
     for (uint32_t i = 0; i < index; i++) {
         assert(queue_buffers[i].buffer != NULL);
@@ -704,7 +744,19 @@ int32_t XcpTlHandleTransmitQueue(void) {
         assert(l > 0);
         assert(l <= XCPTL_MAX_DTO_SIZE);
         assert(l % 4 == 0);
-        *(uint32_t *)queue_buffers[i].buffer = ((uint32_t)(gXcpTl.Ctr++) << 16) | l; // Set current transport layer counter for this segment
+        uint8_t *b = queue_buffers[i].buffer;
+#ifdef XCPTL_EXCLUDE_CRM_FROM_CTR // CANape option exclude command response
+        uint16_t ctr = 0;
+        if (b[4] == PID_ERR || b[4] == PID_RES) {
+            ctr = 0;
+        } else {
+            assert(b[4] == PID_SERV || b[4] == PID_EV || b[5] == 0xAA);
+            ctr = gXcpTl.Ctr++;
+        }
+#else
+        uint16_t ctr = gXcpTl.Ctr++;
+#endif
+        *(uint32_t *)b = ((uint32_t)(ctr) << 16) | l; // Set transport layer counter for this segment
     }
 
     // Send the complete frame (blocking until sent)

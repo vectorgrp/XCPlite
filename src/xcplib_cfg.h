@@ -40,8 +40,6 @@
 #define OPTION_MAX_DBG_LEVEL 6 // @@@@ TODO: >5 for testing only, reset to 4 or 5 for production use
 // Optimize code size, fixed log level, not changeable at runtime
 // #define OPTION_FIXED_DBG_LEVEL 3
-// Enable debug metrics
-// #define OPTION_ENABLE_DBG_METRICS // Requires OPTION_ENABLE_DBG_PRINTS
 
 //-------------------------------------------------------------------------------
 // Clock
@@ -149,5 +147,13 @@
 #if defined(_WIN32) || defined(_WIN64)
 #define OPTION_ATOMIC_EMULATION
 #endif
+
+//-------------------------------------------------------------------------------
+// Tests
+
+// #define TEST_CLOCK_GET_STATISTIC // Count number of calls to clockGet and clockGetLast, print results with clockPrintStatistic()
+// #define TEST_ACQUIRE_LOCK_TIMING // Create a queue acquire time histogram, prints results on queue deinit, significant performance impact, for testing only !!!!!!!!!!
+// #define TEST_ENABLE_DBG_METRICS // Enable debug metrics for XCP events and transport layer packets
+// #define TEST_ENABLE_BUFFERCOUNT_HISTOGRAM // Enable histogram of the used buffer counts in the transport layer vectored io
 
 #endif // !XCPLIB_FOR_RUST

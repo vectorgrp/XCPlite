@@ -228,11 +228,13 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
 // Metrics
 /****************************************************************************/
 
-#ifdef OPTION_ENABLE_DBG_METRICS
+#ifdef TEST_ENABLE_DBG_METRICS
 uint32_t gXcpWritePendingCount = 0;
 uint32_t gXcpCalSegPublishAllCount = 0;
 uint32_t gXcpDaqEventCount = 0;
 uint32_t gXcpTxPacketCount = 0;
+uint32_t gXcpTxMessageCount = 0;
+uint32_t gXcpTxIoVectorCount = 0;
 uint32_t gXcpRxPacketCount = 0;
 #endif
 
@@ -762,7 +764,7 @@ static uint8_t XcpCalSegPublish(tXcpCalSeg *c, bool wait) {
         if (free_page == NULL || c->free_page_hazard) {
             DBG_PRINTF5("Can not update calibration changes of %s yet\n", c->name);
             c->write_pending = true;
-#ifdef OPTION_ENABLE_DBG_METRICS
+#ifdef TEST_ENABLE_DBG_METRICS
             gXcpWritePendingCount++;
 #endif
             return CRC_CMD_PENDING; // No free page available
@@ -798,7 +800,7 @@ uint8_t XcpCalSegPublishAll(bool wait) {
             if (c->write_pending) {
                 uint8_t res1 = XcpCalSegPublish(c, wait);
                 if (res1 == CRC_CMD_OK) {
-#ifdef OPTION_ENABLE_DBG_METRICS
+#ifdef TEST_ENABLE_DBG_METRICS
                     gXcpCalSegPublishAllCount++;
 #endif
                 } else {
@@ -2068,7 +2070,7 @@ static void XcpTriggerDaqList_(tQueueHandle queue_handle, uint16_t daq, const ui
 // DAQ lists must be valid and DAQ must be running
 static void XcpTriggerDaqEvent_(tQueueHandle queue_handle, tXcpEventId event_id, int count, const uint8_t **bases, uint64_t clock) {
 
-#ifdef OPTION_ENABLE_DBG_METRICS
+#ifdef TEST_ENABLE_DBG_METRICS
     gXcpDaqEventCount++;
 #endif
 
@@ -2404,15 +2406,22 @@ void XcpDisconnect(void) {
 // Transmit command response packet
 static void XcpSendResponse(bool async, const tXcpCto *crm, uint8_t crmLen) {
 
-    // Send async command responses via the transmit queue
-    if (async) {
+#ifndef XCPTL_CRM_VIA_TRANSMIT_QUEUE
+    // Send only async command responses via the transmit queue, to ensure thread safety
+    // async XcpSendResponse can be called from anywhere in the application threads by the DAQ trigger events !
+    // Low latency transmit with XcpTlSendCrm is not thread safe !
+    if (!async) {
+        // Send directly
+        XcpTlSendCrm((const uint8_t *)crm, crmLen);
+    } else
+#endif
+    {
+        // Send via transmit queue
         tQueueBuffer queue_buffer = queueAcquire(gXcp.Queue, crmLen);
         if (queue_buffer.buffer != NULL) {
             memcpy(queue_buffer.buffer, crm, crmLen);
-            queuePush(gXcp.Queue, &queue_buffer, true); // High priority
+            queuePush(gXcp.Queue, &queue_buffer, true); // High priority = true, disable further packet accumulation
         }
-    } else {
-        XcpTlSendCrm((const uint8_t *)crm, crmLen);
     }
 
 #ifdef DBG_LEVEL
