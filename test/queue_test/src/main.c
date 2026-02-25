@@ -768,7 +768,7 @@ int main(int argc, char *argv[]) {
                     buffer[index] = mc_queue_peak(queue_handle, (int64_t)index);
 #else
                     uint32_t lost = 0;
-                    buffer[index] = queuePeek(queue_handle, index, &lost);
+                    buffer[index] = queuePeek(queue_handle, index, &lost, NULL);
                     msg_lost += lost;
 #endif
                     if (buffer[index].size == 0) { // Empty buffer, no more messages in the queue

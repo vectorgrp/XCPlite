@@ -626,8 +626,9 @@ int32_t XcpTlHandleTransmitQueue(void) {
     for (;;) {
 
         uint32_t lost = 0;
+        bool flush = false;
         // DBG_PRINTF3("P %u\n", index);
-        tQueueBuffer queue_buffer = queuePeek(gXcpTl.Queue, index, &lost);
+        tQueueBuffer queue_buffer = queuePeek(gXcpTl.Queue, index, &lost, &flush);
         if (lost > 0) {
             gXcpTl.Ctr += (uint16_t)lost; // Increase packet counter by lost packets (must not be thread safe, used only to indicate error)
             DBG_PRINTF_WARNING("Transmit queue overflow: lost %u packets, ctr=%u\n", lost, gXcpTl.Ctr);
@@ -670,6 +671,12 @@ int32_t XcpTlHandleTransmitQueue(void) {
             // Store buffer for later vectored io transmission and release
             queue_buffers[index++] = queue_buffer;
             length += l;
+
+            // Flush request
+            if (flush) {
+                // DBG_PRINT3("R\n");
+                break; // Flush requested by queue
+            }
 
             // Reached max number of buffers for one segment, break loop and transmit collected buffers
             if (index >= MAX_BUFFERS) {

@@ -204,12 +204,12 @@ static inline McQueueBuffer mc_xcplite_peek_to_mc(tQueueBuffer tb) {
 }
 
 static inline McQueueBuffer mc_queue_pop(McQueueHandle handle) {
-    return mc_xcplite_peek_to_mc(queuePeek((tQueueHandle)handle, 0, NULL));
+    return mc_xcplite_peek_to_mc(queuePeek((tQueueHandle)handle, 0, NULL, NULL));
 }
 
 // Note: intentionally misspelled to match reference.h API
 static inline McQueueBuffer mc_queue_peak(McQueueHandle handle, int64_t index) {
-    return mc_xcplite_peek_to_mc(queuePeek((tQueueHandle)handle, (uint32_t)index, NULL));
+    return mc_xcplite_peek_to_mc(queuePeek((tQueueHandle)handle, (uint32_t)index, NULL, NULL));
 }
 
 // Consumer-side: reconstruct original queuePeek buffer pointer by subtracting QUEUE_ENTRY_USER_HEADER_SIZE.

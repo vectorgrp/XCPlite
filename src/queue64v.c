@@ -191,7 +191,7 @@ typedef union QueueHeader {
         atomic_uint_fast64_t head;         // Consumer reads from head
         atomic_uint_fast64_t tail;         // Producers write to tail
         atomic_uint_fast32_t packets_lost; // Packet lost counter, incremented by producers when a queue entry could not be acquired
-        atomic_uint_fast32_t flush;        // Flush request flag, set by producers to request the consumer to prioritize packets
+        atomic_uint_fast64_t flush_offset; // Flush request head, set by producers to request the consumer to prioritize packets
 
         // Consumer state for optimized peek loop
         uint32_t cached_peek_index; // Cached index for optimized peek loop
@@ -285,7 +285,7 @@ void queueClear(tQueueHandle queue_handle) {
     atomic_store_explicit(&queue->h.head, 0, memory_order_relaxed);
     atomic_store_explicit(&queue->h.tail, 0, memory_order_relaxed);
     atomic_store_explicit(&queue->h.packets_lost, 0, memory_order_relaxed);
-    atomic_store_explicit(&queue->h.flush, false, memory_order_relaxed);
+    atomic_store_explicit(&queue->h.flush_offset, 0xFFFFFFFFFFFFFFFFULL, memory_order_relaxed);
     queue->h.cached_peek_index = 0;
     queue->h.cached_peek_tail = 0;
     DBG_PRINT3("queueClear\n");
@@ -355,11 +355,10 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
     // Prepare a new entry in reserved state
     tQueueEntry *entry = NULL;
 
-    // @@@@ TODO The tail is read relaxed (see argumentation below on tail refresh), this could theoretically lead to a very stale tail
-    // Maybe acquire load it here and benchmark if differences become visible (same applies to queue64f.c)
-    // uint64_t tail = atomic_load_explicit(&queue->h.tail, memory_order_acquire);
-    uint64_t tail = atomic_load_explicit(&queue->h.tail, memory_order_relaxed);
+    // Load the head first will synchronize the queue header cache line
+    // The tail is read relaxed, head and tail are in the same cache line, but even if the tail could be stale, it is no problem
     uint64_t head = atomic_load_explicit(&queue->h.head, memory_order_acquire);
+    uint64_t tail = atomic_load_explicit(&queue->h.tail, memory_order_relaxed);
 
     // CAS loop
     // In reserved state, the message entry is between tail and head, has valid dlc and ctr must be 0
@@ -382,7 +381,6 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
         // Refresh tail on each iteration ?
         // It is probably more efficient, to keep the tail stale and save the cost for the atomic load on each iteration
         // If the queue is already saturated, packet loss will happen anyway
-        // tail = atomic_load_explicit(&queue->h.tail, memory_order_acquire);
 
         // No hint, spin count is usually very low and we prefer the locked sequence as fast as possible
         // spin_loop_hint();
@@ -425,17 +423,18 @@ void queuePush(tQueueHandle queue_handle, const tQueueBuffer *queue_buffer, bool
 
     DBG_PRINTF6("queuePush: push entry of size %u\n", queue_buffer->size);
 
-    // Set flush request
-    if (flush) {
-        atomic_store_explicit(&queue->h.flush, true, memory_order_relaxed); // Set flush flag, used by the consumer to prioritize packets
-    }
-
     assert(queue_buffer != NULL);
     assert(queue_buffer->buffer != NULL);
     tQueueEntry *entry = (tQueueEntry *)(queue_buffer->buffer - QUEUE_ENTRY_HEADER_SIZE - QUEUE_ENTRY_USER_HEADER_SIZE); // Get the entry pointer from the user buffer pointer
 
-    // Go to commit state
-    // Complete data is then visible to the consumer
+    // Set flush request
+    if (flush) {
+        uint64_t flush_offset = (uint8_t *)entry - queue->buffer;                          // Get the entry offset from the buffer pointer
+        atomic_store_explicit(&queue->h.flush_offset, flush_offset, memory_order_relaxed); // Set flush offset, used by the consumer to prioritize packets
+    }
+
+    // Set commit state and the complete user payload size (header+payload) in the entry_header
+    // Release store - complete data is then visible to the consumer
     atomic_store_explicit(&entry->header, (CTR_COMMITTED << 16) | (uint32_t)(queue_buffer->size + QUEUE_ENTRY_USER_HEADER_SIZE), memory_order_release);
 }
 
@@ -462,7 +461,7 @@ uint32_t queueLevel(tQueueHandle queue_handle, uint32_t *queue_max_level) {
     return (uint32_t)(head - tail);
 }
 
-tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t peek_index, uint32_t *packets_lost) {
+tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t peek_index, uint32_t *packets_lost, bool *flush_requested) {
     tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
 
@@ -482,6 +481,9 @@ tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t peek_index, uint32_t 
     uint64_t peek_tail;
     uint32_t index;
 
+    // Get the head which synchronizes the queue header cache line
+    uint64_t head = atomic_load_explicit(&queue->h.head, memory_order_acquire);
+
     // Start at index 0 or with the cached peek index and tail if feasible, to optimize the common case of sequential peeks without releases
     // Cache will be reset if a release happens
     if (peek_index > 0 && peek_index >= queue->h.cached_peek_index) {
@@ -492,8 +494,6 @@ tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t peek_index, uint32_t 
         peek_tail = atomic_load_explicit(&queue->h.tail, memory_order_relaxed);
         index = 0;
     }
-
-    uint64_t head = atomic_load_explicit(&queue->h.head, memory_order_relaxed);
 
     for (;;) {
 
@@ -565,10 +565,21 @@ tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t peek_index, uint32_t 
                 .size = entry_size,
 
             };
+
             // Advance the cached peek index and tail for optimized peek loop
             // The consumer can savely overwrite the header
             queue->h.cached_peek_index = index + 1;
             queue->h.cached_peek_tail = peek_tail + (entry_size + QUEUE_ENTRY_HEADER_SIZE);
+
+            // Return whether a flush request is pending on this entry
+            if (flush_requested != NULL) {
+                uint64_t flush_offset = atomic_load_explicit(&queue->h.flush_offset, memory_order_relaxed); // We use relaxed, assuming the cache line is already up to date
+                if (flush_offset == (uint8_t *)entry - queue->buffer) {
+                    *flush_requested = true;
+                    // Don't clear the flush offset, to avoid overwriting an updated flush offset, false flushes are less problem than missing flushes
+                }
+            }
+
             return ret;
         }
 
@@ -588,7 +599,7 @@ void queueRelease(tQueueHandle queue_handle, const tQueueBuffer *queue_buffer) {
     // Clear the entire memory completely, to avoid inconsistent reserved states after incrementing the head in the producer
     // This is the tradeoff of not using a fixed entry size, this approach might be optimal for medium data throughput,
     memset(queue_buffer->buffer - QUEUE_ENTRY_HEADER_SIZE, 0, queue_buffer->size + QUEUE_ENTRY_HEADER_SIZE);
-    atomic_fetch_add_explicit(&queue->h.tail, queue_buffer->size + QUEUE_ENTRY_HEADER_SIZE, memory_order_release);
+    atomic_fetch_add_explicit(&queue->h.tail, queue_buffer->size + QUEUE_ENTRY_HEADER_SIZE, memory_order_relaxed); // Write access to tail is single threaded
 
     // Reset cached index and tail for optimized peek
     queue->h.cached_peek_index = 0;
