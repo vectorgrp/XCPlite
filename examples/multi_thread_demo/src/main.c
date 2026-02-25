@@ -37,20 +37,20 @@
 
 #ifndef _WIN32
 // #define EXPERIMENTAL_THREAD_CONTEXT // Enable demonstration of tracking thread context and span of the clip and filter function
-#define FILTER_SLEEP_US 100 // Simulated work in filter function
-#define CLIP_SLEEP_US 50    // Simulated work in clip function
+// #define FILTER_SLEEP_US 100 // Simulated work in filter function
+// #define CLIP_SLEEP_US 50    // Simulated work in clip function
 #endif
 
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
 
 #define OPTION_PROJECT_NAME "multi_thread_demo" // A2L project name
-#define OPTION_PROJECT_EPK __TIME__             // EPK version string
+#define OPTION_PROJECT_EPK "V4_" __TIME__       // EPK version string
 #define OPTION_USE_TCP false                    // TCP or UDP
 #define OPTION_SERVER_PORT 5555                 // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}         // Bind addr, 0.0.0.0 = ANY
 #define OPTION_QUEUE_SIZE (1024 * 1024)         // Size of the measurement queue in bytes, must be a multiple of 8
-#define OPTION_LOG_LEVEL 3                      // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_LOG_LEVEL 4                      // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 //-----------------------------------------------------------------------------------------------------
 // Demo calibration parameters
@@ -367,9 +367,9 @@ int main(void) {
     }
 
     // Enable A2L generation and prepare the A2L file, finalize the A2L file on XCP connect, auto grouping
-    // In this demo, with A2L_MODE_WRITE_ALWAYS, the A2L file is unstable, because the thread creation order is undeterministic
+    // In this demo, with A2L_MODE_WRITE_ALWAYS, the A2L file is unstable, because the thread creation order is underterminstic
     // It is still ok to use A2L_MODE_WRITE_ONCE, the A2l file content is equivalent, as the events numbers associated to the thread don't have an individual identity
-    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         return 1;
     }
 

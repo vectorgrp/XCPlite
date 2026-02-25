@@ -13,13 +13,17 @@
 //-----------------------------------------------------------------------------------------------------
 
 // XCP parameters
-#define OPTION_PROJECT_NAME "c_demo"    // A2L project name
-#define OPTION_PROJECT_EPK __TIME__     // EPK version string
-#define OPTION_USE_TCP false            // TCP or UDP
-#define OPTION_SERVER_PORT 5555         // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE (1024 * 32)   // Size of the measurement queue in bytes
-#define OPTION_LOG_LEVEL 5              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_PROJECT_NAME "c_demo"      // A2L project name
+#define OPTION_PROJECT_EPK "V1_" __TIME__ // EPK version string
+#define OPTION_USE_TCP false              // TCP or UDP
+#define OPTION_SERVER_PORT 5555           // Port
+#define OPTION_SERVER_ADDR {0, 0, 0, 0}   // Bind addr, 0.0.0.0 = ANY
+#define OPTION_QUEUE_SIZE (1024 * 32)     // Size of the measurement queue in bytes
+#define OPTION_LOG_LEVEL 4                // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+
+// Enable level 4 to observe how asynchronous read/write access to a variable on the stack works, and how the consistent parameter update and measurement works
+// See README.md
+
 // #define OPTION_CANAPE_24                // Enable CANape 24 shared axis support for typedefs
 
 //-----------------------------------------------------------------------------------------------------
@@ -114,7 +118,7 @@ int main(void) {
     A2lTypedefBegin(params_t, &params, "Calibration parameters typedef");
     A2lTypedefParameterComponent(test_byte1, "Test byte for calibration consistency test", "", -128, 127);
     A2lTypedefParameterComponent(test_byte2, "Test byte for calibration consistency test", "", -128, 127);
-    A2lTypedefParameterComponent(counter_max, "", "", 0, 2000);
+    A2lTypedefParameterComponent(counter_max, "", "", 0, 10000);
     A2lTypedefParameterComponent(delay_us, "Mainloop sleep time in us", "us", 0, 1000000);
     A2lTypedefMapComponent(map, 8, 8, "Demo map", "", -128, 127);
 #ifdef OPTION_CANAPE_24

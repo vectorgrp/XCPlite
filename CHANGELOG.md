@@ -5,6 +5,7 @@ All notable changes to XCPlite are documented in this file.
 ## [V1.2.0]
 
 - Renamed to 'libxcplite' with external package name `xcplite`
+- DAQ performance optimization, transmit queue for vectored IO
 - Simplified build script and CMake configuration, build script option to install libxcplite 
 - Changed default encoding for dynamic addressing to 10 Bit event and 22 Bit signed offset, allowing for up to 4GB addressable range per event with max 1024 events
 - New variadic C++ macro/template to create A2L typedefs and their components in one call with automatic type deduction (see hello_xcp_cpp example)

@@ -14,13 +14,13 @@
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
 
-constexpr const char OPTION_PROJECT_NAME[] = "hello_xcp_cpp"; // Project name, used to build the A2L and BIN file name
-constexpr const char OPTION_PROJECT_VERSION[] = "V1";         // __TIME__; // EPK version string
-constexpr bool OPTION_USE_TCP = true;                         // TCP or UDP
-constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};        // Bind addr, 0.0.0.0 = ANY
-constexpr uint16_t OPTION_SERVER_PORT = 5555;                 // Port
-#define OPTION_QUEUE_SIZE (1024 * 32)                         // Size of the queue in bytes, should be large enough to cover at least 10ms of expected traffic
-constexpr int OPTION_LOG_LEVEL = 3;                           // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+constexpr const char OPTION_PROJECT_NAME[] = "hello_xcp_cpp";   // Project name, used to build the A2L and BIN file name
+constexpr const char OPTION_PROJECT_VERSION[] = "V1_" __TIME__; // EPK version string
+constexpr bool OPTION_USE_TCP = false;                          // TCP or UDP
+constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};          // Bind addr, 0.0.0.0 = ANY
+constexpr uint16_t OPTION_SERVER_PORT = 5555;                   // Port
+#define OPTION_QUEUE_SIZE (1024 * 32)                           // Size of the queue in bytes, should be large enough to cover at least 10ms of expected traffic
+constexpr int OPTION_LOG_LEVEL = 3;                             // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 //-----------------------------------------------------------------------------------------------------
 // Global calibration parameters
@@ -153,7 +153,7 @@ int main() {
 
     // Enable runtime A2L generation for data declaration as code
     // The A2L file will be created when the XCP tool connects and, if it does not already exist on local file system and the version did not change
-    if (!A2lInit(OPTION_SERVER_ADDR, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(OPTION_SERVER_ADDR, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         std::cerr << "Failed to initialize A2L generator" << std::endl;
         return 1;
     }
@@ -165,10 +165,11 @@ int main() {
     gCalSeg.emplace("Parameters", &kParameters);
 
     // Register the ParametersT calibration segment description as a typedef and an instance in the A2L file
-    A2lCreateTypedef(ParametersT, "Typedef for ParametersT",                                         //
-                     A2L_MAP_COMPONENT(map, "Demo map", "", 0, 100),                                 //
-                     A2L_AXIS_COMPONENT(axis, "Demo axis", "", 0, 100),                              //
-                     A2L_CURVE_WITH_AXIS_COMPONENT(curve, "Demo curve", "", 0, 100, axis),           //
+    A2lCreateTypedef(ParametersT, "Typedef for ParametersT",                //
+                     A2L_MAP_COMPONENT(map, "Demo map", "", 0, 100),        //
+                     A2L_AXIS_COMPONENT(axis, "Demo axis", "", 0, 100),     //
+                     A2L_CURVE_COMPONENT(curve, "Demo curve", "", 0, 2000), //
+                     // A2L_CURVE_WITH_AXIS_COMPONENT(curve, "Demo curve", "", 0, 100, axis), // CANape >= 24.0
                      A2L_PARAMETER_COMPONENT(min, "Minimum random number value", "", -100.0, 100.0), //
                      A2L_PARAMETER_COMPONENT(max, "Maximum random number value", "", -100.0, 100.0));
     gCalSeg->CreateA2lTypedefInstance("ParametersT", "Demo calibration parameters for hello_xcp_cpp example");

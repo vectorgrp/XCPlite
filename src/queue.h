@@ -88,7 +88,8 @@ tQueueHandle queueInit(size_t queue_buffer_size);
 tQueueHandle queueInitFromMemory(void *queue_memory, size_t queue_memory_size, bool clear_queue, uint64_t *out_buffer_size);
 
 /// Deinitialize queue.
-/// Does **not** free user allocated memory provided by `queueInitFromMemory`.
+/// Does **not** free user allocated memory provided to `queueInitFromMemory`.
+/// Must not be called for queue handles created from already initialized queues
 /// @param queue_handle         Queue handle.
 void queueDeinit(tQueueHandle queue_handle);
 

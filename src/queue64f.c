@@ -472,7 +472,7 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
     if (entry == NULL) { // Overflow
         uint32_t lost = (uint32_t)atomic_fetch_add_explicit(&queue->h.packets_lost, 1, memory_order_acq_rel);
         if (lost == 0)
-            DBG_PRINTF_WARNING("Queue overrun, msg_len=%u, h=%" PRIu64 ", t=%" PRIu64 ", level=%u, size=%u\n", msg_len, head, tail, level / QUEUE_ENTRY_SIZE, queue->h.buffer_size);
+            DBG_PRINTF6("Queue overrun, msg_len=%u, h=%" PRIu64 ", t=%" PRIu64 ", level=%u, size=%u\n", msg_len, head, tail, level / QUEUE_ENTRY_SIZE, queue->h.buffer_size);
         tQueueBuffer ret = {
             .buffer = NULL,
             .size = 0,
@@ -554,7 +554,7 @@ tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t index, uint32_t *pack
         uint32_t lost = (uint32_t)atomic_exchange_explicit(&queue->h.packets_lost, 0, memory_order_acq_rel);
         *packets_lost = lost;
         if (lost) {
-            DBG_PRINTF_WARNING("queuePeek: packets lost since last call: %u\n", lost);
+            DBG_PRINTF6("queuePeek: packets lost since last call: %u\n", lost);
         }
     }
 

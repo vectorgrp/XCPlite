@@ -176,7 +176,6 @@ static void lock_test_print_results(void) {
 #pragma pack(push, 1)
 typedef struct {
     atomic_uint_least32_t header;
-    // atomic_uint_fast64_t header;
     uint8_t data[];
 } tQueueEntry;
 #pragma pack(pop)
@@ -200,8 +199,8 @@ typedef union QueueHeader {
 
         // Constant
         uint64_t magic;      // Magic value for sanity checks
-        uint32_t queue_size; // Size of queue data buffer size in bytes (for entry offset wrapping, with wrap around space at the end)
-        bool from_memory;
+        uint32_t queue_size; // Size of queue data buffer in bytes (for entry offset wrapping, with wrap around space at the end)
+        bool from_memory;    // Indicates whether the queue was initialized from user provided memory (true) or allocated by the queue implementation (false)
     };
     uint8_t padding[CACHE_LINE_SIZE]; //  Padding to cache line size
 } tQueueHeader;
@@ -279,7 +278,6 @@ tQueueHandle queueInitFromMemory(void *queue_memory, size_t queue_memory_size, b
     return (tQueueHandle)queue;
 }
 
-// Clear the queue
 void queueClear(tQueueHandle queue_handle) {
     tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
@@ -305,9 +303,7 @@ void queueDeinit(tQueueHandle queue_handle) {
 #endif
 
     queueClear(queue_handle);
-#if defined(QUEUE_MUTEX)
-    mutexDestroy(&queue->h.mutex);
-#endif
+
     if (!queue->h.from_memory) {
         free(queue);
     }
@@ -360,13 +356,14 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
     tQueueEntry *entry = NULL;
 
     // @@@@ TODO The tail is read relaxed (see argumentation below on tail refresh), this could theoretically lead to a very stale tail
-    // Maybe acquire load it here and benchmark the if differences become visible (same applies to queue64f.c)
+    // Maybe acquire load it here and benchmark if differences become visible (same applies to queue64f.c)
+    // uint64_t tail = atomic_load_explicit(&queue->h.tail, memory_order_acquire);
     uint64_t tail = atomic_load_explicit(&queue->h.tail, memory_order_relaxed);
     uint64_t head = atomic_load_explicit(&queue->h.head, memory_order_acquire);
 
-    // Spin loop
+    // CAS loop
     // In reserved state, the message entry is between tail and head, has valid dlc and ctr must be 0
-    // This means the ctr must be 0 before the head is increment
+    // This means the ctr must be 0 before the head is incremented
     for (;;) {
 
         // Check for overrun
@@ -405,8 +402,8 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
     if (entry == NULL) {
         uint32_t lost = (uint32_t)atomic_fetch_add_explicit(&queue->h.packets_lost, 1, memory_order_acq_rel);
         if (lost == 0)
-            DBG_PRINTF_WARNING("Transmit queue overrun, entry_len=%u, head=%" PRIu64 ", tail=%" PRIu64 ", level=%u, queue_size=%u\n", entry_len, head, tail,
-                               (uint32_t)(head - tail), queue->h.queue_size);
+            DBG_PRINTF6("Transmit queue overrun, entry_len=%u, head=%" PRIu64 ", tail=%" PRIu64 ", level=%u, queue_size=%u\n", entry_len, head, tail, (uint32_t)(head - tail),
+                        queue->h.queue_size);
         tQueueBuffer ret = {
             .buffer = NULL,
             .size = 0,
@@ -471,12 +468,12 @@ tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t peek_index, uint32_t 
 
     DBG_PRINTF6("queuePeek: peek_index=%u\n", peek_index);
 
-    // Return the number of packets lost in the queue
+    // Return the number of packets lost since the last call
     if (packets_lost != NULL) {
         uint32_t lost = (uint32_t)atomic_exchange_explicit(&queue->h.packets_lost, 0, memory_order_acq_rel);
         *packets_lost = lost;
         if (lost) {
-            DBG_PRINTF_WARNING("queuePeek: packets lost since last call: %u\n", lost);
+            DBG_PRINTF6("queuePeek: packets lost since last call: %u\n", lost);
         }
     }
 
@@ -535,6 +532,12 @@ tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t peek_index, uint32_t 
             // Nothing to read, the first entry is still in reserved state
             queue->h.cached_peek_index = index;
             queue->h.cached_peek_tail = peek_tail;
+
+            // @@@@ TODO
+            // Maybe add a timeout parameter to the peek function and return an error if the entry is in reserved state for too long, this would allow the consumer to detect
+            // stalled producers and recover from it, e.g. by skipping the entry or resetting the queue A stalled producer is a producer that has reserved an entry but never
+            // commits it, this can happen if the producer thread is stalled or crashes after reserving an entry, this would lead to a permanent stall of the consumer if the
+            // consumer is waiting for the entry to be committed
             tQueueBuffer ret = {
                 .buffer = NULL,
                 .size = 0,
@@ -555,6 +558,7 @@ tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t peek_index, uint32_t 
             return ret;
         }
 
+        // Found the entry at the peek index, return it
         if (index == peek_index) {
             tQueueBuffer ret = {
                 .buffer = (uint8_t *)entry + QUEUE_ENTRY_HEADER_SIZE,

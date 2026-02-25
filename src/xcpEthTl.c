@@ -628,7 +628,10 @@ int32_t XcpTlHandleTransmitQueue(void) {
         uint32_t lost = 0;
         // DBG_PRINTF3("P %u\n", index);
         tQueueBuffer queue_buffer = queuePeek(gXcpTl.Queue, index, &lost);
-        gXcpTl.Ctr += (uint16_t)lost; // Increase packet counter by lost packets (must not be thread safe, used only to indicate error)
+        if (lost > 0) {
+            gXcpTl.Ctr += (uint16_t)lost; // Increase packet counter by lost packets (must not be thread safe, used only to indicate error)
+            DBG_PRINTF_WARNING("Transmit queue overflow: lost %u packets, ctr=%u\n", lost, gXcpTl.Ctr);
+        }
         uint16_t l = queue_buffer.size;
         if (l == 0) {
 
@@ -688,15 +691,13 @@ int32_t XcpTlHandleTransmitQueue(void) {
     mutexLock(&gXcpTl.CtrMutex);
 
     // Update the transport layer header (ctr+len) for all collected messages
-    uint16_t ctr;
     for (uint32_t i = 0; i < index; i++) {
         assert(queue_buffers[i].buffer != NULL);
         uint32_t l = queue_buffers[i].size - XCPTL_TRANSPORT_LAYER_HEADER_SIZE; // Get message payload size without transport layer header
-        ctr = XcpTlGetCtr();                                                    // Get current transport layer counter for this segment
         assert(l > 0);
         assert(l <= XCPTL_MAX_DTO_SIZE);
         assert(l % 4 == 0);
-        *(uint32_t *)queue_buffers[i].buffer = ((uint32_t)ctr << 16) | l;
+        *(uint32_t *)queue_buffers[i].buffer = ((uint32_t)(gXcpTl.Ctr++) << 16) | l; // Set current transport layer counter for this segment
     }
 
     // Send the complete frame (blocking until sent)
@@ -761,8 +762,11 @@ int32_t XcpTlHandleTransmitQueue(void) {
             mutexLock(&gXcpTl.CtrMutex);
             uint32_t lost = 0;
             tQueueBuffer queue_buffer = queuePop(gXcpTl.Queue, true, flush, &lost);
-            flush = false;                // Reset flush flag
-            gXcpTl.Ctr += (uint16_t)lost; // Increase packet counter by lost packets
+            flush = false; // Reset flush flag
+            if (lost > 0) {
+                gXcpTl.Ctr += (uint16_t)lost; // Increase packet counter by lost packets (must not be thread safe, used only to indicate error)
+                DBG_PRINTF_WARNING("Transmit queue overflow: lost %u packets, ctr=%u\n", lost, gXcpTl.Ctr);
+            }
             uint16_t l = queue_buffer.size;
             const uint8_t *b = queue_buffer.buffer;
             if (l == 0) {
@@ -826,4 +830,5 @@ bool XcpTlWaitForTransmitQueueEmpty(uint16_t timeout_ms) {
 //-------------------------------------------------------------------------------------------------------
 
 // Get the next transmit message counter
+// For queue32.c and queue64.c
 uint16_t XcpTlGetCtr(void) { return gXcpTl.Ctr++; }

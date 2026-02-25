@@ -1997,7 +1997,7 @@ static void XcpTriggerDaqList_(tQueueHandle queue_handle, uint16_t daq, const ui
             DBG_PRINTF4("DAQ queue overrun, daq=%u, odt=%u, overruns=%u\n", daq, odt, gXcp.DaqOverflowCount);
 #else
             // Queue overflow has to be handled and indicated by the transmit queue
-            DBG_PRINTF4("DAQ queue overflow, daq=%u, odt=%u\n", daq, odt);
+            DBG_PRINTF6("DAQ queue overflow, daq=%u, odt=%u\n", daq, odt);
 #endif
             return; // Skip rest of this event on queue overrun, to simplify resynchronisation of the client
         }
@@ -2416,8 +2416,11 @@ static void XcpSendResponse(bool async, const tXcpCto *crm, uint8_t crmLen) {
     }
 
 #ifdef DBG_LEVEL
-    if (DBG_LEVEL >= 4)
+    if (DBG_LEVEL >= 4) {
+        if (async)
+            printf(ANSI_COLOR_BLUE " ASYNC: " ANSI_COLOR_RESET);
         XcpPrintRes(crm);
+    }
 #endif
 }
 
@@ -2514,8 +2517,9 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
     else {
 
 #ifdef DBG_LEVEL
-        if (DBG_LEVEL >= 4 && !async)
+        if (DBG_LEVEL >= 4 && !async) {
             XcpPrintCmd(CRO);
+        }
 #endif
         if (!isConnected() && CRO_CMD != CC_TRANSPORT_LAYER_CMD) { // Must be connected, exception are the transport layer commands
             DBG_PRINT_WARNING("Command ignored because not in connected state, no response sent!\n");
@@ -4137,9 +4141,7 @@ static void XcpPrintRes(const tXcpCto *crm) {
             break;
 
         default:
-            if (DBG_LEVEL >= 5) {
-                printf(" <- OK\n");
-            }
+            printf(" <- OK\n");
             break;
 
         } /* switch */

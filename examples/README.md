@@ -50,16 +50,17 @@ An example in C++ using more idiomatic C++ to demonstrate the capabilities of th
 ### c_demo
 
 Shows more complex data objects (structs, arrays) and calibration objects (axis, maps and curves).  
-Measurement variables on stack and in global memory.  
-Consistent parameter changes and measurement.  
+Measurement variables on stack and in global memory. 
+Asynchronous read (polling) and write to a value on the stack (variable: counter) 
+Consistent atomic changes of multiple calibration parameters.  
 Calibration page switching and EPK version check.  
-Note: If CANAPE_24 is defined in sig_gen.hpp, the lookup table is a nested typedef, it uses a THIS. references to its shared axis contained in the typedef.
 
 ### cpp_demo
 
 Demonstrates the calibration parameter segment RAII wrapper.  
 Demonstrates measurement of member variables and stack variables in class instance member functions.  
 Shows how to create a class with a calibration parameter segment as a member variable.  
+Note: If CANAPE_24 is defined in sig_gen.hpp, the lookup table is a nested typedef, it uses a THIS. references to its shared axis contained in the typedef.
 
 ### struct_demo
 
