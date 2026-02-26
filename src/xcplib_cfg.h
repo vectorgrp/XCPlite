@@ -73,7 +73,7 @@
 #define OPTION_CAL_SEGMENTS
 
 // Maximum number of calibration segments
-#define OPTION_CAL_SEGMENT_COUNT 8
+#define OPTION_CAL_SEGMENT_COUNT 32
 
 // Single page mode
 // #define OPTION_CAL_SEGMENTS_SINGLE_PAGE

@@ -563,9 +563,14 @@ static void A2lCreate_MOD_PAR(void) {
             calSegList->count > 0)
 #endif
         {
+            // Not all calibration segments are memory segments
             for (tXcpCalSegIndex i = 0; i < calSegList->count; i++) {
-                const tXcpCalSeg *calseg = calSegList->calseg[i];
-                fprintf(gA2lFile, gA2lMemorySegment, calseg->h.name, XcpGetCalSegBaseAddress(i), calseg->h.size, i, calseg->h.name, calseg->h.name, calseg->h.name, calseg->h.size);
+                tXcpCalSegNumber n = XcpGetCalSegNumber(i);
+                if (n != XCP_UNDEFINED_CALSEG_NUM) {
+                    const tXcpCalSeg *calseg = calSegList->calseg[i];
+                    fprintf(gA2lFile, gA2lMemorySegment, calseg->h.name, XcpGetCalSegBaseAddress(i), calseg->h.size, n, calseg->h.name, calseg->h.name, calseg->h.name,
+                            calseg->h.size);
+                }
             }
         }
 #endif // XCP_ENABLE_CALSEG_LIST

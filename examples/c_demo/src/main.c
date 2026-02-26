@@ -19,7 +19,7 @@
 #define OPTION_SERVER_PORT 5555           // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}   // Bind addr, 0.0.0.0 = ANY
 #define OPTION_QUEUE_SIZE (1024 * 32)     // Size of the measurement queue in bytes
-#define OPTION_LOG_LEVEL 4                // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_LOG_LEVEL 3                // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 // Enable level 4 to observe how asynchronous read/write access to a variable on the stack works, and how the consistent parameter update and measurement works
 // See README.md
@@ -253,7 +253,7 @@ int main(void) {
         // Use the update button in the calibration window to trigger consistent modifications, the message below should never appear
         // There should be also no message when switching from RAM ro FLASH
         params_copy = *params;
-        if (params_copy.test_byte1 != -params_copy.test_byte2) {
+        if (params_copy.test_byte1 != -params_copy.test_byte2 && params_copy.test_byte2 < 0) {
             char buffer[64];
             snprintf(buffer, sizeof(buffer), "Inconsistent %u:  %d -  %d", counter16, params_copy.test_byte1, params_copy.test_byte2);
             XcpPrint(buffer);

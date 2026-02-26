@@ -432,11 +432,11 @@ uint16_t XcpGetCalSegCount(void) {
 }
 
 // Get a pointer to the calibration segment struct of calseg index
-tXcpCalSeg *XcpGetCalSeg(tXcpCalSegIndex calseg) {
+tXcpCalSeg *XcpGetCalSeg(tXcpCalSegIndex calseg_index) {
     assert(isInitialized());
-    if (calseg >= gXcp.CalSegList.count)
+    if (calseg_index >= gXcp.CalSegList.count)
         return NULL;
-    return gXcp.CalSegList.calseg[calseg];
+    return gXcp.CalSegList.calseg[calseg_index];
 }
 
 // Get the index of a calibration segment by name
@@ -464,7 +464,7 @@ tXcpCalSegIndex XcpFindCalPage(const void *page) {
 }
 
 // Get the index of a calibration segment by address (inside of the default page)
-tXcpCalSegIndex XcpFindCalSegByAddr(uint8_t *addr) {
+static tXcpCalSegIndex XcpFindCalSegByAddr(uint8_t *addr) {
     assert(isInitialized());
     for (tXcpCalSegIndex i = 0; i < gXcp.CalSegList.count; i++) {
         tXcpCalSeg *calseg = gXcp.CalSegList.calseg[i];
@@ -475,31 +475,58 @@ tXcpCalSegIndex XcpFindCalSegByAddr(uint8_t *addr) {
     return XCP_UNDEFINED_CALSEG; // Not found
 }
 
+// Get the calibration segment index by memory segment number, returns XCP_UNDEFINED_CALSEG if not found
+// Not all calibrations segments can be controlled by XCP
+// XCP uses a uin8_t number to identify memory segments (tXcpCalSegNumber), while the calibration segment index (tXcpCalSegIndex) is uint16_t
+tXcpCalSegIndex XcpGetCalSegIndex(tXcpCalSegNumber segment_number) {
+
+    if (segment_number == XCP_UNDEFINED_CALSEG_NUM)
+        return XCP_UNDEFINED_CALSEG; // Not found
+    // @@@@ TODO Unimplemented
+    return (tXcpCalSegIndex)segment_number;
+    // return XCP_UNDEFINED_CALSEG; // Not found
+}
+
+// Get the memory segment number of a calibration segment, returns 0xFF if not found
+tXcpCalSegNumber XcpGetCalSegNumber(tXcpCalSegIndex calseg_index) {
+
+    // @@@@ TODO Unimplemented
+    if (calseg_index >= gXcp.CalSegList.count)
+        return XCP_UNDEFINED_CALSEG_NUM; // Not found
+    return (tXcpCalSegNumber)calseg_index;
+}
+
 // Get the name of the calibration segment
-const char *XcpGetCalSegName(tXcpCalSegIndex calseg) {
+const char *XcpGetCalSegName(tXcpCalSegIndex calseg_index) {
     assert(isInitialized());
-    assert(calseg < gXcp.CalSegList.count);
-    return gXcp.CalSegList.calseg[calseg]->h.name;
+    assert(calseg_index < gXcp.CalSegList.count);
+    if (calseg_index >= gXcp.CalSegList.count)
+        return NULL;
+    return gXcp.CalSegList.calseg[calseg_index]->h.name;
 }
 
 // Get the size of a calibration segment
-uint16_t XcpGetCalSegSize(tXcpCalSegIndex calseg) {
+uint16_t XcpGetCalSegSize(tXcpCalSegIndex calseg_index) {
     assert(isInitialized());
-    assert(calseg < gXcp.CalSegList.count);
-    return gXcp.CalSegList.calseg[calseg]->h.size;
+    assert(calseg_index < gXcp.CalSegList.count);
+    if (calseg_index >= gXcp.CalSegList.count)
+        return 0;
+    return gXcp.CalSegList.calseg[calseg_index]->h.size;
 }
 
 // Get the XCP/A2L address (address mode XCP_ADDR_MODE_SEG or XCP_ADDR_MODE_ABS) of a calibration segment
-uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg) {
+uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg_index) {
     assert(isInitialized());
-    assert(calseg < gXcp.CalSegList.count);
+    assert(calseg_index < gXcp.CalSegList.count);
+    if (calseg_index >= gXcp.CalSegList.count)
+        return 0;
 #if XCP_ADDR_EXT_SEG == 0x00 // Memory segments are addressed in relative mode
-    return XcpAddrEncodeSegIndex(calseg, 0);
+    return XcpAddrEncodeSegIndex(calseg_index, 0);
 #else // Memory segments are addressed in absolute mode
 #if defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS != 0x00
 #error "XCP_ADDR_EXT_ABS must be 0x00"
 #endif
-    return XcpAddrEncodeAbs(gXcp.CalSegList.calseg[calseg]->default_page);
+    return XcpAddrEncodeAbs(gXcp.CalSegList.calseg[calseg_index]->default_page);
 #endif
 }
 
@@ -512,8 +539,8 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
 
     mutexLock(&gXcp.CalSegList.mutex);
 
-    tXcpCalSegIndex index = XcpFindCalSeg(name);
-    if (index == XCP_UNDEFINED_CALSEG) {
+    tXcpCalSegIndex calseg_index = XcpFindCalSeg(name);
+    if (calseg_index == XCP_UNDEFINED_CALSEG) {
 
         // Allocate memory for the new segment, including the header, the ECU page, the XCP page and a free swap page
         uint16_t aligned_page_size = (page_size + XCP_CALPAGE_ALIGNMENT - 1) & ~(XCP_CALPAGE_ALIGNMENT - 1); // Align page size to 8 bytes for better performance
@@ -529,7 +556,7 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
         // Check if this is a preloaded segment
         // Preloaded segments have the correct size and a valid default page, loaded from the binary calibration segment image file on startup
         // The PAG_PROPERTY_PRELOAD bit is set for segments in preloaded state
-        tXcpCalSeg *c = gXcp.CalSegList.calseg[index];
+        tXcpCalSeg *c = gXcp.CalSegList.calseg[calseg_index];
         if (page_size == c->h.size && c->h.default_page != NULL && (c->h.mode & PAG_PROPERTY_PRELOAD) != 0) {
             // Error on size mismatch of preloaded segment
             if (page_size != c->h.size) {
@@ -538,7 +565,7 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
                 return XCP_UNDEFINED_CALSEG;
             }
             // Accepted
-            DBG_PRINTF3("Use preloaded CalSeg %u: %s index=%u, size=%u\n", index, c->h.name, index, c->h.size);
+            DBG_PRINTF3("Use preloaded CalSeg %u: %s index=%u, size=%u\n", calseg_index, c->h.name, calseg_index, c->h.size);
             memory_buffer = c;
             memory_size = 0; // This indicates a preloaded segment
 
@@ -548,7 +575,7 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
             // Segment already exists
             mutexUnlock(&gXcp.CalSegList.mutex);
             DBG_PRINTF3("Calibration segment '%s' already exists\n", name);
-            return index;
+            return calseg_index;
         }
     }
 
@@ -568,7 +595,7 @@ tXcpCalSegIndex XcpCreateCalSegFromMemory(const char *name, const void *default_
     mutexLock(&gXcp.CalSegList.mutex);
 
     tXcpCalSeg *c = NULL;
-    tXcpCalSegIndex index = XCP_UNDEFINED_CALSEG;
+    tXcpCalSegIndex calseg_index = XCP_UNDEFINED_CALSEG;
 
     // Align page size to 8 bytes for better performance
     uint16_t aligned_page_size = (page_size + XCP_CALPAGE_ALIGNMENT - 1) & ~(XCP_CALPAGE_ALIGNMENT - 1);
@@ -580,9 +607,9 @@ tXcpCalSegIndex XcpCreateCalSegFromMemory(const char *name, const void *default_
     // Check if this is a preloaded segment (indicated by memory_size == 0 and memory_buffer != NULL)
     if (memory_buffer != NULL && memory_size == 0) {
 
-        index = XcpFindCalSeg(name);
+        calseg_index = XcpFindCalSeg(name);
         c = (tXcpCalSeg *)memory_buffer;
-        assert(index != XCP_UNDEFINED_CALSEG);
+        assert(calseg_index != XCP_UNDEFINED_CALSEG);
         assert(c->h.mode & PAG_PROPERTY_PRELOAD);
         assert(page_size == c->h.size);
 
@@ -590,8 +617,8 @@ tXcpCalSegIndex XcpCreateCalSegFromMemory(const char *name, const void *default_
 #endif
 
     {
-        index = XcpFindCalSeg(name);
-        if (index != XCP_UNDEFINED_CALSEG) {
+        calseg_index = XcpFindCalSeg(name);
+        if (calseg_index != XCP_UNDEFINED_CALSEG) {
 
             // Error if segment already exists
             mutexUnlock(&gXcp.CalSegList.mutex);
@@ -602,7 +629,7 @@ tXcpCalSegIndex XcpCreateCalSegFromMemory(const char *name, const void *default_
 
             } else {
                 DBG_PRINTF3("Calibration segment '%s' already exists\n", name);
-                return index;
+                return calseg_index;
             }
         } else {
 
@@ -619,9 +646,9 @@ tXcpCalSegIndex XcpCreateCalSegFromMemory(const char *name, const void *default_
                 DBG_PRINT_ERROR("not enough memory for calibration segment\n");
                 return XCP_UNDEFINED_CALSEG;
             }
-            index = gXcp.CalSegList.count;
+            calseg_index = gXcp.CalSegList.count;
             c = (tXcpCalSeg *)memory_buffer;
-            gXcp.CalSegList.calseg[index] = c;
+            gXcp.CalSegList.calseg[calseg_index] = c;
             gXcp.CalSegList.count++;
             STRNCPY(c->h.name, name, XCP_MAX_CALSEG_NAME);
             c->h.name[XCP_MAX_CALSEG_NAME] = 0;
@@ -630,7 +657,7 @@ tXcpCalSegIndex XcpCreateCalSegFromMemory(const char *name, const void *default_
 #ifdef XCP_ENABLE_CAL_PERSISTENCE
             c->h.file_pos = 0;
 #endif
-            DBG_PRINTF3("Create CalSeg %u: %s index=%u, size=%u\n", index, c->h.name, index, c->h.size);
+            DBG_PRINTF3("Create CalSeg %u: %s index=%u, size=%u\n", calseg_index, c->h.name, calseg_index, c->h.size);
         }
     }
 
@@ -664,7 +691,7 @@ tXcpCalSegIndex XcpCreateCalSegFromMemory(const char *name, const void *default_
         c->xcp_page = c->b[XCP_PAGE_OFFSET];
         memcpy(c->xcp_page, c->default_page, size); // Copy default page to working page
         if (c->mode & PAG_PROPERTY_PRELOAD) {
-            DBG_PRINTF3("Persistence data loaded into reference page of CalSeg %u: %s size=%u\n", index, c->name, c->size);
+            DBG_PRINTF3("Persistence data loaded into reference page of CalSeg %u: %s size=%u\n", calseg_index, c->name, c->size);
         }
 #else // XCP_ENABLE_REFERENCE_PAGE_PERSISTENCE
 
@@ -675,7 +702,8 @@ tXcpCalSegIndex XcpCreateCalSegFromMemory(const char *name, const void *default_
             c->h.xcp_page = (uint8_t *)c->h.default_page; // Swap XCP working page and preloaded default page
             c->h.default_page = default_page;
             memcpy(c->h.ecu_page, c->h.xcp_page, page_size); // Copy XCP working page to ECU working page copy as well
-            DBG_PRINTF3("Persistence data loaded into working page of CalSeg %u: %s addr=0x%08X, size=%u\n", index, c->h.name, XcpGetCalSegBaseAddress(index), c->h.size);
+            DBG_PRINTF3("Persistence data loaded into working page of CalSeg %u: %s addr=0x%08X, size=%u\n", calseg_index, c->h.name, XcpGetCalSegBaseAddress(calseg_index),
+                        c->h.size);
         } else
 #endif
         // else allocate and initialize the working page
@@ -710,23 +738,23 @@ tXcpCalSegIndex XcpCreateCalSegFromMemory(const char *name, const void *default_
 #endif
 
     mutexUnlock(&gXcp.CalSegList.mutex);
-    return index;
+    return calseg_index;
 }
 
 // Lock a calibration segment and return a pointer to the ECU page
 // Thread safe
 // Shared atomic state is lock_count, ecu_page_next, free_page, ecu_access
 // Shared non atomic is ecu_page, free_page_hazard, release on free_page
-const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg) {
+const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg_index) {
 
     assert(isInitialized());
 
-    if (calseg >= gXcp.CalSegList.count) {
-        DBG_PRINTF_ERROR("Invalid calseg %u\n", calseg);
-        return NULL; // Uninitialized or invalid calseg
+    if (calseg_index >= gXcp.CalSegList.count) {
+        DBG_PRINTF_ERROR("Invalid calseg_index %u\n", calseg_index);
+        return NULL; // Uninitialized or invalid calseg_index
     }
 
-    tXcpCalSeg *c = gXcp.CalSegList.calseg[calseg];
+    tXcpCalSeg *c = gXcp.CalSegList.calseg[calseg_index];
 
     // Not activated, return default page
     if (!isActivated()) {
@@ -750,7 +778,7 @@ const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg) {
         }
     }
 
-    // DBG_PRINTF5("CalSeg %u: %s locked, ecu_access=%u\n", calseg, c->name, atomic_load_explicit(&c->ecu_access, memory_order_relaxed));
+    // DBG_PRINTF5("CalSeg %u: %s locked, ecu_access=%u\n", calseg_index, c->h.name, atomic_load_explicit(&c->h.ecu_access, memory_order_relaxed));
 
     // Return the active ECU page (RAM or FLASH)
     if (atomic_load_explicit(&c->h.ecu_access, memory_order_relaxed) != XCP_CALPAGE_WORKING_PAGE) {
@@ -763,17 +791,17 @@ const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg) {
 // Unlock a calibration segment
 // Thread safe
 // Shared state is lock_count
-uint8_t XcpUnlockCalSeg(tXcpCalSegIndex calseg) {
+uint8_t XcpUnlockCalSeg(tXcpCalSegIndex calseg_index) {
 
     if (!isActivated())
         return 0;
 
-    if (calseg >= gXcp.CalSegList.count) {
-        DBG_PRINT_ERROR("XCP not initialized or invalid calseg\n");
-        return 0; // Uninitialized or invalid calseg
+    if (calseg_index >= gXcp.CalSegList.count) {
+        DBG_PRINTF_ERROR("XCP not initialized or invalid segment index %u\n", calseg_index);
+        return 0; // Uninitialized or invalid segment index
     }
 
-    uint8_t oldLockCount = (uint8_t)atomic_fetch_sub_explicit(&gXcp.CalSegList.calseg[calseg]->h.lock_count, 1, memory_order_relaxed); // Decrement the lock count
+    uint8_t oldLockCount = (uint8_t)atomic_fetch_sub_explicit(&gXcp.CalSegList.calseg[calseg_index]->h.lock_count, 1, memory_order_relaxed); // Decrement the lock count
     assert(oldLockCount > 0); // Calling XcpUnlockCalSeg without a prior lock
     return oldLockCount;
 }
@@ -799,14 +827,14 @@ void XcpUpdateCalSeg(void **calPage) {
 static uint8_t XcpCalSegReadMemory(uint32_t src, uint16_t size, uint8_t *dst) {
 
     // Decode the source address into calibration segment and offset
-    uint16_t calseg = XcpAddrDecodeSegNumber(src); // Get the calibration segment number from the address
-    uint16_t offset = XcpAddrDecodeSegOffset(src); // Get the offset within the calibration segment
+    uint16_t calseg_index = XcpAddrDecodeSegNumber(src); // Get the calibration segment number from the address
+    uint16_t offset = XcpAddrDecodeSegOffset(src);       // Get the offset within the calibration segment
 
-    if (calseg >= gXcp.CalSegList.count) {
-        DBG_PRINTF_ERROR("invalid calseg index %u\n", calseg);
+    if (calseg_index >= gXcp.CalSegList.count) {
+        DBG_PRINTF_ERROR("invalid calseg index %u\n", calseg_index);
         return CRC_ACCESS_DENIED;
     }
-    tXcpCalSeg *c = gXcp.CalSegList.calseg[calseg];
+    tXcpCalSeg *c = gXcp.CalSegList.calseg[calseg_index];
     if (offset + size > c->h.size) {
         DBG_PRINTF_ERROR("out of bound calseg read access (addr=%08X, size=%u)\n", src, size);
         return CRC_ACCESS_DENIED;
@@ -894,16 +922,16 @@ uint8_t XcpCalSegPublishAll(bool wait) {
 // Write xcp page, error on write to default page or EPK segment
 static uint8_t XcpCalSegWriteMemory(uint32_t dst, uint16_t size, const uint8_t *src) {
     // Decode the destination address into calibration segment index and offset
-    uint16_t calseg = XcpAddrDecodeSegNumber(dst);
+    uint16_t calseg_index = XcpAddrDecodeSegNumber(dst);
     uint16_t offset = XcpAddrDecodeSegOffset(dst);
 
-    if (calseg >= gXcp.CalSegList.count) {
-        DBG_PRINTF_ERROR("invalid calseg number %u\n", calseg);
+    if (calseg_index >= gXcp.CalSegList.count) {
+        DBG_PRINTF_ERROR("invalid calseg number %u\n", calseg_index);
         return CRC_ACCESS_DENIED;
     }
-    tXcpCalSeg *c = gXcp.CalSegList.calseg[calseg];
+    tXcpCalSeg *c = gXcp.CalSegList.calseg[calseg_index];
     if (offset + size > c->h.size) {
-        DBG_PRINTF_ERROR("out of bound calseg write access (number=%u, offset=%u, size=%u)\n", calseg, offset, size);
+        DBG_PRINTF_ERROR("out of bound calseg write access (number=%u, offset=%u, size=%u)\n", calseg_index, offset, size);
         return CRC_ACCESS_DENIED;
     }
     if (c->h.xcp_access != XCP_CALPAGE_WORKING_PAGE) {
@@ -936,21 +964,21 @@ static uint8_t XcpCalSegWriteMemory(uint32_t dst, uint16_t size, const uint8_t *
 // Table 97 GET SEGMENT INFO command structure
 // Returns information on a specific SEGMENT.
 // If the specified SEGMENT is not available, ERR_OUT_OF_RANGE will be returned.
-static uint8_t XcpGetSegInfo(tXcpCalSegNumber segment, uint8_t mode, uint8_t seg_info, uint8_t map_index) {
+static uint8_t XcpGetSegInfo(tXcpCalSegNumber segment_number, uint8_t mode, uint8_t seg_info, uint8_t map_index) {
     (void)map_index; // Mapping not supported
 
-    tXcpCalSegIndex calseg = segment;
-    if (segment >= gXcp.CalSegList.count) {
-        DBG_PRINTF_ERROR("invalid segment index: %u\n", segment);
+    tXcpCalSegIndex calseg_index = XcpGetCalSegIndex(segment_number);
+    if (calseg_index == XCP_UNDEFINED_CALSEG) {
+        DBG_PRINTF_ERROR("invalid segment number: %u\n", segment_number);
         return CRC_OUT_OF_RANGE;
     }
-    tXcpCalSeg *c = gXcp.CalSegList.calseg[calseg];
+    tXcpCalSeg *c = gXcp.CalSegList.calseg[calseg_index];
     // 0 - basic address info, 1 - standard info, 2 - mapping info
     switch (mode) {
     case 0: // Mode 0 - get address or length depending on seg_info
         CRM_LEN = CRM_GET_SEGMENT_INFO_LEN_MODE0;
         if (seg_info == 0) { // Get address
-            CRM_GET_SEGMENT_INFO_BASIC_INFO = XcpGetCalSegBaseAddress(calseg);
+            CRM_GET_SEGMENT_INFO_BASIC_INFO = XcpGetCalSegBaseAddress(calseg_index);
             return CRC_CMD_OK;
         } else if (seg_info == 1) { // Get length
             CRM_GET_SEGMENT_INFO_BASIC_INFO = (uint32_t)c->h.size;
@@ -979,12 +1007,17 @@ static uint8_t XcpGetSegInfo(tXcpCalSegNumber segment, uint8_t mode, uint8_t seg
     }
 }
 
-uint8_t XcpGetSegPageInfo(tXcpCalSegNumber segment, uint8_t page) {
+uint8_t XcpGetSegPageInfo(tXcpCalSegNumber segment_number, uint8_t page) {
+
+    // Check if this segment number is valid
+    tXcpCalSegIndex calseg_index = XcpGetCalSegIndex(segment_number);
+    if (calseg_index == XCP_UNDEFINED_CALSEG) {
+        DBG_PRINTF_ERROR("invalid segment number: %u\n", segment_number);
+        return CRC_OUT_OF_RANGE;
+    }
 
     CRM_LEN = CRM_GET_PAGE_INFO_LEN;
 
-    if (segment >= gXcp.CalSegList.count)
-        return CRC_OUT_OF_RANGE;
 #ifdef XCP_ENABLE_CAL_PAGE // If GET/SET_CAL_PAGE enabled, support 2 pages
     if (page > 1)
         return CRC_PAGE_NOT_VALID;
@@ -993,6 +1026,7 @@ uint8_t XcpGetSegPageInfo(tXcpCalSegNumber segment, uint8_t page) {
         return CRC_PAGE_NOT_VALID;
 #endif
 
+    // All segments have the same page properties
     // PAGE 0: ECU_ACCESS_DONT_CARE, XCP_READ_ACCESS_DONT_CARE, XCP_WRITE_ACCESS_DONT_CARE
     // PAGE 1: ECU_ACCESS_DONT_CARE, XCP_READ_ACCESS_DONT_CARE, XCP_WRITE_ACCESS_NOT_ALLOWED
     if (page == XCP_CALPAGE_WORKING_PAGE) {
@@ -1008,16 +1042,17 @@ uint8_t XcpGetSegPageInfo(tXcpCalSegNumber segment, uint8_t page) {
 
 // Get active ecu or xcp calibration page
 // Note: XCP/A2L segment numbers are bytes, 0 is reserved for the EPK segment, tXcpCalSegIndex is the XCP/A2L segment number - 1
-static uint8_t XcpCalSegGetCalPage(tXcpCalSegNumber segment, uint8_t mode) {
-    if (segment > gXcp.CalSegList.count) {
-        DBG_PRINTF_ERROR("invalid segment number: %u\n", segment);
+static uint8_t XcpCalSegGetCalPage(tXcpCalSegNumber segment_number, uint8_t mode) {
+    tXcpCalSegIndex calseg_index = XcpGetCalSegIndex(segment_number);
+    if (calseg_index == XCP_UNDEFINED_CALSEG) {
+        DBG_PRINTF_ERROR("invalid segment number: %u\n", segment_number);
         return XCP_CALPAGE_INVALID_PAGE;
     }
     if (mode == CAL_PAGE_MODE_ECU) {
-        return (uint8_t)atomic_load_explicit(&gXcp.CalSegList.calseg[segment]->h.ecu_access, memory_order_relaxed);
+        return (uint8_t)atomic_load_explicit(&gXcp.CalSegList.calseg[calseg_index]->h.ecu_access, memory_order_relaxed);
     }
     if (mode == CAL_PAGE_MODE_XCP) {
-        return gXcp.CalSegList.calseg[segment]->h.xcp_access;
+        return gXcp.CalSegList.calseg[calseg_index]->h.xcp_access;
     }
     DBG_PRINT_ERROR("invalid get cal page mode\n");
     return XCP_CALPAGE_INVALID_PAGE; // Invalid mode
@@ -1025,7 +1060,12 @@ static uint8_t XcpCalSegGetCalPage(tXcpCalSegNumber segment, uint8_t mode) {
 
 // Set active ecu and/or xcp calibration page
 // Note: XCP/A2L segment numbers are bytes, 0 is reserved for the EPK segment, tXcpCalSegIndex is the XCP/A2L segment number - 1
-uint8_t XcpCalSegSetCalPage(tXcpCalSegNumber segment, uint8_t page, uint8_t mode) {
+uint8_t XcpCalSegSetCalPage(tXcpCalSegNumber segment_number, uint8_t page, uint8_t mode) {
+    tXcpCalSegIndex calseg_index = XcpGetCalSegIndex(segment_number);
+    if (calseg_index == XCP_UNDEFINED_CALSEG) {
+        DBG_PRINTF_ERROR("invalid segment number: %u\n", segment_number);
+        return CRC_ACCESS_DENIED; // Invalid calseg
+    }
     if (page > 1) {
         DBG_PRINTF_ERROR("invalid cal page number %u\n", page);
         return CRC_ACCESS_DENIED; // Invalid calseg
@@ -1040,16 +1080,11 @@ uint8_t XcpCalSegSetCalPage(tXcpCalSegNumber segment, uint8_t page, uint8_t mode
             }
         }
     } else {
-
-        if (segment >= gXcp.CalSegList.count) {
-            DBG_PRINTF_ERROR("invalid segment index %u\n", segment);
-            return CRC_ACCESS_DENIED; // Invalid calseg
-        }
         if (mode & CAL_PAGE_MODE_ECU) {
-            atomic_store_explicit(&gXcp.CalSegList.calseg[segment]->h.ecu_access, page, memory_order_relaxed);
+            atomic_store_explicit(&gXcp.CalSegList.calseg[calseg_index]->h.ecu_access, page, memory_order_relaxed);
         }
         if (mode & CAL_PAGE_MODE_XCP) {
-            gXcp.CalSegList.calseg[segment]->h.xcp_access = page;
+            gXcp.CalSegList.calseg[calseg_index]->h.xcp_access = page;
         }
     }
     return CRC_CMD_OK;
@@ -1058,10 +1093,11 @@ uint8_t XcpCalSegSetCalPage(tXcpCalSegNumber segment, uint8_t page, uint8_t mode
 // Copy calibration page
 // Note: XCP/A2L segment numbers are bytes, 0 is reserved for the EPK segment, tXcpCalSegIndex is the XCP/A2L segment number - 1
 #ifdef XCP_ENABLE_COPY_CAL_PAGE
-static uint8_t XcpCalSegCopyCalPage(tXcpCalSegNumber srcSeg, uint8_t srcPage, tXcpCalSegNumber dstSeg, uint8_t dstPage) {
+static uint8_t XcpCalSegCopyCalPage(tXcpCalSegNumber src_seg_num, uint8_t src_page, tXcpCalSegNumber dst_seg_num, uint8_t dst_page) {
 
     // Only copy from default page to working page supported
-    if (srcSeg != dstSeg || srcSeg >= gXcp.CalSegList.count || dstPage != XCP_CALPAGE_WORKING_PAGE || srcPage != XCP_CALPAGE_DEFAULT_PAGE) {
+    tXcpCalSegIndex dst_seg_index = XcpGetCalSegIndex(dst_seg_num);
+    if (src_seg_num != dst_seg_num || dst_seg_index == XCP_UNDEFINED_CALSEG || dst_page != XCP_CALPAGE_WORKING_PAGE || src_page != XCP_CALPAGE_DEFAULT_PAGE) {
         DBG_PRINT_ERROR("unsupported or invalid calseg copy operation\n");
         return CRC_WRITE_PROTECTED;
     }
@@ -1083,10 +1119,10 @@ static uint8_t XcpCalSegCopyCalPage(tXcpCalSegNumber srcSeg, uint8_t srcPage, tX
 
 #else
 
-    tXcpCalSeg *c = gXcp.CalSegList.calseg[dstSeg];
+    tXcpCalSeg *c = gXcp.CalSegList.calseg[dst_seg_index];
     uint16_t size = c->h.size;
     const uint8_t *srcPtr = c->h.default_page;
-    return XcpCalSegWriteMemory(XcpAddrEncodeSegNumber(dstSeg, 0), size, srcPtr);
+    return XcpCalSegWriteMemory(XcpAddrEncodeSegNumber(dst_seg_index, 0), size, srcPtr);
 
 #endif
 }
@@ -1123,16 +1159,18 @@ uint8_t XcpCalSegCommand(uint8_t cmd) {
 // Note: XCP/A2L segment numbers (tXcpCalSegNumber) are bytes, 0 is reserved for the EPK segment, tXcpCalSegIndex is the XCP/A2L segment number - 1
 #ifdef XCP_ENABLE_FREEZE_CAL_PAGE
 
-static uint8_t XcpGetCalSegMode(tXcpCalSegNumber segment) {
-    if (segment >= gXcp.CalSegList.count)
-        return 0;                                   // Segment number out of range, ignore
-    return gXcp.CalSegList.calseg[segment]->h.mode; // Return the segment mode
+static uint8_t XcpGetCalSegMode(tXcpCalSegNumber segment_number) {
+    tXcpCalSegIndex calseg_index = XcpGetCalSegIndex(segment_number);
+    if (calseg_index == XCP_UNDEFINED_CALSEG)
+        return 0;                                        // Segment number out of range, ignore
+    return gXcp.CalSegList.calseg[calseg_index]->h.mode; // Return the segment mode
 }
 
-static uint8_t XcpSetCalSegMode(tXcpCalSegNumber segment, uint8_t mode) {
-    if (segment >= gXcp.CalSegList.count)
+static uint8_t XcpSetCalSegMode(tXcpCalSegNumber segment_number, uint8_t mode) {
+    tXcpCalSegIndex calseg_index = XcpGetCalSegIndex(segment_number);
+    if (calseg_index == XCP_UNDEFINED_CALSEG)
         return CRC_OUT_OF_RANGE; // Segment number out of range
-    gXcp.CalSegList.calseg[segment]->h.mode = mode;
+    gXcp.CalSegList.calseg[calseg_index]->h.mode = mode;
     return CRC_CMD_OK;
 }
 
@@ -1341,11 +1379,11 @@ uint8_t XcpSetMta(uint8_t ext, uint32_t addr) {
         gXcp.MtaExt = XCP_ADDR_EXT_PTR;
 #ifdef XCP_ENABLE_CALSEG_LIST
         // Check for calibration segment absolute address (XcpSetMta is not performance critical)
-        tXcpCalSegIndex calseg = XcpFindCalSegByAddr(gXcp.MtaPtr);
-        if (calseg != XCP_UNDEFINED_CALSEG) {
-            tXcpCalSeg *c = gXcp.CalSegList.calseg[calseg];
+        tXcpCalSegIndex calseg_index = XcpFindCalSegByAddr(gXcp.MtaPtr);
+        if (calseg_index != XCP_UNDEFINED_CALSEG) {
+            tXcpCalSeg *c = gXcp.CalSegList.calseg[calseg_index];
             gXcp.MtaExt = XCP_ADDR_EXT_SEG;
-            gXcp.MtaAddr = XcpAddrEncodeSegIndex(calseg, gXcp.MtaPtr - c->h.default_page); // Convert to segment relative address
+            gXcp.MtaAddr = XcpAddrEncodeSegIndex(calseg_index, gXcp.MtaPtr - c->h.default_page); // Convert to segment relative address
         }
 #endif
         return CRC_CMD_OK;

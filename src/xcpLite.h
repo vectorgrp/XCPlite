@@ -183,8 +183,8 @@ tXcpEvent *XcpGetEvent(tXcpEventId event);
 #ifndef XCP_MAX_CALSEG_COUNT
 #error "Please define XCP_MAX_CALSEG_COUNT!"
 #endif
-#if XCP_MAX_CALSEG_COUNT < 1 || XCP_MAX_CALSEG_COUNT > 255
-#error "XCP_MAX_CALSEG_COUNT must be between 1 and 255!"
+#if XCP_MAX_CALSEG_COUNT < 1
+#error "XCP_MAX_CALSEG_COUNT must be at least 1!"
 #endif
 
 #ifndef XCP_MAX_CALSEG_NAME
@@ -195,6 +195,7 @@ tXcpEvent *XcpGetEvent(tXcpEventId event);
 // Used in A2l and XCP commands to identify a calibration segment
 // Currently only 256 segments are supported
 typedef uint8_t tXcpCalSegNumber;
+#define XCP_UNDEFINED_CALSEG_NUM 0xFF
 
 // Calibration segment index
 // The index of the calibration segment in the calibration segment list or XCP_UNDEFINED_CALSEG
@@ -254,6 +255,10 @@ tXcpCalSegIndex XcpFindCalSeg(const char *name);
 
 // Find a calibration segment by its default page pointer, returns XCP_UNDEFINED_CALSEG if not found
 tXcpCalSegIndex XcpFindCalPage(const void *default_page);
+
+// Convert between segment number and segment index, returns XCP_UNDEFINED_CALSEG or XCP_UNDEFINED_CALSEG_NUM if not found
+tXcpCalSegIndex XcpGetCalSegIndex(tXcpCalSegNumber segment_number);
+tXcpCalSegNumber XcpGetCalSegNumber(tXcpCalSegIndex calseg);
 
 // Get a pointer to the calibration segment struct
 tXcpCalSeg *XcpGetCalSeg(tXcpCalSegIndex calseg);
