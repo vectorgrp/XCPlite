@@ -45,8 +45,8 @@
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 // Settings
 
-// Assume a cache line size of 128 bytes for alignment and padding to avoid false sharing and to optimize performance on high contention
-#define CACHE_LINE_SIZE 128u
+// Assume a cache line size of 64 bytes for alignment and padding to avoid false sharing and to optimize performance on high contention
+#define CACHE_LINE_SIZE 64u
 
 // Overall fixed maximaum size of the queue entries in the queue buffer
 // Including the user header and payload and the internal atomic queue entry state of 4 bytes

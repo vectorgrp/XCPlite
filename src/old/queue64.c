@@ -60,8 +60,8 @@
 #define spin_loop_hint() // Fallback: do nothing
 #endif
 
-// Assume a maximum cache line size of 128 bytes
-#define CACHE_LINE_SIZE 128u // Cache line size, used to align the queue header
+// Assume a maximum cache line size of 64 bytes
+#define CACHE_LINE_SIZE 64u // Cache line size, used to align the queue header
 
 // Check for 64 Bit non Windows platform
 #if !defined(PLATFORM_64BIT) || defined(_WIN)

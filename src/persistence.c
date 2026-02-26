@@ -154,9 +154,9 @@ static bool writeEvent(FILE *file, tXcpEventId event_id, const tXcpEvent *event)
 static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, tXcpCalSeg *seg, uint8_t page) {
     tCalSegDescriptor desc;
     memset(&desc, 0, sizeof(tCalSegDescriptor));
-    strncpy(desc.name, seg->name, XCP_MAX_CALSEG_NAME);
+    strncpy(desc.name, seg->h.name, XCP_MAX_CALSEG_NAME);
     desc.name[XCP_MAX_CALSEG_NAME] = '\0'; // Ensure null termination
-    desc.size = seg->size;
+    desc.size = seg->h.size;
     desc.addr = XcpGetCalSegBaseAddress(calseg);
     desc.index = calseg;
     size_t written = fwrite(&desc, sizeof(tCalSegDescriptor), 1, file);
@@ -164,14 +164,14 @@ static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, tXcpCalSeg *seg, uin
         DBG_PRINTF3("Failed to write calibration segment descriptor to file: %s\n", strerror(errno));
         return false;
     }
-    seg->file_pos = (uint32_t)ftell(file); // Save the position of the segment page data in the file
+    seg->h.file_pos = (uint32_t)ftell(file); // Save the position of the segment page data in the file
 #ifdef OPTION_ENABLE_DBG_PRINTS
-    DBG_PRINTF4("Writing calibration segment %u, size=%u %s page data:\n", calseg, seg->size, page == XCP_CALPAGE_DEFAULT_PAGE ? "default" : "working");
+    DBG_PRINTF4("Writing calibration segment %u, size=%u %s page data:\n", calseg, seg->h.size, page == XCP_CALPAGE_DEFAULT_PAGE ? "default" : "working");
     if (DBG_LEVEL >= 4)
-        printCalsegPage(page == XCP_CALPAGE_DEFAULT_PAGE ? seg->default_page : seg->ecu_page, seg->size);
+        printCalsegPage(page == XCP_CALPAGE_DEFAULT_PAGE ? seg->h.default_page : seg->h.ecu_page, seg->h.size);
 #endif
     // This is safe, because XCP is not connected
-    written = fwrite(page == XCP_CALPAGE_DEFAULT_PAGE ? seg->default_page : seg->ecu_page, seg->size, 1, file);
+    written = fwrite(page == XCP_CALPAGE_DEFAULT_PAGE ? seg->h.default_page : seg->h.ecu_page, seg->h.size, 1, file);
     if (written != 1) {
         DBG_PRINTF3("Failed to write calibration segment data to file: %s\n", strerror(errno));
         return false;
@@ -263,21 +263,21 @@ bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg) {
     }
 
     // Set position to start of calseg data and write the active page data
-    assert(seg->file_pos > 0); // Ensure the file position is set
+    assert(seg->h.file_pos > 0); // Ensure the file position is set
     size_t n = 0;
-    if (0 == fseek(file, seg->file_pos, SEEK_SET)) {
+    if (0 == fseek(file, seg->h.file_pos, SEEK_SET)) {
         const uint8_t *ecu_page = XcpLockCalSeg(calseg);
 #ifdef OPTION_ENABLE_DBG_PRINTS
-        DBG_PRINTF4("Freezing calibration segment %u, size=%u active page data to file '%s'+%u\n", calseg, seg->size, gXcpBinFilename, seg->file_pos);
+        DBG_PRINTF4("Freezing calibration segment %u, size=%u active page data to file '%s'+%u\n", calseg, seg->h.size, gXcpBinFilename, seg->h.file_pos);
         if (DBG_LEVEL >= 4)
-            printCalsegPage(ecu_page, seg->size);
+            printCalsegPage(ecu_page, seg->h.size);
 #endif
-        n = fwrite(ecu_page, seg->size, 1, file);
+        n = fwrite(ecu_page, seg->h.size, 1, file);
         XcpUnlockCalSeg(calseg);
     }
     fclose(file);
     if (n != 1) {
-        DBG_PRINTF_ERROR("Failed to write calibration segment %u, size=%u active page data to file '%s'+%u\n", calseg, seg->size, gXcpBinFilename, seg->file_pos);
+        DBG_PRINTF_ERROR("Failed to write calibration segment %u, size=%u active page data to file '%s'+%u\n", calseg, seg->h.size, gXcpBinFilename, seg->h.file_pos);
         return false;
     } else {
         return true;
@@ -401,8 +401,8 @@ static bool load(const char *filename, const char *epk) {
         // Mark the segment as pre initialized
         // NOLINTNEXTLINE(clang-analyzer-unix.Malloc)
         tXcpCalSeg *seg = XcpGetCalSeg(calseg);
-        seg->mode = PAG_PROPERTY_PRELOAD;
-        seg->file_pos = (uint32_t)ftell(file) - desc.size; // Save the position of the segment page data in the file
+        seg->h.mode = PAG_PROPERTY_PRELOAD;
+        seg->h.file_pos = (uint32_t)ftell(file) - desc.size; // Save the position of the segment page data in the file
     }
 
     fclose(file);

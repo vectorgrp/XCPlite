@@ -201,29 +201,43 @@ typedef uint8_t tXcpCalSegNumber;
 typedef uint16_t tXcpCalSegIndex;
 #define XCP_UNDEFINED_CALSEG 0xFFFF
 
+#define XCP_CALPAGE_ALIGNMENT 8 // Page alignment in bytes
+
+// Calibration segment header struct
+typedef union {
+    struct {
+        atomic_uintptr_t ecu_page_next;
+        atomic_uintptr_t free_page;
+        atomic_uint_fast8_t ecu_access; // page number for ECU access
+        atomic_uint_fast8_t lock_count; // lock count for the segment, 0 = unlocked
+        const uint8_t *default_page;
+        uint8_t *ecu_page;
+        uint8_t *xcp_page;
+        uint16_t size;
+        uint8_t xcp_access;    // page number for XCP access
+        bool write_pending;    // write pending because write delay
+        bool free_page_hazard; // safe free page use is not guaranteed yet, it may be in use
+#ifdef XCP_ENABLE_CAL_PERSISTENCE
+        uint32_t file_pos; // position of the calibration segment in the persistence file
+        uint8_t mode;      // requested for freeze and preload
+#endif
+        char name[XCP_MAX_CALSEG_NAME + 1];
+    };
+    uint8_t reserved[(XCP_MAX_CALSEG_NAME + 47) & ~(XCP_CALPAGE_ALIGNMENT - 1)]; // Pad the struct to modulo 8
+} tXcpCalSegHeader;
+
+static_assert(sizeof(tXcpCalSegHeader) % XCP_CALPAGE_ALIGNMENT == 0, "Error: size of tXcpCalSegHeader is not a multiple of XCP_CALPAGE_ALIGNMENT");
+
 // Calibration segment
 typedef struct {
-    atomic_uintptr_t ecu_page_next;
-    atomic_uintptr_t free_page;
-    atomic_uint_fast8_t ecu_access; // page number for ECU access
-    atomic_uint_fast8_t lock_count; // lock count for the segment, 0 = unlocked
-    const uint8_t *default_page;
-    uint8_t *ecu_page;
-    uint8_t *xcp_page;
-    uint16_t size;
-    uint8_t xcp_access;    // page number for XCP access
-    bool write_pending;    // write pending because write delay
-    bool free_page_hazard; // safe free page use is not guaranteed yet, it may be in use
-#ifdef XCP_ENABLE_CAL_PERSISTENCE
-    uint8_t mode;      // requested for freeze and preload
-    uint32_t file_pos; // position of the calibration segment in the persistence file
-#endif
-    char name[XCP_MAX_CALSEG_NAME + 1];
+    tXcpCalSegHeader h;
+    // variable size data block for the pages, actual size is page_size * 3, for working page, free page and xcp page
+    uint8_t b[];
 } tXcpCalSeg;
 
 // Calibration segment list
 typedef struct {
-    tXcpCalSeg calseg[XCP_MAX_CALSEG_COUNT];
+    tXcpCalSeg *calseg[XCP_MAX_CALSEG_COUNT];
     MUTEX mutex;
     uint16_t count;
     bool write_delayed; // atomic calibration (begin/end user command) in progress
@@ -257,6 +271,11 @@ uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg);
 // Thread safe
 // Returns the handle or XCP_UNDEFINED_CALSEG when out of memory
 tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint16_t size);
+
+// Create a calibration segment in given memory
+// Thread safe, no malloc inside, memory management is up to the user
+// Returns the handle or XCP_UNDEFINED_CALSEG when out of memory or invalid parameters
+tXcpCalSegIndex XcpCreateCalSegFromMemory(const char *name, const void *default_page, uint16_t size, void *memory, size_t memory_size);
 
 // Lock a calibration segment and return a pointer to the ECU page
 const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg);

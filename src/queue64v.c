@@ -53,8 +53,8 @@
 #ifdef _MSC_VER
 #endif
 
-// Assume a maximum cache line size of 128 bytes
-#define CACHE_LINE_SIZE 128u // Cache line size, used to align the queue header
+// Assume a maximum cache line size of 64 bytes
+#define CACHE_LINE_SIZE 64u // Cache line size, used to align the queue header
 
 // Check for 64 Bit non Windows platform
 #if !defined(PLATFORM_64BIT) || defined(_WIN)
@@ -573,7 +573,7 @@ tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t peek_index, uint32_t 
             // Return whether a flush request is pending on this entry
             if (flush_requested != NULL) {
                 uint64_t flush_offset = atomic_load_explicit(&queue->h.flush_offset, memory_order_relaxed); // We use relaxed, assuming the cache line is already up to date
-                if (flush_offset == (uint8_t *)entry - queue->buffer) {
+                if (flush_offset == (uint64_t)((uint8_t *)entry - queue->buffer)) {
                     *flush_requested = true;
                     // Don't clear the flush offset, to avoid overwriting an updated flush offset, false flushes are less problem than missing flushes
                 }

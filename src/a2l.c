@@ -564,8 +564,8 @@ static void A2lCreate_MOD_PAR(void) {
 #endif
         {
             for (tXcpCalSegIndex i = 0; i < calSegList->count; i++) {
-                const tXcpCalSeg *calseg = &calSegList->calseg[i];
-                fprintf(gA2lFile, gA2lMemorySegment, calseg->name, XcpGetCalSegBaseAddress(i), calseg->size, i, calseg->name, calseg->name, calseg->name, calseg->size);
+                const tXcpCalSeg *calseg = calSegList->calseg[i];
+                fprintf(gA2lFile, gA2lMemorySegment, calseg->h.name, XcpGetCalSegBaseAddress(i), calseg->h.size, i, calseg->h.name, calseg->h.name, calseg->h.name, calseg->h.size);
             }
         }
 #endif // XCP_ENABLE_CALSEG_LIST
@@ -811,7 +811,7 @@ void A2lSetSegmentAddrMode__i(tXcpCalSegIndex calseg_index, const uint8_t *calse
         // fprintf(gA2lFile, "\n/* Absolute segment addressing mode: calseg=%s */\n", calseg->name);
 #endif
         if (gA2lAutoGroups) {
-            A2lBeginGroup(calseg->name, "Calibration Segment", true);
+            A2lBeginGroup(calseg->h.name, "Calibration Segment", true);
         }
     }
 }
@@ -837,7 +837,7 @@ void A2lSetSegmentAddrMode__s(const char *calseg_name, const uint8_t *calseg_ins
         // fprintf(gA2lFile, "\n/* Absolute segment addressing mode: calseg=%s */\n", calseg->name);
 #endif
         if (gA2lAutoGroups) {
-            A2lBeginGroup(calseg->name, "Calibration Segment", true);
+            A2lBeginGroup(calseg->h.name, "Calibration Segment", true);
         }
     }
 }
