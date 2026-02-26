@@ -391,6 +391,7 @@ uint8_t XCP_ADDR_MODE_SEG = XCP_ADDR_EXT_SEG;
 // Initialize the calibration segment list
 static void XcpInitCalSegList(void) {
     gXcp.CalSegList.count = 0;
+    gXcp.CalSegList.memory_segment_count = 0;
     gXcp.CalSegList.write_delayed = false;
     mutexInit(&gXcp.CalSegList.mutex, false, 0); // Non-recursive mutex, no spin count
 }
@@ -400,22 +401,13 @@ static void XcpFreeCalSegList(void) {
     assert(isInitialized());
     for (uint16_t i = 0; i < gXcp.CalSegList.count; i++) {
         tXcpCalSeg *calseg = gXcp.CalSegList.calseg[i];
-        if (calseg->h.xcp_page != NULL) {
-            free(calseg->h.xcp_page);
-            calseg->h.xcp_page = NULL;
-        }
-        if (calseg->h.ecu_page != NULL) {
-            free(calseg->h.ecu_page);
-            calseg->h.ecu_page = NULL;
-        }
-        uintptr_t free_page = atomic_load_explicit(&calseg->h.free_page, memory_order_relaxed);
-        if (free_page != 0) {
-            // NOLINTNEXTLINE(performance-no-int-to-ptr)
-            free((void *)free_page);
-            atomic_store_explicit(&calseg->h.free_page, (uintptr_t)NULL, memory_order_relaxed);
+        if (calseg != NULL) {
+            free(calseg);
+            gXcp.CalSegList.calseg[i] = NULL;
         }
     }
     gXcp.CalSegList.count = 0;
+    gXcp.CalSegList.memory_segment_count = 0;
     mutexDestroy(&gXcp.CalSegList.mutex);
 }
 
@@ -479,21 +471,20 @@ static tXcpCalSegIndex XcpFindCalSegByAddr(uint8_t *addr) {
 // Not all calibrations segments can be controlled by XCP
 // XCP uses a uin8_t number to identify memory segments (tXcpCalSegNumber), while the calibration segment index (tXcpCalSegIndex) is uint16_t
 tXcpCalSegIndex XcpGetCalSegIndex(tXcpCalSegNumber segment_number) {
-
-    if (segment_number == XCP_UNDEFINED_CALSEG_NUM)
-        return XCP_UNDEFINED_CALSEG; // Not found
-    // @@@@ TODO Unimplemented
-    return (tXcpCalSegIndex)segment_number;
-    // return XCP_UNDEFINED_CALSEG; // Not found
+    for (uint16_t i = 0; i < gXcp.CalSegList.count; i++) {
+        tXcpCalSeg *calseg = gXcp.CalSegList.calseg[i];
+        if (calseg->h.calseg_number == segment_number) {
+            return i;
+        }
+    }
+    return XCP_UNDEFINED_CALSEG; // Not found
 }
 
 // Get the memory segment number of a calibration segment, returns 0xFF if not found
 tXcpCalSegNumber XcpGetCalSegNumber(tXcpCalSegIndex calseg_index) {
-
-    // @@@@ TODO Unimplemented
     if (calseg_index >= gXcp.CalSegList.count)
-        return XCP_UNDEFINED_CALSEG_NUM; // Not found
-    return (tXcpCalSegNumber)calseg_index;
+        return XCP_UNDEFINED_CALSEG_NUM;
+    return gXcp.CalSegList.calseg[calseg_index]->h.calseg_number;
 }
 
 // Get the name of the calibration segment
@@ -581,14 +572,14 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
 
     mutexUnlock(&gXcp.CalSegList.mutex);
 
-    return XcpCreateCalSegFromMemory(name, default_page, page_size, memory_buffer, memory_size);
+    return XcpCreateCalSegFromMemory(name, default_page, page_size, 2, memory_buffer, memory_size);
 }
 
 // Create a calibration segment in given memory
 // Thread safe, no malloc inside, memory management is up to the user
 // For existing preloaded calibration segment, memory_size is 0, while memory_buffer point to the preloaded segment, and the function will reuse the preloaded segment
 // Returns the handle or XCP_UNDEFINED_CALSEG when out of memory or invalid parameters
-tXcpCalSegIndex XcpCreateCalSegFromMemory(const char *name, const void *default_page, uint16_t page_size, void *memory_buffer, size_t memory_size) {
+tXcpCalSegIndex XcpCreateCalSegFromMemory(const char *name, const void *default_page, uint16_t page_size, uint8_t page_count, void *memory_buffer, size_t memory_size) {
 
     assert(isInitialized());
 
@@ -633,7 +624,7 @@ tXcpCalSegIndex XcpCreateCalSegFromMemory(const char *name, const void *default_
             }
         } else {
 
-            // Check out of list space
+            // Check if out of list space
             if (gXcp.CalSegList.count >= XCP_MAX_CALSEG_COUNT) {
                 mutexUnlock(&gXcp.CalSegList.mutex);
                 DBG_PRINT_ERROR("too many calibration segments\n");
@@ -646,6 +637,7 @@ tXcpCalSegIndex XcpCreateCalSegFromMemory(const char *name, const void *default_
                 DBG_PRINT_ERROR("not enough memory for calibration segment\n");
                 return XCP_UNDEFINED_CALSEG;
             }
+
             calseg_index = gXcp.CalSegList.count;
             c = (tXcpCalSeg *)memory_buffer;
             gXcp.CalSegList.calseg[calseg_index] = c;
@@ -653,6 +645,16 @@ tXcpCalSegIndex XcpCreateCalSegFromMemory(const char *name, const void *default_
             STRNCPY(c->h.name, name, XCP_MAX_CALSEG_NAME);
             c->h.name[XCP_MAX_CALSEG_NAME] = 0;
             c->h.size = page_size;
+            if (page_count == 2) { // Supports only memory segments with 2 pages
+                if (gXcp.CalSegList.memory_segment_count >= 0xFF) {
+                    mutexUnlock(&gXcp.CalSegList.mutex);
+                    DBG_PRINT_ERROR("too many memory segments for calibration segments\n");
+                    return XCP_UNDEFINED_CALSEG;
+                }
+                c->h.calseg_number = (tXcpCalSegNumber)gXcp.CalSegList.memory_segment_count++;
+            } else {
+                c->h.calseg_number = XCP_UNDEFINED_CALSEG_NUM; // Not a memory segment
+            }
             c->h.default_page = (uint8_t *)default_page;
 #ifdef XCP_ENABLE_CAL_PERSISTENCE
             c->h.file_pos = 0;
