@@ -18,6 +18,8 @@
 
 #include "platform.h"
 
+#include <stdlib.h> // for malloc, free
+
 #include "dbg_print.h"  // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
 #include "xcplib_cfg.h" // for OPTION_xxx ...
 

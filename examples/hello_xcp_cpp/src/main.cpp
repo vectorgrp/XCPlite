@@ -222,7 +222,7 @@ int main() {
         );
 
         // Make kDelayUs a calibration value
-        // Not that calibration values have static lifetime from the calibration tool perspective
+        // Note that calibration values have static lifetime from the calibration tool perspective
         auto delay_us = CalVal(kDelayUs);
         if (A2lOnce()) {
             A2lCreateParameter(kDelayUs, "Loop delay in microseconds", "", 0, 1000000); // Create the A2L parameter description

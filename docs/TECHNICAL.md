@@ -22,9 +22,10 @@ Measurement of function parameters and local variables has the side effect that 
 
 The instrumentation to create calibration parameter segments use a mutex lock against other simultaneous segment creations.
 
-During the creation of a calibration segment, heap allocations for 3 copies of the initial page are requested (a reference, a working page and a single RCU swap page).
+During the creation of a calibration segment, a single heap allocation for 4 copies of the initial page is requested.  
+(default page, reference page, working page and a single RCU swap page).  
 
-Calibration segment access is thread safe and lock less. There is no more heap allocation per thread needed.
+Calibration segment access is thread safe and lock less.
 
 
 
@@ -232,10 +233,11 @@ function try_publish(segment) -> bool {
 **File system:** `fopen`, `fprintf`
 - Used for A2L generation and optional parameter persistence to a binary file
 
-**Heap allocation:** `malloc`, `free`
-- Transmit queue (`XcpEthServerInit`, parameter queue size)
+**Heap allocations:** `aligned_alloc`, `malloc`, `free`
+- Transmit queue (XcpEthServerInit parameter queue_size)
 - DAQ table memory (`XcpInit`, `OPTION_DAQ_MEM_SIZE` in `xcplib_cfg.h`)
-- Calibration segments page memory (`XcpCreateCalSeg`, 3 copies of the default page for working page, xcp page and RCU)
+- Calibration segment page memory (`XcpCreateCalSeg`, one allocation for 4 copies (default, reference, working and RCU swap)
+- Socket abstraction for XCP on Ethernet transport layer, one allocation for each socket
 
 **Atomics:** C11 `stdatomic.h`
 - Requires: `atomic_uintptr_t`, `atomic_uint_fast8_t`, `atomic_uint_fast64_t`, `exchange`, `compare_exchange`, `fetch_sub`, `fetch_add`

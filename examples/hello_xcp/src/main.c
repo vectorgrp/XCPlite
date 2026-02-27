@@ -30,12 +30,11 @@
 // Calibration parameters structure
 typedef struct params {
     uint16_t counter_max; // Maximum value for the counter
-    uint32_t delay_us;    // Sleep time in microseconds for the main loop
     float flow_rate;      // Flow rate in m3/h
 } parameters_t;
 
 // Default values (reference page, "FLASH") for the calibration parameters
-const parameters_t params = {.counter_max = 1024, .delay_us = 1000, .flow_rate = 0.300f};
+const parameters_t params = {.counter_max = 1024, .flow_rate = 0.300f};
 
 // A global calibration segment handle for the calibration parameters
 // A calibration segment has a working page ("RAM") and a reference page ("FLASH"), it is described by a MEMORY_SEGMENT in the A2L file
@@ -62,7 +61,7 @@ uint32_t global_counter = 0;
 #define read_inside_sensor() (inside_temperature)
 
 //-----------------------------------------------------------------------------------------------------
-// Demo function with XCP instrumentation
+// Demo functions with XCP instrumentation
 
 // Calculate heat power from temperature difference and flow rate calibration parameter
 // Temperatures are in uint8_t in Deg Celsius offset by -55 °C, conversion rule identifier is "conv.temperature"
@@ -104,6 +103,25 @@ float calc_power(uint8_t t1, uint8_t t2) {
 #endif
 
     return (float)heat_power;
+}
+
+// Sleep function with calibration parameter for the delay time
+void sleep(uint32_t delay_us) {
+
+    // sleepUs(delay_us)
+
+    // Create a calibration parameter for delay_us for thread safe and memory safe calibration access
+    // The sleep time can be adjusted, the original parameter delay_us is used as default value
+    // This can be done at any place in the code
+    // delay_us must not necessarily have static lifetime, if XCP is on working page, the CANape controlled value will be used, otherwise actual value
+    tXcpCalSegIndex s = XcpCreateCalVal("delay_us", &delay_us, sizeof(delay_us));
+    A2lOnce() {
+        A2lSetSegmentAddrMode(s, delay_us);
+        A2lCreateParameter(delay_us, "Sleep time in us", "us", 0, 999999);
+    }
+    uint32_t *p = (uint32_t *)XcpLockCalSeg(s);
+    sleepUs(*p);
+    XcpUnlockCalSeg(s);
 }
 
 //-----------------------------------------------------------------------------------------------------
@@ -150,7 +168,6 @@ int main(void) {
     // XCP: Option1: Register the individual calibration parameters in the calibration segment
     A2lSetSegmentAddrMode(calseg, params);
     A2lCreateParameter(params.counter_max, "Maximum counter value", "", 0, 65535);
-    A2lCreateParameter(params.delay_us, "Mainloop delay time in us", "us", 0, 999999);
     A2lCreateParameter(params.flow_rate, "Flow rate", "m3/h", 0.0, 2.0);
 
     // XCP: Option2: Register the calibration segment as a typedef instance
@@ -191,8 +208,6 @@ int main(void) {
         // Returns a pointer to the active page (working or reference) of the calibration segment
         const parameters_t *params = (parameters_t *)XcpLockCalSeg(calseg);
 
-        uint32_t delay_us = params->delay_us; // Get the delay calibration parameter in microseconds
-
         // Local variables
         counter++;
         if (counter > params->counter_max) { // Get the counter_max calibration value and reset counter
@@ -205,7 +220,7 @@ int main(void) {
         inside_temperature = read_inside_sensor();
         outside_temperature = read_outside_sensor();
         double heat_power = calc_power(outside_temperature, inside_temperature); // Demo function to calculate heat power in W
-        heat_energy += heat_power / 1000.0 * (double)delay_us / 3600e6;          // Integrate heat energy in kWh in a global measurement variable, kWh = W/1000  * us/ 3600e6
+        heat_energy += heat_power / 3600e6;                                      // Integrate heat energy in kWh in a global measurement variable, kWh = W/1000  * us/ 3600e6
 
         // XCP: Unlock the calibration segment
         XcpUnlockCalSeg(calseg);
@@ -224,8 +239,7 @@ int main(void) {
                     A2L_MEAS(counter, "Mainloop counter"));
 #endif
 
-        // Sleep for the specified delay parameter in microseconds, don't sleep with the XCP lock held to give the XCP client a chance to update params
-        sleepUs(delay_us);
+        sleep(1000);
 
         A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
 

@@ -87,7 +87,6 @@ OPTION_CLOCK_EPOCH_ARB or OPTION_CLOCK_EPOCH_PTP
 #include <stdbool.h>  // for bool
 #include <stdint.h>   // for uintxx_t, uint_fastxx_t
 #include <stdio.h>    // for printf
-#include <stdlib.h>   // for malloc, free
 #include <time.h>
 #include <windows.h>
 
@@ -109,7 +108,6 @@ OPTION_CLOCK_EPOCH_ARB or OPTION_CLOCK_EPOCH_PTP
 #include <stdbool.h>  // for bool
 #include <stdint.h>   // for uintxx_t, uint_fastxx_t
 #include <stdio.h>    // for printf
-#include <stdlib.h>   // for malloc, free
 
 #include <net/if.h> // for IFNAMSIZ
 #include <pthread.h>

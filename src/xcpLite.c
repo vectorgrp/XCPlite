@@ -552,7 +552,7 @@ static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, const void *default_pa
         // Allocate memory for the new segment, including the header and space for 3 pages (ECU page, XCP page and RCU swap page)
         uint16_t aligned_page_size =
             (page_size + XCP_CALPAGE_ALIGNMENT - 1) & ~(XCP_CALPAGE_ALIGNMENT - 1); // Align page size to XCP_CALPAGE_ALIGNMENT bytes for better performance
-        size_t memory_size = sizeof(tXcpCalSegHeader) + 3 * aligned_page_size;      // Header + ECU page + XCP page + free page
+        size_t memory_size = sizeof(tXcpCalSegHeader) + 4 * aligned_page_size;      // Header + DEFAULT page + ECU page + XCP page + RCU swap page
         void *memory_buffer = malloc(memory_size);                                  // @@@@ TODO: Add custom memory allocator for calibration segments here
         return XcpCreateCalSegFromMemory_(name, default_page, page_size, memory_segment, memory_buffer, memory_size);
     }
@@ -570,7 +570,7 @@ static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, const void *default_pa
 #ifdef XCP_ENABLE_CAL_PERSISTENCE
 
     // Check if this is a preloaded segment
-    // Preloaded segments have the correct size and a valid default page allocated from heap and initialized with data from the binary calibration segment image file on startup
+    // Preloaded segments have a valid default page allocated from heap and initialized with data from the binary calibration segment image file on startup
     // The PAG_PROPERTY_PRELOAD bit is set to indicate this
     if (c->h.default_page != NULL && (c->h.mode & PAG_PROPERTY_PRELOAD) != 0) {
 
@@ -581,13 +581,19 @@ static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, const void *default_pa
 
 #endif // XCP_ENABLE_CAL_PERSISTENCE
 
+    // The default page should be the same as the existing one, because we assume it has static lifetime
+    if (default_page != c->h.default_page) {
+        DBG_PRINTF_ERROR("Calibration segment '%s' already exists with a different default page\n", name);
+        return XCP_UNDEFINED_CALSEG;
+    }
+
     // Segment already exists, just return the existing segment index
     DBG_PRINTF6("Calibration segment '%s' already exists\n", name);
     return calseg_index;
 }
 
 // Helper function to create a calibration segment in given memory
-// Thread safe, no malloc inside, memory management is up to the user
+// Thread safe, memory management is up to the user
 // For existing preloaded calibration segment, memory_size is 0, while memory_buffer points to the preloaded segment, so the function will reuse the preloaded segment
 // Note that preloaded calibration segments have a default page allocated externally during loading the persistence file
 // Returns the index or XCP_UNDEFINED_CALSEG when out of memory or invalid parameters
@@ -602,9 +608,10 @@ static tXcpCalSegIndex XcpCreateCalSegFromMemory_(const char *name, const void *
 
     // Align page size to 8 bytes for better performance
     uint16_t aligned_page_size = (page_size + XCP_CALPAGE_ALIGNMENT - 1) & ~(XCP_CALPAGE_ALIGNMENT - 1);
-#define XCP_PAGE_OFFSET (0 * aligned_page_size)  // Offset of the XCP working page in the allocated memory buffer
-#define ECU_PAGE_OFFSET (1 * aligned_page_size)  // Offset of the ECU working page in the allocated memory buffer
-#define FREE_PAGE_OFFSET (2 * aligned_page_size) // Offset of the free swap page in the allocated memory buffer
+#define XCP_PAGE_OFFSET (0 * aligned_page_size)     // Offset of the XCP working page in the allocated memory buffer
+#define ECU_PAGE_OFFSET (1 * aligned_page_size)     // Offset of the ECU working page in the allocated memory buffer
+#define FREE_PAGE_OFFSET (2 * aligned_page_size)    // Offset of the free swap page in the allocated memory buffer
+#define DEFAULT_PAGE_OFFSET (3 * aligned_page_size) // Offset of the default page in the allocated memory buffer, only used for preloaded segments
 
 #ifdef XCP_ENABLE_CAL_PERSISTENCE
     // Check if this is a preloaded segment (indicated by memory_size == 0 and memory_buffer != NULL)
@@ -636,7 +643,7 @@ static tXcpCalSegIndex XcpCreateCalSegFromMemory_(const char *name, const void *
         }
 
         // Check if enough memory for the new segment
-        if (memory_buffer == NULL || memory_size < (sizeof(tXcpCalSegHeader) + 3 * aligned_page_size)) {
+        if (memory_buffer == NULL || memory_size < (sizeof(tXcpCalSegHeader) + 4 * aligned_page_size)) {
             mutexUnlock(&gXcp.CalSegList.mutex);
             DBG_PRINT_ERROR("not enough memory for calibration segment\n");
             return XCP_UNDEFINED_CALSEG;
@@ -658,10 +665,25 @@ static tXcpCalSegIndex XcpCreateCalSegFromMemory_(const char *name, const void *
         } else {
             c->h.calseg_number = XCP_UNDEFINED_CALSEG_NUM; // Not a memory segment
         }
-        c->h.default_page = (uint8_t *)default_page;
+
+        // Initialize the default page
+        // Standard, provided by the caller, may have static lifetime, so keep the pointer and also make a copy
+        if (default_page != NULL) {
+            memcpy(&c->b[DEFAULT_PAGE_OFFSET], default_page, page_size); // Copy default page to the allocated memory buffer
+            c->h.default_page = (uint8_t *)default_page;                 // Keep the pointer to the default page, which may have static lifetime
+        }
+        // Preloaded
+        else {
 #ifdef XCP_ENABLE_CAL_PERSISTENCE
-        c->h.file_pos = 0;
+            memset(&c->b[DEFAULT_PAGE_OFFSET], 0, page_size);
+            c->h.default_page = &c->b[DEFAULT_PAGE_OFFSET];
+#else
+            mutexUnlock(&gXcp.CalSegList.mutex);
+            DBG_PRINT_ERROR("No default page provided for calibration segment\n");
+            return XCP_UNDEFINED_CALSEG;
 #endif
+        }
+
         // Publish the new entry: release store ensures all preceding writes (name, size, etc.)
         // are visible to any thread that observes count via an acquire load (e.g. XcpFindCalSeg)
         atomic_store_explicit(&gXcp.CalSegList.count, calseg_index + 1, memory_order_release);
@@ -706,19 +728,18 @@ static tXcpCalSegIndex XcpCreateCalSegFromMemory_(const char *name, const void *
         // If it is a preloaded segment with a heap allocated default page, use the default page as XCP working page
 #ifdef XCP_ENABLE_CAL_PERSISTENCE
         if (c->h.mode & PAG_PROPERTY_PRELOAD) {
-            c->h.xcp_page = (uint8_t *)c->h.default_page; // Swap XCP working page and preloaded default page
-            c->h.default_page = default_page;
+            c->h.xcp_page = (uint8_t *)c->h.default_page;    // Swap XCP working page and preloaded default page
+            c->h.default_page = (uint8_t *)default_page;     // Save the original static lifetime default page pointer
             memcpy(c->h.ecu_page, c->h.xcp_page, page_size); // Copy XCP working page to ECU working page copy as well
             DBG_PRINTF3("Persistence data loaded into working page of CalSeg %u: %s addr=0x%08X, size=%u\n", calseg_index, c->h.name, XcpGetCalSegBaseAddress(calseg_index),
                         c->h.size);
         } else
 #endif
-        // else initialize the working page
+        // else initialize the working page from the default page as usual
         {
-
             // Allocate the XCP working page
             c->h.xcp_page = &c->b[XCP_PAGE_OFFSET];
-            memcpy(c->h.xcp_page, default_page, page_size); // Copy default page to working page
+            memcpy(c->h.xcp_page, c->h.default_page, page_size); // Copy default page to working page
         }
 #endif // !XCP_ENABLE_REFERENCE_PAGE_PERSISTENCE
 

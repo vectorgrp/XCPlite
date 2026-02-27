@@ -211,7 +211,7 @@ typedef union {
         atomic_uintptr_t free_page;
         atomic_uint_fast8_t ecu_access; // page number for ECU access
         atomic_uint_fast8_t lock_count; // lock count for the segment, 0 = unlocked
-        const uint8_t *default_page;
+        uint8_t *default_page;
         uint8_t *ecu_page;
         uint8_t *xcp_page;
         uint16_t size;

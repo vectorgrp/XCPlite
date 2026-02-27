@@ -371,9 +371,23 @@ static bool load(const char *filename, const char *epk) {
             return false;
         }
 
-        // Read calibration segment page data
-        // Allocate memory for persisted page from heap
-        void *page = malloc(desc.size);
+        // Create a calibration segment without a static lifetime default page
+        // In working page persistence mode, the default page will be moved to working page in the later XcpCreateCalSeg called by the user, otherwise fail
+        calseg = XcpCreateCalSeg(desc.name, NULL, desc.size);
+        if (calseg != desc.index) {
+            DBG_PRINT_ERROR("Failed to create calibration segment\n");
+            fclose(file);
+            return false;
+        }
+
+        // Mark the segment as preloaded
+        tXcpCalSeg *seg = XcpGetCalSeg(calseg);
+        seg->h.mode = PAG_PROPERTY_PRELOAD;
+        seg->h.file_pos = (uint32_t)ftell(file) - desc.size; // Save the position of the segment page data in the file
+
+        // Read calibration segment page data into the default page of the calibration segment
+        void *page = seg->h.default_page;
+        assert(page != NULL);
         read = fread(page, desc.size, 1, file);
         if (read != 1) {
             DBG_PRINTF_ERROR("Failed to read calibration segment data from file: %s\n", strerror(errno));
@@ -386,23 +400,6 @@ static bool load(const char *filename, const char *epk) {
         if (DBG_LEVEL >= 4)
             printCalsegPage(page, desc.size);
 #endif
-
-        // The persisted data will become the preliminary reference page
-        // Providing a heap allocated default page may not work for absolute segment addressing mode in reference page persistence mode
-        // In working page persistence mode, the default page will be moved to working page in the later XcpCreateCalSeg called by the user, otherwise fail
-        calseg = XcpCreateCalSeg(desc.name, page, desc.size);
-        if (calseg != desc.index) {
-            DBG_PRINT_ERROR("Failed to create calibration segment\n");
-            free(page);
-            fclose(file);
-            return false;
-        }
-
-        // Mark the segment as pre initialized
-        // NOLINTNEXTLINE(clang-analyzer-unix.Malloc)
-        tXcpCalSeg *seg = XcpGetCalSeg(calseg);
-        seg->h.mode = PAG_PROPERTY_PRELOAD;
-        seg->h.file_pos = (uint32_t)ftell(file) - desc.size; // Save the position of the segment page data in the file
     }
 
     fclose(file);
