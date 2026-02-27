@@ -287,7 +287,7 @@ void queueClear(tQueueHandle queue_handle) {
     atomic_store_explicit(&queue->h.flush_offset, 0xFFFFFFFFFFFFFFFFULL, memory_order_relaxed);
     queue->h.cached_peek_index = 0;
     queue->h.cached_peek_tail = 0;
-    DBG_PRINT3("queueClear\n");
+    DBG_PRINT6("queueClear\n");
 }
 
 tQueueHandle queueInit(size_t queue_buffer_size) { return queueInitFromMemory(NULL, queue_buffer_size + sizeof(tQueueHeader), true, NULL); }

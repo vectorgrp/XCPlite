@@ -241,7 +241,7 @@ typedef struct {
 typedef struct {
     tXcpCalSeg *calseg[XCP_MAX_CALSEG_COUNT];
     MUTEX mutex;
-    uint16_t count;
+    atomic_uint_fast16_t count;    // Number of calibration segments, max XCP_MAX_CALSEG_COUNT
     uint16_t memory_segment_count; // Number of memory segments used by calibration segments, max 255
     bool write_delayed;            // atomic calibration (begin/end user command) in progress
 } tXcpCalSegList;
@@ -275,14 +275,10 @@ uint16_t XcpGetCalSegSize(tXcpCalSegIndex calseg);
 uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg);
 
 // Create a calibration segment
-// Thread safe
-// Returns the handle or XCP_UNDEFINED_CALSEG when out of memory
 tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint16_t page_size);
 
-// Create a calibration segment in given memory
-// Thread safe, no malloc inside, memory management is up to the user
-// Returns the handle or XCP_UNDEFINED_CALSEG when out of memory or invalid parameters
-tXcpCalSegIndex XcpCreateCalSegFromMemory(const char *name, const void *default_page, uint16_t page_size, uint8_t page_count, void *memory, size_t memory_size);
+// Create a calibration value
+tXcpCalSegIndex XcpCreateCalVal(const char *name, const void *default_page, uint16_t page_size);
 
 // Lock a calibration segment and return a pointer to the ECU page
 const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg);

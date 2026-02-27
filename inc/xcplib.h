@@ -67,9 +67,8 @@ typedef uint16_t tXcpCalSegIndex;
 #define XCP_UNDEFINED_CALSEG 0xFFFF
 
 /// Create a calibration segment and add it to the list of calibration segments.
-/// Create a named calibration segment and add it to the list of calibration segments.
 /// This calibration segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
-/// It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration params
+/// It provides safe (thread safe against XCP modifications), lock-free and consistent atomic access to calibration parameters
 /// It supports XCP/ECU independent page switching, checksum calculation, copy and reinitialization (copy reference page to working page)
 /// @param name Name of the calibration segment.
 /// @param default_page Pointer to the default page.
@@ -77,32 +76,48 @@ typedef uint16_t tXcpCalSegIndex;
 /// @return a handle or XCP_UNDEFINED_CALSEG when out of memory or the name already exists.
 tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint16_t size);
 
-/// Find a calibration segment by name, returns XCP_UNDEFINED_CALSEG if not found
+/// Create a calibration value and add it to the list of calibration segments.
+/// This calibration segment has a working page (RAM) and a reference page (FLASH) (controlled with XcpSetCalPage CAL_PAGE_MODE_ALL)
+/// This calibration segment has no MEMORY_SEGMENT in the A2L file
+/// It provides safe (thread safe against XCP modifications), lock-free and consistent atomic access to calibration parameters
+/// @param name Name of the calibration segment.
+/// @param default_page Pointer to the default page.
+/// @param size Size of the calibration page in bytes.
+/// @return a handle or XCP_UNDEFINED_CALSEG when out of memory or the name already exists.
+tXcpCalSegIndex XcpCreateCalVal(const char *name, const void *default_page, uint16_t size);
+
+/// Find a calibration segment by name
+/// @param name Name of the calibration segment
+/// @return the Handle of the calibration segment or XCP_UNDEFINED_CALSEG if not found
 tXcpCalSegIndex XcpFindCalSeg(const char *name);
 
-/// Find a calibration segment by its default page pointer, returns XCP_UNDEFINED_CALSEG if not found
+/// Find a calibration segment by its default page pointer
+/// @param default_page Pointer to the default page of the calibration segment
+/// @return the handle of the calibration segment or XCP_UNDEFINED_CALSEG if not found
 tXcpCalSegIndex XcpFindCalPage(const void *default_page);
 
 /// Get the name of the calibration segment
+/// @param index Handle of the calibration segment
 /// @return the name of the calibration segment or NULL if the index is invalid.
-const char *XcpGetCalSegName(tXcpCalSegIndex calseg);
+const char *XcpGetCalSegName(tXcpCalSegIndex index);
 
 /// Lock a calibration segment.
-/// @param calseg Calibration segment index.
+/// @param index Calibration segment index.
 /// @return Pointer to the active page of the calibration segment (working page or reference page, controlled by the XCP client tool).
 /// The pointer is valid until the calibration segment is unlocked.
 /// The data can be safely accessed while the lock is held.
 /// There is no contention with the XCP client tool and with other threads acquiring the lock.
 /// Acquiring the lock is wait-free, locks may be recursive
-const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg);
+const uint8_t *XcpLockCalSeg(tXcpCalSegIndex index);
 
 /// Unlock a calibration segment
-uint8_t XcpUnlockCalSeg(tXcpCalSegIndex calseg);
+uint8_t XcpUnlockCalSeg(tXcpCalSegIndex index);
 
-/// Update a calibration parameter segment pointer
+/// Update a calibration parameter segment
 /// Single threaded calibration segment access assumed
 /// Calibration segment is continuously locked and only updated here
 /// It is the users responsibility to ensure single threaded usage and initial locking of the segment
+/// @param calPage Pointer to the calibration page
 void XcpUpdateCalSeg(void **calPage);
 
 /// Freeze all calibration segments
@@ -118,9 +133,9 @@ bool XcpFreezeAllCalSeg(void);
 bool XcpResetAllCalSegs(void);
 
 // Internal functions
-uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg);
+uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex index);
 uint16_t XcpGetCalSegCount(void);
-uint16_t XcpGetCalSegSize(tXcpCalSegIndex calseg);
+uint16_t XcpGetCalSegSize(tXcpCalSegIndex index);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Calibration segment convenience macros

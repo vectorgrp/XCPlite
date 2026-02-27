@@ -1012,7 +1012,7 @@ int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSiz
                 return 0; // Would block, should never happen on a blocking socket
             }
             if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_BADF || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR) {
-                DBG_PRINTF_WARNING("socketSendV: socket closed (err=%d)\n", err);
+                DBG_PRINTF5("socketSendV: socket closed (err=%d)\n", err);
                 return 0; // Socket closed
             }
             DBG_PRINTF_ERROR("%u - recvmsg failed (result=%d)!\n", err, n);
@@ -1109,7 +1109,7 @@ int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSiz
             if (err == SOCKET_ERROR_WBLOCK)
                 return 0; // Would block, should never happen on a blocking socket
             if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_BADF || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR) {
-                DBG_PRINTF_WARNING("socketRecvFrom: socket closed (err=%d)\n", err);
+                DBG_PRINTF5("socketRecvFrom: socket closed (err=%d)\n", err);
                 return 0; // Socket closed
             }
             DBG_PRINTF_ERROR("socketRecvFrom: failed (err=%u - result=%d)!\n", err, n);
@@ -1146,7 +1146,7 @@ int16_t socketRecv(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t size, bool wa
             return 0; // Would block, should never happen on a blocking socket
         }
         if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_BADF || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR) {
-            DBG_PRINT_WARNING("socketRecv: socket closed\n");
+            DBG_PRINT5("socketRecv: socket closed\n");
             return 0; // Socket closed
         }
         DBG_PRINTF_ERROR("%u - recv failed (result=%d)!\n", err, n);
@@ -1217,7 +1217,7 @@ int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t size,
                 return -1; // Should never happen on a blocking socket
             }
             if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_BADF || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR || err == SOCKET_ERROR_PIPE) {
-                DBG_PRINTF_WARNING("socketSendTo: socket closed (err=%d)\n", err);
+                DBG_PRINTF5("socketSendTo: socket closed (err=%d)\n", err);
                 return 0; // Socket closed
             }
             DBG_PRINTF_ERROR("socketSendTo: sendmsg failed with err=%d!\n", err);
@@ -1239,7 +1239,7 @@ int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t size,
             return -1; // Should never happen on a blocking socket
         }
         if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_BADF || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR || err == SOCKET_ERROR_PIPE) {
-            DBG_PRINTF_WARNING("socketSendTo: socket closed (err=%d)\n", err);
+            DBG_PRINTF5("socketSendTo: socket closed (err=%d)\n", err);
             return 0; // Socket closed
         }
         DBG_PRINTF_ERROR("socketSendTo: sendto failed with err=%d!\n", err);
@@ -1264,7 +1264,7 @@ int16_t socketSend(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t size) {
             return -1; // Should never happen on a blocking socket
         }
         if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_BADF || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR || err == SOCKET_ERROR_PIPE) {
-            DBG_PRINTF_WARNING("socketSend: socket closed (err=%d)\n", err);
+            DBG_PRINTF5("socketSend: socket closed (err=%d)\n", err);
             return 0; // Socket closed
         }
         DBG_PRINTF_ERROR("socketSend: send failed with err=%d!\n", err);
@@ -1322,7 +1322,7 @@ int16_t socketSendToV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t cou
             return -1; // Should never happen on a blocking socket
         }
         if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_BADF || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR || err == SOCKET_ERROR_PIPE) {
-            DBG_PRINTF_WARNING("socketSendToV: socket closed (err=%d)\n", err);
+            DBG_PRINTF5("socketSendToV: socket closed (err=%d)\n", err);
             return 0; // Socket closed
         }
         DBG_PRINTF_ERROR("socketSendToV: sendmsg failed with err=%d!\n", err);
@@ -1377,7 +1377,7 @@ int16_t socketSendV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t count
                 return -1; // Should never happen on a blocking socket
             }
             if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_BADF || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR || err == SOCKET_ERROR_PIPE) {
-                DBG_PRINTF_WARNING("socketSendV: socket closed (err=%d)\n", err);
+                DBG_PRINTF5("socketSendV: socket closed (err=%d)\n", err);
                 return 0; // Socket closed
             }
             DBG_PRINTF_ERROR("socketSendV: sendmsg failed with err=%d!\n", err);
