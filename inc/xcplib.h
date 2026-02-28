@@ -136,9 +136,15 @@ bool XcpResetAllCalSegs(void);
 uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex index);
 uint16_t XcpGetCalSegCount(void);
 uint16_t XcpGetCalSegSize(tXcpCalSegIndex index);
+#define XCP_CALPAGE_DEFAULT_PAGE 1 // FLASH page
+#define XCP_CALPAGE_WORKING_PAGE 0 // RAM page
+bool XcpBinWrite(uint8_t page);
+bool XcpBinLoad(void);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// Calibration segment convenience macros
+// Calibration segment and value convenience macros
+
+#ifndef __cplusplus
 
 // Convenience macros to create and access calibration segments by identifier without providing explicit handles and the need to pass them around
 
@@ -171,6 +177,11 @@ uint16_t XcpGetCalSegSize(tXcpCalSegIndex index);
 /// Unlock calibration segment macro
 /// @param name given as identifier
 #define CalSegUnlock(name) XcpUnlockCalSeg(__cal__##name)
+
+/// Create a calibration value
+#define CalValCreate(val) XcpCreateCalVal(#val, &val, sizeof(val));
+
+#endif // __cplusplus
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Dynamic DAQ event creation

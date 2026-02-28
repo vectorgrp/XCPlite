@@ -77,7 +77,7 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
 
     // Check and ignore, if the XCP singleton has not been initialized and activated
     if (!XcpIsActivated()) {
-        DBG_PRINT3("XcpEthServerInit: XCP is deactivated!\n");
+        DBG_PRINT5("XcpEthServerInit: XCP is deactivated!\n");
         return true;
     }
 
@@ -126,6 +126,11 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
 
 // XCP server shutdown
 bool XcpEthServerShutdown(void) {
+
+    if (!XcpIsActivated()) {
+        DBG_PRINT5("XcpEthServerInit: XCP is deactivated!\n");
+        return false;
+    }
 
 #ifdef OPTION_SERVER_FORCEFULL_TERMINATION
     // Forcefull termination

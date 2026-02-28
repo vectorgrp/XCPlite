@@ -221,23 +221,23 @@ int main() {
 
         );
 
-        // Make kDelayUs a calibration value
-        // Note that calibration values have static lifetime from the calibration tool perspective
-        auto delay_us = CalVal(kDelayUs);
-        if (A2lOnce()) {
-            A2lCreateParameter(kDelayUs, "Loop delay in microseconds", "", 0, 1000000); // Create the A2L parameter description
-        }
+        // Original code with fixed delay, now replaced by tunable parameter delay_us
+        // sleepUs(kDelayUs); // Sleep for kDelayUs microseconds
 
-        // Sleep for a while, use a calibratable value for the delay
-        auto l = delay_us.lock();
-        sleepUs(*l);
+        // Make kDelayUs a tunable parameter
+        auto delay_us = CalValCreate(kDelayUs);
+        if (A2lOnce()) { // Create the parameter description in A2L once
+            A2lCreateParameter(kDelayUs, "Loop delay in microseconds", "", 0, 1000000);
+        }
+        sleepUs(*delay_us.lock());
 
         A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible on file system without XCP tool connect
     }
 
-    XcpDisconnect();        // Force disconnect the XCP client
-    A2lFinalize();          // Finalize A2L generation, if not done yet
-    XcpEthServerShutdown(); // Stop the XCP server
+    XcpDisconnect();                       // Force disconnect the XCP client
+    A2lFinalize();                         // Finalize A2L generation, if not done yet
+    XcpBinWrite(XCP_CALPAGE_WORKING_PAGE); // Save current calibration segments to binary persistence file
+    XcpEthServerShutdown();                // Stop the XCP server
 
     return 0;
 }

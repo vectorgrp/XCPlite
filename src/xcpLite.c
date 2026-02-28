@@ -601,7 +601,7 @@ static tXcpCalSegIndex XcpCreateCalSegFromMemory_(const char *name, const void *
 
     assert(isInitialized());
 
-    mutexLock(&gXcp.CalSegList.mutex); // @@@@ TODO: Remove this mutex
+    mutexLock(&gXcp.CalSegList.mutex);
 
     tXcpCalSeg *c = NULL;
     tXcpCalSegIndex calseg_index = XCP_UNDEFINED_CALSEG;
@@ -3657,7 +3657,7 @@ void XcpInit(const char *name, const char *epk, bool activate) {
 #endif
 
     // Allocate DAQ list memory
-    gXcp.DaqLists = malloc(sizeof(tXcpDaqLists));
+    gXcp.DaqLists = malloc(sizeof(tXcpDaqLists)); // @@@@ TODO: Add custom memory allocator for DAQ lists
     assert(gXcp.DaqLists != NULL);
     XcpClearDaq();
 

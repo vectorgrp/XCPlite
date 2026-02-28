@@ -18,7 +18,6 @@
 #include <stdbool.h>  // for bool
 #include <stdint.h>   // for uintxx_t
 #include <stdio.h>    // for fclose, fopen, fread, fseek, ftell
-#include <stdlib.h>   // for free, malloc
 #include <string.h>   // for strlen, strncpy
 
 #include "dbg_print.h"  // for DBG_PRINTF3, DBG_PRINT4, DBG_PRINTF4, DBG...
@@ -189,6 +188,10 @@ static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, tXcpCalSeg *seg, uin
 /// @return
 /// Returns true if the file was successfully written, false otherwise.
 bool XcpBinWrite(uint8_t page) {
+
+    if (!XcpIsActivated()) {
+        return false;
+    }
 
     buildBinFilename();
 
@@ -413,8 +416,11 @@ static bool load(const char *filename, const char *epk) {
 // @return
 // If the file is successfully loaded, it returns true.
 // Returns false, if the file does not exist, has an invalid format, the EPK does not match or any other reason
-
 bool XcpBinLoad(void) {
+
+    if (!XcpIsActivated()) {
+        return false;
+    }
 
     buildBinFilename();
     const char *epk = XcpGetEpk();

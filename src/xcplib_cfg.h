@@ -37,7 +37,7 @@
 // Use level 4 to print all XCP commands
 #define OPTION_DEFAULT_DBG_LEVEL 3
 // Optimize code size, higher levels optimized out
-#define OPTION_MAX_DBG_LEVEL 6 // @@@@ TODO: >5 for testing only, reset to 4 or 5 for production use
+#define OPTION_MAX_DBG_LEVEL 5
 // Optimize code size, fixed log level, not changeable at runtime
 // #define OPTION_FIXED_DBG_LEVEL 3
 

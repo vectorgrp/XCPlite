@@ -95,9 +95,13 @@ template <typename T> class CalSeg {
     }
 };
 
-/// Convenience function to create calibration segment wrappers
+/// Convenience function to create a calibration segment
 /// Usage: auto calseg = xcp::CreateCalSeg("Parameters", default_parameters);
 template <typename T> CalSeg<T> CreateCalSeg(const char *name, const T *default_params) { return CalSeg<T>(name, default_params); }
+
+/// Convenience macro to create a calibration segment with automatic name stringification
+/// Usage: auto calseg = CalSegCreate(initial_value);
+#define CalSegCreate(value) xcplib::CreateCalSeg(#value, &value)
 
 /// Generic RAII wrapper for a single parameter of complex or simple type
 template <typename T> class CalibrationValue {
@@ -160,12 +164,13 @@ template <typename T> class CalibrationValue {
     }
 };
 
-/// Convenience function and macro to create calibration value wrapper
+/// Convenience function and macro to create calibration value
 /// Usage: auto calval = xcp::CreateCalibrationValue("Name", initial_value);
-template <typename T> CalibrationValue<T> CreateCalibrationValue(const char *name, const T *default_value) { return CalibrationValue<T>(name, default_value); }
-/// Helper macro to create a CalVal with automatic name stringification
+template <typename T> CalibrationValue<T> CreateCalVal(const char *name, const T *default_value) { return CalibrationValue<T>(name, default_value); }
+
+/// Convenience macro to create a calibration value with automatic name stringification
 /// Usage: auto calval = CalVal(initial_value);
-#define CalVal(value) xcplib::CreateCalibrationValue(#value, &value) // Helper macro to create a CalVal with automatic name stringification
+#define CalValCreate(value) xcplib::CreateCalVal(#value, &value)
 
 } // namespace xcp
 
