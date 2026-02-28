@@ -113,12 +113,17 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
     if (!XcpEthTlInit(addr, port, useTCP, gXcpServer.TransmitQueue))
         return false;
 
-    // Start XCP protocol layer
-    XcpStart(gXcpServer.TransmitQueue, false);
-
-    // Create threads
-    create_thread(&gXcpServer.TransmitThreadHandle, XcpServerTransmitThread);
+    // Create the receive thread
     create_thread(&gXcpServer.ReceiveThreadHandle, XcpServerReceiveThread);
+
+    // Wait until receive thread is running to avoid races
+    // The receive thread will acquire ownership of the XCP singleton by calling XcpStart(gXcpServer.TransmitQueue, false)
+    while (!gXcpServer.ReceiveThreadRunning) {
+        sleepUs(100);
+    }
+
+    // Create the transmit thread
+    create_thread(&gXcpServer.TransmitThreadHandle, XcpServerTransmitThread);
 
     gXcpServer.isInit = true;
     return true;
@@ -173,6 +178,9 @@ extern void *XcpServerReceiveThread(void *par)
 {
     (void)par;
     DBG_PRINT3("Start XCP receive thread\n");
+
+    // Start the XCP protocol layer and acquire ownership of the XCP singleton
+    XcpStart(gXcpServer.TransmitQueue, false);
 
     // Receive XCP unicast commands loop
     gXcpServer.ReceiveThreadRunning = true;

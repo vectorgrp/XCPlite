@@ -226,12 +226,10 @@ int main() {
 
         sleepUs(calseg.lock()->delay_us);
 
-        A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
-
     } // while (running)
 
-    XcpDisconnect();
-    A2lFinalize(); // Finalize A2L generation, if not done yet
-    XcpEthServerShutdown();
+    XcpDisconnect();        // Force disconnect the XCP client
+    A2lFinalize();          // Finalize A2L generation, if not done yet
+    XcpEthServerShutdown(); // Stop the XCP server
     return 0;
 }

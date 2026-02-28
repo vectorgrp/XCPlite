@@ -66,11 +66,17 @@
 #endif // !XCP_ENABLE_DAQ_EVENT_LIST
 
 /*----------------------------------------------------------------------------*/
-// Enable calibration segment list management
+// Enable calibration segments
+
 #ifdef OPTION_CAL_SEGMENTS
 #define XCP_ENABLE_CALSEG_LIST
 #if OPTION_CAL_SEGMENT_COUNT > 0
 #define XCP_MAX_CALSEG_COUNT OPTION_CAL_SEGMENT_COUNT
+#endif
+#ifdef OPTION_CAL_MEM_SIZE
+#define XCP_CAL_MEM_SIZE OPTION_CAL_MEM_SIZE
+#else
+#error "Please define OPTION_CAL_MEM_SIZE"
 #endif
 #endif // OPTION_CAL_SEGMENTS
 
@@ -226,7 +232,7 @@ XCPlite relative addressing: XCPLITE__CASDD:
 // Use addr_ext XCP_ADDR_EXT_A2L to indicate A2L upload memory space
 #define XCP_ADDR_EXT_A2L 0xFD
 #define XCP_ADDR_A2l 0x00000000
-// Use addr_ext XCP_ADDR_EXT_PTR to indicate gXcp.MtaPtr is valid
+// Use addr_ext XCP_ADDR_EXT_PTR to indicate MtaPtr is valid
 #define XCP_ADDR_EXT_PTR 0xFE
 
 // Undefined address extension

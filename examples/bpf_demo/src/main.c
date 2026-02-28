@@ -654,8 +654,6 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
-
     // Start main loop
     printf("Start main loop...\n");
     while (running) {

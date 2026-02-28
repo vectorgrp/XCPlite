@@ -209,7 +209,9 @@ int main(void) {
         DaqTriggerEvent(mainloop);
 #else
         // XCP: Create and trigger measurement event mainloop, register global and local measurement variables
-        A2lCreateLinearConversion(temperature, "Temperature in °C from unsigned byte", "C", 1.0, -55.0);
+        {
+            A2lOnce() { A2lCreateLinearConversion(temperature, "Temperature in °C from unsigned byte", "C", 1.0, -55.0); }
+        }
         DaqEventVar(mainloop,                                                                                                 //
                     A2L_MEAS(outside_temperature, "Temperature in °C read from outside sensor", "conv.temperature", -20, 50), //
                     A2L_MEAS(inside_temperature, "Temperature in °C read from inside sensor", "conv.temperature", 0, 40),     //
@@ -224,15 +226,15 @@ int main(void) {
         // delay_us must not necessarily have static lifetime
         // It supports RAM/FLASH page switching and persistence (save to BIN file)
         tXcpCalSegIndex v = CalValCreate(delay_us);
-        A2lOnce() {
-            A2lSetSegmentAddrMode(v, delay_us);
-            A2lCreateParameter(delay_us, "Sleep time in us", "us", 0, 999999);
+        {
+            A2lOnce() {
+                A2lSetSegmentAddrMode(v, delay_us);
+                A2lCreateParameter(delay_us, "Sleep time in us", "us", 0, 999999);
+            }
         }
         uint32_t *delay_us = (uint32_t *)XcpLockCalSeg(v);
         sleepUs(*delay_us);
         XcpUnlockCalSeg(v);
-
-        A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
 
     } // for (;;)
 

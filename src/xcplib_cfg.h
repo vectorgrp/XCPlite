@@ -75,6 +75,10 @@
 // Maximum number of calibration segments
 #define OPTION_CAL_SEGMENT_COUNT 32
 
+// Total memory pool size for all calibration segments (header + 4 pages each)
+// Must be large enough for all XcpCreateCalSeg() calls combined
+#define OPTION_CAL_MEM_SIZE (1024 * 16) // 16 KB default
+
 // Single page mode
 // #define OPTION_CAL_SEGMENTS_SINGLE_PAGE
 
@@ -151,9 +155,14 @@
 //-------------------------------------------------------------------------------
 // Tests
 
+#if !defined(NDEBUG)
+
 // #define TEST_CLOCK_GET_STATISTIC // Count number of calls to clockGet and clockGetLast, print results with clockPrintStatistic()
 // #define TEST_ACQUIRE_LOCK_TIMING // Create a queue acquire time histogram, prints results on queue deinit, significant performance impact, for testing only !!!!!!!!!!
 // #define TEST_ENABLE_DBG_METRICS // Enable debug metrics for XCP events and transport layer packets
 // #define TEST_ENABLE_BUFFERCOUNT_HISTOGRAM // Enable histogram of the used buffer counts in the transport layer vectored io
+#define TEST_MUTABLE_ACCESS_OWNERSHIP // Enable tracking of mutable access thread ownership
+
+#endif // !defined(NDEBUG)
 
 #endif // !XCPLIB_FOR_RUST

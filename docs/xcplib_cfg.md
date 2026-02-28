@@ -149,7 +149,7 @@ This section describes the XCP protocol layer configuration parameters in xcp_cf
 |-----------|-------------|
 | `XCP_ENABLE_CALSEG_LIST` | Enables calibration segment list management (not needed for Rust xcp-lite) |
 | `XCP_MAX_CALSEG_COUNT` | Maximum number of calibration segments (default: 32) |
-| `XCP_MAX_CALSEG_NAME` | Maximum length for calibration segment names (default: 15) |
+| `XCP_CAL_MEM_SIZE` | Static memory allocation for calibration segment memory (default: 16 KB) |
 | `XCP_ENABLE_CALSEG_LAZY_WRITE` | Enables lazy write mode for calibration segments with background RCU updates |
 | `XCP_CALSEG_AQUIRE_FREE_PAGE_TIMEOUT` | Timeout for acquiring free calibration segment pages in milliseconds (default: 500) |
 

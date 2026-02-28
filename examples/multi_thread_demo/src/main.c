@@ -398,9 +398,6 @@ int main(void) {
         create_thread(&t[i], task);
     }
 
-    sleepUs(200000);
-    A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
-
     // Wait for signal to stop
     while (gRun) {
         sleepUs(100000); // 100ms

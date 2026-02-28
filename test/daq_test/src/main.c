@@ -208,9 +208,6 @@ int main(void) {
     A2lCreateMeasurement(counter, "Main loop counter");
     A2lUnlock();
 
-    sleepUs(200000); // Wait 200ms for the threads to start
-    A2lFinalize();   // Manually finalize the A2L file to make it visible without XCP tool connect
-
     // Wait for signal to stop
     printf("main loop running - press Ctrl+C to stop...\n");
     while (gRun) {

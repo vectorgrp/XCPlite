@@ -310,15 +310,10 @@ int main(void) {
         // Sleep for the specified delay parameter in microseconds
         sleepUs(delay_us);
 
-        A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
-
     } // while (running)
 
-    // Force disconnect the XCP client
-    XcpDisconnect();
-
-    // Stop the XCP server
-    XcpEthServerShutdown();
-
+    XcpDisconnect();        // Force disconnect the XCP client
+    A2lFinalize();          // Finalize A2L generation, if not done yet
+    XcpEthServerShutdown(); // Stop the XCP server
     return 0;
 }

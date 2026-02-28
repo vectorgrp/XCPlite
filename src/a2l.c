@@ -582,7 +582,7 @@ static void A2lCreate_MOD_PAR(void) {
 static void A2lCreate_IF_DATA_DAQ(void) {
 
 #if defined(XCP_ENABLE_DAQ_EVENT_LIST)
-    tXcpEventList *eventList = NULL;
+    const tXcpEventList *eventList = NULL;
 #endif
     uint16_t eventCount = 0;
 
@@ -605,12 +605,12 @@ static void A2lCreate_IF_DATA_DAQ(void) {
     // Eventlist
 #if defined(XCP_ENABLE_DAQ_EVENT_LIST)
     for (uint32_t id = 0; id < eventCount; id++) {
-        tXcpEvent *event = &eventList->event[id];
+        const tXcpEvent *event = &eventList->event[id];
 
         // Convert cycle time to ASAM XCP IF_DATA coding time cycle and time unit
         // RESOLUTION OF TIMESTAMP "UNIT_1NS" = 0, "UNIT_10NS" = 1, ...
-        uint8_t timeUnit = 0;                    // timeCycle unit, 1ns=0, 10ns=1, 100ns=2, 1us=3, ..., 1ms=6, ...
-        uint32_t timeCycle = event->cycleTimeNs; // cycle time in units, 0 = sporadic or unknown
+        uint8_t timeUnit = 0;                      // timeCycle unit, 1ns=0, 10ns=1, 100ns=2, 1us=3, ..., 1ms=6, ...
+        uint32_t timeCycle = event->cycle_time_ns; // cycle time in units, 0 = sporadic or unknown
         while (timeCycle >= 256) {
             timeCycle /= 10;
             timeUnit++;
@@ -1160,7 +1160,7 @@ static const char *getConversion(const char *unit_or_conversion, double *min, do
 }
 
 const char *A2lCreateLinearConversion_(const char *name, const char *comment, const char *unit, double factor, double offset) {
-    if (gA2lFile != NULL) {
+    if (gA2lConversionsFile != NULL) {
         if (unit == NULL)
             unit = "";
         if (comment == NULL)
@@ -1176,7 +1176,7 @@ const char *A2lCreateLinearConversion_(const char *name, const char *comment, co
 }
 
 const char *A2lCreateEnumConversion_(const char *name, const char *enum_description) {
-    if (gA2lFile != NULL) {
+    if (gA2lConversionsFile != NULL) {
         SNPRINTF(gA2lConvName, sizeof(gA2lConvName), "conv.%s", name); // Build the conversion name with prefix "conv." and store it in a static variable
         fprintf(gA2lConversionsFile, "/begin COMPU_METHOD conv.%s \"\" TAB_VERB \"%%.0 \" \"\" COMPU_TAB_REF conv.%s.table /end COMPU_METHOD\n", name, name);
         fprintf(gA2lConversionsFile, "/begin COMPU_VTAB conv.%s.table \"\" TAB_VERB %s /end COMPU_VTAB\n", name, enum_description);
@@ -1192,16 +1192,13 @@ const char *A2lCreateEnumConversion_(const char *name, const char *enum_descript
 // Begin a typedef structure
 void A2lTypedefBegin_(const char *name, uint32_t size, const char *format, ...) {
     if (gA2lFile != NULL) {
-
         // Format the comment string
         char comment[256];
         va_list args;
         va_start(args, format);
         vsnprintf(comment, sizeof(comment), format, args);
         va_end(args);
-
         DBG_PRINTF4("A2lTypedefBegin_: %s, size=%u, comment='%s'\n", name, size, comment);
-
         fprintf(gA2lFile, "\n/begin TYPEDEF_STRUCTURE %s \"%s\" 0x%X\n", name, comment, size);
         gA2lTypedefs++;
     }
@@ -1715,7 +1712,7 @@ bool A2lFinalize(void) {
         // Create event groups
 #if defined(XCP_ENABLE_DAQ_EVENT_LIST)
         uint16_t eventCount = XcpGetEventCount();
-        tXcpEventList *eventList = XcpGetEventList();
+        const tXcpEventList *eventList = XcpGetEventList();
         if (eventList != NULL && eventCount > 0) {
 
             // Create a enum conversion with all event ids

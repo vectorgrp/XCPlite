@@ -724,8 +724,6 @@ int main(int argc, char *argv[]) {
         A2lCreateMeasurement(msg_lost, "Messages lost");
         A2lCreateMeasurement(msg_bytes, "Message bytes");
         A2lUnlock();
-        sleepUs(200000); // Wait 200ms for the threads to start
-        A2lFinalize();   // Manually finalize the A2L file to make it visible without XCP tool connect
     }
 #endif
 

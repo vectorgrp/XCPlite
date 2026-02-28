@@ -54,7 +54,7 @@ static_assert(sizeof(tHeader) == 256, "Size of tHeader must be 256 bytes");
 typedef struct {
     uint16_t id;                                     // Event ID
     uint16_t index;                                  // Event index
-    uint32_t cycleTimeNs;                            // Cycle time in ns
+    uint32_t cycle_time_ns;                          // Cycle time in ns
     uint8_t priority;                                // Priority 0 = queued, 1 = pushing, 2 = realtime
     uint8_t reserved[128 - 2 - 2 - 4 - 1];           // Reserved for future use
     char name[XCP_MAX_EVENT_NAME + 1];               // Event name, 0 terminated
@@ -68,15 +68,13 @@ typedef struct {
     uint16_t size;                                    // Size of the calibration segment in bytes, multiple of 4
     uint32_t addr;                                    // Address of the calibration segment
     uint8_t reserved[128 - 2 - 2 - 4];                // Reserved for future use
-    char name[XCP_MAX_CALSEG_NAME + 1];               // Calibration segment name, 0 terminated, 16 bytes
+    char name[XCP_MAX_CALSEG_NAME + 1];               // Calibration segment name, 0 terminated
     uint8_t padding[128 - (XCP_MAX_CALSEG_NAME + 1)]; // Reserved for longer calibration segment names up to 128 bytes
 } tCalSegDescriptor;
 
 static_assert(sizeof(tCalSegDescriptor) == 256, "Size of tCalSegDescriptor must be 256 bytes");
 
 #pragma pack(pop)
-
-extern tXcpData gXcp;
 
 static tHeader gBinHeader;
 
@@ -136,7 +134,7 @@ static bool writeEvent(FILE *file, tXcpEventId event_id, const tXcpEvent *event)
     memset(&desc, 0, sizeof(tEventDescriptor));
     strncpy(desc.name, event->name, XCP_MAX_EVENT_NAME);
     desc.name[XCP_MAX_EVENT_NAME] = '\0'; // Ensure null termination
-    desc.cycleTimeNs = event->cycleTimeNs;
+    desc.cycle_time_ns = event->cycle_time_ns;
     desc.priority = event->flags & XCP_DAQ_EVENT_FLAG_PRIORITY ? 0xFF : 0x00;
     desc.id = event_id;
     desc.index = XcpGetEventIndex(event_id);
@@ -150,7 +148,7 @@ static bool writeEvent(FILE *file, tXcpEventId event_id, const tXcpEvent *event)
 }
 
 // Write a calibration segment descriptor and page data to the BIN file
-static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, tXcpCalSeg *seg, uint8_t page) {
+static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, const tXcpCalSeg *seg, uint8_t page) {
     tCalSegDescriptor desc;
     memset(&desc, 0, sizeof(tCalSegDescriptor));
     strncpy(desc.name, seg->h.name, XCP_MAX_CALSEG_NAME);
@@ -163,7 +161,7 @@ static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, tXcpCalSeg *seg, uin
         DBG_PRINTF3("Failed to write calibration segment descriptor to file: %s\n", strerror(errno));
         return false;
     }
-    seg->h.file_pos = (uint32_t)ftell(file); // Save the position of the segment page data in the file
+    ((tXcpCalSeg *)seg)->h.file_pos = (uint32_t)ftell(file); // Save the position of the segment page data in the file // @@@@ TODO cast away const, improve design to avoid this
 #ifdef OPTION_ENABLE_DBG_PRINTS
     DBG_PRINTF4("Writing calibration segment %u, size=%u %s page data:\n", calseg, seg->h.size, page == XCP_CALPAGE_DEFAULT_PAGE ? "default" : "working");
     if (DBG_LEVEL >= 4)
@@ -224,7 +222,7 @@ bool XcpBinWrite(uint8_t page) {
     // Write calibration segments descriptors and data
     uint16_t calseg_count = XcpGetCalSegCount();
     for (tXcpCalSegIndex i = 0; i < calseg_count; i++) {
-        tXcpCalSeg *seg = XcpGetCalSeg(i);
+        const tXcpCalSeg *seg = XcpGetCalSeg(i);
         assert(seg != NULL);
         if (!writeCalseg(file, i, seg, page)) {
             fclose(file);
@@ -246,8 +244,8 @@ bool XcpBinWrite(uint8_t page) {
 /// @return
 /// Returns true if the operation was successful.
 bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg) {
-    assert(calseg < gXcp.CalSegList.count);
-    tXcpCalSeg *seg = XcpGetCalSeg(calseg);
+    assert(calseg < XcpGetCalSegCount());
+    const tXcpCalSeg *seg = XcpGetCalSeg(calseg);
     if (seg == NULL) {
         DBG_PRINTF_ERROR("Calibration segment '%u' not found!\n", calseg);
         return false;
@@ -346,9 +344,8 @@ static bool load(const char *filename, const char *epk) {
 
         // Create the event
         // As it is created in the original order, the event ID must match
-        mutexLock(&gXcp.EventList.mutex);
-        event_id = XcpCreateIndexedEvent(desc.name, desc.index, desc.cycleTimeNs, desc.priority);
-        mutexUnlock(&gXcp.EventList.mutex);
+        // @@@@ TODO: Temporary solution, improve event creation, don't rely on order
+        event_id = XcpCreateEvent(desc.name, desc.cycle_time_ns, desc.priority);
         if (event_id == XCP_UNDEFINED_EVENT_ID || event_id != desc.id) { // Should not happen
             DBG_PRINTF_ERROR("Failed to create event '%s' from persistence file\n", desc.name);
             fclose(file);
@@ -358,7 +355,7 @@ static bool load(const char *filename, const char *epk) {
 
     // Load calibration segments
     // Calibration segment list must be empty at this point
-    if (gXcp.CalSegList.count != 0) {
+    if (XcpGetCalSegCount() != 0) {
         DBG_PRINT_ERROR("Calibration segment list not empty prior to loading persistence file\n");
         fclose(file);
         return false;
@@ -384,9 +381,10 @@ static bool load(const char *filename, const char *epk) {
         }
 
         // Mark the segment as preloaded
-        tXcpCalSeg *seg = XcpGetCalSeg(calseg);
-        seg->h.mode = PAG_PROPERTY_PRELOAD;
-        seg->h.file_pos = (uint32_t)ftell(file) - desc.size; // Save the position of the segment page data in the file
+        const tXcpCalSeg *seg = XcpGetCalSeg(calseg);
+        // @@@@ TODO cast away const, improve design to avoid this
+        ((tXcpCalSeg *)seg)->h.mode = PAG_PROPERTY_PRELOAD;
+        ((tXcpCalSeg *)seg)->h.file_pos = (uint32_t)ftell(file) - desc.size; // Save the position of the segment page data in the file
 
         // Read calibration segment page data into the default page of the calibration segment
         void *page = seg->h.default_page;
@@ -394,7 +392,6 @@ static bool load(const char *filename, const char *epk) {
         read = fread(page, desc.size, 1, file);
         if (read != 1) {
             DBG_PRINTF_ERROR("Failed to read calibration segment data from file: %s\n", strerror(errno));
-            free(page);
             fclose(file);
             return false;
         }

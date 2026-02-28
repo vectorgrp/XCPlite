@@ -132,10 +132,10 @@ void XcpSetLogLevel(uint8_t level);
 #define XCP_DAQ_EVENT_FLAG_PRIORITY 0x02 // Event priority flag
 
 typedef struct {
-    uint32_t cycleTimeNs; // Cycle time in nanoseconds, 0 means sporadic event
-    uint16_t index;       // Event instance index, 0 = single instance, 1.. = multiple instances
-    uint16_t daq_first;   // First associated DAQ list, linked list
-    uint8_t flags;        // Control flags for the event
+    uint32_t cycle_time_ns; // Cycle time in nanoseconds, 0 means sporadic event
+    uint16_t index;         // Event instance index, 0 = single instance, 1.. = multiple instances
+    uint16_t daq_first;     // First associated DAQ list, linked list
+    uint8_t flags;          // Control flags for the event
 #ifdef XCP_ENABLE_DAQ_PRESCALER
     uint8_t daq_prescaler;     // Current prescaler set with SET_DAQ_LIST_MODE
     uint8_t daq_prescaler_cnt; // Current prescaler counter
@@ -150,14 +150,14 @@ typedef struct {
 } tXcpEventList;
 
 // Create an XCP event (internal use only, not thread safe)
-tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cycleTimeNs, uint8_t priority);
+tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cycle_time_ns, uint8_t priority);
 // Add a measurement event to event list, return event number (0..MAX_EVENT-1)
-tXcpEventId XcpCreateEvent(const char *name, uint32_t cycleTimeNs /* ns */, uint8_t priority /* 0 = queued, >=1 flushing*/);
+tXcpEventId XcpCreateEvent(const char *name, uint32_t cycle_time_ns /* ns */, uint8_t priority /* 0 = queued, >=1 flushing*/);
 // Add a measurement event to event list, return event number (0..MAX_EVENT-1), thread safe, if name exists, an instance id is appended to the name
-tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycleTimeNs /* ns */, uint8_t priority /* 0 = queued, >=1 flushing */);
+tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycle_time_ns /* ns */, uint8_t priority /* 0 = queued, >=1 flushing */);
 
 // Get event list
-tXcpEventList *XcpGetEventList(void);
+const tXcpEventList *XcpGetEventList(void);
 
 // Get the number of events in the XCP event list
 uint16_t XcpGetEventCount(void);
@@ -170,7 +170,7 @@ const char *XcpGetEventName(tXcpEventId event);
 // Get the event index (1..), return 0 if not found
 uint16_t XcpGetEventIndex(tXcpEventId event);
 // Get the event descriptor struct by id, returns NULL if not found
-tXcpEvent *XcpGetEvent(tXcpEventId event);
+const tXcpEvent *XcpGetEvent(tXcpEventId event);
 
 #endif // XCP_ENABLE_DAQ_EVENT_LIST
 
@@ -188,7 +188,7 @@ tXcpEvent *XcpGetEvent(tXcpEventId event);
 #endif
 
 #ifndef XCP_MAX_CALSEG_NAME
-#define XCP_MAX_CALSEG_NAME 15
+#define XCP_MAX_CALSEG_NAME 31
 #endif
 
 // Calibration segment number
@@ -202,7 +202,8 @@ typedef uint8_t tXcpCalSegNumber;
 typedef uint16_t tXcpCalSegIndex;
 #define XCP_UNDEFINED_CALSEG 0xFFFF
 
-#define XCP_CALPAGE_ALIGNMENT 8 // Page alignment in bytes
+#define XCP_CALPAGE_ALIGNMENT 8    // Page alignment in bytes
+#define XCP_CALSEG_HEADER_SIZE 128 // Must be & XCP_CALPAGE_ALIGNMENT
 
 // Calibration segment header struct
 typedef union {
@@ -225,9 +226,10 @@ typedef union {
 #endif
         char name[XCP_MAX_CALSEG_NAME + 1];
     };
-    uint8_t reserved[(XCP_MAX_CALSEG_NAME + 47) & ~(XCP_CALPAGE_ALIGNMENT - 1)]; // Pad the struct to modulo 8
+    uint8_t reserved[XCP_CALSEG_HEADER_SIZE]; // Pad the struct to XCP_CALPAGE_ALIGNMENT
 } tXcpCalSegHeader;
 
+static_assert(sizeof(tXcpCalSegHeader) == XCP_CALSEG_HEADER_SIZE, "Error: increase XCP_CALSEG_HEADER_SIZE");
 static_assert(sizeof(tXcpCalSegHeader) % XCP_CALPAGE_ALIGNMENT == 0, "Error: size of tXcpCalSegHeader is not a multiple of XCP_CALPAGE_ALIGNMENT");
 
 // Calibration segment
@@ -244,6 +246,13 @@ typedef struct {
     atomic_uint_fast16_t count;    // Number of calibration segments, max XCP_MAX_CALSEG_COUNT
     uint16_t memory_segment_count; // Number of memory segments used by calibration segments, max 255
     bool write_delayed;            // atomic calibration (begin/end user command) in progress
+
+    // Thread-safe bump allocator pool for calibration segment memory segments
+    atomic_uint_fast32_t cal_mem_used; // Bytes consumed so far, updated with CAS
+    union {
+        uint8_t cal_mem[XCP_CAL_MEM_SIZE]; // Flat memory pool, all calseg structs allocated here
+        uint64_t cal_mem_alignment;        // Force alignment of the memory pool to 8 bytes for safe atomic access
+    };
 } tXcpCalSegList;
 
 // Get calibration segment  list
@@ -263,7 +272,7 @@ tXcpCalSegIndex XcpGetCalSegIndex(tXcpCalSegNumber segment_number);
 tXcpCalSegNumber XcpGetCalSegNumber(tXcpCalSegIndex calseg);
 
 // Get a pointer to the calibration segment struct
-tXcpCalSeg *XcpGetCalSeg(tXcpCalSegIndex calseg);
+const tXcpCalSeg *XcpGetCalSeg(tXcpCalSegIndex calseg);
 
 // Get the name of the calibration segment
 const char *XcpGetCalSegName(tXcpCalSegIndex calseg);
@@ -329,9 +338,9 @@ typedef struct {
 typedef struct {
     uint16_t last_odt;  /* Absolute odt number */
     uint16_t first_odt; /* Absolute odt number */
-    uint16_t EVENT_ID;  /* Associated event */
+    uint16_t event_id;  /* Associated event */
 #ifdef XCP_MAX_EVENT_COUNT
-    uint16_t next; /* Next DAQ list associated to EVENT_ID */
+    uint16_t next; /* Next DAQ list associated to event_id */
 #else
     uint16_t res1;
 #endif
@@ -391,53 +400,59 @@ typedef struct {
 
 typedef struct {
 
-    uint16_t SessionStatus;
+    uint16_t session_status;
 
-    tXcpCto Crm;    /* response message buffer */
-    uint8_t CrmLen; /* RES,ERR message length */
+    tXcpCto crm;     /* response message buffer */
+    uint8_t crm_len; /* RES,ERR message length */
 
 #ifdef XCP_ENABLE_DYN_ADDRESSING
-    ATOMIC_BOOL CmdPending;
-    tXcpCto CmdPendingCrm;    /* pending command message buffer */
-    uint8_t CmdPendingCrmLen; /* pending command message length */
+    ATOMIC_BOOL cmd_pending;
+    tXcpCto cmd_pending_crm;     /* pending command message buffer */
+    uint8_t cmd_pending_crm_len; /* pending command message length */
 #endif
 
 #ifdef DBG_LEVEL
-    uint8_t CmdLast;
-    uint8_t CmdLast1;
+    uint8_t cmd_last;
+    uint8_t cmd_last1;
 #endif
 
     /* Memory Transfer Address as pointer */
-    uint8_t *MtaPtr;
-    uint32_t MtaAddr;
-    uint8_t MtaExt;
+    uint8_t *mta_ptr;
+    uint32_t mta_addr;
+    uint8_t mta_ext;
 
     /* State info from SET_DAQ_PTR for WRITE_DAQ and WRITE_DAQ_MULTIPLE */
-    uint16_t WriteDaqOdtEntry; // Absolute odt index
-    uint16_t WriteDaqOdt;      // Absolute odt index
-    uint16_t WriteDaqDaq;
+    uint16_t write_daq_odt_entry; // Absolute odt index
+    uint16_t write_daq_odt;       // Absolute odt index
+    uint16_t write_daq_daq;
 
     /* DAQ */
-    tQueueHandle Queue;        // Daq queue handle
-    tXcpDaqLists *DaqLists;    // DAQ lists
-    ATOMIC_BOOL DaqRunning;    // DAQ is running
-    uint64_t DaqStartClock64;  // DAQ start time
-    uint32_t DaqOverflowCount; // DAQ queue overflow
+    tQueueHandle queue;          // Daq queue handle
+    tXcpDaqLists daq_lists;      // DAQ list
+    ATOMIC_BOOL daq_running;     // DAQ is running
+    uint64_t daq_start_clock;    // DAQ start time
+    uint32_t daq_overflow_count; // DAQ queue overflow
 
     /* Project Name */
-    char ProjectName[XCP_PROJECT_NAME_MAX_LENGTH + 1]; // Project name string, null terminated
+    char project_name[XCP_PROJECT_NAME_MAX_LENGTH + 1]; // Project name string, null terminated
 
     /* EPK */
-    char Epk[XCP_EPK_MAX_LENGTH + 1]; // EPK string, null terminated
+    char epk[XCP_EPK_MAX_LENGTH + 1]; // EPK string, null terminated
 
     /* Optional event list */
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
-    tXcpEventList EventList;
+    union {
+        tXcpEventList event_list;
+        uint64_t event_list_alignment;
+    };
 #endif
 
     /* Optional calibration segment list */
 #ifdef XCP_ENABLE_CALSEG_LIST
-    tXcpCalSegList CalSegList;
+    union {
+        tXcpCalSegList cal_seg_list;
+        uint64_t cal_seg_list_alignment;
+    };
 #endif
 
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
@@ -445,7 +460,7 @@ typedef struct {
 #ifdef XCP_ENABLE_PROTOCOL_LAYER_ETH
 
 #ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
-    uint16_t ClusterId;
+    uint16_t cluster_id;
 #endif
 
 #pragma pack(push, 1)
@@ -455,7 +470,7 @@ typedef struct {
         T_CLOCK_INFO_GRANDMASTER grandmaster;
         T_CLOCK_INFO_RELATION relation;
 #endif
-    } ClockInfo;
+    } clock_info;
 #pragma pack(pop)
 #endif
 #endif // XCP_ENABLE_PROTOCOL_LAYER_ETH

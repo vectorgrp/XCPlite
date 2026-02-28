@@ -230,8 +230,6 @@ int main() {
             A2lCreateParameter(kDelayUs, "Loop delay in microseconds", "", 0, 1000000);
         }
         sleepUs(*delay_us.lock());
-
-        A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible on file system without XCP tool connect
     }
 
     XcpDisconnect();                       // Force disconnect the XCP client

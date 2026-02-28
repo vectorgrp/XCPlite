@@ -336,10 +336,10 @@ Library function to create events:
 /// If the event name already exists, returns the existing event event number
 /// Function is thread safe by using a mutex for event list access.
 /// @param name Name of the event.
-/// @param cycleTimeNs Cycle time in nanoseconds. 0 means sporadic event.
+/// @param cycle_time_ns Cycle time in nanoseconds. 0 means sporadic event.
 /// @param priority Priority of the event. 0 means normal, >=1 means realtime.
 /// @return The event id or XCP_UNDEFINED_EVENT_ID if out of event list memory.
-tXcpEventId XcpCreateEvent(const char *name, uint32_t cycleTimeNs /* ns */, uint8_t priority /* 0-normal, >=1 realtime*/);
+tXcpEventId XcpCreateEvent(const char *name, uint32_t cycle_time_ns /* ns */, uint8_t priority /* 0-normal, >=1 realtime*/);
 ```
 
 Library functions to trigger and control events:
