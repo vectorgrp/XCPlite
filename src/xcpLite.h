@@ -34,10 +34,16 @@ extern "C" {
 /* Protocol layer interface                                                 */
 /****************************************************************************/
 
+// XcpInit mode flags
+#define XCP_MODE_DEACTIVATE 0 // Initialize XCP singleton without activating the protocol layer (passive/off)
+#define XCP_MODE_LOCAL 1      // Initialize and activate XCP, allocate state in local heap memory
+#define XCP_MODE_SHM 2        // Initialize and activate XCP, allocate state in POSIX shared memory (future)
+
 // Initialization for the XCP Protocol Layer
-void XcpInit(const char *name, const char *epk, bool activate);
+void XcpInit(const char *name, const char *epk, uint8_t mode);
 bool XcpIsInitialized(void);
 bool XcpIsActivated(void);
+uint8_t XcpGetInitMode(void); // Returns the mode passed to XcpInit() — XCP_MODE_DEACTIVATE/LOCAL/SHM
 void XcpStart(tQueueHandle queue_handle, bool resumeMode);
 void XcpReset(void);
 
@@ -205,16 +211,22 @@ typedef uint16_t tXcpCalSegIndex;
 #define XCP_CALPAGE_ALIGNMENT 8    // Page alignment in bytes
 #define XCP_CALSEG_HEADER_SIZE 128 // Must be & XCP_CALPAGE_ALIGNMENT
 
+// Sentinel value for "null" page offsets (replaces NULL pointer)
+#define XCP_CALSEG_NO_PAGE UINT32_MAX
+
 // Calibration segment header struct
+// All page references are stored as uint32_t byte offsets from c->b[0] so that
+// the entire tXcpCalSeg (header + pages) is position-independent and safe to
+// place in POSIX shared memory without pointer fixup across processes.
 typedef union {
     struct {
-        atomic_uintptr_t ecu_page_next;
-        atomic_uintptr_t free_page;
-        atomic_uint_fast8_t ecu_access; // page number for ECU access
-        atomic_uint_fast8_t lock_count; // lock count for the segment, 0 = unlocked
-        uint8_t *default_page;
-        uint8_t *ecu_page;
-        uint8_t *xcp_page;
+        atomic_uint_fast32_t ecu_page_next_offset; // offset into c->b[], or XCP_CALSEG_NO_PAGE
+        atomic_uint_fast32_t free_page_offset;     // offset into c->b[], or XCP_CALSEG_NO_PAGE
+        atomic_uint_fast8_t ecu_access;            // page number for ECU access
+        atomic_uint_fast8_t lock_count;            // lock count for the segment, 0 = unlocked
+        uint8_t *default_page;                     // process-local ptr to caller's static data, NOT shared
+        uint32_t ecu_page_offset;                  // offset into c->b[], or XCP_CALSEG_NO_PAGE
+        uint32_t xcp_page_offset;                  // offset into c->b[], or XCP_CALSEG_NO_PAGE
         uint16_t size;
         tXcpCalSegNumber calseg_number; // segment number, XCP_UNDEFINED_CALSEG_NUM if not a MEMORY_SEGMENT
         uint8_t xcp_access;             // page number for XCP access
@@ -229,6 +241,12 @@ typedef union {
     uint8_t reserved[XCP_CALSEG_HEADER_SIZE]; // Pad the struct to XCP_CALPAGE_ALIGNMENT
 } tXcpCalSegHeader;
 
+// Accessor helpers: resolve a page offset to a pointer within c->b[]
+// Returns NULL when offset is XCP_CALSEG_NO_PAGE
+#define CalSegPage(c, off) ((off) == XCP_CALSEG_NO_PAGE ? NULL : &(c)->b[(off)])
+#define CalSegEcuPage(c) CalSegPage(c, (c)->h.ecu_page_offset)
+#define CalSegXcpPage(c) CalSegPage(c, (c)->h.xcp_page_offset)
+
 static_assert(sizeof(tXcpCalSegHeader) == XCP_CALSEG_HEADER_SIZE, "Error: increase XCP_CALSEG_HEADER_SIZE");
 static_assert(sizeof(tXcpCalSegHeader) % XCP_CALPAGE_ALIGNMENT == 0, "Error: size of tXcpCalSegHeader is not a multiple of XCP_CALPAGE_ALIGNMENT");
 
@@ -241,7 +259,9 @@ typedef struct {
 
 // Calibration segment list
 typedef struct {
-    tXcpCalSeg *calseg[XCP_MAX_CALSEG_COUNT];
+    // calseg_offset[i] is the byte offset of calseg i from cal_mem[0]
+    // XCP_CALSEG_NO_PAGE means slot is unused
+    uint32_t calseg_offset[XCP_MAX_CALSEG_COUNT];
     MUTEX mutex;
     atomic_uint_fast16_t count;    // Number of calibration segments, max XCP_MAX_CALSEG_COUNT
     uint16_t memory_segment_count; // Number of memory segments used by calibration segments, max 255
@@ -254,6 +274,9 @@ typedef struct {
         uint64_t cal_mem_alignment;        // Force alignment of the memory pool to 8 bytes for safe atomic access
     };
 } tXcpCalSegList;
+
+// Resolve a calseg index to a pointer within cal_mem[]
+#define CalSegPtr(list, idx) ((tXcpCalSeg *)(&(list).cal_mem[(list).calseg_offset[(idx)]]))
 
 // Get calibration segment  list
 const tXcpCalSegList *XcpGetCalSegList(void);
@@ -398,6 +421,9 @@ typedef struct {
 /* Protocol layer state data                                                */
 /****************************************************************************/
 
+// XCP protocol layer global or shared state
+// Can be stored in shared memory, accessed atomically where needed, all fields must be safe for concurrent access and consistent across processes
+// No pointers allowed that require fixup across processes, using offsets from the start of the struct instead
 typedef struct {
 
     uint16_t session_status;
@@ -416,28 +442,13 @@ typedef struct {
     uint8_t cmd_last1;
 #endif
 
-    /* Memory Transfer Address as pointer */
-    uint8_t *mta_ptr;
-    uint32_t mta_addr;
-    uint8_t mta_ext;
-
-    /* State info from SET_DAQ_PTR for WRITE_DAQ and WRITE_DAQ_MULTIPLE */
-    uint16_t write_daq_odt_entry; // Absolute odt index
-    uint16_t write_daq_odt;       // Absolute odt index
-    uint16_t write_daq_daq;
-
     /* DAQ */
-    tQueueHandle queue;          // Daq queue handle
-    tXcpDaqLists daq_lists;      // DAQ list
+    union {
+        tXcpDaqLists daq_lists; // DAQ list
+        uint64_t daq_lists_alignment;
+    };
     ATOMIC_BOOL daq_running;     // DAQ is running
-    uint64_t daq_start_clock;    // DAQ start time
     uint32_t daq_overflow_count; // DAQ queue overflow
-
-    /* Project Name */
-    char project_name[XCP_PROJECT_NAME_MAX_LENGTH + 1]; // Project name string, null terminated
-
-    /* EPK */
-    char epk[XCP_EPK_MAX_LENGTH + 1]; // EPK string, null terminated
 
     /* Optional event list */
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
@@ -455,10 +466,37 @@ typedef struct {
     };
 #endif
 
+} tXcpData;
+
+/****************************************************************************/
+
+// Process-local state (not shared, one instance per process)
+// Contains fields that are process-local or different per process
+// Can not live in shared memory
+typedef struct {
+    // Initialisation mode (XCP_MODE_DEACTIVATE / XCP_MODE_LOCAL / XCP_MODE_SHM)
+    uint8_t init_mode;
+
+    // Memory transfer address (virtual pointer, OS handle)
+    uint8_t *mta_ptr;   // Memory Transfer Address as pointer (process virtual address)
+    uint32_t mta_addr;  // MTA as encoded XCP address (also kept here for reference)
+    uint8_t mta_ext;    // MTA address extension
+    tQueueHandle queue; // DAQ queue handle (process-local OS handle)
+
+    // SET_DAQ_PTR cursor (XCP command thread only)
+    uint16_t write_daq_odt_entry; // Absolute odt entry index
+    uint16_t write_daq_odt;       // Absolute odt index
+    uint16_t write_daq_daq;       // DAQ list index
+
+    // DAQ timing (XCP command thread only)
+    uint64_t daq_start_clock; // DAQ start timestamp
+
+    // Per-process identity
+    char project_name[XCP_PROJECT_NAME_MAX_LENGTH + 1]; // Project name string, null terminated
+    char epk[XCP_EPK_MAX_LENGTH + 1];                   // EPK string, null terminated
+
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
-
 #ifdef XCP_ENABLE_PROTOCOL_LAYER_ETH
-
 #ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
     uint16_t cluster_id;
 #endif
@@ -475,7 +513,7 @@ typedef struct {
 #endif
 #endif // XCP_ENABLE_PROTOCOL_LAYER_ETH
 
-} tXcpData;
+} tXcpLocalData;
 
 /****************************************************************************/
 /* Protocol layer external dependencies                                     */

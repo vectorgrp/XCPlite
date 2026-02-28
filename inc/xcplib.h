@@ -578,16 +578,21 @@ extern const uint8_t *gXcpBaseAddr;
 /// @param level (0 = no logging, 1 = error, 2 = warning, 3 = info, 4 = debug, 5 = trace)
 void XcpSetLogLevel(uint8_t level);
 
-/// Initialize the XCP singleton, activate XCP, must be called before starting the server
-/// If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-/// @param activate If true, the XCP library is activated
-void XcpInit(const char *name, const char *epk, bool activate);
+/// XcpInit mode flags
+#define XCP_MODE_DEACTIVATE 0 ///< Initialize XCP singleton without activating the protocol layer (passive/off)
+#define XCP_MODE_LOCAL 1      ///< Initialize and activate XCP, allocate state in local heap memory
+#define XCP_MODE_SHM 2        ///< Initialize and activate XCP, allocate state in POSIX shared memory (future)
+
+/// Initialize the XCP singleton, must be called before starting the server
+/// @param mode XCP_MODE_DEACTIVATE, XCP_MODE_LOCAL or XCP_MODE_SHM
+void XcpInit(const char *name, const char *epk, uint8_t mode);
 
 /// Reset XCP library to initial state
 void XcpReset(void);
 
 /// Check if XCP has been activated
 bool XcpIsActivated(void);
+uint8_t XcpGetInitMode(void); /// Returns the mode passed to XcpInit() — XCP_MODE_DEACTIVATE, XCP_MODE_LOCAL or XCP_MODE_SHM
 
 /// Check if XCP is connected
 bool XcpIsConnected(void);

@@ -64,7 +64,7 @@ int main(void) {
     XcpSetLogLevel(OPTION_LOG_LEVEL);
 
     // Initialize XCP
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, true);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, XCP_MODE_LOCAL);
 
     // Initialize XCP Ethernet server
     uint8_t addr[4] = OPTION_SERVER_ADDR;

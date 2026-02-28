@@ -220,7 +220,7 @@ int main(void) {
 
     // XCP: Initialize the XCP singleton, activate XCP, must be called before starting the server
     //      If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, true);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, XCP_MODE_LOCAL);
 
     // XCP: Initialize the XCP Server
     const uint8_t __addr[4] = OPTION_SERVER_ADDR;

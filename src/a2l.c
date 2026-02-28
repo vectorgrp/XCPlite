@@ -567,7 +567,7 @@ static void A2lCreate_MOD_PAR(void) {
             for (tXcpCalSegIndex i = 0; i < calSegList->count; i++) {
                 tXcpCalSegNumber n = XcpGetCalSegNumber(i);
                 if (n != XCP_UNDEFINED_CALSEG_NUM) {
-                    const tXcpCalSeg *calseg = calSegList->calseg[i];
+                    const tXcpCalSeg *calseg = CalSegPtr(*calSegList, i);
                     fprintf(gA2lFile, gA2lMemorySegment, calseg->h.name, XcpGetCalSegBaseAddress(i), calseg->h.size, n, calseg->h.name, calseg->h.name, calseg->h.name,
                             calseg->h.size);
                 }

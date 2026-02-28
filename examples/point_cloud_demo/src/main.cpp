@@ -431,7 +431,7 @@ int main() {
 
     // XCP: Initialize
     XcpSetLogLevel(OPTION_LOG_LEVEL);                                                                   // Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION /* EPK version*/, true /* activate */);         // Initialize the XCP singleton and activate XCP
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION /* EPK version*/, XCP_MODE_LOCAL);              // Initialize the XCP singleton and activate XCP
     if (!XcpEthServerInit(OPTION_SERVER_ADDR, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_QUEUE_SIZE)) { // Initialize the XCP Server
         std::cerr << "Failed to initialize XCP server" << std::endl;
         return 1;

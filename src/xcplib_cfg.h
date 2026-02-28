@@ -60,6 +60,12 @@
 //-------------------------------------------------------------------------------
 // XCP server options
 
+// Enable POSIX shared memory (SHM) mode: XCP state and transmit queue are placed in
+// named shared memory regions so that multiple processes can participate in the same
+// XCP session (one server leader, N measurement followers).
+// Requires a POSIX-compliant platform (Linux / macOS / QNX).  Not supported on Windows.
+#define OPTION_SHM_MODE
+
 #define OPTION_ENABLE_TCP
 #define OPTION_ENABLE_UDP
 #define OPTION_MTU 8000                     // Ethernet packet size (MTU), must be %8 - Jumbo frames supported

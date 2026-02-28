@@ -99,7 +99,7 @@ int main() {
 
     // Initialize the XCP singleton, activate XCP, must be called before starting the server
     // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION /* EPK version*/, true /* activate */);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION /* EPK version*/, XCP_MODE_LOCAL);
 
     // Initialize the XCP Server
     if (!XcpEthServerInit(OPTION_SERVER_ADDR, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_QUEUE_SIZE)) {

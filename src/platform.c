@@ -169,6 +169,100 @@ void platformMemFree(void *ptr, size_t size) {
 }
 
 /**************************************************************************/
+// POSIX shared memory
+/**************************************************************************/
+
+#if !defined(_WIN) && defined(OPTION_SHM_MODE)
+
+#include <errno.h>    // for errno, EEXIST, strerror
+#include <fcntl.h>    // for open, O_CREAT, O_RDONLY, O_RDWR, O_EXCL
+#include <sys/file.h> // for flock, LOCK_EX, LOCK_UN
+#include <sys/stat.h> // for S_IRUSR, S_IWUSR
+
+void *platformShmOpen(const char *name, const char *lock_path, size_t size, bool *is_leader) {
+
+    *is_leader = false;
+
+    // Acquire an exclusive flock on the lock file to serialise the leader-election window
+    int lock_fd = open(lock_path, O_CREAT | O_RDONLY, S_IRUSR | S_IWUSR);
+    if (lock_fd < 0) {
+        DBG_PRINTF_ERROR("platformShmOpen: cannot open lock file '%s': %s\n", lock_path, strerror(errno));
+        return NULL;
+    }
+    if (flock(lock_fd, LOCK_EX) != 0) {
+        DBG_PRINTF_ERROR("platformShmOpen: flock failed: %s\n", strerror(errno));
+        close(lock_fd);
+        return NULL;
+    }
+
+    // Try to create exclusively — only the very first process succeeds and becomes leader
+    int shm_fd = shm_open(name, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR);
+    if (shm_fd >= 0) {
+        // ---- LEADER ----
+        *is_leader = true;
+        if (ftruncate(shm_fd, (off_t)size) < 0) {
+            DBG_PRINTF_ERROR("platformShmOpen: ftruncate failed: %s\n", strerror(errno));
+            close(shm_fd);
+            shm_unlink(name);
+            flock(lock_fd, LOCK_UN);
+            close(lock_fd);
+            return NULL;
+        }
+    } else if (errno == EEXIST) {
+        // ---- FOLLOWER: SHM already exists ----
+        shm_fd = shm_open(name, O_RDWR, 0);
+        if (shm_fd < 0) {
+            DBG_PRINTF_ERROR("platformShmOpen: shm_open (follower) failed: %s\n", strerror(errno));
+            flock(lock_fd, LOCK_UN);
+            close(lock_fd);
+            return NULL;
+        }
+    } else {
+        DBG_PRINTF_ERROR("platformShmOpen: shm_open failed: %s\n", strerror(errno));
+        flock(lock_fd, LOCK_UN);
+        close(lock_fd);
+        return NULL;
+    }
+
+    // Map the region
+    void *ptr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    close(shm_fd);
+
+    if (ptr == MAP_FAILED) {
+        DBG_PRINTF_ERROR("platformShmOpen: mmap failed: %s\n", strerror(errno));
+        if (*is_leader)
+            shm_unlink(name);
+        flock(lock_fd, LOCK_UN);
+        close(lock_fd);
+        return NULL;
+    }
+
+    // Leader zero-initialises the region while still holding the lock, so followers
+    // always see a clean state — never partially-written data from a previous run.
+    if (*is_leader) {
+        memset(ptr, 0, size);
+    }
+
+    flock(lock_fd, LOCK_UN);
+    close(lock_fd);
+
+    DBG_PRINTF3("platformShmOpen: %s '%s' (%zu bytes)\n", *is_leader ? "created" : "attached to", name, size);
+    return ptr;
+}
+
+void platformShmClose(const char *name, void *ptr, size_t size, bool is_leader) {
+    if (ptr != NULL) {
+        munmap(ptr, size);
+    }
+    if (is_leader && name != NULL) {
+        shm_unlink(name);
+        DBG_PRINTF3("platformShmClose: unlinked '%s'\n", name);
+    }
+}
+
+#endif // !_WIN && OPTION_SHM_MODE
+
+/**************************************************************************/
 // Atomics
 /**************************************************************************/
 

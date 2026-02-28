@@ -173,7 +173,7 @@ int main(int argc, char *argv[]) {
 
     // Initialize XCP
     XcpSetLogLevel(XCP_OPTION_LOG_LEVEL);
-    XcpInit(XCP_OPTION_PROJECT_NAME, XCP_OPTION_PROJECT_VERSION, true);
+    XcpInit(XCP_OPTION_PROJECT_NAME, XCP_OPTION_PROJECT_VERSION, XCP_MODE_LOCAL);
 
     // Enable PTP in XCP
     // Register XCP clock callbacks, to provide PTP synchronized timestamps and information about clock state and identity

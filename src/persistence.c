@@ -165,10 +165,10 @@ static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, const tXcpCalSeg *se
 #ifdef OPTION_ENABLE_DBG_PRINTS
     DBG_PRINTF4("Writing calibration segment %u, size=%u %s page data:\n", calseg, seg->h.size, page == XCP_CALPAGE_DEFAULT_PAGE ? "default" : "working");
     if (DBG_LEVEL >= 4)
-        printCalsegPage(page == XCP_CALPAGE_DEFAULT_PAGE ? seg->h.default_page : seg->h.ecu_page, seg->h.size);
+        printCalsegPage(page == XCP_CALPAGE_DEFAULT_PAGE ? seg->h.default_page : CalSegEcuPage(seg), seg->h.size);
 #endif
     // This is safe, because XCP is not connected
-    written = fwrite(page == XCP_CALPAGE_DEFAULT_PAGE ? seg->h.default_page : seg->h.ecu_page, seg->h.size, 1, file);
+    written = fwrite(page == XCP_CALPAGE_DEFAULT_PAGE ? seg->h.default_page : CalSegEcuPage(seg), seg->h.size, 1, file);
     if (written != 1) {
         DBG_PRINTF3("Failed to write calibration segment data to file: %s\n", strerror(errno));
         return false;

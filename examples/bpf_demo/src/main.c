@@ -602,7 +602,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Init XCP
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, true);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, XCP_MODE_LOCAL);
     uint8_t addr[4] = OPTION_SERVER_ADDR;
     if (!XcpEthServerInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_QUEUE_SIZE)) {
         return 1;
