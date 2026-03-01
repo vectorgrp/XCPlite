@@ -53,7 +53,7 @@ static inline uint32_t read_u32(const _Atomic uint32_t *p) { return *reinterpret
 
 static const char *bool_str(uint32_t v) { return v ? "yes" : "no"; }
 
-static void print_separator(char c = '-', int width = 60) {
+static void print_separator(char c = '-', int width = 80) {
     for (int i = 0; i < width; ++i)
         putchar(c);
     putchar('\n');
@@ -140,13 +140,9 @@ static int cmd_status(bool verbose) {
         uint32_t ac = read_u32(&app->alive_counter);
         uint32_t fin = read_u32(&app->a2l_finalized);
 
-        printf("  slot %u  %-20s  epk=%-18s  pid=%-6u  %s\n", i, app->project_name[0] ? app->project_name : "(vacant)", app->epk, app->pid,
-               app->is_leader ? "[leader]" : "[follower]");
-        printf("          a2l_name=%-40s  finalized=%-3s  alive=%u\n", fin ? app->a2l_name : "(pending)", bool_str(fin), ac);
+        printf("  slot %u  %s  epk=%s  pid=%u  %s\n", i, app->project_name[0] ? app->project_name : "(vacant)", app->epk, app->pid, app->is_leader ? "[leader]" : "[follower]");
+        printf("          a2l_name=%s  finalized=%s  alive=%u\n", fin ? app->a2l_name : "(pending)", bool_str(fin), ac);
 
-        if (verbose) {
-            printf("          sizeof(tApp)=%zu  slot_offset=%zu\n", sizeof(tApp), offsetof(tShmHeader, app_list) + i * sizeof(tApp));
-        }
         print_separator();
     }
 

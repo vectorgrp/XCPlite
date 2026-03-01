@@ -742,6 +742,7 @@ void A2lSetSegAddrMode(tXcpCalSegIndex calseg_index, const uint8_t *calseg_insta
 
 // Absolute addressing mode
 // XCP address is the absolute address of the variable relative to the main module load address
+#ifdef XCP_ENABLE_ABS_ADDRESSING
 void A2lSetAbsAddrMode(tXcpEventId default_event_id) {
     gA2lFixedEvent = XCP_UNDEFINED_EVENT_ID;
     gA2lDefaultEvent = default_event_id; // May be XCP_UNDEFINED_EVENT_ID
@@ -749,6 +750,7 @@ void A2lSetAbsAddrMode(tXcpEventId default_event_id) {
     gA2lBasePtr = NULL;
     gA2lAddrExt = XCP_ADDR_EXT_ABS;
 }
+#endif
 
 // Relative addressing mode
 // Used for accessing stack variables relative to the stack frame pointer
@@ -989,6 +991,7 @@ static uint32_t A2lGetAddr_(const void *p) {
         if (gA2lAddrExt == XCP_UNDEFINED_ADDR_EXT) {
 
             const uint8_t *base_ptr = NULL;
+
             // If both base pointers are set, auto detect appropriate base pointer and addressing mode
             if (gA2lBasePtr != NULL && gA2lFramePtr != NULL) {
                 uint64_t addr_diff1 = (uint64_t)p - (uint64_t)gA2lBasePtr;
@@ -1043,6 +1046,7 @@ static uint32_t A2lGetAddr_(const void *p) {
                 base_ptr = gA2lBasePtr;
             }
 
+#ifdef XCP_ENABLE_ABS_ADDRESSING
             if (base_ptr != NULL) {
                 uint64_t addr_diff = (uint64_t)p - (uint64_t)base_ptr;
                 // Ensure the address difference does not overflow the value range for signed offset
@@ -1057,6 +1061,9 @@ static uint32_t A2lGetAddr_(const void *p) {
                 gA2lAutoAddrExt = XCP_ADDR_EXT_ABS;
                 return XcpAddrEncodeAbs(p);
             }
+#else
+            (void)base_ptr; // Avoid unused variable warning if absolute addressing is not enabled
+#endif
         }
 
         else if (XcpAddrIsAbs(gA2lAddrExt)) {

@@ -236,9 +236,11 @@ typedef union {
         atomic_uint_fast32_t free_page_offset;     // offset into c->b[], or XCP_CALSEG_NO_PAGE
         atomic_uint_fast8_t ecu_access;            // page number for ECU access
         atomic_uint_fast8_t lock_count;            // lock count for the segment, 0 = unlocked
-        uint8_t *default_page;                     // process-local ptr to caller's static data, NOT shared
-        uint32_t ecu_page_offset;                  // offset into c->b[], or XCP_CALSEG_NO_PAGE
-        uint32_t xcp_page_offset;                  // offset into c->b[], or XCP_CALSEG_NO_PAGE
+#ifndef OPTION_SHM_MODE
+        uint8_t *default_page; // process-local ptr to caller's static data, NOT sharable
+#endif
+        uint32_t ecu_page_offset; // offset into c->b[], or XCP_CALSEG_NO_PAGE
+        uint32_t xcp_page_offset; // offset into c->b[], or XCP_CALSEG_NO_PAGE
         uint16_t size;
         tXcpCalSegNumber calseg_number; // segment number, XCP_UNDEFINED_CALSEG_NUM if not a MEMORY_SEGMENT
         uint8_t xcp_access;             // page number for XCP access
@@ -255,9 +257,10 @@ typedef union {
 
 // Accessor helpers: resolve a page offset to a pointer within c->b[]
 // Returns NULL when offset is XCP_CALSEG_NO_PAGE
-#define CalSegPage(c, off) ((off) == XCP_CALSEG_NO_PAGE ? NULL : &(c)->b[(off)])
-#define CalSegEcuPage(c) CalSegPage(c, (c)->h.ecu_page_offset)
-#define CalSegXcpPage(c) CalSegPage(c, (c)->h.xcp_page_offset)
+#define CalSegPage_(c, off) ((off) == XCP_CALSEG_NO_PAGE ? NULL : &(c)->b[(off)])
+#define CalSegEcuPage(c) CalSegPage_(c, (c)->h.ecu_page_offset)
+#define CalSegXcpPage(c) CalSegPage_(c, (c)->h.xcp_page_offset)
+#define CalSegDefaultPage(c) CalSegPage_(c, 0)
 
 static_assert(sizeof(tXcpCalSegHeader) == XCP_CALSEG_HEADER_SIZE, "Error: increase XCP_CALSEG_HEADER_SIZE");
 static_assert(sizeof(tXcpCalSegHeader) % XCP_CALPAGE_ALIGNMENT == 0, "Error: size of tXcpCalSegHeader is not a multiple of XCP_CALPAGE_ALIGNMENT");
@@ -300,7 +303,9 @@ uint16_t XcpGetCalSegCount(void);
 tXcpCalSegIndex XcpFindCalSeg(const char *name);
 
 // Find a calibration segment by its default page pointer, returns XCP_UNDEFINED_CALSEG if not found
+#ifndef OPTION_SHM_MODE
 tXcpCalSegIndex XcpFindCalPage(const void *default_page);
+#endif
 
 // Convert between segment number and segment index, returns XCP_UNDEFINED_CALSEG or XCP_UNDEFINED_CALSEG_NUM if not found
 tXcpCalSegIndex XcpGetCalSegIndex(tXcpCalSegNumber segment_number);
@@ -331,11 +336,13 @@ const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg);
 // Single threaded, must be used in the thread it was created
 uint8_t XcpUnlockCalSeg(tXcpCalSegIndex calseg);
 
+#ifndef OPTION_SHM_MODE
 // Update a calibration parameter segment pointer
 // Single threaded calibration segment access assumed
 // Calibration segment is continuously locked and only updated here
 // It is the users responsibility to ensure single threaded usage and initial locking of the segment
 void XcpUpdateCalSeg(void **calPage);
+#endif // OPTION_SHM_MODE
 
 #endif // XCP_ENABLE_CALSEG_LIST
 

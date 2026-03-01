@@ -170,14 +170,16 @@ XCPlite relative addressing: XCPLITE__CASDD:
 
 // --- Asynchronous absolute addressing mode (not thread safe)
 #ifdef XCP_ENABLE_ABS_ADDRESSING
-
 // Absolute addr format (xcp_get_base_addr() + (addr as int32_t))
 // Used for global data, address range is -/+ 2GB from the base address returned by xcp_get_base_addr()(ApplXcpGetBaseAddr())
 #define XcpAddrIsAbs(addr_ext) ((addr_ext) == XCP_ADDR_EXT_ABS)
 #define XcpAddrEncodeAbs(p) ApplXcpGetAddr(p) // Calculate absolute address encoding from a pointer, application specific function
 #define XcpAddrDecodeAbsOffset(addr) (int32_t)(addr)
-
-#endif // XCP_ENABLE_ABS_ADDRESSING
+#else
+#define XcpAddrIsAbs(addr_ext) false
+#define XcpAddrEncodeAbs(p) 0
+#define XcpAddrDecodeAbsOffset(addr) 0
+#endif
 
 // --- Calibration segment relative addressing mode
 #ifdef XCP_ENABLE_SEG_ADDRESSING

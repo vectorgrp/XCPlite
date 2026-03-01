@@ -91,10 +91,12 @@ tXcpCalSegIndex XcpCreateCalVal(const char *name, const void *default_page, uint
 /// @return the Handle of the calibration segment or XCP_UNDEFINED_CALSEG if not found
 tXcpCalSegIndex XcpFindCalSeg(const char *name);
 
+#ifndef OPTION_SHM_MODE
 /// Find a calibration segment by its default page pointer
 /// @param default_page Pointer to the default page of the calibration segment
 /// @return the handle of the calibration segment or XCP_UNDEFINED_CALSEG if not found
 tXcpCalSegIndex XcpFindCalPage(const void *default_page);
+#endif
 
 /// Get the name of the calibration segment
 /// @param index Handle of the calibration segment
@@ -113,12 +115,14 @@ const uint8_t *XcpLockCalSeg(tXcpCalSegIndex index);
 /// Unlock a calibration segment
 uint8_t XcpUnlockCalSeg(tXcpCalSegIndex index);
 
+#ifndef OPTION_SHM_MODE
 /// Update a calibration parameter segment
 /// Single threaded calibration segment access assumed
 /// Calibration segment is continuously locked and only updated here
 /// It is the users responsibility to ensure single threaded usage and initial locking of the segment
 /// @param calPage Pointer to the calibration page
 void XcpUpdateCalSeg(void **calPage);
+#endif // OPTION_SHM_MODE
 
 /// Freeze all calibration segments
 /// The current working page is written to the persistence file
@@ -372,7 +376,6 @@ const uint8_t *ApplXcpGetBaseAddr(void);
 void ApplXcpSetBaseAddr(const uint8_t *addr); // Set base address for absolute addressing mode, only needed for special cases where the default base addr is not suitable
 const uint8_t *ApplXcpGetModuleAddr(void);    // Get the module base address, used as default base address for absolute addressing mode
 uint32_t ApplXcpGetAddr(const uint8_t *p);    // Calculate the absolute XCP/A2L 32 bit address from a pointer
-
 extern const uint8_t *gXcpBaseAddr;
 #define xcp_get_base_addr() gXcpBaseAddr // For runtime optimization, use xcp_get_base_addr() instead of ApplXcpGetBaseAddr()
 

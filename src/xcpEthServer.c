@@ -384,6 +384,9 @@ extern void *XcpServerFollowerThread(void *par)
         // to write a2l_name and set a2l_finalized=1 in our app slot.
 #ifdef OPTION_ENABLE_A2L_GENERATOR
         if (XcpShmIsA2lFinalizeRequested()) {
+            sleepMs(500); // @@@@ TODO dworkaround by some delay because the finalize request could already set, when attaching to the SHM after the leader has requested A2L
+                          // finalization. Remove this workaround by a better synchronization between the leader and followers.
+            DBG_PRINT3("A2L finalization requested by leader\n");
             A2lFinalize();
         }
 #endif

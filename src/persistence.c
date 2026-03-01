@@ -165,10 +165,10 @@ static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, const tXcpCalSeg *se
 #ifdef OPTION_ENABLE_DBG_PRINTS
     DBG_PRINTF4("Writing calibration segment %u, size=%u %s page data:\n", calseg, seg->h.size, page == XCP_CALPAGE_DEFAULT_PAGE ? "default" : "working");
     if (DBG_LEVEL >= 4)
-        printCalsegPage(page == XCP_CALPAGE_DEFAULT_PAGE ? seg->h.default_page : CalSegEcuPage(seg), seg->h.size);
+        printCalsegPage(page == XCP_CALPAGE_DEFAULT_PAGE ? CalSegDefaultPage(seg) : CalSegEcuPage(seg), seg->h.size);
 #endif
     // This is safe, because XCP is not connected
-    written = fwrite(page == XCP_CALPAGE_DEFAULT_PAGE ? seg->h.default_page : CalSegEcuPage(seg), seg->h.size, 1, file);
+    written = fwrite(page == XCP_CALPAGE_DEFAULT_PAGE ? CalSegDefaultPage(seg) : CalSegEcuPage(seg), seg->h.size, 1, file);
     if (written != 1) {
         DBG_PRINTF3("Failed to write calibration segment data to file: %s\n", strerror(errno));
         return false;
@@ -371,8 +371,7 @@ static bool load(const char *filename, const char *epk) {
             return false;
         }
 
-        // Create a calibration segment without a static lifetime default page
-        // In working page persistence mode, the default page will be moved to working page in the later XcpCreateCalSeg called by the user, otherwise fail
+        // Create a calibration segment without an initial value
         calseg = XcpCreateCalSeg(desc.name, NULL, desc.size);
         if (calseg != desc.index) {
             DBG_PRINT_ERROR("Failed to create calibration segment\n");
@@ -381,13 +380,13 @@ static bool load(const char *filename, const char *epk) {
         }
 
         // Mark the segment as preloaded
-        const tXcpCalSeg *seg = XcpGetCalSeg(calseg);
         // @@@@ TODO cast away const, improve design to avoid this
-        ((tXcpCalSeg *)seg)->h.mode = PAG_PROPERTY_PRELOAD;
-        ((tXcpCalSeg *)seg)->h.file_pos = (uint32_t)ftell(file) - desc.size; // Save the position of the segment page data in the file
+        tXcpCalSeg *seg = (tXcpCalSeg *)XcpGetCalSeg(calseg);
+        seg->h.mode = PAG_PROPERTY_PRELOAD;
+        seg->h.file_pos = (uint32_t)ftell(file) - desc.size; // Save the position of the segment page data in the file
 
         // Read calibration segment page data into the default page of the calibration segment
-        void *page = seg->h.default_page;
+        void *page = CalSegDefaultPage(seg);
         assert(page != NULL);
         read = fread(page, desc.size, 1, file);
         if (read != 1) {
