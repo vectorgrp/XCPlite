@@ -75,7 +75,7 @@ OPTION_ENABLE_GET_LOCAL_ADDR
 OPTION_CLOCK_TICKS_1NS or OPTION_CLOCK_TICKS_1US
 OPTION_CLOCK_EPOCH_ARB or OPTION_CLOCK_EPOCH_PTP
 */
-#include "xcplib_cfg.h" // for OPTION_xxx
+#include "xcplib_cfg.h" // for OPTION_xxx in xcplib context
 
 //-------------------------------------------------------------------------------------------------
 // Platform specific functions
@@ -122,6 +122,11 @@ OPTION_CLOCK_EPOCH_ARB or OPTION_CLOCK_EPOCH_PTP
 #include <atomic>
 #define ATOMIC_BOOL_TYPE uint_fast8_t
 #define ATOMIC_BOOL std::atomic<uint_fast8_t>
+// Bring C11 <stdatomic.h> named types into the global namespace so C headers that use atomic_uint_fast*_t compile cleanly in C++ mode.
+using std::atomic_uint_fast16_t;
+using std::atomic_uint_fast32_t;
+using std::atomic_uint_fast64_t;
+using std::atomic_uint_fast8_t;
 #endif
 #endif
 
@@ -201,8 +206,8 @@ void platformMemFree(void *ptr, size_t size);
 
 #if !defined(_WIN) && defined(OPTION_SHM_MODE) // POSIX shared memory — not available on Windows
 // Open or create a named POSIX shared-memory region of `size` bytes.
-// `name`      : SHM object name, e.g. "/xcpdata"
-// `lock_path` : path for an flock-based serialisation lock, e.g. "/tmp/xcpdata.lock"
+// `name`      : SHM object name, e.g. "/data"
+// `lock_path` : path for an flock-based serialization lock, e.g. "/tmp/data.lock"
 // `size`      : size of the region in bytes
 // `is_leader` : set to true when this process created the SHM (first caller)
 // Leader receives a zero-initialised region; followers must wait for the leader
@@ -427,7 +432,7 @@ bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr); // Helper to get local IP 
 
 #endif
 
-// Clock (as used by XCP, epoch and resolution configured in xcplib_cfg.h)
+// Clock (epoch and resolution configured by OPTION_CLOCK_EPOCH_ARB and OPTION_CLOCK_TICKS_1NS)
 bool clockInit(void);
 uint64_t clockGet(void);
 uint64_t clockGetLast(void);

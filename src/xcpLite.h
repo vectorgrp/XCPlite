@@ -47,15 +47,6 @@ uint8_t XcpGetInitMode(void); // Returns the mode passed to XcpInit() — XCP_MO
 void XcpStart(tQueueHandle queue_handle, bool resumeMode);
 void XcpReset(void);
 
-// SHM multi-process API (only functional when OPTION_SHM_MODE is enabled and XCP_MODE_SHM was used)
-#ifdef OPTION_SHM_MODE
-bool XcpIsShmLeader(void);                       // true when this process won the /xcpdata leader election
-void XcpShmRequestA2lFinalize(void);             // Leader: signal all followers to finalize their A2L file now
-bool XcpShmIsA2lFinalizeRequested(void);         // Follower: returns true when leader has set the finalize flag
-void XcpShmNotifyA2lFinalized(const char *name); // Update this process's slot; called from XcpSetA2lName()
-void XcpShmIncrementAliveCounter(void);          // Follower background thread: prove this process is still alive
-#endif                                           // OPTION_SHM_MODE
-
 // Project name
 const char *XcpGetProjectName(void);
 
@@ -123,6 +114,18 @@ uint16_t XcpGetClusterId(void);
 
 // Logging
 void XcpSetLogLevel(uint8_t level);
+
+/****************************************************************************/
+/* SHM mode                                                                 */
+/****************************************************************************/
+
+#ifdef OPTION_SHM_MODE
+bool XcpShmIsLeader(void);                       // true when this process won the /xcpdata leader election
+void XcpShmRequestA2lFinalize(void);             // Leader: signals all followers to finalize their A2L file now
+bool XcpShmIsA2lFinalizeRequested(void);         // Follower: returns true when leader has set the finalize flag
+void XcpShmNotifyA2lFinalized(const char *name); // Update this process's A2L file name; called from XcpSetA2lName()
+void XcpShmIncrementAliveCounter(void);          // Follower background thread: prove this process is still alive
+#endif
 
 /****************************************************************************/
 /* DAQ events                                                               */
@@ -537,10 +540,10 @@ typedef struct {
     // Initialisation mode (XCP_MODE_DEACTIVATE / XCP_MODE_LOCAL / XCP_MODE_SHM)
     uint8_t init_mode;
 
+    // SHM mode state (only valid when init_mode == XCP_MODE_SHM)
 #ifdef OPTION_SHM_MODE
-    // SHM application slot (OPTION_SHM_MODE + XCP_MODE_SHM only)
-    uint8_t app_slot;      // index in shm_header.app_list; SHM_MAX_APP_COUNT = no slot assigned yet
-    uint8_t shm_is_leader; // 1 = this process created /xcpdata
+    uint8_t shm_app_id; // Index in shm_header.app_list,  SHM_MAX_APP_COUNT = no slot assigned yet
+    bool shm_leader;    // This process created /xcpdata
 #endif
 
     // Memory transfer address (virtual pointer, OS handle)

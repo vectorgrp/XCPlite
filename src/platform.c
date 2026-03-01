@@ -251,11 +251,14 @@ void *platformShmOpen(const char *name, const char *lock_path, size_t size, bool
                 close(lock_fd);
                 return NULL;
             }
-        } else if ((size_t)st.st_size != size) {
-            // Non-zero size mismatch: stale object from a different build, or a live leader
-            // with a different binary. Do not reclaim — require manual cleanup.
-            DBG_PRINTF_ERROR("platformShmOpen: SHM '%s' size mismatch (found=%lld, expected=%zu).\n"
-                             "  Stale object from an older build or a live process using a different binary.\n"
+        } else if ((size_t)st.st_size < size) {
+            // SHM is smaller than sizeof(tXcpData): definitely from a different, older binary.
+            // Do not reclaim — require manual cleanup.
+            // Note: st.st_size may be larger than size due to OS page-size rounding
+            // (e.g. macOS ARM64 rounds ftruncate() up to 16 KiB pages); that is fine —
+            // we map only 'size' bytes and validate the content by magic after mapping.
+            DBG_PRINTF_ERROR("platformShmOpen: SHM '%s' is too small (found=%lld, expected=%zu).\n"
+                             "  Stale object from an older build.\n"
                              "  Run:  ./tools/shm_cleanup.sh\n",
                              name, (long long)st.st_size, size);
             close(shm_fd);

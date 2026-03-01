@@ -1674,6 +1674,13 @@ bool A2lCheckFinalizeOnConnect(uint8_t connect_mode) {
     // Finalize A2l once on connect, if A2L generation is active
     if (gA2lFinalizeOnConnect && gA2lFile != NULL) {
         A2lFinalize();
+
+        // In SHM mode, the leader signals all followers to finalize their A2L files as well
+#ifdef OPTION_SHM_MODE
+        if (XcpShmIsLeader()) {
+            XcpShmRequestA2lFinalize();
+        }
+#endif // OPTION_SHM_MODE
     }
 
     // If A2l generation is active, refuse connect
@@ -1821,7 +1828,7 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
     if (gA2lWriteAlways) {
         SNPRINTF(gA2lFilename, sizeof(gA2lFilename), "%s.a2l", XcpGetProjectName());
     } else {
-        SNPRINTF(gA2lFilename, sizeof(gA2lFilename), "%s_%s.a2l", XcpGetProjectName(), gA2lWriteAlways ? "" : XcpGetEpk());
+        SNPRINTF(gA2lFilename, sizeof(gA2lFilename), "%s_%s.a2l", XcpGetProjectName(), XcpGetEpk());
     }
 
     // Register a callback on XCP connect

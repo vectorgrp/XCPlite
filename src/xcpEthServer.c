@@ -91,13 +91,12 @@ static struct {
     // Queue
     tQueueHandle TransmitQueue;
 
+    // SHM mode
 #ifdef OPTION_SHM_MODE
-    // SHM queue tracking (XCP_MODE_SHM only; zeroed otherwise)
-    bool shm_is_leader;          // true = this process created /xcpqueue
+    bool shm_leader;             // true = this process created /xcpqueue
     void *shm_queue_ptr;         // mmap base of the /xcpqueue region, NULL when not SHM mode
     size_t shm_queue_total_size; // total mmap size: sizeof(tShmQueueHeader) + queue_size
-    // Follower background thread (polling A2L finalize request and alive_counter)
-    THREAD FollowerThreadHandle;
+    THREAD FollowerThreadHandle; // Shm follower background thread (polling A2L finalize request and alive_counter)
     volatile bool FollowerThreadRunning;
 #endif // OPTION_SHM_MODE
 
@@ -129,10 +128,6 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
     }
 
     DBG_PRINT3("Start XCP server\n");
-    DBG_PRINTF3("  Queue size = %u\n", queueSize);
-#ifdef OPTION_ATOMIC_EMULATION
-    DBG_PRINT3("  Using atomic emulation !!\n");
-#endif
 
     gXcpServer.TransmitThreadRunning = false;
     gXcpServer.ReceiveThreadRunning = false;
@@ -141,16 +136,11 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
     if (!socketStartup())
         return false;
 
-    // Create queue
-    assert(queueSize > 0);
-    if (queueSize < XCPTL_MAX_SEGMENT_SIZE * 4) {
-        DBG_PRINT_WARNING("Queue size is smaller than XCPTL_MAX_SEGMENT_SIZE*4, may cause performance issues!\n");
-    }
 #ifdef OPTION_SHM_MODE
     if (XcpGetInitMode() == XCP_MODE_SHM) {
         // SHM queue: the /xcpqueue owner is always whoever won the /xcpdata election.
         // Followers must attach at the leader's queue size (from fstat), never reclaim the region.
-        bool is_leader = XcpIsShmLeader();
+        bool is_leader = XcpShmIsLeader();
         size_t shm_total;
         void *shm_ptr;
         if (is_leader) {
@@ -172,7 +162,7 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
                 return false;
             }
         }
-        gXcpServer.shm_is_leader = is_leader;
+        gXcpServer.shm_leader = is_leader;
         gXcpServer.shm_queue_ptr = shm_ptr;
         gXcpServer.shm_queue_total_size = shm_total;
         tShmQueueHeader *hdr = (tShmQueueHeader *)shm_ptr;
@@ -223,6 +213,8 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
     } else
 #endif // OPTION_SHM_MODE
     {
+        // Create transmit queue in local memory as normal
+        assert(queueSize > 0);
         gXcpServer.TransmitQueue = queueInit(queueSize);
         if (gXcpServer.TransmitQueue == NULL)
             return false;
@@ -258,7 +250,7 @@ bool XcpEthServerShutdown(void) {
 
 #ifdef OPTION_SHM_MODE
     // SHM follower: no socket or server threads — stop the background thread, then clean up
-    if (XcpGetInitMode() == XCP_MODE_SHM && gXcpServer.isInit && !gXcpServer.shm_is_leader) {
+    if (XcpGetInitMode() == XCP_MODE_SHM && gXcpServer.isInit && !gXcpServer.shm_leader) {
         gXcpServer.FollowerThreadRunning = false;
         join_thread(gXcpServer.FollowerThreadHandle);
         gXcpServer.isInit = false;
@@ -301,7 +293,7 @@ bool XcpEthServerShutdown(void) {
 #if !defined(_WIN)
     // SHM leader: release the /xcpqueue shared memory region and unlink the SHM object
     if (gXcpServer.shm_queue_ptr != NULL) {
-        platformShmClose("/xcpqueue", gXcpServer.shm_queue_ptr, gXcpServer.shm_queue_total_size, gXcpServer.shm_is_leader);
+        platformShmClose("/xcpqueue", gXcpServer.shm_queue_ptr, gXcpServer.shm_queue_total_size, gXcpServer.shm_leader);
         gXcpServer.shm_queue_ptr = NULL;
     }
 #endif

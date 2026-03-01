@@ -406,60 +406,12 @@ static void XcpPrintDaqList(uint16_t daq);
 /* Status                                                                   */
 /****************************************************************************/
 
-uint16_t XcpGetSessionStatus(void) { return shared.session_status; }
-
 // @@@@ TODO: Optimize (inline) XcpIsActivated(), which is called very often by the public API macros
 
-bool XcpIsInitialized(void) { return isInitialized(); }
 bool XcpIsActivated(void) { return isActivated(); }
+bool XcpIsInitialized(void) { return isInitialized(); }
 uint8_t XcpGetInitMode(void) { return local.init_mode; }
-#ifdef OPTION_SHM_MODE
-bool XcpIsShmLeader(void) { return local.init_mode == XCP_MODE_SHM && local.shm_is_leader != 0; }
-
-// Signal all follower processes to finalize their A2L file immediately.
-void XcpShmRequestA2lFinalize(void) {
-    if (local.init_mode != XCP_MODE_SHM || !local.shm_is_leader)
-        return;
-    atomic_store(&gXcpData->shm_header.a2l_finalize_requested, 1U);
-    DBG_PRINT3("XcpShmRequestA2lFinalize: requested A2L finalization for all followers\n");
-}
-
-// Returns true once the leader has set the A2L finalize request flag.
-bool XcpShmIsA2lFinalizeRequested(void) {
-    if (local.init_mode != XCP_MODE_SHM || local.shm_is_leader)
-        return false;
-    return atomic_load(&gXcpData->shm_header.a2l_finalize_requested) != 0;
-}
-
-// Update this process's app slot with its A2L filename and mark it as finalized.
-// Called automatically from XcpSetA2lName(); not normally called directly.
-void XcpShmNotifyA2lFinalized(const char *a2l_name) {
-    if (local.init_mode != XCP_MODE_SHM || !isActivated())
-        return;
-    uint8_t slot = local.app_slot;
-    if (slot >= SHM_MAX_APP_COUNT)
-        return;
-    tApp *app = &gXcpData->shm_header.app_list[slot];
-    if (a2l_name != NULL && a2l_name[0] != '\0') {
-        STRNCPY(app->a2l_name, a2l_name, XCP_A2L_FILENAME_MAX_LENGTH);
-        app->a2l_name[XCP_A2L_FILENAME_MAX_LENGTH] = '\0';
-    }
-    atomic_store(&app->a2l_finalized, 1U);
-    DBG_PRINTF3("XcpShmNotifyA2lFinalized: slot %u a2l='%s'\n", (unsigned)slot, a2l_name ? a2l_name : "");
-}
-
-// Increment this process's alive_counter so the leader can detect stale followers.
-void XcpShmIncrementAliveCounter(void) {
-    if (local.init_mode != XCP_MODE_SHM)
-        return;
-    uint8_t slot = local.app_slot;
-    if (slot >= SHM_MAX_APP_COUNT)
-        return;
-    atomic_fetch_add(&gXcpData->shm_header.app_list[slot].alive_counter, 1U);
-}
-
-#endif // OPTION_SHM_MODE
-
+uint16_t XcpGetSessionStatus(void) { return shared.session_status; }
 bool XcpIsStarted(void) { return isStarted(); }
 bool XcpIsConnected(void) { return isConnected(); }
 bool XcpIsDaqRunning(void) { return isDaqRunning(); }
@@ -536,6 +488,102 @@ const char *XcpGetEpk(void) {
         return NULL;
     return local.epk;
 }
+
+/**************************************************************************/
+/* Shared memory mode (SHM)                                               */
+/**************************************************************************/
+
+#ifdef OPTION_SHM_MODE
+
+// Returns true if this process is the SHM leader (the first process which initialized the shared memory and registered as leader).
+bool XcpShmIsLeader(void) { return local.init_mode == XCP_MODE_SHM && local.shm_leader; }
+
+// Signal all follower processes to finalize their A2L file immediately.
+void XcpShmRequestA2lFinalize(void) {
+    if (local.init_mode != XCP_MODE_SHM || !local.shm_leader)
+        return;
+    atomic_store(&gXcpData->shm_header.a2l_finalize_requested, 1U);
+    DBG_PRINT3("XcpShmRequestA2lFinalize: requested A2L finalization for all followers\n");
+}
+
+// Returns true once the leader has set the A2L finalize request flag.
+bool XcpShmIsA2lFinalizeRequested(void) {
+    if (local.init_mode != XCP_MODE_SHM || local.shm_leader)
+        return false;
+    return atomic_load(&gXcpData->shm_header.a2l_finalize_requested) != 0;
+}
+
+// Update this process's app slot with its A2L filename and mark it as finalized.
+// Called automatically from XcpSetA2lName(); not normally called directly.
+void XcpShmNotifyA2lFinalized(const char *a2l_name) {
+    if (local.init_mode != XCP_MODE_SHM || !isActivated())
+        return;
+    uint8_t slot = local.shm_app_id;
+    if (slot >= SHM_MAX_APP_COUNT)
+        return;
+    tApp *app = &gXcpData->shm_header.app_list[slot];
+    if (a2l_name != NULL && a2l_name[0] != '\0') {
+        STRNCPY(app->a2l_name, a2l_name, XCP_A2L_FILENAME_MAX_LENGTH);
+        app->a2l_name[XCP_A2L_FILENAME_MAX_LENGTH] = '\0';
+    }
+    atomic_store(&app->a2l_finalized, 1U);
+    DBG_PRINTF3("XcpShmNotifyA2lFinalized: slot %u a2l='%s'\n", (unsigned)slot, a2l_name ? a2l_name : "");
+}
+
+// Increment this process's alive_counter so the leader can detect stale followers.
+void XcpShmIncrementAliveCounter(void) {
+    if (local.init_mode != XCP_MODE_SHM)
+        return;
+    uint8_t slot = local.shm_app_id;
+    if (slot >= SHM_MAX_APP_COUNT)
+        return;
+    atomic_fetch_add(&gXcpData->shm_header.app_list[slot].alive_counter, 1U);
+}
+
+// Register this process in the SHM application list.
+// Returns the allocated shm_app_id (slot index= or SHM_MAX_APP_COUNT on error.
+// If a slot with a matching project_name already exists (process restart), it is reused.
+static uint8_t XcpShmRegisterApp(const char *name, const char *epk, bool is_leader) {
+    tShmHeader *hdr = &gXcpData->shm_header;
+
+    // Scan for an existing slot with the same project_name (handles process restart)
+    uint32_t count = (uint32_t)atomic_load(&hdr->app_count);
+    for (uint32_t i = 0; i < count; i++) {
+        if (strncmp(hdr->app_list[i].project_name, name, XCP_PROJECT_NAME_MAX_LENGTH) == 0) {
+            tApp *app = &hdr->app_list[i];
+            app->pid = (uint32_t)getpid();
+            app->is_leader = is_leader;
+            STRNCPY(app->epk, epk, XCP_EPK_MAX_LENGTH);
+            app->epk[XCP_EPK_MAX_LENGTH] = '\0';
+            app->a2l_name[0] = '\0';
+            atomic_store(&app->a2l_finalized, 0U);
+            DBG_PRINTF3("XcpShmRegisterApp: reused slot %u for '%s' (pid=%u)\n", i, name, (unsigned)getpid());
+            return (uint8_t)i;
+        }
+    }
+
+    // Atomically claim a fresh slot
+    uint32_t slot = (uint32_t)atomic_fetch_add(&hdr->app_count, 1U);
+    if (slot >= SHM_MAX_APP_COUNT) {
+        DBG_PRINT_ERROR("XcpShmRegisterApp: application list full\n");
+        atomic_fetch_sub(&hdr->app_count, 1U); // undo the increment
+        return SHM_MAX_APP_COUNT;              // error sentinel
+    }
+    tApp *app = &hdr->app_list[slot];
+    memset(app->b, 0, sizeof(app->b));
+    STRNCPY(app->project_name, name, XCP_PROJECT_NAME_MAX_LENGTH);
+    app->project_name[XCP_PROJECT_NAME_MAX_LENGTH] = '\0';
+    STRNCPY(app->epk, epk, XCP_EPK_MAX_LENGTH);
+    app->epk[XCP_EPK_MAX_LENGTH] = '\0';
+    app->pid = (uint32_t)getpid();
+    app->is_leader = is_leader ? 1u : 0u;
+    atomic_store(&app->alive_counter, 0U);
+    atomic_store(&app->a2l_finalized, 0U);
+    DBG_PRINTF3("XcpShmRegisterApp: registered slot %u for '%s' (pid=%u, %s)\n", slot, name, (unsigned)getpid(), is_leader ? "leader" : "follower");
+    return (uint8_t)slot;
+}
+
+#endif // OPTION_SHM_MODE
 
 /**************************************************************************/
 /* Calibration segments                                                   */
@@ -2825,13 +2873,6 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
         if (!ApplXcpConnect(mode))
             return CRC_CMD_OK; // Application not ready, ignore
 
-        // In SHM mode, the leader signals all followers to finalize their A2L files now
-#ifdef OPTION_SHM_MODE
-        if (local.init_mode == XCP_MODE_SHM && local.shm_is_leader) {
-            XcpShmRequestA2lFinalize();
-        }
-#endif // OPTION_SHM_MODE
-
         // Initialize Session Status
         shared_mut.session_status = (SS_INITIALIZED | SS_ACTIVATED | SS_STARTED | SS_CONNECTED | SS_LEGACY_MODE);
 
@@ -3712,7 +3753,7 @@ void XcpBackgroundTasks(void) {
 
 // SHM leader: detect newly registered follower processes and log their identity
 #ifdef OPTION_SHM_MODE
-    if (local.init_mode == XCP_MODE_SHM && local.shm_is_leader) {
+    if (local.init_mode == XCP_MODE_SHM && local.shm_leader) {
         static uint32_t last_known_app_count = 0;
         uint32_t current_count = (uint32_t)atomic_load(&gXcpData->shm_header.app_count);
         while (last_known_app_count < current_count) {
@@ -3809,59 +3850,12 @@ void XcpPrint(const char *str) {
 /* Initialization and start of the XCP Protocol Layer                       */
 /****************************************************************************/
 
-// xcpShmRegisterApp — register this process in the SHM application list.
-// Returns the allocated slot index or SHM_MAX_APP_COUNT on error.
-// If a slot with a matching project_name already exists (process restart), it is reused.
-#ifdef OPTION_SHM_MODE
-static uint8_t xcpShmRegisterApp(const char *name, const char *epk, bool is_leader) {
-    tShmHeader *hdr = &gXcpData->shm_header;
-
-    // Scan for an existing slot with the same project_name (handles process restart)
-    uint32_t count = (uint32_t)atomic_load(&hdr->app_count);
-    for (uint32_t i = 0; i < count; i++) {
-        if (strncmp(hdr->app_list[i].project_name, name, XCP_PROJECT_NAME_MAX_LENGTH) == 0) {
-            tApp *app = &hdr->app_list[i];
-            app->pid = (uint32_t)getpid();
-            app->is_leader = is_leader ? 1u : 0u;
-            STRNCPY(app->epk, epk, XCP_EPK_MAX_LENGTH);
-            app->epk[XCP_EPK_MAX_LENGTH] = '\0';
-            app->a2l_name[0] = '\0';
-            atomic_store(&app->a2l_finalized, 0U);
-            DBG_PRINTF3("XcpShmRegisterApp: reused slot %u for '%s' (pid=%u)\n", i, name, (unsigned)getpid());
-            return (uint8_t)i;
-        }
-    }
-
-    // Atomically claim a fresh slot
-    uint32_t slot = (uint32_t)atomic_fetch_add(&hdr->app_count, 1U);
-    if (slot >= SHM_MAX_APP_COUNT) {
-        DBG_PRINT_ERROR("XcpShmRegisterApp: application list full\n");
-        atomic_fetch_sub(&hdr->app_count, 1U); // undo the increment
-        return SHM_MAX_APP_COUNT;              // error sentinel
-    }
-    tApp *app = &hdr->app_list[slot];
-    memset(app->b, 0, sizeof(app->b));
-    STRNCPY(app->project_name, name, XCP_PROJECT_NAME_MAX_LENGTH);
-    app->project_name[XCP_PROJECT_NAME_MAX_LENGTH] = '\0';
-    STRNCPY(app->epk, epk, XCP_EPK_MAX_LENGTH);
-    app->epk[XCP_EPK_MAX_LENGTH] = '\0';
-    app->pid = (uint32_t)getpid();
-    app->is_leader = is_leader ? 1u : 0u;
-    atomic_store(&app->alive_counter, 0U);
-    atomic_store(&app->a2l_finalized, 0U);
-    DBG_PRINTF3("XcpShmRegisterApp: registered slot %u for '%s' (pid=%u, %s)\n", slot, name, (unsigned)getpid(), is_leader ? "leader" : "follower");
-    return (uint8_t)slot;
-}
-#endif // OPTION_SHM_MODE
-
 // Init XCP protocol layer singleton once
 // This is a once initialization of the static gXcp singleton data structure
 // Memory for the DAQ lists are provided by the caller if daq_lists != NULL
 void XcpInit(const char *name, const char *epk, uint8_t mode) {
-    // Record the mode immediately so XcpGetInitMode() works even in the follower path
-    local_mut.init_mode = mode;
 
-    // Once
+    local_mut.init_mode = mode;
     if (isActivated()) { // Already initialized, just ignore
         return;
     }
@@ -3870,35 +3864,42 @@ void XcpInit(const char *name, const char *epk, uint8_t mode) {
     // A size mismatch means two binaries were compiled with different xcplib_cfg.h settings.
     DBG_PRINTF3("XcpInit: sizeof(tXcpData)=%zu  sizeof(tXcpLocalData)=%zu\n", sizeof(tXcpData), sizeof(tXcpLocalData));
 #ifdef OPTION_SHM_MODE
-    DBG_PRINTF3("XcpInit:   shm_header=%zu (SHM_MAX_APP_COUNT=%d)\n", sizeof(tShmHeader), SHM_MAX_APP_COUNT);
+    DBG_PRINTF6("XcpInit:   shm_header=%zu (SHM_MAX_APP_COUNT=%d)\n", sizeof(tShmHeader), SHM_MAX_APP_COUNT);
 #endif
-    DBG_PRINTF3("XcpInit:   crm(tXcpCto)=%zu  daq_lists=%zu\n", sizeof(tXcpCto), sizeof(tXcpDaqLists));
+    DBG_PRINTF6("XcpInit:   crm(tXcpCto)=%zu  daq_lists=%zu\n", sizeof(tXcpCto), sizeof(tXcpDaqLists));
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
-    DBG_PRINTF3("XcpInit:   event_list=%zu\n", sizeof(tXcpEventList));
+    DBG_PRINTF6("XcpInit:   event_list=%zu\n", sizeof(tXcpEventList));
 #endif
 #ifdef XCP_ENABLE_CALSEG_LIST
-    DBG_PRINTF3("XcpInit:   cal_seg_list=%zu\n", sizeof(tXcpCalSegList));
+    DBG_PRINTF6("XcpInit:   cal_seg_list=%zu\n", sizeof(tXcpCalSegList));
 #endif
 
 #ifdef TEST_MUTABLE_ACCESS_OWNERSHIP
     XcpBindOwnerThread();
 #endif
 
-    // name and epk are mandatory
-    if (name == NULL) {
-        name = "XCPlite";
-    } else if (STRNLEN(name, XCP_PROJECT_NAME_MAX_LENGTH) == 0) {
-        DBG_PRINT_ERROR("XcpInit: Project name invalid!\n");
-        return;
-    }
-    if (epk == NULL) {
-        epk = __TIME__;
-    } else if (STRNLEN(epk, XCP_EPK_MAX_LENGTH) == 0) {
-        DBG_PRINT_ERROR("XcpInit: EPK invalid!\n");
-        return;
-    }
+    // Initialize the base address for absolute addressing
+#ifdef XCP_ENABLE_ABS_ADDRESSING
+    ApplXcpGetBaseAddr();
+    assert(xcp_get_base_addr() != NULL);
+#endif
 
-    // Allocate or attach to the shared state block
+    // Initialize high resolution clock
+    clockInit();
+
+    // Set the project name
+    if (name == NULL || STRNLEN(name, XCP_PROJECT_NAME_MAX_LENGTH) == 0) {
+        name = "XCPlite";
+    }
+    XcpSetProjectName(name);
+
+    // Set the EPK
+    if (epk == NULL || STRNLEN(epk, XCP_EPK_MAX_LENGTH) == 0) {
+        epk = __TIME__;
+    }
+    XcpSetEpk(epk);
+
+    // Allocate or attach to the shared memory block
     if (mode == XCP_MODE_SHM) {
 #ifdef OPTION_SHM_MODE
         bool is_leader = false;
@@ -3908,16 +3909,28 @@ void XcpInit(const char *name, const char *epk, uint8_t mode) {
             return;
         }
         if (!is_leader) {
-            // Follower: wait up to 5 s for the leader to complete XcpInit()
-            DBG_PRINT3("XcpInit: attached to existing shared memory, waiting for leader to activate XCP...\n");
-            for (int i = 0; i < 5000 && !isActivated(); i++) {
-                sleepUs(1000);
+            // Follower: wait up to 500ms for the leader to complete XcpInit()
+            DBG_PRINT3("XcpInit: attached to existing shared memory\n");
+            if (!isActivated()) {
+                DBG_PRINT3("XcpInit: waiting for leader to activate XCP ...\n");
+                for (int i = 0; i < 500 && !isActivated(); i++) {
+                    sleepUs(1000);
+                }
             }
             if (isActivated()) {
                 // Register this follower's app slot before returning
-                local_mut.shm_is_leader = 0;
-                local_mut.app_slot = xcpShmRegisterApp(name, epk, false);
-                return; // Successfully attached to a live leader
+                local_mut.shm_leader = 0;
+                local_mut.shm_app_id = XcpShmRegisterApp(name, epk, false);
+                DBG_PRINTF3("XcpInit: follower with shm_app_id = %u attached to leader existing shared memory\n", local_mut.shm_app_id);
+
+                // Early return here
+                // Successfully attached to a live leader
+
+                // No further initialization of shared state is needed, because the leader will have already done it
+                // - No BinLoad
+                // - No init of DAQ lists, event list, cal seg list
+                // Will eventually immediately start capture DAQ data
+                return;
             }
             // Stale SHM: the previous leader died without calling platformShmClose (e.g. Ctrl-C).
             // Reclaim ownership: unmap + unlink, then re-open as new leader.
@@ -3931,7 +3944,7 @@ void XcpInit(const char *name, const char *epk, uint8_t mode) {
             }
             assert(is_leader); // We just unlinked it, so we must win the O_CREAT|O_EXCL race
         }
-        local_mut.shm_is_leader = (uint8_t)is_leader;
+        local_mut.shm_leader = (uint8_t)is_leader;
         DBG_PRINTF3("XcpInit: shared memory leader, size=%zu bytes\n", sizeof(tXcpData));
 #else
         DBG_PRINT_ERROR("XcpInit: XCP_MODE_SHM requested but OPTION_SHM_MODE is not enabled in xcplib_cfg.h\n");
@@ -3950,15 +3963,15 @@ void XcpInit(const char *name, const char *epk, uint8_t mode) {
     memset((uint8_t *)gXcpData, 0, sizeof(tXcpData));
 
     shared_mut.session_status = SS_INITIALIZED;
+
     if (mode == XCP_MODE_DEACTIVATE) {
         return; // Do not activate XCP protocol layer, state is safe now
     }
 
 #ifdef OPTION_SHM_MODE
-    // SHM leader: initialize the shared header and register the leader's application slot.
-    // Must run after memset() (which zeroed the header) and before SS_ACTIVATED
-    // so that followers can safely spin-wait on isActivated().
-    if (mode == XCP_MODE_SHM && local.shm_is_leader) {
+    // SHM leader initializes the shm mode header and registers this application
+    if (mode == XCP_MODE_SHM) {
+        assert(local.shm_leader);
         tShmHeader *hdr = &gXcpData->shm_header;
         hdr->magic = SHM_MAGIC;
         hdr->version = SHM_VERSION;
@@ -3966,27 +3979,12 @@ void XcpInit(const char *name, const char *epk, uint8_t mode) {
         hdr->leader_pid = (uint32_t)getpid();
         atomic_store(&hdr->app_count, 0U);
         atomic_store(&hdr->a2l_finalize_requested, 0U);
-        local_mut.app_slot = xcpShmRegisterApp(name, epk, true);
+        local_mut.shm_app_id = XcpShmRegisterApp(name, epk, true);
     }
 #endif // OPTION_SHM_MODE
 
-// Initialize the base address for absolute addressing
-#ifdef XCP_ENABLE_ABS_ADDRESSING
-    ApplXcpGetBaseAddr();
-    assert(xcp_get_base_addr() != NULL);
-#endif
-
     // Reset DAQ list memory
     XcpClearDaq();
-
-    // Initialize high resolution clock
-    clockInit();
-
-    // Set the project name
-    XcpSetProjectName(name);
-
-    // Set the EPK
-    XcpSetEpk(epk);
 
 #ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
     local_mut.cluster_id = XCP_MULTICAST_CLUSTER_ID; // XCP default cluster id (multicast addr 239,255,0,1, group 127,0,1 (mac 01-00-5E-7F-00-01)
@@ -4001,7 +3999,7 @@ void XcpInit(const char *name, const char *epk, uint8_t mode) {
     XcpInitEventList();
 #endif
 
-    // Activate XCP protocol layer
+    // Activate XCP protocol layer, initialization done
     shared_mut.session_status |= SS_ACTIVATED;
 
 // Check if the BIN file exists and load it
