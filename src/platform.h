@@ -127,6 +127,10 @@ using std::atomic_uint_fast16_t;
 using std::atomic_uint_fast32_t;
 using std::atomic_uint_fast64_t;
 using std::atomic_uint_fast8_t;
+using std::atomic_uint_least16_t;
+using std::atomic_uint_least32_t;
+using std::atomic_uint_least64_t;
+using std::atomic_uint_least8_t;
 #endif
 #endif
 

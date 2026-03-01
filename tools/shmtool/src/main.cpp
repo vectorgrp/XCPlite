@@ -49,7 +49,7 @@
 
 // Portable relaxed-atomic read from a C11 _Atomic field via volatile cast.
 // Sufficient for a read-only diagnostic tool; no store-load barriers needed.
-static inline uint32_t read_u32(const _Atomic uint32_t *p) { return *reinterpret_cast<const volatile uint32_t *>(p); }
+static inline uint32_t read_u32(const atomic_uint_least32_t *p) { return *reinterpret_cast<const volatile uint32_t *>(p); }
 
 static const char *bool_str(uint32_t v) { return v ? "yes" : "no"; }
 

@@ -48,7 +48,6 @@ static bool gA2lWriteAlways = true;       // Write A2L file always, even if no c
 static bool gA2lAutoGroups = true;        // Automatically create groups for measurements and parameters
 
 // A2L file handles and state
-static char gA2lFilename[256];
 static bool gA2lFileWritten = false;
 static FILE *gA2lFile = NULL;
 static FILE *gA2lTypedefsFile = NULL;
@@ -459,8 +458,46 @@ static const char *A2lGetInputQuantity_y(void) { return gA2lInputQuantity_y ? gA
 
 //----------------------------------------------------------------------------------
 
+#define A2L_MAIN_FILE 1
+#define A2L_TYPEDEFS_FILE 2
+#define A2L_GROUPS_FILE 3
+#define A2L_CONVERSIONS_FILE 4
+
+// Build filenames for the different files used
+const char *A2lGetFilename(uint8_t file_type) {
+
+    static uint8_t file_type_initialized = 0;
+    static char file_name[XCP_A2L_FILENAME_MAX_LENGTH + 1];
+
+    const char postfix[8] = "";
+    uint8_t id = 0;
+#ifdef OPTION_SHM_MODE
+    id = XcpShmGetAppId();
+#endif
+    switch (file_type) {
+    case A2L_TYPEDEFS_FILE:
+        SNPRINTF(postfix, sizeof(postfix), "_t%u", id);
+        break;
+    case A2L_GROUPS_FILE:
+        SNPRINTF(postfix, sizeof(postfix), "_g%u", id);
+        break;
+    case A2L_CONVERSIONS_FILE:
+        SNPRINTF(postfix, sizeof(postfix), "_c%u", id);
+        break;
+    }
+    if (file_type_initialized != file_type) {
+        // Build A2L base filename from project name and EPK
+        // If A2l file is generated only once for a new build, the EPK is appended to the filename
+        if (gA2lWriteAlways) {
+            SNPRINTF(file_name, sizeof(file_name), "%s%s.a2l", XcpGetProjectName(), postfix);
+        } else {
+            SNPRINTF(file_name, sizeof(file_name), "%s%s_%s.a2l", XcpGetProjectName(), postfix, XcpGetEpk());
+        }
+    }
+    return file_name;
+}
+
 // Start A2L file generation
-// Filename gA2lFilename
 static bool A2lOpen(void) {
 
     gA2lFile = NULL;
@@ -473,16 +510,14 @@ static bool A2lOpen(void) {
     gA2lMeasurements = gA2lParameters = gA2lTypedefs = gA2lInstances = gA2lConversions = gA2lComponents = 0;
 
     // Start A2L generator
-    DBG_PRINTF3("Start A2L generator, file=%s, write_always=%u, finalize_on_connect=%u, auto_groups=%u\n", gA2lFilename, gA2lWriteAlways, gA2lFinalizeOnConnect, gA2lAutoGroups);
-    // if (fexists(gA2lFilename)) {
-    //     DBG_PRINTF_WARNING("A2L filename %s already exists!\n", gA2lFilename);
-    // }
-    gA2lFile = fopen(gA2lFilename, "w");
-    gA2lTypedefsFile = fopen("typedefs.a2l", "w");
-    gA2lGroupsFile = fopen("groups.a2l", "w");
-    gA2lConversionsFile = fopen("conversions.a2l", "w");
+    DBG_PRINTF3("Start A2L generator, file=%s, write_always=%u, finalize_on_connect=%u, auto_groups=%u\n", A2lGetFilename(A2L_MAIN_FILE), gA2lWriteAlways, gA2lFinalizeOnConnect,
+                gA2lAutoGroups);
+    gA2lFile = fopen(A2lGetFilename(A2L_MAIN_FILE), "w");
+    gA2lTypedefsFile = fopen(A2lGetFilename(A2L_TYPEDEFS_FILE), "w");
+    gA2lGroupsFile = fopen(A2lGetFilename(A2L_GROUPS_FILE), "w");
+    gA2lConversionsFile = fopen(A2lGetFilename(A2L_CONVERSIONS_FILE), "w");
     if (gA2lFile == 0 || gA2lTypedefsFile == 0 || gA2lGroupsFile == 0 || gA2lConversionsFile == 0) {
-        DBG_PRINT_ERROR("Could not create A2L file!\n");
+        DBG_PRINT_ERROR("Could not create file!\n");
         return false;
     }
 
@@ -1701,7 +1736,7 @@ bool A2lCheckFinalizeOnConnect(uint8_t connect_mode) {
     else {
         if (connect_mode == 0xAA) {
             DBG_PRINT_WARNING("Delete A2L and BIN file (connect_mode=0xAA)!\n");
-            remove(gA2lFilename);
+            remove(A2lGetFilename(A2L_MAIN_FILE));
 #ifdef OPTION_CAL_PERSISTENCE
             XcpBinDelete();
 #endif
@@ -1754,9 +1789,9 @@ bool A2lFinalize(void) {
 #endif
 
         // Merge the include files with the main A2L file
-        includeFile(&gA2lTypedefsFile, "typedefs.a2l");
-        includeFile(&gA2lGroupsFile, "groups.a2l");
-        includeFile(&gA2lConversionsFile, "conversions.a2l");
+        includeFile(&gA2lTypedefsFile, A2lGetFilename(A2L_TYPEDEFS_FILE));
+        includeFile(&gA2lGroupsFile, A2lGetFilename(A2L_GROUPS_FILE));
+        includeFile(&gA2lConversionsFile, A2lGetFilename(A2L_CONVERSIONS_FILE));
 
         // Create MOD_PAR section with EPK and calibration segments
         A2lCreate_MOD_PAR();
@@ -1781,7 +1816,7 @@ bool A2lFinalize(void) {
 #endif
 
         // Notify XCP that there is an A2L file available for upload by the XCP client
-        XcpSetA2lName(gA2lFilename);
+        XcpSetA2lName(A2lGetFilename(A2L_MAIN_FILE));
         return true; // A2L file generation successful
     }
 
@@ -1830,14 +1865,6 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
 
     mutexInit(&gA2lMutex, false, 0);
 
-    // Build A2L filename from project name and EPK
-    // If A2l file is generated only once for a new build, the EPK is appended to the filename
-    if (gA2lWriteAlways) {
-        SNPRINTF(gA2lFilename, sizeof(gA2lFilename), "%s.a2l", XcpGetProjectName());
-    } else {
-        SNPRINTF(gA2lFilename, sizeof(gA2lFilename), "%s_%s.a2l", XcpGetProjectName(), XcpGetEpk());
-    }
-
     // Register a callback on XCP connect
     ApplXcpRegisterConnectCallback(A2lCheckFinalizeOnConnect);
 
@@ -1845,16 +1872,16 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
     // Check if the A2L file already exists and the persistence BIN file has been loaded and checked
     // If yes, skip generation if not write always
     gA2lFileWritten = false;
-    if (!gA2lWriteAlways && (XcpGetSessionStatus() & SS_PERSISTENCE_LOADED) && fexists(gA2lFilename)) {
+    if (!gA2lWriteAlways && (XcpGetSessionStatus() & SS_PERSISTENCE_LOADED) && fexists(A2lGetFilename(A2L_MAIN_FILE))) {
         // Notify XCP that there is an A2L file available for upload by the XCP client
-        XcpSetA2lName(gA2lFilename);
-        DBG_PRINTF_WARNING("A2L file %s already exists, assuming it is still valid, disabling A2L generation\n", gA2lFilename);
+        XcpSetA2lName(A2lGetFilename(A2L_MAIN_FILE));
+        DBG_PRINTF_WARNING("A2L file %s already exists, assuming it is still valid, disabling A2L generation\n", A2lGetFilename(A2L_MAIN_FILE));
         return true;
     }
 
     // Open A2L file for generation
     if (!A2lOpen()) {
-        DBG_PRINTF_ERROR("Failed to open A2L file %s\n", gA2lFilename);
+        DBG_PRINTF_ERROR("Failed to open A2L file %s\n", A2lGetFilename(A2L_MAIN_FILE));
         return false;
     }
 

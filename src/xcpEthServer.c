@@ -70,10 +70,10 @@ static void *XcpServerFollowerThread(void *par);
 // Fixed-size types used to avoid uint_fast32_t platform differences (e.g. 8 bytes on arm64).
 #ifdef OPTION_SHM_MODE
 typedef struct {
-    _Atomic uint32_t is_initialized; // set to 1 by the leader after queueInitFromMemory() completes
-    _Atomic int32_t leader_pid;      // PID of the leader process; 0 until ready
-    uint32_t queue_size;             // usable data area size (bytes) passed to queueInitFromMemory
-    uint32_t pad[13];                // pad struct to exactly 64 bytes (one cache line)
+    atomic_uint_least32_t is_initialized; // set to 1 by the leader after queueInitFromMemory() completes
+    atomic_uint_least32_t leader_pid;     // PID of the leader process; 0 until ready
+    uint32_t queue_size;                  // usable data area size (bytes) passed to queueInitFromMemory
+    uint32_t pad[13];                     // pad struct to exactly 64 bytes (one cache line)
 } tShmQueueHeader;
 static_assert(sizeof(tShmQueueHeader) == 64, "tShmQueueHeader must be 64 bytes");
 #endif // OPTION_SHM_MODE

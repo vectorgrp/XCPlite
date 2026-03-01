@@ -120,6 +120,7 @@ void XcpSetLogLevel(uint8_t level);
 /****************************************************************************/
 
 #ifdef OPTION_SHM_MODE
+uint8_t XcpShmGetAppId(void);                    // Get this process's application id
 bool XcpShmIsLeader(void);                       // true when this process won the /xcpdata leader election
 void XcpShmRequestA2lFinalize(void);             // Leader: signals all followers to finalize their A2L file now
 bool XcpShmIsA2lFinalizeRequested(void);         // Follower: returns true when leader has set the finalize flag
@@ -460,9 +461,9 @@ typedef union {
         uint32_t pid;                                       // OS process ID; 0 = slot is vacant
         uint8_t is_leader;                                  // 1 = this process created /xcpdata (the SHM owner)
         uint8_t pad1[3];                                    // explicit padding for deterministic cross-compiler layout
-        _Atomic uint32_t alive_counter;                     // incremented periodically by each process's background thread;
+        atomic_uint_least32_t alive_counter;                // incremented periodically by each process's background thread;
                                                             //   allows the leader to detect stale/dead followers
-        _Atomic uint32_t a2l_finalized;                     // 1 when this app's A2L file is complete and a2l_name is valid
+        atomic_uint_least32_t a2l_finalized;                // 1 when this app's A2L file is complete and a2l_name is valid
     };
     uint8_t b[512]; // pad slot to 512 bytes for future extensions
 } tApp;
@@ -472,14 +473,14 @@ static_assert(sizeof(tApp) == 512, "sizeof tApp must be 512 bytes");
 // Control area (first 64 bytes = one cache line) followed by the per-process application list.
 typedef struct {
     // --- Control area (64 bytes, one cache line) ---
-    uint64_t magic;                          // SHM_MAGIC: marks a valid /xcpdata region
-    uint32_t version;                        // SHM_VERSION: layout version for forward compatibility
-    uint32_t size;                           // total /xcpdata mmap size in bytes
-    uint32_t leader_pid;                     // PID of the process that created /xcpdata
-    _Atomic uint32_t app_count;              // number of registered slots (grows up to SHM_MAX_APP_COUNT)
-    _Atomic uint32_t a2l_finalize_requested; // leader writes 1 here on the first XCP client CONNECT;
-                                             //   each follower's background thread polls this and calls A2lFinalize()
-    uint8_t pad[64 - 8 - 4 - 4 - 4 - 4 - 4]; // 36 bytes: pad control area to exactly 64 bytes
+    uint64_t magic;                               // SHM_MAGIC: marks a valid /xcpdata region
+    uint32_t version;                             // SHM_VERSION: layout version for forward compatibility
+    uint32_t size;                                // total /xcpdata mmap size in bytes
+    uint32_t leader_pid;                          // PID of the process that created /xcpdata
+    atomic_uint_least32_t app_count;              // number of registered slots (grows up to SHM_MAX_APP_COUNT)
+    atomic_uint_least32_t a2l_finalize_requested; // leader writes 1 here on the first XCP client CONNECT;
+                                                  //   each follower's background thread polls this and calls A2lFinalize()
+    uint8_t pad[64 - 8 - 4 - 4 - 4 - 4 - 4];      // 36 bytes: pad control area to exactly 64 bytes
     // --- Per-process application list ---
     tApp app_list[SHM_MAX_APP_COUNT]; // 512 * 8 = 4096 bytes
 } tShmHeader;

@@ -463,6 +463,9 @@ Only the leader process runs the XCP transport layer and has ownership of tXcpDa
 The first process allocates the shared memory for tXcpData and the queue and becomes the leader.
 */
 
+// Returns this process's application id (the slot index in shm_header.app_list)
+uint8_t XcpShmGetAppId(void) { return local.shm_app_id; }
+
 // Returns true if this process is the SHM leader (the first process which initialized the shared memory and registered as leader).
 bool XcpShmIsLeader(void) { return local.init_mode == XCP_MODE_SHM && local.shm_leader; }
 
