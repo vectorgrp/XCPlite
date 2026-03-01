@@ -459,7 +459,6 @@ uint8_t ApplXcpDaqResumeClear(void) {
 // Functions for upload of A2L file
 /**************************************************************************/
 
-#define XCP_A2L_FILENAME_MAX_LENGTH 255                        // Maximum length of A2L filename with extension
 static char gXcpA2lName[XCP_A2L_FILENAME_MAX_LENGTH + 1] = ""; // A2L filename (without extension .a2l)
 
 // Set the A2L file (filename without extension .a2l) to be provided to the host for upload
@@ -473,6 +472,11 @@ void XcpSetA2lName(const char *name) {
         *dot = '\0';                                 // Null-terminate the string at the dot
     gXcpA2lName[XCP_A2L_FILENAME_MAX_LENGTH] = '\0'; // Ensure null-termination
     DBG_PRINTF4("XcpSetA2lName '%s'\n", name);
+
+    // In SHM mode, update this process's app slot so the leader knows the A2L is ready
+#ifdef OPTION_SHM_MODE
+    XcpShmNotifyA2lFinalized(gXcpA2lName);
+#endif
 }
 
 // Return the A2L name (without extension)

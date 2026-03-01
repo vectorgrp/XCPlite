@@ -29,6 +29,12 @@
 #include "xcptl_cfg.h"  // for XCPTL_xxx
 
 #ifdef OPTION_SHM_MODE
+#ifdef OPTION_ENABLE_A2L_GENERATOR
+#include "a2l.h" // for A2lFinalize() called from the follower background thread
+#endif
+#endif // OPTION_SHM_MODE
+
+#ifdef OPTION_SHM_MODE
 #include <unistd.h> // for getpid()
 #endif
 
@@ -46,6 +52,14 @@ static DWORD WINAPI XcpServerTransmitThread(LPVOID lpParameter);
 #else
 static void *XcpServerTransmitThread(void *par);
 #endif
+
+#ifdef OPTION_SHM_MODE
+#if defined(_WIN) // Windows
+static DWORD WINAPI XcpServerFollowerThread(LPVOID lpParameter);
+#else
+static void *XcpServerFollowerThread(void *par);
+#endif
+#endif // OPTION_SHM_MODE
 
 #if !defined(OPTION_ENABLE_TCP) && !defined(OPTION_ENABLE_UDP)
 #error "Please define OPTION_ENABLE_TCP or OPTION_ENABLE_UDP"
@@ -82,6 +96,9 @@ static struct {
     bool shm_is_leader;          // true = this process created /xcpqueue
     void *shm_queue_ptr;         // mmap base of the /xcpqueue region, NULL when not SHM mode
     size_t shm_queue_total_size; // total mmap size: sizeof(tShmQueueHeader) + queue_size
+    // Follower background thread (polling A2L finalize request and alive_counter)
+    THREAD FollowerThreadHandle;
+    volatile bool FollowerThreadRunning;
 #endif // OPTION_SHM_MODE
 
 } gXcpServer;
@@ -131,13 +148,29 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
     }
 #ifdef OPTION_SHM_MODE
     if (XcpGetInitMode() == XCP_MODE_SHM) {
-        // SHM queue: create (leader) or attach to (follower) the /xcpqueue shared memory region
-        bool is_leader = false;
-        size_t shm_total = sizeof(tShmQueueHeader) + queueSize;
-        void *shm_ptr = platformShmOpen("/xcpqueue", "/tmp/xcpqueue.lock", shm_total, &is_leader);
-        if (shm_ptr == NULL) {
-            DBG_PRINT_ERROR("XcpEthServerInit: failed to open /xcpqueue SHM\n");
-            return false;
+        // SHM queue: the /xcpqueue owner is always whoever won the /xcpdata election.
+        // Followers must attach at the leader's queue size (from fstat), never reclaim the region.
+        bool is_leader = XcpIsShmLeader();
+        size_t shm_total;
+        void *shm_ptr;
+        if (is_leader) {
+            shm_total = sizeof(tShmQueueHeader) + queueSize;
+            bool elected = false;
+            shm_ptr = platformShmOpen("/xcpqueue", "/tmp/xcpqueue.lock", shm_total, &elected);
+            if (shm_ptr == NULL) {
+                DBG_PRINT_ERROR("XcpEthServerInit: failed to create /xcpqueue SHM\n");
+                return false;
+            }
+            // A second leader process (e.g. after rebuild) won /xcpdata but /xcpqueue may
+            // already exist. platformShmOpen does NOT reclaim it when sizes differ — we own it.
+            (void)elected;
+        } else {
+            // Follower: attach to the existing queue at whatever size the leader allocated
+            shm_ptr = platformShmOpenAttach("/xcpqueue", &shm_total);
+            if (shm_ptr == NULL) {
+                DBG_PRINT_ERROR("XcpEthServerInit: failed to attach /xcpqueue SHM\n");
+                return false;
+            }
         }
         gXcpServer.shm_is_leader = is_leader;
         gXcpServer.shm_queue_ptr = shm_ptr;
@@ -176,8 +209,14 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
                 return false;
             }
             DBG_PRINTF3("XcpEthServerInit: SHM queue follower attached, leader_pid=%d\n", (int)atomic_load(&hdr->leader_pid));
-            // Follower: bind the queue to the XCP layer but skip socket and thread creation
+            // Follower: bind the queue to the XCP layer, then start the background polling thread
             XcpStart(gXcpServer.TransmitQueue, false);
+            gXcpServer.FollowerThreadRunning = false;
+            create_thread(&gXcpServer.FollowerThreadHandle, XcpServerFollowerThread);
+            // Wait until the follower thread has started
+            while (!gXcpServer.FollowerThreadRunning) {
+                sleepUs(100);
+            }
             gXcpServer.isInit = true;
             return true;
         }
@@ -218,8 +257,10 @@ bool XcpEthServerShutdown(void) {
     }
 
 #ifdef OPTION_SHM_MODE
-    // SHM follower: no socket or threads were created — just clean up the queue and SHM region
+    // SHM follower: no socket or server threads — stop the background thread, then clean up
     if (XcpGetInitMode() == XCP_MODE_SHM && gXcpServer.isInit && !gXcpServer.shm_is_leader) {
+        gXcpServer.FollowerThreadRunning = false;
+        join_thread(gXcpServer.FollowerThreadHandle);
         gXcpServer.isInit = false;
         queueDeinit(gXcpServer.TransmitQueue);
         platformShmClose("/xcpqueue", gXcpServer.shm_queue_ptr, gXcpServer.shm_queue_total_size, false);
@@ -323,3 +364,41 @@ extern void *XcpServerTransmitThread(void *par)
     DBG_PRINT3("XCP transmit thread terminated!\n");
     return 0;
 }
+
+// XCP server follower background thread (SHM follower processes only)
+// Polls the A2L finalize request flag so followers can write their A2L file as soon
+// as the leader gets an XCP client CONNECT.  Also increments the alive_counter so
+// the leader can detect stale follower processes.
+#ifdef OPTION_SHM_MODE
+#if defined(_WIN) // Windows
+DWORD WINAPI XcpServerFollowerThread(LPVOID par)
+#else
+extern void *XcpServerFollowerThread(void *par)
+#endif
+{
+    (void)par;
+    DBG_PRINT3("Start XCP follower background thread\n");
+
+    gXcpServer.FollowerThreadRunning = true;
+    while (gXcpServer.FollowerThreadRunning) {
+        sleepUs(50000); // Poll every 50 ms
+
+        // Prove this follower is still alive
+        XcpShmIncrementAliveCounter();
+
+        // When the leader signals A2L finalization: write the A2L file for this process.
+        // A2lFinalize() is idempotent; it returns false immediately if already done.
+        // When it succeeds it calls XcpSetA2lName(), which calls XcpShmNotifyA2lFinalized()
+        // to write a2l_name and set a2l_finalized=1 in our app slot.
+#ifdef OPTION_ENABLE_A2L_GENERATOR
+        if (XcpShmIsA2lFinalizeRequested()) {
+            A2lFinalize();
+        }
+#endif
+    }
+
+    gXcpServer.FollowerThreadRunning = false;
+    DBG_PRINT3("XCP follower background thread terminated!\n");
+    return 0;
+}
+#endif // OPTION_SHM_MODE

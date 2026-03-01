@@ -47,6 +47,15 @@ uint8_t XcpGetInitMode(void); // Returns the mode passed to XcpInit() — XCP_MO
 void XcpStart(tQueueHandle queue_handle, bool resumeMode);
 void XcpReset(void);
 
+// SHM multi-process API (only functional when OPTION_SHM_MODE is enabled and XCP_MODE_SHM was used)
+#ifdef OPTION_SHM_MODE
+bool XcpIsShmLeader(void);                       // true when this process won the /xcpdata leader election
+void XcpShmRequestA2lFinalize(void);             // Leader: signal all followers to finalize their A2L file now
+bool XcpShmIsA2lFinalizeRequested(void);         // Follower: returns true when leader has set the finalize flag
+void XcpShmNotifyA2lFinalized(const char *name); // Update this process's slot; called from XcpSetA2lName()
+void XcpShmIncrementAliveCounter(void);          // Follower background thread: prove this process is still alive
+#endif                                           // OPTION_SHM_MODE
+
 // Project name
 const char *XcpGetProjectName(void);
 
@@ -421,12 +430,63 @@ typedef struct {
 /* Protocol layer state data                                                */
 /****************************************************************************/
 
+// Shared-memory application registration table for /xcpdata
+#ifdef OPTION_SHM_MODE
+
+#define SHM_MAGIC 0x5843504C4954455F // "XCPLITE_" in little-endian ASCII
+#define SHM_VERSION 0x00010000       // Version 1.0.0
+#define SHM_MAX_APP_COUNT 8          // Maximum number of concurrently registered processes
+
+// Per-application entry in tShmHeader.app_list.
+// Each participating process registers exactly one slot identified by its project_name.
+// Restarting the same application (same project_name) reuses the existing slot.
+typedef union {
+    struct {
+        // Identity (written at registration, constant afterwards)
+        char project_name[XCP_PROJECT_NAME_MAX_LENGTH + 1]; // unique app name (null-terminated)
+        char epk[XCP_EPK_MAX_LENGTH + 1];                   // build version  (null-terminated)
+        char a2l_name[XCP_A2L_FILENAME_MAX_LENGTH + 1];     // A2L filename without extension;
+                                                            //   written by XcpSetA2lName() when A2L is ready
+        uint32_t pid;                                       // OS process ID; 0 = slot is vacant
+        uint8_t is_leader;                                  // 1 = this process created /xcpdata (the SHM owner)
+        uint8_t pad1[3];                                    // explicit padding for deterministic cross-compiler layout
+        _Atomic uint32_t alive_counter;                     // incremented periodically by each process's background thread;
+                                                            //   allows the leader to detect stale/dead followers
+        _Atomic uint32_t a2l_finalized;                     // 1 when this app's A2L file is complete and a2l_name is valid
+    };
+    uint8_t b[512]; // pad slot to 512 bytes for future extensions
+} tApp;
+static_assert(sizeof(tApp) == 512, "sizeof tApp must be 512 bytes");
+
+// Shared-memory header at the start of /xcpdata.
+// Control area (first 64 bytes = one cache line) followed by the per-process application list.
+typedef struct {
+    // --- Control area (64 bytes, one cache line) ---
+    uint64_t magic;                          // SHM_MAGIC: marks a valid /xcpdata region
+    uint32_t version;                        // SHM_VERSION: layout version for forward compatibility
+    uint32_t size;                           // total /xcpdata mmap size in bytes
+    uint32_t leader_pid;                     // PID of the process that created /xcpdata
+    _Atomic uint32_t app_count;              // number of registered slots (grows up to SHM_MAX_APP_COUNT)
+    _Atomic uint32_t a2l_finalize_requested; // leader writes 1 here on the first XCP client CONNECT;
+                                             //   each follower's background thread polls this and calls A2lFinalize()
+    uint8_t pad[64 - 8 - 4 - 4 - 4 - 4 - 4]; // 36 bytes: pad control area to exactly 64 bytes
+    // --- Per-process application list ---
+    tApp app_list[SHM_MAX_APP_COUNT]; // 512 * 8 = 4096 bytes
+} tShmHeader;
+static_assert(sizeof(tShmHeader) % 64 == 0, "sizeof tShmHeader must be a multiple of 64 bytes");
+
+#endif // OPTION_SHM_MODE
+
 // XCP protocol layer global or shared state
-// Can be stored in shared memory, accessed atomically where needed, all fields must be safe for concurrent access and consistent across processes
-// No pointers allowed that require fixup across processes, using offsets from the start of the struct instead
+// Can be stored in shared memory, accessed atomically where needed, all fields must be safe for concurrent access across processes
+// No pointers allowed that require fixup across processes, using offsets instead
 typedef struct {
 
-    uint16_t session_status;
+    uint16_t session_status; // must be the first field of the struct
+
+#ifdef OPTION_SHM_MODE
+    tShmHeader shm_header; // SHM header for /xcpdata,
+#endif
 
     tXcpCto crm;     /* response message buffer */
     uint8_t crm_len; /* RES,ERR message length */
@@ -476,6 +536,12 @@ typedef struct {
 typedef struct {
     // Initialisation mode (XCP_MODE_DEACTIVATE / XCP_MODE_LOCAL / XCP_MODE_SHM)
     uint8_t init_mode;
+
+#ifdef OPTION_SHM_MODE
+    // SHM application slot (OPTION_SHM_MODE + XCP_MODE_SHM only)
+    uint8_t app_slot;      // index in shm_header.app_list; SHM_MAX_APP_COUNT = no slot assigned yet
+    uint8_t shm_is_leader; // 1 = this process created /xcpdata
+#endif
 
     // Memory transfer address (virtual pointer, OS handle)
     uint8_t *mta_ptr;   // Memory Transfer Address as pointer (process virtual address)

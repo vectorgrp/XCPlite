@@ -34,6 +34,9 @@
 // Maximum length of the project name (excluding null terminator), must be odd
 #define XCP_PROJECT_NAME_MAX_LENGTH 31
 
+// Maximum length of A2L filename with extension (excluding null terminator)
+#define XCP_A2L_FILENAME_MAX_LENGTH 255
+
 /*----------------------------------------------------------------------------*/
 /* DAQ event management */
 

@@ -217,6 +217,52 @@ void *platformShmOpen(const char *name, const char *lock_path, size_t size, bool
             close(lock_fd);
             return NULL;
         }
+        // Verify the existing SHM has the expected size.
+        // If size == 0 the leader crashed between shm_open and ftruncate — safe to reclaim.
+        // Any other size mismatch means a different binary version or a live leader; do NOT
+        // auto-reclaim, as that would steal a running process's SHM or silently corrupt state.
+        // Fail with a clear message so the user can run tools/shm_cleanup.sh.
+        struct stat st;
+        if (fstat(shm_fd, &st) < 0) {
+            DBG_PRINTF_ERROR("platformShmOpen: fstat('%s') failed: %s\n", name, strerror(errno));
+            close(shm_fd);
+            flock(lock_fd, LOCK_UN);
+            close(lock_fd);
+            return NULL;
+        }
+        if (st.st_size == 0) {
+            // Zero-size: leader crashed before ftruncate — safe to reclaim
+            DBG_PRINTF3("platformShmOpen: zero-size SHM '%s' found — reclaiming as leader\n", name);
+            close(shm_fd);
+            shm_unlink(name);
+            shm_fd = shm_open(name, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR);
+            if (shm_fd < 0) {
+                DBG_PRINTF_ERROR("platformShmOpen: shm_open (reclaim) failed: %s\n", strerror(errno));
+                flock(lock_fd, LOCK_UN);
+                close(lock_fd);
+                return NULL;
+            }
+            *is_leader = true;
+            if (ftruncate(shm_fd, (off_t)size) < 0) {
+                DBG_PRINTF_ERROR("platformShmOpen: ftruncate (reclaim) failed: %s\n", strerror(errno));
+                close(shm_fd);
+                shm_unlink(name);
+                flock(lock_fd, LOCK_UN);
+                close(lock_fd);
+                return NULL;
+            }
+        } else if ((size_t)st.st_size != size) {
+            // Non-zero size mismatch: stale object from a different build, or a live leader
+            // with a different binary. Do not reclaim — require manual cleanup.
+            DBG_PRINTF_ERROR("platformShmOpen: SHM '%s' size mismatch (found=%lld, expected=%zu).\n"
+                             "  Stale object from an older build or a live process using a different binary.\n"
+                             "  Run:  ./tools/shm_cleanup.sh\n",
+                             name, (long long)st.st_size, size);
+            close(shm_fd);
+            flock(lock_fd, LOCK_UN);
+            close(lock_fd);
+            return NULL;
+        }
     } else {
         DBG_PRINTF_ERROR("platformShmOpen: shm_open failed: %s\n", strerror(errno));
         flock(lock_fd, LOCK_UN);
@@ -247,6 +293,29 @@ void *platformShmOpen(const char *name, const char *lock_path, size_t size, bool
     close(lock_fd);
 
     DBG_PRINTF3("platformShmOpen: %s '%s' (%zu bytes)\n", *is_leader ? "created" : "attached to", name, size);
+    return ptr;
+}
+
+void *platformShmOpenAttach(const char *name, size_t *size_out) {
+    int fd = shm_open(name, O_RDWR, 0);
+    if (fd < 0) {
+        DBG_PRINTF_ERROR("platformShmOpenAttach: shm_open('%s') failed: %s\n", name, strerror(errno));
+        return NULL;
+    }
+    struct stat st;
+    if (fstat(fd, &st) < 0 || st.st_size == 0) {
+        DBG_PRINTF_ERROR("platformShmOpenAttach: fstat('%s') failed or zero size\n", name);
+        close(fd);
+        return NULL;
+    }
+    *size_out = (size_t)st.st_size;
+    void *ptr = mmap(NULL, *size_out, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    close(fd);
+    if (ptr == MAP_FAILED) {
+        DBG_PRINTF_ERROR("platformShmOpenAttach: mmap('%s', %zu) failed: %s\n", name, *size_out, strerror(errno));
+        return NULL;
+    }
+    DBG_PRINTF3("platformShmOpenAttach: attached to '%s' (%zu bytes)\n", name, *size_out);
     return ptr;
 }
 

@@ -209,6 +209,10 @@ void platformMemFree(void *ptr, size_t size);
 // to complete initialisation before using the shared data.
 // Returns a writable pointer to the mapped region, or NULL on error.
 void *platformShmOpen(const char *name, const char *lock_path, size_t size, bool *is_leader);
+// Attach to an already-existing SHM region as a follower.
+// Uses fstat to determine the actual mapped size (written into *size_out).
+// Does NOT participate in leader election — use only when the caller is certain it is a follower.
+void *platformShmOpenAttach(const char *name, size_t *size_out);
 // Unmap a previously opened SHM region. If is_leader, also calls shm_unlink().
 void platformShmClose(const char *name, void *ptr, size_t size, bool is_leader);
 #endif // !_WIN && OPTION_SHM_MODE

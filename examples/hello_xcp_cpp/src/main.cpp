@@ -143,7 +143,7 @@ int main() {
     XcpSetLogLevel(OPTION_LOG_LEVEL);
 
     // Initialize the XCP singleton and activate XCP
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION /* EPK version*/, XCP_MODE_LOCAL);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION /* EPK version*/, XCP_MODE_SHM);
 
     // Initialize the XCP Server
     if (!XcpEthServerInit(OPTION_SERVER_ADDR, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_QUEUE_SIZE)) {
