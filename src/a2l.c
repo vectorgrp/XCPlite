@@ -556,9 +556,8 @@ static bool A2lOpen(void) {
             DBG_PRINTF_ERROR("Could not create file %s!\n", A2lGetFilename(A2L_MASTER_FILE));
             return false;
         }
-        A2lSetSymbolPrefix(true); // In SHM follower mode, prepend project name as prefix to all symbol names to avoid name clashes between multiple followers
-    }
-    if (XcpShmIsFollower()) {
+        A2lSetSymbolPrefix(true);
+    } else {
         gA2lMasterFile = NULL;
         A2lSetSymbolPrefix(true); // In SHM follower mode, prepend project name as prefix to all symbol names to avoid name clashes between multiple followers
     }

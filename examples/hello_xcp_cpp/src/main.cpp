@@ -15,7 +15,7 @@
 // XCP parameters
 
 constexpr const char OPTION_PROJECT_NAME[] = "hello_xcp_cpp"; // Project name, used to build the A2L and BIN file name
-constexpr const char OPTION_PROJECT_VERSION[] = "V11";        // EPK version string
+constexpr const char OPTION_PROJECT_VERSION[] = "EPK_V100";   // EPK version string
 constexpr bool OPTION_USE_TCP = false;                        // TCP or UDP
 constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};        // Bind addr, 0.0.0.0 = ANY
 constexpr uint16_t OPTION_SERVER_PORT = 5555;                 // Port
@@ -232,13 +232,6 @@ int main() {
 
         // Original code with fixed delay, now replaced by tunable parameter delay_us
         sleepUs(kDelayUs); // Sleep for kDelayUs microseconds
-
-        // Make kDelayUs a tunable parameter
-        // auto delay_us = CalValCreate(kDelayUs);
-        // if (A2lOnce()) { // Create the parameter description in A2L once
-        //     A2lCreateParameter(kDelayUs, "Loop delay in microseconds", "", 0, 1000000);
-        // }
-        // sleepUs(*delay_us.lock());
     }
 
     XcpDisconnect(); // Force disconnect the XCP client

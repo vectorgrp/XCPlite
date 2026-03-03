@@ -233,3 +233,14 @@ int main() {
     XcpEthServerShutdown(); // Stop the XCP server
     return 0;
 }
+
+/*
+
+ // Make kDelayUs a tunable parameter
+        // auto delay_us = CalValCreate(kDelayUs);
+        // if (A2lOnce()) { // Create the parameter description in A2L once
+        //     A2lCreateParameter(kDelayUs, "Loop delay in microseconds", "", 0, 1000000);
+        // }
+        // sleepUs(*delay_us.lock());
+
+*/

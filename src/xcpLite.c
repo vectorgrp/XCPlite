@@ -3850,7 +3850,7 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
 
         // Init local state
         local_mut.shm_leader = true;
-        local_mut.shm_server = (mode == XCP_MODE_SHM_SERVER); // The leader becomes the server, if a server is required
+        local_mut.shm_server = (mode == XCP_MODE_SHM_SERVER); // The leader becomes the server, if server mode is requested
         local_mut.shm_app_id = XcpShmRegisterApp(name, epk, true);
     }
 #endif // OPTION_SHM_MODE
@@ -3889,7 +3889,7 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     // Make sure it has index 0
     // @@@@ TODO: Currently the EPK segment is treated like any other segment, even if it is read-only and does not need 2 pages
     static tXcpCalSegIndex cal__epk = XCP_UNDEFINED_CALSEG; // Create the linker file marker for the EPK segment
-    cal__epk = XcpCreateCalSeg("epk", XcpGetEpk(), (uint16_t)STRNLEN(XcpGetEpk(), XCP_EPK_MAX_LENGTH));
+    cal__epk = XcpCreateCalSeg("epk", XcpGetEpk(), XCP_EPK_MAX_LENGTH + 1);
     (void)cal__epk; // Avoid unused variable warning
     assert(cal__epk == 0);
 #endif
