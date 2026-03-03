@@ -191,6 +191,14 @@ bool XcpBinWrite(uint8_t page) {
         return false;
     }
 
+#ifdef OPTION_SHM_MODE
+    if (!XcpShmIsLeader()) {
+        // Leader process is responsible for writing the persistence file
+        // @@@@ TODO Make sure there is a leader
+        return true;
+    }
+#endif
+
     buildBinFilename();
 
     if (XcpIsConnected() && page == XCP_CALPAGE_WORKING_PAGE) {

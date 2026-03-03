@@ -643,6 +643,9 @@ void A2lCreateInstance_(const char *instance_name, const char *typeName, uint16_
 void A2lSetInputQuantity_x(const char *measurement_variable_name);
 void A2lSetInputQuantity_y(const char *measurement_variable_name);
 
+// Enable/disable project name prefix for all symbol names ("project.symbolname")
+void A2lSetSymbolPrefix(bool enable);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

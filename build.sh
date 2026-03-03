@@ -278,6 +278,7 @@ if [ "$RUN_CLANG_TIDY" = true ] && [ "$BUILD_SUCCESS" = true ]; then
             "src/queue32.c"
             "src/queue64v.c"
             "src/queue64f.c"
+            "src/shm.c" 
             "src/a2l.c"
             "src/persistence.c"
             "src/platform.c"

@@ -172,7 +172,7 @@ void platformMemFree(void *ptr, size_t size) {
 // POSIX shared memory
 /**************************************************************************/
 
-#if !defined(_WIN) && defined(OPTION_SHM_MODE)
+#if !defined(_WIN)
 
 #include <errno.h>    // for errno, EEXIST, strerror
 #include <fcntl.h>    // for open, O_CREAT, O_RDONLY, O_RDWR, O_EXCL
@@ -232,7 +232,7 @@ void *platformShmOpen(const char *name, const char *lock_path, size_t size, bool
         }
         if (st.st_size == 0) {
             // Zero-size: leader crashed before ftruncate — safe to reclaim
-            DBG_PRINTF3("platformShmOpen: zero-size SHM '%s' found — reclaiming as leader\n", name);
+            DBG_PRINTF5("platformShmOpen: zero-size SHM '%s' found — reclaiming as leader\n", name);
             close(shm_fd);
             shm_unlink(name);
             shm_fd = shm_open(name, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR);
@@ -295,7 +295,7 @@ void *platformShmOpen(const char *name, const char *lock_path, size_t size, bool
     flock(lock_fd, LOCK_UN);
     close(lock_fd);
 
-    DBG_PRINTF3("platformShmOpen: %s '%s' (%zu bytes)\n", *is_leader ? "created" : "attached to", name, size);
+    DBG_PRINTF5("platformShmOpen: %s '%s' (%zu bytes)\n", *is_leader ? "created" : "attached to", name, size);
     return ptr;
 }
 
@@ -318,7 +318,7 @@ void *platformShmOpenAttach(const char *name, size_t *size_out) {
         DBG_PRINTF_ERROR("platformShmOpenAttach: mmap('%s', %zu) failed: %s\n", name, *size_out, strerror(errno));
         return NULL;
     }
-    DBG_PRINTF3("platformShmOpenAttach: attached to '%s' (%zu bytes)\n", name, *size_out);
+    DBG_PRINTF5("platformShmOpenAttach: attached to '%s' (%zu bytes)\n", name, *size_out);
     return ptr;
 }
 
@@ -328,11 +328,11 @@ void platformShmClose(const char *name, void *ptr, size_t size, bool is_leader) 
     }
     if (is_leader && name != NULL) {
         shm_unlink(name);
-        DBG_PRINTF3("platformShmClose: unlinked '%s'\n", name);
+        DBG_PRINTF5("platformShmClose: unlinked '%s'\n", name);
     }
 }
 
-#endif // !_WIN && OPTION_SHM_MODE
+#endif // !_WIN
 
 /**************************************************************************/
 // Atomics

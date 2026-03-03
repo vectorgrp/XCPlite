@@ -208,23 +208,26 @@ void sleepMs(uint32_t ms);
 void *platformMemAlloc(size_t size);
 void platformMemFree(void *ptr, size_t size);
 
-#if !defined(_WIN) && defined(OPTION_SHM_MODE) // POSIX shared memory — not available on Windows
+#if !defined(_WIN) // POSIX shared memory — not available on Windows
+
 // Open or create a named POSIX shared-memory region of `size` bytes.
 // `name`      : SHM object name, e.g. "/data"
 // `lock_path` : path for an flock-based serialization lock, e.g. "/tmp/data.lock"
 // `size`      : size of the region in bytes
 // `is_leader` : set to true when this process created the SHM (first caller)
-// Leader receives a zero-initialised region; followers must wait for the leader
-// to complete initialisation before using the shared data.
+// Leader receives a zero-initialised region; followers must wait for the leader to complete initialisation before using the shared data.
 // Returns a writable pointer to the mapped region, or NULL on error.
 void *platformShmOpen(const char *name, const char *lock_path, size_t size, bool *is_leader);
+
 // Attach to an already-existing SHM region as a follower.
 // Uses fstat to determine the actual mapped size (written into *size_out).
 // Does NOT participate in leader election — use only when the caller is certain it is a follower.
 void *platformShmOpenAttach(const char *name, size_t *size_out);
+
 // Unmap a previously opened SHM region. If is_leader, also calls shm_unlink().
 void platformShmClose(const char *name, void *ptr, size_t size, bool is_leader);
-#endif // !_WIN && OPTION_SHM_MODE
+
+#endif // !_WIN
 
 //-------------------------------------------------------------------------------
 // Mutex

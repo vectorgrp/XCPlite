@@ -26,6 +26,10 @@
 #include "xcplib_cfg.h" // for OPTION_xxx
 #include "xcptl_cfg.h"  // for XCPTL_MAX_CTO_SIZE
 
+#ifdef OPTION_SHM_MODE
+#include "shm.h" // for shared memory management
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -34,13 +38,14 @@ extern "C" {
 /* Protocol layer interface                                                 */
 /****************************************************************************/
 
-// XcpInit mode flags
-#define XCP_MODE_DEACTIVATE 0 // Initialize XCP singleton without activating the protocol layer (passive/off)
-#define XCP_MODE_LOCAL 1      // Initialize and activate XCP, allocate state in local heap memory
-#define XCP_MODE_SHM 2        // Initialize and activate XCP, allocate state in POSIX shared memory (future)
+/// XcpInit mode flags
+#define XCP_MODE_DEACTIVATE 0    ///< Initialize XCP singleton without activating the protocol layer (passive/off)
+#define XCP_MODE_LOCAL 1         ///< Initialize and activate XCP, allocate state in local heap memory
+#define XCP_MODE_SHM 0xFE        ///< Initialize and activate XCP, allocate state in POSIX shared memory
+#define XCP_MODE_SHM_SERVER 0xFF ///< Initialize and activate XCP, allocate state in POSIX shared memory, the leader may be the XCP server
 
 // Initialization for the XCP Protocol Layer
-void XcpInit(const char *name, const char *epk, uint8_t mode);
+bool XcpInit(const char *name, const char *epk, uint8_t mode);
 bool XcpIsInitialized(void);
 bool XcpIsActivated(void);
 uint8_t XcpGetInitMode(void); // Returns the mode passed to XcpInit() — XCP_MODE_DEACTIVATE/LOCAL/SHM
@@ -116,19 +121,6 @@ uint16_t XcpGetClusterId(void);
 void XcpSetLogLevel(uint8_t level);
 
 /****************************************************************************/
-/* SHM mode                                                                 */
-/****************************************************************************/
-
-#ifdef OPTION_SHM_MODE
-uint8_t XcpShmGetAppId(void);                    // Get this process's application id
-bool XcpShmIsLeader(void);                       // true when this process won the /xcpdata leader election
-void XcpShmRequestA2lFinalize(void);             // Leader: signals all followers to finalize their A2L file now
-bool XcpShmIsA2lFinalizeRequested(void);         // Follower: returns true when leader has set the finalize flag
-void XcpShmNotifyA2lFinalized(const char *name); // Update this process's A2L file name; called from XcpSetA2lName()
-void XcpShmIncrementAliveCounter(void);          // Follower background thread: prove this process is still alive
-#endif
-
-/****************************************************************************/
 /* DAQ events                                                               */
 /****************************************************************************/
 
@@ -155,6 +147,7 @@ typedef struct {
     uint16_t index;         // Event instance index, 0 = single instance, 1.. = multiple instances
     uint16_t daq_first;     // First associated DAQ list, linked list
     uint8_t flags;          // Control flags for the event
+    uint8_t app_id;         // Application id of the event, only used in SHM mode
 #ifdef XCP_ENABLE_DAQ_PRESCALER
     uint8_t daq_prescaler;     // Current prescaler set with SET_DAQ_LIST_MODE
     uint8_t daq_prescaler_cnt; // Current prescaler counter
@@ -182,6 +175,7 @@ const tXcpEventList *XcpGetEventList(void);
 uint16_t XcpGetEventCount(void);
 
 // Get event id by name, returns XCP_UNDEFINED_EVENT_ID if not found
+// In SHM mode, only searches within the calling process's own events (scoped by app_id)
 tXcpEventId XcpFindEvent(const char *name);
 
 // Get event name by id, returns NULL if not found
@@ -251,6 +245,7 @@ typedef union {
         uint32_t file_pos; // position of the calibration segment in the persistence file
         uint8_t mode;      // requested for freeze and preload
 #endif
+        uint8_t app_id; // Application id of the event, only used in SHM mode
         char name[XCP_MAX_CALSEG_NAME + 1];
     };
     uint8_t reserved[XCP_CALSEG_HEADER_SIZE]; // Pad the struct to XCP_CALPAGE_ALIGNMENT
@@ -301,6 +296,7 @@ const tXcpCalSegList *XcpGetCalSegList(void);
 uint16_t XcpGetCalSegCount(void);
 
 // Find a calibration segment by name, returns XCP_UNDEFINED_CALSEG if not found
+// In SHM mode, only searches within the calling process's own segments (scoped by app_id)
 tXcpCalSegIndex XcpFindCalSeg(const char *name);
 
 // Find a calibration segment by its default page pointer, returns XCP_UNDEFINED_CALSEG if not found
@@ -438,60 +434,13 @@ typedef struct {
 #pragma pack(pop)
 
 /****************************************************************************/
-/* Protocol layer state data                                                */
+/* Protocol layer state                                                     */
 /****************************************************************************/
-
-// Shared-memory application registration table for /xcpdata
-#ifdef OPTION_SHM_MODE
-
-#define SHM_MAGIC 0x5843504C4954455F // "XCPLITE_" in little-endian ASCII
-#define SHM_VERSION 0x00010000       // Version 1.0.0
-#define SHM_MAX_APP_COUNT 8          // Maximum number of concurrently registered processes
-
-// Per-application entry in tShmHeader.app_list.
-// Each participating process registers exactly one slot identified by its project_name.
-// Restarting the same application (same project_name) reuses the existing slot.
-typedef union {
-    struct {
-        // Identity (written at registration, constant afterwards)
-        char project_name[XCP_PROJECT_NAME_MAX_LENGTH + 1]; // unique app name (null-terminated)
-        char epk[XCP_EPK_MAX_LENGTH + 1];                   // build version  (null-terminated)
-        char a2l_name[XCP_A2L_FILENAME_MAX_LENGTH + 1];     // A2L filename without extension;
-                                                            //   written by XcpSetA2lName() when A2L is ready
-        uint32_t pid;                                       // OS process ID; 0 = slot is vacant
-        uint8_t is_leader;                                  // 1 = this process created /xcpdata (the SHM owner)
-        uint8_t pad1[3];                                    // explicit padding for deterministic cross-compiler layout
-        atomic_uint_least32_t alive_counter;                // incremented periodically by each process's background thread;
-                                                            //   allows the leader to detect stale/dead followers
-        atomic_uint_least32_t a2l_finalized;                // 1 when this app's A2L file is complete and a2l_name is valid
-    };
-    uint8_t b[512]; // pad slot to 512 bytes for future extensions
-} tApp;
-static_assert(sizeof(tApp) == 512, "sizeof tApp must be 512 bytes");
-
-// Shared-memory header at the start of /xcpdata.
-// Control area (first 64 bytes = one cache line) followed by the per-process application list.
-typedef struct {
-    // --- Control area (64 bytes, one cache line) ---
-    uint64_t magic;                               // SHM_MAGIC: marks a valid /xcpdata region
-    uint32_t version;                             // SHM_VERSION: layout version for forward compatibility
-    uint32_t size;                                // total /xcpdata mmap size in bytes
-    uint32_t leader_pid;                          // PID of the process that created /xcpdata
-    atomic_uint_least32_t app_count;              // number of registered slots (grows up to SHM_MAX_APP_COUNT)
-    atomic_uint_least32_t a2l_finalize_requested; // leader writes 1 here on the first XCP client CONNECT;
-                                                  //   each follower's background thread polls this and calls A2lFinalize()
-    uint8_t pad[64 - 8 - 4 - 4 - 4 - 4 - 4];      // 36 bytes: pad control area to exactly 64 bytes
-    // --- Per-process application list ---
-    tApp app_list[SHM_MAX_APP_COUNT]; // 512 * 8 = 4096 bytes
-} tShmHeader;
-static_assert(sizeof(tShmHeader) % 64 == 0, "sizeof tShmHeader must be a multiple of 64 bytes");
-
-#endif // OPTION_SHM_MODE
 
 // XCP protocol layer global or shared state
 // Can be stored in shared memory, accessed atomically where needed, all fields must be safe for concurrent access across processes
 // No pointers allowed that require fixup across processes, using offsets instead
-typedef struct {
+typedef struct XcpData {
 
     uint16_t session_status; // must be the first field of the struct
 
@@ -544,13 +493,14 @@ typedef struct {
 // Process-local state (not shared, one instance per process)
 // Contains fields that are process-local or different per process
 // Can not live in shared memory
-typedef struct {
+typedef struct XcpLocalData {
     // Initialisation mode (XCP_MODE_DEACTIVATE / XCP_MODE_LOCAL / XCP_MODE_SHM)
     uint8_t init_mode;
 
     // SHM mode state (only valid when init_mode == XCP_MODE_SHM)
 #ifdef OPTION_SHM_MODE
     uint8_t shm_app_id; // Index in shm_header.app_list,  SHM_MAX_APP_COUNT = no slot assigned yet
+    bool shm_server;    // This process is the XCP server
     bool shm_leader;    // This process created /xcpdata
 #endif
 

@@ -58,18 +58,24 @@
 #define OPTION_SOCKET_HW_TIMESTAMPS // Enable hardware timestamps on UDP sockets if available
 
 //-------------------------------------------------------------------------------
-// XCP server options
+// XCP multi process server options
 
-// Enable POSIX shared memory (SHM) mode: XCP state and transmit queue are placed in
-// named shared memory regions so that multiple processes can participate in the same
-// XCP session (one server leader, N measurement followers).
+// Enable POSIX shared memory (SHM) mode:
+// XCP state and transmit queue is placed in anamed shared memory region
+// Multiple processes can participate in the same XCP session
 // Requires a POSIX-compliant platform (Linux / macOS / QNX).  Not supported on Windows.
 #define OPTION_SHM_MODE
 
+//-------------------------------------------------------------------------------
+// XCP server options
+
+#define OPTION_ENABLE_SERVER
+#ifdef OPTION_ENABLE_SERVER // Enable XCP server
 #define OPTION_ENABLE_TCP
 #define OPTION_ENABLE_UDP
 #define OPTION_MTU 8000                     // Ethernet packet size (MTU), must be %8 - Jumbo frames supported
 #define OPTION_SERVER_FORCEFULL_TERMINATION // Don't wait for the rx and tx thread to finish, just terminate them
+#endif                                      // OPTION_ENABLE_SERVER
 
 //-------------------------------------------------------------------------------
 // CAL setting

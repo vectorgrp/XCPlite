@@ -474,8 +474,10 @@ void XcpSetA2lName(const char *name) {
     DBG_PRINTF4("XcpSetA2lName '%s'\n", name);
 
     // In SHM mode, update this process's app slot so the leader knows the A2L is ready
+    // Pass the original name (which includes the .a2l extension) so the leader can open the file directly
 #ifdef OPTION_SHM_MODE
-    XcpShmNotifyA2lFinalized(gXcpA2lName);
+    if (XcpShmActive())
+        XcpShmNotifyA2lFinalized(name);
 #endif
 }
 

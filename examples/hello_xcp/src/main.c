@@ -13,13 +13,13 @@
 //-----------------------------------------------------------------------------------------------------
 // XCP params
 
-#define OPTION_PROJECT_NAME "hello_xcp"   // Project name, used to build the A2L and BIN file name
-#define OPTION_PROJECT_EPK "V1_" __TIME__ // EPK version string
-#define OPTION_USE_TCP false              // TCP or UDP
-#define OPTION_SERVER_PORT 5555           // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0}   // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE (1024 * 32)     // Size of the measurement queue in bytes, should be large enough to cover at least 10ms of expected traffic
-#define OPTION_LOG_LEVEL 5                // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_PROJECT_NAME "hello_xcp" // Project name, used to build the A2L and BIN file name
+#define OPTION_PROJECT_EPK "V11"        // EPK version string
+#define OPTION_USE_TCP false            // TCP or UDP
+#define OPTION_SERVER_PORT 5555         // Port
+#define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
+#define OPTION_QUEUE_SIZE (1024 * 32)   // Size of the measurement queue in bytes, should be large enough to cover at least 10ms of expected traffic
+#define OPTION_LOG_LEVEL 5              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 // New option in V1.1: Enable variadic all in one macros for simple arithmetic types, see examples below
 #define OPTION_USE_VARIADIC_MACROS
@@ -122,7 +122,7 @@ int main(void) {
 
     // XCP: Initialize the XCP singleton, activate XCP, must be called before starting the server
     // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, XCP_MODE_SHM);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, XCP_MODE_SHM_SERVER);
 
     // XCP: Initialize the XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;
@@ -139,7 +139,7 @@ int main(void) {
     //   Binary persistence is not supported
     // Finalize the A2L file on XCP connect
     // Optionally create A2L groups for calibration segments and events
-    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         return 1;
     }
 
@@ -190,7 +190,7 @@ int main(void) {
         // Local variables
         counter++;
         if (counter > params->counter_max) { // Get the counter_max calibration value and reset counter
-            printf("params.counter_max = %u\n", params->counter_max);
+            // printf("params.counter_max = %u\n", params->counter_max);
             counter = 0;
         }
 
@@ -220,27 +220,29 @@ int main(void) {
                     A2L_MEAS(counter, "Mainloop counter"));
 #endif
 
+        sleepUs(delay_us);
+
         // Create a calibration parameter for delay_us for thread safe and memory safe calibration access
         // The sleep time can be adjusted, the original value of parameter delay_us is used as default value
         // This can be done at any place in the code
         // delay_us must not necessarily have static lifetime
         // It supports RAM/FLASH page switching and persistence (save to BIN file)
-        tXcpCalSegIndex v = CalValCreate(delay_us);
-        {
-            A2lOnce() {
-                A2lSetSegmentAddrMode(v, delay_us);
-                A2lCreateParameter(delay_us, "Sleep time in us", "us", 0, 999999);
-            }
-        }
-        uint32_t *delay_us = (uint32_t *)XcpLockCalSeg(v);
-        sleepUs(*delay_us);
-        XcpUnlockCalSeg(v);
+        // tXcpCalSegIndex v = CalValCreate(delay_us);
+        // {
+        //     A2lOnce() {
+        //         A2lSetSegmentAddrMode(v, delay_us);
+        //         A2lCreateParameter(delay_us, "Sleep time in us", "us", 0, 999999);
+        //     }
+        // }
+        // uint32_t *delay_us = (uint32_t *)XcpLockCalSeg(v);
+        // sleepUs(*delay_us);
+        // XcpUnlockCalSeg(v);
 
     } // for (;;)
 
-    XcpDisconnect();                       // Force disconnect the XCP client
-    A2lFinalize();                         // Finalize A2L generation, if not done yet
-    XcpBinWrite(XCP_CALPAGE_WORKING_PAGE); // Save current calibration segments to binary persistence file
-    XcpEthServerShutdown();                // Stop the XCP server
+    XcpDisconnect(); // Force disconnect the XCP client
+    A2lFinalize();   // Finalize A2L generation, if not done yet
+    // XcpBinWrite(XCP_CALPAGE_WORKING_PAGE); // Save current calibration segments to binary persistence file
+    XcpEthServerShutdown(); // Stop the XCP server
     return 0;
 }

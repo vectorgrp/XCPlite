@@ -582,20 +582,21 @@ extern const uint8_t *gXcpBaseAddr;
 void XcpSetLogLevel(uint8_t level);
 
 /// XcpInit mode flags
-#define XCP_MODE_DEACTIVATE 0 ///< Initialize XCP singleton without activating the protocol layer (passive/off)
-#define XCP_MODE_LOCAL 1      ///< Initialize and activate XCP, allocate state in local heap memory
-#define XCP_MODE_SHM 2        ///< Initialize and activate XCP, allocate state in POSIX shared memory (future)
+#define XCP_MODE_DEACTIVATE 0    ///< Initialize XCP singleton without activating the protocol layer (passive/off)
+#define XCP_MODE_LOCAL 1         ///< Initialize and activate XCP, allocate state in local heap memory
+#define XCP_MODE_SHM 0xFE        ///< Initialize and activate XCP, allocate state in POSIX shared memory
+#define XCP_MODE_SHM_SERVER 0xFF ///< Initialize and activate XCP, allocate state in POSIX shared memory, the leader may be the XCP server
 
 /// Initialize the XCP singleton, must be called before starting the server
-/// @param mode XCP_MODE_DEACTIVATE, XCP_MODE_LOCAL or XCP_MODE_SHM
-void XcpInit(const char *name, const char *epk, uint8_t mode);
+/// @param mode XCP_MODE_DEACTIVATE, XCP_MODE_LOCAL, XCP_MODE_SHM, or XCP_MODE_SHM_SERVER (libxcplite build with OPTION_SHM_MODE)
+bool XcpInit(const char *name, const char *epk, uint8_t mode);
 
 /// Reset XCP library to initial state
 void XcpReset(void);
 
 /// Check if XCP has been activated
 bool XcpIsActivated(void);
-uint8_t XcpGetInitMode(void); /// Returns the mode passed to XcpInit() — XCP_MODE_DEACTIVATE, XCP_MODE_LOCAL or XCP_MODE_SHM
+uint8_t XcpGetInitMode(void); /// Returns the mode passed to XcpInit() — XCP_MODE_DEACTIVATE, XCP_MODE_LOCAL, XCP_MODE_SHM, or XCP_MODE_SHM_SERVER
 
 /// Check if XCP is connected
 bool XcpIsConnected(void);

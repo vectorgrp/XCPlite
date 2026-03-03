@@ -28,6 +28,8 @@
 #include "xcplib_cfg.h" // for OPTION_xxx
 #include "xcptl_cfg.h"  // for XCPTL_xxx
 
+#ifdef OPTION_ENABLE_SERVER
+
 #ifdef OPTION_SHM_MODE
 #ifdef OPTION_ENABLE_A2L_GENERATOR
 #include "a2l.h" // for A2lFinalize() called from the follower background thread
@@ -137,7 +139,7 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
         return false;
 
 #ifdef OPTION_SHM_MODE
-    if (XcpGetInitMode() == XCP_MODE_SHM) {
+    if (XcpShmActive()) {
         // SHM queue: the /xcpqueue owner is always whoever won the /xcpdata election.
         // Followers must attach at the leader's queue size (from fstat), never reclaim the region.
         bool is_leader = XcpShmIsLeader();
@@ -372,22 +374,26 @@ extern void *XcpServerFollowerThread(void *par)
     DBG_PRINT3("Start XCP follower background thread\n");
 
     gXcpServer.FollowerThreadRunning = true;
+    bool a2l_finalized = false; // tracks whether this follower has already finalized its A2L
     while (gXcpServer.FollowerThreadRunning) {
         sleepUs(50000); // Poll every 50 ms
 
         // Prove this follower is still alive
         XcpShmIncrementAliveCounter();
 
-        // When the leader signals A2L finalization: write the A2L file for this process.
-        // A2lFinalize() is idempotent; it returns false immediately if already done.
-        // When it succeeds it calls XcpSetA2lName(), which calls XcpShmNotifyA2lFinalized()
+        // When the leader signals A2L finalization: write the A2L file for this process once.
+        // XcpShmIsA2lFinalizeRequested() never resets, so guard with a local flag.
+        // When A2lFinalize() succeeds it calls XcpSetA2lName(), which calls XcpShmNotifyA2lFinalized()
         // to write a2l_name and set a2l_finalized=1 in our app slot.
 #ifdef OPTION_ENABLE_A2L_GENERATOR
-        if (XcpShmIsA2lFinalizeRequested()) {
-            sleepMs(500); // @@@@ TODO dworkaround by some delay because the finalize request could already set, when attaching to the SHM after the leader has requested A2L
-                          // finalization. Remove this workaround by a better synchronization between the leader and followers.
-            DBG_PRINT3("A2L finalization requested by leader\n");
-            A2lFinalize();
+        if (!a2l_finalized && XcpShmIsA2lFinalizeRequested()) {
+            sleepMs(500);
+            // @@@@ TODO workaround by some delay because the finalize request could already set, when attaching to the SHM after the leader has requested A2L
+            // finalization. Remove this workaround by a better synchronization between the leader and followers.
+            if (A2lFinalize()) {
+                DBG_PRINT3("A2L finalization requested by leader\n");
+                a2l_finalized = true;
+            }
         }
 #endif
     }
@@ -397,3 +403,5 @@ extern void *XcpServerFollowerThread(void *par)
     return 0;
 }
 #endif // OPTION_SHM_MODE
+
+#endif // OPTION_ENABLE_SERVER

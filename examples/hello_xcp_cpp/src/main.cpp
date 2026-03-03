@@ -14,28 +14,30 @@
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
 
-constexpr const char OPTION_PROJECT_NAME[] = "hello_xcp_cpp";   // Project name, used to build the A2L and BIN file name
-constexpr const char OPTION_PROJECT_VERSION[] = "V2_" __TIME__; // EPK version string
-constexpr bool OPTION_USE_TCP = false;                          // TCP or UDP
-constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};          // Bind addr, 0.0.0.0 = ANY
-constexpr uint16_t OPTION_SERVER_PORT = 5555;                   // Port
-#define OPTION_QUEUE_SIZE (1024 * 32)                           // Size of the queue in bytes, should be large enough to cover at least 10ms of expected traffic
-constexpr int OPTION_LOG_LEVEL = 5;                             // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+constexpr const char OPTION_PROJECT_NAME[] = "hello_xcp_cpp"; // Project name, used to build the A2L and BIN file name
+constexpr const char OPTION_PROJECT_VERSION[] = "V11";        // EPK version string
+constexpr bool OPTION_USE_TCP = false;                        // TCP or UDP
+constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};        // Bind addr, 0.0.0.0 = ANY
+constexpr uint16_t OPTION_SERVER_PORT = 5555;                 // Port
+#define OPTION_QUEUE_SIZE (1024 * 32)                         // Size of the queue in bytes, should be large enough to cover at least 10ms of expected traffic
+constexpr int OPTION_LOG_LEVEL = 5;                           // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 //-----------------------------------------------------------------------------------------------------
 // Global calibration parameters
 
 // Calibration parameters struct
 struct ParametersT {
-    double min;         // Minimum value for random number generation
-    double max;         // Maximum value for random number generation
-    uint8_t map[4][8];  // Demo 2D map with 4x8 values
-    uint16_t curve[16]; // Demo curve with 16 values
-    uint16_t axis[16];  // Demo axis with 16 values
+    uint16_t counter_max; // Maximum value for the counter
+    double min;           // Minimum value for random number generation
+    double max;           // Maximum value for random number generation
+    uint8_t map[4][8];    // Demo 2D map with 4x8 values
+    uint16_t curve[16];   // Demo curve with 16 values
+    uint16_t axis[16];    // Demo axis with 16 values
 };
 
 // Default parameter values
-const ParametersT kParameters = {.min = -2.0,
+const ParametersT kParameters = {.counter_max = 1024,
+                                 .min = -2.0,
                                  .max = +2.0,
                                  .map = {{0, 1, 2, 3, 4, 5, 6, 7}, {11, 12, 13, 14, 15, 16, 17, 18}, {21, 22, 23, 24, 25, 26, 27, 28}, {31, 32, 33, 34, 35, 36, 37, 38}},
                                  .curve = {0, 10, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500},
@@ -143,7 +145,7 @@ int main() {
     XcpSetLogLevel(OPTION_LOG_LEVEL);
 
     // Initialize the XCP singleton and activate XCP
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION /* EPK version*/, XCP_MODE_SHM);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION /* EPK version*/, XCP_MODE_SHM_SERVER);
 
     // Initialize the XCP Server
     if (!XcpEthServerInit(OPTION_SERVER_ADDR, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_QUEUE_SIZE)) {
@@ -153,7 +155,7 @@ int main() {
 
     // Enable runtime A2L generation for data declaration as code
     // The A2L file will be created when the XCP tool connects and, if it does not already exist on local file system and the version did not change
-    if (!A2lInit(OPTION_SERVER_ADDR, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(OPTION_SERVER_ADDR, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
         std::cerr << "Failed to initialize A2L generator" << std::endl;
         return 1;
     }
@@ -162,7 +164,7 @@ int main() {
     // This calibration segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
     // It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
     // It supports XCP/ECU independent page switching, checksum calculation and reinitialization (copy reference page to working page)
-    gCalSeg.emplace("Parameters", &kParameters);
+    gCalSeg.emplace("params", &kParameters);
 
     // Register the ParametersT calibration segment description as a typedef and an instance in the A2L file
     A2lCreateTypedef(ParametersT, "Typedef for ParametersT",                //
@@ -171,7 +173,8 @@ int main() {
                      A2L_CURVE_COMPONENT(curve, "Demo curve", "", 0, 2000), //
                      // A2L_CURVE_WITH_AXIS_COMPONENT(curve, "Demo curve", "", 0, 100, axis), // CANape >= 24.0
                      A2L_PARAMETER_COMPONENT(min, "Minimum random number value", "", -100.0, 100.0), //
-                     A2L_PARAMETER_COMPONENT(max, "Maximum random number value", "", -100.0, 100.0));
+                     A2L_PARAMETER_COMPONENT(max, "Maximum random number value", "", -100.0, 100.0), //
+                     A2L_PARAMETER_COMPONENT(counter_max, "Maximum counter value", "", 0, 65535));
     gCalSeg->CreateA2lTypedefInstance("ParametersT", "Demo calibration parameters for hello_xcp_cpp example");
 
     // Create a simple arithmetic local variable
@@ -193,6 +196,12 @@ int main() {
     while (gRun) {
         counter++;
         global_counter++;
+        {
+            auto params = gCalSeg->lock();
+            if (counter > params->counter_max) { // Get the counter_max calibration value and reset counter
+                counter = 0;
+            }
+        }
 
         double input_voltage = random_number();
         double average_voltage[3];
@@ -222,20 +231,20 @@ int main() {
         );
 
         // Original code with fixed delay, now replaced by tunable parameter delay_us
-        // sleepUs(kDelayUs); // Sleep for kDelayUs microseconds
+        sleepUs(kDelayUs); // Sleep for kDelayUs microseconds
 
         // Make kDelayUs a tunable parameter
-        auto delay_us = CalValCreate(kDelayUs);
-        if (A2lOnce()) { // Create the parameter description in A2L once
-            A2lCreateParameter(kDelayUs, "Loop delay in microseconds", "", 0, 1000000);
-        }
-        sleepUs(*delay_us.lock());
+        // auto delay_us = CalValCreate(kDelayUs);
+        // if (A2lOnce()) { // Create the parameter description in A2L once
+        //     A2lCreateParameter(kDelayUs, "Loop delay in microseconds", "", 0, 1000000);
+        // }
+        // sleepUs(*delay_us.lock());
     }
 
-    XcpDisconnect();                       // Force disconnect the XCP client
-    A2lFinalize();                         // Finalize A2L generation, if not done yet
-    XcpBinWrite(XCP_CALPAGE_WORKING_PAGE); // Save current calibration segments to binary persistence file
-    XcpEthServerShutdown();                // Stop the XCP server
+    XcpDisconnect(); // Force disconnect the XCP client
+    A2lFinalize();   // Finalize A2L generation, if not done yet
+    // XcpBinWrite(XCP_CALPAGE_WORKING_PAGE); // Save current calibration segments to binary persistence file
+    XcpEthServerShutdown(); // Stop the XCP server
 
     return 0;
 }

@@ -58,18 +58,16 @@
 #include <inttypes.h> // for PRIx32, PRIu64
 #include <stdarg.h>   // for va_list, va_start, va_arg, va_end
 #include <stdbool.h>  // for bool
-#ifdef OPTION_SHM_MODE
-#include <unistd.h> // for getpid()
-#endif
-#include <stdint.h> // for uint8_t, uint16_t, uint32_t, int32_t, uin...
-#include <stdio.h>  // for printf
-#include <stdlib.h> // for size_t, NULL, abort
-#include <string.h> // for memcpy, memset, strlen
+#include <stdint.h>   // for uint8_t, uint16_t, uint32_t, int32_t, uin...
+#include <stdio.h>    // for printf
+#include <stdlib.h>   // for size_t, NULL, abort
+#include <string.h>   // for memcpy, memset, strlen
 
 #include "dbg_print.h"   // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
 #include "persistence.h" // for XcpBinFreezeCalSeg
 #include "platform.h"    // for atomics
 #include "queue.h"       // for QueueXxx transport queue layer interface
+#include "shm.h"         // for OPTION_SHM_MODE shared memory management
 #include "xcp.h"         // XCP protocol definitions
 #include "xcpEthTl.h"    // for transport layer XcpTlWaitForTransmitQueueEmpty and XcpTlSendCrm
 
@@ -167,10 +165,10 @@ const uint16_t XCPLITE__CASDD = XCP_DRIVER_VERSION;
 
 // XCP singleton (shared state — candidate for shared memory)
 // Allocated in XcpInit(); calling XCP functions before XcpInit() will assert
-static tXcpData *gXcpData = NULL;
+tXcpData *gXcpData = NULL;
 
 // Process-local state — can never be in shared memory
-static tXcpLocalData gXcpLocalData = {0};
+tXcpLocalData gXcpLocalData = {0};
 
 // Debug
 // Test the thread safety concept
@@ -286,7 +284,7 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
 // State checks
 #define isInitialized() (gXcpData != NULL && 0 != (shared.session_status & SS_INITIALIZED))
 #define isActivated() (gXcpData != NULL && (SS_ACTIVATED | SS_INITIALIZED) == ((shared.session_status & (SS_ACTIVATED | SS_INITIALIZED))))
-#define isStarted() (0 != (shared.session_status & SS_STARTED))
+#define isStarted() (gXcpData != NULL && 0 != (shared.session_status & SS_STARTED))
 #define isConnected() (0 != (shared.session_status & SS_CONNECTED))
 #define isLegacyMode() (0 != (shared.session_status & SS_LEGACY_MODE))
 
@@ -446,117 +444,6 @@ const char *XcpGetEpk(void) {
 }
 
 /**************************************************************************/
-/* Shared memory mode (SHM)                                               */
-/**************************************************************************/
-
-#ifdef OPTION_SHM_MODE
-
-/**************************************************************************/
-/* Memory organization and global state                                   */
-/**************************************************************************/
-
-/*
-All state of the XCP singleton is stored in tXcpData and tXcpLocalData
-tXcpData may optionally be allocated in shared memory and accessed by multiple processes.
-It has all the information about the XCP state needed to run calibration and measurement
-Only the leader process runs the XCP transport layer and has ownership of tXcpData and the transmit queue in shared memory.
-The first process allocates the shared memory for tXcpData and the queue and becomes the leader.
-*/
-
-// Returns this process's application id (the slot index in shm_header.app_list)
-uint8_t XcpShmGetAppId(void) { return local.shm_app_id; }
-
-// Returns true if this process is the SHM leader (the first process which initialized the shared memory and registered as leader).
-bool XcpShmIsLeader(void) { return local.init_mode == XCP_MODE_SHM && local.shm_leader; }
-
-// Signal all follower processes to finalize their A2L file immediately.
-void XcpShmRequestA2lFinalize(void) {
-    if (local.init_mode != XCP_MODE_SHM || !local.shm_leader)
-        return;
-    atomic_store(&gXcpData->shm_header.a2l_finalize_requested, 1U);
-    DBG_PRINT3("XcpShmRequestA2lFinalize: requested A2L finalization for all followers\n");
-}
-
-// Returns true once the leader has set the A2L finalize request flag.
-bool XcpShmIsA2lFinalizeRequested(void) {
-    if (local.init_mode != XCP_MODE_SHM || local.shm_leader)
-        return false;
-    return atomic_load(&gXcpData->shm_header.a2l_finalize_requested) != 0;
-}
-
-// Update this process's app slot with its A2L filename and mark it as finalized.
-// Called automatically from XcpSetA2lName(); not normally called directly.
-void XcpShmNotifyA2lFinalized(const char *a2l_name) {
-    if (local.init_mode != XCP_MODE_SHM || !isActivated())
-        return;
-    uint8_t slot = local.shm_app_id;
-    if (slot >= SHM_MAX_APP_COUNT)
-        return;
-    tApp *app = &gXcpData->shm_header.app_list[slot];
-    if (a2l_name != NULL && a2l_name[0] != '\0') {
-        STRNCPY(app->a2l_name, a2l_name, XCP_A2L_FILENAME_MAX_LENGTH);
-        app->a2l_name[XCP_A2L_FILENAME_MAX_LENGTH] = '\0';
-    }
-    atomic_store(&app->a2l_finalized, 1U);
-    DBG_PRINTF3("XcpShmNotifyA2lFinalized: slot %u a2l='%s'\n", (unsigned)slot, a2l_name ? a2l_name : "");
-}
-
-// Increment this process's alive_counter so the leader can detect stale followers.
-void XcpShmIncrementAliveCounter(void) {
-    if (local.init_mode != XCP_MODE_SHM)
-        return;
-    uint8_t slot = local.shm_app_id;
-    if (slot >= SHM_MAX_APP_COUNT)
-        return;
-    atomic_fetch_add(&gXcpData->shm_header.app_list[slot].alive_counter, 1U);
-}
-
-// Register this process in the SHM application list.
-// Returns the allocated shm_app_id (slot index= or SHM_MAX_APP_COUNT on error.
-// If a slot with a matching project_name already exists (process restart), it is reused.
-static uint8_t XcpShmRegisterApp(const char *name, const char *epk, bool is_leader) {
-    tShmHeader *hdr = &gXcpData->shm_header;
-
-    // Scan for an existing slot with the same project_name (handles process restart)
-    uint32_t count = (uint32_t)atomic_load(&hdr->app_count);
-    for (uint32_t i = 0; i < count; i++) {
-        if (strncmp(hdr->app_list[i].project_name, name, XCP_PROJECT_NAME_MAX_LENGTH) == 0) {
-            tApp *app = &hdr->app_list[i];
-            app->pid = (uint32_t)getpid();
-            app->is_leader = is_leader;
-            STRNCPY(app->epk, epk, XCP_EPK_MAX_LENGTH);
-            app->epk[XCP_EPK_MAX_LENGTH] = '\0';
-            app->a2l_name[0] = '\0';
-            atomic_store(&app->a2l_finalized, 0U);
-            DBG_PRINTF3("XcpShmRegisterApp: reused slot %u for '%s' (pid=%u)\n", i, name, (unsigned)getpid());
-            return (uint8_t)i;
-        }
-    }
-
-    // Atomically claim a fresh slot
-    uint32_t slot = (uint32_t)atomic_fetch_add(&hdr->app_count, 1U);
-    if (slot >= SHM_MAX_APP_COUNT) {
-        DBG_PRINT_ERROR("XcpShmRegisterApp: application list full\n");
-        atomic_fetch_sub(&hdr->app_count, 1U); // undo the increment
-        return SHM_MAX_APP_COUNT;              // error sentinel
-    }
-    tApp *app = &hdr->app_list[slot];
-    memset(app->b, 0, sizeof(app->b));
-    STRNCPY(app->project_name, name, XCP_PROJECT_NAME_MAX_LENGTH);
-    app->project_name[XCP_PROJECT_NAME_MAX_LENGTH] = '\0';
-    STRNCPY(app->epk, epk, XCP_EPK_MAX_LENGTH);
-    app->epk[XCP_EPK_MAX_LENGTH] = '\0';
-    app->pid = (uint32_t)getpid();
-    app->is_leader = is_leader ? 1u : 0u;
-    atomic_store(&app->alive_counter, 0U);
-    atomic_store(&app->a2l_finalized, 0U);
-    DBG_PRINTF3("XcpShmRegisterApp: registered slot %u for '%s' (pid=%u, %s)\n", slot, name, (unsigned)getpid(), is_leader ? "leader" : "follower");
-    return (uint8_t)slot;
-}
-
-#endif // OPTION_SHM_MODE
-
-/**************************************************************************/
 /* Calibration segments                                                   */
 /**************************************************************************/
 
@@ -637,7 +524,12 @@ tXcpCalSegIndex XcpFindCalSeg(const char *name) {
     uint16_t n = (uint16_t)atomic_load_explicit(&shared.cal_seg_list.count, memory_order_acquire);
     for (tXcpCalSegIndex i = 0; i < n; i++) {
         const tXcpCalSeg *calseg = CalSegPtr(shared.cal_seg_list, i);
+#ifdef OPTION_SHM_MODE
+        // In SHM mode, match only entries owned by this process — different apps may use the same name
+        if (calseg->h.app_id == local.shm_app_id && strcmp(calseg->h.name, name) == 0) {
+#else
         if (strcmp(calseg->h.name, name) == 0) {
+#endif
             return i;
         }
     }
@@ -866,6 +758,11 @@ static tXcpCalSegIndex XcpCreateCalSegFromMemory_(const char *name, const void *
         STRNCPY(c->h.name, name, XCP_MAX_CALSEG_NAME);
         c->h.name[XCP_MAX_CALSEG_NAME] = 0;
         c->h.size = page_size;
+#ifdef OPTION_SHM_MODE
+        c->h.app_id = local.shm_app_id;
+#else
+        c->h.app_id = 0;
+#endif
         if (memory_segment) { // Create a memory segment with a memory segment number, which can be used for XCP access and has the related XCP features
             if (shared.cal_seg_list.memory_segment_count >= 0xFF) {
                 mutexUnlock(&shared_mut_safe.cal_seg_list.mutex);
@@ -1766,7 +1663,12 @@ static tXcpEventId XcpFindEventInstances(const char *name, uint16_t *pcount) {
     if (isActivated()) {
         uint16_t count = getEventCount();
         for (uint16_t i = 0; i < count; i++) {
+#ifdef OPTION_SHM_MODE
+            // In SHM mode, match only entries owned by this process — different apps may use the same name
+            if (shared.event_list.event[i].app_id == local.shm_app_id && strcmp(shared.event_list.event[i].name, name) == 0) {
+#else
             if (strcmp(shared.event_list.event[i].name, name) == 0) {
+#endif
                 if (pcount != NULL)
                     *pcount += 1;
                 if (id == XCP_UNDEFINED_EVENT_ID)
@@ -1820,6 +1722,11 @@ tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cyc
 #endif
     shared_mut_safe.event_list.event[e].daq_first = XCP_UNDEFINED_DAQ_LIST;
     shared_mut_safe.event_list.event[e].cycle_time_ns = cycle_time_ns;
+#ifdef OPTION_SHM_MODE
+    shared_mut_safe.event_list.event[e].app_id = local.shm_app_id;
+#else
+    shared_mut_safe.event_list.event[e].app_id = 0;
+#endif
 
     setEventCount(e + 1); // Publish new event, this is not thread safe, must be called with locked mutex, but it garantees atomic visibility of the new event
 
@@ -2736,6 +2643,12 @@ void XcpEventEnable(tXcpEventId event, bool enable) {
 void XcpDisconnect(void) {
     if (!isStarted())
         return;
+
+#ifdef OPTION_SHM_MODE
+    if (XcpShmIsFollower()) {
+        return; // In shared memory mode, only the leader can disconnect, followers automatically disconnect when the leader disconnects
+    }
+#endif
 
     if (isConnected()) {
 
@@ -3740,7 +3653,7 @@ void XcpBackgroundTasks(void) {
 
 // SHM leader: detect newly registered follower processes and log their identity
 #ifdef OPTION_SHM_MODE
-    if (local.init_mode == XCP_MODE_SHM && local.shm_leader) {
+    if (XcpShmIsServer()) {
         static uint32_t last_known_app_count = 0;
         uint32_t current_count = (uint32_t)atomic_load(&gXcpData->shm_header.app_count);
         while (last_known_app_count < current_count) {
@@ -3840,26 +3753,15 @@ void XcpPrint(const char *str) {
 // Init XCP protocol layer singleton once
 // This is a once initialization of the static gXcp singleton data structure
 // Memory for the DAQ lists are provided by the caller if daq_lists != NULL
-void XcpInit(const char *name, const char *epk, uint8_t mode) {
+bool XcpInit(const char *name, const char *epk, uint8_t mode) {
 
     local_mut.init_mode = mode;
     if (isActivated()) { // Already initialized, just ignore
-        return;
+        return true;
     }
 
-    // Print tXcpData component sizes to diagnose SHM size mismatches between processes.
-    // A size mismatch means two binaries were compiled with different xcplib_cfg.h settings.
-    DBG_PRINTF3("XcpInit: sizeof(tXcpData)=%zu  sizeof(tXcpLocalData)=%zu\n", sizeof(tXcpData), sizeof(tXcpLocalData));
-#ifdef OPTION_SHM_MODE
-    DBG_PRINTF6("XcpInit:   shm_header=%zu (SHM_MAX_APP_COUNT=%d)\n", sizeof(tShmHeader), SHM_MAX_APP_COUNT);
-#endif
-    DBG_PRINTF6("XcpInit:   crm(tXcpCto)=%zu  daq_lists=%zu\n", sizeof(tXcpCto), sizeof(tXcpDaqLists));
-#ifdef XCP_ENABLE_DAQ_EVENT_LIST
-    DBG_PRINTF6("XcpInit:   event_list=%zu\n", sizeof(tXcpEventList));
-#endif
-#ifdef XCP_ENABLE_CALSEG_LIST
-    DBG_PRINTF6("XcpInit:   cal_seg_list=%zu\n", sizeof(tXcpCalSegList));
-#endif
+    DBG_PRINTF3("XcpInit name=%s, epk=%s, mode=%u\n", name, epk, mode);
+    DBG_PRINTF5("  sizeof(tXcpData)=%zu  sizeof(tXcpLocalData)=%zu\n", sizeof(tXcpData), sizeof(tXcpLocalData));
 
 #ifdef TEST_MUTABLE_ACCESS_OWNERSHIP
     XcpBindOwnerThread();
@@ -3886,61 +3788,46 @@ void XcpInit(const char *name, const char *epk, uint8_t mode) {
     }
     XcpSetEpk(epk);
 
-    // Allocate or attach to the shared memory block
-    if (mode == XCP_MODE_SHM) {
+    // Allocate tXcpData on heap or attach to the shared memory
+    if (mode == XCP_MODE_SHM || mode == XCP_MODE_SHM_SERVER) {
+        assert(gXcpData == NULL);
 #ifdef OPTION_SHM_MODE
-        bool is_leader = false;
-        gXcpData = (tXcpData *)platformShmOpen("/xcpdata", "/tmp/xcpdata.lock", sizeof(tXcpData), &is_leader);
+        bool is_leader;
+        gXcpData = XcpShmAttachOrCreate(&is_leader);
         if (gXcpData == NULL) {
-            DBG_PRINT_ERROR("XcpInit: failed to open shared memory\n");
-            return;
+            DBG_PRINT_ERROR("XcpInit: failed to attach to shared memory\n");
+            return false;
         }
+        // Init local state
+        local_mut.shm_leader = is_leader;
+        local_mut.shm_server = false;
+
         if (!is_leader) {
-            // Follower: wait up to 500ms for the leader to complete XcpInit()
-            DBG_PRINT3("XcpInit: attached to existing shared memory\n");
-            if (!isActivated()) {
-                DBG_PRINT3("XcpInit: waiting for leader to activate XCP ...\n");
-                for (int i = 0; i < 500 && !isActivated(); i++) {
-                    sleepUs(1000);
-                }
-            }
-            if (isActivated()) {
-                // Register this follower's app slot before returning
-                local_mut.shm_leader = 0;
-                local_mut.shm_app_id = XcpShmRegisterApp(name, epk, false);
-                DBG_PRINTF3("XcpInit: follower with shm_app_id = %u attached to leader existing shared memory\n", local_mut.shm_app_id);
 
-                // Early return here
-                // Successfully attached to a live leader
+#ifdef DBG_LEVEL
+            DBG_PRINTF3("XcpInit: Created or attached to shared memory, is_leader=%u, shm_app_id=%u\n", local.shm_leader, local.shm_app_id);
+            if (DBG_LEVEL >= 3) {
+                XcpShmDebugPrint(gXcpData);
+            }
+#endif
 
-                // No further initialization of shared state is needed, because the leader will have already done it
-                // - No BinLoad
-                // - No init of DAQ lists, event list, cal seg list
-                // Will eventually immediately start capture DAQ data
-                return;
-            }
-            // Stale SHM: the previous leader died without calling platformShmClose (e.g. Ctrl-C).
-            // Reclaim ownership: unmap + unlink, then re-open as new leader.
-            DBG_PRINT3("XcpInit: stale shared memory detected, reclaiming as leader\n");
-            platformShmClose("/xcpdata", gXcpData, sizeof(tXcpData), true /* unlink */);
-            gXcpData = NULL;
-            gXcpData = (tXcpData *)platformShmOpen("/xcpdata", "/tmp/xcpdata.lock", sizeof(tXcpData), &is_leader);
-            if (gXcpData == NULL) {
-                DBG_PRINT_ERROR("XcpInit: failed to recreate shared memory\n");
-                return;
-            }
-            assert(is_leader); // We just unlinked it, so we must win the O_CREAT|O_EXCL race
+            local_mut.shm_app_id = XcpShmRegisterApp(name, epk, false);
+
+            // Early return here
+            // Successfully attached to a live leader
+            return true;
         }
-        local_mut.shm_leader = (uint8_t)is_leader;
-        DBG_PRINTF3("XcpInit: shared memory leader, size=%zu bytes\n", sizeof(tXcpData));
 #else
         DBG_PRINT_ERROR("XcpInit: XCP_MODE_SHM requested but OPTION_SHM_MODE is not enabled in xcplib_cfg.h\n");
         return;
 #endif
-    } else {
+    }
+    // Local mode: allocate private memory
+    else {
+        gXcpData = (tXcpData *)malloc(sizeof(tXcpData));
         if (gXcpData == NULL) {
-            gXcpData = (tXcpData *)malloc(sizeof(tXcpData));
-            assert(gXcpData != NULL);
+            DBG_PRINT_ERROR("XcpInit: failed to allocate memory for tXcpData\n");
+            return false;
         }
     }
 
@@ -3952,20 +3839,18 @@ void XcpInit(const char *name, const char *epk, uint8_t mode) {
     shared_mut.session_status = SS_INITIALIZED;
 
     if (mode == XCP_MODE_DEACTIVATE) {
-        return; // Do not activate XCP protocol layer, state is safe now
+        return true; // Do not activate XCP protocol layer, state is safe now
     }
 
 #ifdef OPTION_SHM_MODE
-    // SHM leader initializes the shm mode header and registers this application
-    if (mode == XCP_MODE_SHM) {
-        assert(local.shm_leader);
-        tShmHeader *hdr = &gXcpData->shm_header;
-        hdr->magic = SHM_MAGIC;
-        hdr->version = SHM_VERSION;
-        hdr->size = (uint32_t)sizeof(tXcpData);
-        hdr->leader_pid = (uint32_t)getpid();
-        atomic_store(&hdr->app_count, 0U);
-        atomic_store(&hdr->a2l_finalize_requested, 0U);
+    // Initialize shared memory and register this application
+    if (local_mut.shm_leader) {
+
+        XcpShmInit(gXcpData);
+
+        // Init local state
+        local_mut.shm_leader = true;
+        local_mut.shm_server = (mode == XCP_MODE_SHM_SERVER); // The leader becomes the server, if a server is required
         local_mut.shm_app_id = XcpShmRegisterApp(name, epk, true);
     }
 #endif // OPTION_SHM_MODE
@@ -4009,6 +3894,8 @@ void XcpInit(const char *name, const char *epk, uint8_t mode) {
     assert(cal__epk == 0);
 #endif
 #endif
+
+    return true;
 }
 
 // Start XCP protocol layer

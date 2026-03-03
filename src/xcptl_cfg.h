@@ -13,11 +13,13 @@
 
 #include "xcplib_cfg.h" // for OPTION_xxx
 
+#ifdef OPTION_ENABLE_SERVER
 #if defined(OPTION_ENABLE_UDP)
 #define XCPTL_ENABLE_UDP
 #endif
 #if defined(OPTION_ENABLE_TCP)
 #define XCPTL_ENABLE_TCP
+#endif
 #endif
 
 // Transport layer version
