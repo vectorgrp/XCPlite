@@ -324,7 +324,7 @@ uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg);
 tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint16_t page_size);
 
 // Create a calibration value
-tXcpCalSegIndex XcpCreateCalVal(const char *name, const void *default_page, uint16_t page_size);
+tXcpCalSegIndex XcpCreateCalBlk(const char *name, const void *default_page, uint16_t page_size);
 
 // Lock a calibration segment and return a pointer to the ECU page
 const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg);

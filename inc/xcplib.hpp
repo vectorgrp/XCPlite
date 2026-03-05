@@ -104,7 +104,7 @@ template <typename T> CalSeg<T> CreateCalSeg(const char *name, const T *default_
 #define CalSegCreate(value) xcplib::CreateCalSeg(#value, &value)
 
 /// Generic RAII wrapper for a single parameter of complex or simple type
-template <typename T> class CalibrationValue {
+template <typename T> class CalBlk {
   private:
     tXcpCalSegIndex calseg_index_;
 
@@ -112,8 +112,8 @@ template <typename T> class CalibrationValue {
     /// Constructor - creates the calibration segment struct wrapper
     /// @param name Name of the calibration segment
     /// @param default_params Default parameter values (reference page)
-    CalibrationValue(const char *name, const T *default_params) {
-        calseg_index_ = XcpCreateCalVal(name, default_params, sizeof(T));
+    CalBlk(const char *name, const T *default_params) {
+        calseg_index_ = XcpCreateCalBlk(name, default_params, sizeof(T));
         assert(calseg_index_ != XCP_UNDEFINED_CALSEG); // Ensure the calibration segment was created successfully
         A2lSetSegmentAddrMode__i(calseg_index_, NULL);
     }
@@ -165,12 +165,12 @@ template <typename T> class CalibrationValue {
 };
 
 /// Convenience function and macro to create calibration value
-/// Usage: auto calval = xcp::CreateCalibrationValue("Name", initial_value);
-template <typename T> CalibrationValue<T> CreateCalVal(const char *name, const T *default_value) { return CalibrationValue<T>(name, default_value); }
+/// Usage: auto calval = xcp::CreateCalBlk("Name", initial_value);
+template <typename T> CalBlk<T> CreateCalBlk(const char *name, const T *default_value) { return CalBlk<T>(name, default_value); }
 
 /// Convenience macro to create a calibration value with automatic name stringification
 /// Usage: auto calval = CalVal(initial_value);
-#define CalValCreate(value) xcplib::CreateCalVal(#value, &value)
+#define CalValCreate(value) xcplib::CreateCalBlk(#value, &value)
 
 } // namespace xcp
 

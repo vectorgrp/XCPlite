@@ -84,7 +84,7 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
 /// @param default_page Pointer to the default page.
 /// @param size Size of the calibration page in bytes.
 /// @return a handle or XCP_UNDEFINED_CALSEG when out of memory or the name already exists.
-tXcpCalSegIndex XcpCreateCalVal(const char *name, const void *default_page, uint16_t size);
+tXcpCalSegIndex XcpCreateCalBlk(const char *name, const void *default_page, uint16_t size);
 
 /// Find a calibration segment by name
 /// @param name Name of the calibration segment
@@ -183,7 +183,7 @@ bool XcpBinLoad(void);
 #define CalSegUnlock(name) XcpUnlockCalSeg(__cal__##name)
 
 /// Create a calibration value
-#define CalValCreate(val) XcpCreateCalVal(#val, &val, sizeof(val));
+#define CalValCreate(val) XcpCreateCalBlk(#val, &val, sizeof(val));
 
 #endif // __cplusplus
 

@@ -641,7 +641,7 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
 // Thread safe
 // Returns the handle or XCP_UNDEFINED_CALSEG when out of memory
 // Calibration value don't have a memory segment and the related XCP features
-tXcpCalSegIndex XcpCreateCalVal(const char *name, const void *default_page, uint16_t page_size) { return XcpCreateCalSeg_(name, default_page, page_size, 0); }
+tXcpCalSegIndex XcpCreateCalBlk(const char *name, const void *default_page, uint16_t page_size) { return XcpCreateCalSeg_(name, default_page, page_size, 0); }
 
 // Helper function to create a calibration segment or value with given page count (0 for value, 2 for segment)
 static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, const void *default_page, uint16_t page_size, bool memory_segment) {

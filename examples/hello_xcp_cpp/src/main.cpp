@@ -22,8 +22,10 @@ constexpr uint16_t OPTION_SERVER_PORT = 5555;                 // Port
 #define OPTION_QUEUE_SIZE (1024 * 32)                         // Size of the queue in bytes, should be large enough to cover at least 10ms of expected traffic
 constexpr int OPTION_LOG_LEVEL = 5;                           // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
+#define OPTION_ENABLE_CALIBRATION // Enable parameter tuning in the code below
+
 //-----------------------------------------------------------------------------------------------------
-// Global calibration parameters
+// Demo calibration parameters
 
 // Calibration parameters struct
 struct ParametersT {
@@ -43,12 +45,33 @@ const ParametersT kParameters = {.counter_max = 1024,
                                  .curve = {0, 10, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500},
                                  .axis = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}};
 
-// A global calibration parameter segment handle for struct 'ParametersT'
-// Initialized in main(), after XCP initialization
-std::optional<xcplib::CalSeg<ParametersT>> gCalSeg;
+// Create a global calibration parameter segment for struct 'ParametersT' to provide safe and consistent access to the calibration parameters
+// Initialized in main(), after XCP initialization with
+#define OPTION_ENABLE_CALIBRATION // Enable parameter tuning in the code below
+// Option 1:
+// This calibration segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
+// It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
+// It supports XCP/ECU independent page switching, checksum calculation and reinitialization (copy reference page to working page)
+// std::optional<xcplib::CalSeg<ParametersT>> gCalSeg;
+// Option 2:
+// This calibration block does not create a MEMORY_SEGMENT in the A2L file
+// It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
+// It supports XCP/ECU page switching, but can not be explicitly controlled via XCP commands
+std::optional<xcplib::CalBlk<ParametersT>> gCalSeg;
+// Option 3:
+// Calibration disabled
+// const ParametersT *params = &kParameters; // Direct access to the calibration parameters constants
+
+const uint32_t kDelayUs = 1000; // Loop delay in microseconds
 
 //-----------------------------------------------------------------------------------------------------
-// Demo floating average calculation class
+// Demo global measurement value
+
+uint16_t global_counter{0};
+
+//-----------------------------------------------------------------------------------------------------
+// Demo class with XCP measurement instrumentation
+// Floating average calculation
 
 namespace floating_average {
 
@@ -108,15 +131,18 @@ FloatingAverage::FloatingAverage() : samples_{}, current_index_(0), sample_count
 } // namespace floating_average
 
 //-----------------------------------------------------------------------------------------------------
-// Demo random number generator with global calibration parameters
+// Demo function with XCP instrumentation
+// Random number generator with global calibration parameters
 
 // Simple random number generation in range [min ..= max] using global calibration parameters
 [[nodiscard]] double random_number() {
     static unsigned int seed{12345};
     seed = seed * 1103515245 + 12345;
 
-    // Acquire access to calibration parameters with RAII guard "params", this is thread-safe, lock-free and reentrant
+// Acquire access to calibration parameters with RAII guard "params", this is thread-safe, lock-free and reentrant
+#ifdef OPTION_ENABLE_CALIBRATION
     auto params = gCalSeg->lock();
+#endif
     double random = params->min + ((seed / 65536) % 32768) / 32768.0 * (params->max - params->min);
     return random;
 };
@@ -131,9 +157,6 @@ void signal_handler(int signal) {
     }
 }
 
-// Define a global variable to be measured later in the main loop
-uint16_t global_counter{0};
-
 int main() {
 
     std::signal(SIGINT, signal_handler);
@@ -145,7 +168,7 @@ int main() {
     XcpSetLogLevel(OPTION_LOG_LEVEL);
 
     // Initialize the XCP singleton and activate XCP
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION /* EPK version*/, XCP_MODE_SHM_SERVER);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION /* EPK version*/, true /* activate XCP */);
 
     // Initialize the XCP Server
     if (!XcpEthServerInit(OPTION_SERVER_ADDR, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_QUEUE_SIZE)) {
@@ -160,12 +183,9 @@ int main() {
         return 1;
     }
 
-    // Create a global calibration segment wrapper for the struct 'ParametersT' and use its default values in constant 'kParameters'
-    // This calibration segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
-    // It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
-    // It supports XCP/ECU independent page switching, checksum calculation and reinitialization (copy reference page to working page)
+#ifdef OPTION_ENABLE_CALIBRATION
+    // Initialize the global calibration wrapper for the struct 'ParametersT' and set the default values in constant 'kParameters' as reference page (FLASH)
     gCalSeg.emplace("params", &kParameters);
-
     // Register the ParametersT calibration segment description as a typedef and an instance in the A2L file
     A2lCreateTypedef(ParametersT, "Typedef for ParametersT",                //
                      A2L_MAP_COMPONENT(map, "Demo map", "", 0, 100),        //
@@ -176,57 +196,52 @@ int main() {
                      A2L_PARAMETER_COMPONENT(max, "Maximum random number value", "", -100.0, 100.0), //
                      A2L_PARAMETER_COMPONENT(counter_max, "Maximum counter value", "", 0, 65535));
     gCalSeg->CreateA2lTypedefInstance("ParametersT", "Demo calibration parameters for hello_xcp_cpp example");
+#endif
 
     // Create a simple arithmetic local variable
     uint16_t counter{0};
 
     // Create FloatingAverage calculator instances
-    // Example1: On local stack
-    floating_average::FloatingAverage average_filter1;
-    // Example2: On heap, instance behind a unique_ptr
-    auto average_filter2 = std::make_unique<floating_average::FloatingAverage>();
-    // Example3:  On heap
-    auto average_filter3 = new floating_average::FloatingAverage();
+    // On local stack
+    floating_average::FloatingAverage average_filter;
+    // On heap
+    // auto average_filter = std::make_unique<floating_average::FloatingAverage>();
+    // auto average_filter = new floating_average::FloatingAverage();
 
     // Main loop
     std::cout << "Starting main loop... (Press Ctrl+C to exit)" << std::endl;
-
-    const uint32_t kDelayUs = 1000; // Loop delay in microseconds
-
     while (gRun) {
         counter++;
         global_counter++;
         {
-            auto params = gCalSeg->lock();
+#ifdef OPTION_ENABLE_CALIBRATION
+            auto params = gCalSeg->lock(); // Don't keep the calibration parameters locked for longer than necessary, to minimize delays of XCP write access from the tool
+#endif
             if (counter > params->counter_max) { // Get the counter_max calibration value and reset counter
                 counter = 0;
             }
         }
 
         double input_voltage = random_number();
-        double average_voltage[3];
+        double average_voltage;
 
         // Calculate floating average of input_voltage
-        // Note that the event 'calcAvg' instrumented inside the FloatingAverage::calc() method, will trigger on each call of any instance (average_filter2 and average_filter3)
-        // Events may be disabled and enabled, to filter out a particular instance to observe
-        DaqEventEnable(calcAvg);
-        average_voltage[0] = average_filter1.calc(input_voltage); // Offset input to differentiate from average_filter2
-        DaqEventDisable(calcAvg);
-
-        // Calculate floating average with the 2 other instances on heap
-        average_voltage[1] = average_filter2->calc(input_voltage - 10.0);
-        average_voltage[2] = average_filter3->calc(input_voltage + 10.0);
+        // Note that the event 'calcAvg' instrumented inside the FloatingAverage::calc() method, will trigger on each call of any instance (average_filter)
+        // Events may be disabled and enabled, to filter out a particular instance to observe (DaqEventEnable(calcAvg), DaqEventDisable(calcAvg))
+        average_voltage = average_filter.calc(input_voltage); // Offset input to differentiate from average_filter2
+        // On heap
+        // average_voltage = average_filter->calc(input_voltage);
+        // average_voltage = average_filter->calc(input_voltage);
 
         // Trigger data acquisition event "mainloop", once register event, global and local variables, and heap instance measurements
-        DaqEventVar(mainloop,                                                                                                 //
-                    A2L_MEAS(global_counter, "Global counter variable"),                                                      //
-                    A2L_MEAS(counter, "Local counter variable"),                                                              //
-                    A2L_MEAS_PHYS(input_voltage, "Input voltage", "V", -100.0, 100.0),                                        //
-                    A2L_MEAS_ARRAY_PHYS(average_voltage, "Calculated average voltages on input_voltage", "V", -100.0, 100.0), //
-                    // Measure all 3 complete instances of FloatingAverage
-                    A2L_MEAS_INST(average_filter1, "FloatingAverage", "Local (stack) instance of FloatingAverage<128>"),                   //
-                    A2L_MEAS_INST_PTR(average_filter2, average_filter2.get(), "FloatingAverage", "Heap RAII instance of FloatingAverage"), //
-                    A2L_MEAS_INST_PTR(average_filter3, average_filter3, "FloatingAverage", "Heap instance of FloatingAverage")
+        DaqEventVar(mainloop,                                                                                          //
+                    A2L_MEAS(global_counter, "Global counter variable"),                                               //
+                    A2L_MEAS(counter, "Local counter variable"),                                                       //
+                    A2L_MEAS_PHYS(input_voltage, "Input voltage", "V", -100.0, 100.0),                                 //
+                    A2L_MEAS_PHYS(average_voltage, "Calculated average voltage on input_voltage", "V", -100.0, 100.0), //
+                    A2L_MEAS_INST(average_filter, "FloatingAverage", "Local (stack) instance of FloatingAverage<128>") // Measure complete instance of FloatingAverage
+                    // A2L_MEAS_INST_PTR(average_filter, average_filter.get(), "FloatingAverage", "Heap RAII instance of FloatingAverage"),
+                    // A2L_MEAS_INST_PTR(average_filter, average_filter, "FloatingAverage", "Heap instance of FloatingAverage")
 
         );
 
@@ -236,7 +251,7 @@ int main() {
 
     XcpDisconnect(); // Force disconnect the XCP client
     A2lFinalize();   // Finalize A2L generation, if not done yet
-    // XcpBinWrite(XCP_CALPAGE_WORKING_PAGE); // Save current calibration segments to binary persistence file
+    // XcpBinWrite(XCP_CALPAGE_WORKING_PAGE); // Save current calibration changes to binary persistence file
     XcpEthServerShutdown(); // Stop the XCP server
 
     return 0;
