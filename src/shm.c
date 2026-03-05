@@ -226,7 +226,6 @@ bool XcpShmIsA2lFinalizeRequested(void) {
 }
 
 // Update this process's app slot with its A2L filename and mark it as finalized.
-// Called automatically from XcpSetA2lName(); not normally called directly.
 void XcpShmNotifyA2lFinalized(const char *a2l_name) {
     assert(XcpShmActive());
     assert(isActivated_(gXcpData));

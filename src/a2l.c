@@ -569,6 +569,9 @@ static bool A2lOpen(void) {
         DBG_PRINT_ERROR("Could not create file!\n");
         return false;
     }
+    fprintf(gA2lTypedefsFile, "\n/* Typedefs */\n");       // typedefs temporary file
+    fprintf(gA2lGroupsFile, "\n/* Groups */\n");           // groups temporary file
+    fprintf(gA2lConversionsFile, "\n/* Conversions */\n"); // conversions temporary file
 
     // In SHM follower mode the file contains only data objects (MEASUREMENT/CHARACTERISTIC/...)
     // — no ASAP2 header, no MODULE wrapper, no IF_DATA, no MOD_PAR.  The leader merges it.
@@ -591,10 +594,6 @@ static bool A2lOpen(void) {
     } else {
         DBG_PRINT3("A2L partial file (SHM follower): data objects only, no header/footer\n");
     }
-
-    fprintf(gA2lTypedefsFile, "\n/* Typedefs */\n");       // typedefs temporary file
-    fprintf(gA2lGroupsFile, "\n/* Groups */\n");           // groups temporary file
-    fprintf(gA2lConversionsFile, "\n/* Conversions */\n"); // conversions temporary file
 
     // Create predefined conversions and record layouts/typedefs
     if (gA2lMasterFile) {
@@ -1302,7 +1301,7 @@ static const char *getConversion(const char *unit_or_conversion, double *min, do
 }
 
 const char *A2lCreateLinearConversion_(const char *symbol_name, const char *comment, const char *unit, double factor, double offset) {
-    if (gA2lConversionsFile != NULL) {
+    if (gA2lFile != NULL && gA2lConversionsFile != NULL) {
         if (unit == NULL)
             unit = "";
         if (comment == NULL)
@@ -1319,7 +1318,7 @@ const char *A2lCreateLinearConversion_(const char *symbol_name, const char *comm
 }
 
 const char *A2lCreateEnumConversion_(const char *symbol_name, const char *enum_description) {
-    if (gA2lConversionsFile != NULL) {
+    if (gA2lFile != NULL && gA2lConversionsFile != NULL) {
         SNPRINTF(gA2lConvName, sizeof(gA2lConvName), "conv.%s", symbol_name); // Build the conversion symbol_name with prefix "conv." and store it in a static variable
         fprintf(gA2lConversionsFile, "/begin COMPU_METHOD conv.%s \"\" TAB_VERB \"%%.0 \" \"\" COMPU_TAB_REF conv.%s.table /end COMPU_METHOD\n", symbol_name, symbol_name);
         fprintf(gA2lConversionsFile, "/begin COMPU_VTAB conv.%s.table \"\" TAB_VERB %s /end COMPU_VTAB\n", symbol_name, enum_description);
@@ -1371,13 +1370,12 @@ void A2lTypedefComponent_(const char *field_name, const char *type_name, uint16_
 // For measurement components with TYPEDEF_MEASUREMENT for fields with comment, unit, min, max
 void A2lTypedefMeasurementComponent_(const char *field_name, tA2lTypeId type_id, uint16_t x_dim, size_t offset, const char *comment, const char *unit_or_conversion, double min,
                                      double max) {
-    if (gA2lFile != NULL) {
+    if (gA2lFile != NULL && gA2lTypedefsFile != NULL) {
         const char *type_name = A2lGetA2lTypeName(type_id);
         DBG_PRINTF4("A2lTypedefMeasurementComponent_: %s, %s, x_dim=%u, offset=0x%zX\n", field_name, type_name, x_dim, offset);
 
         // TYPEDEF_MEASUREMENT
         const char *conv = getConversion(unit_or_conversion, NULL, NULL);
-        assert(gA2lTypedefsFile != NULL);
         if (min == 0.0 && max == 0.0) {
             min = getTypeMin(type_id);
             max = getTypeMax(type_id);
@@ -1398,7 +1396,7 @@ void A2lTypedefMeasurementComponent_(const char *field_name, tA2lTypeId type_id,
 // For multidimensional parameter components with TYPEDEF_CHARACTERISTIC for fields with comment, unit, min, max
 void A2lTypedefParameterComponent_(const char *field_name, tA2lTypeId type_id, uint16_t x_dim, uint16_t y_dim, size_t offset, const char *comment, const char *unit_or_conversion,
                                    double min, double max, const char *x_axis, const char *y_axis) {
-    if (gA2lFile != NULL) {
+    if (gA2lFile != NULL && gA2lTypedefsFile != NULL) {
         const char *type_name = A2lGetA2lRecordLayoutName(type_id);
         DBG_PRINTF4("A2lTypedefParameterComponent_: %s, %s, x_dim=%u, y_dim=%u, offset=0x%zX\n", field_name, type_name, x_dim, y_dim, offset);
 
@@ -1717,9 +1715,8 @@ void A2lEndGroup(void) {
 }
 
 void A2lCreateMeasurementGroup(const char *symbol_name, int count, ...) {
-    if (gA2lFile != NULL) {
+    if (gA2lFile != NULL && gA2lGroupsFile != NULL) {
         va_list ap;
-        assert(gA2lGroupsFile != NULL);
         A2lEndGroup(); // End the previous group if any
         fprintf(gA2lGroupsFile, "/begin GROUP %s \"\" ROOT", symbol_name);
         fprintf(gA2lGroupsFile, " /begin REF_MEASUREMENT");
@@ -1997,7 +1994,15 @@ bool A2lFinalize(void) {
 
 // Notify XCP that there is an A2L file available for upload by the XCP client
 #ifdef OPTION_SHM_MODE
-        XcpSetA2lName(A2lGetFilename(XcpShmIsLeader() ? A2L_MASTER_FILE : A2L_FILE));
+        if (XcpShmActive()) {
+            if (XcpShmIsServer()) { // The server provides the master file for upload
+                XcpSetA2lName(A2lGetFilename(A2L_MASTER_FILE));
+            } else {
+                XcpSetA2lName(A2lGetFilename(A2L_FILE));
+            }
+            // Update this process's app slot with the A2L file name of this process
+            XcpShmNotifyA2lFinalized(A2lGetFilename(A2L_FILE));
+        }
 #else
         XcpSetA2lName(A2lGetFilename(A2L_FILE));
 #endif

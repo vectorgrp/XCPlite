@@ -210,6 +210,16 @@ static inline tXcpData *XcpMut_(const char *file, int line) {
 
 #endif
 
+// State checks
+#define isInitialized() (gXcpData != NULL && 0 != (gXcpData->session_status & SS_INITIALIZED))
+#define isActivated() (gXcpData != NULL && (SS_ACTIVATED | SS_INITIALIZED) == ((gXcpData->session_status & (SS_ACTIVATED | SS_INITIALIZED))))
+#define isStarted() (gXcpData != NULL && 0 != (gXcpData->session_status & SS_STARTED))
+#define isConnected() (gXcpData != NULL && 0 != (gXcpData->session_status & SS_CONNECTED))
+#define isLegacyMode() (gXcpData != NULL && 0 != (gXcpData->session_status & SS_LEGACY_MODE))
+
+// Thread safe state checks
+#define isDaqRunning() (gXcpData != NULL && atomic_load_explicit(&gXcpData->daq_running, memory_order_relaxed))
+
 /****************************************************************************/
 /* Forward declarations of static functions                                 */
 /****************************************************************************/
@@ -280,16 +290,6 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
         if (err != 0)                                                                                                                                                              \
             goto negative_response;                                                                                                                                                \
     }
-
-// State checks
-#define isInitialized() (gXcpData != NULL && 0 != (shared.session_status & SS_INITIALIZED))
-#define isActivated() (gXcpData != NULL && (SS_ACTIVATED | SS_INITIALIZED) == ((shared.session_status & (SS_ACTIVATED | SS_INITIALIZED))))
-#define isStarted() (gXcpData != NULL && 0 != (shared.session_status & SS_STARTED))
-#define isConnected() (0 != (shared.session_status & SS_CONNECTED))
-#define isLegacyMode() (0 != (shared.session_status & SS_LEGACY_MODE))
-
-// Thread safe state checks
-#define isDaqRunning() atomic_load_explicit(&shared.daq_running, memory_order_relaxed)
 
 /****************************************************************************/
 // Metrics
@@ -3655,10 +3655,10 @@ void XcpBackgroundTasks(void) {
 #ifdef OPTION_SHM_MODE
     if (XcpShmIsServer()) {
         static uint32_t last_known_app_count = 0;
-        uint32_t current_count = (uint32_t)atomic_load(&gXcpData->shm_header.app_count);
+        uint32_t current_count = (uint32_t)atomic_load(&shared.shm_header.app_count);
         while (last_known_app_count < current_count) {
             uint32_t slot = last_known_app_count++;
-            const tApp *app = &gXcpData->shm_header.app_list[slot];
+            const tApp *app = &shared.shm_header.app_list[slot];
             DBG_PRINTF3("SHM: new application attached — slot=%u name='%s' epk='%s' pid=%u %s\n", slot, app->project_name, app->epk, app->pid,
                         slot == 0 ? "(leader)" : "(follower)");
         }
@@ -3819,12 +3819,12 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
         }
 #else
         DBG_PRINT_ERROR("XcpInit: XCP_MODE_SHM requested but OPTION_SHM_MODE is not enabled in xcplib_cfg.h\n");
-        return;
+        return false;
 #endif
     }
     // Local mode: allocate private memory
     else {
-        gXcpData = (tXcpData *)malloc(sizeof(tXcpData));
+        gXcpData = (tXcpData *)malloc(sizeof(tXcpData)); // @@@@ TODO use static allocation if not OPTION_SHM_MODE
         if (gXcpData == NULL) {
             DBG_PRINT_ERROR("XcpInit: failed to allocate memory for tXcpData\n");
             return false;

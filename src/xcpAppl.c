@@ -472,13 +472,6 @@ void XcpSetA2lName(const char *name) {
         *dot = '\0';                                 // Null-terminate the string at the dot
     gXcpA2lName[XCP_A2L_FILENAME_MAX_LENGTH] = '\0'; // Ensure null-termination
     DBG_PRINTF4("XcpSetA2lName '%s'\n", name);
-
-    // In SHM mode, update this process's app slot so the leader knows the A2L is ready
-    // Pass the original name (which includes the .a2l extension) so the leader can open the file directly
-#ifdef OPTION_SHM_MODE
-    if (XcpShmActive())
-        XcpShmNotifyA2lFinalized(name);
-#endif
 }
 
 // Return the A2L name (without extension)

@@ -18,8 +18,6 @@
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uint16_t, uint32_t, uint8_t
 
-#include "xcpLite.h" // for tXcpData
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -47,8 +45,7 @@ typedef union {
         // Identity (written at registration, constant afterwards)
         char project_name[XCP_PROJECT_NAME_MAX_LENGTH + 1]; // unique app name (null-terminated)
         char epk[XCP_EPK_MAX_LENGTH + 1];                   // build version  (null-terminated)
-        char a2l_name[XCP_A2L_FILENAME_MAX_LENGTH + 1];     // A2L filename without extension;
-                                                            //   written by XcpSetA2lName() when A2L is ready
+        char a2l_name[XCP_A2L_FILENAME_MAX_LENGTH + 1];     // A2L filename without ext
         uint32_t pid;                                       // OS process ID; 0 = slot is vacant
         uint8_t is_leader;                                  // != 0 this process created /xcpdata (the SHM owner)
         uint8_t is_server;                                  // != 0 this process is the XCP server (handles client connections and DAQ)
@@ -89,7 +86,7 @@ tXcpData *XcpShmAttachOrCreate(bool *out_is_leader); // Attach to an existing sh
 
 void XcpShmRequestA2lFinalize(void);                                                    // Leader: signals all followers to finalize their A2L file now
 bool XcpShmIsA2lFinalizeRequested(void);                                                // Follower: returns true when leader has set the finalize flag
-void XcpShmNotifyA2lFinalized(const char *name);                                        // Update this process's A2L file name; called from XcpSetA2lName()
+void XcpShmNotifyA2lFinalized(const char *name);                                        // Update this process's A2L file name and mark it as finalized
 void XcpShmIncrementAliveCounter(void);                                                 // Follower background thread: prove this process is still alive
 const char *XcpShmGetAppProjectName(uint8_t app_id);                                    // Get project name of an app slot by app_id index
 int XcpShmCollectA2lFiles(uint32_t timeout_ms, const char *filenames[], int max_count); // Leader: wait and collect follower partial A2L filenames

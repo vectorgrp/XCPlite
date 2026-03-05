@@ -96,7 +96,7 @@ tXcpCalSegIndex XcpFindCalSeg(const char *name);
 /// @param default_page Pointer to the default page of the calibration segment
 /// @return the handle of the calibration segment or XCP_UNDEFINED_CALSEG if not found
 tXcpCalSegIndex XcpFindCalPage(const void *default_page);
-#endif
+#endif // OPTION_SHM_MODE
 
 /// Get the name of the calibration segment
 /// @param index Handle of the calibration segment

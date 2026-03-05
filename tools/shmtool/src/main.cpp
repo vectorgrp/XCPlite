@@ -38,9 +38,12 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-// Pull in xcpLite internal header for the SHM struct definitions.
-// OPTION_SHM_MODE is #defined in xcplib_cfg.h (included transitively by xcpLite.h),
-// so tShmHeader, tApp, SHM_MAGIC, SHM_VERSION and SHM_MAX_APP_COUNT are all available.
+#include "xcp_cfg.h"
+#include "xcplib_cfg.h"
+
+#ifdef OPTION_SHM_MODE
+
+#include "shm.h"
 #include "xcpLite.h"
 
 // ---------------------------------------------------------------------------
@@ -161,6 +164,8 @@ static int cmd_status(bool verbose) {
     return 0;
 }
 
+#endif
+
 // ---------------------------------------------------------------------------
 // clean command
 // ---------------------------------------------------------------------------
@@ -196,7 +201,6 @@ static int cmd_clean() {
     printf("Done.\n");
     return rc;
 }
-
 // ---------------------------------------------------------------------------
 // help
 // ---------------------------------------------------------------------------
@@ -210,17 +214,8 @@ static void print_usage(const char *argv0) {
            "  clean                Remove /xcpdata, /xcpqueue and lock files\n"
            "  help                 Print this help text\n\n"
            "Options:\n"
-           "  -v, --verbose        Show additional details (offsets, verbose layout)\n\n"
-           "Examples:\n"
-           "  %s                   Show SHM status\n"
-           "  %s status -v         Show SHM status with verbose output\n"
-           "  %s clean             Remove stale SHM objects\n\n"
-           "Shared memory objects managed by XCPlite:\n"
-           "  /xcpdata             XCP protocol layer state (sizeof(tXcpData)=%zu bytes)\n"
-           "  /xcpqueue            XCP transmit queue\n"
-           "  /tmp/xcpdata.lock    flock-based leader election lock file\n"
-           "  /tmp/xcpqueue.lock   flock-based queue leader election lock file\n",
-           argv0, argv0, argv0, argv0, sizeof(tXcpData));
+           "  -v, --verbose        Show additional details (offsets, verbose layout)\n",
+           argv0);
 }
 
 // ---------------------------------------------------------------------------
@@ -234,10 +229,13 @@ int main(int argc, char *argv[]) {
 
     for (int i = 1; i < argc; ++i) {
         std::string arg(argv[i]);
-        if (arg == "status")
-            cmd = Cmd::Status;
-        else if (arg == "clean")
+
+        if (arg == "clean")
             cmd = Cmd::Clean;
+#ifdef OPTION_SHM_MODE
+        else if (arg == "status")
+            cmd = Cmd::Status;
+#endif
         else if (arg == "help" || arg == "--help" || arg == "-h")
             cmd = Cmd::Help;
         else if (arg == "-v" || arg == "--verbose")
@@ -250,10 +248,13 @@ int main(int argc, char *argv[]) {
     }
 
     switch (cmd) {
+#ifdef OPTION_SHM_MODE
     case Cmd::Status:
         return cmd_status(verbose);
+#endif
     case Cmd::Clean:
         return cmd_clean();
+
     case Cmd::Help:
         print_usage(argv[0]);
         return 0;
