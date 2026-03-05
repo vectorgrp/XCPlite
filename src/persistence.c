@@ -22,6 +22,7 @@
 
 #include "dbg_print.h"  // for DBG_PRINTF3, DBG_PRINT4, DBG_PRINTF4, DBG...
 #include "platform.h"   // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
+#include "shm.h"        // for XcpShmXxx
 #include "xcp.h"        // for CRC_XXX
 #include "xcpLite.h"    // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
 #include "xcp_cfg.h"    // for XCP_xxx
@@ -35,16 +36,17 @@
 #endif
 
 #define BIN_SIGNATURE "XCPLITE__BINARY"
-#define BIN_VERSION 0x0204
+#define BIN_VERSION 0x0205
 
 #pragma pack(push, 1)
 
 typedef struct {
     char signature[16];                              // File signature "XCPLITE__BINARY"
-    uint16_t version;                                // File version, currently 0x0100
+    uint16_t version;                                // File version
     uint16_t event_count;                            // Number of events, tEventDescriptor
     uint16_t calseg_count;                           // Number of calibration segments, tCalSegDescriptor
-    uint8_t reserved[128 - 16 - 2 - 2 - 2];          // Reserved for future use
+    uint16_t app_count;                              // Number of applications (processes) in SHM mode, 0 in local mode
+    uint8_t reserved[128 - 16 - 2 - 2 - 2 - 2];      // Reserved for future use
     char Epk[XCP_EPK_MAX_LENGTH + 1];                // EPK string, 0 terminated
     uint8_t padding[128 - (XCP_EPK_MAX_LENGTH + 1)]; // Reserved for longer EPK strings up to 128 bytes
 } tHeader;
@@ -56,7 +58,8 @@ typedef struct {
     uint16_t index;                                  // Event index
     uint32_t cycle_time_ns;                          // Cycle time in ns
     uint8_t priority;                                // Priority 0 = queued, 1 = pushing, 2 = realtime
-    uint8_t reserved[128 - 2 - 2 - 4 - 1];           // Reserved for future use
+    uint8_t app_id;                                  // App ID of the event owner in SHM mode, 0 in local mode
+    uint8_t reserved[128 - 2 - 2 - 4 - 1 - 1];       // Reserved for future use
     char name[XCP_MAX_EVENT_NAME + 1];               // Event name, 0 terminated
     uint8_t padding[128 - (XCP_MAX_EVENT_NAME + 1)]; // Reserved for longer event names up to 128 bytes
 } tEventDescriptor;
@@ -67,12 +70,23 @@ typedef struct {
     uint16_t index;                                   // Index of the calibration segment in the list, 0..<XCP_MAX_CALSEG_COUNT
     uint16_t size;                                    // Size of the calibration segment in bytes, multiple of 4
     uint32_t addr;                                    // Address of the calibration segment
-    uint8_t reserved[128 - 2 - 2 - 4];                // Reserved for future use
+    uint8_t app_id;                                   // App ID of the calibration segment owner in SHM mode, 0 in local mode
+    uint8_t reserved[128 - 2 - 2 - 4 - 1];            // Reserved for future use
     char name[XCP_MAX_CALSEG_NAME + 1];               // Calibration segment name, 0 terminated
     uint8_t padding[128 - (XCP_MAX_CALSEG_NAME + 1)]; // Reserved for longer calibration segment names up to 128 bytes
 } tCalSegDescriptor;
 
 static_assert(sizeof(tCalSegDescriptor) == 256, "Size of tCalSegDescriptor must be 256 bytes");
+
+typedef struct {
+    uint8_t app_id;                                                                      // App ID of the application owner in SHM mode, 0 in local mode
+    uint8_t reserved[128 - 1];                                                           // Reserved for future use
+    char project_name[XCP_PROJECT_NAME_MAX_LENGTH + 1];                                  // Application name, 0 terminated
+    char epk[XCP_EPK_MAX_LENGTH + 1];                                                    // build version  (null-terminated)
+    uint8_t padding[128 - (XCP_PROJECT_NAME_MAX_LENGTH + 1) - (XCP_EPK_MAX_LENGTH + 1)]; // Reserved for longer application names up to 128 bytes
+} tAppDescriptor;
+
+static_assert(sizeof(tAppDescriptor) == 256, "Size of tAppDescriptor must be 256 bytes");
 
 #pragma pack(pop)
 
@@ -110,7 +124,7 @@ static void printCalsegPage(const uint8_t *page, uint16_t size) {
 #endif
 
 // Write the BIN file header
-static bool writeHeader(FILE *file, const char *epk, uint16_t event_count, uint16_t calseg_count) {
+static bool writeHeader(FILE *file, const char *epk, uint16_t event_count, uint16_t calseg_count, uint8_t app_count) {
 
     memset(&gBinHeader, 0, sizeof(tHeader));
     strncpy(gBinHeader.signature, BIN_SIGNATURE, sizeof(gBinHeader.signature) - 1);
@@ -120,6 +134,7 @@ static bool writeHeader(FILE *file, const char *epk, uint16_t event_count, uint1
     gBinHeader.Epk[XCP_EPK_MAX_LENGTH] = '\0'; // Ensure null termination
     gBinHeader.event_count = event_count;
     gBinHeader.calseg_count = calseg_count;
+    gBinHeader.app_count = app_count;
     size_t written = fwrite(&gBinHeader, sizeof(tHeader), 1, file);
     if (written != 1) {
         DBG_PRINTF3("Failed to write header to file: %s\n", strerror(errno));
@@ -134,6 +149,9 @@ static bool writeEvent(FILE *file, tXcpEventId event_id, const tXcpEvent *event)
     memset(&desc, 0, sizeof(tEventDescriptor));
     strncpy(desc.name, event->name, XCP_MAX_EVENT_NAME);
     desc.name[XCP_MAX_EVENT_NAME] = '\0'; // Ensure null termination
+#ifdef OPTION_SHM_MODE
+    desc.app_id = event->app_id;
+#endif
     desc.cycle_time_ns = event->cycle_time_ns;
     desc.priority = event->flags & XCP_DAQ_EVENT_FLAG_PRIORITY ? 0xFF : 0x00;
     desc.id = event_id;
@@ -156,6 +174,9 @@ static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, const tXcpCalSeg *se
     desc.size = seg->h.size;
     desc.addr = XcpGetCalSegBaseAddress(calseg);
     desc.index = calseg;
+#ifdef OPTION_SHM_MODE
+    desc.app_id = seg->h.app_id;
+#endif
     size_t written = fwrite(&desc, sizeof(tCalSegDescriptor), 1, file);
     if (written != 1) {
         DBG_PRINTF3("Failed to write calibration segment descriptor to file: %s\n", strerror(errno));
@@ -176,6 +197,29 @@ static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, const tXcpCalSeg *se
     return true;
 }
 
+#ifdef OPTION_SHM_MODE
+
+// Write a application descriptor
+static bool writeApp(FILE *file, uint8_t app_id, const char *project_name, const char *epk) {
+    tAppDescriptor desc;
+    memset(&desc, 0, sizeof(tAppDescriptor));
+    strncpy(desc.project_name, project_name, XCP_PROJECT_NAME_MAX_LENGTH);
+    desc.project_name[XCP_PROJECT_NAME_MAX_LENGTH] = '\0'; // Ensure null termination
+    strncpy(desc.epk, epk, XCP_EPK_MAX_LENGTH);
+    desc.epk[XCP_EPK_MAX_LENGTH] = '\0'; // Ensure null termination
+    size_t written = fwrite(&desc, sizeof(tAppDescriptor), 1, file);
+    if (written != 1) {
+        DBG_PRINTF3("Failed to write application descriptor to file: %s\n", strerror(errno));
+        return false;
+    }
+
+    DBG_PRINTF4("Writing application %u, name=%s, epk=%s\n", app_id, project_name, epk);
+
+    return true;
+}
+
+#endif
+
 //--------------------------------------------------------------------------------------------------------------------------------
 
 /// Write the binary persistence file.
@@ -191,14 +235,6 @@ bool XcpBinWrite(uint8_t page) {
         return false;
     }
 
-#ifdef OPTION_SHM_MODE
-    if (!XcpShmIsLeader()) {
-        // Leader process is responsible for writing the persistence file
-        // @@@@ TODO Make sure there is a leader
-        return true;
-    }
-#endif
-
     buildBinFilename();
 
     if (XcpIsConnected() && page == XCP_CALPAGE_WORKING_PAGE) {
@@ -212,7 +248,7 @@ bool XcpBinWrite(uint8_t page) {
         DBG_PRINTF3("Failed to open file %s for writing: %s\n", gXcpBinFilename, strerror(errno));
         return false;
     }
-    if (!writeHeader(file, XcpGetEpk(), XcpGetEventCount(), XcpGetCalSegCount())) {
+    if (!writeHeader(file, XcpGetEpk(), XcpGetEventCount(), XcpGetCalSegCount(), XcpShmGetAppCount())) {
         fclose(file);
         return false;
     }
@@ -237,6 +273,17 @@ bool XcpBinWrite(uint8_t page) {
             return false;
         }
     }
+
+#ifdef OPTION_SHM_MODE
+    // Write application descriptors
+    uint8_t app_count = XcpShmGetAppCount();
+    for (uint8_t i = 0; i < app_count; i++) {
+        if (!writeApp(file, i, XcpShmGetAppProjectName(i), XcpShmGetAppEpk(i))) {
+            fclose(file);
+            return false;
+        }
+    }
+#endif
 
     fclose(file);
 
@@ -359,6 +406,10 @@ static bool load(const char *filename, const char *epk) {
             fclose(file);
             return false;
         }
+#ifdef OPTION_SHM_MODE
+        tXcpEvent *event = (tXcpEvent *)XcpGetEvent(event_id); // @@@@ TODO cast away const, improve design to avoid this
+        event->app_id = desc.app_id;
+#endif
     }
 
     // Load calibration segments
@@ -408,6 +459,29 @@ static bool load(const char *filename, const char *epk) {
             printCalsegPage(page, desc.size);
 #endif
     }
+
+    // Load application descriptors in SHM mode
+#ifdef OPTION_SHM_MODE
+    for (uint8_t i = 0; i < gBinHeader.app_count; i++) {
+        tAppDescriptor desc;
+        read = fread(&desc, sizeof(tAppDescriptor), 1, file);
+        if (read != 1) {
+            DBG_PRINTF_ERROR("Failed to read application descriptor from file: %s\n", strerror(errno));
+            fclose(file);
+            return false;
+        }
+
+        // Register this process in the SHM application list
+        // Returns allocated app_id (slot index) or SHM_MAX_APP_COUNT on error
+        uint8_t app_id = XcpShmRegisterApp(desc.project_name, desc.epk, false, false);
+        if (app_id != desc.app_id) { // The app_id in the file must match the allocated app_id
+            DBG_PRINTF_ERROR("App ID mismatch: expected %u, got %u\n", desc.app_id, app_id);
+            fclose(file);
+            return false;
+        }
+        DBG_PRINTF4("Loaded application %u, name=%s, epk=%s\n", desc.app_id, desc.project_name, desc.epk);
+    }
+#endif
 
     fclose(file);
     return true;

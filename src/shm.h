@@ -84,11 +84,14 @@ bool XcpShmIsFollower(void);  // true when this process is a follower attached t
 void XcpShmInit(tXcpData *xcp_data);                 // Initalize shared memory for this process, and register this process in the app list
 tXcpData *XcpShmAttachOrCreate(bool *out_is_leader); // Attach to an existing shared memory region created by another process or create a new one
 
-void XcpShmRequestA2lFinalize(void);                                                    // Leader: signals all followers to finalize their A2L file now
-bool XcpShmIsA2lFinalizeRequested(void);                                                // Follower: returns true when leader has set the finalize flag
-void XcpShmNotifyA2lFinalized(const char *name);                                        // Update this process's A2L file name and mark it as finalized
-void XcpShmIncrementAliveCounter(void);                                                 // Follower background thread: prove this process is still alive
-const char *XcpShmGetAppProjectName(uint8_t app_id);                                    // Get project name of an app slot by app_id index
+void XcpShmRequestA2lFinalize(void);                 // Leader: signals all followers to finalize their A2L file now
+bool XcpShmIsA2lFinalizeRequested(void);             // Follower: returns true when leader has set the finalize flag
+void XcpShmNotifyA2lFinalized(const char *name);     // Update this process's A2L file name and mark it as finalized
+void XcpShmIncrementAliveCounter(void);              // Follower background thread: prove this process is still alive
+uint8_t XcpShmGetAppCount(void);                     // Get the number of registered applications in SHM mode
+const char *XcpShmGetAppProjectName(uint8_t app_id); // Get project name of an app slot by app_id index
+const char *XcpShmGetAppEpk(uint8_t app_id);         // Get EPK of an app slot by app_id index
+
 int XcpShmCollectA2lFiles(uint32_t timeout_ms, const char *filenames[], int max_count); // Leader: wait and collect follower partial A2L filenames
 uint8_t XcpShmRegisterApp(const char *name, const char *epk, bool is_leader,
                           bool is_server); // Register this process in the SHM application list; returns allocated app_id (slot index) or SHM_MAX_APP_COUNT on error
@@ -96,6 +99,11 @@ uint8_t XcpShmRegisterApp(const char *name, const char *epk, bool is_leader,
 #ifdef DBG_LEVEL
 void XcpShmDebugPrint(tXcpData *xcp_data); // Print the status and information in tXcpData, for debugging purposes.
 #endif
+
+#else
+
+#define XcpShmGetAppCount() 0
+#
 
 #endif
 

@@ -9,6 +9,7 @@
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uintxx_t
 #include <stdio.h>   // for printf
+#include <stdlib.h>  // for rand()
 #include <string.h>  // for sprintf
 
 // Option to use XCP for online performance monitoring and logging of the queue test

@@ -1724,8 +1724,6 @@ tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cyc
     shared_mut_safe.event_list.event[e].cycle_time_ns = cycle_time_ns;
 #ifdef OPTION_SHM_MODE
     shared_mut_safe.event_list.event[e].app_id = local.shm_app_id;
-#else
-    shared_mut_safe.event_list.event[e].app_id = 0;
 #endif
 
     setEventCount(e + 1); // Publish new event, this is not thread safe, must be called with locked mutex, but it garantees atomic visibility of the new event

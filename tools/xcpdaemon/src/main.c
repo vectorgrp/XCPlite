@@ -59,6 +59,7 @@ int main(void) {
     A2lSetStackAddrMode(daemon);
     A2lCreateMeasurement(counter, "Mainloop counter");
 
+#ifdef OPTION_SHM_MODE
     // Print current status of the shared memory
     printf("\n--------------------------------------------------------------\n");
     printf("Shared memory status after initialization:\n");
@@ -67,6 +68,7 @@ int main(void) {
     extern void XcpShmDebugPrint(struct tXcpData * xcp_data);
     XcpShmDebugPrint(gXcpData);
     printf("--------------------------------------------------------------\n");
+#endif
 
     uint32_t delay_us = 1000;
     while (running) {

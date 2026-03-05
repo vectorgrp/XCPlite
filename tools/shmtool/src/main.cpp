@@ -248,8 +248,8 @@ int main(int argc, char *argv[]) {
     }
 
     switch (cmd) {
-#ifdef OPTION_SHM_MODE
     case Cmd::Status:
+#ifdef OPTION_SHM_MODE
         return cmd_status(verbose);
 #endif
     case Cmd::Clean:

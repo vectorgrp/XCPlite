@@ -242,6 +242,13 @@ void XcpShmNotifyA2lFinalized(const char *a2l_name) {
     DBG_PRINTF3("XcpShmNotifyA2lFinalized: app %u a2l='%s'\n", (unsigned)slot, a2l_name ? a2l_name : "");
 }
 
+// Get the number of registered applications in SHM mode.
+uint8_t XcpShmGetAppCount(void) {
+    assert(XcpShmActive());
+    assert(isActivated_(gXcpData));
+    return (uint8_t)atomic_load(&gXcpData->shm_header.app_count);
+}
+
 // Get the project name of an app slot by its app_id index.
 // Returns NULL if the slot is vacant or out of range.
 const char *XcpShmGetAppProjectName(uint8_t app_id) {
@@ -254,6 +261,20 @@ const char *XcpShmGetAppProjectName(uint8_t app_id) {
     if (app->pid == 0)
         return NULL; // vacant slot
     return app->project_name;
+}
+
+// Get the EPK of an app slot by its app_id index.
+// Returns NULL if the slot is vacant or out of range.
+const char *XcpShmGetAppEpk(uint8_t app_id) {
+    assert(XcpShmActive());
+    assert(isActivated_(gXcpData));
+
+    if (app_id >= SHM_MAX_APP_COUNT)
+        return NULL;
+    const tApp *app = &gXcpData->shm_header.app_list[app_id];
+    if (app->pid == 0)
+        return NULL; // vacant slot
+    return app->epk;
 }
 
 // Wait up to timeout_ms for all registered non-leader apps to set a2l_finalized,
@@ -322,7 +343,7 @@ uint8_t XcpShmRegisterApp(const char *name, const char *epk, bool is_leader, boo
 
     tShmHeader *hdr = &gXcpData->shm_header;
 
-    // Scan for an existing slot with the same project_name (handles process restart)
+    // Scan for an existing slot with the same project_name (handles process restart or preload from BIN file)
     uint32_t count = (uint32_t)atomic_load(&hdr->app_count);
     for (uint32_t i = 0; i < count; i++) {
         if (strncmp(hdr->app_list[i].project_name, name, XCP_PROJECT_NAME_MAX_LENGTH) == 0) {

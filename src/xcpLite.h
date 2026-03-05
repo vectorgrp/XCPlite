@@ -147,7 +147,9 @@ typedef struct {
     uint16_t index;         // Event instance index, 0 = single instance, 1.. = multiple instances
     uint16_t daq_first;     // First associated DAQ list, linked list
     uint8_t flags;          // Control flags for the event
-    uint8_t app_id;         // Application id of the event, only used in SHM mode
+#ifdef OPTION_SHM_MODE
+    uint8_t app_id; // Application id of the event
+#endif
 #ifdef XCP_ENABLE_DAQ_PRESCALER
     uint8_t daq_prescaler;     // Current prescaler set with SET_DAQ_LIST_MODE
     uint8_t daq_prescaler_cnt; // Current prescaler counter
