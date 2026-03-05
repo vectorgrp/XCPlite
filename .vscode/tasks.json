@@ -207,19 +207,6 @@
         },
         {
             "type": "shell",
-            "label": "XCPlite: build c_demo",
-            "command": "cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug && cmake --build build --target c_demo",
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "group": "build",
-            "problemMatcher": [
-                "$gcc"
-            ],
-            "detail": "Configure (Debug) and build c_demo locally"
-        },
-        {
-            "type": "shell",
             "label": "cmake configure",
             "command": "cmake",
             "args": [

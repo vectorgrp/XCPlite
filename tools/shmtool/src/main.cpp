@@ -139,8 +139,8 @@ static int cmd_status(bool verbose) {
         const tApp *app = &hdr->app_list[i];
         uint32_t ac = read_u32(&app->alive_counter);
         uint32_t fin = read_u32(&app->a2l_finalized);
-
-        printf("  slot %u  %s  epk=%s  pid=%u  %s\n", i, app->project_name[0] ? app->project_name : "(vacant)", app->epk, app->pid, app->is_leader ? "[leader]" : "[follower]");
+        printf("  App %u:  %s %s epk=%s  pid=%u  %s\n", i, app->project_name[0] ? app->project_name : "(vacant)", app->is_server ? "[server]" : "", app->epk, app->pid,
+               app->is_leader ? "[leader]" : "[follower]");
         printf("          a2l_name=%s  finalized=%s  alive=%u\n", fin ? app->a2l_name : "(pending)", bool_str(fin), ac);
 
         print_separator();

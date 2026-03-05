@@ -3800,7 +3800,7 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
         }
         // Init local state
         local_mut.shm_leader = is_leader;
-        local_mut.shm_server = false;
+        local_mut.shm_server = (mode == XCP_MODE_SHM_SERVER); // @@@@ TODO CHeck if there already is a server
 
         if (!is_leader) {
 
@@ -3811,7 +3811,7 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
             }
 #endif
 
-            local_mut.shm_app_id = XcpShmRegisterApp(name, epk, false);
+            local_mut.shm_app_id = XcpShmRegisterApp(name, epk, local_mut.shm_leader, local_mut.shm_server);
 
             // Early return here
             // Successfully attached to a live leader
@@ -3851,7 +3851,7 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
         // Init local state
         local_mut.shm_leader = true;
         local_mut.shm_server = (mode == XCP_MODE_SHM_SERVER); // The leader becomes the server, if server mode is requested
-        local_mut.shm_app_id = XcpShmRegisterApp(name, epk, true);
+        local_mut.shm_app_id = XcpShmRegisterApp(name, epk, local_mut.shm_leader, local_mut.shm_server);
     }
 #endif // OPTION_SHM_MODE
 

@@ -2,6 +2,26 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Debug hello_xcp",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/hello_xcp",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "XCPlite: build"
+        },
+        {
             "name": "Debug hello_xcp_cpp",
             "type": "cppdbg",
             "request": "launch",
@@ -19,7 +39,27 @@
                     "ignoreFailures": true
                 }
             ],
-            "preLaunchTask": "XCPlite: build hello_xcp_cpp"
+            "preLaunchTask": "XCPlite: build"
+        },
+        {
+            "name": "Debug xcpdaemon",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/xcpdaemon",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "XCPlite: build"
         },
         {
             "name": "Debug cpp_demo",
@@ -39,7 +79,7 @@
                     "ignoreFailures": true
                 }
             ],
-            "preLaunchTask": "XCPlite: build cpp_demo"
+            "preLaunchTask": "XCPlite: build"
         },
         {
             "name": "Debug c_demo",
@@ -59,7 +99,7 @@
                     "ignoreFailures": true
                 }
             ],
-            "preLaunchTask": "XCPlite: build c_demo"
+            "preLaunchTask": "XCPlite: build"
         },
         {
             "name": "Debug ptp_demo",
@@ -79,7 +119,7 @@
                     "ignoreFailures": true
                 }
             ],
-            "preLaunchTask": "XCPlite: build ptp_demo"
+            "preLaunchTask": "XCPlite: build"
         },
         {
             "name": "Debug multi_thread_demo",
@@ -99,7 +139,7 @@
                     "ignoreFailures": true
                 }
             ],
-            "preLaunchTask": "XCPlite: build multi_thread_demo"
+            "preLaunchTask": "XCPlite: build"
         },
         {
             "name": "Debug struct_demo",
@@ -119,27 +159,7 @@
                     "ignoreFailures": true
                 }
             ],
-            "preLaunchTask": "XCPlite: build struct_demo"
-        },
-        {
-            "name": "Debug hello_xcp",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/hello_xcp",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "lldb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
-            ],
-            "preLaunchTask": "XCPlite: build hello_xcp"
+            "preLaunchTask": "XCPlite: build"
         },
         {
             "name": "Debug a2l_test",
@@ -159,7 +179,7 @@
                     "ignoreFailures": true
                 }
             ],
-            "preLaunchTask": "XCPlite: build a2l_test"
+            "preLaunchTask": "XCPlite: build"
         },
         {
             "name": "Debug queue_test",
@@ -179,83 +199,7 @@
                     "ignoreFailures": true
                 }
             ],
-            "preLaunchTask": "XCPlite: build queue_test"
+            "preLaunchTask": "XCPlite: build"
         },
-        {
-            "name": "Debug daq_test",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/daq_test",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "lldb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
-            ],
-            "preLaunchTask": "XCPlite: build daq_test"
-        },
-        {
-            "name": "Remote Debug: hello_xcp on Pi",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "~/XCPlite-RainerZ/build/hello_xcp",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "~/XCPlite-RainerZ",
-            "environment": [],
-            "externalConsole": false,
-            "pipeTransport": {
-                "debuggerPath": "/usr/bin/gdb",
-                "pipeProgram": "ssh",
-                "pipeArgs": [
-                    "rainer@192.168.0.206"
-                ],
-                "pipeCwd": ""
-            },
-            "MIMode": "gdb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
-            ],
-            "preLaunchTask": "XCPlite: Remote build hello_xcp on Pi"
-        },
-        {
-            "name": "Remote Debug: cpp_demo on Pi",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "~/XCPlite-RainerZ/build/cpp_demo",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "~/XCPlite-RainerZ",
-            "environment": [],
-            "externalConsole": false,
-            "pipeTransport": {
-                "debuggerPath": "/usr/bin/gdb",
-                "pipeProgram": "ssh",
-                "pipeArgs": [
-                    "rainer@192.168.0.206"
-                ],
-                "pipeCwd": ""
-            },
-            "MIMode": "gdb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
-            ],
-            "preLaunchTask": "XCPlite: Remote build cpp_demo on Pi"
-        }
     ]
 }

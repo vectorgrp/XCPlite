@@ -50,8 +50,9 @@ typedef union {
         char a2l_name[XCP_A2L_FILENAME_MAX_LENGTH + 1];     // A2L filename without extension;
                                                             //   written by XcpSetA2lName() when A2L is ready
         uint32_t pid;                                       // OS process ID; 0 = slot is vacant
-        uint8_t is_leader;                                  // 1 = this process created /xcpdata (the SHM owner)
-        uint8_t pad1[3];                                    // explicit padding for deterministic cross-compiler layout
+        uint8_t is_leader;                                  // != 0 this process created /xcpdata (the SHM owner)
+        uint8_t is_server;                                  // != 0 this process is the XCP server (handles client connections and DAQ)
+        uint8_t pad1[2];                                    // explicit padding for deterministic cross-compiler layout
         atomic_uint_least32_t alive_counter;                // incremented periodically by each process's background thread;
                                                             //   allows the leader to detect stale/dead followers
         atomic_uint_least32_t a2l_finalized;                // 1 when this app's A2L file is complete and a2l_name is valid
@@ -92,7 +93,8 @@ void XcpShmNotifyA2lFinalized(const char *name);                                
 void XcpShmIncrementAliveCounter(void);                                                 // Follower background thread: prove this process is still alive
 const char *XcpShmGetAppProjectName(uint8_t app_id);                                    // Get project name of an app slot by app_id index
 int XcpShmCollectA2lFiles(uint32_t timeout_ms, const char *filenames[], int max_count); // Leader: wait and collect follower partial A2L filenames
-uint8_t XcpShmRegisterApp(const char *name, const char *epk, bool is_leader);
+uint8_t XcpShmRegisterApp(const char *name, const char *epk, bool is_leader,
+                          bool is_server); // Register this process in the SHM application list; returns allocated app_id (slot index) or SHM_MAX_APP_COUNT on error
 
 #ifdef DBG_LEVEL
 void XcpShmDebugPrint(tXcpData *xcp_data); // Print the status and information in tXcpData, for debugging purposes.

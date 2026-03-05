@@ -157,8 +157,10 @@ void XcpShmDebugPrint(tXcpData *xcp_data) {
     printf("App list (%u registered):\n", app_count);
     for (uint32_t i = 0; i < app_count && i < SHM_MAX_APP_COUNT; i++) {
         const tApp *app = &hdr->app_list[i];
-        printf("  [%u] name='%s', epk='%s', pid=%u, %s, alive=%u, a2l_finalized=%u, a2l_name='%s'\n", i, app->project_name, app->epk, app->pid,
-               app->is_leader ? "leader" : "follower", (unsigned)atomic_load(&app->alive_counter), (unsigned)atomic_load(&app->a2l_finalized), app->a2l_name);
+        printf("  [%u] name='%s', epk='%s', pid=%u, %s %s, alive=%u, a2l_finalized=%u, a2l_name='%s'\n", i, app->project_name, app->epk, app->pid,
+               app->is_leader ? "leader" : "follower", app->is_server ? "server" : "",
+
+               (unsigned)atomic_load(&app->alive_counter), (unsigned)atomic_load(&app->a2l_finalized), app->a2l_name);
     }
 
     // --- Session status ---
@@ -238,7 +240,7 @@ void XcpShmNotifyA2lFinalized(const char *a2l_name) {
         app->a2l_name[XCP_A2L_FILENAME_MAX_LENGTH] = '\0';
     }
     atomic_store(&app->a2l_finalized, 1U);
-    DBG_PRINTF3("XcpShmNotifyA2lFinalized: slot %u a2l='%s'\n", (unsigned)slot, a2l_name ? a2l_name : "");
+    DBG_PRINTF3("XcpShmNotifyA2lFinalized: app %u a2l='%s'\n", (unsigned)slot, a2l_name ? a2l_name : "");
 }
 
 // Get the project name of an app slot by its app_id index.
@@ -292,7 +294,7 @@ int XcpShmCollectA2lFiles(uint32_t timeout_ms, const char *filenames[], int max_
         if (atomic_load(&app->a2l_finalized) && app->a2l_name[0] != '\0') {
             filenames[count++] = app->a2l_name;
         } else if (!atomic_load(&app->a2l_finalized)) {
-            DBG_PRINTF_WARNING("XcpShmCollectA2lFiles: slot %u ('%s') not finalized\n", i, app->project_name);
+            DBG_PRINTF_WARNING("XcpShmCollectA2lFiles: app %u ('%s') not finalized\n", i, app->project_name);
         }
     }
     DBG_PRINTF3("XcpShmCollectA2lFiles: collected %d A2L file(s)\n", count);
@@ -314,7 +316,7 @@ void XcpShmIncrementAliveCounter(void) {
 // Register this process in the SHM application list.
 // Returns the allocated shm_app_id (slot index= or SHM_MAX_APP_COUNT on error.
 // If a slot with a matching project_name already exists (process restart), it is reused.
-uint8_t XcpShmRegisterApp(const char *name, const char *epk, bool is_leader) {
+uint8_t XcpShmRegisterApp(const char *name, const char *epk, bool is_leader, bool is_server) {
 
     assert(XcpShmActive());
     assert(isInitialized_(gXcpData));
@@ -328,11 +330,12 @@ uint8_t XcpShmRegisterApp(const char *name, const char *epk, bool is_leader) {
             tApp *app = &hdr->app_list[i];
             app->pid = (uint32_t)getpid();
             app->is_leader = is_leader;
+            app->is_server = is_server;
             STRNCPY(app->epk, epk, XCP_EPK_MAX_LENGTH);
             app->epk[XCP_EPK_MAX_LENGTH] = '\0';
             app->a2l_name[0] = '\0';
             atomic_store(&app->a2l_finalized, 0U);
-            DBG_PRINTF3("XcpShmRegisterApp: reused slot %u for '%s' (pid=%u)\n", i, name, (unsigned)getpid());
+            DBG_PRINTF3("XcpShmRegisterApp: reused app slot %u for '%s' (pid=%u)\n", i, name, (unsigned)getpid());
             return (uint8_t)i;
         }
     }
@@ -351,10 +354,12 @@ uint8_t XcpShmRegisterApp(const char *name, const char *epk, bool is_leader) {
     STRNCPY(app->epk, epk, XCP_EPK_MAX_LENGTH);
     app->epk[XCP_EPK_MAX_LENGTH] = '\0';
     app->pid = (uint32_t)getpid();
-    app->is_leader = is_leader ? 1u : 0u;
+    app->is_leader = is_leader;
+    app->is_server = is_server;
     atomic_store(&app->alive_counter, 0U);
     atomic_store(&app->a2l_finalized, 0U);
-    DBG_PRINTF3("XcpShmRegisterApp: registered slot %u for '%s' (pid=%u, %s)\n", slot, name, (unsigned)getpid(), is_leader ? "leader" : "follower");
+    DBG_PRINTF3("XcpShmRegisterApp: registered app slot %u for '%s' (pid=%u, %s, %s)\n", slot, name, (unsigned)getpid(), is_leader ? "leader" : "follower",
+                is_server ? "server" : "");
     return (uint8_t)slot;
 }
 

@@ -228,6 +228,11 @@ if(XCPLITE_BUILD_EXAMPLES)
     else()
         message(STATUS "Windows platform - skipping shmtool build")
     endif()
+
+        # Tool xcpdaemon
+    add_executable(xcpdaemon tools/xcpdaemon/src/main.c)
+    target_link_libraries(xcpdaemon PRIVATE xcplite)
+
 endif()
 
 # Tests
