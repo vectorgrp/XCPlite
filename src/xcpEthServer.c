@@ -141,7 +141,7 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
 
 #ifdef OPTION_SHM_MODE
     if (XcpShmActive()) {
-        // SHM queue: the /xcpqueue owner is always whoever won the /xcpdata election.
+        // SHM queue: the /xcpqueue owner is always the shm leader
         // Followers must attach at the leader's queue size (from fstat), never reclaim the region.
         bool is_leader = XcpShmIsLeader();
         bool is_server = XcpShmIsServer();
@@ -157,7 +157,11 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
             }
             // A second leader process (e.g. after rebuild) won /xcpdata but /xcpqueue may
             // already exist. platformShmOpen does NOT reclaim it when sizes differ — we own it.
-            (void)elected;
+            if (elected) {
+                DBG_PRINTF3("XcpEthServerInit: SHM leader created /xcpqueue with size %zu bytes\n", shm_total);
+            } else {
+                DBG_PRINT_WARNING("XcpEthServerInit: Is SHM leader, but /xcpqueue already exists, not reinitializing\n");
+            }
         } else {
             // Follower: attach to the existing queue at whatever size the leader allocated
             shm_ptr = platformShmOpenAttach("/xcpqueue", &shm_total);
@@ -165,6 +169,7 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
                 DBG_PRINT_ERROR("XcpEthServerInit: failed to attach /xcpqueue SHM\n");
                 return false;
             }
+            DBG_PRINTF3("XcpEthServerInit: SHM follower attached to /xcpqueue with size %zu bytes\n", shm_total);
         }
 
         gXcpServer.shm_leader = is_leader;
@@ -213,7 +218,7 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
         // Bind the queue to the XCP protocol layer and start XCP
         XcpStart(gXcpServer.TransmitQueue, false);
 
-        if (!is_server) {
+        if (!gXcpServer.shm_server) {
 
             // Start the background polling thread
             gXcpServer.FollowerThreadRunning = false;
@@ -266,52 +271,55 @@ bool XcpEthServerShutdown(void) {
         return false;
     }
 
+    // Check if already initialized and running
+    if (!gXcpServer.isInit) {
+        DBG_PRINT_WARNING("XCP server not running!\n");
+        return false;
+    }
+
 #ifdef OPTION_SHM_MODE
-    // SHM follower: no socket or server threads — stop the background thread, then clean up
-    if (XcpGetInitMode() == XCP_MODE_SHM && gXcpServer.isInit && !gXcpServer.shm_leader) {
+    // Not SHM server: no socket or server threads — stop the background thread, then clean up
+    if (XcpShmActive() && !gXcpServer.shm_server) {
         gXcpServer.FollowerThreadRunning = false;
         join_thread(gXcpServer.FollowerThreadHandle);
-        gXcpServer.isInit = false;
-        queueDeinit(gXcpServer.TransmitQueue);
-        platformShmClose("/xcpqueue", gXcpServer.shm_queue_ptr, gXcpServer.shm_queue_total_size, false);
+        platformShmClose("/xcpqueue", gXcpServer.shm_queue_ptr, gXcpServer.shm_queue_total_size, false); // Unmap but do not unlink the SHM region
         gXcpServer.shm_queue_ptr = NULL;
+        gXcpServer.isInit = false;
         return true;
     }
 #endif // OPTION_SHM_MODE
 
+    DBG_PRINT3("Disconnect, cancel threads and shutdown XCP!\n");
+    XcpDisconnect();
+    cancel_thread(gXcpServer.ReceiveThreadHandle);
 #ifdef OPTION_SERVER_FORCEFULL_TERMINATION
     // Forcefull termination
-    if (gXcpServer.isInit) {
-        DBG_PRINT3("Disconnect, cancel threads and shutdown XCP!\n");
-        XcpDisconnect();
-        cancel_thread(gXcpServer.ReceiveThreadHandle);
-        cancel_thread(gXcpServer.TransmitThreadHandle);
-        XcpEthTlShutdown();
-        gXcpServer.isInit = false;
-        socketCleanup();
-        XcpReset();
-    }
+    // Threads are cancelled immediately without waiting for clean termination
+    cancel_thread(gXcpServer.TransmitThreadHandle);
+    XcpEthTlShutdown();
 #else
     // Gracefull termination
-    if (gXcpServer.isInit) {
-        XcpDisconnect();
-        gXcpServer.ReceiveThreadRunning = false;
-        gXcpServer.TransmitThreadRunning = false;
-        XcpEthTlShutdown();
-        join_thread(gXcpServer.ReceiveThreadHandle);
-        join_thread(gXcpServer.TransmitThreadHandle);
-        gXcpServer.isInit = false;
-        socketCleanup();
-        XcpReset();
-    }
+    // Close the sockets first, to release the blocking receive and transmit
+    gXcpServer.ReceiveThreadRunning = false;
+    gXcpServer.TransmitThreadRunning = false;
+    XcpEthTlShutdown();
+    join_thread(gXcpServer.ReceiveThreadHandle);
+    join_thread(gXcpServer.TransmitThreadHandle);
 #endif
 
+    gXcpServer.isInit = false;
+
+    socketCleanup();
+
+    // XcpReset();
+
+    // Free the transmit queue
     queueDeinit(gXcpServer.TransmitQueue);
 
 #ifdef OPTION_SHM_MODE
-    // SHM leader: release the /xcpqueue shared memory region and unlink the SHM object
-    if (gXcpServer.shm_queue_ptr != NULL) {
-        platformShmClose("/xcpqueue", gXcpServer.shm_queue_ptr, gXcpServer.shm_queue_total_size, gXcpServer.shm_leader);
+    // Unmap but do not unlink the SHM region for the transmit queue
+    if (XcpShmActive() && gXcpServer.shm_queue_ptr != NULL) {
+        platformShmClose("/xcpqueue", gXcpServer.shm_queue_ptr, gXcpServer.shm_queue_total_size, false);
         gXcpServer.shm_queue_ptr = NULL;
     }
 #endif

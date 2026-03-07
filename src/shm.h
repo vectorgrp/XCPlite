@@ -31,7 +31,7 @@ typedef struct XcpData tXcpData;
 /* Protocol layer state data                                                */
 /****************************************************************************/
 
-// Shared-memory application registration table for /xcpdata
+// Shared-memory application registration table
 
 #define SHM_MAGIC 0x5843504C4954455F // "XCPLITE_" in little-endian ASCII
 #define SHM_VERSION 0x00010000       // Version 1.0.0
@@ -47,7 +47,7 @@ typedef union {
         char epk[XCP_EPK_MAX_LENGTH + 1];                   // build version  (null-terminated)
         char a2l_name[XCP_A2L_FILENAME_MAX_LENGTH + 1];     // A2L filename without ext
         uint32_t pid;                                       // OS process ID; 0 = slot is vacant
-        uint8_t is_leader;                                  // != 0 this process created /xcpdata (the SHM owner)
+        uint8_t is_leader;                                  // != 0 this process created the shared memory segment
         uint8_t is_server;                                  // != 0 this process is the XCP server (handles client connections and DAQ)
         uint8_t pad1[2];                                    // explicit padding for deterministic cross-compiler layout
         atomic_uint_least32_t alive_counter;                // incremented periodically by each process's background thread;
@@ -58,14 +58,14 @@ typedef union {
 } tApp;
 static_assert(sizeof(tApp) == 512, "sizeof tApp must be 512 bytes");
 
-// Shared-memory header at the start of /xcpdata.
+// Shared-memory header
 // Control area (first 64 bytes = one cache line) followed by the per-process application list.
 typedef struct {
     // --- Control area (64 bytes, one cache line) ---
-    uint64_t magic;                               // SHM_MAGIC: marks a valid /xcpdata region
+    uint64_t magic;                               // SHM_MAGIC: marks as valid
     uint32_t version;                             // SHM_VERSION: layout version for forward compatibility
-    uint32_t size;                                // total /xcpdata mmap size in bytes
-    uint32_t leader_pid;                          // PID of the process that created /xcpdata
+    uint32_t size;                                // total mmap size in bytes
+    uint32_t leader_pid;                          // PID of the process that created the shared memory region, 0 until ready
     atomic_uint_least32_t app_count;              // number of registered slots (grows up to SHM_MAX_APP_COUNT)
     atomic_uint_least32_t a2l_finalize_requested; // leader writes 1 here on the first XCP client CONNECT;
                                                   //   each follower's background thread polls this and calls A2lFinalize()

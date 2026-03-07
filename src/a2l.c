@@ -1817,7 +1817,6 @@ bool A2lCheckFinalizeOnConnect(uint8_t connect_mode) {
     // Finalize A2l once on connect, if A2L generation is active
     if (gA2lFinalizeOnConnect && gA2lFile != NULL) {
         A2lFinalize();
-        // Note: in SHM leader mode, XcpShmRequestA2lFinalize() is called inside A2lFinalize()
     }
 
     // If A2l generation is active, refuse connect

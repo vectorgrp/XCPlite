@@ -50,7 +50,7 @@ bool XcpIsInitialized(void);
 bool XcpIsActivated(void);
 uint8_t XcpGetInitMode(void); // Returns the mode passed to XcpInit() — XCP_MODE_DEACTIVATE/LOCAL/SHM
 void XcpStart(tQueueHandle queue_handle, bool resumeMode);
-void XcpReset(void);
+// void XcpReset(void);
 
 // Project name
 const char *XcpGetProjectName(void);
@@ -158,7 +158,6 @@ typedef struct {
 } tXcpEvent;
 
 typedef struct {
-    MUTEX mutex;
     atomic_uint_fast16_t count;           // number of events
     tXcpEvent event[XCP_MAX_EVENT_COUNT]; // event list
 } tXcpEventList;
@@ -272,13 +271,10 @@ typedef struct {
 
 // Calibration segment list
 typedef struct {
-    // calseg_offset[i] is the byte offset of calseg i from cal_mem[0]
-    // XCP_CALSEG_NO_PAGE means slot is unused
-    uint32_t calseg_offset[XCP_MAX_CALSEG_COUNT];
-    MUTEX mutex;
-    atomic_uint_fast16_t count;    // Number of calibration segments, max XCP_MAX_CALSEG_COUNT
-    uint16_t memory_segment_count; // Number of memory segments used by calibration segments, max 255
-    bool write_delayed;            // atomic calibration (begin/end user command) in progress
+    atomic_uint_least32_t offset[XCP_MAX_CALSEG_COUNT]; // calseg_offset[i] is the byte offset of calseg i from cal_mem[0], XCP_CALSEG_NO_PAGE means slot is unused
+    atomic_uint_fast16_t count;                         // Number of calibration segments, max XCP_MAX_CALSEG_COUNT
+    uint16_t memory_segment_count;                      // Number of memory segments used by calibration segments, max 255
+    bool write_delayed;                                 // atomic calibration (begin/end user command) in progress
 
     // Thread-safe bump allocator pool for calibration segment memory segments
     atomic_uint_fast32_t cal_mem_used; // Bytes consumed so far, updated with CAS
@@ -289,7 +285,7 @@ typedef struct {
 } tXcpCalSegList;
 
 // Resolve a calseg index to a pointer within cal_mem[]
-#define CalSegPtr(list, idx) ((tXcpCalSeg *)(&(list).cal_mem[(list).calseg_offset[(idx)]]))
+#define CalSegPtr(list, idx) ((tXcpCalSeg *)(&(list).cal_mem[(list).offset[(idx)]]))
 
 // Get calibration segment  list
 const tXcpCalSegList *XcpGetCalSegList(void);
@@ -447,7 +443,7 @@ typedef struct XcpData {
     uint16_t session_status; // must be the first field of the struct
 
 #ifdef OPTION_SHM_MODE
-    tShmHeader shm_header; // SHM header for /xcpdata,
+    tShmHeader shm_header; // SHM header
 #endif
 
     tXcpCto crm;     /* response message buffer */
@@ -503,7 +499,7 @@ typedef struct XcpLocalData {
 #ifdef OPTION_SHM_MODE
     uint8_t shm_app_id; // Index in shm_header.app_list,  SHM_MAX_APP_COUNT = no slot assigned yet
     bool shm_server;    // This process is the XCP server
-    bool shm_leader;    // This process created /xcpdata
+    bool shm_leader;    // This process created the shared memory segment, responsible for initializing
 #endif
 
     // Memory transfer address (virtual pointer, OS handle)
@@ -519,6 +515,11 @@ typedef struct XcpLocalData {
 
     // DAQ timing (XCP command thread only)
     uint64_t daq_start_clock; // DAQ start timestamp
+
+    // Local mutexes for event and calseg creation
+    // Between processes, namespaces are separated, memory and index allocation itself is thread-safe and lockless
+    MUTEX cal_seg_list_mutex;
+    MUTEX event_list_mutex;
 
     // Per-process identity
     char project_name[XCP_PROJECT_NAME_MAX_LENGTH + 1]; // Project name string, null terminated

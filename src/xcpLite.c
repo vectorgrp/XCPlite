@@ -464,7 +464,7 @@ static void XcpInitCalSegList(void) {
     atomic_store_explicit(&shared_mut_safe.cal_seg_list.cal_mem_used, 0, memory_order_relaxed);
     shared_mut.cal_seg_list.memory_segment_count = 0;
     shared_mut.cal_seg_list.write_delayed = false;
-    mutexInit(&shared_mut_safe.cal_seg_list.mutex, false, 0); // Non-recursive mutex, no spin count
+    mutexInit(&local_mut.cal_seg_list_mutex, false, 0); // Non-recursive mutex, no spin count
 }
 
 // Thread-safe bump allocator for calibration segment memory
@@ -487,17 +487,17 @@ static void *XcpCalMemAlloc_(size_t size) {
 }
 
 // Free the calibration segment list
-static void XcpFreeCalSegList(void) {
-    assert(isInitialized());
-    uint16_t n = XcpGetCalSegCount();
-    for (uint16_t i = 0; i < n; i++) {
-        shared_mut.cal_seg_list.calseg_offset[i] = XCP_CALSEG_NO_PAGE;
-    }
-    atomic_store_explicit(&shared_mut_safe.cal_seg_list.count, 0, memory_order_relaxed);
-    atomic_store_explicit(&shared_mut_safe.cal_seg_list.cal_mem_used, 0, memory_order_relaxed); // Reset bump pointer, frees all calseg memory at once
-    shared_mut.cal_seg_list.memory_segment_count = 0;
-    mutexDestroy(&shared_mut_safe.cal_seg_list.mutex);
-}
+// static void XcpFreeCalSegList(void) {
+//     assert(isInitialized());
+//     uint16_t n = XcpGetCalSegCount();
+//     for (uint16_t i = 0; i < n; i++) {
+//         shared_mut.cal_seg_list.offset[i] = XCP_CALSEG_NO_PAGE;
+//     }
+//     atomic_store_explicit(&shared_mut_safe.cal_seg_list.count, 0, memory_order_relaxed);
+//     atomic_store_explicit(&shared_mut_safe.cal_seg_list.cal_mem_used, 0, memory_order_relaxed); // Reset bump pointer, frees all calseg memory at once
+//     shared_mut.cal_seg_list.memory_segment_count = 0;
+//     mutexDestroy(&local_mut.cal_seg_list_mutex);
+// }
 
 // Get a pointer to the list and the size of the list
 const tXcpCalSegList *XcpGetCalSegList(void) {
@@ -703,7 +703,8 @@ static tXcpCalSegIndex XcpCreateCalSegFromMemory_(const char *name, const void *
 
     assert(isInitialized());
 
-    mutexLock(&shared_mut_safe.cal_seg_list.mutex);
+    // @@@@ TODO: Remove this mutex
+    mutexLock(&local_mut.cal_seg_list_mutex);
 
     tXcpCalSeg *c = NULL;
     tXcpCalSegIndex calseg_index = XCP_UNDEFINED_CALSEG;
@@ -739,14 +740,14 @@ static tXcpCalSegIndex XcpCreateCalSegFromMemory_(const char *name, const void *
 
         // Check if out of list space
         if (calseg_index >= XCP_MAX_CALSEG_COUNT - 1) {
-            mutexUnlock(&shared_mut_safe.cal_seg_list.mutex);
+            mutexUnlock(&local_mut.cal_seg_list_mutex);
             DBG_PRINT_ERROR("too many calibration segments\n");
             return XCP_UNDEFINED_CALSEG;
         }
 
         // Check if enough memory for the new segment
         if (memory_buffer == NULL || memory_size < (sizeof(tXcpCalSegHeader) + 4 * aligned_page_size)) {
-            mutexUnlock(&shared_mut_safe.cal_seg_list.mutex);
+            mutexUnlock(&local_mut.cal_seg_list_mutex);
             DBG_PRINT_ERROR("not enough memory for calibration segment\n");
             return XCP_UNDEFINED_CALSEG;
         }
@@ -754,7 +755,7 @@ static tXcpCalSegIndex XcpCreateCalSegFromMemory_(const char *name, const void *
         // Create a new calibration segment with given default page
         c = (tXcpCalSeg *)memory_buffer;
         // Store offset from cal_mem base instead of pointer
-        shared_mut_safe.cal_seg_list.calseg_offset[calseg_index] = (uint32_t)((uint8_t *)memory_buffer - shared_mut_safe.cal_seg_list.cal_mem);
+        shared_mut_safe.cal_seg_list.offset[calseg_index] = (uint32_t)((uint8_t *)memory_buffer - shared_mut_safe.cal_seg_list.cal_mem);
         STRNCPY(c->h.name, name, XCP_MAX_CALSEG_NAME);
         c->h.name[XCP_MAX_CALSEG_NAME] = 0;
         c->h.size = page_size;
@@ -765,7 +766,7 @@ static tXcpCalSegIndex XcpCreateCalSegFromMemory_(const char *name, const void *
 #endif
         if (memory_segment) { // Create a memory segment with a memory segment number, which can be used for XCP access and has the related XCP features
             if (shared.cal_seg_list.memory_segment_count >= 0xFF) {
-                mutexUnlock(&shared_mut_safe.cal_seg_list.mutex);
+                mutexUnlock(&local_mut.cal_seg_list_mutex);
                 DBG_PRINT_ERROR("too many memory segments for calibration segments\n");
                 return XCP_UNDEFINED_CALSEG;
             }
@@ -791,7 +792,7 @@ static tXcpCalSegIndex XcpCreateCalSegFromMemory_(const char *name, const void *
 #endif
 #else
             // Not allowed without XCP_ENABLE_CAL_PERSISTENCE
-            mutexUnlock(&shared_mut_safe.cal_seg_list.mutex);
+            mutexUnlock(&local_mut.cal_seg_list_mutex);
             DBG_PRINT_ERROR("No default page provided for calibration segment\n");
             return XCP_UNDEFINED_CALSEG;
 #endif
@@ -881,7 +882,7 @@ static tXcpCalSegIndex XcpCreateCalSegFromMemory_(const char *name, const void *
     c->h.mode = 0; // Default mode is freeze not enabled, set by XCP command SET_SEGMENT_MODE, clear the preloaded flag
 #endif
 
-    mutexUnlock(&shared_mut_safe.cal_seg_list.mutex);
+    mutexUnlock(&local_mut.cal_seg_list_mutex);
     return calseg_index;
 }
 
@@ -1608,13 +1609,14 @@ static uint8_t calcChecksum(uint32_t checksum_size, uint32_t *checksum_result) {
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
 
 #define getEventCount() (uint16_t)atomic_load_explicit(&shared.event_list.count, memory_order_acquire)
-#define setEventCount(c) atomic_store_explicit(&shared_mut_safe.event_list.count, c, memory_order_release)
+#define setEventCount(n) atomic_store_explicit(&shared_mut_safe.event_list.count, n, memory_order_release)
 
 // Initialize the XCP event list
 void XcpInitEventList(void) {
 
-    setEventCount(0); // Reset event list
-    mutexInit(&shared_mut_safe.event_list.mutex, false, 1000);
+    // Reset event list count
+    atomic_store_explicit(&shared_mut_safe.event_list.count, 0, memory_order_release);
+    mutexInit(&local_mut.event_list_mutex, false, 1000);
 }
 
 // Get a pointer to and the size of the XCP event list
@@ -1664,7 +1666,7 @@ static tXcpEventId XcpFindEventInstances(const char *name, uint16_t *pcount) {
         uint16_t count = getEventCount();
         for (uint16_t i = 0; i < count; i++) {
 #ifdef OPTION_SHM_MODE
-            // In SHM mode, match only entries owned by this process — different apps may use the same name
+            // In SHM mode, match only entries owned by this process — different apps have different namespace
             if (shared.event_list.event[i].app_id == local.shm_app_id && strcmp(shared.event_list.event[i].name, name) == 0) {
 #else
             if (strcmp(shared.event_list.event[i].name, name) == 0) {
@@ -1742,12 +1744,12 @@ tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycle_time_ns, uin
     }
 
     uint16_t count = 0;
-    mutexLock(&shared_mut_safe.event_list.mutex);
+    mutexLock(&local_mut.event_list_mutex);
     XcpFindEventInstances(name, &count);
     // @@@@ TODO: use preloaded event instances instead of creating a new instance
     // Event instances have no identity, could use any unused preload event instance with this name
     tXcpEventId id = XcpCreateIndexedEvent(name, count + 1, cycle_time_ns, priority);
-    mutexUnlock(&shared_mut_safe.event_list.mutex);
+    mutexUnlock(&local_mut.event_list_mutex);
     return id;
 }
 
@@ -1761,16 +1763,16 @@ tXcpEventId XcpCreateEvent(const char *name, uint32_t cycle_time_ns, uint8_t pri
     }
 
     uint16_t count = 0;
-    mutexLock(&shared_mut_safe.event_list.mutex);
+    mutexLock(&local_mut.event_list_mutex);
     tXcpEventId id = XcpFindEventInstances(name, &count);
     if (id != XCP_UNDEFINED_EVENT_ID) {
-        mutexUnlock(&shared_mut_safe.event_list.mutex);
+        mutexUnlock(&local_mut.event_list_mutex);
         DBG_PRINTF4("Event '%s' already defined, id=%u\n", name, id);
         assert(count == 1); // Creating additional event instances is not supported, use XcpCreateEventInstance
         return id;          // Event already exists, return the existing event id, event could be preloaded from binary freeze file for A2L stability
     }
     id = XcpCreateIndexedEvent(name, 0, cycle_time_ns, priority);
-    mutexUnlock(&shared_mut_safe.event_list.mutex);
+    mutexUnlock(&local_mut.event_list_mutex);
     return id;
 }
 
@@ -2643,8 +2645,8 @@ void XcpDisconnect(void) {
         return;
 
 #ifdef OPTION_SHM_MODE
-    if (XcpShmIsFollower()) {
-        return; // In shared memory mode, only the leader can disconnect, followers automatically disconnect when the leader disconnects
+    if (!XcpShmIsServer()) {
+        return;
     }
 #endif
 
@@ -4053,26 +4055,26 @@ void XcpStart(tQueueHandle queue_handle, bool resumeMode) {
 }
 
 // Reset XCP protocol layer back to not init state
-void XcpReset(void) {
+// void XcpReset(void) {
 
-    if (!isActivated()) { // Ignore
-        return;
-    }
+//     if (!isActivated()) { // Ignore
+//         return;
+//     }
 
-    assert(!XcpIsDaqRunning());
+//     assert(!XcpIsDaqRunning());
 
-#ifdef TEST_MUTABLE_ACCESS_OWNERSHIP
-    XcpBindOwnerThread();
-#endif
+// #ifdef TEST_MUTABLE_ACCESS_OWNERSHIP
+//     XcpBindOwnerThread();
+// #endif
 
-    // Free calibration list memory allocations
-#ifdef XCP_ENABLE_CALSEG_LIST
-    XcpFreeCalSegList();
-#endif
+//     // Free calibration list memory allocations
+// #ifdef XCP_ENABLE_CALSEG_LIST
+//     XcpFreeCalSegList();
+// #endif
 
-    // Reset XCP state to not initialized
-    shared_mut.session_status = 0;
-}
+//     // Reset XCP state to not initialized
+//     shared_mut.session_status = 0;
+// }
 
 /****************************************************************************/
 /* Test printing                                                            */

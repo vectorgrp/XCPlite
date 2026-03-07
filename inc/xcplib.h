@@ -592,7 +592,7 @@ void XcpSetLogLevel(uint8_t level);
 bool XcpInit(const char *name, const char *epk, uint8_t mode);
 
 /// Reset XCP library to initial state
-void XcpReset(void);
+// void XcpReset(void);
 
 /// Check if XCP has been activated
 bool XcpIsActivated(void);
