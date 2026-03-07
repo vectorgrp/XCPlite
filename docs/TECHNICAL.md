@@ -133,6 +133,9 @@ In XCPlite, the EPK may be specified with an API function or is generated from b
 
 ### The XCPlite RCU Algorithm for calibration segment updates
 
+Precondition for this lock-free algorithm is, that there is only one writer thread (XCP thread).  
+Calibration segment creation must be thread-safe. XcpCreateCalSeg uses a local mutex to achieve this. 
+
 Here is the used RCU algorithm as pseudo code:
 
 The 3 pages are named as follows:
