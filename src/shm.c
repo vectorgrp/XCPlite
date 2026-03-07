@@ -251,7 +251,8 @@ void XcpShmNotifyA2lFinalized(const char *a2l_name) {
 
 // Get the number of registered applications in SHM mode.
 uint8_t XcpShmGetAppCount(void) {
-    assert(XcpShmActive());
+    if (!XcpShmActive())
+        return 0;
     assert(isActivated_(gXcpData));
     return (uint8_t)atomic_load(&gXcpData->shm_header.app_count);
 }

@@ -248,13 +248,16 @@ bool XcpBinWrite(uint8_t page) {
         DBG_PRINTF3("Failed to open file %s for writing: %s\n", gXcpBinFilename, strerror(errno));
         return false;
     }
-    if (!writeHeader(file, XcpGetEpk(), XcpGetEventCount(), XcpGetCalSegCount(), XcpShmGetAppCount())) {
+
+    uint8_t app_count = XcpShmGetAppCount();
+    uint16_t event_count = XcpGetEventCount();
+    uint16_t calseg_count = XcpGetCalSegCount();
+    if (!writeHeader(file, XcpGetEpk(), event_count, calseg_count, app_count)) {
         fclose(file);
         return false;
     }
 
     // Write events
-    uint16_t event_count = XcpGetEventCount();
     for (tXcpEventId i = 0; i < event_count; i++) {
         const tXcpEvent *event = XcpGetEvent(i);
         if (!writeEvent(file, i, event)) {
@@ -264,7 +267,7 @@ bool XcpBinWrite(uint8_t page) {
     }
 
     // Write calibration segments descriptors and data
-    uint16_t calseg_count = XcpGetCalSegCount();
+    // @@@@ Iterate cal_seg_list cal_seg_list
     for (tXcpCalSegIndex i = 0; i < calseg_count; i++) {
         const tXcpCalSeg *seg = XcpGetCalSeg(i);
         assert(seg != NULL);
@@ -276,7 +279,6 @@ bool XcpBinWrite(uint8_t page) {
 
 #ifdef OPTION_SHM_MODE
     // Write application descriptors
-    uint8_t app_count = XcpShmGetAppCount();
     for (uint8_t i = 0; i < app_count; i++) {
         if (!writeApp(file, i, XcpShmGetAppProjectName(i), XcpShmGetAppEpk(i))) {
             fclose(file);

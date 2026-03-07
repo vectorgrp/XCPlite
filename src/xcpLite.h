@@ -285,10 +285,11 @@ typedef struct {
 } tXcpCalSegList;
 
 // Resolve a calseg index to a pointer within cal_mem[]
-#define CalSegPtr(list, idx) ((tXcpCalSeg *)(&(list).cal_mem[(list).offset[(idx)]]))
+#define CalSegPtr(idx) ((const tXcpCalSeg *)(&(shared.cal_seg_list.cal_mem[shared.cal_seg_list.offset[(idx)]])))
+#define CalSegPtrMut(idx) ((tXcpCalSeg *)(&(shared.cal_seg_list.cal_mem[shared.cal_seg_list.offset[(idx)]])))
 
 // Get calibration segment  list
-const tXcpCalSegList *XcpGetCalSegList(void);
+// const tXcpCalSegList *XcpGetCalSegList(void);
 
 // Get the number of calibration segments
 uint16_t XcpGetCalSegCount(void);

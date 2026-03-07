@@ -653,19 +653,14 @@ static void A2lCreate_MOD_PAR(void) {
 
     // Memory segments
 #ifdef XCP_ENABLE_CALSEG_LIST
-    const tXcpCalSegList *calSegList = XcpGetCalSegList();
-    if (calSegList != NULL &&
-#ifdef OPTION_CAL_SEGMENT_EPK // Don't create calseg the EPK segment if it is the only one
-        calSegList->count > 1)
-#else
-        calSegList->count > 0)
-#endif
     {
+        // @@@@ Iterate cal_seg_list cal_seg_lis
         // Not all calibration segments are memory segments
-        for (tXcpCalSegIndex i = 0; i < calSegList->count; i++) {
+        uint16_t calSegCount = XcpGetCalSegCount();
+        for (tXcpCalSegIndex i = 0; i < calSegCount; i++) {
             tXcpCalSegNumber n = XcpGetCalSegNumber(i);
             if (n != XCP_UNDEFINED_CALSEG_NUM) {
-                const tXcpCalSeg *calseg = CalSegPtr(*calSegList, i);
+                const tXcpCalSeg *calseg = XcpGetCalSeg(i);
                 // In SHM mode prefix the segment name with the owning application's project name
 #ifdef OPTION_SHM_MODE
                 const char *app_name = XcpShmGetAppProjectName(calseg->h.app_id);
