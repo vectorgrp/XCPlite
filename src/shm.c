@@ -205,7 +205,8 @@ void XcpShmDebugPrint(tXcpData *xcp_data) {
 
 #endif
 
-// Signal all follower processes to finalize their A2L file immediately.
+// Signal all follower processes to finalize their A2L file immediately
+// From now, no other processes may join the XCP session
 void XcpShmRequestA2lFinalize(void) {
 
     assert(XcpShmActive());
@@ -213,8 +214,14 @@ void XcpShmRequestA2lFinalize(void) {
 
     if (!XcpShmIsServer())
         return;
+
     atomic_store(&gXcpData->shm_header.a2l_finalize_requested, 1U);
-    DBG_PRINT3("XcpShmRequestA2lFinalize: requested A2L finalization for all followers\n");
+
+    // @@@@ TODO Unlink or not, a process might want to join running measurement
+    platformShmUnlink("/xcpdata");
+    platformShmUnlink("/xcpqueue");
+
+    DBG_PRINT3("XcpShmRequestA2lFinalize: requested A2L finalization for all followers, unlinked /xcpdata and /xcpqueue\n");
 }
 
 // Returns true once the leader has set the A2L finalize request flag.

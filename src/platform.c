@@ -322,13 +322,21 @@ void *platformShmOpenAttach(const char *name, size_t *size_out) {
     return ptr;
 }
 
-void platformShmClose(const char *name, void *ptr, size_t size, bool is_leader) {
+void platformShmClose(const char *name, void *ptr, size_t size, bool unlink) {
     if (ptr != NULL) {
         munmap(ptr, size);
+        DBG_PRINTF5("platformShmClose: unmapped '%s'\n", name);
     }
-    if (is_leader && name != NULL) {
+    if (unlink && name != NULL) {
         shm_unlink(name);
         DBG_PRINTF5("platformShmClose: unlinked '%s'\n", name);
+    }
+}
+
+void platformShmUnlink(const char *name) {
+    if (name != NULL) {
+        shm_unlink(name);
+        DBG_PRINTF5("platformShmUnlink: unlinked '%s'\n", name);
     }
 }
 

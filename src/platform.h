@@ -224,8 +224,12 @@ void *platformShmOpen(const char *name, const char *lock_path, size_t size, bool
 // Does NOT participate in leader election — use only when the caller is certain it is a follower.
 void *platformShmOpenAttach(const char *name, size_t *size_out);
 
-// Unmap a previously opened SHM region. If is_leader, also calls shm_unlink().
-void platformShmClose(const char *name, void *ptr, size_t size, bool is_leader);
+// Unmap a previously opened SHM region. If unlink is true, also calls shm_unlink().
+void platformShmClose(const char *name, void *ptr, size_t size, bool unlink);
+
+// Remove the SHM name without unmapping. Safe to call while the segment is still mapped.
+// Prevents new processes from attaching; existing mappings remain valid.
+void platformShmUnlink(const char *name);
 
 #endif // !_WIN
 
