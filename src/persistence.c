@@ -344,6 +344,25 @@ bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg) {
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
+uint8_t *XcpCreateCalSegPreloaded(const char *name, uint16_t size, uint16_t index, uint32_t file_pos) {
+
+    // Create a calibration segment without an initial value
+    tXcpCalSegIndex calseg = XcpCreateCalSeg(name, NULL, size);
+    if (calseg != (tXcpCalSegIndex)index) {
+        return NULL;
+    }
+
+    // Mark the segment as preloaded
+    // @@@@ TODO cast away const, improve design to avoid this
+    tXcpCalSeg *seg = (tXcpCalSeg *)XcpGetCalSeg(calseg);
+    seg->h.mode = PAG_PROPERTY_PRELOAD;
+    seg->h.file_pos = file_pos; // Save the position of the segment page data in the file
+
+    // Read calibration segment page data into the default page of the calibration segment
+    void *default_page = CalSegDefaultPage(seg);
+    return default_page;
+}
+
 // Load the binary persistence file.
 // @param filename The pathname of the file (with extension) to read
 // @param epk The expected EPK string for verification
@@ -422,7 +441,6 @@ static bool load(const char *filename, const char *epk) {
         return false;
     }
     for (uint16_t i = 0; i < gBinHeader.calseg_count; i++) {
-        tXcpCalSegIndex calseg;
 
         tCalSegDescriptor desc;
         read = fread(&desc, sizeof(tCalSegDescriptor), 1, file);
@@ -432,24 +450,14 @@ static bool load(const char *filename, const char *epk) {
             return false;
         }
 
-        // Create a calibration segment without an initial value
-        calseg = XcpCreateCalSeg(desc.name, NULL, desc.size);
-        if (calseg != desc.index) {
+        uint8_t *default_page = XcpCreateCalSegPreloaded(desc.name, desc.size, desc.index, (uint32_t)ftell(file) - desc.size);
+        if (default_page == NULL) {
             DBG_PRINT_ERROR("Failed to create calibration segment\n");
             fclose(file);
             return false;
         }
 
-        // Mark the segment as preloaded
-        // @@@@ TODO cast away const, improve design to avoid this
-        tXcpCalSeg *seg = (tXcpCalSeg *)XcpGetCalSeg(calseg);
-        seg->h.mode = PAG_PROPERTY_PRELOAD;
-        seg->h.file_pos = (uint32_t)ftell(file) - desc.size; // Save the position of the segment page data in the file
-
-        // Read calibration segment page data into the default page of the calibration segment
-        void *page = CalSegDefaultPage(seg);
-        assert(page != NULL);
-        read = fread(page, desc.size, 1, file);
+        read = fread(default_page, desc.size, 1, file);
         if (read != 1) {
             DBG_PRINTF_ERROR("Failed to read calibration segment data from file: %s\n", strerror(errno));
             fclose(file);
@@ -458,7 +466,7 @@ static bool load(const char *filename, const char *epk) {
 #ifdef OPTION_ENABLE_DBG_PRINTS
         DBG_PRINTF4("Reading calibration segment %u, size=%u:\n", i, desc.size);
         if (DBG_LEVEL >= 4)
-            printCalsegPage(page, desc.size);
+            printCalsegPage(default_page, desc.size);
 #endif
     }
 

@@ -259,9 +259,14 @@ int main(int argc, char *argv[]) {
     printf("\n\nStart calibration segment access test ...\n");
 
     // Check initial values
+    // Could be 0 or 1,2,3,4,.. from binary persistence file
     {
         auto parameters = calseg->lock();
-        if (memcmp(parameters.get(), &kParameters, sizeof(ParametersT)) != 0) {
+        if (check_test_data(parameters.get(), 1)) {
+            printf("Calibration segment has binary persistence file values\n");
+        } else if (memcmp(parameters.get(), &kParameters, sizeof(ParametersT)) == 0) {
+            printf("Calibration segment has default initial values\n");
+        } else {
             printf("ERROR: Checking calibration segment read initial values failed\n");
             total_errors += 1;
         }
@@ -270,7 +275,7 @@ int main(int argc, char *argv[]) {
     XcpCalSegSetCalPage(1, 0, 0x83);
     {
         auto parameters = calseg->lock();
-        if (memcmp(parameters.get(), &kParameters, sizeof(ParametersT)) != 0) {
+        if (memcmp(parameters.get(), &kParameters, sizeof(ParametersT)) != 0 && !check_test_data(parameters.get(), 1)) {
             printf("ERROR: Checking calibration segment read initial RAM page values failed\n");
             total_errors += 1;
         }
@@ -279,7 +284,7 @@ int main(int argc, char *argv[]) {
     XcpCalSegSetCalPage(1, 0, 0x83);
     {
         auto parameters = calseg->lock();
-        if (memcmp(parameters.get(), &kParameters, sizeof(ParametersT)) != 0) {
+        if (memcmp(parameters.get(), &kParameters, sizeof(ParametersT)) != 0 && !check_test_data(parameters.get(), 1)) {
             printf("ERROR: Checking calibration segment read initial FLASH page values failed\n");
             total_errors += 1;
         }
@@ -344,8 +349,8 @@ int main(int argc, char *argv[]) {
     XcpCalSegSetCalPage(1, 1, 0x83);
     {
         auto parameters = calseg->lock();
-        if (parameters->check != 0) {
-            printf("ERROR: Checking calibration segment FLASH page check=%u, expected 0\n", parameters->check);
+        if (parameters->check != 0 && parameters->check != 3) {
+            printf("ERROR: Checking calibration segment FLASH page check=%u, expected 0 or 3 \n", parameters->check);
             total_errors += 1;
         }
     }
@@ -389,7 +394,7 @@ int main(int argc, char *argv[]) {
         threads.emplace_back(worker_thread, i);
     }
 
-    // Finalize A2L
+    // Finalize A2L and write binary persistence file, to test loading of default values from the persistence file
     sleepUs(100000);
     A2lFinalize();
 
