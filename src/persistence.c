@@ -71,7 +71,8 @@ typedef struct {
     uint16_t size;                                    // Size of the calibration segment in bytes, multiple of 4
     uint32_t addr;                                    // Address of the calibration segment
     uint8_t app_id;                                   // App ID of the calibration segment owner in SHM mode, 0 in local mode
-    uint8_t reserved[128 - 2 - 2 - 4 - 1];            // Reserved for future use
+    uint8_t number;                                   // Memory segment number
+    uint8_t reserved[128 - 2 - 2 - 4 - 1 - 1];        // Reserved for future use
     char name[XCP_MAX_CALSEG_NAME + 1];               // Calibration segment name, 0 terminated
     uint8_t padding[128 - (XCP_MAX_CALSEG_NAME + 1)]; // Reserved for longer calibration segment names up to 128 bytes
 } tCalSegDescriptor;
@@ -174,6 +175,7 @@ static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, const tXcpCalSeg *se
     desc.size = seg->h.size;
     desc.addr = XcpGetCalSegBaseAddress(calseg);
     desc.index = calseg;
+    desc.number = seg->h.calseg_number;
 #ifdef OPTION_SHM_MODE
     desc.app_id = seg->h.app_id;
 #endif
@@ -344,25 +346,6 @@ bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg) {
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
-uint8_t *XcpCreateCalSegPreloaded(const char *name, uint16_t size, uint16_t index, uint32_t file_pos) {
-
-    // Create a calibration segment without an initial value
-    tXcpCalSegIndex calseg = XcpCreateCalSeg(name, NULL, size);
-    if (calseg != (tXcpCalSegIndex)index) {
-        return NULL;
-    }
-
-    // Mark the segment as preloaded
-    // @@@@ TODO cast away const, improve design to avoid this
-    tXcpCalSeg *seg = (tXcpCalSeg *)XcpGetCalSeg(calseg);
-    seg->h.mode = PAG_PROPERTY_PRELOAD;
-    seg->h.file_pos = file_pos; // Save the position of the segment page data in the file
-
-    // Read calibration segment page data into the default page of the calibration segment
-    void *default_page = CalSegDefaultPage(seg);
-    return default_page;
-}
-
 // Load the binary persistence file.
 // @param filename The pathname of the file (with extension) to read
 // @param epk The expected EPK string for verification
@@ -450,7 +433,7 @@ static bool load(const char *filename, const char *epk) {
             return false;
         }
 
-        uint8_t *default_page = XcpCreateCalSegPreloaded(desc.name, desc.size, desc.index, (uint32_t)ftell(file) - desc.size);
+        uint8_t *default_page = XcpCreateCalSegPreloaded(desc.name, desc.size, desc.index, desc.number, (uint32_t)ftell(file) - desc.size);
         if (default_page == NULL) {
             DBG_PRINT_ERROR("Failed to create calibration segment\n");
             fclose(file);

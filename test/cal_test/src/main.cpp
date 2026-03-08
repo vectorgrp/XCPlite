@@ -50,6 +50,7 @@ extern uint32_t gXcpRxPacketCount;
 #define OPTION_QUEUE_SIZE (1024 * 256)  // Size of the measurement queue in bytes, must be a multiple of 8
 #define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
+// #define TEST_CALBLK                 // Use CalBlk instead of CalSeg
 #define TEST_THREAD_COUNT 32        // Number of threads
 #define TEST_WRITE_COUNT 20000      // Test writes
 #define TEST_ATOMIC_CAL             // Test with atomic begin/end calibration segment access
@@ -79,7 +80,11 @@ static ParametersT kParameters = {
 };
 
 // Global calibration segment handle
+#ifdef TEST_CALBLK
+static xcplib::CalBlk<ParametersT> *calseg = nullptr; // Pointer to the calibration segment wrapper
+#else
 static xcplib::CalSeg<ParametersT> *calseg = nullptr; // Pointer to the calibration segment wrapper
+#endif
 
 //-----------------------------------------------------------------------------------------------------
 // Test statistics
@@ -242,8 +247,12 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Create the test calibration segment
+// Create the test calibration segment
+#ifdef TEST_CALBLK
+    auto calseg1 = xcplib::CreateCalBlk("kParameters", &kParameters);
+#else
     auto calseg1 = xcplib::CreateCalSeg("kParameters", &kParameters);
+#endif
 
     // Add the calibration segment description as a typedef instance to the A2L file
     A2lTypedefBegin(ParametersT, &kParameters, "A2L Typedef for ParametersT");
@@ -271,6 +280,8 @@ int main(int argc, char *argv[]) {
             total_errors += 1;
         }
     }
+
+#ifndef TEST_CALBLK
     // RAM page (0) of segment 1
     XcpCalSegSetCalPage(1, 0, 0x83);
     {
@@ -355,13 +366,17 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    // Initialize thread test data
+    // RAM page (0) of segment 1
+    XcpCalSegSetCalPage(1, 0, 0x83);
+
+#endif // TEST_CALBLK
+
+#// Initialize thread test data
     uint8_t test_data[TEST_DATA_SIZE];
     for (size_t i = 0; i < sizeof(test_data); i++) {
         test_data[i] = (uint8_t)(i);
     }
-    // RAM page (0) of segment 1
-    XcpCalSegSetCalPage(1, 0, 0x83);
+
     XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(1, offsetof(ParametersT, data)));
     XcpWriteMta(TEST_DATA_SIZE, &test_data[0]);
     for (int i = 0; i < 2; i++) {

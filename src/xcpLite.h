@@ -323,6 +323,9 @@ uint16_t XcpGetCalSegSize(tXcpCalSegIndex calseg);
 // Get the XCP/A2L address of a calibration segment
 uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg);
 
+// Create a preloaded calibration segment, which can be initialized with data from the binary persistence file at startup
+uint8_t *XcpCreateCalSegPreloaded(const char *name, uint16_t page_size, uint16_t index, uint8_t number, uint32_t file_pos);
+
 // Create a calibration segment
 tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint16_t page_size);
 
