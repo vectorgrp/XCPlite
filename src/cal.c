@@ -27,10 +27,10 @@
 
 #include "dbg_print.h"   // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
 #include "persistence.h" // for XcpBinFreezeCalSeg
-#include "platform.h"    // for atomics
-#include "shm.h"         // for OPTION_SHM_MODE shared memory management
-#include "xcp.h"         // XCP protocol definitions
-#include "xcpLite.h"     // XCP protocol layer interface functions
+#include "platform.h"    // for atomics OS abstraction
+// #include "shm.h"      // for shared memory management
+#include "xcp.h"     // XCP protocol definitions
+#include "xcpLite.h" // XCP protocol layer interface functions
 
 /**************************************************************************/
 // State
@@ -70,10 +70,14 @@ extern tXcpLocalData gXcpLocalData;
 #error "XCP_MAX_CALSEG_NAME must be <128 and odd for null termination"
 #endif
 
-uint8_t XCP_ADDR_MODE_SEG = XCP_ADDR_EXT_SEG;
+/**************************************************************************/
+// Forward declarations
 
-// Forward declaration — defined just below
 static void *XcpCalMemAlloc_(size_t size);
+static void XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *default_page, uint16_t page_size, bool memory_segment);
+static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, const void *default_page, uint16_t page_size, bool memory_segment);
+
+/**************************************************************************/
 
 // Initialize the calibration segment list
 void XcpInitCalSegList(void) {
@@ -234,7 +238,7 @@ uint16_t XcpGetCalSegSize(tXcpCalSegIndex calseg_index) {
     return CalSegPtr(calseg_index)->h.size;
 }
 
-// Get the XCP/A2L address (address mode XCP_ADDR_MODE_SEG or XCP_ADDR_MODE_ABS) of a calibration segment
+// Get the XCP/A2L address of a calibration segment
 uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg_index) {
     assert(isInitialized());
     if (calseg_index >= XcpGetCalSegCount() || CalSegPtr(calseg_index) == NULL)
@@ -253,10 +257,6 @@ uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg_index) {
     return XcpAddrEncodeAbs(CalSegPtr(calseg_index)->h.default_page_ptr);
 #endif
 }
-
-// Forward declarations
-static void XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *default_page, uint16_t page_size, bool memory_segment);
-static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, const void *default_page, uint16_t page_size, bool memory_segment);
 
 // Create a preloaded calibration segment, which is initialized with data from the binary persistence file at startup
 // Return the default page to the caller for initialization with the preloaded data, or NULL on error (e.g. wrong index, wrong memory segment number, out of memory, etc.)

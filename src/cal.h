@@ -151,11 +151,12 @@ uint8_t XcpGetMemSegCount(void);
 // In SHM mode, only searches within the calling process's own segments (scoped by app_id)
 tXcpCalSegIndex XcpFindCalSeg(const char *name);
 
-// Find a calibration segment by its default page pointer, returns XCP_UNDEFINED_CALSEG if not found
+// Find a calibration segment by exactly the default page pointer, returns XCP_UNDEFINED_CALSEG if not found
 #ifndef OPTION_SHM_MODE
 tXcpCalSegIndex XcpFindCalPage(const void *default_page);
 #endif
-// @@@@ Duplicate ????
+
+// Find a calibration segment by a pointer into its static default page memory, returns XCP_UNDEFINED_CALSEG if not found
 tXcpCalSegIndex XcpFindCalSegByAddr(uint8_t *addr);
 
 // Convert between segment number and segment index, returns XCP_UNDEFINED_CALSEG or XCP_UNDEFINED_CALSEG_NUM if not found
