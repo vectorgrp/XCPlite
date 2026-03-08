@@ -287,12 +287,6 @@ XCPlite relative addressing: XCPLITE__CASDD:
 #define XCP_ENABLE_FREEZE_CAL_PAGE
 // #define XCP_ENABLE_FREEZE_ON_DISCONNECT
 
-// Enable persistence of reference (default) page, instead of working page
-// This requires segment relative addressing mode !
-#ifdef OPTION_CAL_REFERENCE_PAGE_PERSISTENCE
-#define XCP_ENABLE_REFERENCE_PAGE_PERSISTENCE
-#endif
-
 #endif // OPTION_CAL_PERSISTENCE
 
 // Enable checksum calculation command

@@ -48,7 +48,7 @@ extern uint32_t gXcpRxPacketCount;
 #define OPTION_SERVER_PORT 5555         // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
 #define OPTION_QUEUE_SIZE (1024 * 256)  // Size of the measurement queue in bytes, must be a multiple of 8
-#define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_LOG_LEVEL 6              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 #define TEST_THREAD_COUNT 32        // Number of threads
 #define TEST_WRITE_COUNT 20000      // Test writes
@@ -225,7 +225,7 @@ int main(int argc, char *argv[]) {
     for (size_t i = 0; i < sizeof(test_data); i++) {
         test_data[i] = (uint8_t)(i);
     }
-    XcpCalSegSetCalPage(1, 0, 0x83);
+    XcpCalSegSetCalPage(1, 0, 0x83); // RAM page
     XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(1, offsetof(ParametersT, data)));
     XcpWriteMta(TEST_DATA_SIZE, &test_data[0]);
     sleepMs(100);

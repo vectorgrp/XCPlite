@@ -64,7 +64,7 @@
 // XCP state and transmit queue is placed in anamed shared memory region
 // Multiple processes can participate in the same XCP session
 // Requires a POSIX-compliant platform (Linux / macOS / QNX).  Not supported on Windows.
-#define OPTION_SHM_MODE
+// #define OPTION_SHM_MODE
 
 //-------------------------------------------------------------------------------
 // XCP server options
@@ -107,10 +107,6 @@
 // As this is not compatible to most well known tools to update, modify and create A2L files, this option switches to absolute addressing on address extension 0
 // Requirement is, that the address of all reference pages must be stable and in address range of 0x0000_0000 to 0xFFFF_FFFF
 // #define OPTION_CAL_SEGMENTS_ABS
-
-// Enable persistence (freeze) to reference page or to working page on next application restart
-// This decides which pages (reference/FLASH or working/RAM) are stored to the calibration segment binary file (.BIN) on XCP freeze request
-// #define OPTION_CAL_REFERENCE_PAGE_PERSISTENCE
 
 // Start on reference/default page instead of on working page
 // #define OPTION_CAL_SEGMENTS_START_ON_REFERENCE_PAGE

@@ -233,7 +233,7 @@ typedef union {
         atomic_uint_fast8_t ecu_access;     // page number for ECU access
         atomic_uint_fast8_t lock_count;     // lock count for the segment, 0 = unlocked
 #ifndef OPTION_SHM_MODE
-        uint8_t *default_page; // process-local ptr to caller's static data, NOT sharable
+        uint8_t *default_page_ptr; // process-local ptr to caller's static data, NOT sharable
 #endif
         uint32_t ecu_page; // offset into c->b[], or XCP_CALSEG_NO_PAGE
         uint32_t xcp_page; // offset into c->b[], or XCP_CALSEG_NO_PAGE
@@ -254,10 +254,14 @@ typedef union {
 
 // Accessor helpers: resolve a page offset to a pointer within c->b[]
 // Returns NULL when offset is XCP_CALSEG_NO_PAGE
+#define DEFAULT_PAGE_OFFSET (0)                                       // Constant offset of the default page in the allocated memory buffer
+#define XCP_PAGE_OFFSET(aligned_page_size) (aligned_page_size)        // Initial offset of the XCP working page in the allocated memory buffer
+#define ECU_PAGE_OFFSET(aligned_page_size) (2 * (aligned_page_size))  // Initial of the ECU working page in the allocated memory buffer
+#define FREE_PAGE_OFFSET(aligned_page_size) (3 * (aligned_page_size)) // Initial of the free swap page in the allocated memory buffer
+#define CalSegDefaultPage(c) &(c)->b[DEFAULT_PAGE_OFFSET]
 #define CalSegPage_(c, off) ((off) == XCP_CALSEG_NO_PAGE ? NULL : &(c)->b[(off)])
 #define CalSegEcuPage(c) CalSegPage_(c, (c)->h.ecu_page)
 #define CalSegXcpPage(c) CalSegPage_(c, (c)->h.xcp_page)
-#define CalSegDefaultPage(c) CalSegPage_(c, 0)
 
 static_assert(sizeof(tXcpCalSegHeader) == XCP_CALSEG_HEADER_SIZE, "Error: increase XCP_CALSEG_HEADER_SIZE");
 static_assert(sizeof(tXcpCalSegHeader) % XCP_CALPAGE_ALIGNMENT == 0, "Error: size of tXcpCalSegHeader is not a multiple of XCP_CALPAGE_ALIGNMENT");
