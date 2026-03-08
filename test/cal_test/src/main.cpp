@@ -48,7 +48,7 @@ extern uint32_t gXcpRxPacketCount;
 #define OPTION_SERVER_PORT 5555         // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
 #define OPTION_QUEUE_SIZE (1024 * 256)  // Size of the measurement queue in bytes, must be a multiple of 8
-#define OPTION_LOG_LEVEL 6              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 #define TEST_THREAD_COUNT 32        // Number of threads
 #define TEST_WRITE_COUNT 20000      // Test writes
@@ -58,18 +58,25 @@ extern uint32_t gXcpRxPacketCount;
 #define TEST_MAIN_LOOP_DELAY_US 200 // Write loop delay in us
 #define TEST_DATA_SIZE 128          // Default test data size
 
+bool verbose = false;
+
 //-----------------------------------------------------------------------------------------------------
 // Demo calibration parameters
 
 typedef struct {
-    uint32_t checksum;
     bool run;
+    uint32_t check;
     uint8_t data[TEST_DATA_SIZE];
 
 } ParametersT;
 
 // Default parameters - make this global/static so the address is stable
-static ParametersT kParameters = {.checksum = 0, .run = true, .data = {0}};
+static ParametersT kParameters = {
+    .check = 0, .run = true, .data = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+
+};
 
 // Global calibration segment handle
 static xcplib::CalSeg<ParametersT> *calseg = nullptr; // Pointer to the calibration segment wrapper
@@ -101,6 +108,19 @@ static std::atomic<bool> test_running{true};
 static uint32_t write_count = 0;
 std::atomic<uint64_t> error_count{0};
 
+bool check_test_data(const ParametersT *params, uint8_t expected_first_byte) {
+    uint16_t first_byte = (uint16_t)params->data[0];
+    if (first_byte != expected_first_byte) {
+        return false;
+    }
+    for (size_t i = 0; i < sizeof(params->data); i++) {
+        if (params->data[i] != (uint8_t)(first_byte + i)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 //-----------------------------------------------------------------------------------------------------
 // Thread worker function
 
@@ -123,7 +143,7 @@ void worker_thread(uint32_t thread_id) {
     A2lCreateMeasurementInstance(event_name, counter, "Thread local counter");
     A2lUnlock();
 
-    printf("Thread %u started with event ID %u\n", thread_id, event_id);
+    // printf("Thread %u started with event ID %u\n", thread_id, event_id);
 
     while (test_running.load(std::memory_order_relaxed)) {
 
@@ -166,9 +186,11 @@ void worker_thread(uint32_t thread_id) {
         stats.read_count.fetch_add(1, std::memory_order_relaxed);
 
         counter++;
-        if (counter % 0x10000 == 0) {
-            printf("Thread %u: read_count=%llu, change_count=%llu, errors=%llu\n", thread_id, (unsigned long long)stats.read_count, (unsigned long long)stats.change_count,
-                   (unsigned long long)error_count.load());
+        if (verbose) {
+            if (counter % 0x10000 == 0) {
+                printf("Thread %u: read_count=%llu, change_count=%llu, errors=%llu\n", thread_id, (unsigned long long)stats.read_count, (unsigned long long)stats.change_count,
+                       (unsigned long long)error_count.load());
+            }
         }
 
         // Trigger XCP measurement event
@@ -178,15 +200,28 @@ void worker_thread(uint32_t thread_id) {
         sleepUs(TEST_TASK_LOOP_DELAY_US);
     }
 
-    printf("Thread %u finished: reads=%llu\n", thread_id, (unsigned long long)stats.read_count.load());
+    if (verbose)
+        printf("Thread %u finished: reads=%llu\n", thread_id, (unsigned long long)stats.read_count.load());
 }
 
 //-----------------------------------------------------------------------------------------------------
 // Main function
 
+extern "C" {
+void XcpBackgroundTasks(void);
+}
+
 int main(int argc, char *argv[]) {
     printf("\nXCP Calibration Segment Multi-Threading Test\n");
     printf("============================================\n");
+
+    // Initialize test statistics
+    uint64_t total_errors = 0;
+    thread_stats.clear();
+    thread_stats.reserve(TEST_THREAD_COUNT);
+    for (uint32_t i = 0; i < TEST_THREAD_COUNT; i++) {
+        thread_stats.emplace_back(std::make_unique<ThreadStats>());
+    }
 
     // Set log level
     XcpSetLogLevel(OPTION_LOG_LEVEL);
@@ -213,6 +248,7 @@ int main(int argc, char *argv[]) {
     // Add the calibration segment description as a typedef instance to the A2L file
     A2lTypedefBegin(ParametersT, &kParameters, "A2L Typedef for ParametersT");
     A2lTypedefParameterComponent(run, "Run or stop test", "", 0, 1);
+    A2lTypedefParameterComponent(check, "Check value for test", "", 0, 0xFFFFFFFF);
     A2lTypedefCurveComponent(data, TEST_DATA_SIZE, "Test data array", "", 0, 255);
     A2lTypedefEnd();
     calseg1.CreateA2lTypedefInstance("test_params_t", "Test parameters");
@@ -220,25 +256,134 @@ int main(int argc, char *argv[]) {
     // Store the pointer to the calibration segment wrapper
     calseg = &calseg1;
 
-    // Initialize test data
+    printf("\n\nStart calibration segment access test ...\n");
+
+    // Check initial values
+    {
+        auto parameters = calseg->lock();
+        if (memcmp(parameters.get(), &kParameters, sizeof(ParametersT)) != 0) {
+            printf("ERROR: Checking calibration segment read initial values failed\n");
+            total_errors += 1;
+        }
+    }
+    // RAM page (0) of segment 1
+    XcpCalSegSetCalPage(1, 0, 0x83);
+    {
+        auto parameters = calseg->lock();
+        if (memcmp(parameters.get(), &kParameters, sizeof(ParametersT)) != 0) {
+            printf("ERROR: Checking calibration segment read initial RAM page values failed\n");
+            total_errors += 1;
+        }
+    }
+    // FLASH page (0) of segment 1
+    XcpCalSegSetCalPage(1, 0, 0x83);
+    {
+        auto parameters = calseg->lock();
+        if (memcmp(parameters.get(), &kParameters, sizeof(ParametersT)) != 0) {
+            printf("ERROR: Checking calibration segment read initial FLASH page values failed\n");
+            total_errors += 1;
+        }
+    }
+
+    // Note:
+    // The RCU implementation make writes visible after the second read after a write !!!!!!!!!!!!
+    // This is a compromise of the lock-less implementation
+    // This is the reason for the for loops below
+
+    // Do single calibration changes
+    uint32_t check;
+
+    // RAM page (0) of segment 1
+    XcpCalSegSetCalPage(1, 0, 0x83);
+
+    //  1 write and multiple reads
+    check = 1;
+    XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(1, offsetof(ParametersT, check)));
+    XcpWriteMta((uint8_t)sizeof(check), (const uint8_t *)&check);
+    for (int i = 0; i < 3; i++) {
+        {
+            auto parameters = calseg->lock();
+            if (parameters->check != check) {
+                printf("ERROR: Checking calibration segment read %u after write failed, expected check=%u, got %u\n", i, check, parameters->check);
+                total_errors += 1;
+            }
+        }
+    }
+
+    // 2 consecutive write and multiple reads
+    check = 2;
+    XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(1, offsetof(ParametersT, check)));
+    XcpWriteMta((uint8_t)sizeof(check), (const uint8_t *)&check);
+    for (int i = 0; i < 1; i++) { // A single read after the write is not enough to make the change visible
+        auto parameters = calseg->lock();
+        printf("lock %u: check = %u\n", i, parameters->check);
+    }
+    check = 3;
+    XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(1, offsetof(ParametersT, check)));
+    XcpWriteMta((uint8_t)sizeof(check), (const uint8_t *)&check);
+    for (int i = 0; i < 3; i++) {
+        {
+            auto parameters = calseg->lock();
+            if (parameters->check != check) {
+                // Consecutive read do not fix the problem, because this would be too expensive in the lock-less implementation
+                printf("Checking calibration segment read %u after dual write failed as expected,  check=%u, got %u\n", i, check, parameters->check);
+            }
+        }
+    }
+    XcpBackgroundTasks(); // Handle background tasks, e.g. pending calibration updates, this is done on a regular basis in the main loop of the application, but we need to call it
+                          // manually here to make pending updates visible
+    {
+        auto parameters = calseg->lock();
+        if (parameters->check != check) {
+            printf("ERROR: Checking calibration segment read after dual write with background tasks failed, expected check=%u, got %u\n", check, parameters->check);
+            total_errors += 1;
+        }
+    }
+
+    // FLASH page (1) of segment 1
+    XcpCalSegSetCalPage(1, 1, 0x83);
+    {
+        auto parameters = calseg->lock();
+        if (parameters->check != 0) {
+            printf("ERROR: Checking calibration segment FLASH page check=%u, expected 0\n", parameters->check);
+            total_errors += 1;
+        }
+    }
+
+    // Initialize thread test data
     uint8_t test_data[TEST_DATA_SIZE];
     for (size_t i = 0; i < sizeof(test_data); i++) {
         test_data[i] = (uint8_t)(i);
     }
-    XcpCalSegSetCalPage(1, 0, 0x83); // RAM page
+    // RAM page (0) of segment 1
+    XcpCalSegSetCalPage(1, 0, 0x83);
     XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(1, offsetof(ParametersT, data)));
     XcpWriteMta(TEST_DATA_SIZE, &test_data[0]);
-    sleepMs(100);
-
-    // Initialize test statistics
-    thread_stats.clear();
-    thread_stats.reserve(TEST_THREAD_COUNT);
-    for (uint32_t i = 0; i < TEST_THREAD_COUNT; i++) {
-        thread_stats.emplace_back(std::make_unique<ThreadStats>());
+    for (int i = 0; i < 2; i++) {
+        auto parameters = calseg->lock();
+        if (!check_test_data(parameters.get(), 0)) {
+            total_errors += 1;
+            printf("ERROR: Calibration segment read %u after write failed, data[0]=%u, expected 0\n", i, parameters->data[0]);
+        }
+    }
+    for (size_t i = 0; i < sizeof(test_data); i++) {
+        test_data[i] = (uint8_t)(i + 1);
+    }
+    XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(1, offsetof(ParametersT, data)));
+    XcpWriteMta(TEST_DATA_SIZE, &test_data[0]);
+    for (int i = 0; i < 2; i++) {
+        auto parameters = calseg->lock();
+        if (!check_test_data(parameters.get(), 1)) {
+            total_errors += 1;
+            printf("ERROR: Calibration segment read %u nafter write failed, data[0]=%u, expected 1\n", i, parameters->data[0]);
+        }
     }
 
+    if (total_errors == 0)
+        printf("Calibration segment access test OK\n");
+
     // Create and start test threads
-    printf("Starting %u worker threads...\n", TEST_THREAD_COUNT);
+    printf("\nStarting %u worker threads...\n", TEST_THREAD_COUNT);
     std::vector<std::thread> threads;
     for (uint32_t i = 0; i < TEST_THREAD_COUNT; i++) {
         threads.emplace_back(worker_thread, i);
@@ -249,7 +394,8 @@ int main(int argc, char *argv[]) {
     A2lFinalize();
 
     // Let the test run for the specified duration
-    printf("Test running for %u ms...\n", TEST_WRITE_COUNT);
+    printf("Test running for %u writes ...\n", TEST_WRITE_COUNT);
+
     for (;;) {
 
         // Sleep for the specified duration
@@ -277,7 +423,7 @@ int main(int argc, char *argv[]) {
         }
 
         write_count++;
-        if (write_count % 1000 == 0) {
+        if (verbose && (write_count % 1000 == 0)) {
             printf("write_count=%llu, errors=%llu\n", (unsigned long long)write_count, (unsigned long long)error_count.load());
         }
 
@@ -285,7 +431,7 @@ int main(int argc, char *argv[]) {
         if (!test_running.load(std::memory_order_relaxed) || write_count >= TEST_WRITE_COUNT) {
             break;
         }
-    }
+    } // for
 
     // Wait a moment before stopping, to let the threads observe the last changes
     sleepUs(200000);
@@ -306,7 +452,7 @@ int main(int argc, char *argv[]) {
     uint64_t total_change_count = 0;
     uint64_t total_read_time_ns = 0;
     uint64_t total_max_read_time_ns = 0;
-    uint64_t total_errors = error_count.load();
+    total_errors += error_count.load();
     for (uint32_t i = 0; i < TEST_THREAD_COUNT; i++) {
         const auto &stats = *thread_stats[i];
         total_read_count += stats.read_count.load();
@@ -340,6 +486,10 @@ int main(int argc, char *argv[]) {
     A2lFinalize();          // Finalize A2L generation, if not done yet
     XcpEthServerShutdown(); // Stop the XCP server
 
-    printf("\nTest completed successfully!\n");
+    if (total_errors == 0) {
+        printf("\nTest completed successfully!\n");
+    } else {
+        printf("\nTest completed with errors!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+    }
     return total_errors > 0 ? 1 : 0;
 }

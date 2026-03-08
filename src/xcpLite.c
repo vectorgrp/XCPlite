@@ -989,7 +989,7 @@ static uint8_t XcpCalSegPublish(tXcpCalSeg *c, bool wait) {
         }
     } else {
         if (free_page == XCP_CALSEG_NO_PAGE || c->h.free_page_hazard) {
-            DBG_PRINTF5("Can not update calibration changes of %s yet\n", c->h.name);
+            DBG_PRINTF5("Can not update calibration changes of %s yet, hazard=%u, free_page=%u\n", c->h.name, c->h.free_page_hazard, free_page);
             c->h.write_pending = true;
 #ifdef TEST_ENABLE_DBG_METRICS
             gXcpWritePendingCount++;
