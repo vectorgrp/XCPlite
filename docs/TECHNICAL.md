@@ -131,10 +131,9 @@ To be able to check the compatibility of binary parameter files, which store onl
 In XCPlite, the EPK may be specified with an API function or is generated from build time and date when calibration segment persistence mode is enabled.
 
 
-### Calibration Segment Management and RCU Algorithm
+## Calibration Segment Management and RCU Algorithm
 
-Overview:
-----------
+### Overview:
 
 Precondition for lock-free and wait-free modification of calibration parameters is, that there is only one writer thread (XCP thread).  
 
@@ -143,18 +142,18 @@ Access to calibration parameters on the application side is done with lock-free 
 - XcpUnlockCalSeg
 - XcpWriteCalSeg
 
-Creation of calibration segments by the application is lock-free, but not wait-free (there is a CAS loop for a bump memory allocator)
+Creation and registration of calibration segments by the application
 
 - XcpCreateCalSeg
 - XcpCreateCalBlk
 - XcpCreateCalSegPreloaded
 
-
-Registration of a calibration segment is protected by a mutex, so it is thread safe, but not lock free.  
+Creation or check for existence is lock-free, but not wait-free (there is a CAS loop for a bump memory allocator)
+The registration of a new calibration segment is protected by a mutex. 
 Duplicate names are not allowed, in this case the registration just returns the existing segment.    
-Registration is required, because the calibration server needs operations that iterate over all calibration segments: 
+Registration is required in XCPlite, because the calibration server and A2L generation need operations that iterate over all calibration segments: 
 
-The XCP operations are:
+The calibration server operations needed to implement XCP are:
 - XcpGetSegInfo
 - XcpGetSegPageInfo
 - XcpCalSegGetCalPage
@@ -164,42 +163,56 @@ The XCP operations are:
 - XcpSetCalSegMode
 
 
-Functions to access the calibration segments from the server side are:
+Functions to access the calibration segment data from the server side are:
 
 XcpCalSegWriteMemory
 XcpCalSegReadMemory
 XcpCalSegBeginAtomicTransaction
 XcpCalSegEndAtomicTransaction
 
-An atomic transaction is a global operation, which does not have any costs. C 
-alibration updates from the single threaded writer just get delayed and collected in all the XCP pages, until the transaction is ended.  
+An atomic transaction is a global operation, which does not have any costs.  
+Calibration updates from the single threaded writer just get delayed and collected in each segments XCP page, until the transaction is ended.  
 
 
 
-Compromises made in the RCU algorithm for calibration segment updates:
-----------------------------------------------------------------------
+### Compromises made in the XCPlite RCU algorithm for calibration segment updates:
+
+To achieve lock-less and wait-free access to calibration parameters on the application side, the writer has to accept the following compromises:
 
 1.
-An XCP write will become visible in the second locks after a write!.  
-If there are additional writes before that, which is normally unlikely to happen, these writes are accumulated in the xcp_page.  
-To commit these additianal changes in the XCP page, XcpPublishAll must be called explicitly then.  
-This may me done on a regular base or there is the option to wait for successful publication on each write, which will just slow down the writer.  
-XcpPublishAll needs knowledge about all existing calibration blocks.  
-This must not be necessarily consistent, because it will just delay calibration updates, when called on a regular base.  
+Exactly one writer thread allowed (e.g. the XCP command server thread).  
 
 2.
-Registration is protected by a mutex.  
+A segment write operation will become visible to the application in the SECOND lock after the write !!!      
 
-3. 
+3.
+Visibility delays of calibration updates may be non deterministic.  
+If there are additional writes to the calibration block before the second lock, which is normally rare, these writes are accumulated in the xcp_page and not applied automatically.  
+To flush these additional changes, the function XcpPublishAll may be called explicitly.  
+This could me done non-blocking in a cyclic way or blocking, when each time a calibration change took place.  
+In non-blocking mode, calibration changes become visible, when no application holds the lock, which is non deterministic!!!     
+The alternative approach of doing blocking mode calls to XcpPublishAll after each write operation, would occasionally delay the command responses by a non-deterministic amount of time, which is might be acceptable in some use cases.  
+
+4.
+Calibration updates may theoretically starve, when there is always at least one reader holding a lock.  
+Worst case is, that a calibration update command may time out.
+
+5.
+The lazy, non-blocking approach has the drawback, that calibration changes are acknowledged to the writer, before they become visible to the application.  
+But there is no risk, that the changes can not be made visible after acknowledge.
+
+6.
+Registration and creating of calibration segments is protected by a mutex to share a consistent state of the calibration segment list among threads.  
+
+5. 
 Each calibration block needs a header of 64 bytes, plus 4 times the page size.  
-Page size is rounded up to 64 nit alignment.  
-So to calibrate a single byte, we need 96 bytes of memory.
+Page size is rounded up to 64 bit alignment.  
+So to calibrate a block of N bytes, we need 64+4*(8*N+7)/8 bytes of memory.
 
 
 
 
-RCU algorithm pseudo code for calibration segment updates:
-----------------------------------------------------------
+### RCU algorithm pseudo code for calibration segment updates:
 
 
 Here is the used RCU algorithm as pseudo code:
@@ -289,8 +302,7 @@ function try_publish(segment) -> bool {
 
 ```
 
-Problems in the current implementation:
----------------------------------------
+### Problems in the current implementation:
 
 1.
 Iteration over the calibration segment list does not guarantee a consistent view, if segments are created simultaneously in different threads.  
