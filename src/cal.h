@@ -62,8 +62,8 @@ typedef uint8_t tXcpCalSegNumber;
 typedef uint16_t tXcpCalSegIndex;
 #define XCP_UNDEFINED_CALSEG 0xFFFF
 
-#define XCP_CALPAGE_ALIGNMENT 8    // Page alignment in bytes
-#define XCP_CALSEG_HEADER_SIZE 128 // Must be & XCP_CALPAGE_ALIGNMENT
+#define XCP_CALPAGE_ALIGNMENT 8   // Page alignment in bytes
+#define XCP_CALSEG_HEADER_SIZE 64 // Must be & XCP_CALPAGE_ALIGNMENT
 
 // Sentinel value for "null" page offsets (replaces NULL pointer)
 #define XCP_CALSEG_NO_PAGE UINT32_MAX
@@ -95,7 +95,8 @@ typedef union {
         uint8_t app_id; // Application id of the event, only used in SHM mode
         char name[XCP_MAX_CALSEG_NAME + 1];
     };
-    uint8_t reserved[XCP_CALSEG_HEADER_SIZE]; // Pad the struct to XCP_CALPAGE_ALIGNMENT
+    // uint8_t reserved[XCP_CALSEG_HEADER_SIZE]; // Pad the struct to XCP_CALPAGE_ALIGNMENT
+    uint64_t alignment;
 } tXcpCalSegHeader;
 
 // Accessor helpers: resolve a page offset to a pointer within c->b[]
@@ -138,6 +139,32 @@ typedef struct {
 #define CalSegPtr(idx) ((const tXcpCalSeg *)(&(shared.cal_seg_list.cal_mem[shared.cal_seg_list.offset[(idx)]])))
 #define CalSegPtrMut(idx) ((tXcpCalSeg *)(&(shared.cal_seg_list.cal_mem[shared.cal_seg_list.offset[(idx)]])))
 
+/**************************************************************************/
+// Application side
+// Thread-safe
+/**************************************************************************/
+
+// Create a preloaded calibration segment, which can be initialized with data from the binary persistence file at startup
+uint8_t *XcpCreateCalSegPreloaded(const char *name, uint16_t page_size, uint16_t index, uint8_t number, uint32_t file_pos);
+
+// Create a calibration segment
+tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint16_t page_size);
+
+// Create a calibration value
+tXcpCalSegIndex XcpCreateCalBlk(const char *name, const void *default_page, uint16_t page_size);
+
+// Lock a calibration segment and return a pointer to the ECU page
+const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg);
+
+// Unlock a calibration segment
+// Single threaded, must be used in the thread it was created
+uint8_t XcpUnlockCalSeg(tXcpCalSegIndex calseg);
+
+/**************************************************************************/
+// Server side
+// Single-threaded
+/**************************************************************************/
+
 // Initialize the calibration segment list
 void XcpInitCalSegList(void);
 
@@ -175,22 +202,6 @@ uint16_t XcpGetCalSegSize(tXcpCalSegIndex calseg);
 // Get the XCP/A2L address of a calibration segment
 uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg);
 
-// Create a preloaded calibration segment, which can be initialized with data from the binary persistence file at startup
-uint8_t *XcpCreateCalSegPreloaded(const char *name, uint16_t page_size, uint16_t index, uint8_t number, uint32_t file_pos);
-
-// Create a calibration segment
-tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint16_t page_size);
-
-// Create a calibration value
-tXcpCalSegIndex XcpCreateCalBlk(const char *name, const void *default_page, uint16_t page_size);
-
-// Lock a calibration segment and return a pointer to the ECU page
-const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg);
-
-// Unlock a calibration segment
-// Single threaded, must be used in the thread it was created
-uint8_t XcpUnlockCalSeg(tXcpCalSegIndex calseg);
-
 // Update all pending calibration changes
 uint8_t XcpCalSegPublishAll(bool wait);
 
@@ -202,14 +213,20 @@ uint8_t XcpCalSegPublishAll(bool wait);
 void XcpUpdateCalSeg(void **calPage);
 #endif // OPTION_SHM_MODE
 
+/**************************************************************************/
+// Server side
+// Single-threaded XCP commands
+/**************************************************************************/
+
 // XCP read/write
 uint8_t XcpCalSegWriteMemory(uint32_t dst, uint16_t size, const uint8_t *src);
 uint8_t XcpCalSegReadMemory(uint32_t src, uint16_t size, uint8_t *dst);
 
+// XCP atomic write
+void XcpCalSegBeginAtomicTransaction(void);
+bool XcpCalSegEndAtomicTransaction(void);
+
 // XCP protocol commands for calibration segment management
-#ifdef XCP_ENABLE_USER_COMMAND
-uint8_t XcpCalSegCommand(uint8_t cmd);
-#endif
 uint8_t XcpCalSegSetCalPage(tXcpCalSegNumber segment_number, uint8_t page, uint8_t mode);
 uint8_t XcpCalSegGetCalPage(tXcpCalSegNumber segment_number, uint8_t mode);
 #ifdef XCP_ENABLE_COPY_CAL_PAGE

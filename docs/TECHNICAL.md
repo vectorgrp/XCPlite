@@ -131,19 +131,85 @@ To be able to check the compatibility of binary parameter files, which store onl
 In XCPlite, the EPK may be specified with an API function or is generated from build time and date when calibration segment persistence mode is enabled.
 
 
-### The XCPlite RCU Algorithm for calibration segment updates
+### Calibration Segment Management and RCU Algorithm
 
-Precondition for this lock-free algorithm is, that there is only one writer thread (XCP thread).  
-Calibration segment creation must be thread-safe. XcpCreateCalSeg uses a local mutex to achieve this. 
+Overview:
+----------
+
+Precondition for lock-free and wait-free modification of calibration parameters is, that there is only one writer thread (XCP thread).  
+
+Access to calibration parameters on the application side is done with lock-free and wait-free functions:
+
+- XcpUnlockCalSeg
+- XcpWriteCalSeg
+
+Creation of calibration segments by the application is lock-free, but not wait-free (there is a CAS loop for a bump memory allocator)
+
+- XcpCreateCalSeg
+- XcpCreateCalBlk
+- XcpCreateCalSegPreloaded
+
+
+Registration of a calibration segment is protected by a mutex, so it is thread safe, but not lock free.  
+Duplicate names are not allowed, in this case the registration just returns the existing segment.    
+Registration is required, because the calibration server needs operations that iterate over all calibration segments: 
+
+The XCP operations are:
+- XcpGetSegInfo
+- XcpGetSegPageInfo
+- XcpCalSegGetCalPage
+- XcpCalSegSetCalPage
+- XcpCalSegCopyCalPage
+- XcpGetCalSegMode
+- XcpSetCalSegMode
+
+
+Functions to access the calibration segments from the server side are:
+
+XcpCalSegWriteMemory
+XcpCalSegReadMemory
+XcpCalSegBeginAtomicTransaction
+XcpCalSegEndAtomicTransaction
+
+An atomic transaction is a global operation, which does not have any costs. C 
+alibration updates from the single threaded writer just get delayed and collected in all the XCP pages, until the transaction is ended.  
+
+
+
+Compromises made in the RCU algorithm for calibration segment updates:
+----------------------------------------------------------------------
+
+1.
+An XCP write will become visible in the second locks after a write!.  
+If there are additional writes before that, which is normally unlikely to happen, these writes are accumulated in the xcp_page.  
+To commit these additianal changes in the XCP page, XcpPublishAll must be called explicitly then.  
+This may me done on a regular base or there is the option to wait for successful publication on each write, which will just slow down the writer.  
+XcpPublishAll needs knowledge about all existing calibration blocks.  
+This must not be necessarily consistent, because it will just delay calibration updates, when called on a regular base.  
+
+2.
+Registration is protected by a mutex.  
+
+3. 
+Each calibration block needs a header of 64 bytes, plus 4 times the page size.  
+Page size is rounded up to 64 nit alignment.  
+So to calibrate a single byte, we need 96 bytes of memory.
+
+
+
+
+RCU algorithm pseudo code for calibration segment updates:
+----------------------------------------------------------
+
 
 Here is the used RCU algorithm as pseudo code:
 
-The 3 pages are named as follows:
+The 3 RCU pages are named as follows:
   1. ecu_page - for current ECU access
   2. xcp_page - for current XCP access
-  3. free_page - for RCU
+  3. free_page - for swapping
 
-The variables lock_count, next_page and free_page are atomic pointers.
+The variables lock_count, next_page and free_page are atomic pointers or offsets.
 
 This algorithm can be treated as a RCU like pattern with exactly one element (free_page) in its memory reclamation list.
 When there is no free memory, the calibration changes just get collected in the xcp_page.  
@@ -222,6 +288,29 @@ function try_publish(segment) -> bool {
 }
 
 ```
+
+Problems in the current implementation:
+---------------------------------------
+
+1.
+Iteration over the calibration segment list does not guarantee a consistent view, if segments are created simultaneously in different threads.  
+The iteration may be used only, when the application has finalized the registration. New segments created after finalization should not be registered.  
+Needs shared global state between all processes.  
+Solution unclear.  
+
+2.
+XCPlite uses XcpFindCalSeg to check for duplicate names.  
+There is still a race condition, if they are created simultaneously in different threads.  
+TODO: An optimization of the linear search would be to use a hash table to store the segments.  
+
+3.
+Incrementing memory_segment_count is not atomic yet. Todo.  
+TODO: Needs shared global state between all processes. A2L MEMORY_SEGMENT numbers are a global namespace.  
+
+4.
+XcpPublishAll is called (and may only be called) in the XCP receive thread, which blocks without XCP communication.  
+TODO: Maybe add a blocking timeout.  
+
 
 
 ## Platform and Language Standard Requirements

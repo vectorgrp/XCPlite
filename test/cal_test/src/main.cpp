@@ -26,7 +26,8 @@
 extern "C" {
 uint8_t XcpWriteMta(uint8_t size, const uint8_t *data);
 uint8_t XcpSetMta(uint8_t ext, uint32_t addr);
-uint8_t XcpCalSegCommand(uint8_t cmd);
+void XcpCalSegBeginAtomicTransaction(void);
+bool XcpCalSegEndAtomicTransaction(void);
 uint8_t XcpCalSegSetCalPage(uint8_t segment, uint8_t page, uint8_t mode);
 
 #ifdef TEST_ENABLE_DBG_METRICS
@@ -428,13 +429,15 @@ int main(int argc, char *argv[]) {
         }
 #ifdef TEST_ATOMIC_CAL
         if ((write_count & 0xFF) == 0xFF) {
-            XcpCalSegCommand(0x01); // Begin atomic calibration operation
+            XcpCalSegBeginAtomicTransaction(); // Begin atomic calibration operation
             XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(1, offsetof(ParametersT, data)));
             XcpWriteMta(TEST_DATA_SIZE / 2, &test_data[0]);
             sleepUs(100);
             XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(1, offsetof(ParametersT, data) + TEST_DATA_SIZE / 2));
             XcpWriteMta(TEST_DATA_SIZE / 2, &test_data[TEST_DATA_SIZE / 2]);
-            XcpCalSegCommand(0x02); // End atomic calibration operation
+            if (!XcpCalSegEndAtomicTransaction()) {
+                assert(false && "Atomic transaction failed");
+            }; // End atomic calibration operation
         } else
 #endif
         {

@@ -68,8 +68,7 @@ static void *XcpServerFollowerThread(void *par);
 #endif
 
 // SHM queue region header for /xcpqueue
-// Placed at the start of the shared queue memory; the actual queue data starts immediately after.
-// Fixed-size types used to avoid uint_fast32_t platform differences (e.g. 8 bytes on arm64).
+// Placed at the start of the shared queue memory, the actual queue data starts immediately after.
 #ifdef OPTION_SHM_MODE
 typedef struct {
     atomic_uint_least32_t is_initialized; // set to 1 by the leader after queueInitFromMemory() completes

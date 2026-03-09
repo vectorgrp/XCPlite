@@ -1906,18 +1906,18 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             check_len(CRO_USER_CMD_LEN);
             uint8_t subcmd = CRO_USER_CMD_SUBCOMMAND;
 #ifdef XCP_ENABLE_CALSEG_LIST
-            // Check for user defined commands for begin/end consistent calibration sequence
-            uint8_t res = XcpCalSegCommand(subcmd);
-            if (res == CRC_SUBCMD_UNKNOWN) {
+            if (subcmd == 0x01) {
+                XcpCalSegBeginAtomicTransaction();
+                return CRC_CMD_OK;
+            } else if (subcmd == 0x02) {
+                return XcpCalSegEndAtomicTransaction() ? CRC_CMD_OK : CRC_ACCESS_DENIED;
+            } else
+#endif
+            {
                 check_error(ApplXcpUserCommand(subcmd));
-            } else {
-                check_error(res);
             }
-#else
-            check_error(ApplXcpUserCommand(subcmd));
-#endif
         } break;
-#endif
+#endif // XCP_ENABLE_USER_COMMAND
 
         // Always return a negative response with the error code ERR_CMD_SYNCH
         case CC_SYNCH: {

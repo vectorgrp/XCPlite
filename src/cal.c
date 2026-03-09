@@ -86,6 +86,8 @@ void XcpInitCalSegList(void) {
     shared_mut.cal_seg_list.memory_segment_count = 0;
     shared_mut.cal_seg_list.write_delayed = false;
     mutexInit(&local_mut.cal_seg_list_mutex, false, 0); // Non-recursive mutex, no spin count
+
+    DBG_PRINTF6("Calibration segment list initialized, sizeof(tXcpCalSegHeader) = %zu, sizeof(tXcpCalSegList) = %zu\n", sizeof(tXcpCalSegHeader), sizeof(tXcpCalSegList));
 }
 
 // Thread-safe bump allocator for calibration segment memory
@@ -908,34 +910,22 @@ uint8_t XcpCalSegCopyCalPage(tXcpCalSegNumber src_seg_num, uint8_t src_page, tXc
 #endif // XCP_ENABLE_COPY_CAL_PAGE
 #endif // XCP_ENABLE_CAL_PAGE
 
-// Handle atomic calibration segment commands
+// Handle atomic calibration segment updates
 // Single threaded function, called from XCP command handler
-#ifdef XCP_ENABLE_USER_COMMAND
-uint8_t XcpCalSegCommand(uint8_t cmd) {
-    switch (cmd) {
-    // Begin atomic calibration operation
-    case 0x01:
-        shared_mut.cal_seg_list.write_delayed = true; // Set a flag to delay ECU page updates
-        // @@@@ Iterate cal_seg_list cal_seg_list
-        uint16_t n = XcpGetCalSegCount();
-        for (uint16_t i = 0; i < n; i++) {
-            CalSegPtrMut(i)->h.write_pending = false;
-        }
-        DBG_PRINT4("Begin atomic calibration operation\n");
-        return CRC_CMD_OK;
-
-    // End atomic calibration operation
-    case 0x02:
-        shared_mut.cal_seg_list.write_delayed = false; // Reset the write delay flag
-        DBG_PRINT4("End atomic calibration operation\n");
-        return XcpCalSegPublishAll(true); // Flush all pending writes
-
-    default:
-        break;
+void XcpCalSegBeginAtomicTransaction(void) {
+    shared_mut.cal_seg_list.write_delayed = true; // Set a flag to delay ECU page updates
+    // @@@@ Iterate cal_seg_list cal_seg_list
+    uint16_t n = XcpGetCalSegCount();
+    for (uint16_t i = 0; i < n; i++) {
+        CalSegPtrMut(i)->h.write_pending = false;
     }
-    return CRC_SUBCMD_UNKNOWN;
+    DBG_PRINT4("Begin atomic calibration operation\n");
 }
-#endif // XCP_ENABLE_USER_COMMAND
+bool XcpCalSegEndAtomicTransaction(void) {
+    shared_mut.cal_seg_list.write_delayed = false; // Reset the write delay flag
+    DBG_PRINT4("End atomic calibration operation\n");
+    return XcpCalSegPublishAll(true); // Flush all pending writes, return true if successful
+}
 
 // Freeze calibration segment working pages
 // Note: XCP/A2L segment numbers (tXcpCalSegNumber) are bytes, 0 is reserved for the EPK segment, tXcpCalSegIndex is the XCP/A2L segment number - 1

@@ -105,12 +105,11 @@ OPTION_CLOCK_EPOCH_ARB or OPTION_CLOCK_EPOCH_PTP
 
 #include <assert.h>   // for assert
 #include <inttypes.h> // for PRIx32, PRIu64
+#include <net/if.h>   // for IFNAMSIZ
+#include <pthread.h>  // for pthread_mutex
 #include <stdbool.h>  // for bool
 #include <stdint.h>   // for uintxx_t, uint_fastxx_t
 #include <stdio.h>    // for printf
-
-#include <net/if.h> // for IFNAMSIZ
-#include <pthread.h>
 
 #ifndef OPTION_ATOMIC_EMULATION
 #ifndef __cplusplus
@@ -489,6 +488,7 @@ bool fexists(const char *filename);
 
 #define ATOMIC_BOOL_TYPE uint64_t
 #define ATOMIC_BOOL uint64_t
+#define uint_fast32_t uint64_t
 
 #define atomic_store_explicit(a, b, c) (*(a)) = (b)
 #define atomic_load_explicit(a, b) (*(a))
