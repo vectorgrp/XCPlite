@@ -11,10 +11,10 @@ Precondition for lock-free and wait-free modification of calibration parameters 
 
 Access to calibration parameters on the application side is done with lock-free and wait-free functions:
 
+- XcpLockCalSeg
 - XcpUnlockCalSeg
-- XcpWriteCalSeg
 
-Creation and registration of calibration segments by the application
+Creation and registration (in a global registration list) of calibration segments by the application
 
 - XcpCreateCalSeg
 - XcpCreateCalBlk
@@ -22,10 +22,14 @@ Creation and registration of calibration segments by the application
 
 Creation or check for existence is lock-free, but not wait-free (there is a CAS loop for a bump memory allocator).  
 The registration of a new calibration segment is protected by a mutex.  
-Duplicate names are not allowed, in this case the registration just returns the existing segment.  
-Registration is required in XCPlite, because the calibration server and A2L generation need operations that iterate over all calibration segments:  
+Duplicate names are not allowed, in this case the functions just return the existing segment.  
+Registration is required in XCPlite, because the calibration server and A2L generation need operations that iterate over all calibration segments, also important for automatic A2L generation.    
+XcpCreateCalSegPreloaded is optionally used to pre create and load default calibration data from a non volatile memory or file system (XCPlite BIN file).   
+The difference between XcpCreateCalSeg and XcpCreateCalBlk is, that the first one creates an XCP/A2L MEMORY_SEGMENT with all related XCP features, like page switching, freeze, copy, init, ...  
 
-The calibration server operations needed to implement XCP are:  
+
+
+The calibration server operations needed to implement XCP memory segment handling are:  
 - XcpGetSegInfo
 - XcpGetSegPageInfo
 - XcpCalSegGetCalPage
