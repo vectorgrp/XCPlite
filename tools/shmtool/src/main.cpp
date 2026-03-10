@@ -31,9 +31,8 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <string>
-
 #include <fcntl.h>
+#include <string>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -41,7 +40,7 @@
 #include "xcp_cfg.h"
 #include "xcplib_cfg.h"
 
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE___
 
 #include "shm.h"
 #include "xcpLite.h"

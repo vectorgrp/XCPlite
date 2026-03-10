@@ -217,17 +217,17 @@ if(XCPLITE_BUILD_EXAMPLES)
     endif()
 
     # Tool shmtool — POSIX shared memory diagnostic tool (macOS + Linux only)
-    if(NOT WIN32)
-        add_executable(shmtool tools/shmtool/src/main.cpp)
-        target_link_libraries(shmtool PRIVATE xcplite)
-        # On Linux, shm_open/shm_unlink live in librt on older glibc versions
-        if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-            target_link_libraries(shmtool PRIVATE rt)
-        endif()
-        message(STATUS "Building shmtool")
-    else()
-        message(STATUS "Windows platform - skipping shmtool build")
-    endif()
+    #if(NOT WIN32)
+    #    add_executable(shmtool tools/shmtool/src/main.cpp)
+    #    target_link_libraries(shmtool PRIVATE xcplite)
+    #    # On Linux, shm_open/shm_unlink live in librt on older glibc versions
+    #    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    #        target_link_libraries(shmtool PRIVATE rt)
+    #    endif()
+    #    message(STATUS "Building shmtool")
+    #else()
+    #    message(STATUS "Windows platform - skipping shmtool build")
+    #endif()
 
         # Tool xcpdaemon
     add_executable(xcpdaemon tools/xcpdaemon/src/main.c)

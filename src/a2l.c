@@ -487,7 +487,9 @@ static const char *A2lGetInputQuantity_y(void) { return gA2lInputQuantity_y ? gA
 #define A2L_CONVERSIONS_FILE 4
 #define A2L_MASTER_FILE 0xFF
 
-// Build filenames for the different files used
+#define A2L_MASTER_FILE_NAME "main.a2l"
+
+// Build filenames for the different (temporary) files used
 const char *A2lGetFilename(uint8_t file_type) {
 
     static uint8_t file_type_initialized = 0;
@@ -496,14 +498,17 @@ const char *A2lGetFilename(uint8_t file_type) {
     if (file_type_initialized != file_type) {
 
         const char postfix[8] = "";
+
         uint8_t id = 0;
 
+        // In SHM mode, the server uses a fixed A2L filename and the application id as postfix for the temporary files
 #ifdef OPTION_SHM_MODE
         if (file_type == A2L_MASTER_FILE) {
-            return "main.a2l";
+            return A2L_MASTER_FILE_NAME;
         }
         id = XcpShmGetAppId();
 #endif
+
         switch (file_type) {
         case A2L_TYPEDEFS_FILE:
             SNPRINTF(postfix, sizeof(postfix), "_t%u", id);
@@ -544,23 +549,29 @@ static bool A2lOpen(void) {
     // Start A2L generator
     DBG_PRINTF3("Start A2L generator, file=%s, write_always=%u, finalize_on_connect=%u, auto_groups=%u\n", A2lGetFilename(A2L_FILE), gA2lWriteAlways, gA2lFinalizeOnConnect,
                 gA2lAutoGroups);
-    gA2lFile = gA2lMasterFile = fopen(A2lGetFilename(A2L_FILE), "w");
-    if (gA2lFile == 0) {
+    gA2lFile = fopen(A2lGetFilename(A2L_FILE), "w");
+    if (gA2lFile == NULL) {
         DBG_PRINTF_ERROR("Could not create file %s!\n", A2lGetFilename(A2L_FILE));
         return false;
     }
+
+    // In SHM mode, open the master file
 #ifdef OPTION_SHM_MODE
     if (XcpShmIsServer()) {
         gA2lMasterFile = fopen(A2lGetFilename(A2L_MASTER_FILE), "w");
-        if (gA2lMasterFile == 0) {
+        if (gA2lMasterFile == NULL) {
             DBG_PRINTF_ERROR("Could not create file %s!\n", A2lGetFilename(A2L_MASTER_FILE));
             return false;
         }
         A2lSetSymbolPrefix(true);
-    } else {
+    } else if (XcpShmIsActive()) {
         gA2lMasterFile = NULL;
-        A2lSetSymbolPrefix(true); // In SHM follower mode, prepend project name as prefix to all symbol names to avoid name clashes between multiple followers
+        A2lSetSymbolPrefix(true); // Prepend project name as prefix to all symbol names to avoid name clashes between multiple followers
+    } else {
+        gA2lMasterFile = gA2lFile;
     }
+#else
+    gA2lMasterFile = gA2lFile;
 #endif
     gA2lTypedefsFile = fopen(A2lGetFilename(A2L_TYPEDEFS_FILE), "w");
     gA2lGroupsFile = fopen(A2lGetFilename(A2L_GROUPS_FILE), "w");
@@ -573,9 +584,7 @@ static bool A2lOpen(void) {
     fprintf(gA2lGroupsFile, "\n/* Groups */\n");           // groups temporary file
     fprintf(gA2lConversionsFile, "\n/* Conversions */\n"); // conversions temporary file
 
-    // In SHM follower mode the file contains only data objects (MEASUREMENT/CHARACTERISTIC/...)
-    // — no ASAP2 header, no MODULE wrapper, no IF_DATA, no MOD_PAR.  The leader merges it.
-
+    // The other A2L files contain only data objects (MEASUREMENT/CHARACTERISTIC/...)
     if (gA2lMasterFile) {
         // Create headers
         fprintf(gA2lMasterFile, gA2lHeader1, XcpGetProjectName(), XcpGetProjectName());
@@ -661,19 +670,24 @@ static void A2lCreate_MOD_PAR(void) {
             tXcpCalSegNumber n = XcpGetCalSegNumber(i);
             if (n != XCP_UNDEFINED_CALSEG_NUM) {
                 const tXcpCalSeg *calseg = XcpGetCalSeg(i);
-                // In SHM mode prefix the segment name with the owning application's project name
+                // In SHM mode, prefix the segment name with the owning application's project name
+                const char *sname;
 #ifdef OPTION_SHM_MODE
-                const char *app_name = XcpShmGetAppProjectName(calseg->h.app_id);
-                char seg_name[XCP_MAX_CALSEG_NAME + XCP_PROJECT_NAME_MAX_LENGTH + 2];
-                if (app_name != NULL && app_name[0] != '\0' && strcmp(calseg->h.name, "epk") != 0) {
-                    SNPRINTF(seg_name, sizeof(seg_name), "%s.%s", app_name, calseg->h.name);
+                if (XcpShmIsActive()) {
+                    const char *app_name = XcpShmGetAppProjectName(calseg->h.app_id);
+                    char seg_name[XCP_MAX_CALSEG_NAME + XCP_PROJECT_NAME_MAX_LENGTH + 2];
+                    if (app_name != NULL && app_name[0] != '\0' && strcmp(calseg->h.name, "epk") != 0) {
+                        SNPRINTF(seg_name, sizeof(seg_name), "%s.%s", app_name, calseg->h.name);
+                    } else {
+                        STRNCPY(seg_name, calseg->h.name, sizeof(seg_name));
+                        seg_name[sizeof(seg_name) - 1] = '\0';
+                    }
+                    sname = seg_name;
                 } else {
-                    STRNCPY(seg_name, calseg->h.name, sizeof(seg_name));
-                    seg_name[sizeof(seg_name) - 1] = '\0';
+                    sname = calseg->h.name;
                 }
-                const char *sname = seg_name;
 #else
-                const char *sname = calseg->h.name;
+                sname = calseg->h.name;
 #endif
                 fprintf(gA2lMasterFile, gA2lMemorySegment, sname, XcpGetCalSegBaseAddress(i), calseg->h.size, n, sname, sname, sname, calseg->h.size);
             }
@@ -725,22 +739,27 @@ static void A2lCreate_IF_DATA_DAQ(void) {
         // Get the full event name, including instance index postfix if applicable (e.g. "MainLoop_1")
         const char *base_name = XcpGetEventName(id);
 
-        // In SHM mode prefix the event name with the owning application's project name
+        // In SHM mode, prefix the event name with the owning application's project name
 #ifdef OPTION_SHM_MODE
-        const char *app_name = XcpShmGetAppProjectName(event->app_id);
-        char prefixed_event_name[XCP_MAX_EVENT_NAME + 8 + XCP_PROJECT_NAME_MAX_LENGTH + 2];
-        if (app_name != NULL && app_name[0] != '\0') {
-            SNPRINTF(prefixed_event_name, sizeof(prefixed_event_name), "%s.%s", app_name, base_name);
+        const char *event_name;
+        if (XcpShmIsActive()) {
+            const char *app_name = XcpShmGetAppProjectName(event->app_id);
+            char prefixed_event_name[XCP_MAX_EVENT_NAME + 8 + XCP_PROJECT_NAME_MAX_LENGTH + 2];
+            if (app_name != NULL && app_name[0] != '\0') {
+                SNPRINTF(prefixed_event_name, sizeof(prefixed_event_name), "%s.%s", app_name, base_name);
+            } else {
+                STRNCPY(prefixed_event_name, base_name, sizeof(prefixed_event_name));
+                prefixed_event_name[sizeof(prefixed_event_name) - 1] = '\0';
+            }
+            event_name = prefixed_event_name;
         } else {
-            STRNCPY(prefixed_event_name, base_name, sizeof(prefixed_event_name));
-            prefixed_event_name[sizeof(prefixed_event_name) - 1] = '\0';
+            event_name = base_name;
         }
-        const char *event_name = prefixed_event_name;
 #else
         const char *event_name = base_name;
 #endif
 
-        // Long name is prefixed in SHM mode; short name (max 8 chars) uses the bare event name without prefix
+        // Long name and short name (max 8 chars)
         fprintf(gA2lMasterFile, "/begin EVENT \"%s\" \"%.8s\" 0x%X DAQ 0xFF %u %u %u CONSISTENCY EVENT", event_name, base_name, id, timeCycle, timeUnit,
                 (event->flags & XCP_DAQ_EVENT_FLAG_PRIORITY) ? 0xFF : 0x00);
 
@@ -1847,9 +1866,9 @@ bool A2lFinalize(void) {
             A2lEndGroup();
         }
 
+        // In SHM mode, signal all followers to finalize their A2L files
 #ifdef OPTION_SHM_MODE
         if (XcpShmIsServer()) {
-            // Signal all followers to finalize their A2L files
             XcpShmRequestA2lFinalize();
         }
 #endif
@@ -1859,6 +1878,7 @@ bool A2lFinalize(void) {
         includeFile(&gA2lGroupsFile, A2lGetFilename(A2L_GROUPS_FILE));
         includeFile(&gA2lConversionsFile, A2lGetFilename(A2L_CONVERSIONS_FILE));
 
+        // In SHM mode, merge all applications A2L files into the master file, which is the one sent to the client
 #ifdef OPTION_SHM_MODE
         if (XcpShmIsServer()) {
 
@@ -1891,6 +1911,8 @@ bool A2lFinalize(void) {
 
         // Create event conversions and groups
 #if defined(XCP_ENABLE_DAQ_EVENT_LIST)
+
+// In SHM mode, create event conversions and groups, only if we are the server
 #ifdef OPTION_SHM_MODE
         if (XcpShmIsServer())
 #endif
@@ -1903,24 +1925,30 @@ bool A2lFinalize(void) {
             if (eventList != NULL && eventCount > 0) {
 
                 // Create a enum conversion with all event ids.
-                // In SHM mode use the prefixed name so the table matches the IF_DATA entries.
                 fprintf(gA2lMasterFile, "\n/begin COMPU_METHOD conv.events \"\" TAB_VERB \"%%.0 \" \"\" COMPU_TAB_REF conv.events.table /end COMPU_METHOD\n");
                 fprintf(gA2lMasterFile, "/begin COMPU_VTAB conv.events.table \"\" TAB_VERB %u\n", eventCount);
                 for (uint32_t id = 0; id < eventCount; id++) {
+                    const char *event_name;
+                    // In SHM mode, prefix event names
 #ifdef OPTION_SHM_MODE
-                    const char *base_name = XcpGetEventName(id);
-                    const char *app_name = XcpShmGetAppProjectName(eventList->event[id].app_id);
-                    char pname[XCP_MAX_EVENT_NAME + 8 + XCP_PROJECT_NAME_MAX_LENGTH + 2];
-                    if (app_name != NULL && app_name[0] != '\0') {
-                        SNPRINTF(pname, sizeof(pname), "%s.%s", app_name, base_name);
+                    if (XcpShmIsActive()) {
+                        const char *base_name = XcpGetEventName(id);
+                        const char *app_name = XcpShmGetAppProjectName(eventList->event[id].app_id);
+                        char pname[XCP_MAX_EVENT_NAME + 8 + XCP_PROJECT_NAME_MAX_LENGTH + 2];
+                        if (app_name != NULL && app_name[0] != '\0') {
+                            SNPRINTF(pname, sizeof(pname), "%s.%s", app_name, base_name);
+                        } else {
+                            STRNCPY(pname, base_name, sizeof(pname));
+                            pname[sizeof(pname) - 1] = '\0';
+                        }
+                        event_name = pname;
                     } else {
-                        STRNCPY(pname, base_name, sizeof(pname));
-                        pname[sizeof(pname) - 1] = '\0';
+                        event_name = XcpGetEventName(id);
                     }
-                    fprintf(gA2lMasterFile, " %u \"%s\"", id, pname);
 #else
-                    fprintf(gA2lMasterFile, " %u \"%s\"", id, XcpGetEventName(id));
+                    event_name = XcpGetEventName(id);
 #endif
+                    fprintf(gA2lMasterFile, " %u \"%s\"", id, event_name);
                 }
                 fprintf(gA2lMasterFile, "\n/end COMPU_VTAB\n");
 
@@ -1933,20 +1961,28 @@ bool A2lFinalize(void) {
                     uint32_t id = 0;
 #endif
                     for (; id < eventCount; id++) {
+
+                        const char *event_name;
+                        // In SHM mode, prefix event names
 #ifdef OPTION_SHM_MODE
-                        const char *base_name = XcpGetEventName(id);
-                        const char *app_name = XcpShmGetAppProjectName(eventList->event[id].app_id);
-                        char pname[XCP_MAX_EVENT_NAME + 8 + XCP_PROJECT_NAME_MAX_LENGTH + 2];
-                        if (app_name != NULL && app_name[0] != '\0') {
-                            SNPRINTF(pname, sizeof(pname), "%s.%s", app_name, base_name);
+                        if (XcpShmIsActive()) {
+                            const char *base_name = XcpGetEventName(id);
+                            const char *app_name = XcpShmGetAppProjectName(eventList->event[id].app_id);
+                            char pname[XCP_MAX_EVENT_NAME + 8 + XCP_PROJECT_NAME_MAX_LENGTH + 2];
+                            if (app_name != NULL && app_name[0] != '\0') {
+                                SNPRINTF(pname, sizeof(pname), "%s.%s", app_name, base_name);
+                            } else {
+                                STRNCPY(pname, base_name, sizeof(pname));
+                                pname[sizeof(pname) - 1] = '\0';
+                            }
+                            event_name = pname;
                         } else {
-                            STRNCPY(pname, base_name, sizeof(pname));
-                            pname[sizeof(pname) - 1] = '\0';
+                            event_name = XcpGetEventName(id);
                         }
-                        fprintf(gA2lMasterFile, " %s", pname);
 #else
-                        fprintf(gA2lMasterFile, " %s", XcpGetEventName(id));
+                        event_name = XcpGetEventName(id);
 #endif
+                        fprintf(gA2lMasterFile, " %s", event_name);
                     }
                     fprintf(gA2lMasterFile, " /end SUB_GROUP /end GROUP\n");
                 }
@@ -1987,19 +2023,19 @@ bool A2lFinalize(void) {
 #endif
 
 // Notify XCP that there is an A2L file available for upload by the XCP client
+// In SHM mode, the server provides the master file for upload
 #ifdef OPTION_SHM_MODE
-        if (XcpShmActive()) {
+        if (XcpShmIsActive()) {
             if (XcpShmIsServer()) { // The server provides the master file for upload
                 XcpSetA2lName(A2lGetFilename(A2L_MASTER_FILE));
-            } else {
-                XcpSetA2lName(A2lGetFilename(A2L_FILE));
             }
             // Update this process's app slot with the A2L file name of this process
             XcpShmNotifyA2lFinalized(A2lGetFilename(A2L_FILE));
-        }
-#else
-        XcpSetA2lName(A2lGetFilename(A2L_FILE));
+        } else
 #endif
+        {
+            XcpSetA2lName(A2lGetFilename(A2L_FILE));
+        }
         return true; // A2L file generation successful
     }
 

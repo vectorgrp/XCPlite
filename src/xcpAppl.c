@@ -471,7 +471,7 @@ void XcpSetA2lName(const char *name) {
     if (dot != NULL)
         *dot = '\0';                                 // Null-terminate the string at the dot
     gXcpA2lName[XCP_A2L_FILENAME_MAX_LENGTH] = '\0'; // Ensure null-termination
-    DBG_PRINTF4("XcpSetA2lName '%s'\n", name);
+    DBG_PRINTF4("XcpSetA2lName set to '%s'\n", gXcpA2lName);
 }
 
 // Return the A2L name (without extension)
@@ -491,8 +491,10 @@ static void closeA2lFile(void) {
 
 static uint32_t openA2lFile(void) {
     char filename[XCP_A2L_FILENAME_MAX_LENGTH + 5];
-    if (gXcpA2lName[0] == 0)
+    if (gXcpA2lName[0] == 0) {
+        DBG_PRINT_WARNING("A2L file name not set, cannot upload A2L file!\n");
         return 0; // A2L file is not set
+    }
 
     // Add .a2l extension to the A2L name
     SNPRINTF((char *)filename, XCP_A2L_FILENAME_MAX_LENGTH + 5, "%s.a2l", gXcpA2lName);

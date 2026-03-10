@@ -25,11 +25,10 @@
 #include <string.h>   // for memcpy, memset, strlen
 #include <unistd.h>   // for getpid()
 
-#include "shm.h"
+#include "shm.h" // for shared memory management
 
 #include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
 #include "platform.h"  // for atomics
-// #include "queue.h"    // for QueueXxx transport queue layer interface
 
 #ifdef OPTION_SHM_MODE
 
@@ -66,7 +65,7 @@ The first process allocates the shared memory for tXcpData and the queue and bec
 uint8_t XcpShmGetAppId(void) { return local.shm_app_id; }
 
 // Check operating modes
-bool XcpShmActive(void) { return local.init_mode >= XCP_MODE_SHM; }
+bool XcpShmIsActive(void) { return local.init_mode >= XCP_MODE_SHM; }
 bool XcpShmIsLeader(void) { return local.init_mode >= XCP_MODE_SHM && local.shm_leader; }
 bool XcpShmIsServer(void) { return local.init_mode >= XCP_MODE_SHM && local.shm_server; }
 bool XcpShmIsFollower(void) { return local.init_mode >= XCP_MODE_SHM && !local.shm_leader; }
@@ -209,7 +208,7 @@ void XcpShmDebugPrint(tXcpData *xcp_data) {
 // From now, no other processes may join the XCP session
 void XcpShmRequestA2lFinalize(void) {
 
-    assert(XcpShmActive());
+    assert(XcpShmIsActive());
     assert(isActivated_(gXcpData));
 
     if (!XcpShmIsServer())
@@ -227,14 +226,14 @@ void XcpShmRequestA2lFinalize(void) {
 // Returns true once the leader has set the A2L finalize request flag.
 bool XcpShmIsA2lFinalizeRequested(void) {
 
-    assert(XcpShmActive());
+    assert(XcpShmIsActive());
     assert(isActivated_(gXcpData));
     return atomic_load(&gXcpData->shm_header.a2l_finalize_requested) != 0;
 }
 
 // Update this process's app slot with its A2L filename and mark it as finalized.
 void XcpShmNotifyA2lFinalized(const char *a2l_name) {
-    assert(XcpShmActive());
+    assert(XcpShmIsActive());
     assert(isActivated_(gXcpData));
 
     uint8_t slot = local.shm_app_id;
@@ -251,7 +250,7 @@ void XcpShmNotifyA2lFinalized(const char *a2l_name) {
 
 // Get the number of registered applications in SHM mode.
 uint8_t XcpShmGetAppCount(void) {
-    if (!XcpShmActive())
+    if (!XcpShmIsActive())
         return 0;
     assert(isActivated_(gXcpData));
     return (uint8_t)atomic_load(&gXcpData->shm_header.app_count);
@@ -260,7 +259,7 @@ uint8_t XcpShmGetAppCount(void) {
 // Get the project name of an app slot by its app_id index.
 // Returns NULL if the slot is vacant or out of range.
 const char *XcpShmGetAppProjectName(uint8_t app_id) {
-    assert(XcpShmActive());
+    assert(XcpShmIsActive());
     assert(isActivated_(gXcpData));
 
     if (app_id >= SHM_MAX_APP_COUNT)
@@ -274,7 +273,7 @@ const char *XcpShmGetAppProjectName(uint8_t app_id) {
 // Get the EPK of an app slot by its app_id index.
 // Returns NULL if the slot is vacant or out of range.
 const char *XcpShmGetAppEpk(uint8_t app_id) {
-    assert(XcpShmActive());
+    assert(XcpShmIsActive());
     assert(isActivated_(gXcpData));
 
     if (app_id >= SHM_MAX_APP_COUNT)
@@ -290,7 +289,7 @@ const char *XcpShmGetAppEpk(uint8_t app_id) {
 // as long as /xcpdata is mapped).  Returns the number of entries written.
 int XcpShmCollectA2lFiles(uint32_t timeout_ms, const char *filenames[], int max_count) {
 
-    assert(XcpShmActive());
+    assert(XcpShmIsActive());
     assert(isActivated_(gXcpData));
 
     uint32_t elapsed = 0;
@@ -332,7 +331,7 @@ int XcpShmCollectA2lFiles(uint32_t timeout_ms, const char *filenames[], int max_
 // Increment this process's alive_counter so the leader can detect stale followers.
 void XcpShmIncrementAliveCounter(void) {
 
-    assert(XcpShmActive());
+    assert(XcpShmIsActive());
     assert(isActivated_(gXcpData));
 
     uint8_t slot = local.shm_app_id;
@@ -346,7 +345,7 @@ void XcpShmIncrementAliveCounter(void) {
 // If a slot with a matching project_name already exists (process restart), it is reused.
 uint8_t XcpShmRegisterApp(const char *name, const char *epk, bool is_leader, bool is_server) {
 
-    assert(XcpShmActive());
+    assert(XcpShmIsActive());
     assert(isInitialized_(gXcpData));
 
     tShmHeader *hdr = &gXcpData->shm_header;

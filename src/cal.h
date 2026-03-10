@@ -74,12 +74,15 @@ typedef uint16_t tXcpCalSegIndex;
 // place in POSIX shared memory without pointer fixup across processes.
 typedef union {
     struct {
-        atomic_uint_fast32_t ecu_page_next; // offset into c->b[], or XCP_CALSEG_NO_PAGE
-        atomic_uint_fast32_t free_page;     // offset into c->b[], or XCP_CALSEG_NO_PAGE
-        atomic_uint_fast8_t ecu_access;     // page number for ECU access
-        atomic_uint_fast8_t lock_count;     // lock count for the segment, 0 = unlocked
+        atomic_uint_least32_t ecu_page_next; // offset into c->b[], or XCP_CALSEG_NO_PAGE
+        atomic_uint_least32_t free_page;     // offset into c->b[], or XCP_CALSEG_NO_PAGE
+        atomic_uint_fast8_t ecu_access;      // page number for ECU access
+        atomic_uint_fast8_t lock_count;      // lock count for the segment, 0 = unlocked
+                                             // In SHM mode, there is no pointer to the default page
 #ifndef OPTION_SHM_MODE
         uint8_t *default_page_ptr; // process-local ptr to caller's static data, NOT sharable
+#else
+        uint8_t *res;
 #endif
         uint32_t ecu_page; // offset into c->b[], or XCP_CALSEG_NO_PAGE
         uint32_t xcp_page; // offset into c->b[], or XCP_CALSEG_NO_PAGE
@@ -106,9 +109,8 @@ typedef union {
 #define ECU_PAGE_OFFSET(aligned_page_size) (2 * (aligned_page_size))  // Initial of the ECU working page in the allocated memory buffer
 #define FREE_PAGE_OFFSET(aligned_page_size) (3 * (aligned_page_size)) // Initial of the free swap page in the allocated memory buffer
 #define CalSegDefaultPage(c) &(c)->b[DEFAULT_PAGE_OFFSET]
-#define CalSegPage_(c, off) ((off) == XCP_CALSEG_NO_PAGE ? NULL : &(c)->b[(off)])
-#define CalSegEcuPage(c) CalSegPage_(c, (c)->h.ecu_page)
-#define CalSegXcpPage(c) CalSegPage_(c, (c)->h.xcp_page)
+#define CalSegEcuPage(c) &(c)->b[(c)->h.ecu_page]
+#define CalSegXcpPage(c) &(c)->b[(c)->h.xcp_page]
 
 static_assert(sizeof(tXcpCalSegHeader) == XCP_CALSEG_HEADER_SIZE, "Error: increase XCP_CALSEG_HEADER_SIZE");
 static_assert(sizeof(tXcpCalSegHeader) % XCP_CALPAGE_ALIGNMENT == 0, "Error: size of tXcpCalSegHeader is not a multiple of XCP_CALPAGE_ALIGNMENT");
@@ -179,6 +181,7 @@ uint8_t XcpGetMemSegCount(void);
 tXcpCalSegIndex XcpFindCalSeg(const char *name);
 
 // Find a calibration segment by exactly the default page pointer, returns XCP_UNDEFINED_CALSEG if not found
+// In SHM mode, there is no pointer to the default page
 #ifndef OPTION_SHM_MODE
 tXcpCalSegIndex XcpFindCalPage(const void *default_page);
 #endif
@@ -205,6 +208,7 @@ uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg);
 // Update all pending calibration changes
 uint8_t XcpCalSegPublishAll(bool wait);
 
+// In SHM mode, there is no pointer to the default page
 #ifndef OPTION_SHM_MODE
 // Update a calibration parameter segment pointer
 // Single threaded calibration segment access assumed

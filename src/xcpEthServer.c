@@ -34,11 +34,8 @@
 #ifdef OPTION_ENABLE_A2L_GENERATOR
 #include "a2l.h" // for A2lFinalize() called from the follower background thread
 #endif
-#endif // OPTION_SHM_MODE
-
-#ifdef OPTION_SHM_MODE
 #include <unistd.h> // for getpid()
-#endif
+#endif              // OPTION_SHM_MODE
 
 #if !defined(_WIN) && !defined(_LINUX) && !defined(_MACOS) && !defined(_QNX)
 #error "Please define platform _WIN, _MACOS or _LINUX or _QNX"
@@ -55,6 +52,8 @@ static DWORD WINAPI XcpServerTransmitThread(LPVOID lpParameter);
 static void *XcpServerTransmitThread(void *par);
 #endif
 
+// In SHM mode, an application which is not the XCP server
+// There is a single follower background thread for polling A2L finalize requests and alive_counter
 #ifdef OPTION_SHM_MODE
 #if defined(_WIN) // Windows
 static DWORD WINAPI XcpServerFollowerThread(LPVOID lpParameter);
@@ -67,6 +66,7 @@ static void *XcpServerFollowerThread(void *par);
 #error "Please define OPTION_ENABLE_TCP or OPTION_ENABLE_UDP"
 #endif
 
+// In SHM mode, the queue is in shared memory and has an additional shared memory header
 // SHM queue region header for /xcpqueue
 // Placed at the start of the shared queue memory, the actual queue data starts immediately after.
 #ifdef OPTION_SHM_MODE
@@ -92,7 +92,7 @@ static struct {
     // Queue
     tQueueHandle TransmitQueue;
 
-    // SHM mode
+    // In SHM mode, gXcpServer has additional state
 #ifdef OPTION_SHM_MODE
     bool shm_leader;             // created /xcpqueue
     bool shm_server;             // is the server
@@ -138,8 +138,9 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
     if (!socketStartup())
         return false;
 
+    // In SHM mode, the queue is in shared memory and has an additional shared memory header
 #ifdef OPTION_SHM_MODE
-    if (XcpShmActive()) {
+    if (XcpShmIsActive()) {
         // SHM queue: the /xcpqueue owner is always the shm leader
         // Followers must attach at the leader's queue size (from fstat), never reclaim the region.
         bool is_leader = XcpShmIsLeader();
@@ -276,9 +277,10 @@ bool XcpEthServerShutdown(void) {
         return false;
     }
 
+    // In SHM mode, shutdown
 #ifdef OPTION_SHM_MODE
     // Not SHM server: no socket or server threads — stop the background thread, then clean up
-    if (XcpShmActive() && !gXcpServer.shm_server) {
+    if (XcpShmIsActive() && !gXcpServer.shm_server) {
         gXcpServer.FollowerThreadRunning = false;
         join_thread(gXcpServer.FollowerThreadHandle);
         platformShmClose("/xcpqueue", gXcpServer.shm_queue_ptr, gXcpServer.shm_queue_total_size, false); // Unmap but do not unlink the SHM region
@@ -315,9 +317,10 @@ bool XcpEthServerShutdown(void) {
     // Free the transmit queue
     queueDeinit(gXcpServer.TransmitQueue);
 
+    // In SHM mode, the queue is in shared memory and has an additional shared memory header
 #ifdef OPTION_SHM_MODE
     // Unmap but do not unlink the SHM region for the transmit queue
-    if (XcpShmActive() && gXcpServer.shm_queue_ptr != NULL) {
+    if (XcpShmIsActive() && gXcpServer.shm_queue_ptr != NULL) {
         platformShmClose("/xcpqueue", gXcpServer.shm_queue_ptr, gXcpServer.shm_queue_total_size, false);
         gXcpServer.shm_queue_ptr = NULL;
     }
@@ -382,7 +385,7 @@ extern void *XcpServerTransmitThread(void *par)
     return 0;
 }
 
-// XCP server follower background thread (SHM follower processes only)
+// In SHM mode, there is a background thread in applications which are not the XCP server
 // Polls the A2L finalize request flag so followers can write their A2L file as soon
 // as the leader gets an XCP client CONNECT.  Also increments the alive_counter so
 // the leader can detect stale follower processes.

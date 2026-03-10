@@ -22,7 +22,7 @@
 
 #include "dbg_print.h"  // for DBG_PRINTF3, DBG_PRINT4, DBG_PRINTF4, DBG...
 #include "platform.h"   // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
-#include "shm.h"        // for XcpShmXxx
+#include "shm.h"        // for shared memory management
 #include "xcp.h"        // for CRC_XXX
 #include "xcpLite.h"    // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
 #include "xcp_cfg.h"    // for XCP_xxx
@@ -150,6 +150,7 @@ static bool writeEvent(FILE *file, tXcpEventId event_id, const tXcpEvent *event)
     memset(&desc, 0, sizeof(tEventDescriptor));
     strncpy(desc.name, event->name, XCP_MAX_EVENT_NAME);
     desc.name[XCP_MAX_EVENT_NAME] = '\0'; // Ensure null termination
+    // In SHM mode, save the app_id of the event owner
 #ifdef OPTION_SHM_MODE
     desc.app_id = event->app_id;
 #endif
@@ -176,6 +177,7 @@ static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, const tXcpCalSeg *se
     desc.addr = XcpGetCalSegBaseAddress(calseg);
     desc.index = calseg;
     desc.number = seg->h.calseg_number;
+    // In SHM mode, save the app_id of the calibration segment owner
 #ifdef OPTION_SHM_MODE
     desc.app_id = seg->h.app_id;
 #endif
@@ -199,6 +201,7 @@ static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, const tXcpCalSeg *se
     return true;
 }
 
+// In SHM mode, the .BIN file contains an application list
 #ifdef OPTION_SHM_MODE
 
 // Write a application descriptor
@@ -279,6 +282,7 @@ bool XcpBinWrite(uint8_t page) {
         }
     }
 
+    // In SHM mode, write application list
 #ifdef OPTION_SHM_MODE
     // Write application descriptors
     for (uint8_t i = 0; i < app_count; i++) {
@@ -410,6 +414,7 @@ static bool load(const char *filename, const char *epk) {
             fclose(file);
             return false;
         }
+        // In SHM mode, set the app_id of the event owner
 #ifdef OPTION_SHM_MODE
         tXcpEvent *event = (tXcpEvent *)XcpGetEvent(event_id); // @@@@ TODO cast away const, improve design to avoid this
         event->app_id = desc.app_id;
@@ -453,7 +458,7 @@ static bool load(const char *filename, const char *epk) {
 #endif
     }
 
-    // Load application descriptors in SHM mode
+    // In SHM mode, load application list
 #ifdef OPTION_SHM_MODE
     for (uint8_t i = 0; i < gBinHeader.app_count; i++) {
         tAppDescriptor desc;

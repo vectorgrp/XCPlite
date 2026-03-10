@@ -28,9 +28,8 @@
 #include "dbg_print.h"   // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
 #include "persistence.h" // for XcpBinFreezeCalSeg
 #include "platform.h"    // for atomics OS abstraction
-// #include "shm.h"      // for shared memory management
-#include "xcp.h"     // XCP protocol definitions
-#include "xcpLite.h" // XCP protocol layer interface functions
+#include "xcp.h"         // XCP protocol definitions
+#include "xcpLite.h"     // XCP protocol layer interface functions
 
 /**************************************************************************/
 // State
@@ -137,7 +136,7 @@ uint8_t XcpGetMemSegCount(void) { return shared.cal_seg_list.memory_segment_coun
 // Get a pointer to the calibration segment struct of calseg index
 const tXcpCalSeg *XcpGetCalSeg(tXcpCalSegIndex calseg_index) {
     assert(isInitialized());
-    if (calseg_index >= XcpGetCalSegCount() || CalSegPtr(calseg_index) == NULL)
+    if (calseg_index >= XcpGetCalSegCount())
         return NULL;
     return CalSegPtr(calseg_index);
 }
@@ -151,8 +150,8 @@ tXcpCalSegIndex XcpFindCalSeg(const char *name) {
     for (tXcpCalSegIndex i = 0; i < n; i++) {
         const tXcpCalSeg *calseg = CalSegPtr(i);
         assert(calseg != NULL);
-#ifdef OPTION_SHM_MODE
         // In SHM mode, match only entries owned by this process — different apps may use the same name
+#ifdef OPTION_SHM_MODE
         if (calseg->h.app_id == local.shm_app_id && strcmp(calseg->h.name, name) == 0) {
 #else
         if (strcmp(calseg->h.name, name) == 0) {
@@ -163,6 +162,7 @@ tXcpCalSegIndex XcpFindCalSeg(const char *name) {
     return XCP_UNDEFINED_CALSEG; // Not found
 }
 
+// In SHM mode, we can not find the segment by page pointer
 #ifndef OPTION_SHM_MODE
 
 // Find a calibration segment by a page pointer (default page or ecu_page), returns XCP_UNDEFINED_CALSEG if not found
@@ -219,7 +219,7 @@ tXcpCalSegIndex XcpGetCalSegIndex(tXcpCalSegNumber segment_number) {
 // Get the memory segment number of a calibration segment, returns 0xFF if not found
 // Lock-free, thread-safe
 tXcpCalSegNumber XcpGetCalSegNumber(tXcpCalSegIndex calseg_index) {
-    if (calseg_index >= XcpGetCalSegCount() || CalSegPtr(calseg_index) == NULL)
+    if (calseg_index >= XcpGetCalSegCount())
         return XCP_UNDEFINED_CALSEG_NUM;
     return CalSegPtr(calseg_index)->h.calseg_number;
 }
@@ -227,7 +227,7 @@ tXcpCalSegNumber XcpGetCalSegNumber(tXcpCalSegIndex calseg_index) {
 // Get the name of the calibration segment
 const char *XcpGetCalSegName(tXcpCalSegIndex calseg_index) {
     assert(isInitialized());
-    if (calseg_index >= XcpGetCalSegCount() || CalSegPtr(calseg_index) == NULL)
+    if (calseg_index >= XcpGetCalSegCount())
         return NULL;
     return CalSegPtr(calseg_index)->h.name;
 }
@@ -235,7 +235,7 @@ const char *XcpGetCalSegName(tXcpCalSegIndex calseg_index) {
 // Get the size of a calibration segment
 uint16_t XcpGetCalSegSize(tXcpCalSegIndex calseg_index) {
     assert(isInitialized());
-    if (calseg_index >= XcpGetCalSegCount() || CalSegPtr(calseg_index) == NULL)
+    if (calseg_index >= XcpGetCalSegCount())
         return 0;
     return CalSegPtr(calseg_index)->h.size;
 }
@@ -243,15 +243,16 @@ uint16_t XcpGetCalSegSize(tXcpCalSegIndex calseg_index) {
 // Get the XCP/A2L address of a calibration segment
 uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg_index) {
     assert(isInitialized());
-    if (calseg_index >= XcpGetCalSegCount() || CalSegPtr(calseg_index) == NULL)
+    if (calseg_index >= XcpGetCalSegCount())
         return 0;
 #if XCP_ADDR_EXT_SEG == 0x00
     // Memory segments are addressed in relative mode
     return XcpAddrEncodeSegIndex(calseg_index, 0);
 #else
-    // Memory segments are addressed in absolute mode, not possible in shared memory mode
+// Memory segments are addressed in absolute mode, not possible in shared memory mode
+// In SHM mode, absolute addressing mode on extension 0 is not supported
 #ifdef OPTION_SHM_MODE
-#error "Absolute addressing mode is not supported in shared memory mode"
+#error "Absolute addressing mode on extension 0 is not supported"
 #endif
 #if defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS != 0x00
 #error "XCP_ADDR_EXT_ABS must be 0x00"
@@ -265,7 +266,7 @@ uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg_index) {
 uint8_t *XcpCreateCalSegPreloaded(const char *name, uint16_t page_size, uint16_t index, uint8_t number, uint32_t file_pos) {
 
     // Create a calibration segment without an initial value
-    tXcpCalSegIndex calseg = XcpCreateCalSeg_(name, NULL, page_size, number != XCP_UNDEFINED_CALSEG_NUM ? 2 : 0);
+    tXcpCalSegIndex calseg = XcpCreateCalSeg_(name, NULL, page_size, number != XCP_UNDEFINED_CALSEG_NUM);
     if (calseg != (tXcpCalSegIndex)index) {
         DBG_PRINTF_ERROR("Preloaded calibration segment '%s' created with wrong index %u, expected %u\n", name, calseg, index);
         return NULL;
@@ -417,6 +418,7 @@ static void XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
         STRNCPY(c->h.name, name, XCP_MAX_CALSEG_NAME);
         c->h.name[XCP_MAX_CALSEG_NAME] = 0;
         c->h.size = page_size;
+        // In SHM mode, assign the app_id to the segment
 #ifdef OPTION_SHM_MODE
         c->h.app_id = local.shm_app_id;
 #else
@@ -439,6 +441,8 @@ static void XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
         // Standard: provided by the caller, may have static lifetime, so keep the pointer in non SHM mode and also make a copy
         if (default_page != NULL) {
             memcpy(CalSegDefaultPage(c), default_page, page_size); // Copy default page to the allocated memory buffer
+
+            // In SHM mode, there is no pointer to the default page
 #ifndef OPTION_SHM_MODE
             c->h.default_page_ptr = (uint8_t *)default_page; // Keep the pointer to the default page, which may have static lifetime
 #endif
@@ -448,6 +452,8 @@ static void XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
         else {
 #ifdef XCP_ENABLE_CAL_PERSISTENCE
             memset(CalSegDefaultPage(c), 0, page_size);
+
+            // In SHM mode, there is no pointer to the default page
 #ifndef OPTION_SHM_MODE
             c->h.default_page_ptr = NULL;
 #endif
@@ -570,6 +576,7 @@ uint8_t XcpUnlockCalSeg(tXcpCalSegIndex calseg_index) {
     return oldLockCount;
 }
 
+// In SHM mode, we can not find the segment by page pointer
 #ifndef OPTION_SHM_MODE
 // Update a calibration parameter segment by pointer to the actual page
 // Calibration segment is continuously locked and only updated here
@@ -597,7 +604,7 @@ uint8_t XcpCalSegReadMemory(uint32_t src, uint16_t size, uint8_t *dst) {
     uint16_t calseg_index = XcpAddrDecodeSegNumber(src); // Get the calibration segment number from the address
     uint16_t offset = XcpAddrDecodeSegOffset(src);       // Get the offset within the calibration segment
 
-    if (calseg_index >= XcpGetCalSegCount() || CalSegPtr(calseg_index) == NULL) {
+    if (calseg_index >= XcpGetCalSegCount()) {
         DBG_PRINTF_ERROR("invalid calseg index %u\n", calseg_index);
         return CRC_ACCESS_DENIED;
     }
@@ -695,7 +702,7 @@ uint8_t XcpCalSegWriteMemory(uint32_t dst, uint16_t size, const uint8_t *src) {
     uint16_t calseg_index = XcpAddrDecodeSegNumber(dst);
     uint16_t offset = XcpAddrDecodeSegOffset(dst);
 
-    if (calseg_index >= XcpGetCalSegCount() || CalSegPtr(calseg_index) == NULL) {
+    if (calseg_index >= XcpGetCalSegCount()) {
         DBG_PRINTF_ERROR("invalid calseg number %u\n", calseg_index);
         return CRC_ACCESS_DENIED;
     }
@@ -710,9 +717,7 @@ uint8_t XcpCalSegWriteMemory(uint32_t dst, uint16_t size, const uint8_t *src) {
     }
 
     // Update data in the current xcp page
-    uint8_t *p = CalSegXcpPage(c);
-    assert(p != NULL);
-    memcpy(p + offset, src, size);
+    memcpy(CalSegXcpPage(c) + offset, src, size);
 
     // Calibration page RCU
     // If write delayed, we do not update the ECU page yet

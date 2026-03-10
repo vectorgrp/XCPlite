@@ -151,6 +151,7 @@ typedef struct {
     uint16_t index;         // Event instance index, 0 = single instance, 1.. = multiple instances
     uint16_t daq_first;     // First associated DAQ list, linked list
     uint8_t flags;          // Control flags for the event
+    // In SHM mode, the event has an application id
 #ifdef OPTION_SHM_MODE
     uint8_t app_id; // Application id of the event
 #endif
@@ -293,6 +294,7 @@ typedef struct XcpData {
 
     uint16_t session_status; // must be the first field of the struct
 
+    // In SHM mode, tXcpData has a shared memory header
 #ifdef OPTION_SHM_MODE
     tShmHeader shm_header; // SHM header
 #endif
@@ -346,7 +348,7 @@ typedef struct XcpLocalData {
     // Initialisation mode (XCP_MODE_DEACTIVATE / XCP_MODE_LOCAL / XCP_MODE_SHM)
     uint8_t init_mode;
 
-    // SHM mode state (only valid when init_mode == XCP_MODE_SHM)
+    // In SHM mode, there is additional local state
 #ifdef OPTION_SHM_MODE
     uint8_t shm_app_id; // Index in shm_header.app_list,  SHM_MAX_APP_COUNT = no slot assigned yet
     bool shm_server;    // This process is the XCP server

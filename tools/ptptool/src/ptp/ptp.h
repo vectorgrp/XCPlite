@@ -21,7 +21,19 @@
 #define OPTION_ENABLE_PTP_OBSERVER
 
 // Enable XCP instrumentation for observer or master measurements
-#define OPTION_ENABLE_XCP
+// #define OPTION_ENABLE_XCP
+#ifndef OPTION_ENABLE_XCP
+#define CLOCK_STATE_SYNCH_IN_PROGRESS (0)
+#define CLOCK_STATE_SYNCH (1)
+#define CLOCK_STATE_FREE_RUNNING (7)
+#define CLOCK_STATE_GRANDMASTER_STATE_SYNCH (1 << 3) // @@@@ not used yet
+#define CLOCK_STRATUM_LEVEL_UNKNOWN 255
+#define CLOCK_STRATUM_LEVEL_ARB 16                                                 // unsychronized
+#define CLOCK_STRATUM_LEVEL_UTC 0                                                  // Atomic reference clock
+#define CLOCK_EPOCH_TAI 0                                                          // Atomic monotonic time since 1.1.1970 (TAI)
+#define CLOCK_EPOCH_UTC 1                                                          // Universal Coordinated Time (with leap seconds) since 1.1.1970 (UTC)
+#define CLOCK_EPOCH_ARB 2                                                          // Arbitrary (epoch unknown)
+#endif
 
 #ifdef OPTION_ENABLE_PTP_OBSERVER
 #define PTP_MAX_OBSERVERS 16

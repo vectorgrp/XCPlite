@@ -29,6 +29,7 @@ constexpr int OPTION_LOG_LEVEL = 5;                           // Log level, 0 = 
 
 // Calibration parameters struct
 struct ParametersT {
+    uint32_t delay_us;    // Mainloop delay time in us
     uint16_t counter_max; // Maximum value for the counter
     double min;           // Minimum value for random number generation
     double max;           // Maximum value for random number generation
@@ -38,7 +39,8 @@ struct ParametersT {
 };
 
 // Default parameter values
-const ParametersT kParameters = {.counter_max = 1024,
+const ParametersT kParameters = {.delay_us = 1000,
+                                 .counter_max = 1024,
                                  .min = -2.0,
                                  .max = +2.0,
                                  .map = {{0, 1, 2, 3, 4, 5, 6, 7}, {11, 12, 13, 14, 15, 16, 17, 18}, {21, 22, 23, 24, 25, 26, 27, 28}, {31, 32, 33, 34, 35, 36, 37, 38}},
@@ -52,17 +54,17 @@ const ParametersT kParameters = {.counter_max = 1024,
 // This calibration segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
 // It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
 // It supports XCP/ECU independent page switching, checksum calculation and reinitialization (copy reference page to working page)
-// std::optional<xcplib::CalSeg<ParametersT>> gCalSeg;
+std::optional<xcplib::CalSeg<ParametersT>> gCalSeg;
 // Option 2:
 // This calibration block does not create a MEMORY_SEGMENT in the A2L file
 // It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
 // It supports XCP/ECU page switching, but can not be explicitly controlled via XCP commands
-std::optional<xcplib::CalBlk<ParametersT>> gCalSeg;
+// std::optional<xcplib::CalBlk<ParametersT>> gCalSeg;
 // Option 3:
 // Calibration disabled
 // const ParametersT *params = &kParameters; // Direct access to the calibration parameters constants
 
-const uint32_t kDelayUs = 1000; // Loop delay in microseconds
+uint32_t kDelayUs = 1000; // Loop delay in microseconds
 
 //-----------------------------------------------------------------------------------------------------
 // Demo global measurement value
@@ -194,7 +196,8 @@ int main() {
                      // A2L_CURVE_WITH_AXIS_COMPONENT(curve, "Demo curve", "", 0, 100, axis), // CANape >= 24.0
                      A2L_PARAMETER_COMPONENT(min, "Minimum random number value", "", -100.0, 100.0), //
                      A2L_PARAMETER_COMPONENT(max, "Maximum random number value", "", -100.0, 100.0), //
-                     A2L_PARAMETER_COMPONENT(counter_max, "Maximum counter value", "", 0, 65535));
+                     A2L_PARAMETER_COMPONENT(counter_max, "Maximum counter value", "", 0, 65535),    //
+                     A2L_PARAMETER_COMPONENT(delay_us, "Mainloop delay time in us", "us", 0, 500000));
     gCalSeg->CreateA2lTypedefInstance("ParametersT", "Demo calibration parameters for hello_xcp_cpp example");
 #endif
 
@@ -217,6 +220,7 @@ int main() {
 #ifdef OPTION_ENABLE_CALIBRATION
             auto params = gCalSeg->lock(); // Don't keep the calibration parameters locked for longer than necessary, to minimize delays of XCP write access from the tool
 #endif
+            kDelayUs = params->delay_us;         // Get the delay_us calibration value
             if (counter > params->counter_max) { // Get the counter_max calibration value and reset counter
                 counter = 0;
             }

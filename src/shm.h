@@ -50,8 +50,7 @@ typedef union {
         uint8_t is_leader;                                  // != 0 this process created the shared memory segment
         uint8_t is_server;                                  // != 0 this process is the XCP server (handles client connections and DAQ)
         uint8_t pad1[2];                                    // explicit padding for deterministic cross-compiler layout
-        atomic_uint_least32_t alive_counter;                // incremented periodically by each process's background thread;
-                                                            //   allows the leader to detect stale/dead followers
+        atomic_uint_least32_t alive_counter;                // incremented periodically by each process's background thread; allows the leader to detect stale/dead followers
         atomic_uint_least32_t a2l_finalized;                // 1 when this app's A2L file is complete and a2l_name is valid
     };
     uint8_t b[512]; // pad slot to 512 bytes for future extensions
@@ -76,7 +75,7 @@ typedef struct {
 static_assert(sizeof(tShmHeader) % 64 == 0, "sizeof tShmHeader must be a multiple of 64 bytes");
 
 uint8_t XcpShmGetAppId(void); // Get this process's application id
-bool XcpShmActive(void);      // true when this process is in SHM_MODE
+bool XcpShmIsActive(void);    // true when this process is in SHM_MODE
 bool XcpShmIsServer(void);    // true when this process is the XCP server
 bool XcpShmIsLeader(void);    // true when this process created the shared memory region
 bool XcpShmIsFollower(void);  // true when this process is a follower attached to a leader

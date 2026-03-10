@@ -68,7 +68,7 @@
 #include "persistence.h" // for XcpBinFreezeCalSeg
 #include "platform.h"    // for atomics
 #include "queue.h"       // for QueueXxx transport queue layer interface
-#include "shm.h"         // for OPTION_SHM_MODE shared memory management
+#include "shm.h"         // for shared memory management
 #include "xcp.h"         // XCP protocol definitions
 #include "xcpEthTl.h"    // for transport layer XcpTlWaitForTransmitQueueEmpty and XcpTlSendCrm
 
@@ -759,8 +759,8 @@ static tXcpEventId XcpFindEventInstances(const char *name, uint16_t *pcount) {
         // @@@@ Iterate event list
         uint16_t count = getEventCount();
         for (uint16_t i = 0; i < count; i++) {
-#ifdef OPTION_SHM_MODE
             // In SHM mode, match only entries owned by this process — different apps have different namespace
+#ifdef OPTION_SHM_MODE
             if (shared.event_list.event[i].app_id == local.shm_app_id && strcmp(shared.event_list.event[i].name, name) == 0) {
 #else
             if (strcmp(shared.event_list.event[i].name, name) == 0) {
@@ -818,6 +818,7 @@ tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cyc
 #endif
     shared_mut_safe.event_list.event[e].daq_first = XCP_UNDEFINED_DAQ_LIST;
     shared_mut_safe.event_list.event[e].cycle_time_ns = cycle_time_ns;
+    // In SHM mode, assign event to the application, different apps have different namespace
 #ifdef OPTION_SHM_MODE
     shared_mut_safe.event_list.event[e].app_id = local.shm_app_id;
 #endif
@@ -1738,6 +1739,7 @@ void XcpDisconnect(void) {
     if (!isStarted())
         return;
 
+    // In SHM mode, only the server can disconnect
 #ifdef OPTION_SHM_MODE
     if (!XcpShmIsServer()) {
         return;
@@ -2743,7 +2745,7 @@ void XcpBackgroundTasks(void) {
         return;
     }
 
-// SHM leader: detect newly registered follower processes and log their identity
+// In SHM mode, detect newly registered follower processes and log their identity
 #ifdef OPTION_SHM_MODE
     if (XcpShmIsServer()) {
         static uint32_t last_known_app_count = 0;
@@ -2883,6 +2885,8 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     // Allocate tXcpData on heap or attach to the shared memory
     if (mode == XCP_MODE_SHM || mode == XCP_MODE_SHM_SERVER) {
         assert(gXcpData == NULL);
+
+        // In SHM mode, attach to shared memory, create it if not existing (leader), and register this application
 #ifdef OPTION_SHM_MODE
         bool is_leader;
         gXcpData = XcpShmAttachOrCreate(&is_leader);
@@ -2933,8 +2937,8 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
         return true; // Do not activate XCP protocol layer, state is safe now
     }
 
+    // In SHM mode, the leader initializes shared memory
 #ifdef OPTION_SHM_MODE
-    // Initialize shared memory and register this application
     if (local_mut.shm_leader) {
 
         XcpShmInit(gXcpData);
