@@ -2883,22 +2883,27 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     XcpSetEpk(epk);
 
     // Allocate tXcpData on heap or attach to the shared memory
-    if (mode == XCP_MODE_SHM || mode == XCP_MODE_SHM_SERVER) {
+    if (mode >= XCP_MODE_SHM) {
         assert(gXcpData == NULL);
 
         // In SHM mode, attach to shared memory, create it if not existing (leader), and register this application
 #ifdef OPTION_SHM_MODE
-        bool is_leader;
-        gXcpData = XcpShmAttachOrCreate(&is_leader);
+
+        gXcpData = XcpShmAttachOrCreate(&local_mut.shm_leader);
         if (gXcpData == NULL) {
             DBG_PRINT_ERROR("XcpInit: failed to attach to shared memory\n");
             return false;
         }
-        // Init local state
-        local_mut.shm_leader = is_leader;
-        local_mut.shm_server = (mode == XCP_MODE_SHM_SERVER); // @@@@ TODO CHeck if there already is a server
 
-        if (!is_leader) {
+        if (!local_mut.shm_leader) {
+
+            if (mode == XCP_MODE_SHM_SERVER) {
+                // @@@@ TODO Check if there already is a server !!!!!!!!!!!!!!
+                local_mut.shm_server = true;
+                assert(false && "Not implemented yet");
+            } else {
+                local_mut.shm_server = false;
+            }
 
 #ifdef DBG_LEVEL
             DBG_PRINTF3("XcpInit: Created or attached to shared memory, is_leader=%u, shm_app_id=%u\n", local.shm_leader, local.shm_app_id);
@@ -2943,9 +2948,9 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
 
         XcpShmInit(gXcpData);
 
-        // Init local state
+        // Init local state of the leader
         local_mut.shm_leader = true;
-        local_mut.shm_server = (mode == XCP_MODE_SHM_SERVER); // The leader becomes the server, if server mode is requested
+        local_mut.shm_server = (mode == XCP_MODE_SHM_SERVER) || (mode == XCP_MODE_SHM_AUTO);
         local_mut.shm_app_id = XcpShmRegisterApp(name, epk, local_mut.shm_leader, local_mut.shm_server);
     }
 #endif // OPTION_SHM_MODE

@@ -74,15 +74,14 @@ typedef uint16_t tXcpCalSegIndex;
 // place in POSIX shared memory without pointer fixup across processes.
 typedef union {
     struct {
-        atomic_uint_least32_t ecu_page_next; // offset into c->b[], or XCP_CALSEG_NO_PAGE
-        atomic_uint_least32_t free_page;     // offset into c->b[], or XCP_CALSEG_NO_PAGE
+        atomic_uint_least32_t ecu_page_next; // offset into c->b[]
+        atomic_uint_least32_t free_page;     // offset into c->b[]
         atomic_uint_fast8_t ecu_access;      // page number for ECU access
         atomic_uint_fast8_t lock_count;      // lock count for the segment, 0 = unlocked
-                                             // In SHM mode, there is no pointer to the default page
 #ifndef OPTION_SHM_MODE
         uint8_t *default_page_ptr; // process-local ptr to caller's static data, NOT sharable
 #else
-        uint8_t *res;
+        uint8_t *res1; // In SHM mode, there is no pointer to the default page
 #endif
         uint32_t ecu_page; // offset into c->b[], or XCP_CALSEG_NO_PAGE
         uint32_t xcp_page; // offset into c->b[], or XCP_CALSEG_NO_PAGE
@@ -94,11 +93,14 @@ typedef union {
 #ifdef XCP_ENABLE_CAL_PERSISTENCE
         uint32_t file_pos; // position of the calibration segment in the persistence file
         uint8_t mode;      // requested for freeze and preload
+#else
+        uint32_t res2;
+        uint8_t res3;
 #endif
         uint8_t app_id; // Application id of the event, only used in SHM mode
         char name[XCP_MAX_CALSEG_NAME + 1];
     };
-    // uint8_t reserved[XCP_CALSEG_HEADER_SIZE]; // Pad the struct to XCP_CALPAGE_ALIGNMENT
+    // uint8_t reserved[XCP_CALSEG_HEADER_SIZE];
     uint64_t alignment;
 } tXcpCalSegHeader;
 

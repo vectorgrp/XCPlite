@@ -601,7 +601,7 @@ static bool A2lOpen(void) {
 #endif
         fprintf(gA2lMasterFile, "%s", gA2lHeader2);
     } else {
-        DBG_PRINT3("A2L partial file (SHM follower): data objects only, no header/footer\n");
+        DBG_PRINT3("Generating partial A2L file: data objects only\n");
     }
 
     // Create predefined conversions and record layouts/typedefs
