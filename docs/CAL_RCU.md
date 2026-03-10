@@ -64,34 +64,27 @@ Therefore there is no need for any other, finer grained locking or synchronizati
 
 To achieve memory-safe, lock-less and wait-free access to calibration parameters in the ECU application threads, the writer thread (in any process) has to accept the following compromises:
 
-1.
-Exactly one writer thread allowed (e.g. the XCP command server thread) !!.  
+1. Exactly one writer thread allowed (e.g. the XCP command server thread) !!.  
 
-2.
-A segment write operation will become visible to the application earliest in the second first nesting level XcpLockCalSeg after the XcpCalSegWriteMemory !!.  
+2. A segment write operation will become visible to the application earliest in the second first nesting level XcpLockCalSeg after the XcpCalSegWriteMemory !!.  
 ('second' in the definition of sequentiality of this implementation).  
 
-3.
-Visibility delays of calibration updates under contention may be non deterministic !!.  
-If there are additional writes to the calibration block before the second lock (which is normally rare), these writes are accumulated in the xcp_page and are not applied automatically.  
+3. Visibility delays of calibration updates under contention may be non deterministic !!.  
+If there are additional writes to the calibration block before the second lock (which is normally rare), these writes are accumulated and are not applied sequentially.  
 To flush these additional changes, the function XcpPublishAll must be called explicitly.  
 This could be done non-blocking in a cyclic way or blocking on demand, even each time a parameter change took place.  
 In non-blocking mode, calibration changes become visible, when no other application thread holds the lock, which is non deterministic!!!     
 The alternative approach of doing blocking mode calls to XcpPublishAll after each write operation, would occasionally delay the protocol command responses by a non-deterministic amount of time, which might be acceptable in some use cases.  
 
-4.
-Calibration updates may theoretically starve, when there is always at least one reader holding a lock or the lock rate is very low.  
-Worst case is, that a calibration update command may time out.
+4. Calibration updates may theoretically starve, when there is always at least one reader holding a lock or the lock rate is very low.  
+Worst case is, that a write operation may time out.
 
-5.
-The lazy, non-blocking approach has the drawback, that calibration changes are acknowledged to the writer, before they become visible to the application threads (see 2.).  
-But there is no risk for failure.  
+5. The lazy, non-blocking approach has the drawback, that calibration changes are acknowledged to the writer, before they become visible to the application threads (see 2.).  
+But there is no risk for failure after acknowledge.  
 
-6.
-Registration and creation of calibration segments is protected by a mutex, to share a consistent state of the calibration segment list among threads.  
+6. Registration and creation of calibration segments is protected by a mutex, to share a consistent state of the calibration segment list among threads.  
 
-7. 
-Each calibration block needs a header of 64 bytes, plus 4 times the page size.  
+7.  Each calibration block needs a header of 64 bytes, plus 4 times the page size.  
 Page size is rounded up to 64 bit alignment.  
 So to calibrate a block of N bytes, we need 64+4*(8*N+7)/8 bytes of memory.
 
