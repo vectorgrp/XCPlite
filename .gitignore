@@ -20,9 +20,6 @@ RecycleBin.ini
 
 # Temporary files
 test_bintool
-conversions.a2l
-groups.a2l
-typedefs.a2l
 *.bak
 *.log
 *.txt
@@ -33,5 +30,3 @@ typedefs.a2l
 .DS_Store
 /ptptool.obs
 /docs/CPP_TYPE_TRAITS_GUIDE.md
-/src/queue64v_old.c
-/test/queue_test/src/main_old.c

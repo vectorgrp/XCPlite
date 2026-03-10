@@ -1,42 +1,51 @@
-# XCPlite lock-less and wait-free Calibration Data Access
+# XCPlite memory-safe, lock-less and wait-free Calibration Data Access
 
-This document contains advanced technical information about XCPlite's calibration implementation
+This document contains advanced technical information about XCPlite's lock-less and wait-free calibration implementation.  
 
+The base implementation is not specific to XCP, and can be used in other contexts as well, where similar requirements for memory-safe, lock-less and wait-free modification of software parameters exist.  
+Examples may be a REST API, a web server, test stimulation or a shared memory interface.  
 
-## Calibration Segment Management and RCU Algorithm
+This particular implementation shows how to implement XCP specific features (like page switching, freeze, copy, init, atomic transactions for consistency, ...) on top of the basic lock-less and wait-free calibration access pattern.
 
-### Overview:
-
-Precondition for lock-free and wait-free modification of calibration parameters is, that there is only one writer thread (XCP thread).  
-
-Access to calibration parameters on the application side is done with lock-free and wait-free functions:
-
-- XcpLockCalSeg
-- XcpUnlockCalSeg
-
-Creation and registration (in a global registration list) of calibration segments by the application
-
-- XcpCreateCalSeg
-- XcpCreateCalBlk
-- XcpCreateCalSegPreloaded
-
-Creation or check for existence is lock-free, but not wait-free (there is a CAS loop for a bump memory allocator).  
-The registration of a new calibration segment is protected by a mutex.  
-Duplicate names are not allowed, in this case the functions just return the existing segment.  
-Registration is required in XCPlite, because the calibration server and A2L generation need operations that iterate over all calibration segments, also important for automatic A2L generation.    
-XcpCreateCalSegPreloaded is optionally used to pre create and load default calibration data from a non volatile memory or file system (XCPlite BIN file).   
-The difference between XcpCreateCalSeg and XcpCreateCalBlk is, that the first one creates an XCP/A2L MEMORY_SEGMENT with all related XCP features, like page switching, freeze, copy, init, ...  
+The terms calibration segment and calibration block used in this document have basically the same meaning.
+A calibration memory segment is a calibration memory block that represents an XCP/A2L MEMORY_SEGMENT and implements its XCP specific functionality.  
 
 
+## Functional Overview:
 
-The calibration server operations needed to implement XCP memory segment handling are:  
-- XcpGetSegInfo
-- XcpGetSegPageInfo
+Precondition for this concept is, that there is only one writer thread (e.g. the XCP command server thread), but multiple consumer threads using the same calibration parameters.  
+
+Access to calibration parameter blocks in the ECU application threads must be guarded with the lock-free and wait-free functions:
+
+- XcpLockCalSeg(handle)
+- XcpUnlockCalSeg(handle)
+
+This assures memory-safe access to the calibration parameters.  
+
+
+Creation and registration (in a global registration list) of calibration parameter blocks and segments by the application threads is done with the following functions:
+
+- handle = XcpCreateCalSeg
+- handle = XcpCreateCalBlk
+- handle = XcpCreateCalSegPreloaded
+
+Creation is lock-free, but not wait-free (there is a CAS loop for a bump memory allocator).  
+Duplicate names are not allowed, the registry just returns the existing block.  
+
+The implicit one time registration of a new calibration segment handle in a global registry is protected by a mutex.  
+Registration is required for XCP, because the server implements operations that iterate over all calibration segments and needs it for automatic A2L generation.    
+XcpCreateCalSegPreloaded is optionally used to pre create and load default calibration data from a non volatile memory or file system (e.g. from XCPlite .BIN file).   
+Remember, the difference between XcpCreateCalSeg and XcpCreateCalBlk is, that the first one creates an XCP/A2L MEMORY_SEGMENT with all related XCP features, like page switching, freeze, copy, init, ...  
+
+
+The calibration server operations needed to implement typical XCP memory segment handling are:  
+- XcpCalSegSetCalPage - for reference/working page switching
 - XcpCalSegGetCalPage
-- XcpCalSegSetCalPage
-- XcpCalSegCopyCalPage
+- XcpCalSegCopyCalPage - for copying the reference to working page
+- XcpSetCalSegMode - for freeze request
+- XcpGetSegInfo - for query of segment information
+- XcpGetSegPageInfo
 - XcpGetCalSegMode
-- XcpSetCalSegMode
 
 
 Functions to access the calibration segment data from the server side are:  
@@ -46,41 +55,42 @@ Functions to access the calibration segment data from the server side are:
 - XcpCalSegEndAtomicTransaction
 
 An atomic transaction is a lock-less, wait-free global operation, which does not have any runtime costs.  
-Calibration updates from the single threaded writer just get delayed and collected in each segments XCP page, until the transaction is ended.  
+Calibration updates from the single threaded writer just get delayed and collected in each segments writer page, until the transaction is ended.  
 Therefore there is no need for any other, finer grained locking or synchronization mechanism for calibration updates.
 
 
 
-### Compromises made in the XCPlite RCU algorithm for calibration segment updates:
+## Compromises made in this RCU algorithm for calibration segment updates:
 
-To achieve lock-less and wait-free access to calibration parameters on the application side, the writer has to accept the following compromises:
+To achieve memory-safe, lock-less and wait-free access to calibration parameters in the ECU application threads, the writer thread (in any process) has to accept the following compromises:
 
 1.
-Exactly one writer thread allowed (e.g. the XCP command server thread).  
+Exactly one writer thread allowed (e.g. the XCP command server thread) !!.  
 
 2.
-A segment write operation will become visible to the application in the SECOND lock after the write !!!      
+A segment write operation will become visible to the application earliest in the second first nesting level XcpLockCalSeg after the XcpCalSegWriteMemory !!.  
+('second' in the definition of sequentiality of this implementation).  
 
 3.
-Visibility delays of calibration updates may be non deterministic.  
-If there are additional writes to the calibration block before the second lock, which is normally rare, these writes are accumulated in the xcp_page and not applied automatically.  
-To flush these additional changes, the function XcpPublishAll may be called explicitly.  
-This could be done non-blocking in a cyclic way or blocking, when each time a calibration change took place.  
-In non-blocking mode, calibration changes become visible, when no application holds the lock, which is non deterministic!!!     
-The alternative approach of doing blocking mode calls to XcpPublishAll after each write operation, would occasionally delay the command responses by a non-deterministic amount of time, which is might be acceptable in some use cases.  
+Visibility delays of calibration updates under contention may be non deterministic !!.  
+If there are additional writes to the calibration block before the second lock (which is normally rare), these writes are accumulated in the xcp_page and are not applied automatically.  
+To flush these additional changes, the function XcpPublishAll must be called explicitly.  
+This could be done non-blocking in a cyclic way or blocking on demand, even each time a parameter change took place.  
+In non-blocking mode, calibration changes become visible, when no other application thread holds the lock, which is non deterministic!!!     
+The alternative approach of doing blocking mode calls to XcpPublishAll after each write operation, would occasionally delay the protocol command responses by a non-deterministic amount of time, which might be acceptable in some use cases.  
 
 4.
-Calibration updates may theoretically starve, when there is always at least one reader holding a lock.  
+Calibration updates may theoretically starve, when there is always at least one reader holding a lock or the lock rate is very low.  
 Worst case is, that a calibration update command may time out.
 
 5.
-The lazy, non-blocking approach has the drawback, that calibration changes are acknowledged to the writer, before they become visible to the application.  
-But there is no risk, that the changes can not be made visible after acknowledge.
+The lazy, non-blocking approach has the drawback, that calibration changes are acknowledged to the writer, before they become visible to the application threads (see 2.).  
+But there is no risk for failure.  
 
 6.
-Registration and creating of calibration segments is protected by a mutex to share a consistent state of the calibration segment list among threads.  
+Registration and creation of calibration segments is protected by a mutex, to share a consistent state of the calibration segment list among threads.  
 
-5. 
+7. 
 Each calibration block needs a header of 64 bytes, plus 4 times the page size.  
 Page size is rounded up to 64 bit alignment.  
 So to calibrate a block of N bytes, we need 64+4*(8*N+7)/8 bytes of memory.
@@ -88,47 +98,48 @@ So to calibrate a block of N bytes, we need 64+4*(8*N+7)/8 bytes of memory.
 
 
 
-### RCU algorithm pseudo code for calibration segment updates:
-
+## RCU algorithm pseudo code for calibration segment updates:
 
 Here is the used RCU algorithm as pseudo code:
 
-The 3 RCU pages are named as follows:
-  1. ecu_page - for current ECU access
-  2. xcp_page - for current XCP access
-  3. free_page - for swapping
+There are only 3 RCU pages needed, named as follows:
+  1. ecu_page - current reader state
+  2. xcp_page - current writer state
+  3. free_page - for swapping pages
 
-The variables lock_count, next_page and free_page are atomic pointers or offsets.
+There is no non-deterministic, number of application threads related amount of memory needed, like in normal RCU implementations !!
+
+The variables lock_count, ecu_page_next and free_page are atomic pointers or memory offsets.
+Keep in mind, that the code needs correct acquire/release relations on ecu_page_next and free_page to work on ARM and of course for atomic increment of lock_count !!!
+Also note, that all calibration segment state is located in the same cache line.  
 
 This algorithm can be treated as a RCU like pattern with exactly one element (free_page) in its memory reclamation list.
-When there is no free memory, the calibration changes just get collected in the xcp_page.  
-This is used to realize calibration consistency requirements, were the collection is controlled by CANape through user defined commands.  
-Drawback of this simple approach is, that calibration updates may starve, when there is always at least one reader holding a lock.
-Worst case is, that a calibration update may time out.
+When there is no free_page, calibration changes just get collected in the xcp_page.  
+This is used to realize calibration consistency requirements, were the collection is controlled with a begin/end atomic transaction pattern, which is not shown here.  
+
 
 ```
-    Shared mutable atomic state between the XCP thread and the ECU thread is:
+    Shared mutable atomic state between the XCP thread and the ECU application threads is:
         - ecu_page_next: a page with newer data, taken over into ecu_page 
         - free_page: the page freed when new_page is taken over 
-        - ecu_access: 0 - ecu_page, 1 - default_page access mode
+        - ecu_access: 0 - ecu_page (RAM, working page) active, 1 - default_page access mode (FLASH, default page) active
         
-    Shared mutable atomic state between the ECU threads is:
+    Shared mutable atomic state between the ECU application threads is:
         - lock_count: number of locks on this segment
 
 
 // Multithreaded lock
 function lock(segment) {
-    if (lock_count++ == 0 }  
-      if (ecu_page != ecu_page_next) { // Need to update ecu_page
+    if (lock_count++ (atomic) == 0 }  
+      if (ecu_page != ecu_page_next (acquire) ) { // Need to update ecu_page
           
-          // The ecu_page (which now becomes the free_page) might be used by some other thread, since we got the lock==0 on this segment
-          free_page_hazard = true; 
-
+          // The ecu_page (which now becomes the free_page) might be used by some other thread, since we got the lock==0 on this segment, free page is not safe yet, set hazard flag
+          free_page_hazard = true; // Non atomic, guarded by the ecu_page release store on weak memory models
           free_page = ecu_page;
-          ecu_page = ecu_page_next;
+          ecu_page (release) = ecu_page_next;
 
       } else {
-          free_page_hazard = false; // There was no other lock and no need for update, free page must be safe now, if there is one
+          free_page_hazard = false; // There was no other lock and no need for update, free page must be safe now (unsynchronized conservative reset)
       }
     }
     return ecu_page;
@@ -153,16 +164,18 @@ function write(segment, offset, data[]) {
 }
 
 // Single threaded publish
-// Tries to publish pending changes to the ECU, return true on success
-// Called cyclically to publish pending changes. It is also called when consistency hold is released.
+// Tries to publish pending changes collected in the xcp_page to the ECU application, returns true on success, when there was a free page available
+// Success means, that the changes will become visible in the future locks of the ECU application threads
+// Called cyclically to try to make progress in publishing pending calibration changes. 
+// It is also called blocking until success, when consistency hold (end transaction) is released.
 function try_publish(segment) -> bool {
    
     // Try allocate a new xcp page
-    if (free_page == NULL || free_page_hazard ) {
+    if (free_page (acquire) == NULL || free_page_hazard ) {
         return false  // No free page available yet
     }
 
-    // allocate the free page
+    // Allocate the free page
     xcp_page_new = free_page;
     free_page = NULL;
 
@@ -178,7 +191,7 @@ function try_publish(segment) -> bool {
 
 ```
 
-### Problems in the current implementation:
+## Open issues in the current XCPlite implementation:
 
 1.
 Iteration over the calibration segment list does not guarantee a consistent view, if segments are created simultaneously in different threads.  
@@ -188,14 +201,20 @@ Solution unclear.
 
 2.
 XCPlite uses XcpFindCalSeg to check for duplicate names.  
-There is still a race condition, if they are created simultaneously in different threads.  
-TODO: An optimization of the linear search would be to use a hash table to store the segments.  
+There is still a race condition, if segments with the same name are created simultaneously in different threads.  
+
+2.1
+An optimization of the linear search runtime would be to use a hash table to store the segments.  
 
 3.
-Incrementing memory_segment_count is not atomic yet. Todo.  
-TODO: Needs shared global state between all processes. A2L MEMORY_SEGMENT numbers are a global namespace.  
+Incrementing memory_segment_count is not atomic yet.   
+Needs shared global state between all processes. A2L MEMORY_SEGMENT numbers are a global namespace.  
 
 4.
 XcpPublishAll is called (and may only be called) in the XCP receive thread, which blocks without XCP communication.  
-TODO: Maybe add a blocking timeout.  
+Maybe add a blocking timeout.  
+
+5.
+Begin atomic transaction does not flush pending prior non atomic changes. 
+Are there different opinions on this ?
 
