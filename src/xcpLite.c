@@ -1908,9 +1908,8 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
 #ifdef XCP_ENABLE_CALSEG_LIST
             if (subcmd == 0x01) {
                 XcpCalSegBeginAtomicTransaction();
-                return CRC_CMD_OK;
             } else if (subcmd == 0x02) {
-                return XcpCalSegEndAtomicTransaction() ? CRC_CMD_OK : CRC_ACCESS_DENIED;
+                check_error(XcpCalSegEndAtomicTransaction());
             } else
 #endif
             {

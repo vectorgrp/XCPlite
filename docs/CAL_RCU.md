@@ -186,28 +186,22 @@ function try_publish(segment) -> bool {
 
 ## Open issues in the current XCPlite implementation:
 
-1.
-Iteration over the calibration segment list does not guarantee a consistent view, if segments are created simultaneously in different threads.  
+1. Iteration over the calibration segment list does not guarantee a consistent view, if segments are created simultaneously in different threads.  
 The iteration may be used only, when the application has finalized the registration. New segments created after finalization should not be registered.  
 Needs shared global state between all processes.  
 Solution unclear.  
 
-2.
-XCPlite uses XcpFindCalSeg to check for duplicate names.  
+2. XCPlite uses XcpFindCalSeg to check for duplicate names.  
 There is still a race condition, if segments with the same name are created simultaneously in different threads.  
 
-2.1
-An optimization of the linear search runtime would be to use a hash table to store the segments.  
+2.1. An optimization of the linear search runtime would be to use a hash table to store the segments.  
 
-3.
-Incrementing memory_segment_count is not atomic yet.   
+3. Incrementing memory_segment_count is not atomic yet.   
 Needs shared global state between all processes. A2L MEMORY_SEGMENT numbers are a global namespace.  
 
-4.
-XcpPublishAll is called (and may only be called) in the XCP receive thread, which blocks without XCP communication.  
+4. XcpPublishAll is called (and may only be called) in the XCP receive thread, which blocks without XCP communication.  
 Maybe add a blocking timeout.  
 
-5.
-Begin atomic transaction does not flush pending prior non atomic changes. 
+5. Begin atomic transaction does not flush pending prior non atomic changes. 
 Are there different opinions on this ?
 

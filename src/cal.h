@@ -224,7 +224,7 @@ uint8_t XcpCalSegReadMemory(uint32_t src, uint16_t size, uint8_t *dst);
 
 // XCP atomic write
 void XcpCalSegBeginAtomicTransaction(void);
-bool XcpCalSegEndAtomicTransaction(void);
+uint8_t XcpCalSegEndAtomicTransaction(void);
 
 // XCP protocol commands for calibration segment management
 uint8_t XcpCalSegSetCalPage(tXcpCalSegNumber segment_number, uint8_t page, uint8_t mode);

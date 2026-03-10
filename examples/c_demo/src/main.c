@@ -42,8 +42,8 @@ typedef struct params {
 const params_t params = {
     .counter_max = 1024,
     .delay_us = 1000,
-    .test_byte1 = -1,
-    .test_byte2 = 1,
+    .test_byte1 = 1,
+    .test_byte2 = -1,
     .map = {{0, 0, 0, 0, 0, 0, 0, 0},
             {0, 1, 1, 1, 1, 1, 0, 0},
             {0, 1, 3, 3, 3, 1, 0, 0},

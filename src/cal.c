@@ -921,7 +921,7 @@ void XcpCalSegBeginAtomicTransaction(void) {
     }
     DBG_PRINT4("Begin atomic calibration operation\n");
 }
-bool XcpCalSegEndAtomicTransaction(void) {
+uint8_t XcpCalSegEndAtomicTransaction(void) {
     shared_mut.cal_seg_list.write_delayed = false; // Reset the write delay flag
     DBG_PRINT4("End atomic calibration operation\n");
     return XcpCalSegPublishAll(true); // Flush all pending writes, return true if successful
