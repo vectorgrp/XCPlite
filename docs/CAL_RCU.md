@@ -184,10 +184,240 @@ function try_publish(segment) -> bool {
 
 ```
 
+## Test Results:
+
+There is a test application in the XCPlite repository, which creates multiple threads reading from a shared calibration block.  
+The writer thread updates the calibration block with a certain pattern and the reader threads check for consistency and measure the visibility of the changes. The writer produces a mix of single writes and atomic transactions, to test the consistency requirements of the implementation.
+
+The test application is located in the test/cal_test folder.
+  
+Test parameters are defined in the test/cal_test/src/main.cpp file:  
+- TEST_THREAD_COUNT: Number of threads writing to the same calibration block, default is 4.
+- TEST_WRITE_COUNT: Overall number of writes by the writer thread, default is 10000.
+- TEST_MAIN_LOOP_DELAY_US: Main loop delay of the writer thread in microseconds, default is 100.
+- TEST_ATOMIC_CAL: If defined, every N writes are done in an atomic transaction, default is 10.
+- TEST_TASK_LOOP_DELAY_US: Task loop delay of the reader threads in microseconds, default is 100.
+- TEST_TASK_LOCK_DELAY_US: Task lock delay in the reader threads in microseconds, the time the lock is hold, default is 0 = off.
+- TEST_DATA_SIZE: Size of the test data in bytes, default is 8.
+  
+The test application measures the total number of writes, atomic writes, reads and changes observed by the reader threads.  
+The test application also measures the duration of the lock operation and creates a histogram of the lock durations.  
+
+The test result for the default parameters is:
+
+On MacBook Pro M3:
+```
+Final Statistics:
+===========================================================
+
+Test parameters:
+TEST_WRITE_COUNT = 10000
+TEST_THREAD_COUNT = 4
+TEST_CALBLK = OFF
+TEST_ATOMIC_CAL = ON
+TEST_TASK_LOOP_DELAY_US = 100
+TEST_TASK_LOCK_DELAY_US = 0
+TEST_MAIN_LOOP_DELAY_US = 100
+TEST_DATA_SIZE = 8
+
+Thread 0: reads=13360, changes=9284, avg_time=0.12us, max_time=5.08us
+Thread 1: reads=13360, changes=9268, avg_time=0.14us, max_time=25.29us
+Thread 2: reads=13360, changes=9258, avg_time=0.13us, max_time=25.71us
+Thread 3: reads=13361, changes=9272, avg_time=0.14us, max_time=10.17us
+
+Total Results:
+  Total writes: 10000
+  Total atomic writes: 1000
+  Total reads: 53441
+  Total changes observed: 37082 (69.4%)
+  Total writes pending: 136
+  Total publish all count: 1001
+  Total errors: 0
+  Average lock time: 0.13 us
+  Maximum lock time: 25.71 us
+
+Producer acquire lock time statistics:
+  count=53441  max=25709ns  avg=132ns
+
+Lock time histogram (53441 events):
+  Range                      Count        %  Bar
+  --------------------  ----------  -------  ------------------------------
+  0-40ns                         2    0.00%  
+  40-80ns                     4116    7.70%  #######
+  80-120ns                   15014   28.09%  #########################
+  120-160ns                  17386   32.53%  ##############################
+  160-200ns                  10999   20.58%  ##################
+  200-240ns                   3543    6.63%  ######
+  240-280ns                   1243    2.33%  ##
+  280-320ns                    597    1.12%  #
+  320-360ns                    222    0.42%  
+  360-400ns                     71    0.13%  
+  400-600ns                     76    0.14%  
+  600-800ns                     50    0.09%  
+  800-1000ns                    54    0.10%  
+  1000-1500ns                   41    0.08%  
+  1500-2000ns                    6    0.01%  
+  2000-3000ns                    2    0.00%  
+  3000-4000ns                    1    0.00%  
+  4000-6000ns                    5    0.01%  
+  6000-8000ns                    7    0.01%  
+  8000-10000ns                   1    0.00%  
+  10000-20000ns                  3    0.01%  
+  20000-40000ns                  2    0.00%  
+```
+
+
+Raspberry Pi5
+```
+Final Statistics:
+===========================================================
+
+Test parameters:
+TEST_WRITE_COUNT = 10000
+TEST_THREAD_COUNT = 4
+TEST_CALBLK = OFF
+TEST_ATOMIC_CAL = ON
+TEST_TASK_LOOP_DELAY_US = 100
+TEST_TASK_LOCK_DELAY_US = 0
+TEST_MAIN_LOOP_DELAY_US = 100
+TEST_DATA_SIZE = 8
+
+Thread 0: reads=12872, changes=8522, avg_time=0.32us, max_time=6.74us
+Thread 1: reads=12928, changes=9963, avg_time=0.39us, max_time=8.72us
+Thread 2: reads=13312, changes=9968, avg_time=0.39us, max_time=8.59us
+Thread 3: reads=12891, changes=9927, avg_time=0.34us, max_time=4.76us
+
+Total Results:
+  Total writes: 10000
+  Total atomic writes: 1000
+  Total reads: 52003
+  Total changes observed: 38380 (73.8%)
+  Total writes pending: 1
+  Total publish all count: 1001
+  Total errors: 0
+  Average lock time: 0.36 us
+  Maximum lock time: 8.72 us
+
+Producer acquire lock time statistics:
+  count=52003  max=8723ns  avg=360ns
+
+Lock time histogram (52003 events):
+  Range                      Count        %  Bar
+  --------------------  ----------  -------  ------------------------------
+  160-200ns                    579    1.11%  #
+  200-240ns                    747    1.44%  #
+  240-280ns                   6638   12.76%  ###########
+  280-320ns                   7584   14.58%  #############
+  320-360ns                  10654   20.49%  ##################
+  360-400ns                   8396   16.15%  ##############
+  400-600ns                  17368   33.40%  ##############################
+  600-800ns                     22    0.04%  
+  800-1000ns                     1    0.00%  
+  3000-4000ns                    1    0.00%  
+  4000-6000ns                    8    0.02%  
+  6000-8000ns                    3    0.01%  
+  8000-10000ns                   2    0.00%  
+
+```
+
+## Suggestions for improvement
+
+1. Implement full RCU with a reclamation list of free pages, to avoid the non deterministic visibility delays and starvation of calibration updates.
+
+2. The visibility after second lock behavior wouldn't be necessary in calibration blocks owned by a single thread.  
+We could introduce an 'owned' calibration segment, by just adding a XcpCalSegSetOwnedMode(handle) function.  
+
+2.1. Proposal how this could be implemented type-safe in Rust:
+
+The current Rust implementation has a calibration segment wrapper type. The wrapper type is currently send, !sync and clone, and just wrapped the handle from the C implementation, while keeping a reference to the static lifetime default page.  
+
+The most idiomatic Rust approach to introduce a owned mode is the typestate pattern — two distinct types encoding the mode at compile time, making the transition explicit and the state unrepresentable at the wrong type:
+
+```Rust
+
+// Excerpt from the current Rust implementation:
+// Maybe a blueprint for something similar in modern C++ ???
+
+// Calibration pages must be Sized + Send + Sync + Copy + Clone + 'static
+pub trait CalPageTrait
+where Self: Sized + Send + Sync + Copy + Clone + 'static,
+{
+    // This trait is empty, it's just a marker for the page type
+}
+
+// CalSeg 
+// Is Send + !Sync + Clone: freely shareable across threads by cloning (like an Arc<T>), but not shareable by reference (no &CalSeg<T>)
+pub struct SharedCalSeg<T: CalPageTrait> {
+    index: xcplib::tXcpCalSegIndex, // The calibration segment handle from the C implementation
+    default_page: &'static T, // The static immutable reference to the default page
+    _not_sync_marker: PhantomData<std::cell::Cell<()>>, // CalSeg is send, not sync (like a Cell)
+}
+
+impl<T: CalPageTrait> SharedCalSeg<T> {
+    pub fn new(instance_name: &'static str, default_page: &'static T) -> SharedCalSeg<T> {
+    ...
+    }
+}
+
+// Implement clone for CalSeg, which is a simple copy of the handle and the default page reference
+impl<T: CalPageTrait> Clone for SharedCalSeg<T> {
+    fn clone(&self) -> Self {
+        SharedCalSeg {
+            index: self.index,
+            default_page: self.default_page, // &T is Copy, so this is fine
+            _not_sync_marker: PhantomData, 
+        }
+    }
+}
+
+
+
+// New owned mode CalSeg
+// Single reader thread, no deferred visibility
+// Send: can be moved to another thread
+// !Sync: cannot be shared across threads (enforced by not implementing Sync)
+// !Clone: no accidental sharing (enforced by not implementing Clone)
+pub struct OwnedCalSeg<T: CalPageTrait> { inner: SharedCalSeg<T> }
+
+impl<T: CalPageTrait> OwnedCalSeg<T> {
+    pub fn new(instance_name: &'static str, default_page: &'static T) -> OwnedCalSeg<T> {
+        let calseg = SharedCalSeg::new(instance_name, default_page);
+        xcplib::XcpCalSegSetOwnedMode(calseg.index);
+        OwnedCalSeg { inner: calseg }
+    }
+
+    // Consuming transition back to shared mode
+    pub fn into_shared(self) -> SharedCalSeg<T> {
+        xcplib::XcpCalSegClearOwnedMode(self.inner.index);
+        self.inner
+    }
+}
+
+// Deref gives zero-boilerplate access to all SharedCalSeg<T> methods.
+// Clone is not forwarded through Deref, OwnedCalSeg stays !Clone.
+// Send/!Sync are inherited automatically from SharedCalSeg<T> through the inner field.
+// This is the same pattern Rust's standard library uses, e.g. Box<T> derefs to T, String derefs to str.
+use std::ops::Deref;
+impl<T: CalPageTrait> Deref for OwnedCalSeg<T> {
+    type Target = SharedCalSeg<T>;
+    fn deref(&self) -> &SharedCalSeg<T> {
+        &self.inner
+    }
+}
+
+// Add DerefMut if mutable access to SharedCalSeg methods is needed
+
+
+```
+
+
+
+
 ## Open issues in the current XCPlite implementation:
 
 1. Iteration over the calibration segment list does not guarantee a consistent view, if segments are created simultaneously in different threads.  
-The iteration may be used only, when the application has finalized the registration. New segments created after finalization should not be registered.  
+The iteration may be used only, when the application has finalized the registration.  
+New segments created after finalization should not be registered.  
 Needs shared global state between all processes.  
 Solution unclear.  
 
@@ -199,9 +429,7 @@ There is still a race condition, if segments with the same name are created simu
 3. Incrementing memory_segment_count is not atomic yet.   
 Needs shared global state between all processes. A2L MEMORY_SEGMENT numbers are a global namespace.  
 
-4. XcpPublishAll is called (and may only be called) in the XCP receive thread, which blocks without XCP communication.  
-Maybe add a blocking timeout.  
+4. XcpPublishAll is called (and may only be called) in the XCP receive thread, which blocks without XCP communication (in the socket receive). Maybe add a blocking timeout to the socket.  
 
-5. Begin atomic transaction does not flush pending prior non atomic changes. 
-Are there different opinions on this ?
+5. Keep in mind, that begin atomic transaction does not flush pending prior non atomic changes. 
 

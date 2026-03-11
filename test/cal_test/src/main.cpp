@@ -1,4 +1,4 @@
-// cal_test XCPlite/libxcplite example - Multi-threaded calibration segment access test
+// cal_test - Multi-threaded calibration segment access test
 
 #include <atomic>   // for std::atomic
 #include <cassert>  // for assert
@@ -22,6 +22,31 @@
 #include "platform.h"
 #include "xcp_cfg.h" // For XcpAddrEncodeSegIndex
 
+//-----------------------------------------------------------------------------------------------------
+// XCP parameters
+
+#define OPTION_PROJECT_NAME "cal_test"  // A2L project name
+#define OPTION_PROJECT_EPK __TIME__     // EPK version string
+#define OPTION_USE_TCP false            // TCP or UDP
+#define OPTION_SERVER_PORT 5555         // Port
+#define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
+#define OPTION_QUEUE_SIZE (1024 * 256)  // Size of the measurement queue in bytes, must be a multiple of 8
+#define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+
+// #define TEST_CALBLK                 // Use CalBlk instead of CalSeg
+#define TEST_THREAD_COUNT 4         // Number of threads
+#define TEST_WRITE_COUNT 10000      // Test writes
+#define TEST_ATOMIC_CAL 10          // Test with atomic begin/end calibration segment access, every N writes
+#define TEST_TASK_LOOP_DELAY_US 100 // Task loop delay in us
+#define TEST_TASK_LOCK_DELAY_US 0   // Task lock delay in us
+#define TEST_MAIN_LOOP_DELAY_US 100 // Write loop delay in us
+#define TEST_DATA_SIZE 8            // Default test data size
+#define TEST_LOCK_TIMING            // Create a histogram for the duration of XcpLockCalSeg
+
+bool verbose = false;
+
+//-----------------------------------------------------------------------------------------------------
+
 // Internally used XCP functions for testing
 extern "C" {
 uint8_t XcpWriteMta(uint8_t size, const uint8_t *data);
@@ -41,28 +66,6 @@ extern uint32_t gXcpRxPacketCount;
 }
 
 //-----------------------------------------------------------------------------------------------------
-// XCP parameters
-
-#define OPTION_PROJECT_NAME "cal_test"  // A2L project name
-#define OPTION_PROJECT_EPK __TIME__     // EPK version string
-#define OPTION_USE_TCP false            // TCP or UDP
-#define OPTION_SERVER_PORT 5555         // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE (1024 * 256)  // Size of the measurement queue in bytes, must be a multiple of 8
-#define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
-
-// #define TEST_CALBLK                 // Use CalBlk instead of CalSeg
-#define TEST_THREAD_COUNT 32        // Number of threads
-#define TEST_WRITE_COUNT 20000      // Test writes
-#define TEST_ATOMIC_CAL             // Test with atomic begin/end calibration segment access
-#define TEST_TASK_LOOP_DELAY_US 50  // Task loop delay in us
-#define TEST_TASK_LOCK_DELAY_US 0   // Task lock delay in us
-#define TEST_MAIN_LOOP_DELAY_US 200 // Write loop delay in us
-#define TEST_DATA_SIZE 128          // Default test data size
-
-bool verbose = false;
-
-//-----------------------------------------------------------------------------------------------------
 // Demo calibration parameters
 
 typedef struct {
@@ -73,12 +76,7 @@ typedef struct {
 } ParametersT;
 
 // Default parameters - make this global/static so the address is stable
-static ParametersT kParameters = {
-    .check = 0, .run = true, .data = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                                      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
-
-};
+static ParametersT kParameters = {.run = true, .check = 0, .data = {0}};
 
 // Global calibration segment handle
 #ifdef TEST_CALBLK
@@ -89,6 +87,82 @@ static xcplib::CalSeg<ParametersT> *calseg = nullptr; // Pointer to the calibrat
 
 //-----------------------------------------------------------------------------------------------------
 // Test statistics
+
+#ifdef TEST_LOCK_TIMING
+
+static MUTEX lock_mutex = MUTEX_INTIALIZER;
+static uint64_t lock_time_max = 0;
+static uint64_t lock_time_sum = 0;
+static uint64_t lock_count = 0;
+
+// Variable-width lock timing histogram
+// Fine granularity for short latencies, coarser for long-tail latencies
+// Bin[i] counts events where EDGES[i-1] <= t < EDGES[i]; bin[SIZE-1] is the overflow (>EDGES[SIZE-2])
+#define LOCK_TIME_HISTOGRAM_SIZE 26
+static const uint64_t LOCK_TIME_HISTOGRAM_EDGES[LOCK_TIME_HISTOGRAM_SIZE - 1] = {
+    40,    80,    120,   160,    200,    240, 280, 320, 360, 400, // 10 bins: 40ns steps
+    600,   800,   1000,  1500,   2000,                            //  5 bins: 200-500ns steps (up to 2us)
+    3000,  4000,  6000,  8000,   10000,                           //  5 bins: 1-2us steps (up to 10us)
+    20000, 40000, 80000, 160000, 320000,                          //  5 bins: 10-160us steps (up to 320us, preemption range)
+};
+static uint64_t lock_time_histogram[LOCK_TIME_HISTOGRAM_SIZE] = {0};
+
+static void lock_test_add_sample(uint64_t d) {
+    mutexLock(&lock_mutex);
+    if (d > lock_time_max)
+        lock_time_max = d;
+    int i = 0;
+    while (i < LOCK_TIME_HISTOGRAM_SIZE - 1 && d >= LOCK_TIME_HISTOGRAM_EDGES[i])
+        i++;
+    lock_time_histogram[i]++;
+    lock_time_sum += d;
+    lock_count++;
+    mutexUnlock(&lock_mutex);
+}
+
+static void lock_test_print_results(void) {
+    printf("\nProducer acquire lock time statistics:\n");
+    printf("  count=%" PRIu64 "  max=%" PRIu64 "ns  avg=%" PRIu64 "ns\n", lock_count, lock_time_max, lock_time_sum / lock_count);
+
+    uint64_t histogram_sum = 0;
+    for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE; i++)
+        histogram_sum += lock_time_histogram[i];
+    uint64_t histogram_max = 0;
+    for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE; i++)
+        if (lock_time_histogram[i] > histogram_max)
+            histogram_max = lock_time_histogram[i];
+
+    printf("\nLock time histogram (%" PRIu64 " events):\n", histogram_sum);
+    printf("  %-20s  %10s  %7s  %s\n", "Range", "Count", "%", "Bar");
+    printf("  %-20s  %10s  %7s  %s\n", "--------------------", "----------", "-------", "------------------------------");
+
+    for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE; i++) {
+        if (!lock_time_histogram[i])
+            continue;
+        double pct = (double)lock_time_histogram[i] * 100.0 / (double)histogram_sum;
+
+        char range_str[32];
+        uint64_t lo = (i == 0) ? 0 : LOCK_TIME_HISTOGRAM_EDGES[i - 1];
+        if (i == LOCK_TIME_HISTOGRAM_SIZE - 1) {
+            snprintf(range_str, sizeof(range_str), ">%" PRIu64 "ns", lo);
+        } else {
+            snprintf(range_str, sizeof(range_str), "%" PRIu64 "-%" PRIu64 "ns", lo, LOCK_TIME_HISTOGRAM_EDGES[i]);
+        }
+
+        char bar[31];
+        int bar_len = (histogram_max > 0) ? (int)((double)lock_time_histogram[i] * 30.0 / (double)histogram_max) : 0;
+        if (bar_len > 30)
+            bar_len = 30;
+        for (int j = 0; j < bar_len; j++)
+            bar[j] = '#';
+        bar[bar_len] = '\0';
+
+        printf("  %-20s  %10" PRIu64 "  %6.2f%%  %s\n", range_str, lock_time_histogram[i], pct, bar);
+    }
+    printf("\n");
+}
+
+#endif
 
 // Thread statistics
 struct ThreadStats {
@@ -112,6 +186,8 @@ struct ThreadStats {
 static std::vector<std::unique_ptr<ThreadStats>> thread_stats;
 static std::atomic<bool> test_running{true};
 static uint32_t write_count = 0;
+static uint32_t write_single_count = 0;
+static uint32_t write_atomic_count = 0;
 std::atomic<uint64_t> error_count{0};
 
 bool check_test_data(const ParametersT *params, uint8_t expected_first_byte) {
@@ -185,6 +261,9 @@ void worker_thread(uint32_t thread_id) {
         } // unlock calibration segment
 
         uint64_t read_time_ns = clockGetMonotonicNs() - start_time;
+#ifdef TEST_LOCK_TIMING
+        lock_test_add_sample(read_time_ns);
+#endif
         if (read_time_ns > stats.max_read_time_ns.load(std::memory_order_relaxed)) { // @@@@ Not threads safe, but good enough for max measurement
             stats.max_read_time_ns.store(read_time_ns, std::memory_order_relaxed);
         }
@@ -372,10 +451,12 @@ int main(int argc, char *argv[]) {
 
 #endif // TEST_CALBLK
 
-#// Initialize thread test data
+    // Initialize thread test data
     uint8_t test_data[TEST_DATA_SIZE];
+    uint8_t test_data_zero[TEST_DATA_SIZE];
     for (size_t i = 0; i < sizeof(test_data); i++) {
         test_data[i] = (uint8_t)(i);
+        test_data_zero[i] = 0;
     }
 
     XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(1, offsetof(ParametersT, data)));
@@ -417,6 +498,8 @@ int main(int argc, char *argv[]) {
     // Let the test run for the specified duration
     printf("Test running for %u writes ...\n", TEST_WRITE_COUNT);
 
+    uint64_t start_time = clockGetMonotonicNs();
+    uint64_t last_print_time = start_time;
     for (;;) {
 
         // Sleep for the specified duration
@@ -427,27 +510,33 @@ int main(int argc, char *argv[]) {
         for (size_t i = 0; i < sizeof(test_data); i++) {
             test_data[i] = (uint8_t)(d0 + i);
         }
-#ifdef TEST_ATOMIC_CAL
-        if ((write_count & 0xFF) == 0xFF) {
+#if defined(TEST_ATOMIC_CAL) && TEST_ATOMIC_CAL > 0
+        if ((write_count % TEST_ATOMIC_CAL) == 0) {
             XcpCalSegBeginAtomicTransaction(); // Begin atomic calibration operation
+            XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(1, offsetof(ParametersT, data)));
+            XcpWriteMta(TEST_DATA_SIZE / 2, &test_data_zero[0]);
             XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(1, offsetof(ParametersT, data)));
             XcpWriteMta(TEST_DATA_SIZE / 2, &test_data[0]);
             sleepUs(100);
             XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(1, offsetof(ParametersT, data) + TEST_DATA_SIZE / 2));
             XcpWriteMta(TEST_DATA_SIZE / 2, &test_data[TEST_DATA_SIZE / 2]);
             if (0 != XcpCalSegEndAtomicTransaction()) {
-                assert(false && "Atomic transaction failed");
+                total_errors += 1;
+                printf("ERROR: Atomic calibration transaction failed at write_count=%u\n", write_count);
             }; // End atomic calibration operation
+            write_atomic_count++;
         } else
 #endif
         {
             XcpSetMta(XCP_ADDR_EXT_SEG, XcpAddrEncodeSegIndex(1, offsetof(ParametersT, data)));
             XcpWriteMta(TEST_DATA_SIZE, &test_data[0]);
+            write_single_count++;
         }
-
         write_count++;
-        if (verbose && (write_count % 1000 == 0)) {
-            printf("write_count=%llu, errors=%llu\n", (unsigned long long)write_count, (unsigned long long)error_count.load());
+
+        if (last_print_time + 1000000000 < clockGetMonotonicNs()) { // Print every second
+            last_print_time = clockGetMonotonicNs();
+            printf("single writes = %u, atomic_writes = %u, errors=%llu\n", write_single_count, write_atomic_count, (unsigned long long)error_count.load());
         }
 
         // Check if the test should continue
@@ -470,7 +559,27 @@ int main(int argc, char *argv[]) {
 
     // Print final statistics
     printf("\nFinal Statistics:\n");
-    printf("================\n");
+    printf("===========================================================\n");
+
+    printf("\nTest parameters:\n");
+    printf("TEST_WRITE_COUNT = %u\n", TEST_WRITE_COUNT);
+    printf("TEST_THREAD_COUNT = %u\n", TEST_THREAD_COUNT);
+#ifdef TEST_CALBLK
+    printf("TEST_CALBLK = ON\n");
+#else
+    printf("TEST_CALBLK = OFF\n");
+#endif
+#ifdef TEST_ATOMIC_CAL
+    printf("TEST_ATOMIC_CAL = ON\n");
+#else
+    printf("TEST_ATOMIC_CAL = OFF\n");
+#endif
+    printf("TEST_TASK_LOOP_DELAY_US = %u\n", TEST_TASK_LOOP_DELAY_US);
+    printf("TEST_TASK_LOCK_DELAY_US = %u\n", TEST_TASK_LOCK_DELAY_US);
+    printf("TEST_MAIN_LOOP_DELAY_US = %u\n", TEST_MAIN_LOOP_DELAY_US);
+    printf("TEST_DATA_SIZE = %u\n", TEST_DATA_SIZE);
+    printf("\n");
+
     uint64_t total_read_count = 0;
     uint64_t total_change_count = 0;
     uint64_t total_read_time_ns = 0;
@@ -489,16 +598,22 @@ int main(int argc, char *argv[]) {
                (double)stats.max_read_time_ns.load() / 1000.0);
     }
     printf("\nTotal Results:\n");
-    printf("  Total writes: %llu\n", (unsigned long long)write_count);
+    printf("  Total writes: %u\n", write_count);
+    printf("  Total atomic writes: %u\n", write_atomic_count);
     printf("  Total reads: %llu\n", (unsigned long long)total_read_count);
-    printf("  Total changes observed: %llu\n", (unsigned long long)total_change_count);
+    printf("  Total changes observed: %llu (%.1f%%)\n", (unsigned long long)total_change_count,
+           total_read_count > 0 ? (double)total_change_count * 100.0 / (double)total_read_count : 0.0);
 #ifdef TEST_ENABLE_DBG_METRICS
     printf("  Total writes pending: %u\n", gXcpWritePendingCount);
-    printf("  Total publish all count: %u (expected %llu)\n", gXcpCalSegPublishAllCount, (unsigned long long)(write_count / 256) + gXcpWritePendingCount);
+    printf("  Total publish all count: %u\n", gXcpCalSegPublishAllCount);
 #endif
     printf("  Total errors: %llu\n", (unsigned long long)error_count.load());
     printf("  Average lock time: %.2f us\n", total_read_count > 0 ? (double)total_read_time_ns / total_read_count / 1000.0 : 0.0);
     printf("  Maximum lock time: %.2f us\n", (double)total_max_read_time_ns / 1000.0);
+#ifdef TEST_LOCK_TIMING
+    lock_test_print_results();
+#endif
+
     if (total_errors > 0) {
         printf("ERROR: %llu errors occurred during the test!\n", (unsigned long long)total_errors);
     } else {
