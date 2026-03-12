@@ -561,7 +561,7 @@ void A2lSetSegAddrMode(tXcpCalSegIndex calseg_index, const uint8_t *calseg_insta
 // Manually create groups
 // If automatic group generation (A2lInit parameter) is disabled, use these functions to create groups manually.
 
-void A2lBeginGroup(const char *name, const char *comment, bool is_parameter_group);
+void A2lBeginGroup(const char *name, const char *comment, bool is_parameter_group, bool is_root_group);
 void A2lAddToGroup(const char *name);
 void A2lEndGroup(void);
 

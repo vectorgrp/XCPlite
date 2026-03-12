@@ -867,7 +867,7 @@ int main(int argc, char *argv[]) {
             buffer.buffer = segment_buffer.buffer;                               // Move the buffer pointer to the start of the message payload (to the transport layer header)
             assert(buffer.size > 0);
 
-            // @@@@ Iterate cal_seg_list over all messages in the segment
+            // Iterate cal_seg_list over all messages in the segment
             for (;;) {
 
                 assert(buffer.buffer != NULL);

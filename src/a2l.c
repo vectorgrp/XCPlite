@@ -20,7 +20,7 @@
 #include <stdio.h>    // for fclose, fopen, fread, fseek, ftell
 #include <string.h>   // for strlen, strncpy
 
-#include "dbg_print.h"   // for DBG_PRINTF3, DBG_PRINT4, DBG_PRINTF4, DBG...
+#include "dbg_print.h"   // for DBG_PRINT
 #include "persistence.h" // for XcpBinWrite
 #include "platform.h"    // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
 #include "xcp.h"         // for CRC_XXX
@@ -37,6 +37,10 @@
 // #define EMBED_AML_FILES // Embed AML files into generated A2L file
 
 //----------------------------------------------------------------------------------
+
+#define XCP_A2L_MAX_SYMBOL_NAME_LENGTH 64 // Maximum length of symbol names in A2L file (including null terminator)
+#define XCP_A2L_MAX_LINE_LENGTH 512       // Maximum length of a line in A2L file (including null terminator)
+#define XCP_A2L_MAX_COMMENT_LENGTH 256    // Maximum length of a comment in A2L file (including null terminator)
 
 // A2L global options
 static bool gA2lUseTCP = false;
@@ -61,11 +65,12 @@ static MUTEX gA2lMutex;
 A2L_ONCE_TYPE gA2lOncePass = 1; // Allows to rerun the once checkers
 
 // Conversion name buffer
-static char gA2lConvName[256];
+static char gA2lConvName[XCP_A2L_MAX_SYMBOL_NAME_LENGTH] = {0}; // static buffer for current conversion name
 
 // Auto grouping
-static const char *gA2lAutoGroupName = NULL;  // Current open group
-static bool gA2lAutoGroupIsParameter = false; // Group is a parameter group
+static char gA2lAutoGroupName[XCP_A2L_MAX_SYMBOL_NAME_LENGTH] = {0}; // Current open group
+static bool gA2lAutoGroupIsParameter = false;                        // Group is a parameter group
+static bool gA2lAutoGroupIsMeasurement = false;                      // Group is a measurement group
 
 // Addressing mode
 static tXcpEventId gA2lFixedEvent = XCP_UNDEFINED_EVENT_ID;
@@ -279,31 +284,34 @@ static const char *const gA2lFooter = "/end MODULE\n"
 // Returns name with optional project name prefix prepended ("project.name")
 static const char *A2lGetPrefixedName_(const char *name) {
     if (gA2lSymbolPrefix) {
-        static char s[256];
-        SNPRINTF(s, 256, "%s.%s", XcpGetProjectName(), name);
+        static char s[XCP_A2L_MAX_SYMBOL_NAME_LENGTH]; // static buffer for prefixed name
+        SNPRINTF(s, XCP_A2L_MAX_SYMBOL_NAME_LENGTH, "%s.%s", XcpGetProjectName(), name);
         return s;
     }
     return name;
 }
 
-const char *A2lGetSymbolInstanceName(const char *instance_name, const char *symbol_name) {
-    static char s[256];
+// Returns symbol instance name with optional project name prefix and instance name prepended ("project.name.instance_name.name")
+static const char *A2lGetPrefixedInstanceName_(const char *instance_name, const char *name) {
+    static char s[XCP_A2L_MAX_SYMBOL_NAME_LENGTH]; // static buffer for prefixed instance name
     if (instance_name != NULL && strlen(instance_name) > 0) {
         if (gA2lSymbolPrefix) {
-            SNPRINTF(s, 256, "%s.%s.%s", XcpGetProjectName(), instance_name, symbol_name);
+            SNPRINTF(s, XCP_A2L_MAX_SYMBOL_NAME_LENGTH, "%s.%s.%s", XcpGetProjectName(), instance_name, name);
         } else {
-            SNPRINTF(s, 256, "%s.%s", instance_name, symbol_name);
+            SNPRINTF(s, XCP_A2L_MAX_SYMBOL_NAME_LENGTH, "%s.%s", instance_name, name);
         }
         return s;
     } else {
         if (gA2lSymbolPrefix) {
-            SNPRINTF(s, 256, "%s.%s", XcpGetProjectName(), symbol_name);
+            SNPRINTF(s, XCP_A2L_MAX_SYMBOL_NAME_LENGTH, "%s.%s", XcpGetProjectName(), name);
             return s;
         } else {
-            return symbol_name;
+            return name;
         }
     }
 }
+
+//----------------------------------------------------------------------------------
 
 const char *A2lGetA2lTypeName(tA2lTypeId type_id) {
     switch (type_id) {
@@ -486,50 +494,43 @@ static const char *A2lGetInputQuantity_y(void) { return gA2lInputQuantity_y ? gA
 #define A2L_GROUPS_FILE 3
 #define A2L_CONVERSIONS_FILE 4
 #define A2L_MASTER_FILE 0xFF
-
 #define A2L_MASTER_FILE_NAME "main.a2l"
 
 // Build filenames for the different (temporary) files used
 const char *A2lGetFilename(uint8_t file_type) {
 
-    static uint8_t file_type_initialized = 0;
-    static char file_name[XCP_A2L_FILENAME_MAX_LENGTH + 1];
+    static char file_name[XCP_A2L_FILENAME_MAX_LENGTH + 1]; // static buffer for filename
+    const char postfix[8] = "";
 
-    if (file_type_initialized != file_type) {
-
-        const char postfix[8] = "";
-
-        uint8_t id = 0;
-
-        // In SHM mode, the server uses a fixed A2L filename and the application id as postfix for the temporary files
+    // In SHM mode, the server uses a fixed A2L filename and the application id as postfix for the temporary files
+    uint8_t id = 0;
 #ifdef OPTION_SHM_MODE
-        if (file_type == A2L_MASTER_FILE) {
-            return A2L_MASTER_FILE_NAME;
-        }
-        id = XcpShmGetAppId();
+    if (file_type == A2L_MASTER_FILE) {
+        return A2L_MASTER_FILE_NAME;
+    }
+    id = XcpShmGetAppId();
 #endif
 
-        switch (file_type) {
-        case A2L_TYPEDEFS_FILE:
-            SNPRINTF(postfix, sizeof(postfix), "_t%u", id);
-            break;
-        case A2L_GROUPS_FILE:
-            SNPRINTF(postfix, sizeof(postfix), "_g%u", id);
-            break;
-        case A2L_CONVERSIONS_FILE:
-            SNPRINTF(postfix, sizeof(postfix), "_c%u", id);
-            break;
-        }
-
-        // Build A2L base filename from project name and EPK
-        // If A2l file is generated only once for a new build, the EPK is appended to the filename
-        if (gA2lWriteAlways) {
-            SNPRINTF(file_name, sizeof(file_name), "%s%s.a2l", XcpGetProjectName(), postfix);
-        } else {
-            SNPRINTF(file_name, sizeof(file_name), "%s%s_%s.a2l", XcpGetProjectName(), postfix, XcpGetEpk());
-        }
-        file_type_initialized = file_type;
+    switch (file_type) {
+    case A2L_TYPEDEFS_FILE:
+        SNPRINTF(postfix, sizeof(postfix), "_t%u", id);
+        break;
+    case A2L_GROUPS_FILE:
+        SNPRINTF(postfix, sizeof(postfix), "_g%u", id);
+        break;
+    case A2L_CONVERSIONS_FILE:
+        SNPRINTF(postfix, sizeof(postfix), "_c%u", id);
+        break;
     }
+
+    // Build A2L base filename from project name and EPK
+    // If A2l file is generated only once for a new build, the EPK is appended to the filename
+    if (gA2lWriteAlways) {
+        SNPRINTF(file_name, sizeof(file_name), "%s%s.a2l", XcpGetProjectName(), postfix);
+    } else {
+        SNPRINTF(file_name, sizeof(file_name), "%s%s_%s.a2l", XcpGetProjectName(), postfix, XcpGetEpk());
+    }
+
     return file_name;
 }
 
@@ -547,20 +548,21 @@ static bool A2lOpen(void) {
     gA2lMeasurements = gA2lParameters = gA2lTypedefs = gA2lInstances = gA2lConversions = gA2lComponents = 0;
 
     // Start A2L generator
-    DBG_PRINTF3("Start A2L generator, file=%s, write_always=%u, finalize_on_connect=%u, auto_groups=%u\n", A2lGetFilename(A2L_FILE), gA2lWriteAlways, gA2lFinalizeOnConnect,
-                gA2lAutoGroups);
-    gA2lFile = fopen(A2lGetFilename(A2L_FILE), "w");
+    const char *filename = A2lGetFilename(A2L_FILE);
+    DBG_PRINTF3("Start A2L generator, file=%s, write_always=%u, finalize_on_connect=%u, auto_groups=%u\n", filename, gA2lWriteAlways, gA2lFinalizeOnConnect, gA2lAutoGroups);
+    gA2lFile = fopen(filename, "w");
     if (gA2lFile == NULL) {
-        DBG_PRINTF_ERROR("Could not create file %s!\n", A2lGetFilename(A2L_FILE));
+        DBG_PRINTF_ERROR("Could not create file %s!\n", filename);
         return false;
     }
 
     // In SHM mode, open the master file
 #ifdef OPTION_SHM_MODE
     if (XcpShmIsServer()) {
-        gA2lMasterFile = fopen(A2lGetFilename(A2L_MASTER_FILE), "w");
+        const char *master_filename = A2lGetFilename(A2L_MASTER_FILE);
+        gA2lMasterFile = fopen(master_filename, "w");
         if (gA2lMasterFile == NULL) {
-            DBG_PRINTF_ERROR("Could not create file %s!\n", A2lGetFilename(A2L_MASTER_FILE));
+            DBG_PRINTF_ERROR("Could not create file %s!\n", master_filename);
             return false;
         }
         A2lSetSymbolPrefix(true);
@@ -663,33 +665,20 @@ static void A2lCreate_MOD_PAR(void) {
     // Memory segments
 #ifdef XCP_ENABLE_CALSEG_LIST
     {
-        // @@@@ Iterate cal_seg_list cal_seg_lis
-        // Not all calibration segments are memory segments
+        // Iterate cal_seg_list
+        // Not all calibration segments are memory segments !
         uint16_t calSegCount = XcpGetCalSegCount();
         for (tXcpCalSegIndex i = 0; i < calSegCount; i++) {
             tXcpCalSegNumber n = XcpGetCalSegNumber(i);
             if (n != XCP_UNDEFINED_CALSEG_NUM) {
                 const tXcpCalSeg *calseg = XcpGetCalSeg(i);
-                // In SHM mode, prefix the segment name with the owning application's project name
-                const char *sname;
-#ifdef OPTION_SHM_MODE
-                if (XcpShmIsActive()) {
-                    const char *app_name = XcpShmGetAppProjectName(calseg->h.app_id);
-                    char seg_name[XCP_MAX_CALSEG_NAME + XCP_PROJECT_NAME_MAX_LENGTH + 2];
-                    if (app_name != NULL && app_name[0] != '\0' && strcmp(calseg->h.name, "epk") != 0) {
-                        SNPRINTF(seg_name, sizeof(seg_name), "%s.%s", app_name, calseg->h.name);
-                    } else {
-                        STRNCPY(seg_name, calseg->h.name, sizeof(seg_name));
-                        seg_name[sizeof(seg_name) - 1] = '\0';
-                    }
-                    sname = seg_name;
+                const char *pname;
+                if (strcmp(calseg->h.name, "epk") != 0) {
+                    pname = A2lGetPrefixedName_(calseg->h.name);
                 } else {
-                    sname = calseg->h.name;
+                    pname = calseg->h.name;
                 }
-#else
-                sname = calseg->h.name;
-#endif
-                fprintf(gA2lMasterFile, gA2lMemorySegment, sname, XcpGetCalSegBaseAddress(i), calseg->h.size, n, sname, sname, sname, calseg->h.size);
+                fprintf(gA2lMasterFile, gA2lMemorySegment, pname, XcpGetCalSegBaseAddress(i), calseg->h.size, n, pname, pname, pname, calseg->h.size);
             }
         }
     }
@@ -736,31 +725,10 @@ static void A2lCreate_IF_DATA_DAQ(void) {
             timeUnit++;
         }
 
-        // Get the full event name, including instance index postfix if applicable (e.g. "MainLoop_1")
-        const char *base_name = XcpGetEventName(id);
-
-        // In SHM mode, prefix the event name with the owning application's project name
-#ifdef OPTION_SHM_MODE
-        const char *event_name;
-        if (XcpShmIsActive()) {
-            const char *app_name = XcpShmGetAppProjectName(event->app_id);
-            char prefixed_event_name[XCP_MAX_EVENT_NAME + 8 + XCP_PROJECT_NAME_MAX_LENGTH + 2];
-            if (app_name != NULL && app_name[0] != '\0') {
-                SNPRINTF(prefixed_event_name, sizeof(prefixed_event_name), "%s.%s", app_name, base_name);
-            } else {
-                STRNCPY(prefixed_event_name, base_name, sizeof(prefixed_event_name));
-                prefixed_event_name[sizeof(prefixed_event_name) - 1] = '\0';
-            }
-            event_name = prefixed_event_name;
-        } else {
-            event_name = base_name;
-        }
-#else
-        const char *event_name = base_name;
-#endif
-
         // Long name and short name (max 8 chars)
-        fprintf(gA2lMasterFile, "/begin EVENT \"%s\" \"%.8s\" 0x%X DAQ 0xFF %u %u %u CONSISTENCY EVENT", event_name, base_name, id, timeCycle, timeUnit,
+        const char *name = XcpGetEventName(id); // Short name is not build with prefix
+        const char *pname = A2lGetPrefixedName_(name);
+        fprintf(gA2lMasterFile, "/begin EVENT \"%s\" \"%.8s\" 0x%X DAQ 0xFF %u %u %u CONSISTENCY EVENT", pname, name, id, timeCycle, timeUnit,
                 (event->flags & XCP_DAQ_EVENT_FLAG_PRIORITY) ? 0xFF : 0x00);
 
         fprintf(gA2lMasterFile, " /end EVENT\n");
@@ -787,7 +755,7 @@ static void A2lCreate_ETH_IF_DATA(bool useTCP, const uint8_t *addr, uint16_t por
 
     // Transport Layer info (protocol, address, port)
     // Skip transport layer info completely, if no valid address is configured or detected
-    // @@@@ CANape: (protocol, port, 0.0.0.0) is no option, as CANape considers this to be a valid address and tries to connect to it, instead of using the user configured
+    // @@@@ Workaround: (protocol, port, 0.0.0.0) is no option, as CANape considers this to be a valid address and tries to connect to it, instead of using the user configured
     // address
     uint8_t addr0[] = {0, 0, 0, 0};
     if (addr != NULL && addr[0] != 0) {
@@ -841,10 +809,11 @@ static void A2lCreateMeasurement_IF_DATA(void) {
 // Raw functions to set addressing mode unchecked (by calibration segment index or event id)
 
 // Debug print address and address extension (addressing mode, event, offset)
-#if defined(OPTION_ENABLE_DBG_PRINTS) && (OPTION_MAX_DBG_LEVEL >= 4)
+#if defined(OPTION_ENABLE_DBG_PRINTS) && (OPTION_MAX_DBG_LEVEL >= 5)
 static const char *dbgPrintfAddrExt(uint8_t addr_ext, uint32_t addr) {
-    static char buf1[64] = {0};
-    static char buf2[64] = {0};
+#define A2L_ADDR_EXT_STR_MAX_LENGTH 64
+    static char buf1[A2L_ADDR_EXT_STR_MAX_LENGTH] = {0}; // static buffer for address string
+    static char buf2[A2L_ADDR_EXT_STR_MAX_LENGTH] = {0}; // static buffer for address extension string
     const char *addr_str = NULL;
 
 #ifdef XCP_ENABLE_ABS_ADDRESSING
@@ -860,7 +829,7 @@ static const char *dbgPrintfAddrExt(uint8_t addr_ext, uint32_t addr) {
 #ifdef XCP_ENABLE_DYN_ADDRESSING
         if (XcpAddrIsDyn(addr_ext)) {
         addr_str = buf2;
-        SNPRINTF(buf2, 64, "DYN%u(event=%u,offset=%d)", addr_ext - XCP_ADDR_EXT_DYN, XcpAddrDecodeDynEvent(addr), XcpAddrDecodeDynOffset(addr));
+        SNPRINTF(buf2, A2L_ADDR_EXT_STR_MAX_LENGTH, "DYN%u(event=%u,offset=%d)", addr_ext - XCP_ADDR_EXT_DYN, XcpAddrDecodeDynEvent(addr), XcpAddrDecodeDynOffset(addr));
 
     } else
 #endif
@@ -870,10 +839,10 @@ static const char *dbgPrintfAddrExt(uint8_t addr_ext, uint32_t addr) {
     } else
 #endif
     {
-        SNPRINTF(buf1, 64, "%u:0x%08X", addr_ext, addr);
+        SNPRINTF(buf1, A2L_ADDR_EXT_STR_MAX_LENGTH, "%u:0x%08X", addr_ext, addr);
         return buf1;
     }
-    SNPRINTF(buf1, 64, "%.32s:0x%08X", addr_str, addr);
+    SNPRINTF(buf1, A2L_ADDR_EXT_STR_MAX_LENGTH, "%.32s:0x%08X", addr_str, addr);
     return buf1;
 }
 #endif
@@ -966,7 +935,7 @@ void A2lSetSegmentAddrMode__i(tXcpCalSegIndex calseg_index, const uint8_t *calse
         // fprintf(gA2lFile, "\n/* Absolute segment addressing mode: calseg=%s */\n", calseg->name);
 #endif
         if (gA2lAutoGroups) {
-            A2lBeginGroup(calseg->h.name, "Calibration Segment", true);
+            A2lBeginGroup(calseg->h.name, "Calibration Segment", true, true);
         }
     }
 }
@@ -992,7 +961,7 @@ void A2lSetSegmentAddrMode__s(const char *calseg_name, const uint8_t *calseg_ins
         // fprintf(gA2lFile, "\n/* Absolute segment addressing mode: calseg=%s */\n", calseg->name);
 #endif
         if (gA2lAutoGroups) {
-            A2lBeginGroup(calseg->h.name, "Calibration Segment", true);
+            A2lBeginGroup(calseg->h.name, "Calibration Segment", true, true);
         }
     }
 }
@@ -1003,7 +972,7 @@ void A2lSetSegmentAddrMode__s(const char *calseg_name, const uint8_t *calseg_ins
 
 static void beginEventGroup(tXcpEventId event_id) {
     if (gA2lAutoGroups) {
-        A2lBeginGroup(XcpGetEventName(event_id), "Measurement event group", false);
+        A2lBeginGroup(XcpGetEventName(event_id), "Measurement event group", false, false);
     }
 }
 
@@ -1316,13 +1285,13 @@ static const char *getConversion(const char *unit_or_conversion, double *min, do
 
 const char *A2lCreateLinearConversion_(const char *symbol_name, const char *comment, const char *unit, double factor, double offset) {
     if (gA2lFile != NULL && gA2lConversionsFile != NULL) {
+        const char *pname = A2lGetPrefixedName_(symbol_name);
         if (unit == NULL)
             unit = "";
         if (comment == NULL)
             comment = "";
-        SNPRINTF(gA2lConvName, sizeof(gA2lConvName), "conv.%s", symbol_name); // Build the conversion symbol_name with prefix "conv." and store it in a static variable
-        fprintf(gA2lConversionsFile, "/begin COMPU_METHOD conv.%s \"%s\" LINEAR \"%%6.3\" \"%s\" COEFFS_LINEAR %g %g /end COMPU_METHOD\n", symbol_name, comment, unit, factor,
-                offset);
+        SNPRINTF(gA2lConvName, sizeof(gA2lConvName), "conv.%s", pname); // Build the conversion symbol_name with prefix "conv." and store it in a static variable
+        fprintf(gA2lConversionsFile, "/begin COMPU_METHOD conv.%s \"%s\" LINEAR \"%%6.3\" \"%s\" COEFFS_LINEAR %g %g /end COMPU_METHOD\n", pname, comment, unit, factor, offset);
         gA2lConversions++;
 
         // Return the conversion symbol_name for reference when creating measurements
@@ -1333,9 +1302,10 @@ const char *A2lCreateLinearConversion_(const char *symbol_name, const char *comm
 
 const char *A2lCreateEnumConversion_(const char *symbol_name, const char *enum_description) {
     if (gA2lFile != NULL && gA2lConversionsFile != NULL) {
-        SNPRINTF(gA2lConvName, sizeof(gA2lConvName), "conv.%s", symbol_name); // Build the conversion symbol_name with prefix "conv." and store it in a static variable
-        fprintf(gA2lConversionsFile, "/begin COMPU_METHOD conv.%s \"\" TAB_VERB \"%%.0 \" \"\" COMPU_TAB_REF conv.%s.table /end COMPU_METHOD\n", symbol_name, symbol_name);
-        fprintf(gA2lConversionsFile, "/begin COMPU_VTAB conv.%s.table \"\" TAB_VERB %s /end COMPU_VTAB\n", symbol_name, enum_description);
+        const char *pname = A2lGetPrefixedName_(symbol_name);
+        SNPRINTF(gA2lConvName, sizeof(gA2lConvName), "conv.%s", pname); // Build the conversion symbol_name with prefix "conv." and store it in a static variable
+        fprintf(gA2lConversionsFile, "/begin COMPU_METHOD conv.%s \"\" TAB_VERB \"%%.0 \" \"\" COMPU_TAB_REF conv.%s.table /end COMPU_METHOD\n", pname, pname);
+        fprintf(gA2lConversionsFile, "/begin COMPU_VTAB conv.%s.table \"\" TAB_VERB %s /end COMPU_VTAB\n", pname, enum_description);
         gA2lConversions++;
         return gA2lConvName; // Return the conversion symbol_name for reference when creating measurements
     }
@@ -1348,14 +1318,15 @@ const char *A2lCreateEnumConversion_(const char *symbol_name, const char *enum_d
 // Begin a typedef structure
 void A2lTypedefBegin_(const char *symbol_name, uint32_t size, const char *format, ...) {
     if (gA2lFile != NULL) {
+        const char *pname = A2lGetPrefixedName_(symbol_name);
         // Format the comment string
-        char comment[256];
+        char comment[XCP_A2L_MAX_COMMENT_LENGTH];
         va_list args;
         va_start(args, format);
         vsnprintf(comment, sizeof(comment), format, args);
         va_end(args);
-        DBG_PRINTF4("A2lTypedefBegin_: %s, size=%u, comment='%s'\n", symbol_name, size, comment);
-        fprintf(gA2lFile, "\n/begin TYPEDEF_STRUCTURE %s \"%s\" 0x%X\n", symbol_name, comment, size);
+        DBG_PRINTF5("A2lTypedefBegin_: %s, size=%u, comment='%s'\n", pname, size, comment);
+        fprintf(gA2lFile, "\n/begin TYPEDEF_STRUCTURE %s \"%s\" 0x%X\n", pname, comment, size);
         gA2lTypedefs++;
     }
 }
@@ -1363,7 +1334,7 @@ void A2lTypedefBegin_(const char *symbol_name, uint32_t size, const char *format
 // End a typedef structure
 void A2lTypedefEnd_(void) {
     if (gA2lFile != NULL) {
-        DBG_PRINT4("A2lTypedefEnd_\n");
+        DBG_PRINT5("A2lTypedefEnd_\n");
         fprintf(gA2lFile, "/end TYPEDEF_STRUCTURE\n\n");
     }
 }
@@ -1372,7 +1343,7 @@ void A2lTypedefEnd_(void) {
 // type_name is the name of another typedef, typedef_measurement or typedef_characteristic
 void A2lTypedefComponent_(const char *field_name, const char *type_name, uint16_t x_dim, size_t offset) {
     if (gA2lFile != NULL) {
-        DBG_PRINTF4("A2lTypedefComponent_: %s, %s, x_dim=%u, offset=0x%zX\n", field_name, type_name, x_dim, offset);
+        DBG_PRINTF5("A2lTypedefComponent_: %s, %s, x_dim=%u, offset=0x%zX\n", field_name, type_name, x_dim, offset);
         fprintf(gA2lFile, "  /begin STRUCTURE_COMPONENT %s %s 0x%zX", field_name, type_name, offset);
         if (x_dim > 1)
             fprintf(gA2lFile, " MATRIX_DIM %u", x_dim);
@@ -1386,7 +1357,7 @@ void A2lTypedefMeasurementComponent_(const char *field_name, tA2lTypeId type_id,
                                      double max) {
     if (gA2lFile != NULL && gA2lTypedefsFile != NULL) {
         const char *type_name = A2lGetA2lTypeName(type_id);
-        DBG_PRINTF4("A2lTypedefMeasurementComponent_: %s, %s, x_dim=%u, offset=0x%zX\n", field_name, type_name, x_dim, offset);
+        DBG_PRINTF5("A2lTypedefMeasurementComponent_: %s, %s, x_dim=%u, offset=0x%zX\n", field_name, type_name, x_dim, offset);
 
         // TYPEDEF_MEASUREMENT
         const char *conv = getConversion(unit_or_conversion, NULL, NULL);
@@ -1412,7 +1383,7 @@ void A2lTypedefParameterComponent_(const char *field_name, tA2lTypeId type_id, u
                                    double min, double max, const char *x_axis, const char *y_axis) {
     if (gA2lFile != NULL && gA2lTypedefsFile != NULL) {
         const char *type_name = A2lGetA2lRecordLayoutName(type_id);
-        DBG_PRINTF4("A2lTypedefParameterComponent_: %s, %s, x_dim=%u, y_dim=%u, offset=0x%zX\n", field_name, type_name, x_dim, y_dim, offset);
+        DBG_PRINTF5("A2lTypedefParameterComponent_: %s, %s, x_dim=%u, y_dim=%u, offset=0x%zX\n", field_name, type_name, x_dim, y_dim, offset);
 
         // TYPEDEF_AXIS (y_dim==0)
         if (y_dim == 0 && x_dim > 1) {
@@ -1475,12 +1446,13 @@ void A2lCreateInstance_(const char *instance_name, const char *typeName, const u
     if (gA2lFile != NULL) {
         uint32_t addr = A2lGetAddr_(ptr);
         uint8_t ext = A2lGetAddrExt_();
-        DBG_PRINTF4("A2lCreateInstance_: %s, \"%s\", %s, %s\n", instance_name, comment, typeName, dbgPrintfAddrExt(ext, addr));
+        const char *pname = A2lGetPrefixedName_(instance_name);
+        DBG_PRINTF5("A2lCreateInstance_: %s, \"%s\", %s, %s\n", pname, comment, typeName, dbgPrintfAddrExt(ext, addr));
 
         if (gA2lAutoGroups) {
-            A2lAddToGroup(instance_name);
+            A2lAddToGroup(pname);
         }
-        fprintf(gA2lFile, "/begin INSTANCE %s \"%s\" %s 0x%X", instance_name, comment, typeName, addr);
+        fprintf(gA2lFile, "/begin INSTANCE %s \"%s\" %s 0x%X", pname, comment, typeName, addr);
         printAddrExt(ext);
 
         // For measurements only: add MATRIX_DIM, READ_WRITE and IF_DATAif applicable
@@ -1506,11 +1478,11 @@ void A2lCreateMeasurement_(const char *instance_name, const char *symbol_name, t
     if (gA2lFile != NULL) {
         uint32_t addr = A2lGetAddr_(ptr);
         uint8_t ext = A2lGetAddrExt_();
-        const char *instance_symbol_name = A2lGetSymbolInstanceName(instance_name, symbol_name);
-        DBG_PRINTF4("A2lCreateMeasurement_: %s, \"%s\", addr=%p, unit=\"%s\", min=%g, max=%g, %s\n", instance_symbol_name, comment != NULL ? comment : "", ptr,
+        const char *pname = A2lGetPrefixedInstanceName_(instance_name, symbol_name);
+        DBG_PRINTF5("A2lCreateMeasurement_: %s, \"%s\", addr=%p, unit=\"%s\", min=%g, max=%g, %s\n", pname, comment != NULL ? comment : "", ptr,
                     unit_or_conversion != NULL ? unit_or_conversion : "", phys_min, phys_max, dbgPrintfAddrExt(ext, addr));
         if (gA2lAutoGroups) {
-            A2lAddToGroup(instance_symbol_name);
+            A2lAddToGroup(pname);
         }
         if (comment == NULL) {
             comment = "";
@@ -1526,7 +1498,7 @@ void A2lCreateMeasurement_(const char *instance_name, const char *symbol_name, t
             max = phys_max;
             conv = getConversion(unit_or_conversion, NULL, NULL);
         }
-        fprintf(gA2lFile, "/begin MEASUREMENT %s \"%s\" %s %s 0 0 %g %g ", instance_symbol_name, comment, A2lGetA2lTypeName(type_id), conv, min, max);
+        fprintf(gA2lFile, "/begin MEASUREMENT %s \"%s\" %s %s 0 0 %g %g ", pname, comment, A2lGetA2lTypeName(type_id), conv, min, max);
         if (dim > 1) {
             fprintf(gA2lFile, "MATRIX_DIM %u ", dim);
         }
@@ -1548,11 +1520,11 @@ void A2lCreateMeasurementArray_(const char *instance_name, const char *symbol_na
     if (gA2lFile != NULL) {
         uint32_t addr = A2lGetAddr_((const void *)ptr);
         uint8_t ext = A2lGetAddrExt_();
-        const char *instance_symbol_name = A2lGetSymbolInstanceName(instance_name, symbol_name);
-        DBG_PRINTF4("A2lCreateMeasurementArray_: %s, \"%s\", addr=%p, x_dim=%d, y_dim=%d, unit=\"%s\", min=%g, max=%g, %s\n", instance_symbol_name, comment != NULL ? comment : "",
-                    ptr, x_dim, y_dim, unit_or_conversion != NULL ? unit_or_conversion : "", phys_min, phys_max, dbgPrintfAddrExt(ext, addr));
+        const char *pname = A2lGetPrefixedInstanceName_(instance_name, symbol_name);
+        DBG_PRINTF5("A2lCreateMeasurementArray_: %s, \"%s\", addr=%p, x_dim=%d, y_dim=%d, unit=\"%s\", min=%g, max=%g, %s\n", pname, comment != NULL ? comment : "", ptr, x_dim,
+                    y_dim, unit_or_conversion != NULL ? unit_or_conversion : "", phys_min, phys_max, dbgPrintfAddrExt(ext, addr));
         if (gA2lAutoGroups) {
-            A2lAddToGroup(instance_symbol_name);
+            A2lAddToGroup(pname);
         }
         if (comment == NULL)
             comment = "";
@@ -1567,8 +1539,8 @@ void A2lCreateMeasurementArray_(const char *instance_name, const char *symbol_na
             max = phys_max;
             conv = getConversion(unit_or_conversion, NULL, NULL);
         }
-        fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" VAL_BLK 0x%X %s 0 %s %g %g MATRIX_DIM %u %u", instance_symbol_name, comment, addr, A2lGetA2lRecordLayoutName(type_id),
-                conv, min, max, x_dim, y_dim);
+        fprintf(gA2lFile, "/begin CHARACTERISTIC %s \"%s\" VAL_BLK 0x%X %s 0 %s %g %g MATRIX_DIM %u %u", pname, comment, addr, A2lGetA2lRecordLayoutName(type_id), conv, min, max,
+                x_dim, y_dim);
         printAddrExt(ext);
         A2lCreateMeasurement_IF_DATA();
         fprintf(gA2lFile, " /end CHARACTERISTIC\n");
@@ -1585,7 +1557,7 @@ void A2lCreateParameter_(const char *symbol_name, tA2lTypeId type, const void *p
         uint32_t addr = A2lGetAddr_(ptr);
         uint8_t ext = A2lGetAddrExt_();
         const char *pname = A2lGetPrefixedName_(symbol_name);
-        DBG_PRINTF4("A2lCreateParameter_: %s, \"%s\", addr=%p, unit=\"%s\", min=%g, max=%g, %s\n", pname, comment != NULL ? comment : "", ptr,
+        DBG_PRINTF5("A2lCreateParameter_: %s, \"%s\", addr=%p, unit=\"%s\", min=%g, max=%g, %s\n", pname, comment != NULL ? comment : "", ptr,
                     unit_or_conversion != NULL ? unit_or_conversion : "", phys_min, phys_max, dbgPrintfAddrExt(ext, addr));
         if (gA2lAutoGroups) {
             A2lAddToGroup(pname);
@@ -1617,7 +1589,7 @@ void A2lCreateMap_(const char *symbol_name, tA2lTypeId type_id, const void *ptr,
         uint32_t addr = A2lGetAddr_(ptr);
         uint8_t ext = A2lGetAddrExt_();
         const char *pname = A2lGetPrefixedName_(symbol_name);
-        DBG_PRINTF4("A2lCreateMap_: %s, \"%s\", addr=%p, x_dim=%d, y_dim=%d, unit=\"%s\", min=%g, max=%g, %s\n", pname, comment != NULL ? comment : "", ptr, xdim, ydim,
+        DBG_PRINTF5("A2lCreateMap_: %s, \"%s\", addr=%p, x_dim=%d, y_dim=%d, unit=\"%s\", min=%g, max=%g, %s\n", pname, comment != NULL ? comment : "", ptr, xdim, ydim,
                     unit != NULL ? unit : "", min, max, dbgPrintfAddrExt(ext, addr));
         if (gA2lAutoGroups) {
             A2lAddToGroup(pname);
@@ -1648,7 +1620,7 @@ void A2lCreateCurve_(const char *symbol_name, tA2lTypeId type_id, const void *pt
         uint32_t addr = A2lGetAddr_(ptr);
         uint8_t ext = A2lGetAddrExt_();
         const char *pname = A2lGetPrefixedName_(symbol_name);
-        DBG_PRINTF4("A2lCreateCurve_: %s, \"%s\", addr=%p, x_dim=%d, unit=\"%s\", min=%g, max=%g, %s\n", pname, comment != NULL ? comment : "", ptr, xdim, unit != NULL ? unit : "",
+        DBG_PRINTF5("A2lCreateCurve_: %s, \"%s\", addr=%p, x_dim=%d, unit=\"%s\", min=%g, max=%g, %s\n", pname, comment != NULL ? comment : "", ptr, xdim, unit != NULL ? unit : "",
                     min, max, dbgPrintfAddrExt(ext, addr));
         if (gA2lAutoGroups) {
             A2lAddToGroup(pname);
@@ -1674,7 +1646,7 @@ void A2lCreateAxis_(const char *symbol_name, tA2lTypeId type_id, const void *ptr
         uint32_t addr = A2lGetAddr_(ptr);
         uint8_t ext = A2lGetAddrExt_();
         const char *pname = A2lGetPrefixedName_(symbol_name);
-        DBG_PRINTF4("A2lCreateAxis_: %s, \"%s\", addr=%p, x_dim=%d, unit=\"%s\", min=%g, max=%g, %s\n", pname, comment != NULL ? comment : "", ptr, xdim, unit != NULL ? unit : "",
+        DBG_PRINTF5("A2lCreateAxis_: %s, \"%s\", addr=%p, x_dim=%d, unit=\"%s\", min=%g, max=%g, %s\n", pname, comment != NULL ? comment : "", ptr, xdim, unit != NULL ? unit : "",
                     min, max, dbgPrintfAddrExt(ext, addr));
         if (gA2lAutoGroups) {
             A2lAddToGroup(pname);
@@ -1690,28 +1662,35 @@ void A2lCreateAxis_(const char *symbol_name, tA2lTypeId type_id, const void *ptr
 }
 
 //----------------------------------------------------------------------------------
-// Groups
+// Automatic group generation
+
+// gA2lAutoGroupName  is the name of the current open group
+// gA2lAutoGroupIsParameter or gA2lAutoGroupIsMeasurement indicates if the current group is for parameters or measurements
 
 // Begin a group for measurements or parameters
-void A2lBeginGroup(const char *symbol_name, const char *comment, bool is_parameter_group) {
+void A2lBeginGroup(const char *symbol_name, const char *comment, bool is_parameter_group, bool is_root_group) {
     if (gA2lFile != NULL && gA2lGroupsFile != NULL) {
-
-        if ((gA2lAutoGroupName == NULL) || (strcmp(symbol_name, gA2lAutoGroupName) != 0) || (is_parameter_group != gA2lAutoGroupIsParameter)) {
-            A2lEndGroup(); // Close previous group if any
-            gA2lAutoGroupName = symbol_name;
-            gA2lAutoGroupIsParameter = is_parameter_group;
-            fprintf(gA2lGroupsFile, "/begin GROUP %s \"%s\" %s", symbol_name, comment, is_parameter_group ? "ROOT" : "");
-            fprintf(gA2lGroupsFile, " /begin REF_%s", gA2lAutoGroupIsParameter ? "CHARACTERISTIC" : "MEASUREMENT");
+        if (gA2lAutoGroupIsParameter || gA2lAutoGroupIsMeasurement) {
+            if ((strcmp(symbol_name, gA2lAutoGroupName) != 0) || (is_parameter_group != gA2lAutoGroupIsParameter)) {
+                A2lEndGroup(); // Close previous group if any
+                // Groups are a global name space, prefix the group name if needed
+                strncpy(gA2lAutoGroupName, A2lGetPrefixedName_(symbol_name), XCP_A2L_MAX_SYMBOL_NAME_LENGTH - 1);
+                gA2lAutoGroupName[XCP_A2L_MAX_SYMBOL_NAME_LENGTH - 1] = '\0'; // Ensure null termination
+                gA2lAutoGroupIsParameter = is_parameter_group;
+                gA2lAutoGroupIsMeasurement = !is_parameter_group;
+                fprintf(gA2lGroupsFile, "/begin GROUP %s \"%s\" %s", gA2lAutoGroupName, comment, is_root_group ? "ROOT" : "");
+                fprintf(gA2lGroupsFile, " /begin REF_%s", is_parameter_group ? "CHARACTERISTIC" : "MEASUREMENT");
+            }
         }
     }
 }
 
 // Add a measurement or parameter to the current open group
-void A2lAddToGroup(const char *symbol_name) {
+// Assuming name is already prefixed
+void A2lAddToGroup(const char *name) {
     if (gA2lFile != NULL && gA2lGroupsFile != NULL) {
-
-        if (gA2lAutoGroupName != NULL) {
-            fprintf(gA2lGroupsFile, " %s", symbol_name);
+        if (gA2lAutoGroupIsParameter || gA2lAutoGroupIsMeasurement) {
+            fprintf(gA2lGroupsFile, " %s", name);
         }
     }
 }
@@ -1719,20 +1698,25 @@ void A2lAddToGroup(const char *symbol_name) {
 // End the current open group for measurements or parameters
 void A2lEndGroup(void) {
     if (gA2lFile != NULL && gA2lGroupsFile != NULL) {
-
-        if (gA2lAutoGroupName == NULL)
-            return;
-        fprintf(gA2lGroupsFile, " /end REF_%s", gA2lAutoGroupIsParameter ? "CHARACTERISTIC" : "MEASUREMENT");
-        fprintf(gA2lGroupsFile, " /end GROUP\n");
-        gA2lAutoGroupName = NULL;
+        if (gA2lAutoGroupIsParameter || gA2lAutoGroupIsMeasurement) {
+            fprintf(gA2lGroupsFile, " /end REF_%s", gA2lAutoGroupIsParameter ? "CHARACTERISTIC" : "MEASUREMENT");
+            fprintf(gA2lGroupsFile, " /end GROUP\n");
+            gA2lAutoGroupName[0] = '\0'; // Clear the group name to indicate no open group
+            gA2lAutoGroupIsParameter = false;
+            gA2lAutoGroupIsMeasurement = false;
+        }
     }
 }
+
+//----------------------------------------------------------------------------------
+// Create groups
 
 void A2lCreateMeasurementGroup(const char *symbol_name, int count, ...) {
     if (gA2lFile != NULL && gA2lGroupsFile != NULL) {
         va_list ap;
         A2lEndGroup(); // End the previous group if any
-        fprintf(gA2lGroupsFile, "/begin GROUP %s \"\" ROOT", symbol_name);
+        const char *pname = A2lGetPrefixedName_(symbol_name);
+        fprintf(gA2lGroupsFile, "/begin GROUP %s \"\" ROOT", pname);
         fprintf(gA2lGroupsFile, " /begin REF_MEASUREMENT");
         va_start(ap, count);
         for (int i = 0; i < count; i++) {
@@ -1747,7 +1731,8 @@ void A2lCreateMeasurementGroup(const char *symbol_name, int count, ...) {
 void A2lCreateMeasurementGroupFromList(const char *symbol_name, char *names[], uint32_t count) {
     if (gA2lFile != NULL && gA2lGroupsFile != NULL) {
         A2lEndGroup(); // End the previous group if any
-        fprintf(gA2lGroupsFile, "/begin GROUP %s \"\" ROOT", symbol_name);
+        const char *pname = A2lGetPrefixedName_(symbol_name);
+        fprintf(gA2lGroupsFile, "/begin GROUP %s \"\" ROOT", pname);
         fprintf(gA2lGroupsFile, " /begin REF_MEASUREMENT");
         for (uint32_t i1 = 0; i1 < count; i1++) {
             fprintf(gA2lGroupsFile, " %s", names[i1]);
@@ -1761,7 +1746,8 @@ void A2lCreateParameterGroup(const char *symbol_name, int count, ...) {
     if (gA2lFile != NULL && gA2lGroupsFile != NULL) {
         va_list ap;
         A2lEndGroup(); // End the previous group if any
-        fprintf(gA2lGroupsFile, "/begin GROUP %s \"\" ROOT", symbol_name);
+        const char *pname = A2lGetPrefixedName_(symbol_name);
+        fprintf(gA2lGroupsFile, "/begin GROUP %s \"\" ROOT", pname);
         fprintf(gA2lGroupsFile, " /begin REF_CHARACTERISTIC");
         va_start(ap, count);
         for (int i = 0; i < count; i++) {
@@ -1776,7 +1762,8 @@ void A2lCreateParameterGroup(const char *symbol_name, int count, ...) {
 void A2lCreateParameterGroupFromList(const char *symbol_name, const char *pNames[], int count) {
     if (gA2lFile != NULL && gA2lGroupsFile != NULL) {
         A2lEndGroup(); // End the previous group if any
-        fprintf(gA2lGroupsFile, "/begin GROUP %s \"\" ROOT", symbol_name);
+        const char *pname = A2lGetPrefixedName_(symbol_name);
+        fprintf(gA2lGroupsFile, "/begin GROUP %s \"\" ROOT", pname);
         fprintf(gA2lGroupsFile, " /begin REF_CHARACTERISTIC");
         for (int i = 0; i < count; i++) {
             fprintf(gA2lGroupsFile, " %s", pNames[i]);
@@ -1804,15 +1791,12 @@ bool A2lOnce_(A2L_ONCE_TYPE *value) {
 // A2L file generation and finalization on XCP connect
 
 static bool includeFile(FILE **filep, const char *filename) {
-
     if (filep != NULL && *filep != NULL && filename != NULL) {
-
         fclose(*filep);
         *filep = NULL;
-
         FILE *file = fopen(filename, "r");
         if (file != NULL) {
-            char line[512];
+            char line[XCP_A2L_MAX_LINE_LENGTH];
             while (fgets(line, sizeof(line), file) != NULL) {
                 fprintf(gA2lFile, "%s", line);
             }
@@ -1821,7 +1805,6 @@ static bool includeFile(FILE **filep, const char *filename) {
             return true;
         }
     }
-
     return true;
 }
 
@@ -1928,27 +1911,8 @@ bool A2lFinalize(void) {
                 fprintf(gA2lMasterFile, "\n/begin COMPU_METHOD conv.events \"\" TAB_VERB \"%%.0 \" \"\" COMPU_TAB_REF conv.events.table /end COMPU_METHOD\n");
                 fprintf(gA2lMasterFile, "/begin COMPU_VTAB conv.events.table \"\" TAB_VERB %u\n", eventCount);
                 for (uint32_t id = 0; id < eventCount; id++) {
-                    const char *event_name;
-                    // In SHM mode, prefix event names
-#ifdef OPTION_SHM_MODE
-                    if (XcpShmIsActive()) {
-                        const char *base_name = XcpGetEventName(id);
-                        const char *app_name = XcpShmGetAppProjectName(eventList->event[id].app_id);
-                        char pname[XCP_MAX_EVENT_NAME + 8 + XCP_PROJECT_NAME_MAX_LENGTH + 2];
-                        if (app_name != NULL && app_name[0] != '\0') {
-                            SNPRINTF(pname, sizeof(pname), "%s.%s", app_name, base_name);
-                        } else {
-                            STRNCPY(pname, base_name, sizeof(pname));
-                            pname[sizeof(pname) - 1] = '\0';
-                        }
-                        event_name = pname;
-                    } else {
-                        event_name = XcpGetEventName(id);
-                    }
-#else
-                    event_name = XcpGetEventName(id);
-#endif
-                    fprintf(gA2lMasterFile, " %u \"%s\"", id, event_name);
+                    const char *pname = A2lGetPrefixedName_(XcpGetEventName(id));
+                    fprintf(gA2lMasterFile, " %u \"%s\"", id, pname);
                 }
                 fprintf(gA2lMasterFile, "\n/end COMPU_VTAB\n");
 
@@ -1961,28 +1925,8 @@ bool A2lFinalize(void) {
                     uint32_t id = 0;
 #endif
                     for (; id < eventCount; id++) {
-
-                        const char *event_name;
-                        // In SHM mode, prefix event names
-#ifdef OPTION_SHM_MODE
-                        if (XcpShmIsActive()) {
-                            const char *base_name = XcpGetEventName(id);
-                            const char *app_name = XcpShmGetAppProjectName(eventList->event[id].app_id);
-                            char pname[XCP_MAX_EVENT_NAME + 8 + XCP_PROJECT_NAME_MAX_LENGTH + 2];
-                            if (app_name != NULL && app_name[0] != '\0') {
-                                SNPRINTF(pname, sizeof(pname), "%s.%s", app_name, base_name);
-                            } else {
-                                STRNCPY(pname, base_name, sizeof(pname));
-                                pname[sizeof(pname) - 1] = '\0';
-                            }
-                            event_name = pname;
-                        } else {
-                            event_name = XcpGetEventName(id);
-                        }
-#else
-                        event_name = XcpGetEventName(id);
-#endif
-                        fprintf(gA2lMasterFile, " %s", event_name);
+                        const char *pname = A2lGetPrefixedName_(XcpGetEventName(id));
+                        fprintf(gA2lMasterFile, " %s", pname);
                     }
                     fprintf(gA2lMasterFile, " /end SUB_GROUP /end GROUP\n");
                 }
@@ -2091,16 +2035,17 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
     // Check if the A2L file already exists and the persistence BIN file has been loaded and checked
     // If yes, skip generation if not write always
     gA2lFileWritten = false;
-    if (!gA2lWriteAlways && (XcpGetSessionStatus() & SS_PERSISTENCE_LOADED) && fexists(A2lGetFilename(A2L_FILE))) {
+    const char *a2l_filename = A2lGetFilename(A2L_FILE);
+    if (!gA2lWriteAlways && (XcpGetSessionStatus() & SS_PERSISTENCE_LOADED) && fexists(a2l_filename)) {
         // Notify XCP that there is an A2L file available for upload by the XCP client
-        XcpSetA2lName(A2lGetFilename(A2L_FILE));
-        DBG_PRINTF_WARNING("A2L file %s already exists, assuming it is still valid, disabling A2L generation\n", A2lGetFilename(A2L_FILE));
+        XcpSetA2lName(a2l_filename);
+        DBG_PRINTF_WARNING("A2L file %s already exists, assuming it is still valid, disabling A2L generation\n", a2l_filename);
         return true;
     }
 
     // Open A2L file for generation
     if (!A2lOpen()) {
-        DBG_PRINTF_ERROR("Failed to open A2L file %s\n", A2lGetFilename(A2L_FILE));
+        DBG_PRINTF_ERROR("Failed to open A2L file %s\n", a2l_filename);
         return false;
     }
 

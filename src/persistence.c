@@ -272,7 +272,7 @@ bool XcpBinWrite(uint8_t page) {
     }
 
     // Write calibration segments descriptors and data
-    // @@@@ Iterate cal_seg_list cal_seg_list
+    // Iterate cal_seg_list cal_seg_list
     for (tXcpCalSegIndex i = 0; i < calseg_count; i++) {
         const tXcpCalSeg *seg = XcpGetCalSeg(i);
         assert(seg != NULL);

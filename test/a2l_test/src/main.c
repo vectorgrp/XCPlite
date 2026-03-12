@@ -252,7 +252,7 @@ int main() {
     // Create the calibration sync event for static parameters
     tXcpEventId sync = XcpCreateEvent("sync", 0, 0);
     A2lSetDynAddrMode(sync, 1, &static_uint8);
-    A2lBeginGroup("Global", "Parameters in global memory", true);
+    A2lBeginGroup("Global", "Parameters in global memory", true, true);
 
     // Create individual parameters in global memory
     A2lCreateParameter(static_counter_max, "Test period in ms (default 10s)", "ms", 0, 1000 * 10);

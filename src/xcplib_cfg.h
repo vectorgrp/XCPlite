@@ -60,11 +60,13 @@
 //-------------------------------------------------------------------------------
 // XCP multi process server options
 
+// @@@@ Experimental
+
 // Enable POSIX shared memory (SHM) mode:
 // XCP state and transmit queue is placed in anamed shared memory region
 // Multiple processes can participate in the same XCP session
 // Requires a POSIX-compliant platform (Linux / macOS / QNX).  Not supported on Windows.
-#define OPTION_SHM_MODE
+// #define OPTION_SHM_MODE
 
 //-------------------------------------------------------------------------------
 // XCP server options

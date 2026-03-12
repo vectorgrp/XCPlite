@@ -145,7 +145,7 @@ const tXcpCalSeg *XcpGetCalSeg(tXcpCalSegIndex calseg_index) {
 // Lock-free, thread-safe
 tXcpCalSegIndex XcpFindCalSeg(const char *name) {
     assert(isInitialized());
-    // @@@@ Iterate cal_seg_list cal_seg_list
+    // Iterate cal_seg_list cal_seg_list
     uint16_t n = XcpGetCalSegCount();
     for (tXcpCalSegIndex i = 0; i < n; i++) {
         const tXcpCalSeg *calseg = CalSegPtr(i);
@@ -169,7 +169,7 @@ tXcpCalSegIndex XcpFindCalSeg(const char *name) {
 // Lock-free, thread-safe
 tXcpCalSegIndex XcpFindCalPage(const void *page) {
     assert(isInitialized());
-    // @@@@ Iterate cal_seg_list cal_seg_list
+    // Iterate cal_seg_list cal_seg_list
     uint16_t n = XcpGetCalSegCount();
     for (tXcpCalSegIndex i = 0; i < n; i++) {
         const tXcpCalSeg *calseg = CalSegPtr(i);
@@ -185,7 +185,7 @@ tXcpCalSegIndex XcpFindCalPage(const void *page) {
 // Lock-free, thread-safe
 tXcpCalSegIndex XcpFindCalSegByAddr(uint8_t *addr) {
     assert(isInitialized());
-    // @@@@ Iterate cal_seg_list cal_seg_list
+    // Iterate cal_seg_list cal_seg_list
     uint16_t n = XcpGetCalSegCount();
     for (tXcpCalSegIndex i = 0; i < n; i++) {
         const tXcpCalSeg *calseg = CalSegPtr(i);
@@ -204,7 +204,7 @@ tXcpCalSegIndex XcpFindCalSegByAddr(uint8_t *addr) {
 // XCP uses a uin8_t number to identify memory segments (tXcpCalSegNumber), while the calibration segment index (tXcpCalSegIndex) is uint16_t
 // Lock-free, thread-safe
 tXcpCalSegIndex XcpGetCalSegIndex(tXcpCalSegNumber segment_number) {
-    // @@@@ Iterate cal_seg_list cal_seg_list
+    // Iterate cal_seg_list cal_seg_list
     uint16_t n = XcpGetCalSegCount();
     for (uint16_t i = 0; i < n; i++) {
         const tXcpCalSeg *calseg = CalSegPtr(i);
@@ -675,7 +675,7 @@ uint8_t XcpCalSegPublishAll(bool wait) {
     uint8_t res = CRC_CMD_OK;
     // If no atomic calibration operation is in progress
     if (!shared.cal_seg_list.write_delayed) {
-        // @@@@ Iterate cal_seg_list cal_seg_list
+        // Iterate cal_seg_list cal_seg_list
         uint16_t n = XcpGetCalSegCount();
         for (uint16_t i = 0; i < n; i++) {
             tXcpCalSeg *c = CalSegPtrMut(i); // @@@@ TODO Foreign thread access from XcpDisconnect, find a solution
@@ -850,7 +850,7 @@ uint8_t XcpCalSegSetCalPage(tXcpCalSegNumber segment_number, uint8_t page, uint8
         return CRC_ACCESS_DENIED; // Invalid calseg
     }
     if (mode & CAL_PAGE_MODE_ALL) { // Set all calibration segments to the same page
-        // @@@@ Iterate cal_seg_list cal_seg_list
+        // Iterate cal_seg_list cal_seg_list
         uint16_t n = XcpGetCalSegCount();
         for (tXcpCalSegIndex i = 0; i < n; i++) {
             if (mode & CAL_PAGE_MODE_ECU) {
@@ -888,7 +888,7 @@ uint8_t XcpCalSegCopyCalPage(tXcpCalSegNumber src_seg_num, uint8_t src_page, tXc
 
     // Older CANapes < 24SP1  do not send individual segment copy operations for each segment
     // Copy all existing segments from default page to working page, ignoring srcSeg/dstSeg
-    // @@@@ Iterate cal_seg_list cal_seg_list
+    // Iterate cal_seg_list cal_seg_list
     uint16_t n = XcpGetCalSegCount();
     for (tXcpCalSegIndex i = 0; i < n; i++) {
         const tXcpCalSeg *c = CalSegPtr(i);
@@ -919,7 +919,7 @@ uint8_t XcpCalSegCopyCalPage(tXcpCalSegNumber src_seg_num, uint8_t src_page, tXc
 // Single threaded function, called from XCP command handler
 void XcpCalSegBeginAtomicTransaction(void) {
     shared_mut.cal_seg_list.write_delayed = true; // Set a flag to delay ECU page updates
-    // @@@@ Iterate cal_seg_list cal_seg_list
+    // Iterate cal_seg_list cal_seg_list
     uint16_t n = XcpGetCalSegCount();
     for (uint16_t i = 0; i < n; i++) {
         CalSegPtrMut(i)->h.write_pending = false;
@@ -955,7 +955,7 @@ uint8_t XcpSetCalSegMode(tXcpCalSegNumber segment_number, uint8_t mode) {
 // Freeze all segments or segments with freeze mode enabled
 uint8_t XcpFreezeSelectedCalSegs(bool all) {
 
-    // @@@@ Iterate cal_seg_list cal_seg_list
+    // Iterate cal_seg_list cal_seg_list
     uint16_t n = XcpGetCalSegCount();
     for (uint16_t i = 0; i < n; i++) {
         const tXcpCalSeg *c = CalSegPtr(i);
@@ -976,7 +976,7 @@ bool XcpFreezeAllCalSegs(void) { return XcpFreezeSelectedCalSegs(true) != CRC_CM
 // Set all segments to the default page
 void XcpResetAllCalSegs(void) {
 
-    // @@@@ Iterate cal_seg_list cal_seg_list
+    // Iterate cal_seg_list cal_seg_list
     uint16_t n = XcpGetCalSegCount();
     for (uint16_t i = 0; i < n; i++) {
         tXcpCalSeg *c = CalSegPtrMut(i);
