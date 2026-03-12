@@ -192,6 +192,11 @@ uint16_t XcpGetEventIndex(tXcpEventId event);
 // Get the event descriptor struct by id, returns NULL if not found
 const tXcpEvent *XcpGetEvent(tXcpEventId event);
 
+#ifdef OPTION_SHM_MODE
+// Get event application id
+uint8_t XcpGetEventAppId(tXcpEventId event);
+#endif
+
 #endif // XCP_ENABLE_DAQ_EVENT_LIST
 
 /****************************************************************************/

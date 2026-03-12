@@ -75,10 +75,11 @@ typedef struct {
 static_assert(sizeof(tShmHeader) % 64 == 0, "sizeof tShmHeader must be a multiple of 64 bytes");
 
 uint8_t XcpShmGetAppId(void); // Get this process's application id
-bool XcpShmIsActive(void);    // true when this process is in SHM_MODE
-bool XcpShmIsServer(void);    // true when this process is the XCP server
-bool XcpShmIsLeader(void);    // true when this process created the shared memory region
-bool XcpShmIsFollower(void);  // true when this process is a follower attached to a leader
+
+bool XcpShmIsActive(void);   // true when this process is in SHM_MODE
+bool XcpShmIsServer(void);   // true when this process is the XCP server
+bool XcpShmIsLeader(void);   // true when this process created the shared memory region
+bool XcpShmIsFollower(void); // true when this process is a follower attached to a leader
 
 void XcpShmInit(tXcpData *xcp_data);                 // Initalize shared memory for this process, and register this process in the app list
 tXcpData *XcpShmAttachOrCreate(bool *out_is_leader); // Attach to an existing shared memory region created by another process or create a new one
@@ -88,6 +89,7 @@ bool XcpShmIsA2lFinalizeRequested(void);             // Follower: returns true w
 void XcpShmNotifyA2lFinalized(const char *name);     // Update this process's A2L file name and mark it as finalized
 void XcpShmIncrementAliveCounter(void);              // Follower background thread: prove this process is still alive
 uint8_t XcpShmGetAppCount(void);                     // Get the number of registered applications in SHM mode
+const char *XcpShmGetEcuProjectName(void);           // Get project name of the ECU
 const char *XcpShmGetAppProjectName(uint8_t app_id); // Get project name of an app slot by app_id index
 const char *XcpShmGetAppEpk(uint8_t app_id);         // Get EPK of an app slot by app_id index
 

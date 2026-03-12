@@ -56,9 +56,9 @@ static void *XcpServerTransmitThread(void *par);
 // There is a single follower background thread for polling A2L finalize requests and alive_counter
 #ifdef OPTION_SHM_MODE
 #if defined(_WIN) // Windows
-static DWORD WINAPI XcpServerFollowerThread(LPVOID lpParameter);
+static DWORD WINAPI XcpShmThread(LPVOID lpParameter);
 #else
-static void *XcpServerFollowerThread(void *par);
+static void *XcpShmThread(void *par);
 #endif
 #endif // OPTION_SHM_MODE
 
@@ -222,7 +222,7 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
 
             // Start the background polling thread
             gXcpServer.FollowerThreadRunning = false;
-            create_thread(&gXcpServer.FollowerThreadHandle, XcpServerFollowerThread);
+            create_thread(&gXcpServer.FollowerThreadHandle, XcpShmThread);
             // Wait until the follower thread has started
             while (!gXcpServer.FollowerThreadRunning) {
                 sleepUs(100);
@@ -345,11 +345,15 @@ extern void *XcpServerReceiveThread(void *par)
     // Receive XCP unicast commands loop
     gXcpServer.ReceiveThreadRunning = true;
     while (gXcpServer.ReceiveThreadRunning) {
-        if (!XcpEthTlHandleCommands()) { // Blocking
+
+        // Blocking, with timeout to allow handling background tasks in this thread as well
+        if (!XcpEthTlHandleCommands()) {
             DBG_PRINT_ERROR("XcpEthTlHandleCommands failed!\n");
             break; // error -> terminate thread
         }
-        XcpBackgroundTasks(); // Handle background tasks, e.g. pending calibration updates
+
+        // Handle background tasks, e.g. pending calibration updates
+        XcpBackgroundTasks();
     }
     gXcpServer.ReceiveThreadRunning = false;
 
@@ -391,18 +395,21 @@ extern void *XcpServerTransmitThread(void *par)
 // the leader can detect stale follower processes.
 #ifdef OPTION_SHM_MODE
 #if defined(_WIN) // Windows
-DWORD WINAPI XcpServerFollowerThread(LPVOID par)
+DWORD WINAPI XcpShmThread(LPVOID par)
 #else
-extern void *XcpServerFollowerThread(void *par)
+extern void *XcpShmThread(void *par)
 #endif
 {
     (void)par;
-    DBG_PRINT3("Start XCP background thread\n");
+    DBG_PRINT3("Start SHM background thread\n");
 
     gXcpServer.FollowerThreadRunning = true;
     bool a2l_finalized = false; // tracks whether this follower has already finalized its A2L
     while (gXcpServer.FollowerThreadRunning) {
         sleepUs(50000); // Poll every 50 ms
+
+        // Handle background tasks, e.g. pending calibration updates
+        XcpBackgroundTasks();
 
         // Prove this follower is still alive
         XcpShmIncrementAliveCounter();
@@ -413,7 +420,7 @@ extern void *XcpServerFollowerThread(void *par)
             // @@@@ TODO workaround by some delay because the finalize request could already set, when attaching to the SHM after the leader has requested A2L
             // finalization. Remove this workaround by a better synchronization between the leader and followers.
             if (A2lFinalize()) {
-                DBG_PRINT3("A2L finalization requested\n");
+                DBG_PRINT3("A2L finalized by SHM request\n");
                 a2l_finalized = true;
             }
         }
@@ -421,7 +428,7 @@ extern void *XcpServerFollowerThread(void *par)
     }
 
     gXcpServer.FollowerThreadRunning = false;
-    DBG_PRINT3("XCP background thread terminated!\n");
+    DBG_PRINT3("SHM background thread terminated!\n");
     return 0;
 }
 #endif // OPTION_SHM_MODE

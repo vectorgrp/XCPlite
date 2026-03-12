@@ -728,6 +728,15 @@ const tXcpEvent *XcpGetEvent(tXcpEventId event) {
 // Get the current event count, thread safe
 uint16_t XcpGetEventCount(void) { return getEventCount(); }
 
+// Get the events application id
+#ifdef OPTION_SHM_MODE
+uint8_t XcpGetEventAppId(tXcpEventId event) {
+    if (!isActivated() || event >= getEventCount())
+        return 0;
+    return shared.event_list.event[event].app_id;
+}
+#endif
+
 // Get the full event name, including instance index postfix if applicable
 // Result has lifetime until next call of XcpGetEventName()
 const char *XcpGetEventName(tXcpEventId event) {
@@ -761,7 +770,7 @@ static tXcpEventId XcpFindEventInstances(const char *name, uint16_t *pcount) {
         for (uint16_t i = 0; i < count; i++) {
             // In SHM mode, match only entries owned by this process — different apps have different namespace
 #ifdef OPTION_SHM_MODE
-            if (shared.event_list.event[i].app_id == local.shm_app_id && strcmp(shared.event_list.event[i].name, name) == 0) {
+            if (shared.event_list.event[i].app_id == XcpShmGetAppId() && strcmp(shared.event_list.event[i].name, name) == 0) {
 #else
             if (strcmp(shared.event_list.event[i].name, name) == 0) {
 #endif
@@ -820,7 +829,7 @@ tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cyc
     shared_mut_safe.event_list.event[e].cycle_time_ns = cycle_time_ns;
     // In SHM mode, assign event to the application, different apps have different namespace
 #ifdef OPTION_SHM_MODE
-    shared_mut_safe.event_list.event[e].app_id = local.shm_app_id;
+    shared_mut_safe.event_list.event[e].app_id = XcpShmGetAppId();
 #endif
 
     setEventCount(e + 1); // Publish new event, this is not thread safe, must be called with locked mutex, but it garantees atomic visibility of the new event
@@ -2906,7 +2915,7 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
             }
 
 #ifdef DBG_LEVEL
-            DBG_PRINTF3("XcpInit: Created or attached to shared memory, is_leader=%u, shm_app_id=%u\n", local.shm_leader, local.shm_app_id);
+            DBG_PRINTF3("XcpInit: Created or attached to shared memory, is_leader=%u, app_id=%u\n", XcpShmIsLeader(), XcpShmGetAppId());
             if (DBG_LEVEL >= 3) {
                 XcpShmDebugPrint(gXcpData);
             }

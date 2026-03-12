@@ -15,12 +15,12 @@
 // XCP parameters
 
 constexpr const char OPTION_PROJECT_NAME[] = "hello_xcp_cpp"; // Project name, used to build the A2L and BIN file name
-constexpr const char OPTION_PROJECT_VERSION[] = "EPK_V100";   // EPK version string
+constexpr const char OPTION_PROJECT_VERSION[] = "V100";       // EPK version string
 constexpr bool OPTION_USE_TCP = false;                        // TCP or UDP
 constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};        // Bind addr, 0.0.0.0 = ANY
 constexpr uint16_t OPTION_SERVER_PORT = 5555;                 // Port
 #define OPTION_QUEUE_SIZE (1024 * 32)                         // Size of the queue in bytes, should be large enough to cover at least 10ms of expected traffic
-constexpr int OPTION_LOG_LEVEL = 5;                           // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+constexpr int OPTION_LOG_LEVEL = 3;                           // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 #define OPTION_ENABLE_CALIBRATION // Enable parameter tuning in the code below
 
@@ -170,7 +170,7 @@ int main() {
     XcpSetLogLevel(OPTION_LOG_LEVEL);
 
     // Initialize the XCP singleton and activate XCP
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION /* EPK version*/, XCP_MODE_LOCAL);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION /* EPK version*/, XCP_MODE_SHM);
 
     // Initialize the XCP Server
     if (!XcpEthServerInit(OPTION_SERVER_ADDR, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_QUEUE_SIZE)) {
@@ -186,8 +186,6 @@ int main() {
     }
 
 #ifdef OPTION_ENABLE_CALIBRATION
-    // Initialize the global calibration wrapper for the struct 'ParametersT' and set the default values in constant 'kParameters' as reference page (FLASH)
-    gCalSeg.emplace("params", &kParameters);
     // Register the ParametersT calibration segment description as a typedef and an instance in the A2L file
     A2lCreateTypedef(ParametersT, "Typedef for ParametersT",                //
                      A2L_MAP_COMPONENT(map, "Demo map", "", 0, 100),        //
@@ -198,6 +196,9 @@ int main() {
                      A2L_PARAMETER_COMPONENT(max, "Maximum random number value", "", -100.0, 100.0), //
                      A2L_PARAMETER_COMPONENT(counter_max, "Maximum counter value", "", 0, 65535),    //
                      A2L_PARAMETER_COMPONENT(delay_us, "Mainloop delay time in us", "us", 0, 500000));
+
+    // Initialize the global calibration wrapper for the struct 'ParametersT' and set the default values in constant 'kParameters' as reference page (FLASH)
+    gCalSeg.emplace("params", &kParameters);
     gCalSeg->CreateA2lTypedefInstance("ParametersT", "Demo calibration parameters for hello_xcp_cpp example");
 #endif
 

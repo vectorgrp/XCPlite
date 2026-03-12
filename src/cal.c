@@ -152,7 +152,7 @@ tXcpCalSegIndex XcpFindCalSeg(const char *name) {
         assert(calseg != NULL);
         // In SHM mode, match only entries owned by this process — different apps may use the same name
 #ifdef OPTION_SHM_MODE
-        if (calseg->h.app_id == local.shm_app_id && strcmp(calseg->h.name, name) == 0) {
+        if (calseg->h.app_id == XcpShmGetAppId() && strcmp(calseg->h.name, name) == 0) {
 #else
         if (strcmp(calseg->h.name, name) == 0) {
 #endif
@@ -420,7 +420,7 @@ static void XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
         c->h.size = page_size;
         // In SHM mode, assign the app_id to the segment
 #ifdef OPTION_SHM_MODE
-        c->h.app_id = local.shm_app_id;
+        c->h.app_id = XcpShmGetAppId();
 #else
         c->h.app_id = 0;
 #endif
@@ -466,7 +466,7 @@ static void XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
 #endif
         }
 
-        DBG_PRINTF3("Init CalSeg: '%s' size=%u\n", c->h.name, c->h.size);
+        DBG_PRINTF3("Init CalSeg: '%s' size=%u, app_id=%u, calseg_number=%u\n", c->h.name, c->h.size, c->h.app_id, c->h.calseg_number);
     } // Init
 
     // Reset RCU

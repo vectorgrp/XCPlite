@@ -72,6 +72,7 @@ bool XcpShmIsFollower(void) { return local.init_mode >= XCP_MODE_SHM && !local.s
 
 #ifdef DBG_LEVEL
 
+// Init shared memory header
 void XcpShmInit(tXcpData *xcp_data) {
 
     tShmHeader *hdr = &xcp_data->shm_header;
@@ -236,7 +237,7 @@ void XcpShmNotifyA2lFinalized(const char *a2l_name) {
     assert(XcpShmIsActive());
     assert(isActivated_(gXcpData));
 
-    uint8_t slot = local.shm_app_id;
+    uint8_t slot = XcpShmGetAppId();
     if (slot >= SHM_MAX_APP_COUNT)
         return;
     tApp *app = &gXcpData->shm_header.app_list[slot];
@@ -245,8 +246,11 @@ void XcpShmNotifyA2lFinalized(const char *a2l_name) {
         app->a2l_name[XCP_A2L_FILENAME_MAX_LENGTH] = '\0';
     }
     atomic_store(&app->a2l_finalized, 1U);
-    DBG_PRINTF3("XcpShmNotifyA2lFinalized: app %u a2l='%s'\n", (unsigned)slot, a2l_name ? a2l_name : "");
+    DBG_PRINTF3("XcpShmNotifyA2lFinalized: app_id=%u a2l='%s'\n", XcpShmGetAppId(), a2l_name ? a2l_name : "");
 }
+
+// Get the project name of the ECU
+const char *XcpShmGetEcuProjectName(void) { return "shm"; }
 
 // Get the number of registered applications in SHM mode.
 uint8_t XcpShmGetAppCount(void) {
@@ -334,7 +338,7 @@ void XcpShmIncrementAliveCounter(void) {
     assert(XcpShmIsActive());
     assert(isActivated_(gXcpData));
 
-    uint8_t slot = local.shm_app_id;
+    uint8_t slot = XcpShmGetAppId();
     if (slot >= SHM_MAX_APP_COUNT)
         return;
     atomic_fetch_add(&gXcpData->shm_header.app_list[slot].alive_counter, 1U);

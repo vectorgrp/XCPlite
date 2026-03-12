@@ -99,14 +99,21 @@ static tHeader gBinHeader;
 static char gXcpBinFilename[XCP_BIN_FILENAME_MAX_LENGTH + 1] = "";
 
 // Build BIN filename from project name and EPK
-static void buildBinFilename(void) {
-    if (strlen(gXcpBinFilename) > 0)
-        return; // Already built
-    const char *project_name = XcpGetProjectName();
-    assert(project_name != NULL);
+static const char *XcpBinGetFilename(void) {
+    const char *basename;
+#ifdef OPTION_SHM_MODE
+    if (XcpShmIsActive()) {
+        basename = XcpShmGetEcuProjectName();
+    } else
+#endif
+    {
+        basename = XcpGetProjectName();
+    }
+    assert(basename != NULL);
     const char *epk = XcpGetEpk();
     assert(epk != NULL);
-    SNPRINTF(gXcpBinFilename, XCP_BIN_FILENAME_MAX_LENGTH, "%s_%s.bin", project_name, epk);
+    SNPRINTF(gXcpBinFilename, XCP_BIN_FILENAME_MAX_LENGTH, "%s_%s.bin", basename, epk);
+    return gXcpBinFilename;
 }
 
 // Print the content of a calibration segment page for debugging
@@ -240,7 +247,7 @@ bool XcpBinWrite(uint8_t page) {
         return false;
     }
 
-    buildBinFilename();
+    const char *filename = XcpBinGetFilename();
 
     if (XcpIsConnected() && page == XCP_CALPAGE_WORKING_PAGE) {
         DBG_PRINT_ERROR("Cannot write persistence file while XCP is connected\n");
@@ -248,9 +255,9 @@ bool XcpBinWrite(uint8_t page) {
     }
 
     // Open file for writing
-    FILE *file = fopen(gXcpBinFilename, "wb");
+    FILE *file = fopen(filename, "wb");
     if (file == NULL) {
-        DBG_PRINTF3("Failed to open file %s for writing: %s\n", gXcpBinFilename, strerror(errno));
+        DBG_PRINTF3("Failed to open file %s for writing: %s\n", filename, strerror(errno));
         return false;
     }
 
@@ -314,15 +321,15 @@ bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg) {
         return false;
     }
 
-    buildBinFilename();
-    FILE *file = fopen(gXcpBinFilename, "r+b");
+    const char *filename = XcpBinGetFilename();
+    FILE *file = fopen(filename, "r+b");
     if (file == NULL) {
         // If the file does not exist yet, create a new initial one with default page data
         XcpBinWrite(XCP_CALPAGE_DEFAULT_PAGE);
-        file = fopen(gXcpBinFilename, "r+b");
+        file = fopen(filename, "r+b");
     }
     if (file == NULL) {
-        DBG_PRINTF_ERROR("Failed to open file '%s' for read/write: %s\n", gXcpBinFilename, strerror(errno));
+        DBG_PRINTF_ERROR("Failed to open file '%s' for read/write: %s\n", filename, strerror(errno));
         return false;
     }
 
@@ -332,7 +339,7 @@ bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg) {
     if (0 == fseek(file, seg->h.file_pos, SEEK_SET)) {
         const uint8_t *ecu_page = XcpLockCalSeg(calseg);
 #ifdef OPTION_ENABLE_DBG_PRINTS
-        DBG_PRINTF4("Freezing calibration segment %u, size=%u active page data to file '%s'+%u\n", calseg, seg->h.size, gXcpBinFilename, seg->h.file_pos);
+        DBG_PRINTF4("Freezing calibration segment %u, size=%u active page data to file '%s'+%u\n", calseg, seg->h.size, filename, seg->h.file_pos);
         if (DBG_LEVEL >= 4)
             printCalsegPage(ecu_page, seg->h.size);
 #endif
@@ -498,20 +505,20 @@ bool XcpBinLoad(void) {
         return false;
     }
 
-    buildBinFilename();
+    const char *filename = XcpBinGetFilename();
     const char *epk = XcpGetEpk();
     assert(epk != NULL);
-    if (load(gXcpBinFilename, epk)) {
-        DBG_PRINTF3("Loaded binary file %s\n", gXcpBinFilename);
+    if (load(filename, epk)) {
+        DBG_PRINTF3("Loaded binary file %s\n", filename);
         return true;
     }
     return false;
 }
 
 void XcpBinDelete(void) {
-    buildBinFilename();
-    if (remove(gXcpBinFilename) == 0) {
-        DBG_PRINTF3("Deleted persistence file '%s'\n", gXcpBinFilename);
+    const char *filename = XcpBinGetFilename();
+    if (remove(filename) == 0) {
+        DBG_PRINTF3("Deleted persistence file '%s'\n", filename);
     }
 }
 
