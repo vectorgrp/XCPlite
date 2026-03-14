@@ -162,27 +162,9 @@ tXcpCalSegIndex XcpFindCalSeg(const char *name) {
     return XCP_UNDEFINED_CALSEG; // Not found
 }
 
-// In SHM mode, we can not find the segment by page pointer
-#ifndef OPTION_SHM_MODE
-
-// Find a calibration segment by a page pointer (default page or ecu_page), returns XCP_UNDEFINED_CALSEG if not found
-// Lock-free, thread-safe
-tXcpCalSegIndex XcpFindCalPage(const void *page) {
-    assert(isInitialized());
-    // Iterate cal_seg_list cal_seg_list
-    uint16_t n = XcpGetCalSegCount();
-    for (tXcpCalSegIndex i = 0; i < n; i++) {
-        const tXcpCalSeg *calseg = CalSegPtr(i);
-        assert(calseg != NULL);
-        if (calseg->h.default_page_ptr == page || CalSegEcuPage(calseg) == page) {
-            return i;
-        }
-    }
-    return XCP_UNDEFINED_CALSEG; // Not found
-}
-
 // Get the index of a calibration segment by address (inside of the default page)
 // Lock-free, thread-safe
+#if !defined(OPTION_SHM_MODE) && defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
 tXcpCalSegIndex XcpFindCalSegByAddr(uint8_t *addr) {
     assert(isInitialized());
     // Iterate cal_seg_list cal_seg_list
@@ -196,8 +178,7 @@ tXcpCalSegIndex XcpFindCalSegByAddr(uint8_t *addr) {
     }
     return XCP_UNDEFINED_CALSEG; // Not found
 }
-
-#endif // !OPTION_SHM_MODE
+#endif
 
 // Get the calibration segment index by memory segment number, returns XCP_UNDEFINED_CALSEG if not found
 // Not all calibrations segments can be controlled by XCP
@@ -280,9 +261,11 @@ uint8_t *XcpCreateCalSegPreloaded(const char *name, uint16_t page_size, uint16_t
         return NULL;
     }
 
+#ifdef XCP_ENABLE_CAL_PERSISTENCE
     // Mark the segment as preloaded
     seg->h.mode = PAG_PROPERTY_PRELOAD;
     seg->h.file_pos = file_pos; // Save the position of the segment page data in the file
+#endif
 
     void *default_page = CalSegDefaultPage(seg);
     return default_page;
@@ -442,9 +425,10 @@ static void XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
         if (default_page != NULL) {
             memcpy(CalSegDefaultPage(c), default_page, page_size); // Copy default page to the allocated memory buffer
 
+            // Keep the pointer to the default page, which may have static lifetime
             // In SHM mode, there is no pointer to the default page
-#ifndef OPTION_SHM_MODE
-            c->h.default_page_ptr = (uint8_t *)default_page; // Keep the pointer to the default page, which may have static lifetime
+#if !defined(OPTION_SHM_MODE) && defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
+            c->h.default_page_ptr = (uint8_t *)default_page;
 #endif
         }
 
@@ -454,7 +438,7 @@ static void XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
             memset(CalSegDefaultPage(c), 0, page_size);
 
             // In SHM mode, there is no pointer to the default page
-#ifndef OPTION_SHM_MODE
+#if !defined(OPTION_SHM_MODE) && defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
             c->h.default_page_ptr = NULL;
 #endif
 #else
@@ -575,23 +559,6 @@ uint8_t XcpUnlockCalSeg(tXcpCalSegIndex calseg_index) {
     assert(oldLockCount > 0);                                                                                                      // Calling XcpUnlockCalSeg without a prior lock
     return oldLockCount;
 }
-
-// In SHM mode, we can not find the segment by page pointer
-#ifndef OPTION_SHM_MODE
-// Update a calibration parameter segment by pointer to the actual page
-// Calibration segment is continuously locked and only updated here
-// It is the users responsibility to ensure initial locking of the segment
-void XcpUpdateCalSeg(void **calPage) {
-
-    tXcpCalSegIndex calSegIndex = XcpFindCalPage(*calPage);
-    if (calSegIndex != XCP_UNDEFINED_CALSEG) {
-        // Release the lock on the old page
-        XcpUnlockCalSeg(calSegIndex);
-        // If there are calibration changes, frees the old page memory and replaces with the new one
-        *calPage = (void *)XcpLockCalSeg(calSegIndex);
-    }
-}
-#endif // OPTION_SHM_MODE
 
 // XCP client memory read
 // Read xcp or default page

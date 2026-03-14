@@ -145,7 +145,7 @@ static bool writeHeader(FILE *file, const char *epk, uint16_t event_count, uint1
     gBinHeader.app_count = app_count;
     size_t written = fwrite(&gBinHeader, sizeof(tHeader), 1, file);
     if (written != 1) {
-        DBG_PRINTF3("Failed to write header to file: %s\n", strerror(errno));
+        DBG_PRINT_ERROR("Failed to write header to BIN file\n");
         return false;
     }
     return true;
@@ -167,7 +167,7 @@ static bool writeEvent(FILE *file, tXcpEventId event_id, const tXcpEvent *event)
     desc.index = XcpGetEventIndex(event_id);
     size_t written = fwrite(&desc, sizeof(tEventDescriptor), 1, file);
     if (written != 1) {
-        DBG_PRINTF3("Failed to write event descriptor to file: %s\n", strerror(errno));
+        DBG_PRINT_ERROR("Failed to write event descriptor to BIN file\n");
         return false;
     }
 
@@ -190,7 +190,7 @@ static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, const tXcpCalSeg *se
 #endif
     size_t written = fwrite(&desc, sizeof(tCalSegDescriptor), 1, file);
     if (written != 1) {
-        DBG_PRINTF3("Failed to write calibration segment descriptor to file: %s\n", strerror(errno));
+        DBG_PRINT_ERROR("Failed to write calibration segment descriptor to BIN file\n");
         return false;
     }
     ((tXcpCalSeg *)seg)->h.file_pos = (uint32_t)ftell(file); // Save the position of the segment page data in the file // @@@@ TODO cast away const, improve design to avoid this
@@ -202,7 +202,7 @@ static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, const tXcpCalSeg *se
     // This is safe, because XCP is not connected
     written = fwrite(page == XCP_CALPAGE_DEFAULT_PAGE ? CalSegDefaultPage(seg) : CalSegEcuPage(seg), seg->h.size, 1, file);
     if (written != 1) {
-        DBG_PRINTF3("Failed to write calibration segment data to file: %s\n", strerror(errno));
+        DBG_PRINT_ERROR("Failed to write calibration segment data to BIN file\n");
         return false;
     }
     return true;
@@ -221,7 +221,7 @@ static bool writeApp(FILE *file, uint8_t app_id, const char *project_name, const
     desc.epk[XCP_EPK_MAX_LENGTH] = '\0'; // Ensure null termination
     size_t written = fwrite(&desc, sizeof(tAppDescriptor), 1, file);
     if (written != 1) {
-        DBG_PRINTF3("Failed to write application descriptor to file: %s\n", strerror(errno));
+        DBG_PRINT_ERROR("Failed to write application descriptor to BIN file\n");
         return false;
     }
 
@@ -257,7 +257,7 @@ bool XcpBinWrite(uint8_t page) {
     // Open file for writing
     FILE *file = fopen(filename, "wb");
     if (file == NULL) {
-        DBG_PRINTF3("Failed to open file %s for writing: %s\n", filename, strerror(errno));
+        DBG_PRINTF_ERROR("Failed to open file %s for writing\n", filename);
         return false;
     }
 
@@ -329,7 +329,7 @@ bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg) {
         file = fopen(filename, "r+b");
     }
     if (file == NULL) {
-        DBG_PRINTF_ERROR("Failed to open file '%s' for read/write: %s\n", filename, strerror(errno));
+        DBG_PRINTF_ERROR("Failed to open file '%s'\n", filename);
         return false;
     }
 
@@ -407,7 +407,7 @@ static bool load(const char *filename, const char *epk) {
         // Read event descriptor
         read = fread(&desc, sizeof(tEventDescriptor), 1, file);
         if (read != 1) {
-            DBG_PRINTF_ERROR("Failed to read event descriptor from file: %s\n", strerror(errno));
+            DBG_PRINT_ERROR("Failed to read event descriptor from BIN file\n");
             fclose(file);
             return false;
         }
@@ -440,7 +440,7 @@ static bool load(const char *filename, const char *epk) {
         tCalSegDescriptor desc;
         read = fread(&desc, sizeof(tCalSegDescriptor), 1, file);
         if (read != 1) {
-            DBG_PRINTF_ERROR("Failed to read calibration segment descriptor from file: %s\n", strerror(errno));
+            DBG_PRINT_ERROR("Failed to read calibration segment descriptor from BIN file\n");
             fclose(file);
             return false;
         }
@@ -454,7 +454,7 @@ static bool load(const char *filename, const char *epk) {
 
         read = fread(default_page, desc.size, 1, file);
         if (read != 1) {
-            DBG_PRINTF_ERROR("Failed to read calibration segment data from file: %s\n", strerror(errno));
+            DBG_PRINT_ERROR("Failed to read calibration segment data from BIN file\n");
             fclose(file);
             return false;
         }
@@ -471,7 +471,7 @@ static bool load(const char *filename, const char *epk) {
         tAppDescriptor desc;
         read = fread(&desc, sizeof(tAppDescriptor), 1, file);
         if (read != 1) {
-            DBG_PRINTF_ERROR("Failed to read application descriptor from file: %s\n", strerror(errno));
+            DBG_PRINT_ERROR("Failed to read application descriptor from BIN file\n");
             fclose(file);
             return false;
         }

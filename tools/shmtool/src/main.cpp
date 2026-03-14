@@ -40,7 +40,7 @@
 #include "xcp_cfg.h"
 #include "xcplib_cfg.h"
 
-#ifdef OPTION_SHM_MODE___
+#ifdef OPTION_SHM_MODE
 
 #include "shm.h"
 #include "xcpLite.h"
@@ -70,15 +70,15 @@ static int cmd_status(bool verbose) {
     int fd = shm_open("/xcpdata", O_RDONLY, 0);
     if (fd < 0) {
         if (errno == ENOENT)
-            printf("/xcpdata  : not found (no XCPlite SHM session active)\n");
+            printf("No XCPlite SHM session active, /xcpdata not found\n");
         else
-            fprintf(stderr, "/xcpdata  : shm_open failed: %s\n", strerror(errno));
+            fprintf(stderr, "shm_open '/xcpdata' failed: %s\n", strerror(errno));
         return (errno == ENOENT) ? 0 : 1;
     }
 
     struct stat st{};
     if (fstat(fd, &st) < 0) {
-        fprintf(stderr, "/xcpdata  : fstat failed: %s\n", strerror(errno));
+        fprintf(stderr, "fstat '/xcpdata' failed: %s\n", strerror(errno));
         close(fd);
         return 1;
     }
@@ -87,18 +87,19 @@ static int cmd_status(bool verbose) {
     void *ptr = mmap(nullptr, shm_size, PROT_READ, MAP_SHARED, fd, 0);
     close(fd);
     if (ptr == MAP_FAILED) {
-        fprintf(stderr, "/xcpdata  : mmap failed: %s\n", strerror(errno));
+        fprintf(stderr, "mmap '/xcpdata' failed: %s\n", strerror(errno));
         return 1;
     }
 
     const auto *hdr = reinterpret_cast<const tShmHeader *>(reinterpret_cast<const uint8_t *>(ptr) + offsetof(tXcpData, shm_header));
 
     print_separator('=');
-    printf("/xcpdata  mmap size  : %zu bytes\n", shm_size);
+    printf("/xcpdata mmap size: %zu bytes\n", shm_size);
 
     if (shm_size < sizeof(tXcpData)) {
-        fprintf(stderr, "  WARNING: SHM mmap size %zu < sizeof(tXcpData) %zu — stale or incompatible binary!\n", shm_size, sizeof(tXcpData));
+        fprintf(stderr, "WARNING: SHM mmap size %zu < sizeof(tXcpData) %zu — stale or incompatible binary!\n", shm_size, sizeof(tXcpData));
     }
+
     // Note: shm_size may exceed sizeof(tXcpData) due to OS page-size rounding
     // (macOS ARM64 rounds ftruncate up to 16 KiB boundaries). Use hdr->size
     // (the declared size stored by the leader) for the real compatibility check.

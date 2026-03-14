@@ -589,6 +589,9 @@ bool socketBind(SOCKET_HANDLE socket, const uint8_t *addr, uint16_t port) {
     if (bind(sock, (SOCKADDR *)&a, sizeof(a)) < 0) {
         DBG_PRINTF_ERROR("socketBind failed (err=%d) - cannot bind on %u.%u.%u.%u port %u!\n", socketGetLastError(), addr ? addr[0] : 0, addr ? addr[1] : 0, addr ? addr[2] : 0,
                          addr ? addr[3] : 0, port);
+        if (port < 1024) {
+            DBG_PRINT_ERROR("Binding to ports <1024 may require root privileges on Linux!\n");
+        }
         return 0;
     }
 

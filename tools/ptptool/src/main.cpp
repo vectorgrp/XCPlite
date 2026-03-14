@@ -43,7 +43,7 @@
 #include <xcplib.hpp> // for application programming interface
 
 constexpr const char XCP_OPTION_PROJECT_NAME[] = "ptptool";
-constexpr const char XCP_OPTION_PROJECT_VERSION[] = "V0.0.1";
+constexpr const char XCP_OPTION_PROJECT_VERSION[] = "V0.0.2";
 constexpr bool XCP_OPTION_USE_TCP = false;
 constexpr uint8_t XCP_OPTION_SERVER_ADDR[4] = {0, 0, 0, 0};
 constexpr uint16_t XCP_OPTION_SERVER_PORT = 5555;

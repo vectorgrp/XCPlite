@@ -15,9 +15,9 @@
   The values for XCP_xxx and XCPTL_xxx define constants (in xcp_cfg.h and xcptl_cfg.h) may depend on options
 */
 
-// XCPlite version, currently V1.2.0
-#define OPTION_VERSION_MAJOR 1
-#define OPTION_VERSION_MINOR 2
+// XCPlite version, currently V2.0.0
+#define OPTION_VERSION_MAJOR 2
+#define OPTION_VERSION_MINOR 0
 #define OPTION_VERSION_PATCH 0
 
 #ifdef XCPLIB_FOR_RUST // Configuration for Rust xcp-lite
@@ -55,7 +55,7 @@
 //-------------------------------------------------------------------------------
 // Socket options
 
-#define OPTION_SOCKET_HW_TIMESTAMPS // Enable hardware timestamps on UDP sockets if available
+// #define OPTION_SOCKET_HW_TIMESTAMPS // Enable hardware timestamps on UDP sockets if available
 
 //-------------------------------------------------------------------------------
 // XCP multi process server options
@@ -71,13 +71,10 @@
 //-------------------------------------------------------------------------------
 // XCP server options
 
-#define OPTION_ENABLE_SERVER
-#ifdef OPTION_ENABLE_SERVER // Enable XCP server
 #define OPTION_ENABLE_TCP
 #define OPTION_ENABLE_UDP
 #define OPTION_MTU 8000                     // Ethernet packet size (MTU), must be %8 - Jumbo frames supported
 #define OPTION_SERVER_FORCEFULL_TERMINATION // Don't wait for the rx and tx thread to finish, just terminate them
-#endif                                      // OPTION_ENABLE_SERVER
 
 //-------------------------------------------------------------------------------
 // CAL setting

@@ -32,6 +32,13 @@
 
 #ifdef OPTION_SHM_MODE
 
+#ifndef XCP_ENABLE_DAQ_EVENT_LIST
+#error "XCP_ENABLE_DAQ_EVENT_LIST must be defined for SHM mode"
+#endif
+#ifndef XCP_ENABLE_CALSEG_LIST
+#error "XCP_ENABLE_CALSEG_LIST must be defined for SHM mode"
+#endif
+
 /****************************************************************************/
 /* Protocol layer state data                                                */
 /****************************************************************************/
@@ -170,7 +177,6 @@ void XcpShmDebugPrint(tXcpData *xcp_data) {
     printf("  daq_running=%u, daq_overflow_count=%u\n", (unsigned)atomic_load_explicit(&xcp_data->daq_running, memory_order_relaxed), xcp_data->daq_overflow_count);
 
     // --- Event list ---
-#ifdef XCP_ENABLE_DAQ_EVENT_LIST
     uint16_t event_count = XcpGetEventCount();
     printf("Events (%u):\n", event_count);
     for (uint16_t id = 0; id < event_count; id++) {
@@ -181,10 +187,8 @@ void XcpShmDebugPrint(tXcpData *xcp_data) {
             printf("  [%u] name='%s', cycle_ns=%u, index=%u, app_id=%u, daq_first=%u, flags=0x%02X\n", id, XcpGetEventName(id), ev->cycle_time_ns, ev->index, ev->app_id,
                    ev->daq_first, ev->flags);
     }
-#endif
 
     // --- Calibration segment list ---
-#ifdef XCP_ENABLE_CALSEG_LIST
     uint16_t calseg_count = XcpGetCalSegCount();
     printf("CalSegs (%u):\n", calseg_count);
     for (uint16_t i = 0; i < calseg_count; i++) {
@@ -194,7 +198,6 @@ void XcpShmDebugPrint(tXcpData *xcp_data) {
         else
             printf("  [%u] name='%s', size=%u, app_id=%u, seg_num=%u\n", i, cs->h.name, cs->h.size, cs->h.app_id, cs->h.calseg_number);
     }
-#endif
 
     // --- DAQ lists ---
     // printf("DAQ lists (%u):\n", shared.daq_lists.daq_count);
@@ -250,7 +253,7 @@ void XcpShmNotifyA2lFinalized(const char *a2l_name) {
 }
 
 // Get the project name of the ECU
-const char *XcpShmGetEcuProjectName(void) { return "shm"; }
+const char *XcpShmGetEcuProjectName(void) { return "shm"; } // @@@@ TODO: store in SHM header?
 
 // Get the number of registered applications in SHM mode.
 uint8_t XcpShmGetAppCount(void) {

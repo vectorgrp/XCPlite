@@ -44,13 +44,13 @@
 
 // A2L global options
 static bool gA2lUseTCP = false;
-static bool gA2lSymbolPrefix = false; // Prepend XcpGetProjectName()+"." as prefix to all symbol names
 static uint16_t gA2lOptionPort = 5555;
 static uint8_t gA2lOptionBindAddr[4] = {0, 0, 0, 0};
 static uint8_t gA2lMode = A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS;
 static bool gA2lFinalizeOnConnect = true; // Finalize A2L file on connect
 static bool gA2lWriteAlways = true;       // Write A2L file always, even if no changes were made
 static bool gA2lAutoGroups = true;        // Automatically create groups for measurements and parameters
+static bool gA2lSymbolPrefix = false;     // Prepend project name as prefix to all symbol names (measurements, parameters, typedefs, components)
 
 // A2L file handles and state
 static bool gA2lFileWritten = false;
@@ -62,7 +62,6 @@ static FILE *gA2lConversionsFile = NULL;
 
 // Thread safety and one time execution
 static MUTEX gA2lMutex;
-A2L_ONCE_TYPE gA2lOncePass = 1; // Allows to rerun the once checkers
 
 // Conversion name buffer
 static char gA2lConvName[XCP_A2L_MAX_SYMBOL_NAME_LENGTH] = {0}; // static buffer for current conversion name
@@ -329,9 +328,8 @@ const char *A2lGetCalSegName_(uint8_t app_id, const char *name) {
     if (XcpShmIsServer()) {
         return A2lGetPrefixedName_(XcpShmGetAppProjectName(app_id), name);
     }
-#else
-    return A2lGetPrefixedName_(XcpGetProjectName(), name);
 #endif
+    return A2lGetPrefixedName_(XcpGetProjectName(), name);
 }
 
 //----------------------------------------------------------------------------------
@@ -1811,7 +1809,7 @@ void A2lCreateParameterGroupFromList(const char *symbol_name, const char *pNames
 bool A2lOnce_(A2L_ONCE_TYPE *value) {
     if (gA2lFile != NULL) {
         A2L_ONCE_TYPE old_value = 0;
-        if (atomic_compare_exchange_strong_explicit((A2L_ONCE_ATOMIC_TYPE *)value, &old_value, gA2lOncePass, memory_order_relaxed, memory_order_relaxed)) {
+        if (atomic_compare_exchange_strong_explicit((A2L_ONCE_ATOMIC_TYPE *)value, &old_value, 1, memory_order_relaxed, memory_order_relaxed)) {
             return true; // Return true if A2L file is open
         }
     }

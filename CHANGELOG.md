@@ -2,7 +2,21 @@
 
 All notable changes to XCPlite are documented in this file.
 
-## [V1.2.0]
+
+
+
+## [V2.0.0]
+
+- Experimental support for shared memory communication between XCP server and target application.  
+Not planned for production use yet, can be enabled with `OPTION_SHM_MODE`.
+
+
+ 
+
+
+
+
+## [V1.2.1]
 
 - Renamed to 'libxcplite' with external package name `xcplite`
 - DAQ performance optimization, transmit queue for vectored IO
@@ -26,7 +40,6 @@ All notable changes to XCPlite are documented in this file.
 ### Added
 - New variadic data acquisition C macro or C++ macro/template  (`DaqEventVar`)
 - Support for enabling and disabling individual DAQ events at runtime (`DaqEventEnable`, `DaqEventDisable`)
-- New function XcpUpdateCalSeg for simplified single thread calibration segment updates
 - New demo `point_cloud_demo` demonstrating how to visualize arrays of objects in the CANape 3D scene window
 
 ### Changed

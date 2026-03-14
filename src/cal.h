@@ -78,8 +78,8 @@ typedef union {
         atomic_uint_least32_t free_page;     // offset into c->b[]
         atomic_uint_fast8_t ecu_access;      // page number for ECU access
         atomic_uint_fast8_t lock_count;      // lock count for the segment, 0 = unlocked
-#ifndef OPTION_SHM_MODE
-        uint8_t *default_page_ptr; // process-local ptr to caller's static data, NOT sharable
+#if !defined(OPTION_SHM_MODE) && defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
+        uint8_t *default_page_ptr; // process-local ptr to caller's static data, NOT sharable, used for
 #else
         uint8_t *res1; // In SHM mode, there is no pointer to the default page
 #endif
@@ -182,12 +182,6 @@ uint8_t XcpGetMemSegCount(void);
 // In SHM mode, only searches within the calling process's own segments (scoped by app_id)
 tXcpCalSegIndex XcpFindCalSeg(const char *name);
 
-// Find a calibration segment by exactly the default page pointer, returns XCP_UNDEFINED_CALSEG if not found
-// In SHM mode, there is no pointer to the default page
-#ifndef OPTION_SHM_MODE
-tXcpCalSegIndex XcpFindCalPage(const void *default_page);
-#endif
-
 // Find a calibration segment by a pointer into its static default page memory, returns XCP_UNDEFINED_CALSEG if not found
 tXcpCalSegIndex XcpFindCalSegByAddr(uint8_t *addr);
 
@@ -209,15 +203,6 @@ uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg);
 
 // Update all pending calibration changes
 uint8_t XcpCalSegPublishAll(bool wait);
-
-// In SHM mode, there is no pointer to the default page
-#ifndef OPTION_SHM_MODE
-// Update a calibration parameter segment pointer
-// Single threaded calibration segment access assumed
-// Calibration segment is continuously locked and only updated here
-// It is the users responsibility to ensure single threaded usage and initial locking of the segment
-void XcpUpdateCalSeg(void **calPage);
-#endif // OPTION_SHM_MODE
 
 /**************************************************************************/
 // Server side

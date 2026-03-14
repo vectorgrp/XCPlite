@@ -48,9 +48,10 @@
 |  from Vector Informatik GmbH, please contact Vector
 |***************************************************************************/
 
-#include "xcp_cfg.h"    // XCP protocol layer configuration parameters (XCP_xxx)
 #include "xcplib_cfg.h" // for OPTION_xxx
-#include "xcptl_cfg.h"  // XCP transport layer configuration parameters (XCPTL_xxx)
+
+#include "xcp_cfg.h"   // XCP protocol layer configuration parameters (XCP_xxx)
+#include "xcptl_cfg.h" // XCP transport layer configuration parameters (XCPTL_xxx)
 
 #include "xcpLite.h" // XCP protocol layer interface functions
 
@@ -576,8 +577,8 @@ uint8_t XcpSetMta(uint8_t ext, uint32_t addr) {
 #if !defined(XCP_ENABLE_EPK_CALSEG) || (defined(XCP_ENABLE_ABS_ADDRESSING) && (XCP_ADDR_EXT_ABS == 0))
     // Direct EPK access
     if (local.mta_ext == XCP_ADDR_EXT_EPK && local.mta_addr == XCP_ADDR_EPK) {
-        local.mta_ptr = (uint8_t *)XcpGetEpk();
-        local.mta_ext = XCP_ADDR_EXT_PTR;
+        local_mut.mta_ptr = (uint8_t *)XcpGetEpk();
+        local_mut.mta_ext = XCP_ADDR_EXT_PTR;
         return CRC_CMD_OK;
     }
 #endif
@@ -615,12 +616,12 @@ uint8_t XcpSetMta(uint8_t ext, uint32_t addr) {
     if (XcpAddrIsAbs(local.mta_ext)) {
         local_mut.mta_ptr = (uint8_t *)ApplXcpGetBaseAddr() + XcpAddrDecodeAbsOffset(local.mta_addr);
         local_mut.mta_ext = XCP_ADDR_EXT_PTR;
-#if defined(XCP_ENABLE_CALSEG_LIST) && !defined(OPTION_SHM_MODE)
+
+#if defined(XCP_ENABLE_CALSEG_LIST) && !defined(OPTION_SHM_MODE) && (XCP_ADDR_EXT_ABS == 0x00)
         // Check for calibration segment absolute address (XcpSetMta is not performance critical)
         tXcpCalSegIndex calseg_index = XcpFindCalSegByAddr(local.mta_ptr);
         if (calseg_index != XCP_UNDEFINED_CALSEG) {
             const tXcpCalSeg *c = CalSegPtr(calseg_index);
-            assert(c != NULL);
             local_mut.mta_ext = XCP_ADDR_EXT_SEG;
             local_mut.mta_addr = XcpAddrEncodeSegIndex(calseg_index, local.mta_ptr - c->h.default_page_ptr); // Convert to segment relative address
         }
@@ -3633,4 +3634,4 @@ static void XcpPrintDaqList(uint16_t daq) {
     } /* j */
 }
 
-#endif
+#endif // DBG_LEVEL
