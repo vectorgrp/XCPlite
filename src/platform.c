@@ -485,12 +485,8 @@ bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
     SOCKET sock = INVALID_SOCKET;
 
     bool useTCP = flags & SOCKET_MODE_TCP;
-    bool nonBlocking = !(flags & SOCKET_MODE_BLOCKING);
     bool reuseaddr = flags & SOCKET_MODE_REUSEADDR;
     bool getifinfo = flags & SOCKET_MODE_GET_IF_INFO;
-
-    assert(nonBlocking == false); // Non-blocking sockets not implemented yet
-    (void)nonBlocking;
 
     // Create a socket
     sock = socket(AF_INET, useTCP ? SOCK_STREAM : SOCK_DGRAM, 0);
@@ -869,17 +865,14 @@ bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
     SOCKET sock = -1;
 
     bool useTCP = flags & SOCKET_MODE_TCP;
-    bool nonBlocking = !(flags & SOCKET_MODE_BLOCKING);
     bool reuseaddr = flags & SOCKET_MODE_REUSEADDR;
     bool getifinfo = flags & SOCKET_MODE_GET_IF_INFO;
     bool hw_timestamps = flags & SOCKET_MODE_HW_TIMESTAMPING;
     bool sw_timestamps = flags & SOCKET_MODE_SW_TIMESTAMPING;
 
-    assert(!hw_timestamps);       // Hardware timestamps not supported on Windows
-    assert(!sw_timestamps);       // Software timestamps not supported on Windows
-    assert(!getifinfo);           // IP_PKTINFO not supported on Windows
-    assert(nonBlocking == false); // Non-blocking sockets not implemented yet
-    (void)nonBlocking;
+    assert(!hw_timestamps); // Hardware timestamps not supported on Windows
+    assert(!sw_timestamps); // Software timestamps not supported on Windows
+    assert(!getifinfo);     // IP_PKTINFO not supported on Windows
 
     // Create a socket
     if (!useTCP) {
@@ -900,13 +893,6 @@ bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
         DBG_PRINTF_ERROR("socketOpen failed (err=%d) - could not create socket!\n", socketGetLastError());
         return false;
     }
-
-    // Set nonblocking mode
-    // u_long b = nonBlocking ? 1 : 0;
-    // if (NO_ERROR != ioctlsocket(sock, FIONBIO, &b)) {
-    //     DBG_PRINTF_ERROR("socketOpen failed (err=%d) - could not set non blocking mode!\n", socketGetLastError());
-    //     return false;
-    // }
 
     // Make addr reusable
     if (reuseaddr) {
@@ -1053,6 +1039,29 @@ bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr) {
 //--------------------------------------------------------------------------
 // All platforms
 
+// Set receive timeout on a socket
+// timeoutMs: timeout in milliseconds, 0 = infinite blocking (restore default)
+bool socketSetTimeout(SOCKET_HANDLE socket, uint32_t timeoutMs) {
+    assert(socket != NULL);
+#if defined(_WIN)
+    DWORD tv = (DWORD)timeoutMs;
+    if (setsockopt(socket->sock, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof(tv)) < 0) {
+        DBG_PRINTF_WARNING("socketSetTimeout: setsockopt SO_RCVTIMEO failed (err=%d)\n", socketGetLastError());
+        return false;
+    }
+#else
+    struct timeval tv;
+    tv.tv_sec = (long)(timeoutMs / 1000);
+    tv.tv_usec = (long)(timeoutMs % 1000) * 1000;
+    if (setsockopt(socket->sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+        DBG_PRINTF_WARNING("socketSetTimeout: setsockopt SO_RCVTIMEO failed (errno=%d)\n", errno);
+        return false;
+    }
+#endif
+    DBG_PRINTF3("socketSetTimeout: set to %u ms\n", timeoutMs);
+    return true;
+}
+
 // Listen on a TCP socket
 bool socketListen(SOCKET_HANDLE socket) {
     assert(socket != NULL);
@@ -1156,7 +1165,10 @@ bool socketJoin(SOCKET_HANDLE socket, const uint8_t *maddr, const uint8_t *ifadd
 // Receive from UDP socket
 // Returns optional receive timestamps if (time != NULL)
 // Support hardware timestamps if enabled on the socket and with OPTION_SOCKET_HW_TIMESTAMPS defined, otherwise system time is used
-// Return number of bytes received, 0 when socket closed, would block or empty UDP packet received, or -1 on error
+// Return values:
+//   n > 0  : number of bytes received
+//   n == 0 : timeout (SO_RCVTIMEO expired) or would-block — no data yet, caller should loop and do background work
+//   n < 0  : socket closed (graceful or reset) or unrecoverable error — caller should exit the receive loop
 int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSize, uint8_t *addr, uint16_t *port, uint64_t *time) {
 
     assert(socket != NULL);
@@ -1184,15 +1196,15 @@ int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSiz
         msg.msg_controllen = sizeof(control);
         n = (int16_t)recvmsg(sock, &msg, 0);
         if (n == 0) {
-            return 0;
+            return -1; // Graceful close
         } else if (n < 0) {
             int32_t err = socketGetLastError();
             if (err == SOCKET_ERROR_WBLOCK) {
-                return 0; // Would block, should never happen on a blocking socket
+                return 0; // Timeout or would-block — caller loops and does background work
             }
             if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_BADF || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR) {
                 DBG_PRINTF6("socketSendV: socket closed (err=%d)\n", err);
-                return 0; // Socket closed
+                return -1; // Socket closed
             }
             DBG_PRINTF_ERROR("%u - recvmsg failed (result=%d)!\n", err, n);
             return -1;
@@ -1282,14 +1294,14 @@ int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSiz
         n = (int16_t)recvfrom(sock, (char *)buffer, bufferSize, 0, (SOCKADDR *)&src, &srclen);
 
         if (n == 0) {
-            return 0;
+            return -1; // Graceful close
         } else if (n < 0) {
             int32_t err = socketGetLastError();
             if (err == SOCKET_ERROR_WBLOCK)
-                return 0; // Would block, should never happen on a blocking socket
+                return 0; // Timeout or would-block — caller loops and does background work
             if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_BADF || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR) {
                 DBG_PRINTF6("socketRecvFrom: socket closed (err=%d)\n", err);
-                return 0; // Socket closed
+                return -1; // Socket closed
             }
             DBG_PRINTF_ERROR("socketRecvFrom: failed (err=%u - result=%d)!\n", err, n);
             return -1;
@@ -1311,27 +1323,55 @@ int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSiz
     return n;
 }
 
-// Receive from TCP or UDP socket, blocking or non-blocking
-// Return number of bytes received, 0 when socket closed, would block or empty UDP packet received, or -1 on error
+// Receive from TCP or UDP socket
+// Return values:
+//   n > 0  : number of bytes received
+//   n == 0 : timeout (SO_RCVTIMEO expired) or would-block — no data yet, caller should loop and do background work
+//   n < 0  : socket closed (graceful or reset) or unrecoverable error — caller should exit the receive loop
 int16_t socketRecv(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t size, bool waitAll) {
 
     assert(socket != NULL);
-    int16_t n = (int16_t)recv(socket->sock, (char *)buffer, size, waitAll ? MSG_WAITALL : 0);
-    if (n == 0) {
-        return 0;
-    } else if (n < 0) {
-        int32_t err = socketGetLastError();
-        if (err == SOCKET_ERROR_WBLOCK) {
-            return 0; // Would block, should never happen on a blocking socket
-        }
-        if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_BADF || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR) {
+
+    if (!waitAll) {
+        int16_t n = (int16_t)recv(socket->sock, (char *)buffer, size, 0);
+        if (n == 0) {
+            return -1; // Graceful close
+        } else if (n < 0) {
+            int32_t err = socketGetLastError();
+            if (err == SOCKET_ERROR_WBLOCK) {
+                return 0; // Timeout — caller loops and does background work
+            }
             DBG_PRINT6("socketRecv: socket closed\n");
-            return 0; // Socket closed
+            return -1; // Closed or error
         }
-        DBG_PRINTF_ERROR("%u - recv failed (result=%d)!\n", err, n);
-        return -1; // Error
+        return n;
     }
-    return n;
+
+    // waitAll: loop until exactly `size` bytes have been received.
+    // MSG_WAITALL alone is not sufficient when SO_RCVTIMEO is set: Linux will return
+    // a partial count if the timeout fires mid-read.  We therefore implement the loop
+    // ourselves and treat EAGAIN/WBLOCK as a transient condition only when no bytes
+    // have arrived yet (return 0 = timeout).  A timeout mid-frame is a protocol error;
+    // we close the connection (return -1) to avoid desynchronising the TCP stream.
+    uint16_t received = 0;
+    while (received < size) {
+        int16_t n = (int16_t)recv(socket->sock, (char *)buffer + received, (uint16_t)(size - received), 0);
+        if (n == 0) {
+            return -1; // Graceful close
+        } else if (n < 0) {
+            int32_t err = socketGetLastError();
+            if (err == SOCKET_ERROR_WBLOCK) {
+                if (received == 0)
+                    return 0; // Timeout only before any data — caller loops
+                DBG_PRINT6("socketRecv: timeout mid-frame, closing connection\n");
+                return -1; // Partial frame received — TCP stream is desynchronised
+            }
+            DBG_PRINT6("socketRecv: socket closed\n");
+            return -1; // Closed or error
+        }
+        received = (uint16_t)(received + (uint16_t)n);
+    }
+    return (int16_t)received;
 }
 
 // Send datagram on UDP socket

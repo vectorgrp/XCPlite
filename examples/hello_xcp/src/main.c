@@ -13,13 +13,14 @@
 //-----------------------------------------------------------------------------------------------------
 // XCP params
 
-#define OPTION_PROJECT_NAME "hello_xcp" // Project name, used to build the A2L and BIN file name
-#define OPTION_PROJECT_EPK "V100"       // EPK version string
-#define OPTION_USE_TCP false            // TCP or UDP
-#define OPTION_SERVER_PORT 5555         // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE (1024 * 32)   // Size of the measurement queue in bytes, should be large enough to cover at least 10ms of expected traffic
-#define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_PROJECT_NAME "hello_xcp"   // Project name, used to build the A2L and BIN file name
+#define OPTION_PROJECT_EPK "V100"         // EPK version string
+#define OPTION_USE_TCP true               // TCP or UDP
+#define OPTION_SERVER_PORT 5555           // Port
+#define OPTION_SERVER_ADDR {0, 0, 0, 0}   // Bind addr, 0.0.0.0 = ANY
+#define OPTION_QUEUE_SIZE (1024 * 32)     // Size of the measurement queue in bytes, should be large enough to cover at least 10ms of expected traffic
+#define OPTION_XCP_MODE XCP_MODE_SHM_AUTO // XCP mode, e.g. XCP_MODE_LOCAL or XCP_MODE_DEACTIVATE
+#define OPTION_LOG_LEVEL 5                // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 // New option in V1.1: Enable variadic all in one macros for simple arithmetic types, see examples below
 #define OPTION_USE_VARIADIC_MACROS
@@ -123,7 +124,7 @@ int main(void) {
 
     // XCP: Initialize the XCP singleton, activate XCP, must be called before starting the server
     // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, XCP_MODE_SHM_AUTO);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, OPTION_XCP_MODE);
 
     // XCP: Initialize the XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;
@@ -146,6 +147,7 @@ int main(void) {
 
     // XCP: Create a calibration segment named 'params' for the calibration parameter struct instance 'params' as reference page
     params_calseg = XcpCreateCalSeg("params", &params, sizeof(params));
+    assert(params_calseg != XCP_UNDEFINED_CALSEG);
 
     // XCP: Option1: Register the individual calibration parameters in the calibration segment
     A2lSetSegmentAddrMode(params_calseg, params);

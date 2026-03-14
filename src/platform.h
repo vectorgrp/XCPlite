@@ -382,39 +382,135 @@ int32_t socketGetLastError(void);
 #endif
 
 // Socket mode flags
-#define SOCKET_MODE_TCP (1 << 0)       // TCP socket
-#define SOCKET_MODE_BLOCKING (1 << 1)  // Blocking socket
-#define SOCKET_MODE_REUSEADDR (1 << 2) // Allow reuse of local address
-
+#define SOCKET_MODE_TCP (1 << 0)             // TCP socket
+#define SOCKET_MODE_REUSEADDR (1 << 2)       // Allow reuse of local address
 #define SOCKET_MODE_HW_TIMESTAMPING (1 << 4) // Enable hardware timestamping (Linux only, requires root)
 #define SOCKET_MODE_SW_TIMESTAMPING (1 << 5) // Enable kernel software timestamping (Linux only, requires root)
 #define SOCKET_MODE_GET_IF_INFO (1 << 6)     // Check interface info on recv
 
 // Socket functions
+
+// Initialize the socket subsystem (Windows: WSAStartup; no-op on POSIX)
+// Must be called once before any other socket function
+// Returns true on success
 bool socketStartup(void);
+
+// Clean up the socket subsystem (Windows: WSACleanup; no-op on POSIX)
 void socketCleanup(void);
+
+// Create a TCP or UDP socket with the given SOCKET_MODE_xxx flags
+// Sockets are always created in blocking mode, a timeout may be set with socketSetTimeout()
+// SOCKET_MODE_TCP: TCP stream socket (default: UDP datagram)
+// SOCKET_MODE_REUSEADDR: set SO_REUSEADDR to allow rapid port reuse after restart
+// SOCKET_MODE_HW_TIMESTAMPING / SOCKET_MODE_SW_TIMESTAMPING: enable timestamps (Linux only)
+// SOCKET_MODE_GET_IF_INFO: enable IP_PKTINFO to identify the receiving interface (Linux only)
+// Returns true on success
 bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags);
+
+// Bind socket to a local address and port
+// addr: network-byte-order IPv4 address; NULL or 0.0.0.0 binds to INADDR_ANY
+// Returns true on success
 bool socketBind(SOCKET_HANDLE socket, const uint8_t *addr, uint16_t port);
-bool socketBindToDevice(SOCKET_HANDLE socket, const char *ifname); // Bind socket to a specific network interface (Linux only, requires root for non-INADDR_ANY)
-bool socketEnableTimestamps(SOCKET_HANDLE socket, bool ptpOnly);   // Enable timestamping (Linux only, requires root)
+
+// Bind socket to a specific network interface by name (Linux only, requires root)
+// Useful for multicast reception on a specific interface when bound to INADDR_ANY
+// ifname: interface name, e.g. "eth0"; NULL or empty string is a no-op
+// Returns true on success (returns true with a warning on non-Linux platforms)
+bool socketBindToDevice(SOCKET_HANDLE socket, const char *ifname);
+
+// Configure the NIC driver to generate hardware timestamps (Linux only, requires root)
+// Must be called after socketBind; uses the interface name stored by socketBind/socketBindToDevice
+// ptpOnly: true = timestamp PTP event packets only; false = timestamp all packets
+// Falls back gracefully if the NIC does not support hardware timestamps
+// Returns true on success
+bool socketEnableTimestamps(SOCKET_HANDLE socket, bool ptpOnly);
+
+// Join an IPv4 multicast group on a UDP socket
+// maddr: multicast group address (network byte order)
+// Interface selection priority: ifname > ifaddr > INADDR_ANY (kernel routing)
+// Returns true on success
 bool socketJoin(SOCKET_HANDLE socket, const uint8_t *maddr, const uint8_t *ifaddr, const char *ifname);
+
+// Start listening for incoming TCP connections
+// Returns true on success
 bool socketListen(SOCKET_HANDLE socket);
+
+// Accept an incoming TCP connection (blocking)
+// addr: filled with the remote IPv4 address (network byte order) if non-NULL
+// Returns a new connected SOCKET_HANDLE; the caller is responsible for closing it
 SOCKET_HANDLE socketAccept(SOCKET_HANDLE socket, uint8_t *addr);
+
+// Receive from a TCP socket (blocking)
+// waitAll: true = MSG_WAITALL, block until bufferSize bytes arrive
+// Return values:  > 0  bytes received
+//                == 0  timeout (SO_RCVTIMEO expired) — no data yet, do background work and loop
+//                 < 0  socket closed (graceful or reset) or error — exit the receive loop
 int16_t socketRecv(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSize, bool waitAll);
+
+// Receive a UDP datagram (blocking)
+// srcAddr / srcPort: filled with sender's address/port if non-NULL
+// time: optional receive timestamp (NULL to skip); hardware or software depending on socket flags
+// Return values:  > 0  bytes received
+//                == 0  timeout (SO_RCVTIMEO expired) — no data yet, do background work and loop
+//                 < 0  socket closed or error — exit the receive loop
 int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSize, uint8_t *srcAddr, uint16_t *srcPort, uint64_t *time);
+
+// Send a UDP datagram to addr:port
+// time: optional send timestamp (NULL to skip)
+//       on Linux with HW timestamps: *time is set to 0; call socketGetSendTime() afterwards to retrieve it
+//       on other platforms: *time is set to the system clock at send time
+// Returns: bytes sent, 0 on closed socket, -1 on error
 int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t bufferSize, const uint8_t *addr, uint16_t port, uint64_t *time);
+
+// Send data on a TCP socket (blocking; loops internally on partial sends)
+// Returns: bytes sent, 0 on closed socket, -1 on error
 int16_t socketSend(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t bufferSize);
+
 #if !defined(_WIN) && !defined(OPTION_DISABLE_VECTORED_IO)
-// Non-Windows: vectored send functions
+// Send multiple buffers as a single UDP datagram (scatter-gather I/O via sendmsg, POSIX only)
+// Returns: total bytes sent, 0 on closed socket, -1 on error (partial UDP sends treated as error)
 int16_t socketSendToV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t count, const uint8_t *addr, uint16_t port);
+
+// Send multiple buffers on a TCP socket (scatter-gather I/O via sendmsg, POSIX only)
+// Loops internally until all data is accepted by the kernel
+// Returns: total bytes sent, 0 on closed socket, -1 on error
 int16_t socketSendV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t count);
 #endif
+
+// Retrieve TX hardware and/or software timestamp after socketSendTo (Linux only)
+// Must be called shortly after socketSendTo returned *time==0
+// Requires OPTION_SOCKET_HW_TIMESTAMPS and socketEnableTimestamps() to have been called
+// txHwTime / txSwTime: set to 0 if the respective timestamp is not available; NULL to skip
+// Returns true if at least one requested timestamp was successfully retrieved
 bool socketGetSendTime(SOCKET_HANDLE socket, uint64_t *txHwTime, uint64_t *txSwTime);
-bool socketShutdown(SOCKET_HANDLE socket);     // Shutdown socket for read and write
-bool socketClose(SOCKET_HANDLE *socketp);      // Close socket
-bool socketGetMAC(char *ifname, uint8_t *mac); // Helper to get MAC address of a network interface by name
+
+// Set receive timeout on a blocking socket
+// timeoutMs: timeout in milliseconds; 0 = restore infinite blocking
+// With a timeout set, socketRecv/socketRecvFrom return 0 on expiry instead of blocking indefinitely,
+// allowing the receive thread to perform background work before looping back
+// Works for both TCP and UDP; use socketShutdown() to signal a receive thread to exit
+// Returns true on success
+bool socketSetTimeout(SOCKET_HANDLE socket, uint32_t timeoutMs);
+
+// Shut down both directions of the socket (SHUT_RDWR / SD_BOTH)
+// Unblocks a thread currently blocked in socketRecv or socketRecvFrom, causing it to return -1
+bool socketShutdown(SOCKET_HANDLE socket);
+
+// Close the OS socket, free the SOCKET_HANDLE, and set *socketp to NULL
+// Returns true on success
+bool socketClose(SOCKET_HANDLE *socketp);
+
+// Get the MAC address of a network interface by name (e.g. "eth0")
+// mac: output buffer, must point to at least 6 bytes
+// Returns true on success
+bool socketGetMAC(char *ifname, uint8_t *mac);
+
 #ifdef OPTION_ENABLE_GET_LOCAL_ADDR
-bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr); // Helper to get local IP address and MAC address of the first non-loopback interface
+// Get the IPv4 address and MAC of the first non-loopback Ethernet interface
+// mac / addr: output buffers (6 / 4 bytes respectively); either may be NULL
+// Result is cached after the first successful call
+// Returns true on success
+bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr);
 #endif
 
 #endif

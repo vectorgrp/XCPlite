@@ -68,7 +68,7 @@ const char *XcpGetEpk(void);
 uint8_t XcpCommand(const uint32_t *pCommand, uint8_t len);
 
 // Let XCP handle non realtime critical background tasks
-// Mus be called from the same thread that calls XcpCommand()
+// Must be called in regular intervals from the same thread that calls XcpCommand() !!
 void XcpBackgroundTasks(void);
 
 // Disconnect, stop DAQ, flush queue, flush pending calibrations

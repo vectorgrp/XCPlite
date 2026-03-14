@@ -412,8 +412,10 @@ static void XcpSetProjectName(const char *name) {
 
 // Get the project name
 const char *XcpGetProjectName(void) {
-    if (STRNLEN(local.project_name, XCP_PROJECT_NAME_MAX_LENGTH) == 0)
-        return NULL;
+    if (STRNLEN(local.project_name, XCP_PROJECT_NAME_MAX_LENGTH) == 0) {
+        assert(0 && "Project name not set, returning empty string");
+        return "";
+    }
     return local.project_name;
 }
 
@@ -440,8 +442,10 @@ static void XcpSetEpk(const char *epk) {
 
 // Get the EPK
 const char *XcpGetEpk(void) {
-    if (STRNLEN(local.epk, XCP_EPK_MAX_LENGTH) == 0)
-        return NULL;
+    if (STRNLEN(local.epk, XCP_EPK_MAX_LENGTH) == 0) {
+        assert(0 && "EPK not set, returning empty string");
+        return "";
+    }
     return local.epk;
 }
 
@@ -2754,6 +2758,8 @@ void XcpBackgroundTasks(void) {
     if (!isActivated()) { // Ignore
         return;
     }
+
+    DBG_PRINT6("XCP receive thread: background tasks\n");
 
 // In SHM mode, detect newly registered follower processes and log their identity
 #ifdef OPTION_SHM_MODE

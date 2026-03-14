@@ -282,7 +282,7 @@ static const char *const gA2lFooter = "/end MODULE\n"
 
 // Returns name with optional project name prefix prepended ("project.name")
 static const char *A2lGetPrefixedName_(const char *prefix, const char *name) {
-    if (gA2lSymbolPrefix) {
+    if (gA2lSymbolPrefix && prefix != NULL && prefix[0] != '\0') {
         static char s[XCP_A2L_MAX_SYMBOL_NAME_LENGTH]; // static buffer for prefixed name
         SNPRINTF(s, XCP_A2L_MAX_SYMBOL_NAME_LENGTH, "%s.%s", prefix, name);
         return s;
@@ -1697,9 +1697,7 @@ void A2lCreateAxis_(const char *symbol_name, tA2lTypeId type_id, const void *ptr
 void A2lBeginGroup(const char *symbol_name, const char *comment, bool is_parameter_group, bool is_root_group) {
     if (gA2lFile != NULL && gA2lGroupsFile != NULL) {
         const char *pname = A2lGetPrefixedName_(XcpGetProjectName(), symbol_name);
-        if ((strcmp(pname, gA2lAutoGroupName) != 0)
-            //|| ((is_parameter_group != gA2lAutoGroupIsParameter) && (!is_parameter_group != gA2lAutoGroupIsMeasurement))
-        ) {
+        if ((strcmp(pname, gA2lAutoGroupName) != 0)) {
             DBG_PRINTF5("A2lBeginGroup: %s, comment='%s', is_parameter_group=%d, is_root_group=%d\n", pname, comment != NULL ? comment : "", is_parameter_group, is_root_group);
             A2lEndGroup(); // Close previous group if any
             // Groups are a global name space, prefix the group name if needed

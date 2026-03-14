@@ -304,7 +304,7 @@ bool XcpEthServerShutdown(void) {
     XcpEthTlShutdown();
 #else
     // Gracefull termination
-    // Close the sockets first, to release the blocking receive and transmit
+    // Close the sockets first, to release the blocking transmit
     gXcpServer.ReceiveThreadRunning = false;
     gXcpServer.TransmitThreadRunning = false;
     XcpEthTlShutdown();

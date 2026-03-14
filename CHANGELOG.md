@@ -10,6 +10,22 @@ All notable changes to XCPlite are documented in this file.
 - Experimental support for shared memory communication between XCP server and target application.  
 Not planned for production use yet, can be enabled with `OPTION_SHM_MODE`.
 
+### Breaking change: `socketRecv` / `socketRecvFrom` return value semantics (platform.h / platform.c)
+
+The return value contract of `socketRecv` and `socketRecvFrom` has changed.  
+Code that uses these functions directly (i.e. code that includes `platform.h`) **must be updated**.
+
+| Return value | Old meaning | New meaning |
+|---|---|---|
+| `> 0` | bytes received | bytes received (unchanged) |
+| `== 0` | socket closed **or** would-block | **timeout only** — no data yet, caller should do background work and loop |
+| `< 0` | unrecoverable error | socket closed (graceful or reset) **or** error — caller should exit the receive loop |
+
+**Migration:** replace every `if (n == 0) break/return;` in a receive loop with `if (n < 0) break/return;`.
+
+This change enables a single receive thread to perform periodic background processing while still
+correctly detecting connection close, using `socketSetTimeout()` to configure a heartbeat interval.
+
 
  
 
