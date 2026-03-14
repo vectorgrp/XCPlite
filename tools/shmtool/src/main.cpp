@@ -14,11 +14,13 @@
 |
 | Commands:
 |   status   (default)  Print the contents of /xcpdata and /xcpqueue
+|   finalize            Set a2l_finalize_requested, poll for acknowledgement, print status
 |   clean               Remove /xcpdata, /xcpqueue and associated lock files
 |   help                Print this help text
 |
 | Options:
 |   -v, --verbose       Show additional low-level details (offsets, pad fields)
+|   --timeout <ms>      Polling timeout for 'finalize' command (default: 5000 ms)
 |
 | Copyright (c) Vector Informatik GmbH. All rights reserved.
 | See LICENSE file in the project root for details.
@@ -49,9 +51,11 @@
 // Helpers
 // ---------------------------------------------------------------------------
 
-// Portable relaxed-atomic read from a C11 _Atomic field via volatile cast.
-// Sufficient for a read-only diagnostic tool; no store-load barriers needed.
+// Portable relaxed-atomic read/write of a C11 _Atomic field via volatile cast.
+// Sufficient for a diagnostic tool; no strict store-load barriers needed beyond
+// what the volatile access provides on cache-coherent SMP systems.
 static inline uint32_t read_u32(const atomic_uint_least32_t *p) { return *reinterpret_cast<const volatile uint32_t *>(p); }
+static inline void write_u32(atomic_uint_least32_t *p, uint32_t v) { *reinterpret_cast<volatile uint32_t *>(p) = v; }
 
 static const char *bool_str(uint32_t v) { return v ? "yes" : "no"; }
 
@@ -164,6 +168,106 @@ static int cmd_status(bool verbose) {
     return 0;
 }
 
+// ---------------------------------------------------------------------------
+// finalize command
+// ---------------------------------------------------------------------------
+
+static int cmd_finalize(uint32_t timeout_ms) {
+    // Open /xcpdata read-write so we can set the flag
+    int fd = shm_open("/xcpdata", O_RDWR, 0);
+    if (fd < 0) {
+        if (errno == ENOENT)
+            printf("No XCPlite SHM session active, /xcpdata not found\n");
+        else
+            fprintf(stderr, "shm_open '/xcpdata' failed: %s\n", strerror(errno));
+        return (errno == ENOENT) ? 0 : 1;
+    }
+
+    struct stat st{};
+    if (fstat(fd, &st) < 0) {
+        fprintf(stderr, "fstat '/xcpdata' failed: %s\n", strerror(errno));
+        close(fd);
+        return 1;
+    }
+    size_t shm_size = (size_t)st.st_size;
+
+    void *ptr = mmap(nullptr, shm_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    close(fd);
+    if (ptr == MAP_FAILED) {
+        fprintf(stderr, "mmap '/xcpdata' failed: %s\n", strerror(errno));
+        return 1;
+    }
+
+    auto *hdr = reinterpret_cast<tShmHeader *>(reinterpret_cast<uint8_t *>(ptr) + offsetof(tXcpData, shm_header));
+
+    if (hdr->magic != SHM_MAGIC) {
+        fprintf(stderr, "Invalid SHM magic — not an XCPlite region or stale segment.\n");
+        munmap(ptr, shm_size);
+        return 1;
+    }
+
+    uint32_t napp = read_u32(&hdr->app_count);
+    if (napp == 0) {
+        printf("No applications registered in SHM — nothing to finalize.\n");
+        munmap(ptr, shm_size);
+        return 0;
+    }
+
+    // --- Step 1: set the flag ---
+    write_u32(&hdr->a2l_finalize_requested, 1);
+    printf("a2l_finalize_requested set.  Waiting for %u app(s) to acknowledge (timeout %u ms)...\n", napp, timeout_ms);
+    fflush(stdout);
+
+    // --- Step 2: poll for acknowledgement ---
+    const uint32_t poll_interval_ms = 50;
+    uint32_t elapsed_ms = 0;
+    bool all_done = false;
+
+    while (elapsed_ms <= timeout_ms) {
+        all_done = true;
+        for (uint32_t i = 0; i < napp && i < SHM_MAX_APP_COUNT; ++i) {
+            const tApp *app = &hdr->app_list[i];
+            if (app->pid == 0)
+                continue; // vacant slot
+            if (read_u32(&app->a2l_finalized) == 0) {
+                all_done = false;
+                break;
+            }
+        }
+        if (all_done)
+            break;
+
+        usleep(poll_interval_ms * 1000);
+        elapsed_ms += poll_interval_ms;
+
+        // Print a progress dot every 500 ms
+        if (elapsed_ms % 500 == 0) {
+            putchar('.');
+            fflush(stdout);
+        }
+    }
+    putchar('\n');
+
+    // --- Step 3: print result ---
+    print_separator('=');
+    if (all_done)
+        printf("All applications acknowledged A2L finalization.\n");
+    else
+        printf("WARNING: Timeout after %u ms — not all applications acknowledged.\n", elapsed_ms);
+    print_separator();
+
+    for (uint32_t i = 0; i < napp && i < SHM_MAX_APP_COUNT; ++i) {
+        const tApp *app = &hdr->app_list[i];
+        uint32_t fin = read_u32(&app->a2l_finalized);
+        printf("  App %u:  %-*s  pid=%-6u  a2l_finalized=%-3s  a2l_name=%s\n", i, XCP_PROJECT_NAME_MAX_LENGTH, app->project_name[0] ? app->project_name : "(vacant)", app->pid,
+               bool_str(fin), fin ? app->a2l_name : "(pending)");
+        print_separator();
+    }
+
+    munmap(ptr, shm_size);
+    return all_done ? 0 : 2; // exit code 2 = partial timeout
+}
+
 #endif
 
 // ---------------------------------------------------------------------------
@@ -211,10 +315,12 @@ static void print_usage(const char *argv0) {
            "  %s [command] [options]\n\n"
            "Commands:\n"
            "  status    (default)  Print contents of /xcpdata and /xcpqueue\n"
+           "  finalize             Set a2l_finalize_requested, poll for acknowledgement, print status\n"
            "  clean                Remove /xcpdata, /xcpqueue and lock files\n"
            "  help                 Print this help text\n\n"
            "Options:\n"
-           "  -v, --verbose        Show additional details (offsets, verbose layout)\n",
+           "  -v, --verbose        Show additional details (offsets, verbose layout)\n"
+           "  --timeout <ms>       Polling timeout for 'finalize' command (default: 5000 ms)\n",
            argv0);
 }
 
@@ -224,8 +330,9 @@ static void print_usage(const char *argv0) {
 
 int main(int argc, char *argv[]) {
 
-    enum class Cmd { Status, Clean, Help } cmd = Cmd::Status;
+    enum class Cmd { Status, Finalize, Clean, Help } cmd = Cmd::Status;
     bool verbose = false;
+    uint32_t timeout_ms = 5000;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg(argv[i]);
@@ -235,12 +342,16 @@ int main(int argc, char *argv[]) {
 #ifdef OPTION_SHM_MODE
         else if (arg == "status")
             cmd = Cmd::Status;
+        else if (arg == "finalize")
+            cmd = Cmd::Finalize;
 #endif
         else if (arg == "help" || arg == "--help" || arg == "-h")
             cmd = Cmd::Help;
         else if (arg == "-v" || arg == "--verbose")
             verbose = true;
-        else {
+        else if ((arg == "--timeout") && i + 1 < argc) {
+            timeout_ms = (uint32_t)std::stoul(argv[++i]);
+        } else {
             fprintf(stderr, "Unknown argument: %s\n", argv[i]);
             print_usage(argv[0]);
             return 1;
@@ -251,6 +362,14 @@ int main(int argc, char *argv[]) {
     case Cmd::Status:
 #ifdef OPTION_SHM_MODE
         return cmd_status(verbose);
+#else
+        break;
+#endif
+    case Cmd::Finalize:
+#ifdef OPTION_SHM_MODE
+        return cmd_finalize(timeout_ms);
+#else
+        break;
 #endif
     case Cmd::Clean:
         return cmd_clean();
