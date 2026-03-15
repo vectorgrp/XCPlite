@@ -74,10 +74,19 @@ typedef uint16_t tXcpCalSegIndex;
 // place in POSIX shared memory without pointer fixup across processes.
 typedef union {
     struct {
+#ifdef __cplusplus
+        // GCC C++ does not allow atomic (non-trivially constructible) members in anonymous aggregates.
+        // Use plain types here; any C++ in shmtool code accesses these via volatile casts (read_u32 etc.).
+        uint32_t ecu_page_next; // offset into c->b[]
+        uint32_t free_page;     // offset into c->b[]
+        uint8_t ecu_access;     // page number for ECU access
+        uint8_t lock_count;     // lock count for the segment, 0 = unlocked
+#else
         atomic_uint_least32_t ecu_page_next; // offset into c->b[]
         atomic_uint_least32_t free_page;     // offset into c->b[]
         atomic_uint_fast8_t ecu_access;      // page number for ECU access
         atomic_uint_fast8_t lock_count;      // lock count for the segment, 0 = unlocked
+#endif
 #if !defined(OPTION_SHM_MODE) && defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
         uint8_t *default_page_ptr; // process-local ptr to caller's static data, NOT sharable, used for
 #else

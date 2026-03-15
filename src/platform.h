@@ -309,13 +309,8 @@ typedef pthread_t THREAD;
 #if !defined(_WIN) // Non-Windows platforms
 
 #ifndef OPTION_DISABLE_VECTORED_IO
-#include "queue.h" // for tQueueBuffer and vectored io functions
+#include "queue.h" // for tQueueBuffer
 #endif
-
-#include <arpa/inet.h>
-#include <errno.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
 
 #define SOCKET int
 #define INVALID_SOCKET (-1)
@@ -339,17 +334,24 @@ typedef struct socket *SOCKET_HANDLE;
 #define SOCKADDR_IN struct sockaddr_in
 #define SOCKADDR struct sockaddr
 
-#define SOCKET_ERROR_ABORT ECONNABORTED
-#define SOCKET_ERROR_RESET ECONNRESET
-#define SOCKET_ERROR_INTR EINTR
-#define SOCKET_ERROR_WBLOCK EAGAIN
-#define SOCKET_ERROR_PIPE EPIPE
-#define SOCKET_ERROR_BADF EBADF
-
 #undef htonll
 #define htonll(val) ((((uint64_t)htonl((uint32_t)(val))) << 32) + htonl((uint32_t)((val) >> 32)))
 
+#include <errno.h> // for errno and error codes from socketGetLastError
+
+#define SOCKET_ERROR_ABORT ECONNABORTED // 53
+#define SOCKET_ERROR_RESET ECONNRESET   // 54
+#define SOCKET_ERROR_INTR EINTR         // 4
+#define SOCKET_ERROR_TIMEDOUT ETIMEDOUT // 60
+#define SOCKET_ERROR_WBLOCK EAGAIN      // 35 EWOULDBLOCK is the same as EAGAIN on Linux, but may be different on other platforms
+#define SOCKET_ERROR_PIPE EPIPE         // 32
+#define SOCKET_ERROR_BADF EBADF         // 9
+#define SOCKET_ERROR_NOTCONN ENOTCONN   // 107 (57 macOS) Socket is not connected
+
 #define socketGetLastError(void) errno
+#define socketIsClosed(err) ((err) == ENOTCONN || (err) == ECONNABORTED || (err) == EBADF || (err) == ECONNRESET || (err) == EINTR)
+#define socketWouldBlock(err) ((err) == EAGAIN || (err) == EWOULDBLOCK)
+#define socketTimeout(err) ((err) == ETIMEDOUT || (err) == EAGAIN || (err) == EWOULDBLOCK)
 
 #else // Windows sockets
 
@@ -369,15 +371,19 @@ typedef struct socket *SOCKET_HANDLE;
 #define SOCKADDR_IN struct sockaddr_in
 #define SOCKADDR struct sockaddr
 
-#define SOCKET_ERROR_OTHER 1
-#define SOCKET_ERROR_WBLOCK WSAEWOULDBLOCK
-#define SOCKET_ERROR_ABORT WSAECONNABORTED
-#define SOCKET_ERROR_RESET WSAECONNRESET
-#define SOCKET_ERROR_INTR WSAEINTR
-#define SOCKET_ERROR_PIPE WSAECONNRESET // No EPIPE on Windows; connection reset is the closest equivalent
-#define SOCKET_ERROR_BADF WSAEBADF
-
+#include <errno.h>                         // for errno and error codes from socketGetLastError
 int32_t socketGetLastError(void);
+#define SOCKET_ERROR_ABORT WSAECONNABORTED // 10053
+#define SOCKET_ERROR_RESET WSAECONNRESET   // 10054
+#define SOCKET_ERROR_INTR WSAEINTR         // 10004
+#define SOCKET_ERROR_TIMEDOUT WSAETIMEDOUT // 10060
+#define SOCKET_ERROR_WBLOCK WSAEWOULDBLOCK // 10035
+#define SOCKET_ERROR_PIPE WSAESHUTDOWN     // 10058
+#define SOCKET_ERROR_BADF WSAEBADF         // 10009
+#define SOCKET_ERROR_NOTCONN WSAENOTCONN   // 10057
+#define socketIsClosed(err) ((err) == WSAECONNABORTED || (err) == WSAEBADF || (err) == WSAECONNRESET || (err) == WSAEINTR)
+#define socketWouldBlock(err) ((err) == WSAEWOULDBLOCK)
+#define socketTimeout(err) ((err) == WSAETIMEDOUT)
 
 #endif
 
@@ -397,6 +403,10 @@ bool socketStartup(void);
 
 // Clean up the socket subsystem (Windows: WSACleanup; no-op on POSIX)
 void socketCleanup(void);
+
+// Return a static human-readable string for a SOCKET_ERROR_* error code
+// Returns "unknown socket error" for unrecognized codes
+const char *socketGetErrorString(int32_t err);
 
 // Create a TCP or UDP socket with the given SOCKET_MODE_xxx flags
 // Sockets are always created in blocking mode, a timeout may be set with socketSetTimeout()
@@ -443,16 +453,16 @@ SOCKET_HANDLE socketAccept(SOCKET_HANDLE socket, uint8_t *addr);
 // Receive from a TCP socket (blocking)
 // waitAll: true = MSG_WAITALL, block until bufferSize bytes arrive
 // Return values:  > 0  bytes received
-//                == 0  timeout (SO_RCVTIMEO expired) — no data yet, do background work and loop
-//                 < 0  socket closed (graceful or reset) or error — exit the receive loop
+//                == 0  timeout (set with socketSetRecvTimeout) — no data yet, do background work and loop
+//                 < 0  socket closed (graceful or reset) or error — check with socketIsClosed(socketGetLastError()) and exit the receive loop
 int16_t socketRecv(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSize, bool waitAll);
 
 // Receive a UDP datagram (blocking)
 // srcAddr / srcPort: filled with sender's address/port if non-NULL
 // time: optional receive timestamp (NULL to skip); hardware or software depending on socket flags
 // Return values:  > 0  bytes received
-//                == 0  timeout (SO_RCVTIMEO expired) — no data yet, do background work and loop
-//                 < 0  socket closed or error — exit the receive loop
+//                == 0  timeout (set with socketSetRecvTimeout) — no data yet, do background work and loop
+//                 < 0  socket closed or error — check with socketIsClosed(socketGetLastError()) and exit the receive loop
 int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSize, uint8_t *srcAddr, uint16_t *srcPort, uint64_t *time);
 
 // Send a UDP datagram to addr:port

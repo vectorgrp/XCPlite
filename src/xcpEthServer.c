@@ -80,23 +80,23 @@ static_assert(sizeof(tShmQueueHeader) == 64, "tShmQueueHeader must be 64 bytes")
 
 static struct {
 
-    bool isInit;
+    bool is_init;
 
     // Threads
-    THREAD TransmitThreadHandle;
-    volatile bool TransmitThreadRunning;
-    THREAD ReceiveThreadHandle;
-    volatile bool ReceiveThreadRunning;
+    THREAD transmit_thread_handle;
+    volatile bool transmit_thread_running;
+    THREAD receive_thread_handle;
+    volatile bool receive_thread_running;
 
     // Queue
-    tQueueHandle TransmitQueue;
+    tQueueHandle transmit_queue;
 
     // In SHM mode, gXcpServer has additional state
 #ifdef OPTION_SHM_MODE
     void *shm_queue_ptr;         // mmap base of the /xcpqueue region, NULL when not SHM mode
     size_t shm_queue_total_size; // total mmap size: sizeof(tShmQueueHeader) + queue_size
-    THREAD FollowerThreadHandle; // Shm follower background thread (polling A2L finalize request and alive_counter)
-    volatile bool FollowerThreadRunning;
+    THREAD shm_thread_handle;    // Shm follower background thread (polling A2L finalize request and alive_counter)
+    volatile bool shm_thread_running;
 #endif // OPTION_SHM_MODE
 
 } gXcpServer;
@@ -108,11 +108,11 @@ bool XcpEthServerStatus(void) {
 
 #ifdef OPTION_SHM_MODE
     if (XcpShmIsActive() && !XcpShmIsServer()) {
-        return gXcpServer.isInit && gXcpServer.FollowerThreadRunning;
+        return gXcpServer.is_init && gXcpServer.shm_thread_running;
     }
 #endif
 
-    return gXcpServer.isInit && gXcpServer.TransmitThreadRunning && gXcpServer.ReceiveThreadRunning;
+    return gXcpServer.is_init && gXcpServer.transmit_thread_running && gXcpServer.receive_thread_running;
 }
 
 // XCP server information
@@ -128,17 +128,17 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
     }
 
     // Check if already initialized and running
-    if (gXcpServer.isInit) {
+    if (gXcpServer.is_init) {
         DBG_PRINT_WARNING("XCP server already running!\n");
         return false;
     }
 
-    gXcpServer.TransmitThreadRunning = false;
-    gXcpServer.ReceiveThreadRunning = false;
+    gXcpServer.transmit_thread_running = false;
+    gXcpServer.receive_thread_running = false;
 
     // In SHM mode, the queue is in shared memory and has an additional shared memory header
 #ifdef OPTION_SHM_MODE
-    gXcpServer.FollowerThreadRunning = false;
+    gXcpServer.shm_thread_running = false;
 
     if (XcpShmIsActive()) {
 
@@ -179,8 +179,8 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
         // Leader: initialise transmit queue in SHM and signal readiness
         if (XcpShmIsLeader()) {
             hdr->queue_size = queueSize;
-            gXcpServer.TransmitQueue = queueInitFromMemory(queue_mem, queueSize, true, NULL);
-            if (gXcpServer.TransmitQueue == NULL) {
+            gXcpServer.transmit_queue = queueInitFromMemory(queue_mem, queueSize, true, NULL);
+            if (gXcpServer.transmit_queue == NULL) {
                 DBG_PRINT_ERROR("XcpEthServerInit: queueInitFromMemory failed\n");
                 platformShmClose("/xcpqueue", shm_ptr, shm_total, true);
                 return false;
@@ -203,8 +203,8 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
                 platformShmClose("/xcpqueue", shm_ptr, shm_total, false);
                 return false;
             }
-            gXcpServer.TransmitQueue = queueInitFromMemory(queue_mem, hdr->queue_size, false, NULL);
-            if (gXcpServer.TransmitQueue == NULL) {
+            gXcpServer.transmit_queue = queueInitFromMemory(queue_mem, hdr->queue_size, false, NULL);
+            if (gXcpServer.transmit_queue == NULL) {
                 DBG_PRINT_ERROR("XcpEthServerInit: follower queueInitFromMemory failed\n");
                 platformShmClose("/xcpqueue", shm_ptr, shm_total, false);
                 return false;
@@ -213,19 +213,19 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
         }
 
         // Bind the queue to the XCP protocol layer and start XCP
-        XcpStart(gXcpServer.TransmitQueue, false);
+        XcpStart(gXcpServer.transmit_queue, false);
 
         if (!XcpShmIsServer()) {
 
             DBG_PRINT3("Start without XCP server in SHM mode\n");
 
             // Start the background polling thread for SHM mode non server
-            create_thread(&gXcpServer.FollowerThreadHandle, XcpShmThread);
+            create_thread(&gXcpServer.shm_thread_handle, XcpShmThread);
             // Wait until the follower thread has started
-            while (!gXcpServer.FollowerThreadRunning) {
+            while (!gXcpServer.shm_thread_running) {
                 sleepUs(100);
             }
-            gXcpServer.isInit = true;
+            gXcpServer.is_init = true;
             return true;
         }
 
@@ -237,8 +237,8 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
     {
         // Create transmit queue in local memory as normal
         assert(queueSize > 0);
-        gXcpServer.TransmitQueue = queueInit(queueSize);
-        if (gXcpServer.TransmitQueue == NULL)
+        gXcpServer.transmit_queue = queueInit(queueSize);
+        if (gXcpServer.transmit_queue == NULL)
             return false;
     }
 
@@ -249,21 +249,21 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
         return false;
 
     // Initialize XCP transport layer
-    if (!XcpEthTlInit(addr, port, useTCP, gXcpServer.TransmitQueue))
+    if (!XcpEthTlInit(addr, port, useTCP, gXcpServer.transmit_queue))
         return false;
 
     // Create the receive thread
-    create_thread(&gXcpServer.ReceiveThreadHandle, XcpServerReceiveThread);
+    create_thread(&gXcpServer.receive_thread_handle, XcpServerReceiveThread);
 
     // Wait until receive thread is running to avoid races
-    while (!gXcpServer.ReceiveThreadRunning) {
+    while (!gXcpServer.receive_thread_running) {
         sleepUs(100);
     }
 
     // Create the transmit thread
-    create_thread(&gXcpServer.TransmitThreadHandle, XcpServerTransmitThread);
+    create_thread(&gXcpServer.transmit_thread_handle, XcpServerTransmitThread);
 
-    gXcpServer.isInit = true;
+    gXcpServer.is_init = true;
     return true;
 }
 
@@ -276,7 +276,7 @@ bool XcpEthServerShutdown(void) {
     }
 
     // Check if already initialized and running
-    if (!gXcpServer.isInit) {
+    if (!gXcpServer.is_init) {
         DBG_PRINT_WARNING("XCP server not running!\n");
         return false;
     }
@@ -285,38 +285,38 @@ bool XcpEthServerShutdown(void) {
 #ifdef OPTION_SHM_MODE
     // Not SHM server: no socket or server threads — stop the background thread, then clean up
     if (XcpShmIsActive() && !XcpShmIsServer()) {
-        gXcpServer.FollowerThreadRunning = false;
-        join_thread(gXcpServer.FollowerThreadHandle);
+        gXcpServer.shm_thread_running = false;
+        join_thread(gXcpServer.shm_thread_handle);
         platformShmClose("/xcpqueue", gXcpServer.shm_queue_ptr, gXcpServer.shm_queue_total_size, false); // Unmap but do not unlink the SHM region
         gXcpServer.shm_queue_ptr = NULL;
-        gXcpServer.isInit = false;
+        gXcpServer.is_init = false;
         return true;
     }
 #endif // OPTION_SHM_MODE
 
     DBG_PRINT3("Disconnect, cancel threads and shutdown XCP!\n");
     XcpDisconnect();
-    cancel_thread(gXcpServer.ReceiveThreadHandle);
+    cancel_thread(gXcpServer.receive_thread_handle);
 #ifdef OPTION_SERVER_FORCEFULL_TERMINATION
     // Forcefull termination
     // Threads are cancelled immediately without waiting for clean termination
-    cancel_thread(gXcpServer.TransmitThreadHandle);
+    cancel_thread(gXcpServer.transmit_thread_handle);
     XcpEthTlShutdown();
 #else
     // Gracefull termination
     // Close the sockets first, to release the blocking transmit
-    gXcpServer.ReceiveThreadRunning = false;
-    gXcpServer.TransmitThreadRunning = false;
+    gXcpServer.receive_thread_running = false;
+    gXcpServer.transmit_thread_running = false;
     XcpEthTlShutdown();
-    join_thread(gXcpServer.ReceiveThreadHandle);
-    join_thread(gXcpServer.TransmitThreadHandle);
+    join_thread(gXcpServer.receive_thread_handle);
+    join_thread(gXcpServer.transmit_thread_handle);
 #endif
     socketCleanup();
 
-    gXcpServer.isInit = false;
+    gXcpServer.is_init = false;
 
     // Free the transmit queue
-    queueDeinit(gXcpServer.TransmitQueue);
+    queueDeinit(gXcpServer.transmit_queue);
 
     // In SHM mode, the queue is in shared memory and has an additional shared memory header
 #ifdef OPTION_SHM_MODE
@@ -341,11 +341,11 @@ extern void *XcpServerReceiveThread(void *par)
     DBG_PRINT3("Start XCP receive thread\n");
 
     // Start the XCP protocol layer and acquire ownership of the XCP singleton
-    XcpStart(gXcpServer.TransmitQueue, false);
+    XcpStart(gXcpServer.transmit_queue, false);
 
     // Receive XCP unicast commands loop
-    gXcpServer.ReceiveThreadRunning = true;
-    while (gXcpServer.ReceiveThreadRunning) {
+    gXcpServer.receive_thread_running = true;
+    while (gXcpServer.receive_thread_running) {
 
         // Blocking, with timeout to allow handling background tasks in this thread as well
         if (!XcpEthTlHandleCommands()) {
@@ -355,8 +355,28 @@ extern void *XcpServerReceiveThread(void *par)
 
         // Handle background tasks, e.g. pending calibration updates
         XcpBackgroundTasks();
+
+#ifdef TEST_ENABLE_DBG_CHECKS
+        static uint64_t ctr = 0;
+        ctr++;
+        static uint64_t last_time = 0;
+        static uint64_t last_ctr = 0;
+        uint64_t now = clockGetMonotonicUs();
+        if (now - last_time >= 1000000) { // every 1s
+            uint32_t loops = ctr - last_ctr;
+            if (XcpIsConnected() && loops <= 5) {
+                DBG_PRINTF_WARNING("XCP receive thread: only %u loops per second, slow background processing, check if the thread is blocked\n", loops);
+            }
+            if (loops > 1000) {
+                DBG_PRINT_WARNING("XCP receive thread: more than 1000 loops per second, check if the thread is busy waiting\n");
+            }
+            DBG_PRINTF6("XCP receive thread: %llu loop per second\n", loops);
+            last_time = now;
+            last_ctr = ctr;
+        }
+#endif
     }
-    gXcpServer.ReceiveThreadRunning = false;
+    gXcpServer.receive_thread_running = false;
 
     DBG_PRINT3("XCP receive thread terminated!\n");
     return 0;
@@ -374,8 +394,8 @@ extern void *XcpServerTransmitThread(void *par)
     DBG_PRINT3("Start XCP transmit thread\n");
 
     // Transmit loop
-    gXcpServer.TransmitThreadRunning = true;
-    while (gXcpServer.TransmitThreadRunning) {
+    gXcpServer.transmit_thread_running = true;
+    while (gXcpServer.transmit_thread_running) {
 
         // Transmit all committed messages from the transmit queue
         int32_t n = XcpTlHandleTransmitQueue();
@@ -383,8 +403,24 @@ extern void *XcpServerTransmitThread(void *par)
             DBG_PRINT_ERROR("XcpTlHandleTransmitQueue failed!\n");
             break; // error - terminate thread
         }
+
+#ifdef TEST_ENABLE_DBG_CHECKS
+        static uint64_t ctr = 0;
+        ctr++;
+        static uint64_t last_time = 0;
+        static uint64_t last_ctr = 0;
+        uint64_t now = clockGetMonotonicUs();
+        if (now - last_time >= 1000000) { // every 1s
+            if (ctr - last_ctr > 2000) {
+                DBG_PRINT_WARNING("XCP transmit thread: more than 2000 loops per second, check if the thread is busy waiting\n");
+            }
+            DBG_PRINTF6("XCP transmit thread: %llu loops per second\n", (ctr - last_ctr));
+            last_time = now;
+            last_ctr = ctr;
+        }
+#endif
     }
-    gXcpServer.TransmitThreadRunning = false;
+    gXcpServer.transmit_thread_running = false;
 
     DBG_PRINT3("XCP transmit thread terminated!\n");
     return 0;
@@ -404,13 +440,15 @@ extern void *XcpShmThread(void *par)
     (void)par;
     DBG_PRINT3("Start SHM background thread\n");
 
-    gXcpServer.FollowerThreadRunning = true;
+    gXcpServer.shm_thread_running = true;
     bool a2l_finalized = false; // tracks whether this follower has already finalized its A2L
-    while (gXcpServer.FollowerThreadRunning) {
+    while (gXcpServer.shm_thread_running) {
         sleepUs(50000); // Poll every 50 ms
 
         // Handle background tasks, e.g. pending calibration updates
         XcpBackgroundTasks();
+
+        printf("S");
 
         // Prove this follower is still alive
         XcpShmIncrementAliveCounter();
@@ -428,7 +466,7 @@ extern void *XcpShmThread(void *par)
 #endif
     }
 
-    gXcpServer.FollowerThreadRunning = false;
+    gXcpServer.shm_thread_running = false;
     DBG_PRINT3("SHM background thread terminated!\n");
     return 0;
 }

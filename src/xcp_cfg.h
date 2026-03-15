@@ -391,6 +391,6 @@ XCPlite relative addressing: XCPLITE__CASDD:
 //-------------------------------------------------------------------------------
 // Debug
 
-// Enable extended error checks and additional asserts
+// Enable extended error checks and additional asserts in the protocol layer
 // Small performance penalty (base address count and NULL pointer checks) in the inner DAQ loop !
 #define XCP_ENABLE_TEST_CHECKS

@@ -20,7 +20,7 @@
 
 #include <stdlib.h> // for malloc, free
 
-#include "dbg_print.h"  // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
+#include "dbg_print.h"  // for DBG_LEVEL, DBG_PRINT, ...
 #include "xcplib_cfg.h" // for OPTION_xxx ...
 
 /**************************************************************************/
@@ -452,21 +452,55 @@ void mutexDestroy(MUTEX *m) { DeleteCriticalSection(m); }
 
 #if defined(OPTION_ENABLE_TCP) || defined(OPTION_ENABLE_UDP)
 
+const char *socketGetErrorString(int32_t err) {
+#if !defined(_WIN)
+    return strerror(err);
+#else
+    switch (err) {
+    case SOCKET_ERROR_ABORT:
+        return "connection aborted";
+    case SOCKET_ERROR_RESET:
+        return "connection reset";
+    case SOCKET_ERROR_INTR:
+        return "interrupted";
+    case SOCKET_ERROR_TIMEDOUT:
+        return "timed out";
+    case SOCKET_ERROR_WBLOCK:
+        return "would block";
+    case SOCKET_ERROR_PIPE:
+        return "broken pipe";
+    case SOCKET_ERROR_BADF:
+        return "bad file descriptor";
+    case SOCKET_ERROR_NOTCONN:
+        return "not connected";
+    default:
+        return "unknown socket error";
+    }
+#endif
+}
+
 //--------------------------------------------------------------------------
 #if !defined(_WIN) // Non-Windows platforms
 
 #include <ifaddrs.h>
 
-#if defined(_LINUX) // Linux platform
-#include <net/if.h> // for if_nametoindex, struct ifreq, IFNAMSIZ
+#include <arpa/inet.h>  // for htons, htonl
+#include <errno.h>      // for errno
+#include <fcntl.h>      // for fcntl
+#include <netinet/in.h> // for sockaddr_in
+#include <sys/socket.h> // for socket functions
+
+#if defined(_LINUX)           // Linux platform hardware timestamping support
+#include <net/if.h>           // for if_nametoindex, struct ifreq, IFNAMSIZ
+#include <netpacket/packet.h> // for struct sockaddr_ll (AF_PACKET, used by socketGetMAC)
 #if defined(OPTION_SOCKET_HW_TIMESTAMPS)
 #include <linux/errqueue.h>
-#include <linux/if_packet.h>
 #include <linux/net_tstamp.h>
 #include <linux/sockios.h> // for SIOCSHWTSTAMP
 #include <sys/ioctl.h>     // for ioctl
 #endif                     // OPTION_SOCKET_HW_TIMESTAMPS
-#endif                     // Linux
+
+#endif // Linux
 
 #if defined(_MACOS) || defined(_QNX) // MacOS or QNX platforms
 #include <net/if_dl.h>
@@ -498,18 +532,18 @@ bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
     if (reuseaddr) {
         int yes = 1;
         if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0) {
-            DBG_PRINTF_WARNING("Failed to enable SO_REUSEADDR on socket (errno=%d)\n", errno);
+            DBG_PRINTF_WARNING("Failed to enable SO_REUSEADDR on socket (errno=%d,%s)\n", errno, socketGetErrorString(errno));
         } else {
-            DBG_PRINT3("SO_REUSEADDR enabled on socket\n");
+            DBG_PRINT5("SO_REUSEADDR enabled on socket\n");
         }
     }
 
     if (getifinfo) {
         int yes = 1;
         if (setsockopt(sock, IPPROTO_IP, IP_PKTINFO, &yes, sizeof(yes)) < 0) {
-            DBG_PRINTF_WARNING("Failed to enable IP_PKTINFO on socket (errno=%d)\n", errno);
+            DBG_PRINTF_WARNING("Failed to enable IP_PKTINFO on socket (errno=%d,%s)\n", errno, socketGetErrorString(errno));
         } else {
-            DBG_PRINT3("IP_PKTINFO enabled\n");
+            DBG_PRINT5("IP_PKTINFO enabled\n");
         }
     }
 
@@ -540,9 +574,9 @@ bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
                          // SOF_TIMESTAMPING_OPT_TX_SWHW |  // Generate both SW and HW TX timestamps
                          0;
         if (setsockopt(sock, SOL_SOCKET, SO_TIMESTAMPING, &flags, sizeof(flags)) < 0) {
-            DBG_PRINTF_ERROR("Failed to enable socket hardware timestamps (SO_TIMESTAMPING, errno=%d)\n", errno);
+            DBG_PRINTF_ERROR("Failed to enable socket hardware timestamps (SO_TIMESTAMPING, errno=%d,%s)\n", errno, socketGetErrorString(errno));
         } else {
-            DBG_PRINTF3("Hardware timestamping enabled on socket (SO_TIMESTAMPING flags=0x%X)\n", flags);
+            DBG_PRINTF5("Hardware timestamping enabled on socket (SO_TIMESTAMPING flags=0x%X)\n", flags);
         }
     }
 
@@ -551,9 +585,9 @@ bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
         // Enable software timestamps, if required
         int yes = 1;
         if (setsockopt(sock, SOL_SOCKET, SO_TIMESTAMPNS, &yes, sizeof(yes)) < 0) {
-            DBG_PRINTF_ERROR("Failed to enable socket software timestamps (SO_TIMESTAMPNS, errno=%d)\n", errno);
+            DBG_PRINTF_ERROR("Failed to enable socket software timestamps (SO_TIMESTAMPNS, errno=%d,%s)\n", errno, socketGetErrorString(errno));
         } else {
-            DBG_PRINT3("Software timestamps enabled on socket (SO_TIMESTAMPNS)\n");
+            DBG_PRINT5("Software timestamps enabled on socket (SO_TIMESTAMPNS)\n");
         }
     }
 #endif
@@ -583,8 +617,8 @@ bool socketBind(SOCKET_HANDLE socket, const uint8_t *addr, uint16_t port) {
     }
     a.sin_port = htons(port);
     if (bind(sock, (SOCKADDR *)&a, sizeof(a)) < 0) {
-        DBG_PRINTF_ERROR("socketBind failed (err=%d) - cannot bind on %u.%u.%u.%u port %u!\n", socketGetLastError(), addr ? addr[0] : 0, addr ? addr[1] : 0, addr ? addr[2] : 0,
-                         addr ? addr[3] : 0, port);
+        DBG_PRINTF_ERROR("socketBind failed (errno=%d,%s) - cannot bind on %u.%u.%u.%u port %u!\n", socketGetLastError(), socketGetErrorString(socketGetLastError()),
+                         addr ? addr[0] : 0, addr ? addr[1] : 0, addr ? addr[2] : 0, addr ? addr[3] : 0, port);
         if (port < 1024) {
             DBG_PRINT_ERROR("Binding to ports <1024 may require root privileges on Linux!\n");
         }
@@ -607,7 +641,7 @@ bool socketBindToDevice(SOCKET_HANDLE socket, const char *ifname) {
     int sock = socket->sock;
     if (ifname != NULL && ifname[0] != '\0') {
         if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, ifname, strlen(ifname)) < 0) {
-            DBG_PRINTF_ERROR("socketBindToDevice failed (err=%d) - cannot bind to device %s !\n", socketGetLastError(), ifname);
+            DBG_PRINTF_ERROR("socketBindToDevice failed (errno=%d,%s) - cannot bind to device %s !\n", socketGetLastError(), socketGetErrorString(socketGetLastError()), ifname);
             return false;
         }
         DBG_PRINTF3("Socket bound to device %s\n", ifname);
@@ -674,7 +708,7 @@ bool socketEnableTimestamps(SOCKET_HANDLE socket, bool ptpOnly) {
         strncpy(ifr.ifr_name, ifname, IFNAMSIZ - 1);
     }
 
-    DBG_PRINTF3("socketEnableTimestamps: Enabling timestamps on interface %s\n", ifr.ifr_name);
+    DBG_PRINTF5("socketEnableTimestamps: Enabling timestamps on interface %s\n", ifr.ifr_name);
 
     // Configure hardware timestamping:
     // tx_type: HWTSTAMP_TX_ON enables TX timestamps for all packets
@@ -703,7 +737,7 @@ bool socketEnableTimestamps(SOCKET_HANDLE socket, bool ptpOnly) {
         return true;
     }
 
-    DBG_PRINTF3("Hardware timestamping enabled on %s (tx_type=%d, rx_filter=%d)\n", ifr.ifr_name, hwconfig.tx_type, hwconfig.rx_filter);
+    DBG_PRINTF5("Hardware timestamping enabled on %s (tx_type=%d, rx_filter=%d)\n", ifr.ifr_name, hwconfig.tx_type, hwconfig.rx_filter);
     return true;
 }
 
@@ -753,13 +787,13 @@ bool socketGetMAC(char *ifname, uint8_t *mac) {
 #if defined(_MACOS) || defined(_QNX)
                 if (ifa->ifa_addr->sa_family == AF_LINK) {
                     memcpy(mac, (uint8_t *)LLADDR((struct sockaddr_dl *)ifa->ifa_addr), 6);
-                    DBG_PRINTF4("  %s: MAC = %02X-%02X-%02X-%02X-%02X-%02X\n", ifa->ifa_name, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+                    DBG_PRINTF5("  %s: MAC = %02X-%02X-%02X-%02X-%02X-%02X\n", ifa->ifa_name, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
                 }
 #else
                 if (ifa->ifa_addr->sa_family == AF_PACKET) {
                     struct sockaddr_ll *s = (struct sockaddr_ll *)ifa->ifa_addr;
                     memcpy(mac, s->sll_addr, 6);
-                    DBG_PRINTF4("  %s: MAC = %02X-%02X-%02X-%02X-%02X-%02X\n", ifa->ifa_name, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+                    DBG_PRINTF5("  %s: MAC = %02X-%02X-%02X-%02X-%02X-%02X\n", ifa->ifa_name, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
                     break;
                 }
 #endif
@@ -890,7 +924,7 @@ bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
         sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     }
     if (sock == INVALID_SOCKET) {
-        DBG_PRINTF_ERROR("socketOpen failed (err=%d) - could not create socket!\n", socketGetLastError());
+        DBG_PRINTF_ERROR("socketOpen failed (errno=%d,%s) - could not create socket!\n", socketGetLastError(), socketGetErrorString(socketGetLastError()));
         return false;
     }
 
@@ -898,7 +932,7 @@ bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
     if (reuseaddr) {
         uint32_t one = 1;
         if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const char *)&one, sizeof(one)) < 0) {
-            DBG_PRINTF_WARNING("socketOpen failed (err=%d) - could not enable SO_REUSEADDR on socket\n", socketGetLastError());
+            DBG_PRINTF_WARNING("socketOpen failed (errno=%d,%s) - could not enable SO_REUSEADDR on socket\n", socketGetLastError(), socketGetErrorString(socketGetLastError()));
         }
     }
 
@@ -929,8 +963,8 @@ bool socketBind(SOCKET_HANDLE socket, const uint8_t *addr, uint16_t port) {
         if (socketGetLastError() == WSAEADDRINUSE) {
             DBG_PRINT_ERROR("Port is already in use!\n");
         } else {
-            DBG_PRINTF_ERROR("socketBind failed (err=%d) - cannot bind on %u.%u.%u.%u port %u!\n", socketGetLastError(), addr ? addr[0] : 0, addr ? addr[1] : 0, addr ? addr[2] : 0,
-                             addr ? addr[3] : 0, port);
+            DBG_PRINTF_ERROR("socketBind failed (errno=%d,%s) - cannot bind on %u.%u.%u.%u port %u!\n", socketGetLastError(), socketGetErrorString(socketGetLastError()),
+                             addr ? addr[0] : 0, addr ? addr[1] : 0, addr ? addr[2] : 0, addr ? addr[3] : 0, port);
         }
         return false;
     }
@@ -1046,7 +1080,7 @@ bool socketSetTimeout(SOCKET_HANDLE socket, uint32_t timeoutMs) {
 #if defined(_WIN)
     DWORD tv = (DWORD)timeoutMs;
     if (setsockopt(socket->sock, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof(tv)) < 0) {
-        DBG_PRINTF_WARNING("socketSetTimeout: setsockopt SO_RCVTIMEO failed (err=%d)\n", socketGetLastError());
+        DBG_PRINTF_WARNING("socketSetTimeout: setsockopt SO_RCVTIMEO failed (errno=%d,%s)\n", socketGetLastError(), socketGetErrorString(socketGetLastError()));
         return false;
     }
 #else
@@ -1054,11 +1088,11 @@ bool socketSetTimeout(SOCKET_HANDLE socket, uint32_t timeoutMs) {
     tv.tv_sec = (long)(timeoutMs / 1000);
     tv.tv_usec = (long)(timeoutMs % 1000) * 1000;
     if (setsockopt(socket->sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
-        DBG_PRINTF_WARNING("socketSetTimeout: setsockopt SO_RCVTIMEO failed (errno=%d)\n", errno);
+        DBG_PRINTF_WARNING("socketSetTimeout: setsockopt SO_RCVTIMEO failed (errno=%d,%s)\n", errno, socketGetErrorString(errno));
         return false;
     }
 #endif
-    DBG_PRINTF3("socketSetTimeout: set to %u ms\n", timeoutMs);
+    DBG_PRINTF5("socketSetTimeout: set to %u ms\n", timeoutMs);
     return true;
 }
 
@@ -1066,7 +1100,7 @@ bool socketSetTimeout(SOCKET_HANDLE socket, uint32_t timeoutMs) {
 bool socketListen(SOCKET_HANDLE socket) {
     assert(socket != NULL);
     if (listen(socket->sock, 5)) {
-        DBG_PRINTF_ERROR("socketListen failed (err=%d)!\n", socketGetLastError());
+        DBG_PRINTF_ERROR("socketListen failed (errno=%d,%s)!\n", socketGetLastError(), socketGetErrorString(socketGetLastError()));
         return 0;
     }
     return 1;
@@ -1118,7 +1152,7 @@ bool socketJoin(SOCKET_HANDLE socket, const uint8_t *maddr, const uint8_t *ifadd
         socket->ifindex = group.imr_ifindex;
         strncpy(socket->ifname, ifname, sizeof(socket->ifname) - 1);
         socket->ifname[sizeof(socket->ifname) - 1] = '\0';
-        DBG_PRINTF4("Joining multicast group on interface %s (index %d)\n", ifname, group.imr_ifindex);
+        DBG_PRINTF5("Joining multicast group on interface %s (index %d)\n", ifname, group.imr_ifindex);
 
         // Get MAC address for the interface and save it in the socket structure
         if (!socketGetMAC(socket->ifname, socket->ifmac)) {
@@ -1130,17 +1164,18 @@ bool socketJoin(SOCKET_HANDLE socket, const uint8_t *maddr, const uint8_t *ifadd
         group.imr_address.s_addr = *(uint32_t *)ifaddr;
         socket->ifaddr = *(uint32_t *)ifaddr;
 
-        DBG_PRINTF4("Joining multicast group on interface address %u.%u.%u.%u\n", ifaddr[0], ifaddr[1], ifaddr[2], ifaddr[3]);
+        DBG_PRINTF5("Joining multicast group on interface address %u.%u.%u.%u\n", ifaddr[0], ifaddr[1], ifaddr[2], ifaddr[3]);
 
     } else {
         // Use INADDR_ANY (kernel picks interface based on routing)
         group.imr_address.s_addr = htonl(INADDR_ANY);
 
-        DBG_PRINT4("Joining multicast group on INADDR_ANY\n");
+        DBG_PRINT5("Joining multicast group on INADDR_ANY\n");
     }
 
     if (0 > setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const char *)&group, sizeof(group))) {
-        DBG_PRINTF_ERROR("socketJoin failed (err=%d) - can't set multicast socket option IP_ADD_MEMBERSHIP!\n", socketGetLastError());
+        DBG_PRINTF_ERROR("socketJoin failed (errno=%d,%s) - can't set multicast socket option IP_ADD_MEMBERSHIP!\n", socketGetLastError(),
+                         socketGetErrorString(socketGetLastError()));
         return 0;
     }
 #else
@@ -1154,7 +1189,8 @@ bool socketJoin(SOCKET_HANDLE socket, const uint8_t *maddr, const uint8_t *ifadd
         group.imr_interface.s_addr = *(uint32_t *)ifaddr;
     }
     if (0 > setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const char *)&group, sizeof(group))) {
-        DBG_PRINTF_ERROR("socketJoin failed (err=%d) - can't set multicast socket option IP_ADD_MEMBERSHIP!\n", socketGetLastError());
+        DBG_PRINTF_ERROR("socketJoin failed (errno=%d,%s) - can't set multicast socket option IP_ADD_MEMBERSHIP!\n", socketGetLastError(),
+                         socketGetErrorString(socketGetLastError()));
         return 0;
     }
     (void)ifname; // Unused on non-Linux platforms
@@ -1163,23 +1199,30 @@ bool socketJoin(SOCKET_HANDLE socket, const uint8_t *maddr, const uint8_t *ifadd
 }
 
 // Receive from UDP socket
+// Blocking mode only, with optional timeout set with socketSetTimeout()
 // Returns optional receive timestamps if (time != NULL)
 // Support hardware timestamps if enabled on the socket and with OPTION_SOCKET_HW_TIMESTAMPS defined, otherwise system time is used
 // Return values:
 //   n > 0  : number of bytes received
-//   n == 0 : timeout (SO_RCVTIMEO expired) or would-block — no data yet, caller should loop and do background work
+//   n == 0 : timeout (set with socketTimeout) expired or would-block — no data yet, caller should loop and do background work
 //   n < 0  : socket closed (graceful or reset) or unrecoverable error — caller should exit the receive loop
 int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSize, uint8_t *addr, uint16_t *port, uint64_t *time) {
 
     assert(socket != NULL);
+    assert(!(socket->flags & SOCKET_MODE_TCP)); // Use socketRecvFrom() for UDP sockets
     SOCKET sock = socket->sock;
+    assert(sock != INVALID_SOCKET);
 
     SOCKADDR_IN src;
+    src.sin_port = 0;
+    src.sin_addr.s_addr = 0;
+
     int16_t n = 0;
 
 #if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
-    // Use recvmsg() to retrieve control messages (timestamps and/or IP_PKTINFO) if available
-    // This path is taken when timestamps are requested OR when IP_PKTINFO might be enabled
+    // Always use recvmsg() on Linux with HW_TIMESTAMPS: needed for IP_PKTINFO and optional timestamps.
+    // Removing the if(time!=NULL) gate here is critical — without it the else clause
+    // would dangle onto the port-extraction statement after #endif, causing no receive when time==NULL.
     {
         struct iovec iov;
         struct msghdr msg;
@@ -1195,18 +1238,19 @@ int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSiz
         msg.msg_control = control;
         msg.msg_controllen = sizeof(control);
         n = (int16_t)recvmsg(sock, &msg, 0);
+
+        // n = 0, zero-length UDP datagram, not a socket close, caller loops
         if (n == 0) {
-            return -1; // Graceful close
-        } else if (n < 0) {
+            return 0; // Timeout — caller loops and does background work
+        }
+
+        // n < 0, error or timeout
+        else if (n < 0) {
             int32_t err = socketGetLastError();
-            if (err == SOCKET_ERROR_WBLOCK) {
-                return 0; // Timeout or would-block — caller loops and does background work
+            if (socketTimeout(err)) {
+                return 0; // Timeout — caller loops and does background work
             }
-            if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_BADF || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR) {
-                DBG_PRINTF6("socketSendV: socket closed (err=%d)\n", err);
-                return -1; // Socket closed
-            }
-            DBG_PRINTF_ERROR("%u - recvmsg failed (result=%d)!\n", err, n);
+            DBG_PRINTF_ERROR("socketRecvFrom: recvmsg failed (errno=%d,%s, result=%d)!\n", err, socketGetErrorString(err), n);
             return -1;
         }
 
@@ -1293,21 +1337,24 @@ int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSiz
         socklen_t srclen = sizeof(src);
         n = (int16_t)recvfrom(sock, (char *)buffer, bufferSize, 0, (SOCKADDR *)&src, &srclen);
 
+        // n = 0, zero-length UDP datagram, not a socket close, caller loops
         if (n == 0) {
-            return -1; // Graceful close
+            return 0; // Timeout — caller loops and does background work
         } else if (n < 0) {
             int32_t err = socketGetLastError();
-            if (err == SOCKET_ERROR_WBLOCK)
-                return 0; // Timeout or would-block — caller loops and does background work
-            if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_BADF || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR) {
-                DBG_PRINTF6("socketRecvFrom: socket closed (err=%d)\n", err);
-                return -1; // Socket closed
+            DBG_PRINTF6("socketRecvFrom: recvfrom returned n<0 (errno=%d,%s)\n", err, socketGetErrorString(err));
+
+            if (socketTimeout(err)) {
+                DBG_PRINTF6("socketRecvFrom: recvfrom returned n<0, (errno=%d,%s), socket timeout, return 0\n", err, socketGetErrorString(err));
+                return 0; // Timeout
             }
-            DBG_PRINTF_ERROR("socketRecvFrom: failed (err=%u - result=%d)!\n", err, n);
+
+            DBG_PRINTF_ERROR("socketRecvFrom: failed n=%d (errno=%u,%s) , return -1\n", n, err, socketGetErrorString(err));
             return -1;
         }
 
         if (time != NULL) {
+            assert(false && "Hardware timestamp are not enabled, would return system time");
             *time = clockGet();
         }
     }
@@ -1323,54 +1370,87 @@ int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSiz
     return n;
 }
 
-// Receive from TCP or UDP socket
+// Receive from TCP socket
+// Blocking mode only, with optional timeout set with socketSetTimeout()
+// For UDP use socketRecvFrom() instead, which also returns the source address and supports timestamps
 // Return values:
 //   n > 0  : number of bytes received
-//   n == 0 : timeout (SO_RCVTIMEO expired) or would-block — no data yet, caller should loop and do background work
+//   n == 0 : timeout (set with socketTimeout) expired or would-block — no data yet, caller should loop and do background work
 //   n < 0  : socket closed (graceful or reset) or unrecoverable error — caller should exit the receive loop
-int16_t socketRecv(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t size, bool waitAll) {
+int16_t socketRecv(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t buffer_size, bool waitAll) {
 
     assert(socket != NULL);
+    assert(socket->flags & SOCKET_MODE_TCP); // Use socketRecvFrom() for UDP sockets
+    assert(buffer_size > 0);
+    SOCKET sock = socket->sock;
+    assert(sock != INVALID_SOCKET);
 
     if (!waitAll) {
-        int16_t n = (int16_t)recv(socket->sock, (char *)buffer, size, 0);
+        int16_t n = (int16_t)recv(sock, (char *)buffer, buffer_size, 0);
+
+        // n = 0, socket close
         if (n == 0) {
-            return -1; // Graceful close
-        } else if (n < 0) {
+            DBG_PRINT6("socketRecv: recv returned n=0, socket closed, return -1\n");
+            return -1; // Socket closed
+        }
+
+        // n < 0, error or timeout
+        else if (n < 0) {
             int32_t err = socketGetLastError();
-            if (err == SOCKET_ERROR_WBLOCK) {
-                return 0; // Timeout — caller loops and does background work
+            if (socketTimeout(err)) {
+                DBG_PRINTF_ERROR("socketRecv: recv returned n<0, socket timeout (errno=%d,%s), return 0\n", err, socketGetErrorString(err));
+                return 0; // Timeout, no data yet
             }
-            DBG_PRINT6("socketRecv: socket closed\n");
-            return -1; // Closed or error
+            DBG_PRINTF_ERROR("socketRecv: recv returned n<0, socket error (errno=%d,%s), return -1\n", err, socketGetErrorString(err));
+            return -1; // Error
         }
         return n;
     }
 
     // waitAll: loop until exactly `size` bytes have been received.
-    // MSG_WAITALL alone is not sufficient when SO_RCVTIMEO is set: Linux will return
-    // a partial count if the timeout fires mid-read.  We therefore implement the loop
-    // ourselves and treat EAGAIN/WBLOCK as a transient condition only when no bytes
-    // have arrived yet (return 0 = timeout).  A timeout mid-frame is a protocol error;
-    // we close the connection (return -1) to avoid desynchronising the TCP stream.
+    // MSG_WAITALL alone is not sufficient when SO_RCVTIMEO is set
+    // Linux may return a partial size if the timeout fires mid-read.
+    // We therefore implement a loop on top and return the timeout to the caller only when there is no data yet
     uint16_t received = 0;
-    while (received < size) {
-        int16_t n = (int16_t)recv(socket->sock, (char *)buffer + received, (uint16_t)(size - received), 0);
+    uint32_t timeout_counter = 0;
+    for (;;) {
+        int16_t n = (int16_t)recv(sock, (char *)buffer + received, (uint16_t)(buffer_size - received), MSG_WAITALL);
+
+        // n = 0, socket close
         if (n == 0) {
-            return -1; // Graceful close
-        } else if (n < 0) {
+            DBG_PRINT6("socketRecv: recv waitall returned n=0, socket closed, return -1\n");
+            return -1; // Socket closed
+        }
+
+        // n < 0, error or timeout
+        else if (n < 0) {
             int32_t err = socketGetLastError();
-            if (err == SOCKET_ERROR_WBLOCK) {
-                if (received == 0)
-                    return 0; // Timeout only before any data — caller loops
-                DBG_PRINT6("socketRecv: timeout mid-frame, closing connection\n");
+            if (socketTimeout(err)) {
+                DBG_PRINTF6("socketRecv: recv waitall returned n<0, socket timeout (errno=%d,%s), return 0\n", err, socketGetErrorString(err));
+                if (received == 0) {
+                    return 0; // Timeout only before any data ok
+                }
+                DBG_PRINT_ERROR("socketRecv: recv waitall returned n<0, timeout mid-frame, return -1\n");
                 return -1; // Partial frame received — TCP stream is desynchronised
             }
-            DBG_PRINT6("socketRecv: socket closed\n");
-            return -1; // Closed or error
+            DBG_PRINTF_ERROR("socketRecv: recv waitall returned n<0, socket error (errno=%d,%s), return -1\n", err, socketGetErrorString(err));
+            return -1; // Error
         }
+
         received = (uint16_t)(received + (uint16_t)n);
+        if (received >= buffer_size) {
+            break; // done
+        }
+
+        if (++timeout_counter >= 4) {
+            DBG_PRINT_ERROR("socketRecv: recv waitall timeout mid-frame, giving up after 4 attempts\n");
+            break; // loop protection: should never happen
+        }
+
+        DBG_PRINTF_WARNING("socketRecv waitall: received %u bytes, waiting for %u more\n", received, buffer_size - received);
     }
+
+    assert(received == buffer_size);
     return (int16_t)received;
 }
 
@@ -1385,6 +1465,7 @@ int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t size,
 
     assert(socket != NULL);
     SOCKET sock = socket->sock;
+    assert(sock != INVALID_SOCKET);
 
     DBG_PRINTF6("socketSendTo: sock=%d, ifindex=%d\n", sock, socket->ifindex);
 
@@ -1431,15 +1512,15 @@ int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t size,
         ssize_t n = sendmsg(sock, &msg, 0);
         if (n < 0) {
             int32_t err = socketGetLastError();
-            if (err == SOCKET_ERROR_WBLOCK) {
+            if (socketWouldBlock(err)) {
                 DBG_PRINT_ERROR("socketSendTo: unexpected WBLOCK\n");
                 return -1; // Should never happen on a blocking socket
             }
-            if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_BADF || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR || err == SOCKET_ERROR_PIPE) {
-                DBG_PRINTF6("socketSendTo: socket closed (err=%d)\n", err);
-                return 0; // Socket closed
+            if (socketIsClosed(err)) {
+                DBG_PRINTF6("socketSendTo: socket closed (errno=%d,%s)\n", err, socketGetErrorString(err));
+                return 0; // Transmit socket closed
             }
-            DBG_PRINTF_ERROR("socketSendTo: sendmsg failed with err=%d!\n", err);
+            DBG_PRINTF_ERROR("socketSendTo: sendmsg failed with errno=%d,%s!\n", err, socketGetErrorString(err));
             return -1;
         }
         return (int16_t)n;
@@ -1453,15 +1534,15 @@ int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t size,
     ssize_t n = sendto(sock, (const char *)buffer, size, 0, (SOCKADDR *)&sa, (uint16_t)sizeof(sa));
     if (n < 0) {
         int32_t err = socketGetLastError();
-        if (err == SOCKET_ERROR_WBLOCK) {
+        if (socketWouldBlock(err)) {
             DBG_PRINT_ERROR("socketSendTo: unexpected WBLOCK\n");
             return -1; // Should never happen on a blocking socket
         }
-        if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_BADF || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR || err == SOCKET_ERROR_PIPE) {
-            DBG_PRINTF6("socketSendTo: socket closed (err=%d)\n", err);
-            return 0; // Socket closed
+        if (socketIsClosed(err)) {
+            DBG_PRINTF6("socketSendTo: socket closed (errno=%d,%s)\n", err, socketGetErrorString(err));
+            return 0; // Transmit socket closed
         }
-        DBG_PRINTF_ERROR("socketSendTo: sendto failed with err=%d!\n", err);
+        DBG_PRINTF_ERROR("socketSendTo: sendto failed with errno=%d,%s!\n", err, socketGetErrorString(err));
         return -1;
     }
     return (int16_t)n;
@@ -1474,19 +1555,20 @@ int16_t socketSend(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t size) {
 
     assert(socket != NULL);
     SOCKET sock = socket->sock;
+    assert(sock != INVALID_SOCKET);
 
     ssize_t n = send(sock, (const char *)buffer, size, 0);
     if (n < 0) {
         int32_t err = socketGetLastError();
-        if (err == SOCKET_ERROR_WBLOCK) {
+        if (socketWouldBlock(err)) {
             DBG_PRINT_ERROR("socketSend: unexpected WBLOCK\n");
             return -1; // Should never happen on a blocking socket
         }
-        if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_BADF || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR || err == SOCKET_ERROR_PIPE) {
-            DBG_PRINTF6("socketSend: socket closed (err=%d)\n", err);
-            return 0; // Socket closed
+        if (socketIsClosed(err)) {
+            DBG_PRINTF6("socketSend: socket closed (errno=%d,%s)\n", err, socketGetErrorString(err));
+            return 0; // Transmit socket closed
         }
-        DBG_PRINTF_ERROR("socketSend: send failed with err=%d!\n", err);
+        DBG_PRINTF_ERROR("socketSend: send failed with errno=%d,%s!\n", err, socketGetErrorString(err));
         return -1;
     }
     return (int16_t)n;
@@ -1506,11 +1588,8 @@ int16_t socketSend(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t size) {
 int16_t socketSendToV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t count, const uint8_t *addr, uint16_t port) {
 
     assert(socket != NULL);
-    assert(buffers != NULL);
-    assert(count > 0);
-    assert(addr != NULL);
-
     SOCKET sock = socket->sock;
+    assert(sock != INVALID_SOCKET);
 
     SOCKADDR_IN sa;
     sa.sin_family = AF_INET;
@@ -1536,15 +1615,15 @@ int16_t socketSendToV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t cou
     ssize_t n = sendmsg(sock, &msg, 0);
     if (n < 0) {
         int32_t err = socketGetLastError();
-        if (err == SOCKET_ERROR_WBLOCK) {
+        if (socketWouldBlock(err)) {
             DBG_PRINT_ERROR("socketSendToV: unexpected WBLOCK\n");
             return -1; // Should never happen on a blocking socket
         }
-        if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_BADF || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR || err == SOCKET_ERROR_PIPE) {
-            DBG_PRINTF6("socketSendToV: socket closed (err=%d)\n", err);
-            return 0; // Socket closed
+        if (socketIsClosed(err)) {
+            DBG_PRINTF6("socketSendToV: socket closed (errno=%d,%s)\n", err, socketGetErrorString(err));
+            return 0; // Transmit socket closed
         }
-        DBG_PRINTF_ERROR("socketSendToV: sendmsg failed with err=%d!\n", err);
+        DBG_PRINTF_ERROR("socketSendToV: sendmsg failed with errno=%d,%s!\n", err, socketGetErrorString(err));
         return -1;
     }
     if (total != n) {
@@ -1564,10 +1643,8 @@ int16_t socketSendToV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t cou
 int16_t socketSendV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t count) {
 
     assert(socket != NULL);
-    assert(buffers != NULL);
-    assert(count > 0);
-
     SOCKET sock = socket->sock;
+    assert(sock != INVALID_SOCKET);
 
     // Build iovec array on the stack - VLAs are acceptable here as count is usually small
     struct iovec iov[count];
@@ -1591,15 +1668,15 @@ int16_t socketSendV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t count
         ssize_t n = sendmsg(sock, &msg, 0);
         if (n < 0) {
             int32_t err = socketGetLastError();
-            if (err == SOCKET_ERROR_WBLOCK) {
+            if (socketWouldBlock(err)) {
                 DBG_PRINT_ERROR("socketSendV: unexpected WBLOCK\n");
                 return -1; // Should never happen on a blocking socket
             }
-            if (err == SOCKET_ERROR_ABORT || err == SOCKET_ERROR_BADF || err == SOCKET_ERROR_RESET || err == SOCKET_ERROR_INTR || err == SOCKET_ERROR_PIPE) {
-                DBG_PRINTF6("socketSendV: socket closed (err=%d)\n", err);
-                return 0; // Socket closed
+            if (socketIsClosed(err)) {
+                DBG_PRINTF6("socketSendV: socket closed (errno=%d,%s)\n", err, socketGetErrorString(err));
+                return 0; // Transmit socket closed
             }
-            DBG_PRINTF_ERROR("socketSendV: sendmsg failed with err=%d!\n", err);
+            DBG_PRINTF_ERROR("socketSendV: sendmsg failed with errno=%d,%s!\n", err, socketGetErrorString(err));
             return -1;
         }
         total += (int16_t)n;
@@ -1633,6 +1710,7 @@ bool socketGetSendTime(SOCKET_HANDLE socket, uint64_t *hw_time, uint64_t *sw_tim
 
     assert(socket != NULL);
     SOCKET sock = socket->sock;
+    assert(sock != INVALID_SOCKET);
 
     if (hw_time)
         *hw_time = 0;

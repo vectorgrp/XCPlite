@@ -88,7 +88,7 @@ But there is no risk for failure after acknowledge.
 Page size is rounded up to 64 bit alignment.  
 So to calibrate a block of N bytes, we need 64+4*(8*N+7)/8 bytes of memory.
 
-
+8. Lazy calibration updates need a background processing in the same thread which handles XCP commands! It was quite difficult in XCPlite to provide platform abstraction for it, when doing it with blocking sockets and SO_RCVTIMEO. Maybe a better approach would be to use non blocking sockets and a waitable event.  
 
 
 ## RCU algorithm pseudo code for calibration segment updates:

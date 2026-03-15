@@ -55,7 +55,7 @@
 //-------------------------------------------------------------------------------
 // Socket options
 
-// #define OPTION_SOCKET_HW_TIMESTAMPS // Enable hardware timestamps on UDP sockets if available
+// #define OPTION_SOCKET_HW_TIMESTAMPS // Enable hardware timestamps on UDP sockets if available (needed only for ptptool on Linux)
 
 //-------------------------------------------------------------------------------
 // XCP multi process server options
@@ -66,7 +66,7 @@
 // XCP state and transmit queue is placed in anamed shared memory region
 // Multiple processes can participate in the same XCP session
 // Requires a POSIX-compliant platform (Linux / macOS / QNX).  Not supported on Windows.
-#define OPTION_SHM_MODE
+// #define OPTION_SHM_MODE
 
 //-------------------------------------------------------------------------------
 // XCP server options
@@ -169,6 +169,7 @@
 // #define TEST_ENABLE_DBG_METRICS // Enable debug metrics for XCP events and transport layer packets
 // #define TEST_ENABLE_BUFFERCOUNT_HISTOGRAM // Enable histogram of the used buffer counts in the transport layer vectored io
 // #define TEST_MUTABLE_ACCESS_OWNERSHIP // Enable tracking of mutable access thread ownership
+#define TEST_ENABLE_DBG_CHECKS // Enable additional sanity checks in the XCP server
 
 #endif // !defined(NDEBUG)
 

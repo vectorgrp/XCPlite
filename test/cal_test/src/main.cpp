@@ -426,8 +426,12 @@ int main(int argc, char *argv[]) {
             }
         }
     }
-    XcpBackgroundTasks(); // Handle background tasks, e.g. pending calibration updates, this is done on a regular basis in the main loop of the application, but we need to call it
-                          // manually here to make pending updates visible
+
+    // Handle background tasks, e.g. pending calibration updates
+    // This is done on a regular basis in the main loop of the application, but we need to call it
+    // manually here to make pending updates visible
+    XcpBackgroundTasks();
+
     {
         auto parameters = calseg->lock();
         if (parameters->check != check) {

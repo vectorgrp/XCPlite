@@ -521,7 +521,7 @@ const char *A2lGetFilename(uint8_t file_type) {
 
     static char file_name[XCP_A2L_FILENAME_MAX_LENGTH + 1] = {0}; // static buffer for filename
     const char *project_name = XcpGetProjectName();
-    const char postfix[16] = "";
+    const char postfix[32] = "";
 
     // In SHM mode, the server uses a fixed A2L filename and the application id as postfix for the temporary files
     uint8_t id = 0;

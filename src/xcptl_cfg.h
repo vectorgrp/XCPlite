@@ -47,7 +47,7 @@
 #endif
 
 // Receive timeout in milliseconds (rate of periodic checks for shutdown and background tasks in the receive thread)
-#define XCPTL_RECV_TIMEOUT_MS 200
+#define XCPTL_RECV_TIMEOUT_MS 100
 
 // Alignment for packet concatenation
 #define XCPTL_PACKET_ALIGNMENT 4 // Packet alignment for multiple XCP transport layer packets in a XCP transport layer message

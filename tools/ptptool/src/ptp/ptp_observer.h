@@ -115,8 +115,8 @@ typedef struct ptp_observer {
 
     // XCP event id
 #ifdef OPTION_ENABLE_XCP
-    tXcpCalSegIndex xcp_cal_seg; // observer parameters calibration segment
-    tXcpEventId xcp_event;       // XCP event triggered on observer SYNC/FOLLOW_UP update
+    tXcpCalSegIndex xcp_calseg; // observer parameters calibration segment
+    tXcpEventId xcp_event;      // XCP event triggered on observer SYNC/FOLLOW_UP update
 #endif
 
     // Protocol SYNC and FOLLOW_UP state

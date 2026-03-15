@@ -54,7 +54,7 @@
 // Portable relaxed-atomic read/write of a C11 _Atomic field via volatile cast.
 // Sufficient for a diagnostic tool; no strict store-load barriers needed beyond
 // what the volatile access provides on cache-coherent SMP systems.
-static inline uint32_t read_u32(const atomic_uint_least32_t *p) { return *reinterpret_cast<const volatile uint32_t *>(p); }
+template <typename T> static inline uint32_t read_u32(const T *p) { return *reinterpret_cast<const volatile uint32_t *>(p); }
 static inline void write_u32(atomic_uint_least32_t *p, uint32_t v) { *reinterpret_cast<volatile uint32_t *>(p) = v; }
 
 static const char *bool_str(uint32_t v) { return v ? "yes" : "no"; }

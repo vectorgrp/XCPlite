@@ -15,6 +15,7 @@
 
 #include "platform.h" // from libxcplite for SOCKET_HANDLE, ...
 
+#include <arpa/inet.h> // for htons, htonl
 #include <assert.h>    // for assert
 #include <fcntl.h>     // for open
 #include <inttypes.h>  // for PRIu64

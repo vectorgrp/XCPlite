@@ -11,15 +11,16 @@
 |
  ----------------------------------------------------------------------------*/
 
-#include <assert.h>   // for assert
-#include <inttypes.h> // for PRIu64
-#include <math.h>     // for fabs
-#include <signal.h>   // for signal handling
-#include <stdbool.h>  // for bool
-#include <stdint.h>   // for uintxx_t
-#include <stdio.h>    // for printf
-#include <stdlib.h>   // for malloc, free
-#include <string.h>   // for sprintf
+#include <arpa/inet.h> // for htons, htonl
+#include <assert.h>    // for assert
+#include <inttypes.h>  // for PRIu64
+#include <math.h>      // for fabs
+#include <signal.h>    // for signal handling
+#include <stdbool.h>   // for bool
+#include <stdint.h>    // for uintxx_t
+#include <stdio.h>     // for printf
+#include <stdlib.h>    // for malloc, free
+#include <string.h>    // for sprintf
 
 #include "ptp.h"
 
@@ -512,10 +513,11 @@ static void observerSyncUpdate(tPtp *ptp, tPtpObserver *obs) {
     }
 
     // Update analyzer parameters (update XCP calibrations)
-    // Single threaded access assumed, called from ptpThread319 (1 step mode) or ptpThread320 (2 step mode) only
 #ifdef OPTION_ENABLE_XCP
-    // Each instance holds its lock continuously, so it may take about a second to make calibration changes effective
-    XcpUpdateCalSeg((void **)&obs->params);
+    tXcpCalSegIndex c = obs->xcp_calseg;
+    tPtpObserverParameters *p = (tPtpObserverParameters *)XcpLockCalSeg(c);
+    memcpy(obs->params, p, sizeof(*obs->params));
+    XcpUnlockCalSeg(c);
 #endif
 
     // Apply rounding correction to t1 ( Vector VN/VX PTP master has 8ns resolution, which leads to a systematic error )
@@ -950,13 +952,13 @@ tPtpObserver *ptpCreateObserver(tPtp *ptp, const char *name, bool active_mode, u
 
     // Create observer parameters
     // All observers share the same calibration segment
-    obs->xcp_cal_seg = XcpCreateCalSeg("observer_params", &observer_params, sizeof(observer_params));
-    assert(obs->xcp_cal_seg != XCP_UNDEFINED_CALSEG);
-    obs->params = (tPtpObserverParameters *)XcpLockCalSeg(obs->xcp_cal_seg); // Initial lock of the calibration segment (to enable calibration persistence)
+    obs->xcp_calseg = XcpCreateCalSeg("observer_params", &observer_params, sizeof(observer_params));
+    assert(obs->xcp_calseg != XCP_UNDEFINED_CALSEG);
+    obs->params = (tPtpObserverParameters *)XcpLockCalSeg(obs->xcp_calseg); // Initial lock of the calibration segment (to enable calibration persistence)
 
     A2lOnce() {
 
-        A2lSetSegmentAddrMode(obs->xcp_cal_seg, observer_params);
+        A2lSetSegmentAddrMode(obs->xcp_calseg, observer_params);
         A2lCreateParameter(observer_params.t1_correction, "Correction for t1", "", -100, 100);
         A2lCreateParameter(observer_params.delay_req_burst_len, "Number of DELAY_REQ per SYNC", "", 1, 10);
         A2lCreateParameter(observer_params.avg_drift_filter_size, "Drift filter size", "", 1, 300);
@@ -1023,7 +1025,7 @@ void ptpObserverShutdown(tPtpObserver *obs) {
 
     // XCP instrumentation
 #ifdef OPTION_ENABLE_XCP
-    XcpUnlockCalSeg(obs->xcp_cal_seg);
+    XcpUnlockCalSeg(obs->xcp_calseg);
 #endif
 
     mutexDestroy(&obs->mutex);

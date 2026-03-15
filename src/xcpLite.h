@@ -68,6 +68,7 @@ const char *XcpGetEpk(void);
 uint8_t XcpCommand(const uint32_t *pCommand, uint8_t len);
 
 // Let XCP handle non realtime critical background tasks
+// This function must be called periodically when a XCP client is connected
 // Must be called in regular intervals from the same thread that calls XcpCommand() !!
 void XcpBackgroundTasks(void);
 

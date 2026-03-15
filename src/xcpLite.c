@@ -1778,6 +1778,8 @@ void XcpDisconnect(void) {
 #if defined(XCP_ENABLE_CAL_PERSISTENCE) && defined(XCP_ENABLE_FREEZE_ON_DISCONNECT)
         XcpBinWrite(XCP_CALPAGE_WORKING_PAGE);
 #endif
+
+        DBG_PRINT3("Disconnected\n");
     }
 }
 
@@ -2753,13 +2755,16 @@ no_response:
 | Non realtime critical background tasks
 ******************************************************************************/
 
+// Let XCP handle non realtime critical background tasks
+// This function must be called periodically when a XCP client is connected
+// Must be called in regular intervals from the same thread that calls XcpCommand() !!
 void XcpBackgroundTasks(void) {
 
     if (!isActivated()) { // Ignore
         return;
     }
 
-    DBG_PRINT6("XCP receive thread: background tasks\n");
+    DBG_PRINT6("XcpBackgroundTasks\n");
 
 // In SHM mode, detect newly registered follower processes and log their identity
 #ifdef OPTION_SHM_MODE

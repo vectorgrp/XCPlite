@@ -11,15 +11,16 @@
 |
  ----------------------------------------------------------------------------*/
 
-#include <assert.h>   // for assert
-#include <inttypes.h> // for PRIu64
-#include <math.h>     // for fabs
-#include <signal.h>   // for signal handling
-#include <stdbool.h>  // for bool
-#include <stdint.h>   // for uintxx_t
-#include <stdio.h>    // for printf
-#include <stdlib.h>   // for malloc, free
-#include <string.h>   // for sprintf
+#include <arpa/inet.h> // for htons, htonl
+#include <assert.h>    // for assert
+#include <inttypes.h>  // for PRIu64
+#include <math.h>      // for fabs
+#include <signal.h>    // for signal handling
+#include <stdbool.h>   // for bool
+#include <stdint.h>    // for uintxx_t
+#include <stdio.h>     // for printf
+#include <stdlib.h>    // for malloc, free
+#include <string.h>    // for sprintf
 
 #include "ptp.h"
 
@@ -336,8 +337,10 @@ void masterTask(tPtp *ptp) {
 
         // Update master parameters (update XCP calibrations)
 #ifdef OPTION_ENABLE_XCP
-        // Each master instance holds its parameter lock continuously, so it may take about a second to make calibration changes effective (until all updates are done)
-        XcpUpdateCalSeg((void **)&master->params);
+        tXcpCalSegIndex c = master->xcp_calseg;
+        tMasterParams *p = (tMasterParams *)XcpLockCalSeg(c);
+        memcpy(master->params, p, sizeof(*master->params));
+        XcpUnlockCalSeg(c);
 #endif
 
         if (!master->active)

@@ -88,7 +88,7 @@ typedef struct ptp_master {
     bool active;
 
     // Master identification
-    u_int8_t domain;
+    uint8_t domain;
     uint8_t uuid[8];
 
     char name[32];
@@ -104,7 +104,7 @@ typedef struct ptp_master {
     tPtpMasterClient client[MAX_CLIENTS];
 
     // PTP master parameters
-    const tMasterParams *params;
+    tMasterParams *params;
 
     // XCP event id
 #ifdef OPTION_ENABLE_XCP

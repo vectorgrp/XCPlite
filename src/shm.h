@@ -50,8 +50,15 @@ typedef union {
         uint8_t is_leader;                                  // != 0 this process created the shared memory segment
         uint8_t is_server;                                  // != 0 this process is the XCP server (handles client connections and DAQ)
         uint8_t pad1[2];                                    // explicit padding for deterministic cross-compiler layout
-        atomic_uint_least32_t alive_counter;                // incremented periodically by each process's background thread; allows the leader to detect stale/dead followers
-        atomic_uint_least32_t a2l_finalized;                // 1 when this app's A2L file is complete and a2l_name is valid
+#ifdef __cplusplus
+        // GCC C++ does not allow atomic (non-trivially constructible) members in anonymous aggregates.
+        // Use plain uint32_t here; shmtool accesses these via read_u32/write_u32 volatile casts.
+        uint32_t alive_counter; // same layout as atomic_uint_least32_t
+        uint32_t a2l_finalized; // same layout as atomic_uint_least32_t
+#else
+        atomic_uint_least32_t alive_counter; // incremented periodically by each process's background thread; allows the leader to detect stale/dead followers
+        atomic_uint_least32_t a2l_finalized; // 1 when this app's A2L file is complete and a2l_name is valid
+#endif
     };
     uint8_t b[512]; // pad slot to 512 bytes for future extensions
 } tApp;
