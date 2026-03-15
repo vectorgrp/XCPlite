@@ -7,48 +7,33 @@ All notable changes to XCPlite are documented in this file.
 
 ## [V2.0.0]
 
-- Experimental support for shared memory communication between XCP server and target application.  
-Not planned for production use yet, can be enabled with `OPTION_SHM_MODE`.
-
-### Breaking change: `socketRecv` / `socketRecvFrom` return value semantics (platform.h / platform.c)
-
-The return value contract of `socketRecv` and `socketRecvFrom` has changed.  
-Code that uses these functions directly (i.e. code that includes `platform.h`) **must be updated**.
-
-| Return value | Old meaning | New meaning |
-|---|---|---|
-| `> 0` | bytes received | bytes received (unchanged) |
-| `== 0` | socket closed **or** would-block | **timeout only** — no data yet, caller should do background work and loop |
-| `< 0` | unrecoverable error | socket closed (graceful or reset) **or** error — caller should exit the receive loop |
-
-**Migration:** replace every `if (n == 0) break/return;` in a receive loop with `if (n < 0) break/return;`.
-
-This change enables a single receive thread to perform periodic background processing while still
-correctly detecting connection close, using `socketSetTimeout()` to configure a heartbeat interval.
-
-
- 
-
-
-
-
-## [V1.2.1]
-
+- General refactoring and code cleanup, various minor code improvements and optimizations.  
 - Renamed to 'libxcplite' with external package name `xcplite`
-- DAQ performance optimization, transmit queue for vectored IO
+- DAQ performance optimization, lock-less transmit queue for vectored IO
+- New function XcpCreateCalBlk to create calibration blocks without A2L memory segments
 - Simplified build script and CMake configuration, build script option to install libxcplite 
 - Changed default encoding for dynamic addressing to 10 Bit event and 22 Bit signed offset, allowing for up to 4GB addressable range per event with max 1024 events
 - New variadic C++ macro/template to create A2L typedefs and their components in one call with automatic type deduction (see hello_xcp_cpp example)
 - New API functions to specify input quantities for axis
-- Examples how to modify parameters thread-safe without using calibration segments by using event synchronization
-- New functions in platform.c: clockGetMonotonicNs() and clockGetRealtimeNs()
-- ptp4l_demo and ptptool separated
+- New convenience functions in platform.c: clockGetMonotonicNs() and clockGetRealtimeNs()
 - New demo `ptp4l_demo` demonstrating minimum requirement to achieve XCP PTP support
-- New tool `ptptool` is a PTP observer and PTP time server with XCP instrumentation (see README.md of `ptptool` for details)
-- Refactoring in platform.c: OPTION_SOCKET_HW_TIMESTAMPS, improved debug logging for socketRecvFrom to help diagnose interface index issues on Linux, SOCKET keeps track of configured interface
-- Fixed bug in socketRecvFrom where debug printfs were left in the code
+- Refactoring in platform.c socket abstraction: socket error handling, OPTION_SOCKET_HW_TIMESTAMPS, new function socketSetTimeout, improved debug logging for socketRecvFrom to help diagnose interface index issues on Linux, SOCKET keeps track of configured interface
 - Log level 6 for very verbose debug logging
 - Define GNU_SOURCE in cmakelists.txt
+- Experimental support for shared memory communication between XCP server and target application. Not planned for production use yet. Can be enabled with `OPTION_SHM_MODE` and the appropriate mode in XcpInit.  
+- The return value contract of `socketRecv` and `socketRecvFrom` has changed. Only code that uses these functions directly (i.e. code that includes `platform.h` is affected).  
+
+
+### Breaking changes
+
+- The signature of XpcInit has changed to
+```c
+void XcpInit(const char *name, const char *epk, uint8_t mode);
+```
+
+
+
+## [V1.2.1]
 
 
 ## [V1.1.0]
