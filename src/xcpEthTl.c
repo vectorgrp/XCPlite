@@ -366,7 +366,7 @@ bool XcpEthTlHandleCommands(void) {
                 return false; // Listen socket closed
             gXcpTl.socket = socketAccept(gXcpTl.listen_socket, gXcpTl.master_addr);
             if (gXcpTl.socket == INVALID_SOCKET_HANDLE) {
-                DBG_PRINTF_WARNING("XcpEthTlHandleCommands: socketAccept failed (errno=%d)!\n", socketGetLastError());
+                DBG_PRINTF_WARNING("XcpEthTlHandleCommands: socketAccept failed (errno=%d, %s)!\n", socketGetLastError(), socketGetErrorString(socketGetLastError()));
                 return true; // Ignore error from accept, retry in next loop iteration
             } else {
                 // Set receive timeout to allow periodic checks for shutdown and background tasks
@@ -433,7 +433,7 @@ bool XcpEthTlHandleCommands(void) {
                     DBG_PRINT_ERROR("XcpEthTlHandleCommands: Closed TCP connection during packet receive!\n");
                     goto socket_closed;
                 }
-                DBG_PRINTF_ERROR("XcpEthTlHandleCommands: socketRecv for packet failed n=%d (errno=%d,%s)!\n", n, err, socketGetErrorString(err));
+                DBG_PRINTF_ERROR("XcpEthTlHandleCommands: socketRecv for packet failed n=%d (errno=%d, %s)!\n", n, err, socketGetErrorString(err));
                 goto socket_error; // Treat always as error
             } // n < 0
 
@@ -466,7 +466,7 @@ bool XcpEthTlHandleCommands(void) {
         // n < 0 Error - Socket closed or other error
         else if (n < 0) {
             int32_t err = socketGetLastError();
-            DBG_PRINTF_ERROR("XcpEthTlHandleCommands: socketRecvFrom failed n=%d (errno=%d)!\n", n, err);
+            DBG_PRINTF_ERROR("XcpEthTlHandleCommands: socketRecvFrom failed n=%d (errno=%d, %s)!\n", n, err, socketGetErrorString(err));
             return false; // Socket error
         }
 
@@ -728,17 +728,20 @@ void XcpEthTlGetInfo(bool *isTcp, uint8_t *mac, uint8_t *addr, uint16_t *port) {
 #define MAX_BUFFERS 256       // Max number of buffers that can be accumulated into one segment
 #define MIN_UPDATE_TIME_MS 50 // Update data at least every 50ms
 #define MAX_QUEUE_LEVEL 50    // Transmit immediately, when the queue is more than 50% full and there is no more commited data
-#define MAX_SLEEP_TIME_MS 1   // 1ms sleep time when there is no segment ready to send
+#define MAX_SLEEP_TIME_MS 1   // 1ms sleep time for retry, when there is was segment ready to send
+#define MAX_RETRIES 100       // Return to the caller after MAX_RETRIES
 
 // Collect queue buffers for one segment and transmit them
-// Returns after timeout, if there is nothing to send
+// Returns n = number of bytes sent or -1 on error
+// Returns n = 0 after timeout, if there is nothing to send
+// Returns after each segment sent
 int32_t XcpTlHandleTransmitQueue(void) {
 
     uint32_t length = 0;                     // Number of bytes collected for transmission
     uint32_t index = 0;                      // Index for peeking into the queue
     uint32_t total_lost = 0;                 // Accumulated lost packet count across all peeks
     tQueueBuffer queue_buffers[MAX_BUFFERS]; // Buffer pointers for peeking into the queue, max segment size / min message size
-    for (;;) {
+    for (uint16_t retries = 0; retries < MAX_RETRIES;) {
 
         uint32_t lost = 0;
         bool flush = false;
@@ -773,13 +776,14 @@ int32_t XcpTlHandleTransmitQueue(void) {
 
             // Sleep some time and retry
             sleepMs(MAX_SLEEP_TIME_MS);
+            retries++;
             continue;
         } else {
 
             // Check if this buffer fits into the maximum XCP segment size, if not break the loop and transmit the collected buffers
             if (length + l > XCPTL_MAX_SEGMENT_SIZE) {
                 // DBG_PRINT3("F\n");
-                break; // Segment full
+                break; // Segment full, transmit collected buffers
             }
 
             // Store buffer for later vectored io transmission and release
@@ -789,21 +793,21 @@ int32_t XcpTlHandleTransmitQueue(void) {
             // Flush request
             if (flush) {
                 // DBG_PRINT3("R\n");
-                break; // Flush requested by queue
+                break; // Flush requested by queue, transmit collected buffers
             }
 
             // Reached max number of buffers for one segment, break loop and transmit collected buffers
             if (index >= MAX_BUFFERS) {
                 // DBG_PRINT3("B\n");
-                break; // Buffers full
+                break; // Buffers full, transmit collected buffers
             }
         }
-    }
+    } // for(;;)
 
     // If there is nothing to send, return to the caller
     if (length == 0) {
         // DBG_PRINT3("XcpTlHandleTransmitQueue: Queue has no data, return\n");
-        return 0; // Nothing to do
+        return 0; // Nothing to do, return to the caller, who can do other background tasks or shutdown the server gracefully
     }
 
     // Maintain consistency of the message counter, so all messages in this segment have increasing transport layer counter

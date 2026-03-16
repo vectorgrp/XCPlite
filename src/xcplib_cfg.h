@@ -73,8 +73,8 @@
 
 #define OPTION_ENABLE_TCP
 #define OPTION_ENABLE_UDP
-#define OPTION_MTU 8000                     // Ethernet packet size (MTU), must be %8 - Jumbo frames supported
-#define OPTION_SERVER_FORCEFULL_TERMINATION // Don't wait for the rx and tx thread to finish, just terminate them
+#define OPTION_MTU 8000 // Ethernet packet size (MTU), must be %8 - Jumbo frames supported
+// #define OPTION_SERVER_FORCEFULL_TERMINATION // Don't wait for the rx and tx thread to finish, just terminate them
 
 //-------------------------------------------------------------------------------
 // CAL setting

@@ -296,20 +296,20 @@ bool XcpEthServerShutdown(void) {
 
     DBG_PRINT3("Disconnect, cancel threads and shutdown XCP!\n");
     XcpDisconnect();
-    cancel_thread(gXcpServer.receive_thread_handle);
 #ifdef OPTION_SERVER_FORCEFULL_TERMINATION
     // Forcefull termination
     // Threads are cancelled immediately without waiting for clean termination
+    cancel_thread(gXcpServer.receive_thread_handle);
     cancel_thread(gXcpServer.transmit_thread_handle);
+    sleepMs(10); // Give threads some time to terminate after cancellation before cleaning up sockets and other resources
     XcpEthTlShutdown();
 #else
     // Gracefull termination
-    // Close the sockets first, to release the blocking transmit
     gXcpServer.receive_thread_running = false;
     gXcpServer.transmit_thread_running = false;
-    XcpEthTlShutdown();
     join_thread(gXcpServer.receive_thread_handle);
     join_thread(gXcpServer.transmit_thread_handle);
+    XcpEthTlShutdown();
 #endif
     socketCleanup();
 
@@ -411,10 +411,14 @@ extern void *XcpServerTransmitThread(void *par)
         static uint64_t last_ctr = 0;
         uint64_t now = clockGetMonotonicUs();
         if (now - last_time >= 1000000) { // every 1s
-            if (ctr - last_ctr > 2000) {
+            uint32_t loops = ctr - last_ctr;
+            if (XcpIsConnected() && loops <= 5) {
+                DBG_PRINTF_WARNING("XCP transmit thread: only %u loops per second, slow background processing, check if the thread is blocked\n", loops);
+            }
+            if (loops > 2000) {
                 DBG_PRINT_WARNING("XCP transmit thread: more than 2000 loops per second, check if the thread is busy waiting\n");
             }
-            DBG_PRINTF6("XCP transmit thread: %llu loops per second\n", (ctr - last_ctr));
+            DBG_PRINTF6("XCP transmit thread: %llu loops per second\n", loops);
             last_time = now;
             last_ctr = ctr;
         }
