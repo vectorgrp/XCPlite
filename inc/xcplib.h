@@ -322,10 +322,14 @@ void XcpEventEnable(tXcpEventId event, bool enable);
 // Get stack frame pointer
 // Used by the Daq and A2l macros to get the stack frame pointer for stack relative addressing mode
 
+// Offset added to the frame pointer to get the base address for stack relative addressing mode
+// This defines the maximum stack frame size which can be accessed
+#define XCP_FRAME_ADDR_OFFSET 0x10000
+
 // Linux, MACOS gnu and clang compiler
 #if defined(__GNUC__) || defined(__clang__)
 
-#define xcp_get_frame_addr() (const uint8_t *)__builtin_frame_address(0)
+#define xcp_get_frame_addr() (const uint8_t *)((uint8_t *)__builtin_frame_address(0) - XCP_FRAME_ADDR_OFFSET)
 
 // MSVC compiler
 #elif defined(_MSC_VER)
@@ -342,7 +346,7 @@ static __forceinline const uint8_t *xcp_get_frame_addr(void) {
     void **return_addr_ptr = (void **)_AddressOfReturnAddress();
     // The saved frame pointer is typically at return_addr_ptr - 1
     // This gives us a consistent base address for stack-relative addressing
-    return (const uint8_t *)(return_addr_ptr - 1);
+    return (const uint8_t *)(return_addr_ptr - 1 - (XCP_FRAME_ADDR_OFFSET / sizeof(void *)));
 }
 #else
 #error "Unsupported MSVC architecture for frame pointer detection"

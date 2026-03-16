@@ -142,25 +142,25 @@ XCPlite relative addressing: XCPLITE__CASDD:
 // #define XCP_DYN_ADDR_OFFSET_BITS 16
 // #define XCP_DYN_ADDR_OFFSET_MASK 0xFFFF
 
-// --- Relative addressing modes without asynchronous access and i32 offset
+// --- Relative addressing modes without asynchronous access and uint32_t offset
 #ifdef XCP_ENABLE_REL_ADDRESSING
 
-// Use addr_ext XCP_ADDR_EXT_REL to indicate relative addr format (rel_base + (offset as int32_t))
+// Use addr_ext XCP_ADDR_EXT_REL to indicate relative addr format (rel_base + (offset as uint32_t))
 // Used for stack frame relative addressing
 #define XcpAddrIsRel(addr_ext) ((addr_ext) == XCP_ADDR_EXT_REL)
-#define XcpAddrEncodeRel(signed_int32_offset) ((uint32_t)(signed_int32_offset & 0xFFFFFFFF))
-#define XcpAddrDecodeRelOffset(addr) (int32_t)(addr) // signed 32 bit address offset
+#define XcpAddrEncodeRel(offset) ((uint32_t)(offset & 0xFFFFFFFF))
+#define XcpAddrDecodeRelOffset(addr) (uint32_t)(addr)
 
 #endif // XCP_ENABLE_REL_ADDRESSING
 
-// --- Event based relative addressing modes with asynchronous access and signed offset
+// --- Event based relative addressing modes with asynchronous access and uint32_t offset
 #ifdef XCP_ENABLE_DYN_ADDRESSING
 
 #define XcpAddrIsDyn(addr_ext) (((addr_ext) >= XCP_ADDR_EXT_DYN && (addr_ext) <= XCP_ADDR_EXT_DYN_MAX))
 
-#define XcpAddrEncodeDyn(signed_offset, event) (uint32_t)(((uint32_t)(event) << XCP_DYN_ADDR_OFFSET_BITS) | (uint32_t)((signed_offset) & XCP_DYN_ADDR_OFFSET_MASK))
-#define XcpAddrDecodeDynEvent(addr) (uint16_t)((addr) >> XCP_DYN_ADDR_OFFSET_BITS)                                        // event number as uint16_t
-#define XcpAddrDecodeDynOffset(addr) (int32_t)(((int32_t)((addr) << XCP_DYN_ADDR_EVENT_BITS)) >> XCP_DYN_ADDR_EVENT_BITS) // sign extension of address offset to uint32_t
+#define XcpAddrEncodeDyn(offset, event) (uint32_t)(((uint32_t)(event) << XCP_DYN_ADDR_OFFSET_BITS) | (uint32_t)((offset) & XCP_DYN_ADDR_OFFSET_MASK))
+#define XcpAddrDecodeDynEvent(addr) (uint16_t)((addr) >> XCP_DYN_ADDR_OFFSET_BITS) // event number as uint16_t
+#define XcpAddrDecodeDynOffset(addr) (uint32_t)((addr) & XCP_DYN_ADDR_OFFSET_MASK) // address offset as uint32_t
 
 #if !defined(XCP_MAX_EVENT_COUNT) || XCP_MAX_EVENT_COUNT > (1 << XCP_DYN_ADDR_EVENT_BITS)
 #error "XCP_MAX_EVENT_COUNT too large for XCP_DYN_ADDR_EVENT_BITS!"
@@ -170,11 +170,11 @@ XCPlite relative addressing: XCPLITE__CASDD:
 
 // --- Asynchronous absolute addressing mode (not thread safe)
 #ifdef XCP_ENABLE_ABS_ADDRESSING
-// Absolute addr format (xcp_get_base_addr() + (addr as int32_t))
-// Used for global data, address range is -/+ 2GB from the base address returned by xcp_get_base_addr()(ApplXcpGetBaseAddr())
+// Absolute addr format (xcp_get_base_addr() + (addr as uint32_t))
+// Used for global data, address range 4GB from the base address returned by xcp_get_base_addr() or ApplXcpGetBaseAddr()
 #define XcpAddrIsAbs(addr_ext) ((addr_ext) == XCP_ADDR_EXT_ABS)
 #define XcpAddrEncodeAbs(p) ApplXcpGetAddr(p) // Calculate absolute address encoding from a pointer, application specific function
-#define XcpAddrDecodeAbsOffset(addr) (int32_t)(addr)
+#define XcpAddrDecodeAbsOffset(addr) (uint32_t)(addr)
 #else
 #define XcpAddrIsAbs(addr_ext) false
 #define XcpAddrEncodeAbs(p) 0

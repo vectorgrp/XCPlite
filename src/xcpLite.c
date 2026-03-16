@@ -59,7 +59,7 @@
 #include <inttypes.h> // for PRIx32, PRIu64
 #include <stdarg.h>   // for va_list, va_start, va_arg, va_end
 #include <stdbool.h>  // for bool
-#include <stdint.h>   // for uint8_t, uint16_t, uint32_t, int32_t, uin...
+#include <stdint.h>   // for uint8_t, uint16_t, ...
 #include <stdio.h>    // for printf
 #include <stdlib.h>   // for size_t, NULL, abort
 #include <string.h>   // for memcpy, memset, strlen
@@ -236,13 +236,13 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
 // j is absolute odt number
 // i is daq number
 #define DaqListOdtTable ((const tXcpOdt *)&shared.daq_lists.u.daq_list[shared.daq_lists.daq_count])
-#define DaqListOdtEntryAddrTable ((const int32_t *)&DaqListOdtTable[shared.daq_lists.odt_count])
+#define DaqListOdtEntryAddrTable ((const uint32_t *)&DaqListOdtTable[shared.daq_lists.odt_count])
 #define DaqListOdtEntrySizeTable ((const uint8_t *)&DaqListOdtEntryAddrTable[shared.daq_lists.odt_entry_count])
 #ifdef XCP_ENABLE_DAQ_ADDREXT
 #define DaqListOdtEntryAddrExtTable ((const uint8_t *)&DaqListOdtEntrySizeTable[shared.daq_lists.odt_entry_count])
 #endif
 #define DaqListOdtTableMut ((tXcpOdt *)&shared_mut.daq_lists.u.daq_list[shared.daq_lists.daq_count])
-#define DaqListOdtEntryAddrTableMut ((int32_t *)&DaqListOdtTableMut[shared.daq_lists.odt_count])
+#define DaqListOdtEntryAddrTableMut ((uint32_t *)&DaqListOdtTableMut[shared.daq_lists.odt_count])
 #define DaqListOdtEntrySizeTableMut ((uint8_t *)&DaqListOdtEntryAddrTableMut[shared.daq_lists.odt_entry_count])
 #ifdef XCP_ENABLE_DAQ_ADDREXT
 #define DaqListOdtEntryAddrExtTableMut ((uint8_t *)&DaqListOdtEntrySizeTableMut[shared.daq_lists.odt_entry_count])
@@ -1100,7 +1100,7 @@ static uint8_t XcpAddOdtEntry(uint32_t addr, uint8_t ext, uint8_t size) {
     DaqListAddrExt(local.write_daq_daq) = ext;
 #endif
 
-    int32_t base_offset = 0;
+    uint32_t base_offset = 0;
 #ifdef XCP_ENABLE_DYN_ADDRESSING
     // DYN addressing mode, base pointer will given to XcpEventExt, event is encoded in the address
     if (XcpAddrIsDyn(ext)) {
@@ -1116,13 +1116,13 @@ static uint8_t XcpAddOdtEntry(uint32_t addr, uint8_t ext, uint8_t size) {
 #endif
 #ifdef XCP_ENABLE_REL_ADDRESSING
         // REL addressing mode, base pointer will given to XcpEventExt
-        // Max address range base-0x80000000 - base+0x7FFFFFFF
+        // Max address range base - base+0xFFFFFFFF
         if (XcpAddrIsRel(ext)) { // relative addressing mode
             base_offset = XcpAddrDecodeRelOffset(addr);
         } else
 #endif
 #ifdef XCP_ENABLE_ABS_ADDRESSING
-            // ABS addressing mode
+            // ABS addressing mode, base pointer is ApplXcpGetAbsAddrBase
             if (XcpAddrIsAbs(ext)) {
                 base_offset = XcpAddrDecodeAbsOffset(addr);
             } else
@@ -1401,10 +1401,10 @@ static void XcpTriggerDaqList_(tQueueHandle queue_handle, uint16_t daq, const ui
         // Loop over all ODT entries in a ODT
         {
             uint8_t *dst = &d0[hs];
-            uint32_t e = DaqListOdtTable[odt].first_odt_entry;      // first ODT entry index
-            uint32_t el = DaqListOdtTable[odt].last_odt_entry;      // last ODT entry index
-            const int32_t *addr_ptr = &DaqListOdtEntryAddrTable[e]; // pointer to ODT entry addr offset (signed 32 bit)
-            const uint8_t *size_ptr = &DaqListOdtEntrySizeTable[e]; // pointer to ODT entry size
+            uint32_t e = DaqListOdtTable[odt].first_odt_entry;       // first ODT entry index
+            uint32_t el = DaqListOdtTable[odt].last_odt_entry;       // last ODT entry index
+            const uint32_t *addr_ptr = &DaqListOdtEntryAddrTable[e]; // pointer to ODT entry addr offset
+            const uint8_t *size_ptr = &DaqListOdtEntrySizeTable[e];  // pointer to ODT entry size
 #ifdef XCP_ENABLE_DAQ_ADDREXT
             const uint8_t *addr_ext_ptr = &DaqListOdtEntryAddrExtTable[e]; // pointer to ODT entry address extension
 #endif

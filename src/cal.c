@@ -20,7 +20,7 @@
 #include <inttypes.h> // for PRIx32, PRIu64
 #include <stdarg.h>   // for va_list, va_start, va_arg, va_end
 #include <stdbool.h>  // for bool
-#include <stdint.h>   // for uint8_t, uint16_t, uint32_t, int32_t, uin...
+#include <stdint.h>   // for uint8_t, uint16_t, ...
 #include <stdio.h>    // for printf
 #include <stdlib.h>   // for size_t, NULL, abort
 #include <string.h>   // for memcpy, memset, strlen

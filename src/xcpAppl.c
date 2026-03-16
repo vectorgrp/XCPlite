@@ -183,18 +183,17 @@ void ApplXcpSetBaseAddr(const uint8_t *addr) {
 }
 
 // Get the A2L unsigned 32 bit address for a given pointer
-// Note:
-// In XCPlite, internal address offsets are signed 32 bit values, so the valid address range is from base-0x8000000 to base+0x7FFFFFFF
+// Value is positive offset to ApplXcpGetBaseAddr
 uint32_t ApplXcpGetAddr(const uint8_t *p) {
     const uint8_t *b = ApplXcpGetBaseAddr();
     int64_t diff = (int64_t)(p) - (int64_t)(b);
     DBG_PRINTF5("ApplXcpGetAddr: base = %p, addr = %p, diff = %" PRId64 "\n", (void *)b, (void *)p, diff);
-    if (diff < -2147483648LL || diff > 2147483647LL) { // Check XCP address range is sufficient
+    if (diff < 0 || diff > 0xFFFFFFFF) { // Check XCP address range is sufficient
         DBG_PRINTF_ERROR("Address out of range! base = %p, addr = %p\n", (void *)b, (void *)p);
         assert(0);
         return 0;
     }
-    return (uint32_t)((uint64_t)diff & 0xffffffff);
+    return (uint32_t)diff;
 }
 
 //----------------------------
