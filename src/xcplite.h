@@ -418,17 +418,13 @@ void ApplXcpStartDaq(void);
 void ApplXcpStopDaq(void);
 
 /* Address conversions from A2L address to pointer and vice versa in absolute addressing mode */
-#ifdef XCP_ENABLE_ABS_ADDRESSING
 const uint8_t *ApplXcpGetBaseAddr(void);      // Get the base address for absolute addressing mode */
 void ApplXcpSetBaseAddr(const uint8_t *addr); // Set base address for absolute addressing mode, only needed for special cases where the default base addr is not suitable
 extern const uint8_t *gXcpBaseAddr;
-#define xcp_get_base_addr() gXcpBaseAddr   // For runtime optimization, some macros use xcp_get_base_addr() instead of ApplXcpGetBaseAddr()
-uint32_t ApplXcpGetAddr(const uint8_t *p); // Calculate the absolute XCP/A2L 32 bit address from a pointer
-#else
-#define ApplXcpGetBaseAddr()
-#define xcp_get_base_addr() NULL
-#endif
-const uint8_t *ApplXcpGetModuleAddr(void); // Get the module base address, used as default base address for absolute addressing mode
+#define xcp_get_base_addr() gXcpBaseAddr     // For runtime optimization, some macros use xcp_get_base_addr() instead of ApplXcpGetBaseAddr()
+uint32_t ApplXcpGetAddr(const uint8_t *p);   // Calculate the absolute XCP/A2L 32 bit address from a pointer
+uint8_t ApplXcpGetAddrExt(const uint8_t *p); // Get the absolute XCP/A2L 8 bit address extension from a pointer
+const uint8_t *ApplXcpGetModuleAddr(void);   // Get the module base address, used as default base address for absolute addressing mode
 
 /* Read and write memory */
 #ifdef XCP_ENABLE_APP_ADDRESSING

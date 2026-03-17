@@ -350,7 +350,8 @@ static __forceinline const uint8_t *xcp_get_frame_addr(void) {
 const uint8_t *ApplXcpGetBaseAddr(void);
 void ApplXcpSetBaseAddr(const uint8_t *addr); // Set base address for absolute addressing mode, only needed for special cases where the default base addr is not suitable
 const uint8_t *ApplXcpGetModuleAddr(void);    // Get the module base address, used as default base address for absolute addressing mode
-uint32_t ApplXcpGetAddr(const uint8_t *p);    // Calculate the absolute XCP/A2L 32 bit address from a pointer
+uint32_t ApplXcpGetAddr(const uint8_t *p);    // Get the absolute XCP/A2L 32 bit address from a pointer
+uint8_t ApplXcpGetAddrExt(const uint8_t *p);  // Get the absolute XCP/A2L 8 bit address extension from a pointer
 extern const uint8_t *gXcpBaseAddr;
 #define xcp_get_base_addr() gXcpBaseAddr // For runtime optimization, use xcp_get_base_addr() instead of ApplXcpGetBaseAddr()
 

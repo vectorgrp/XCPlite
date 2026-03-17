@@ -150,19 +150,19 @@
 
 // Current supported addressing schemes are:
 // For A2L-Toolset compatibility: Absolute addressing mode - XCP_ADDRESS_MODE_XCPLITE__ACSDD
+// For SHM mode: Relative segment addressing mode - XCP_ADDRESS_MODE_XCPLITE__C_SDD
 // Default: Segment relative addressing mode - XCP_ADDRESS_MODE_XCPLITE__CASDD
-#if defined(XCP_ADDRESS_MODE_XCPLITE__ACSDD)
 #ifndef _WIN
 __attribute__((used))
 #endif
+#if defined(XCP_ADDRESS_MODE_XCPLITE__C_SDD)
+const uint16_t XCPLITE__C_SDD = XCP_DRIVER_VERSION;
+#elif defined(XCP_ADDRESS_MODE_XCPLITE__ACSDD)
 const uint16_t XCPLITE__ACSDD = XCP_DRIVER_VERSION;
 #elif defined(XCP_ADDRESS_MODE_XCPLITE__CASDD)
-#ifndef _WIN
-__attribute__((used))
-#endif
 const uint16_t XCPLITE__CASDD = XCP_DRIVER_VERSION;
 #else
-#error "Please define one of XCP_ADDRESS_MODE_XCPLITE__ACSDD, XCP_ADDRESS_MODE_XCPLITE__CASDD"
+#error "Please define one of XCP_ADDRESS_MODE_XCPLITE__ACSDD, XCP_ADDRESS_MODE_XCPLITE__CASDD, XCP_ADDRESS_MODE_XCPLITE__C_SDD"
 #endif
 
 /****************************************************************************/
@@ -1129,6 +1129,14 @@ static uint8_t XcpAddOdtEntry(uint32_t addr, uint8_t ext, uint8_t size) {
             // ABS addressing mode, base pointer is ApplXcpGetAbsAddrBase
             if (XcpAddrIsAbs(ext)) {
                 base_offset = XcpAddrDecodeAbsOffset(addr);
+#ifdef OPTION_SHM_MODE
+// Remove the application id from ext
+// In SHM mode, absolute base address is always at index 1 in the bases array in each application
+#ifndef XCP_ADDRESS_MODE_XCPLITE__C_SDD
+#error "OPTION_SHM_MODE requires XCP_ADDRESS_MODE_XCPLITE__C_SDD"
+#endif
+                ext = 1;
+#endif
             } else
 #endif
                 return CRC_ACCESS_DENIED;
@@ -1590,31 +1598,27 @@ void XcpEventExt_(tXcpEventId event, int count, const uint8_t **bases) {
 
 #if defined(XCP_ENABLE_DYN_ADDRESSING)
 
-// Supports XCP_ADDR_EXT_ABS and XCP_ADDR_EXT_DYN with given base pointer
+// Supports absolute and dynamic addressing mode with given base pointer
 void XcpEventExt(tXcpEventId event, const uint8_t *base) {
 #if defined(XCP_ADDRESS_MODE_XCPLITE__ACSDD)
     const uint8_t *bases[3] = {xcp_get_base_addr(), NULL, base};
-#elif defined(XCP_ADDRESS_MODE_XCPLITE__CASDD)
-    const uint8_t *bases[3] = {NULL, xcp_get_base_addr(), base};
 #else
-    static_assert(false);
+    const uint8_t *bases[3] = {NULL, xcp_get_base_addr(), base};
 #endif
     XcpEventExt_(event, 3, bases);
 }
 void XcpEventExtAt(tXcpEventId event, const uint8_t *base, uint64_t clock) {
 #if defined(XCP_ADDRESS_MODE_XCPLITE__ACSDD)
     const uint8_t *bases[3] = {xcp_get_base_addr(), NULL, base};
-#elif defined(XCP_ADDRESS_MODE_XCPLITE__CASDD)
-    const uint8_t *bases[3] = {NULL, xcp_get_base_addr(), base};
 #else
-    static_assert(false);
+    const uint8_t *bases[3] = {NULL, xcp_get_base_addr(), base};
 #endif
     XcpEventExtAt_(event, 3, bases, clock);
 }
 
 #endif // XCP_ENABLE_DYN_ADDRESSING
 
-// Supports XCP_ADDR_EXT_ABS only
+// Supports absolute addressing only
 void XcpEvent(tXcpEventId event) {
     if (!isDaqRunning())
         return; // DAQ not running
@@ -1628,10 +1632,8 @@ void XcpEvent(tXcpEventId event) {
 
 #if defined(XCP_ADDRESS_MODE_XCPLITE__ACSDD)
     const uint8_t *bases[2] = {xcp_get_base_addr(), NULL};
-#elif defined(XCP_ADDRESS_MODE_XCPLITE__CASDD)
-    const uint8_t *bases[2] = {NULL, xcp_get_base_addr()};
 #else
-    static_assert(false);
+    const uint8_t *bases[2] = {NULL, xcp_get_base_addr()};
 #endif
 
     XcpTriggerDaqEvent_(local.queue, event, 2, bases, ApplXcpGetClock64());
@@ -1649,10 +1651,8 @@ void XcpEventAt(tXcpEventId event, uint64_t clock) {
 
 #if defined(XCP_ADDRESS_MODE_XCPLITE__ACSDD)
     const uint8_t *bases[2] = {xcp_get_base_addr(), NULL};
-#elif defined(XCP_ADDRESS_MODE_XCPLITE__CASDD)
-    const uint8_t *bases[2] = {NULL, xcp_get_base_addr()};
 #else
-    static_assert(false);
+    const uint8_t *bases[2] = {NULL, xcp_get_base_addr()};
 #endif
 
     XcpTriggerDaqEvent_(local.queue, event, 2, bases, clock);

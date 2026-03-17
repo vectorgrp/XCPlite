@@ -74,7 +74,7 @@ static bool gA2lAutoGroupIsMeasurement = false;                      // Group is
 // Addressing mode
 static tXcpEventId gA2lFixedEvent = XCP_UNDEFINED_EVENT_ID;
 static tXcpEventId gA2lDefaultEvent = XCP_UNDEFINED_EVENT_ID;
-static uint8_t gA2lAddrExt = XCP_ADDR_EXT_ABS;           // Address extension (addressing mode, default absolute)
+static uint8_t gA2lAddrExt = XCP_UNDEFINED_ADDR_EXT;     // Address extension (addressing mode)
 static uint8_t gA2lAutoAddrExt = XCP_UNDEFINED_ADDR_EXT; // Address extension calculated in automatic mode (valid if gA2lAddrExt=XCP_UNDEFINED_ADDR_EXT)
 static const uint8_t *gA2lFramePtr = NULL;               // Frame address for rel and dyn mode
 static const uint8_t *gA2lBasePtr = NULL;                // Base address for rel and dyn mode
@@ -841,34 +841,37 @@ static const char *dbgPrintfAddrExt(uint8_t addr_ext, uint32_t addr) {
     static char buf1[A2L_ADDR_EXT_STR_MAX_LENGTH] = {0}; // static buffer for address string
     static char buf2[A2L_ADDR_EXT_STR_MAX_LENGTH] = {0}; // static buffer for address extension string
     const char *addr_str = NULL;
-
 #ifdef XCP_ENABLE_ABS_ADDRESSING
     if (XcpAddrIsAbs(addr_ext)) {
+#ifdef OPTION_SHM_MODE
+        addr_str = buf2;
+        SNPRINTF(buf2, A2L_ADDR_EXT_STR_MAX_LENGTH, "ABS%u", addr_ext - XCP_ADDR_EXT_ABS);
+#else
         addr_str = "ABS";
-    } else
+#endif
+    }
 #endif
 #ifdef XCP_ENABLE_CALSEG_LIST
-        if (XcpAddrIsSeg(addr_ext)) {
+    if (XcpAddrIsSeg(addr_ext)) {
         addr_str = "SEG";
-    } else
+    }
 #endif
 #ifdef XCP_ENABLE_DYN_ADDRESSING
-        if (XcpAddrIsDyn(addr_ext)) {
+    if (XcpAddrIsDyn(addr_ext)) {
         addr_str = buf2;
         SNPRINTF(buf2, A2L_ADDR_EXT_STR_MAX_LENGTH, "DYN%u(event=%u,offset=%d)", addr_ext - XCP_ADDR_EXT_DYN, XcpAddrDecodeDynEvent(addr), XcpAddrDecodeDynOffset(addr));
-
-    } else
+    }
 #endif
 #ifdef XCP_ENABLE_REL_ADDRESSING
-        if (XcpAddrIsRel(addr_ext)) {
+    if (XcpAddrIsRel(addr_ext)) {
         addr_str = "REL";
-    } else
-#endif
-    {
-        SNPRINTF(buf1, A2L_ADDR_EXT_STR_MAX_LENGTH, "%u:0x%08X", addr_ext, addr);
-        return buf1;
     }
-    SNPRINTF(buf1, A2L_ADDR_EXT_STR_MAX_LENGTH, "%.32s:0x%08X", addr_str, addr);
+#endif
+    if (addr_str == NULL) {
+        SNPRINTF(buf1, A2L_ADDR_EXT_STR_MAX_LENGTH, "%u:0x%08X", addr_ext, addr);
+    } else {
+        SNPRINTF(buf1, A2L_ADDR_EXT_STR_MAX_LENGTH, "%.32s:0x%08X", addr_str, addr);
+    }
     return buf1;
 }
 #endif
@@ -885,15 +888,18 @@ void A2lSetSegAddrMode(tXcpCalSegIndex calseg_index, const uint8_t *calseg_insta
 
 // Absolute addressing mode
 // XCP address is the absolute address of the variable relative to the main module load address
-#ifdef XCP_ENABLE_ABS_ADDRESSING
 void A2lSetAbsAddrMode(tXcpEventId default_event_id) {
     gA2lFixedEvent = XCP_UNDEFINED_EVENT_ID;
     gA2lDefaultEvent = default_event_id; // May be XCP_UNDEFINED_EVENT_ID
     gA2lFramePtr = NULL;
     gA2lBasePtr = NULL;
-    gA2lAddrExt = XCP_ADDR_EXT_ABS;
-}
+#ifdef XCP_ENABLE_ABS_ADDRESSING
+    gA2lAddrExt = ApplXcpGetAddrExt(NULL);
+#else
+    gA2lAddrExt = XCP_UNDEFINED_ADDR_EXT;
+    assert(0 && "Absolute addressing mode is not enabled, check XCP_ENABLE_ABS_ADDRESSING");
 #endif
+}
 
 // Relative addressing mode
 // Used for accessing stack variables relative to the stack frame pointer
@@ -936,7 +942,7 @@ void A2lRstAddrMode(void) {
     gA2lFramePtr = NULL;
     gA2lBasePtr = NULL;
     gA2lAddrIndex = 0;
-    gA2lAddrExt = XCP_ADDR_EXT_ABS;
+    gA2lAddrExt = XCP_UNDEFINED_ADDR_EXT;
     gA2lAutoAddrExt = XCP_UNDEFINED_ADDR_EXT;
 }
 
@@ -1190,7 +1196,7 @@ static uint32_t A2lGetAddr_(const void *p) {
                 DBG_PRINTF6("A2L dyn address overflow detected! addr: %p, base: %p, trying absolute\n", p, (void *)base_ptr);
 #ifdef XCP_ENABLE_ABS_ADDRESSING
                 // Fallback to absolute if overflow
-                gA2lAutoAddrExt = XCP_ADDR_EXT_ABS;
+                gA2lAutoAddrExt = ApplXcpGetAddrExt(p);
                 return XcpAddrEncodeAbs(p);
 #else
                 DBG_PRINTF_ERROR("A2L address overflow detected! addr: %p\n", p);

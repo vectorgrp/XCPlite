@@ -107,6 +107,17 @@ XCPlite relative addressing: XCPLITE__CASDD:
 */
 
 // C/C++ XCPlite uses absolute, dynamic and calibration segment relative addressing
+#ifdef OPTION_SHM_MODE
+// In SHM mode, the address extension for absolute addressing depends on the application id
+// @@@@ TODO: Not implemented yet, absolute addressing mode disabled
+// Relative calibration segment addressing mode
+#define XCP_ADDRESS_MODE_XCPLITE__C_SDD
+#define XCP_ADDRESS_MODE "XCPLITE__C_SDD"
+#define XCP_ENABLE_ABS_ADDRESSING
+#define XCP_ADDR_EXT_ABS 0x80 // + application id (0-MAX_APP_ID-1)
+#define XCP_ENABLE_SEG_ADDRESSING
+#define XCP_ADDR_EXT_SEG 0x00
+#else
 #if !defined(XCP_ENABLE_CALSEG_LIST) || defined(OPTION_CAL_SEGMENTS_ABS)
 // Absolute calibration segment addressing mode
 #define XCP_ADDRESS_MODE_XCPLITE__ACSDD
@@ -124,7 +135,9 @@ XCPlite relative addressing: XCPLITE__CASDD:
 #define XCP_ENABLE_ABS_ADDRESSING
 #define XCP_ADDR_EXT_ABS 0x01
 #endif
+#endif
 
+// --- Dynamic addressing mode is always enabled
 #define XCP_ENABLE_DYN_ADDRESSING
 #define XCP_ADDR_EXT_DYN 0x02     // Address extensions from 0x02 to 0x0F are used for dynamic event based relative addressing with asynchronous access
 #define XCP_ADDR_EXT_DYN_COUNT 14 // Size of the base pointer array - 2
@@ -171,10 +184,16 @@ XCPlite relative addressing: XCPLITE__CASDD:
 // --- Asynchronous absolute addressing mode (not thread safe)
 #ifdef XCP_ENABLE_ABS_ADDRESSING
 // Absolute addr format (xcp_get_base_addr() + (addr as uint32_t))
-// Used for global data, address range 4GB from the base address returned by xcp_get_base_addr() or ApplXcpGetBaseAddr()
+// Used for global data, address range 4GB from the base address returned by xcp_get_base_addr() or ApplXcpGetBaseAdd   r()
+#ifdef OPTION_SHM_MODE
+#define XcpAddrIsAbs(addr_ext) ((addr_ext) >= XCP_ADDR_EXT_ABS && (addr_ext) < (XCP_ADDR_EXT_ABS + SHM_MAX_APP_COUNT))
+#define XcpAddrEncodeAbs(p) ApplXcpGetAddr(p) // Calculate absolute address encoding from a pointer, application specific function
+#define XcpAddrDecodeAbsOffset(addr) (uint32_t)(addr)
+#else
 #define XcpAddrIsAbs(addr_ext) ((addr_ext) == XCP_ADDR_EXT_ABS)
 #define XcpAddrEncodeAbs(p) ApplXcpGetAddr(p) // Calculate absolute address encoding from a pointer, application specific function
 #define XcpAddrDecodeAbsOffset(addr) (uint32_t)(addr)
+#endif
 #else
 #define XcpAddrIsAbs(addr_ext) false
 #define XcpAddrEncodeAbs(p) 0

@@ -166,13 +166,11 @@ bool ApplXcpGetClockInfoGrandmaster(uint8_t *client_uuid, uint8_t *grandmaster_u
 // This allows using Microsoft linker PDB files for address update
 // In Microsoft Visual Studio set option "Generate Debug Information" to "optimized for sharing and publishing (/DEBUG:FULL)"
 
-#ifdef XCP_ENABLE_ABS_ADDRESSING
+const uint8_t *gXcpBaseAddr = NULL;
+bool gXcpBaseAddrValid = false;
 
 // Global module load address to optimize resolving relocated absolute addresses during runtime
 // xcp_get_base_addr() uses gXcpBaseAddr directly, not ApplXcpGetBaseAddr(), assuming XCP has been initialized before
-
-const uint8_t *gXcpBaseAddr = NULL;
-bool gXcpBaseAddrValid = false;
 
 // Set the base address for absolute addressing mode, if the default base address is not suitable
 void ApplXcpSetBaseAddr(const uint8_t *addr) {
@@ -193,6 +191,15 @@ uint32_t ApplXcpGetAddr(const uint8_t *p) {
         return 0;
     }
     return (uint32_t)diff;
+}
+
+// Get the XCP 8 bit address extension for a given pointer
+uint8_t ApplXcpGetAddrExt(const uint8_t *p) {
+#ifdef OPTION_SHM_MODE
+    return XCP_ADDR_EXT_ABS + XcpShmGetAppId(); // In SHM mode, use application specific address extension for absolute addressing to support multiple applications
+#else
+    return XCP_ADDR_EXT_ABS;
+#endif
 }
 
 //----------------------------
@@ -348,8 +355,6 @@ const uint8_t *ApplXcpGetModuleAddr(void) { return ((uint8_t *)0); }
 const uint8_t *ApplXcpGetBaseAddr(void) { return ApplXcpGetModuleAddr(); }
 
 #endif // defined(_LINUX) && defined(PLATFORM_32BIT)
-
-#endif // XCP_ENABLE_ABS_ADDRESSING
 
 /**************************************************************************/
 // Calibration memory segment access
