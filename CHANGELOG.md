@@ -7,8 +7,9 @@ All notable changes to XCPlite are documented in this file.
 
 ## [V2.0.0]
 
-- General refactoring and code cleanup, various minor code improvements and optimizations.  
+- General refactoring and code cleanup, various minor code improvements and optimizations
 - Renamed to 'libxcplite' with external package name `xcplite`
+- New non standard shared memory transport layer. In experimental stage. See 'SHM.md' for details
 - DAQ performance optimization, lock-less transmit queue for vectored IO
 - New function XcpCreateCalBlk to create calibration blocks without A2L memory segments
 - Simplified build script and CMake configuration, build script option to install libxcplite 
@@ -20,8 +21,6 @@ All notable changes to XCPlite are documented in this file.
 - Refactoring in platform.c socket abstraction: socket error handling, OPTION_SOCKET_HW_TIMESTAMPS, new function socketSetTimeout, improved debug logging for socketRecvFrom to help diagnose interface index issues on Linux, SOCKET keeps track of configured interface
 - Log level 6 for very verbose debug logging
 - Define GNU_SOURCE in cmakelists.txt
-- Experimental support for shared memory communication between XCP server and target application. Not planned for production use yet. Can be enabled with `OPTION_SHM_MODE` and the appropriate mode in XcpInit.  
-- The return value contract of `socketRecv` and `socketRecvFrom` has changed. Only code that uses these functions directly (i.e. code that includes `platform.h` is affected).  
 
 
 ### Breaking changes
@@ -30,6 +29,7 @@ All notable changes to XCPlite are documented in this file.
 ```c
 void XcpInit(const char *name, const char *epk, uint8_t mode);
 ```
+- The return value contract of `socketRecv` and `socketRecvFrom` has changed. Only code that uses these functions directly (i.e. code that includes `platform.h` is affected)
 
 
 

@@ -13,7 +13,7 @@ XCP is a measurement and parameter tuning (calibration) protocol commonly used i
 
 XCPlite extends XCP use cases beyond traditional embedded microcontrollers to **modern multicore microprocessors** and SoCs running POSIX-compliant operating systems (Linux, QNX) or real-time operating systems (RTOS) such as ThreadX.
 
-Designed exclusively for **Ethernet transport** (TCP/UDP with jumbo frames), XCPlite solves the challenges of measurement and calibration in systems with true parallelism and multithreading:
+Designed exclusively for the **XCP on Ethernet Transport Layer** (TCP/UDP with jumbo frames), XCPlite solves the challenges of measurement and calibration in systems with true parallelism and multithreading:
 
 - **Thread-safe & lock-free** - Consistent data acquisition and parameter modification across multiple cores
 - **Memory-safe** - Measure and calibrate variables in any storage location: stack, heap, thread-local, and global
@@ -22,10 +22,12 @@ Designed exclusively for **Ethernet transport** (TCP/UDP with jumbo frames), XCP
 - **Calibration segments** - Page switching, consistent atomic modification, and parameter persistence (freeze)
 - **PTP timestamps** - Prepared for high-precision PTP synchronized timestamps
 
+In addition to XCP on Ethernet, XCPlite V2.0.0 has an optional, non standard shared memory transport layer for extremely low latency and high throughput. An XCP over SHM client can run on the local machine, attach to multiple instrumented applications and forwards to a single, local XCP on Ethernet server or to other logging protocols, such as CMP or DLT. It can even store data in a local file for later analysis.  
+
 The API provides instrumentation macros for developers to define measurement points, calibration parameters, and meta data.  
 Lock-free implementation ensures thread safety and data consistency without blocking latencies, even under high contention on multicore systems.
 
-XCPlite is optimized for 64-bit architectures, compatible with 32-bit platforms. Requires C11 (C++20 for C++ support). Serves as the C library foundation for [XCP-Lite Rust](https://github.com/vectorgrp/xcp-lite).
+XCPlite is optimized for 64-bit architectures, compatible with 32-bit platforms. Requires C11 (C++20 for C++ support). Serves as the C library foundation for [XCP-Lite Rust](https://github.com/vectorgrp/xcp-lite).  
 
 **Other XCP Implementations:**
 - **XCPbasic** - Free implementation for smaller Microcontrollers (8-bit+), optimized for CAN
