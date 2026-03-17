@@ -39,7 +39,7 @@
 
 #include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
 
-#include "xcpEthTl.h" // for XcpTlGetCtr
+#include "xcptl.h" // for XcpTlGetCtr
 
 // Turn of misaligned atomic access warnings
 // Alignment is assured by the queue header and the queue entry size alignment

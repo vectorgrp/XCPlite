@@ -7,7 +7,7 @@
 |   Inspect, validate and clean the POSIX shared memory regions used by XCPlite
 |   multi-process (OPTION_SHM_MODE) sessions.
 |
-|   Pulls in xcpLite.h so the struct layout is always in sync with the library.
+|   Pulls in xcplite.h so the struct layout is always in sync with the library.
 |
 | Usage:
 |   shmtool [command] [options]
@@ -45,7 +45,7 @@
 #ifdef OPTION_SHM_MODE
 
 #include "shm.h"
-#include "xcpLite.h"
+#include "xcplite.h"
 
 // ---------------------------------------------------------------------------
 // Helpers

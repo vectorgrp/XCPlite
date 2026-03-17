@@ -1,6 +1,6 @@
 /*----------------------------------------------------------------------------
 | File:
-|   xcpEthTl.c
+|   xcpethtl.c
 |
 | Description:
 |   XCP on UDP/TCP transport layer
@@ -8,10 +8,9 @@
 |
 | Copyright (c) Vector Informatik GmbH. All rights reserved.
 | Licensed under the MIT license. See LICENSE file in the project root for details.
-|
  ----------------------------------------------------------------------------*/
 
-#include "xcpEthTl.h"
+#include "xcpethtl.h"
 
 #include <assert.h>   // for assert
 #include <inttypes.h> // for PRIu64
@@ -24,9 +23,9 @@
 #include "platform.h"  // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
 #include "queue.h"
 #include "xcp.h"        // for CRC_XXX
-#include "xcpLite.h"    // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
 #include "xcp_cfg.h"    // for XCP_xxx
 #include "xcplib_cfg.h" // for OPTION_xxx
+#include "xcplite.h"    // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
 #include "xcptl_cfg.h"  // for XCPTL_xxx
 
 // Parameter checks
@@ -42,9 +41,9 @@
 #if ((XCPTL_MAX_SEGMENT_SIZE & 0x07) != 0)
 #error "XCPTL_MAX_SEGMENT_SIZE should be aligned to 8!"
 #endif
-#ifdef XCPTL_ENABLE_MULTICAST
-#ifndef XCP_ENABLE_DAQ_CLOCK_MULTICAST
-#error "XCP_ENABLE_DAQ_CLOCK_MULTICAST must be defined"
+#ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
+#ifndef XCPTL_ENABLE_MULTICAST
+#error "XCPTL_ENABLE_MULTICAST must be defined for GET_DAQ_CLOCK_MULTICAST"
 #endif
 #endif
 
@@ -107,7 +106,7 @@ static struct {
 static int handleXcpMulticastCommand(int n, tXcpCtoMessage *p, uint8_t *dstAddr, uint16_t dstPort);
 #endif
 
-//------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------
 // Ethernet transport layer socket functions
 
 // Transmit a UDP datagramm or TCP segment (contains multiple XCP DTO messages or a single CRM message (len+ctr+packet+fill))
@@ -208,7 +207,7 @@ static bool XcpEthTlSendV(tQueueBuffer buffers[], uint16_t count) {
 }
 #endif // OPTION_QUEUE_64_FIX_SIZE
 
-//------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------
 
 // Transmit a packet (the packet contains a single XCP CRM command response message)
 #ifndef XCPTL_CRM_VIA_TRANSMIT_QUEUE
@@ -256,7 +255,7 @@ void XcpEthTlSendMulticastCrm(const uint8_t *packet, uint16_t packet_size, const
 }
 #endif
 
-//------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------
 
 static bool handleXcpCommand(tXcpCtoMessage *p, uint8_t *srcAddr, uint16_t srcPort) {
 
@@ -715,7 +714,7 @@ void XcpEthTlGetInfo(bool *isTcp, uint8_t *mac, uint8_t *addr, uint16_t *port) {
         *port = gXcpTl.server_port;
 }
 
-//----------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------
 // Generic transport layer functions
 
 // Transmit completed and fully commited XCP DAQ and EVENT messages in the transmit queue as segments in UDP frames

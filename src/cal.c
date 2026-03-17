@@ -29,7 +29,7 @@
 #include "persistence.h" // for XcpBinFreezeCalSeg
 #include "platform.h"    // for atomics OS abstraction
 #include "xcp.h"         // XCP protocol definitions
-#include "xcpLite.h"     // XCP protocol layer interface functions
+#include "xcplite.h"     // XCP protocol layer interface functions
 
 /**************************************************************************/
 // State

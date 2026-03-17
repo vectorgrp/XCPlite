@@ -380,7 +380,7 @@ XCPlite relative addressing: XCPLITE__CASDD:
 // Default client clock UUID for unsynchronized clocks
 #define XCP_DAQ_CLOCK_UUID {0xdc, 0xa6, 0x32, 0xFF, 0xFE, 0x7e, 0x66, 0xdc}
 
-// Enable GET_DAQ_CLOCK_MULTICAST
+// Enable GET_DAQ_CLOCK_MULTICAST command, requires XCPTL_ENABLE_MULTICAST
 // Not recommended
 // #define XCP_ENABLE_DAQ_CLOCK_MULTICAST
 #ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST

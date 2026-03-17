@@ -1,6 +1,6 @@
 /*****************************************************************************
 | File:
-|   xcpLite.c
+|   xcplite.c
 |
 |  Description:
 |    Implementation of the ASAM XCP Protocol Layer V1.4
@@ -40,7 +40,6 @@
 |     - Memory write and read protection is not supported
 |     - Checksum calculation supports only CRC CCITT16 or ADD44
 |
-|
 | Copyright (c) Vector Informatik GmbH. All rights reserved.
 | Licensed under the MIT license. See LICENSE file in the project root for details.
 |
@@ -53,25 +52,30 @@
 #include "xcp_cfg.h"   // XCP protocol layer configuration parameters (XCP_xxx)
 #include "xcptl_cfg.h" // XCP transport layer configuration parameters (XCPTL_xxx)
 
-#include "xcpLite.h" // XCP protocol layer interface functions
+#include "xcplite.h" // XCP protocol layer interface functions
 
 #include <assert.h>   // for assert
 #include <inttypes.h> // for PRIx32, PRIu64
 #include <stdarg.h>   // for va_list, va_start, va_arg, va_end
 #include <stdbool.h>  // for bool
-#include <stdint.h>   // for uint8_t, uint16_t, ...
+#include <stdint.h>   // for uint8_t, uint16_t,...
 #include <stdio.h>    // for printf
 #include <stdlib.h>   // for size_t, NULL, abort
 #include <string.h>   // for memcpy, memset, strlen
 
+#include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
+#include "platform.h"  // for atomics
+
 #include "cal.h"         // for XcpCalSegXxx
-#include "dbg_print.h"   // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
 #include "persistence.h" // for XcpBinFreezeCalSeg
-#include "platform.h"    // for atomics
 #include "queue.h"       // for QueueXxx transport queue layer interface
 #include "shm.h"         // for shared memory management
 #include "xcp.h"         // XCP protocol definitions
-#include "xcpEthTl.h"    // for transport layer XcpTlWaitForTransmitQueueEmpty and XcpTlSendCrm
+
+#include "xcptl.h" // for transport layer abstraction XcpTlWaitForTransmitQueueEmpty and XcpTlSendCrm
+#if defined(XCPTL_ENABLE_MULTICAST)
+#include "xcpethtl.h" // for ethernet specific transport layer functions XcpEthTl
+#endif
 
 /****************************************************************************/
 /* Defaults and checks                                                      */

@@ -3,16 +3,15 @@
 
 /*----------------------------------------------------------------------------
 | File:
-|   xcpLite.h
+|   xcplite.h
 |
 | Description:
-|   XCPlite internal header file for XCP protocol layer xcpLite.c
+|   XCPlite internal header file for XCP protocol layer xcplite.c
 |
 | All functions, types and constants intended to be public API are declared in xcplib.h
 |
 | Copyright (c) Vector Informatik GmbH. All rights reserved.
 | See LICENSE file in the project root for details.
-|
  ----------------------------------------------------------------------------*/
 
 #include <stdbool.h> // for bool

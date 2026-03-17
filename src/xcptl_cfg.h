@@ -19,6 +19,9 @@
 #if defined(OPTION_ENABLE_TCP)
 #define XCPTL_ENABLE_TCP
 #endif
+#if defined(OPTION_SHM_MODE) && defined(XCPTL_ENABLE_MULTICAST)
+#error "Multicast response is not supported in SHM mode"
+#endif
 
 // Transport layer version
 #define XCP_TRANSPORT_LAYER_VERSION 0x0104

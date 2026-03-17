@@ -31,7 +31,7 @@
 #include <string.h>   // for memcpy, strcmp
 
 #include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT, ...
-#include "xcpEthTl.h"  // for XcpTlGetCtr
+#include "xcptl.h"     // for XcpTlGetCtr
 #include "xcptl_cfg.h" // for XCPTL_TRANSPORT_LAYER_HEADER_SIZE, XCPTL_MAX_DTO_SIZE, XCPTL_MAX_SEGMENT_SIZE
 
 /*

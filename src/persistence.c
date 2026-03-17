@@ -24,9 +24,9 @@
 #include "platform.h"   // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
 #include "shm.h"        // for shared memory management
 #include "xcp.h"        // for CRC_XXX
-#include "xcpLite.h"    // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
 #include "xcp_cfg.h"    // for XCP_xxx
 #include "xcplib_cfg.h" // for OPTION_xxx
+#include "xcplite.h"    // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
 #include "xcptl_cfg.h"  // for XCPTL_xxx
 
 #ifdef OPTION_CAL_PERSISTENCE

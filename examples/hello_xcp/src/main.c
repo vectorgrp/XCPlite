@@ -20,7 +20,7 @@
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
 #define OPTION_QUEUE_SIZE (1024 * 32)   // Size of the measurement queue in bytes, should be large enough to cover at least 10ms of expected traffic
 #define OPTION_XCP_MODE XCP_MODE_LOCAL  // XCP mode, e.g. XCP_MODE_LOCAL or XCP_MODE_DEACTIVATE
-#define OPTION_LOG_LEVEL 5              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_LOG_LEVEL 4              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 // New option in V1.1: Enable variadic all in one macros for simple arithmetic types, see examples below
 #define OPTION_USE_VARIADIC_MACROS

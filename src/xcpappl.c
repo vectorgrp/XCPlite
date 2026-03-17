@@ -1,14 +1,13 @@
 /*----------------------------------------------------------------------------
 | File:
-|   xcpAppl.c
+|   xcpappl.c
 |
 | Description:
-|   Application specific functions and callbacks for xcpLite.c
+|   Application specific functions and callbacks for xcplite.c
 |   Additional functions for interface
 |
 | Copyright (c) Vector Informatik GmbH. All rights reserved.
 | Licensed under the MIT license. See LICENSE file in the project root for details.
-|
  ----------------------------------------------------------------------------*/
 
 #include <assert.h>  // for assert
@@ -20,9 +19,9 @@
 #include "dbg_print.h"  // for DBG_PRINTF3, DBG_PRINT4, DBG_PRINTF4, DBG...
 #include "platform.h"   // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
 #include "xcp.h"        // for CRC_XXX
-#include "xcpLite.h"    // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
 #include "xcp_cfg.h"    // for XCP_ENABLE_xxx
 #include "xcplib_cfg.h" // for OPTION_xxx
+#include "xcplite.h"    // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
 
 #if !defined(_WIN) && !defined(_LINUX) && !defined(_MACOS) && !defined(_QNX)
 #error "Please define platform _WIN, _MACOS or _LINUX or _QNX"
@@ -246,7 +245,7 @@ static int dump_phdr(const struct dl_phdr_info *pinfo, size_t size, void *data) 
     }
 #else
     // On QNX 7.1 or less, there is no API to retrieve the name of the current program
-    // Name must be forwarded from args[0] to xcpAppl
+    // Name must be forwarded from args[0]
     // Workaround for now: Assume that entry 0 always contains the application module
     ApplXcpSetBaseAddr((uint8_t *)pinfo->dlpi_addr);
 

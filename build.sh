@@ -271,10 +271,10 @@ if [ "$RUN_CLANG_TIDY" = true ] && [ "$BUILD_SUCCESS" = true ]; then
         
         # XCPlite library source files for clang tidy analysis
         XCPLITE_SOURCES=(
-            "src/xcpAppl.c"
-            "src/xcpLite.c"
-            "src/xcpEthServer.c"
-            "src/xcpEthTl.c"
+            "src/xcpappl.c"
+            "src/xcplite.c"
+            "src/xcpethserver.c"
+            "src/xcpethtl.c"
             "src/queue32.c"
             "src/queue64v.c"
             "src/queue64f.c"

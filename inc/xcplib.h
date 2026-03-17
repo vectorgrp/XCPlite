@@ -46,19 +46,6 @@ bool XcpEthServerShutdown(void);
 /// @return true if the server is running, otherwise false.
 bool XcpEthServerStatus(void);
 
-/// Get information about the XCP on Ethernet server instance address.
-/// @pre The server instance is running.
-/// @param out_is_tcp Optional out parameter to query if TCP or UDP is used.
-/// True if TCP, otherwise UDP.
-/// Pass NULL if not required.
-/// @param out_mac Optional out parameter to query the MAC address of the interface used in the server instance.
-/// Pass NULL if not required.
-/// @param out_address Optional out parameter to query the IP address used in the server instance.
-/// Pass NULL if not required.
-/// @param out_port Optional out parameter to query the port address used in the server instance.
-/// Pass NULL if not required.
-void XcpEthServerGetInfo(bool *out_is_tcp, uint8_t *out_mac, uint8_t *out_address, uint16_t *out_port);
-
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Calibration segments
 

@@ -9,7 +9,7 @@
 #include "a2l.h"    // for A2l generation
 #include "xcplib.h" // for application programming interface
 
-#include "xcpLite.h"
+#include "xcplite.h"
 
 //  Not public API, external linkage for testing
 extern bool A2lCheckFinalizeOnConnect(uint8_t connect_mode);

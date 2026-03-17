@@ -16,8 +16,8 @@
 
 // Internal libxcplite includes to simplify multi platform threading and print XCP metrics
 #include "platform.h"   // for THREAD
-#include "xcpLite.h"    // for metrics gXcpDaqEventCount, ...
 #include "xcplib_cfg.h" // for OPTION_xxx
+#include "xcplite.h"    // for metrics gXcpDaqEventCount, ...
 
 //-----------------------------------------------------------------------------------------------------
 

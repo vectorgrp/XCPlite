@@ -303,11 +303,6 @@ Stop the running server and free internal resources.
 
 Query whether the server instance is currently running.
 
-#### void XcpEthServerGetInfo(bool \*out\_is\_tcp, uint8\_t \*out\_mac, uint8\_t \*out\_address, uint16\_t \*out\_port)
-
-Retrieve run‑time information about the active server.\
-All out‑parameters are *optional* and may be passed as `NULL`.
-
 ---
 
 ### 3.2 Calibration Segments

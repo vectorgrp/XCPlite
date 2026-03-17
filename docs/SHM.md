@@ -48,7 +48,7 @@ There are tools included for working with or demonstrating the shared memory tra
 - `shmtool` - A helper tool to check and clear the state of the XCPlite shared memory and to trigger A2L file generation in the instrumented applications
 - `xcpdaemon` - An XCP on Ethernet server, which can attach to multiple XCP on SHM instrumented applications. This is just another (empty) application in XCP_MODE_SHM_SERVER, assuming all user applications are in mode XCP_MODE_SHM.  
 - `xcpclient` - An XCP client which supports XCP on ETH and XCP on SHM for testing, debugging, logging to local files and creating A2L files (taken from Rust xcp-lite)
-- `cmpdaemon` - An SHM client which provides measurement via the ASAM CMP protocol. It has a REST API to control which applications and variables are measured and forwarded to CMP clients or simply measure everything.
+- `cmpdaemon` - An SHM client which provides measurement via the ASAM CMP protocol. It has a REST API to control which applications variables are measured and forwarded to CMP clients or it can simply measure everything.
 
 See the readme files in the [tools](tools/) folder for more information about how to use these tools.
 

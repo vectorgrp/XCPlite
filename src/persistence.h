@@ -17,8 +17,8 @@
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uintxx_t
 
-#include "xcpLite.h"    // for tXcpCalSegIndex
 #include "xcplib_cfg.h" // for OPTION_xxx
+#include "xcplite.h"    // for tXcpCalSegIndex
 
 #ifdef OPTION_CAL_PERSISTENCE
 

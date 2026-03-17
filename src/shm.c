@@ -1,6 +1,6 @@
 /*****************************************************************************
 | File:
-|   xcpLite.c
+|   xcplite.c
 |
 |  Description:
 |    Shared memory management for XCPlite
@@ -13,7 +13,7 @@
 #include "xcplib_cfg.h" // for OPTION_xxx
 #include "xcptl_cfg.h"  // XCP transport layer configuration parameters (XCPTL_xxx)
 
-#include "xcpLite.h" // XCP protocol layer interface functions
+#include "xcplite.h" // XCP protocol layer interface functions
 
 #include <assert.h>   // for assert
 #include <inttypes.h> // for PRIx32, PRIu64
