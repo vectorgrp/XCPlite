@@ -31,7 +31,7 @@
 
 #ifdef OPTION_SHM_MODE
 #include "shm.h" // for shared memory management
-#endif
+#endif           // OPTION_SHM_MODE
 
 #ifdef __cplusplus
 extern "C" {
@@ -61,6 +61,7 @@ const char *XcpGetProjectName(void);
 
 // EPK software version identifier
 const char *XcpGetEpk(void);
+const char *XcpGetEcuEpk(void);
 
 // XCP command processor
 // Execute an XCP command
@@ -152,10 +153,9 @@ typedef struct {
     uint16_t index;         // Event instance index, 0 = single instance, 1.. = multiple instances
     uint16_t daq_first;     // First associated DAQ list, linked list
     uint8_t flags;          // Control flags for the event
-    // In SHM mode, the event has an application id
 #ifdef OPTION_SHM_MODE
-    uint8_t app_id; // Application id of the event
-#endif
+    uint8_t app_id; // In SHM mode, the event has an application id
+#endif              // OPTION_SHM_MODE
 #ifdef XCP_ENABLE_DAQ_PRESCALER
     uint8_t daq_prescaler;     // Current prescaler set with SET_DAQ_LIST_MODE
     uint8_t daq_prescaler_cnt; // Current prescaler counter
@@ -193,9 +193,9 @@ uint16_t XcpGetEventIndex(tXcpEventId event);
 const tXcpEvent *XcpGetEvent(tXcpEventId event);
 
 #ifdef OPTION_SHM_MODE
-// Get event application id
+// In SHM mode, get event application id
 uint8_t XcpGetEventAppId(tXcpEventId event);
-#endif
+#endif // OPTION_SHM_MODE
 
 #endif // XCP_ENABLE_DAQ_EVENT_LIST
 
@@ -300,10 +300,9 @@ typedef struct XcpData {
 
     uint16_t session_status; // must be the first field of the struct
 
-    // In SHM mode, tXcpData has a shared memory header
 #ifdef OPTION_SHM_MODE
-    tShmHeader shm_header; // SHM header
-#endif
+    tShmHeader shm_header; // In SHM mode, tXcpData has a shared memory header
+#endif                     // OPTION_SHM_MODE
 
     tXcpCto crm;     /* response message buffer */
     uint8_t crm_len; /* RES,ERR message length */
@@ -354,12 +353,12 @@ typedef struct XcpLocalData {
     // Initialisation mode (XCP_MODE_DEACTIVATE / XCP_MODE_LOCAL / XCP_MODE_SHM)
     uint8_t init_mode;
 
-    // In SHM mode, there is additional local state
 #ifdef OPTION_SHM_MODE
+    // In SHM mode
     uint8_t shm_app_id; // Index in shm_header.app_list,  SHM_MAX_APP_COUNT = no slot assigned yet
     bool shm_server;    // This process is the XCP server
     bool shm_leader;    // This process created the shared memory segment, responsible for initializing
-#endif
+#endif                  // OPTION_SHM_MODE
 
     // Memory transfer address (virtual pointer, OS handle)
     uint8_t *mta_ptr;   // Memory Transfer Address as pointer (process virtual address)

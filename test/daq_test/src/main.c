@@ -92,7 +92,7 @@ void *task(void *p)
     uint8_t counter8 = 0;
     uint16_t counter16 = 0;
     uint32_t counter32 = 0;
-    u_int64_t counter64 = 0;
+    uint64_t counter64 = 0;
     uint32_t array[64] = {0}; // 64*4=256 byte array
 
     // Instrumentation: Events and measurement variables

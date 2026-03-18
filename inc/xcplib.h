@@ -565,7 +565,7 @@ void XcpSetLogLevel(uint8_t level);
 #define XCP_MODE_SHM_SERVER 0xFF ///< Initialize and activate XCP, allocate state in POSIX shared memory, this is the XCP server
 
 /// Initialize the XCP singleton, must be called before starting the server
-/// @param mode XCP_MODE_DEACTIVATE, XCP_MODE_LOCAL, XCP_MODE_SHM, XCP_MODE_SHM_AUTO or XCP_MODE_SHM_SERVER (libxcplite build with OPTION_SHM_MODE)
+/// @param mode XCP_MODE_DEACTIVATE, XCP_MODE_LOCAL, XCP_MODE_SHM, XCP_MODE_SHM_AUTO or XCP_MODE_SHM_SERVER (libxcplite build with in SHM mode)
 bool XcpInit(const char *name, const char *epk, uint8_t mode);
 
 /// Reset XCP library to initial state
@@ -585,9 +585,6 @@ const char *XcpGetProjectName(void);
 // Notify XCPlite there is a valid A2L with this name to be provided for upload via XCP command GET_ID
 void XcpSetA2lName(const char *name);
 const char *XcpGetA2lName(void);
-
-// EPK software version identifier
-const char *XcpGetEpk(void);
 
 /// Force Disconnect
 /// Stop DAQ, flush queue, flush pending calibrations

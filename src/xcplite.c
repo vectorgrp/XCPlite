@@ -453,6 +453,26 @@ const char *XcpGetEpk(void) {
     return local.epk;
 }
 
+const char *XcpGetEcuEpk(void) {
+
+#ifdef OPTION_SHM_MODE
+    // In SHM mode, the EPK is for the complete multi application system (ECU)
+    if (XcpShmIsActive()) {
+        // Just read the content of the epk calibration segment if it exists, otherwise return a default string.
+        tXcpCalSegIndex epk_seg = XcpFindCalSeg("epk");
+        if (epk_seg != XCP_UNDEFINED_CALSEG) {
+            static char epk[XCP_EPK_MAX_LENGTH + 1]; // @@@@ TODO save this space by reading directly into the caller's buffer
+            const uint8_t *epk_data = XcpLockCalSeg(epk_seg);
+            strncpy(epk, (char *)epk_data, XCP_EPK_MAX_LENGTH);
+            epk[XCP_EPK_MAX_LENGTH] = 0; // Ensure null-termination
+            XcpUnlockCalSeg(epk_seg);
+            return (const char *)epk;
+        }
+    }
+#endif // OPTION_SHM_MODE
+    return XcpGetEpk();
+}
+
 /****************************************************************************/
 /* Calibration memory access                                                */
 /****************************************************************************/
@@ -622,10 +642,21 @@ uint8_t XcpSetMta(uint8_t ext, uint32_t addr) {
 #ifdef XCP_ENABLE_ABS_ADDRESSING
     // Absolute addressing mode
     if (XcpAddrIsAbs(local.mta_ext)) {
+
+#ifdef OPTION_SHM_MODE
+        // In SHM mode, check application id matches the address extension
+        uint8_t app_id = XcpAddrExtDecodeAppId(ext);
+        if (app_id != XcpShmGetAppId()) {
+            DBG_PRINTF_ERROR("XcpSetMta: Absolute address extension must have the application id of the current process, ext=%u, app_id=%u, current_app_id=%u\n", ext, app_id,
+                             XcpShmGetAppId());
+            return CRC_ACCESS_DENIED; // Error invalid application id
+        }
+#endif // OPTION_SHM_MODE
+
         local_mut.mta_ptr = (uint8_t *)ApplXcpGetBaseAddr() + XcpAddrDecodeAbsOffset(local.mta_addr);
         local_mut.mta_ext = XCP_ADDR_EXT_PTR;
 
-#if defined(XCP_ENABLE_CALSEG_LIST) && !defined(OPTION_SHM_MODE) && (XCP_ADDR_EXT_ABS == 0x00)
+#if defined(XCP_ENABLE_CALSEG_LIST) && defined(XCP_ENABLE_ABS_ADDRESSING) && (XCP_ADDR_EXT_ABS == 0x00)
         // Check for calibration segment absolute address (XcpSetMta is not performance critical)
         tXcpCalSegIndex calseg_index = XcpFindCalSegByAddr(local.mta_ptr);
         if (calseg_index != XCP_UNDEFINED_CALSEG) {
@@ -744,7 +775,7 @@ uint8_t XcpGetEventAppId(tXcpEventId event) {
         return 0;
     return shared.event_list.event[event].app_id;
 }
-#endif
+#endif // OPTION_SHM_MODE
 
 // Get the full event name, including instance index postfix if applicable
 // Result has lifetime until next call of XcpGetEventName()
@@ -780,7 +811,7 @@ static tXcpEventId XcpFindEventInstances(const char *name, uint16_t *pcount) {
             // In SHM mode, match only entries owned by this process — different apps have different namespace
 #ifdef OPTION_SHM_MODE
             if (shared.event_list.event[i].app_id == XcpShmGetAppId() && strcmp(shared.event_list.event[i].name, name) == 0) {
-#else
+#else // OPTION_SHM_MODE
             if (strcmp(shared.event_list.event[i].name, name) == 0) {
 #endif
                 if (pcount != NULL)
@@ -839,7 +870,7 @@ tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cyc
     // In SHM mode, assign event to the application, different apps have different namespace
 #ifdef OPTION_SHM_MODE
     shared_mut_safe.event_list.event[e].app_id = XcpShmGetAppId();
-#endif
+#endif // OPTION_SHM_MODE
 
     setEventCount(e + 1); // Publish new event, this is not thread safe, must be called with locked mutex, but it garantees atomic visibility of the new event
 
@@ -1133,10 +1164,10 @@ static uint8_t XcpAddOdtEntry(uint32_t addr, uint8_t ext, uint8_t size) {
 // Remove the application id from ext
 // In SHM mode, absolute base address is always at index 1 in the bases array in each application
 #ifndef XCP_ADDRESS_MODE_XCPLITE__C_SDD
-#error "OPTION_SHM_MODE requires XCP_ADDRESS_MODE_XCPLITE__C_SDD"
+#error "SHM mode requires XCP_ADDRESS_MODE_XCPLITE__C_SDD"
 #endif
                 ext = 1;
-#endif
+#endif // OPTION_SHM_MODE
             } else
 #endif
                 return CRC_ACCESS_DENIED;
@@ -1762,7 +1793,7 @@ void XcpDisconnect(void) {
     if (!XcpShmIsServer()) {
         return;
     }
-#endif
+#endif // OPTION_SHM_MODE
 
     if (isConnected()) {
 
@@ -1992,7 +2023,7 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
                 {
                     // EPK provided via upload
                     local_mut.mta_addr = XCP_ADDR_EPK;
-                    local_mut.mta_ptr = (uint8_t *)XcpGetEpk();
+                    local_mut.mta_ptr = (uint8_t *)XcpGetEcuEpk();
                     local_mut.mta_ext = XCP_ADDR_EXT_PTR;
                     CRM_GET_ID_LENGTH = ApplXcpGetId(CRO_GET_ID_TYPE, NULL, 0);
                     CRM_GET_ID_MODE = 0x00; // Transfer mode is "Uncompressed data upload"
@@ -2895,22 +2926,22 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     // Initialize high resolution clock
     clockInit();
 
-    // Set the project name
+    // Set the project name of this application
     if (name == NULL || STRNLEN(name, XCP_PROJECT_NAME_MAX_LENGTH) == 0) {
-        name = "XCPlite";
+        assert(false && "Project name is mandatory");
+        return false; // Project name is mandatory
     }
     XcpSetProjectName(name);
 
-    // Set the EPK
+    // Set the EPK version string for this application, used for version checking and compatibility checks with the A2L file
     if (epk == NULL || STRNLEN(epk, XCP_EPK_MAX_LENGTH) == 0) {
-        epk = __TIME__;
+        assert(false && "EPK version string is mandatory");
+        return false; // EPK version string is mandatory
     }
     XcpSetEpk(epk);
 
     // Allocate tXcpData on heap or attach to the shared memory
     if (mode >= XCP_MODE_SHM) {
-        assert(gXcpData == NULL);
-
         // In SHM mode, attach to shared memory, create it if not existing (leader), and register this application
 #ifdef OPTION_SHM_MODE
 
@@ -2937,48 +2968,47 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
             }
 #endif
 
-            local_mut.shm_app_id = XcpShmRegisterApp(name, epk, local_mut.shm_leader, local_mut.shm_server);
+            int16_t app_id = XcpShmRegisterApp(name, epk, local_mut.shm_leader, local_mut.shm_server);
+            if (app_id < 0) {
+                DBG_PRINT_ERROR("XcpInit: failed to register application in shared memory\n");
+                return false;
+            }
+            local_mut.shm_app_id = (uint8_t)app_id;
 
-            // Early return here
+            // Early return for non SHM leaders here !!!!!!!!!!!!!!
             // Successfully attached to a live leader
             return true;
         }
-#else
-        DBG_PRINT_ERROR("XcpInit: XCP_MODE_SHM requested but OPTION_SHM_MODE is not enabled in xcplib_cfg.h\n");
+#else // OPTION_SHM_MODE
+        DBG_PRINT_ERROR("XcpInit: SHM mode requested but not enabled in xcplib_cfg.h\n");
         return false;
 #endif
     }
     // Local mode: allocate private memory
     else {
-        gXcpData = (tXcpData *)malloc(sizeof(tXcpData)); // @@@@ TODO use static allocation if not OPTION_SHM_MODE
+        gXcpData = (tXcpData *)malloc(sizeof(tXcpData)); // @@@@ TODO Change to use static allocation
         if (gXcpData == NULL) {
             DBG_PRINT_ERROR("XcpInit: failed to allocate memory for tXcpData\n");
             return false;
         }
     }
 
-    // Clear XCP state (leader or LOCAL/DEACTIVATE mode)
-    // Note: SHM leader region is already zero-initialised by platformShmOpen, but a second memset here is harmless and ensures a clean state after in-process restart.
+    // Clear XCP state
     memset((uint8_t *)gXcpData, 0, sizeof(tXcpData));
-
     shared_mut.session_status = SS_INITIALIZED;
 
     if (mode == XCP_MODE_DEACTIVATE) {
         return true; // Do not activate XCP protocol layer, state is safe now
     }
 
-    // In SHM mode, the leader initializes shared memory
+    // In SHM mode, the leader initializes shared memory, followers already returned early after attaching and registering
 #ifdef OPTION_SHM_MODE
-    if (local_mut.shm_leader) {
-
-        XcpShmInit(gXcpData);
-
-        // Init local state of the leader
-        local_mut.shm_leader = true;
-        local_mut.shm_server = (mode == XCP_MODE_SHM_SERVER) || (mode == XCP_MODE_SHM_AUTO);
-        local_mut.shm_app_id = XcpShmRegisterApp(name, epk, local_mut.shm_leader, local_mut.shm_server);
-    }
-#endif // OPTION_SHM_MODE
+    assert(local_mut.shm_leader);
+    XcpShmInit(gXcpData);
+    local_mut.shm_leader = true;
+    local_mut.shm_server = (mode == XCP_MODE_SHM_SERVER) || (mode == XCP_MODE_SHM_AUTO);
+    local_mut.shm_app_id = 0; // Not defined yet, will be set after loading the binary persistence file
+#endif                        // OPTION_SHM_MODE
 
     // Reset DAQ list memory
     XcpClearDaq();
@@ -3008,13 +3038,23 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     }
 #endif
 
+// In SHM mode, the leader registered itself, after loading the binary persistence file
+#ifdef OPTION_SHM_MODE
+    int16_t app_id = XcpShmRegisterApp(name, epk, local_mut.shm_leader, local_mut.shm_server);
+    if (app_id < 0) {
+        DBG_PRINT_ERROR("XcpInit: failed to register application\n");
+        return false;
+    }
+    local_mut.shm_app_id = (uint8_t)app_id;
+#endif // OPTION_SHM_MODE
+
 #ifdef XCP_ENABLE_CALSEG_LIST
 #ifdef XCP_ENABLE_EPK_CALSEG
     // Create the EPK calibration segment
     // Make sure it has index 0
     // @@@@ TODO: Currently the EPK segment is treated like any other segment, even if it is read-only and does not need 2 pages
     static tXcpCalSegIndex cal__epk = XCP_UNDEFINED_CALSEG; // Create the linker file marker for the EPK segment
-    cal__epk = XcpCreateCalSeg("epk", XcpGetEpk(), XCP_EPK_MAX_LENGTH + 1);
+    cal__epk = XcpCreateCalSeg("epk", epk, XCP_EPK_MAX_LENGTH + 1);
     (void)cal__epk; // Avoid unused variable warning
     assert(cal__epk == 0);
 #endif

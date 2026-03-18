@@ -153,7 +153,7 @@ tXcpCalSegIndex XcpFindCalSeg(const char *name) {
         // In SHM mode, match only entries owned by this process — different apps may use the same name
 #ifdef OPTION_SHM_MODE
         if (calseg->h.app_id == XcpShmGetAppId() && strcmp(calseg->h.name, name) == 0) {
-#else
+#else // OPTION_SHM_MODE
         if (strcmp(calseg->h.name, name) == 0) {
 #endif
             return i;
@@ -164,7 +164,7 @@ tXcpCalSegIndex XcpFindCalSeg(const char *name) {
 
 // Get the index of a calibration segment by address (inside of the default page)
 // Lock-free, thread-safe
-#if !defined(OPTION_SHM_MODE) && defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
+#if defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
 tXcpCalSegIndex XcpFindCalSegByAddr(uint8_t *addr) {
     assert(isInitialized());
     // Iterate cal_seg_list cal_seg_list
@@ -233,8 +233,8 @@ uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg_index) {
 // Memory segments are addressed in absolute mode, not possible in shared memory mode
 // In SHM mode, absolute addressing mode on extension 0 is not supported
 #ifdef OPTION_SHM_MODE
-#error "Absolute addressing mode on extension 0 is not supported"
-#endif
+#error "Absolute addressing mode for segments is not supported"
+#endif // OPTION_SHM_MODE
 #if defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS != 0x00
 #error "XCP_ADDR_EXT_ABS must be 0x00"
 #endif
@@ -404,7 +404,7 @@ static void XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
         // In SHM mode, assign the app_id to the segment
 #ifdef OPTION_SHM_MODE
         c->h.app_id = XcpShmGetAppId();
-#else
+#else // OPTION_SHM_MODE
         c->h.app_id = 0;
 #endif
 
@@ -427,7 +427,7 @@ static void XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
 
             // Keep the pointer to the default page, which may have static lifetime
             // In SHM mode, there is no pointer to the default page
-#if !defined(OPTION_SHM_MODE) && defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
+#if defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
             c->h.default_page_ptr = (uint8_t *)default_page;
 #endif
         }
@@ -438,7 +438,7 @@ static void XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
             memset(CalSegDefaultPage(c), 0, page_size);
 
             // In SHM mode, there is no pointer to the default page
-#if !defined(OPTION_SHM_MODE) && defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
+#if defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
             c->h.default_page_ptr = NULL;
 #endif
 #else

@@ -195,9 +195,10 @@ uint32_t ApplXcpGetAddr(const uint8_t *p) {
 
 // Get the XCP 8 bit address extension for a given pointer
 uint8_t ApplXcpGetAddrExt(const uint8_t *p) {
+    (void)p;
 #ifdef OPTION_SHM_MODE
     return XCP_ADDR_EXT_ABS + XcpShmGetAppId(); // In SHM mode, use application specific address extension for absolute addressing to support multiple applications
-#else
+#else                                           // OPTION_SHM_MODE
     return XCP_ADDR_EXT_ABS;
 #endif
 }
@@ -583,7 +584,7 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen) {
     } break;
 
     case IDT_ASAM_EPK: {
-        const char *epk = XcpGetEpk();
+        const char *epk = XcpGetEcuEpk();
         if (epk == NULL)
             return 0;
         len = (uint32_t)strlen(epk);

@@ -208,23 +208,20 @@ void XcpShmDebugPrint(tXcpData *xcp_data) {
 
 #endif
 
-// Signal all follower processes to finalize their A2L file immediately
+// Signal all processes to finalize their A2L file immediately
 // From now, no other processes may join the XCP session
 void XcpShmRequestA2lFinalize(void) {
 
     assert(XcpShmIsActive());
     assert(isActivated_(gXcpData));
 
-    if (!XcpShmIsServer())
-        return;
-
     atomic_store(&gXcpData->shm_header.a2l_finalize_requested, 1U);
+    DBG_PRINT3("XcpShmRequestA2lFinalize: requested A2L finalization for all applications\n");
 
     // @@@@ TODO Unlink or not, a process might want to join running measurement
-    platformShmUnlink("/xcpdata");
-    platformShmUnlink("/xcpqueue");
-
-    DBG_PRINT3("XcpShmRequestA2lFinalize: requested A2L finalization for all followers, unlinked /xcpdata and /xcpqueue\n");
+    // platformShmUnlink("/xcpdata");
+    // platformShmUnlink("/xcpqueue");
+    // DBG_PRINT3("XcpShmRequestA2lFinalize: unlinked /xcpdata and /xcpqueue\n");
 }
 
 // Returns true once the leader has set the A2L finalize request flag.
@@ -253,7 +250,8 @@ void XcpShmNotifyA2lFinalized(const char *a2l_name) {
 }
 
 // Get the project name of the ECU
-const char *XcpShmGetEcuProjectName(void) { return "shm"; } // @@@@ TODO: store in SHM header?
+// @@@@ TODO: implement setting the ECU project name
+const char *XcpShmGetEcuProjectName(void) { return "shm"; }
 
 // Get the number of registered applications in SHM mode.
 uint8_t XcpShmGetAppCount(void) {
@@ -347,41 +345,52 @@ void XcpShmIncrementAliveCounter(void) {
     atomic_fetch_add(&gXcpData->shm_header.app_list[slot].alive_counter, 1U);
 }
 
-// Register this process in the SHM application list.
-// Returns the allocated shm_app_id (slot index= or SHM_MAX_APP_COUNT on error.
-// If a slot with a matching project_name already exists (process restart), it is reused.
-uint8_t XcpShmRegisterApp(const char *name, const char *epk, bool is_leader, bool is_server) {
+// Register this process in the SHM application list
+// Returns the allocated application id  (slot index) or -1 on error
+// If a slot with a matching project_name already exists (process restart), it is reused
+int16_t XcpShmRegisterApp(const char *name, const char *epk, bool is_leader, bool is_server) {
 
     assert(XcpShmIsActive());
     assert(isInitialized_(gXcpData));
+    assert(name != NULL);
+    assert(epk != NULL);
 
     tShmHeader *hdr = &gXcpData->shm_header;
 
-    // Scan for an existing slot with the same project_name (handles process restart or preload from BIN file)
+    // Scan for an existing slot with this application name
     uint32_t count = (uint32_t)atomic_load(&hdr->app_count);
     for (uint32_t i = 0; i < count; i++) {
         if (strncmp(hdr->app_list[i].project_name, name, XCP_PROJECT_NAME_MAX_LENGTH) == 0) {
             tApp *app = &hdr->app_list[i];
-            app->pid = (uint32_t)getpid();
-            app->is_leader = is_leader;
-            app->is_server = is_server;
-            STRNCPY(app->epk, epk, XCP_EPK_MAX_LENGTH);
-            app->epk[XCP_EPK_MAX_LENGTH] = '\0';
-            app->a2l_name[0] = '\0';
-            atomic_store(&app->a2l_finalized, 0U);
-            DBG_PRINTF3("XcpShmRegisterApp: reused app slot %u for '%s' (pid=%u)\n", i, name, (unsigned)getpid());
-            return (uint8_t)i;
+
+            // If the epk version also matches, we consider this a process restart or a pre registered applicationand reuse the existing id
+            // Otherwise we consider this application as new
+            if (strncmp(app->epk, epk, XCP_EPK_MAX_LENGTH) == 0) {
+                app->pid = (uint32_t)getpid();         // Set current PID, the old process might have died and left a stale entry
+                atomic_store(&app->alive_counter, 0U); // reset alive counter on restart
+                app->is_leader = is_leader;
+                app->is_server = is_server;
+                app->a2l_name[0] = '\0';
+                atomic_store(&app->a2l_finalized, 0U);
+                DBG_PRINTF3("Registered application %u:'%s', epk=%s\n", i, name, epk);
+                return (uint8_t)i;
+            } else {
+                DBG_PRINTF_ERROR("Application %u:'%s' has different epk %s, reset please !!!\n", i, name, epk);
+                return -1;
+            }
         }
     }
 
     // Atomically claim a fresh slot
     uint32_t slot = (uint32_t)atomic_fetch_add(&hdr->app_count, 1U);
     if (slot >= SHM_MAX_APP_COUNT) {
-        DBG_PRINT_ERROR("XcpShmRegisterApp: application list full\n");
+        DBG_PRINT_ERROR("Application list full\n");
         atomic_fetch_sub(&hdr->app_count, 1U); // undo the increment
-        return SHM_MAX_APP_COUNT;              // error sentinel
+        return -1;
     }
     tApp *app = &hdr->app_list[slot];
+
+    // Initialize the new slot
     memset(app->b, 0, sizeof(app->b));
     STRNCPY(app->project_name, name, XCP_PROJECT_NAME_MAX_LENGTH);
     app->project_name[XCP_PROJECT_NAME_MAX_LENGTH] = '\0';
@@ -392,9 +401,8 @@ uint8_t XcpShmRegisterApp(const char *name, const char *epk, bool is_leader, boo
     app->is_server = is_server;
     atomic_store(&app->alive_counter, 0U);
     atomic_store(&app->a2l_finalized, 0U);
-    DBG_PRINTF3("XcpShmRegisterApp: registered app slot %u for '%s' (pid=%u, %s, %s)\n", slot, name, (unsigned)getpid(), is_leader ? "leader" : "follower",
-                is_server ? "server" : "");
-    return (uint8_t)slot;
+    DBG_PRINTF3("Registered application %u:'%s' (pid=%u, %s, %s)\n", slot, name, (unsigned)getpid(), is_leader ? "leader" : "follower", is_server ? "server" : "");
+    return (int16_t)slot;
 }
 
 #endif // OPTION_SHM_MODE

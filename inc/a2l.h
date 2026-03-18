@@ -56,7 +56,7 @@
 // A2L generation modes
 
 #define A2L_MODE_WRITE_ALWAYS 0x01        // Always write A2L file, overwrite existing file
-#define A2L_MODE_WRITE_ONCE 0x02          // Write A2L file only once, do not overwrite existing file, use the binary persistence file to keep the A2L file valid
+#define A2L_MODE_WRITE_ONCE 0x02          // Write A2L file only once for a epk version, do not overwrite existing file, use the binary persistence file to keep the A2L file valid
 #define A2L_MODE_FINALIZE_ON_CONNECT 0x04 // Finalize A2L file on XCP connect
 #define A2L_MODE_AUTO_GROUPS 0x08         // Automatically create groups for measurements and parameters
 

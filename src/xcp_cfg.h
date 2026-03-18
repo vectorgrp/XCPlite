@@ -189,6 +189,7 @@ XCPlite relative addressing: XCPLITE__CASDD:
 #define XcpAddrIsAbs(addr_ext) ((addr_ext) >= XCP_ADDR_EXT_ABS && (addr_ext) < (XCP_ADDR_EXT_ABS + SHM_MAX_APP_COUNT))
 #define XcpAddrEncodeAbs(p) ApplXcpGetAddr(p) // Calculate absolute address encoding from a pointer, application specific function
 #define XcpAddrDecodeAbsOffset(addr) (uint32_t)(addr)
+#define XcpAddrExtDecodeAppId(addr_ext) ((addr_ext) - XCP_ADDR_EXT_ABS) // Decode application id from address extension, only used in SHM mode
 #else
 #define XcpAddrIsAbs(addr_ext) ((addr_ext) == XCP_ADDR_EXT_ABS)
 #define XcpAddrEncodeAbs(p) ApplXcpGetAddr(p) // Calculate absolute address encoding from a pointer, application specific function

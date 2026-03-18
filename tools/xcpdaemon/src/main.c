@@ -68,7 +68,7 @@ int main(void) {
     extern void XcpShmDebugPrint(struct tXcpData * xcp_data);
     XcpShmDebugPrint(gXcpData);
     printf("--------------------------------------------------------------\n");
-#endif
+#endif // OPTION_SHM_MODE
 
     uint32_t delay_us = 1000;
     while (running) {

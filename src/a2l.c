@@ -53,7 +53,6 @@ static bool gA2lAutoGroups = true;        // Automatically create groups for mea
 static bool gA2lSymbolPrefix = false;     // Prepend project name as prefix to all symbol names (measurements, parameters, typedefs, components)
 
 // A2L file handles and state
-static bool gA2lFileWritten = false;
 static FILE *gA2lMasterFile = NULL;
 static FILE *gA2lFile = NULL;
 static FILE *gA2lTypedefsFile = NULL;
@@ -94,7 +93,7 @@ static uint32_t gA2lConversions;
 
 //----------------------------------------------------------------------------------
 
-static bool A2lOpen(void);
+static bool A2lOpen(bool master_file_only);
 static uint32_t A2lGetAddr_(const void *addr);
 static uint8_t A2lGetAddrExt_(void);
 
@@ -317,7 +316,7 @@ const char *A2lGetEventName_(tXcpEventId id) {
     if (XcpShmIsServer()) {
         return A2lGetPrefixedName_(XcpShmGetAppProjectName(XcpGetEventAppId(id)), XcpGetEventName(id));
     }
-#endif
+#endif // OPTION_SHM_MODE
     return A2lGetPrefixedName_(XcpGetProjectName(), XcpGetEventName(id));
 }
 
@@ -328,7 +327,7 @@ const char *A2lGetCalSegName_(uint8_t app_id, const char *name) {
     if (XcpShmIsServer()) {
         return A2lGetPrefixedName_(XcpShmGetAppProjectName(app_id), name);
     }
-#endif
+#endif // OPTION_SHM_MODE
     return A2lGetPrefixedName_(XcpGetProjectName(), name);
 }
 
@@ -522,18 +521,20 @@ const char *A2lGetFilename(uint8_t file_type) {
     static char file_name[XCP_A2L_FILENAME_MAX_LENGTH + 1] = {0}; // static buffer for filename
     const char *project_name = XcpGetProjectName();
     const char postfix[32] = "";
+    bool add_postfix = !gA2lWriteAlways;
 
     // In SHM mode, the server uses a fixed A2L filename and the application id as postfix for the temporary files
     uint8_t id = 0;
 #ifdef OPTION_SHM_MODE
     id = XcpShmGetAppId();
-#endif
+#endif // OPTION_SHM_MODE
     switch (file_type) {
 #ifdef OPTION_SHM_MODE
     case A2L_MASTER_FILE:
         project_name = XcpShmGetEcuProjectName(); // Use the ECU name as filename for master file in SHM mode
+        add_postfix = false;
         break;
-#endif
+#endif // OPTION_SHM_MODE
     case A2L_TYPEDEFS_FILE:
         SNPRINTF(postfix, sizeof(postfix), "_typedefs_%u", id);
         break;
@@ -551,17 +552,17 @@ const char *A2lGetFilename(uint8_t file_type) {
 
     // Build A2L base filename from project name and EPK
     // If A2l file is generated only once for a new build, the EPK is appended to the filename
-    if (gA2lWriteAlways) {
-        SNPRINTF(file_name, sizeof(file_name), "%s%s.a2l", project_name, postfix);
-    } else {
+    if (add_postfix) {
         SNPRINTF(file_name, sizeof(file_name), "%s%s_%s.a2l", project_name, postfix, XcpGetEpk());
+    } else {
+        SNPRINTF(file_name, sizeof(file_name), "%s%s.a2l", project_name, postfix);
     }
 
     return file_name;
 }
 
 // Start A2L file generation
-static bool A2lOpen(void) {
+static bool A2lOpen(bool master_file_only) {
 
     gA2lMasterFile = NULL;
     gA2lFile = NULL;
@@ -573,13 +574,15 @@ static bool A2lOpen(void) {
 
     gA2lMeasurements = gA2lParameters = gA2lTypedefs = gA2lInstances = gA2lConversions = gA2lComponents = 0;
 
-    // Start A2L generator
-    const char *filename = A2lGetFilename(A2L_FILE);
-    DBG_PRINTF3("Start A2L generator, file=%s, write_always=%u, finalize_on_connect=%u, auto_groups=%u\n", filename, gA2lWriteAlways, gA2lFinalizeOnConnect, gA2lAutoGroups);
-    gA2lFile = fopen(filename, "w");
-    if (gA2lFile == NULL) {
-        DBG_PRINTF_ERROR("Could not create file %s!\n", filename);
-        return false;
+    if (!master_file_only) {
+        // Start A2L generator
+        const char *filename = A2lGetFilename(A2L_FILE);
+        DBG_PRINTF3("Start A2L generator, file=%s, write_always=%u, finalize_on_connect=%u, auto_groups=%u\n", filename, gA2lWriteAlways, gA2lFinalizeOnConnect, gA2lAutoGroups);
+        gA2lFile = fopen(filename, "w");
+        if (gA2lFile == NULL) {
+            DBG_PRINTF_ERROR("Could not create file %s!\n", filename);
+            return false;
+        }
     }
 
     // In SHM mode, open the master file
@@ -596,21 +599,25 @@ static bool A2lOpen(void) {
         gA2lMasterFile = NULL;
         A2lSetSymbolPrefix(true); // Prepend project name as prefix to all symbol names to avoid name clashes between multiple followers
     } else {
-        gA2lMasterFile = gA2lFile;
+        gA2lMasterFile = gA2lFile; // SHM mode not active, there is only one A2L file
     }
-#else
-    gA2lMasterFile = gA2lFile;
+#else // OPTION_SHM_MODE
+    gA2lMasterFile = gA2lFile; // There is only one A2L file
 #endif
-    gA2lTypedefsFile = fopen(A2lGetFilename(A2L_TYPEDEFS_FILE), "w");
-    gA2lGroupsFile = fopen(A2lGetFilename(A2L_GROUPS_FILE), "w");
-    gA2lConversionsFile = fopen(A2lGetFilename(A2L_CONVERSIONS_FILE), "w");
-    if (gA2lFile == 0 || gA2lTypedefsFile == 0 || gA2lGroupsFile == 0 || gA2lConversionsFile == 0) {
-        DBG_PRINT_ERROR("Could not create file!\n");
-        return false;
+
+    // Open the temporary files for typedefs, groups and conversions
+    if (gA2lFile != NULL) {
+        gA2lTypedefsFile = fopen(A2lGetFilename(A2L_TYPEDEFS_FILE), "w");
+        gA2lGroupsFile = fopen(A2lGetFilename(A2L_GROUPS_FILE), "w");
+        gA2lConversionsFile = fopen(A2lGetFilename(A2L_CONVERSIONS_FILE), "w");
+        if (gA2lFile == 0 || gA2lTypedefsFile == 0 || gA2lGroupsFile == 0 || gA2lConversionsFile == 0) {
+            DBG_PRINT_ERROR("Could not create file!\n");
+            return false;
+        }
+        fprintf(gA2lTypedefsFile, "\n/* Typedefs */\n");       // typedefs temporary file
+        fprintf(gA2lGroupsFile, "\n/* Groups */\n");           // groups temporary file
+        fprintf(gA2lConversionsFile, "\n/* Conversions */\n"); // conversions temporary file
     }
-    fprintf(gA2lTypedefsFile, "\n/* Typedefs */\n");       // typedefs temporary file
-    fprintf(gA2lGroupsFile, "\n/* Groups */\n");           // groups temporary file
-    fprintf(gA2lConversionsFile, "\n/* Conversions */\n"); // conversions temporary file
 
     // The other A2L files contain only data objects (MEASUREMENT/CHARACTERISTIC/...)
     if (gA2lMasterFile) {
@@ -683,7 +690,7 @@ static void A2lCreate_MOD_PAR(void) {
     fprintf(gA2lMasterFile, "\n/begin MOD_PAR \"\"\n");
 
     // EPK
-    const char *epk = XcpGetEpk();
+    const char *epk = XcpGetEcuEpk();
     if (epk) {
         fprintf(gA2lMasterFile, "EPK \"%s\" ADDR_EPK 0x%08X\n", epk, XCP_ADDR_EPK);
     }
@@ -846,7 +853,7 @@ static const char *dbgPrintfAddrExt(uint8_t addr_ext, uint32_t addr) {
 #ifdef OPTION_SHM_MODE
         addr_str = buf2;
         SNPRINTF(buf2, A2L_ADDR_EXT_STR_MAX_LENGTH, "ABS%u", addr_ext - XCP_ADDR_EXT_ABS);
-#else
+#else // OPTION_SHM_MODE
         addr_str = "ABS";
 #endif
     }
@@ -1835,6 +1842,65 @@ static bool includeFile(FILE **filep, const char *filename) {
     return true;
 }
 
+#if defined(XCP_ENABLE_DAQ_EVENT_LIST)
+static void createEventGroupsAndConversions(void) {
+
+    assert(gA2lMasterFile != NULL);
+
+    uint16_t eventCount = XcpGetEventCount();
+    const tXcpEventList *eventList = XcpGetEventList();
+    if (eventList != NULL && eventCount > 0) {
+
+        // Create a enum conversion with all event ids.
+        fprintf(gA2lMasterFile, "\n/begin COMPU_METHOD conv.events \"\" TAB_VERB \"%%.0 \" \"\" COMPU_TAB_REF conv.events.table /end COMPU_METHOD\n");
+        fprintf(gA2lMasterFile, "/begin COMPU_VTAB conv.events.table \"\" TAB_VERB %u\n", eventCount);
+        for (uint32_t id = 0; id < eventCount; id++) {
+            fprintf(gA2lMasterFile, " %u \"%s\"", id, A2lGetEventName_(id));
+        }
+        fprintf(gA2lMasterFile, "\n/end COMPU_VTAB\n");
+
+        // Create a sub group for all events
+        if (gA2lAutoGroups) {
+            fprintf(gA2lMasterFile, "\n/begin GROUP %sEvents \"Events\" ROOT /begin SUB_GROUP", A2lGetPrefixedName_(XcpGetProjectName(), ""));
+#ifdef OPTION_DAQ_ASYNC_EVENT
+            uint32_t id = 1; // Skip event 0 which is the built-in asynchronous events
+#else
+            uint32_t id = 0;
+#endif
+            for (; id < eventCount; id++) {
+                fprintf(gA2lMasterFile, " %s", A2lGetEventName_(id));
+            }
+            fprintf(gA2lMasterFile, " /end SUB_GROUP /end GROUP\n");
+        }
+    }
+}
+#endif // XCP_ENABLE_DAQ_EVENT_LIST
+
+// In SHM mode, include the partial A2L files generated by the applications into the master file
+#ifdef OPTION_SHM_MODE
+static void includePartialA2lFiles(void) {
+    // Wait for all other processes to finish writing their partial A2L files,
+    // Then append them into the master file
+    const char *files[SHM_MAX_APP_COUNT];
+    int count = XcpShmCollectA2lFiles(5000 /* ms */, files, SHM_MAX_APP_COUNT);
+    assert(count > 0);
+    for (int fi = 0; fi < count; fi++) {
+        FILE *fol = fopen(files[fi], "r");
+        if (fol != NULL) {
+            DBG_PRINTF3("A2lFinalize: merging A2L file '%s'\n", files[fi]);
+            fprintf(gA2lMasterFile, "\n/* #include \"%s\" */\n", files[fi]);
+            char line[512];
+            while (fgets(line, sizeof(line), fol) != NULL) {
+                fprintf(gA2lMasterFile, "%s", line);
+            }
+            fclose(fol);
+        } else {
+            DBG_PRINTF_WARNING("A2lFinalize: could not open file '%s'\n", files[fi]);
+        }
+    }
+}
+#endif // OPTION_SHM_MODE
+
 // Callback on XCP client tool connect
 bool A2lCheckFinalizeOnConnect(uint8_t connect_mode) {
 
@@ -1868,7 +1934,14 @@ bool A2lCheckFinalizeOnConnect(uint8_t connect_mode) {
 // Finalize A2L file generation
 bool A2lFinalize(void) {
 
-    // If A2l file is open, finalize it
+    // In SHM mode, signal all applications finalize their A2L files
+#ifdef OPTION_SHM_MODE
+    if (XcpShmIsServer()) {
+        XcpShmRequestA2lFinalize();
+    }
+#endif // OPTION_SHM_MODE
+
+    // If full or partial A2L file is open (A2L generation active), finalize it
     if (gA2lFile != NULL) {
 
         // Close the last group if any
@@ -1876,136 +1949,64 @@ bool A2lFinalize(void) {
             A2lEndGroup();
         }
 
-        // In SHM mode, signal all followers to finalize their A2L files
-#ifdef OPTION_SHM_MODE
-        if (XcpShmIsServer()) {
-            XcpShmRequestA2lFinalize();
-        }
-#endif
-
-        // Merge the temporary files
+        // Merge the temporary files for typedefs, groups and conversions
         includeFile(&gA2lTypedefsFile, A2lGetFilename(A2L_TYPEDEFS_FILE));
         includeFile(&gA2lGroupsFile, A2lGetFilename(A2L_GROUPS_FILE));
         includeFile(&gA2lConversionsFile, A2lGetFilename(A2L_CONVERSIONS_FILE));
 
-        // In SHM mode, merge all applications A2L files into the master file, which is the one sent to the client
+        // In SHM mode, close the server applications partial A2L file here
 #ifdef OPTION_SHM_MODE
-        if (XcpShmIsServer()) {
-
-            // Close the local file first, so it can be included as well
+        if (gA2lFile != gA2lMasterFile) {
             fclose(gA2lFile);
             gA2lFile = NULL;
             XcpShmNotifyA2lFinalized(A2lGetFilename(A2L_FILE));
-
-            // Wait for all follower processes to finish writing their partial A2L files,
-            // Then append them into the master file
-            const char *files[SHM_MAX_APP_COUNT];
-            int count = XcpShmCollectA2lFiles(5000 /* ms */, files, SHM_MAX_APP_COUNT);
-            assert(count > 0);
-            for (int fi = 0; fi < count; fi++) {
-                FILE *fol = fopen(files[fi], "r");
-                if (fol != NULL) {
-                    DBG_PRINTF3("A2lFinalize: merging A2L file '%s'\n", files[fi]);
-                    fprintf(gA2lMasterFile, "\n/* #include \"%s\" */\n", files[fi]);
-                    char line[512];
-                    while (fgets(line, sizeof(line), fol) != NULL) {
-                        fprintf(gA2lMasterFile, "%s", line);
-                    }
-                    fclose(fol);
-                } else {
-                    DBG_PRINTF_WARNING("A2lFinalize: could not open file '%s'\n", files[fi]);
-                }
-            }
         }
-#endif
+#endif // OPTION_SHM_MODE
+    }
+
+    // // If full A2l file is open (A2L generation active), finalize it
+    if (gA2lMasterFile != NULL) {
+
+#ifdef OPTION_SHM_MODE
+        // In SHM mode, merge all applications A2L files into the master file, which is the one sent to the client
+        if (XcpShmIsServer()) {
+            includePartialA2lFiles();
+        }
+#endif // OPTION_SHM_MODE
 
         // Create event conversions and groups
-#if defined(XCP_ENABLE_DAQ_EVENT_LIST)
+        createEventGroupsAndConversions();
 
-// In SHM mode, create event conversions and groups, only if we are the server
-#ifdef OPTION_SHM_MODE
-        if (XcpShmIsServer())
-#endif
-        {
+        // Create MOD_PAR section with EPK and calibration segments
+        A2lCreate_MOD_PAR();
 
-            assert(gA2lMasterFile != NULL);
+        // Create IF_DATA section with event list and transport layer info
+        A2lCreate_ETH_IF_DATA(gA2lUseTCP, gA2lOptionBindAddr, gA2lOptionPort);
 
-            uint16_t eventCount = XcpGetEventCount();
-            const tXcpEventList *eventList = XcpGetEventList();
-            if (eventList != NULL && eventCount > 0) {
-
-                // Create a enum conversion with all event ids.
-                fprintf(gA2lMasterFile, "\n/begin COMPU_METHOD conv.events \"\" TAB_VERB \"%%.0 \" \"\" COMPU_TAB_REF conv.events.table /end COMPU_METHOD\n");
-                fprintf(gA2lMasterFile, "/begin COMPU_VTAB conv.events.table \"\" TAB_VERB %u\n", eventCount);
-                for (uint32_t id = 0; id < eventCount; id++) {
-                    fprintf(gA2lMasterFile, " %u \"%s\"", id, A2lGetEventName_(id));
-                }
-                fprintf(gA2lMasterFile, "\n/end COMPU_VTAB\n");
-
-                // Create a sub group for all events
-                if (gA2lAutoGroups) {
-                    fprintf(gA2lMasterFile, "\n/begin GROUP %sEvents \"Events\" ROOT /begin SUB_GROUP", A2lGetPrefixedName_(XcpGetProjectName(), ""));
-#ifdef OPTION_DAQ_ASYNC_EVENT
-                    uint32_t id = 1; // Skip event 0 which is the built-in asynchronous events
-#else
-                    uint32_t id = 0;
-#endif
-                    for (; id < eventCount; id++) {
-                        fprintf(gA2lMasterFile, " %s", A2lGetEventName_(id));
-                    }
-                    fprintf(gA2lMasterFile, " /end SUB_GROUP /end GROUP\n");
-                }
-            }
-        }
-#endif // XCP_ENABLE_DAQ_EVENT_LIST
-
-        if (gA2lMasterFile) {
-
-            // Create MOD_PAR section with EPK and calibration segments
-            A2lCreate_MOD_PAR();
-
-            // Create IF_DATA section with event list and transport layer info
-            A2lCreate_ETH_IF_DATA(gA2lUseTCP, gA2lOptionBindAddr, gA2lOptionPort);
-
-            fprintf(gA2lMasterFile, "%s", gA2lFooter);
-
-            if (gA2lFile != gA2lMasterFile) {
-                fclose(gA2lMasterFile);
-                gA2lMasterFile = NULL;
-            }
-        }
-
-        if (gA2lFile != NULL) {
-            fclose(gA2lFile);
-            gA2lFile = NULL;
-        }
-
-        gA2lFileWritten = true;
+        // Append the footer and close
+        fprintf(gA2lMasterFile, "%s", gA2lFooter);
+        assert(gA2lFile == NULL || gA2lFile == gA2lMasterFile); // In non SHM mode, there is only the master file, in SHM mode, the partial file is already closed at this point
+        fclose(gA2lMasterFile);
+        gA2lMasterFile = NULL;
+        gA2lFile = NULL;
 
         DBG_PRINTF3("A2L created: %u measurements, %u params, %u typedefs, %u components, %u instances, %u conversions\n", gA2lMeasurements, gA2lParameters, gA2lTypedefs,
                     gA2lComponents, gA2lInstances, gA2lConversions);
 
-// Write the binary persistence file
-// This is required to make sure the A2L file remains valid, even if the creation order of event or calibration segment is different
+// Write the binary persistence file for this A2L file
+// This is required to make sure the A2L file remains valid, even if the creation order of application, events or calibration segments is different
 
-// Notify XCP that there is an A2L file available for upload by the XCP client
 // In SHM mode, the server provides the master file for upload
 #ifdef OPTION_SHM_MODE
-        if (XcpShmIsActive()) {
-
-            // The server provides the master file for upload and creates the binary persistence file
+        if (XcpShmIsActive()) { // The server provides the master file for upload and creates the binary persistence file
             if (XcpShmIsServer()) {
-                const char *master_filename = A2lGetFilename(A2L_MASTER_FILE);
 #ifdef OPTION_CAL_PERSISTENCE
                 XcpBinWrite(XCP_CALPAGE_WORKING_PAGE);
 #endif
-                XcpSetA2lName(master_filename); // Notify XCP that there is an A2L file available for upload by the XCP client
+                XcpSetA2lName(A2lGetFilename(A2L_MASTER_FILE)); // Notify XCP that there is an A2L file available for upload by the XCP client
             }
-
-            // Update this process's app slot with the A2L file name of this process
-            XcpShmNotifyA2lFinalized(A2lGetFilename(A2L_FILE));
         } else
-#endif
+#endif // OPTION_SHM_MODE
         {
 #ifdef OPTION_CAL_PERSISTENCE
             XcpBinWrite(XCP_CALPAGE_WORKING_PAGE);
@@ -2066,17 +2067,29 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
     // In A2L_WRITE_ONCE mode:
     // Check if the A2L file already exists and the persistence BIN file has been loaded and checked
     // If yes, skip generation if not write always
-    gA2lFileWritten = false;
     const char *a2l_filename = A2lGetFilename(A2L_FILE);
     if (!gA2lWriteAlways && (XcpGetSessionStatus() & SS_PERSISTENCE_LOADED) && fexists(a2l_filename)) {
-        // Notify XCP that there is an A2L file available for upload by the XCP client
-        XcpSetA2lName(a2l_filename);
-        DBG_PRINTF_WARNING("A2L file %s already exists, assuming it is still valid, disabling A2L generation\n", a2l_filename);
-        return true;
+
+#ifdef OPTION_SHM_MODE
+        // In SHM mode, the server writes the master file always, but the partial files maybe write once
+        if (!XcpShmIsServer())
+#endif // OPTION_SHM_MODE
+        {
+            // Notify XCP that there is an A2L file available for upload by the XCP client
+            XcpSetA2lName(a2l_filename);
+            DBG_PRINTF_WARNING("A2L file %s already exists, assuming it is still valid, disabling A2L generation\n", a2l_filename);
+            return true;
+        }
+
+        // Start A2L file generation, create only master A2L file
+        if (!A2lOpen(true)) {
+            DBG_PRINTF_ERROR("Failed to open A2L file %s\n", a2l_filename);
+            return false;
+        }
     }
 
-    // Open A2L file for generation
-    if (!A2lOpen()) {
+    // Start A2L file generation
+    if (!A2lOpen(false)) {
         DBG_PRINTF_ERROR("Failed to open A2L file %s\n", a2l_filename);
         return false;
     }

@@ -44,7 +44,7 @@
 
 #ifdef OPTION_SHM_MODE
 
-#include "shm.h"
+#include "shm.h" // for shared memory management
 #include "xcplite.h"
 
 // ---------------------------------------------------------------------------
@@ -268,7 +268,7 @@ static int cmd_finalize(uint32_t timeout_ms) {
     return all_done ? 0 : 2; // exit code 2 = partial timeout
 }
 
-#endif
+#endif // OPTION_SHM_MODE
 
 // ---------------------------------------------------------------------------
 // clean command
@@ -362,13 +362,13 @@ int main(int argc, char *argv[]) {
     case Cmd::Status:
 #ifdef OPTION_SHM_MODE
         return cmd_status(verbose);
-#else
+#else // OPTION_SHM_MODE
         break;
 #endif
     case Cmd::Finalize:
 #ifdef OPTION_SHM_MODE
         return cmd_finalize(timeout_ms);
-#else
+#else // OPTION_SHM_MODE
         break;
 #endif
     case Cmd::Clean:

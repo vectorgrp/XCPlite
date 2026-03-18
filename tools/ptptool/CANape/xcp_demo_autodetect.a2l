@@ -63,10 +63,6 @@ ALIGNMENT_INT64 1
 /begin TYPEDEF_MEASUREMENT M_F64 "" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -1e+12 1e+12 /end TYPEDEF_MEASUREMENT
 /begin TYPEDEF_CHARACTERISTIC C_F64 "" VALUE F64 0 NO_COMPU_METHOD -1e+12 1e+12 /end TYPEDEF_CHARACTERISTIC
 
-/begin MEASUREMENT counter "Local counter variable" UBYTE NO_COMPU_METHOD 0 0 0 255  ECU_ADDRESS 0x0 ECU_ADDRESS_EXTENSION 3 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT delay_ms "Loop delay in milliseconds" SLONG NO_COMPU_METHOD 0 0 0 1000  ECU_ADDRESS 0x0 ECU_ADDRESS_EXTENSION 4 PHYS_UNIT "ms" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT ptp_time "Current PTP clock value in double ns since start" FLOAT64_IEEE NO_COMPU_METHOD 0 0 0 1e+06  ECU_ADDRESS 0x0 ECU_ADDRESS_EXTENSION 5 PHYS_UNIT "ns" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT sys_time "Current system clock value in double ns since start" FLOAT64_IEEE NO_COMPU_METHOD 0 0 0 1e+06  ECU_ADDRESS 0x0 ECU_ADDRESS_EXTENSION 6 PHYS_UNIT "ns" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin CHARACTERISTIC observer_params.t1_correction "Correction for t1" VALUE 0x80010000 I32 0 NO_COMPU_METHOD -100 100 /end CHARACTERISTIC
 /begin CHARACTERISTIC observer_params.delay_req_burst_len "Number of DELAY_REQ per SYNC" VALUE 0x80010004 U8 0 NO_COMPU_METHOD 1 10 /end CHARACTERISTIC
 /begin CHARACTERISTIC observer_params.avg_drift_filter_size "Drift filter size" VALUE 0x80010005 U8 0 NO_COMPU_METHOD 1 300 /end CHARACTERISTIC
@@ -95,13 +91,17 @@ ALIGNMENT_INT64 1
 /begin MEASUREMENT obs_0.1_0.o.master_offset "Master offset" A_INT64 NO_COMPU_METHOD 0 0 -1e+09 1e+09  ECU_ADDRESS 0x404178 ECU_ADDRESS_EXTENSION 2 PHYS_UNIT "ns" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin CHARACTERISTIC obs_0.1_0.o.offset_to "Offset to other observers" VAL_BLK 0x404038 I64 0 NO_COMPU_METHOD -1e+12 1e+12 MATRIX_DIM 16 1 ECU_ADDRESS_EXTENSION 2 /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end CHARACTERISTIC
 /begin CHARACTERISTIC obs_0.1_0.o.drift_to "Offset to other observers" VAL_BLK 0x4040B8 F64 0 NO_COMPU_METHOD -1e+12 1e+12 MATRIX_DIM 16 1 ECU_ADDRESS_EXTENSION 2 /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end CHARACTERISTIC
+/begin MEASUREMENT counter "Local counter variable" UBYTE NO_COMPU_METHOD 0 0 0 255  ECU_ADDRESS 0x0 ECU_ADDRESS_EXTENSION 3 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT delay_ms "Loop delay in milliseconds" SLONG NO_COMPU_METHOD 0 0 0 1000  ECU_ADDRESS 0x0 ECU_ADDRESS_EXTENSION 4 PHYS_UNIT "ms" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT ptp_time "Current PTP clock value in double ns since start" FLOAT64_IEEE NO_COMPU_METHOD 0 0 0 1e+06  ECU_ADDRESS 0x0 ECU_ADDRESS_EXTENSION 5 PHYS_UNIT "ns" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT sys_time "Current system clock value in double ns since start" FLOAT64_IEEE NO_COMPU_METHOD 0 0 0 1e+06  ECU_ADDRESS 0x0 ECU_ADDRESS_EXTENSION 6 PHYS_UNIT "ns" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 
 /* Typedefs */
 
 /* Groups */
-/begin GROUP mainloop "Measurement event group"  /begin REF_MEASUREMENT counter delay_ms ptp_time sys_time /end REF_MEASUREMENT /end GROUP
 /begin GROUP observer_params "Calibration Segment" ROOT /begin REF_CHARACTERISTIC observer_params.t1_correction observer_params.delay_req_burst_len observer_params.avg_drift_filter_size observer_params.linreg_filter_size observer_params.linreg_offset_filter_size observer_params.linreg_jitter_filter_size observer_params.jitter_rms_filter_size observer_params.jitter_avg_filter_size /end REF_CHARACTERISTIC /end GROUP
 /begin GROUP obs_0.1_0 "Measurement event group"  /begin REF_MEASUREMENT obs_0.1_0.o.gm.domain obs_0.1_0.o.gm.uuid obs_0.1_0.o.gm.addr obs_0.1_0.o.sync_local_time obs_0.1_0.o.sync_master_time obs_0.1_0.o.sync_correction obs_0.1_0.o.sync_sequenceId obs_0.1_0.o.sync_steps obs_0.1_0.o.sync_cycle_time obs_0.1_0.o.flup_master_time obs_0.1_0.o.flup_sequenceId obs_0.1_0.o.flup_correction obs_0.1_0.o.master_drift obs_0.1_0.o.master_jitter obs_0.1_0.o.master_jitter_rms obs_0.1_0.o.master_jitter_avg obs_0.1_0.o.path_delay obs_0.1_0.o.master_offset obs_0.1_0.o.offset_to obs_0.1_0.o.drift_to /end REF_MEASUREMENT /end GROUP
+/begin GROUP mainloop "Measurement event group"  /begin REF_MEASUREMENT counter delay_ms ptp_time sys_time /end REF_MEASUREMENT /end GROUP
 
 /* Conversions */
 
@@ -113,7 +113,7 @@ ALIGNMENT_INT64 1
 /begin GROUP Events "Events" ROOT /begin SUB_GROUP mainloop obs_0.1_0 /end SUB_GROUP /end GROUP
 
 /begin MOD_PAR ""
-EPK "V0.0.2_client_10_24_42" ADDR_EPK 0x80000000
+EPK "V0.0.2_client_08_47_56" ADDR_EPK 0x80000000
 /begin MEMORY_SEGMENT epk "" DATA FLASH INTERN 0x80000000 32 -1 -1 -1 -1 -1
 /begin IF_DATA XCP
   /begin SEGMENT 0 2 0 0 0

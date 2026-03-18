@@ -1,9 +1,9 @@
 #pragma once
-#define __XCPSHM_H__
+#define __SHM_H__
 
 /*----------------------------------------------------------------------------
 | File:
-|   xshm.h
+|   shm.h
 |
 | Description:
 |   XCPlite internal header file for shared memory management
@@ -103,14 +103,14 @@ uint8_t XcpShmGetAppCount(void);                     // Get the number of regist
 const char *XcpShmGetAppProjectName(uint8_t app_id); // Get project name of an app slot by app_id index
 const char *XcpShmGetAppEpk(uint8_t app_id);         // Get EPK of an app slot by app_id index
 
-uint8_t XcpShmRegisterApp(const char *name, const char *epk, bool is_leader,
-                          bool is_server); // Register this process in the SHM application list; returns allocated app_id (slot index) or SHM_MAX_APP_COUNT on error
+// Register this process in the SHM application list; returns allocated application id (slot index) or -1 on error
+int16_t XcpShmRegisterApp(const char *name, const char *epk, bool is_leader, bool is_server);
 
 #ifdef DBG_LEVEL
 void XcpShmDebugPrint(tXcpData *xcp_data); // Print the status and information in tXcpData, for debugging purposes.
 #endif
 
-#else
+#else // OPTION_SHM_MODE
 
 #define XcpShmGetAppCount() 0
 #

@@ -378,7 +378,7 @@ bool XcpEthServerShutdown(void) {
         platformShmClose("/xcpqueue", gXcpServer.shm_queue_ptr, gXcpServer.shm_queue_total_size, false);
         gXcpServer.shm_queue_ptr = NULL;
     }
-#endif
+#endif // OPTION_SHM_MODE
 
     return true;
 }

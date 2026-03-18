@@ -28,7 +28,7 @@
 
 #ifdef OPTION_SHM_MODE
 #include "shm.h" // for shared memory management
-#endif
+#endif           // OPTION_SHM_MODE
 
 #ifdef __cplusplus
 extern "C" {
@@ -87,7 +87,7 @@ typedef union {
         atomic_uint_fast8_t ecu_access;      // page number for ECU access
         atomic_uint_fast8_t lock_count;      // lock count for the segment, 0 = unlocked
 #endif
-#if !defined(OPTION_SHM_MODE) && defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
+#if defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
         uint8_t *default_page_ptr; // process-local ptr to caller's static data, NOT sharable, used for
 #else
         uint8_t *res1; // In SHM mode, there is no pointer to the default page
@@ -106,7 +106,11 @@ typedef union {
         uint32_t res2;
         uint8_t res3;
 #endif
-        uint8_t app_id; // Application id of the event, only used in SHM mode
+#ifdef OPTION_SHM_MODE
+        uint8_t app_id; // Application id
+#else                   // OPTION_SHM_MODE
+        uin8_t res4;
+#endif
         char name[XCP_MAX_CALSEG_NAME + 1];
     };
     // uint8_t reserved[XCP_CALSEG_HEADER_SIZE];

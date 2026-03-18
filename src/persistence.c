@@ -98,21 +98,20 @@ static tHeader gBinHeader;
 #define XCP_BIN_FILENAME_MAX_LENGTH 255 // Maximum length of BIN filename with extension
 static char gXcpBinFilename[XCP_BIN_FILENAME_MAX_LENGTH + 1] = "";
 
-// Build BIN filename from project name and EPK
+// Build BIN filename from project name and epk, e.g. "app_name_V100.bin" (or "ecu_name.bin" in SHM mode, written by the server)
 static const char *XcpBinGetFilename(void) {
-    const char *basename;
+    const char *basename = XcpShmGetEcuProjectName();
+    assert(basename != NULL);
 #ifdef OPTION_SHM_MODE
     if (XcpShmIsActive()) {
-        basename = XcpShmGetEcuProjectName();
+        SNPRINTF(gXcpBinFilename, XCP_BIN_FILENAME_MAX_LENGTH, "%s.bin", basename);
     } else
-#endif
+#endif // OPTION_SHM_MODE
     {
-        basename = XcpGetProjectName();
+        const char *epk = XcpGetEpk();
+        assert(epk != NULL);
+        SNPRINTF(gXcpBinFilename, XCP_BIN_FILENAME_MAX_LENGTH, "%s_%s.bin", basename, epk);
     }
-    assert(basename != NULL);
-    const char *epk = XcpGetEpk();
-    assert(epk != NULL);
-    SNPRINTF(gXcpBinFilename, XCP_BIN_FILENAME_MAX_LENGTH, "%s_%s.bin", basename, epk);
     return gXcpBinFilename;
 }
 
@@ -160,7 +159,7 @@ static bool writeEvent(FILE *file, tXcpEventId event_id, const tXcpEvent *event)
     // In SHM mode, save the app_id of the event owner
 #ifdef OPTION_SHM_MODE
     desc.app_id = event->app_id;
-#endif
+#endif // OPTION_SHM_MODE
     desc.cycle_time_ns = event->cycle_time_ns;
     desc.priority = event->flags & XCP_DAQ_EVENT_FLAG_PRIORITY ? 0xFF : 0x00;
     desc.id = event_id;
@@ -187,7 +186,7 @@ static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, const tXcpCalSeg *se
     // In SHM mode, save the app_id of the calibration segment owner
 #ifdef OPTION_SHM_MODE
     desc.app_id = seg->h.app_id;
-#endif
+#endif // OPTION_SHM_MODE
     size_t written = fwrite(&desc, sizeof(tCalSegDescriptor), 1, file);
     if (written != 1) {
         DBG_PRINT_ERROR("Failed to write calibration segment descriptor to BIN file\n");
@@ -230,7 +229,7 @@ static bool writeApp(FILE *file, uint8_t app_id, const char *project_name, const
     return true;
 }
 
-#endif
+#endif // OPTION_SHM_MODE
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
@@ -264,7 +263,8 @@ bool XcpBinWrite(uint8_t page) {
     uint8_t app_count = XcpShmGetAppCount();
     uint16_t event_count = XcpGetEventCount();
     uint16_t calseg_count = XcpGetCalSegCount();
-    if (!writeHeader(file, XcpGetEpk(), event_count, calseg_count, app_count)) {
+    const char *epk = XcpGetEcuEpk();
+    if (!writeHeader(file, epk, event_count, calseg_count, app_count)) {
         fclose(file);
         return false;
     }
@@ -298,7 +298,7 @@ bool XcpBinWrite(uint8_t page) {
             return false;
         }
     }
-#endif
+#endif // OPTION_SHM_MODE
 
     fclose(file);
 
@@ -367,7 +367,7 @@ static bool load(const char *filename, const char *epk) {
     assert(filename != NULL);
     FILE *file = fopen(filename, "rb");
     if (file == NULL) {
-        DBG_PRINTF3("File '%s' does not exist, starting with default calibration parameters\n", filename);
+        DBG_PRINTF3("File '%s' does not exist\n", filename);
         return false;
     }
 
@@ -425,7 +425,7 @@ static bool load(const char *filename, const char *epk) {
 #ifdef OPTION_SHM_MODE
         tXcpEvent *event = (tXcpEvent *)XcpGetEvent(event_id); // @@@@ TODO cast away const, improve design to avoid this
         event->app_id = desc.app_id;
-#endif
+#endif // OPTION_SHM_MODE
     }
 
     // Load calibration segments
@@ -465,7 +465,7 @@ static bool load(const char *filename, const char *epk) {
 #endif
     }
 
-    // In SHM mode, load application list
+    // In SHM mode, load application list and pre register applications (assuming the application list is empty at this point)
 #ifdef OPTION_SHM_MODE
     for (uint8_t i = 0; i < gBinHeader.app_count; i++) {
         tAppDescriptor desc;
@@ -476,24 +476,22 @@ static bool load(const char *filename, const char *epk) {
             return false;
         }
 
-        // Register this process in the SHM application list
-        // Returns allocated app_id (slot index) or SHM_MAX_APP_COUNT on error
-        uint8_t app_id = XcpShmRegisterApp(desc.project_name, desc.epk, false, false);
-        if (app_id != desc.app_id) { // The app_id in the file must match the allocated app_id
-            DBG_PRINTF_ERROR("App ID mismatch: expected %u, got %u\n", desc.app_id, app_id);
-            fclose(file);
-            return false;
+        // Register by name and epk, in order with predefined application id, don't know who is leader or server yet
+        int16_t app_id = XcpShmRegisterApp(desc.project_name, desc.epk, false, false);
+        if (app_id < 0 || (uint8_t)app_id != desc.app_id) { // The app_id in the file must match the allocated app_id
+            DBG_PRINTF_ERROR("Could not register application %u:%s\n", desc.app_id, desc.project_name);
+            assert(0); // Should never happen
         }
-        DBG_PRINTF4("Loaded application %u, name=%s, epk=%s\n", desc.app_id, desc.project_name, desc.epk);
+        DBG_PRINTF4("Pre registered application %u:%s, epk=%s\n", desc.app_id, desc.project_name, desc.epk);
     }
-#endif
+#endif // OPTION_SHM_MODE
 
     fclose(file);
     return true;
 }
 
 // Load the binary persistence file.
-// This function reads the binary file containing calibration segment descriptors and data and event descriptors
+// This function reads the binary file containing calibration segment descriptors with data and event descriptors
 // It verifies the file signature and EPK, and creates the events and calibration segments
 // This must be done early, before any event or segments are created
 // @return
@@ -506,7 +504,7 @@ bool XcpBinLoad(void) {
     }
 
     const char *filename = XcpBinGetFilename();
-    const char *epk = XcpGetEpk();
+    const char *epk = XcpGetEcuEpk();
     assert(epk != NULL);
     if (load(filename, epk)) {
         DBG_PRINTF3("Loaded binary file %s\n", filename);
