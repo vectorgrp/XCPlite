@@ -50,11 +50,10 @@ extern "C" {
 
 // Initialization for the XCP Protocol Layer
 bool XcpInit(const char *name, const char *epk, uint8_t mode);
-bool XcpIsInitialized(void);
 bool XcpIsActivated(void);
-uint8_t XcpGetInitMode(void); // Returns the mode passed to XcpInit() — XCP_MODE_DEACTIVATE/LOCAL/SHM
+uint8_t XcpGetInitMode(void); // Returns the mode passed to XcpInit() — XCP_MODE_/DEACTIVATE/LOCAL/SHM/SHM_AUTO/SHM_SERVER
 void XcpStart(tQueueHandle queue_handle, bool resumeMode);
-// void XcpReset(void);
+void XcpDeinit(void);
 
 // Project name
 const char *XcpGetProjectName(void);
@@ -350,7 +349,7 @@ typedef struct XcpData {
 // Contains fields that are process-local or different per process
 // Can not live in shared memory
 typedef struct XcpLocalData {
-    // Initialisation mode (XCP_MODE_DEACTIVATE / XCP_MODE_LOCAL / XCP_MODE_SHM)
+    // Initialisation mode (XCP_MODE_DEACTIVATE / XCP_MODE_LOCAL / XCP_MODE_SHM / XCP_MODE_SHM_AUTO / XCP_MODE_SHM_SERVER)
     uint8_t init_mode;
 
 #ifdef OPTION_SHM_MODE

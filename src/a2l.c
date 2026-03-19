@@ -636,7 +636,7 @@ static bool A2lOpen(bool master_file_only) {
 #endif
         fprintf(gA2lMasterFile, "%s", gA2lHeader2);
     } else {
-        DBG_PRINT3("Generating partial A2L file: data objects only\n");
+        DBG_PRINT3("Generating partial A2L file: measurement and calibration objects only\n");
     }
 
     // Create predefined conversions and record layouts/typedefs
@@ -1932,6 +1932,7 @@ bool A2lCheckFinalizeOnConnect(uint8_t connect_mode) {
 }
 
 // Finalize A2L file generation
+// Return true if A2L file generation was active and is now finalized, false if A2L file generation was not active
 bool A2lFinalize(void) {
 
     // In SHM mode, signal all applications finalize their A2L files

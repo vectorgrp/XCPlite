@@ -111,12 +111,14 @@ XCPlite relative addressing: XCPLITE__CASDD:
 // In SHM mode, the address extension for absolute addressing depends on the application id
 // @@@@ TODO: Not implemented yet, absolute addressing mode disabled
 // Relative calibration segment addressing mode
-#define XCP_ADDRESS_MODE_XCPLITE__C_SDD
-#define XCP_ADDRESS_MODE "XCPLITE__C_SDD"
+#define XCP_ADDRESS_MODE_XCPLITE__CXSDD
+#define XCP_ADDRESS_MODE "XCPLITE__CXSDD"
 #define XCP_ENABLE_ABS_ADDRESSING
 #define XCP_ADDR_EXT_ABS 0x80 // + application id (0-MAX_APP_ID-1)
 #define XCP_ENABLE_SEG_ADDRESSING
 #define XCP_ADDR_EXT_SEG 0x00
+#define XCP_ENABLE_APP_ADDRESSING
+#define XCP_ADDR_EXT_APP 0x01
 #else
 #if !defined(XCP_ENABLE_CALSEG_LIST) || defined(OPTION_CAL_SEGMENTS_ABS)
 // Absolute calibration segment addressing mode
@@ -242,10 +244,8 @@ XCPlite relative addressing: XCPLITE__CASDD:
 // If built-in calibration segment management is disabled
 #ifdef XCP_ENABLE_APP_ADDRESSING
 
-// Use addr_ext XCP_ADDR_EXT_APP/SEG to indicate application specific addr format or segment relative address format
 // Application specific address format
 // Memory access and calibration segments are handled by the application, calls ApplXcpReadMemory and ApplXcpWriteMemory
-#define XCP_ADDR_EXT_APP 0x00
 #define XcpAddrIsApp(addr_ext) ((addr_ext) == XCP_ADDR_EXT_APP)
 
 #endif // XCP_ENABLE_APP_ADDRESSING

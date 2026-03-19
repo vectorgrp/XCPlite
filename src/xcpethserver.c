@@ -143,24 +143,24 @@ static bool ShmInit_(uint32_t queue_size) {
         bool elected = false;
         shm_ptr = platformShmOpen("/xcpqueue", "/tmp/xcpqueue.lock", shm_total, &elected);
         if (shm_ptr == NULL) {
-            DBG_PRINT_ERROR("XcpEthServerInit: failed to create /xcpqueue SHM\n");
+            DBG_PRINT_ERROR("XcpEthServerInit: failed to create '/xcpqueue' SHM\n");
             return false;
         }
         // A second leader process (e.g. after rebuild) won /xcpdata but /xcpqueue may
         // already exist. platformShmOpen does NOT reclaim it when sizes differ — we own it.
         if (elected) {
-            DBG_PRINTF3("XcpEthServerInit: SHM leader created /xcpqueue with size %zu bytes\n", shm_total);
+            DBG_PRINTF3("SHM leader created '/xcpqueue' with size %zu bytes\n", shm_total);
         } else {
-            DBG_PRINT_WARNING("XcpEthServerInit: Is SHM leader, but /xcpqueue already exists, not reinitializing\n");
+            DBG_PRINT_WARNING("XcpEthServerInit: Is SHM leader, but '/xcpqueue' already exists, not reinitializing\n");
         }
     } else {
         // Follower: attach to the existing queue at whatever size the leader allocated
         shm_ptr = platformShmOpenAttach("/xcpqueue", &shm_total);
         if (shm_ptr == NULL) {
-            DBG_PRINT_ERROR("XcpEthServerInit: failed to attach /xcpqueue SHM\n");
+            DBG_PRINT_ERROR("XcpEthServerInit: failed to attach '/xcpqueue' SHM\n");
             return false;
         }
-        DBG_PRINTF3("XcpEthServerInit: SHM follower attached to /xcpqueue with size %zu bytes\n", shm_total);
+        DBG_PRINTF3("SHM follower attached to '/xcpqueue' with size %zu bytes\n", shm_total);
     }
 
     gXcpServer.shm_queue_ptr = shm_ptr;
@@ -179,19 +179,20 @@ static bool ShmInit_(uint32_t queue_size) {
         }
         atomic_store(&hdr->leader_pid, (int32_t)getpid());
         atomic_store(&hdr->is_initialized, 1U);
-        DBG_PRINTF3("XcpEthServerInit: SHM leader, queue created, queue_size=%u\n", queue_size);
+        DBG_PRINTF3("SHM leader created '/xcpqueue', queue_size=%u\n", queue_size);
 
     }
 
     // Follower: Takeover existing queue
     else {
         // Follower: wait for the leader to complete queue initialisation
-        DBG_PRINT3("XcpEthServerInit: SHM queue follower, waiting for leader...\n");
         for (int i = 0; i < 5000 && !atomic_load(&hdr->is_initialized); i++) {
+            if (i == 0)
+                DBG_PRINT3("Waiting for leader to create '/xcpqueue' ...\n");
             sleepUs(1000);
         }
         if (!atomic_load(&hdr->is_initialized)) {
-            DBG_PRINT_ERROR("XcpEthServerInit: timeout waiting for SHM queue leader\n");
+            DBG_PRINT_ERROR("XcpEthServerInit: timeout waiting for SHM initialized\n");
             platformShmClose("/xcpqueue", shm_ptr, shm_total, false);
             return false;
         }
@@ -201,12 +202,12 @@ static bool ShmInit_(uint32_t queue_size) {
             platformShmClose("/xcpqueue", shm_ptr, shm_total, false);
             return false;
         }
-        DBG_PRINT3("XcpEthServerInit: SHM follower, queue attached\n");
+        DBG_PRINT3("SHM follower attached to '/xcpqueue'\n");
     }
 
     if (!XcpShmIsServer()) {
 
-        DBG_PRINT3("Start without XCP on ethernet server in SHM mode\n");
+        DBG_PRINT3("SHM mode initialized without XCP on ethernet server\n");
 
         // Start the background polling thread for SHM mode non server
         create_thread(&gXcpServer.shm_thread_handle, XcpShmThread);
@@ -323,22 +324,28 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
 bool XcpEthServerShutdown(void) {
 
     if (!XcpIsActivated()) {
-        DBG_PRINT5("XcpEthServerInit: XCP is deactivated!\n");
+        DBG_PRINT5("XcpEthServerShutdown: XCP is deactivated!\n");
         return false;
     }
 
     // Check if already initialized and running
     if (!gXcpServer.is_init) {
-        DBG_PRINT_WARNING("XCP server not running!\n");
+        DBG_PRINT_WARNING("XcpEthServerShutdown:XCP server not running!\n");
         return false;
     }
 
+    DBG_PRINT3("Disconnect and shutdown XCP!\n");
+    XcpDisconnect();
+    XcpDeinit();
+
 #ifdef OPTION_SHM_MODE
-    // In SHM mode, shutdown
+    // In SHM mode, shutdown a non server process
     // Not SHM server: no socket or server threads — stop the background thread, then clean up, unmap but do not unlink the SHM region for the queue
     if (XcpShmIsActive() && !XcpShmIsServer()) {
+        DBG_PRINT3("Terminate SHM thread\n");
         gXcpServer.shm_thread_running = false;
         join_thread(gXcpServer.shm_thread_handle);
+        DBG_PRINT3("Unmap SHM queue\n");
         platformShmClose("/xcpqueue", gXcpServer.shm_queue_ptr, gXcpServer.shm_queue_total_size, false);
         gXcpServer.shm_queue_ptr = NULL;
         gXcpServer.is_init = false;
@@ -346,8 +353,7 @@ bool XcpEthServerShutdown(void) {
     }
 #endif // OPTION_SHM_MODE
 
-    DBG_PRINT3("Disconnect, cancel threads and shutdown XCP!\n");
-    XcpDisconnect();
+    DBG_PRINT3("Terminate server threads\n");
 #ifdef OPTION_SERVER_FORCEFULL_TERMINATION
     // Forcefull termination
     // Threads are cancelled immediately without waiting for clean termination
@@ -364,21 +370,33 @@ bool XcpEthServerShutdown(void) {
     join_thread(gXcpServer.transmit_thread_handle);
     XcpEthTlShutdown();
 #endif
+
     socketCleanup();
 
     gXcpServer.is_init = false;
 
-    // Free the transmit queue, if it was created on heap
-    queueDeinit(gXcpServer.transmit_queue);
-
 #ifdef OPTION_SHM_MODE
     // In SHM mode, if the server goes down, unmap and unlink the SHM region for the queue
-    // No other application can use the SHM queue anymore, because the server is down
-    if (XcpShmIsActive() && gXcpServer.shm_queue_ptr != NULL) {
-        platformShmClose("/xcpqueue", gXcpServer.shm_queue_ptr, gXcpServer.shm_queue_total_size, false);
+    // No new application can attach to the SHM queue anymore, because the server is down,
+    // Exiting applications will overflow the queue and take appropriate action
+    if (XcpShmIsActive()) {
+
+        // Unmap and unlink the queue
+        DBG_PRINT3("Unmap and unlink SHM queue\n");
+        assert(gXcpServer.shm_queue_ptr != NULL);
+        platformShmClose("/xcpqueue", gXcpServer.shm_queue_ptr, gXcpServer.shm_queue_total_size, true /* unlink */);
         gXcpServer.shm_queue_ptr = NULL;
-    }
+
+        // Unmap and unlink the data
+        DBG_PRINT3("Unmap and unlink SHM data\n");
+        XcpShmUnlink();
+
+    } else
 #endif // OPTION_SHM_MODE
+    {
+        // Free the transmit queue, if it was created on heap
+        queueDeinit(gXcpServer.transmit_queue);
+    }
 
     return true;
 }
@@ -503,7 +521,7 @@ extern void *XcpShmThread(void *par)
 #endif
 {
     (void)par;
-    DBG_PRINT3("Start SHM thread\n");
+    DBG_PRINT3("SHM thread started\n");
 
     // Start the XCP protocol layer
     // Without starting the protocoll layer, event handling is not enabled

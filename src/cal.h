@@ -106,11 +106,7 @@ typedef union {
         uint32_t res2;
         uint8_t res3;
 #endif
-#ifdef OPTION_SHM_MODE
-        uint8_t app_id; // Application id
-#else                   // OPTION_SHM_MODE
-        uin8_t res4;
-#endif
+        uint8_t app_id; // Application id for SHM_MODE
         char name[XCP_MAX_CALSEG_NAME + 1];
     };
     // uint8_t reserved[XCP_CALSEG_HEADER_SIZE];
@@ -184,6 +180,7 @@ uint8_t XcpUnlockCalSeg(tXcpCalSegIndex calseg);
 
 // Initialize the calibration segment list
 void XcpInitCalSegList(void);
+void XcpDeinitCalSegList(void);
 
 // Get the number of calibration segments
 uint16_t XcpGetCalSegCount(void);

@@ -48,12 +48,9 @@ extern tXcpData *gXcpData;
 extern tXcpLocalData gXcpLocalData;
 #define local (*(const tXcpLocalData *)&gXcpLocalData) // Read-only access to process-local state
 
-static bool isInitialized_(tXcpData *xcp_data) {
-    return xcp_data->shm_header.magic == SHM_MAGIC && xcp_data->shm_header.version == SHM_VERSION && (SS_INITIALIZED == (xcp_data->session_status & SS_INITIALIZED));
-}
+static bool isInitialized_(tXcpData *xcp_data) { return xcp_data != NULL && xcp_data->shm_header.magic == SHM_MAGIC && xcp_data->shm_header.version == SHM_VERSION; }
 static bool isActivated_(tXcpData *xcp_data) {
-    return xcp_data->shm_header.magic == SHM_MAGIC && xcp_data->shm_header.version == SHM_VERSION &&
-           (SS_ACTIVATED | SS_INITIALIZED) == (xcp_data->session_status & (SS_ACTIVATED | SS_INITIALIZED));
+    return xcp_data != NULL && xcp_data->shm_header.magic == SHM_MAGIC && xcp_data->shm_header.version == SHM_VERSION && 0 != (xcp_data->session_status & SS_ACTIVATED);
 }
 
 /**************************************************************************/
@@ -80,9 +77,12 @@ bool XcpShmIsFollower(void) { return local.init_mode >= XCP_MODE_SHM && !local.s
 #ifdef DBG_LEVEL
 
 // Init shared memory header
-void XcpShmInit(tXcpData *xcp_data) {
+void XcpShmInitHeader(tShmHeader *hdr) {
+    assert(hdr != NULL);
+    if (hdr == NULL) {
+        return;
+    }
 
-    tShmHeader *hdr = &xcp_data->shm_header;
     hdr->magic = SHM_MAGIC;
     hdr->version = SHM_VERSION;
     hdr->size = (uint32_t)sizeof(tXcpData);
@@ -107,7 +107,7 @@ tXcpData *XcpShmAttachOrCreate(bool *out_is_leader) {
 
         // Check if init and activate
 
-        // Wait up to 500ms for the leader to complete his XcpInit() (indicated by SS_ACTIVATED)
+        // Wait up to 500ms for the leader to complete his XcpInit()
         if (!isActivated_(xcp_data)) {
             DBG_PRINT3("XcpInit: waiting for leader to activate XCP ...\n");
             for (int i = 0; i < 500 && !isActivated_(xcp_data); i++) {
@@ -116,8 +116,7 @@ tXcpData *XcpShmAttachOrCreate(bool *out_is_leader) {
         }
 
         if (isActivated_(xcp_data)) {
-
-            DBG_PRINTF3("XcpInit: attached to existing shared memory from leader PID %u\n", xcp_data->shm_header.leader_pid);
+            DBG_PRINTF3("Attached to existing shared memory '/xcpdata' from leader pid=%u\n", xcp_data->shm_header.leader_pid);
 
             // @@@@ TODO: What if the leader died, but the SHM is still there and not yet reclaimed by another leader?
             // Existing shared memory is valid and active, we can attach as a follower
@@ -146,15 +145,17 @@ tXcpData *XcpShmAttachOrCreate(bool *out_is_leader) {
     return xcp_data;
 }
 
-// Print the status and information in tXcpData, for debugging purposes.
-void XcpShmDebugPrint(tXcpData *xcp_data) {
+// Unlink the shared memory region, so no new processes can join, but keep the existing mapping valid for existing users until they exit and unmap themselves
+void XcpShmUnlink(void) { platformShmClose("/xcpdata", gXcpData, sizeof(tXcpData), true /* unlink */); }
 
-    assert(xcp_data != NULL);
-    if (xcp_data == NULL)
+// Print the status and information in tXcpData, for debugging purposes.
+void XcpShmDebugPrint(const tShmHeader *hdr) {
+
+    assert(hdr != NULL);
+    if (hdr == NULL)
         return;
 
     // --- SHM header ---
-    const tShmHeader *hdr = &xcp_data->shm_header;
     uint32_t app_count = (uint32_t)atomic_load(&hdr->app_count);
     printf("SHM Header:\n");
     printf("  magic=0x%016" PRIX64 ", version=%06X, size=%u\n", (uint64_t)hdr->magic, hdr->version, hdr->size);
@@ -169,12 +170,6 @@ void XcpShmDebugPrint(tXcpData *xcp_data) {
 
                (unsigned)atomic_load(&app->alive_counter), (unsigned)atomic_load(&app->a2l_finalized), app->a2l_name);
     }
-
-    // --- Session status ---
-    uint16_t ss = xcp_data->session_status;
-    printf("Session status: 0x%04X [%s%s%s%s%s]\n", ss, (ss & SS_INITIALIZED) ? "INIT " : "", (ss & SS_ACTIVATED) ? "ACTV " : "", (ss & SS_STARTED) ? "STRT " : "",
-           (ss & SS_CONNECTED) ? "CONN " : "", (ss & SS_LEGACY_MODE) ? "LEGACY " : "");
-    printf("  daq_running=%u, daq_overflow_count=%u\n", (unsigned)atomic_load_explicit(&xcp_data->daq_running, memory_order_relaxed), xcp_data->daq_overflow_count);
 
     // --- Event list ---
     uint16_t event_count = XcpGetEventCount();
@@ -216,19 +211,14 @@ void XcpShmRequestA2lFinalize(void) {
     assert(isActivated_(gXcpData));
 
     atomic_store(&gXcpData->shm_header.a2l_finalize_requested, 1U);
-    DBG_PRINT3("XcpShmRequestA2lFinalize: requested A2L finalization for all applications\n");
-
-    // @@@@ TODO Unlink or not, a process might want to join running measurement
-    // platformShmUnlink("/xcpdata");
-    // platformShmUnlink("/xcpqueue");
-    // DBG_PRINT3("XcpShmRequestA2lFinalize: unlinked /xcpdata and /xcpqueue\n");
+    DBG_PRINT3("Requested A2L finalization for all applications\n");
 }
 
 // Returns true once the leader has set the A2L finalize request flag.
 bool XcpShmIsA2lFinalizeRequested(void) {
 
-    assert(XcpShmIsActive());
-    assert(isActivated_(gXcpData));
+    if (!XcpShmIsActive() || !isInitialized_(gXcpData))
+        return false;
     return atomic_load(&gXcpData->shm_header.a2l_finalize_requested) != 0;
 }
 
@@ -336,8 +326,8 @@ int XcpShmCollectA2lFiles(uint32_t timeout_ms, const char *filenames[], int max_
 // Increment this process's alive_counter so the leader can detect stale followers.
 void XcpShmIncrementAliveCounter(void) {
 
-    assert(XcpShmIsActive());
-    assert(isActivated_(gXcpData));
+    if (!XcpShmIsActive() || !isInitialized_(gXcpData))
+        return;
 
     uint8_t slot = XcpShmGetAppId();
     if (slot >= SHM_MAX_APP_COUNT)
@@ -403,6 +393,20 @@ int16_t XcpShmRegisterApp(const char *name, const char *epk, bool is_leader, boo
     atomic_store(&app->a2l_finalized, 0U);
     DBG_PRINTF3("Registered application %u:'%s' (pid=%u, %s, %s)\n", slot, name, (unsigned)getpid(), is_leader ? "leader" : "follower", is_server ? "server" : "");
     return (int16_t)slot;
+}
+
+void XcpShmUnRegisterApp(uint8_t app_id) {
+
+    assert(XcpShmIsActive());
+
+    if (app_id >= SHM_MAX_APP_COUNT)
+        return;
+    tApp *app = &gXcpData->shm_header.app_list[app_id];
+    app->pid = 0; // Mark slot as vacant
+    app->alive_counter = 0;
+    app->is_leader = 0;
+    app->is_server = 0;
+    DBG_PRINTF3("Unregistered application %u:'%s'\n", app_id, app->project_name);
 }
 
 #endif // OPTION_SHM_MODE

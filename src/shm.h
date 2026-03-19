@@ -89,8 +89,9 @@ bool XcpShmIsServer(void);   // true when this process is the XCP server
 bool XcpShmIsLeader(void);   // true when this process created the shared memory region
 bool XcpShmIsFollower(void); // true when this process is a follower attached to a leader
 
-void XcpShmInit(tXcpData *xcp_data);                 // Initalize shared memory for this process, and register this process in the app list
+void XcpShmInitHeader(tShmHeader *hdr);              // Initalize shared memory for this process, and register this process in the app list
 tXcpData *XcpShmAttachOrCreate(bool *out_is_leader); // Attach to an existing shared memory region created by another process or create a new one
+void XcpShmUnlink(void); // Unlink shared memory, so no new processes can join, but keep the existing mapping valid for existing users until they exit and unmap themselves
 
 void XcpShmRequestA2lFinalize(void);             // Leader: signals all followers to finalize their A2L file now
 bool XcpShmIsA2lFinalizeRequested(void);         // Follower: returns true when leader has set the finalize flag
@@ -105,9 +106,10 @@ const char *XcpShmGetAppEpk(uint8_t app_id);         // Get EPK of an app slot b
 
 // Register this process in the SHM application list; returns allocated application id (slot index) or -1 on error
 int16_t XcpShmRegisterApp(const char *name, const char *epk, bool is_leader, bool is_server);
+void XcpShmUnRegisterApp(uint8_t app_id);
 
 #ifdef DBG_LEVEL
-void XcpShmDebugPrint(tXcpData *xcp_data); // Print the status and information in tXcpData, for debugging purposes.
+void XcpShmDebugPrint(const tShmHeader *hdr); // Print the status and information in tXcpData, for debugging purposes.
 #endif
 
 #else // OPTION_SHM_MODE

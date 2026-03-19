@@ -332,7 +332,7 @@ static bool handleXcpCommand(tXcpCtoMessage *p, uint8_t *srcAddr, uint16_t srcPo
 #ifdef XCPTL_ENABLE_UDP
     if (!isTCP() && !connected) { // not connected before
         if (XcpIsConnected()) {
-            DBG_PRINTF3("XCP client on UDP addr=%u.%u.%u.%u, port=%u\n", gXcpTl.master_addr[0], gXcpTl.master_addr[1], gXcpTl.master_addr[2], gXcpTl.master_addr[3],
+            DBG_PRINTF3("XCP client connected on UDP addr=%u.%u.%u.%u, port=%u\n", gXcpTl.master_addr[0], gXcpTl.master_addr[1], gXcpTl.master_addr[2], gXcpTl.master_addr[3],
                         gXcpTl.master_port);
         } else {                              // Is not in connected state
             gXcpTl.master_addr_valid = false; // Any client can connect

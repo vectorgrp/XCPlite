@@ -100,18 +100,13 @@ static char gXcpBinFilename[XCP_BIN_FILENAME_MAX_LENGTH + 1] = "";
 
 // Build BIN filename from project name and epk, e.g. "app_name_V100.bin" (or "ecu_name.bin" in SHM mode, written by the server)
 static const char *XcpBinGetFilename(void) {
-    const char *basename = XcpShmGetEcuProjectName();
-    assert(basename != NULL);
 #ifdef OPTION_SHM_MODE
-    if (XcpShmIsActive()) {
-        SNPRINTF(gXcpBinFilename, XCP_BIN_FILENAME_MAX_LENGTH, "%s.bin", basename);
-    } else
-#endif // OPTION_SHM_MODE
-    {
-        const char *epk = XcpGetEpk();
-        assert(epk != NULL);
-        SNPRINTF(gXcpBinFilename, XCP_BIN_FILENAME_MAX_LENGTH, "%s_%s.bin", basename, epk);
+    if (XcpShmIsActive()) { // Only server creates the persistence file with unique name
+        SNPRINTF(gXcpBinFilename, XCP_BIN_FILENAME_MAX_LENGTH, "%s.bin", XcpShmGetEcuProjectName());
+        return gXcpBinFilename;
     }
+#endif // OPTION_SHM_MODE
+    SNPRINTF(gXcpBinFilename, XCP_BIN_FILENAME_MAX_LENGTH, "%s_%s.bin", XcpGetProjectName(), XcpGetEpk());
     return gXcpBinFilename;
 }
 
@@ -169,7 +164,7 @@ static bool writeEvent(FILE *file, tXcpEventId event_id, const tXcpEvent *event)
         DBG_PRINT_ERROR("Failed to write event descriptor to BIN file\n");
         return false;
     }
-
+    DBG_PRINTF4("Writing event %u:'%s' cycle_time_ns=%u %s\n", event_id, event->name, event->cycle_time_ns, desc.priority == 0xFF ? "high priority" : "normal priority");
     return true;
 }
 
@@ -193,9 +188,9 @@ static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, const tXcpCalSeg *se
         return false;
     }
     ((tXcpCalSeg *)seg)->h.file_pos = (uint32_t)ftell(file); // Save the position of the segment page data in the file // @@@@ TODO cast away const, improve design to avoid this
+    DBG_PRINTF4("Writing calibration segment %u:'%s' size=%u %s page data:\n", calseg, seg->h.name, seg->h.size, page == XCP_CALPAGE_DEFAULT_PAGE ? "default" : "working");
 #ifdef OPTION_ENABLE_DBG_PRINTS
-    DBG_PRINTF4("Writing calibration segment %u, size=%u %s page data:\n", calseg, seg->h.size, page == XCP_CALPAGE_DEFAULT_PAGE ? "default" : "working");
-    if (DBG_LEVEL >= 4)
+    if (DBG_LEVEL >= 5)
         printCalsegPage(page == XCP_CALPAGE_DEFAULT_PAGE ? CalSegDefaultPage(seg) : CalSegEcuPage(seg), seg->h.size);
 #endif
     // This is safe, because XCP is not connected
@@ -224,7 +219,7 @@ static bool writeApp(FILE *file, uint8_t app_id, const char *project_name, const
         return false;
     }
 
-    DBG_PRINTF4("Writing application %u, name=%s, epk=%s\n", app_id, project_name, epk);
+    DBG_PRINTF4("Writing application %u:'%s', epk='%s'\n", app_id, project_name, epk);
 
     return true;
 }

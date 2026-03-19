@@ -65,8 +65,8 @@ int main(void) {
     printf("Shared memory status after initialization:\n");
     struct tXcpData;
     extern struct tXcpData *gXcpData;
-    extern void XcpShmDebugPrint(struct tXcpData * xcp_data);
-    XcpShmDebugPrint(gXcpData);
+    extern void XcpShmDebugPrint(const tShmHeader *hdr);
+    XcpShmDebugPrint(&gXcpData->shm_header);
     printf("--------------------------------------------------------------\n");
 #endif // OPTION_SHM_MODE
 

@@ -131,7 +131,7 @@ static int cmd_status(bool verbose) {
     }
     printf("  version            : %u.%u.%u\n", (ver >> 16) & 0xFF, (ver >> 8) & 0xFF, ver & 0xFF);
     printf("  declared size      : %u bytes  (this build: %zu)%s\n", hdr_size, sizeof(tXcpData), size_ok ? "" : "  *** MISMATCH ***");
-    printf("  leader PID         : %u%s\n", lpid, (getpid() == (pid_t)lpid) ? "  (this process)" : "");
+    printf("  leader pid         : %u%s\n", lpid, (getpid() == (pid_t)lpid) ? "  (this process)" : "");
     printf("  app count          : %u / %d\n", napp, SHM_MAX_APP_COUNT);
     printf("  A2L finalize req'd : %s\n", bool_str(a2lrq));
     print_separator();

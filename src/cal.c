@@ -34,20 +34,31 @@
 /**************************************************************************/
 // State
 
-// Shared memory
-extern tXcpData *gXcpData;
-#define shared (*(const tXcpData *)gXcpData) // Shortcut for read only access to the XCP singleton data
-#define shared_mut (*gXcpData)               // Shortcut for mutable access to the XCP singleton data
-#define shared_mut_safe (*gXcpData)          // Shortcut for safe mutable access to the XCP singleton data
-
-// Local memory
+#ifdef OPTION_SHM_MODE
+extern tXcpData *gXcpData;                    // Shared state in SHM mode
+#define shared (*(const tXcpData *)gXcpData)  // Shortcut for read only access to the XCP singleton data
+#define shared_mut (*gXcpData)                // Shortcut for mutable access to the XCP singleton data
+#define shared_mut_safe (*gXcpData)           // Shortcut for mutable access to the XCP singleton data
+#else                                         // OPTION_SHM_MODE
+extern tXcpData gXcpData;
+#define shared (*(const tXcpData *)&gXcpData) // Shortcut for read only access to the XCP singleton data
+#define shared_mut gXcpData                   // Shortcut for mutable access to the XCP singleton data
+#define shared_mut_safe gXcpData              // Shortcut for mutable access to the XCP singleton data
+#endif
 extern tXcpLocalData gXcpLocalData;
 #define local (*(const tXcpLocalData *)&gXcpLocalData) // Read-only access to process-local state
 #define local_mut gXcpLocalData                        // Mutable access to process-local state
 
-// State checks
-#define isInitialized() (gXcpData != NULL && 0 != (gXcpData->session_status & SS_INITIALIZED))
-#define isActivated() (gXcpData != NULL && (SS_ACTIVATED | SS_INITIALIZED) == ((gXcpData->session_status & (SS_ACTIVATED | SS_INITIALIZED))))
+// @@@@ TODO:
+// Calibration instrumentation can currently not be deactivate at runtime, it has to be done at compile time
+// An attempt to create a calibration segment or block with XCP not initialized will fail and assert
+
+// Global state checks
+#ifdef OPTION_SHM_MODE
+#define isActivated() (gXcpData != NULL && 0 != (gXcpData->session_status & SS_ACTIVATED))
+#else // OPTION_SHM_MODE
+#define isActivated() (0 != (gXcpData.session_status & SS_ACTIVATED))
+#endif
 
 /**************************************************************************/
 // Command response buffer access shortcuts
@@ -109,42 +120,38 @@ static void *XcpCalMemAlloc_(size_t size) {
 }
 
 // Free the calibration segment list
-// static void XcpFreeCalSegList(void) {
-//     assert(isInitialized());
-//     uint16_t n = XcpGetCalSegCount();
-//     for (uint16_t i = 0; i < n; i++) {
-//         shared_mut.cal_seg_list.offset[i] = XCP_CALSEG_NO_PAGE;
-//     }
-//     atomic_store_explicit(&shared_mut_safe.cal_seg_list.count, 0, memory_order_relaxed);
-//     atomic_store_explicit(&shared_mut_safe.cal_seg_list.cal_mem_used, 0, memory_order_relaxed); // Reset bump pointer, frees all calseg memory at once
-//     shared_mut.cal_seg_list.memory_segment_count = 0;
-//     mutexDestroy(&local_mut.cal_seg_list_mutex);
-// }
-
-// Get a pointer to the list and the size of the list
-// const tXcpCalSegList *XcpGetCalSegList(void) {
-//     assert(isInitialized());
-//     return &shared.cal_seg_list;
-// }
+void XcpDeinitCalSegList(void) { mutexDestroy(&local_mut.cal_seg_list_mutex); }
 
 // Get the number of calibration segments
-uint16_t XcpGetCalSegCount(void) { return (uint16_t)atomic_load_explicit(&shared.cal_seg_list.count, memory_order_acquire); }
+uint16_t XcpGetCalSegCount(void) {
+    if (!isActivated()) {
+        assert(0);
+        return 0;
+    }
+    return (uint16_t)atomic_load_explicit(&shared.cal_seg_list.count, memory_order_acquire);
+}
 
 // Get the number of memory segments
-uint8_t XcpGetMemSegCount(void) { return shared.cal_seg_list.memory_segment_count; }
+uint8_t XcpGetMemSegCount(void) {
+    if (!isActivated()) {
+        assert(0);
+        return XCP_UNDEFINED_CALSEG;
+    }
+    return shared.cal_seg_list.memory_segment_count;
+}
 
 // Get a pointer to the calibration segment struct of calseg index
 const tXcpCalSeg *XcpGetCalSeg(tXcpCalSegIndex calseg_index) {
-    assert(isInitialized());
-    if (calseg_index >= XcpGetCalSegCount())
+    if (calseg_index >= XcpGetCalSegCount()) {
+        assert(0);
         return NULL;
+    }
     return CalSegPtr(calseg_index);
 }
 
 // Get the index of a calibration segment by name
 // Lock-free, thread-safe
 tXcpCalSegIndex XcpFindCalSeg(const char *name) {
-    assert(isInitialized());
     // Iterate cal_seg_list cal_seg_list
     uint16_t n = XcpGetCalSegCount();
     for (tXcpCalSegIndex i = 0; i < n; i++) {
@@ -166,7 +173,6 @@ tXcpCalSegIndex XcpFindCalSeg(const char *name) {
 // Lock-free, thread-safe
 #if defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
 tXcpCalSegIndex XcpFindCalSegByAddr(uint8_t *addr) {
-    assert(isInitialized());
     // Iterate cal_seg_list cal_seg_list
     uint16_t n = XcpGetCalSegCount();
     for (tXcpCalSegIndex i = 0; i < n; i++) {
@@ -207,25 +213,28 @@ tXcpCalSegNumber XcpGetCalSegNumber(tXcpCalSegIndex calseg_index) {
 
 // Get the name of the calibration segment
 const char *XcpGetCalSegName(tXcpCalSegIndex calseg_index) {
-    assert(isInitialized());
-    if (calseg_index >= XcpGetCalSegCount())
+    if (calseg_index >= XcpGetCalSegCount()) {
+        assert(0);
         return NULL;
+    }
     return CalSegPtr(calseg_index)->h.name;
 }
 
 // Get the size of a calibration segment
 uint16_t XcpGetCalSegSize(tXcpCalSegIndex calseg_index) {
-    assert(isInitialized());
-    if (calseg_index >= XcpGetCalSegCount())
+    if (calseg_index >= XcpGetCalSegCount()) {
+        assert(0);
         return 0;
+    }
     return CalSegPtr(calseg_index)->h.size;
 }
 
 // Get the XCP/A2L address of a calibration segment
 uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg_index) {
-    assert(isInitialized());
-    if (calseg_index >= XcpGetCalSegCount())
+    if (calseg_index >= XcpGetCalSegCount()) {
+        assert(0);
         return 0;
+    }
 #if XCP_ADDR_EXT_SEG == 0x00
     // Memory segments are addressed in relative mode
     return XcpAddrEncodeSegIndex(calseg_index, 0);
@@ -276,13 +285,25 @@ uint8_t *XcpCreateCalSegPreloaded(const char *name, uint16_t page_size, uint16_t
 // Returns the handle or XCP_UNDEFINED_CALSEG when out of memory
 // Calibration segments have 2 pages and can be controlled via XCP through their memory segment number (XcpGetCalSegNumber)
 // The number of memory segments is limited to 255
-tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint16_t page_size) { return XcpCreateCalSeg_(name, default_page, page_size, 2); }
+tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint16_t page_size) {
+    if (!isActivated()) {
+        assert(0);
+        return XCP_UNDEFINED_CALSEG;
+    }
+    return XcpCreateCalSeg_(name, default_page, page_size, 2);
+}
 
 // Create a calibration block if not already exists
 // Thread safe
 // Returns the handle or XCP_UNDEFINED_CALSEG when out of memory
 // Calibration blocks don't have a memory segment and the related XCP features
-tXcpCalSegIndex XcpCreateCalBlk(const char *name, const void *default_page, uint16_t page_size) { return XcpCreateCalSeg_(name, default_page, page_size, 0); }
+tXcpCalSegIndex XcpCreateCalBlk(const char *name, const void *default_page, uint16_t page_size) {
+    if (!isActivated()) {
+        assert(0);
+        return XCP_UNDEFINED_CALSEG;
+    }
+    return XcpCreateCalSeg_(name, default_page, page_size, 0);
+}
 
 // Helper for XcpCreateCalSeg_ to register a calibration segment in the calibration segment list
 // Note: This is one of the compromises we make for this simple RCU: Uses a mutex for thread-safe creation
@@ -378,8 +399,6 @@ static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, const void *default_pa
 // This is indicated by default_page = NULL
 static void XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *default_page, uint16_t page_size, bool memory_segment) {
 
-    assert(isInitialized());
-
     tXcpCalSeg *c = calseg;
     assert(c != NULL);
 
@@ -404,8 +423,6 @@ static void XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
         // In SHM mode, assign the app_id to the segment
 #ifdef OPTION_SHM_MODE
         c->h.app_id = XcpShmGetAppId();
-#else // OPTION_SHM_MODE
-        c->h.app_id = 0;
 #endif
 
         // Create a memory segment with a memory segment number, which can be used for XCP access and has the related XCP features
@@ -503,9 +520,8 @@ static void XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
 // Shared non atomic is ecu_page, free_page_hazard, release on free_page
 const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg_index) {
 
-    assert(isInitialized());
-
     if (calseg_index >= XcpGetCalSegCount()) {
+        assert(0);
         DBG_PRINTF_ERROR("Invalid calseg_index %u\n", calseg_index);
         return NULL; // Uninitialized or invalid calseg_index
     }
@@ -545,10 +561,6 @@ const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg_index) {
 // Thread safe
 // Shared state is lock_count
 uint8_t XcpUnlockCalSeg(tXcpCalSegIndex calseg_index) {
-
-    // XCP not activated
-    if (!isActivated())
-        return 0;
 
     if (calseg_index >= XcpGetCalSegCount()) {
         DBG_PRINTF_ERROR("XCP not initialized or invalid segment index %u\n", calseg_index);
@@ -936,9 +948,6 @@ uint8_t XcpFreezeSelectedCalSegs(bool all) {
     }
     return CRC_CMD_OK;
 }
-
-// Freeze all segments
-bool XcpFreezeAllCalSegs(void) { return XcpFreezeSelectedCalSegs(true) != CRC_CMD_OK; }
 
 // Set all segments to the default page
 void XcpResetAllCalSegs(void) {

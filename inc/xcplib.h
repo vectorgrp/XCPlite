@@ -95,26 +95,17 @@ const uint8_t *XcpLockCalSeg(tXcpCalSegIndex index);
 /// Unlock a calibration segment
 uint8_t XcpUnlockCalSeg(tXcpCalSegIndex index);
 
-/// Freeze all calibration segments
-/// The current working page is written to the persistence file
-/// It will be the new default page on next application start
-/// Freeze can also be required by the XCP client tool.
-/// Requires option XCP_ENABLE_FREEZE_CAL_PAGE.
-/// @return true on success, otherwise false.
-bool XcpFreezeAllCalSeg(void);
-
 /// Set all calibration segments to their default page.
 /// Maybe used in emergency situations.
+/// @return true on success, otherwise false.
 bool XcpResetAllCalSegs(void);
 
-// Internal functions
-uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex index);
-uint16_t XcpGetCalSegCount(void);
-uint16_t XcpGetCalSegSize(tXcpCalSegIndex index);
-#define XCP_CALPAGE_DEFAULT_PAGE 1 // FLASH page
-#define XCP_CALPAGE_WORKING_PAGE 0 // RAM page
+/// Write all calibration segments to the persistence file, requires option XCP_ENABLE_CAL_PERSISTENCE
+/// Will become the working page content of the next session
+/// @return true on success, otherwise false.
+#define XCP_CALPAGE_DEFAULT_PAGE 1 // Write default or reference ("FLASH") page (reset the persistence file)
+#define XCP_CALPAGE_WORKING_PAGE 0 // Write current working ("RAM") page
 bool XcpBinWrite(uint8_t page);
-bool XcpBinLoad(void);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Calibration segment and value convenience macros
@@ -567,9 +558,6 @@ void XcpSetLogLevel(uint8_t level);
 /// Initialize the XCP singleton, must be called before starting the server
 /// @param mode XCP_MODE_DEACTIVATE, XCP_MODE_LOCAL, XCP_MODE_SHM, XCP_MODE_SHM_AUTO or XCP_MODE_SHM_SERVER (libxcplite build with in SHM mode)
 bool XcpInit(const char *name, const char *epk, uint8_t mode);
-
-/// Reset XCP library to initial state
-// void XcpReset(void);
 
 /// Check if XCP has been activated
 bool XcpIsActivated(void);
