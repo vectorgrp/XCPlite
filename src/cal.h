@@ -60,7 +60,7 @@ typedef uint8_t tXcpCalSegNumber;
 // Calibration segment index
 // The index of the calibration segment in the calibration segment list or XCP_UNDEFINED_CALSEG
 typedef uint16_t tXcpCalSegIndex;
-#define XCP_UNDEFINED_CALSEG 0xFFFF
+#define XCP_UNDEFINED_CALSEG ((tXcpCalSegIndex)0xFFFF)
 
 #define XCP_CALPAGE_ALIGNMENT 8   // Page alignment in bytes
 #define XCP_CALSEG_HEADER_SIZE 64 // Must be & XCP_CALPAGE_ALIGNMENT
@@ -158,7 +158,7 @@ typedef struct {
 /**************************************************************************/
 
 // Create a preloaded calibration segment, which can be initialized with data from the binary persistence file at startup
-uint8_t *XcpCreateCalSegPreloaded(const char *name, uint16_t page_size, uint16_t index, uint8_t number, uint32_t file_pos);
+uint8_t *XcpCreateCalSegPreloaded(const char *name, uint8_t app_id, uint16_t page_size, tXcpCalSegIndex index, uint8_t number, uint32_t file_pos);
 
 // Create a calibration segment
 tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint16_t page_size);

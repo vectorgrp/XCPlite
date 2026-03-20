@@ -85,7 +85,7 @@ extern tXcpLocalData gXcpLocalData;
 
 static void *XcpCalMemAlloc_(size_t size);
 static void XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *default_page, uint16_t page_size, bool memory_segment);
-static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, const void *default_page, uint16_t page_size, bool memory_segment);
+static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, bool lookup, const void *default_page, uint16_t page_size, bool memory_segment);
 
 /**************************************************************************/
 
@@ -253,20 +253,17 @@ uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg_index) {
 
 // Create a preloaded calibration segment, which is initialized with data from the binary persistence file at startup
 // Return the default page to the caller for initialization with the preloaded data, or NULL on error (e.g. wrong index, wrong memory segment number, out of memory, etc.)
-uint8_t *XcpCreateCalSegPreloaded(const char *name, uint16_t page_size, uint16_t index, uint8_t number, uint32_t file_pos) {
+uint8_t *XcpCreateCalSegPreloaded(const char *name, uint8_t app_id, uint16_t page_size, tXcpCalSegIndex index, uint8_t number, uint32_t file_pos) {
 
-    // Create a calibration segment without an initial value
-    tXcpCalSegIndex calseg = XcpCreateCalSeg_(name, NULL, page_size, number != XCP_UNDEFINED_CALSEG_NUM);
-    if (calseg != (tXcpCalSegIndex)index) {
-        DBG_PRINTF_ERROR("Preloaded calibration segment '%s' created with wrong index %u, expected %u\n", name, calseg, index);
+    // Create a calibration segment with given name, index and number without an initial value
+    tXcpCalSegIndex seg_index = XcpCreateCalSeg_(name, false /* lookup */, NULL, page_size, number != XCP_UNDEFINED_CALSEG_NUM);
+    if (seg_index != index) {
+        assert(0);
         return NULL;
     }
-
-    // @@@@ TODO cast away const ?, improve design to avoid this
-    tXcpCalSeg *seg = (tXcpCalSeg *)XcpGetCalSeg(calseg);
-
+    tXcpCalSeg *seg = CalSegPtrMut(seg_index);
     if (seg->h.calseg_number != number) {
-        DBG_PRINTF_ERROR("Calibration segment '%s' created with wrong memory segment number %u, expected %u\n", name, seg->h.calseg_number, number);
+        assert(0);
         return NULL;
     }
 
@@ -274,6 +271,7 @@ uint8_t *XcpCreateCalSegPreloaded(const char *name, uint16_t page_size, uint16_t
     // Mark the segment as preloaded
     seg->h.mode = PAG_PROPERTY_PRELOAD;
     seg->h.file_pos = file_pos; // Save the position of the segment page data in the file
+    seg->h.app_id = app_id;     // Save the application ID
 #endif
 
     void *default_page = CalSegDefaultPage(seg);
@@ -290,7 +288,7 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
         assert(0);
         return XCP_UNDEFINED_CALSEG;
     }
-    return XcpCreateCalSeg_(name, default_page, page_size, 2);
+    return XcpCreateCalSeg_(name, true /* lookup */, default_page, page_size, 2);
 }
 
 // Create a calibration block if not already exists
@@ -302,7 +300,7 @@ tXcpCalSegIndex XcpCreateCalBlk(const char *name, const void *default_page, uint
         assert(0);
         return XCP_UNDEFINED_CALSEG;
     }
-    return XcpCreateCalSeg_(name, default_page, page_size, 0);
+    return XcpCreateCalSeg_(name, true /* lookup */, default_page, page_size, 0);
 }
 
 // Helper for XcpCreateCalSeg_ to register a calibration segment in the calibration segment list
@@ -334,14 +332,21 @@ static tXcpCalSegIndex XcpRegisterCalSeg_(tXcpCalSeg *c) {
     return (tXcpCalSegIndex)calseg_index;
 }
 
-// Helper for XcpCreateCalSeg, XcpCreateCalBlk to create a calibration block with given page count (0 for blk, 2 for seg)
-static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, const void *default_page, uint16_t page_size, bool memory_segment) {
+// Helper for XcpCreateCalSeg, XcpCreateCalBlk and XcpCreateCalSegPreloaded to create a calibration block with given page count (0 for blk, 2 for seg)
+// A segment with this name may already exist, when preloaded - then it is reinitialized
+// Lookup for existence can be skipped if lookup is false, which is the case for preloaded segments, because they have a predefined index and are loaded in order of the file, so
+// they must be created in order without lookup
+static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, bool lookup, const void *default_page, uint16_t page_size, bool memory_segment) {
 
-    tXcpCalSeg *c = NULL;
+    tXcpCalSeg *calseg = NULL;
+    tXcpCalSegIndex calseg_index = XCP_UNDEFINED_CALSEG;
 
-    // Check if the segment does not already exist, then create a new one
-    // @@@@ TODO Optimize XcpFindCalSeg, because this is the once execution check
-    tXcpCalSegIndex calseg_index = XcpFindCalSeg(name);
+    // If lookup is enabled, check for existence
+    if (lookup) {
+        // Check if the segment does not already exist, only if not create a new one
+        // @@@@ TODO Optimize XcpFindCalSeg, because this is the once execution check
+        calseg_index = XcpFindCalSeg(name);
+    }
     if (calseg_index == XCP_UNDEFINED_CALSEG) {
 
         // Align page size to XCP_CALPAGE_ALIGNMENT bytes for better performance
@@ -349,22 +354,22 @@ static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, const void *default_pa
 
         // Allocate memory for the new segment from the embedded pool using the thread-safe bump allocator
         // Header + DEFAULT page + ECU page + XCP page + RCU swap page
-        c = (tXcpCalSeg *)XcpCalMemAlloc_(sizeof(tXcpCalSegHeader) + 4 * aligned_page_size);
-        XcpInitCalSeg_(c, name, default_page, page_size, memory_segment);
-
-        if ((calseg_index = XcpRegisterCalSeg_(c)) == XCP_UNDEFINED_CALSEG) {
+        calseg = (tXcpCalSeg *)XcpCalMemAlloc_(sizeof(tXcpCalSegHeader) + 4 * aligned_page_size);
+        DBG_PRINTF3("Create CalSeg '%s' size=%u, calseg_number=%u\n", name, page_size, memory_segment);
+        XcpInitCalSeg_(calseg, name, default_page, page_size, memory_segment);
+        if ((calseg_index = XcpRegisterCalSeg_(calseg)) == XCP_UNDEFINED_CALSEG) {
             return XCP_UNDEFINED_CALSEG;
         }
 
     } else {
         // Segment already exists
-        c = CalSegPtrMut(calseg_index);
-        DBG_PRINTF6("Calibration segment '%s' already exists\n", c->h.name);
+        calseg = CalSegPtrMut(calseg_index);
+        DBG_PRINTF6("Calibration segment '%s' already exists\n", calseg->h.name);
     }
 
     // Must have the correct size
-    if (page_size != c->h.size) {
-        DBG_PRINTF_ERROR("Calibration segment '%s' already exists with wrong size %u\n", name, c->h.size);
+    if (page_size != calseg->h.size) {
+        DBG_PRINTF_ERROR("Calibration segment '%s' already exists with wrong size %u, expected %u\n", calseg->h.name, calseg->h.size, page_size);
         return XCP_UNDEFINED_CALSEG;
     }
 
@@ -373,19 +378,19 @@ static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, const void *default_pa
     // Check if this is a preloaded segment
     // Preloaded segments have an initialized default page with data from the binary calibration segment image file on startup
     // The PAG_PROPERTY_PRELOAD bit is set to indicate this
-    if ((c->h.mode & PAG_PROPERTY_PRELOAD) != 0) {
+    if ((calseg->h.mode & PAG_PROPERTY_PRELOAD) != 0) {
 
         // Complete the initialization of the preloaded segment
-        DBG_PRINTF3("Finalize preloaded CalSeg %u: '%s' index=%u, size=%u\n", calseg_index, c->h.name, calseg_index, c->h.size);
-        XcpInitCalSeg_(c, name, default_page, page_size, memory_segment);
+        DBG_PRINTF3("Finalize preloaded CalSeg '%s' index=%u, size=%u\n", calseg->h.name, calseg_index, calseg->h.size);
+        XcpInitCalSeg_(calseg, calseg->h.name, default_page, page_size, memory_segment);
         return calseg_index;
     }
-#endif // XCP_ENABLE_CAL_PERSISTENCE
+#endif //   XCP_ENABLE_CAL_PERSISTENCE
 
 #ifdef XCP_ENABLE_TEST_CHECKS
     // For an already existing segment, the default page should be the same as the existing one, because we assume it has static lifetime
-    if (default_page != NULL && memcmp(default_page, CalSegDefaultPage(c), page_size) != 0) {
-        DBG_PRINTF_WARNING("Calibration segment '%s' already exists with a different default page\n", name);
+    if (default_page != NULL && memcmp(default_page, CalSegDefaultPage(calseg), page_size) != 0) {
+        DBG_PRINTF_WARNING("Calibration segment '%s' already exists with a different default page\n", calseg->h.name);
         // return XCP_UNDEFINED_CALSEG;
     }
 #endif
@@ -399,7 +404,7 @@ static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, const void *default_pa
 // This is indicated by default_page = NULL
 static void XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *default_page, uint16_t page_size, bool memory_segment) {
 
-    tXcpCalSeg *c = calseg;
+    tXcpCalSeg *c = calseg; // Alias
     assert(c != NULL);
 
     // Align page size to 8 bytes for better performance
@@ -413,7 +418,7 @@ static void XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
         assert(page_size == c->h.size);
 
     } else
-#endif // XCP_ENABLE_CAL_PERSISTENCE
+#endif //   XCP_ENABLE_CAL_PERSISTENCE
 
     // Not initialised yet
     {
@@ -459,15 +464,13 @@ static void XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
             c->h.default_page_ptr = NULL;
 #endif
 #else
-            // Not allowed without XCP_ENABLE_CAL_PERSISTENCE
+            // Not allowed without   XCP_ENABLE_CAL_PERSISTENCE
             DBG_PRINT_ERROR("No default page provided for calibration segment\n");
             assert(false);
             return;
 
 #endif
         }
-
-        DBG_PRINTF3("Init CalSeg: '%s' size=%u, app_id=%u, calseg_number=%u\n", c->h.name, c->h.size, c->h.app_id, c->h.calseg_number);
     } // Init
 
     // Reset RCU

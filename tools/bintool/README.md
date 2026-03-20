@@ -1,7 +1,7 @@
 # bintool - XCPlite BIN File Tool
 
 A command-line tool for XCPlite `.BIN` persistence files.  
-Persistence features in XCPlite are enabled with OPTION_CAL_PERSISTENCE.  
+Persistence features in XCPlite are enabled with OPTION_ENABLE_PERSISTENCE.  
 For safety, it is essential to use the EPK version segment. This can be enabled with OPTION_CAL_SEGMENT_EPK.  
 
 Disclaimer: This is an AI generated tool. Don't use it for production. Improper use may corrupt calibration data.  

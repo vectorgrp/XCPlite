@@ -38,6 +38,9 @@
 // ANSI color codes
 #define ANSI_COLOR_RED "\x1b[31m"
 #define ANSI_COLOR_YELLOW "\x1b[33m"
+#define ANSI_COLOR_GREY "\x1b[90m"
+#define ANSI_COLOR_PURPLE "\x1b[35m"
+#define ANSI_COLOR_MAGENTA "\x1b[35m"
 #define ANSI_COLOR_GREEN "\x1b[32m"
 #define ANSI_COLOR_BLUE "\x1b[34m"
 #define ANSI_COLOR_RESET "\x1b[0m"
@@ -157,23 +160,23 @@ extern uint8_t gXcpLogLevel;
 #define DBG_PRINTF5(format, ...)                                                                                                                                                   \
     do {                                                                                                                                                                           \
         if (DBG_LEVEL >= 5)                                                                                                                                                        \
-            printf(DBG_PRINT_PREFIX format, __VA_ARGS__);                                                                                                                          \
+            printf(ANSI_COLOR_GREY DBG_PRINT_PREFIX format ANSI_COLOR_RESET, __VA_ARGS__);                                                                                         \
     } while (0)
 #define DBG_PRINT5(format)                                                                                                                                                         \
     do {                                                                                                                                                                           \
         if (DBG_LEVEL >= 5)                                                                                                                                                        \
-            printf(DBG_PRINT_PREFIX format);                                                                                                                                       \
+            printf(ANSI_COLOR_GREY DBG_PRINT_PREFIX format ANSI_COLOR_RESET);                                                                                                      \
     } while (0)
 
 #define DBG_PRINTF6(format, ...)                                                                                                                                                   \
     do {                                                                                                                                                                           \
         if (DBG_LEVEL >= 6)                                                                                                                                                        \
-            printf(DBG_PRINT_PREFIX format, __VA_ARGS__);                                                                                                                          \
+            printf(ANSI_COLOR_GREY DBG_PRINT_PREFIX format ANSI_COLOR_RESET, __VA_ARGS__);                                                                                         \
     } while (0)
 #define DBG_PRINT6(format)                                                                                                                                                         \
     do {                                                                                                                                                                           \
         if (DBG_LEVEL >= 6)                                                                                                                                                        \
-            printf(DBG_PRINT_PREFIX format);                                                                                                                                       \
+            printf(ANSI_COLOR_GREY DBG_PRINT_PREFIX format ANSI_COLOR_RESET);                                                                                                      \
     } while (0)
 
 // Convenience macros for format-only strings (no additional arguments)

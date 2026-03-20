@@ -20,6 +20,7 @@
 #include <stdio.h>    // for fclose, fopen, fread, fseek, ftell
 #include <string.h>   // for strlen, strncpy
 
+#include "a2l.h"        // for A2lGetFilename
 #include "dbg_print.h"  // for DBG_PRINTF3, DBG_PRINT4, DBG_PRINTF4, DBG...
 #include "platform.h"   // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
 #include "shm.h"        // for shared memory management
@@ -29,7 +30,7 @@
 #include "xcplite.h"    // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
 #include "xcptl_cfg.h"  // for XCPTL_xxx
 
-#ifdef OPTION_CAL_PERSISTENCE
+#ifdef OPTION_ENABLE_PERSISTENCE
 
 #if !defined(XCP_ENABLE_DAQ_EVENT_LIST) || !defined(XCP_ENABLE_CALSEG_LIST)
 #error "XCP_ENABLE_DAQ_EVENT_LIST and XCP_ENABLE_CALSEG_LIST must be enabled for calibration segment persistence"
@@ -81,7 +82,8 @@ static_assert(sizeof(tCalSegDescriptor) == 256, "Size of tCalSegDescriptor must 
 
 typedef struct {
     uint8_t app_id;                                                                      // App ID of the application owner in SHM mode, 0 in local mode
-    uint8_t reserved[128 - 1];                                                           // Reserved for future use
+    uint8_t xcp_init_mode;                                                               // Bitfield of XCP_MODE_XXX (for XcpInit())
+    uint8_t reserved[128 - 2];                                                           // Reserved for future use
     char project_name[XCP_PROJECT_NAME_MAX_LENGTH + 1];                                  // Application name, 0 terminated
     char epk[XCP_EPK_MAX_LENGTH + 1];                                                    // build version  (null-terminated)
     uint8_t padding[128 - (XCP_PROJECT_NAME_MAX_LENGTH + 1) - (XCP_EPK_MAX_LENGTH + 1)]; // Reserved for longer application names up to 128 bytes
@@ -113,6 +115,7 @@ static const char *XcpBinGetFilename(void) {
 // Print the content of a calibration segment page for debugging
 #ifdef OPTION_ENABLE_DBG_PRINTS
 static void printCalsegPage(const uint8_t *page, uint16_t size) {
+    printf(ANSI_COLOR_GREY);
     for (uint16_t i = 0; i < size; i++) {
         printf("%02X ", page[i]);
         if ((i + 1) % 16 == 0) {
@@ -122,6 +125,7 @@ static void printCalsegPage(const uint8_t *page, uint16_t size) {
     if (size % 16 != 0) {
         printf("\n");
     }
+    printf(ANSI_COLOR_RESET);
 }
 #endif
 
@@ -206,21 +210,23 @@ static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, const tXcpCalSeg *se
 #ifdef OPTION_SHM_MODE
 
 // Write a application descriptor
-static bool writeApp(FILE *file, uint8_t app_id, const char *project_name, const char *epk) {
+static bool writeApp(FILE *file, uint8_t app_id, const char *project_name, const char *epk, uint8_t xcp_init_mode) {
+    assert(project_name != NULL);
+    assert(epk != NULL);
     tAppDescriptor desc;
     memset(&desc, 0, sizeof(tAppDescriptor));
     strncpy(desc.project_name, project_name, XCP_PROJECT_NAME_MAX_LENGTH);
     desc.project_name[XCP_PROJECT_NAME_MAX_LENGTH] = '\0'; // Ensure null termination
     strncpy(desc.epk, epk, XCP_EPK_MAX_LENGTH);
     desc.epk[XCP_EPK_MAX_LENGTH] = '\0'; // Ensure null termination
+    desc.xcp_init_mode = xcp_init_mode;
+    desc.app_id = app_id;
     size_t written = fwrite(&desc, sizeof(tAppDescriptor), 1, file);
     if (written != 1) {
         DBG_PRINT_ERROR("Failed to write application descriptor to BIN file\n");
         return false;
     }
-
-    DBG_PRINTF4("Writing application %u:'%s', epk='%s'\n", app_id, project_name, epk);
-
+    DBG_PRINTF4(ANSI_COLOR_BLUE "Writing application %u:'%s', epk='%s', xcp_init_mode=0x%02X\n" ANSI_COLOR_RESET, app_id, project_name, epk, desc.xcp_init_mode);
     return true;
 }
 
@@ -233,6 +239,7 @@ static bool writeApp(FILE *file, uint8_t app_id, const char *project_name, const
 /// It creates a file with the specified filename and writes the header, events, and calibration segments.
 /// The tool must not be connected at that time
 /// @param filename The name of the file to write.
+/// @param page The page of the calibration segments to write, either default or working page, see XCP_CALPAGE_XXX
 /// @return
 /// Returns true if the file was successfully written, false otherwise.
 bool XcpBinWrite(uint8_t page) {
@@ -286,9 +293,10 @@ bool XcpBinWrite(uint8_t page) {
 
     // In SHM mode, write application list
 #ifdef OPTION_SHM_MODE
+
     // Write application descriptors
     for (uint8_t i = 0; i < app_count; i++) {
-        if (!writeApp(file, i, XcpShmGetAppProjectName(i), XcpShmGetAppEpk(i))) {
+        if (!writeApp(file, i, XcpShmGetAppProjectName(i), XcpShmGetAppEpk(i), XcpShmGetInitMode(i))) {
             fclose(file);
             return false;
         }
@@ -298,6 +306,10 @@ bool XcpBinWrite(uint8_t page) {
     fclose(file);
 
     DBG_PRINTF3("Persistence data written to file '%s'\n", gXcpBinFilename);
+#ifdef OPTION_SHM_MODE
+    XcpShmDebugPrint();
+#endif
+
     return true;
 }
 
@@ -409,8 +421,8 @@ static bool load(const char *filename, const char *epk) {
 
         // Create the event
         // As it is created in the original order, the event ID must match
-        // @@@@ TODO: Temporary solution, improve event creation, don't rely on order
-        event_id = XcpCreateEvent(desc.name, desc.cycle_time_ns, desc.priority);
+        // XcpCreateIndexedEvent does not check for duplicate event names, the application id will be set below
+        event_id = XcpCreateIndexedEvent(desc.name, desc.index, desc.cycle_time_ns, desc.priority);
         if (event_id == XCP_UNDEFINED_EVENT_ID || event_id != desc.id) { // Should not happen
             DBG_PRINTF_ERROR("Failed to create event '%s' from persistence file\n", desc.name);
             fclose(file);
@@ -440,21 +452,21 @@ static bool load(const char *filename, const char *epk) {
             return false;
         }
 
-        uint8_t *default_page = XcpCreateCalSegPreloaded(desc.name, desc.size, desc.index, desc.number, (uint32_t)ftell(file) - desc.size);
+        uint8_t *default_page = XcpCreateCalSegPreloaded(desc.name, desc.app_id, desc.size, desc.index, desc.number, (uint32_t)ftell(file) - desc.size);
         if (default_page == NULL) {
-            DBG_PRINT_ERROR("Failed to create calibration segment\n");
+            DBG_PRINTF_ERROR("Failed to create calibration segment %u:'%s'\n", i, desc.name);
             fclose(file);
             return false;
         }
 
         read = fread(default_page, desc.size, 1, file);
         if (read != 1) {
-            DBG_PRINT_ERROR("Failed to read calibration segment data from BIN file\n");
+            DBG_PRINTF_ERROR("Failed to read calibration segment %u:'%s' data page\n", i, desc.name);
             fclose(file);
             return false;
         }
 #ifdef OPTION_ENABLE_DBG_PRINTS
-        DBG_PRINTF4("Reading calibration segment %u, size=%u:\n", i, desc.size);
+        DBG_PRINTF4("Init calibration segment %u:'%s' data page, size=%u\n", i, desc.name, desc.size);
         if (DBG_LEVEL >= 4)
             printCalsegPage(default_page, desc.size);
 #endif
@@ -471,13 +483,23 @@ static bool load(const char *filename, const char *epk) {
             return false;
         }
 
-        // Register by name and epk, in order with predefined application id, don't know who is leader or server yet
-        int16_t app_id = XcpShmRegisterApp(desc.project_name, desc.epk, false, false);
-        if (app_id < 0 || (uint8_t)app_id != desc.app_id) { // The app_id in the file must match the allocated app_id
-            DBG_PRINTF_ERROR("Could not register application %u:%s\n", desc.app_id, desc.project_name);
+        // Pre register application by name and epk
+        // Don't know who is leader or server yet
+        DBG_PRINTF4(ANSI_COLOR_BLUE "Pre registered application %u:'%s', epk='%s'\n" ANSI_COLOR_RESET, desc.app_id, desc.project_name, desc.epk);
+        int16_t app_id = XcpShmRegisterApp(desc.project_name, desc.epk, desc.xcp_init_mode, false, false);
+        if (app_id < 0 || (uint8_t)app_id != desc.app_id) { // Just created in order, assuming before empty application list, the app_id in the file must match the allocated app_id
+            DBG_PRINTF_ERROR("Could not register application %u:'%s'\n", desc.app_id, desc.project_name);
             assert(0); // Should never happen
         }
-        DBG_PRINTF4("Pre registered application %u:%s, epk=%s\n", desc.app_id, desc.project_name, desc.epk);
+
+        // Check if the application is in XCP_MODE_PERSISTENCE mode:
+        // If the A2L file already exists and set the A2L finalized flag, so the master file will be generated for it, even if the application was not started before tool connect
+        const char *a2l_filename = A2lGetFilename(A2L_FILE);
+        if ((desc.xcp_init_mode & XCP_MODE_PERSISTENCE) != 0 && fexists(a2l_filename)) { // @@@@ epk missing
+            XcpShmSetA2lFinalized(desc.app_id, a2l_filename);
+            DBG_PRINTF4(ANSI_COLOR_BLUE "Application %u:'%s' is in A2L_WRITE_ONCE mode and A2L file '%s' already exists, set A2L finalized flag\n" ANSI_COLOR_RESET, desc.app_id,
+                        desc.project_name, a2l_filename);
+        }
     }
 #endif // OPTION_SHM_MODE
 
@@ -515,4 +537,4 @@ void XcpBinDelete(void) {
     }
 }
 
-#endif // OPTION_CAL_PERSISTENCE
+#endif // OPTION_ENABLE_PERSISTENCE

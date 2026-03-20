@@ -234,7 +234,7 @@ int main() {
     // XCP must be initialized and activated before A2L generation
     // Initialize the XCP singleton, activate XCP
     // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, true);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, XCP_MODE_LOCAL);
     XcpSetLogLevel(OPTION_LOG_LEVEL); // Set the log level for XCP
 
     // No need to start the XCP server
@@ -251,7 +251,7 @@ int main() {
     // Thead safety is assured by the sync event
     // Create the calibration sync event for static parameters
     tXcpEventId sync = XcpCreateEvent("sync", 0, 0);
-    A2lSetDynAddrMode(sync, 1, &static_uint8);
+    A2lSetDynAddrMode(sync, 1, (uint8_t *)&static_counter_max - 0x10000);
     A2lBeginGroup("Global", "Parameters in global memory", true, true);
 
     // Create individual parameters in global memory

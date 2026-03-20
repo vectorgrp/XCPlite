@@ -294,20 +294,17 @@ XCPlite relative addressing: XCPLITE__CASDD:
 
 #endif // XCP_ENABLE_CAL_PAGE
 
-// Enable working page freeze request
-// There are 2 modes:
-//   1. A persisted working page will become the new reference page (this requires segment relative addressing mode)
-//   2. Just persist the working page
-#ifdef OPTION_CAL_PERSISTENCE
+// Enable binary persistence file which keeps deterministic order of events and calibration segments, and can load persisted calibration data on startup
+#ifdef OPTION_ENABLE_PERSISTENCE
 
-// Enable persistence of calibration segments
+// Enable persistence of calibration segment working page data
 #define XCP_ENABLE_CAL_PERSISTENCE
 
 // Enable the FREEZE_CAL_PAGE command
 #define XCP_ENABLE_FREEZE_CAL_PAGE
 // #define XCP_ENABLE_FREEZE_ON_DISCONNECT
 
-#endif // OPTION_CAL_PERSISTENCE
+#endif // OPTION_ENABLE_PERSISTENCE
 
 // Enable checksum calculation command
 #define XCP_ENABLE_CHECKSUM

@@ -437,7 +437,7 @@ int main(int argc, char *argv[]) {
     // Initialize XCP
     char epk[32];
     std::snprintf(epk, sizeof(epk), "%s_%s_%s", XCP_OPTION_PROJECT_VERSION, mode_str, __TIME__);
-    XcpInit(XCP_OPTION_PROJECT_NAME, epk, true);
+    XcpInit(XCP_OPTION_PROJECT_NAME, epk, XCP_MODE_LOCAL);
 
 // Enable PTP synchronized clock for XCP
 #ifdef XCP_OPTION_PTP

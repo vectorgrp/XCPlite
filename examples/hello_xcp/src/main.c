@@ -7,20 +7,23 @@
 #include <stdio.h>   // for printf
 #include <string.h>  // for sprintf
 
+// Include XCPlite/libxcplite C headers
+// #define OPTION_XCP_MODE 0 // To deactivate XCP, define OPTION_XCP_MODE here
 #include <a2l.h>    // for A2l generation
 #include <xcplib.h> // for application programming interface
 
 //-----------------------------------------------------------------------------------------------------
 // XCP params
 
-#define OPTION_PROJECT_NAME "hello_xcp"   // Project name, used to build the A2L and BIN file name
-#define OPTION_PROJECT_EPK "100"          // EPK version string
-#define OPTION_USE_TCP false              // TCP or UDP
-#define OPTION_SERVER_PORT 5555           // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0}   // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE (1024 * 32)     // Size of the measurement queue in bytes, should be large enough to cover at least 10ms of expected traffic
-#define OPTION_XCP_MODE XCP_MODE_SHM_AUTO // XCP mode
-#define OPTION_LOG_LEVEL 4                // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_PROJECT_NAME "hello_xcp" // Project name, used to build the A2L and BIN file name
+#define OPTION_PROJECT_EPK "100"        // EPK version string
+#define OPTION_USE_TCP false            // TCP or UDP
+#define OPTION_SERVER_PORT 5555         // Port
+#define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
+#define OPTION_QUEUE_SIZE (1024 * 32)   // Size of the measurement queue in bytes, should be large enough to cover at least 10ms of expected traffic
+#define OPTION_XCP_MODE (XCP_MODE_PERSISTENCE | XCP_MODE_SHM | XCP_MODE_SHM_AUTO)                   // XCP mode
+#define OPTION_A2L_MODE (A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS) // A2L generation mode
+#define OPTION_LOG_LEVEL 5                                                                          // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 // New option in V1.1: Enable variadic all in one macros for simple arithmetic types, see examples below
 #define OPTION_USE_VARIADIC_MACROS
@@ -141,7 +144,7 @@ int main(void) {
     //   Binary persistence is not supported
     // Finalize the A2L file on XCP connect
     // Optionally create A2L groups for calibration segments and events
-    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_A2L_MODE)) {
         return 1;
     }
 

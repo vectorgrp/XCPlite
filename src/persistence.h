@@ -20,7 +20,7 @@
 #include "xcplib_cfg.h" // for OPTION_xxx
 #include "xcplite.h"    // for tXcpCalSegIndex
 
-#ifdef OPTION_CAL_PERSISTENCE
+#ifdef OPTION_ENABLE_PERSISTENCE
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,4 +35,4 @@ bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg);
 } // extern "C"
 #endif
 
-#endif // OPTION_CAL_PERSISTENCE
+#endif // OPTION_ENABLE_PERSISTENCE

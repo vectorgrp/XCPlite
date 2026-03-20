@@ -509,12 +509,6 @@ static const char *A2lGetInputQuantity_y(void) { return gA2lInputQuantity_y ? gA
 
 //----------------------------------------------------------------------------------
 
-#define A2L_FILE 1
-#define A2L_TYPEDEFS_FILE 2
-#define A2L_GROUPS_FILE 3
-#define A2L_CONVERSIONS_FILE 4
-#define A2L_MASTER_FILE 0xFF
-
 // Build filenames for the different (temporary) files used
 const char *A2lGetFilename(uint8_t file_type) {
 
@@ -1882,7 +1876,7 @@ static void includePartialA2lFiles(void) {
     // Wait for all other processes to finish writing their partial A2L files,
     // Then append them into the master file
     const char *files[SHM_MAX_APP_COUNT];
-    int count = XcpShmCollectA2lFiles(5000 /* ms */, files, SHM_MAX_APP_COUNT);
+    int count = XcpShmCollectA2lFiles(1000 /* ms */, files, SHM_MAX_APP_COUNT);
     assert(count > 0);
     for (int fi = 0; fi < count; fi++) {
         FILE *fol = fopen(files[fi], "r");
@@ -1921,7 +1915,7 @@ bool A2lCheckFinalizeOnConnect(uint8_t connect_mode) {
         if (connect_mode == 0xAA) {
             DBG_PRINT_WARNING("Delete A2L and BIN file (connect_mode=0xAA)!\n");
             remove(A2lGetFilename(A2L_FILE));
-#ifdef OPTION_CAL_PERSISTENCE
+#ifdef OPTION_ENABLE_PERSISTENCE
             XcpBinDelete();
 #endif
             return false;
@@ -1960,7 +1954,7 @@ bool A2lFinalize(void) {
         if (gA2lFile != gA2lMasterFile) {
             fclose(gA2lFile);
             gA2lFile = NULL;
-            XcpShmNotifyA2lFinalized(A2lGetFilename(A2L_FILE));
+            XcpShmSetA2lFinalized(XcpShmGetAppId(), A2lGetFilename(A2L_FILE));
         }
 #endif // OPTION_SHM_MODE
     }
@@ -2001,7 +1995,8 @@ bool A2lFinalize(void) {
 #ifdef OPTION_SHM_MODE
         if (XcpShmIsActive()) { // The server provides the master file for upload and creates the binary persistence file
             if (XcpShmIsServer()) {
-#ifdef OPTION_CAL_PERSISTENCE
+#ifdef OPTION_ENABLE_PERSISTENCE
+                // In SHM mode always write a binary persistence file
                 XcpBinWrite(XCP_CALPAGE_WORKING_PAGE);
 #endif
                 XcpSetA2lName(A2lGetFilename(A2L_MASTER_FILE)); // Notify XCP that there is an A2L file available for upload by the XCP client
@@ -2009,8 +2004,10 @@ bool A2lFinalize(void) {
         } else
 #endif // OPTION_SHM_MODE
         {
-#ifdef OPTION_CAL_PERSISTENCE
-            XcpBinWrite(XCP_CALPAGE_WORKING_PAGE);
+#ifdef OPTION_ENABLE_PERSISTENCE
+            if ((XcpGetInitMode() & XCP_MODE_PERSISTENCE) != 0) {
+                XcpBinWrite(XCP_CALPAGE_WORKING_PAGE);
+            }
 #endif
             XcpSetA2lName(A2lGetFilename(A2L_FILE)); // Notify XCP that there is an A2L file available for upload by the XCP client
         }
@@ -2042,9 +2039,11 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
 
     // Check and ignore, if the XCP singleton has not been initialized and activated
     if (!XcpIsActivated()) {
-        DBG_PRINT3("A2lInit: XCP is deactivated!\n");
+        DBG_PRINT5("A2lInit: XCP is deactivated!\n");
         return true;
     }
+
+    DBG_PRINTF3("Start A2L generation: mode=0x%X\n", mode);
 
     // Save communication parameters
     memcpy(&gA2lOptionBindAddr, addr, 4);
@@ -2054,7 +2053,7 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
     // Save mode
     gA2lMode = mode;
     gA2lWriteAlways = !!(mode & A2L_MODE_WRITE_ALWAYS);
-#ifndef OPTION_CAL_PERSISTENCE
+#ifndef OPTION_ENABLE_PERSISTENCE
     assert(gA2lWriteAlways);
 #endif
     gA2lAutoGroups = !!(mode & A2L_MODE_AUTO_GROUPS);
@@ -2067,34 +2066,43 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
 
     // In A2L_WRITE_ONCE mode:
     // Check if the A2L file already exists and the persistence BIN file has been loaded and checked
-    // If yes, skip generation if not write always
+    // If yes, skip generation
     const char *a2l_filename = A2lGetFilename(A2L_FILE);
     if (!gA2lWriteAlways && (XcpGetSessionStatus() & SS_PERSISTENCE_LOADED) && fexists(a2l_filename)) {
+#ifndef OPTION_SHM_MODE
 
-#ifdef OPTION_SHM_MODE
-        // In SHM mode, the server writes the master file always, but the partial files maybe write once
-        if (!XcpShmIsServer())
-#endif // OPTION_SHM_MODE
-        {
-            // Notify XCP that there is an A2L file available for upload by the XCP client
-            XcpSetA2lName(a2l_filename);
-            DBG_PRINTF_WARNING("A2L file %s already exists, assuming it is still valid, disabling A2L generation\n", a2l_filename);
-            return true;
+        XcpSetA2lName(a2l_filename); // Notify XCP that there is an existing A2L file available on disk
+        DBG_PRINTF3(ANSI_COLOR_YELLOW "A2L file %s already exists, assuming it is still valid, disabling A2L generation\n" ANSI_COLOR_RESET, a2l_filename);
+        return true; // Skip A2L generation
+
+#else
+        // In SHM mode
+
+        // Reuse the existing A2L file
+        XcpShmSetA2lFinalized(XcpShmGetAppId(), a2l_filename);
+
+        // Server writes the master file always, but the partial files maybe written once
+        if (!XcpShmIsServer()) {
+            XcpSetA2lName(a2l_filename); // Notify XCP that there is an existing A2L file available on disk
+            DBG_PRINTF3(ANSI_COLOR_YELLOW "A2L file %s already exists, assuming it is still valid, disabling A2L generation\n" ANSI_COLOR_RESET, a2l_filename);
+            return true; // Skip A2L generation
         }
 
-        // Start A2L file generation, create only master A2L file
+        // Start master A2L file generation only
         if (!A2lOpen(true)) {
             DBG_PRINTF_ERROR("Failed to open A2L file %s\n", a2l_filename);
             return false;
         }
-    }
+        DBG_PRINTF3(ANSI_COLOR_YELLOW "A2L file %s already exists, generating only master file \n" ANSI_COLOR_RESET, A2lGetFilename(A2L_FILE));
+        return true;
+#endif // OPTION_SHM_MODE
+    } // !gA2lWriteAlways
 
-    // Start A2L file generation
+    // Start normal A2L file generation,
     if (!A2lOpen(false)) {
         DBG_PRINTF_ERROR("Failed to open A2L file %s\n", a2l_filename);
         return false;
     }
-
     return true;
 }
 

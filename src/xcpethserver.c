@@ -149,9 +149,9 @@ static bool ShmInit_(uint32_t queue_size) {
         // A second leader process (e.g. after rebuild) won /xcpdata but /xcpqueue may
         // already exist. platformShmOpen does NOT reclaim it when sizes differ — we own it.
         if (elected) {
-            DBG_PRINTF3("SHM leader created '/xcpqueue' with size %zu bytes\n", shm_total);
+            DBG_PRINTF3(ANSI_COLOR_BLUE "SHM queue leader created '/xcpqueue' with size %zu bytes\n" ANSI_COLOR_RESET, shm_total);
         } else {
-            DBG_PRINT_WARNING("XcpEthServerInit: Is SHM leader, but '/xcpqueue' already exists, not reinitializing\n");
+            DBG_PRINT_WARNING(ANSI_COLOR_BLUE "XcpEthServerInit: Is SHM leader, but '/xcpqueue' already exists, not reinitializing\n" ANSI_COLOR_RESET);
         }
     } else {
         // Follower: attach to the existing queue at whatever size the leader allocated
@@ -160,7 +160,7 @@ static bool ShmInit_(uint32_t queue_size) {
             DBG_PRINT_ERROR("XcpEthServerInit: failed to attach '/xcpqueue' SHM\n");
             return false;
         }
-        DBG_PRINTF3("SHM follower attached to '/xcpqueue' with size %zu bytes\n", shm_total);
+        DBG_PRINTF3(ANSI_COLOR_BLUE "SHM queue follower attached to '/xcpqueue' with size %zu bytes\n" ANSI_COLOR_RESET, shm_total);
     }
 
     gXcpServer.shm_queue_ptr = shm_ptr;
@@ -179,7 +179,7 @@ static bool ShmInit_(uint32_t queue_size) {
         }
         atomic_store(&hdr->leader_pid, (int32_t)getpid());
         atomic_store(&hdr->is_initialized, 1U);
-        DBG_PRINTF3("SHM leader created '/xcpqueue', queue_size=%u\n", queue_size);
+        DBG_PRINTF3(ANSI_COLOR_BLUE "SHM queue initialized, queue_size=%u\n" ANSI_COLOR_RESET, queue_size);
 
     }
 
@@ -202,12 +202,12 @@ static bool ShmInit_(uint32_t queue_size) {
             platformShmClose("/xcpqueue", shm_ptr, shm_total, false);
             return false;
         }
-        DBG_PRINT3("SHM follower attached to '/xcpqueue'\n");
+        DBG_PRINT3(ANSI_COLOR_BLUE "SHM follower attached to '/xcpqueue'\n" ANSI_COLOR_RESET);
     }
 
     if (!XcpShmIsServer()) {
 
-        DBG_PRINT3("SHM mode initialized without XCP on ethernet server\n");
+        DBG_PRINT(ANSI_COLOR_BLUE "SHM mode initialized without XCP on ethernet server\n" ANSI_COLOR_RESET);
 
         // Start the background polling thread for SHM mode non server
         create_thread(&gXcpServer.shm_thread_handle, XcpShmThread);
@@ -342,10 +342,10 @@ bool XcpEthServerShutdown(void) {
     // In SHM mode, shutdown a non server process
     // Not SHM server: no socket or server threads — stop the background thread, then clean up, unmap but do not unlink the SHM region for the queue
     if (XcpShmIsActive() && !XcpShmIsServer()) {
-        DBG_PRINT3("Terminate SHM thread\n");
+        DBG_PRINT3(ANSI_COLOR_BLUE "Terminate SHM thread\n" ANSI_COLOR_RESET);
         gXcpServer.shm_thread_running = false;
         join_thread(gXcpServer.shm_thread_handle);
-        DBG_PRINT3("Unmap SHM queue\n");
+        DBG_PRINT3(ANSI_COLOR_BLUE "Unmap SHM  '/xcpqueue'\n" ANSI_COLOR_RESET);
         platformShmClose("/xcpqueue", gXcpServer.shm_queue_ptr, gXcpServer.shm_queue_total_size, false);
         gXcpServer.shm_queue_ptr = NULL;
         gXcpServer.is_init = false;
@@ -382,13 +382,13 @@ bool XcpEthServerShutdown(void) {
     if (XcpShmIsActive()) {
 
         // Unmap and unlink the queue
-        DBG_PRINT3("Unmap and unlink SHM queue\n");
+        DBG_PRINT3(ANSI_COLOR_BLUE "Unlink SHM queue '/xcpqueue'\n" ANSI_COLOR_RESET);
         assert(gXcpServer.shm_queue_ptr != NULL);
         platformShmClose("/xcpqueue", gXcpServer.shm_queue_ptr, gXcpServer.shm_queue_total_size, true /* unlink */);
         gXcpServer.shm_queue_ptr = NULL;
 
         // Unmap and unlink the data
-        DBG_PRINT3("Unmap and unlink SHM data\n");
+        DBG_PRINT3(ANSI_COLOR_BLUE "Unlink SHM data '/xcpdata'\n" ANSI_COLOR_RESET);
         XcpShmUnlink();
 
     } else
@@ -521,14 +521,15 @@ extern void *XcpShmThread(void *par)
 #endif
 {
     (void)par;
-    DBG_PRINT3("SHM thread started\n");
+    DBG_PRINT3(ANSI_COLOR_BLUE "SHM thread started\n" ANSI_COLOR_RESET);
 
     // Start the XCP protocol layer
     // Without starting the protocoll layer, event handling is not enabled
     XcpStart(gXcpServer.transmit_queue, false);
 
+    XcpShmDebugPrint();
+
     gXcpServer.shm_thread_running = true;
-    bool a2l_finalized = false; // tracks whether this follower has already finalized its A2L
     while (gXcpServer.shm_thread_running) {
         sleepUs(50000); // Poll every 50 ms
 
@@ -538,21 +539,22 @@ extern void *XcpShmThread(void *par)
         // Prove this follower is still alive
         XcpShmIncrementAliveCounter();
 
+        // Poll the global A2L finalize request flag
+        // If set, finalize the local A2L file if not already done
 #ifdef OPTION_ENABLE_A2L_GENERATOR
-        if (!a2l_finalized && XcpShmIsA2lFinalizeRequested()) {
-            sleepMs(500);
-            // @@@@ TODO workaround by some delay because the finalize request could already set, when attaching to the SHM after the leader has requested A2L
-            // finalization. Remove this workaround by a better synchronization between the leader and followers.
+        if (!XcpShmIsA2lFinalized(XcpShmGetAppId()) && XcpShmIsA2lFinalizeRequested()) {
+            sleepMs(500); // @@@@ TODO
             if (A2lFinalize()) {
                 DBG_PRINT3("A2L finalized by SHM request\n");
-                a2l_finalized = true;
+            } else {
+                DBG_PRINT3("A2L already finalized\n");
             }
         }
 #endif
     }
 
     gXcpServer.shm_thread_running = false;
-    DBG_PRINT3("SHM background thread terminated!\n");
+    DBG_PRINT3(ANSI_COLOR_BLUE "SHM background thread terminated!\n" ANSI_COLOR_RESET);
     return 0;
 }
 

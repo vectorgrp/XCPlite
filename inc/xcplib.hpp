@@ -28,6 +28,55 @@ namespace xcp {
 // RAII wrappers for structs or values with calibration parameters
 // =============================================================================
 
+#if defined(OPTION_XCP_MODE) && OPTION_XCP_MODE == 0 // XCP deactivated
+
+template <typename T> class CalSeg {
+  private:
+    const T *params_ptr_;
+
+  public:
+    CalSeg(const char *name, const T *default_params) { params_ptr_ = default_params; }
+    tXcpCalSegIndex getIndex() const { return XCP_UNDEFINED_CALSEG; }
+    class CalSegGuard {
+      private:
+        const T *params_ptr_;
+
+      public:
+        explicit CalSegGuard(const T *params_ptr_) : params_ptr_(params_ptr_) {}
+        ~CalSegGuard() {}
+        const T *operator->() const { return params_ptr_; }
+        const T &operator*() const { return *params_ptr_; }
+        const T *get() const { return params_ptr_; }
+    };
+    CalSegGuard lock() const { return CalSegGuard(params_ptr_); }
+    void CreateA2lTypedefInstance(const char *type_name, const char *comment) {}
+};
+
+/// Generic RAII wrapper for a single parameter of complex or simple type
+template <typename T> class CalBlk {
+  private:
+    const T *params_ptr_;
+
+  public:
+    CalBlk(const char *name, const T *default_params) { params_ptr_ = default_params; }
+    tXcpCalSegIndex getIndex() const { return XCP_UNDEFINED_CALSEG; }
+    class CalSegGuard {
+      private:
+        const T *params_ptr_;
+
+      public:
+        explicit CalSegGuard(const T *params_ptr_) : params_ptr_(params_ptr_) {}
+        ~CalSegGuard() {}
+        const T *operator->() const { return params_ptr_; }
+        const T &operator*() const { return *params_ptr_; }
+        const T *get() const { return params_ptr_; }
+    };
+    CalSegGuard lock() const { return CalSegGuard(params_ptr_); }
+    void CreateA2lTypedefInstance(const char *type_name, const char *comment) {}
+};
+
+#else
+
 /// Generic RAII wrapper for structs with calibration parameters
 /// Template parameter T must be the calibration parameter struct type
 template <typename T> class CalSeg {
@@ -88,14 +137,6 @@ template <typename T> class CalSeg {
     }
 };
 
-/// Convenience function to create a calibration segment
-/// Usage: auto calseg = xcp::CreateCalSeg("Parameters", default_parameters);
-template <typename T> CalSeg<T> CreateCalSeg(const char *name, const T *default_params) { return CalSeg<T>(name, default_params); }
-
-/// Convenience macro to create a calibration segment with automatic name stringification
-/// Usage: auto calseg = CalSegCreate(initial_value);
-#define CalSegCreate(value) xcplib::CreateCalSeg(#value, &value)
-
 /// Generic RAII wrapper for a single parameter of complex or simple type
 template <typename T> class CalBlk {
   private:
@@ -155,13 +196,15 @@ template <typename T> class CalBlk {
     }
 };
 
-/// Convenience function and macro to create calibration value
-/// Usage: auto calval = xcp::CreateCalBlk("Name", initial_value);
-template <typename T> CalBlk<T> CreateCalBlk(const char *name, const T *default_value) { return CalBlk<T>(name, default_value); }
+#endif
+
+/// Convenience macro to create a calibration segment with automatic name stringification
+/// Usage: auto calseg = CalSegCreate(initial_value);
+#define CalSegCreate(value) xcplib::CalSeg<decltype(value)>(#value, &value)
 
 /// Convenience macro to create a calibration value with automatic name stringification
 /// Usage: auto calval = CalVal(initial_value);
-#define CalValCreate(value) xcplib::CreateCalBlk(#value, &value)
+#define CalValCreate(value) xcplib::CalBlk<decltype(value)>(#value, &value)
 
 } // namespace xcp
 

@@ -49,9 +49,20 @@ bool XcpEthServerStatus(void);
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Calibration segments
 
+#if defined(OPTION_XCP_MODE) && OPTION_XCP_MODE == 0 // XCP deactivated
+
+#define tXcpCalSegIndex void *
+#undef XCP_UNDEFINED_CALSEG
+#define XCP_UNDEFINED_CALSEG NULL
+#define XcpCreateCalSeg(name, ref_page_addr, size) (uint8_t *)(ref_page_addr)
+#define XcpLockCalSeg(calseg) (calseg)
+#define XcpUnlockCalSeg(calseg) ((void)0)
+
+#else
+
 /// Calibration segment handle
 typedef uint16_t tXcpCalSegIndex;
-#define XCP_UNDEFINED_CALSEG 0xFFFF
+#define XCP_UNDEFINED_CALSEG ((tXcpCalSegIndex)0xFFFF)
 
 /// Create a calibration segment and add it to the list of calibration segments.
 /// This calibration segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
@@ -100,12 +111,14 @@ uint8_t XcpUnlockCalSeg(tXcpCalSegIndex index);
 /// @return true on success, otherwise false.
 bool XcpResetAllCalSegs(void);
 
-/// Write all calibration segments to the persistence file, requires option XCP_ENABLE_CAL_PERSISTENCE
-/// Will become the working page content of the next session
+/// Write the persistence file with all events and calibration segment, requires option OPTION_PERSISTENCE
+/// Includes calibration data, will become the working page content of the next session
 /// @return true on success, otherwise false.
-#define XCP_CALPAGE_DEFAULT_PAGE 1 // Write default or reference ("FLASH") page (reset the persistence file)
+#define XCP_CALPAGE_DEFAULT_PAGE 1 // Write default or reference ("FLASH") page
 #define XCP_CALPAGE_WORKING_PAGE 0 // Write current working ("RAM") page
 bool XcpBinWrite(uint8_t page);
+
+#endif
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Calibration segment and value convenience macros
@@ -549,11 +562,12 @@ extern const uint8_t *gXcpBaseAddr;
 void XcpSetLogLevel(uint8_t level);
 
 /// XcpInit mode flags
-#define XCP_MODE_DEACTIVATE 0    ///< Initialize XCP singleton without activating the protocol layer (passive/off)
-#define XCP_MODE_LOCAL 1         ///< Initialize and activate XCP, allocate state in local heap memory
-#define XCP_MODE_SHM 0xFD        ///< Initialize and activate XCP, allocate state in POSIX shared memory
-#define XCP_MODE_SHM_AUTO 0xFE   ///< Initialize and activate XCP, allocate state in POSIX shared memory, automatically choose leader as XCP server
-#define XCP_MODE_SHM_SERVER 0xFF ///< Initialize and activate XCP, allocate state in POSIX shared memory, this is the XCP server
+#define XCP_MODE_DEACTIVATE 0     ///< Initialize XCP singleton without activating the protocol layer (passive/off)
+#define XCP_MODE_LOCAL 0x01       ///< Initialize and activate XCP, allocate state in static memory if libxcplite not compiled in SHM mode, otherwise allocate state in heap memory
+#define XCP_MODE_PERSISTENCE 0x02 ///< Load the binary persistence file, to keep deterministic order of events and calibration segments, and load persisted calibration data
+#define XCP_MODE_SHM 0x80         ///< Initialize and activate XCP, allocate state in POSIX shared memory
+#define XCP_MODE_SHM_AUTO 0x04    ///< Set this flag to automatically choose leader as XCP server
+#define XCP_MODE_SHM_SERVER 0x08  ///< Set this flag, to make this application the XCP server, regardless which application is started first
 
 /// Initialize the XCP singleton, must be called before starting the server
 /// @param mode XCP_MODE_DEACTIVATE, XCP_MODE_LOCAL, XCP_MODE_SHM, XCP_MODE_SHM_AUTO or XCP_MODE_SHM_SERVER (libxcplite build with in SHM mode)

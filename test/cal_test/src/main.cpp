@@ -312,7 +312,7 @@ int main(int argc, char *argv[]) {
     XcpSetLogLevel(OPTION_LOG_LEVEL);
 
     // Initialize XCP
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, true);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, XCP_MODE_LOCAL);
 
     // Initialize XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;
@@ -329,9 +329,9 @@ int main(int argc, char *argv[]) {
 
 // Create the test calibration segment
 #ifdef TEST_CALBLK
-    auto calseg1 = xcplib::CreateCalBlk("kParameters", &kParameters);
+    auto calseg1 = xcplib::CalBlk("kParameters", &kParameters);
 #else
-    auto calseg1 = xcplib::CreateCalSeg("kParameters", &kParameters);
+    auto calseg1 = xcplib::CalSeg("kParameters", &kParameters);
 #endif
 
     // Add the calibration segment description as a typedef instance to the A2L file

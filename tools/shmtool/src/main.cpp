@@ -222,7 +222,6 @@ static int cmd_finalize(uint32_t timeout_ms) {
     const uint32_t poll_interval_ms = 50;
     uint32_t elapsed_ms = 0;
     bool all_done = false;
-
     while (elapsed_ms <= timeout_ms) {
         all_done = true;
         for (uint32_t i = 0; i < napp && i < SHM_MAX_APP_COUNT; ++i) {

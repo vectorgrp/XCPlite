@@ -591,6 +591,14 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode);
 /// Finalize the A2L file, write the binary persistence file
 bool A2lFinalize(void);
 
+// Get filename of the A2L files
+#define A2L_FILE 1
+#define A2L_TYPEDEFS_FILE 2
+#define A2L_GROUPS_FILE 3
+#define A2L_CONVERSIONS_FILE 4
+#define A2L_MASTER_FILE 0xFF
+const char *A2lGetFilename(uint8_t file_type);
+
 // --------------------------------------------------------------------------------------------
 // Helper functions used in the by A2L generation macros
 

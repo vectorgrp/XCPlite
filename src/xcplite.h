@@ -42,11 +42,12 @@ extern "C" {
 /****************************************************************************/
 
 /// XcpInit mode flags
-#define XCP_MODE_DEACTIVATE 0    ///< Initialize XCP singleton without activating the protocol layer (passive/off)
-#define XCP_MODE_LOCAL 1         ///< Initialize and activate XCP, allocate state in local heap memory
-#define XCP_MODE_SHM 0xFD        ///< Initialize and activate XCP, allocate state in POSIX shared memory
-#define XCP_MODE_SHM_AUTO 0xFE   ///< Initialize and activate XCP, allocate state in POSIX shared memory, automatically choose leader as XCP server
-#define XCP_MODE_SHM_SERVER 0xFF ///< Initialize and activate XCP, allocate state in POSIX shared memory, this is the XCP server
+#define XCP_MODE_DEACTIVATE 0     ///< Initialize XCP singleton without activating the protocol layer (passive/off)
+#define XCP_MODE_LOCAL 0x01       ///< Initialize and activate XCP, allocate state in static memory if libxcplite not compiled in SHM mode, otherwise allocate state in heap memory
+#define XCP_MODE_PERSISTENCE 0x02 ///< Load the binary persistence file, to keep deterministic order of events and calibration segments, and load persisted calibration data
+#define XCP_MODE_SHM 0x80         ///< Initialize and activate XCP, allocate state in POSIX shared memory
+#define XCP_MODE_SHM_AUTO 0x04    ///< Set this flag to automatically choose leader as XCP server
+#define XCP_MODE_SHM_SERVER 0x08  ///< Set this flag, to make this application the XCP server, regardless which application is started first
 
 // Initialization for the XCP Protocol Layer
 bool XcpInit(const char *name, const char *epk, uint8_t mode);
