@@ -5,7 +5,8 @@ This document contains advanced technical information about XCPlite's shared mem
 
 ## Overview
 
-In addition to XCP on Ethernet, XCPlite V2.0.0 has an alternative, non standard shared memory transport layer for extremely low latency and high throughput. An XCP over SHM client can run on the local machine, attach to multiple instrumented applications and forward to a single local XCP on Ethernet server or to other logging protocols, such as CMP or DLT. It can even store data in a local file for later analysis.  
+In addition to XCP on Ethernet, XCPlite V2.0.0 has an optional, experimental non standard shared memory transport layer for extremely low latency and high throughput. An XCP over SHM client can run on the local machine, attach to multiple instrumented applications and forwards to a single, local XCP on Ethernet server or to other logging protocols. It can even store data in a local file for later analysis.  
+
 
 
 ## Technical Details

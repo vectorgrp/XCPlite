@@ -181,7 +181,7 @@ tXcpLocalData gXcpLocalData = {0}; // XCP_MODE_DEACTIVATE by default
 // Test the thread safety concept
 // - Assert mutable access to the XCP singleton is either safe or allowed to the owner thread
 // - Assert read access by other threads is only allowed during DAQ running
-#ifdef TEST_MUTABLE_ACCESS_OWNERSHIP
+#if defined(OPTION_SHM_MODE) && defined(TEST_MUTABLE_ACCESS_OWNERSHIP)
 
 #include <pthread.h>
 
@@ -207,17 +207,20 @@ static inline tXcpData *XcpMut_(const char *file, int line) {
 #define local (*(const tXcpLocalData *)&gXcpLocalData) // Read-only access to process-local state
 #define local_mut gXcpLocalData                        // Mutable access to process-local state
 
-#endif
+#elif defined(OPTION_SHM_MODE)
 
-#ifdef OPTION_SHM_MODE
-#define shared (*(const tXcpData *)gXcpData)  // Shortcut for read only access to the XCP singleton data
-#define shared_mut (*gXcpData)                // Shortcut for mutable access to the XCP singleton data
-#define shared_mut_safe (*gXcpData)           // Shortcut for mutable access to the XCP singleton data
-#else                                         // OPTION_SHM_MODE
+#define shared (*(const tXcpData *)gXcpData) // Shortcut for read only access to the XCP singleton data
+#define shared_mut (*gXcpData)               // Shortcut for mutable access to the XCP singleton data
+#define shared_mut_safe (*gXcpData)          // Shortcut for mutable access to the XCP singleton data
+
+#else
+
 #define shared (*(const tXcpData *)&gXcpData) // Shortcut for read only access to the XCP singleton data
 #define shared_mut gXcpData                   // Shortcut for mutable access to the XCP singleton data
 #define shared_mut_safe gXcpData              // Shortcut for mutable access to the XCP singleton data
+
 #endif
+
 #define local (*(const tXcpLocalData *)&gXcpLocalData) // Read-only access to process-local state
 #define local_mut gXcpLocalData                        // Mutable access to process-local state
 
@@ -2925,7 +2928,7 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     DBG_PRINTF3("XcpInit name=%s, epk=%s, mode=%u\n", name, epk, mode);
     DBG_PRINTF5("  sizeof(tXcpData)=%zu  sizeof(tXcpLocalData)=%zu\n", sizeof(tXcpData), sizeof(tXcpLocalData));
 
-#ifdef TEST_MUTABLE_ACCESS_OWNERSHIP
+#if defined(OPTION_SHM_MODE) && defined(TEST_MUTABLE_ACCESS_OWNERSHIP)
     XcpBindOwnerThread();
 #endif
 
@@ -3067,7 +3070,7 @@ void XcpStart(tQueueHandle queue_handle, bool resumeMode) {
     if (!isActivated())
         return;
 
-#ifdef TEST_MUTABLE_ACCESS_OWNERSHIP
+#if defined(OPTION_SHM_MODE) && defined(TEST_MUTABLE_ACCESS_OWNERSHIP)
     XcpBindOwnerThread();
 #endif
 
@@ -3222,7 +3225,7 @@ void XcpDeinit(void) {
     }
     assert(!XcpIsDaqRunning());
 
-#ifdef TEST_MUTABLE_ACCESS_OWNERSHIP
+#if defined(OPTION_SHM_MODE) && defined(TEST_MUTABLE_ACCESS_OWNERSHIP)
     XcpBindOwnerThread();
 #endif
 

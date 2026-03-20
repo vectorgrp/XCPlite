@@ -2,12 +2,7 @@
 
 ## What is XCP?
 
-XCP is a measurement and parameter tuning (calibration) protocol commonly used in the automotive industry (ASAM standard). It provides real-time signal acquisition and parameter tuning over various transport protocols with minimal impact on the target system.
-
-**New to XCP?** See the [detailed XCP introduction](docs/XCP_INTRODUCTION.md) or visit:
-- [Vector XCP Book](https://www.vector.com/int/en/know-how/protocols/xcp-measurement-and-calibration-protocol/xcp-book#)
-- [Virtual VectorAcademy E-Learning](https://elearning.vector.com/)
-
+XCP is a data acquisition (measurement) and parameter tuning (calibration) protocol commonly used in the automotive industry (ASAM standard). Originally designed to run on microcontrollers, it provides real-time data monitoring and parameter tuning over various transport protocols with minimal impact on the target system.
 
 ## About XCPlite
 
@@ -15,23 +10,34 @@ XCPlite extends XCP use cases beyond traditional embedded microcontrollers to **
 
 Designed exclusively for the **XCP on Ethernet Transport Layer** (TCP/UDP with jumbo frames), XCPlite solves the challenges of measurement and calibration in systems with true parallelism and multithreading:
 
-- **Thread-safe & lock-free** - Consistent data acquisition and parameter modification across multiple cores
+- **Thread-safe & lock-free** - Consistent data acquisition and parameter modification across multiple cores, free of blocking and inter-thread contention
 - **Memory-safe** - Measure and calibrate variables in any storage location: stack, heap, thread-local, and global
-- **Runtime A2L generation** - Define events, parameters, and metadata as code; A2L description file generated and uploaded automatically
-- **Complex type support** - Handle basic types, structs, arrays, and nested structures
-- **Calibration segments** - Page switching, consistent atomic modification, and parameter persistence (freeze)
+- **Deterministic runtime and resource consumption** - No heap allocations at all, static memory usage, zero copy and predictable execution times for real-time applications
+- **Runtime A2L generation** - Define events, measurements and parameters, with metadata as code; the description file (A2L format) is generated and uploaded automatically
+- **Complex type support** - Handles basic types, structs, arrays, and nested structures
+- **Calibration segments** - Page switching, consistent atomic modification, and parameter persistence
 - **PTP timestamps** - Prepared for high-precision PTP synchronized timestamps
 
-In addition to XCP on Ethernet, XCPlite V2.0.0 has an optional, non standard shared memory transport layer for extremely low latency and high throughput. An XCP over SHM client can run on the local machine, attach to multiple instrumented applications and forwards to a single, local XCP on Ethernet server or to other logging protocols, such as CMP or DLT. It can even store data in a local file for later analysis.  
+Compared to many other logging, tracing, observability, or telemetry solutions, XCPlite reaches the above goals by accessing variables in place in their original ABI, with out much copying, buffering or unnecessary reserialization.  
 
-The API provides instrumentation macros for developers to define measurement points, calibration parameters, and meta data.  
-Lock-free implementation ensures thread safety and data consistency without blocking latencies, even under high contention on multicore systems.
+The C or C++ API provides instrumentation macros for developers to define measurement points, calibration parameters, and meta data.  
+Lock-free implementations ensure thread safety and data consistency without blocking latencies, even under high contention on multicore systems.
 
-XCPlite is optimized for 64-bit architectures, compatible with 32-bit platforms. Requires C11 (C++20 for C++ support). Serves as the C library foundation for [XCP-Lite Rust](https://github.com/vectorgrp/xcp-lite).  
+XCPlite is optimized for 64-bit architectures, compatible with 32-bit platforms. Requires C11 (C++20 for C++ support).  
 
-**Other XCP Implementations:**
+libxcplite serves as the C library foundation for the experimental [XCP-Lite Rust](https://github.com/vectorgrp/xcp-lite) API.  
+
+
+## Other XCP Implementations
+
 - **XCPbasic** - Free implementation for smaller Microcontrollers (8-bit+), optimized for CAN
 - **XCPprof** - Commercial product in Vector's AUTOSAR MICROSAR and CANbedded portfolio
+
+## New to XCP?
+
+See the [detailed XCP introduction](docs/XCP_INTRODUCTION.md) or visit:  
+- [Vector XCP Book](https://www.vector.com/int/en/know-how/protocols/xcp-measurement-and-calibration-protocol/xcp-book#)
+- [Virtual VectorAcademy E-Learning](https://elearning.vector.com/)
 
 
 ## Getting Started

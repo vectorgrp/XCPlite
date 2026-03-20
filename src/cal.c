@@ -51,7 +51,7 @@ extern tXcpLocalData gXcpLocalData;
 
 // @@@@ TODO:
 // Calibration instrumentation can currently not be deactivate at runtime, it has to be done at compile time
-// An attempt to create a calibration segment or block with XCP not initialized will fail and assert
+// An attempt to create a calibration segment or block with XCP not initialized (XcpInit not called) will fail and assert
 
 // Global state checks
 #ifdef OPTION_SHM_MODE

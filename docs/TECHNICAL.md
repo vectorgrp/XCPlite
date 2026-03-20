@@ -14,7 +14,7 @@ Some of the DAQ trigger macros do a lazy event lookup by name at the first time 
 
 The instrumentation to create events uses a mutex lock against other simultaneous event creations.
 
-### Measurement of Function Parameters and Local Variables
+### Measurement of Function Parameters and local Variables
 
 Measurement of function parameters and local variables has the side effect that the compiler will spill the parameters from registers to stack frame and always keeps local variables on the stack frame. This is a side effect of the in scope registration macros, so it will work even with optimization level > -O0. There is no undefined behavior caused by compiler optimizations.
 
@@ -26,7 +26,6 @@ During the creation of a calibration segment, a single heap allocation for 4 cop
 (default page, reference page, working page and a single RCU swap page).  
 
 Calibration segment access is thread safe and lock less.
-
 
 
 ### A2L Generation
@@ -129,7 +128,6 @@ The EPK does not have an explicit address extension, which means it defaults to 
 To be able to check the compatibility of binary parameter files, which store only parameter data in calibration parameter segments, an EPK memory segment is needed. This is important, because if CANape persists and caches calibration parameter segments in binary files and if the EPK is not in the address range of a memory segment, there is no way to check compatibility of the binary files.
 
 In XCPlite, the EPK may be specified with an API function or is generated from build time and date when calibration segment persistence mode is enabled.
-
 
 
 
