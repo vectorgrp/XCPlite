@@ -18,6 +18,8 @@
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uint16_t, uint32_t, uint8_t
 
+#include "xcp_cfg.h" // for XCP_PROJECT_NAME_MAX_LENGTH, XCP_EPK_MAX_LENGTH, XCP_A2L_FILENAME_MAX_LENGTH
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -35,6 +37,7 @@ typedef struct XcpData tXcpData;
 
 #define SHM_MAGIC 0x5843504C4954455F // "XCPLITE_" in little-endian ASCII
 #define SHM_VERSION 0x00010000       // Version 1.0.0
+#define SHM_PROJECT_NAME "master"    // Name of the master A2L and BIN file
 #define SHM_MAX_APP_COUNT 8          // Maximum number of concurrently registered processes
 
 // Per-application entry in tShmHeader.app_list.
@@ -97,10 +100,11 @@ void XcpShmUnlink(void); // Unlink shared memory, so no new processes can join, 
 bool XcpShmIsA2lFinalizeRequested(void); // true when a global this app process  has set the finalize flag
 void XcpShmRequestA2lFinalize(void);     // Leader: signals all followers to finalize their A2L file now
 
-void XcpShmIncrementAliveCounter(void);                                                 // Follower background thread: prove this process is still alive
+// Follower background thread: prove this process is still alive
 int XcpShmCollectA2lFiles(uint32_t timeout_ms, const char *filenames[], int max_count); // Leader: wait and collect follower partial A2L filenames
 
 uint8_t XcpShmGetAppCount(void);                     // Get the number of registered applications in SHM mode
+uint8_t XcpShmGetActiveAppCount(void);               // Get the number of registered and active applications in SHM mode
 const char *XcpShmGetAppProjectName(uint8_t app_id); // Get project name of an app slot by app_id index
 const char *XcpShmGetAppEpk(uint8_t app_id);         // Get EPK of an app slot by app_id index
 uint8_t XcpShmGetInitMode(uint8_t app_id);           // Get the XCP init mode of an app slot by app_id index
@@ -113,6 +117,12 @@ void XcpShmSetA2lFinalized(uint8_t app_id, const char *a2l_name); // Set A2L fin
                                                                   // BIN file and pre-registering apps before they are started
 bool XcpShmIsA2lFinalized(uint8_t app_id);                        // true when this app process has finalized its A2L file and set its a2l_finalized flag in the app list
 
+// Alive counter
+void XcpShmIncrementAliveCounter(void);
+void XcpShmResetAliveCounter(uint8_t app_id);
+void XcpShmResetAliveCounters(void); // Reset alive counters of all app slots
+uint32_t XcpShmGetAliveCounter(uint8_t app_id);
+
 #ifdef DBG_LEVEL
 void XcpShmDebugPrint(void); // Print the status and information in tXcpData, for debugging purposes.
 #endif
@@ -120,7 +130,6 @@ void XcpShmDebugPrint(void); // Print the status and information in tXcpData, fo
 #else // OPTION_SHM_MODE
 
 #define XcpShmGetAppCount() 0
-#
 
 #endif
 

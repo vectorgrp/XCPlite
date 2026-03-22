@@ -60,8 +60,6 @@ static void *XcpServerTransmitThread(void *par);
 
 #ifdef OPTION_SHM_MODE
 
-// In SHM mode, in an application which is not the XCP server
-// There is a single follower background thread for polling A2L finalize requests and alive_counter
 #if defined(_WIN) // Windows
 static DWORD WINAPI XcpShmThread(LPVOID lpParameter);
 #else
@@ -97,34 +95,16 @@ static struct {
     tQueueHandle transmit_queue;
 
 #ifdef OPTION_SHM_MODE
-    // In SHM mode, gXcpServer has additional state
-    void *shm_queue_ptr;         // mmap base of the /xcpqueue region, NULL when not SHM mode
+    void *shm_queue_ptr;         // mmap base of the /xcpqueue region, NULL when SHM mode not activated
     size_t shm_queue_total_size; // total mmap size: sizeof(tShmQueueHeader) + queue_size
-    THREAD shm_thread_handle;    // Shm follower background thread (polling A2L finalize request and alive_counter)
+    THREAD shm_thread_handle;    // Background thread for non server processes
     volatile bool shm_thread_running;
 #endif // OPTION_SHM_MODE
 
 } gXcpServer;
 
 //-------------------------------------------------------------------------------------------------------
-
-#ifdef OPTION_SHM_MODE
-bool XcpShmServerStatus(void) { return gXcpServer.is_init && gXcpServer.shm_thread_running; }
-#endif // OPTION_SHM_MODE
-
-// XCP server status
-bool XcpEthServerStatus(void) {
-    if (!XcpIsActivated())
-        return true;
-
-#ifdef OPTION_SHM_MODE
-    if (XcpShmIsActive() && !XcpShmIsServer()) {
-        return XcpShmServerStatus();
-    }
-#endif // OPTION_SHM_MODE
-
-    return gXcpServer.is_init && gXcpServer.transmit_thread_running && gXcpServer.receive_thread_running;
-}
+// SHM server
 
 #ifdef OPTION_SHM_MODE
 
@@ -212,12 +192,69 @@ static bool ShmInit_(uint32_t queue_size) {
         // Start the background polling thread for SHM mode non server
         create_thread(&gXcpServer.shm_thread_handle, XcpShmThread);
         // Wait until the follower thread has started
-        while (!gXcpServer.shm_thread_running) {
-            sleepUs(100);
-        }
+        // @@@@ TODO: Why need this ???
+        // while (!gXcpServer.shm_thread_running) {
+        //     sleepUs(100);
+        // }
     }
 
     return true;
+}
+
+void ShmShutdown_(void) {
+    DBG_PRINT3(ANSI_COLOR_BLUE "Terminate SHM thread\n" ANSI_COLOR_RESET);
+    gXcpServer.shm_thread_running = false;
+    join_thread(gXcpServer.shm_thread_handle);
+    DBG_PRINT3(ANSI_COLOR_BLUE "Unmap SHM  '/xcpqueue'\n" ANSI_COLOR_RESET);
+    platformShmClose("/xcpqueue", gXcpServer.shm_queue_ptr, gXcpServer.shm_queue_total_size, false);
+    gXcpServer.shm_queue_ptr = NULL;
+    gXcpServer.is_init = false;
+}
+
+// SHM server thread
+// Background thread in all other applications which are not an XCP server in SHM mode
+// Polls the A2L finalize request flag, so applications can write their A2L file on request by the server
+// Also increments the alive_counter to detect stale processes.
+#if defined(_WIN) // Windows
+DWORD WINAPI XcpShmThread(LPVOID par)
+#else
+extern void *XcpShmThread(void *par)
+#endif
+{
+    (void)par;
+    DBG_PRINT3(ANSI_COLOR_BLUE "SHM thread started\n" ANSI_COLOR_RESET);
+
+    // Start the XCP protocol layer
+    // Without starting the protocoll layer, event handling is not enabled
+    XcpStart(gXcpServer.transmit_queue, false);
+
+    gXcpServer.shm_thread_running = true;
+    while (gXcpServer.shm_thread_running) {
+        sleepUs(50000); // Poll every 50 ms
+
+        // Handle background tasks, e.g. pending calibration updates
+        XcpBackgroundTasks();
+
+        // Prove this follower is still alive
+        XcpShmIncrementAliveCounter();
+
+        // Poll the global A2L finalize request flag
+        // If set, finalize the local A2L file if not already done
+#ifdef OPTION_ENABLE_A2L_GENERATOR
+        if (!XcpShmIsA2lFinalized(XcpShmGetAppId()) && XcpShmIsA2lFinalizeRequested()) {
+            sleepMs(500); // @@@@ TODO
+            if (A2lFinalize()) {
+                DBG_PRINT3("A2L finalized by SHM request\n");
+            } else {
+                DBG_PRINT3("A2L already finalized\n");
+            }
+        }
+#endif
+    }
+
+    gXcpServer.shm_thread_running = false;
+    DBG_PRINT3(ANSI_COLOR_BLUE "SHM background thread terminated!\n" ANSI_COLOR_RESET);
+    return 0;
 }
 
 // XCP on SHM server init
@@ -248,7 +285,30 @@ bool XcpShmServerInit(uint32_t queue_size) {
     return true;
 }
 
+// XCP on SHM server shutdown
+bool XcpShmServerShutdown(void) { return XcpEthServerShutdown(); }
+
+// XCP on SHM server status
+bool XcpShmServerStatus(void) { return gXcpServer.is_init && gXcpServer.shm_thread_running; }
+
 #endif // OPTION_SHM_MODE
+
+//-------------------------------------------------------------------------------------------------------
+// XCP server
+
+// XCP server status
+bool XcpEthServerStatus(void) {
+    if (!XcpIsActivated())
+        return true;
+
+#ifdef OPTION_SHM_MODE
+    if (XcpShmIsActive() && !XcpShmIsServer()) {
+        return XcpShmServerStatus();
+    }
+#endif // OPTION_SHM_MODE
+
+    return gXcpServer.is_init && gXcpServer.transmit_thread_running && gXcpServer.receive_thread_running;
+}
 
 // XCP on ethernet server init
 bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t queue_size) {
@@ -308,7 +368,7 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
 
         // Wait until receive thread is running to avoid races
         while (!gXcpServer.receive_thread_running) {
-            sleepUs(100);
+            sleepUs(20);
         }
 
         // Create the transmit thread
@@ -339,16 +399,11 @@ bool XcpEthServerShutdown(void) {
     XcpDeinit();
 
 #ifdef OPTION_SHM_MODE
-    // In SHM mode, shutdown a non server process
-    // Not SHM server: no socket or server threads — stop the background thread, then clean up, unmap but do not unlink the SHM region for the queue
+
     if (XcpShmIsActive() && !XcpShmIsServer()) {
-        DBG_PRINT3(ANSI_COLOR_BLUE "Terminate SHM thread\n" ANSI_COLOR_RESET);
-        gXcpServer.shm_thread_running = false;
-        join_thread(gXcpServer.shm_thread_handle);
-        DBG_PRINT3(ANSI_COLOR_BLUE "Unmap SHM  '/xcpqueue'\n" ANSI_COLOR_RESET);
-        platformShmClose("/xcpqueue", gXcpServer.shm_queue_ptr, gXcpServer.shm_queue_total_size, false);
-        gXcpServer.shm_queue_ptr = NULL;
-        gXcpServer.is_init = false;
+        // In SHM mode, shutdown a non server process
+        // Not SHM server: no socket or server threads — stop the background thread, then clean up, unmap but do not unlink the SHM region for the queue
+        ShmShutdown_();
         return true;
     }
 #endif // OPTION_SHM_MODE
@@ -400,9 +455,6 @@ bool XcpEthServerShutdown(void) {
 
     return true;
 }
-
-// XCP on SHM server shutdown
-bool XcpShmServerShutdown(void) { return XcpEthServerShutdown(); }
 
 //-------------------------------------------------------------------------------------------------------
 
@@ -505,57 +557,3 @@ extern void *XcpServerTransmitThread(void *par)
     DBG_PRINT3("XCP transmit thread terminated!\n");
     return 0;
 }
-
-//-------------------------------------------------------------------------------------------------------
-// SHM server thread
-
-#ifdef OPTION_SHM_MODE
-// In SHM mode, there is a background thread in applications which are not the XCP server
-// Polls the A2L finalize request flag so followers can write their A2L file as soon
-// as the leader gets an XCP client CONNECT.  Also increments the alive_counter so
-// the leader can detect stale follower processes.
-#if defined(_WIN) // Windows
-DWORD WINAPI XcpShmThread(LPVOID par)
-#else
-extern void *XcpShmThread(void *par)
-#endif
-{
-    (void)par;
-    DBG_PRINT3(ANSI_COLOR_BLUE "SHM thread started\n" ANSI_COLOR_RESET);
-
-    // Start the XCP protocol layer
-    // Without starting the protocoll layer, event handling is not enabled
-    XcpStart(gXcpServer.transmit_queue, false);
-
-    XcpShmDebugPrint();
-
-    gXcpServer.shm_thread_running = true;
-    while (gXcpServer.shm_thread_running) {
-        sleepUs(50000); // Poll every 50 ms
-
-        // Handle background tasks, e.g. pending calibration updates
-        XcpBackgroundTasks();
-
-        // Prove this follower is still alive
-        XcpShmIncrementAliveCounter();
-
-        // Poll the global A2L finalize request flag
-        // If set, finalize the local A2L file if not already done
-#ifdef OPTION_ENABLE_A2L_GENERATOR
-        if (!XcpShmIsA2lFinalized(XcpShmGetAppId()) && XcpShmIsA2lFinalizeRequested()) {
-            sleepMs(500); // @@@@ TODO
-            if (A2lFinalize()) {
-                DBG_PRINT3("A2L finalized by SHM request\n");
-            } else {
-                DBG_PRINT3("A2L already finalized\n");
-            }
-        }
-#endif
-    }
-
-    gXcpServer.shm_thread_running = false;
-    DBG_PRINT3(ANSI_COLOR_BLUE "SHM background thread terminated!\n" ANSI_COLOR_RESET);
-    return 0;
-}
-
-#endif // OPTION_SHM_MODE

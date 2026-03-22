@@ -109,7 +109,7 @@ tXcpData *XcpShmAttachOrCreate(bool *out_is_leader) {
 
         // Wait up to 500ms for the leader to complete his XcpInit()
         if (!isActivated_(xcp_data)) {
-            DBG_PRINT5("XcpShmAttachOrCreate:waiting for leader to activate XCP ...\n");
+            DBG_PRINT5("XcpShmAttachOrCreate: waiting for leader to activate XCP ...\n");
             for (int i = 0; i < 500 && !isActivated_(xcp_data); i++) {
                 sleepUs(1000);
             }
@@ -171,11 +171,11 @@ void XcpShmDebugPrint(void) {
     printf(ANSI_COLOR_RESET);
 
     // --- App list ---
-    printf(ANSI_COLOR_BLUE "App list (%u registered):\n" ANSI_COLOR_GREY, app_count);
+    printf(ANSI_COLOR_BLUE "Apps (%u):\n" ANSI_COLOR_GREY, app_count);
     for (uint32_t i = 0; i < app_count && i < SHM_MAX_APP_COUNT; i++) {
         const tApp *app = &hdr->app_list[i];
-        printf("  [%u] name='%s', epk='%s', init_mode=%02X, pid=%u, %s %s, alive=%u, a2l_finalized=%u, a2l_name='%s'\n", i, app->project_name, app->epk, app->xcp_init_mode,
-               app->pid, app->is_leader ? "leader" : "follower", app->is_server ? "server" : "", (unsigned)atomic_load(&app->alive_counter),
+        printf("  [%u] '%s', epk='%s', \t\tmode=%02X, %s pid=%u, %s %s, a2l_fin=%u, a2l_name='%s'\n", i, app->project_name, app->epk, app->xcp_init_mode,
+               (unsigned)atomic_load(&app->alive_counter) > 0 ? "alive" : "stale", app->pid, app->is_leader ? "leader" : "follower", app->is_server ? "server" : "",
                (unsigned)atomic_load(&app->a2l_finalized), app->a2l_name);
     }
     printf(ANSI_COLOR_RESET);
@@ -188,8 +188,8 @@ void XcpShmDebugPrint(void) {
         if (ev == NULL)
             printf("  [%u] not found\n", id);
         else
-            printf("  [%u] name='%s', cycle_ns=%u, index=%u, app_id=%u, daq_first=%u, flags=0x%02X\n", id, XcpGetEventName(id), ev->cycle_time_ns, ev->index, ev->app_id,
-                   ev->daq_first, ev->flags);
+            printf("  [%u] '%s', cycle_ns=%u, index=%u, app_id=%u, daq_first=%u, flags=0x%02X\n", id, XcpGetEventName(id), ev->cycle_time_ns, ev->index, ev->app_id, ev->daq_first,
+                   ev->flags);
     }
     printf(ANSI_COLOR_RESET);
 
@@ -201,7 +201,7 @@ void XcpShmDebugPrint(void) {
         if (cs == NULL)
             printf("  [%u] not found\n", i);
         else
-            printf("  [%u] name='%s', size=%u, app_id=%u, seg_num=%u\n", i, cs->h.name, cs->h.size, cs->h.app_id, cs->h.calseg_number);
+            printf("  [%u] '%s', size=%u, app_id=%u, seg_num=%u\n", i, cs->h.name, cs->h.size, cs->h.app_id, cs->h.calseg_number);
     }
     printf(ANSI_COLOR_RESET);
 }
@@ -309,7 +309,7 @@ int XcpShmCollectA2lFiles(uint32_t timeout_ms, const char *filenames[], int max_
 
 // Get the project name of the ECU
 // @@@@ TODO: implement setting the ECU project name
-const char *XcpShmGetEcuProjectName(void) { return "shm"; }
+const char *XcpShmGetEcuProjectName(void) { return SHM_PROJECT_NAME; }
 
 // Get the number of registered applications in SHM mode.
 uint8_t XcpShmGetAppCount(void) {
@@ -317,6 +317,22 @@ uint8_t XcpShmGetAppCount(void) {
         return 0;
     assert(isActivated_(gXcpData));
     return (uint8_t)atomic_load(&gXcpData->shm_header.app_count);
+}
+
+// Get the number of registered and alive applications in SHM mode.
+uint8_t XcpShmGetActiveAppCount(void) {
+    if (!XcpShmIsActive())
+        return 0;
+    assert(isActivated_(gXcpData));
+    uint8_t count = 0;
+    uint32_t app_count = (uint32_t)atomic_load(&gXcpData->shm_header.app_count);
+    for (uint32_t i = 0; i < app_count && i < SHM_MAX_APP_COUNT; i++) {
+        const tApp *app = &gXcpData->shm_header.app_list[i];
+        if (atomic_load(&app->alive_counter) > 0) {
+            count++;
+        }
+    }
+    return count;
 }
 
 // Get the project name of an app slot by its app_id index.
@@ -363,6 +379,34 @@ void XcpShmIncrementAliveCounter(void) {
     if (slot >= SHM_MAX_APP_COUNT)
         return;
     atomic_fetch_add(&gXcpData->shm_header.app_list[slot].alive_counter, 1U);
+}
+
+// Reset the alive_counter of an app slot
+void XcpShmResetAliveCounter(uint8_t app_id) {
+    if (!XcpShmIsActive() || !isInitialized_(gXcpData))
+        return;
+    if (app_id >= SHM_MAX_APP_COUNT)
+        return;
+    atomic_store(&gXcpData->shm_header.app_list[app_id].alive_counter, 0U);
+}
+
+// Reset the alive_counter of all app slots
+void XcpShmResetAliveCounters(void) {
+    if (!XcpShmIsActive() || !isInitialized_(gXcpData))
+        return;
+    uint32_t app_count = (uint32_t)atomic_load(&gXcpData->shm_header.app_count);
+    for (uint32_t i = 0; i < app_count && i < SHM_MAX_APP_COUNT; i++) {
+        atomic_store(&gXcpData->shm_header.app_list[i].alive_counter, 0U);
+    }
+}
+
+// Get the alive_counter of an app slot
+uint32_t XcpShmGetAliveCounter(uint8_t app_id) {
+    if (!XcpShmIsActive() || !isInitialized_(gXcpData))
+        return 0;
+    if (app_id >= SHM_MAX_APP_COUNT)
+        return 0;
+    return (uint32_t)atomic_load(&gXcpData->shm_header.app_list[app_id].alive_counter);
 }
 
 /**************************************************************************/

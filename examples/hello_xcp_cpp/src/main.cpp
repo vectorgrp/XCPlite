@@ -166,8 +166,8 @@ int main() {
 
     std::signal(SIGINT, signal_handler);
     std::signal(SIGTERM, signal_handler);
-
     std::cout << "\nXCP on Ethernet demo - simple C++ example\n" << std::endl;
+    uint64_t start_time = clockGetMonotonicNs(); // Get the start time in nanoseconds
 
     // Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
     XcpSetLogLevel(OPTION_LOG_LEVEL);
@@ -205,6 +205,8 @@ int main() {
     gCalSeg->CreateA2lTypedefInstance("ParametersT", "Demo calibration parameters for hello_xcp_cpp example");
 #endif
 
+    uint64_t run_time = clockGetMonotonicNs(); // Get the start time of the application thread in nanoseconds
+
     // Create a simple arithmetic local variable
     uint16_t counter{0};
 
@@ -216,7 +218,7 @@ int main() {
     // auto average_filter = new floating_average::FloatingAverage();
 
     // Main loop
-    std::cout << "Starting main loop... (Press Ctrl+C to exit)" << std::endl;
+    std::cout << "Starting main loop... (boot time: " << (run_time - start_time) / 1000 << " us) (Press Ctrl+C to exit)" << std::endl;
     while (gRun) {
         counter++;
         global_counter++;

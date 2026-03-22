@@ -2818,23 +2818,6 @@ void XcpBackgroundTasks(void) {
 
     DBG_PRINT6("XcpBackgroundTasks\n");
 
-// In SHM mode, detect newly registered follower processes and log their identity
-#ifdef OPTION_SHM_MODE
-#ifdef OPTION_ENABLE_DBG_PRINTS
-    if (DBG_LEVEL >= 4) {
-        if (XcpShmIsServer()) {
-            static uint32_t last_count = 0;
-            uint32_t current_count = (uint32_t)atomic_load(&shared.shm_header.app_count);
-            if (last_count < current_count) {
-                DBG_PRINTF3(ANSI_COLOR_BLUE "New application attached: %u:'%s'\n" ANSI_COLOR_RESET, last_count, XcpShmGetAppProjectName(last_count));
-                last_count++;
-                XcpShmDebugPrint();
-            }
-        }
-    }
-#endif
-#endif // OPTION_SHM_MODE
-
 // Publish all modified calibration segments
 #ifdef XCP_ENABLE_CALSEG_LAZY_WRITE
     static uint64_t last_success_time = 0;
@@ -2932,8 +2915,16 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     DBG_PRINTF3("XcpInit name=%s, epk=%s, mode=%02X\n", name, epk, mode);
     DBG_PRINTF5("  sizeof(tXcpData)=%zu  sizeof(tXcpLocalData)=%zu\n", sizeof(tXcpData), sizeof(tXcpLocalData));
 
-#if defined(OPTION_SHM_MODE) && defined(TEST_MUTABLE_ACCESS_OWNERSHIP)
+#ifdef OPTION_SHM_MODE
+    // Adjust mode flags for SHM mode, if enabled, to ensure consistency of dependent flags
+    if ((mode & (XCP_MODE_SHM_AUTO | XCP_MODE_SHM_SERVER)) != 0)
+        mode |= XCP_MODE_SHM; // Be sure XCP_MODE_SHM has been set
+    if ((mode & (XCP_MODE_SHM)) != 0)
+        mode |= XCP_MODE_PERSISTENCE; // Be sure XCP_MODE_PERSISTENCE has been set
+
+#ifdef TEST_MUTABLE_ACCESS_OWNERSHIP
     XcpBindOwnerThread();
+#endif
 #endif
 
     // Clear local XCP state
@@ -2968,11 +2959,6 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     }
 
 #ifdef OPTION_SHM_MODE
-    // Adjust mode for SHM mode
-    if ((mode & (XCP_MODE_SHM_AUTO | XCP_MODE_SHM_SERVER)) != 0)
-        mode |= XCP_MODE_SHM; // Be sure XCP_MODE_SHM has been set
-    if ((mode & (XCP_MODE_SHM)) != 0)
-        mode |= XCP_MODE_PERSISTENCE; // Be sure XCP_MODE_PERSISTENCE has been set
     // SHM mode activated
     if ((mode & XCP_MODE_SHM) != 0) {
         // In SHM mode, attach to shared memory, or create it if not existing (leader)
@@ -2987,7 +2973,7 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
             if ((mode & XCP_MODE_SHM_SERVER) != 0) {
                 // @@@@ TODO Check if there already is a server
                 local_mut.shm_server = true;
-                assert(false && "Not implemented yet");
+                assert(false && "Stale SHM found, recovery not implemented yet");
             } else {
                 // @@@@ TODO Check if there is server alive
                 local_mut.shm_server = false;

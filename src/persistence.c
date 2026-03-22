@@ -307,7 +307,9 @@ bool XcpBinWrite(uint8_t page) {
 
     DBG_PRINTF3("Persistence data written to file '%s'\n", gXcpBinFilename);
 #ifdef OPTION_SHM_MODE
-    XcpShmDebugPrint();
+    if (DBG_LEVEL >= 4) {
+        XcpShmDebugPrint();
+    }
 #endif
 
     return true;

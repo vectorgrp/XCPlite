@@ -45,9 +45,13 @@ extern tXcpData gXcpData;
 #define shared_mut gXcpData                   // Shortcut for mutable access to the XCP singleton data
 #define shared_mut_safe gXcpData              // Shortcut for mutable access to the XCP singleton data
 #endif
+
+// Local state, not shared between processes in SHM mode
+// The only local state used is the mutex to protect the calibration segment list and the MTA pointer in XcpGetSegInfo
+// @@@@ TODO: Move the XCP protocol specific parts back to xcplite.c
 extern tXcpLocalData gXcpLocalData;
-#define local (*(const tXcpLocalData *)&gXcpLocalData) // Read-only access to process-local state
-#define local_mut gXcpLocalData                        // Mutable access to process-local state
+// #define local (*(const tXcpLocalData *)&gXcpLocalData) // Read-only access to process-local state
+#define local_mut gXcpLocalData // Mutable access to process-local state
 
 // @@@@ TODO:
 // Calibration instrumentation can currently not be deactivate at runtime, it has to be done at compile time

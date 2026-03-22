@@ -356,7 +356,7 @@ const char *A2lGetA2lTypeName(tA2lTypeId type_id) {
     case A2L_TYPE_DOUBLE:
         return "FLOAT64_IEEE";
     default:
-        assert(0);
+        assert(0 && "Invalid A2L type id");
         return NULL;
     }
 }
@@ -384,7 +384,7 @@ const char *A2lGetA2lTypeName_M(tA2lTypeId type_id) {
     case A2L_TYPE_DOUBLE:
         return "M_F64";
     default:
-        assert(0);
+        assert(0 && "Invalid A2L type id");
         return NULL;
     }
 }
@@ -412,7 +412,7 @@ const char *A2lGetA2lTypeName_C(tA2lTypeId type_id) {
     case A2L_TYPE_DOUBLE:
         return "C_F64";
     default:
-        assert(0);
+        assert(0 && "Invalid A2L type id");
         return NULL;
     }
 }
@@ -440,7 +440,7 @@ const char *A2lGetA2lRecordLayoutName(tA2lTypeId type_id) {
     case A2L_TYPE_DOUBLE:
         return "F64";
     default:
-        assert(0);
+        assert(0 && "Invalid A2L type id");
         return NULL;
     }
 }
@@ -819,7 +819,7 @@ static void A2lCreateMeasurement_IF_DATA(void) {
             if (gA2lFixedEvent != XCP_UNDEFINED_EVENT_ID) {
                 fprintf(gA2lFile, " /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x%X /end DAQ_EVENT /end IF_DATA", gA2lFixedEvent);
             } else {
-                assert(false); // Fixed event must be set before calling this function
+                assert(0 && "Fixed event not set"); // Fixed event must be set before calling this function
             }
         } else if (XcpAddrIsAbs(addr_ext)) {
             if (gA2lFixedEvent != XCP_UNDEFINED_EVENT_ID) {
@@ -1174,7 +1174,7 @@ static uint32_t A2lGetAddr_(const void *p) {
                 // Overflow
                 else {
                     DBG_PRINTF_ERROR("A2L address overflow detected! addr: %p, base1: %p, base2: %p\n", p, (void *)gA2lBasePtr, (void *)gA2lFramePtr);
-                    assert(0);
+                    assert(0 && "A2L address overflow");
                     return 0;
                 }
             }
@@ -1201,7 +1201,7 @@ static uint32_t A2lGetAddr_(const void *p) {
                 return XcpAddrEncodeAbs(p);
 #else
                 DBG_PRINTF_ERROR("A2L address overflow detected! addr: %p\n", p);
-                assert(0);
+                assert(0 && "A2L address overflow");
                 return 0;
 #endif
             }
@@ -1224,7 +1224,7 @@ static uint32_t A2lGetAddr_(const void *p) {
                 // Ensure the address difference does not overflow the value range for absolute addressing (uint32_t)
                 if ((addr_diff >> 32) != 0) {
                     DBG_PRINTF_ERROR("A2L rel address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lBasePtr);
-                    assert(0);
+                    assert(0 && "A2L address overflow");
                     return 0;
                 }
             }
@@ -1241,7 +1241,7 @@ static uint32_t A2lGetAddr_(const void *p) {
                     // Ensure the address difference does not overflow the offset bits for dynamic addressing
                     if ((addr_diff >> XCP_DYN_ADDR_OFFSET_BITS) != 0) {
                         DBG_PRINTF_ERROR("A2L dyn address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lBasePtr);
-                        assert(0);
+                        assert(0 && "A2L address overflow");
                         return 0;
                     }
                 } else {
@@ -1260,7 +1260,7 @@ static uint32_t A2lGetAddr_(const void *p) {
                 // Ensure the relative address does not overflow the 16 Bit address offset for calibration segment relative addressing
                 if ((addr_diff >> 16) != 0) {
                     DBG_PRINTF_ERROR("A2L seg relative address overflow detected! addr: %p, base: %p\n", p, (void *)gA2lBasePtr);
-                    assert(0);
+                    assert(0 && "A2L address overflow");
                     return 0;
                 }
             }
@@ -1458,7 +1458,7 @@ void A2lTypedefParameterComponent_(const char *field_name, tA2lTypeId type_id, u
             //
             else {
                 DBG_PRINTF_ERROR("Invalid dimensions: x_dim=%u, y_dim=%u\n", x_dim, y_dim);
-                assert(0);
+                assert(0 && "Invalid dimensions");
             }
             printPhysUnit(gA2lTypedefsFile, unit_or_conversion);
             fprintf(gA2lTypedefsFile, " /end TYPEDEF_CHARACTERISTIC\n");

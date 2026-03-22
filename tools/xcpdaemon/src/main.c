@@ -1,4 +1,9 @@
-﻿// xcpdaemon
+﻿// xcpdaemon - XCP daemon application
+// This application serves as a daemon for multi application measurement and calibration use cases
+// Just another XCP instrumented application in SHM mode, but it is configured to be the only XCP server
+// Creates the master A2L file and manages the binary calibration data persistence file
+// Must not be started first
+// It has own measurement and calibration objects to monitor the system and multiple XCP /SHM instrumented applications
 
 #include <assert.h>  // for assert
 #include <signal.h>  // for signal handling
@@ -7,19 +12,32 @@
 #include <stdio.h>   // for printf
 #include <string.h>  // for sprintf
 
-#include <a2l.h>    // for A2l generation
-#include <xcplib.h> // for application programming interface
+#include "a2l.h"        // for A2l generation
+#include "dbg_print.h"  // for DBG_LEVEL, DBG_PRINT, ...
+#include "platform.h"   // for platform defines (WIN_, LINUX_, MACOS_)
+#include "shm.h"        // for A2L generation
+#include "xcp.h"        // for XCP protocol definitions
+#include "xcplib.h"     // for application programming interface
+#include "xcplib_cfg.h" // for OPTION_xxx
+#include "xcplite.h"    // for XCP protocol layer interface functions
+
+#ifdef OPTION_SHM_MODE
+extern tXcpData *gXcpData;
+extern tXcpLocalData gXcpLocalData;
+#endif
 
 //-----------------------------------------------------------------------------------------------------
 
 // XCP parameters
-#define OPTION_PROJECT_NAME "xcpdaemon"   // A2L project name
-#define OPTION_PROJECT_EPK "V1_" __TIME__ // EPK version string
-#define OPTION_USE_TCP false              // TCP or UDP
-#define OPTION_SERVER_PORT 5555           // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0}   // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE (1024 * 32)     // Size of the measurement queue in bytes
-#define OPTION_LOG_LEVEL 6                // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_PROJECT_NAME "xcpdaemon"                                             // A2L project name
+#define OPTION_PROJECT_EPK "102"                                                    // EPK version string (default, is contructed from the applications version strings)
+#define OPTION_USE_TCP true                                                         // TCP or UDP
+#define OPTION_SERVER_PORT 5555                                                     // Port
+#define OPTION_SERVER_ADDR {0, 0, 0, 0}                                             // Bind addr, 0.0.0.0 = ANY
+#define OPTION_QUEUE_SIZE (1024 * 32)                                               // Size of the measurement queue in bytes
+#define OPTION_XCP_MODE (XCP_MODE_PERSISTENCE | XCP_MODE_SHM | XCP_MODE_SHM_SERVER) // XCP mode
+#define OPTION_A2L_MODE (A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS) // A2L generation mode
+#define OPTION_LOG_LEVEL 3                                                                          // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 //-----------------------------------------------------------------------------------------------------
 
@@ -51,32 +69,59 @@ int main(void) {
         return 1;
     }
 
-    // Variables on stack
+    uint32_t delay_ms = 10;
     uint16_t counter = 0;
 
     // Register measurement variables located on stack
-    DaqCreateEvent(daemon);
-    A2lSetStackAddrMode(daemon);
+    DaqCreateEvent(xcpdaemon);
+    A2lSetStackAddrMode(xcpdaemon);
     A2lCreateMeasurement(counter, "Mainloop counter");
+    A2lCreateParameter(delay_ms, "Mainloop delay", "ms", 1, 1000);
 
 #ifdef OPTION_SHM_MODE
-    // Print current status of the shared memory
-    printf("\n--------------------------------------------------------------\n");
-    printf("Shared memory status after initialization:\n");
-    struct tXcpData;
-    extern struct tXcpData *gXcpData;
-    extern void XcpShmDebugPrint(const tShmHeader *hdr);
-    XcpShmDebugPrint(&gXcpData->shm_header);
-    printf("--------------------------------------------------------------\n");
+
+    // Local
+    A2lSetAbsoluteAddrMode(xcpdaemon);
+    A2lCreateMeasurement(gXcpLocalData.shm_app_id, "Application id");
+    // A2lCreateMeasurementString(gXcpLocalData.project_name, "Project name");
+    // A2lCreateMeasurementString(gXcpLocalData.epk, "EPK version");
+    A2lCreateMeasurement(gXcpLocalData.init_mode, "Initialization mode");
+    A2lCreateMeasurement(gXcpLocalData.daq_start_clock, "DAQ start clock");
+
+    // Shared
+    A2lSetRelativeAddrMode(xcpdaemon, gXcpData);
+    A2lTypedefBegin(tXcpData, gXcpData, "XCP shared state typedef");
+    A2lTypedefMeasurementComponent(session_status, "XCP session status");
+    // A2lTypedefMeasurementComponent(daq_running, "DAQ is running "); @@@@ TODO Does not work for atomics
+    A2lTypedefMeasurementComponent(daq_overflow_count, "DAQ overflow count");
+    A2lTypedefEnd();
+    A2lCreateTypedefReference(gXcpData, tXcpData, "XCP shared state");
+
+    // A2lCreateMeasurement(gXcpData->shm_header.app_count, "Application count");
+    // A2lTypedefBegin(tXcpShmApp, &gXcpData->shm_header.app_list, "Calibration parameters typedef");
+    // A2lTypedefMeasurementComponent(pid, "Process id ");
+    // A2lTypedefMeasurementComponent(is_server, "Is server ");
+    // A2lTypedefMeasurementComponent(is_leader, "Is leader ");
+    // A2lTypedefEnd();
+    // A2lCreateTypedefReference(gXcpData, tXcpShmApp, "Shared memory");
+
+    if (DBG_LEVEL >= 3) {
+        // Print current status of the shared memory
+        printf("\n--------------------------------------------------------------\n");
+        printf("Shared memory status after initialization:\n");
+        XcpShmDebugPrint();
+        printf("--------------------------------------------------------------\n");
+    }
+
 #endif // OPTION_SHM_MODE
 
-    uint32_t delay_us = 1000;
+    DBG_PRINT3("\nStart XCP daemon, press Ctrl-C to stop...\n");
+
     while (running) {
 
+        // Measure some server statistics
         counter++;
-
-        // Trigger the measurement event for globals, local variables on stack, and event synchronized calibration access without using a calibration segment
-        DaqTriggerEvent(daemon);
+        DaqTriggerEventExt(xcpdaemon, gXcpData);
 
         // Check server status
         if (!XcpEthServerStatus()) {
@@ -84,10 +129,35 @@ int main(void) {
             break;
         }
 
-        // Sleep for the specified delay parameter in microseconds
-        sleepUs(delay_us);
+        // Every second
+        if (counter % (1000 / delay_ms) == 0) {
+// In SHM mode, detect newly registered application log their identity
+#ifdef OPTION_SHM_MODE
+            if (DBG_LEVEL >= 3) {
+                if (XcpShmIsServer()) {
+                    static uint32_t last_count = 0;
+                    uint32_t current_count = XcpShmGetActiveAppCount(); // Apps with alive_count > 0
+                    if (last_count != current_count) {
+                        if (last_count < current_count)
+                            DBG_PRINT3(ANSI_COLOR_BLUE "New applications:'\n" ANSI_COLOR_RESET);
+                        else
+                            DBG_PRINT3(ANSI_COLOR_BLUE "Applications lost:'\n" ANSI_COLOR_RESET);
+
+                        last_count = current_count;
+                        XcpShmDebugPrint();
+                    }
+                    XcpShmResetAliveCounters(); // Reset alive counters every second, so applications must increment them to prove they are alive
+                }
+            }
+#endif // OPTION_SHM_MODE
+        }
+
+        // Sleep for the specified delay parameter in milliseconds
+        sleepMs(delay_ms);
 
     } // while (running)
+
+    DBG_PRINT3("\nStop XCP daemon\n");
 
     XcpDisconnect();        // Force disconnect the XCP client
     A2lFinalize();          // Finalize A2L generation, if not done yet

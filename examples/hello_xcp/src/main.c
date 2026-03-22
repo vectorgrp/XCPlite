@@ -1,4 +1,4 @@
-﻿// hello_xcp XCPlite example
+﻿// hello_xcp - simple XCPlite/libxcplite C example
 
 #include <assert.h>  // for assert
 #include <signal.h>  // for signal handling
@@ -121,6 +121,7 @@ int main(void) {
     printf("\nXCP on Ethernet hello_xcp C demo\n");
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
+    uint64_t start_time = clockGetMonotonicNs(); // Get the start time in nanoseconds
 
     // XCP: Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
     XcpSetLogLevel(OPTION_LOG_LEVEL);
@@ -166,6 +167,8 @@ int main(void) {
     // A2lSetSegmentAddrMode(params_calseg, params);
     // A2lCreateTypedefInstance(params, params_t, "Calibration parameters");
 
+    uint64_t run_time = clockGetMonotonicNs(); // Get the start time of the application thread in nanoseconds
+
     uint16_t counter = 0;
 
 #ifndef OPTION_USE_VARIADIC_MACROS
@@ -186,7 +189,7 @@ int main(void) {
 #endif
 
     // Mainloop
-    printf("Start main loop...\n");
+    printf("Start main loop... (boot time: %llu us)\n", (run_time - start_time) / 1000);
     uint32_t delay_us = 1000; // Mainloop delay time in us
     while (running) {
         // XCP: Lock the calibration parameter segment for consistent and safe access
