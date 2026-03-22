@@ -88,8 +88,8 @@ extern tXcpLocalData gXcpLocalData;
 // Forward declarations
 
 static void *XcpCalMemAlloc_(size_t size);
-static void XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *default_page, uint16_t page_size, bool memory_segment);
-static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, bool lookup, const void *default_page, uint16_t page_size, bool memory_segment);
+static bool XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *default_page, FILE *default_page_file, uint16_t page_size, bool memory_segment);
+static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, bool lookup, const void *default_page, FILE *default_page_file, uint16_t page_size, bool memory_segment);
 
 /**************************************************************************/
 
@@ -139,7 +139,7 @@ uint16_t XcpGetCalSegCount(void) {
 uint8_t XcpGetMemSegCount(void) {
     if (!isActivated()) {
         assert(0);
-        return XCP_UNDEFINED_CALSEG;
+        return XCP_UNDEFINED_CALSEG_NUM;
     }
     return shared.cal_seg_list.memory_segment_count;
 }
@@ -257,18 +257,18 @@ uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg_index) {
 
 // Create a preloaded calibration segment, which is initialized with data from the binary persistence file at startup
 // Return the default page to the caller for initialization with the preloaded data, or NULL on error (e.g. wrong index, wrong memory segment number, out of memory, etc.)
-uint8_t *XcpCreateCalSegPreloaded(const char *name, uint8_t app_id, uint16_t page_size, tXcpCalSegIndex index, uint8_t number, uint32_t file_pos) {
+tXcpCalSegIndex XcpCreateCalSegPreloaded(const char *name, uint8_t app_id, uint16_t page_size, tXcpCalSegIndex index, tXcpCalSegNumber number, FILE *file, uint32_t file_pos) {
 
-    // Create a calibration segment with given name, index and number without an initial value
-    tXcpCalSegIndex seg_index = XcpCreateCalSeg_(name, false /* lookup */, NULL, page_size, number != XCP_UNDEFINED_CALSEG_NUM);
+    // Create a calibration segment with given name, index and number without initial value to be loaded from file
+    tXcpCalSegIndex seg_index = XcpCreateCalSeg_(name, false /* lookup */, NULL, file, page_size, number != XCP_UNDEFINED_CALSEG_NUM);
     if (seg_index != index) {
         assert(0);
-        return NULL;
+        return XCP_UNDEFINED_CALSEG;
     }
     tXcpCalSeg *seg = CalSegPtrMut(seg_index);
     if (seg->h.calseg_number != number) {
         assert(0);
-        return NULL;
+        return XCP_UNDEFINED_CALSEG;
     }
 
 #ifdef XCP_ENABLE_CAL_PERSISTENCE
@@ -278,8 +278,7 @@ uint8_t *XcpCreateCalSegPreloaded(const char *name, uint8_t app_id, uint16_t pag
     seg->h.app_id = app_id;     // Save the application ID
 #endif
 
-    void *default_page = CalSegDefaultPage(seg);
-    return default_page;
+    return seg_index;
 }
 
 // Create a calibration segment if not already exists
@@ -292,7 +291,7 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
         assert(0);
         return XCP_UNDEFINED_CALSEG;
     }
-    return XcpCreateCalSeg_(name, true /* lookup */, default_page, page_size, 2);
+    return XcpCreateCalSeg_(name, true /* lookup */, default_page, NULL, page_size, true);
 }
 
 // Create a calibration block if not already exists
@@ -304,7 +303,7 @@ tXcpCalSegIndex XcpCreateCalBlk(const char *name, const void *default_page, uint
         assert(0);
         return XCP_UNDEFINED_CALSEG;
     }
-    return XcpCreateCalSeg_(name, true /* lookup */, default_page, page_size, 0);
+    return XcpCreateCalSeg_(name, true /* lookup */, default_page, NULL, page_size, false);
 }
 
 // Helper for XcpCreateCalSeg_ to register a calibration segment in the calibration segment list
@@ -340,7 +339,7 @@ static tXcpCalSegIndex XcpRegisterCalSeg_(tXcpCalSeg *c) {
 // A segment with this name may already exist, when preloaded - then it is reinitialized
 // Lookup for existence can be skipped if lookup is false, which is the case for preloaded segments, because they have a predefined index and are loaded in order
 // If default_page is NULL, it is a preloaded segment, the caller will initialize the default page
-static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, bool lookup, const void *default_page, uint16_t page_size, bool memory_segment) {
+static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, bool lookup, const void *default_page, FILE *default_page_file, uint16_t page_size, bool memory_segment) {
 
     tXcpCalSeg *calseg = NULL;
     tXcpCalSegIndex calseg_index = XCP_UNDEFINED_CALSEG;
@@ -360,7 +359,9 @@ static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, bool lookup, const voi
         // Header + DEFAULT page + ECU page + XCP page + RCU swap page
         calseg = (tXcpCalSeg *)XcpCalMemAlloc_(sizeof(tXcpCalSegHeader) + 4 * aligned_page_size);
         DBG_PRINTF3("Create CalSeg '%s' size=%u, calseg_number=%u\n", name, page_size, memory_segment);
-        XcpInitCalSeg_(calseg, name, default_page, page_size, memory_segment);
+        if (!XcpInitCalSeg_(calseg, name, default_page, default_page_file, page_size, memory_segment)) {
+            return XCP_UNDEFINED_CALSEG;
+        }
         if ((calseg_index = XcpRegisterCalSeg_(calseg)) == XCP_UNDEFINED_CALSEG) {
             return XCP_UNDEFINED_CALSEG;
         }
@@ -384,9 +385,18 @@ static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, bool lookup, const voi
     // The PAG_PROPERTY_PRELOAD bit is set to indicate this
     if ((calseg->h.mode & PAG_PROPERTY_PRELOAD) != 0) {
 
+        assert(default_page_file == NULL); // For preloaded segments, the default page is initialized
+        assert(strcmp(calseg->h.name, name) == 0);
+        assert(page_size == calseg->h.size);
+
+        // Nothing to do
         // Complete the initialization of the preloaded segment
-        DBG_PRINTF3("Finalize preloaded CalSeg '%s' index=%u, size=%u\n", calseg->h.name, calseg_index, calseg->h.size);
-        XcpInitCalSeg_(calseg, calseg->h.name, default_page, page_size, memory_segment);
+        DBG_PRINTF5("CalSeg '%s' finalized from preloaded, index=%u, size=%u\n", calseg->h.name, calseg_index, calseg->h.size);
+        if (default_page != NULL && memcmp(CalSegDefaultPage(calseg), default_page, page_size) != 0) {
+            DBG_PRINTF3(ANSI_COLOR_YELLOW "Persisted (different) default page for %s loaded from binary persistence file! Update EPK to reset!\n" ANSI_COLOR_RESET, calseg->h.name);
+        }
+
+        calseg->h.mode = 0; // Clear PAG_PROPERTY_PRELOAD, reset mode flags (freeze not enabled, set by XCP command SET_SEGMENT_MODE)
         return calseg_index;
     }
 #endif //   XCP_ENABLE_CAL_PERSISTENCE
@@ -406,71 +416,68 @@ static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, bool lookup, const voi
 // Thread-safe
 // Note that preloaded calibration segments have an already existing initialized default page content from loading the persistence file
 // This is indicated by default_page = NULL
-static void XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *default_page, uint16_t page_size, bool memory_segment) {
+static bool XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *default_page, FILE *default_page_file, uint16_t page_size, bool memory_segment) {
 
     tXcpCalSeg *c = calseg; // Alias
     assert(c != NULL);
+    assert((c->h.mode & PAG_PROPERTY_PRELOAD) == 0);
 
     // Align page size to 8 bytes for better performance
     uint16_t aligned_page_size = (page_size + XCP_CALPAGE_ALIGNMENT - 1) & ~(XCP_CALPAGE_ALIGNMENT - 1);
 
-#ifdef XCP_ENABLE_CAL_PERSISTENCE
-    // Check if this is a preloaded segment (indicated by memory_buffer != NULL)
-    // Has been initialized
-    if (c->h.mode & PAG_PROPERTY_PRELOAD) {
-        // Just complete the initialization of the preloaded segment
-        assert(page_size == c->h.size);
-
-    } else
-#endif //   XCP_ENABLE_CAL_PERSISTENCE
-
-    // Not initialised yet
-    {
-        STRNCPY(c->h.name, name, XCP_MAX_CALSEG_NAME);
-        c->h.name[XCP_MAX_CALSEG_NAME] = 0;
-        c->h.size = page_size;
-        // In SHM mode, assign the app_id to the segment
+    STRNCPY(c->h.name, name, XCP_MAX_CALSEG_NAME);
+    c->h.name[XCP_MAX_CALSEG_NAME] = 0;
+    c->h.size = page_size;
+    // In SHM mode, assign the app_id to the segment
 #ifdef OPTION_SHM_MODE
-        c->h.app_id = XcpShmGetAppId();
+    c->h.app_id = XcpShmGetAppId();
 #endif
 
-        // Create a memory segment with a memory segment number, which can be used for XCP access and has the related XCP features
-        if (memory_segment) {
-            if (shared.cal_seg_list.memory_segment_count >= 0xFF) {
-                DBG_PRINT_ERROR("too many memory segments for calibration segments\n");
-                assert(false);
-                return;
-            }
-            c->h.calseg_number = (tXcpCalSegNumber)shared_mut_safe.cal_seg_list.memory_segment_count++; // @@@@ TODO Not protected by mutex
-        } else {
-            c->h.calseg_number = XCP_UNDEFINED_CALSEG_NUM; // Not a memory segment
-        }
-
-        // Initialize the default page
-        // Standard: provided by the caller, may have static lifetime, so keep the pointer in non SHM mode and also make a copy
-        if (default_page != NULL) {
-            memcpy(CalSegDefaultPage(c), default_page, page_size); // Copy default page to the allocated memory buffer
-#if defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
-            c->h.default_page_ptr = (uint8_t *)default_page;
-#endif
-        }
-
-        // Preload: Caller wants to create a preinitialized, preloaded segment (default_page==NULL)
-        else {
-#ifdef XCP_ENABLE_CAL_PERSISTENCE
-#if defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
-            c->h.default_page_ptr = NULL;
-#endif
-#else
-            // Not allowed without XCP_ENABLE_CAL_PERSISTENCE
-            DBG_PRINT_ERROR("No default page provided for calibration segment\n");
+    // Create a memory segment with a memory segment number, which can be used for XCP access and has the related XCP features
+    if (memory_segment) {
+        if (shared.cal_seg_list.memory_segment_count >= 0xFF) {
+            DBG_PRINT_ERROR("Too many memory segments for calibration segments\n");
             assert(false);
-            return;
-#endif
+            return false;
         }
-    } // Init
+        c->h.calseg_number = (tXcpCalSegNumber)shared_mut_safe.cal_seg_list.memory_segment_count++; // @@@@ TODO Not protected by mutex
+    } else {
+        c->h.calseg_number = XCP_UNDEFINED_CALSEG_NUM; // Not a memory segment
+    }
 
-    // Reset RCU
+    // Initialize the default page
+    // Standard: default page pointer provided by the caller
+    if (default_page != NULL) {
+        assert(default_page_file == NULL);
+        memcpy(CalSegDefaultPage(c), default_page, page_size); // Copy default page to the allocated memory buffer
+#if defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
+        // May have static lifetime, so keep the pointer in non SHM mode in addition to the copy
+        c->h.default_page_ptr = (uint8_t *)default_page;
+#endif
+    }
+
+    // Preload: Caller wants to create a preinitialized, preloaded segment from file
+#ifdef XCP_ENABLE_CAL_PERSISTENCE
+    else if (default_page_file != NULL) {
+        // Load the default page content from the binary persistence file
+        size_t read = fread(CalSegDefaultPage(c), 1, page_size, default_page_file);
+        if (read != page_size) {
+            DBG_PRINTF_ERROR("Failed to read the default page content from file, expected %u bytes, got %zu bytes\n", page_size, read);
+            assert(false);
+            return false;
+        }
+#if defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
+        c->h.default_page_ptr = NULL;
+#endif
+    }
+#endif //   XCP_ENABLE_CAL_PERSISTENCE
+    else {
+        DBG_PRINT_ERROR("No default page provided for calibration segment\n");
+        assert(false);
+        return false;
+    }
+
+    // Reset RCU, XCP passive mode
     c->h.xcp_page = XCP_CALSEG_NO_PAGE;
     c->h.ecu_page = XCP_CALSEG_NO_PAGE;
     atomic_store_explicit(&c->h.free_page, XCP_CALSEG_NO_PAGE, memory_order_relaxed);
@@ -509,9 +516,7 @@ static void XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
 #endif
     } // isActivated()
 
-#ifdef XCP_ENABLE_CAL_PERSISTENCE
-    c->h.mode &= ~PAG_PROPERTY_FREEZE; // Default mode is freeze not enabled, set by XCP command SET_SEGMENT_MODE
-#endif
+    return true;
 }
 
 // Lock a calibration segment and return a pointer to the ECU page
@@ -952,6 +957,9 @@ uint8_t XcpFreezeSelectedCalSegs(bool all) {
     }
     return CRC_CMD_OK;
 }
+
+// Freeze all
+bool XcpFreeze(void) { return CRC_CMD_OK == XcpFreezeSelectedCalSegs(true); }
 
 // Set all segments to the default page
 void XcpResetAllCalSegs(void) {

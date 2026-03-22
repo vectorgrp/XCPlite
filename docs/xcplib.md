@@ -279,11 +279,18 @@ XCP must be initialized always, but it may be initialized in inactive mode.
 Calling other XCP API functions without prior initialization may create undefined behaviour.  
 In inactive mode, all XCP and A2L code instrumentation remains passive, disabled with minimal runtime overhead.  
 
+- **Parameters**
+  - `name` – Project name, used as A2L file name and to identify the XCP server
+  - `epk` – EPK version string, used for version compatibility check of A2L and BIN file
+  - `mode` – XCP_MODE_DEACTIVATE, XCP_MODE_LOCAL (XCP_MODE_SHM, XCP_MODE_SHM_AUTO or XCP_MODE_SHM_SERVER for libxcplite builds with SHM mode)
+
+
+
 ### 3.1 · XCP on Ethernet Server
 
 #### bool XcpEthServerInit(uint8_t *address, uint16_t port, bool use_tcp, uint32_t measurement\_queue_size)
 
-*Initialise the XCP server singleton.*
+*Initialise the XCP server.*
 
 - **Preconditions**: `XcpInit()` has been called; only one server instance may be active.
 - **Parameters**
@@ -294,6 +301,8 @@ In inactive mode, all XCP and A2L code instrumentation remains passive, disabled
 - **Returns**: `true` on success, otherwise `false`.
 
 #### bool XcpEthServerShutdown(void)
+
+*Stop the XCP server.*
 
 Stop the running server and free internal resources.
 

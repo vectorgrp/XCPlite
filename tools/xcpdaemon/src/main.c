@@ -30,14 +30,14 @@ extern tXcpLocalData gXcpLocalData;
 
 // XCP parameters
 #define OPTION_PROJECT_NAME "xcpdaemon"                                             // A2L project name
-#define OPTION_PROJECT_EPK "102"                                                    // EPK version string (default, is contructed from the applications version strings)
+#define OPTION_PROJECT_EPK "105"                                                    // EPK version string (default, is contructed from the applications version strings)
 #define OPTION_USE_TCP true                                                         // TCP or UDP
 #define OPTION_SERVER_PORT 5555                                                     // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}                                             // Bind addr, 0.0.0.0 = ANY
 #define OPTION_QUEUE_SIZE (1024 * 32)                                               // Size of the measurement queue in bytes
 #define OPTION_XCP_MODE (XCP_MODE_PERSISTENCE | XCP_MODE_SHM | XCP_MODE_SHM_SERVER) // XCP mode
 #define OPTION_A2L_MODE (A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS) // A2L generation mode
-#define OPTION_LOG_LEVEL 3                                                                          // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_LOG_LEVEL 5                                                                          // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 //-----------------------------------------------------------------------------------------------------
 
@@ -78,15 +78,16 @@ int main(void) {
     A2lCreateMeasurement(counter, "Mainloop counter");
     A2lCreateParameter(delay_ms, "Mainloop delay", "ms", 1, 1000);
 
+    A2lSetAbsoluteAddrMode(xcpdaemon);
+
 #ifdef OPTION_SHM_MODE
 
     // Local
-    A2lSetAbsoluteAddrMode(xcpdaemon);
+    A2lCreateMeasurement(gXcpLocalData.daq_start_clock, "DAQ start clock");
     A2lCreateMeasurement(gXcpLocalData.shm_app_id, "Application id");
+    A2lCreateMeasurement(gXcpLocalData.init_mode, "Initialization mode");
     // A2lCreateMeasurementString(gXcpLocalData.project_name, "Project name");
     // A2lCreateMeasurementString(gXcpLocalData.epk, "EPK version");
-    A2lCreateMeasurement(gXcpLocalData.init_mode, "Initialization mode");
-    A2lCreateMeasurement(gXcpLocalData.daq_start_clock, "DAQ start clock");
 
     // Shared
     A2lSetRelativeAddrMode(xcpdaemon, gXcpData);
@@ -112,16 +113,13 @@ int main(void) {
         XcpShmDebugPrint();
         printf("--------------------------------------------------------------\n");
     }
-
 #endif // OPTION_SHM_MODE
 
     DBG_PRINT3("\nStart XCP daemon, press Ctrl-C to stop...\n");
 
     while (running) {
 
-        // Measure some server statistics
         counter++;
-        DaqTriggerEventExt(xcpdaemon, gXcpData);
 
         // Check server status
         if (!XcpEthServerStatus()) {
@@ -129,10 +127,12 @@ int main(void) {
             break;
         }
 
+#ifdef OPTION_SHM_MODE
+
         // Every second
         if (counter % (1000 / delay_ms) == 0) {
-// In SHM mode, detect newly registered application log their identity
-#ifdef OPTION_SHM_MODE
+            // In SHM mode, detect newly registered application log their identity
+
             if (DBG_LEVEL >= 3) {
                 if (XcpShmIsServer()) {
                     static uint32_t last_count = 0;
@@ -149,8 +149,11 @@ int main(void) {
                     XcpShmResetAliveCounters(); // Reset alive counters every second, so applications must increment them to prove they are alive
                 }
             }
-#endif // OPTION_SHM_MODE
         }
+
+        DaqTriggerEventExt(xcpdaemon, gXcpData);
+
+#endif // OPTION_SHM_MODE
 
         // Sleep for the specified delay parameter in milliseconds
         sleepMs(delay_ms);

@@ -26,7 +26,7 @@
 #include <inttypes.h> // for PRIu64
 #include <stdbool.h>  // for bool
 #include <stdint.h>   // for uint32_t, uint64_t, uint8_t, int64_t
-#include <stdio.h>    // for NULL, snprintf
+#include <stdio.h>    // for NULL
 #include <stdlib.h>   // for free, malloc
 #include <string.h>   // for memcpy, strcmp
 

@@ -49,7 +49,7 @@ extern "C" {
 #define XCP_MODE_SHM_AUTO 0x04    ///< Set this flag to automatically choose leader as XCP server
 #define XCP_MODE_SHM_SERVER 0x08  ///< Set this flag, to make this application the XCP server, regardless which application is started first
 
-// Initialization for the XCP Protocol Layer
+// Manage the XCP driver singleton
 bool XcpInit(const char *name, const char *epk, uint8_t mode);
 bool XcpIsActivated(void);
 uint8_t XcpGetInitMode(void); // Returns the mode passed to XcpInit() — XCP_MODE_/DEACTIVATE/LOCAL/SHM/SHM_AUTO/SHM_SERVER
@@ -61,14 +61,13 @@ const char *XcpGetProjectName(void);
 
 // EPK software version identifier
 const char *XcpGetEpk(void);
-const char *XcpGetEcuEpk(void);
+const char *XcpGetEcuEpk(void); // Only in SHM mode different to XcpGetEpk(), which is for the application, while XcpGetEcuEpk() is for the overall ECU
 
 // XCP command processor
 // Execute an XCP command
 uint8_t XcpCommand(const uint32_t *pCommand, uint8_t len);
 
 // Let XCP handle non realtime critical background tasks
-// This function must be called periodically when a XCP client is connected
 // Must be called in regular intervals from the same thread that calls XcpCommand() !!
 void XcpBackgroundTasks(void);
 

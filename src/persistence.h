@@ -26,9 +26,16 @@
 extern "C" {
 #endif
 
-bool XcpBinWrite(uint8_t page);
+// Create the binary file with the current default pages
+bool XcpBinWrite(void);
+
+// Load the binary file and create calibration segment marked as preloaded
 bool XcpBinLoad(void);
+
+// Delete the binary file
 void XcpBinDelete(void);
+
+// Freeze current working page data of the specified calibration segment in the binary file
 bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg);
 
 #ifdef __cplusplus

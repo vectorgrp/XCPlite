@@ -158,7 +158,7 @@ typedef struct {
 /**************************************************************************/
 
 // Create a preloaded calibration segment, which can be initialized with data from the binary persistence file at startup
-uint8_t *XcpCreateCalSegPreloaded(const char *name, uint8_t app_id, uint16_t page_size, tXcpCalSegIndex index, uint8_t number, uint32_t file_pos);
+tXcpCalSegIndex XcpCreateCalSegPreloaded(const char *name, uint8_t app_id, uint16_t page_size, tXcpCalSegIndex index, tXcpCalSegNumber number, FILE *file, uint32_t file_pos);
 
 // Create a calibration segment
 tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint16_t page_size);

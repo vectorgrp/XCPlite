@@ -67,9 +67,9 @@ ALIGNMENT_INT64 1
 /* #include "xcpdaemon.a2l" */
 /begin MEASUREMENT xcpdaemon.counter "Mainloop counter" UWORD NO_COMPU_METHOD 0 0 0 65535  ECU_ADDRESS 0xFFF2 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin CHARACTERISTIC xcpdaemon.delay_ms "Mainloop delay" VALUE 0xFFF4 U32 0 NO_COMPU_METHOD 1 1000 PHYS_UNIT "ms" ECU_ADDRESS_EXTENSION 2 /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end CHARACTERISTIC
-/begin MEASUREMENT xcpdaemon.gXcpLocalData.shm_app_id "Application id" UBYTE NO_COMPU_METHOD 0 0 0 255  ECU_ADDRESS 0x30889 ECU_ADDRESS_EXTENSION 128 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT xcpdaemon.gXcpLocalData.init_mode "Initialization mode" UBYTE NO_COMPU_METHOD 0 0 0 255  ECU_ADDRESS 0x30888 ECU_ADDRESS_EXTENSION 128 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT xcpdaemon.gXcpLocalData.daq_start_clock "DAQ start clock" A_UINT64 NO_COMPU_METHOD 0 0 0 1e+12  ECU_ADDRESS 0x308B0 ECU_ADDRESS_EXTENSION 128 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT xcpdaemon.gXcpLocalData.shm_app_id "Application id" UBYTE NO_COMPU_METHOD 0 0 0 255  ECU_ADDRESS 0x30869 ECU_ADDRESS_EXTENSION 128 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT xcpdaemon.gXcpLocalData.init_mode "Initialization mode" UBYTE NO_COMPU_METHOD 0 0 0 255  ECU_ADDRESS 0x30868 ECU_ADDRESS_EXTENSION 128 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT xcpdaemon.gXcpLocalData.daq_start_clock "DAQ start clock" A_UINT64 NO_COMPU_METHOD 0 0 0 1e+12  ECU_ADDRESS 0x30890 ECU_ADDRESS_EXTENSION 128 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 
 /begin TYPEDEF_STRUCTURE xcpdaemon.tXcpData "XCP shared state typedef" 0x80F0
   /begin STRUCTURE_COMPONENT session_status M_session_status 0x0 /end STRUCTURE_COMPONENT
@@ -111,7 +111,7 @@ ALIGNMENT_INT64 1
 /* Conversions */
 /begin COMPU_METHOD conv.temperature "Temperature in °C from unsigned byte" LINEAR "%6.3" "C" COEFFS_LINEAR 1 -55 /end COMPU_METHOD
 
-/* #include "hello_xcp_cpp_102.a2l" */
+/* #include "hello_xcp_cpp_103.a2l" */
 
 /begin TYPEDEF_STRUCTURE hello_xcp_cpp.ParametersT "Typedef for ParametersT" 0x78
   /begin STRUCTURE_COMPONENT map C_map 0x18 /end STRUCTURE_COMPONENT
@@ -169,10 +169,10 @@ ALIGNMENT_INT64 1
  0 "xcpdaemon.xcpdaemon" 1 "hello_xcp.calc_power" 2 "hello_xcp.mainloop" 3 "hello_xcp_cpp.calcAvg" 4 "hello_xcp_cpp.mainloop"
 /end COMPU_VTAB
 
-/begin GROUP xcpdaemon.Events "Events" ROOT /begin SUB_GROUP xcpdaemon.xcpdaemon hello_xcp.calc_power hello_xcp.mainloop hello_xcp_cpp.calcAvg hello_xcp_cpp.mainloop /end SUB_GROUP /end GROUP
+/begin GROUP Events "Events" ROOT /begin SUB_GROUP xcpdaemon.xcpdaemon hello_xcp.calc_power hello_xcp.mainloop hello_xcp_cpp.calcAvg hello_xcp_cpp.mainloop /end SUB_GROUP /end GROUP
 
 /begin MOD_PAR ""
-EPK "102" ADDR_EPK 0x80000000
+EPK "02730abc6ab50be0" ADDR_EPK 0x80000000
 /begin MEMORY_SEGMENT epk "" DATA FLASH INTERN 0x80000000 32 -1 -1 -1 -1 -1
 /begin IF_DATA XCP
   /begin SEGMENT 0 2 0 0 0

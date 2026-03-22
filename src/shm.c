@@ -68,6 +68,36 @@ The first process allocates the shared memory for tXcpData and the queue and bec
 // Returns this process's application id (the slot index in shm_header.app_list)
 uint8_t XcpShmGetAppId(void) { return local.shm_app_id; }
 
+// Returns the EPK string of the overall ECU
+// Computes a FNV-1a 64-bit hash over all application EPK strings and returns it as a 16-char hex string.
+// The result is always 16 ASCII hex characters, fits in XCP_ECU_EPK_MAX_LENGTH, and changes whenever any app EPK changes.
+const char *XcpShmGetEcuEpk(void) {
+    assert(XcpShmIsActive());
+    if (!XcpShmIsActive()) {
+        return "";
+    }
+    const tShmHeader *hdr = &gXcpData->shm_header;
+    assert(hdr != NULL);
+    if (hdr == NULL) {
+        return "";
+    }
+
+    // FNV-1a 64-bit hash over all app EPK strings in slot order
+    // A separator byte is hashed between EPKs to prevent "AB"+"C" == "A"+"BC" collisions
+    uint64_t hash = 14695981039346656037ULL; // FNV-1a 64-bit offset basis
+    uint32_t app_count = (uint32_t)atomic_load(&hdr->app_count);
+    for (uint32_t i = 0; i < app_count; i++) {
+        const uint8_t *p = (const uint8_t *)hdr->app_list[i].epk;
+        while (*p) {
+            hash = (hash ^ (uint64_t)*p++) * 1099511628211ULL; // FNV prime
+        }
+        hash = (hash ^ (uint64_t)'\0') * 1099511628211ULL; // end-of-string separator
+    }
+
+    SNPRINTF(hdr->ecu_epk, sizeof(hdr->ecu_epk), "%016" PRIx64, hash);
+    return (const char *)hdr->ecu_epk;
+}
+
 // Check operating modes
 bool XcpShmIsActive(void) { return (local.init_mode & XCP_MODE_SHM) != 0; }
 bool XcpShmIsLeader(void) { return (local.init_mode & XCP_MODE_SHM) != 0 && local.shm_leader; }
@@ -89,6 +119,7 @@ void XcpShmInitHeader(tShmHeader *hdr) {
     hdr->leader_pid = (uint32_t)getpid();
     atomic_store(&hdr->app_count, 0U);
     atomic_store(&hdr->a2l_finalize_requested, 0U);
+    memset(hdr->ecu_epk, 0, sizeof(hdr->ecu_epk));
 }
 
 tXcpData *XcpShmAttachOrCreate(bool *out_is_leader) {
@@ -168,15 +199,17 @@ void XcpShmDebugPrint(void) {
     printf(ANSI_COLOR_BLUE "SHM Header:\n" ANSI_COLOR_GREY);
     printf("  magic=0x%016" PRIX64 ", version=%06X, size=%u\n", (uint64_t)hdr->magic, hdr->version, hdr->size);
     printf("  leader_pid=%u, app_count=%u, a2l_finalize_requested=%u\n", hdr->leader_pid, app_count, (unsigned)atomic_load(&hdr->a2l_finalize_requested));
+    printf("  ecu_epk='%s'\n", hdr->ecu_epk);
     printf(ANSI_COLOR_RESET);
 
     // --- App list ---
     printf(ANSI_COLOR_BLUE "Apps (%u):\n" ANSI_COLOR_GREY, app_count);
     for (uint32_t i = 0; i < app_count && i < SHM_MAX_APP_COUNT; i++) {
         const tApp *app = &hdr->app_list[i];
-        printf("  [%u] '%s', epk='%s', \t\tmode=%02X, %s pid=%u, %s %s, a2l_fin=%u, a2l_name='%s'\n", i, app->project_name, app->epk, app->xcp_init_mode,
-               (unsigned)atomic_load(&app->alive_counter) > 0 ? "alive" : "stale", app->pid, app->is_leader ? "leader" : "follower", app->is_server ? "server" : "",
-               (unsigned)atomic_load(&app->a2l_finalized), app->a2l_name);
+        bool a2l_fin = atomic_load(&app->a2l_finalized) != 0;
+        printf("  [%u] '%s', epk='%s', mode=%02X, %s pid=%u, %s %s, a2l_fin=%u, a2l_name='%s'\n", i, app->project_name, app->epk, app->xcp_init_mode,
+               (unsigned)atomic_load(&app->alive_counter) > 0 ? "alive" : "stale", app->pid, app->is_leader ? "leader" : "follower", app->is_server ? "server" : "", a2l_fin,
+               a2l_fin ? app->a2l_name : "pending");
     }
     printf(ANSI_COLOR_RESET);
 
@@ -293,7 +326,7 @@ int XcpShmCollectA2lFiles(uint32_t timeout_ms, const char *filenames[], int max_
     uint32_t app_count = (uint32_t)atomic_load(&gXcpData->shm_header.app_count);
     for (uint32_t i = 0; i < app_count && i < SHM_MAX_APP_COUNT && count < max_count; i++) {
         const tApp *app = &gXcpData->shm_header.app_list[i];
-        if (atomic_load(&app->a2l_finalized) && app->a2l_name[0] != '\0') {
+        if (atomic_load(&app->a2l_finalized) != 0 && app->a2l_name[0] != '\0') {
             filenames[count++] = app->a2l_name;
         } else if (!atomic_load(&app->a2l_finalized)) {
             DBG_PRINTF_WARNING(ANSI_COLOR_BLUE "XcpShmCollectA2lFiles: app %u ('%s') not finalized\n" ANSI_COLOR_RESET, i, app->project_name);
@@ -439,8 +472,10 @@ int16_t XcpShmRegisterApp(const char *name, const char *epk, uint8_t xcp_init_mo
                 app->is_leader = is_leader;
                 app->is_server = is_server;
                 assert(app->xcp_init_mode == xcp_init_mode);
+                bool a2l_fin = atomic_load(&app->a2l_finalized) != 0;
                 // @@@@ TODO: Check if the A2L file still exists and reset the a2l_finalized flag if not ?
-                DBG_PRINTF5("XcpShmRegisterApp: Registered application %u:'%s', epk=%s, a2l_finalized=%u, a2l_name='%s'\n", i, name, epk, app->a2l_finalized, app->a2l_name);
+                DBG_PRINTF5("XcpShmRegisterApp: Registered application %u:'%s', epk=%s, a2l_finalized=%u, a2l_name='%s'\n", i, name, epk, a2l_fin,
+                            a2l_fin ? app->a2l_name : "pending");
                 return (uint8_t)i;
             } else {
                 DBG_PRINTF_ERROR("XcpShmRegisterApp:Application %u:'%s' has different epk %s, reset please !!!\n", i, name, epk);
@@ -471,6 +506,10 @@ int16_t XcpShmRegisterApp(const char *name, const char *epk, uint8_t xcp_init_mo
     app->a2l_name[0] = '\0';
     atomic_store(&app->a2l_finalized, 0U);
     atomic_store(&app->alive_counter, 0U);
+
+    // Update the ECU EPK hash
+    XcpShmGetEcuEpk();
+
     DBG_PRINTF5("XcpShmRegisterApp: Registered application %u:'%s' (pid=%u, mode=%02X %s %s)\n", slot, name, (unsigned)getpid(), xcp_init_mode, is_leader ? "leader" : "",
                 is_server ? "server" : "");
     return (int16_t)slot;

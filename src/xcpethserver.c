@@ -353,7 +353,7 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
 
     // Start the XCP on ethernet server with the created transmit queue
     {
-        DBG_PRINT3("Start XCP on Ethernet server\n");
+        DBG_PRINT3(ANSI_COLOR_GREEN "Start XCP on Ethernet server\n" ANSI_COLOR_RESET);
 
         // Init network sockets
         if (!socketStartup())

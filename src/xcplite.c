@@ -439,7 +439,8 @@ const char *XcpGetProjectName(void) {
 /* EPK version string                                                     */
 /**************************************************************************/
 
-// Set the EPK
+// Set the EPK, used by XcpInit()
+// Copy the EPK string to a static buffer in the local state and remove unwanted characters (space, tab, colon)
 static void XcpSetEpk(const char *epk) {
 
     assert(epk != NULL);
@@ -456,30 +457,23 @@ static void XcpSetEpk(const char *epk) {
     DBG_PRINTF3("EPK = '%s'\n", local.epk);
 }
 
-// Get the EPK
+// Get the EPK from the static buffer in the local state
 const char *XcpGetEpk(void) {
     if (STRNLEN(local.epk, XCP_EPK_MAX_LENGTH) == 0) {
-        assert(0 && "EPK not set, returning empty string");
+        assert(0 && "EPK not set");
         return "";
     }
     return local.epk;
 }
 
+// Get the EPK from the static buffer in the local state
+// Only in SHM mode there is a difference to XcpGetEpk(), the ECU EPK is for the complete multi application system, while XcpGetEpk() is for the application
 const char *XcpGetEcuEpk(void) {
 
 #ifdef OPTION_SHM_MODE
-    // In SHM mode, the EPK is for the complete multi application system (ECU)
+    // In SHM mode, the ECU EPK is for the complete multi application system
     if (XcpShmIsActive()) {
-        // Just read the content of the epk calibration segment if it exists, otherwise return a default string.
-        tXcpCalSegIndex epk_seg = XcpFindCalSeg("epk");
-        if (epk_seg != XCP_UNDEFINED_CALSEG) {
-            static char epk[XCP_EPK_MAX_LENGTH + 1]; // @@@@ TODO save this space by reading directly into the caller's buffer
-            const uint8_t *epk_data = XcpLockCalSeg(epk_seg);
-            strncpy(epk, (char *)epk_data, XCP_EPK_MAX_LENGTH);
-            epk[XCP_EPK_MAX_LENGTH] = 0; // Ensure null-termination
-            XcpUnlockCalSeg(epk_seg);
-            return (const char *)epk;
-        }
+        return XcpShmGetEcuEpk();
     }
 #endif // OPTION_SHM_MODE
     return XcpGetEpk();
@@ -923,7 +917,7 @@ tXcpEventId XcpCreateEvent(const char *name, uint32_t cycle_time_ns, uint8_t pri
     tXcpEventId id = XcpFindEventInstances(name, &count);
     if (id != XCP_UNDEFINED_EVENT_ID) {
         mutexUnlock(&local_mut.event_list_mutex);
-        DBG_PRINTF4("Event '%s' already defined, id=%u\n", name, id);
+        DBG_PRINTF5("Event '%s' already defined, id=%u\n", name, id);
         assert(count == 1); // Creating additional event instances is not supported, use XcpCreateEventInstance
         return id;          // Event already exists, return the existing event id, event could be preloaded from binary freeze file for A2L stability
     }
@@ -1821,15 +1815,10 @@ void XcpDisconnect(void) {
         shared_mut.session_status &= (uint16_t)(~SS_CONNECTED); // @@@@ TODO: Foreign thread access detected, should be atomic
         ApplXcpDisconnect();
 
-        // Write the persistence file
-        // Must be done in disconnected state
-#if defined(OPTION_ENABLE_PERSISTENCE)
+        // Freeze working page data
+#if defined(OPTION_ENABLE_PERSISTENCE) && defined(XCP_ENABLE_FREEZE_ON_DISCONNECT)
         if ((XcpGetInitMode() & XCP_MODE_PERSISTENCE) != 0) {
-#if defined(XCP_ENABLE_FREEZE_ON_DISCONNECT) // Freeze calibration changes in working page
-            XcpBinWrite(XCP_CALPAGE_WORKING_PAGE);
-#else
-            XcpBinWrite(XCP_CALPAGE_DEFAULT_PAGE); // Just write the binary file, without freezing the working page
-#endif
+            XcpFreeze();
         }
 #endif
         DBG_PRINT3("Disconnected\n");
@@ -2903,16 +2892,15 @@ void XcpPrint(const char *str) {
 /* Initialization and start of the XCP Protocol Layer                       */
 /****************************************************************************/
 
-// Init XCP protocol layer singleton once
-// This is a once initialization of the static gXcp singleton data structure
-// Memory for the DAQ lists are provided by the caller if daq_lists != NULL
+// Init XCP protocol layer driver
+// This is a once initialization of the gXcpData and gXcpLocalData singleton data structures
 bool XcpInit(const char *name, const char *epk, uint8_t mode) {
 
     if (isActivated()) { // Already initialized, just ignore
         return true;
     }
 
-    DBG_PRINTF3("XcpInit name=%s, epk=%s, mode=%02X\n", name, epk, mode);
+    DBG_PRINTF3(ANSI_COLOR_GREEN "XcpInit name=%s, epk=%s, mode=%02X\n" ANSI_COLOR_RESET, name, epk, mode);
     DBG_PRINTF5("  sizeof(tXcpData)=%zu  sizeof(tXcpLocalData)=%zu\n", sizeof(tXcpData), sizeof(tXcpLocalData));
 
 #ifdef OPTION_SHM_MODE
@@ -2964,28 +2952,29 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
         // In SHM mode, attach to shared memory, or create it if not existing (leader)
         gXcpData = XcpShmAttachOrCreate(&local_mut.shm_leader);
         if (gXcpData == NULL) {
-            DBG_PRINT_ERROR("XcpInit: failed to attach to shared memory\n");
+            DBG_PRINT_ERROR("XcpInit: Failed to attach to shared memory\n");
             return false;
         }
 
-        // If already existing, register application and done
+        // Shared memory already exists, register application and done
         if (!local_mut.shm_leader) {
             if ((mode & XCP_MODE_SHM_SERVER) != 0) {
                 // @@@@ TODO Check if there already is a server
-                local_mut.shm_server = true;
-                assert(false && "Stale SHM found, recovery not implemented yet");
+                local_mut.shm_server = false;
+                DBG_PRINT_ERROR("XcpInit: Can not create a server which is not the leader, not implemented yet\n");
+                assert(0);
             } else {
-                // @@@@ TODO Check if there is server alive
+                // @@@@ TODO Check if there is a server alive
                 local_mut.shm_server = false;
             }
             int16_t app_id = XcpShmRegisterApp(name, epk, mode, local_mut.shm_leader, local_mut.shm_server);
             if (app_id < 0) {
-                DBG_PRINT_ERROR("XcpInit: failed to register application in shared memory\n");
+                DBG_PRINT_ERROR("XcpInit: Failed to register application in shared memory\n");
                 return false;
             }
             local_mut.shm_app_id = (uint8_t)app_id;
 
-            // Early return for non SHM leaders here, successfully attached to a live leader
+            // Early return for non SHM leaders here, successfully attached to a live leader and server
             return true;
         }
     }
@@ -3007,7 +2996,8 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     memset((uint8_t *)&gXcpData, 0, sizeof(tXcpData));
 #endif
 
-    // In SHM mode, the leader initializes shared memory, followers already returned early after attaching and registering
+    // In SHM mode, only the leader reaches this point
+    // Initialize shared memory, followers already returned early after attaching and registering
 #ifdef OPTION_SHM_MODE
     assert(gXcpData != NULL);
     XcpShmInitHeader(&gXcpData->shm_header);
@@ -3035,7 +3025,8 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     // Activate XCP protocol layer, initialization done
     shared_mut.session_status |= SS_ACTIVATED;
 
-// Check if the binary persistence file exists and load it
+// Check if the binary persistence file exists and load all segments, events
+// In SHM mode also load applications
 #ifdef OPTION_ENABLE_PERSISTENCE
     if ((mode & XCP_MODE_PERSISTENCE) != 0) {
         if (XcpBinLoad()) {
@@ -3047,6 +3038,10 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
 // In SHM mode, the leader registered itself, after loading the binary persistence file
 #ifdef OPTION_SHM_MODE
     if (XcpShmIsActive()) {
+        assert(mode & XCP_MODE_PERSISTENCE);
+        DBG_PRINT3("XcpInit: Loaded binary persistence file\n");
+        XcpShmDebugPrint();
+        DBG_PRINTF3("XcpInit: Registering application '%s', epk=%s, mode=%02X\n", name, epk, mode);
         int16_t app_id = XcpShmRegisterApp(name, epk, mode, local_mut.shm_leader, local_mut.shm_server);
         if (app_id < 0) {
             DBG_PRINT_ERROR("XcpInit: failed to register application\n");
@@ -3058,11 +3053,11 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
 
 #ifdef XCP_ENABLE_CALSEG_LIST
 #ifdef XCP_ENABLE_EPK_CALSEG
-    // Create the EPK calibration segment
-    // Make sure it has index 0
-    // @@@@ TODO: Currently the EPK segment is treated like any other segment, even if it is read-only and does not need 2 pages
+    // Create the EPK calibration segment with index 0
+    // In SHM multiapplication mode, only the leader reaches this point, and creates a EPK segment for the whole system
+    // @@@@ TODO: Currently the EPK segment is treated like any other segment, even if it is read-only and should only expose the default page
     static tXcpCalSegIndex cal__epk = XCP_UNDEFINED_CALSEG; // Create the linker file marker for the EPK segment
-    cal__epk = XcpCreateCalSeg("epk", epk, XCP_EPK_MAX_LENGTH + 1);
+    cal__epk = XcpCreateCalSeg("epk", XcpGetEcuEpk(), XCP_EPK_MAX_LENGTH + 1);
     (void)cal__epk; // Avoid unused variable warning
     assert(cal__epk == 0);
 #endif

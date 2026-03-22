@@ -16,7 +16,7 @@
 // XCP params
 
 #define OPTION_PROJECT_NAME "hello_xcp" // Project name, used to build the A2L and BIN file name
-#define OPTION_PROJECT_EPK "102"        // EPK version string
+#define OPTION_PROJECT_EPK "103"        // EPK version string
 #define OPTION_USE_TCP false            // TCP or UDP
 #define OPTION_SERVER_PORT 5555         // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
@@ -39,7 +39,7 @@ typedef struct params {
 } params_t;
 
 // Default values (reference page, "FLASH") for the calibration parameters
-const params_t params = {.delay_us = 1000, .counter_max = 1024, .flow_rate = 0.300f};
+const params_t params = {.delay_us = 1000, .counter_max = 1024, .flow_rate = 0.301f};
 
 // A global calibration segment handle for the calibration parameters
 // A calibration segment has a working page ("RAM") and a reference page ("FLASH"), it is described by a MEMORY_SEGMENT in the A2L file
@@ -189,7 +189,7 @@ int main(void) {
 #endif
 
     // Mainloop
-    printf("Start main loop... (boot time: %llu us)\n", (run_time - start_time) / 1000);
+    printf("Start application main loop... (startup time: %llu us)\n", (run_time - start_time) / 1000);
     uint32_t delay_us = 1000; // Mainloop delay time in us
     while (running) {
         // XCP: Lock the calibration parameter segment for consistent and safe access
@@ -238,7 +238,7 @@ int main(void) {
 
     XcpDisconnect(); // Force disconnect the XCP client
     A2lFinalize();   // Finalize A2L generation, if not done yet
-    // XcpBinWrite(XCP_CALPAGE_WORKING_PAGE); // Save current calibration segments to binary persistence file
+    // XcpFreeze(); // Save current calibration segments to binary persistence file
     XcpEthServerShutdown(); // Stop the XCP server
     return 0;
 }

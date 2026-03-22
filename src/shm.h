@@ -78,8 +78,9 @@ typedef struct {
     uint32_t leader_pid;                          // PID of the process that created the shared memory region, 0 until ready
     atomic_uint_least32_t app_count;              // number of registered slots (grows up to SHM_MAX_APP_COUNT)
     atomic_uint_least32_t a2l_finalize_requested; // leader writes 1 here on the first XCP client CONNECT;
-                                                  //   each follower's background thread polls this and calls A2lFinalize()
-    uint8_t pad[64 - 8 - 4 - 4 - 4 - 4 - 4];      // 36 bytes: pad control area to exactly 64 bytes
+    //   each follower's background thread polls this and calls A2lFinalize()
+    uint8_t ecu_epk[XCP_EPK_MAX_LENGTH + 1];                            // EPK of the ECU, constructed from all registered applications EPKs
+    uint8_t pad[64 - 8 - 4 - 4 - 4 - 4 - 4 - (XCP_EPK_MAX_LENGTH + 1)]; // pad control area to exactly 64 bytes
     // --- Per-process application list ---
     tApp app_list[SHM_MAX_APP_COUNT]; // 512 * 8 = 4096 bytes
 } tShmHeader;
@@ -87,6 +88,7 @@ static_assert(sizeof(tShmHeader) % 64 == 0, "sizeof tShmHeader must be a multipl
 
 uint8_t XcpShmGetAppId(void);              // Get this application process's id
 const char *XcpShmGetEcuProjectName(void); // Get the project name of the ECU
+const char *XcpShmGetEcuEpk(void);         // Get the EPK of the ECU, constructed from all registered applications EPKs
 
 bool XcpShmIsActive(void);   // true when this app process is in SHM_MODE
 bool XcpShmIsServer(void);   // true when this app process is the XCP server

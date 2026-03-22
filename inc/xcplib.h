@@ -106,17 +106,15 @@ const uint8_t *XcpLockCalSeg(tXcpCalSegIndex index);
 /// Unlock a calibration segment
 uint8_t XcpUnlockCalSeg(tXcpCalSegIndex index);
 
-/// Set all calibration segments to their default page.
-/// Maybe used in emergency situations.
-/// @return true on success, otherwise false.
+/// Set all calibration segments to their default page
+/// Maybe used in emergency situation
+/// @return true on success, otherwise false
 bool XcpResetAllCalSegs(void);
 
-/// Write the persistence file with all events and calibration segment, requires option OPTION_PERSISTENCE
-/// Includes calibration data, will become the working page content of the next session
-/// @return true on success, otherwise false.
-#define XCP_CALPAGE_DEFAULT_PAGE 1 // Write default or reference ("FLASH") page
-#define XCP_CALPAGE_WORKING_PAGE 0 // Write current working ("RAM") page
-bool XcpBinWrite(uint8_t page);
+/// Writes current working page data to an existing persistence file
+/// The working page calibration data, will become the default page content of the next session
+/// @return true on success
+bool XcpFreeze(void);
 
 #endif
 
@@ -569,7 +567,9 @@ void XcpSetLogLevel(uint8_t level);
 #define XCP_MODE_SHM_AUTO 0x04    ///< Set this flag to automatically choose leader as XCP server
 #define XCP_MODE_SHM_SERVER 0x08  ///< Set this flag, to make this application the XCP server, regardless which application is started first
 
-/// Initialize the XCP singleton, must be called before starting the server
+/// Initialize the XCP driver singleton, must be called before starting the server
+/// @param name Project name, used as A2L file name and to identify the XCP server
+/// @param epk EPK version string, used for compatibility check of A2L and BIN file
 /// @param mode XCP_MODE_DEACTIVATE, XCP_MODE_LOCAL, XCP_MODE_SHM, XCP_MODE_SHM_AUTO or XCP_MODE_SHM_SERVER (libxcplite build with in SHM mode)
 bool XcpInit(const char *name, const char *epk, uint8_t mode);
 

@@ -197,8 +197,27 @@ static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, const tXcpCalSeg *se
     if (DBG_LEVEL >= 5)
         printCalsegPage(page == XCP_CALPAGE_DEFAULT_PAGE ? CalSegDefaultPage(seg) : CalSegEcuPage(seg), seg->h.size);
 #endif
+
+    // Write the calibration segment page data to the file, either default page or working page, depending on the specified page parameter
+    const uint8_t *page_ptr = (page == XCP_CALPAGE_DEFAULT_PAGE) ? CalSegDefaultPage(seg) : CalSegEcuPage(seg);
+
+    // @@@@ TODO: Remove this hack and find a better solution to keep the EPK segment data up to date in SHM mode, currently the EPK segment is treated like any other segment
+    // XcpFreeze can be called by the user, is called on freeze request and at A2L generation
+    // The BIN file should always match the associated A2L file, but this is not guaranteed when called by the user,
+#ifdef OPTION_SHM_MODE
+    // In SHM mode, recreate the ECU EPK hash to the current state, in case new applications registered since the EPK segment initialized
+    if (XcpShmIsActive() && calseg == 0 && strcmp(seg->h.name, "epk") == 0) {
+        // The EPK segment is updated with the current ECU EPK hash, which is calculated in XcpShmGetEcuEpk() and stored in SHM header
+        const char *ecu_epk = XcpShmGetEcuEpk();
+        const char *calseg_epk = (const char *)XcpLockCalSeg(0);
+        DBG_PRINTF3(ANSI_COLOR_YELLOW "Updating BIN file EPK segment with current ECU EPK '%s', XCP EPK '%s'\n" ANSI_COLOR_RESET, ecu_epk, calseg_epk);
+        XcpUnlockCalSeg(0);
+        page_ptr = (const uint8_t *)ecu_epk;
+    }
+#endif // OPTION_SHM_MODE
+
     // This is safe, because XCP is not connected
-    written = fwrite(page == XCP_CALPAGE_DEFAULT_PAGE ? CalSegDefaultPage(seg) : CalSegEcuPage(seg), seg->h.size, 1, file);
+    written = fwrite(page_ptr, seg->h.size, 1, file);
     if (written != 1) {
         DBG_PRINT_ERROR("Failed to write calibration segment data to BIN file\n");
         return false;
@@ -234,26 +253,21 @@ static bool writeApp(FILE *file, uint8_t app_id, const char *project_name, const
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
-/// Write the binary persistence file.
+/// Create the binary persistence file.
 /// This function writes the current state of the XCP events and calibration segments to a binary file.
 /// It creates a file with the specified filename and writes the header, events, and calibration segments.
-/// The tool must not be connected at that time
+/// It is called from the A2L generator when finalizing the A2L file, so it belongs to and exactly matches the state of the A2L file
 /// @param filename The name of the file to write.
 /// @param page The page of the calibration segments to write, either default or working page, see XCP_CALPAGE_XXX
 /// @return
 /// Returns true if the file was successfully written, false otherwise.
-bool XcpBinWrite(uint8_t page) {
+bool XcpBinWrite(void) {
 
     if (!XcpIsActivated()) {
         return false;
     }
 
     const char *filename = XcpBinGetFilename();
-
-    if (XcpIsConnected() && page == XCP_CALPAGE_WORKING_PAGE) {
-        DBG_PRINT_ERROR("Cannot write persistence file while XCP is connected\n");
-        return false;
-    }
 
     // Open file for writing
     FILE *file = fopen(filename, "wb");
@@ -265,7 +279,7 @@ bool XcpBinWrite(uint8_t page) {
     uint8_t app_count = XcpShmGetAppCount();
     uint16_t event_count = XcpGetEventCount();
     uint16_t calseg_count = XcpGetCalSegCount();
-    const char *epk = XcpGetEcuEpk();
+    const char *epk = XcpGetEcuEpk(); // Get the current ECU EPK for all existing applications
     if (!writeHeader(file, epk, event_count, calseg_count, app_count)) {
         fclose(file);
         return false;
@@ -285,7 +299,7 @@ bool XcpBinWrite(uint8_t page) {
     for (tXcpCalSegIndex i = 0; i < calseg_count; i++) {
         const tXcpCalSeg *seg = XcpGetCalSeg(i);
         assert(seg != NULL);
-        if (!writeCalseg(file, i, seg, page)) {
+        if (!writeCalseg(file, i, seg, XCP_CALPAGE_DEFAULT_PAGE)) {
             fclose(file);
             return false;
         }
@@ -305,7 +319,7 @@ bool XcpBinWrite(uint8_t page) {
 
     fclose(file);
 
-    DBG_PRINTF3("Persistence data written to file '%s'\n", gXcpBinFilename);
+    DBG_PRINTF3(ANSI_COLOR_GREEN "Persistence data written to file '%s'\n" ANSI_COLOR_RESET, gXcpBinFilename);
 #ifdef OPTION_SHM_MODE
     if (DBG_LEVEL >= 4) {
         XcpShmDebugPrint();
@@ -317,8 +331,8 @@ bool XcpBinWrite(uint8_t page) {
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
-/// Freeze the active page of a calibration segment to the binary persistence file.
-/// This function writes the active page of the specified calibration segment to the binary persistence file.
+/// Freeze the working page of a calibration segment.
+/// This function writes the working page of the specified calibration segment to the binary persistence file.
 /// @param calseg Calibration segment index
 /// @return
 /// Returns true if the operation was successful.
@@ -332,11 +346,6 @@ bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg) {
 
     const char *filename = XcpBinGetFilename();
     FILE *file = fopen(filename, "r+b");
-    if (file == NULL) {
-        // If the file does not exist yet, create a new initial one with default page data
-        XcpBinWrite(XCP_CALPAGE_DEFAULT_PAGE);
-        file = fopen(filename, "r+b");
-    }
     if (file == NULL) {
         DBG_PRINTF_ERROR("Failed to open file '%s'\n", filename);
         return false;
@@ -368,15 +377,18 @@ bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg) {
 
 // Load the binary persistence file.
 // @param filename The pathname of the file (with extension) to read
-// @param epk The expected EPK string for verification
+// @param epk The expected EPK string for verification or NULL to skip EPK verification (e.g. in case the EPK is not yet known)
 // @return
 // If the file is successfully loaded, it returns true.
 // Returns false, if the file does not exist, has an invalid format, the EPK does not match or any other reason
 static bool load(const char *filename, const char *epk) {
+
+    uint32_t error_count = 0;
+
     assert(filename != NULL);
     FILE *file = fopen(filename, "rb");
     if (file == NULL) {
-        DBG_PRINTF3("File '%s' does not exist\n", filename);
+        DBG_PRINTF3(ANSI_COLOR_YELLOW "Binary file '%s' not found, starting with default state\n" ANSI_COLOR_RESET, filename);
         return false;
     }
 
@@ -394,13 +406,13 @@ static bool load(const char *filename, const char *epk) {
     }
 
     // Check EPK match
-    if (strncmp(gBinHeader.Epk, epk, XCP_EPK_MAX_LENGTH) != 0) {
+    if (epk != NULL && strncmp(gBinHeader.Epk, epk, XCP_EPK_MAX_LENGTH) != 0) {
         DBG_PRINTF_WARNING("Persistence file '%s' not loaded, EPK mismatch: file EPK '%s', current EPK '%s'\n", filename, gBinHeader.Epk, epk);
         fclose(file);
         return false; // EPK mismatch
     }
 
-    DBG_PRINTF3("Loading '%s', EPK '%s'\n", filename, epk);
+    DBG_PRINTF3("Loading '%s'\n", filename);
 
     // Load events
     // Event list must be empty at this point
@@ -418,6 +430,7 @@ static bool load(const char *filename, const char *epk) {
         if (read != 1) {
             DBG_PRINT_ERROR("Failed to read event descriptor from BIN file\n");
             fclose(file);
+            assert(0 && "Corrupt file");
             return false;
         }
 
@@ -427,8 +440,7 @@ static bool load(const char *filename, const char *epk) {
         event_id = XcpCreateIndexedEvent(desc.name, desc.index, desc.cycle_time_ns, desc.priority);
         if (event_id == XCP_UNDEFINED_EVENT_ID || event_id != desc.id) { // Should not happen
             DBG_PRINTF_ERROR("Failed to create event '%s' from persistence file\n", desc.name);
-            fclose(file);
-            return false;
+            error_count++;
         }
         // In SHM mode, set the app_id of the event owner
 #ifdef OPTION_SHM_MODE
@@ -442,39 +454,39 @@ static bool load(const char *filename, const char *epk) {
     if (XcpGetCalSegCount() != 0) {
         DBG_PRINT_ERROR("Calibration segment list not empty prior to loading persistence file\n");
         fclose(file);
+        assert(0 && "Sequence problem");
         return false;
     }
     for (uint16_t i = 0; i < gBinHeader.calseg_count; i++) {
 
         tCalSegDescriptor desc;
+
+        uint32_t file_pos = (uint32_t)ftell(file);
         read = fread(&desc, sizeof(tCalSegDescriptor), 1, file);
         if (read != 1) {
             DBG_PRINT_ERROR("Failed to read calibration segment descriptor from BIN file\n");
             fclose(file);
+            assert(0 && "Corrupt file");
             return false;
         }
 
-        uint8_t *default_page = XcpCreateCalSegPreloaded(desc.name, desc.app_id, desc.size, desc.index, desc.number, (uint32_t)ftell(file) - desc.size);
-        if (default_page == NULL) {
+        tXcpCalSegIndex calseg_index = XcpCreateCalSegPreloaded(desc.name, desc.app_id, desc.size, desc.index, desc.number, file, file_pos);
+        if (calseg_index == XCP_UNDEFINED_CALSEG) {
             DBG_PRINTF_ERROR("Failed to create calibration segment %u:'%s'\n", i, desc.name);
-            fclose(file);
-            return false;
-        }
-
-        read = fread(default_page, desc.size, 1, file);
-        if (read != 1) {
-            DBG_PRINTF_ERROR("Failed to read calibration segment %u:'%s' data page\n", i, desc.name);
-            fclose(file);
-            return false;
+            error_count++;
         }
 #ifdef OPTION_ENABLE_DBG_PRINTS
-        DBG_PRINTF4("Init calibration segment %u:'%s' data page, size=%u\n", i, desc.name, desc.size);
-        if (DBG_LEVEL >= 4)
-            printCalsegPage(default_page, desc.size);
+        else {
+            if (DBG_LEVEL >= 5) {
+                const uint8_t *page = (uint8_t *)XcpLockCalSeg(calseg_index);
+                printCalsegPage(page, desc.size);
+                XcpUnlockCalSeg(calseg_index);
+            }
+        }
 #endif
     }
 
-    // In SHM mode, load application list and pre register applications (assuming the application list is empty at this point)
+// In SHM mode, load application list and pre register applications (assuming the application list is empty at this point)
 #ifdef OPTION_SHM_MODE
     for (uint8_t i = 0; i < gBinHeader.app_count; i++) {
         tAppDescriptor desc;
@@ -482,6 +494,7 @@ static bool load(const char *filename, const char *epk) {
         if (read != 1) {
             DBG_PRINT_ERROR("Failed to read application descriptor from BIN file\n");
             fclose(file);
+            assert(0 && "Corrupt file");
             return false;
         }
 
@@ -491,42 +504,42 @@ static bool load(const char *filename, const char *epk) {
         int16_t app_id = XcpShmRegisterApp(desc.project_name, desc.epk, desc.xcp_init_mode, false, false);
         if (app_id < 0 || (uint8_t)app_id != desc.app_id) { // Just created in order, assuming before empty application list, the app_id in the file must match the allocated app_id
             DBG_PRINTF_ERROR("Could not register application %u:'%s'\n", desc.app_id, desc.project_name);
-            assert(0); // Should never happen
+            assert(0 && "Failed to register application"); // Should never happen
+            error_count++;
         }
 
-        // Check if the application is in XCP_MODE_PERSISTENCE mode:
-        // If the A2L file already exists and set the A2L finalized flag, so the master file will be generated for it, even if the application was not started before tool connect
-        const char *a2l_filename = A2lGetFilename(A2L_FILE);
-        if ((desc.xcp_init_mode & XCP_MODE_PERSISTENCE) != 0 && fexists(a2l_filename)) { // @@@@ epk missing
+        // If the A2L file already exists, set the A2L finalized flag, so the master file will be generated for it, even if the application was not started before tool connect
+        char a2l_filename[XCP_A2L_FILENAME_MAX_LENGTH + 1];
+        SNPRINTF(a2l_filename, sizeof(a2l_filename), "%s_%s.a2l", desc.project_name, desc.epk);
+        if (fexists(a2l_filename)) {
             XcpShmSetA2lFinalized(desc.app_id, a2l_filename);
-            DBG_PRINTF4(ANSI_COLOR_BLUE "Application %u:'%s' is in A2L_WRITE_ONCE mode and A2L file '%s' already exists, set A2L finalized flag\n" ANSI_COLOR_RESET, desc.app_id,
-                        desc.project_name, a2l_filename);
+            DBG_PRINTF4(ANSI_COLOR_BLUE "Application %u:'%s' A2L file'%s' exists, set A2L finalized flag\n" ANSI_COLOR_RESET, desc.app_id, desc.project_name, a2l_filename);
         }
     }
 #endif // OPTION_SHM_MODE
 
     fclose(file);
+    if (error_count > 0) {
+        return false;
+    }
     return true;
 }
 
 // Load the binary persistence file.
 // This function reads the binary file containing calibration segment descriptors with data and event descriptors
-// It verifies the file signature and EPK, and creates the events and calibration segments
-// This must be done early, before any event or segments are created
+// It pre-registers the events and calibration segments
+// In SHM mode, it also loads the applications and pre-registers them
+// This must be done early, before any event, segment or application was registered
 // @return
 // If the file is successfully loaded, it returns true.
-// Returns false, if the file does not exist, has an invalid format, the EPK does not match or any other reason
+// Returns false, if the file does not exist, has an invalid format
 bool XcpBinLoad(void) {
-
     if (!XcpIsActivated()) {
         return false;
     }
-
     const char *filename = XcpBinGetFilename();
-    const char *epk = XcpGetEcuEpk();
-    assert(epk != NULL);
-    if (load(filename, epk)) {
-        DBG_PRINTF3("Loaded binary file %s\n", filename);
+    if (load(filename, NULL /* no epk check */)) {
+        DBG_PRINTF3(ANSI_COLOR_GREEN "Loaded binary file %s\n" ANSI_COLOR_RESET, filename);
         return true;
     }
     return false;

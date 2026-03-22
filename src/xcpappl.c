@@ -184,7 +184,7 @@ void ApplXcpSetBaseAddr(const uint8_t *addr) {
 uint32_t ApplXcpGetAddr(const uint8_t *p) {
     const uint8_t *b = ApplXcpGetBaseAddr();
     int64_t diff = (int64_t)(p) - (int64_t)(b);
-    DBG_PRINTF5("ApplXcpGetAddr: base = %p, addr = %p, diff = %" PRId64 "\n", (void *)b, (void *)p, diff);
+    DBG_PRINTF6("ApplXcpGetAddr: base = %p, addr = %p, diff = %" PRId64 "\n", (void *)b, (void *)p, diff);
     if (diff < 0 || diff > 0xFFFFFFFF) { // Check XCP address range is sufficient
         DBG_PRINTF_ERROR("Address out of range! base = %p, addr = %p\n", (void *)b, (void *)p);
         assert(0);
@@ -568,7 +568,7 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen) {
                 return 0; // Insufficient buffer space
             STRNCPY((char *)buf, gXcpA2lName, len);
         }
-        DBG_PRINTF3("ApplXcpGetId GET_ID%u a2l_name=%s\n", id, gXcpA2lName);
+        DBG_PRINTF3("ApplXcpGetId GET_ID%u A2L name=%s\n", id, gXcpA2lName);
     } break;
 
     case IDT_ASAM_PATH: {
@@ -580,7 +580,7 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen) {
                 return 0; // Insufficient buffer space
             SNPRINTF((char *)buf, bufLen, "%s.a2l", gXcpA2lName);
         }
-        DBG_PRINTF3("ApplXcpGetId GET_ID%u a2l_path=%s\n", id, buf);
+        DBG_PRINTF3("ApplXcpGetId GET_ID%u A2L path=%s\n", id, buf);
     } break;
 
     case IDT_ASAM_EPK: {

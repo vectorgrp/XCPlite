@@ -21,7 +21,7 @@
 #include <string.h>   // for strlen, strncpy
 
 #include "dbg_print.h"   // for DBG_PRINT
-#include "persistence.h" // for XcpBinWrite
+#include "persistence.h" // for XcpBinWrite, XcpBinDelete
 #include "platform.h"    // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
 #include "xcp.h"         // for CRC_XXX
 #include "xcp_cfg.h"     // for XCP_xxx
@@ -571,7 +571,8 @@ static bool A2lOpen(bool master_file_only) {
     if (!master_file_only) {
         // Start A2L generator
         const char *filename = A2lGetFilename(A2L_FILE);
-        DBG_PRINTF3("Start A2L generator, file=%s, write_always=%u, finalize_on_connect=%u, auto_groups=%u\n", filename, gA2lWriteAlways, gA2lFinalizeOnConnect, gA2lAutoGroups);
+        DBG_PRINTF3(ANSI_COLOR_GREEN "Start A2L generator, file=%s, write_always=%u, finalize_on_connect=%u, auto_groups=%u\n" ANSI_COLOR_RESET, filename, gA2lWriteAlways,
+                    gA2lFinalizeOnConnect, gA2lAutoGroups);
         gA2lFile = fopen(filename, "w");
         if (gA2lFile == NULL) {
             DBG_PRINTF_ERROR("Could not create file %s!\n", filename);
@@ -589,6 +590,7 @@ static bool A2lOpen(bool master_file_only) {
             return false;
         }
         A2lSetSymbolPrefix(true);
+        DBG_PRINTF3(ANSI_COLOR_BLUE "Create A2L master file '%s'\n" ANSI_COLOR_RESET, master_filename);
     } else if (XcpShmIsActive()) {
         gA2lMasterFile = NULL;
         A2lSetSymbolPrefix(true); // Prepend project name as prefix to all symbol names to avoid name clashes between multiple followers
@@ -629,8 +631,6 @@ static bool A2lOpen(bool master_file_only) {
         fprintf(gA2lMasterFile, gA2lAml); // main file
 #endif
         fprintf(gA2lMasterFile, "%s", gA2lHeader2);
-    } else {
-        DBG_PRINT3("Generating partial A2L file: measurement and calibration objects only\n");
     }
 
     // Create predefined conversions and record layouts/typedefs
@@ -683,7 +683,7 @@ static void A2lCreate_MOD_PAR(void) {
 
     fprintf(gA2lMasterFile, "\n/begin MOD_PAR \"\"\n");
 
-    // EPK
+    // Write the current ECU EPK (in SHM mode for all existing applications)
     const char *epk = XcpGetEcuEpk();
     if (epk) {
         fprintf(gA2lMasterFile, "EPK \"%s\" ADDR_EPK 0x%08X\n", epk, XCP_ADDR_EPK);
@@ -1854,9 +1854,9 @@ static void createEventGroupsAndConversions(void) {
         }
         fprintf(gA2lMasterFile, "\n/end COMPU_VTAB\n");
 
-        // Create a sub group for all events
+        // Create a root group for all events
         if (gA2lAutoGroups) {
-            fprintf(gA2lMasterFile, "\n/begin GROUP %sEvents \"Events\" ROOT /begin SUB_GROUP", A2lGetPrefixedName_(XcpGetProjectName(), ""));
+            fprintf(gA2lMasterFile, "\n/begin GROUP Events \"Events\" ROOT /begin SUB_GROUP");
 #ifdef OPTION_DAQ_ASYNC_EVENT
             uint32_t id = 1; // Skip event 0 which is the built-in asynchronous events
 #else
@@ -1908,19 +1908,6 @@ bool A2lCheckFinalizeOnConnect(uint8_t connect_mode) {
     else if (gA2lFile != NULL) {
         DBG_PRINT_WARNING("A2L file not finalized yet, XCP connect refused!\n");
         return false; // Refuse connect, waiting for finalization by application
-    }
-
-    // If A2L generation is not active
-    // Give the client a way to delete A2L and BIN file
-    else {
-        if (connect_mode == 0xAA) {
-            DBG_PRINT_WARNING("Delete A2L and BIN file (connect_mode=0xAA)!\n");
-            remove(A2lGetFilename(A2L_FILE));
-#ifdef OPTION_ENABLE_PERSISTENCE
-            XcpBinDelete();
-#endif
-            return false;
-        }
     }
 
     return true;
@@ -1986,8 +1973,8 @@ bool A2lFinalize(void) {
         gA2lMasterFile = NULL;
         gA2lFile = NULL;
 
-        DBG_PRINTF3("A2L created: %u measurements, %u params, %u typedefs, %u components, %u instances, %u conversions\n", gA2lMeasurements, gA2lParameters, gA2lTypedefs,
-                    gA2lComponents, gA2lInstances, gA2lConversions);
+        DBG_PRINTF3(ANSI_COLOR_GREEN "A2L created: %u measurements, %u params, %u typedefs, %u components, %u instances, %u conversions\n" ANSI_COLOR_RESET, gA2lMeasurements,
+                    gA2lParameters, gA2lTypedefs, gA2lComponents, gA2lInstances, gA2lConversions);
 
 // Write the binary persistence file for this A2L file
 // This is required to make sure the A2L file remains valid, even if the creation order of application, events or calibration segments is different
@@ -1998,16 +1985,17 @@ bool A2lFinalize(void) {
             if (XcpShmIsServer()) {
 #ifdef OPTION_ENABLE_PERSISTENCE
                 // In SHM mode always write a binary persistence file
-                XcpBinWrite(XCP_CALPAGE_WORKING_PAGE);
+                XcpBinWrite();
 #endif
                 XcpSetA2lName(A2lGetFilename(A2L_MASTER_FILE)); // Notify XCP that there is an A2L file available for upload by the XCP client
             }
         } else
 #endif // OPTION_SHM_MODE
         {
+            // Create the binary persistence file associated to this A2L file
 #ifdef OPTION_ENABLE_PERSISTENCE
             if ((XcpGetInitMode() & XCP_MODE_PERSISTENCE) != 0) {
-                XcpBinWrite(XCP_CALPAGE_WORKING_PAGE);
+                XcpBinWrite();
             }
 #endif
             XcpSetA2lName(A2lGetFilename(A2L_FILE)); // Notify XCP that there is an A2L file available for upload by the XCP client
@@ -2073,7 +2061,7 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
 #ifndef OPTION_SHM_MODE
 
         XcpSetA2lName(a2l_filename); // Notify XCP that there is an existing A2L file available on disk
-        DBG_PRINTF3(ANSI_COLOR_YELLOW "A2L file %s already exists, assuming it is still valid, disabling A2L generation\n" ANSI_COLOR_RESET, a2l_filename);
+        DBG_PRINTF3(ANSI_COLOR_GREEN "A2L file %s already exists, assuming it is still valid, disabling A2L generation\n" ANSI_COLOR_RESET, a2l_filename);
         return true; // Skip A2L generation
 
 #else
@@ -2085,7 +2073,7 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
         // Server writes the master file always, but the partial files maybe written once
         if (!XcpShmIsServer()) {
             XcpSetA2lName(a2l_filename); // Notify XCP that there is an existing A2L file available on disk
-            DBG_PRINTF3(ANSI_COLOR_YELLOW "A2L file %s already exists, assuming it is still valid, disabling A2L generation\n" ANSI_COLOR_RESET, a2l_filename);
+            DBG_PRINTF3(ANSI_COLOR_GREEN "A2L file %s already exists, assuming it is still valid, disabling A2L generation\n" ANSI_COLOR_RESET, a2l_filename);
             return true; // Skip A2L generation
         }
 
@@ -2094,7 +2082,7 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
             DBG_PRINTF_ERROR("Failed to open A2L file %s\n", a2l_filename);
             return false;
         }
-        DBG_PRINTF3(ANSI_COLOR_YELLOW "A2L file %s already exists, generating only master file \n" ANSI_COLOR_RESET, A2lGetFilename(A2L_FILE));
+        DBG_PRINTF3(ANSI_COLOR_GREEN "A2L file %s already exists, generating only master file \n" ANSI_COLOR_RESET, A2lGetFilename(A2L_FILE));
         return true;
 #endif // OPTION_SHM_MODE
     } // !gA2lWriteAlways
