@@ -334,8 +334,8 @@ static tXcpCalSegIndex XcpRegisterCalSeg_(tXcpCalSeg *c) {
 
 // Helper for XcpCreateCalSeg, XcpCreateCalBlk and XcpCreateCalSegPreloaded to create a calibration block with given page count (0 for blk, 2 for seg)
 // A segment with this name may already exist, when preloaded - then it is reinitialized
-// Lookup for existence can be skipped if lookup is false, which is the case for preloaded segments, because they have a predefined index and are loaded in order of the file, so
-// they must be created in order without lookup
+// Lookup for existence can be skipped if lookup is false, which is the case for preloaded segments, because they have a predefined index and are loaded in order
+// If default_page is NULL, it is a preloaded segment, the caller will initialize the default page
 static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, bool lookup, const void *default_page, uint16_t page_size, bool memory_segment) {
 
     tXcpCalSeg *calseg = NULL;
@@ -400,7 +400,7 @@ static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, bool lookup, const voi
 
 // Helper function to initialize a new or preloaded calibration segment
 // Thread-safe
-// Note that preloaded calibration segments have an already existing initialized default page content (and default page pointer) from loading the persistence file
+// Note that preloaded calibration segments have an already existing initialized default page content from loading the persistence file
 // This is indicated by default_page = NULL
 static void XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *default_page, uint16_t page_size, bool memory_segment) {
 
@@ -446,9 +446,6 @@ static void XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
         // Standard: provided by the caller, may have static lifetime, so keep the pointer in non SHM mode and also make a copy
         if (default_page != NULL) {
             memcpy(CalSegDefaultPage(c), default_page, page_size); // Copy default page to the allocated memory buffer
-
-            // Keep the pointer to the default page, which may have static lifetime
-            // In SHM mode, there is no pointer to the default page
 #if defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
             c->h.default_page_ptr = (uint8_t *)default_page;
 #endif
@@ -457,18 +454,14 @@ static void XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
         // Preload: Caller wants to create a preinitialized, preloaded segment (default_page==NULL)
         else {
 #ifdef XCP_ENABLE_CAL_PERSISTENCE
-            memset(CalSegDefaultPage(c), 0, page_size);
-
-            // In SHM mode, there is no pointer to the default page
 #if defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
             c->h.default_page_ptr = NULL;
 #endif
 #else
-            // Not allowed without   XCP_ENABLE_CAL_PERSISTENCE
+            // Not allowed without XCP_ENABLE_CAL_PERSISTENCE
             DBG_PRINT_ERROR("No default page provided for calibration segment\n");
             assert(false);
             return;
-
 #endif
         }
     } // Init
@@ -513,7 +506,7 @@ static void XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
     } // isActivated()
 
 #ifdef XCP_ENABLE_CAL_PERSISTENCE
-    c->h.mode = 0; // Default mode is freeze not enabled, set by XCP command SET_SEGMENT_MODE, clear the preloaded flag
+    c->h.mode &= ~PAG_PROPERTY_FREEZE; // Default mode is freeze not enabled, set by XCP command SET_SEGMENT_MODE
 #endif
 }
 
@@ -929,8 +922,12 @@ uint8_t XcpGetCalSegMode(tXcpCalSegNumber segment_number) {
 uint8_t XcpSetCalSegMode(tXcpCalSegNumber segment_number, uint8_t mode) {
     tXcpCalSegIndex calseg_index = XcpGetCalSegIndex(segment_number);
     if (calseg_index == XCP_UNDEFINED_CALSEG)
-        return CRC_OUT_OF_RANGE; // Segment number out of range
-    CalSegPtrMut(calseg_index)->h.mode = mode;
+        return CRC_OUT_OF_RANGE;             // Segment number out of range
+    if ((mode & PAG_PROPERTY_FREEZE) != 0) { // Set freeze enabled bit
+        CalSegPtrMut(calseg_index)->h.mode |= PAG_PROPERTY_FREEZE;
+    } else {
+        CalSegPtrMut(calseg_index)->h.mode &= ~PAG_PROPERTY_FREEZE;
+    }
     return CRC_CMD_OK;
 }
 

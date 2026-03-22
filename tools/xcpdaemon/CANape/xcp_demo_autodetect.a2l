@@ -64,7 +64,7 @@ ALIGNMENT_INT64 1
 /begin TYPEDEF_CHARACTERISTIC C_F64 "" VALUE F64 0 NO_COMPU_METHOD -1e+12 1e+12 /end TYPEDEF_CHARACTERISTIC
 
 
-/* #include "hello_xcp_100.a2l" */
+/* #include "hello_xcp_102.a2l" */
 /begin CHARACTERISTIC hello_xcp.params.counter_max "Maximum counter value" VALUE 0x80010004 U16 0 NO_COMPU_METHOD 0 65535 /end CHARACTERISTIC
 /begin CHARACTERISTIC hello_xcp.params.delay_us "Mainloop delay time in us" VALUE 0x80010000 U32 0 NO_COMPU_METHOD 0 500000 PHYS_UNIT "us" /end CHARACTERISTIC
 /begin CHARACTERISTIC hello_xcp.params.flow_rate "Flow rate" VALUE 0x80010008 F32 0 NO_COMPU_METHOD 0 2 PHYS_UNIT "m3/h" /end CHARACTERISTIC
@@ -88,7 +88,7 @@ ALIGNMENT_INT64 1
 /* Conversions */
 /begin COMPU_METHOD conv.temperature "Temperature in °C from unsigned byte" LINEAR "%6.3" "C" COEFFS_LINEAR 1 -55 /end COMPU_METHOD
 
-/* #include "hello_xcp_cpp_100.a2l" */
+/* #include "hello_xcp_cpp_102.a2l" */
 
 /begin TYPEDEF_STRUCTURE hello_xcp_cpp.ParametersT "Typedef for ParametersT" 0x78
   /begin STRUCTURE_COMPONENT map C_map 0x18 /end STRUCTURE_COMPONENT
@@ -100,7 +100,7 @@ ALIGNMENT_INT64 1
   /begin STRUCTURE_COMPONENT delay_us C_delay_us 0x0 /end STRUCTURE_COMPONENT
 /end TYPEDEF_STRUCTURE
 
-/begin INSTANCE hello_xcp_cpp.params "Demo calibration parameters for hello_xcp_cpp example" ParametersT 0x80020000 /end INSTANCE
+/begin INSTANCE hello_xcp_cpp.params "Demo calibration parameters for hello_xcp_cpp example" hello_xcp_cpp.ParametersT 0x80020000 /end INSTANCE
 
 /begin TYPEDEF_STRUCTURE hello_xcp_cpp.FloatingAverage "Typedef for FloatingAverage" 0x218
   /begin STRUCTURE_COMPONENT current_index_ M_current_index_ 0x0 /end STRUCTURE_COMPONENT
@@ -114,12 +114,12 @@ ALIGNMENT_INT64 1
 /begin MEASUREMENT hello_xcp_cpp.current_index_ "Current position in ring buffer" A_UINT64 NO_COMPU_METHOD 0 0 0 1e+12  ECU_ADDRESS 0x800000 ECU_ADDRESS_EXTENSION 5 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin MEASUREMENT hello_xcp_cpp.sample_count_ "Number of samples collected" UBYTE NO_COMPU_METHOD 0 0 0 255  ECU_ADDRESS 0x800000 ECU_ADDRESS_EXTENSION 6 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin MEASUREMENT hello_xcp_cpp.sum_ "Running sum of all samples" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -1e+12 1e+12  ECU_ADDRESS 0x800000 ECU_ADDRESS_EXTENSION 7 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin INSTANCE hello_xcp_cpp.FloatingAverage "This instance of FloatingAverage" FloatingAverage 0x800000 ECU_ADDRESS_EXTENSION 8 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end INSTANCE
+/begin INSTANCE hello_xcp_cpp.FloatingAverage "This instance of FloatingAverage" hello_xcp_cpp.FloatingAverage 0x800000 ECU_ADDRESS_EXTENSION 8 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end INSTANCE
 /begin MEASUREMENT hello_xcp_cpp.global_counter "Global counter variable" UWORD NO_COMPU_METHOD 0 0 0 65535  ECU_ADDRESS 0xC00000 ECU_ADDRESS_EXTENSION 3 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x3 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin MEASUREMENT hello_xcp_cpp.counter "Local counter variable" UWORD NO_COMPU_METHOD 0 0 0 65535  ECU_ADDRESS 0xC00000 ECU_ADDRESS_EXTENSION 4 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x3 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin MEASUREMENT hello_xcp_cpp.input_voltage "Input voltage" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100  ECU_ADDRESS 0xC00000 ECU_ADDRESS_EXTENSION 5 PHYS_UNIT "V" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x3 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin MEASUREMENT hello_xcp_cpp.average_voltage "Calculated average voltage on input_voltage" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -100 100  ECU_ADDRESS 0xC00000 ECU_ADDRESS_EXTENSION 6 PHYS_UNIT "V" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x3 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin INSTANCE hello_xcp_cpp.average_filter "Local (stack) instance of FloatingAverage<128>" FloatingAverage 0xC00000 ECU_ADDRESS_EXTENSION 7 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x3 /end DAQ_EVENT /end IF_DATA /end INSTANCE
+/begin INSTANCE hello_xcp_cpp.average_filter "Local (stack) instance of FloatingAverage<128>" hello_xcp_cpp.FloatingAverage 0xC00000 ECU_ADDRESS_EXTENSION 7 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x3 /end DAQ_EVENT /end IF_DATA /end INSTANCE
 
 /* Typedefs */
 /begin TYPEDEF_CHARACTERISTIC C_map "Demo map" MAP U8 0 NO_COMPU_METHOD 0 100 /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD 4 0 3 FIX_AXIS_PAR_DIST 0 1 4 /end AXIS_DESCR /begin AXIS_DESCR FIX_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD 8 0 7 FIX_AXIS_PAR_DIST 0 1 8 /end AXIS_DESCR /end TYPEDEF_CHARACTERISTIC
@@ -149,7 +149,7 @@ ALIGNMENT_INT64 1
 /begin GROUP hello_xcp.Events "Events" ROOT /begin SUB_GROUP hello_xcp.calc_power hello_xcp.mainloop hello_xcp_cpp.calcAvg hello_xcp_cpp.mainloop /end SUB_GROUP /end GROUP
 
 /begin MOD_PAR ""
-EPK "100" ADDR_EPK 0x80000000
+EPK "102" ADDR_EPK 0x80000000
 /begin MEMORY_SEGMENT epk "" DATA FLASH INTERN 0x80000000 32 -1 -1 -1 -1 -1
 /begin IF_DATA XCP
   /begin SEGMENT 0 2 0 0 0

@@ -1479,7 +1479,8 @@ void A2lCreateInstance_(const char *instance_name, const char *typeName, const u
         if (gA2lAutoGroups) {
             A2lAddToGroup(pname);
         }
-        fprintf(gA2lFile, "/begin INSTANCE %s \"%s\" %s 0x%X", pname, comment, typeName, addr);
+        fprintf(gA2lFile, "/begin INSTANCE %s \"%s\"", pname, comment);
+        fprintf(gA2lFile, " %s 0x%X", A2lGetPrefixedName_(XcpGetProjectName(), typeName), addr);
         printAddrExt(ext);
 
         // For measurements only: add MATRIX_DIM, READ_WRITE and IF_DATAif applicable

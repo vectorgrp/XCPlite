@@ -3247,7 +3247,6 @@ void XcpDeinit(void) {
     if (!isActivated()) { // Ignore
         return;
     }
-    assert(!XcpIsDaqRunning());
 
 #if defined(OPTION_SHM_MODE) && defined(TEST_MUTABLE_ACCESS_OWNERSHIP)
     XcpBindOwnerThread();

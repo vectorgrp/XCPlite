@@ -279,7 +279,7 @@
 /* PAG_PROPERTIES (GET_PAG_PROCESSOR_INFO) */
 
 #define PAG_PROPERTY_FREEZE 0x01
-#define PAG_PROPERTY_PRELOAD 0x02 // Vector specific, preloaded calibration page from freeze image
+#define PAG_PROPERTY_PRELOAD 0x02 // Vector specific, preloaded calibration page f
 
 /*-------------------------------------------------------------------------*/
 /* PAGE_PROPERTIES (GET_PAGE_INFO)*/

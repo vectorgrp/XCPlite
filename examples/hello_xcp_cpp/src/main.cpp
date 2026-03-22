@@ -16,7 +16,7 @@
 // XCP parameters
 
 constexpr const char OPTION_PROJECT_NAME[] = "hello_xcp_cpp"; // Project name, used to build the A2L and BIN file name
-constexpr const char OPTION_PROJECT_VERSION[] = "100";        // EPK version string
+constexpr const char OPTION_PROJECT_VERSION[] = "102";        // EPK version string
 constexpr bool OPTION_USE_TCP = false;                        // TCP or UDP
 constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};        // Bind addr, 0.0.0.0 = ANY
 constexpr uint16_t OPTION_SERVER_PORT = 5555;                 // Port
