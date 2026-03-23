@@ -2809,6 +2809,7 @@ void XcpBackgroundTasks(void) {
 
 // Publish all modified calibration segments
 #ifdef XCP_ENABLE_CALSEG_LAZY_WRITE
+    uint64_t now = clockGetMonotonicNsLast();
     static uint64_t last_success_time = 0;
     bool res = XcpCalSegPublishAll(false);
     if (res != CRC_CMD_OK && res != CRC_CMD_PENDING) {
@@ -2816,13 +2817,13 @@ void XcpBackgroundTasks(void) {
     }
     if (res == CRC_CMD_OK) {
         // All segments published
-        last_success_time = clockGetLast();
+        last_success_time = now;
     } else if (res == CRC_CMD_PENDING) {
         // Warn if delayed by more than 200ms
-        if (clockGetLast() - last_success_time > CLOCK_TICKS_PER_MS * 200) {
+        if (now - last_success_time > CLOCK_TICKS_PER_MS * 200) {
             if (last_success_time != 0)
                 DBG_PRINT_WARNING("XcpBackgroundTasks: Calibration segment publish delayed by more than 200ms!\n");
-            last_success_time = clockGetLast();
+            last_success_time = now;
         }
     }
 
@@ -3057,7 +3058,7 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     // In SHM multiapplication mode, only the leader reaches this point, and creates a EPK segment for the whole system
     // @@@@ TODO: Currently the EPK segment is treated like any other segment, even if it is read-only and should only expose the default page
     static tXcpCalSegIndex cal__epk = XCP_UNDEFINED_CALSEG; // Create the linker file marker for the EPK segment
-    cal__epk = XcpCreateCalSeg("epk", XcpGetEcuEpk(), XCP_EPK_MAX_LENGTH + 1);
+    cal__epk = XcpCreateCalSeg(XCP_EPK_CALSEG_NAME, XcpGetEcuEpk(), XCP_EPK_MAX_LENGTH + 1);
     (void)cal__epk; // Avoid unused variable warning
     assert(cal__epk == 0);
 #endif
@@ -3222,7 +3223,7 @@ void XcpStart(tQueueHandle queue_handle, bool resumeMode) {
 #endif /* XCP_ENABLE_DAQ_RESUME */
 }
 
-// Reset XCP protocol layer back to not init state
+// Reset XCP protocol layer back to not init state, server is going down
 void XcpDeinit(void) {
 
     if (!isActivated()) { // Ignore

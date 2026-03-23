@@ -700,7 +700,7 @@ static void A2lCreate_MOD_PAR(void) {
             if (n != XCP_UNDEFINED_CALSEG_NUM) {
                 const tXcpCalSeg *calseg = XcpGetCalSeg(i);
                 const char *pname;
-                if (strcmp(calseg->h.name, "epk") != 0) {
+                if (strcmp(calseg->h.name, XCP_EPK_CALSEG_NAME) != 0) { // Don't prefix the EPK segment name
                     pname = A2lGetCalSegName_(calseg->h.app_id, calseg->h.name);
                 } else {
                     pname = calseg->h.name;

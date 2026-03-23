@@ -215,6 +215,8 @@ XCPlite relative addressing: XCPLITE__CASDD:
 // Enable the EPK calibration segment to detect HEX file incompatibility
 #ifdef OPTION_CAL_SEGMENT_EPK
 #define XCP_ENABLE_EPK_CALSEG
+#define XCP_EPK_CALSEG_INDEX 0    // Reserve segment index 0 for the EPK segment
+#define XCP_EPK_CALSEG_NAME "epk" // Name of the EPK calibration segment, must be unique, used to store the EPK string for HEX file compatibility check
 #endif
 
 #if defined(XCP_ENABLE_EPK_CALSEG) && XCP_ADDR_EXT_SEG == 0

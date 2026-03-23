@@ -185,7 +185,7 @@ The tool generates Intel-Hex files with:
 When updating a BIN file from Intel-Hex data (`--apply-hex`), the tool enforces strict validation:
 
 ### 1. EPK Segment Protection
-If the first segment is named "epk", its size and content must exactly match between BIN and HEX files. This prevents incompatible firmware updates.
+If the first segment is named 'epk', its size and content must exactly match between BIN and HEX files. This prevents incompatible firmware updates.
 
 ### 2. Complete Segment Coverage
 HEX data must completely cover each BIN segment. Partial segment updates are rejected to prevent calibration data corruption.

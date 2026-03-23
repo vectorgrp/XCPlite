@@ -87,7 +87,7 @@ static struct {
 #endif
 
 #if defined(OPTION_QUEUE_64_FIX_SIZE) || defined(OPTION_QUEUE_64_VAR_SIZE)
-    uint64_t last_transmit_time; // Last transmit time in ms
+    uint64_t last_transmit_time; // Last transmit time in ns from clockGetMonotonicNs()
 #endif
 
 } gXcpTl;
@@ -728,7 +728,7 @@ void XcpEthTlGetInfo(bool *isTcp, uint8_t *mac, uint8_t *addr, uint16_t *port) {
 #define MIN_UPDATE_TIME_MS 50 // Update data at least every 50ms
 #define MAX_QUEUE_LEVEL 50    // Transmit immediately, when the queue is more than 50% full and there is no more commited data
 #define MAX_SLEEP_TIME_MS 1   // 1ms sleep time for retry, when there is was segment ready to send
-#define MAX_RETRIES 100       // Return to the caller after MAX_RETRIES
+#define MAX_RETRIES 100       // Return to the caller after MAX_RETRIES (100ms to allow background tasks and graceful shutdown)
 
 // Collect queue buffers for one segment and transmit them
 // Returns n = number of bytes sent or -1 on error
@@ -755,9 +755,9 @@ int32_t XcpTlHandleTransmitQueue(void) {
             // If there is commited data
             if (length > 0) {
 
-                // If time since last transmit is longer than MIN_UPDATE_TIME_MS, break the loop and transmit any collected buffers
+                // If time since last transmit is longer than MIN_UPDATE_TIME_MS (50), break the loop and transmit any collected buffers
                 // (to avoid too long delays when there is only little data in the queue)
-                if ((clockGet() - gXcpTl.last_transmit_time) > (MIN_UPDATE_TIME_MS * CLOCK_TICKS_PER_MS)) {
+                if ((clockGetMonotonicNs() - gXcpTl.last_transmit_time) > (MIN_UPDATE_TIME_MS * 1000000)) {
                     // DBG_PRINT3("T\n");
                     break; // Timeout
                 }
@@ -776,7 +776,7 @@ int32_t XcpTlHandleTransmitQueue(void) {
             // Sleep some time and retry
             sleepMs(MAX_SLEEP_TIME_MS);
             retries++;
-            continue;
+
         } else {
 
             // Check if this buffer fits into the maximum XCP segment size, if not break the loop and transmit the collected buffers
@@ -789,19 +789,19 @@ int32_t XcpTlHandleTransmitQueue(void) {
             queue_buffers[index++] = queue_buffer;
             length += l;
 
-            // Flush request
-            if (flush) {
-                // DBG_PRINT3("R\n");
-                break; // Flush requested by queue, transmit collected buffers
-            }
-
             // Reached max number of buffers for one segment, break loop and transmit collected buffers
             if (index >= MAX_BUFFERS) {
                 // DBG_PRINT3("B\n");
                 break; // Buffers full, transmit collected buffers
             }
         }
-    } // for(;;)
+
+        // Flush
+        if (flush) {
+            // DBG_PRINT3("F\n");
+            break; // Flush requested by queue, transmit collected buffers
+        }
+    } // for(;retries<MAX_RETRIES;) peek loop
 
     // If there is nothing to send, return to the caller
     if (length == 0) {
@@ -847,7 +847,7 @@ int32_t XcpTlHandleTransmitQueue(void) {
 
     mutexUnlock(&gXcpTl.ctr_mutex);
 
-    gXcpTl.last_transmit_time = clockGet(); // Update last transmit time
+    gXcpTl.last_transmit_time = clockGetMonotonicNs(); // Update last transmit time
 
     // Free all queue buffers
     for (uint32_t i = 0; i < index; i++) {

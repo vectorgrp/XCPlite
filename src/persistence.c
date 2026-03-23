@@ -206,7 +206,7 @@ static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, const tXcpCalSeg *se
     // The BIN file should always match the associated A2L file, but this is not guaranteed when called by the user,
 #ifdef OPTION_SHM_MODE
     // In SHM mode, recreate the ECU EPK hash to the current state, in case new applications registered since the EPK segment initialized
-    if (XcpShmIsActive() && calseg == 0 && strcmp(seg->h.name, "epk") == 0) {
+    if (XcpShmIsActive() && calseg == XCP_EPK_CALSEG_INDEX && strcmp(seg->h.name, XCP_EPK_CALSEG_NAME) == 0) {
         // The EPK segment is updated with the current ECU EPK hash, which is calculated in XcpShmGetEcuEpk() and stored in SHM header
         const char *ecu_epk = XcpShmGetEcuEpk();
         const char *calseg_epk = (const char *)XcpLockCalSeg(0);

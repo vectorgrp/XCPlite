@@ -31,13 +31,13 @@ extern tXcpLocalData gXcpLocalData;
 // XCP parameters
 #define OPTION_PROJECT_NAME "xcpdaemon"                                             // A2L project name
 #define OPTION_PROJECT_EPK "105"                                                    // EPK version string (default, is contructed from the applications version strings)
-#define OPTION_USE_TCP true                                                         // TCP or UDP
+#define OPTION_USE_TCP false                                                        // TCP or UDP
 #define OPTION_SERVER_PORT 5555                                                     // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}                                             // Bind addr, 0.0.0.0 = ANY
 #define OPTION_QUEUE_SIZE (1024 * 32)                                               // Size of the measurement queue in bytes
 #define OPTION_XCP_MODE (XCP_MODE_PERSISTENCE | XCP_MODE_SHM | XCP_MODE_SHM_SERVER) // XCP mode
 #define OPTION_A2L_MODE (A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS) // A2L generation mode
-#define OPTION_LOG_LEVEL 5                                                                          // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_LOG_LEVEL 3                                                                          // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 //-----------------------------------------------------------------------------------------------------
 
@@ -127,32 +127,12 @@ int main(void) {
             break;
         }
 
-#ifdef OPTION_SHM_MODE
-
         // Every second
         if (counter % (1000 / delay_ms) == 0) {
-            // In SHM mode, detect newly registered application log their identity
-
-            if (DBG_LEVEL >= 3) {
-                if (XcpShmIsServer()) {
-                    static uint32_t last_count = 0;
-                    uint32_t current_count = XcpShmGetActiveAppCount(); // Apps with alive_count > 0
-                    if (last_count != current_count) {
-                        if (last_count < current_count)
-                            DBG_PRINT3(ANSI_COLOR_BLUE "New applications:'\n" ANSI_COLOR_RESET);
-                        else
-                            DBG_PRINT3(ANSI_COLOR_BLUE "Applications lost:'\n" ANSI_COLOR_RESET);
-
-                        last_count = current_count;
-                        XcpShmDebugPrint();
-                    }
-                    XcpShmResetAliveCounters(); // Reset alive counters every second, so applications must increment them to prove they are alive
-                }
-            }
         }
 
+#ifdef OPTION_SHM_MODE
         DaqTriggerEventExt(xcpdaemon, gXcpData);
-
 #endif // OPTION_SHM_MODE
 
         // Sleep for the specified delay parameter in milliseconds

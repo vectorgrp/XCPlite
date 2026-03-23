@@ -402,6 +402,10 @@ uint8_t XcpShmGetInitMode(uint8_t app_id) {
     return app->xcp_init_mode;
 }
 
+/**************************************************************************/
+// Alive counter management to detect stale followers
+/**************************************************************************/
+
 // Increment this process's alive_counter so the leader can detect stale followers.
 void XcpShmIncrementAliveCounter(void) {
 
@@ -440,6 +444,25 @@ uint32_t XcpShmGetAliveCounter(uint8_t app_id) {
     if (app_id >= SHM_MAX_APP_COUNT)
         return 0;
     return (uint32_t)atomic_load(&gXcpData->shm_header.app_list[app_id].alive_counter);
+}
+
+void XcpShmCheckAliveCounters(void) {
+
+    if (DBG_LEVEL >= 3) {
+        static uint32_t last_count = 0;
+        uint32_t current_count = XcpShmGetActiveAppCount(); // Apps with alive_count > 0
+        if (last_count != current_count) {
+            if (last_count < current_count)
+                DBG_PRINT3(ANSI_COLOR_BLUE "New applications:'\n" ANSI_COLOR_RESET);
+            else
+                DBG_PRINT3(ANSI_COLOR_BLUE "Applications lost:'\n" ANSI_COLOR_RESET);
+
+            XcpShmDebugPrint();
+            last_count = current_count;
+        }
+    }
+
+    XcpShmResetAliveCounters(); // Reset alive counters, so applications must increment them to prove they are alive
 }
 
 /**************************************************************************/

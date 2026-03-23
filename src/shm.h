@@ -124,6 +124,7 @@ void XcpShmIncrementAliveCounter(void);
 void XcpShmResetAliveCounter(uint8_t app_id);
 void XcpShmResetAliveCounters(void); // Reset alive counters of all app slots
 uint32_t XcpShmGetAliveCounter(uint8_t app_id);
+void XcpShmCheckAliveCounters(void); // Check alive counters of all app slots, print debug info if any changes, and reset them for the next cycle
 
 #ifdef DBG_LEVEL
 void XcpShmDebugPrint(void); // Print the status and information in tXcpData, for debugging purposes.

@@ -124,7 +124,16 @@ static void *XcpCalMemAlloc_(size_t size) {
 }
 
 // Free the calibration segment list
-void XcpDeinitCalSegList(void) { mutexDestroy(&local_mut.cal_seg_list_mutex); }
+void XcpDeinitCalSegList(void) {
+
+#ifdef OPTION_SHM_MODE
+    // In SHM mode, clear pending state if this applications calibration segments
+    // @@@@ TODO
+#endif
+
+    // Just destroy the local mutex
+    mutexDestroy(&local_mut.cal_seg_list_mutex);
+}
 
 // Get the number of calibration segments
 uint16_t XcpGetCalSegCount(void) {
@@ -156,19 +165,29 @@ const tXcpCalSeg *XcpGetCalSeg(tXcpCalSegIndex calseg_index) {
 // Get the index of a calibration segment by name
 // Lock-free, thread-safe
 tXcpCalSegIndex XcpFindCalSeg(const char *name) {
-    // Iterate cal_seg_list cal_seg_list
+
     uint16_t n = XcpGetCalSegCount();
+
+    // Iterate cal_seg_list cal_seg_list
     for (tXcpCalSegIndex i = 0; i < n; i++) {
         const tXcpCalSeg *calseg = CalSegPtr(i);
         assert(calseg != NULL);
-        // In SHM mode, match only entries owned by this process — different apps may use the same name
 #ifdef OPTION_SHM_MODE
-        if (calseg->h.app_id == XcpShmGetAppId() && strcmp(calseg->h.name, name) == 0) {
-#else // OPTION_SHM_MODE
-        if (strcmp(calseg->h.name, name) == 0) {
+// In SHM mode, match only entries owned by this application process — different apps may use the same name
+#ifdef XCP_ENABLE_EPK_CALSEG
+        // Not for index 0, which is reserved for the EPK segment
+        if (i > 0 && calseg->h.app_id != XcpShmGetAppId())
+            continue; // Skip entries owned by other processes
+#else
+        if (calseg->h.app_id != XcpShmGetAppId())
+            continue; // Skip entries owned by other processes
 #endif
+        if (strcmp(calseg->h.name, name) == 0)
             return i;
-        }
+#else // OPTION_SHM_MODE
+        if (strcmp(calseg->h.name, name) == 0)
+            return i;
+#endif
     }
     return XCP_UNDEFINED_CALSEG; // Not found
 }
@@ -344,12 +363,14 @@ static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, bool lookup, const voi
     tXcpCalSeg *calseg = NULL;
     tXcpCalSegIndex calseg_index = XCP_UNDEFINED_CALSEG;
 
-    // If lookup is enabled, check for existence
+    // If lookup is enabled, check for existence (in the calibration segment list for the current application)
     if (lookup) {
         // Check if the segment does not already exist, only if not create a new one
         // @@@@ TODO Optimize XcpFindCalSeg, because this is the once execution check
         calseg_index = XcpFindCalSeg(name);
     }
+
+    // Create, if not exists
     if (calseg_index == XCP_UNDEFINED_CALSEG) {
 
         // Align page size to XCP_CALPAGE_ALIGNMENT bytes for better performance
@@ -626,7 +647,7 @@ static uint8_t XcpCalSegPublish(tXcpCalSeg *c, bool wait) {
         }
     } else {
         if (free_page == XCP_CALSEG_NO_PAGE || c->h.free_page_hazard) {
-            DBG_PRINTF5("Can not update calibration changes of %s yet, hazard=%u, free_page=%u\n", c->h.name, c->h.free_page_hazard, free_page);
+            DBG_PRINTF5("Can not update calibration changes of %s yet, %s\n", c->h.name, c->h.free_page_hazard ? "hazard" : "no free page");
             c->h.write_pending = true;
 #ifdef TEST_ENABLE_DBG_METRICS
             gXcpWritePendingCount++;

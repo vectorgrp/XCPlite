@@ -1811,8 +1811,6 @@ bool socketGetSendTime(SOCKET_HANDLE socket, uint64_t *hw_time, uint64_t *sw_tim
 // Clock
 /**************************************************************************/
 
-static uint64_t __gClock = 0;
-
 #ifdef TEST_CLOCK_GET_STATISTIC
 static atomic_uint_fast64_t gClockGetCtr = 0;
 static atomic_uint_fast64_t gClockGetLastCtr = 0;
@@ -1822,17 +1820,6 @@ void clockGetPrintStatistic(void) {
     DBG_PRINTF3("clockGet calls: %" PRIu64 ", clockGetLast calls: %" PRIu64 "\n", getCtr, getLastCtr);
 }
 #endif
-
-// Get the last known clock value
-// Save CPU load, clockGet may take reasonable run time, depending on platform
-// For slow timeouts and timers, it is sufficient to rely on the relatively high call frequency of clockGet() by other
-// parts of the application
-uint64_t clockGetLast(void) {
-#ifdef TEST_CLOCK_GET_STATISTIC
-    atomic_fetch_add_explicit(&gClockGetLastCtr, 1, memory_order_relaxed);
-#endif
-    return __gClock;
-}
 
 // Not used, might be faster on macOS
 // #ifdef _MACOS
@@ -1898,6 +1885,11 @@ Clock types
 #endif
 #define CLOCK_REALTIME_TYPE CLOCK_REALTIME
 
+// Global clock variable, updated by all clockGet calls, used by clockGetLast() to save syscall overhead when the last known clock value is sufficient
+static struct timespec __gClock;
+static struct timespec __gClockMonotonic;
+static struct timespec __gClockRealtime;
+
 char *clockGetString(char *s, uint32_t l, uint64_t c) {
 
     if (c < 1000000000000000000ULL) { // Don't print time and date, if too old
@@ -1930,8 +1922,9 @@ bool clockInit(void) {
     DBG_PRINT3("  ticks = OPTION_CLOCK_TICKS_1NS\n");
 #endif
 
-    __gClock = 0;
-    uint64_t clock = clockGet(); // Initialize ClockGetLast()
+    clockGetRealtimeNs();        // Initialize __gClockRealtime
+    clockGetMonotonicNs();       // Initialize __gClockMonotonic
+    uint64_t clock = clockGet(); // Initialize gClock and ClockGetLast()
 
 #ifdef DBG_LEVEL
     if (DBG_LEVEL >= 3) { // Test
@@ -1948,38 +1941,62 @@ bool clockInit(void) {
 
 // Get 64 bit clock
 uint64_t clockGet(void) {
-    struct timespec ts;
-    clock_gettime(CLOCK_TYPE, &ts);
+
 #ifdef TEST_CLOCK_GET_STATISTIC
     atomic_fetch_add_explicit(&gClockGetCtr, 1, memory_order_relaxed);
 #endif
+    clock_gettime(CLOCK_TYPE, &__gClock);
 #ifdef OPTION_CLOCK_TICKS_1NS // ns
-    return __gClock = (((uint64_t)(ts.tv_sec) * 1000000000ULL) + (uint64_t)(ts.tv_nsec));
+    return (((uint64_t)(__gClock.tv_sec) * 1000000000ULL) + (uint64_t)(__gClock.tv_nsec));
 #else // us
-    return __gClock = (((uint64_t)(ts.tv_sec) * 1000000ULL) + (uint64_t)(ts.tv_nsec / 1000)); // us
-    // return __gClock = (((uint64_t)(ts.tv_sec - gts0.tv_sec) * 1000000ULL) + (uint64_t)(ts.tv_nsec / 1000));
+    return (((uint64_t)(__gClock.tv_sec) * 1000000ULL) + (uint64_t)(__gClock.tv_nsec / 1000)); // us
+#endif
+}
+
+// Get the last known clock value
+uint64_t clockGetLast(void) {
+#ifdef OPTION_CLOCK_TICKS_1NS // ns
+    return (((uint64_t)(__gClock.tv_sec) * 1000000000ULL) + (uint64_t)(__gClock.tv_nsec));
+#else // us
+    return (((uint64_t)(__gClock.tv_sec) * 1000000ULL) + (uint64_t)(__gClock.tv_nsec / 1000)); // us
 #endif
 }
 
 uint64_t clockGetMonotonicNs(void) {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC_TYPE, &ts);
-    return (((uint64_t)(ts.tv_sec) * 1000000000ULL) + (uint64_t)(ts.tv_nsec));
+    clock_gettime(CLOCK_MONOTONIC_TYPE, &__gClockMonotonic);
+    return (((uint64_t)(__gClockMonotonic.tv_sec) * 1000000000ULL) + (uint64_t)(__gClockMonotonic.tv_nsec));
 }
 
 uint64_t clockGetMonotonicUs(void) {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC_TYPE, &ts);
-    return (((uint64_t)(ts.tv_sec) * 1000000ULL) + (uint64_t)(ts.tv_nsec / 1000));
+    clock_gettime(CLOCK_MONOTONIC_TYPE, &__gClockMonotonic);
+    return (((uint64_t)(__gClockMonotonic.tv_sec) * 1000000ULL) + (uint64_t)(__gClockMonotonic.tv_nsec / 1000));
 }
 
 uint64_t clockGetRealtimeNs(void) {
-    struct timespec ts;
-    clock_gettime(CLOCK_REALTIME_TYPE, &ts);
-    return (((uint64_t)(ts.tv_sec) * 1000000000ULL) + (uint64_t)(ts.tv_nsec));
+    clock_gettime(CLOCK_REALTIME_TYPE, &__gClockRealtime);
+    return (((uint64_t)(__gClockRealtime.tv_sec) * 1000000000ULL) + (uint64_t)(__gClockRealtime.tv_nsec));
 }
 
+uint64_t clockGetRealtimeUs(void) {
+    clock_gettime(CLOCK_REALTIME_TYPE, &__gClockRealtime);
+    return (((uint64_t)(__gClockRealtime.tv_sec) * 1000000ULL) + (uint64_t)(__gClockRealtime.tv_nsec / 1000));
+}
+
+// Get the last known clock value
+// Save CPU load, clockGet may take reasonable run time, depending on platform
+// For slow timeouts and timers, it is sufficient to rely on the relatively high call frequency of clockGet() by other
+// parts of the application
+uint64_t clockGetMonotonicNsLast(void) { return (((uint64_t)(__gClockMonotonic.tv_sec) * 1000000000ULL) + (uint64_t)(__gClockMonotonic.tv_nsec)); }
+uint64_t clockGetMonotonicUsLast(void) { return (((uint64_t)(__gClockMonotonic.tv_sec) * 1000000ULL) + (uint64_t)(__gClockMonotonic.tv_nsec / 1000)); }
+uint64_t clockGetRealtimeNsLast(void) { return (((uint64_t)(__gClockRealtime.tv_sec) * 1000000000ULL) + (uint64_t)(__gClockRealtime.tv_nsec)); }
+uint64_t clockGetRealtimeUsLast(void) { return (((uint64_t)(__gClockRealtime.tv_sec) * 1000000ULL) + (uint64_t)(__gClockRealtime.tv_nsec / 1000)); }
+
 #else // Windows
+
+static uint64_t __gClock = 0;
+
+// Get the last known clock value
+uint64_t clockGetLast(void) { return __gClock; }
 
 // Performance counter to clock conversion
 static uint64_t sFactor = 0; // ticks per us

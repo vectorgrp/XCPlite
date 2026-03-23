@@ -550,17 +550,22 @@ bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr);
 
 // Clock (epoch and resolution configured by OPTION_CLOCK_EPOCH_ARB and OPTION_CLOCK_TICKS_1NS)
 bool clockInit(void);
-uint64_t clockGet(void);
-uint64_t clockGetLast(void);
+uint64_t clockGet(void);     // Clock value in ticks, epoch and resolution depend on configuration
+uint64_t clockGetLast(void); // Last known clock value, updated by all clockGet calls, used to save syscall overhead when the last known clock value is sufficient
 char *clockGetString(char *s, uint32_t l, uint64_t c);
 char *clockGetTimeString(char *s, uint32_t l, int64_t c);
 
-// Monotonic system clock in nanoseconds
+// Monotonic system clock
 uint64_t clockGetMonotonicNs(void);
-// Monotonic system clock in microseconds
 uint64_t clockGetMonotonicUs(void);
-// Realtime system clock in nanoseconds
+// Realtime system clock
 uint64_t clockGetRealtimeNs(void);
+uint64_t clockGetRealtimeUs(void);
+// Last known monotonic and realtime clock values
+uint64_t clockGetMonotonicNsLast(void);
+uint64_t clockGetMonotonicUsLast(void);
+uint64_t clockGetRealtimeNsLast(void);
+uint64_t clockGetRealtimeUsLast(void);
 
 #ifdef TEST_CLOCK_GET_STATISTIC
 void clockGetPrintStatistic(void);

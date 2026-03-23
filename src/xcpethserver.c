@@ -114,11 +114,11 @@ static bool ShmInit_(uint32_t queue_size) {
     gXcpServer.shm_thread_running = false;
     gXcpServer.shm_queue_ptr = NULL;
 
-    // SHM queue
-    // Followers must attach at the leader's queue size (from fstat), never reclaim the region.
+    // Create or attach to SHM queue
     size_t shm_total;
     void *shm_ptr;
     if (XcpShmIsLeader()) {
+    open_queue:
         shm_total = sizeof(tShmQueueHeader) + queue_size;
         bool elected = false;
         shm_ptr = platformShmOpen("/xcpqueue", "/tmp/xcpqueue.lock", shm_total, &elected);
@@ -129,16 +129,16 @@ static bool ShmInit_(uint32_t queue_size) {
         // A second leader process (e.g. after rebuild) won /xcpdata but /xcpqueue may
         // already exist. platformShmOpen does NOT reclaim it when sizes differ — we own it.
         if (elected) {
-            DBG_PRINTF3(ANSI_COLOR_BLUE "SHM queue leader created '/xcpqueue' with size %zu bytes\n" ANSI_COLOR_RESET, shm_total);
+            DBG_PRINTF3(ANSI_COLOR_BLUE "SHM queue created with %zu bytes\n" ANSI_COLOR_RESET, shm_total);
         } else {
-            DBG_PRINT_WARNING(ANSI_COLOR_BLUE "XcpEthServerInit: Is SHM leader, but '/xcpqueue' already exists, not reinitializing\n" ANSI_COLOR_RESET);
+            DBG_PRINT_WARNING(ANSI_COLOR_BLUE "SHM leader attached to already existing queue, not reinitializing\n" ANSI_COLOR_RESET);
         }
     } else {
         // Follower: attach to the existing queue at whatever size the leader allocated
         shm_ptr = platformShmOpenAttach("/xcpqueue", &shm_total);
-        if (shm_ptr == NULL) {
-            DBG_PRINT_ERROR("XcpEthServerInit: failed to attach '/xcpqueue' SHM\n");
-            return false;
+        if (shm_ptr == NULL) { // Does not exist, recreate it
+            DBG_PRINT_WARNING("XcpEthServerInit: SHM follower failed to attach '/xcpqueue' SHM\n");
+            goto open_queue;
         }
         DBG_PRINTF3(ANSI_COLOR_BLUE "SHM queue follower attached to '/xcpqueue' with size %zu bytes\n" ANSI_COLOR_RESET, shm_total);
     }
@@ -230,7 +230,11 @@ extern void *XcpShmThread(void *par)
 
     gXcpServer.shm_thread_running = true;
     while (gXcpServer.shm_thread_running) {
-        sleepUs(50000); // Poll every 50 ms
+
+        static volatile uint64_t ctr = 0;
+        uint64_t volatile now = clockGetMonotonicNs(); // Drive the current last time with 50ms cycle in this loop
+        ctr++;
+        sleepUs(50000); // 50 ms
 
         // Handle background tasks, e.g. pending calibration updates
         XcpBackgroundTasks();
@@ -475,6 +479,10 @@ extern void *XcpServerReceiveThread(void *par)
     gXcpServer.receive_thread_running = true;
     while (gXcpServer.receive_thread_running) {
 
+        static volatile uint64_t ctr = 0;
+        uint64_t volatile now = clockGetMonotonicNs(); // Drive the current last time with XCPTL_RECV_TIMEOUT_MS cycle in this loop
+        ctr++;
+
         // Blocking, with timeout to allow handling background tasks in this thread as well
         if (!XcpEthTlHandleCommands()) {
             DBG_PRINT_ERROR("XcpEthTlHandleCommands failed!\n");
@@ -484,25 +492,31 @@ extern void *XcpServerReceiveThread(void *par)
         // Handle background tasks, e.g. pending calibration updates
         XcpBackgroundTasks();
 
-#ifdef TEST_ENABLE_DBG_CHECKS
-        static uint64_t ctr = 0;
-        ctr++;
+        // Every 1s
         static uint64_t last_time = 0;
-        static uint64_t last_ctr = 0;
-        uint64_t now = clockGetMonotonicUs();
-        if (now - last_time >= 1000000) { // every 1s
-            uint32_t loops = ctr - last_ctr;
-            if (XcpIsConnected() && loops <= 5) {
-                DBG_PRINTF_WARNING("XCP receive thread: only %u loops per second, slow background processing, check if the thread is blocked\n", loops);
-            }
-            if (loops > 1000) {
-                DBG_PRINT_WARNING("XCP receive thread: more than 1000 loops per second, check if the thread is busy waiting\n");
-            }
-            DBG_PRINTF6("XCP receive thread: %llu loop per second\n", loops);
+        if (now - last_time >= 1000000000ULL) {
             last_time = now;
-            last_ctr = ctr;
-        }
+
+#ifdef OPTION_SHM_MODE
+            // In SHM mode, server checks alive counters of all applications and prints debug info
+            XcpShmCheckAliveCounters();
 #endif
+
+#ifdef TEST_ENABLE_DBG_CHECKS
+            {
+                static uint64_t last_ctr = 0;
+                uint32_t loops = ctr - last_ctr;
+                if (XcpIsConnected() && loops <= 5) {
+                    DBG_PRINTF_WARNING("XCP receive thread: only %u loops per second, slow background processing, check if the thread is blocked\n", loops);
+                }
+                if (loops > 1000) {
+                    DBG_PRINT_WARNING("XCP receive thread: more than 1000 loops per second, check if the thread is busy waiting\n");
+                }
+                DBG_PRINTF6("XCP receive thread: %llu loop per second\n", loops);
+                last_ctr = ctr;
+            }
+#endif
+        }
     }
     gXcpServer.receive_thread_running = false;
 
@@ -525,6 +539,10 @@ extern void *XcpServerTransmitThread(void *par)
     gXcpServer.transmit_thread_running = true;
     while (gXcpServer.transmit_thread_running) {
 
+        static volatile uint64_t ctr = 0;
+        uint64_t volatile now = clockGetMonotonicNsLast();
+        ctr++;
+
         // Transmit all committed messages from the transmit queue
         int32_t n = XcpTlHandleTransmitQueue();
         if (n < 0) {
@@ -533,12 +551,9 @@ extern void *XcpServerTransmitThread(void *par)
         }
 
 #ifdef TEST_ENABLE_DBG_CHECKS
-        static uint64_t ctr = 0;
-        ctr++;
         static uint64_t last_time = 0;
         static uint64_t last_ctr = 0;
-        uint64_t now = clockGetMonotonicUs();
-        if (now - last_time >= 1000000) { // every 1s
+        if (now - last_time >= 1000000000ULL) { // every 1s
             uint32_t loops = ctr - last_ctr;
             if (XcpIsConnected() && loops <= 5) {
                 DBG_PRINTF_WARNING("XCP transmit thread: only %u loops per second, slow background processing, check if the thread is blocked\n", loops);

@@ -23,7 +23,7 @@ constexpr uint16_t OPTION_SERVER_PORT = 5555;                 // Port
 constexpr uint16_t OPTION_QUEUE_SIZE = (1024 * 32);           // Size of the queue in bytes, should be large enough to cover at least 10ms of expected traffic
 constexpr uint8_t OPTION_XCP_MODE = (XCP_MODE_PERSISTENCE | XCP_MODE_SHM | XCP_MODE_SHM_AUTO); // XCP mode
 constexpr uint8_t OPTION_A2L_MODE = (A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS);
-constexpr int OPTION_LOG_LEVEL = 5; // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+constexpr int OPTION_LOG_LEVEL = 3; // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 #define OPTION_ENABLE_CALIBRATION // Enable parameter tuning in the code below
 
