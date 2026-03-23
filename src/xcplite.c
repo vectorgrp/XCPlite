@@ -1927,7 +1927,7 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
         if (!ApplXcpConnect(mode))
             return CRC_CMD_OK; // Application not ready, ignore
 
-        // Initialize Session Status
+        // Initialize XCP Session Status on connect
         shared_mut.session_status = (SS_ACTIVATED | SS_STARTED | SS_CONNECTED | SS_LEGACY_MODE);
 
         /* Reset DAQ */
@@ -3031,7 +3031,7 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
 #ifdef OPTION_ENABLE_PERSISTENCE
     if ((mode & XCP_MODE_PERSISTENCE) != 0) {
         if (XcpBinLoad()) {
-            shared_mut.session_status |= SS_PERSISTENCE_LOADED;
+            // shared_mut.bin_loaded = true;  // @@@@ TODO: Maybe remember this
         }
     }
 #endif

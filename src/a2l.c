@@ -2054,10 +2054,11 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
     ApplXcpRegisterConnectCallback(A2lCheckFinalizeOnConnect);
 
     // In A2L_WRITE_ONCE mode:
-    // Check if the A2L file already exists and the persistence BIN file has been loaded and checked
-    // If yes, skip generation
+    // Check if the A2L file already exists
+    // @@@@ TODO: Maybe better be sure the persistence BIN file has been successfully loaded
+    // If yes, disable and skip generation
     const char *a2l_filename = A2lGetFilename(A2L_FILE);
-    if (!gA2lWriteAlways && (XcpGetSessionStatus() & SS_PERSISTENCE_LOADED) && fexists(a2l_filename)) {
+    if (!gA2lWriteAlways && fexists(a2l_filename)) {
 #ifndef OPTION_SHM_MODE
 
         XcpSetA2lName(a2l_filename); // Notify XCP that there is an existing A2L file available on disk
