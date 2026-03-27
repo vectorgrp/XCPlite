@@ -914,7 +914,7 @@ bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
     if (!useTCP) {
         sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
-// Avoid send to UDP nowhere problem (ignore ICMP host unreachable - server has no open socket on master port)
+// Avoid send to UDP nowhere problem (ignore ICMP host unreachable - server has no open socket on client port)
 // (stack-overflow 34242622)
 #define SIO_UDP_CONNRESET _WSAIOW(IOC_VENDOR, 12)
         bool bNewBehavior = false;

@@ -602,7 +602,7 @@ void XcpShmShutdownApp(uint8_t app_id) {
     // app->a2l_finalized == 0;
     // app->a2l_name[0] = '\0';
     // app->xcp_init_mode = 0;
-    DBG_PRINTF5("XcpShmShutdownApp: Set application %u:'%s' to offline\n", app_id, app->project_name);
+    DBG_PRINTF3(ANSI_COLOR_BLUE "XcpShmShutdownApp: Set application %u:'%s' to offline\n" ANSI_COLOR_RESET, app_id, app->project_name);
 
     // Check if there are any more active applications (pid!=0 and alive_counter>0),
     //  if not we can reset the whole SHM state for the next leader

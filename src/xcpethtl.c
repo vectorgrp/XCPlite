@@ -289,7 +289,7 @@ static bool handleXcpCommand(tXcpCtoMessage *p, uint8_t *srcAddr, uint16_t srcPo
 
             // Check unicast master udp port, not allowed to change
             if (gXcpTl.master_port != srcPort) {
-                DBG_PRINTF_WARNING("master port changed from %u to %u, disconnecting!\n", gXcpTl.master_port, srcPort);
+                DBG_PRINTF_WARNING("client port changed from %u to %u, disconnecting!\n", gXcpTl.master_port, srcPort);
                 XcpDisconnect();
                 gXcpTl.master_addr_valid = false;
                 goto not_connected; // Disconnected, now check for new CONNECT command

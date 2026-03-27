@@ -63,7 +63,7 @@ static void print_usage(const char *prog) {
     printf("  -h, --help             Show this help message\n");
     printf("Commands (execute and exit):\n");
     printf("  status                 Print shared memory status and exit\n");
-    printf("  clean                  Unlink shared memory and delete master.bin / master.a2l\n");
+    printf("  clean                  Unlink shared memory and delete main.bin / main.a2l\n");
     printf("  cleanall               Delete all finalized application A2L files, then clean\n");
     printf("  help                   Show this help message\n");
 }
@@ -118,6 +118,8 @@ static int do_daemonize(void) {
     return 0;
 }
 
+#ifdef OPTION_SHM_MODE
+
 // Unlink shared memory regions and delete the master persistence/A2L files
 static int do_clean_files(void) {
 
@@ -130,8 +132,6 @@ static int do_clean_files(void) {
 
     return 0;
 }
-
-#ifdef OPTION_SHM_MODE
 
 static int do_unlink(void) {
     printf("Unlinking '/xcpqueue'...\n");
@@ -309,13 +309,13 @@ int main(int argc, char *argv[]) {
         }
     }
 
+#ifdef OPTION_SHM_MODE
+
     // Handle action commands (execute and exit)
     if (cmd == CMD_CLEAN) {
         do_clean();
         return 0;
     }
-
-#ifdef OPTION_SHM_MODE
 
     if (cmd == CMD_STATUS) {
         return do_status();
@@ -408,7 +408,7 @@ int main(int argc, char *argv[]) {
 #endif // OPTION_SHM_MODE
 
     DBG_PRINT3("\nStart XCP daemon, press Ctrl-C to stop...\n");
-
+    // running = false;
     while (running) {
 
         counter++;

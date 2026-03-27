@@ -37,7 +37,7 @@ typedef struct XcpData tXcpData;
 
 #define SHM_MAGIC 0x5843504C4954455F // "XCPLITE_" in little-endian ASCII
 #define SHM_VERSION 0x00010000       // Version 1.0.0
-#define SHM_PROJECT_NAME "master"    // Name of the master A2L and BIN file
+#define SHM_PROJECT_NAME "main"      // Name of the main A2L and BIN file
 #define SHM_MAX_APP_COUNT 8          // Maximum number of concurrently registered processes
 
 // Per-application entry in tShmHeader.app_list.

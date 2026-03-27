@@ -36,7 +36,7 @@ xcpdaemon help
 | Command | Description |
 |---------|-------------|
 | `status` | Show registered applications and SHM state and exit |
-| `clean` | Unlink shared memory (`/xcpdata`, `/xcpqueue`) and delete `master.bin` / `master.a2l` |
+| `clean` | Unlink shared memory (`/xcpdata`, `/xcpqueue`) and delete `main.bin` / `main.a2l` |
 | `cleanall` | Delete all finalized application A2L files listed in SHM, then clean |
 | `help` | Show help message |
 

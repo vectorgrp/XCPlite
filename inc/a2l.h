@@ -59,6 +59,14 @@
 #define A2L_MODE_WRITE_ONCE 0x02          // Write A2L file only once for a epk version, do not overwrite existing file, use the binary persistence file to keep the A2L file valid
 #define A2L_MODE_FINALIZE_ON_CONNECT 0x04 // Finalize A2L file on XCP connect
 #define A2L_MODE_AUTO_GROUPS 0x08         // Automatically create groups for measurements and parameters
+#define A2L_MODE_SYMBOL_PREFIX 0x10       // Prepend project name as prefix to all symbol names (measurements, parameters, typedefs, components)
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Constants
+
+#define XCP_A2L_MAX_SYMBOL_NAME_LENGTH 64 // Maximum length of symbol names in A2L file (including null terminator)
+#define XCP_A2L_MAX_LINE_LENGTH 512       // Maximum length of a line in A2L file (including null terminator)
+#define XCP_A2L_MAX_COMMENT_LENGTH 256    // Maximum length of a comment in A2L file (including null terminator)
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -79,6 +87,9 @@ typedef int8_t tA2lTypeId; // A2L type ID, positive for unsigned types, negative
 static_assert(sizeof(char) == 1, "sizeof(char) must be 1");
 static_assert(sizeof(short) == 2, "sizeof(short) must be 2");
 static_assert(sizeof(long long) == 8, "sizeof(long long) must be 8");
+
+double A2lGetTypeMax(tA2lTypeId type_id);
+double A2lGetTypeMin(tA2lTypeId type_id);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Automatic, portable type detection macros for C
@@ -590,15 +601,6 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode);
 /// Finish A2L generation
 /// Finalize the A2L file, write the binary persistence file
 bool A2lFinalize(void);
-bool A2lFinalizeOrCleanup(bool finalize);
-
-// Get filename of the A2L files
-#define A2L_FILE 1
-#define A2L_TYPEDEFS_FILE 2
-#define A2L_GROUPS_FILE 3
-#define A2L_CONVERSIONS_FILE 4
-#define A2L_MASTER_FILE 0xFF
-const char *A2lGetFilename(uint8_t file_type);
 
 // --------------------------------------------------------------------------------------------
 // Helper functions used in the by A2L generation macros

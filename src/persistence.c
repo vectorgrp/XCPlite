@@ -20,7 +20,6 @@
 #include <stdio.h>    // for fclose, fopen, fread, fseek, ftell
 #include <string.h>   // for strlen, strncpy
 
-#include "a2l.h"        // for A2lGetFilename
 #include "dbg_print.h"  // for DBG_PRINTF3, DBG_PRINT4, DBG_PRINTF4, DBG...
 #include "platform.h"   // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
 #include "shm.h"        // for shared memory management
@@ -491,7 +490,7 @@ static bool load(const char *filename, const char *epk) {
             error_count++;
         }
 
-        // If the A2L file already exists, set the A2L finalized flag, so the master file will be generated for it, even if the application was not started before tool connect
+        // If the A2L file already exists, set the A2L finalized flag, so the main file will be generated for it, even if the application was not started before tool connect
         char a2l_filename[XCP_A2L_FILENAME_MAX_LENGTH + 1];
         SNPRINTF(a2l_filename, sizeof(a2l_filename), "%s_%s.a2l", desc.project_name, desc.epk);
         if (fexists(a2l_filename)) {

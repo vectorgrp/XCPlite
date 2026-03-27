@@ -110,7 +110,7 @@ elseif(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
 endif()
 
 # xcplite sources
-set(xcplite_SOURCES src/xcpappl.c src/xcplite.c src/xcpethserver.c src/xcpethtl.c src/queue32.c src/queue64v.c src/queue64f.c src/shm.c src/cal.c src/a2l.c src/persistence.c src/platform.c)   
+set(xcplite_SOURCES src/xcpappl.c src/xcplite.c src/xcpethserver.c src/xcpethtl.c src/queue32.c src/queue64v.c src/queue64f.c src/shm.c src/cal.c src/a2l.c src/a2l_writer.c src/persistence.c src/platform.c)   
 
 # Create xcplite library
 add_library(xcplite ${xcplite_SOURCES})

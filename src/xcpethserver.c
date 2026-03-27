@@ -201,7 +201,7 @@ extern void *ShmThread_(void *par)
 #ifdef OPTION_ENABLE_A2L_GENERATOR
         if (!XcpShmIsA2lFinalized(XcpShmGetAppId()) && XcpShmIsA2lFinalizeRequested()) {
             sleepMs(100); // @@@@ TODO
-            if (A2lFinalizeOrCleanup(true)) {
+            if (A2lFinalize()) {
                 DBG_PRINT3(ANSI_COLOR_BLUE "A2L finalized by SHM request\n" ANSI_COLOR_RESET);
             }
         }
@@ -357,6 +357,10 @@ bool XcpEthServerShutdown(void) {
     DBG_PRINT3("Disconnect and shutdown XCP!\n");
     XcpDisconnect();
 
+    // Reset the XCP protocol layer
+    // In SHM mode deregister application
+    XcpDeinit();
+
 #ifdef OPTION_SHM_MODE
     if (XcpShmIsActive() && !XcpShmIsServer()) {
         // In SHM mode
@@ -365,11 +369,6 @@ bool XcpEthServerShutdown(void) {
         return true;
     }
 #endif // OPTION_SHM_MODE
-
-    // Reset the XCP protocol layer
-    // @@@@ TODO: Rethink correct order of shutdown steps
-    // In SHM mode deregister application
-    XcpDeinit();
 
     DBG_PRINT3("Terminate server threads\n");
 #ifdef OPTION_SERVER_FORCEFULL_TERMINATION

@@ -1,6 +1,6 @@
 /*----------------------------------------------------------------------------
 | File:
-|   A2L.c
+|   a2l.c
 |
 | Description:
 |   Create A2L file
@@ -11,6 +11,7 @@
  ----------------------------------------------------------------------------*/
 
 #include "a2l.h"
+#include "a2l_writer.h"
 
 #include <assert.h>   // for assert
 #include <inttypes.h> // for PRIu64
@@ -23,24 +24,13 @@
 #include "dbg_print.h"   // for DBG_PRINT
 #include "persistence.h" // for XcpBinWrite, XcpBinDelete
 #include "platform.h"    // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
-#include "xcp.h"         // for CRC_XXX
 #include "xcp_cfg.h"     // for XCP_xxx
 #include "xcplib_cfg.h"  // for OPTION_xxx
-#include "xcplite.h"     // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
 #include "xcptl_cfg.h"   // for XCPTL_xxx
 
 #ifdef OPTION_ENABLE_A2L_GENERATOR
 
 //----------------------------------------------------------------------------------
-
-#define INCLUDE_AML_FILES // Use /include "file.aml"
-// #define EMBED_AML_FILES // Embed AML files into generated A2L file
-
-//----------------------------------------------------------------------------------
-
-#define XCP_A2L_MAX_SYMBOL_NAME_LENGTH 64 // Maximum length of symbol names in A2L file (including null terminator)
-#define XCP_A2L_MAX_LINE_LENGTH 512       // Maximum length of a line in A2L file (including null terminator)
-#define XCP_A2L_MAX_COMMENT_LENGTH 256    // Maximum length of a comment in A2L file (including null terminator)
 
 // A2L global options
 static bool gA2lUseTCP = false;
@@ -54,7 +44,6 @@ static bool gA2lSymbolPrefix = false;     // Prepend project name as prefix to a
 
 // A2L file handles and state
 static bool gA2lIsFinalized = false;
-static FILE *gA2lMasterFile = NULL;
 static FILE *gA2lFile = NULL;
 static FILE *gA2lTypedefsFile = NULL;
 static FILE *gA2lGroupsFile = NULL;
@@ -93,188 +82,11 @@ static uint32_t gA2lInstances;
 static uint32_t gA2lConversions;
 
 //----------------------------------------------------------------------------------
+// Helper functions
 
-static bool A2lOpen(bool master_file_only);
 static uint32_t A2lGetAddr_(const void *addr);
+
 static uint8_t A2lGetAddrExt_(void);
-
-//----------------------------------------------------------------------------------
-static const char *gA2lHeader1 = "ASAP2_VERSION 1 71\n"
-                                 "/begin PROJECT %s \"\"\n\n" // project name
-                                 "/begin HEADER \"\" VERSION \"1.0\" PROJECT_NO " XCP_ADDRESS_MODE " /end HEADER\n\n"
-                                 "/begin MODULE %s \"\"\n\n"; // module name
-
-static const char *gA2lHeader2 = "/begin MOD_COMMON \"\"\n"
-                                 "BYTE_ORDER MSB_LAST\n"
-                                 "ALIGNMENT_BYTE 1\n"
-                                 "ALIGNMENT_WORD 1\n"
-                                 "ALIGNMENT_LONG 1\n"
-                                 "ALIGNMENT_FLOAT16_IEEE 1\n"
-                                 "ALIGNMENT_FLOAT32_IEEE 1\n"
-                                 "ALIGNMENT_FLOAT64_IEEE 1\n"
-                                 "ALIGNMENT_INT64 1\n"
-                                 "/end MOD_COMMON\n"
-                                 "\n\n";
-
-//----------------------------------------------------------------------------------
-#ifdef EMBED_AML_FILES
-static const char *gA2lAml = "";
-#endif
-
-//----------------------------------------------------------------------------------
-#ifdef XCP_ENABLE_CALSEG_LIST
-static const char *gA2lMemorySegment =
-#ifdef XCP_ENABLE_CAL_PAGE
-    // 2 calibration pages, 0=working page (RAM), 1=initial readonly page (FLASH), independent access to ECU and XCP page possible using GET/SET_CAL_PAGE
-    // DATA = program data allowed for online calibration
-    "/begin MEMORY_SEGMENT %s \"\" DATA FLASH INTERN 0x%08X %u -1 -1 -1 -1 -1\n" // name, start addr, size
-    "/begin IF_DATA XCP\n"
-    "  /begin SEGMENT %u 2 0 0 0\n" // index
-    "  /begin CHECKSUM XCP_CRC_16_CITT MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION \"\" /end CHECKSUM\n"
-    "  /begin PAGE 0 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_DONT_CARE /end PAGE\n"
-    "  /begin PAGE 1 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_DONT_CARE XCP_WRITE_ACCESS_NOT_ALLOWED /end PAGE\n"
-    "  /end SEGMENT\n"
-    "/end IF_DATA\n"
-#else
-    // 1 calibration page
-    "/begin MEMORY_SEGMENT %s \"\" DATA RAM INTERN 0x%08X %u -1 -1 -1 -1 -1\n" // name, start addr, size
-    "/begin IF_DATA XCP\n"
-    "  /begin SEGMENT %u 1 0 0 0\n" // index
-    "  /begin CHECKSUM XCP_CRC_16_CITT MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION \"\" /end CHECKSUM\n"
-    "  /begin PAGE 0 ECU_ACCESS_DONT_CARE XCP_READ_ACCESS_WITH_ECU_ONLY XCP_WRITE_ACCESS_WITH_ECU_ONLY /end PAGE\n"
-    "  /end SEGMENT\n"
-    "/end IF_DATA\n"
-#endif
-#ifdef OPTION_CAL_SEGMENTS_ABS
-    "/begin IF_DATA CANAPE_ADDRESS_UPDATE\n"
-    "/begin MEMORY_SEGMENT \"%s\" FIRST \"%s\" 0 LAST \"%s\" %u /end MEMORY_SEGMENT\n"
-    "/end IF_DATA\n"
-#endif
-    "/end MEMORY_SEGMENT\n";
-
-#endif
-
-//----------------------------------------------------------------------------------
-static const char *const gA2lIfDataBegin = "\n/begin IF_DATA XCP\n";
-
-//----------------------------------------------------------------------------------
-static const char *gA2lIfDataProtocolLayer = // Parameter: XCP_PROTOCOL_LAYER_VERSION, MAX_CTO, MAX_DTO
-    "/begin PROTOCOL_LAYER\n"
-    " 0x%X"                                          // XCP_PROTOCOL_LAYER_VERSION
-    " 1000 2000 0 0 0 0 0"                           // Timeouts T1-T7
-    " %u %u "                                        // MAX_CTO, MAX_DTO
-    "BYTE_ORDER_MSB_LAST ADDRESS_GRANULARITY_BYTE\n" // Intel and BYTE pointers
-    "OPTIONAL_CMD GET_COMM_MODE_INFO\n"              // Optional commands
-    "OPTIONAL_CMD GET_ID\n"
-    "OPTIONAL_CMD SET_REQUEST\n"
-    "OPTIONAL_CMD SET_MTA\n"
-    "OPTIONAL_CMD UPLOAD\n"
-    "OPTIONAL_CMD SHORT_UPLOAD\n"
-    "OPTIONAL_CMD DOWNLOAD\n"
-    "OPTIONAL_CMD SHORT_DOWNLOAD\n"
-#ifdef XCP_ENABLE_CAL_PAGE
-    "OPTIONAL_CMD GET_CAL_PAGE\n"
-    "OPTIONAL_CMD SET_CAL_PAGE\n"
-#ifdef XCP_ENABLE_COPY_CAL_PAGE
-    "OPTIONAL_CMD COPY_CAL_PAGE\n"
-#endif
-#endif // XCP_ENABLE_CAL_PAGE
-#ifdef XCP_ENABLE_CALSEG_LIST
-    "OPTIONAL_CMD GET_PAG_PROCESSOR_INFO\n"
-    "OPTIONAL_CMD GET_SEGMENT_INFO\n"
-    "OPTIONAL_CMD GET_PAGE_INFO\n"
-#ifdef XCP_ENABLE_FREEZE_CAL_PAGE
-    "OPTIONAL_CMD GET_SEGMENT_MODE\n"
-    "OPTIONAL_CMD SET_SEGMENT_MODE\n"
-#endif // XCP_ENABLE_FREEZE_CAL_PAGE
-#endif // XCP_ENABLE_CALSEG_LIST
-#ifdef XCP_ENABLE_CHECKSUM
-    "OPTIONAL_CMD BUILD_CHECKSUM\n"
-#endif
-    //"OPTIONAL_CMD TRANSPORT_LAYER_CMD\n"
-    "OPTIONAL_CMD USER_CMD\n"
-    "OPTIONAL_CMD GET_DAQ_RESOLUTION_INFO\n"
-    "OPTIONAL_CMD GET_DAQ_PROCESSOR_INFO\n"
-#ifdef XCP_ENABLE_DAQ_EVENT_INFO
-    "OPTIONAL_CMD GET_DAQ_EVENT_INFO\n"
-#endif
-    //"OPTIONAL_CMD GET_DAQ_LIST_INFO\n"
-    "OPTIONAL_CMD FREE_DAQ\n"
-    "OPTIONAL_CMD ALLOC_DAQ\n"
-    "OPTIONAL_CMD ALLOC_ODT\n"
-    "OPTIONAL_CMD ALLOC_ODT_ENTRY\n"
-    //"OPTIONAL_CMD CLEAR_DAQ_LIST\n"
-    //"OPTIONAL_CMD READ_DAQ\n"
-    "OPTIONAL_CMD SET_DAQ_PTR\n"
-    "OPTIONAL_CMD WRITE_DAQ\n"
-    "OPTIONAL_CMD GET_DAQ_LIST_MODE\n"
-    "OPTIONAL_CMD SET_DAQ_LIST_MODE\n"
-    "OPTIONAL_CMD START_STOP_SYNCH\n"
-    "OPTIONAL_CMD START_STOP_DAQ_LIST\n"
-    "OPTIONAL_CMD GET_DAQ_CLOCK\n"
-#if XCP_TRANSPORT_LAYER_TYPE == XCP_TRANSPORT_LAYER_ETH
-    "OPTIONAL_CMD WRITE_DAQ_MULTIPLE\n"
-#if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
-    "OPTIONAL_CMD TIME_CORRELATION_PROPERTIES\n"
-//"OPTIONAL_CMD DTO_CTR_PROPERTIES\n"
-#endif
-#if XCP_PROTOCOL_LAYER_VERSION >= 0x0104
-    "OPTIONAL_LEVEL1_CMD GET_VERSION\n"
-#ifdef XCP_ENABLE_PACKED_MODE
-    "OPTIONAL_LEVEL1_CMD SET_DAQ_PACKED_MODE\n"
-    "OPTIONAL_LEVEL1_CMD GET_DAQ_PACKED_MODE\n"
-#endif
-#endif
-#if XCP_PROTOCOL_LAYER_VERSION >= 0x0150
-//"OPTIONAL_LEVEL1_CMD SW_DBG_COMMAND_SPACE\n"
-//"OPTIONAL_LEVEL1_CMD POD_COMMAND_SPACE\n"
-#endif
-#endif // ETH
-    "/end PROTOCOL_LAYER\n"
-
-#if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
-/*
-"/begin TIME_CORRELATION\n" // TIME
-"/end TIME_CORRELATION\n"
-*/
-#endif
-    ;
-
-//----------------------------------------------------------------------------------
-static const char *gA2lIfDataBeginDAQ = // Parameter: %u max event, %s timestamp unit
-    "/begin DAQ\n"
-    "DYNAMIC 0 %u 0 OPTIMISATION_TYPE_DEFAULT ADDRESS_EXTENSION_FREE IDENTIFICATION_FIELD_TYPE_RELATIVE_BYTE GRANULARITY_ODT_ENTRY_SIZE_DAQ_BYTE 0xF8 OVERLOAD_INDICATION_PID"
-#ifdef XCP_ENABLE_DAQ_PRESCALER
-    " PRESCALER_SUPPORTED"
-#endif
-    "\n/begin TIMESTAMP_SUPPORTED 0x1 SIZE_DWORD %s TIMESTAMP_FIXED /end TIMESTAMP_SUPPORTED\n";
-
-// ... Event list follows, before EndDaq
-
-static const char *const gA2lIfDataEndDAQ = "/end DAQ\n";
-
-//----------------------------------------------------------------------------------
-// XCP_ON_ETH
-static const char *gA2lIfDataEth = // Parameter: %s TCP or UDP, %04X tl version, %u port, %s ip address string, %s TCP or UDP
-    "/begin XCP_ON_%s_IP\n"        // Transport Layer
-    "  0x%X %u ADDRESS \"%s\"\n"
-//"OPTIONAL_TL_SUBCMD GET_SERVER_ID\n"
-//"OPTIONAL_TL_SUBCMD GET_DAQ_ID\n"
-//"OPTIONAL_TL_SUBCMD SET_DAQ_ID\n"
-#if defined(XCPTL_ENABLE_MULTICAST) && defined(XCP_ENABLE_DAQ_CLOCK_MULTICAST)
-    "  OPTIONAL_TL_SUBCMD GET_DAQ_CLOCK_MULTICAST\n"
-#endif
-    "/end XCP_ON_%s_IP\n" // Transport Layer
-    ;
-
-//----------------------------------------------------------------------------------
-static const char *const gA2lIfDataEnd = "/end IF_DATA\n\n";
-
-//----------------------------------------------------------------------------------
-static const char *const gA2lFooter = "/end MODULE\n"
-                                      "/end PROJECT\n";
-
-//----------------------------------------------------------------------------------
 
 #define printAddrExt(ext)                                                                                                                                                          \
     if ((ext) > 0)                                                                                                                                                                 \
@@ -308,28 +120,6 @@ static const char *A2lGetPrefixedInstanceName_(const char *instance_name, const 
             return name;
         }
     }
-}
-
-// Get the prefixed event name
-const char *A2lGetEventName_(tXcpEventId id) {
-#ifdef OPTION_SHM_MODE
-    // Create a name prefixed with the application name stored in the the event
-    if (XcpShmIsServer()) {
-        return A2lGetPrefixedName_(XcpShmGetAppProjectName(XcpGetEventAppId(id)), XcpGetEventName(id));
-    }
-#endif // OPTION_SHM_MODE
-    return A2lGetPrefixedName_(XcpGetProjectName(), XcpGetEventName(id));
-}
-
-// Get the prefixed memory segment name
-const char *A2lGetCalSegName_(uint8_t app_id, const char *name) {
-#ifdef OPTION_SHM_MODE
-    // Create a name prefixed with the application name stored in the calibration segment
-    if (XcpShmIsServer()) {
-        return A2lGetPrefixedName_(XcpShmGetAppProjectName(app_id), name);
-    }
-#endif // OPTION_SHM_MODE
-    return A2lGetPrefixedName_(XcpGetProjectName(), name);
 }
 
 //----------------------------------------------------------------------------------
@@ -446,7 +236,7 @@ const char *A2lGetA2lRecordLayoutName(tA2lTypeId type_id) {
     }
 }
 
-static double getTypeMin(tA2lTypeId type_id) {
+double A2lGetTypeMin(tA2lTypeId type_id) {
     double min;
     switch (type_id) {
     case A2L_TYPE_INT8:
@@ -469,7 +259,7 @@ static double getTypeMin(tA2lTypeId type_id) {
     return min;
 }
 
-static double getTypeMax(tA2lTypeId type_id) {
+double A2lGetTypeMax(tA2lTypeId type_id) {
     double max;
     switch (type_id) {
     case A2L_TYPE_INT8:
@@ -497,49 +287,43 @@ static double getTypeMax(tA2lTypeId type_id) {
 }
 
 //----------------------------------------------------------------------------------
-
-void A2lSetInputQuantity_x(const char *input_quantity) { gA2lInputQuantity_x = input_quantity; }
-
-void A2lSetInputQuantity_y(const char *input_quantity) { gA2lInputQuantity_y = input_quantity; }
-
-void A2lSetSymbolPrefix(bool enable) { gA2lSymbolPrefix = enable; }
-
-static const char *A2lGetInputQuantity_x(void) { return gA2lInputQuantity_x ? gA2lInputQuantity_x : "NO_INPUT_QUANTITY"; }
-
-static const char *A2lGetInputQuantity_y(void) { return gA2lInputQuantity_y ? gA2lInputQuantity_y : "NO_INPUT_QUANTITY"; }
-
-//----------------------------------------------------------------------------------
-
 // Build filenames for the different (temporary) files used
-const char *A2lGetFilename(uint8_t file_type) {
 
+#define A2L_FILE 1
+#define A2L_TYPEDEFS_FILE 2
+#define A2L_GROUPS_FILE 3
+#define A2L_CONVERSIONS_FILE 4
+#define A2L_MASTER_FILE 0xFF
+
+static const char *A2lGetFilename(uint8_t file_type) {
     static char file_name[XCP_A2L_FILENAME_MAX_LENGTH + 1] = {0}; // static buffer for filename
     const char *project_name = XcpGetProjectName();
-    const char postfix[32] = "";
-    bool add_postfix = !gA2lWriteAlways;
-
-    // In SHM mode, the server uses a fixed A2L filename and the application id as postfix for the temporary files
-    uint8_t id = 0;
-#ifdef OPTION_SHM_MODE
-    id = XcpShmGetAppId();
-#endif // OPTION_SHM_MODE
+    const char *postfix = "";
+    bool add_epk = false;
     switch (file_type) {
 #ifdef OPTION_SHM_MODE
+        // In SHM mode, the server build a master file with a generic name and includes all applications partial A2L files
     case A2L_MASTER_FILE:
-        project_name = XcpShmGetEcuProjectName(); // Use the ECU name as filename for master file in SHM mode
-        add_postfix = false;
+        project_name = XcpShmGetEcuProjectName(); // Use the ECU name as filename for main file in SHM mode
+        postfix = "";
+        add_epk = false;
         break;
 #endif // OPTION_SHM_MODE
     case A2L_TYPEDEFS_FILE:
-        SNPRINTF(postfix, sizeof(postfix), "_typedefs_%u", id);
+        postfix = "_typedefs";
+        add_epk = false;
         break;
     case A2L_GROUPS_FILE:
-        SNPRINTF(postfix, sizeof(postfix), "_groups_%u", id);
+        postfix = "_groups";
+        add_epk = false;
         break;
     case A2L_CONVERSIONS_FILE:
-        SNPRINTF(postfix, sizeof(postfix), "_conversions_%u", id);
+        postfix = "_conversions";
+        add_epk = false;
         break;
     case A2L_FILE:
+        postfix = "";
+        add_epk = !gA2lWriteAlways;
         break;
     default:
         assert(0);
@@ -547,262 +331,31 @@ const char *A2lGetFilename(uint8_t file_type) {
 
     // Build A2L base filename from project name and EPK
     // If A2l file is generated only once for a new build, the EPK is appended to the filename
-    if (add_postfix) {
+    if (add_epk) {
         SNPRINTF(file_name, sizeof(file_name), "%s%s_%s.a2l", project_name, postfix, XcpGetEpk());
     } else {
         SNPRINTF(file_name, sizeof(file_name), "%s%s.a2l", project_name, postfix);
     }
-
     return file_name;
 }
 
-// Start A2L file generation
-static bool A2lOpen(bool master_file_only) {
-
-    gA2lIsFinalized = false;
-    gA2lMasterFile = NULL;
-    gA2lFile = NULL;
-    gA2lTypedefsFile = NULL;
-    gA2lGroupsFile = NULL;
-    gA2lConversionsFile = NULL;
-
-    A2lRstAddrMode();
-
-    gA2lMeasurements = gA2lParameters = gA2lTypedefs = gA2lInstances = gA2lConversions = gA2lComponents = 0;
-
-    if (!master_file_only) {
-        // Start A2L generator
-        const char *filename = A2lGetFilename(A2L_FILE);
-        DBG_PRINTF3(ANSI_COLOR_GREEN "Start A2L generator, file=%s, write_always=%u, finalize_on_connect=%u, auto_groups=%u\n" ANSI_COLOR_RESET, filename, gA2lWriteAlways,
-                    gA2lFinalizeOnConnect, gA2lAutoGroups);
-        gA2lFile = fopen(filename, "w");
-        if (gA2lFile == NULL) {
-            DBG_PRINTF_ERROR("Could not create file %s!\n", filename);
-            return false;
-        }
-    }
-
-    // In SHM mode, open the master file
-#ifdef OPTION_SHM_MODE
-    if (XcpShmIsServer()) {
-        const char *master_filename = A2lGetFilename(A2L_MASTER_FILE);
-        gA2lMasterFile = fopen(master_filename, "w");
-        if (gA2lMasterFile == NULL) {
-            DBG_PRINTF_ERROR("Could not create file %s!\n", master_filename);
-            return false;
-        }
-        A2lSetSymbolPrefix(true);
-        DBG_PRINTF3(ANSI_COLOR_BLUE "Create A2L master file '%s'\n" ANSI_COLOR_RESET, master_filename);
-    } else if (XcpShmIsActive()) {
-        gA2lMasterFile = NULL;
-        A2lSetSymbolPrefix(true); // Prepend project name as prefix to all symbol names to avoid name clashes between multiple followers
-    } else {
-        gA2lMasterFile = gA2lFile; // SHM mode not active, there is only one A2L file
-    }
-#else // OPTION_SHM_MODE
-    gA2lMasterFile = gA2lFile; // There is only one A2L file
-#endif
-
-    // Open the temporary files for typedefs, groups and conversions
-    if (gA2lFile != NULL) {
-        gA2lTypedefsFile = fopen(A2lGetFilename(A2L_TYPEDEFS_FILE), "w");
-        gA2lGroupsFile = fopen(A2lGetFilename(A2L_GROUPS_FILE), "w");
-        gA2lConversionsFile = fopen(A2lGetFilename(A2L_CONVERSIONS_FILE), "w");
-        if (gA2lFile == 0 || gA2lTypedefsFile == 0 || gA2lGroupsFile == 0 || gA2lConversionsFile == 0) {
-            DBG_PRINT_ERROR("Could not create file!\n");
-            return false;
-        }
-        fprintf(gA2lTypedefsFile, "\n/* Typedefs */\n");       // typedefs temporary file
-        fprintf(gA2lGroupsFile, "\n/* Groups */\n");           // groups temporary file
-        fprintf(gA2lConversionsFile, "\n/* Conversions */\n"); // conversions temporary file
-    }
-
-    // The other A2L files contain only data objects (MEASUREMENT/CHARACTERISTIC/...)
-    if (gA2lMasterFile) {
-        // Create headers
-        fprintf(gA2lMasterFile, gA2lHeader1, XcpGetProjectName(), XcpGetProjectName());
-#ifdef INCLUDE_AML_FILES
-        // To include multiple AML files, remove the /begin A2ML and /end A2LM in the XCP_104.aml and CANape.aml files and uncomment the following lines
-        // fprintf(gA2lMasterFile,"/begin A2ML\n"
-        // "/include \"XCP_104.aml\"\n\n"
-        // "/include \"CANape.aml\"\n\n"
-        // "/end A2ML\n");
-        fprintf(gA2lMasterFile, "/include \"XCP_104.aml\"\n\n");
-#endif
-#ifdef EMBED_AML_FILES
-        fprintf(gA2lMasterFile, gA2lAml); // main file
-#endif
-        fprintf(gA2lMasterFile, "%s", gA2lHeader2);
-    }
-
-    // Create predefined conversions and record layouts/typedefs
-    if (gA2lMasterFile) {
-
-        // Create predefined conversions
-        // In the conversions.a2l file - will be merges later as there might be more conversions during the generation process
-        fprintf(gA2lMasterFile, "/begin COMPU_METHOD conv.bool \"\" TAB_VERB \"%%.0\" \"\" COMPU_TAB_REF conv.bool.table /end COMPU_METHOD\n");
-        fprintf(gA2lMasterFile, "/begin COMPU_VTAB conv.bool.table \"\" TAB_VERB 2 0 \"false\" 1 \"true\" /end COMPU_VTAB\n");
-        fprintf(gA2lMasterFile, "\n");
-
-        // Create predefined standard record layouts and typedefs for elementary types
-        // In the typedefs.a2l file - will be merges later as there might be more typedefs during the generation process
-        tA2lTypeId typeid_table[] = {A2L_TYPE_UINT8, A2L_TYPE_UINT16, A2L_TYPE_UINT32, A2L_TYPE_UINT64, A2L_TYPE_INT8,
-                                     A2L_TYPE_INT16, A2L_TYPE_INT32,  A2L_TYPE_INT64,  A2L_TYPE_FLOAT,  A2L_TYPE_DOUBLE};
-        for (size_t i = 0; i < sizeof(typeid_table); i++) {
-            tA2lTypeId a2l_type_id = typeid_table[i];
-            const char *a2l_type_name = A2lGetA2lTypeName(a2l_type_id);
-            assert(a2l_type_name != NULL);
-            const char *a2l_record_layout_name = A2lGetA2lRecordLayoutName(a2l_type_id);
-            assert(a2l_record_layout_name != NULL);
-            // RECORD_LAYOUTs for standard types U8,I8,...,F64 (Position 1 increasing index)
-            // Example: /begin RECORD_LAYOUT U64 FNC_VALUES 1 A_UINT64 ROW_DIR DIRECT /end RECORD_LAYOUT
-            fprintf(gA2lMasterFile, "/begin RECORD_LAYOUT %s FNC_VALUES 1 %s ROW_DIR DIRECT /end RECORD_LAYOUT\n", a2l_record_layout_name, a2l_type_name);
-            // RECORD_LAYOUTs for axis points with standard types A_U8,A_I8,... (Positionn 1 increasing index)
-            // Example: /begin RECORD_LAYOUT A_F32 AXIS_PTS_X 1 FLOAT32_IEEE INDEX_INCR DIRECT /end RECORD_LAYOUT
-            fprintf(gA2lMasterFile, "/begin RECORD_LAYOUT A_%s AXIS_PTS_X 1 %s INDEX_INCR DIRECT /end RECORD_LAYOUT\n", a2l_record_layout_name, a2l_type_name);
-            // Example: /begin TYPEDEF_MEASUREMENT M_F64 "" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -1e12 1e12 /end TYPEDEF_MEASUREMENT
-            const char *format_str =
-                (a2l_type_id == A2L_TYPE_FLOAT || a2l_type_id == A2L_TYPE_DOUBLE)
-                    ? "/begin TYPEDEF_MEASUREMENT M_%s \"\" %s NO_COMPU_METHOD 0 0 %g %g /end TYPEDEF_MEASUREMENT\n"
-                    : "/begin TYPEDEF_MEASUREMENT M_%s \"\" %s NO_COMPU_METHOD 0 0 %.0f %.0f /end TYPEDEF_MEASUREMENT\n"; // Avoid exponential format for integer types
-            fprintf(gA2lMasterFile, format_str, a2l_record_layout_name, a2l_type_name, getTypeMin(a2l_type_id), getTypeMax(a2l_type_id));
-            // Example: /begin TYPEDEF_CHARACTERISTIC C_U8 "" VALUE U8 0 NO_COMPU_METHOD 0 255 /end TYPEDEF_CHARACTERISTIC
-            fprintf(gA2lMasterFile, "/begin TYPEDEF_CHARACTERISTIC C_%s \"\" VALUE %s 0 NO_COMPU_METHOD %g %g /end TYPEDEF_CHARACTERISTIC\n", a2l_record_layout_name,
-                    a2l_record_layout_name, getTypeMin(a2l_type_id), getTypeMax(a2l_type_id));
-        }
-        fprintf(gA2lMasterFile, "\n");
-    }
-
-    return true;
-}
-
-// Create MOD_PAR memory segments
-static void A2lCreate_MOD_PAR(void) {
-
-    if (!gA2lMasterFile) {
-        return; // No master file to write to (e.g. in SHM follower mode)
-    }
-
-    fprintf(gA2lMasterFile, "\n/begin MOD_PAR \"\"\n");
-
-    // Write the current ECU EPK (in SHM mode for all existing applications)
-    const char *epk = XcpGetEcuEpk();
-    if (epk) {
-        fprintf(gA2lMasterFile, "EPK \"%s\" ADDR_EPK 0x%08X\n", epk, XCP_ADDR_EPK);
-    }
-
-    // Memory segments
-#ifdef XCP_ENABLE_CALSEG_LIST
-    {
-        // Iterate cal_seg_list
-        // Not all calibration segments are memory segments !
-        uint16_t calSegCount = XcpGetCalSegCount();
-        for (tXcpCalSegIndex i = 0; i < calSegCount; i++) {
-            tXcpCalSegNumber n = XcpGetCalSegNumber(i);
-            if (n != XCP_UNDEFINED_CALSEG_NUM) {
-                const tXcpCalSeg *calseg = XcpGetCalSeg(i);
-                const char *pname;
-                if (strcmp(calseg->h.name, XCP_EPK_CALSEG_NAME) != 0) { // Don't prefix the EPK segment name
-                    pname = A2lGetCalSegName_(calseg->h.app_id, calseg->h.name);
-                } else {
-                    pname = calseg->h.name;
-                }
-                fprintf(gA2lMasterFile, gA2lMemorySegment, pname, XcpGetCalSegBaseAddress(i), calseg->h.size, n, pname, pname, pname, calseg->h.size);
+// Helper function to include the content of some temporary files into the main file and remove the temporary files
+static bool includeFilesAndRemove(FILE *main_file, FILE **filep, const char *filename) {
+    if (filep != NULL && *filep != NULL && filename != NULL) {
+        fclose(*filep);
+        *filep = NULL;
+        FILE *file = fopen(filename, "r");
+        if (file != NULL) {
+            char line[XCP_A2L_MAX_LINE_LENGTH];
+            while (fgets(line, sizeof(line), file) != NULL) {
+                fprintf(main_file, "%s", line);
             }
+            fclose(file);
+            remove(filename);
+            return true;
         }
     }
-#endif // XCP_ENABLE_CALSEG_LIST
-
-    fprintf(gA2lMasterFile, "/end MOD_PAR\n\n");
-}
-
-// Create IF_DATA for DAQ, including event list
-static void A2lCreate_IF_DATA_DAQ(void) {
-
-#if defined(XCP_ENABLE_DAQ_EVENT_LIST)
-    const tXcpEventList *eventList = NULL;
-#endif
-    uint16_t eventCount = 0;
-
-#if (XCP_TIMESTAMP_UNIT == DAQ_TIMESTAMP_UNIT_1NS)
-#define XCP_TIMESTAMP_UNIT_S "UNIT_1NS"
-#elif (XCP_TIMESTAMP_UNIT == DAQ_TIMESTAMP_UNIT_1US)
-#define XCP_TIMESTAMP_UNIT_S "UNIT_1US"
-#else
-#error
-#endif
-
-    // Event list in A2L file (if event info by XCP is not active)
-#if defined(XCP_ENABLE_DAQ_EVENT_LIST)
-    eventCount = XcpGetEventCount();
-    eventList = XcpGetEventList();
-#endif
-
-    fprintf(gA2lMasterFile, gA2lIfDataBeginDAQ, eventCount, XCP_TIMESTAMP_UNIT_S);
-
-    // Eventlist
-#if defined(XCP_ENABLE_DAQ_EVENT_LIST)
-    for (uint32_t id = 0; id < eventCount; id++) {
-        const tXcpEvent *event = &eventList->event[id];
-
-        // Convert cycle time to ASAM XCP IF_DATA coding time cycle and time unit
-        // RESOLUTION OF TIMESTAMP "UNIT_1NS" = 0, "UNIT_10NS" = 1, ...
-        uint8_t timeUnit = 0;                      // timeCycle unit, 1ns=0, 10ns=1, 100ns=2, 1us=3, ..., 1ms=6, ...
-        uint32_t timeCycle = event->cycle_time_ns; // cycle time in units, 0 = sporadic or unknown
-        while (timeCycle >= 256) {
-            timeCycle /= 10;
-            timeUnit++;
-        }
-
-        // Long name and short name (max 8 chars)
-        const char *name = XcpGetEventName(id);   // Short name is not build with prefix
-        const char *pname = A2lGetEventName_(id); // Long name with prefix
-        fprintf(gA2lMasterFile, "/begin EVENT \"%s\" \"%.8s\" 0x%X DAQ 0xFF %u %u %u CONSISTENCY EVENT", pname, name, id, timeCycle, timeUnit,
-                (event->flags & XCP_DAQ_EVENT_FLAG_PRIORITY) ? 0xFF : 0x00);
-
-        fprintf(gA2lMasterFile, " /end EVENT\n");
-    }
-#endif
-
-    fprintf(gA2lMasterFile, gA2lIfDataEndDAQ);
-}
-
-// Create IF_DATA for Ethernet transport layer
-static void A2lCreate_ETH_IF_DATA(bool useTCP, const uint8_t *addr, uint16_t port) {
-
-    if (!gA2lMasterFile) {
-        return; // No master file to write to (e.g. in SHM follower mode)
-    }
-
-    fprintf(gA2lMasterFile, gA2lIfDataBegin);
-
-    // Protocol Layer info
-    fprintf(gA2lMasterFile, gA2lIfDataProtocolLayer, XCP_PROTOCOL_LAYER_VERSION, XCPTL_MAX_CTO_SIZE, XCPTL_MAX_DTO_SIZE);
-
-    // DAQ info
-    A2lCreate_IF_DATA_DAQ();
-
-    // Transport Layer info (protocol, address, port)
-    // Skip transport layer info completely, if no valid address is configured or detected
-    // @@@@ Workaround: (protocol, port, 0.0.0.0) is no option, as CANape considers this to be a valid address and tries to connect to it, instead of using the user configured
-    // address
-    uint8_t addr0[] = {0, 0, 0, 0};
-    if (addr != NULL && addr[0] != 0) {
-        memcpy(addr0, addr, 4);
-    }
-#ifdef OPTION_ENABLE_GET_LOCAL_ADDR // Guess the IP address of the local network interface if bound to ANY
-    else {
-        socketGetLocalAddr(NULL, addr0);
-    }
-#endif
-    if (addr0[0] != 0) {
-        char addrs[17];
-        SPRINTF(addrs, "%u.%u.%u.%u", addr0[0], addr0[1], addr0[2], addr0[3]);
-        char *prot = useTCP ? (char *)"TCP" : (char *)"UDP";
-        fprintf(gA2lMasterFile, gA2lIfDataEth, prot, XCP_TRANSPORT_LAYER_VERSION, port, addrs, prot);
-        DBG_PRINTF3("A2L IF_DATA XCP_ON_%s, ip=%s, port=%u\n", prot, addrs, port);
-    }
-    fprintf(gA2lMasterFile, gA2lIfDataEnd);
+    return true;
 }
 
 //----------------------------------------------------------------------------------
@@ -1278,9 +831,19 @@ static uint32_t A2lGetAddr_(const void *p) {
 }
 
 //----------------------------------------------------------------------------------
+// Input quantity
+
+void A2lSetInputQuantity_x(const char *input_quantity) { gA2lInputQuantity_x = input_quantity; }
+
+void A2lSetInputQuantity_y(const char *input_quantity) { gA2lInputQuantity_y = input_quantity; }
+
+static const char *A2lGetInputQuantity_x(void) { return gA2lInputQuantity_x ? gA2lInputQuantity_x : "NO_INPUT_QUANTITY"; }
+static const char *A2lGetInputQuantity_y(void) { return gA2lInputQuantity_y ? gA2lInputQuantity_y : "NO_INPUT_QUANTITY"; }
+
+//----------------------------------------------------------------------------------
 // Conversions
 
-void printPhysUnit(FILE *file, const char *unit_or_conversion) {
+static void printPhysUnit(FILE *file, const char *unit_or_conversion) {
 
     // It is a phys unit if the string is not NULL or empty and does not start with "conv."
     if (unit_or_conversion != NULL) {
@@ -1391,8 +954,8 @@ void A2lTypedefMeasurementComponent_(const char *field_name, tA2lTypeId type_id,
         // TYPEDEF_MEASUREMENT
         const char *conv = getConversion(unit_or_conversion, NULL, NULL);
         if (min == 0.0 && max == 0.0) {
-            min = getTypeMin(type_id);
-            max = getTypeMax(type_id);
+            min = A2lGetTypeMin(type_id);
+            max = A2lGetTypeMax(type_id);
         }
         fprintf(gA2lTypedefsFile, "/begin TYPEDEF_MEASUREMENT M_%s \"%s\" %s %s 0 0 %g %g", field_name, comment, type_name, conv, min, max);
         printPhysUnit(gA2lTypedefsFile, unit_or_conversion);
@@ -1520,8 +1083,8 @@ void A2lCreateMeasurement_(const char *instance_name, const char *symbol_name, t
         double min, max;
         const char *conv;
         if (phys_min == 0.0 && phys_max == 0.0) {
-            min = getTypeMin(type_id);
-            max = getTypeMax(type_id);
+            min = A2lGetTypeMin(type_id);
+            max = A2lGetTypeMax(type_id);
             conv = getConversion(unit_or_conversion, &min, &max);
         } else {
             min = phys_min;
@@ -1561,8 +1124,8 @@ void A2lCreateMeasurementArray_(const char *instance_name, const char *symbol_na
         double min, max;
         const char *conv;
         if (phys_min == 0.0 && phys_max == 0.0) {
-            min = getTypeMin(type_id);
-            max = getTypeMax(type_id);
+            min = A2lGetTypeMin(type_id);
+            max = A2lGetTypeMax(type_id);
             conv = getConversion(unit_or_conversion, &min, &max);
         } else {
             min = phys_min;
@@ -1595,8 +1158,8 @@ void A2lCreateParameter_(const char *symbol_name, tA2lTypeId type, const void *p
         double min, max;
         const char *conv;
         if (phys_min == 0.0 && phys_max == 0.0) {
-            min = getTypeMin(type);
-            max = getTypeMax(type);
+            min = A2lGetTypeMin(type);
+            max = A2lGetTypeMax(type);
             conv = getConversion(unit_or_conversion, &min, &max);
         } else {
             min = phys_min;
@@ -1805,7 +1368,7 @@ void A2lCreateParameterGroupFromList(const char *symbol_name, const char *pNames
 }
 
 //----------------------------------------------------------------------------------
-// Helper function to ensure A2L generation blocks are executed only once
+// User helper function to ensure A2L generation blocks are executed only once
 // This allows to use the macros in loops or functions without taking care of multiple executions
 
 bool A2lOnce_(A2L_ONCE_TYPE *value) {
@@ -1821,82 +1384,16 @@ bool A2lOnce_(A2L_ONCE_TYPE *value) {
 //-----------------------------------------------------------------------------------------------------
 // A2L file generation and finalization on XCP connect
 
-static bool includeFile(FILE **filep, const char *filename) {
-    if (filep != NULL && *filep != NULL && filename != NULL) {
-        fclose(*filep);
-        *filep = NULL;
-        FILE *file = fopen(filename, "r");
-        if (file != NULL) {
-            char line[XCP_A2L_MAX_LINE_LENGTH];
-            while (fgets(line, sizeof(line), file) != NULL) {
-                fprintf(gA2lFile, "%s", line);
-            }
-            fclose(file);
-            remove(filename);
-            return true;
-        }
-    }
-    return true;
+// Cleanup temporary files in case of A2L generation cancellation
+void A2lCleanupTemporaryFiles(void) {
+    DBG_PRINT3(ANSI_COLOR_YELLOW "Cleanup temporary A2L files ...\n" ANSI_COLOR_RESET);
+    remove(A2lGetFilename(A2L_TYPEDEFS_FILE));
+    gA2lTypedefsFile = NULL;
+    remove(A2lGetFilename(A2L_GROUPS_FILE));
+    gA2lGroupsFile = NULL;
+    remove(A2lGetFilename(A2L_CONVERSIONS_FILE));
+    gA2lConversionsFile = NULL;
 }
-
-#if defined(XCP_ENABLE_DAQ_EVENT_LIST)
-static void createEventGroupsAndConversions(void) {
-
-    assert(gA2lMasterFile != NULL);
-
-    uint16_t eventCount = XcpGetEventCount();
-    const tXcpEventList *eventList = XcpGetEventList();
-    if (eventList != NULL && eventCount > 0) {
-
-        // Create a enum conversion with all event ids.
-        fprintf(gA2lMasterFile, "\n/begin COMPU_METHOD conv.events \"\" TAB_VERB \"%%.0 \" \"\" COMPU_TAB_REF conv.events.table /end COMPU_METHOD\n");
-        fprintf(gA2lMasterFile, "/begin COMPU_VTAB conv.events.table \"\" TAB_VERB %u\n", eventCount);
-        for (uint32_t id = 0; id < eventCount; id++) {
-            fprintf(gA2lMasterFile, " %u \"%s\"", id, A2lGetEventName_(id));
-        }
-        fprintf(gA2lMasterFile, "\n/end COMPU_VTAB\n");
-
-        // Create a root group for all events
-        if (gA2lAutoGroups) {
-            fprintf(gA2lMasterFile, "\n/begin GROUP Events \"Events\" ROOT /begin SUB_GROUP");
-#ifdef OPTION_DAQ_ASYNC_EVENT
-            uint32_t id = 1; // Skip event 0 which is the built-in asynchronous events
-#else
-            uint32_t id = 0;
-#endif
-            for (; id < eventCount; id++) {
-                fprintf(gA2lMasterFile, " %s", A2lGetEventName_(id));
-            }
-            fprintf(gA2lMasterFile, " /end SUB_GROUP /end GROUP\n");
-        }
-    }
-}
-#endif // XCP_ENABLE_DAQ_EVENT_LIST
-
-// In SHM mode, include the partial A2L files generated by the applications into the master file
-#ifdef OPTION_SHM_MODE
-static void includePartialA2lFiles(void) {
-    // Wait for all other processes to finish writing their partial A2L files,
-    // Then append them into the master file
-    const char *files[SHM_MAX_APP_COUNT];
-    int count = XcpShmCollectA2lFiles(1000 /* ms */, files, SHM_MAX_APP_COUNT);
-    assert(count > 0);
-    for (int fi = 0; fi < count; fi++) {
-        FILE *fol = fopen(files[fi], "r");
-        if (fol != NULL) {
-            DBG_PRINTF3("A2lFinalize: merging A2L file '%s'\n", files[fi]);
-            fprintf(gA2lMasterFile, "\n/* #include \"%s\" */\n", files[fi]);
-            char line[512];
-            while (fgets(line, sizeof(line), fol) != NULL) {
-                fprintf(gA2lMasterFile, "%s", line);
-            }
-            fclose(fol);
-        } else {
-            DBG_PRINTF_WARNING("A2lFinalize: could not open file '%s'\n", files[fi]);
-        }
-    }
-}
-#endif // OPTION_SHM_MODE
 
 // Callback on XCP client tool connect
 bool A2lCheckFinalizeOnConnect(uint8_t connect_mode) {
@@ -1915,126 +1412,6 @@ bool A2lCheckFinalizeOnConnect(uint8_t connect_mode) {
     return true;
 }
 
-// Finalize A2L file generation, internal function
-// Return true if A2L file generation was active and is now finalized, false if A2L file generation was not active
-bool A2lFinalizeOrCleanup(bool finalize) {
-
-    if (!finalize) {
-        // Cleanup temporary files in case of A2L generation cancellation
-        DBG_PRINT3(ANSI_COLOR_YELLOW "Cleanup A2L file...\n" ANSI_COLOR_RESET);
-        remove(A2lGetFilename(A2L_TYPEDEFS_FILE));
-        gA2lTypedefsFile = NULL;
-        remove(A2lGetFilename(A2L_GROUPS_FILE));
-        gA2lGroupsFile = NULL;
-        remove(A2lGetFilename(A2L_CONVERSIONS_FILE));
-        gA2lConversionsFile = NULL;
-        remove(A2lGetFilename(A2L_FILE));
-        gA2lFile = NULL;
-        gA2lIsFinalized = true;
-        return false;
-    }
-
-    DBG_PRINT3(ANSI_COLOR_GREEN "Finalizing A2L file...\n" ANSI_COLOR_RESET);
-
-    // In SHM mode, signal all applications finalize their A2L files
-#ifdef OPTION_SHM_MODE
-    if (XcpShmIsServer()) {
-        XcpShmRequestA2lFinalize();
-    }
-#endif // OPTION_SHM_MODE
-
-    // If full or partial A2L file is open (A2L generation active), finalize it
-    if (gA2lFile != NULL) {
-
-        // Close the last group if any
-        if (gA2lAutoGroups) {
-            A2lEndGroup();
-        }
-
-        // Merge the temporary files for typedefs, groups and conversions
-        includeFile(&gA2lTypedefsFile, A2lGetFilename(A2L_TYPEDEFS_FILE));
-        includeFile(&gA2lGroupsFile, A2lGetFilename(A2L_GROUPS_FILE));
-        includeFile(&gA2lConversionsFile, A2lGetFilename(A2L_CONVERSIONS_FILE));
-
-#ifdef OPTION_SHM_MODE
-        // In SHM mode, close the non server applications partial A2L file here
-        if (gA2lFile != gA2lMasterFile) {
-            fclose(gA2lFile);
-            gA2lFile = NULL;
-            XcpShmSetA2lFinalized(XcpShmGetAppId(), A2lGetFilename(A2L_FILE));
-        }
-#endif // OPTION_SHM_MODE
-    }
-
-    // // If full A2l file is open (A2L generation active), finalize it
-    if (gA2lMasterFile != NULL) {
-
-#ifdef OPTION_SHM_MODE
-        // In SHM mode, merge all applications A2L files into the master file, which is the one sent to the client
-        if (XcpShmIsServer()) {
-            includePartialA2lFiles();
-        }
-#endif // OPTION_SHM_MODE
-
-        // Create event conversions and groups
-        createEventGroupsAndConversions();
-
-        // Create MOD_PAR section with EPK and calibration segments
-        A2lCreate_MOD_PAR();
-
-        // Create IF_DATA section with event list and transport layer info
-        A2lCreate_ETH_IF_DATA(gA2lUseTCP, gA2lOptionBindAddr, gA2lOptionPort);
-
-        // Append the footer and close
-        fprintf(gA2lMasterFile, "%s", gA2lFooter);
-        assert(gA2lFile == NULL || gA2lFile == gA2lMasterFile); // In non SHM mode, there is only the master file, in SHM mode, the partial file is already closed at this point
-        fclose(gA2lMasterFile);
-        gA2lMasterFile = NULL;
-        gA2lFile = NULL;
-
-        DBG_PRINTF3(ANSI_COLOR_GREEN "A2L created: %u measurements, %u params, %u typedefs, %u components, %u instances, %u conversions\n" ANSI_COLOR_RESET, gA2lMeasurements,
-                    gA2lParameters, gA2lTypedefs, gA2lComponents, gA2lInstances, gA2lConversions);
-
-// Write the binary persistence file for this A2L file
-// This is required to make sure the A2L file remains valid, even if the creation order of application, events or calibration segments is different
-
-// In SHM mode, the server provides the master file for upload
-#ifdef OPTION_SHM_MODE
-        if (XcpShmIsActive()) { // The server provides the master file for upload and creates the binary persistence file
-            if (XcpShmIsServer()) {
-#ifdef OPTION_ENABLE_PERSISTENCE
-                // In SHM mode always write a binary persistence file
-                // Regenerate the EPK and write to the EPK segment, so the the BIN file get it as well
-                const char *epk = XcpGetEcuEpk(); // Get (generate) the current ECU EPK for all existing applications
-                const uint16_t epk_len = (uint16_t)strnlen(epk, XCP_EPK_MAX_LENGTH) + 1;
-                XcpCalSegWriteMemory(0x80000000, epk_len, (const uint8_t *)epk); // @@@@ TODO: remove magic number
-                const char *epk_calseg = (const char *)XcpLockCalSeg(XCP_EPK_CALSEG_INDEX);
-                assert(strncmp(epk, epk_calseg, epk_len) == 0);
-                XcpUnlockCalSeg(0);
-                XcpBinWrite(epk);
-#endif
-                XcpSetA2lName(A2lGetFilename(A2L_MASTER_FILE)); // Notify XCP that there is an A2L file available for upload by the XCP client
-            }
-        } else
-#endif // OPTION_SHM_MODE
-        {
-            // Create the binary persistence file associated to this A2L file
-#ifdef OPTION_ENABLE_PERSISTENCE
-            if ((XcpGetInitMode() & XCP_MODE_PERSISTENCE) != 0) {
-                const char *epk = XcpGetEpk(); // Get the current EPK
-                XcpBinWrite(epk);
-            }
-#endif
-            XcpSetA2lName(A2lGetFilename(A2L_FILE)); // Notify XCP that there is an A2L file available for upload by the XCP client
-        }
-
-        gA2lIsFinalized = true;
-        return true; // A2L file generation successful
-    }
-
-    return false; // A2L file generation not active
-}
-
 // Lock and unlock
 void A2lLock(void) {
     if (gA2lFile != NULL) {
@@ -2050,7 +1427,7 @@ void A2lUnlock(void) {
     }
 }
 
-// Open the A2L file and register the finalize callback
+// Start A2L generator
 bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
 
     assert(addr != NULL);
@@ -2061,7 +1438,13 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
         return true;
     }
 
-    DBG_PRINTF3("Start A2L generation: mode=0x%X\n", mode);
+    // Check and ignore, if the A2L file is already finalized or A2L generation is already started
+    if (gA2lIsFinalized || gA2lFile != NULL) {
+        DBG_PRINT5("A2lInit: A2L file is already finalized or running!\n");
+        return true;
+    }
+
+    DBG_PRINTF3("Initializing A2L generation: mode=0x%X\n", mode);
 
     // Save communication parameters
     memcpy(&gA2lOptionBindAddr, addr, 4);
@@ -2074,54 +1457,63 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
 #ifndef OPTION_ENABLE_PERSISTENCE
     assert(gA2lWriteAlways);
 #endif
+    gA2lSymbolPrefix = !!(mode & A2L_MODE_SYMBOL_PREFIX);
     gA2lAutoGroups = !!(mode & A2L_MODE_AUTO_GROUPS);
     gA2lFinalizeOnConnect = !!(mode & A2L_MODE_FINALIZE_ON_CONNECT);
 
+    // Initialize
+    A2lRstAddrMode();
+    gA2lMeasurements = gA2lParameters = gA2lTypedefs = gA2lInstances = gA2lConversions = gA2lComponents = 0;
     mutexInit(&gA2lMutex, false, 0);
 
-    // Register a callback on XCP connect
+    // Register a callback called on XCP connect
     ApplXcpRegisterConnectCallback(A2lCheckFinalizeOnConnect);
 
     // In A2L_WRITE_ONCE mode:
-    // Check if the A2L file already exists
+    // Check if the A2L file already exists, if yes, skip A2L generation
     // @@@@ TODO: Maybe better be sure the persistence BIN file has been successfully loaded
-    // If yes, disable and skip generation
     const char *a2l_filename = A2lGetFilename(A2L_FILE);
     if (!gA2lWriteAlways && fexists(a2l_filename)) {
 #ifndef OPTION_SHM_MODE
-
-        XcpSetA2lName(a2l_filename); // Notify XCP that there is an existing A2L file available on disk
+        XcpSetA2lName(a2l_filename); // Notify XCP that there is an existing A2L file available on disk, ready for upload
         DBG_PRINTF3(ANSI_COLOR_GREEN "A2L file %s already exists, assuming it is still valid, disabling A2L generation\n" ANSI_COLOR_RESET, a2l_filename);
         return true; // Skip A2L generation
-
 #else
         // In SHM mode
-
-        // Reuse the existing A2L file
-        XcpShmSetA2lFinalized(XcpShmGetAppId(), a2l_filename);
-
-        // Server writes the master file always, but the partial files maybe written once
-        if (!XcpShmIsServer()) {
-            XcpSetA2lName(a2l_filename); // Notify XCP that there is an existing A2L file available on disk
-            DBG_PRINTF3(ANSI_COLOR_GREEN "A2L file %s already exists, assuming it is still valid, disabling A2L generation\n" ANSI_COLOR_RESET, a2l_filename);
-            return true; // Skip A2L generation
-        }
-
-        // Start master A2L file generation only
-        if (!A2lOpen(true)) {
-            DBG_PRINTF_ERROR("Failed to open A2L file %s\n", a2l_filename);
-            return false;
-        }
-        DBG_PRINTF3(ANSI_COLOR_GREEN "A2L file %s already exists, generating only master file \n" ANSI_COLOR_RESET, A2lGetFilename(A2L_FILE));
-        return true;
+        XcpShmSetA2lFinalized(XcpShmGetAppId(), a2l_filename); // Notify the application A2L file is finalized, not the master A2L file
+        DBG_PRINTF3(ANSI_COLOR_GREEN "A2L file %s already exists, assuming it is still valid, disabling A2L generation\n" ANSI_COLOR_RESET, a2l_filename);
+        return true; // Skip A2L generation
 #endif // OPTION_SHM_MODE
     } // !gA2lWriteAlways
 
-    // Start normal A2L file generation,
-    if (!A2lOpen(false)) {
-        DBG_PRINTF_ERROR("Failed to open A2L file %s\n", a2l_filename);
+    // Start A2L generator
+    DBG_PRINTF3(ANSI_COLOR_GREEN "Start A2L generator, file=%s, write_always=%u, finalize_on_connect=%u, auto_groups=%u\n" ANSI_COLOR_RESET, a2l_filename, gA2lWriteAlways,
+                gA2lFinalizeOnConnect, gA2lAutoGroups);
+    gA2lFile = fopen(a2l_filename, "w");
+    if (gA2lFile == NULL) {
+        DBG_PRINTF_ERROR("Could not create file %s!\n", a2l_filename);
         return false;
     }
+
+#ifdef OPTION_SHM_MODE
+    // In SHM mode, must prefix all symbols
+    if (XcpShmIsActive()) {
+        gA2lSymbolPrefix = true;
+    }
+#endif // OPTION_SHM_MODE
+
+    // Open the temporary files for typedefs, groups and conversions
+    gA2lTypedefsFile = fopen(A2lGetFilename(A2L_TYPEDEFS_FILE), "w");
+    gA2lGroupsFile = fopen(A2lGetFilename(A2L_GROUPS_FILE), "w");
+    gA2lConversionsFile = fopen(A2lGetFilename(A2L_CONVERSIONS_FILE), "w");
+    if (gA2lFile == 0 || gA2lTypedefsFile == 0 || gA2lGroupsFile == 0 || gA2lConversionsFile == 0) {
+        DBG_PRINT_ERROR("Could not create file!\n");
+        return false;
+    }
+    fprintf(gA2lTypedefsFile, "\n/* Typedefs */\n");       // typedefs temporary file
+    fprintf(gA2lGroupsFile, "\n/* Groups */\n");           // groups temporary file
+    fprintf(gA2lConversionsFile, "\n/* Conversions */\n"); // conversions temporary file
+
     return true;
 }
 
@@ -2129,16 +1521,93 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
 // Return true if A2L file generation was active and is now finalized, false if A2L file generation was not active
 bool A2lFinalize(void) {
 
+    if (gA2lFile == NULL)
+        return false; // Not active, nothing to finalize
+
     if (gA2lIsFinalized)
         return true; // Already finalized
 
+    DBG_PRINT3(ANSI_COLOR_GREEN "Finalizing A2L file...\n" ANSI_COLOR_RESET);
+
 #ifdef OPTION_SHM_MODE
-    // In SHM mode, only the server finalizes the master A2L file
-    if (XcpShmIsActive() && !XcpShmIsServer())
-        return A2lFinalizeOrCleanup(false);
+    // In SHM mode, signal all applications to finalize their A2L files
+    // Later we will wait for the results and merge the partial A2L files into the main A2L file
+    if (XcpShmIsServer()) {
+        XcpShmRequestA2lFinalize();
+    }
 #endif // OPTION_SHM_MODE
 
-    return A2lFinalizeOrCleanup(true);
+    // Close the last group if any
+    if (gA2lAutoGroups) {
+        A2lEndGroup();
+    }
+
+    // Merge the temporary files for typedefs, groups and conversions into the partial A2L file, and remove the temporary files
+    includeFilesAndRemove(gA2lFile, &gA2lTypedefsFile, A2lGetFilename(A2L_TYPEDEFS_FILE));
+    includeFilesAndRemove(gA2lFile, &gA2lGroupsFile, A2lGetFilename(A2L_GROUPS_FILE));
+    includeFilesAndRemove(gA2lFile, &gA2lConversionsFile, A2lGetFilename(A2L_CONVERSIONS_FILE));
+
+    // Close the partial A2L file
+    fclose(gA2lFile);
+    gA2lFile = NULL;
+
+// Generate the final, complete A2L file
+#ifdef OPTION_SHM_MODE
+    // In SHM mode, only the server generates the main A2L file and includes all the partial A2L files created by the applications
+    XcpShmSetA2lFinalized(XcpShmGetAppId(), A2lGetFilename(A2L_FILE));
+    if (XcpShmIsServer()) {
+        const char *files[SHM_MAX_APP_COUNT];
+        int count = XcpShmCollectA2lFiles(1000 /* ms */, files, SHM_MAX_APP_COUNT);
+        A2lWriter(A2lGetFilename(A2L_MASTER_FILE), A2L_MODE_EVENT_GROUPS | A2L_MODE_EVENT_CONVERSION | A2L_MODE_PREFIX_SYMBOLS | A2L_MODE_INCLUDE_AML_FILE, count, files,
+                  gA2lOptionBindAddr, gA2lOptionPort, gA2lUseTCP);
+    }
+#else  // OPTION_SHM_MODE
+       // In non-SHM mode, generate the main A2L file by including the single partial A2L file created by this application
+       // Note that the A2lWriter can handle if the same file is both the source and the destination
+    const char *file = A2lGetFilename(A2L_FILE);
+    int count = 1;
+    A2lWriter(file, A2L_MODE_EVENT_GROUPS | A2L_MODE_EVENT_CONVERSION | A2L_MODE_PREFIX_SYMBOLS | A2L_MODE_INCLUDE_AML_FILE, count, &file, gA2lOptionBindAddr, gA2lOptionPort,
+              gA2lUseTCP);
+#endif // OPTION_SHM_MODE
+
+// Write the binary persistence file
+// This is required to make sure the A2L file(s) remains valid, even if the creation order of application, events or calibration segments is different
+#ifdef OPTION_SHM_MODE
+    // In SHM mode, the server provides the main file for upload
+    if (XcpShmIsActive()) { // The server provides the main file for upload and creates the binary persistence file
+        if (XcpShmIsServer()) {
+            // Regenerate the EPK and write to the EPK segment, so the the BIN file get it as well and the client can upload it
+            const char *epk = XcpGetEcuEpk(); // Get (generate) the current ECU EPK for all existing applications
+            const uint16_t epk_len = (uint16_t)strnlen(epk, XCP_EPK_MAX_LENGTH) + 1;
+            XcpCalSegWriteMemory(0x80000000, epk_len, (const uint8_t *)epk); // @@@@ TODO: remove magic number
+            const char *epk_calseg = (const char *)XcpLockCalSeg(XCP_EPK_CALSEG_INDEX);
+            assert(strncmp(epk, epk_calseg, epk_len) == 0);
+            XcpUnlockCalSeg(0);
+            // Write the binary persistence file
+            XcpBinWrite(epk);
+            // Notify the XCP server A2L file is available for upload
+            XcpSetA2lName(A2lGetFilename(A2L_MASTER_FILE)); // Notify XCP that there is an A2L file available for upload by the XCP client
+        }
+    } else
+#endif // OPTION_SHM_MODE
+    {
+        // Create the binary persistence file associated to this A2L file
+#ifdef OPTION_ENABLE_PERSISTENCE
+        if ((XcpGetInitMode() & XCP_MODE_PERSISTENCE) != 0) {
+            // Get the current EPK set by the application
+            const char *epk = XcpGetEpk();
+            // Write the binary persistence file
+            XcpBinWrite(epk);
+        }
+#endif
+        // Notify the XCP server A2L file is available for upload
+        XcpSetA2lName(A2lGetFilename(A2L_FILE));
+    }
+
+    gA2lIsFinalized = true;
+    DBG_PRINTF3(ANSI_COLOR_GREEN "A2L created: %u measurements, %u params, %u typedefs, %u components, %u instances, %u conversions\n" ANSI_COLOR_RESET, gA2lMeasurements,
+                gA2lParameters, gA2lTypedefs, gA2lComponents, gA2lInstances, gA2lConversions);
+    return true; // A2L file generation successful
 }
 
 #endif // XCP_ENABLE_A2L_GENERATOR
