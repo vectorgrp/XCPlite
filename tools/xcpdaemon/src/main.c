@@ -1,11 +1,9 @@
 ﻿// xcpdaemon - XCP daemon application
-// This application serves as a daemon for multi application measurement and calibration use cases
-// Just another XCP instrumented application in SHM mode, but it is configured to be the only XCP server
-// Creates the master A2L file and manages the binary calibration data persistence file
-// Must not be started first
-// It has own measurement and calibration objects to monitor the system and multiple XCP /SHM instrumented applications
+//
+// See README.md
 
 #include <assert.h>  // for assert
+#include <fcntl.h>   // for open(), O_RDWR
 #include <getopt.h>  // for getopt_long
 #include <glob.h>    // for glob()
 #include <signal.h>  // for signal handling
@@ -14,6 +12,7 @@
 #include <stdio.h>   // for printf
 #include <stdlib.h>  // for strtol
 #include <string.h>  // for sprintf
+#include <unistd.h>  // for fork(), setsid(), dup2(), getpid()
 
 #include "a2l.h"        // for A2l generation
 #include "dbg_print.h"  // for DBG_LEVEL, DBG_PRINT, ...
@@ -41,18 +40,18 @@ extern tXcpLocalData gXcpLocalData;
 #define OPTION_XCP_MODE (XCP_MODE_PERSISTENCE | XCP_MODE_SHM | XCP_MODE_SHM_SERVER) // XCP mode
 #define OPTION_A2L_MODE (A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS) // A2L generation mode
 #define OPTION_LOG_LEVEL 3                                                                          // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_PID_FILE "/tmp/xcpdaemon.pid"                                                        // PID file written when running as daemon
 
 //-----------------------------------------------------------------------------------------------------
 
-// Signal handler for clean shutdown
+// Signal handlers
 static volatile bool running = true;
+static volatile bool print_status_requested = false;
 static void sig_handler(int sig) { running = false; }
+static void sighup_handler(int sig) { print_status_requested = true; }
 
 static void print_usage(const char *prog) {
-    printf("Usage: %s [OPTIONS]\n", prog);
-    printf("       %s [OPTIONS] status\n", prog);
-    printf("       %s [OPTIONS] clean\n", prog);
-    printf("       %s [OPTIONS] cleanall\n", prog);
+    printf("Usage: %s [COMMANDS] [OPTIONS] \n", prog);
     printf("Options:\n");
     printf("  -l, --log-level <0-4>  Log level: 0=off 1=error 2=warn 3=info 4=debug [default: %d]\n", OPTION_LOG_LEVEL);
     printf("  -p, --port <port>      XCP server port [default: %d]\n", OPTION_SERVER_PORT);
@@ -60,58 +59,119 @@ static void print_usage(const char *prog) {
     printf("      --tcp              Use TCP transport\n");
     printf("      --udp              Use UDP transport (default)\n");
     printf("  -q, --queue-size <n>   Measurement queue size in bytes [default: %d]\n", OPTION_QUEUE_SIZE);
+    printf("  -d, --daemonize        Fork to background, write PID to %s\n", OPTION_PID_FILE);
     printf("  -h, --help             Show this help message\n");
     printf("Commands (execute and exit):\n");
     printf("  status                 Print shared memory status and exit\n");
     printf("  clean                  Unlink shared memory and delete master.bin / master.a2l\n");
     printf("  cleanall               Delete all finalized application A2L files, then clean\n");
+    printf("  help                   Show this help message\n");
 }
 
 typedef enum { CMD_RUN = 0, CMD_STATUS, CMD_CLEAN, CMD_CLEANALL } tCommand;
 
 //-----------------------------------------------------------------------------------------------------
 
+// Fork to background, detach from terminal, write PID file
+static int do_daemonize(void) {
+    // First fork: parent exits, child is adopted by init
+    pid_t pid = fork();
+    if (pid < 0) {
+        perror("fork");
+        return -1;
+    }
+    if (pid > 0)
+        exit(0);
+
+    // New session: detach from controlling terminal
+    if (setsid() < 0) {
+        perror("setsid");
+        return -1;
+    }
+
+    // Second fork: prevent daemon from reacquiring a controlling terminal
+    pid = fork();
+    if (pid < 0) {
+        perror("fork");
+        return -1;
+    }
+    if (pid > 0)
+        exit(0);
+
+    // Redirect stdin/stdout/stderr to /dev/null
+    int fd = open("/dev/null", O_RDWR);
+    if (fd >= 0) {
+        dup2(fd, STDIN_FILENO);
+        dup2(fd, STDOUT_FILENO);
+        dup2(fd, STDERR_FILENO);
+        if (fd > STDERR_FILENO)
+            close(fd);
+    }
+
+    // Write PID file
+    FILE *f = fopen(OPTION_PID_FILE, "w");
+    if (f) {
+        fprintf(f, "%d\n", (int)getpid());
+        fclose(f);
+    }
+
+    return 0;
+}
+
 // Unlink shared memory regions and delete the master persistence/A2L files
-static void do_clean(void) {
-    printf("Unlinking '/xcpdata'...\n");
-    platformShmUnlink("/xcpdata");
-    printf("Unlinking '/xcpqueue'...\n");
-    platformShmUnlink("/xcpqueue");
+static int do_clean_files(void) {
+
     remove("/tmp/xcpdata.lock");
     remove("/tmp/xcpqueue.lock");
-    printf("Deleting '" SHM_PROJECT_NAME ".bin'...\n");
     remove(SHM_PROJECT_NAME ".bin");
-    printf("Deleting '" SHM_PROJECT_NAME ".a2l'...\n");
+    printf("Deleted '" SHM_PROJECT_NAME ".bin'...\n");
     remove(SHM_PROJECT_NAME ".a2l");
-    printf("Done.\n");
+    printf("Deleted '" SHM_PROJECT_NAME ".a2l'...\n");
+
+    return 0;
 }
 
 #ifdef OPTION_SHM_MODE
 
+static int do_unlink(void) {
+    printf("Unlinking '/xcpqueue'...\n");
+    platformShmUnlink("/xcpqueue");
+    printf("Unlinking '/xcpdata'...\n");
+    platformShmUnlink("/xcpdata");
+    return 0;
+}
+
+static int do_clean(void) {
+    do_clean_files();
+    do_unlink();
+    return 0;
+}
+
 // Delete all finalized application A2L files listed in SHM, then run clean
 static int do_cleanall(void) {
+
+    do_clean_files();
+
+    // Remove all application A2L files listed in SHM, if any
     size_t shm_size = sizeof(tXcpData);
     gXcpData = (tXcpData *)platformShmOpenAttach("/xcpdata", &shm_size);
-    if (gXcpData == NULL) {
-        printf("No shared memory found\n");
-        return 1;
-    }
-
-    uint8_t count = XcpShmGetAppCount();
-    printf("Deleting application A2L files for %u registered application(s):\n", (unsigned)count);
-    for (uint8_t i = 0; i < count; i++) {
-        if (XcpShmIsA2lFinalized(i)) {
-            const char *a2l_name = gXcpData->shm_header.app_list[i].a2l_name;
-            if (a2l_name[0] != '\0') {
-                char pattern[XCP_A2L_FILENAME_MAX_LENGTH + 8];
-                snprintf(pattern, sizeof(pattern), "%s*.a2l", a2l_name);
+    if (gXcpData != NULL) {
+        uint8_t count = (uint8_t)atomic_load(&gXcpData->shm_header.app_count);
+        printf("Deleting application A2L files for %u registered application(s):\n", (unsigned)count);
+        for (uint8_t i = 0; i < count; i++) {
+            const char *project_name = gXcpData->shm_header.app_list[i].project_name;
+            if (project_name[0] != '\0') {
+                // A2L filename is <project_name>_<epk>.a2l — use project_name as prefix glob
+                char pattern[XCP_PROJECT_NAME_MAX_LENGTH + 8];
+                snprintf(pattern, sizeof(pattern), "%s*.a2l", project_name);
                 glob_t g;
                 if (glob(pattern, 0, NULL, &g) == 0) {
                     for (size_t j = 0; j < g.gl_pathc; j++) {
                         if (remove(g.gl_pathv[j]) == 0)
                             printf("  Deleted '%s'\n", g.gl_pathv[j]);
                         else
-                            printf("  Cannot delete '%s'\n", g.gl_pathv[j]);
+                            printf("  Cannot delete '%s': %s%s\n", g.gl_pathv[j], strerror(errno),
+                                   errno == EBUSY ? " (file is open by another process, stop applications first)" : "");
                     }
                     globfree(&g);
                 } else {
@@ -119,13 +179,13 @@ static int do_cleanall(void) {
                 }
             }
         }
+        platformShmClose("/xcpdata", gXcpData, shm_size, false);
+        gXcpData = NULL;
     }
 
-    printf("Unlinking '/xcpdata'...\n");
-    platformShmClose("/xcpdata", gXcpData, shm_size, true);
-    gXcpData = NULL;
+    // Unlink shared memory regions
+    do_unlink();
 
-    do_clean();
     return 0;
 }
 
@@ -148,22 +208,27 @@ static int do_status(void) {
 
 int main(int argc, char *argv[]) {
 
+    // Line-buffer stdout so every printf() line is immediately visible in the
+    // systemd journal, even when stdout is a pipe rather than a terminal.
+    setvbuf(stdout, NULL, _IOLBF, 0);
+
     // Runtime options (overrideable from command line)
     uint8_t log_level = OPTION_LOG_LEVEL;
     uint16_t port = OPTION_SERVER_PORT;
     uint8_t addr[4] = OPTION_SERVER_ADDR;
     bool use_tcp = OPTION_USE_TCP;
     uint32_t queue_size = OPTION_QUEUE_SIZE;
+    bool daemonize = false;
     tCommand cmd = CMD_RUN;
 
     // Long-only option identifiers (> 127)
     enum { OPT_TCP = 256, OPT_UDP };
 
-    static const struct option long_opts[] = {
-        {"log-level", required_argument, NULL, 'l'}, {"port", required_argument, NULL, 'p'},       {"addr", required_argument, NULL, 'a'}, {"tcp", no_argument, NULL, OPT_TCP},
-        {"udp", no_argument, NULL, OPT_UDP},         {"queue-size", required_argument, NULL, 'q'}, {"help", no_argument, NULL, 'h'},       {NULL, 0, NULL, 0}};
+    static const struct option long_opts[] = {{"log-level", required_argument, NULL, 'l'}, {"port", required_argument, NULL, 'p'}, {"addr", required_argument, NULL, 'a'},
+                                              {"tcp", no_argument, NULL, OPT_TCP},         {"udp", no_argument, NULL, OPT_UDP},    {"queue-size", required_argument, NULL, 'q'},
+                                              {"daemonize", no_argument, NULL, 'd'},       {"help", no_argument, NULL, 'h'},       {NULL, 0, NULL, 0}};
     int opt;
-    while ((opt = getopt_long(argc, argv, "l:p:a:q:h", long_opts, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "l:p:a:q:dh", long_opts, NULL)) != -1) {
         switch (opt) {
         case 'l': {
             char *end;
@@ -213,6 +278,9 @@ int main(int argc, char *argv[]) {
             queue_size = (uint32_t)v;
             break;
         }
+        case 'd':
+            daemonize = true;
+            break;
         case 'h':
             print_usage(argv[0]);
             return 0;
@@ -231,7 +299,10 @@ int main(int argc, char *argv[]) {
             cmd = CMD_CLEANALL;
         else if (strcmp(subcmd, "status") == 0)
             cmd = CMD_STATUS;
-        else {
+        else if (strcmp(subcmd, "help") == 0) {
+            print_usage(argv[0]);
+            return 0;
+        } else {
             fprintf(stderr, "Unknown command '%s'\n", subcmd);
             print_usage(argv[0]);
             return 1;
@@ -256,23 +327,37 @@ int main(int argc, char *argv[]) {
 
 #endif // OPTION_SHM_MODE
 
-    printf("\nXCP daemon V%s\n", OPTION_PROJECT_VERSION);
+    if (daemonize) {
+        printf("Starting XCP daemon V%s in background (PID file: %s)\n", OPTION_PROJECT_VERSION, OPTION_PID_FILE);
+        fflush(stdout);
+        if (do_daemonize() < 0)
+            return 1;
+    } else {
+        printf("\nXCP daemon V%s\n", OPTION_PROJECT_VERSION);
+    }
+
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
+    signal(SIGHUP, sighup_handler);
 
     // Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
     XcpSetLogLevel(log_level);
 
     // Initialize the XCP singleton, activate SHM XCP server
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION, XCP_MODE_SHM_SERVER);
+    if (!XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION, XCP_MODE_SHM_SERVER)) {
+        printf("XCP daemon initialization failed, exit\n");
+        return 1;
+    }
 
     // Initialize the XCP Server
     if (!XcpEthServerInit(addr, port, use_tcp, queue_size)) {
+        printf("Server initialization failed, exit\n");
         return 1;
     }
 
     // Enable A2L generation and prepare the A2L file, finalize the A2L file on XCP connect
     if (!A2lInit(addr, port, use_tcp, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+        printf("A2L initialization failed, exit\n");
         return 1;
     }
 
@@ -340,6 +425,12 @@ int main(int argc, char *argv[]) {
 
 #ifdef OPTION_SHM_MODE
         DaqTriggerEventExt(xcpdaemon, gXcpData);
+
+        // SIGHUP: print shared memory status
+        if (print_status_requested) {
+            print_status_requested = false;
+            XcpShmDebugPrint();
+        }
 #endif // OPTION_SHM_MODE
 
         // Sleep for the specified delay parameter in milliseconds
@@ -352,5 +443,7 @@ int main(int argc, char *argv[]) {
     XcpDisconnect();        // Force disconnect the XCP client
     A2lFinalize();          // Finalize A2L generation, if not done yet
     XcpEthServerShutdown(); // Stop the XCP server
+    if (daemonize)
+        remove(OPTION_PID_FILE);
     return 0;
 }
