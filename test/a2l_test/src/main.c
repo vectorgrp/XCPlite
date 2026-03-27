@@ -19,7 +19,7 @@ extern bool A2lCheckFinalizeOnConnect(uint8_t connect_mode);
 #define A2lTOOL_PATH "a2ltool"
 
 #define OPTION_PROJECT_NAME "a2l_test"  // A2L project name
-#define OPTION_PROJECT_EPK __TIME__     // EPK version string
+#define OPTION_PROJECT_VERSION __TIME__ // EPK version string
 #define OPTION_LOG_LEVEL 4              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debugs
 #define OPTION_USE_TCP false            // TCP or UDP
 #define OPTION_SERVER_PORT 5555         // Port
@@ -234,7 +234,7 @@ int main() {
     // XCP must be initialized and activated before A2L generation
     // Initialize the XCP singleton, activate XCP
     // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, XCP_MODE_LOCAL);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION, XCP_MODE_LOCAL);
     XcpSetLogLevel(OPTION_LOG_LEVEL); // Set the log level for XCP
 
     // No need to start the XCP server

@@ -199,24 +199,8 @@ static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, const tXcpCalSeg *se
 #endif
 
     // Write the calibration segment page data to the file, either default page or working page, depending on the specified page parameter
-    const uint8_t *page_ptr = (page == XCP_CALPAGE_DEFAULT_PAGE) ? CalSegDefaultPage(seg) : CalSegEcuPage(seg);
-
-    // @@@@ TODO: Remove this hack and find a better solution to keep the EPK segment data up to date in SHM mode, currently the EPK segment is treated like any other segment
-    // XcpFreeze can be called by the user, is called on freeze request and at A2L generation
-    // The BIN file should always match the associated A2L file, but this is not guaranteed when called by the user,
-#ifdef OPTION_SHM_MODE
-    // In SHM mode, recreate the ECU EPK hash to the current state, in case new applications registered since the EPK segment initialized
-    if (XcpShmIsActive() && calseg == XCP_EPK_CALSEG_INDEX && strcmp(seg->h.name, XCP_EPK_CALSEG_NAME) == 0) {
-        // The EPK segment is updated with the current ECU EPK hash, which is calculated in XcpShmGetEcuEpk() and stored in SHM header
-        const char *ecu_epk = XcpShmGetEcuEpk();
-        const char *calseg_epk = (const char *)XcpLockCalSeg(0);
-        DBG_PRINTF3(ANSI_COLOR_YELLOW "Updating BIN file EPK segment with current ECU EPK '%s', XCP EPK '%s'\n" ANSI_COLOR_RESET, ecu_epk, calseg_epk);
-        XcpUnlockCalSeg(0);
-        page_ptr = (const uint8_t *)ecu_epk;
-    }
-#endif // OPTION_SHM_MODE
-
     // This is safe, because XCP is not connected
+    const uint8_t *page_ptr = (page == XCP_CALPAGE_DEFAULT_PAGE) ? CalSegDefaultPage(seg) : CalSegEcuPage(seg);
     written = fwrite(page_ptr, seg->h.size, 1, file);
     if (written != 1) {
         DBG_PRINT_ERROR("Failed to write calibration segment data to BIN file\n");
@@ -261,13 +245,13 @@ static bool writeApp(FILE *file, uint8_t app_id, const char *project_name, const
 /// @param page The page of the calibration segments to write, either default or working page, see XCP_CALPAGE_XXX
 /// @return
 /// Returns true if the file was successfully written, false otherwise.
-bool XcpBinWrite(void) {
+bool XcpBinWrite(const char *epk) {
 
     if (!XcpIsActivated()) {
         return false;
     }
-
     const char *filename = XcpBinGetFilename();
+    DBG_PRINTF3(ANSI_COLOR_GREEN "Writing persistence data to file '%s' with EPK '%s'\n" ANSI_COLOR_RESET, filename, epk);
 
     // Open file for writing
     FILE *file = fopen(filename, "wb");
@@ -279,7 +263,6 @@ bool XcpBinWrite(void) {
     uint8_t app_count = XcpShmGetAppCount();
     uint16_t event_count = XcpGetEventCount();
     uint16_t calseg_count = XcpGetCalSegCount();
-    const char *epk = XcpGetEcuEpk(); // Get the current ECU EPK for all existing applications
     if (!writeHeader(file, epk, event_count, calseg_count, app_count)) {
         fclose(file);
         return false;
@@ -501,7 +484,7 @@ static bool load(const char *filename, const char *epk) {
         // Pre register application by name and epk
         // Don't know who is leader or server yet
         DBG_PRINTF4(ANSI_COLOR_BLUE "Pre registered application %u:'%s', epk='%s'\n" ANSI_COLOR_RESET, desc.app_id, desc.project_name, desc.epk);
-        int16_t app_id = XcpShmRegisterApp(desc.project_name, desc.epk, desc.xcp_init_mode, false, false);
+        int16_t app_id = XcpShmRegisterApp(desc.project_name, desc.epk, 0, desc.xcp_init_mode, false, false);
         if (app_id < 0 || (uint8_t)app_id != desc.app_id) { // Just created in order, assuming before empty application list, the app_id in the file must match the allocated app_id
             DBG_PRINTF_ERROR("Could not register application %u:'%s'\n", desc.app_id, desc.project_name);
             assert(0 && "Failed to register application"); // Should never happen
@@ -539,7 +522,7 @@ bool XcpBinLoad(void) {
     }
     const char *filename = XcpBinGetFilename();
     if (load(filename, NULL /* no epk check */)) {
-        DBG_PRINTF3(ANSI_COLOR_GREEN "Loaded binary file %s\n" ANSI_COLOR_RESET, filename);
+        DBG_PRINTF3(ANSI_COLOR_GREEN "Loaded binary persistence file %s\n" ANSI_COLOR_RESET, filename);
         return true;
     }
     return false;

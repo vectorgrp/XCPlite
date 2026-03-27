@@ -590,6 +590,7 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode);
 /// Finish A2L generation
 /// Finalize the A2L file, write the binary persistence file
 bool A2lFinalize(void);
+bool A2lFinalizeOrCleanup(bool finalize);
 
 // Get filename of the A2L files
 #define A2L_FILE 1

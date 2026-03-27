@@ -15,13 +15,13 @@
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
 
-constexpr const char OPTION_PROJECT_NAME[] = "hello_xcp_cpp"; // Project name, used to build the A2L and BIN file name
-constexpr const char OPTION_PROJECT_VERSION[] = "103";        // EPK version string
-constexpr bool OPTION_USE_TCP = false;                        // TCP or UDP
-constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};        // Bind addr, 0.0.0.0 = ANY
-constexpr uint16_t OPTION_SERVER_PORT = 5555;                 // Port
-constexpr uint16_t OPTION_QUEUE_SIZE = (1024 * 32);           // Size of the queue in bytes, should be large enough to cover at least 10ms of expected traffic
-constexpr uint8_t OPTION_XCP_MODE = (XCP_MODE_PERSISTENCE | XCP_MODE_SHM | XCP_MODE_SHM_AUTO); // XCP mode
+constexpr const char OPTION_PROJECT_NAME[] = "hello_xcp_cpp";              // Project name, used to build the A2L and BIN file name
+constexpr const char OPTION_PROJECT_VERSION[] = "104";                     // EPK version string
+constexpr bool OPTION_USE_TCP = false;                                     // TCP or UDP
+constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};                     // Bind addr, 0.0.0.0 = ANY
+constexpr uint16_t OPTION_SERVER_PORT = 5555;                              // Port
+constexpr uint16_t OPTION_QUEUE_SIZE = (1024 * 32);                        // Size of the queue in bytes, should be large enough to cover at least 10ms of expected traffic
+constexpr uint8_t OPTION_XCP_MODE = (XCP_MODE_PERSISTENCE | XCP_MODE_SHM); // XCP mode
 constexpr uint8_t OPTION_A2L_MODE = (A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS);
 constexpr int OPTION_LOG_LEVEL = 3; // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
@@ -166,7 +166,7 @@ int main() {
 
     std::signal(SIGINT, signal_handler);
     std::signal(SIGTERM, signal_handler);
-    std::cout << "\nXCP on Ethernet demo - simple C++ example\n" << std::endl;
+    std::cout << "\nXCP on Ethernet hello_xcp_cpp C++ demo\n" << std::endl;
     uint64_t start_time = clockGetMonotonicNs(); // Get the start time in nanoseconds
 
     // Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)

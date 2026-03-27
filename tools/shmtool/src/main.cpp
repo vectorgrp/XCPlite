@@ -44,8 +44,8 @@
 
 #ifdef OPTION_SHM_MODE
 
-#include "shm.h" // for shared memory management
-#include "xcplite.h"
+#include "shm.h"     // for shared memory management
+#include "xcplite.h" // for tXcpData layout
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -70,7 +70,7 @@ static void print_separator(char c = '-', int width = 80) {
 // ---------------------------------------------------------------------------
 
 static int cmd_status(bool verbose) {
-    // --- /xcpdata ---
+
     int fd = shm_open("/xcpdata", O_RDONLY, 0);
     if (fd < 0) {
         if (errno == ENOENT)
@@ -79,7 +79,6 @@ static int cmd_status(bool verbose) {
             fprintf(stderr, "shm_open '/xcpdata' failed: %s\n", strerror(errno));
         return (errno == ENOENT) ? 0 : 1;
     }
-
     struct stat st{};
     if (fstat(fd, &st) < 0) {
         fprintf(stderr, "fstat '/xcpdata' failed: %s\n", strerror(errno));
@@ -87,22 +86,24 @@ static int cmd_status(bool verbose) {
         return 1;
     }
     size_t shm_size = (size_t)st.st_size;
-
-    void *ptr = mmap(nullptr, shm_size, PROT_READ, MAP_SHARED, fd, 0);
+    void *shm_ptr = mmap(nullptr, shm_size, PROT_READ, MAP_SHARED, fd, 0);
     close(fd);
-    if (ptr == MAP_FAILED) {
+    if (shm_ptr == MAP_FAILED) {
         fprintf(stderr, "mmap '/xcpdata' failed: %s\n", strerror(errno));
         return 1;
     }
-
-    const auto *hdr = reinterpret_cast<const tShmHeader *>(reinterpret_cast<const uint8_t *>(ptr) + offsetof(tXcpData, shm_header));
-
-    print_separator('=');
-    printf("/xcpdata mmap size: %zu bytes\n", shm_size);
-
+    printf("/xcpdata mmap found, size = %zu bytes\n", shm_size);
     if (shm_size < sizeof(tXcpData)) {
         fprintf(stderr, "WARNING: SHM mmap size %zu < sizeof(tXcpData) %zu — stale or incompatible binary!\n", shm_size, sizeof(tXcpData));
+        return 1;
     }
+
+    print_separator('=');
+
+    extern tXcpData *gXcpData;
+    gXcpData = reinterpret_cast<tXcpData *>(shm_ptr); // Set global pointer for use in XcpShmDebugPrint and other functions
+    const auto *hdr = &gXcpData->shm_header;          // Pointer to the header within the mapped region
+    // const auto *hdr = reinterpret_cast<const tShmHeader *>(reinterpret_cast<const uint8_t *>(ptr) + offsetof(tXcpData, shm_header));
 
     // Note: shm_size may exceed sizeof(tXcpData) due to OS page-size rounding
     // (macOS ARM64 rounds ftruncate up to 16 KiB boundaries). Use hdr->size
@@ -117,7 +118,7 @@ static int cmd_status(bool verbose) {
     uint32_t a2lrq = read_u32(&hdr->a2l_finalize_requested);
     bool size_ok = (hdr_size == (uint32_t)sizeof(tXcpData));
 
-    if (verbose) {
+    if (verbose || !magic_ok) {
         printf("  magic              : 0x%016llX  %s\n", (unsigned long long)hdr->magic, magic_ok ? "(valid XCPLITE_)" : "*** INVALID ***");
     } else if (!magic_ok) {
         printf("  magic              : *** INVALID *** (not an XCPlite SHM region)\n");
@@ -129,6 +130,8 @@ static int cmd_status(bool verbose) {
                 "  Run: build/shmtool clean\n",
                 hdr_size, sizeof(tXcpData));
     }
+
+    // Header
     printf("  version            : %u.%u.%u\n", (ver >> 16) & 0xFF, (ver >> 8) & 0xFF, ver & 0xFF);
     printf("  declared size      : %u bytes  (this build: %zu)%s\n", hdr_size, sizeof(tXcpData), size_ok ? "" : "  *** MISMATCH ***");
     printf("  leader pid         : %u%s\n", lpid, (getpid() == (pid_t)lpid) ? "  (this process)" : "");
@@ -137,33 +140,27 @@ static int cmd_status(bool verbose) {
     print_separator();
 
     if (!magic_ok) {
-        munmap(ptr, shm_size);
+        munmap(shm_ptr, shm_size);
         return 1;
     }
 
-    // Per-application slots
+    // Application slots
     for (uint32_t i = 0; i < napp && i < SHM_MAX_APP_COUNT; ++i) {
         const tApp *app = &hdr->app_list[i];
         uint32_t ac = read_u32(&app->alive_counter);
         uint32_t fin = read_u32(&app->a2l_finalized);
         printf("  App %u:  %s %s epk=%s  pid=%u  %s\n", i, app->project_name[0] ? app->project_name : "(vacant)", app->is_server ? "[server]" : "", app->epk, app->pid,
-               app->is_leader ? "[leader]" : "[follower]");
-        printf("          a2l_name=%s  finalized=%s  alive=%u\n", fin ? app->a2l_name : "(pending)", bool_str(fin), ac);
+               app->is_leader ? "[leader]" : "");
+        printf("          a2l_name=%s  finalized=%s  alive_counter=%u\n", fin ? app->a2l_name : "(pending)", bool_str(fin), ac);
 
         print_separator();
     }
 
-    munmap(ptr, shm_size);
-
-    // --- /xcpqueue ---
-    fd = shm_open("/xcpqueue", O_RDONLY, 0);
-    if (fd < 0) {
-        printf("/xcpqueue : not found\n");
-    } else {
-        fstat(fd, &st);
-        close(fd);
-        printf("/xcpqueue : exists, size=%lld bytes\n", (long long)st.st_size);
+    if (verbose) {
+        XcpShmDebugPrint();
     }
+
+    munmap(shm_ptr, shm_size);
 
     return 0;
 }

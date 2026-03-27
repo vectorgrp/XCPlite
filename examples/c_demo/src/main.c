@@ -13,13 +13,13 @@
 //-----------------------------------------------------------------------------------------------------
 
 // XCP parameters
-#define OPTION_PROJECT_NAME "c_demo"      // A2L project name
-#define OPTION_PROJECT_EPK "V1_" __TIME__ // EPK version string
-#define OPTION_USE_TCP false              // TCP or UDP
-#define OPTION_SERVER_PORT 5555           // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0}   // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE (1024 * 32)     // Size of the measurement queue in bytes
-#define OPTION_LOG_LEVEL 3                // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_PROJECT_NAME "c_demo"          // A2L project name
+#define OPTION_PROJECT_VERSION "V1_" __TIME__ // EPK version string
+#define OPTION_USE_TCP false                  // TCP or UDP
+#define OPTION_SERVER_PORT 5555               // Port
+#define OPTION_SERVER_ADDR {0, 0, 0, 0}       // Bind addr, 0.0.0.0 = ANY
+#define OPTION_QUEUE_SIZE (1024 * 32)         // Size of the measurement queue in bytes
+#define OPTION_LOG_LEVEL 3                    // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 // Enable level 4 to observe how asynchronous read/write access to a variable on the stack works, and how the consistent parameter update and measurement works
 // See README.md
@@ -94,7 +94,7 @@ int main(void) {
 
     // Initialize the XCP singleton, activate XCP, must be called before starting the server
     // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, XCP_MODE_LOCAL);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION, XCP_MODE_LOCAL);
 
     // Initialize the XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;

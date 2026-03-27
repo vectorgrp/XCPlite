@@ -424,7 +424,10 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);   // Calculate the absolute XCP/A2L 3
 uint8_t ApplXcpGetAddrExt(const uint8_t *p); // Get the absolute XCP/A2L 8 bit address extension from a pointer
 const uint8_t *ApplXcpGetModuleAddr(void);   // Get the module base address, used as default base address for absolute addressing mode
 
-/* Read and write memory */
+/* Check memory access permissions, called in prepare DAQ */
+uint8_t ApplXcpCheckMemory(uint8_t ext, uint32_t addr, uint8_t size);
+
+/* Read and write memory for application addressing mode XCP_ADDR_EXT_APP */
 #ifdef XCP_ENABLE_APP_ADDRESSING
 uint8_t ApplXcpReadMemory(uint32_t src, uint8_t size, uint8_t *dst);
 uint8_t ApplXcpWriteMemory(uint32_t dst, uint8_t size, const uint8_t *src);

@@ -260,7 +260,7 @@ Lock time histogram (10700464 events):
 
 #ifdef USE_XCP
 #define OPTION_PROJECT_NAME "queue_test" // Project name, used to build the A2L and BIN file name
-#define OPTION_PROJECT_EPK "V1.0"        // EPK version string
+#define OPTION_PROJECT_VERSION "V1.0"    // EPK version string
 #define OPTION_USE_TCP false             // TCP or UDP
 #define OPTION_SERVER_PORT 5555          // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}  // Bind addr, 0.0.0.0 = ANY
@@ -640,7 +640,7 @@ int main(int argc, char *argv[]) {
     if (!g_shm_producer) {
         // Initialize the XCP singleton, activate XCP, must be called before starting the server
         // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-        XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, XCP_MODE_LOCAL);
+        XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION, XCP_MODE_LOCAL);
 
         // Initialize the XCP Server
         uint8_t addr[4] = OPTION_SERVER_ADDR;

@@ -15,13 +15,13 @@
 //-----------------------------------------------------------------------------------------------------
 // XCP params
 
-#define OPTION_PROJECT_NAME "hello_xcp" // Project name, used to build the A2L and BIN file name
-#define OPTION_PROJECT_EPK "103"        // EPK version string
-#define OPTION_USE_TCP false            // TCP or UDP
-#define OPTION_SERVER_PORT 5555         // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE (1024 * 32)   // Size of the measurement queue in bytes, should be large enough to cover at least 10ms of expected traffic
-#define OPTION_XCP_MODE (XCP_MODE_PERSISTENCE | XCP_MODE_SHM | XCP_MODE_SHM_AUTO)                   // XCP mode
+#define OPTION_PROJECT_NAME "hello_xcp"                       // Project name, used to build the A2L and BIN file name
+#define OPTION_PROJECT_VERSION "105"                          // EPK version string
+#define OPTION_USE_TCP false                                  // TCP or UDP
+#define OPTION_SERVER_PORT 5555                               // Port
+#define OPTION_SERVER_ADDR {0, 0, 0, 0}                       // Bind addr, 0.0.0.0 = ANY
+#define OPTION_QUEUE_SIZE (1024 * 32)                         // Size of the measurement queue in bytes, should be large enough to cover at least 10ms of expected traffic
+#define OPTION_XCP_MODE (XCP_MODE_PERSISTENCE | XCP_MODE_SHM) // XCP mode
 #define OPTION_A2L_MODE (A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS) // A2L generation mode
 #define OPTION_LOG_LEVEL 3                                                                          // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
@@ -128,7 +128,7 @@ int main(void) {
 
     // XCP: Initialize the XCP singleton, activate XCP, must be called before starting the server
     // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, OPTION_XCP_MODE);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION, OPTION_XCP_MODE);
 
     // XCP: Initialize the XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;

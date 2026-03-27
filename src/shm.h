@@ -49,11 +49,11 @@ typedef union {
         char project_name[XCP_PROJECT_NAME_MAX_LENGTH + 1]; // unique app name (null-terminated)
         char epk[XCP_EPK_MAX_LENGTH + 1];                   // build version  (null-terminated)
         char a2l_name[XCP_A2L_FILENAME_MAX_LENGTH + 1];     // A2L filename without ext
-        uint32_t pid;                                       // OS process ID; 0 = slot is vacant
+        uint32_t pid;                                       // Application process ID, set to 0 on gracefull shutdown
         uint8_t is_leader;                                  // != 0 this process created the shared memory segment
         uint8_t is_server;                                  // != 0 this process is the XCP server (handles client connections and DAQ)
         uint8_t xcp_init_mode;                              // XCP init mode (mode given to XcpInit)
-        uint8_t pad1[1];                                    // explicit padding for deterministic cross-compiler layout
+        uint8_t reserved[1];                                // reserved
 #ifdef __cplusplus
         // GCC C++ does not allow atomic (non-trivially constructible) members in anonymous aggregates.
         // Use plain uint32_t here; shmtool accesses these via read_u32/write_u32 volatile casts.
@@ -86,6 +86,8 @@ typedef struct {
 } tShmHeader;
 static_assert(sizeof(tShmHeader) % 64 == 0, "sizeof tShmHeader must be a multiple of 64 bytes");
 
+#define SHM_INVALID_APP_ID 0xFF
+
 uint8_t XcpShmGetAppId(void);              // Get this application process's id
 const char *XcpShmGetEcuProjectName(void); // Get the project name of the ECU
 const char *XcpShmGetEcuEpk(void);         // Get the EPK of the ECU, constructed from all registered applications EPKs
@@ -95,7 +97,6 @@ bool XcpShmIsServer(void);   // true when this app process is the XCP server
 bool XcpShmIsLeader(void);   // true when this app process created the shared memory region
 bool XcpShmIsFollower(void); // true when this app process is a follower attached to a leader
 
-void XcpShmInitHeader(tShmHeader *hdr);              // Initalize shared memory for this process, and register this process in the app list
 tXcpData *XcpShmAttachOrCreate(bool *out_is_leader); // Attach to an existing shared memory region created by another process or create a new one
 void XcpShmUnlink(void); // Unlink shared memory, so no new processes can join, but keep the existing mapping valid for existing users until they exit and unmap themselves
 
@@ -107,28 +108,24 @@ int XcpShmCollectA2lFiles(uint32_t timeout_ms, const char *filenames[], int max_
 
 uint8_t XcpShmGetAppCount(void);                     // Get the number of registered applications in SHM mode
 uint8_t XcpShmGetActiveAppCount(void);               // Get the number of registered and active applications in SHM mode
+uint8_t XcpShmGetServer(void);                       // Get the app slot id which is the server
+uint8_t XcpShmGetLeader(void);                       // Get the app slot id which is the leader
 const char *XcpShmGetAppProjectName(uint8_t app_id); // Get project name of an app slot by app_id index
 const char *XcpShmGetAppEpk(uint8_t app_id);         // Get EPK of an app slot by app_id index
 uint8_t XcpShmGetInitMode(uint8_t app_id);           // Get the XCP init mode of an app slot by app_id index
 
 // Register this process in the SHM application list; returns allocated application id (slot index) or -1 on error
-int16_t XcpShmRegisterApp(const char *name, const char *epk, uint8_t mode, bool is_leader, bool is_server);
-void XcpShmUnRegisterApp(uint8_t app_id);
+int16_t XcpShmRegisterApp(const char *name, const char *epk, uint32_t pid, uint8_t xcp_init_mode, bool is_leader, bool is_server);
+void XcpShmShutdownApp(uint8_t app_id);
 
 void XcpShmSetA2lFinalized(uint8_t app_id, const char *a2l_name); // Set A2L finalized flag and A2L filename for an app slot by app_id index, used by the leader when loading the
                                                                   // BIN file and pre-registering apps before they are started
 bool XcpShmIsA2lFinalized(uint8_t app_id);                        // true when this app process has finalized its A2L file and set its a2l_finalized flag in the app list
 
-// Alive counter
-void XcpShmIncrementAliveCounter(void);
-void XcpShmResetAliveCounter(uint8_t app_id);
-void XcpShmResetAliveCounters(void); // Reset alive counters of all app slots
-uint32_t XcpShmGetAliveCounter(uint8_t app_id);
-void XcpShmCheckAliveCounters(void); // Check alive counters of all app slots, print debug info if any changes, and reset them for the next cycle
+void XcpShmIncrementAliveCounter(void); // Called from SHM background thread for XCP server receive thread to prove the application is still alive
+void XcpShmCheckAliveCounters(void);    // Called from the XCP server every second to check for stale applications
 
-#ifdef DBG_LEVEL
 void XcpShmDebugPrint(void); // Print the status and information in tXcpData, for debugging purposes.
-#endif
 
 #else // OPTION_SHM_MODE
 

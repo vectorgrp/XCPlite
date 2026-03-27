@@ -80,6 +80,7 @@ int _kbhit(void) {
 #include <unistd.h> // for sleep
 
 void sleepUs(uint32_t us) {
+    // DBG_PRINTF3(ANSI_COLOR_RED "Sleep for %u us\n" ANSI_COLOR_RESET, us);
     if (us == 0) {
         sleep(0);
     } else {
@@ -92,6 +93,7 @@ void sleepUs(uint32_t us) {
 }
 
 void sleepMs(uint32_t ms) {
+    // DBG_PRINTF3(ANSI_COLOR_RED "Sleep for %u ms\n" ANSI_COLOR_RESET, ms);
     if (ms == 0) {
         sleep(0);
     } else {

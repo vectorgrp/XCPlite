@@ -62,6 +62,7 @@
 #include <stdio.h>    // for printf
 #include <stdlib.h>   // for size_t, NULL, abort
 #include <string.h>   // for memcpy, memset, strlen
+#include <unistd.h>   // for getpid()
 
 #include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
 #include "platform.h"  // for atomics
@@ -671,7 +672,8 @@ uint8_t XcpSetMta(uint8_t ext, uint32_t addr) {
             local_mut.mta_addr = XcpAddrEncodeSegIndex(calseg_index, local.mta_ptr - c->h.default_page_ptr); // Convert to segment relative address
         }
 #endif
-        return CRC_CMD_OK;
+
+        return ApplXcpCheckMemory(local.mta_ext, local.mta_addr, 0 /* size not known here */);
     }
 #endif
 
@@ -1276,6 +1278,19 @@ bool XcpCheckPreparedDaqLists(void) {
 #endif
             for (uint16_t i = DaqListFirstOdt(daq); i <= DaqListLastOdt(daq); i++) {
                 for (uint16_t e = DaqListOdtTable[i].first_odt_entry; e <= DaqListOdtTable[i].last_odt_entry; e++) {
+
+                    uint32_t addr = DaqListOdtEntryAddrTable[e];
+                    uint8_t ext = DaqListOdtEntryAddrExtTable[e];
+                    uint8_t size = DaqListOdtEntrySizeTable[e];
+                    DBG_PRINTF6("Check DAQ %u, ODT %u, ODT entry %u: addr=0x%X, ext=%u, size=%u\n", daq, i - DaqListFirstOdt(daq), e - DaqListOdtTable[i].first_odt_entry, addr,
+                                ext, size);
+                    uint8_t res = ApplXcpCheckMemory(ext, addr, size);
+                    if (res != CRC_CMD_OK) {
+                        DBG_PRINTF_ERROR("DAQ %u, ODT %u, ODT entry %u invalid, callback read failed with error %u!\n", daq, i - DaqListFirstOdt(daq),
+                                         e - DaqListOdtTable[i].first_odt_entry, res);
+                        return false;
+                    }
+
                     if (DaqListOdtEntrySizeTable[e] == 0) {
                         DBG_PRINTF_ERROR("DAQ %u, ODT %u, ODT entry %u size not set!\n", daq, i - DaqListFirstOdt(daq), e - DaqListOdtTable[i].first_odt_entry);
                         return false;
@@ -2412,6 +2427,7 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             CRM_GET_DAQ_EVENT_INFO_TIME_CYCLE = (uint8_t)timeCycle;
             CRM_GET_DAQ_EVENT_INFO_TIME_UNIT = timeUnit;
             CRM_GET_DAQ_EVENT_INFO_PRIORITY = (event->flags & XCP_DAQ_EVENT_FLAG_PRIORITY) ? 0xFF : 0x00;
+            // Event name provided via upload
             local_mut.mta_ptr = (uint8_t *)eventName;
             local_mut.mta_ext = XCP_ADDR_EXT_PTR;
         } break;
@@ -2932,14 +2948,14 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     // Set the project name of this application
     if (name == NULL || STRNLEN(name, XCP_PROJECT_NAME_MAX_LENGTH) == 0) {
         assert(false && "Project name is mandatory");
-        return false; // Project name is mandatory
+        goto error_deactivate; // Project name is mandatory, deactivate XCP
     }
     XcpSetProjectName(name);
 
     // Set the EPK version string for this application, used for version checking and compatibility checks with the A2L file
     if (epk == NULL || STRNLEN(epk, XCP_EPK_MAX_LENGTH) == 0) {
         assert(false && "EPK version string is mandatory");
-        return false; // EPK version string is mandatory
+        goto error_deactivate; // EPK version string is mandatory, deactivate XCP
     }
     XcpSetEpk(epk);
 
@@ -2954,30 +2970,55 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
         gXcpData = XcpShmAttachOrCreate(&local_mut.shm_leader);
         if (gXcpData == NULL) {
             DBG_PRINT_ERROR("XcpInit: Failed to attach to shared memory\n");
-            return false;
+            goto error_deactivate; // SHM problem, deactivate XCP
         }
 
         // Shared memory already exists, register application and done
         if (!local_mut.shm_leader) {
-            if ((mode & XCP_MODE_SHM_SERVER) != 0) {
-                // @@@@ TODO Check if there already is a server
-                local_mut.shm_server = false;
-                DBG_PRINT_ERROR("XcpInit: Can not create a server which is not the leader, not implemented yet\n");
-                assert(0);
-            } else {
-                // @@@@ TODO Check if there is a server alive
+
+            DBG_PRINT3(ANSI_COLOR_BLUE "Attached to '/xcpdata'\n" ANSI_COLOR_RESET);
+
+            uint8_t server_id = XcpShmGetServer();
+            // Server mode requested
+            if ((mode & XCP_MODE_SHM_SERVER) != 0) { // Become server, if requested by mode flags
+                // Error, if there already is a server
+                if (server_id != SHM_INVALID_APP_ID) {
+                    DBG_PRINTF_ERROR("XcpInit: Server mode requested, but a server with app_id=%u already exists\n", server_id);
+                    goto error_deactivate;
+                }
+                local_mut.shm_server = true;
+                DBG_PRINT3(ANSI_COLOR_YELLOW "Server mode requested, there already is a leader\n" ANSI_COLOR_RESET);
+            }
+            // Auto server mode, become server if there is none
+            else if ((mode & XCP_MODE_SHM_AUTO) != 0) {
+                if (server_id == SHM_INVALID_APP_ID) { // No server yet, become server
+                    DBG_PRINT3("Server mode activated (auto), there already is a leader, but but no server yet\n");
+                    local_mut.shm_server = true;
+                } else {
+                    local_mut.shm_server = false;
+                }
+            }
+            // Never be the server
+            else {
+                if (server_id != SHM_INVALID_APP_ID) {
+                    DBG_PRINT3(ANSI_COLOR_YELLOW "Application attached, no server yet\n" ANSI_COLOR_RESET);
+                }
                 local_mut.shm_server = false;
             }
-            int16_t app_id = XcpShmRegisterApp(name, epk, mode, local_mut.shm_leader, local_mut.shm_server);
+            // Register
+            int16_t app_id = XcpShmRegisterApp(name, epk, (uint32_t)getpid(), mode, local.shm_leader, local.shm_server);
             if (app_id < 0) {
-                DBG_PRINT_ERROR("XcpInit: Failed to register application in shared memory\n");
-                return false;
+                DBG_PRINT_ERROR("XcpInit: Failed to register application\n");
+                goto error_deactivate; // SHM application registration problem, deactivate XCP
             }
             local_mut.shm_app_id = (uint8_t)app_id;
 
-            // Early return for non SHM leaders here, successfully attached to a live leader and server
+            // Early return for non SHM leaders here
             return true;
+        } else {
+            DBG_PRINT3(ANSI_COLOR_BLUE "Created '/xcpdata', initializing as leader\n" ANSI_COLOR_RESET);
         }
+
     }
 
     // SHM mode not activated
@@ -2987,7 +3028,7 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
         gXcpData = (tXcpData *)malloc(sizeof(tXcpData));
         if (gXcpData == NULL) {
             DBG_PRINT_ERROR("XcpInit: failed to allocate memory for XCP data\n");
-            return false;
+            goto error_deactivate; // Memory allocation problem, deactivate XCP
         }
         memset((uint8_t *)gXcpData, 0, sizeof(tXcpData));
     }
@@ -2997,15 +3038,29 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     memset((uint8_t *)&gXcpData, 0, sizeof(tXcpData));
 #endif
 
+#ifdef OPTION_SHM_MODE
+
     // In SHM mode, only the leader reaches this point
     // Initialize shared memory, followers already returned early after attaching and registering
-#ifdef OPTION_SHM_MODE
+    // Note that SHM mode must not be activated, header will always be initialized
+    assert(local.shm_leader);
+
     assert(gXcpData != NULL);
-    XcpShmInitHeader(&gXcpData->shm_header);
-    local_mut.shm_leader = true;
+    tShmHeader *hdr = &gXcpData->shm_header;
+    hdr->magic = SHM_MAGIC;
+    hdr->version = SHM_VERSION;
+    hdr->size = (uint32_t)sizeof(tXcpData);
+    hdr->leader_pid = (uint32_t)getpid();
+    atomic_store(&hdr->app_count, 0U);
+    atomic_store(&hdr->a2l_finalize_requested, 0U);
+    memset(hdr->ecu_epk, 0, sizeof(hdr->ecu_epk));
+
+    local_mut.shm_app_id = 0; // Not defined yet, leader will registered after loading the binary persistence file
+
+    // Check, if the leader should also be the server, or if a separate server application will be started later
     local_mut.shm_server = (mode & XCP_MODE_SHM) != 0 && (mode & (XCP_MODE_SHM_SERVER | XCP_MODE_SHM_AUTO)) != 0;
-    local_mut.shm_app_id = 0; // Not defined yet, will be set after loading the binary persistence file
-#endif                        // OPTION_SHM_MODE
+
+#endif // OPTION_SHM_MODE
 
     // Reset DAQ list memory
     XcpClearDaq();
@@ -3040,13 +3095,11 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
 #ifdef OPTION_SHM_MODE
     if (XcpShmIsActive()) {
         assert(mode & XCP_MODE_PERSISTENCE);
-        DBG_PRINT3("XcpInit: Loaded binary persistence file\n");
-        XcpShmDebugPrint();
         DBG_PRINTF3("XcpInit: Registering application '%s', epk=%s, mode=%02X\n", name, epk, mode);
-        int16_t app_id = XcpShmRegisterApp(name, epk, mode, local_mut.shm_leader, local_mut.shm_server);
+        int16_t app_id = XcpShmRegisterApp(name, epk, (uint32_t)getpid(), mode, local_mut.shm_leader, local_mut.shm_server);
         if (app_id < 0) {
             DBG_PRINT_ERROR("XcpInit: failed to register application\n");
-            return false;
+            goto error_deactivate; // SHM application registration problem, deactivate XCP
         }
         local_mut.shm_app_id = (uint8_t)app_id;
     }
@@ -3064,7 +3117,26 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
 #endif
 #endif
 
+#ifdef OPTION_SHM_MODE
+    if (DBG_LEVEL >= 3) {
+        DBG_PRINT3(ANSI_COLOR_GREEN "XCP shared memory initialized by leader\n" ANSI_COLOR_RESET);
+        XcpShmDebugPrint();
+    }
+#endif
+
     return true;
+
+error_deactivate:
+    // Deactivate XCP, to keep the application in a safe state
+    // Don't it is the users responsibility to check succes of XcpInit
+    DBG_PRINT_ERROR("XcpInit: Deactivate XCP\n");
+    local_mut.init_mode = XCP_MODE_DEACTIVATE;
+#ifdef OPTION_SHM_MODE
+    gXcpData = NULL;
+#else // OPTION_SHM_MODE
+    gXcpData.session_status = 0;
+#endif
+    return false;
 }
 
 // Start XCP protocol layer
@@ -3223,7 +3295,7 @@ void XcpStart(tQueueHandle queue_handle, bool resumeMode) {
 #endif /* XCP_ENABLE_DAQ_RESUME */
 }
 
-// Reset XCP protocol layer back to not init state, server is going down
+// Reset XCP protocol layer back to not init state, free resources,server is going down
 void XcpDeinit(void) {
 
     if (!isActivated()) { // Ignore
@@ -3240,8 +3312,9 @@ void XcpDeinit(void) {
 #endif
 
 #ifdef OPTION_SHM_MODE
+    // In SHM mode, set the application to offline
     if (XcpShmIsActive()) {
-        XcpShmUnRegisterApp(local_mut.shm_app_id);
+        XcpShmShutdownApp(local_mut.shm_app_id);
     }
 #else // OPTION_SHM_MODE
     // Reset shared XCP state to not activated

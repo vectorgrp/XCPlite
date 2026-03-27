@@ -221,6 +221,7 @@ void *platformShmOpen(const char *name, const char *lock_path, size_t size, bool
 // Attach to an already-existing SHM region as a follower.
 // Uses fstat to determine the actual mapped size (written into *size_out).
 // Does NOT participate in leader election — use only when the caller is certain it is a follower.
+// Much faster than platformShmOpen
 void *platformShmOpenAttach(const char *name, size_t *size_out);
 
 // Unmap a previously opened SHM region. If unlink is true, also calls shm_unlink().

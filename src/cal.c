@@ -306,8 +306,9 @@ tXcpCalSegIndex XcpCreateCalSegPreloaded(const char *name, uint8_t app_id, uint1
 // Calibration segments have 2 pages and can be controlled via XCP through their memory segment number (XcpGetCalSegNumber)
 // The number of memory segments is limited to 255
 tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint16_t page_size) {
+    // @@@@ TODO: Create a way to let the user call functions CreateCalSeg/Lock/Unlock without initializing the calibration segment list
+    // tXcpCalSegIndex could be pointer size or introduce a simple array of default page pointers ??
     if (!isActivated()) {
-        assert(0);
         return XCP_UNDEFINED_CALSEG;
     }
     return XcpCreateCalSeg_(name, true /* lookup */, default_page, NULL, page_size, true);
@@ -319,7 +320,6 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
 // Calibration blocks don't have a memory segment and the related XCP features
 tXcpCalSegIndex XcpCreateCalBlk(const char *name, const void *default_page, uint16_t page_size) {
     if (!isActivated()) {
-        assert(0);
         return XCP_UNDEFINED_CALSEG;
     }
     return XcpCreateCalSeg_(name, true /* lookup */, default_page, NULL, page_size, false);
@@ -768,6 +768,7 @@ uint8_t XcpGetSegInfo(tXcpCalSegNumber segment_number, uint8_t mode, uint8_t seg
             return CRC_CMD_OK;
         } else if (seg_info == 2) { // Get segment name (Vector extension, name via MTA and upload)
             CRM_GET_SEGMENT_INFO_BASIC_INFO = (uint32_t)strlen(c->h.name);
+            // Segment name provided via upload
             local_mut.mta_ptr = (uint8_t *)c->h.name;
             local_mut.mta_ext = XCP_ADDR_EXT_PTR;
             return CRC_CMD_OK;

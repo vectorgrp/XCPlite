@@ -53,6 +53,7 @@ static bool gA2lAutoGroups = true;        // Automatically create groups for mea
 static bool gA2lSymbolPrefix = false;     // Prepend project name as prefix to all symbol names (measurements, parameters, typedefs, components)
 
 // A2L file handles and state
+static bool gA2lIsFinalized = false;
 static FILE *gA2lMasterFile = NULL;
 static FILE *gA2lFile = NULL;
 static FILE *gA2lTypedefsFile = NULL;
@@ -558,6 +559,7 @@ const char *A2lGetFilename(uint8_t file_type) {
 // Start A2L file generation
 static bool A2lOpen(bool master_file_only) {
 
+    gA2lIsFinalized = false;
     gA2lMasterFile = NULL;
     gA2lFile = NULL;
     gA2lTypedefsFile = NULL;
@@ -1913,9 +1915,26 @@ bool A2lCheckFinalizeOnConnect(uint8_t connect_mode) {
     return true;
 }
 
-// Finalize A2L file generation
+// Finalize A2L file generation, internal function
 // Return true if A2L file generation was active and is now finalized, false if A2L file generation was not active
-bool A2lFinalize(void) {
+bool A2lFinalizeOrCleanup(bool finalize) {
+
+    if (!finalize) {
+        // Cleanup temporary files in case of A2L generation cancellation
+        DBG_PRINT3(ANSI_COLOR_YELLOW "Cleanup A2L file...\n" ANSI_COLOR_RESET);
+        remove(A2lGetFilename(A2L_TYPEDEFS_FILE));
+        gA2lTypedefsFile = NULL;
+        remove(A2lGetFilename(A2L_GROUPS_FILE));
+        gA2lGroupsFile = NULL;
+        remove(A2lGetFilename(A2L_CONVERSIONS_FILE));
+        gA2lConversionsFile = NULL;
+        remove(A2lGetFilename(A2L_FILE));
+        gA2lFile = NULL;
+        gA2lIsFinalized = true;
+        return false;
+    }
+
+    DBG_PRINT3(ANSI_COLOR_GREEN "Finalizing A2L file...\n" ANSI_COLOR_RESET);
 
     // In SHM mode, signal all applications finalize their A2L files
 #ifdef OPTION_SHM_MODE
@@ -1937,8 +1956,8 @@ bool A2lFinalize(void) {
         includeFile(&gA2lGroupsFile, A2lGetFilename(A2L_GROUPS_FILE));
         includeFile(&gA2lConversionsFile, A2lGetFilename(A2L_CONVERSIONS_FILE));
 
-        // In SHM mode, close the server applications partial A2L file here
 #ifdef OPTION_SHM_MODE
+        // In SHM mode, close the non server applications partial A2L file here
         if (gA2lFile != gA2lMasterFile) {
             fclose(gA2lFile);
             gA2lFile = NULL;
@@ -1985,7 +2004,14 @@ bool A2lFinalize(void) {
             if (XcpShmIsServer()) {
 #ifdef OPTION_ENABLE_PERSISTENCE
                 // In SHM mode always write a binary persistence file
-                XcpBinWrite();
+                // Regenerate the EPK and write to the EPK segment, so the the BIN file get it as well
+                const char *epk = XcpGetEcuEpk(); // Get (generate) the current ECU EPK for all existing applications
+                const uint16_t epk_len = (uint16_t)strnlen(epk, XCP_EPK_MAX_LENGTH) + 1;
+                XcpCalSegWriteMemory(0x80000000, epk_len, (const uint8_t *)epk); // @@@@ TODO: remove magic number
+                const char *epk_calseg = (const char *)XcpLockCalSeg(XCP_EPK_CALSEG_INDEX);
+                assert(strncmp(epk, epk_calseg, epk_len) == 0);
+                XcpUnlockCalSeg(0);
+                XcpBinWrite(epk);
 #endif
                 XcpSetA2lName(A2lGetFilename(A2L_MASTER_FILE)); // Notify XCP that there is an A2L file available for upload by the XCP client
             }
@@ -1995,11 +2021,14 @@ bool A2lFinalize(void) {
             // Create the binary persistence file associated to this A2L file
 #ifdef OPTION_ENABLE_PERSISTENCE
             if ((XcpGetInitMode() & XCP_MODE_PERSISTENCE) != 0) {
-                XcpBinWrite();
+                const char *epk = XcpGetEpk(); // Get the current EPK
+                XcpBinWrite(epk);
             }
 #endif
             XcpSetA2lName(A2lGetFilename(A2L_FILE)); // Notify XCP that there is an A2L file available for upload by the XCP client
         }
+
+        gA2lIsFinalized = true;
         return true; // A2L file generation successful
     }
 
@@ -2094,6 +2123,22 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
         return false;
     }
     return true;
+}
+
+// Finalize A2L file generation user function
+// Return true if A2L file generation was active and is now finalized, false if A2L file generation was not active
+bool A2lFinalize(void) {
+
+    if (gA2lIsFinalized)
+        return true; // Already finalized
+
+#ifdef OPTION_SHM_MODE
+    // In SHM mode, only the server finalizes the master A2L file
+    if (XcpShmIsActive() && !XcpShmIsServer())
+        return A2lFinalizeOrCleanup(false);
+#endif // OPTION_SHM_MODE
+
+    return A2lFinalizeOrCleanup(true);
 }
 
 #endif // XCP_ENABLE_A2L_GENERATOR

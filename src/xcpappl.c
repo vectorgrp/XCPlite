@@ -45,6 +45,7 @@ static uint8_t (*__callback_get_cal_page)(uint8_t segment, uint8_t mode) = NULL;
 static uint8_t (*__callback_set_cal_page)(uint8_t segment, uint8_t page, uint8_t mode) = NULL;
 static uint8_t (*__callback_init_cal)(uint8_t src_page, uint8_t dst_page) = NULL;
 static uint8_t (*__callback_freeze_cal)(void) = NULL;
+static uint8_t (*__callback_check)(uint8_t ext, uint32_t addr, uint8_t size) = NULL;
 static uint8_t (*__callback_read)(uint32_t src, uint8_t size, uint8_t *dst) = NULL;
 static uint8_t (*__callback_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay) = NULL;
 static uint8_t (*__callback_flush)(void) = NULL;
@@ -58,6 +59,7 @@ void ApplXcpRegisterGetCalPageCallback(uint8_t (*cb_get_cal_page)(uint8_t segmen
 void ApplXcpRegisterSetCalPageCallback(uint8_t (*cb_set_cal_page)(uint8_t segment, uint8_t page, uint8_t mode)) { __callback_set_cal_page = cb_set_cal_page; }
 void ApplXcpRegisterFreezeCalCallback(uint8_t (*cb_freeze_cal)(void)) { __callback_freeze_cal = cb_freeze_cal; }
 void ApplXcpRegisterInitCalCallback(uint8_t (*cb_init_cal)(uint8_t src_page, uint8_t dst_page)) { __callback_init_cal = cb_init_cal; }
+void ApplXcpRegisterCheckCallback(uint8_t (*cb_check)(uint8_t ext, uint32_t addr, uint8_t size)) { __callback_check = cb_check; }
 void ApplXcpRegisterReadCallback(uint8_t (*cb_read)(uint32_t src, uint8_t size, uint8_t *dst)) { __callback_read = cb_read; }
 void ApplXcpRegisterWriteCallback(uint8_t (*cb_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay)) { __callback_write = cb_write; }
 void ApplXcpRegisterFlushCallback(uint8_t (*cb_flush)(void)) { __callback_flush = cb_flush; }
@@ -358,7 +360,7 @@ const uint8_t *ApplXcpGetBaseAddr(void) { return ApplXcpGetModuleAddr(); }
 #endif // defined(_LINUX) && defined(PLATFORM_32BIT)
 
 /**************************************************************************/
-// Calibration memory segment access
+// Callbacks
 /**************************************************************************/
 
 // CANape specific user commands for atomic consistent calibration operations
@@ -383,6 +385,13 @@ uint8_t ApplXcpUserCommand(uint8_t cmd) {
     return CRC_CMD_OK;
 }
 #endif
+
+// Verify memory access permissions for a given address and size
+uint8_t ApplXcpCheckMemory(uint8_t ext, uint32_t addr, uint8_t size) {
+    if (__callback_check != NULL)
+        return __callback_check(ext, addr, size);
+    return CRC_CMD_OK; // Allow all accesses by default, if callback is not set
+}
 
 // Access calibration memory segments
 // Called for SEG addressing mode, only when internal calibration segment management is not used or not enabled

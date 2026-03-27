@@ -27,7 +27,7 @@ extern "C" {
 #endif
 
 // Create the binary file with the current default pages
-bool XcpBinWrite(void);
+bool XcpBinWrite(const char *epk);
 
 // Load the binary file and create calibration segment marked as preloaded
 bool XcpBinLoad(void);
