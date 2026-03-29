@@ -581,6 +581,7 @@ void XcpSetLogLevel(uint8_t level);
 /// @param epk EPK version string, used for compatibility check of A2L and BIN file
 /// @param mode XCP_MODE_DEACTIVATE, XCP_MODE_LOCAL, XCP_MODE_SHM, XCP_MODE_SHM_AUTO or XCP_MODE_SHM_SERVER (libxcplite build with in SHM mode)
 bool XcpInit(const char *name, const char *epk, uint8_t mode);
+void XcpDeinit(void); // @@@@ Internal for Rust build.rs
 
 /// Check if XCP has been activated
 bool XcpIsActivated(void);

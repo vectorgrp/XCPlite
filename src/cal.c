@@ -294,7 +294,7 @@ tXcpCalSegIndex XcpCreateCalSegPreloaded(const char *name, uint8_t app_id, uint1
     seg->h.file_pos = file_pos; // Save the position of the segment page data in the file
     seg->h.app_id = app_id;     // Save the application ID
 #else
-    (void)file;     // Unused parameter
+    (void)app_id;   // Unused parameter
     (void)file_pos; // Unused parameter
 #endif
 
