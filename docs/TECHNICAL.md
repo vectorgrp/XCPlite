@@ -187,9 +187,17 @@ In XCPlite, the EPK may be specified with an API function or is generated from b
 - Configuration for begin/end atomic calibration user defined XCP command is not default. Must be set once in a new CANape project to 0x01F1 and 0x02F1
 - EPK segment is defined with 2 readonly pages, because of CANape irritations with mixed mode calibration segment. CANape would not care for a single page EPK segment, reads active page always from segment 0 and uses only SET_CAL_PAGE ALL mode
 
+
 ### Other Issues
 
 - CANape ignores address extension of `loop_histogram` in ccp_demo, when saving calibration values to a parameter file. `loop_histogram` is a CHARACTERISTIC array, but it is in a measurement group
+
+
+### TODO list
+
+- Provide a way to deactivate XCP without code changes when accessing calibration segments 
+
+
 
 
 ## 5 · Appendix

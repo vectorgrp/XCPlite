@@ -202,7 +202,7 @@ static int do_status(void) {
     gXcpData = NULL;
     return 0;
 }
-#endif // OPTION_SHM_MODE
+#endif // SHM_MODE
 
 //-----------------------------------------------------------------------------------------------------
 
@@ -325,7 +325,7 @@ int main(int argc, char *argv[]) {
         return do_cleanall();
     }
 
-#endif // OPTION_SHM_MODE
+#endif // SHM_MODE
 
     if (daemonize) {
         printf("Starting XCP daemon V%s in background (PID file: %s)\n", OPTION_PROJECT_VERSION, OPTION_PID_FILE);
@@ -405,7 +405,7 @@ int main(int argc, char *argv[]) {
         XcpShmDebugPrint();
         printf("--------------------------------------------------------------\n");
     }
-#endif // OPTION_SHM_MODE
+#endif // SHM_MODE
 
     DBG_PRINT3("\nStart XCP daemon, press Ctrl-C to stop...\n");
     // running = false;
@@ -431,7 +431,7 @@ int main(int argc, char *argv[]) {
             print_status_requested = false;
             XcpShmDebugPrint();
         }
-#endif // OPTION_SHM_MODE
+#endif // SHM_MODE
 
         // Sleep for the specified delay parameter in milliseconds
         sleepMs(delay_ms);

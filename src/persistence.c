@@ -101,14 +101,14 @@ static char gXcpBinFilename[XCP_BIN_FILENAME_MAX_LENGTH + 1] = "";
 
 // Build BIN filename from project name and epk, e.g. "app_name_V100.bin" (or "ecu_name.bin" in SHM mode, written by the server)
 static const char *XcpBinGetFilename(void) {
-#ifdef OPTION_SHM_MODE
-    if (XcpShmIsActive()) { // Only server creates the persistence file with unique name
-        SNPRINTF(gXcpBinFilename, XCP_BIN_FILENAME_MAX_LENGTH, "%s.bin", XcpShmGetEcuProjectName());
-        return gXcpBinFilename;
-    }
-#endif // OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // generate BIN filename without EPK postfix
+    // Only server creates the persistence file with unique name
+    SNPRINTF(gXcpBinFilename, XCP_BIN_FILENAME_MAX_LENGTH, "%s.bin", XcpShmGetEcuProjectName());
+    return gXcpBinFilename;
+#else
     SNPRINTF(gXcpBinFilename, XCP_BIN_FILENAME_MAX_LENGTH, "%s_%s.bin", XcpGetProjectName(), XcpGetEpk());
     return gXcpBinFilename;
+#endif
 }
 
 // Print the content of a calibration segment page for debugging
@@ -155,9 +155,9 @@ static bool writeEvent(FILE *file, tXcpEventId event_id, const tXcpEvent *event)
     strncpy(desc.name, event->name, XCP_MAX_EVENT_NAME);
     desc.name[XCP_MAX_EVENT_NAME] = '\0'; // Ensure null termination
     // In SHM mode, save the app_id of the event owner
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // initialized app-id in event descriptor
     desc.app_id = event->app_id;
-#endif // OPTION_SHM_MODE
+#endif // SHM_MODE
     desc.cycle_time_ns = event->cycle_time_ns;
     desc.priority = event->flags & XCP_DAQ_EVENT_FLAG_PRIORITY ? 0xFF : 0x00;
     desc.id = event_id;
@@ -182,9 +182,9 @@ static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, const tXcpCalSeg *se
     desc.index = calseg;
     desc.number = seg->h.calseg_number;
     // In SHM mode, save the app_id of the calibration segment owner
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // initialize app-id in calibration segment descriptor
     desc.app_id = seg->h.app_id;
-#endif // OPTION_SHM_MODE
+#endif // SHM_MODE
     size_t written = fwrite(&desc, sizeof(tCalSegDescriptor), 1, file);
     if (written != 1) {
         DBG_PRINT_ERROR("Failed to write calibration segment descriptor to BIN file\n");
@@ -209,7 +209,7 @@ static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, const tXcpCalSeg *se
 }
 
 // In SHM mode, the .BIN file contains an application list
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // write an application descriptor to BIN file
 
 // Write a application descriptor
 static bool writeApp(FILE *file, uint8_t app_id, const char *project_name, const char *epk, uint8_t xcp_init_mode) {
@@ -232,7 +232,7 @@ static bool writeApp(FILE *file, uint8_t app_id, const char *project_name, const
     return true;
 }
 
-#endif // OPTION_SHM_MODE
+#endif // SHM_MODE
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
@@ -250,7 +250,7 @@ bool XcpBinWrite(const char *epk) {
         return false;
     }
     const char *filename = XcpBinGetFilename();
-    DBG_PRINTF3(ANSI_COLOR_GREEN "Writing persistence data to file '%s' with EPK '%s'\n" ANSI_COLOR_RESET, filename, epk);
+    DBG_PRINTF3("Writing persistence data to file '%s' with EPK '%s'\n", filename, epk);
 
     // Open file for writing
     FILE *file = fopen(filename, "wb");
@@ -259,9 +259,14 @@ bool XcpBinWrite(const char *epk) {
         return false;
     }
 
+#ifdef OPTION_SHM_MODE // write application count to BIN file header
     uint8_t app_count = XcpShmGetAppCount();
+#else
+    uint8_t app_count = 0;
+#endif
     uint16_t event_count = XcpGetEventCount();
     uint16_t calseg_count = XcpGetCalSegCount();
+
     if (!writeHeader(file, epk, event_count, calseg_count, app_count)) {
         fclose(file);
         return false;
@@ -288,7 +293,7 @@ bool XcpBinWrite(const char *epk) {
     }
 
     // In SHM mode, write application list
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // write application descriptors to BIN file
 
     // Write application descriptors
     for (uint8_t i = 0; i < app_count; i++) {
@@ -297,12 +302,12 @@ bool XcpBinWrite(const char *epk) {
             return false;
         }
     }
-#endif // OPTION_SHM_MODE
+#endif // SHM_MODE
 
     fclose(file);
 
     DBG_PRINTF3(ANSI_COLOR_GREEN "Persistence data written to file '%s'\n" ANSI_COLOR_RESET, gXcpBinFilename);
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // debug print application list
     if (DBG_LEVEL >= 4) {
         XcpShmDebugPrint();
     }
@@ -370,7 +375,7 @@ static bool load(const char *filename, const char *epk) {
     assert(filename != NULL);
     FILE *file = fopen(filename, "rb");
     if (file == NULL) {
-        DBG_PRINTF3(ANSI_COLOR_YELLOW "Binary file '%s' not found, starting with default state\n" ANSI_COLOR_RESET, filename);
+        DBG_PRINTF3(ANSI_COLOR_YELLOW "Binary file '%s' not found, starting with default pages\n" ANSI_COLOR_RESET, filename);
         return false;
     }
 
@@ -425,10 +430,11 @@ static bool load(const char *filename, const char *epk) {
             error_count++;
         }
         // In SHM mode, set the app_id of the event owner
-#ifdef OPTION_SHM_MODE
-        tXcpEvent *event = (tXcpEvent *)XcpGetEvent(event_id); // @@@@ TODO cast away const, improve design to avoid this
+#ifdef OPTION_SHM_MODE // load app-id in event descriptor
+        // @@@@ TODO cast away const, improve design to avoid this
+        tXcpEvent *event = (tXcpEvent *)XcpGetEvent(event_id);
         event->app_id = desc.app_id;
-#endif // OPTION_SHM_MODE
+#endif // SHM_MODE
     }
 
     // Load calibration segments
@@ -469,7 +475,7 @@ static bool load(const char *filename, const char *epk) {
     }
 
 // In SHM mode, load application list and pre register applications (assuming the application list is empty at this point)
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // load all application descriptors and pre register these applications
     for (uint8_t i = 0; i < gBinHeader.app_count; i++) {
         tAppDescriptor desc;
         read = fread(&desc, sizeof(tAppDescriptor), 1, file);
@@ -498,7 +504,7 @@ static bool load(const char *filename, const char *epk) {
             DBG_PRINTF4(ANSI_COLOR_BLUE "Application %u:'%s' A2L file'%s' exists, set A2L finalized flag\n" ANSI_COLOR_RESET, desc.app_id, desc.project_name, a2l_filename);
         }
     }
-#endif // OPTION_SHM_MODE
+#endif // SHM_MODE
 
     fclose(file);
     if (error_count > 0) {

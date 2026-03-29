@@ -34,16 +34,20 @@
 /**************************************************************************/
 // State
 
-#ifdef OPTION_SHM_MODE
-extern tXcpData *gXcpData;                    // Shared state in SHM mode
-#define shared (*(const tXcpData *)gXcpData)  // Shortcut for read only access to the XCP singleton data
-#define shared_mut (*gXcpData)                // Shortcut for mutable access to the XCP singleton data
-#define shared_mut_safe (*gXcpData)           // Shortcut for mutable access to the XCP singleton data
-#else                                         // OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // extern declarations for gXcpData
+
+extern tXcpData *gXcpData;                   // Shared state in SHM mode
+#define shared (*(const tXcpData *)gXcpData) // Shortcut for read only access to the XCP singleton data
+#define shared_mut (*gXcpData)               // Shortcut for mutable access to the XCP singleton data
+#define shared_mut_safe (*gXcpData)          // Shortcut for mutable access to the XCP singleton data
+
+#else
+
 extern tXcpData gXcpData;
 #define shared (*(const tXcpData *)&gXcpData) // Shortcut for read only access to the XCP singleton data
 #define shared_mut gXcpData                   // Shortcut for mutable access to the XCP singleton data
 #define shared_mut_safe gXcpData              // Shortcut for mutable access to the XCP singleton data
+
 #endif
 
 // Local state, not shared between processes in SHM mode
@@ -58,9 +62,9 @@ extern tXcpLocalData gXcpLocalData;
 // An attempt to create a calibration segment or block with XCP not initialized (XcpInit not called) will fail and assert
 
 // Global state checks
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // different isActivated check
 #define isActivated() (gXcpData != NULL && 0 != (gXcpData->session_status & SS_ACTIVATED))
-#else // OPTION_SHM_MODE
+#else
 #define isActivated() (0 != (gXcpData.session_status & SS_ACTIVATED))
 #endif
 
@@ -126,8 +130,7 @@ static void *XcpCalMemAlloc_(size_t size) {
 // Free the calibration segment list
 void XcpDeinitCalSegList(void) {
 
-#ifdef OPTION_SHM_MODE
-    // In SHM mode, clear pending state if this applications calibration segments
+#ifdef OPTION_SHM_MODE // not implemented clear pending state
     // @@@@ TODO
 #endif
 
@@ -172,7 +175,7 @@ tXcpCalSegIndex XcpFindCalSeg(const char *name) {
     for (tXcpCalSegIndex i = 0; i < n; i++) {
         const tXcpCalSeg *calseg = CalSegPtr(i);
         assert(calseg != NULL);
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // XcpFindCalSeg only among entries owned by this application process
 // In SHM mode, match only entries owned by this application process — different apps may use the same name
 #ifdef XCP_ENABLE_EPK_CALSEG
         // Not for index 0, which is reserved for the EPK segment
@@ -184,7 +187,7 @@ tXcpCalSegIndex XcpFindCalSeg(const char *name) {
 #endif
         if (strcmp(calseg->h.name, name) == 0)
             return i;
-#else // OPTION_SHM_MODE
+#else
         if (strcmp(calseg->h.name, name) == 0)
             return i;
 #endif
@@ -262,11 +265,6 @@ uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg_index) {
     // Memory segments are addressed in relative mode
     return XcpAddrEncodeSegIndex(calseg_index, 0);
 #else
-// Memory segments are addressed in absolute mode, not possible in shared memory mode
-// In SHM mode, absolute addressing mode on extension 0 is not supported
-#ifdef OPTION_SHM_MODE
-#error "Absolute addressing mode for segments is not supported"
-#endif // OPTION_SHM_MODE
 #if defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS != 0x00
 #error "XCP_ADDR_EXT_ABS must be 0x00"
 #endif
@@ -295,6 +293,9 @@ tXcpCalSegIndex XcpCreateCalSegPreloaded(const char *name, uint8_t app_id, uint1
     seg->h.mode = PAG_PROPERTY_PRELOAD;
     seg->h.file_pos = file_pos; // Save the position of the segment page data in the file
     seg->h.app_id = app_id;     // Save the application ID
+#else
+    (void)file;     // Unused parameter
+    (void)file_pos; // Unused parameter
 #endif
 
     return seg_index;
@@ -379,7 +380,7 @@ static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, bool lookup, const voi
         // Allocate memory for the new segment from the embedded pool using the thread-safe bump allocator
         // Header + DEFAULT page + ECU page + XCP page + RCU swap page
         calseg = (tXcpCalSeg *)XcpCalMemAlloc_(sizeof(tXcpCalSegHeader) + 4 * aligned_page_size);
-        DBG_PRINTF3("Create CalSeg '%s' size=%u, calseg_number=%u\n", name, page_size, memory_segment);
+        DBG_PRINTF3("Create CalSeg '%s' size=%u, memory_segment=%u\n", name, page_size, memory_segment);
         if (!XcpInitCalSeg_(calseg, name, default_page, default_page_file, page_size, memory_segment)) {
             return XCP_UNDEFINED_CALSEG;
         }
@@ -433,7 +434,7 @@ static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, bool lookup, const voi
     return calseg_index;
 }
 
-// Helper function to initialize a new or preloaded calibration segment
+// Helper function to initialize a new calibration segment
 // Thread-safe
 // Note that preloaded calibration segments have an already existing initialized default page content from loading the persistence file
 // This is indicated by default_page = NULL
@@ -441,7 +442,6 @@ static bool XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
 
     tXcpCalSeg *c = calseg; // Alias
     assert(c != NULL);
-    assert((c->h.mode & PAG_PROPERTY_PRELOAD) == 0);
 
     // Align page size to 8 bytes for better performance
     uint16_t aligned_page_size = (page_size + XCP_CALPAGE_ALIGNMENT - 1) & ~(XCP_CALPAGE_ALIGNMENT - 1);
@@ -450,7 +450,7 @@ static bool XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
     c->h.name[XCP_MAX_CALSEG_NAME] = 0;
     c->h.size = page_size;
     // In SHM mode, assign the app_id to the segment
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // store application id in tXcpCalSeg
     c->h.app_id = XcpShmGetAppId();
 #endif
 

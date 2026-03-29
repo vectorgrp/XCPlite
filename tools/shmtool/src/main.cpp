@@ -264,7 +264,7 @@ static int cmd_finalize(uint32_t timeout_ms) {
     return all_done ? 0 : 2; // exit code 2 = partial timeout
 }
 
-#endif // OPTION_SHM_MODE
+#endif // SHM_MODE
 
 // ---------------------------------------------------------------------------
 // clean command

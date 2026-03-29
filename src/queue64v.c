@@ -256,7 +256,7 @@ tQueueHandle queueInitFromMemory(void *queue_memory, size_t queue_memory_size, b
     }
 
     DBG_PRINT3("Init transport layer lockless queue (queue64v)\n");
-    DBG_PRINTF3("  alignment=%u, data buffer size=%u, max %u bytes entry payload, overall %uKiB used\n", //
+    DBG_PRINTF3("  alignment=%u, data buffer size=%u, max payload %u bytes, overall %uKiB used\n", //
                 QUEUE_PAYLOAD_SIZE_ALIGNMENT, queue->h.queue_size, QUEUE_MAX_ENTRY_SIZE - QUEUE_ENTRY_USER_HEADER_SIZE,
                 (uint32_t)((queue->h.queue_size + sizeof(tQueueHeader)) / 1024));
 

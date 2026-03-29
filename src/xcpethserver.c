@@ -18,20 +18,15 @@
 #include <stdbool.h>  // for bool
 #include <stdint.h>   // for uintxx_t
 #include <stdio.h>    // for printf
+#include <unistd.h>   // for getpid()
 
-#include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
-#include "platform.h"  // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
-#include "queue.h"
+#include "a2l.h"        // for A2lFinalize()
+#include "dbg_print.h"  // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
+#include "platform.h"   // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
+#include "queue.h"      // for tQueueHandle, queueInitFromMemory, ...
 #include "xcp.h"        // for CRC_XXX
 #include "xcplib_cfg.h" // for OPTION_xxx
 #include "xcplite.h"    // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
-
-#ifdef OPTION_SHM_MODE
-#ifdef OPTION_ENABLE_A2L_GENERATOR
-#include "a2l.h" // for A2lFinalize() called from the follower background thread
-#endif
-#include <unistd.h> // for getpid()
-#endif              // OPTION_SHM_MODE
 
 #if !defined(_WIN) && !defined(_LINUX) && !defined(_MACOS) && !defined(_QNX)
 #error "Please define platform _WIN, _MACOS or _LINUX or _QNX"
@@ -58,7 +53,7 @@ static void *XcpServerTransmitThread(void *par);
 
 //-------------------------------------------------------------------------------------------------------
 
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // SHM mode thread
 
 #if defined(_WIN) // Windows
 static DWORD WINAPI ShmThread_(LPVOID lpParameter);
@@ -76,7 +71,7 @@ typedef struct {
 } tShmQueueHeader;
 static_assert(sizeof(tShmQueueHeader) == 64, "tShmQueueHeader must be 64 bytes");
 
-#endif // OPTION_SHM_MODE
+#endif // SHM_MODE
 
 //-------------------------------------------------------------------------------------------------------
 
@@ -93,19 +88,21 @@ static struct {
     // Queue
     tQueueHandle transmit_queue;
 
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // transmit queue state in shared memory mode
+
     void *shm_queue_ptr;         // mmap base of the /xcpqueue region, NULL when SHM mode not activated
     size_t shm_queue_total_size; // total mmap size: sizeof(tShmQueueHeader) + queue_size
     THREAD shm_thread_handle;    // Background thread for non server processes
     volatile bool shm_thread_running;
-#endif // OPTION_SHM_MODE
+
+#endif
 
 } gXcpServer;
 
 //-------------------------------------------------------------------------------------------------------
 // SHM server
 
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // SHM server functions
 
 // Initialize shared memory queue and start the background thread for non-server processes in SHM mode
 static bool ShmServerInit_(uint32_t queue_size) {
@@ -147,7 +144,7 @@ static bool ShmServerInit_(uint32_t queue_size) {
     DBG_PRINTF3(ANSI_COLOR_BLUE "Queue init (clear=%u, queue_size=%u)\n" ANSI_COLOR_RESET, queue_leader, queue_size);
 
     // Start the background thread for non-server processes
-    if (!XcpShmIsServer()) {
+    if (!XcpShmIsXcpServer()) {
         create_thread(&gXcpServer.shm_thread_handle, ShmThread_);
         DBG_PRINT(ANSI_COLOR_BLUE "SHM mode initialized without XCP on ethernet server, create SHM thread\n" ANSI_COLOR_RESET);
     }
@@ -251,7 +248,7 @@ bool XcpShmServerShutdown(void) { return XcpEthServerShutdown(); }
 // XCP on SHM server status
 bool XcpShmServerStatus(void) { return gXcpServer.is_init && gXcpServer.shm_thread_running; }
 
-#endif // OPTION_SHM_MODE
+#endif // SHM_MODE
 
 //-------------------------------------------------------------------------------------------------------
 // Public function XCP on Ethernet server
@@ -261,11 +258,11 @@ bool XcpEthServerStatus(void) {
     if (!XcpIsActivated())
         return true;
 
-#ifdef OPTION_SHM_MODE
-    if (XcpShmIsActive() && !XcpShmIsServer()) {
+#ifdef OPTION_SHM_MODE // SHM server get status
+    if (!XcpShmIsXcpServer()) {
         return XcpShmServerStatus();
     }
-#endif // OPTION_SHM_MODE
+#endif
 
     return gXcpServer.is_init && gXcpServer.transmit_thread_running && gXcpServer.receive_thread_running;
 }
@@ -289,27 +286,23 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
     gXcpServer.receive_thread_running = false;
     gXcpServer.transmit_queue = NULL;
 
-#ifdef OPTION_SHM_MODE
-    // In SHM mode, init SHM and create the transmit queue in shared memory
-    if (XcpShmIsActive()) {
-        if (!ShmServerInit_(queue_size)) {
-            return false;
-        }
-    } else
-#endif // OPTION_SHM_MODE else
-
-    // Create the transmit queue on heap
-    {
-        assert(queue_size > 0);
-        gXcpServer.transmit_queue = queueInit(queue_size);
-        if (gXcpServer.transmit_queue == NULL)
-            return false;
+#ifdef OPTION_SHM_MODE // call SHM server init
+    // Init SHM and create the transmit queue in shared memory
+    if (!ShmServerInit_(queue_size)) {
+        return false;
     }
+#else
+    // Create the transmit queue on heap
+    assert(queue_size > 0);
+    gXcpServer.transmit_queue = queueInit(queue_size);
+    if (gXcpServer.transmit_queue == NULL)
+        return false;
+#endif
 
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // XCP server initialisation
     // In SHM mode, start the XCP on ethernet server only in the SHM server
-    if (XcpShmIsServer())
-#endif // OPTION_SHM_MODE else
+    if (XcpShmIsXcpServer())
+#endif // SHM_MODE else
 
     // Start the XCP on ethernet server with the created transmit queue
     {
@@ -361,14 +354,13 @@ bool XcpEthServerShutdown(void) {
     // In SHM mode deregister application
     XcpDeinit();
 
-#ifdef OPTION_SHM_MODE
-    if (XcpShmIsActive() && !XcpShmIsServer()) {
-        // In SHM mode
-        // Not SHM server: stop the shm background thread, then clean up, unmap but do not unlink the queue
+#ifdef OPTION_SHM_MODE // SHM server shutdown
+    if (!XcpShmIsXcpServer()) {
+        // Not XCP server: stop the shm background thread, then clean up, unmap but do not unlink the queue
         ShmServerShutdown_();
         return true;
     }
-#endif // OPTION_SHM_MODE
+#endif // SHM_MODE
 
     DBG_PRINT3("Terminate server threads\n");
 #ifdef OPTION_SERVER_FORCEFULL_TERMINATION
@@ -392,24 +384,18 @@ bool XcpEthServerShutdown(void) {
 
     gXcpServer.is_init = false;
 
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // SHM queue deinit
     // In SHM mode, if the server goes down, unmap and unlink the queue
     // No new application can attach to the existing SHM queue anymore, because the server is down,
     // Still exiting applications will detect queue overflow and take appropriate action
-    if (XcpShmIsActive()) {
-
-        // Unmap and unlink the queue
-        DBG_PRINT3(ANSI_COLOR_BLUE "Unlink '/xcpqueue'\n" ANSI_COLOR_RESET);
-        assert(gXcpServer.shm_queue_ptr != NULL);
-        platformShmClose("/xcpqueue", gXcpServer.shm_queue_ptr, gXcpServer.shm_queue_total_size, true /* unlink */);
-        gXcpServer.shm_queue_ptr = NULL;
-
-    } else
-#endif // OPTION_SHM_MODE
-    {
-        // Free the transmit queue, if it was created on heap
-        queueDeinit(gXcpServer.transmit_queue);
-    }
+    DBG_PRINT3(ANSI_COLOR_BLUE "Unlink '/xcpqueue'\n" ANSI_COLOR_RESET);
+    assert(gXcpServer.shm_queue_ptr != NULL);
+    platformShmClose("/xcpqueue", gXcpServer.shm_queue_ptr, gXcpServer.shm_queue_total_size, true /* unlink */);
+    gXcpServer.shm_queue_ptr = NULL;
+#else
+    // Free the transmit queue, if it was created on heap
+    queueDeinit(gXcpServer.transmit_queue);
+#endif
 
     return true;
 }
@@ -449,7 +435,7 @@ extern void *XcpServerReceiveThread(void *par)
         // Handle background tasks, e.g. pending calibration updates
         XcpBackgroundTasks();
 
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // increment alive counter
         // In SHM mode, prove this application is still alive
         XcpShmIncrementAliveCounter();
 #endif
@@ -459,7 +445,7 @@ extern void *XcpServerReceiveThread(void *par)
         if (now - last_time >= 1000000000ULL) {
             last_time = now;
 
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // check alive counters of all applications
             // In SHM mode, Server checks alive counters of all applications and prints debug info
             XcpShmCheckAliveCounters();
 #endif

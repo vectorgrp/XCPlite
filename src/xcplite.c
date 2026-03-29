@@ -171,9 +171,9 @@ const uint16_t XCPLITE__CASDD = XCP_DRIVER_VERSION;
 /****************************************************************************/
 
 // XCP singleton state
-#ifdef OPTION_SHM_MODE
-tXcpData *gXcpData = NULL; // Shared state in SHM mode
-#else                      // OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // define gXcpData as a pointer
+tXcpData *gXcpData = NULL;
+#else
 tXcpData gXcpData = {0};
 #endif
 tXcpLocalData gXcpLocalData = {0}; // XCP_MODE_DEACTIVATE by default
@@ -182,7 +182,7 @@ tXcpLocalData gXcpLocalData = {0}; // XCP_MODE_DEACTIVATE by default
 // Test the thread safety concept
 // - Assert mutable access to the XCP singleton is either safe or allowed to the owner thread
 // - Assert read access by other threads is only allowed during DAQ running
-#if defined(OPTION_SHM_MODE) && defined(TEST_MUTABLE_ACCESS_OWNERSHIP)
+#ifdef TEST_MUTABLE_ACCESS_OWNERSHIP
 
 #include <pthread.h>
 
@@ -208,7 +208,7 @@ static inline tXcpData *XcpMut_(const char *file, int line) {
 #define local (*(const tXcpLocalData *)&gXcpLocalData) // Read-only access to process-local state
 #define local_mut gXcpLocalData                        // Mutable access to process-local state
 
-#elif defined(OPTION_SHM_MODE)
+#elif defined(OPTION_SHM_MODE) // aliases for gXcpData which is a pointer to the shared memory in SHM mode
 
 #define shared (*(const tXcpData *)gXcpData) // Shortcut for read only access to the XCP singleton data
 #define shared_mut (*gXcpData)               // Shortcut for mutable access to the XCP singleton data
@@ -226,13 +226,13 @@ static inline tXcpData *XcpMut_(const char *file, int line) {
 #define local_mut gXcpLocalData                        // Mutable access to process-local state
 
 // Global state checks
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // gXcpData is a pointer to the shared state in SHM mode
 #define isActivated() (gXcpData != NULL && 0 != (gXcpData->session_status & SS_ACTIVATED))
 #define isStarted() (gXcpData != NULL && 0 != (gXcpData->session_status & SS_STARTED))
 #define isConnected() (gXcpData != NULL && 0 != (gXcpData->session_status & SS_CONNECTED))
 #define isLegacyMode() (gXcpData != NULL && 0 != (gXcpData->session_status & SS_LEGACY_MODE))
 #define isDaqRunning() (gXcpData != NULL && atomic_load_explicit(&gXcpData->daq_running, memory_order_relaxed))
-#else // OPTION_SHM_MODE
+#else
 #define isActivated() (0 != (gXcpData.session_status & SS_ACTIVATED))
 #define isStarted() (0 != (gXcpData.session_status & SS_STARTED))
 #define isConnected() (0 != (gXcpData.session_status & SS_CONNECTED))
@@ -470,14 +470,11 @@ const char *XcpGetEpk(void) {
 // Get the EPK from the static buffer in the local state
 // Only in SHM mode there is a difference to XcpGetEpk(), the ECU EPK is for the complete multi application system, while XcpGetEpk() is for the application
 const char *XcpGetEcuEpk(void) {
-
-#ifdef OPTION_SHM_MODE
-    // In SHM mode, the ECU EPK is for the complete multi application system
-    if (XcpShmIsActive()) {
-        return XcpShmGetEcuEpk();
-    }
-#endif // OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // get ecu epk which is a hash for all applications
+    return XcpShmGetEcuEpk();
+#else // ecu epk is the same as application epk
     return XcpGetEpk();
+#endif
 }
 
 /****************************************************************************/
@@ -650,7 +647,7 @@ uint8_t XcpSetMta(uint8_t ext, uint32_t addr) {
     // Absolute addressing mode
     if (XcpAddrIsAbs(local.mta_ext)) {
 
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // decode app_id from address extension and check it matches the current process application id
         // In SHM mode, check application id matches the address extension
         uint8_t app_id = XcpAddrExtDecodeAppId(ext);
         if (app_id != XcpShmGetAppId()) {
@@ -658,7 +655,7 @@ uint8_t XcpSetMta(uint8_t ext, uint32_t addr) {
                              XcpShmGetAppId());
             return CRC_ACCESS_DENIED; // Error invalid application id
         }
-#endif // OPTION_SHM_MODE
+#endif // SHM_MODE
 
         local_mut.mta_ptr = (uint8_t *)ApplXcpGetBaseAddr() + XcpAddrDecodeAbsOffset(local.mta_addr);
         local_mut.mta_ext = XCP_ADDR_EXT_PTR;
@@ -777,13 +774,13 @@ const tXcpEvent *XcpGetEvent(tXcpEventId event) {
 uint16_t XcpGetEventCount(void) { return getEventCount(); }
 
 // Get the events application id
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // get event application id
 uint8_t XcpGetEventAppId(tXcpEventId event) {
     if (!isActivated() || event >= getEventCount())
         return 0;
     return shared.event_list.event[event].app_id;
 }
-#endif // OPTION_SHM_MODE
+#endif // SHM_MODE
 
 // Get the full event name, including instance index postfix if applicable
 // Result has lifetime until next call of XcpGetEventName()
@@ -816,10 +813,9 @@ static tXcpEventId XcpFindEventInstances(const char *name, uint16_t *pcount) {
         // @@@@ Iterate event list
         uint16_t count = getEventCount();
         for (uint16_t i = 0; i < count; i++) {
-            // In SHM mode, match only entries owned by this process — different apps have different namespace
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // find only events owned by this application process
             if (shared.event_list.event[i].app_id == XcpShmGetAppId() && strcmp(shared.event_list.event[i].name, name) == 0) {
-#else // OPTION_SHM_MODE
+#else
             if (strcmp(shared.event_list.event[i].name, name) == 0) {
 #endif
                 if (pcount != NULL)
@@ -876,9 +872,9 @@ tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cyc
     shared_mut_safe.event_list.event[e].daq_first = XCP_UNDEFINED_DAQ_LIST;
     shared_mut_safe.event_list.event[e].cycle_time_ns = cycle_time_ns;
     // In SHM mode, assign event to the application, different apps have different namespace
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // store event application id in event
     shared_mut_safe.event_list.event[e].app_id = XcpShmGetAppId();
-#endif // OPTION_SHM_MODE
+#endif // SHM_MODE
 
     setEventCount(e + 1); // Publish new event, this is not thread safe, must be called with locked mutex, but it garantees atomic visibility of the new event
 
@@ -1168,14 +1164,14 @@ static uint8_t XcpAddOdtEntry(uint32_t addr, uint8_t ext, uint8_t size) {
             // ABS addressing mode, base pointer is ApplXcpGetAbsAddrBase
             if (XcpAddrIsAbs(ext)) {
                 base_offset = XcpAddrDecodeAbsOffset(addr);
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // add ODT entry with absolute addressing mode
 // Remove the application id from ext
 // In SHM mode, absolute base address is always at index 1 in the bases array in each application
 #ifndef XCP_ADDRESS_MODE_XCPLITE__CXSDD
 #error "SHM mode requires XCP_ADDRESS_MODE_XCPLITE__CXSDD"
 #endif
                 ext = 1;
-#endif // OPTION_SHM_MODE
+#endif // SHM_MODE
             } else
 #endif
                 return CRC_ACCESS_DENIED;
@@ -1810,11 +1806,11 @@ void XcpDisconnect(void) {
         return;
 
     // In SHM mode, only the server can disconnect
-#ifdef OPTION_SHM_MODE
-    if (!XcpShmIsServer()) {
+#ifdef OPTION_SHM_MODE // XcpDisconnect in an application which is not the XCP server
+    if (!XcpShmIsXcpServer()) {
         return;
     }
-#endif // OPTION_SHM_MODE
+#endif // SHM_MODE
 
     if (isConnected()) {
 
@@ -2920,17 +2916,18 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     DBG_PRINTF3(ANSI_COLOR_GREEN "XcpInit name=%s, epk=%s, mode=%02X\n" ANSI_COLOR_RESET, name, epk, mode);
     DBG_PRINTF5("  sizeof(tXcpData)=%zu  sizeof(tXcpLocalData)=%zu\n", sizeof(tXcpData), sizeof(tXcpLocalData));
 
-#ifdef OPTION_SHM_MODE
-    // Adjust mode flags for SHM mode, if enabled, to ensure consistency of dependent flags
-    if ((mode & (XCP_MODE_SHM_AUTO | XCP_MODE_SHM_SERVER)) != 0)
-        mode |= XCP_MODE_SHM; // Be sure XCP_MODE_SHM has been set
-    if ((mode & (XCP_MODE_SHM)) != 0)
+    if (mode != XCP_MODE_DEACTIVATE) {
+#ifdef OPTION_SHM_MODE // XcpInit adjust XCP mode
+        // Adjust mode flags for SHM mode, if enabled, to ensure consistency of dependent flags
+        mode |= XCP_MODE_SHM;         // SHM mode must be active, no fallback to normal XCP mode possible
         mode |= XCP_MODE_PERSISTENCE; // Be sure XCP_MODE_PERSISTENCE has been set
-
 #ifdef TEST_MUTABLE_ACCESS_OWNERSHIP
-    XcpBindOwnerThread();
+        XcpBindOwnerThread();
 #endif
+#else
+        mode |= XCP_MODE_LOCAL;
 #endif
+    }
 
     // Clear local XCP state
     memset((uint8_t *)&gXcpLocalData, 0, sizeof(tXcpLocalData));
@@ -2959,86 +2956,85 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     }
     XcpSetEpk(epk);
 
-    if (mode == XCP_MODE_DEACTIVATE) {
-        return true; // Do not activate XCP protocol layer, state is safe now
+    // Now, after minimum initialization deactivate
+    if ((mode & (XCP_MODE_LOCAL | XCP_MODE_SHM)) == 0) {
+        goto error_deactivate;
     }
 
-#ifdef OPTION_SHM_MODE
-    // SHM mode activated
-    if ((mode & XCP_MODE_SHM) != 0) {
-        // In SHM mode, attach to shared memory, or create it if not existing (leader)
-        gXcpData = XcpShmAttachOrCreate(&local_mut.shm_leader);
-        if (gXcpData == NULL) {
-            DBG_PRINT_ERROR("XcpInit: Failed to attach to shared memory\n");
-            goto error_deactivate; // SHM problem, deactivate XCP
+#ifdef OPTION_SHM_MODE // XcpInit mode checks
+    if ((mode & XCP_MODE_LOCAL) != 0) {
+        DBG_PRINT_ERROR("XcpInit: xcplib is in SHM mode, XCP_MODE_LOCAL not possible\n");
+        assert(0);
+        goto error_deactivate;
+    }
+#else
+    if ((mode & (XCP_MODE_SHM | XCP_MODE_SHM_AUTO | XCP_MODE_SHM_SERVER)) != 0) {
+        DBG_PRINT_ERROR("XcpInit: SHM mode requested, but xcplib is not in SHM mode\n");
+        assert(0);
+        goto error_deactivate;
+    }
+#endif
+
+#ifdef OPTION_SHM_MODE // XcpInit init SHM mode
+    // In SHM mode, attach to shared memory, or create it if not existing (leader)
+    gXcpData = XcpShmAttachOrCreate(&local_mut.shm_leader);
+    if (gXcpData == NULL) {
+        DBG_PRINT_ERROR("XcpInit: Failed to attach to shared memory\n");
+        goto error_deactivate; // SHM problem, deactivate XCP
+    }
+
+    // Shared memory already exists, register application and done
+    if (!local_mut.shm_leader) {
+
+        DBG_PRINT3(ANSI_COLOR_BLUE "Attached to '/xcpdata'\n" ANSI_COLOR_RESET);
+
+        uint8_t server_id = XcpShmGetServer();
+        // Server mode requested
+        if ((mode & XCP_MODE_SHM_SERVER) != 0) { // Become server, if requested by mode flags
+            // Error, if there already is a server
+            if (server_id != SHM_INVALID_APP_ID) {
+                DBG_PRINTF_ERROR("XcpInit: Server mode requested, but a server with app_id=%u already exists\n", server_id);
+                goto error_deactivate;
+            }
+            local_mut.shm_server = true;
+            DBG_PRINT3(ANSI_COLOR_YELLOW "Server mode requested, there already is a leader\n" ANSI_COLOR_RESET);
         }
-
-        // Shared memory already exists, register application and done
-        if (!local_mut.shm_leader) {
-
-            DBG_PRINT3(ANSI_COLOR_BLUE "Attached to '/xcpdata'\n" ANSI_COLOR_RESET);
-
-            uint8_t server_id = XcpShmGetServer();
-            // Server mode requested
-            if ((mode & XCP_MODE_SHM_SERVER) != 0) { // Become server, if requested by mode flags
-                // Error, if there already is a server
-                if (server_id != SHM_INVALID_APP_ID) {
-                    DBG_PRINTF_ERROR("XcpInit: Server mode requested, but a server with app_id=%u already exists\n", server_id);
-                    goto error_deactivate;
-                }
+        // Auto server mode, become server if there is none
+        else if ((mode & XCP_MODE_SHM_AUTO) != 0) {
+            if (server_id == SHM_INVALID_APP_ID) { // No server yet, become server
+                DBG_PRINT3("Server mode activated (auto), there already is a leader, but but no server yet\n");
                 local_mut.shm_server = true;
-                DBG_PRINT3(ANSI_COLOR_YELLOW "Server mode requested, there already is a leader\n" ANSI_COLOR_RESET);
-            }
-            // Auto server mode, become server if there is none
-            else if ((mode & XCP_MODE_SHM_AUTO) != 0) {
-                if (server_id == SHM_INVALID_APP_ID) { // No server yet, become server
-                    DBG_PRINT3("Server mode activated (auto), there already is a leader, but but no server yet\n");
-                    local_mut.shm_server = true;
-                } else {
-                    local_mut.shm_server = false;
-                }
-            }
-            // Never be the server
-            else {
-                if (server_id != SHM_INVALID_APP_ID) {
-                    DBG_PRINT3(ANSI_COLOR_YELLOW "Application attached, no server yet\n" ANSI_COLOR_RESET);
-                }
+            } else {
                 local_mut.shm_server = false;
             }
-            // Register
-            int16_t app_id = XcpShmRegisterApp(name, epk, (uint32_t)getpid(), mode, local.shm_leader, local.shm_server);
-            if (app_id < 0) {
-                DBG_PRINT_ERROR("XcpInit: Failed to register application\n");
-                goto error_deactivate; // SHM application registration problem, deactivate XCP
+        }
+        // Never be the server
+        else {
+            if (server_id != SHM_INVALID_APP_ID) {
+                DBG_PRINT3(ANSI_COLOR_YELLOW "Application attached, no server yet\n" ANSI_COLOR_RESET);
             }
-            local_mut.shm_app_id = (uint8_t)app_id;
-
-            // Early return for non SHM leaders here
-            return true;
-        } else {
-            DBG_PRINT3(ANSI_COLOR_BLUE "Created '/xcpdata', initializing as leader\n" ANSI_COLOR_RESET);
+            local_mut.shm_server = false;
         }
-
-    }
-
-    // SHM mode not activated
-    else {
-        // Allocate tXcpData on heap
-        DBG_PRINT_WARNING("XcpInit: libxcplite compiled in SHM mode, but disabled - using heap memory for XCP data, no inter-process communication possible\n");
-        gXcpData = (tXcpData *)malloc(sizeof(tXcpData));
-        if (gXcpData == NULL) {
-            DBG_PRINT_ERROR("XcpInit: failed to allocate memory for XCP data\n");
-            goto error_deactivate; // Memory allocation problem, deactivate XCP
+        // Register
+        int16_t app_id = XcpShmRegisterApp(name, epk, (uint32_t)getpid(), mode, local.shm_leader, local.shm_server);
+        if (app_id < 0) {
+            DBG_PRINT_ERROR("XcpInit: Failed to register application\n");
+            goto error_deactivate; // SHM application registration problem, deactivate XCP
         }
-        memset((uint8_t *)gXcpData, 0, sizeof(tXcpData));
+        local_mut.shm_app_id = (uint8_t)app_id;
+
+        // Early return for non SHM leaders here
+        return true;
+    } else {
+        DBG_PRINT3(ANSI_COLOR_BLUE "Created '/xcpdata', initializing as leader\n" ANSI_COLOR_RESET);
     }
-#else // OPTION_SHM_MODE
+#else
     // Using static memory for tXcpData
     // Clear global XCP state
     memset((uint8_t *)&gXcpData, 0, sizeof(tXcpData));
 #endif
 
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // XcpInit init SHM mode specific data and state
 
     // In SHM mode, only the leader reaches this point
     // Initialize shared memory, followers already returned early after attaching and registering
@@ -3060,7 +3056,7 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     // Check, if the leader should also be the server, or if a separate server application will be started later
     local_mut.shm_server = (mode & XCP_MODE_SHM) != 0 && (mode & (XCP_MODE_SHM_SERVER | XCP_MODE_SHM_AUTO)) != 0;
 
-#endif // OPTION_SHM_MODE
+#endif // SHM_MODE
 
     // Reset DAQ list memory
     XcpClearDaq();
@@ -3092,18 +3088,16 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
 #endif
 
 // In SHM mode, the leader registered itself, after loading the binary persistence file
-#ifdef OPTION_SHM_MODE
-    if (XcpShmIsActive()) {
-        assert(mode & XCP_MODE_PERSISTENCE);
-        DBG_PRINTF3("XcpInit: Registering application '%s', epk=%s, mode=%02X\n", name, epk, mode);
-        int16_t app_id = XcpShmRegisterApp(name, epk, (uint32_t)getpid(), mode, local_mut.shm_leader, local_mut.shm_server);
-        if (app_id < 0) {
-            DBG_PRINT_ERROR("XcpInit: failed to register application\n");
-            goto error_deactivate; // SHM application registration problem, deactivate XCP
-        }
-        local_mut.shm_app_id = (uint8_t)app_id;
+#ifdef OPTION_SHM_MODE // XcpInit register application
+    assert(mode & XCP_MODE_PERSISTENCE);
+    DBG_PRINTF3("XcpInit: Registering application '%s', epk=%s, mode=%02X\n", name, epk, mode);
+    int16_t app_id = XcpShmRegisterApp(name, epk, (uint32_t)getpid(), mode, local_mut.shm_leader, local_mut.shm_server);
+    if (app_id < 0) {
+        DBG_PRINT_ERROR("XcpInit: failed to register application\n");
+        goto error_deactivate; // SHM application registration problem, deactivate XCP
     }
-#endif // OPTION_SHM_MODE
+    local_mut.shm_app_id = (uint8_t)app_id;
+#endif // SHM_MODE
 
 #ifdef XCP_ENABLE_CALSEG_LIST
 #ifdef XCP_ENABLE_EPK_CALSEG
@@ -3117,7 +3111,7 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
 #endif
 #endif
 
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // XcpInit print inital SHM state
     if (DBG_LEVEL >= 3) {
         DBG_PRINT3(ANSI_COLOR_GREEN "XCP shared memory initialized by leader\n" ANSI_COLOR_RESET);
         XcpShmDebugPrint();
@@ -3129,11 +3123,11 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
 error_deactivate:
     // Deactivate XCP, to keep the application in a safe state
     // Don't it is the users responsibility to check succes of XcpInit
-    DBG_PRINT_ERROR("XcpInit: Deactivate XCP\n");
+    DBG_PRINT_WARNING("XcpInit: Deactivate XCP\n");
     local_mut.init_mode = XCP_MODE_DEACTIVATE;
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // XcpInit deactivate XCP on error
     gXcpData = NULL;
-#else // OPTION_SHM_MODE
+#else
     gXcpData.session_status = 0;
 #endif
     return false;
@@ -3148,7 +3142,7 @@ void XcpStart(tQueueHandle queue_handle, bool resumeMode) {
     if (!isActivated())
         return;
 
-#if defined(OPTION_SHM_MODE) && defined(TEST_MUTABLE_ACCESS_OWNERSHIP)
+#ifdef TEST_MUTABLE_ACCESS_OWNERSHIP
     XcpBindOwnerThread();
 #endif
 
@@ -3302,7 +3296,7 @@ void XcpDeinit(void) {
         return;
     }
 
-#if defined(OPTION_SHM_MODE) && defined(TEST_MUTABLE_ACCESS_OWNERSHIP)
+#ifdef TEST_MUTABLE_ACCESS_OWNERSHIP
     XcpBindOwnerThread();
 #endif
 
@@ -3311,12 +3305,9 @@ void XcpDeinit(void) {
     XcpDeinitCalSegList();
 #endif
 
-#ifdef OPTION_SHM_MODE
-    // In SHM mode, set the application to offline
-    if (XcpShmIsActive()) {
-        XcpShmShutdownApp(local_mut.shm_app_id);
-    }
-#else // OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // XcpDeinit SHM mode specific deinitialization
+    XcpShmShutdownApp(local_mut.shm_app_id);
+#else
     // Reset shared XCP state to not activated
     shared_mut.session_status = 0;
 #endif

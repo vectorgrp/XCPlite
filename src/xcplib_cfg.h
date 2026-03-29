@@ -66,7 +66,7 @@
 // All user application thread shared XCP state and the transmit queue is placed in an a named shared memory region
 // Multiple processes can participate in the same XCP session, driven by a single XCP server process
 // Requires a POSIX-compliant platform (Linux / macOS / QNX).  Not supported on Windows.
-#define OPTION_SHM_MODE // OPTION_SHM_MODE enabled shared memory mode for multi process server
+// #define OPTION_SHM_MODE // enabled shared memory mode for multi process server
 
 //-------------------------------------------------------------------------------
 // XCP server options
@@ -168,7 +168,7 @@
 // #define TEST_ACQUIRE_LOCK_TIMING // Create a queue acquire time histogram, prints results on queue deinit, significant performance impact, for testing only !!!!!!!!!!
 // #define TEST_ENABLE_DBG_METRICS // Enable debug metrics for XCP events and transport layer packets
 // #define TEST_ENABLE_BUFFERCOUNT_HISTOGRAM // Enable histogram of the used buffer counts in the transport layer vectored io
-// #define TEST_MUTABLE_ACCESS_OWNERSHIP // Enable tracking of mutable access thread ownership
+// #define TEST_MUTABLE_ACCESS_OWNERSHIP // Enable tracking of mutable access thread ownership to detect overseen potential memory safety problems
 #define TEST_ENABLE_DBG_CHECKS // Enable additional sanity checks in the XCP server
 
 #endif // !defined(NDEBUG)

@@ -24,7 +24,7 @@
 extern "C" {
 #endif
 
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // shm.h guard, can be includes in both SHM and non-SHM mode, but the content is only relevant in SHM mode
 
 struct XcpData; // Forward declaration
 typedef struct XcpData tXcpData;
@@ -92,10 +92,9 @@ uint8_t XcpShmGetAppId(void);              // Get this application process's id
 const char *XcpShmGetEcuProjectName(void); // Get the project name of the ECU
 const char *XcpShmGetEcuEpk(void);         // Get the EPK of the ECU, constructed from all registered applications EPKs
 
-bool XcpShmIsActive(void);   // true when this app process is in SHM_MODE
-bool XcpShmIsServer(void);   // true when this app process is the XCP server
-bool XcpShmIsLeader(void);   // true when this app process created the shared memory region
-bool XcpShmIsFollower(void); // true when this app process is a follower attached to a leader
+bool XcpShmIsXcpServer(void); // true when this app process is the XCP server
+bool XcpShmIsLeader(void);    // true when this app process created the shared memory region
+bool XcpShmIsFollower(void);  // true when this app process is a follower attached to a leader
 
 tXcpData *XcpShmAttachOrCreate(bool *out_is_leader); // Attach to an existing shared memory region created by another process or create a new one
 void XcpShmUnlink(void); // Unlink shared memory, so no new processes can join, but keep the existing mapping valid for existing users until they exit and unmap themselves
@@ -127,11 +126,7 @@ void XcpShmCheckAliveCounters(void);    // Called from the XCP server every seco
 
 void XcpShmDebugPrint(void); // Print the status and information in tXcpData, for debugging purposes.
 
-#else // OPTION_SHM_MODE
-
-#define XcpShmGetAppCount() 0
-
-#endif
+#endif // SHM_MODE
 
 #ifdef __cplusplus
 } // extern "C"

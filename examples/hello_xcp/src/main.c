@@ -15,15 +15,36 @@
 //-----------------------------------------------------------------------------------------------------
 // XCP params
 
-#define OPTION_PROJECT_NAME "hello_xcp"                       // Project name, used to build the A2L and BIN file name
-#define OPTION_PROJECT_VERSION "106"                          // EPK version string
-#define OPTION_USE_TCP false                                  // TCP or UDP
-#define OPTION_SERVER_PORT 5555                               // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0}                       // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE (1024 * 32)                         // Size of the measurement queue in bytes, should be large enough to cover at least 10ms of expected traffic
-#define OPTION_XCP_MODE (XCP_MODE_PERSISTENCE | XCP_MODE_SHM) // XCP mode
-#define OPTION_A2L_MODE (A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS) // A2L generation mode
-#define OPTION_LOG_LEVEL 3                                                                          // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_PROJECT_NAME "hello_xcp" // Project name, used to build the A2L and BIN file name
+#define OPTION_PROJECT_VERSION "106"    // EPK version string
+#define OPTION_USE_TCP false            // TCP or UDP
+#define OPTION_SERVER_PORT 5555         // Port
+#define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
+#define OPTION_QUEUE_SIZE (1024 * 32)   // Size of the measurement queue in bytes, should be large enough to cover at least 10ms of expected traffic
+#define OPTION_LOG_LEVEL 5              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+
+// XCP mode:
+// #define OPTION_XCP_MODE (XCP_MODE_PERSISTENCE | XCP_MODE_SHM) // XCP multi application, no server mode
+#define OPTION_XCP_MODE (XCP_MODE_PERSISTENCE | XCP_MODE_LOCAL) // XCP single application server mode
+
+// A2L generation mode:
+// A2L_MODE_WRITE_ONCE:
+//   If the A2l file aready exists, check if software version (EPK) still matches and load calibration values from the binary persistence file (.bin)
+//   If not, create a new A2L file (.a2l) and binary persistence file (.bin) with default calibration values
+// A2L_MODE_WRITE_ALWAYS:
+//   Recreate the A2L file on each application start, calibration values will always be initialized to default
+//   Binary persistence is not supported
+// A2L_MODE_WRITE_TEMPLATE:
+//   Only write an A2L template with all settings, IF_DATA, events and calibration segments, but measurement and calibration objects and typedefs
+// A2L_MODE_FINALIZE_ON_CONNECT:
+//   Finalize the A2L file on XCP connect
+// A2L_MODE_AUTO_GROUPS:
+//   Optionally create A2L groups for calibration segments and events
+#define OPTION_A2L_MODE (A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)
+
+// Test
+// #define OPTION_XCP_MODE (XCP_MODE_PERSISTENCE | XCP_MODE_SHM) // XCP single application server mode
+// #define OPTION_A2L_MODE (A2L_MODE_DEACTIVATE)                 // A2L generation deactivated
 
 // New option in V1.1: Enable variadic all in one macros for simple arithmetic types, see examples below
 #define OPTION_USE_VARIADIC_MACROS
@@ -137,14 +158,6 @@ int main(void) {
     }
 
     // XCP: Enable runtime A2L generation for data declaration as code
-    // In WRITE_ONCE mode:
-    //   If the A2l file aready exists, check if software version (EPK) still matches and load calibration values from the binary persistence file (.bin)
-    //   If not, create a new A2L file (.a2l) and binary persistence file (.bin) with default calibration values
-    // In WRITE_ALWAYS mode:
-    //   Recreate the A2L file on each application start, calibration values will always be initialized to default
-    //   Binary persistence is not supported
-    // Finalize the A2L file on XCP connect
-    // Optionally create A2L groups for calibration segments and events
     if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_A2L_MODE)) {
         return 1;
     }

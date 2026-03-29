@@ -84,6 +84,10 @@ tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint
 /// @return a handle or XCP_UNDEFINED_CALSEG when out of memory or the name already exists.
 tXcpCalSegIndex XcpCreateCalBlk(const char *name, const void *default_page, uint16_t size);
 
+/// Get the number of calibration segments
+/// @return the number of calibration segments
+uint16_t XcpGetCalSegCount(void);
+
 /// Find a calibration segment by name
 /// @param name Name of the calibration segment
 /// @return the Handle of the calibration segment or XCP_UNDEFINED_CALSEG if not found
@@ -93,6 +97,11 @@ tXcpCalSegIndex XcpFindCalSeg(const char *name);
 /// @param index Handle of the calibration segment
 /// @return the name of the calibration segment or NULL if the index is invalid.
 const char *XcpGetCalSegName(tXcpCalSegIndex index);
+
+/// Get the size of the calibration segment
+/// @param calseg Handle of the calibration segment
+/// @return the size of the calibration segment in bytes
+uint16_t XcpGetCalSegSize(tXcpCalSegIndex calseg);
 
 /// Lock a calibration segment.
 /// @param index Calibration segment index.

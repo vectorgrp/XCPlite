@@ -31,8 +31,7 @@
 #include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
 #include "platform.h"  // for atomics
 
-#ifdef OPTION_SHM_MODE
-
+#ifdef OPTION_SHM_MODE // check required options and settings for SHM mode
 #ifndef XCP_ENABLE_DAQ_EVENT_LIST
 #error "XCP_ENABLE_DAQ_EVENT_LIST must be defined for SHM mode"
 #endif
@@ -68,9 +67,8 @@ static bool isActivated_(tXcpData *xcp_data) {
 /**************************************************************************/
 
 // Check operating modes
-bool XcpShmIsActive(void) { return (local.init_mode & XCP_MODE_SHM) != 0; }
 bool XcpShmIsLeader(void) { return (local.init_mode & XCP_MODE_SHM) != 0 && local.shm_leader; }
-bool XcpShmIsServer(void) { return (local.init_mode & XCP_MODE_SHM) != 0 && local.shm_server; }
+bool XcpShmIsXcpServer(void) { return (local.init_mode & XCP_MODE_SHM) != 0 && local.shm_server; }
 bool XcpShmIsFollower(void) { return (local.init_mode & XCP_MODE_SHM) != 0 && !local.shm_leader; }
 
 // Returns this process's application id (the slot index in shm_header.app_list)
@@ -80,10 +78,6 @@ uint8_t XcpShmGetAppId(void) { return local.shm_app_id; }
 // Computes a FNV-1a 64-bit hash over all application EPK strings and returns it as a 16-char hex string.
 // The result is always 16 ASCII hex characters, fits in XCP_ECU_EPK_MAX_LENGTH, and changes whenever any app EPK changes.
 const char *XcpShmGetEcuEpk(void) {
-    assert(XcpShmIsActive());
-    if (!XcpShmIsActive()) {
-        return "";
-    }
     const tShmHeader *hdr = &gXcpData->shm_header;
     assert(hdr != NULL);
     if (hdr == NULL) {
@@ -109,9 +103,6 @@ const char *XcpShmGetEcuEpk(void) {
 // Get current server
 // Return SHM_INVALID_APP_ID if not found or not active in SHM mode
 uint8_t XcpShmGetServer(void) {
-    if (!XcpShmIsActive()) {
-        return SHM_INVALID_APP_ID;
-    }
     const tShmHeader *hdr = &gXcpData->shm_header;
     uint32_t app_count = (uint32_t)atomic_load(&hdr->app_count);
     for (uint32_t i = 0; i < app_count; i++) {
@@ -125,9 +116,6 @@ uint8_t XcpShmGetServer(void) {
 // Get current leader
 // Return SHM_INVALID_APP_ID if not found or not active in SHM mode
 uint8_t XcpShmGetLeader(void) {
-    if (!XcpShmIsActive()) {
-        return SHM_INVALID_APP_ID;
-    }
     const tShmHeader *hdr = &gXcpData->shm_header;
     uint32_t app_count = (uint32_t)atomic_load(&hdr->app_count);
     for (uint32_t i = 0; i < app_count; i++) {
@@ -265,7 +253,6 @@ void XcpShmDebugPrint(void) {
 // Signal all processes to finalize their A2L file immediately
 // From now, no other processes may join the XCP session
 void XcpShmRequestA2lFinalize(void) {
-    assert(XcpShmIsActive());
     assert(isActivated_(gXcpData));
     atomic_store(&gXcpData->shm_header.a2l_finalize_requested, 1U);
     DBG_PRINT5("XcpShmRequestA2lFinalize: Requested A2L finalization for all applications\n");
@@ -273,14 +260,14 @@ void XcpShmRequestA2lFinalize(void) {
 
 // Returns true once the leader has set the A2L finalize request flag.
 bool XcpShmIsA2lFinalizeRequested(void) {
-    if (!XcpShmIsActive() || !isInitialized_(gXcpData))
+    if (!isInitialized_(gXcpData))
         return false;
     return atomic_load(&gXcpData->shm_header.a2l_finalize_requested) != 0;
 }
 
 // Returns true when this app process has finalized its A2L file and set its a2l_finalized flag in the app list
 bool XcpShmIsA2lFinalized(uint8_t app_id) {
-    if (!XcpShmIsActive() || !isInitialized_(gXcpData))
+    if (!isInitialized_(gXcpData))
         return false;
     if (app_id >= SHM_MAX_APP_COUNT) {
         assert(0);
@@ -292,7 +279,6 @@ bool XcpShmIsA2lFinalized(uint8_t app_id) {
 
 // Update any application slot with its A2L filename and mark it as finalized.
 void XcpShmSetA2lFinalized(uint8_t app_id, const char *a2l_name) {
-    assert(XcpShmIsActive());
     assert(isActivated_(gXcpData));
     if (a2l_name == NULL || a2l_name[0] == '\0') {
         assert(0);
@@ -314,7 +300,6 @@ void XcpShmSetA2lFinalized(uint8_t app_id, const char *a2l_name) {
 // Returns the number of entries finalized after waiting, which may be less than the total app count if some apps failed to finalize within the timeout.
 int XcpShmCollectA2lFiles(uint32_t timeout_ms, const char *filenames[], int max_count) {
 
-    assert(XcpShmIsActive());
     assert(isActivated_(gXcpData));
 
     // Wait
@@ -363,16 +348,12 @@ const char *XcpShmGetEcuProjectName(void) { return SHM_PROJECT_NAME; }
 
 // Get the number of registered applications in SHM mode.
 uint8_t XcpShmGetAppCount(void) {
-    if (!XcpShmIsActive())
-        return 0;
     assert(isActivated_(gXcpData));
     return (uint8_t)atomic_load(&gXcpData->shm_header.app_count);
 }
 
 // Get the number of registered and alive applications in SHM mode.
 uint8_t XcpShmGetActiveAppCount(void) {
-    if (!XcpShmIsActive())
-        return 0;
     assert(isActivated_(gXcpData));
     uint8_t count = 0;
     uint32_t app_count = (uint32_t)atomic_load(&gXcpData->shm_header.app_count);
@@ -388,7 +369,6 @@ uint8_t XcpShmGetActiveAppCount(void) {
 // Get the project name of an app slot by its app_id index.
 // Returns NULL if the slot is vacant or out of range.
 const char *XcpShmGetAppProjectName(uint8_t app_id) {
-    assert(XcpShmIsActive());
     assert(isActivated_(gXcpData));
     if (app_id >= SHM_MAX_APP_COUNT)
         return NULL;
@@ -399,9 +379,7 @@ const char *XcpShmGetAppProjectName(uint8_t app_id) {
 // Get the EPK of an app slot by its app_id index.
 // Returns NULL if the slot is vacant or out of range.
 const char *XcpShmGetAppEpk(uint8_t app_id) {
-    assert(XcpShmIsActive());
     assert(isActivated_(gXcpData));
-
     if (app_id >= SHM_MAX_APP_COUNT)
         return NULL;
     const tApp *app = &gXcpData->shm_header.app_list[app_id];
@@ -411,7 +389,6 @@ const char *XcpShmGetAppEpk(uint8_t app_id) {
 // Get the init mode of an app slot by its app_id index.
 // Returns 0 if the slot is vacant or out of range.
 uint8_t XcpShmGetInitMode(uint8_t app_id) {
-    assert(XcpShmIsActive());
     assert(isActivated_(gXcpData));
     if (app_id >= SHM_MAX_APP_COUNT)
         return 0;
@@ -426,7 +403,7 @@ uint8_t XcpShmGetInitMode(uint8_t app_id) {
 // Increment this process's alive_counter so the leader can detect stale followers.
 void XcpShmIncrementAliveCounter(void) {
 
-    if (!XcpShmIsActive() || !isInitialized_(gXcpData))
+    if (!isInitialized_(gXcpData))
         return;
 
     uint8_t slot = XcpShmGetAppId();
@@ -437,7 +414,7 @@ void XcpShmIncrementAliveCounter(void) {
 
 // Reset the alive_counter of all app slots
 static void XcpShmResetAliveCounters_(void) {
-    if (!XcpShmIsActive() || !isInitialized_(gXcpData))
+    if (!isInitialized_(gXcpData))
         return;
     uint32_t app_count = (uint32_t)atomic_load(&gXcpData->shm_header.app_count);
     for (uint32_t i = 0; i < app_count && i < SHM_MAX_APP_COUNT; i++) {
@@ -447,7 +424,7 @@ static void XcpShmResetAliveCounters_(void) {
 
 // Get the alive_counter of an app slot
 uint32_t XcpShmGetAliveCounter(uint8_t app_id) {
-    if (!XcpShmIsActive() || !isInitialized_(gXcpData))
+    if (!isInitialized_(gXcpData))
         return 0;
     if (app_id >= SHM_MAX_APP_COUNT)
         return 0;
@@ -513,7 +490,6 @@ void XcpShmCheckAliveCounters(void) {
 // If a slot with a matching project_name already exists (process restart), it is reused
 int16_t XcpShmRegisterApp(const char *name, const char *epk, uint32_t pid, uint8_t xcp_init_mode, bool is_leader, bool is_server) {
 
-    assert(XcpShmIsActive());
     assert(isInitialized_(gXcpData));
     assert(name != NULL);
     assert(epk != NULL);
@@ -589,8 +565,6 @@ int16_t XcpShmRegisterApp(const char *name, const char *epk, uint32_t pid, uint8
 // Reset an application slot to offline
 void XcpShmShutdownApp(uint8_t app_id) {
 
-    assert(XcpShmIsActive());
-
     if (app_id >= SHM_MAX_APP_COUNT)
         return;
     tApp *app = &gXcpData->shm_header.app_list[app_id];
@@ -614,4 +588,4 @@ void XcpShmShutdownApp(uint8_t app_id) {
     }
 }
 
-#endif // OPTION_SHM_MODE
+#endif // SHM_MODE

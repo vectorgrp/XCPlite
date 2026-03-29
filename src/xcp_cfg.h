@@ -106,11 +106,11 @@ XCPlite relative addressing: XCPLITE__CASDD:
 
 */
 
-// C/C++ XCPlite uses absolute, dynamic and calibration segment relative addressing
-#ifdef OPTION_SHM_MODE
-// In SHM mode, the address extension for absolute addressing depends on the application id
-// @@@@ TODO: Not implemented yet, absolute addressing mode disabled
-// Relative calibration segment addressing mode
+// Addressing schemes
+#ifdef OPTION_SHM_MODE // define addressing scheme for SHM mode
+// In SHM mode
+// Enable segment relative, application callback and absolute addressing mode
+// The address extension for absolute addressing depends on the application id 0x80+app_id
 #define XCP_ADDRESS_MODE_XCPLITE__CXSDD
 #define XCP_ADDRESS_MODE "XCPLITE__CXSDD"
 #define XCP_ENABLE_ABS_ADDRESSING
@@ -187,7 +187,7 @@ XCPlite relative addressing: XCPLITE__CASDD:
 #ifdef XCP_ENABLE_ABS_ADDRESSING
 // Absolute addr format (xcp_get_base_addr() + (addr as uint32_t))
 // Used for global data, address range 4GB from the base address returned by xcp_get_base_addr() or ApplXcpGetBaseAdd   r()
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // define absolute address encoding for SHM mode
 #define XcpAddrIsAbs(addr_ext) ((addr_ext) >= XCP_ADDR_EXT_ABS && (addr_ext) < (XCP_ADDR_EXT_ABS + SHM_MAX_APP_COUNT))
 #define XcpAddrEncodeAbs(p) ApplXcpGetAddr(p) // Calculate absolute address encoding from a pointer, application specific function
 #define XcpAddrDecodeAbsOffset(addr) (uint32_t)(addr)

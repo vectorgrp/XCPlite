@@ -198,9 +198,10 @@ uint32_t ApplXcpGetAddr(const uint8_t *p) {
 // Get the XCP 8 bit address extension for a given pointer
 uint8_t ApplXcpGetAddrExt(const uint8_t *p) {
     (void)p;
-#ifdef OPTION_SHM_MODE
-    return XCP_ADDR_EXT_ABS + XcpShmGetAppId(); // In SHM mode, use application specific address extension for absolute addressing to support multiple applications
-#else                                           // OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // get address extension for absolute addressing in SHM mode
+    // In SHM mode, use application specific address extension for absolute addressing to support multiple applications
+    return XCP_ADDR_EXT_ABS + XcpShmGetAppId();
+#else
     return XCP_ADDR_EXT_ABS;
 #endif
 }

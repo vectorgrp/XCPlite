@@ -30,3 +30,4 @@ test_bintool
 .DS_Store
 /ptptool.obs
 /docs/CPP_TYPE_TRAITS_GUIDE.md
+/docs/SUBMODULE_GUIDE.md

@@ -17,21 +17,15 @@
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uint16_t, uint32_t, uint8_t
 
+#include "cal.h"        // for calibration segment management if enabled
 #include "dbg_print.h"  // for DBG_LEVEL, DBG_PRINTF, DBG_PRINT, ...
 #include "platform.h"   // for atomics
 #include "queue.h"      // for tQueueHandle
+#include "shm.h"        // for shared memory management if enabled
 #include "xcp.h"        // for XCP protocol definitions
 #include "xcp_cfg.h"    // for XCP_PROTOCOL_LAYER_VERSION, XCP_ENABLE_...
 #include "xcplib_cfg.h" // for OPTION_xxx
 #include "xcptl_cfg.h"  // for XCPTL_MAX_CTO_SIZE
-
-#ifdef XCP_ENABLE_CALSEG_LIST
-#include "cal.h" // for tXcpCalSegList
-#endif
-
-#ifdef OPTION_SHM_MODE
-#include "shm.h" // for shared memory management
-#endif           // OPTION_SHM_MODE
 
 #ifdef __cplusplus
 extern "C" {
@@ -152,9 +146,9 @@ typedef struct {
     uint16_t index;         // Event instance index, 0 = single instance, 1.. = multiple instances
     uint16_t daq_first;     // First associated DAQ list, linked list
     uint8_t flags;          // Control flags for the event
-#ifdef OPTION_SHM_MODE
-    uint8_t app_id; // In SHM mode, the event has an application id
-#endif              // OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE      // app_id in tXcpEvent
+    uint8_t app_id;         // In SHM mode, the event has an application id
+#endif
 #ifdef XCP_ENABLE_DAQ_PRESCALER
     uint8_t daq_prescaler;     // Current prescaler set with SET_DAQ_LIST_MODE
     uint8_t daq_prescaler_cnt; // Current prescaler counter
@@ -191,10 +185,10 @@ uint16_t XcpGetEventIndex(tXcpEventId event);
 // Get the event descriptor struct by id, returns NULL if not found
 const tXcpEvent *XcpGetEvent(tXcpEventId event);
 
-#ifdef OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // get event application id
 // In SHM mode, get event application id
 uint8_t XcpGetEventAppId(tXcpEventId event);
-#endif // OPTION_SHM_MODE
+#endif // SHM_MODE
 
 #endif // XCP_ENABLE_DAQ_EVENT_LIST
 
@@ -299,9 +293,9 @@ typedef struct XcpData {
 
     uint16_t session_status; // must be the first field of the struct
 
-#ifdef OPTION_SHM_MODE
-    tShmHeader shm_header; // In SHM mode, tXcpData has a shared memory header
-#endif                     // OPTION_SHM_MODE
+#ifdef OPTION_SHM_MODE // SHM header in XCP data
+    tShmHeader shm_header;
+#endif
 
     tXcpCto crm;     /* response message buffer */
     uint8_t crm_len; /* RES,ERR message length */
@@ -352,12 +346,11 @@ typedef struct XcpLocalData {
     // Initialisation mode (XCP_MODE_DEACTIVATE / XCP_MODE_LOCAL / XCP_MODE_SHM / XCP_MODE_SHM_AUTO / XCP_MODE_SHM_SERVER)
     uint8_t init_mode;
 
-#ifdef OPTION_SHM_MODE
-    // In SHM mode
+#ifdef OPTION_SHM_MODE  // SHM header in tXcpLocalData
     uint8_t shm_app_id; // Index in shm_header.app_list,  SHM_MAX_APP_COUNT = no slot assigned yet
     bool shm_server;    // This process is the XCP server
     bool shm_leader;    // This process created the shared memory segment, responsible for initializing
-#endif                  // OPTION_SHM_MODE
+#endif
 
     // Memory transfer address (virtual pointer, OS handle)
     uint8_t *mta_ptr;   // Memory Transfer Address as pointer (process virtual address)
