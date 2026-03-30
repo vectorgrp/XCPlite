@@ -96,32 +96,46 @@ XCPlite makes intensive use of relative addressing.
 
 The addressing mode is indicated by the address extension:
 
-- **0/1** - Calibration segment (A2L MEMORY_SEGMENT) relative address, high word of the address is the segment index
-- **1/0** - Absolute address (Unsigned 32Bit, relative to main module load address)
-- **2** - Signed 32Bit relative address, default is relative to the stack frame pointer of the function which triggers the event
-- **3..** - Signed 16Bit relative address, high word of the address is the event id. This allows asynchronous (polling) access to the variable. Used for heap and class instance member variables
+```
+Address extensions and addressing modes:
+
+XCPlite absolute addressing: XCPLITE__CASDD (default)
+0x00        - Calibration segment relative addressing mode (XCP_ADDR_EXT_SEG with u16 offset)
+0x01        - Absolute addressing mode (XCP_ADDR_EXT_ABS)
+0x02        - Stackframe relative (Event based relative addressing mode with asynchronous access)
+0x03.       - Pointer relative (Event based relative addressing mode with asynchronous access)
+...
+0x0F
+0xFD        - File upload memory space (XCP_ADDR_EXT_FILE)
+0xFE        - MTA pointer address space (XCP_ADDR_EXT_PTR)
+0xFF        - Undefined address extension (XCP_UNDEFINED_ADDR_EXT)
+
+XCPlite relative addressing: XCPLITE__ACSDD (for use case with external A2L generation)
+0x00        - Absolute addressing mode (XCP_ADDR_EXT_ABS)
+0x01        - Calibration segment relative addressing mode (XCP_ADDR_EXT_SEG)
+... same as above
+
+XCPlite multi application absolute addressing: XCP_ADDRESS_MODE_XCPLITE__CXSDD (for SHM mode)
+0x00        - Absolute addressing mode (XCP_ADDR_EXT_ABS)
+0x01        - Memory access via application callbacks
+... same as above
+0x80 + app_id - Absolute addressing mode for application with id app_id (XCP_ADDR_EXT_ABS + app_id)
+
+```
 
 ### CASDD vs ACSDD
 
-Depending on `#define OPTION_CAL_SEGMENTS_ABS` in `xcplib_cfg.h`, address extension 0 is either the absolute addressing mode or the segment relative addressing mode.
+Depending on `#define OPTION_CAL_SEGMENTS_ABS` in `xcplib_cfg.h`, address extension 0 is either the absolute addressing mode or the segment relative addressing mode.  
+The 2 modes are named **CASDD** and **ACSDD**. The A2L variable `project_no` is used to indicate the addressing mode to A2L creators or updaters.  
+This is important, because CANape does not support address extensions >0 for parameters in calibration segments.  
+Parameters in calibration segments may be accessed by their segment relative address or by their absolute address, using the corresponding address extension.  
 
-The 2 modes are named **CASDD** and **ACSDD**. The A2L `project_no` is used to indicate the addressing mode to A2L creators or updaters.
-
-This is important, because CANape does not support address extensions >0 for parameters in calibration segments.
-
-Parameters in calibration segments may be accessed by their segment relative address or by their absolute address, using the corresponding address extension.
-
-### Calibration Parameter Absolute Addressing
-
-The absolute address of a calibration parameter is an address within the default/reference page structure. This requires that the pointer to the default parameters (reference page) given to `XcpCreateCalSeg` are within the 32 bit addressable with static lifetime! `XcpCreateCalSeg` does not copy the default parameters.
-
-This would be possible when only using segment relative addressing mode, but is currently not implemented.
 
 ## EPK - ECU Software Version
 
-To check compatibility of target ECU, A2L and binary parameter files, the so called EPK is used. It is a software version string specified in the A2L file, with an additional address where it is located in the ECU.
+To check compatibility of target ECU, A2L and binary parameter files, the so called EPK is used. It is a software version string specified in the A2L file MOD_PAR section, with an additional address where it is located in the ECU.  
 
-The EPK does not have an explicit address extension, which means it defaults to 0. However the address extension 0 is defined in XCPlite, as absolute or segment relative mode, the EPK may be accessed by its memory address. In addition, there is a special XCP info command `GET_ID` mode=5 to obtain the EPK from the ECU.
+The EPK does not have an explicit address extension, which means it defaults to 0. However the address extension 0 is defined in XCPlite (as absolute or segment relative), the EPK may be accessed by its memory address. In addition, there is a special XCP info command `GET_ID` mode=5 to obtain the EPK from the ECU.
 
 ### EPK and Binary Parameter Files
 
@@ -209,7 +223,7 @@ The markers make it possible to detect calibration segments, events, capture buf
 Runtime A2L generation can be turned off. Measurement and calibration metadata may be added with the usual methods.  
   
 This is currently in experimental state.  
-The xcp-client tool from the Rust xcp-lite version has support to read this information from an ELF/DWARF file.  
+The xcpclient tool has support to read this information from an ELF/DWARF file.  
 CPP is not supported yet.  
 
 

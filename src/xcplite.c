@@ -579,9 +579,9 @@ static uint8_t XcpReadMta(uint8_t size, uint8_t *data) {
     }
 
 #ifdef XCP_ENABLE_IDT_A2L_UPLOAD
-    // Ext == XCP_ADDR_EXT_A2L - A2L file upload address space
-    if (local.mta_ext == XCP_ADDR_EXT_A2L) {
-        if (!ApplXcpReadA2L(size, local.mta_addr, data))
+    // Ext == XCP_ADDR_EXT_FILE - A2L file upload address space
+    if (local.mta_ext == XCP_ADDR_EXT_FILE) {
+        if (!ApplXcpReadFile(size, local.mta_addr, data))
             return CRC_ACCESS_DENIED; // Access violation
         local_mut.mta_addr += size;
         return 0; // Ok
@@ -2046,10 +2046,15 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
                     CRM_GET_ID_MODE = 0x00; // Transfer mode is "Uncompressed data upload"
                 }
             } break;
-#ifdef XCP_ENABLE_IDT_A2L_UPLOAD // A2L and EPK are always provided via upload
+#if defined(XCP_ENABLE_IDT_A2L_UPLOAD) || defined(XCP_ENABLE_IDT_ELF_UPLOAD) // A2L and EPK are always provided via upload
+#if defined(XCP_ENABLE_IDT_A2L_UPLOAD)
             case IDT_ASAM_UPLOAD:
-                local_mut.mta_addr = XCP_ADDR_A2l;
-                local_mut.mta_ext = XCP_ADDR_EXT_A2L;
+#endif
+#if defined(XCP_ENABLE_IDT_ELF_UPLOAD)
+            case IDT_VECTOR_ELF_UPLOAD:
+#endif
+                local_mut.mta_addr = 0;
+                local_mut.mta_ext = XCP_ADDR_EXT_FILE;
                 CRM_GET_ID_LENGTH = ApplXcpGetId(CRO_GET_ID_TYPE, NULL, 0);
                 CRM_GET_ID_MODE = 0x00; // Transfer mode is "Uncompressed data upload"
                 break;
@@ -3195,6 +3200,9 @@ void XcpStart(tQueueHandle queue_handle, bool resumeMode) {
 #endif
 #ifdef XCP_ENABLE_IDT_A2L_UPLOAD // Enable A2L upload to host
         DBG_PRINT("A2L_UPLOAD,");
+#endif
+#ifdef XCP_ENABLE_IDT_ELF_UPLOAD // Enable ELF upload to host
+        DBG_PRINT("ELF_UPLOAD,");
 #endif
 #ifdef XCP_ENABLE_IDT_A2L_HTTP_GET // Enable A2L upload to hostRust
         DBG_PRINT("A2L_URL,");

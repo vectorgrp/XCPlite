@@ -21,7 +21,7 @@
 #define OPTION_SERVER_PORT 5555         // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
 #define OPTION_QUEUE_SIZE (1024 * 32)   // Size of the measurement queue in bytes, should be large enough to cover at least 10ms of expected traffic
-#define OPTION_LOG_LEVEL 5              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 // XCP mode:
 // #define OPTION_XCP_MODE (XCP_MODE_PERSISTENCE | XCP_MODE_SHM) // XCP multi application, no server mode
@@ -137,9 +137,9 @@ float calc_power(uint8_t t1, uint8_t t2) {
 static volatile bool running = true;
 static void sig_handler(int sig) { running = false; }
 
-int main(void) {
+int main(int argc, char *argv[]) {
 
-    printf("\nXCP on Ethernet hello_xcp C demo\n");
+    printf("\nXCP on Ethernet hello_xcp C demo - %s\n", argv[0]);
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
     uint64_t start_time = clockGetMonotonicNs(); // Get the start time in nanoseconds
@@ -150,6 +150,7 @@ int main(void) {
     // XCP: Initialize the XCP singleton, activate XCP, must be called before starting the server
     // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
     XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION, OPTION_XCP_MODE);
+    XcpSetElfName(argv[0]); // Set ELF file name for upload via GET_ID, optional
 
     // XCP: Initialize the XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;

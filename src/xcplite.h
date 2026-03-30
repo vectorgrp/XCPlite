@@ -487,10 +487,10 @@ uint8_t ApplXcpDaqResumeClear(void);
 /* Returns 0 if not available or buffer size exceeded */
 uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen);
 
-/* Read a chunk (offset,size) of the A2L file for upload */
+/* Read a chunk (offset,size) of a file for upload */
 /* Return false if out of bounds */
-#ifdef XCP_ENABLE_IDT_A2L_UPLOAD // Enable A2L content upload to host (IDT_ASAM_UPLOAD)
-bool ApplXcpReadA2L(uint8_t size, uint32_t offset, uint8_t *data);
+#if defined(XCP_ENABLE_IDT_A2L_UPLOAD) || defined(XCP_ENABLE_IDT_ELF_UPLOAD) // Enable A2L or ELF content upload to host
+bool ApplXcpReadFile(uint8_t size, uint32_t offset, uint8_t *data);
 #endif
 
 // Register XCP callbacks
@@ -507,9 +507,11 @@ void ApplXcpRegisterReadCallback(uint8_t (*cb_read)(uint32_t src, uint8_t size, 
 void ApplXcpRegisterWriteCallback(uint8_t (*cb_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay));
 void ApplXcpRegisterFlushCallback(uint8_t (*cb_flush)(void));
 
-// Set/get the A2L file name (for GET_ID IDT_ASAM_NAME and for IDT_ASAM_UPLOAD)
+// Set/get the ELF and A2L file name (for GET_ID)
 void XcpSetA2lName(const char *name);
 const char *XcpGetA2lName(void);
+void XcpSetElfName(const char *name);
+const char *XcpGetElfName(void);
 
 #ifdef __cplusplus
 } // extern "C"

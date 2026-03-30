@@ -74,7 +74,7 @@ static_assert(sizeof(atomic_uint_least32_t) == 4, "atomic_uint_least32_t must be
 // Test
 
 // Queue acquire lock timing and spin
-// For high contention use test queue_test or example daq_test with xcp_client --upload-a2l --udp --mea .  --dest-addr 192.168.0.206
+// For high contention use test queue_test or example daq_test with xcpclient --upload-a2l --udp --mea .  --dest-addr 192.168.0.206
 // Note that this tests have significant performance impact, do not turn on for production use !!!!!!!!!!!
 
 #ifdef TEST_ACQUIRE_LOCK_TIMING

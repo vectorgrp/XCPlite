@@ -171,11 +171,11 @@ void signal_handler(int signal) {
     }
 }
 
-int main() {
+int main(int argc, char *argv[]) {
 
     std::signal(SIGINT, signal_handler);
     std::signal(SIGTERM, signal_handler);
-    std::cout << "\nXCP on Ethernet hello_xcp_cpp C++ demo\n" << std::endl;
+    std::cout << "\nXCP on Ethernet hello_xcp_cpp C++ demo - " << argv[0] << "\n" << std::endl;
     uint64_t start_time = clockGetMonotonicNs(); // Get the start time in nanoseconds
 
     // Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
@@ -183,6 +183,7 @@ int main() {
 
     // Initialize the XCP singleton and activate XCP
     XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION /* EPK version*/, OPTION_XCP_MODE);
+    XcpSetElfName(argv[0]); // Set ELF file name for upload via GET_ID, optional
 
     // Initialize the XCP Server
     if (!XcpEthServerInit(OPTION_SERVER_ADDR, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_QUEUE_SIZE)) {

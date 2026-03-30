@@ -4,7 +4,7 @@ use std::fs::File;
 use std::io::Read;
 use std::mem;
 
-use crate::Bin2HexError;
+use super::Bin2HexError;
 
 // Compatibility with C code in persistence.h
 // The BIN_VERSION check at runtime is the actual protection against format mismatches.

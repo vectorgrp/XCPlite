@@ -47,6 +47,7 @@
                 "-avz",
                 "--delete",
                 "--exclude=build/",
+                "--exclude=tools/xcpclient/target/",
                 "--exclude=.git/",
                 "--exclude=\"*.o\"",
                 "--exclude=\"*.a\"",

@@ -470,10 +470,11 @@ uint8_t ApplXcpDaqResumeClear(void) {
 #endif
 
 /**************************************************************************/
-// Functions for upload of A2L file
+// Functions for upload of A2L AND ELF file
 /**************************************************************************/
 
 static char gXcpA2lName[XCP_A2L_FILENAME_MAX_LENGTH + 1] = ""; // A2L filename (without extension .a2l)
+static char gXcpElfName[XCP_A2L_FILENAME_MAX_LENGTH + 1] = ""; // ELF filename (NO extension)
 
 // Set the A2L file (filename without extension .a2l) to be provided to the host for upload
 void XcpSetA2lName(const char *name) {
@@ -491,32 +492,38 @@ void XcpSetA2lName(const char *name) {
 // Return the A2L name (without extension)
 const char *XcpGetA2lName(void) { return gXcpA2lName; }
 
-#ifdef XCP_ENABLE_IDT_A2L_UPLOAD // Enable GET_ID A2L content upload to host
+// Set the ELF file (complete path) to be provided to the host for upload
+void XcpSetElfName(const char *name) {
+    assert(name != NULL && strlen(name) < XCP_A2L_FILENAME_MAX_LENGTH);
+    STRNCPY(gXcpElfName, name, XCP_A2L_FILENAME_MAX_LENGTH);
+    DBG_PRINTF4("XcpSetElfName set to '%s'\n", gXcpElfName);
+}
 
-static FILE *gXcpFile = NULL;       // A2l file content
-static uint32_t gXcpFileLength = 0; // A2L file length
+// Return the ELF name (without extension)
+const char *XcpGetElfName(void) { return gXcpElfName; }
 
-static void closeA2lFile(void) {
+#if defined(XCP_ENABLE_IDT_A2L_UPLOAD) || defined(XCP_ENABLE_IDT_ELF_UPLOAD) // Enable GET_ID A2L or ELF content upload to host
+
+static FILE *gXcpFile = NULL;       // file content
+static uint32_t gXcpFileLength = 0; // file length
+
+static void closeFile(void) {
     assert(gXcpFile != NULL);
     fclose(gXcpFile);
     gXcpFile = NULL;
-    DBG_PRINT4("A2L file closed\n");
+    DBG_PRINT4("File closed\n");
 }
 
-static uint32_t openA2lFile(void) {
-    char filename[XCP_A2L_FILENAME_MAX_LENGTH + 5];
-    if (gXcpA2lName[0] == 0) {
-        DBG_PRINT_WARNING("A2L file name not set, cannot upload A2L file!\n");
-        return 0; // A2L file is not set
+static uint32_t openFile(const char *filename) {
+    if (filename == NULL || filename[0] == 0) {
+        DBG_PRINT_WARNING("File name not set, cannot upload file!\n");
+        return 0; // file is not valid
     }
-
-    // Add .a2l extension to the A2L name
-    SNPRINTF((char *)filename, XCP_A2L_FILENAME_MAX_LENGTH + 5, "%s.a2l", gXcpA2lName);
 
     assert(gXcpFile == NULL);
     gXcpFile = fopen(filename, "rb");
     if (gXcpFile == NULL) {
-        DBG_PRINTF_ERROR("A2L file %s not found!\n", filename);
+        DBG_PRINTF_ERROR("File %s not found!\n", filename);
         return 0;
     }
 
@@ -524,27 +531,27 @@ static uint32_t openA2lFile(void) {
     gXcpFileLength = (uint32_t)ftell(gXcpFile);
     fseek(gXcpFile, 0, SEEK_SET);
     assert(gXcpFileLength > 0);
-    DBG_PRINTF4("A2L file %s ready for upload, size=%u\n", filename, gXcpFileLength);
+    DBG_PRINTF4("File %s ready for upload, size=%u\n", filename, gXcpFileLength);
     return gXcpFileLength;
 }
 
-// Called by the protocol layer to read a chunk of the A2L file for upload
-bool ApplXcpReadA2L(uint8_t size, uint32_t addr, uint8_t *data) {
+// Called by the protocol layer to read a chunk of a file for upload
+bool ApplXcpReadFile(uint8_t size, uint32_t addr, uint8_t *data) {
     if (gXcpFile == NULL)
         return false;
     assert(gXcpFile != NULL);
     if (addr + size > gXcpFileLength || size != fread(data, 1, (uint32_t)size, gXcpFile)) {
-        closeA2lFile();
-        DBG_PRINTF_ERROR("ApplXcpReadA2L addr=%u size=%u exceeds file length=%u\n", addr, size, gXcpFileLength);
+        closeFile();
+        DBG_PRINTF_ERROR("ApplXcpReadFile addr=%u size=%u exceeds file length=%u\n", addr, size, gXcpFileLength);
         return false;
     }
     if (addr + size == gXcpFileLength) {
-        closeA2lFile(); // Close file after complete sequential read
+        closeFile(); // Close file after complete sequential read
     }
     return true;
 }
 
-#endif // XCP_ENABLE_IDT_A2L_UPLOAD
+#endif
 
 /**************************************************************************/
 // Provide infos for GET_ID
@@ -566,7 +573,7 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen) {
                 return 0; // Insufficient buffer space
             STRNCPY((char *)buf, project_name, len);
         }
-        DBG_PRINTF3("ApplXcpGetId GET_ID%u project_name=%s\n", id, project_name);
+        DBG_PRINTF3("ApplXcpGetId GET_ID %u project_name=%s\n", id, project_name);
     } break;
 
     case IDT_ASAM_NAME: {
@@ -578,7 +585,7 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen) {
                 return 0; // Insufficient buffer space
             STRNCPY((char *)buf, gXcpA2lName, len);
         }
-        DBG_PRINTF3("ApplXcpGetId GET_ID%u A2L name=%s\n", id, gXcpA2lName);
+        DBG_PRINTF3("ApplXcpGetId GET_ID %u A2L name=%s\n", id, gXcpA2lName);
     } break;
 
     case IDT_ASAM_PATH: {
@@ -590,7 +597,7 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen) {
                 return 0; // Insufficient buffer space
             SNPRINTF((char *)buf, bufLen, "%s.a2l", gXcpA2lName);
         }
-        DBG_PRINTF3("ApplXcpGetId GET_ID%u A2L path=%s\n", id, buf);
+        DBG_PRINTF3("ApplXcpGetId GET_ID %u A2L path=%s\n", id, buf);
     } break;
 
     case IDT_ASAM_EPK: {
@@ -604,7 +611,7 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen) {
             STRNCPY((char *)buf, epk, len);
             DBG_PRINTF3("ApplXcpGetId GET_ID%u EPK=%s\n", id, epk);
         } else {
-            DBG_PRINTF3("ApplXcpGetId GET_ID%u EPK as upload (len=%u,value=%s)\n", id, len, epk);
+            DBG_PRINTF3("ApplXcpGetId GET_ID %u EPK as upload (len=%u,value=%s)\n", id, len, epk);
         }
     } break;
 
@@ -612,8 +619,21 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen) {
     case IDT_ASAM_UPLOAD: {
         if (buf != NULL)
             return 0; // A2L not available as response buffer
-        len = openA2lFile();
-        DBG_PRINTF3("ApplXcpGetId GET_ID%u A2L as upload (len=%u)\n", id, len);
+        // Add .a2l extension to the A2L name
+        char filename[XCP_A2L_FILENAME_MAX_LENGTH + 5];
+        SNPRINTF((char *)filename, XCP_A2L_FILENAME_MAX_LENGTH + 5, "%s.a2l", gXcpA2lName);
+        len = openFile(filename);
+        DBG_PRINTF3("ApplXcpGetId GET_ID %u A2L as upload (len=%u)\n", id, len);
+    } break;
+#endif
+
+#ifdef XCP_ENABLE_IDT_ELF_UPLOAD
+    case IDT_VECTOR_ELF_UPLOAD: {
+        if (buf != NULL)
+            return 0; // ELF not available as response buffer
+        // Assuming gXcpA2lName is the name of the ELF file without extension
+        len = openFile(gXcpElfName);
+        DBG_PRINTF3("ApplXcpGetId GET_ID %02X ELF as upload (len=%u)\n", id, len);
     } break;
 #endif
 

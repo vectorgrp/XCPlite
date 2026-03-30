@@ -100,7 +100,7 @@ void XcpSetLogLevel(uint8_t level);
 // Acquire timing test
 
 // Queue acquire + push timing
-// For high contention use test queue_test or example daq_test with xcp_client --upload-a2l --udp --mea .  --dest-addr 192.168.0.206
+// For high contention use test queue_test or example daq_test with xcpclient --upload-a2l --udp --mea .  --dest-addr 192.168.0.206
 // Note that this tests have significant performance impact, do not turn on for production use !!!!!!!!!!!
 
 #ifdef TEST_ACQUIRE_LOCK_TIMING

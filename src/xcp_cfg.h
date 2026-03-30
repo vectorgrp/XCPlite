@@ -41,7 +41,8 @@
 /* DAQ event management */
 
 // Enable event list
-#ifndef XCPLIB_FOR_RUST // // Set by the Rust build script, not needed for Rust xcp-lite, currently has its own event management
+// @@@@ TODO:  Remove the separate event list
+#ifndef XCPLIB_FOR_RUST // @@@@  Set by the Rust build script, not needed for Rust xcp-lite, currently has its own event management
 #define XCP_ENABLE_DAQ_EVENT_LIST
 #endif
 
@@ -87,22 +88,30 @@
 /* Address, address extension coding */
 
 /*
+
 Address extensions and addressing modes:
 
-XCPlite absolute addressing: XCPLITE__ACSDD (default)
+XCPlite absolute addressing: XCPLITE__CASDD (default)
 0x00        - Calibration segment relative addressing mode (XCP_ADDR_EXT_SEG with u16 offset)
 0x01        - Absolute addressing mode (XCP_ADDR_EXT_ABS)
-0x02        - Stackframe relative (Event based relative addressing mode with asynchronous access and i16 offset)
-0x03...     - Pointer relative (Event based relative addressing mode with asynchronous access and i16 offset)
-0xFD        - A2L upload memory space (XCP_ADDR_EXT_A2L)
+0x02        - Stackframe relative (Event based relative addressing mode with asynchronous access)
+0x03.       - Pointer relative (Event based relative addressing mode with asynchronous access)
+...
+0x0F
+0xFD        - File upload memory space (XCP_ADDR_EXT_FILE)
 0xFE        - MTA pointer address space (XCP_ADDR_EXT_PTR)
 0xFF        - Undefined address extension (XCP_UNDEFINED_ADDR_EXT)
 
-XCPlite relative addressing: XCPLITE__CASDD:
+XCPlite relative addressing: XCPLITE__ACSDD (for use case with external A2L generation)
 0x00        - Absolute addressing mode (XCP_ADDR_EXT_ABS)
 0x01        - Calibration segment relative addressing mode (XCP_ADDR_EXT_SEG)
-...
+... same as above
 
+XCPlite multi application absolute addressing: XCP_ADDRESS_MODE_XCPLITE__CXSDD (for SHM mode)
+0x00        - Absolute addressing mode (XCP_ADDR_EXT_ABS)
+0x01        - Memory access via application callbacks
+... same as above
+0x80 + app_id - Absolute addressing mode for application with id app_id (XCP_ADDR_EXT_ABS + app_id)
 
 */
 
@@ -256,9 +265,8 @@ XCPlite relative addressing: XCPLITE__CASDD:
 // Use addr_ext XCP_ADDR_EXT_EPK to indicate EPK upload memory space
 // A2L specification does not allow to specify the address extension for the EPK address, we use a virtual calibration segment (number 0, address ext 0)
 #define XCP_ADDR_EXT_EPK 0x00 // must be 0
-// Use addr_ext XCP_ADDR_EXT_A2L to indicate A2L upload memory space
-#define XCP_ADDR_EXT_A2L 0xFD
-#define XCP_ADDR_A2l 0x00000000
+// Use addr_ext XCP_ADDR_EXT_FILE to indicate file upload memory space
+#define XCP_ADDR_EXT_FILE 0xFD
 // Use addr_ext XCP_ADDR_EXT_PTR to indicate MtaPtr is valid
 #define XCP_ADDR_EXT_PTR 0xFE
 
@@ -321,6 +329,10 @@ XCPlite relative addressing: XCPLITE__CASDD:
 // Enable GET_ID command support for A2L upload
 #ifdef OPTION_ENABLE_A2L_UPLOAD
 #define XCP_ENABLE_IDT_A2L_UPLOAD
+#endif
+// Enable GET_ID command support for ELF upload
+#ifdef OPTION_ENABLE_ELF_UPLOAD
+#define XCP_ENABLE_IDT_ELF_UPLOAD
 #endif
 
 // Enable user defined command

@@ -34,6 +34,7 @@ This section describes the configuration parameters in xcplib_cfg.h.
 | `OPTION_MTU` | Ethernet packet size (MTU) in bytes. Must be divisible by 8. Jumbo frames are supported (default: 8000) |
 | `OPTION_DAQ_MEM_SIZE` | Memory bytes used for XCP DAQ tables. Each signal needs approximately 5 bytes (default: 32 × 1024 × 5) |
 | `OPTION_ENABLE_A2L_UPLOAD` | Enables A2L file upload through XCP protocol |
+| `OPTION_ENABLE_ELF_UPLOAD` | Enables ELF  file upload through XCP protocol |
 | `OPTION_SERVER_FORCEFULL_TERMINATION` | Terminates server threads forcefully instead of waiting for graceful shutdown |
 
 ### Clock Configuration Options
@@ -129,6 +130,7 @@ This section describes the XCP protocol layer configuration parameters in xcp_cf
 | `XCP_ENABLE_SEED_KEY` | Enables seed/key security mechanism (commented out by default) |
 | `XCP_ENABLE_SERV_TEXT` | Enables SERV_TEXT events |
 | `XCP_ENABLE_IDT_A2L_UPLOAD` | Enables A2L file upload via XCP (depends on OPTION_ENABLE_A2L_UPLOAD) |
+| `XCP_ENABLE_IDT_ELF_UPLOAD` | Enables ELF file upload via XCP (depends on OPTION_ENABLE_ELF_UPLOAD) |
 | `XCP_ENABLE_USER_COMMAND` | Enables user-defined commands for atomic calibration operations |
 
 ### DAQ Features and Parameters

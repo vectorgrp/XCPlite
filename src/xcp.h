@@ -252,6 +252,7 @@
 #define IDT_ASAM_SYSID 7
 #define IDT_VECTOR_MAPNAMES 0xDB
 #define IDT_VECTOR_GET_A2LOBJECTS_FROM_ECU 0xA2
+#define IDT_VECTOR_ELF_UPLOAD 0xA3
 
 /*-------------------------------------------------------------------------*/
 /* Checksum Types (BUILD_CHECKSUM) */

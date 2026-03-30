@@ -598,6 +598,11 @@ const char *XcpGetProjectName(void);
 void XcpSetA2lName(const char *name);
 const char *XcpGetA2lName(void);
 
+// ELF file name
+// Notify XCPlite there is a valid ELF with this pathname to be provided for upload via XCP command GET_ID
+void XcpSetElfName(const char *name);
+const char *XcpGetElfName(void);
+
 /// Force Disconnect
 /// Stop DAQ, flush queue, flush pending calibrations
 void XcpDisconnect(void);

@@ -20,7 +20,7 @@
 #define OPTION_VERSION_MINOR 0
 #define OPTION_VERSION_PATCH 0
 
-#ifdef XCPLIB_FOR_RUST // Configuration for Rust xcp-lite
+#ifdef XCPLIB_FOR_RUST // @@@@  Set by the Rust build script
 
 #include "xcplib_rust_cfg.h" // for Rust xcp-lite specific configuration
 
@@ -142,6 +142,7 @@
 
 #define OPTION_ENABLE_A2L_GENERATOR // Enable A2L generator
 #define OPTION_ENABLE_A2L_UPLOAD    // Enable A2L upload via XCP
+#define OPTION_ENABLE_ELF_UPLOAD    // Enable ELF upload via XCP
 
 // Enable socketGetLocalAddr for A2L file generation
 // Used for convenience to get an existing ip address in A2L, when bound to ANY 0.0.0.0

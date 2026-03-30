@@ -149,7 +149,7 @@ void *task(void *p)
         thread_local_counter = global_counter;
 
         // @@@@ TODO: Thread local variables
-        // The A2L creator in xcp_client can not handle thread local variables yet
+        // The A2L creator in xcpclient can not handle thread local variables yet
         // The DAQ capture method does not work for TLS
         // DaqCapture(task, thread_local_counter);
 
