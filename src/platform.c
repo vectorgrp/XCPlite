@@ -19,6 +19,11 @@
 #include "platform.h"
 
 #include <stdlib.h> // for malloc, free
+#if !defined(_WIN)
+#include <errno.h> // for errno, EEXIST, strerror
+#include <fcntl.h> // for open, O_CREAT, O_RDONLY, O_RDWR, O_EXCL
+
+#endif
 
 #include "dbg_print.h"  // for DBG_LEVEL, DBG_PRINT, ...
 #include "xcplib_cfg.h" // for OPTION_xxx ...
@@ -30,8 +35,6 @@
 #if !defined(_WIN) // Non-Windows platforms
 
 #ifdef PLATFORM_ENABLE_KEYBOARD
-
-#include <fcntl.h>
 
 int _getch(void) {
     struct termios oldt, newt;
@@ -176,8 +179,6 @@ void platformMemFree(void *ptr, size_t size) {
 
 #if !defined(_WIN)
 
-#include <errno.h>    // for errno, EEXIST, strerror
-#include <fcntl.h>    // for open, O_CREAT, O_RDONLY, O_RDWR, O_EXCL
 #include <sys/file.h> // for flock, LOCK_EX, LOCK_UN
 #include <sys/stat.h> // for S_IRUSR, S_IWUSR
 
@@ -487,8 +488,6 @@ const char *socketGetErrorString(int32_t err) {
 #include <ifaddrs.h>
 
 #include <arpa/inet.h>  // for htons, htonl
-#include <errno.h>      // for errno
-#include <fcntl.h>      // for fcntl
 #include <netinet/in.h> // for sockaddr_in
 #include <sys/socket.h> // for socket functions
 
@@ -1087,8 +1086,8 @@ bool socketSetTimeout(SOCKET_HANDLE socket, uint32_t timeoutMs) {
     }
 #else
     struct timeval tv;
-    tv.tv_sec = (long)(timeoutMs / 1000);
-    tv.tv_usec = (long)(timeoutMs % 1000) * 1000;
+    tv.tv_sec = timeoutMs / 1000;
+    tv.tv_usec = (int32_t)(timeoutMs % 1000) * 1000;
     if (setsockopt(socket->sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
         DBG_PRINTF_WARNING("socketSetTimeout: setsockopt SO_RCVTIMEO failed (errno=%d,%s)\n", errno, socketGetErrorString(errno));
         return false;
@@ -1123,8 +1122,7 @@ SOCKET_HANDLE socketAccept(SOCKET_HANDLE listenSocket, uint8_t *addr) {
     socket->sock = sock;
 #ifdef _LINUX
     socket->ifindex = listenSocket->ifindex;
-    strncpy(socket->ifname, listenSocket->ifname, sizeof(socket->ifname) - 1);
-    socket->ifname[sizeof(socket->ifname) - 1] = '\0';
+    memcpy(socket->ifname, listenSocket->ifname, sizeof(socket->ifname));
 #endif
     socket->flags = listenSocket->flags;
     return socket;
@@ -1600,11 +1598,11 @@ int16_t socketSendToV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t cou
 
     // Build iovec array on the stack - VLAs are acceptable here as count is usually small
     struct iovec iov[count];
-    int16_t total = 0;
+    uint32_t total = 0;
     for (uint16_t i = 0; i < count; i++) {
         iov[i].iov_base = (void *)buffers[i].buffer;
         iov[i].iov_len = buffers[i].size;
-        total += (int16_t)buffers[i].size;
+        total += buffers[i].size;
     }
 
     struct msghdr msg;
@@ -1629,7 +1627,7 @@ int16_t socketSendToV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t cou
         return -1;
     }
     if (total != n) {
-        DBG_PRINTF_WARNING("socketSendToV: partial send, sent %d of %d bytes\n", (int)n, (int)total);
+        DBG_PRINTF_WARNING("socketSendToV: partial send, sent %" PRIu32 " of %" PRIu32 " bytes\n", (uint32_t)n, total);
         return -1; // Treat partial sends as an error on UDP sockets, as the caller cannot recover
     }
     return (int16_t)n;
@@ -1665,7 +1663,7 @@ int16_t socketSendV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t count
     // Note: all sockets in this codebase are blocking (see socketOpen), so WBLOCK must not
     // occur. If it does mid-loop, the iovec state is partially consumed and the caller cannot
     // recover, so it is treated as an unrecoverable error rather than returning a partial count.
-    int16_t total = 0;
+    int32_t total = 0;
     for (;;) {
         ssize_t n = sendmsg(sock, &msg, 0);
         if (n < 0) {
@@ -1681,7 +1679,7 @@ int16_t socketSendV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t count
             DBG_PRINTF_ERROR("socketSendV: sendmsg failed with errno=%d,%s!\n", err, socketGetErrorString(err));
             return -1;
         }
-        total += (int16_t)n;
+        total += (int32_t)n;
 
         // Advance the iovec past the bytes already sent
         size_t remaining = (size_t)n;
@@ -1697,7 +1695,7 @@ int16_t socketSendV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t count
         msg.msg_iov[0].iov_len -= remaining;
     }
 
-    return total;
+    return (int16_t)total;
 }
 
 #endif // !_WIN

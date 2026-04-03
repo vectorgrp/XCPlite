@@ -37,40 +37,8 @@
 #include "dbg_print.h"
 void XcpSetLogLevel(uint8_t level);
 
-//-------------------------------------------------------------------------------------------------------
-// Test the mc_queue reference implementation
-#ifdef TEST_MC_QUEUE
-
-#ifdef __XCP_QUEUE_h__
-#error "queue.h included, please check your include order"
-#endif
-#include "mc/reference.h"
-// Undef
-#undef XCP_DAQ_MEM_SIZE
-
-// MC queue has no transport layer header space - define before queue.h gets pulled in via xcp_cfg.h
-#undef QUEUE_ENTRY_USER_HEADER_SIZE
-#define QUEUE_ENTRY_USER_HEADER_SIZE 0
-
-//-------------------------------------------------------------------------------------------------------
-// Test the queue implementation from XCPlite
-#else
-
 // Internal libxcplite includes
 #include "../src/queue.h"
-
-#endif
-
-// SHM two-process test - available with TEST_MC_QUEUE (both native MC and xcplite wrapper)
-#if defined(TEST_MC_QUEUE)
-#define TEST_QUEUE_SHM
-#include <errno.h>    // for errno, strerror, ESRCH
-#include <fcntl.h>    // for shm_open, O_CREAT, O_RDWR
-#include <signal.h>   // for kill() - used to probe consumer liveness (signal 0 = existence check)
-#include <sys/mman.h> // for mmap, munmap, MAP_SHARED, MAP_FAILED
-#include <sys/stat.h> // for S_IRUSR, S_IWUSR
-#include <unistd.h>   // for close, ftruncate, getpid()
-#endif
 
 //-----------------------------------------------------------------------------------------------------
 
@@ -109,22 +77,39 @@ static MUTEX lock_mutex = MUTEX_INTIALIZER;
 static uint64_t lock_time_max = 0;
 static uint64_t lock_time_sum = 0;
 static uint64_t lock_count = 0;
+static uint64_t lock_calibration = 0; // Calibration value for the overhead of the timing measurement itself, to get more accurate results for short lock times
 
 // Variable-width lock timing histogram
 // Fine granularity for short latencies, coarser for long-tail latencies
 // Bin[i] counts events where EDGES[i-1] <= t < EDGES[i]; bin[SIZE-1] is the overflow (>EDGES[SIZE-2])
 #define LOCK_TIME_HISTOGRAM_SIZE 26
 static const uint64_t LOCK_TIME_HISTOGRAM_EDGES[LOCK_TIME_HISTOGRAM_SIZE - 1] = {
-    40,    80,    120,   160,    200,    240, 280, 320, 360, 400, // 10 bins: 40ns steps
-    600,   800,   1000,  1500,   2000,                            //  5 bins: 200-500ns steps (up to 2us)
-    3000,  4000,  6000,  8000,   10000,                           //  5 bins: 1-2us steps (up to 10us)
-    20000, 40000, 80000, 160000, 320000,                          //  5 bins: 10-160us steps (up to 320us, preemption range)
+    10, 20, 40, 80, 120, 160, 200, 300, 400, 500, 600, 800, 1000, 1500, 2000, 3000, 4000, 6000, 8000, 10000, 20000, 40000, 80000, 160000, 320000,
 };
 static uint64_t lock_time_histogram[LOCK_TIME_HISTOGRAM_SIZE] = {0};
 
-static void lock_test_add_sample(uint64_t d) {
-    mutexLock(&lock_mutex);
+static void lock_test_init(void) {
+    memset(lock_time_histogram, 0, sizeof(lock_time_histogram));
+    lock_time_max = 0;
+    lock_time_sum = 0;
+    lock_count = 0;
 
+    // Calibrate
+    uint64_t sum = 0;
+    for (int i = 0; i < 1000; i++) {
+        uint64_t time = clockGetMonotonicNs();
+        sum += clockGetMonotonicNs() - time;
+    }
+    lock_calibration = sum / 1000;
+}
+
+static void lock_test_add_sample(uint64_t d) {
+    if (d >= lock_calibration) // Subtract calibration value to get more accurate results for short lock times
+        d -= lock_calibration;
+    else
+        d = 0;
+    mutexLock(&lock_mutex);
+    ; // Subtract calibration value to get more accurate results for short lock times
     if (d > lock_time_max)
         lock_time_max = d;
     int i = 0;
@@ -137,8 +122,8 @@ static void lock_test_add_sample(uint64_t d) {
 }
 
 static void lock_test_print_results(void) {
-    printf("\nProducer acquire + push timing statistics:\n");
-    printf("  count=%" PRIu64 "  max=%" PRIu64 "ns  avg=%" PRIu64 "ns\n", lock_count, lock_time_max, lock_time_sum / lock_count);
+    printf("\nProducer acquire lock time statistics:\n");
+    printf("  count=%" PRIu64 "  max=%" PRIu64 "ns  avg=%" PRIu64 "ns (cal=%" PRIu64 "ns)\n", lock_count, lock_time_max, lock_time_sum / lock_count, lock_calibration);
 
     uint64_t histogram_sum = 0;
     for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE; i++)
@@ -148,13 +133,12 @@ static void lock_test_print_results(void) {
         if (lock_time_histogram[i] > histogram_max)
             histogram_max = lock_time_histogram[i];
 
-    printf("\nHistogram (%" PRIu64 " events):\n", histogram_sum);
+    printf("\nLock time histogram (%" PRIu64 " events):\n", histogram_sum);
     printf("  %-20s  %10s  %7s  %s\n", "Range", "Count", "%", "Bar");
     printf("  %-20s  %10s  %7s  %s\n", "--------------------", "----------", "-------", "------------------------------");
 
     for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE; i++) {
-        if (!lock_time_histogram[i])
-            continue;
+
         double pct = (double)lock_time_histogram[i] * 100.0 / (double)histogram_sum;
 
         char range_str[32];
@@ -179,81 +163,6 @@ static void lock_test_print_results(void) {
 }
 
 #endif
-
-/*
-
-Results:
-
-OPTION_QUEUE_64_VAR_SIZE
-
-Producer acquire+push time statistics:
-  count=15843768  max_spins=10  max=83250ns  avg=56ns
-
-Lock time histogram (15843768 events):
-  Range                      Count        %  Bar
-  --------------------  ----------  -------  ------------------------------
-  0-40ns                   3230672   20.39%  #############
-  40-80ns                  7069609   44.62%  ##############################
-  80-120ns                 5046179   31.85%  #####################
-  120-160ns                 327939    2.07%  #
-  160-200ns                  59255    0.37%
-  200-240ns                  29012    0.18%
-  240-280ns                  14370    0.09%
-  280-320ns                   6562    0.04%
-  320-360ns                   4022    0.03%
-  360-400ns                   3057    0.02%
-  400-600ns                   9470    0.06%
-  600-800ns                   9037    0.06%
-  800-1000ns                  7589    0.05%
-  1000-1500ns                12568    0.08%
-  1500-2000ns                 4872    0.03%
-  2000-3000ns                 3419    0.02%
-  3000-4000ns                 1098    0.01%
-  4000-6000ns                 1144    0.01%
-  6000-8000ns                  507    0.00%
-  8000-10000ns                 776    0.00%
-  10000-20000ns               2075    0.01%
-  20000-40000ns                486    0.00%
-  40000-80000ns                 49    0.00%
-  80000-160000ns                 1    0.00%
-
-
-
-OPTION_QUEUE_64_VAR_SIZE
-
-
-  Producer acquire+push time statistics:
-  count=10700464  max_spins=8  max=60834ns  avg=129ns
-
-Lock time histogram (10700464 events):
-  Range                      Count        %  Bar
-  --------------------  ----------  -------  ------------------------------
-  0-40ns                   1151517   10.76%  ############
-  40-80ns                  2843906   26.58%  ##############################
-  80-120ns                 1735959   16.22%  ##################
-  120-160ns                1834476   17.14%  ###################
-  160-200ns                1673446   15.64%  #################
-  200-240ns                1163311   10.87%  ############
-  240-280ns                 141192    1.32%  #
-  280-320ns                  40214    0.38%
-  320-360ns                  14068    0.13%
-  360-400ns                   6130    0.06%
-  400-600ns                   7572    0.07%
-  600-800ns                  12378    0.12%
-  800-1000ns                 13293    0.12%
-  1000-1500ns                21039    0.20%
-  1500-2000ns                 8902    0.08%
-  2000-3000ns                 8382    0.08%
-  3000-4000ns                 3856    0.04%
-  4000-6000ns                 3900    0.04%
-  6000-8000ns                 2343    0.02%
-  8000-10000ns                4072    0.04%
-  10000-20000ns               9923    0.09%
-  20000-40000ns                570    0.01%
-  40000-80000ns                 15    0.00%
-
-
-*/
 
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
@@ -409,11 +318,7 @@ static McQueueHandle queue_open_shm(bool consumer) {
 
 //-----------------------------------------------------------------------------------------------------
 
-#ifdef TEST_MC_QUEUE
-static McQueueHandle queue_handle = NULL;
-#else
 static tQueueHandle queue_handle = NULL;
-#endif
 
 static atomic_uint_least16_t task_index_ctr = 0;
 
@@ -454,20 +359,6 @@ void *task(void *p)
             uint64_t start_time = clockGetMonotonicNs();
 #endif
 
-#ifdef TEST_MC_QUEUE
-            McQueueBuffer queue_buffer = mc_queue_acquire(queue_handle, (size_t)size);
-            if (queue_buffer.size >= (int64_t)size) {
-                assert(queue_buffer.buffer != NULL);
-
-                // Test data (MC queue has no XCP transport layer or DAQ header prefix)
-                uint64_t *b = (uint64_t *)queue_buffer.buffer;
-                b[0] = thread_id;
-                b[1] = size;
-                b[2] = counter;
-
-                mc_queue_push(queue_handle, &queue_buffer);
-            }
-#else
             tQueueBuffer queue_buffer = queueAcquire(queue_handle, size);
             if (queue_buffer.size >= size) {
                 assert(queue_buffer.buffer != NULL);
@@ -483,7 +374,6 @@ void *task(void *p)
 
                 queuePush(queue_handle, &queue_buffer, false);
             }
-#endif
 
 #ifdef TEST_ACQUIRE_LOCK_TIMING
             lock_test_add_sample(clockGetMonotonicNs() - start_time);
@@ -502,12 +392,9 @@ void *task(void *p)
 
 static void print_test_info(void) {
 
-#ifdef TEST_MC_QUEUE
-#ifdef MC_USE_XCPLITE_QUEUE
-    DBG_PRINT3("queue_test for mc_queue API XCPlite wrapper\n");
-#else
+#
     DBG_PRINT3("queue_test for mc_queue API reference implementation\n");
-#endif
+
 #ifdef TEST_QUEUE_SHM
     if (g_shm_consumer)
         DBG_PRINT3("MODE: consumer (creates shared memory queue, runs consumer)\n");
@@ -516,7 +403,7 @@ static void print_test_info(void) {
     else
         DBG_PRINT3("MODE: single-process (in-process queue)\n");
 #endif
-#else
+
     DBG_PRINT3("queue_test for XCPlite queue\n");
 #if defined(OPTION_QUEUE_64_VAR_SIZE)
     DBG_PRINT3("Using queue (queue64v.c) with 64 bit variable size entries\n");
@@ -526,7 +413,6 @@ static void print_test_info(void) {
     DBG_PRINT3("Using queue (queue32.c) with 32 bit variable size entries\n");
 #else
 #error "Please select a valid queue implementation\n"
-#endif
 #endif
 #ifdef TEST_QUEUE_PEEK
     DBG_PRINT3("Testing peek support\n");
@@ -542,50 +428,16 @@ static void print_test_info(void) {
     DBG_PRINT3("\n");
     DBG_PRINT3("Queue parameters:\n");
     DBG_PRINTF3("QUEUE_ENTRY_USER_HEADER_SIZE=%d\n", QUEUE_ENTRY_USER_HEADER_SIZE);
-#ifndef TEST_MC_QUEUE
     DBG_PRINTF3("QUEUE_ENTRY_USER_PAYLOAD_SIZE=%u\n", QUEUE_ENTRY_USER_PAYLOAD_SIZE);
     DBG_PRINTF3("QUEUE_ENTRY_USER_SIZE=%u\n", QUEUE_ENTRY_USER_SIZE);
     DBG_PRINTF3("QUEUE_SEGMENT_SIZE=%u\n", QUEUE_SEGMENT_SIZE);
     DBG_PRINTF3("QUEUE_MAX_ENTRY_SIZE=%u\n", QUEUE_MAX_ENTRY_SIZE);
     DBG_PRINTF3("QUEUE_PAYLOAD_SIZE_ALIGNMENT=%u\n", QUEUE_PAYLOAD_SIZE_ALIGNMENT);
-#endif
     DBG_PRINT3("\n");
 }
 
 static void print_help(void) {
 
-#ifdef TEST_QUEUE_SHM
-
-    printf("Usage: queue_test [--consumer | --producer | --help]\n\n");
-    printf("  (no args)    Single-process test: producers and consumer in one process\n");
-    printf("  --consumer   Two-process test: create shared memory queue and run consumer\n");
-    printf("               Start this first, then start --producer(s) in separate terminals\n");
-    printf("  --producer   Two-process test: attach to consumer-created queue and run producers\n");
-    printf("               Multiple --producer processes can run concurrently\n");
-    printf("               Exits gracefully when consumer terminates or crashes\n");
-    printf("  --help, -h   Show this help\n\n");
-    printf("Queue implementation:\n");
-#ifdef MC_USE_XCPLITE_QUEUE
-    printf("  mc_queue API -> XCPlite queue64v wrapper (MC_USE_XCPLITE_QUEUE)\n");
-#else
-    printf("  mc_queue API -> MC reference implementation\n");
-#endif
-    printf("  Shared memory: %s  (%u KB)\n", SHM_NAME, (unsigned)(SHM_SIZE / 1024));
-    printf("  Queue size:    %u bytes\n", QUEUE_SIZE);
-    printf("  Threads:       %d producers, payload %zu bytes, burst %d, delay %d us\n", THREAD_COUNT, (size_t)THREAD_PAYLOAD_SIZE, THREAD_BURST_SIZE, THREAD_DELAY_US);
-
-#else
-
-    printf("Usage: queue_test [--help]\n\n");
-    printf("  Single-process queue stress test (no shared memory support in this build)\n\n");
-    printf("Queue implementation:\n");
-#ifdef TEST_MC_QUEUE
-#ifdef MC_USE_XCPLITE_QUEUE
-    printf("  mc_queue API -> XCPlite queue64v wrapper (MC_USE_XCPLITE_QUEUE)\n");
-#else
-    printf("  mc_queue API -> MC reference implementation\n");
-#endif
-#else
 #if defined(OPTION_QUEUE_64_VAR_SIZE)
     printf("  XCPlite queue64v (64-bit variable-size entries)\n");
 #elif defined(OPTION_QUEUE_64_FIX_SIZE)
@@ -595,11 +447,9 @@ static void print_help(void) {
 #else
     printf("  XCPlite queue (legacy queue64)\n");
 #endif
-#endif
+
     printf("  Queue size:    %u bytes\n", QUEUE_SIZE);
     printf("  Threads:       %d producers, payload %zu bytes, burst %d, delay %d us\n", THREAD_COUNT, (size_t)THREAD_PAYLOAD_SIZE, THREAD_BURST_SIZE, THREAD_DELAY_US);
-
-#endif
 }
 
 int main(int argc, char *argv[]) {
@@ -633,6 +483,10 @@ int main(int argc, char *argv[]) {
     // Set log level
     XcpSetLogLevel(OPTION_LOG_LEVEL);
 
+#ifdef TEST_ACQUIRE_LOCK_TIMING
+    lock_test_init();
+#endif
+
     // Print info
     print_test_info();
 
@@ -655,40 +509,8 @@ int main(int argc, char *argv[]) {
     }
 #endif
 
-// Create or attach to a queue, depending on the test mode
-#ifdef TEST_MC_QUEUE
-#ifdef TEST_QUEUE_SHM
-    if (g_shm_consumer || g_shm_producer) {
-        if (g_shm_consumer) {
-            // Consumer creates and owns the queue
-            queue_handle = queue_open_shm(true);
-            if (queue_handle == NULL) {
-                printf("CONSUMER: failed to create shared memory queue\n");
-                return 1;
-            }
-        } else { // producer
-            // Producers attach – wait for consumer to create the queue first
-            printf("PRODUCER: waiting for consumer to create shared memory queue...\n");
-            for (int retry = 0; retry < 100 && gRun; retry++) {
-                queue_handle = queue_open_shm(false);
-                if (queue_handle != NULL)
-                    break;
-                sleepUs(100000); // 100ms between retries, 10s total timeout
-            }
-            if (queue_handle == NULL) {
-                printf("PRODUCER: timeout waiting for consumer (10s elapsed)\n");
-                return 1;
-            }
-        }
-    } else {
-        queue_handle = mc_queue_init(QUEUE_SIZE);
-    }
-#else
-    queue_handle = mc_queue_init(QUEUE_SIZE);
-#endif
-#else
+    // Create or attach to a queue, depending on the test mode
     queue_handle = queueInit(QUEUE_SIZE); // Initialize the queue, the queue memory is allocated by the library, the queue buffer size is specified by OPTION_QUEUE_SIZE
-#endif
     if (queue_handle == NULL) {
         printf("Failed to initialize the queue\n");
         return 1;
@@ -742,23 +564,15 @@ int main(int argc, char *argv[]) {
 
             while (gRun) {
 
-#ifdef TEST_MC_QUEUE
-                McQueueBuffer buffer[QUEUE_PEEK_MAX_INDEX + 1];
-#else
                 tQueueBuffer buffer[QUEUE_PEEK_MAX_INDEX + 1];
-#endif
                 uint32_t buffer_count = 0;
 
                 // Set max max_peek_index to a random number between 0 and QUEUE_PEEK_MAX_INDEX
                 uint32_t max_peek_index = rand() % (QUEUE_PEEK_MAX_INDEX + 1);
                 for (uint32_t index = 0; index <= max_peek_index; index++) {
-#ifdef TEST_MC_QUEUE
-                    buffer[index] = mc_queue_peak(queue_handle, (int64_t)index);
-#else
                     uint32_t lost = 0;
                     buffer[index] = queuePeek(queue_handle, index, &lost, NULL);
                     msg_lost += lost;
-#endif
                     if (buffer[index].size == 0) { // Empty buffer, no more messages in the queue
                         break;
                     }
@@ -768,13 +582,8 @@ int main(int argc, char *argv[]) {
                     assert((uint64_t)buffer[index].buffer % 2 == 0);
 
                     // Check test data
-#ifdef TEST_MC_QUEUE
-                    // MC queue: no transport layer or XCP DAQ header prefix – test data starts at offset 0
-                    uint64_t *b = (uint64_t *)buffer[index].buffer;
-#else
                     // Test payload starts + (User header (Transport layer header) + faked XCP DAQ header)
                     uint64_t *b = (uint64_t *)(buffer[index].buffer + QUEUE_ENTRY_USER_HEADER_SIZE + 4);
-#endif
                     uint64_t thread_id = b[0];
                     uint64_t size = b[1];
                     uint64_t counter = b[2];
@@ -808,49 +617,12 @@ int main(int argc, char *argv[]) {
                 // Release the buffers obtained by queuePeek / mc_queue_peak so far
                 for (uint32_t i = 0; i < buffer_count; i++) {
                     assert(buffer[i].size > 0);
-#ifdef TEST_MC_QUEUE
-                    mc_queue_release(queue_handle, &buffer[i]);
-#else
                     queueRelease(queue_handle, &buffer[i]);
-#endif
                 }
 
             } // for (;;)
 
 #else
-
-#ifdef TEST_MC_QUEUE
-        // mc_queue consumer loop
-        for (;;) {
-            McQueueBuffer buffer = mc_queue_pop(queue_handle);
-            if (buffer.size == 0)
-                break;
-
-            assert(buffer.buffer != NULL);
-            assert(buffer.size >= (int64_t)THREAD_PAYLOAD_SIZE);
-            assert((uint64_t)buffer.buffer % 2 == 0);
-
-            // Test data (MC queue: no header prefix, data starts at offset 0)
-            uint64_t *b = (uint64_t *)buffer.buffer;
-            uint64_t thread_id = b[0];
-            uint64_t size = b[1];
-            uint64_t counter = b[2];
-
-            assert(size >= THREAD_PAYLOAD_SIZE);
-            assert(thread_id < MAX_PRODUCERS * THREAD_COUNT);
-            if (msg_count > 0) {
-                if (counter != last_counter[thread_id] + 1) {
-                    printf("Messages lost in thread %u, expected counter %llu, got %llu\n", (uint32_t)thread_id, last_counter[thread_id] + 1, counter);
-                }
-            }
-            last_counter[thread_id] = counter;
-
-            msg_count++;
-            msg_bytes += (uint32_t)buffer.size;
-
-            mc_queue_release(queue_handle, &buffer);
-        } // for (;;)
-#else  // TEST_MC_QUEUE
 
         // XCPlite queue consumer loop
         for (;;) {
@@ -904,7 +676,6 @@ int main(int argc, char *argv[]) {
 
             } // for (;;)
         } // for (;;)
-#endif // !TEST_MC_QUEUE
 
 #endif
 
@@ -951,11 +722,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Deinitialize the queue
-#ifdef TEST_MC_QUEUE
-    mc_queue_deinit(queue_handle);
-#else
     queueDeinit(queue_handle); // Deinitialize the queue
-#endif
 
 // Unmap shared memory; consumer signals producers to stop, then removes the SHM object
 #ifdef TEST_QUEUE_SHM

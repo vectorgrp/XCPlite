@@ -2,7 +2,7 @@
 
 XCP test client implementation in Rust
 
-Used for integration testing and for uploading or generating A2L files.  
+Used for integration testing and csvfor uploading or generating A2L files.  
 Partial XCP implementation hard-coded for xcp-lite and XCPlite.  
 
 
@@ -31,7 +31,7 @@ Options:
 
       --dest-addr <DEST_ADDR>
           XCP server address (IP address or IP:port). If port is omitted, uses --port parameter
-          [default: 127.0.0.1]
+          [default: 127.0.0.1:5555]
 
       --port <PORT>
           XCP server port number (used when --dest-addr doesn't include port)
@@ -50,7 +50,7 @@ Options:
       --offline
           Force offline mode (no network communication), communication parameters are used to create A2L file
 
-      --a2l <A2L>
+      --a2l <A2L file name>
           Specify and overide the name of the A2L file name. If not specified, The A2L file name is read from the XCP server
 
       --upload-a2l
@@ -62,8 +62,8 @@ Options:
       --fix-a2l
           Update the given A2L file with XCP server information about events and memory segments. Requires that the XCP server supports the GET_EVENT_INFO and GET_SEGMENT_INFO commands
 
-      --elf <ELF>
-          Specifiy the name of an ELF file, create an A2L file from ELF debug information. If connected to a XCP server, events and memory segments will be extracted from the XCP server
+      --elf <ELF file name>
+          Specify the name of an ELF file, create an A2L file from ELF debug information. If connected to a XCP server, events and memory segments will be extracted from the XCP server
    
       --upload-elf
           Upload ELF file from XCP server. Requires that the XCP server supports GET_ID ELF upload
@@ -71,7 +71,7 @@ Options:
       --elf-unit-limit <ELF_UNIT_LIMIT>
           Parse only compilations units <= n
 
-      --bin <BIN>
+      --bin <BIN file name>
           Specify the pathname of a binary file (Intel-HEX or XCPlite-BIN) for calibration parameter segment data
 
       --upload-bin
@@ -91,6 +91,10 @@ Options:
 
       --time <TIME>
           Limit measurement duration to n s
+
+      --csv <CSV file name>
+          Save measurement data to a CSV file. If not specified, data is printed to the console.
+          CSV format: time_ns,daq,name,value  (one row per measurement sample).
 
       --list-cal <LIST_CAL>
           Lists all specified calibration variables (regex) found in the A2L file

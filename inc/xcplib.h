@@ -165,7 +165,7 @@ bool XcpFreeze(void);
 #define CalSegUnlock(name) XcpUnlockCalSeg(__cal__##name)
 
 /// Create a calibration value
-#define CalValCreate(val) XcpCreateCalBlk(#val, &val, sizeof(val));
+#define CalValCreate(val) XcpCreateCalBlk(#val, &(val), sizeof(val));
 
 #endif // __cplusplus
 
@@ -585,7 +585,10 @@ void XcpDeinit(void); // @@@@ Internal for Rust build.rs
 
 /// Check if XCP has been activated
 bool XcpIsActivated(void);
-uint8_t XcpGetInitMode(void); /// Returns the mode passed to XcpInit() — XCP_MODE_DEACTIVATE, XCP_MODE_LOCAL, XCP_MODE_SHM, XCP_MODE_SHM_AUTO, or XCP_MODE_SHM_SERVER
+
+/// Get the mode passed to XcpInit()
+/// @return XCP_MODE_DEACTIVATE, XCP_MODE_LOCAL, XCP_MODE_SHM, XCP_MODE_SHM_AUTO, or XCP_MODE_SHM_SERVER
+uint8_t XcpGetInitMode(void);
 
 /// Check if XCP is connected
 bool XcpIsConnected(void);

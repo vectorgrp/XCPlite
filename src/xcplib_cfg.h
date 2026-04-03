@@ -58,15 +58,15 @@
 // #define OPTION_SOCKET_HW_TIMESTAMPS // Enable hardware timestamps on UDP sockets if available (needed only for ptptool on Linux)
 
 //-------------------------------------------------------------------------------
-// XCP multi process server options
+// XCP multi application mode
 
 // @@@@ Experimental
 
-// Enable POSIX shared memory (SHM) mode:
-// All user application thread shared XCP state and the transmit queue is placed in an a named shared memory region
-// Multiple processes can participate in the same XCP session, driven by a single XCP server process
+// Enable multi application mode:
+// All application processes have shared transmit queue, calibration RCU and XCP state
+// One application is the XCP server, could be the first one running (XCP leader) or a dedicated application (XCP daemon)
 // Requires a POSIX-compliant platform (Linux / macOS / QNX).  Not supported on Windows.
-// #define OPTION_SHM_MODE // enabled shared memory mode for multi process server
+// #define OPTION_SHM_MODE
 
 //-------------------------------------------------------------------------------
 // XCP server options

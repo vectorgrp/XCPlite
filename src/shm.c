@@ -23,7 +23,7 @@
 #include <stdint.h>   // for uint8_t, uint16_t, ...
 #include <stdio.h>    // for printf
 #include <stdlib.h>   // for size_t, NULL, abort
-#include <string.h>   // for memcpy, memset, strlen
+#include <string.h>   // for memcpy, memset
 #include <unistd.h>   // for getpid()
 
 #include "shm.h" // for shared memory management
@@ -289,7 +289,7 @@ void XcpShmSetA2lFinalized(uint8_t app_id, const char *a2l_name) {
         return;
     }
     tApp *app = &gXcpData->shm_header.app_list[app_id];
-    STRNCPY(app->a2l_name, a2l_name, XCP_A2L_FILENAME_MAX_LENGTH);
+    strncpy(app->a2l_name, a2l_name, XCP_A2L_FILENAME_MAX_LENGTH);
     app->a2l_name[XCP_A2L_FILENAME_MAX_LENGTH] = '\0';
     atomic_store(&app->a2l_finalized, 1U);
     DBG_PRINTF3(ANSI_COLOR_BLUE "XcpShmSetA2lFinalized: app_id=%u a2l_name='%s'\n" ANSI_COLOR_RESET, app_id, a2l_name);
@@ -542,9 +542,9 @@ int16_t XcpShmRegisterApp(const char *name, const char *epk, uint32_t pid, uint8
 
     // Initialize the new slot
     memset(app->b, 0, sizeof(app->b));
-    STRNCPY(app->project_name, name, XCP_PROJECT_NAME_MAX_LENGTH);
+    strncpy(app->project_name, name, XCP_PROJECT_NAME_MAX_LENGTH);
     app->project_name[XCP_PROJECT_NAME_MAX_LENGTH] = '\0';
-    STRNCPY(app->epk, epk, XCP_EPK_MAX_LENGTH);
+    strncpy(app->epk, epk, XCP_EPK_MAX_LENGTH);
     app->epk[XCP_EPK_MAX_LENGTH] = '\0';
     app->pid = pid;
     app->is_leader = is_leader;

@@ -23,7 +23,19 @@
 #include "xcp_cfg.h"
 #include "xcplib_cfg.h"
 
+//-----------------------------------------------------------------------------------------------------
+// Test configuration
+
+#define THREAD_COUNT 8            // Number of threads to create
+#define THREAD_DELAY_US 1000      // Default delay in microseconds for the thread loops, calibration parameter
+#define THREAD_DELAY_OFFSET_US 50 // Default offset  added to the delay (* task index) for each thread instance, to create different sampling rates
+#define THREAD_TIME_SHIFT_NS                                                                                                                                                       \
+    (1000000000 / THREAD_COUNT) // Default time shift in nanoseconds (* task index) for each thread instance, to disturb the sequential time ordering of events
+
+#define TEST_DAQ_EVENT_TIMING
+
 #ifdef TEST_ENABLE_DBG_METRICS
+
 extern uint32_t gXcpWritePendingCount;
 extern uint32_t gXcpCalSegPublishAllCount;
 extern uint32_t gXcpDaqEventCount;
@@ -31,18 +43,108 @@ extern uint32_t gXcpTxPacketCount;
 extern uint32_t gXcpTxMessageCount;
 extern uint32_t gXcpTxIoVectorCount;
 extern uint32_t gXcpRxPacketCount;
+
 #endif
 
-//-----------------------------------------------------------------------------------------------------
+#ifdef TEST_DAQ_EVENT_TIMING
+static MUTEX lock_mutex = MUTEX_INTIALIZER;
+static uint64_t lock_time_max = 0;
+static uint64_t lock_time_sum = 0;
+static uint64_t lock_count = 0;
+static uint64_t lock_calibration = 0; // Calibration value for the overhead of the timing measurement itself, to get more accurate results for short lock times
 
-#define THREAD_COUNT 8       // Number of threads to create
-#define THREAD_DELAY_US 4000 // Delay in microseconds for the thread loops, calibration parameter
+// Variable-width lock timing histogram
+// Fine granularity for short latencies, coarser for long-tail latencies
+// Bin[i] counts events where EDGES[i-1] <= t < EDGES[i]; bin[SIZE-1] is the overflow (>EDGES[SIZE-2])
+#define LOCK_TIME_HISTOGRAM_SIZE 26
+static const uint64_t LOCK_TIME_HISTOGRAM_EDGES[LOCK_TIME_HISTOGRAM_SIZE - 1] = {
+    10, 20, 40, 80, 120, 160, 200, 300, 400, 500, 600, 800, 1000, 1500, 2000, 3000, 4000, 6000, 8000, 10000, 20000, 40000, 80000, 160000, 320000,
+};
+static uint64_t lock_time_histogram[LOCK_TIME_HISTOGRAM_SIZE] = {0};
+
+static void lock_test_init(void) {
+    memset(lock_time_histogram, 0, sizeof(lock_time_histogram));
+    lock_time_max = 0;
+    lock_time_sum = 0;
+    lock_count = 0;
+
+    // Calibrate
+    uint64_t sum = 0;
+    for (int i = 0; i < 1000; i++) {
+        uint64_t time = clockGetMonotonicNs();
+        sum += clockGetMonotonicNs() - time;
+    }
+    lock_calibration = sum / 1000;
+}
+
+static void lock_test_add_sample(uint64_t d) {
+    if (d >= lock_calibration) // Subtract calibration value to get more accurate results for short lock times
+        d -= lock_calibration;
+    else
+        d = 0;
+    mutexLock(&lock_mutex);
+    ; // Subtract calibration value to get more accurate results for short lock times
+    if (d > lock_time_max)
+        lock_time_max = d;
+    int i = 0;
+    while (i < LOCK_TIME_HISTOGRAM_SIZE - 1 && d >= LOCK_TIME_HISTOGRAM_EDGES[i])
+        i++;
+    lock_time_histogram[i]++;
+    lock_time_sum += d;
+    lock_count++;
+    mutexUnlock(&lock_mutex);
+}
+
+static void lock_test_print_results(void) {
+    printf("\nProducer acquire lock time statistics:\n");
+    printf("  count=%" PRIu64 "  max=%" PRIu64 "ns  avg=%" PRIu64 "ns (cal=%" PRIu64 "ns)\n", lock_count, lock_time_max, lock_time_sum / lock_count, lock_calibration);
+
+    uint64_t histogram_sum = 0;
+    for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE; i++)
+        histogram_sum += lock_time_histogram[i];
+    uint64_t histogram_max = 0;
+    for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE; i++)
+        if (lock_time_histogram[i] > histogram_max)
+            histogram_max = lock_time_histogram[i];
+
+    printf("\nLock time histogram (%" PRIu64 " events):\n", histogram_sum);
+    printf("  %-20s  %10s  %7s  %s\n", "Range", "Count", "%", "Bar");
+    printf("  %-20s  %10s  %7s  %s\n", "--------------------", "----------", "-------", "------------------------------");
+
+    for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE; i++) {
+
+        double pct = (double)lock_time_histogram[i] * 100.0 / (double)histogram_sum;
+
+        char range_str[32];
+        uint64_t lo = (i == 0) ? 0 : LOCK_TIME_HISTOGRAM_EDGES[i - 1];
+        if (i == LOCK_TIME_HISTOGRAM_SIZE - 1) {
+            snprintf(range_str, sizeof(range_str), ">%" PRIu64 "ns", lo);
+        } else {
+            snprintf(range_str, sizeof(range_str), "%" PRIu64 "-%" PRIu64 "ns", lo, LOCK_TIME_HISTOGRAM_EDGES[i]);
+        }
+
+        char bar[31];
+        int bar_len = (histogram_max > 0) ? (int)((double)lock_time_histogram[i] * 30.0 / (double)histogram_max) : 0;
+        if (bar_len > 30)
+            bar_len = 30;
+        for (int j = 0; j < bar_len; j++)
+            bar[j] = '#';
+        bar[bar_len] = '\0';
+
+        printf("  %-20s  %10" PRIu64 "  %6.2f%%  %s\n", range_str, lock_time_histogram[i], pct, bar);
+    }
+    printf("\n");
+}
+
+#endif
+
+
 
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
 
 #define OPTION_PROJECT_NAME "daq_test"      // Project name, used to build the A2L and BIN file name
-#define OPTION_PROJECT_VERSION __TIME__     // EPK version string
+#define OPTION_PROJECT_VERSION "V1.0.2"     // EPK version string
 #define OPTION_USE_TCP false                // TCP or UDP
 #define OPTION_SERVER_PORT 5555             // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}     // Bind addr, 0.0.0.0 = ANY
@@ -53,15 +155,23 @@ extern uint32_t gXcpRxPacketCount;
 // Demo calibration parameters
 
 typedef struct params {
-    uint16_t counter_max; // Maximum value of the counter
-    uint32_t delay_us;    // Delay in microseconds for the thread loops
-    bool run;             // Stop flag for the task
+    uint16_t counter_max;     // Maximum value of the counter
+    uint32_t delay_us;        // Delay in microseconds for the thread loops
+    uint32_t delay_offset_us; // Offset in microseconds added to the delay (* task index) for each thread instance, to create different sampling rates
+    uint32_t time_shift_ns;   // Time shift in nanoseconds (* task index) for each thread instance, to disturb the sequential time ordering of events
+    bool run;                 // Stop flag for the task
     int8_t test_byte1;
     int8_t test_byte2;
 } params_t;
 
 // Default parameters
-static const params_t params = {.counter_max = 100, .delay_us = THREAD_DELAY_US, .run = true, .test_byte1 = -1, .test_byte2 = 1};
+static const params_t params = {.counter_max = 2048,
+                                .delay_us = THREAD_DELAY_US,
+                                .delay_offset_us = THREAD_DELAY_OFFSET_US,
+                                .time_shift_ns = THREAD_TIME_SHIFT_NS,
+                                .run = true,
+                                .test_byte1 = -1,
+                                .test_byte2 = 1};
 
 // Global calibration segment handle
 static tXcpCalSegIndex calseg = XCP_UNDEFINED_CALSEG;
@@ -86,14 +196,15 @@ void *task(void *p)
 
     bool run = true;
     uint32_t delay_us = 1;
+    uint32_t time_shift_ns = 0;
 
     // Task local measurement variables on stack
-    uint16_t counter = 0;
-    uint8_t counter8 = 0;
-    uint16_t counter16 = 0;
-    uint32_t counter32 = 0;
-    uint64_t counter64 = 0;
-    uint32_t array[64] = {0}; // 64*4=256 byte array
+     uint16_t counter = 0;
+     uint8_t counter8 = 0;
+     uint16_t counter16 = 0;
+     uint32_t counter32 = 0;
+     uint64_t counter64 = 0;
+     uint32_t array[64] = {0}; // 64*4=256 byte array
 
     // Instrumentation: Events and measurement variables
     // Register task local variables counter and channelx with stack addressing mode
@@ -108,12 +219,12 @@ void *task(void *p)
     // Create measurement variables for this task instance
     A2lLock();
     A2lSetStackAddrMode_i(task_event_id);
-    A2lCreateMeasurementInstance(task_name, counter, "Taskloop counter");
-    A2lCreateMeasurementInstance(task_name, counter8, "Taskloop counter 8 bit");
-    A2lCreateMeasurementInstance(task_name, counter16, "Taskloop counter 16 bit");
-    A2lCreateMeasurementInstance(task_name, counter32, "Taskloop counter 32 bit");
-    A2lCreateMeasurementInstance(task_name, counter64, "Taskloop counter 64 bit");
-    A2lCreateMeasurementArrayInstance(task_name, array, "task array (to increase measurement workload)");
+    A2lCreateMeasurementInstance(task_name, counter, "Taskloop counter uint16_t, max value from calibration counter_max");
+    A2lCreateMeasurementInstance(task_name, counter8, "Taskloop counter uint8_t");
+    A2lCreateMeasurementInstance(task_name, counter16, "Taskloop counter uint16_t");
+    A2lCreateMeasurementInstance(task_name, counter32, "Taskloop counter uint32_t");
+    A2lCreateMeasurementInstance(task_name, counter64, "Taskloop counter uint64_t");
+    A2lCreateMeasurementArrayInstance(task_name, array, "Taskloop array[64] uint32_t");
     A2lUnlock();
 
     printf("thread %s running...\n", task_name);
@@ -131,9 +242,22 @@ void *task(void *p)
             counter16 = (uint16_t)counter;
             counter32 = (uint32_t)counter;
             counter64 = (uint64_t)counter;
+            array[0] = counter;
 
-            // Sleep time
-            delay_us = params->delay_us;
+            (void)counter;
+            (void)counter8;
+            (void)counter16;
+            (void)counter32;
+            (void)counter64;
+            (void)array;
+
+            // Sleep time for this task
+            // Each task has different sleep time, to simulate more or less workload and to create a less deterministic interleaving in the measurements
+            // Add an offset to the delay for each task instance, to create different sampling rates
+            delay_us = params->delay_us + task_index * params->delay_offset_us;
+
+            // Add an offset to the time shift for each task instance, to create different time shifts in the event timestamps
+            time_shift_ns = params->time_shift_ns + task_index * params->time_shift_ns;
 
             // Stop
             run = params->run;
@@ -141,8 +265,15 @@ void *task(void *p)
             XcpUnlockCalSeg(calseg);
         }
 
-        // Instrumentation: Measurement event
-        DaqTriggerEvent_i(task_event_id);
+        uint64_t clock = ApplXcpGetClock64();
+
+        // Add a time shift to the event clock for each task instance, to disturb the sequential time ordering of events and
+        // to test the correct handling of event timestamps in the client
+        DaqTriggerEventAt_i(task_event_id, clock + time_shift_ns);
+
+#ifdef TEST_DAQ_EVENT_TIMING
+        lock_test_add_sample(ApplXcpGetClock64() - clock);
+#endif
 
         // Sleep for the specified delay parameter in microseconds, defines the approximate sampling rate
         sleepUs(delay_us);
@@ -159,6 +290,10 @@ int main(void) {
     printf("\nXCP on Ethernet multi thread daq test\n");
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
+
+#ifdef TEST_DAQ_EVENT_TIMING
+    lock_test_init();
+#endif
 
     // Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
     XcpSetLogLevel(OPTION_LOG_LEVEL);
@@ -189,6 +324,8 @@ int main(void) {
     A2lSetSegmentAddrMode(calseg, params);
     A2lCreateParameter(params.counter_max, "Max counter value, wrap around", "", 0, 65535);
     A2lCreateParameter(params.delay_us, "task delay time in us", "us", 0, 1000000);
+    A2lCreateParameter(params.delay_offset_us, "task delay offset in us added to the delay for each task instance", "us", 0, 1000000);
+    A2lCreateParameter(params.time_shift_ns, "task time shift in ns added to the event timestamp for each task instance", "ns", 0, 1000000000);
     A2lCreateParameter(params.run, "stop task", "", 0, 1);
     A2lCreateParameter(params.test_byte1, "Test byte for calibration consistency test", "", -128, 127);
     A2lCreateParameter(params.test_byte2, "Test byte for calibration consistency test", "", -128, 127);
@@ -244,9 +381,12 @@ int main(void) {
     printf("  Total TX iovecs:   %u\n", gXcpTxIoVectorCount);
     printf("  Total RX packets:  %u\n", gXcpRxPacketCount);
 #endif
-
+#ifdef TEST_DAQ_EVENT_TIMING
+    lock_test_print_results();
+#endif
     XcpDisconnect();        // Force disconnect the XCP client
     A2lFinalize();          // Finalize A2L generation, if not done yet
     XcpEthServerShutdown(); // Stop the XCP server
+
     return 0;
 }

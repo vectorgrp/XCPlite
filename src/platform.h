@@ -175,14 +175,12 @@ static inline size_t safe_strnlen(const char *s, size_t maxlen) {
 
 #define SPRINTF(dest, format, ...) sprintf_s((char *)dest, sizeof(dest), format, __VA_ARGS__)
 #define SNPRINTF(dest, len, format, ...) sprintf_s((char *)dest, len, format, __VA_ARGS__)
-#define STRNCPY(dest, src, n) strncpy(dest, src, n)
 #define STRNLEN(s, n) strnlen_s(s, n)
 
 #else
 
 #define SPRINTF(dest, format, ...) snprintf((char *)dest, sizeof(dest), format, __VA_ARGS__)
 #define SNPRINTF(dest, len, format, ...) snprintf((char *)dest, len, format, __VA_ARGS__)
-#define STRNCPY strncpy
 #define STRNLEN safe_strnlen
 
 #endif

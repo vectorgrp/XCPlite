@@ -24,8 +24,8 @@
 #define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 // XCP mode:
-// #define OPTION_XCP_MODE (XCP_MODE_PERSISTENCE | XCP_MODE_SHM) // XCP multi application, no server mode
 #define OPTION_XCP_MODE (XCP_MODE_PERSISTENCE | XCP_MODE_LOCAL) // XCP single application server mode
+// #define OPTION_XCP_MODE (XCP_MODE_DEACTIVATE) // XCP deactivated
 
 // A2L generation mode:
 // A2L_MODE_WRITE_ONCE:
@@ -41,10 +41,6 @@
 // A2L_MODE_AUTO_GROUPS:
 //   Optionally create A2L groups for calibration segments and events
 #define OPTION_A2L_MODE (A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)
-
-// Test
-// #define OPTION_XCP_MODE (XCP_MODE_PERSISTENCE | XCP_MODE_SHM) // XCP single application server mode
-// #define OPTION_A2L_MODE (A2L_MODE_DEACTIVATE)                 // A2L generation deactivated
 
 // New option in V1.1: Enable variadic all in one macros for simple arithmetic types, see examples below
 #define OPTION_USE_VARIADIC_MACROS
@@ -149,7 +145,10 @@ int main(int argc, char *argv[]) {
 
     // XCP: Initialize the XCP singleton, activate XCP, must be called before starting the server
     // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION, OPTION_XCP_MODE);
+    if (!XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION, OPTION_XCP_MODE)) {
+        printf("Failed to initialize XCP\n");
+        return 1;
+    }
     XcpSetElfName(argv[0]); // Set ELF file name for upload via GET_ID, optional
 
     // XCP: Initialize the XCP Server
@@ -158,7 +157,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // XCP: Enable runtime A2L generation for data declaration as code
+    // XCP: Enable runtime A2L generation for data declaration as code, optional
     if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_A2L_MODE)) {
         return 1;
     }

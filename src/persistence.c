@@ -136,7 +136,7 @@ static bool writeHeader(FILE *file, const char *epk, uint16_t event_count, uint1
     gBinHeader.signature[sizeof(gBinHeader.signature) - 1] = '\0'; // Ensure null termination
     gBinHeader.version = BIN_VERSION;
     strncpy(gBinHeader.Epk, epk, XCP_EPK_MAX_LENGTH);
-    gBinHeader.Epk[XCP_EPK_MAX_LENGTH] = '\0'; // Ensure null termination
+    gBinHeader.Epk[XCP_EPK_MAX_LENGTH] = '\0';
     gBinHeader.event_count = event_count;
     gBinHeader.calseg_count = calseg_count;
     gBinHeader.app_count = app_count;
@@ -152,8 +152,7 @@ static bool writeHeader(FILE *file, const char *epk, uint16_t event_count, uint1
 static bool writeEvent(FILE *file, tXcpEventId event_id, const tXcpEvent *event) {
     tEventDescriptor desc;
     memset(&desc, 0, sizeof(tEventDescriptor));
-    strncpy(desc.name, event->name, XCP_MAX_EVENT_NAME);
-    desc.name[XCP_MAX_EVENT_NAME] = '\0'; // Ensure null termination
+    memcpy(desc.name, event->name, sizeof(desc.name));
     // In SHM mode, save the app_id of the event owner
 #ifdef OPTION_SHM_MODE // initialized app-id in event descriptor
     desc.app_id = event->app_id;
@@ -175,8 +174,7 @@ static bool writeEvent(FILE *file, tXcpEventId event_id, const tXcpEvent *event)
 static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, const tXcpCalSeg *seg, uint8_t page) {
     tCalSegDescriptor desc;
     memset(&desc, 0, sizeof(tCalSegDescriptor));
-    strncpy(desc.name, seg->h.name, XCP_MAX_CALSEG_NAME);
-    desc.name[XCP_MAX_CALSEG_NAME] = '\0'; // Ensure null termination
+    memcpy(desc.name, seg->h.name, sizeof(desc.name)); // src and dst are same size, null-terminated
     desc.size = seg->h.size;
     desc.addr = XcpGetCalSegBaseAddress(calseg);
     desc.index = calseg;
@@ -424,12 +422,15 @@ static bool load(const char *filename, const char *epk) {
         // Create the event
         // As it is created in the original order, the event ID must match
         // XcpCreateIndexedEvent does not check for duplicate event names, the application id will be set below
+        XcpLockEventList();
         event_id = XcpCreateIndexedEvent(desc.name, desc.index, desc.cycle_time_ns, desc.priority);
         if (event_id == XCP_UNDEFINED_EVENT_ID || event_id != desc.id) { // Should not happen
             DBG_PRINTF_ERROR("Failed to create event '%s' from persistence file\n", desc.name);
             error_count++;
         }
-        // In SHM mode, set the app_id of the event owner
+        XcpUnlockEventList();
+
+                // In SHM mode, set the app_id of the event owner
 #ifdef OPTION_SHM_MODE // load app-id in event descriptor
         // @@@@ TODO cast away const, improve design to avoid this
         tXcpEvent *event = (tXcpEvent *)XcpGetEvent(event_id);

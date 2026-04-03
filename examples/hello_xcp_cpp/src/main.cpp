@@ -24,15 +24,11 @@ constexpr uint16_t OPTION_QUEUE_SIZE = (1024 * 32);           // Size of the que
 constexpr int OPTION_LOG_LEVEL = 3;                           // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 // XCP mode:
-// constexpr uint8_t OPTION_XCP_MODE = (XCP_MODE_PERSISTENCE | XCP_MODE_SHM); // XCP multi application, no server mode
 constexpr uint8_t OPTION_XCP_MODE = (XCP_MODE_PERSISTENCE | XCP_MODE_LOCAL); // XCP single application server mode
+// constexpr uint8_t OPTION_XCP_MODE = (XCP_MODE_DEACTIVATE); // XCP deactivated, passive mode
 
 // A2L generation mode:
 constexpr uint8_t OPTION_A2L_MODE = (A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS);
-
-// Test
-// constexpr uint8_t OPTION_XCP_MODE = (XCP_MODE_PERSISTENCE | XCP_MODE_SHM); // XCP single application server mode
-// constexpr uint8_t OPTION_A2L_MODE = (A2L_MODE_DEACTIVATE);                 // A2L generation deactivated
 
 #define OPTION_ENABLE_CALIBRATION // Enable parameter tuning in the code below
 
@@ -182,7 +178,10 @@ int main(int argc, char *argv[]) {
     XcpSetLogLevel(OPTION_LOG_LEVEL);
 
     // Initialize the XCP singleton and activate XCP
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION /* EPK version*/, OPTION_XCP_MODE);
+    if (!XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION /* EPK version*/, OPTION_XCP_MODE)) {
+        std::cerr << "Failed to initialize XCP" << std::endl;
+        return 1;
+    }
     XcpSetElfName(argv[0]); // Set ELF file name for upload via GET_ID, optional
 
     // Initialize the XCP Server
@@ -191,7 +190,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Enable runtime A2L generation for data declaration as code
+    // Enable runtime A2L generation for data declaration as code, optional
     // The A2L file will be created when the XCP tool connects and, if it does not already exist on local file system and the version did not change
     if (!A2lInit(OPTION_SERVER_ADDR, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_A2L_MODE)) {
         std::cerr << "Failed to initialize A2L generator" << std::endl;

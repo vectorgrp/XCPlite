@@ -23,7 +23,7 @@
 #include <stdint.h>   // for uint8_t, uint16_t, ...
 #include <stdio.h>    // for printf
 #include <stdlib.h>   // for size_t, NULL, abort
-#include <string.h>   // for memcpy, memset, strlen
+#include <string.h>   // for memcpy, memset
 
 #include "dbg_print.h"   // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
 #include "persistence.h" // for XcpBinFreezeCalSeg
@@ -113,7 +113,7 @@ void XcpInitCalSegList(void) {
 static void *XcpCalMemAlloc_(size_t size) {
     assert(size > 0);
     assert((size % XCP_CALPAGE_ALIGNMENT) == 0);
-    assert(size <= XCP_CAL_MEM_SIZE);
+    assert(size <= (size_t)XCP_CAL_MEM_SIZE);
     assert((uintptr_t)shared.cal_seg_list.cal_mem % XCP_CALPAGE_ALIGNMENT == 0);
     uint_fast32_t old_used, new_used;
     do {
@@ -379,7 +379,7 @@ static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, bool lookup, const voi
 
         // Allocate memory for the new segment from the embedded pool using the thread-safe bump allocator
         // Header + DEFAULT page + ECU page + XCP page + RCU swap page
-        calseg = (tXcpCalSeg *)XcpCalMemAlloc_(sizeof(tXcpCalSegHeader) + 4 * aligned_page_size);
+        calseg = (tXcpCalSeg *)XcpCalMemAlloc_(sizeof(tXcpCalSegHeader) + 4 * (size_t)aligned_page_size);
         DBG_PRINTF3("Create CalSeg '%s' size=%u, memory_segment=%u\n", name, page_size, memory_segment);
         if (!XcpInitCalSeg_(calseg, name, default_page, default_page_file, page_size, memory_segment)) {
             return XCP_UNDEFINED_CALSEG;
@@ -446,8 +446,9 @@ static bool XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
     // Align page size to 8 bytes for better performance
     uint16_t aligned_page_size = (page_size + XCP_CALPAGE_ALIGNMENT - 1) & ~(XCP_CALPAGE_ALIGNMENT - 1);
 
-    STRNCPY(c->h.name, name, XCP_MAX_CALSEG_NAME);
-    c->h.name[XCP_MAX_CALSEG_NAME] = 0;
+    size_t name_len = strnlen(name, XCP_MAX_CALSEG_NAME);
+    memcpy(c->h.name, name, name_len);
+    c->h.name[name_len] = '\0';
     c->h.size = page_size;
     // In SHM mode, assign the app_id to the segment
 #ifdef OPTION_SHM_MODE // store application id in tXcpCalSeg
@@ -767,7 +768,7 @@ uint8_t XcpGetSegInfo(tXcpCalSegNumber segment_number, uint8_t mode, uint8_t seg
             CRM_GET_SEGMENT_INFO_BASIC_INFO = (uint32_t)c->h.size;
             return CRC_CMD_OK;
         } else if (seg_info == 2) { // Get segment name (Vector extension, name via MTA and upload)
-            CRM_GET_SEGMENT_INFO_BASIC_INFO = (uint32_t)strlen(c->h.name);
+            CRM_GET_SEGMENT_INFO_BASIC_INFO = (uint32_t)STRNLEN(c->h.name, XCP_MAX_CALSEG_NAME);
             // Segment name provided via upload
             local_mut.mta_ptr = (uint8_t *)c->h.name;
             local_mut.mta_ext = XCP_ADDR_EXT_PTR;

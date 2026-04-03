@@ -125,7 +125,9 @@ static bool ShmServerInit_(uint32_t queue_size) {
         DBG_PRINTF3(ANSI_COLOR_BLUE "Created '/xcpqueue' with %zu bytes (including header)\n" ANSI_COLOR_RESET, queue_total_size);
     } else {
         // @@@@ TODO: There might be a race condition until the leader has initialized the queue ? Wait !
-        assert(hdr->queue_size == queue_size); // All processes must use the same queue size
+        if (hdr->queue_size != queue_size) {
+            DBG_PRINTF_WARNING("XcpEthServerInit: queue size mismatch for '/xcpqueue', expected %u, got %u\n", queue_size, hdr->queue_size);
+        }
         assert(atomic_load(&hdr->is_initialized) != 0);
         DBG_PRINTF3(ANSI_COLOR_BLUE "Attached to '/xcpqueue', size %zu bytes (including header)\n" ANSI_COLOR_RESET, queue_total_size);
     }
@@ -455,10 +457,10 @@ extern void *XcpServerReceiveThread(void *par)
                 static uint64_t last_ctr = 0;
                 uint32_t loops = ctr - last_ctr;
                 if (XcpIsConnected() && loops <= 5) {
-                    DBG_PRINTF_WARNING("XCP receive thread: only %u loops per second, slow background processing, check if the thread is blocked\n", loops);
+                    DBG_PRINTF_WARNING("XCP receive thread: only %u loops per second, slow background processing\n", loops);
                 }
                 if (loops > 1000) {
-                    DBG_PRINT_WARNING("XCP receive thread: more than 1000 loops per second, check if the thread is busy waiting\n");
+                    DBG_PRINT_WARNING("XCP receive thread: more than 1000 loops per second\n");
                 }
                 DBG_PRINTF6("XCP receive thread: %llu loop per second\n", loops);
                 last_ctr = ctr;
@@ -503,10 +505,10 @@ extern void *XcpServerTransmitThread(void *par)
         if (now - last_time >= 1000000000ULL) { // every 1s
             uint32_t loops = ctr - last_ctr;
             if (XcpIsConnected() && loops <= 5) {
-                DBG_PRINTF_WARNING("XCP transmit thread: only %u loops per second, slow background processing, check if the thread is blocked\n", loops);
+                DBG_PRINTF_WARNING("XCP transmit thread: only %u loops per second, slow background processing\n", loops);
             }
             if (loops > 2000) {
-                DBG_PRINT_WARNING("XCP transmit thread: more than 2000 loops per second, check if the thread is busy waiting\n");
+                DBG_PRINT_WARNING("XCP transmit thread: more than 2000 loops per second\n");
             }
             DBG_PRINTF6("XCP transmit thread: %llu loops per second\n", loops);
             last_time = now;

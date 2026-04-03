@@ -398,9 +398,9 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
 
     if (entry == NULL) {
         uint32_t lost = (uint32_t)atomic_fetch_add_explicit(&queue->h.packets_lost, 1, memory_order_acq_rel);
-        if (lost == 0)
-            DBG_PRINTF6("Transmit queue overrun, entry_len=%u, head=%" PRIu64 ", tail=%" PRIu64 ", level=%u, queue_size=%u\n", entry_len, head, tail, (uint32_t)(head - tail),
-                        queue->h.queue_size);
+        if (lost == 0) {
+            DBG_PRINTF6("Queue overrun, len=%u, head=%" PRIu64 ", tail=%" PRIu64 ", level=%u, size=%u\n", entry_len, head, tail, (uint32_t)(head - tail), queue->h.queue_size);
+        }
         tQueueBuffer ret = {
             .buffer = NULL,
             .size = 0,

@@ -724,11 +724,11 @@ void XcpEthTlGetInfo(bool *isTcp, uint8_t *mac, uint8_t *addr, uint16_t *port) {
 
 // MTU currently set to 8000 (jumbo frames) -> XCPTL_MAX_SEGMENT_SIZE = 7968
 // Queue size currently typically at least 32KByte
-#define MAX_BUFFERS 256       // Max number of buffers that can be accumulated into one segment
-#define MIN_UPDATE_TIME_MS 50 // Update data at least every 50ms
-#define MAX_QUEUE_LEVEL 50    // Transmit immediately, when the queue is more than 50% full and there is no more commited data
-#define MAX_SLEEP_TIME_MS 1   // 1ms sleep time for retry, when there is was segment ready to send
-#define MAX_RETRIES 100       // Return to the caller after MAX_RETRIES (100ms to allow background tasks and graceful shutdown)
+#define MAX_BUFFERS 256          // Max number of buffers that can be accumulated into one segment
+#define MIN_UPDATE_TIME_MS 50ULL // Update data at least every 50ms
+#define MAX_QUEUE_LEVEL 50       // Transmit immediately, when the queue is more than 50% full and there is no more commited data
+#define MAX_SLEEP_TIME_MS 1      // 1ms sleep time for retry, when there is was segment ready to send
+#define MAX_RETRIES 100          // Return to the caller after MAX_RETRIES (100ms to allow background tasks and graceful shutdown)
 
 // Collect queue buffers for one segment and transmit them
 // Returns n = number of bytes sent or -1 on error
@@ -856,7 +856,7 @@ int32_t XcpTlHandleTransmitQueue(void) {
 
     if (res) {
         // DBG_PRINTF3("XcpTlHandleTransmitQueue: Segment transmitted, length=%u, ctr=(%u-%u)\n", length, ctr - index + 1, ctr);
-        return length;
+        return (int32_t)length;
     } else {
         return -1; // error from send
     }

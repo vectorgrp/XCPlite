@@ -14,7 +14,7 @@
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uintxx_t
 #include <stdio.h>   // for fclose, fopen, fread, fseek, ftell
-#include <string.h>  // for strlen, strncpy
+#include <string.h>  // for strncpy
 
 #include "dbg_print.h"  // for DBG_PRINTF3, DBG_PRINT4, DBG_PRINTF4, DBG...
 #include "platform.h"   // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
@@ -478,14 +478,14 @@ static char gXcpElfName[XCP_A2L_FILENAME_MAX_LENGTH + 1] = ""; // ELF filename (
 
 // Set the A2L file (filename without extension .a2l) to be provided to the host for upload
 void XcpSetA2lName(const char *name) {
-    assert(name != NULL && strlen(name) < XCP_A2L_FILENAME_MAX_LENGTH);
-    STRNCPY(gXcpA2lName, name, XCP_A2L_FILENAME_MAX_LENGTH);
+    assert(name != NULL && STRNLEN(name, XCP_A2L_FILENAME_MAX_LENGTH + 1) <= XCP_A2L_FILENAME_MAX_LENGTH);
+    strncpy(gXcpA2lName, name, XCP_A2L_FILENAME_MAX_LENGTH);
 
     // Remove the extension from the name, if it exists
     char *dot = strrchr(gXcpA2lName, '.');
     if (dot != NULL)
-        *dot = '\0';                                 // Null-terminate the string at the dot
-    gXcpA2lName[XCP_A2L_FILENAME_MAX_LENGTH] = '\0'; // Ensure null-termination
+        *dot = '\0'; // Null-terminate the string at the dot
+    gXcpA2lName[XCP_A2L_FILENAME_MAX_LENGTH] = '\0';
     DBG_PRINTF4("XcpSetA2lName set to '%s'\n", gXcpA2lName);
 }
 
@@ -494,8 +494,9 @@ const char *XcpGetA2lName(void) { return gXcpA2lName; }
 
 // Set the ELF file (complete path) to be provided to the host for upload
 void XcpSetElfName(const char *name) {
-    assert(name != NULL && strlen(name) < XCP_A2L_FILENAME_MAX_LENGTH);
-    STRNCPY(gXcpElfName, name, XCP_A2L_FILENAME_MAX_LENGTH);
+    assert(name != NULL && STRNLEN(name, XCP_A2L_FILENAME_MAX_LENGTH + 1) <= XCP_A2L_FILENAME_MAX_LENGTH);
+    strncpy(gXcpElfName, name, XCP_A2L_FILENAME_MAX_LENGTH);
+    gXcpElfName[XCP_A2L_FILENAME_MAX_LENGTH] = '\0';
     DBG_PRINTF4("XcpSetElfName set to '%s'\n", gXcpElfName);
 }
 
@@ -571,7 +572,8 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen) {
         if (buf) {
             if (len >= bufLen - 1)
                 return 0; // Insufficient buffer space
-            STRNCPY((char *)buf, project_name, len);
+            strncpy((char *)buf, project_name, bufLen);
+            ((char *)buf)[bufLen - 1] = '\0';
         }
         DBG_PRINTF3("ApplXcpGetId GET_ID %u project_name=%s\n", id, project_name);
     } break;
@@ -583,7 +585,8 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen) {
         if (buf) {
             if (len >= bufLen - 1)
                 return 0; // Insufficient buffer space
-            STRNCPY((char *)buf, gXcpA2lName, len);
+            strncpy((char *)buf, gXcpA2lName, bufLen);
+            ((char *)buf)[bufLen - 1] = '\0'; // Ensure null termination
         }
         DBG_PRINTF3("ApplXcpGetId GET_ID %u A2L name=%s\n", id, gXcpA2lName);
     } break;
@@ -608,7 +611,8 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen) {
         if (buf) {
             if (len > bufLen - 1)
                 return 0; // Insufficient buffer space
-            STRNCPY((char *)buf, epk, len);
+            strncpy((char *)buf, epk, bufLen);
+            ((char *)buf)[bufLen - 1] = '\0'; // Ensure null termination
             DBG_PRINTF3("ApplXcpGetId GET_ID%u EPK=%s\n", id, epk);
         } else {
             DBG_PRINTF3("ApplXcpGetId GET_ID %u EPK as upload (len=%u,value=%s)\n", id, len, epk);
@@ -643,7 +647,7 @@ uint32_t ApplXcpGetId(uint8_t id, uint8_t *buf, uint32_t bufLen) {
             uint8_t addr[4];
             if (socketGetLocalAddr(NULL, addr)) {
                 SNPRINTF((char *)buf, bufLen - 1, "http://%u.%u.%u.%u:%u/file/%s.a2l", addr[0], addr[1], addr[2], addr[3], gOptionHTTPPort, gXcpA2lName);
-                len = (uint32_t)strlen((char *)buf);
+                len = (uint32_t)STRNLEN((char *)buf, bufLen);
             }
         }
     } break;

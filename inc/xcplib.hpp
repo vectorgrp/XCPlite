@@ -28,89 +28,50 @@ namespace xcp {
 // RAII wrappers for structs or values with calibration parameters
 // =============================================================================
 
-#if defined(OPTION_XCP_MODE) && OPTION_XCP_MODE == 0 // XCP deactivated
-
-template <typename T> class CalSeg {
-  private:
-    const T *params_ptr_;
-
-  public:
-    CalSeg(const char *name, const T *default_params) { params_ptr_ = default_params; }
-    tXcpCalSegIndex getIndex() const { return XCP_UNDEFINED_CALSEG; }
-    class CalSegGuard {
-      private:
-        const T *params_ptr_;
-
-      public:
-        explicit CalSegGuard(const T *params_ptr_) : params_ptr_(params_ptr_) {}
-        ~CalSegGuard() {}
-        const T *operator->() const { return params_ptr_; }
-        const T &operator*() const { return *params_ptr_; }
-        const T *get() const { return params_ptr_; }
-    };
-    CalSegGuard lock() const { return CalSegGuard(params_ptr_); }
-    void CreateA2lTypedefInstance(const char *type_name, const char *comment) {}
-};
-
-/// Generic RAII wrapper for a single parameter of complex or simple type
-template <typename T> class CalBlk {
-  private:
-    const T *params_ptr_;
-
-  public:
-    CalBlk(const char *name, const T *default_params) { params_ptr_ = default_params; }
-    tXcpCalSegIndex getIndex() const { return XCP_UNDEFINED_CALSEG; }
-    class CalSegGuard {
-      private:
-        const T *params_ptr_;
-
-      public:
-        explicit CalSegGuard(const T *params_ptr_) : params_ptr_(params_ptr_) {}
-        ~CalSegGuard() {}
-        const T *operator->() const { return params_ptr_; }
-        const T &operator*() const { return *params_ptr_; }
-        const T *get() const { return params_ptr_; }
-    };
-    CalSegGuard lock() const { return CalSegGuard(params_ptr_); }
-    void CreateA2lTypedefInstance(const char *type_name, const char *comment) {}
-};
-
-#else
-
 /// Generic RAII wrapper for structs with calibration parameters
 /// Template parameter T must be the calibration parameter struct type
 template <typename T> class CalSeg {
   private:
-    tXcpCalSegIndex calseg_index_;
+    const T *params_ptr_;
+    tXcpCalSegIndex index_;
 
   public:
     /// Constructor - creates the calibration segment struct wrapper
     /// @param name Name of the calibration segment
     /// @param default_params Default parameter values (reference page)
     CalSeg(const char *name, const T *default_params) {
-        calseg_index_ = XcpCreateCalSeg(name, default_params, sizeof(T));
-        assert(calseg_index_ != XCP_UNDEFINED_CALSEG); // Ensure the calibration segment was created successfully
-        A2lSetSegmentAddrMode__i(calseg_index_, NULL);
+        if (XcpIsActivated()) {
+            index_ = XcpCreateCalSeg(name, default_params, sizeof(T));
+            assert(index_ != XCP_UNDEFINED_CALSEG); // Ensure the calibration segment was created successfully
+            A2lSetSegmentAddrMode__i(index_, NULL);
+        } else {
+            params_ptr_ = default_params;
+        }
     }
 
     /// Get the segment index (for direct XCP or A2L API calls if needed)
-    tXcpCalSegIndex getIndex() const { return calseg_index_; }
+    tXcpCalSegIndex getIndex() const { return index_; }
 
     /// RAII guard class for automatic lock/unlock
     class CalSegGuard {
       private:
-        tXcpCalSegIndex calseg_index_;
         const T *params_ptr_;
+        tXcpCalSegIndex index_;
 
       public:
         /// Constructor - locks the calibration segment
-        explicit CalSegGuard(tXcpCalSegIndex calseg_index) : calseg_index_(calseg_index) {
-            params_ptr_ = reinterpret_cast<const T *>(XcpLockCalSeg(calseg_index_));
-            assert(params_ptr_ != nullptr);
+        explicit CalSegGuard(tXcpCalSegIndex index, const T *params_ptr) : index_(index), params_ptr_(params_ptr) {
+            if (XcpIsActivated()) {
+                params_ptr_ = reinterpret_cast<const T *>(XcpLockCalSeg(index_));
+            }
         }
 
         /// Destructor - unlocks the calibration segment
-        ~CalSegGuard() { XcpUnlockCalSeg(calseg_index_); }
+        ~CalSegGuard() {
+            if (XcpIsActivated()) {
+                XcpUnlockCalSeg(index_);
+            }
+        }
 
         /// Access the locked parameters via pointer
         const T *operator->() const { return params_ptr_; }
@@ -123,53 +84,65 @@ template <typename T> class CalSeg {
     };
 
     /// Create a guard that automatically locks and unlocks the calibration segment
-    CalSegGuard lock() const { return CalSegGuard(calseg_index_); }
+    CalSegGuard lock() const { return CalSegGuard(index_, params_ptr_); }
 
     /// Create the A2L instance description for this calibration segment
     /// Thread safe
     /// @param type_name The name of the type as it should appear in the A2L file
     /// @param comment Description for the A2L file
     void CreateA2lTypedefInstance(const char *type_name, const char *comment) {
-        A2lLock();
-        A2lSetSegmentAddrMode__i(calseg_index_, NULL);
-        A2lCreateInstance_(XcpGetCalSegName(calseg_index_), type_name, 0, NULL, comment);
-        A2lUnlock();
+        if (XcpIsActivated()) {
+            A2lLock();
+            A2lSetSegmentAddrMode__i(index_, NULL);
+            A2lCreateInstance_(XcpGetCalSegName(index_), type_name, 0, NULL, comment);
+            A2lUnlock();
+        }
     }
 };
 
 /// Generic RAII wrapper for a single parameter of complex or simple type
 template <typename T> class CalBlk {
   private:
-    tXcpCalSegIndex calseg_index_;
+    const T *params_ptr_;
+    tXcpCalSegIndex index_;
 
   public:
     /// Constructor - creates the calibration segment struct wrapper
     /// @param name Name of the calibration segment
     /// @param default_params Default parameter values (reference page)
     CalBlk(const char *name, const T *default_params) {
-        calseg_index_ = XcpCreateCalBlk(name, default_params, sizeof(T));
-        assert(calseg_index_ != XCP_UNDEFINED_CALSEG); // Ensure the calibration segment was created successfully
-        A2lSetSegmentAddrMode__i(calseg_index_, NULL);
+        if (XcpIsActivated()) {
+            index_ = XcpCreateCalBlk(name, default_params, sizeof(T));
+            assert(index_ != XCP_UNDEFINED_CALSEG); // Ensure the calibration segment was created successfully
+            A2lSetSegmentAddrMode__i(index_, NULL);
+        } else {
+            params_ptr_ = default_params;
+        }
     }
 
     /// Get the segment index (for direct XCP or A2L API calls if needed)
-    tXcpCalSegIndex getIndex() const { return calseg_index_; }
+    tXcpCalSegIndex getIndex() const { return index_; }
 
     /// RAII guard class for automatic lock/unlock
     class CalSegGuard {
       private:
-        tXcpCalSegIndex calseg_index_;
         const T *params_ptr_;
+        tXcpCalSegIndex calseg_index_;
 
       public:
         /// Constructor - locks the calibration segment
-        explicit CalSegGuard(tXcpCalSegIndex calseg_index) : calseg_index_(calseg_index) {
-            params_ptr_ = reinterpret_cast<const T *>(XcpLockCalSeg(calseg_index_));
-            assert(params_ptr_ != nullptr);
+        explicit CalSegGuard(tXcpCalSegIndex calseg_index, const T *params_ptr) : calseg_index_(calseg_index), params_ptr_(params_ptr) {
+            if (XcpIsActivated()) {
+                params_ptr_ = reinterpret_cast<const T *>(XcpLockCalSeg(calseg_index_));
+            }
         }
 
         /// Destructor - unlocks the calibration segment
-        ~CalSegGuard() { XcpUnlockCalSeg(calseg_index_); }
+        ~CalSegGuard() {
+            if (XcpIsActivated()) {
+                XcpUnlockCalSeg(calseg_index_, params_ptr_);
+            }
+        }
 
         /// Access the locked parameters via pointer
         const T *operator->() const { return params_ptr_; }
@@ -182,21 +155,21 @@ template <typename T> class CalBlk {
     };
 
     /// Create a guard that automatically locks and unlocks the calibration segment
-    CalSegGuard lock() const { return CalSegGuard(calseg_index_); }
+    CalSegGuard lock() const { return CalSegGuard(index_, params_ptr_); }
 
     /// Create the A2L instance description for this calibration segment
     /// Thread safe
     /// @param type_name The name of the type as it should appear in the A2L file
     /// @param comment Description for the A2L file
     void CreateA2lTypedefInstance(const char *type_name, const char *comment) {
-        A2lLock();
-        A2lSetSegmentAddrMode__i(calseg_index_, NULL);
-        A2lCreateInstance_(XcpGetCalSegName(calseg_index_), type_name, 0, NULL, comment);
-        A2lUnlock();
+        if (XcpIsActivated()) {
+            A2lLock();
+            A2lSetSegmentAddrMode__i(index_, NULL);
+            A2lCreateInstance_(XcpGetCalSegName(index_), type_name, 0, NULL, comment);
+            A2lUnlock();
+        }
     }
 };
-
-#endif
 
 /// Convenience macro to create a calibration segment with automatic name stringification
 /// Usage: auto calseg = CalSegCreate(initial_value);

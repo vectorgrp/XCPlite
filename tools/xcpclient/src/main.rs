@@ -2,7 +2,7 @@
 // xcpclient - XCP test tool
 //
 // - Connect to XCP on Ethernet servers via TCP or UDP
-// - Upload A2L files from XCP servers (GET_ID command)
+// - Upload A2L or ELF files from XCP servers (GET_ID command)
 // - Create complete A2L files from ELF debug information the XCP server event and memory segment information
 // - Create A2L templates from the XCP server event and memory segment information
 // - Read and write calibration variables (CAL)
@@ -13,6 +13,7 @@
 // xcpclient --help
 //-----------------------------------------------------------------------------
 
+use std::io::Write;
 use std::net::Ipv4Addr;
 use std::{error::Error, sync::Arc};
 
@@ -135,7 +136,7 @@ struct Args {
     #[arg(long, default_value_t = false)]
     fix_a2l: bool,
 
-        // --upload-elf
+    // --upload-elf
     /// Upload ELF file from XCP server.
     /// Requires that the XCP server supports proprietary GET_ID ELF upload command.
     #[arg(long, default_value_t = false)]
@@ -182,6 +183,12 @@ struct Args {
     /// Time limit measurement duration to n s. 0 means infinite.
     #[arg(long, default_value_t = 0)]
     time: u64,
+
+    // --csv
+    /// Save measurement data to a CSV file. If not specified, data is printed to the console.
+    /// CSV format: time_ns,daq,name,value  (one row per measurement sample).
+    #[arg(long, default_value = "")]
+    csv: String,
 
     // --list-cal
     /// Lists all specified calibration variables (regex) found in the A2L file
@@ -236,7 +243,6 @@ const TEST_DURATION_MS: u64 = 5000;
 
 const MAX_EVENT: usize = 64;
 
-#[derive(Debug)]
 struct DaqDecoder {
     daq_odt_entries: Option<Vec<Vec<OdtEntry>>>,
     timestamp_resolution: u64,
@@ -244,11 +250,26 @@ struct DaqDecoder {
     event_count: usize,
     byte_count: usize,
     daq_timestamp: [u64; MAX_EVENT],
-    verbose: usize,
+    log_level: u8,
+    csv_writer: Option<std::io::BufWriter<std::fs::File>>,
 }
 
 impl DaqDecoder {
-    pub fn new(verbose: usize) -> DaqDecoder {
+    pub fn new(log_level: u8, csv_filename: &str) -> DaqDecoder {
+        let csv_writer = if csv_filename.is_empty() {
+            None
+        } else {
+            match std::fs::File::create(csv_filename) {
+                Ok(f) => {
+                    info!("CSV output to file: {}", csv_filename);
+                    Some(std::io::BufWriter::new(f))
+                }
+                Err(e) => {
+                    error!("Failed to create CSV file '{}': {}", csv_filename, e);
+                    None
+                }
+            }
+        };
         DaqDecoder {
             daq_odt_entries: None,
             timestamp_resolution: 0,
@@ -256,7 +277,8 @@ impl DaqDecoder {
             event_count: 0,
             byte_count: 0,
             daq_timestamp: [0; MAX_EVENT],
-            verbose,
+            log_level,
+            csv_writer,
         }
     }
 }
@@ -271,9 +293,19 @@ impl XcpDaqDecoder for DaqDecoder {
         for t in self.daq_timestamp.iter_mut() {
             *t = timestamp;
         }
+
+        // Write CSV header
+        if let Some(ref mut writer) = self.csv_writer {
+            let _ = writeln!(writer, "time_ns,daq,name,value");
+        }
     }
 
-    fn stop(&mut self) {}
+    fn stop(&mut self) {
+        // Flush CSV output
+        if let Some(ref mut writer) = self.csv_writer {
+            let _ = writer.flush();
+        }
+    }
 
     // Set timestamp resolution
     fn set_daq_properties(&mut self, timestamp_resolution: u64, daq_header_size: u8) {
@@ -330,71 +362,54 @@ impl XcpDaqDecoder for DaqDecoder {
             t_last
         };
 
-        if self.verbose >= 1 {
+        if self.log_level >= 1 {
             println!("DAQ: lost={}, daq={}, odt={}, t={}ns (+{}us)", lost, daq, odt, t, (t - t_last) / 1000);
+        }
 
-            if self.verbose >= 2 {
-                // Get daq list
-                let daq_list = &self.daq_odt_entries.as_ref().unwrap()[daq as usize];
+        // Decode all odt entries — for terminal (log_level >= 2) and/or CSV output
+        if self.log_level >= 2 || self.csv_writer.is_some() {
+            let daq_list = &self.daq_odt_entries.as_ref().unwrap()[daq as usize];
 
-                // Decode all odt entries
-                for odt_entry in daq_list.iter() {
-                    let value_size = odt_entry.a2l_type.size;
-                    let mut value_offset = odt_entry.offset as usize + value_size - 1;
-                    let mut value: u64 = 0;
-                    loop {
-                        value |= data[value_offset] as u64;
-                        if value_offset == odt_entry.offset as usize {
-                            break;
-                        };
-                        value <<= 8;
-                        value_offset -= 1;
-                    }
-                    match odt_entry.a2l_type.encoding {
-                        A2lTypeEncoding::Signed => {
-                            match value_size {
-                                1 => {
-                                    let signed_value: i8 = value as u8 as i8;
-                                    println!(" {} = {}", odt_entry.name, signed_value);
-                                }
-                                2 => {
-                                    let signed_value: i16 = value as u16 as i16;
-                                    println!(" {} = {}", odt_entry.name, signed_value);
-                                }
-                                4 => {
-                                    let signed_value: i32 = value as u32 as i32;
-                                    println!(" {} = {}", odt_entry.name, signed_value);
-                                }
-                                8 => {
-                                    let signed_value: i64 = value as i64;
-                                    println!(" {} = {}", odt_entry.name, signed_value);
-                                }
-                                _ => {
-                                    warn!("Unsupported signed value size {}", value_size);
-                                }
-                            };
-                        }
-                        A2lTypeEncoding::Unsigned => {
-                            println!(" {} = {}", odt_entry.name, value);
-                        }
-                        A2lTypeEncoding::Float => {
-                            if odt_entry.a2l_type.size == 4 {
-                                // #[allow(clippy::transmute_int_to_float)]
-                                // let value: f32 = unsafe { std::mem::transmute(value as u32) };
-                                let value: f32 = f32::from_bits(value as u32);
+            for odt_entry in daq_list.iter() {
+                let value_size = odt_entry.a2l_type.size;
+                let mut value_offset = odt_entry.offset as usize + value_size - 1;
+                let mut value: u64 = 0;
+                loop {
+                    value |= data[value_offset] as u64;
+                    if value_offset == odt_entry.offset as usize {
+                        break;
+                    };
+                    value <<= 8;
+                    value_offset -= 1;
+                }
 
-                                println!(" {} = {}", odt_entry.name, value);
-                            } else {
-                                // #[allow(clippy::transmute_int_to_float)]
-                                // let value: f64 = unsafe { std::mem::transmute(value) };
-                                let value: f64 = f64::from_bits(value);
-                                println!(" {} = {}", odt_entry.name, value);
-                            }
+                let value_str = match odt_entry.a2l_type.encoding {
+                    A2lTypeEncoding::Signed => match value_size {
+                        1 => format!("{}", value as u8 as i8),
+                        2 => format!("{}", value as u16 as i16),
+                        4 => format!("{}", value as u32 as i32),
+                        8 => format!("{}", value as i64),
+                        _ => {
+                            warn!("Unsupported signed value size {}", value_size);
+                            String::new()
                         }
-                        A2lTypeEncoding::Blob => {
-                            panic!("Blob not supported");
+                    },
+                    A2lTypeEncoding::Unsigned => format!("{}", value),
+                    A2lTypeEncoding::Float => {
+                        if value_size == 4 {
+                            format!("{}", f32::from_bits(value as u32))
+                        } else {
+                            format!("{}", f64::from_bits(value))
                         }
                     }
+                    A2lTypeEncoding::Blob => panic!("Blob not supported"),
+                };
+
+                if let Some(ref mut writer) = self.csv_writer {
+                    let _ = writeln!(writer, "{},{},{},{}", t, daq, odt_entry.name, value_str);
+                }
+                if self.log_level >= 2 {
+                    println!(" {} = {}", odt_entry.name, value_str);
                 }
             }
         }
@@ -463,6 +478,7 @@ async fn xcp_client(
     measurement_list: Vec<String>,
     measurement_duration_ms: u64,
     cal_args: Vec<String>,
+    csv_filename: String,
 ) -> Result<(), Box<dyn Error>> {
     // Create xcp_client
     let mut xcp_client = XcpClient::new(tcp, dest_addr, local_addr);
@@ -485,7 +501,7 @@ async fn xcp_client(
             // Connect to the XCP server
             // Print protocol information
             info!("XCP Connect using {}", if tcp { "TCP" } else { "UDP" });
-            let daq_decoder = Arc::new(Mutex::new(DaqDecoder::new(verbose))); // print DAQ data if verbose > 0
+            let daq_decoder = Arc::new(Mutex::new(DaqDecoder::new(2, &csv_filename))); 
             match xcp_client.connect(connect_mode, Arc::clone(&daq_decoder), ServTextDecoder::new()).await {
                 Ok(_) => {
                     info!("Connected to XCP server at {}", dest_addr);
@@ -727,6 +743,7 @@ async fn xcp_client(
                 info!("Created A2L with file: {} {}", a2l_path.display(), mode);
             }
         }
+        
         //----------------------------------------------------------------
         // Load A2L from local file
         // If not upload or create option load  A2L from specified file into reg
@@ -1111,6 +1128,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             args.mea,
             args.time * 1000,
             args.cal,
+            args.csv,
         )
         .await;
         if let Err(e) = res {

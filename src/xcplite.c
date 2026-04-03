@@ -61,7 +61,7 @@
 #include <stdint.h>   // for uint8_t, uint16_t,...
 #include <stdio.h>    // for printf
 #include <stdlib.h>   // for size_t, NULL, abort
-#include <string.h>   // for memcpy, memset, strlen
+#include <string.h>   // for memcpy, memset, strlen, strncpy
 #include <unistd.h>   // for getpid()
 
 #include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
@@ -421,9 +421,8 @@ static void XcpSetProjectName(const char *name) {
 
     assert(name != NULL);
 
-    size_t name_len = STRNLEN(name, XCP_PROJECT_NAME_MAX_LENGTH);
-    STRNCPY(local_mut.project_name, name, name_len);
-    local_mut.project_name[XCP_PROJECT_NAME_MAX_LENGTH] = 0; // Ensure null-termination
+    strncpy(local_mut.project_name, name, XCP_PROJECT_NAME_MAX_LENGTH);
+    local_mut.project_name[XCP_PROJECT_NAME_MAX_LENGTH] = 0;
     DBG_PRINTF3("Project Name = '%s'\n", local.project_name);
 }
 
@@ -446,9 +445,8 @@ static void XcpSetEpk(const char *epk) {
 
     assert(epk != NULL);
 
-    size_t epk_len = STRNLEN(epk, XCP_EPK_MAX_LENGTH);
-    STRNCPY(local_mut.epk, epk, epk_len);
-    local_mut.epk[XCP_EPK_MAX_LENGTH] = 0; // Ensure null-termination
+    strncpy(local_mut.epk, epk, XCP_EPK_MAX_LENGTH);
+    local_mut.epk[XCP_EPK_MAX_LENGTH] = 0;
     // Remove unwanted characters from the EPK string
     for (char *p = local_mut.epk; *p; p++) {
         if (*p == ' ' || *p == '\t' || *p == ':') {
@@ -745,16 +743,24 @@ static uint8_t calcChecksum(uint32_t checksum_size, uint32_t *checksum_result) {
 
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
 
-#define getEventCount() (uint16_t)atomic_load_explicit(&shared.event_list.count, memory_order_acquire)
-#define setEventCount(n) atomic_store_explicit(&shared_mut_safe.event_list.count, n, memory_order_release)
+// Using the less expensive getEventCount() is a deliberate choice for performance critical code paths like XcpEvent(),
+// where the visibility of new events created by other threads is not critical, while acquireEventCount() is used for thread safe access to the event count with guaranteed
+// visibility of new events created by other threads.
+#define getEventCount() (uint16_t)atomic_load_explicit(&shared.event_list.count, memory_order_relaxed)
+#define acquireEventCount() (uint16_t)atomic_load_explicit(&shared.event_list.count, memory_order_acquire)
+#define releaseEventCount(n) atomic_store_explicit(&shared_mut_safe.event_list.count, n, memory_order_release)
 
 // Initialize the XCP event list
 void XcpInitEventList(void) {
 
     // Reset event list count
-    atomic_store_explicit(&shared_mut_safe.event_list.count, 0, memory_order_release);
+    releaseEventCount(0);
     mutexInit(&local_mut.event_list_mutex, false, 1000);
 }
+
+// Lock and unlock the XCP event list mutex for thread safe access to the event list
+void XcpLockEventList(void) { mutexLock(&local_mut.event_list_mutex); }
+void XcpUnlockEventList(void) { mutexUnlock(&local_mut.event_list_mutex); }
 
 // Get a pointer to and the size of the XCP event list
 const tXcpEventList *XcpGetEventList(void) {
@@ -765,12 +771,12 @@ const tXcpEventList *XcpGetEventList(void) {
 
 // Get a pointer to the XCP event struct
 const tXcpEvent *XcpGetEvent(tXcpEventId event) {
-    if (!isActivated() || event >= getEventCount())
+    if (!isActivated() || event >= acquireEventCount())
         return NULL;
     return &shared.event_list.event[event];
 }
 
-// Get the current event count, thread safe
+// Get the current event count, thread safe but visibility of new events created by other threads is not guaranteed
 uint16_t XcpGetEventCount(void) { return getEventCount(); }
 
 // Get the events application id
@@ -810,8 +816,7 @@ static tXcpEventId XcpFindEventInstances(const char *name, uint16_t *pcount) {
     if (pcount != NULL)
         *pcount = 0;
     if (isActivated()) {
-        // @@@@ Iterate event list
-        uint16_t count = getEventCount();
+        uint16_t count = acquireEventCount();
         for (uint16_t i = 0; i < count; i++) {
 #ifdef OPTION_SHM_MODE // find only events owned by this application process
             if (shared.event_list.event[i].app_id == XcpShmGetAppId() && strcmp(shared.event_list.event[i].name, name) == 0) {
@@ -851,7 +856,7 @@ tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cyc
     }
 
     // Check event count
-    uint16_t e = getEventCount();
+    uint16_t e = acquireEventCount();
     if (e >= XCP_MAX_EVENT_COUNT) {
         DBG_PRINT_ERROR("too many events\n");
         return XCP_UNDEFINED_EVENT_ID; // Out of memory
@@ -859,7 +864,7 @@ tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cyc
 
     // Caller is responsible for thread safety
     shared_mut_safe.event_list.event[e].index = index; // Index of the event instance
-    STRNCPY(shared_mut_safe.event_list.event[e].name, name, XCP_MAX_EVENT_NAME);
+    strncpy(shared_mut_safe.event_list.event[e].name, name, XCP_MAX_EVENT_NAME);
     shared_mut_safe.event_list.event[e].name[XCP_MAX_EVENT_NAME] = 0;
     shared_mut_safe.event_list.event[e].flags = (priority > 0) ? XCP_DAQ_EVENT_FLAG_PRIORITY : 0;
 #ifdef XCP_ENABLE_DAQ_PRESCALER
@@ -876,7 +881,7 @@ tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cyc
     shared_mut_safe.event_list.event[e].app_id = XcpShmGetAppId();
 #endif // SHM_MODE
 
-    setEventCount(e + 1); // Publish new event, this is not thread safe, must be called with locked mutex, but it garantees atomic visibility of the new event
+    releaseEventCount(e + 1); // Publish new event, visibility assured, when others acquire the event count, but overall function not thread safe, must be called with locked mutex
 
     DBG_PRINTF3("Create Event %u: %s index=%u, cycle=%uns, prio=%u\n", e, shared.event_list.event[e].name, index, cycle_time_ns, priority);
     return e;
@@ -2424,7 +2429,7 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             CRM_LEN = CRM_GET_DAQ_EVENT_INFO_LEN;
             CRM_GET_DAQ_EVENT_INFO_PROPERTIES = DAQ_EVENT_PROPERTIES_DAQ | DAQ_EVENT_PROPERTIES_EVENT_CONSISTENCY;
             CRM_GET_DAQ_EVENT_INFO_MAX_DAQ_LIST = 0xFF;
-            CRM_GET_DAQ_EVENT_INFO_NAME_LENGTH = (uint8_t)strlen(eventName);
+            CRM_GET_DAQ_EVENT_INFO_NAME_LENGTH = (uint8_t)STRNLEN(eventName, XCP_MAX_EVENT_NAME);
             CRM_GET_DAQ_EVENT_INFO_TIME_CYCLE = (uint8_t)timeCycle;
             CRM_GET_DAQ_EVENT_INFO_TIME_UNIT = timeUnit;
             CRM_GET_DAQ_EVENT_INFO_PRIORITY = (event->flags & XCP_DAQ_EVENT_FLAG_PRIORITY) ? 0xFF : 0x00;
@@ -2921,16 +2926,27 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     DBG_PRINTF3(ANSI_COLOR_GREEN "XcpInit name=%s, epk=%s, mode=%02X\n" ANSI_COLOR_RESET, name, epk, mode);
     DBG_PRINTF5("  sizeof(tXcpData)=%zu  sizeof(tXcpLocalData)=%zu\n", sizeof(tXcpData), sizeof(tXcpLocalData));
 
+    // Mode checks and adjustments
     if (mode != XCP_MODE_DEACTIVATE) {
 #ifdef OPTION_SHM_MODE // XcpInit adjust XCP mode
         // Adjust mode flags for SHM mode, if enabled, to ensure consistency of dependent flags
         mode |= XCP_MODE_SHM;         // SHM mode must be active, no fallback to normal XCP mode possible
         mode |= XCP_MODE_PERSISTENCE; // Be sure XCP_MODE_PERSISTENCE has been set
+        if ((mode & XCP_MODE_LOCAL) != 0) {
+            DBG_PRINT_WARNING("XcpInit: xcplib is in SHM mode, switch to XCP_MODE_SHM_AUTO\n");
+            mode &= ~XCP_MODE_LOCAL;
+            mode |= XCP_MODE_SHM_AUTO;
+        }
 #ifdef TEST_MUTABLE_ACCESS_OWNERSHIP
         XcpBindOwnerThread();
 #endif
 #else
+        // Not compiled for SHM mode
+        if ((mode & (XCP_MODE_SHM | XCP_MODE_SHM_AUTO | XCP_MODE_SHM_SERVER)) != 0) {
+            DBG_PRINT_ERROR("XcpInit: SHM mode requested, but xcplib is compiled in non-SHM mode, switch to XCP_MODE_LOCAL\n");
+        }
         mode |= XCP_MODE_LOCAL;
+        mode &= ~(XCP_MODE_SHM | XCP_MODE_SHM_AUTO | XCP_MODE_SHM_SERVER);
 #endif
     }
 
@@ -2938,7 +2954,7 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     memset((uint8_t *)&gXcpLocalData, 0, sizeof(tXcpLocalData));
     local_mut.init_mode = mode;
 
-    // Initialize the base address for absolute addressing
+// Initialize the base address for absolute addressing
 #ifdef XCP_ENABLE_ABS_ADDRESSING
     ApplXcpGetBaseAddr();
     assert(xcp_get_base_addr() != NULL);
@@ -2963,22 +2979,14 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
 
     // Now, after minimum initialization deactivate
     if ((mode & (XCP_MODE_LOCAL | XCP_MODE_SHM)) == 0) {
-        goto error_deactivate;
-    }
-
-#ifdef OPTION_SHM_MODE // XcpInit mode checks
-    if ((mode & XCP_MODE_LOCAL) != 0) {
-        DBG_PRINT_ERROR("XcpInit: xcplib is in SHM mode, XCP_MODE_LOCAL not possible\n");
-        assert(0);
-        goto error_deactivate;
-    }
+        local_mut.init_mode = XCP_MODE_DEACTIVATE;
+#ifdef OPTION_SHM_MODE
+        gXcpData = NULL;
 #else
-    if ((mode & (XCP_MODE_SHM | XCP_MODE_SHM_AUTO | XCP_MODE_SHM_SERVER)) != 0) {
-        DBG_PRINT_ERROR("XcpInit: SHM mode requested, but xcplib is not in SHM mode\n");
-        assert(0);
-        goto error_deactivate;
-    }
+        gXcpData.session_status = 0;
 #endif
+        return true;
+    }
 
 #ifdef OPTION_SHM_MODE // XcpInit init SHM mode
     // In SHM mode, attach to shared memory, or create it if not existing (leader)
@@ -3061,7 +3069,7 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     // Check, if the leader should also be the server, or if a separate server application will be started later
     local_mut.shm_server = (mode & XCP_MODE_SHM) != 0 && (mode & (XCP_MODE_SHM_SERVER | XCP_MODE_SHM_AUTO)) != 0;
 
-#endif // SHM_MODE
+#endif
 
     // Reset DAQ list memory
     XcpClearDaq();
@@ -3102,7 +3110,7 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
         goto error_deactivate; // SHM application registration problem, deactivate XCP
     }
     local_mut.shm_app_id = (uint8_t)app_id;
-#endif // SHM_MODE
+#endif
 
 #ifdef XCP_ENABLE_CALSEG_LIST
 #ifdef XCP_ENABLE_EPK_CALSEG

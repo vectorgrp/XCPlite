@@ -26,7 +26,7 @@
 // XCP parameters
 
 #define OPTION_PROJECT_NAME "cal_test"  // A2L project name
-#define OPTION_PROJECT_VERSION __TIME__ // EPK version string
+#define OPTION_PROJECT_VERSION "V2.0.0" // EPK version string
 #define OPTION_USE_TCP false            // TCP or UDP
 #define OPTION_SERVER_PORT 5555         // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
@@ -37,7 +37,7 @@
 #define TEST_THREAD_COUNT 4         // Number of threads
 #define TEST_WRITE_COUNT 10000      // Test writes
 #define TEST_ATOMIC_CAL 10          // Test with atomic begin/end calibration segment access, every N writes
-#define TEST_TASK_LOOP_DELAY_US 100 // Task loop delay in us
+#define TEST_TASK_LOOP_DELAY_US 50  // Task loop delay in us
 #define TEST_TASK_LOCK_DELAY_US 0   // Task lock delay in us
 #define TEST_MAIN_LOOP_DELAY_US 100 // Write loop delay in us
 #define TEST_DATA_SIZE 8            // Default test data size
@@ -94,21 +94,39 @@ static MUTEX lock_mutex = MUTEX_INTIALIZER;
 static uint64_t lock_time_max = 0;
 static uint64_t lock_time_sum = 0;
 static uint64_t lock_count = 0;
+static uint64_t lock_calibration = 0; // Calibration value for the overhead of the timing measurement itself, to get more accurate results for short lock times
 
 // Variable-width lock timing histogram
 // Fine granularity for short latencies, coarser for long-tail latencies
 // Bin[i] counts events where EDGES[i-1] <= t < EDGES[i]; bin[SIZE-1] is the overflow (>EDGES[SIZE-2])
 #define LOCK_TIME_HISTOGRAM_SIZE 26
 static const uint64_t LOCK_TIME_HISTOGRAM_EDGES[LOCK_TIME_HISTOGRAM_SIZE - 1] = {
-    40,    80,    120,   160,    200,    240, 280, 320, 360, 400, // 10 bins: 40ns steps
-    600,   800,   1000,  1500,   2000,                            //  5 bins: 200-500ns steps (up to 2us)
-    3000,  4000,  6000,  8000,   10000,                           //  5 bins: 1-2us steps (up to 10us)
-    20000, 40000, 80000, 160000, 320000,                          //  5 bins: 10-160us steps (up to 320us, preemption range)
+    10, 20, 40, 80, 120, 160, 200, 300, 400, 500, 600, 800, 1000, 1500, 2000, 3000, 4000, 6000, 8000, 10000, 20000, 40000, 80000, 160000, 320000,
 };
 static uint64_t lock_time_histogram[LOCK_TIME_HISTOGRAM_SIZE] = {0};
 
+static void lock_test_init(void) {
+    memset(lock_time_histogram, 0, sizeof(lock_time_histogram));
+    lock_time_max = 0;
+    lock_time_sum = 0;
+    lock_count = 0;
+
+    // Calibrate
+    uint64_t sum = 0;
+    for (int i = 0; i < 1000; i++) {
+        uint64_t time = clockGetMonotonicNs();
+        sum += clockGetMonotonicNs() - time;
+    }
+    lock_calibration = sum / 1000;
+}
+
 static void lock_test_add_sample(uint64_t d) {
+    if (d >= lock_calibration) // Subtract calibration value to get more accurate results for short lock times
+        d -= lock_calibration;
+    else
+        d = 0;
     mutexLock(&lock_mutex);
+    ; // Subtract calibration value to get more accurate results for short lock times
     if (d > lock_time_max)
         lock_time_max = d;
     int i = 0;
@@ -122,7 +140,7 @@ static void lock_test_add_sample(uint64_t d) {
 
 static void lock_test_print_results(void) {
     printf("\nProducer acquire lock time statistics:\n");
-    printf("  count=%" PRIu64 "  max=%" PRIu64 "ns  avg=%" PRIu64 "ns\n", lock_count, lock_time_max, lock_time_sum / lock_count);
+    printf("  count=%" PRIu64 "  max=%" PRIu64 "ns  avg=%" PRIu64 "ns (cal=%" PRIu64 "ns)\n", lock_count, lock_time_max, lock_time_sum / lock_count, lock_calibration);
 
     uint64_t histogram_sum = 0;
     for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE; i++)
@@ -499,6 +517,11 @@ int main(int argc, char *argv[]) {
     sleepUs(100000);
     A2lFinalize();
 
+// Initialize lock timing test
+#ifdef TEST_LOCK_TIMING
+    lock_test_init();
+#endif
+
     // Let the test run for the specified duration
     printf("Test running for %u writes ...\n", TEST_WRITE_COUNT);
 
@@ -614,6 +637,7 @@ int main(int argc, char *argv[]) {
     printf("  Total errors: %llu\n", (unsigned long long)error_count.load());
     printf("  Average lock time: %.2f us\n", total_read_count > 0 ? (double)total_read_time_ns / total_read_count / 1000.0 : 0.0);
     printf("  Maximum lock time: %.2f us\n", (double)total_max_read_time_ns / 1000.0);
+
 #ifdef TEST_LOCK_TIMING
     lock_test_print_results();
 #endif

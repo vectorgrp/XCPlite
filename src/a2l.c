@@ -19,7 +19,7 @@
 #include <stdbool.h>  // for bool
 #include <stdint.h>   // for uintxx_t
 #include <stdio.h>    // for fclose, fopen, fread, fseek, ftell
-#include <string.h>   // for strlen, strncpy
+// #include <string.h>   // for
 
 #include "dbg_print.h"   // for DBG_PRINT
 #include "persistence.h" // for XcpBinWrite, XcpBinDelete
@@ -101,7 +101,7 @@ static const char *A2lGetPrefixedName_(const char *prefix, const char *name) {
 // Returns symbol instance name with optional project name prefix and instance name prepended ("project.name.instance_name.name")
 static const char *A2lGetPrefixedInstanceName_(const char *instance_name, const char *name) {
     static char s[XCP_A2L_MAX_SYMBOL_NAME_LENGTH]; // static buffer for prefixed instance name
-    if (instance_name != NULL && strlen(instance_name) > 0) {
+    if (instance_name != NULL && STRNLEN(instance_name, XCP_A2L_MAX_SYMBOL_NAME_LENGTH) > 0) {
         if ((gA2lMode & A2L_MODE_SYMBOL_PREFIX)) {
             SNPRINTF(s, XCP_A2L_MAX_SYMBOL_NAME_LENGTH, "%s.%s.%s", XcpGetProjectName(), instance_name, name);
         } else {
@@ -294,8 +294,8 @@ double A2lGetTypeMax(tA2lTypeId type_id) {
 static const char *A2lGetFilename(uint8_t file_type) {
     static char file_name[XCP_A2L_FILENAME_MAX_LENGTH + 1] = {0}; // static buffer for filename
     const char *project_name = XcpGetProjectName();
-    const char *postfix = "";
-    bool add_epk = false;
+    const char *postfix;
+    bool add_epk;
     switch (file_type) {
 #ifdef OPTION_SHM_MODE // main A2L file name
         // In SHM mode, the server build a master file with a generic name and includes all applications partial A2L files
@@ -578,7 +578,7 @@ void A2lSetAutoAddrMode__i(tXcpEventId event_id, const uint8_t *stack_frame, con
     if (gA2lFile != NULL) {
         const char *event_name = XcpGetEventName(event_id);
         if (event_name == NULL) {
-            DBG_PRINTF_ERROR("A2lSetAutoAddrMode__i: Event %s not found!\n", event_name);
+            DBG_PRINTF_ERROR("A2lSetAutoAddrMode__i: Event %u not found!\n", event_id);
             A2lRstAddrMode();
             return;
         }
@@ -607,7 +607,7 @@ void A2lSetRelativeAddrMode__i(tXcpEventId event_id, uint8_t i, const uint8_t *b
     if (gA2lFile != NULL) {
         const char *event_name = XcpGetEventName(event_id);
         if (event_name == NULL) {
-            DBG_PRINTF_ERROR("A2lSetRelativeAddrMode__i: Event %s not found!\n", event_name);
+            DBG_PRINTF_ERROR("A2lSetRelativeAddrMode__i: Event %u not found!\n", event_id);
             A2lRstAddrMode();
             return;
         }
@@ -636,7 +636,7 @@ void A2lSetStackAddrMode__i(tXcpEventId event_id, const uint8_t *stack_frame) {
     if (gA2lFile != NULL) {
         const char *event_name = XcpGetEventName(event_id);
         if (event_name == NULL) {
-            DBG_PRINTF_ERROR("A2lSetRelativeAddrMode__i: Event %s not found!\n", event_name);
+            DBG_PRINTF_ERROR("A2lSetRelativeAddrMode__i: Event %u not found!\n", event_id);
             A2lRstAddrMode();
             return;
         }
@@ -841,7 +841,7 @@ static void printPhysUnit(FILE *file, const char *unit_or_conversion) {
 
     // It is a phys unit if the string is not NULL or empty and does not start with "conv."
     if (unit_or_conversion != NULL) {
-        size_t len = strlen(unit_or_conversion);
+        size_t len = STRNLEN(unit_or_conversion, XCP_A2L_MAX_SYMBOL_NAME_LENGTH);
         if (len > 0 && !(len > 5 && strncmp(unit_or_conversion, "conv.", 5) == 0)) {
             fprintf(file, " PHYS_UNIT \"%s\"", unit_or_conversion);
         }
@@ -851,7 +851,7 @@ static void printPhysUnit(FILE *file, const char *unit_or_conversion) {
 static const char *getConversion(const char *unit_or_conversion, double *min, double *max) {
 
     // If the unit_or_conversion string begins with "conv." it is a conversion method name, return it directly
-    if (unit_or_conversion != NULL && strlen(unit_or_conversion) > 5 && strncmp(unit_or_conversion, "conv.", 5) == 0) {
+    if (unit_or_conversion != NULL && STRNLEN(unit_or_conversion, XCP_A2L_MAX_SYMBOL_NAME_LENGTH) > 5 && strncmp(unit_or_conversion, "conv.", 5) == 0) {
 
         double factor = 1.0, offset = -50.0;
 
@@ -1577,7 +1577,7 @@ bool A2lFinalize(void) {
     if (XcpShmIsXcpServer()) {
         // Regenerate the EPK and write to the EPK segment, so the the BIN file get it as well and the client can upload it
         const char *epk = XcpGetEcuEpk(); // Get (generate) the current ECU EPK for all existing applications
-        const uint16_t epk_len = (uint16_t)strnlen(epk, XCP_EPK_MAX_LENGTH) + 1;
+        const uint16_t epk_len = (uint16_t)STRNLEN(epk, XCP_EPK_MAX_LENGTH) + 1;
         XcpCalSegWriteMemory(0x80000000, epk_len, (const uint8_t *)epk); // @@@@ TODO: remove magic number
         const char *epk_calseg = (const char *)XcpLockCalSeg(XCP_EPK_CALSEG_INDEX);
         assert(strncmp(epk, epk_calseg, epk_len) == 0);

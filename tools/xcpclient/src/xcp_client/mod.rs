@@ -1436,7 +1436,7 @@ impl XcpClient {
 
     //------------------------------------------------------------------------
     // Registry
-    // Get a list available measurement and calibration object names from registry matching a regular expression
+    // Get a list of available measurement and calibration object names from registry matching a regular expression
 
     pub fn get_registry(&self) -> &xcp_lite::registry::Registry {
         self.registry.as_ref().unwrap()
