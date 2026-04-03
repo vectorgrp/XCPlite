@@ -597,10 +597,10 @@ static uint8_t XcpReadMta(uint8_t size, uint8_t *data) {
 //   Absolute access to calibration segments is converted to segment relative addressing mode local.mta_ext=XCP_ADDR_EXT_SEG
 // Other addressing mode are left unchanged
 // Called by XCP commands SET_MTA, SHORT_DOWNLOAD and SHORT_UPLOAD
-uint8_t XcpSetMta(uint8_t ext, uint32_t addr) {
+uint8_t XcpSetMta(uint8_t ext_, uint32_t addr_) {
 
-    local_mut.mta_ext = ext;
-    local_mut.mta_addr = addr;
+    local_mut.mta_ext = ext_;
+    local_mut.mta_addr = addr_;
     local_mut.mta_ptr = NULL; // MtaPtr not defined
 
     // If not EPK calibration segment or addressing mode 0 is absolute
@@ -630,6 +630,11 @@ uint8_t XcpSetMta(uint8_t ext, uint32_t addr) {
 #ifdef XCP_ENABLE_SEG_ADDRESSING
     // Segment relative addressing mode
     if (XcpAddrIsSeg(local.mta_ext)) {
+        if ((local.mta_addr & 0x80000000) == 0) {
+            // @@@@ TODO: Workaround CANape bug, address extension != 0 for calibration variables sometimes ignored
+            DBG_PRINTF_WARNING("XcpSetMta: Address extension SEG < 0x80000000, converting to ABS addressing mode, addr=0x%08" PRIx32 "\n", local.mta_addr);
+            local_mut.mta_ext = XCP_ADDR_EXT_ABS;
+        }
         return CRC_CMD_OK;
     }
 #endif
@@ -2610,7 +2615,7 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             CRM_TIME_SYNCH_PROPERTIES_CLUSTER_ID = local.cluster_id;
 #else
             if ((CRO_TIME_SYNCH_PROPERTIES_SET_PROPERTIES & TIME_SYNCH_SET_PROPERTIES_CLUSTER_ID) != 0) { // set cluster id
-                // error(CRC_OUT_OF_RANGE); // CANape insists on setting a cluster id, even if Multicast is not enabled
+                // error(CRC_OUT_OF_RANGE); // @@@@ TODO: Workaround CANape bug, address extension for calibration variables sometimes ignored
                 DBG_PRINTF4("  Cluster id = %u setting ignored\n", CRO_TIME_SYNCH_PROPERTIES_CLUSTER_ID);
             }
             CRM_TIME_SYNCH_PROPERTIES_CLUSTER_ID = 0;

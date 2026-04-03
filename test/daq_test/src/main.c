@@ -34,6 +34,19 @@
 
 #define TEST_DAQ_EVENT_TIMING
 
+//-----------------------------------------------------------------------------------------------------
+// XCP parameters
+
+#define OPTION_PROJECT_NAME "daq_test"      // Project name, used to build the A2L and BIN file name
+#define OPTION_PROJECT_VERSION "V1.1.1"     // EPK version string
+#define OPTION_USE_TCP false                // TCP or UDP
+#define OPTION_SERVER_PORT 5555             // Port
+#define OPTION_SERVER_ADDR {0, 0, 0, 0}     // Bind addr, 0.0.0.0 = ANY
+#define OPTION_QUEUE_SIZE (1024 * 1024 * 8) // Size of the measurement queue in bytes, should be large enough to cover at least 10ms of expected traffic
+#define OPTION_LOG_LEVEL 4                  // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+
+//-----------------------------------------------------------------------------------------------------
+
 #ifdef TEST_ENABLE_DBG_METRICS
 
 extern uint32_t gXcpWritePendingCount;
@@ -46,27 +59,32 @@ extern uint32_t gXcpRxPacketCount;
 
 #endif
 
+//-----------------------------------------------------------------------------------------------------
+
 #ifdef TEST_DAQ_EVENT_TIMING
-static MUTEX lock_mutex = MUTEX_INTIALIZER;
-static uint64_t lock_time_max = 0;
-static uint64_t lock_time_sum = 0;
-static uint64_t lock_count = 0;
-static uint64_t lock_calibration = 0; // Calibration value for the overhead of the timing measurement itself, to get more accurate results for short lock times
 
-// Variable-width lock timing histogram
+#define TIMING_HISTOGRAM_SIZE 24
+
+static MUTEX timing_mutex = MUTEX_INTIALIZER;
+static uint64_t timing_max = 0;
+static uint64_t timing_sum = 0;
+static uint64_t timing_sample_count = 0;
+static uint64_t timing_sample_calibration = 0; // Calibration value for the overhead of the timing measurement itself, to get more accurate results for short lock times
+
+// Variable-width timing histogram
 // Fine granularity for short latencies, coarser for long-tail latencies
-// Bin[i] counts events where EDGES[i-1] <= t < EDGES[i]; bin[SIZE-1] is the overflow (>EDGES[SIZE-2])
-#define LOCK_TIME_HISTOGRAM_SIZE 26
-static const uint64_t LOCK_TIME_HISTOGRAM_EDGES[LOCK_TIME_HISTOGRAM_SIZE - 1] = {
-    10, 20, 40, 80, 120, 160, 200, 300, 400, 500, 600, 800, 1000, 1500, 2000, 3000, 4000, 6000, 8000, 10000, 20000, 40000, 80000, 160000, 320000,
-};
-static uint64_t lock_time_histogram[LOCK_TIME_HISTOGRAM_SIZE] = {0};
+// Bin[i] counts samples where [i-1] <= t < [i]; bin[SIZE-1] is the overflow (>EDGES[SIZE-2])
+static const uint64_t timing_histogram_axis[TIMING_HISTOGRAM_SIZE] = { //
+    10,   20,   40,   80,   120,  160,  200,  300,                     //
+    400,  500,  600,  700,  800,  900,  1000, 1250,                    //
+    1500, 1750, 2000, 3000, 4000, 5000, 7500, 10000};
+static uint64_t timing_histogram[TIMING_HISTOGRAM_SIZE] = {0};
 
-static void lock_test_init(void) {
-    memset(lock_time_histogram, 0, sizeof(lock_time_histogram));
-    lock_time_max = 0;
-    lock_time_sum = 0;
-    lock_count = 0;
+static void timing_sample_test_init(void) {
+    memset(timing_histogram, 0, sizeof(timing_histogram));
+    timing_max = 0;
+    timing_sum = 0;
+    timing_sample_count = 0;
 
     // Calibrate
     uint64_t sum = 0;
@@ -74,82 +92,70 @@ static void lock_test_init(void) {
         uint64_t time = clockGetMonotonicNs();
         sum += clockGetMonotonicNs() - time;
     }
-    lock_calibration = sum / 1000;
+    timing_sample_calibration = sum / 1000;
 }
 
-static void lock_test_add_sample(uint64_t d) {
-    if (d >= lock_calibration) // Subtract calibration value to get more accurate results for short lock times
-        d -= lock_calibration;
+static void timing_sample_test_add_sample(uint64_t d) {
+    if (d >= timing_sample_calibration) // Subtract calibration value to get more accurate results for short lock times
+        d -= timing_sample_calibration;
     else
         d = 0;
-    mutexLock(&lock_mutex);
+    mutexLock(&timing_mutex);
     ; // Subtract calibration value to get more accurate results for short lock times
-    if (d > lock_time_max)
-        lock_time_max = d;
+    if (d > timing_max)
+        timing_max = d;
     int i = 0;
-    while (i < LOCK_TIME_HISTOGRAM_SIZE - 1 && d >= LOCK_TIME_HISTOGRAM_EDGES[i])
+    while (i < TIMING_HISTOGRAM_SIZE - 1 && d >= timing_histogram_axis[i])
         i++;
-    lock_time_histogram[i]++;
-    lock_time_sum += d;
-    lock_count++;
-    mutexUnlock(&lock_mutex);
+    timing_histogram[i]++;
+    timing_sum += d;
+    timing_sample_count++;
+    mutexUnlock(&timing_mutex);
 }
 
-static void lock_test_print_results(void) {
+static void timing_sample_test_print_results(void) {
     printf("\nProducer acquire lock time statistics:\n");
-    printf("  count=%" PRIu64 "  max=%" PRIu64 "ns  avg=%" PRIu64 "ns (cal=%" PRIu64 "ns)\n", lock_count, lock_time_max, lock_time_sum / lock_count, lock_calibration);
+    printf("  count=%" PRIu64 "  max=%" PRIu64 "ns  avg=%" PRIu64 "ns (cal=%" PRIu64 "ns)\n", timing_sample_count, timing_max, timing_sum / timing_sample_count,
+           timing_sample_calibration);
 
     uint64_t histogram_sum = 0;
-    for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE; i++)
-        histogram_sum += lock_time_histogram[i];
+    for (int i = 0; i < TIMING_HISTOGRAM_SIZE; i++)
+        histogram_sum += timing_histogram[i];
     uint64_t histogram_max = 0;
-    for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE; i++)
-        if (lock_time_histogram[i] > histogram_max)
-            histogram_max = lock_time_histogram[i];
+    for (int i = 0; i < TIMING_HISTOGRAM_SIZE; i++)
+        if (timing_histogram[i] > histogram_max)
+            histogram_max = timing_histogram[i];
 
     printf("\nLock time histogram (%" PRIu64 " events):\n", histogram_sum);
     printf("  %-20s  %10s  %7s  %s\n", "Range", "Count", "%", "Bar");
     printf("  %-20s  %10s  %7s  %s\n", "--------------------", "----------", "-------", "------------------------------");
 
-    for (int i = 0; i < LOCK_TIME_HISTOGRAM_SIZE; i++) {
+    for (int i = 0; i < TIMING_HISTOGRAM_SIZE; i++) {
 
-        double pct = (double)lock_time_histogram[i] * 100.0 / (double)histogram_sum;
+        double pct = (double)timing_histogram[i] * 100.0 / (double)histogram_sum;
 
         char range_str[32];
-        uint64_t lo = (i == 0) ? 0 : LOCK_TIME_HISTOGRAM_EDGES[i - 1];
-        if (i == LOCK_TIME_HISTOGRAM_SIZE - 1) {
+        uint64_t lo = (i == 0) ? 0 : timing_histogram_axis[i - 1];
+        if (i == TIMING_HISTOGRAM_SIZE - 1) {
             snprintf(range_str, sizeof(range_str), ">%" PRIu64 "ns", lo);
         } else {
-            snprintf(range_str, sizeof(range_str), "%" PRIu64 "-%" PRIu64 "ns", lo, LOCK_TIME_HISTOGRAM_EDGES[i]);
+            snprintf(range_str, sizeof(range_str), "%" PRIu64 "-%" PRIu64 "ns", lo, timing_histogram_axis[i]);
         }
 
         char bar[31];
-        int bar_len = (histogram_max > 0) ? (int)((double)lock_time_histogram[i] * 30.0 / (double)histogram_max) : 0;
+        int bar_len = (histogram_max > 0) ? (int)((double)timing_histogram[i] * 30.0 / (double)histogram_max) : 0;
         if (bar_len > 30)
             bar_len = 30;
         for (int j = 0; j < bar_len; j++)
             bar[j] = '#';
         bar[bar_len] = '\0';
 
-        printf("  %-20s  %10" PRIu64 "  %6.2f%%  %s\n", range_str, lock_time_histogram[i], pct, bar);
+        printf("  %-20s  %10" PRIu64 "  %6.2f%%  %s\n", range_str, timing_histogram[i], pct, bar);
     }
     printf("\n");
 }
 
 #endif
-
-
-
-//-----------------------------------------------------------------------------------------------------
-// XCP parameters
-
-#define OPTION_PROJECT_NAME "daq_test"      // Project name, used to build the A2L and BIN file name
-#define OPTION_PROJECT_VERSION "V1.0.2"     // EPK version string
-#define OPTION_USE_TCP false                // TCP or UDP
-#define OPTION_SERVER_PORT 5555             // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0}     // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE (1024 * 1024 * 8) // Size of the measurement queue in bytes, should be large enough to cover at least 10ms of expected traffic
-#define OPTION_LOG_LEVEL 3                  // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 //-----------------------------------------------------------------------------------------------------
 // Demo calibration parameters
@@ -199,12 +205,12 @@ void *task(void *p)
     uint32_t time_shift_ns = 0;
 
     // Task local measurement variables on stack
-     uint16_t counter = 0;
-     uint8_t counter8 = 0;
-     uint16_t counter16 = 0;
-     uint32_t counter32 = 0;
-     uint64_t counter64 = 0;
-     uint32_t array[64] = {0}; // 64*4=256 byte array
+    uint16_t counter = 0;
+    uint8_t counter8 = 0;
+    uint16_t counter16 = 0;
+    uint32_t counter32 = 0;
+    uint64_t counter64 = 0;
+    uint32_t array[64] = {0}; // 64*4=256 byte array
 
     // Instrumentation: Events and measurement variables
     // Register task local variables counter and channelx with stack addressing mode
@@ -272,7 +278,7 @@ void *task(void *p)
         DaqTriggerEventAt_i(task_event_id, clock + time_shift_ns);
 
 #ifdef TEST_DAQ_EVENT_TIMING
-        lock_test_add_sample(ApplXcpGetClock64() - clock);
+        timing_sample_test_add_sample(ApplXcpGetClock64() - clock);
 #endif
 
         // Sleep for the specified delay parameter in microseconds, defines the approximate sampling rate
@@ -290,10 +296,6 @@ int main(void) {
     printf("\nXCP on Ethernet multi thread daq test\n");
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
-
-#ifdef TEST_DAQ_EVENT_TIMING
-    lock_test_init();
-#endif
 
     // Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
     XcpSetLogLevel(OPTION_LOG_LEVEL);
@@ -330,20 +332,35 @@ int main(void) {
     A2lCreateParameter(params.test_byte1, "Test byte for calibration consistency test", "", -128, 127);
     A2lCreateParameter(params.test_byte2, "Test byte for calibration consistency test", "", -128, 127);
 
+    // Create the mainloop event and global measurement variables for statistics
+    static uint16_t counter = 0;
+    DaqCreateEvent(mainloop);
+    A2lSetAbsoluteAddrMode(mainloop);
+    A2lCreateMeasurement(counter, "Main loop counter");
+
+#ifdef TEST_ENABLE_DBG_METRICS
+    A2lCreateMeasurement(gXcpWritePendingCount, "XCP write pending count");
+    A2lCreateMeasurement(gXcpCalSegPublishAllCount, "XCP calibration segment publish all count");
+    A2lCreateMeasurement(gXcpDaqEventCount, "XCP DAQ event count");
+    A2lCreateMeasurement(gXcpTxPacketCount, "XCP TX packet count");
+    A2lCreateMeasurement(gXcpTxMessageCount, "XCP TX message count");
+    A2lCreateMeasurement(gXcpTxIoVectorCount, "XCP TX IO vector count");
+    A2lCreateMeasurement(gXcpRxPacketCount, "XCP RX packet count");
+#endif
+
+    // Init event timing test
+#ifdef TEST_DAQ_EVENT_TIMING
+    timing_sample_test_init();
+    A2lCreateCurveWithSharedAxis(timing_histogram, TIMING_HISTOGRAM_SIZE, "XcpEvent duration histogram", "", 0, 100000.0, "timing_histogram_axis");
+    A2lCreateAxis(timing_histogram_axis, TIMING_HISTOGRAM_SIZE, "XcpEvent duration histogram", "ns", 0, 10000.0);
+#endif
+
     // Create multiple instances of task
     THREAD t[THREAD_COUNT];
     for (int i = 0; i < THREAD_COUNT; i++) {
         t[i] = 0;
         create_thread(&t[i], task);
     }
-
-    uint16_t counter = 0;
-
-    A2lLock();
-    DaqCreateEvent(mainloop);
-    A2lSetStackAddrMode(mainloop);
-    A2lCreateMeasurement(counter, "Main loop counter");
-    A2lUnlock();
 
     // Wait for signal to stop
     printf("main loop running - press Ctrl+C to stop...\n");
@@ -382,7 +399,7 @@ int main(void) {
     printf("  Total RX packets:  %u\n", gXcpRxPacketCount);
 #endif
 #ifdef TEST_DAQ_EVENT_TIMING
-    lock_test_print_results();
+    timing_sample_test_print_results();
 #endif
     XcpDisconnect();        // Force disconnect the XCP client
     A2lFinalize();          // Finalize A2L generation, if not done yet

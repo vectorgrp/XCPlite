@@ -163,6 +163,8 @@
 //-------------------------------------------------------------------------------
 // Tests
 
+#define TEST_ENABLE_DBG_METRICS // Enable debug metrics for XCP events and transport layer packets
+
 #if !defined(NDEBUG)
 
 // #define TEST_CLOCK_GET_STATISTIC // Count number of calls to clockGet and clockGetLast, print results with clockPrintStatistic()
