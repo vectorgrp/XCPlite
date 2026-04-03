@@ -532,7 +532,7 @@ tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t peek_index, uint32_t 
             queue->h.cached_peek_index = index;
             queue->h.cached_peek_tail = peek_tail;
 
-            // @@@@ TODO
+            // @@@@ TODO Add a timeout
             // Maybe add a timeout parameter to the peek function and return an error if the entry is in reserved state for too long, this would allow the consumer to detect
             // stalled producers and recover from it, e.g. by skipping the entry or resetting the queue A stalled producer is a producer that has reserved an entry but never
             // commits it, this can happen if the producer thread is stalled or crashes after reserving an entry, this would lead to a permanent stall of the consumer if the

@@ -114,7 +114,8 @@ static bool ShmServerInit_(uint32_t queue_size) {
     size_t queue_total_size = sizeof(tShmQueueHeader) + queue_size;
     bool queue_leader = false;
     void *queue_ptr = platformShmOpen("/xcpqueue", "/tmp/xcpqueue.lock", queue_total_size, &queue_leader);
-    // void *queue_ptr = platformShmOpenAttach("/xcpqueue", &queue_total_size); // @@@@ TODO: Optimize if we are sure it already exists, saves a few 100 us
+    // @@@@ TODO: Optimization, if we are sure it already exists, saves a few 100 us
+    // void *queue_ptr = platformShmOpenAttach("/xcpqueue", &queue_total_size);
     if (queue_ptr == NULL) {
         DBG_PRINT_ERROR("XcpEthServerInit: failed to create '/xcpqueue'\n");
         return false;
@@ -199,7 +200,8 @@ extern void *ShmThread_(void *par)
         // If set, finalize the local A2L file if not already done
 #ifdef OPTION_ENABLE_A2L_GENERATOR
         if (!XcpShmIsA2lFinalized(XcpShmGetAppId()) && XcpShmIsA2lFinalizeRequested()) {
-            sleepMs(100); // @@@@ TODO
+            // @@@@ TODO: Check how to handle this
+            sleepMs(100);
             if (A2lFinalize()) {
                 DBG_PRINT3(ANSI_COLOR_BLUE "A2L finalized by SHM request\n" ANSI_COLOR_RESET);
             }
@@ -214,7 +216,7 @@ extern void *ShmThread_(void *par)
 
 //-------------------------------------------------------------------------------------------------------
 // Public functions with same functionality as XcpEthServerXxx
-// @@@@ Not used
+// Not used yet
 
 // SHM server init
 bool XcpShmServerInit(uint32_t queue_size) {

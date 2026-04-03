@@ -343,7 +343,7 @@ int XcpShmCollectA2lFiles(uint32_t timeout_ms, const char *filenames[], int max_
 /**************************************************************************/
 
 // Get the project name of the ECU
-// @@@@ TODO: implement setting the ECU project name
+// @@@@ TODO: Implement setting the ECU project name
 const char *XcpShmGetEcuProjectName(void) { return SHM_PROJECT_NAME; }
 
 // Get the number of registered applications in SHM mode.
@@ -509,7 +509,7 @@ int16_t XcpShmRegisterApp(const char *name, const char *epk, uint32_t pid, uint8
                     DBG_PRINTF_WARNING(
                         "XcpShmRegisterApp: Application '%s' with matching EPK '%s' is already registered in slot %u, alive with with pid %u, reusing slot for new process\n", name,
                         epk, i, app->pid);
-                    // @@@@ TODO:
+                    // @@@@ TODO: Register application twice handling
                     // Would be ok to continue when the application just died, and the server did not detect this, which is a rare race condition
                     // This also happen if the application is started twice
                     return -1;
@@ -582,8 +582,7 @@ void XcpShmShutdownApp(uint8_t app_id) {
     //  if not we can reset the whole SHM state for the next leader
     if (XcpShmGetActiveAppCount() == 0) {
         DBG_PRINT3(ANSI_COLOR_BLUE "XcpShmShutdownApp: No more active applications, resetting shared memory state\n" ANSI_COLOR_RESET);
-        // @@@@ TODO: Is it a benefit to do this ?
-        //
+        // @@@@ TODO: Check If it is a benefit to do this ?
         XcpShmUnlink(); // Unlink the shared memory, so the next leader will load the binary file and create a fresh one
     }
 }

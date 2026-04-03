@@ -1578,7 +1578,8 @@ bool A2lFinalize(void) {
         // Regenerate the EPK and write to the EPK segment, so the the BIN file get it as well and the client can upload it
         const char *epk = XcpGetEcuEpk(); // Get (generate) the current ECU EPK for all existing applications
         const uint16_t epk_len = (uint16_t)STRNLEN(epk, XCP_EPK_MAX_LENGTH) + 1;
-        XcpCalSegWriteMemory(0x80000000, epk_len, (const uint8_t *)epk); // @@@@ TODO: remove magic number
+        // @@@@ TODO: Remove magic number for EPK segment address,
+        XcpCalSegWriteMemory(0x80000000, epk_len, (const uint8_t *)epk);
         const char *epk_calseg = (const char *)XcpLockCalSeg(XCP_EPK_CALSEG_INDEX);
         assert(strncmp(epk, epk_calseg, epk_len) == 0);
         XcpUnlockCalSeg(0);

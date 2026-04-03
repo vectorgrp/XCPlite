@@ -393,8 +393,9 @@ bool XcpEthTlHandleCommands(void) {
             socket_closed:
                 DBG_PRINT6("XcpEthTlHandleCommands: socket_closed, disconnect XCP, goto accept mode again, return true\n");
                 DBG_PRINT3("XCP Master closed TCP connection! XCP disconnected.\n");
-                XcpDisconnect();               // Set XCP into disconnected state
-                sleepMs(100);                  // @@@@ TODO: Check if this sleep is really needed
+                XcpDisconnect(); // Set XCP into disconnected state
+                // @@@@ TODO: Check if this sleep is really needed
+                sleepMs(100);
                 socketShutdown(gXcpTl.socket); // Shutdown the socket and close it to free resources and to be able to accept a new connection
                 socketClose(&gXcpTl.socket);
                 return true; // Ok, TCP socket closed, go to listen mode again
@@ -408,7 +409,7 @@ bool XcpEthTlHandleCommands(void) {
         // n > 0 ok, data received, should be the header
         else {
 
-            // @@@@ Check to be sure that the header is received in full, otherwise the TCP stream is desynchronised and we should close the connection to recover
+            // @@@@ TODO: Check to be sure that the header is received, otherwise the TCP stream is desynchronised and we should close the connection to recover
             assert(n == XCPTL_TRANSPORT_LAYER_HEADER_SIZE);
             if (n != XCPTL_TRANSPORT_LAYER_HEADER_SIZE) {
                 DBG_PRINTF_ERROR("XcpEthTlHandleCommands: expected %u bytes, received %u bytes, closing connection\n", msgBuf.dlc, n);

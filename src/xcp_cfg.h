@@ -41,8 +41,8 @@
 /* DAQ event management */
 
 // Enable event list
-// @@@@ TODO:  Remove the separate event list
-#ifndef XCPLIB_FOR_RUST // @@@@  Set by the Rust build script, not needed for Rust xcp-lite, currently has its own event management
+// @@@@ TODO: Remove the separate event list management in the Rust API
+#ifndef XCPLIB_FOR_RUST
 #define XCP_ENABLE_DAQ_EVENT_LIST
 #endif
 
@@ -159,12 +159,6 @@ XCPlite multi application absolute addressing: XCP_ADDRESS_MODE_XCPLITE__CXSDD (
 #define XCP_DYN_ADDR_EVENT_MASK 0x3FF
 #define XCP_DYN_ADDR_OFFSET_BITS 22
 #define XCP_DYN_ADDR_OFFSET_MASK 0x3FFFFF
-
-// Relative addr format (dyn_base + (((16 Bit event | 16 Bit signed offset))
-// #define XCP_DYN_ADDR_EVENT_BITS 16
-// #define XCP_DYN_ADDR_EVENT_MASK 0xFFFF
-// #define XCP_DYN_ADDR_OFFSET_BITS 16
-// #define XCP_DYN_ADDR_OFFSET_MASK 0xFFFF
 
 // --- Relative addressing modes without asynchronous access and uint32_t offset
 #ifdef XCP_ENABLE_REL_ADDRESSING

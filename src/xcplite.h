@@ -163,8 +163,6 @@ typedef struct {
 
 // Create an XCP event (internal use only, not thread safe)
 tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cycle_time_ns, uint8_t priority);
-void XcpLockEventList(void);
-void XcpUnlockEventList(void);
 
 // Add a measurement event to event list, return event number (0..MAX_EVENT-1)
 tXcpEventId XcpCreateEvent(const char *name, uint32_t cycle_time_ns /* ns */, uint8_t priority /* 0 = queued, >=1 flushing*/);
@@ -461,7 +459,7 @@ uint64_t ApplXcpGetClock64(void);
 #define CLOCK_STATE_SYNCH_IN_PROGRESS (0)
 #define CLOCK_STATE_SYNCH (1)
 #define CLOCK_STATE_FREE_RUNNING (7)
-#define CLOCK_STATE_GRANDMASTER_STATE_SYNCH (1 << 3) // @@@@ not used yet
+#define CLOCK_STATE_GRANDMASTER_STATE_SYNCH (1 << 3) // not used yet
 uint8_t ApplXcpGetClockState(void);
 
 #ifdef XCP_ENABLE_PTP

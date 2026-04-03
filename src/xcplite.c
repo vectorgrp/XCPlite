@@ -652,10 +652,10 @@ uint8_t XcpSetMta(uint8_t ext_, uint32_t addr_) {
 
 #ifdef OPTION_SHM_MODE // decode app_id from address extension and check it matches the current process application id
         // In SHM mode, check application id matches the address extension
-        uint8_t app_id = XcpAddrExtDecodeAppId(ext);
+        uint8_t app_id = XcpAddrExtDecodeAppId(local.mta_ext);
         if (app_id != XcpShmGetAppId()) {
-            DBG_PRINTF_ERROR("XcpSetMta: Absolute address extension must have the application id of the current process, ext=%u, app_id=%u, current_app_id=%u\n", ext, app_id,
-                             XcpShmGetAppId());
+            DBG_PRINTF_ERROR("XcpSetMta: Absolute address extension must have the application id of the current process, ext=%u, app_id=%u, current_app_id=%u\n", local.mta_ext,
+                             app_id, XcpShmGetAppId());
             return CRC_ACCESS_DENIED; // Error invalid application id
         }
 #endif // SHM_MODE
@@ -762,10 +762,6 @@ void XcpInitEventList(void) {
     releaseEventCount(0);
     mutexInit(&local_mut.event_list_mutex, false, 1000);
 }
-
-// Lock and unlock the XCP event list mutex for thread safe access to the event list
-void XcpLockEventList(void) { mutexLock(&local_mut.event_list_mutex); }
-void XcpUnlockEventList(void) { mutexUnlock(&local_mut.event_list_mutex); }
 
 // Get a pointer to and the size of the XCP event list
 const tXcpEventList *XcpGetEventList(void) {
@@ -895,6 +891,7 @@ tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cyc
 // Add a measurement event to event list, return event id (0..MAX_EVENT-1),
 // If name exists, an event instance index is generated (and only in A2L appended to the event name)
 // Thread safe by mutex
+// @@@@ TODO: Find a process safe solution for SHM mode
 tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycle_time_ns, uint8_t priority) {
 
     if (!isActivated()) {
@@ -904,7 +901,7 @@ tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycle_time_ns, uin
     uint16_t count = 0;
     mutexLock(&local_mut.event_list_mutex);
     XcpFindEventInstances(name, &count);
-    // @@@@ TODO: use preloaded event instances instead of creating a new instance
+    // @@@@ TODO: Use preloaded event instances instead of creating a new instance
     // Event instances have no identity, could use any unused preload event instance with this name
     tXcpEventId id = XcpCreateIndexedEvent(name, count + 1, cycle_time_ns, priority);
     mutexUnlock(&local_mut.event_list_mutex);
@@ -914,6 +911,7 @@ tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycle_time_ns, uin
 // Add a measurement event to the event list, return event id (0..MAX_EVENT-1)
 // If name already exists, just return the existing id
 // Thread safe by mutex
+// @@@@ TODO: Find a process safe solution for SHM mode
 tXcpEventId XcpCreateEvent(const char *name, uint32_t cycle_time_ns, uint8_t priority) {
 
     if (!isActivated()) {
@@ -1833,7 +1831,8 @@ void XcpDisconnect(void) {
         XcpCalSegPublishAll(true);
 #endif
 
-        shared_mut.session_status &= (uint16_t)(~SS_CONNECTED); // @@@@ TODO: Foreign thread access detected, should be atomic
+        // @@@@ TODO: XcpDisconnect is a user function, foreign thread access possible, should be atomic
+        shared_mut.session_status &= (uint16_t)(~SS_CONNECTED);
         ApplXcpDisconnect();
 
         // Freeze working page data
@@ -2132,13 +2131,13 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
                 shared.daq_lists.config_id = config_id;
                 // shared_mut.session_status |= SS_STORE_DAQ_REQ;
                 check_error(ApplXcpDaqResumeStore(config_id));
-                /* @@@@ TODO: Send an event message */
+                // @@@@ TODO: Send an event message
                 // shared_mut.session_status &= (uint16_t)(~SS_STORE_DAQ_REQ);
             } break;
             case SS_CLEAR_DAQ_REQ:
                 // shared_mut.session_status |= SS_CLEAR_DAQ_REQ;
                 check_error(ApplXcpDaqResumeClear());
-                /* @@@@ TODO: Send an event message */
+                // @@@@ TODO: Send an event message
                 // shared_mut.session_status &= (uint16_t)(~SS_CLEAR_DAQ_REQ);
                 break;
 #endif /* XCP_ENABLE_DAQ_RESUME */
@@ -2615,7 +2614,8 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             CRM_TIME_SYNCH_PROPERTIES_CLUSTER_ID = local.cluster_id;
 #else
             if ((CRO_TIME_SYNCH_PROPERTIES_SET_PROPERTIES & TIME_SYNCH_SET_PROPERTIES_CLUSTER_ID) != 0) { // set cluster id
-                // error(CRC_OUT_OF_RANGE); // @@@@ TODO: Workaround CANape bug, address extension for calibration variables sometimes ignored
+                // @@@@ TODO: Workaround for CANape bug
+                // error(CRC_OUT_OF_RANGE);
                 DBG_PRINTF4("  Cluster id = %u setting ignored\n", CRO_TIME_SYNCH_PROPERTIES_CLUSTER_ID);
             }
             CRM_TIME_SYNCH_PROPERTIES_CLUSTER_ID = 0;
@@ -3100,7 +3100,8 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
 #ifdef OPTION_ENABLE_PERSISTENCE
     if ((mode & XCP_MODE_PERSISTENCE) != 0) {
         if (XcpBinLoad()) {
-            // shared_mut.bin_loaded = true;  // @@@@ TODO: Maybe remember this
+            // @@@@ TODO: Maybe remember this
+            // shared_mut.bin_loaded = true;
         }
     }
 #endif

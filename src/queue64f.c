@@ -643,8 +643,8 @@ void queueRelease(tQueueHandle queue_handle, const tQueueBuffer *queue_buffer) {
     // Clear the entries commit state
     tQueueEntry *entry = (tQueueEntry *)(queue_buffer->buffer - 4);               // Get the pointer to the queue entry from the user header buffer pointer
     assert((uint32_t)((uint8_t *)entry - queue->buffer) % QUEUE_ENTRY_SIZE == 0); // Check that the entry pointer is correctly aligned to the entry size
-    atomic_store_explicit(&entry->entry_header, 0,
-                          memory_order_release); // @@@@ CHECK: This release store is not strictly required for correctness, but removing it does not show any performance benefits
+    // @@@@ TODO: Check this release store is not strictly required for correctness, but removing it does not show any performance benefits
+    atomic_store_explicit(&entry->entry_header, 0, memory_order_release);
 
     //  Increment the tail
     atomic_fetch_add_explicit(&queue->h.tail, QUEUE_ENTRY_SIZE, memory_order_release);

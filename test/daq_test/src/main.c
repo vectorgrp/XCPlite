@@ -26,11 +26,11 @@
 //-----------------------------------------------------------------------------------------------------
 // Test configuration
 
-#define THREAD_COUNT 8            // Number of threads to create
-#define THREAD_DELAY_US 1000      // Default delay in microseconds for the thread loops, calibration parameter
-#define THREAD_DELAY_OFFSET_US 50 // Default offset  added to the delay (* task index) for each thread instance, to create different sampling rates
-#define THREAD_TIME_SHIFT_NS                                                                                                                                                       \
-    (1000000000 / THREAD_COUNT) // Default time shift in nanoseconds (* task index) for each thread instance, to disturb the sequential time ordering of events
+#define THREAD_COUNT 8             // Number of threads to create
+#define THREAD_DELAY_US 1000       // Default delay in microseconds for the thread loops, calibration parameter
+#define THREAD_DELAY_OFFSET_US 100 // Default offset  added to the delay (* task index) for each thread instance, to create different sampling rates
+#define THREAD_TIME_SHIFT_US                                                                                                                                                       \
+    (500000 / THREAD_COUNT) // Default time shift in microseconds (* task index) for each thread instance, to disturb the sequential time ordering of events
 
 #define TEST_DAQ_EVENT_TIMING
 
@@ -38,7 +38,7 @@
 // XCP parameters
 
 #define OPTION_PROJECT_NAME "daq_test"      // Project name, used to build the A2L and BIN file name
-#define OPTION_PROJECT_VERSION "V1.1.1"     // EPK version string
+#define OPTION_PROJECT_VERSION "V2.1.2"     // EPK version string
 #define OPTION_USE_TCP false                // TCP or UDP
 #define OPTION_SERVER_PORT 5555             // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}     // Bind addr, 0.0.0.0 = ANY
@@ -161,11 +161,11 @@ static void timing_sample_test_print_results(void) {
 // Demo calibration parameters
 
 typedef struct params {
-    uint16_t counter_max;     // Maximum value of the counter
-    uint32_t delay_us;        // Delay in microseconds for the thread loops
-    uint32_t delay_offset_us; // Offset in microseconds added to the delay (* task index) for each thread instance, to create different sampling rates
-    uint32_t time_shift_ns;   // Time shift in nanoseconds (* task index) for each thread instance, to disturb the sequential time ordering of events
-    bool run;                 // Stop flag for the task
+    uint16_t counter_max;    // Maximum value of the counter
+    uint32_t delay_us;       // Delay in microseconds for the thread loops
+    int32_t delay_offset_us; // Offset in microseconds added to the delay (* task index) for each thread instance, to create different sampling rates
+    int32_t time_shift_us;   // Time shift in microseconds (* task index) for each thread instance, to disturb the sequential time ordering of events
+    bool run;                // Stop flag for the task
     int8_t test_byte1;
     int8_t test_byte2;
 } params_t;
@@ -174,7 +174,7 @@ typedef struct params {
 static const params_t params = {.counter_max = 2048,
                                 .delay_us = THREAD_DELAY_US,
                                 .delay_offset_us = THREAD_DELAY_OFFSET_US,
-                                .time_shift_ns = THREAD_TIME_SHIFT_NS,
+                                .time_shift_us = THREAD_TIME_SHIFT_US,
                                 .run = true,
                                 .test_byte1 = -1,
                                 .test_byte2 = 1};
@@ -202,7 +202,7 @@ void *task(void *p)
 
     bool run = true;
     uint32_t delay_us = 1;
-    uint32_t time_shift_ns = 0;
+    int32_t time_shift_us = 0;
 
     // Task local measurement variables on stack
     uint16_t counter = 0;
@@ -260,10 +260,15 @@ void *task(void *p)
             // Sleep time for this task
             // Each task has different sleep time, to simulate more or less workload and to create a less deterministic interleaving in the measurements
             // Add an offset to the delay for each task instance, to create different sampling rates
-            delay_us = params->delay_us + task_index * params->delay_offset_us;
+            int32_t offset = ((int32_t)task_index - THREAD_COUNT / 2) * params->delay_offset_us;
+            if (offset < -(int32_t)params->delay_us)
+                offset = -params->delay_us;
+            delay_us = (uint32_t)((int32_t)params->delay_us + offset);
+            // printf("thread %u:%s offset: %d, delay: %u us\n", task_index, task_name, offset, delay_us);
 
             // Add an offset to the time shift for each task instance, to create different time shifts in the event timestamps
-            time_shift_ns = params->time_shift_ns + task_index * params->time_shift_ns;
+            time_shift_us = ((int32_t)task_index - THREAD_COUNT / 2) * params->time_shift_us;
+            // printf("thread %u:%s time shift: %d us\n", task_index, task_name, time_shift_us);
 
             // Stop
             run = params->run;
@@ -275,7 +280,7 @@ void *task(void *p)
 
         // Add a time shift to the event clock for each task instance, to disturb the sequential time ordering of events and
         // to test the correct handling of event timestamps in the client
-        DaqTriggerEventAt_i(task_event_id, clock + time_shift_ns);
+        DaqTriggerEventAt_i(task_event_id, clock + (int64_t)(time_shift_us * 1000));
 
 #ifdef TEST_DAQ_EVENT_TIMING
         timing_sample_test_add_sample(ApplXcpGetClock64() - clock);
@@ -327,7 +332,7 @@ int main(void) {
     A2lCreateParameter(params.counter_max, "Max counter value, wrap around", "", 0, 65535);
     A2lCreateParameter(params.delay_us, "task delay time in us", "us", 0, 1000000);
     A2lCreateParameter(params.delay_offset_us, "task delay offset in us added to the delay for each task instance", "us", 0, 1000000);
-    A2lCreateParameter(params.time_shift_ns, "task time shift in ns added to the event timestamp for each task instance", "ns", 0, 1000000000);
+    A2lCreateParameter(params.time_shift_us, "task time shift in us added to the event timestamp for each task instance", "us", 0, 1000000);
     A2lCreateParameter(params.run, "stop task", "", 0, 1);
     A2lCreateParameter(params.test_byte1, "Test byte for calibration consistency test", "", -128, 127);
     A2lCreateParameter(params.test_byte2, "Test byte for calibration consistency test", "", -128, 127);

@@ -20,7 +20,7 @@
 #define OPTION_VERSION_MINOR 0
 #define OPTION_VERSION_PATCH 0
 
-#ifdef XCPLIB_FOR_RUST // @@@@  Set by the Rust build script
+#ifdef XCPLIB_FOR_RUST // Set by the Rust build script
 
 #include "xcplib_rust_cfg.h" // for Rust xcp-lite specific configuration
 
@@ -60,7 +60,7 @@
 //-------------------------------------------------------------------------------
 // XCP multi application mode
 
-// @@@@ Experimental
+// Experimental, work in progress, not fully tested yet, may change or be removed without major version change, use with caution
 
 // Enable multi application mode:
 // All application processes have shared transmit queue, calibration RCU and XCP state
@@ -117,13 +117,11 @@
 // DAQ settings
 
 #define OPTION_DAQ_MEM_SIZE (1024 * 8) // Memory bytes used for XCP DAQ tables - 6 bytes per measurement signal/block needed
-#define OPTION_DAQ_EVENT_COUNT 128     // Maximum number of DAQ events (integer value, must be even)
+#define OPTION_DAQ_EVENT_COUNT 64      // Maximum number of DAQ events (integer value, must be even)
 // #define OPTION_DAQ_ASYNC_EVENT         // Create an asynchronous, cyclic DAQ event for asynchronous data acquisition
 
-// Default: Use the new vectored IO variable entry size lockless queue
-
+// Default:
 // Transport layer queue, vectored IO lockless with variable queue entry size
-// Default for maximum memory efficiency
 #define OPTION_QUEUE_64_VAR_SIZE
 
 // Transport layer queue, vectored IO lockless with fixed queue entry size
@@ -162,8 +160,6 @@
 
 //-------------------------------------------------------------------------------
 // Tests
-
-#define TEST_ENABLE_DBG_METRICS // Enable debug metrics for XCP events and transport layer packets
 
 #if !defined(NDEBUG)
 

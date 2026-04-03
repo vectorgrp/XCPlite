@@ -57,7 +57,7 @@ extern tXcpLocalData gXcpLocalData;
 // #define local (*(const tXcpLocalData *)&gXcpLocalData) // Read-only access to process-local state
 #define local_mut gXcpLocalData // Mutable access to process-local state
 
-// @@@@ TODO:
+// @@@@ TODO: Deactivate mode in C API
 // Calibration instrumentation can currently not be deactivate at runtime, it has to be done at compile time
 // An attempt to create a calibration segment or block with XCP not initialized (XcpInit not called) will fail and assert
 
@@ -131,7 +131,7 @@ static void *XcpCalMemAlloc_(size_t size) {
 void XcpDeinitCalSegList(void) {
 
 #ifdef OPTION_SHM_MODE // not implemented clear pending state
-    // @@@@ TODO
+    // @@@@ TODO: Deinit calibration segment list in SHM mode, clear pending states
 #endif
 
     // Just destroy the local mutex
@@ -331,7 +331,6 @@ tXcpCalSegIndex XcpCreateCalBlk(const char *name, const void *default_page, uint
 // Returns the list index
 static tXcpCalSegIndex XcpRegisterCalSeg_(tXcpCalSeg *c) {
 
-    // @@@@ TODO: Replace this with a lock-less pattern
     // Mutex to make the operation list[count++]=offset atomic
     mutexLock(&local_mut.cal_seg_list_mutex);
 
@@ -367,7 +366,7 @@ static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, bool lookup, const voi
     // If lookup is enabled, check for existence (in the calibration segment list for the current application)
     if (lookup) {
         // Check if the segment does not already exist, only if not create a new one
-        // @@@@ TODO Optimize XcpFindCalSeg, because this is the once execution check
+        // @@@@ TODO: Optimize XcpFindCalSeg, because this is the once execution check
         calseg_index = XcpFindCalSeg(name);
     }
 
@@ -462,7 +461,8 @@ static bool XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
             assert(false);
             return false;
         }
-        c->h.calseg_number = (tXcpCalSegNumber)shared_mut_safe.cal_seg_list.memory_segment_count++; // @@@@ TODO Not protected by mutex
+        // @@@@ TODO: Memory segment number allocation not protected by mutex
+        c->h.calseg_number = (tXcpCalSegNumber)shared_mut_safe.cal_seg_list.memory_segment_count++;
     } else {
         c->h.calseg_number = XCP_UNDEFINED_CALSEG_NUM; // Not a memory segment
     }
@@ -547,18 +547,19 @@ static bool XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
 // Shared non atomic is ecu_page, free_page_hazard, release on free_page
 const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg_index) {
 
-    if (calseg_index >= XcpGetCalSegCount()) {
+    if (!isActivated()) {
+        DBG_PRINT_ERROR("XCP not activated\n");
+        // @@@@ TODO: Deactivate mode in C API
         assert(0);
-        DBG_PRINTF_ERROR("Invalid calseg_index %u\n", calseg_index);
+        return NULL;
+    }
+    if (calseg_index >= atomic_load_explicit(&shared.cal_seg_list.count, memory_order_relaxed)) {
+        DBG_PRINTF_ERROR("Invalid index %u\n", calseg_index);
+        assert(0);
         return NULL; // Uninitialized or invalid calseg_index
     }
 
     tXcpCalSeg *c = CalSegPtrMut(calseg_index);
-
-    // XCP not activated, return default page
-    if (!isActivated()) {
-        return CalSegDefaultPage(c);
-    }
 
     // Update
     // Increment the lock count
@@ -589,9 +590,16 @@ const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg_index) {
 // Shared state is lock_count
 uint8_t XcpUnlockCalSeg(tXcpCalSegIndex calseg_index) {
 
-    if (calseg_index >= XcpGetCalSegCount()) {
-        DBG_PRINTF_ERROR("XCP not initialized or invalid segment index %u\n", calseg_index);
-        return 0; // Uninitialized or invalid segment index
+    if (!isActivated()) {
+        DBG_PRINT_ERROR("XCP not activated\n");
+        // @@@@ TODO: Deactivate mode in C API
+        assert(0);
+        return 0;
+    }
+    if (calseg_index >= atomic_load_explicit(&shared.cal_seg_list.count, memory_order_relaxed)) {
+        DBG_PRINTF_ERROR("Invalid index %u\n", calseg_index);
+        assert(0);
+        return 0; // Uninitialized or invalid calseg_index
     }
 
     uint8_t oldLockCount = (uint8_t)atomic_fetch_sub_explicit(&CalSegPtrMut(calseg_index)->h.lock_count, 1, memory_order_relaxed); // Decrement the lock count
@@ -684,7 +692,8 @@ uint8_t XcpCalSegPublishAll(bool wait) {
         // Iterate cal_seg_list cal_seg_list
         uint16_t n = XcpGetCalSegCount();
         for (uint16_t i = 0; i < n; i++) {
-            tXcpCalSeg *c = CalSegPtrMut(i); // @@@@ TODO Foreign thread access from XcpDisconnect, find a solution
+            // @@@@ TODO: Could be called from foreign thread through XcpDisconnect, find a solution
+            tXcpCalSeg *c = CalSegPtrMut(i);
             if (c->h.write_pending) {
                 uint8_t res1 = XcpCalSegPublish(c, wait);
                 if (res1 == CRC_CMD_OK) {

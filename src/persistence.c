@@ -188,7 +188,8 @@ static bool writeCalseg(FILE *file, tXcpCalSegIndex calseg, const tXcpCalSeg *se
         DBG_PRINT_ERROR("Failed to write calibration segment descriptor to BIN file\n");
         return false;
     }
-    ((tXcpCalSeg *)seg)->h.file_pos = (uint32_t)ftell(file); // Save the position of the segment page data in the file // @@@@ TODO cast away const, improve design to avoid this
+    // @@@@ TODO: Cast away const, improve design to avoid this
+    ((tXcpCalSeg *)seg)->h.file_pos = (uint32_t)ftell(file); // Save the position of the segment page data in the file
     DBG_PRINTF4("Writing calibration segment %u:'%s' size=%u %s page data:\n", calseg, seg->h.name, seg->h.size, page == XCP_CALPAGE_DEFAULT_PAGE ? "default" : "working");
 #ifdef OPTION_ENABLE_DBG_PRINTS
     if (DBG_LEVEL >= 5)
@@ -322,7 +323,10 @@ bool XcpBinWrite(const char *epk) {
 /// @return
 /// Returns true if the operation was successful.
 bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg) {
-    assert(calseg < XcpGetCalSegCount());
+    if (calseg >= XcpGetCalSegCount()) {
+        DBG_PRINTF_ERROR("Invalid calibration segment index %u\n", calseg);
+        return false;
+    }
     const tXcpCalSeg *seg = XcpGetCalSeg(calseg);
     if (seg == NULL) {
         DBG_PRINTF_ERROR("Calibration segment '%u' not found!\n", calseg);
@@ -422,17 +426,17 @@ static bool load(const char *filename, const char *epk) {
         // Create the event
         // As it is created in the original order, the event ID must match
         // XcpCreateIndexedEvent does not check for duplicate event names, the application id will be set below
-        XcpLockEventList();
+        // Not thread safe, but called in XcpInit() before XCP is activated, so no concurrent access to event list here, and no need to lock the event list mutex
+        // @@@@ TODO: Find a process safe solution for SHM mode
         event_id = XcpCreateIndexedEvent(desc.name, desc.index, desc.cycle_time_ns, desc.priority);
         if (event_id == XCP_UNDEFINED_EVENT_ID || event_id != desc.id) { // Should not happen
             DBG_PRINTF_ERROR("Failed to create event '%s' from persistence file\n", desc.name);
             error_count++;
         }
-        XcpUnlockEventList();
 
-                // In SHM mode, set the app_id of the event owner
+        // In SHM mode, set the app_id of the event owner
 #ifdef OPTION_SHM_MODE // load app-id in event descriptor
-        // @@@@ TODO cast away const, improve design to avoid this
+        // @@@@ TODO: Cast away const, improve design to avoid this
         tXcpEvent *event = (tXcpEvent *)XcpGetEvent(event_id);
         event->app_id = desc.app_id;
 #endif // SHM_MODE

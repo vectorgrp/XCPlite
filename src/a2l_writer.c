@@ -270,9 +270,12 @@ static void A2lCreate_MOD_PAR(void) {
             if (n != XCP_UNDEFINED_CALSEG_NUM) {
                 const tXcpCalSeg *calseg = XcpGetCalSeg(i);
                 const char *pname;
+#ifdef OPTION_CAL_SEGMENT_EPK
                 if (strcmp(calseg->h.name, XCP_EPK_CALSEG_NAME) != 0) { // Don't prefix the EPK segment name
                     pname = A2lGetCalSegName_(calseg->h.app_id, calseg->h.name);
-                } else {
+                } else
+#endif
+                {
                     pname = calseg->h.name;
                 }
                 fprintf(gA2lFile, gA2lMemorySegment, pname, XcpGetCalSegBaseAddress(i), calseg->h.size, n, pname, pname, pname, calseg->h.size);
@@ -351,8 +354,8 @@ static void A2lCreate_ETH_IF_DATA(bool useTCP, const uint8_t *addr, uint16_t por
 
     // Transport Layer info (protocol, address, port)
     // Skip transport layer info completely, if no valid address is configured or detected
-    // @@@@ Workaround: (protocol, port, 0.0.0.0) is no option, as CANape considers this to be a valid address and tries to connect to it, instead of using the user configured
-    // address
+    // @@@@ NOTE: Workaround for CANape bug, (protocol, port, 0.0.0.0) is no option, as CANape considers this to be a valid address and tries to connect to it, instead of using the
+    // user configured address
     uint8_t addr0[] = {0, 0, 0, 0};
     if (addr != NULL && addr[0] != 0) {
         memcpy(addr0, addr, 4);
