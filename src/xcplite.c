@@ -62,7 +62,10 @@
 #include <stdio.h>    // for printf
 #include <stdlib.h>   // for size_t, NULL, abort
 #include <string.h>   // for memcpy, memset, strlen, strncpy
-#include <unistd.h>   // for getpid()
+
+#ifdef OPTION_SHM_MODE
+#include <unistd.h> // for getpid()
+#endif
 
 #include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
 #include "platform.h"  // for atomics
@@ -382,7 +385,7 @@ static void XcpPrintDaqList(uint16_t daq);
 /* Status                                                                   */
 /****************************************************************************/
 
-inline bool XcpIsActivated(void) { return isActivated(); }
+bool XcpIsActivated(void) { return isActivated(); }
 uint8_t XcpGetInitMode(void) { return local.init_mode; }
 uint16_t XcpGetSessionStatus(void) { return shared.session_status; }
 bool XcpIsStarted(void) { return isStarted(); }

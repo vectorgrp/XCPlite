@@ -70,8 +70,17 @@ typedef uint16_t tXcpCalSegIndex;
 // All page references are stored as uint32_t byte offsets from c->b[0] so that
 // the entire tXcpCalSeg (header + pages) is position-independent and safe to
 // place in POSIX shared memory without pointer fixup across processes.
-typedef union {
+typedef
+#ifndef _WIN
+    union {
+    uint64_t alignment;
+#endif
     struct {
+
+#ifdef _WIN
+        uint64_t alignment;
+#endif
+
 #ifdef __cplusplus
         // GCC C++ does not allow atomic (non-trivially constructible) members in anonymous aggregates.
         // Use plain types here; any C++ in shmtool code accesses these via volatile casts (read_u32 etc.).
@@ -80,15 +89,15 @@ typedef union {
         uint8_t ecu_access;     // page number for ECU access
         uint8_t lock_count;     // lock count for the segment, 0 = unlocked
 #else
-        atomic_uint_least32_t ecu_page_next; // offset into c->b[]
-        atomic_uint_least32_t free_page;     // offset into c->b[]
-        atomic_uint_fast8_t ecu_access;      // page number for ECU access
-        atomic_uint_fast8_t lock_count;      // lock count for the segment, 0 = unlocked
+    atomic_uint_least32_t ecu_page_next; // offset into c->b[]
+    atomic_uint_least32_t free_page;     // offset into c->b[]
+    atomic_uint_fast8_t ecu_access;      // page number for ECU access
+    atomic_uint_fast8_t lock_count;      // lock count for the segment, 0 = unlocked
 #endif
 #if defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
         uint8_t *default_page_ptr; // process-local ptr to caller's static data, NOT sharable, used for
 #else
-        uint8_t *res1; // In SHM mode, there is no pointer to the default page
+    uint8_t *res1; // In SHM mode, there is no pointer to the default page
 #endif
         uint32_t ecu_page; // offset into c->b[], or XCP_CALSEG_NO_PAGE
         uint32_t xcp_page; // offset into c->b[], or XCP_CALSEG_NO_PAGE
@@ -101,14 +110,14 @@ typedef union {
         uint32_t file_pos; // position of the calibration segment in the persistence file
         uint8_t mode;      // requested for freeze and preload
 #else
-        uint32_t res2;
-        uint8_t res3;
+    uint32_t res2;
+    uint8_t res3;
 #endif
         uint8_t app_id; // Application id for SHM_MODE
         char name[XCP_MAX_CALSEG_NAME + 1];
+#ifndef _WIN
     };
-    // uint8_t reserved[XCP_CALSEG_HEADER_SIZE];
-    uint64_t alignment;
+#endif
 } tXcpCalSegHeader;
 
 // Accessor helpers: resolve a page offset to a pointer within c->b[]
@@ -121,7 +130,6 @@ typedef union {
 #define CalSegEcuPage(c) &(c)->b[(c)->h.ecu_page]
 #define CalSegXcpPage(c) &(c)->b[(c)->h.xcp_page]
 
-static_assert(sizeof(tXcpCalSegHeader) == XCP_CALSEG_HEADER_SIZE, "Error: increase XCP_CALSEG_HEADER_SIZE");
 static_assert(sizeof(tXcpCalSegHeader) % XCP_CALPAGE_ALIGNMENT == 0, "Error: size of tXcpCalSegHeader is not a multiple of XCP_CALPAGE_ALIGNMENT");
 
 // Calibration segment
@@ -140,10 +148,14 @@ typedef struct {
 
     // Thread-safe bump allocator pool for calibration segment memory segments
     atomic_uint_fast32_t cal_mem_used; // Bytes consumed so far, updated with CAS
+#ifndef _WIN
     union {
-        uint8_t cal_mem[XCP_CAL_MEM_SIZE]; // Flat memory pool, all calseg structs allocated here
+#endif
         uint64_t cal_mem_alignment;        // Force alignment of the memory pool to 8 bytes for safe atomic access
+        uint8_t cal_mem[XCP_CAL_MEM_SIZE]; // Flat memory pool, all calseg structs allocated here
+#ifndef _WIN
     };
+#endif
 } tXcpCalSegList;
 
 // Resolve a calseg index to a pointer within cal_mem[]

@@ -384,6 +384,8 @@ int32_t socketGetLastError(void);
 #define socketWouldBlock(err) ((err) == WSAEWOULDBLOCK)
 #define socketTimeout(err) ((err) == WSAETIMEDOUT)
 
+#define ssize_t int
+
 #endif
 
 // Socket mode flags
@@ -554,6 +556,13 @@ uint64_t clockGetLast(void); // Last known clock value, updated by all clockGet 
 char *clockGetString(char *s, uint32_t l, uint64_t c);
 char *clockGetTimeString(char *s, uint32_t l, int64_t c);
 
+#ifdef _WIN
+
+#define clockGetMonotonicNs() clockGet()
+#define clockGetMonotonicNsLast() clockGetLast()
+
+#else
+
 // Monotonic system clock
 uint64_t clockGetMonotonicNs(void);
 uint64_t clockGetMonotonicUs(void);
@@ -565,6 +574,8 @@ uint64_t clockGetMonotonicNsLast(void);
 uint64_t clockGetMonotonicUsLast(void);
 uint64_t clockGetRealtimeNsLast(void);
 uint64_t clockGetRealtimeUsLast(void);
+
+#endif
 
 #ifdef TEST_CLOCK_GET_STATISTIC
 void clockGetPrintStatistic(void);
@@ -595,6 +606,8 @@ bool fexists(const char *filename);
 #define atomic_uintptr_t uintptr_t
 #define atomic_uint_fast8_t uint64_t
 #define atomic_uint_fast16_t uint64_t
+#define atomic_uint_least32_t uint32_t
+#define atomic_uint_fast32_t uint64_t
 
 #define ATOMIC_BOOL_TYPE uint64_t
 #define ATOMIC_BOOL uint64_t

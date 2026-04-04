@@ -8,7 +8,6 @@
 #include <string.h>  // for sprintf
 
 // Include XCPlite/libxcplite C headers
-// #define OPTION_XCP_MODE 0 // To deactivate XCP, define OPTION_XCP_MODE here
 #include <a2l.h>    // for A2l generation
 #include <xcplib.h> // for application programming interface
 
@@ -21,7 +20,7 @@
 #define OPTION_SERVER_PORT 5555         // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
 #define OPTION_QUEUE_SIZE (1024 * 32)   // Size of the measurement queue in bytes, should be large enough to cover at least 10ms of expected traffic
-#define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_LOG_LEVEL 5              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 // XCP mode:
 #define OPTION_XCP_MODE (XCP_MODE_PERSISTENCE | XCP_MODE_LOCAL) // XCP single application server mode
@@ -138,7 +137,7 @@ int main(int argc, char *argv[]) {
     printf("\nXCP on Ethernet hello_xcp C demo - %s\n", argv[0]);
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
-    uint64_t start_time = clockGetMonotonicNs(); // Get the start time in nanoseconds
+    // uint64_t start_time = clockGetMonotonicNs(); // Get the start time in nanoseconds
 
     // XCP: Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
     XcpSetLogLevel(OPTION_LOG_LEVEL);
@@ -180,7 +179,7 @@ int main(int argc, char *argv[]) {
     // A2lSetSegmentAddrMode(params_calseg, params);
     // A2lCreateTypedefInstance(params, params_t, "Calibration parameters");
 
-    uint64_t run_time = clockGetMonotonicNs(); // Get the start time of the application thread in nanoseconds
+    // uint64_t run_time = clockGetMonotonicNs(); // Get the start time of the application thread in nanoseconds
 
     uint16_t counter = 0;
 
@@ -202,7 +201,7 @@ int main(int argc, char *argv[]) {
 #endif
 
     // Mainloop
-    printf("Start application main loop... (startup time: %llu us)\n", (run_time - start_time) / 1000);
+    // printf("Start application main loop... (startup time: %llu us)\n", (run_time - start_time) / 1000);
     uint32_t delay_us = 1000; // Mainloop delay time in us
     while (running) {
         // XCP: Lock the calibration parameter segment for consistent and safe access

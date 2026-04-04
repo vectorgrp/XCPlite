@@ -312,28 +312,43 @@ typedef struct XcpData {
     uint8_t cmd_last1;
 #endif
 
-    /* DAQ */
+/* DAQ */
+#ifndef _WIN
     union {
-        tXcpDaqLists daq_lists; // DAQ list
+#endif
         uint64_t daq_lists_alignment;
+        tXcpDaqLists daq_lists; // DAQ list
+#ifndef _WIN
     };
+#endif
+
     ATOMIC_BOOL daq_running;     // DAQ is running
     uint32_t daq_overflow_count; // DAQ queue overflow
 
     /* Optional event list */
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
+#ifndef _WIN
     union {
-        tXcpEventList event_list;
+#endif
         uint64_t event_list_alignment;
+        tXcpEventList event_list;
+#ifndef _WIN
     };
+#endif
+
 #endif
 
     /* Optional calibration segment list */
 #ifdef XCP_ENABLE_CALSEG_LIST
+#ifndef _WIN
     union {
-        tXcpCalSegList cal_seg_list;
+#endif
         uint64_t cal_seg_list_alignment;
+        tXcpCalSegList cal_seg_list;
+#ifndef _WIN
     };
+#endif
+
 #endif
 
 } tXcpData;

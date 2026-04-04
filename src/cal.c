@@ -123,6 +123,7 @@ static void *XcpCalMemAlloc_(size_t size) {
             DBG_PRINT_ERROR("XCP calibration memory pool exhausted\n");
             return NULL;
         }
+        uint64_t x = gXcpData.cal_seg_list.cal_mem_used;
     } while (!atomic_compare_exchange_weak_explicit(&shared_mut_safe.cal_seg_list.cal_mem_used, &old_used, new_used, memory_order_relaxed, memory_order_relaxed));
     return &shared_mut_safe.cal_seg_list.cal_mem[old_used];
 }
@@ -153,7 +154,7 @@ uint8_t XcpGetMemSegCount(void) {
         assert(0);
         return XCP_UNDEFINED_CALSEG_NUM;
     }
-    return shared.cal_seg_list.memory_segment_count;
+    return (uint8_t)(shared.cal_seg_list.memory_segment_count & 0xFF);
 }
 
 // Get a pointer to the calibration segment struct of calseg index

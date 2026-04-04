@@ -18,7 +18,9 @@
 #include <stdbool.h>  // for bool
 #include <stdint.h>   // for uintxx_t
 #include <stdio.h>    // for printf
-#include <unistd.h>   // for getpid()
+#ifdef OPTION_SHM_MODE
+#include <unistd.h> // for getpid()
+#endif
 
 #include "a2l.h"        // for A2lFinalize()
 #include "dbg_print.h"  // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
@@ -457,9 +459,9 @@ extern void *XcpServerReceiveThread(void *par)
 #ifdef TEST_ENABLE_DBG_CHECKS
             {
                 static uint64_t last_ctr = 0;
-                uint32_t loops = ctr - last_ctr;
+                uint64_t loops = ctr - last_ctr;
                 if (XcpIsConnected() && loops <= 5) {
-                    DBG_PRINTF_WARNING("XCP receive thread: only %u loops per second, slow background processing\n", loops);
+                    DBG_PRINTF_WARNING("XCP receive thread: only %llu loops per second, slow background processing\n", loops);
                 }
                 if (loops > 1000) {
                     DBG_PRINT_WARNING("XCP receive thread: more than 1000 loops per second\n");
@@ -505,9 +507,9 @@ extern void *XcpServerTransmitThread(void *par)
         static uint64_t last_time = 0;
         static uint64_t last_ctr = 0;
         if (now - last_time >= 1000000000ULL) { // every 1s
-            uint32_t loops = ctr - last_ctr;
+            uint64_t loops = ctr - last_ctr;
             if (XcpIsConnected() && loops <= 5) {
-                DBG_PRINTF_WARNING("XCP transmit thread: only %u loops per second, slow background processing\n", loops);
+                DBG_PRINTF_WARNING("XCP transmit thread: only %llu loops per second, slow background processing\n", loops);
             }
             if (loops > 2000) {
                 DBG_PRINT_WARNING("XCP transmit thread: more than 2000 loops per second\n");

@@ -24,8 +24,9 @@
 #include <stdio.h>    // for printf
 #include <stdlib.h>   // for size_t, NULL, abort
 #include <string.h>   // for memcpy, memset
-#include <unistd.h>   // for getpid()
-
+#ifdef OPTION_SHM_MODE
+#include <unistd.h> // for getpid()
+#endif
 #include "shm.h" // for shared memory management
 
 #include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
