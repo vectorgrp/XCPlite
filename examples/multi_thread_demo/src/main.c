@@ -1,11 +1,8 @@
 ﻿// multi_thread_demo XCPlite example
 
-#include <assert.h> // for assert
-#include <math.h>   // for M_PI, sin
-#include <signal.h> // for signal handling
-#ifndef _WIN32
-#include <stdatomic.h> // for atomic_
-#endif
+#include <assert.h>  // for assert
+#include <math.h>    // for M_PI, sin
+#include <signal.h>  // for signal handling
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uintxx_t
 #include <stdio.h>   // for printf
@@ -36,6 +33,7 @@
 #define MAX_THREAD_NAME_LENGTH 32 // Maximum length of thread name
 
 #ifndef _WIN32
+// #include <stdatomic.h> // for atomic_
 // #define EXPERIMENTAL_THREAD_CONTEXT // Enable demonstration of tracking thread context and span of the clip and filter function
 // #define FILTER_SLEEP_US 100 // Simulated work in filter function
 // #define CLIP_SLEEP_US 50    // Simulated work in clip function

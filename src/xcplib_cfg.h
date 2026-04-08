@@ -53,6 +53,14 @@
 // #define OPTION_CLOCK_TICKS_1US
 
 //-------------------------------------------------------------------------------
+// Enable atomic emulation for Windows
+// Not designed for non x86 platforms, needs strong memory ordering
+// Used for testing on Windows
+#if defined(_WIN32) || defined(_WIN64)
+#define OPTION_ATOMIC_EMULATION
+#endif
+
+//-------------------------------------------------------------------------------
 // Socket options
 
 // #define OPTION_SOCKET_HW_TIMESTAMPS // Enable hardware timestamps on UDP sockets if available (needed only for ptptool on Linux)
@@ -133,8 +141,12 @@
 // #define OPTION_QUEUE_64_FIX_SIZE
 
 // Transport layer queue, with variable queue entry size, 32 bit not lockless with mutex synchronization
-// #define OPTION_QUEUE_32
-
+// Mandatory for Windows
+#ifdef OPTION_ATOMIC_EMULATION
+#undef OPTION_QUEUE_64_VAR_SIZE
+#undef OPTION_QUEUE_64_FIX_SIZE
+#define OPTION_QUEUE_32
+#endif
 //-------------------------------------------------------------------------------
 // A2L generation settings
 
@@ -145,18 +157,6 @@
 // Enable socketGetLocalAddr for A2L file generation
 // Used for convenience to get an existing ip address in A2L, when bound to ANY 0.0.0.0
 // #define OPTION_ENABLE_GET_LOCAL_ADDR
-
-//-------------------------------------------------------------------------------
-// Miscellaneous options
-
-// Enable atomic emulation for Windows without stdatomic.h for C
-// Switches to 32 bit transmit queue implementation
-// Not designed for non x86 platforms, needs strong memory ordering
-// Used for testing on Windows
-
-#if defined(_WIN32) || defined(_WIN64)
-#define OPTION_ATOMIC_EMULATION
-#endif
 
 //-------------------------------------------------------------------------------
 // Tests

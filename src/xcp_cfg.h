@@ -369,7 +369,7 @@ XCPlite multi application absolute addressing: XCP_ADDRESS_MODE_XCPLITE__CXSDD (
 
 #ifdef XCP_ENABLE_CALSEG_LIST
 
-#define XCP_MAX_CALSEG_NAME 15 // Maximum length of calibration segment name
+#define XCP_MAX_CALSEG_NAME 17 // Maximum length of calibration segment name
 
 // Enable lazy write mode for calibration segments
 // RCU updates of calibration segments are done in a cyclic manner in the background

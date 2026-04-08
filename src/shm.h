@@ -45,7 +45,6 @@ typedef struct XcpData tXcpData;
 // Restarting the same application (same project_name) reuses the existing slot.
 typedef union {
     struct {
-        // Identity (written at registration, constant afterwards)
         char project_name[XCP_PROJECT_NAME_MAX_LENGTH + 1]; // unique app name (null-terminated)
         char epk[XCP_EPK_MAX_LENGTH + 1];                   // build version  (null-terminated)
         char a2l_name[XCP_A2L_FILENAME_MAX_LENGTH + 1];     // A2L filename without ext
@@ -54,15 +53,8 @@ typedef union {
         uint8_t is_server;                                  // != 0 this process is the XCP server (handles client connections and DAQ)
         uint8_t xcp_init_mode;                              // XCP init mode (mode given to XcpInit)
         uint8_t reserved[1];                                // reserved
-#ifdef __cplusplus
-        // GCC C++ does not allow atomic (non-trivially constructible) members in anonymous aggregates.
-        // Use plain uint32_t here; shmtool accesses these via read_u32/write_u32 volatile casts.
-        uint32_t alive_counter; // same layout as atomic_uint_least32_t
-        uint32_t a2l_finalized; // same layout as atomic_uint_least32_t
-#else
-        atomic_uint_least32_t alive_counter; // incremented periodically by each process's background thread; allows the leader to detect stale/dead followers
-        atomic_uint_least32_t a2l_finalized; // 1 when this app's A2L file is completely generated and 'a2l_name' is valid
-#endif
+        atomic_uint_least32_t alive_counter;                // incremented periodically by each process's background thread; allows the leader to detect stale/dead followers
+        atomic_uint_least32_t a2l_finalized;                // 1 when this app's A2L file is completely generated and 'a2l_name' is valid
     };
     uint8_t b[512]; // pad slot to 512 bytes for future extensions
 } tApp;

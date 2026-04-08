@@ -114,7 +114,7 @@ static void *XcpCalMemAlloc_(size_t size) {
     assert(size > 0);
     assert((size % XCP_CALPAGE_ALIGNMENT) == 0);
     assert(size <= (size_t)XCP_CAL_MEM_SIZE);
-    assert((uintptr_t)shared.cal_seg_list.cal_mem % XCP_CALPAGE_ALIGNMENT == 0);
+    assert((uintptr_t)shared.cal_seg_list.cal_mem.pool % XCP_CALPAGE_ALIGNMENT == 0);
     uint_fast32_t old_used, new_used;
     do {
         old_used = atomic_load_explicit(&shared.cal_seg_list.cal_mem_used, memory_order_relaxed);
@@ -123,9 +123,8 @@ static void *XcpCalMemAlloc_(size_t size) {
             DBG_PRINT_ERROR("XCP calibration memory pool exhausted\n");
             return NULL;
         }
-        uint64_t x = gXcpData.cal_seg_list.cal_mem_used;
     } while (!atomic_compare_exchange_weak_explicit(&shared_mut_safe.cal_seg_list.cal_mem_used, &old_used, new_used, memory_order_relaxed, memory_order_relaxed));
-    return &shared_mut_safe.cal_seg_list.cal_mem[old_used];
+    return &shared_mut_safe.cal_seg_list.cal_mem.pool[old_used];
 }
 
 // Free the calibration segment list
@@ -346,7 +345,7 @@ static tXcpCalSegIndex XcpRegisterCalSeg_(tXcpCalSeg *c) {
     }
 
     // Store the new segments memory offset in the list
-    shared_mut_safe.cal_seg_list.offset[calseg_index] = (uint32_t)((uint8_t *)c - shared_mut_safe.cal_seg_list.cal_mem);
+    shared_mut_safe.cal_seg_list.offset[calseg_index] = (uint32_t)((uint8_t *)c - shared_mut_safe.cal_seg_list.cal_mem.pool);
 
     // Publish the new entry
     // Release store ensures all preceding writes (name, size, etc.) are visible to any thread that iterates on the calseg list

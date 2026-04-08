@@ -239,7 +239,7 @@ typedef struct {
     uint8_t addr_ext;
 } tXcpDaqList;
 #pragma pack(pop)
-// static_assert(sizeof(tXcpDaqList) == 12, "Error: size of tXcpDaqList is not equal to 12");
+static_assert(sizeof(tXcpDaqList) == 12, "Error: size of tXcpDaqList is not equal to 12");
 
 /* Dynamic DAQ list structure in a linear memory block with size XCP_DAQ_MEM_SIZE + 8  */
 #pragma pack(push, 1)
@@ -250,7 +250,6 @@ typedef struct {
     uint16_t res;
 #ifdef XCP_ENABLE_DAQ_RESUME
     uint16_t config_id;
-    uint16_t res1;
 #endif
 #if !defined(XCP_ENABLE_DAQ_EVENT_LIST) && defined(XCP_MAX_EVENT_COUNT)
     uint16_t daq_first[XCP_MAX_EVENT_COUNT]; // Event channel to DAQ list mapping when there is no event management
@@ -312,43 +311,19 @@ typedef struct XcpData {
     uint8_t cmd_last1;
 #endif
 
-/* DAQ */
-#ifndef _WIN
-    union {
-#endif
-        uint64_t daq_lists_alignment;
-        tXcpDaqLists daq_lists; // DAQ list
-#ifndef _WIN
-    };
-#endif
-
+    /* DAQ */
+    tXcpDaqLists daq_lists;      // DAQ list
     ATOMIC_BOOL daq_running;     // DAQ is running
     uint32_t daq_overflow_count; // DAQ queue overflow
 
     /* Optional event list */
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
-#ifndef _WIN
-    union {
-#endif
-        uint64_t event_list_alignment;
-        tXcpEventList event_list;
-#ifndef _WIN
-    };
-#endif
-
+    tXcpEventList event_list;
 #endif
 
     /* Optional calibration segment list */
 #ifdef XCP_ENABLE_CALSEG_LIST
-#ifndef _WIN
-    union {
-#endif
-        uint64_t cal_seg_list_alignment;
-        tXcpCalSegList cal_seg_list;
-#ifndef _WIN
-    };
-#endif
-
+    tXcpCalSegList cal_seg_list;
 #endif
 
 } tXcpData;
