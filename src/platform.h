@@ -621,10 +621,8 @@ extern MUTEX gWinMutex;
 uint64_t atomic_exchange_explicit(uint64_t *a, uint64_t b, int c);
 uint64_t atomic_fetch_add_explicit(uint64_t *a, uint64_t b, int c);
 uint64_t atomic_fetch_sub_explicit(uint64_t *a, uint64_t b, int c);
-bool atomic_compare_exchange_strong_explicit(uint64_t *a, uint64_t *b, uint64_t c, int d, int e);
 bool atomic_compare_exchange_weak_explicit(uint64_t *a, uint64_t *b, uint64_t c, int d, int e);
 bool atomic_compare_exchange_strong_explicit(uint64_t *a, uint64_t *b, uint64_t c, int d, int e);
-bool atomic_compare_exchange_weak_explicit(uint64_t *a, uint64_t *b, uint64_t c, int d, int e);
 
 #endif // OPTION_ATOMIC_EMULATION
 

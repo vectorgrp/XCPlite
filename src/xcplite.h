@@ -312,8 +312,8 @@ typedef struct XcpData {
 #endif
 
     /* DAQ */
-    tXcpDaqLists daq_lists;      // DAQ list
     ATOMIC_BOOL daq_running;     // DAQ is running
+    tXcpDaqLists daq_lists;      // DAQ list
     uint32_t daq_overflow_count; // DAQ queue overflow
 
     /* Optional event list */

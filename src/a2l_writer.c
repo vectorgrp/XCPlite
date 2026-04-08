@@ -543,6 +543,7 @@ bool A2lWriter(const char *a2l_filename, uint8_t a2l_mode, uint16_t include_coun
     gA2lFile = NULL;
 
     // Rename the temporary file to the final name
+    remove(a2l_filename);
     if (rename("tmp.a2l", a2l_filename) != 0) {
         DBG_PRINTF_ERROR("Could not rename file tmp.a2l to %s!\n", a2l_filename);
         return false;
