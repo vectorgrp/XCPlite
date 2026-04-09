@@ -7,6 +7,9 @@
 |
 | Description:
 |   Public header for A2L generation
+|     Macros and functions A2L_xxxx, A2lXxxx
+|     tA2lTypeId
+|     C++ type detection namespace xcp::a2l
 |
 | Copyright (c) Vector Informatik GmbH. All rights reserved.
 | See LICENSE file in the project root for details.
@@ -52,10 +55,22 @@
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // A2L generation modes
 
+#define A2L_MODE_DEACTIVATE 0x00          // Deactivate A2L generation
 #define A2L_MODE_WRITE_ALWAYS 0x01        // Always write A2L file, overwrite existing file
-#define A2L_MODE_WRITE_ONCE 0x02          // Write A2L file only once, do not overwrite existing file, use the binary persistence file to keep the A2L file valid
+#define A2L_MODE_WRITE_ONCE 0x02          // Write A2L file only once for a epk version, do not overwrite existing file, use the binary persistence file to keep the A2L file valid
 #define A2L_MODE_FINALIZE_ON_CONNECT 0x04 // Finalize A2L file on XCP connect
 #define A2L_MODE_AUTO_GROUPS 0x08         // Automatically create groups for measurements and parameters
+#define A2L_MODE_SYMBOL_PREFIX 0x10       // Prepend project name as prefix to all symbol names (measurements, parameters, typedefs, components)
+#define A2L_MODE_WRITE_TEMPLATE 0x20      // Only write an A2L template with all settings, IF_DATA, events and calibration segments
+#define A2L_MODE_EVENT_CONVERSION 0x40    // Create a enum conversion with all event ids
+#define A2L_MODE_EMBED_AML_FILE 0x80      // Include AML file (e.g., XCP_104.aml) with /include directive, instead of embedding the AML file content into the A2L file
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Constants
+
+#define XCP_A2L_MAX_SYMBOL_NAME_LENGTH 64 // Maximum length of symbol names in A2L file (including null terminator)
+#define XCP_A2L_MAX_LINE_LENGTH 512       // Maximum length of a line in A2L file (including null terminator)
+#define XCP_A2L_MAX_COMMENT_LENGTH 256    // Maximum length of a comment in A2L file (including null terminator)
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -77,13 +92,18 @@ static_assert(sizeof(char) == 1, "sizeof(char) must be 1");
 static_assert(sizeof(short) == 2, "sizeof(short) must be 2");
 static_assert(sizeof(long long) == 8, "sizeof(long long) must be 8");
 
-// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// Automatic, portable type detection macros for both C and C++
+double A2lGetTypeMax(tA2lTypeId type_id);
+double A2lGetTypeMin(tA2lTypeId type_id);
 
-#ifdef __cplusplus
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Automatic, portable type detection macros for C
 
 // C++ version using template meta-programming
-namespace A2lTypeTraits {
+#ifdef __cplusplus
+
+namespace xcp {
+namespace a2l {
+
 template <typename T> struct TypeId {
     static const tA2lTypeId value = A2L_TYPE_UNDEFINED;
 };
@@ -158,12 +178,20 @@ template <typename T> constexpr tA2lTypeId GetTypeId() { return TypeId<typename 
 
 // Function to get type id from expression (handles arrays, complex expressions)
 template <typename T> constexpr tA2lTypeId GetTypeIdFromExpr(const T &) { return GetTypeId<T>(); }
-} // namespace A2lTypeTraits
 
-#define A2lGetTypeId(expr) A2lTypeTraits::GetTypeIdFromExpr(expr)
+} // namespace a2l
+} // namespace xcp
+
+#define A2lGetTypeId(expr) xcp::a2l::GetTypeIdFromExpr(expr)
+
+// Helper macros for array element type detection (works with multi-dimensional arrays)
+#define A2lGetArray1DElementTypeId(array) xcp::a2l::GetTypeIdFromExpr((array)[0])
+#define A2lGetArray2DElementTypeId(array) xcp::a2l::GetTypeIdFromExpr((array)[0][0])
+
+#endif // __cplusplus
 
 // C version using _Generic for simple expressions and fallback for complex ones
-#else
+#ifndef __cplusplus
 
 // Helper function to deduce type from pointer (for array elements)
 static inline tA2lTypeId A2lGetTypeIdFromPtr_uint8(const uint8_t *p) {
@@ -265,27 +293,16 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
         bool *: A2L_TYPE_UINT8,                                                                                                                                                    \
         default: A2L_TYPE_UNDEFINED)
 
-#endif // C
+#endif // !__cplusplus
 
 // Additional robust alternatives for complex type detection scenarios
 
-// Helper macros for array element type detection (works with multi-dimensional arrays)
-#ifdef __cplusplus
-#define A2lGetArray1DElementTypeId(array) A2lTypeTraits::GetTypeIdFromExpr((array)[0])
-#define A2lGetArray2DElementTypeId(array) A2lTypeTraits::GetTypeIdFromExpr((array)[0][0])
+#ifndef __cplusplus
 
-// Check availability of decltype (>=C++11)
-#ifdef __cpp_decltype
-// #if __cplusplus >= 199711
-#define A2lGetTypeIdDecltype(expr) A2lTypeTraits::GetTypeId<decltype(expr)>()
-#else
-#error "C++11 or later is required for decltype-based type detection"
-#endif
-
-#else
 #define A2lGetArray1DElementTypeId(array) A2lGetTypeId((array)[0])
 #define A2lGetArray2DElementTypeId(array) A2lGetTypeId((array)[0][0])
-#endif
+
+#endif // !__cplusplus
 
 #define A2lGetTypeName(type) A2lGetA2lTypeName(A2lGetTypeId(type))
 #define A2lGetTypeName1D(type) A2lGetA2lTypeName(A2lGetArray1DElementTypeId(type))
@@ -299,23 +316,23 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
 #define A2lGetTypeName1D_C(type) A2lGetA2lTypeName_C(A2lGetArray1DElementTypeId(type))
 #define A2lGetTypeName2D_C(type) A2lGetA2lTypeName_C(A2lGetArray2DElementTypeId(type))
 
-#define A2lGetRecordLayoutName(type) A2lGetRecordLayoutName_(A2lGetTypeId(type))
-#define A2lGetRecordLayoutName1D(type) A2lGetRecordLayoutName_(A2lGetArray1DElementTypeId(type))
-#define A2lGetRecordLayoutName2D(type) A2lGetRecordLayoutName_(A2lGetArray2DElementTypeId(type))
+#define A2lGetRecordLayoutName(type) A2lGetA2lRecordLayoutName(A2lGetTypeName(type))
+#define A2lGetRecordLayoutName1D(type) A2lGetA2lRecordLayoutName(A2lGetArray1DElementTypeId(type))
+#define A2lGetRecordLayoutName2D(type) A2lGetA2lRecordLayoutName(A2lGetArray2DElementTypeId(type))
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Addressing mode convenience macros
 
 // Set segment relative address mode
 // Error if the segment index does not exist
-#define A2lSetSegmentAddrMode(seg_index, seg_instance) A2lSetSegmentAddrMode__i(seg_index, (const uint8_t *)&seg_instance);
-#define A2lSetSegmentAddrMode_s(seg_name, seg_instance) A2lSetSegmentAddrMode__s(seg_name, (const uint8_t *)&seg_instance);
+#define A2lSetSegmentAddrMode(seg_index, seg_instance) A2lSetSegmentAddrMode__i(seg_index, (const uint8_t *)&(seg_instance));
+#define A2lSetSegmentAddrMode_s(seg_name, seg_instance) A2lSetSegmentAddrMode__s(seg_name, (const uint8_t *)&(seg_instance));
 
 // Set addressing mode to relative for a given event 'event_name' and base address
 // Error if the event does not exist
-#define A2lSetRelativeAddrMode(event_name, base_addr) A2lSetRelativeAddrMode__s(#event_name, 1, (const uint8_t *)base_addr);
-#define A2lSetRelativeAddrMode_s(event_name, base_addr) A2lSetRelativeAddrMode__s(event_name, 1, (const uint8_t *)base_addr);
-#define A2lSetRelativeAddrMode_i(event_id, base_addr) A2lSetRelativeAddrMode__i(event_id, 1, (const uint8_t *)base_addr);
+#define A2lSetRelativeAddrMode(event_name, base_addr) A2lSetRelativeAddrMode__s(#event_name, 1, (const uint8_t *)(base_addr));
+#define A2lSetRelativeAddrMode_s(event_name, base_addr) A2lSetRelativeAddrMode__s(event_name, 1, (const uint8_t *)(base_addr));
+#define A2lSetRelativeAddrMode_i(event_id, base_addr) A2lSetRelativeAddrMode__i(event_id, 1, (const uint8_t *)(base_addr));
 
 // Set addressing mode to auto (stack or base address) and event 'event_name'
 // Error if the event does not exist
@@ -338,20 +355,20 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Create parameters in calibration parameter segments or in global memory
 
-#define A2lCreateParameter(name, comment, unit, min, max) A2lCreateParameter_(#name, A2lGetTypeId(name), (uint8_t *)&name, comment, unit, min, max);
+#define A2lCreateParameter(name, comment, unit, min, max) A2lCreateParameter_(#name, A2lGetTypeId(name), (uint8_t *)&(name), comment, unit, min, max);
 
-#define A2lCreateCurve(name, xdim, comment, unit, min, max) A2lCreateCurve_(#name, A2lGetArray1DElementTypeId(name), (uint8_t *)&name[0], xdim, comment, unit, min, max, NULL);
+#define A2lCreateCurve(name, xdim, comment, unit, min, max) A2lCreateCurve_(#name, A2lGetArray1DElementTypeId(name), (uint8_t *)&(name)[0], xdim, comment, unit, min, max, NULL);
 
 #define A2lCreateCurveWithSharedAxis(name, xdim, comment, unit, min, max, x_axis)                                                                                                  \
-    A2lCreateCurve_(#name, A2lGetArray1DElementTypeId(name), (uint8_t *)&name[0], xdim, comment, unit, min, max, x_axis);
+    A2lCreateCurve_(#name, A2lGetArray1DElementTypeId(name), (uint8_t *)&(name)[0], xdim, comment, unit, min, max, x_axis);
 
-#define A2lCreateAxis(name, xdim, comment, unit, min, max) A2lCreateAxis_(#name, A2lGetArray1DElementTypeId(name), (uint8_t *)&name[0], xdim, comment, unit, min, max);
+#define A2lCreateAxis(name, xdim, comment, unit, min, max) A2lCreateAxis_(#name, A2lGetArray1DElementTypeId(name), (uint8_t *)&(name)[0], xdim, comment, unit, min, max);
 
 #define A2lCreateMap(name, xdim, ydim, comment, unit, min, max)                                                                                                                    \
-    A2lCreateMap_(#name, A2lGetArray2DElementTypeId(name), (uint8_t *)&name[0][0], xdim, ydim, comment, unit, min, max, NULL, NULL);
+    A2lCreateMap_(#name, A2lGetArray2DElementTypeId(name), (uint8_t *)&(name)[0][0], xdim, ydim, comment, unit, min, max, NULL, NULL);
 
 #define A2lCreateMapWithSharedAxis(name, xdim, ydim, comment, unit, min, max, x_axis, y_axis)                                                                                      \
-    A2lCreateMap_(#name, A2lGetArray2DElementTypeId(name), (uint8_t *)&name[0][0], xdim, ydim, comment, unit, min, max, x_axis, y_axis);
+    A2lCreateMap_(#name, A2lGetArray2DElementTypeId(name), (uint8_t *)&(name)[0][0], xdim, ydim, comment, unit, min, max, x_axis, y_axis);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Create conversions
@@ -363,38 +380,38 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Create measurements on stack or in global memory
 
-#define A2lCreateMeasurement(name, comment) A2lCreateMeasurement_(NULL, #name, A2lGetTypeId(name), 1, &name, NULL, 0.0, 0.0, comment);
+#define A2lCreateMeasurement(name, comment) A2lCreateMeasurement_(NULL, #name, A2lGetTypeId(name), 1, &(name), NULL, 0.0, 0.0, comment);
 
 #define A2lCreatePhysMeasurement(name, comment, unit_or_conversion, min, max)                                                                                                      \
-    A2lCreateMeasurement_(NULL, #name, A2lGetTypeId(name), 1, &name, unit_or_conversion, min, max, comment);
+    A2lCreateMeasurement_(NULL, #name, A2lGetTypeId(name), 1, &(name), unit_or_conversion, min, max, comment);
 
 #define A2lCreateMeasurementArray(name, comment)                                                                                                                                   \
-    A2lCreateMeasurementArray_(NULL, #name, A2lGetArray1DElementTypeId(name), sizeof(name) / sizeof(name[0]), 1, &name[0], NULL, 0.0, 0.0, comment);
+    A2lCreateMeasurementArray_(NULL, #name, A2lGetArray1DElementTypeId(name), sizeof(name) / sizeof((name)[0]), 1, &(name)[0], NULL, 0.0, 0.0, comment);
 
 #define A2lCreateMeasurementMatrix(name, comment)                                                                                                                                  \
-    A2lCreateMeasurementArray_(NULL, #name, A2lGetArray2DElementTypeId(name), sizeof(name[0]) / sizeof(name[0][0]), sizeof(name) / sizeof(name[0]), &name[0], NULL, 0.0, 0.0,      \
-                               comment);
+    A2lCreateMeasurementArray_(NULL, #name, A2lGetArray2DElementTypeId(name), sizeof((name)[0]) / sizeof((name)[0][0]), sizeof(name) / sizeof((name)[0]), &(name)[0], NULL, 0.0,   \
+                               0.0, comment);
 
 #define A2lCreatePhysMeasurementArray(name, comment, unit_or_conversion, min, max)                                                                                                 \
-    A2lCreatePhysMeasurementArray_(NULL, #name, A2lGetArray1DElementTypeId(name), sizeof(name) / sizeof(name[0]), 1, &name[0], unit_or_conversion, min, max, comment);
+    A2lCreatePhysMeasurementArray_(NULL, #name, A2lGetArray1DElementTypeId(name), sizeof(name) / sizeof((name)[0]), 1, &(name)[0], unit_or_conversion, min, max, comment);
 
 #define A2lCreatePhysMeasurementMatrix(name, comment, unit_or_conversion, min, max)                                                                                                \
-    A2lCreateMeasurementArray_(NULL, #name, A2lGetArray2DElementTypeId(name), sizeof(name[0]) / sizeof(name[0][0]), sizeof(name) / sizeof(name[0]), &(name[0]),                    \
+    A2lCreateMeasurementArray_(NULL, #name, A2lGetArray2DElementTypeId(name), sizeof((name)[0]) / sizeof((name)[0][0]), sizeof(name) / sizeof((name)[0]), &(name)[0],              \
                                unit_or_conversion, min, max, comment);
 
 // With instance name
 // Instance name is used as prefix for the A2L symbol name
-#define A2lCreateMeasurementInstance(instance_name, name, comment) A2lCreateMeasurement_(instance_name, #name, A2lGetTypeId(name), 1, &name, NULL, 0.0, 0.0, comment);
+#define A2lCreateMeasurementInstance(instance_name, name, comment) A2lCreateMeasurement_(instance_name, #name, A2lGetTypeId(name), 1, &(name), NULL, 0.0, 0.0, comment);
 
 #define A2lCreatePhysMeasurementInstance(instance_name, name, comment, unit_or_conversion, min, max)                                                                               \
-    A2lCreateMeasurement_(instance_name, #name, A2lGetTypeId(name), 1, &name, unit_or_conversion, min, max, comment);
+    A2lCreateMeasurement_(instance_name, #name, A2lGetTypeId(name), 1, &(name), unit_or_conversion, min, max, comment);
 
 #define A2lCreateMeasurementArrayInstance(instance_name, name, comment)                                                                                                            \
-    A2lCreateMeasurementArray_(instance_name, #name, A2lGetArray1DElementTypeId(name), sizeof(name) / sizeof(name[0]), 1, &name[0], NULL, 0.0, 0.0, comment);
+    A2lCreateMeasurementArray_(instance_name, #name, A2lGetArray1DElementTypeId(name), sizeof(name) / sizeof((name)[0]), 1, &(name)[0], NULL, 0.0, 0.0, comment);
 
 #define A2lCreateMeasurementMatrixInstance(instance_name, name, comment)                                                                                                           \
-    A2lCreateMeasurementArray_(instance_name, #name, A2lGetArray2DElementTypeId(name), sizeof(name[0]) / sizeof(name[0][0]), sizeof(name) / sizeof(name[0]), &name[0], NULL, 0.0,  \
-                               0.0, comment);
+    A2lCreateMeasurementArray_(instance_name, #name, A2lGetArray2DElementTypeId(name), sizeof((name)[0]) / sizeof(((name)[0][0])), sizeof(name) / sizeof((name)[0]), &(name)[0],   \
+                               NULL, 0.0, 0.0, comment);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Create instances from typedefs
@@ -404,15 +421,15 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
 
 // Single instance of typedef
 // A2L instance name and symbol name are the same
-#define A2lCreateTypedefInstance(name, typeName, comment) A2lCreateInstance_(#name, #typeName, 0, &name, comment);
+#define A2lCreateTypedefInstance(name, typeName, comment) A2lCreateInstance_(#name, #typeName, 0, &(name), comment);
 
 // Single instance of typedef
 // A2L instance name and symbol name are different
-#define A2lCreateTypedefNamedInstance(name, instance, typeName, comment) A2lCreateInstance_(name, #typeName, 0, &instance, comment);
+#define A2lCreateTypedefNamedInstance(name, instance, typeName, comment) A2lCreateInstance_(name, #typeName, 0, &(instance), comment);
 
 // Typedef instance created from a C array with specified dimension
-#define A2lCreateTypedefArray(name, typeName, dim, comment) A2lCreateInstance_(#name, #typeName, dim, &name, comment);
-#define A2lCreateTypedefInstanceArray(name, typeName, dim, comment) A2lCreateInstance_(#name, #typeName, dim, &name, comment);
+#define A2lCreateTypedefArray(name, typeName, dim, comment) A2lCreateInstance_(#name, #typeName, dim, &(name), comment);
+#define A2lCreateTypedefInstanceArray(name, typeName, dim, comment) A2lCreateInstance_(#name, #typeName, dim, &(name), comment);
 
 // Typedef instance created from a reference (pointer)
 #define A2lCreateTypedefReference(name, typeName, comment) A2lCreateInstance_(#name, #typeName, 0, name, comment);
@@ -429,7 +446,7 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
 // For scalar or one dimensional measurement and parameter components of specified type
 // field_type_name is the name of another typedef, typedef_measurement or typedef_characteristic
 #define A2lTypedefComponent(field_name, field_type_name, field_dim)                                                                                                                \
-    A2lTypedefComponent_(#field_name, #field_type_name, field_dim, (uint32_t)((uint8_t *)&(__A2lTypedefBegin_instance->field_name) - (uint8_t *)__A2lTypedefBegin_instance))
+    A2lTypedefComponent_(#field_name, #field_type_name, field_dim, ((uint8_t *)&(__A2lTypedefBegin_instance->field_name) - (uint8_t *)__A2lTypedefBegin_instance))
 
 #define A2lTypedefEnd()                                                                                                                                                            \
     }                                                                                                                                                                              \
@@ -440,30 +457,28 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
 
 #define A2lTypedefMeasurementComponent(field_name, comment)                                                                                                                        \
     do {                                                                                                                                                                           \
-        A2lTypedefMeasurementComponent_(#field_name, A2lGetTypeName(__A2lTypedefBegin_instance->field_name), 1,                                                                    \
-                                        (uint32_t)((uint8_t *)&(__A2lTypedefBegin_instance->field_name) - (uint8_t *)__A2lTypedefBegin_instance), comment, NULL, 0.0, 0.0);        \
+        A2lTypedefMeasurementComponent_(#field_name, A2lGetTypeId(__A2lTypedefBegin_instance->field_name), 1,                                                                      \
+                                        ((uint8_t *)&(__A2lTypedefBegin_instance->field_name) - (uint8_t *)__A2lTypedefBegin_instance), comment, NULL, 0.0, 0.0);                  \
     } while (0)
 
 #define A2lTypedefMeasurementArrayComponent(field_name, comment)                                                                                                                   \
     do {                                                                                                                                                                           \
-        A2lTypedefMeasurementComponent_(#field_name, A2lGetTypeName1D(__A2lTypedefBegin_instance->field_name),                                                                     \
+        A2lTypedefMeasurementComponent_(#field_name, A2lGetArray1DElementTypeId(__A2lTypedefBegin_instance->field_name),                                                           \
                                         sizeof(__A2lTypedefBegin_instance->field_name) / sizeof(__A2lTypedefBegin_instance->field_name[0]),                                        \
-                                        (uint32_t)((uint8_t *)&(__A2lTypedefBegin_instance->field_name) - (uint8_t *)__A2lTypedefBegin_instance), comment, NULL, 0.0, 0.0);        \
+                                        ((uint8_t *)&(__A2lTypedefBegin_instance->field_name) - (uint8_t *)__A2lTypedefBegin_instance), comment, NULL, 0.0, 0.0);                  \
     } while (0)
 
 #define A2lTypedefPhysMeasurementComponent(field_name, comment, unit_or_conversion, min, max)                                                                                      \
     do {                                                                                                                                                                           \
-        A2lTypedefMeasurementComponent_(#field_name, A2lGetTypeName(__A2lTypedefBegin_instance->field_name), 1,                                                                    \
-                                        (uint32_t)((uint8_t *)&(__A2lTypedefBegin_instance->field_name) - (uint8_t *)__A2lTypedefBegin_instance), comment, unit_or_conversion,     \
-                                        min, max);                                                                                                                                 \
+        A2lTypedefMeasurementComponent_(#field_name, A2lGetTypeId(__A2lTypedefBegin_instance->field_name), 1,                                                                      \
+                                        ((uint8_t *)&(__A2lTypedefBegin_instance->field_name) - (uint8_t *)__A2lTypedefBegin_instance), comment, unit_or_conversion, min, max);    \
     } while (0)
 
 #define A2lTypedefPhysMeasurementArrayComponent(field_name, comment, unit_or_conversion, min, max)                                                                                 \
     do {                                                                                                                                                                           \
-        A2lTypedefMeasurementComponent_(#field_name, A2lGetTypeName1D(__A2lTypedefBegin_instance->field_name),                                                                     \
+        A2lTypedefMeasurementComponent_(#field_name, A2lGetArray1DElementTypeId(__A2lTypedefBegin_instance->field_name),                                                           \
                                         sizeof(__A2lTypedefBegin_instance->field_name) / sizeof(__A2lTypedefBegin_instance->field_name[0]),                                        \
-                                        (uint32_t)((uint8_t *)&(__A2lTypedefBegin_instance->field_name) - (uint8_t *)__A2lTypedefBegin_instance), comment, unit_or_conversion,     \
-                                        min, max);                                                                                                                                 \
+                                        ((uint8_t *)&(__A2lTypedefBegin_instance->field_name) - (uint8_t *)__A2lTypedefBegin_instance), comment, unit_or_conversion, min, max);    \
     } while (0)
 
 // Parameter components
@@ -471,44 +486,38 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
 
 #define A2lTypedefParameterComponent(field_name, comment, unit, min, max)                                                                                                          \
     do {                                                                                                                                                                           \
-        A2lTypedefParameterComponent_(#field_name, A2lGetRecordLayoutName(__A2lTypedefBegin_instance->field_name), 1, 1,                                                           \
-                                      (uint32_t)((uint8_t *)&(__A2lTypedefBegin_instance->field_name) - (uint8_t *)__A2lTypedefBegin_instance), comment, unit, min, max, NULL,     \
-                                      NULL);                                                                                                                                       \
+        A2lTypedefParameterComponent_(#field_name, A2lGetTypeId(__A2lTypedefBegin_instance->field_name), 1, 1,                                                                     \
+                                      ((uint8_t *)&(__A2lTypedefBegin_instance->field_name) - (uint8_t *)__A2lTypedefBegin_instance), comment, unit, min, max, NULL, NULL);        \
     } while (0)
 
 #define A2lTypedefCurveComponent(field_name, x_dim, comment, unit, min, max)                                                                                                       \
     do {                                                                                                                                                                           \
-        A2lTypedefParameterComponent_(#field_name, A2lGetRecordLayoutName1D(__A2lTypedefBegin_instance->field_name), x_dim, 1,                                                     \
-                                      (uint32_t)((uint8_t *)&(__A2lTypedefBegin_instance->field_name) - (uint8_t *)__A2lTypedefBegin_instance), comment, unit, min, max, NULL,     \
-                                      NULL);                                                                                                                                       \
+        A2lTypedefParameterComponent_(#field_name, A2lGetArray1DElementTypeId(__A2lTypedefBegin_instance->field_name), x_dim, 1,                                                   \
+                                      ((uint8_t *)&(__A2lTypedefBegin_instance->field_name) - (uint8_t *)__A2lTypedefBegin_instance), comment, unit, min, max, NULL, NULL);        \
     } while (0)
 
 #define A2lTypedefCurveComponentWithSharedAxis(field_name, x_dim, comment, unit, min, max, x_axis)                                                                                 \
     do {                                                                                                                                                                           \
-        A2lTypedefParameterComponent_(#field_name, A2lGetRecordLayoutName1D(__A2lTypedefBegin_instance->field_name), x_dim, 1,                                                     \
-                                      (uint32_t)((uint8_t *)&(__A2lTypedefBegin_instance->field_name) - (uint8_t *)__A2lTypedefBegin_instance), comment, unit, min, max, x_axis,   \
-                                      NULL);                                                                                                                                       \
+        A2lTypedefParameterComponent_(#field_name, A2lGetArray1DElementTypeId(__A2lTypedefBegin_instance->field_name), x_dim, 1,                                                   \
+                                      ((uint8_t *)&(__A2lTypedefBegin_instance->field_name) - (uint8_t *)__A2lTypedefBegin_instance), comment, unit, min, max, x_axis, NULL);      \
     } while (0)
 
 #define A2lTypedefMapComponent(field_name, x_dim, y_dim, comment, unit, min, max)                                                                                                  \
     do {                                                                                                                                                                           \
-        A2lTypedefParameterComponent_(#field_name, A2lGetRecordLayoutName2D(__A2lTypedefBegin_instance->field_name), x_dim, y_dim,                                                 \
-                                      (uint32_t)((uint8_t *)&(__A2lTypedefBegin_instance->field_name) - (uint8_t *)__A2lTypedefBegin_instance), comment, unit, min, max, NULL,     \
-                                      NULL);                                                                                                                                       \
+        A2lTypedefParameterComponent_(#field_name, A2lGetArray2DElementTypeId(__A2lTypedefBegin_instance->field_name), x_dim, y_dim,                                               \
+                                      ((uint8_t *)&(__A2lTypedefBegin_instance->field_name) - (uint8_t *)__A2lTypedefBegin_instance), comment, unit, min, max, NULL, NULL);        \
     } while (0)
 
 #define A2lTypedefMapComponentWithSharedAxis(field_name, x_dim, y_dim, comment, unit, min, max, x_axis, y_axis)                                                                    \
     do {                                                                                                                                                                           \
-        A2lTypedefParameterComponent_(#field_name, A2lGetRecordLayoutName2D(__A2lTypedefBegin_instance->field_name), x_dim, y_dim,                                                 \
-                                      (uint32_t)((uint8_t *)&(__A2lTypedefBegin_instance->field_name) - (uint8_t *)__A2lTypedefBegin_instance), comment, unit, min, max, x_axis,   \
-                                      y_axis);                                                                                                                                     \
+        A2lTypedefParameterComponent_(#field_name, A2lGetArray2DElementTypeId(__A2lTypedefBegin_instance->field_name), x_dim, y_dim,                                               \
+                                      ((uint8_t *)&(__A2lTypedefBegin_instance->field_name) - (uint8_t *)__A2lTypedefBegin_instance), comment, unit, min, max, x_axis, y_axis);    \
     } while (0)
 
 #define A2lTypedefAxisComponent(field_name, x_dim, comment, unit, min, max)                                                                                                        \
     do {                                                                                                                                                                           \
-        A2lTypedefParameterComponent_(#field_name, A2lGetRecordLayoutName1D(__A2lTypedefBegin_instance->field_name), x_dim, 0,                                                     \
-                                      (uint32_t)((uint8_t *)&(__A2lTypedefBegin_instance->field_name) - (uint8_t *)__A2lTypedefBegin_instance), comment, unit, min, max, NULL,     \
-                                      NULL);                                                                                                                                       \
+        A2lTypedefParameterComponent_(#field_name, A2lGetArray1DElementTypeId(__A2lTypedefBegin_instance->field_name), x_dim, 0,                                                   \
+                                      ((uint8_t *)&(__A2lTypedefBegin_instance->field_name) - (uint8_t *)__A2lTypedefBegin_instance), comment, unit, min, max, NULL, NULL);        \
     } while (0)
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -549,7 +558,7 @@ void A2lUnlock(void);
 const char *A2lGetA2lTypeName(tA2lTypeId type);
 const char *A2lGetA2lTypeName_M(tA2lTypeId type);
 const char *A2lGetA2lTypeName_C(tA2lTypeId type);
-const char *A2lGetRecordLayoutName_(tA2lTypeId type);
+const char *A2lGetA2lRecordLayoutName(tA2lTypeId type);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Set addressing modes
@@ -567,7 +576,7 @@ void A2lSetSegAddrMode(tXcpCalSegIndex calseg_index, const uint8_t *calseg_insta
 // Manually create groups
 // If automatic group generation (A2lInit parameter) is disabled, use these functions to create groups manually.
 
-void A2lBeginGroup(const char *name, const char *comment, bool is_parameter_group);
+void A2lBeginGroup(const char *name, const char *comment, bool is_parameter_group, bool is_root_group);
 void A2lAddToGroup(const char *name);
 void A2lEndGroup(void);
 
@@ -636,14 +645,21 @@ void A2lCreateMeasurementArray_(const char *instance_name, const char *name, tA2
 // Create typedefs
 void A2lTypedefBegin_(const char *name, uint32_t size, const char *format, ...);
 void A2lTypedefEnd_(void);
-void A2lTypedefComponent_(const char *name, const char *typedef_name, uint16_t x_dim, uint32_t offset);
-void A2lTypedefMeasurementComponent_(const char *name, const char *typedef_name, uint16_t x_dim, uint32_t offset, const char *comment, const char *unit_or_conversion, double min,
+void A2lTypedefComponent_(const char *name, const char *typedef_name, uint16_t x_dim, size_t offset);
+void A2lTypedefMeasurementComponent_(const char *name, tA2lTypeId type_id, uint16_t x_dim, size_t offset, const char *comment, const char *unit_or_conversion, double min,
                                      double max);
-void A2lTypedefParameterComponent_(const char *name, const char *typedef_name, uint16_t x_dim, uint16_t y_dim, uint32_t offset, const char *comment, const char *unit, double min,
+void A2lTypedefParameterComponent_(const char *name, tA2lTypeId type_id, uint16_t x_dim, uint16_t y_dim, size_t offset, const char *comment, const char *unit, double min,
                                    double max, const char *x_axis, const char *y_axis);
 
 // Create an instance of a typedef
 void A2lCreateInstance_(const char *instance_name, const char *typeName, uint16_t x_dim, const void *ptr, const char *comment);
+
+// Set input quantity strings for X and Y axes
+void A2lSetInputQuantity_x(const char *measurement_variable_name);
+void A2lSetInputQuantity_y(const char *measurement_variable_name);
+
+// Enable/disable project name prefix for all symbol names ("project.symbolname")
+void A2lSetSymbolPrefix(bool enable);
 
 #ifdef __cplusplus
 } // extern "C"

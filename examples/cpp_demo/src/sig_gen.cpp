@@ -11,8 +11,9 @@ Depending on calibration parameters ampl, phase, offset and period
 #include <iostream> // for std::cout
 #include <thread>
 
-#include "a2l.hpp"    // for xcplib A2l generation application programming interface
-#include "xcplib.hpp" // for xcplib application programming interface
+// Include XCPlite/libxcplite C++ headers
+#include "a2l.hpp"    // for A2l generation application programming interface
+#include "xcplib.hpp" // for application programming interface
 
 #include "sig_gen.hpp"
 
@@ -66,7 +67,7 @@ SignalGenerator::~SignalGenerator() {
 void SignalGenerator::Task() {
 
     double time = 0;
-    double start_time = static_cast<double>(clockGetUs()) / 1000000; // time in s since start of the signal generator
+    double start_time = static_cast<double>(clockGetMonotonicUs()) / 1000000; // time in s since start of the signal generator
 
     // Create a measurement event with individual name 'instance_name_' for each instance of SignalGenerator
     DaqCreateEvent_s(instance_name_);
@@ -83,31 +84,31 @@ void SignalGenerator::Task() {
 
     for (;;) {
 
-        time = static_cast<double>(clockGetUs()) / 1000000 - start_time; // time in s since start of the signal generator
+        time = static_cast<double>(clockGetMonotonicUs()) / 1000000 - start_time; // time in s since start of the signal generator
 
         // Calculate the waveform value based on the current time and signal parameters
         {
             auto p = signal_parameters_.lock();
-            double normalized_time = fmod(time, p->period) / p->period; // Normalize time ([0.0..1.0[ to the period
+            normalized_time_ = fmod(time, p->period) / p->period; // Normalize time ([0.0..1.0[ to the period
             double v = 0;
             switch (p->signal_type) {
             case SignalTypeT::SQUARE:
-                v = (normalized_time < 0.5) ? +1.0 : -1.0;
+                v = (normalized_time_ < 0.5) ? +1.0 : -1.0;
                 break;
             case SignalTypeT::TRIANGLE:
-                v = (normalized_time - 0.5);
-                v = (normalized_time < 0.5) ? v : -v;
+                v = (normalized_time_ - 0.5);
+                v = (normalized_time_ < 0.5) ? v : -v;
                 v = (v + 0.25) * 4.0;
                 break;
             case SignalTypeT::SAWTOOTH:
-                v = (normalized_time - 0.5) * 2.0;
+                v = (normalized_time_ - 0.5) * 2.0;
                 break;
             case SignalTypeT::ARBITRARY: {
                 // Find the index in the lookup table based on the time
-                v = p->lookup.Lookup((float)normalized_time);
+                v = p->lookup.Lookup((float)normalized_time_);
             } break;
             default:
-                v = sin((normalized_time * k2Pi) + p->phase);
+                v = sin((normalized_time_ * k2Pi) + p->phase);
                 break;
             }
             value_ = (p->ampl * v) + p->offset;

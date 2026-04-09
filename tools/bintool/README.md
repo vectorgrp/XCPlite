@@ -1,7 +1,7 @@
 # bintool - XCPlite BIN File Tool
 
 A command-line tool for XCPlite `.BIN` persistence files.  
-Persistence features in XCPlite are enabled with OPTION_CAL_PERSISTENCE.  
+Persistence features in XCPlite are enabled with OPTION_ENABLE_PERSISTENCE.  
 For safety, it is essential to use the EPK version segment. This can be enabled with OPTION_CAL_SEGMENT_EPK.  
 
 Disclaimer: This is an AI generated tool. Don't use it for production. Improper use may corrupt calibration data.  
@@ -185,7 +185,7 @@ The tool generates Intel-Hex files with:
 When updating a BIN file from Intel-Hex data (`--apply-hex`), the tool enforces strict validation:
 
 ### 1. EPK Segment Protection
-If the first segment is named "epk", its size and content must exactly match between BIN and HEX files. This prevents incompatible firmware updates.
+If the first segment is named 'epk', its size and content must exactly match between BIN and HEX files. This prevents incompatible firmware updates.
 
 ### 2. Complete Segment Coverage
 HEX data must completely cover each BIN segment. Partial segment updates are rejected to prevent calibration data corruption.
@@ -214,7 +214,4 @@ This ensures the original BIN file remains completely unchanged if any validatio
 
 MIT License - See LICENSE file in the project root.
 
-## Author
-
-RainerZ
 

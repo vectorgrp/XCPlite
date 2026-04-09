@@ -11,8 +11,8 @@
 | Code released into public domain, no attribution required
  ----------------------------------------------------------------------------*/
 
-#include "main_cfg.h" // for OPTION_xxx
-#include "platform.h" // for CLOCK_TICKS_PER_xx
+#include "platform.h"   // for CLOCK_TICKS_PER_xx
+#include "xcplib_cfg.h" // for OPTION_xxx
 
 /*----------------------------------------------------------------------------*/
 /* Version */
@@ -34,12 +34,53 @@
 // Maximum length of the project name (excluding null terminator), must be odd
 #define XCP_PROJECT_NAME_MAX_LENGTH 31
 
+// Maximum length of A2L filename with extension (excluding null terminator)
+#define XCP_A2L_FILENAME_MAX_LENGTH 255
+
 /*----------------------------------------------------------------------------*/
-// Enable calibration segment list management
+/* DAQ event management */
+
+// Enable event list
+// @@@@ TODO: Remove the separate event list management in the Rust API
+#ifndef XCPLIB_FOR_RUST
+#define XCP_ENABLE_DAQ_EVENT_LIST
+#endif
+
+#ifdef XCP_ENABLE_DAQ_EVENT_LIST
+
+#if defined(OPTION_DAQ_EVENT_COUNT) && (OPTION_DAQ_EVENT_COUNT > 0)
+#define XCP_MAX_EVENT_COUNT OPTION_DAQ_EVENT_COUNT
+#else
+#error "Please define OPTION_DAQ_EVENT_COUNT"
+#endif
+
+// Enable XCP_GET_EVENT_INFO, if this is enabled, event information can be queried by the XCP client tool
+#define XCP_ENABLE_DAQ_EVENT_INFO
+
+// Maximum length of event name without the trailing 0
+#define XCP_MAX_EVENT_NAME 15
+
+#else                           // XCP_ENABLE_DAQ_EVENT_LIST
+
+// If XCP_MAX_EVENT_COUNT is defined and DAQ event management is not used, DAQ list to event association lookup will be optimized
+// Set the maximum number of DAQ events (the highest DAQ event number used), XCP_MAX_EVENT_COUNT must be even
+// Requires XCP_MAX_EVENT_COUNT * 2 bytes of memory
+#define XCP_MAX_EVENT_COUNT 256 // For available event numbers from 0 to 255
+
+#endif // !XCP_ENABLE_DAQ_EVENT_LIST
+
+/*----------------------------------------------------------------------------*/
+// Enable calibration segments
+
 #ifdef OPTION_CAL_SEGMENTS
 #define XCP_ENABLE_CALSEG_LIST
 #if OPTION_CAL_SEGMENT_COUNT > 0
 #define XCP_MAX_CALSEG_COUNT OPTION_CAL_SEGMENT_COUNT
+#endif
+#ifdef OPTION_CAL_MEM_SIZE
+#define XCP_CAL_MEM_SIZE OPTION_CAL_MEM_SIZE
+#else
+#error "Please define OPTION_CAL_MEM_SIZE"
 #endif
 #endif // OPTION_CAL_SEGMENTS
 
@@ -47,26 +88,47 @@
 /* Address, address extension coding */
 
 /*
+
 Address extensions and addressing modes:
 
-XCPlite absolute addressing: XCPLITE__ACSDD (default)
+XCPlite absolute addressing: XCPLITE__CASDD (default)
 0x00        - Calibration segment relative addressing mode (XCP_ADDR_EXT_SEG with u16 offset)
 0x01        - Absolute addressing mode (XCP_ADDR_EXT_ABS)
-0x02        - Stackframe relative (Event based relative addressing mode with asynchronous access and i16 offset)
-0x03...     - Pointer relative (Event based relative addressing mode with asynchronous access and i16 offset)
-0xFD        - A2L upload memory space (XCP_ADDR_EXT_A2L)
+0x02        - Stackframe relative (Event based relative addressing mode with asynchronous access)
+0x03.       - Pointer relative (Event based relative addressing mode with asynchronous access)
+...
+0x0F
+0xFD        - File upload memory space (XCP_ADDR_EXT_FILE)
 0xFE        - MTA pointer address space (XCP_ADDR_EXT_PTR)
 0xFF        - Undefined address extension (XCP_UNDEFINED_ADDR_EXT)
 
-XCPlite relative addressing: XCPLITE__CASDD:
+XCPlite relative addressing: XCPLITE__ACSDD (for use case with external A2L generation)
 0x00        - Absolute addressing mode (XCP_ADDR_EXT_ABS)
 0x01        - Calibration segment relative addressing mode (XCP_ADDR_EXT_SEG)
-...
+... same as above
 
+XCPlite multi application absolute addressing: XCP_ADDRESS_MODE_XCPLITE__CXSDD (for SHM mode)
+0x00        - Absolute addressing mode (XCP_ADDR_EXT_ABS)
+0x01        - Memory access via application callbacks
+... same as above
+0x80 + app_id - Absolute addressing mode for application with id app_id (XCP_ADDR_EXT_ABS + app_id)
 
 */
 
-// C/C++ XCPlite uses absolute, dynamic and calibration segment relative addressing
+// Addressing schemes
+#ifdef OPTION_SHM_MODE // define addressing scheme for SHM mode
+// In SHM mode
+// Enable segment relative, application callback and absolute addressing mode
+// The address extension for absolute addressing depends on the application id 0x80+app_id
+#define XCP_ADDRESS_MODE_XCPLITE__CXSDD
+#define XCP_ADDRESS_MODE "XCPLITE__CXSDD"
+#define XCP_ENABLE_ABS_ADDRESSING
+#define XCP_ADDR_EXT_ABS 0x80 // + application id (0-MAX_APP_ID-1)
+#define XCP_ENABLE_SEG_ADDRESSING
+#define XCP_ADDR_EXT_SEG 0x00
+#define XCP_ENABLE_APP_ADDRESSING
+#define XCP_ADDR_EXT_APP 0x01
+#else
 #if !defined(XCP_ENABLE_CALSEG_LIST) || defined(OPTION_CAL_SEGMENTS_ABS)
 // Absolute calibration segment addressing mode
 #define XCP_ADDRESS_MODE_XCPLITE__ACSDD
@@ -84,43 +146,65 @@ XCPlite relative addressing: XCPLITE__CASDD:
 #define XCP_ENABLE_ABS_ADDRESSING
 #define XCP_ADDR_EXT_ABS 0x01
 #endif
-#define XCP_ENABLE_DYN_ADDRESSING
-#define XCP_ADDR_EXT_DYN 0x02
-#define XCP_ADDR_EXT_DYN_COUNT 14
-#define XCP_ADDR_EXT_DYN_MAX (0x02 + XCP_ADDR_EXT_DYN_COUNT - 1)
+#endif
 
-// --- Relative addressing modes without asynchronous access and i32 offset
+// --- Dynamic addressing mode is always enabled
+#define XCP_ENABLE_DYN_ADDRESSING
+#define XCP_ADDR_EXT_DYN 0x02     // Address extensions from 0x02 to 0x0F are used for dynamic event based relative addressing with asynchronous access
+#define XCP_ADDR_EXT_DYN_COUNT 14 // Size of the base pointer array - 2
+#define XCP_ADDR_EXT_DYN_MAX (0x02 + XCP_ADDR_EXT_DYN_COUNT - 1) // Maximum value for dynamic address extensions
+
+// Relative addr format (dyn_base + (((10 Bit event | 22 Bit signed offset))
+#define XCP_DYN_ADDR_EVENT_BITS 10
+#define XCP_DYN_ADDR_EVENT_MASK 0x3FF
+#define XCP_DYN_ADDR_OFFSET_BITS 22
+#define XCP_DYN_ADDR_OFFSET_MASK 0x3FFFFF
+
+// --- Relative addressing modes without asynchronous access and uint32_t offset
 #ifdef XCP_ENABLE_REL_ADDRESSING
 
-// Use addr_ext XCP_ADDR_EXT_REL to indicate relative addr format (rel_base + (offset as int32_t))
+// Use addr_ext XCP_ADDR_EXT_REL to indicate relative addr format (rel_base + (offset as uint32_t))
 // Used for stack frame relative addressing
 #define XcpAddrIsRel(addr_ext) ((addr_ext) == XCP_ADDR_EXT_REL)
-#define XcpAddrEncodeRel(signed_int32_offset) ((uint32_t)(signed_int32_offset & 0xFFFFFFFF))
-#define XcpAddrDecodeRelOffset(addr) (int32_t)(addr) // signed address offset
+#define XcpAddrEncodeRel(offset) ((uint32_t)(offset & 0xFFFFFFFF))
+#define XcpAddrDecodeRelOffset(addr) (uint32_t)(addr)
 
 #endif // XCP_ENABLE_REL_ADDRESSING
 
-// --- Event based relative addressing modes with asynchronous access and i16 offset
+// --- Event based relative addressing modes with asynchronous access and uint32_t offset
 #ifdef XCP_ENABLE_DYN_ADDRESSING
 
-// Relative addr format (dyn_base + (((event as uint16_t) <<16) | offset as int16_t))
 #define XcpAddrIsDyn(addr_ext) (((addr_ext) >= XCP_ADDR_EXT_DYN && (addr_ext) <= XCP_ADDR_EXT_DYN_MAX))
-#define XcpAddrEncodeDyn(signed_int16_offset, event) (((uint32_t)(event) << 16) | ((signed_int16_offset) & 0xFFFF))
-#define XcpAddrDecodeDynEvent(addr) (uint16_t)((addr) >> 16)    // event
-#define XcpAddrDecodeDynOffset(addr) (int16_t)((addr) & 0xFFFF) // signed address offset
+
+#define XcpAddrEncodeDyn(offset, event) (uint32_t)(((uint32_t)(event) << XCP_DYN_ADDR_OFFSET_BITS) | (uint32_t)((offset) & XCP_DYN_ADDR_OFFSET_MASK))
+#define XcpAddrDecodeDynEvent(addr) (uint16_t)((addr) >> XCP_DYN_ADDR_OFFSET_BITS) // event number as uint16_t
+#define XcpAddrDecodeDynOffset(addr) (uint32_t)((addr) & XCP_DYN_ADDR_OFFSET_MASK) // address offset as uint32_t
+
+#if !defined(XCP_MAX_EVENT_COUNT) || XCP_MAX_EVENT_COUNT > (1 << XCP_DYN_ADDR_EVENT_BITS)
+#error "XCP_MAX_EVENT_COUNT too large for XCP_DYN_ADDR_EVENT_BITS!"
+#endif
 
 #endif // XCP_ENABLE_DYN_ADDRESSING
 
 // --- Asynchronous absolute addressing mode (not thread safe)
 #ifdef XCP_ENABLE_ABS_ADDRESSING
-
 // Absolute addr format (xcp_get_base_addr() + (addr as uint32_t))
-// Used for global data
+// Used for global data, address range 4GB from the base address returned by xcp_get_base_addr() or ApplXcpGetBaseAdd   r()
+#ifdef OPTION_SHM_MODE // define absolute address encoding for SHM mode
+#define XcpAddrIsAbs(addr_ext) ((addr_ext) >= XCP_ADDR_EXT_ABS && (addr_ext) < (XCP_ADDR_EXT_ABS + SHM_MAX_APP_COUNT))
+#define XcpAddrEncodeAbs(p) ApplXcpGetAddr(p) // Calculate absolute address encoding from a pointer, application specific function
+#define XcpAddrDecodeAbsOffset(addr) (uint32_t)(addr)
+#define XcpAddrExtDecodeAppId(addr_ext) ((addr_ext) - XCP_ADDR_EXT_ABS) // Decode application id from address extension, only used in SHM mode
+#else
 #define XcpAddrIsAbs(addr_ext) ((addr_ext) == XCP_ADDR_EXT_ABS)
 #define XcpAddrEncodeAbs(p) ApplXcpGetAddr(p) // Calculate absolute address encoding from a pointer, application specific function
 #define XcpAddrDecodeAbsOffset(addr) (uint32_t)(addr)
-
-#endif // XCP_ENABLE_ABS_ADDRESSING
+#endif
+#else
+#define XcpAddrIsAbs(addr_ext) false
+#define XcpAddrEncodeAbs(p) 0
+#define XcpAddrDecodeAbsOffset(addr) 0
+#endif
 
 // --- Calibration segment relative addressing mode
 #ifdef XCP_ENABLE_SEG_ADDRESSING
@@ -134,6 +218,8 @@ XCPlite relative addressing: XCPLITE__CASDD:
 // Enable the EPK calibration segment to detect HEX file incompatibility
 #ifdef OPTION_CAL_SEGMENT_EPK
 #define XCP_ENABLE_EPK_CALSEG
+#define XCP_EPK_CALSEG_INDEX 0    // Reserve segment index 0 for the EPK segment
+#define XCP_EPK_CALSEG_NAME "epk" // Name of the EPK calibration segment, must be unique, used to store the EPK string for HEX file compatibility check
 #endif
 
 #if defined(XCP_ENABLE_EPK_CALSEG) && XCP_ADDR_EXT_SEG == 0
@@ -163,10 +249,8 @@ XCPlite relative addressing: XCPLITE__CASDD:
 // If built-in calibration segment management is disabled
 #ifdef XCP_ENABLE_APP_ADDRESSING
 
-// Use addr_ext XCP_ADDR_EXT_APP/SEG to indicate application specific addr format or segment relative address format
 // Application specific address format
 // Memory access and calibration segments are handled by the application, calls ApplXcpReadMemory and ApplXcpWriteMemory
-#define XCP_ADDR_EXT_APP 0x00
 #define XcpAddrIsApp(addr_ext) ((addr_ext) == XCP_ADDR_EXT_APP)
 
 #endif // XCP_ENABLE_APP_ADDRESSING
@@ -175,10 +259,9 @@ XCPlite relative addressing: XCPLITE__CASDD:
 // Use addr_ext XCP_ADDR_EXT_EPK to indicate EPK upload memory space
 // A2L specification does not allow to specify the address extension for the EPK address, we use a virtual calibration segment (number 0, address ext 0)
 #define XCP_ADDR_EXT_EPK 0x00 // must be 0
-// Use addr_ext XCP_ADDR_EXT_A2L to indicate A2L upload memory space
-#define XCP_ADDR_EXT_A2L 0xFD
-#define XCP_ADDR_A2l 0x00000000
-// Use addr_ext XCP_ADDR_EXT_PTR to indicate gXcp.MtaPtr is valid
+// Use addr_ext XCP_ADDR_EXT_FILE to indicate file upload memory space
+#define XCP_ADDR_EXT_FILE 0xFD
+// Use addr_ext XCP_ADDR_EXT_PTR to indicate MtaPtr is valid
 #define XCP_ADDR_EXT_PTR 0xFE
 
 // Undefined address extension
@@ -215,26 +298,17 @@ XCPlite relative addressing: XCPLITE__CASDD:
 
 #endif // XCP_ENABLE_CAL_PAGE
 
-// Enable working page freeze request
-// There are 2 modes:
-//   1. A persisted working page will become the new reference page (this requires segment relative addressing mode)
-//   2. Just persist the working page
-#ifdef OPTION_CAL_PERSISTENCE
+// Enable binary persistence file which keeps deterministic order of events and calibration segments, and can load persisted calibration data on startup
+#ifdef OPTION_ENABLE_PERSISTENCE
 
-// Enable persistence of calibration segments
+// Enable persistence of calibration segment working page data
 #define XCP_ENABLE_CAL_PERSISTENCE
 
 // Enable the FREEZE_CAL_PAGE command
 #define XCP_ENABLE_FREEZE_CAL_PAGE
 // #define XCP_ENABLE_FREEZE_ON_DISCONNECT
 
-// Enable persistence of reference (default) page, instead of working page
-// This requires segment relative addressing mode !
-#ifdef OPTION_CAL_REFERENCE_PAGE_PERSISTENCE
-#define XCP_ENABLE_REFERENCE_PAGE_PERSISTENCE
-#endif
-
-#endif // OPTION_CAL_PERSISTENCE
+#endif // OPTION_ENABLE_PERSISTENCE
 
 // Enable checksum calculation command
 #define XCP_ENABLE_CHECKSUM
@@ -250,6 +324,10 @@ XCPlite relative addressing: XCPLITE__CASDD:
 #ifdef OPTION_ENABLE_A2L_UPLOAD
 #define XCP_ENABLE_IDT_A2L_UPLOAD
 #endif
+// Enable GET_ID command support for ELF upload
+#ifdef OPTION_ENABLE_ELF_UPLOAD
+#define XCP_ENABLE_IDT_ELF_UPLOAD
+#endif
 
 // Enable user defined command
 // Used for begin and end atomic calibration operation
@@ -260,11 +338,6 @@ XCPlite relative addressing: XCPLITE__CASDD:
 
 // Enable individual address extensions for each ODT entry, otherwise address extension must be unique for each DAQ list
 #define XCP_ENABLE_DAQ_ADDREXT
-
-// Maximum number of DAQ lists
-// Must be <= 0xFFFE
-// Numbers smaller than 256 will switch to 2 byte transport layer header DAQ_HDR_ODT_DAQB
-#define XCP_MAX_DAQ_COUNT 1024
 
 // Static allocated memory for DAQ tables
 // Amount of memory for DAQ tables, each ODT entry (e.g. measurement variable) needs 5 bytes, each DAQ list 12 bytes and
@@ -288,43 +361,15 @@ XCPlite relative addressing: XCPLITE__CASDD:
 // Not needed for Ethernet, client detects data loss via transport layer counter gaps
 // #define XCP_ENABLE_OVERRUN_INDICATION_PID
 
-/*----------------------------------------------------------------------------*/
-/* DAQ event management */
-
-// Enable event list
-#ifndef XCPLIB_FOR_RUST // // Set by the Rust build script, not needed for Rust xcp-lite, currently has its own event management
-#define XCP_ENABLE_DAQ_EVENT_LIST
-#endif
-
-#ifdef XCP_ENABLE_DAQ_EVENT_LIST
-
-#if defined(OPTION_DAQ_EVENT_COUNT) && (OPTION_DAQ_EVENT_COUNT > 0)
-#define XCP_MAX_EVENT_COUNT OPTION_DAQ_EVENT_COUNT
-#else
-#error "Please define OPTION_DAQ_EVENT_COUNT"
-#endif
-
-// Enable XCP_GET_EVENT_INFO, if this is enabled, event information can be queried by the XCP client tool
-#define XCP_ENABLE_DAQ_EVENT_INFO
-
-// Maximum length of event name without the trailing 0
-#define XCP_MAX_EVENT_NAME 15
-
-#else                           // XCP_ENABLE_DAQ_EVENT_LIST
-
-// If XCP_MAX_EVENT_COUNT is defined and DAQ event management is not used, DAQ list to event association lookup will be optimized
-// Set the maximum number of DAQ events (the highest DAQ event number used), XCP_MAX_EVENT_COUNT must be even
-// Requires XCP_MAX_EVENT_COUNT * 2 bytes of memory
-#define XCP_MAX_EVENT_COUNT 256 // For available event numbers from 0 to 255
-
-#endif // !XCP_ENABLE_DAQ_EVENT_LIST
+// Timeout waiting for transmit queue to be empty after stopping DAQ
+#define XCP_TRANSMIT_QUEUE_FLUSH_TIMEOUT_MS 250
 
 /*----------------------------------------------------------------------------*/
 /* Calibration segment management */
 
 #ifdef XCP_ENABLE_CALSEG_LIST
 
-#define XCP_MAX_CALSEG_NAME 15 // Maximum length of calibration segment name
+#define XCP_MAX_CALSEG_NAME 17 // Maximum length of calibration segment name
 
 // Enable lazy write mode for calibration segments
 // RCU updates of calibration segments are done in a cyclic manner in the background
@@ -353,13 +398,14 @@ XCPlite relative addressing: XCPLITE__CASDD:
 #error "Please define clock resolution"
 #endif
 
-// PTP support
+// Enable PTP support in XCP
+// Register the necessary callbacks to provide clock, synchronization state and clock info
+// If not registered, the configured DAQ clock will be used, and even if it is disciplined by PTP4L, the clock will be considered unsynchronized
 #define XCP_ENABLE_PTP
 // Default client clock UUID for unsynchronized clocks
-// (implement ApplXcpGetClockInfoGrandmaster to provide actual UUID of PTP synchronized clock)
 #define XCP_DAQ_CLOCK_UUID {0xdc, 0xa6, 0x32, 0xFF, 0xFE, 0x7e, 0x66, 0xdc}
 
-// Enable GET_DAQ_CLOCK_MULTICAST
+// Enable GET_DAQ_CLOCK_MULTICAST command, requires XCPTL_ENABLE_MULTICAST
 // Not recommended
 // #define XCP_ENABLE_DAQ_CLOCK_MULTICAST
 #ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
@@ -370,6 +416,6 @@ XCPlite relative addressing: XCPLITE__CASDD:
 //-------------------------------------------------------------------------------
 // Debug
 
-// Enable extended error checks and additional asserts
+// Enable extended error checks and additional asserts in the protocol layer
 // Small performance penalty (base address count and NULL pointer checks) in the inner DAQ loop !
 #define XCP_ENABLE_TEST_CHECKS

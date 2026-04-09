@@ -1,38 +1,38 @@
 
 cmake_minimum_required(VERSION 3.10)
 
-# Compiler selection options (must be set before project() call)
-option(USE_CLANG "Use clang/clang++ compiler" OFF)
-option(USE_GCC "Use gcc/g++ compiler" OFF)
+project(xcplite VERSION 1.2.0 LANGUAGES C CXX)
 
-# Set compilers based on options (before project call)
-if(USE_CLANG AND USE_GCC)
-    message(FATAL_ERROR "Cannot specify both USE_CLANG and USE_GCC. Choose one or neither.")
-elseif(USE_CLANG)
-    message(STATUS "Forcing clang compiler")
-    set(CMAKE_C_COMPILER clang)
-    set(CMAKE_CXX_COMPILER clang++)
-elseif(USE_GCC)
-    message(STATUS "Forcing GCC compiler")
-    set(CMAKE_C_COMPILER gcc)
-    set(CMAKE_CXX_COMPILER g++)
+# Conditional building of examples based on project context
+# When xcplite is the top-level project (standalone build), examples are built by default.
+# When xcplite is included as a subproject (e.g., via add_subdirectory or FetchContent),
+# examples are disabled by default to avoid polluting the parent project with unnecessary targets.
+# CMAKE_SOURCE_DIR = root of the entire CMake build tree (top-level project)
+# PROJECT_SOURCE_DIR = root of this project (xcplite)
+# If they're equal, xcplite is being built standalone
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+    set(XCPLITE_BUILD_EXAMPLES_DEFAULT ON)
 else()
-    message(STATUS "Using default system compiler")
+    set(XCPLITE_BUILD_EXAMPLES_DEFAULT OFF)
 endif()
 
-project(xcplib VERSION 0.9.2 LANGUAGES C CXX)
+# Create a user-configurable CMake option for building examples
+# Users can override the default via: cmake -DXCPLITE_BUILD_EXAMPLES=ON/OFF
+# This value is stored in CMakeCache.txt and persists across CMake runs
+option(XCPLITE_BUILD_EXAMPLES "Build xcplite example targets" ${XCPLITE_BUILD_EXAMPLES_DEFAULT})
 
 # Find required packages
 find_package(Threads REQUIRED)
 
-
-# Set default generator for Windows to Visual Studio 2022
-if(WIN32 AND NOT DEFINED CMAKE_GENERATOR)
-    set(CMAKE_GENERATOR "Visual Studio 17 2022")
-endif()
-
 # Enable compile commands for VS Code IntelliSense
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# Set default install prefix to build/install for local staging (avoid system installation)
+# Users can override with: cmake -DCMAKE_INSTALL_PREFIX=/usr/local
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+    set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install" CACHE PATH "Install prefix" FORCE)
+    message(STATUS "CMAKE_INSTALL_PREFIX not set, using local staging: ${CMAKE_INSTALL_PREFIX}")
+endif()
 
 # Set C and C++ standards globally
 set(CMAKE_C_STANDARD 11)
@@ -50,33 +50,25 @@ endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Enable test
-if(NOT DEFINED BUILD_TEST)
-    set(BUILD_TEST TRUE)
-endif()
-if(BUILD_TEST)
-    message(STATUS "Build test targets enabled")    
-endif()
+# Create a user-configurable CMake option for building test targets
+# Users can override via: cmake -DXCPLITE_BUILD_TESTS=ON/OFF
+# This value is stored in CMakeCache.txt and persists across CMake runs
+option(XCPLITE_BUILD_TESTS "Build xcplite test targets" OFF)
 
 # Platform detection for library selection
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
     message(STATUS "64-bit platform")
-    set(PLATFORM_64BIT TRUE)
 else()
     message(STATUS "32-bit platform")
-    set(PLATFORM_32BIT TRUE)
 endif()
 
 # Platform-specific settings
 if(WIN32)
    message(STATUS "Building for Windows")
-   set(WINDOWS TRUE)
 elseif(APPLE)
    message(STATUS "Building for macOS")
-   set(MACOS TRUE)
 elseif(UNIX)
     message(STATUS "Building for Unix/Linux")
-    set(LINUX TRUE)
 endif()
 
 # Compiler-specific settings for better compatibility
@@ -117,151 +109,236 @@ elseif(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
     set(CMAKE_CXX_FLAGS_DEBUG "/Od /Zi" CACHE STRING "C++ flags for Debug build" FORCE)
 endif()
 
-# xcplib sources
-set(xcplib_SOURCES src/xcpAppl.c src/xcpLite.c src/xcpEthServer.c src/xcpEthTl.c src/xcpQueue32.c src/xcpQueue64.c src/a2l.c src/persistence.c src/platform.c)   
+# xcplite sources
+set(xcplite_SOURCES src/xcpappl.c src/xcplite.c src/xcpethserver.c src/xcpethtl.c src/queue32.c src/queue64v.c src/queue64f.c src/shm.c src/cal.c src/a2l.c src/a2l_writer.c src/persistence.c src/platform.c)   
 
-set(PROJECT_ROOT ${CMAKE_CURRENT_LIST_DIR})
-message(STATUS "PROJECT_ROOT is: ${PROJECT_ROOT}")
+# Create xcplite library
+add_library(xcplite ${xcplite_SOURCES})
 
-# Create xcplib library
-set_source_files_properties(${xcplib_SOURCES} PROPERTIES LANGUAGE C)
-add_library(xcplib ${xcplib_SOURCES})
-target_include_directories(xcplib PUBLIC "${PROJECT_ROOT}/inc" "${PROJECT_ROOT}/src")
+# Set include directories using generator expressions for proper installation
+# BUILD_INTERFACE: Used when building within this project
+# INSTALL_INTERFACE: Used when installed and consumed by external projects
+target_include_directories(xcplite PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+    $<INSTALL_INTERFACE:include>
+)
 
 # Apply compiler-specific flags
 if(COMMON_WARNING_FLAGS)
-    target_compile_options(xcplib PRIVATE ${COMMON_WARNING_FLAGS})
+    target_compile_options(xcplite PRIVATE ${COMMON_WARNING_FLAGS})
 endif()
 
 # Platform-specific compile definitions
 if(WIN32)
-    target_compile_definitions(xcplib PRIVATE _CRT_SECURE_NO_WARNINGS)
+    # Define _CRT_SECURE_NO_WARNINGS for Windows to suppress secure CRT warnings
+    target_compile_definitions(xcplite PRIVATE _CRT_SECURE_NO_WARNINGS)
+else()
+    # Define _GNU_SOURCE for Linux/Unix to make POSIX/BSD extensions available
+    target_compile_definitions(xcplite PRIVATE _GNU_SOURCE)
 endif()
 
-# Link threads library to xcplib (needed for pthread usage in platform.h)
-target_link_libraries(xcplib PUBLIC Threads::Threads)
+# Link threads library to xcplite (needed for pthread usage in platform.h)
+target_link_libraries(xcplite PUBLIC Threads::Threads)
+
+# Link math library on Unix/Linux/macOS (needed for math functions)
+if(UNIX)
+    target_link_libraries(xcplite PUBLIC m)
+endif()
 
 # Check for atomic library support (needed on some ARM platforms with clang)
 include(CheckLibraryExists)
 check_library_exists(atomic __atomic_store_4 "" HAVE_LIBATOMIC)
 if(HAVE_LIBATOMIC)
     message(STATUS "Linking with atomic library for C11 atomics support")
-    target_link_libraries(xcplib PUBLIC atomic)
+    target_link_libraries(xcplite PUBLIC atomic)
 endif()
 
 
-# Example hello_xcp
-set(hello_xcp_SOURCES examples/hello_xcp/src/main.c)   
-set_source_files_properties(${hello_xcp_SOURCES} PROPERTIES LANGUAGE C)
-add_executable(hello_xcp ${hello_xcp_SOURCES})
-target_include_directories(hello_xcp PUBLIC "${PROJECT_ROOT}/inc")
-target_link_libraries(hello_xcp PRIVATE xcplib)
+if(XCPLITE_BUILD_EXAMPLES)
+    # Example hello_xcp
+    add_executable(hello_xcp examples/hello_xcp/src/main.c)
+    target_link_libraries(hello_xcp PRIVATE xcplite)
 
-# Example no_a2l_demo
-set(no_a2l_demo_SOURCES examples/no_a2l_demo/src/main.c)   
-set_source_files_properties(${no_a2l_demo_SOURCES} PROPERTIES LANGUAGE C)
-add_executable(no_a2l_demo ${no_a2l_demo_SOURCES})
-target_include_directories(no_a2l_demo PUBLIC "${PROJECT_ROOT}/inc")
-target_link_libraries(no_a2l_demo PRIVATE xcplib)
+    # Example no_a2l_demo
+    add_executable(no_a2l_demo examples/no_a2l_demo/src/main.c)
+    target_link_libraries(no_a2l_demo PRIVATE xcplite)
 
-# Example hello_xcp_cpp
-add_executable(hello_xcp_cpp examples/hello_xcp_cpp/src/main.cpp )
-target_include_directories(hello_xcp_cpp PUBLIC "${PROJECT_ROOT}/inc")
-target_link_libraries(hello_xcp_cpp PRIVATE xcplib)
+    # Example hello_xcp_cpp
+    add_executable(hello_xcp_cpp examples/hello_xcp_cpp/src/main.cpp)
+    target_link_libraries(hello_xcp_cpp PRIVATE xcplite)
 
-# Example point_cloud_demo
-add_executable(point_cloud_demo examples/point_cloud_demo/src/main.cpp )
-target_include_directories(point_cloud_demo PUBLIC "${PROJECT_ROOT}/inc")
-target_link_libraries(point_cloud_demo PRIVATE xcplib)
+    # Example point_cloud_demo
+    add_executable(point_cloud_demo examples/point_cloud_demo/src/main.cpp)
+    target_link_libraries(point_cloud_demo PRIVATE xcplite)
 
-# Example c_demo
-set(c_demo_SOURCES examples/c_demo/src/main.c)
-set_source_files_properties(${c_demo_SOURCES} PROPERTIES LANGUAGE C)
-add_executable(c_demo ${c_demo_SOURCES})
-target_include_directories(c_demo PUBLIC "${PROJECT_ROOT}/inc")
-target_link_libraries(c_demo PRIVATE xcplib)
+    # Example c_demo
+    add_executable(c_demo examples/c_demo/src/main.c)
+    target_link_libraries(c_demo PRIVATE xcplite)
 
-# Example cpp_demo
-add_executable(cpp_demo examples/cpp_demo/src/main.cpp examples/cpp_demo/src/sig_gen.cpp examples/cpp_demo/src/lookup.cpp)
-target_include_directories(cpp_demo PUBLIC "${PROJECT_ROOT}/inc")
-target_link_libraries(cpp_demo PRIVATE xcplib)
+    # Example cpp_demo
+    add_executable(cpp_demo examples/cpp_demo/src/main.cpp examples/cpp_demo/src/sig_gen.cpp examples/cpp_demo/src/lookup.cpp)
+    target_link_libraries(cpp_demo PRIVATE xcplite)
 
-# Example struct_demo
-set(struct_demo_SOURCES examples/struct_demo/src/main.c)
-set_source_files_properties(${struct_demo_SOURCES} PROPERTIES LANGUAGE C)
-add_executable(struct_demo ${struct_demo_SOURCES})
-target_include_directories(struct_demo PUBLIC "${PROJECT_ROOT}/inc")
-target_link_libraries(struct_demo PRIVATE xcplib)
+    # Example struct_demo
+    add_executable(struct_demo examples/struct_demo/src/main.c)
+    target_link_libraries(struct_demo PRIVATE xcplite)
 
-# Example multi_thread_demo
-set(multi_thread_demo_SOURCES examples/multi_thread_demo/src/main.c)
-set_source_files_properties(${multi_thread_demo_SOURCES} PROPERTIES LANGUAGE C)
-add_executable(multi_thread_demo ${multi_thread_demo_SOURCES})
-target_include_directories(multi_thread_demo PUBLIC "${PROJECT_ROOT}/inc")
-target_link_libraries(multi_thread_demo PRIVATE xcplib)
+    # Example multi_thread_demo
+    add_executable(multi_thread_demo examples/multi_thread_demo/src/main.c)
+    target_link_libraries(multi_thread_demo PRIVATE xcplite)
 
-# Example ptp_demo (main.cpp as C++, rest as C)
-set(ptp_demo_CPP_SOURCES examples/ptp_demo/src/main.cpp)
-set(ptp_demo_C_SOURCES examples/ptp_demo/src/ptp/ptp.c examples/ptp_demo/src/ptp/ptp_client.c examples/ptp_demo/src/ptp/ptp_observer.c examples/ptp_demo/src/ptp/ptp_master.c examples/ptp_demo/src/ptp/filter.c  examples/ptp_demo/src/ptp/phc.c)
-set_source_files_properties(${ptp_demo_C_SOURCES} PROPERTIES LANGUAGE C)
-add_executable(ptp_demo ${ptp_demo_CPP_SOURCES} ${ptp_demo_C_SOURCES})
-target_include_directories(ptp_demo PUBLIC "${PROJECT_ROOT}/inc")
-target_link_libraries(ptp_demo PRIVATE xcplib)
+    # Example ptp4l_demo
+    add_executable(ptp4l_demo examples/ptp4l_demo/src/main.cpp)
+    target_link_libraries(ptp4l_demo PRIVATE xcplite)
 
-# Example bpf_demo (only build on Linux with libbpf available)
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    find_library(LIBBPF_LIBRARY bpf)
-    if(LIBBPF_LIBRARY)
-        set(bpf_demo_SOURCES examples/bpf_demo/src/main.c)   
-        set_source_files_properties(${bpf_demo_SOURCES} PROPERTIES LANGUAGE C)
-        add_executable(bpf_demo ${bpf_demo_SOURCES})
-        target_include_directories(bpf_demo PUBLIC "${PROJECT_ROOT}/inc")
-        target_link_libraries(bpf_demo PRIVATE xcplib ${LIBBPF_LIBRARY})
-        message(STATUS "Found libbpf: ${LIBBPF_LIBRARY} - building bpf_demo")
-    else()
-        message(STATUS "libbpf not found - skipping bpf_demo")
+
+    # Example bpf_demo (only build on Linux with libbpf available)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        find_library(LIBBPF_LIBRARY bpf)
+        if(LIBBPF_LIBRARY)
+            add_executable(bpf_demo examples/bpf_demo/src/main.c)
+            target_link_libraries(bpf_demo PRIVATE xcplite ${LIBBPF_LIBRARY})
+            message(STATUS "Found libbpf: ${LIBBPF_LIBRARY} - building bpf_demo")
+        else()
+            message(STATUS "libbpf not found - skipping bpf_demo")
+        endif()
     endif()
+
+    # Tool ptptool (main.cpp as C++, rest as C)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        set(ptptool_CPP_SOURCES tools/ptptool/src/main.cpp)
+        set(ptptool_C_SOURCES tools/ptptool/src/ptp/ptp.c tools/ptptool/src/ptp/ptp_client.c tools/ptptool/src/ptp/ptp_observer.c tools/ptptool/src/ptp/ptp_master.c tools/ptptool/src/ptp/filter.c tools/ptptool/src/ptp/phc.c)
+        set_source_files_properties(${ptptool_C_SOURCES} PROPERTIES LANGUAGE C)
+        add_executable(ptptool ${ptptool_CPP_SOURCES} ${ptptool_C_SOURCES})
+        target_link_libraries(ptptool PRIVATE xcplite)
+    else()
+        message(STATUS "Non Linux platform - skipping ptptool build")
+    endif()
+
+    # Tool shmtool — POSIX shared memory diagnostic tool (macOS + Linux only)
+    if(NOT WIN32)
+        add_executable(shmtool tools/shmtool/src/main.cpp)
+        target_link_libraries(shmtool PRIVATE xcplite)
+        # On Linux, shm_open/shm_unlink live in librt on older glibc versions
+        if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+            target_link_libraries(shmtool PRIVATE rt)
+        endif()
+        message(STATUS "Building shmtool")
+    else()
+        message(STATUS "Windows platform - skipping shmtool build")
+    endif()
+
+        # Tool xcpdaemon
+    add_executable(xcpdaemon tools/xcpdaemon/src/main.c)
+    target_link_libraries(xcpdaemon PRIVATE xcplite)
+
 endif()
 
 # Tests
-if(BUILD_TEST)
+if(XCPLITE_BUILD_TESTS)
+
     # Type detection test (C version)
     add_executable(type_detection_test_c test/type_detection_test/src/main.c test/type_detection_test/src/c_version_test.c)
-    target_include_directories(type_detection_test_c PUBLIC "${PROJECT_ROOT}/inc")
-    # target_link_libraries(type_detection_test_c PRIVATE xcplib)
+    target_include_directories(type_detection_test_c PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/inc")
+    # target_link_libraries(type_detection_test_c PRIVATE xcplite)
 
     # Type detection test (C++ version)
     add_executable(type_detection_test_cpp test/type_detection_test/src/main.cpp test/type_detection_test/src/cpp_version_test.cpp)
-    target_include_directories(type_detection_test_cpp PUBLIC "${PROJECT_ROOT}/inc")
-    # target_link_libraries(type_detection_test_cpp PRIVATE xcplib)
+    target_include_directories(type_detection_test_cpp PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/inc")
+    # target_link_libraries(type_detection_test_cpp PRIVATE xcplite)
 
     # A2L generation test (C version)
     add_executable(a2l_test test/a2l_test/src/main.c)
-    target_include_directories(a2l_test PUBLIC "${PROJECT_ROOT}/inc")
-    target_link_libraries(a2l_test PRIVATE xcplib)
+    target_link_libraries(a2l_test PRIVATE xcplite)
 
     # Calibration segment multi-threading test (C++ version)
     add_executable(cal_test test/cal_test/src/main.cpp)
-    target_include_directories(cal_test PUBLIC "${PROJECT_ROOT}/inc")
-    target_link_libraries(cal_test PRIVATE xcplib)
+    target_link_libraries(cal_test PRIVATE xcplite)
 
     # Data acquisition multi-threading test (C version)
     add_executable(daq_test test/daq_test/src/main.c)
-    target_include_directories(daq_test PUBLIC "${PROJECT_ROOT}/inc")
-    target_link_libraries(daq_test PRIVATE xcplib)
+    target_link_libraries(daq_test PRIVATE xcplite)
+
+    # Queue stress test
+    # Optionally build queue_test with the MC reference queue implementation (-DQUEUE_TEST_MC_QUEUE=ON)
+    option(QUEUE_TEST_MC_QUEUE "Test the MC reference queue API via the XCPlite queue wrapper" OFF)
+    # Optionally build queue_testfor the two-process SHM test (-DQUEUE_TEST_MC_SHM=ON)
+    # Uses the MC reference queue directly (no xcplite wrapper) and enables --provider/--consumer mode
+    option(QUEUE_TEST_MC_SHM "Test the MC reference queue with shared memory two-process scenario" OFF)
+
+    if(QUEUE_TEST_MC_SHM)
+        add_executable(queue_test
+            test/queue_test/src/main.c test/queue_test/src/mc/reference.c)
+        # Use the XCPlite queue wrapper so SHM init routes to the tested queueInitFromMemory
+        target_compile_definitions(queue_test PRIVATE TEST_MC_QUEUE MC_USE_XCPLITE_QUEUE)
+        # Link librt on Linux for shm_open/shm_unlink
+        if(UNIX AND NOT APPLE)
+            target_link_libraries(queue_test PRIVATE rt)
+        endif()
+    elseif(QUEUE_TEST_MC_QUEUE)
+        add_executable(queue_test
+            test/queue_test/src/main.c test/queue_test/src/mc/reference.c)
+        # Use the XCPlite queue wrapper in reference.h instead of the original spinlock MC queue implementation
+        target_compile_definitions(queue_test PRIVATE TEST_MC_QUEUE MC_USE_XCPLITE_QUEUE)
+        # Use the original spinlock MC queue implementation in reference.h for testing
+        # target_compile_definitions(queue_test PRIVATE TEST_MC_QUEUE )
+    else()
+        add_executable(queue_test test/queue_test/src/main.c)
+    endif()
+    target_link_libraries(queue_test PRIVATE xcplite)
 endif()
 
 
-# Platform-specific settings
-if(WIN32)
-    # Windows-specific settings (if any needed in the future)
-else()
-    # Unix/Linux/macOS specific settings
-    
-    # Link math library 
-    target_link_libraries(ptp_demo PRIVATE m)
-    target_link_libraries(multi_thread_demo PRIVATE m)
-    target_link_libraries(hello_xcp_cpp PRIVATE m)
-    target_link_libraries(point_cloud_demo PRIVATE m)
-endif()
+# ============================================================================
+# Installation Configuration
+# ============================================================================
 
+include(GNUInstallDirs)
+
+# Install library
+install(TARGETS xcplite
+    EXPORT xcpliteTargets
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+# Install public headers
+install(DIRECTORY inc/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp" )
+
+# Install xcplib_cfg.h for configuration options 
+install(FILES src/xcplib_cfg.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+# Install platform.h for platform abstraction usage by consumers
+install(FILES src/platform.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+# Install CMake package configuration files
+install(EXPORT xcpliteTargets
+    FILE xcpliteTargets.cmake
+    NAMESPACE xcplite::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/xcplite
+)
+
+# Generate and install package config file
+include(CMakePackageConfigHelpers)
+
+configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/xcpliteConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/xcpliteConfig.cmake"
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/xcplite
+)
+
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/xcpliteConfigVersion.cmake"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/xcpliteConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/xcpliteConfigVersion.cmake"
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/xcplite
+)
+
+message(STATUS "xcplite will be installed to: ${CMAKE_INSTALL_PREFIX}")

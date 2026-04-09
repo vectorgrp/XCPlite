@@ -1,0 +1,20 @@
+[Unit]
+Description=XCP Daemon (multi-application measurement and calibration server)
+Documentation=https://github.com/vectorgrp/XCPlite
+After=network.target
+
+[Service]
+Type=simple
+# Adjust User, WorkingDirectory and ExecStart to match your installation
+User=rainer
+WorkingDirectory=/home/rainer/XCPlite-RainerZ
+ExecStart=/home/rainer/XCPlite-RainerZ/build/xcpdaemon
+ExecStop=/bin/kill -TERM $MAINPID
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

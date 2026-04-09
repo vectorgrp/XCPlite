@@ -1,4 +1,4 @@
-﻿// no_a2l_demo xcplib example
+﻿// no_a2l_demo XCPlite example
 // Demonstrates XCPlite operation without runtime A2L generation
 // See ../README.md for details
 // Requires manual or tool based XCPlite specific A2L file creation and update process
@@ -11,9 +11,9 @@
 #include <stdlib.h>  // for malloc, free
 #include <string.h>  // for sprintf
 
-#include "xcplib.h" // for xcplib application programming interface
+#include "xcplib.h" // for application programming interface
 
-// Internal xcplib includes to simplify multi platform support
+// Internal libxcplite includes to simplify multi platform support
 #include "platform.h" // for platform abstraction for thread local, threads, mutex, sockets, sleepUs, ...
 
 static volatile bool global_running = true;
@@ -23,11 +23,11 @@ static void sig_handler(int sig) { global_running = false; }
 // XCP params
 
 #define OPTION_PROJECT_NAME "no_a2l_demo" // Project name, used to build the volatile and BIN file name
-#define OPTION_PROJECT_EPK __TIME__       // EPK version string
+#define OPTION_PROJECT_VERSION __TIME__   // EPK version string
 #define OPTION_USE_TCP true               // TCP or UDP
 #define OPTION_SERVER_PORT 5555           // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}   // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE 1024 * 16       // Size of the measurement queue in bytes, must be a multiple of 8
+#define OPTION_QUEUE_SIZE (1024 * 32)     // Size of the measurement queue in bytes, must be a multiple of 8
 #define OPTION_LOG_LEVEL 3                // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 //-----------------------------------------------------------------------------------------------------
@@ -149,7 +149,7 @@ void *task(void *p)
         thread_local_counter = global_counter;
 
         // @@@@ TODO: Thread local variables
-        // The A2L creator in xcp_client can not handle thread local variables yet
+        // The A2L creator in xcpclient can not handle thread local variables yet
         // The DAQ capture method does not work for TLS
         // DaqCapture(task, thread_local_counter);
 
@@ -198,7 +198,7 @@ void foo(void) {
 
 int main(void) {
 
-    printf("\nXCP on Ethernet no_a2l_demo C xcplib demo\n");
+    printf("\nXCP on Ethernet no_a2l_demo C demo\n");
 
     // Print build configuration
 #ifdef NDEBUG
@@ -220,7 +220,7 @@ int main(void) {
 
     // XCP: Initialize the XCP singleton, activate XCP, must be called before starting the server
     //      If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, true);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION, XCP_MODE_LOCAL);
 
     // XCP: Initialize the XCP Server
     const uint8_t __addr[4] = OPTION_SERVER_ADDR;

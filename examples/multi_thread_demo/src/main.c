@@ -1,23 +1,20 @@
-﻿// multi_thread_demo xcplib example
+﻿// multi_thread_demo XCPlite example
 
-#include <assert.h> // for assert
-#include <math.h>   // for M_PI, sin
-#include <signal.h> // for signal handling
-#ifndef _WIN32
-#include <stdatomic.h> // for atomic_
-#endif
+#include <assert.h>  // for assert
+#include <math.h>    // for M_PI, sin
+#include <signal.h>  // for signal handling
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uintxx_t
 #include <stdio.h>   // for printf
 #include <string.h>  // for sprintf
 
-#include "a2l.h"    // for xcplib A2l generation
-#include "xcplib.h" // for xcplib application programming interface
+#include "a2l.h"    // for A2l generation
+#include "xcplib.h" // for application programming interface
 
-// Internal xcplib includes to simplify multi platform threading and print XCP metrics
-#include "main_cfg.h" // for OPTION_xxx
-#include "platform.h" // for THREAD
-#include "xcpLite.h"  // for metrics gXcpDaqEventCount, ...
+// Internal libxcplite includes to simplify multi platform threading and print XCP metrics
+#include "platform.h"   // for THREAD
+#include "xcplib_cfg.h" // for OPTION_xxx
+#include "xcplite.h"    // for metrics gXcpDaqEventCount, ...
 
 //-----------------------------------------------------------------------------------------------------
 
@@ -36,21 +33,22 @@
 #define MAX_THREAD_NAME_LENGTH 32 // Maximum length of thread name
 
 #ifndef _WIN32
+// #include <stdatomic.h> // for atomic_
 // #define EXPERIMENTAL_THREAD_CONTEXT // Enable demonstration of tracking thread context and span of the clip and filter function
-#define FILTER_SLEEP_US 100 // Simulated work in filter function
-#define CLIP_SLEEP_US 50    // Simulated work in clip function
+// #define FILTER_SLEEP_US 100 // Simulated work in filter function
+// #define CLIP_SLEEP_US 50    // Simulated work in clip function
 #endif
 
 //-----------------------------------------------------------------------------------------------------
 // XCP parameters
 
 #define OPTION_PROJECT_NAME "multi_thread_demo" // A2L project name
-#define OPTION_PROJECT_EPK __TIME__             // EPK version string
+#define OPTION_PROJECT_VERSION "V4_" __TIME__   // EPK version string
 #define OPTION_USE_TCP false                    // TCP or UDP
 #define OPTION_SERVER_PORT 5555                 // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}         // Bind addr, 0.0.0.0 = ANY
 #define OPTION_QUEUE_SIZE (1024 * 1024)         // Size of the measurement queue in bytes, must be a multiple of 8
-#define OPTION_LOG_LEVEL 3                      // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_LOG_LEVEL 4                      // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 //-----------------------------------------------------------------------------------------------------
 // Demo calibration parameters
@@ -68,7 +66,7 @@ typedef struct params {
 
 // Default parameters
 static const params_t params = {
-    .counter_max = 1024, .ampl = 100.0, .period = 3.0, .filter = 0.07, .clip_max = -100.0, .clip_min = -100.0, .delay_us = THREAD_DELAY_US, .run = true};
+    .counter_max = 1024, .ampl = 100.0, .period = 3.0, .filter = 0.07, .clip_max = +100.0, .clip_min = -100.0, .delay_us = THREAD_DELAY_US, .run = true};
 
 // Global calibration segment handle
 static tXcpCalSegIndex calseg = XCP_UNDEFINED_CALSEG;
@@ -268,7 +266,7 @@ void *task(void *p)
 
     bool run = true;
     uint32_t delay_us = 1000;
-    uint64_t start_time = clockGetUs(); // Get the start time
+    uint64_t start_time = clockGetMonotonicUs(); // Get the start time
 
     // Task local measurement variables on stack
     uint16_t counter = 0;
@@ -314,7 +312,7 @@ void *task(void *p)
                 counter = 0;
             }
 
-            time = (double)(clockGetUs() - start_time) / 1000000;                         // Calculate elapsed time in seconds
+            time = (double)(clockGetMonotonicUs() - start_time) / 1000000;                // Calculate elapsed time in seconds
             double normalized_time = M_2PI * fmod(time, params->period) / params->period; // Normalize time ([0.0..M_2PI[ to the period
             channel1 = params->ampl * sin(normalized_time);                               // Sine wave
             channel2 = params->ampl * ((normalized_time < M_PI) ? 1.0 : -1.0);            // Square wave
@@ -349,7 +347,7 @@ void *task(void *p)
 // Demo main
 int main(void) {
 
-    printf("\nXCP on Ethernet multi thread xcplib demo\n");
+    printf("\nXCP on Ethernet multi thread demo\n");
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 
@@ -358,7 +356,7 @@ int main(void) {
 
     // Initialize the XCP singleton, activate XCP, must be called before starting the server
     // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, true);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION, XCP_MODE_LOCAL);
 
     // Initialize the XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;
@@ -367,9 +365,9 @@ int main(void) {
     }
 
     // Enable A2L generation and prepare the A2L file, finalize the A2L file on XCP connect, auto grouping
-    // In this demo, with A2L_MODE_WRITE_ALWAYS, the A2L file is unstable, because the thread creation order is undeterministic
+    // In this demo, with A2L_MODE_WRITE_ALWAYS, the A2L file is unstable, because the thread creation order is underterminstic
     // It is still ok to use A2L_MODE_WRITE_ONCE, the A2l file content is equivalent, as the events numbers associated to the thread don't have an individual identity
-    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS | A2L_MODE_EVENT_CONVERSION)) {
         return 1;
     }
 
@@ -398,9 +396,6 @@ int main(void) {
         create_thread(&t[i], task);
     }
 
-    sleepUs(200000);
-    A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
-
     // Wait for signal to stop
     while (gRun) {
         sleepUs(100000); // 100ms
@@ -412,17 +407,21 @@ int main(void) {
             join_thread(t[i]);
     }
 
-#ifdef OPTION_ENABLE_DBG_METRICS
-    printf("  Total DAQ events: %u\n", gXcpDaqEventCount);
-    printf("  Total TX packets: %u\n", gXcpTxPacketCount);
-    printf("  Total RX packets: %u\n", gXcpRxPacketCount);
+#ifdef TEST_ENABLE_DBG_METRICS
+    printf("  Total DAQ events:  %u\n", gXcpDaqEventCount);
+    printf("  Total TX packets:  %u\n", gXcpTxPacketCount);
+    printf("  Total TX messages: %u\n", gXcpTxMessageCount);
+    printf("  Total TX iovecs:   %u\n", gXcpTxIoVectorCount);
+    printf("  Total RX packets:  %u\n", gXcpRxPacketCount);
 #endif
 
-    // Force disconnect the XCP client
-    XcpDisconnect();
+    XcpDisconnect();        // Force disconnect the XCP client
+    A2lFinalize();          // Finalize A2L generation, if not done yet
+    XcpEthServerShutdown(); // Stop the XCP server
 
-    // Stop the XCP server
-    XcpEthServerShutdown();
+#ifdef TEST_CLOCK_GET_STATISTIC
+    clockGetPrintStatistic();
+#endif
 
     return 0;
 }

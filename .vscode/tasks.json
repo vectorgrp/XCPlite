@@ -2,15 +2,56 @@
     "tasks": [
         {
             "type": "shell",
+            "label": "XCPlite: sync clock on Pi",
+            "command": "ssh rainer@192.168.0.206 \"sudo date -s @$(date +%s)\"",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "detail": "Sync system clock on Raspberry Pi with local time"
+        },
+        {
+            "type": "shell",
+            "label": "XCPlite: Remote clean build on Pi",
+            "command": "ssh",
+            "args": [
+                "rainer@192.168.0.206",
+                "cd ~/XCPlite-RainerZ && rm -rf build && cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug && cmake --build build"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "dependsOn": "XCPlite: sync to Pi",
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "detail": "Clean rebuild on Raspberry Pi (removes build dir and rebuilds from scratch)"
+        },
+        {
+            "type": "shell",
             "label": "XCPlite: sync to Pi",
             "command": "rsync",
             "args": [
                 "-avz",
                 "--delete",
                 "--exclude=build/",
+                "--exclude=tools/xcpclient/target/",
                 "--exclude=.git/",
                 "--exclude=\"*.o\"",
                 "--exclude=\"*.a\"",
+                "--exclude=\"*.mf4\"",
                 "./",
                 "rainer@192.168.0.206:~/XCPlite-RainerZ/"
             ],
@@ -21,6 +62,7 @@
                 "kind": "build",
                 "isDefault": true
             },
+            "dependsOn": "XCPlite: sync clock on Pi",
             "presentation": {
                 "echo": true,
                 "reveal": "always",
@@ -40,6 +82,7 @@
                 "--exclude=.git/",
                 "--exclude=\"*.o\"",
                 "--exclude=\"*.a\"",
+                "--exclude=\"*.mf4\"",
                 "./",
                 "admin@192.168.0.207:~/XCPlite-RainerZ/"
             ],
@@ -69,6 +112,7 @@
                 "--exclude=.git/",
                 "--exclude=\"*.o\"",
                 "--exclude=\"*.a\"",
+                "--exclude=\"*.mf4\"",
                 "./",
                 "rainer@192.168.0.143:~/XCPlite-RainerZ/"
             ],

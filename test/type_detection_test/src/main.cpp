@@ -7,8 +7,9 @@
 #include <stdio.h>   // for printf
 #include <string.h>  // for sprintf
 
-#include "a2l.h"    // for xcplib A2l generation
-#include "xcplib.h" // for xcplib application programming interface
+// Include XCPlite/libxcplite C++ headers
+#include "a2l.h"    // for A2l generation
+#include "xcplib.h" // for application programming interface
 
 // Test structure with various types and arrays
 struct TestStruct {
@@ -90,17 +91,6 @@ int main() {
     std::cout << "\nHelper macros:\n";
     std::cout << "  A2lGetArrayElementTypeId(curve_data): " << type_id_to_string(A2lGetArray1DElementTypeId(test_instance.curve_data)) << "\n";
     std::cout << "  A2lGetArray2DElementTypeId(map_data): " << type_id_to_string(A2lGetArray2DElementTypeId(test_instance.map_data)) << "\n";
-
-    // Test C++11 decltype if available
-    // #if __cplusplus >= 201103L
-    std::cout << "\nC++11 decltype-based (compile-time):\n";
-    std::cout << "  decltype(byte_value): " << type_id_to_string(A2lGetTypeIdDecltype(test_instance.byte_value)) << "\n";
-    std::cout << "  decltype(curve_data[0]): " << type_id_to_string(A2lGetTypeIdDecltype(test_instance.curve_data[0])) << "\n";
-    std::cout << "  decltype(map_data[0][0]): " << type_id_to_string(A2lGetTypeIdDecltype(test_instance.map_data[0][0])) << "\n";
-    assert(A2lGetTypeIdDecltype(test_instance.byte_value) == A2L_TYPE_UINT8);
-    assert(A2lGetTypeIdDecltype(test_instance.curve_data[0]) == A2L_TYPE_UINT16);
-    assert(A2lGetTypeIdDecltype(test_instance.map_data[0][0]) == A2L_TYPE_FLOAT);
-    // #endif
 
     return 0;
 }

@@ -8,8 +8,9 @@ An instance of struct LookupTable creates a calibratable curve with axis points
 #include <cmath>   // for fmod, sin
 #include <cstdint> // for uintxx_t
 
-#include "a2l.hpp"    // for xcplib A2l generation application programming interface
-#include "xcplib.hpp" // for xcplib application programming interface
+// Include XCPlite/libxcplite C++ headers
+#include "a2l.hpp"    // for A2l generation application programming interface
+#include "xcplib.hpp" // for application programming interface
 
 #include "lookup.hpp" // for kLookupTableSize, LookupTableT
 

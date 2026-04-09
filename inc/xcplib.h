@@ -3,12 +3,16 @@
 
 /*----------------------------------------------------------------------------
 | File:
-|   xcplib.h - Public xcplib C API
+|   xcplib.h - Public libxcplite C API
 |
 | Description:
-|   C header file for the XCPlite library xcplib application programming interface
-|   Used for Rust bindgen to generate FFI bindings for xcplib
+|   C header file for the XCPlite library libxcplite application programming interface
+|   Used for Rust bindgen to generate FFI bindings for libxcplite
 |   Supporting functions and macros for A2L generation are in a2l.h
+|     C_API functions XcpXxxx
+|     C_API types tXcpCalSegIndex, tXcpEventId
+|     Macros CalSegXxxx, DaqXxxx, A2lXxxx, A2L_XXX
+|     Constants XCP_XXX
 |
 | Copyright (c) Vector Informatik GmbH. All rights reserved.
 | See LICENSE file in the project root for details.
@@ -42,30 +46,27 @@ bool XcpEthServerShutdown(void);
 /// @return true if the server is running, otherwise false.
 bool XcpEthServerStatus(void);
 
-/// Get information about the XCP on Ethernet server instance address.
-/// @pre The server instance is running.
-/// @param out_is_tcp Optional out parameter to query if TCP or UDP is used.
-/// True if TCP, otherwise UDP.
-/// Pass NULL if not required.
-/// @param out_mac Optional out parameter to query the MAC address of the interface used in the server instance.
-/// Pass NULL if not required.
-/// @param out_address Optional out parameter to query the IP address used in the server instance.
-/// Pass NULL if not required.
-/// @param out_port Optional out parameter to query the port address used in the server instance.
-/// Pass NULL if not required.
-void XcpEthServerGetInfo(bool *out_is_tcp, uint8_t *out_mac, uint8_t *out_address, uint16_t *out_port);
-
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Calibration segments
 
+#if defined(OPTION_XCP_MODE) && OPTION_XCP_MODE == 0 // XCP deactivated
+
+#define tXcpCalSegIndex void *
+#undef XCP_UNDEFINED_CALSEG
+#define XCP_UNDEFINED_CALSEG NULL
+#define XcpCreateCalSeg(name, ref_page_addr, size) (uint8_t *)(ref_page_addr)
+#define XcpLockCalSeg(calseg) (calseg)
+#define XcpUnlockCalSeg(calseg) ((void)0)
+
+#else
+
 /// Calibration segment handle
 typedef uint16_t tXcpCalSegIndex;
-#define XCP_UNDEFINED_CALSEG 0xFFFF
+#define XCP_UNDEFINED_CALSEG ((tXcpCalSegIndex)0xFFFF)
 
 /// Create a calibration segment and add it to the list of calibration segments.
-/// Create a named calibration segment and add it to the list of calibration segments.
 /// This calibration segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
-/// It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration params
+/// It provides safe (thread safe against XCP modifications), lock-free and consistent atomic access to calibration parameters
 /// It supports XCP/ECU independent page switching, checksum calculation, copy and reinitialization (copy reference page to working page)
 /// @param name Name of the calibration segment.
 /// @param default_page Pointer to the default page.
@@ -73,53 +74,63 @@ typedef uint16_t tXcpCalSegIndex;
 /// @return a handle or XCP_UNDEFINED_CALSEG when out of memory or the name already exists.
 tXcpCalSegIndex XcpCreateCalSeg(const char *name, const void *default_page, uint16_t size);
 
-/// Find a calibration segment by name, returns XCP_UNDEFINED_CALSEG if not found
+/// Create a calibration value and add it to the list of calibration segments.
+/// This calibration segment has a working page (RAM) and a reference page (FLASH) (controlled with XcpSetCalPage CAL_PAGE_MODE_ALL)
+/// This calibration segment has no MEMORY_SEGMENT in the A2L file
+/// It provides safe (thread safe against XCP modifications), lock-free and consistent atomic access to calibration parameters
+/// @param name Name of the calibration segment.
+/// @param default_page Pointer to the default page.
+/// @param size Size of the calibration page in bytes.
+/// @return a handle or XCP_UNDEFINED_CALSEG when out of memory or the name already exists.
+tXcpCalSegIndex XcpCreateCalBlk(const char *name, const void *default_page, uint16_t size);
+
+/// Get the number of calibration segments
+/// @return the number of calibration segments
+uint16_t XcpGetCalSegCount(void);
+
+/// Find a calibration segment by name
+/// @param name Name of the calibration segment
+/// @return the Handle of the calibration segment or XCP_UNDEFINED_CALSEG if not found
 tXcpCalSegIndex XcpFindCalSeg(const char *name);
 
-/// Find a calibration segment by its default page pointer, returns XCP_UNDEFINED_CALSEG if not found
-tXcpCalSegIndex XcpFindCalPage(const void *default_page);
-
 /// Get the name of the calibration segment
+/// @param index Handle of the calibration segment
 /// @return the name of the calibration segment or NULL if the index is invalid.
-const char *XcpGetCalSegName(tXcpCalSegIndex calseg);
+const char *XcpGetCalSegName(tXcpCalSegIndex index);
+
+/// Get the size of the calibration segment
+/// @param calseg Handle of the calibration segment
+/// @return the size of the calibration segment in bytes
+uint16_t XcpGetCalSegSize(tXcpCalSegIndex calseg);
 
 /// Lock a calibration segment.
-/// @param calseg Calibration segment index.
+/// @param index Calibration segment index.
 /// @return Pointer to the active page of the calibration segment (working page or reference page, controlled by the XCP client tool).
 /// The pointer is valid until the calibration segment is unlocked.
 /// The data can be safely accessed while the lock is held.
 /// There is no contention with the XCP client tool and with other threads acquiring the lock.
 /// Acquiring the lock is wait-free, locks may be recursive
-const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg);
+const uint8_t *XcpLockCalSeg(tXcpCalSegIndex index);
 
 /// Unlock a calibration segment
-uint8_t XcpUnlockCalSeg(tXcpCalSegIndex calseg);
+uint8_t XcpUnlockCalSeg(tXcpCalSegIndex index);
 
-/// Update a calibration parameter segment pointer
-/// Single threaded calibration segment access assumed
-/// Calibration segment is continuously locked and only updated here
-/// It is the users responsibility to ensure single threaded usage and initial locking of the segment
-void XcpUpdateCalSeg(void **calPage);
-
-/// Freeze all calibration segments
-/// The current working page is written to the persistence file
-/// It will be the new default page on next application start
-/// Freeze can also be required by the XCP client tool.
-/// Requires option XCP_ENABLE_FREEZE_CAL_PAGE.
-/// @return true on success, otherwise false.
-bool XcpFreezeAllCalSeg(void);
-
-/// Set all calibration segments to their default page.
-/// Maybe used in emergency situations.
+/// Set all calibration segments to their default page
+/// Maybe used in emergency situation
+/// @return true on success, otherwise false
 bool XcpResetAllCalSegs(void);
 
-// Internal functions
-uint32_t XcpGetCalSegBaseAddress(tXcpCalSegIndex calseg);
-uint16_t XcpGetCalSegCount(void);
-uint16_t XcpGetCalSegSize(tXcpCalSegIndex calseg);
+/// Writes current working page data to an existing persistence file
+/// The working page calibration data, will become the default page content of the next session
+/// @return true on success
+bool XcpFreeze(void);
+
+#endif
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// Calibration segment convenience macros
+// Calibration segment and value convenience macros
+
+#ifndef __cplusplus
 
 // Convenience macros to create and access calibration segments by identifier without providing explicit handles and the need to pass them around
 
@@ -153,6 +164,11 @@ uint16_t XcpGetCalSegSize(tXcpCalSegIndex calseg);
 /// @param name given as identifier
 #define CalSegUnlock(name) XcpUnlockCalSeg(__cal__##name)
 
+/// Create a calibration value
+#define CalValCreate(val) XcpCreateCalBlk(#val, &(val), sizeof(val));
+
+#endif // __cplusplus
+
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Dynamic DAQ event creation
 
@@ -165,26 +181,25 @@ typedef uint16_t tXcpEventId;
 /// If the event name already exists, returns the existing event event number
 /// Function is thread safe by using a mutex for event list access.
 /// @param name Name of the event.
-/// @param cycleTimeNs Cycle time in nanoseconds. 0 means sporadic event.
+/// @param cycle_time_ns Cycle time in nanoseconds. 0 means sporadic event.
 /// @param priority Priority of the event. 0 means normal, >=1 means realtime.
 /// @return The event id or XCP_UNDEFINED_EVENT_ID if out of event list memory.
-tXcpEventId XcpCreateEvent(const char *name, uint32_t cycleTimeNs /* ns */, uint8_t priority /* 0-normal, >=1 realtime*/);
+tXcpEventId XcpCreateEvent(const char *name, uint32_t cycle_time_ns /* ns */, uint8_t priority /* 0-normal, >=1 realtime*/);
 
 /// Add a measurement event to event list, return event id (0..XCP_MAX_EVENT_COUNT-1)
 /// If the event name exists, a new event instance index is generated (will be the postfix of the event name in the A2L file)
 /// Function is thread safe by using a mutex for event list access.
 /// @param name Name of the event.
-/// @param cycleTimeNs Cycle time in nanoseconds. 0 means sporadic event.
+/// @param cycle_time_ns Cycle time in nanoseconds. 0 means sporadic event.
 /// @param priority Priority of the event. 0 means normal, >=1 means realtime.
 /// @return The event id or XCP_UNDEFINED_EVENT_ID if out of memory.
-tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycleTimeNs /* ns */, uint8_t priority /* 0-normal, >=1 realtime*/);
+tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycle_time_ns /* ns */, uint8_t priority /* 0-normal, >=1 realtime*/);
 
 /// Get event id by name, returns XCP_UNDEFINED_EVENT_ID if not found
 /// @param name Name of the event.
-/// @param count Optional (!=NULL) out parameter to return the number of event instances with the same name.
 /// @return The event id or XCP_UNDEFINED_EVENT_ID if not found.
 /// If multiple events instances with the same name exist, the first one is returned.
-tXcpEventId XcpFindEvent(const char *name, uint16_t *count);
+tXcpEventId XcpFindEvent(const char *name);
 
 /// Get the event instance index (1..)
 /// @param event Event id.
@@ -240,7 +255,7 @@ uint16_t XcpGetEventIndex(tXcpEventId event);
     static tXcpEventId evt__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                                       \
     if (XcpIsActivated()) {                                                                                                                                                        \
         if (evt__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                               \
-            evt__##name = XcpCreateEvent(#name, cycle_time * 1000, 0);                                                                                                             \
+            evt__##name = XcpCreateEvent(#name, (cycle_time) * 1000, 0);                                                                                                           \
         }                                                                                                                                                                          \
     }
 
@@ -305,10 +320,14 @@ void XcpEventEnable(tXcpEventId event, bool enable);
 // Get stack frame pointer
 // Used by the Daq and A2l macros to get the stack frame pointer for stack relative addressing mode
 
+// Offset added to the frame pointer to get the base address for stack relative addressing mode
+// This defines the maximum stack frame size which can be accessed
+#define XCP_FRAME_ADDR_OFFSET 0x10000
+
 // Linux, MACOS gnu and clang compiler
 #if defined(__GNUC__) || defined(__clang__)
 
-#define xcp_get_frame_addr() (const uint8_t *)__builtin_frame_address(0)
+#define xcp_get_frame_addr() (const uint8_t *)((uint8_t *)__builtin_frame_address(0) - XCP_FRAME_ADDR_OFFSET)
 
 // MSVC compiler
 #elif defined(_MSC_VER)
@@ -325,7 +344,7 @@ static __forceinline const uint8_t *xcp_get_frame_addr(void) {
     void **return_addr_ptr = (void **)_AddressOfReturnAddress();
     // The saved frame pointer is typically at return_addr_ptr - 1
     // This gives us a consistent base address for stack-relative addressing
-    return (const uint8_t *)(return_addr_ptr - 1);
+    return (const uint8_t *)(return_addr_ptr - 1 - (XCP_FRAME_ADDR_OFFSET / sizeof(void *)));
 }
 #else
 #error "Unsupported MSVC architecture for frame pointer detection"
@@ -337,15 +356,15 @@ static __forceinline const uint8_t *xcp_get_frame_addr(void) {
 #endif
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// Global storage
+// Absolute addressing mode
 
-// Get the base address for absolute XCP/A2L 32 bit address
 const uint8_t *ApplXcpGetBaseAddr(void);
+void ApplXcpSetBaseAddr(const uint8_t *addr); // Set base address for absolute addressing mode, only needed for special cases where the default base addr is not suitable
+const uint8_t *ApplXcpGetModuleAddr(void);    // Get the module base address, used as default base address for absolute addressing mode
+uint32_t ApplXcpGetAddr(const uint8_t *p);    // Get the absolute XCP/A2L 32 bit address from a pointer
+uint8_t ApplXcpGetAddrExt(const uint8_t *p);  // Get the absolute XCP/A2L 8 bit address extension from a pointer
 extern const uint8_t *gXcpBaseAddr;
 #define xcp_get_base_addr() gXcpBaseAddr // For runtime optimization, use xcp_get_base_addr() instead of ApplXcpGetBaseAddr()
-
-// Calculate the absolute XCP/A2L 32 bit address from a pointer
-uint32_t ApplXcpGetAddr(const uint8_t *p);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // DAQ event trigger convenience macros
@@ -368,7 +387,7 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
     if (XcpIsActivated()) {                                                                                                                                                        \
         static tXcpEventId trg__AAS__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                              \
         if (trg__AAS__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                          \
-            trg__AAS__##name = XcpFindEvent(#name, NULL);                                                                                                                          \
+            trg__AAS__##name = XcpFindEvent(#name);                                                                                                                                \
             assert(trg__AAS__##name != XCP_UNDEFINED_EVENT_ID);                                                                                                                    \
         }                                                                                                                                                                          \
         XcpEventExt_Var(trg__AAS__##name, 1, xcp_get_frame_addr());                                                                                                                \
@@ -377,7 +396,7 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
     if (XcpIsActivated()) {                                                                                                                                                        \
         static tXcpEventId trg__AAS__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                              \
         if (trg__AAS__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                          \
-            trg__AAS__##name = XcpFindEvent(#name, NULL);                                                                                                                          \
+            trg__AAS__##name = XcpFindEvent(#name);                                                                                                                                \
             assert(trg__AAS__##name != XCP_UNDEFINED_EVENT_ID);                                                                                                                    \
         }                                                                                                                                                                          \
         XcpEventExtAt_Var(trg__AAS__##name, clock, 1, xcp_get_frame_addr());                                                                                                       \
@@ -405,10 +424,10 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
     if (XcpIsActivated()) {                                                                                                                                                        \
         static tXcpEventId trg__AASD__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                             \
         if (trg__AASD__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                         \
-            trg__AASD__##name = XcpFindEvent(#name, NULL);                                                                                                                         \
+            trg__AASD__##name = XcpFindEvent(#name);                                                                                                                               \
             assert(trg__AASD__##name != XCP_UNDEFINED_EVENT_ID);                                                                                                                   \
         }                                                                                                                                                                          \
-        XcpEventExt_Var(trg__AASD__##name, 2, xcp_get_frame_addr(), (const uint8_t *)base_addr);                                                                                   \
+        XcpEventExt_Var(trg__AASD__##name, 2, xcp_get_frame_addr(), (const uint8_t *)(base_addr));                                                                                 \
     }
 
 /// Trigger the XCP event 'name' for absolute, stack and relative addressing mode with given individual base address (from A2lSetRelativeAddrMode(base_addr))
@@ -419,10 +438,10 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
     if (XcpIsActivated()) {                                                                                                                                                        \
         static THREAD_LOCAL tXcpEventId trg__AASD__ = XCP_UNDEFINED_EVENT_ID;                                                                                                      \
         if (trg__AASD__ == XCP_UNDEFINED_EVENT_ID) {                                                                                                                               \
-            trg__AASD__ = XcpFindEvent(name, NULL);                                                                                                                                \
+            trg__AASD__ = XcpFindEvent(name);                                                                                                                                      \
             assert(trg__AASD__ != XCP_UNDEFINED_EVENT_ID);                                                                                                                         \
         }                                                                                                                                                                          \
-        XcpEventExt_Var(trg__AASD__, 2, xcp_get_frame_addr(), (const uint8_t *)base_addr);                                                                                         \
+        XcpEventExt_Var(trg__AASD__, 2, xcp_get_frame_addr(), (const uint8_t *)(base_addr));                                                                                       \
     }
 
 /// Trigger the XCP event by handle 'event_id' for absolute, stack and relative addressing mode with given individual base address (from A2lSetRelativeAddrMode(base_addr))
@@ -432,7 +451,7 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
 #define DaqTriggerEventExt_i(event_id, base_addr)                                                                                                                                  \
     if (XcpIsActivated()) {                                                                                                                                                        \
         static tXcpEventId trg__AASD = XCP_UNDEFINED_EVENT_ID;                                                                                                                     \
-        XcpEventExt_Var(event_id, 2, xcp_get_frame_addr(), (const uint8_t *)base_addr);                                                                                            \
+        XcpEventExt_Var(event_id, 2, xcp_get_frame_addr(), (const uint8_t *)(base_addr));                                                                                          \
     }
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -461,7 +480,7 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
     if (XcpIsActivated()) {                                                                                                                                                        \
         static THREAD_LOCAL tXcpEventId ena__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                      \
         if (ena__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                               \
-            ena__##name = XcpFindEvent(#name, NULL);                                                                                                                               \
+            ena__##name = XcpFindEvent(#name);                                                                                                                                     \
         }                                                                                                                                                                          \
         XcpEventEnable(ena__##name, true);                                                                                                                                         \
     }
@@ -471,7 +490,7 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
     if (XcpIsActivated()) {                                                                                                                                                        \
         static THREAD_LOCAL tXcpEventId ena__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                      \
         if (ena__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                               \
-            ena__##name = XcpFindEvent(#name, NULL);                                                                                                                               \
+            ena__##name = XcpFindEvent(#name);                                                                                                                                     \
         }                                                                                                                                                                          \
         XcpEventEnable(ena__##name, false);                                                                                                                                        \
     }
@@ -479,7 +498,7 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Build time A2L file generation helpers
 
-// @@@@ NOTE: Work in progress
+// @@@@ NOTE: Work in progress, compile time A2L file generation is not fully implemented yet
 #if 0
 
 #define _XCP_STRING(var_name, suffix, value) static const char __attribute__((section(XCP_STRING_SECTION), used)) __xcp_str_##var_name##suffix[] = value
@@ -516,7 +535,7 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
 // optimization, the variable must be marked as 'volatile' to force the compiler to always read and write it from/to memory The XCP_MEA and XCP_MEAS macros mark a (local) variable
 // as volatile for this purpose An alternative is to use the DaqCapture macro to capture the variable in a hidden static variable for measurement
 
-// The A2L updater/creator in xcp_client can handle only simple location expressions such as absolute addresses, stack relative addresses (CFA) and calibration segment relative
+// The A2L updater/creator in xcpclient can handle only simple location expressions such as absolute addresses, stack relative addresses (CFA) and calibration segment relative
 // addresses For complex cases, use the DaqCapture macro to capture the variable in a hidden static variable
 
 /// Attribute to mark a local variable as measurable
@@ -549,16 +568,27 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);
 /// @param level (0 = no logging, 1 = error, 2 = warning, 3 = info, 4 = debug, 5 = trace)
 void XcpSetLogLevel(uint8_t level);
 
-/// Initialize the XCP singleton, activate XCP, must be called before starting the server
-/// If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-/// @param activate If true, the XCP library is activated
-void XcpInit(const char *name, const char *epk, bool activate);
+/// XcpInit mode flags
+#define XCP_MODE_DEACTIVATE 0     ///< Initialize XCP singleton without activating the protocol layer (passive/off)
+#define XCP_MODE_LOCAL 0x01       ///< Initialize and activate XCP, allocate state in static memory if libxcplite not compiled in SHM mode, otherwise allocate state in heap memory
+#define XCP_MODE_PERSISTENCE 0x02 ///< Load the binary persistence file, to keep deterministic order of events and calibration segments, and load persisted calibration data
+#define XCP_MODE_SHM 0x80         ///< Initialize and activate XCP, allocate state in POSIX shared memory
+#define XCP_MODE_SHM_AUTO 0x04    ///< Set this flag to automatically choose leader as XCP server
+#define XCP_MODE_SHM_SERVER 0x08  ///< Set this flag, to make this application the XCP server, regardless which application is started first
 
-/// Reset XCP library to initial state
-void XcpReset(void);
+/// Initialize the XCP driver singleton, must be called before starting the server
+/// @param name Project name, used as A2L file name and to identify the XCP server
+/// @param epk EPK version string, used for compatibility check of A2L and BIN file
+/// @param mode XCP_MODE_DEACTIVATE, XCP_MODE_LOCAL, XCP_MODE_SHM, XCP_MODE_SHM_AUTO or XCP_MODE_SHM_SERVER (libxcplite build with in SHM mode)
+bool XcpInit(const char *name, const char *epk, uint8_t mode);
+void XcpDeinit(void); // Internal function for Rust build.rs
 
 /// Check if XCP has been activated
 bool XcpIsActivated(void);
+
+/// Get the mode passed to XcpInit()
+/// @return XCP_MODE_DEACTIVATE, XCP_MODE_LOCAL, XCP_MODE_SHM, XCP_MODE_SHM_AUTO, or XCP_MODE_SHM_SERVER
+uint8_t XcpGetInitMode(void);
 
 /// Check if XCP is connected
 bool XcpIsConnected(void);
@@ -567,12 +597,14 @@ bool XcpIsConnected(void);
 const char *XcpGetProjectName(void);
 
 // A2L file name
-// Notify xcplib there is a valid A2L with this name to be provided for upload via XCP command GET_ID
+// Notify XCPlite there is a valid A2L with this name to be provided for upload via XCP command GET_ID
 void XcpSetA2lName(const char *name);
 const char *XcpGetA2lName(void);
 
-// EPK software version identifier
-const char *XcpGetEpk(void);
+// ELF file name
+// Notify XCPlite there is a valid ELF with this pathname to be provided for upload via XCP command GET_ID
+void XcpSetElfName(const char *name);
+const char *XcpGetElfName(void);
 
 /// Force Disconnect
 /// Stop DAQ, flush queue, flush pending calibrations
@@ -588,7 +620,7 @@ void XcpPrint(const char *str);
 
 /// Get the current DAQ clock value
 /// @return time in CLOCK_TICKS_PER_S units
-/// Resolution and epoch is defined in main_cfg.h
+/// Resolution and epoch is defined in xcplib_cfg.h
 /// Epoch may be PTP or arbitrary
 /// Resolution is 1ns or 1us
 uint64_t ApplXcpGetClock64(void);
@@ -599,7 +631,7 @@ uint64_t ApplXcpGetClock64(void);
 #define CLOCK_STATE_SYNCH_IN_PROGRESS (0)
 #define CLOCK_STATE_SYNCH (1)
 #define CLOCK_STATE_FREE_RUNNING (7)
-#define CLOCK_STATE_GRANDMASTER_STATE_SYNCH (1 << 3) // @@@@ not used yet
+#define CLOCK_STATE_GRANDMASTER_STATE_SYNCH (1 << 3) // not used yet
 uint8_t ApplXcpGetClockState(void);
 
 // Callback
@@ -635,9 +667,9 @@ void ApplXcpRegisterReadCallback(uint8_t (*cb_read)(uint32_t src, uint8_t size, 
 void ApplXcpRegisterWriteCallback(uint8_t (*cb_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay));
 void ApplXcpRegisterFlushCallback(uint8_t (*cb_flush)(void));
 
-// xcplib utility functions used for the demos to keep them clean and platform-independent
-uint64_t clockGetNs(void);
-uint64_t clockGetUs(void);
+// Utility functions (from platform.c) used for the demos to keep them clean and platform-independent
+uint64_t clockGetMonotonicNs(void);
+uint64_t clockGetMonotonicUs(void);
 void sleepUs(uint32_t us);
 void sleepMs(uint32_t ms);
 

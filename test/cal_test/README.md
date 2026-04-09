@@ -1,6 +1,6 @@
 # Calibration Segment Multi-Threading Test (cal_test)
 
-This test demonstrates and validates multi-threaded access to XCP calibration segments using the xcplib library.
+This test demonstrates and validates multi-threaded access to XCP calibration segments using the libxcplite library.
 
 ## Purpose
 

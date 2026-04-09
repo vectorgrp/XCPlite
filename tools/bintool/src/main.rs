@@ -18,7 +18,7 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 mod bin_format;
-use bin_format::{BinHeader, CalSegDescriptor, EventDescriptor};
+use bin_format::{AppDescriptor, BinHeader, CalSegDescriptor, EventDescriptor};
 
 #[derive(Error, Debug)]
 pub enum Bin2HexError {
@@ -79,6 +79,7 @@ fn read_bin_file(
         BinHeader,
         Vec<EventDescriptor>,
         Vec<(CalSegDescriptor, Vec<u8>)>,
+        Vec<AppDescriptor>,
     ),
     Bin2HexError,
 > {
@@ -94,6 +95,7 @@ fn read_bin_file(
         println!("  EPK: {}", header.epk);
         println!("  Event Count: {}", header.event_count);
         println!("  CalSeg Count: {}", header.calseg_count);
+        println!("  App Count: {}", header.app_count);
         println!();
     }
 
@@ -149,11 +151,28 @@ fn read_bin_file(
         calseg_data.push((calseg_desc, data));
     }
 
-    Ok((header, events, calseg_data))
+    // Read application descriptors (v0x0205+)
+    let mut app_descriptors = Vec::new();
+    for i in 0..header.app_count {
+        let app = AppDescriptor::read_from(&mut file)?;
+        if verbose {
+            println!(
+                "Read App {}: {} (app_id={})",
+                i, app.project_name, app.app_id
+            );
+        }
+        app_descriptors.push(app);
+    }
+
+    if verbose && header.app_count > 0 {
+        println!();
+    }
+
+    Ok((header, events, calseg_data, app_descriptors))
 }
 
 fn dump_bin_file(path: &PathBuf, verbose: bool) -> Result<(), Bin2HexError> {
-    let (header, events, calseg_data) = read_bin_file(path, false)?;
+    let (header, events, calseg_data, app_descriptors) = read_bin_file(path, false)?;
 
     // Print header information
     println!("========================================");
@@ -166,6 +185,9 @@ fn dump_bin_file(path: &PathBuf, verbose: bool) -> Result<(), Bin2HexError> {
     println!("  EPK:          {}", header.epk);
     println!("  Event Count:  {}", header.event_count);
     println!("  CalSeg Count: {}", header.calseg_count);
+    if header.app_count > 0 {
+        println!("  App Count:    {}", header.app_count);
+    }
     println!();
 
     // Print event information
@@ -180,6 +202,9 @@ fn dump_bin_file(path: &PathBuf, verbose: bool) -> Result<(), Bin2HexError> {
             println!("  Index:        {}", event.index);
             println!("  Cycle Time:   {} ns", event.cycle_time_ns);
             println!("  Priority:     {}", event.priority);
+            if header.app_count > 0 {
+                println!("  App ID:       {}", event.app_id);
+            }
             println!();
         }
     }
@@ -194,6 +219,9 @@ fn dump_bin_file(path: &PathBuf, verbose: bool) -> Result<(), Bin2HexError> {
         println!("  Index:   {}", desc.index);
         println!("  Size:    {} bytes", desc.size);
         println!("  Address: 0x{:08X}", desc.addr);
+        if header.app_count > 0 {
+            println!("  App ID:  {}", desc.app_id);
+        }
 
         if verbose {
             println!();
@@ -206,6 +234,19 @@ fn dump_bin_file(path: &PathBuf, verbose: bool) -> Result<(), Bin2HexError> {
 
     if !verbose {
         println!("(Use --verbose to see hex dump of calibration data)");
+    }
+
+    // Print application descriptors (v0x0205+)
+    if !app_descriptors.is_empty() {
+        println!();
+        println!("APPLICATIONS:");
+        println!();
+        for app in app_descriptors.iter() {
+            println!("Application {}:", app.app_id);
+            println!("  Project Name: {}", app.project_name);
+            println!("  EPK:          {}", app.epk);
+            println!();
+        }
     }
 
     Ok(())
@@ -589,7 +630,8 @@ fn main() -> Result<(), Bin2HexError> {
         }
 
         // Read BIN file
-        let (_header, _events, calseg_data) = read_bin_file(&bin_path, args.verbose)?;
+        let (_header, _events, calseg_data, _app_descriptors) =
+            read_bin_file(&bin_path, args.verbose)?;
 
         if calseg_data.is_empty() {
             println!("Warning: No calibration segments found in BIN file");

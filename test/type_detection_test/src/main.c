@@ -6,8 +6,8 @@
 #include <stdio.h>   // for printf
 #include <string.h>  // for sprintf
 
-#include "a2l.h"    // for xcplib A2l generation
-#include "xcplib.h" // for xcplib application programming interface
+#include "a2l.h"    // for A2l generation
+#include "xcplib.h" // for application programming interface
 
 //--
 // Test structure with various types and arrays

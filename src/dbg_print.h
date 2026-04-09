@@ -14,7 +14,7 @@
 
 #include <stdint.h> // for uintxx_t
 
-#include "main_cfg.h" // for OPTION_ENABLE_DBG_PRINTS, OPTION_DEFAULT_DBG_LEVEL, OPTION_MAX_DBG_LEVEL, OPTION_FIXED_DBG_LEVEL
+#include "xcplib_cfg.h" // for OPTION_ENABLE_DBG_PRINTS, OPTION_DEFAULT_DBG_LEVEL, OPTION_MAX_DBG_LEVEL, OPTION_FIXED_DBG_LEVEL
 
 #ifdef OPTION_ENABLE_DBG_PRINTS
 
@@ -38,6 +38,9 @@
 // ANSI color codes
 #define ANSI_COLOR_RED "\x1b[31m"
 #define ANSI_COLOR_YELLOW "\x1b[33m"
+#define ANSI_COLOR_GREY "\x1b[90m"
+#define ANSI_COLOR_PURPLE "\x1b[35m"
+#define ANSI_COLOR_MAGENTA "\x1b[35m"
 #define ANSI_COLOR_GREEN "\x1b[32m"
 #define ANSI_COLOR_BLUE "\x1b[34m"
 #define ANSI_COLOR_RESET "\x1b[0m"
@@ -53,7 +56,7 @@
 
 // Runtime adjustable log level, limited by OPTION_MAX_DBG_LEVEL
 #if defined(OPTION_MAX_DBG_LEVEL) && OPTION_MAX_DBG_LEVEL < OPTION_DEFAULT_DBG_LEVEL
-#error "OPTION_MAX_DBG_LEVEL should be >= OPTION_DEFAULT_DBG_LEVEL"
+#error "OPTION_MAX_DBG_LEVEL should be >= OPTION_DEFAULT_DBG_LEVEL and >=2 "
 #endif
 
 // Use log level for XCP if not defined DBG_LEVEL
@@ -157,30 +160,27 @@ extern uint8_t gXcpLogLevel;
 #define DBG_PRINTF5(format, ...)                                                                                                                                                   \
     do {                                                                                                                                                                           \
         if (DBG_LEVEL >= 5)                                                                                                                                                        \
-            printf(DBG_PRINT_PREFIX format, __VA_ARGS__);                                                                                                                          \
+            printf(ANSI_COLOR_GREY DBG_PRINT_PREFIX format ANSI_COLOR_RESET, __VA_ARGS__);                                                                                         \
     } while (0)
 #define DBG_PRINT5(format)                                                                                                                                                         \
     do {                                                                                                                                                                           \
         if (DBG_LEVEL >= 5)                                                                                                                                                        \
-            printf(DBG_PRINT_PREFIX format);                                                                                                                                       \
+            printf(ANSI_COLOR_GREY DBG_PRINT_PREFIX format ANSI_COLOR_RESET);                                                                                                      \
+    } while (0)
+
+#define DBG_PRINTF6(format, ...)                                                                                                                                                   \
+    do {                                                                                                                                                                           \
+        if (DBG_LEVEL >= 6)                                                                                                                                                        \
+            printf(ANSI_COLOR_GREY DBG_PRINT_PREFIX format ANSI_COLOR_RESET, __VA_ARGS__);                                                                                         \
+    } while (0)
+#define DBG_PRINT6(format)                                                                                                                                                         \
+    do {                                                                                                                                                                           \
+        if (DBG_LEVEL >= 6)                                                                                                                                                        \
+            printf(ANSI_COLOR_GREY DBG_PRINT_PREFIX format ANSI_COLOR_RESET);                                                                                                      \
     } while (0)
 
 // Convenience macros for format-only strings (no additional arguments)
 #define DBG_PRINT(format) printf(format)
-
-#if OPTION_MAX_DBG_LEVEL < 1
-#undef DBG_PRINTF_ERROR
-#define DBG_PRINTF_ERROR(s, ...) // printf(s,__VA_ARGS__)
-#undef DBG_PRINT_ERROR
-#define DBG_PRINT_ERROR(s) // printf(s,__VA_ARGS__)
-#endif
-
-#if OPTION_MAX_DBG_LEVEL < 2
-#undef DBG_PRINTF_WARNING
-#define DBG_PRINTF_WARNING(s, ...) // printf(s,__VA_ARGS__)
-#undef DBG_PRINT_WARNING
-#define DBG_PRINT_WARNING(s) // printf(s,__VA_ARGS__)
-#endif
 
 #if OPTION_MAX_DBG_LEVEL < 3
 #undef DBG_PRINTF3
@@ -203,6 +203,12 @@ extern uint8_t gXcpLogLevel;
 #define DBG_PRINT5(s)
 #endif
 
+#if OPTION_MAX_DBG_LEVEL < 6
+#undef DBG_PRINTF6
+#define DBG_PRINTF6(s, ...)
+#undef DBG_PRINT6
+#define DBG_PRINT6(s)
+#endif
 #else // OPTION_ENABLE_DBG_PRINTS
 
 #undef DBG_LEVEL
@@ -213,6 +219,7 @@ extern uint8_t gXcpLogLevel;
 #define DBG_PRINTF3(s, ...)
 #define DBG_PRINTF4(s, ...)
 #define DBG_PRINTF5(s, ...)
+#define DBG_PRINTF6(s, ...)
 
 #define DBG_PRINT(s)
 #define DBG_PRINT_ERROR(s) // printf(s,__VA_ARGS__)

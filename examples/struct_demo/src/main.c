@@ -1,4 +1,4 @@
-﻿// struct_demo xcplib example
+﻿// struct_demo XCPlite example
 
 // This is a pure measurement only example, no calibration segments used
 // Demonstrates how to create typedefs for nested structs and arrays of struct
@@ -12,18 +12,18 @@
 #include <stdlib.h>  // for free, malloc
 #include <string.h>  // for sprintf
 
-#include "a2l.h"    // for xcplib A2l generation
-#include "xcplib.h" // for xcplib application programming interface
+#include "a2l.h"    // for A2l generation
+#include "xcplib.h" // for application programming interface
 
 //-----------------------------------------------------------------------------------------------------
 
 // XCP parameters
 #define OPTION_PROJECT_NAME "struct_demo" // A2L project name
-#define OPTION_PROJECT_EPK __TIME__       // EPK version string
+#define OPTION_PROJECT_VERSION __TIME__   // EPK version string
 #define OPTION_USE_TCP true               // TCP or UDP
 #define OPTION_SERVER_PORT 5555           // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}   // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE 1024 * 32       // Size of the measurement queue in bytes, must be a multiple of 8
+#define OPTION_QUEUE_SIZE (1024 * 32)     // Size of the measurement queue in bytes, must be a multiple of 8
 #define OPTION_LOG_LEVEL 3                // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 //-----------------------------------------------------------------------------------------------------
@@ -70,14 +70,14 @@ int main(void) {
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 
-    printf("\nXCP on Ethernet struct measurement xcplib demo\n");
+    printf("\nXCP on Ethernet struct measurement demo\n");
 
     // Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
     XcpSetLogLevel(OPTION_LOG_LEVEL);
 
     // Initialize the XCP singleton, activate XCP, must be called before starting the server
     // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, true);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION, XCP_MODE_LOCAL);
 
     // Initialize the XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;

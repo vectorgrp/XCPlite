@@ -1,57 +1,102 @@
 #!/bin/bash
 
-
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Parse command line arguments
 BUILD_TYPE="Debug"  # Default to Debug build
-COMPILER_CHOICE=""  # Default to system default compiler (no forcing)
 CLEAN_BUILD=false   # Whether to clean before building
 BUILD_TARGET="examples"  # Default to building library + examples (without bpf_demo)
+INSTALL_LIBRARY=false   # Whether to install library after building
+INSTALL_PREFIX=""       # Custom install prefix (empty = use CMake default)
+RUN_CLANG_TIDY=false    # Whether to run clang-tidy on library sources
+QUEUE_TEST_MC_QUEUE=false # Whether to build queue_test with the MC reference queue (xcplite wrapper)
+QUEUE_TEST_MC_SHM=false   # Whether to build queue_test for two-process SHM test (MC reference, no wrapper)
 
 # Function to show usage
 show_usage() {
-    echo "Usage: $0 [build_type] [compiler] [target] [options]"
+    echo "Usage: $0 [build_type] [target] [options]"
     echo ""
     echo "Parameters:"
-    echo "  build_type: debug|release|relwithdebinfo (default: debug)"
-    echo "  compiler:   gcc|clang"
-    echo "  target:     lib|examples|tests|bpf|all (default: examples)"
+    echo "  build_type:    debug|release|relwithdebinfo (default: debug)"
+    echo "  target:        lib|examples|tests|all (default: examples)"
     echo ""
     echo "Build Targets:"
-    echo "  lib:        Build only the xcplib library"
-    echo "  examples:   Build library + examples (excluding bpf_demo) [DEFAULT]"
-    echo "  tests:      Build library + test targets (a2l_test, cal_test, daq_test, type_detection tests)"
-    echo "  bpf:        Build library + examples including bpf_demo (Linux only)"
-    echo "  all:        Build everything (library + examples + tests + bpf_demo)"
+    echo "  lib:            Build only the xcplite library"
+    echo "  examples:       Build library + examples (bpf_demo on Linux if libbpf available) [DEFAULT]"
+    echo "  tests:          Build library + test targets (a2l_test, cal_test, daq_test, queue_test, ...)"
+    echo "  all:            Build everything (library + examples + tests)"
     echo ""
     echo "Options:"
-    echo "  clean:      Clean build directory before building"
-    echo "  cleanall:   Clean all build directories (build-*, build)"
+    echo "  clean:          Clean build directory before building"
+    echo "  cleanall:       Clean all build directories and artifacts"
+    echo "  install:        Install library to staging directory after building (default location: build/install)"
+    echo "  install=<path>: Install library to custom path (e.g., install=/usr/local)"
+    echo "  tidy:           Run clang-tidy on library sources after building"
+    echo ""
+    echo "Compiler Selection:"
+    echo "  Use standard CMake environment variables to select compiler:"
+    echo "    CC=gcc CXX=g++ $0 [options]        # Use GCC"
+    echo "    CC=clang CXX=clang++ $0 [options]  # Use Clang"
     echo ""
     echo "Examples:"
-    echo "  $0                    # Default: library + examples (no bpf_demo)"
-    echo "  $0 lib                # Build only the library"
-    echo "  $0 tests              # Build library + test targets"
-    echo "  $0 bpf                # Build library + examples including bpf_demo"
-    echo "  $0 all                # Build everything"
-    echo "  $0 clean              # Clean build and rebuild library + examples"
-    echo "  $0 release gcc all    # Release build with GCC, all targets"
-    echo "  $0 debug clang tests  # Debug build with Clang, tests only"
-    echo "  $0 cleanall           # Clean all build directories and exit"
-    echo ""
-    echo "Build directories used:"
-    echo "  build:                System default compiler builds"
-    echo "  build-gcc:            GCC compiler builds"
-    echo "  build-clang:          Clang compiler builds"
+    echo "  $0                               # Default: Build library + examples"
+    echo "  $0 clean                         # Clean build and rebuild library + examples"
+    echo "  $0 cleanall                      # Clean all artifacts and exit"
+    echo "  $0 lib                           # Build only the library"
+    echo "  $0 lib install                   # Build library and install to staging directory"
+    echo "  $0 release install=/usr/local    # Release build and install to /usr/local"
+    echo "  $0 tests                         # Build library + test targets"
+    echo "  $0 all                           # Build everything"
+    echo "  CC=gcc CXX=g++ $0 release all    # Release build with GCC, all targets"
+    echo "  CC=clang CXX=clang++ $0 tests    # Build with Clang, tests only"
+    echo "  $0 lib tidy                      # Build library and run clang-tidy"
     echo ""
     echo "Platform-specific targets:"
-    echo "  bpf_demo:             Only built on Linux systems (requires BPF support)"
+    echo "  bpf_demo:             Only built on Linux when libbpf is available (automatic detection)"
+    echo ""
+    echo "Installation:"
+    echo "  By default, CMAKE_INSTALL_PREFIX is set to build/install (local staging)."
+    echo "  Use 'install' to install to this default location after building."
+    echo "  Use 'install=<path>' to override the install prefix and install to a custom location."
+    echo "  The installed library can be used by external projects via CMAKE_PREFIX_PATH."
 }
 
 # Parse arguments and set correct case for CMake
 for arg in "$@"; do
     # Convert to lowercase for comparison
     arg_lower=$(echo "$arg" | tr '[:upper:]' '[:lower:]')
+    
+    # Check if argument is install with optional path
+    if [[ "$arg" == "install" ]]; then
+        INSTALL_LIBRARY=true
+        continue
+    elif [[ "$arg" == install=* ]]; then
+        INSTALL_LIBRARY=true
+        INSTALL_PREFIX="${arg#install=}"
+        continue
+    fi
+    
+    # Check if argument is tidy
+    if [[ "$arg" == "tidy" ]]; then
+        RUN_CLANG_TIDY=true
+        continue
+    fi
+
+    # Check if argument is mc_queue or mc_shm
+    # This configures the queue_test target 
+    # Build with the MC reference queue implementation instead of the XCPlite wrapper
+    
+    if [[ "$arg_lower" == "mc_queue" ]]; then
+        QUEUE_TEST_MC_QUEUE=true
+        continue
+    fi
+    # Enable test the queue in a two-process SHM configuration that is closer to the real use case
+    # This is currently only supported on Linux since it relies on robust mutexes for synchronization, but can be extended to other platforms if needed.
+    if [[ "$arg_lower" == "mc_shm" ]]; then
+        QUEUE_TEST_MC_SHM=true
+        continue
+    fi
+    
     case "$arg_lower" in
         debug)
             BUILD_TYPE="Debug"
@@ -62,15 +107,6 @@ for arg in "$@"; do
         relwithdebinfo)
             BUILD_TYPE="RelWithDebInfo"
             ;;
-        gcc)
-            COMPILER_CHOICE="gcc"
-            ;;
-        clang)
-            COMPILER_CHOICE="clang"
-            ;;
-        default)
-            COMPILER_CHOICE="default"
-            ;;
         lib|library)
             BUILD_TARGET="lib"
             ;;
@@ -80,9 +116,6 @@ for arg in "$@"; do
         tests)
             BUILD_TARGET="tests"
             ;;
-        bpf)
-            BUILD_TARGET="bpf"
-            ;;
         all)
             BUILD_TARGET="all"
             ;;
@@ -91,14 +124,14 @@ for arg in "$@"; do
             ;;
         cleanall)
             echo "Cleaning all build and test artefacts ..."
-            rm -rf build build-gcc build-clang
-            echo "✅ All build directories cleaned"
+            rm -rf build
+            echo "Build directory cleaned"
             rm -f *.bin
             rm -f *.hex
             rm -f *.log
             rm -f *.mf4
             rm -f *.a2l
-            echo "✅ All hex and a2l files cleaned"
+            echo "Artifact files cleaned"
             exit 0
             ;;
         -h|--help|help)
@@ -114,52 +147,44 @@ for arg in "$@"; do
     esac
 done
 
-# Build CMake compiler arguments based on choice
-CMAKE_COMPILER_ARGS=""
-COMPILER_NAME=""
-BUILD_DIR="build"  # Default build directory
+# Use standard build directory
+BUILD_DIR="build"
 
-case "$COMPILER_CHOICE" in
-    "gcc")
-        CMAKE_COMPILER_ARGS="-DUSE_GCC=ON"
-        COMPILER_NAME="GCC"
-        BUILD_DIR="build-gcc"
-        ;;
-    "clang")
-        CMAKE_COMPILER_ARGS="-DUSE_CLANG=ON"
-        COMPILER_NAME="Clang"
-        BUILD_DIR="build-clang"
-        ;;
-    "default"|"")
-        CMAKE_COMPILER_ARGS=""
-        COMPILER_NAME="System Default"
-        BUILD_DIR="build"
-        ;;
-esac
-
-echo "Building in $BUILD_TYPE mode with $COMPILER_NAME compiler"
+echo "Building in $BUILD_TYPE mode"
 echo "Build directory: $BUILD_DIR"
 echo "Build target: $BUILD_TARGET"
 
-# Detect actual system default compiler when using default option
-if [ "$COMPILER_CHOICE" = "" ] || [ "$COMPILER_CHOICE" = "default" ]; then
-    # Try to detect the actual system compiler
-    CC_VERSION=$(cc --version 2>/dev/null | head -n1)
-    CXX_VERSION=$(c++ --version 2>/dev/null | head -n1)
-    
-    if echo "$CC_VERSION" | grep -q "clang"; then
-        ACTUAL_COMPILER="Clang"
-        if echo "$CC_VERSION" | grep -q "Apple"; then
-            ACTUAL_COMPILER="Apple Clang"
-        fi
-    elif echo "$CC_VERSION" | grep -q "gcc"; then
-        ACTUAL_COMPILER="GCC"
-    else
-        ACTUAL_COMPILER="Unknown"
-    fi
-    
-    echo "System default compiler detected: $ACTUAL_COMPILER"
-fi
+# Determine CMake options based on BUILD_TARGET
+CMAKE_EXAMPLES_FLAG=""
+CMAKE_TESTS_FLAG=""
+
+case "$BUILD_TARGET" in
+    "lib")
+        # Only build the library, disable examples and tests
+        CMAKE_EXAMPLES_FLAG="-DXCPLITE_BUILD_EXAMPLES=OFF"
+        CMAKE_TESTS_FLAG="-DXCPLITE_BUILD_TESTS=OFF"
+        ;;
+    "examples")
+        # Build library + examples (CMake will handle bpf_demo based on platform and libbpf availability)
+        CMAKE_EXAMPLES_FLAG="-DXCPLITE_BUILD_EXAMPLES=ON"
+        CMAKE_TESTS_FLAG="-DXCPLITE_BUILD_TESTS=OFF"
+        ;;
+    "tests")
+        # Build library + tests, no examples
+        CMAKE_EXAMPLES_FLAG="-DXCPLITE_BUILD_EXAMPLES=OFF"
+        CMAKE_TESTS_FLAG="-DXCPLITE_BUILD_TESTS=ON"
+        ;;
+    "all")
+        # Build everything: library + examples + tests
+        CMAKE_EXAMPLES_FLAG="-DXCPLITE_BUILD_EXAMPLES=ON"
+        CMAKE_TESTS_FLAG="-DXCPLITE_BUILD_TESTS=ON"
+        ;;
+    *)
+        echo "Error: Unknown build target '$BUILD_TARGET'"
+        show_usage
+        exit 1
+        ;;
+esac
 
 # Clean build directory if requested
 if [ "$CLEAN_BUILD" = true ]; then
@@ -171,272 +196,137 @@ echo ""
 echo "==================================================================="
 echo "Configuring CMake build system..."
 echo "==================================================================="
-cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE -S . -B $BUILD_DIR $CMAKE_COMPILER_ARGS
 
-echo ""
-if [ -f "$BUILD_DIR/CMakeCache.txt" ]; then
-    echo "Active Build Type: $BUILD_TYPE"
-    case "$BUILD_TYPE" in
-        "Debug")
-            echo "C Flags:   $(grep "CMAKE_C_FLAGS_DEBUG:STRING=" $BUILD_DIR/CMakeCache.txt | cut -d= -f2-)"
-            echo "C++ Flags: $(grep "CMAKE_CXX_FLAGS_DEBUG:STRING=" $BUILD_DIR/CMakeCache.txt | cut -d= -f2-)"
-            ;;
-        "Release")
-            echo "C Flags:   $(grep "CMAKE_C_FLAGS_RELEASE:STRING=" $BUILD_DIR/CMakeCache.txt | cut -d= -f2-)"
-            echo "C++ Flags: $(grep "CMAKE_CXX_FLAGS_RELEASE:STRING=" $BUILD_DIR/CMakeCache.txt | cut -d= -f2-)"
-            ;;
-        "RelWithDebInfo")
-            echo "C Flags:   $(grep "CMAKE_C_FLAGS_RELWITHDEBINFO:STRING=" $BUILD_DIR/CMakeCache.txt | cut -d= -f2-)"
-            echo "C++ Flags: $(grep "CMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=" $BUILD_DIR/CMakeCache.txt | cut -d= -f2-)"
-            ;;
-    esac
+# Add custom install prefix if specified
+CMAKE_INSTALL_ARGS=""
+if [ -n "$INSTALL_PREFIX" ]; then
+    CMAKE_INSTALL_ARGS="-DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX"
+    echo "Custom install prefix: $INSTALL_PREFIX"
 fi
-echo ""
+
+CMAKE_MC_QUEUE_FLAG="-DQUEUE_TEST_MC_QUEUE=OFF -DQUEUE_TEST_MC_SHM=OFF"
+[ "$QUEUE_TEST_MC_QUEUE" = true ] && CMAKE_MC_QUEUE_FLAG="-DQUEUE_TEST_MC_QUEUE=ON  -DQUEUE_TEST_MC_SHM=OFF"
+[ "$QUEUE_TEST_MC_SHM"   = true ] && CMAKE_MC_QUEUE_FLAG="-DQUEUE_TEST_MC_QUEUE=OFF -DQUEUE_TEST_MC_SHM=ON"
+
+cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE $CMAKE_EXAMPLES_FLAG $CMAKE_TESTS_FLAG $CMAKE_MC_QUEUE_FLAG -S . -B $BUILD_DIR $CMAKE_INSTALL_ARGS
+
 echo ""
 echo "==================================================================="
 echo "Building targets..."
 echo "==================================================================="
 
-# Define all targets to build based on BUILD_TARGET
-LIBRARY_TARGET="xcplib"
+echo ""
 
-# Define target groups
-EXAMPLE_TARGETS=(
-    "hello_xcp" 
-    "hello_xcp_cpp"
-    "c_demo"
-    "cpp_demo"
-    "struct_demo"
-    "multi_thread_demo"
-    "point_cloud_demo"
-    "no_a2l_demo"
-    "ptp_demo"
-)
-
-TEST_TARGETS=(
-    "a2l_test"
-    "cal_test"
-    "daq_test"
-    "type_detection_test_c"
-    "type_detection_test_cpp"
-)
-
-BPF_TARGETS=()
-# Add bpf_demo only on Linux systems
-if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    BPF_TARGETS+=("bpf_demo")
+# Build all targets configured by CMake
+BUILD_SUCCESS=true
+if cmake --build $BUILD_DIR; then
+    BUILD_SUCCESS=true
+else
+    echo "Build encountered errors"
+    BUILD_SUCCESS=false
 fi
 
-# Determine which targets to build based on BUILD_TARGET
-LIBRARY_DEPENDENT_TARGETS=()
-INDEPENDENT_TARGETS=()
-
-case "$BUILD_TARGET" in
-    "lib")
-        echo "Build target: Library only"
-        # Only build the library, no other targets
-        ;;
-    "examples")
-        echo "Build target: Library + Examples (excluding bpf_demo)"
-        LIBRARY_DEPENDENT_TARGETS=("${EXAMPLE_TARGETS[@]}")
-        ;;
-    "tests")
-        echo "Build target: Library + Tests"
-        LIBRARY_DEPENDENT_TARGETS=("${TEST_TARGETS[@]}")
-        ;;
-    "bpf")
-        echo "Build target: Library + Examples (including bpf_demo)"
-        LIBRARY_DEPENDENT_TARGETS=("${EXAMPLE_TARGETS[@]}")
-        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-            LIBRARY_DEPENDENT_TARGETS+=("${BPF_TARGETS[@]}")
-            echo "Linux system detected - bpf_demo will be built with BPF support"
-        else
-            echo "Non-Linux system detected - bpf_demo will be skipped (BPF only supported on Linux)"
-        fi
-        ;;
-    "all")
-        echo "Build target: Everything (Library + Examples + Tests + BPF)"
-        LIBRARY_DEPENDENT_TARGETS=("${EXAMPLE_TARGETS[@]}" "${TEST_TARGETS[@]}")
-        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-            LIBRARY_DEPENDENT_TARGETS+=("${BPF_TARGETS[@]}")
-            echo "Linux system detected - bpf_demo will be built with BPF support"
-        else
-            echo "Non-Linux system detected - bpf_demo will be skipped (BPF only supported on Linux)"
-        fi
-        ;;
-    *)
-        echo "Error: Unknown build target '$BUILD_TARGET'"
-        show_usage
-        exit 1
-        ;;
-esac
-
-# Arrays to track success/failure
-SUCCESSFUL_TARGETS=()
-FAILED_TARGETS=()
-
-echo ""
-echo "-------------------------------------------------------------------"
-echo "Building core library: $LIBRARY_TARGET"
-echo "-------------------------------------------------------------------"
-
-# Build the core library first
-if make --directory ./$BUILD_DIR $LIBRARY_TARGET > /dev/null 2>&1; then
-    echo "✅ SUCCESS: $LIBRARY_TARGET compiled successfully"
+# Install library if requested and build succeeded
+if [ "$INSTALL_LIBRARY" = true ] && [ "$BUILD_SUCCESS" = true ]; then
     echo ""
-    SUCCESSFUL_TARGETS+=("$LIBRARY_TARGET")
+    echo "Installing xcplite library..."
     
-    # If BUILD_TARGET is "lib", we're done after building the library
-    if [ "$BUILD_TARGET" = "lib" ]; then
-        echo "Library-only build completed successfully."
-    else
-        # Build BPF program if bpf_demo is in the target list
-        if [[ " ${LIBRARY_DEPENDENT_TARGETS[@]} " =~ " bpf_demo " ]]; then
-            echo ""
-            echo "-------------------------------------------------------------------"
-            echo "Building BPF program for bpf_demo..."
-            echo "-------------------------------------------------------------------"
-            
-            # Check if build_bpf.sh exists
-            if [ -f "examples/bpf_demo/build_bpf.sh" ]; then
-                # Make the script executable
-                chmod +x examples/bpf_demo/build_bpf.sh
-                
-                # Run the BPF build script
-                if examples/bpf_demo/build_bpf.sh > /dev/null 2>&1; then
-                    echo "✅ SUCCESS: BPF program compiled successfully"
-                    
-                    # Copy BPF object file to the correct build directory
-                    BPF_OBJ_SRC="examples/bpf_demo/src/process_monitor.bpf.o"
-                    if [ -f "$BPF_OBJ_SRC" ]; then
-                        cp "$BPF_OBJ_SRC" "$BUILD_DIR/"
-                        echo "   BPF object file copied to $BUILD_DIR/"
-                    else
-                        echo "⚠️  WARNING: BPF object file not found at $BPF_OBJ_SRC"
-                    fi
-                else
-                    echo "❌ FAILED: BPF program build failed"
-                    echo "   BPF build error details:"
-                    examples/bpf_demo/build_bpf.sh 2>&1 | sed 's/^/   /'
-                fi
-            else
-                echo "⚠️  WARNING: BPF build script not found at examples/bpf_demo/build_bpf.sh"
-            fi
-            echo ""
+    if cmake --install $BUILD_DIR > /dev/null 2>&1; then
+        # Determine the actual install directory
+        if [ -n "$INSTALL_PREFIX" ]; then
+            ACTUAL_INSTALL_DIR="$INSTALL_PREFIX"
+        else
+            ACTUAL_INSTALL_DIR="$BUILD_DIR/install"
         fi
         
-        # Build library-dependent targets only if library succeeded
-        for target in "${LIBRARY_DEPENDENT_TARGETS[@]}"; do
-            if make --directory ./$BUILD_DIR $target > /dev/null 2>&1; then
-                SUCCESSFUL_TARGETS+=("$target")
-            else
-                echo "❌ FAILED: $target compilation failed"
-                echo "   Error details:"
-                make --directory ./$BUILD_DIR $target 2>&1 | sed 's/^/   /'
-                FAILED_TARGETS+=("$target")
+        echo "Library installed to $ACTUAL_INSTALL_DIR"
+        echo "  - Library:  $ACTUAL_INSTALL_DIR/lib/"
+        echo "  - Headers:  $ACTUAL_INSTALL_DIR/include/"
+        echo "  - CMake:    $ACTUAL_INSTALL_DIR/lib/cmake/xcplite/"
+    else
+        echo "Library installation failed"
+        cmake --install $BUILD_DIR 2>&1 | sed 's/^/  /'
+        BUILD_SUCCESS=false
+    fi
+fi
+
+# Run clang-tidy if requested and build succeeded
+if [ "$RUN_CLANG_TIDY" = true ] && [ "$BUILD_SUCCESS" = true ]; then
+    echo ""
+    echo "==================================================================="
+    echo "Running clang-tidy on library sources..."
+    
+    # Check if clang-tidy is available
+    CLANG_TIDY="clang-tidy"
+    if ! command -v ${CLANG_TIDY} &> /dev/null; then
+        echo "Error: clang-tidy not found. Please install it first."
+        echo "On macOS: brew install llvm"
+        BUILD_SUCCESS=false
+    else
+        # Ensure compile_commands.json exists
+        if [ ! -f "${BUILD_DIR}/compile_commands.json" ]; then
+            echo "compile_commands.json not found. Regenerating..."
+            cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -S . -B ${BUILD_DIR}
+        fi
+        
+        # XCPlite library source files for clang tidy analysis
+        XCPLITE_SOURCES=(
+            "src/xcpappl.c"
+            "src/xcplite.c"
+            "src/xcpethserver.c"
+            "src/xcpethtl.c"
+            "src/queue32.c"
+            "src/queue64v.c"
+            "src/queue64f.c"
+            "src/shm.c" 
+            "src/cal.c" 
+            "src/a2l.c"
+            "src/persistence.c"
+            "src/platform.c"
+        )
+        
+        echo "Build directory: ${BUILD_DIR}"
+        
+        TOTAL_FILES=0
+        
+        for src in "${XCPLITE_SOURCES[@]}"; do
+            if [ ! -f "${SCRIPT_DIR}/${src}" ]; then
+                echo "Warning: Source file not found: ${src}"
+                continue
             fi
+            
+            TOTAL_FILES=$((TOTAL_FILES + 1))
+            echo "Analyzing: ${src}"
+            
+            # Run clang-tidy and filter out the suppressed warnings message
+            ${CLANG_TIDY} -p=${BUILD_DIR} ${SCRIPT_DIR}/${src} 2>&1 | grep -v "warnings generated\|Suppressed.*warnings\|Use -header-filter"
         done
-    fi
-    
-else
-    echo "❌ CRITICAL FAILURE: $LIBRARY_TARGET compilation failed"
-    echo "   Error details:"
-    make --directory ./$BUILD_DIR $LIBRARY_TARGET 2>&1 | sed 's/^/   /'
-    echo ""
-    echo "🛑 Library build failed, but proceeding with independent targets..."
-    echo "   Library-dependent targets will be skipped."
-    echo ""
-    FAILED_TARGETS+=("$LIBRARY_TARGET")
-    
-    # Note: We don't add library-dependent targets to FAILED_TARGETS 
-    # since they weren't actually attempted
-    if [ ${#LIBRARY_DEPENDENT_TARGETS[@]} -gt 0 ]; then
-        echo "📋 SKIPPED TARGETS (due to library failure):"
-        for target in "${LIBRARY_DEPENDENT_TARGETS[@]}"; do
-            echo "   - $target (skipped - requires xcplib)"
-        done
+        
         echo ""
+        echo "Analysis Complete"
+        echo "Files analyzed: ${TOTAL_FILES}"
     fi
-fi
-
-# Build independent targets regardless of library status (only for certain build targets)
-if [ ${#INDEPENDENT_TARGETS[@]} -gt 0 ]; then
-    for target in "${INDEPENDENT_TARGETS[@]}"; do
-        if make --directory ./$BUILD_DIR $target > /dev/null 2>&1; then
-            SUCCESSFUL_TARGETS+=("$target")
-        else
-            echo "❌ FAILED: $target compilation failed"
-            echo "   Error details:"
-            make --directory ./$BUILD_DIR $target 2>&1 | sed 's/^/   /'
-            FAILED_TARGETS+=("$target")
-        fi
-    done
 fi
 
 echo ""
 echo "==================================================================="
-echo "BUILD SUMMARY"
-echo "==================================================================="
-echo "Build Configuration: $BUILD_TYPE mode with $COMPILER_NAME compiler"
-if [ "$COMPILER_CHOICE" = "" ] || [ "$COMPILER_CHOICE" = "default" ]; then
-    echo "System Compiler: $ACTUAL_COMPILER"
-fi
-echo "Build Directory: $BUILD_DIR"
+echo "Build Configuration: $BUILD_TYPE mode"
 echo "Build Target: $BUILD_TARGET"
-echo ""
-
-if [ ${#FAILED_TARGETS[@]} -eq 0 ]; then
-    echo "✅ All targets compiled successfully!"
-    echo ""
-else
-    echo ""
-    echo "✅ SUCCESSFUL TARGETS (${#SUCCESSFUL_TARGETS[@]}):"
-    if [ ${#SUCCESSFUL_TARGETS[@]} -eq 0 ]; then
-        echo "   None"
+if [ "$INSTALL_LIBRARY" = true ]; then
+    if [ -n "$INSTALL_PREFIX" ]; then
+        echo "Install Location: $INSTALL_PREFIX"
     else
-        for target in "${SUCCESSFUL_TARGETS[@]}"; do
-            echo "   - $target"
-        done
-    fi
-
-    echo ""
-    echo "❌ FAILED TARGETS (${#FAILED_TARGETS[@]}):"
-    for target in "${FAILED_TARGETS[@]}"; do
-        if [ "$target" = "xcplib" ]; then
-            echo "   - $target (CRITICAL - core library failure)"
-        else
-            echo "   - $target"
-        fi
-    done
-
-    echo ""
-    if [[ " ${FAILED_TARGETS[@]} " =~ " xcplib " ]]; then
-        echo "💥 LIBRARY FAILURE: Core library (xcplib) failed to compile."
-        echo "   Library-dependent targets were skipped."
+        echo "Install Location: $BUILD_DIR/install (local staging)"
     fi
 fi
-
-echo ""
 echo "==================================================================="
+echo ""
 
-# Exit with error code if any target failed
-if [ ${#FAILED_TARGETS[@]} -gt 0 ]; then
-    if [ "$COMPILER_CHOICE" = "" ] || [ "$COMPILER_CHOICE" = "default" ]; then
-        echo "Total: ${#SUCCESSFUL_TARGETS[@]} successful, ${#FAILED_TARGETS[@]} failed ($BUILD_TYPE build with $COMPILER_NAME - $ACTUAL_COMPILER)"
-    else
-        echo "Total: ${#SUCCESSFUL_TARGETS[@]} successful, ${#FAILED_TARGETS[@]} failed ($BUILD_TYPE build with $COMPILER_NAME)"
-    fi
-    echo "==================================================================="
-    exit 1
-else
-    if [ "$COMPILER_CHOICE" = "" ] || [ "$COMPILER_CHOICE" = "default" ]; then
-        echo "Build completed successfully: $BUILD_TYPE mode with $COMPILER_NAME compiler ($ACTUAL_COMPILER)"
-    else
-        echo "Build completed successfully: $BUILD_TYPE mode with $COMPILER_NAME compiler"
-    fi
-    echo "==================================================================="
-    echo ""
+if [ "$BUILD_SUCCESS" = true ]; then
     exit 0
+else
+    echo "Build failed - see error messages above"
+    exit 1
 fi
 
 

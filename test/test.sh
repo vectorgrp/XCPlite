@@ -32,7 +32,7 @@ log_plain() {
 # Path to tools
 BINTOOL="bintool"
 A2LTOOL="a2ltool"
-XCPCLIENT="xcp_client"
+XCPCLIENT="xcpclient"
 
 # Get the workspace root directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -184,7 +184,7 @@ PASSED=0
 FAILED=0
 SKIPPED=0
 
-# Counter for xcp_client tests
+# Counter for xcpclient tests
 XCP_CRASHED=0
 
 # Counter for hex file comparisons
@@ -245,9 +245,9 @@ run_example() {
     cd "$WORKSPACE_ROOT"
     "$exe_path" > "$tmp_output" 2>&1 &
     local pid=$!
-    # Stay in WORKSPACE_ROOT - don't change back yet so xcp_client runs in same directory
+    # Stay in WORKSPACE_ROOT - don't change back yet so xcpclient runs in same directory
     
-    # Run xcp_client test connect (foreground) if available
+    # Run xcpclient test connect (foreground) if available
     sleep 1.0  # Give the example more time to initialize - A2L file is created on first connect
     
     if command -v "$XCPCLIENT" &> /dev/null; then
@@ -256,26 +256,26 @@ run_example() {
         local protocol_flag="--${protocol}"
         local protocol_upper=$(echo "$protocol" | tr '[:lower:]' '[:upper:]')
         
-        log_plain "${BLUE}    Running xcp_client to test connection ($protocol_upper)...${NC}"
-        # Run xcp_client from current directory (WORKSPACE_ROOT)
+        log_plain "${BLUE}    Running xcpclient to test connection ($protocol_upper)...${NC}"
+        # Run xcpclient from current directory (WORKSPACE_ROOT)
         # where the demo app is running and will create the A2L file
         # Disable exit-on-error for this command
         set +e
-        # Create a temp file for xcp_client output
+        # Create a temp file for xcpclient output
         local tmp_xcp=$(mktemp)
         
-        # Run xcp_client - it will connect and the server will create the A2L file in current dir
-        # xcp_client will automatically find and use the A2L file from the current directory
+        # Run xcpclient - it will connect and the server will create the A2L file in current dir
+        # xcpclient will automatically find and use the A2L file from the current directory
         "$XCPCLIENT" "$protocol_flag" > "$tmp_xcp" 2>&1
         local xcp_exit=$?
         
-        # Append xcp_client output to main output file for logging
+        # Append xcpclient output to main output file for logging
         cat "$tmp_xcp" >> "$tmp_output"
         
-        # Also log xcp_client output to log file with indentation for visibility
+        # Also log xcpclient output to log file with indentation for visibility
         if [ -s "$tmp_xcp" ]; then
             echo "" >> "$LOG_FILE"
-            echo "  xcp_client output ($protocol_upper):" >> "$LOG_FILE"
+            echo "  xcpclient output ($protocol_upper):" >> "$LOG_FILE"
             echo "  ........................................" >> "$LOG_FILE"
             sed 's/^/  /' "$tmp_xcp" >> "$LOG_FILE"
             echo "  ........................................" >> "$LOG_FILE"
@@ -285,20 +285,20 @@ run_example() {
         set -e
         
         if [ $xcp_exit -eq 0 ]; then
-            log_plain "${GREEN}      ✓ xcp_client test passed ($protocol_upper)${NC}"
+            log_plain "${GREEN}      ✓ xcpclient test passed ($protocol_upper)${NC}"
         elif [ $xcp_exit -eq 134 ]; then
             # Exit code 134 is abort/panic - this is a serious error
-            log_plain "${RED}      ✗ xcp_client CRASHED (abort/panic, exit code 134)${NC}"
-            log_plain "${RED}         This indicates a bug in xcp_client - check the log file for details${NC}"
+            log_plain "${RED}      ✗ xcpclient CRASHED (abort/panic, exit code 134)${NC}"
+            log_plain "${RED}         This indicates a bug in xcpclient - check the log file for details${NC}"
             XCP_CRASHED=$((XCP_CRASHED + 1))
         else
-            log_plain "${YELLOW}      ⚠ xcp_client exited with code $xcp_exit (connection may have failed)${NC}"
+            log_plain "${YELLOW}      ⚠ xcpclient exited with code $xcp_exit (connection may have failed)${NC}"
         fi
         
         # Give the server a moment to finish writing the A2L file
         sleep 0.2
 
-      # Run xcp_client a second time in test mode
+      # Run xcpclient a second time in test mode
       # "$XCPCLIENT" "$protocol_flag" "--test"
 
 
@@ -524,8 +524,8 @@ log_plain "${YELLOW}Skipped: $SKIPPED${NC}"
 fi
 log_plain ""
 if [ $XCP_CRASHED -gt 0 ]; then
-    log_plain "${RED}⚠ WARNING: xcp_client crashed $XCP_CRASHED time(s)${NC}"
-    log_plain "${RED}  This indicates bugs in xcp_client that need to be fixed!${NC}"
+    log_plain "${RED}⚠ WARNING: xcpclient crashed $XCP_CRASHED time(s)${NC}"
+    log_plain "${RED}  This indicates bugs in xcpclient that need to be fixed!${NC}"
     log_plain ""
 fi
 if [ $HEX_COMPARED -gt 0 ]; then

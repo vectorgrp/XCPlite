@@ -1,4 +1,4 @@
-﻿// c_demo xcplib example
+﻿// c_demo XCPlite example
 
 #include <assert.h>  // for assert
 #include <signal.h>  // for signal handling
@@ -7,24 +7,28 @@
 #include <stdio.h>   // for printf
 #include <string.h>  // for sprintf
 
-#include "a2l.h"    // for xcplib A2l generation
-#include "xcplib.h" // for xcplib application programming interface
+#include "a2l.h"    // for A2l generation
+#include "xcplib.h" // for application programming interface
 
 //-----------------------------------------------------------------------------------------------------
 
 // XCP parameters
-#define OPTION_PROJECT_NAME "c_demo"    // A2L project name
-#define OPTION_PROJECT_EPK __TIME__     // EPK version string
-#define OPTION_USE_TCP false            // TCP or UDP
-#define OPTION_SERVER_PORT 5555         // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE 1024 * 32     // Size of the measurement queue in bytes, must be a multiple of 8
-#define OPTION_LOG_LEVEL 3              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_PROJECT_NAME "c_demo"          // A2L project name
+#define OPTION_PROJECT_VERSION "V1_" __TIME__ // EPK version string
+#define OPTION_USE_TCP false                  // TCP or UDP
+#define OPTION_SERVER_PORT 5555               // Port
+#define OPTION_SERVER_ADDR {0, 0, 0, 0}       // Bind addr, 0.0.0.0 = ANY
+#define OPTION_QUEUE_SIZE (1024 * 32)         // Size of the measurement queue in bytes
+#define OPTION_LOG_LEVEL 3                    // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+
+// Enable level 4 to observe how asynchronous read/write access to a variable on the stack works, and how the consistent parameter update and measurement works
+// See README.md
+
 // #define OPTION_CANAPE_24                // Enable CANape 24 shared axis support for typedefs
 
 //-----------------------------------------------------------------------------------------------------
-
 // Demo calibration parameters
+
 typedef struct params {
     uint16_t counter_max; // Maximum value for the counters
     uint32_t delay_us;    // Delay in microseconds for the main loop
@@ -38,8 +42,8 @@ typedef struct params {
 const params_t params = {
     .counter_max = 1024,
     .delay_us = 1000,
-    .test_byte1 = -1,
-    .test_byte2 = 1,
+    .test_byte1 = 1,
+    .test_byte2 = -1,
     .map = {{0, 0, 0, 0, 0, 0, 0, 0},
             {0, 1, 1, 1, 1, 1, 0, 0},
             {0, 1, 3, 3, 3, 1, 0, 0},
@@ -52,6 +56,14 @@ const params_t params = {
     .curve_axis = {0, 1, 2, 4, 6, 9, 13, 15},
 };
 
+// A2lGetTypeId does not work with volatile
+uint8_t g_param8 = 8;
+uint16_t g_param16 = 16;
+uint32_t g_param32 = 32;
+uint64_t g_param64 = 64;
+
+//-----------------------------------------------------------------------------------------------------
+
 // Global measurement variables
 uint8_t g_counter8 = 0;
 uint16_t g_counter16 = 0;
@@ -62,6 +74,8 @@ int16_t g_counter16s = 0;
 int32_t g_counter32s = 0;
 int64_t g_counter64s = 0;
 
+uint64_t g_param_sum = 0; // Test variable for the sum of the parameters, updated in the main loop and used for measurement
+
 //-----------------------------------------------------------------------------------------------------
 
 // Signal handler for clean shutdown
@@ -71,7 +85,7 @@ static void sig_handler(int sig) { running = false; }
 // Demo main
 int main(void) {
 
-    printf("\nXCP on Ethernet C xcplib demo\n");
+    printf("\nXCP on Ethernet C demo\n");
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 
@@ -80,7 +94,7 @@ int main(void) {
 
     // Initialize the XCP singleton, activate XCP, must be called before starting the server
     // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_EPK, true);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION, XCP_MODE_LOCAL);
 
     // Initialize the XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;
@@ -104,7 +118,7 @@ int main(void) {
     A2lTypedefBegin(params_t, &params, "Calibration parameters typedef");
     A2lTypedefParameterComponent(test_byte1, "Test byte for calibration consistency test", "", -128, 127);
     A2lTypedefParameterComponent(test_byte2, "Test byte for calibration consistency test", "", -128, 127);
-    A2lTypedefParameterComponent(counter_max, "", "", 0, 2000);
+    A2lTypedefParameterComponent(counter_max, "", "", 0, 10000);
     A2lTypedefParameterComponent(delay_us, "Mainloop sleep time in us", "us", 0, 1000000);
     A2lTypedefMapComponent(map, 8, 8, "Demo map", "", -128, 127);
 #ifdef OPTION_CANAPE_24
@@ -127,6 +141,25 @@ int main(void) {
     // A2lCreateCurve(params.curve, 8, "", "", -128, 127);
     // A2lCreateMap(params.map, 8, 8, "", "", -128, 127);
 
+    // Create a measurement and calibration event 'mainloop' for the main thread
+    DaqCreateEvent(mainloop);
+
+    // Global variables as calibration parameters
+    // Register the global parameters (g_paramxx)for access without using a calibration segment
+    // Calibration access without using a calibration segment is not guaranteed to be thread safe and consistent
+    // With XCPlite and CANape, aligned parameters of basic type (uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t) can be safely accessed from multiple
+    // threads without using calibration segment, but the concurrent access from the XCP thread is theoretically in conflict and so this is undefined behavior
+    // A2lSetAbsoluteAddrMode(mainloop); // Works for aligned basic types, but still considered undefined behavior
+    // To be safe in a single threaded scenario, access can be done in relative addressing mode with event synchronization as shown below
+    // Write access relative to the module load address happens in the XcpEventExt(mainloop,ApplXcpGetModuleAddr()) call
+    // @@@@ TODO To make the compiler aware of this, the variables should volatile, A2lGetTypeId currently does not work with volatile
+    // The same approach would work to modify local variables on the stack or in any other memory location
+    A2lSetRelativeAddrMode(mainloop, ApplXcpGetModuleAddr());
+    A2lCreateParameter(g_param8, "test calibration parameter without calibration segment", "", 0, 255);
+    A2lCreateParameter(g_param16, "test calibration parameter without calibration segment", "", 0, 65535);
+    A2lCreateParameter(g_param32, "test calibration parameter without calibration segment", "", 0, 4294967295);
+    A2lCreateParameter(g_param64, "test calibration parameter without calibration segment", "", 0, 18446744073709551615U);
+
     // Variables on stack
     uint16_t counter = 0;
     uint8_t counter8 = 0;
@@ -138,13 +171,9 @@ int main(void) {
     int32_t counter32s = 0;
     int64_t counter64s = 0;
 
-    // Create a measurement event for local variables
-    DaqCreateEvent(mainloop);
-
     // Register global measurement variables
     A2lSetAbsoluteAddrMode(mainloop);
-    A2lCreateMeasurement(counter, "Mainloop counter");
-
+    A2lCreateMeasurement(g_param_sum, "Sum of g_paramxx for consistency check");
     A2lCreateMeasurement(g_counter8, "Measurement variable");
     A2lCreateMeasurement(g_counter16, "Measurement variable");
     A2lCreateMeasurement(g_counter32, "Measurement variable");
@@ -156,6 +185,7 @@ int main(void) {
 
     // Register measurement variables located on stack
     A2lSetStackAddrMode(mainloop);
+    A2lCreateMeasurement(counter, "Mainloop counter");
     A2lCreateMeasurement(counter8, "Measurement variable");
     A2lCreateMeasurement(counter16, "Measurement variable");
     A2lCreateMeasurement(counter32, "Measurement variable");
@@ -223,7 +253,7 @@ int main(void) {
         // Use the update button in the calibration window to trigger consistent modifications, the message below should never appear
         // There should be also no message when switching from RAM ro FLASH
         params_copy = *params;
-        if (params_copy.test_byte1 != -params_copy.test_byte2) {
+        if (params_copy.test_byte1 != -params_copy.test_byte2 && params_copy.test_byte2 < 0) {
             char buffer[64];
             snprintf(buffer, sizeof(buffer), "Inconsistent %u:  %d -  %d", counter16, params_copy.test_byte1, params_copy.test_byte2);
             XcpPrint(buffer);
@@ -233,8 +263,8 @@ int main(void) {
         // Unlock the calibration segment
         XcpUnlockCalSeg(calseg);
 
-        // Trigger the measurement event for global and local variables on stack
-        DaqTriggerEvent(mainloop);
+        // Trigger the measurement event for globals, local variables on stack, and event synchronized calibration access without using a calibration segment
+        DaqTriggerEventExt(mainloop, ApplXcpGetModuleAddr());
 
         // Check server status
         if (!XcpEthServerStatus()) {
@@ -275,18 +305,34 @@ int main(void) {
         g_counter32s = counter32s;
         g_counter64s = counter64s;
 
+        g_param_sum = g_param8 + g_param16 + g_param32 + g_param64;
+
         // Sleep for the specified delay parameter in microseconds
         sleepUs(delay_us);
 
-        A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
-
     } // while (running)
 
-    // Force disconnect the XCP client
-    XcpDisconnect();
-
-    // Stop the XCP server
-    XcpEthServerShutdown();
-
+    XcpDisconnect();        // Force disconnect the XCP client
+    A2lFinalize();          // Finalize A2L generation, if not done yet
+    XcpEthServerShutdown(); // Stop the XCP server
     return 0;
 }
+
+/*
+ // Create a calibration parameter for delay_us for thread safe and memory safe calibration access
+        // The sleep time can be adjusted, the original value of parameter delay_us is used as default value
+        // This can be done at any place in the code
+        // delay_us must not necessarily have static lifetime
+        // It supports RAM/FLASH page switching and persistence (save to BIN file)
+        // tXcpCalSegIndex v = CalValCreate(delay_us);
+        // {
+        //     A2lOnce() {
+        //         A2lSetSegmentAddrMode(v, delay_us);
+        //         A2lCreateParameter(delay_us, "Sleep time in us", "us", 0, 999999);
+        //     }
+        // }
+        // uint32_t *delay_us = (uint32_t *)XcpLockCalSeg(v);
+        // sleepUs(*delay_us);
+        // XcpUnlockCalSeg(v);
+
+*/

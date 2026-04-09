@@ -1,6 +1,6 @@
 # XCPlite API Reference Guide
 
-**Version**: 1.0.0
+**Version**: 1.2.0
 
 ## Table of Contents
 
@@ -12,7 +12,7 @@
 
 ## 1 · Overview
 
-This guide documents the C API exposed by **xcplib** and demonstrates its integration in a host application.\
+This guide documents the C API exposed by **libxcplite** and demonstrates its integration in a host application.\
 All functions are *C linkage* and can therefore be consumed directly from C/C++, or via FFI from Rust and other languages.
 
 Key features:
@@ -52,7 +52,7 @@ C++ Example:
 The log level can be set at runtime to control the verbosity of log output.  
 To save resources, it is recommended to set the log level to a fixed minimal level in production systems, or even to a fixed level not adjustable at runtime.
 
-In main_cfg.h:
+In xcplib_cfg.h:
 ```c
 /* Set maximum runtime adjustable log level:
    1 - Error
@@ -61,7 +61,7 @@ In main_cfg.h:
    4 - Trace
    5 - Debug
 */
-   #define OPTION_MAX_DBG_LEVEL 3 
+   #define OPTION_MAX_DBG_LEVEL 5 
    // #define OPTION_FIXED_DBG_LEVEL 3
 
 ```
@@ -137,7 +137,7 @@ C++ Example:
    const ParametersT kParameters = {.min = 2.0, .max = 3.0};
 
    // A calibration segment wrapper for the parameters
-   std::optional<xcplib::CalSeg<ParametersT>> gCalSeg;
+   std::optional<xcp::CalSeg<ParametersT>> gCalSeg;
 
     // Create a global calibration segment wrapper for the struct 'ParametersT' and use its default values in constant 'kParameters'
     // This calibration segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
@@ -279,11 +279,18 @@ XCP must be initialized always, but it may be initialized in inactive mode.
 Calling other XCP API functions without prior initialization may create undefined behaviour.  
 In inactive mode, all XCP and A2L code instrumentation remains passive, disabled with minimal runtime overhead.  
 
+- **Parameters**
+  - `name` – Project name, used as A2L file name and to identify the XCP server
+  - `epk` – EPK version string, used for version compatibility check of A2L and BIN file
+  - `mode` – XCP_MODE_DEACTIVATE, XCP_MODE_LOCAL (XCP_MODE_SHM, XCP_MODE_SHM_AUTO or XCP_MODE_SHM_SERVER for libxcplite builds with SHM mode)
+
+
+
 ### 3.1 · XCP on Ethernet Server
 
 #### bool XcpEthServerInit(uint8_t *address, uint16_t port, bool use_tcp, uint32_t measurement\_queue_size)
 
-*Initialise the XCP server singleton.*
+*Initialise the XCP server.*
 
 - **Preconditions**: `XcpInit()` has been called; only one server instance may be active.
 - **Parameters**
@@ -295,6 +302,8 @@ In inactive mode, all XCP and A2L code instrumentation remains passive, disabled
 
 #### bool XcpEthServerShutdown(void)
 
+*Stop the XCP server.*
+
 Stop the running server and free internal resources.
 
 #### bool XcpEthServerStatus(void)
@@ -302,11 +311,6 @@ Stop the running server and free internal resources.
 *Get server status*
 
 Query whether the server instance is currently running.
-
-#### void XcpEthServerGetInfo(bool \*out\_is\_tcp, uint8\_t \*out\_mac, uint8\_t \*out\_address, uint16\_t \*out\_port)
-
-Retrieve run‑time information about the active server.\
-All out‑parameters are *optional* and may be passed as `NULL`.
 
 ---
 
@@ -336,10 +340,10 @@ Library function to create events:
 /// If the event name already exists, returns the existing event event number
 /// Function is thread safe by using a mutex for event list access.
 /// @param name Name of the event.
-/// @param cycleTimeNs Cycle time in nanoseconds. 0 means sporadic event.
+/// @param cycle_time_ns Cycle time in nanoseconds. 0 means sporadic event.
 /// @param priority Priority of the event. 0 means normal, >=1 means realtime.
 /// @return The event id or XCP_UNDEFINED_EVENT_ID if out of event list memory.
-tXcpEventId XcpCreateEvent(const char *name, uint32_t cycleTimeNs /* ns */, uint8_t priority /* 0-normal, >=1 realtime*/);
+tXcpEventId XcpCreateEvent(const char *name, uint32_t cycle_time_ns /* ns */, uint8_t priority /* 0-normal, >=1 realtime*/);
 ```
 
 Library functions to trigger and control events:
@@ -488,7 +492,7 @@ All definitions of instances follow the same principle: Set the addressing mode 
 | `void XcpDisconnect(void);`                                      | Force client disconnect, stop DAQ, flush pending operations.    |
 | `void XcpSendTerminateSessionEvent(void);`                       | Notify client of a terminated session.                          |
 | `void XcpPrint(const char *str);`                                | Send arbitrary text to the client (channel 0xFF).               |
-| `uint64_t ApplXcpGetClock64(void);`                              | Retrieve 64‑bit DAQ timestamp.                                  |
+| `uint64_t ApplXcpGetClock64(void);`                              | Get 64-bit DAQ timestamp from whatever is configured.           |
 
 ---
 

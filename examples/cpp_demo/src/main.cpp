@@ -1,4 +1,4 @@
-// cpp_demo xcplib C++ example
+// cpp_demo XCPlite/libxcplite C++ example
 
 #include <atomic>   // for std::atomic
 #include <csignal>  // for signal(), SIGINT, SIGTERM
@@ -6,8 +6,9 @@
 #include <iostream> // for std::cout
 #include <thread>   // for std::thread
 
-#include "a2l.hpp"    // for xcplib A2l generation application programming interface
-#include "xcplib.hpp" // for xcplib application programming interface
+// Include XCPlite/libxcplite C++ headers
+#include "a2l.hpp"    // for A2l generation application programming interface
+#include "xcplib.hpp" // for application programming interface
 
 #include "lookup.hpp"  // for lookup_table::LookupTableT
 #include "sig_gen.hpp" // for signal_generator::SignalGenerator
@@ -19,10 +20,10 @@
 // XCP parameters
 
 constexpr const char *OPTION_PROJECT_NAME = "cpp_demo";
-constexpr const char OPTION_PROJECT_VERSION[] = __TIME__;
+constexpr const char OPTION_PROJECT_VERSION[] = "V1_" __TIME__;
 constexpr bool OPTION_USE_TCP = false;
 constexpr uint16_t OPTION_SERVER_PORT = 5555;
-constexpr size_t OPTION_QUEUE_SIZE = 1024 * 64;
+constexpr size_t OPTION_QUEUE_SIZE = (1024 * 64);
 constexpr int OPTION_LOG_LEVEL = 3;
 constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};
 
@@ -54,7 +55,7 @@ const signal_generator::SignalParametersT kSignalParameters1 = {
     .ampl = 12.5,
     .phase = 0.0,
     .offset = 0.0,
-    .period = 0.4, // s
+    .period = 1.0, // s
     .lookup =
         {
             .values = {0.0f, 0.5f, 1.0f, 0.50f, 0.0f, -0.5f, -1.0f, -0.5f, 0.0f, 0.0f, 0.0f},
@@ -62,8 +63,8 @@ const signal_generator::SignalParametersT kSignalParameters1 = {
             .lookup_axis = {0.0f, 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f},
 #endif
         },
-    .delay_us = 1000,                                   // us
-    .signal_type = signal_generator::SignalTypeT::SINE, // Type of the signal
+    .delay_us = 1000,                                       // us
+    .signal_type = signal_generator::SignalTypeT::TRIANGLE, // Type of the signal
 };
 const signal_generator::SignalParametersT kSignalParameters2 = {
     .ampl = 80.0,
@@ -89,7 +90,7 @@ static void sig_handler(int sig) { running = false; }
 
 int main() {
 
-    std::cout << "\nXCP on Ethernet cpp_demo C++ xcplib demo\n" << std::endl;
+    std::cout << "\nXCP on Ethernet cpp_demo C++ demo\n" << std::endl;
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 
@@ -98,7 +99,7 @@ int main() {
 
     // Initialize the XCP singleton, activate XCP, must be called before starting the server
     // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION /* EPK version*/, true /* activate */);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION /* EPK version*/, XCP_MODE_LOCAL);
 
     // Initialize the XCP Server
     if (!XcpEthServerInit(OPTION_SERVER_ADDR, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_QUEUE_SIZE)) {
@@ -117,7 +118,7 @@ int main() {
     // This calibration segment has a working page (RAM) and a reference page (FLASH), it creates a MEMORY_SEGMENT in the A2L file
     // It provides safe (thread safe against XCP modifications), lock-free and consistent access to the calibration parameters
     // It supports XCP/ECU independent page switching, checksum calculation and reinitialization (copy reference page to working page)
-    auto calseg = xcplib::CreateCalSeg("kParameters", &kParameters);
+    auto calseg = CalSegCreate(kParameters);
 
     // Add the calibration segment description as a typedef instance to the A2L file
     A2lTypedefBegin(ParametersT, &kParameters, "A2L Typedef for ParametersT");
@@ -173,7 +174,7 @@ int main() {
 
     // Main loop
     std::cout << "Starting main loop..." << std::endl;
-    uint64_t loop_time = clockGetUs();
+    uint64_t loop_time = clockGetMonotonicUs();
     uint64_t last_loop_time = loop_time;
     while (running) {
         // Access the calibration parameters 'delay' and 'counter_max' safely
@@ -190,7 +191,7 @@ int main() {
 
         // Measure and calculate the mainloop cycle time, build histogram
         last_loop_time = loop_time;
-        loop_time = clockGetUs();
+        loop_time = clockGetMonotonicUs();
         loop_cycletime = loop_time - last_loop_time;
         loop_histogram[(loop_cycletime >= (kHistogramBin * (kHistogramSize - 1))) ? (kHistogramSize - 1) : (loop_cycletime / kHistogramBin)]++;
 
@@ -225,13 +226,21 @@ int main() {
 
         sleepUs(calseg.lock()->delay_us);
 
-        A2lFinalize(); // @@@@ TEST: Manually finalize the A2L file to make it visible without XCP tool connect
-
     } // while (running)
 
-    // Cleanup
-    XcpDisconnect();
-    XcpEthServerShutdown();
-
+    XcpDisconnect();        // Force disconnect the XCP client
+    A2lFinalize();          // Finalize A2L generation, if not done yet
+    XcpEthServerShutdown(); // Stop the XCP server
     return 0;
 }
+
+/*
+
+ // Make kDelayUs a tunable parameter
+        // auto delay_us = CalValCreate(kDelayUs);
+        // if (A2lOnce()) { // Create the parameter description in A2L once
+        //     A2lCreateParameter(kDelayUs, "Loop delay in microseconds", "", 0, 1000000);
+        // }
+        // sleepUs(*delay_us.lock());
+
+*/

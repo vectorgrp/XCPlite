@@ -17,21 +17,29 @@
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uintxx_t
 
-#include "xcpLite.h" // for tXcpCalSegIndex
+#include "xcplib_cfg.h" // for OPTION_xxx
+#include "xcplite.h"    // for tXcpCalSegIndex
 
-#ifdef OPTION_CAL_PERSISTENCE
+#ifdef OPTION_ENABLE_PERSISTENCE
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-bool XcpBinWrite(uint8_t page);
+// Create the binary file with the current default pages
+bool XcpBinWrite(const char *epk);
+
+// Load the binary file and create calibration segment marked as preloaded
 bool XcpBinLoad(void);
+
+// Delete the binary file
 void XcpBinDelete(void);
+
+// Freeze current working page data of the specified calibration segment in the binary file
 bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg);
 
 #ifdef __cplusplus
 } // extern "C"
 #endif
 
-#endif // OPTION_CAL_PERSISTENCE
+#endif // OPTION_ENABLE_PERSISTENCE

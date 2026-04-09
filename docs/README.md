@@ -15,4 +15,8 @@ This directory contains detailed documentation for XCPlite.
 ### Advanced Topics
 - **[Technical Details](TECHNICAL.md)** - Instrumentation costs, A2L generation, addressing modes, EPK
 - **[Building](BUILDING.md)** - Detailed build instructions and troubleshooting
+- **[SHM](SHM.md)** - Shared memory transport layer details and usage
+- **[RCU](CAL_RCU.md)** - Read-Copy-Update (RCU) mechanism details and usage
+
+
 

@@ -1,5 +1,6 @@
 # rule set
-# main.cpp is a demo file, so we disable some checks 
+
+# misc-*,
 
 ---
 Checks: >
@@ -10,26 +11,66 @@ Checks: >
   readability-*,
   bugprone-*,
   modernize-*,
+  concurrency-*,
   performance-*,
   cert-*,
   cppcoreguidelines-*,
   hicpp-*,
   portability-*,
+
+  -concurrency-mt-unsafe,
+  
+  -bugprone-easily-swappable-parameters,
+  -bugprone-assignment-in-if-condition,
+  -bugprone-reserved-identifier,
+  
+  -readability-identifier-naming,
+  
   -readability-uppercase-literal-suffix,
-  -cert-dcl16-c,
-  -hicpp-uppercase-literal-suffix,
+  -readability-function-cognitive-complexity,
+  -readability-redundant-declaration,
+  -readability-else-after-return,
+  -readability-avoid-const-params-in-decls,
+  -readability-math-missing-parentheses,
+  -readability-inconsistent-declaration-parameter-name,
+  -readability-non-const-parameter,
+  -readability-avoid-nested-conditional-operator,
+  -readability-avoid-unconditional-preprocessor-if,
+  -readability-redundant-preprocessor,
+  -readability-redundant-casting,
   -readability-named-parameter,
-  -hicpp-named-parameter,
   -readability-redundant-member-init,
   -readability-make-member-function-const,
   -readability-braces-around-statements,
   -readability-identifier-length,
-  -hicpp-braces-around-statements,
-  -cppcoreguidelines-avoid-magic-numbers,
+  -readability-isolate-declaration,
+  -readability-function-size,
   -readability-magic-numbers,
+
+  -modernize-macro-to-enum,
+
+  -cert-dcl16-c,
+  -cert-err33-c,
+  
+  -hicpp-uppercase-literal-suffix,
+  -hicpp-signed-bitwise,
+  -hicpp-multiway-paths-covered,
+  -hicpp-named-parameter,
+  -hicpp-braces-around-statements,
+  -hicpp-function-size,
+  -hicpp-static-assert,
+  
+  -cppcoreguidelines-avoid-magic-numbers,
   -cppcoreguidelines-macro-usage,
+  -cppcoreguidelines-macro-to-enum,
+  -cppcoreguidelines-init-variables,
   -cppcoreguidelines-avoid-non-const-global-variables,
-  -modernize-use-trailing-return-type,
+  
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+  
+  -cert-dcl37-c,
+  -cert-dcl51-cpp,
+  
 
 
 FormatStyle: file
@@ -69,7 +110,7 @@ CheckOptions:
   - { key: readability-identifier-naming.MemberSuffix,               value: _          }
   - { key: readability-identifier-naming.ClassMemberCase,            value: lower_case }
   - { key: readability-identifier-naming.ClassMemberSuffix,          value: _          }
-  - { key: readability-identifier-naming.PublicMemberCase,           value: lower_case } # public members dont require trailing _
+  - { key: readability-identifier-naming.PublicMemberCase,           value: lower_case } # public members don't require trailing _
 
   # Parameters
   - { key: readability-identifier-naming.ParameterCase,              value: lower_case }

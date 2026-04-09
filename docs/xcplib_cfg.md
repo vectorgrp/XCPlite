@@ -1,6 +1,6 @@
 # XCPlite Configuration Guide
 
-**Version**: 1.0.0
+**Version**: 1.2.0
 
 ## 0 · XCPlite Configuration
 
@@ -21,9 +21,9 @@ Most important parameters are:
 
 The size of the transmission queue is a runtime parameter.
 
-## 1 · main_cfg.h
+## 1 · xcplib_cfg.h
 
-This section describes the configuration parameters in main_cfg.h.
+This section describes the configuration parameters in xcplib_cfg.h.
 
 ### XCP Protocol Options
 
@@ -34,14 +34,15 @@ This section describes the configuration parameters in main_cfg.h.
 | `OPTION_MTU` | Ethernet packet size (MTU) in bytes. Must be divisible by 8. Jumbo frames are supported (default: 8000) |
 | `OPTION_DAQ_MEM_SIZE` | Memory bytes used for XCP DAQ tables. Each signal needs approximately 5 bytes (default: 32 × 1024 × 5) |
 | `OPTION_ENABLE_A2L_UPLOAD` | Enables A2L file upload through XCP protocol |
+| `OPTION_ENABLE_ELF_UPLOAD` | Enables ELF  file upload through XCP protocol |
 | `OPTION_SERVER_FORCEFULL_TERMINATION` | Terminates server threads forcefully instead of waiting for graceful shutdown |
 
 ### Clock Configuration Options
 
 | Parameter | Description |
 |-----------|-------------|
-| `OPTION_CLOCK_EPOCH_ARB` | Uses arbitrary epoch (CLOCK_MONOTONIC_RAW) for time synchronization |
-| `OPTION_CLOCK_EPOCH_PTP` | Uses PTP epoch (CLOCK_REALTIME) for time synchronization |
+| `OPTION_CLOCK_EPOCH_ARB` | Uses arbitrary epoch (CLOCK_MONOTONIC_RAW on Linux, CLOCK_MONOTONIC on QNX) for DAQ timestamps  |
+| `OPTION_CLOCK_EPOCH_PTP` | Uses PTP epoch (CLOCK_REALTIME which may be disciplined by NTP or PTP4L on Linux) for DAQ timestamps  |
 | `OPTION_CLOCK_TICKS_1NS` | Sets clock resolution to 1 nanosecond |
 | `OPTION_CLOCK_TICKS_1US` | Sets clock resolution to 1 microsecond |
 
@@ -49,7 +50,7 @@ This section describes the configuration parameters in main_cfg.h.
 
 | Parameter | Description |
 |-----------|-------------|
-| `OPTION_ENABLE_GET_LOCAL_ADDR` | Enables automatic determination of local IP address for A2L files when bound to ANY (0.0.0.0). Note: May crash on Windows |
+| `OPTION_ENABLE_GET_LOCAL_ADDR` | Enables automatic determination of local IP address for A2L files when bound to ANY (0.0.0.0). |
 
 ### Logging Options
 
@@ -98,7 +99,7 @@ This section describes the XCP protocol layer configuration parameters in xcp_cf
 
 | Parameter | Description |
 |-----------|-------------|
-| `XCP_DRIVER_VERSION` | XCP driver version for GET_COMM_MODE_INFO command (default: 0x01) |
+| `XCP_DRIVER_VERSION` | XCP driver version for GET_COMM_MODE_INFO command |
 | `XCP_ENABLE_PROTOCOL_LAYER_ETH` | Enables Ethernet-specific protocol layer commands |
 | `XCP_PROTOCOL_LAYER_VERSION` | XCP protocol layer version (0x0104 - supports PACKED_MODE, CC_START_STOP_SYNCH) |
 
@@ -129,6 +130,7 @@ This section describes the XCP protocol layer configuration parameters in xcp_cf
 | `XCP_ENABLE_SEED_KEY` | Enables seed/key security mechanism (commented out by default) |
 | `XCP_ENABLE_SERV_TEXT` | Enables SERV_TEXT events |
 | `XCP_ENABLE_IDT_A2L_UPLOAD` | Enables A2L file upload via XCP (depends on OPTION_ENABLE_A2L_UPLOAD) |
+| `XCP_ENABLE_IDT_ELF_UPLOAD` | Enables ELF file upload via XCP (depends on OPTION_ENABLE_ELF_UPLOAD) |
 | `XCP_ENABLE_USER_COMMAND` | Enables user-defined commands for atomic calibration operations |
 
 ### DAQ Features and Parameters
@@ -136,7 +138,6 @@ This section describes the XCP protocol layer configuration parameters in xcp_cf
 | Parameter | Description |
 |-----------|-------------|
 | `XCP_MAX_EVENT_COUNT` | Maximum number of DAQ events. Must be even. Optimizes DAQ list to event association lookup (default: 256) |
-| `XCP_MAX_DAQ_COUNT` | Maximum number of DAQ lists. Must be ≤ 0xFFFE (default: 1024) |
 | `XCP_DAQ_MEM_SIZE` | Static memory allocation for DAQ tables. Each ODT entry needs 5 bytes, each DAQ list 12 bytes, each ODT 8 bytes |
 | `XCP_ENABLE_DAQ_RESUME` | Enables DAQ resume mode functionality |
 | `XCP_ENABLE_DAQ_PRESCALER` | Enables DAQ prescaler (downsampling) |
@@ -149,8 +150,8 @@ This section describes the XCP protocol layer configuration parameters in xcp_cf
 | Parameter | Description |
 |-----------|-------------|
 | `XCP_ENABLE_CALSEG_LIST` | Enables calibration segment list management (not needed for Rust xcp-lite) |
-| `XCP_MAX_CALSEG_COUNT` | Maximum number of calibration segments (default: 4) |
-| `XCP_MAX_CALSEG_NAME` | Maximum length for calibration segment names (default: 15) |
+| `XCP_MAX_CALSEG_COUNT` | Maximum number of calibration segments (default: 32) |
+| `XCP_CAL_MEM_SIZE` | Static memory allocation for calibration segment memory (default: 16 KB) |
 | `XCP_ENABLE_CALSEG_LAZY_WRITE` | Enables lazy write mode for calibration segments with background RCU updates |
 | `XCP_CALSEG_AQUIRE_FREE_PAGE_TIMEOUT` | Timeout for acquiring free calibration segment pages in milliseconds (default: 500) |
 
@@ -163,7 +164,6 @@ This section describes the XCP protocol layer configuration parameters in xcp_cf
 | `XCP_TIMESTAMP_TICKS` | Ticks per timestamp unit (default: 1) |
 | `XCP_ENABLE_PTP` | Enables PTP (Precision Time Protocol) grandmaster clock support |
 
-
 ### Multicast Clock Synchronization
 
 | Parameter | Description |
@@ -171,41 +171,11 @@ This section describes the XCP protocol layer configuration parameters in xcp_cf
 | `XCP_ENABLE_DAQ_CLOCK_MULTICAST` | Enables GET_DAQ_CLOCK_MULTICAST functionality (not recommended) |
 | `XCP_MULTICAST_CLUSTER_ID` | XCP multicast cluster ID for time synchronization (default: 1) |
 
-### Debug Configuration
 
-| Parameter | Description |
-|-----------|-------------|
-| `XCP_ENABLE_TEST_CHECKS` | Enables extended error checks with performance penalty |
-| `XCP_ENABLE_OVERRUN_INDICATION_PID` | Enables overrun indication via PID (not needed for Ethernet) |
-
-## 4 · Transmit Queue Configuration
-
-The 64-bit transmit queue has several parameters to further optimize DAQ measurement performance and data capture side effects.
-
-### Queue Implementation Selection
-
-The queue implementation can be configured using one of three mutually exclusive defines that control the synchronization mechanism between producers and consumers:
-
-| Parameter | Description |
-|-----------|-------------|
-| `QUEUE_MUTEX` | Uses mutex-based producer locking. This is convenient and might be optimal for high throughput when worst-case producer latency is acceptable. No consumer lock, uses memory fences between producer and consumer |
-| `QUEUE_SEQ_LOCK` | Uses sequence lock to protect against inconsistency during entry acquire. The queue is lock-free with minimal CAS spin wait in contention. The consumer may spin heavily to acquire a safe consistent head |
-| `QUEUE_NO_LOCK` | No synchronization between producer and consumer. Producer uses CAS loop to increment head, consumer clears memory completely for consistent reservation state. Tradeoff between consumer spin activity and consumer cache activity - might be optimal for medium throughput |
-
-**Default**: `QUEUE_NO_LOCK` is enabled by default as it provides the best balance for medium throughput scenarios.
-
-### Queue Optimization Parameters
-
-| Parameter | Description |
-|-----------|-------------|
-| `QUEUE_ACCUMULATE_PACKETS` | Enables accumulation of multiple XCP packets into XCP messages within a segment obtained with `QueuePeek()`. This improves efficiency by reducing the number of network operations |
-| `QUEUE_PEEK_THRESHOLD` | Minimum number of bytes that must be in the queue before `QueuePeek()` returns a segment. Set to `XCPTL_MAX_SEGMENT_SIZE` by default to optimize transmission efficiency |
-| `CACHE_LINE_SIZE` | Cache line size used to align queue entries and queue header. Set to 128 bytes to accommodate most modern CPU architectures |
-| `MAX_ENTRY_SIZE` | Maximum size of a single queue entry, calculated as `XCPTL_MAX_DTO_SIZE + XCPTL_TRANSPORT_LAYER_HEADER_SIZE`. Must be aligned to `XCPTL_PACKET_ALIGNMENT` |
 
 ### Queue Runtime Configuration
 
-The queue size is configured at runtime when calling `QueueInit(buffer_size)`. The buffer size determines:
+The queue size is configured at runtime when calling `queueInit(buffer_size)`. The buffer size determines:
 
 - Total memory allocated for the queue
 - Number of queue entries that can be stored

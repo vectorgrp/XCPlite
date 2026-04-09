@@ -1,4 +1,4 @@
-// point_cloud_demo - xcplib C++ example
+// point_cloud_demo - XCPlite/libxcplite C++ example
 // Simulates a 3D point cloud with simple physics to demonstrate visualization of 3-dimensional objects in CANapes 3D scene window
 // All XCPlite related instrumentation code is marked with "XCP:" comments
 
@@ -12,8 +12,9 @@
 #include <iostream>  // for std::cout
 #include <optional>  // for std::optional
 
-#include <a2l.hpp>    // for xcplib A2l generation application programming interface
-#include <xcplib.hpp> // for xcplib application programming interface
+// Include XCPlite/libxcplite C++ headers
+#include <a2l.hpp>    // for A2l generation application programming interface
+#include <xcplib.hpp> // for application programming interface
 
 //-----------------------------------------------------------------------------------------------------
 // XCP: Configuration
@@ -22,7 +23,7 @@ constexpr const char OPTION_PROJECT_NAME[] = "point_cloud_demo";
 constexpr const char OPTION_PROJECT_VERSION[] = __TIME__;
 constexpr bool OPTION_USE_TCP = true;
 constexpr uint16_t OPTION_SERVER_PORT = 5555;
-constexpr size_t OPTION_QUEUE_SIZE = 1024 * 64;
+constexpr size_t OPTION_QUEUE_SIZE = (1024 * 64);
 constexpr int OPTION_LOG_LEVEL = 4;
 constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};
 
@@ -111,13 +112,14 @@ template <uint16_t N> class PointCloud {
 
         if (A2lOnce()) {
 
-            // Register the calibration paramneter struct
+            // Register the calibration parameter struct
+            // C style
             A2lTypedefBegin(ParametersT, &kParameters, "Typedef for ParametersT");
             A2lTypedefParameterComponent(max_points, "Maximum number of points in the cloud", "points", 1, N);
             A2lTypedefParameterComponent(boundary, "boundary_ box size in meters", "m", 0.1, 100.0);
             A2lTypedefParameterComponent(gravity, "Gravity in meters per second squared", "m/s²", 0.0, 1000.0);
-            A2lTypedefParameterComponent(max_radius, "Maximum point radius in meters", "m", 0.01, 1.0);
             A2lTypedefParameterComponent(min_radius, "Minimum point radius in meters", "m", 0.01, 1.0);
+            A2lTypedefParameterComponent(max_radius, "Maximum point radius in meters", "m", 0.01, 1.0);
             A2lTypedefParameterComponent(min_velocity, "Minimum point velocity in meters per second", "m/s", 0.001, 10.0);
             A2lTypedefParameterComponent(max_velocity, "Maximum point velocity in meters per second", "m/s", 0.001, 10.0);
             A2lTypedefParameterComponent(ttl_min, "Minimum time to live for points in seconds", "s", 0.1, 60.0);
@@ -126,22 +128,22 @@ template <uint16_t N> class PointCloud {
             A2lTypedefEnd();
 
             // Register the Point struct
-            A2lTypedefBegin(Point, nullptr, "Typedef for Point");
-            A2lTypedefMeasurementComponent(x, "X coordinate of the point");
-            A2lTypedefMeasurementComponent(y, "Y coordinate of the point");
-            A2lTypedefMeasurementComponent(z, "Z coordinate of the point");
-            A2lTypedefMeasurementComponent(r, "Radius of the point");
-            // A2lTypedefMeasurementComponent(v_x, "X velocity of the point");
-            // A2lTypedefMeasurementComponent(v_y, "Y velocity of the point");
-            // A2lTypedefMeasurementComponent(v_z, "Z velocity of the point");
-            A2lTypedefEnd();
+            // C++ style
+            A2lCreateTypedef(Point, "Typedef for Point",                                     //
+                             A2L_MEASUREMENT_COMPONENT(x, "X coordinate of the point", "m"), //
+                             A2L_MEASUREMENT_COMPONENT(y, "Y coordinate of the point", "m"), //
+                             A2L_MEASUREMENT_COMPONENT(z, "Z coordinate of the point", "m"), //
+                             A2L_MEASUREMENT_COMPONENT(r, "Radius of the point", "m"));
 
-            // Not used
-            // A2lTypedefBegin(PointCloud, this, "Typedef for PointCloud");
-            // A2lTypedefMeasurementComponent(count_, "Current number of points in the cloud");
-            // A2lTypedefMeasurementComponent(step_counter_, "Global step counter");
-            // A2lTypedefComponent(points_, Point, N); // Array of N Points
-            // A2lTypedefEnd();
+            // Register the PointCloud struct
+            // C++ style
+            A2lCreateTypedef(PointCloud, "Typedef for PointCloud",                                                     //
+                             A2L_MEASUREMENT_COMPONENT(boundary_, "Current boundary box size in meters", "m"),         //
+                             A2L_MEASUREMENT_COMPONENT(step_counter_, "Global step counter", ""),                      //
+                             A2L_MEASUREMENT_COMPONENT(simulation_time_, "Last simulation step time in seconds", "s"), //
+                             A2L_MEASUREMENT_COMPONENT(real_time_, "Current real time in seconds", "s"),               //
+                             A2L_MEASUREMENT_COMPONENT(count_, "Current number of points in the cloud", ""),           //
+                             A2L_TYPEDEF_COMPONENT(points_, "Point", N));
         }
     }
 
@@ -341,7 +343,7 @@ template <uint16_t N> class PointCloud {
         real_time_ = ApplXcpGetClock64();
 
         // Cycle timer
-        uint64_t delta_time = params_.lock()->cycle_time_us * 1000; // in ns, assumes xcplib is compiled with OPTION_CLOCK_TICKS_1NS
+        uint64_t delta_time = params_.lock()->cycle_time_us * 1000; // in ns, assumes libxcplite is compiled with OPTION_CLOCK_TICKS_1NS
         if (real_time_ - simulation_time_ < delta_time) {
             return false; // not time yet
         }
@@ -429,7 +431,7 @@ int main() {
 
     // XCP: Initialize
     XcpSetLogLevel(OPTION_LOG_LEVEL);                                                                   // Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION /* EPK version*/, true /* activate */);         // Initialize the XCP singleton and activate XCP
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION /* EPK version*/, XCP_MODE_LOCAL);              // Initialize the XCP singleton and activate XCP
     if (!XcpEthServerInit(OPTION_SERVER_ADDR, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_QUEUE_SIZE)) { // Initialize the XCP Server
         std::cerr << "Failed to initialize XCP server" << std::endl;
         return 1;
@@ -459,9 +461,8 @@ int main() {
 
     std::cout << "\nExiting ..." << std::endl;
 
-    // XCP: Shutdown
-    XcpDisconnect();
-    XcpEthServerShutdown();
-
+    XcpDisconnect();        // Force disconnect the XCP client
+    A2lFinalize();          // Finalize A2L generation, if not done yet
+    XcpEthServerShutdown(); // Stop the XCP server
     return 0;
 }

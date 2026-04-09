@@ -233,14 +233,11 @@
 #define SS_RESUME ((uint16_t)0x0080)
 
 // Internal states (high byte) */
-#define SS_BLOCK_UPLOAD ((uint16_t)0x0100)       /* Block upload in progress */
-#define SS_LEGACY_MODE ((uint16_t)0x0200)        /* XCP 1.3 legacy mode */
-#define SS_PERSISTENCE_LOADED ((uint16_t)0x0400) /* Persistence loaded from BIN file*/
-#define SS_UNUSED2 ((uint16_t)0x0800)
-#define SS_INITIALIZED ((uint16_t)0x8000) /* initialized */
-#define SS_STARTED ((uint16_t)0x4000)     /* started*/
-#define SS_CONNECTED ((uint16_t)0x2000)   /* connected */
-#define SS_ACTIVATED ((uint16_t)0x1000)   /* activated or passive */
+#define SS_BLOCK_UPLOAD ((uint16_t)0x0100) /* Block upload in progress */
+#define SS_LEGACY_MODE ((uint16_t)0x0200)  /* XCP 1.3 legacy mode */
+#define SS_STARTED ((uint16_t)0x4000)      /* started*/
+#define SS_CONNECTED ((uint16_t)0x2000)    /* connected */
+#define SS_ACTIVATED ((uint16_t)0x1000)    /* activated or passive */
 
 /*-------------------------------------------------------------------------*/
 /* Identifier Type (GET_ID) */
@@ -255,6 +252,7 @@
 #define IDT_ASAM_SYSID 7
 #define IDT_VECTOR_MAPNAMES 0xDB
 #define IDT_VECTOR_GET_A2LOBJECTS_FROM_ECU 0xA2
+#define IDT_VECTOR_ELF_UPLOAD 0xA3
 
 /*-------------------------------------------------------------------------*/
 /* Checksum Types (BUILD_CHECKSUM) */
@@ -281,7 +279,7 @@
 /* PAG_PROPERTIES (GET_PAG_PROCESSOR_INFO) */
 
 #define PAG_PROPERTY_FREEZE 0x01
-#define PAG_PROPERTY_PRELOAD 0x02 // Vector specific, preloaded calibration page from freeze image
+#define PAG_PROPERTY_PRELOAD 0x02 // Vector specific, preloaded calibration page f
 
 /*-------------------------------------------------------------------------*/
 /* PAGE_PROPERTIES (GET_PAGE_INFO)*/
@@ -837,9 +835,6 @@
 #define CRM_ALLOC_DAQ_LEN 1
 
 /* ALLOC_ODT */
-#define _CRO_ALLOC_ODT_LEN 3
-#define _CRO_ALLOC_ODT_DAQ CRO_WORD(1)
-#define _CRO_ALLOC_ODT_COUNT CRO_BYTE(1)
 #define CRO_ALLOC_ODT_LEN 5
 #define CRO_ALLOC_ODT_DAQ CRO_WORD(1)
 #define CRO_ALLOC_ODT_COUNT CRO_BYTE(4)
@@ -1127,7 +1122,7 @@ typedef struct {
 /* GET_SERVER_ID and GET_SERVER_ID_EXTENDED */
 #define CRO_TL_GET_SERVER_ID_LEN 21
 #define CRO_TL_GET_SERVER_ID_PORT CRO_WORD(1)
-#define CRO_TL_GET_SERVER_ID_ADDR(n) CRO_BYTE(4 + n)
+#define CRO_TL_GET_SERVER_ID_ADDR(n) CRO_BYTE(4 + (n))
 #define CRO_TL_GET_SERVER_ID_MODE CRO_BYTE(20)
 
 /* GET_SERVER_ID */
@@ -1151,13 +1146,13 @@ typedef struct {
 
 /* GET_SERVER_ID_EXT */
 #define CRM_TL_GET_SERVER_ID_LEN(n) (24 + 1 + (n))
-#define CRM_TL_GET_SERVER_ID_ADDR(n) CRM_BYTE(2 + n)
+#define CRM_TL_GET_SERVER_ID_ADDR(n) CRM_BYTE(2 + (n))
 #define CRM_TL_GET_SERVER_ID_PORT CRM_WORD(18)
 #define CRM_TL_GET_SERVER_ID_STATUS CRM_BYTE(20)
 #define CRM_TL_GET_SERVER_ID_RESOURCE CRM_BYTE(21)
 #define CRM_TL_GET_SERVER_ID_ID_LEN *(uint32_t *)&(CRM_BYTE(22)) // this is a DWORD on unaligned offset
 #define CRM_TL_GET_SERVER_ID_ID CRM_BYTE(26)
-#define CRM_TL_GET_SERVER_ID_MAC(n) CRM_BYTE(26 + n) /*+CRM_TL_GET_SERVER_ID_ID_LEN*/
+#define CRM_TL_GET_SERVER_ID_MAC(n) CRM_BYTE(26 + (n)) /*+CRM_TL_GET_SERVER_ID_ID_LEN*/
 
 #define CRM_TL_GET_SERVER_ID_MAX_LEN (XCPTL_MAX_CTO_SIZE - (26 + 6))
 
