@@ -38,7 +38,7 @@
 // XCP parameters
 
 #define OPTION_PROJECT_NAME "daq_test"      // Project name, used to build the A2L and BIN file name
-#define OPTION_PROJECT_VERSION "V2.1.3"     // EPK version string
+#define OPTION_PROJECT_VERSION "V2.1.4"     // EPK version string
 #define OPTION_USE_TCP false                // TCP or UDP
 #define OPTION_SERVER_PORT 5555             // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}     // Bind addr, 0.0.0.0 = ANY
