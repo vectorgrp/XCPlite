@@ -2934,11 +2934,6 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     DBG_PRINTF3(ANSI_COLOR_GREEN "XcpInit name=%s, epk=%s, mode=%02X\n" ANSI_COLOR_RESET, name, epk, mode);
     DBG_PRINTF5("  sizeof(tXcpData)=%zu  sizeof(tXcpLocalData)=%zu\n", sizeof(tXcpData), sizeof(tXcpLocalData));
 
-    // Initialize mutex for atomic emulation, if enabled
-#ifdef OPTION_ATOMIC_EMULATION
-    mutexInit(&gWinMutex, false, 1000);
-#endif
-
     // Mode checks and adjustments
     if (mode != XCP_MODE_DEACTIVATE) {
 #ifdef OPTION_SHM_MODE // XcpInit adjust XCP mode

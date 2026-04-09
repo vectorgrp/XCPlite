@@ -38,7 +38,7 @@
 // XCP parameters
 
 #define OPTION_PROJECT_NAME "daq_test"      // Project name, used to build the A2L and BIN file name
-#define OPTION_PROJECT_VERSION "V2.1.3"     // EPK version string
+#define OPTION_PROJECT_VERSION "V2.1.4"     // EPK version string
 #define OPTION_USE_TCP false                // TCP or UDP
 #define OPTION_SERVER_PORT 5555             // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}     // Bind addr, 0.0.0.0 = ANY
@@ -65,7 +65,7 @@ extern uint32_t gXcpRxPacketCount;
 
 #define TIMING_HISTOGRAM_SIZE 24
 
-static MUTEX timing_mutex = MUTEX_INTIALIZER;
+static MUTEX timing_mutex;
 static uint64_t timing_max = 0;
 static uint64_t timing_sum = 0;
 static uint64_t timing_sample_count = 0;
@@ -85,6 +85,8 @@ static void timing_sample_test_init(void) {
     timing_max = 0;
     timing_sum = 0;
     timing_sample_count = 0;
+
+    mutexInit(&timing_mutex, false, 0);
 
     // Calibrate
     uint64_t sum = 0;
@@ -262,7 +264,7 @@ void *task(void *p)
             // Add an offset to the delay for each task instance, to create different sampling rates
             int32_t offset = ((int32_t)task_index - THREAD_COUNT / 2) * params->delay_offset_us;
             if (offset < -(int32_t)params->delay_us)
-                offset = -params->delay_us;
+                offset = -(int32_t)params->delay_us;
             delay_us = (uint32_t)((int32_t)params->delay_us + offset);
             // printf("thread %u:%s offset: %d, delay: %u us\n", task_index, task_name, offset, delay_us);
 
