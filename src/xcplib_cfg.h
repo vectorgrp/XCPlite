@@ -128,11 +128,11 @@
 #define OPTION_DAQ_EVENT_COUNT 64      // Maximum number of DAQ events (integer value, must be even)
 // #define OPTION_DAQ_ASYNC_EVENT         // Create an asynchronous, cyclic DAQ event for asynchronous data acquisition
 
+// Transport layer queue, vectored IO, lockless with variable queue entry size
 // Default:
-// Transport layer queue, vectored IO lockless with variable queue entry size
 #define OPTION_QUEUE_64_VAR_SIZE
 
-// Transport layer queue, vectored IO lockless with fixed queue entry size
+// Transport layer queue, vectored IO, lockless with fixed queue entry size
 // For maximum performance with large DTO size, but less efficient memory usage with partially filled queue entries
 // Entry size is XCPTL_MAX_DTO_SIZE  + XCPTL_TRANSPORT_LAYER_HEADER_SIZE (4) + 4
 // Optimal overall queue size is required to be a multiple of the cache line size (so XCPTL_MAX_DTO_SIZE in xcptl_cfg.h currently set to 244)
@@ -141,8 +141,9 @@
 // #define OPTION_QUEUE_64_FIX_SIZE
 
 // Transport layer queue, with variable queue entry size, 32 bit not lockless with mutex synchronization
-// Mandatory for Windows
-#ifdef OPTION_ATOMIC_EMULATION
+// Mandatory for Windows and 32 bit platforms
+// #define OPTION_QUEUE_32
+#if defined(OPTION_ATOMIC_EMULATION) || defined(PLATFORM_32_BIT)
 #undef OPTION_QUEUE_64_VAR_SIZE
 #undef OPTION_QUEUE_64_FIX_SIZE
 #define OPTION_QUEUE_32

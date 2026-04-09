@@ -4,7 +4,7 @@ This directory contains various examples demonstrating different features and ca
 
 ## Getting Started
 
-To get started, take a first look at the C example `hello_xcp` and then at `hello_xcp_cpp` for C++.
+To get started, take a first look at the C example `hello_xcp` or at `hello_xcp_cpp` for C++.
 
 ## Example CANape Projects
 
@@ -15,8 +15,6 @@ All CANape project examples are configured to upload the A2L file via XCP. The I
 The examples should run with a CANape demo version, which can be downloaded from <https://www.vector.com/de/de/support-downloads/download-center>.
 The demo installation must be explicitly enabled in the installer and has some limitations:  
 It will store only the first seconds of measurement data and the number of measurement signals is limited.
-
-Note: Some of the examples use display windows without title bars to make it look cleaner. This option can be turned of with "Options/Display/View/Display Headline".  
 
 ## Example Details
 
@@ -29,6 +27,7 @@ An example in pure C. Compiles a C or C++. Demonstrates the basic C API.
 - Use the different addressing modes for measurement variables and calibration parameters.  
 - Instrument a function, register local variables and function parameters and create and trigger a measurement event in the function.  
 
+
 ### hello_xcp_cpp
 
 An example in C++ using more idiomatic C++ to demonstrate the capabilities of the additional C++ API.  
@@ -37,6 +36,7 @@ An example in C++ using more idiomatic C++ to demonstrate the capabilities of th
 - Define events for measurement of global, local (stack), and  heap variables and instances.  
 - Use the variadic C++ macro/template API.  
 - Instrument a member function: Register and measure local function variables and parameters.  
+
 
 ### external_example
 
@@ -47,6 +47,7 @@ An example in C++ using more idiomatic C++ to demonstrate the capabilities of th
 - No system installation required for development - uses local staging directory.  
 - See [external_example/README.md](external_example/README.md) for detailed instructions.  
 
+
 ### c_demo
 
 Shows more complex data objects (structs, arrays) and calibration objects (axis, maps and curves).  
@@ -54,6 +55,7 @@ Measurement variables on stack and in global memory.
 Asynchronous read (polling) and write to a value on the stack (variable: counter) 
 Consistent atomic changes of multiple calibration parameters.  
 Calibration page switching and EPK version check.  
+
 
 ### cpp_demo
 
@@ -67,6 +69,7 @@ Note: If CANAPE_24 is defined in sig_gen.hpp, the lookup table is a nested typed
 Shows how to define measurement variables in nested structs, multidimensional fields and arrays of structs.
 Pure measurement demo, does not have any calibration parameters.
 
+
 ### multi_thread_demo
 
 Shows measurement in multiple threads.  
@@ -75,10 +78,12 @@ Share a parameter segment among multiple threads.
 Thread safe and consistent access to parameters.  
 Experimental code to demonstrate how to create context and spans using the XCP instrumentation API.  
 
+
 ### point_cloud_demo
 
 Demonstrates how to visualize dynamic data structures in the CANape 3D scene window.  
 Creates and measures an array of structures representing 3D points with additional information.
+
 
 ### ptp4l_demo
 
@@ -88,11 +93,12 @@ Demonstrates how to use a PTP (Precision Time Protocol) synchronized clock as XC
 ### no_a2l_demo
 
 Demonstrates XCPlite without runtime A2L generation by using an A2L generation tool during the build process.  
-This variant is currently limited to measurement and modification of global variables.  
+ 
 
 ### threadx_demo
 
 Planned
+
 
 ### bpf_demo
 
@@ -112,6 +118,7 @@ The examples demonstrate various advanced topics:
 - Use consistent atomic parameter modification
 - Make parameter changes persistent (freeze)
 - Use the API to create context and span, measure durations
+
 
 ## Building a CANape Project from Scratch
 

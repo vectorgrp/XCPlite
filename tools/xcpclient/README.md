@@ -2,15 +2,15 @@
 
 XCP test client implementation in Rust
 
-Used for integration testing and csvfor uploading or generating A2L files.  
-Partial XCP implementation hard-coded for xcp-lite and XCPlite.  
+Used for integration testing and for uploading or generating A2L files.  
+Partial XCP implementation with hard-coded protocol settings for XCPlite.  
 
 
 This tool can:
 
 - Connect to XCP on Ethernet servers via TCP or UDP
 - Upload A2L files from XCP servers (GET_ID command)
-- Create complete A2L files from ELF debug information and the XCP server event and memory segment information
+- Create complete A2L files from ELF debug information and the XCP servers event and memory segment information
 - Create A2L templates from the XCP server event and memory segment information
 - Read and write calibration variables (CAL)
 - Configure and acquire measurement data (DAQ)

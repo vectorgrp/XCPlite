@@ -8,11 +8,11 @@ XCP is a data acquisition (measurement) and parameter tuning (calibration) proto
 
 XCPlite extends XCP use cases beyond traditional embedded microcontrollers to **modern multicore microprocessors** and SoCs running POSIX-compliant operating systems (Linux, QNX) or real-time operating systems (RTOS) such as ThreadX.
 
-Designed exclusively for the **XCP on Ethernet Transport Layer** (TCP/UDP with jumbo frames), XCPlite solves the challenges of measurement and calibration in systems with true parallelism and multithreading:
+Designed exclusively for the **XCP on Ethernet Transport Layer** (TCP or UDP with jumbo frames), XCPlite solves the challenges of measurement and calibration in systems with true parallelism and multithreading:
 
 - **Thread-safe & lock-free** - Consistent data acquisition and parameter modification across multiple cores, free of blocking and inter-thread contention
 - **Memory-safe** - Measure and calibrate variables in any storage location: stack, heap, thread-local, and global
-- **Deterministic runtime and resource consumption** - No heap allocations at all, static memory usage, zero copy and predictable execution times for real-time applications
+- **Deterministic runtime and resource consumption** - No heap allocations, static memory usage, zero copy and predictable execution times for real-time applications
 - **Runtime A2L generation** - Define events, measurements and parameters, with metadata as code; the description file (A2L format) is generated at runtime and uploaded automatically
 - **Complex type support** - Handles basic types, structs, arrays, and nested structures
 - **Calibration segments** - Page switching, consistent atomic modification, and parameter persistence

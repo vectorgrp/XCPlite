@@ -3,11 +3,11 @@
 # A2L file creator for the no_a2l_demo example project
 
 # The script syncs the example project to the target, builds it there, runs it with XCP on Ethernet,
-# downloads the ELF file to the local machine and creates an A2L file either with xcp_client or with a2ltool
+# downloads the ELF file to the local machine and creates an A2L file either with xcpclient or with a2ltool
 # Prerequisites:
 # - The target must be reachable via SSH and have rsync installed
 # - The local machine must have rsync and scp installed
-# - The local machine must have xcp_client and a2ltool compiled and available
+# - The local machine must have xcpclient and a2ltool compiled and available
 
 
 #======================================================================================================================
@@ -63,8 +63,8 @@ TARGET_PATH="~/XCPlite-RainerZ/build/no_a2l_demo"
 # Path to a2ltool executable
 A2LTOOL="../a2ltool-RainerZ/target/debug/a2ltool"
 
-# Path to xcp_client tool executable
-XCPCLIENT="../xcp-lite-RainerZ/target/debug/xcp_client"
+# Path to xcpclient tool executable
+XCPCLIENT="../xcp-lite-RainerZ/target/debug/xcpclient"
 
 
 # Run a simple measurement with the created A2L file to verify that measurements and characteristics are working
@@ -133,7 +133,7 @@ fi
 # Create A2L file
 #======================================================================================================================
 
-# Create a A2L template offline with xcp_client by uploading memory segments and events via XCP
+# Create a A2L template offline with xcpclient by uploading memory segments and events via XCP
 
 #---------------------------------------------------
 # One step
@@ -146,7 +146,7 @@ echo "==========================================================================
 echo ""
 $XCPCLIENT --log-level=3  --verbose=5 --dest-addr=$TARGET_HOST --tcp --elf $ELFFILE  --a2l $A2LFILE --create-a2l >> $LOGFILE
 if [ $? -ne 0 ]; then
-    echo "❌ FAILED: xcp_client returned error"
+    echo "❌ FAILED: xcpclient returned error"
     exit 1
 fi
 
@@ -162,7 +162,7 @@ echo "==========================================================================
 echo ""
 $XCPCLIENT --log-level=3 --verbose=0 --dest-addr=$TARGET_HOST --tcp --offline --elf $ELFFILE  --create-a2l --a2l $A2LFILE_TEMPLATE  >> $LOGFILE
 if [ $? -ne 0 ]; then
-    echo "❌ FAILED: xcp_client returned error"
+    echo "❌ FAILED: xcpclient returned error"
     exit 1
 fi
 
@@ -176,7 +176,7 @@ echo "==========================================================================
 echo ""
 $XCPCLIENT --log-level=3 --verbose=0 --dest-addr=$TARGET_HOST --tcp --elf $ELFFILE   --a2l $A2LFILE  --fix-a2l >> $LOGFILE
 if [ $? -ne 0 ]; then
-    echo "❌ FAILED: xcp_client returned error"
+    echo "❌ FAILED: xcpclient returned error"
     exit 1
 fi
 

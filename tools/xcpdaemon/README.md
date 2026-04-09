@@ -2,11 +2,11 @@
 
 This application serves as a daemon for multi-application measurement and calibration use cases.
 
-In principle, it is just another XCP instrumented application in SHM mode, configured to insist on being the XCP server.
-All other applications must be configured to never start an XCP server, or if they are in auto mode, they must be started after the daemon.
-It creates the master A2L file and manages the binary calibration data persistence file.
+In principle, it is just another XCP instrumented application in multi application (SHM) mode, configured to insist on being the XCP server.  
+All other applications must be configured to never start an XCP server, or if they are in auto mode, they must be started after the daemon.  
+It creates the master A2L file and manages the binary calibration data persistence file.  
 
-It has some own measurement and calibration objects to monitor the system and multiple XCP/SHM instrumented applications.
+It has some own measurement and calibration objects to monitor the system and multiple XCP/SHM instrumented applications.  
 
 
 ## Usage
@@ -50,7 +50,7 @@ Use clean commands only after all apps and daemon have stopped !!!
 # Start with default settings
 ./build/xcpdaemon
 
-# Start on a different port with debug logging
+# Start on a different port with debug logging of XCP commands
 ./build/xcpdaemon --port 5556 --log-level 4
 ```
 
@@ -75,7 +75,7 @@ kill $(cat /tmp/xcpdaemon.pid)
 
 ## Running as a service on a Linux machine
 
-### Sync, and build and install to remote machine
+### Sync, build and install to remote machine
 
 ```sh
 rsync -avz --exclude=build/ --exclude=.git/ ./ rainer@192.168.0.206:~/XCPlite-RainerZ/

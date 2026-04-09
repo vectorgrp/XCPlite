@@ -5,7 +5,7 @@
 # 1. Sync project to target
 # 2. Build demo on target (has multiple calibration segments)
 # 3. Start demo XCP server
-# 4. Download A2L and BIN files using xcp_client
+# 4. Download A2L and BIN files using xcpclient
 # 5. Convert BIN to HEX using bintool
 # 6. Upload HEX file back to target to verify round-trip
 #
@@ -40,7 +40,7 @@ TARGET_PATH="~/XCPlite-RainerZ"
 TARGET_EXECUTABLE="$TARGET_PATH/build/${DEMO_NAME}"
 
 # Tools
-XCPCLIENT="xcp_client"  # Installed via: cargo install --path (in xcp-lite project)
+XCPCLIENT="xcpclient"  # Installed via: cargo install --path (in xcp-lite project)
 BINTOOL="bintool"  # Installed via: cargo install --path tools/bintool
 
 
@@ -90,7 +90,7 @@ echo "Test workflow:"
 echo "  1. Sync and build $DEMO_NAME on target"
 echo "  2. Start XCP server ($DEMO_NAME generates BIN file on startup)"
 echo "  3. Download A2L via XCP"
-echo "  4. Upload calibration data via XCP to create HEX file (xcp_client --upload-bin)"
+echo "  4. Upload calibration data via XCP to create HEX file (xcpclient --upload-bin)"
 echo "  5. Download BIN file via scp"
 echo "  6. Convert BIN → HEX using bintool"
 echo "  7. Compare both HEX files (from XCP vs from BIN)"
@@ -147,12 +147,12 @@ echo "✅ XCP server started (PID: $SSH_PID)"
 #---------------------------------------------------
 echo ""
 echo "Step 4: Uploading calibration data from target via XCP..."
-echo "(xcp_client --upload-bin reads calibration segments and creates Intel-Hex file)"
+echo "(xcpclient --upload-bin reads calibration segments and creates Intel-Hex file)"
 echo "Using protocol: $XCP_PROTOCOL"
 
-# Check if xcp_client is available
+# Check if xcpclient is available
 if ! command -v $XCPCLIENT &> /dev/null; then
-    echo "❌ FAILED: xcp_client not found in PATH"
+    echo "❌ FAILED: xcpclient not found in PATH"
     echo "Please install it first from the xcp-lite project"
     cleanup_target
     exit 1
@@ -166,7 +166,7 @@ $XCPCLIENT \
     >> $LOGFILE 2>&1
 
 if [ $? -ne 0 ]; then
-    echo "❌ FAILED: xcp_client upload from target"
+    echo "❌ FAILED: xcpclient upload from target"
     cleanup_target
     exit 1
 fi
@@ -176,7 +176,7 @@ mv ${DEMO_NAME}.a2l $A2L_FILE 2>/dev/null || true
 mv ${DEMO_NAME}.hex $HEX_FROM_XCP 2>/dev/null || true
 
 if [ ! -f "$HEX_FROM_XCP" ]; then
-    echo "❌ FAILED: HEX file not created by xcp_client"
+    echo "❌ FAILED: HEX file not created by xcpclient"
     cleanup_target
     exit 1
 fi
@@ -285,7 +285,7 @@ head -10 $HEX_FROM_BIN
 # Compare files
 echo ""
 if cmp -s $HEX_FROM_XCP $HEX_FROM_BIN; then
-    echo "✅ HEX files are IDENTICAL - bintool produces same output as xcp_client!"
+    echo "✅ HEX files are IDENTICAL - bintool produces same output as xcpclient!"
 else
     echo "ℹ️  HEX files differ - comparing content..."
     
@@ -440,7 +440,7 @@ echo ""
 echo "Files available in: $TEST_DIR/"
 echo "  - ${DEMO_NAME}.a2l           : A2L file from target"
 echo "  - ${DEMO_NAME}.bin           : Original BIN file from target (via scp)"
-echo "  - ${DEMO_NAME}_from_xcp.hex  : HEX created by xcp_client --upload-bin"
+echo "  - ${DEMO_NAME}_from_xcp.hex  : HEX created by xcpclient --upload-bin"
 echo "  - ${DEMO_NAME}_from_bin.hex  : HEX created by bintool"
 echo "  - ${DEMO_NAME}_backup.bin    : Backup for comparison"
 echo ""

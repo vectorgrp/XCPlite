@@ -535,7 +535,7 @@ extern const uint8_t *gXcpBaseAddr;
 // optimization, the variable must be marked as 'volatile' to force the compiler to always read and write it from/to memory The XCP_MEA and XCP_MEAS macros mark a (local) variable
 // as volatile for this purpose An alternative is to use the DaqCapture macro to capture the variable in a hidden static variable for measurement
 
-// The A2L updater/creator in xcp_client can handle only simple location expressions such as absolute addresses, stack relative addresses (CFA) and calibration segment relative
+// The A2L updater/creator in xcpclient can handle only simple location expressions such as absolute addresses, stack relative addresses (CFA) and calibration segment relative
 // addresses For complex cases, use the DaqCapture macro to capture the variable in a hidden static variable
 
 /// Attribute to mark a local variable as measurable
