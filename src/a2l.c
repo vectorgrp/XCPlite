@@ -36,7 +36,7 @@
 static bool gA2lUseTCP = false;
 static uint16_t gA2lOptionPort = 5555;
 static uint8_t gA2lOptionBindAddr[4] = {0, 0, 0, 0};
-static uint8_t gA2lMode = A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS;
+static uint8_t gA2lMode = 0;
 
 // A2L file handles and state
 static bool gA2lIsFinalized = false;

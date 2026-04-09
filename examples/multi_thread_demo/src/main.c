@@ -367,7 +367,7 @@ int main(void) {
     // Enable A2L generation and prepare the A2L file, finalize the A2L file on XCP connect, auto grouping
     // In this demo, with A2L_MODE_WRITE_ALWAYS, the A2L file is unstable, because the thread creation order is underterminstic
     // It is still ok to use A2L_MODE_WRITE_ONCE, the A2l file content is equivalent, as the events numbers associated to the thread don't have an individual identity
-    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
+    if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS | A2L_MODE_EVENT_CONVERSION)) {
         return 1;
     }
 

@@ -10,6 +10,7 @@
 |
  ----------------------------------------------------------------------------*/
 
+#include "a2l_writer.h"
 #include "a2l.h"
 
 #include <assert.h>   // for assert
@@ -455,11 +456,6 @@ static void includePartialA2lFiles(uint8_t a2l_mode, uint16_t count, const char 
 //----------------------------------------------------------------------------------------------
 // Write the main A2L file, with options to include event groups, symbol name prefix, and partial A2L files
 
-#define A2L_MODE_EVENT_GROUPS 0x01
-#define A2L_MODE_EVENT_CONVERSION 0x02
-#define A2L_MODE_PREFIX_SYMBOLS 0x04
-#define A2L_MODE_INCLUDE_AML_FILE 0x08
-
 // Write the main A2L file
 bool A2lWriter(const char *a2l_filename, uint8_t a2l_mode, uint16_t include_count, const char **include_files, const uint8_t *addr, uint16_t port, bool useTCP) {
 
@@ -473,7 +469,7 @@ bool A2lWriter(const char *a2l_filename, uint8_t a2l_mode, uint16_t include_coun
     memcpy(&gA2lOptionBindAddr, addr, 4);
     gA2lOptionPort = port;
     gA2lUseTCP = useTCP;
-    gA2lSymbolPrefix = a2l_mode & A2L_MODE_PREFIX_SYMBOLS;
+    gA2lSymbolPrefix = a2l_mode & A2L_MODE_SYMBOL_PREFIX;
 
     // Open a temporary file, because one of the include files may have the same name as the final file, and we don't want to overwrite it before including it
     gA2lFile = fopen("tmp.a2l", "w");
@@ -484,10 +480,10 @@ bool A2lWriter(const char *a2l_filename, uint8_t a2l_mode, uint16_t include_coun
 
     // Create header
     fprintf(gA2lFile, gA2lHeader1, XcpGetProjectName(), XcpGetProjectName());
-    if (a2l_mode & A2L_MODE_INCLUDE_AML_FILE) {
-        fprintf(gA2lFile, "/include \"XCP_104.aml\"\n\n");
-    } else {
+    if (a2l_mode & A2L_MODE_EMBED_AML_FILE) {
         assert(0 && "Not implemented yet: embedding AML file content into A2L file is not implemented yet");
+    } else {
+        fprintf(gA2lFile, "/include \"XCP_104.aml\"\n\n");
     }
     fprintf(gA2lFile, "%s", gA2lHeader2);
 
@@ -529,7 +525,7 @@ bool A2lWriter(const char *a2l_filename, uint8_t a2l_mode, uint16_t include_coun
     includePartialA2lFiles(a2l_mode, include_count, include_files);
 
     // Create event conversions and groups
-    createEventGroupsAndConversions(a2l_mode & A2L_MODE_EVENT_GROUPS, a2l_mode & A2L_MODE_EVENT_CONVERSION);
+    createEventGroupsAndConversions(a2l_mode & A2L_MODE_AUTO_GROUPS, a2l_mode & A2L_MODE_EVENT_CONVERSION);
 
     // Create MOD_PAR section with EPK and calibration segments
     A2lCreate_MOD_PAR();

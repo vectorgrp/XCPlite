@@ -61,7 +61,9 @@
 #define A2L_MODE_FINALIZE_ON_CONNECT 0x04 // Finalize A2L file on XCP connect
 #define A2L_MODE_AUTO_GROUPS 0x08         // Automatically create groups for measurements and parameters
 #define A2L_MODE_SYMBOL_PREFIX 0x10       // Prepend project name as prefix to all symbol names (measurements, parameters, typedefs, components)
-#define A2L_MODE_WRITE_TEMPLATE 0x20 // Only write an A2L template with all settings, IF_DATA, events and calibration segments, but measurement and calibration objects and typedefs
+#define A2L_MODE_WRITE_TEMPLATE 0x20      // Only write an A2L template with all settings, IF_DATA, events and calibration segments
+#define A2L_MODE_EVENT_CONVERSION 0x40    // Create a enum conversion with all event ids
+#define A2L_MODE_EMBED_AML_FILE 0x80      // Include AML file (e.g., XCP_104.aml) with /include directive, instead of embedding the AML file content into the A2L file
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Constants
