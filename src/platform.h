@@ -594,6 +594,8 @@ bool fexists(const char *filename);
 // Atomic operations emulation for Windows
 #ifdef OPTION_ATOMIC_EMULATION
 
+extern MUTEX gWinMutex;
+
 // On Windows 64 we rely on the x86-64 strong memory model and assume atomic 64 bit load/store
 // Use a mutex for thread safe atomic_fetch_add/sub and atomic_compare_exchange
 // The windows version is for demonstration and test purposes, not optimized for minimal locking overhead
@@ -602,12 +604,13 @@ bool fexists(const char *filename);
 #define memory_order_acquire 0
 #define memory_order_release 0
 
-#define atomic_uint_fast64_t uint64_t
 #define atomic_uintptr_t uintptr_t
 #define atomic_uint_fast8_t uint64_t
 #define atomic_uint_fast16_t uint64_t
-#define atomic_uint_least32_t uint64_t
+#define atomic_uint_least16_t uint64_t
 #define atomic_uint_fast32_t uint64_t
+#define atomic_uint_least32_t uint64_t
+#define atomic_uint_fast64_t uint64_t
 
 #define ATOMIC_BOOL_TYPE uint64_t
 #define ATOMIC_BOOL uint64_t
@@ -616,13 +619,9 @@ bool fexists(const char *filename);
 #define atomic_store_explicit(a, b, c) (*(a)) = (b)
 #define atomic_load_explicit(a, b) (*(a))
 
-extern MUTEX gWinMutex;
-
 uint64_t atomic_exchange_explicit(uint64_t *a, uint64_t b, int c);
 uint64_t atomic_fetch_add_explicit(uint64_t *a, uint64_t b, int c);
 uint64_t atomic_fetch_sub_explicit(uint64_t *a, uint64_t b, int c);
-bool atomic_compare_exchange_strong_explicit(uint64_t *a, uint64_t *b, uint64_t c, int d, int e);
-bool atomic_compare_exchange_weak_explicit(uint64_t *a, uint64_t *b, uint64_t c, int d, int e);
 bool atomic_compare_exchange_strong_explicit(uint64_t *a, uint64_t *b, uint64_t c, int d, int e);
 bool atomic_compare_exchange_weak_explicit(uint64_t *a, uint64_t *b, uint64_t c, int d, int e);
 

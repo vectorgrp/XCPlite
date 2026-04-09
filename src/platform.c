@@ -872,9 +872,6 @@ bool socketStartup(void) {
     WORD wsaVersionRequested;
     WSADATA wsaData;
 
-    // @@@@ TODO: Workaround for Windows
-    mutexInit(&gWinMutex, false, 1000);
-
     // Init Winsock2
     wsaVersionRequested = MAKEWORD(2, 2);
     err = WSAStartup(wsaVersionRequested, &wsaData);

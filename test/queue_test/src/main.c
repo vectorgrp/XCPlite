@@ -1,16 +1,18 @@
 ﻿// queue_test
 
-#include <assert.h> // for assert
-#include <math.h>   // for M_PI, sin
-#include <signal.h> // for signal handling
-#ifndef _WIN32
-#include <stdatomic.h> // for atomic_
-#endif
+#include <assert.h>  // for assert
+#include <math.h>    // for M_PI, sin
+#include <signal.h>  // for signal handling
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uintxx_t
 #include <stdio.h>   // for printf
 #include <stdlib.h>  // for rand()
 #include <string.h>  // for sprintf
+
+#include "xcplib_cfg.h"
+#ifndef OPTION_ATOMIC_EMULATION
+#include <stdatomic.h> // for atomic_
+#endif
 
 // Option to use XCP for online performance monitoring and logging of the queue test
 // #define USE_XCP
@@ -336,7 +338,7 @@ void *task(void *p)
     uint64_t counter = 0;
 
     // Build the task name from the event index
-    uint16_t task_index = atomic_fetch_add(&task_index_ctr, 1);
+    uint16_t task_index = atomic_fetch_add_explicit(&task_index_ctr, 1, memory_order_relaxed);
     // Flat thread ID unique across all producer processes: each producer gets a sequential
     // producer_index, so thread IDs never collide even with multiple concurrent producers.
     uint16_t thread_id = (uint16_t)(g_producer_index * THREAD_COUNT) + task_index;

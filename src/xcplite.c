@@ -2934,6 +2934,11 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     DBG_PRINTF3(ANSI_COLOR_GREEN "XcpInit name=%s, epk=%s, mode=%02X\n" ANSI_COLOR_RESET, name, epk, mode);
     DBG_PRINTF5("  sizeof(tXcpData)=%zu  sizeof(tXcpLocalData)=%zu\n", sizeof(tXcpData), sizeof(tXcpLocalData));
 
+    // Initialize mutex for atomic emulation, if enabled
+#ifdef OPTION_ATOMIC_EMULATION
+    mutexInit(&gWinMutex, false, 1000);
+#endif
+
     // Mode checks and adjustments
     if (mode != XCP_MODE_DEACTIVATE) {
 #ifdef OPTION_SHM_MODE // XcpInit adjust XCP mode
@@ -2971,14 +2976,14 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     // Initialize high resolution clock
     clockInit();
 
-    // Set the project name of this application
+    // Set the project name (local XCP state) of this application
     if (name == NULL || STRNLEN(name, XCP_PROJECT_NAME_MAX_LENGTH) == 0) {
         assert(false && "Project name is mandatory");
         goto error_deactivate; // Project name is mandatory, deactivate XCP
     }
     XcpSetProjectName(name);
 
-    // Set the EPK version string for this application, used for version checking and compatibility checks with the A2L file
+    // Set the EPK version string(local XCP state)  for this application, used for version checking and compatibility checks with the A2L file
     if (epk == NULL || STRNLEN(epk, XCP_EPK_MAX_LENGTH) == 0) {
         assert(false && "EPK version string is mandatory");
         goto error_deactivate; // EPK version string is mandatory, deactivate XCP
