@@ -589,40 +589,65 @@ void clockGetPrintStatistic(void);
 bool fexists(const char *filename);
 
 //-------------------------------------------------------------------------------
-// Atomic operations
+// Atomic operations for Windows (emulation)
 
-// Atomic operations emulation for Windows
+// Lock-free atomic emulation for Windows using MSVC Interlocked intrinsics.
+// Windows only - queue64f and queue64v are excluded on Windows, queue32 uses no atomics.
+// Only load, store, CAS and exchange are needed (for ATOMIC_BOOL in xcplite.c and A2L_ONCE_ATOMIC_TYPE in a2l.c).
+// Requires x86-64 (TSO memory model): aligned 64-bit loads/stores are naturally atomic at the CPU level.
+// volatile LONGLONG* casts prevent the compiler from caching values in registers.
+// Interlocked intrinsics provide full memory barriers for RMW operations.
 #ifdef OPTION_ATOMIC_EMULATION
 
-// On Windows 64 we rely on the x86-64 strong memory model and assume atomic 64 bit load/store
-// Use a mutex for thread safe atomic_fetch_add/sub and atomic_compare_exchange
-// The windows version is for demonstration and test purposes, not optimized for minimal locking overhead
+#if defined(_MSC_VER) && _MSC_VER >= 1935 && defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201710L
+#error "Better option possible -> include <stdatomic.h>  // native support, remove emulation
+#endif
+
 #define memory_order_acq_rel 0
 #define memory_order_relaxed 0
 #define memory_order_acquire 0
 #define memory_order_release 0
 
-#define atomic_uint_fast64_t uint64_t
-#define atomic_uintptr_t uintptr_t
+#define atomic_uintptr_t uint64_t
 #define atomic_uint_fast8_t uint64_t
 #define atomic_uint_fast16_t uint64_t
-#define atomic_uint_least32_t uint64_t
+#define atomic_uint_least16_t uint64_t
 #define atomic_uint_fast32_t uint64_t
+#define atomic_uint_least32_t uint64_t
+#define atomic_uint_fast64_t uint64_t
 
 #define ATOMIC_BOOL_TYPE uint64_t
 #define ATOMIC_BOOL uint64_t
 #define uint_fast32_t uint64_t
 
-#define atomic_store_explicit(a, b, c) (*(a)) = (b)
-#define atomic_load_explicit(a, b) (*(a))
+// Volatile casts for load/store: prevents register caching; TSO guarantees ordering on x86-64
+#define atomic_store_explicit(a, b, c) (*(volatile LONGLONG *)(a) = (LONGLONG)(b))
+#define atomic_load_explicit(a, b) ((uint64_t)*(volatile LONGLONG *)(a))
 
-extern MUTEX gWinMutex;
-
-uint64_t atomic_exchange_explicit(uint64_t *a, uint64_t b, int c);
-uint64_t atomic_fetch_add_explicit(uint64_t *a, uint64_t b, int c);
-uint64_t atomic_fetch_sub_explicit(uint64_t *a, uint64_t b, int c);
-bool atomic_compare_exchange_weak_explicit(uint64_t *a, uint64_t *b, uint64_t c, int d, int e);
-bool atomic_compare_exchange_strong_explicit(uint64_t *a, uint64_t *b, uint64_t c, int d, int e);
+static __inline uint64_t atomic_exchange_explicit(uint64_t *a, uint64_t b, int c) {
+    (void)c;
+    return (uint64_t)InterlockedExchange64((volatile LONGLONG *)a, (LONGLONG)b);
+}
+static __inline uint64_t atomic_fetch_add_explicit(uint64_t *a, uint64_t b, int c) {
+    (void)c;
+    return (uint64_t)InterlockedExchangeAdd64((volatile LONGLONG *)a, (LONGLONG)b);
+}
+static __inline uint64_t atomic_fetch_sub_explicit(uint64_t *a, uint64_t b, int c) {
+    (void)c;
+    return (uint64_t)InterlockedExchangeAdd64((volatile LONGLONG *)a, -(LONGLONG)b);
+}
+static __inline bool atomic_compare_exchange_strong_explicit(uint64_t *a, uint64_t *b, uint64_t c, int d, int e) {
+    (void)d;
+    (void)e;
+    LONGLONG old = InterlockedCompareExchange64((volatile LONGLONG *)a, (LONGLONG)c, (LONGLONG)*b);
+    if (old == (LONGLONG)*b)
+        return true;
+    *b = (uint64_t)old;
+    return false;
+}
+static __inline bool atomic_compare_exchange_weak_explicit(uint64_t *a, uint64_t *b, uint64_t c, int d, int e) {
+    return atomic_compare_exchange_strong_explicit(a, b, c, d, e); // no spurious failure on x86-64
+}
 
 #endif // OPTION_ATOMIC_EMULATION
 
