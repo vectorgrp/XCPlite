@@ -1,15 +1,17 @@
 ﻿// daq_test
 
-#include <assert.h> // for assert
-#include <math.h>   // for M_PI, sin
-#include <signal.h> // for signal handling
-#ifndef _WIN32
-#include <stdatomic.h> // for atomic_
-#endif
+#include <assert.h>  // for assert
+#include <math.h>    // for M_PI, sin
+#include <signal.h>  // for signal handling
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uintxx_t
 #include <stdio.h>   // for printf
 #include <string.h>  // for sprintf
+
+#include "xcplib_cfg.h"
+#ifndef OPTION_ATOMIC_EMULATION
+#include <stdatomic.h> // for atomic_
+#endif
 
 // Public XCPlite API
 #include "a2l.h"    // for A2l generation application programming interface
@@ -19,9 +21,7 @@
 // Note: Take care for include order, when using internal libxcplite headers !!
 // xcp_cfg.h would includes xcplib_cfg.h and platform.h
 #include "dbg_print.h"
-#include "platform.h"
-#include "xcp_cfg.h"
-#include "xcplib_cfg.h"
+#include "platform.h" // for clockGetMonotonicNs, sleepUs, mutexLock, mutexUnlock, THREAD, create_thread, join_thread, cancel_thread
 
 //-----------------------------------------------------------------------------------------------------
 // Test configuration
@@ -38,7 +38,7 @@
 // XCP parameters
 
 #define OPTION_PROJECT_NAME "daq_test"      // Project name, used to build the A2L and BIN file name
-#define OPTION_PROJECT_VERSION "V2.1.2"     // EPK version string
+#define OPTION_PROJECT_VERSION "V2.1.3"     // EPK version string
 #define OPTION_USE_TCP false                // TCP or UDP
 #define OPTION_SERVER_PORT 5555             // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}     // Bind addr, 0.0.0.0 = ANY
