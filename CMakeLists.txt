@@ -260,6 +260,10 @@ if(XCPLITE_BUILD_TESTS)
     add_executable(daq_test test/daq_test/src/main.c)
     target_link_libraries(daq_test PRIVATE xcplite)
 
+    # Clock synchronisation test
+    add_executable(clock_test test/clock_test/src/main.cpp)
+    target_link_libraries(clock_test PRIVATE xcplite)
+
     # Queue stress test
     # Optionally build queue_test with the MC reference queue implementation (-DQUEUE_TEST_MC_QUEUE=ON)
     option(QUEUE_TEST_MC_QUEUE "Test the MC reference queue API via the XCPlite queue wrapper" OFF)

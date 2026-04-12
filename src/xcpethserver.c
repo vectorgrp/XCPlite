@@ -461,12 +461,12 @@ extern void *XcpServerReceiveThread(void *par)
                 static uint64_t last_ctr = 0;
                 uint64_t loops = ctr - last_ctr;
                 if (XcpIsConnected() && loops <= 5) {
-                    DBG_PRINTF_WARNING("XCP receive thread: only %llu loops per second, slow background processing\n", loops);
+                    DBG_PRINTF_WARNING("XCP receive thread: only %" PRIu64 " loops per second, slow background processing\n", loops);
                 }
                 if (loops > 1000) {
                     DBG_PRINT_WARNING("XCP receive thread: more than 1000 loops per second\n");
                 }
-                DBG_PRINTF6("XCP receive thread: %llu loop per second\n", loops);
+                DBG_PRINTF6("XCP receive thread: %" PRIu64 " loop per second\n", loops);
                 last_ctr = ctr;
             }
 #endif
@@ -509,12 +509,12 @@ extern void *XcpServerTransmitThread(void *par)
         if (now - last_time >= 1000000000ULL) { // every 1s
             uint64_t loops = ctr - last_ctr;
             if (XcpIsConnected() && loops <= 5) {
-                DBG_PRINTF_WARNING("XCP transmit thread: only %llu loops per second, slow background processing\n", loops);
+                DBG_PRINTF_WARNING("XCP transmit thread: only %" PRIu64 " loops per second, slow background processing\n", loops);
             }
             if (loops > 2000) {
                 DBG_PRINT_WARNING("XCP transmit thread: more than 2000 loops per second\n");
             }
-            DBG_PRINTF6("XCP transmit thread: %llu loops per second\n", loops);
+            DBG_PRINTF6("XCP transmit thread: %" PRIu64 " loops per second\n", loops);
             last_time = now;
             last_ctr = ctr;
         }

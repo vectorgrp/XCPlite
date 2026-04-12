@@ -599,10 +599,6 @@ bool fexists(const char *filename);
 // Interlocked intrinsics provide full memory barriers for RMW operations.
 #ifdef OPTION_ATOMIC_EMULATION
 
-#if defined(_MSC_VER) && _MSC_VER >= 1935 && defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201710L
-#error "Better option possible -> include <stdatomic.h>  // native support, remove emulation
-#endif
-
 #define memory_order_acq_rel 0
 #define memory_order_relaxed 0
 #define memory_order_acquire 0

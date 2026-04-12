@@ -169,7 +169,7 @@
 // #define TEST_ENABLE_DBG_METRICS // Enable debug metrics for XCP events and transport layer packets
 // #define TEST_ENABLE_BUFFERCOUNT_HISTOGRAM // Enable histogram of the used buffer counts in the transport layer vectored io
 // #define TEST_MUTABLE_ACCESS_OWNERSHIP // Enable tracking of mutable access thread ownership to detect overseen potential memory safety problems
-#define TEST_ENABLE_DBG_CHECKS // Enable additional sanity checks in the XCP server
+// #define TEST_ENABLE_DBG_CHECKS // Enable additional sanity checks in the XCP server
 
 #endif // !defined(NDEBUG)
 

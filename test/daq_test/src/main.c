@@ -22,6 +22,7 @@
 // xcp_cfg.h would includes xcplib_cfg.h and platform.h
 #include "dbg_print.h"
 #include "platform.h" // for clockGetMonotonicNs, sleepUs, mutexLock, mutexUnlock, THREAD, create_thread, join_thread, cancel_thread
+#include "xcplite.h"
 
 //-----------------------------------------------------------------------------------------------------
 // Test configuration
@@ -38,7 +39,7 @@
 // XCP parameters
 
 #define OPTION_PROJECT_NAME "daq_test"      // Project name, used to build the A2L and BIN file name
-#define OPTION_PROJECT_VERSION "V2.1.5"     // EPK version string
+#define OPTION_PROJECT_VERSION "V2.1.6"     // EPK version string
 #define OPTION_USE_TCP false                // TCP or UDP
 #define OPTION_SERVER_PORT 5555             // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0}     // Bind addr, 0.0.0.0 = ANY
@@ -297,6 +298,11 @@ void *task(void *p)
 
 //-----------------------------------------------------------------------------------------------------
 
+uint8_t cb_check(uint8_t ext, uint32_t addr, uint8_t size) {
+    printf(" %u:0x%08X, %u\n", ext, addr, size);
+    return CRC_CMD_OK;
+}
+
 // Demo main
 int main(void) {
 
@@ -310,6 +316,9 @@ int main(void) {
     // Initialize the XCP singleton, activate XCP, must be called before starting the server
     // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
     XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION, XCP_MODE_LOCAL);
+
+    // Register DAQ memory check callback
+    ApplXcpRegisterCheckCallback(cb_check);
 
     // Initialize the XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;
@@ -371,6 +380,7 @@ int main(void) {
 
     // Wait for signal to stop
     printf("main loop running - press Ctrl+C to stop...\n");
+    bool print_daq_events = true;
     while (gRun) {
 
         counter++;
@@ -387,6 +397,17 @@ int main(void) {
         }
 
         XcpUnlockCalSeg(calseg);
+
+        // Print DAQ lists via ApplXcpRegisterCheckCallback
+        if (XcpIsDaqRunning() && print_daq_events) {
+            print_daq_events = false; // Only print the DAQ events once
+            for (tXcpEventId event_id = 0; event_id < XcpGetEventCount(); event_id++) {
+                printf("Event %u:%s\n", event_id, XcpGetEventName(event_id));
+                if (!XcpCheckDaqLists(DAQ_STATE_RUNNING, event_id)) {
+                    printf("DAQ list check failed\n");
+                }
+            }
+        }
 
         DaqTriggerEvent(mainloop);
         sleepUs(1000); // 1000us

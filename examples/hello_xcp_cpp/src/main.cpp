@@ -8,7 +8,6 @@
 #include <optional> // for std::optional
 
 // Include XCPlite/libxcplite C++ headers
-// #define OPTION_XCP_MODE 0 // To deactivate XCP, define OPTION_XCP_MODE here
 #include <a2l.hpp>    // for A2l generation application programming interface
 #include <xcplib.hpp> // for application programming interface
 
