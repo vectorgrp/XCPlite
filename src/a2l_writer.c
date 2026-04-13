@@ -539,9 +539,15 @@ bool A2lWriter(const char *a2l_filename, uint8_t a2l_mode, uint16_t include_coun
     gA2lFile = NULL;
 
     // Rename the temporary file to the final name
-    remove(a2l_filename);
+    if (remove(a2l_filename) != 0) {
+        DBG_PRINTF_ERROR("Could not remove existing file %s!\n", a2l_filename);
+    }
     if (rename("tmp.a2l", a2l_filename) != 0) {
-        DBG_PRINTF_ERROR("Could not rename file tmp.a2l to %s!\n", a2l_filename);
+        if (!fexists("tmp.a2l")) {
+            DBG_PRINTF_ERROR("File tmp.a2l not found, could not create %s!\n", a2l_filename);
+        } else {
+            DBG_PRINTF_ERROR("Could not rename file tmp.a2l to %s!\n", a2l_filename);
+        }
         return false;
     }
 

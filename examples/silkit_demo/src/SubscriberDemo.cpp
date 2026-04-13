@@ -4,16 +4,14 @@
 
 #include "ApplicationBase.hpp"
 #include "PubSubDemoCommon.hpp"
-
-#include <a2l.hpp>
-#include <xcplib.hpp>
+#include "XcpHelper.hpp"
 
 class Subscriber : public ApplicationBase {
   public:
     // Inherit constructors
     using ApplicationBase::ApplicationBase;
 
-    ~Subscriber() { XcpEthServerShutdown(); }
+    ~Subscriber() { XcpServerShutdown(); }
 
   private:
     IDataSubscriber *_gpsSubscriber;
@@ -39,7 +37,8 @@ class Subscriber : public ApplicationBase {
 
                 _xcp_latitude = gpsData.latitude;
                 _xcp_longitude = gpsData.longitude;
-                DaqTriggerEventExt(GpsReceived, this);
+                XcpUpdateSimTime(dataMessageEvent.timestamp);
+                DaqTriggerEventExt(Gps, this);
             });
 
         _temperatureSubscriber = GetParticipant()->CreateDataSubscriber(
@@ -51,28 +50,25 @@ class Subscriber : public ApplicationBase {
                 GetLogger()->Info(ss.str());
 
                 _xcp_temperature = temperature;
-                DaqTriggerEventExt(TempReceived, this);
+                XcpUpdateSimTime(dataMessageEvent.timestamp);
+                DaqTriggerEventExt(Temp, this);
             });
 
         // Initialize XCP server for measurement on TCP port 5556
-        XcpSetLogLevel(3);
-        XcpInit("SilKitDemoSubscriber", "1.0", XCP_MODE_LOCAL);
-        uint8_t xcp_addr[4] = {0, 0, 0, 0};
-        XcpEthServerInit(xcp_addr, 5556, true, 1024 * 32);
-        A2lInit(xcp_addr, 5556, true, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT);
+        XcpServerInit(GetArguments().participantName, __TIME__, 5556);
 
-        DaqCreateEvent(GpsReceived);
-        A2lSetRelativeAddrMode(GpsReceived, this);
+        DaqCreateEvent(Gps);
+        A2lSetRelativeAddrMode(Gps, this);
         A2lCreateMeasurement(_xcp_latitude, "Received GPS latitude in degrees");
         A2lCreateMeasurement(_xcp_longitude, "Received GPS longitude in degrees");
-        DaqCreateEvent(TempReceived);
-        A2lSetRelativeAddrMode(TemperatureReceived, this);
+        DaqCreateEvent(Temp);
+        A2lSetRelativeAddrMode(Temp, this);
         A2lCreateMeasurement(_xcp_temperature, "Received temperature in Celsius");
     }
 
     void InitControllers() override {}
 
-    void DoWorkSync(std::chrono::nanoseconds /*now*/) override {}
+    void DoWorkSync(std::chrono::nanoseconds now) override { XcpUpdateSimTime(now); }
 
     void DoWorkAsync() override {}
 };

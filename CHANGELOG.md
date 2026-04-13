@@ -3,6 +3,10 @@
 All notable changes to XCPlite are documented in this file.
 
 
+## [V2.0.2]
+
+- New demo `silkit_demo` demonstrating XCP instrumentation of a sil-kit participant
+- Minor bug fixes and improvements
 
 
 ## [V2.0.1]

@@ -4,16 +4,14 @@
 
 #include "ApplicationBase.hpp"
 #include "PubSubDemoCommon.hpp"
-
-#include <a2l.hpp>
-#include <xcplib.hpp>
+#include "XcpHelper.hpp"
 
 class Publisher : public ApplicationBase {
   public:
     // Inherit constructors
     using ApplicationBase::ApplicationBase;
 
-    ~Publisher() { XcpEthServerShutdown(); }
+    ~Publisher() { XcpServerShutdown(); }
 
   private:
     IDataPublisher *_gpsPublisher;
@@ -33,14 +31,10 @@ class Publisher : public ApplicationBase {
         _temperaturePublisher = GetParticipant()->CreateDataPublisher("TemperaturePublisher", PubSubDemoCommon::dataSpecTemperature, 0);
 
         // Initialize XCP server for measurement on TCP port 5555
-        XcpSetLogLevel(3);
-        XcpInit("SilKitDemoPublisher", "1.0", XCP_MODE_LOCAL);
-        uint8_t xcp_addr[4] = {0, 0, 0, 0};
-        XcpEthServerInit(xcp_addr, 5555, true, 1024 * 32);
-        A2lInit(xcp_addr, 5555, true, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT);
+        XcpServerInit(GetArguments().participantName, __TIME__, 5555);
 
-        DaqCreateEvent(PublisherTask);
-        A2lSetRelativeAddrMode(PublisherTask, this);
+        DaqCreateEvent(PubTask);
+        A2lSetRelativeAddrMode(PubTask, this);
         A2lCreateMeasurement(_xcp_latitude, "GPS latitude in degrees");
         A2lCreateMeasurement(_xcp_longitude, "GPS longitude in degrees");
         A2lCreateMeasurement(_xcp_temperature, "Temperature in Celsius");
@@ -76,16 +70,17 @@ class Publisher : public ApplicationBase {
         _temperaturePublisher->Publish(temperatureSerialized);
     }
 
-    void DoWorkSync(std::chrono::nanoseconds /*now*/) override {
+    void DoWorkSync(std::chrono::nanoseconds now) override {
+        XcpUpdateSimTime(now);
         PublishGPSData();
         PublishTemperatureData();
-        DaqTriggerEventExt(PublisherTask, this);
+        DaqTriggerEventExt(PubTask, this);
     }
 
     void DoWorkAsync() override {
-        PublishGPSData();
-        PublishTemperatureData();
-        DaqTriggerEventExt(PublisherTask, this);
+        // PublishGPSData();
+        // PublishTemperatureData();
+        // DaqTriggerEventExt(PubTask, this);
     }
 };
 
