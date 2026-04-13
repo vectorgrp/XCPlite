@@ -243,12 +243,12 @@ Publisher process                    Subscriber process
 DoWorkSync(now)                      [arrival callback fires]
   │                                        │
   ├─ PublishGPSData()                      ├─ gpsData decoded
-  │    └─ _gpsPublisher->Publish(bytes)    ├─ _xcp_latitude = ...
+  │    └─ _gpsPublisher->Publish(bytes)    ├─ _latitude = ...
   │          │                             └─ DaqTriggerEventExt(GpsReceived, this)
   │          └── SIL Kit registry ────────────────────────────────────────►
   │
   └─ DaqTriggerEventExt(PublisherTask, this)
-       └─ XCP DAQ captures _xcp_latitude, _xcp_longitude, _xcp_temperature
+       └─ XCP DAQ captures _latitude, _longitude, _temperatur
 ```
 
 - XCP measurement on the **publisher** side is **time-triggered** (every simulation step).
@@ -263,9 +263,9 @@ DoWorkSync(now)                      [arrival callback fires]
 
 | Signal name        | Type   | Description                  |
 |--------------------|--------|------------------------------|
-| `_xcp_latitude`    | double | GPS latitude in degrees      |
-| `_xcp_longitude`   | double | GPS longitude in degrees     |
-| `_xcp_temperature` | double | Temperature in Celsius        |
+| `_latitude`    | double | GPS latitude in degrees      |
+| `_longitude`   | double | GPS longitude in degrees     |
+| `_temperatur` | double | Temperature in Celsius        |
 
 DAQ event: `PublisherTask` — triggered once per simulation step.
 
@@ -273,9 +273,9 @@ DAQ event: `PublisherTask` — triggered once per simulation step.
 
 | Signal name        | Type   | Description                       |
 |--------------------|--------|-----------------------------------|
-| `_xcp_latitude`    | double | Received GPS latitude in degrees  |
-| `_xcp_longitude`   | double | Received GPS longitude in degrees |
-| `_xcp_temperature` | double | Received temperature in Celsius   |
+| `_latitude`    | double | Received GPS latitude in degrees  |
+| `_longitude`   | double | Received GPS longitude in degrees |
+| `_temperatur` | double | Received temperature in Celsius   |
 
 DAQ events: `GpsReceived`, `TempReceived` — triggered in the data receive callbacks.
 

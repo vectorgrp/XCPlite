@@ -17,10 +17,10 @@ class Subscriber : public ApplicationBase {
     IDataSubscriber *_gpsSubscriber;
     IDataSubscriber *_temperatureSubscriber;
 
-    // XCP measurement variables
-    double _xcp_latitude = 0.0;
-    double _xcp_longitude = 0.0;
-    double _xcp_temperature = 0.0;
+    double _latitude = 0.0;
+    double _longitude = 0.0;
+    double _signal = 0.0;
+    double _temperature = 0.0;
 
     void AddCommandLineArgs() override {}
 
@@ -30,40 +30,41 @@ class Subscriber : public ApplicationBase {
         _gpsSubscriber = GetParticipant()->CreateDataSubscriber(
             "GpsSubscriber", PubSubDemoCommon::dataSpecGps, [this](IDataSubscriber * /*subscriber*/, const DataMessageEvent &dataMessageEvent) {
                 auto gpsData = PubSubDemoCommon::DeserializeGPSData(SilKit::Util::ToStdVector(dataMessageEvent.data));
+                _latitude = gpsData.latitude;
+                _longitude = gpsData.longitude;
+                _signal = gpsData.signal;
 
                 std::stringstream ss;
-                ss << "Received GPS data: lat=" << gpsData.latitude << ", lon=" << gpsData.longitude << ", signalQuality=" << gpsData.signalQuality;
+                ss << "Received GPS data: lat=" << gpsData.latitude << ", lon=" << gpsData.longitude << ", signal=" << gpsData.signal;
                 GetLogger()->Info(ss.str());
 
-                _xcp_latitude = gpsData.latitude;
-                _xcp_longitude = gpsData.longitude;
                 XcpUpdateSimTime(dataMessageEvent.timestamp);
                 DaqTriggerEventExt(Gps, this);
             });
 
         _temperatureSubscriber = GetParticipant()->CreateDataSubscriber(
             "TemperatureSubscriber", PubSubDemoCommon::dataSpecTemperature, [this](IDataSubscriber * /*subscriber*/, const DataMessageEvent &dataMessageEvent) {
-                double temperature = PubSubDemoCommon::DeserializeTemperature(SilKit::Util::ToStdVector(dataMessageEvent.data));
+                _temperature = PubSubDemoCommon::DeserializeTemperature(SilKit::Util::ToStdVector(dataMessageEvent.data));
 
                 std::stringstream ss;
-                ss << "Received temperature data: temperature=" << temperature;
+                ss << "Received temperature data: temperature=" << _temperature;
                 GetLogger()->Info(ss.str());
 
-                _xcp_temperature = temperature;
                 XcpUpdateSimTime(dataMessageEvent.timestamp);
                 DaqTriggerEventExt(Temp, this);
             });
 
         // Initialize XCP server for measurement on TCP port 5556
-        XcpServerInit(GetArguments().participantName, __TIME__, 5556);
+        XcpServerInit(GetArguments().participantName, "V1.1", 5555);
 
         DaqCreateEvent(Gps);
         A2lSetRelativeAddrMode(Gps, this);
-        A2lCreateMeasurement(_xcp_latitude, "Received GPS latitude in degrees");
-        A2lCreateMeasurement(_xcp_longitude, "Received GPS longitude in degrees");
+        A2lCreateMeasurement(_latitude, "Received GPS latitude in degrees");
+        A2lCreateMeasurement(_longitude, "Received GPS longitude in degrees");
+        A2lCreateMeasurement(_signal, "Received GPS signal quality");
         DaqCreateEvent(Temp);
         A2lSetRelativeAddrMode(Temp, this);
-        A2lCreateMeasurement(_xcp_temperature, "Received temperature in Celsius");
+        A2lCreateMeasurement(_temperature, "Received temperature in Celsius");
     }
 
     void InitControllers() override {}

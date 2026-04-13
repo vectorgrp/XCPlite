@@ -9,7 +9,7 @@
     },
     "Experimental": {
         "TimeSynchronization": {
-            "AnimationFactor": 1.0
+            "AnimationFactor": 10.0
         }
     }
 }

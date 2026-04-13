@@ -57,11 +57,17 @@ inline void XcpUpdateSimTime(std::chrono::nanoseconds now) {
 // epk  : software version identifier string (e.g. "1.0")
 // port : TCP port for the XCP server and A2L upload
 inline void XcpServerInit(const std::string &name, const std::string &epk, uint16_t port) {
+
     XcpSetLogLevel(3);
-    XcpInit(name.c_str(), epk.c_str(), port == 0 ? XCP_MODE_SHM_AUTO : XCP_MODE_LOCAL);
-    // ApplXcpRegisterGetClockCallback(XcpSilKitClock::getClockCallback);
+
+    // XcpInit(name.c_str(), epk.c_str(),  XCP_MODE_LOCAL );
+    XcpInit(name.c_str(), epk.c_str(), XCP_MODE_SHM_AUTO);
+
+    ApplXcpRegisterGetClockCallback(XcpSilKitClock::getClockCallback);
+
     uint8_t addr[4] = {0, 0, 0, 0};
     XcpEthServerInit(addr, port, true, 1024 * 32);
+
     A2lInit(addr, port, true, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT);
 }
 

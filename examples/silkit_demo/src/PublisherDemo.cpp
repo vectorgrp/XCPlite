@@ -17,10 +17,10 @@ class Publisher : public ApplicationBase {
     IDataPublisher *_gpsPublisher;
     IDataPublisher *_temperaturePublisher;
 
-    // XCP measurement variables
-    double _xcp_latitude = 0.0;
-    double _xcp_longitude = 0.0;
-    double _xcp_temperature = 0.0;
+    double _latitude = 0.0;
+    double _longitude = 0.0;
+    double _signal = 0.0;
+    double _temperatur = 0.0;
 
     void AddCommandLineArgs() override {}
 
@@ -31,30 +31,34 @@ class Publisher : public ApplicationBase {
         _temperaturePublisher = GetParticipant()->CreateDataPublisher("TemperaturePublisher", PubSubDemoCommon::dataSpecTemperature, 0);
 
         // Initialize XCP server for measurement on TCP port 5555
-        XcpServerInit(GetArguments().participantName, __TIME__, 5555);
+        XcpServerInit(GetArguments().participantName, "V1.0", 5555);
 
         DaqCreateEvent(PubTask);
         A2lSetRelativeAddrMode(PubTask, this);
-        A2lCreateMeasurement(_xcp_latitude, "GPS latitude in degrees");
-        A2lCreateMeasurement(_xcp_longitude, "GPS longitude in degrees");
-        A2lCreateMeasurement(_xcp_temperature, "Temperature in Celsius");
+        A2lCreateMeasurement(_latitude, "GPS latitude in degrees");
+        A2lCreateMeasurement(_longitude, "GPS longitude in degrees");
+        A2lCreateMeasurement(_signal, "GPS signal quality");
+        A2lCreateMeasurement(_temperatur, "Temperature in Celsius");
     }
 
     void InitControllers() override {}
 
-    void PublishGPSData() {
+    void PublishGPSData(std::chrono::nanoseconds now) {
+
+        _latitude = 48.8235 + static_cast<double>((rand() % 150)) / 100000;
+        _longitude = 9.0965 + static_cast<double>((rand() % 150)) / 100000;
+        _signal = std::sin(2.0 * M_PI * std::chrono::duration<double>(now).count()); // sine signal with values between -1 and 1 and period of 1s
+
         PubSubDemoCommon::GpsData gpsData;
-        gpsData.latitude = 48.8235 + static_cast<double>((rand() % 150)) / 100000;
-        gpsData.longitude = 9.0965 + static_cast<double>((rand() % 150)) / 100000;
-        gpsData.signalQuality = "Strong";
+        gpsData.latitude = _latitude;
+        gpsData.longitude = _longitude;
+        gpsData.signal = _signal;
         auto gpsSerialized = PubSubDemoCommon::SerializeGPSData(gpsData);
 
         std::stringstream ss;
-        ss << "Publishing GPS data: lat=" << gpsData.latitude << ", lon=" << gpsData.longitude << ", signalQuality=" << gpsData.signalQuality;
+        ss << "Publishing GPS data: lat=" << gpsData.latitude << ", lon=" << gpsData.longitude << ", signal=" << gpsData.signal;
         GetLogger()->Info(ss.str());
 
-        _xcp_latitude = gpsData.latitude;
-        _xcp_longitude = gpsData.longitude;
         _gpsPublisher->Publish(gpsSerialized);
     }
 
@@ -66,13 +70,13 @@ class Publisher : public ApplicationBase {
         ss << "Publishing temperature data: temperature=" << temperature;
         GetLogger()->Info(ss.str());
 
-        _xcp_temperature = temperature;
+        _temperatur = temperature;
         _temperaturePublisher->Publish(temperatureSerialized);
     }
 
     void DoWorkSync(std::chrono::nanoseconds now) override {
         XcpUpdateSimTime(now);
-        PublishGPSData();
+        PublishGPSData(now);
         PublishTemperatureData();
         DaqTriggerEventExt(PubTask, this);
     }
