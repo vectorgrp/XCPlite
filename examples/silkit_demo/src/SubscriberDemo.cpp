@@ -55,7 +55,7 @@ class Subscriber : public ApplicationBase {
             });
 
         // Initialize XCP server for measurement on TCP port 5556
-        XcpServerInit(GetArguments().participantName, "V1.1", 5555);
+        XcpServerInit(GetArguments().participantName, "V1.1", 5555, 5556);
 
         DaqCreateEvent(Gps);
         A2lSetRelativeAddrMode(Gps, this);

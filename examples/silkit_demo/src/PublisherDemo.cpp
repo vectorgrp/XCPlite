@@ -31,7 +31,7 @@ class Publisher : public ApplicationBase {
         _temperaturePublisher = GetParticipant()->CreateDataPublisher("TemperaturePublisher", PubSubDemoCommon::dataSpecTemperature, 0);
 
         // Initialize XCP server for measurement on TCP port 5555
-        XcpServerInit(GetArguments().participantName, "V1.0", 5555);
+        XcpServerInit(GetArguments().participantName, "V1.1", 5555, 5555);
 
         DaqCreateEvent(PubTask);
         A2lSetRelativeAddrMode(PubTask, this);

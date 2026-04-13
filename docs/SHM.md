@@ -29,15 +29,9 @@ There are new 3 new modes of operation, which can be specified when calling `Xcp
 
 ```c
 
-#define XCP_MODE_DEACTIVATE 0    // Initialize XCP without activating the protocol layer (passive/off)
-
-// Compiled without XCP_SHM_MODE
-#define XCP_MODE_LOCAL 1         // Initialize and activate XCP, all state resides in a single static memory block with a heap allocated transmit queue
-
-// Compiled with XCP_SHM_MODE
-#define XCP_MODE_SHM 0xFD        // Allocate all state and queue in POSIX shared memory (/xcpdata and /xcpqueue)
-#define XCP_MODE_SHM_AUTO 0xFE   // Leader automatically becomes the XCP server
-#define XCP_MODE_SHM_SERVER 0xFF // Always be the XCP server, assuming (no other application may be in auto mode)
+#define XCP_MODE_SHM 0x80         ///< Initialize and activate XCP, allocate state in POSIX shared memory
+#define XCP_MODE_SHM_AUTO 0x04    ///< Set this flag to automatically choose leader as XCP server
+#define XCP_MODE_SHM_SERVER 0x08  ///< Set this flag, to make this application the XCP server, regardless which application is started first
 
 XcpInit("MyProject" /* Project name*/, "V1.0.1" /* EPK version string*/,  XCP_MODE_SHM_AUTO /* activate XCP in multi application mode */);
 

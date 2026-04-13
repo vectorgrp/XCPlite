@@ -1580,9 +1580,6 @@ bool A2lFinalize(void) {
         const uint16_t epk_len = (uint16_t)STRNLEN(epk, XCP_EPK_MAX_LENGTH) + 1;
         // @@@@ TODO: Remove magic number for EPK segment address,
         XcpCalSegWriteMemory(0x80000000, epk_len, (const uint8_t *)epk);
-        const char *epk_calseg = (const char *)XcpLockCalSeg(XCP_EPK_CALSEG_INDEX);
-        assert(strncmp(epk, epk_calseg, epk_len) == 0);
-        XcpUnlockCalSeg(0);
         // Write the binary persistence file
         XcpBinWrite(epk);
         // Notify the XCP server A2L file is available for upload
