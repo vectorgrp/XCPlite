@@ -766,13 +766,6 @@ void XcpInitEventList(void) {
     mutexInit(&local_mut.event_list_mutex, false, 1000);
 }
 
-// Get a pointer to and the size of the XCP event list
-const tXcpEventList *XcpGetEventList(void) {
-    if (!isActivated())
-        return NULL;
-    return &shared.event_list;
-}
-
 // Get a pointer to the XCP event struct
 const tXcpEvent *XcpGetEvent(tXcpEventId event) {
     if (!isActivated() || event >= acquireEventCount())

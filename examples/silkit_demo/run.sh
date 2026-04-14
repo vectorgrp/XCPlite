@@ -2,12 +2,12 @@
 # Run script for silkit_demo
 # Opens 4 Terminal.app windows on macOS:
 #   1. sil-kit-registry
-#   2. SilKitDemoPublisher   (XCP on TCP 5555)
-#   3. SilKitDemoSubscriber  (XCP on TCP 5556)
+#   2. SilKitDemoPublisher  
+#   3. SilKitDemoSubscriber 
 #   4. sil-kit-system-controller  (starts the simulation)
 #
 # Usage: ./run.sh [options]
-#   -d <us>   Simulation step duration in microseconds (default: 1000 = 1ms)
+#   -d <us>   Simulation step duration in microseconds 
 #   -f        Run as fast as possible (no animation throttle)
 #   -r        Run in approximately real time (SIL Kit AnimationFactor=1.0)
 #   -h        Show this help
@@ -34,7 +34,7 @@ REALTIME=""
 
 usage() {
     echo "Usage: $0 [options]"
-    echo "  -d <us>   Simulation step duration in microseconds (default: 1000 = 1ms)"
+    echo "  -d <us>   Simulation step duration in microseconds (default: 10000 = 10ms)"
     echo "  -f        Run as fast as possible (no real-time throttle)"
     echo "  -r        Run in approximately real time (SIL Kit AnimationFactor=1.0)"
     echo "  -h        Show this help"
@@ -108,7 +108,7 @@ echo "  Registry        : ${REGISTRY}"
 echo "  Publisher       : ${PUBLISHER}"
 echo "  Subscriber      : ${SUBSCRIBER}"
 echo "  SystemController: ${SYSCTRL}"
-[[ -n "${STEP_US}" ]] && echo "  Step duration   : ${STEP_US} us" || echo "  Step duration   : 1000 us (default)"
+[[ -n "${STEP_US}" ]] && echo "  Step duration   : ${STEP_US} us" || echo "  Step duration   : 10000 us (default)"
 if [[ -n "${FAST_FLAG}" ]]; then
     echo "  Mode            : as fast as possible"
 elif [[ -n "${REALTIME}" ]]; then
