@@ -6,6 +6,8 @@
 #include "PubSubDemoCommon.hpp"
 #include "XcpHelper.hpp"
 
+using namespace PubSubDemoCommon;
+
 class Subscriber : public ApplicationBase {
   public:
     // Inherit constructors
@@ -17,9 +19,8 @@ class Subscriber : public ApplicationBase {
     IDataSubscriber *_gpsSubscriber;
     IDataSubscriber *_temperatureSubscriber;
 
-    double _latitude = 0.0;
-    double _longitude = 0.0;
-    double _signal = 0.0;
+    uint16_t _counter = 0;
+    GpsData _gps_data = {0.0, 0.0, 0.0};
     double _temperature = 0.0;
 
     void AddCommandLineArgs() override {}
@@ -27,51 +28,64 @@ class Subscriber : public ApplicationBase {
     void EvaluateCommandLineArgs() override {}
 
     void CreateControllers() override {
-        _gpsSubscriber = GetParticipant()->CreateDataSubscriber(
-            "GpsSubscriber", PubSubDemoCommon::dataSpecGps, [this](IDataSubscriber * /*subscriber*/, const DataMessageEvent &dataMessageEvent) {
-                auto gpsData = PubSubDemoCommon::DeserializeGPSData(SilKit::Util::ToStdVector(dataMessageEvent.data));
-                _latitude = gpsData.latitude;
-                _longitude = gpsData.longitude;
-                _signal = gpsData.signal;
+        _gpsSubscriber = GetParticipant()->CreateDataSubscriber("GpsSubscriber", dataSpecGps, [this](IDataSubscriber * /*subscriber*/, const DataMessageEvent &dataMessageEvent) {
+            _gps_data = DeserializeGPSData(SilKit::Util::ToStdVector(dataMessageEvent.data));
 
-                std::stringstream ss;
-                ss << "Received GPS data: lat=" << gpsData.latitude << ", lon=" << gpsData.longitude << ", signal=" << gpsData.signal;
-                GetLogger()->Info(ss.str());
+            // std::stringstream ss;
+            // ss << "Received GPS data: lat=" << _gps_data.latitude << ", lon=" << _gps_data.longitude << ", signal=" << _gps_data.signal;
+            // GetLogger()->Info(ss.str());
 
-                XcpUpdateSimTime(dataMessageEvent.timestamp);
-                DaqTriggerEventExt(Gps, this);
-            });
+            XcpUpdateSimTime(dataMessageEvent.timestamp);
+            DaqTriggerEventExt(Gps, this);
+        });
 
-        _temperatureSubscriber = GetParticipant()->CreateDataSubscriber(
-            "TemperatureSubscriber", PubSubDemoCommon::dataSpecTemperature, [this](IDataSubscriber * /*subscriber*/, const DataMessageEvent &dataMessageEvent) {
-                _temperature = PubSubDemoCommon::DeserializeTemperature(SilKit::Util::ToStdVector(dataMessageEvent.data));
+        _temperatureSubscriber = GetParticipant()->CreateDataSubscriber("TemperatureSubscriber", dataSpecTemperature,
+                                                                        [this](IDataSubscriber * /*subscriber*/, const DataMessageEvent &dataMessageEvent) {
+                                                                            _temperature = DeserializeTemperature(SilKit::Util::ToStdVector(dataMessageEvent.data));
 
-                std::stringstream ss;
-                ss << "Received temperature data: temperature=" << _temperature;
-                GetLogger()->Info(ss.str());
+                                                                            // std::stringstream ss;
+                                                                            // ss << "Received temperature data: temperature=" << _temperature;
+                                                                            // GetLogger()->Info(ss.str());
 
-                XcpUpdateSimTime(dataMessageEvent.timestamp);
-                DaqTriggerEventExt(Temp, this);
-            });
+                                                                            XcpUpdateSimTime(dataMessageEvent.timestamp);
+                                                                            DaqTriggerEventExt(Temp, this);
+                                                                        });
 
-        // Initialize XCP server for measurement on TCP port 5556
-        XcpServerInit(GetArguments().participantName, "V1.1", 5555, 5556);
+        // Initialize XCP server for measurement on TCP port 5556 or SHM mode server on 5555, depending on the build configuration
+        XcpServerInit(GetArguments().participantName, "V1.3", 5555, 5556);
 
-        DaqCreateEvent(Gps);
+        // Create a typedef for struct GpsData
+        A2lCreateTypedef(GpsData, "GPS data struct", A2L_MEASUREMENT_COMPONENT(latitude, "GPS latitude in degrees", ""), //
+                         A2L_MEASUREMENT_COMPONENT(longitude, "GPS longitude in degrees", ""),                           //
+                         A2L_MEASUREMENT_COMPONENT(signal, "GPS signal quality", "")                                     //
+        );
+
+        // Create events and measurements of instance variable
+        DaqCreateEvent(DoWorkSync); // On simulation step
+        A2lSetRelativeAddrMode(DoWorkSync, this);
+        A2lCreateMeasurement(_counter, "Simulation step counter");
+        DaqCreateEvent(Gps); // On reception of GPS data
         A2lSetRelativeAddrMode(Gps, this);
-        A2lCreateMeasurement(_latitude, "Received GPS latitude in degrees");
-        A2lCreateMeasurement(_longitude, "Received GPS longitude in degrees");
-        A2lCreateMeasurement(_signal, "Received GPS signal quality");
-        DaqCreateEvent(Temp);
+        A2lCreateTypedefInstance(_gps_data, GpsData, "GPS data struct");
+        DaqCreateEvent(Temp); // On reception of temperature data
         A2lSetRelativeAddrMode(Temp, this);
         A2lCreateMeasurement(_temperature, "Received temperature in Celsius");
     }
 
     void InitControllers() override {}
 
-    void DoWorkSync(std::chrono::nanoseconds now) override { XcpUpdateSimTime(now); }
+    void DoWorkSync(std::chrono::nanoseconds now) override {
 
-    void DoWorkAsync() override {}
+        _counter++;
+
+        XcpUpdateSimTime(now);
+        DaqTriggerEventExt(DoWorkSync, this);
+
+        // Sleep some time to simulate work
+        std::this_thread::sleep_for(std::chrono::microseconds(500));
+    }
+
+    void DoWorkAsync() override { printf("Doing async work\n"); }
 };
 
 int main(int argc, char **argv) {

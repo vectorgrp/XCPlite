@@ -25,6 +25,7 @@ struct GpsData {
     double longitude;
     double signal;
 };
+
 std::vector<uint8_t> SerializeGPSData(const PubSubDemoCommon::GpsData &gpsData) {
     SilKit::Util::SerDes::Serializer serializer;
     serializer.BeginStruct();
@@ -32,20 +33,17 @@ std::vector<uint8_t> SerializeGPSData(const PubSubDemoCommon::GpsData &gpsData) 
     serializer.Serialize(gpsData.longitude);
     serializer.Serialize(gpsData.signal);
     serializer.EndStruct();
-
     return serializer.ReleaseBuffer();
 }
 
 PubSubDemoCommon::GpsData DeserializeGPSData(const std::vector<uint8_t> &eventData) {
     PubSubDemoCommon::GpsData gpsData;
-
     SilKit::Util::SerDes::Deserializer deserializer(eventData);
     deserializer.BeginStruct();
     gpsData.latitude = deserializer.Deserialize<double>();
     gpsData.longitude = deserializer.Deserialize<double>();
     gpsData.signal = deserializer.Deserialize<double>();
     deserializer.EndStruct();
-
     return gpsData;
 }
 
@@ -56,16 +54,13 @@ PubSubDemoCommon::GpsData DeserializeGPSData(const std::vector<uint8_t> &eventDa
 std::vector<uint8_t> SerializeTemperature(double temperature) {
     SilKit::Util::SerDes::Serializer temperatureSerializer;
     temperatureSerializer.Serialize(temperature);
-
     return temperatureSerializer.ReleaseBuffer();
 }
 
 double DeserializeTemperature(const std::vector<uint8_t> &eventData) {
     double temperature;
-
     SilKit::Util::SerDes::Deserializer deserializer(eventData);
     temperature = deserializer.Deserialize<double>();
-
     return temperature;
 }
 

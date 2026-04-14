@@ -1,6 +1,6 @@
 #!/bin/bash
-# Build script for silkit_demo
-# Builds xcplite (if needed), installs SilKit (if needed), then builds the demo.
+# Build script for XCPlite silkit_demo
+# Builds XCPlite (if needed), installs SilKit (if needed), then builds the demo.
 
 set -e
 

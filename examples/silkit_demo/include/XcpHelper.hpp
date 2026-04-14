@@ -52,8 +52,8 @@ inline void XcpUpdateSimTime(std::chrono::nanoseconds now) {
             return;
         }
     }
-    printf("Updating sim time: %lu ns\n", static_cast<unsigned long>(now.count()));
 
+    // printf("Updating sim time: %lu ns\n", static_cast<unsigned long>(now.count()));
     XcpSilKitClock::g_simTimeNs.store(static_cast<uint64_t>(now.count()), std::memory_order_relaxed);
 }
 

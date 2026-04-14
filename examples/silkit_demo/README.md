@@ -1,18 +1,34 @@
 # silkit_demo — SIL Kit Pub/Sub Demo with XCP Measurement
 
-This example demonstrates how to combine **SIL Kit** (SIL Kit – Open-Source Library for Connecting Software-in-the-Loop Environments) with **XCPlite** to add live measurement and calibration to a SIL Kit simulation participant.
+This example demonstrates how to combine **SIL Kit** (SIL Kit – Open-Source Library for Connecting Software-in-the-Loop Environments) with **XCPlite** to add live measurement and calibration to one or more SIL Kit simulation participants.  
 
-Two participants (from the original **SIL Kit** example) are provided:
+In the example, two participants (derived from the original **SIL Kit** Publisher/Subscriber example) are provided.  
+The Publisher produces some test data on each simulation step and makes the internal values observable via XCP.  
+The Subscriber receives that data and also exposes the received values via XCP.
+
+In CANape, the time synchronisation mode must be set to simulation (in project settings, time source), because the simulation time may run faster or slower than real time.  
+
+There are 2 options to run the demo.
+
+### Option 1
+
+To separate XCP servers for publisher and subscriber
 
 | Executable            | SIL Kit role   | XCP server port |
 |-----------------------|----------------|-----------------|
 | `SilKitDemoPublisher` | Data Publisher | TCP 5555        |
 | `SilKitDemoSubscriber`| Data Subscriber| TCP 5556        |
 
-The Publisher produces GPS (latitude/longitude) and temperature data on each simulation step and makes these values observable via XCP.  
-The Subscriber receives that data and also exposes the received values via XCP.
 
-Connect **CANape** or another XCP client tool to `localhost:5555` / `localhost:5556` to measure the signals in real time.
+### Option 2
+
+A single XCP server in multi-application shared memory mode for both publisher and subscriber.  
+
+Compile the XCP library in multi-application shared memory mode (#define `OPTION_SHM_MODE` in xcplib_cfg.h), which then runs both participants with the same XCP server port (e.g., 5555).  
+The participant that starts first becomes the XCP server, the other participant automatically detects the running server and connects to it in shared memory mode.
+
+Note that the XCP multi application shared memory mode is only supported on POSIX-compliant platforms (Linux, macOS, QNX) and not on Windows, and is still in experimental state.
+
 
 ---
 
@@ -23,7 +39,7 @@ Connect **CANape** or another XCP client tool to `localhost:5555` / `localhost:5
 Build or download a SIL Kit release package from https://github.com/vectorgrp/sil-kit/releases.  
 The build tree of the git repository also works.
 
-### xcplite
+### Build XCPlite
 
 Build and install xcplite:
 
@@ -35,7 +51,7 @@ cd /path/to/XCPlite
 
 ---
 
-## Build
+## Build sil-kit and the demo
 
 ```bash
 cd examples/silkit_demo
@@ -60,6 +76,7 @@ cmake -B build \
 cmake --build build
 ```
 
+There is a build script `build.sh` that does the above with some default paths — edit it if needed.
 ---
 
 ## Running
