@@ -550,7 +550,7 @@ uint8_t XcpWriteMta(uint8_t size, const uint8_t *data) {
 }
 
 // Copying of size bytes from data to local.mta_ptr or local.mta_addr, depending on the addressing mode
-static uint8_t XcpReadMta(uint8_t size, uint8_t *data) {
+uint8_t XcpReadMta(uint8_t size, uint8_t *data) {
 
 #ifdef XCP_ENABLE_SEG_ADDRESSING
     // EXT == XCP_ADDR_EXT_SEG calibration segment memory access
@@ -634,9 +634,13 @@ uint8_t XcpSetMta(uint8_t ext_, uint32_t addr_) {
     // Segment relative addressing mode
     if (XcpAddrIsSeg(local.mta_ext)) {
         if ((local.mta_addr & 0x80000000) == 0) {
+#ifdef XCP_ENABLE_ABS_ADDRESSING
             // @@@@ TODO: Workaround CANape bug, address extension != 0 for calibration variables sometimes ignored
             DBG_PRINTF_WARNING("XcpSetMta: Address extension SEG < 0x80000000, converting to ABS addressing mode, addr=0x%08" PRIx32 "\n", local.mta_addr);
             local_mut.mta_ext = XCP_ADDR_EXT_ABS;
+#else
+            return CRC_ACCESS_DENIED; // Access violation,
+#endif
         }
         return CRC_CMD_OK;
     }
@@ -1176,6 +1180,11 @@ static uint8_t XcpAddOdtEntry(uint32_t addr, uint8_t ext, uint8_t size) {
 #endif
                 ext = 1;
 #endif // SHM_MODE
+            } else
+#endif
+#ifdef XCP_ENABLE_APP_ADDRESSING
+                if (XcpAddrIsApp(ext)) {
+                base_offset = XcpAddrDecodeAppOffset(addr);
             } else
 #endif
                 return CRC_ACCESS_DENIED;
@@ -2969,7 +2978,7 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     local_mut.init_mode = mode;
 
 // Initialize the base address for absolute addressing
-#ifdef XCP_ENABLE_ABS_ADDRESSING
+#if defined(XCP_ENABLE_ABS_ADDRESSING) || defined(XCP_ENABLE_APP_ADDRESSING)
     ApplXcpGetBaseAddr();
     assert(xcp_get_base_addr() != NULL);
 #endif

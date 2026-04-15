@@ -175,7 +175,11 @@ bool gXcpBaseAddrValid = false;
 // xcp_get_base_addr() uses gXcpBaseAddr directly, not ApplXcpGetBaseAddr(), assuming XCP has been initialized before
 
 // Set the base address for absolute addressing mode, if the default base address is not suitable
+// If addr == NULL, reset to default base address (module load address)
 void ApplXcpSetBaseAddr(const uint8_t *addr) {
+    if (addr == NULL) {
+        addr = ApplXcpGetModuleAddr();
+    }
     gXcpBaseAddr = addr;
     gXcpBaseAddrValid = true;
     DBG_PRINTF4("ApplXcpSetBaseAddr() = %p\n", (void *)gXcpBaseAddr);
@@ -196,6 +200,7 @@ uint32_t ApplXcpGetAddr(const uint8_t *p) {
 }
 
 // Get the XCP 8 bit address extension for a given pointer
+#ifdef XCP_ENABLE_ABS_ADDRESSING
 uint8_t ApplXcpGetAddrExt(const uint8_t *p) {
     (void)p;
 #ifdef OPTION_SHM_MODE // get address extension for absolute addressing in SHM mode
@@ -205,6 +210,7 @@ uint8_t ApplXcpGetAddrExt(const uint8_t *p) {
     return XCP_ADDR_EXT_ABS;
 #endif
 }
+#endif
 
 //----------------------------
 // Windows 64 or 32 bit

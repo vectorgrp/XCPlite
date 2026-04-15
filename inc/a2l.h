@@ -336,6 +336,7 @@ static inline tA2lTypeId A2lGetTypeIdFromPtr_bool(const bool *p) {
 
 // Set addressing mode to auto (stack or base address) and event 'event_name'
 // Error if the event does not exist
+void A2lSetAutoAddrMode(tXcpEventId event_id, const uint8_t *frame_ptr, const uint8_t *base_ptr);
 #define A2lSetAutomaticAddrMode(event_name, base_addr) A2lSetAutoAddrMode__s(#event_name, xcp_get_frame_addr(), base_addr);
 #define A2lSetAutomaticAddrMode_s(event_name_string, base_addr) A2lSetAutoAddrMode__s(event_name_string, xcp_get_frame_addr(), base_addr);
 #define A2lSetAutomaticAddrMode_i(event_id, base_addr) A2lSetAutoAddrMode__i(event_id, xcp_get_frame_addr(), base_addr);
@@ -561,18 +562,6 @@ const char *A2lGetA2lTypeName_C(tA2lTypeId type);
 const char *A2lGetA2lRecordLayoutName(tA2lTypeId type);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// Set addressing modes
-
-void A2lRstAddrMode(void);
-void A2lSetAutoAddrMode(tXcpEventId event_id, const uint8_t *frame_ptr, const uint8_t *base_ptr);
-void A2lSetDynAddrMode(tXcpEventId event_id, uint8_t i, const uint8_t *base);
-#ifdef XCP_ENABLE_REL_ADDRESSING
-void A2lSetRelAddrMode(tXcpEventId event_id, const uint8_t *base);
-#endif
-void A2lSetAbsAddrMode(tXcpEventId default_event_id);
-void A2lSetSegAddrMode(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance_addr);
-
-// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Manually create groups
 // If automatic group generation (A2lInit parameter) is disabled, use these functions to create groups manually.
 
@@ -621,6 +610,7 @@ void A2lSetStackAddrMode__s(const char *event_name, const uint8_t *stack_frame);
 void A2lSetStackAddrMode__i(tXcpEventId event_id, const uint8_t *stack_frame);
 void A2lSetAbsoluteAddrMode__s(const char *event_name);
 void A2lSetAbsoluteAddrMode__i(tXcpEventId event_id);
+void A2lSetApplicationAddrMode(void);
 
 // Once pattern helper
 bool A2lOnce_(uint64_t *once);

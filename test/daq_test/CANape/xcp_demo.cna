@@ -10,8 +10,8 @@ PrgDate=27.10.2025
 Description=
 CreationTime=21:05
 CreationDate=07/07/2024 ; Month/Day/Year
-ModificationTime=10:15
-ModificationDate=04/14/2026 ; Month/Day/Year
+ModificationTime=20:48
+ModificationDate=04/15/2026 ; Month/Day/Year
 Protected=0
 CurrentWindowsACP=1252
 
@@ -351,7 +351,7 @@ Count=0
 Name=Trace
 Comment=
 Maximized=0
-ActiveWindow=3
+ActiveWindow=4
 IsReportPage=0
 TimeAxisSynchronized=0
 PrintLayout=Default
@@ -423,7 +423,7 @@ COUNT=21
 21=}
 
 [FUNCTION_OBJECT_1]
-Number=8
+Number=9
 Unit=
 Components=0
 TimeSeriesSaveMode=0
@@ -1206,7 +1206,7 @@ IsParameterFunctionResult=0
 Module=xcp_demo
 
 [FUNCTION_OBJECT_2]
-Number=59
+Number=60
 Unit=
 Components=0
 TimeSeriesSaveMode=0
@@ -1293,7 +1293,7 @@ IsParameterFunctionResult=0
 Module=xcp_demo
 
 [FUNCTION_OBJECT_3]
-Number=60
+Number=61
 Unit=
 Components=0
 TimeSeriesSaveMode=0
@@ -1380,7 +1380,7 @@ IsParameterFunctionResult=0
 Module=xcp_demo
 
 [FUNCTION_OBJECT_4]
-Number=61
+Number=62
 Unit=
 Components=0
 TimeSeriesSaveMode=0
@@ -1467,7 +1467,7 @@ IsParameterFunctionResult=0
 Module=xcp_demo
 
 [FUNCTION_OBJECT_5]
-Number=62
+Number=63
 Unit=
 Components=0
 TimeSeriesSaveMode=0
@@ -1554,7 +1554,7 @@ IsParameterFunctionResult=0
 Module=xcp_demo
 
 [FUNCTION_OBJECT_6]
-Number=63
+Number=64
 Unit=
 Components=0
 TimeSeriesSaveMode=0
@@ -1641,7 +1641,7 @@ IsParameterFunctionResult=0
 Module=xcp_demo
 
 [FUNCTION_OBJECT_7]
-Number=64
+Number=65
 Unit=
 Components=0
 TimeSeriesSaveMode=0
@@ -1728,7 +1728,7 @@ IsParameterFunctionResult=0
 Module=xcp_demo
 
 [FUNCTION_OBJECT_8]
-Number=65
+Number=66
 Unit=
 Components=0
 TimeSeriesSaveMode=0
@@ -1815,7 +1815,7 @@ IsParameterFunctionResult=0
 Module=xcp_demo
 
 [FUNCTION_OBJECT_9]
-Number=66
+Number=67
 Unit=
 Components=0
 TimeSeriesSaveMode=0
@@ -3974,7 +3974,7 @@ WindowSymbols=1
 GlobalCursor=0
 GlobalCursorTime=0
 GlobalCursorTimeNs=0
-MainWindowPos=1, 1887, 454, 3600, 2100 ;cmd, x, y, w, h
+MainWindowPos=1, 0, 60, 3600, 2100 ;cmd, x, y, w, h
 
 [PAR_COMMENT]
 1="Name",""
@@ -4194,10 +4194,10 @@ COL_0_dpi96=31, 142
 
 [WINDOW_2]
 XLen=36850
-XMin=-184
-XMinNs=-184821333
-XMax=4340
-XMaxNs=4340921113
+XMin=-182
+XMinNs=-182573167
+XMax=325998
+XMaxNs=325998125862
 Grid=1
 Mark=1
 YValue=1
@@ -4289,8 +4289,8 @@ Position=0, 10, 1236, 2664, 504 ;cmd, x, y, w, h
 Position_dpi96=0, 5, 618, 1332, 252 ;cmd, x, y, w, h
 Position_Page01=0, 10, 1236, 2664, 504 ;cmd, x, y, w, h
 Position_Page01_dpi96=0, 5, 618, 1332, 252 ;cmd, x, y, w, h
-Position_Page02=0, 22, 14, 1668, 722 ;cmd, x, y, w, h
-Position_Page02_dpi96=0, 11, 7, 834, 361 ;cmd, x, y, w, h
+Position_Page02=0, 12, 731, 1668, 722 ;cmd, x, y, w, h
+Position_Page02_dpi96=0, 6, 366, 834, 361 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
 DisplayMask=3 ; pages 1,2
@@ -4298,16 +4298,16 @@ DisplayMask=3 ; pages 1,2
 [WINDOW_4]
 ProgID=CNPTRACE.TraceCtrl.1
 PROPERTIES_COUNT=22
-PROPERTY_1=DeviceItems={"CaptureEvents":"1","ShowEvents":"0","NodeCount":"1","Node0":{"DeviceName":"xcp_demo","CaptureEvents":"1","ShowEvents":"1","NodeCount":"3","Node0":{"Channel":"2","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node1":{"Channel":"3","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"0","ShowEvents":"0","NodeCount":"0"},"Node2":{"Channel":"4","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"}}}
+PROPERTY_1=DeviceItems={"CaptureEvents":"1","ShowEvents":"0","NodeCount":"1","Node0":{"DeviceName":"xcp_demo","CaptureEvents":"1","ShowEvents":"1","NodeCount":"3","Node0":{"Channel":"2","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node1":{"Channel":"3","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"},"Node2":{"Channel":"4","DisplayColor":{"Color":"0","UseColor":"false"},"CaptureEvents":"1","ShowEvents":"1","NodeCount":"0"}}}
 PROPERTY_2=NetworkItems={"Items":"0"}
-PROPERTY_3=ColumnConfigs={"ConfigCount":"1","Config0":{"Layout":"1","Name":"hello_xcp","Column0":{"Width":"213","Position":"0","Name":"Time","IsDefaultName":"1"},"Column3":{"Width":"85","Position":"1","Name":"Name","IsDefaultName":"1"},"Column6":{"Width":"93","Position":"2","Name":"Length","IsDefaultName":"1"},"Column7":{"Width":"600","Position":"4","Name":"Data","IsDefaultName":"1"},"Column52":{"Width":"661","Position":"3","Name":"Protocol Interpretation","IsDefaultName":"1"}},"Active":"0","ActiveLayout":"1"}
+PROPERTY_3=ColumnConfigs={"ConfigCount":"1","Config0":{"Layout":"1","Name":"hello_xcp","Column0":{"Width":"213","Position":"0","Name":"Time","IsDefaultName":"1"},"Column3":{"Width":"85","Position":"1","Name":"Name","IsDefaultName":"1"},"Column6":{"Width":"93","Position":"2","Name":"Length","IsDefaultName":"1"},"Column7":{"Width":"600","Position":"4","Name":"Data","IsDefaultName":"1"},"Column52":{"Width":"1448","Position":"3","Name":"Protocol Interpretation","IsDefaultName":"1"}},"Active":"0","ActiveLayout":"1"}
 PROPERTY_4=PinningEvents={"EventCount":"0"}
 PROPERTY_5=ExpandedEvents={"EventCount":"0"}
 PROPERTY_6=AnalysisGroups={"GroupCount":"1","Group0":{"Enabled":"1","Expanded":"1","Name":"Filtergruppe 0","FilterCount":"2","Filter0":{"Stop":"1","Enabled":"1","ConditionCount":"0"},"Filter1":{"Stop":"0","Enabled":"0","ConditionCount":"0"}}}
 PROPERTY_7=AnalysisDataChangeFilter=0
 PROPERTY_8=SequenceFilters={"IsEnabled":"1","FilterCount":"0"}
 PROPERTY_9=SearchPatterns={"EventCount":"0"}
-PROPERTY_10=ExplorerConfig={"VSplitPos":"272","VSplitExpanded":"false","HSplitPos":"581","HSplitExpanded":"false","ActiveExplorerView":"2","ActiveSearchType":"0"}
+PROPERTY_10=ExplorerConfig={"VSplitPos":"498","VSplitExpanded":"true","HSplitPos":"581","HSplitExpanded":"false","ActiveExplorerView":"1","ActiveSearchType":"0"}
 PROPERTY_11=ContinuousMode=0
 PROPERTY_12=AbsoluteTimeMode=0
 PROPERTY_13=HighPrioritySBClient=0
@@ -4328,7 +4328,7 @@ ColumnCount=5
 Column_0=0, 213
 Column_1=4, 85
 Column_2=2, 93
-Column_3=513, 661
+Column_3=513, 1448
 Column_4=3, 600
 DeltaTimeEnabled=1
 Title=Trace-Fenster {DISPLAYED_FILENAME}
@@ -4337,10 +4337,10 @@ Comment=ActiveX-Fenster
 Number=4
 GUID=WINDOW_9327afe1-ff92-4071-9bed-dc42be1f63ed
 ScreenDPIinSection=192
-Position=0, 62, 244, 2258, 686 ;cmd, x, y, w, h
-Position_dpi96=0, 31, 122, 1129, 343 ;cmd, x, y, w, h
-Position_Page02=0, 62, 244, 2258, 686 ;cmd, x, y, w, h
-Position_Page02_dpi96=0, 31, 122, 1129, 343 ;cmd, x, y, w, h
+Position=0, 12, 20, 3159, 1297 ;cmd, x, y, w, h
+Position_dpi96=0, 6, 10, 1580, 649 ;cmd, x, y, w, h
+Position_Page02=0, 12, 20, 3159, 1297 ;cmd, x, y, w, h
+Position_Page02_dpi96=0, 6, 10, 1580, 649 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
 DisplayMask=2 ; pages 2
@@ -4359,10 +4359,10 @@ Color=0
 
 [WINDOW_5]
 XLen=36850
-XMin=-184
-XMinNs=-184821333
-XMax=4340
-XMaxNs=4340921113
+XMin=-182
+XMinNs=-182573167
+XMax=325998
+XMaxNs=325998125862
 Grid=1
 Mark=1
 YValue=1
@@ -4451,11 +4451,9 @@ Position=0, 1684, 0, 626, 270 ;cmd, x, y, w, h
 Position_dpi96=0, 842, 0, 313, 135 ;cmd, x, y, w, h
 Position_Page01=0, 1684, 0, 626, 270 ;cmd, x, y, w, h
 Position_Page01_dpi96=0, 842, 0, 313, 135 ;cmd, x, y, w, h
-Position_Page02=0, 1702, 14, 618, 214 ;cmd, x, y, w, h
-Position_Page02_dpi96=0, 851, 7, 309, 107 ;cmd, x, y, w, h
 FloatingWindow=0
 ShowSignalComments=1
-DisplayMask=3 ; pages 1,2
+DisplayMask=1 ; pages 1
 
 [WINDOW_6_OBJECT_1]
 Type=2
@@ -4504,7 +4502,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_d9439ebe-132b-4f84-befc-5445f0904d13
+GUID=DISPLAY_78e256b6-c7bb-4dda-b5d9-da2fbc25fe94
 
 [WINDOW_6_OBJECT_2]
 Type=2
@@ -4553,7 +4551,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_89f70141-2063-481b-845b-328b2e6fe940
+GUID=DISPLAY_d3d47bd7-9ff2-42f2-bd22-00583a643b30
 
 [WINDOW_6_OBJECT_3]
 Type=2
@@ -4602,7 +4600,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_1d12ccb0-1771-41c6-9233-d011b5977a42
+GUID=DISPLAY_e3ef51e8-c086-43fb-b9cb-80c990fc8b14
 
 [WINDOW_6_OBJECT_4]
 Type=2
@@ -4651,7 +4649,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_14bf2cc4-8870-4df5-be9b-6d1f0d63ee52
+GUID=DISPLAY_d9ccffe6-4d21-408e-be1a-f3fc1b612f46
 
 [WINDOW_7]
 ScaleFont=1

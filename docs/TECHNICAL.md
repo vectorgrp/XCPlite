@@ -143,6 +143,38 @@ The 2 modes are named **CASDD** and **ACSDD**. The A2L variable `project_no` is 
 This is important, because CANape does not support address extensions >0 for parameters in calibration segments.  
 Parameters in calibration segments may be accessed by their segment relative address or by their absolute address, using the corresponding address extension.  
 
+### Absolute Addressing Mode (XCP_ENABLE_ABS_ADDRESSING)
+
+
+### User specific addressing mode (XCP_ENABLE_APP_ADDRESSING)
+
+The application callbacks for memory access are used, when address extensions is XCP_ADDR_EXT_ABS.  
+This can be customized in xcp_cfg.h, by redefining the function like macro: 
+
+```
+#define XcpAddrIsApp(addr_ext) ((addr_ext) == XCP_ADDR_EXT_APP)
+```
+
+Asynchronous memory access is then redirected over the application callbacks:
+
+```
+void ApplXcpRegisterReadCallback(uint8_t (*cb_read)(uint32_t src, uint8_t size, uint8_t *dst));
+void ApplXcpRegisterWriteCallback(uint8_t (*cb_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay));
+```
+
+The delayed write parameter is set to true, when CANape is in indirect calibration mode for consistent calibration writes and the user specific commands for begin and end calibration are enabled (CC_USER_CMD 0xF1, subcmd 0x01=begin and 0x02=end atomic calibration).  
+
+The flush operation for delayed calibration writes is redirected over the application callback:
+
+```
+void ApplXcpRegisterFlushCallback(uint8_t (*cb_flush)(void));
+```
+
+
+
+
+
+
 
 ## EPK - ECU Software Version
 

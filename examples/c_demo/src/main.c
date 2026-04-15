@@ -13,18 +13,19 @@
 //-----------------------------------------------------------------------------------------------------
 
 // XCP parameters
-#define OPTION_PROJECT_NAME "c_demo"          // A2L project name
-#define OPTION_PROJECT_VERSION "V1_" __TIME__ // EPK version string
-#define OPTION_USE_TCP false                  // TCP or UDP
-#define OPTION_SERVER_PORT 5555               // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0}       // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE (1024 * 32)         // Size of the measurement queue in bytes
-#define OPTION_LOG_LEVEL 3                    // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+#define OPTION_PROJECT_NAME "c_demo"    // A2L project name
+#define OPTION_PROJECT_VERSION "V1.4"   // EPK version string
+#define OPTION_USE_TCP false            // TCP or UDP
+#define OPTION_SERVER_PORT 5555         // Port
+#define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
+#define OPTION_QUEUE_SIZE (1024 * 32)   // Size of the measurement queue in bytes
+#define OPTION_LOG_LEVEL 4              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 // Enable level 4 to observe how asynchronous read/write access to a variable on the stack works, and how the consistent parameter update and measurement works
 // See README.md
 
 // #define OPTION_CANAPE_24                // Enable CANape 24 shared axis support for typedefs
+#define XCP_ENABLE_APP_ADDRESSING // Demonstrate application specific memory access
 
 //-----------------------------------------------------------------------------------------------------
 // Demo calibration parameters
@@ -77,12 +78,53 @@ int64_t g_counter64s = 0;
 uint64_t g_param_sum = 0; // Test variable for the sum of the parameters, updated in the main loop and used for measurement
 
 //-----------------------------------------------------------------------------------------------------
+// Demo application specific memory access
+// Emulate memory access to a user specific virtual address range, without using a calibration segment
+// Could be a file, or flash memory, or a memory-mapped peripheral, etc.
+#ifdef XCP_ENABLE_APP_ADDRESSING
+
+#pragma pack(push, 1)
+struct AppMemory {
+    uint8_t test_byte;
+    uint16_t test_word;
+    uint32_t test_dword;
+} app_memory = {
+    .test_byte = 1,
+    .test_word = 2,
+    .test_dword = 4,
+};
+#pragma pack(pop)
+
+// Write callback for application specific memory access, called by XCP when the master writes to an address with the application specific address extension
+uint8_t cb_read(uint32_t src, uint8_t size, uint8_t *dst) {
+    if (src + size > sizeof(app_memory)) {
+        printf("ERROR: Read out of bounds: src=%u, size=%u\n", src, size);
+        return CRC_ACCESS_DENIED;
+    }
+    memcpy(dst, (uint8_t *)&app_memory + src, size);
+    return CRC_CMD_OK;
+}
+
+// Write callback for application specific memory access, called by XCP when the master writes to an address with the application specific address extension
+uint8_t cb_write(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay) {
+
+    if (dst + size > sizeof(app_memory)) {
+        printf("ERROR: Write out of bounds: dst=%u, size=%u\n", dst, size);
+        return CRC_ACCESS_DENIED;
+    }
+    memcpy((uint8_t *)&app_memory + dst, src, size);
+    return CRC_CMD_OK;
+}
+
+#endif
+
+//-----------------------------------------------------------------------------------------------------
+// Demo main
 
 // Signal handler for clean shutdown
 static volatile bool running = true;
 static void sig_handler(int sig) { running = false; }
 
-// Demo main
 int main(void) {
 
     printf("\nXCP on Ethernet C demo\n");
@@ -95,6 +137,10 @@ int main(void) {
     // Initialize the XCP singleton, activate XCP, must be called before starting the server
     // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
     XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION, XCP_MODE_LOCAL);
+#ifdef XCP_ENABLE_APP_ADDRESSING
+    ApplXcpRegisterReadCallback(cb_read);
+    ApplXcpRegisterWriteCallback(cb_write);
+#endif
 
     // Initialize the XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;
@@ -220,10 +266,19 @@ int main(void) {
         A2lTypedefEnd();
     }
 
-    // Demo
     // Create a static measurement variable which is a copy of the calibration parameter segment to verify calibration changes and consistency
     A2lSetAbsoluteAddrMode(mainloop);
     A2lCreateTypedefInstance(params_copy, params_measurement_t, "A copy of the current calibration parameters");
+
+    // Create a calibration parameter in a user specific virtual address range, without using a calibration segment
+#ifdef XCP_ENABLE_APP_ADDRESSING
+    ApplXcpSetBaseAddr((const uint8_t *)&app_memory); // Set the base address for application specific addressing mode
+    A2lSetApplicationAddrMode();
+    A2lCreateParameter(app_memory.test_byte, "Test byte in application specific memory", "", 0, 255);
+    A2lCreateParameter(app_memory.test_word, "Test word in application specific memory", "", 0, 65535);
+    A2lCreateParameter(app_memory.test_dword, "Test dword in application specific memory", "", 0, 4294967295);
+    ApplXcpSetBaseAddr(NULL); // Reset to default module base address
+#endif
 
     uint32_t delay_us = 1000;
     while (running) {
