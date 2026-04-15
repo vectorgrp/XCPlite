@@ -2,9 +2,22 @@
 
 This document contains advanced technical information about XCPlite's implementation, addressing modes, and configuration options.
 
+## Resource consumption
+
+libxcplite release build is currently about 160 KB in size, without debug prints enabled.
+Memory consumption depends on the configuration and usage of the library. The following are some examples for a typical configuration with 10 events, 10 calibration segments and 10 DAQ lists with 10 ODTs each:
+
+| Resource | Consumption |
+| --- | --- |
+| Static memory | ~100 KB (for DAQ tables, calibration segment pages) |
+| Heap memory | ~100 KB (for for transport layer queue) |
+| Stack memory | ~1 KB per thread (for XCP receive and tranmit threads ) |
+
+
+
 ## Instrumentation Cost and Side Effects
 
-Keeping code instrumentation side effects as small as possible was one of the major goals, but of course there are effects caused by the code instrumentation:
+Keeping code instrumentation side effects as small as possible was one of the major goals, but of course there are effects caused by the code instrumentation.  
 
 ### Data Acquisition
 

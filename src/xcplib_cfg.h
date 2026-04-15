@@ -33,13 +33,12 @@
 #define OPTION_ENABLE_DBG_PRINTS
 // Enable debug print errors and warnings go to stderr
 #define OPTION_ENABLE_DBG_STDERR
-// Default log level: 1 - Error, 2 - Warn, 3 - Info, 4 - Trace, 5 - Debug
-// Use level 4 to print all XCP commands
+// Default log level: 1 - Error, 2 - Warn, 3 - Info, 4 - Trace (used to print all XCP commands), 5 - Debug, 6 - Very verbose
 #define OPTION_DEFAULT_DBG_LEVEL 3
-// Optimize code size, higher levels optimized out
-#define OPTION_MAX_DBG_LEVEL 5
+// Optimize code size, higher levels than OPTION_MAX_DBG_LEVEL are optimized out
+#define OPTION_MAX_DBG_LEVEL 4
 // Optimize code size, fixed log level, not changeable at runtime
-// #define OPTION_FIXED_DBG_LEVEL 3
+// #define OPTION_FIXED_DBG_LEVEL 4
 
 //-------------------------------------------------------------------------------
 // Clock
