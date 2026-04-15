@@ -680,6 +680,7 @@ void A2lSetApplicationAddrMode(void) {
         gA2lFramePtr = NULL;
         gA2lBasePtr = NULL;
         gA2lAddrExt = XCP_ADDR_EXT_APP;
+        A2lEndGroup();
         // fprintf(gA2lFile, "\n/* Application specific addressing mode */\n");
     }
 }

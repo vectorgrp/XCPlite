@@ -14,7 +14,7 @@
 
 // XCP parameters
 #define OPTION_PROJECT_NAME "c_demo"    // A2L project name
-#define OPTION_PROJECT_VERSION "V1.4"   // EPK version string
+#define OPTION_PROJECT_VERSION "V1.5"   // EPK version string
 #define OPTION_USE_TCP false            // TCP or UDP
 #define OPTION_SERVER_PORT 5555         // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
