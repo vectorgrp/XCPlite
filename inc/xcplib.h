@@ -12,7 +12,7 @@
 |     C_API functions XcpXxxx
 |     C_API types tXcpCalSegIndex, tXcpEventId
 |     Macros CalSegXxxx, DaqXxxx, A2lXxxx, A2L_XXX
-|     Constants XCP_XXX
+|     Constants XCP_XXX, CRC_XXX
 |
 | Copyright (c) Vector Informatik GmbH. All rights reserved.
 | See LICENSE file in the project root for details.
@@ -48,17 +48,6 @@ bool XcpEthServerStatus(void);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Calibration segments
-
-#if defined(OPTION_XCP_MODE) && OPTION_XCP_MODE == 0 // XCP deactivated
-
-#define tXcpCalSegIndex void *
-#undef XCP_UNDEFINED_CALSEG
-#define XCP_UNDEFINED_CALSEG NULL
-#define XcpCreateCalSeg(name, ref_page_addr, size) (uint8_t *)(ref_page_addr)
-#define XcpLockCalSeg(calseg) (calseg)
-#define XcpUnlockCalSeg(calseg) ((void)0)
-
-#else
 
 /// Calibration segment handle
 typedef uint16_t tXcpCalSegIndex;
@@ -124,8 +113,6 @@ bool XcpResetAllCalSegs(void);
 /// The working page calibration data, will become the default page content of the next session
 /// @return true on success
 bool XcpFreeze(void);
-
-#endif
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Calibration segment and value convenience macros
@@ -562,6 +549,32 @@ extern const uint8_t *gXcpBaseAddr;
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Misc
 
+/* XCP command Return Codes */
+#define CRC_CMD_OK 0x00
+#define CRC_CMD_SYNCH 0x00
+#define CRC_CMD_PENDING 0x01
+#define CRC_CMD_IGNORED 0x02
+#define CRC_CMD_BUSY 0x10
+#define CRC_DAQ_ACTIVE 0x11
+#define CRC_PGM_ACTIVE 0x12
+#define CRC_CMD_UNKNOWN 0x20
+#define CRC_CMD_SYNTAX 0x21
+#define CRC_OUT_OF_RANGE 0x22
+#define CRC_WRITE_PROTECTED 0x23
+#define CRC_ACCESS_DENIED 0x24
+#define CRC_ACCESS_LOCKED 0x25
+#define CRC_PAGE_NOT_VALID 0x26
+#define CRC_MODE_NOT_VALID 0x27
+#define CRC_SEGMENT_NOT_VALID 0x28
+#define CRC_SEQUENCE 0x29
+#define CRC_DAQ_CONFIG 0x2A
+#define CRC_MEMORY_OVERFLOW 0x30
+#define CRC_GENERIC 0x31
+#define CRC_VERIFY 0x32
+#define CRC_RESOURCE_TEMPORARY_NOT_ACCESSIBLE 0x33
+#define CRC_SUBCMD_UNKNOWN 0x34
+#define CRC_TIMECORR_STATE_CHANGE 0x35
+
 /// Set log level
 /// Does not require XCP to be initialized yet
 /// Log level 4 provides a trace of all XCP commands and responses.
@@ -663,6 +676,7 @@ void ApplXcpRegisterGetCalPageCallback(uint8_t (*cb_get_cal_page)(uint8_t segmen
 void ApplXcpRegisterSetCalPageCallback(uint8_t (*cb_set_cal_page)(uint8_t segment, uint8_t page, uint8_t mode));
 void ApplXcpRegisterFreezeCalCallback(uint8_t (*cb_freeze_cal)(void));
 void ApplXcpRegisterInitCalCallback(uint8_t (*cb_init_cal)(uint8_t src_page, uint8_t dst_page));
+void ApplXcpRegisterCheckCallback(uint8_t (*cb_check)(uint8_t ext, uint32_t addr, uint8_t size));
 void ApplXcpRegisterReadCallback(uint8_t (*cb_read)(uint32_t src, uint8_t size, uint8_t *dst));
 void ApplXcpRegisterWriteCallback(uint8_t (*cb_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay));
 void ApplXcpRegisterFlushCallback(uint8_t (*cb_flush)(void));

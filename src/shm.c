@@ -520,10 +520,9 @@ int16_t XcpShmRegisterApp(const char *name, const char *epk, uint32_t pid, uint8
                 app->is_leader = is_leader;
                 app->is_server = is_server;
                 assert(app->xcp_init_mode == xcp_init_mode);
-                bool a2l_fin = atomic_load(&app->a2l_finalized) != 0;
                 // @@@@ TODO: Check if the A2L file still exists and reset the a2l_finalized flag if not ?
                 DBG_PRINTF5("XcpShmRegisterApp: Registered application %u:'%s', epk=%s, a2l_finalized=%u, a2l_name='%s'\n", i, name, epk, a2l_fin,
-                            a2l_fin ? app->a2l_name : "pending");
+                            atomic_load(&app->a2l_finalized) != 0 ? app->a2l_name : "pending");
                 return (uint8_t)i;
             } else {
                 DBG_PRINTF_ERROR("XcpShmRegisterApp:Application %u:'%s' has different epk %s, reset please !!!\n", i, name, epk);

@@ -50,6 +50,7 @@ bool verbose = false;
 // Internally used XCP functions for testing
 extern "C" {
 uint8_t XcpWriteMta(uint8_t size, const uint8_t *data);
+uint8_t XcpReadMta(uint8_t size, uint8_t *data);
 uint8_t XcpSetMta(uint8_t ext, uint32_t addr);
 void XcpCalSegBeginAtomicTransaction(void);
 uint8_t XcpCalSegEndAtomicTransaction(void);
@@ -314,6 +315,33 @@ extern "C" {
 void XcpBackgroundTasks(void);
 }
 
+// Emulate memory access
+#ifdef XCP_ENABLE_APP_ADDRESSING
+
+#define CAL_MEM_SIZE 1024
+uint8_t calmem[CAL_MEM_SIZE]; // Simulated calibration memory
+
+uint8_t cb_read(uint32_t src, uint8_t size, uint8_t *dst) {
+    if (src + size > CAL_MEM_SIZE) {
+        printf("ERROR: Read out of bounds: src=%u, size=%u\n", src, size);
+        return CRC_ACCESS_DENIED;
+    }
+    memcpy(dst, &calmem[src], size); // Return dummy data
+    return CRC_CMD_OK;
+}
+
+uint8_t cb_write(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay) {
+
+    if (dst + size > CAL_MEM_SIZE) {
+        printf("ERROR: Write out of bounds: dst=%u, size=%u\n", dst, size);
+        return CRC_ACCESS_DENIED;
+    }
+    memcpy(&calmem[dst], src, size); // Store written data in simulated calibration memory
+    return CRC_CMD_OK;
+}
+
+#endif
+
 int main(int argc, char *argv[]) {
     printf("\nXCP Calibration Segment Multi-Threading Test\n");
     printf("============================================\n");
@@ -331,6 +359,10 @@ int main(int argc, char *argv[]) {
 
     // Initialize XCP
     XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION, XCP_MODE_LOCAL);
+#ifdef XCP_ENABLE_APP_ADDRESSING
+    ApplXcpRegisterReadCallback(cb_read);
+    ApplXcpRegisterWriteCallback(cb_write);
+#endif
 
     // Initialize XCP Server
     uint8_t addr[4] = OPTION_SERVER_ADDR;
@@ -344,6 +376,29 @@ int main(int argc, char *argv[]) {
         printf("Failed to initialize A2L generation\n");
         return 1;
     }
+
+    // Test application specific addressing if enabled
+#ifdef XCP_ENABLE_APP_ADDRESSING
+    printf("\n\nStart application specific memory segment access test ...\n");
+    // Write some test data to the simulated calibration memory
+    for (uint32_t i = 0; i < CAL_MEM_SIZE; i += 4) {
+        XcpSetMta(XCP_ADDR_EXT_APP, i);
+        XcpWriteMta(4, (uint8_t *)&i);
+    }
+    // Read back the data via the XCP read callback to verify it works
+    for (uint32_t i = 0; i < CAL_MEM_SIZE; i += 4) {
+        uint32_t value = 0;
+        XcpSetMta(XCP_ADDR_EXT_APP, i);
+        XcpReadMta(4, (uint8_t *)&value);
+        if (value != i) {
+            printf(ANSI_COLOR_RED "ERROR: App addressing read/write mismatch at addr %u: expected %u, got %u\n" ANSI_COLOR_RESET, i, i, value);
+            total_errors++;
+        }
+    }
+    if (total_errors == 0)
+        printf("Application specific memory segment access test OK\n");
+
+#endif
 
 // Create the test calibration segment
 #ifdef TEST_CALBLK
@@ -374,7 +429,7 @@ int main(int argc, char *argv[]) {
         } else if (memcmp(parameters.get(), &kParameters, sizeof(ParametersT)) == 0) {
             printf("Calibration segment has default initial values\n");
         } else {
-            printf("ERROR: Checking calibration segment read initial values failed\n");
+            printf(ANSI_COLOR_RED "ERROR: Checking calibration segment read initial values failed\n" ANSI_COLOR_RESET);
             total_errors += 1;
         }
     }
@@ -385,7 +440,7 @@ int main(int argc, char *argv[]) {
     {
         auto parameters = calseg->lock();
         if (memcmp(parameters.get(), &kParameters, sizeof(ParametersT)) != 0 && !check_test_data(parameters.get(), 1)) {
-            printf("ERROR: Checking calibration segment read initial RAM page values failed\n");
+            printf(ANSI_COLOR_RED "ERROR: Checking calibration segment read initial RAM page values failed\n" ANSI_COLOR_RESET);
             total_errors += 1;
         }
     }
@@ -394,7 +449,7 @@ int main(int argc, char *argv[]) {
     {
         auto parameters = calseg->lock();
         if (memcmp(parameters.get(), &kParameters, sizeof(ParametersT)) != 0 && !check_test_data(parameters.get(), 1)) {
-            printf("ERROR: Checking calibration segment read initial FLASH page values failed\n");
+            printf(ANSI_COLOR_RED "ERROR: Checking calibration segment read initial FLASH page values failed\n" ANSI_COLOR_RESET);
             total_errors += 1;
         }
     }
@@ -418,7 +473,7 @@ int main(int argc, char *argv[]) {
         {
             auto parameters = calseg->lock();
             if (parameters->check != check) {
-                printf("ERROR: Checking calibration segment read %u after write failed, expected check=%u, got %u\n", i, check, parameters->check);
+                printf(ANSI_COLOR_RED "ERROR: Checking calibration segment read %u after write failed, expected check=%u, got %u\n" ANSI_COLOR_RESET, i, check, parameters->check);
                 total_errors += 1;
             }
         }
@@ -453,7 +508,8 @@ int main(int argc, char *argv[]) {
     {
         auto parameters = calseg->lock();
         if (parameters->check != check) {
-            printf("ERROR: Checking calibration segment read after dual write with background tasks failed, expected check=%u, got %u\n", check, parameters->check);
+            printf(ANSI_COLOR_RED "ERROR: Checking calibration segment read after dual write with background tasks failed, expected check=%u, got %u\n" ANSI_COLOR_RESET, check,
+                   parameters->check);
             total_errors += 1;
         }
     }
@@ -463,7 +519,7 @@ int main(int argc, char *argv[]) {
     {
         auto parameters = calseg->lock();
         if (parameters->check != 0 && parameters->check != 3) {
-            printf("ERROR: Checking calibration segment FLASH page check=%u, expected 0 or 3 \n", parameters->check);
+            printf(ANSI_COLOR_RED "ERROR: Checking calibration segment FLASH page check=%u, expected 0 or 3 \n" ANSI_COLOR_RESET, parameters->check);
             total_errors += 1;
         }
     }
@@ -487,7 +543,7 @@ int main(int argc, char *argv[]) {
         auto parameters = calseg->lock();
         if (!check_test_data(parameters.get(), 0)) {
             total_errors += 1;
-            printf("ERROR: Calibration segment read %u after write failed, data[0]=%u, expected 0\n", i, parameters->data[0]);
+            printf(ANSI_COLOR_RED "ERROR: Calibration segment read %u after write failed, data[0]=%u, expected 0\n" ANSI_COLOR_RESET, i, parameters->data[0]);
         }
     }
     for (size_t i = 0; i < sizeof(test_data); i++) {
@@ -499,7 +555,7 @@ int main(int argc, char *argv[]) {
         auto parameters = calseg->lock();
         if (!check_test_data(parameters.get(), 1)) {
             total_errors += 1;
-            printf("ERROR: Calibration segment read %u nafter write failed, data[0]=%u, expected 1\n", i, parameters->data[0]);
+            printf(ANSI_COLOR_RED "ERROR: Calibration segment read %u after write failed, data[0]=%u, expected 1\n" ANSI_COLOR_RESET, i, parameters->data[0]);
         }
     }
 
@@ -549,7 +605,7 @@ int main(int argc, char *argv[]) {
             XcpWriteMta(TEST_DATA_SIZE / 2, &test_data[TEST_DATA_SIZE / 2]);
             if (0 != XcpCalSegEndAtomicTransaction()) {
                 total_errors += 1;
-                printf("ERROR: Atomic calibration transaction failed at write_count=%u\n", write_count);
+                printf(ANSI_COLOR_RED "ERROR: Atomic calibration transaction failed at write_count=%u\n" ANSI_COLOR_RESET, write_count);
             }; // End atomic calibration operation
             write_atomic_count++;
         } else
@@ -643,9 +699,9 @@ int main(int argc, char *argv[]) {
 #endif
 
     if (total_errors > 0) {
-        printf("ERROR: %llu errors occurred during the test!\n", (unsigned long long)total_errors);
+        printf(ANSI_COLOR_RED "ERROR: %llu errors occurred during the test!\n" ANSI_COLOR_RESET, (unsigned long long)total_errors);
     } else {
-        printf("SUCCESS: No errors occurred during the test\n");
+        printf(ANSI_COLOR_GREEN "SUCCESS: No errors occurred during the test\n" ANSI_COLOR_RESET);
     }
 
     XcpDisconnect();        // Force disconnect the XCP client
@@ -653,9 +709,9 @@ int main(int argc, char *argv[]) {
     XcpEthServerShutdown(); // Stop the XCP server
 
     if (total_errors == 0) {
-        printf("\nTest completed successfully!\n");
+        printf("\n" ANSI_COLOR_GREEN "Test completed successfully!\n" ANSI_COLOR_RESET);
     } else {
-        printf("\nTest completed with errors!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+        printf("\n" ANSI_COLOR_RED "Test completed with errors!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n" ANSI_COLOR_RESET);
     }
     return total_errors > 0 ? 1 : 0;
 }

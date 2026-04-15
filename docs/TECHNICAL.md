@@ -2,9 +2,22 @@
 
 This document contains advanced technical information about XCPlite's implementation, addressing modes, and configuration options.
 
+## Resource consumption
+
+libxcplite release build is currently about 160 KB in size, without debug prints enabled.
+Memory consumption depends on the configuration and usage of the library. The following are some examples for a typical configuration with 10 events, 10 calibration segments and 10 DAQ lists with 10 ODTs each:
+
+| Resource | Consumption |
+| --- | --- |
+| Static memory | ~100 KB (for DAQ tables, calibration segment pages) |
+| Heap memory | ~100 KB (for for transport layer queue) |
+| Stack memory | ~1 KB per thread (for XCP receive and tranmit threads ) |
+
+
+
 ## Instrumentation Cost and Side Effects
 
-Keeping code instrumentation side effects as small as possible was one of the major goals, but of course there are effects caused by the code instrumentation:
+Keeping code instrumentation side effects as small as possible was one of the major goals, but of course there are effects caused by the code instrumentation.  
 
 ### Data Acquisition
 
@@ -129,6 +142,38 @@ Depending on `#define OPTION_CAL_SEGMENTS_ABS` in `xcplib_cfg.h`, address extens
 The 2 modes are named **CASDD** and **ACSDD**. The A2L variable `project_no` is used to indicate the addressing mode to A2L creators or updaters.  
 This is important, because CANape does not support address extensions >0 for parameters in calibration segments.  
 Parameters in calibration segments may be accessed by their segment relative address or by their absolute address, using the corresponding address extension.  
+
+### Absolute Addressing Mode (XCP_ENABLE_ABS_ADDRESSING)
+
+
+### User specific addressing mode (XCP_ENABLE_APP_ADDRESSING)
+
+The application callbacks for memory access are used, when address extensions is XCP_ADDR_EXT_ABS.  
+This can be customized in xcp_cfg.h, by redefining the function like macro: 
+
+```
+#define XcpAddrIsApp(addr_ext) ((addr_ext) == XCP_ADDR_EXT_APP)
+```
+
+Asynchronous memory access is then redirected over the application callbacks:
+
+```
+void ApplXcpRegisterReadCallback(uint8_t (*cb_read)(uint32_t src, uint8_t size, uint8_t *dst));
+void ApplXcpRegisterWriteCallback(uint8_t (*cb_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay));
+```
+
+The delayed write parameter is set to true, when CANape is in indirect calibration mode for consistent calibration writes and the user specific commands for begin and end calibration are enabled (CC_USER_CMD 0xF1, subcmd 0x01=begin and 0x02=end atomic calibration).  
+
+The flush operation for delayed calibration writes is redirected over the application callback:
+
+```
+void ApplXcpRegisterFlushCallback(uint8_t (*cb_flush)(void));
+```
+
+
+
+
+
 
 
 ## EPK - ECU Software Version

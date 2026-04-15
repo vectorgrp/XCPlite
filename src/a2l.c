@@ -370,7 +370,9 @@ static void A2lCreateMeasurement_IF_DATA(void) {
             } else {
                 assert(0 && "Fixed event not set"); // Fixed event must be set before calling this function
             }
-        } else if (XcpAddrIsAbs(addr_ext)) {
+        }
+#ifdef XCP_ENABLE_ABS_ADDRESSING
+        else if (XcpAddrIsAbs(addr_ext)) {
             if (gA2lFixedEvent != XCP_UNDEFINED_EVENT_ID) {
                 fprintf(gA2lFile, " /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x%X /end DAQ_EVENT /end IF_DATA", gA2lFixedEvent);
             } else if (gA2lDefaultEvent != XCP_UNDEFINED_EVENT_ID) {
@@ -378,6 +380,7 @@ static void A2lCreateMeasurement_IF_DATA(void) {
                         gA2lDefaultEvent);
             }
         }
+#endif
     }
 }
 
@@ -429,7 +432,7 @@ static const char *dbgPrintfAddrExt(uint8_t addr_ext, uint32_t addr) {
 // Calibration segment addressing mode
 // Used for calibration parameters ins a XCP calibration segment (A2L MEMORY_SEGMENT)
 #if defined(XCP_ENABLE_CALSEG_LIST)
-void A2lSetSegAddrMode(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance_addr) {
+static void A2lSetSegAddrMode(tXcpCalSegIndex calseg_index, const uint8_t *calseg_instance_addr) {
     gA2lAddrIndex = calseg_index;
     gA2lBasePtr = calseg_instance_addr; // Address of the calibration segment instance which is used in the macros to create the components
     gA2lAddrExt = XCP_ADDR_EXT_SEG;
@@ -438,7 +441,7 @@ void A2lSetSegAddrMode(tXcpCalSegIndex calseg_index, const uint8_t *calseg_insta
 
 // Absolute addressing mode
 // XCP address is the absolute address of the variable relative to the main module load address
-void A2lSetAbsAddrMode(tXcpEventId default_event_id) {
+static void A2lSetAbsAddrMode(tXcpEventId default_event_id) {
     gA2lFixedEvent = XCP_UNDEFINED_EVENT_ID;
     gA2lDefaultEvent = default_event_id; // May be XCP_UNDEFINED_EVENT_ID
     gA2lFramePtr = NULL;
@@ -486,7 +489,7 @@ void A2lSetAutoAddrMode(tXcpEventId event_id, const uint8_t *frame_ptr, const ui
     gA2lAddrExt = XCP_UNDEFINED_ADDR_EXT; // Auto
 }
 
-void A2lRstAddrMode(void) {
+static void A2lRstAddrMode(void) {
     gA2lFixedEvent = XCP_UNDEFINED_EVENT_ID;
     gA2lDefaultEvent = XCP_UNDEFINED_EVENT_ID;
     gA2lFramePtr = NULL;
@@ -548,7 +551,7 @@ void A2lSetSegmentAddrMode__s(const char *calseg_name, const uint8_t *calseg_ins
     }
 }
 
-#endif
+#endif // XCP_ENABLE_CALSEG_LIST
 
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
 
@@ -667,7 +670,21 @@ void A2lSetAbsoluteAddrMode__i(tXcpEventId event_id) {
         }
     }
 }
-#endif
+#endif // XCP_ENABLE_DAQ_EVENT_LIST
+
+#ifdef XCP_ENABLE_APP_ADDRESSING
+void A2lSetApplicationAddrMode(void) {
+    if (gA2lFile != NULL) {
+        gA2lFixedEvent = XCP_UNDEFINED_EVENT_ID;
+        gA2lDefaultEvent = XCP_UNDEFINED_EVENT_ID;
+        gA2lFramePtr = NULL;
+        gA2lBasePtr = NULL;
+        gA2lAddrExt = XCP_ADDR_EXT_APP;
+        A2lEndGroup();
+        // fprintf(gA2lFile, "\n/* Application specific addressing mode */\n");
+    }
+}
+#endif // XCP_ENABLE_APP_ADDRESSING
 
 //----------------------------------------------------------------------------------
 // Address encoding
@@ -748,6 +765,10 @@ static uint32_t A2lGetAddr_(const void *p) {
                 // Fallback to absolute if overflow
                 gA2lAutoAddrExt = ApplXcpGetAddrExt(p);
                 return XcpAddrEncodeAbs(p);
+#elif defined(XCP_ENABLE_APP_ADDRESSING)
+                // Fallback to application specific addressing if overflow
+                gA2lAutoAddrExt = XCP_ADDR_EXT_APP;
+                return XcpAddrEncodeApp(p);
 #else
                 DBG_PRINTF_ERROR("A2L address overflow detected! addr: %p\n", p);
                 assert(0 && "A2L address overflow");
@@ -759,10 +780,19 @@ static uint32_t A2lGetAddr_(const void *p) {
         } // gA2lAddrExt == XCP_UNDEFINED_ADDR_EXT
 
         // Absolute
+#ifdef XCP_ENABLE_ABS_ADDRESSING
         else if (XcpAddrIsAbs(gA2lAddrExt)) {
             // Range checking is in the XcpAddrEncodeAbs function
             return XcpAddrEncodeAbs(p);
         }
+#endif
+
+        // Application specific
+#ifdef XCP_ENABLE_APP_ADDRESSING
+        else if (XcpAddrIsApp(gA2lAddrExt)) {
+            return XcpAddrEncodeApp(p);
+        }
+#endif
 
         // Relative
 #ifdef XCP_ENABLE_REL_ADDRESSING
@@ -1047,7 +1077,17 @@ void A2lCreateInstance_(const char *instance_name, const char *typeName, const u
             fprintf(gA2lFile, " MATRIX_DIM %u", x_dim);
         }
         uint8_t addr_ext = A2lGetAddrExt_();
-        if (XcpAddrIsAbs(addr_ext) || XcpAddrIsDyn(addr_ext)) { // Measurements in absolute and dynamic mode allows write access
+        if (
+#ifdef XCP_ENABLE_ABS_ADDRESSING
+            XcpAddrIsAbs(addr_ext) ||
+#endif
+#ifdef XCP_ENABLE_APP_ADDRESSING
+            XcpAddrIsApp(addr_ext) ||
+#endif
+#ifdef XCP_ENABLE_DYN_ADDRESSING
+            XcpAddrIsDyn(addr_ext) ||
+#endif
+            false) { // Measurements in absolute and dynamic mode allows write access
             fprintf(gA2lFile, " READ_WRITE");
         }
         A2lCreateMeasurement_IF_DATA(); // Create event definition for measurements
@@ -1093,7 +1133,17 @@ void A2lCreateMeasurement_(const char *instance_name, const char *symbol_name, t
         printAddrExt(ext);
         printPhysUnit(gA2lFile, unit_or_conversion);
         uint8_t addr_ext = A2lGetAddrExt_();
-        if (XcpAddrIsAbs(addr_ext) || XcpAddrIsDyn(addr_ext)) { // Absolute and dynamic mode allows write access
+        if (
+#ifdef XCP_ENABLE_ABS_ADDRESSING
+            XcpAddrIsAbs(addr_ext) ||
+#endif
+#ifdef XCP_ENABLE_APP_ADDRESSING
+            XcpAddrIsApp(addr_ext) ||
+#endif
+#ifdef XCP_ENABLE_DYN_ADDRESSING
+            XcpAddrIsDyn(addr_ext) ||
+#endif
+            false) { // Absolute and dynamic mode allows write access
             fprintf(gA2lFile, " READ_WRITE");
         }
         A2lCreateMeasurement_IF_DATA();
@@ -1580,9 +1630,6 @@ bool A2lFinalize(void) {
         const uint16_t epk_len = (uint16_t)STRNLEN(epk, XCP_EPK_MAX_LENGTH) + 1;
         // @@@@ TODO: Remove magic number for EPK segment address,
         XcpCalSegWriteMemory(0x80000000, epk_len, (const uint8_t *)epk);
-        const char *epk_calseg = (const char *)XcpLockCalSeg(XCP_EPK_CALSEG_INDEX);
-        assert(strncmp(epk, epk_calseg, epk_len) == 0);
-        XcpUnlockCalSeg(0);
         // Write the binary persistence file
         XcpBinWrite(epk);
         // Notify the XCP server A2L file is available for upload

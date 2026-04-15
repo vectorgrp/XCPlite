@@ -9,6 +9,7 @@ clang_tidy
 *.mf4
 *.cnaxml
 *.tmp
+*.fup
 CANape.aml
 CANapeTmpMea.ini
 RecycleBin.ini

@@ -23,7 +23,7 @@ show_usage() {
     echo "Build Targets:"
     echo "  lib:            Build only the xcplite library"
     echo "  examples:       Build library + examples (bpf_demo on Linux if libbpf available) [DEFAULT]"
-    echo "  tests:          Build library + test targets (a2l_test, cal_test, daq_test, queue_test, ...)"
+    echo "  tests:          Build library + test targets (a2l_test, cal_test, daq_test, queue_test, clock_test, ...)"
     echo "  all:            Build everything (library + examples + tests)"
     echo ""
     echo "Options:"

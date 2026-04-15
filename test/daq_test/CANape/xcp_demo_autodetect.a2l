@@ -75,25 +75,25 @@ ALIGNMENT_INT64 1
 /begin CHARACTERISTIC params.test_byte2 "Test byte for calibration consistency test" VALUE 0x80010012 I8 0 NO_COMPU_METHOD -128 127 /end CHARACTERISTIC
 /begin MEASUREMENT counter "Main loop counter" UWORD NO_COMPU_METHOD 0 0 0 65535  ECU_ADDRESS 0x2C058 ECU_ADDRESS_EXTENSION 1 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin CHARACTERISTIC timing_histogram "XcpEvent duration histogram" CURVE 0x2C060 U64 0 NO_COMPU_METHOD 0 100000 /begin AXIS_DESCR COM_AXIS NO_INPUT_QUANTITY NO_COMPU_METHOD 24 0.0 0.0 AXIS_PTS_REF timing_histogram_axis /end AXIS_DESCR ECU_ADDRESS_EXTENSION 1 /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end CHARACTERISTIC
-/begin AXIS_PTS timing_histogram_axis "XcpEvent duration histogram" 0x20348 NO_INPUT_QUANTITY A_U64 0 NO_COMPU_METHOD 24 0 10000 PHYS_UNIT "ns" ECU_ADDRESS_EXTENSION 1 /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end AXIS_PTS
+/begin AXIS_PTS timing_histogram_axis "XcpEvent duration histogram" 0x20238 NO_INPUT_QUANTITY A_U64 0 NO_COMPU_METHOD 24 0 10000 PHYS_UNIT "ns" ECU_ADDRESS_EXTENSION 1 /begin IF_DATA XCP /begin DAQ_EVENT VARIABLE /begin DEFAULT_EVENT_LIST EVENT 0x0 /end DEFAULT_EVENT_LIST /end DAQ_EVENT /end IF_DATA /end AXIS_PTS
 /begin MEASUREMENT task_1.counter "Taskloop counter uint16_t, max value from calibration counter_max" UWORD NO_COMPU_METHOD 0 0 0 65535  ECU_ADDRESS 0x40FEBA ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin MEASUREMENT task_1.counter8 "Taskloop counter uint8_t" UBYTE NO_COMPU_METHOD 0 0 0 255  ECU_ADDRESS 0x40FEB9 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin MEASUREMENT task_1.counter16 "Taskloop counter uint16_t" UWORD NO_COMPU_METHOD 0 0 0 65535  ECU_ADDRESS 0x40FEB6 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin MEASUREMENT task_1.counter32 "Taskloop counter uint32_t" ULONG NO_COMPU_METHOD 0 0 0 4.29497e+09  ECU_ADDRESS 0x40FEB0 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin MEASUREMENT task_1.counter64 "Taskloop counter uint64_t" A_UINT64 NO_COMPU_METHOD 0 0 0 1e+12  ECU_ADDRESS 0x40FEA8 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin CHARACTERISTIC task_1.array "Taskloop array[64] uint32_t" VAL_BLK 0x40FEE8 U32 0 NO_COMPU_METHOD 0 4.29497e+09 MATRIX_DIM 64 1 ECU_ADDRESS_EXTENSION 2 /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end CHARACTERISTIC
-/begin MEASUREMENT task_3.counter "Taskloop counter uint16_t, max value from calibration counter_max" UWORD NO_COMPU_METHOD 0 0 0 65535  ECU_ADDRESS 0xC0FEBA ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x3 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT task_3.counter8 "Taskloop counter uint8_t" UBYTE NO_COMPU_METHOD 0 0 0 255  ECU_ADDRESS 0xC0FEB9 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x3 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT task_3.counter16 "Taskloop counter uint16_t" UWORD NO_COMPU_METHOD 0 0 0 65535  ECU_ADDRESS 0xC0FEB6 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x3 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT task_3.counter32 "Taskloop counter uint32_t" ULONG NO_COMPU_METHOD 0 0 0 4.29497e+09  ECU_ADDRESS 0xC0FEB0 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x3 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin MEASUREMENT task_3.counter64 "Taskloop counter uint64_t" A_UINT64 NO_COMPU_METHOD 0 0 0 1e+12  ECU_ADDRESS 0xC0FEA8 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x3 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
-/begin CHARACTERISTIC task_3.array "Taskloop array[64] uint32_t" VAL_BLK 0xC0FEE8 U32 0 NO_COMPU_METHOD 0 4.29497e+09 MATRIX_DIM 64 1 ECU_ADDRESS_EXTENSION 2 /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x3 /end DAQ_EVENT /end IF_DATA /end CHARACTERISTIC
 /begin MEASUREMENT task_2.counter "Taskloop counter uint16_t, max value from calibration counter_max" UWORD NO_COMPU_METHOD 0 0 0 65535  ECU_ADDRESS 0x80FEBA ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin MEASUREMENT task_2.counter8 "Taskloop counter uint8_t" UBYTE NO_COMPU_METHOD 0 0 0 255  ECU_ADDRESS 0x80FEB9 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin MEASUREMENT task_2.counter16 "Taskloop counter uint16_t" UWORD NO_COMPU_METHOD 0 0 0 65535  ECU_ADDRESS 0x80FEB6 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin MEASUREMENT task_2.counter32 "Taskloop counter uint32_t" ULONG NO_COMPU_METHOD 0 0 0 4.29497e+09  ECU_ADDRESS 0x80FEB0 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin MEASUREMENT task_2.counter64 "Taskloop counter uint64_t" A_UINT64 NO_COMPU_METHOD 0 0 0 1e+12  ECU_ADDRESS 0x80FEA8 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin CHARACTERISTIC task_2.array "Taskloop array[64] uint32_t" VAL_BLK 0x80FEE8 U32 0 NO_COMPU_METHOD 0 4.29497e+09 MATRIX_DIM 64 1 ECU_ADDRESS_EXTENSION 2 /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end CHARACTERISTIC
+/begin MEASUREMENT task_3.counter "Taskloop counter uint16_t, max value from calibration counter_max" UWORD NO_COMPU_METHOD 0 0 0 65535  ECU_ADDRESS 0xC0FEBA ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x3 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT task_3.counter8 "Taskloop counter uint8_t" UBYTE NO_COMPU_METHOD 0 0 0 255  ECU_ADDRESS 0xC0FEB9 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x3 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT task_3.counter16 "Taskloop counter uint16_t" UWORD NO_COMPU_METHOD 0 0 0 65535  ECU_ADDRESS 0xC0FEB6 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x3 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT task_3.counter32 "Taskloop counter uint32_t" ULONG NO_COMPU_METHOD 0 0 0 4.29497e+09  ECU_ADDRESS 0xC0FEB0 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x3 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT task_3.counter64 "Taskloop counter uint64_t" A_UINT64 NO_COMPU_METHOD 0 0 0 1e+12  ECU_ADDRESS 0xC0FEA8 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x3 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin CHARACTERISTIC task_3.array "Taskloop array[64] uint32_t" VAL_BLK 0xC0FEE8 U32 0 NO_COMPU_METHOD 0 4.29497e+09 MATRIX_DIM 64 1 ECU_ADDRESS_EXTENSION 2 /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x3 /end DAQ_EVENT /end IF_DATA /end CHARACTERISTIC
 /begin MEASUREMENT task_4.counter "Taskloop counter uint16_t, max value from calibration counter_max" UWORD NO_COMPU_METHOD 0 0 0 65535  ECU_ADDRESS 0x100FEBA ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x4 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin MEASUREMENT task_4.counter8 "Taskloop counter uint8_t" UBYTE NO_COMPU_METHOD 0 0 0 255  ECU_ADDRESS 0x100FEB9 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x4 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
 /begin MEASUREMENT task_4.counter16 "Taskloop counter uint16_t" UWORD NO_COMPU_METHOD 0 0 0 65535  ECU_ADDRESS 0x100FEB6 ECU_ADDRESS_EXTENSION 2 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x4 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
@@ -131,8 +131,8 @@ ALIGNMENT_INT64 1
 /begin GROUP params "Calibration Segment" ROOT /begin REF_CHARACTERISTIC params.counter_max params.delay_us params.delay_offset_us params.time_shift_us params.run params.test_byte1 params.test_byte2 /end REF_CHARACTERISTIC /end GROUP
 /begin GROUP mainloop "Measurement event group"  /begin REF_MEASUREMENT counter timing_histogram timing_histogram_axis /end REF_MEASUREMENT /end GROUP
 /begin GROUP task_1 "Measurement event group"  /begin REF_MEASUREMENT task_1.counter task_1.counter8 task_1.counter16 task_1.counter32 task_1.counter64 task_1.array /end REF_MEASUREMENT /end GROUP
-/begin GROUP task_3 "Measurement event group"  /begin REF_MEASUREMENT task_3.counter task_3.counter8 task_3.counter16 task_3.counter32 task_3.counter64 task_3.array /end REF_MEASUREMENT /end GROUP
 /begin GROUP task_2 "Measurement event group"  /begin REF_MEASUREMENT task_2.counter task_2.counter8 task_2.counter16 task_2.counter32 task_2.counter64 task_2.array /end REF_MEASUREMENT /end GROUP
+/begin GROUP task_3 "Measurement event group"  /begin REF_MEASUREMENT task_3.counter task_3.counter8 task_3.counter16 task_3.counter32 task_3.counter64 task_3.array /end REF_MEASUREMENT /end GROUP
 /begin GROUP task_4 "Measurement event group"  /begin REF_MEASUREMENT task_4.counter task_4.counter8 task_4.counter16 task_4.counter32 task_4.counter64 task_4.array /end REF_MEASUREMENT /end GROUP
 /begin GROUP task_5 "Measurement event group"  /begin REF_MEASUREMENT task_5.counter task_5.counter8 task_5.counter16 task_5.counter32 task_5.counter64 task_5.array /end REF_MEASUREMENT /end GROUP
 /begin GROUP task_6 "Measurement event group"  /begin REF_MEASUREMENT task_6.counter task_6.counter8 task_6.counter16 task_6.counter32 task_6.counter64 task_6.array /end REF_MEASUREMENT /end GROUP
@@ -144,10 +144,10 @@ ALIGNMENT_INT64 1
 /*-----------------------------------------------------------------------------------------*/
 
 
-/begin GROUP Events "Events" ROOT /begin SUB_GROUP daq_test.mainloop daq_test.task_1 daq_test.task_2 daq_test.task_3 daq_test.task_4 daq_test.task_5 daq_test.task_6 daq_test.task_7 daq_test.task_8 /end SUB_GROUP /end GROUP
+/begin GROUP Events "Events" ROOT /begin SUB_GROUP mainloop task_1 task_2 task_3 task_4 task_5 task_6 task_7 task_8 /end SUB_GROUP /end GROUP
 
 /begin MOD_PAR ""
-EPK "V2.1.5" ADDR_EPK 0x80000000
+EPK "V2.1.7" ADDR_EPK 0x80000000
 /begin MEMORY_SEGMENT epk "" DATA FLASH INTERN 0x80000000 32 -1 -1 -1 -1 -1
 /begin IF_DATA XCP
   /begin SEGMENT 0 2 0 0 0
@@ -157,7 +157,7 @@ EPK "V2.1.5" ADDR_EPK 0x80000000
   /end SEGMENT
 /end IF_DATA
 /end MEMORY_SEGMENT
-/begin MEMORY_SEGMENT daq_test.params "" DATA FLASH INTERN 0x80010000 20 -1 -1 -1 -1 -1
+/begin MEMORY_SEGMENT params "" DATA FLASH INTERN 0x80010000 20 -1 -1 -1 -1 -1
 /begin IF_DATA XCP
   /begin SEGMENT 1 2 0 0 0
   /begin CHECKSUM XCP_CRC_16_CITT MAX_BLOCK_SIZE 0xFFFF EXTERNAL_FUNCTION "" /end CHECKSUM
@@ -211,15 +211,15 @@ OPTIONAL_LEVEL1_CMD GET_VERSION
 /begin DAQ
 DYNAMIC 0 9 0 OPTIMISATION_TYPE_DEFAULT ADDRESS_EXTENSION_FREE IDENTIFICATION_FIELD_TYPE_RELATIVE_BYTE GRANULARITY_ODT_ENTRY_SIZE_DAQ_BYTE 0xF8 OVERLOAD_INDICATION_PID
 /begin TIMESTAMP_SUPPORTED 0x1 SIZE_DWORD UNIT_1NS TIMESTAMP_FIXED /end TIMESTAMP_SUPPORTED
-/begin EVENT "daq_test.mainloop" "mainloop" 0x0 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
-/begin EVENT "daq_test.task_1" "task_1" 0x1 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
-/begin EVENT "daq_test.task_2" "task_2" 0x2 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
-/begin EVENT "daq_test.task_3" "task_3" 0x3 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
-/begin EVENT "daq_test.task_4" "task_4" 0x4 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
-/begin EVENT "daq_test.task_5" "task_5" 0x5 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
-/begin EVENT "daq_test.task_6" "task_6" 0x6 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
-/begin EVENT "daq_test.task_7" "task_7" 0x7 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
-/begin EVENT "daq_test.task_8" "task_8" 0x8 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
+/begin EVENT "mainloop" "mainloop" 0x0 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
+/begin EVENT "task_1" "task_1" 0x1 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
+/begin EVENT "task_2" "task_2" 0x2 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
+/begin EVENT "task_3" "task_3" 0x3 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
+/begin EVENT "task_4" "task_4" 0x4 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
+/begin EVENT "task_5" "task_5" 0x5 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
+/begin EVENT "task_6" "task_6" 0x6 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
+/begin EVENT "task_7" "task_7" 0x7 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
+/begin EVENT "task_8" "task_8" 0x8 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
 /end DAQ
 /end IF_DATA
 

@@ -4,7 +4,7 @@
 |
 |  Description:
 |    Implementation of the ASAM XCP Protocol Layer V1.4
-|    Version V1.2.0
+|    Version V2.0.0
 |       - Designed and optimized for 64 bit POSIX based platforms (Linux or MacOS)
 |       - Tested on x86 strong and ARM weak memory model
 |       - Can be adapted for 32 bit platforms
@@ -550,7 +550,7 @@ uint8_t XcpWriteMta(uint8_t size, const uint8_t *data) {
 }
 
 // Copying of size bytes from data to local.mta_ptr or local.mta_addr, depending on the addressing mode
-static uint8_t XcpReadMta(uint8_t size, uint8_t *data) {
+uint8_t XcpReadMta(uint8_t size, uint8_t *data) {
 
 #ifdef XCP_ENABLE_SEG_ADDRESSING
     // EXT == XCP_ADDR_EXT_SEG calibration segment memory access
@@ -634,9 +634,13 @@ uint8_t XcpSetMta(uint8_t ext_, uint32_t addr_) {
     // Segment relative addressing mode
     if (XcpAddrIsSeg(local.mta_ext)) {
         if ((local.mta_addr & 0x80000000) == 0) {
+#ifdef XCP_ENABLE_ABS_ADDRESSING
             // @@@@ TODO: Workaround CANape bug, address extension != 0 for calibration variables sometimes ignored
             DBG_PRINTF_WARNING("XcpSetMta: Address extension SEG < 0x80000000, converting to ABS addressing mode, addr=0x%08" PRIx32 "\n", local.mta_addr);
             local_mut.mta_ext = XCP_ADDR_EXT_ABS;
+#else
+            return CRC_ACCESS_DENIED; // Access violation,
+#endif
         }
         return CRC_CMD_OK;
     }
@@ -764,13 +768,6 @@ void XcpInitEventList(void) {
     // Reset event list count
     releaseEventCount(0);
     mutexInit(&local_mut.event_list_mutex, false, 1000);
-}
-
-// Get a pointer to and the size of the XCP event list
-const tXcpEventList *XcpGetEventList(void) {
-    if (!isActivated())
-        return NULL;
-    return &shared.event_list;
 }
 
 // Get a pointer to the XCP event struct
@@ -1147,7 +1144,7 @@ static uint8_t XcpAddOdtEntry(uint32_t addr, uint8_t ext, uint8_t size) {
         DBG_PRINTF_ERROR("DAQ list must have unique address extension, DAQ=%u, ODT=%u, ext=%u, daq_ext=%u\n", local.write_daq_daq, local.write_daq_odt, ext, daq_ext);
         return CRC_DAQ_CONFIG; // Error not unique address extension
     }
-    DaqListAddrExt(local.write_daq_daq) = ext;
+    DaqListAddrExtMut(local.write_daq_daq) = ext;
 #endif
 
     uint32_t base_offset = 0;
@@ -1183,6 +1180,11 @@ static uint8_t XcpAddOdtEntry(uint32_t addr, uint8_t ext, uint8_t size) {
 #endif
                 ext = 1;
 #endif // SHM_MODE
+            } else
+#endif
+#ifdef XCP_ENABLE_APP_ADDRESSING
+                if (XcpAddrIsApp(ext)) {
+                base_offset = XcpAddrDecodeAppOffset(addr);
             } else
 #endif
                 return CRC_ACCESS_DENIED;
@@ -1240,7 +1242,7 @@ static uint8_t XcpSetDaqListMode(uint16_t daq, uint16_t event_id, uint8_t mode, 
 #ifndef XCP_ENABLE_DAQ_ADDREXT
     uint8_t ext = DaqListAddrExt(daq);
     for (uint16_t daq0 = 0; daq0 < shared.daq_lists.daq_count; daq0++) {
-        if (DaqListEventChannel(daq0) == event) {
+        if (DaqListEventChannel(daq0) == event_id) {
             uint8_t ext0 = DaqListAddrExt(daq0);
             if (ext != ext0)
                 return CRC_DAQ_CONFIG; // Error address extension not unique
@@ -1269,43 +1271,59 @@ static uint8_t XcpSetDaqListMode(uint16_t daq, uint16_t event_id, uint8_t mode, 
 }
 
 // Check if DAQ lists are fully and consistently initialized
-bool XcpCheckPreparedDaqLists(void) {
+bool XcpCheckDaqLists(uint8_t daq_state, tXcpEventId event_id) {
 
     for (uint16_t daq = 0; daq < shared.daq_lists.daq_count; daq++) {
-        if (DaqListState(daq) & DAQ_STATE_SELECTED) {
-            if (DaqListEventChannel(daq) == XCP_UNDEFINED_EVENT_ID) {
-                DBG_PRINTF_ERROR("DAQ list %u event channel not initialized!\n", daq);
-                return false;
-            }
+        // Check only if DAQ list is in the expected state, e.g. selected or running
+        if ((DaqListState(daq) & daq_state) != daq_state)
+            continue;
+
+        // Check if event channel is assigned
+        if (DaqListEventChannel(daq) == XCP_UNDEFINED_EVENT_ID) {
+            DBG_PRINTF_ERROR("DAQ list %u event channel not set!\n", daq);
+            return false;
+        }
+
+        // If a specific event is given, check only DAQ lists associated with this event
+        if (event_id != XCP_UNDEFINED_EVENT_ID && DaqListEventChannel(daq) != event_id) {
+            continue;
+        }
+
+        // Check if address extension is assigned
 #ifndef XCP_ENABLE_DAQ_ADDREXT
-            if (DaqListAddrExt(daq) == XCP_UNDEFINED_ADDR_EXT) {
-                DBG_PRINTF_ERROR("DAQ list %u address extension not set!\n", daq);
-                return false;
-            }
+        if (DaqListAddrExt(daq) == XCP_UNDEFINED_ADDR_EXT) {
+            DBG_PRINTF_ERROR("DAQ list %u address extension not set!\n", daq);
+            return false;
+        }
 #endif
-            for (uint16_t i = DaqListFirstOdt(daq); i <= DaqListLastOdt(daq); i++) {
-                for (uint16_t e = DaqListOdtTable[i].first_odt_entry; e <= DaqListOdtTable[i].last_odt_entry; e++) {
+        for (uint16_t i = DaqListFirstOdt(daq); i <= DaqListLastOdt(daq); i++) {
+            for (uint16_t e = DaqListOdtTable[i].first_odt_entry; e <= DaqListOdtTable[i].last_odt_entry; e++) {
 
-                    uint32_t addr = DaqListOdtEntryAddrTable[e];
-                    uint8_t ext = DaqListOdtEntryAddrExtTable[e];
-                    uint8_t size = DaqListOdtEntrySizeTable[e];
-                    DBG_PRINTF6("Check DAQ %u, ODT %u, ODT entry %u: addr=0x%X, ext=%u, size=%u\n", daq, i - DaqListFirstOdt(daq), e - DaqListOdtTable[i].first_odt_entry, addr,
-                                ext, size);
-                    uint8_t res = ApplXcpCheckMemory(ext, addr, size);
-                    if (res != CRC_CMD_OK) {
-                        DBG_PRINTF_ERROR("DAQ %u, ODT %u, ODT entry %u invalid, callback read failed with error %u!\n", daq, i - DaqListFirstOdt(daq),
-                                         e - DaqListOdtTable[i].first_odt_entry, res);
-                        return false;
-                    }
-
-                    if (DaqListOdtEntrySizeTable[e] == 0) {
-                        DBG_PRINTF_ERROR("DAQ %u, ODT %u, ODT entry %u size not set!\n", daq, i - DaqListFirstOdt(daq), e - DaqListOdtTable[i].first_odt_entry);
-                        return false;
-                    }
+                // Check if ODT entry size is set
+                uint8_t size = DaqListOdtEntrySizeTable[e];
+                if (size == 0) {
+                    DBG_PRINTF_ERROR("DAQ %u, ODT %u, ODT entry %u size not set!\n", daq, i - DaqListFirstOdt(daq), e - DaqListOdtTable[i].first_odt_entry);
+                    return false;
                 }
 
-            } /* j */
-        }
+                // Check if ODT entry memory location is accessible
+                uint32_t addr = DaqListOdtEntryAddrTable[e];
+#ifdef XCP_ENABLE_DAQ_ADDREXT
+                uint8_t ext = DaqListOdtEntryAddrExtTable[e];
+#else
+                uint8_t ext = DaqListAddrExt(daq);
+#endif
+                DBG_PRINTF6("Check DAQ %u, ODT %u, ODT entry %u: addr=0x%X, ext=%u, size=%u\n", daq, i - DaqListFirstOdt(daq), e - DaqListOdtTable[i].first_odt_entry, addr, ext,
+                            size);
+                uint8_t res = ApplXcpCheckMemory(ext, addr, size);
+                if (res != CRC_CMD_OK) {
+                    DBG_PRINTF_ERROR("DAQ %u, ODT %u, ODT entry %u invalid, callback read failed with error %u!\n", daq, i - DaqListFirstOdt(daq),
+                                     e - DaqListOdtTable[i].first_odt_entry, res);
+                    return false;
+                }
+            }
+
+        } /* j */
     }
 
     return true;
@@ -1528,10 +1546,8 @@ static void XcpTriggerDaqEvent_(tQueueHandle queue_handle, tXcpEventId event_id,
             continue; // DAQ list not associated with this event
 
 #ifndef XCP_ENABLE_DAQ_ADDREXT
-        // Address extension unique per DAQ list
-        // Build base pointer for this DAQ list
+        // Address extension unique per DAQ list, use base pointer for this DAQ list
         uint8_t ext = DaqListAddrExt(daq);
-        assert(ext < count);
         XcpTriggerDaqList_(queue_handle, daq, bases[ext], clock); // Trigger DAQ list
 #else
         XcpTriggerDaqList_(queue_handle, daq, count, bases, clock); // Trigger DAQ list
@@ -1578,10 +1594,9 @@ static void XcpTriggerDaqEvent_(tQueueHandle queue_handle, tXcpEventId event_id,
         assert(daq < shared.daq_lists.daq_count);
         if (DaqListState(daq) & DAQ_STATE_RUNNING) { // DAQ list active
 #ifndef XCP_ENABLE_DAQ_ADDREXT
-            // Address extension unique per DAQ list
-            // Build base pointer for this DAQ list
+            // Address extension unique per DAQ list, use base pointer for this DAQ list
             uint8_t ext = DaqListAddrExt(daq);
-            XcpTriggerDaqList_(queue_handle, daq, base[ext], clock); // Trigger DAQ list
+            XcpTriggerDaqList_(queue_handle, daq, bases[ext], clock); // Trigger DAQ list
 #else
             XcpTriggerDaqList_(queue_handle, daq, count, bases, clock); // Trigger DAQ list
 #endif
@@ -2568,7 +2583,7 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0104
             case 3: /* prepare for start selected */
 #ifdef XCP_ENABLE_TEST_CHECKS
-                if (!XcpCheckPreparedDaqLists())
+                if (!XcpCheckDaqLists(DAQ_STATE_SELECTED, XCP_UNDEFINED_EVENT_ID))
                     error(CRC_DAQ_CONFIG);
 #endif
                 if (!ApplXcpPrepareDaq())
@@ -2963,7 +2978,7 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     local_mut.init_mode = mode;
 
 // Initialize the base address for absolute addressing
-#ifdef XCP_ENABLE_ABS_ADDRESSING
+#if defined(XCP_ENABLE_ABS_ADDRESSING) || defined(XCP_ENABLE_APP_ADDRESSING)
     ApplXcpGetBaseAddr();
     assert(xcp_get_base_addr() != NULL);
 #endif
@@ -3292,7 +3307,7 @@ void XcpStart(tQueueHandle queue_handle, bool resumeMode) {
     // Resume DAQ
 #ifdef XCP_ENABLE_DAQ_RESUME
     if (resumeMode) {
-        if (XcpCheckPreparedDaqLists()) {
+        if (XcpCheckDaqLists(DAQ_STATE_SELECTED, XCP_UNDEFINED_EVENT_ID)) {
             /* Goto temporary disconnected mode and start all selected DAQ lists */
             shared_mut.session_status |= SS_RESUME;
             /* Start DAQ */

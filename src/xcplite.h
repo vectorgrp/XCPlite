@@ -108,6 +108,11 @@ bool XcpIsDaqEventRunning(uint16_t event);
 uint64_t XcpGetDaqStartTime(void);
 uint32_t XcpGetDaqOverflowCount(void);
 
+// Check DAQ lists (running or selected, all events or given event, via ApplXcpCheckMemory)
+#define DAQ_STATE_SELECTED ((uint8_t)0x01) /* Selected */
+#define DAQ_STATE_RUNNING ((uint8_t)0x02)  /* Running */
+bool XcpCheckDaqLists(uint8_t daq_state, tXcpEventId event_id);
+
 // Time synchronisation
 #ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
 #if XCP_PROTOCOL_LAYER_VERSION < 0x0103
@@ -168,9 +173,6 @@ tXcpEventId XcpCreateIndexedEvent(const char *name, uint16_t index, uint32_t cyc
 tXcpEventId XcpCreateEvent(const char *name, uint32_t cycle_time_ns /* ns */, uint8_t priority /* 0 = queued, >=1 flushing*/);
 // Add a measurement event to event list, return event number (0..MAX_EVENT-1), thread safe, if name exists, an instance id is appended to the name
 tXcpEventId XcpCreateEventInstance(const char *name, uint32_t cycle_time_ns /* ns */, uint8_t priority /* 0 = queued, >=1 flushing */);
-
-// Get event list
-const tXcpEventList *XcpGetEventList(void);
 
 // Get the number of events in the XCP event list
 uint16_t XcpGetEventCount(void);
@@ -408,7 +410,7 @@ uint32_t ApplXcpGetAddr(const uint8_t *p);   // Calculate the absolute XCP/A2L 3
 uint8_t ApplXcpGetAddrExt(const uint8_t *p); // Get the absolute XCP/A2L 8 bit address extension from a pointer
 const uint8_t *ApplXcpGetModuleAddr(void);   // Get the module base address, used as default base address for absolute addressing mode
 
-/* Check memory access permissions, called in prepare DAQ */
+// Check memory access permissions
 uint8_t ApplXcpCheckMemory(uint8_t ext, uint32_t addr, uint8_t size);
 
 /* Read and write memory for application addressing mode XCP_ADDR_EXT_APP */
@@ -432,7 +434,7 @@ typedef uint8_t tXcpCalSegNumber;
 #define XCP_CALPAGE_INVALID_PAGE 0xFF
 typedef uint8_t tXcpCalPageNumber;
 
-/* Calibration page handling by application */
+// Calibration page handling by application
 #if defined(XCP_ENABLE_CAL_PAGE) && !defined(XCP_ENABLE_CALSEG_LIST)
 uint8_t ApplXcpSetCalPage(tXcpCalSegNumber segment, tXcpCalPageNumber page, uint8_t mode);
 uint8_t ApplXcpGetCalPage(tXcpCalSegNumber segment, uint8_t mode);
@@ -444,14 +446,17 @@ uint8_t ApplXcpCalFreeze(void);
 #endif
 #endif
 
-/* DAQ clock provided by application*/
+// Clock (optionally provided by application via callback)
 uint64_t ApplXcpGetClock64(void);
+
+// DAQ clock state (optionally provided by application via callback)
 #define CLOCK_STATE_SYNCH_IN_PROGRESS (0)
 #define CLOCK_STATE_SYNCH (1)
 #define CLOCK_STATE_FREE_RUNNING (7)
 #define CLOCK_STATE_GRANDMASTER_STATE_SYNCH (1 << 3) // not used yet
 uint8_t ApplXcpGetClockState(void);
 
+// PTP grandmaster clock info (optionally provided by application via callback)
 #ifdef XCP_ENABLE_PTP
 #define CLOCK_STRATUM_LEVEL_UNKNOWN 255
 #define CLOCK_STRATUM_LEVEL_ARB 16
@@ -494,6 +499,7 @@ void ApplXcpRegisterGetCalPageCallback(uint8_t (*cb_get_cal_page)(uint8_t segmen
 void ApplXcpRegisterSetCalPageCallback(uint8_t (*cb_set_cal_page)(uint8_t segment, uint8_t page, uint8_t mode));
 void ApplXcpRegisterFreezeCalCallback(uint8_t (*cb_freeze_cal)(void));
 void ApplXcpRegisterInitCalCallback(uint8_t (*cb_init_cal)(uint8_t src_page, uint8_t dst_page));
+void ApplXcpRegisterCheckCallback(uint8_t (*cb_check)(uint8_t ext, uint32_t addr, uint8_t size));
 void ApplXcpRegisterReadCallback(uint8_t (*cb_read)(uint32_t src, uint8_t size, uint8_t *dst));
 void ApplXcpRegisterWriteCallback(uint8_t (*cb_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay));
 void ApplXcpRegisterFlushCallback(uint8_t (*cb_flush)(void));

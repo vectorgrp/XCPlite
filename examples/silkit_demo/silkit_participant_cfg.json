@@ -1,0 +1,15 @@
+{
+    "Logging": {
+        "Sinks": [
+            {
+                "Type": "Stdout",
+                "Level": "Info"
+            }
+        ]
+    },
+    "Experimental": {
+        "TimeSynchronization": {
+            "AnimationFactor": 10.0
+        }
+    }
+}

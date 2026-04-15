@@ -145,6 +145,8 @@ XCPlite multi application absolute addressing: XCP_ADDRESS_MODE_XCPLITE__CXSDD (
 #define XCP_ADDR_EXT_SEG 0x00
 #define XCP_ENABLE_ABS_ADDRESSING
 #define XCP_ADDR_EXT_ABS 0x01
+#define XCP_ENABLE_APP_ADDRESSING
+#define XCP_ADDR_EXT_APP 0x80
 #endif
 #endif
 
@@ -192,16 +194,16 @@ XCPlite multi application absolute addressing: XCP_ADDRESS_MODE_XCPLITE__CXSDD (
 // Used for global data, address range 4GB from the base address returned by xcp_get_base_addr() or ApplXcpGetBaseAdd   r()
 #ifdef OPTION_SHM_MODE // define absolute address encoding for SHM mode
 #define XcpAddrIsAbs(addr_ext) ((addr_ext) >= XCP_ADDR_EXT_ABS && (addr_ext) < (XCP_ADDR_EXT_ABS + SHM_MAX_APP_COUNT))
-#define XcpAddrEncodeAbs(p) ApplXcpGetAddr(p) // Calculate absolute address encoding from a pointer, application specific function
+#define XcpAddrEncodeAbs(p) ApplXcpGetAddr(p) // Calculate absolute address encoding from a pointer
 #define XcpAddrDecodeAbsOffset(addr) (uint32_t)(addr)
 #define XcpAddrExtDecodeAppId(addr_ext) ((addr_ext) - XCP_ADDR_EXT_ABS) // Decode application id from address extension, only used in SHM mode
 #else
 #define XcpAddrIsAbs(addr_ext) ((addr_ext) == XCP_ADDR_EXT_ABS)
-#define XcpAddrEncodeAbs(p) ApplXcpGetAddr(p) // Calculate absolute address encoding from a pointer, application specific function
+#define XcpAddrEncodeAbs(p) ApplXcpGetAddr(p) // Calculate absolute address encoding from a pointer
 #define XcpAddrDecodeAbsOffset(addr) (uint32_t)(addr)
 #endif
 #else
-#define XcpAddrIsAbs(addr_ext) false
+// #define XcpAddrIsAbs(addr_ext) false
 #define XcpAddrEncodeAbs(p) 0
 #define XcpAddrDecodeAbsOffset(addr) 0
 #endif
@@ -252,6 +254,8 @@ XCPlite multi application absolute addressing: XCP_ADDRESS_MODE_XCPLITE__CXSDD (
 // Application specific address format
 // Memory access and calibration segments are handled by the application, calls ApplXcpReadMemory and ApplXcpWriteMemory
 #define XcpAddrIsApp(addr_ext) ((addr_ext) == XCP_ADDR_EXT_APP)
+#define XcpAddrEncodeApp(p) ApplXcpGetAddr(p) // Calculate application specific address encoding from a pointer
+#define XcpAddrDecodeAppOffset(addr) (uint32_t)(addr)
 
 #endif // XCP_ENABLE_APP_ADDRESSING
 

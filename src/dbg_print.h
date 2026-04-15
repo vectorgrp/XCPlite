@@ -227,5 +227,6 @@ extern uint8_t gXcpLogLevel;
 #define DBG_PRINT3(s)
 #define DBG_PRINT4(s)
 #define DBG_PRINT5(s)
+#define DBG_PRINT6(s)
 
 #endif // !OPTION_ENABLE_DBG_PRINTS
