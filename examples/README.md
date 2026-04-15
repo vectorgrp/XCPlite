@@ -48,6 +48,17 @@ An example in C++ using more idiomatic C++ to demonstrate the capabilities of th
 - See [external_example/README.md](external_example/README.md) for detailed instructions.  
 
 
+### silkit_demo
+
+Demonstrates the use of XCPlite in a SILKIT simulation with multiple participants.
+Builds against a pre-built libxcplite and silkit library
+
+
+### ptp4l_demo
+
+Demonstrates how to use a PTP (Precision Time Protocol) synchronized clock as XCP data acquisition timestamp source.  
+
+
 ### c_demo
 
 Shows more complex data objects (structs, arrays) and calibration objects (axis, maps and curves).  
@@ -85,17 +96,13 @@ Demonstrates how to visualize dynamic data structures in the CANape 3D scene win
 Creates and measures an array of structures representing 3D points with additional information.
 
 
-### ptp4l_demo
-
-Demonstrates how to use a PTP (Precision Time Protocol) synchronized clock as XCP data acquisition timestamp source.  
-
-
 ### no_a2l_demo
 
 Demonstrates XCPlite without runtime A2L generation by using an A2L generation tool during the build process.  
+Work in progress.
  
 
-### threadx_demo
+### threadx_demo and freertos_demo
 
 Planned
 

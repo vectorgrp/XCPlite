@@ -1,6 +1,6 @@
 /*****************************************************************************
 | File:
-|   xcplite.c
+|   shm.c
 |
 |  Description:
 |    Shared memory management for XCPlite

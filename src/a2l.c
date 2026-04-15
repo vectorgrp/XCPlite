@@ -19,7 +19,6 @@
 #include <stdbool.h>  // for bool
 #include <stdint.h>   // for uintxx_t
 #include <stdio.h>    // for fclose, fopen, fread, fseek, ftell
-// #include <string.h>   // for
 
 #include "dbg_print.h"   // for DBG_PRINT
 #include "persistence.h" // for XcpBinWrite, XcpBinDelete
