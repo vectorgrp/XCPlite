@@ -12,7 +12,7 @@
 #include "xcplib.h" // for application programming interface
 
 // Internal libxcplite includes to simplify multi platform threading and print XCP metrics
-#include "platform.h"   // for THREAD
+#include "platform.h"   // for THREAD_HANDLE
 #include "xcplib_cfg.h" // for OPTION_xxx
 #include "xcplite.h"    // for metrics gXcpDaqEventCount, ...
 
@@ -390,10 +390,10 @@ int main(void) {
     A2lCreateParameter(params.run, "stop task", "", 0, 1);
 
     // Create multiple instances of task
-    THREAD t[THREAD_COUNT];
+    THREAD_HANDLE t[THREAD_COUNT];
     for (int i = 0; i < THREAD_COUNT; i++) {
         t[i] = 0;
-        create_thread(&t[i], task);
+        create_thread(&t[i], NULL, task, NULL);
     }
 
     // Wait for signal to stop

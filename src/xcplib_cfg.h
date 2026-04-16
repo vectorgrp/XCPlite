@@ -169,6 +169,7 @@
 // #define TEST_ENABLE_BUFFERCOUNT_HISTOGRAM // Enable histogram of the used buffer counts in the transport layer vectored io
 // #define TEST_MUTABLE_ACCESS_OWNERSHIP // Enable tracking of mutable access thread ownership to detect overseen potential memory safety problems
 // #define TEST_ENABLE_DBG_CHECKS // Enable additional sanity checks in the XCP server
+// #define TEST_STACK_SIZE // Enable stack size measurement for the transmit and receive thread
 
 #endif // !defined(NDEBUG)
 

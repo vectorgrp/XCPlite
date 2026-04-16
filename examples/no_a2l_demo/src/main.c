@@ -232,8 +232,8 @@ int main(void) {
     CalSegCreate(params);
 
     // Create threads
-    THREAD __t1 = 0;
-    create_thread(&__t1, task);
+    THREAD_HANDLE __t1 = 0;
+    create_thread(&__t1, NULL, task, NULL);
 
     // Local measurement variable
     volatile uint16_t counter = 0;

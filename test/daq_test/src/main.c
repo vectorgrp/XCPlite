@@ -21,7 +21,7 @@
 // Note: Take care for include order, when using internal libxcplite headers !!
 // xcp_cfg.h would includes xcplib_cfg.h and platform.h
 #include "dbg_print.h"
-#include "platform.h" // for clockGetMonotonicNs, sleepUs, mutexLock, mutexUnlock, THREAD, create_thread, join_thread, cancel_thread
+#include "platform.h" // for clockGetMonotonicNs, sleepUs, mutexLock, mutexUnlock, THREAD_HANDLE, create_thread, join_thread, cancel_thread
 #include "xcplite.h"
 
 //-----------------------------------------------------------------------------------------------------
@@ -372,10 +372,10 @@ int main(void) {
 #endif
 
     // Create multiple instances of task
-    THREAD t[THREAD_COUNT];
+    THREAD_HANDLE t[THREAD_COUNT];
     for (int i = 0; i < THREAD_COUNT; i++) {
         t[i] = 0;
-        create_thread(&t[i], task);
+        create_thread(&t[i], NULL, task, NULL);
     }
 
     // Wait for signal to stop
