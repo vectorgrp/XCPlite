@@ -6,6 +6,7 @@
 #   3. SilKitDemoSubscriber 
 #   4. sil-kit-system-controller  (starts the simulation)
 #
+#
 # Usage: ./run.sh [options]
 #   -d <us>   Simulation step duration in microseconds 
 #   -f        Run as fast as possible (no animation throttle)

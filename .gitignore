@@ -23,7 +23,6 @@ RecycleBin.ini
 test_bintool
 *.bak
 *.log
-*.txt
 
 
 # Other

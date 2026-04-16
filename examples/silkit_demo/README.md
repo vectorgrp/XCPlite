@@ -8,7 +8,8 @@ The Subscriber receives that data and also exposes the received values via XCP.
 
 In CANape, the time synchronisation mode must be set to simulation (in project settings, time source), because the simulation time may run faster or slower than real time.  
 
-There are 2 options to run the demo.
+There are 2 options to run the demo.  
+
 
 ### Option 1
 
@@ -107,15 +108,17 @@ By default SIL Kit slows the simulation to approximately 2 steps per second so t
 
 ### Manual start
 
-Open **four** separate terminals. All commands are relative to the build output directory.
+Open **four** separate terminals. All commands are relative to the silkit_demo directory.
 
 **Terminal 1 — SIL Kit Registry:**
+
 ```bash
 /path/to/sil-kit/_build/debug/Debug/sil-kit-registry
 /Users/Rainer.Zaiser/git/sil-kit/_build/debug/Debug/sil-kit-registry
 ```
 
 **Terminal 2 — Publisher** (XCP on TCP 5555):
+
 ```bash
 ./build/SilKitDemoPublisher
 /Users/Rainer.Zaiser/git/XCPlite-RainerZ/examples/silkit_demo/
@@ -127,6 +130,7 @@ build/SilKitDemoPublisher --sim-step-duration 10000 --config silkit_participant_
 ```
 
 **Terminal 3 — Subscriber** (XCP on TCP 5556):
+
 ```bash
 ./build/SilKitDemoSubscriber
 /Users/Rainer.Zaiser/git/XCPlite-RainerZ/examples/silkit_demo/
@@ -137,6 +141,7 @@ build/SilKitDemoSubscriber --sim-step-duration 10000 --config silkit_participant
 ```
 
 **Terminal 4 — System Controller** (starts synchronized simulation):
+
 ```bash
 /path/to/sil-kit/_build/debug/Debug/sil-kit-system-controller Publisher Subscriber
 /Users/Rainer.Zaiser/git/sil-kit/_build/debug/Debug/sil-kit-system-controller Publisher Subscriber

@@ -1,6 +1,4 @@
-// SPDX-FileCopyrightText: 2024 Vector Informatik GmbH
-//
-// SPDX-License-Identifier: MIT
+// silkit_demo - Subscriber application
 
 #include "ApplicationBase.hpp"
 #include "PubSubDemoCommon.hpp"
@@ -35,7 +33,7 @@ class Subscriber : public ApplicationBase {
             // ss << "Received GPS data: lat=" << _gps_data.latitude << ", lon=" << _gps_data.longitude << ", signal=" << _gps_data.signal;
             // GetLogger()->Info(ss.str());
 
-            XcpUpdateSimTime(dataMessageEvent.timestamp);
+            XcpUpdateSimTime(dataMessageEvent.timestamp.count());
             DaqTriggerEventExt(Gps, this);
         });
 
@@ -47,12 +45,9 @@ class Subscriber : public ApplicationBase {
                                                                             // ss << "Received temperature data: temperature=" << _temperature;
                                                                             // GetLogger()->Info(ss.str());
 
-                                                                            XcpUpdateSimTime(dataMessageEvent.timestamp);
+                                                                            XcpUpdateSimTime(dataMessageEvent.timestamp.count());
                                                                             DaqTriggerEventExt(Temp, this);
                                                                         });
-
-        // Initialize XCP server for measurement on TCP port 5556 or SHM mode server on 5555, depending on the build configuration
-        XcpServerInit(GetArguments().participantName, "V1.3", 5555, 5556);
 
         // Create a typedef for struct GpsData
         A2lCreateTypedef(GpsData, "GPS data struct", A2L_MEASUREMENT_COMPONENT(latitude, "GPS latitude in degrees", ""), //
@@ -78,7 +73,7 @@ class Subscriber : public ApplicationBase {
 
         _counter++;
 
-        XcpUpdateSimTime(now);
+        XcpUpdateSimTime(now.count());
         DaqTriggerEventExt(DoWorkSync, this);
 
         // Sleep some time to simulate work
@@ -89,6 +84,10 @@ class Subscriber : public ApplicationBase {
 };
 
 int main(int argc, char **argv) {
+
+    // Initialize XCP server for measurement on TCP port 5556 or SHM mode server on 5555, depending on the build configuration
+    XcpServerInit("Subscriber", "V1.6", 5556);
+
     Arguments args;
     args.participantName = "Subscriber";
     Subscriber app{args};

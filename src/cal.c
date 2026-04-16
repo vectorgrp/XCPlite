@@ -159,6 +159,7 @@ uint8_t XcpGetMemSegCount(void) {
 // Get a pointer to the calibration segment struct of calseg index
 const tXcpCalSeg *XcpGetCalSeg(tXcpCalSegIndex calseg_index) {
     if (calseg_index >= XcpGetCalSegCount()) {
+        DBG_PRINTF5("Invalid calibration segment index: %u\n", calseg_index);
         assert(0);
         return NULL;
     }
@@ -368,6 +369,7 @@ static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, bool lookup, const voi
         // Check if the segment does not already exist, only if not create a new one
         // @@@@ TODO: Optimize XcpFindCalSeg, because this is the once execution check
         calseg_index = XcpFindCalSeg(name);
+        assert(calseg_index == XCP_UNDEFINED_CALSEG || calseg_index < XcpGetCalSegCount());
     }
 
     // Create, if not exists
