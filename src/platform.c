@@ -1271,10 +1271,10 @@ int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSiz
             return 0; // Timeout — caller loops and does background work
         } else if (n < 0) {
             int32_t err = socketGetLastError();
-            DBG_PRINTF6("socketRecvFrom: recvfrom returned n<0 (errno=%d,%s)\n", err, socketGetErrorString(err));
+            // DBG_PRINTF6("socketRecvFrom: recvfrom returned n<0 (errno=%d,%s)\n", err, socketGetErrorString(err));
 
             if (socketTimeout(err)) {
-                DBG_PRINTF6("socketRecvFrom: recvfrom returned n<0, (errno=%d,%s), socket timeout, return 0\n", err, socketGetErrorString(err));
+                // DBG_PRINTF6("socketRecvFrom: recvfrom returned n<0, (errno=%d,%s), socket timeout, return 0\n", err, socketGetErrorString(err));
                 return 0; // Timeout
             }
 

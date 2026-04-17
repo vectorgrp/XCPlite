@@ -2850,7 +2850,7 @@ void XcpBackgroundTasks(void) {
         return;
     }
 
-    DBG_PRINT6("XcpBackgroundTasks\n");
+    // DBG_PRINT6("XcpBackgroundTasks\n");
 
 // Publish all modified calibration segments
 #ifdef XCP_ENABLE_CALSEG_LAZY_WRITE

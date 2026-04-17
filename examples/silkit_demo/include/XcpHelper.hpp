@@ -105,6 +105,6 @@ inline void XcpServerShutdown() {
 
     XcpDisconnect();        // Force disconnect the XCP client
     A2lFinalize();          // Finalize A2L generation, if not done yet
-    XcpFreeze();            // Save current calibration segments to binary persistence file
+    XcpFreeze();            // Server saves current calibration segments to binary persistence file
     XcpEthServerShutdown(); // Stop the XCP server
 }
