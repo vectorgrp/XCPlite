@@ -15,7 +15,7 @@
 // XCP parameters
 
 constexpr const char OPTION_PROJECT_NAME[] = "hello_xcp_cpp"; // Project name, used to build the A2L and BIN file name
-constexpr const char OPTION_PROJECT_VERSION[] = "107";        // EPK version string
+constexpr const char OPTION_PROJECT_VERSION[] = "108";        // EPK version string
 constexpr bool OPTION_USE_TCP = false;                        // TCP or UDP
 constexpr uint8_t OPTION_SERVER_ADDR[] = {0, 0, 0, 0};        // Bind addr, 0.0.0.0 = ANY
 constexpr uint16_t OPTION_SERVER_PORT = 5555;                 // Port
@@ -171,7 +171,6 @@ int main(int argc, char *argv[]) {
     std::signal(SIGINT, signal_handler);
     std::signal(SIGTERM, signal_handler);
     std::cout << "\nXCP on Ethernet hello_xcp_cpp C++ demo - " << argv[0] << "\n" << std::endl;
-    uint64_t start_time = clockGetMonotonicNs(); // Get the start time in nanoseconds
 
     // Set log level (1-error, 2-warning, 3-info, 4-show XCP commands)
     XcpSetLogLevel(OPTION_LOG_LEVEL);
@@ -213,8 +212,6 @@ int main(int argc, char *argv[]) {
     gCalSeg->CreateA2lTypedefInstance("ParametersT", "Demo calibration parameters for hello_xcp_cpp example");
 #endif
 
-    uint64_t run_time = clockGetMonotonicNs(); // Get the start time of the application thread in nanoseconds
-
     // Create a simple arithmetic local variable
     uint16_t counter{0};
 
@@ -226,7 +223,7 @@ int main(int argc, char *argv[]) {
     // auto average_filter = new floating_average::FloatingAverage();
 
     // Main loop
-    std::cout << "Starting application main loop... (startup time: " << (run_time - start_time) / 1000 << " us) (Press Ctrl+C to exit)" << std::endl;
+    std::cout << "Starting application main loop... (Press Ctrl+C to exit)" << std::endl;
     while (gRun) {
         counter++;
         global_counter++;

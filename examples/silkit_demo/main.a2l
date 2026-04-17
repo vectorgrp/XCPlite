@@ -1,9 +1,9 @@
 ASAP2_VERSION 1 71
-/begin PROJECT Publisher ""
+/begin PROJECT Subscriber ""
 
 /begin HEADER "" VERSION "1.0" PROJECT_NO XCPLITE__CXSDD /end HEADER
 
-/begin MODULE Publisher ""
+/begin MODULE Subscriber ""
 
 /include "XCP_104.aml"
 
@@ -66,6 +66,33 @@ ALIGNMENT_INT64 1
 
 
 /*-----------------------------------------------------------------------------------------*/
+/* /include "Subscriber_V1.7.a2l" */
+
+
+/begin TYPEDEF_STRUCTURE Subscriber.GpsData "GPS data struct" 0x18
+  /begin STRUCTURE_COMPONENT latitude M_latitude 0x0 /end STRUCTURE_COMPONENT
+  /begin STRUCTURE_COMPONENT longitude M_longitude 0x8 /end STRUCTURE_COMPONENT
+  /begin STRUCTURE_COMPONENT signal M_signal 0x10 /end STRUCTURE_COMPONENT
+/end TYPEDEF_STRUCTURE
+
+/begin MEASUREMENT Subscriber._counter "Simulation step counter" UWORD NO_COMPU_METHOD 0 0 0 65535  ECU_ADDRESS 0x120 ECU_ADDRESS_EXTENSION 3 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x0 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin INSTANCE Subscriber._gps_data "GPS data struct" Subscriber.GpsData 0x400128 ECU_ADDRESS_EXTENSION 3 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x1 /end DAQ_EVENT /end IF_DATA /end INSTANCE
+/begin MEASUREMENT Subscriber._temperature "Received temperature in Celsius" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -1e+12 1e+12  ECU_ADDRESS 0x800140 ECU_ADDRESS_EXTENSION 3 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x2 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+
+/* Typedefs */
+/begin TYPEDEF_MEASUREMENT M_latitude "GPS latitude in degrees" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -1e+12 1e+12 /end TYPEDEF_MEASUREMENT
+/begin TYPEDEF_MEASUREMENT M_longitude "GPS longitude in degrees" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -1e+12 1e+12 /end TYPEDEF_MEASUREMENT
+/begin TYPEDEF_MEASUREMENT M_signal "GPS signal quality" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -1e+12 1e+12 /end TYPEDEF_MEASUREMENT
+
+/* Groups */
+/begin GROUP Subscriber.DoWorkSync "Measurement event group"  /begin REF_MEASUREMENT Subscriber._counter /end REF_MEASUREMENT /end GROUP
+/begin GROUP Subscriber.Gps "Measurement event group"  /begin REF_MEASUREMENT Subscriber._gps_data /end REF_MEASUREMENT /end GROUP
+/begin GROUP Subscriber.Temp "Measurement event group"  /begin REF_MEASUREMENT Subscriber._temperature /end REF_MEASUREMENT /end GROUP
+
+/* Conversions */
+
+
+/*-----------------------------------------------------------------------------------------*/
 /* /include "Publisher_V1.7.a2l" */
 
 
@@ -84,6 +111,9 @@ ALIGNMENT_INT64 1
 /end TYPEDEF_STRUCTURE
 
 /begin INSTANCE Publisher.kParameters "Main parameters" Publisher.ParametersT 0x80010000 /end INSTANCE
+/begin MEASUREMENT Publisher._counter "Simulation step counter" UWORD NO_COMPU_METHOD 0 0 0 65535  ECU_ADDRESS 0xC00000 ECU_ADDRESS_EXTENSION 3 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x3 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin MEASUREMENT Publisher._temperature "Temperature in Celsius" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -50 100  ECU_ADDRESS 0xC00000 ECU_ADDRESS_EXTENSION 4 PHYS_UNIT "C" READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x3 /end DAQ_EVENT /end IF_DATA /end MEASUREMENT
+/begin INSTANCE Publisher._gps_data "GPS position data struct" Publisher.GpsData 0xC00000 ECU_ADDRESS_EXTENSION 5 READ_WRITE /begin IF_DATA XCP /begin DAQ_EVENT FIXED_EVENT_LIST EVENT 0x3 /end DAQ_EVENT /end IF_DATA /end INSTANCE
 
 /* Typedefs */
 /begin TYPEDEF_MEASUREMENT M_latitude "GPS latitude in degrees" FLOAT64_IEEE NO_COMPU_METHOD 0 0 -1e+12 1e+12 /end TYPEDEF_MEASUREMENT
@@ -97,14 +127,17 @@ ALIGNMENT_INT64 1
 /* Groups */
 /begin GROUP Publisher.kParameters "Calibration Segment" ROOT /begin REF_CHARACTERISTIC /end REF_CHARACTERISTIC /end GROUP
 /begin GROUP Publisher.kParameters "Calibration Segment" ROOT /begin REF_CHARACTERISTIC Publisher.kParameters /end REF_CHARACTERISTIC /end GROUP
+/begin GROUP Publisher.DoWorkSync "Measurement event group"  /begin REF_MEASUREMENT Publisher._counter Publisher._temperature Publisher._gps_data /end REF_MEASUREMENT /end GROUP
 
 /* Conversions */
 
 /*-----------------------------------------------------------------------------------------*/
 
 
+/begin GROUP Events "Events" ROOT /begin SUB_GROUP Subscriber.DoWorkSync Subscriber.Gps Subscriber.Temp Publisher.DoWorkSync /end SUB_GROUP /end GROUP
+
 /begin MOD_PAR ""
-EPK "267d163e2d3381ed" ADDR_EPK 0x80000000
+EPK "dc27cd36dc1bd6b5" ADDR_EPK 0x80000000
 /begin MEMORY_SEGMENT epk "" DATA FLASH INTERN 0x80000000 32 -1 -1 -1 -1 -1
 /begin IF_DATA XCP
   /begin SEGMENT 0 2 0 0 0
@@ -166,8 +199,12 @@ OPTIONAL_CMD TIME_CORRELATION_PROPERTIES
 OPTIONAL_LEVEL1_CMD GET_VERSION
 /end PROTOCOL_LAYER
 /begin DAQ
-DYNAMIC 0 0 0 OPTIMISATION_TYPE_DEFAULT ADDRESS_EXTENSION_FREE IDENTIFICATION_FIELD_TYPE_RELATIVE_BYTE GRANULARITY_ODT_ENTRY_SIZE_DAQ_BYTE 0xF8 OVERLOAD_INDICATION_PID
+DYNAMIC 0 4 0 OPTIMISATION_TYPE_DEFAULT ADDRESS_EXTENSION_FREE IDENTIFICATION_FIELD_TYPE_RELATIVE_BYTE GRANULARITY_ODT_ENTRY_SIZE_DAQ_BYTE 0xF8 OVERLOAD_INDICATION_PID
 /begin TIMESTAMP_SUPPORTED 0x1 SIZE_DWORD UNIT_1NS TIMESTAMP_FIXED /end TIMESTAMP_SUPPORTED
+/begin EVENT "Subscriber.DoWorkSync" "DoWorkSy" 0x0 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
+/begin EVENT "Subscriber.Gps" "Gps" 0x1 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
+/begin EVENT "Subscriber.Temp" "Temp" 0x2 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
+/begin EVENT "Publisher.DoWorkSync" "DoWorkSy" 0x3 DAQ 0xFF 0 0 0 CONSISTENCY EVENT /end EVENT
 /end DAQ
 /end IF_DATA
 

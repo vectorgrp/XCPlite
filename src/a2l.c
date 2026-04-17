@@ -1600,54 +1600,51 @@ bool A2lFinalize(void) {
 
 // Generate the final, complete A2L file
 #ifdef OPTION_SHM_MODE // finalize and generate A2L file, server includes all others
-    // only the server generates the main A2L file and includes all the partial A2L files created by the applications
-    const char *files[SHM_MAX_APP_COUNT];
-    int count = 0;
+
     XcpShmSetA2lFinalized(XcpShmGetAppId(), A2lGetFilename(A2L_FILE));
-    if (XcpShmIsXcpServer()) {
-        count = XcpShmCollectA2lFiles(1000 /* ms */, files, SHM_MAX_APP_COUNT);
-    }
-#else
-    // In non-SHM mode, generate the main A2L file by including the single partial A2L file created by this application
-    // Note that the A2lWriter can handle if the same file is both the source and the destination
-    const char *files[1] = {A2lGetFilename(A2L_FILE)};
-    int count = 1;
-#endif
-    if (count > 0) {
-        A2lWriter(A2lGetFilename(A2L_MAIN_FILE), gA2lMode, count, files, gA2lOptionBindAddr, gA2lOptionPort, gA2lUseTCP);
-    }
 
-// Write the binary persistence file
-// This is required to make sure the A2L file(s) remains valid, even if the creation order of application, events or calibration segments is different
-#ifdef OPTION_SHM_MODE // write the binary persistence file and udate EPK hash
-
-    // In SHM mode, the server provides the main file for upload
-    // The server provides the main file for upload and creates the binary persistence file
+    // In SHM mode, the server creates the main A2L file and the binary persistence file
     if (XcpShmIsXcpServer()) {
+
         // Regenerate the EPK and write to the EPK segment, so the the BIN file get it as well and the client can upload it
         const char *epk = XcpGetEcuEpk(); // Get (generate) the current ECU EPK for all existing applications
-        const uint16_t epk_len = (uint16_t)STRNLEN(epk, XCP_EPK_MAX_LENGTH) + 1;
-        // @@@@ TODO: Remove magic number for EPK segment address,
-        XcpCalSegWriteMemory(0x80000000, epk_len, (const uint8_t *)epk);
-        // Write the binary persistence file
+
+        // Create the main A2L file by including the partial A2L files created by all applications
+        const char *files[SHM_MAX_APP_COUNT];
+        int count = XcpShmCollectA2lFiles(1000 /* ms */, files, SHM_MAX_APP_COUNT);
+        if (count == 0) {
+            DBG_PRINT_ERROR("No A2L files to include, something went wrong, do not generate an empty A2L file\n");
+            return false;
+        }
+        A2lWriter(A2lGetFilename(A2L_MAIN_FILE), gA2lMode, XcpGetProjectName(), epk, count, files, gA2lOptionBindAddr, gA2lOptionPort, gA2lUseTCP);
+
+        // Update the EPK in the EPK segment, so the the client can upload it and the BIN file gets it as well
+        XcpCalUpdateEpkSeg(epk);
+
+        // Write the binary persistence file with default page data
         XcpBinWrite(epk);
+
         // Notify the XCP server A2L file is available for upload
         XcpSetA2lName(A2lGetFilename(A2L_MAIN_FILE)); // Notify XCP that there is an A2L file available for upload by the XCP client
     }
 
 #else
 
-    // Create the binary persistence file associated to this A2L file
-#ifdef OPTION_ENABLE_PERSISTENCE
-    if ((XcpGetInitMode() & XCP_MODE_PERSISTENCE)) {
-        // Get the current EPK set by the application
-        const char *epk = XcpGetEpk();
-        // Write the binary persistence file
-        XcpBinWrite(epk);
-    }
-#endif
+    // Generate the main A2L file by including the single partial A2L file created by this application
+    // Note that the A2lWriter can handle if the same file is both the source and the destination
+    const char *files[1] = {A2lGetFilename(A2L_FILE)};
+    int count = 1;
+    A2lWriter(A2lGetFilename(A2L_MAIN_FILE), gA2lMode, XcpGetProjectName(), XcpGetEcuEpk(), count, files, gA2lOptionBindAddr, gA2lOptionPort, gA2lUseTCP);
+
     // Notify the XCP server A2L file is available for upload
     XcpSetA2lName(A2lGetFilename(A2L_FILE));
+
+    // Create the binary persistence file associated to this A2L file with default page data
+#ifdef OPTION_ENABLE_PERSISTENCE
+    if ((XcpGetInitMode() & XCP_MODE_PERSISTENCE)) {
+        XcpBinWrite(XcpGetEpk());
+    }
+#endif
 
 #endif
 

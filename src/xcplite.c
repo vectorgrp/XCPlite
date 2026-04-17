@@ -3142,7 +3142,9 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     // In SHM multiapplication mode, only the leader reaches this point, and creates a EPK segment for the whole system
     // @@@@ TODO: Currently the EPK segment is treated like any other segment, even if it is read-only and should only expose the default page
     static tXcpCalSegIndex cal__epk = XCP_UNDEFINED_CALSEG; // Create the linker file marker for the EPK segment
-    cal__epk = XcpCreateCalSeg(XCP_EPK_CALSEG_NAME, XcpGetEcuEpk(), XCP_EPK_MAX_LENGTH + 1);
+    const char *ecu_epk = XcpGetEcuEpk();
+    DBG_PRINTF3("XcpInit: Create EPK calibration segment '%s', ecu_epk = '%s'\n", XCP_EPK_CALSEG_NAME, ecu_epk);
+    cal__epk = XcpCreateCalSeg(XCP_EPK_CALSEG_NAME, ecu_epk, XCP_EPK_MAX_LENGTH + 1);
     (void)cal__epk; // Avoid unused variable warning
     assert(cal__epk == 0);
 #endif

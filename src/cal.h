@@ -167,6 +167,11 @@ const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg);
 // Single threaded, must be used in the thread it was created
 uint8_t XcpUnlockCalSeg(tXcpCalSegIndex calseg);
 
+// Update the EKP segment with the current EPK value
+#ifdef XCP_ENABLE_EPK_CALSEG
+void XcpCalUpdateEpkSeg(const char *epk);
+#endif
+
 /**************************************************************************/
 // Server side
 // Single-threaded

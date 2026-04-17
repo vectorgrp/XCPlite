@@ -9,10 +9,6 @@
 | Licensed under the MIT license. See LICENSE file in the project root for details.
 |***************************************************************************/
 
-#include "xcplib_cfg.h" // for OPTION_xxx
-
-#ifdef OPTION_SHM_MODE
-
 #include <assert.h>   // for assert
 #include <inttypes.h> // for PRIx32, PRIu64
 #include <signal.h>   // for kill
@@ -23,6 +19,10 @@
 #include <stdlib.h>   // for size_t, NULL, abort
 #include <string.h>   // for memcpy, memset
 #include <unistd.h>   // for getpid()
+
+#include "xcplib_cfg.h" // for OPTION_xxx
+
+#ifdef OPTION_SHM_MODE
 
 #include "shm.h"
 
@@ -587,4 +587,10 @@ void XcpShmShutdownApp(uint8_t app_id) {
     }
 }
 
-#endif // SHM_MODE
+bool XcpIsInShmMode(void) { return XcpGetInitMode() & XCP_MODE_SHM; } // SHM mode enabled
+
+#else
+
+bool XcpIsInShmMode(void) { return false; } // SHM mode disabled
+
+#endif

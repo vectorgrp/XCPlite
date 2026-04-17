@@ -606,6 +606,9 @@ uint8_t XcpGetInitMode(void);
 /// Check if XCP is connected
 bool XcpIsConnected(void);
 
+/// Check if XCP library is compiled in shared memory mode
+bool XcpIsInShmMode(void);
+
 // Project name
 const char *XcpGetProjectName(void);
 

@@ -249,7 +249,7 @@ bool XcpBinWrite(const char *epk) {
         return false;
     }
     const char *filename = XcpBinGetFilename();
-    DBG_PRINTF3("Writing persistence data to file '%s' with EPK '%s'\n", filename, epk);
+    DBG_PRINTF3("Writing BIN file '%s', epk '%s'\n", filename, epk);
 
     // Open file for writing
     FILE *file = fopen(filename, "wb");
@@ -280,7 +280,7 @@ bool XcpBinWrite(const char *epk) {
         }
     }
 
-    // Write calibration segments descriptors and data
+    // Write calibration segments descriptors and page data
     // Iterate cal_seg_list cal_seg_list
     for (tXcpCalSegIndex i = 0; i < calseg_count; i++) {
         const tXcpCalSeg *seg = XcpGetCalSeg(i);

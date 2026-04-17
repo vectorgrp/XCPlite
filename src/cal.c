@@ -419,7 +419,7 @@ static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, bool lookup, const voi
         // Complete the initialization of the preloaded segment
         DBG_PRINTF5("CalSeg '%s' finalized from preloaded, index=%u, size=%u\n", calseg->h.name, calseg_index, calseg->h.size);
         if (default_page != NULL && memcmp(CalSegDefaultPage(calseg), default_page, page_size) != 0) {
-            DBG_PRINTF3(ANSI_COLOR_YELLOW "Persisted (different) default page for %s loaded from binary persistence file! Update EPK to reset!\n" ANSI_COLOR_RESET, calseg->h.name);
+            DBG_PRINTF3(ANSI_COLOR_YELLOW "Persisted (different) default page for '%s' loaded from binary persistence file!\n" ANSI_COLOR_RESET, calseg->h.name);
         }
 
         calseg->h.mode = 0; // Clear PAG_PROPERTY_PRELOAD, reset mode flags (freeze not enabled, set by XCP command SET_SEGMENT_MODE)
@@ -546,6 +546,8 @@ static bool XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
     return true;
 }
 
+//----------------------------------------------------------------------------------------------------------
+
 // Lock a calibration segment and return a pointer to the ECU page
 // Thread safe
 // Shared atomic state is lock_count, ecu_page_next, free_page, ecu_access
@@ -611,6 +613,8 @@ uint8_t XcpUnlockCalSeg(tXcpCalSegIndex calseg_index) {
     assert(oldLockCount > 0);                                                                                                      // Calling XcpUnlockCalSeg without a prior lock
     return oldLockCount;
 }
+
+//----------------------------------------------------------------------------------------------------------
 
 // XCP client memory read
 // Read xcp or default page
@@ -696,7 +700,11 @@ uint8_t XcpCalSegPublishAll(bool wait) {
     if (!shared.cal_seg_list.write_delayed) {
         // Iterate cal_seg_list cal_seg_list
         uint16_t n = XcpGetCalSegCount();
-        for (uint16_t i = 0; i < n; i++) {
+        uint16_t i = 0;
+#ifdef XCP_ENABLE_EPK_CALSEG
+        i = 1;
+#endif
+        for (; i < n; i++) {
             // @@@@ TODO: Could be called from foreign thread through XcpDisconnect, find a solution
             tXcpCalSeg *c = CalSegPtrMut(i);
             if (c->h.write_pending) {
@@ -757,6 +765,21 @@ uint8_t XcpCalSegWriteMemory(uint32_t dst, uint16_t size, const uint8_t *src) {
 #endif
     }
 }
+
+// Update the EKP segment with the current EPK value
+#ifdef XCP_ENABLE_EPK_CALSEG
+void XcpCalUpdateEpkSeg(const char *epk) {
+
+    const uint16_t epk_len = (uint16_t)STRNLEN(epk, XCP_EPK_MAX_LENGTH) + 1;
+    tXcpCalSeg *c = CalSegPtrMut(0); // EPK segment is always at index 0
+    assert(c != NULL);
+    assert(c->h.size >= epk_len);
+    memcpy(CalSegDefaultPage(c), epk, epk_len); // Update the default page with the current EPK value
+    memcpy(CalSegEcuPage(c), epk, epk_len);     // Update the ECU page with the current EPK value
+}
+#endif
+
+//----------------------------------------------------------------------------------------------------------
 
 // Table 97 GET SEGMENT INFO command structure
 // Returns information on a specific SEGMENT.
@@ -982,7 +1005,11 @@ uint8_t XcpFreezeSelectedCalSegs(bool all) {
 
     // Iterate cal_seg_list cal_seg_list
     uint16_t n = XcpGetCalSegCount();
-    for (uint16_t i = 0; i < n; i++) {
+    uint16_t i = 0;
+#ifdef XCP_ENABLE_EPK_CALSEG
+    i = 1;
+#endif
+    for (; i < n; i++) {
         const tXcpCalSeg *c = CalSegPtr(i);
         assert(c != NULL);
         if ((c->h.mode & PAG_PROPERTY_FREEZE) != 0 || all) {
@@ -1011,7 +1038,11 @@ void XcpResetAllCalSegs(void) {
 
     // Iterate cal_seg_list cal_seg_list
     uint16_t n = XcpGetCalSegCount();
-    for (uint16_t i = 0; i < n; i++) {
+    uint16_t i = 0;
+#ifdef XCP_ENABLE_EPK_CALSEG
+    i = 1;
+#endif
+    for (; i < n; i++) {
         tXcpCalSeg *c = CalSegPtrMut(i);
         atomic_store_explicit(&c->h.ecu_access, XCP_CALPAGE_DEFAULT_PAGE, memory_order_relaxed); // Default page for ECU access is the working page
     }

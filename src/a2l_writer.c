@@ -29,16 +29,6 @@
 
 #ifdef OPTION_ENABLE_A2L_GENERATOR
 
-/*
-
-Gets information from
-  XcpGetProjectName()
-  XcpGetEcuEpk()
-  XcpGetCalSegCount() and XcpGetCalSeg(i)
-  XcpGetEventCount() and XcpGetEvent(i)
-
-*/
-
 //----------------------------------------------------------------------------------
 // Static
 
@@ -235,41 +225,40 @@ static const char *A2lGetPrefixedName_(const char *prefix, const char *name) {
 
 // Get the prefixed event name
 #if defined(XCP_ENABLE_DAQ_EVENT_LIST)
-static const char *A2lGetEventName_(tXcpEventId id) {
+static const char *A2lGetEventName_(const char *project_name, tXcpEventId id) {
 #ifdef OPTION_SHM_MODE // prefixed event name
     // Create a name prefixed with the application name stored in the the event
     if (XcpShmIsXcpServer()) {
         return A2lGetPrefixedName_(XcpShmGetAppProjectName(XcpGetEventAppId(id)), XcpGetEventName(id));
     }
 #endif // SHM_MODE
-    return A2lGetPrefixedName_(XcpGetProjectName(), XcpGetEventName(id));
+    return A2lGetPrefixedName_(project_name, XcpGetEventName(id));
 }
 #endif
 
 // Get the prefixed memory segment name
-static const char *A2lGetCalSegName_(uint8_t app_id, const char *name) {
+static const char *A2lGetCalSegName_(const char *project_name, uint8_t app_id, const char *name) {
 #ifdef OPTION_SHM_MODE // prefixed memory segment name
     // Create a name prefixed with the application name stored in the calibration segment
     if (XcpShmIsXcpServer()) {
         return A2lGetPrefixedName_(XcpShmGetAppProjectName(app_id), name);
     }
 #endif // SHM_MODE
-    return A2lGetPrefixedName_(XcpGetProjectName(), name);
+    return A2lGetPrefixedName_(project_name, name);
 }
 
 //----------------------------------------------------------------------------------
 
 // Create MOD_PAR memory segments
-static void A2lCreate_MOD_PAR(void) {
+static void A2lCreate_MOD_PAR(const char *project_name, const char *epk_str) {
 
     assert(gA2lFile != NULL);
 
     fprintf(gA2lFile, "\n/begin MOD_PAR \"\"\n");
 
-    // Write the current ECU EPK (in SHM mode for all existing applications)
-    const char *epk = XcpGetEcuEpk();
-    if (epk) {
-        fprintf(gA2lFile, "EPK \"%s\" ADDR_EPK 0x%08X\n", epk, XCP_ADDR_EPK);
+    // Write the ECU EPK
+    if (epk_str) {
+        fprintf(gA2lFile, "EPK \"%s\" ADDR_EPK 0x%08X\n", epk_str, XCP_ADDR_EPK);
     }
 
     // Memory segments
@@ -285,7 +274,7 @@ static void A2lCreate_MOD_PAR(void) {
                 const char *pname;
 #ifdef OPTION_CAL_SEGMENT_EPK
                 if (strcmp(calseg->h.name, XCP_EPK_CALSEG_NAME) != 0) { // Don't prefix the EPK segment name
-                    pname = A2lGetCalSegName_(calseg->h.app_id, calseg->h.name);
+                    pname = A2lGetCalSegName_(project_name, calseg->h.app_id, calseg->h.name);
                 } else
 #endif
                 {
@@ -301,7 +290,9 @@ static void A2lCreate_MOD_PAR(void) {
 }
 
 // Create IF_DATA for DAQ, including event list
-static void A2lCreate_IF_DATA_DAQ(void) {
+static void A2lCreate_IF_DATA_DAQ(const char *project_name) {
+
+    assert(gA2lFile != NULL);
 
 #if (XCP_TIMESTAMP_UNIT == DAQ_TIMESTAMP_UNIT_1NS)
 #define XCP_TIMESTAMP_UNIT_S "UNIT_1NS"
@@ -335,8 +326,8 @@ static void A2lCreate_IF_DATA_DAQ(void) {
         }
 
         // Long name and short name (max 8 chars)
-        const char *name = XcpGetEventName(id);   // Short name is not build with prefix
-        const char *pname = A2lGetEventName_(id); // Long name with prefix
+        const char *name = XcpGetEventName(id);                 // Short name is not build with prefix
+        const char *pname = A2lGetEventName_(project_name, id); // Long name with prefix
         fprintf(gA2lFile, "/begin EVENT \"%s\" \"%.8s\" 0x%X DAQ 0xFF %u %u %u CONSISTENCY EVENT", pname, name, id, timeCycle, timeUnit,
                 (event->flags & XCP_DAQ_EVENT_FLAG_PRIORITY) ? 0xFF : 0x00);
         fprintf(gA2lFile, " /end EVENT\n");
@@ -347,7 +338,7 @@ static void A2lCreate_IF_DATA_DAQ(void) {
 }
 
 // Create IF_DATA for Ethernet transport layer
-static void A2lCreate_ETH_IF_DATA(bool useTCP, const uint8_t *addr, uint16_t port) {
+static void A2lCreate_ETH_IF_DATA(const char *project_name, bool useTCP, const uint8_t *addr, uint16_t port) {
 
     assert(addr != NULL);
     assert(gA2lFile != NULL);
@@ -358,7 +349,7 @@ static void A2lCreate_ETH_IF_DATA(bool useTCP, const uint8_t *addr, uint16_t por
     fprintf(gA2lFile, gA2lIfDataProtocolLayer, XCP_PROTOCOL_LAYER_VERSION, XCPTL_MAX_CTO_SIZE, XCPTL_MAX_DTO_SIZE);
 
     // DAQ info
-    A2lCreate_IF_DATA_DAQ();
+    A2lCreate_IF_DATA_DAQ(project_name);
 
     // Transport Layer info (protocol, address, port)
     // Skip transport layer info completely, if no valid address is configured or detected
@@ -387,7 +378,7 @@ static void A2lCreate_ETH_IF_DATA(bool useTCP, const uint8_t *addr, uint16_t por
 
 // Create groups and enum conversion for for events
 #if defined(XCP_ENABLE_DAQ_EVENT_LIST)
-static void createEventGroupsAndConversions(bool event_groups, bool event_conversion) {
+static void createEventGroupsAndConversions(const char *project_name, bool event_groups, bool event_conversion) {
 
     assert(gA2lFile != NULL);
 
@@ -399,7 +390,7 @@ static void createEventGroupsAndConversions(bool event_groups, bool event_conver
             fprintf(gA2lFile, "\n/begin COMPU_METHOD conv.events \"\" TAB_VERB \"%%.0 \" \"\" COMPU_TAB_REF conv.events.table /end COMPU_METHOD\n");
             fprintf(gA2lFile, "/begin COMPU_VTAB conv.events.table \"\" TAB_VERB %u\n", eventCount);
             for (uint32_t id = 0; id < eventCount; id++) {
-                fprintf(gA2lFile, " %u \"%s\"", id, A2lGetEventName_(id));
+                fprintf(gA2lFile, " %u \"%s\"", id, A2lGetEventName_(project_name, id));
             }
             fprintf(gA2lFile, "\n/end COMPU_VTAB\n");
         }
@@ -413,7 +404,7 @@ static void createEventGroupsAndConversions(bool event_groups, bool event_conver
             uint32_t id = 0;
 #endif
             for (; id < eventCount; id++) {
-                fprintf(gA2lFile, " %s", A2lGetEventName_(id));
+                fprintf(gA2lFile, " %s", A2lGetEventName_(project_name, id));
             }
             fprintf(gA2lFile, " /end SUB_GROUP /end GROUP\n");
         }
@@ -463,13 +454,14 @@ static void includePartialA2lFiles(uint8_t a2l_mode, uint16_t count, const char 
 // Write the main A2L file, with options to include event groups, symbol name prefix, and partial A2L files
 
 // Write the main A2L file
-bool A2lWriter(const char *a2l_filename, uint8_t a2l_mode, uint16_t include_count, const char **include_files, const uint8_t *addr, uint16_t port, bool useTCP) {
+bool A2lWriter(const char *a2l_filename, uint8_t a2l_mode, const char *project_name, const char *epk_str, uint16_t include_count, const char **include_files, const uint8_t *addr,
+               uint16_t port, bool useTCP) {
 
     assert(addr != NULL);
     assert(port != 0);
     assert(a2l_filename != NULL);
 
-    DBG_PRINTF3("Write A2L file %s\n", a2l_filename);
+    DBG_PRINTF3("Write A2L file %s, project_name '%s', epk '%s'\n", a2l_filename, project_name, epk_str);
 
     // Save parameters
     memcpy(&gA2lOptionBindAddr, addr, 4);
@@ -485,7 +477,7 @@ bool A2lWriter(const char *a2l_filename, uint8_t a2l_mode, uint16_t include_coun
     }
 
     // Create header
-    fprintf(gA2lFile, gA2lHeader1, XcpGetProjectName(), XcpGetProjectName());
+    fprintf(gA2lFile, gA2lHeader1, project_name /* project name */, project_name /* module name */);
     if (a2l_mode & A2L_MODE_EMBED_AML_FILE) {
         assert(0 && "Not implemented yet: embedding AML file content into A2L file is not implemented yet");
     } else {
@@ -532,14 +524,14 @@ bool A2lWriter(const char *a2l_filename, uint8_t a2l_mode, uint16_t include_coun
 
 // Create event conversions and groups
 #if defined(XCP_ENABLE_DAQ_EVENT_LIST)
-    createEventGroupsAndConversions(a2l_mode & A2L_MODE_AUTO_GROUPS, a2l_mode & A2L_MODE_EVENT_CONVERSION);
+    createEventGroupsAndConversions(project_name, a2l_mode & A2L_MODE_AUTO_GROUPS, a2l_mode & A2L_MODE_EVENT_CONVERSION);
 #endif
 
     // Create MOD_PAR section with EPK and calibration segments
-    A2lCreate_MOD_PAR();
+    A2lCreate_MOD_PAR(project_name, epk_str);
 
     // Create IF_DATA section with event list and transport layer info
-    A2lCreate_ETH_IF_DATA(gA2lUseTCP, gA2lOptionBindAddr, gA2lOptionPort);
+    A2lCreate_ETH_IF_DATA(project_name, gA2lUseTCP, gA2lOptionBindAddr, gA2lOptionPort);
 
     // Append the footer and close
     fprintf(gA2lFile, "%s", gA2lFooter);
@@ -547,8 +539,10 @@ bool A2lWriter(const char *a2l_filename, uint8_t a2l_mode, uint16_t include_coun
     gA2lFile = NULL;
 
     // Rename the temporary file to the final name
-    if (remove(a2l_filename) != 0) {
-        DBG_PRINTF_ERROR("Could not remove existing file %s!\n", a2l_filename);
+    if (fexists(a2l_filename)) {
+        if (remove(a2l_filename) != 0) {
+            DBG_PRINTF_ERROR("Could not remove existing file %s!\n", a2l_filename);
+        }
     }
     if (rename("tmp.a2l", a2l_filename) != 0) {
         if (!fexists("tmp.a2l")) {

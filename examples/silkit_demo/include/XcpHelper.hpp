@@ -42,6 +42,9 @@ static uint64_t getClockCallback() {
 // Called immediately before DaqTriggerEventExt() in DoWorkSync(now) and in DataMessageEvent callbacks.
 inline void XcpUpdateSimTime(uint64_t time_ns) {
 
+    if (!XcpIsInShmMode())
+        return;
+
     uint64_t t = XcpSilKitClock::g_simTimeNs.load(std::memory_order_relaxed);
     if (t != 0xFFFFFFFFFFFFFFFF) {
         if (t == time_ns) {

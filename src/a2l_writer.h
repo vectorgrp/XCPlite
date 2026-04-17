@@ -17,5 +17,5 @@
 #include <stdint.h>  // for uintxx_t
 
 // Write the main A2L file skeleton, with options below and a list of partial A2L files with measurements, characteristics, and typedefs to include
-// @@@@ TODO: A2lWriter calls XcpGetEcuEpk() and  XcpGetProjectName(), specify as parameters instead
-bool A2lWriter(const char *a2l_filename, uint8_t a2l_mode, uint16_t include_count, const char **include_files, const uint8_t *addr, uint16_t port, bool useTCP);
+bool A2lWriter(const char *a2l_filename, uint8_t a2l_mode, const char *project_name, const char *epk_str, uint16_t include_count, const char **include_files, const uint8_t *addr,
+               uint16_t port, bool useTCP);
