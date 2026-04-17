@@ -111,6 +111,7 @@ void XcpInitCalSegList(void) {
 // Thread-safe bump allocator for calibration segment memory
 // Memory is only freed as a whole when the calibration segment list is destroyed
 static void *XcpCalMemAlloc_(size_t size) {
+    DBG_PRINTF6("Allocating %zu bytes from calibration memory pool\n", size);
     assert(size > 0);
     assert((size % XCP_CALPAGE_ALIGNMENT) == 0);
     assert(size <= (size_t)XCP_CAL_MEM_SIZE);
@@ -360,6 +361,8 @@ static tXcpCalSegIndex XcpRegisterCalSeg_(tXcpCalSeg *c) {
 // Lookup for existence can be skipped if lookup is false, which is the case for preloaded segments, because they have a predefined index and are loaded in order
 // If default_page is NULL, it is a preloaded segment, the caller will initialize the default page
 static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, bool lookup, const void *default_page, FILE *default_page_file, uint16_t page_size, bool memory_segment) {
+
+    DBG_PRINTF6("XcpCreateCalSeg_ name='%s', lookup=%d, page_size=%u, memory_segment=%d\n", name, lookup, page_size, memory_segment);
 
     tXcpCalSeg *calseg = NULL;
     tXcpCalSegIndex calseg_index = XCP_UNDEFINED_CALSEG;
@@ -993,7 +996,15 @@ uint8_t XcpFreezeSelectedCalSegs(bool all) {
 }
 
 // Freeze all
-bool XcpFreeze(void) { return CRC_CMD_OK == XcpFreezeSelectedCalSegs(true); }
+bool XcpFreeze(void) {
+
+#ifdef OPTION_SHM_MODE // In SHM mode, only the server is allowed to freeze all segments
+    if (!XcpShmIsXcpServer())
+        return false;
+#endif
+
+    return CRC_CMD_OK == XcpFreezeSelectedCalSegs(true);
+}
 
 // Set all segments to the default page
 void XcpResetAllCalSegs(void) {

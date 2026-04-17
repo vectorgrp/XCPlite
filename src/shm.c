@@ -9,11 +9,9 @@
 | Licensed under the MIT license. See LICENSE file in the project root for details.
 |***************************************************************************/
 
-#include "xcp_cfg.h"    // XCP protocol layer configuration parameters (XCP_xxx)
 #include "xcplib_cfg.h" // for OPTION_xxx
-#include "xcptl_cfg.h"  // XCP transport layer configuration parameters (XCPTL_xxx)
 
-#include "xcplite.h" // XCP protocol layer interface functions
+#ifdef OPTION_SHM_MODE
 
 #include <assert.h>   // for assert
 #include <inttypes.h> // for PRIx32, PRIu64
@@ -24,15 +22,17 @@
 #include <stdio.h>    // for printf
 #include <stdlib.h>   // for size_t, NULL, abort
 #include <string.h>   // for memcpy, memset
-#ifdef OPTION_SHM_MODE
-#include <unistd.h> // for getpid()
-#endif
-#include "shm.h" // for shared memory management
+#include <unistd.h>   // for getpid()
+
+#include "shm.h"
 
 #include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
 #include "platform.h"  // for atomics
+#include "xcp_cfg.h"   // XCP protocol layer configuration parameters (XCP_xxx)
+#include "xcplite.h"   // XCP protocol layer interface functions
+#include "xcptl_cfg.h" // XCP transport layer configuration parameters (XCPTL_xxx)
 
-#ifdef OPTION_SHM_MODE // check required options and settings for SHM mode
+// Check required options and settings for SHM mode
 #ifndef XCP_ENABLE_DAQ_EVENT_LIST
 #error "XCP_ENABLE_DAQ_EVENT_LIST must be defined for SHM mode"
 #endif

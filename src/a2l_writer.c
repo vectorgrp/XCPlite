@@ -18,7 +18,7 @@
 #include <stdarg.h>   // for va_
 #include <stdbool.h>  // for bool
 #include <stdint.h>   // for uintxx_t
-#include <stdio.h>    // for fclose, fopen, fread, fseek, ftell
+#include <stdio.h>    // for fclose, fopen, fread
 #include <string.h>   // for
 
 #include "dbg_print.h"  // for DBG_PRINT

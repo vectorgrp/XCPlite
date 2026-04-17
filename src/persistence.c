@@ -343,7 +343,7 @@ bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg) {
     // Set position to start of calseg data and write the active page data
     assert(seg->h.file_pos > 0); // Ensure the file position is set
     size_t n = 0;
-    if (0 == fseek(file, seg->h.file_pos, SEEK_SET)) {
+    if (0 == fseek(file, seg->h.file_pos + sizeof(tCalSegDescriptor), SEEK_SET)) {
         const uint8_t *ecu_page = XcpLockCalSeg(calseg);
 #ifdef OPTION_ENABLE_DBG_PRINTS
         DBG_PRINTF4("Freezing calibration segment %u, size=%u active page data to file '%s'+%u\n", calseg, seg->h.size, filename, seg->h.file_pos);

@@ -65,6 +65,10 @@ class Subscriber : public ApplicationBase {
         DaqCreateEvent(Temp); // On reception of temperature data
         A2lSetRelativeAddrMode(Temp, this);
         A2lCreateMeasurement(_temperature, "Received temperature in Celsius");
+
+        // Attach to the calibration parameter segment created in PublisherDemo
+        tXcpCalSegIndex calseg = XcpFindCalSeg("kParameters");
+        printf("Found calibration segment 'kParameters': %u\n", calseg);
     }
 
     void InitControllers() override {}
@@ -86,7 +90,7 @@ class Subscriber : public ApplicationBase {
 int main(int argc, char **argv) {
 
     // Initialize XCP server for measurement on TCP port 5556 or SHM mode server on 5555, depending on the build configuration
-    XcpServerInit("Subscriber", "V1.6", 5556);
+    XcpServerInit("Subscriber", "V1.7", 5556);
 
     Arguments args;
     args.participantName = "Subscriber";
