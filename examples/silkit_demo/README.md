@@ -1,41 +1,62 @@
-# silkit_demo — SIL Kit Pub/Sub Demo with XCP Measurement
+# silkit_demo — SIL Kit Pub/Sub Demo with XCP Measurement and Calibration
 
 This example demonstrates how to combine **SIL Kit** (SIL Kit – Open-Source Library for Connecting Software-in-the-Loop Environments) with **XCPlite** to add live measurement and calibration to one or more SIL Kit simulation participants.  
 
 In the example, two participants (derived from the original **SIL Kit** Publisher/Subscriber example) are provided.  
 The Publisher produces some test data on each simulation step and makes the internal values observable via XCP.  
-The Subscriber receives that data and also exposes the received values via XCP.
+The Subscriber receives that data and also exposes the received values via XCP.  
+There are some tunable parameter to demonstrate thread-safe calibration and parameter persistence.  
 
-In CANape, the time synchronisation mode must be set to simulation (in project settings, time source), because the simulation time may run faster or slower than real time.  
+Compared to other XCP integration examples, this demo focuses on 2 special aspects:
 
-There are 2 options to run the demo.  
+- Simulation time vs. real time: The demo can be configured to use either the virtual simulation time (which advances non-realtime in fixed steps) or real wall-clock time for XCP event timestamps. 
+- Multi application support: The demo can be run with either separate XCP servers for participants, or a single XCP server in multi-application shared memory mode for both participants.
+
+For distributed simulations on multiple machines, there will be one XCP server per machine.  
 
 
-### Option 1
 
-To separate XCP servers for publisher and subscriber
+## Single or Multi Application Mode
 
-| Executable            | SIL Kit role   | XCP server port |
-|-----------------------|----------------|-----------------|
-| `SilKitDemoPublisher` | Data Publisher | TCP 5555        |
-| `SilKitDemoSubscriber`| Data Subscriber| TCP 5556        |
+### Option 1 
 
+To separate XCP servers for each participant:
+
+| Executable            | XCP server port |
+|-----------------------|-----------------|
+| `SilKitDemoPublisher` | TCP 5555        |
+| `SilKitDemoSubscriber`| TCP 5556        |
+
+This option requires to setup 2 different XCP client devices in CANape, one for each participant.  
 
 ### Option 2
 
-A single XCP server in multi-application shared memory mode for both publisher and subscriber.  
+A single XCP server in multi-application shared memory mode for all participants on the same machine.  
+The XCP server port is then fixed to standard XCP port 5555.  
 
-Compile the XCP library in multi-application shared memory mode (#define `OPTION_SHM_MODE` in xcplib_cfg.h), which then runs both participants with the same XCP server port (e.g., 5555).  
-The participant that starts first becomes the XCP server, the other participant automatically detects the running server and connects to it in shared memory mode.
+This option needs only only XCP client device in CANape, which can access signals and parameters from all participants.  
+The A2L files for the participants are automatically merged and all symbols get prefixed with the participant name (e.g., `Publisher._temperature` and `Subscriber._temperature`) to avoid name clashes.
 
-Note that the XCP multi application shared memory mode is only supported on POSIX-compliant platforms (Linux, macOS, QNX) and not on Windows, and is still in experimental state.
+This requires to compile the XCP library in multi-application shared memory mode (#define `OPTION_SHM_MODE` in xcplib_cfg.h).  
+The participant that starts first becomes the XCP server, the other participants automatically detect the running server and connect to it in shared memory mode. There is not central registry, controller or daemon needed — the participants discover each other and establish the shared memory connection automatically.  
+There are no performance penalties compared to the single-application mode, because the shared memory mode uses the same lock-less mechanisms for data acquisition and calibration. The only side effect is, that the applications share a few cache lines for the data acquisition queue and calibration RCU.  
 
+Note that the XCPlite multi application shared memory mode is only supported on POSIX-compliant platforms (Linux, macOS, QNX) and not on Windows, and is still in experimental state.
+
+See the documentation of XCPlite SHM mode (in docs/SHM.md) for more details on the multi-application shared memory mode.  
 
 ---
 
+## Simulated Time
+
+The XCP events can be timestamped with either the virtual simulation time (which advances non real-time in fixed steps) or real wall-clock time.  
+
+To use non real time targets with CANape, time synchronisation must be configured to 'Simulation' (Settings / Project Settings / Miscellaneous / Synchronization / Simulation). Then configure the XCP device as time master (Device Configuration / Right click on device / Time master).  
 
 
-### SilKit
+
+
+## Building
 
 Build or download a SIL Kit release package from https://github.com/vectorgrp/sil-kit/releases.  
 The build tree of the git repository also works.

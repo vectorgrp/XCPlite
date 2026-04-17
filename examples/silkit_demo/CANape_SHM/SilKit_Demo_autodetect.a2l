@@ -66,7 +66,7 @@ ALIGNMENT_INT64 1
 
 
 /*-----------------------------------------------------------------------------------------*/
-/* /include "Publisher_V1.4.a2l" */
+/* /include "Publisher_V1.5.a2l" */
 
 
 /begin TYPEDEF_STRUCTURE Publisher.GpsData "GPS data struct" 0x18
@@ -106,7 +106,7 @@ ALIGNMENT_INT64 1
 
 
 /*-----------------------------------------------------------------------------------------*/
-/* /include "Subscriber_V1.3.a2l" */
+/* /include "Subscriber_V1.5.a2l" */
 
 
 /begin TYPEDEF_STRUCTURE Subscriber.GpsData "GPS data struct" 0x18
@@ -137,7 +137,7 @@ ALIGNMENT_INT64 1
 /begin GROUP Events "Events" ROOT /begin SUB_GROUP Subscriber.DoWorkSync Subscriber.Gps Subscriber.Temp Publisher.DoWorkSync /end SUB_GROUP /end GROUP
 
 /begin MOD_PAR ""
-EPK "4cb57416ce7b4664" ADDR_EPK 0x80000000
+EPK "da86bd7937e139bd" ADDR_EPK 0x80000000
 /begin MEMORY_SEGMENT epk "" DATA FLASH INTERN 0x80000000 32 -1 -1 -1 -1 -1
 /begin IF_DATA XCP
   /begin SEGMENT 0 2 0 0 0
