@@ -37,9 +37,10 @@ static uint16_t gA2lOptionPort = 5555;
 static uint8_t gA2lOptionBindAddr[4] = {0, 0, 0, 0};
 static uint8_t gA2lMode = 0;
 
-// A2L file handles and state
+// Temporary A2L file handles, names and state
 static bool gA2lIsFinalized = false;
 static FILE *gA2lFile = NULL;
+static char gA2lFileName[XCP_A2L_FILENAME_MAX_LENGTH + 1] = {0}; // static buffer for filename
 static FILE *gA2lTypedefsFile = NULL;
 static FILE *gA2lGroupsFile = NULL;
 static FILE *gA2lConversionsFile = NULL;
@@ -284,53 +285,74 @@ double A2lGetTypeMax(tA2lTypeId type_id) {
 //----------------------------------------------------------------------------------
 // Build filenames for the different (temporary) files used
 
-#define A2L_FILE 1
+#define A2L_OBJECTS_FILE 1
 #define A2L_TYPEDEFS_FILE 2
 #define A2L_GROUPS_FILE 3
 #define A2L_CONVERSIONS_FILE 4
 #define A2L_MAIN_FILE 0xFF
 
-static const char *A2lGetFilename(uint8_t file_type) {
-    static char file_name[XCP_A2L_FILENAME_MAX_LENGTH + 1] = {0}; // static buffer for filename
-    const char *project_name = XcpGetProjectName();
-    const char *postfix;
-    bool add_epk;
+// Helper function to build the filename for the given file type (main file, objects, typedefs, groups, conversions), based on project name and EPK if enabled
+// Returns pointer to static buffer with the filename, which is valid until the next call of this function !!
+static const char *A2lGetFilename_(const char *project_name, const char *epk, uint8_t file_type) {
+
+    const char *postfix = "";
+    const char *hash = "";
+    bool add_epk = false;
+    bool add_hash = false;
     switch (file_type) {
 #ifdef OPTION_SHM_MODE // main A2L file name
-        // In SHM mode, the server build a master file with a generic name and includes all applications partial A2L files
+        // In SHM mode, the server builds a master file with the ecu or a generic name (main.a2l) and includes all applications partial A2L files (applicationname_objects.a2l) into
+        // the master file. The master file is finalized and sent to the client, the application partial files are only used temporarily for the master file generation and deleted
+        // afterwards. This allows to have multiple applications with different EPKs running at the same time without generating multiple A2L files on disk.
     case A2L_MAIN_FILE:
         project_name = XcpShmGetEcuProjectName(); // Use the ECU name as filename for main file in SHM mode
-        postfix = "";
-        add_epk = false;
+        hash = XcpShmGetEcuEpk();                 // version hash as postfix;
+        add_hash = true;
+        break;
+#else
+    case A2L_MAIN_FILE:
+        add_epk = !(gA2lMode & A2L_MODE_WRITE_ALWAYS);
         break;
 #endif
+    case A2L_OBJECTS_FILE:
+        postfix = "_include";
+        add_epk = !(gA2lMode & A2L_MODE_WRITE_ALWAYS);
+        break;
     case A2L_TYPEDEFS_FILE:
         postfix = "_typedefs";
-        add_epk = false;
         break;
     case A2L_GROUPS_FILE:
         postfix = "_groups";
-        add_epk = false;
         break;
     case A2L_CONVERSIONS_FILE:
         postfix = "_conversions";
-        add_epk = false;
         break;
     default:
-        postfix = "";
-        add_epk = !(gA2lMode & A2L_MODE_WRITE_ALWAYS);
+        assert(0);
         break;
     }
 
     // Build A2L base filename from project name and EPK
     // If A2l file is generated only once for a new build, the EPK is appended to the filename
+    assert(project_name != NULL);
     if (add_epk) {
-        SNPRINTF(file_name, sizeof(file_name), "%s%s_%s.a2l", project_name, postfix, XcpGetEpk());
+        SNPRINTF(gA2lFileName, sizeof(gA2lFileName), "%s%s_%s.a2l", project_name, postfix, epk);
     } else {
-        SNPRINTF(file_name, sizeof(file_name), "%s%s.a2l", project_name, postfix);
+        if (add_hash) {
+            SNPRINTF(gA2lFileName, sizeof(gA2lFileName), "%s%s_%s.a2l", project_name, postfix, hash);
+        } else {
+            SNPRINTF(gA2lFileName, sizeof(gA2lFileName), "%s%s.a2l", project_name, postfix);
+        }
     }
-    return file_name;
+    return gA2lFileName;
 }
+
+static const char *A2lGetFilename(uint8_t file_type) { return A2lGetFilename_(XcpGetProjectName(), XcpGetEpk(), file_type); }
+
+#ifdef OPTION_SHM_MODE
+// A2L file name for application partial files in SHM mode, which are included into the main file and deleted afterwards
+const char *A2lGetAppFilename(const char *project_name, const char *epk) { return A2lGetFilename_(project_name, epk, A2L_OBJECTS_FILE); }
+#endif
 
 // Helper function to include the content of some temporary files into the main file and remove the temporary files
 static bool includeFilesAndRemove(FILE *main_file, FILE **filep, const char *filename) {
@@ -348,7 +370,7 @@ static bool includeFilesAndRemove(FILE *main_file, FILE **filep, const char *fil
             return true;
         }
     }
-    return true;
+    return false;
 }
 
 //----------------------------------------------------------------------------------
@@ -1512,23 +1534,18 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
     // Register a callback called on XCP connect
     ApplXcpRegisterConnectCallback(A2lCheckFinalizeOnConnect);
 
-    DBG_PRINTF3("Initialized A2L generation: mode=(%s%s%s%s%s%s)\n", (mode & A2L_MODE_WRITE_ALWAYS) ? "WRITE_ALWAYS " : "", (mode & A2L_MODE_WRITE_ONCE) ? "WRITE_ONCE " : "",
-                (mode & A2L_MODE_FINALIZE_ON_CONNECT) ? "FINALIZE_ON_CONNECT " : "", (mode & A2L_MODE_AUTO_GROUPS) ? "AUTO_GROUPS " : "",
-                (mode & A2L_MODE_SYMBOL_PREFIX) ? "SYMBOL_PREFIX " : "", (mode & A2L_MODE_WRITE_TEMPLATE) ? "WRITE_TEMPLATE " : "");
+    DBG_PRINTF3(ANSI_COLOR_GREEN "Init A2L generation: mode=(%s%s%s%s%s%s)\n" ANSI_COLOR_RESET, (mode & A2L_MODE_WRITE_ALWAYS) ? "WRITE_ALWAYS " : "",
+                (mode & A2L_MODE_WRITE_ONCE) ? "WRITE_ONCE " : "", (mode & A2L_MODE_FINALIZE_ON_CONNECT) ? "FINALIZE_ON_CONNECT " : "",
+                (mode & A2L_MODE_AUTO_GROUPS) ? "AUTO_GROUPS " : "", (mode & A2L_MODE_SYMBOL_PREFIX) ? "SYMBOL_PREFIX " : "",
+                (mode & A2L_MODE_WRITE_TEMPLATE) ? "WRITE_TEMPLATE " : "");
 
     // In A2L_WRITE_ONCE mode:
-    // Check if the A2L file already exists, if yes, skip A2L generation
-    // @@@@ TODO: Maybe better be sure the persistence BIN file has been successfully loaded
-    const char *a2l_filename = A2lGetFilename(A2L_FILE);
-    if ((gA2lMode & A2L_MODE_WRITE_ALWAYS) == 0 && fexists(a2l_filename)) {
-#ifdef OPTION_SHM_MODE // Set finalized A2L name inSHM application list
-        // Notify the application A2L file is finalized, not the master A2L file
-        XcpShmSetA2lFinalized(XcpShmGetAppId(), a2l_filename);
-#else
-        XcpSetA2lName(a2l_filename); // Notify XCP that there is an existing A2L file available on disk, ready for upload
-#endif
-        DBG_PRINTF3(ANSI_COLOR_GREEN "A2L file %s already exists with matching version, disabling A2L generation\n" ANSI_COLOR_RESET, a2l_filename);
-        return true; // Skip A2L generation
+    const char *a2l_main_filename = A2lGetFilename(A2L_MAIN_FILE);
+    if ((gA2lMode & A2L_MODE_WRITE_ALWAYS) == 0 && fexists(a2l_main_filename)) {
+        // Check if the A2L file (with epk version or hash from all epk versions in the name) already exists, if yes, skip A2L generation
+        DBG_PRINTF3(ANSI_COLOR_GREEN "A2L file %s already exists with matching version, disabling A2L generation\n" ANSI_COLOR_RESET, a2l_main_filename);
+        XcpSetA2lName(a2l_main_filename); // Notify XCP that there is an existing A2L file available on disk, ready for upload
+        return true;                      // Skip A2L generation
     }
 
 #ifdef OPTION_SHM_MODE // prefix all symbols in SHM mode to avoid conflicts between applications
@@ -1538,14 +1555,16 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
     // Start A2L generator
     if (!(gA2lMode & A2L_MODE_WRITE_TEMPLATE)) {
 
-        DBG_PRINTF3(ANSI_COLOR_GREEN "Start A2L generator, file=%s\n" ANSI_COLOR_RESET, a2l_filename);
-        gA2lFile = fopen(a2l_filename, "w");
+        // Open the temporary file for A2L measurements and characteristics, which will be included in the main A2L file later
+        const char *a2l_objects_filename = A2lGetFilename(A2L_OBJECTS_FILE);
+        DBG_PRINTF3(ANSI_COLOR_GREEN "Start A2L generation, file=%s\n" ANSI_COLOR_RESET, a2l_objects_filename);
+        gA2lFile = fopen(a2l_objects_filename, "w");
         if (gA2lFile == NULL) {
-            DBG_PRINTF_ERROR("Could not create file %s!\n", a2l_filename);
+            DBG_PRINTF_ERROR("Could not create file %s!\n", a2l_objects_filename);
             return false;
         }
 
-        // Open the temporary files for typedefs, groups and conversions
+        // Open the temporary files for typedefs, groups and conversions, which will be included in the temporary A2L file for measurements and characteristics later
         gA2lTypedefsFile = fopen(A2lGetFilename(A2L_TYPEDEFS_FILE), "w");
         gA2lGroupsFile = fopen(A2lGetFilename(A2L_GROUPS_FILE), "w");
         gA2lConversionsFile = fopen(A2lGetFilename(A2L_CONVERSIONS_FILE), "w");
@@ -1571,7 +1590,14 @@ bool A2lFinalize(void) {
     if (gA2lIsFinalized)
         return true; // Already finalized
 
-    DBG_PRINT3(ANSI_COLOR_GREEN "Finalizing A2L file...\n" ANSI_COLOR_RESET);
+    bool write_bin = false;
+#ifdef OPTION_ENABLE_PERSISTENCE
+    if ((XcpGetInitMode() & XCP_MODE_PERSISTENCE)) {
+        write_bin = true;
+    }
+#endif
+
+    DBG_PRINTF3(ANSI_COLOR_GREEN "Finalizing A2L%s file ...\n" ANSI_COLOR_RESET, write_bin ? " and BIN" : "");
 
 #ifdef OPTION_SHM_MODE // server signals all applications to finalize their A2L files
     // Later we will wait for the results and merge the partial A2L files into the main A2L file
@@ -1596,12 +1622,15 @@ bool A2lFinalize(void) {
         // Close the partial A2L file
         fclose(gA2lFile);
         gA2lFile = NULL;
+
+        DBG_PRINTF3(ANSI_COLOR_GREEN "A2L include file '%s' finalized: %u measurements, %u params, %u typedefs, %u components, %u instances, %u conversions\n" ANSI_COLOR_RESET,
+                    A2lGetFilename(A2L_OBJECTS_FILE), gA2lMeasurements, gA2lParameters, gA2lTypedefs, gA2lComponents, gA2lInstances, gA2lConversions);
     }
 
 // Generate the final, complete A2L file
 #ifdef OPTION_SHM_MODE // finalize and generate A2L file, server includes all others
 
-    XcpShmSetA2lFinalized(XcpShmGetAppId(), A2lGetFilename(A2L_FILE));
+    XcpShmSetA2lFinalized(XcpShmGetAppId(), A2lGetFilename(A2L_OBJECTS_FILE));
 
     // In SHM mode, the server creates the main A2L file and the binary persistence file
     if (XcpShmIsXcpServer()) {
@@ -1621,36 +1650,45 @@ bool A2lFinalize(void) {
         // Update the EPK in the EPK segment, so the the client can upload it and the BIN file gets it as well
         XcpCalUpdateEpkSeg(epk);
 
-        // Write the binary persistence file with default page data
+// Write the binary persistence file with default page data
+#ifdef OPTION_ENABLE_PERSISTENCE
         XcpBinWrite(epk);
+#else
+#error "Persistence mode not enabled, mandatory for SHM mode!"
+#endif
 
         // Notify the XCP server A2L file is available for upload
-        XcpSetA2lName(A2lGetFilename(A2L_MAIN_FILE)); // Notify XCP that there is an A2L file available for upload by the XCP client
+        const char *a2l_main_file = A2lGetFilename(A2L_MAIN_FILE);
+        XcpSetA2lName(a2l_main_file); // Notify XCP that there is an A2L file available for upload by the XCP client
+        XcpShmSetMainA2lFinalized(a2l_main_file);
+        DBG_PRINTF3(ANSI_COLOR_GREEN "A2L main file '%s' finalized\n" ANSI_COLOR_RESET, a2l_main_file);
     }
 
 #else
 
     // Generate the main A2L file by including the single partial A2L file created by this application
-    // Note that the A2lWriter can handle if the same file is both the source and the destination
-    const char *files[1] = {A2lGetFilename(A2L_FILE)};
-    int count = 1;
-    A2lWriter(A2lGetFilename(A2L_MAIN_FILE), gA2lMode, XcpGetProjectName(), XcpGetEcuEpk(), count, files, gA2lOptionBindAddr, gA2lOptionPort, gA2lUseTCP);
+    char a2l_object_file[XCP_A2L_FILENAME_MAX_LENGTH + 1];
+    strncpy(a2l_object_file, A2lGetFilename(A2L_OBJECTS_FILE), XCP_A2L_FILENAME_MAX_LENGTH); // Remember the limited lifetime of the temporary file name
+    const char *include_files[1] = {a2l_object_file};
+    int include_count = 1;
+    const char *a2l_main_file = A2lGetFilename(A2L_MAIN_FILE);
+    A2lWriter(a2l_main_file, gA2lMode, XcpGetProjectName(), XcpGetEcuEpk(), include_count, include_files, gA2lOptionBindAddr, gA2lOptionPort, gA2lUseTCP);
+    remove(a2l_object_file); // Remove the temporary include files, not needed anymore
 
-    // Notify the XCP server A2L file is available for upload
-    XcpSetA2lName(A2lGetFilename(A2L_FILE));
+    // Notify the XCP server the inalized A2L file is available for upload
+    XcpSetA2lName(a2l_main_file);
 
-    // Create the binary persistence file associated to this A2L file with default page data
+    // Create the binary persistence file associated to this A2L file with initial default page data
 #ifdef OPTION_ENABLE_PERSISTENCE
     if ((XcpGetInitMode() & XCP_MODE_PERSISTENCE)) {
         XcpBinWrite(XcpGetEpk());
     }
 #endif
 
+    DBG_PRINTF3(ANSI_COLOR_GREEN "A2L file '%s' finalized\n" ANSI_COLOR_RESET, a2l_main_file);
 #endif
 
     gA2lIsFinalized = true;
-    DBG_PRINTF3(ANSI_COLOR_GREEN "A2L created: %u measurements, %u params, %u typedefs, %u components, %u instances, %u conversions\n" ANSI_COLOR_RESET, gA2lMeasurements,
-                gA2lParameters, gA2lTypedefs, gA2lComponents, gA2lInstances, gA2lConversions);
     return true; // A2L file generation successful
 }
 

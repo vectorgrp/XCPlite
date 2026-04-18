@@ -201,7 +201,8 @@ void XcpShmDebugPrint(void) {
     uint32_t app_count = (uint32_t)atomic_load(&hdr->app_count);
     printf(ANSI_COLOR_BLUE "SHM Header:\n" ANSI_COLOR_RESET);
     printf("  magic=0x%016" PRIX64 ", version=%06X, size=%u\n", (uint64_t)hdr->magic, hdr->version, hdr->size);
-    printf("  leader_pid=%u, app_count=%u, a2l_finalize_requested=%u\n", hdr->leader_pid, app_count, (unsigned)atomic_load(&hdr->a2l_finalize_requested));
+    printf("  leader_pid=%u, app_count=%u, a2l_finalized=%u, a2l_finalize_requested=%u\n", hdr->leader_pid, app_count, hdr->a2l_finalized,
+           (unsigned)atomic_load(&hdr->a2l_finalize_requested));
     printf("  ecu_epk='%s'\n", hdr->ecu_epk);
     printf(ANSI_COLOR_RESET);
 
@@ -212,12 +213,12 @@ void XcpShmDebugPrint(void) {
         bool a2l_fin = atomic_load(&app->a2l_finalized) != 0;
         uint32_t alive_cnt = (int32_t)atomic_load(&app->alive_counter);
         printf("  [%u] '%s', epk='%s', %s pid=%u%s%s, init_mode=%02X, a2l_name='%s', alive_counter=%u\n", i, app->project_name, app->epk, //
-               app->pid != 0 ? "alive" : "stale",                                                                                         //
+               app->pid != 0 ? "alive" : ANSI_COLOR_RED "stale" ANSI_COLOR_RESET,                                                         //
                app->pid,                                                                                                                  //
                app->is_leader ? " leader" : "",                                                                                           //
                app->is_server ? " server" : "",                                                                                           //
                app->xcp_init_mode,                                                                                                        //
-               a2l_fin ? app->a2l_name : "pending", alive_cnt);
+               a2l_fin ? app->a2l_name : ANSI_COLOR_YELLOW "pending" ANSI_COLOR_RESET, alive_cnt);
     }
     printf(ANSI_COLOR_RESET);
 
@@ -473,6 +474,11 @@ void XcpShmCheckAliveCounters(void) {
         static uint32_t last_count = 0;
         uint32_t current_count = XcpShmGetActiveAppCount(); // Apps with alive_count > 0
         if (last_count != current_count) {
+            if (last_count < current_count) {
+                DBG_PRINTF3(ANSI_COLOR_BLUE "New application(s) registered: app count %u -> %u\n" ANSI_COLOR_RESET, last_count, current_count);
+            } else {
+                DBG_PRINTF3(ANSI_COLOR_BLUE "Application(s) disappeared or became stale: app count %u -> %u\n" ANSI_COLOR_RESET, last_count, current_count);
+            }
             XcpShmDebugPrint();
             last_count = current_count;
         }
@@ -507,14 +513,21 @@ int16_t XcpShmRegisterApp(const char *name, const char *epk, uint32_t pid, uint8
             // Otherwise we consider this application as new
             if (strncmp(app->epk, epk, XCP_EPK_MAX_LENGTH) == 0) {
                 if (app->pid != 0) {
-                    DBG_PRINTF_WARNING(
-                        "XcpShmRegisterApp: Application '%s' with matching EPK '%s' is already registered in slot %u, alive with with pid %u, reusing slot for new process\n", name,
-                        epk, i, app->pid);
-                    // @@@@ TODO: Register application twice handling
-                    // Would be ok to continue when the application just died, and the server did not detect this, which is a rare race condition
-                    // This also happen if the application is started twice
-                    return -1;
+                    DBG_PRINTF_ERROR("XcpShmRegisterApp: Application '%s' with matching EPK '%s' is already registered in slot %u, with with pid %u\n", name, epk, i, app->pid);
+
+                    // Check if this process is still alive by sending signal 0 (no-op)
+                    // kill returns 0 if the process exists, -1 with errno==ESRCH if it does not
+                    int res = kill((pid_t)app->pid, 0);
+                    if (res == -1 && errno == ESRCH) {
+                        // Process does not exist anymore (ESRCH), consider it dead (crashed) - reuse the slot
+                        DBG_PRINTF_WARNING("XcpShmRegisterApp: Application '%s' is not alive anymore, maybe crashed, reusing slot\n", name);
+                    } else {
+                        // Process is still alive (res==0) or exists but no permission (EPERM), cannot reuse the slot
+                        DBG_PRINTF_WARNING("XcpShmRegisterApp: Application '%s' is still alive, cannot reuse slot\n", name);
+                        return -1;
+                    }
                 }
+
                 atomic_store(&app->alive_counter, 0U); // reset alive counter on restart
                 app->pid = pid;
                 app->is_leader = is_leader;
@@ -585,6 +598,27 @@ void XcpShmShutdownApp(uint8_t app_id) {
         // @@@@ TODO: Check If it is a benefit to do this ?
         XcpShmUnlink(); // Unlink the shared memory, so the next leader will load the binary file and create a fresh one
     }
+}
+
+// Set the main A2L file as finalized in the SHM header
+void XcpShmSetMainA2lFinalized(const char *a2l_name) {
+
+    DBG_PRINTF3(ANSI_COLOR_BLUE "XcpShmSetMainA2lFinalized: Setting main A2L file '%s' as finalized\n" ANSI_COLOR_RESET, a2l_name);
+
+    assert(isActivated_(gXcpData));
+    if (a2l_name == NULL || a2l_name[0] == '\0') {
+        assert(0);
+        return;
+    }
+    tShmHeader *hdr = &gXcpData->shm_header;
+    hdr->a2l_finalized = 1;
+    atomic_store(&hdr->a2l_finalize_requested, 0);
+}
+
+bool XcpShmIsMainA2lFinalized(void) {
+    if (!isActivated_(gXcpData))
+        return false;
+    return gXcpData->shm_header.a2l_finalized != 0;
 }
 
 bool XcpIsInShmMode(void) { return XcpGetInitMode() & XCP_MODE_SHM; } // SHM mode enabled

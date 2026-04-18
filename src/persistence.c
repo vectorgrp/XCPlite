@@ -20,6 +20,7 @@
 #include <stdio.h>    // for fclose, fopen, fread, fseek, ftell
 #include <string.h>   // for strlen, strncpy
 
+#include "a2l.h"        // for A2lGetAppFilename
 #include "dbg_print.h"  // for DBG_PRINTF3, DBG_PRINT4, DBG_PRINTF4, DBG...
 #include "platform.h"   // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
 #include "shm.h"        // for shared memory management
@@ -305,7 +306,7 @@ bool XcpBinWrite(const char *epk) {
 
     fclose(file);
 
-    DBG_PRINTF3(ANSI_COLOR_GREEN "Persistence data written to file '%s'\n" ANSI_COLOR_RESET, gXcpBinFilename);
+    DBG_PRINTF3(ANSI_COLOR_GREEN "Persistence data written to BIN file '%s'\n" ANSI_COLOR_RESET, gXcpBinFilename);
 #ifdef OPTION_SHM_MODE // debug print application list
     if (DBG_LEVEL >= 4) {
         XcpShmDebugPrint();
@@ -501,14 +502,14 @@ static bool load(const char *filename, const char *epk) {
             error_count++;
         }
 
-        // If the A2L file already exists, set the A2L finalized flag, so the main file will be generated for it, even if the application was not started before tool connect
-        char a2l_filename[XCP_A2L_FILENAME_MAX_LENGTH + 1];
-        SNPRINTF(a2l_filename, sizeof(a2l_filename), "%s_%s.a2l", desc.project_name, desc.epk);
+        // If the A2L file already exists, set its the A2L finalized flag
+        const char *a2l_filename = A2lGetAppFilename(desc.project_name, desc.epk);
         if (fexists(a2l_filename)) {
-            XcpShmSetA2lFinalized(desc.app_id, a2l_filename);
             DBG_PRINTF4(ANSI_COLOR_BLUE "Application %u:'%s' A2L file'%s' exists, set A2L finalized flag\n" ANSI_COLOR_RESET, desc.app_id, desc.project_name, a2l_filename);
+            XcpShmSetA2lFinalized(desc.app_id, a2l_filename);
         }
-    }
+    } // for all applications in the file
+
 #endif // SHM_MODE
 
     fclose(file);

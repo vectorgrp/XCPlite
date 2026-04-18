@@ -3012,6 +3012,7 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     }
 
 #ifdef OPTION_SHM_MODE // XcpInit init SHM mode
+    // @@@@ TODO: Move this to shm.c
     // In SHM mode, attach to shared memory, or create it if not existing (leader)
     gXcpData = XcpShmAttachOrCreate(&local_mut.shm_leader);
     if (gXcpData == NULL) {
@@ -3085,6 +3086,7 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     hdr->leader_pid = (uint32_t)getpid();
     atomic_store(&hdr->app_count, 0U);
     atomic_store(&hdr->a2l_finalize_requested, 0U);
+    hdr->a2l_finalized = 0;
     memset(hdr->ecu_epk, 0, sizeof(hdr->ecu_epk));
 
     local_mut.shm_app_id = 0; // Not defined yet, leader will registered after loading the binary persistence file

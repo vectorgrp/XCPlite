@@ -33,11 +33,6 @@
 // Static
 
 static FILE *gA2lFile = NULL;
-
-static bool gA2lUseTCP = false;
-static uint16_t gA2lOptionPort = 5555;
-static uint8_t gA2lOptionBindAddr[4] = {0, 0, 0, 0};
-
 static bool gA2lSymbolPrefix = false; // Prepend project name as prefix to all symbol names (measurements, parameters, typedefs, components)
 
 //----------------------------------------------------------------------------------
@@ -438,10 +433,16 @@ static void includePartialA2lFiles(uint8_t a2l_mode, uint16_t count, const char 
                 fprintf(gA2lFile, "/* /include \"%s\" */\n\n", files[fi]);
 #endif // SHM_MODE
                 char line[512];
+                uint32_t line_count = 0;
                 while (fgets(line, sizeof(line), fol) != NULL) {
                     fprintf(gA2lFile, "%s", line);
+                    line_count++;
                 }
                 fclose(fol);
+                if (line_count == 0) {
+                    DBG_PRINTF_WARNING("Included file '%s' is empty\n", files[fi]);
+                    assert(0 && "Included file is empty");
+                }
             } else {
                 DBG_PRINTF_WARNING("Could not open file '%s'\n", files[fi]);
             }
@@ -451,11 +452,11 @@ static void includePartialA2lFiles(uint8_t a2l_mode, uint16_t count, const char 
 }
 
 //----------------------------------------------------------------------------------------------
-// Write the main A2L file, with options to include event groups, symbol name prefix, and partial A2L files
+// Write A2L file
+// Include multiple partial A2L files with measurments, characteristic, typedefs, conversions given in include_files
 
-// Write the main A2L file
 bool A2lWriter(const char *a2l_filename, uint8_t a2l_mode, const char *project_name, const char *epk_str, uint16_t include_count, const char **include_files, const uint8_t *addr,
-               uint16_t port, bool useTCP) {
+               uint16_t port, bool use_tcp) {
 
     assert(addr != NULL);
     assert(port != 0);
@@ -463,16 +464,12 @@ bool A2lWriter(const char *a2l_filename, uint8_t a2l_mode, const char *project_n
 
     DBG_PRINTF3("Write A2L file %s, project_name '%s', epk '%s'\n", a2l_filename, project_name, epk_str);
 
-    // Save parameters
-    memcpy(&gA2lOptionBindAddr, addr, 4);
-    gA2lOptionPort = port;
-    gA2lUseTCP = useTCP;
     gA2lSymbolPrefix = a2l_mode & A2L_MODE_SYMBOL_PREFIX;
 
     // Open a temporary file, because one of the include files may have the same name as the final file, and we don't want to overwrite it before including it
-    gA2lFile = fopen("tmp.a2l", "w");
+    gA2lFile = fopen(a2l_filename, "w");
     if (gA2lFile == NULL) {
-        DBG_PRINT_ERROR("Could not create file tmp.a2l!\n");
+        DBG_PRINTF_ERROR("Could not create file '%s'!\n", a2l_filename);
         return false;
     }
 
@@ -492,7 +489,6 @@ bool A2lWriter(const char *a2l_filename, uint8_t a2l_mode, const char *project_n
     fprintf(gA2lFile, "\n");
 
     // Create predefined standard record layouts and typedefs for elementary types
-    // In the typedefs.a2l file - will be merges later as there might be more typedefs during the generation process
     tA2lTypeId typeid_table[] = {A2L_TYPE_UINT8, A2L_TYPE_UINT16, A2L_TYPE_UINT32, A2L_TYPE_UINT64, A2L_TYPE_INT8,
                                  A2L_TYPE_INT16, A2L_TYPE_INT32,  A2L_TYPE_INT64,  A2L_TYPE_FLOAT,  A2L_TYPE_DOUBLE};
     for (size_t i = 0; i < sizeof(typeid_table); i++) {
@@ -531,29 +527,12 @@ bool A2lWriter(const char *a2l_filename, uint8_t a2l_mode, const char *project_n
     A2lCreate_MOD_PAR(project_name, epk_str);
 
     // Create IF_DATA section with event list and transport layer info
-    A2lCreate_ETH_IF_DATA(project_name, gA2lUseTCP, gA2lOptionBindAddr, gA2lOptionPort);
+    A2lCreate_ETH_IF_DATA(project_name, use_tcp, addr, port);
 
     // Append the footer and close
     fprintf(gA2lFile, "%s", gA2lFooter);
     fclose(gA2lFile);
     gA2lFile = NULL;
-
-    // Rename the temporary file to the final name
-    if (fexists(a2l_filename)) {
-        if (remove(a2l_filename) != 0) {
-            DBG_PRINTF_ERROR("Could not remove existing file %s!\n", a2l_filename);
-        }
-    }
-    if (rename("tmp.a2l", a2l_filename) != 0) {
-        if (!fexists("tmp.a2l")) {
-            DBG_PRINTF_ERROR("File tmp.a2l not found, could not create %s!\n", a2l_filename);
-        } else {
-            DBG_PRINTF_ERROR("Could not rename file tmp.a2l to %s!\n", a2l_filename);
-        }
-        return false;
-    }
-
-    DBG_PRINT3(ANSI_COLOR_GREEN "A2L created\n" ANSI_COLOR_RESET);
     return true;
 }
 

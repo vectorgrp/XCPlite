@@ -69,10 +69,10 @@ typedef struct {
     uint32_t size;                                // total mmap size in bytes
     uint32_t leader_pid;                          // PID of the process that created the shared memory region, 0 until ready
     atomic_uint_least32_t app_count;              // number of registered slots (grows up to SHM_MAX_APP_COUNT)
-    atomic_uint_least32_t a2l_finalize_requested; // leader writes 1 here on the first XCP client CONNECT;
-    //   each follower's background thread polls this and calls A2lFinalize()
-    uint8_t ecu_epk[XCP_EPK_MAX_LENGTH + 1];                            // EPK of the ECU, constructed from all registered applications EPKs
-    uint8_t pad[64 - 8 - 4 - 4 - 4 - 4 - 4 - (XCP_EPK_MAX_LENGTH + 1)]; // pad control area to exactly 64 bytes
+    atomic_uint_least32_t a2l_finalize_requested; // server writes 1 here on the first XCP client CONNECT; each application polls this and calls A2lFinalize()
+    uint8_t a2l_finalized;                        // 1 when the server has finalized the main A2L file
+    uint8_t ecu_epk[XCP_EPK_MAX_LENGTH + 1];      // EPK of the ECU, constructed from all registered applications EPKs
+    uint8_t pad[64 - 8 - 4 - 4 - 4 - 4 - 4 - 1 - (XCP_EPK_MAX_LENGTH + 1)]; // pad control area to exactly 64 bytes
     // --- Per-process application list ---
     tApp app_list[SHM_MAX_APP_COUNT]; // 512 * 8 = 4096 bytes
 } tShmHeader;
@@ -109,8 +109,9 @@ uint8_t XcpShmGetInitMode(uint8_t app_id);           // Get the XCP init mode of
 int16_t XcpShmRegisterApp(const char *name, const char *epk, uint32_t pid, uint8_t xcp_init_mode, bool is_leader, bool is_server);
 void XcpShmShutdownApp(uint8_t app_id);
 
-void XcpShmSetA2lFinalized(uint8_t app_id, const char *a2l_name); // Set A2L finalized flag and A2L filename for an app slot by app_id index, used by the leader when loading the
-                                                                  // BIN file and pre-registering apps before they are started
+void XcpShmSetMainA2lFinalized(const char *a2l_name);             // Set main A2L finalized flag and A2L filename
+bool XcpShmIsMainA2lFinalized(void);                              // true when the main A2L file is finalized and its name is valid in the SHM header
+void XcpShmSetA2lFinalized(uint8_t app_id, const char *a2l_name); // Set A2L finalized flag and A2L filename for an app slot by app_id index
 bool XcpShmIsA2lFinalized(uint8_t app_id);                        // true when this app process has finalized its A2L file and set its a2l_finalized flag in the app list
 
 void XcpShmIncrementAliveCounter(void); // Called from SHM background thread for XCP server receive thread to prove the application is still alive

@@ -18,4 +18,4 @@
 
 // Write the main A2L file skeleton, with options below and a list of partial A2L files with measurements, characteristics, and typedefs to include
 bool A2lWriter(const char *a2l_filename, uint8_t a2l_mode, const char *project_name, const char *epk_str, uint16_t include_count, const char **include_files, const uint8_t *addr,
-               uint16_t port, bool useTCP);
+               uint16_t port, bool use_tcp);

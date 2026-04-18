@@ -482,6 +482,7 @@ static char gXcpA2lName[XCP_A2L_FILENAME_MAX_LENGTH + 1] = ""; // A2L filename (
 static char gXcpElfName[XCP_A2L_FILENAME_MAX_LENGTH + 1] = ""; // ELF filename (NO extension)
 
 // Set the A2L file (filename without extension .a2l) to be provided to the host for upload
+// Will be copied to a static buffer, so the arguments must not have static lifetime
 void XcpSetA2lName(const char *name) {
     assert(name != NULL && STRNLEN(name, XCP_A2L_FILENAME_MAX_LENGTH + 1) <= XCP_A2L_FILENAME_MAX_LENGTH);
     strncpy(gXcpA2lName, name, XCP_A2L_FILENAME_MAX_LENGTH);
@@ -498,6 +499,7 @@ void XcpSetA2lName(const char *name) {
 const char *XcpGetA2lName(void) { return gXcpA2lName; }
 
 // Set the ELF file (complete path) to be provided to the host for upload
+// Will be copied to a static buffer, so the arguments must not have static lifetime
 void XcpSetElfName(const char *name) {
     assert(name != NULL && STRNLEN(name, XCP_A2L_FILENAME_MAX_LENGTH + 1) <= XCP_A2L_FILENAME_MAX_LENGTH);
     strncpy(gXcpElfName, name, XCP_A2L_FILENAME_MAX_LENGTH);

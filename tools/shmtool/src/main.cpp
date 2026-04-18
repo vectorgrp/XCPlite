@@ -115,7 +115,8 @@ static int cmd_status(bool verbose) {
     uint32_t hdr_size = hdr->size; // exact sizeof(tXcpData) as recorded by the leader
     uint32_t lpid = hdr->leader_pid;
     uint32_t napp = read_u32(&hdr->app_count);
-    uint32_t a2lrq = read_u32(&hdr->a2l_finalize_requested);
+    uint32_t a2l_finalize_requested = read_u32(&hdr->a2l_finalize_requested);
+    uint8_t a2l_finalized = hdr->a2l_finalized;
     bool size_ok = (hdr_size == (uint32_t)sizeof(tXcpData));
 
     if (verbose || !magic_ok) {
@@ -136,7 +137,8 @@ static int cmd_status(bool verbose) {
     printf("  declared size      : %u bytes  (this build: %zu)%s\n", hdr_size, sizeof(tXcpData), size_ok ? "" : "  *** MISMATCH ***");
     printf("  leader pid         : %u%s\n", lpid, (getpid() == (pid_t)lpid) ? "  (this process)" : "");
     printf("  app count          : %u / %d\n", napp, SHM_MAX_APP_COUNT);
-    printf("  A2L finalize req'd : %s\n", bool_str(a2lrq));
+    printf("  A2L finalized      : %s\n", bool_str(a2l_finalized));
+    printf("  A2L finalize req'd : %s\n", bool_str(a2l_finalize_requested));
     print_separator();
 
     if (!magic_ok) {

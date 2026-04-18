@@ -595,6 +595,11 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode);
 /// Finalize the A2L file, write the binary persistence file
 bool A2lFinalize(void);
 
+#ifdef OPTION_SHM_MODE
+/// Get the A2L file name for an application with the given project name
+const char *A2lGetAppFilename(const char *project_name, const char *epk);
+#endif
+
 // --------------------------------------------------------------------------------------------
 // Helper functions used in the by A2L generation macros
 

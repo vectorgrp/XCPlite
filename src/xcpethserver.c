@@ -160,7 +160,7 @@ static bool ShmServerInit_(uint32_t queue_size) {
     if (queue_leader) {
         atomic_store(&hdr->is_initialized, 1U);
     }
-    DBG_PRINTF3(ANSI_COLOR_BLUE "Queue init (clear=%u, queue_size=%u)\n" ANSI_COLOR_RESET, queue_leader, queue_size);
+    DBG_PRINTF3(ANSI_COLOR_BLUE "Queue init from memory (clear=%u, queue_size=%u)\n" ANSI_COLOR_RESET, queue_leader, queue_size);
 
     // Start the background thread for non-server processes
     if (!XcpShmIsXcpServer()) {
