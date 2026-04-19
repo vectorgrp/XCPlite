@@ -1,6 +1,4 @@
 #!/bin/bash
-# Get status of SHM mode applications
-
-
+# A2L finalize request for all applications in SHM mode
 
 ./build/shmtool finalize -v

@@ -293,7 +293,7 @@ double A2lGetTypeMax(tA2lTypeId type_id) {
 
 // Helper function to build the filename for the given file type (main file, objects, typedefs, groups, conversions), based on project name and EPK if enabled
 // Returns pointer to static buffer with the filename, which is valid until the next call of this function !!
-static const char *A2lGetFilename_(const char *project_name, const char *epk, uint8_t file_type) {
+static const char *A2lGetFilenameHelper_(const char *project_name, const char *epk, uint8_t file_type) {
 
     const char *postfix = "";
     const char *hash = "";
@@ -347,11 +347,12 @@ static const char *A2lGetFilename_(const char *project_name, const char *epk, ui
     return gA2lFileName;
 }
 
-static const char *A2lGetFilename(uint8_t file_type) { return A2lGetFilename_(XcpGetProjectName(), XcpGetEpk(), file_type); }
+static const char *A2lGetFilename_(uint8_t file_type) { return A2lGetFilenameHelper_(XcpGetProjectName(), XcpGetEpk(), file_type); }
 
-#ifdef OPTION_SHM_MODE
+const char *A2lGetFilename(void) { return A2lGetFilenameHelper_(XcpGetProjectName(), XcpGetEpk(), A2L_MAIN_FILE); }
+#ifdef OPTION_SHM_MODE // get application partial A2L file name
 // A2L file name for application partial files in SHM mode, which are included into the main file and deleted afterwards
-const char *A2lGetAppFilename(const char *project_name, const char *epk) { return A2lGetFilename_(project_name, epk, A2L_OBJECTS_FILE); }
+const char *A2lGetAppFilename(const char *project_name, const char *epk) { return A2lGetFilenameHelper_(project_name, epk, A2L_OBJECTS_FILE); }
 #endif
 
 // Helper function to include the content of some temporary files into the main file and remove the temporary files
@@ -1452,11 +1453,11 @@ bool A2lOnce_(A2L_ONCE_TYPE *value) {
 // Cleanup temporary files in case of A2L generation cancellation
 void A2lCleanupTemporaryFiles(void) {
     DBG_PRINT3(ANSI_COLOR_YELLOW "Cleanup temporary A2L files ...\n" ANSI_COLOR_RESET);
-    remove(A2lGetFilename(A2L_TYPEDEFS_FILE));
+    remove(A2lGetFilename_(A2L_TYPEDEFS_FILE));
     gA2lTypedefsFile = NULL;
-    remove(A2lGetFilename(A2L_GROUPS_FILE));
+    remove(A2lGetFilename_(A2L_GROUPS_FILE));
     gA2lGroupsFile = NULL;
-    remove(A2lGetFilename(A2L_CONVERSIONS_FILE));
+    remove(A2lGetFilename_(A2L_CONVERSIONS_FILE));
     gA2lConversionsFile = NULL;
 }
 
@@ -1540,7 +1541,7 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
                 (mode & A2L_MODE_WRITE_TEMPLATE) ? "WRITE_TEMPLATE " : "");
 
     // In A2L_WRITE_ONCE mode:
-    const char *a2l_main_filename = A2lGetFilename(A2L_MAIN_FILE);
+    const char *a2l_main_filename = A2lGetFilename_(A2L_MAIN_FILE);
     if ((gA2lMode & A2L_MODE_WRITE_ALWAYS) == 0 && fexists(a2l_main_filename)) {
         // Check if the A2L file (with epk version or hash from all epk versions in the name) already exists, if yes, skip A2L generation
         DBG_PRINTF3(ANSI_COLOR_GREEN "A2L file %s already exists with matching version, disabling A2L generation\n" ANSI_COLOR_RESET, a2l_main_filename);
@@ -1556,7 +1557,7 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
     if (!(gA2lMode & A2L_MODE_WRITE_TEMPLATE)) {
 
         // Open the temporary file for A2L measurements and characteristics, which will be included in the main A2L file later
-        const char *a2l_objects_filename = A2lGetFilename(A2L_OBJECTS_FILE);
+        const char *a2l_objects_filename = A2lGetFilename_(A2L_OBJECTS_FILE);
         DBG_PRINTF3(ANSI_COLOR_GREEN "Start A2L generation, file=%s\n" ANSI_COLOR_RESET, a2l_objects_filename);
         gA2lFile = fopen(a2l_objects_filename, "w");
         if (gA2lFile == NULL) {
@@ -1565,9 +1566,9 @@ bool A2lInit(const uint8_t *addr, uint16_t port, bool useTCP, uint8_t mode) {
         }
 
         // Open the temporary files for typedefs, groups and conversions, which will be included in the temporary A2L file for measurements and characteristics later
-        gA2lTypedefsFile = fopen(A2lGetFilename(A2L_TYPEDEFS_FILE), "w");
-        gA2lGroupsFile = fopen(A2lGetFilename(A2L_GROUPS_FILE), "w");
-        gA2lConversionsFile = fopen(A2lGetFilename(A2L_CONVERSIONS_FILE), "w");
+        gA2lTypedefsFile = fopen(A2lGetFilename_(A2L_TYPEDEFS_FILE), "w");
+        gA2lGroupsFile = fopen(A2lGetFilename_(A2L_GROUPS_FILE), "w");
+        gA2lConversionsFile = fopen(A2lGetFilename_(A2L_CONVERSIONS_FILE), "w");
         if (gA2lFile == 0 || gA2lTypedefsFile == 0 || gA2lGroupsFile == 0 || gA2lConversionsFile == 0) {
             DBG_PRINT_ERROR("Could not create file!\n");
             return false;
@@ -1615,22 +1616,22 @@ bool A2lFinalize(void) {
         }
 
         // Merge the temporary files for typedefs, groups and conversions into the partial A2L file, and remove the temporary files
-        includeFilesAndRemove(gA2lFile, &gA2lTypedefsFile, A2lGetFilename(A2L_TYPEDEFS_FILE));
-        includeFilesAndRemove(gA2lFile, &gA2lGroupsFile, A2lGetFilename(A2L_GROUPS_FILE));
-        includeFilesAndRemove(gA2lFile, &gA2lConversionsFile, A2lGetFilename(A2L_CONVERSIONS_FILE));
+        includeFilesAndRemove(gA2lFile, &gA2lTypedefsFile, A2lGetFilename_(A2L_TYPEDEFS_FILE));
+        includeFilesAndRemove(gA2lFile, &gA2lGroupsFile, A2lGetFilename_(A2L_GROUPS_FILE));
+        includeFilesAndRemove(gA2lFile, &gA2lConversionsFile, A2lGetFilename_(A2L_CONVERSIONS_FILE));
 
         // Close the partial A2L file
         fclose(gA2lFile);
         gA2lFile = NULL;
 
         DBG_PRINTF3(ANSI_COLOR_GREEN "A2L include file '%s' finalized: %u measurements, %u params, %u typedefs, %u components, %u instances, %u conversions\n" ANSI_COLOR_RESET,
-                    A2lGetFilename(A2L_OBJECTS_FILE), gA2lMeasurements, gA2lParameters, gA2lTypedefs, gA2lComponents, gA2lInstances, gA2lConversions);
+                    A2lGetFilename_(A2L_OBJECTS_FILE), gA2lMeasurements, gA2lParameters, gA2lTypedefs, gA2lComponents, gA2lInstances, gA2lConversions);
     }
 
 // Generate the final, complete A2L file
 #ifdef OPTION_SHM_MODE // finalize and generate A2L file, server includes all others
 
-    XcpShmSetA2lFinalized(XcpShmGetAppId(), A2lGetFilename(A2L_OBJECTS_FILE));
+    XcpShmSetA2lFinalized(XcpShmGetAppId(), A2lGetFilename_(A2L_OBJECTS_FILE));
 
     // In SHM mode, the server creates the main A2L file and the binary persistence file
     if (XcpShmIsXcpServer()) {
@@ -1645,7 +1646,7 @@ bool A2lFinalize(void) {
             DBG_PRINT_ERROR("No A2L files to include, something went wrong, do not generate an empty A2L file\n");
             return false;
         }
-        A2lWriter(A2lGetFilename(A2L_MAIN_FILE), gA2lMode, XcpGetProjectName(), epk, count, files, gA2lOptionBindAddr, gA2lOptionPort, gA2lUseTCP);
+        A2lWriter(A2lGetFilename_(A2L_MAIN_FILE), gA2lMode, XcpGetProjectName(), epk, count, files, gA2lOptionBindAddr, gA2lOptionPort, gA2lUseTCP);
 
         // Update the EPK in the EPK segment, so the the client can upload it and the BIN file gets it as well
         XcpCalUpdateEpkSeg(epk);
@@ -1658,20 +1659,20 @@ bool A2lFinalize(void) {
 #endif
 
         // Notify the XCP server A2L file is available for upload
-        const char *a2l_main_file = A2lGetFilename(A2L_MAIN_FILE);
+        const char *a2l_main_file = A2lGetFilename_(A2L_MAIN_FILE);
         XcpSetA2lName(a2l_main_file); // Notify XCP that there is an A2L file available for upload by the XCP client
         XcpShmSetMainA2lFinalized(a2l_main_file);
-        DBG_PRINTF3(ANSI_COLOR_GREEN "A2L main file '%s' finalized\n" ANSI_COLOR_RESET, a2l_main_file);
+        DBG_PRINTF3(ANSI_COLOR_GREEN "A2L main file '%s' written by XCP server\n" ANSI_COLOR_RESET, a2l_main_file);
     }
 
 #else
 
     // Generate the main A2L file by including the single partial A2L file created by this application
     char a2l_object_file[XCP_A2L_FILENAME_MAX_LENGTH + 1];
-    strncpy(a2l_object_file, A2lGetFilename(A2L_OBJECTS_FILE), XCP_A2L_FILENAME_MAX_LENGTH); // Remember the limited lifetime of the temporary file name
+    strncpy(a2l_object_file, A2lGetFilename_(A2L_OBJECTS_FILE), XCP_A2L_FILENAME_MAX_LENGTH); // Remember the limited lifetime of the temporary file name
     const char *include_files[1] = {a2l_object_file};
     int include_count = 1;
-    const char *a2l_main_file = A2lGetFilename(A2L_MAIN_FILE);
+    const char *a2l_main_file = A2lGetFilename_(A2L_MAIN_FILE);
     A2lWriter(a2l_main_file, gA2lMode, XcpGetProjectName(), XcpGetEcuEpk(), include_count, include_files, gA2lOptionBindAddr, gA2lOptionPort, gA2lUseTCP);
     remove(a2l_object_file); // Remove the temporary include files, not needed anymore
 

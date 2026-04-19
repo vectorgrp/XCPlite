@@ -98,10 +98,10 @@ static tHeader gBinHeader;
 //--------------------------------------------------------------------------------------------------------------------------------
 
 #define XCP_BIN_FILENAME_MAX_LENGTH 255 // Maximum length of BIN filename with extension
-static char gXcpBinFilename[XCP_BIN_FILENAME_MAX_LENGTH + 1] = "";
 
 // Build BIN filename from project name and epk, e.g. "app_name_V100.bin" (or "ecu_name.bin" in SHM mode, written by the server)
-static const char *XcpBinGetFilename(void) {
+const char *XcpBinGetFilename(void) {
+    static char gXcpBinFilename[XCP_BIN_FILENAME_MAX_LENGTH + 1] = "";
 #ifdef OPTION_SHM_MODE // generate BIN filename without EPK postfix
     // Only server creates the persistence file with unique name
     SNPRINTF(gXcpBinFilename, XCP_BIN_FILENAME_MAX_LENGTH, "%s.bin", XcpShmGetEcuProjectName());
@@ -306,7 +306,7 @@ bool XcpBinWrite(const char *epk) {
 
     fclose(file);
 
-    DBG_PRINTF3(ANSI_COLOR_GREEN "Persistence data written to BIN file '%s'\n" ANSI_COLOR_RESET, gXcpBinFilename);
+    DBG_PRINTF3(ANSI_COLOR_GREEN "Persistence data written to BIN file '%s'\n" ANSI_COLOR_RESET, XcpBinGetFilename());
 #ifdef OPTION_SHM_MODE // debug print application list
     if (DBG_LEVEL >= 4) {
         XcpShmDebugPrint();
@@ -356,7 +356,7 @@ bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg) {
     }
     fclose(file);
     if (n != 1) {
-        DBG_PRINTF_ERROR("Failed to write calibration segment %u, size=%u active page data to file '%s'+%u\n", calseg, seg->h.size, gXcpBinFilename, seg->h.file_pos);
+        DBG_PRINTF_ERROR("Failed to write calibration segment %u, size=%u active page data to file '%s'+%u\n", calseg, seg->h.size, XcpBinGetFilename(), seg->h.file_pos);
         return false;
     } else {
         return true;

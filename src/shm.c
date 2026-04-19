@@ -26,11 +26,12 @@
 
 #include "shm.h"
 
-#include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
-#include "platform.h"  // for atomics
-#include "xcp_cfg.h"   // XCP protocol layer configuration parameters (XCP_xxx)
-#include "xcplite.h"   // XCP protocol layer interface functions
-#include "xcptl_cfg.h" // XCP transport layer configuration parameters (XCPTL_xxx)
+#include "dbg_print.h"   // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
+#include "persistence.h" // for XcpBinGetFilename()
+#include "platform.h"    // for atomics
+#include "xcp_cfg.h"     // XCP protocol layer configuration parameters (XCP_xxx)
+#include "xcplite.h"     // XCP protocol layer interface functions
+#include "xcptl_cfg.h"   // XCP transport layer configuration parameters (XCPTL_xxx)
 
 // Check required options and settings for SHM mode
 #ifndef XCP_ENABLE_DAQ_EVENT_LIST
@@ -523,7 +524,7 @@ int16_t XcpShmRegisterApp(const char *name, const char *epk, uint32_t pid, uint8
                         DBG_PRINTF_WARNING("XcpShmRegisterApp: Application '%s' is not alive anymore, maybe crashed, reusing slot\n", name);
                     } else {
                         // Process is still alive (res==0) or exists but no permission (EPERM), cannot reuse the slot
-                        DBG_PRINTF_WARNING("XcpShmRegisterApp: Application '%s' is still alive, cannot reuse slot\n", name);
+                        DBG_PRINTF_ERROR("XcpShmRegisterApp: Application process '%s' is alive, cannot reuse slot\n", name);
                         return -1;
                     }
                 }
@@ -538,7 +539,11 @@ int16_t XcpShmRegisterApp(const char *name, const char *epk, uint32_t pid, uint8
                             atomic_load(&app->a2l_finalized) != 0 ? app->a2l_name : "pending");
                 return (uint8_t)i;
             } else {
-                DBG_PRINTF_ERROR("XcpShmRegisterApp:Application %u:'%s' has different epk %s, reset please !!!\n", i, name, epk);
+                DBG_PRINTF3(ANSI_COLOR_BLUE "XcpShmRegisterApp:Application %u:'%s' has different epk %s, can not register application !!!\n" ANSI_COLOR_RESET, i, name, epk);
+                // Delete the binary file and the shared memory to reset, when an application version changes
+                DBG_PRINT_ERROR("Version changed detected, reset - deleting persistent state\n");
+                remove(XcpBinGetFilename());
+                platformShmClose("/xcpdata", gXcpData, sizeof(tXcpData), true /* unlink */);
                 return -1;
             }
         }
@@ -547,7 +552,7 @@ int16_t XcpShmRegisterApp(const char *name, const char *epk, uint32_t pid, uint8
     // Atomically claim a fresh slot
     uint32_t slot = (uint32_t)atomic_fetch_add(&hdr->app_count, 1U);
     if (slot >= SHM_MAX_APP_COUNT) {
-        DBG_PRINT_ERROR("XcpShmRegisterApp: Application list full\n");
+        DBG_PRINT_ERROR("XcpShmRegisterApp: Application list is full, increase SHM_MAX_APP_COUNT\n");
         atomic_fetch_sub(&hdr->app_count, 1U); // undo the increment
         return -1;
     }

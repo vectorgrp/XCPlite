@@ -177,7 +177,7 @@ tXcpCalSegIndex XcpFindCalSeg(const char *name) {
     for (tXcpCalSegIndex i = 0; i < n; i++) {
         const tXcpCalSeg *calseg = CalSegPtr(i);
         assert(calseg != NULL);
-#ifdef OPTION_SHM_MODE // XcpFindCalSeg only among entries owned by this application process
+#ifdef OPTION_SHM_MODE // find calibration segments only among entries owned by this application process
 // In SHM mode, match only entries owned by this application process — different apps may use the same name
 #ifdef XCP_ENABLE_EPK_CALSEG
         // Not for index 0, which is reserved for the EPK segment
@@ -1025,7 +1025,7 @@ uint8_t XcpFreezeSelectedCalSegs(bool all) {
 // Freeze all
 bool XcpFreeze(void) {
 
-#ifdef OPTION_SHM_MODE // In SHM mode, only the server is allowed to freeze all segments
+#ifdef OPTION_SHM_MODE // only the server is allowed to freeze all segments
     if (!XcpShmIsXcpServer())
         return false;
 #endif

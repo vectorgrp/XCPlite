@@ -3154,7 +3154,7 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
 
 #ifdef OPTION_SHM_MODE // XcpInit print inital SHM state
     if (DBG_LEVEL >= 3) {
-        DBG_PRINT3(ANSI_COLOR_GREEN "XCP shared memory initialized by leader\n" ANSI_COLOR_RESET);
+        DBG_PRINT3(ANSI_COLOR_BLUE "XCP shared memory initialized by leader\n" ANSI_COLOR_RESET);
         XcpShmDebugPrint();
     }
 #endif
