@@ -78,6 +78,8 @@ typedef struct {
 } tShmHeader;
 static_assert(sizeof(tShmHeader) % 64 == 0, "sizeof tShmHeader must be a multiple of 64 bytes");
 
+void XcpShmInit(void); // Initialize the shared memory header
+
 #define SHM_INVALID_APP_ID 0xFF
 
 uint8_t XcpShmGetAppId(void);              // Get this application process's id

@@ -1588,9 +1588,14 @@ bool A2lFinalize(void) {
     if (gA2lFile == NULL && !(gA2lMode & A2L_MODE_WRITE_TEMPLATE))
         return false; // Not active, nothing to finalize
 
-    if (gA2lIsFinalized)
+    // Once
+    mutexLock(&gA2lMutex);
+    if (gA2lIsFinalized) {
+        mutexUnlock(&gA2lMutex);
         return true; // Already finalized
+    }
 
+    // In persistence mode, we will also write the associated binary file
     bool write_bin = false;
 #ifdef OPTION_ENABLE_PERSISTENCE
     if ((XcpGetInitMode() & XCP_MODE_PERSISTENCE)) {
@@ -1623,7 +1628,6 @@ bool A2lFinalize(void) {
         // Close the partial A2L file
         fclose(gA2lFile);
         gA2lFile = NULL;
-
         DBG_PRINTF3(ANSI_COLOR_GREEN "A2L include file '%s' finalized: %u measurements, %u params, %u typedefs, %u components, %u instances, %u conversions\n" ANSI_COLOR_RESET,
                     A2lGetFilename_(A2L_OBJECTS_FILE), gA2lMeasurements, gA2lParameters, gA2lTypedefs, gA2lComponents, gA2lInstances, gA2lConversions);
     }
@@ -1643,8 +1647,7 @@ bool A2lFinalize(void) {
         const char *files[SHM_MAX_APP_COUNT];
         int count = XcpShmCollectA2lFiles(1000 /* ms */, files, SHM_MAX_APP_COUNT);
         if (count == 0) {
-            DBG_PRINT_ERROR("No A2L files to include, something went wrong, do not generate an empty A2L file\n");
-            return false;
+            DBG_PRINT_WARNING("No A2L files to include found\n");
         }
         A2lWriter(A2lGetFilename_(A2L_MAIN_FILE), gA2lMode, XcpGetProjectName(), epk, count, files, gA2lOptionBindAddr, gA2lOptionPort, gA2lUseTCP);
 
@@ -1690,6 +1693,7 @@ bool A2lFinalize(void) {
 #endif
 
     gA2lIsFinalized = true;
+    mutexUnlock(&gA2lMutex);
     return true; // A2L file generation successful
 }
 

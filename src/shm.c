@@ -64,6 +64,19 @@ static bool isActivated_(tXcpData *xcp_data) {
     return xcp_data != NULL && xcp_data->shm_header.magic == SHM_MAGIC && xcp_data->shm_header.version == SHM_VERSION && 0 != (xcp_data->session_status & SS_ACTIVATED);
 }
 
+void XcpShmInit(void) {
+    assert(gXcpData != NULL);
+    tShmHeader *hdr = &gXcpData->shm_header;
+    hdr->magic = SHM_MAGIC;
+    hdr->version = SHM_VERSION;
+    hdr->size = (uint32_t)sizeof(tXcpData);
+    hdr->leader_pid = (uint32_t)getpid();
+    atomic_store(&hdr->app_count, 0U);
+    atomic_store(&hdr->a2l_finalize_requested, 0U);
+    hdr->a2l_finalized = 0;
+    memset(hdr->ecu_epk, 0, sizeof(hdr->ecu_epk));
+}
+
 /**************************************************************************/
 // Get current application process state infos
 /**************************************************************************/
@@ -541,7 +554,7 @@ int16_t XcpShmRegisterApp(const char *name, const char *epk, uint32_t pid, uint8
             } else {
                 DBG_PRINTF3(ANSI_COLOR_BLUE "XcpShmRegisterApp:Application %u:'%s' has different epk %s, can not register application !!!\n" ANSI_COLOR_RESET, i, name, epk);
                 // Delete the binary file and the shared memory to reset, when an application version changes
-                DBG_PRINT_ERROR("Version changed detected, reset - deleting persistent state\n");
+                DBG_PRINTF_ERROR("Version change detected '%s'->'%s', reset - deleting persistent state\n", app->epk, epk);
                 remove(XcpBinGetFilename());
                 platformShmClose("/xcpdata", gXcpData, sizeof(tXcpData), true /* unlink */);
                 return -1;

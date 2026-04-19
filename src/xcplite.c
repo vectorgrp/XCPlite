@@ -3077,18 +3077,7 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     // Initialize shared memory, followers already returned early after attaching and registering
     // Note that SHM mode must not be activated, header will always be initialized
     assert(local.shm_leader);
-
-    assert(gXcpData != NULL);
-    tShmHeader *hdr = &gXcpData->shm_header;
-    hdr->magic = SHM_MAGIC;
-    hdr->version = SHM_VERSION;
-    hdr->size = (uint32_t)sizeof(tXcpData);
-    hdr->leader_pid = (uint32_t)getpid();
-    atomic_store(&hdr->app_count, 0U);
-    atomic_store(&hdr->a2l_finalize_requested, 0U);
-    hdr->a2l_finalized = 0;
-    memset(hdr->ecu_epk, 0, sizeof(hdr->ecu_epk));
-
+    XcpShmInit();
     local_mut.shm_app_id = 0; // Not defined yet, leader will registered after loading the binary persistence file
 
     // Check, if the leader should also be the server, or if a separate server application will be started later

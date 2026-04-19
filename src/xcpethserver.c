@@ -214,15 +214,11 @@ extern void *ShmThread_(void *par)
 
         // Poll the global A2L finalize request flag
         // If set, finalize the local A2L file if not already done
-#ifdef OPTION_ENABLE_A2L_GENERATOR
         if (!XcpShmIsA2lFinalized(XcpShmGetAppId()) && XcpShmIsA2lFinalizeRequested()) {
-            // @@@@ TODO: Check how to handle this
-            sleepMs(100);
             if (A2lFinalize()) {
-                DBG_PRINT3(ANSI_COLOR_BLUE "A2L finalized by SHM request\n" ANSI_COLOR_RESET);
+                DBG_PRINTF3(ANSI_COLOR_BLUE "A2L '%s' finalized by SHM request\n" ANSI_COLOR_RESET, A2lGetFilename());
             }
         }
-#endif
     }
 
     gXcpServer.shm_thread_running = false;
@@ -516,9 +512,18 @@ extern void *XcpServerReceiveThread(void *par)
         // Handle background tasks, e.g. pending calibration updates
         XcpBackgroundTasks();
 
-#ifdef OPTION_SHM_MODE // increment alive counter
+        // SHM mode
+#ifdef OPTION_SHM_MODE // increment alive counter and check A2L finalize request
         // In SHM mode, prove this application is still alive
         XcpShmIncrementAliveCounter();
+
+        // Poll the global A2L finalize request flag
+        // If set, finalize the local A2L file if not already done
+        if (!XcpShmIsA2lFinalized(XcpShmGetAppId()) && XcpShmIsA2lFinalizeRequested()) {
+            if (A2lFinalize()) {
+                DBG_PRINT(ANSI_COLOR_BLUE "A2L finalized by SHM request\n" ANSI_COLOR_RESET);
+            }
+        }
 #endif
 
         // Every 1s
