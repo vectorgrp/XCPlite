@@ -149,11 +149,11 @@ static int cmd_status(bool verbose) {
     // Application slots
     for (uint32_t i = 0; i < napp && i < SHM_MAX_APP_COUNT; ++i) {
         const tApp *app = &hdr->app_list[i];
-        uint32_t ac = read_u32(&app->alive_counter);
-        uint32_t fin = read_u32(&app->a2l_finalized);
-        printf("  App %u:  %s %s epk=%s  pid=%u  %s\n", i, app->project_name[0] ? app->project_name : "(vacant)", app->is_server ? "[server]" : "", app->epk, app->pid,
-               app->is_leader ? "[leader]" : "");
-        printf("          a2l_name=%s  finalized=%s  alive_counter=%u\n", fin ? app->a2l_name : "(pending)", bool_str(fin), ac);
+        uint32_t ac = read_u32(&app->u.alive_counter);
+        uint32_t fin = read_u32(&app->u.a2l_finalized);
+        printf("  App %u:  %s %s epk=%s  pid=%u  %s\n", i, app->u.project_name[0] ? app->u.project_name : "(vacant)", app->u.is_server ? "[server]" : "", app->u.epk, app->u.pid,
+               app->u.is_leader ? "[leader]" : "");
+        printf("          a2l_name=%s  finalized=%s  alive_counter=%u\n", fin ? app->u.a2l_name : "(pending)", bool_str(fin), ac);
 
         print_separator();
     }
@@ -225,9 +225,9 @@ static int cmd_finalize(uint32_t timeout_ms) {
         all_done = true;
         for (uint32_t i = 0; i < napp && i < SHM_MAX_APP_COUNT; ++i) {
             const tApp *app = &hdr->app_list[i];
-            if (app->pid == 0)
+            if (app->u.pid == 0)
                 continue; // vacant slot
-            if (read_u32(&app->a2l_finalized) == 0) {
+            if (read_u32(&app->u.a2l_finalized) == 0) {
                 all_done = false;
                 break;
             }
@@ -256,9 +256,9 @@ static int cmd_finalize(uint32_t timeout_ms) {
 
     for (uint32_t i = 0; i < napp && i < SHM_MAX_APP_COUNT; ++i) {
         const tApp *app = &hdr->app_list[i];
-        uint32_t fin = read_u32(&app->a2l_finalized);
-        printf("  App %u:  %-*s  pid=%-6u  a2l_finalized=%-3s  a2l_name=%s\n", i, XCP_PROJECT_NAME_MAX_LENGTH, app->project_name[0] ? app->project_name : "(vacant)", app->pid,
-               bool_str(fin), fin ? app->a2l_name : "(pending)");
+        uint32_t fin = read_u32(&app->u.a2l_finalized);
+        printf("  App %u:  %-*s  pid=%-6u  a2l_finalized=%-3s  a2l_name=%s\n", i, XCP_PROJECT_NAME_MAX_LENGTH, app->u.project_name[0] ? app->u.project_name : "(vacant)",
+               app->u.pid, bool_str(fin), fin ? app->u.a2l_name : "(pending)");
         print_separator();
     }
 

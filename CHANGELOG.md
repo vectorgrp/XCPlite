@@ -3,9 +3,16 @@
 All notable changes to XCPlite are documented in this file.
 
 
+## [V2.0.4]
+
+- gcc compatibility issue fixed
+
+
 ## [V2.0.3]
 
-- ...
+- Bug fixes and improvements, see commit history for details
+- `silkit_demo` with separate XCP server participant
+
 
 ## [V2.0.2]
 
