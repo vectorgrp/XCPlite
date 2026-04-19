@@ -159,7 +159,7 @@ static int do_cleanall(void) {
         uint8_t count = (uint8_t)atomic_load(&gXcpData->shm_header.app_count);
         printf("Deleting application A2L files for %u registered application(s):\n", (unsigned)count);
         for (uint8_t i = 0; i < count; i++) {
-            const char *project_name = gXcpData->shm_header.app_list[i].project_name;
+            const char *project_name = gXcpData->shm_header.app_list[i].u.project_name;
             if (project_name[0] != '\0') {
                 // A2L filename is <project_name>_<epk>.a2l — use project_name as prefix glob
                 char pattern[XCP_PROJECT_NAME_MAX_LENGTH + 8];

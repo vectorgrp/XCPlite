@@ -23,8 +23,8 @@
 #define OPTION_LOG_LEVEL 4              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 // XCP mode:
-#define OPTION_XCP_MODE (XCP_MODE_PERSISTENCE | XCP_MODE_SHM_AUTO) // XCP multi application mode, leader becomes XCP server
-// #define OPTION_XCP_MODE (XCP_MODE_PERSISTENCE | XCP_MODE_LOCAL) // XCP single application server mode
+// #define OPTION_XCP_MODE (XCP_MODE_PERSISTENCE | XCP_MODE_SHM_AUTO) // XCP multi application mode, leader becomes XCP server
+#define OPTION_XCP_MODE (XCP_MODE_PERSISTENCE | XCP_MODE_LOCAL) // XCP single application server mode
 // #define OPTION_XCP_MODE (XCP_MODE_DEACTIVATE) // XCP deactivated
 
 // A2L generation mode:

@@ -18,7 +18,8 @@
 #include <stdbool.h> // for bool
 #include <stdint.h>  // for uint16_t, uint32_t, uint8_t
 
-#include "xcp_cfg.h" // for XCP_PROJECT_NAME_MAX_LENGTH, XCP_EPK_MAX_LENGTH, XCP_A2L_FILENAME_MAX_LENGTH
+#include "platform.h" // for atomic_uint_least32_t
+#include "xcp_cfg.h"  // for XCP_PROJECT_NAME_MAX_LENGTH, XCP_EPK_MAX_LENGTH, XCP_A2L_FILENAME_MAX_LENGTH
 
 #ifdef __cplusplus
 extern "C" {
@@ -55,7 +56,7 @@ typedef union {
         uint8_t reserved[1];                                // reserved
         atomic_uint_least32_t alive_counter;                // incremented periodically by each process's background thread; allows the leader to detect stale/dead followers
         atomic_uint_least32_t a2l_finalized;                // 1 when this app's A2L file is completely generated and 'a2l_name' is valid
-    };
+    } u;
     uint8_t b[512]; // pad slot to 512 bytes for future extensions
 } tApp;
 static_assert(sizeof(tApp) == 512, "sizeof tApp must be 512 bytes");

@@ -104,7 +104,7 @@ const char *XcpShmGetEcuEpk(void) {
     uint64_t hash = 14695981039346656037ULL; // FNV-1a 64-bit offset basis
     uint32_t app_count = (uint32_t)atomic_load(&hdr->app_count);
     for (uint32_t i = 0; i < app_count; i++) {
-        const uint8_t *p = (const uint8_t *)hdr->app_list[i].epk;
+        const uint8_t *p = (const uint8_t *)hdr->app_list[i].u.epk;
         while (*p) {
             hash = (hash ^ (uint64_t)*p++) * 1099511628211ULL; // FNV prime
         }
@@ -121,7 +121,7 @@ uint8_t XcpShmGetServer(void) {
     const tShmHeader *hdr = &gXcpData->shm_header;
     uint32_t app_count = (uint32_t)atomic_load(&hdr->app_count);
     for (uint32_t i = 0; i < app_count; i++) {
-        if (hdr->app_list[i].is_server) {
+        if (hdr->app_list[i].u.is_server) {
             return (uint8_t)i;
         }
     }
@@ -134,7 +134,7 @@ uint8_t XcpShmGetLeader(void) {
     const tShmHeader *hdr = &gXcpData->shm_header;
     uint32_t app_count = (uint32_t)atomic_load(&hdr->app_count);
     for (uint32_t i = 0; i < app_count; i++) {
-        if (hdr->app_list[i].is_leader) {
+        if (hdr->app_list[i].u.is_leader) {
             return (uint8_t)i;
         }
     }
@@ -224,15 +224,15 @@ void XcpShmDebugPrint(void) {
     printf(ANSI_COLOR_BLUE "Apps (%u):\n" ANSI_COLOR_RESET, app_count);
     for (uint32_t i = 0; i < app_count && i < SHM_MAX_APP_COUNT; i++) {
         const tApp *app = &hdr->app_list[i];
-        bool a2l_fin = atomic_load(&app->a2l_finalized) != 0;
-        uint32_t alive_cnt = (int32_t)atomic_load(&app->alive_counter);
-        printf("  [%u] '%s', epk='%s', %s pid=%u%s%s, init_mode=%02X, a2l_name='%s', alive_counter=%u\n", i, app->project_name, app->epk, //
-               app->pid != 0 ? "alive" : ANSI_COLOR_RED "stale" ANSI_COLOR_RESET,                                                         //
-               app->pid,                                                                                                                  //
-               app->is_leader ? " leader" : "",                                                                                           //
-               app->is_server ? " server" : "",                                                                                           //
-               app->xcp_init_mode,                                                                                                        //
-               a2l_fin ? app->a2l_name : ANSI_COLOR_YELLOW "pending" ANSI_COLOR_RESET, alive_cnt);
+        bool a2l_fin = atomic_load(&app->u.a2l_finalized) != 0;
+        uint32_t alive_cnt = (int32_t)atomic_load(&app->u.alive_counter);
+        printf("  [%u] '%s', epk='%s', %s pid=%u%s%s, init_mode=%02X, a2l_name='%s', alive_counter=%u\n", i, app->u.project_name, app->u.epk, //
+               app->u.pid != 0 ? "alive" : ANSI_COLOR_RED "stale" ANSI_COLOR_RESET,                                                           //
+               app->u.pid,                                                                                                                    //
+               app->u.is_leader ? " leader" : "",                                                                                             //
+               app->u.is_server ? " server" : "",                                                                                             //
+               app->u.xcp_init_mode,                                                                                                          //
+               a2l_fin ? app->u.a2l_name : ANSI_COLOR_YELLOW "pending" ANSI_COLOR_RESET, alive_cnt);
     }
     printf(ANSI_COLOR_RESET);
 
@@ -290,7 +290,7 @@ bool XcpShmIsA2lFinalized(uint8_t app_id) {
         return false;
     }
     const tApp *app = &gXcpData->shm_header.app_list[app_id];
-    return atomic_load(&app->a2l_finalized) != 0;
+    return atomic_load(&app->u.a2l_finalized) != 0;
 }
 
 // Update any application slot with its A2L filename and mark it as finalized.
@@ -305,9 +305,9 @@ void XcpShmSetA2lFinalized(uint8_t app_id, const char *a2l_name) {
         return;
     }
     tApp *app = &gXcpData->shm_header.app_list[app_id];
-    strncpy(app->a2l_name, a2l_name, XCP_A2L_FILENAME_MAX_LENGTH);
-    app->a2l_name[XCP_A2L_FILENAME_MAX_LENGTH] = '\0';
-    atomic_store(&app->a2l_finalized, 1U);
+    strncpy(app->u.a2l_name, a2l_name, XCP_A2L_FILENAME_MAX_LENGTH);
+    app->u.a2l_name[XCP_A2L_FILENAME_MAX_LENGTH] = '\0';
+    atomic_store(&app->u.a2l_finalized, 1U);
     DBG_PRINTF3(ANSI_COLOR_BLUE "XcpShmSetA2lFinalized: app_id=%u a2l_name='%s'\n" ANSI_COLOR_RESET, app_id, a2l_name);
 }
 
@@ -326,7 +326,7 @@ int XcpShmCollectA2lFiles(uint32_t timeout_ms, const char *filenames[], int max_
         uint32_t app_count = (uint32_t)atomic_load(&gXcpData->shm_header.app_count);
         for (uint32_t i = 0; i < app_count && i < SHM_MAX_APP_COUNT; i++) {
             const tApp *app = &gXcpData->shm_header.app_list[i];
-            if (!atomic_load(&app->a2l_finalized)) {
+            if (!atomic_load(&app->u.a2l_finalized)) {
                 all_ready = false;
                 break;
             }
@@ -344,10 +344,10 @@ int XcpShmCollectA2lFiles(uint32_t timeout_ms, const char *filenames[], int max_
     uint32_t app_count = (uint32_t)atomic_load(&gXcpData->shm_header.app_count);
     for (uint32_t i = 0; i < app_count && i < SHM_MAX_APP_COUNT && count < max_count; i++) {
         const tApp *app = &gXcpData->shm_header.app_list[i];
-        if (atomic_load(&app->a2l_finalized) != 0 && app->a2l_name[0] != '\0') {
-            filenames[count++] = app->a2l_name;
-        } else if (!atomic_load(&app->a2l_finalized)) {
-            DBG_PRINTF_WARNING(ANSI_COLOR_BLUE "XcpShmCollectA2lFiles: app %u ('%s') not finalized\n" ANSI_COLOR_RESET, i, app->project_name);
+        if (atomic_load(&app->u.a2l_finalized) != 0 && app->u.a2l_name[0] != '\0') {
+            filenames[count++] = app->u.a2l_name;
+        } else if (!atomic_load(&app->u.a2l_finalized)) {
+            DBG_PRINTF_WARNING(ANSI_COLOR_BLUE "XcpShmCollectA2lFiles: app %u ('%s') not finalized\n" ANSI_COLOR_RESET, i, app->u.project_name);
         }
     }
     DBG_PRINTF5("XcpShmCollectA2lFiles: collected %d A2L file(s)\n", count);
@@ -375,7 +375,7 @@ uint8_t XcpShmGetActiveAppCount(void) {
     uint32_t app_count = (uint32_t)atomic_load(&gXcpData->shm_header.app_count);
     for (uint32_t i = 0; i < app_count && i < SHM_MAX_APP_COUNT; i++) {
         const tApp *app = &gXcpData->shm_header.app_list[i];
-        if (atomic_load(&app->alive_counter) > 0 && app->pid != 0) {
+        if (atomic_load(&app->u.alive_counter) > 0 && app->u.pid != 0) {
             count++;
         }
     }
@@ -389,7 +389,7 @@ const char *XcpShmGetAppProjectName(uint8_t app_id) {
     if (app_id >= SHM_MAX_APP_COUNT)
         return NULL;
     const tApp *app = &gXcpData->shm_header.app_list[app_id];
-    return app->project_name;
+    return app->u.project_name;
 }
 
 // Get the EPK of an app slot by its app_id index.
@@ -399,7 +399,7 @@ const char *XcpShmGetAppEpk(uint8_t app_id) {
     if (app_id >= SHM_MAX_APP_COUNT)
         return NULL;
     const tApp *app = &gXcpData->shm_header.app_list[app_id];
-    return app->epk;
+    return app->u.epk;
 }
 
 // Get the init mode of an app slot by its app_id index.
@@ -409,7 +409,7 @@ uint8_t XcpShmGetInitMode(uint8_t app_id) {
     if (app_id >= SHM_MAX_APP_COUNT)
         return 0;
     const tApp *app = &gXcpData->shm_header.app_list[app_id];
-    return app->xcp_init_mode;
+    return app->u.xcp_init_mode;
 }
 
 /**************************************************************************/
@@ -425,7 +425,7 @@ void XcpShmIncrementAliveCounter(void) {
     uint8_t slot = XcpShmGetAppId();
     if (slot >= SHM_MAX_APP_COUNT)
         return;
-    atomic_fetch_add(&gXcpData->shm_header.app_list[slot].alive_counter, 1U);
+    atomic_fetch_add(&gXcpData->shm_header.app_list[slot].u.alive_counter, 1U);
 }
 
 // Reset the alive_counter of all app slots
@@ -434,7 +434,7 @@ static void XcpShmResetAliveCounters_(void) {
         return;
     uint32_t app_count = (uint32_t)atomic_load(&gXcpData->shm_header.app_count);
     for (uint32_t i = 0; i < app_count && i < SHM_MAX_APP_COUNT; i++) {
-        atomic_store(&gXcpData->shm_header.app_list[i].alive_counter, 0U);
+        atomic_store(&gXcpData->shm_header.app_list[i].u.alive_counter, 0U);
     }
 }
 
@@ -444,7 +444,7 @@ uint32_t XcpShmGetAliveCounter(uint8_t app_id) {
         return 0;
     if (app_id >= SHM_MAX_APP_COUNT)
         return 0;
-    return (uint32_t)atomic_load(&gXcpData->shm_header.app_list[app_id].alive_counter);
+    return (uint32_t)atomic_load(&gXcpData->shm_header.app_list[app_id].u.alive_counter);
 }
 
 // Check the alive counter and set application states accordingly
@@ -454,32 +454,32 @@ void XcpShmCheckAliveCounters(void) {
     // Reset inactive applications
     for (uint32_t i = 0; i < SHM_MAX_APP_COUNT; i++) {
         tApp *app = &gXcpData->shm_header.app_list[i];
-        uint32_t alive_count = (uint32_t)atomic_load(&app->alive_counter);
-        if (alive_count == 0 && app->pid != 0) {
+        uint32_t alive_count = (uint32_t)atomic_load(&app->u.alive_counter);
+        if (alive_count == 0 && app->u.pid != 0) {
 
             // Check if the process is still alive by sending signal 0 (no-op)
             // If kill returns -1 and errno is ESRCH, the process does not exist anymore, so we can consider it stale and reset its slot.
             // If the process is still alive but not incrementing its alive counter, we will detect it as stale in the next check after a few seconds, which is acceptable.
-            int res = kill((pid_t)app->pid, 0);
-            printf("XcpShmCheckAliveCounters: app %u:'%s' (pid=%u) alive_counter=0, kill res=%d errno=%d\n", i, app->project_name, app->pid, res, errno);
+            int res = kill((pid_t)app->u.pid, 0);
+            printf("XcpShmCheckAliveCounters: app %u:'%s' (pid=%u) alive_counter=0, kill res=%d errno=%d\n", i, app->u.project_name, app->u.pid, res, errno);
             if (res == 0 /* success */ || errno != ESRCH /* Does not exist */) {
                 // Process is still alive, but not incrementing alive counter, maybe it's stuck or paused. We will detect it as stale in the next check after a few seconds, which
                 // is acceptable.
                 DBG_PRINTF_WARNING("XcpShmCheckAliveCounters: Detected aliv e_counter==0 application %u:'%s' (pid=%u), but process is still alive, waiting for next check...\n", i,
-                                   app->project_name, app->pid);
+                                   app->u.project_name, app->u.pid);
                 continue;
             }
 
             // This app is stale, reset its state
-            app->pid = 0;
-            app->is_leader = 0;
-            app->is_server = 0;
-            atomic_store(&app->alive_counter, 0U);
+            app->u.pid = 0;
+            app->u.is_leader = 0;
+            app->u.is_server = 0;
+            atomic_store(&app->u.alive_counter, 0U);
             // Rest of the state is kept in shared memory
-            // app->a2l_finalized == 0;
-            // app->a2l_name[0] = '\0';
-            // app->xcp_init_mode = 0;
-            DBG_PRINTF_WARNING("XcpShmCheckAliveCounters: Detected stale application %u:'%s', resetting slot\n", i, app->project_name);
+            // app->u.a2l_finalized == 0;
+            // app->u.a2l_name[0] = '\0';
+            // app->u.xcp_init_mode = 0;
+            DBG_PRINTF_WARNING("XcpShmCheckAliveCounters: Detected stale application %u:'%s', resetting slot\n", i, app->u.project_name);
         }
     }
 
@@ -520,18 +520,18 @@ int16_t XcpShmRegisterApp(const char *name, const char *epk, uint32_t pid, uint8
     // Scan for an existing slot with this application name and epk
     uint32_t count = (uint32_t)atomic_load(&hdr->app_count);
     for (uint32_t i = 0; i < count; i++) {
-        if (strncmp(hdr->app_list[i].project_name, name, XCP_PROJECT_NAME_MAX_LENGTH) == 0) {
+        if (strncmp(hdr->app_list[i].u.project_name, name, XCP_PROJECT_NAME_MAX_LENGTH) == 0) {
             tApp *app = &hdr->app_list[i];
 
             // If the epk version also matches, we consider this a process restart or a pre registered application and reuse the existing id
             // Otherwise we consider this application as new
-            if (strncmp(app->epk, epk, XCP_EPK_MAX_LENGTH) == 0) {
-                if (app->pid != 0) {
-                    DBG_PRINTF_ERROR("XcpShmRegisterApp: Application '%s' with matching EPK '%s' is already registered in slot %u, with with pid %u\n", name, epk, i, app->pid);
+            if (strncmp(app->u.epk, epk, XCP_EPK_MAX_LENGTH) == 0) {
+                if (app->u.pid != 0) {
+                    DBG_PRINTF_ERROR("XcpShmRegisterApp: Application '%s' with matching EPK '%s' is already registered in slot %u, with with pid %u\n", name, epk, i, app->u.pid);
 
                     // Check if this process is still alive by sending signal 0 (no-op)
                     // kill returns 0 if the process exists, -1 with errno==ESRCH if it does not
-                    int res = kill((pid_t)app->pid, 0);
+                    int res = kill((pid_t)app->u.pid, 0);
                     if (res == -1 && errno == ESRCH) {
                         // Process does not exist anymore (ESRCH), consider it dead (crashed) - reuse the slot
                         DBG_PRINTF_WARNING("XcpShmRegisterApp: Application '%s' is not alive anymore, maybe crashed, reusing slot\n", name);
@@ -542,19 +542,19 @@ int16_t XcpShmRegisterApp(const char *name, const char *epk, uint32_t pid, uint8
                     }
                 }
 
-                atomic_store(&app->alive_counter, 0U); // reset alive counter on restart
-                app->pid = pid;
-                app->is_leader = is_leader;
-                app->is_server = is_server;
-                assert(app->xcp_init_mode == xcp_init_mode);
+                atomic_store(&app->u.alive_counter, 0U); // reset alive counter on restart
+                app->u.pid = pid;
+                app->u.is_leader = is_leader;
+                app->u.is_server = is_server;
+                assert(app->u.xcp_init_mode == xcp_init_mode);
                 // @@@@ TODO: Check if the A2L file still exists and reset the a2l_finalized flag if not ?
                 DBG_PRINTF5("XcpShmRegisterApp: Registered application %u:'%s', epk=%s, a2l_name='%s'\n", i, name, epk,
-                            atomic_load(&app->a2l_finalized) != 0 ? app->a2l_name : "pending");
+                            atomic_load(&app->u.a2l_finalized) != 0 ? app->u.a2l_name : "pending");
                 return (uint8_t)i;
             } else {
                 DBG_PRINTF3(ANSI_COLOR_BLUE "XcpShmRegisterApp:Application %u:'%s' has different epk %s, can not register application !!!\n" ANSI_COLOR_RESET, i, name, epk);
                 // Delete the binary file and the shared memory to reset, when an application version changes
-                DBG_PRINTF_ERROR("Version change detected '%s'->'%s', reset - deleting persistent state\n", app->epk, epk);
+                DBG_PRINTF_ERROR("Version change detected '%s'->'%s', reset - deleting persistent state\n", app->u.epk, epk);
                 remove(XcpBinGetFilename());
                 platformShmClose("/xcpdata", gXcpData, sizeof(tXcpData), true /* unlink */);
                 return -1;
@@ -573,17 +573,17 @@ int16_t XcpShmRegisterApp(const char *name, const char *epk, uint32_t pid, uint8
 
     // Initialize the new slot
     memset(app->b, 0, sizeof(app->b));
-    strncpy(app->project_name, name, XCP_PROJECT_NAME_MAX_LENGTH);
-    app->project_name[XCP_PROJECT_NAME_MAX_LENGTH] = '\0';
-    strncpy(app->epk, epk, XCP_EPK_MAX_LENGTH);
-    app->epk[XCP_EPK_MAX_LENGTH] = '\0';
-    app->pid = pid;
-    app->is_leader = is_leader;
-    app->is_server = is_server;
-    app->xcp_init_mode = xcp_init_mode;
-    app->a2l_name[0] = '\0';
-    atomic_store(&app->a2l_finalized, 0U);
-    atomic_store(&app->alive_counter, 0U);
+    strncpy(app->u.project_name, name, XCP_PROJECT_NAME_MAX_LENGTH);
+    app->u.project_name[XCP_PROJECT_NAME_MAX_LENGTH] = '\0';
+    strncpy(app->u.epk, epk, XCP_EPK_MAX_LENGTH);
+    app->u.epk[XCP_EPK_MAX_LENGTH] = '\0';
+    app->u.pid = pid;
+    app->u.is_leader = is_leader;
+    app->u.is_server = is_server;
+    app->u.xcp_init_mode = xcp_init_mode;
+    app->u.a2l_name[0] = '\0';
+    atomic_store(&app->u.a2l_finalized, 0U);
+    atomic_store(&app->u.alive_counter, 0U);
 
     // Update the ECU EPK hash
     XcpShmGetEcuEpk();
@@ -599,15 +599,15 @@ void XcpShmShutdownApp(uint8_t app_id) {
     if (app_id >= SHM_MAX_APP_COUNT)
         return;
     tApp *app = &gXcpData->shm_header.app_list[app_id];
-    app->pid = 0;
-    app->alive_counter = 0;
-    app->is_leader = 0;
-    app->is_server = 0;
+    app->u.pid = 0;
+    app->u.alive_counter = 0;
+    app->u.is_leader = 0;
+    app->u.is_server = 0;
     // Rest of the state is kept in shared memory
-    // app->a2l_finalized == 0;
-    // app->a2l_name[0] = '\0';
-    // app->xcp_init_mode = 0;
-    DBG_PRINTF3(ANSI_COLOR_BLUE "XcpShmShutdownApp: Set application %u:'%s' to offline\n" ANSI_COLOR_RESET, app_id, app->project_name);
+    // app->u.a2l_finalized == 0;
+    // app->u.a2l_name[0] = '\0';
+    // app->u.xcp_init_mode = 0;
+    DBG_PRINTF3(ANSI_COLOR_BLUE "XcpShmShutdownApp: Set application %u:'%s' to offline\n" ANSI_COLOR_RESET, app_id, app->u.project_name);
 
     // Check if there are any more active applications (pid!=0 and alive_counter>0),
     //  if not we can reset the whole SHM state for the next leader
