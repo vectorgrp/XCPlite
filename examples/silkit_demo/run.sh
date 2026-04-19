@@ -6,6 +6,7 @@
 #   3. SilKitDemoSubscriber 
 #   4. sil-kit-system-controller  (starts the simulation)
 #
+#
 # Usage: ./run.sh [options]
 #   -d <us>   Simulation step duration in microseconds 
 #   -f        Run as fast as possible (no animation throttle)
@@ -22,6 +23,7 @@ SILKIT_BIN="${SILKIT_BIN:-/Users/Rainer.Zaiser/git/sil-kit/_build/debug/Debug}"
 
 REGISTRY="${SILKIT_BIN}/sil-kit-registry"
 SYSCTRL="${SILKIT_BIN}/sil-kit-system-controller"
+XCP_SERVER="${DEMO_BIN}/SilKitXcpServer"
 PUBLISHER="${DEMO_BIN}/SilKitDemoPublisher"
 SUBSCRIBER="${DEMO_BIN}/SilKitDemoSubscriber"
 
@@ -69,7 +71,7 @@ if [[ -n "${REALTIME}" ]]; then
 fi
 
 # Build participant extra args
-PARTICIPANT_ARGS=""
+PARTICIPANT_ARGS="-l warn"
 [[ -n "${STEP_US}" ]]    && PARTICIPANT_ARGS="${PARTICIPANT_ARGS} --sim-step-duration ${STEP_US}"
 [[ -n "${FAST_FLAG}" ]]  && PARTICIPANT_ARGS="${PARTICIPANT_ARGS} --fast"
 [[ -n "${SILKIT_CFG}" ]] && PARTICIPANT_ARGS="${PARTICIPANT_ARGS} --config ${SILKIT_CFG}"
@@ -105,6 +107,7 @@ open_terminal() {
 
 echo "Starting silkit_demo ..."
 echo "  Registry        : ${REGISTRY}"
+echo "  XcpServer       : ${XCP_SERVER}"
 echo "  Publisher       : ${PUBLISHER}"
 echo "  Subscriber      : ${SUBSCRIBER}"
 echo "  SystemController: ${SYSCTRL}"
@@ -125,19 +128,25 @@ open_terminal "sil-kit-registry" "\"${REGISTRY}\"; exec zsh"
 sleep 1
 
 # ---------------------------------------------------------------------------
-# 2. Publisher
+# 2. XCP Server – start before the system controller
+# ---------------------------------------------------------------------------
+open_terminal "SilKitXcpServer" "\"${XCP_SERVER}\"${PARTICIPANT_ARGS:+ ${PARTICIPANT_ARGS}}; exec zsh"
+
+# ---------------------------------------------------------------------------
+# 3. Publisher
 # ---------------------------------------------------------------------------
 open_terminal "SilKitDemoPublisher" "\"${PUBLISHER}\"${PARTICIPANT_ARGS:+ ${PARTICIPANT_ARGS}}; exec zsh"
 
 # ---------------------------------------------------------------------------
-# 3. Subscriber
+# 4. Subscriber
 # ---------------------------------------------------------------------------
 open_terminal "SilKitDemoSubscriber" "\"${SUBSCRIBER}\"${PARTICIPANT_ARGS:+ ${PARTICIPANT_ARGS}}; exec zsh"
 
+
 # ---------------------------------------------------------------------------
-# 4. System Controller – start last so both participants are already connecting
+# 5. System Controller – start last so all participants are already connecting
 # ---------------------------------------------------------------------------
 sleep 1
-open_terminal "sil-kit-system-controller" "\"${SYSCTRL}\" Publisher Subscriber; exec zsh"
+open_terminal "sil-kit-system-controller" "\"${SYSCTRL}\" XcpServer Publisher Subscriber; exec zsh"
 
 echo "All terminals launched."

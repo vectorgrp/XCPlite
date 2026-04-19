@@ -42,6 +42,30 @@
             "preLaunchTask": "XCPlite: build"
         },
         {
+            "name": "Debug SilKitDemoPublisher",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/silkit_demo/build/SilKitDemoPublisher",
+            "args": [
+                "--sim-step-duration",
+                "10000",
+                "--fast"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/examples/silkit_demo",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "XCPlite: build"
+        },
+        {
             "name": "Debug xcpdaemon",
             "type": "cppdbg",
             "request": "launch",

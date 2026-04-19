@@ -464,7 +464,7 @@ tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t peek_index, uint32_t 
     tQueue *queue = (tQueue *)queue_handle;
     assert(queue != NULL);
 
-    DBG_PRINTF6("queuePeek: peek_index=%u\n", peek_index);
+    // DBG_PRINTF6("queuePeek: peek_index=%u\n", peek_index);
 
     // Return the number of packets lost since the last call
     if (packets_lost != NULL) {
@@ -488,7 +488,7 @@ tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t peek_index, uint32_t 
     if (peek_index > 0 && peek_index >= queue->h.cached_peek_index) {
         peek_tail = queue->h.cached_peek_tail; // Use cached tail for optimized peek loop
         index = queue->h.cached_peek_index;
-        DBG_PRINTF6("queuePeek: using cached peek_index=%u\n", index);
+        // DBG_PRINTF6("queuePeek: using cached peek_index=%u\n", index);
     } else {
         peek_tail = atomic_load_explicit(&queue->h.tail, memory_order_relaxed);
         index = 0;

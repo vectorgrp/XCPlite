@@ -257,8 +257,8 @@ void mutexDestroy(MUTEX *m);
 
 #if defined(_WIN) // Windows
 
-typedef HANDLE THREAD;
-#define create_thread(h, t) *h = CreateThread(0, 0, t, NULL, 0, NULL)
+typedef HANDLE THREAD_HANDLE;
+#define create_thread(thread_handle_ptr, attr, thread, args) *thread_handle_ptr = CreateThread(0, 0, thread, args, 0, NULL)
 #define join_thread(h) WaitForSingleObject(h, INFINITE);
 #define cancel_thread(h)                                                                                                                                                           \
     {                                                                                                                                                                              \
@@ -270,9 +270,8 @@ typedef HANDLE THREAD;
 
 #else
 
-typedef pthread_t THREAD;
-#define create_thread(h, t) pthread_create(h, NULL, t, NULL)
-#define create_thread_arg(h, t, p) pthread_create(h, NULL, t, p)
+typedef pthread_t THREAD_HANDLE;
+#define create_thread(thread_handle_ptr, attr, thread, params) pthread_create(thread_handle_ptr, attr, thread, params)
 #define join_thread(h) pthread_join(h, NULL)
 #define cancel_thread(h)                                                                                                                                                           \
     {                                                                                                                                                                              \

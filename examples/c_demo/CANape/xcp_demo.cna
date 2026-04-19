@@ -10,8 +10,8 @@ PrgDate=27.10.2025
 Description=
 CreationTime=21:05
 CreationDate=07/07/2024 ; Month/Day/Year
-ModificationTime=22:55
-ModificationDate=04/15/2026 ; Month/Day/Year
+ModificationTime=19:03
+ModificationDate=04/16/2026 ; Month/Day/Year
 Protected=0
 CurrentWindowsACP=1252
 
@@ -214,7 +214,7 @@ Count=0
 Name=Measurement 
 Comment=
 Maximized=0
-ActiveWindow=4
+ActiveWindow=6
 IsReportPage=0
 TimeAxisSynchronized=0
 PrintLayout=Default
@@ -277,7 +277,7 @@ Count=0
 
 [DISPLAY_PAGES]
 Count=5
-Active=4
+Active=0
 
 [DYNAMIC_COLUMNS]
 Count=0
@@ -313,7 +313,7 @@ COUNT=5
 5=}
 
 [FUNCTION_OBJECT_1]
-Number=24
+Number=25
 Unit=
 Components=0
 TimeSeriesSaveMode=0
@@ -422,27 +422,42 @@ SubConfigsCount=0
 Count=0
 
 [MEASUREMENT_LIST]
-Count=23
+Count=24
 OfflineFileName=CANAPE.MF4
 OfflineFileCount=1
 MeaCfgLabellistName=
 
 [MEASUREMENT_OBJECT_1]
 Module=xcp_demo
-Name=counter
+Name=app_memory.test_byte
 Disabled=0
 Mode=1
-Rate=10
-ModeIsDefault=0
+Rate=100
+ModeIsDefault=1
 Row=0
 Column=0
-MeaReferenced=0
+MeaReferenced=1
 ArchivBy_1=Recorder1
 IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
 [MEASUREMENT_OBJECT_10]
+Module=xcp_demo
+Name=g_counter32s
+Disabled=0
+Mode=2147483648
+Rate=0
+ModeIsDefault=1
+Row=0
+Column=0
+MeaReferenced=1
+ArchivBy_1=Recorder1
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=0
+
+[MEASUREMENT_OBJECT_11]
 Module=xcp_demo
 Name=g_counter64
 Disabled=0
@@ -457,9 +472,9 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_10_DISPLAY_1]
+[MEASUREMENT_OBJECT_11_DISPLAY_1]
 Window=6
-Index=3
+Index=4
 Color=65535
 ApplyColorToBackground=0
 ColorFunction=0
@@ -503,7 +518,7 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_7b9e6cc4-44f1-45de-981c-8304dea9f51a
 
-[MEASUREMENT_OBJECT_11]
+[MEASUREMENT_OBJECT_12]
 Module=xcp_demo
 Name=g_counter64s
 Disabled=0
@@ -518,7 +533,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=0
 
-[MEASUREMENT_OBJECT_12]
+[MEASUREMENT_OBJECT_13]
 Module=xcp_demo
 Name=g_counter8
 Disabled=0
@@ -533,9 +548,9 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_12_DISPLAY_1]
+[MEASUREMENT_OBJECT_13_DISPLAY_1]
 Window=6
-Index=0
+Index=1
 Color=16776960
 ApplyColorToBackground=0
 ColorFunction=0
@@ -579,7 +594,7 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_f5013c50-f033-403e-84d9-51231949d967
 
-[MEASUREMENT_OBJECT_13]
+[MEASUREMENT_OBJECT_14]
 Module=xcp_demo
 Name=g_counter8s
 Disabled=0
@@ -594,7 +609,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=0
 
-[MEASUREMENT_OBJECT_14]
+[MEASUREMENT_OBJECT_15]
 Module=xcp_demo
 Name=counter16
 Disabled=0
@@ -609,7 +624,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_14_DISPLAY_1]
+[MEASUREMENT_OBJECT_15_DISPLAY_1]
 Window=3
 Index=3
 Color=65535
@@ -655,7 +670,7 @@ YAxis_ID=2
 AxisTemplate=
 GUID=DISPLAY_34c46c1e-c9c4-4628-ad3a-15a9fd310132
 
-[MEASUREMENT_OBJECT_15]
+[MEASUREMENT_OBJECT_16]
 Module=xcp_demo
 Name=counter16s
 Disabled=0
@@ -670,7 +685,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_15_DISPLAY_1]
+[MEASUREMENT_OBJECT_16_DISPLAY_1]
 Window=3
 Index=2
 Color=16776960
@@ -716,7 +731,7 @@ YAxis_ID=2
 AxisTemplate=
 GUID=DISPLAY_ec4d99d7-7558-44a7-9c13-91391ff08fb6
 
-[MEASUREMENT_OBJECT_16]
+[MEASUREMENT_OBJECT_17]
 Module=xcp_demo
 Name=counter32
 Disabled=0
@@ -731,7 +746,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_16_DISPLAY_1]
+[MEASUREMENT_OBJECT_17_DISPLAY_1]
 Window=3
 Index=1
 Color=16711935
@@ -777,7 +792,7 @@ YAxis_ID=1
 AxisTemplate=
 GUID=DISPLAY_4209ab7e-e75e-4120-bab7-b5a651a7fb3d
 
-[MEASUREMENT_OBJECT_17]
+[MEASUREMENT_OBJECT_18]
 Module=xcp_demo
 Name=counter32s
 Disabled=0
@@ -792,7 +807,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_17_DISPLAY_1]
+[MEASUREMENT_OBJECT_18_DISPLAY_1]
 Window=3
 Index=0
 Color=33023
@@ -838,7 +853,7 @@ YAxis_ID=1
 AxisTemplate=
 GUID=DISPLAY_12e26263-5254-4b33-af7d-2ba2adc875a9
 
-[MEASUREMENT_OBJECT_18]
+[MEASUREMENT_OBJECT_19]
 Module=xcp_demo
 Name=counter64
 Disabled=0
@@ -853,25 +868,10 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=0
 
-[MEASUREMENT_OBJECT_19]
-Module=xcp_demo
-Name=counter64s
-Disabled=0
-Mode=2147483648
-Rate=0
-ModeIsDefault=1
-Row=0
-Column=0
-MeaReferenced=1
-ArchivBy_1=Recorder1
-IsFallback=0
-HasManagedDisplay=0
-DisplayCount=0
-
 [MEASUREMENT_OBJECT_1_DISPLAY_1]
 Window=6
-Index=8
-Color=16711935
+Index=0
+Color=33023
 ApplyColorToBackground=0
 ColorFunction=0
 ColorFunctionScope=1
@@ -883,7 +883,7 @@ YMax=100
 XOffsetNS=0
 XOffset=0
 ValueFormat=3
-BitMask=1
+BitMask=255
 ShowYAxis=1
 Width=10
 LineStyle=1
@@ -912,11 +912,26 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_44cbf92c-928c-4020-ad37-6f14fe9f418e
+GUID=DISPLAY_0ad33b45-59bf-49ae-b79e-5ccdf9b78842
 
 [MEASUREMENT_OBJECT_2]
 Module=xcp_demo
-Name=$params_copy$params_copy.test_byte1
+Name=counter
+Disabled=0
+Mode=1
+Rate=10
+ModeIsDefault=0
+Row=0
+Column=0
+MeaReferenced=0
+ArchivBy_1=Recorder1
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=1
+
+[MEASUREMENT_OBJECT_20]
+Module=xcp_demo
+Name=counter64s
 Disabled=0
 Mode=2147483648
 Rate=0
@@ -927,9 +942,9 @@ MeaReferenced=1
 ArchivBy_1=Recorder1
 IsFallback=0
 HasManagedDisplay=0
-DisplayCount=1
+DisplayCount=0
 
-[MEASUREMENT_OBJECT_20]
+[MEASUREMENT_OBJECT_21]
 Module=xcp_demo
 Name=counter8
 Disabled=0
@@ -944,7 +959,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_20_DISPLAY_1]
+[MEASUREMENT_OBJECT_21_DISPLAY_1]
 Window=3
 Index=5
 Color=43520
@@ -990,7 +1005,7 @@ YAxis_ID=3
 AxisTemplate=
 GUID=DISPLAY_cee06bae-de2c-4ad8-8a1d-ece10a3db63b
 
-[MEASUREMENT_OBJECT_21]
+[MEASUREMENT_OBJECT_22]
 Module=xcp_demo
 Name=counter8s
 Disabled=0
@@ -1005,7 +1020,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_21_DISPLAY_1]
+[MEASUREMENT_OBJECT_22_DISPLAY_1]
 Window=3
 Index=4
 Color=204
@@ -1051,7 +1066,7 @@ YAxis_ID=3
 AxisTemplate=
 GUID=DISPLAY_aaf36406-7e53-4ee5-97c3-f311fc0d4e12
 
-[MEASUREMENT_OBJECT_22]
+[MEASUREMENT_OBJECT_23]
 Module=xcp_demo
 Name=matrix_f32
 Disabled=1
@@ -1074,7 +1089,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_22_DISPLAY_1]
+[MEASUREMENT_OBJECT_23_DISPLAY_1]
 Window=9
 Index=0
 Color=65280
@@ -1121,7 +1136,7 @@ AxisTemplate=
 GUID=DISPLAY_6cb9e24f-225f-47ed-852a-688e77ebc453
 MarkerSettingValid=1
 
-[MEASUREMENT_OBJECT_23]
+[MEASUREMENT_OBJECT_24]
 Module=xcp_demo
 Name=array_f32
 Disabled=1
@@ -1144,7 +1159,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_23_DISPLAY_1]
+[MEASUREMENT_OBJECT_24_DISPLAY_1]
 Window=9
 Index=1
 Color=255
@@ -1193,7 +1208,68 @@ MarkerSettingValid=1
 
 [MEASUREMENT_OBJECT_2_DISPLAY_1]
 Window=6
-Index=5
+Index=9
+Color=16711935
+ApplyColorToBackground=0
+ColorFunction=0
+ColorFunctionScope=1
+LineTyp=2
+YMinHome=0
+YMaxHome=100
+YMin=0
+YMax=100
+XOffsetNS=0
+XOffset=0
+ValueFormat=3
+BitMask=1
+ShowYAxis=1
+Width=10
+LineStyle=1
+MarkerType=1
+SRMainValue=0
+InvalidValueDrawMode=3
+LineWidth=1
+Precision=-2
+Digits=6
+Enabled=1
+StoredFocused=0
+SublMask=1
+MeaSublMask=0
+LockScaling=0
+RightAxis=0
+MapMode=2
+OverlayGridColor=0
+ShadingMode=3
+EditOffset=1
+EditFactor=2
+WAxisLabel=
+XAxisLabel=
+YAxisLabel=
+AxisCaption=
+Row=0
+Col=0
+YAxis_ID=0
+AxisTemplate=
+GUID=DISPLAY_44cbf92c-928c-4020-ad37-6f14fe9f418e
+
+[MEASUREMENT_OBJECT_3]
+Module=xcp_demo
+Name=$params_copy$params_copy.test_byte1
+Disabled=0
+Mode=2147483648
+Rate=0
+ModeIsDefault=1
+Row=0
+Column=0
+MeaReferenced=1
+ArchivBy_1=Recorder1
+IsFallback=0
+HasManagedDisplay=0
+DisplayCount=1
+
+[MEASUREMENT_OBJECT_3_DISPLAY_1]
+Window=6
+Index=6
 Color=65535
 ApplyColorToBackground=0
 ColorFunction=0
@@ -1237,7 +1313,7 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_b608dcb0-45b9-4b32-ae55-f90ee1308c6c
 
-[MEASUREMENT_OBJECT_3]
+[MEASUREMENT_OBJECT_4]
 Module=xcp_demo
 Name=$params_copy$params_copy.test_byte2
 Disabled=0
@@ -1252,9 +1328,9 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_3_DISPLAY_1]
+[MEASUREMENT_OBJECT_4_DISPLAY_1]
 Window=6
-Index=4
+Index=5
 Color=16776960
 ApplyColorToBackground=0
 ColorFunction=0
@@ -1298,7 +1374,7 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_96ee07d9-2ca2-43ac-939e-72621687d7b1
 
-[MEASUREMENT_OBJECT_4]
+[MEASUREMENT_OBJECT_5]
 Module=xcp_demo
 Name=$params_copy$params_copy.counter_max
 Disabled=0
@@ -1313,9 +1389,9 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_4_DISPLAY_1]
+[MEASUREMENT_OBJECT_5_DISPLAY_1]
 Window=6
-Index=7
+Index=8
 Color=65280
 ApplyColorToBackground=0
 ColorFunction=0
@@ -1359,7 +1435,7 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_fe58ea16-430e-4506-81ca-3ad63ed6d165
 
-[MEASUREMENT_OBJECT_5]
+[MEASUREMENT_OBJECT_6]
 Module=xcp_demo
 Name=$params_copy$params_copy.delay_us
 Disabled=0
@@ -1374,9 +1450,9 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_5_DISPLAY_1]
+[MEASUREMENT_OBJECT_6_DISPLAY_1]
 Window=6
-Index=6
+Index=7
 Color=255
 ApplyColorToBackground=0
 ColorFunction=0
@@ -1420,7 +1496,7 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_f6bce2dd-71e5-4e5c-9830-9cbe601ae911
 
-[MEASUREMENT_OBJECT_6]
+[MEASUREMENT_OBJECT_7]
 Module=xcp_demo
 Name=g_counter16
 Disabled=0
@@ -1435,9 +1511,9 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_6_DISPLAY_1]
+[MEASUREMENT_OBJECT_7_DISPLAY_1]
 Window=6
-Index=1
+Index=2
 Color=65280
 ApplyColorToBackground=0
 ColorFunction=0
@@ -1481,7 +1557,7 @@ YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_c3681074-639e-4e58-9e13-0a9575e6f185
 
-[MEASUREMENT_OBJECT_7]
+[MEASUREMENT_OBJECT_8]
 Module=xcp_demo
 Name=g_counter16s
 Disabled=0
@@ -1496,7 +1572,7 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=0
 
-[MEASUREMENT_OBJECT_8]
+[MEASUREMENT_OBJECT_9]
 Module=xcp_demo
 Name=g_counter32
 Disabled=0
@@ -1511,9 +1587,9 @@ IsFallback=0
 HasManagedDisplay=0
 DisplayCount=1
 
-[MEASUREMENT_OBJECT_8_DISPLAY_1]
+[MEASUREMENT_OBJECT_9_DISPLAY_1]
 Window=6
-Index=2
+Index=3
 Color=255
 ApplyColorToBackground=0
 ColorFunction=0
@@ -1556,21 +1632,6 @@ Col=0
 YAxis_ID=0
 AxisTemplate=
 GUID=DISPLAY_4a2955b1-83e6-4ea3-91b6-96a4f1815aa4
-
-[MEASUREMENT_OBJECT_9]
-Module=xcp_demo
-Name=g_counter32s
-Disabled=0
-Mode=2147483648
-Rate=0
-ModeIsDefault=1
-Row=0
-Column=0
-MeaReferenced=1
-ArchivBy_1=Recorder1
-IsFallback=0
-HasManagedDisplay=0
-DisplayCount=0
 
 [MEASUREMENT_OPTIONS]
 RemainingRecordingTime=5000
@@ -1659,7 +1720,7 @@ WindowSymbols=1
 GlobalCursor=1
 GlobalCursorTime=1373
 GlobalCursorTimeNs=1373595084
-MainWindowPos=1, 532, 224, 2927, 1548 ;cmd, x, y, w, h
+MainWindowPos=1, 995, 316, 2927, 1548 ;cmd, x, y, w, h
 
 [PAR_COMMENT]
 1="Name",""
@@ -1808,17 +1869,19 @@ Count=0
 [SIGNSELWND]
 FocusID=2004
 ActiveTab=0
-FilterNodeID=Alle
+FilterNodeID=Alle\Geräte\xcp_demo
 TreeExpand_0=@Alle
 TreeExpand_1=Alle\Geräte
 TreeExpand_2=Alle\Geräte\xcp_demo
 TreeExpand_3=Alle\Geräte\xcp_demo\xcp_demo_autodetect.a2l
-TreeExpand_4=Alle\Geräte\xcp_demo\xcp_demo_autodetect.a2l\params
-TreeExpand_5=Alle\Geräte\xcp_demo\xcp_demo_autodetect.a2l\params\params
-TreeExpand_6=Alle\Geräte\xcp_demo\xcp_demo_autodetect.a2l\Events
-TreeExpand_7=Alle\Geräte\xcp_demo\xcp_demo_autodetect.a2l\Events\mainloop
-TreeExpand_8=$Alle\Geräte\System
-TreeExpand_9=#Alle\Geräte\xcp_demo\xcp_demo_autodetect.a2l\Events\mainloop\app_memory.test_byte
+TreeExpand_4=$Alle\Geräte\System
+TreeExpand_5=#Alle\Geräte\xcp_demo\xcp_demo_autodetect.a2l\Events\mainloop
+TreeExpand_6=@Alle\Geräte\xcp_demo
+TreeExpand_7=$Alle\Geräte\xcp_demo\xcp_demo_autodetect.a2l
+TreeExpand_8=#Alle\Geräte\xcp_demo\xcp_demo_autodetect.a2l
+TreeExpand_9=@Alle\Messliste
+TreeExpand_10=$Alle\Messliste\Alle Signale
+TreeExpand_11=#Alle\Messliste\Alle Signale
 TextSearchCaseSensitive=0
 TextSearchUseMode=1
 TextSearchSearchFullText=1
@@ -1991,8 +2054,8 @@ ValueFormat=3
 XLen=20000
 XMin=0
 XMinNs=0
-XMax=110994
-XMaxNs=110994384000
+XMax=1558
+XMaxNs=1558009218
 Grid=1
 Mark=1
 YValue=1
@@ -2063,7 +2126,7 @@ COL_1_dpi96=1048578, 95
 [WINDOW_12]
 ProgID=
 PROPERTIES_COUNT=1
-PROPERTY_1={"Version":"1.3.0.0","Configuration":{"ArrayWindowSubControlConfiguration":{"NumericGraphicCompositeWidth":317,"NumericGraphicCompositeHeight":220,"LegendCoordinatePoint":{"X":0,"Y":0},"LegendWidth":0,"LegendHeight":0,"LegendLayoutGroupSizeWidth":0,"LegendLayoutGroupSizeHeight":0,"NumericCoordinatePoint":{"X":1,"Y":24},"NumericWidth":315,"NumericHeight":195,"NumericLayoutGroupSizeWidth":315,"NumericLayoutGroupSizeHeight":195,"Intersection2DXWCoordinatePoint":{"X":0,"Y":0},"Intersection2DXWWidth":0,"Intersection2DXWHeight":0,"Intersection2DXWLayoutGroupSizeWidth":0,"Intersection2DXWLayoutGroupSizeHeight":0,"Intersection2DYWCoordinatePoint":{"X":0,"Y":0},"Intersection2DYWWidth":0,"Intersection2DYWHeight":0,"Intersection2DYWLayoutGroupSizeWidth":0,"Intersection2DYWLayoutGroupSizeHeight":0,"Graphic3DCoordinatePoint":{"X":0,"Y":0},"Graphic3DWidth":0,"Graphic3DHeight":0,"Graphic3DLayoutGroupSizeWidth":0,"Graphic3DLayoutGroupSizeHeight":0},"ShowCalibrationBar":true,"ShowHorizontalChartLines":false,"ShowVerticalChartLines":false,"NonSelectedIntersectionLineTransparency":0.100000024,"FocusedValueSymbol":"DEVICE:\"xcp_demo\":\"app_memory.test_dword\":P","ValueObjectConfigurations":[{"Symbol":"DEVICE:\"xcp_demo\":\"app_memory.test_byte\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ValueFormat":0,"AxisValueFormats":[],"NumericFormat":4,"AxisNumericFormats":[],"NumericFormatDigits":6,"IsActive":true,"CurrentChartViewType":2,"PointMarker":1,"IsValueAnnotationEnabled":false,"ValueAxisMin":0,"ValueAxisMax":255,"ValueAxisMinHome":0,"ValueAxisMaxHome":255,"ValueAxisPosition":0,"CommonValueAxisName":null,"CommonValueAxisLabel":"","CommonValueAxisMin":0,"CommonValueAxisMax":0,"CommonValueAxisMinHome":0,"CommonValueAxisMaxHome":0,"SerializationCommonValueAxisColor":{"R":0,"G":0,"B":0,"A":0},"CommonValueAxisID":0,"CommonValueAxisFormat":null,"CommonValueAxisPosition":0,"CommonXAxisLabel":"","CommonYAxisLabel":"","CustomAxisLabels":["","","","","",""]},{"Symbol":"DEVICE:\"xcp_demo\":\"app_memory.test_word\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ValueFormat":0,"AxisValueFormats":[],"NumericFormat":4,"AxisNumericFormats":[],"NumericFormatDigits":6,"IsActive":true,"CurrentChartViewType":2,"PointMarker":1,"IsValueAnnotationEnabled":false,"ValueAxisMin":0,"ValueAxisMax":65535,"ValueAxisMinHome":0,"ValueAxisMaxHome":65535,"ValueAxisPosition":0,"CommonValueAxisName":null,"CommonValueAxisLabel":"","CommonValueAxisMin":0,"CommonValueAxisMax":0,"CommonValueAxisMinHome":0,"CommonValueAxisMaxHome":0,"SerializationCommonValueAxisColor":{"R":0,"G":0,"B":0,"A":0},"CommonValueAxisID":0,"CommonValueAxisFormat":null,"CommonValueAxisPosition":0,"CommonXAxisLabel":"","CommonYAxisLabel":"","CustomAxisLabels":["","","","","",""]},{"Symbol":"DEVICE:\"xcp_demo\":\"app_memory.test_dword\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ValueFormat":0,"AxisValueFormats":[],"NumericFormat":4,"AxisNumericFormats":[],"NumericFormatDigits":6,"IsActive":true,"CurrentChartViewType":2,"PointMarker":1,"IsValueAnnotationEnabled":false,"ValueAxisMin":0,"ValueAxisMax":4294970000,"ValueAxisMinHome":0,"ValueAxisMaxHome":4294970000,"ValueAxisPosition":0,"CommonValueAxisName":null,"CommonValueAxisLabel":"","CommonValueAxisMin":0,"CommonValueAxisMax":0,"CommonValueAxisMinHome":0,"CommonValueAxisMaxHome":0,"SerializationCommonValueAxisColor":{"R":0,"G":0,"B":0,"A":0},"CommonValueAxisID":0,"CommonValueAxisFormat":null,"CommonValueAxisPosition":0,"CommonXAxisLabel":"","CommonYAxisLabel":"","CustomAxisLabels":["","","","","",""]}],"NumericGraphicControlPosition":0,"NumericGraphicControlSelectedTab":0,"GraphicControlPosition":0,"Height2DXControl":1,"Height2DYControl":1,"Height3DControl":2,"HeightNumericControl":1,"HeightChartControl":1,"HeightLegendControl":0.44999998807907104,"Width2DXControl":1,"Width2DYControl":1,"Width3DControl":2,"WidthNumericControl":2,"WidthChartControl":2,"WidthLegendControl":0.30000001192092896,"HeightValueControl":1,"WidthValueControl":1,"HeightNumericGraphicControl":1,"WidthNumericGraphicControl":1,"Height2DChartsControl":1,"Width2DChartsControl":1,"IsXAxisHeightSynchronizedBetweenCharts":true,"IsYAxisAreaWidthSynchronizedBetweenCharts":true,"SyncedXAxisHeight":NaN,"XWChartXAxisHeight":NaN,"YWChartXAxisHeight":NaN,"SyncedLeftAxisAreaWidth":NaN,"XWChartLeftAxisAreaWidth":NaN,"YWChartLeftAxisAreaWidth":NaN,"SyncedRightAxisAreaWidth":NaN,"XWChartRightAxisAreaWidth":NaN,"YWChartRightAxisAreaWidth":NaN,"LegendPosition":0,"LegendViewType":0,"LegendTableColumnAttributes":[{"TypeId":"1048594","Size":40},{"TypeId":"1048601","Size":45},{"TypeId":"31","Size":100},{"TypeId":"3","Size":250},{"TypeId":"16","Size":70},{"TypeId":"1048627","Size":100},{"TypeId":"1048631","Size":100},{"TypeId":"1048634","Size":100}],"LegendTabItemAttributes":[{"TypeId":"31","Size":100}],"FlipAxes":false,"AxisDisplayNameMode":3,"ReversedAxis":[false,false],"ShowUnits":false,"ShowObjectColor":true,"SortDescending":false,"SortAttributeId":null,"ShowWorkingPointHistory":false,"NumericViewValueObjectDisplayOption":1,"ValueColumnWidth":115,"ValueColumnWidthDouble":115,"ParameterGroup":"","ModuleName":"","GroupIsFunction":false,"NumericControlAxisAttributes":[],"NumericControlColumnAttributes":[{"TypeId":"31","Size":141}],"ChartViewValueObjectDisplayOption":1,"SerializationCameraPosition":{"X":1,"Y":1,"Z":-1},"SerializationCameraTarget":{"X":0,"Y":0.5,"Z":0},"IsValueAnnotationRotated":false,"EquidistantAxisPoints":false,"BarThickness":0.6,"WorkingPointMarker":0,"LinearWorkingPointInterpolation":true,"ShowAllIntersectionLines":false,"IsValueAxisIndependent":true,"TickLabelRotationAngle":-90,"IsTickLabelRotationEnabled":false,"IsTickLabelRightAligned":false,"ShowBoundarySurface":true,"ShowBoundarySurfaceGradient":false,"ShowCursorAsCrosshair":false,"XAxisAutoRange":true,"ValueAxisAutoRange":true,"ShowAllValueAxes":false,"DrawAxisBands":false,"CurrentColumnChartType":0,"SerializationCursorCrosshairColor":{"R":0,"G":0,"B":0,"A":255},"AlignBarToZero":true,"DefaultChartViewType":2,"AttributeColumnPositioning":1}}
+PROPERTY_1={"Version":"1.3.0.0","Configuration":{"ArrayWindowSubControlConfiguration":{"NumericGraphicCompositeWidth":317,"NumericGraphicCompositeHeight":220,"LegendCoordinatePoint":{"X":0,"Y":0},"LegendWidth":0,"LegendHeight":0,"LegendLayoutGroupSizeWidth":0,"LegendLayoutGroupSizeHeight":0,"NumericCoordinatePoint":{"X":1,"Y":24},"NumericWidth":315,"NumericHeight":195,"NumericLayoutGroupSizeWidth":315,"NumericLayoutGroupSizeHeight":195,"Intersection2DXWCoordinatePoint":{"X":0,"Y":0},"Intersection2DXWWidth":0,"Intersection2DXWHeight":0,"Intersection2DXWLayoutGroupSizeWidth":0,"Intersection2DXWLayoutGroupSizeHeight":0,"Intersection2DYWCoordinatePoint":{"X":0,"Y":0},"Intersection2DYWWidth":0,"Intersection2DYWHeight":0,"Intersection2DYWLayoutGroupSizeWidth":0,"Intersection2DYWLayoutGroupSizeHeight":0,"Graphic3DCoordinatePoint":{"X":0,"Y":0},"Graphic3DWidth":0,"Graphic3DHeight":0,"Graphic3DLayoutGroupSizeWidth":0,"Graphic3DLayoutGroupSizeHeight":0},"ShowCalibrationBar":true,"ShowHorizontalChartLines":false,"ShowVerticalChartLines":false,"NonSelectedIntersectionLineTransparency":0.100000024,"FocusedValueSymbol":"DEVICE:\"xcp_demo\":\"app_memory.test_byte\":P","ValueObjectConfigurations":[{"Symbol":"DEVICE:\"xcp_demo\":\"app_memory.test_byte\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ValueFormat":0,"AxisValueFormats":[],"NumericFormat":4,"AxisNumericFormats":[],"NumericFormatDigits":6,"IsActive":true,"CurrentChartViewType":2,"PointMarker":1,"IsValueAnnotationEnabled":false,"ValueAxisMin":0,"ValueAxisMax":255,"ValueAxisMinHome":0,"ValueAxisMaxHome":255,"ValueAxisPosition":0,"CommonValueAxisName":null,"CommonValueAxisLabel":"","CommonValueAxisMin":0,"CommonValueAxisMax":0,"CommonValueAxisMinHome":0,"CommonValueAxisMaxHome":0,"SerializationCommonValueAxisColor":{"R":0,"G":0,"B":0,"A":0},"CommonValueAxisID":0,"CommonValueAxisFormat":null,"CommonValueAxisPosition":0,"CommonXAxisLabel":"","CommonYAxisLabel":"","CustomAxisLabels":["","","","","",""]},{"Symbol":"DEVICE:\"xcp_demo\":\"app_memory.test_word\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ValueFormat":0,"AxisValueFormats":[],"NumericFormat":4,"AxisNumericFormats":[],"NumericFormatDigits":6,"IsActive":true,"CurrentChartViewType":2,"PointMarker":1,"IsValueAnnotationEnabled":false,"ValueAxisMin":0,"ValueAxisMax":65535,"ValueAxisMinHome":0,"ValueAxisMaxHome":65535,"ValueAxisPosition":0,"CommonValueAxisName":null,"CommonValueAxisLabel":"","CommonValueAxisMin":0,"CommonValueAxisMax":0,"CommonValueAxisMinHome":0,"CommonValueAxisMaxHome":0,"SerializationCommonValueAxisColor":{"R":0,"G":0,"B":0,"A":0},"CommonValueAxisID":0,"CommonValueAxisFormat":null,"CommonValueAxisPosition":0,"CommonXAxisLabel":"","CommonYAxisLabel":"","CustomAxisLabels":["","","","","",""]},{"Symbol":"DEVICE:\"xcp_demo\":\"app_memory.test_dword\":P","SerializationColor":{"R":0,"G":0,"B":0,"A":255},"Collapsed":false,"SerializationFrameColor":{"R":0,"G":0,"B":0,"A":255},"ValueFormat":0,"AxisValueFormats":[],"NumericFormat":4,"AxisNumericFormats":[],"NumericFormatDigits":6,"IsActive":true,"CurrentChartViewType":2,"PointMarker":1,"IsValueAnnotationEnabled":false,"ValueAxisMin":0,"ValueAxisMax":4294970000,"ValueAxisMinHome":0,"ValueAxisMaxHome":4294970000,"ValueAxisPosition":0,"CommonValueAxisName":null,"CommonValueAxisLabel":"","CommonValueAxisMin":0,"CommonValueAxisMax":0,"CommonValueAxisMinHome":0,"CommonValueAxisMaxHome":0,"SerializationCommonValueAxisColor":{"R":0,"G":0,"B":0,"A":0},"CommonValueAxisID":0,"CommonValueAxisFormat":null,"CommonValueAxisPosition":0,"CommonXAxisLabel":"","CommonYAxisLabel":"","CustomAxisLabels":["","","","","",""]}],"NumericGraphicControlPosition":0,"NumericGraphicControlSelectedTab":0,"GraphicControlPosition":0,"Height2DXControl":1,"Height2DYControl":1,"Height3DControl":2,"HeightNumericControl":1,"HeightChartControl":1,"HeightLegendControl":0.44999998807907104,"Width2DXControl":1,"Width2DYControl":1,"Width3DControl":2,"WidthNumericControl":2,"WidthChartControl":2,"WidthLegendControl":0.30000001192092896,"HeightValueControl":1,"WidthValueControl":1,"HeightNumericGraphicControl":1,"WidthNumericGraphicControl":1,"Height2DChartsControl":1,"Width2DChartsControl":1,"IsXAxisHeightSynchronizedBetweenCharts":true,"IsYAxisAreaWidthSynchronizedBetweenCharts":true,"SyncedXAxisHeight":NaN,"XWChartXAxisHeight":NaN,"YWChartXAxisHeight":NaN,"SyncedLeftAxisAreaWidth":NaN,"XWChartLeftAxisAreaWidth":NaN,"YWChartLeftAxisAreaWidth":NaN,"SyncedRightAxisAreaWidth":NaN,"XWChartRightAxisAreaWidth":NaN,"YWChartRightAxisAreaWidth":NaN,"LegendPosition":0,"LegendViewType":0,"LegendTableColumnAttributes":[{"TypeId":"1048594","Size":40},{"TypeId":"1048601","Size":45},{"TypeId":"31","Size":100},{"TypeId":"3","Size":250},{"TypeId":"16","Size":70},{"TypeId":"1048627","Size":100},{"TypeId":"1048631","Size":100},{"TypeId":"1048634","Size":100}],"LegendTabItemAttributes":[{"TypeId":"31","Size":100}],"FlipAxes":false,"AxisDisplayNameMode":3,"ReversedAxis":[false,false],"ShowUnits":false,"ShowObjectColor":true,"SortDescending":false,"SortAttributeId":null,"ShowWorkingPointHistory":false,"NumericViewValueObjectDisplayOption":1,"ValueColumnWidth":115,"ValueColumnWidthDouble":115,"ParameterGroup":"","ModuleName":"","GroupIsFunction":false,"NumericControlAxisAttributes":[],"NumericControlColumnAttributes":[{"TypeId":"31","Size":141}],"ChartViewValueObjectDisplayOption":1,"SerializationCameraPosition":{"X":1,"Y":1,"Z":-1},"SerializationCameraTarget":{"X":0,"Y":0.5,"Z":0},"IsValueAnnotationRotated":false,"EquidistantAxisPoints":false,"BarThickness":0.6,"WorkingPointMarker":0,"LinearWorkingPointInterpolation":true,"ShowAllIntersectionLines":false,"IsValueAxisIndependent":true,"TickLabelRotationAngle":-90,"IsTickLabelRotationEnabled":false,"IsTickLabelRightAligned":false,"ShowBoundarySurface":true,"ShowBoundarySurfaceGradient":false,"ShowCursorAsCrosshair":false,"XAxisAutoRange":true,"ValueAxisAutoRange":true,"ShowAllValueAxes":false,"DrawAxisBands":false,"CurrentColumnChartType":0,"SerializationCursorCrosshairColor":{"R":0,"G":0,"B":0,"A":255},"AlignBarToZero":true,"DefaultChartViewType":2,"AttributeColumnPositioning":1}}
 OBJECTS_COUNT=3
 OBJECT_1=DEVICE:"xcp_demo":"app_memory.test_byte":P
 OBJECT_2=DEVICE:"xcp_demo":"app_memory.test_word":P
@@ -2131,7 +2194,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_a1ce1869-b51f-4db7-8151-7f0ed9f35d8d
+GUID=DISPLAY_6ca112a7-58cf-46ab-829f-21cdb722bb3e
 
 [WINDOW_12_OBJECT_2]
 Type=2
@@ -2180,7 +2243,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_6e9bc9a8-cbc3-4ac9-b7c0-0c68d36d08dc
+GUID=DISPLAY_5db40eb8-c6b6-4909-9742-b75efdb48218
 
 [WINDOW_12_OBJECT_3]
 Type=2
@@ -2229,7 +2292,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_5d93b588-ee1c-42e2-89a7-3e32aa6c51e4
+GUID=DISPLAY_9aa27b7f-7e2b-4255-ba66-48b5fdd88eb2
 
 [WINDOW_1_HIDDENDISPLAY_1]
 Window=1
@@ -2324,7 +2387,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_51c0cb90-ceb3-4bba-a67b-675dda4a0fc8
+GUID=DISPLAY_91df0a96-f28e-4f11-99c3-62e3acfa5f32
 
 [WINDOW_1_OBJECT_2]
 Type=2
@@ -2373,7 +2436,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_9b07d7ae-d27e-4182-9280-30bb23751a98
+GUID=DISPLAY_6e3b6f3b-ca29-42eb-a0e5-3d92435cf495
 
 [WINDOW_1_OBJECT_3]
 Type=2
@@ -2422,7 +2485,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_751182ed-3d08-4510-96fa-03ea833609dc
+GUID=DISPLAY_43077ada-ee01-4160-ba09-581325c858c3
 
 [WINDOW_1_OBJECT_4]
 Type=2
@@ -2471,7 +2534,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_6f306d56-592a-4329-9021-76c6772dfcd4
+GUID=DISPLAY_f3755d9b-6a3c-4043-9c2b-609e5fc6bed9
 
 [WINDOW_1_OBJECT_5]
 Type=2
@@ -2520,7 +2583,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_121977e6-217e-416d-b243-854259876740
+GUID=DISPLAY_f47c6f4c-2b28-482b-8966-b7a425f1c9f5
 
 [WINDOW_2]
 ComponentCount=2
@@ -2542,8 +2605,8 @@ DisplayMask=1 ; pages 1
 XLen=20000
 XMin=0
 XMinNs=0
-XMax=110994
-XMaxNs=110994384000
+XMax=1558
+XMaxNs=1558009218
 Grid=1
 Mark=1
 YValue=2
@@ -2718,7 +2781,7 @@ ShowActivity=0
 ExceedLimitWarning=0
 OnlyHighlightOnViolation=0
 LegendScrollPos=0
-DotLinePos=0
+DotLinePos=81
 ObjectCount=0
 Title=Measurement
 Type=4
@@ -2739,8 +2802,8 @@ DisplayMask=1 ; pages 1
 [WINDOW_6_LEG_COLUMNS]
 ScreenDPIinSection=192
 COUNT=1
-COL_0=31, 0
-COL_0_dpi96=31, 0
+COL_0=31, 334
+COL_0_dpi96=31, 167
 
 [WINDOW_7]
 Title=
@@ -3083,7 +3146,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_830acd65-5601-4f33-9bd7-66e9ef4ec29e
+GUID=DISPLAY_f7387bb3-97f1-45d9-b080-145fa6608f07
 
 [WINDOW_8_OBJECT_2]
 Type=2
@@ -3132,7 +3195,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_3a584803-707c-457b-a7a3-5e23ba2ce7a2
+GUID=DISPLAY_379a71ae-ae0f-4cc3-9716-f8c82ac9a03a
 
 [WINDOW_8_OBJECT_3]
 Type=2
@@ -3181,7 +3244,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_3173e6c1-2e78-49ae-b26e-996262833b63
+GUID=DISPLAY_d3ef7ad9-47a7-4083-b958-cdccd7701146
 
 [WINDOW_8_OBJECT_4]
 Type=2
@@ -3230,7 +3293,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_b556fd53-469f-4557-9f2d-f3dfd8137399
+GUID=DISPLAY_e12eb933-0de7-4dd6-9503-07e2b238b1ba
 
 [WINDOW_8_OBJECT_5]
 Type=2
@@ -3279,7 +3342,7 @@ Row=0
 Col=0
 YAxis_ID=0
 AxisTemplate=
-GUID=DISPLAY_ab59317f-07a3-4221-9044-5b5a85d49797
+GUID=DISPLAY_a1ea4f50-62bd-4034-96a6-1d7531865aef
 
 [WINDOW_9]
 Title=

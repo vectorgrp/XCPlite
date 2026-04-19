@@ -530,8 +530,8 @@ tPtp *ptpCreateInterface(const uint8_t *ifaddr, const char *ifname, bool sync_ph
 
     // Start all PTP threads
     mutexInit(&ptp->mutex, true, 1000);
-    create_thread_arg(&ptp->threadHandle320, ptpThread320, ptp);
-    create_thread_arg(&ptp->threadHandle319, ptpThread319, ptp);
+    create_thread(&ptp->threadHandle320, NULL, ptpThread320, ptp);
+    create_thread(&ptp->threadHandle319, NULL, ptpThread319, ptp);
 
     return ptp;
 }

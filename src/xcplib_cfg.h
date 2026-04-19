@@ -15,10 +15,10 @@
   The values for XCP_xxx and XCPTL_xxx define constants (in xcp_cfg.h and xcptl_cfg.h) may depend on options
 */
 
-// XCPlite version, currently V2.0.0
+// XCPlite version, currently V2.0.3
 #define OPTION_VERSION_MAJOR 2
 #define OPTION_VERSION_MINOR 0
-#define OPTION_VERSION_PATCH 0
+#define OPTION_VERSION_PATCH 3
 
 #ifdef XCPLIB_FOR_RUST // Set by the Rust build script
 
@@ -36,7 +36,7 @@
 // Default log level: 1 - Error, 2 - Warn, 3 - Info, 4 - Trace (used to print all XCP commands), 5 - Debug, 6 - Very verbose
 #define OPTION_DEFAULT_DBG_LEVEL 3
 // Optimize code size, higher levels than OPTION_MAX_DBG_LEVEL are optimized out
-#define OPTION_MAX_DBG_LEVEL 4
+#define OPTION_MAX_DBG_LEVEL 5
 // Optimize code size, fixed log level, not changeable at runtime
 // #define OPTION_FIXED_DBG_LEVEL 4
 
@@ -73,7 +73,7 @@
 // All application processes have shared transmit queue, calibration RCU and XCP state
 // One application is the XCP server, could be the first one running (XCP leader) or a dedicated application (XCP daemon)
 // Requires a POSIX-compliant platform (Linux / macOS / QNX).  Not supported on Windows.
-// #define OPTION_SHM_MODE
+#define OPTION_SHM_MODE
 
 //-------------------------------------------------------------------------------
 // XCP server options
@@ -168,7 +168,8 @@
 // #define TEST_ENABLE_DBG_METRICS // Enable debug metrics for XCP events and transport layer packets
 // #define TEST_ENABLE_BUFFERCOUNT_HISTOGRAM // Enable histogram of the used buffer counts in the transport layer vectored io
 // #define TEST_MUTABLE_ACCESS_OWNERSHIP // Enable tracking of mutable access thread ownership to detect overseen potential memory safety problems
-// #define TEST_ENABLE_DBG_CHECKS // Enable additional sanity checks in the XCP server
+#define TEST_ENABLE_DBG_CHECKS // Enable additional sanity checks in the XCP server
+// #define TEST_STACK_SIZE // Enable stack size measurement for the transmit and receive thread
 
 #endif // !defined(NDEBUG)
 

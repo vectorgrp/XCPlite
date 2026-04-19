@@ -82,7 +82,7 @@ static struct {
 
     // Multicast
 #ifdef XCPTL_ENABLE_MULTICAST
-    THREAD multicast_thread_handle;
+    THREAD_HANDLE multicast_thread_handle;
     SOCKET_HANDLE multicast_sock;
 #endif
 
@@ -656,7 +656,7 @@ bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, tQueueHandle 
     DBG_PRINTF3("  Listening for XCP GET_DAQ_CLOCK multicast on %u.%u.%u.%u\n", maddr[0], maddr[1], maddr[2], maddr[3]);
 
     DBG_PRINT3("  Start XCP multicast thread\n");
-    create_thread(&gXcpTl.multicast_thread_handle, XcpTlMulticastThread);
+    create_thread(&gXcpTl.multicast_thread_handle, NULL, XcpTlMulticastThread, NULL);
 
 #endif
 

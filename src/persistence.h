@@ -38,6 +38,10 @@ void XcpBinDelete(void);
 // Freeze current working page data of the specified calibration segment in the binary file
 bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg);
 
+/// Get the filename of the binary persistence file
+/// Buffer valid until the next call of this function
+const char *XcpBinGetFilename(void);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

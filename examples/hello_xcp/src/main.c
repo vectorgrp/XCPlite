@@ -15,7 +15,7 @@
 // XCP params
 
 #define OPTION_PROJECT_NAME "hello_xcp" // Project name, used to build the A2L and BIN file name
-#define OPTION_PROJECT_VERSION "108"    // EPK version string
+#define OPTION_PROJECT_VERSION "200"    // EPK version string
 #define OPTION_USE_TCP false            // TCP or UDP
 #define OPTION_SERVER_PORT 5555         // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
@@ -23,7 +23,8 @@
 #define OPTION_LOG_LEVEL 4              // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
 // XCP mode:
-#define OPTION_XCP_MODE (XCP_MODE_PERSISTENCE | XCP_MODE_LOCAL) // XCP single application server mode
+#define OPTION_XCP_MODE (XCP_MODE_PERSISTENCE | XCP_MODE_SHM_AUTO) // XCP multi application mode, leader becomes XCP server
+// #define OPTION_XCP_MODE (XCP_MODE_PERSISTENCE | XCP_MODE_LOCAL) // XCP single application server mode
 // #define OPTION_XCP_MODE (XCP_MODE_DEACTIVATE) // XCP deactivated
 
 // A2L generation mode:
@@ -33,8 +34,6 @@
 // A2L_MODE_WRITE_ALWAYS:
 //   Recreate the A2L file on each application start, calibration values will always be initialized to default
 //   Binary persistence is not supported
-// A2L_MODE_WRITE_TEMPLATE:
-//   Only write an A2L template with all settings, IF_DATA, events and calibration segments, but measurement and calibration objects and typedefs
 // A2L_MODE_FINALIZE_ON_CONNECT:
 //   Finalize the A2L file on XCP connect
 // A2L_MODE_AUTO_GROUPS:

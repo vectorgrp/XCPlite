@@ -4,10 +4,10 @@
 |
 |  Description:
 |    Implementation of the ASAM XCP Protocol Layer V1.4
-|    Version V2.0.0
-|       - Designed and optimized for 64 bit POSIX based platforms (Linux or MacOS)
+|    Version V2.0.3
+|       - Optimized for 64 bit POSIX based platforms (Linux, QNX or MacOS)
+|       - Compatible with 32 bit platforms
 |       - Tested on x86 strong and ARM weak memory model
-|       - Can be adapted for 32 bit platforms
 |       - Runs on Windows for demonstration purposes with some limitations
 
 |
@@ -2850,7 +2850,7 @@ void XcpBackgroundTasks(void) {
         return;
     }
 
-    DBG_PRINT6("XcpBackgroundTasks\n");
+    // DBG_PRINT6("XcpBackgroundTasks\n");
 
 // Publish all modified calibration segments
 #ifdef XCP_ENABLE_CALSEG_LAZY_WRITE
@@ -3012,6 +3012,7 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     }
 
 #ifdef OPTION_SHM_MODE // XcpInit init SHM mode
+    // @@@@ TODO: Move this to shm.c
     // In SHM mode, attach to shared memory, or create it if not existing (leader)
     gXcpData = XcpShmAttachOrCreate(&local_mut.shm_leader);
     if (gXcpData == NULL) {
@@ -3076,17 +3077,7 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     // Initialize shared memory, followers already returned early after attaching and registering
     // Note that SHM mode must not be activated, header will always be initialized
     assert(local.shm_leader);
-
-    assert(gXcpData != NULL);
-    tShmHeader *hdr = &gXcpData->shm_header;
-    hdr->magic = SHM_MAGIC;
-    hdr->version = SHM_VERSION;
-    hdr->size = (uint32_t)sizeof(tXcpData);
-    hdr->leader_pid = (uint32_t)getpid();
-    atomic_store(&hdr->app_count, 0U);
-    atomic_store(&hdr->a2l_finalize_requested, 0U);
-    memset(hdr->ecu_epk, 0, sizeof(hdr->ecu_epk));
-
+    XcpShmInit();
     local_mut.shm_app_id = 0; // Not defined yet, leader will registered after loading the binary persistence file
 
     // Check, if the leader should also be the server, or if a separate server application will be started later
@@ -3142,7 +3133,9 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     // In SHM multiapplication mode, only the leader reaches this point, and creates a EPK segment for the whole system
     // @@@@ TODO: Currently the EPK segment is treated like any other segment, even if it is read-only and should only expose the default page
     static tXcpCalSegIndex cal__epk = XCP_UNDEFINED_CALSEG; // Create the linker file marker for the EPK segment
-    cal__epk = XcpCreateCalSeg(XCP_EPK_CALSEG_NAME, XcpGetEcuEpk(), XCP_EPK_MAX_LENGTH + 1);
+    const char *ecu_epk = XcpGetEcuEpk();
+    DBG_PRINTF3("XcpInit: Create EPK calibration segment '%s', ecu_epk = '%s'\n", XCP_EPK_CALSEG_NAME, ecu_epk);
+    cal__epk = XcpCreateCalSeg(XCP_EPK_CALSEG_NAME, ecu_epk, XCP_EPK_MAX_LENGTH + 1);
     (void)cal__epk; // Avoid unused variable warning
     assert(cal__epk == 0);
 #endif
@@ -3150,7 +3143,7 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
 
 #ifdef OPTION_SHM_MODE // XcpInit print inital SHM state
     if (DBG_LEVEL >= 3) {
-        DBG_PRINT3(ANSI_COLOR_GREEN "XCP shared memory initialized by leader\n" ANSI_COLOR_RESET);
+        DBG_PRINT3(ANSI_COLOR_BLUE "XCP shared memory initialized by leader\n" ANSI_COLOR_RESET);
         XcpShmDebugPrint();
     }
 #endif

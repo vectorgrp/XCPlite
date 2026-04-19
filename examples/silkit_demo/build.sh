@@ -12,11 +12,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 XCPLITE_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 XCPLITE_INSTALL="${XCPLITE_ROOT}/build/install"
 
+
 # ---------------------------------------------------------------------------
 # SilKit paths – adjust to your environment
 # ---------------------------------------------------------------------------
-SILKIT_BUILD_DIR="${SILKIT_BUILD_DIR:-/Users/Rainer.Zaiser/git/sil-kit/_build/debug}"
-SILKIT_INSTALL_DIR="${SILKIT_INSTALL_DIR:-/Users/Rainer.Zaiser/git/sil-kit/_install/debug}"
+SILKIT_BUILD_DIR="${SILKIT_BUILD_DIR:-${XCPLITE_ROOT}/../sil-kit/_build/debug}"
+SILKIT_INSTALL_DIR="${SILKIT_INSTALL_DIR:-${XCPLITE_ROOT}/../sil-kit/_install/debug}"
 SILKIT_CMAKE_DIR="${SILKIT_INSTALL_DIR}/lib/cmake/SilKit"
 
 echo ""
@@ -38,7 +39,8 @@ fi
 echo -e "${GREEN}Step 1: Building and installing xcplite ...${NC}"
 echo "------------------------------------------------------------"
 cd "${XCPLITE_ROOT}"
-./build.sh release install
+# ./build.sh release install
+./build.sh install
 
 # ---------------------------------------------------------------------------
 # Step 2: Install SilKit from its build tree (idempotent)

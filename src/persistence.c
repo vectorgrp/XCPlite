@@ -20,6 +20,7 @@
 #include <stdio.h>    // for fclose, fopen, fread, fseek, ftell
 #include <string.h>   // for strlen, strncpy
 
+#include "a2l.h"        // for A2lGetAppFilename
 #include "dbg_print.h"  // for DBG_PRINTF3, DBG_PRINT4, DBG_PRINTF4, DBG...
 #include "platform.h"   // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
 #include "shm.h"        // for shared memory management
@@ -97,10 +98,10 @@ static tHeader gBinHeader;
 //--------------------------------------------------------------------------------------------------------------------------------
 
 #define XCP_BIN_FILENAME_MAX_LENGTH 255 // Maximum length of BIN filename with extension
-static char gXcpBinFilename[XCP_BIN_FILENAME_MAX_LENGTH + 1] = "";
 
 // Build BIN filename from project name and epk, e.g. "app_name_V100.bin" (or "ecu_name.bin" in SHM mode, written by the server)
-static const char *XcpBinGetFilename(void) {
+const char *XcpBinGetFilename(void) {
+    static char gXcpBinFilename[XCP_BIN_FILENAME_MAX_LENGTH + 1] = "";
 #ifdef OPTION_SHM_MODE // generate BIN filename without EPK postfix
     // Only server creates the persistence file with unique name
     SNPRINTF(gXcpBinFilename, XCP_BIN_FILENAME_MAX_LENGTH, "%s.bin", XcpShmGetEcuProjectName());
@@ -249,7 +250,7 @@ bool XcpBinWrite(const char *epk) {
         return false;
     }
     const char *filename = XcpBinGetFilename();
-    DBG_PRINTF3("Writing persistence data to file '%s' with EPK '%s'\n", filename, epk);
+    DBG_PRINTF3("Writing BIN file '%s', epk '%s'\n", filename, epk);
 
     // Open file for writing
     FILE *file = fopen(filename, "wb");
@@ -280,7 +281,7 @@ bool XcpBinWrite(const char *epk) {
         }
     }
 
-    // Write calibration segments descriptors and data
+    // Write calibration segments descriptors and page data
     // Iterate cal_seg_list cal_seg_list
     for (tXcpCalSegIndex i = 0; i < calseg_count; i++) {
         const tXcpCalSeg *seg = XcpGetCalSeg(i);
@@ -305,7 +306,7 @@ bool XcpBinWrite(const char *epk) {
 
     fclose(file);
 
-    DBG_PRINTF3(ANSI_COLOR_GREEN "Persistence data written to file '%s'\n" ANSI_COLOR_RESET, gXcpBinFilename);
+    DBG_PRINTF3(ANSI_COLOR_GREEN "Persistence data written to BIN file '%s'\n" ANSI_COLOR_RESET, XcpBinGetFilename());
 #ifdef OPTION_SHM_MODE // debug print application list
     if (DBG_LEVEL >= 4) {
         XcpShmDebugPrint();
@@ -343,7 +344,7 @@ bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg) {
     // Set position to start of calseg data and write the active page data
     assert(seg->h.file_pos > 0); // Ensure the file position is set
     size_t n = 0;
-    if (0 == fseek(file, seg->h.file_pos, SEEK_SET)) {
+    if (0 == fseek(file, seg->h.file_pos + sizeof(tCalSegDescriptor), SEEK_SET)) {
         const uint8_t *ecu_page = XcpLockCalSeg(calseg);
 #ifdef OPTION_ENABLE_DBG_PRINTS
         DBG_PRINTF4("Freezing calibration segment %u, size=%u active page data to file '%s'+%u\n", calseg, seg->h.size, filename, seg->h.file_pos);
@@ -355,7 +356,7 @@ bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg) {
     }
     fclose(file);
     if (n != 1) {
-        DBG_PRINTF_ERROR("Failed to write calibration segment %u, size=%u active page data to file '%s'+%u\n", calseg, seg->h.size, gXcpBinFilename, seg->h.file_pos);
+        DBG_PRINTF_ERROR("Failed to write calibration segment %u, size=%u active page data to file '%s'+%u\n", calseg, seg->h.size, XcpBinGetFilename(), seg->h.file_pos);
         return false;
     } else {
         return true;
@@ -501,14 +502,14 @@ static bool load(const char *filename, const char *epk) {
             error_count++;
         }
 
-        // If the A2L file already exists, set the A2L finalized flag, so the main file will be generated for it, even if the application was not started before tool connect
-        char a2l_filename[XCP_A2L_FILENAME_MAX_LENGTH + 1];
-        SNPRINTF(a2l_filename, sizeof(a2l_filename), "%s_%s.a2l", desc.project_name, desc.epk);
+        // If the A2L file already exists, set its the A2L finalized flag
+        const char *a2l_filename = A2lGetAppFilename(desc.project_name, desc.epk);
         if (fexists(a2l_filename)) {
-            XcpShmSetA2lFinalized(desc.app_id, a2l_filename);
             DBG_PRINTF4(ANSI_COLOR_BLUE "Application %u:'%s' A2L file'%s' exists, set A2L finalized flag\n" ANSI_COLOR_RESET, desc.app_id, desc.project_name, a2l_filename);
+            XcpShmSetA2lFinalized(desc.app_id, a2l_filename);
         }
-    }
+    } // for all applications in the file
+
 #endif // SHM_MODE
 
     fclose(file);

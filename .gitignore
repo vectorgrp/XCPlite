@@ -23,7 +23,6 @@ RecycleBin.ini
 test_bintool
 *.bak
 *.log
-*.txt
 
 
 # Other
@@ -32,3 +31,6 @@ test_bintool
 /ptptool.obs
 /docs/CPP_TYPE_TRAITS_GUIDE.md
 /docs/SUBMODULE_GUIDE.md
+/shm_*.sh
+
+

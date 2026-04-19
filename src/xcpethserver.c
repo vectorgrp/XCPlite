@@ -18,16 +18,13 @@
 #include <stdbool.h>  // for bool
 #include <stdint.h>   // for uintxx_t
 #include <stdio.h>    // for printf
-#ifdef OPTION_SHM_MODE
-#include <unistd.h> // for getpid()
-#endif
 
 #include "a2l.h"        // for A2lFinalize()
 #include "dbg_print.h"  // for DBG_LEVEL, DBG_PRINT3, DBG_PRINTF4, DBG...
 #include "platform.h"   // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
 #include "queue.h"      // for tQueueHandle, queueInitFromMemory, ...
 #include "xcp.h"        // for CRC_XXX
-#include "xcplib_cfg.h" // for OPTION_xxx
+#include "xcplib_cfg.h" // for OPTION_xxx, TEST_xxx
 #include "xcplite.h"    // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
 
 #if !defined(_WIN) && !defined(_LINUX) && !defined(_MACOS) && !defined(_QNX)
@@ -36,6 +33,14 @@
 
 #include "xcpethtl.h" // for XcpEthTlxxx
 #include "xcptl.h"    // for XcpTlHandleTransmitQueue
+
+#ifdef TEST_STACK_SIZE
+#include <limits.h>   // for PTHREAD_STACK_MIN
+#include <sys/mman.h> // for mmap, munmap
+#endif
+#ifdef OPTION_SHM_MODE
+#include <unistd.h> // for getpid()
+#endif
 
 #if defined(_WIN) // Windows
 static DWORD WINAPI XcpServerReceiveThread(LPVOID lpParameter);
@@ -82,9 +87,9 @@ static struct {
     bool is_init;
 
     // Threads
-    THREAD transmit_thread_handle;
+    THREAD_HANDLE transmit_thread_handle;
     volatile bool transmit_thread_running;
-    THREAD receive_thread_handle;
+    THREAD_HANDLE receive_thread_handle;
     volatile bool receive_thread_running;
 
     // Queue
@@ -92,11 +97,20 @@ static struct {
 
 #ifdef OPTION_SHM_MODE // transmit queue state in shared memory mode
 
-    void *shm_queue_ptr;         // mmap base of the /xcpqueue region, NULL when SHM mode not activated
-    size_t shm_queue_total_size; // total mmap size: sizeof(tShmQueueHeader) + queue_size
-    THREAD shm_thread_handle;    // Background thread for non server processes
+    void *shm_queue_ptr;             // mmap base of the /xcpqueue region, NULL when SHM mode not activated
+    size_t shm_queue_total_size;     // total mmap size: sizeof(tShmQueueHeader) + queue_size
+    THREAD_HANDLE shm_thread_handle; // Background thread for non server processes
     volatile bool shm_thread_running;
 
+#endif
+
+#ifdef TEST_STACK_SIZE
+#define RECEIVE_STACK_SIZE (16 * 1024)
+#define TRANSMIT_STACK_SIZE (16 * 1024)
+    uint8_t *transmit_thread_stack;    // mmap'd stack buffer
+    uint8_t *receive_thread_stack;     // mmap'd stack buffer
+    size_t actual_transmit_stack_size; // actual allocated size (>= PTHREAD_STACK_MIN)
+    size_t actual_receive_stack_size;  // actual allocated size (>= PTHREAD_STACK_MIN)
 #endif
 
 } gXcpServer;
@@ -146,11 +160,11 @@ static bool ShmServerInit_(uint32_t queue_size) {
     if (queue_leader) {
         atomic_store(&hdr->is_initialized, 1U);
     }
-    DBG_PRINTF3(ANSI_COLOR_BLUE "Queue init (clear=%u, queue_size=%u)\n" ANSI_COLOR_RESET, queue_leader, queue_size);
+    DBG_PRINTF3(ANSI_COLOR_BLUE "Queue init from memory (clear=%u, queue_size=%u)\n" ANSI_COLOR_RESET, queue_leader, queue_size);
 
     // Start the background thread for non-server processes
     if (!XcpShmIsXcpServer()) {
-        create_thread(&gXcpServer.shm_thread_handle, ShmThread_);
+        create_thread(&gXcpServer.shm_thread_handle, NULL, ShmThread_, NULL);
         DBG_PRINT(ANSI_COLOR_BLUE "SHM mode initialized without XCP on ethernet server, create SHM thread\n" ANSI_COLOR_RESET);
     }
 
@@ -200,15 +214,11 @@ extern void *ShmThread_(void *par)
 
         // Poll the global A2L finalize request flag
         // If set, finalize the local A2L file if not already done
-#ifdef OPTION_ENABLE_A2L_GENERATOR
         if (!XcpShmIsA2lFinalized(XcpShmGetAppId()) && XcpShmIsA2lFinalizeRequested()) {
-            // @@@@ TODO: Check how to handle this
-            sleepMs(100);
             if (A2lFinalize()) {
-                DBG_PRINT3(ANSI_COLOR_BLUE "A2L finalized by SHM request\n" ANSI_COLOR_RESET);
+                DBG_PRINTF3(ANSI_COLOR_BLUE "A2L '%s' finalized by SHM request\n" ANSI_COLOR_RESET, A2lGetFilename());
             }
         }
-#endif
     }
 
     gXcpServer.shm_thread_running = false;
@@ -322,8 +332,26 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
         if (!XcpEthTlInit(addr, port, useTCP, gXcpServer.transmit_queue))
             return false;
 
-        // Create the receive thread which starts the XCP protocol layer and handles incoming XCP unicast commands
-        create_thread(&gXcpServer.receive_thread_handle, XcpServerReceiveThread);
+// Create the receive thread which starts the XCP protocol layer and handles incoming XCP unicast commands
+#ifdef TEST_STACK_SIZE
+        size_t receive_stack_size = RECEIVE_STACK_SIZE;
+        if (receive_stack_size < (size_t)PTHREAD_STACK_MIN) {
+            printf("WARNING: RECEIVE_STACK_SIZE %zu < PTHREAD_STACK_MIN %zu, clamping\n", receive_stack_size, (size_t)PTHREAD_STACK_MIN);
+            receive_stack_size = (size_t)PTHREAD_STACK_MIN;
+        }
+        gXcpServer.receive_thread_stack = mmap(NULL, receive_stack_size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+        assert(gXcpServer.receive_thread_stack != MAP_FAILED);
+        gXcpServer.actual_receive_stack_size = receive_stack_size;
+        memset(gXcpServer.receive_thread_stack, 0xAA, receive_stack_size);
+        pthread_attr_t receive_thread_attr;
+        pthread_attr_init(&receive_thread_attr);
+        int r1 = pthread_attr_setstack(&receive_thread_attr, gXcpServer.receive_thread_stack, receive_stack_size);
+        assert(r1 == 0);
+#define receive_thread_attr_ptr &receive_thread_attr
+#else
+#define receive_thread_attr_ptr NULL
+#endif
+        create_thread(&gXcpServer.receive_thread_handle, receive_thread_attr_ptr, XcpServerReceiveThread, NULL);
 
         // Wait until receive thread is running to avoid races
         while (!gXcpServer.receive_thread_running) {
@@ -332,7 +360,25 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
 
         // Create the transmit thread
         // @@@@ TODO: Check, why start the transmit thread after the receive thread, should it better be before, once we implement first cycle data acquisition ?
-        create_thread(&gXcpServer.transmit_thread_handle, XcpServerTransmitThread);
+#ifdef TEST_STACK_SIZE
+        size_t transmit_stack_size = TRANSMIT_STACK_SIZE;
+        if (transmit_stack_size < (size_t)PTHREAD_STACK_MIN) {
+            printf("WARNING: TRANSMIT_STACK_SIZE %zu < PTHREAD_STACK_MIN %zu, clamping\n", transmit_stack_size, (size_t)PTHREAD_STACK_MIN);
+            transmit_stack_size = (size_t)PTHREAD_STACK_MIN;
+        }
+        gXcpServer.transmit_thread_stack = mmap(NULL, transmit_stack_size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+        assert(gXcpServer.transmit_thread_stack != MAP_FAILED);
+        gXcpServer.actual_transmit_stack_size = transmit_stack_size;
+        memset(gXcpServer.transmit_thread_stack, 0xAA, transmit_stack_size);
+        pthread_attr_t transmit_thread_attr;
+        pthread_attr_init(&transmit_thread_attr);
+        int r2 = pthread_attr_setstack(&transmit_thread_attr, gXcpServer.transmit_thread_stack, transmit_stack_size);
+        assert(r2 == 0);
+#define transmit_thread_attr_ptr &transmit_thread_attr
+#else
+#define transmit_thread_attr_ptr NULL
+#endif
+        create_thread(&gXcpServer.transmit_thread_handle, transmit_thread_attr_ptr, XcpServerTransmitThread, NULL);
     }
 
     gXcpServer.is_init = true;
@@ -403,6 +449,31 @@ bool XcpEthServerShutdown(void) {
     queueDeinit(gXcpServer.transmit_queue);
 #endif
 
+#ifdef TEST_STACK_SIZE
+    // Stack grows downward: unused canary bytes are at the LOW end (index 0..N), used bytes at the HIGH end
+    size_t transmit_unused = 0;
+    for (size_t i = 0; i < gXcpServer.actual_transmit_stack_size; i++) {
+        if (gXcpServer.transmit_thread_stack[i] == 0xAA) {
+            transmit_unused++;
+        } else {
+            break;
+        }
+    }
+    size_t receive_unused = 0;
+    for (size_t i = 0; i < gXcpServer.actual_receive_stack_size; i++) {
+        if (gXcpServer.receive_thread_stack[i] == 0xAA) {
+            receive_unused++;
+        } else {
+            break;
+        }
+    }
+    printf("transmit thread stack high-water mark: %zu bytes (of %zu allocated)\n", gXcpServer.actual_transmit_stack_size - transmit_unused, gXcpServer.actual_transmit_stack_size);
+    printf("receive thread stack high-water mark: %zu bytes (of %zu allocated)\n", gXcpServer.actual_receive_stack_size - receive_unused, gXcpServer.actual_receive_stack_size);
+    munmap(gXcpServer.transmit_thread_stack, gXcpServer.actual_transmit_stack_size);
+    munmap(gXcpServer.receive_thread_stack, gXcpServer.actual_receive_stack_size);
+
+#endif
+
     return true;
 }
 
@@ -441,9 +512,18 @@ extern void *XcpServerReceiveThread(void *par)
         // Handle background tasks, e.g. pending calibration updates
         XcpBackgroundTasks();
 
-#ifdef OPTION_SHM_MODE // increment alive counter
+        // SHM mode
+#ifdef OPTION_SHM_MODE // increment alive counter and check A2L finalize request
         // In SHM mode, prove this application is still alive
         XcpShmIncrementAliveCounter();
+
+        // Poll the global A2L finalize request flag
+        // If set, finalize the local A2L file if not already done
+        if (!XcpShmIsA2lFinalized(XcpShmGetAppId()) && XcpShmIsA2lFinalizeRequested()) {
+            if (A2lFinalize()) {
+                DBG_PRINT(ANSI_COLOR_BLUE "A2L finalized by SHM request\n" ANSI_COLOR_RESET);
+            }
+        }
 #endif
 
         // Every 1s

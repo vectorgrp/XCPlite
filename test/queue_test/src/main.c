@@ -519,13 +519,13 @@ int main(int argc, char *argv[]) {
     }
 
     // Create multiple instances of the produces tasks (not in consumer only mode)
-    THREAD t[THREAD_COUNT];
+    THREAD_HANDLE t[THREAD_COUNT];
     for (int i = 0; i < THREAD_COUNT; i++) {
         t[i] = 0;
     }
     if (!g_shm_consumer) { // consumer-only process has no producer threads
         for (int i = 0; i < THREAD_COUNT; i++) {
-            create_thread(&t[i], task);
+            create_thread(&t[i], NULL, task, NULL);
         }
     }
 
