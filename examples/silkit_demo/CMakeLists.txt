@@ -61,6 +61,20 @@ target_link_libraries(SilKitDemoSubscriber
 )
 
 # ---------------------------------------------------------------------------
+# XCP server
+# Optional: Use XCP_MODE_SHM_AUTO to automatically select one participant to create the XCP server locally
+# ---------------------------------------------------------------------------
+add_executable(SilKitXcpServer src/XcpServer.cpp)
+
+target_include_directories(SilKitXcpServer PRIVATE ${SILKIT_DEMO_INCLUDE_DIR})
+
+target_link_libraries(SilKitXcpServer
+    PRIVATE
+        SilKit::SilKit
+        xcplite::xcplite
+)
+
+# ---------------------------------------------------------------------------
 # Compiler warnings
 # ---------------------------------------------------------------------------
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")

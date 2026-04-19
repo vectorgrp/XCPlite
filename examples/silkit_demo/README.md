@@ -10,17 +10,25 @@ There are some tunable parameter to demonstrate thread-safe calibration and para
 Compared to other XCP integration examples, this demo focuses on 2 special aspects:
 
 - Simulation time vs. real time: The demo can be configured to use either the virtual simulation time (which advances non-realtime in fixed steps) or real wall-clock time for XCP event timestamps. 
-- Multi application support: The demo can be run with either separate XCP servers for participants, or a single XCP server in multi-application shared memory mode for both participants.
+- Multi application support: The demo can be run with either separate XCP servers for participants, or a single XCP server in multi-application shared memory mode used for both participants (default).
 
-For distributed simulations on multiple machines, there will be one XCP server per machine.  
+The XCP server can be realized as a separate participant (in `XcpServer.cpp`) or integrated into the participants.  
+The participant started first automatically becomes the XCP server.
 
+For distributed simulations on multiple machines, there has to be one XCP server per machine.  
 
 
 ## Single or Multi Application Mode
 
-### Option 1 
+Default option settings are non real-time with a single separate XCP server participant and XCP in multi application mode.    
+For the other options you need to change the source code (remove propagating the simulated time and modify the XCP mode given to XcpServerInit as appropriate).
+Using multi application mode requires to compile the XCP library in shared memory mode (#define `OPTION_SHM_MODE` in xcplib_cfg.h).  
+Note that the multi application mode is still in experimental state yet and only supported on POSIX-compliant platforms (Linux, macOS, QNX), not on Windows.
 
-To separate XCP servers for each participant:
+
+### Option 1 - Separate XCP servers for each participant
+
+Separate XCP servers for each participant:
 
 | Executable            | XCP server port |
 |-----------------------|-----------------|
@@ -29,19 +37,16 @@ To separate XCP servers for each participant:
 
 This option requires to setup 2 different XCP client devices in CANape, one for each participant.  
 
-### Option 2
+### Option 2 - Single XCP server in multi-application shared memory mode
 
 A single XCP server in multi-application shared memory mode for all participants on the same machine.  
 The XCP server port is then fixed to standard XCP port 5555.  
 
-This option needs only only XCP client device in CANape, which can access signals and parameters from all participants.  
+This option needs to configure only one XCP client in the XCP tool (e.g. CANape device), which can access signals and parameters from all participants.  
 The A2L files for the participants are automatically merged and all symbols get prefixed with the participant name (e.g., `Publisher._temperature` and `Subscriber._temperature`) to avoid name clashes.
 
-This requires to compile the XCP library in multi-application shared memory mode (#define `OPTION_SHM_MODE` in xcplib_cfg.h).  
-The participant that starts first becomes the XCP server, the other participants automatically detect the running server and connect to it in shared memory mode. There is not central registry, controller or daemon needed — the participants discover each other and establish the shared memory connection automatically.  
-There are no performance penalties compared to the single-application mode, because the shared memory mode uses the same lock-less mechanisms for data acquisition and calibration. The only side effect is, that the applications share a few cache lines for the data acquisition queue and calibration RCU.  
-
-Note that the XCPlite multi application shared memory mode is only supported on POSIX-compliant platforms (Linux, macOS, QNX) and not on Windows, and is still in experimental state.
+Without a dedicated XCP server participant, the user participant that starts first becomes the XCP server, the other participants automatically detect the running XCP server and connect to it in shared memory mode. 
+There are no performance penalties compared to the single-application mode, because the shared memory mode uses the same lock-less mechanisms for data acquisition and calibration. The only side effect is, that the applications share a few cache lines for the data acquisition queue and the calibration RCU.  
 
 See the documentation of XCPlite SHM mode (in docs/SHM.md) for more details on the multi-application shared memory mode.  
 
@@ -105,87 +110,155 @@ There is a build script `build.sh` that does the above with some default paths �
 
 ### Quick start (macOS)
 
-On macOS, `run.sh` opens all four required Terminal.app windows automatically:
-
-```bash
-./run.sh              # default: 1ms steps, slow throttle (2 steps/s)
-./run.sh -f           # as fast as possible
-./run.sh -r           # approximately real time (AnimationFactor=1.0)
-./run.sh -d 10000     # 10ms steps, slow throttle
-./run.sh -d 10000 -f  # 10ms steps, as fast as possible
-./run.sh -d 10000 -r  # 10ms steps, approximately real time
-./run.sh -h           # show help
-```
-
-| Option | Description |
-|--------|-------------|
-| `-d <us>` | Simulation step duration in microseconds (default: `1000` = 1 ms) |
-| `-f` | Run as fast as possible — removes all throttling |
-| `-r` | Run in approximately real time — uses SIL Kit `AnimationFactor=1.0` via a generated participant config file |
-
-`-f` and `-r` are mutually exclusive.
-
+On macOS, `run.sh` opens all required Terminal.app windows automatically.  
 By default SIL Kit slows the simulation to approximately 2 steps per second so that log output stays readable. Pass `-f` when you want maximum throughput or `-r` for real-time execution.
 
 ### Manual start
 
-Open **four** separate terminals. All commands are relative to the silkit_demo directory.
+Open separate terminals. All commands are relative to the silkit_demo directory.
 
-**Terminal 1 — SIL Kit Registry:**
+**Terminal 0 — SIL Kit Registry:**
 
 ```bash
 /path/to/sil-kit/_build/debug/Debug/sil-kit-registry
-/Users/Rainer.Zaiser/git/sil-kit/_build/debug/Debug/sil-kit-registry
+# Example: /Users/Rainer.Zaiser/git/sil-kit/_build/debug/Debug/sil-kit-registry
 ```
 
-**Terminal 2 — Publisher** (XCP on TCP 5555):
+**Terminal 1 — XCP Server participant** 
+
+Start the XCP server participant. Default is (XCP on UDP, port 5555):
+
+```bash
+./build/SilKitXcpServer
+```
+
+
+**Terminal 2 — Demo Publisher participant**:
 
 ```bash
 ./build/SilKitDemoPublisher
-/Users/Rainer.Zaiser/git/XCPlite-RainerZ/examples/silkit_demo/
 # fast
-build/SilKitDemoPublisher --sim-step-duration 10000 --fast
+# ./build/SilKitDemoPublisher --sim-step-duration 10000 --fast
 # realtime
-build/SilKitDemoPublisher --sim-step-duration 10000 --config silkit_participant_cfg.json
-
+# ./build/SilKitDemoPublisher --sim-step-duration 10000 --config silkit_participant_cfg.json
 ```
 
-**Terminal 3 — Subscriber** (XCP on TCP 5556):
+**Terminal 3 — Demo Subscriber participant**:
 
 ```bash
 ./build/SilKitDemoSubscriber
-/Users/Rainer.Zaiser/git/XCPlite-RainerZ/examples/silkit_demo/
 #fast
-build/SilKitDemoSubscriber --sim-step-duration 10000 --fast
+# ./build/SilKitDemoSubscriber --sim-step-duration 10000 --fast
 # realtime
-build/SilKitDemoSubscriber --sim-step-duration 10000 --config silkit_participant_cfg.json
+# ./build/SilKitDemoSubscriber --sim-step-duration 10000 --config silkit_participant_cfg.json
 ```
 
-**Terminal 4 — System Controller** (starts synchronized simulation):
+**Terminal 4 — System Controller** 
+
+Starts synchronized simulation:  
 
 ```bash
-/path/to/sil-kit/_build/debug/Debug/sil-kit-system-controller Publisher Subscriber
-/Users/Rainer.Zaiser/git/sil-kit/_build/debug/Debug/sil-kit-system-controller Publisher Subscriber
+/path/to/sil-kit/_build/debug/Debug/sil-kit-system-controller XcpServer Publisher Subscriber
+# Example: /Users/Rainer.Zaiser/git/sil-kit/_build/debug/Debug/sil-kit-system-controller XcpServer Publisher Subscriber
 ```
 
 The `--sim-step-duration <us>` and `--fast` flags can be passed directly to both participant binaries when starting manually.
 
-### Autonomous mode (no system controller needed)
+
+**Terminal 5 — Test**
+
+Check status of the XCP server:
 
 ```bash
-# Terminal 1
-/path/to/sil-kit/_build/debug/Debug/sil-kit-registry
+../../build/shmtool status -v
 
-# Terminal 2
-./build/SilKitDemoPublisher --async --autonomous
+/xcpdata mmap found, size = 32768 bytes
+================================================================================
+  magic              : 0x5843504C4954455F  (valid XCPLITE_)
+  version            : 1.0.0
+  declared size      : 31208 bytes  (this build: 31208)
+  leader pid         : 84680
+  app count          : 3 / 8
+  A2L finalized      : yes
+  A2L finalize req'd : no
+--------------------------------------------------------------------------------
+  App 0:  XcpServer [server] epk=V1.0  pid=84680  [leader]
+          a2l_name=XcpServer_include_V1.0.a2l  finalized=yes  alive_counter=0
+--------------------------------------------------------------------------------
+  App 1:  Publisher  epk=V1.7  pid=84745  
+          a2l_name=Publisher_include_V1.7.a2l  finalized=yes  alive_counter=1
+--------------------------------------------------------------------------------
+  App 2:  Subscriber  epk=V1.7  pid=84763  
+          a2l_name=Subscriber_include_V1.7.a2l  finalized=yes  alive_counter=1
+--------------------------------------------------------------------------------
+SHM Header:
+  magic=0x5843504C4954455F, version=010000, size=31208
+  leader_pid=84680, app_count=3, a2l_finalized=1, a2l_finalize_requested=0
+  ecu_epk='a9eb2df2261d400e'
+Apps (3):
+  [0] 'XcpServer', epk='V1.0', alive pid=84680 leader server, init_mode=8A, a2l_name='XcpServer_include_V1.0.a2l', alive_counter=0
+  [1] 'Publisher', epk='V1.7', alive pid=84745, init_mode=82, a2l_name='Publisher_include_V1.7.a2l', alive_counter=1
+  [2] 'Subscriber', epk='V1.7', alive pid=84763, init_mode=82, a2l_name='Subscriber_include_V1.7.a2l', alive_counter=1
+Events (4):
+  [0] 'DoWorkSync', cycle_ns=0, index=0, app_id=2, daq_first=65535, flags=0x00
+  [1] 'Gps', cycle_ns=0, index=0, app_id=2, daq_first=65535, flags=0x00
+  [2] 'Temp', cycle_ns=0, index=0, app_id=2, daq_first=65535, flags=0x00
+  [3] 'DoWorkSync', cycle_ns=0, index=0, app_id=1, daq_first=65535, flags=0x00
+CalSegs (2):
+  [0] 'epk', size=32, app_id=0, seg_num=0
+  [1] 'kParameters', size=24, app_id=1, seg_num=1
 
-# Terminal 3
-./build/SilKitDemoSubscriber --async --autonomous
+```
+
+
+Use the test XCP client (see tools/xcpclient)to verify the XCP server is running, A2L file can be uploaded and parsed, and symbols are visible:
+
+```bash
+
+xcpclient --upload-a2l --udp  --list-mea .   --list-cal .
+
+Calibration variables:
+ Publisher.kParameters.counter_max 0:80010000  = 1000
+ Publisher.kParameters.delay_us 0:80010004  = 1000
+ Publisher.kParameters.signal_amplitude 0:80010008 = 1
+ Publisher.kParameters.use_simulated_time 0:80010010  = 1
+
+
+Measurement variables:
+ Publisher._counter 3:0x00C00000 event 3 2 byte unsigned
+ Publisher._temperature 4:0x00C00000 event 3 8 byte float
+ Subscriber._counter 3:0x00000120 event 0 2 byte unsigned
+ Subscriber._temperature 3:0x00800140 event 2 8 byte float
+ Publisher._gps_data.latitude 5:0x00C00000 event 3 8 byte float
+ Publisher._gps_data.longitude 5:0x00C00008 event 3 8 byte float
+ Publisher._gps_data.signal 5:0x00C00010 event 3 8 byte float
+ Subscriber._gps_data.latitude 3:0x00400128 event 1 8 byte float
+ Subscriber._gps_data.longitude 3:0x00400130 event 1 8 byte float
+ Subscriber._gps_data.signal 3:0x00400138 event 1 8 byte float
+```
+
+
+Use CANape:
+
+The are 2 different CANape projects included:
+
+```
+silkit_demo/
+├── CANape      # CANape project with 2 separate XCP devices for Publisher and Subscriber
+├── CANape_SHM  # CANape project with a single XCP device for multi application shared memory mode
 ```
 
 ---
 
 ## SIL Kit Architecture and API
+
+See the sil-kit repository and documentation for more details on the architecture and API of SIL Kit:
+https://github.com/vectorgrp/sil-kit
+
+Here is the link to the original SIL Kit Publisher/Subscriber example:
+https://github.com/vectorgrp/sil-kit/tree/main/Demos/communication/PubSub
+
+
 
 ### Core Concepts
 
@@ -281,48 +354,23 @@ Use `--async` when you don't need deterministic co-simulation time (e.g., for re
 ### Data Flow and XCP Integration
 
 ```
-Publisher process                    Subscriber process
-─────────────────                    ──────────────────
-DoWorkSync(now)                      [arrival callback fires]
-  │                                        │
-  ├─ PublishGPSData()                      ├─ gpsData decoded
-  │    └─ _gpsPublisher->Publish(bytes)    ├─ _latitude = ...
-  │          │                             └─ DaqTriggerEventExt(GpsReceived, this)
-  │          └── SIL Kit registry ────────────────────────────────────────►
+Publisher process                      Subscriber process
+─────────────────                      ──────────────────
+DoWorkSync(now)                        [arrival callback fires]
+  │                                           │
+  ├─ PublishGPSData()                         ├─ gps_data decoded
+  │    └─ _gpsPublisher->Publish(gps_data)    └─ DaqTriggerEventExt(GpsReceived, this)
   │
   └─ DaqTriggerEventExt(PublisherTask, this)
-       └─ XCP DAQ captures _latitude, _longitude, _temperatur
+       └─ XCP DAQ captures gps_data
 ```
 
 - XCP measurement on the **publisher** side is **time-triggered** (every simulation step).
 - XCP measurement on the **subscriber** side is **event-triggered** (on each incoming message).
-- Both run independent XCP servers (ports 5555 and 5556) so CANape can connect to each separately.
 
 ---
 
-## XCP Signals
 
-### Publisher (port 5555)
-
-| Signal name        | Type   | Description                  |
-|--------------------|--------|------------------------------|
-| `_latitude`    | double | GPS latitude in degrees      |
-| `_longitude`   | double | GPS longitude in degrees     |
-| `_temperatur` | double | Temperature in Celsius        |
-
-DAQ event: `PublisherTask` — triggered once per simulation step.
-
-### Subscriber (port 5556)
-
-| Signal name        | Type   | Description                       |
-|--------------------|--------|-----------------------------------|
-| `_latitude`    | double | Received GPS latitude in degrees  |
-| `_longitude`   | double | Received GPS longitude in degrees |
-| `_temperatur` | double | Received temperature in Celsius   |
-
-DAQ events: `GpsReceived`, `TempReceived` — triggered in the data receive callbacks.
-
----
 
 ## Project structure
 
@@ -336,6 +384,7 @@ silkit_demo/
 │   ├── SignalHandler.hpp      # Signal handling helper (bundled)
 │   └── PubSubDemoCommon.hpp   # Shared data types and serialization
 └── src/
-    ├── PublisherDemo.cpp   # Publisher with XCP instrumentation
-    └── SubscriberDemo.cpp  # Subscriber with XCP instrumentation
+    ├── XcpServer.cpp   # XCP server participant
+    ├── PublisherDemo.cpp   # Publisher demo with XCP instrumentation
+    └── SubscriberDemo.cpp  # Subscriber demo with XCP instrumentation
 ```

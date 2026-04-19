@@ -89,8 +89,8 @@ class Subscriber : public ApplicationBase {
 
 int main(int argc, char **argv) {
 
-    // Initialize XCP server for measurement on TCP port 5556 or SHM mode server on 5555, depending on the build configuration
-    XcpServerInit("Subscriber", "V1.7", 5556);
+    // Initialize XCP server
+    XcpServerInit("Subscriber", "V1.7", 5556, XCP_MODE_SHM);
 
     Arguments args;
     args.participantName = "Subscriber";

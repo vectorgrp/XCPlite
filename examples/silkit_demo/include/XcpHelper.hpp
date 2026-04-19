@@ -69,9 +69,6 @@ constexpr uint16_t OPTION_SERVER_PORT = 5555;          // Port
 constexpr uint16_t OPTION_QUEUE_SIZE = (1024 * 32);    // Size of the queue in bytes, should be large enough to cover at least 10ms of expected traffic
 constexpr int OPTION_LOG_LEVEL = 5;                    // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
 
-// XCP mode:
-constexpr uint8_t OPTION_XCP_MODE = (XCP_MODE_PERSISTENCE | XCP_MODE_SHM_AUTO); // XCP single application server mode
-
 // A2L generation mode:
 constexpr uint8_t OPTION_A2L_MODE = (A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS);
 
@@ -79,17 +76,22 @@ constexpr uint8_t OPTION_A2L_MODE = (A2L_MODE_WRITE_ONCE | A2L_MODE_FINALIZE_ON_
 // name : participant name, used as XCP slave name and A2L file base name
 // epk  : software version identifier string (e.g. "1.0")
 // port : TCP port for the XCP server
-// Note:
-// The XCP server is initialized in SHM_AUTO mode, which means the first participant will be the XCP server, the others switch to shared memory multi application mode
-// This requires the XCP library to be compiled in multi application mode (OPTION_SHM_MODE)
-inline void XcpServerInit(const std::string &name, const std::string &epk, uint16_t port) {
+// mode:
+//   XCP_MODE_LOCAL     : Disable multi application mode, create an XCP server on the specified port
+//   XCP_MODE_SHM       : Enable multi application mode, do not attempt to become the XCP server
+//   XCP_MODE_SHM_AUTO  :  Enable multi application mode, the first participant creates an XCP server on the specified port, the others switch to shared memory communication
+//   XCP_MODE_SERVER    : Enable multi application mode, this application creates an XCP server on the specified port
+// XCP_MODE_SHM_XXX requires the XCP library to be compiled in multi application mode (OPTION_SHM_MODE)
+inline void XcpServerInit(const std::string &name, const std::string &epk, uint16_t port, uint8_t mode) {
 
     XcpSetLogLevel(OPTION_LOG_LEVEL);
 
     // XcpInit(name.c_str(), epk.c_str(),  XCP_MODE_LOCAL );
     // Xcp will automatically fall back to normal mode, when libxcplite is not compiled with OPTION_SHM_MODE
     // In this case the ports must be unique per participant and there is one XCP server per participant
-    XcpInit(name.c_str(), epk.c_str(), OPTION_XCP_MODE);
+
+    mode |= (XCP_MODE_PERSISTENCE);
+    XcpInit(name.c_str(), epk.c_str(), mode);
     ApplXcpRegisterGetClockCallback(XcpSilKitClock::getClockCallback);
 
     if (XcpGetInitMode() & XCP_MODE_SHM) {
