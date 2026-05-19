@@ -1,14 +1,15 @@
 # no_a2l_demo Demo
 
-Demonstrates XCPlite usage without runtime on-target A2L database generation.  
-Not stable yet.  
+Demonstrates XCPlite usage without runtime on-target A2L database generation.
 
-This allows to build libxcplite without A2L generation and persistence support
-Reduces the code size and dependencies (file system) for use cases on microcontrollers RTOS like FreeRTOS, Zephyr, ThreadX, ...
+libxcplite can be built without A2L generation and persistence support, reducing code size
+and file system dependencies for microcontroller / RTOS targets (FreeRTOS, Zephyr, ThreadX, ...).
+The configuration is applied via `xcplib_no_a2l_cfg.h` using the `XCPLIB_CFG_OVERRIDE` mechanism —
+see the [Library Configuration Override](#library-configuration-override) section below.
 
-The A2L database creator and ELF/DWARF reader in the xcpclient tool are part of the solution to replace the on-target A2L generation. 
-The rust crate for the xcpclient tool can now be found in the XCPlite repository tools folder.  
-See comments in main.c.  
+The A2L database is instead generated offline by the `xcpclient` tool (ELF/DWARF → A2L converter),
+which is part of this repository under `tools/xcpclient/`.
+See comments in `main.c`.
 
 
 ## The XCPlite Build Time A2L Generation Concept
@@ -24,14 +25,14 @@ The test XCP client in the xcpclient tool can work with the ELF file directly, n
 
 An XCPlite specific A2L creator/writer with ELF/DWARF reader is built into the xcpclient tool.  
 
-Step 1: A2L template generation:
+Option 1: A2L template generation:
 
-- Creates a complete A2L template with IF_DATA, memory segments and events from ELF by detecting static segment and event marker variables created by the XCPlite code instrumentaion
+- Creates a complete A2L template with IF_DATA, epk version,memory segments and events from ELF by detecting static segment and event marker variables created by the XCPlite code instrumentaion
 
 
-Step 2: A2L content generation:
+Option 2: Full A2L content generation:
 
-- Add  calibration parameters
+- Add calibration parameters
     The reference pages of all calibration parameters must be in addressable (4 GB - 32bit) global memory (.bss segment must be in this range)
     Detect calibration parameters by the address of their default/reference page by naming convention and segment marker variable
     XCP needs to be configured for absolute calibration segment addressing
@@ -46,66 +47,91 @@ Content generation step 2 can alternatively be done manually, with any other A2L
 
 
 
-## Using the xcpclient tool for A2L generation
+## Library Configuration Override
 
+The default configuration options for xcplite are set in `src/xcplib_cfg.h`.
+All defaults are defined there; nothing needs to be edited for a no-A2L build.
 
-Configuration options for XCPlite are set in src/xcplib_cfg.h, see comments in the file for details and available options
+For this use case a dedicated override file `src/xcplib_no_a2l_cfg.h` adjusts only the settings that
+differ from the defaults:
 
-```C
-
-// Example configuration for libxcplite (xcplib_cfg.h) for 32 bit microcontrollers
-// No file system needed: no on target A2L generation, no binary calibration segment persistence file
-// TCP support disabled
-// Memory segments disabled, no EPK segment and calibration access is handled by calibration parameter blocks
-// Address extension 0 is absoluted memory addressing
-// 32 bit queue selected
-//
-//  #define OPTION_CAL_SEGMENTS_ABS
-//  #undef OPTION_CAL_SEGMENT_EPK
-//  #undef OPTION_ENABLE_PERSISTENCE
-//  #undef OPTION_ENABLE_TCP
-//  #define OPTION_ENABLE_UDP
-//  #define OPTION_QUEUE_32
-//  #undef OPTION_ENABLE_A2L_GENERATOR
-//  #undef OPTION_ENABLE_A2L_UPLOAD
-//  #undef OPTION_ENABLE_ELF_UPLOAD
-
-
+```c
+// src/xcplib_no_a2l_cfg.h — lean override, only differences from xcplib_cfg.h defaults
+#undef  OPTION_ENABLE_PERSISTENCE       // no file system needed on bare-metal / RTOS targets
+#define OPTION_CAL_SEGMENTS_ABS         // absolute calibration addressing (required for the A2L creator)
+#undef  OPTION_CAL_SEGMENT_EPK          // no EPK segment
+#undef  OPTION_QUEUE_64_VAR_SIZE
+#undef  OPTION_QUEUE_64_FIX_SIZE
+#define OPTION_QUEUE_32                 // 32-bit queue for embedded / RTOS targets
+#undef  OPTION_ENABLE_A2L_GENERATOR     // no on-target A2L generation
+#undef  OPTION_ENABLE_A2L_UPLOAD        // no A2L upload via XCP
+#undef OPTION_ENABLE_ELF_UPLOAD         // no ELF upload via XCP, A2L creator works with ELF file on disk as well
 ```
 
+The override is applied at the end of `xcplib_cfg.h` via:
+
+```c
+#ifdef XCPLIB_CFG_OVERRIDE
+#include XCPLIB_CFG_OVERRIDE
+#endif
+```
+
+Pass the override file to xcplite at compile time:
+
+```cmake
+# CMakeLists.txt
+target_compile_definitions(xcplite PRIVATE "XCPLIB_CFG_OVERRIDE=\"xcplib_no_a2l_cfg.h\"")
+```
+
+This is already set by the `XCPLITE_BUILD_NO_A2L_DEMO=ON` CMake option.
+The same pattern can be used to create any other application-specific configuration override.
+
+> **Note:** The no_a2l_demo must be built in isolation because the override disables the A2L generator that other examples depend on. A dedicated build directory avoids cache conflicts.
+
+
+## Using the xcpclient tool for A2L generation
+
 ```bash
+# Build the no_a2l_demo (isolated build directory build_no_a2l/)
+./build.sh no_a2l
 
-# Build the no_a2l_demo example:
-# The other examples depend on the A2L generator and upload features, so they won't build with this configuration
-#  Clean
-rm build/CMakeCache.txt
-cmake --build build --target clean
-#  Configure
-cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_FLAGS="-DXCPLIB_NO_A2L"
-#  Build
-cmake --build build --target no_a2l_demo
+# Or directly with CMake
+cmake -B build_no_a2l -S . -DCMAKE_BUILD_TYPE=Debug \
+      -DXCPLITE_BUILD_NO_A2L_DEMO=ON -DXCPLITE_BUILD_EXAMPLES=OFF
+cmake --build build_no_a2l
 
-# Generate the A2L file for the no_a2l_demo example from its ELF file
+# Generate an A2L file for the no_a2l_demo application from its ELF file
+# Add all variables
 xcpclient  --offline --elf no_a2l_demo.elf --a2l no_a2l_demo.a2l --create-a2l --verbose 1
-xcpclient --udp --dest-addr 192.168.8.135:555  --offline --elf no_a2l_demo.elf  --a2l no_a2l_demo.a2l  --create-a2l // Write IP address and protocol to generated A2L file
+# Add the given IP address:port and protocol to the generated A2L file
+xcpclient --udp --dest-addr 192.168.8.135:555  --offline --elf no_a2l_demo.elf  --a2l no_a2l_demo.a2l  --create-a2l 
+# Filter on specific variables and compilation units
+xcpclient --offline --elf no_a2l_demo.elf --a2l no_a2l_demo.a2l --create-a2l --elf-unit-filter main --elf-var-filter "^(counter|params)" 
 
-# Upload ELF file from target (requires OPTION_ENABLE_ELF_UPLOAD)
-xcpclient --udp --dest-addr 192.168.8.135  --elf no_a2l_demo.elf --upload-elf  --create-a2l
+
+# Connect to the XCP on UDP server on 192.168.8.135:5555, upload ELF file from target (requires OPTION_ENABLE_ELF_UPLOAD) and create the A2L file
+xcpclient --udp --dest-addr 192.168.8.135:5555  --elf no_a2l_demo.elf --upload-elf  --create-a2l
+
+# Measurement of variable global_counter with the ELF file only
+xcpclient --udp --dest-addr=192.168.8.135:5555 --elf no_a2l_demo.elf --elf-var-filter "global_counter" --mea ".*" --time 5 --csv no_a2l_demo.csv
 
 ```
 
 
 ## Other A2L generation options
 
-### Using Vector CANape
+### Using Vector CANape integrated A2L editor and ELF file support
 
 Drop the template generated by xcpclient into CANape and create a new XCP on Ethernet device.  
 Enable access to the ELF file in the device configuration.  
 Use the A2L editor to add individual measurement parameters.  
+For calibration segments or blocks, add the complete default value structure as an INSTANCE of TYPEDEF_STRUCTURE or add the variables as CHARACTERISTIC.  
+
 
 ### Using Vector A2L-Toolset A2L-Creator to add measurement and calibration metadata
 
-The example code contains some A2L creator metadata annotation to add metadata such as calibration variable limits and physical units
+The example code contains some A2L creator metadata annotation to add metadata such as calibration variable limits and physical units.  
+The A2L Creator is a commercial Vector product.  
 
 ### Using Open Source a2ltool
 
@@ -113,7 +139,7 @@ Example:
 Add the calibration segment 'params' and the measurement variable 'counter' to the A2L template:
 
 ```bash
-a2ltool  --update --measurement-regex "counter"  --characteristic-regex "params" --elffile  no_a2l_demo  --enable-structures --output no_a2l_demo no_a2l_demo 
+a2ltool  --update --measurement-regex "counter"  --characteristic-regex "params" --elffile  no_a2l_demo.elf  --enable-structures --output no_a2l_demo.a2l 
 ```
 
 
@@ -122,17 +148,8 @@ a2ltool  --update --measurement-regex "counter"  --characteristic-regex "params"
 
 ### TODO List and open issues
 
-- The xcpclient tool is a proof of concept yet
-    Could be made more robust
-    Make it more flexible by adding a regular expression filter to the xcpclient tool, allow to specify a list of compilation units, ...
-- Support relative calibration segment addressing
-    XCPlite is configured for relative calibration segment addressing as default, this needs to be changed to absolute addressing for the A2L creator to work
-    As long as all reference pages are in a 4 GB addressable range, there is no benefit of relative addressing
-    By convention, parameters always use address extension 0 ACFDD or CAFDD
-    Currently we preliminary use AAFDD, because the XCPlite macros for event triggering so not detect the calibration segment addressing mode and CANape can not handle ACFDD
-- Free standing parameters not in calibration segments
-    Not implemented yet, would probably need code macro annotations to detect them
-- Make sure the event trigger location and the variable location have the same CFA (have not seen any violations yet)
+- Add C++, name spaces, classes, member functions, ...
+- The A2L creator may create the BOOL conversion rule and detect the size of the bool type
 - Heap measurement variables
     The A2L creator can not handle heap variables yet
     Needs to detect trg__AAS or trg__AASD type and analyze the argument type of DaqTriggerEvent(), pointer to type
@@ -141,12 +158,7 @@ a2ltool  --update --measurement-regex "counter"  --characteristic-regex "params"
     The DAQ capture method does not work for TLS, need a ApplXcpGetTlsBaseAddress() function, maybe introduce AAST type
     Detect the base address of the TLS block, like it is done in ApplXcpGetBaseAddr()/xcp_get_base_addr() for the global variables
     The DaqCapture macros as an alternative, does not work yet
-- EPK
-    Detect if the target application has a EPK segment or not
-    Currently no EPK segment is generated, switched off in XCPlite
 - Function parameters
     Define a macro to declare function parameters as XCP_MEA, which spills them to stack
     A2L Creator ELF reader parser must detect the function parameters with the CFA offset in the stack frame
-- bool
-    The A2L creator must create a BOOL conversion rule and detect the size of the bool type
-- Support for C++, name spaces, classes, member functions, ...
+- Make sure the event trigger location and the variable location have the same CFA (not seen any violations yet)

@@ -137,6 +137,20 @@ struct Args {
     #[arg(long, default_value_t = usize::MAX)]
     elf_unit_limit: usize,
 
+    // --elf-var-filter
+    /// Regex pattern to filter variable names when registering from an ELF file.
+    /// Only variables whose names match the pattern are included in the A2L output.
+    /// If not specified (or empty), all variables are registered.
+    #[arg(long, default_value = "")]
+    elf_var_filter: String,
+
+    // --elf-unit-filter
+    /// Regex pattern to filter variables by their compilation unit (source file) name.
+    /// Only variables defined in compilation units whose name matches are included in the A2L output.
+    /// If not specified (or empty), variables from all compilation units are registered.
+    #[arg(long, default_value = "")]
+    elf_unit_filter: String,
+
     // --bin
     /// Specify the pathname of a binary file (Intel-HEX) for calibration parameter segment data
     #[arg(long, default_value = "")]
@@ -455,6 +469,8 @@ async fn xcp_client(
     elf_filename: String,
     upload_elf: bool,
     elf_idx_unit_limit: usize,
+    elf_var_filter: String,
+    elf_unit_filter: String,
     bin_filename: String,
     upload_bin: bool,
     download_bin: bool,
@@ -722,7 +738,7 @@ async fn xcp_client(
                 // Register all accessible variables and their types
                 // Skipped in --create-a2l-template mode; events and segments are still registered above
                 if !create_a2l_template {
-                    elf_reader.register_variables(&mut reg, segment_relative, verbose, elf_idx_unit_limit)?;
+                    elf_reader.register_variables(&mut reg, segment_relative, verbose, elf_idx_unit_limit, &elf_var_filter, &elf_unit_filter)?;
                 }
             }
 
@@ -1130,6 +1146,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
             args.elf,
             args.upload_elf,
             args.elf_unit_limit,
+            args.elf_var_filter,
+            args.elf_unit_filter,
             args.bin,
             args.upload_bin,
             args.download_bin,

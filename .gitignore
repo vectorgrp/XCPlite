@@ -6,6 +6,7 @@ clang_tidy
 # CANape artefacts
 *.hex 
 *.mf4
+*.csv
 *.cnaxml
 *.tmp
 *.fup

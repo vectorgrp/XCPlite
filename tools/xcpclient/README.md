@@ -75,6 +75,18 @@ Options:
       --elf-unit-limit <ELF_UNIT_LIMIT>
           Parse only compilations units <= n
 
+      --elf-var-filter <ELF_VAR_FILTER>
+          Regex pattern to filter variable names when registering from an ELF file.
+          Only variables whose names match the pattern are included in the A2L output.
+          If not specified (or empty), all variables are registered.
+          Example: --elf-var-filter "counter.*"
+
+      --elf-unit-filter <ELF_UNIT_FILTER>
+          Regex pattern to filter variables by their compilation unit (source file) name.
+          Only variables defined in compilation units whose name matches are included in the A2L output.
+          If not specified (or empty), variables from all compilation units are registered.
+          Example: --elf-cu-filter "my_module.*"
+
       --bin <BIN>
           Specify the pathname of a binary file (Intel-HEX) for calibration parameter segment data
 

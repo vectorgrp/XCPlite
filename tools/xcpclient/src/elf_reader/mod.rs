@@ -5,6 +5,7 @@
 #![allow(clippy::collapsible_else_if)]
 
 use indexmap::IndexMap;
+use regex::Regex;
 use std::error::Error;
 use std::ffi::OsStr;
 
@@ -366,7 +367,6 @@ impl ElfReader {
                         info!("  matches existing registry entry");
                     } else {
                         warn!("Calibration segment '{}' length does not match existing registry entry", seg_name);
-                        unimplemented!();
                     }
                 }
                 // Segment absolute addressing mode
@@ -568,10 +568,48 @@ impl ElfReader {
         Ok(())
     }
 
-    pub fn register_variables(&self, reg: &mut Registry, seg_relative: bool, verbose: usize, unit_idx_limit: usize) -> Result<(), Box<dyn Error>> {
+    pub fn register_variables(
+        &self,
+        reg: &mut Registry,
+        seg_relative: bool,
+        verbose: usize,
+        unit_idx_limit: usize,
+        name_filter: &str,
+        unit_filter: &str,
+    ) -> Result<(), Box<dyn Error>> {
         // Load debug information from the ELF file
         info!("===============================================================");
         info!("Registering variables:");
+
+        // Compile name filter regex if specified
+        let name_regex: Option<Regex> = if name_filter.is_empty() {
+            None
+        } else {
+            match Regex::new(name_filter) {
+                Ok(re) => {
+                    info!("Variable name filter: '{}'", name_filter);
+                    Some(re)
+                }
+                Err(e) => {
+                    return Err(format!("Invalid --elf-var-filter regex '{}': {}", name_filter, e).into());
+                }
+            }
+        };
+
+        // Compile compilation unit filter regex if specified
+        let unit_regex: Option<Regex> = if unit_filter.is_empty() {
+            None
+        } else {
+            match Regex::new(unit_filter) {
+                Ok(re) => {
+                    info!("Compilation unit filter: '{}'", unit_filter);
+                    Some(re)
+                }
+                Err(e) => {
+                    return Err(format!("Invalid --elf-unit-filter regex '{}': {}", unit_filter, e).into());
+                }
+            }
+        };
 
         // Iterate over variables
         for (var_name, var_infos) in &self.debug_data.variables {
@@ -586,6 +624,13 @@ impl ElfReader {
                 || var_name.starts_with("trg__")
             {
                 continue;
+            }
+
+            // Apply name filter
+            if let Some(ref re) = name_regex {
+                if !re.is_match(var_name) {
+                    continue;
+                }
             }
 
             if var_infos.is_empty() {
@@ -622,6 +667,14 @@ impl ElfReader {
                 // @@@@ TODO: Create only variables from specified compilation unit
                 if var_info.unit_idx > unit_idx_limit {
                     continue;
+                }
+
+                // Apply compilation unit filter
+                if let Some(ref re) = unit_regex {
+                    let cu_name = self.debug_data.make_simple_unit_name(var_info.unit_idx).unwrap_or_else(|| format!("{}", var_info.unit_idx));
+                    if !re.is_match(&cu_name) {
+                        continue;
+                    }
                 }
 
                 let var_function = if let Some(f) = var_info.function.as_ref() { f.as_str() } else { "" };
