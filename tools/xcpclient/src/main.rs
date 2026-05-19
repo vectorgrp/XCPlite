@@ -40,30 +40,7 @@ use clap::Parser;
 #[derive(Parser, Debug)]
 #[command(name = "xcpclient")]
 #[command(about = concat!("XCP client v", env!("CARGO_PKG_VERSION"), " for testing XCP servers and managing A2L and HEX files"))]
-#[command(long_about = concat!("XCP client v", env!("CARGO_PKG_VERSION"), " for testing XCP servers and managing A2L and HEX files.
-
-This tool can:
-- Connect to XCP on Ethernet servers via TCP or UDP and show information about the XCP protocol and the target ECU
-- Upload A2L files from XCP servers (GET_ID command)
-- Create A2L files from ELF/DWARF debug information including event and memory segment information obtained from the XCP server
-- Create A2L file templates for from a XCPlite ELF/DWARF
-- Fix A2L files with event and memory segment information from the XCP server
-- Read and write calibration variables (CAL)
-- Upload (from target) and download (to target) binary files (Intel-HEX) with calibration segment data
-- List available measurement variables and parameters with regex patterns
-- Test data acquisition (DAQ)
-- Execute test sequences
-
-Examples:
-  xcpclient --tcp --dest-addr 192.168.1.100 --port 5555 --upload-a2l
-  xcpclient --list-mea \"sensor.*\" --list-cal \"param.*\"
-  xcpclient --cal variable_name 42.5
-  xcpclient --mea \".*temperature.*\" --time 10
-  xcpclient --elf myprogram.elf --create-a2l
-  xcpclient --download-bin --bin test.hex
-  xcpclient --upload-bin --bin target_data.hex
-  xcpclient --elf myprogram.elf --create-a2l --offline --a2l my_a2l_file.a2l
-  xcpclient --test"))]
+#[command(long_about = concat!("XCP client v", env!("CARGO_PKG_VERSION"), " for testing XCP servers and managing A2L and HEX files"))]
 #[command(version)]
 struct Args {
     // -l --log-level
@@ -129,6 +106,13 @@ struct Args {
     /// Insert all visible measurement and calibration variables from ELF file if specified with --elf or --upload-elf.
     #[arg(long, default_value_t = false)]
     create_a2l: bool,
+
+    // --create-a2l-template
+    /// Build a minimal A2L template from XCP server event and memory segment information only.
+    /// No variables or types are registered; the result is a skeleton A2L file.
+    /// Requires that the XCP server supports the GET_EVENT_INFO and GET_SEGMENT_INFO commands.
+    #[arg(long, default_value_t = false)]
+    create_a2l_template: bool,
 
     // --fix-a2l
     /// Update the given A2L file with XCP server information about events and memory segments.
@@ -466,6 +450,7 @@ async fn xcp_client(
     a2l_filename: String,
     upload_a2l: bool,
     create_a2l: bool,
+    create_a2l_template: bool,
     fix_a2l: bool,
     elf_filename: String,
     upload_elf: bool,
@@ -644,8 +629,14 @@ async fn xcp_client(
         // Read segment and event information obtained from the XCP server into registry
         // Add measurement and calibration variables from ELF file if specified
         // Addressing scheme may be XCPLITE__ACSDD or XCPLITE__CASDD depending on the target configuration
-        else if create_a2l || !elf_filename.is_empty() || upload_elf {
-            let mode = if xcp_client.is_connected() {
+        else if create_a2l || create_a2l_template || !elf_filename.is_empty() || upload_elf {
+            let mode = if create_a2l_template {
+                if !elf_filename.is_empty() || upload_elf {
+                    "target XCP event/segment and ELF/DWARF event/segment information (template, no variables), online mode"
+                } else {
+                    "target XCP event/segment information only (template, no variables), online mode"
+                }
+            } else if xcp_client.is_connected() {
                 if !elf_filename.is_empty() || upload_elf {
                     "target XCP event/segment and ELF/DWARF variable and type information, online mode"
                 } else {
@@ -671,7 +662,7 @@ async fn xcp_client(
                 xcp_client.get_event_segment_info(&mut reg).await?;
             }
 
-            // Read binary file if specified and create calibration variables in segments and all global measurement variables
+            // Read ELF/DWARF information for events, segments and (unless --create-a2l-template) variables
             // Events and calibration segments found in the ELF file, must match the XCP server information if present
             // If not, they are created, but with dummy event id and segment number, which has to be fixed later !!!
             if !elf_filename.is_empty() || upload_elf {
@@ -729,7 +720,10 @@ async fn xcp_client(
                 elf_reader.register_event_locations(&mut reg, verbose)?;
 
                 // Register all accessible variables and their types
-                elf_reader.register_variables(&mut reg, segment_relative, verbose, elf_idx_unit_limit)?; // register only variables <= compilation unit 0
+                // Skipped in --create-a2l-template mode; events and segments are still registered above
+                if !create_a2l_template {
+                    elf_reader.register_variables(&mut reg, segment_relative, verbose, elf_idx_unit_limit)?;
+                }
             }
 
             // Write the registry to A2L file
@@ -1131,6 +1125,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             args.a2l,
             args.upload_a2l,
             args.create_a2l,
+            args.create_a2l_template,
             args.fix_a2l,
             args.elf,
             args.upload_elf,

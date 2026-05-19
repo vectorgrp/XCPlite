@@ -5,10 +5,11 @@ All notable changes to XCPlite are documented in this file.
 
 ## [V2.1.0]
 
-- Features and changes for RTOS like microcontroller operating systems
+- Improved support for microcontroller operating systems (freeRTOS, zephyr, ThreadX etc.)
+- freeRTOS demo using the POSIX-free mode with the new `_FREE_RTOS` option and `xcplib_rtos_cfg.h` configuration override file, to verify that no POSIX API leaks into the freeRTOS code paths before moving to a bare-metal target
 - Improved support for offline A2L creation from ELF files, file system dependency is now optional 
-- XCP event descriptor memory section to preregister events in XcpInit, for build time deterministic event numbers without .BIN file
-- The A2L generator in xcpclient can create XCP events from ELF file in offline mode, by inspecting the event descriptor memory section
+- XCP event and segment descriptor memory sections to preregister events and calibration segments/block in XcpInit, for deterministic event numbers without .BIN file
+- The A2L generator in xcpclient can create an A2L file template with XCP events and segments from the ELF file only, by inspecting the event and segment descriptor memory sections
 - Optional custom GET_ID to upload the ELF file instead of the A2L file
 - Addressing schema XCPLITE__AXSDD, memory access via callbacks, no calibration segment management 
 

@@ -1,5 +1,5 @@
 
-/* Created by xcp_client with ELF/DWARF information only,  offline mode - 2026-05-18 18:36:17 */
+/* Created by xcp_client with ELF/DWARF information only,  offline mode - 2026-05-19 13:37:28 */
 ASAP2_VERSION 1 71
 /begin PROJECT project_name ""
 /begin HEADER "" VERSION "1.0" PROJECT_NO XCPLITE__ACSDD /end HEADER
@@ -163,7 +163,7 @@ EPK "V101" ADDR_EPK 0x000302F8
 
 		/end DAQ
 
-		/begin XCP_ON_UDP_IP 0x0104 5555 ADDRESS "192.168.8.135" /end XCP_ON_UDP_IP
+		/begin XCP_ON_UDP_IP 0x0104 5555 ADDRESS "127.0.0.1" /end XCP_ON_UDP_IP
 
 /end IF_DATA
 
@@ -285,8 +285,9 @@ EPK "V101" ADDR_EPK 0x000302F8
 /begin INSTANCE params "" params 0x14CC8 /end INSTANCE
 
 /* Characteristic and Axis Groups */
-
 /begin GROUP Characteristics "" ROOT /begin SUB_GROUP params counter_control /end SUB_GROUP /end GROUP
+/begin GROUP params "" /begin REF_CHARACTERISTIC  params /end REF_CHARACTERISTIC /end GROUP
+/begin GROUP counter_control "" /begin REF_CHARACTERISTIC  counter_control /end REF_CHARACTERISTIC /end GROUP
 
 /end MODULE
 /end PROJECT

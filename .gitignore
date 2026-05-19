@@ -14,8 +14,9 @@ CANapeTmpMea.ini
 RecycleBin.ini
 
 
-# Examples .a2l and .bin files
+# Examples .a2l, *.elf and .bin files
 /*.a2l
+*.elf
 *.bin
 
 # Temporary files
@@ -33,3 +34,4 @@ test_bintool
 /shm_*.sh
 
 
+/hello_xcp.elf
