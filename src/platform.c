@@ -83,12 +83,33 @@ int _kbhit(void) {
 
 // Minimum granularity is one tick (1 ms at configTICK_RATE_HZ = 1000).
 // Sub-millisecond delays are rounded up to the next tick.
+//
+// vTaskDelay() must only be called from a running task (i.e. after
+// vTaskStartScheduler()).  When FREERTOS_POSIX_SIM is defined the demo
+// runs on a POSIX host, so calls that arrive before the scheduler starts
+// (e.g. from XcpEthServerInit() in main()) fall back to nanosleep().
 void sleepUs(uint32_t us) {
+#if defined(FREERTOS_POSIX_SIM)
+    if (xTaskGetSchedulerState() != taskSCHEDULER_RUNNING) {
+        struct timespec ts = {.tv_sec = 0, .tv_nsec = (long)us * 1000L};
+        nanosleep(&ts, NULL);
+        return;
+    }
+#endif
     TickType_t ticks = (us * configTICK_RATE_HZ) / 1000000UL;
     vTaskDelay(ticks == 0U ? 1U : ticks);
 }
 
-void sleepMs(uint32_t ms) { vTaskDelay(pdMS_TO_TICKS(ms == 0U ? 1U : ms)); }
+void sleepMs(uint32_t ms) {
+#if defined(FREERTOS_POSIX_SIM)
+    if (xTaskGetSchedulerState() != taskSCHEDULER_RUNNING) {
+        struct timespec ts = {.tv_sec = (long)ms / 1000L, .tv_nsec = (long)(ms % 1000UL) * 1000000L};
+        nanosleep(&ts, NULL);
+        return;
+    }
+#endif
+    vTaskDelay(pdMS_TO_TICKS(ms == 0U ? 1U : ms));
+}
 
 #elif defined(_WIN) // Windows
 

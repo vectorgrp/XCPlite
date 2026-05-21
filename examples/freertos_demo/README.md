@@ -70,9 +70,7 @@ The demo listens on **UDP port 5555**. Connect with CANape or any XCP-compatible
 This mode compiles xcplite itself with the FreeRTOS code paths active:
 
 ```bash
-cmake -B build_posixfree -S . \
-      -DXCPLITE_BUILD_FREERTOS_DEMO=ON \
-      -DFREERTOS_DEMO_POSIX_FREE=ON
+cmake -B build_posixfree -S . -DXCPLITE_BUILD_FREERTOS_DEMO=ON -DFREERTOS_DEMO_POSIX_FREE=ON
 cmake --build build_posixfree --target freertos_demo
 ./build_posixfree/examples/freertos_demo/freertos_demo
 ```

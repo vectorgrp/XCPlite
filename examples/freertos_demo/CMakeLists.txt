@@ -36,7 +36,12 @@ add_library(freertos_config INTERFACE)
 target_include_directories(freertos_config SYSTEM INTERFACE
     "${CMAKE_CURRENT_SOURCE_DIR}"   # FreeRTOSConfig.h lives here
 )
-target_compile_definitions(freertos_config INTERFACE projCOVERAGE_TEST=0)
+# _GNU_SOURCE is required so that the FreeRTOS GCC/POSIX port (port.c) can
+# see POSIX symbols such as clockid_t, locale_t, CLOCK_MONOTONIC, SIG_BLOCK,
+# struct sigaction, PTHREAD_STACK_MIN, sigwait(), etc.  Because freertos_config
+# is an INTERFACE library consumed by the kernel build itself, any definition
+# placed here is automatically applied to freertos_kernel_port.
+target_compile_definitions(freertos_config INTERFACE projCOVERAGE_TEST=0 _GNU_SOURCE)
 
 FetchContent_MakeAvailable(freertos_kernel)
 

@@ -1,31 +1,46 @@
 
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.14)
 
-project(xcplite VERSION 1.2.0 LANGUAGES C CXX)
+project(xcplite VERSION 2.1.0 LANGUAGES C CXX)
 
 # Conditional building of examples based on project context
-# When xcplite is the top-level project (standalone build), examples are built by default.
-# When xcplite is included as a subproject (e.g., via add_subdirectory or FetchContent),
-# examples are disabled by default to avoid polluting the parent project with unnecessary targets.
-# CMAKE_SOURCE_DIR = root of the entire CMake build tree (top-level project)
-# PROJECT_SOURCE_DIR = root of this project (xcplite)
-# If they're equal, xcplite is being built standalone
+# When xcplite is the top-level project (standalone build), examples are built by default,
+# UNLESS a dedicated demo option (e.g. XCPLITE_BUILD_FREERTOS_DEMO) is passed explicitly —
+# in that case the default flips to OFF so only the requested demo is configured.
+# When xcplite is included as a subproject (add_subdirectory / FetchContent),
+# examples are always disabled by default.
 if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
-    set(XCPLITE_BUILD_EXAMPLES_DEFAULT ON)
+    # If the user passed -DXCPLITE_BUILD_FREERTOS_DEMO=ON on the command line, default
+    # the general examples flag to OFF so no other examples are configured.
+    if(DEFINED XCPLITE_BUILD_FREERTOS_DEMO AND XCPLITE_BUILD_FREERTOS_DEMO)
+        set(XCPLITE_BUILD_EXAMPLES_DEFAULT OFF)
+    else()
+        set(XCPLITE_BUILD_EXAMPLES_DEFAULT ON)
+    endif()
 else()
     set(XCPLITE_BUILD_EXAMPLES_DEFAULT OFF)
 endif()
 
-# Create a user-configurable CMake option for building examples
-# Users can override the default via: cmake -DXCPLITE_BUILD_EXAMPLES=ON/OFF
-# This value is stored in CMakeCache.txt and persists across CMake runs
-option(XCPLITE_BUILD_EXAMPLES "Build xcplite example targets" ${XCPLITE_BUILD_EXAMPLES_DEFAULT})
+# =============================================================================
+# Build options
+# All XCPLITE_* options can be passed on the cmake command line:
+#   cmake -B build -S . -D<OPTION>=ON|OFF
+# =============================================================================
+option(XCPLITE_BUILD_EXAMPLES      "Build xcplite example targets"                                          ${XCPLITE_BUILD_EXAMPLES_DEFAULT})
+option(XCPLITE_BUILD_BPF_DEMO      "Build bpf_demo (requires libbpf; Linux only)"                          ON)
+option(XCPLITE_BUILD_TESTS         "Build xcplite test targets"                                             OFF)
+option(XCPLITE_BUILD_TOOLS         "Build tool targets: ptptool, shmtool, xcpdaemon"                        OFF)
+option(XCPLITE_BUILD_RUST_TOOLS    "Build Rust tool targets: xcpclient, bintool (requires cargo)"           OFF)
+option(XCPLITE_BUILD_NO_A2L_DEMO   "Build no_a2l_demo with no-A2L config (use an isolated build directory)" OFF)
+option(XCPLITE_BUILD_FREERTOS_DEMO "Build freertos_demo (downloads FreeRTOS-Kernel via FetchContent)"       OFF)
 
 # Find required packages
 find_package(Threads REQUIRED)
 
-# Enable compile commands for VS Code IntelliSense
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+# Enable compile commands for VS Code IntelliSense (standalone builds only; not propagated to consumers)
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+    set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+endif()
 
 # Set default install prefix to build/install for local staging (avoid system installation)
 # Users can override with: cmake -DCMAKE_INSTALL_PREFIX=/usr/local
@@ -49,21 +64,6 @@ else()
 endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-
-# Create a user-configurable CMake option for building test targets
-# Users can override via: cmake -DXCPLITE_BUILD_TESTS=ON/OFF
-# This value is stored in CMakeCache.txt and persists across CMake runs
-option(XCPLITE_BUILD_TESTS "Build xcplite test targets" OFF)
-
-# Create a user-configurable CMake option for building tool targets
-# (ptptool, shmtool, xcpdaemon)
-# Users can override via: cmake -DXCPLITE_BUILD_TOOLS=ON/OFF
-option(XCPLITE_BUILD_TOOLS "Build xcplite tool targets (ptptool, shmtool, xcpdaemon)" OFF)
-
-# Create a user-configurable CMake option for building Rust tool targets
-# (xcpclient, bintool) via cargo. Requires Rust/cargo to be installed.
-# Users can override via: cmake -DXCPLITE_BUILD_RUST_TOOLS=ON/OFF
-option(XCPLITE_BUILD_RUST_TOOLS "Build Rust tool targets (xcpclient, bintool) via cargo" OFF)
 
 # Platform detection for library selection
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
@@ -205,7 +205,8 @@ if(XCPLITE_BUILD_EXAMPLES)
 
 
     # Example bpf_demo (only build on Linux with libbpf available)
-    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    # Pass -DXCPLITE_BUILD_BPF_DEMO=OFF to skip 
+    if(XCPLITE_BUILD_BPF_DEMO AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
         find_library(LIBBPF_LIBRARY bpf)
         if(LIBBPF_LIBRARY)
             add_executable(bpf_demo examples/bpf_demo/src/main.c)
@@ -214,6 +215,8 @@ if(XCPLITE_BUILD_EXAMPLES)
         else()
             message(STATUS "libbpf not found - skipping bpf_demo")
         endif()
+    else()
+        message(STATUS "bpf_demo: skipped (XCPLITE_BUILD_BPF_DEMO=OFF)")
     endif()
 
 endif()
@@ -337,11 +340,9 @@ if(XCPLITE_BUILD_RUST_TOOLS)
     endif()
 endif()
 
-# Example no_a2l_demo with xcplib_no_a2l_cfg.h override (opt-in, independent of XCPLITE_BUILD_EXAMPLES)
-# Applies XCPLIB_CFG_OVERRIDE=xcplib_no_a2l_cfg.h to xcplite — disables A2L generator/upload.
-# Incompatible with other examples that use A2L (hello_xcp, c_demo, cpp_demo, ...).
-# Use an isolated build directory: cmake -DXCPLITE_BUILD_NO_A2L_DEMO=ON -DXCPLITE_BUILD_EXAMPLES=OFF
-option(XCPLITE_BUILD_NO_A2L_DEMO "Build no_a2l_demo with xcplib_no_a2l_cfg.h override (no A2L generator; requires isolated build)" OFF)
+# no_a2l_demo: opt-in, independent of XCPLITE_BUILD_EXAMPLES.
+# Applies XCPLIB_CFG_OVERRIDE=xcplib_no_a2l_cfg.h — disables A2L generator/upload.
+# Incompatible with other examples that use A2L. Use an isolated build directory.
 if(XCPLITE_BUILD_NO_A2L_DEMO)
     target_compile_definitions(xcplite PRIVATE "XCPLIB_CFG_OVERRIDE=\"xcplib_no_a2l_cfg.h\"")
     if(NOT TARGET no_a2l_demo)
@@ -351,10 +352,8 @@ if(XCPLITE_BUILD_NO_A2L_DEMO)
     message(STATUS "no_a2l_demo: enabled (XCPLIB_CFG_OVERRIDE=xcplib_no_a2l_cfg.h)")
 endif()
 
-# Example freertos_demo (opt-in, independent of XCPLITE_BUILD_EXAMPLES)
+# freertos_demo: opt-in, independent of XCPLITE_BUILD_EXAMPLES.
 # Downloads FreeRTOS-Kernel via FetchContent. Requires macOS or Linux.
-# Enable with: cmake -DXCPLITE_BUILD_FREERTOS_DEMO=ON
-option(XCPLITE_BUILD_FREERTOS_DEMO "Build freertos_demo (downloads FreeRTOS-Kernel via FetchContent)" OFF)
 if(XCPLITE_BUILD_FREERTOS_DEMO AND NOT WIN32)
     add_subdirectory(examples/freertos_demo)
 elseif(XCPLITE_BUILD_FREERTOS_DEMO AND WIN32)
