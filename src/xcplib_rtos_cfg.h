@@ -53,9 +53,6 @@
 // No persistence (no filesystem on embedded)
 #undef OPTION_ENABLE_PERSISTENCE
 
-// No EPK segment on embedded
-#undef OPTION_CAL_SEGMENT_EPK
-
 // Absolute addressing (compatible with most A2L tools and xcpclient)
 #define OPTION_CAL_SEGMENTS_ABS
 

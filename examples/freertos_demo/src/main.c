@@ -159,27 +159,26 @@ static void measurementTask2(void *pvParameters) {
 }
 
 //-----------------------------------------------------------------------------
-// Signal handler – request clean shutdown via Ctrl-C
+// Signal handler – clean shutdown on Ctrl-C or SIGTERM
+//
+// The FreeRTOS POSIX port explicitly keeps SIGINT unblocked in all task
+// threads (port.c: sigdelset(&xAllSignals, SIGINT)) so the handler is always
+// reachable. vTaskEndScheduler() leaves the calling task's pthread blocked
+// in event_wait() forever, so we exit directly instead.
 
-static volatile bool gRunning = true;
 static void sig_handler(int sig) {
     (void)sig;
-    gRunning = false;
+    printf("\nStopped.\n");
+    exit(0);
 }
 
 //-----------------------------------------------------------------------------
-// Watchdog task – monitors gRunning and calls vTaskEndScheduler()
-//
-// The FreeRTOS POSIX simulator supports vTaskEndScheduler() to unblock
-// vTaskStartScheduler() in main(), allowing main() to do XCP cleanup.
+// Watchdog task – no-op placeholder kept for future use
 
 static void watchdogTask(void *pvParameters) {
     (void)pvParameters;
     for (;;) {
-        if (!gRunning) {
-            vTaskEndScheduler(); // unblock vTaskStartScheduler() in main()
-        }
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 

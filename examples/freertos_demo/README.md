@@ -69,9 +69,32 @@ cmake --build build-freertos --target freertos_demo
 ```
 
 
+### Create an A2L file
 
+
+```bash
+xcpclient --offline   --elf ./examples/freertos_demo/CANape/freertos_demo --create-a2l  --a2l ./examplesfreertos_demo/CANape/freertos_demo.a2l
+```
+
+For more details and options on the A2L file generation, see no_a2l_demo and the xcpclient documentation.  
 
 ---
+
+
+### Connection test
+
+Do a test measurment.  
+Visualize the counter variables in task1 and task2 with the generated A2L file.  
+
+```bash
+xcpclient --udp --dest-addr 192.168.0.206:5555   --a2l ./examples/freertos_demo/CANape/freertos_demo.a2l  --mea counter --verbose 2
+```
+---
+
+
+
+
+
 
 ## Configuration
 
@@ -101,8 +124,6 @@ available SRAM (see [Porting to a target](#porting-to-a-target)).
 | `OPTION_CAL_MEM_SIZE` | 4 KB | Tune to available SRAM |
 | `OPTION_DAQ_MEM_SIZE` | 4 KB | Tune to available SRAM |
 | `OPTION_CAL_SEGMENT_COUNT` | 8 | Tune to number of calibration segments needed |
-| Persistence / A2L / ELF | disabled | No filesystem on bare-metal |
-| `OPTION_SHM_MODE` | disabled | Single-process embedded target |
 
 ---
 
@@ -114,7 +135,6 @@ XCPlite ships as a CMake package. Add it as a subdirectory or install it and use
 
 ```cmake
 add_subdirectory(path/to/XCPlite-RainerZ)  # builds xcplite static library
-
 target_link_libraries(my_app PRIVATE xcplite freertos_kernel)
 ```
 
@@ -147,15 +167,6 @@ When `_FREE_RTOS` is defined **without** `FREE_RTOS_POSIX_SIM`, the socket funct
 `platform.c` are stubs that return `true` without doing anything.  Replace them with a real
 network stack implementation (e.g. **lwIP** or **FreeRTOS+TCP**) by filling in the
 `#if defined(_FREE_RTOS) && !defined(FREE_RTOS_POSIX_SIM)` section in `platform.c`:
-
-```c
-// platform.c – bare-metal socket stubs  (search for FREE_RTOS_POSIX_SIM)
-bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
-    // TODO: open a UDP/TCP socket via lwIP or FreeRTOS+TCP
-    return true;
-}
-// ... socketBind, socketSend, socketRecv, socketClose
-```
 
 The required interface is documented in `src/platform.h` (search for `SOCKET_HANDLE`).
 
@@ -205,22 +216,32 @@ vTaskStartScheduler();  // never returns on bare-metal (no vTaskEndScheduler)
 ### Step 6 — Add measurement and calibration in a task
 
 ```c
-// Calibration segment (declare once, globally)
+
+// Calibration parameters
 static const MyParams params = { .gain = 1.0f, .offset = 0.0f };
-CalSegDecl(params);  // or use XcpCreateCalSeg() directly
+
+// Create a calibration segment for the parameters named 'params' with the address and size of the params structure
+CalSegDecl(params);  // or use XcpCreateCalSeg(params) at runtime
 
 // Inside a FreeRTOS task:
 void myMeasurementTask(void *pv) {
-    DaqCreateEvent(task_fast);           // register an XCP DAQ event
-    TickType_t xLastWake = xTaskGetTickCount();
 
+    // Create XCP event
+    DaqCreateEvent(task_fast);           // register an XCP DAQ event
+ 
+    uint32_t counter = 0;
+
+    TickType_t xLastWake = xTaskGetTickCount();
     for (;;) {
-        // Read calibration parameters thread-safely
+
+        counter++;
+
+        // Read calibration parameters thread-safely and consistently
         const MyParams *p = CalSegLock(params);
         float value = p->gain * readSensor() + p->offset;
         CalSegUnlock(params);
 
-        // Trigger DAQ — xcptool / CANape will sample 'value' here
+        // Trigger XCP event to measure any global, static and local variables
         DaqTriggerEvent(task_fast);
 
         xTaskDelayUntil(&xLastWake, pdMS_TO_TICKS(1));  // 1 ms period
@@ -228,9 +249,6 @@ void myMeasurementTask(void *pv) {
 }
 ```
 
-### Step 7 — A2L file
-
-@@@@ TODO
 
 
 ---
@@ -254,10 +272,5 @@ Checklist when moving from the POSIX simulator to a microcontroller (e.g. STM32)
 
 | File | Role |
 |---|---|
-| `src/platform.h` | OS abstraction — mutex, thread, sleep, clock, socket types and macros |
-| `src/platform.c` | Implementations for POSIX / Windows / FreeRTOS / FreeRTOS+POSIX_SIM |
 | `src/xcplib_rtos_cfg.h` | XCPlite feature configuration for FreeRTOS targets |
 | `src/xcplib_cfg.h` | Default feature configuration for POSIX / Windows targets |
-| `src/xcplite.h` | Internal XCP protocol layer API |
-| `inc/xcplib.h` | Public application API |
-| `inc/a2l.h` | A2L generation helper macros |

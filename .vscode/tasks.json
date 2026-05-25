@@ -47,6 +47,7 @@
                 "-avz",
                 "--delete",
                 "--exclude=build/",
+                "--exclude=build-freertos/",
                 "--exclude=tools/xcpclient/target/",
                 "--exclude=.git/",
                 "--exclude=.venv/",
@@ -71,65 +72,6 @@
                 "panel": "shared"
             },
             "detail": "rsync to Raspberry Pi rainer@192.168.0.206:~/XCPlite-RainerZ/"
-        },
-        {
-            "type": "shell",
-            "label": "XCPlite: sync to CM5",
-            "command": "rsync",
-            "args": [
-                "-avz",
-                "--delete",
-                "--exclude=build/",
-                "--exclude=.git/",
-                "--exclude=.venv/",
-                "--exclude=\"*.o\"",
-                "--exclude=\"*.a\"",
-                "--exclude=\"*.mf4\"",
-                "./",
-                "admin@192.168.0.207:~/XCPlite-RainerZ/"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            },
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared"
-            },
-            "detail": "rsync to Raspberry CM5 admin@192.168.0.207:~/XCPlite-RainerZ/"
-        },
-        {
-            "type": "shell",
-            "label": "XCPlite: sync to VP6450",
-            "command": "rsync",
-            "args": [
-                "-avz",
-                "--delete",
-                "--exclude=build/",
-                "--exclude=.git/",
-                "--exclude=.venv/",
-                "--exclude=\"*.o\"",
-                "--exclude=\"*.a\"",
-                "--exclude=\"*.mf4\"",
-                "./",
-                "rainer@192.168.0.143:~/XCPlite-RainerZ/"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "group": "build",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared"
-            },
-            "detail": "rsync to VP6450 rainer@192.168.0.143:~/XCPlite-RainerZ/"
         },
         {
             "type": "shell",
@@ -166,24 +108,6 @@
                 "$gcc"
             ],
             "detail": "Build all targets on CM5"
-        },
-        {
-            "type": "shell",
-            "label": "XCPlite: Remote build all on VP6450",
-            "command": "ssh",
-            "args": [
-                "VP6450",
-                "cd ~/XCPlite-RainerZ && cmake --build build"
-            ],
-            "group": {
-                "kind": "build",
-                "isDefault": false
-            },
-            "dependsOn": "XCPlite: Remote configure CMake on VP6450",
-            "problemMatcher": [
-                "$gcc"
-            ],
-            "detail": "Build all targets on VP6450"
         },
         {
             "type": "cppbuild",
@@ -241,52 +165,6 @@
             "detail": "Configure CMake build system on Raspberry Pi"
         },
         {
-            "type": "shell",
-            "label": "XCPlite: Remote configure CMake on CM5",
-            "command": "ssh",
-            "args": [
-                "admin@192.168.0.207",
-                "cd ~/XCPlite-RainerZ && cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug"
-            ],
-            "group": "build",
-            "dependsOn": "XCPlite: sync to CM5",
-            "detail": "Configure CMake build system on CM5"
-        },
-        {
-            "type": "shell",
-            "label": "XCPlite: Remote configure CMake on VP6450",
-            "command": "ssh",
-            "args": [
-                "VP6450",
-                "cd ~/XCPlite-RainerZ && cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug"
-            ],
-            "group": "build",
-            "dependsOn": "XCPlite: sync to VP6450",
-            "detail": "Configure CMake build system on VP6450"
-        },
-        {
-            "type": "shell",
-            "label": "XCPlite: Remote kill XCP processes on Pi",
-            "command": "ssh",
-            "args": [
-                "rainer@192.168.0.206",
-                "pkill -f 'hello_xcp\\|hello_xcp_cpp\\|cpp_demo\\|c_demo\\|multi_thread_demo' || true"
-            ],
-            "group": "build",
-            "detail": "Kill any running XCP demo processes on Raspberry Pi"
-        },
-        {
-            "type": "shell",
-            "label": "XCPlite: Remote kill XCP processes on VP6450",
-            "command": "ssh",
-            "args": [
-                "VP6450",
-                "pkill -f 'hello_xcp\\|cpp_demo\\|c_demo\\|multi_thread_demo' || true"
-            ],
-            "group": "build",
-            "detail": "Kill any running XCP demo processes on VP6450"
-        },
-        {
             "type": "cargo",
             "label": "cargo build xcpclient",
             "command": "build",
@@ -338,6 +216,35 @@
             ],
             "detail": "Build freertos_demo (Debug)"
         },
+        {
+            "type": "shell",
+            "label": "XCPlite: Fetch freertos_demo ELF from Pi",
+            "command": "rsync",
+            "args": [
+                "-avz",
+                "--exclude=CMakeFiles/",
+                "--exclude=_deps/",
+                "--exclude=\"*.cmake\"",
+                "--exclude=\"Makefile*\"",
+                "--exclude=\"*.txt\"",
+                "--exclude=\"*.json\"",
+                "--exclude=\"*.a\"",
+                "--exclude=\"*.o\"",
+                "rainer@192.168.0.206:~/XCPlite-RainerZ/build-freertos/",
+                "./"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "detail": "Fetch compiled ELF binaries from Raspberry Pi into build/pi/",
+            "problemMatcher": []
+        }
     ],
     "version": "2.0.0"
 }
