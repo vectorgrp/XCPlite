@@ -136,15 +136,15 @@ cargo install --path .
 ### List all calibration or measurement variables
 
 ```bash
-xcpclient --dest-addr 192.168.8.135 --udp --list-cal .
-xcpclient --dest-addr 192.168.8.135 --udp --list-mea .
+xcpclient --dest-addr 192.168.0.206 --udp --list-cal .
+xcpclient --dest-addr 192.168.0.206 --udp --list-mea .
 ```
 
 ### Set a calibration variable
 
 Set variable counter_max to 1000
 ```bash
-xcpclient --dest-addr 192.168.8.135 --port 5555 --tcp --cal counter_max 1000
+xcpclient --dest-addr 192.168.0.206 --port 5555 --tcp --cal counter_max 1000
 ```
 
 ### Measure variables
@@ -158,7 +158,7 @@ xcpclient --dest-addr=127.0.0.1  --udp --upload-a2l --mea ".*" --time 5 --verbos
 With A2L file given:  
 
 ```bash
-xcpclient --dest-addr=192.168.8.135  --tcp --a2l hello_xcp.a2l  --mea ".*" 
+xcpclient --dest-addr=192.168.0.206  --tcp --a2l hello_xcp.a2l  --mea ".*" 
 ```
 
 With ELF file given, creates an A2L file from the ELF file and XCP server information about events and memory segments, then measures the specified variable:  
@@ -171,7 +171,7 @@ xcpclient --udp --elf build/hello_xcp --mea "counter" --verbose 2
 ### Upload the A2L file to be used from the target
 
 ```bash
-xcpclient --dest-addr=192.168.8.135:5555 --tcp --upload-a2l   
+xcpclient --dest-addr=192.168.0.206:5555 --tcp --upload-a2l   
 ```
 
 ### Create an A2L file for a target from ELF without on target A2L generation support
@@ -184,12 +184,12 @@ xcpclient --offline --elf examples/no_a2l_demo/CANape/no_a2l_demo.elf --a2l exam
 xcpclient --offline --elf examples/no_a2l_demo/CANape/no_a2l_demo.elf --a2l examples/no_a2l_demo/CANape/no_a2l_demo.a2l --create-a2l
 
 # online with XCP server information about events and memory segments
-xcpclient --dest-addr=192.168.8.135:5555 --udp  --create-a2l --elf no_a2l_demo.elf --a2l no_a2l_demo.a2l 
+xcpclient --dest-addr=192.168.0.206:5555 --udp  --create-a2l --elf no_a2l_demo.elf --a2l no_a2l_demo.a2l 
 ```
 
 Upload the ELF file into hello_xcp.elf and create an A2L file from the ELF file and XCP server information about events and memory segments, then save the A2L file as hello_xcp.a2l:
 ```bash
-xcpclient --dest-addr=192.168.8.135:5555 --udp --create-a2l --upload-elf --elf hello_xcp.elf --a2l hello_xcp.a2l 
+xcpclient --dest-addr=192.168.0.206:5555 --udp --create-a2l --upload-elf --elf hello_xcp.elf --a2l hello_xcp.a2l 
 ```
 
 ### Upload an Intel-HEX file with the current calibration data
@@ -207,10 +207,10 @@ xcpclient --upload-bin test.hex
 cargo r --  --elf no_a2l_demo.out --elf-unit-limit 1000 --log-level 3  --create-a2l --a2l no_a2l_demo.a2l   --offline  
 
 
-cargo r --  --dest-addr 192.168.8.135 --udp --elf no_a2l_demo.out --elf-unit-limit 1000 --log-level 3  --create-a2l --a2l no_a2l_demo.a2l 
+cargo r --  --dest-addr 192.168.0.206 --udp --elf no_a2l_demo.out --elf-unit-limit 1000 --log-level 3  --create-a2l --a2l no_a2l_demo.a2l 
 
-cargo r --  --dest-addr 192.168.8.135  --elf no_a2l_demo.out --elf-unit-limit 1000 --log-level 3  --create-a2l --a2l no_a2l_demo.a2l --list-mea 'counter'
+cargo r --  --dest-addr 192.168.0.206  --elf no_a2l_demo.out --elf-unit-limit 1000 --log-level 3  --create-a2l --a2l no_a2l_demo.a2l --list-mea 'counter'
 
-cargo r --  --dest-addr 192.168.8.135  --elf no_a2l_demo.out --elf-unit-limit 1000 --log-level 3  --create-a2l --a2l no_a2l_demo.a2l --mea 'counter'  --time 5 --verbose 2
+cargo r --  --dest-addr 192.168.0.206  --elf no_a2l_demo.out --elf-unit-limit 1000 --log-level 3  --create-a2l --a2l no_a2l_demo.a2l --mea 'counter'  --time 5 --verbose 2
 
 ```

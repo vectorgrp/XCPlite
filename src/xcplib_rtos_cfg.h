@@ -35,6 +35,7 @@
 
 //-------------------------------------------------------------------------------
 // XCP server
+#undef OPTION_ENABLE_TCP
 // Standard Ethernet MTU: 1504 - 32 = 1472 bytes max UDP payload (%8 aligned)
 #undef OPTION_MTU
 #define OPTION_MTU 1504

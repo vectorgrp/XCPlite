@@ -30,7 +30,7 @@
 #endif
 
 #if !defined(_WIN) && !defined(_LINUX) && !defined(_MACOS) && !defined(_QNX) && !defined(_FREE_RTOS)
-#error "Please define platform _WIN, _MACOS or _LINUX or _QNX"
+#error "Please define platform _WIN, _MACOS or _LINUX, _QNX or _FREE_RTOS"
 #endif
 
 #include "xcpethtl.h" // for XcpEthTlxxx
@@ -338,9 +338,13 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
         create_thread(&gXcpServer.receive_thread_handle, receive_thread_attr_ptr, XcpServerReceiveThread, NULL);
 
         // Wait until receive thread is running to avoid races
+        // On FreeRTOS the newly created task cannot run until vTaskStartScheduler() is called,
+        // so the spin-wait would deadlock – skip it and let the scheduler sort out ordering.
+#if !defined(_FREE_RTOS)
         while (!gXcpServer.receive_thread_running) {
             sleepUs(20);
         }
+#endif
 
         // Create the transmit thread
         // @@@@ TODO: Check, why start the transmit thread after the receive thread, should it better be before, once we implement first cycle data acquisition ?

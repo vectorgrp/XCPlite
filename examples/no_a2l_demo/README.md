@@ -104,16 +104,16 @@ cmake --build build_no_a2l
 # Add all variables
 xcpclient  --offline --elf no_a2l_demo.elf --a2l no_a2l_demo.a2l --create-a2l --verbose 1
 # Add the given IP address:port and protocol to the generated A2L file
-xcpclient --udp --dest-addr 192.168.8.135:555  --offline --elf no_a2l_demo.elf  --a2l no_a2l_demo.a2l  --create-a2l 
+xcpclient --udp --dest-addr 192.168.0.206:555  --offline --elf no_a2l_demo.elf  --a2l no_a2l_demo.a2l  --create-a2l 
 # Filter on specific variables and compilation units
 xcpclient --offline --elf no_a2l_demo.elf --a2l no_a2l_demo.a2l --create-a2l --elf-unit-filter main --elf-var-filter "^(counter|params)" 
 
 
-# Connect to the XCP on UDP server on 192.168.8.135:5555, upload ELF file from target (requires OPTION_ENABLE_ELF_UPLOAD) and create the A2L file
-xcpclient --udp --dest-addr 192.168.8.135:5555  --elf no_a2l_demo.elf --upload-elf  --create-a2l
+# Connect to the XCP on UDP server on 192.168.0.206:5555, upload ELF file from target (requires OPTION_ENABLE_ELF_UPLOAD) and create the A2L file
+xcpclient --udp --dest-addr 192.168.0.206:5555  --elf no_a2l_demo.elf --upload-elf  --create-a2l
 
 # Measurement of variable global_counter with the ELF file only
-xcpclient --udp --dest-addr=192.168.8.135:5555 --elf no_a2l_demo.elf --elf-var-filter "global_counter" --mea ".*" --time 5 --csv no_a2l_demo.csv
+xcpclient --udp --dest-addr=192.168.0.206:5555 --elf no_a2l_demo.elf --elf-var-filter "global_counter" --mea ".*" --time 5 --csv no_a2l_demo.csv
 
 ```
 

@@ -52,7 +52,7 @@
 #define OPTION_SERVER_PORT 5555
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // bind to any interface
 #define OPTION_QUEUE_SIZE (1024 * 8)    // transmit queue size in bytes
-#define OPTION_LOG_LEVEL 3              // 1=Error 2=Warn 3=Info 4=Debug
+#define OPTION_LOG_LEVEL 5              // 1=Error 2=Warn 3=Info 4=Debug
 
 //-----------------------------------------------------------------------------
 // Calibration parameters
@@ -98,7 +98,7 @@ double task2_value = 0.0; // Slower ramp as a double
 
 static void measurementTask1(void *pvParameters) {
     (void)pvParameters;
-    printf("[task1] FreeRTOS task started\n");
+    printf("[task1] FreeRTOS demo task started\n");
 
     DaqCreateEvent(task1); // Register an XCP DAQ event named "task1"
 
@@ -124,6 +124,8 @@ static void measurementTask1(void *pvParameters) {
         BaseType_t delayed = xTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(period_ms));
         if (delayed == pdFALSE)
             task1_overruns++;
+
+        // printf("[task1] counter=%u value=%.3f overruns=%u\n", task1_counter, task1_value, task1_overruns);
     }
 }
 
@@ -132,7 +134,7 @@ static void measurementTask1(void *pvParameters) {
 
 static void measurementTask2(void *pvParameters) {
     (void)pvParameters;
-    printf("[task2] FreeRTOS task started\n");
+    printf("[task2] FreeRTOS demo task started\n");
 
     DaqCreateEvent(task2);
 
@@ -152,6 +154,7 @@ static void measurementTask2(void *pvParameters) {
         DaqTriggerEvent(task2);
 
         xTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(period_ms));
+        // printf("[task2] counter=%u value=%.3f\n", task2_counter, task2_value);
     }
 }
 

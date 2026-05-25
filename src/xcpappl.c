@@ -22,7 +22,7 @@
 #include "xcplite.h"    // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
 
 #if !defined(_WIN) && !defined(_LINUX) && !defined(_MACOS) && !defined(_QNX) && !defined(_FREE_RTOS)
-#error "Please define platform _WIN, _MACOS or _LINUX or _QNX"
+#error "Please define platform _WIN, _MACOS or _LINUX, _QNX or _FREE_RTOS"
 #endif
 
 // @@@@ TODO: Improve, __write_delayed is the consistency hold flag parameter for the __callback_write function
@@ -216,8 +216,6 @@ uint8_t ApplXcpGetAddrExt(const uint8_t *p) {
 
 const uint8_t *ApplXcpGetModuleAddr(void) { return (uint8_t *)GetModuleHandle(NULL); }
 
-// Get base pointer for the XCP address range
-// This function is time sensitive, as it is called once on every XCP event
 const uint8_t *ApplXcpGetBaseAddr(void) {
 
     if (gXcpBaseAddrValid)
@@ -228,6 +226,16 @@ const uint8_t *ApplXcpGetBaseAddr(void) {
 }
 
 #endif // _WIN
+
+//----------------------------
+// FreeRTOS  32 bit
+#if defined(_FREE_RTOS) && !defined(FREE_RTOS_POSIX_SIM)
+
+const uint8_t *ApplXcpGetModuleAddr(void) { return (uint8_t *)0; }
+
+const uint8_t *ApplXcpGetBaseAddr(void) { return (uint8_t *)0; }
+
+#endif // _FREE_RTOS
 
 //----------------------------
 // Linux 64 bit or QNX 64 bit
@@ -338,8 +346,6 @@ static int dump_so(void) {
 
 const uint8_t *ApplXcpGetModuleAddr(void) { return (uint8_t *)_dyld_get_image_header(0); }
 
-// Get the base address for absolute addressing mode
-// Use default base address, if not explicitly set by ApplXcpSetBaseAddr() before
 const uint8_t *ApplXcpGetBaseAddr(void) {
     if (!gXcpBaseAddrValid) {
         // dump_so();
@@ -359,7 +365,6 @@ const uint8_t *ApplXcpGetBaseAddr(void) {
 
 const uint8_t *ApplXcpGetModuleAddr(void) { return ((uint8_t *)0); }
 
-// On 32 bit Linux platforms, the entire 4GB address space is available for XCP, so the base address is 0 and the address conversion is a simple cast
 const uint8_t *ApplXcpGetBaseAddr(void) { return ApplXcpGetModuleAddr(); }
 
 #endif // defined(_LINUX) && defined(PLATFORM_32BIT)

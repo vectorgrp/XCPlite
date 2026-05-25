@@ -42,7 +42,7 @@ TEST=true
 
 # Target connection details
 TARGET_USER="rainer"
-TARGET_HOST="192.168.8.135"
+TARGET_HOST="192.168.0.206"
 TARGET_PATH="~/XCPlite-RainerZ/build/no_a2l_demo"
 
 # Path to xcpclient tool executable (assuming cargo installed it to ~/.cargo/bin)
@@ -68,7 +68,7 @@ echo "" > $LOGFILE
 
 # Sync target
 echo "Sync target ..."            
-rsync -avz --delete --exclude=build/ --exclude=target/ --exclude=.git/ --exclude="*.o" --exclude="*.a" ./ rainer@192.168.8.135:~/XCPlite-RainerZ/ 1> /dev/null
+rsync -avz --delete --exclude=build/ --exclude=target/ --exclude=.git/ --exclude="*.o" --exclude="*.a" ./ rainer@192.168.0.206:~/XCPlite-RainerZ/ 1> /dev/null
 if [ $? -ne 0 ]; then
     echo "❌ FAILED: Rsync with target"
     exit 1

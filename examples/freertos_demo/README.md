@@ -47,7 +47,7 @@ networking code.
 
 ---
 
-## Building
+## Building the FreeRTOS demo
 
 ### Prerequisites
 
@@ -55,36 +55,19 @@ networking code.
 - GCC or Clang (macOS or Linux)
 - Internet access for the first configure (FreeRTOS-Kernel is downloaded via FetchContent)
 
-### Standard build (xcplite uses POSIX internally)
+### Build
+
+Compiles xcplite with the FreeRTOS platform code paths active (_FREE_RTOS) using the POSIX simulator (FREE_RTOS_POSIX_SIM) so that the demo can be built and run on a development machine before porting to a microcontroller.
+Uses Linux sockets and `clock_gettime` for the POSIX simulator
+
+
 
 ```bash
-cmake -B build -S . -DXCPLITE_BUILD_FREERTOS_DEMO=ON
-cmake --build build --target freertos_demo
-./build/examples/freertos_demo/freertos_demo
+cmake -B build-freertos -S . -DXCPLITE_BUILD_FREERTOS_DEMO=ON -DCMAKE_BUILD_TYPE=Debug --fresh
+cmake --build build-freertos --target freertos_demo
+./build-freertos/examples/freertos_demo/freertos_demo
 ```
 
-The demo listens on **UDP port 5555**. Connect with CANape or any XCP-compatible tool.
-
-### Portability-validation build (`FREERTOS_DEMO_POSIX_FREE=ON`)
-
-This mode compiles xcplite itself with the FreeRTOS code paths active:
-
-```bash
-cmake -B build_posixfree -S . -DXCPLITE_BUILD_FREERTOS_DEMO=ON -DFREERTOS_DEMO_POSIX_FREE=ON
-cmake --build build_posixfree --target freertos_demo
-./build_posixfree/examples/freertos_demo/freertos_demo
-```
-
-What changes when `FREERTOS_DEMO_POSIX_FREE=ON`:
-
-| Compile flag | Effect |
-|---|---|
-| `-D_FREE_RTOS` | Activates FreeRTOS code paths in `platform.h` / `platform.c` (mutex, sleep, clock, threads) |
-| `-DXCPLIB_FOR_RTOS` | Selects `xcplib_rtos_cfg.h` — 32-bit queue, 1 µs clock, reduced memory pools |
-| `-DFREERTOS_POSIX_SIM` | Bridges socket calls to POSIX BSD sockets so the demo still runs on macOS/Linux |
-
-Use this mode to verify that no POSIX API (e.g. `pthread_mutex_t`, `clock_gettime`) leaks into
-the `_FREE_RTOS` code paths before moving to a bare-metal target.
 
 
 
@@ -160,13 +143,13 @@ target_compile_definitions(freertos_config INTERFACE projCOVERAGE_TEST=0)
 
 ### Step 3 — Implement the socket layer (bare-metal)
 
-When `_FREE_RTOS` is defined **without** `FREERTOS_POSIX_SIM`, the socket functions in
+When `_FREE_RTOS` is defined **without** `FREE_RTOS_POSIX_SIM`, the socket functions in
 `platform.c` are stubs that return `true` without doing anything.  Replace them with a real
 network stack implementation (e.g. **lwIP** or **FreeRTOS+TCP**) by filling in the
-`#if defined(_FREE_RTOS) && !defined(FREERTOS_POSIX_SIM)` section in `platform.c`:
+`#if defined(_FREE_RTOS) && !defined(FREE_RTOS_POSIX_SIM)` section in `platform.c`:
 
 ```c
-// platform.c – bare-metal socket stubs  (search for FREERTOS_POSIX_SIM)
+// platform.c – bare-metal socket stubs  (search for FREE_RTOS_POSIX_SIM)
 bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
     // TODO: open a UDP/TCP socket via lwIP or FreeRTOS+TCP
     return true;
@@ -247,14 +230,8 @@ void myMeasurementTask(void *pv) {
 
 ### Step 7 — A2L file
 
-The demo uses a **pre-supplied** A2L file (`freertos_demo.a2l` in the project root) because A2L
-generation at runtime requires a filesystem.  For a real target:
+@@@@ TODO
 
-1. Run the demo once in `FREERTOS_DEMO_POSIX_FREE=OFF` mode (POSIX build) with
-   `A2lInit()` enabled to generate the A2L file on the development machine.
-2. Ship the A2L file alongside the firmware image.
-3. On the target, disable A2L generation by leaving `OPTION_ENABLE_A2L_GENERATOR` commented
-   out in `xcplib_rtos_cfg.h`.
 
 ---
 
@@ -268,7 +245,7 @@ Checklist when moving from the POSIX simulator to a microcontroller (e.g. STM32)
 - [ ] Optionally replace `clockGet()` with a hardware counter for sub-ms resolution
 - [ ] Tune `OPTION_CAL_MEM_SIZE` and `OPTION_DAQ_MEM_SIZE` in `xcplib_rtos_cfg.h` to fit SRAM
 - [ ] Remove or redirect `DBG_PRINT` output to a UART / ITM/SWO trace port
-- [ ] Remove `FREERTOS_POSIX_SIM` from compile definitions (no POSIX socket bridge needed)
+- [ ] Remove `FREE_RTOS_POSIX_SIM` from compile definitions (no POSIX socket bridge needed)
 - [ ] Remove the `vTaskEndScheduler()` watchdog task (not available on bare-metal ports)
 
 ---

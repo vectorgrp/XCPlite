@@ -67,42 +67,32 @@ if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     )
 endif()
 
-message(STATUS "freertos_demo: configured (FreeRTOS POSIX simulator)")
+
+target_compile_definitions(xcplite PRIVATE
+    _FREE_RTOS                                          # Force FreeRTOS code paths in platform.h/platform.c, xcpappl.c
+    FREE_RTOS_POSIX_SIM                                  # Use Linux sockets and clock code in platform.c when _FREE_RTOS is defined
+    "XCPLIB_CFG_OVERRIDE=\"xcplib_rtos_cfg.h\""
+)
+
+# xcplite needs to find FreeRTOS.h / task.h etc. when _FREE_RTOS is defined
+target_include_directories(xcplite PRIVATE
+    "${freertos_kernel_SOURCE_DIR}/include"
+    "${freertos_kernel_SOURCE_DIR}/portable/ThirdParty/GCC/Posix"
+    "${CMAKE_CURRENT_SOURCE_DIR}"   # FreeRTOSConfig.h
+)
 
 # ---------------------------------------------------------------------------
-# Optional: Compile xcplite with _FREE_RTOS code paths for portability validation
-#
-# When ON, the library is recompiled with:
-#   _FREE_RTOS                            – activates FreeRTOS code paths in platform.h / platform.c
-#   XCPLIB_CFG_OVERRIDE="xcplib_rtos_cfg.h" – applies embedded config overrides (queue, memory sizes, clock)
-#   FREERTOS_POSIX_SIM                    – bridges sockets to POSIX so the demo still runs on macOS
-#
-# This lets you verify that no POSIX APIs leak into the _FREE_RTOS code paths
-# without needing physical hardware.
-#
-# Build with:  cmake <srcdir> -DXCPLITE_BUILD_FREERTOS_DEMO=ON -DFREERTOS_DEMO_POSIX_FREE=ON
+# Generate .dSYM bundle after linking (required by LLDB on Apple Clang / Xcode 15+
+# because the new linker no longer embeds N_OSO stabs in the binary)
 # ---------------------------------------------------------------------------
-option(FREERTOS_DEMO_POSIX_FREE
-    "Compile freertos_demo (and xcplite) with _FREE_RTOS code paths for portability testing" OFF)
-
-if(FREERTOS_DEMO_POSIX_FREE)
-    target_compile_definitions(freertos_demo PRIVATE
-        _FREE_RTOS                                          # Force FreeRTOS code paths in platform.h/platform.c
-        "XCPLIB_CFG_OVERRIDE=\"xcplib_rtos_cfg.h\""         # Apply embedded config overrides
-        FREERTOS_POSIX_SIM                                  # Bridge sockets to POSIX for testing on macOS/Linux
-    )
-    # xcplite is a STATIC library shared across the build.  Override its defines so
-    # its translation units also see the FreeRTOS code paths.
-    target_compile_definitions(xcplite PRIVATE
-        _FREE_RTOS
-        "XCPLIB_CFG_OVERRIDE=\"xcplib_rtos_cfg.h\""
-        FREERTOS_POSIX_SIM
-    )
-    # xcplite needs to find FreeRTOS.h / task.h etc. when _FREE_RTOS is defined
-    target_include_directories(xcplite PRIVATE
-        "${freertos_kernel_SOURCE_DIR}/include"
-        "${freertos_kernel_SOURCE_DIR}/portable/ThirdParty/GCC/Posix"
-        "${CMAKE_CURRENT_SOURCE_DIR}"   # FreeRTOSConfig.h
-    )
-    message(STATUS "freertos_demo: POSIX-free mode ON  (_FREE_RTOS + XCPLIB_CFG_OVERRIDE=xcplib_rtos_cfg.h + FREERTOS_POSIX_SIM)")
+if(APPLE)
+    find_program(DSYMUTIL dsymutil)
+    if(DSYMUTIL)
+        add_custom_command(TARGET freertos_demo POST_BUILD
+            COMMAND ${DSYMUTIL} $<TARGET_FILE:freertos_demo>
+                    -o $<TARGET_FILE:freertos_demo>.dSYM
+            COMMENT "Generating freertos_demo.dSYM"
+        )
+    endif()
 endif()
+

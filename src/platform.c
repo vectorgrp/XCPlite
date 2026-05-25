@@ -83,33 +83,12 @@ int _kbhit(void) {
 
 // Minimum granularity is one tick (1 ms at configTICK_RATE_HZ = 1000).
 // Sub-millisecond delays are rounded up to the next tick.
-//
-// vTaskDelay() must only be called from a running task (i.e. after
-// vTaskStartScheduler()).  When FREERTOS_POSIX_SIM is defined the demo
-// runs on a POSIX host, so calls that arrive before the scheduler starts
-// (e.g. from XcpEthServerInit() in main()) fall back to nanosleep().
 void sleepUs(uint32_t us) {
-#if defined(FREERTOS_POSIX_SIM)
-    if (xTaskGetSchedulerState() != taskSCHEDULER_RUNNING) {
-        struct timespec ts = {.tv_sec = 0, .tv_nsec = (long)us * 1000L};
-        nanosleep(&ts, NULL);
-        return;
-    }
-#endif
     TickType_t ticks = (us * configTICK_RATE_HZ) / 1000000UL;
     vTaskDelay(ticks == 0U ? 1U : ticks);
 }
 
-void sleepMs(uint32_t ms) {
-#if defined(FREERTOS_POSIX_SIM)
-    if (xTaskGetSchedulerState() != taskSCHEDULER_RUNNING) {
-        struct timespec ts = {.tv_sec = (long)ms / 1000L, .tv_nsec = (long)(ms % 1000UL) * 1000000L};
-        nanosleep(&ts, NULL);
-        return;
-    }
-#endif
-    vTaskDelay(pdMS_TO_TICKS(ms == 0U ? 1U : ms));
-}
+void sleepMs(uint32_t ms) { vTaskDelay(pdMS_TO_TICKS(ms == 0U ? 1U : ms)); }
 
 #elif defined(_WIN) // Windows
 
@@ -383,10 +362,6 @@ void platformShmUnlink(const char *name) {
 #endif
 
 /**************************************************************************/
-// Atomics
-/**************************************************************************/
-
-/**************************************************************************/
 // Mutex
 /**************************************************************************/
 
@@ -467,60 +442,76 @@ const char *socketGetErrorString(int32_t err) {
 }
 
 //--------------------------------------------------------------------------
-// FREERTOS_POSIX_SIM: Define this macro to bridge socket calls to POSIX BSD sockets
-// for testing the FreeRTOS build on macOS/Linux (see freertos_demo CMakeLists.txt).
-// @@@@ TODO: For embedded targets replace the stub section below with an lwIP or
-//            FreeRTOS+TCP socket implementation that calls the FreeRTOS+TCP API.
-#if defined(_FREE_RTOS) && !defined(FREERTOS_POSIX_SIM) // Bare-metal FreeRTOS stubs
+// FreeRTOS platforms
 
-bool socketStartup(void) { return true; }
+// @@@@ TODO: For embedded targets replace the stub section below with an lwIP or FreeRTOS+TCP socket implementation that calls the FreeRTOS+TCP API.
+#if defined(_FREE_RTOS) && !defined(FREE_RTOS_POSIX_SIM)
 
-void socketCleanup(void) {}
+#error "FreeRTOS socket functions not implemented yet"
 
-// Create a socket, TCP or UDP
-// flag SOCKET_MODE_HW_TIMESTAMPING: Enable hardware timestamping (Linux only, requires root)
-// flag SOCKET_MODE_SW_TIMESTAMPING: Enable software timestamping (Linux only)
-bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) { return true; }
+bool socketStartup(void) {
+    DBG_PRINT_ERROR("FREE_RTOS:socketStartup not implemented\n");
+    return true;
+}
 
-bool socketBind(SOCKET_HANDLE socket, const uint8_t *addr, uint16_t port) { return true; }
+void socketCleanup(void) { DBG_PRINT_ERROR("FREE_RTOS:socketCleanup not implemented\n"); }
 
-// Bind socket to a specific network interface by name (Linux only)
-// This is useful for multicast reception on a specific interface while binding to INADDR_ANY
-// Requires root privileges on Linux
-bool socketBindToDevice(SOCKET_HANDLE socket, const char *ifname) { return true; }
+// Create a UDP socket
+bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
+    DBG_PRINT_ERROR("FREE_RTOS:socketOpen not implemented\n");
+    return true;
+}
 
-// Hardware timestamping not supported on this platform
-// Stub for non-Linux platforms
-bool socketEnableTimestamps(SOCKET_HANDLE socket, bool ptpOnly) {
-    (void)socket;
-    (void)ptpOnly;
-    DBG_PRINT_ERROR("socketEnableTimestamps: Socket hardware timestamping not supported on this platform!\n");
-    return false;
+// Bind socket to a local address and port
+bool socketBind(SOCKET_HANDLE socket, const uint8_t *addr, uint16_t port) {
+    DBG_PRINT_ERROR("FREE_RTOS:socketBind not implemented\n");
+    return true;
 }
 
 // Shutdown socket
-// Block rx and tx direction
-bool socketShutdown(SOCKET_HANDLE socket) { return true; }
+bool socketShutdown(SOCKET_HANDLE socket) {
+    DBG_PRINT_ERROR("FREE_RTOS:socketShutdown not implemented\n");
+    return true;
+}
 
 // Close socket
-// Make addr reusable
-bool socketClose(SOCKET_HANDLE *socketp) { return true; }
+bool socketClose(SOCKET_HANDLE *socketp) {
+    DBG_PRINT_ERROR("FREE_RTOS:socketClose not implemented\n");
+    return true;
+}
 
-// Get MAC address of a network interface by name
-bool socketGetMAC(char *ifname, uint8_t *mac) { return false; }
+// Receive a UDP datagram (blocking)
+int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSize, uint8_t *srcAddr, uint16_t *srcPort, uint64_t *time) {
+    DBG_PRINT_ERROR("FREE_RTOS:socketRecvFrom not implemented\n");
+    return -1;
+}
+
+// Send a UDP datagram to addr:port
+int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t bufferSize, const uint8_t *addr, uint16_t port, uint64_t *time) {
+    DBG_PRINT_ERROR("FREE_RTOS:socketSendTo not implemented\n");
+    return -1;
+}
+
+// Set receive timeout on a blocking socket
+bool socketSetTimeout(SOCKET_HANDLE socket, uint32_t timeoutMs) {
+    DBG_PRINT_ERROR("FREE_RTOS:socketSetTimeout not implemented\n");
+    return true;
+}
 
 #else
 
 //--------------------------------------------------------------------------
-#if !defined(_WIN) // Non-Windows platforms
+// Non-Windows platforms
+#if !defined(_WIN)
 
-#include <ifaddrs.h>
+#include <ifaddrs.h> // for getifaddrs, struct ifaddrs
 
 #include <arpa/inet.h>  // for htons, htonl
 #include <netinet/in.h> // for sockaddr_in
 #include <sys/socket.h> // for socket functions
 
-#if defined(_LINUX)           // Linux platform hardware timestamping support
+#if defined(_LINUX) // Linux platform hardware time stamping support
+
 #include <net/if.h>           // for if_nametoindex, struct ifreq, IFNAMSIZ
 #include <netpacket/packet.h> // for struct sockaddr_ll (AF_PACKET, used by socketGetMAC)
 #if defined(OPTION_SOCKET_HW_TIMESTAMPS)
@@ -1097,14 +1088,17 @@ bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr) {
 
 #endif // _WIN
 
-//--------------------------------------------------------------------------
-// All platforms
-
 // Set receive timeout on a socket
 // timeoutMs: timeout in milliseconds, 0 = infinite blocking (restore default)
 bool socketSetTimeout(SOCKET_HANDLE socket, uint32_t timeoutMs) {
     assert(socket != NULL);
-#if defined(_WIN)
+#if defined(_FREE_RTOS)
+    // @@@@ TODO: Implement socket timeouts for FreeRTOS
+    (void)socket;
+    (void)timeoutMs;
+    DBG_PRINT_WARNING("FREE_RTOS:socketSetTimeout: Socket timeouts not supported on FreeRTOS!\n");
+    return true;
+#elif defined(_WIN)
     DWORD tv = (DWORD)timeoutMs;
     if (setsockopt(socket->sock, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof(tv)) < 0) {
         DBG_PRINTF_WARNING("socketSetTimeout: setsockopt SO_RCVTIMEO failed (errno=%d,%s)\n", socketGetLastError(), socketGetErrorString(socketGetLastError()));
@@ -1122,6 +1116,8 @@ bool socketSetTimeout(SOCKET_HANDLE socket, uint32_t timeoutMs) {
     DBG_PRINTF5("socketSetTimeout: set to %u ms\n", timeoutMs);
     return true;
 }
+
+#if defined(OPTION_ENABLE_TCP)
 
 // Listen on a TCP socket
 bool socketListen(SOCKET_HANDLE socket) {
@@ -1153,6 +1149,10 @@ SOCKET_HANDLE socketAccept(SOCKET_HANDLE listenSocket, uint8_t *addr) {
     socket->flags = listenSocket->flags;
     return socket;
 }
+
+#endif // OPTION_ENABLE_TCP
+
+#if !defined(_FREE_RTOS) || defined(FREE_RTOS_POSIX_SIM)
 
 // Join a multicast group on a UDP socket
 // maddr: Multicast group address (network byte order)
@@ -1403,6 +1403,7 @@ int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSiz
 //   n > 0  : number of bytes received
 //   n == 0 : timeout (set with socketTimeout) expired or would-block — no data yet, caller should loop and do background work
 //   n < 0  : socket closed (graceful or reset) or unrecoverable error — caller should exit the receive loop
+#if defined(OPTION_ENABLE_TCP)
 int16_t socketRecv(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t buffer_size, bool waitAll) {
 
     assert(socket != NULL);
@@ -1479,6 +1480,7 @@ int16_t socketRecv(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t buffer_size, 
     assert(received == buffer_size);
     return (int16_t)received;
 }
+#endif            // OPTION_ENABLE_TCP
 
 // Send datagram on UDP socket
 // Returns number of bytes sent or -1 on error
@@ -1577,6 +1579,7 @@ int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t size,
 // Send buffer on a TCP socket
 // Thread safe
 // Returns total number of bytes sent, 0 on socket closed or -1 on error
+#if defined(OPTION_ENABLE_TCP)
 int16_t socketSend(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t size) {
 
     assert(socket != NULL);
@@ -1599,8 +1602,12 @@ int16_t socketSend(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t size) {
     }
     return (int16_t)n;
 }
+#endif // OPTION_ENABLE_TCP
 
-#if !defined(_WIN) && !defined(OPTION_DISABLE_VECTORED_IO)
+#endif // !defined(_FREE_RTOS) || defined(FREE_RTOS_POSIX_SIM)
+
+// Vectored IO send and receive functions using sendmsg/recvmsg with iovec for efficient scatter-gather I/O
+#if !defined(_WIN) && !defined(_FREE_RTOS)
 
 // Send multiple datagrams on a UDP socket
 // Returns number of bytes sent or -1 on error
@@ -1724,7 +1731,7 @@ int16_t socketSendV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t count
     return (int16_t)total;
 }
 
-#endif // !_WIN
+#endif // !defined(_WIN) && !defined(_FREE_RTOS)
 
 // Get send time of last sent packet
 // Retrieves TX hardware timestamp and kernel software timestamp from socket error queue
@@ -1732,6 +1739,7 @@ int16_t socketSendV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t count
 // On non-Linux platforms, this function always returns false
 // On Linux, requires OPTION_SOCKET_HW_TIMESTAMPS defined and hardware timestamping enabled on the socket
 // hw_time and sw_time are optional, set to NULL if not needed
+#if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
 bool socketGetSendTime(SOCKET_HANDLE socket, uint64_t *hw_time, uint64_t *sw_time) {
 
     assert(socket != NULL);
@@ -1743,7 +1751,6 @@ bool socketGetSendTime(SOCKET_HANDLE socket, uint64_t *hw_time, uint64_t *sw_tim
     if (sw_time)
         *sw_time = 0;
 
-#if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
     char control[512];
     char data[1];
     struct iovec iov;
@@ -1824,14 +1831,10 @@ bool socketGetSendTime(SOCKET_HANDLE socket, uint64_t *hw_time, uint64_t *sw_tim
         DBG_PRINT_WARNING("socketGetSendTime: No software TX timestamp found\n");
 
     return false;
-
-#else
-    (void)sock;
-#endif
-    return false;
 }
+#endif // defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
 
-#endif
+#endif // !_WIN
 
 #endif
 
@@ -2256,6 +2259,8 @@ char *clockGetTimeString(char *str, uint32_t l, int64_t t) {
 // File system utilities
 /**************************************************************************/
 
+#if !defined(_FREE_RTOS)
+
 #if defined(_WIN)
 #include <io.h> // for _access
 #elif !defined(_FREE_RTOS)
@@ -2279,3 +2284,5 @@ bool fexists(const char *filename) {
     return (access(filename, F_OK) == 0);
 #endif
 }
+
+#endif // !defined(_FREE_RTOS)

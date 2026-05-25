@@ -42,6 +42,36 @@
             "preLaunchTask": "XCPlite: build"
         },
         {
+            "name": "Debug freertos_demo",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build-freertos/examples/freertos_demo/freertos_demo",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Do not stop on SIGUSR1 – used by FreeRTOS POSIX port for task switching",
+                    "text": "-interpreter-exec console \"process handle SIGUSR1 -s false -p true -n false\"",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Do not stop on SIGUSR2 – used by FreeRTOS POSIX port for task switching",
+                    "text": "-interpreter-exec console \"process handle SIGUSR2 -s false -p true -n false\"",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "XCPlite: build freertos_demo"
+        },
+        {
             "name": "Debug SilKitDemoPublisher",
             "type": "cppdbg",
             "request": "launch",

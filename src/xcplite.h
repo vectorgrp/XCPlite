@@ -248,9 +248,7 @@ typedef struct {
 } tXcpDaqList;
 #pragma pack(pop)
 
-#ifndef _FREE_RTOS // @@@@ TODO: FreeRTOS
 static_assert(sizeof(tXcpDaqList) == 12, "Error: size of tXcpDaqList is not equal to 12");
-#endif
 
 /* Dynamic DAQ list structure in a linear memory block with size XCP_DAQ_MEM_SIZE + 8  */
 #pragma pack(push, 1)

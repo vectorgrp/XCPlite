@@ -34,6 +34,8 @@
 // FreeRTOS
 #if defined(__FreeRTOS__) || defined(FREERTOS) || defined(_FREERTOS) || defined(__FREERTOS) || defined(_FREE_RTOS) || defined(FREE_RTOS)
 
+// #error "_FREE_RTOS"
+
 #ifndef _FREE_RTOS // may already be defined as 1 via -D_FREE_RTOS on the compiler command line
 #define _FREE_RTOS
 #endif
@@ -99,6 +101,7 @@ OPTION_CLOCK_EPOCH_ARB or OPTION_CLOCK_EPOCH_PTP
 #include <windows.h>
 
 #elif defined(_FREE_RTOS)
+
 // FreeRTOS kernel headers – required for task, semaphore, and timer APIs.
 // On the POSIX simulator these are backed by pthreads; on the target they use the port-specific implementation.
 #include "FreeRTOS.h"
@@ -125,28 +128,29 @@ using std::atomic_uint_least64_t;
 using std::atomic_uint_least8_t;
 #endif
 
-// FREERTOS_POSIX_SIM: When testing FreeRTOS code paths on macOS/Linux, detect the host OS
-// so that OS-specific socket / clock code in platform.c compiles correctly.
-// This block is skipped when compiling for a real embedded target.
-#if defined(FREERTOS_POSIX_SIM)
+// When testing FreeRTOS code paths on macOS/Linux, we use OS-specific sockets and clock code in platform.c
+#if defined(FREE_RTOS_POSIX_SIM)
+
+#if defined(__APPLE__)
+#define _MACOS
+#elif defined(__linux__)
+#define _LINUX
+#else
+#error "Unsupported host OS for FreeRTOS POSIX simulator"
+#endif
+
 #ifndef _DEFAULT_SOURCE
 #define _DEFAULT_SOURCE
 #endif
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
-#if defined(__APPLE__)
-#define _MACOS
+
 #include <net/if.h>
 #include <pthread.h>
 #include <unistd.h>
-#elif defined(__linux__)
-#define _LINUX
-#include <net/if.h>
-#include <pthread.h>
-#include <unistd.h>
-#endif
-#endif // FREERTOS_POSIX_SIM
+
+#endif // FREE_RTOS_POSIX_SIM
 
 #else
 
@@ -337,15 +341,20 @@ typedef HANDLE THREAD_HANDLE;
 
 // Stack depth (in bytes) and priority for internal XCP server tasks.
 // Override in xcplib_rtos_cfg.h or FreeRTOSConfig.h if the defaults do not fit your target.
+// On the POSIX simulator the FreeRTOS port stores a Thread_t struct at the top of this
+// allocation and uses mach_vm_trunc_page() (Apple) to derive the pthread stack size.
+// With a 16 KB page size (Apple Silicon) the buffer must be considerably larger than
+// PTHREAD_STACK_MIN so that at least one full page remains after Thread_t and alignment.
+// 16384 bytes = configMINIMAL_STACK_SIZE words (at 4 bytes/word) in the demo config.
 #ifndef XCPLIB_FREERTOS_STACK_BYTES
-#define XCPLIB_FREERTOS_STACK_BYTES 2048U
+#define XCPLIB_FREERTOS_STACK_BYTES 16384U
 #endif
 #ifndef XCPLIB_FREERTOS_PRIORITY
 #define XCPLIB_FREERTOS_PRIORITY (tskIDLE_PRIORITY + 2U)
 #endif
 
 typedef TaskHandle_t THREAD_HANDLE;
-#define create_thread(h, attr, fn, args) xTaskCreate((TaskFunction_t)(fn), "xcptask", (XCPLIB_FREERTOS_STACK_BYTES / sizeof(StackType_t)), (args), XCPLIB_FREERTOS_PRIORITY, (h))
+#define create_thread(h, attr, fn, args) xTaskCreate((TaskFunction_t)(fn), #fn, (XCPLIB_FREERTOS_STACK_BYTES / sizeof(StackType_t)), (args), XCPLIB_FREERTOS_PRIORITY, (h))
 #define join_thread(h) /* No blocking join in FreeRTOS; synchronize via event flag or semaphore */
 #define cancel_thread(h) vTaskDelete(h)
 #define get_thread_id() ((uint32_t)(uintptr_t)xTaskGetCurrentTaskHandle())
@@ -406,7 +415,7 @@ typedef pthread_t THREAD_HANDLE;
 
 #if !defined(_WIN) // Non-Windows platforms
 
-#ifndef OPTION_DISABLE_VECTORED_IO
+#if !defined(_WIN) && !defined(_FREE_RTOS)
 #include "queue.h" // for tQueueBuffer
 #endif
 
@@ -447,9 +456,9 @@ typedef struct socket *SOCKET_HANDLE;
 #define SOCKET_ERROR_NOTCONN ENOTCONN   // 107 (57 macOS) Socket is not connected
 
 #define socketGetLastError(void) errno
-#define socketIsClosed(err) ((err) == ENOTCONN || (err) == ECONNABORTED || (err) == EBADF || (err) == ECONNRESET || (err) == EINTR)
+#define socketIsClosed(err) ((err) == ENOTCONN || (err) == ECONNABORTED || (err) == EBADF || (err) == ECONNRESET)
 #define socketWouldBlock(err) ((err) == EAGAIN || (err) == EWOULDBLOCK)
-#define socketTimeout(err) ((err) == ETIMEDOUT || (err) == EAGAIN || (err) == EWOULDBLOCK)
+#define socketTimeout(err) ((err) == ETIMEDOUT || (err) == EAGAIN || (err) == EWOULDBLOCK || (err) == EINTR)
 
 #else // Windows sockets
 
@@ -576,7 +585,7 @@ int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t buffe
 // Returns: bytes sent, 0 on closed socket, -1 on error
 int16_t socketSend(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t bufferSize);
 
-#if !defined(_WIN) && !defined(OPTION_DISABLE_VECTORED_IO)
+#if !defined(_WIN) && !defined(_FREE_RTOS)
 // Send multiple buffers as a single UDP datagram (scatter-gather I/O via sendmsg, POSIX only)
 // Returns: total bytes sent, 0 on closed socket, -1 on error (partial UDP sends treated as error)
 int16_t socketSendToV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t count, const uint8_t *addr, uint16_t port);
@@ -679,7 +688,7 @@ void clockGetPrintStatistic(void);
 bool fexists(const char *filename);
 
 //-------------------------------------------------------------------------------
-// Atomic operations for Windows (emulation)
+// Atomic operations emulation
 
 // Lock-free atomic emulation for Windows using MSVC Interlocked intrinsics.
 // Windows only - queue64f and queue64v are excluded on Windows, queue32 uses no atomics.
