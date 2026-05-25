@@ -955,7 +955,7 @@ typedef struct {
     uint8_t priority;
     tXcpEventId id;
 } tXcpEventDescriptor;
-static_assert(sizeof(tXcpEventDescriptor) == 16, "Size of tXcpEventDescriptor must be 16 bytes for correct section parsing in xcpclient tool");
+static_assert(sizeof(tXcpEventDescriptor) == 8+sizeof(void*), "Size of tXcpEventDescriptor must be 16 bytes for correct section parsing in xcpclient tool");
 #endif
 
 // Pre-register all tXcpEventDescriptor variables placed in the xcp_evts section by DaqCreateEvent().

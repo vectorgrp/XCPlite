@@ -103,6 +103,9 @@ typedef struct {
 #ifdef OPTION_ATOMIC_EMULATION
     uint8_t res[64 - 22];
 #endif
+#ifdef _FREE_RTOS
+uint8_t res[8];
+#endif
 
 } tXcpCalSegHeader;
 

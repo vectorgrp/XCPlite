@@ -21,6 +21,8 @@
 |
  ----------------------------------------------------------------------------*/
 
+
+
 //-------------------------------------------------------------------------------------------------
 // Platform defines
 
@@ -33,8 +35,6 @@
 
 // FreeRTOS
 #if defined(__FreeRTOS__) || defined(FREERTOS) || defined(_FREERTOS) || defined(__FREERTOS) || defined(_FREE_RTOS) || defined(FREE_RTOS)
-
-// #error "_FREE_RTOS"
 
 #ifndef _FREE_RTOS // may already be defined as 1 via -D_FREE_RTOS on the compiler command line
 #define _FREE_RTOS

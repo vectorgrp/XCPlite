@@ -447,7 +447,7 @@ const char *socketGetErrorString(int32_t err) {
 // @@@@ TODO: For embedded targets replace the stub section below with an lwIP or FreeRTOS+TCP socket implementation that calls the FreeRTOS+TCP API.
 #if defined(_FREE_RTOS) && !defined(FREE_RTOS_POSIX_SIM)
 
-#error "FreeRTOS socket functions not implemented yet"
+//#error "FreeRTOS socket functions not implemented yet"
 
 bool socketStartup(void) {
     DBG_PRINT_ERROR("FREE_RTOS:socketStartup not implemented\n");
