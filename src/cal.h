@@ -103,8 +103,8 @@ typedef struct {
 #ifdef OPTION_ATOMIC_EMULATION
     uint8_t res[64 - 22];
 #endif
-#ifdef _FREE_RTOS
-uint8_t res[8];
+#if defined(_FREE_RTOS) && !defined(FREE_RTOS_POSIX_SIM)
+    uint8_t res[8];
 #endif
 
 } tXcpCalSegHeader;
