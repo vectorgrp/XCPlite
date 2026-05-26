@@ -77,11 +77,10 @@ typedef struct {
     atomic_uint_least32_t free_page;     // offset into c->b[]
     atomic_uint_fast8_t ecu_access;      // page number for ECU access
     atomic_uint_fast8_t lock_count;      // lock count for the segment, 0 = unlocked
-
 #if defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
-    uint8_t *default_page_ptr; // process-local ptr to caller's static data, NOT sharable, used for
+    uint8_t *default_page_ptr; // Pointer to static lifetime default page
 #else
-    uint8_t *res1; // In SHM mode, there is no pointer to the default page
+    uint8_t *res1; // Default, there is no pointer to the default page
 #endif
     uint32_t ecu_page; // offset into c->b[], or XCP_CALSEG_NO_PAGE
     uint32_t xcp_page; // offset into c->b[], or XCP_CALSEG_NO_PAGE
@@ -111,6 +110,24 @@ typedef struct {
 
 // Accessor helpers: resolve a page offset to a pointer within c->b[]
 // Returns NULL when offset is XCP_CALSEG_NO_PAGE
+
+#if defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
+
+// In absolute addressing mode
+// Save the memory for the default page copy in absolute addressing mode, default page has static lifetime
+#define CALSEG_PAGE_COUNT 3                                           // default page, ECU page and XCP page
+#define XCP_PAGE_OFFSET(aligned_page_size) (aligned_page_size)        // Initial offset of the XCP working page in the allocated memory buffer
+#define ECU_PAGE_OFFSET(aligned_page_size) (1 * (aligned_page_size))  // Initial of the ECU working page in the allocated memory buffer
+#define FREE_PAGE_OFFSET(aligned_page_size) (2 * (aligned_page_size)) // Initial of the free swap page in the allocated memory buffer
+#define CalSegDefaultPage(c) (c)->h.default_page_ptr
+#define CalSegEcuPage(c) &(c)->b[(c)->h.ecu_page]
+#define CalSegXcpPage(c) &(c)->b[(c)->h.xcp_page]
+
+#else
+
+// In segment relative addressing mode
+// Maintain a copy of the default page, mandatory for SHM mode, using shared memory
+#define CALSEG_PAGE_COUNT 4                                           // default page, ECU page, XCP page and free swap page
 #define DEFAULT_PAGE_OFFSET (0)                                       // Constant offset of the default page in the allocated memory buffer
 #define XCP_PAGE_OFFSET(aligned_page_size) (aligned_page_size)        // Initial offset of the XCP working page in the allocated memory buffer
 #define ECU_PAGE_OFFSET(aligned_page_size) (2 * (aligned_page_size))  // Initial of the ECU working page in the allocated memory buffer
@@ -118,6 +135,8 @@ typedef struct {
 #define CalSegDefaultPage(c) &(c)->b[DEFAULT_PAGE_OFFSET]
 #define CalSegEcuPage(c) &(c)->b[(c)->h.ecu_page]
 #define CalSegXcpPage(c) &(c)->b[(c)->h.xcp_page]
+
+#endif
 
 static_assert(sizeof(tXcpCalSegHeader) % XCP_CALPAGE_ALIGNMENT == 0, "Error: size of tXcpCalSegHeader is not a multiple of XCP_CALPAGE_ALIGNMENT");
 static_assert(sizeof(tXcpCalSegHeader) % XCP_CALSEG_HEADER_SIZE == 0, "Error: size of tXcpCalSegHeader is not a multiple of XCP_CALSEG_HEADER_SIZE");
@@ -226,7 +245,9 @@ uint8_t XcpGetMemSegCount(void);
 tXcpCalSegIndex XcpFindCalSeg(const char *name);
 
 // Find a calibration segment by a pointer into its static default page memory, returns XCP_UNDEFINED_CALSEG if not found
+#if defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
 tXcpCalSegIndex XcpFindCalSegByAddr(uint8_t *addr);
+#endif
 
 // Convert between segment number and segment index, returns XCP_UNDEFINED_CALSEG or XCP_UNDEFINED_CALSEG_NUM if not found
 tXcpCalSegIndex XcpGetCalSegIndex(tXcpCalSegNumber segment_number);

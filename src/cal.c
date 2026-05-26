@@ -429,7 +429,7 @@ static tXcpCalSegIndex XcpCreateCalSeg_(const char *name, bool lookup, const voi
 
         // Allocate memory for the new segment from the embedded pool using the thread-safe bump allocator
         // Header + DEFAULT page + ECU page + XCP page + RCU swap page
-        calseg = (tXcpCalSeg *)XcpCalMemAlloc_(sizeof(tXcpCalSegHeader) + 4 * (size_t)aligned_page_size);
+        calseg = (tXcpCalSeg *)XcpCalMemAlloc_(sizeof(tXcpCalSegHeader) + CALSEG_PAGE_COUNT * (size_t)aligned_page_size);
         DBG_PRINTF3("Create CalSeg '%s' size=%u, type=%s\n", name, page_size, memory_segment ? "seg" : "blk");
         if (!XcpInitCalSeg_(calseg, name, default_page, default_page_file, page_size, memory_segment)) {
             return XCP_UNDEFINED_CALSEG;

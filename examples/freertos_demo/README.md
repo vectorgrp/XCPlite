@@ -310,3 +310,6 @@ XCP creates 2 tasks/threads for RX and TX via .
 
 
 
+### TODO List and open issues
+
+- Improve and complete C++ support 

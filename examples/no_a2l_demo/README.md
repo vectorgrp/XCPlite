@@ -96,8 +96,7 @@ The same pattern can be used to create any other application-specific configurat
 ./build.sh no_a2l
 
 # Or directly with CMake
-cmake -B build_no_a2l -S . -DCMAKE_BUILD_TYPE=Debug \
-      -DXCPLITE_BUILD_NO_A2L_DEMO=ON -DXCPLITE_BUILD_EXAMPLES=OFF
+cmake -B build_no_a2l -S . -DCMAKE_BUILD_TYPE=Debug -DXCPLITE_BUILD_NO_A2L_DEMO=ON -DXCPLITE_BUILD_EXAMPLES=OFF
 cmake --build build_no_a2l
 
 # Generate an A2L file for the no_a2l_demo application from its ELF file
