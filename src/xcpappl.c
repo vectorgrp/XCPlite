@@ -229,7 +229,7 @@ const uint8_t *ApplXcpGetBaseAddr(void) {
 
 //----------------------------
 // FreeRTOS  32 bit
-#if defined(_FREE_RTOS) && !defined(FREE_RTOS_POSIX_SIM)
+#if defined(_FREE_RTOS) && !defined(FREE_RTOS_POSIX_SIM) // FreeRTOS memory base address
 
 const uint8_t *ApplXcpGetModuleAddr(void) { return (uint8_t *)0; }
 

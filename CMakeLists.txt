@@ -31,8 +31,8 @@ option(XCPLITE_BUILD_BPF_DEMO      "Build bpf_demo (requires libbpf; Linux only)
 option(XCPLITE_BUILD_TESTS         "Build xcplite test targets"                                             OFF)
 option(XCPLITE_BUILD_TOOLS         "Build tool targets: ptptool, shmtool, xcpdaemon"                        OFF)
 option(XCPLITE_BUILD_RUST_TOOLS    "Build Rust tool targets: xcpclient, bintool (requires cargo)"           OFF)
-option(XCPLITE_BUILD_NO_A2L_DEMO   "Build no_a2l_demo with no-A2L config (use an isolated build directory)" OFF)
-option(XCPLITE_BUILD_FREERTOS_DEMO "Build freertos_demo (downloads FreeRTOS-Kernel via FetchContent)"       OFF)
+option(XCPLITE_BUILD_NO_A2L_DEMO   "Build no_a2l_demo with no-A2L config xcplib_(no_a2l_cfg.h), use an isolated build directory" OFF)
+option(XCPLITE_BUILD_FREERTOS_DEMO "Build freertos_demo with RTOS config xcplib_rtos_cfg.h (downloads FreeRTOS-Kernel via FetchContent)"       OFF)
 
 # Find required packages
 find_package(Threads REQUIRED)
@@ -354,10 +354,8 @@ endif()
 
 # freertos_demo: opt-in, independent of XCPLITE_BUILD_EXAMPLES.
 # Downloads FreeRTOS-Kernel via FetchContent. Requires macOS or Linux.
-if(XCPLITE_BUILD_FREERTOS_DEMO AND NOT WIN32)
+if(XCPLITE_BUILD_FREERTOS_DEMO)
     add_subdirectory(examples/freertos_demo)
-elseif(XCPLITE_BUILD_FREERTOS_DEMO AND WIN32)
-    message(STATUS "freertos_demo: skipping – not supported on Windows")
 endif()
 
 # ============================================================================

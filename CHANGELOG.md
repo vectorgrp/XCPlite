@@ -5,8 +5,8 @@ All notable changes to XCPlite are documented in this file.
 
 ## [V2.1.0]
 
-- Improved support for microcontroller operating systems (like freeRTOS, zephyr, ThreadX etc.)
-- freeRTOS demo using FreeRTOS the POSIX emulator
+- Improved compatibility for 32 bit microcontroller RTOS operating systems (like freeRTOS, zephyr, ThreadX etc.)
+- freeRTOS demo using FreeRTOS POSIX emulator port
 - Improved support for offline A2L creation from ELF files, file system dependency is now optional 
 - XCP event and segment descriptor memory sections to preregister events and calibration segments/block in XcpInit, for deterministic event numbers without .BIN file
 - The A2L generator in xcpclient can create an A2L file template with XCP events and segments from the ELF file only, by inspecting the event and segment descriptor memory sections

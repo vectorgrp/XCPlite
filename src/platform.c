@@ -79,7 +79,7 @@ int _kbhit(void) {
 // Sleep
 /**************************************************************************/
 
-#if defined(_FREE_RTOS) // FreeRTOS
+#if defined(_FREE_RTOS) // FreeRTOS sleep
 
 // Minimum granularity is one tick (1 ms at configTICK_RATE_HZ = 1000).
 // Sub-millisecond delays are rounded up to the next tick.
@@ -365,7 +365,7 @@ void platformShmUnlink(const char *name) {
 // Mutex
 /**************************************************************************/
 
-#if defined(_FREE_RTOS) // FreeRTOS
+#if defined(_FREE_RTOS) // FreeRTOS mutexes
 
 void mutexInit(MUTEX *m, bool recursive, uint32_t spinCount) {
     (void)spinCount;
@@ -445,9 +445,9 @@ const char *socketGetErrorString(int32_t err) {
 // FreeRTOS platforms
 
 // @@@@ TODO: For embedded targets replace the stub section below with an lwIP or FreeRTOS+TCP socket implementation that calls the FreeRTOS+TCP API.
-#if defined(_FREE_RTOS) && !defined(FREE_RTOS_POSIX_SIM)
+#if defined(_FREE_RTOS) && !defined(FREE_RTOS_POSIX_SIM) // FreeRTOS sockets
 
-//#error "FreeRTOS socket functions not implemented yet"
+// #error "FreeRTOS socket functions not implemented yet"
 
 bool socketStartup(void) {
     DBG_PRINT_ERROR("FREE_RTOS:socketStartup not implemented\n");
@@ -1092,13 +1092,7 @@ bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr) {
 // timeoutMs: timeout in milliseconds, 0 = infinite blocking (restore default)
 bool socketSetTimeout(SOCKET_HANDLE socket, uint32_t timeoutMs) {
     assert(socket != NULL);
-#if defined(_FREE_RTOS)
-    // @@@@ TODO: Implement socket timeouts for FreeRTOS
-    (void)socket;
-    (void)timeoutMs;
-    DBG_PRINT_WARNING("FREE_RTOS:socketSetTimeout: Socket timeouts not supported on FreeRTOS!\n");
-    return true;
-#elif defined(_WIN)
+#if defined(_WIN)
     DWORD tv = (DWORD)timeoutMs;
     if (setsockopt(socket->sock, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof(tv)) < 0) {
         DBG_PRINTF_WARNING("socketSetTimeout: setsockopt SO_RCVTIMEO failed (errno=%d,%s)\n", socketGetLastError(), socketGetErrorString(socketGetLastError()));
@@ -1863,7 +1857,7 @@ void clockGetPrintStatistic(void) {
 // }
 // #endif
 
-#if defined(_FREE_RTOS)
+#if defined(_FREE_RTOS) // FreeRTOS clock
 
 // ---------------------------------------------------------------------------
 // FreeRTOS clock using xTaskGetTickCount()
@@ -2273,10 +2267,7 @@ bool fexists(const char *filename) {
     if (filename == NULL) {
         return false;
     }
-#if defined(_FREE_RTOS)
-    (void)filename;
-    return false; // No filesystem on bare-metal FreeRTOS
-#elif defined(_WIN)
+#if defined(_WIN)
     // Windows: use _access from io.h
     return (_access(filename, 0) == 0);
 #else

@@ -89,6 +89,9 @@ Use only absolute addressing mode, which is in this mode associated to address e
 
 The A2l file may then be created and updated with any usual method of your choice, using CANape, A2L-Studio, A2L-Creator, a2ltool, ...
 
+See no_a2l_demo or free_rtos_demo.  
+
+
 **Limitations:**
 - Measurement of heap and stack is not possible anymore
 - You are now limited to 32 bit address range starting at the module load address (`ApplXcpGetBaseAddr()`/`xcp_get_base_addr()`)
@@ -141,6 +144,7 @@ Depending on `#define OPTION_CAL_SEGMENTS_ABS` in `xcplib_cfg.h`, address extens
 The 2 modes are named **CASDD** and **ACSDD**. The A2L variable `project_no` is used to indicate the addressing mode to A2L creators or updaters.  
 This is important, because CANape does not support address extensions >0 for parameters in calibration segments.  
 Parameters in calibration segments may be accessed by their segment relative address or by their absolute address, using the corresponding address extension.  
+Note that this requires that the default page address given to the `XcpCreateCalSeg` function is in the 32 bit address range and has static lifetime.
 
 ### Absolute Addressing Mode (XCP_ENABLE_ABS_ADDRESSING)
 

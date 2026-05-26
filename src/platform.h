@@ -21,8 +21,6 @@
 |
  ----------------------------------------------------------------------------*/
 
-
-
 //-------------------------------------------------------------------------------------------------
 // Platform defines
 
@@ -346,15 +344,15 @@ typedef HANDLE THREAD_HANDLE;
 // With a 16 KB page size (Apple Silicon) the buffer must be considerably larger than
 // PTHREAD_STACK_MIN so that at least one full page remains after Thread_t and alignment.
 // 16384 bytes = configMINIMAL_STACK_SIZE words (at 4 bytes/word) in the demo config.
-#ifndef XCPLIB_FREERTOS_STACK_BYTES
-#define XCPLIB_FREERTOS_STACK_BYTES 16384U
+#ifndef OPTION_FREERTOS_STACK_BYTES
+#define OPTION_FREERTOS_STACK_BYTES 16384U
 #endif
-#ifndef XCPLIB_FREERTOS_PRIORITY
-#define XCPLIB_FREERTOS_PRIORITY (tskIDLE_PRIORITY + 2U)
+#ifndef OPTION_FREERTOS_PRIORITY
+#define OPTION_FREERTOS_PRIORITY (tskIDLE_PRIORITY + 2U)
 #endif
 
 typedef TaskHandle_t THREAD_HANDLE;
-#define create_thread(h, attr, fn, args) xTaskCreate((TaskFunction_t)(fn), #fn, (XCPLIB_FREERTOS_STACK_BYTES / sizeof(StackType_t)), (args), XCPLIB_FREERTOS_PRIORITY, (h))
+#define create_thread(h, attr, fn, args) xTaskCreate((TaskFunction_t)(fn), #fn, (OPTION_FREERTOS_STACK_BYTES / sizeof(StackType_t)), (args), OPTION_FREERTOS_PRIORITY, (h))
 #define join_thread(h) /* No blocking join in FreeRTOS; synchronize via event flag or semaphore */
 #define cancel_thread(h) vTaskDelete(h)
 #define get_thread_id() ((uint32_t)(uintptr_t)xTaskGetCurrentTaskHandle())

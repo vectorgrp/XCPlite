@@ -117,7 +117,7 @@ XCPlite multi application absolute addressing: XCP_ADDRESS_MODE_XCPLITE__CXSDD (
 // Enable segment relative, application callback and absolute addressing mode
 // The address extension for absolute addressing depends on the application id 0x80+app_id
 #define XCP_ADDRESS_MODE_XCPLITE__CXSDD
-#define XCP_ADDRESS_MODE "XCPLITE__CXSDD"
+#define XCP_ADDRESS_MODE "XCPLITE__CXSDD" // used as A2L PROJECT_NO to indicate the addressing mode to A2L creators or updaters
 #define XCP_ENABLE_ABS_ADDRESSING
 #define XCP_ADDR_EXT_ABS 0x80 // + application id (0-MAX_APP_ID-1)
 #define XCP_ENABLE_SEG_ADDRESSING
@@ -128,7 +128,7 @@ XCPlite multi application absolute addressing: XCP_ADDRESS_MODE_XCPLITE__CXSDD (
 #if !defined(XCP_ENABLE_CALSEG_LIST)
 // Absolute and application addressing mode without calibration segment management
 #define XCP_ADDRESS_MODE_XCPLITE__AXSDD
-#define XCP_ADDRESS_MODE "XCPLITE__AXSDD"
+#define XCP_ADDRESS_MODE "XCPLITE__AXSDD" // used as A2L PROJECT_NO to indicate the addressing mode to A2L creators or updaters
 #define XCP_ENABLE_ABS_ADDRESSING
 #define XCP_ADDR_EXT_ABS 0x00
 #define XCP_ENABLE_APP_ADDRESSING
@@ -137,7 +137,7 @@ XCPlite multi application absolute addressing: XCP_ADDRESS_MODE_XCPLITE__CXSDD (
 #if defined(OPTION_CAL_SEGMENTS_ABS)
 // Absolute calibration segment addressing mode
 #define XCP_ADDRESS_MODE_XCPLITE__ACSDD
-#define XCP_ADDRESS_MODE "XCPLITE__ACSDD"
+#define XCP_ADDRESS_MODE "XCPLITE__ACSDD" // used as A2L PROJECT_NO to indicate the addressing mode to A2L creators or updaters
 #define XCP_ENABLE_ABS_ADDRESSING
 #define XCP_ADDR_EXT_ABS 0x00
 #define XCP_ENABLE_SEG_ADDRESSING
@@ -145,7 +145,7 @@ XCPlite multi application absolute addressing: XCP_ADDRESS_MODE_XCPLITE__CXSDD (
 #else
 // Relative calibration segment addressing mode (Default)
 #define XCP_ADDRESS_MODE_XCPLITE__CASDD
-#define XCP_ADDRESS_MODE "XCPLITE__CASDD"
+#define XCP_ADDRESS_MODE "XCPLITE__CASDD" // used as A2L PROJECT_NO to indicate the addressing mode to A2L creators or updaters
 #define XCP_ENABLE_SEG_ADDRESSING
 #define XCP_ADDR_EXT_SEG 0x00
 #define XCP_ENABLE_ABS_ADDRESSING

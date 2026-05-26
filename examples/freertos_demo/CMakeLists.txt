@@ -69,7 +69,7 @@ endif()
 
 
 target_compile_definitions(xcplite PRIVATE
-    _FREE_RTOS                                          # Force FreeRTOS code paths in platform.h/platform.c, xcpappl.c
+    _FREE_RTOS                                           # Force FreeRTOS code paths in platform.h/platform.c, xcpappl.c
     FREE_RTOS_POSIX_SIM                                  # Use Linux sockets and clock code in platform.c when _FREE_RTOS is defined
     "XCPLIB_CFG_OVERRIDE=\"xcplib_rtos_cfg.h\""
 )
@@ -81,18 +81,4 @@ target_include_directories(xcplite PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"   # FreeRTOSConfig.h
 )
 
-# ---------------------------------------------------------------------------
-# Generate .dSYM bundle after linking (required by LLDB on Apple Clang / Xcode 15+
-# because the new linker no longer embeds N_OSO stabs in the binary)
-# ---------------------------------------------------------------------------
-if(APPLE)
-    find_program(DSYMUTIL dsymutil)
-    if(DSYMUTIL)
-        add_custom_command(TARGET freertos_demo POST_BUILD
-            COMMAND ${DSYMUTIL} $<TARGET_FILE:freertos_demo>
-                    -o $<TARGET_FILE:freertos_demo>.dSYM
-            COMMENT "Generating freertos_demo.dSYM"
-        )
-    endif()
-endif()
 

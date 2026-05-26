@@ -73,7 +73,7 @@ cmake --build build-freertos --target freertos_demo
 
 
 ```bash
-xcpclient --offline   --elf ./examples/freertos_demo/CANape/freertos_demo --create-a2l  --a2l ./examplesfreertos_demo/CANape/freertos_demo.a2l
+xcpclient --offline   --elf ./examples/freertos_demo/CANape_Project/freertos_demo --create-a2l  --a2l ./examples/freertos_demo/CANape_Project/freertos_demo.a2l
 ```
 
 For more details and options on the A2L file generation, see no_a2l_demo and the xcpclient documentation.  
@@ -87,7 +87,7 @@ Do a test measurment.
 Visualize the counter variables in task1 and task2 with the generated A2L file.  
 
 ```bash
-xcpclient --udp --dest-addr 192.168.0.206:5555   --a2l ./examples/freertos_demo/CANape/freertos_demo.a2l  --mea counter --verbose 2
+xcpclient --udp --dest-addr 192.168.0.206:5555   --a2l ./examples/freertos_demo/CANape_Project/freertos_demo.a2l  --mea counter --verbose 2
 ```
 ---
 
@@ -114,7 +114,7 @@ These values are deliberately large for comfortable POSIX development. When port
 microcontroller, reduce `configMINIMAL_STACK_SIZE` and `configTOTAL_HEAP_SIZE` to match
 available SRAM (see [Porting to a target](#porting-to-a-target)).
 
-### `xcplib_rtos_cfg.h` (active when `XCPLIB_FOR_RTOS` is defined)
+### `xcplib_rtos_cfg.h` 
 
 | Option | Value | Reason |
 |---|---|---|
@@ -134,7 +134,7 @@ available SRAM (see [Porting to a target](#porting-to-a-target)).
 XCPlite ships as a CMake package. Add it as a subdirectory or install it and use `find_package`:
 
 ```cmake
-add_subdirectory(path/to/XCPlite-RainerZ)  # builds xcplite static library
+add_subdirectory(path/to/XCPlite)  # builds xcplite static library
 target_link_libraries(my_app PRIVATE xcplite freertos_kernel)
 ```
 
@@ -142,16 +142,31 @@ For a bare-metal target, also add the compile definitions:
 
 ```cmake
 target_compile_definitions(xcplite PRIVATE
-    _FREE_RTOS          # use FreeRTOS platform abstraction
-    XCPLIB_FOR_RTOS     # use xcplib_rtos_cfg.h
+    _FREE_RTOS                                      # use FreeRTOS specific code paths and platform abstraction
+    "XCPLIB_CFG_OVERRIDE=\"xcplib_rtos_cfg.h\"".    # apply FreeRTOS-specific configuration overrides
 )
 ```
 
+| Description:
+|   XCPlite configuration OVERRIDES for FreeRTOS embedded targets
+|   Applied AFTER the defaults in xcplib_cfg.h via:
+|     cmake: target_compile_definitions(xcplite PRIVATE "XCPLIB_CFG_OVERRIDE=\"xcplib_rtos_cfg.h\"")
+|
+|   Only settings that DIFFER from the POSIX defaults are listed here.
+|   Key differences:
+|     - OPTION_QUEUE_32          mandatory when no 64-bit atomics are available
+|     - OPTION_CLOCK_TICKS_1US   FreeRTOS tick-based clock (1 ms granularity)
+|     - No persistence, no A2L/ELF upload (no filesystem)
+|     - No forceful thread termination (use vTaskDelete instead)
+|     - Reduced queue size, and max event number and calibration segment counts to fit in embedded SRAM
+
+
+
 ### Step 2 — Provide `FreeRTOSConfig.h`
 
-XCPlite includes `FreeRTOS.h` when `_FREE_RTOS` is defined; the FreeRTOS kernel must be able to
-find your `FreeRTOSConfig.h`.  With FreeRTOS-Kernel V11+, use the recommended `freertos_config`
-interface library:
+XCPlite includes `FreeRTOS.h` when `_FREE_RTOS` is defined.  
+The FreeRTOS kernel must be able to find `FreeRTOSConfig.h`.  
+With FreeRTOS-Kernel V11+, use the recommended `freertos_config` interface library:
 
 ```cmake
 add_library(freertos_config INTERFACE)
@@ -161,7 +176,7 @@ target_include_directories(freertos_config SYSTEM INTERFACE
 target_compile_definitions(freertos_config INTERFACE projCOVERAGE_TEST=0)
 ```
 
-### Step 3 — Implement the socket layer (bare-metal)
+### Step 3 — Implement the socket layer
 
 When `_FREE_RTOS` is defined **without** `FREE_RTOS_POSIX_SIM`, the socket functions in
 `platform.c` are stubs that return `true` without doing anything.  Replace them with a real
@@ -170,12 +185,17 @@ network stack implementation (e.g. **lwIP** or **FreeRTOS+TCP**) by filling in t
 
 The required interface is documented in `src/platform.h` (search for `SOCKET_HANDLE`).
 
+
 ### Step 4 — Implement the clock (bare-metal)
 
 The FreeRTOS clock in `platform.c` uses `xTaskGetTickCount()` which gives 1 ms granularity at
-1 kHz.  For higher-resolution timestamps (sub-millisecond DAQ), replace `clockGet()` in the
-`#if defined(_FREE_RTOS)` section with a hardware free-running counter, for example DWT on
-Cortex-M4:
+1 kHz.  
+For 1us high-resolution timestamps, replace `clockGet()` in the `#if defined(_FREE_RTOS)` section with a hardware free-running counter.  
+
+Other clock resultions than 1us or 1ns are possible, but this requires to adapt the XCP protocol layer settings in xcp_cfg.h.  
+
+
+For example DWT on Cortex-M4:
 
 ```c
 // platform.c – high-resolution clock for Cortex-M4
@@ -195,6 +215,8 @@ DWT->CYCCNT = 0;
 DWT->CTRL  |= DWT_CTRL_CYCCNTENA_Msk;
 ```
 
+
+
 ### Step 5 — Initialise XCPlite and start tasks
 
 ```c
@@ -203,6 +225,7 @@ DWT->CTRL  |= DWT_CTRL_CYCCNTENA_Msk;
 
 XcpSetLogLevel(3);
 XcpInit("my_project", "V1.0", XCP_MODE_LOCAL);
+XcpCreateEpk("V1.0");
 
 uint8_t addr[4] = {192, 168, 0, 10};
 XcpEthServerInit(addr, 5555, false /*UDP*/, 8192 /*queue bytes*/);
@@ -253,18 +276,26 @@ void myMeasurementTask(void *pv) {
 
 ---
 
-## Porting to a target
+## Porting freertos_demo to a different target
 
-Checklist when moving from the POSIX simulator to a microcontroller (e.g. STM32):
+Checklist when moving from the POSIX simulator to a microcontroller:
 
-- [ ] Replace `GCC_POSIX` FreeRTOS port with the correct Cortex-M4 port (`GCC/ARM_CM4F`)
+- [ ] Replace `GCC_POSIX` FreeRTOS port with the correct port
 - [ ] Write `FreeRTOSConfig.h` for the target clock frequency and available SRAM
 - [ ] Implement the socket stub section in `platform.c` (lwIP or FreeRTOS+TCP)
-- [ ] Optionally replace `clockGet()` with a hardware counter for sub-ms resolution
-- [ ] Tune `OPTION_CAL_MEM_SIZE` and `OPTION_DAQ_MEM_SIZE` in `xcplib_rtos_cfg.h` to fit SRAM
+- [ ] Optionally replace `clockGet()` with a hardware counter for 1us or 1ns resolution
+- [ ] Tune `OPTION_CAL_MEM_SIZE` and `OPTION_DAQ_MEM_SIZE` in `xcplib_rtos_cfg.h` to your needs and available SRAM
 - [ ] Remove or redirect `DBG_PRINT` output to a UART / ITM/SWO trace port
 - [ ] Remove `FREE_RTOS_POSIX_SIM` from compile definitions (no POSIX socket bridge needed)
 - [ ] Remove the `vTaskEndScheduler()` watchdog task (not available on bare-metal ports)
+- [ ] Check required stack size for the XCP rx and tx task.  
+- [ ] Check atomics and mutex implementation for performance on your target.  
+
+Note:
+Calibration is lockfree based on atomics.  
+The data acquisition queue is protected by a mutex.
+XCP creates 2 tasks/threads for RX and TX via .  
+
 
 ---
 
@@ -274,3 +305,8 @@ Checklist when moving from the POSIX simulator to a microcontroller (e.g. STM32)
 |---|---|
 | `src/xcplib_rtos_cfg.h` | XCPlite feature configuration for FreeRTOS targets |
 | `src/xcplib_cfg.h` | Default feature configuration for POSIX / Windows targets |
+| `src/xcp_cfg.h` | Default configuration for the XCP protocol layer |
+| `src/xcptl_cfg.h` | Default configuration for the XCP ethernet transport layer |
+
+
+

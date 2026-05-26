@@ -78,11 +78,12 @@ static const char *gA2lMemorySegment =
     "  /end SEGMENT\n"
     "/end IF_DATA\n"
 #endif
-#ifdef OPTION_CAL_SEGMENTS_ABS
-    "/begin IF_DATA CANAPE_ADDRESS_UPDATE\n"
-    "/begin MEMORY_SEGMENT \"%s\" FIRST \"%s\" 0 LAST \"%s\" %u /end MEMORY_SEGMENT\n"
-    "/end IF_DATA\n"
-#endif
+    // @@@@ TODO: Check if there is a use case for this
+    // #ifdef OPTION_CAL_SEGMENTS_ABS
+    //     "/begin IF_DATA CANAPE_ADDRESS_UPDATE\n"
+    //     "/begin MEMORY_SEGMENT \"%s\" FIRST \"%s\" 0 LAST \"%s\" %u /end MEMORY_SEGMENT\n"
+    //     "/end IF_DATA\n"
+    // #endif
     "/end MEMORY_SEGMENT\n";
 
 #endif
