@@ -9,10 +9,7 @@ BUILD_TARGET="examples"  # Default to building library + examples (without bpf_d
 INSTALL_LIBRARY=false   # Whether to install library after building
 INSTALL_PREFIX=""       # Custom install prefix (empty = use CMake default)
 RUN_CLANG_TIDY=false    # Whether to run clang-tidy on library sources
-QUEUE_TEST_MC_QUEUE=false # Whether to build queue_test with the MC reference queue (xcplite wrapper)
-QUEUE_TEST_MC_SHM=false   # Whether to build queue_test for two-process SHM test (MC reference, no wrapper)
 BUILD_FREERTOS_DEMO=false  # Whether to build the FreeRTOS POSIX simulator demo
-FREERTOS_POSIX_FREE=false  # Whether to compile xcplite with _FREE_RTOS code paths (portability validation)
 BUILD_NO_A2L_DEMO=false    # Whether to build no_a2l_demo with XCPLIB_NO_A2L configuration
 BUILD_TOOLS=false          # Whether to build tool targets (ptptool, shmtool, xcpdaemon)
 BUILD_RUST_TOOLS=false     # Whether to build Rust tool targets (xcpclient, bintool) via cargo
@@ -58,7 +55,6 @@ show_usage() {
     echo "  CC=clang CXX=clang++ $0 tests    # Build with Clang, tests only"
     echo "  $0 lib tidy                      # Build library and run clang-tidy"
     echo "  $0 freertos                      # Build freertos_demo (POSIX xcplite internals)"
-    echo "  $0 freertos_posixfree            # Build freertos_demo with _FREE_RTOS code paths (portability test)"
     echo "  $0 no_a2l                        # Build no_a2l_demo with XCPLIB_NO_A2L (no A2L generator)"
     echo "  $0 tools                         # Build tool targets (ptptool, shmtool, xcpdaemon)"
     echo "  $0 rust                          # Build Rust tool targets (xcpclient, bintool) via CMake/cargo"
@@ -68,12 +64,8 @@ show_usage() {
     echo "Platform-specific targets:"
     echo "  bpf_demo:             Only built on Linux when libbpf is available (automatic detection)"
     echo "  freertos_demo:        FreeRTOS POSIX simulator demo (macOS/Linux only, downloads FreeRTOS-Kernel)"
-    echo "                        Enable with: freertos  or  freertos_posixfree"
     echo "  no_a2l_demo:          Build without A2L generator (XCPLIB_NO_A2L), uses dedicated build_no_a2l/ directory"
-    echo "                        Enable with: no_a2l"
     echo "  xcpclient, bintool:   Rust tools, built via CMake custom targets (requires cargo)"
-    echo "                        Enable with: rust"
-    echo "                        Install to CMAKE_INSTALL_PREFIX/bin with: rust install"
     echo ""
     echo "Installation:"
     echo "  By default, CMAKE_INSTALL_PREFIX is set to build/install (local staging)."
@@ -103,31 +95,9 @@ for arg in "$@"; do
         continue
     fi
 
-    # Check if argument is mc_queue or mc_shm
-    # This configures the queue_test target 
-    # Build with the MC reference queue implementation instead of the XCPlite wrapper
-    
-    if [[ "$arg_lower" == "mc_queue" ]]; then
-        QUEUE_TEST_MC_QUEUE=true
-        continue
-    fi
-    # Enable test the queue in a two-process SHM configuration that is closer to the real use case
-    # This is currently only supported on Linux since it relies on robust mutexes for synchronization, but can be extended to other platforms if needed.
-    if [[ "$arg_lower" == "mc_shm" ]]; then
-        QUEUE_TEST_MC_SHM=true
-        continue
-    fi
-
     # freertos: build freertos_demo with standard POSIX xcplite internals
     if [[ "$arg_lower" == "freertos" ]]; then
         BUILD_FREERTOS_DEMO=true
-        continue
-    fi
-    # freertos_posixfree: build freertos_demo with _FREE_RTOS code paths active
-    # (xcplite mutex/clock/sleep use FreeRTOS API; sockets bridged to POSIX for testing)
-    if [[ "$arg_lower" == "freertos_posixfree" ]]; then
-        BUILD_FREERTOS_DEMO=true
-        FREERTOS_POSIX_FREE=true
         continue
     fi
 
@@ -265,48 +235,34 @@ if [ -n "$INSTALL_PREFIX" ]; then
     echo "Custom install prefix: $INSTALL_PREFIX"
 fi
 
-CMAKE_MC_QUEUE_FLAG="-DQUEUE_TEST_MC_QUEUE=OFF -DQUEUE_TEST_MC_SHM=OFF"
-[ "$QUEUE_TEST_MC_QUEUE" = true ] && CMAKE_MC_QUEUE_FLAG="-DQUEUE_TEST_MC_QUEUE=ON  -DQUEUE_TEST_MC_SHM=OFF"
-[ "$QUEUE_TEST_MC_SHM"   = true ] && CMAKE_MC_QUEUE_FLAG="-DQUEUE_TEST_MC_QUEUE=OFF -DQUEUE_TEST_MC_SHM=ON"
-
 CMAKE_NO_A2L_FLAGS="-DXCPLITE_BUILD_NO_A2L_DEMO=OFF"
 CMAKE_RUST_TOOLS_FLAG="-DXCPLITE_BUILD_RUST_TOOLS=OFF"
 [ "$BUILD_RUST_TOOLS" = true ] && CMAKE_RUST_TOOLS_FLAG="-DXCPLITE_BUILD_RUST_TOOLS=ON"
 
 if [ "$BUILD_NO_A2L_DEMO" = true ]; then
-    # XCPLIB_NO_A2L recompiles xcplite without the A2L generator, which breaks other
-    # examples that call A2lInit().  Use a dedicated build directory.
+    # Rrecompiles xcplite without the A2L generator, which breaks other examples. Use a dedicated build directory.
     BUILD_DIR="build_no_a2l"
     CMAKE_EXAMPLES_FLAG="-DXCPLITE_BUILD_EXAMPLES=OFF"
     CMAKE_TESTS_FLAG="-DXCPLITE_BUILD_TESTS=OFF"
     CMAKE_TOOLS_FLAG="-DXCPLITE_BUILD_TOOLS=OFF"
     CMAKE_RUST_TOOLS_FLAG="-DXCPLITE_BUILD_RUST_TOOLS=OFF"
     CMAKE_NO_A2L_FLAGS="-DXCPLITE_BUILD_NO_A2L_DEMO=ON"
-    echo "no_a2l_demo: ON  (XCPLIB_NO_A2L — no A2L generator/upload)"
-    echo "Build directory: $BUILD_DIR  (isolated from regular examples build)"
+    echo "no_a2l_demo build: Build directory: $BUILD_DIR  (isolated from regular examples build)"
 fi
 
 CMAKE_FREERTOS_FLAGS="-DXCPLITE_BUILD_FREERTOS_DEMO=OFF"
 if [ "$BUILD_FREERTOS_DEMO" = true ]; then
-    if [ "$FREERTOS_POSIX_FREE" = true ]; then
-        # FREERTOS_POSIX_FREE recompiles xcplite with _FREE_RTOS defines, which breaks other
-        # examples that link xcplite without FreeRTOS.  Use a dedicated build directory and
-        # disable the regular examples so only xcplite + freertos_demo are compiled.
-        BUILD_DIR="build_posixfree"
-        CMAKE_EXAMPLES_FLAG="-DXCPLITE_BUILD_EXAMPLES=OFF"
-        CMAKE_TESTS_FLAG="-DXCPLITE_BUILD_TESTS=OFF"
-        CMAKE_TOOLS_FLAG="-DXCPLITE_BUILD_TOOLS=OFF"
-        CMAKE_RUST_TOOLS_FLAG="-DXCPLITE_BUILD_RUST_TOOLS=OFF"
-        CMAKE_FREERTOS_FLAGS="-DXCPLITE_BUILD_FREERTOS_DEMO=ON -DFREERTOS_DEMO_POSIX_FREE=ON"
-        echo "FreeRTOS demo: ON  (portability-validation mode: _FREE_RTOS + FREERTOS_POSIX_SIM code paths)"
-        echo "Build directory: $BUILD_DIR  (isolated from regular examples build)"
-    else
-        CMAKE_FREERTOS_FLAGS="-DXCPLITE_BUILD_FREERTOS_DEMO=ON -DFREERTOS_DEMO_POSIX_FREE=OFF"
-        echo "FreeRTOS demo: ON  (standard POSIX mode)"
-    fi
+    # Rrecompiles xcplite without the A2L generator, which breaks other examples. Use a dedicated build directory.
+    BUILD_DIR="build_freertos"
+    CMAKE_EXAMPLES_FLAG="-DXCPLITE_BUILD_EXAMPLES=OFF"
+    CMAKE_TESTS_FLAG="-DXCPLITE_BUILD_TESTS=OFF"
+    CMAKE_TOOLS_FLAG="-DXCPLITE_BUILD_TOOLS=OFF"
+    CMAKE_RUST_TOOLS_FLAG="-DXCPLITE_BUILD_RUST_TOOLS=OFF"
+    CMAKE_FREERTOS_FLAGS="-DXCPLITE_BUILD_FREERTOS_DEMO=ON"
+    echo "freertos_demo build: Build directory: $BUILD_DIR  (isolated from regular examples build)"
 fi
 
-cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE $CMAKE_EXAMPLES_FLAG $CMAKE_TESTS_FLAG $CMAKE_TOOLS_FLAG $CMAKE_RUST_TOOLS_FLAG $CMAKE_MC_QUEUE_FLAG $CMAKE_FREERTOS_FLAGS $CMAKE_NO_A2L_FLAGS -S . -B $BUILD_DIR $CMAKE_INSTALL_ARGS
+cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE $CMAKE_EXAMPLES_FLAG $CMAKE_TESTS_FLAG $CMAKE_TOOLS_FLAG $CMAKE_RUST_TOOLS_FLAG $CMAKE_FREERTOS_FLAGS $CMAKE_NO_A2L_FLAGS -S . -B $BUILD_DIR $CMAKE_INSTALL_ARGS
 
 echo ""
 echo "==================================================================="
