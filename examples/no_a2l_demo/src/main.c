@@ -232,7 +232,7 @@ int main(int argc, char *argv[]) {
     XcpCreateEpk(OPTION_PROJECT_VERSION);
 
     // Initialize the XCP singleton, activate XCP, must be called before starting the server
-    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION, XCP_MODE_LOCAL);
+    XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION, XCP_MODE_LOCAL | XCP_MODE_PERSISTENCE);
     XcpSetElfName(argv[0]); // Set ELF file name for upload via GET_ID, optional with OPTION_ENABLE_ELF_UPLOAD
 
     // Initialize the XCP Server
@@ -306,6 +306,9 @@ int main(int argc, char *argv[]) {
     // Wait for the thread to stop
     if (__t1)
         join_thread(__t1);
+
+    // Save current calibration segments to binary persistence file
+    XcpBinWrite(XcpGetEpk());
 
     // Stop the XCP server
     XcpEthServerShutdown();

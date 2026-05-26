@@ -5,33 +5,33 @@
 |   xcplib_no_a2l_cfg.h
 |
 | Description:
-|   XCPlite configuration OVERRIDES for the no-A2L use case.
+|   XCPlite configuration OVERRIDES for the no-A2L use case
 |   Applied AFTER the defaults in xcplib_cfg.h via:
 |     cmake: target_compile_definitions(xcplite PRIVATE "XCPLIB_CFG_OVERRIDE=\"xcplib_no_a2l_cfg.h\"")
 |
-|   Use case: The A2L database is generated externally by the xcpclient tool
-|   from the application ELF file.  No runtime A2L generation, persistence
-|   or A2L upload features are needed, reducing code size and removing any
-|   dependency on a filesystem.
+|   Use case: The A2L database is generated externally by the xcpclient tool from the application ELF file.
+|   No runtime A2L generation
+|   No on-target A2L upload
+|   Persistence is optional, disabling persistence and ELF upload completely removes the file system dependency
+|   See free_rtos_demo for an example with persistence disabled
 |
 |   Only settings that DIFFER from the POSIX defaults are listed here.
  ----------------------------------------------------------------------------*/
 
 //-------------------------------------------------------------------------------
 // Calibration segments
-// No persistence — A2L is not generated on-target; no .BIN state file needed
-#undef OPTION_ENABLE_PERSISTENCE
 
-// Absolute addressing required for xcpclient to locate calibration variables by address
-#define OPTION_CAL_SEGMENTS_ABS
+// No persistence — not supported in OPTION_CAL_SEGMENTS_ABS
+// #undef OPTION_ENABLE_PERSISTENCE
 
-//-------------------------------------------------------------------------------
-// Queue — use 32-bit mutex-based queue (compatible with 32-bit platforms and Windows)
-#undef OPTION_QUEUE_64_VAR_SIZE
-#undef OPTION_QUEUE_64_FIX_SIZE
-#define OPTION_QUEUE_32
+// Absolute addressing mode (address extension 0 is absolute addressing)
+// Default: Relative addressing mode (address extension 0 is segment relative addressing)
+// #define OPTION_CAL_SEGMENTS_ABS
+
+// @@@@ TODO: Check new offline ELF section based A2L generation in segment relative mode with persistence enabled
 
 //-------------------------------------------------------------------------------
 // A2L / ELF — generated externally from ELF by xcpclient; disable on-target features
 #undef OPTION_ENABLE_A2L_GENERATOR
 #undef OPTION_ENABLE_A2L_UPLOAD
+// #undef OPTION_ENABLE_ELF_UPLOAD
