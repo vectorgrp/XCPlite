@@ -139,6 +139,8 @@ uint16_t XcpRegisterSectionCalSegs(void) {
                 count++;
             }
         }
+    } else {
+        DBG_PRINT_WARNING("No xcp_cals section found\n");
     }
 #elif defined(__APPLE__)
     unsigned long sz = 0;
@@ -153,11 +155,15 @@ uint16_t XcpRegisterSectionCalSegs(void) {
                 count++;
             }
         }
+    } else {
+        DBG_PRINT_WARNING("No xcp_cals section found\n");
     }
 #endif
 
     if (count > 0)
         DBG_PRINTF3(ANSI_COLOR_GREEN "Preregistered %u calibration segments or blocks from descriptor section\n" ANSI_COLOR_RESET, count);
+    else
+        DBG_PRINT_WARNING("No calibration segment descriptors found in section xcp_cals\n");
     return count;
 }
 
@@ -522,25 +528,29 @@ static bool XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
     // Standard: default page pointer provided by the caller
     if (default_page != NULL) {
         assert(default_page_file == NULL);
-        memcpy(CalSegDefaultPage(c), default_page, page_size); // Copy default page to the allocated memory buffer
 #if defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
-        // May have static lifetime, so keep the pointer in non SHM mode in addition to the copy
-        c->h.default_page_ptr = (uint8_t *)default_page;
+        c->h.default_page_ptr = (uint8_t *)default_page; // Store the static lifetime default page pointer
+#else
+        memcpy(CalSegDefaultPage(c), default_page, page_size); // Copy default page to the allocated memory buffer
 #endif
     }
 
     // Preload: Caller wants to create a preinitialized, preloaded segment from file
 #ifdef XCP_ENABLE_CAL_PERSISTENCE
     else if (default_page_file != NULL) {
-        // Load the default page content from the binary persistence file
+#if defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
+        // @@@@ TODO: Implement loading default working page from file in absolute addressing mode (working page persistence)
+        DBG_PRINT_ERROR("Not implemented: Loading default page from file in absolute addressing mode\n");
+        assert(false);
+        return false; // Not supported to load the default page from file in absolute addressing mode
+#else
+        // Load the default page content from the binary persistence file (reference page persistence)
         size_t read = fread(CalSegDefaultPage(c), 1, page_size, default_page_file);
         if (read != page_size) {
             DBG_PRINTF_ERROR("Failed to read the default page content from file, expected %u bytes, got %zu bytes\n", page_size, read);
             assert(false);
             return false;
         }
-#if defined(XCP_ENABLE_ABS_ADDRESSING) && XCP_ADDR_EXT_ABS == 0x00
-        c->h.default_page_ptr = NULL;
 #endif
     }
 #endif //   XCP_ENABLE_CAL_PERSISTENCE
@@ -813,6 +823,7 @@ uint8_t XcpCalSegWriteMemory(uint32_t dst, uint16_t size, const uint8_t *src) {
 }
 
 // Update the EKP segment with the current EPK value
+#ifdef OPTION_SHM_MODE // Update the EPK
 #ifdef XCP_ENABLE_EPK_CALSEG
 void XcpCalUpdateEpkSeg(const char *epk) {
 
@@ -823,6 +834,7 @@ void XcpCalUpdateEpkSeg(const char *epk) {
     memcpy(CalSegDefaultPage(c), epk, epk_len); // Update the default page with the current EPK value
     memcpy(CalSegEcuPage(c), epk, epk_len);     // Update the ECU page with the current EPK value
 }
+#endif
 #endif
 
 //----------------------------------------------------------------------------------------------------------

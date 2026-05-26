@@ -122,6 +122,11 @@ bool XcpResetAllCalSegs(void);
 /// @return true on success
 bool XcpFreeze(void);
 
+/// Create the binary persistence file with the current working pages as default pages
+/// @param epk The EPK string for verification
+/// @return true on success
+bool XcpBinWrite(const char *epk);
+
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Macros to create and access calibration segments or blocks
 #ifndef __cplusplus
@@ -673,6 +678,9 @@ bool XcpIsInShmMode(void);
 
 // Project name
 const char *XcpGetProjectName(void);
+
+// EPK software version identifier
+const char *XcpGetEpk(void);
 
 // A2L file name
 // Notify XCPlite there is a valid A2L with this name to be provided for upload via XCP command GET_ID

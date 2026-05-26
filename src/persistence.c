@@ -339,7 +339,7 @@ bool XcpBinFreezeCalSeg(tXcpCalSegIndex calseg) {
     const char *filename = XcpBinGetFilename();
     FILE *file = fopen(filename, "r+b");
     if (file == NULL) {
-        DBG_PRINTF_ERROR("Failed to open file '%s'\n", filename);
+        DBG_PRINTF_ERROR("Failed to open file '%s', file does not exist or cannot be accessed\n", filename);
         return false;
     }
 

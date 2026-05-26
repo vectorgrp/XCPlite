@@ -119,7 +119,7 @@ typedef struct {
 #define XCP_PAGE_OFFSET(aligned_page_size) (aligned_page_size)        // Initial offset of the XCP working page in the allocated memory buffer
 #define ECU_PAGE_OFFSET(aligned_page_size) (1 * (aligned_page_size))  // Initial of the ECU working page in the allocated memory buffer
 #define FREE_PAGE_OFFSET(aligned_page_size) (2 * (aligned_page_size)) // Initial of the free swap page in the allocated memory buffer
-#define CalSegDefaultPage(c) (c)->h.default_page_ptr
+#define CalSegDefaultPage(c) (const uint8_t *)(c)->h.default_page_ptr
 #define CalSegEcuPage(c) &(c)->b[(c)->h.ecu_page]
 #define CalSegXcpPage(c) &(c)->b[(c)->h.xcp_page]
 
@@ -144,7 +144,7 @@ static_assert(sizeof(tXcpCalSegHeader) % XCP_CALSEG_HEADER_SIZE == 0, "Error: si
 // Calibration segment
 typedef struct {
     tXcpCalSegHeader h;
-    // variable size data block for the pages, actual size is page_size * 3, for working page, free page and xcp page
+    // variable size data block for the pages, actual size is page_size * CALSEG_PAGE_COUNT, for [default_page], working page, free page and xcp page
     uint8_t b[];
 } tXcpCalSeg;
 
