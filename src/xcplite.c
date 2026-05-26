@@ -955,7 +955,7 @@ typedef struct {
     uint8_t priority;
     tXcpEventId id;
 } tXcpEventDescriptor;
-static_assert(sizeof(tXcpEventDescriptor) == 8+sizeof(void*), "Size of tXcpEventDescriptor must be 16 bytes for correct section parsing in xcpclient tool");
+static_assert(sizeof(tXcpEventDescriptor) == 8 + sizeof(void *), "Size of tXcpEventDescriptor must be 16 bytes for correct section parsing in xcpclient tool");
 #endif
 
 // Pre-register all tXcpEventDescriptor variables placed in the xcp_evts section by DaqCreateEvent().
@@ -977,6 +977,8 @@ static uint16_t XcpRegisterSectionEvents(void) {
                 count++;
             }
         }
+    } else {
+        DBG_PRINTF_WARNING("No xcp_evts section found\n");
     }
 #elif defined(__APPLE__)
     unsigned long sz = 0;
@@ -989,11 +991,15 @@ static uint16_t XcpRegisterSectionEvents(void) {
                 count++;
             }
         }
+    } else {
+        DBG_PRINT_WARNING("No xcp_evts section found\n");
     }
 #endif
 
     if (count > 0)
         DBG_PRINTF3(ANSI_COLOR_GREEN "Preregistered %u events from event descriptor section\n" ANSI_COLOR_RESET, count);
+    else
+        DBG_PRINT_WARNING("No event descriptors found in section xcp_evts\n");
     return count;
 }
 
@@ -3031,11 +3037,14 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
         XcpBindOwnerThread();
 #endif
 #else
+
+#ifndef OPTION_ENABLE_PERSISTENCE
         // Persistence not enabled
         if ((mode & XCP_MODE_PERSISTENCE) != 0) {
             DBG_PRINT_WARNING("XcpInit: Persistence mode requested, but xcplib is compiled without persistence support, ignoring persistence flag\n");
             mode &= ~XCP_MODE_PERSISTENCE;
         }
+#endif
 
         // Not compiled for SHM mode
         if ((mode & (XCP_MODE_SHM | XCP_MODE_SHM_AUTO | XCP_MODE_SHM_SERVER)) != 0) {
