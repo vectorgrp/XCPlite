@@ -978,7 +978,7 @@ static uint16_t XcpRegisterSectionEvents(void) {
             }
         }
     } else {
-        DBG_PRINTF_WARNING("No xcp_evts section found\n");
+        DBG_PRINT_WARNING("No xcp_evts section found\n");
     }
 #elif defined(__APPLE__)
     unsigned long sz = 0;

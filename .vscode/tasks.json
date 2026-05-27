@@ -2,7 +2,7 @@
     "tasks": [
         {
             "type": "shell",
-            "label": "XCPlite: sync clock on Pi",
+            "label": "XCPlite: sync clock on Linux",
             "command": "ssh rainer@192.168.0.206 \"sudo date -s @$(date +%s)\"",
             "options": {
                 "cwd": "${workspaceFolder}"
@@ -13,41 +13,19 @@
                 "focus": false,
                 "panel": "shared"
             },
-            "detail": "Sync system clock on Raspberry Pi with local time"
+            "detail": "Sync system clock on Linux with local time"
         },
         {
             "type": "shell",
-            "label": "XCPlite: Remote clean build on Pi",
-            "command": "ssh",
-            "args": [
-                "rainer@192.168.0.206",
-                "cd ~/XCPlite-RainerZ && rm -rf build && cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug && cmake --build build"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "dependsOn": "XCPlite: sync to Pi",
-            "group": "build",
-            "problemMatcher": [
-                "$gcc"
-            ],
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": false,
-                "panel": "shared"
-            },
-            "detail": "Clean rebuild on Raspberry Pi (removes build dir and rebuilds from scratch)"
-        },
-        {
-            "type": "shell",
-            "label": "XCPlite: sync to Pi",
+            "label": "XCPlite: sync to Linux",
             "command": "rsync",
             "args": [
                 "-avz",
                 "--delete",
                 "--exclude=build/",
-                "--exclude=build-freertos/",
+                "--exclude=build_freertos/",
+                "--exclude=build_no_a2l_demo/",
+                "--exclude=build_ptptool/",
                 "--exclude=tools/xcpclient/target/",
                 "--exclude=.git/",
                 "--exclude=.venv/",
@@ -64,18 +42,18 @@
                 "kind": "build",
                 "isDefault": true
             },
-            "dependsOn": "XCPlite: sync clock on Pi",
+            "dependsOn": "XCPlite: sync clock on Linux",
             "presentation": {
                 "echo": true,
                 "reveal": "always",
                 "focus": false,
                 "panel": "shared"
             },
-            "detail": "rsync to Raspberry Pi rainer@192.168.0.206:~/XCPlite-RainerZ/"
+            "detail": "rsync to Linux rainer@192.168.0.206:~/XCPlite-RainerZ/"
         },
         {
             "type": "shell",
-            "label": "XCPlite: Remote build all on Pi",
+            "label": "XCPlite: Remote build lib and examples on Linux",
             "command": "ssh",
             "args": [
                 "rainer@192.168.0.206",
@@ -85,29 +63,11 @@
                 "kind": "build",
                 "isDefault": false
             },
-            "dependsOn": "XCPlite: Remote configure CMake on Pi",
+            "dependsOn": "XCPlite: Remote configure CMake on Linux",
             "problemMatcher": [
                 "$gcc"
             ],
-            "detail": "Build all targets on Raspberry Pi"
-        },
-        {
-            "type": "shell",
-            "label": "XCPlite: Remote build all on CM5",
-            "command": "ssh",
-            "args": [
-                "admin@192.168.0.207",
-                "cd ~/XCPlite-RainerZ && cmake --build build"
-            ],
-            "group": {
-                "kind": "build",
-                "isDefault": false
-            },
-            "dependsOn": "XCPlite: Remote configure CMake on CM5",
-            "problemMatcher": [
-                "$gcc"
-            ],
-            "detail": "Build all targets on CM5"
+            "detail": "Build all targets on Linux"
         },
         {
             "type": "cppbuild",
@@ -154,15 +114,15 @@
         },
         {
             "type": "shell",
-            "label": "XCPlite: Remote configure CMake on Pi",
+            "label": "XCPlite: Remote configure CMake on Linux",
             "command": "ssh",
             "args": [
                 "rainer@192.168.0.206",
                 "cd ~/XCPlite-RainerZ && cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug"
             ],
             "group": "build",
-            "dependsOn": "XCPlite: sync to Pi",
-            "detail": "Configure CMake build system on Raspberry Pi"
+            "dependsOn": "XCPlite: sync to Linux",
+            "detail": "Configure CMake build system on Linux"
         },
         {
             "type": "cargo",
@@ -218,7 +178,7 @@
         },
         {
             "type": "shell",
-            "label": "XCPlite: Fetch freertos_demo ELF from Pi",
+            "label": "XCPlite: Fetch freertos_demo ELF from Linux",
             "command": "rsync",
             "args": [
                 "-avz",
@@ -242,7 +202,7 @@
                 "focus": false,
                 "panel": "shared"
             },
-            "detail": "Fetch compiled ELF binaries from Raspberry Pi into build/pi/",
+            "detail": "Fetch compiled ELF binaries from Linux into build/pi/",
             "problemMatcher": []
         }
     ],

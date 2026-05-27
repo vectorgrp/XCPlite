@@ -418,7 +418,7 @@ int main(int argc, char *argv[]) {
     }
 
 #ifndef OPTION_SOCKET_HW_TIMESTAMPS
-    printf("Please enable OPTION_SOCKET_HW_TIMESTAMPS in src/xcplib_cfg.h for PTP tool\n");
+    printf("Please enable OPTION_SOCKET_HW_TIMESTAMPS when building xcplib for PTP tools\n");
     return 1;
 #endif
 

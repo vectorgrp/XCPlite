@@ -77,7 +77,7 @@
 OPTION_ATOMIC_EMULATION
 OPTION_ENABLE_KEYBOARD
 OPTION_ENABLE_TCP and/or OPTION_ENABLE_UDP
-OPTION_SOCKET_HW_TIMESTAMPS
+OPTION_SOCKET_HW_TIMESTAMPS (for Linux PTP tooling only)
 OPTION_ENABLE_GET_LOCAL_ADDR
 OPTION_CLOCK_TICKS_1NS or OPTION_CLOCK_TICKS_1US
 OPTION_CLOCK_EPOCH_ARB or OPTION_CLOCK_EPOCH_PTP
@@ -411,7 +411,12 @@ typedef pthread_t THREAD_HANDLE;
 
 #if defined(OPTION_ENABLE_TCP) || defined(OPTION_ENABLE_UDP)
 
-#if !defined(_WIN) // Non-Windows platforms
+// Note:
+// SOCKET_HANDLE is an opaque type that may wrap the OS socket handle and additional info (e.g. for Linux hardware timestamping)
+// INVALID_SOCKET_HANDLE is the invalid value for SOCKET_HANDLE
+// SOCKET_FD(s) extracts the raw OS socket fd from a SOCKET_HANDLE (which may be a struct socket pointer on Linux with HW timestamps)
+
+#if !defined(_WIN) // Non-Windows platform sockets
 
 #if !defined(_WIN) && !defined(_FREE_RTOS)
 #include "queue.h" // for tQueueBuffer
@@ -420,21 +425,26 @@ typedef pthread_t THREAD_HANDLE;
 #define SOCKET int
 #define INVALID_SOCKET (-1)
 
+#if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
+// For Linux hardware timestamping support, SOCKET_HANDLE is a pointer to struct socket which contains the socket fd and interface info for timestamp retrieval
 struct socket {
-    SOCKET sock;    // Socket handle
-    uint32_t addr;  // Bind address (network byte order) maybe INADDR_ANY
-    uint16_t port;  // Port
-    uint16_t flags; // Socket mode flags
-
-    // Linux only:
+    SOCKET sock;
+    uint32_t addr;        // Bind address (network byte order) maybe INADDR_ANY
+    uint16_t port;        // Port
     unsigned int ifindex; // Interface index
     char ifname[16];      // Interface name
     uint32_t ifaddr;      // Interface address
     uint8_t ifmac[6];     // Interface MAC address
 };
-
 typedef struct socket *SOCKET_HANDLE;
 #define INVALID_SOCKET_HANDLE NULL
+#define SOCKET_FD(s) ((s)->sock) // Extract the OS socket fd from a SOCKET_HANDLE
+#else
+// Linux (without HW timestamps), FreeRTOS, macOS, QNX: SOCKET_HANDLE is the raw OS fd
+typedef SOCKET SOCKET_HANDLE;
+#define INVALID_SOCKET_HANDLE INVALID_SOCKET
+#define SOCKET_FD(s) (s) // Extract the OS socket fd from a SOCKET_HANDLE
+#endif
 
 #define SOCKADDR_IN struct sockaddr_in
 #define SOCKADDR struct sockaddr
@@ -463,15 +473,9 @@ typedef struct socket *SOCKET_HANDLE;
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
-struct socket {
-    SOCKET sock;    // Socket handle
-    uint32_t addr;  // Bind address (network byte order) maybe INADDR_ANY
-    uint16_t port;  // Port
-    uint16_t flags; // Socket mode flags
-};
-
-typedef struct socket *SOCKET_HANDLE;
-#define INVALID_SOCKET_HANDLE NULL
+typedef SOCKET SOCKET_HANDLE;
+#define INVALID_SOCKET_HANDLE INVALID_SOCKET
+#define SOCKET_FD(s) (s)
 
 #define SOCKADDR_IN struct sockaddr_in
 #define SOCKADDR struct sockaddr
@@ -495,11 +499,13 @@ int32_t socketGetLastError(void);
 #endif
 
 // Socket mode flags
-#define SOCKET_MODE_TCP (1 << 0)             // TCP socket
-#define SOCKET_MODE_REUSEADDR (1 << 2)       // Allow reuse of local address
+#define SOCKET_MODE_TCP (1 << 0)       // TCP socket
+#define SOCKET_MODE_REUSEADDR (1 << 2) // Allow reuse of local address
+#if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
+#define SOCKET_MODE_GET_IF_INFO (1 << 6)     // Enable IP_PKTINFO to identify the receiving interface (Linux only)
 #define SOCKET_MODE_HW_TIMESTAMPING (1 << 4) // Enable hardware timestamping (Linux only, requires root)
 #define SOCKET_MODE_SW_TIMESTAMPING (1 << 5) // Enable kernel software timestamping (Linux only, requires root)
-#define SOCKET_MODE_GET_IF_INFO (1 << 6)     // Check interface info on recv
+#endif
 
 // Socket functions
 
@@ -519,8 +525,8 @@ const char *socketGetErrorString(int32_t err);
 // Sockets are always created in blocking mode, a timeout may be set with socketSetTimeout()
 // SOCKET_MODE_TCP: TCP stream socket (default: UDP datagram)
 // SOCKET_MODE_REUSEADDR: set SO_REUSEADDR to allow rapid port reuse after restart
-// SOCKET_MODE_HW_TIMESTAMPING / SOCKET_MODE_SW_TIMESTAMPING: enable timestamps (Linux only)
-// SOCKET_MODE_GET_IF_INFO: enable IP_PKTINFO to identify the receiving interface (Linux only)
+// SOCKET_MODE_HW_TIMESTAMPING / SOCKET_MODE_SW_TIMESTAMPING: enable timestamps (Linux with hardware timestamps only)
+// SOCKET_MODE_GET_IF_INFO: enable IP_PKTINFO to identify the receiving interface (Linux with hardware timestamps only)
 // Returns true on success
 bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags);
 
@@ -533,14 +539,18 @@ bool socketBind(SOCKET_HANDLE socket, const uint8_t *addr, uint16_t port);
 // Useful for multicast reception on a specific interface when bound to INADDR_ANY
 // ifname: interface name, e.g. "eth0"; NULL or empty string is a no-op
 // Returns true on success (returns true with a warning on non-Linux platforms)
+#if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
 bool socketBindToDevice(SOCKET_HANDLE socket, const char *ifname);
+#endif
 
 // Configure the NIC driver to generate hardware timestamps (Linux only, requires root)
 // Must be called after socketBind; uses the interface name stored by socketBind/socketBindToDevice
 // ptpOnly: true = timestamp PTP event packets only; false = timestamp all packets
 // Falls back gracefully if the NIC does not support hardware timestamps
 // Returns true on success
+#if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
 bool socketEnableTimestamps(SOCKET_HANDLE socket, bool ptpOnly);
+#endif
 
 // Join an IPv4 multicast group on a UDP socket
 // maddr: multicast group address (network byte order)
@@ -599,7 +609,9 @@ int16_t socketSendV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t count
 // Requires OPTION_SOCKET_HW_TIMESTAMPS and socketEnableTimestamps() to have been called
 // txHwTime / txSwTime: set to 0 if the respective timestamp is not available; NULL to skip
 // Returns true if at least one requested timestamp was successfully retrieved
+#if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
 bool socketGetSendTime(SOCKET_HANDLE socket, uint64_t *txHwTime, uint64_t *txSwTime);
+#endif
 
 // Set receive timeout on a blocking socket
 // timeoutMs: timeout in milliseconds; 0 = restore infinite blocking

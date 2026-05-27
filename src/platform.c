@@ -30,6 +30,10 @@
 #include "assert.h"    // for assert
 #include "dbg_print.h" // for DBG_LEVEL, DBG_PRINT, ...
 
+#if defined(_LINUX) && defined(_MACOS)
+#error "inconsistent platform defines: both _LINUX and _MACOS defined"
+#endif
+
 /**************************************************************************/
 // Keyboard
 /**************************************************************************/
@@ -444,58 +448,198 @@ const char *socketGetErrorString(int32_t err) {
 //--------------------------------------------------------------------------
 // FreeRTOS platforms
 
-// @@@@ TODO: For embedded targets replace the stub section below with an lwIP or FreeRTOS+TCP socket implementation that calls the FreeRTOS+TCP API.
 #if defined(_FREE_RTOS) && !defined(FREE_RTOS_POSIX_SIM) // FreeRTOS sockets
 
-// #error "FreeRTOS socket functions not implemented yet"
+#ifdef OPTION_ENABLE_TCP
+#error "FreeRTOS TCP socket functions not implemented yet"
+#endif
 
+#if defined(OPTION_FREERTOS_LWIP)
+#include "lwip/errno.h"   // lwIP errno values mapped to POSIX codes
+#include "lwip/sockets.h" // lwip_socket, lwip_bind, lwip_sendto, lwip_recvfrom, lwip_close, lwip_shutdown, lwip_setsockopt
+#endif
+
+// socketStartup: lwIP networking is initialised by the application (e.g. tcpip_init) — no-op here
 bool socketStartup(void) {
+#if defined(OPTION_FREERTOS_LWIP)
+    return true;
+#else
     DBG_PRINT_ERROR("FREE_RTOS:socketStartup not implemented\n");
     return true;
+#endif
 }
 
-void socketCleanup(void) { DBG_PRINT_ERROR("FREE_RTOS:socketCleanup not implemented\n"); }
+// socketCleanup: no teardown required for lwIP
+void socketCleanup(void) {
+#if !defined(OPTION_FREERTOS_LWIP)
+    DBG_PRINT_ERROR("FREE_RTOS:socketCleanup not implemented\n");
+#endif
+}
 
-// Create a UDP socket
+// Create a UDP socket (TCP not supported: OPTION_ENABLE_TCP must not be defined)
 bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
-    DBG_PRINT_ERROR("FREE_RTOS:socketOpen not implemented\n");
+#if defined(OPTION_FREERTOS_LWIP)
+    assert(socketp != NULL);
+    assert(!(flags & SOCKET_MODE_TCP)); // TCP not supported on FreeRTOS/lwIP
+
+    int sock = lwip_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (sock < 0) {
+        DBG_PRINTF_ERROR("socketOpen: lwip_socket failed (errno=%d,%s)\n", errno, socketGetErrorString(errno));
+        return false;
+    }
+    if (flags & SOCKET_MODE_REUSEADDR) {
+        int yes = 1;
+        if (lwip_setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0) {
+            DBG_PRINTF_WARNING("socketOpen: SO_REUSEADDR failed (errno=%d,%s)\n", errno, socketGetErrorString(errno));
+        }
+    }
+    *socketp = sock;
+    DBG_PRINTF5("socketOpen: lwIP UDP socket %d opened\n", sock);
     return true;
+#else
+    DBG_PRINT_ERROR("FREE_RTOS:socketOpen not implemented\n");
+    return false;
+#endif
 }
 
 // Bind socket to a local address and port
+// addr: network-byte-order IPv4 address; NULL or 0.x.x.x binds to INADDR_ANY
 bool socketBind(SOCKET_HANDLE socket, const uint8_t *addr, uint16_t port) {
-    DBG_PRINT_ERROR("FREE_RTOS:socketBind not implemented\n");
+#if defined(OPTION_FREERTOS_LWIP)
+    assert(socket != INVALID_SOCKET_HANDLE);
+    struct sockaddr_in a;
+    memset(&a, 0, sizeof(a));
+    a.sin_family = AF_INET;
+    a.sin_port = htons(port);
+    if (addr != NULL && addr[0] != 0) {
+        a.sin_addr.s_addr = *(uint32_t *)addr;
+    } else {
+        a.sin_addr.s_addr = htonl(INADDR_ANY);
+    }
+    if (lwip_bind(socket, (struct sockaddr *)&a, sizeof(a)) < 0) {
+        DBG_PRINTF_ERROR("socketBind: lwip_bind failed (errno=%d,%s) on port %u\n", errno, socketGetErrorString(errno), port);
+        return false;
+    }
+    DBG_PRINTF5("socketBind: bound to port %u\n", port);
     return true;
+#else
+    DBG_PRINT_ERROR("FREE_RTOS:socketBind not implemented\n");
+    return false;
+#endif
 }
 
-// Shutdown socket
+// Shutdown socket — unblocks a thread blocked in socketRecvFrom
 bool socketShutdown(SOCKET_HANDLE socket) {
+#if defined(OPTION_FREERTOS_LWIP)
+    if (socket != INVALID_SOCKET_HANDLE) {
+        lwip_shutdown(socket, SHUT_RDWR);
+    }
+    return true;
+#else
     DBG_PRINT_ERROR("FREE_RTOS:socketShutdown not implemented\n");
     return true;
+#endif
 }
 
-// Close socket
+// Close socket and free the handle
 bool socketClose(SOCKET_HANDLE *socketp) {
+#if defined(OPTION_FREERTOS_LWIP)
+    assert(socketp != NULL);
+    if (*socketp != INVALID_SOCKET_HANDLE) {
+        lwip_close(*socketp);
+        *socketp = INVALID_SOCKET_HANDLE;
+    }
+    return true;
+#else
     DBG_PRINT_ERROR("FREE_RTOS:socketClose not implemented\n");
     return true;
+#endif
 }
 
 // Receive a UDP datagram (blocking)
+// Returns: > 0 bytes received, 0 on timeout/EAGAIN, -1 on error or socket closed
 int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSize, uint8_t *srcAddr, uint16_t *srcPort, uint64_t *time) {
+#if defined(OPTION_FREERTOS_LWIP)
+    assert(socket != INVALID_SOCKET_HANDLE);
+    struct sockaddr_in src;
+    socklen_t srclen = sizeof(src);
+    memset(&src, 0, sizeof(src));
+    int16_t n = (int16_t)lwip_recvfrom(socket, buffer, bufferSize, 0, (struct sockaddr *)&src, &srclen);
+    if (n == 0) {
+        return 0; // Zero-length datagram or graceful close
+    }
+    if (n < 0) {
+        int32_t err = errno;
+        if (socketTimeout(err)) {
+            return 0; // Timeout — caller loops and does background work
+        }
+        DBG_PRINTF_ERROR("socketRecvFrom: lwip_recvfrom failed (errno=%d,%s)\n", err, socketGetErrorString(err));
+        return -1;
+    }
+    if (srcAddr != NULL) {
+        memcpy(srcAddr, &src.sin_addr.s_addr, 4);
+    }
+    if (srcPort != NULL) {
+        *srcPort = ntohs(src.sin_port);
+    }
+    if (time != NULL) {
+        *time = clockGet(); // No hardware timestamps on lwIP; use XCP clock
+    }
+    return n;
+#else
     DBG_PRINT_ERROR("FREE_RTOS:socketRecvFrom not implemented\n");
     return -1;
+#endif
 }
 
 // Send a UDP datagram to addr:port
+// Returns: bytes sent, 0 on closed socket, -1 on error
 int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t bufferSize, const uint8_t *addr, uint16_t port, uint64_t *time) {
+#if defined(OPTION_FREERTOS_LWIP)
+    assert(socket != INVALID_SOCKET_HANDLE);
+    assert(addr != NULL);
+    struct sockaddr_in dst;
+    memset(&dst, 0, sizeof(dst));
+    dst.sin_family = AF_INET;
+    dst.sin_port = htons(port);
+    dst.sin_addr.s_addr = *(uint32_t *)addr;
+    if (time != NULL) {
+        *time = clockGet(); // No hardware timestamps on lwIP; use XCP clock at send time
+    }
+    int16_t n = (int16_t)lwip_sendto(socket, buffer, bufferSize, 0, (struct sockaddr *)&dst, sizeof(dst));
+    if (n < 0) {
+        int32_t err = errno;
+        if (socketIsClosed(err)) {
+            return 0; // Socket closed
+        }
+        DBG_PRINTF_ERROR("socketSendTo: lwip_sendto failed (errno=%d,%s)\n", err, socketGetErrorString(err));
+        return -1;
+    }
+    return n;
+#else
     DBG_PRINT_ERROR("FREE_RTOS:socketSendTo not implemented\n");
     return -1;
+#endif
 }
 
 // Set receive timeout on a blocking socket
+// timeoutMs == 0 restores infinite blocking
 bool socketSetTimeout(SOCKET_HANDLE socket, uint32_t timeoutMs) {
+#if defined(OPTION_FREERTOS_LWIP)
+    assert(socket != INVALID_SOCKET_HANDLE);
+    struct timeval tv;
+    tv.tv_sec = (long)(timeoutMs / 1000U);
+    tv.tv_usec = (long)(timeoutMs % 1000U) * 1000L;
+    if (lwip_setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+        DBG_PRINTF_WARNING("socketSetTimeout: lwip_setsockopt SO_RCVTIMEO failed (errno=%d,%s)\n", errno, socketGetErrorString(errno));
+        return false;
+    }
+    DBG_PRINTF5("socketSetTimeout: set to %u ms\n", timeoutMs);
+    return true;
+#else
     DBG_PRINT_ERROR("FREE_RTOS:socketSetTimeout not implemented\n");
     return true;
+#endif
 }
 
 #else
@@ -510,16 +654,17 @@ bool socketSetTimeout(SOCKET_HANDLE socket, uint32_t timeoutMs) {
 #include <netinet/in.h> // for sockaddr_in
 #include <sys/socket.h> // for socket functions
 
-#if defined(_LINUX) // Linux platform hardware time stamping support
+#if defined(_LINUX) // Linux platform
 
 #include <net/if.h>           // for if_nametoindex, struct ifreq, IFNAMSIZ
 #include <netpacket/packet.h> // for struct sockaddr_ll (AF_PACKET, used by socketGetMAC)
-#if defined(OPTION_SOCKET_HW_TIMESTAMPS)
+
+#if defined(OPTION_SOCKET_HW_TIMESTAMPS) // Linux platform hardware time stamping support
 #include <linux/errqueue.h>
 #include <linux/net_tstamp.h>
 #include <linux/sockios.h> // for SIOCSHWTSTAMP
-#include <sys/ioctl.h>     // for ioctl
-#endif                     // OPTION_SOCKET_HW_TIMESTAMPS
+#include <sys/ioctl.h>
+#endif // defined(OPTION_SOCKET_HW_TIMESTAMPS)
 
 #endif // Linux
 
@@ -541,7 +686,6 @@ bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
 
     bool useTCP = flags & SOCKET_MODE_TCP;
     bool reuseaddr = flags & SOCKET_MODE_REUSEADDR;
-    bool getifinfo = flags & SOCKET_MODE_GET_IF_INFO;
 
     // Create a socket
     sock = socket(AF_INET, useTCP ? SOCK_STREAM : SOCK_DGRAM, 0);
@@ -559,7 +703,8 @@ bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
         }
     }
 
-    if (getifinfo) {
+#if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
+    if (flags & SOCKET_MODE_GET_IF_INFO) {
         int yes = 1;
         if (setsockopt(sock, IPPROTO_IP, IP_PKTINFO, &yes, sizeof(yes)) < 0) {
             DBG_PRINTF_WARNING("Failed to enable IP_PKTINFO on socket (errno=%d,%s)\n", errno, socketGetErrorString(errno));
@@ -567,6 +712,7 @@ bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
             DBG_PRINT5("IP_PKTINFO enabled\n");
         }
     }
+#endif
 
 // Enable timestamps if requested
 #if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
@@ -613,20 +759,23 @@ bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
     }
 #endif
 
+#if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
     SOCKET_HANDLE socket = (struct socket *)malloc(sizeof(struct socket));
     memset(socket, 0, sizeof(struct socket));
     socket->sock = sock;
-    socket->flags = flags;
     *socketp = socket;
+#else
+    *socketp = sock;
+#endif
     return true;
 }
 
 bool socketBind(SOCKET_HANDLE socket, const uint8_t *addr, uint16_t port) {
 
-    assert(socket != NULL);
+    assert(socket != INVALID_SOCKET_HANDLE);
     assert(addr != NULL);
 
-    int sock = socket->sock;
+    SOCKET sock = SOCKET_FD(socket);
 
     // Bind the socket to any address and the specified port
     SOCKADDR_IN a;
@@ -645,21 +794,19 @@ bool socketBind(SOCKET_HANDLE socket, const uint8_t *addr, uint16_t port) {
         }
         return 0;
     }
-
-    socket->port = port;
-    socket->addr = *(uint32_t *)addr;
     return true;
 }
+
+#if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
 
 // Bind socket to a specific network interface by name (Linux only)
 // This is useful for multicast reception on a specific interface while binding to INADDR_ANY
 // Requires root privileges on Linux
 bool socketBindToDevice(SOCKET_HANDLE socket, const char *ifname) {
 
-    assert(socket != NULL);
+    assert(socket != INVALID_SOCKET_HANDLE);
 
-#if defined(_LINUX)
-    int sock = socket->sock;
+    int sock = SOCKET_FD(socket);
     if (ifname != NULL && ifname[0] != '\0') {
         if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, ifname, strlen(ifname)) < 0) {
             DBG_PRINTF_ERROR("socketBindToDevice failed (errno=%d,%s) - cannot bind to device %s !\n", socketGetLastError(), socketGetErrorString(socketGetLastError()), ifname);
@@ -676,15 +823,7 @@ bool socketBindToDevice(SOCKET_HANDLE socket, const char *ifname) {
         socket->ifindex = ifindex;
     }
     return true;
-#else
-    (void)socket;
-    (void)ifname;
-    DBG_PRINTF_WARNING("socketBindToDevice(%s): SO_BINDTODEVICE not supported on this platform, request ignored!\n", ifname ? ifname : "(null)");
-    return true;
-#endif
 }
-
-#if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
 
 // Enable hardware timestamping and/or software on a network interface
 // This configures the NIC driver to generate timestamps for PTP packets
@@ -773,14 +912,13 @@ bool socketEnableTimestamps(SOCKET_HANDLE socket, bool ptpOnly) {
     return false;
 }
 
-#endif
+#endif // Linux with OPTION_SOCKET_HW_TIMESTAMPS
 
 // Shutdown socket
 // Block rx and tx direction
 bool socketShutdown(SOCKET_HANDLE socket) {
-    if (socket != NULL) {
-        if (socket->sock > 0)
-            shutdown(socket->sock, SHUT_RDWR);
+    if (socket != INVALID_SOCKET_HANDLE) {
+        shutdown(SOCKET_FD(socket), SHUT_RDWR);
     }
     return true;
 }
@@ -789,11 +927,18 @@ bool socketShutdown(SOCKET_HANDLE socket) {
 // Make addr reusable
 bool socketClose(SOCKET_HANDLE *socketp) {
     assert(socketp != NULL);
+#if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
     if (*socketp != NULL) {
         close((*socketp)->sock);
         free(*socketp);
         *socketp = NULL;
     }
+#else
+    if (*socketp != INVALID_SOCKET_HANDLE) {
+        close(*socketp);
+        *socketp = INVALID_SOCKET_HANDLE;
+    }
+#endif
     return true;
 }
 
@@ -918,13 +1063,6 @@ bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
 
     bool useTCP = flags & SOCKET_MODE_TCP;
     bool reuseaddr = flags & SOCKET_MODE_REUSEADDR;
-    bool getifinfo = flags & SOCKET_MODE_GET_IF_INFO;
-    bool hw_timestamps = flags & SOCKET_MODE_HW_TIMESTAMPING;
-    bool sw_timestamps = flags & SOCKET_MODE_SW_TIMESTAMPING;
-
-    assert(!hw_timestamps); // Hardware timestamps not supported on Windows
-    assert(!sw_timestamps); // Software timestamps not supported on Windows
-    assert(!getifinfo);     // IP_PKTINFO not supported on Windows
 
     // Create a socket
     if (!useTCP) {
@@ -954,19 +1092,14 @@ bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
         }
     }
 
-    SOCKET_HANDLE socket = (struct socket *)malloc(sizeof(struct socket));
-    assert(socket != NULL);
-    memset(socket, 0, sizeof(struct socket));
-    socket->sock = sock;
-    socket->flags = flags;
-    *socketp = socket;
+    *socketp = sock;
     return true;
 }
 
 bool socketBind(SOCKET_HANDLE socket, const uint8_t *addr, uint16_t port) {
 
-    assert(socket != NULL);
-    SOCKET sock = socket->sock;
+    assert(socket != INVALID_SOCKET_HANDLE);
+    SOCKET sock = socket;
 
     // Bind the socket to any address and the specified port
     SOCKADDR_IN a;
@@ -993,10 +1126,10 @@ bool socketBind(SOCKET_HANDLE socket, const uint8_t *addr, uint16_t port) {
 // Block rx and tx direction
 bool socketShutdown(SOCKET_HANDLE socket) {
 
-    assert(socket != NULL);
-    SOCKET sock = socket->sock;
+    assert(socket != INVALID_SOCKET_HANDLE);
+    SOCKET sock = socket;
 
-    if (sock != -1) {
+    if (sock != INVALID_SOCKET) {
         shutdown(sock, SD_BOTH);
     }
     return true;
@@ -1007,10 +1140,9 @@ bool socketShutdown(SOCKET_HANDLE socket) {
 bool socketClose(SOCKET_HANDLE *socketp) {
 
     assert(socketp != NULL);
-    if (*socketp != NULL) {
-        closesocket((*socketp)->sock);
-        free(*socketp);
-        *socketp = NULL;
+    if (*socketp != INVALID_SOCKET_HANDLE) {
+        closesocket(*socketp);
+        *socketp = INVALID_SOCKET_HANDLE;
     }
     return true;
 }
@@ -1091,10 +1223,10 @@ bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr) {
 // Set receive timeout on a socket
 // timeoutMs: timeout in milliseconds, 0 = infinite blocking (restore default)
 bool socketSetTimeout(SOCKET_HANDLE socket, uint32_t timeoutMs) {
-    assert(socket != NULL);
+    assert(socket != INVALID_SOCKET_HANDLE);
 #if defined(_WIN)
     DWORD tv = (DWORD)timeoutMs;
-    if (setsockopt(socket->sock, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof(tv)) < 0) {
+    if (setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof(tv)) < 0) {
         DBG_PRINTF_WARNING("socketSetTimeout: setsockopt SO_RCVTIMEO failed (errno=%d,%s)\n", socketGetLastError(), socketGetErrorString(socketGetLastError()));
         return false;
     }
@@ -1102,7 +1234,7 @@ bool socketSetTimeout(SOCKET_HANDLE socket, uint32_t timeoutMs) {
     struct timeval tv;
     tv.tv_sec = timeoutMs / 1000;
     tv.tv_usec = (int32_t)(timeoutMs % 1000) * 1000;
-    if (setsockopt(socket->sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+    if (setsockopt(SOCKET_FD(socket), SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
         DBG_PRINTF_WARNING("socketSetTimeout: setsockopt SO_RCVTIMEO failed (errno=%d,%s)\n", errno, socketGetErrorString(errno));
         return false;
     }
@@ -1115,8 +1247,8 @@ bool socketSetTimeout(SOCKET_HANDLE socket, uint32_t timeoutMs) {
 
 // Listen on a TCP socket
 bool socketListen(SOCKET_HANDLE socket) {
-    assert(socket != NULL);
-    if (listen(socket->sock, 5)) {
+    assert(socket != INVALID_SOCKET_HANDLE);
+    if (listen(SOCKET_FD(socket), 5)) {
         DBG_PRINTF_ERROR("socketListen failed (errno=%d,%s)!\n", socketGetLastError(), socketGetErrorString(socketGetLastError()));
         return 0;
     }
@@ -1126,22 +1258,22 @@ bool socketListen(SOCKET_HANDLE socket) {
 // Accept a connection on a listening TCP socket
 // Returns the remote address if addr != NULL
 SOCKET_HANDLE socketAccept(SOCKET_HANDLE listenSocket, uint8_t *addr) {
-    assert(listenSocket != NULL);
+    assert(listenSocket != INVALID_SOCKET_HANDLE);
     struct sockaddr_in sa;
     socklen_t sa_size = sizeof(sa);
-    SOCKET sock = accept(listenSocket->sock, (struct sockaddr *)&sa, &sa_size);
+    SOCKET sock = accept(SOCKET_FD(listenSocket), (struct sockaddr *)&sa, &sa_size);
     if (addr)
         *(uint32_t *)addr = sa.sin_addr.s_addr;
-
+#if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
     SOCKET_HANDLE socket = (struct socket *)malloc(sizeof(struct socket));
     memset(socket, 0, sizeof(struct socket));
     socket->sock = sock;
-#ifdef _LINUX
     socket->ifindex = listenSocket->ifindex;
     memcpy(socket->ifname, listenSocket->ifname, sizeof(socket->ifname));
-#endif
-    socket->flags = listenSocket->flags;
     return socket;
+#else
+    return sock;
+#endif
 }
 
 #endif // OPTION_ENABLE_TCP
@@ -1152,8 +1284,8 @@ SOCKET_HANDLE socketAccept(SOCKET_HANDLE listenSocket, uint8_t *addr) {
 // maddr: Multicast group address (network byte order)
 bool socketJoin(SOCKET_HANDLE socket, const uint8_t *maddr, const uint8_t *ifaddr, const char *ifname) {
 
-    assert(socket != NULL);
-    SOCKET sock = socket->sock;
+    assert(socket != INVALID_SOCKET_HANDLE);
+    SOCKET sock = SOCKET_FD(socket);
 
 #if defined(_LINUX)
     // On Linux, use ip_mreqn which allows specifying interface by name or index
@@ -1169,20 +1301,26 @@ bool socketJoin(SOCKET_HANDLE socket, const uint8_t *maddr, const uint8_t *ifadd
             DBG_PRINTF_ERROR("socketJoin: Interface %s not found!\n", ifname);
             return 0;
         }
+#if defined(OPTION_SOCKET_HW_TIMESTAMPS)
         socket->ifindex = group.imr_ifindex;
         strncpy(socket->ifname, ifname, sizeof(socket->ifname) - 1);
         socket->ifname[sizeof(socket->ifname) - 1] = '\0';
+#endif
         DBG_PRINTF5("Joining multicast group on interface %s (index %d)\n", ifname, group.imr_ifindex);
 
+#if defined(OPTION_SOCKET_HW_TIMESTAMPS)
         // Get MAC address for the interface and save it in the socket structure
         if (!socketGetMAC(socket->ifname, socket->ifmac)) {
             DBG_PRINTF_WARNING("socketJoin: Failed to get MAC address for interface %s!\n", ifname);
         }
+#endif
 
     } else if (ifaddr != NULL && !(ifaddr[0] == 0 && ifaddr[1] == 0 && ifaddr[2] == 0 && ifaddr[3] == 0)) {
         // Use interface address
         group.imr_address.s_addr = *(uint32_t *)ifaddr;
+#if defined(OPTION_SOCKET_HW_TIMESTAMPS)
         socket->ifaddr = *(uint32_t *)ifaddr;
+#endif
 
         DBG_PRINTF5("Joining multicast group on interface address %u.%u.%u.%u\n", ifaddr[0], ifaddr[1], ifaddr[2], ifaddr[3]);
 
@@ -1228,9 +1366,8 @@ bool socketJoin(SOCKET_HANDLE socket, const uint8_t *maddr, const uint8_t *ifadd
 //   n < 0  : socket closed (graceful or reset) or unrecoverable error — caller should exit the receive loop
 int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSize, uint8_t *addr, uint16_t *port, uint64_t *time) {
 
-    assert(socket != NULL);
-    assert(!(socket->flags & SOCKET_MODE_TCP)); // Use socketRecvFrom() for UDP sockets
-    SOCKET sock = socket->sock;
+    assert(socket != INVALID_SOCKET_HANDLE);
+    SOCKET sock = SOCKET_FD(socket);
     assert(sock != INVALID_SOCKET);
 
     SOCKADDR_IN src;
@@ -1385,7 +1522,11 @@ int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSiz
     if (addr)
         memcpy(addr, &src.sin_addr.s_addr, 4);
 
+#if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
     DBG_PRINTF6("socketRecvFrom: sock=%d, ifindex=%d returned n=%u, time=%" PRIu64 "\n", sock, socket->ifindex, n, time ? *time : 0);
+#else
+    DBG_PRINTF6("socketRecvFrom: sock=%d returned n=%u, time=%" PRIu64 "\n", sock, n, time ? *time : 0);
+#endif
 
     return n;
 }
@@ -1400,10 +1541,10 @@ int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSiz
 #if defined(OPTION_ENABLE_TCP)
 int16_t socketRecv(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t buffer_size, bool waitAll) {
 
-    assert(socket != NULL);
-    assert(socket->flags & SOCKET_MODE_TCP); // Use socketRecvFrom() for UDP sockets
+    assert(socket != INVALID_SOCKET_HANDLE);
+    // assert(socket->flags & SOCKET_MODE_TCP); // Use socketRecvFrom() for UDP sockets
     assert(buffer_size > 0);
-    SOCKET sock = socket->sock;
+    SOCKET sock = SOCKET_FD(socket);
     assert(sock != INVALID_SOCKET);
 
     if (!waitAll) {
@@ -1474,7 +1615,7 @@ int16_t socketRecv(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t buffer_size, 
     assert(received == buffer_size);
     return (int16_t)received;
 }
-#endif            // OPTION_ENABLE_TCP
+#endif // OPTION_ENABLE_TCP
 
 // Send datagram on UDP socket
 // Returns number of bytes sent or -1 on error
@@ -1485,11 +1626,15 @@ int16_t socketRecv(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t buffer_size, 
 // Returns total number of bytes sent, 0 on socket closed or -1 on error
 int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t size, const uint8_t *addr, uint16_t port, uint64_t *time) {
 
-    assert(socket != NULL);
-    SOCKET sock = socket->sock;
+    assert(socket != INVALID_SOCKET_HANDLE);
+    SOCKET sock = SOCKET_FD(socket);
     assert(sock != INVALID_SOCKET);
 
+#if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
     DBG_PRINTF6("socketSendTo: sock=%d, ifindex=%d\n", sock, socket->ifindex);
+#else
+    DBG_PRINTF6("socketSendTo: sock=%d\n", sock);
+#endif
 
     SOCKADDR_IN sa;
     sa.sin_family = AF_INET;
@@ -1576,8 +1721,8 @@ int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t size,
 #if defined(OPTION_ENABLE_TCP)
 int16_t socketSend(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t size) {
 
-    assert(socket != NULL);
-    SOCKET sock = socket->sock;
+    assert(socket != INVALID_SOCKET_HANDLE);
+    SOCKET sock = SOCKET_FD(socket);
     assert(sock != INVALID_SOCKET);
 
     ssize_t n = send(sock, (const char *)buffer, size, 0);
@@ -1614,8 +1759,8 @@ int16_t socketSend(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t size) {
 // Returns total number of bytes sent, 0 on socket closed or -1 on error
 int16_t socketSendToV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t count, const uint8_t *addr, uint16_t port) {
 
-    assert(socket != NULL);
-    SOCKET sock = socket->sock;
+    assert(socket != INVALID_SOCKET_HANDLE);
+    SOCKET sock = SOCKET_FD(socket);
     assert(sock != INVALID_SOCKET);
 
     SOCKADDR_IN sa;
@@ -1669,8 +1814,8 @@ int16_t socketSendToV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t cou
 // Returns total number of bytes sent, 0 on socket closed or -1 on error
 int16_t socketSendV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t count) {
 
-    assert(socket != NULL);
-    SOCKET sock = socket->sock;
+    assert(socket != INVALID_SOCKET_HANDLE);
+    SOCKET sock = SOCKET_FD(socket);
     assert(sock != INVALID_SOCKET);
 
     // Build iovec array on the stack - VLAs are acceptable here as count is usually small

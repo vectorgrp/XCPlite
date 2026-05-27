@@ -9,30 +9,31 @@ project(xcplite VERSION 2.1.0 LANGUAGES C CXX)
 # in that case the default flips to OFF so only the requested demo is configured.
 # When xcplite is included as a subproject (add_subdirectory / FetchContent),
 # examples are always disabled by default.
-if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
-    # If the user passed -DXCPLITE_BUILD_FREERTOS_DEMO=ON on the command line, default
-    # the general examples flag to OFF so no other examples are configured.
-    if(DEFINED XCPLITE_BUILD_FREERTOS_DEMO AND XCPLITE_BUILD_FREERTOS_DEMO)
-        set(XCPLITE_BUILD_EXAMPLES_DEFAULT OFF)
-    else()
-        set(XCPLITE_BUILD_EXAMPLES_DEFAULT ON)
-    endif()
-else()
-    set(XCPLITE_BUILD_EXAMPLES_DEFAULT OFF)
-endif()
+#if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+#    # If the user passed -DXCPLITE_BUILD_FREERTOS_DEMO=ON on the command line, default
+#    # the general examples flag to OFF so no other examples are configured.
+#    if(DEFINED XCPLITE_BUILD_FREERTOS_DEMO AND XCPLITE_BUILD_FREERTOS_DEMO)
+#        set(XCPLITE_BUILD_EXAMPLES_DEFAULT OFF)
+#    else()
+#        set(XCPLITE_BUILD_EXAMPLES_DEFAULT ON)
+#    endif()
+#else()
+#    set(XCPLITE_BUILD_EXAMPLES_DEFAULT OFF)
+# endif()
 
 # =============================================================================
 # Build options
 # All XCPLITE_* options can be passed on the cmake command line:
 #   cmake -B build -S . -D<OPTION>=ON|OFF
 # =============================================================================
-option(XCPLITE_BUILD_EXAMPLES      "Build xcplite example targets"                                          ${XCPLITE_BUILD_EXAMPLES_DEFAULT})
-option(XCPLITE_BUILD_BPF_DEMO      "Build bpf_demo (requires libbpf; Linux only)"                          ON)
-option(XCPLITE_BUILD_TESTS         "Build xcplite test targets"                                             OFF)
-option(XCPLITE_BUILD_TOOLS         "Build tool targets: ptptool, shmtool, xcpdaemon"                        OFF)
-option(XCPLITE_BUILD_RUST_TOOLS    "Build Rust tool targets: xcpclient, bintool (requires cargo)"           OFF)
+option(XCPLITE_BUILD_EXAMPLES      "Build xcplite example targets" OFF) # ${XCPLITE_BUILD_EXAMPLES_DEFAULT}
+option(XCPLITE_BUILD_BPF_DEMO      "Build bpf_demo (requires libbpf; Linux only)" OFF)
+option(XCPLITE_BUILD_TESTS         "Build xcplite test targets" OFF)
+option(XCPLITE_BUILD_SHM_TOOLS     "Build tool targets: shmtool, xcpdaemon" OFF)
+option(XCPLITE_BUILD_PTP_TOOLS     "Build tool targets: ptptool" OFF)
+option(XCPLITE_BUILD_RUST_TOOLS    "Build Rust tool targets: xcpclient, bintool (requires cargo)" OFF)
 option(XCPLITE_BUILD_NO_A2L_DEMO   "Build no_a2l_demo with no-A2L config xcplib_(no_a2l_cfg.h), use an isolated build directory" OFF)
-option(XCPLITE_BUILD_FREERTOS_DEMO "Build freertos_demo with RTOS config xcplib_rtos_cfg.h (downloads FreeRTOS-Kernel via FetchContent)"       OFF)
+option(XCPLITE_BUILD_FREERTOS_DEMO "Build freertos_demo with RTOS config xcplib_rtos_cfg.h (downloads FreeRTOS-Kernel via FetchContent)" OFF)
 
 # Find required packages
 find_package(Threads REQUIRED)
@@ -255,38 +256,48 @@ if(XCPLITE_BUILD_TESTS)
     target_link_libraries(queue_test PRIVATE xcplite)
 endif()
 
-# Tools: ptptool, shmtool, xcpdaemon
-if(XCPLITE_BUILD_TOOLS)
+# PTP tools
+if(XCPLITE_BUILD_PTP_TOOLS)
 
-    # Tool ptptool (main.cpp as C++, rest as C)
+    # PTP tools (Linux only)
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         set(ptptool_CPP_SOURCES tools/ptptool/src/main.cpp)
         set(ptptool_C_SOURCES tools/ptptool/src/ptp/ptp.c tools/ptptool/src/ptp/ptp_client.c tools/ptptool/src/ptp/ptp_observer.c tools/ptptool/src/ptp/ptp_master.c tools/ptptool/src/ptp/phc.c)
         set_source_files_properties(${ptptool_C_SOURCES} PROPERTIES LANGUAGE C)
         add_executable(ptptool ${ptptool_CPP_SOURCES} ${ptptool_C_SOURCES})
         target_link_libraries(ptptool PRIVATE xcplite)
-        message(STATUS "Building ptptool")
+        target_compile_definitions(xcplite PRIVATE "XCPLIB_CFG_OVERRIDE=\"xcplib_ptptool_cfg.h\"")
+        target_compile_definitions(ptptool PRIVATE "XCPLIB_CFG_OVERRIDE=\"xcplib_ptptool_cfg.h\"")
+        message(STATUS "Building ptptool with XCPLIB_CFG_OVERRIDE=\"xcplib_ptptool_cfg.h\" for hardware timestamping support (Linux only)")
     else()
         message(STATUS "Non Linux platform - skipping ptptool build")
     endif()
 
-    # Tool shmtool — POSIX shared memory diagnostic tool (macOS + Linux only)
+endif()
+
+# SHM tools
+if(XCPLITE_BUILD_SHM_TOOLS)
+
+    # SHM tools (macOS + Linux only)
     if(NOT WIN32)
+
+        # Tool shmtool
         add_executable(shmtool tools/shmtool/src/main.cpp)
         target_link_libraries(shmtool PRIVATE xcplite)
-        # On Linux, shm_open/shm_unlink live in librt on older glibc versions
         if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             target_link_libraries(shmtool PRIVATE rt)
         endif()
         message(STATUS "Building shmtool")
+
+        # Tool xcpdaemon
+        add_executable(xcpdaemon tools/xcpdaemon/src/main.c)
+        target_link_libraries(xcpdaemon PRIVATE xcplite)
+        message(STATUS "Building xcpdaemon")
+
     else()
         message(STATUS "Windows platform - skipping shmtool build")
     endif()
 
-    # Tool xcpdaemon
-    add_executable(xcpdaemon tools/xcpdaemon/src/main.c)
-    target_link_libraries(xcpdaemon PRIVATE xcplite)
-    message(STATUS "Building xcpdaemon")
 
 endif()
 

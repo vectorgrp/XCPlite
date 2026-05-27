@@ -28,6 +28,9 @@
 #define OPTION_FREERTOS_STACK_BYTES 16384U
 #define OPTION_FREERTOS_PRIORITY (tskIDLE_PRIORITY + 2U)
 
+// FreeRTOS IP stack configuration
+#define OPTION_FREERTOS_LWIP // Use the lwIP stack for FreeRTOS; requires FreeRTOS+TCP
+
 //-------------------------------------------------------------------------------
 // Logging
 // On embedded targets no stderr available

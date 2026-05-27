@@ -8,6 +8,14 @@ The PTP master sends SYNC and FOLLOW_UP messages periodically and responds to DE
 
 Supports IEEE 1588-2008 PTPv2 over UDP/IPv4 in E2E mode.  
 
+## Build
+
+```
+cmake -B build_ptptool -S . -DCMAKE_BUILD_TYPE=Debug -DXCPLITE_BUILD_PTP_TOOLS=ON
+cmake --build build_ptptool --target ptptool
+```
+
+
 ### Commandline Options
 
 ```

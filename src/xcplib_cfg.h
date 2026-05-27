@@ -74,11 +74,6 @@
 #endif
 
 //-------------------------------------------------------------------------------
-// Socket options
-
-// #define OPTION_SOCKET_HW_TIMESTAMPS // Enable hardware timestamps on UDP sockets if available (needed only for ptptool on Linux)
-
-//-------------------------------------------------------------------------------
 // XCP multi application mode
 // Multiple application processes may have shared transmit queue, calibration RCU and XCP state
 // One application is the XCP server, could be the first one running (XCP leader) or a dedicated application (XCP daemon)

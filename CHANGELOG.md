@@ -5,6 +5,7 @@ All notable changes to XCPlite are documented in this file.
 
 ## [V2.1.0]
 
+- Heap allocation removed from socket platform abstraction layer
 - Improved compatibility for 32 bit microcontroller RTOS operating systems (like freeRTOS, zephyr, ThreadX etc.)
 - freeRTOS demo using FreeRTOS POSIX emulator port
 - Improved support for offline A2L creation from ELF files, file system dependency is now optional 
