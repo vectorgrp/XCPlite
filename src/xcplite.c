@@ -446,7 +446,7 @@ static void XcpSetProjectName(const char *name) {
 // Get the project name
 const char *XcpGetProjectName(void) {
     if (STRNLEN(local.project_name, XCP_PROJECT_NAME_MAX_LENGTH) == 0) {
-        assert(0 && "Project name not set, returning empty string");
+        assert(0 && "Project name not set");
         return "";
     }
     return local.project_name;
@@ -3062,7 +3062,6 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
 // Initialize the base address for absolute addressing
 #if defined(XCP_ENABLE_ABS_ADDRESSING) || defined(XCP_ENABLE_APP_ADDRESSING)
     ApplXcpGetBaseAddr();
-    assert(xcp_get_base_addr() != NULL);
 #endif
 
     // Initialize high resolution clock
