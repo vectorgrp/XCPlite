@@ -102,8 +102,9 @@ static void measurementTask1(void *pvParameters) {
 
     DaqCreateEvent(task1); // Register an XCP DAQ event named "task1"
 
-    TickType_t xLastWakeTime = xTaskGetTickCount();
+    uint16_t counter = 0; // Local variable
 
+    TickType_t xLastWakeTime = xTaskGetTickCount();
     for (;;) {
         // Read calibration parameters (wait-free, RCU-style)
         const struct task_cal *p = CalSegLock(task_cal);
@@ -112,6 +113,9 @@ static void measurementTask1(void *pvParameters) {
         CalSegUnlock(task_cal);
 
         // Update measurement variables
+        counter++;
+        if (counter > cmax)
+            counter = 0;
         task1_counter++;
         if (task1_counter > cmax)
             task1_counter = 0;
@@ -124,8 +128,6 @@ static void measurementTask1(void *pvParameters) {
         BaseType_t delayed = xTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(period_ms));
         if (delayed == pdFALSE)
             task1_overruns++;
-
-        // printf("[task1] counter=%u value=%.3f overruns=%u\n", task1_counter, task1_value, task1_overruns);
     }
 }
 
@@ -138,14 +140,18 @@ static void measurementTask2(void *pvParameters) {
 
     DaqCreateEvent(task2);
 
-    TickType_t xLastWakeTime = xTaskGetTickCount();
+    uint16_t counter = 0; // Local variable
 
+    TickType_t xLastWakeTime = xTaskGetTickCount();
     for (;;) {
         const struct task_cal *p = CalSegLock(task_cal);
         uint32_t period_ms = p->task2_period_ms;
         float amp = p->amplitude;
         CalSegUnlock(task_cal);
 
+        counter++;
+        if (counter > 100)
+            counter = 0;
         task2_counter++;
         if (task2_counter > 100)
             task2_counter = 0;
@@ -154,7 +160,6 @@ static void measurementTask2(void *pvParameters) {
         DaqTriggerEvent(task2);
 
         xTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(period_ms));
-        // printf("[task2] counter=%u value=%.3f\n", task2_counter, task2_value);
     }
 }
 
@@ -168,18 +173,13 @@ static void measurementTask2(void *pvParameters) {
 
 static void sig_handler(int sig) {
     (void)sig;
-    printf("\nStopped.\n");
+
+    printf("\nShutting down XCP server...\n");
+    XcpDisconnect();
+    XcpEthServerShutdown();
+
+    printf("exit\n");
     exit(0);
-}
-
-//-----------------------------------------------------------------------------
-// Watchdog task – no-op placeholder kept for future use
-
-static void watchdogTask(void *pvParameters) {
-    (void)pvParameters;
-    for (;;) {
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    }
 }
 
 //-----------------------------------------------------------------------------
@@ -224,9 +224,6 @@ int main(int argc, char *argv[]) {
 
     // Measurement task 2: lower priority, 10 ms
     xTaskCreate(measurementTask2, "task2", configMINIMAL_STACK_SIZE * 4, NULL, tskIDLE_PRIORITY + 2, NULL);
-
-    // Watchdog task: monitors SIGINT and ends the scheduler
-    xTaskCreate(watchdogTask, "watchdog", configMINIMAL_STACK_SIZE * 2, NULL, tskIDLE_PRIORITY + 1, NULL);
 
     // ------------------------------------------------------------------
     // Start the FreeRTOS scheduler (blocks until vTaskEndScheduler() is called)

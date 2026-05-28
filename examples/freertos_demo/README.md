@@ -12,20 +12,18 @@ switching to a real embedded target such as an STM32.
 
 | Feature | How it is demonstrated |
 |---|---|
-| Periodic FreeRTOS tasks | `xTaskCreate` + `xTaskDelayUntil` for drift-free timing |
 | XCP DAQ measurement | `DaqCreateEvent` / `DaqTriggerEvent` inside tasks |
 | XCP calibration | `CalSegDecl` / `CalSegCreate`, `CalSegLock` / `CalSegUnlock` |
-| Clean shutdown | `watchdogTask` monitors a signal flag and calls `vTaskEndScheduler()` |
-| XCP server lifecycle | `XcpEthServerInit` called before the FreeRTOS scheduler starts |
+| XCP server initialization | `XcpInit` `XcpEthServerInit` called before the FreeRTOS scheduler starts |
 
 ### Architecture
 
 ```
 main()
-├── XcpInit() + XcpEthServerInit()    ← two POSIX RX/TX threads created here
+├── XcpInit()
+├── XcpEthServerInit()                ← two FreeRTOS threads for XCP TX/RX created here
 ├── xTaskCreate(measurementTask1)     ← 1 ms DAQ task
 ├── xTaskCreate(measurementTask2)     ← 10 ms DAQ task
-├── xTaskCreate(watchdogTask)         ← polls gRunning, calls vTaskEndScheduler()
 └── vTaskStartScheduler()             ← blocks; each task runs as a pthread
     ...
     vTaskEndScheduler()               ← called by watchdog on SIGINT/SIGTERM
@@ -42,7 +40,7 @@ networking code.
 | File | Purpose |
 |---|---|
 | `src/main.c` | Demo application — tasks, events, calibration segments, XCP server setup |
-| `FreeRTOSConfig.h` | FreeRTOS kernel configuration (tick rate, heap, priorities) |
+| `FreeRTOSConfig.h` | FreeRTOS kernel configuration (features, tick rate, heap, priorities) |
 | `CMakeLists.txt` | Build system: FetchContent for FreeRTOS-Kernel V11, portability-test option |
 
 ---
@@ -63,9 +61,9 @@ Uses Linux sockets and `clock_gettime` for the POSIX simulator
 
 
 ```bash
-cmake -B build-freertos -S . -DXCPLITE_BUILD_FREERTOS_DEMO=ON -DCMAKE_BUILD_TYPE=Debug --fresh
-cmake --build build-freertos --target freertos_demo
-./build-freertos/examples/freertos_demo/freertos_demo
+cmake -B build_freertos -S . -DXCPLITE_BUILD_FREERTOS_DEMO=ON -DCMAKE_BUILD_TYPE=Debug --fresh
+cmake --build build_freertos --target freertos_demo
+./build_freertos/examples/freertos_demo/freertos_demo
 ```
 
 

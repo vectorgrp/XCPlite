@@ -338,21 +338,17 @@ typedef HANDLE THREAD_HANDLE;
 #elif defined(_FREE_RTOS) // FreeRTOS
 
 // Stack depth (in bytes) and priority for internal XCP server tasks.
-// Override in xcplib_rtos_cfg.h or FreeRTOSConfig.h if the defaults do not fit your target.
-// On the POSIX simulator the FreeRTOS port stores a Thread_t struct at the top of this
-// allocation and uses mach_vm_trunc_page() (Apple) to derive the pthread stack size.
-// With a 16 KB page size (Apple Silicon) the buffer must be considerably larger than
-// PTHREAD_STACK_MIN so that at least one full page remains after Thread_t and alignment.
-// 16384 bytes = configMINIMAL_STACK_SIZE words (at 4 bytes/word) in the demo config.
+// Override in xcplib_rtos_cfg.h if the defaults do not fit.
+// Note that on the POSIX simulator the FreeRTOS port needs significantly more stack size
 #ifndef OPTION_FREERTOS_STACK_BYTES
-#define OPTION_FREERTOS_STACK_BYTES 16384U
+#define OPTION_FREERTOS_STACK_BYTES (configMINIMAL_STACK_SIZE * sizeof(StackType_t))
 #endif
 #ifndef OPTION_FREERTOS_PRIORITY
 #define OPTION_FREERTOS_PRIORITY (tskIDLE_PRIORITY + 2U)
 #endif
 
 typedef TaskHandle_t THREAD_HANDLE;
-#define create_thread(h, attr, fn, args) xTaskCreate((TaskFunction_t)(fn), #fn, (OPTION_FREERTOS_STACK_BYTES / sizeof(StackType_t)), (args), OPTION_FREERTOS_PRIORITY, (h))
+#define create_thread(h, _attr, fn, args) xTaskCreate((TaskFunction_t)(fn), #fn, (OPTION_FREERTOS_STACK_BYTES / sizeof(StackType_t)), (args), OPTION_FREERTOS_PRIORITY, (h))
 #define join_thread(h) /* No blocking join in FreeRTOS; synchronize via event flag or semaphore */
 #define cancel_thread(h) vTaskDelete(h)
 #define get_thread_id() ((uint32_t)(uintptr_t)xTaskGetCurrentTaskHandle())

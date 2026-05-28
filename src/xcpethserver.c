@@ -37,8 +37,11 @@
 #include "xcptl.h"    // for XcpTlHandleTransmitQueue
 
 #ifdef TEST_STACK_SIZE
+#ifdef _FREE_RTOS
+#else
 #include <limits.h>   // for PTHREAD_STACK_MIN
 #include <sys/mman.h> // for mmap, munmap
+#endif
 #endif
 #ifdef OPTION_SHM_MODE
 #include <unistd.h> // for getpid()
@@ -94,12 +97,15 @@ static struct {
 #endif
 
 #ifdef TEST_STACK_SIZE
+#ifdef _FREE_RTOS
+#else
 #define RECEIVE_STACK_SIZE (16 * 1024)
 #define TRANSMIT_STACK_SIZE (16 * 1024)
     uint8_t *transmit_thread_stack;    // mmap'd stack buffer
     uint8_t *receive_thread_stack;     // mmap'd stack buffer
     size_t actual_transmit_stack_size; // actual allocated size (>= PTHREAD_STACK_MIN)
     size_t actual_receive_stack_size;  // actual allocated size (>= PTHREAD_STACK_MIN)
+#endif
 #endif
 
 } gXcpServer;
@@ -318,6 +324,8 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
 
 // Create the receive thread which starts the XCP protocol layer and handles incoming XCP unicast commands
 #ifdef TEST_STACK_SIZE
+#ifdef _FREE_RTOS
+#else
         size_t receive_stack_size = RECEIVE_STACK_SIZE;
         if (receive_stack_size < (size_t)PTHREAD_STACK_MIN) {
             DBG_PRINTF_WARNING("RECEIVE_STACK_SIZE %zu < PTHREAD_STACK_MIN %zu, clamping\n", receive_stack_size, (size_t)PTHREAD_STACK_MIN);
@@ -332,6 +340,7 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
         int r1 = pthread_attr_setstack(&receive_thread_attr, gXcpServer.receive_thread_stack, receive_stack_size);
         assert(r1 == 0);
 #define receive_thread_attr_ptr &receive_thread_attr
+#endif
 #else
 #define receive_thread_attr_ptr NULL
 #endif
@@ -349,6 +358,8 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
         // Create the transmit thread
         // @@@@ TODO: Check, why start the transmit thread after the receive thread, should it better be before, once we implement first cycle data acquisition ?
 #ifdef TEST_STACK_SIZE
+#ifdef _FREE_RTOS
+#else
         size_t transmit_stack_size = TRANSMIT_STACK_SIZE;
         if (transmit_stack_size < (size_t)PTHREAD_STACK_MIN) {
             DBG_PRINTF_WARNING("TRANSMIT_STACK_SIZE %zu < PTHREAD_STACK_MIN %zu, clamping\n", transmit_stack_size, (size_t)PTHREAD_STACK_MIN);
@@ -363,6 +374,7 @@ bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t 
         int r2 = pthread_attr_setstack(&transmit_thread_attr, gXcpServer.transmit_thread_stack, transmit_stack_size);
         assert(r2 == 0);
 #define transmit_thread_attr_ptr &transmit_thread_attr
+#endif
 #else
 #define transmit_thread_attr_ptr NULL
 #endif
@@ -409,7 +421,6 @@ bool XcpEthServerShutdown(void) {
     cancel_thread(gXcpServer.receive_thread_handle);
     cancel_thread(gXcpServer.transmit_thread_handle);
     sleepMs(10); // Give threads some time to terminate after cancellation before cleaning up sockets and other resources
-    XcpEthTlShutdown();
 #else
     // Gracefull termination
     // @@@@ TODO: Does not terminate socketAccept
@@ -417,11 +428,10 @@ bool XcpEthServerShutdown(void) {
     gXcpServer.transmit_thread_running = false;
     join_thread(gXcpServer.receive_thread_handle);
     join_thread(gXcpServer.transmit_thread_handle);
-    XcpEthTlShutdown();
 #endif
 
+    XcpEthTlShutdown();
     socketCleanup();
-
     gXcpServer.is_init = false;
 
 #ifdef OPTION_SHM_MODE // SHM queue deinit
@@ -438,6 +448,12 @@ bool XcpEthServerShutdown(void) {
 #endif
 
 #ifdef TEST_STACK_SIZE
+#ifdef _FREE_RTOS
+    UBaseType_t uxHighWaterMark = uxTaskGetStackHighWaterMark(gXcpServer.transmit_thread_handle);
+    UBaseType_t rxHighWaterMark = uxTaskGetStackHighWaterMark(gXcpServer.receive_thread_handle);
+    DBG_PRINTF3("transmit thread stack high-water mark: %zu bytes (of %zu allocated)\n", uxHighWaterMark, OPTION_FREERTOS_STACK_BYTES);
+    DBG_PRINTF3("receive thread stack high-water mark: %zu bytes (of %zu allocated)\n", rxHighWaterMark, OPTION_FREERTOS_STACK_BYTES);
+#else
     // Stack grows downward: unused canary bytes are at the LOW end (index 0..N), used bytes at the HIGH end
     size_t transmit_unused = 0;
     for (size_t i = 0; i < gXcpServer.actual_transmit_stack_size; i++) {
@@ -461,7 +477,7 @@ bool XcpEthServerShutdown(void) {
                 gXcpServer.actual_receive_stack_size);
     munmap(gXcpServer.transmit_thread_stack, gXcpServer.actual_transmit_stack_size);
     munmap(gXcpServer.receive_thread_stack, gXcpServer.actual_receive_stack_size);
-
+#endif
 #endif
 
     return true;
