@@ -53,6 +53,9 @@
 #if (QUEUE_MAX_ENTRY_SIZE % QUEUE_PAYLOAD_SIZE_ALIGNMENT) != 0
 #error "QUEUE_MAX_ENTRY_SIZE should be aligned to QUEUE_PAYLOAD_SIZE_ALIGNMENT"
 #endif
+#if (QUEUE_MAX_ENTRY_SIZE > 0xFFFF)
+#error "QUEUE_MAX_ENTRY_SIZE must not exceed 0xFFFF"
+#endif
 
 // Note:
 // On the producer side, a tQueueBuffer from queueAcquire don't include the user header space

@@ -46,7 +46,7 @@ void XcpSetLogLevel(uint8_t level);
 
 // Use the logger from XCPlite
 // Note: If logging enabled with log level 6 OPTION_MAX_DBG_LEVEL must be set to 6
-#define OPTION_LOG_LEVEL 5 // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug, 5 = trace, 6 = verbose
+#define OPTION_LOG_LEVEL 3 // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug, 5 = trace, 6 = verbose
 
 #define QUEUE_SIZE (1024 * 64) // Size of the test queue in bytes
 
@@ -65,7 +65,7 @@ void XcpSetLogLevel(uint8_t level);
 #define TEST_QUEUE_PEEK          // Use queuePeek(random(QUEUE_PEEK_MAX_INDEX)) instead of queuePop
 #define QUEUE_PEEK_MAX_INDEX (8) // Max offset for peeking ahead
 #endif
-#define CONSUMER_SLEEP_ON_EMPTY_QUEUE_US 128 // Start sleep time in microseconds for the consumer loop, when queue was empty (incremented over time))
+#define CONSUMER_SLEEP_ON_EMPTY_QUEUE_US 50 // Start sleep time in microseconds for the consumer loop, when queue was empty (incremented over time))
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 // Acquire timing test
@@ -227,7 +227,7 @@ static McQueueHandle queue_open_shm(bool consumer) {
 
     int lock_fd = acquire_lock(SHM_LOCK);
     if (lock_fd < 0) {
-        printf("queue_open_shm: acquire_lock failed\n");
+        DBG_PRINTF_ERROR("queue_open_shm: acquire_lock failed\n");
         return NULL;
     }
 
@@ -237,12 +237,12 @@ static McQueueHandle queue_open_shm(bool consumer) {
         shm_unlink(SHM_NAME); // remove any stale object from a previous run
         shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
         if (shm_fd < 0) {
-            printf("CONSUMER: shm_open failed: %s\n", strerror(errno));
+            DBG_PRINTF_ERROR("CONSUMER: shm_open failed: %s\n", strerror(errno));
             release_lock(lock_fd);
             return NULL;
         }
         if (ftruncate(shm_fd, (off_t)SHM_SIZE) < 0) {
-            printf("CONSUMER: ftruncate failed: %s\n", strerror(errno));
+            DBG_PRINTF_ERROR("CONSUMER: ftruncate failed: %s\n", strerror(errno));
             close(shm_fd);
             shm_unlink(SHM_NAME);
             release_lock(lock_fd);
@@ -262,7 +262,7 @@ static McQueueHandle queue_open_shm(bool consumer) {
     release_lock(lock_fd);
 
     if (mem == MAP_FAILED) {
-        printf("%s: mmap failed: %s\n", consumer ? "CONSUMER" : "PRODUCER", strerror(errno));
+        DBG_PRINTF_ERROR("%s: mmap failed: %s\n", consumer ? "CONSUMER" : "PRODUCER", strerror(errno));
         if (consumer)
             shm_unlink(SHM_NAME);
         return NULL;
@@ -278,7 +278,7 @@ static McQueueHandle queue_open_shm(bool consumer) {
         // Full init: clear queue structure then signal producers
         McQueueHandle h = mc_queue_init_from_memory(queue_mem, queue_size, true, NULL);
         if (h == NULL) {
-            printf("CONSUMER: mc_queue_init_from_memory failed\n");
+            DBG_PRINTF_ERROR("CONSUMER: mc_queue_init_from_memory failed\n");
             munmap(mem, SHM_SIZE);
             shm_unlink(SHM_NAME);
             return NULL;
@@ -303,7 +303,7 @@ static McQueueHandle queue_open_shm(bool consumer) {
         }
         McQueueHandle h = mc_queue_init_from_memory(queue_mem, queue_size, false, NULL);
         if (h == NULL) {
-            printf("PRODUCER: mc_queue_init_from_memory failed\n");
+            DBG_PRINTF_ERROR("PRODUCER: mc_queue_init_from_memory failed\n");
             munmap(mem, SHM_SIZE);
             return NULL;
         }
@@ -312,7 +312,7 @@ static McQueueHandle queue_open_shm(bool consumer) {
         // Claim a unique sequential producer index (0, 1, 2, ...).  Used to build a flat thread_id
         // in the task threads: thread_id = producer_index * THREAD_COUNT + task_index.
         g_producer_index = (uint16_t)atomic_fetch_add_explicit(&g_shm_hdr->producer_index_ctr, 1u, memory_order_relaxed);
-        printf("PRODUCER: attached to queue in shared memory '%s' (%u KB) as producer[%u]\n", SHM_NAME, (unsigned)(SHM_SIZE / 1024), (unsigned)g_producer_index);
+        DBG_PRINTF3("PRODUCER: attached to queue in shared memory '%s' (%u KB) as producer[%u]\n", SHM_NAME, (unsigned)(SHM_SIZE / 1024), (unsigned)g_producer_index);
         return h;
     }
 }
@@ -341,7 +341,7 @@ THREAD_FUNC_RETURN task(void *p) {
     char task_name[16 + 1];
     snprintf(task_name, sizeof(task_name), "task_%u", task_index);
 
-    printf("thread %s running...\n", task_name);
+    DBG_PRINTF3("thread %s running...\n", task_name);
 
     while (run && gRun) {
         // Consumer liveness is checked in the main loop (every 500us) which sets gRun=false.
@@ -374,6 +374,10 @@ THREAD_FUNC_RETURN task(void *p) {
                 queuePush(queue_handle, &queue_buffer, false);
             } else {
                 overruns++;
+
+                uint32_t queue_max_level = 0;
+                uint32_t queue_level = queueLevel(queue_handle, &queue_max_level);
+                DBG_PRINTF5(ANSI_COLOR_RED "Overruns in thread %u, count = %llu, level = %u/%u)\n" ANSI_COLOR_RESET, (uint32_t)thread_id, overruns, queue_level, queue_max_level);
             }
 
 #ifdef TEST_ACQUIRE_LOCK_TIMING
@@ -459,9 +463,13 @@ static void print_help(void) {
 
 int main(int argc, char *argv[]) {
 
-    printf("\nqueue_test\n");
+    // Set log level
+    XcpSetLogLevel(OPTION_LOG_LEVEL);
+
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
+
+    DBG_PRINT3("\nqueue_test\n");
 
     // Commandline argument parsing for test mode selection
     for (int i = 1; i < argc; i++) {
@@ -476,17 +484,14 @@ int main(int argc, char *argv[]) {
             g_shm_consumer = true;
 #endif
         else {
-            printf("Unknown option: %s  (use --help for usage)\n", argv[i]);
+            DBG_PRINTF_ERROR("Unknown option: %s  (use --help for usage)\n", argv[i]);
             return 1;
         }
     }
     if (g_shm_producer && g_shm_consumer) {
-        printf("Error: --producer and --consumer are mutually exclusive\n");
+        DBG_PRINT_ERROR("--producer and --consumer are mutually exclusive\n");
         return 1;
     }
-
-    // Set log level
-    XcpSetLogLevel(OPTION_LOG_LEVEL);
 
 #ifdef TEST_ACQUIRE_LOCK_TIMING
     lock_test_init();
@@ -517,7 +522,7 @@ int main(int argc, char *argv[]) {
     // Create or attach to a queue, depending on the test mode
     queue_handle = queueInit(QUEUE_SIZE); // Initialize the queue, the queue memory is allocated by the library, the queue buffer size is specified by OPTION_QUEUE_SIZE
     if (queue_handle == NULL) {
-        printf("Failed to initialize the queue\n");
+        DBG_PRINT_ERROR("Failed to initialize the queue\n");
         return 1;
     }
 
@@ -559,7 +564,7 @@ int main(int argc, char *argv[]) {
 #endif
 
     // Wait for signal to stop
-    printf("main loop running - press Ctrl+C to stop...\n");
+    DBG_PRINT3("main loop running - press Ctrl+C to stop...\n");
     while (gRun) {
 
         // Poll the queue, break if empty
@@ -581,7 +586,7 @@ int main(int argc, char *argv[]) {
                 uint32_t level_rel = ((level_cur * 100) / level_max);
                 if (level_rel > max_level) {
                     max_level = level_rel;
-                    printf("New max queue level: %u %% (%u Bytes)\n", max_level, level_cur);
+                    DBG_PRINTF4("New max queue level: %u %% (%u Bytes)\n", max_level, level_cur);
                 }
 
                 // Set max max_peek_index to a random number between 0 and QUEUE_PEEK_MAX_INDEX
@@ -606,17 +611,17 @@ int main(int argc, char *argv[]) {
                     uint64_t counter = b[2];
                     uint64_t overruns = b[3];
 
-                    // printf("Peeked index %u: thread_id=%llu, size=%llu, counter=%llu\n", index, thread_id, size, counter);
+                    // DBG_PRINTF("Peeked index %u: thread_id=%llu, size=%llu, counter=%llu\n", index, thread_id, size, counter);
 
                     // Check counter incrementing
                     if (size < THREAD_PAYLOAD_MIN_SIZE || thread_id >= THREAD_COUNT) {
-                        printf(ANSI_COLOR_RED "Corrupt message received \n" ANSI_COLOR_RESET);
+                        DBG_PRINT_ERROR(ANSI_COLOR_RED "Corrupt message received \n" ANSI_COLOR_RESET);
                         msg_errors++;
                     } else {
                         if (msg_count > 0) {
                             if (counter != last_counter[thread_id] + 1) {
-                                printf(ANSI_COLOR_RED "Counter error in thread %u, expected counter %llu, got %llu\n" ANSI_COLOR_RESET, (uint32_t)thread_id,
-                                       last_counter[thread_id] + 1, counter);
+                                DBG_PRINTF_ERROR(ANSI_COLOR_RED "Counter error in thread %u, expected counter %llu, got %llu\n" ANSI_COLOR_RESET, (uint32_t)thread_id,
+                                                 last_counter[thread_id] + 1, counter);
                                 msg_errors++;
                             }
                         }
@@ -624,7 +629,7 @@ int main(int argc, char *argv[]) {
                     }
                     // Check overruns
                     if (overruns > 0) {
-                        printf(ANSI_COLOR_YELLOW "Overruns in thread %u, count = %llu)\n" ANSI_COLOR_RESET, (uint32_t)thread_id, overruns);
+                        DBG_PRINTF4(ANSI_COLOR_YELLOW "Overruns in thread %u, count = %llu)\n" ANSI_COLOR_RESET, (uint32_t)thread_id, overruns);
                     }
 
                     // Write to the user header
@@ -682,7 +687,7 @@ int main(int argc, char *argv[]) {
                 assert(thread_id < THREAD_COUNT);
                 if (msg_count > 0) {
                     if (counter != last_counter[thread_id] + 1) {
-                        printf("Messages lost in thread %u, expected counter %llu, got %llu\n", (uint32_t)thread_id, last_counter[thread_id] + 1, counter);
+                        DBG_PRINTF3("Messages lost in thread %u, expected counter %llu, got %llu\n", (uint32_t)thread_id, last_counter[thread_id] + 1, counter);
                     }
                 }
 
@@ -727,7 +732,7 @@ int main(int argc, char *argv[]) {
         if (g_shm_producer && g_shm_hdr != NULL) {
             int32_t cpid = atomic_load_explicit(&g_shm_hdr->consumer_pid, memory_order_relaxed);
             if (cpid == 0 || (kill((pid_t)cpid, 0) == -1 && errno == ESRCH)) {
-                printf("PRODUCER: consumer gone (pid=%d), shutting down\n", (int)cpid);
+                DBG_PRINT3("PRODUCER: consumer gone (pid=%d), shutting down\n", (int)cpid);
                 gRun = false;
             }
         }
@@ -736,8 +741,8 @@ int main(int argc, char *argv[]) {
         // Print statistics every second
         if (clockGetMonotonicUs() - last_msg_time >= 1000000) {
             if (!g_shm_producer) {
-                printf("Messages received: %u, overruns: %u, errors: %u, data rate: %u msg/s, %u kbytes/s\n", msg_count, msg_overruns, msg_errors, (msg_count - last_msg_count),
-                       (msg_bytes - last_msg_bytes) / 1024);
+                DBG_PRINTF3("Messages received: %u, overruns: %u, errors: %u, data rate: %u msg/s, %u kbytes/s\n", msg_count, msg_overruns, msg_errors,
+                            (msg_count - last_msg_count), (msg_bytes - last_msg_bytes) / 1024);
                 last_msg_bytes = msg_bytes;
                 last_msg_count = msg_count;
             }
@@ -762,7 +767,7 @@ int main(int argc, char *argv[]) {
         // (They would also detect it via kill()/ESRCH once this process exits, but clearing
         // first lets them stop before the 500ms drain window expires.)
         atomic_store_explicit(&g_shm_hdr->consumer_pid, 0, memory_order_release);
-        printf("CONSUMER: signaled producers to stop, waiting 500ms...\n");
+        DBG_PRINT3("CONSUMER: signaled producers to stop, waiting 500ms...\n");
         sleepUs(500000);
     }
     if (g_shm_mem != NULL) {
@@ -772,11 +777,12 @@ int main(int argc, char *argv[]) {
     }
     if (g_shm_consumer) {
         shm_unlink(SHM_NAME);
-        printf("CONSUMER: shared memory '%s' removed\n", SHM_NAME);
+        DBG_PRINT3("CONSUMER: shared memory '%s' removed\n", SHM_NAME);
     }
 #endif
 
     // Print queue statistics
+    print_test_info();
     printf("\n\nFinal statistics:\n");
     printf("Messages received: %u, bytes received: %u, messages lost: %u\n", msg_count, msg_bytes, msg_overruns);
     printf("Data rate: %u msg/s, %u kbytes/s\n", (uint32_t)(msg_count * 1000000 / (clockGetMonotonicUs() - last_msg_time)),

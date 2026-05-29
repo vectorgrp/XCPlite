@@ -167,15 +167,16 @@ static void lock_test_print_results(void) {
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 
-// Queue entry states (higher 16 bit of header, lower 16 bit is used for payload size)
-#define CTR_RESERVED 0x0000u  // Reserved by producer, must be 0 because consumer clears the memory before releasing the entry
-#define CTR_COMMITTED 0xCCCCu // Committed by producer
+// Queue entry states
+#define ENTRY_COMMITTED 0xCCCCUL // high word of the entry_header if entry is committed by the producer, otherwise always 0
 
-// Queue entry with header and payload
-// Header is used for synchronization and state management, payload is used for user payload and optional user header data
+// Queue entry
+// The atomic 32 bit entry_header is used for producer/consumer acq/rel synchronization
+// It encodes the entry commit state and the entry payload length in a single atomic value
+// The commit state must always be 0 (initial state of all entries) or ENTRY_COMMITTED
 #pragma pack(push, 1)
 typedef struct {
-    atomic_uint_least32_t header;
+    atomic_uint_least32_t entry_header;
     uint8_t data[];
 } tQueueEntry;
 #pragma pack(pop)
@@ -198,9 +199,9 @@ typedef union QueueHeader {
         uint64_t cached_peek_tail;  // Cached offset for optimized peek loop
 
         // Constant
-        uint64_t magic;      // Magic value for sanity checks
-        uint32_t queue_size; // Size of queue data buffer in bytes (for entry offset wrapping, with wrap around space at the end)
-        bool from_memory;    // Indicates whether the queue was initialized from user provided memory (true) or allocated by the queue implementation (false)
+        uint64_t magic;       // Magic value for sanity checks
+        uint32_t buffer_size; // Size of queue data buffer in bytes (for entry offset wrapping, with wrap around space at the end)
+        bool from_memory;     // Indicates whether the queue was initialized from user provided memory (true) or allocated by the queue implementation (false)
     };
     uint8_t padding[CACHE_LINE_SIZE]; //  Padding to cache line size
 } tQueueHeader;
@@ -232,7 +233,7 @@ tQueueHandle queueInitFromMemory(void *queue_memory, size_t queue_memory_size, b
         queue->h.from_memory = false;
         queue->h.magic = QUEUE_MAGIC;
         // Reserve header and entry wrap around space at the end of the buffer for maximum entry size QUEUE_MAX_ENTRY_SIZE
-        queue->h.queue_size = ((aligned_size - sizeof(tQueueHeader)) - (QUEUE_MAX_ENTRY_SIZE + QUEUE_ENTRY_HEADER_SIZE)) & ~(QUEUE_PAYLOAD_SIZE_ALIGNMENT - 1);
+        queue->h.buffer_size = ((aligned_size - sizeof(tQueueHeader)) - (QUEUE_MAX_ENTRY_SIZE + QUEUE_ENTRY_HEADER_SIZE)) & ~(QUEUE_PAYLOAD_SIZE_ALIGNMENT - 1);
         clear_queue = true;
     }
 
@@ -246,7 +247,7 @@ tQueueHandle queueInitFromMemory(void *queue_memory, size_t queue_memory_size, b
         queue->h.from_memory = true;
         queue->h.magic = QUEUE_MAGIC;
         // Reserve header and entry wrap around space at the end of the buffer for maximum entry size QUEUE_MAX_ENTRY_SIZE
-        queue->h.queue_size = ((queue_memory_size - sizeof(tQueueHeader)) - (QUEUE_MAX_ENTRY_SIZE + QUEUE_ENTRY_HEADER_SIZE)) & ~(QUEUE_PAYLOAD_SIZE_ALIGNMENT - 1);
+        queue->h.buffer_size = ((queue_memory_size - sizeof(tQueueHeader)) - (QUEUE_MAX_ENTRY_SIZE + QUEUE_ENTRY_HEADER_SIZE)) & ~(QUEUE_PAYLOAD_SIZE_ALIGNMENT - 1);
     }
 
     // Queue is provided by the caller and is already initialized
@@ -258,8 +259,8 @@ tQueueHandle queueInitFromMemory(void *queue_memory, size_t queue_memory_size, b
 
     DBG_PRINT3("Init transport layer lockless queue (queue64v)\n");
     DBG_PRINTF3("  alignment=%u, data buffer size=%u, max payload %u bytes, overall %uKiB used\n", //
-                QUEUE_PAYLOAD_SIZE_ALIGNMENT, queue->h.queue_size, QUEUE_MAX_ENTRY_SIZE - QUEUE_ENTRY_USER_HEADER_SIZE,
-                (uint32_t)((queue->h.queue_size + sizeof(tQueueHeader)) / 1024));
+                QUEUE_PAYLOAD_SIZE_ALIGNMENT, queue->h.buffer_size, QUEUE_MAX_ENTRY_SIZE - QUEUE_ENTRY_USER_HEADER_SIZE,
+                (uint32_t)((queue->h.buffer_size + sizeof(tQueueHeader)) / 1024));
 
     if (clear_queue) {
         queueClear((tQueueHandle)queue); // Clear the queue
@@ -273,7 +274,7 @@ tQueueHandle queueInitFromMemory(void *queue_memory, size_t queue_memory_size, b
 
     // Checks
     assert(atomic_is_lock_free(&((tQueue *)queue_memory)->h.head));
-    assert((queue->h.queue_size & (QUEUE_PAYLOAD_SIZE_ALIGNMENT - 1)) == 0);
+    assert((queue->h.buffer_size & (QUEUE_PAYLOAD_SIZE_ALIGNMENT - 1)) == 0);
 
     return (tQueueHandle)queue;
 }
@@ -303,11 +304,9 @@ void queueDeinit(tQueueHandle queue_handle) {
 #endif
 
     queueClear(queue_handle);
-
     if (!queue->h.from_memory) {
         free(queue);
     }
-
     DBG_PRINT6("QueueDeInit\n");
 }
 
@@ -355,28 +354,27 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
     // Prepare a new entry in reserved state
     tQueueEntry *entry = NULL;
 
-    // The head acquire read provides the most up to date queue overrun detection
-    // The tail acquire read make sure the entry headers cleared by the consumer are visible
+    // The tail acquire read makes sure the entry headers cleared by the consumer are visible
     uint64_t head = atomic_load_explicit(&queue->h.head, memory_order_acquire);
     uint64_t tail = atomic_load_explicit(&queue->h.tail, memory_order_acquire);
 
     // CAS loop
-    // In reserved state, the message entry is between tail and head, has valid dlc and ctr must be 0
-    // This means the ctr must be 0 before the head is incremented
     for (;;) {
 
         // Check for overrun
-        // Note that head<tail may be observed, in this case the queue is considered empty
+        // When head <= tail is observed, the queue is considered empty
         if (head > tail) {
-            if (queue->h.queue_size - (entry_len + QUEUE_ENTRY_HEADER_SIZE) < (head - tail)) {
+            if (queue->h.buffer_size - (entry_len + QUEUE_ENTRY_HEADER_SIZE) < (head - tail)) {
                 break; // Overrun
             }
         }
         // Try to increment the head
         // Compare exchange weak in acq_rel/acq mode serializes with other producers, false negatives will spin
         if (atomic_compare_exchange_weak_explicit(&queue->h.head, &head, head + (entry_len + QUEUE_ENTRY_HEADER_SIZE), memory_order_acq_rel, memory_order_relaxed)) {
-            entry = (tQueueEntry *)(queue->buffer + (head % queue->h.queue_size));
-            atomic_store_explicit(&entry->header, (CTR_RESERVED << 16) | (uint32_t)entry_len, memory_order_release);
+            entry = (tQueueEntry *)(queue->buffer + (head % queue->h.buffer_size));
+            // Store the overall user length (uint16_t msg_len = user header + user payload) in the entry_header (atomic uint32_t)
+            // High word is still 0, which is the reserved state, and not committed yet
+            atomic_store_explicit(&entry->entry_header, (uint32_t)entry_len, memory_order_release);
             break;
         }
 
@@ -387,22 +385,20 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
         // No hint, spin count is usually very low and we prefer the locked sequence as fast as possible
         // spin_loop_hint();
 
-        // Get spin count statistics
 #ifdef TEST_ACQUIRE_LOCK_TIMING
         spin_count++;
         // assert(spin_count < 100); // No reason to be afraid about the spin count, enable spin count statistics to check
 #endif
-
     } // for (;;)
 
 #ifdef TEST_ACQUIRE_LOCK_TIMING
     lock_test_add_sample(get_timestamp_ns() - spin_start, spin_count);
 #endif
 
-    if (entry == NULL) {
+    if (entry == NULL) { // Overflow
         uint32_t lost = (uint32_t)atomic_fetch_add_explicit(&queue->h.packets_lost, 1, memory_order_relaxed);
         if (lost == 0) {
-            DBG_PRINTF6("Queue overrun, len=%u, head=%" PRIu64 ", tail=%" PRIu64 ", level=%u, size=%u\n", entry_len, head, tail, (uint32_t)(head - tail), queue->h.queue_size);
+            DBG_PRINTF6("Queue overrun, len=%u, head=%" PRIu64 ", tail=%" PRIu64 ", level=%u, size=%u\n", entry_len, head, tail, (uint32_t)(head - tail), queue->h.buffer_size);
         }
         tQueueBuffer ret = {
             .buffer = NULL,
@@ -437,7 +433,7 @@ void queuePush(tQueueHandle queue_handle, const tQueueBuffer *queue_buffer, bool
 
     // Set commit state and the complete user payload size (header+payload) in the entry_header
     // Release store - complete data is then visible to the consumer
-    atomic_store_explicit(&entry->header, (CTR_COMMITTED << 16) | (uint32_t)(queue_buffer->size + QUEUE_ENTRY_USER_HEADER_SIZE), memory_order_release);
+    atomic_store_explicit(&entry->entry_header, (ENTRY_COMMITTED << 16) | (uint32_t)(queue_buffer->size + QUEUE_ENTRY_USER_HEADER_SIZE), memory_order_release);
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -455,13 +451,13 @@ uint32_t queueLevel(tQueueHandle queue_handle, uint32_t *queue_max_level) {
         return 0;
     }
     if (queue_max_level != NULL)
-        *queue_max_level = queue->h.queue_size;
+        *queue_max_level = queue->h.buffer_size;
     uint64_t head = atomic_load_explicit(&queue->h.head, memory_order_relaxed);
     uint64_t tail = atomic_load_explicit(&queue->h.tail, memory_order_relaxed);
     if (head <= tail) { // When head<tail is observed, the queue is considered empty
         return 0;
     }
-    assert(head - tail <= queue->h.queue_size);
+    assert(head - tail <= queue->h.buffer_size);
     return (uint32_t)(head - tail);
 }
 
@@ -512,17 +508,17 @@ tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t peek_index, uint32_t 
             return ret;
         }
 
-        entry = (tQueueEntry *)(queue->buffer + peek_tail % queue->h.queue_size);
+        entry = (tQueueEntry *)(queue->buffer + peek_tail % queue->h.buffer_size);
 
         // Check if the entry is in commit state
-        uint32_t header = atomic_load_explicit(&entry->header, memory_order_acquire);
+        uint32_t header = atomic_load_explicit(&entry->entry_header, memory_order_acquire);
         entry_size = header & 0xFFFF;                    // Entry size (excluding the entry header, but including the optional user header)
         uint16_t entry_state = (uint16_t)(header >> 16); // Commit state
-        if (entry_state != CTR_COMMITTED) {
+        if (entry_state != ENTRY_COMMITTED) {
 
-            // This should never happen
-            // An entry is consistent, if it is neither in reserved or committed state
-            if (entry_state != CTR_RESERVED) {
+            // This should never happen:
+            // An entry is consistent, if it is neither in initial (0) or committed state (ENTRY_COMMITTED)
+            if (entry_state != 0) {
                 DBG_PRINTF_ERROR("queuePeek: inconsistent reserved - h=%" PRIu64 ", t=%" PRIu64 ", entry: (entry_size=0x%04X, entry_state=0x%04X)\n", head, peek_tail, entry_size,
                                  entry_state);
                 assert(false); // Fatal error, inconsistent state
@@ -551,7 +547,7 @@ tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t peek_index, uint32_t 
 
         // This should never fail
         // An committed entry must have a valid length
-        if (!((entry_state == CTR_COMMITTED) && (entry_size > 0) && (entry_size <= QUEUE_ENTRY_USER_SIZE))) {
+        if (!((entry_state == ENTRY_COMMITTED) && (entry_size > 0) && (entry_size <= QUEUE_ENTRY_USER_SIZE))) {
             DBG_PRINTF_ERROR("queuePeek: inconsistent commit - h=%" PRIu64 ", t=%" PRIu64 ",  entry: (entry_size=0x%04X, entry_state=0x%04X)\n", //
                              head, peek_tail, entry_size, entry_state);
             assert(false); // Fatal error, corrupt committed state
