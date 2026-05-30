@@ -1,5 +1,7 @@
 ﻿// queue_test
 
+#define _GNU_SOURCE // for CLOCK_MONOTONIC_RAW, CLOCK_THREAD_CPUTIME_ID, clock_gettime
+
 #include <assert.h>  // for assert
 #include <math.h>    // for M_PI, sin
 #include <signal.h>  // for signal handling
@@ -8,22 +10,18 @@
 #include <stdio.h>   // for printf
 #include <stdlib.h>  // for rand()
 #include <string.h>  // for sprintf
+#include <time.h>    // for clock_gettime, CLOCK_MONOTONIC_RAW
 
 #include "xcplib_cfg.h"
 #ifndef OPTION_ATOMIC_EMULATION
 #include <stdatomic.h> // for atomic_
 #endif
 
-// Option to use XCP for online performance monitoring and logging of the queue test
-// #define USE_XCP
-
-// Option to enable timing statistics
-#define TEST_ACQUIRE_LOCK_TIMING
-
 // Note: Take care for include order
 
 // Public XCPlite API
 #include "xcplib_cfg.h" // for OPTION_xxx
+
 // Disable socket support with vectored IO to avoid platform.h includes queue.h
 #undef OPTION_ENABLE_TCP
 #undef OPTION_ENABLE_UDP
@@ -48,24 +46,55 @@ void XcpSetLogLevel(uint8_t level);
 // Note: If logging enabled with log level 6 OPTION_MAX_DBG_LEVEL must be set to 6
 #define OPTION_LOG_LEVEL 3 // Log level, 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug, 5 = trace, 6 = verbose
 
+// Test parameters
+// Default for 2M messages/s and 1G byte payload/s, reduce for testing on slower systems
+
 #define QUEUE_SIZE (1024 * 64) // Size of the test queue in bytes
 
-// Test parameters
-// 40-128 byte payload * THREAD_COUNT * 1000000/THREAD_DELAY_US = Throughput in byte/s
+#define THREAD_COUNT 10     // Number of threads to create
+#define THREAD_DELAY_US 10  // Delay in microseconds for the thread loops
+#define THREAD_BURST_SIZE 4 // Acquire and push this many entries in a burst before sleeping (stop bursting on overrun)
+// Min size of the payload produced by the threads
+#define THREAD_PAYLOAD_MIN_SIZE 64
+// Max size of the payload produced by the threads (random)
+#define THREAD_PAYLOAD_MAX_SIZE 64 // Small payload test
+// #define THREAD_PAYLOAD_MAX_SIZE QUEUE_ENTRY_USER_PAYLOAD_SIZE // Big payload test
 
-// Parameters for 2000000 msg/s with 10 threads, 40 byte payload, 10us delay
-#define THREAD_COUNT 10             // Number of threads to create
-#define THREAD_DELAY_US 10          // Delay in microseconds for the thread loops
-#define THREAD_BURST_SIZE 4         // Acquire and push this many entries in a burst before sleeping (stop bursting on overrun)
-#define THREAD_PAYLOAD_MIN_SIZE 40  // Min size of the test payload produced by the threads
-#define THREAD_PAYLOAD_MAX_SIZE 128 // Max size of the test payload produced by the threads (random)
-
-// The queue implementations in reference.c, queue62v.c and queue64f.c support peeking ahead
+// The queue implementations in queue62v.c and queue64f.c support peeking ahead
 #if defined(OPTION_QUEUE_64_VAR_SIZE) || defined(OPTION_QUEUE_64_FIX_SIZE)
 #define TEST_QUEUE_PEEK          // Use queuePeek(random(QUEUE_PEEK_MAX_INDEX)) instead of queuePop
 #define QUEUE_PEEK_MAX_INDEX (8) // Max offset for peeking ahead
+#else
 #endif
-#define CONSUMER_SLEEP_ON_EMPTY_QUEUE_US 50 // Start sleep time in microseconds for the consumer loop, when queue was empty (incremented over time))
+
+// Overruns during the test are intentionally provoked by producing faster than consuming to test the behavior of the queue in this case
+#define CONSUMER_SLEEP_ON_EMPTY_QUEUE_US 1 // Start consumer sleep time in microseconds when queue was empty (incremented over time until queue level increases to 90%)
+
+// Option to enable timing measurement
+#define TEST_ACQUIRE_LOCK_TIMING
+
+// Define the clock type used for lock time measurement
+// Use CLOCK_THREAD_CPUTIME_ID to measure the CPU time consumed by the producer thread, which is more accurate for short lock times and not affected by OS scheduling and preemption
+// (which causes the long tail in the lock time histogram on POSIX systems)
+// #define TEST_CLOCK_TYPE CLOCK_THREAD_CPUTIME_ID // be aware that this clock has much slower access and higher jitter, compared to CLOCK_MONOTONIC_RAW
+#define TEST_CLOCK_TYPE CLOCK_MONOTONIC_RAW
+
+/* AI statement to this:
+CLOCK_MONOTONIC_RAW is served via the vDSO (virtual Dynamic Shared Object):
+the kernel maps a small piece of code + data directly into every process's address space,
+so clock_gettime reads the hardware counter (ARM cycle counter on Pi, TSC on x86) entirely in userspace — no syscall, no context switch.
+Typical cost: ~20–50 ns.
+
+CLOCK_THREAD_CPUTIME_ID cannot use the vDSO because the per-thread CPU accounting data lives in kernel data structures (task_struct).
+It must do a full syscall (clock_gettime → trap → kernel → return). Typical cost: ~200–500 ns on a Raspberry Pi.
+
+So for measuring lock contention times (which can be as short as 20–100 ns), CLOCK_THREAD_CPUTIME_ID is counterproductive —
+its own overhead is larger than what you're trying to measure,
+and the lock_calibration loop in your code tries to compensate for this but can only subtract the average overhead, not jitter.
+
+CLOCK_MONOTONIC_RAW is the better choice for this use case — it's both faster and has lower jitter.
+The tradeoff is that it is affected by OS preemption (long tail in the histogram), which is actually informative for a lock latency test, not a problem.
+*/
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 // Acquire timing test
@@ -75,6 +104,14 @@ void XcpSetLogLevel(uint8_t level);
 // Note that this tests have significant performance impact, do not turn on for production use !!!!!!!!!!!
 
 #ifdef TEST_ACQUIRE_LOCK_TIMING
+
+// Get the clock used for lock time measurement
+static uint64_t get_lock_test_timestamp(void) {
+    static const uint64_t kNanosecondsPerSecond = 1000000000ULL;
+    struct timespec ts = {0};
+    clock_gettime(TEST_CLOCK_TYPE, &ts); // NOLINT(missing-includes) // do **not** include internal "bits" headers directly.
+    return ((uint64_t)ts.tv_sec) * kNanosecondsPerSecond + ((uint64_t)ts.tv_nsec);
+}
 
 static MUTEX lock_mutex = MUTEX_INTIALIZER;
 static uint64_t lock_time_max = 0;
@@ -100,8 +137,8 @@ static void lock_test_init(void) {
     // Calibrate
     uint64_t sum = 0;
     for (int i = 0; i < 10000; i++) {
-        volatile uint64_t time = clockGetMonotonicNs();
-        sum += clockGetMonotonicNs() - time;
+        volatile uint64_t time = get_lock_test_timestamp();
+        sum += get_lock_test_timestamp() - time;
     }
     lock_calibration = sum / 10000;
 }
@@ -165,18 +202,6 @@ static void lock_test_print_results(void) {
     printf("\n");
 }
 
-#endif
-
-//-----------------------------------------------------------------------------------------------------
-// XCP parameters
-
-#ifdef USE_XCP
-#define OPTION_PROJECT_NAME "queue_test" // Project name, used to build the A2L and BIN file name
-#define OPTION_PROJECT_VERSION "V1.0"    // EPK version string
-#define OPTION_USE_TCP false             // TCP or UDP
-#define OPTION_SERVER_PORT 5555          // Port
-#define OPTION_SERVER_ADDR {0, 0, 0, 0}  // Bind addr, 0.0.0.0 = ANY
-#define OPTION_QUEUE_SIZE (1024 * 32)    // Size of the measurement queue in bytes, should be large enough to cover at least 10ms of expected traffic
 #endif
 
 //-----------------------------------------------------------------------------------------------------
@@ -331,7 +356,7 @@ THREAD_FUNC_RETURN task(void *p) {
     bool run = true;
 
     uint64_t counter = 0;
-    uint64_t overruns = 0;
+    uint32_t overruns = 0;
 
     // Build the task name from the event index
     uint16_t task_index = atomic_fetch_add_explicit(&task_index_ctr, 1, memory_order_relaxed);
@@ -352,36 +377,42 @@ THREAD_FUNC_RETURN task(void *p) {
             assert(THREAD_PAYLOAD_MIN_SIZE >= sizeof(uint32_t) + 4 * sizeof(uint64_t));
             uint16_t size = THREAD_PAYLOAD_MIN_SIZE +
                             rand() % (THREAD_PAYLOAD_MAX_SIZE - THREAD_PAYLOAD_MIN_SIZE + 1); // Add some random size to the payload to increase the variability of the test
+            size = (size + sizeof(uint32_t) - 1) & ~(sizeof(uint32_t) - 1);                   // Align size to 4
 
 #ifdef TEST_ACQUIRE_LOCK_TIMING
-            uint64_t start_time = clockGetMonotonicNs();
+            uint64_t start_time = get_lock_test_timestamp();
 #endif
 
             tQueueBuffer queue_buffer = queueAcquire(queue_handle, size);
             if (queue_buffer.size >= size) {
                 assert(queue_buffer.buffer != NULL);
 
+                uint32_t *b = (uint32_t *)(queue_buffer.buffer);
+
                 // Simulate XCP DAQ header, because some queue implementations are not generic and have XCP specific asserts
-                *(uint32_t *)queue_buffer.buffer = 0x0000AAFC;
+                b[0] = 0x0000AAFC;
 
                 // Test data
-                uint64_t *b = (uint64_t *)(queue_buffer.buffer + sizeof(uint32_t));
-                b[0] = thread_id;
-                b[1] = size;
-                b[2] = ++counter;
-                b[3] = overruns;
+                b[1] = thread_id;
+                b[2] = size;
+                b[3] = (++counter) & 0xFFFFFFFF;
+                b[4] = overruns;
+
+                // Fill the rest of the payload with some data to increase the variability of the test
+                for (uint32_t i = 5; i < size / sizeof(uint32_t); i++)
+                    b[i] = thread_id + i;
+
                 overruns = 0; // Reset overrun counter after reporting it in the payload
                 queuePush(queue_handle, &queue_buffer, false);
             } else {
                 overruns++;
-
                 uint32_t queue_max_level = 0;
                 uint32_t queue_level = queueLevel(queue_handle, &queue_max_level);
-                DBG_PRINTF5(ANSI_COLOR_RED "Overruns in thread %u, count = %llu, level = %u/%u)\n" ANSI_COLOR_RESET, (uint32_t)thread_id, overruns, queue_level, queue_max_level);
+                DBG_PRINTF5(ANSI_COLOR_RED "Overruns in thread %u, count = %u, level = %u/%u)\n" ANSI_COLOR_RESET, (uint32_t)thread_id, overruns, queue_level, queue_max_level);
             }
 
 #ifdef TEST_ACQUIRE_LOCK_TIMING
-            lock_test_add_sample(clockGetMonotonicNs() - start_time);
+            lock_test_add_sample(get_lock_test_timestamp() - start_time);
 #endif
 
             if (overruns > 0) {
@@ -400,9 +431,9 @@ THREAD_FUNC_RETURN task(void *p) {
 //-----------------------------------------------------------------------------------------------------
 // Main function
 
-static void print_test_info(void) {
+static void print_test_parameters(void) {
 
-    DBG_PRINT3("queue_test for mc_queue API reference implementation\n");
+    DBG_PRINT3("\nTest parameters\n");
 
 #ifdef TEST_QUEUE_SHM
     if (g_shm_consumer)
@@ -413,13 +444,12 @@ static void print_test_info(void) {
         DBG_PRINT3("MODE: single-process (in-process queue)\n");
 #endif
 
-    DBG_PRINT3("queue_test for XCPlite queue\n");
 #if defined(OPTION_QUEUE_64_VAR_SIZE)
-    DBG_PRINT3("Using queue (queue64v.c) with 64 bit variable size entries\n");
+    DBG_PRINT3("Using queue " ANSI_COLOR_GREEN "(queue64v.c)" ANSI_COLOR_RESET " with 64 bit variable size entries\n");
 #elif defined(OPTION_QUEUE_64_FIX_SIZE)
-    DBG_PRINT3("Using queue (queue64f.c) with 64 bit fixed size entries\n");
+    DBG_PRINT3("Using queue " ANSI_COLOR_GREEN "(queue64f.c)" ANSI_COLOR_RESET " with 64 bit fixed size entries\n");
 #elif defined(OPTION_QUEUE_32)
-    DBG_PRINT3("Using queue (queue32.c) with 32 bit variable size entries\n");
+    DBG_PRINT3("Using queue " ANSI_COLOR_GREEN "(queue32.c)" ANSI_COLOR_RESET " with 32 bit variable size entries\n");
 #else
 #error "Please select a valid queue implementation\n"
 #endif
@@ -429,7 +459,14 @@ static void print_test_info(void) {
     DBG_PRINT3("Testing without peek support\n");
 #endif
     DBG_PRINT3("\n");
-    DBG_PRINT3("Test parameters:\n");
+    if (THREAD_PAYLOAD_MAX_SIZE > 64)
+        DBG_PRINTF3("Testing with " ANSI_COLOR_YELLOW "big payload (max %u bytes)\n" ANSI_COLOR_RESET, THREAD_PAYLOAD_MAX_SIZE);
+    else
+        DBG_PRINTF3("Testing with " ANSI_COLOR_YELLOW "small payload (max %u bytes)\n" ANSI_COLOR_RESET, THREAD_PAYLOAD_MAX_SIZE);
+    if (TEST_CLOCK_TYPE == CLOCK_THREAD_CPUTIME_ID)
+        DBG_PRINT3("Using " ANSI_COLOR_YELLOW "CLOCK_THREAD_CPUTIME_ID" ANSI_COLOR_RESET " for lock time measurement\n");
+    else
+        DBG_PRINT3("Using " ANSI_COLOR_YELLOW "CLOCK_MONOTONIC_RAW" ANSI_COLOR_RESET " for lock time measurement\n");
     DBG_PRINTF3("THREAD_COUNT=%d\n", THREAD_COUNT);
     DBG_PRINTF3("THREAD_BURST_SIZE=%d\n", THREAD_BURST_SIZE);
     DBG_PRINTF3("THREAD_DELAY_US=%d\n", THREAD_DELAY_US);
@@ -498,26 +535,7 @@ int main(int argc, char *argv[]) {
 #endif
 
     // Print info
-    print_test_info();
-
-#ifdef USE_XCP
-    if (!g_shm_producer) {
-        // Initialize the XCP singleton, activate XCP, must be called before starting the server
-        // If XCP is not activated, the server will not start and all XCP instrumentation will be passive with minimal overhead
-        XcpInit(OPTION_PROJECT_NAME, OPTION_PROJECT_VERSION, XCP_MODE_LOCAL);
-
-        // Initialize the XCP Server
-        uint8_t addr[4] = OPTION_SERVER_ADDR;
-        if (!XcpEthServerInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, OPTION_QUEUE_SIZE)) {
-            return 1;
-        }
-
-        // Enable A2L generation and prepare the A2L file, finalize the A2L file on XCP connect, auto grouping
-        if (!A2lInit(addr, OPTION_SERVER_PORT, OPTION_USE_TCP, A2L_MODE_WRITE_ALWAYS | A2L_MODE_FINALIZE_ON_CONNECT | A2L_MODE_AUTO_GROUPS)) {
-            return 1;
-        }
-    }
-#endif
+    print_test_parameters();
 
     // Create or attach to a queue, depending on the test mode
     queue_handle = queueInit(QUEUE_SIZE); // Initialize the queue, the queue memory is allocated by the library, the queue buffer size is specified by OPTION_QUEUE_SIZE
@@ -541,27 +559,15 @@ int main(int argc, char *argv[]) {
     uint32_t msg_count = 0;
     uint32_t msg_overruns = 0;
     uint32_t msg_errors = 0;
-    uint32_t msg_bytes = 0;
+    uint64_t msg_bytes = 0;
     uint32_t max_level = 0;
+    uint64_t start_time = clockGetMonotonicUs();
     uint64_t last_msg_time = clockGetMonotonicUs();
     uint32_t last_msg_count = 0;
-    uint32_t last_msg_bytes = 0;
-    uint64_t last_counter[THREAD_COUNT];
+    uint64_t last_msg_bytes = 0;
+    uint32_t last_counter[THREAD_COUNT];
     memset(last_counter, 0, sizeof(last_counter));
     uint32_t sleep_time_ns = CONSUMER_SLEEP_ON_EMPTY_QUEUE_US * 1000;
-
-// Create XCP DAQ measurements
-#ifdef USE_XCP
-    if (!g_shm_producer) {
-        A2lLock();
-        DaqCreateEvent(mainloop);
-        A2lSetStackAddrMode(mainloop);
-        A2lCreateMeasurement(msg_count, "Message count");
-        A2lCreateMeasurement(msg_overruns, "Messages lost");
-        A2lCreateMeasurement(msg_bytes, "Message bytes");
-        A2lUnlock();
-    }
-#endif
 
     // Wait for signal to stop
     DBG_PRINT3("main loop running - press Ctrl+C to stop...\n");
@@ -586,7 +592,7 @@ int main(int argc, char *argv[]) {
                 uint32_t level_rel = ((level_cur * 100) / level_max);
                 if (level_rel > max_level) {
                     max_level = level_rel;
-                    DBG_PRINTF4("New max queue level: %u %% (%u Bytes)\n", max_level, level_cur);
+                    DBG_PRINTF3("New max queue level: %u %% (%u Bytes)\n", max_level, level_cur);
                 }
 
                 // Set max max_peek_index to a random number between 0 and QUEUE_PEEK_MAX_INDEX
@@ -604,14 +610,22 @@ int main(int argc, char *argv[]) {
                     assert((uint64_t)buffer[index].buffer % 2 == 0);
 
                     // Check test data
-                    // Test payload starts + (User header (Transport layer header) + faked XCP DAQ header)
-                    uint64_t *b = (uint64_t *)(buffer[index].buffer + QUEUE_ENTRY_USER_HEADER_SIZE + 4);
-                    uint64_t thread_id = b[0];
-                    uint64_t size = b[1];
-                    uint64_t counter = b[2];
-                    uint64_t overruns = b[3];
+                    // Test payload starts + (User header (space reserved for XCP transport layer header)
+                    uint32_t *b = (uint32_t *)(buffer[index].buffer + QUEUE_ENTRY_USER_HEADER_SIZE);
+                    uint32_t header = b[0];
+                    uint32_t thread_id = b[1];
+                    uint32_t size = b[2];
+                    uint32_t counter = b[3];
+                    uint32_t overruns = b[4];
 
-                    // DBG_PRINTF("Peeked index %u: thread_id=%llu, size=%llu, counter=%llu\n", index, thread_id, size, counter);
+                    // DBG_PRINTF("Peeked index %u: thread_id=%u, size=%u, counter=%u, overruns=%u\n", index, thread_id, size, counter, overruns);
+
+                    // Check the faked XCP DAQ header, to detect if the message is corrupted or if we are not correctly aligned with the message boundaries in the queue
+                    if (header != 0x0000AAFC) {
+                        DBG_PRINTF_ERROR(ANSI_COLOR_RED "Corrupt message header: expected 0x0000AAFC, got 0x%08X\n" ANSI_COLOR_RESET, header);
+                        msg_errors++;
+                        continue;
+                    }
 
                     // Check counter incrementing
                     if (size < THREAD_PAYLOAD_MIN_SIZE || thread_id >= THREAD_COUNT) {
@@ -620,16 +634,28 @@ int main(int argc, char *argv[]) {
                     } else {
                         if (msg_count > 0) {
                             if (counter != last_counter[thread_id] + 1) {
-                                DBG_PRINTF_ERROR(ANSI_COLOR_RED "Counter error in thread %u, expected counter %llu, got %llu\n" ANSI_COLOR_RESET, (uint32_t)thread_id,
+                                DBG_PRINTF_ERROR(ANSI_COLOR_RED "Counter error in thread %u, expected counter %u, got %u\n" ANSI_COLOR_RESET, (uint32_t)thread_id,
                                                  last_counter[thread_id] + 1, counter);
                                 msg_errors++;
                             }
                         }
                         last_counter[thread_id] = counter;
                     }
+
                     // Check overruns
                     if (overruns > 0) {
-                        DBG_PRINTF4(ANSI_COLOR_YELLOW "Overruns in thread %u, count = %llu)\n" ANSI_COLOR_RESET, (uint32_t)thread_id, overruns);
+                        DBG_PRINTF4(ANSI_COLOR_YELLOW "Overruns in thread %u, count = %u)\n" ANSI_COLOR_RESET, (uint32_t)thread_id, overruns);
+                    }
+
+                    // Check the rest of the payload data to detect if there is any corruption in the message or if we are not correctly aligned with the message boundaries in the
+                    // queue
+                    for (uint32_t i = 5; i < size / sizeof(uint32_t); i++) {
+                        if (b[i] != thread_id + i) {
+                            DBG_PRINTF_ERROR(ANSI_COLOR_RED "Corrupt message payload in thread %u at index %u: expected 0x%08X, got 0x%08X\n" ANSI_COLOR_RESET, (uint32_t)thread_id,
+                                             i, thread_id + i, b[i]);
+                            msg_errors++;
+                            break;
+                        }
                     }
 
                     // Write to the user header
@@ -678,16 +704,16 @@ int main(int argc, char *argv[]) {
                 assert(buffer.size >= THREAD_PAYLOAD_MIN_SIZE);
                 assert((uint64_t)buffer.buffer % 2 == 0);
 
-                uint64_t *b = (uint64_t *)(buffer.buffer + 8); // Test payload starts + 8 (Transport layer header + XCP DAQ header)
-                uint64_t thread_id = b[0];
-                uint64_t size = b[1];
-                uint64_t counter = b[2];
+                uint32_t *b = (uint32_t *)(buffer.buffer + 8); // Test payload starts + 8 (Transport layer header + XCP DAQ header)
+                uint32_t thread_id = b[0];
+                uint32_t size = b[1];
+                uint32_t counter = b[2];
 
                 assert(size >= THREAD_PAYLOAD_MIN_SIZE);
                 assert(thread_id < THREAD_COUNT);
                 if (msg_count > 0) {
                     if (counter != last_counter[thread_id] + 1) {
-                        DBG_PRINTF3("Messages lost in thread %u, expected counter %llu, got %llu\n", (uint32_t)thread_id, last_counter[thread_id] + 1, counter);
+                        DBG_PRINTF3("Messages lost in thread %u, expected counter %u, got %u\n", (uint32_t)thread_id, last_counter[thread_id] + 1, counter);
                     }
                 }
 
@@ -715,15 +741,13 @@ int main(int argc, char *argv[]) {
         } // if (!g_shm_producer)
 #endif
 
-#ifdef USE_XCP
-        if (!g_shm_producer)
-            DaqTriggerEvent(mainloop);
-#endif
-
         // Iterate close to the overrun limit to test the behavior with high level
         sleepUs(sleep_time_ns / 1000);
-        if (max_level < 98 && msg_overruns == 0)
+        if (max_level < 90 && msg_overruns == 0) {
             sleep_time_ns += 10;
+            if (sleep_time_ns % 1000 == 0)
+                DBG_PRINTF3("Increasing consumer sleep time to %u us to increase the queue level\n", sleep_time_ns / 1000);
+        }
 
 // Producer mode: check consumer liveness once per main loop iteration.
 // kill(pid, 0) with ESRCH means the consumer process is gone (graceful or crash).
@@ -742,7 +766,7 @@ int main(int argc, char *argv[]) {
         if (clockGetMonotonicUs() - last_msg_time >= 1000000) {
             if (!g_shm_producer) {
                 DBG_PRINTF3("Messages received: %u, overruns: %u, errors: %u, data rate: %u msg/s, %u kbytes/s\n", msg_count, msg_overruns, msg_errors,
-                            (msg_count - last_msg_count), (msg_bytes - last_msg_bytes) / 1024);
+                            (msg_count - last_msg_count), (uint32_t)((msg_bytes - last_msg_bytes) / 1024));
                 last_msg_bytes = msg_bytes;
                 last_msg_count = msg_count;
             }
@@ -751,14 +775,13 @@ int main(int argc, char *argv[]) {
 
     } // gRun
 
+    uint64_t end_time = clockGetMonotonicUs();
+
     // Wait for all threads to finish
     for (int i = 0; i < THREAD_COUNT; i++) {
         if (t[i])
             join_thread(t[i]);
     }
-
-    // Deinitialize the queue
-    queueDeinit(queue_handle); // Deinitialize the queue
 
 // Unmap shared memory; consumer signals producers to stop, then removes the SHM object
 #ifdef TEST_QUEUE_SHM
@@ -781,26 +804,25 @@ int main(int argc, char *argv[]) {
     }
 #endif
 
-    // Print queue statistics
-    print_test_info();
-    printf("\n\nFinal statistics:\n");
-    printf("Messages received: %u, bytes received: %u, messages lost: %u\n", msg_count, msg_bytes, msg_overruns);
-    printf("Data rate: %u msg/s, %u kbytes/s\n", (uint32_t)(msg_count * 1000000 / (clockGetMonotonicUs() - last_msg_time)),
-           (uint32_t)(msg_bytes * 1000000 / (clockGetMonotonicUs() - last_msg_time)) / 1024);
-    printf("Max queue level: %u\n", max_level);
+    printf("\n\nDone:\n");
+    print_test_parameters();
+
+    printf("\nStatistics:\n");
+    uint64_t total_time = end_time - start_time;
+    printf("Test duration: %.2f seconds\n", total_time / 1000000.0);
+    printf("Messages received: %u, bytes received: %" PRIu64 ", messages lost: %u\n", msg_count, msg_bytes, msg_overruns);
+    printf("Average rates: %u msg/s, %u kbytes/s\n", (uint32_t)((uint64_t)msg_count * 1000000 / total_time), (uint32_t)(msg_bytes * 1000000 / total_time) / 1024);
+    printf("Max queue level: %u%%\n", max_level);
+    printf("\n");
+
+    // Deinitialize the queue (queue will print internal statistics if supported by the implementation)
+    printf("\nDeinitialize queue, queue internal statistics:\n");
+    queueDeinit(queue_handle); // Deinitialize the queue
     printf("\n");
 
 #ifdef TEST_ACQUIRE_LOCK_TIMING
     if (!g_shm_consumer) {
         lock_test_print_results();
-    }
-#endif
-
-#ifdef USE_XCP
-    if (!g_shm_producer) {
-        XcpDisconnect();        // Force disconnect the XCP client
-        A2lFinalize();          // Finalize A2L generation, if not done yet
-        XcpEthServerShutdown(); // Stop the XCP server
     }
 #endif
 

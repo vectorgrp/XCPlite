@@ -35,7 +35,7 @@
 // Other use cases can use this space for other purposes, e.g. to store a timestamp or a protocol header, or it can be set to 0 if not needed.
 #include "xcptl_cfg.h" // for XCPTL_TRANSPORT_LAYER_HEADER_SIZE, XCPTL_MAX_DTO_SIZE, XCPTL_MAX_SEGMENT_SIZE, QUEUE_PAYLOAD_SIZE_ALIGNMENT
 #define QUEUE_ENTRY_USER_HEADER_SIZE (XCPTL_TRANSPORT_LAYER_HEADER_SIZE) // (for XCP transport layer header with XCPTL_TRANSPORT_LAYER_HEADER_SIZE)
-#define QUEUE_ENTRY_USER_PAYLOAD_SIZE (XCPTL_MAX_DTO_SIZE)
+#define QUEUE_ENTRY_USER_PAYLOAD_SIZE (XCPTL_MAX_DTO_SIZE)               // In the variable size queue, used for plausibility checking the requested payload size in queueAcquire
 #define QUEUE_ENTRY_USER_SIZE (XCPTL_MAX_DTO_SIZE + XCPTL_TRANSPORT_LAYER_HEADER_SIZE)
 #define QUEUE_MAX_ENTRY_SIZE (XCPTL_MAX_DTO_SIZE + XCPTL_TRANSPORT_LAYER_HEADER_SIZE)
 #define QUEUE_PAYLOAD_SIZE_ALIGNMENT (XCPTL_PACKET_ALIGNMENT)

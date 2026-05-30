@@ -72,19 +72,25 @@ static_assert(sizeof(atomic_uint_least32_t) == 4, "atomic_uint_least32_t must be
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 // Test
 
-// Queue acquire lock timing and spin
-// For high contention use test queue_test or example daq_test with xcpclient --upload-a2l --udp --mea .  --dest-addr 192.168.0.206
-// Note that this tests have significant performance impact, do not turn on for production use !!!!!!!!!!!
+// Measure spin_count
+#ifdef TEST_ACQUIRE_SPIN_COUNT
+static uint64_t lock_spin_count_max = 0;
+static uint64_t lock_count = 0;
+#endif
 
+// Queue acquire lock timing and spin
+// For high contention pure queue testing use test queue_test instead
+// Use this test for any use case, for example with daq_test and xcpclient --upload-a2l --udp --mea .  --dest-addr 192.168.0.206
+// Note that this tests have significant performance impact, do not turn on for production use !!!!!!!!!!!
 #ifdef TEST_ACQUIRE_LOCK_TIMING
+
+#define TEST_ACQUIRE_LOCK_TIMING
 
 #include <stdio.h> // for snprintf
 
 static MUTEX lock_mutex = MUTEX_INTIALIZER;
 static uint64_t lock_time_max = 0;
 static uint64_t lock_time_sum = 0;
-static uint64_t lock_count = 0;
-static uint64_t lock_spin_count_max = 0;
 // Variable-width lock timing histogram
 // Fine granularity for short latencies, coarser for long-tail latencies
 // Bin[i] counts events where EDGES[i-1] <= t < EDGES[i]; bin[SIZE-1] is the overflow (>EDGES[SIZE-2])
@@ -106,10 +112,8 @@ static uint64_t get_timestamp_ns(void) {
     return ((uint64_t)ts.tv_sec) * kNanosecondsPerSecond + ((uint64_t)ts.tv_nsec);
 }
 
-static void lock_test_add_sample(uint64_t d, uint32_t spin_count) {
+static void lock_test_add_sample(uint64_t d) {
     mutexLock(&lock_mutex);
-    if (spin_count > lock_spin_count_max)
-        lock_spin_count_max = spin_count;
     if (d > lock_time_max)
         lock_time_max = d;
     int i = 0;
@@ -117,12 +121,20 @@ static void lock_test_add_sample(uint64_t d, uint32_t spin_count) {
         i++;
     lock_time_histogram[i]++;
     lock_time_sum += d;
-    lock_count++;
     mutexUnlock(&lock_mutex);
 }
+#endif
+
+#if defined(TEST_ACQUIRE_LOCK_TIMING) || defined(TEST_ACQUIRE_SPIN_COUNT)
 
 static void lock_test_print_results(void) {
-    printf("\nProducer acquire lock time statistics:\n");
+
+#ifdef TEST_ACQUIRE_SPIN_COUNT
+    printf("\nProducer spin statistics:\n");
+    printf("  count=%" PRIu64 "  max_spins=%" PRIu64 "\n", lock_count, lock_spin_count_max);
+#endif
+#ifdef TEST_ACQUIRE_LOCK_TIMING
+    printf("\nProducer acquire lock time statistics (based on CLOCK_MONOTONIC_RAW):\n");
     printf("  count=%" PRIu64 "  max_spins=%" PRIu64 "  max=%" PRIu64 "ns  avg=%" PRIu64 "ns\n", lock_count, lock_spin_count_max, lock_time_max, lock_time_sum / lock_count);
 
     uint64_t histogram_sum = 0;
@@ -161,6 +173,7 @@ static void lock_test_print_results(void) {
         printf("  %-20s  %10" PRIu64 "  %6.2f%%  %s\n", range_str, lock_time_histogram[i], pct, bar);
     }
     printf("\n");
+#endif
 }
 
 #endif
@@ -299,7 +312,7 @@ void queueDeinit(tQueueHandle queue_handle) {
     assert(queue != NULL);
 
     // Print statistics
-#ifdef TEST_ACQUIRE_LOCK_TIMING
+#if defined(TEST_ACQUIRE_LOCK_TIMING) || defined(TEST_ACQUIRE_SPIN_COUNT)
     lock_test_print_results();
 #endif
 
@@ -348,6 +361,8 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
 
 #ifdef TEST_ACQUIRE_LOCK_TIMING
     uint64_t spin_start = get_timestamp_ns();
+#endif
+#ifdef TEST_ACQUIRE_SPIN_COUNT
     uint32_t spin_count = 0;
 #endif
 
@@ -355,8 +370,8 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
     tQueueEntry *entry = NULL;
 
     // The tail acquire read makes sure the entry headers cleared by the consumer are visible
-    uint64_t head = atomic_load_explicit(&queue->h.head, memory_order_acquire);
     uint64_t tail = atomic_load_explicit(&queue->h.tail, memory_order_acquire);
+    uint64_t head = atomic_load_explicit(&queue->h.head, memory_order_relaxed);
 
     // CAS loop
     for (;;) {
@@ -370,7 +385,7 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
         }
         // Try to increment the head
         // Compare exchange weak in acq_rel/acq mode serializes with other producers, false negatives will spin
-        if (atomic_compare_exchange_weak_explicit(&queue->h.head, &head, head + (entry_len + QUEUE_ENTRY_HEADER_SIZE), memory_order_acq_rel, memory_order_relaxed)) {
+        if (atomic_compare_exchange_weak_explicit(&queue->h.head, &head, head + (entry_len + QUEUE_ENTRY_HEADER_SIZE), memory_order_relaxed, memory_order_relaxed)) {
             entry = (tQueueEntry *)(queue->buffer + (head % queue->h.buffer_size));
             // Store the overall user length (uint16_t msg_len = user header + user payload) in the entry_header (atomic uint32_t)
             // High word is still 0, which is the reserved state, and not committed yet
@@ -378,21 +393,26 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
             break;
         }
 
-        // Refresh tail or sync head on each iteration ?
-        // It is probably more efficient, to accept them stale and just spin more instead of synchronizing
+        // Refresh tail on each iteration ?
+        // It is probably more efficient, to accept it stale and just spin more instead of synchronizing
         // If the queue is already saturated, packet loss will happen anyway
 
         // No hint, spin count is usually very low and we prefer the locked sequence as fast as possible
         // spin_loop_hint();
 
-#ifdef TEST_ACQUIRE_LOCK_TIMING
+#ifdef TEST_ACQUIRE_SPIN_COUNT
         spin_count++;
         // assert(spin_count < 100); // No reason to be afraid about the spin count, enable spin count statistics to check
 #endif
     } // for (;;)
 
+#ifdef TEST_ACQUIRE_SPIN_COUNT
+    lock_count++;
+    if (spin_count > lock_spin_count_max)
+        lock_spin_count_max = spin_count;
+#endif
 #ifdef TEST_ACQUIRE_LOCK_TIMING
-    lock_test_add_sample(get_timestamp_ns() - spin_start, spin_count);
+    lock_test_add_sample(get_timestamp_ns() - spin_start);
 #endif
 
     if (entry == NULL) { // Overflow
@@ -482,7 +502,7 @@ tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t peek_index, uint32_t 
     uint32_t index;
 
     // Get the head which synchronizes the queue header cache line
-    uint64_t head = atomic_load_explicit(&queue->h.head, memory_order_acquire);
+    uint64_t head = atomic_load_explicit(&queue->h.head, memory_order_relaxed);
 
     // Start at index 0 or with the cached peek index and tail if feasible, to optimize the common case of sequential peeks without releases
     // Cache will be reset if a release happens

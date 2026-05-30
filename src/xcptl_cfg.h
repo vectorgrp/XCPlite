@@ -34,7 +34,7 @@
 // Must be %8, must result in a queue entry size (including header) that is a multiple of the cache line size for optimal performance
 #define XCPTL_MAX_DTO_SIZE (248) // CACHE_LINE_LIZE - QUEUE_HEADER_SIZE - XCPTL_TRANSPORT_LAYER_HEADER_SIZE = 248 for optimal fixed size tl queue entry size
 #else
-#define XCPTL_MAX_DTO_SIZE (512) // Must be %8, must be smaller or equal than XCPTL_MAX_SEGMENT_SIZE
+#define XCPTL_MAX_DTO_SIZE (1024) // Must be %8, must be smaller or equal than XCPTL_MAX_SEGMENT_SIZE
 #endif
 
 // Segment size is the maximum data buffer size given to sockets send/sendTo, for UDP it is the UDP MTU

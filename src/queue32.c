@@ -238,7 +238,7 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_size) {
     } else {
         // No segment buffer available, queue overflow
         queue->packets_lost++;
-        DBG_PRINTF_ERROR("queueAcquire: queue overflow, packet_size=%u, msg_size=%u, queue_len=%u\n", packet_size, msg_size, queue->queue_len);
+        DBG_PRINTF6("queueAcquire: queue overflow, packet_size=%u, msg_size=%u, queue_len=%u\n", packet_size, msg_size, queue->queue_len);
     }
 
     mutexUnlock(&queue->Mutex_Queue);
