@@ -76,8 +76,10 @@ void XcpSetLogLevel(uint8_t level);
 // Define the clock type used for lock time measurement
 // Use CLOCK_THREAD_CPUTIME_ID to measure the CPU time consumed by the producer thread, which is more accurate for short lock times and not affected by OS scheduling and preemption
 // (which causes the long tail in the lock time histogram on POSIX systems)
-// #define TEST_CLOCK_TYPE CLOCK_THREAD_CPUTIME_ID // be aware that this clock has much slower access and higher jitter, compared to CLOCK_MONOTONIC_RAW
+//#define TEST_CLOCK_TYPE CLOCK_THREAD_CPUTIME_ID 
 #define TEST_CLOCK_TYPE CLOCK_MONOTONIC_RAW
+
+// Be aware, that the 2 clocks may have significantly different runtime and jitter depending on the platform
 
 /* AI statement to this:
 CLOCK_MONOTONIC_RAW is served via the vDSO (virtual Dynamic Shared Object):

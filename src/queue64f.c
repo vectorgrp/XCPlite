@@ -86,6 +86,12 @@ static_assert(sizeof(void *) == 8, "This implementation requires a 64 Bit platfo
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 // Test
 
+// Measure spin_count
+#ifdef TEST_ACQUIRE_SPIN_COUNT
+static uint64_t lock_spin_count_max = 0;
+static uint64_t lock_count = 0;
+#endif
+
 // Queue acquire lock timing and spin
 // For high contention test use example queue_test or daq_test with xcpclient --upload-a2l --udp --mea .  --dest-addr 192.168.0.206
 // Note that this tests have significant performance impact, do not turn on for production use !!!!!!!!!!!
@@ -96,8 +102,7 @@ static_assert(sizeof(void *) == 8, "This implementation requires a 64 Bit platfo
 static MUTEX lock_mutex = MUTEX_INTIALIZER;
 static uint64_t lock_time_max = 0;
 static uint64_t lock_time_sum = 0;
-static uint64_t lock_count = 0;
-static uint64_t lock_spin_count_max = 0;
+
 // Variable-width lock timing histogram
 // Fine granularity for short latencies, coarser for long-tail latencies
 // Bin[i] counts events where EDGES[i-1] <= t < EDGES[i]; bin[SIZE-1] is the overflow (>EDGES[SIZE-2])
@@ -119,7 +124,7 @@ static uint64_t get_timestamp_ns(void) {
     return ((uint64_t)ts.tv_sec) * kNanosecondsPerSecond + ((uint64_t)ts.tv_nsec);
 }
 
-static void lock_test_add_sample(uint64_t d, uint32_t spin_count) {
+static void lock_test_add_sample(uint64_t d) {
     mutexLock(&lock_mutex);
     if (spin_count > lock_spin_count_max)
         lock_spin_count_max = spin_count;
@@ -134,8 +139,18 @@ static void lock_test_add_sample(uint64_t d, uint32_t spin_count) {
     mutexUnlock(&lock_mutex);
 }
 
+#endif
+
+#if defined(TEST_ACQUIRE_LOCK_TIMING) || defined(TEST_ACQUIRE_SPIN_COUNT)
+
 static void lock_test_print_results(void) {
-    printf("\nProducer acquire lock time statistics:\n");
+
+#ifdef TEST_ACQUIRE_SPIN_COUNT
+    printf("\nProducer spin statistics:\n");
+    printf("  count=%" PRIu64 "  max_spins=%" PRIu64 "\n", lock_count, lock_spin_count_max);
+#endif
+#ifdef TEST_ACQUIRE_LOCK_TIMING
+    printf("\nProducer acquire lock time statistics (based on CLOCK_MONOTONIC_RAW):\n");
     printf("  count=%" PRIu64 "  max_spins=%" PRIu64 "  max=%" PRIu64 "ns  avg=%" PRIu64 "ns\n", lock_count, lock_spin_count_max, lock_time_max, lock_time_sum / lock_count);
 
     uint64_t histogram_sum = 0;
@@ -174,6 +189,7 @@ static void lock_test_print_results(void) {
         printf("  %-20s  %10" PRIu64 "  %6.2f%%  %s\n", range_str, lock_time_histogram[i], pct, bar);
     }
     printf("\n");
+#endif
 }
 
 #endif
@@ -248,7 +264,6 @@ tQueueHandle queueInitFromMemory(void *queue_memory, size_t queue_memory_size, b
         assert(queue != NULL);
         assert(((uint64_t)queue % CACHE_LINE_SIZE) == 0);         // Check alignment of the allocated memory
         assert(((uint64_t)queue->buffer % CACHE_LINE_SIZE) == 0); // Check alignment of the buffer memory
-        memset(queue, 0, aligned_memory_size);                    // Clear complete queue memory
         queue->h.from_memory = false;
         queue->h.magic = QUEUE_MAGIC;
         queue->h.buffer_size = aligned_memory_size - (uint32_t)sizeof(tQueueHeader); // Set the queue buffer size (excluding the queue descriptor)
@@ -265,7 +280,6 @@ tQueueHandle queueInitFromMemory(void *queue_memory, size_t queue_memory_size, b
     // Queue memory is provided by the caller and should be initialized
     else if (clear_queue) {
         queue = (tQueue *)queue_memory;
-        memset(queue, 0, queue_memory_size);
         queue->h.from_memory = true;
         queue->h.magic = QUEUE_MAGIC;
         queue->h.buffer_size = (((queue_memory_size - sizeof(tQueueHeader)) / QUEUE_ENTRY_SIZE) * QUEUE_ENTRY_SIZE);
@@ -298,7 +312,11 @@ void queueClear(tQueueHandle queue_handle) {
     atomic_store_explicit(&queue->h.tail, 0, memory_order_relaxed);
     atomic_store_explicit(&queue->h.packets_lost, 0, memory_order_relaxed);
     atomic_store_explicit(&queue->h.flush_offset, 0xFFFFFFFFFFFFFFFFULL, memory_order_relaxed);
-    memset(queue->buffer, 0, queue->h.buffer_size); // Clear queue buffer memory
+    for (uint32_t offset = 0; offset < queue->h.buffer_size; offset += QUEUE_ENTRY_SIZE) {
+        tQueueEntry *entry = (tQueueEntry *)(queue->buffer + offset);
+        atomic_store_explicit(&entry->entry_header, 0, memory_order_relaxed);
+        memset(entry->data, 0, QUEUE_ENTRY_SIZE - QUEUE_ENTRY_HEADER_SIZE);
+    }
     DBG_PRINT6("queueClear\n");
 }
 
@@ -309,7 +327,7 @@ void queueDeinit(tQueueHandle queue_handle) {
     assert(queue != NULL);
 
     // Print statistics
-#ifdef TEST_ACQUIRE_LOCK_TIMING
+#if defined(TEST_ACQUIRE_LOCK_TIMING) || defined(TEST_ACQUIRE_SPIN_COUNT)
     lock_test_print_results();
 #endif
 
@@ -358,19 +376,16 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
 
 #ifdef TEST_ACQUIRE_LOCK_TIMING
     uint64_t spin_start = get_timestamp_ns();
-    uint32_t spin_count = 0;
 #endif
-
-#ifdef TEST_ACQUIRE_LOCK_TIMING
-    uint64_t spin_start = get_timestamp_ns();
+#ifdef TEST_ACQUIRE_SPIN_COUNT
     uint32_t spin_count = 0;
 #endif
 
     // Prepare a new entry in reserved state
     tQueueEntry *entry = NULL;
 
+    uint64_t tail = atomic_load_explicit(&queue->h.tail, memory_order_acquire);
     uint64_t head = atomic_load_explicit(&queue->h.head, memory_order_relaxed);
-    uint64_t tail = atomic_load_explicit(&queue->h.tail, memory_order_relaxed);
 
     // CAS loop
     for (;;) {
@@ -394,20 +409,26 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
         }
 
         // Refresh tail
-        tail = atomic_load_explicit(&queue->h.tail, memory_order_relaxed);
+        tail = atomic_load_explicit(&queue->h.tail, memory_order_acquire);
 
         // No hint, spin count is usually very low and we prefer the locked sequence as fast as possible
         // spin_loop_hint();
 
-#ifdef TEST_ACQUIRE_LOCK_TIMING
+#ifdef TEST_ACQUIRE_SPIN_COUNT
         spin_count++;
         // assert(spin_count < 100); // No reason to be afraid about the spin count, enable spin count statistics to check
 #endif
     } // for (;;)
 
-#ifdef TEST_ACQUIRE_LOCK_TIMING
-    lock_test_add_sample(get_timestamp_ns() - spin_start, spin_count);
+#ifdef TEST_ACQUIRE_SPIN_COUNT
+    lock_count++;
+    if (spin_count > lock_spin_count_max)
+        lock_spin_count_max = spin_count;
 #endif
+#ifdef TEST_ACQUIRE_LOCK_TIMING
+    lock_test_add_sample(get_timestamp_ns() - spin_start);
+#endif
+
 
     if (entry == NULL) { // Overflow
         uint32_t lost = (uint32_t)atomic_fetch_add_explicit(&queue->h.packets_lost, 1, memory_order_relaxed);
@@ -563,6 +584,7 @@ tQueueBuffer queuePeek(tQueueHandle queue_handle, uint32_t index, uint32_t *pack
 
     // Return whether a flush request is pending on this entry
     if (flush_requested != NULL) {
+        *flush_requested = false;
         uint64_t flush_offset = atomic_load_explicit(&queue->h.flush_offset, memory_order_relaxed); // We use relaxed, assuming the cache line is already up to date
         if (flush_offset == (uint8_t *)entry - queue->buffer) {
             *flush_requested = true;
@@ -586,10 +608,10 @@ void queueRelease(tQueueHandle queue_handle, const tQueueBuffer *queue_size) {
     // Clear the entries commit state
     tQueueEntry *entry = (tQueueEntry *)(queue_size->buffer - 4);                 // Get the pointer to the queue entry from the user header buffer pointer
     assert((uint32_t)((uint8_t *)entry - queue->buffer) % QUEUE_ENTRY_SIZE == 0); // Check that the entry pointer is correctly aligned to the entry size
-    atomic_store_explicit(&entry->entry_header, 0, memory_order_release);
+    atomic_store_explicit(&entry->entry_header, 0, memory_order_relaxed);
 
-    //  Increment the tail
-    atomic_fetch_add_explicit(&queue->h.tail, QUEUE_ENTRY_SIZE, memory_order_relaxed);
+    // Increment the tail and publish that the slot can be reused by producers
+    atomic_fetch_add_explicit(&queue->h.tail, QUEUE_ENTRY_SIZE, memory_order_release);
 }
 
 #endif // OPTION_QUEUE_64_FIX_SIZE
