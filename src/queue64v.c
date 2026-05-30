@@ -12,6 +12,27 @@
 |
  ----------------------------------------------------------------------------*/
 
+/*
+Note on this variable-size lockless queue implementation:
+
+This implementation intentionally treats the queue buffer as raw aligned
+storage. To support variable-size entries, the consumer clears released entry
+memory with memset before publishing the updated tail. A later producer may
+reserve a new entry at any suitably aligned position inside that cleared
+region, and the consumer may read that position as an atomic 32-bit entry
+header before the producer has written the reserved state.
+
+On the supported targets (x86/ARM with lock-free naturally aligned 32-bit
+atomics), we rely on byte-cleared storage being observed as atomic zero in
+practice. This is a low-level implementation assumption and should not be
+treated as a fully portable C11 atomic-object pattern.
+
+The tail release/acquire synchronization publishes the clear to producers.
+However, the clear also adds cache-coherency traffic because the consumer
+writes the released entry memory. For medium/large payloads at high rates,
+use or benchmark against the fixed-size queue implementation.
+*/
+
 #include "platform.h"   // for PLATFORM_64BIT
 #include "xcplib_cfg.h" // for OPTION_QUEUE_64_VAR_SIZE and OPTION_ENABLE_DBG_PRINTS
 
@@ -286,7 +307,7 @@ tQueueHandle queueInitFromMemory(void *queue_memory, size_t queue_memory_size, b
     }
 
     // Checks
-    assert(atomic_is_lock_free(&((tQueue *)queue_memory)->h.head));
+    assert(atomic_is_lock_free(&queue->h.head));
     assert((queue->h.buffer_size & (QUEUE_PAYLOAD_SIZE_ALIGNMENT - 1)) == 0);
 
     return (tQueueHandle)queue;
@@ -302,6 +323,7 @@ void queueClear(tQueueHandle queue_handle) {
     atomic_store_explicit(&queue->h.flush_offset, 0xFFFFFFFFFFFFFFFFULL, memory_order_relaxed);
     queue->h.cached_peek_index = 0;
     queue->h.cached_peek_tail = 0;
+    memset(queue->buffer, 0, queue->h.buffer_size); // Clear queue buffer memory
     DBG_PRINT6("queueClear\n");
 }
 

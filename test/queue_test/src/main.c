@@ -57,8 +57,8 @@ void XcpSetLogLevel(uint8_t level);
 // Min size of the payload produced by the threads
 #define THREAD_PAYLOAD_MIN_SIZE 64
 // Max size of the payload produced by the threads (random)
-#define THREAD_PAYLOAD_MAX_SIZE 64 // Small payload test
-// #define THREAD_PAYLOAD_MAX_SIZE QUEUE_ENTRY_USER_PAYLOAD_SIZE // Big payload test
+//#define THREAD_PAYLOAD_MAX_SIZE 64 // Small payload test
+#define THREAD_PAYLOAD_MAX_SIZE QUEUE_ENTRY_USER_PAYLOAD_SIZE // Big payload test
 
 // The queue implementations in queue62v.c and queue64f.c support peeking ahead
 #if defined(OPTION_QUEUE_64_VAR_SIZE) || defined(OPTION_QUEUE_64_FIX_SIZE)

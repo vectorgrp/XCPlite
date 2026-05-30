@@ -41,6 +41,7 @@ All `build.sh` workflows have direct CMake equivalents. Use `-DCMAKE_BUILD_TYPE=
 cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug
 
 # Build everything (add --parallel for faster builds)
+cmake --build build 
 cmake --build build --parallel
 
 # Build a specific target
