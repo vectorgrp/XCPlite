@@ -144,7 +144,7 @@ typedef struct {
     uint16_t size;
     uint16_t type; // XCP_CALSEG_TYPE_SEGMENT or XCP_CALSEG_TYPE_BLOCK
 #ifdef PLATFORM_32BIT
-    uint8_t res[12]
+    uint8_t res[16];
 #endif
 } tXcpCalDescriptor;
 

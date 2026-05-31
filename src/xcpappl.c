@@ -9,10 +9,11 @@
 | Licensed under the MIT license. See LICENSE file in the project root for details.
  ----------------------------------------------------------------------------*/
 
-#include <assert.h>  // for assert
-#include <stdbool.h> // for bool
-#include <stdint.h>  // for uintxx_t
-#include <string.h>  // for strncpy
+#include <assert.h>   // for assert
+#include <inttypes.h> // for PRIu64
+#include <stdbool.h>  // for bool
+#include <stdint.h>   // for uintxx_t
+#include <string.h>   // for strncpy
 
 #include "dbg_print.h"  // for DBG_PRINTF3, DBG_PRINT4, DBG_PRINTF4, DBG...
 #include "platform.h"   // for platform defines (WIN_, LINUX_, MACOS_) and specific implementation of sockets, clock, thread, mutex
@@ -187,9 +188,11 @@ void ApplXcpSetBaseAddr(const uint8_t *addr) {
 // Value is positive offset to ApplXcpGetBaseAddr
 uint32_t ApplXcpGetAddr(const uint8_t *p) {
     const uint8_t *b = ApplXcpGetBaseAddr();
-    int64_t diff = (int64_t)(p) - (int64_t)(b);
-    DBG_PRINTF6("ApplXcpGetAddr: base = %p, addr = %p, diff = %" PRId64 "\n", (void *)b, (void *)p, diff);
-    if (diff < 0 || diff > 0xFFFFFFFF) { // Check XCP address range is sufficient
+    uintptr_t addr = (uintptr_t)p;
+    uintptr_t base = (uintptr_t)b;
+    uint64_t diff = (uint64_t)(addr - base);
+    DBG_PRINTF6("ApplXcpGetAddr: base = %p, addr = %p, diff = %" PRIu64 "\n", (void *)b, (void *)p, diff);
+    if (addr < base || diff > 0xFFFFFFFF) { // Check XCP address range is sufficient
         DBG_PRINTF_ERROR("Address out of range! base = %p, addr = %p\n", (void *)b, (void *)p);
         assert(0);
         return 0;

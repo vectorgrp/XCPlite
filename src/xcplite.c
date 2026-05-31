@@ -1072,10 +1072,10 @@ static uint8_t XcpCheckMemory(void) {
 
     static_assert(sizeof(tXcpDaqList) == 12, "Invalid tXcpDaqList size"); // Check size
     static_assert(sizeof(tXcpOdt) == 8, "Invalid tXcpOdt size");          // Check size
-    assert(((uint64_t)&shared.daq_lists % 4) == 0);                       // Check alignment
-    assert(((uint64_t)&DaqListOdtTable[0] % 4) == 0);                     // Check alignment
-    assert(((uint64_t)&DaqListOdtEntryAddrTable[0] % 4) == 0);            // Check alignment
-    assert(((uint64_t)&DaqListOdtEntrySizeTable[0] % 4) == 0);            // Check alignment
+    assert(((uintptr_t)&shared.daq_lists % 4) == 0);                       // Check alignment
+    assert(((uintptr_t)&DaqListOdtTable[0] % 4) == 0);                     // Check alignment
+    assert(((uintptr_t)&DaqListOdtEntryAddrTable[0] % 4) == 0);            // Check alignment
+    assert(((uintptr_t)&DaqListOdtEntrySizeTable[0] % 4) == 0);            // Check alignment
 
     DBG_PRINTF6("[XcpCheckMemory] %u of %u Bytes used\n", s, XCP_DAQ_MEM_SIZE);
     return 0;
