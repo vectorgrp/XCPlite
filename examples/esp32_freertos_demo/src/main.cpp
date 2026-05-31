@@ -1,26 +1,21 @@
 #include <Arduino.h>
+#ifdef OPTION_DISPLAY
 #include <LovyanGFX.hpp>
+#endif
 #include <WiFi.h>
 
 extern "C" {
 #include "xcplib.h"
 }
 
-TaskHandle_t blinkTaskHandle = nullptr;
-TaskHandle_t printTaskHandle = nullptr;
 
-#define LED_BUILTIN 2
 
-#if !defined(WIFI_SSID) || !defined(WIFI_PASSWORD)
-#include "wlan.h"
-#endif
 
-#define XCP_PROJECT_NAME "esp32_freertos_demo"
-#define XCP_PROJECT_VERSION "V100"
-#define XCP_USE_TCP false
-#define XCP_SERVER_PORT 5555
-#define XCP_QUEUE_SIZE (1024 * 8)
-#define XCP_LOG_LEVEL 5
+
+//----------------------------------------------------------------------------------------------------
+// Display
+
+#ifdef OPTION_DISPLAY
 
 class Display : public lgfx::LGFX_Device {
   lgfx::Bus_Parallel8 _bus;
@@ -81,8 +76,7 @@ class Display : public lgfx::LGFX_Device {
 static Display lcd;
 static SemaphoreHandle_t lcdMutex = nullptr;
 static constexpr int32_t DISPLAY_LINE_HEIGHT = 24;
-static tXcpEventId blinkTaskEvent = XCP_UNDEFINED_EVENT_ID;
-static tXcpEventId printTaskEvent = XCP_UNDEFINED_EVENT_ID;
+
 
 static int32_t displayLineCount() {
   return lcd.height() / DISPLAY_LINE_HEIGHT;
@@ -115,6 +109,43 @@ static void initDisplay() {
   displayLine(0, "XCPlite demo", TFT_CYAN);
   displayLine(1, "Booting...");
 }
+
+#else
+
+static constexpr uint16_t TFT_BLACK = 0;
+static constexpr uint16_t TFT_BLUE = 0;
+static constexpr uint16_t TFT_RED = 0;
+static constexpr uint16_t TFT_GREEN = 0;
+static constexpr uint16_t TFT_CYAN = 0;
+static constexpr uint16_t TFT_YELLOW = 0;
+static constexpr uint16_t TFT_WHITE = 0;
+
+static int32_t displayLineCount() {
+  return 0;
+}
+
+static void displayLine(int32_t line, const char *text, uint16_t color = TFT_WHITE) {
+  (void)line;
+  (void)text;
+  (void)color;
+}
+
+static void initDisplay() {
+}
+
+#endif
+
+
+
+//----------------------------------------------------------------------------------------------------
+// WiFi
+
+
+#if !defined(WIFI_SSID) || !defined(WIFI_PASSWORD)
+#include "wlan.h"
+#endif
+
+
 
 struct WiFiTarget {
   bool found;
@@ -269,6 +300,20 @@ static bool connectWiFi() {
   return true;
 }
 
+
+
+//----------------------------------------------------------------------------------------------------
+// XCP
+
+
+#define XCP_PROJECT_NAME "esp32_freertos_demo"
+#define XCP_PROJECT_VERSION "V100"
+#define XCP_USE_TCP false
+#define XCP_SERVER_PORT 5555
+#define XCP_QUEUE_SIZE (1024 * 8)
+#define XCP_LOG_LEVEL 5
+
+
 static bool startXcpServer() {
   const uint8_t bindAny[4] = {0, 0, 0, 0};
 
@@ -290,76 +335,93 @@ static bool startXcpServer() {
   return true;
 }
 
-static bool registerXcpEvents() {
-  blinkTaskEvent = XcpCreateEvent("blinkTask", 0, 0);
-  printTaskEvent = XcpCreateEvent("printTask", 0, 0);
 
-  if (blinkTaskEvent == XCP_UNDEFINED_EVENT_ID || printTaskEvent == XCP_UNDEFINED_EVENT_ID) {
-    Serial.println("XCP event registration failed");
-    displayLine(2, "XCP events failed", TFT_RED);
-    return false;
-  }
 
-  Serial.printf("XCP events registered: blinkTask=%u, printTask=%u\n", blinkTaskEvent, printTaskEvent);
-  return true;
-}
 
-void blinkTask(void *parameter) {
+//----------------------------------------------------------------------------------------------------
+// Demo RTOS tasks
+
+#define FASTTASK_SCOPE_PIN 2
+#define FASTTASK_PERIOD_MS 10
+#define FASTTASK_PRIORITY (configMAX_PRIORITIES - 1)
+#define SLOWTASK_PERIOD_MS 100
+#define SLOWTASK_PRIORITY 3
+
+#if configTICK_RATE_HZ < 1000
+#error "fastTask needs configTICK_RATE_HZ >= 1000 for a 1 ms FreeRTOS tick period"
+#endif
+
+
+TaskHandle_t fastTaskHandle = nullptr;
+TaskHandle_t slowTaskHandle = nullptr;
+
+uint16_t global_counter = 0;
+
+void fastTask(void *parameter) {
   
-  uint16_t counter = 0;
-  char line[40];
+  volatile uint16_t counter = 0;
+  const TickType_t periodTicks = pdMS_TO_TICKS(FASTTASK_PERIOD_MS);
+  TickType_t lastWakeTime = xTaskGetTickCount();
 
-  // LilyGo-S3 has no LEDs
-  // pinMode(LED_BUILTIN, OUTPUT);
+  Serial.printf("fastTask started\n");
+  Serial.printf("fastTask priority = %u, period = %u ms (%u tick)\n",
+                static_cast<unsigned>(uxTaskPriorityGet(nullptr)),
+                FASTTASK_PERIOD_MS,
+                static_cast<unsigned>(periodTicks));
+  Serial.printf("fastTask: frameaddr = %p\n", xcp_get_frame_addr());
+  Serial.printf("fastTask: &counter = %p\n", &counter);
+
+  DaqCreateEvent(fastTask);
+  pinMode(FASTTASK_SCOPE_PIN, OUTPUT);
+  digitalWrite(FASTTASK_SCOPE_PIN, LOW);
  
   for (;;) {
 
     counter++;
+    global_counter++;
 
-    //digitalWrite(LED_BUILTIN, HIGH);
-    //vTaskDelay(pdMS_TO_TICKS(500));
-    //digitalWrite(LED_BUILTIN, LOW);
-    
-    // Display
-    snprintf(line, sizeof(line), "blinkTask: core %d - %u", xPortGetCoreID(), counter);
-    displayLine(displayLineCount() - 2, line, TFT_GREEN);
+    // Trigger the DAQ event (toggling an IO pin to measure runtime of DaqTriggerEvent and to measure cyclic jitter of fastTask)
+    digitalWrite(FASTTASK_SCOPE_PIN, HIGH);
+    DaqTriggerEvent(fastTask);
+    digitalWrite(FASTTASK_SCOPE_PIN, LOW);
 
-
-    vTaskDelay(pdMS_TO_TICKS(500));
-
-    Serial.printf("Blink task running on core %d - %u\n", xPortGetCoreID(), counter);
-
-    // Trigger the DAQ event
-    if (blinkTaskEvent != XCP_UNDEFINED_EVENT_ID) {
-      XcpEventExt_Var(blinkTaskEvent, 1, xcp_get_frame_addr());
-    }
-
+    vTaskDelayUntil(&lastWakeTime, periodTicks);
   }
 }
 
-void printTask(void *parameter) {
+void slowTask(void *parameter) {
   
-  uint16_t counter = 0;
+  volatile uint16_t counter = 0;
   char line[40];
 
+  Serial.printf("slowTask started\n");
+  Serial.printf("slowTask: frameaddr = %p\n", xcp_get_frame_addr());
+  Serial.printf("slowTask: &counter = %p\n", &counter);
+
+  DaqCreateEvent(slowTask);
+
   for (;;) {
+
     counter++;
  
-    Serial.printf("Print task running on core %d -  %u\n", xPortGetCoreID(),counter);
+    // Print status
+    Serial.printf("slowTask: core %d -  %u\n", xPortGetCoreID(),counter);
 
     // Display
-    snprintf(line, sizeof(line), "printTask: core %d - %u", xPortGetCoreID(), counter);
+    snprintf(line, sizeof(line), "slowTask: core %d - %u", xPortGetCoreID(), counter);
     displayLine(displayLineCount() - 1, line, TFT_YELLOW);
 
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    vTaskDelay(pdMS_TO_TICKS(SLOWTASK_PERIOD_MS));
  
     // Trigger the DAQ event
-    if (printTaskEvent != XCP_UNDEFINED_EVENT_ID) {
-      XcpEventExt_Var(printTaskEvent, 1, xcp_get_frame_addr());
-    }
-
+    DaqTriggerEvent(slowTask);
   }
 }
+
+
+
+//----------------------------------------------------------------------------------------------------
+// Main (Arduino style)
 
 void setup() {
 
@@ -379,32 +441,31 @@ void setup() {
     displayLine(2, "XCP failed", TFT_RED);
   }
   else {
-    if (registerXcpEvents()) {
       displayLine(2, "XCP running", TFT_GREEN);
-    }
   }  
 
+  Serial.printf("&global_counter = %p\n", &global_counter);
 
   // Create demo tasks
 
   xTaskCreatePinnedToCore(
-    blinkTask,
-    "Blink Task",
-    2048,
+    fastTask,
+    "fastTask",
+    2048, // stack
     nullptr,
-    1,
-    &blinkTaskHandle,
-    1
+    FASTTASK_PRIORITY,
+    &fastTaskHandle,
+    1 // core
   );
 
   xTaskCreatePinnedToCore(
-    printTask,
-    "Print Task",
-    4096,
+    slowTask,
+    "slowTask",
+    4096, // stack
     nullptr,
-    1,
-    &printTaskHandle,
-    0
+    SLOWTASK_PRIORITY,
+    &slowTaskHandle,
+    0 // core
   );
 }
 

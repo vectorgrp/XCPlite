@@ -6,11 +6,10 @@ This example runs XCPlite on an ESP32 board using the Arduino framework and the 
 
 The included CANape project and the XCP instrumentaion in main.cpp show:
 
-- Creating a high priority FreeRTOS task with precise cyclic execution timing
-- Creating a lower priority FreeRTOS task
-- Trigger XCP events and acquire measurment variable in both tasks
+- Creating a high priority FreeRTOS task (fastTask) with precise cyclic execution timing
+- Creating a lower priority FreeRTOS task (slowTask)
+- Trigger XCP events and acquire global and local measurement variables in both tasks
 - Display cycle time jitter of the tasks in CANape
-- Measure local variables
 - Create thread-safe calibration variables
 
 
@@ -201,7 +200,7 @@ xcpclient --offline  --elf "<path/to/elf>" --a2l esp32_freertos_demo.a2l
 xcpclient --offline  --elf examples/esp32_freertos_demo/.pio/build/lilygo-t-display-s3/firmware.elf --a2l esp32_freertos_demo.a2l  --verbose 2
 
 # Restrict compilation units with --elf-unit-filter: 
-xcpclient --offline  --elf ../../examples/esp32_freertos_demo/.pio/build/lilygo-t-display-s3/firmware.elf --a2l esp32_freertos_demo.a2l   --elf-unit-filter main.cpp  --verbose 1  >> esp32_freertos_demo.log
+xcpclient --offline  --elf ../../examples/esp32_freertos_demo/.pio/build/lilygo-t-display-s3/firmware.elf --a2l esp32_freertos_demo.a2l   --elf-unit-filter main_cpp  --verbose 1  >> esp32_freertos_demo.log
  
 ```
 
@@ -210,7 +209,7 @@ See the documentation of xcpclient and no_a2l_demo for more infomation on workin
 Do a test measurement:
 
 ```bash
-xcpclient --udp --dest-addr 192.168.0.2146   --a2l esp32_freertos_demo.a2l  --mea counter --verbose 2
+xcpclient --udp --dest-addr 192.168.0.146   --a2l esp32_freertos_demo.a2l  --mea counter --verbose 2
  --elf 
 ```
 
@@ -232,7 +231,7 @@ or choose the exact board ID from PlatformIO.
 For a board without the LilyGo display:
 
 - Remove `lovyan03/LovyanGFX` from `lib_deps`.
-- Remove `#include <LovyanGFX.hpp>` and the display initialization/status code from `src/main.cpp`.
+- Leave `OPTION_DISPLAY` undefined.
 - Replace `LED_BUILTIN` if your board uses a different LED pin.
 
 For a different display:
@@ -263,7 +262,14 @@ src/platform.c
 
 The source files remain in the repository-level `src/` folder. They are not copied into this example.
 
-## Current Notes
+
+## Issues
+
+- No error message if XCP_104.aml is missing 
+
+
+
+## Notes
 
 - TCP is disabled for the FreeRTOS/lwIP path.
 - XCP runs over UDP.
