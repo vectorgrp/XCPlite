@@ -210,11 +210,16 @@ void XcpCalUpdateEpkSeg(const char *epk);
 // Calibration segment or block descriptor used by CalSegCreate() and CalBlkCreate() for section-based pre-registration
 typedef struct {
     const char *name;
-    void *addr;
+    const void *addr;
+    tXcpCalSegIndex *indexp;
     uint16_t size;
     uint16_t type;
-    tXcpCalSegIndex index;
+#ifdef PLATFORM_32BIT
+    uint8_t res[12]
+#endif
 } tXcpCalDescriptor;
+
+static_assert(sizeof(tXcpCalDescriptor)==32,"sizeof(XcpCalDescriptor) must be 32");
 
 // Platform section attribute for tXcpCalDescriptor static variables created by CalSegCreate() and CalBlkCreate().
 // Placing all descriptors in a named ELF/Mach-O section lets XcpInit() iterate them and

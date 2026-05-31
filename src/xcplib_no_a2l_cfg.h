@@ -22,13 +22,17 @@
 // Calibration segments
 
 // No persistence — not supported in OPTION_CAL_SEGMENTS_ABS
-// #undef OPTION_ENABLE_PERSISTENCE
+#undef OPTION_ENABLE_PERSISTENCE
 
 // Absolute addressing mode (address extension 0 is absolute addressing)
 // Default: Relative addressing mode (address extension 0 is segment relative addressing)
-// #define OPTION_CAL_SEGMENTS_ABS
+#define OPTION_CAL_SEGMENTS_ABS
 
-// @@@@ TODO: Check new offline ELF section based A2L generation in segment relative mode with persistence enabled
+// @@@@ TODO: Fix new offline ELF section based A2L generation in segment relative mode with persistence enabled, does not work yet
+
+
+#undef OPTION_ENABLE_PERSISTENCE
+
 
 //-------------------------------------------------------------------------------
 // A2L / ELF — generated externally from ELF by xcpclient; disable on-target features

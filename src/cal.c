@@ -128,32 +128,38 @@ uint16_t XcpRegisterSectionCalSegs(void) {
 #if defined(__ELF__)
     // Declared weak: if no object file contributes to the xcp_cals section the symbols
     // resolve to NULL rather than causing an undefined-reference linker error.
-    extern tXcpCalDescriptor __start_xcp_cals[] __attribute__((weak));
-    extern tXcpCalDescriptor __stop_xcp_cals[] __attribute__((weak));
+    extern const tXcpCalDescriptor __start_xcp_cals[] __attribute__((weak));
+    extern const tXcpCalDescriptor __stop_xcp_cals[] __attribute__((weak));
     if (__start_xcp_cals != NULL) {
-        for (tXcpCalDescriptor *e = __start_xcp_cals; e < __stop_xcp_cals; e++) {
+        for (const tXcpCalDescriptor *e = __start_xcp_cals; e < __stop_xcp_cals; e++) {
             DBG_PRINTF6("Found calibration segment descriptor in section: name=%s, addr=%p, size=%u, type=%x, index=%u\n", e->name, e->addr, e->size, e->type, e->index);
-            if (e->index == XCP_UNDEFINED_CALSEG) {
+            tXcpCalSegIndex index = XcpFindCalSeg(e->name);
+            if (index == XCP_UNDEFINED_CALSEG) {
                 assert(e->type == XCP_CALSEG_TYPE_SEGMENT || e->type == XCP_CALSEG_TYPE_BLOCK);
-                e->index = XcpCreateCalSeg_(e->name, false, e->addr, NULL, e->size, e->type == XCP_CALSEG_TYPE_SEGMENT);
+                index = XcpCreateCalSeg_(e->name, false, e->addr, NULL, e->size, e->type == XCP_CALSEG_TYPE_SEGMENT);
+                assert(index!=XCP_UNDEFINED_CALSEG);
                 count++;
             }
+            *(e->indexp) = index; // initialize the segment index pointer
         }
     } else {
         DBG_PRINT_WARNING("No xcp_cals section found\n");
     }
 #elif defined(__APPLE__)
     unsigned long sz = 0;
-    tXcpCalDescriptor *begin = (tXcpCalDescriptor *)getsectiondata(&_mh_execute_header, "__DATA", "xcp_cals", &sz);
+    const tXcpCalDescriptor *begin = (tXcpCalDescriptor *)getsectiondata(&_mh_execute_header, "__DATA", "xcp_cals", &sz);
     if (begin != NULL) {
-        tXcpCalDescriptor *end = begin + sz / sizeof(tXcpCalDescriptor);
-        for (tXcpCalDescriptor *e = begin; e < end; e++) {
+        const tXcpCalDescriptor *end = begin + sz / sizeof(tXcpCalDescriptor);
+        for (const tXcpCalDescriptor *e = begin; e < end; e++) {
             DBG_PRINTF6("Found calibration segment descriptor in section: name=%s, addr=%p, size=%u, type=%x, index=%u\n", e->name, e->addr, e->size, e->type, e->index);
-            if (e->index == XCP_UNDEFINED_CALSEG) {
+            tXcpCalSegIndex index = XcpFindCalSeg(e->name);
+            if (index == XCP_UNDEFINED_CALSEG) {
                 assert(e->type == XCP_CALSEG_TYPE_SEGMENT || e->type == XCP_CALSEG_TYPE_BLOCK);
-                e->index = XcpCreateCalSeg_(e->name, false, e->addr, NULL, e->size, e->type == XCP_CALSEG_TYPE_SEGMENT);
+                index = XcpCreateCalSeg_(e->name, false, e->addr, NULL, e->size, e->type == XCP_CALSEG_TYPE_SEGMENT);
+                assert(index!=XCP_UNDEFINED_CALSEG);
                 count++;
             }
+            *(e->indexp) = index; 
         }
     } else {
         DBG_PRINT_WARNING("No xcp_cals section found\n");
@@ -163,7 +169,7 @@ uint16_t XcpRegisterSectionCalSegs(void) {
     if (count > 0)
         DBG_PRINTF3(ANSI_COLOR_GREEN "Preregistered %u calibration segments or blocks from descriptor section\n" ANSI_COLOR_RESET, count);
     else
-        DBG_PRINT_WARNING("No calibration segment descriptors found in section xcp_cals\n");
+        DBG_PRINT3("No new calibration segment descriptors found in section xcp_cals\n");
     return count;
 }
 
@@ -617,7 +623,7 @@ const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg_index) {
         return NULL;
     }
     if (calseg_index >= atomic_load_explicit(&shared.cal_seg_list.count, memory_order_relaxed)) {
-        DBG_PRINTF_ERROR("Invalid index %u\n", calseg_index);
+        DBG_PRINTF_ERROR("XcpLockCalSeg: Invalid calseg index %u\n", calseg_index);
         assert(0);
         return NULL; // Uninitialized or invalid calseg_index
     }
@@ -660,7 +666,7 @@ uint8_t XcpUnlockCalSeg(tXcpCalSegIndex calseg_index) {
         return 0;
     }
     if (calseg_index >= atomic_load_explicit(&shared.cal_seg_list.count, memory_order_relaxed)) {
-        DBG_PRINTF_ERROR("Invalid index %u\n", calseg_index);
+        DBG_PRINTF_ERROR("XcpUnlockCalSeg: Invalid calseg index %u\n", calseg_index);
         assert(0);
         return 0; // Uninitialized or invalid calseg_index
     }

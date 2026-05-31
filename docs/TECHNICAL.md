@@ -277,11 +277,11 @@ CPP is not supported yet.
 
 ```c
 //Create calibration segment macro segment index once pattern
-static tXcpCalSegIndex calseg__##name;
+static tXcpCalSegIndex calseg_id_##name;
 
 // Create measurement event macro event id once pattern
 // From  DaqCreateXxx(name), 
-static tXcpEventId evt__##name
+static tXcpEventId evt_id_##name
 static tXcpEventId evt__dynname
 
 // Daq capture macro (DaqCapture(event, var)) capture buffer

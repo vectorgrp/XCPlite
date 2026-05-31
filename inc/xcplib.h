@@ -138,11 +138,14 @@ bool XcpBinWrite(const char *epk);
 
 // Calibration segment or block descriptor used by CalSegCreate() and CalBlkCreate() for section-based pre-registration
 typedef struct {
-    const char *name;
-    void *addr;
+    const char *name; 
+    const void *addr; // pointer to static lifetime default page
+    tXcpCalSegIndex *indexp; // pointer to the index variable initialized at runtime
     uint16_t size;
-    uint16_t type;
-    tXcpCalSegIndex index;
+    uint16_t type; // XCP_CALSEG_TYPE_SEGMENT or XCP_CALSEG_TYPE_BLOCK
+#ifdef PLATFORM_32BIT
+    uint8_t res[12]
+#endif
 } tXcpCalDescriptor;
 
 // Platform section attribute for tXcpCalDescriptor static variables created by CalSegCreate() and CalBlkCreate().
@@ -158,36 +161,46 @@ typedef struct {
 
 #endif
 
-/// Define a calibration segment or block
-#define CalSegDecl(name) static tXcpCalDescriptor calseg__##name XCP_CAL_SECTION_ATTR = {#name, (void *)&name, sizeof(name), XCP_CALSEG_TYPE_SEGMENT, XCP_UNDEFINED_CALSEG};
-#define CalBlkDecl(name) static tXcpCalDescriptor calblk__##name XCP_CAL_SECTION_ATTR = {#name, (void *)&name, sizeof(name), XCP_CALSEG_TYPE_BLOCK, XCP_UNDEFINED_CALSEG};
+/// Global definition of a calibration segment or block
+/// Name given as identifier, type name and segment name must be identical
+/// Macro maybe used outside function scope
+/// @param name given as identifier, &name is expected to be the const static lifetime pointer to the default page, sizeof(name) is used as size of the calibration segment
+// calseg__##name and calblk__##name are the linker map file markers for calibration segments and blocks
+#define CalSegDecl(name) \
+static tXcpCalSegIndex calseg_id_##name = XCP_UNDEFINED_CALSEG; \
+const static tXcpCalDescriptor calseg__##name XCP_CAL_SECTION_ATTR = {#name, (const void *)&name, &calseg_id_##name, sizeof(name), XCP_CALSEG_TYPE_SEGMENT};
+#define CalBlkDecl(name) \
+static tXcpCalSegIndex calblk_id_##name = XCP_UNDEFINED_CALSEG; \
+const static tXcpCalDescriptor calblk__##name XCP_CAL_SECTION_ATTR = {#name, (const void *)&name, sizeof(name), XCP_CALSEG_TYPE_BLOCK};
 
-/// Create calibration segment macro
-/// Name given as identifier, type name and segment name are identical
+/// Dynamic creation of a calibration segment or block
+/// Name given as identifier, type name and segment name must be identical
 /// Macro may be used anywhere in the code, even in loops
-/// @param name given as identifier, &name is used as pointer to the default page, sizeof(name) is used as size of the calibration segment
-// calseg__##name is the linker map file marker for calibration segments
+/// @param name given as identifier, &name is expected to be the const static lifetime pointer to the default page, sizeof(name) is used as size of the calibration segment
+// calseg__##name and calblk__##name are the linker map file markers for calibration segments and blocks
 #define CalSegCreate(name)                                                                                                                                                         \
-    static tXcpCalDescriptor calseg__##name XCP_CAL_SECTION_ATTR = {#name, (void *)&name, sizeof(name), XCP_CALSEG_TYPE_SEGMENT, XCP_UNDEFINED_CALSEG};                            \
-    if (calseg__##name.index == XCP_UNDEFINED_CALSEG) {                                                                                                                            \
-        calseg__##name.index = XcpCreateCalSeg(#name, (uint8_t *)&(name), sizeof(name));                                                                                           \
+    static tXcpCalSegIndex calseg_id_##name = XCP_UNDEFINED_CALSEG; \
+    const static tXcpCalDescriptor calseg__##name XCP_CAL_SECTION_ATTR = {#name, (void *)&name, &calseg_id_##name, sizeof(name), XCP_CALSEG_TYPE_SEGMENT};                            \
+    if (calseg_id_##name == XCP_UNDEFINED_CALSEG) {                                                                                                                            \
+        calseg_id_##name = XcpCreateCalSeg(#name, (uint8_t *)&(name), sizeof(name));                                                                                           \
     }
 #define CalBlkCreate(name)                                                                                                                                                         \
-    static tXcpCalDescriptor calblk__##name XCP_CAL_SECTION_ATTR = {#name, (void *)&name, sizeof(name), XCP_CALSEG_TYPE_BLOCK, XCP_UNDEFINED_CALSEG};                              \
-    if (calblk__##name.index == XCP_UNDEFINED_CALSEG) {                                                                                                                            \
-        calblk__##name.index = XcpCreateCalBlk(#name, (uint8_t *)&(name), sizeof(name));                                                                                           \
+static tXcpCalSegIndex calblk_id_##name = XCP_UNDEFINED_CALSEG; \
+    const static tXcpCalDescriptor calblk__##name XCP_CAL_SECTION_ATTR = {#name, (void *)&name, sizeof(name), &calseg_id_##name, XCP_CALSEG_TYPE_BLOCK};                              \
+    if (calblk_id_##name== XCP_UNDEFINED_CALSEG) {                                                                                                                            \
+        calblk_id_##name = XcpCreateCalBlk(#name, (uint8_t *)&(name), sizeof(name));                                                                                           \
     }
 
 /// Lock calibration segment macro
 /// Calibration segment descriptor must be visible in scope
 /// @param name given as identifier
-#define CalSegLock(name) ((const __typeof__(name) *)XcpLockCalSeg(calseg__##name.index))
-#define CalBlkLock(name) ((const __typeof__(name) *)XcpLockCalSeg(calblk__##name.index))
+#define CalSegLock(name) ((const __typeof__(name) *)XcpLockCalSeg(calseg_id_##name))
+#define CalBlkLock(name) ((const __typeof__(name) *)XcpLockCalSeg(calblk_id_##name))
 
 /// Unlock calibration segment macro
 /// @param name given as identifier
-#define CalSegUnlock(name) XcpUnlockCalSeg(calseg__##name.index)
-#define CalBlkUnlock(name) XcpUnlockCalSeg(calblk__##name.index)
+#define CalSegUnlock(name) XcpUnlockCalSeg(calseg_id_##name)
+#define CalBlkUnlock(name) XcpUnlockCalSeg(calblk_id_##name)
 
 #endif // __cplusplus
 

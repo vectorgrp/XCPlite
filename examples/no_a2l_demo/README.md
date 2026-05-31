@@ -97,6 +97,8 @@ The same pattern can be used to create any other application-specific configurat
 
 # Or directly with CMake
 cmake -B build_no_a2l -S . -DCMAKE_BUILD_TYPE=Debug -DXCPLITE_BUILD_NO_A2L_DEMO=ON -DXCPLITE_BUILD_EXAMPLES=OFF
+# or with forcing ARM architecture
+make -B build_no_a2l_arm64 -S . -DCMAKE_BUILD_TYPE=Debug -DXCPLITE_BUILD_NO_A2L_DEMO=ON -DXCPLITE_BUILD_EXAMPLES=OFF -DCMAKE_OSX_ARCHITECTURES=arm64
 cmake --build build_no_a2l
 
 # Generate an A2L file for the no_a2l_demo application from its ELF file

@@ -446,7 +446,7 @@ static void XcpSetProjectName(const char *name) {
 // Get the project name
 const char *XcpGetProjectName(void) {
     if (STRNLEN(local.project_name, XCP_PROJECT_NAME_MAX_LENGTH) == 0) {
-        assert(0 && "Project name not set");
+        //assert(0 && "Project name not set");
         return "";
     }
     return local.project_name;
@@ -476,7 +476,7 @@ static void XcpSetEpk(const char *epk) {
 // Get the EPK from the static buffer in the local state
 const char *XcpGetEpk(void) {
     if (STRNLEN(local.epk, XCP_EPK_MAX_LENGTH) == 0) {
-        assert(0 && "EPK not set");
+        //assert(0 && "EPK not set");
         return "";
     }
     return local.epk;
@@ -1004,7 +1004,7 @@ static uint16_t XcpRegisterSectionEvents(void) {
     if (count > 0)
         DBG_PRINTF3(ANSI_COLOR_GREEN "Preregistered %u events from event descriptor section\n" ANSI_COLOR_RESET, count);
     else
-        DBG_PRINT_WARNING("No event descriptors found in section xcp_evts\n");
+        DBG_PRINT3("No new event descriptors found in section xcp_evts\n");
     return count;
 }
 
@@ -3218,14 +3218,15 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     // Create the EPK calibration segment with index 0
     // In SHM multiapplication mode, only the leader reaches this point, and creates a EPK segment for the whole system
     // @@@@ TODO: Currently the EPK segment is treated like any other segment, even if it is read-only and should only expose the default page
-    static tXcpCalDescriptor calseg__epk XCP_CAL_SECTION_ATTR = {XCP_EPK_CALSEG_NAME, (void *)&local.epk, XCP_EPK_MAX_LENGTH + 1, XCP_CALSEG_TYPE_SEGMENT, XCP_UNDEFINED_CALSEG};
+    static tXcpCalSegIndex calseg_id_epk = XCP_UNDEFINED_CALSEG; 
+    const static tXcpCalDescriptor calseg__epk XCP_CAL_SECTION_ATTR = {XCP_EPK_CALSEG_NAME, &calseg_id_epk, (void *)&local.epk, XCP_EPK_MAX_LENGTH + 1, XCP_CALSEG_TYPE_SEGMENT};
     DBG_PRINTF3("XcpInit: Create EPK calibration segment '%s'\n", XCP_EPK_CALSEG_NAME);
 #ifdef OPTION_SHM_MODE
-    calseg__epk.index = XcpCreateCalSeg(XCP_EPK_CALSEG_NAME, XcpGetEcuEpk(), XCP_EPK_MAX_LENGTH + 1);
+    calseg_id_epk = XcpCreateCalSeg(XCP_EPK_CALSEG_NAME, XcpGetEcuEpk(), XCP_EPK_MAX_LENGTH + 1);
 #else
-    calseg__epk.index = XcpCreateCalSeg(XCP_EPK_CALSEG_NAME, local.epk, XCP_EPK_MAX_LENGTH + 1);
+    calseg_id_epk = XcpCreateCalSeg(XCP_EPK_CALSEG_NAME, local.epk, XCP_EPK_MAX_LENGTH + 1);
 #endif
-    assert(calseg__epk.index == 0);
+    assert(calseg_id_epk == 0);
 #endif
 
     // Pre-register all segments whose tXcpCalDescriptor lives in the xcp_cals binary section.
