@@ -155,8 +155,8 @@ impl ElfReader {
             // These type are not a supported value type
             // DbgDataType::Bitfield | DbgDataType::Pointer | DbgDataType::FuncPtr | DbgDataType::Class | DbgDataType::Union | DbgDataType::Enum  | DbgDataType::Other =>
             _ => {
-                error!("Unsupported type in get_field_type: {:?}", &type_info.datatype);
-                assert!(false, "Unsupported type in get_field_type: {:?}", &type_info.datatype);
+                warn!("Unsupported type in get_field_type: {:?}", &type_info.datatype);
+                //assert!(false, "Unsupported type in get_field_type: {:?}", &type_info.datatype);
                 McValueType::Ubyte
             }
         }
@@ -481,7 +481,7 @@ impl ElfReader {
                 // Create a new event and try to determine the event number from the event memory section
                 else {
                     if xcp_event_section_addr > 0 {
-                        let event_id: u16 = ((var_infos[0].address.1 - xcp_event_section_addr) / 0x10) as u16; // @@@@ size of tXcpEventDescriptor hardcoded
+                        let event_id: u16 = ((var_infos[0].address.1 - xcp_event_section_addr) / 16) as u16; // @@@@ size of tXcpEventDescriptor hardcoded
                         reg.event_list.add_event(McEvent::new(evt_name.to_string(), 0, event_id, 0)).unwrap();
                         info!("New event '{}' found: event id = {}", evt_name, event_id);
                         continue; // event id has to be fixed later, for now we just create it with a unique id based on the address of the event marker variable

@@ -80,14 +80,21 @@ class Display : public lgfx::LGFX_Device {
 
 static Display lcd;
 static SemaphoreHandle_t lcdMutex = nullptr;
+static constexpr int32_t DISPLAY_LINE_HEIGHT = 24;
+static tXcpEventId blinkTaskEvent = XCP_UNDEFINED_EVENT_ID;
+static tXcpEventId printTaskEvent = XCP_UNDEFINED_EVENT_ID;
+
+static int32_t displayLineCount() {
+  return lcd.height() / DISPLAY_LINE_HEIGHT;
+}
 
 static void displayLine(int32_t line, const char *text, uint16_t color = TFT_WHITE) {
   if (lcdMutex == nullptr || xSemaphoreTake(lcdMutex, pdMS_TO_TICKS(50)) != pdTRUE) {
     return;
   }
 
-  const int32_t y = line * 24;
-  lcd.fillRect(0, y, lcd.width(), 24, TFT_BLACK);
+  const int32_t y = line * DISPLAY_LINE_HEIGHT;
+  lcd.fillRect(0, y, lcd.width(), DISPLAY_LINE_HEIGHT, TFT_BLACK);
   lcd.setCursor(0, y + 4);
   lcd.setTextColor(color, TFT_BLACK);
   lcd.print(text);
@@ -283,47 +290,103 @@ static bool startXcpServer() {
   return true;
 }
 
+static bool registerXcpEvents() {
+  blinkTaskEvent = XcpCreateEvent("blinkTask", 0, 0);
+  printTaskEvent = XcpCreateEvent("printTask", 0, 0);
+
+  if (blinkTaskEvent == XCP_UNDEFINED_EVENT_ID || printTaskEvent == XCP_UNDEFINED_EVENT_ID) {
+    Serial.println("XCP event registration failed");
+    displayLine(2, "XCP events failed", TFT_RED);
+    return false;
+  }
+
+  Serial.printf("XCP events registered: blinkTask=%u, printTask=%u\n", blinkTaskEvent, printTaskEvent);
+  return true;
+}
+
 void blinkTask(void *parameter) {
-  pinMode(LED_BUILTIN, OUTPUT);
+  
+  uint16_t counter = 0;
+  char line[40];
 
+  // LilyGo-S3 has no LEDs
+  // pinMode(LED_BUILTIN, OUTPUT);
+ 
   for (;;) {
-    digitalWrite(LED_BUILTIN, HIGH);
+
+    counter++;
+
+    //digitalWrite(LED_BUILTIN, HIGH);
+    //vTaskDelay(pdMS_TO_TICKS(500));
+    //digitalWrite(LED_BUILTIN, LOW);
+    
+    // Display
+    snprintf(line, sizeof(line), "blinkTask: core %d - %u", xPortGetCoreID(), counter);
+    displayLine(displayLineCount() - 2, line, TFT_GREEN);
+
+
     vTaskDelay(pdMS_TO_TICKS(500));
 
-    digitalWrite(LED_BUILTIN, LOW);
-    vTaskDelay(pdMS_TO_TICKS(500));
+    Serial.printf("Blink task running on core %d - %u\n", xPortGetCoreID(), counter);
 
-     Serial.printf("Blink task running on core %d\n", xPortGetCoreID());
-
+    // Trigger the DAQ event
+    if (blinkTaskEvent != XCP_UNDEFINED_EVENT_ID) {
+      XcpEventExt_Var(blinkTaskEvent, 1, xcp_get_frame_addr());
+    }
 
   }
 }
 
 void printTask(void *parameter) {
-  uint32_t counter = 0;
+  
+  uint16_t counter = 0;
   char line[40];
 
   for (;;) {
-    Serial.printf("Print task running on core %d\n", xPortGetCoreID());
-    snprintf(line, sizeof(line), "Core %d tick %lu", xPortGetCoreID(), static_cast<unsigned long>(counter++));
-    displayLine(3, line, TFT_YELLOW);
+    counter++;
+ 
+    Serial.printf("Print task running on core %d -  %u\n", xPortGetCoreID(),counter);
+
+    // Display
+    snprintf(line, sizeof(line), "printTask: core %d - %u", xPortGetCoreID(), counter);
+    displayLine(displayLineCount() - 1, line, TFT_YELLOW);
+
     vTaskDelay(pdMS_TO_TICKS(1000));
+ 
+    // Trigger the DAQ event
+    if (printTaskEvent != XCP_UNDEFINED_EVENT_ID) {
+      XcpEventExt_Var(printTaskEvent, 1, xcp_get_frame_addr());
+    }
+
   }
 }
 
 void setup() {
+
   Serial.begin(115200);
   delay(1000);
   initDisplay();
 
+  // Connect to WLAN
   if (!connectWiFi()) {
     Serial.println("XCP server not started because WiFi is not connected.");
     displayLine(2, "XCP not started", TFT_RED);
-  } else if (!startXcpServer()) {
+  } 
+  
+  // Start XCP server
+  else if (!startXcpServer()) {
     Serial.println("XCP server startup failed.");
     displayLine(2, "XCP failed", TFT_RED);
   }
-  
+  else {
+    if (registerXcpEvents()) {
+      displayLine(2, "XCP running", TFT_GREEN);
+    }
+  }  
+
+
+  // Create demo tasks
+
   xTaskCreatePinnedToCore(
     blinkTask,
     "Blink Task",

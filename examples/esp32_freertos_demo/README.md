@@ -191,9 +191,18 @@ The upload A2L file error message is expected, as the FreeRTOS implementation do
 Instead, get the ELF file and generate the A2L file:
 
 ```bash
+
+Examples:
+
+# Add everything (not recomended):
 xcpclient --offline  --elf "<path/to/elf>" --a2l esp32_freertos_demo.a2l  
+
+# Get verbose output with --verbose 1 or 2:
 xcpclient --offline  --elf examples/esp32_freertos_demo/.pio/build/lilygo-t-display-s3/firmware.elf --a2l esp32_freertos_demo.a2l  --verbose 2
- --elf 
+
+# Restrict compilation units with --elf-unit-filter: 
+xcpclient --offline  --elf ../../examples/esp32_freertos_demo/.pio/build/lilygo-t-display-s3/firmware.elf --a2l esp32_freertos_demo.a2l   --elf-unit-filter main.cpp  --verbose 1  >> esp32_freertos_demo.log
+ 
 ```
 
 See the documentation of xcpclient and no_a2l_demo for more infomation on working with offline A2L generation.  
@@ -201,7 +210,7 @@ See the documentation of xcpclient and no_a2l_demo for more infomation on workin
 Do a test measurement:
 
 ```bash
-xcpclient --udb --dest-addr 192.168.0.2146   --a2l esp32_freertos_demo.a2l  --mea counter --verbose 2
+xcpclient --udp --dest-addr 192.168.0.2146   --a2l esp32_freertos_demo.a2l  --mea counter --verbose 2
  --elf 
 ```
 
@@ -268,6 +277,8 @@ The source files remain in the repository-level `src/` folder. They are not copi
 
 Prio 1:
 - Add a high precision timestamp wall clock
+- Remove the bug from the xcpclient ELF reader
+- Implement demo measurement events and calibration segment
 
 Other:
 - Add a how to tune the different configuration options

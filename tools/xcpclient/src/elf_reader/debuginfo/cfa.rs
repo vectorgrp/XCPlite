@@ -311,8 +311,7 @@ fn parse_eh_frame(file: &object::File, function_address: u64) -> Result<Option<i
     let eh_frame_section = match file.section_by_name(".eh_frame") {
         Some(section) => section,
         None => {
-            log::error!("No .eh_frame section found");
-
+            log::debug!("No .eh_frame section found");
             return Ok(None);
         }
     };
