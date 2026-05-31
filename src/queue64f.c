@@ -12,6 +12,35 @@
 |
  ----------------------------------------------------------------------------*/
 
+/*
+Note on this fixed-size lockless queue implementation:
+
+Each queue slot has a permanent, naturally aligned atomic entry_header. This is
+the main difference to the variable-size queue: entry state is never located at
+an arbitrary future position inside previously used payload bytes.
+
+The entry_header is the per-slot state and publication object. Producers reserve
+slot indices by advancing head, write the payload, and publish committed data
+with a release-store to entry_header. The consumer acquire-loads entry_header
+before reading the payload. When the consumer releases a slot, it clears that
+same slot's entry_header before advancing tail.
+
+By default, tail is used as queue capacity metadata. It tells producers which
+slot indices may be reused, but it is intentionally not used as an
+acquire/release fence for slot contents. The reset of a slot is local to that
+slot's entry_header, while tail only publishes capacity. This keeps the
+ownership protocol explicit and avoids adding acquire/release ordering to the
+shared tail cache line.
+
+Define OPTION_QUEUE_64_FIX_SIZE_SYNC_TAIL to benchmark the alternative scheme:
+the consumer clears entry_header relaxed and publishes slot reuse with a release
+update to tail, while producers acquire-load tail.
+
+Because all possible entry_header locations are fixed, initialization and clear
+operations can reset those atomic headers with atomic stores and only use
+memset to clear the non-atomic entry data area.
+*/
+
 #include "platform.h"   // for PLATFORM_64BIT
 #include "xcplib_cfg.h" // for OPTION_QUEUE_64_FIX_SIZE  and OPTION_ENABLE_DBG_PRINTS
 
@@ -51,6 +80,16 @@
 // Including the user header and payload and the internal atomic queue entry state of 4 bytes
 // Should be a multiple of cache line size to optimize performance and to avoid false sharing
 #define QUEUE_ENTRY_SIZE (QUEUE_ENTRY_USER_SIZE + 4) // Includes entry_header sizeof(atomic_uint_least32_t) = 4 bytes
+
+#ifdef OPTION_QUEUE_64_FIX_SIZE_SYNC_TAIL
+#define QUEUE64F_TAIL_LOAD_ORDER memory_order_acquire
+#define QUEUE64F_TAIL_RELEASE_ORDER memory_order_release
+#define QUEUE64F_ENTRY_RELEASE_ORDER memory_order_relaxed
+#else
+#define QUEUE64F_TAIL_LOAD_ORDER memory_order_relaxed
+#define QUEUE64F_TAIL_RELEASE_ORDER memory_order_relaxed
+#define QUEUE64F_ENTRY_RELEASE_ORDER memory_order_release
+#endif
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 // Checks
@@ -384,7 +423,7 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
     // Prepare a new entry in reserved state
     tQueueEntry *entry = NULL;
 
-    uint64_t tail = atomic_load_explicit(&queue->h.tail, memory_order_acquire);
+    uint64_t tail = atomic_load_explicit(&queue->h.tail, QUEUE64F_TAIL_LOAD_ORDER);
     uint64_t head = atomic_load_explicit(&queue->h.head, memory_order_relaxed);
 
     // CAS loop
@@ -409,7 +448,7 @@ tQueueBuffer queueAcquire(tQueueHandle queue_handle, uint16_t packet_len) {
         }
 
         // Refresh tail
-        tail = atomic_load_explicit(&queue->h.tail, memory_order_acquire);
+        tail = atomic_load_explicit(&queue->h.tail, QUEUE64F_TAIL_LOAD_ORDER);
 
         // No hint, spin count is usually very low and we prefer the locked sequence as fast as possible
         // spin_loop_hint();
@@ -608,10 +647,10 @@ void queueRelease(tQueueHandle queue_handle, const tQueueBuffer *queue_size) {
     // Clear the entries commit state
     tQueueEntry *entry = (tQueueEntry *)(queue_size->buffer - 4);                 // Get the pointer to the queue entry from the user header buffer pointer
     assert((uint32_t)((uint8_t *)entry - queue->buffer) % QUEUE_ENTRY_SIZE == 0); // Check that the entry pointer is correctly aligned to the entry size
-    atomic_store_explicit(&entry->entry_header, 0, memory_order_relaxed);
+    atomic_store_explicit(&entry->entry_header, 0, QUEUE64F_ENTRY_RELEASE_ORDER);
 
-    // Increment the tail and publish that the slot can be reused by producers
-    atomic_fetch_add_explicit(&queue->h.tail, QUEUE_ENTRY_SIZE, memory_order_release);
+    //  Increment the tail
+    atomic_fetch_add_explicit(&queue->h.tail, QUEUE_ENTRY_SIZE, QUEUE64F_TAIL_RELEASE_ORDER);
 }
 
 #endif // OPTION_QUEUE_64_FIX_SIZE

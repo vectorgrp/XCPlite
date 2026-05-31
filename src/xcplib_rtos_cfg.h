@@ -25,7 +25,7 @@
 // FreeRTOS rx and tx task stack depth (in bytes) and priority
 // On the POSIX simulator the size must be considerably larger than usual
 // Tune these values to the actual needs of the XCP server tasks on your target
-#define OPTION_FREERTOS_STACK_BYTES (configMINIMAL_STACK_SIZE * sizeof(StackType_t))
+#define OPTION_FREERTOS_STACK_BYTES (8U * 1024U)
 #define OPTION_FREERTOS_PRIORITY (tskIDLE_PRIORITY + 2U)
 
 // FreeRTOS IP stack configuration

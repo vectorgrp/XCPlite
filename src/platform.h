@@ -90,6 +90,10 @@ OPTION_CLOCK_EPOCH_ARB or OPTION_CLOCK_EPOCH_PTP
 #include <stdbool.h>  // for bool
 #include <stdint.h>   // for uintxx_t, uint_fastxx_t
 
+#if !defined(__cplusplus) && !defined(static_assert)
+#define static_assert _Static_assert
+#endif
+
 //-------------------------------------------------------------------------------------------------
 // Platform specific functions
 
@@ -348,7 +352,18 @@ typedef HANDLE THREAD_HANDLE;
 #endif
 
 typedef TaskHandle_t THREAD_HANDLE;
-#define create_thread(h, _attr, fn, args) xTaskCreate((TaskFunction_t)(fn), #fn, (OPTION_FREERTOS_STACK_BYTES / sizeof(StackType_t)), (args), OPTION_FREERTOS_PRIORITY, (h))
+#if defined(ESP_PLATFORM)
+#define FREERTOS_TASK_STACK_DEPTH(stack_bytes) (stack_bytes)
+#else
+#define FREERTOS_TASK_STACK_DEPTH(stack_bytes) ((stack_bytes) / sizeof(StackType_t))
+#endif
+#define create_thread(h, _attr, fn, args)                                                                                                                                          \
+    do {                                                                                                                                                                           \
+        printf("create FreeRTOS task '%s': stack=%u bytes, depth=%u, priority=%u\n", #fn, (unsigned)OPTION_FREERTOS_STACK_BYTES,                                                   \
+               (unsigned)FREERTOS_TASK_STACK_DEPTH(OPTION_FREERTOS_STACK_BYTES), (unsigned)OPTION_FREERTOS_PRIORITY);                                                             \
+        BaseType_t thread_created = xTaskCreate((TaskFunction_t)(fn), #fn, FREERTOS_TASK_STACK_DEPTH(OPTION_FREERTOS_STACK_BYTES), (args), OPTION_FREERTOS_PRIORITY, (h));         \
+        assert(thread_created == pdPASS);                                                                                                                                          \
+    } while (0)
 #define join_thread(h) /* No blocking join in FreeRTOS; synchronize via event flag or semaphore */
 #define cancel_thread(h) vTaskDelete(h)
 #define get_thread_id() ((uint32_t)(uintptr_t)xTaskGetCurrentTaskHandle())

@@ -147,7 +147,12 @@
 // Optimal overall queue size is required to be a multiple of the cache line size (so XCPTL_MAX_DTO_SIZE in xcptl_cfg.h currently set to 244)
 // Tune XCPTL_MAX_DTO_SIZE for best compromise between memory efficiency and performance
 // Larger DTO size may not payoff, rely on transport layer message accumulation
-// #define OPTION_QUEUE_64_FIX_SIZE
+//#define OPTION_QUEUE_64_FIX_SIZE
+// Optional benchmark switch for queue64f.c:
+// If undefined, slot reuse is published by a release-store to the fixed entry_header and tail is relaxed.
+// If defined, slot reuse is published by a release update to tail and producers acquire-load tail.
+//#define OPTION_QUEUE_64_FIX_SIZE_SYNC_TAIL
+
 
 // Transport layer queue, with variable queue entry size, 32 bit not lockless with mutex synchronization
 // Mandatory for Windows and 32 bit platforms
@@ -175,7 +180,7 @@
 #if !defined(NDEBUG)
 
 // #define TEST_CLOCK_GET_STATISTIC // Count number of calls to clockGet and clockGetLast, print results with clockPrintStatistic()
-// #define TEST_ACQUIRE_SPIN_COUNT // Get max spin count of the queue acquire operations
+#define TEST_ACQUIRE_SPIN_COUNT // Get max spin count of the queue acquire operations
 // #define TEST_ACQUIRE_LOCK_TIMING // Create a queue acquire time histogram, prints results on queue deinit, significant performance impact, for testing only !!!!!!!!!!
 // #define TEST_ENABLE_DBG_METRICS // Enable debug metrics for XCP events and transport layer packets
 // #define TEST_ENABLE_BUFFERCOUNT_HISTOGRAM // Enable histogram of the used buffer counts in the transport layer vectored io

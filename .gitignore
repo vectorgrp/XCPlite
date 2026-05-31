@@ -36,3 +36,4 @@ test_bintool
 
 
 /hello_xcp.elf
+/examples/esp32_freertos_demo/src/wlan.h

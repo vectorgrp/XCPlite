@@ -446,10 +446,20 @@ static void print_test_parameters(void) {
         DBG_PRINT3("MODE: single-process (in-process queue)\n");
 #endif
 
+#if defined(NDEBUG)
+    DBG_PRINT3("Release Build\n");
+#else
+    DBG_PRINT3("Debug Build\n");
+#endif
 #if defined(OPTION_QUEUE_64_VAR_SIZE)
     DBG_PRINT3("Using queue " ANSI_COLOR_GREEN "(queue64v.c)" ANSI_COLOR_RESET " with 64 bit variable size entries\n");
 #elif defined(OPTION_QUEUE_64_FIX_SIZE)
     DBG_PRINT3("Using queue " ANSI_COLOR_GREEN "(queue64f.c)" ANSI_COLOR_RESET " with 64 bit fixed size entries\n");
+#ifdef OPTION_QUEUE_64_FIX_SIZE_SYNC_TAIL
+    DBG_PRINT3("queue64f sync mode: " ANSI_COLOR_YELLOW "tail release/acquire" ANSI_COLOR_RESET "\n");
+#else
+    DBG_PRINT3("queue64f sync mode: " ANSI_COLOR_YELLOW "entry_header release, relaxed tail" ANSI_COLOR_RESET "\n");
+#endif
 #elif defined(OPTION_QUEUE_32)
     DBG_PRINT3("Using queue " ANSI_COLOR_GREEN "(queue32.c)" ANSI_COLOR_RESET " with 32 bit variable size entries\n");
 #else

@@ -159,6 +159,7 @@ tQueueHandle queueInit(size_t queue_buffer_size) {
     mutexLock(&queue->Mutex_Queue);
     queue->queue_rp = 0;
     queue->queue_len = 0;
+    queue->packets_lost = 0;
     queue->msg_ptr = NULL;
     newSegmentBuffer(queue);
     mutexUnlock(&queue->Mutex_Queue);

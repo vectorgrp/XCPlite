@@ -102,7 +102,9 @@ typedef struct {
 #ifdef OPTION_ATOMIC_EMULATION
     uint8_t res[64 - 22]; // Atomic emulation fill bytes to XCP_CALSEG_HEADER_SIZE
 #endif
-#if defined(_FREE_RTOS) && !defined(FREE_RTOS_POSIX_SIM) // FreeRTOS fill bytes to XCP_CALSEG_HEADER_SIZE
+#if defined(_FREE_RTOS) && !defined(FREE_RTOS_POSIX_SIM) && defined(PLATFORM_32BIT)
+    uint8_t res[4];
+#elif defined(_FREE_RTOS) && !defined(FREE_RTOS_POSIX_SIM) // FreeRTOS fill bytes to XCP_CALSEG_HEADER_SIZE
     uint8_t res[8];
 #endif
 
