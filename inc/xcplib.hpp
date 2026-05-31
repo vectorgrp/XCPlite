@@ -368,14 +368,14 @@ template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventVarTemplat
         DaqCreateEvent(event_name);                                                                                                                                                \
         static tXcpEventId trg__AASDD__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                                      \
         (void)trg__AASDD__##event_name;                                                                                                                                            \
-        xcp::DaqEventVarTemplate(evt__##event_name.id, 0, __VA_ARGS__);                                                                                                            \
+        xcp::DaqEventVarTemplate(evt_id_##event_name, 0, __VA_ARGS__);                                                                                                             \
     }
 #define DaqEventAtVar(event_name, clock, ...)                                                                                                                                      \
     {                                                                                                                                                                              \
         DaqCreateEvent(event_name);                                                                                                                                                \
         static tXcpEventId trg__AASDD__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                                      \
         (void)trg__AASDD__##event_name;                                                                                                                                            \
-        xcp::DaqEventVarTemplate(evt__##event_name.id, clock, __VA_ARGS__);                                                                                                        \
+        xcp::DaqEventVarTemplate(evt_id_##event_name, clock, __VA_ARGS__);                                                                                                         \
     }
 
 #endif

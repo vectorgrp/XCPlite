@@ -953,9 +953,10 @@ typedef struct {
     const char *name;
     uint32_t cycle_time_ns;
     uint8_t priority;
-    tXcpEventId id;
+    uint8_t res[16-sizeof(char*)-4-1];
+    //tXcpEventId id;
 } tXcpEventDescriptor;
-static_assert(sizeof(tXcpEventDescriptor) == 8 + sizeof(void *), "Size of tXcpEventDescriptor must be 16 bytes for correct section parsing in xcpclient tool");
+static_assert(sizeof(tXcpEventDescriptor) == 16, "Size of tXcpEventDescriptor must be 16 bytes for correct section parsing in xcpclient tool");
 #endif
 
 // Pre-register all tXcpEventDescriptor variables placed in the xcp_evts section by DaqCreateEvent().
@@ -968,12 +969,14 @@ static uint16_t XcpRegisterSectionEvents(void) {
 #if defined(__ELF__)
     // Declared weak: if no object file contributes to the xcp_evts section the symbols
     // resolve to NULL rather than causing an undefined-reference linker error.
-    extern tXcpEventDescriptor __start_xcp_evts[] __attribute__((weak));
-    extern tXcpEventDescriptor __stop_xcp_evts[] __attribute__((weak));
+    extern const tXcpEventDescriptor __start_xcp_evts[] __attribute__((weak));
+    extern const tXcpEventDescriptor __stop_xcp_evts[] __attribute__((weak));
     if (__start_xcp_evts != NULL) {
-        for (tXcpEventDescriptor *e = __start_xcp_evts; e < __stop_xcp_evts; e++) {
-            if (e->id == XCP_UNDEFINED_EVENT_ID) {
-                e->id = XcpCreateEvent(e->name, e->cycle_time_ns, e->priority);
+        for (const tXcpEventDescriptor *e = __start_xcp_evts; e < __stop_xcp_evts; e++) {
+            tXcpEventId id = XcpFindEvent(e->name); 
+            if (id == XCP_UNDEFINED_EVENT_ID) {
+                id = XcpCreateEvent(e->name, e->cycle_time_ns, e->priority);
+                assert(id != XCP_UNDEFINED_EVENT_ID);
                 count++;
             }
         }
@@ -982,13 +985,15 @@ static uint16_t XcpRegisterSectionEvents(void) {
     }
 #elif defined(__APPLE__)
     unsigned long sz = 0;
-    tXcpEventDescriptor *begin = (tXcpEventDescriptor *)getsectiondata(&_mh_execute_header, "__DATA", "xcp_evts", &sz);
+    const tXcpEventDescriptor *begin = (const tXcpEventDescriptor *)getsectiondata(&_mh_execute_header, "__DATA", "xcp_evts", &sz);
     if (begin != NULL) {
-        tXcpEventDescriptor *end = begin + sz / sizeof(tXcpEventDescriptor);
-        for (tXcpEventDescriptor *e = begin; e < end; e++) {
-            if (e->id == XCP_UNDEFINED_EVENT_ID) {
-                e->id = XcpCreateEvent(e->name, e->cycle_time_ns, e->priority);
-                count++;
+        const tXcpEventDescriptor *end = begin + sz / sizeof(tXcpEventDescriptor);
+        for (const tXcpEventDescriptor *e = begin; e < end; e++) {
+            tXcpEventId id = XcpFindEvent(e->name); 
+            if (id == XCP_UNDEFINED_EVENT_ID) {
+                id = XcpCreateEvent(e->name, e->cycle_time_ns, e->priority);
+                assert(id != XCP_UNDEFINED_EVENT_ID);
+                count++; 
             }
         }
     } else {

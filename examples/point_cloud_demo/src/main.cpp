@@ -46,7 +46,7 @@ struct ParametersT {
 };
 
 // Default parameter values
-const ParametersT kParameters = {
+constexpr ParametersT kParameters = {
     .max_points = 50,     // points in the cloud
     .boundary = 1.0,      // boundary_ in m
     .min_radius = 0.02,   // min_radius in m
