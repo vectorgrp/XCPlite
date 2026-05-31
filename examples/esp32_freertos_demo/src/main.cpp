@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <LovyanGFX.hpp>
 #include <WiFi.h>
 
 extern "C" {
@@ -19,7 +20,94 @@ TaskHandle_t printTaskHandle = nullptr;
 #define XCP_USE_TCP false
 #define XCP_SERVER_PORT 5555
 #define XCP_QUEUE_SIZE (1024 * 8)
-#define XCP_LOG_LEVEL 4
+#define XCP_LOG_LEVEL 5
+
+class Display : public lgfx::LGFX_Device {
+  lgfx::Bus_Parallel8 _bus;
+  lgfx::Panel_ST7789 _panel;
+  lgfx::Light_PWM _light;
+
+ public:
+  Display() {
+    {
+      auto cfg = _bus.config();
+      cfg.freq_write = 20000000;
+      cfg.pin_wr = LCD_WR;
+      cfg.pin_rd = LCD_RD;
+      cfg.pin_rs = LCD_DC;
+      cfg.pin_d0 = LCD_D0;
+      cfg.pin_d1 = LCD_D1;
+      cfg.pin_d2 = LCD_D2;
+      cfg.pin_d3 = LCD_D3;
+      cfg.pin_d4 = LCD_D4;
+      cfg.pin_d5 = LCD_D5;
+      cfg.pin_d6 = LCD_D6;
+      cfg.pin_d7 = LCD_D7;
+      _bus.config(cfg);
+      _panel.setBus(&_bus);
+    }
+
+    {
+      auto cfg = _panel.config();
+      cfg.pin_cs = LCD_CS;
+      cfg.pin_rst = LCD_RES;
+      cfg.pin_busy = -1;
+      cfg.memory_width = 170;
+      cfg.memory_height = 320;
+      cfg.panel_width = 170;
+      cfg.panel_height = 320;
+      cfg.offset_x = 35;
+      cfg.offset_y = 0;
+      cfg.offset_rotation = 0;
+      cfg.invert = true;
+      cfg.rgb_order = false;
+      _panel.config(cfg);
+    }
+
+    {
+      auto cfg = _light.config();
+      cfg.pin_bl = LCD_BL;
+      cfg.invert = false;
+      cfg.freq = 44100;
+      cfg.pwm_channel = 7;
+      _light.config(cfg);
+      _panel.setLight(&_light);
+    }
+
+    setPanel(&_panel);
+  }
+};
+
+static Display lcd;
+static SemaphoreHandle_t lcdMutex = nullptr;
+
+static void displayLine(int32_t line, const char *text, uint16_t color = TFT_WHITE) {
+  if (lcdMutex == nullptr || xSemaphoreTake(lcdMutex, pdMS_TO_TICKS(50)) != pdTRUE) {
+    return;
+  }
+
+  const int32_t y = line * 24;
+  lcd.fillRect(0, y, lcd.width(), 24, TFT_BLACK);
+  lcd.setCursor(0, y + 4);
+  lcd.setTextColor(color, TFT_BLACK);
+  lcd.print(text);
+  xSemaphoreGive(lcdMutex);
+}
+
+static void initDisplay() {
+  pinMode(LCD_POWER_ON, OUTPUT);
+  digitalWrite(LCD_POWER_ON, HIGH);
+
+  lcdMutex = xSemaphoreCreateMutex();
+  lcd.init();
+  lcd.setRotation(1);
+  lcd.setBrightness(180);
+  lcd.fillScreen(TFT_BLACK);
+  lcd.setTextSize(2);
+  lcd.setTextWrap(false);
+  displayLine(0, "XCPlite demo", TFT_CYAN);
+  displayLine(1, "Booting...");
+}
 
 struct WiFiTarget {
   bool found;
@@ -49,6 +137,33 @@ static const char *wifiStatusName(wl_status_t status) {
   }
 }
 
+static const char *wifiAuthModeName(wifi_auth_mode_t authMode) {
+  switch (authMode) {
+    case WIFI_AUTH_OPEN:
+      return "OPEN";
+    case WIFI_AUTH_WEP:
+      return "WEP";
+    case WIFI_AUTH_WPA_PSK:
+      return "WPA_PSK";
+    case WIFI_AUTH_WPA2_PSK:
+      return "WPA2_PSK";
+    case WIFI_AUTH_WPA_WPA2_PSK:
+      return "WPA_WPA2_PSK";
+    case WIFI_AUTH_WPA2_ENTERPRISE:
+      return "WPA2_ENTERPRISE";
+    case WIFI_AUTH_WPA3_PSK:
+      return "WPA3_PSK";
+    case WIFI_AUTH_WPA2_WPA3_PSK:
+      return "WPA2_WPA3_PSK";
+    default:
+      return "UNKNOWN";
+  }
+}
+
+static const char *wifiDisconnectReasonName(uint8_t reason) {
+  return WiFi.disconnectReasonName(static_cast<wifi_err_reason_t>(reason));
+}
+
 static void printBssid(const uint8_t *bssid) {
   Serial.printf("%02X:%02X:%02X:%02X:%02X:%02X",
                 bssid[0],
@@ -61,7 +176,8 @@ static void printBssid(const uint8_t *bssid) {
 
 static void onWiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
   if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
-    Serial.printf("WiFi disconnected, reason=%u\n", info.wifi_sta_disconnected.reason);
+    const uint8_t reason = info.wifi_sta_disconnected.reason;
+    Serial.printf("WiFi disconnected, reason=%u (%s)\n", reason, wifiDisconnectReasonName(reason));
   }
 }
 
@@ -80,11 +196,13 @@ static WiFiTarget scanForConfiguredSsid() {
   for (int i = 0; i < networkCount; i++) {
     if (WiFi.SSID(i) == WIFI_SSID) {
       const int32_t rssi = WiFi.RSSI(i);
-      Serial.printf("Found '%s': RSSI=%d dBm, channel=%d, encryption=%d, BSSID=",
+      const wifi_auth_mode_t authMode = static_cast<wifi_auth_mode_t>(WiFi.encryptionType(i));
+      Serial.printf("Found '%s': RSSI=%d dBm, channel=%d, encryption=%d (%s), BSSID=",
                     WiFi.SSID(i).c_str(),
                     rssi,
                     WiFi.channel(i),
-                    WiFi.encryptionType(i));
+                    authMode,
+                    wifiAuthModeName(authMode));
       printBssid(WiFi.BSSID(i));
       Serial.println();
 
@@ -124,6 +242,7 @@ static bool connectWiFi() {
   }
 
   Serial.printf("Connecting to WLAN '%s'", WIFI_SSID);
+  displayLine(1, "WiFi connecting...");
   const uint32_t startMs = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - startMs < 30000) {
     Serial.print(".");
@@ -134,10 +253,12 @@ static bool connectWiFi() {
   if (WiFi.status() != WL_CONNECTED) {
     const wl_status_t status = WiFi.status();
     Serial.printf("WiFi connection failed, status=%d (%s)\n", status, wifiStatusName(status));
+    displayLine(1, "WiFi failed", TFT_RED);
     return false;
   }
 
   Serial.printf("WiFi connected, IP address: %s\n", WiFi.localIP().toString().c_str());
+  displayLine(1, WiFi.localIP().toString().c_str(), TFT_GREEN);
   return true;
 }
 
@@ -158,6 +279,7 @@ static bool startXcpServer() {
   }
 
   Serial.printf("XCP server started: UDP port %u\n", XCP_SERVER_PORT);
+  displayLine(2, "XCP UDP :5555", TFT_GREEN);
   return true;
 }
 
@@ -178,8 +300,13 @@ void blinkTask(void *parameter) {
 }
 
 void printTask(void *parameter) {
+  uint32_t counter = 0;
+  char line[40];
+
   for (;;) {
     Serial.printf("Print task running on core %d\n", xPortGetCoreID());
+    snprintf(line, sizeof(line), "Core %d tick %lu", xPortGetCoreID(), static_cast<unsigned long>(counter++));
+    displayLine(3, line, TFT_YELLOW);
     vTaskDelay(pdMS_TO_TICKS(1000));
   }
 }
@@ -187,11 +314,14 @@ void printTask(void *parameter) {
 void setup() {
   Serial.begin(115200);
   delay(1000);
+  initDisplay();
 
   if (!connectWiFi()) {
     Serial.println("XCP server not started because WiFi is not connected.");
+    displayLine(2, "XCP not started", TFT_RED);
   } else if (!startXcpServer()) {
     Serial.println("XCP server startup failed.");
+    displayLine(2, "XCP failed", TFT_RED);
   }
   
   xTaskCreatePinnedToCore(

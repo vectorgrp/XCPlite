@@ -25,7 +25,6 @@ test_bintool
 *.bak
 *.log
 
-
 # Other
 .vscode
 .DS_Store
@@ -35,5 +34,4 @@ test_bintool
 /shm_*.sh
 
 
-/hello_xcp.elf
 /examples/esp32_freertos_demo/src/wlan.h
