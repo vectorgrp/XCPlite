@@ -389,8 +389,14 @@ void XcpEventEnable(tXcpEventId event, bool enable);
 // This defines the maximum stack frame size which can be accessed
 #define XCP_FRAME_ADDR_OFFSET 0x10000
 
+// Xtensa GCC: DWARF locations are relative to CFA, while __builtin_frame_address(0)
+// returns the frame pointer after the entry instruction.
+#if (defined(__GNUC__) || defined(__clang__)) && defined(__XTENSA__)
+
+#define xcp_get_frame_addr() (const uint8_t *)((uint8_t *)__builtin_dwarf_cfa() - XCP_FRAME_ADDR_OFFSET)
+
 // Linux, MACOS gnu and clang compiler
-#if defined(__GNUC__) || defined(__clang__)
+#elif defined(__GNUC__) || defined(__clang__)
 
 #define xcp_get_frame_addr() (const uint8_t *)((uint8_t *)__builtin_frame_address(0) - XCP_FRAME_ADDR_OFFSET)
 
