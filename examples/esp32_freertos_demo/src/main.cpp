@@ -522,7 +522,7 @@ void slowTask(void *parameter) {
         } else if (XcpIsConnected()) {
           snprintf(line, sizeof(line), "XCP Connected");
         } else if (XcpIsStarted()) {
-          snprintf(line, sizeof(line), "XCP Online");
+          snprintf(line, sizeof(line), "IP %s", WiFi.localIP().toString().c_str());
         } else {
           snprintf(line, sizeof(line), "XCP Offline");
         }

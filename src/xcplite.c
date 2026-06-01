@@ -1582,11 +1582,11 @@ static void XcpTriggerDaqList_(tQueueHandle queue_handle, uint16_t daq, const ui
 #endif
 #ifdef XCP_ENABLE_DAQ_ADDREXT
 #ifdef XCP_ENABLE_TEST_CHECKS
-                assert(*addr_ext_ptr < count && bases[*addr_ext_ptr] != NULL);
+                assert(*addr_ext_ptr < count && (bases[*addr_ext_ptr] != NULL || XcpAddrIsAbs(*addr_ext_ptr)));
 #else
                 (void)count;
 #endif
-                const uint8_t *src = (const uint8_t *)&bases[*addr_ext_ptr++][*addr_ptr++];
+                const uint8_t *src = (const uint8_t *)((uintptr_t)bases[*addr_ext_ptr++] + *addr_ptr++);
 #else
                 const uint8_t *src = (const uint8_t *)&base[*addr_ptr++];
 #endif
