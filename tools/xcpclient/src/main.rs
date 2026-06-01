@@ -360,8 +360,11 @@ impl XcpDaqDecoder for DaqDecoder {
             t_last
         };
 
+        let t_ns = t * self.timestamp_resolution;
+        let delta_us = ((t - t_last) * self.timestamp_resolution) / 1000;
+
         if self.log_level >= 1 {
-            println!("DAQ: lost={}, daq={}, odt={}, t={}ns (+{}us)", lost, daq, odt, t, (t - t_last) / 1000);
+            println!("DAQ: lost={}, daq={}, odt={}, t={}ns (+{}us)", lost, daq, odt, t_ns, delta_us);
         }
 
         // Decode all odt entries — for terminal (log_level >= 2) and/or CSV output
@@ -404,7 +407,7 @@ impl XcpDaqDecoder for DaqDecoder {
                 };
 
                 if let Some(ref mut writer) = self.csv_writer {
-                    let _ = writeln!(writer, "{},{},{},{}", t, daq, odt_entry.name, value_str);
+                    let _ = writeln!(writer, "{},{},{},{}", t_ns, daq, odt_entry.name, value_str);
                 }
                 if self.log_level >= 2 {
                     println!(" {} = {}", odt_entry.name, value_str);
