@@ -301,13 +301,15 @@ impl ElfReader {
                     seg_length = epk_str.len().try_into().expect("EPK string length exceeds 64K");
                     seg_addr = self.debug_data.epk_addr;
                 } else {
-                    error!("EPK segment memory section not found in ELF file, segment '{}' skipped", seg_name);
+                    error!("No EPK segment memory section in ELF file, segment '{}' skipped", seg_name);
                     continue; // skip this variable
                 }
             }
             // Not epk segment
             else {
                 // Lookup the reference page variable (by naming convention: same as segment name!) information
+                // This may be ambigous, so we use some heuristics to select the right variable 
+                // @@@@ TODO use the commandline compilation unit filter here
                 let seg_var_info = if let Some(x) = self.debug_data.variables.get(seg_name) {
                     let mut valid_candidates: Vec<_> = x.iter().filter(|var_info| var_info.address.0 == 0 && var_info.address.1 != 0).collect();
                     if valid_candidates.len() > 1 {

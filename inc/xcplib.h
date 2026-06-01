@@ -669,6 +669,8 @@ void XcpSetLogLevel(uint8_t level);
 #define XcpCreateEpk(epk)                                                                                                                                                          \
     do {                                                                                                                                                                           \
         static char gXcpEpkString[] XCP_EPK_SECTION_ATTR = epk;                                                                                                                    \
+        volatile char xcp_epk_keep = gXcpEpkString[0];                                                                                                                             \
+        (void)xcp_epk_keep;                                                                                                                                                        \
     } while (0)
 
 /// XcpInit mode flags
