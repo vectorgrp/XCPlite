@@ -251,6 +251,10 @@ xcpclient --udp --dest-addr <esp32-ip-address> --a2l esp32_freertos_demo.a2l --m
 
 Or use the CANape project in folder `CANape_Project`.
 
+![CANape Screenshot](CANape.png)
+
+
+
 ### What to Measure
 
 Good first measurements:
