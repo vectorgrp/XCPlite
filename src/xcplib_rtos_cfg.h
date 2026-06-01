@@ -40,6 +40,8 @@
 // Clock
 #undef OPTION_CLOCK_TICKS_1NS
 #define OPTION_CLOCK_TICKS_1US // 1 us ticks
+#undef OPTION_CLOCK_EPOCH_PTP
+#define OPTION_CLOCK_EPOCH_ARB // Arbitrary clock zero
 
 //-------------------------------------------------------------------------------
 // XCP server

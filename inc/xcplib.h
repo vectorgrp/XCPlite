@@ -46,6 +46,11 @@ bool XcpEthServerShutdown(void);
 /// @return true if the server is running, otherwise false.
 bool XcpEthServerStatus(void);
 
+/// Get the XCP protocol layer status
+bool XcpIsStarted(void);
+bool XcpIsConnected(void);
+bool XcpIsDaqRunning(void);
+
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // Calibration segments
 
@@ -128,15 +133,14 @@ bool XcpFreeze(void);
 bool XcpBinWrite(const char *epk);
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-// Macros to create and access calibration segments or blocks
-#ifndef __cplusplus
+// Section-based calibration segment registration
 
 #ifndef __CAL_H__
 
 #define XCP_CALSEG_TYPE_SEGMENT 0x8001
 #define XCP_CALSEG_TYPE_BLOCK 0x8002
 
-// Calibration segment or block descriptor used by CalSegCreate() and CalBlkCreate() for section-based pre-registration
+// Calibration segment or block descriptor used for section-based pre-registration.
 typedef struct {
     const char *name; 
     const void *addr; // pointer to static lifetime default page
@@ -159,7 +163,11 @@ typedef struct {
 #define XCP_CAL_SECTION_ATTR /* section-based registration not supported on this platform */
 #endif
 
-#endif
+#endif // __CAL_H__
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Macros to create and access calibration segments or blocks
+#ifndef __cplusplus
 
 /// Global definition of a calibration segment or block
 /// Name given as identifier, type name and segment name must be identical

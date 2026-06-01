@@ -2,29 +2,33 @@
 
 This example runs XCPlite on an ESP32 board using the Arduino framework and the ESP32 FreeRTOS/lwIP runtime.
 
-## What is shows
 
-The included CANape project and the XCP instrumentaion in main.cpp show:
+## What it Shows
+
+The included CANape project and the XCP instrumentation in `main.cpp` show:
 
 - Creating a high priority FreeRTOS task (fastTask) with precise cyclic execution timing
-- Creating a lower priority FreeRTOS task (slowTask)
-- Trigger XCP events and acquire global and local measurement variables in both tasks
+- Creating a lower priority FreeRTOS task (slowTask) for background work
+- Pinning them to the same core to watch scheduling in action
+- Triggering XCP events in both tasks and acquiring global and local measurement variables
+- Provide 1 us resolution XCP measurement event timestamps
 - Display cycle time jitter of the tasks in CANape
-- Create thread-safe calibration variables
-
+- Counting task deadline overruns when calibrated periods are too aggressive
+- Creating thread-safe calibration parameters accessible in both tasks
+- Calibrating task cycle times and the amplitude of a floating-point sine measurement
+- Observing both task trigger points with a two-channel oscilloscope to evaluate XCP instrumentation cost
 
 
 # Preconditions
 
 You need:
 
-- VS Code with PlatformIO installed, or PlatformIO Core available as `pio`.
+- vscode with PlatformIO installed, or PlatformIO Core available as `pio`.
 - An ESP32-S3 board compatible with `lilygo-t-display-s3`, or an adapted `platformio.ini`.
 - A 2.4 GHz WLAN. ESP32 does not connect to 5 GHz-only networks.
-- The ESP32 and the PC running the XCP client or CANape must be on the same reachable network.
-- An installed Rust xcpclient application for testing and A2L generation
-
-
+- The ESP32 and the PC running the XCP client must be on the same network.
+- `xcpclient` for testing and offline A2L generation (see getting xcpclient below).
+- A CANape full licence or demo version
 
 
 ## What Works
@@ -36,35 +40,31 @@ The demo currently:
 - Prints Wi-Fi RSSI, channel, encryption mode, BSSID, disconnect reason, and assigned IP address.
 - Starts the XCPlite server after Wi-Fi is connected.
 - Binds the XCP UDP server to `0.0.0.0:5555`.
-- Uses the FreeRTOS/lwIP socket implementation in `src/platform.c`.
-- Uses the 32-bit queue implementation `src/queue32.c`.
-- Displays basic status on the T-Display-S3 LCD using LovyanGFX.
-
-During bring-up, we fixed these embedded/ESP32 issues:
-
-- Added the ESP32 PlatformIO build wrapper in `extra_script.py`.
-- Added the repository `inc/` and `src/` folders to the include path.
-- Enabled `_FREE_RTOS` and `XCPLIB_CFG_OVERRIDE="xcplib_rtos_cfg.h"`.
-- Adjusted `tXcpCalSegHeader` padding for 32-bit FreeRTOS targets.
-- Made `static_assert` usable from C sources that are compiled by the ESP32 toolchain.
-- Fixed an uninitialized `packets_lost` field in `queue32.c`.
-- Verified that the XCP receive/transmit FreeRTOS tasks are created and run.
+- Displays some status on the T-Display-S3 LCD using LovyanGFX.
 
 
-## Configuration
+## Quick Path
 
-XCP connection options are set in main.cpp
-- XCP on Ethernet over UDP
-- XCP server port: `5555`
+1. Configure Wi-Fi credentials in `src/wlan.h` or via PlatformIO build flags.
+2. Build and upload the firmware:
+   ```bash
+   pio run --target upload
+   ```
+3. Open the serial monitor and note the ESP32 IP address:
+   ```bash
+   pio device monitor
+   ```
+4. Generate the A2L file from the firmware ELF:
+   ```bash
+   xcpclient --offline --elf .pio/build/lilygo-t-display-s3/firmware.elf --a2l esp32_freertos_demo.a2l --elf-unit-filter main_cpp
+   ```
+5. Connect with CANape using `CANape_Project`, or run a basic xcpclient measurement test:
+   ```bash
+   xcpclient --udp --dest-addr <esp32-ip-address> --a2l esp32_freertos_demo.a2l --mea global_counter
+   ```
 
-Uses the generic XCPlite FreeRTOS configuration override: `xcplib_rtos_cfg.h` in `src/`.   
 
-Stack size settings, DAQ list size, queue size, maximum number of event and calibration segments have influence on memory consumption and may be tuned to your needs.  
-
-
-### Wi-Fi Credentials
-
-Do not commit WLAN credentials.
+## Wi-Fi Credentials
 
 The sketch includes `wlan.h` when `WIFI_SSID` or `WIFI_PASSWORD` are not provided by build flags:
 
@@ -74,14 +74,7 @@ The sketch includes `wlan.h` when `WIFI_SSID` or `WIFI_PASSWORD` are not provide
 #endif
 ```
 
-Create this local file:
-
-```text
-examples/esp32_freertos_demo/src/wlan.h
-```
-
 Example:
-
 ```cpp
 #pragma once
 
@@ -99,19 +92,56 @@ build_flags =
     -DWIFI_PASSWORD=\"your-password\"
 ```
 
-Prefer `wlan.h` for local development so secrets do not enter Git history.
 
-## Build
+## Configure, Build and Run
 
-XCPlite source files are built directly from the repository-level `src/` folder.  
+### Configure
+
+The XCPlite repository `inc/` and `src/` folders need to be in the include path.
+
+Define `_FREE_RTOS` and `XCPLIB_CFG_OVERRIDE="xcplib_rtos_cfg.h"` for the FreeRTOS specific code paths and configuration options.
+
+This build of XCPlite:
+- Uses the FreeRTOS/lwIP socket and clock abstraction layer in `src/platform.c`.
+- Uses the mutex based 32-bit queue implementation `src/queue32.c`.
 
 
-From the repo folder:
+XCP server connection options are set in main.cpp
+- XCP on Ethernet over UDP
+- XCP server port: `5555`
 
-```bash
-cd examples/esp32_freertos_demo
-~/.platformio/penv/bin/pio run
-```
+TCP is currently not supported.  
+
+Stack size settings, DAQ list size, DAQ queue size, maximum number of events and calibration segments influence memory consumption and may be tuned. 
+
+
+
+### Scope Pins
+
+Both demo tasks are pinned to the same ESP32 core so the scheduler interaction is visible in XCP measurements and on a scope:
+
+- `fastTask`: GPIO2 / IO2, default period 1 ms
+- `slowTask`: GPIO1 / IO1, default period 10 ms
+
+Connect both probe grounds to board GND. The pins are driven high only around the corresponding `DaqTriggerEvent(...)` call.
+
+
+### Task Overrun Counters
+
+Both demo tasks use `xTaskDelayUntil()` for absolute periodic scheduling. This avoids drift: each activation is scheduled relative to the previous planned activation time, not relative to the moment the task happens to finish its work.
+
+`xTaskDelayUntil()` returns `pdFALSE` when the task is already past its next planned wake-up time. The demo counts this as a deadline overrun:
+
+- `fastTaskOverruns`: missed deadlines in the high-priority fast task
+- `slowTaskOverruns`: missed deadlines in the lower-priority slow task
+
+These counters are useful when experimenting with the calibrated task periods. If a period is set too short, or if both same-core tasks plus XCP processing need more CPU time than the schedule allows, the counters start increasing. In normal operation with the default periods they should stay at zero or increase only during exceptional pauses such as startup or heavy debug logging.
+
+
+### Build
+
+XCPlite source files are built directly from the XCPlite repository `src/` folder.  
+Building a library could be added later.  
 
 If `pio` is in your shell path:
 
@@ -119,106 +149,189 @@ If `pio` is in your shell path:
 pio run
 ```
 
-## Upload
+### Upload
 
 The current serial port is configured in `platformio.ini`:
 
+Example:
 ```ini
 upload_port = /dev/cu.usbmodem101
 monitor_port = /dev/cu.usbmodem101
 ```
 
 Adjust it if your board enumerates differently:
-
 ```bash
 pio device list
 ```
 
 Upload:
-
 ```bash
 pio run --target upload
 ```
 
 If upload has trouble entering the bootloader, hold BOOT while upload starts and release it when PlatformIO prints `Connecting...`.
 
-## Serial Monitor
+
+### Serial Monitor
 
 ```bash
 pio device monitor
 ```
 
-Expected output includes:
+You should see log messages from the XCP server.  
+The log level may be set with XCP_LOG_LEVEL.
 
-```text
-WiFi connected, IP address: ...
-Start XCP on Ethernet server
-Listening for XCP commands on UDP 0.0.0.0 port 5555
-Start XCP receive thread
-Start XCP transmit thread
-```
 
-## Network Test
+### Network Test
 
-First confirm that the board receives an IP address in the serial log.
+First confirm that the board confirms receiving an IP address in the serial log.
 
 Then try:
-
 ```bash
 ping <esp32-ip-address>
 ```
 
-If ping does not work:
-
-- Check that PC and ESP32 are on the same WLAN/VLAN.
-- Move the board closer to the access point if RSSI is weak.
-- Try a 2.4 GHz phone hotspot as a control test.
-- Still try the XCP client, because ICMP may be filtered even when UDP works.
-
 The XCP server listens on UDP port `5555`.
 
-## XCP test
+
+### XCP test
 
 Execute a basic XCP connection test:
 
 ```bash
-xcpclient --udp --dest-addr 192.168.0.146 --help
+xcpclient --udp --dest-addr <esp32-ip-address>
 ```
 
-The upload A2L file error message is expected, as the FreeRTOS implementation does not support on-target A2L generation and A2L upload.
+The upload A2L file error message can be ignored, as the FreeRTOS implementation does not support on-target A2L generation and A2L upload.
 
-Instead, get the ELF file and generate the A2L file:
+
+## Offline A2L generation
+
+Get the ELF file and generate the A2L file with xcpclient (see getting xcpclient below).
+
+Recommended command from this example directory:
 
 ```bash
+xcpclient --offline --elf .pio/build/lilygo-t-display-s3/firmware.elf --a2l esp32_freertos_demo.a2l --elf-unit-filter main_cpp
+```
 
-Examples:
+`--elf-unit-filter main_cpp` keeps the generated A2L focused on this demo application instead of adding all symbols from all linked code.
 
-# Add everything (not recomended):
-xcpclient --offline  --elf "<path/to/elf>" --a2l esp32_freertos_demo.a2l  
+Advanced examples:
+
+```bash
+# Add everything (not recommended):
+xcpclient --offline --elf .pio/build/lilygo-t-display-s3/firmware.elf --a2l esp32_freertos_demo.a2l
 
 # Get verbose output with --verbose 1 or 2:
-xcpclient --offline  --elf examples/esp32_freertos_demo/.pio/build/lilygo-t-display-s3/firmware.elf --a2l esp32_freertos_demo.a2l  --verbose 2
+xcpclient --offline --elf .pio/build/lilygo-t-display-s3/firmware.elf --a2l esp32_freertos_demo.a2l --elf-unit-filter main_cpp --verbose 2
 
-# Restrict compilation units with --elf-unit-filter: 
-xcpclient --offline  --elf ../../examples/esp32_freertos_demo/.pio/build/lilygo-t-display-s3/firmware.elf --a2l esp32_freertos_demo.a2l   --elf-unit-filter main_cpp  --verbose 1  >> esp32_freertos_demo.log
- 
+# Save verbose generator output:
+xcpclient --offline --elf .pio/build/lilygo-t-display-s3/firmware.elf --a2l esp32_freertos_demo.a2l --elf-unit-filter main_cpp --verbose 1 >> esp32_freertos_demo.log
 ```
 
-See the documentation of xcpclient and no_a2l_demo for more infomation on working with offline A2L generation.  
+Note that the A2L generator is not considered stable yet. 
+It has been tested with ELF files from Linux gcc and clang tool chains.  
 
-Do a test measurement:
+See the documentation of xcpclient and the other examples for more information on working with offline A2L generation.  
+
+
+
+## Test XCP Measurement
+
+With xcpclient
 
 ```bash
-xcpclient --udp --dest-addr 192.168.0.146   --a2l esp32_freertos_demo.a2l  --mea counter --verbose 2
- --elf 
+xcpclient --udp --dest-addr <esp32-ip-address> --a2l esp32_freertos_demo.a2l --mea global_counter --verbose 2
 ```
 
-Try out the CANape project in folder CANape_Project.  
+To watch scheduler pressure while experimenting with calibrated task periods:
+
+```bash
+xcpclient --udp --dest-addr <esp32-ip-address> --a2l esp32_freertos_demo.a2l --mea fastTaskOverruns --mea slowTaskOverruns --verbose 2
+```
+
+Or use the CANape project in folder `CANape_Project`.
+
+### What to Measure
+
+Good first measurements:
+- `global_counter`: global fast task activity counter
+- `fastTaskOverruns`: high-priority task missed deadlines
+- `slowTaskOverruns`: lower-priority task missed deadlines
+- `counter` in `fastTask`: local stack measurement near the fast task DAQ trigger
+- `counter` and `sineValue` in `slowTask`: local stack measurements near the slow task DAQ trigger
+
+And calibration parameters to play with:
+- `parameters.fast_task_period_ms`: calibratable fast task period
+- `parameters.slow_task_period_ms`: calibratable slow task period
+- `parameters.amplitude`: calibratable sine amplitude
+- `parameters.counter_max`: the maximum value of the fast task counter, global_counter variables
+
+The local variables are intentionally marked `volatile` in `main.cpp` so optimized builds keep them visible enough for offline ELF/DWARF based A2L generation.
 
 
 
 
-## Adapting To Other ESP32 Hardware
+## Code instrumentation for offline A2L generation
+
+The A2L file generator in xcpclient scans the ELF file for measurement event and calibration segment markers and automatically creates measurement and calibration variables with complex types, visible in the instrumented XCP measurement event trace points. This includes local variables in the function calling the event trigger.  
+
+Precondition is, that the code (C and C++) uses the instrumentation macros, not the plain XCPlite C API functions. The macros generate constants in the .rodata sections xcp_evts and xcp_cals. The event trigger macros generate local static variables to identify the location of the XCP trace points. The A2L generator inspects the location expressions in ELF/DWARF and identifies local variables visible in the XCP event trigger scope. Note that local variables may become invisible with compiler optimizations. Mark selected demo measurements with volatile to force the compiler to keep them and spill them to stack.  
+
+How to use the instrumentation macros is shown in the example code in `main.cpp`.  
+
+## Getting xcpclient
+
+`xcpclient` is used for two jobs in this demo:
+
+- generating an A2L file from the firmware ELF
+- running simple command-line XCP connection and measurement tests
+
+### Recommended: Prebuilt Binary
+
+For normal demo users, the recommended distribution model is a prebuilt binary matching the XCPlite release version. The binary should be taken from the matching XCPlite/xcp-lite release and put somewhere in your shell `PATH`.
+
+Recommended release artifact naming:
+
+```text
+xcpclient-v2.1.0-macos-aarch64
+xcpclient-v2.1.0-linux-x86_64
+xcpclient-v2.1.0-windows-x86_64.exe
+```
+
+The important rule is version matching: the `xcpclient` version, the Rust `xcp-lite` version, and the C/C++ XCPlite headers/sources used by this firmware should belong to the same release or branch.
+
+### Developer Path: Build from Rust Sources
+
+If no matching binary is available, build `xcpclient` from source. This is more complex because the Rust `xcp-lite` repository contains the A2L database/generator code and includes the C/C++ XCPlite repository as a submodule.
+
+For the current development state, use matching branches of both repositories, for example `V2.1.0` on your XCPlite fork and the corresponding `V2.1.0` branch of your `xcp-lite` fork.
+
+Typical example workflow:
+
+```bash
+cd git
+git clone --recursive <xcp-lite-repository-url>
+git clone  <XCPlite-repository-url>
+cd git xcp-lite
+git checkout V2.1.0
+git submodule update --init --recursive
+cd git/XCPlite
+git checkout V2.1.0
+cd tools/xcpclient
+cargo build --release
+cargo install --path .
+```
+
+After installation, confirm that the tool is reachable:
+
+```bash
+xcpclient --help
+```
+
+
+## Adapting to other ESP32 Hardware in PlatformIO
 
 Change the PlatformIO board in `platformio.ini`:
 
@@ -232,19 +345,45 @@ For a board without the LilyGo display:
 
 - Remove `lovyan03/LovyanGFX` from `lib_deps`.
 - Leave `OPTION_DISPLAY` undefined.
-- Replace `LED_BUILTIN` if your board uses a different LED pin.
 
-For a different display:
 
-- Keep the Wi-Fi and XCP setup.
-- Replace the LovyanGFX pin configuration in `Display`.
-- Check the board variant header for pin names such as `LCD_WR`, `LCD_D0`, and `LCD_BL`.
+## Adapting to other FreeRTOS based hardware platforms
 
-For non-S3 ESP32 boards:
+### Clock
 
-- Check `board` and upload port.
-- Confirm enough RAM for the XCP queue and task stacks.
-- Keep `_FREE_RTOS` and the `xcplib_rtos_cfg.h` override.
+For precise event time stamping, XCP needs a high precision free running 64 bit counter.
+The counter must wrap around at exactly `0xFFFFFFFFFFFFFFFF`, which may be considered non-wrapping for practical runtimes.
+There is no option for a different wrap value.
+Clock zero may be arbitrary: it could be a PTP epoch, or it could start at zero when booting.
+Unless XCP states that the clock is PTP synchronized TAI, XCP client tools do not care about the epoch.
+
+The function `clockGet()` in `platform.c` serves this purpose.
+On ESP32, `platform.c` detects `ESP_PLATFORM` and uses the ESP-IDF high resolution timer:
+
+```c
+uint64_t clockGet(void) {
+    uint64_t t = (uint64_t)esp_timer_get_time(); // 1 us ticks since boot
+    gClockLast_ = t;
+    return t;
+}
+```
+
+For other FreeRTOS targets, the implementation falls back to `xTaskGetTickCount()`, which has only scheduler tick resolution.
+The clock resolution must be specified in `xcplib_rtos_cfg.h`:
+
+```c
+#undef OPTION_CLOCK_TICKS_1NS
+#define OPTION_CLOCK_TICKS_1US // 1 us ticks
+```
+
+With the ESP32 backend, this advertises a 64 bit timestamp clock with 1 us ticks.
+At 1 us resolution, the `0xFFFFFFFFFFFFFFFF` wrap point is about 584,542 years after clock zero.
+On ESP32, selecting `OPTION_CLOCK_TICKS_1NS` intentionally raises a compile-time error because `esp_timer_get_time()` is a 1 us timer.
+If ns-scaled timestamps are really required, remove that guard in `platform.c` and scale the `esp_timer_get_time()` result explicitly.
+
+To use resolutions other than 1 ns or 1 us, `xcp_cfg.h` and the XCP timestamp unit configuration have to be adapted consistently.
+
+
 
 ## XCPlite Source Selection
 
@@ -260,34 +399,21 @@ src/cal.c
 src/platform.c
 ```
 
-The source files remain in the repository-level `src/` folder. They are not copied into this example.
+The source files remain in the XCPlite repository `src/` folder. They are not copied into this example.
 
 
-## Issues
+## Known Limitations
 
-- No error message if XCP_104.aml is missing 
-
-
-
-## Notes
-
-- TCP is disabled for the FreeRTOS/lwIP path.
-- XCP runs over UDP.
-- On-target A2L generation and file persistence are disabled by `xcplib_rtos_cfg.h`.
-- The internal XCP FreeRTOS task stack size is configured in `src/xcplib_rtos_cfg.h`.
-- During debugging, the stack was temporarily set large enough to prove that the transmit task issue was not ordinary stack exhaustion.
-
+- FreeRTOS targets do not support on-target A2L generation or A2L upload in this demo. Generate the A2L offline from the ELF file.
+- The offline A2L generator is not stable. Keep xcpclient/xcp-lite and XCPlite versions aligned.
+- If `XCP_104.aml` (included in the generated A2L file) is missing, xcpclient may not yet produce a helpful error message.
+- Local variable measurement depends on compiler debug information and optimization behavior. Selected demo locals are marked `volatile` to improve visibility.
 
 
 ## TODO
 
-Prio 1:
-- Add a high precision timestamp wall clock
-- Remove the bug from the xcpclient ELF reader
-- Implement demo measurement events and calibration segment
-
-Other:
-- Add a how to tune the different configuration options
+- Add a how-to tune the different XCP configuration options
 - Check if the mutex based queue is acceptable or if we should port one of the lockless queue implementations based on 64Bit atomic head and tail
 - Add TCP support
 - Do some benchmarking on CPU load, event trigger and calibration RCU latency
+- Summarize the overall memory consumption 

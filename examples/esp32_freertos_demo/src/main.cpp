@@ -1,14 +1,16 @@
+
+// ESP32 FreeRTOS Demo
+// See README.md in the demo folder for details
+
+
 #include <Arduino.h>
+#include <math.h>
 #ifdef OPTION_DISPLAY
 #include <LovyanGFX.hpp>
 #endif
 #include <WiFi.h>
 
-extern "C" {
-#include "xcplib.h"
-}
-
-
+#include "xcplib.hpp"
 
 
 
@@ -311,7 +313,7 @@ static bool connectWiFi() {
 #define XCP_USE_TCP false
 #define XCP_SERVER_PORT 5555
 #define XCP_QUEUE_SIZE (1024 * 8)
-#define XCP_LOG_LEVEL 5
+#define XCP_LOG_LEVEL 4 // 3 - Info, 4 - Print XCP commands, 5 - Debug
 
 
 static bool startXcpServer() {
@@ -341,33 +343,84 @@ static bool startXcpServer() {
 //----------------------------------------------------------------------------------------------------
 // Demo RTOS tasks
 
+// LilyGO T-Display-S3 scope hookup:
+// channel 1 probe tip -> IO2/GPIO2 header pin, probe ground -> any board GND pin.
+// channel 2 probe tip -> IO1/GPIO1 header pin, probe ground -> any board GND pin.
 #define FASTTASK_SCOPE_PIN 2
-#define FASTTASK_PERIOD_MS 10
+#define SLOWTASK_SCOPE_PIN 1
+#define DEMO_TASK_CORE 1
 #define FASTTASK_PRIORITY (configMAX_PRIORITIES - 1)
-#define SLOWTASK_PERIOD_MS 100
 #define SLOWTASK_PRIORITY 3
 
 #if configTICK_RATE_HZ < 1000
 #error "fastTask needs configTICK_RATE_HZ >= 1000 for a 1 ms FreeRTOS tick period"
 #endif
 
+static constexpr uint32_t FASTTASK_PERIOD_MIN_MS = 1;
+static constexpr uint32_t FASTTASK_PERIOD_MAX_MS = 100;
+static constexpr uint32_t SLOWTASK_PERIOD_MIN_MS = 1;
+static constexpr uint32_t SLOWTASK_PERIOD_MAX_MS = 1000;
+static constexpr float SLOWTASK_PHASE_STEP_RAD = 0.1f;
+static constexpr float SINE_PERIOD_RAD = 6.28318530717958647692f;
+
+
+// Check the value range for the period calibration parameters to make calibration safe
+static uint32_t clampPeriodMs(uint32_t periodMs, uint32_t minMs, uint32_t maxMs) {
+  if (periodMs < minMs) {
+    return minMs;
+  }
+  if (periodMs > maxMs) {
+    return maxMs;
+  }
+  return periodMs;
+}
+
+
+// Global measurement values
+uint16_t global_counter = 0;
+uint32_t fastTaskOverruns = 0;
+uint32_t slowTaskOverruns = 0;
+
+
+// Global calibration parameter constants
+struct parameters {
+    uint32_t fast_task_period_ms; // Period of measurement task 1 in milliseconds
+    uint32_t slow_task_period_ms; // Period of measurement task 2 in milliseconds
+    uint32_t counter_max;         // Counter wrap-around value for the global_counter incremented in fastTask
+    float amplitude;              // Amplitude for the sine signal generator in slowTask 
+};
+
+// Default calibration parameters (default/reference page)
+const struct parameters parameters = { 
+    .fast_task_period_ms = 1,  // 1 ms = 1 kHz
+    .slow_task_period_ms = 10, // 10 ms = 100 Hz
+    .counter_max = 1000,
+    .amplitude = 1.0f,
+};
+
+// Declare a calibration segment that wraps 'parameters' for thread-safe access.
+// This creates:
+//  - a linker-section descriptor used by XcpInit() for section-based registration
+//  - an internal calibration segment index initialized by XcpInit()
+//  - the typed C++ handle 'parameters_calseg' used by the tasks below
+// The offline A2L generator currently assumes that the struct type name and
+// default-parameter variable name are identical.
+CalSegDeclRef(parameters, parameters_calseg);
+
 
 TaskHandle_t fastTaskHandle = nullptr;
 TaskHandle_t slowTaskHandle = nullptr;
 
-uint16_t global_counter = 0;
 
 void fastTask(void *parameter) {
   
+  // Volatile keeps this local measurement visible in optimized builds, so the
+  // offline A2L generator can discover it from the DAQ event trigger scope.
   volatile uint16_t counter = 0;
-  const TickType_t periodTicks = pdMS_TO_TICKS(FASTTASK_PERIOD_MS);
   TickType_t lastWakeTime = xTaskGetTickCount();
 
   Serial.printf("fastTask started\n");
-  Serial.printf("fastTask priority = %u, period = %u ms (%u tick)\n",
-                static_cast<unsigned>(uxTaskPriorityGet(nullptr)),
-                FASTTASK_PERIOD_MS,
-                static_cast<unsigned>(periodTicks));
+  Serial.printf("fastTask priority = %u\n", static_cast<unsigned>(uxTaskPriorityGet(nullptr)));
   Serial.printf("fastTask: frameaddr = %p\n", xcp_get_frame_addr());
   Serial.printf("fastTask: &counter = %p\n", &counter);
 
@@ -377,44 +430,115 @@ void fastTask(void *parameter) {
  
   for (;;) {
 
+    uint32_t periodMs;
+    uint32_t counterMax;
+    {
+      auto params = parameters_calseg.lock();
+      // Calibration values are externally writable. Clamp them before use so
+      // invalid task periods cannot create a busy loop or stall the demo.
+      periodMs = clampPeriodMs(params->fast_task_period_ms, FASTTASK_PERIOD_MIN_MS, FASTTASK_PERIOD_MAX_MS);
+      counterMax = params->counter_max;
+    }
+    
     counter++;
+    if (counter > counterMax) {
+      counter = 0;
+    }
     global_counter++;
-
+    if (global_counter > counterMax) {
+      global_counter = 0;
+    }
+    
     // Trigger the DAQ event (toggling an IO pin to measure runtime of DaqTriggerEvent and to measure cyclic jitter of fastTask)
     digitalWrite(FASTTASK_SCOPE_PIN, HIGH);
     DaqTriggerEvent(fastTask);
     digitalWrite(FASTTASK_SCOPE_PIN, LOW);
-
-    vTaskDelayUntil(&lastWakeTime, periodTicks);
+    
+    const BaseType_t delayed = xTaskDelayUntil(&lastWakeTime, pdMS_TO_TICKS(periodMs));
+    if (delayed == pdFALSE) {
+      fastTaskOverruns++;
+    }
   }
 }
 
 void slowTask(void *parameter) {
   
+  // Volatile keeps these local measurements visible in optimized builds, so the
+  // offline A2L generator can discover them from the DAQ event trigger scope.
   volatile uint16_t counter = 0;
-  char line[40];
+  volatile float sineValue = 0.0f;
+  float phase = 0.0f;
+  TickType_t lastWakeTime = xTaskGetTickCount();
 
   Serial.printf("slowTask started\n");
   Serial.printf("slowTask: frameaddr = %p\n", xcp_get_frame_addr());
   Serial.printf("slowTask: &counter = %p\n", &counter);
 
   DaqCreateEvent(slowTask);
+  pinMode(SLOWTASK_SCOPE_PIN, OUTPUT);
+  digitalWrite(SLOWTASK_SCOPE_PIN, LOW);
 
   for (;;) {
 
+    uint32_t periodMs;
+    float amplitude;
+    {
+      auto params = parameters_calseg.lock();
+      // Calibration values are externally writable. Clamp them before use so
+      // invalid task periods cannot create a busy loop or stall the demo.
+      periodMs = clampPeriodMs(params->slow_task_period_ms, SLOWTASK_PERIOD_MIN_MS, SLOWTASK_PERIOD_MAX_MS);
+      amplitude = params->amplitude;
+    }
+
     counter++;
+    sineValue = amplitude * sinf(phase);
+    phase += SLOWTASK_PHASE_STEP_RAD;
+    if (phase >= SINE_PERIOD_RAD) {
+      phase -= SINE_PERIOD_RAD;
+    }
  
+    // Trigger the DAQ event while the scope pin is high to measure XCP event
+    // trigger runtime and observe scheduling against the fast task on core 1.
+    digitalWrite(SLOWTASK_SCOPE_PIN, HIGH);
+    DaqTriggerEvent(slowTask);
+    digitalWrite(SLOWTASK_SCOPE_PIN, LOW);
+
     // Print status
-    Serial.printf("slowTask: core %d -  %u\n", xPortGetCoreID(),counter);
+    Serial.printf("slowTask: core %d - %u, period = %u ms, sine = %.3f\n",
+                  xPortGetCoreID(),
+                  counter,
+                  static_cast<unsigned>(periodMs),
+                  static_cast<double>(sineValue));
 
     // Display
-    snprintf(line, sizeof(line), "slowTask: core %d - %u", xPortGetCoreID(), counter);
-    displayLine(displayLineCount() - 1, line, TFT_YELLOW);
+    #ifdef OPTION_DISPLAY
+    {
+        char line[40];
+        if (XcpIsDaqRunning()) {
+          snprintf(line, sizeof(line), "XCP DAQ running");
+        } else if (XcpIsConnected()) {
+          snprintf(line, sizeof(line), "XCP Connected");
+        } else if (XcpIsStarted()) {
+          snprintf(line, sizeof(line), "XCP Online");
+        } else {
+          snprintf(line, sizeof(line), "XCP Offline");
+        }
+        displayLine(displayLineCount() - 4, line, TFT_WHITE);
+        snprintf(line, sizeof(line), "XCP clock %" PRIu64 "", ApplXcpGetClock64());
+        displayLine(displayLineCount() - 3, line, TFT_GREEN);
+        snprintf(line, sizeof(line), "fastTask: %u", global_counter);
+        displayLine(displayLineCount() - 2, line, TFT_RED);
+        snprintf(line, sizeof(line), "Overuns f/s: %u/%u",
+                 static_cast<unsigned>(fastTaskOverruns),
+                 static_cast<unsigned>(slowTaskOverruns));
+        displayLine(displayLineCount() - 1, line, TFT_YELLOW);
+    }
+    #endif
 
-    vTaskDelay(pdMS_TO_TICKS(SLOWTASK_PERIOD_MS));
- 
-    // Trigger the DAQ event
-    DaqTriggerEvent(slowTask);
+    const BaseType_t delayed = xTaskDelayUntil(&lastWakeTime, pdMS_TO_TICKS(periodMs));
+    if (delayed == pdFALSE) {
+      slowTaskOverruns++;
+    }
   }
 }
 
@@ -446,27 +570,37 @@ void setup() {
 
   Serial.printf("&global_counter = %p\n", &global_counter);
 
-  // Create demo tasks
+  // Create 2 demo tasks on DEMO_TASK_CORE
 
-  xTaskCreatePinnedToCore(
+  BaseType_t taskCreated = xTaskCreatePinnedToCore(
     fastTask,
     "fastTask",
     2048, // stack
     nullptr,
     FASTTASK_PRIORITY,
     &fastTaskHandle,
-    1 // core
+    DEMO_TASK_CORE
   );
+  if (taskCreated != pdPASS) {
+    Serial.println("Failed to create fastTask");
+    displayLine(3, "fastTask failed", TFT_RED);
+    return;
+  }
 
-  xTaskCreatePinnedToCore(
+  taskCreated = xTaskCreatePinnedToCore(
     slowTask,
     "slowTask",
     4096, // stack
     nullptr,
     SLOWTASK_PRIORITY,
     &slowTaskHandle,
-    0 // core
+    DEMO_TASK_CORE
   );
+  if (taskCreated != pdPASS) {
+    Serial.println("Failed to create slowTask");
+    displayLine(3, "slowTask failed", TFT_RED);
+    return;
+  }
 }
 
 void loop() {

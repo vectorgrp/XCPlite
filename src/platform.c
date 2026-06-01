@@ -1981,6 +1981,16 @@ bool socketGetSendTime(SOCKET_HANDLE socket, uint64_t *hw_time, uint64_t *sw_tim
 // Clock
 /**************************************************************************/
 
+/*
+    Clock options (xcplib_cfg.h)
+
+    OPTION_CLOCK_EPOCH_ARB      arbitrary epoch, clock is monotonic, no corrections by NTP, PTP, ...
+    OPTION_CLOCK_EPOCH_PTP      real time clock in ns or us since 1.1.1970
+    OPTION_CLOCK_TICKS_1NS      resolution 1ns or 1us, granularity depends on platform
+    OPTION_CLOCK_TICKS_1US
+*/
+
+
 #ifdef TEST_CLOCK_GET_STATISTIC
 static atomic_uint_fast64_t gClockGetCtr = 0;
 static atomic_uint_fast64_t gClockGetLastCtr = 0;
@@ -1991,29 +2001,42 @@ void clockGetPrintStatistic(void) {
 }
 #endif
 
-// Not used, might be faster on macOS
-// #ifdef _MACOS
-// #include <mach/mach_time.h>
-// uint64_t getMachineTime(void) {
-//     uint64_t tm = mach_absolute_time();
-//     mach_timebase_info_data_t timebase;
-//     mach_timebase_info(&timebase);
-//     return tm * timebase.numer / timebase.denom;
-// }
-// #endif
+char *clockGetTimeString(char *str, uint32_t l, int64_t t) {
+
+#ifdef OPTION_CLOCK_EPOCH_ARB
+    SNPRINTF(str, l, "%gs", (double)t / CLOCK_TICKS_PER_S);
+#else
+    char sign = '+';
+    if (t < 0) {
+        sign = '-';
+        t = -t;
+    }
+    uint64_t s = t / CLOCK_TICKS_PER_S;
+    uint64_t ns = t % CLOCK_TICKS_PER_S;
+    SNPRINTF(str, l, "%c%" PRIu64 "d%" PRIu64 "h%" PRIu64 "m%" PRIu64 "s+%" PRIu64 "ns", sign, s / (3600 * 24), (s % (3600 * 24)) / 3600, ((s % (3600 * 24)) % 3600) / 60,
+             ((s % (3600 * 24)) % 3600) % 60, ns);
+#endif
+    return str;
+}
+
+// ---------------------------------------------------------------------------
+// FreeRTOS clock.
+// On ESP32, use the ESP-IDF high resolution timer (1 us, 64 bit).
+// Otherwise, fall back to xTaskGetTickCount() with granularity =
+// 1/configTICK_RATE_HZ (1 ms at 1 kHz).
 
 #if defined(_FREE_RTOS) // FreeRTOS clock
 
-// ---------------------------------------------------------------------------
-// FreeRTOS clock using xTaskGetTickCount()
-// Granularity = 1/configTICK_RATE_HZ (1 ms at 1 kHz).
-// For higher resolution on Cortex-M targets, replace clockGet() with a
-// hardware free-running counter (e.g. DWT->CYCCNT scaled to ns or us).
-// The 32-bit tick counter wraps after ~49 days at 1 kHz; sufficient for testing.
-// ---------------------------------------------------------------------------
+#if defined(ESP_PLATFORM)
+#include "esp_timer.h"
+#ifdef OPTION_CLOCK_TICKS_1NS
+#error "ESP32 esp_timer_get_time() has 1 us resolution. Use OPTION_CLOCK_TICKS_1US, or remove this error if ns-scaled timestamps are really required."
+#endif
+#endif
 
 static volatile uint64_t gClockLast_ = 0;
 
+#if !defined(ESP_PLATFORM)
 // Convert a FreeRTOS tick count to the configured clock unit (ns or us)
 static inline uint64_t tickToClockUnit_(TickType_t ticks) {
 #ifdef OPTION_CLOCK_TICKS_1NS
@@ -2022,6 +2045,7 @@ static inline uint64_t tickToClockUnit_(TickType_t ticks) {
     return (uint64_t)ticks * (1000000ULL / configTICK_RATE_HZ);
 #endif
 }
+#endif
 
 bool clockInit(void) {
     DBG_PRINT3("Init clock\n");
@@ -2030,14 +2054,22 @@ bool clockInit(void) {
     DBG_PRINTF3("  FreeRTOS tick resolution = %u ns\n", (unsigned)(1000000000UL / configTICK_RATE_HZ));
 #else
     DBG_PRINT3("  ticks = OPTION_CLOCK_TICKS_1US\n");
+#if defined(ESP_PLATFORM)
+    DBG_PRINT3("  backend = esp_timer_get_time(), resolution = 1 us\n");
+#else
     DBG_PRINTF3("  FreeRTOS tick resolution = %u us\n", (unsigned)(1000000UL / configTICK_RATE_HZ));
+#endif
 #endif
     gClockLast_ = 0;
     return true;
 }
 
 uint64_t clockGet(void) {
+#if defined(ESP_PLATFORM)
+    uint64_t t = (uint64_t)esp_timer_get_time();
+#else
     uint64_t t = tickToClockUnit_(xTaskGetTickCount());
+#endif
     gClockLast_ = t;
     return t;
 }
@@ -2049,8 +2081,20 @@ char *clockGetString(char *s, uint32_t l, uint64_t c) {
     return s;
 }
 
-uint64_t clockGetMonotonicNs(void) { return (uint64_t)xTaskGetTickCount() * (1000000000ULL / configTICK_RATE_HZ); }
-uint64_t clockGetMonotonicUs(void) { return (uint64_t)xTaskGetTickCount() * (1000000ULL / configTICK_RATE_HZ); }
+uint64_t clockGetMonotonicNs(void) {
+#if defined(ESP_PLATFORM)
+    return (uint64_t)esp_timer_get_time() * 1000ULL;
+#else
+    return (uint64_t)xTaskGetTickCount() * (1000000000ULL / configTICK_RATE_HZ);
+#endif
+}
+uint64_t clockGetMonotonicUs(void) {
+#if defined(ESP_PLATFORM)
+    return (uint64_t)esp_timer_get_time();
+#else
+    return (uint64_t)xTaskGetTickCount() * (1000000ULL / configTICK_RATE_HZ);
+#endif
+}
 uint64_t clockGetRealtimeNs(void) { return clockGetMonotonicNs(); }
 uint64_t clockGetRealtimeUs(void) { return clockGetMonotonicUs(); }
 uint64_t clockGetMonotonicNsLast(void) { return gClockLast_; }
@@ -2060,18 +2104,15 @@ uint64_t clockGetRealtimeUsLast(void) { return gClockLast_; }
 
 #elif !defined(_WIN) // Non-Windows platforms
 
+// ---------------------------------------------------------------------------
+// POSIX clock
+
 #if !defined(OPTION_CLOCK_EPOCH_PTP) && !defined(OPTION_CLOCK_EPOCH_ARB)
 #error "Please define OPTION_CLOCK_EPOCH_ARB or OPTION_CLOCK_EPOCH_PTP"
 #endif
 
+
 /*
-Clock options
-
-    OPTION_CLOCK_EPOCH_ARB      arbitrary epoch, clock is monotonic, no corrections by NTP, PTP, ...
-    OPTION_CLOCK_EPOCH_PTP      real time clock in ns or us since 1.1.1970
-    OPTION_CLOCK_TICKS_1NS      resolution 1ns or 1us, granularity depends on platform
-    OPTION_CLOCK_TICKS_1US
-
 Clock types
     CLOCK_REALTIME
         This clock may be affected by incremental adjustments performed by NTP.
@@ -2218,6 +2259,9 @@ uint64_t clockGetRealtimeNsLast(void) { return (((uint64_t)(__gClockRealtime.tv_
 uint64_t clockGetRealtimeUsLast(void) { return (((uint64_t)(__gClockRealtime.tv_sec) * 1000000ULL) + (uint64_t)(__gClockRealtime.tv_nsec / 1000)); }
 
 #else // Windows
+
+// ---------------------------------------------------------------------------
+// Windows clock
 
 static uint64_t __gClock = 0;
 
@@ -2376,23 +2420,6 @@ uint64_t clockGetMonotonicUsLast() { return clockGetLast() / 1000; }
 
 #endif // Windows
 
-char *clockGetTimeString(char *str, uint32_t l, int64_t t) {
-
-#ifdef OPTION_CLOCK_EPOCH_ARB
-    SNPRINTF(str, l, "%gs", (double)t / CLOCK_TICKS_PER_S);
-#else
-    char sign = '+';
-    if (t < 0) {
-        sign = '-';
-        t = -t;
-    }
-    uint64_t s = t / CLOCK_TICKS_PER_S;
-    uint64_t ns = t % CLOCK_TICKS_PER_S;
-    SNPRINTF(str, l, "%c%" PRIu64 "d%" PRIu64 "h%" PRIu64 "m%" PRIu64 "s+%" PRIu64 "ns", sign, s / (3600 * 24), (s % (3600 * 24)) / 3600, ((s % (3600 * 24)) % 3600) / 60,
-             ((s % (3600 * 24)) % 3600) % 60, ns);
-#endif
-    return str;
-}
 
 /**************************************************************************/
 // File system utilities

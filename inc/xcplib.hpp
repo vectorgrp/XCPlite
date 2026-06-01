@@ -100,6 +100,63 @@ template <typename T> class CalSeg {
     }
 };
 
+/// Non-owning typed wrapper for a section-registered calibration segment.
+/// The segment itself is registered by XcpInit() from the xcp_cals descriptor section.
+template <typename T> class CalSegRef {
+  private:
+    tXcpCalSegIndex *indexp_;
+    const T *default_params_;
+
+  public:
+    constexpr CalSegRef(tXcpCalSegIndex *indexp, const T *default_params) : indexp_(indexp), default_params_(default_params) {}
+
+    /// Get the segment index initialized by XcpInit() section registration.
+    tXcpCalSegIndex getIndex() const { return indexp_ != nullptr ? *indexp_ : XCP_UNDEFINED_CALSEG; }
+
+    /// RAII guard class for automatic lock/unlock.
+    class CalSegGuard {
+      private:
+        tXcpCalSegIndex index_;
+        const T *params_ptr_;
+
+      public:
+        explicit CalSegGuard(tXcpCalSegIndex index, const T *default_params) : index_(index), params_ptr_(default_params) {
+            if (XcpIsActivated() && index_ != XCP_UNDEFINED_CALSEG) {
+                params_ptr_ = reinterpret_cast<const T *>(XcpLockCalSeg(index_));
+            }
+        }
+
+        CalSegGuard(const CalSegGuard &) = delete;
+        CalSegGuard &operator=(const CalSegGuard &) = delete;
+
+        CalSegGuard(CalSegGuard &&other) : index_(other.index_), params_ptr_(other.params_ptr_) { other.index_ = XCP_UNDEFINED_CALSEG; }
+        CalSegGuard &operator=(CalSegGuard &&) = delete;
+
+        ~CalSegGuard() {
+            if (XcpIsActivated() && index_ != XCP_UNDEFINED_CALSEG) {
+                XcpUnlockCalSeg(index_);
+            }
+        }
+
+        const T *operator->() const { return params_ptr_; }
+        const T &operator*() const { return *params_ptr_; }
+        const T *get() const { return params_ptr_; }
+    };
+
+    CalSegGuard lock() const { return CalSegGuard(getIndex(), default_params_); }
+
+    /// Create the A2L instance description for this calibration segment.
+    void CreateA2lTypedefInstance(const char *type_name, const char *comment) const {
+        const tXcpCalSegIndex index = getIndex();
+        if (XcpIsActivated() && index != XCP_UNDEFINED_CALSEG) {
+            A2lLock();
+            A2lSetSegmentAddrMode__i(index, NULL);
+            A2lCreateInstance_(XcpGetCalSegName(index), type_name, 0, NULL, comment);
+            A2lUnlock();
+        }
+    }
+};
+
 /// Generic RAII wrapper for a single parameter of complex or simple type
 template <typename T> class CalBlk {
   private:
@@ -140,7 +197,7 @@ template <typename T> class CalBlk {
         /// Destructor - unlocks the calibration segment
         ~CalSegGuard() {
             if (XcpIsActivated()) {
-                XcpUnlockCalSeg(calseg_index_, params_ptr_);
+                XcpUnlockCalSeg(calseg_index_);
             }
         }
 
@@ -174,6 +231,17 @@ template <typename T> class CalBlk {
 /// Convenience macro to create a calibration segment with automatic name stringification
 /// Usage: auto calseg = CalSegCreate(initial_value);
 #define CalSegCreate(value) xcplib::CalSeg<decltype(value)>(#value, &value)
+
+/// Declare a section-registered global calibration segment and create a typed C++ handle.
+/// Usage: CalSegDeclRef(parameters, parameters_calseg); auto parameters = parameters_calseg.lock();
+#define CalSegDeclRef(value, handle)                                                                                                        \
+    static tXcpCalSegIndex calseg_id_##value = XCP_UNDEFINED_CALSEG;                                                                       \
+    static const tXcpCalDescriptor calseg__##value XCP_CAL_SECTION_ATTR = {#value, (const void *)&value, &calseg_id_##value, sizeof(value), \
+                                                                          XCP_CALSEG_TYPE_SEGMENT};                                        \
+    static const xcplib::CalSegRef<decltype(value)> handle(&calseg_id_##value, &value)
+
+/// Declare a section-registered global calibration segment and create a typed C++ handle named <value>_calseg.
+#define CalSegDecl(value) CalSegDeclRef(value, value##_calseg)
 
 /// Convenience macro to create a calibration value with automatic name stringification
 /// Usage: auto calval = CalVal(initial_value);
