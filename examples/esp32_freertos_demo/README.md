@@ -123,7 +123,7 @@ Both demo tasks are pinned to the same ESP32 core so the scheduler interaction i
 - `fastTask`: GPIO2 / IO2, default period 1 ms
 - `slowTask`: GPIO1 / IO1, default period 10 ms
 
-Connect both probe grounds to board GND. The pins are driven high only around the corresponding `DaqTriggerEvent(...)` call.
+Connect both probe grounds to board GND. The pins are driven high while the task is running.
 
 
 ### Task Overrun Counters
@@ -223,11 +223,9 @@ Advanced examples:
 # Add everything (not recommended):
 xcpclient --offline --elf .pio/build/lilygo-t-display-s3/firmware.elf --a2l esp32_freertos_demo.a2l
 
-# Get verbose output with --verbose 1 or 2:
-xcpclient --offline --elf .pio/build/lilygo-t-display-s3/firmware.elf --a2l esp32_freertos_demo.a2l --elf-unit-filter main_cpp --verbose 2
+# Get verbose output with --verbose 1 or 2 and --log-level 4 or 5:
+xcpclient --offline --elf .pio/build/lilygo-t-display-s3/firmware.elf --a2l esp32_freertos_demo.a2l --elf-unit-filter main_cpp --verbose 2 --log-level 4 > esp32_freerto_demo.log
 
-# Save verbose generator output:
-xcpclient --offline --elf .pio/build/lilygo-t-display-s3/firmware.elf --a2l esp32_freertos_demo.a2l --elf-unit-filter main_cpp --verbose 1 >> esp32_freertos_demo.log
 ```
 
 Note that the A2L generator is not considered stable yet. 

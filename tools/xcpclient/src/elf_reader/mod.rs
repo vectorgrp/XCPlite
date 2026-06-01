@@ -309,11 +309,37 @@ impl ElfReader {
             else {
                 // Lookup the reference page variable (by naming convention: same as segment name!) information
                 let seg_var_info = if let Some(x) = self.debug_data.variables.get(seg_name) {
-                    if x.len() != 1 {
-                        error!("Calibration segment reference page variable '{}' has {} definitions, expected 1", seg_name, x.len());
+                    let mut valid_candidates: Vec<_> = x.iter().filter(|var_info| var_info.address.0 == 0 && var_info.address.1 != 0).collect();
+                    if valid_candidates.len() > 1 {
+                        let same_unit_candidates: Vec<_> = valid_candidates
+                            .iter()
+                            .copied()
+                            .filter(|candidate| candidate.unit_idx == var_info.unit_idx)
+                            .collect();
+                        if same_unit_candidates.len() == 1 {
+                            valid_candidates = same_unit_candidates;
+                        }
+                    }
+                    if valid_candidates.len() != 1 {
+                        error!(
+                            "Calibration segment reference page variable '{}' has {} usable definitions, expected 1 ({} total DWARF entries)",
+                            seg_name,
+                            valid_candidates.len(),
+                            x.len()
+                        );
+                        if verbose >= 1 {
+                            for candidate in x {
+                                let unit_name = self.debug_data.make_simple_unit_name(candidate.unit_idx).unwrap_or_else(|| candidate.unit_idx.to_string());
+                                let function_name = candidate.function.as_deref().unwrap_or("<global>");
+                                info!(
+                                    "  candidate in {}:'{}', addr_class={}, addr=0x{:08X}",
+                                    unit_name, function_name, candidate.address.0, candidate.address.1
+                                );
+                            }
+                        }
                         continue;
                     }
-                    &x[0]
+                    valid_candidates[0]
                 } else {
                     error!("Could not find calibration segment reference page variable '{}'", seg_name);
                     continue;

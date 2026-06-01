@@ -6,3 +6,4 @@ compile_commands.json
 .vscode/ipch
 
 wlan.h
+/esp32_freertos_demo.a2l

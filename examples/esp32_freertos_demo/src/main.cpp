@@ -364,15 +364,15 @@ static constexpr float SLOWTASK_PHASE_STEP_RAD = 0.1f;
 static constexpr float SINE_PERIOD_RAD = 6.28318530717958647692f;
 
 
-// Check the value range for the period calibration parameters to make calibration safe
-static uint32_t clampPeriodMs(uint32_t periodMs, uint32_t minMs, uint32_t maxMs) {
-  if (periodMs < minMs) {
-    return minMs;
+// Check a uint32_t value range to make calibration safe
+static uint32_t clamp(uint32_t x, uint32_t min, uint32_t max) {
+  if (x < min) {
+    return min;
   }
-  if (periodMs > maxMs) {
-    return maxMs;
+  if (x > max) {
+    return max;
   }
-  return periodMs;
+  return x;
 }
 
 
@@ -433,10 +433,12 @@ void fastTask(void *parameter) {
     uint32_t periodMs;
     uint32_t counterMax;
     {
+      digitalWrite(FASTTASK_SCOPE_PIN, HIGH);
+
       auto params = parameters_calseg.lock();
       // Calibration values are externally writable. Clamp them before use so
       // invalid task periods cannot create a busy loop or stall the demo.
-      periodMs = clampPeriodMs(params->fast_task_period_ms, FASTTASK_PERIOD_MIN_MS, FASTTASK_PERIOD_MAX_MS);
+      periodMs = clamp(params->fast_task_period_ms, FASTTASK_PERIOD_MIN_MS, FASTTASK_PERIOD_MAX_MS);
       counterMax = params->counter_max;
     }
     
@@ -450,8 +452,8 @@ void fastTask(void *parameter) {
     }
     
     // Trigger the DAQ event (toggling an IO pin to measure runtime of DaqTriggerEvent and to measure cyclic jitter of fastTask)
-    digitalWrite(FASTTASK_SCOPE_PIN, HIGH);
     DaqTriggerEvent(fastTask);
+    
     digitalWrite(FASTTASK_SCOPE_PIN, LOW);
     
     const BaseType_t delayed = xTaskDelayUntil(&lastWakeTime, pdMS_TO_TICKS(periodMs));
@@ -482,37 +484,38 @@ void slowTask(void *parameter) {
 
     uint32_t periodMs;
     float amplitude;
+
+    digitalWrite(SLOWTASK_SCOPE_PIN, HIGH);
+
     {
       auto params = parameters_calseg.lock();
       // Calibration values are externally writable. Clamp them before use so
       // invalid task periods cannot create a busy loop or stall the demo.
-      periodMs = clampPeriodMs(params->slow_task_period_ms, SLOWTASK_PERIOD_MIN_MS, SLOWTASK_PERIOD_MAX_MS);
+      periodMs = clamp(params->slow_task_period_ms, SLOWTASK_PERIOD_MIN_MS, SLOWTASK_PERIOD_MAX_MS);
       amplitude = params->amplitude;
     }
 
     counter++;
+    
     sineValue = amplitude * sinf(phase);
     phase += SLOWTASK_PHASE_STEP_RAD;
     if (phase >= SINE_PERIOD_RAD) {
       phase -= SINE_PERIOD_RAD;
     }
  
-    // Trigger the DAQ event while the scope pin is high to measure XCP event
-    // trigger runtime and observe scheduling against the fast task on core 1.
-    digitalWrite(SLOWTASK_SCOPE_PIN, HIGH);
+    // Trigger the DAQ event
     DaqTriggerEvent(slowTask);
-    digitalWrite(SLOWTASK_SCOPE_PIN, LOW);
 
     // Print status
     Serial.printf("slowTask: core %d - %u, period = %u ms, sine = %.3f\n",
-                  xPortGetCoreID(),
-                  counter,
-                  static_cast<unsigned>(periodMs),
-                  static_cast<double>(sineValue));
-
-    // Display
-    #ifdef OPTION_DISPLAY
-    {
+      xPortGetCoreID(),
+      counter,
+      static_cast<unsigned>(periodMs),
+      static_cast<double>(sineValue));
+      
+      // Display
+      #ifdef OPTION_DISPLAY
+      {
         char line[40];
         if (XcpIsDaqRunning()) {
           snprintf(line, sizeof(line), "XCP DAQ running");
@@ -529,16 +532,18 @@ void slowTask(void *parameter) {
         snprintf(line, sizeof(line), "fastTask: %u", global_counter);
         displayLine(displayLineCount() - 2, line, TFT_RED);
         snprintf(line, sizeof(line), "Overuns f/s: %u/%u",
-                 static_cast<unsigned>(fastTaskOverruns),
-                 static_cast<unsigned>(slowTaskOverruns));
+        static_cast<unsigned>(fastTaskOverruns),
+        static_cast<unsigned>(slowTaskOverruns));
         displayLine(displayLineCount() - 1, line, TFT_YELLOW);
-    }
-    #endif
+      }
+      #endif
+      
+      digitalWrite(SLOWTASK_SCOPE_PIN, LOW);
 
-    const BaseType_t delayed = xTaskDelayUntil(&lastWakeTime, pdMS_TO_TICKS(periodMs));
-    if (delayed == pdFALSE) {
-      slowTaskOverruns++;
-    }
+      const BaseType_t delayed = xTaskDelayUntil(&lastWakeTime, pdMS_TO_TICKS(periodMs));
+      if (delayed == pdFALSE) {
+        slowTaskOverruns++;
+      }
   }
 }
 

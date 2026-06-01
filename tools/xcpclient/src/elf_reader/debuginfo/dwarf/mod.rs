@@ -138,7 +138,8 @@ fn load_elf_file<'data>(filename: &str, filedata: &'data [u8], verbose: usize) -
     match object::File::parse(filedata) {
         Ok(object_file) => {
             if verbose >= 1 {
-                println!("\nELF file format: {:?}", object_file.format());
+                println!("\nParsed object file file: {}", filename);
+                println!("ELF file format: {:?}", object_file.format());
                 println!("Architecture: {:?}", object_file.architecture());
                 println!("Endianness: {:?}", object_file.endianness());
                 println!("\nSections:");

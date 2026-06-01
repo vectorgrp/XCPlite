@@ -236,8 +236,8 @@ template <typename T> class CalBlk {
 /// Usage: CalSegDeclRef(parameters, parameters_calseg); auto parameters = parameters_calseg.lock();
 #define CalSegDeclRef(value, handle)                                                                                                        \
     static tXcpCalSegIndex calseg_id_##value = XCP_UNDEFINED_CALSEG;                                                                       \
-    static const tXcpCalDescriptor calseg__##value XCP_CAL_SECTION_ATTR = {#value, (const void *)&value, &calseg_id_##value, sizeof(value), \
-                                                                          XCP_CALSEG_TYPE_SEGMENT};                                        \
+    static const tXcpCalDescriptor calseg__##value __asm__("calseg__" #value) XCP_CAL_SECTION_ATTR = {                                      \
+        #value, (const void *)&value, &calseg_id_##value, sizeof(value), XCP_CALSEG_TYPE_SEGMENT};                                          \
     static const xcplib::CalSegRef<decltype(value)> handle(&calseg_id_##value, &value)
 
 /// Declare a section-registered global calibration segment and create a typed C++ handle named <value>_calseg.
