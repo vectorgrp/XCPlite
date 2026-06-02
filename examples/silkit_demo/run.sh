@@ -71,7 +71,8 @@ if [[ -n "${REALTIME}" ]]; then
 fi
 
 # Build participant extra args
-PARTICIPANT_ARGS="-l warn"
+PARTICIPANT_ARGS=""
+[[ -z "${SILKIT_CFG}" ]] && PARTICIPANT_ARGS="-l warn"
 [[ -n "${STEP_US}" ]]    && PARTICIPANT_ARGS="${PARTICIPANT_ARGS} --sim-step-duration ${STEP_US}"
 [[ -n "${FAST_FLAG}" ]]  && PARTICIPANT_ARGS="${PARTICIPANT_ARGS} --fast"
 [[ -n "${SILKIT_CFG}" ]] && PARTICIPANT_ARGS="${PARTICIPANT_ARGS} --config ${SILKIT_CFG}"
