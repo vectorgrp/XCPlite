@@ -28,6 +28,17 @@ XCP_SERVER="${DEMO_BIN}/SilKitXcpServer"
 PUBLISHER="${DEMO_BIN}/SilKitDemoPublisher"
 SUBSCRIBER="${DEMO_BIN}/SilKitDemoSubscriber"
 
+if [[ -n "${WSL_DISTRO_NAME:-}" ]]; then
+    PLATFORM="wsl"
+    TERMINAL_SHELL="bash"
+elif [[ "$(uname -s)" == "Darwin" ]]; then
+    PLATFORM="macos"
+    TERMINAL_SHELL="zsh"
+else
+    PLATFORM="linux"
+    TERMINAL_SHELL="bash"
+fi
+
 # ---------------------------------------------------------------------------
 # Parse command line arguments
 # ---------------------------------------------------------------------------
@@ -90,21 +101,52 @@ for bin in "${REGISTRY}" "${SYSCTRL}" "${PUBLISHER}" "${SUBSCRIBER}"; do
 done
 
 # ---------------------------------------------------------------------------
-# Helper: open a new Terminal.app window and run a command.
-# Uses a temp script file to avoid quoting/escaping issues with osascript.
+# Helper: open a new terminal and run a command.
+# On macOS this uses Terminal.app, on WSL it prefers Windows Terminal,
+# and on Linux it falls back to a local terminal emulator.
 # ---------------------------------------------------------------------------
 open_terminal() {
     local title="$1"
     local cmd="$2"
     local tmpscript
     tmpscript="$(mktemp /tmp/silkit_demo_XXXXXX)"
-    printf '#!/bin/bash\necho -ne "\\033]0;%s\\007"\ncd "%s"\n%s\nexec zsh\n' "${title}" "${SCRIPT_DIR}" "${cmd}" > "${tmpscript}"
+    printf '#!/bin/bash\necho -ne "\\033]0;%s\\007"\ncd "%s"\n%s\nexec %s\n' "${title}" "${SCRIPT_DIR}" "${cmd}" "${TERMINAL_SHELL}" > "${tmpscript}"
     chmod +x "${tmpscript}"
-    osascript \
-        -e "tell application \"Terminal\"" \
-        -e "  activate" \
-        -e "  do script \"${tmpscript}\"" \
-        -e "end tell"
+
+    case "${PLATFORM}" in
+        macos)
+            osascript \
+                -e "tell application \"Terminal\"" \
+                -e "  activate" \
+                -e "  do script \"${tmpscript}\"" \
+                -e "end tell"
+            ;;
+        wsl)
+            if command -v wt.exe >/dev/null 2>&1; then
+                wt.exe new-tab --title "${title}" wsl.exe -d "${WSL_DISTRO_NAME}" bash "${tmpscript}"
+            elif command -v cmd.exe >/dev/null 2>&1; then
+                cmd.exe /c start "${title}" wsl.exe -d "${WSL_DISTRO_NAME}" bash "${tmpscript}"
+            else
+                echo "ERROR: No Windows terminal launcher found (expected wt.exe or cmd.exe in WSL)."
+                exit 1
+            fi
+            ;;
+        linux)
+            if command -v x-terminal-emulator >/dev/null 2>&1; then
+                x-terminal-emulator -T "${title}" -e bash "${tmpscript}" >/dev/null 2>&1 &
+            elif command -v gnome-terminal >/dev/null 2>&1; then
+                gnome-terminal --title="${title}" -- bash "${tmpscript}" >/dev/null 2>&1 &
+            elif command -v konsole >/dev/null 2>&1; then
+                konsole --new-tab -p tabtitle="${title}" -e bash "${tmpscript}" >/dev/null 2>&1 &
+            elif command -v xterm >/dev/null 2>&1; then
+                xterm -T "${title}" -e bash "${tmpscript}" >/dev/null 2>&1 &
+            else
+                echo "ERROR: No supported terminal emulator found."
+                echo "Install one of: x-terminal-emulator, gnome-terminal, konsole, xterm"
+                exit 1
+            fi
+            ;;
+    esac
 }
 
 echo "Starting silkit_demo ..."
@@ -126,29 +168,29 @@ echo ""
 # ---------------------------------------------------------------------------
 # 1. Registry – start first and give it a moment to bind its port
 # ---------------------------------------------------------------------------
-open_terminal "sil-kit-registry" "\"${REGISTRY}\"; exec zsh"
+open_terminal "sil-kit-registry" "\"${REGISTRY}\""
 sleep 1
 
 # ---------------------------------------------------------------------------
 # 2. XCP Server – start before the system controller
 # ---------------------------------------------------------------------------
-open_terminal "SilKitXcpServer" "\"${XCP_SERVER}\"${PARTICIPANT_ARGS:+ ${PARTICIPANT_ARGS}}; exec zsh"
+open_terminal "SilKitXcpServer" "\"${XCP_SERVER}\"${PARTICIPANT_ARGS:+ ${PARTICIPANT_ARGS}}"
 
 # ---------------------------------------------------------------------------
 # 3. Publisher
 # ---------------------------------------------------------------------------
-open_terminal "SilKitDemoPublisher" "\"${PUBLISHER}\"${PARTICIPANT_ARGS:+ ${PARTICIPANT_ARGS}}; exec zsh"
+open_terminal "SilKitDemoPublisher" "\"${PUBLISHER}\"${PARTICIPANT_ARGS:+ ${PARTICIPANT_ARGS}}"
 
 # ---------------------------------------------------------------------------
 # 4. Subscriber
 # ---------------------------------------------------------------------------
-open_terminal "SilKitDemoSubscriber" "\"${SUBSCRIBER}\"${PARTICIPANT_ARGS:+ ${PARTICIPANT_ARGS}}; exec zsh"
+open_terminal "SilKitDemoSubscriber" "\"${SUBSCRIBER}\"${PARTICIPANT_ARGS:+ ${PARTICIPANT_ARGS}}"
 
 
 # ---------------------------------------------------------------------------
 # 5. System Controller – start last so all participants are already connecting
 # ---------------------------------------------------------------------------
 sleep 1
-open_terminal "sil-kit-system-controller" "\"${SYSCTRL}\" XcpServer Publisher Subscriber; exec zsh"
+open_terminal "sil-kit-system-controller" "\"${SYSCTRL}\" XcpServer Publisher Subscriber"
 
 echo "All terminals launched."
