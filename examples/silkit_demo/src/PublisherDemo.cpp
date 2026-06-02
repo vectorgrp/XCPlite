@@ -3,6 +3,7 @@
 #include "ApplicationBase.hpp"
 #include "PubSubDemoCommon.hpp"
 #include "XcpHelper.hpp"
+#include <cmath>
 
 using namespace PubSubDemoCommon;
 using namespace xcplib; // For CalSeg
