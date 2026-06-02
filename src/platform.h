@@ -110,8 +110,18 @@ OPTION_CLOCK_EPOCH_ARB or OPTION_CLOCK_EPOCH_PTP
 #include "semphr.h"
 #include "task.h"
 
-// C11 atomics: ARM GCC provides <stdatomic.h> for Cortex-M4 (32-bit LDREX/STREX).
-// 64-bit atomics are NOT available on ARMv7-M – use OPTION_QUEUE_32 in xcplib_rtos_cfg.h.
+// Note on C11 atomics for FreeRTOS targets:
+// This code avoids 64-bit atomics on 32-bit embedded targets. On ESP32-S3
+// (Xtensa LX7), GCC emits helper calls for 64-bit atomics, so queue32 uses a
+// FreeRTOS mutex instead. Even if an uncontended 64-bit atomic were faster, it
+// would not provide priority inheritance.
+// ESP32-S3 / Xtensa LX7:
+//   32-bit RMW atomics such as fetch_add use a CAS loop; contention can add retries.
+//   atomic_uint_fast8_t is 32 bits with this toolchain, so ATOMIC_BOOL is word-sized.
+// STM32:
+//   On Cortex-M3/M4/M7/M33, 32-bit RMW atomics are typically implemented with
+//   LDREX/STREX. 64-bit atomics are not native on 32-bit Cortex-M cores and
+//   should be avoided in real-time paths unless checked for the exact toolchain.
 #ifndef __cplusplus
 #include <stdatomic.h>
 #define ATOMIC_BOOL_TYPE uint_fast8_t
