@@ -1,10 +1,11 @@
 #!/bin/bash
 # Run script for silkit_demo
-# Opens 4 Terminal.app windows on macOS:
+# Opens separate terminals for:
 #   1. sil-kit-registry
-#   2. SilKitDemoPublisher  
-#   3. SilKitDemoSubscriber 
-#   4. sil-kit-system-controller  (starts the simulation)
+#   2. SilKitXcpServer
+#   3. SilKitDemoPublisher
+#   4. SilKitDemoSubscriber
+#   5. sil-kit-system-controller  (starts the simulation)
 #
 #
 # Usage: ./run.sh [options]
