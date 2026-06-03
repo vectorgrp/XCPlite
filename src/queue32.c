@@ -151,7 +151,7 @@ tQueueHandle queueInit(size_t queue_buffer_size) {
         queue->queue[i].size = 0;           // No data in this segment
     }
 
-    DBG_PRINT3("Init transport layer lockless queue (queue32)\n");
+    DBG_PRINT3("Init transport layer queue (queue32)\n");
     DBG_PRINTF3("  buffer_size=%" PRIu32 ", queue_size=%" PRIu32 " (%" PRIu32 " Bytes)\n", queue->queue_buffer_size, queue->queue_size, queue->queue_buffer_size);
 
     mutexInit(&queue->Mutex_Queue, false, 1000);
@@ -318,10 +318,10 @@ tQueueBuffer queuePop(tQueueHandle queue_handle, bool accumulate, bool flush, ui
 
     // Return the number of packets lost since the last call to queuePop
     if (packets_lost != NULL) {
-        *packets_lost = queue->packets_lost;
-        if (*packets_lost > 0)
-            DBG_PRINTF6("queuePop: packets_lost=%" PRIu32 "\n", *packets_lost);
+        if (queue->packets_lost > 0)
+            DBG_PRINTF6("queuePop: packets_lost=%" PRIu32 "\n", queue->packets_lost);
         queue->packets_lost = 0; // Reset lost packets count
+        *packets_lost = queue->packets_lost;
     }
 
     // Check if there is a message segment ready in the transmit queue

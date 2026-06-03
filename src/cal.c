@@ -132,12 +132,12 @@ uint16_t XcpRegisterSectionCalSegs(void) {
     extern const tXcpCalDescriptor __stop_xcp_cals[] __attribute__((weak));
     if (__start_xcp_cals != NULL) {
         for (const tXcpCalDescriptor *e = __start_xcp_cals; e < __stop_xcp_cals; e++) {
-            DBG_PRINTF6("Found calibration segment descriptor in section: name=%s, addr=%p, size=%u, type=%x, index=%u\n", e->name, e->addr, e->size, e->type, e->index);
+            DBG_PRINTF6("Found calibration segment descriptor in section: name=%s, addr=%p, size=%u, type=%x\n", e->name, e->addr, e->size, e->type);
             tXcpCalSegIndex index = XcpFindCalSeg(e->name);
             if (index == XCP_UNDEFINED_CALSEG) {
                 assert(e->type == XCP_CALSEG_TYPE_SEGMENT || e->type == XCP_CALSEG_TYPE_BLOCK);
                 index = XcpCreateCalSeg_(e->name, false, e->addr, NULL, e->size, e->type == XCP_CALSEG_TYPE_SEGMENT);
-                assert(index!=XCP_UNDEFINED_CALSEG);
+                assert(index != XCP_UNDEFINED_CALSEG);
                 count++;
             }
             *(e->indexp) = index; // initialize the segment index pointer
@@ -156,10 +156,10 @@ uint16_t XcpRegisterSectionCalSegs(void) {
             if (index == XCP_UNDEFINED_CALSEG) {
                 assert(e->type == XCP_CALSEG_TYPE_SEGMENT || e->type == XCP_CALSEG_TYPE_BLOCK);
                 index = XcpCreateCalSeg_(e->name, false, e->addr, NULL, e->size, e->type == XCP_CALSEG_TYPE_SEGMENT);
-                assert(index!=XCP_UNDEFINED_CALSEG);
+                assert(index != XCP_UNDEFINED_CALSEG);
                 count++;
             }
-            *(e->indexp) = index; 
+            *(e->indexp) = index;
         }
     } else {
         DBG_PRINT_WARNING("No xcp_cals section found\n");
@@ -404,7 +404,7 @@ static tXcpCalSegIndex XcpRegisterCalSeg_(tXcpCalSeg *c) {
         return XCP_UNDEFINED_CALSEG;
     }
 
-    // Store the new segments memory offset in the list
+    // Store the new segments memory pool offset in the list
     shared_mut_safe.cal_seg_list.offset[calseg_index] = (uint32_t)((uint8_t *)c - shared_mut_safe.cal_seg_list.cal_mem.pool);
 
     // Publish the new entry
@@ -520,7 +520,7 @@ static bool XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
     // Create a memory segment with a memory segment number, which can be used for XCP access and has the related XCP features
     if (memory_segment) {
         if (shared.cal_seg_list.memory_segment_count >= 0xFF) {
-            DBG_PRINT_ERROR("Too many memory segments for calibration segments\n");
+            DBG_PRINT_ERROR("Too many memory segments\n");
             assert(false);
             return false;
         }

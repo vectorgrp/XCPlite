@@ -446,6 +446,10 @@ if [ "$BUILD_SUCCESS" = true ]; then
     exit 0
 else
     echo "Build failed - see error messages above"
+    # On Windows Git Bash, keep the window open so errors are visible.
+    if [ "${OS:-}" = "Windows_NT" ] || [ -n "${MSYSTEM:-}" ]; then
+        read -r -p "Press Enter to close..."
+    fi
     exit 1
 fi
 

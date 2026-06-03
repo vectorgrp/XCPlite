@@ -67,7 +67,6 @@
 
 //-------------------------------------------------------------------------------
 // Enable atomic emulation for Windows
-// Not designed for non x86 platforms, needs strong memory ordering
 // Used for testing on Windows
 #if defined(_WIN32) || defined(_WIN64)
 #define OPTION_ATOMIC_EMULATION
@@ -147,12 +146,11 @@
 // Optimal overall queue size is required to be a multiple of the cache line size (so XCPTL_MAX_DTO_SIZE in xcptl_cfg.h currently set to 244)
 // Tune XCPTL_MAX_DTO_SIZE for best compromise between memory efficiency and performance
 // Larger DTO size may not payoff, rely on transport layer message accumulation
-//#define OPTION_QUEUE_64_FIX_SIZE
+// #define OPTION_QUEUE_64_FIX_SIZE
 // Optional benchmark switch for queue64f.c:
 // If undefined, slot reuse is published by a release-store to the fixed entry_header and tail is relaxed.
 // If defined, slot reuse is published by a release update to tail and producers acquire-load tail.
-//#define OPTION_QUEUE_64_FIX_SIZE_SYNC_TAIL
-
+// #define OPTION_QUEUE_64_FIX_SIZE_SYNC_TAIL
 
 // Transport layer queue, with variable queue entry size, 32 bit not lockless with mutex synchronization
 // Mandatory for Windows and 32 bit platforms

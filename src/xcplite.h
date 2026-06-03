@@ -107,7 +107,7 @@ uint16_t XcpGetClusterId(void);
 void XcpSetLogLevel(uint8_t level);
 
 /****************************************************************************/
-/* XCP packet                                                               */
+/* XCP command transfer protocol layer packet                                              */
 /****************************************************************************/
 
 typedef union {
@@ -115,6 +115,8 @@ typedef union {
     uint16_t w[((XCPTL_MAX_CTO_SIZE + 3) & 0xFFC) / 2];
     uint32_t dw[((XCPTL_MAX_CTO_SIZE + 3) & 0xFFC) / 4];
 } tXcpCto;
+
+static_assert(sizeof(tXcpCto) == XCPTL_MAX_CTO_SIZE, "tXcpCto size should be XCPTL_MAX_CTO_SIZE, which is aligned to 8 bytes");
 
 /****************************************************************************/
 /* DAQ events                                                               */

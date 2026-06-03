@@ -717,13 +717,11 @@ void clockGetPrintStatistic(void);
 bool fexists(const char *filename);
 
 //-------------------------------------------------------------------------------
-// Atomic operations emulation
+// Atomic operations emulation for Windows
 
 // Lock-free atomic emulation for Windows using MSVC Interlocked intrinsics.
 // Windows only - queue64f and queue64v are excluded on Windows, queue32 uses no atomics.
 // Only load, store, CAS and exchange are needed (for ATOMIC_BOOL in xcplite.c and A2L_ONCE_ATOMIC_TYPE in a2l.c).
-// Requires x86-64 (TSO memory model): aligned 64-bit loads/stores are naturally atomic at the CPU level.
-// volatile LONGLONG* casts prevent the compiler from caching values in registers.
 // Interlocked intrinsics provide full memory barriers for RMW operations.
 #ifdef OPTION_ATOMIC_EMULATION
 
@@ -732,86 +730,141 @@ bool fexists(const char *filename);
 #define memory_order_acquire 0
 #define memory_order_release 0
 
-#define atomic_uintptr_t uint64_t
-#define atomic_uint_fast8_t uint64_t
-#define atomic_uint_fast16_t uint64_t
-#define atomic_uint_least16_t uint64_t
-#define atomic_uint_fast32_t uint64_t
-#define atomic_uint_least32_t uint64_t
-#define atomic_uint_fast64_t uint64_t
-
-#define ATOMIC_BOOL_TYPE uint64_t
-#define ATOMIC_BOOL uint64_t
-#define uint_fast32_t uint64_t
-
 #ifdef _WIN
 
-// Volatile casts for load/store: prevents register caching; TSO guarantees ordering on x86-64
-#define atomic_store_explicit(a, b, c) (*(volatile LONGLONG *)(a) = (LONGLONG)(b))
-#define atomic_load_explicit(a, b) ((uint64_t)*(volatile LONGLONG *)(a))
+#define atomic_uintptr_t uintptr_t
+#define atomic_uint_fast8_t uint8_t
+#define atomic_uint_fast16_t uint16_t
+#define atomic_uint_least16_t uint16_t
+#define atomic_uint_fast32_t uint32_t
+#define atomic_uint_least32_t uint32_t
+#define atomic_uint_fast64_t uint64_t
 
-static __inline uint64_t atomic_exchange_explicit(uint64_t *a, uint64_t b, int c) {
-    (void)c;
-    return (uint64_t)InterlockedExchange64((volatile LONGLONG *)a, (LONGLONG)b);
+#define ATOMIC_BOOL_TYPE uint8_t
+#define ATOMIC_BOOL uint8_t
+
+#include <intrin.h>
+#pragma intrinsic(_InterlockedCompareExchange8)
+#pragma intrinsic(_InterlockedCompareExchange16)
+#pragma intrinsic(_InterlockedCompareExchange)
+#pragma intrinsic(_InterlockedCompareExchange64)
+#pragma intrinsic(_InterlockedExchange8)
+#pragma intrinsic(_InterlockedExchange16)
+#pragma intrinsic(_InterlockedExchange)
+#pragma intrinsic(_InterlockedExchange64)
+#pragma intrinsic(_InterlockedExchangeAdd8)
+#pragma intrinsic(_InterlockedExchangeAdd16)
+#pragma intrinsic(_InterlockedExchangeAdd)
+#pragma intrinsic(_InterlockedExchangeAdd64)
+
+static __inline uint8_t atomic_load_explicit_u8(volatile uint8_t *a) { return (uint8_t)_InterlockedCompareExchange8((volatile char *)a, 0, 0); }
+static __inline uint16_t atomic_load_explicit_u16(volatile uint16_t *a) { return (uint16_t)_InterlockedCompareExchange16((volatile short *)a, 0, 0); }
+static __inline uint32_t atomic_load_explicit_u32(volatile uint32_t *a) { return (uint32_t)_InterlockedCompareExchange((volatile long *)a, 0, 0); }
+static __inline uint64_t atomic_load_explicit_u64(volatile uint64_t *a) { return (uint64_t)_InterlockedCompareExchange64((volatile LONGLONG *)a, 0, 0); }
+
+static __inline void atomic_store_explicit_u8(volatile uint8_t *a, uint8_t b) { (void)_InterlockedExchange8((volatile char *)a, (char)b); }
+static __inline void atomic_store_explicit_u16(volatile uint16_t *a, uint16_t b) { (void)_InterlockedExchange16((volatile short *)a, (short)b); }
+static __inline void atomic_store_explicit_u32(volatile uint32_t *a, uint32_t b) { (void)_InterlockedExchange((volatile long *)a, (long)b); }
+static __inline void atomic_store_explicit_u64(volatile uint64_t *a, uint64_t b) { (void)_InterlockedExchange64((volatile LONGLONG *)a, (LONGLONG)b); }
+
+static __inline uint8_t atomic_exchange_explicit_u8(volatile uint8_t *a, uint8_t b) { return (uint8_t)_InterlockedExchange8((volatile char *)a, (char)b); }
+static __inline uint16_t atomic_exchange_explicit_u16(volatile uint16_t *a, uint16_t b) { return (uint16_t)_InterlockedExchange16((volatile short *)a, (short)b); }
+static __inline uint32_t atomic_exchange_explicit_u32(volatile uint32_t *a, uint32_t b) { return (uint32_t)_InterlockedExchange((volatile long *)a, (long)b); }
+static __inline uint64_t atomic_exchange_explicit_u64(volatile uint64_t *a, uint64_t b) { return (uint64_t)_InterlockedExchange64((volatile LONGLONG *)a, (LONGLONG)b); }
+
+static __inline uint8_t atomic_fetch_add_explicit_u8(volatile uint8_t *a, uint8_t b) { return (uint8_t)_InterlockedExchangeAdd8((volatile char *)a, (char)b); }
+static __inline uint16_t atomic_fetch_add_explicit_u16(volatile uint16_t *a, uint16_t b) { return (uint16_t)_InterlockedExchangeAdd16((volatile short *)a, (short)b); }
+static __inline uint32_t atomic_fetch_add_explicit_u32(volatile uint32_t *a, uint32_t b) { return (uint32_t)_InterlockedExchangeAdd((volatile long *)a, (long)b); }
+static __inline uint64_t atomic_fetch_add_explicit_u64(volatile uint64_t *a, uint64_t b) { return (uint64_t)_InterlockedExchangeAdd64((volatile LONGLONG *)a, (LONGLONG)b); }
+
+static __inline uint8_t atomic_fetch_sub_explicit_u8(volatile uint8_t *a, uint8_t b) { return (uint8_t)_InterlockedExchangeAdd8((volatile char *)a, (char)(-((int8_t)b))); }
+static __inline uint16_t atomic_fetch_sub_explicit_u16(volatile uint16_t *a, uint16_t b) {
+    return (uint16_t)_InterlockedExchangeAdd16((volatile short *)a, (short)(-((int16_t)b)));
 }
-static __inline uint64_t atomic_fetch_add_explicit(uint64_t *a, uint64_t b, int c) {
-    (void)c;
-    return (uint64_t)InterlockedExchangeAdd64((volatile LONGLONG *)a, (LONGLONG)b);
+static __inline uint32_t atomic_fetch_sub_explicit_u32(volatile uint32_t *a, uint32_t b) { return (uint32_t)_InterlockedExchangeAdd((volatile long *)a, (long)(-(int32_t)b)); }
+static __inline uint64_t atomic_fetch_sub_explicit_u64(volatile uint64_t *a, uint64_t b) {
+    return (uint64_t)_InterlockedExchangeAdd64((volatile LONGLONG *)a, (LONGLONG)(-(int64_t)b));
 }
-static __inline uint64_t atomic_fetch_sub_explicit(uint64_t *a, uint64_t b, int c) {
-    (void)c;
-    return (uint64_t)InterlockedExchangeAdd64((volatile LONGLONG *)a, -(LONGLONG)b);
+
+static __inline bool atomic_compare_exchange_strong_explicit_u8(volatile uint8_t *a, uint8_t *b, uint8_t c) {
+    char old = _InterlockedCompareExchange8((volatile char *)a, (char)c, (char)*b);
+    if (old == (char)*b)
+        return true;
+    *b = (uint8_t)old;
+    return false;
 }
-static __inline bool atomic_compare_exchange_strong_explicit(uint64_t *a, uint64_t *b, uint64_t c, int d, int e) {
-    (void)d;
-    (void)e;
-    LONGLONG old = InterlockedCompareExchange64((volatile LONGLONG *)a, (LONGLONG)c, (LONGLONG)*b);
+static __inline bool atomic_compare_exchange_strong_explicit_u16(volatile uint16_t *a, uint16_t *b, uint16_t c) {
+    short old = _InterlockedCompareExchange16((volatile short *)a, (short)c, (short)*b);
+    if (old == (short)*b)
+        return true;
+    *b = (uint16_t)old;
+    return false;
+}
+static __inline bool atomic_compare_exchange_strong_explicit_u32(volatile uint32_t *a, uint32_t *b, uint32_t c) {
+    long old = _InterlockedCompareExchange((volatile long *)a, (long)c, (long)*b);
+    if (old == (long)*b)
+        return true;
+    *b = (uint32_t)old;
+    return false;
+}
+static __inline bool atomic_compare_exchange_strong_explicit_u64(volatile uint64_t *a, uint64_t *b, uint64_t c) {
+    LONGLONG old = _InterlockedCompareExchange64((volatile LONGLONG *)a, (LONGLONG)c, (LONGLONG)*b);
     if (old == (LONGLONG)*b)
         return true;
     *b = (uint64_t)old;
     return false;
 }
-static __inline bool atomic_compare_exchange_weak_explicit(uint64_t *a, uint64_t *b, uint64_t c, int d, int e) {
-    return atomic_compare_exchange_strong_explicit(a, b, c, d, e); // no spurious failure on x86-64
-}
+
+#define atomic_load_explicit(a, b)                                                                                                                                                 \
+    (sizeof(*(a)) == 1   ? (uint64_t)atomic_load_explicit_u8((volatile uint8_t *)(a))                                                                                              \
+     : sizeof(*(a)) == 2 ? (uint64_t)atomic_load_explicit_u16((volatile uint16_t *)(a))                                                                                            \
+     : sizeof(*(a)) == 4 ? (uint64_t)atomic_load_explicit_u32((volatile uint32_t *)(a))                                                                                            \
+                         : (uint64_t)atomic_load_explicit_u64((volatile uint64_t *)(a)))
+
+#define atomic_store_explicit(a, b, c)                                                                                                                                             \
+    do {                                                                                                                                                                           \
+        if (sizeof(*(a)) == 1) {                                                                                                                                                   \
+            atomic_store_explicit_u8((volatile uint8_t *)(a), (uint8_t)(b));                                                                                                       \
+        } else if (sizeof(*(a)) == 2) {                                                                                                                                            \
+            atomic_store_explicit_u16((volatile uint16_t *)(a), (uint16_t)(b));                                                                                                    \
+        } else if (sizeof(*(a)) == 4) {                                                                                                                                            \
+            atomic_store_explicit_u32((volatile uint32_t *)(a), (uint32_t)(b));                                                                                                    \
+        } else {                                                                                                                                                                   \
+            atomic_store_explicit_u64((volatile uint64_t *)(a), (uint64_t)(b));                                                                                                    \
+        }                                                                                                                                                                          \
+    } while (0)
+
+#define atomic_exchange_explicit(a, b, c)                                                                                                                                          \
+    (sizeof(*(a)) == 1   ? (uint64_t)atomic_exchange_explicit_u8((volatile uint8_t *)(a), (uint8_t)(b))                                                                            \
+     : sizeof(*(a)) == 2 ? (uint64_t)atomic_exchange_explicit_u16((volatile uint16_t *)(a), (uint16_t)(b))                                                                         \
+     : sizeof(*(a)) == 4 ? (uint64_t)atomic_exchange_explicit_u32((volatile uint32_t *)(a), (uint32_t)(b))                                                                         \
+                         : (uint64_t)atomic_exchange_explicit_u64((volatile uint64_t *)(a), (uint64_t)(b)))
+
+#define atomic_fetch_add_explicit(a, b, c)                                                                                                                                         \
+    (sizeof(*(a)) == 1   ? (uint64_t)atomic_fetch_add_explicit_u8((volatile uint8_t *)(a), (uint8_t)(b))                                                                           \
+     : sizeof(*(a)) == 2 ? (uint64_t)atomic_fetch_add_explicit_u16((volatile uint16_t *)(a), (uint16_t)(b))                                                                        \
+     : sizeof(*(a)) == 4 ? (uint64_t)atomic_fetch_add_explicit_u32((volatile uint32_t *)(a), (uint32_t)(b))                                                                        \
+                         : (uint64_t)atomic_fetch_add_explicit_u64((volatile uint64_t *)(a), (uint64_t)(b)))
+
+#define atomic_fetch_sub_explicit(a, b, c)                                                                                                                                         \
+    (sizeof(*(a)) == 1   ? (uint64_t)atomic_fetch_sub_explicit_u8((volatile uint8_t *)(a), (uint8_t)(b))                                                                           \
+     : sizeof(*(a)) == 2 ? (uint64_t)atomic_fetch_sub_explicit_u16((volatile uint16_t *)(a), (uint16_t)(b))                                                                        \
+     : sizeof(*(a)) == 4 ? (uint64_t)atomic_fetch_sub_explicit_u32((volatile uint32_t *)(a), (uint32_t)(b))                                                                        \
+                         : (uint64_t)atomic_fetch_sub_explicit_u64((volatile uint64_t *)(a), (uint64_t)(b)))
+
+#define atomic_compare_exchange_strong_explicit(a, b, c, d, e)                                                                                                                     \
+    (sizeof(*(a)) == 1   ? atomic_compare_exchange_strong_explicit_u8((volatile uint8_t *)(a), (uint8_t *)(b), (uint8_t)(c))                                                       \
+     : sizeof(*(a)) == 2 ? atomic_compare_exchange_strong_explicit_u16((volatile uint16_t *)(a), (uint16_t *)(b), (uint16_t)(c))                                                   \
+     : sizeof(*(a)) == 4 ? atomic_compare_exchange_strong_explicit_u32((volatile uint32_t *)(a), (uint32_t *)(b), (uint32_t)(c))                                                   \
+                         : atomic_compare_exchange_strong_explicit_u64((volatile uint64_t *)(a), (uint64_t *)(b), (uint64_t)(c)))
+
+#define atomic_compare_exchange_weak_explicit(a, b, c, d, e) atomic_compare_exchange_strong_explicit(a, b, c, d, e)
 
 #else
 
 #if !defined(PLATFORM_64BIT)
-#error "Atomic emulation requires a 64-bit platform"
+#error "Atomic emulation implementation requires a 64-bit Windows"
 #endif
-
-// Volatile casts for load/store: prevents register caching; TSO guarantees ordering on x86-64
-#define atomic_store_explicit(a, b, c) (*a) = (b)
-#define atomic_load_explicit(a, b) *(a)
-
-static __inline uint64_t atomic_exchange_explicit(uint64_t *a, uint64_t b, int c) {
-    (void)c;
-    uint64_t old = *a;
-    *a = b;
-    return old;
-}
-static __inline uint64_t atomic_fetch_add_explicit(uint64_t *a, uint64_t b, int c) {
-    (void)c;
-    uint64_t old = *a;
-    (*a)++;
-    return old;
-}
-static __inline uint64_t atomic_fetch_sub_explicit(uint64_t *a, uint64_t b, int c) {
-    (void)c;
-    uint64_t old = *a;
-    (*a)--;
-    return old;
-}
-static __inline bool atomic_compare_exchange_strong_explicit(uint64_t *a, uint64_t *b, uint64_t c, int d, int e) {
-    (void)d;
-    (void)e;
-    // @@@@ TODO: FREE_RTOS
-    return false;
-}
-static __inline bool atomic_compare_exchange_weak_explicit(uint64_t *a, uint64_t *b, uint64_t c, int d, int e) {
-    return atomic_compare_exchange_strong_explicit(a, b, c, d, e); // no spurious failure on x86-64
-}
 
 #endif
 

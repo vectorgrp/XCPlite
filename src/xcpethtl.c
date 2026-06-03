@@ -4,7 +4,7 @@
 |
 | Description:
 |   XCP on UDP/TCP transport layer
-|   Linux, MACOS and Windows version
+|   All platforms
 |
 | Copyright (c) Vector Informatik GmbH. All rights reserved.
 | Licensed under the MIT license. See LICENSE file in the project root for details.
@@ -24,7 +24,7 @@
 #include "xcp.h"        // for CRC_XXX
 #include "xcp_cfg.h"    // for XCP_xxx
 #include "xcplib_cfg.h" // for OPTION_xxx
-#include "xcplite.h"    // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
+#include "xcplite.h"    // for tXcpDaqLists, XcpXxx, ApplXcpXxx, tXcpCto, ...
 #include "xcptl_cfg.h"  // for XCPTL_xxx
 
 #ifdef DBG_LEVEL
@@ -50,6 +50,10 @@
 #endif
 #endif
 
+/****************************************************************************/
+/* XCP command transfer transport layer message message                     */
+/****************************************************************************/
+
 #pragma pack(push, 1)
 typedef struct {
     uint16_t dlc;
@@ -57,6 +61,10 @@ typedef struct {
     uint8_t packet[XCPTL_MAX_CTO_SIZE];
 } tXcpCtoMessage;
 #pragma pack(pop)
+
+/****************************************************************************/
+/* Transport layer interface state                                          */
+/****************************************************************************/
 
 static struct {
 
@@ -95,6 +103,8 @@ static struct {
 
 } gXcpTl;
 
+//-------------------------------------------------------------------------------------------------------
+
 #if defined(XCPTL_ENABLE_TCP) && defined(XCPTL_ENABLE_UDP)
 #define isTCP() (gXcpTl.listen_socket != INVALID_SOCKET_HANDLE)
 #else
@@ -112,17 +122,18 @@ static int handleXcpMulticastCommand(int n, tXcpCtoMessage *p, uint8_t *dstAddr,
 //-------------------------------------------------------------------------------------------------------
 // Ethernet transport layer socket functions
 
-// Transmit a UDP datagramm or TCP segment (contains multiple XCP DTO messages or a single CRM message (len+ctr+packet+fill))
+#if !defined(OPTION_QUEUE_64_FIX_SIZE) && !defined(OPTION_QUEUE_64_VAR_SIZE)
+
+// Transmit a UDP datagram or TCP segment (contains multiple XCP DTO messages or a single CRM message (len+ctr+packet+fill))
 // Must be thread safe, because it is called from CMD and from DAQ thread
 // Returns false on error
-#if !defined(OPTION_QUEUE_64_FIX_SIZE) && !defined(OPTION_QUEUE_64_VAR_SIZE)
 static bool XcpEthTlSend(const uint8_t *data, uint16_t size, const uint8_t *addr, uint16_t port) {
 
     int r;
 
     assert(size > 0 && size <= XCPTL_MAX_SEGMENT_SIZE);
     assert(data != NULL);
-    DBG_PRINTF6("XcpEthTlSend: msg_len = %u\n", size);
+    DBG_PRINTF5("XcpEthTlSend: msg_len = %u\n", size);
 
 #ifdef TEST_ENABLE_DBG_METRICS
     gXcpTxPacketCount++;
@@ -153,16 +164,18 @@ static bool XcpEthTlSend(const uint8_t *data, uint16_t size, const uint8_t *addr
     }
     return true;
 }
-#endif
+#endif // !defined(OPTION_QUEUE_64_FIX_SIZE) && !defined(OPTION_QUEUE_64_VAR_SIZE)
+
+#if defined(OPTION_QUEUE_64_FIX_SIZE) || defined(OPTION_QUEUE_64_VAR_SIZE)
+
+// Transmit a XCP segment with XCPTL_MAX_SEGMENT_SIZE (UDP or TCP) with multiple XCP DTO messages
+// Using vectored io
+// Returns false on error
 
 #ifdef TEST_ENABLE_BUFFERCOUNT_HISTOGRAM
 static uint32_t gBufferCountHistogram[256] = {0xFFFFFFFF}; // For debugging, count the size of each iovec buffer sent
 #endif
 
-// Transmit a XCP segment with XCPTL_MAX_SEGMENT_SIZE (UDP or TCP) with multiple XCP DTO messages
-// Using vectored io
-// Returns false on error
-#if defined(OPTION_QUEUE_64_FIX_SIZE) || defined(OPTION_QUEUE_64_VAR_SIZE)
 static bool XcpEthTlSendV(tQueueBuffer buffers[], uint16_t count) {
 
     assert(buffers != NULL);
@@ -222,19 +235,19 @@ void XcpTlSendCrm(const uint8_t *data, uint8_t size) {
     mutexLock(&gXcpTl.ctr_mutex);
 
     // Build XCP CTO message (ctr+dlc+packet)
-    tXcpCtoMessage p; // @@@@ STACK buffer for tXcpCtoMessage
-    p.dlc = size;
-    p.ctr = gXcpTl.ctr++; // Get next response packet counter
-    memcpy(p.packet, data, size);
+    tXcpCtoMessage msg; // @@@@ STACK buffer for tXcpCtoMessage
+    msg.dlc = size;
+    msg.ctr = gXcpTl.ctr++; // Get next response packet counter
+    memcpy(msg.packet, data, size);
 
     // Send the packet using the same sendmsg path as DAQ to avoid UDP datagram reordering
     // At the NIC/kernel sendto vs sendmsg can be treated differently
     // No error handling, loosing a CRM message will lead to a timeout in the XCP client
 #if defined(OPTION_QUEUE_64_FIX_SIZE) || defined(OPTION_QUEUE_64_VAR_SIZE)
-    tQueueBuffer buf = {.buffer = (uint8_t *)&p, .size = (uint16_t)(size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE)}; 
+    tQueueBuffer buf = {.buffer = (uint8_t *)&msg, .size = (uint16_t)(size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE)};
     XcpEthTlSendV(&buf, 1);
 #else
-    XcpEthTlSend((const uint8_t *)&p, (uint16_t)(size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE), NULL, 0);
+    XcpEthTlSend((const uint8_t *)&msg, (uint16_t)(size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE), NULL, 0);
 #endif
 
     mutexUnlock(&gXcpTl.ctr_mutex);
@@ -248,13 +261,13 @@ void XcpEthTlSendMulticastCrm(const uint8_t *packet, uint16_t packet_size, const
     int r;
 
     // Build XCP CTO message (ctr+dlc+packet)
-    tXcpCtoMessage p; // @@@@ STACK buffer for tXcpCtoMessage
-    p.dlc = (uint16_t)packet_size;
-    p.ctr = 0;
-    memcpy(p.packet, packet, packet_size);
+    tXcpCtoMessage msg; // @@@@ STACK buffer for tXcpCtoMessage
+    msg.dlc = (uint16_t)packet_size;
+    msg.ctr = 0;
+    memcpy(msg.packet, packet, packet_size);
 
     // No error handling, loosing a CRM message will lead to a timeout in the XCP client
-    XcpEthTlSend((uint8_t *)&p, (uint16_t)(packet_size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE), addr, port);
+    XcpEthTlSend((uint8_t *)&msg, (uint16_t)(packet_size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE), addr, port);
 }
 #endif
 
@@ -561,6 +574,8 @@ bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, tQueueHandle 
 
     DBG_PRINT3("Init XCP transport layer\n");
     DBG_PRINTF3("  MAX_CTO_SIZE=%u\n", XCPTL_MAX_CTO_SIZE);
+    DBG_PRINTF5("  sizeof(gXcpTl)=%u\n", (uint32_t)sizeof(gXcpTl));
+
 #ifdef XCPTL_ENABLE_MULTICAST
     DBG_PRINT3("        Option ENABLE_MULTICAST (not recommended)\n");
 #endif
@@ -679,6 +694,7 @@ void XcpEthTlShutdown(void) {
     CloseHandle(gXcpTl.queue_event);
 #endif
 
+#if defined(OPTION_QUEUE_64_FIX_SIZE) || defined(OPTION_QUEUE_64_VAR_SIZE)
 #ifdef TEST_ENABLE_BUFFERCOUNT_HISTOGRAM
     printf("Buffer size histogram for vectored sends:\n");
     for (int i = 0; i < 256; i++) {
@@ -686,6 +702,7 @@ void XcpEthTlShutdown(void) {
             printf(" %3u: %u\n", i, gBufferCountHistogram[i]);
         }
     }
+#endif
 #endif
 }
 
@@ -737,7 +754,8 @@ int32_t XcpTlHandleTransmitQueue(void) {
     uint32_t length = 0;                     // Number of bytes collected for transmission
     uint32_t index = 0;                      // Index for peeking into the queue
     uint32_t total_lost = 0;                 // Accumulated lost packet count across all peeks
-    tQueueBuffer queue_buffers[MAX_BUFFERS]; // @@@@ STACK buffer for MAX_BUFFERS tQueueBuffer (256*10 Bytes!!) - Buffer pointers for peeking into the queue, max segment size / min message size
+    tQueueBuffer queue_buffers[MAX_BUFFERS]; // @@@@ STACK buffer for MAX_BUFFERS tQueueBuffer (256*10 Bytes!!) - Buffer pointers for peeking into the queue, max segment size / min
+                                             // message size
     for (uint16_t retries = 0; retries < MAX_RETRIES;) {
 
         uint32_t lost = 0;
@@ -905,7 +923,7 @@ int32_t XcpTlHandleTransmitQueue(void) {
             flush = false; // Reset flush flag
             if (lost > 0) {
                 gXcpTl.ctr += (uint16_t)lost; // Increase packet counter by lost packets (must not be thread safe, used only to indicate error)
-                DBG_PRINTF_WARNING("Transmit queue overflow: lost %u packets, ctr=%u\n", lost, gXcpTl.ctr);
+                DBG_PRINTF_WARNING("Transmit queue32 overflow: lost %u packets, ctr=%u\n", lost, gXcpTl.ctr);
             }
             uint16_t l = queue_buffer.size;
             const uint8_t *b = queue_buffer.buffer;

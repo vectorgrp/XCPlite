@@ -19,7 +19,7 @@ The included CANape project and the XCP instrumentation in `main.cpp` show:
 - Observing both task trigger points with a two-channel oscilloscope to evaluate XCP instrumentation cost
 
 
-# Preconditions
+## Preconditions
 
 You need:
 
@@ -31,7 +31,7 @@ You need:
 - A CANape full licence or demo version
 
 
-## What Works
+## Demo Details
 
 The demo currently:
 
@@ -41,6 +41,29 @@ The demo currently:
 - Starts the XCPlite server after Wi-Fi is connected.
 - Binds the XCP UDP server to `0.0.0.0:5555`.
 - Displays some status on the T-Display-S3 LCD using LovyanGFX.
+- Creates the 2 demo tasks
+
+### Scope Pins
+
+Both demo tasks are pinned to the same ESP32 core so the scheduler interaction is visible in XCP measurements and on a scope:
+
+- `fastTask`: GPIO2 / IO2, default period 1 ms
+- `slowTask`: GPIO1 / IO1, default period 10 ms
+
+Connect both probe grounds to board GND. The pins are driven high while the task is running.
+
+
+### Task Overrun Counters
+
+Both demo tasks use `xTaskDelayUntil()` for absolute periodic scheduling. This avoids drift: each activation is scheduled relative to the previous planned activation time, not relative to the moment the task happens to finish its work.
+
+`xTaskDelayUntil()` returns `pdFALSE` when the task is already past its next planned wake-up time. The demo counts this as a deadline overrun:
+
+- `fastTaskOverruns`: missed deadlines in the high-priority fast task
+- `slowTaskOverruns`: missed deadlines in the lower-priority slow task
+
+These counters are useful when experimenting with the calibrated task periods. If a period is set too short, or if both same-core tasks plus XCP processing need more CPU time than the schedule allows, the counters start increasing. In normal operation with the default periods they should stay at zero or increase only during exceptional pauses such as startup or heavy debug logging.
+
 
 
 ## Quick Path
@@ -115,27 +138,41 @@ TCP is currently not supported.
 Stack size settings, DAQ list size, DAQ queue size, maximum number of events and calibration segments influence memory consumption and may be tuned. 
 
 
+### Memory Consumption
 
-### Scope Pins
+Check log-level 5 for information about memory usage:
 
-Both demo tasks are pinned to the same ESP32 core so the scheduler interaction is visible in XCP measurements and on a scope:
+Example:
+```
+XcpInit name=stm32_freertos_demo, epk=V100, mode=01
+  sizeof(tXcpData)=8200  sizeof(tXcpLocalData)=176
+XcpEthServerInit
+  sizeof(gXcpServer)=24
+Init transport layer queue (queue32)
+  buffer_size=8896, queue_size=6 (8896 Bytes)
+```
 
-- `fastTask`: GPIO2 / IO2, default period 1 ms
-- `slowTask`: GPIO1 / IO1, default period 10 ms
+The 32 bit transmit queue (queue_size given in bytes) is allocated with 2 mallocs for header and data. The given queue size in bytes is rounded down to match multiples of the transport layer segment size. There are no other mallocs in the 32 bit FreeRTOS build.  
+If using malloc is not acceptable, XcpEthServerInit could be changed to accept a memory buffer given as a parameter, but this would lead to some rounding waste.  
 
-Connect both probe grounds to board GND. The pins are driven high while the task is running.
+The memory size of static tXcpData is depending on the configuration in xcplib_cfg. and xcplib_rtos_cfg.h:  
+- OPTION_CAL_SEGMENT_COUNT: Max number of calibration segments ot block
+- OPTION_CAL_MEM_SIZE: Space reserved for calibration data swapping and working pages (needs: 3 * page size * segment count)
+- #define OPTION_DAQ_MEM_SIZE: Memory size for DAQ tables (needs: 6 bytes per measurement with full fragmentation)
+- #define OPTION_DAQ_EVENT_COUNT: Maximum number of DAQ events
 
+The stack size of the XCP rx and tx task may be defined in xcplib_rtos_cfg.h.  
+It is important to check these values, not to waste unnecessary memory.
 
-### Task Overrun Counters
+Example:
+```
+#define OPTION_FREERTOS_STACK_BYTES (8U * 1024U)
+#define OPTION_FREERTOS_PRIORITY (tskIDLE_PRIORITY + 2U)
+```
 
-Both demo tasks use `xTaskDelayUntil()` for absolute periodic scheduling. This avoids drift: each activation is scheduled relative to the previous planned activation time, not relative to the moment the task happens to finish its work.
-
-`xTaskDelayUntil()` returns `pdFALSE` when the task is already past its next planned wake-up time. The demo counts this as a deadline overrun:
-
-- `fastTaskOverruns`: missed deadlines in the high-priority fast task
-- `slowTaskOverruns`: missed deadlines in the lower-priority slow task
-
-These counters are useful when experimenting with the calibrated task periods. If a period is set too short, or if both same-core tasks plus XCP processing need more CPU time than the schedule allows, the counters start increasing. In normal operation with the default periods they should stay at zero or increase only during exceptional pauses such as startup or heavy debug logging.
+For further optimization, the stack size for the receive and transmit task should be tuned differently, because the rx path has higher stack usage than the tx path.  
+The stack usage of the XCP code parts has been optimized, but lwip sockets stack usage might depend on configuration.  
+Both XCP tasks currently use one tXcpCtoMessage (roughly MAX_CTO_SIZE+4 = 252 bytes) on stack, which may be optimized further.  
 
 
 ### Build
@@ -408,14 +445,12 @@ The source files remain in the XCPlite repository `src/` folder. They are not co
 
 - FreeRTOS targets do not support on-target A2L generation or A2L upload in this demo. Generate the A2L offline from the ELF file.
 - The offline A2L generator is not stable. Keep xcpclient/xcp-lite and XCPlite versions aligned.
-- If `XCP_104.aml` (included in the generated A2L file) is missing, xcpclient may not yet produce a helpful error message.
 - Local variable measurement depends on compiler debug information and optimization behavior. Selected demo locals are marked `volatile` to improve visibility.
 
 
 ## TODO
 
-- Add a how-to tune the different XCP configuration options
+- Fix xcpclient issue if `XCP_104.aml` (included in the generated A2L file) is missing, xcpclient may not yet produce a helpful error message.
 - Check if the mutex based queue is acceptable or if we should port one of the lockless queue implementations based on 64Bit atomic head and tail
 - Add TCP support
 - Do some benchmarking on CPU load, event trigger and calibration RCU latency
-- Summarize the overall memory consumption 

@@ -446,7 +446,7 @@ static void XcpSetProjectName(const char *name) {
 // Get the project name
 const char *XcpGetProjectName(void) {
     if (STRNLEN(local.project_name, XCP_PROJECT_NAME_MAX_LENGTH) == 0) {
-        //assert(0 && "Project name not set");
+        // assert(0 && "Project name not set");
         return "";
     }
     return local.project_name;
@@ -476,7 +476,7 @@ static void XcpSetEpk(const char *epk) {
 // Get the EPK from the static buffer in the local state
 const char *XcpGetEpk(void) {
     if (STRNLEN(local.epk, XCP_EPK_MAX_LENGTH) == 0) {
-        //assert(0 && "EPK not set");
+        // assert(0 && "EPK not set");
         return "";
     }
     return local.epk;
@@ -953,8 +953,8 @@ typedef struct {
     const char *name;
     uint32_t cycle_time_ns;
     uint8_t priority;
-    uint8_t res[16-sizeof(char*)-4-1];
-    //tXcpEventId id;
+    uint8_t res[16 - sizeof(char *) - 4 - 1];
+    // tXcpEventId id;
 } tXcpEventDescriptor;
 static_assert(sizeof(tXcpEventDescriptor) == 16, "Size of tXcpEventDescriptor must be 16 bytes for correct section parsing in xcpclient tool");
 #endif
@@ -973,7 +973,7 @@ static uint16_t XcpRegisterSectionEvents(void) {
     extern const tXcpEventDescriptor __stop_xcp_evts[] __attribute__((weak));
     if (__start_xcp_evts != NULL) {
         for (const tXcpEventDescriptor *e = __start_xcp_evts; e < __stop_xcp_evts; e++) {
-            tXcpEventId id = XcpFindEvent(e->name); 
+            tXcpEventId id = XcpFindEvent(e->name);
             if (id == XCP_UNDEFINED_EVENT_ID) {
                 id = XcpCreateEvent(e->name, e->cycle_time_ns, e->priority);
                 assert(id != XCP_UNDEFINED_EVENT_ID);
@@ -989,11 +989,11 @@ static uint16_t XcpRegisterSectionEvents(void) {
     if (begin != NULL) {
         const tXcpEventDescriptor *end = begin + sz / sizeof(tXcpEventDescriptor);
         for (const tXcpEventDescriptor *e = begin; e < end; e++) {
-            tXcpEventId id = XcpFindEvent(e->name); 
+            tXcpEventId id = XcpFindEvent(e->name);
             if (id == XCP_UNDEFINED_EVENT_ID) {
                 id = XcpCreateEvent(e->name, e->cycle_time_ns, e->priority);
                 assert(id != XCP_UNDEFINED_EVENT_ID);
-                count++; 
+                count++;
             }
         }
     } else {
@@ -1072,10 +1072,10 @@ static uint8_t XcpCheckMemory(void) {
 
     static_assert(sizeof(tXcpDaqList) == 12, "Invalid tXcpDaqList size"); // Check size
     static_assert(sizeof(tXcpOdt) == 8, "Invalid tXcpOdt size");          // Check size
-    assert(((uintptr_t)&shared.daq_lists % 4) == 0);                       // Check alignment
-    assert(((uintptr_t)&DaqListOdtTable[0] % 4) == 0);                     // Check alignment
-    assert(((uintptr_t)&DaqListOdtEntryAddrTable[0] % 4) == 0);            // Check alignment
-    assert(((uintptr_t)&DaqListOdtEntrySizeTable[0] % 4) == 0);            // Check alignment
+    assert(((uintptr_t)&shared.daq_lists % 4) == 0);                      // Check alignment
+    assert(((uintptr_t)&DaqListOdtTable[0] % 4) == 0);                    // Check alignment
+    assert(((uintptr_t)&DaqListOdtEntryAddrTable[0] % 4) == 0);           // Check alignment
+    assert(((uintptr_t)&DaqListOdtEntrySizeTable[0] % 4) == 0);           // Check alignment
 
     DBG_PRINTF6("[XcpCheckMemory] %u of %u Bytes used\n", s, XCP_DAQ_MEM_SIZE);
     return 0;
@@ -3025,7 +3025,7 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     }
 
     DBG_PRINTF3(ANSI_COLOR_GREEN "XcpInit name=%s, epk=%s, mode=%02X\n" ANSI_COLOR_RESET, name, epk, mode);
-    DBG_PRINTF5("  sizeof(tXcpData)=%zu  sizeof(tXcpLocalData)=%zu\n", sizeof(tXcpData), sizeof(tXcpLocalData));
+    DBG_PRINTF5("  sizeof(tXcpData)=%u  sizeof(tXcpLocalData)=%u\n", (uint32_t)sizeof(tXcpData), (uint32_t)sizeof(tXcpLocalData));
 
     // Mode checks and adjustments
     if (mode != XCP_MODE_DEACTIVATE) {
@@ -3218,7 +3218,7 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     // Create the EPK calibration segment with index 0
     // In SHM multiapplication mode, only the leader reaches this point, and creates a EPK segment for the whole system
     // @@@@ TODO: Currently the EPK segment is treated like any other segment, even if it is read-only and should only expose the default page
-    static tXcpCalSegIndex calseg_id_epk = XCP_UNDEFINED_CALSEG; 
+    static tXcpCalSegIndex calseg_id_epk = XCP_UNDEFINED_CALSEG;
     const static tXcpCalDescriptor calseg__epk XCP_CAL_SECTION_ATTR = {XCP_EPK_CALSEG_NAME, &calseg_id_epk, (void *)&local.epk, XCP_EPK_MAX_LENGTH + 1, XCP_CALSEG_TYPE_SEGMENT};
     DBG_PRINTF3("XcpInit: Create EPK calibration segment '%s'\n", XCP_EPK_CALSEG_NAME);
 #ifdef OPTION_SHM_MODE

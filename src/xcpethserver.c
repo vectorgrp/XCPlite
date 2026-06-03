@@ -276,6 +276,8 @@ bool XcpEthServerStatus(void) {
 // XCP on ethernet server init
 bool XcpEthServerInit(const uint8_t *addr, uint16_t port, bool useTCP, uint32_t queue_size) {
 
+    DBG_PRINTF5("XcpEthServerInit: queue_size=%u, sizeof(gXcpServer)=%u\n", queue_size, (uint32_t)sizeof(gXcpServer));
+
     // Check and ignore, if the XCP singleton has not been initialized and activated
     if (!XcpIsActivated()) {
         DBG_PRINT5("XcpEthServerInit: XCP is deactivated!\n");

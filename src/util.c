@@ -46,13 +46,31 @@ unsigned int random16(void) {
 // Fast pseudo random number generator (splitmix64)
 /**************************************************************************/
 
+#ifdef OPTION_ENABLE_FAST_RAND
+
+#if defined(_MSC_VER) && defined(_M_X64)
+#include <intrin.h> // for _umul128
+#endif
+
 // Uses splitmix64 - passes all TestU01 BigCrush tests, same speed class as xorshift64.
 // State is thread-local so no locking needed in multi-threaded code.
 // Range reduction via Lemire's method: (uint128 * max) >> 64 - avoids integer division, bias < max/2^64 (negligible).
 
-static __thread uint64_t fast_rand_state = 0x9e3779b97f4a7c15ULL;
+static THREAD_LOCAL uint64_t fast_rand_state = 0x9e3779b97f4a7c15ULL;
 
 void fast_rand_seed(uint64_t seed) { fast_rand_state = seed ? seed : 0x9e3779b97f4a7c15ULL; }
+
+static inline uint64_t mul_hi_u64(uint64_t a, uint64_t b) {
+#if defined(_MSC_VER) && defined(_M_X64)
+    unsigned __int64 hi;
+    _umul128(a, b, &hi);
+    return hi;
+#elif defined(__SIZEOF_INT128__)
+    return (uint64_t)(((__uint128_t)a * b) >> 64);
+#else
+#error "mul_hi_u64 requires _umul128 (MSVC x64) or __int128 support"
+#endif
+}
 
 uint64_t fast_rand(uint64_t max) {
     if (max == 0)
@@ -61,8 +79,10 @@ uint64_t fast_rand(uint64_t max) {
     z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
     z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
     z ^= (z >> 31);
-    return (__uint128_t)z * max >> 64;
+    return mul_hi_u64(z, max);
 }
+
+#endif // OPTION_ENABLE_FAST_RAND
 
 /**************************************************************************/
 // Integer Median Filter
@@ -234,7 +254,7 @@ void average_filter_add(tAverageFilter *f, tAverageFilterValue offset) {
 #define SIMPLE_LINEAR_REGRESSION_ERROR_INPUT_VALUE -2
 #define SIMPLE_LINEAR_REGRESSION_ERROR_NUMERIC -3
 
-static int linreg(const double *x, const double *y, const int n, double *slope_out, double *intercept_out, double *r2_out, double *mae_out, double *mse_out, double *rmse_out) {
+static int linreg(const double *x, const double *y, size_t n, double *slope_out, double *intercept_out, double *r2_out, double *mae_out, double *mse_out, double *rmse_out) {
     double sum_x = 0.0;
     double sum_xx = 0.0;
     double sum_xy = 0.0;

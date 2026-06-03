@@ -234,10 +234,10 @@ template <typename T> class CalBlk {
 
 /// Declare a section-registered global calibration segment and create a typed C++ handle.
 /// Usage: CalSegDeclRef(parameters, parameters_calseg); auto parameters = parameters_calseg.lock();
-#define CalSegDeclRef(value, handle)                                                                                                        \
-    static tXcpCalSegIndex calseg_id_##value = XCP_UNDEFINED_CALSEG;                                                                       \
-    static const tXcpCalDescriptor calseg__##value __asm__("calseg__" #value) XCP_CAL_SECTION_ATTR = {                                      \
-        #value, (const void *)&value, &calseg_id_##value, sizeof(value), XCP_CALSEG_TYPE_SEGMENT};                                          \
+#define CalSegDeclRef(value, handle)                                                                                                                                               \
+    static tXcpCalSegIndex calseg_id_##value = XCP_UNDEFINED_CALSEG;                                                                                                               \
+    static const tXcpCalDescriptor calseg__##value __asm__("calseg__" #value)                                                                                                      \
+        XCP_CAL_SECTION_ATTR = {#value, (const void *)&value, &calseg_id_##value, sizeof(value), XCP_CALSEG_TYPE_SEGMENT};                                                         \
     static const xcplib::CalSegRef<decltype(value)> handle(&calseg_id_##value, &value)
 
 /// Declare a section-registered global calibration segment and create a typed C++ handle named <value>_calseg.
@@ -309,23 +309,24 @@ template <typename T> struct MeasurementInfo {
     const uint16_t dim; // 1 = scalar, >1 = array
     const char *comment;
     const char *unit;
-    double min;
-    double max;
+    double min_value;
+    double max_value;
 
     // Constructor for basic measurement (var, ptr, value, comment)
-    constexpr MeasurementInfo(const char *name, const T *a, const T &v, const char *c) : name(name), addr(a), value(v), dim(1), comment(c), unit(nullptr), min(0.0), max(0.0) {}
+    constexpr MeasurementInfo(const char *name, const T *a, const T &v, const char *c)
+        : name(name), addr(a), value(v), dim(1), comment(c), unit(nullptr), min_value(0.0), max_value(0.0) {}
 
     // Constructor for array of basic measurement (var, ptr, value, dim, comment)
     constexpr MeasurementInfo(const char *name, const T *a, const T &v, uint16_t dim, const char *c)
-        : name(name), addr(a), value(v), dim(dim), comment(c), unit(nullptr), min(0.0), max(0.0) {}
+        : name(name), addr(a), value(v), dim(dim), comment(c), unit(nullptr), min_value(0.0), max_value(0.0) {}
 
     // Constructor for physical measurement (var, ptr, value, comment, unit, min, max)
-    constexpr MeasurementInfo(const char *name, const T *a, const T &v, const char *c, const char *unit, double min, double max)
-        : name(name), addr(a), value(v), dim(1), comment(c), unit(unit), min(min), max(max) {}
+    constexpr MeasurementInfo(const char *name, const T *a, const T &v, const char *c, const char *unit, double min_value, double max_value)
+        : name(name), addr(a), value(v), dim(1), comment(c), unit(unit), min_value(min_value), max_value(max_value) {}
 
     // Constructor for array of physical measurement (var, ptr, value, dim, comment, unit, min, max)
-    constexpr MeasurementInfo(const char *name, const T *a, const T &v, uint16_t dim, const char *c, const char *unit, double min, double max)
-        : name(name), addr(a), value(v), dim(dim), comment(c), unit(unit), min(min), max(max) {}
+    constexpr MeasurementInfo(const char *name, const T *a, const T &v, uint16_t dim, const char *c, const char *unit, double min_value, double max_value)
+        : name(name), addr(a), value(v), dim(dim), comment(c), unit(unit), min_value(min_value), max_value(max_value) {}
 };
 
 // Helper struct to hold typedef instance information
@@ -350,7 +351,7 @@ template <typename T> struct InstanceInfo {
 
 // Helper to register a single measurement
 template <typename T> XCPLIB_ALWAYS_INLINE void registerMeasurement(const MeasurementInfo<T> &info) {
-    A2lCreateMeasurement_(nullptr, info.name, xcp::a2l::GetTypeIdFromExpr(info.value), info.dim, (const void *)info.addr, info.unit, info.min, info.max, info.comment);
+    A2lCreateMeasurement_(nullptr, info.name, xcp::a2l::GetTypeIdFromExpr(info.value), info.dim, (const void *)info.addr, info.unit, info.min_value, info.max_value, info.comment);
 }
 
 // Main template function for once event creation and registration with automatic addressing mode, and event triggering with base address
@@ -399,7 +400,7 @@ template <typename... Measurements> XCPLIB_ALWAYS_INLINE void DaqEventTemplate(c
 // Helper template to register a single measurement with relative addressing mode XCP_ADDR_EXT_DYN + index
 template <typename T> XCPLIB_ALWAYS_INLINE void registerDynMeasurement(uint8_t index, tXcpEventId event_id, const MeasurementInfo<T> &info) {
     A2lSetRelativeAddrMode__i(event_id, index, (const uint8_t *)info.addr);
-    A2lCreateMeasurement_(nullptr, info.name, xcp::a2l::GetTypeIdFromExpr(info.value), info.dim, (const void *)info.addr, info.unit, info.min, info.max, info.comment);
+    A2lCreateMeasurement_(nullptr, info.name, xcp::a2l::GetTypeIdFromExpr(info.value), info.dim, (const void *)info.addr, info.unit, info.min_value, info.max_value, info.comment);
 }
 
 // Helper template to register a single typedef instance with relative addressing mode XCP_ADDR_EXT_DYN + index

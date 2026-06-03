@@ -200,9 +200,11 @@ if(XCPLITE_BUILD_EXAMPLES)
     add_executable(multi_thread_demo examples/multi_thread_demo/src/main.c)
     target_link_libraries(multi_thread_demo PRIVATE xcplite)
 
-    # Example ptp4l_demo
-    add_executable(ptp4l_demo examples/ptp4l_demo/src/main.cpp)
-    target_link_libraries(ptp4l_demo PRIVATE xcplite)
+    # Example ptp4l_demo (Linux only)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        add_executable(ptp4l_demo examples/ptp4l_demo/src/main.cpp)
+        target_link_libraries(ptp4l_demo PRIVATE xcplite)
+    endif()
 
 
     # Example bpf_demo (only build on Linux with libbpf available)

@@ -15,7 +15,7 @@
 // XCP params
 
 #define OPTION_PROJECT_NAME "hello_xcp" // Project name, used to build the A2L and BIN file name
-#define OPTION_PROJECT_VERSION "200"    // EPK version string
+#define OPTION_PROJECT_VERSION "202"    // EPK version string
 #define OPTION_USE_TCP false            // TCP or UDP
 #define OPTION_SERVER_PORT 5555         // Port
 #define OPTION_SERVER_ADDR {0, 0, 0, 0} // Bind addr, 0.0.0.0 = ANY
@@ -133,7 +133,7 @@ static void sig_handler(int sig) { running = false; }
 
 int main(int argc, char *argv[]) {
 
-    printf("\nXCP on Ethernet hello_xcp C demo - %s\n", argv[0]);
+    printf("\nXCP on Ethernet hello_xcp C demo%u V%s - %s\n", (uint32_t)(sizeof(void *) * 8), OPTION_PROJECT_VERSION, argv[0]);
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
     // uint64_t start_time = clockGetMonotonicNs(); // Get the start time in nanoseconds
@@ -243,6 +243,10 @@ int main(int argc, char *argv[]) {
                     A2L_MEAS(counter, "Mainloop counter"));
 #endif
 
+        if (delay_us == 0 || delay_us > 10000000) { // Sanity check for delay_us
+            delay_us = 1000;
+            printf("WARNING: delay_us value %u out of limits\n", delay_us);
+        }
         sleepUs(delay_us);
 
     } // for (;;)
