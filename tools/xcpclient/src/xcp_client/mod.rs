@@ -543,6 +543,7 @@ impl XcpClient {
 
                 // Handle the data from socket
                 res = Self::socket_receive(&socket, &mut buf) => {
+                    trace!("receive_task: socket receive res={:?}, buf={:?}", res, buf[..12].to_vec());
                     match res {
                         Ok((size, _addr)) => {
                             // Handle the data from recv_from/read
@@ -550,15 +551,16 @@ impl XcpClient {
                                 warn!("receive_task: stop, socket closed");
                                 return Ok(());
                             }
-
                             let mut i: usize = 0;
                             while i < size {
                                 // Decode the next transport layer message header in the packet
                                 if size < 5 {
+                                    error!("receive_task: stop, corrupt packet received, size {} too small for header", size);
                                     return Err(Box::new(XcpError::new(ERROR_TL_HEADER,0)) as Box<dyn Error>);
                                 }
                                 let len = buf[i] as usize + ((buf[i + 1] as usize) << 8);
                                 if len > size - 4 || len == 0 { // Corrupt packet received, not enough data received or no content
+                                    error!("receive_task: stop, corrupt packet received, invalid length {} in header, size={}", len, size   );
                                     return Err(Box::new(XcpError::new(ERROR_TL_HEADER,0)) as Box<dyn Error>);
                                 }
                                 let ctr = buf[i + 2] as u16 + ((buf[i + 3] as u16) << 8);

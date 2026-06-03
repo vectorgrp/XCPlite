@@ -342,11 +342,11 @@ typedef HANDLE THREAD_HANDLE;
 #define create_thread(thread_handle_ptr, attr, thread, args) *thread_handle_ptr = CreateThread(0, 0, thread, args, 0, NULL)
 #define join_thread(h) WaitForSingleObject(h, INFINITE);
 #define cancel_thread(h)                                                                                                                                                           \
-    {                                                                                                                                                                              \
+    do {                                                                                                                                                                           \
         TerminateThread(h, 0);                                                                                                                                                     \
         WaitForSingleObject(h, 1000);                                                                                                                                              \
         CloseHandle(h);                                                                                                                                                            \
-    }
+    } while (0)
 #define get_thread_id() GetCurrentThreadId()
 
 #elif defined(_FREE_RTOS) // FreeRTOS
@@ -369,10 +369,8 @@ typedef TaskHandle_t THREAD_HANDLE;
 #endif
 #define create_thread(h, _attr, fn, args)                                                                                                                                          \
     do {                                                                                                                                                                           \
-        printf("create FreeRTOS task '%s': stack=%u bytes, depth=%u, priority=%u\n", #fn, (unsigned)OPTION_FREERTOS_STACK_BYTES,                                                   \
-               (unsigned)FREERTOS_TASK_STACK_DEPTH(OPTION_FREERTOS_STACK_BYTES), (unsigned)OPTION_FREERTOS_PRIORITY);                                                             \
-        BaseType_t thread_created = xTaskCreate((TaskFunction_t)(fn), #fn, FREERTOS_TASK_STACK_DEPTH(OPTION_FREERTOS_STACK_BYTES), (args), OPTION_FREERTOS_PRIORITY, (h));         \
-        assert(thread_created == pdPASS);                                                                                                                                          \
+        BaseType_t res = xTaskCreate((TaskFunction_t)(fn), #fn, FREERTOS_TASK_STACK_DEPTH(OPTION_FREERTOS_STACK_BYTES), (args), OPTION_FREERTOS_PRIORITY, (h));                    \
+        assert(res == pdPASS);                                                                                                                                                     \
     } while (0)
 #define join_thread(h) /* No blocking join in FreeRTOS; synchronize via event flag or semaphore */
 #define cancel_thread(h) vTaskDelete(h)
@@ -384,10 +382,10 @@ typedef pthread_t THREAD_HANDLE;
 #define create_thread(thread_handle_ptr, attr, thread, params) pthread_create(thread_handle_ptr, attr, thread, params)
 #define join_thread(h) pthread_join(h, NULL)
 #define cancel_thread(h)                                                                                                                                                           \
-    {                                                                                                                                                                              \
+    do {                                                                                                                                                                           \
         pthread_detach(h);                                                                                                                                                         \
         pthread_cancel(h);                                                                                                                                                         \
-    }
+    } while (0)
 #define yield_thread(void) sched_yield(void)
 #define get_thread_id() ((uint32_t)(uintptr_t)pthread_self())
 
