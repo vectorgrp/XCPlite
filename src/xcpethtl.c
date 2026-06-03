@@ -222,7 +222,7 @@ void XcpTlSendCrm(const uint8_t *data, uint8_t size) {
     mutexLock(&gXcpTl.ctr_mutex);
 
     // Build XCP CTO message (ctr+dlc+packet)
-    tXcpCtoMessage p;
+    tXcpCtoMessage p; // @@@@ STACK buffer tXcpCtoMessage
     p.dlc = size;
     p.ctr = gXcpTl.ctr++; // Get next response packet counter
     memcpy(p.packet, data, size);
@@ -231,7 +231,7 @@ void XcpTlSendCrm(const uint8_t *data, uint8_t size) {
     // At the NIC/kernel sendto vs sendmsg can be treated differently
     // No error handling, loosing a CRM message will lead to a timeout in the XCP client
 #if defined(OPTION_QUEUE_64_FIX_SIZE) || defined(OPTION_QUEUE_64_VAR_SIZE)
-    tQueueBuffer buf = {.buffer = (uint8_t *)&p, .size = (uint16_t)(size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE)};
+    tQueueBuffer buf = {.buffer = (uint8_t *)&p, .size = (uint16_t)(size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE)}; 
     XcpEthTlSendV(&buf, 1);
 #else
     XcpEthTlSend((const uint8_t *)&p, (uint16_t)(size + XCPTL_TRANSPORT_LAYER_HEADER_SIZE), NULL, 0);
@@ -248,7 +248,7 @@ void XcpEthTlSendMulticastCrm(const uint8_t *packet, uint16_t packet_size, const
     int r;
 
     // Build XCP CTO message (ctr+dlc+packet)
-    tXcpCtoMessage p;
+    tXcpCtoMessage p; // @@@@ STACK buffer tXcpCtoMessage
     p.dlc = (uint16_t)packet_size;
     p.ctr = 0;
     memcpy(p.packet, packet, packet_size);
@@ -351,7 +351,7 @@ static bool handleXcpCommand(tXcpCtoMessage *p, uint8_t *srcAddr, uint16_t srcPo
 // @@@@ TODO: Check error handling
 bool XcpEthTlHandleCommands(void) {
 
-    tXcpCtoMessage msgBuf;
+    tXcpCtoMessage msgBuf; // @@@@ STACK buffer tXcpCtoMessage
     int16_t n;
 
 #ifdef XCPTL_ENABLE_TCP
@@ -580,7 +580,7 @@ bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, tQueueHandle 
     gXcpTl.queue_event_time = 0;
 #endif
 
-    uint8_t bind_addr[4] = {0, 0, 0, 0}; // Bind to ANY(0.0.0.0)
+    uint8_t bind_addr[4] = {0, 0, 0, 0}; // @@@@ STACK buffer - Bind to ANY(0.0.0.0)
     if (addr != NULL) {                  // Bind to given addr
         memcpy(bind_addr, addr, 4);
     }
@@ -622,8 +622,8 @@ bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, tQueueHandle 
 
 #ifdef OPTION_ENABLE_GET_LOCAL_ADDR
     {
-        uint8_t addr1[4] = {0, 0, 0, 0};
-        uint8_t mac1[6] = {0, 0, 0, 0, 0, 0};
+        uint8_t addr1[4] = {0, 0, 0, 0};       // @@@@ STACK buffer
+        uint8_t mac1[6] = {0, 0, 0, 0, 0, 0}; // @@@@ STACK buffer
         socketGetLocalAddr(mac1, addr1); // Store actual MAC and IP addr for later use
         DBG_PRINTF3("  MAC=%02X.%02X.%02X.%02X.%02X.%02X IP=%u.%u.%u.%u\n", mac1[0], mac1[1], mac1[2], mac1[3], mac1[4], mac1[5], addr1[0], addr1[1], addr1[2], addr1[3]);
         if (bind_addr[0] == 0) {
@@ -645,7 +645,7 @@ bool XcpEthTlInit(const uint8_t *addr, uint16_t port, bool useTCP, tQueueHandle 
     if (!socketBind(gXcpTl.multicast_sock, bind_addr, XCPTL_MULTICAST_PORT))
         return false; // Bind to ANY, when serverAddr=255.255.255.255
     uint16_t cid = XcpGetClusterId();
-    uint8_t maddr[4] = {239, 255, 0, 0}; // XCPTL_MULTICAST_ADDR = 0xEFFFiiii;
+    uint8_t maddr[4] = {239, 255, 0, 0}; // @@@@ STACK buffer - XCPTL_MULTICAST_ADDR = 0xEFFFiiii;
     maddr[2] = (uint8_t)(cid >> 8);
     maddr[3] = (uint8_t)(cid);
     if (!socketJoin(gXcpTl.multicast_sock, maddr, addr, NULL))
@@ -737,7 +737,7 @@ int32_t XcpTlHandleTransmitQueue(void) {
     uint32_t length = 0;                     // Number of bytes collected for transmission
     uint32_t index = 0;                      // Index for peeking into the queue
     uint32_t total_lost = 0;                 // Accumulated lost packet count across all peeks
-    tQueueBuffer queue_buffers[MAX_BUFFERS]; // Buffer pointers for peeking into the queue, max segment size / min message size
+    tQueueBuffer queue_buffers[MAX_BUFFERS]; // @@@@ STACK buffer - Buffer pointers for peeking into the queue, max segment size / min message size
     for (uint16_t retries = 0; retries < MAX_RETRIES;) {
 
         uint32_t lost = 0;

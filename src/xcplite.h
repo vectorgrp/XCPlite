@@ -306,6 +306,7 @@ typedef struct XcpData {
     tShmHeader shm_header;
 #endif
 
+    // @@@@ STACK buffer tXcpCto instead ???
     tXcpCto crm;     /* response message buffer */
     uint8_t crm_len; /* RES,ERR message length */
 

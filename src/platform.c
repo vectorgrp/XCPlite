@@ -561,7 +561,7 @@ bool socketClose(SOCKET_HANDLE *socketp) {
 int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSize, uint8_t *srcAddr, uint16_t *srcPort, uint64_t *time) {
 #if defined(OPTION_FREERTOS_LWIP)
     assert(socket != INVALID_SOCKET_HANDLE);
-    struct sockaddr_in src;
+    struct sockaddr_in src; 
     socklen_t srclen = sizeof(src);
     memset(&src, 0, sizeof(src));
     int16_t n = (int16_t)lwip_recvfrom(socket, buffer, bufferSize, 0, (struct sockaddr *)&src, &srclen);
@@ -598,7 +598,7 @@ int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t buffe
 #if defined(OPTION_FREERTOS_LWIP)
     assert(socket != INVALID_SOCKET_HANDLE);
     assert(addr != NULL);
-    struct sockaddr_in dst;
+    struct sockaddr_in dst; 
     memset(&dst, 0, sizeof(dst));
     dst.sin_family = AF_INET;
     dst.sin_port = htons(port);
@@ -978,7 +978,7 @@ bool socketGetLocalAddr(uint8_t *mac, uint8_t *addr) {
     static uint32_t __addr1 = 0;
     static uint8_t __mac1[6] = {0, 0, 0, 0, 0, 0};
 #ifdef DBG_LEVEL
-    char strbuf[64];
+    char strbuf[64]; // @@@@ STACK buffer for IP addr string 
 #endif
     if (__addr1 == 0) {
         struct ifaddrs *ifaddrs, *ifa;
@@ -1259,7 +1259,7 @@ bool socketListen(SOCKET_HANDLE socket) {
 // Returns the remote address if addr != NULL
 SOCKET_HANDLE socketAccept(SOCKET_HANDLE listenSocket, uint8_t *addr) {
     assert(listenSocket != INVALID_SOCKET_HANDLE);
-    struct sockaddr_in sa;
+    struct sockaddr_in sa; 
     socklen_t sa_size = sizeof(sa);
     SOCKET sock = accept(SOCKET_FD(listenSocket), (struct sockaddr *)&sa, &sa_size);
     if (addr)
@@ -1381,9 +1381,9 @@ int16_t socketRecvFrom(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t bufferSiz
     // Removing the if(time!=NULL) gate here is critical — without it the else clause
     // would dangle onto the port-extraction statement after #endif, causing no receive when time==NULL.
     {
-        struct iovec iov;
-        struct msghdr msg;
-        char control[CMSG_SPACE(sizeof(struct timespec) * 3) + CMSG_SPACE(sizeof(struct in_pktinfo))];
+        struct iovec iov;  
+        struct msghdr msg; 
+        char control[CMSG_SPACE(sizeof(struct timespec) * 3) + CMSG_SPACE(sizeof(struct in_pktinfo))]; 
         iov.iov_base = buffer;
         iov.iov_len = bufferSize;
         memset(&msg, 0, sizeof(msg));
@@ -1649,9 +1649,9 @@ int16_t socketSendTo(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t size,
     if (time != NULL) {
         // On Linux, we need to use sendmsg() with SO_TIMESTAMPING control message
         // to request TX timestamp generation for this specific packet
-        struct iovec iov;
-        struct msghdr msg;
-        char control[CMSG_SPACE(sizeof(uint32_t))];
+        struct iovec iov;                         
+        struct msghdr msg;                        
+        char control[CMSG_SPACE(sizeof(uint32_t))]; 
         struct cmsghdr *cmsg;
 
         iov.iov_base = (void *)buffer;
@@ -1769,7 +1769,7 @@ int16_t socketSendToV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t cou
     sa.sin_port = htons(port);
 
     // Build iovec array on the stack - VLAs are acceptable here as count is usually small
-    struct iovec iov[count];
+    struct iovec iov[count]; 
     uint32_t total = 0;
     for (uint16_t i = 0; i < count; i++) {
         iov[i].iov_base = (void *)buffers[i].buffer;
@@ -1777,7 +1777,7 @@ int16_t socketSendToV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t cou
         total += buffers[i].size;
     }
 
-    struct msghdr msg;
+    struct msghdr msg; 
     memset(&msg, 0, sizeof(msg));
     msg.msg_name = &sa;
     msg.msg_namelen = sizeof(sa);
@@ -1819,13 +1819,13 @@ int16_t socketSendV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t count
     assert(sock != INVALID_SOCKET);
 
     // Build iovec array on the stack - VLAs are acceptable here as count is usually small
-    struct iovec iov[count];
+    struct iovec iov[count]; 
     for (uint16_t i = 0; i < count; i++) {
         iov[i].iov_base = (void *)buffers[i].buffer;
         iov[i].iov_len = buffers[i].size;
     }
 
-    struct msghdr msg;
+    struct msghdr msg; 
     memset(&msg, 0, sizeof(msg));
     msg.msg_iov = iov;
     msg.msg_iovlen = count;
@@ -1890,10 +1890,10 @@ bool socketGetSendTime(SOCKET_HANDLE socket, uint64_t *hw_time, uint64_t *sw_tim
     if (sw_time)
         *sw_time = 0;
 
-    char control[512];
-    char data[1];
-    struct iovec iov;
-    struct msghdr msg;
+    char control[512]; 
+    char data[1];      
+    struct iovec iov;  
+    struct msghdr msg; 
     struct cmsghdr *cmsg;
     struct timespec *ts = NULL;
 
@@ -2198,7 +2198,7 @@ bool clockInit(void) {
         struct timespec gtr;
         clock_getres(CLOCK_TYPE, &gtr);
         DBG_PRINTF3("  resolution = %ldns!\n", gtr.tv_nsec);
-        char ts[64];
+        char ts[64]; // @@@@ STACK buffer for clock value
         clockGetString(ts, sizeof(ts), clock);
         DBG_PRINTF3("  initial clock = %" PRIu64 " %s\n", clock, ts);
     }
@@ -2383,7 +2383,7 @@ bool clockInit(void) {
         printf("  System clock resolution = %" PRIu32 "Hz, ARB us conversion = -%" PRIu64 "/%" PRIu64 "\n", (uint32_t)tF.u.LowPart, sOffset, sFactor);
 #endif
         uint64_t t;
-        char ts[64];
+        char ts[64]; // @@@@ STACK buffer for clock value
         t = clockGet();
         clockGetString(ts, sizeof(ts), t);
         printf("  Now = %I64u (%I64u per us) %s\n", t, CLOCK_TICKS_PER_US, ts);

@@ -1419,7 +1419,7 @@ static void XcpStartDaq(void) {
 
 #ifdef DBG_LEVEL
     if (DBG_LEVEL >= 4) {
-        char ts[64];
+        char ts[64]; // @@@@ STACK buffer for clock string
         clockGetString(ts, sizeof(ts), local.daq_start_clock);
         DBG_PRINTF3("DAQ processing start at t=%s\n", ts);
     }
@@ -3800,7 +3800,7 @@ static void XcpPrintRes(const tXcpCto *crm) {
                 if (CRM_GET_DAQ_CLOCK_PAYLOAD_FMT == DAQ_CLOCK_PAYLOAD_FMT_SLV_32) {
                     printf(" <- X32 t=0x%" PRIx32 " sync=%u\n", CRM_GET_DAQ_CLOCK_TIME, CRM_GET_DAQ_CLOCK_SYNCH_STATE);
                 } else {
-                    char ts[64];
+                    char ts[64]; // @@@@ STACK buffer for clock string
                     uint64_t t = (((uint64_t)CRM_GET_DAQ_CLOCK_TIME64_HIGH) << 32) | CRM_GET_DAQ_CLOCK_TIME64_LOW;
                     clockGetString(ts, sizeof(ts), t);
                     printf(" <- X64 t=%" PRIu64 " (%s), sync=%u\n", t & 0xFFFFFFFF, ts, CRM_GET_DAQ_CLOCK_SYNCH_STATE64);
@@ -3840,7 +3840,7 @@ static void XcpPrintRes(const tXcpCto *crm) {
                         if (CRM_GET_DAQ_CLOCK_MCAST_PAYLOAD_FMT & DAQ_CLOCK_PAYLOAD_FMT_ID)
                             printf(" counter=%u, cluster=%u", CRM_GET_DAQ_CLOCK_MCAST_COUNTER, CRM_GET_DAQ_CLOCK_MCAST_CLUSTER_IDENTIFIER);
                     } else {
-                        char ts[64];
+                        char ts[64]; // @@@@ STACK buffer for clock string
                         clockGetString(ts, sizeof(ts), (((uint64_t)CRM_GET_DAQ_CLOCK_MCAST_TIME64_HIGH) << 32) | CRM_GET_DAQ_CLOCK_MCAST_TIME64_LOW);
                         printf(" <- X t=%s, sync=%u", ts, CRM_GET_DAQ_CLOCK_MCAST_SYNCH_STATE64);
                         if (CRM_GET_DAQ_CLOCK_MCAST_PAYLOAD_FMT & DAQ_CLOCK_PAYLOAD_FMT_ID)
