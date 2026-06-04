@@ -106,10 +106,10 @@ static void *XcpCalMemAlloc_(size_t size) {
     assert((size % XCP_CALPAGE_ALIGNMENT) == 0);
     assert(size <= (size_t)XCP_CAL_MEM_SIZE);
     assert((uintptr_t)shared.cal_seg_list.cal_mem.pool % XCP_CALPAGE_ALIGNMENT == 0);
-    uint_fast32_t old_used, new_used;
+    uint_least32_t old_used, new_used;
     do {
         old_used = atomic_load_explicit(&shared.cal_seg_list.cal_mem_used, memory_order_relaxed);
-        new_used = old_used + (uint_fast32_t)size;
+        new_used = old_used + (uint_least32_t)size;
         if (new_used > XCP_CAL_MEM_SIZE) {
             DBG_PRINT_ERROR("XCP calibration memory pool exhausted\n");
             return NULL;
@@ -589,10 +589,10 @@ static bool XcpInitCalSeg_(tXcpCalSeg *calseg, const char *name, const void *def
         memcpy(CalSegXcpPage(c), CalSegDefaultPage(c), page_size); // Copy default page to working page
 
         // Allocate a free uninitialized page
-        atomic_store_explicit(&c->h.free_page, (uint_fast32_t)FREE_PAGE_OFFSET(aligned_page_size), memory_order_relaxed);
+        atomic_store_explicit(&c->h.free_page, (uint_least32_t)FREE_PAGE_OFFSET(aligned_page_size), memory_order_relaxed);
 
         // New ECU page version not updated
-        atomic_store_explicit(&c->h.ecu_page_next, (uint_fast32_t)c->h.ecu_page, memory_order_relaxed);
+        atomic_store_explicit(&c->h.ecu_page_next, (uint_least32_t)c->h.ecu_page, memory_order_relaxed);
 
 #ifdef XCP_START_ON_REFERENCE_PAGE
         // Enable access to the reference page
@@ -629,18 +629,22 @@ const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg_index) {
     }
 
     tXcpCalSeg *c = CalSegPtrMut(calseg_index);
-
+    
     // Update
     // Increment the lock count
-    if (0 == atomic_fetch_add_explicit(&c->h.lock_count, 1, memory_order_relaxed)) {
+    uint8_t old_lock_count = atomic_fetch_add_explicit(&c->h.lock_count, 1, memory_order_relaxed);
+    //DBG_PRINTF6("XcpLockCalSeg: %s old_lock_count=%u\n",c->h.name,old_lock_count);
+    if (old_lock_count == 0) {
 
         // Update if there is a new page version, free the old page
         uint32_t ecu_page_next = (uint32_t)atomic_load_explicit(&c->h.ecu_page_next, memory_order_acquire);
         uint32_t ecu_page = c->h.ecu_page;
         if (ecu_page != ecu_page_next) {
+            DBG_PRINTF6("XcpLockCalSeg: %s ecu_page updated\n",c->h.name);
             c->h.free_page_hazard = true; // Free page might be acquired by some other thread, since we got the first lock on this segment
             c->h.ecu_page = ecu_page_next;
-            atomic_store_explicit(&c->h.free_page, (uint_fast32_t)ecu_page, memory_order_release);
+            assert(ecu_page!=XCP_CALSEG_NO_PAGE);
+            atomic_store_explicit(&c->h.free_page, (uint_least32_t)ecu_page, memory_order_release);
         } else {
             c->h.free_page_hazard = false; // There was no lock and no need for update, free page must be safe now, if there is one
         }
@@ -671,9 +675,11 @@ uint8_t XcpUnlockCalSeg(tXcpCalSegIndex calseg_index) {
         return 0; // Uninitialized or invalid calseg_index
     }
 
-    uint8_t oldLockCount = (uint8_t)atomic_fetch_sub_explicit(&CalSegPtrMut(calseg_index)->h.lock_count, 1, memory_order_relaxed); // Decrement the lock count
-    assert(oldLockCount > 0);                                                                                                      // Calling XcpUnlockCalSeg without a prior lock
-    return oldLockCount;
+    tXcpCalSeg *c = CalSegPtrMut(calseg_index);
+    uint8_t old_lock_count = (uint8_t)atomic_fetch_sub_explicit(&c->h.lock_count, 1, memory_order_relaxed); // Decrement the lock count
+    //DBG_PRINTF6("XcpUnlockCalSeg: %s old_lock_count=%u\n",c->h.name,old_lock_count);
+    assert(old_lock_count > 0);                                                                                                      // Calling XcpUnlockCalSeg without a prior lock
+    return old_lock_count;
 }
 
 //----------------------------------------------------------------------------------------------------------
@@ -727,7 +733,7 @@ static uint8_t XcpCalSegPublish(tXcpCalSeg *c, bool wait) {
         }
     } else {
         if (free_page == XCP_CALSEG_NO_PAGE || c->h.free_page_hazard) {
-            DBG_PRINTF5("Can not update calibration changes of %s yet, %s\n", c->h.name, c->h.free_page_hazard ? "hazard" : "no free page");
+            DBG_PRINTF6("Can not update calibration changes of %s yet, %s\n", c->h.name, c->h.free_page_hazard ? "hazard" : "no free page");
             c->h.write_pending = true;
 #ifdef TEST_ENABLE_DBG_METRICS
             gXcpWritePendingCount++;
@@ -738,7 +744,7 @@ static uint8_t XcpCalSegPublish(tXcpCalSeg *c, bool wait) {
 
     // Acquire the free page
     uint32_t xcp_page_new = free_page;
-    atomic_store_explicit(&c->h.free_page, (uint_fast32_t)XCP_CALSEG_NO_PAGE, memory_order_release);
+    atomic_store_explicit(&c->h.free_page, (uint_least32_t)XCP_CALSEG_NO_PAGE, memory_order_release);
 
     // Copy old xcp page to the new xcp page
     uint32_t xcp_page_old = c->h.xcp_page;
@@ -748,8 +754,9 @@ static uint8_t XcpCalSegPublish(tXcpCalSeg *c, bool wait) {
     // Publish the old xcp page
     // Acquire/release semantics with XcpCalSegLock on the ecu_page_next pointer
     c->h.write_pending = false; // No longer pending
-    atomic_store_explicit(&c->h.ecu_page_next, (uint_fast32_t)xcp_page_old, memory_order_release);
+    atomic_store_explicit(&c->h.ecu_page_next, (uint_least32_t)xcp_page_old, memory_order_release);
 
+    DBG_PRINTF6("XcpCalSegPublish: %s xcp_page published\n", c->h.name);
     return CRC_CMD_OK;
 }
 
@@ -805,6 +812,8 @@ uint8_t XcpCalSegWriteMemory(uint32_t dst, uint16_t size, const uint8_t *src) {
         DBG_PRINTF_ERROR("attempt to write default page addr=%08X\n", dst);
         return CRC_ACCESS_DENIED;
     }
+
+    DBG_PRINTF6("XcpCalSegWriteMemory: %s xcp_page writen at %04X\n", c->h.name, dst);
 
     // Update data in the current xcp page
     memcpy(CalSegXcpPage(c) + offset, src, size);

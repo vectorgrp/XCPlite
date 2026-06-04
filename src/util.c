@@ -46,7 +46,7 @@ unsigned int random16(void) {
 // Fast pseudo random number generator (splitmix64)
 /**************************************************************************/
 
-#ifdef OPTION_ENABLE_FAST_RAND
+#ifdef _LINUX
 
 #if defined(_MSC_VER) && defined(_M_X64)
 #include <intrin.h> // for _umul128
@@ -82,7 +82,7 @@ uint64_t fast_rand(uint64_t max) {
     return mul_hi_u64(z, max);
 }
 
-#endif // OPTION_ENABLE_FAST_RAND
+#endif
 
 /**************************************************************************/
 // Integer Median Filter

@@ -36,6 +36,7 @@
 #define DBG_PRINT_PREFIX
 
 // ANSI color codes
+#ifndef _FREE_RTOS
 #define ANSI_COLOR_RED "\x1b[31m"
 #define ANSI_COLOR_YELLOW "\x1b[33m"
 #define ANSI_COLOR_GREY "\x1b[90m"
@@ -44,6 +45,16 @@
 #define ANSI_COLOR_GREEN "\x1b[32m"
 #define ANSI_COLOR_BLUE "\x1b[34m"
 #define ANSI_COLOR_RESET "\x1b[0m"
+#else 
+#define ANSI_COLOR_RED 
+#define ANSI_COLOR_YELLOW 
+#define ANSI_COLOR_GREY 
+#define ANSI_COLOR_PURPLE 
+#define ANSI_COLOR_MAGENTA 
+#define ANSI_COLOR_GREEN 
+#define ANSI_COLOR_BLUE 
+#define ANSI_COLOR_RESET 
+#endif
 
 #ifdef OPTION_FIXED_DBG_LEVEL
 

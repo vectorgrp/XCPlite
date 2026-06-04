@@ -680,7 +680,11 @@ impl ElfReader {
                 // Find the event in the registry
                 if let Some(id) = reg.event_list.find_event(event_name, 0) {
                     xcp_event_id = id.id;
-                    a2l_name = format!("{}.{}", event_name, var_name);
+                    if event_name.len()>0 {
+                        a2l_name = format!("{}.{}", event_name, var_name);
+                    } else {
+                        a2l_name = var_name.to_string();
+                    }
                 } else {
                     warn!("Event '{}' for captured variable '{}' not found in registry", event_name, var_name);
                     continue; // skip this variable
@@ -730,7 +734,11 @@ impl ElfReader {
                         }
                         // multiple variables with this name, prefix with function name
                         if count > 1 {
-                            a2l_name = format!("{}.{}", var_function, var_name);
+                            if var_function.len()>0 {
+                                a2l_name = format!("{}.{}", var_function, var_name);
+                            } else {
+                                a2l_name = var_name.to_string();
+                            }
                         }
                         var_info.address.1
                     }
@@ -743,7 +751,11 @@ impl ElfReader {
                         // Prefix the variable with the function name
                         xcp_event_id = event.id;
                         let cfa: i64 = event.cfa as i64;
-                        a2l_name = format!("{}.{}", var_function, var_name);
+                        if var_function.len()>0 {
+                                a2l_name = format!("{}.{}", var_function, var_name);
+                            } else {
+                                a2l_name = var_name.to_string();
+                            }
                         debug!(
                             "Variable '{}' is local to function '{}', using event id = {}, dwarf_offset = {} cfa = {}",
                             var_name,

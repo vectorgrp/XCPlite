@@ -626,6 +626,7 @@ uint8_t XcpSetMta(uint8_t ext_, uint32_t addr_) {
     if (local.mta_ext == XCP_ADDR_EXT_EPK && local.mta_addr == XCP_ADDR_EPK) {
         local_mut.mta_ptr = (uint8_t *)XcpGetEpk();
         local_mut.mta_ext = XCP_ADDR_EXT_PTR;
+        DBG_PRINTF6("XcpSetMta: XCP_ADDR_EXT_PTR p=%p\n", local_mut.mta_ptr );
         return CRC_CMD_OK;
     }
 #endif
@@ -633,6 +634,7 @@ uint8_t XcpSetMta(uint8_t ext_, uint32_t addr_) {
 #ifdef XCP_ENABLE_DYN_ADDRESSING
     // Event relative addressing mode
     if (XcpAddrIsDyn(local.mta_ext)) {
+        DBG_PRINTF6("XcpSetMta: XCP_ADDR_EXT_DYN:%08X\n", local_mut.mta_addr );
         return CRC_CMD_OK;
     }
 #endif
@@ -640,6 +642,7 @@ uint8_t XcpSetMta(uint8_t ext_, uint32_t addr_) {
 #ifdef XCP_ENABLE_REL_ADDRESSING
     // Relative addressing mode
     if (XcpAddrIsRel(local.mta_ext)) {
+        DBG_PRINTF6("XcpSetMta: XCP_ADDR_EXT_REL:%08X\n", local_mut.mta_addr );
         return CRC_CMD_OK;
     }
 #endif
@@ -656,6 +659,7 @@ uint8_t XcpSetMta(uint8_t ext_, uint32_t addr_) {
             return CRC_ACCESS_DENIED; // Access violation,
 #endif
         }
+        DBG_PRINTF6("XcpSetMta: XCP_ADDR_EXT_SEG:%08X\n", local_mut.mta_addr );
         return CRC_CMD_OK;
     }
 #endif
@@ -663,6 +667,7 @@ uint8_t XcpSetMta(uint8_t ext_, uint32_t addr_) {
 #ifdef XCP_ENABLE_APP_ADDRESSING
     // Application specific addressing mode
     if (XcpAddrIsApp(local.mta_ext)) {
+        DBG_PRINTF6("XcpSetMta: XCP_ADDR_EXT_APP:%08X\n", local_mut.mta_addr );
         return CRC_CMD_OK;
     }
 #endif
@@ -691,6 +696,10 @@ uint8_t XcpSetMta(uint8_t ext_, uint32_t addr_) {
             const tXcpCalSeg *c = CalSegPtr(calseg_index);
             local_mut.mta_ext = XCP_ADDR_EXT_SEG;
             local_mut.mta_addr = XcpAddrEncodeSegIndex(calseg_index, local.mta_ptr - c->h.default_page_ptr); // Convert to segment relative address
+            DBG_PRINTF6("XcpSetMta: XCP_ADDR_EXT_ABS -> XCP_ADDR_EXT_SEG, addr=%08X\n", local_mut.mta_addr );
+        }
+        else {
+            DBG_PRINTF6("XcpSetMta: XCP_ADDR_EXT_ABS, a=%08X, p=%p\n", local_mut.mta_addr, local_mut.mta_ptr );
         }
 #endif
 

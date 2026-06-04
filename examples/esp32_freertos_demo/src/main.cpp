@@ -108,8 +108,6 @@ static void initDisplay() {
   lcd.fillScreen(TFT_BLACK);
   lcd.setTextSize(2);
   lcd.setTextWrap(false);
-  displayLine(0, "XCPlite demo", TFT_CYAN);
-  displayLine(1, "Booting...");
 }
 
 #else
@@ -386,7 +384,7 @@ uint32_t slowTaskOverruns = 0;
 struct parameters {
     uint32_t fast_task_period_ms; // Period of measurement task 1 in milliseconds
     uint32_t slow_task_period_ms; // Period of measurement task 2 in milliseconds
-    uint32_t counter_max;         // Counter wrap-around value for the global_counter incremented in fastTask
+    uint16_t counter_max;         // Counter wrap-around value for the global_counter incremented in fastTask
     float amplitude;              // Amplitude for the sine signal generator in slowTask 
 };
 
@@ -430,24 +428,24 @@ void fastTask(void *parameter) {
  
   for (;;) {
 
-    uint32_t periodMs;
-    uint32_t counterMax;
-    {
-      digitalWrite(FASTTASK_SCOPE_PIN, HIGH);
-
-      auto params = parameters_calseg.lock();
-      // Calibration values are externally writable. Clamp them before use so
-      // invalid task periods cannot create a busy loop or stall the demo.
-      periodMs = clamp(params->fast_task_period_ms, FASTTASK_PERIOD_MIN_MS, FASTTASK_PERIOD_MAX_MS);
-      counterMax = params->counter_max;
-    }
+    digitalWrite(FASTTASK_SCOPE_PIN, HIGH);
     
+    uint32_t period_ms = 1;
+    uint16_t counter_max = 1000;
+     
+    // Lock the calibration segment and get parameters
+    {
+      auto params = parameters_calseg.lock();
+      period_ms = clamp(params->fast_task_period_ms, FASTTASK_PERIOD_MIN_MS, FASTTASK_PERIOD_MAX_MS);
+      counter_max = params->counter_max;
+    } 
+
     counter++;
-    if (counter > counterMax) {
+    if (counter > counter_max) {
       counter = 0;
     }
     global_counter++;
-    if (global_counter > counterMax) {
+    if (global_counter > counter_max) {
       global_counter = 0;
     }
     
@@ -456,7 +454,7 @@ void fastTask(void *parameter) {
     
     digitalWrite(FASTTASK_SCOPE_PIN, LOW);
     
-    const BaseType_t delayed = xTaskDelayUntil(&lastWakeTime, pdMS_TO_TICKS(periodMs));
+    const BaseType_t delayed = xTaskDelayUntil(&lastWakeTime, pdMS_TO_TICKS(period_ms));
     if (delayed == pdFALSE) {
       fastTaskOverruns++;
     }
@@ -482,20 +480,26 @@ void slowTask(void *parameter) {
 
   for (;;) {
 
-    uint32_t periodMs;
-    float amplitude;
-
     digitalWrite(SLOWTASK_SCOPE_PIN, HIGH);
+    
+    uint32_t slow_task_period_ms;
+    uint32_t fast_task_period_ms;
+    float amplitude;
+    uint16_t counter_max;
 
+    // Lock the calibration segment and get parameters
     {
       auto params = parameters_calseg.lock();
-      // Calibration values are externally writable. Clamp them before use so
-      // invalid task periods cannot create a busy loop or stall the demo.
-      periodMs = clamp(params->slow_task_period_ms, SLOWTASK_PERIOD_MIN_MS, SLOWTASK_PERIOD_MAX_MS);
+      slow_task_period_ms = clamp(params->slow_task_period_ms, SLOWTASK_PERIOD_MIN_MS, SLOWTASK_PERIOD_MAX_MS);
+      fast_task_period_ms = clamp(params->fast_task_period_ms, FASTTASK_PERIOD_MIN_MS, FASTTASK_PERIOD_MAX_MS);
       amplitude = params->amplitude;
+      counter_max = params->counter_max;
     }
 
     counter++;
+    if (counter > counter_max) {
+      counter = 0;
+    }
     
     sineValue = amplitude * sinf(phase);
     phase += SLOWTASK_PHASE_STEP_RAD;
@@ -507,14 +511,16 @@ void slowTask(void *parameter) {
     DaqTriggerEvent(slowTask);
 
     // Print status
+#ifdef OPTION_SERIAL_PRINTF
     Serial.printf("slowTask: core %d - %u, period = %u ms, sine = %.3f\n",
       xPortGetCoreID(),
       counter,
-      static_cast<unsigned>(periodMs),
+      static_cast<unsigned>(slow_task_period_ms),
       static_cast<double>(sineValue));
-      
-      // Display
-      #ifdef OPTION_DISPLAY
+#endif
+
+// Display
+#ifdef OPTION_DISPLAY
       {
         char line[40];
         if (XcpIsDaqRunning()) {
@@ -529,18 +535,16 @@ void slowTask(void *parameter) {
         displayLine(displayLineCount() - 4, line, TFT_WHITE);
         snprintf(line, sizeof(line), "XCP clock %" PRIu64 "", ApplXcpGetClock64());
         displayLine(displayLineCount() - 3, line, TFT_GREEN);
-        snprintf(line, sizeof(line), "fastTask: %u", global_counter);
+        snprintf(line, sizeof(line), "slowTask: %ums %u", slow_task_period_ms, counter);
         displayLine(displayLineCount() - 2, line, TFT_RED);
-        snprintf(line, sizeof(line), "Overuns f/s: %u/%u",
-        static_cast<unsigned>(fastTaskOverruns),
-        static_cast<unsigned>(slowTaskOverruns));
-        displayLine(displayLineCount() - 1, line, TFT_YELLOW);
+        snprintf(line, sizeof(line), "fastTask: %ums %u", fast_task_period_ms, global_counter);
+        displayLine(displayLineCount() - 1, line, TFT_RED);
       }
-      #endif
+#endif
       
       digitalWrite(SLOWTASK_SCOPE_PIN, LOW);
 
-      const BaseType_t delayed = xTaskDelayUntil(&lastWakeTime, pdMS_TO_TICKS(periodMs));
+      const BaseType_t delayed = xTaskDelayUntil(&lastWakeTime, pdMS_TO_TICKS(slow_task_period_ms));
       if (delayed == pdFALSE) {
         slowTaskOverruns++;
       }
@@ -574,6 +578,7 @@ void setup() {
   }  
 
   Serial.printf("&global_counter = %p\n", &global_counter);
+  Serial.printf("&parameters = %p\n", &parameters);
 
   // Create 2 demo tasks on DEMO_TASK_CORE
 
