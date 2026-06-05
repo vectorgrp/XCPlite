@@ -18,12 +18,10 @@
 #include <inttypes.h> // PRId64, PRIu64
 #include <math.h>     // for sqrt
 #include <signal.h>   // for signal handling
-#include <stdbool.h>  // for bool
 #include <stdbool.h>  // bool
 #include <stdint.h>   // for uintxx_t
 #include <stdio.h>    // for printf
-#include <string.h>   // for sprintf
-#include <string.h>   // memset
+#include <string.h>   // for sprintf, memset
 
 #include "dbg_print.h" // for DBG_PRINTF
 #include "platform.h"
@@ -46,7 +44,7 @@ unsigned int random16(void) {
 // Fast pseudo random number generator (splitmix64)
 /**************************************************************************/
 
-#ifdef _LINUX
+#if defined(_LINUX) || defined(_MACOS)
 
 #if defined(_MSC_VER) && defined(_M_X64)
 #include <intrin.h> // for _umul128
@@ -251,8 +249,8 @@ void average_filter_add(tAverageFilter *f, tAverageFilterValue offset) {
  */
 
 /* Error codes */
-#define SIMPLE_LINEAR_REGRESSION_ERROR_INPUT_VALUE -2
-#define SIMPLE_LINEAR_REGRESSION_ERROR_NUMERIC -3
+#define SIMPLE_LINEAR_REGRESSION_ERROR_INPUT_VALUE (-2)
+#define SIMPLE_LINEAR_REGRESSION_ERROR_NUMERIC (-3)
 
 static int linreg(const double *x, const double *y, size_t n, double *slope_out, double *intercept_out, double *r2_out, double *mae_out, double *mse_out, double *rmse_out) {
     double sum_x = 0.0;

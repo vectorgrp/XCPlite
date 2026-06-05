@@ -142,8 +142,8 @@ bool XcpBinWrite(const char *epk);
 
 // Calibration segment or block descriptor used for section-based pre-registration.
 typedef struct {
-    const char *name; 
-    const void *addr; // pointer to static lifetime default page
+    const char *name;
+    const void *addr;        // pointer to static lifetime default page
     tXcpCalSegIndex *indexp; // pointer to the index variable initialized at runtime
     uint16_t size;
     uint16_t type; // XCP_CALSEG_TYPE_SEGMENT or XCP_CALSEG_TYPE_BLOCK
@@ -174,12 +174,12 @@ typedef struct {
 /// Macro maybe used outside function scope
 /// @param name given as identifier, &name is expected to be the const static lifetime pointer to the default page, sizeof(name) is used as size of the calibration segment
 // calseg__##name and calblk__##name are the linker map file markers for calibration segments and blocks
-#define CalSegDecl(name) \
-static tXcpCalSegIndex calseg_id_##name = XCP_UNDEFINED_CALSEG; \
-const static tXcpCalDescriptor calseg__##name XCP_CAL_SECTION_ATTR = {#name, (const void *)&name, &calseg_id_##name, sizeof(name), XCP_CALSEG_TYPE_SEGMENT};
-#define CalBlkDecl(name) \
-static tXcpCalSegIndex calblk_id_##name = XCP_UNDEFINED_CALSEG; \
-const static tXcpCalDescriptor calblk__##name XCP_CAL_SECTION_ATTR = {#name, (const void *)&name, sizeof(name), XCP_CALSEG_TYPE_BLOCK};
+#define CalSegDecl(name)                                                                                                                                                           \
+    static tXcpCalSegIndex calseg_id_##name = XCP_UNDEFINED_CALSEG;                                                                                                                \
+    const static tXcpCalDescriptor calseg__##name XCP_CAL_SECTION_ATTR = {#name, (const void *)&(name), &calseg_id_##name, sizeof(name), XCP_CALSEG_TYPE_SEGMENT};
+#define CalBlkDecl(name)                                                                                                                                                           \
+    static tXcpCalSegIndex calblk_id_##name = XCP_UNDEFINED_CALSEG;                                                                                                                \
+    const static tXcpCalDescriptor calblk__##name XCP_CAL_SECTION_ATTR = {#name, (const void *)&(name), &calblk_id_##name, sizeof(name), XCP_CALSEG_TYPE_BLOCK};
 
 /// Dynamic creation of a calibration segment or block
 /// Name given as identifier, type name and segment name must be identical
@@ -187,16 +187,16 @@ const static tXcpCalDescriptor calblk__##name XCP_CAL_SECTION_ATTR = {#name, (co
 /// @param name given as identifier, &name is expected to be the const static lifetime pointer to the default page, sizeof(name) is used as size of the calibration segment
 // calseg__##name and calblk__##name are the linker map file markers for calibration segments and blocks
 #define CalSegCreate(name)                                                                                                                                                         \
-    static tXcpCalSegIndex calseg_id_##name = XCP_UNDEFINED_CALSEG; \
-    const static tXcpCalDescriptor calseg__##name XCP_CAL_SECTION_ATTR = {#name, (void *)&name, &calseg_id_##name, sizeof(name), XCP_CALSEG_TYPE_SEGMENT};                            \
-    if (calseg_id_##name == XCP_UNDEFINED_CALSEG) {                                                                                                                            \
-        calseg_id_##name = XcpCreateCalSeg(#name, (uint8_t *)&(name), sizeof(name));                                                                                           \
+    static tXcpCalSegIndex calseg_id_##name = XCP_UNDEFINED_CALSEG;                                                                                                                \
+    const static tXcpCalDescriptor calseg__##name XCP_CAL_SECTION_ATTR = {#name, (void *)&(name), &calseg_id_##name, sizeof(name), XCP_CALSEG_TYPE_SEGMENT};                       \
+    if (calseg_id_##name == XCP_UNDEFINED_CALSEG) {                                                                                                                                \
+        calseg_id_##name = XcpCreateCalSeg(#name, (uint8_t *)&(name), sizeof(name));                                                                                               \
     }
 #define CalBlkCreate(name)                                                                                                                                                         \
-static tXcpCalSegIndex calblk_id_##name = XCP_UNDEFINED_CALSEG; \
-    const static tXcpCalDescriptor calblk__##name XCP_CAL_SECTION_ATTR = {#name, (void *)&name, sizeof(name), &calseg_id_##name, XCP_CALSEG_TYPE_BLOCK};                              \
-    if (calblk_id_##name== XCP_UNDEFINED_CALSEG) {                                                                                                                            \
-        calblk_id_##name = XcpCreateCalBlk(#name, (uint8_t *)&(name), sizeof(name));                                                                                           \
+    static tXcpCalSegIndex calblk_id_##name = XCP_UNDEFINED_CALSEG;                                                                                                                \
+    const static tXcpCalDescriptor calblk__##name XCP_CAL_SECTION_ATTR = {#name, (void *)&(name), &calblk_id_##name, sizeof(name), XCP_CALSEG_TYPE_BLOCK};                         \
+    if (calblk_id_##name == XCP_UNDEFINED_CALSEG) {                                                                                                                                \
+        calblk_id_##name = XcpCreateCalBlk(#name, (uint8_t *)&(name), sizeof(name));                                                                                               \
     }
 
 /// Lock calibration segment macro
@@ -283,8 +283,7 @@ typedef struct {
     const char *name;
     uint32_t cycle_time_ns;
     uint8_t priority;
-    uint8_t res[16-sizeof(char*)-4-1];
-    //tXcpEventId id;
+    uint8_t res[16 - sizeof(char *) - 4 - 1];
 } tXcpEventDescriptor;
 
 // Platform section attribute for tXcpEventDescriptor const static variables created by DaqCreateEvent().
@@ -301,13 +300,13 @@ typedef struct {
 /// Create a global event
 /// Macro may be used anywhere in the code, even in loops
 /// @param name Name given as identifier
-#define DaqCreateEvent(event_name)                                                                   \
-    static const tXcpEventDescriptor evt__##event_name XCP_EVENT_SECTION_ATTR = {#event_name, 0, 0}; \
-    static tXcpEventId evt_id_##event_name = XCP_UNDEFINED_EVENT_ID;                                 \
-    if (XcpIsActivated()) {                                                                          \
-        if (evt_id_##event_name == XCP_UNDEFINED_EVENT_ID) {                                         \
-            evt_id_##event_name = XcpCreateEvent(#event_name, 0, 0);                                 \
-        }                                                                                            \
+#define DaqCreateEvent(event_name)                                                                                                                                                 \
+    static const tXcpEventDescriptor evt__##event_name XCP_EVENT_SECTION_ATTR = {#event_name, 0, 0};                                                                               \
+    static tXcpEventId evt_id_##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                                               \
+    if (XcpIsActivated()) {                                                                                                                                                        \
+        if (evt_id_##event_name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                       \
+            evt_id_##event_name = XcpCreateEvent(#event_name, 0, 0);                                                                                                               \
+        }                                                                                                                                                                          \
     }
 
 /// Create a global event with given expected cycle time and priority
@@ -316,11 +315,11 @@ typedef struct {
 /// @param cycle_time Cycle time in microseconds (0 = sporadic)
 /// @param priority Priority of the event (0 = normal, >=1 = realtime)
 #define DaqCreateEventExt(event_name, cycle_time, priority)                                                                                                                        \
-    static const tXcpEventDescriptor evt__##event_name XCP_EVENT_SECTION_ATTR = {#event_name, (cycle_time) * 1000U, (priority)};                                 \
-    static tXcpEventId evt_id_##event_name = XCP_UNDEFINED_EVENT_ID;     \
+    static const tXcpEventDescriptor evt__##event_name XCP_EVENT_SECTION_ATTR = {#event_name, (cycle_time) * 1000U, (priority)};                                                   \
+    static tXcpEventId evt_id_##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                                               \
     if (XcpIsActivated()) {                                                                                                                                                        \
-        if (evt_id_##event_name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                      \
-            evt_id_##event_name = XcpCreateEvent(#event_name, (cycle_time) * 1000U, (priority));                                                                                  \
+        if (evt_id_##event_name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                       \
+            evt_id_##event_name = XcpCreateEvent(#event_name, (cycle_time) * 1000U, (priority));                                                                                   \
         }                                                                                                                                                                          \
     }
 
@@ -532,13 +531,13 @@ extern const uint8_t *gXcpBaseAddr;
 /// trg__AAS__##name is kept as a linker map marker for the trigger location (same role as in DaqTriggerEvent).
 /// @param name Name given as identifier
 #define DaqCreateAndTriggerEvent(name)                                                                                                                                             \
-    static const tXcpEventDescriptor evt__##name XCP_EVENT_SECTION_ATTR = {#name, 0, 0};                                                                         \
+    static const tXcpEventDescriptor evt__##name XCP_EVENT_SECTION_ATTR = {#name, 0, 0};                                                                                           \
     static tXcpEventId trg__AAS__##name = XCP_UNDEFINED_EVENT_ID;                                                                                                                  \
     if (XcpIsActivated()) {                                                                                                                                                        \
-        if (trg__AAS__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                            \
-            trg__AAS__##name = XcpCreateEvent(#name, 0, 0);                                                                                                                          \
+        if (trg__AAS__##name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                          \
+            trg__AAS__##name = XcpCreateEvent(#name, 0, 0);                                                                                                                        \
         }                                                                                                                                                                          \
-        XcpEventExt_Var(trg__AAS__##name, 1, xcp_get_frame_addr());                                                                                                                  \
+        XcpEventExt_Var(trg__AAS__##name, 1, xcp_get_frame_addr());                                                                                                                \
     }
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -955,11 +954,11 @@ void sleepMs(uint32_t ms);
 /// Supports absolute, stack and relative addressing mode measurements
 #define DaqEventVar(event_name, ...)                                                                                                                                               \
     do {                                                                                                                                                                           \
-        static const tXcpEventDescriptor evt__##event_name XCP_EVENT_SECTION_ATTR = {#event_name, 0, 0};   \
-        static tXcpEventId trg__AAS__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                                    \
+        static const tXcpEventDescriptor evt__##event_name XCP_EVENT_SECTION_ATTR = {#event_name, 0, 0};                                                                           \
+        static tXcpEventId trg__AAS__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                                        \
         if (XcpIsActivated()) {                                                                                                                                                    \
-            if (trg__AAS__##event_name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                  \
-                trg__AAS__##event_name = XcpCreateEvent(#event_name, 0, 0);                                                                                                          \
+            if (trg__AAS__##event_name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                \
+                trg__AAS__##event_name = XcpCreateEvent(#event_name, 0, 0);                                                                                                        \
                 A2lOnce() {                                                                                                                                                        \
                     A2lLock();                                                                                                                                                     \
                     A2lSetAutoAddrMode__s(#event_name, xcp_get_frame_addr(), NULL);                                                                                                \
@@ -967,7 +966,7 @@ void sleepMs(uint32_t ms);
                     A2lUnlock();                                                                                                                                                   \
                 }                                                                                                                                                                  \
             }                                                                                                                                                                      \
-            XcpEventExt_Var(trg__AAS__##event_name, 1, xcp_get_frame_addr());                                                                                                        \
+            XcpEventExt_Var(trg__AAS__##event_name, 1, xcp_get_frame_addr());                                                                                                      \
         }                                                                                                                                                                          \
     } while (0)
 
@@ -977,18 +976,18 @@ void sleepMs(uint32_t ms);
 #if 0
 #define DaqEventExtVar(event_name, base, ...)                                                                                                                                      \
     do {                                                                                                                                                                           \
-        static const tXcpEventDescriptor evt__##event_name XCP_EVENT_SECTION_ATTR = {#event_name, 0, 0};                                                         \
-        static tXcpEventId trg__AASD__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                               \
+        static const tXcpEventDescriptor evt__##event_name XCP_EVENT_SECTION_ATTR = {#event_name, 0, 0};                                                                           \
+        static tXcpEventId trg__AASD__##event_name = XCP_UNDEFINED_EVENT_ID;                                                                                                       \
         if (XcpIsActivated()) {                                                                                                                                                    \
-            if (trg__AASD__##event_name == XCP_UNDEFINED_EVENT_ID) {                                                                                                                  \
-                trg__AASD__##event_name = XcpCreateEvent(#event_name, 0, 0);                                                                                                          \
+            if (trg__AASD__##event_name == XCP_UNDEFINED_EVENT_ID) {                                                                                                               \
+                trg__AASD__##event_name = XcpCreateEvent(#event_name, 0, 0);                                                                                                       \
                 A2lOnce() {                                                                                                                                                        \
                     A2lLock();                                                                                                                                                     \
                     A2lSetAutoAddrMode__s(#event_name, xcp_get_frame_addr(), (const uint8_t *)base);                                                                               \
                     XCPLIB_FOR_EACH_MEAS_(A2L_UNPACK_AND_REG_, __VA_ARGS__)                                                                                                        \
                     A2lUnlock();                                                                                                                                                   \
                 }                                                                                                                                                                  \
-                XcpEventExt_Var(trg__AASD__##event_name, 2, xcp_get_frame_addr(), (const uint8_t *)base);                                                                             \
+                XcpEventExt_Var(trg__AASD__##event_name, 2, xcp_get_frame_addr(), (const uint8_t *)base);                                                                          \
             }                                                                                                                                                                      \
         }                                                                                                                                                                          \
     } while (0)

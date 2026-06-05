@@ -149,7 +149,7 @@ uint16_t XcpRegisterSectionCalSegs(void) {
     unsigned long sz = 0;
     const tXcpCalDescriptor *begin = (tXcpCalDescriptor *)getsectiondata(&_mh_execute_header, "__DATA", "xcp_cals", &sz);
     if (begin != NULL) {
-        const tXcpCalDescriptor *end = begin + sz / sizeof(tXcpCalDescriptor);
+        const tXcpCalDescriptor *end = begin + (sz / sizeof(tXcpCalDescriptor));
         for (const tXcpCalDescriptor *e = begin; e < end; e++) {
             DBG_PRINTF6("Found calibration segment descriptor in section: name=%s, addr=%p, size=%u, type=%x, indexp=%p\n", e->name, e->addr, e->size, e->type, e->indexp);
             tXcpCalSegIndex index = XcpFindCalSeg(e->name);

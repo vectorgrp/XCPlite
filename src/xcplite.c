@@ -994,7 +994,7 @@ static uint16_t XcpRegisterSectionEvents(void) {
     unsigned long sz = 0;
     const tXcpEventDescriptor *begin = (const tXcpEventDescriptor *)getsectiondata(&_mh_execute_header, "__DATA", "xcp_evts", &sz);
     if (begin != NULL) {
-        const tXcpEventDescriptor *end = begin + sz / sizeof(tXcpEventDescriptor);
+        const tXcpEventDescriptor *end = begin + (sz / sizeof(tXcpEventDescriptor));
         for (const tXcpEventDescriptor *e = begin; e < end; e++) {
             tXcpEventId id = XcpFindEvent(e->name);
             if (id == XCP_UNDEFINED_EVENT_ID) {

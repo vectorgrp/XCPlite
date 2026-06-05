@@ -30,8 +30,7 @@
 #include "shm.h"       // for shared memory management
 #include "xcp.h"       // for CRC_XXX
 #include "xcp_cfg.h"   // for XCP_xxx
-#include "xcplite.h"   // for tXcpDaqLists, XcpXxx, ApplXcpXxx, ...
-#include "xcplite.h"   // for XcpGetEpk
+#include "xcplite.h"   // for tXcpDaqLists, XcpXxx, ApplXcpXxx, XcpGetEpk
 #include "xcptl_cfg.h" // for XCPTL_xxx
 
 #if !defined(XCP_ENABLE_DAQ_EVENT_LIST) || !defined(XCP_ENABLE_CALSEG_LIST)

@@ -102,7 +102,7 @@
 
 // Total memory pool size for all calibration segments (header + 4 pages each)
 // Must be large enough for all XcpCreateCalSeg() calls combined
-#define OPTION_CAL_MEM_SIZE (1024 * 4) // 4 KB default
+#define OPTION_CAL_MEM_SIZE (1024 * 5) // 5 KB default
 
 // Single page mode
 // #define OPTION_CAL_SEGMENTS_SINGLE_PAGE
