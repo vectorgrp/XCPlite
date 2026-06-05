@@ -49,7 +49,7 @@ class Display : public lgfx::LGFX_Device {
       cfg.pin_cs = LCD_CS;
       cfg.pin_rst = LCD_RES;
       cfg.pin_busy = -1;
-      cfg.memory_width = 170;
+      cfg.memory_width = 240;
       cfg.memory_height = 320;
       cfg.panel_width = 170;
       cfg.panel_height = 320;
@@ -79,16 +79,12 @@ static Display lcd;
 static SemaphoreHandle_t lcdMutex = nullptr;
 static constexpr int32_t DISPLAY_LINE_HEIGHT = 24;
 
-
-static int32_t displayLineCount() {
-  return lcd.height() / DISPLAY_LINE_HEIGHT;
-}
+#define displayLineCount() (lcd.height() / DISPLAY_LINE_HEIGHT)
 
 static void displayLine(int32_t line, const char *text, uint16_t color = TFT_WHITE) {
   if (lcdMutex == nullptr || xSemaphoreTake(lcdMutex, pdMS_TO_TICKS(50)) != pdTRUE) {
     return;
   }
-
   const int32_t y = line * DISPLAY_LINE_HEIGHT;
   lcd.fillRect(0, y, lcd.width(), DISPLAY_LINE_HEIGHT, TFT_BLACK);
   lcd.setCursor(0, y + 4);
@@ -100,7 +96,6 @@ static void displayLine(int32_t line, const char *text, uint16_t color = TFT_WHI
 static void initDisplay() {
   pinMode(LCD_POWER_ON, OUTPUT);
   digitalWrite(LCD_POWER_ON, HIGH);
-
   lcdMutex = xSemaphoreCreateMutex();
   lcd.init();
   lcd.setRotation(1);
@@ -120,9 +115,7 @@ static constexpr uint16_t TFT_CYAN = 0;
 static constexpr uint16_t TFT_YELLOW = 0;
 static constexpr uint16_t TFT_WHITE = 0;
 
-static int32_t displayLineCount() {
-  return 0;
-}
+#define displayLineCount() 0
 
 static void displayLine(int32_t line, const char *text, uint16_t color = TFT_WHITE) {
   (void)line;
@@ -280,7 +273,6 @@ static bool connectWiFi() {
   }
 
   Serial.printf("Connecting to WLAN '%s'", WIFI_SSID);
-  displayLine(1, "WiFi connecting...");
   const uint32_t startMs = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - startMs < 30000) {
     Serial.print(".");
@@ -291,12 +283,9 @@ static bool connectWiFi() {
   if (WiFi.status() != WL_CONNECTED) {
     const wl_status_t status = WiFi.status();
     Serial.printf("WiFi connection failed, status=%d (%s)\n", status, wifiStatusName(status));
-    displayLine(1, "WiFi failed", TFT_RED);
     return false;
   }
 
-  Serial.printf("WiFi connected, IP address: %s\n", WiFi.localIP().toString().c_str());
-  displayLine(1, WiFi.localIP().toString().c_str(), TFT_GREEN);
   return true;
 }
 
@@ -330,8 +319,6 @@ static bool startXcpServer() {
     return false;
   }
 
-  Serial.printf("XCP server started: UDP port %u\n", XCP_SERVER_PORT);
-  displayLine(2, "XCP UDP :5555", TFT_GREEN);
   return true;
 }
 
@@ -389,6 +376,8 @@ struct parameters {
 };
 
 // Default calibration parameters (default/reference page)
+// &parameters is the A2l file address of the calibration parameter segment 'parameters' 
+// Typename and variable name must be identical
 const struct parameters parameters = { 
     .fast_task_period_ms = 1,  // 1 ms = 1 kHz
     .slow_task_period_ms = 10, // 10 ms = 100 Hz
@@ -396,13 +385,12 @@ const struct parameters parameters = {
     .amplitude = 1.0f,
 };
 
-// Declare a calibration segment that wraps 'parameters' for thread-safe access.
+// Declare a calibration segment that wraps 'parameters' for thread-safe and consistent access.
 // This creates:
-//  - a linker-section descriptor used by XcpInit() for section-based registration
+//  - a linker-section 'xcp_cals' descriptor used by XcpInit() for registration
 //  - an internal calibration segment index initialized by XcpInit()
 //  - the typed C++ handle 'parameters_calseg' used by the tasks below
-// The offline A2L generator currently assumes that the struct type name and
-// default-parameter variable name are identical.
+// The offline A2L generator currently assumes that the struct type name and default-parameter variable name are identical.
 CalSegDeclRef(parameters, parameters_calseg);
 
 
@@ -410,50 +398,61 @@ TaskHandle_t fastTaskHandle = nullptr;
 TaskHandle_t slowTaskHandle = nullptr;
 
 
+// High priority fast task
 void fastTask(void *parameter) {
   
-  // Volatile keeps this local measurement visible in optimized builds, so the
-  // offline A2L generator can discover it from the DAQ event trigger scope.
+  // Volatile keeps this local measurement variable visible in optimized builds, 
+  // The offline A2L generator can discover it in the ELF file and associate it to the functions DAQ event trigger
   volatile uint16_t counter = 0;
-  TickType_t lastWakeTime = xTaskGetTickCount();
-
+  
+#ifdef OPTION_SERIAL_PRINTF
   Serial.printf("fastTask started\n");
-  Serial.printf("fastTask priority = %u\n", static_cast<unsigned>(uxTaskPriorityGet(nullptr)));
-  Serial.printf("fastTask: frameaddr = %p\n", xcp_get_frame_addr());
-  Serial.printf("fastTask: &counter = %p\n", &counter);
+  Serial.printf("  priority = %u\n", static_cast<unsigned>(uxTaskPriorityGet(nullptr)));
+  Serial.printf("  frameaddr = %p\n", xcp_get_frame_addr());
+  Serial.printf("  &counter = %p\n", &counter);
+#endif
 
+  // Create a DAQ event named 'fastTask'
   DaqCreateEvent(fastTask);
+
+  // Initialize IO pin
   pinMode(FASTTASK_SCOPE_PIN, OUTPUT);
   digitalWrite(FASTTASK_SCOPE_PIN, LOW);
- 
+  
+  TickType_t lastWakeTime = xTaskGetTickCount();
   for (;;) {
 
+    // Toggle an IO pin to observe cycle time jitter and runtime jitter
     digitalWrite(FASTTASK_SCOPE_PIN, HIGH);
     
-    uint32_t period_ms = 1;
-    uint16_t counter_max = 1000;
+    uint32_t period_ms;
      
-    // Lock the calibration segment and get parameters
+    // Lock the calibration segment 'parameters' for thread-safe and consistent access
+    // There is no blocking mutex hold during the lock, only atomics used
     {
       auto params = parameters_calseg.lock();
+      
+      // Save the task period parameter, don't delay during the lock to give XCP a chance to modify the parameters
       period_ms = clamp(params->fast_task_period_ms, FASTTASK_PERIOD_MIN_MS, FASTTASK_PERIOD_MAX_MS);
-      counter_max = params->counter_max;
+      
+      counter++;
+      if (counter > params->counter_max) {
+        counter = 0;
+      }
+      global_counter++;
+      if (global_counter > params->counter_max) {
+        global_counter = 0;
+      }
+      
     } 
-
-    counter++;
-    if (counter > counter_max) {
-      counter = 0;
-    }
-    global_counter++;
-    if (global_counter > counter_max) {
-      global_counter = 0;
-    }
     
-    // Trigger the DAQ event (toggling an IO pin to measure runtime of DaqTriggerEvent and to measure cyclic jitter of fastTask)
+    // Trigger the DAQ event 'fastTask'
     DaqTriggerEvent(fastTask);
     
+    // Toggle IO pin
     digitalWrite(FASTTASK_SCOPE_PIN, LOW);
     
+    // Sleep until next wakeup time, check for overruns
     const BaseType_t delayed = xTaskDelayUntil(&lastWakeTime, pdMS_TO_TICKS(period_ms));
     if (delayed == pdFALSE) {
       fastTaskOverruns++;
@@ -461,18 +460,19 @@ void fastTask(void *parameter) {
   }
 }
 
+// Low priority slow task
 void slowTask(void *parameter) {
   
-  // Volatile keeps these local measurements visible in optimized builds, so the
-  // offline A2L generator can discover them from the DAQ event trigger scope.
   volatile uint16_t counter = 0;
   volatile float sineValue = 0.0f;
   float phase = 0.0f;
   TickType_t lastWakeTime = xTaskGetTickCount();
 
+#ifdef OPTION_SERIAL_PRINTF
   Serial.printf("slowTask started\n");
-  Serial.printf("slowTask: frameaddr = %p\n", xcp_get_frame_addr());
-  Serial.printf("slowTask: &counter = %p\n", &counter);
+  Serial.printf("  frameaddr = %p\n", xcp_get_frame_addr());
+  Serial.printf("  &counter = %p\n", &counter);
+#endif
 
   DaqCreateEvent(slowTask);
   pinMode(SLOWTASK_SCOPE_PIN, OUTPUT);
@@ -484,33 +484,27 @@ void slowTask(void *parameter) {
     
     uint32_t slow_task_period_ms;
     uint32_t fast_task_period_ms;
-    float amplitude;
-    uint16_t counter_max;
 
-    // Lock the calibration segment and get parameters
     {
       auto params = parameters_calseg.lock();
       slow_task_period_ms = clamp(params->slow_task_period_ms, SLOWTASK_PERIOD_MIN_MS, SLOWTASK_PERIOD_MAX_MS);
       fast_task_period_ms = clamp(params->fast_task_period_ms, FASTTASK_PERIOD_MIN_MS, FASTTASK_PERIOD_MAX_MS);
-      amplitude = params->amplitude;
-      counter_max = params->counter_max;
+      
+      counter++;
+      if (counter > params->counter_max) {
+        counter = 0;
+      }
+      
+      sineValue = params->amplitude * sinf(phase);
+      phase += SLOWTASK_PHASE_STEP_RAD;
+      if (phase >= SINE_PERIOD_RAD) {
+        phase -= SINE_PERIOD_RAD;
+      }
+      
     }
 
-    counter++;
-    if (counter > counter_max) {
-      counter = 0;
-    }
-    
-    sineValue = amplitude * sinf(phase);
-    phase += SLOWTASK_PHASE_STEP_RAD;
-    if (phase >= SINE_PERIOD_RAD) {
-      phase -= SINE_PERIOD_RAD;
-    }
- 
-    // Trigger the DAQ event
     DaqTriggerEvent(slowTask);
 
-    // Print status
 #ifdef OPTION_SERIAL_PRINTF
     Serial.printf("slowTask: core %d - %u, period = %u ms, sine = %.3f\n",
       xPortGetCoreID(),
@@ -522,7 +516,10 @@ void slowTask(void *parameter) {
 // Display
 #ifdef OPTION_DISPLAY
       {
+
         char line[40];
+
+
         if (XcpIsDaqRunning()) {
           snprintf(line, sizeof(line), "XCP DAQ running");
         } else if (XcpIsConnected()) {
@@ -532,13 +529,13 @@ void slowTask(void *parameter) {
         } else {
           snprintf(line, sizeof(line), "XCP Offline");
         }
-        displayLine(displayLineCount() - 4, line, TFT_WHITE);
-        snprintf(line, sizeof(line), "XCP clock %" PRIu64 "", ApplXcpGetClock64());
-        displayLine(displayLineCount() - 3, line, TFT_GREEN);
+        displayLine(displayLineCount() - 7, line, TFT_WHITE);
         snprintf(line, sizeof(line), "slowTask: %ums %u", slow_task_period_ms, counter);
-        displayLine(displayLineCount() - 2, line, TFT_RED);
+        displayLine(displayLineCount() - 4, line, TFT_YELLOW);
         snprintf(line, sizeof(line), "fastTask: %ums %u", fast_task_period_ms, global_counter);
-        displayLine(displayLineCount() - 1, line, TFT_RED);
+        displayLine(displayLineCount() - 3, line, TFT_RED);
+        snprintf(line, sizeof(line), "XCP clock %" PRIu64 "", ApplXcpGetClock64());
+        displayLine(displayLineCount() - 1, line, TFT_GREEN);
       }
 #endif
       
@@ -556,26 +553,25 @@ void slowTask(void *parameter) {
 //----------------------------------------------------------------------------------------------------
 // Main (Arduino style)
 
+// Init
 void setup() {
 
   Serial.begin(115200);
-  delay(1000);
+  delay(500);
+
+#ifdef OPTION_DISPLAY
   initDisplay();
+#endif
 
   // Connect to WLAN
   if (!connectWiFi()) {
     Serial.println("XCP server not started because WiFi is not connected.");
-    displayLine(2, "XCP not started", TFT_RED);
   } 
   
   // Start XCP server
   else if (!startXcpServer()) {
     Serial.println("XCP server startup failed.");
-    displayLine(2, "XCP failed", TFT_RED);
   }
-  else {
-      displayLine(2, "XCP running", TFT_GREEN);
-  }  
 
   Serial.printf("&global_counter = %p\n", &global_counter);
   Serial.printf("&parameters = %p\n", &parameters);
@@ -613,6 +609,7 @@ void setup() {
   }
 }
 
+// Background task
 void loop() {
   vTaskDelay(pdMS_TO_TICKS(1000));
 }
