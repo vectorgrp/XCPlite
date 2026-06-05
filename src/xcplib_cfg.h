@@ -98,11 +98,11 @@
 #ifdef OPTION_CAL_SEGMENTS
 
 // Maximum number of calibration segments
-#define OPTION_CAL_SEGMENT_COUNT 32
+#define OPTION_CAL_SEGMENT_COUNT 8
 
 // Total memory pool size for all calibration segments (header + 4 pages each)
 // Must be large enough for all XcpCreateCalSeg() calls combined
-#define OPTION_CAL_MEM_SIZE (1024 * 16) // 16 KB default
+#define OPTION_CAL_MEM_SIZE (1024 * 4) // 4 KB default
 
 // Single page mode
 // #define OPTION_CAL_SEGMENTS_SINGLE_PAGE
@@ -132,8 +132,8 @@
 //-------------------------------------------------------------------------------
 // DAQ settings
 
-#define OPTION_DAQ_MEM_SIZE (1024 * 8) // Memory bytes used for XCP DAQ tables - 6 bytes per measurement signal/block needed
-#define OPTION_DAQ_EVENT_COUNT 32      // Maximum number of DAQ events (integer value, must be even)
+#define OPTION_DAQ_MEM_SIZE (512 * 6) // Memory bytes used for XCP DAQ tables - 6 bytes per measurement signal/block needed
+#define OPTION_DAQ_EVENT_COUNT 32     // Maximum number of DAQ events (integer value, must be even)
 // #define OPTION_DAQ_ASYNC_EVENT         // Create an asynchronous, cyclic DAQ event for asynchronous data acquisition
 
 // Transport layer queue, vectored IO, lockless with variable queue entry size

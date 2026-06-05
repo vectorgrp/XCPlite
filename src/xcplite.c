@@ -446,7 +446,7 @@ static void XcpSetProjectName(const char *name) {
 // Get the project name
 const char *XcpGetProjectName(void) {
     if (STRNLEN(local.project_name, XCP_PROJECT_NAME_MAX_LENGTH) == 0) {
-        // assert(0 && "Project name not set");
+        assert(0 && "Project name not set");
         return "";
     }
     return local.project_name;
@@ -476,7 +476,7 @@ static void XcpSetEpk(const char *epk) {
 // Get the EPK from the static buffer in the local state
 const char *XcpGetEpk(void) {
     if (STRNLEN(local.epk, XCP_EPK_MAX_LENGTH) == 0) {
-        // assert(0 && "EPK not set");
+        assert(0 && "EPK not set");
         return "";
     }
     return local.epk;
@@ -501,7 +501,7 @@ XcpWriteMta is not performance critical, but critical for data consistency.
 It is used to modify calibration variables.
 For size 1, 2, 4, 8 it uses single "atomic" writes assuming valid aligned target memory locations.
 Its responsibility is only to copy memory. Any considerations regarding thread safety must be explicitly managed.
-This is alsoa requirement to the tool, which must ensure that the data is consistent by choosing the right granularity for DOWNLOAD and SHORT_DOWNLOAD operations.
+This is also a requirement to the tool, which must ensure that the data is consistent by choosing the right granularity for DOWNLOAD and SHORT_DOWNLOAD operations.
 */
 
 // Copy of size bytes from data to local.mta_ptr or local.mta_addr depending on the addressing mode
@@ -3048,7 +3048,6 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
         XcpBindOwnerThread();
 #endif
 #else
-
 #ifndef OPTION_ENABLE_PERSISTENCE
         // Persistence not enabled
         if ((mode & XCP_MODE_PERSISTENCE) != 0) {
@@ -3056,7 +3055,6 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
             mode &= ~XCP_MODE_PERSISTENCE;
         }
 #endif
-
         // Not compiled for SHM mode
         if ((mode & (XCP_MODE_SHM | XCP_MODE_SHM_AUTO | XCP_MODE_SHM_SERVER)) != 0) {
             DBG_PRINT_ERROR("XcpInit: SHM mode requested, but xcplib is compiled in non-SHM mode, switch to XCP_MODE_LOCAL\n");
@@ -3066,8 +3064,15 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
 #endif
     }
 
-    // Clear local XCP state
+    // Clear XCP state
     memset((uint8_t *)&gXcpLocalData, 0, sizeof(tXcpLocalData));
+#ifdef OPTION_SHM_MODE
+    assert(gXcpData == NULL);
+    gXcpData = NULL;
+#else
+    assert(gXcpData.session_status == 0);
+    memset((uint8_t *)&gXcpData, 0, sizeof(tXcpData));
+#endif
     local_mut.init_mode = mode;
 
 // Initialize the base address for absolute addressing
@@ -3095,11 +3100,6 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     // Now, after minimum initialization deactivate
     if ((mode & (XCP_MODE_LOCAL | XCP_MODE_SHM)) == 0) {
         local_mut.init_mode = XCP_MODE_DEACTIVATE;
-#ifdef OPTION_SHM_MODE
-        gXcpData = NULL;
-#else
-        gXcpData.session_status = 0;
-#endif
         return true;
     }
 
@@ -3157,10 +3157,6 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     } else {
         DBG_PRINT3(ANSI_COLOR_BLUE "Created '/xcpdata', initializing as leader\n" ANSI_COLOR_RESET);
     }
-#else
-    // Using static memory for tXcpData
-    // Clear global XCP state
-    memset((uint8_t *)&gXcpData, 0, sizeof(tXcpData));
 #endif
 
 #ifdef OPTION_SHM_MODE // XcpInit init SHM mode specific data and state
@@ -3225,7 +3221,8 @@ bool XcpInit(const char *name, const char *epk, uint8_t mode) {
     // In SHM multiapplication mode, only the leader reaches this point, and creates a EPK segment for the whole system
     // @@@@ TODO: Currently the EPK segment is treated like any other segment, even if it is read-only and should only expose the default page
     static tXcpCalSegIndex calseg_id_epk = XCP_UNDEFINED_CALSEG;
-    const static tXcpCalDescriptor calseg__epk XCP_CAL_SECTION_ATTR = {XCP_EPK_CALSEG_NAME, &calseg_id_epk, (void *)&local.epk, XCP_EPK_MAX_LENGTH + 1, XCP_CALSEG_TYPE_SEGMENT};
+    const static tXcpCalDescriptor calseg__epk XCP_CAL_SECTION_ATTR = {XCP_EPK_CALSEG_NAME, &calseg_id_epk, (void *)&calseg_id_epk, XCP_EPK_MAX_LENGTH + 1,
+                                                                       XCP_CALSEG_TYPE_SEGMENT};
     DBG_PRINTF3("XcpInit: Create EPK calibration segment '%s'\n", XCP_EPK_CALSEG_NAME);
 #ifdef OPTION_SHM_MODE
     calseg_id_epk = XcpCreateCalSeg(XCP_EPK_CALSEG_NAME, XcpGetEcuEpk(), XCP_EPK_MAX_LENGTH + 1);

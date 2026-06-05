@@ -156,7 +156,7 @@ The 32 bit transmit queue (queue_size given in bytes) is allocated with 2 malloc
 If using malloc is not acceptable, XcpEthServerInit could be changed to accept a memory buffer given as a parameter, but this would lead to some rounding waste.  
 
 The memory size of static tXcpData is depending on the configuration in xcplib_cfg. and xcplib_rtos_cfg.h:  
-- OPTION_CAL_SEGMENT_COUNT: Max number of calibration segments ot block
+- OPTION_CAL_SEGMENT_COUNT: Max number of calibration segments or blocks
 - OPTION_CAL_MEM_SIZE: Space reserved for calibration data swapping and working pages (needs: 3 * page size * segment count)
 - #define OPTION_DAQ_MEM_SIZE: Memory size for DAQ tables (needs: 6 bytes per measurement with full fragmentation)
 - #define OPTION_DAQ_EVENT_COUNT: Maximum number of DAQ events

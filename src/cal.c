@@ -132,7 +132,7 @@ uint16_t XcpRegisterSectionCalSegs(void) {
     extern const tXcpCalDescriptor __stop_xcp_cals[] __attribute__((weak));
     if (__start_xcp_cals != NULL) {
         for (const tXcpCalDescriptor *e = __start_xcp_cals; e < __stop_xcp_cals; e++) {
-            DBG_PRINTF6("Found calibration segment descriptor in section: name=%s, addr=%p, size=%u, type=%x\n", e->name, e->addr, e->size, e->type);
+            DBG_PRINTF6("Found calibration segment descriptor in section: name=%s, addr=%p, size=%u, type=%x, indexp=%p\n", e->name, e->addr, e->size, e->type, e->indexp);
             tXcpCalSegIndex index = XcpFindCalSeg(e->name);
             if (index == XCP_UNDEFINED_CALSEG) {
                 assert(e->type == XCP_CALSEG_TYPE_SEGMENT || e->type == XCP_CALSEG_TYPE_BLOCK);
@@ -151,7 +151,7 @@ uint16_t XcpRegisterSectionCalSegs(void) {
     if (begin != NULL) {
         const tXcpCalDescriptor *end = begin + sz / sizeof(tXcpCalDescriptor);
         for (const tXcpCalDescriptor *e = begin; e < end; e++) {
-            DBG_PRINTF6("Found calibration segment descriptor in section: name=%s, addr=%p, size=%u, type=%x, index=%u\n", e->name, e->addr, e->size, e->type, e->index);
+            DBG_PRINTF6("Found calibration segment descriptor in section: name=%s, addr=%p, size=%u, type=%x, indexp=%p\n", e->name, e->addr, e->size, e->type, e->indexp);
             tXcpCalSegIndex index = XcpFindCalSeg(e->name);
             if (index == XCP_UNDEFINED_CALSEG) {
                 assert(e->type == XCP_CALSEG_TYPE_SEGMENT || e->type == XCP_CALSEG_TYPE_BLOCK);
@@ -629,21 +629,21 @@ const uint8_t *XcpLockCalSeg(tXcpCalSegIndex calseg_index) {
     }
 
     tXcpCalSeg *c = CalSegPtrMut(calseg_index);
-    
+
     // Update
     // Increment the lock count
     uint8_t old_lock_count = atomic_fetch_add_explicit(&c->h.lock_count, 1, memory_order_relaxed);
-    //DBG_PRINTF6("XcpLockCalSeg: %s old_lock_count=%u\n",c->h.name,old_lock_count);
+    // DBG_PRINTF6("XcpLockCalSeg: %s old_lock_count=%u\n",c->h.name,old_lock_count);
     if (old_lock_count == 0) {
 
         // Update if there is a new page version, free the old page
         uint32_t ecu_page_next = (uint32_t)atomic_load_explicit(&c->h.ecu_page_next, memory_order_acquire);
         uint32_t ecu_page = c->h.ecu_page;
         if (ecu_page != ecu_page_next) {
-            DBG_PRINTF6("XcpLockCalSeg: %s ecu_page updated\n",c->h.name);
+            DBG_PRINTF6("XcpLockCalSeg: %s ecu_page updated\n", c->h.name);
             c->h.free_page_hazard = true; // Free page might be acquired by some other thread, since we got the first lock on this segment
             c->h.ecu_page = ecu_page_next;
-            assert(ecu_page!=XCP_CALSEG_NO_PAGE);
+            assert(ecu_page != XCP_CALSEG_NO_PAGE);
             atomic_store_explicit(&c->h.free_page, (uint_least32_t)ecu_page, memory_order_release);
         } else {
             c->h.free_page_hazard = false; // There was no lock and no need for update, free page must be safe now, if there is one
@@ -677,8 +677,8 @@ uint8_t XcpUnlockCalSeg(tXcpCalSegIndex calseg_index) {
 
     tXcpCalSeg *c = CalSegPtrMut(calseg_index);
     uint8_t old_lock_count = (uint8_t)atomic_fetch_sub_explicit(&c->h.lock_count, 1, memory_order_relaxed); // Decrement the lock count
-    //DBG_PRINTF6("XcpUnlockCalSeg: %s old_lock_count=%u\n",c->h.name,old_lock_count);
-    assert(old_lock_count > 0);                                                                                                      // Calling XcpUnlockCalSeg without a prior lock
+    // DBG_PRINTF6("XcpUnlockCalSeg: %s old_lock_count=%u\n",c->h.name,old_lock_count);
+    assert(old_lock_count > 0); // Calling XcpUnlockCalSeg without a prior lock
     return old_lock_count;
 }
 
