@@ -298,7 +298,10 @@ Or use the CANape project in folder `CANape_Project`.
 
 ![CANape Screenshot](CANape.png)
 
-
+Notes on CANape:
+- To enable the CANape internal ELF/DWARF reader and address updater, select the Map file reader: 'C# version with extended C++ support'.  
+- CANape will read the IP address of the XCP server from the generated A2L file. The xcpclient A2L generator writes the ip address given on its command line or otherwise defaults to 127.0.0.1.  
+- CANape does not support address update for local variables on stack. Don't use local variables when using the build-in address updater!.  
 
 ### What to Measure
 
@@ -458,6 +461,7 @@ The source files remain in the XCPlite repository `src/` folder. They are not co
 
 ## TODO
 
+- Don't create a fixed event for global variables and add them to group 'Measurement'
 - Fix xcpclient issue if `XCP_104.aml` (included in the generated A2L file) is missing, xcpclient may not yet produce a helpful error message.
 - Check if the mutex based queue is acceptable or if we should port one of the lockless queue implementations based on 64Bit atomic head and tail
 - Add TCP support
