@@ -8,7 +8,7 @@ Examples may be a REST API, a web server, test stimulation or a shared memory in
 This particular implementation shows how to implement XCP specific features (like page switching, freeze, copy, init, atomic transactions for consistency, ...) on top of the basic lock-less and wait-free calibration access pattern.
 
 The terms calibration segment and calibration block used in this document have basically the same meaning.
-A calibration memory segment is a calibration memory block that represents an XCP/A2L MEMORY_SEGMENT and implements its XCP specific functionality.  
+A calibration memory segment is a calibration memory block that represents an XCP/A2L MEMORY_SEGMENT and implements its XCP specific functionality. A calibration block just wraps a calibration parameter struct and makes calibration thread-safe and consistent.  
 
 
 ## Functional Overview:

@@ -349,7 +349,8 @@ typedef struct XcpLocalData {
     // Initialisation mode (XCP_MODE_DEACTIVATE / XCP_MODE_LOCAL / XCP_MODE_SHM / XCP_MODE_SHM_AUTO / XCP_MODE_SHM_SERVER)
     uint8_t init_mode;
 
-#ifdef OPTION_SHM_MODE  // SHM header in tXcpLocalData
+    // SHM state
+#ifdef OPTION_SHM_MODE
     uint8_t shm_app_id; // Index in shm_header.app_list,  SHM_MAX_APP_COUNT = no slot assigned yet
     bool shm_server;    // This process is the XCP server
     bool shm_leader;    // This process created the shared memory segment, responsible for initializing
@@ -374,16 +375,28 @@ typedef struct XcpLocalData {
     MUTEX cal_seg_list_mutex;
     MUTEX event_list_mutex;
 
+    // CAL timeout
+#ifdef XCP_ENABLE_CALSEG_LAZY_WRITE
+    uint64_t last_publish_time;
+#endif
+
     // Per-process identity
     char project_name[XCP_PROJECT_NAME_MAX_LENGTH + 1]; // Project name string, null terminated
     char epk[XCP_EPK_MAX_LENGTH + 1];                   // EPK string, null terminated
 
+    // Static lifetime buffer for event names
+#ifdef XCP_ENABLE_DAQ_EVENT_LIST
+    char event_name_buf[XCP_MAX_EVENT_NAME + 8];
+#endif
+
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
 #ifdef XCP_ENABLE_PROTOCOL_LAYER_ETH
+
 #ifdef XCP_ENABLE_DAQ_CLOCK_MULTICAST
     uint16_t cluster_id;
 #endif
 
+    // Clock information
 #pragma pack(push, 1)
     struct {
         T_CLOCK_INFO server;
@@ -393,8 +406,9 @@ typedef struct XcpLocalData {
 #endif
     } clock_info;
 #pragma pack(pop)
-#endif
+
 #endif // XCP_ENABLE_PROTOCOL_LAYER_ETH
+#endif // XCP_PROTOCOL_LAYER_VERSION >= 0x0103
 
 } tXcpLocalData;
 

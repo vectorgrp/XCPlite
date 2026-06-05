@@ -276,14 +276,22 @@ See the documentation of xcpclient and the other examples for more information o
 
 With xcpclient
 
+Watch the fastTask counter
+
 ```bash
 xcpclient --udp --dest-addr <esp32-ip-address> --a2l esp32_freertos_demo.a2l --mea global_counter --verbose 2
 ```
 
-To watch scheduler pressure while experimenting with calibrated task periods:
+Watch scheduler pressure:
 
 ```bash
-xcpclient --udp --dest-addr <esp32-ip-address> --a2l esp32_freertos_demo.a2l --mea fastTaskOverruns --mea slowTaskOverruns --verbose 2
+xcpclient --udp --dest-addr <esp32-ip-address> --a2l esp32_freertos_demo.a2l --mea fastTaskOverruns --verbose 2
+```
+
+Calibrate
+
+```bash
+xcpclient --udp --dest-addr <esp32-ip-address> --a2l esp32_freertos_demo.a2l --cal parameters.counter_max 500
 ```
 
 Or use the CANape project in folder `CANape_Project`.
@@ -314,7 +322,7 @@ The local variables are intentionally marked `volatile` in `main.cpp` so optimiz
 
 ## Code instrumentation for offline A2L generation
 
-The A2L file generator in xcpclient scans the ELF file for measurement event and calibration segment markers and automatically creates measurement and calibration variables with complex types, visible in the instrumented XCP measurement event trace points. This includes local variables in the function calling the event trigger.  
+The A2L file generator in xcpclient scans the ELF file for measurement event and calibration segment markers and automatically creates calibration and measurement variables with complex types, visible in the instrumented XCP measurement event trace points. This includes local variables in the function calling the event trigger.  
 
 Precondition is, that the code (C and C++) uses the instrumentation macros, not the plain XCPlite C API functions. The macros generate constants in the .rodata sections xcp_evts and xcp_cals. The event trigger macros generate local static variables to identify the location of the XCP trace points. The A2L generator inspects the location expressions in ELF/DWARF and identifies local variables visible in the XCP event trigger scope. Note that local variables may become invisible with compiler optimizations. Mark selected demo measurements with volatile to force the compiler to keep them and spill them to stack.  
 
@@ -426,7 +434,7 @@ To use resolutions other than 1 ns or 1 us, `xcp_cfg.h` and the XCP timestamp un
 
 ## XCPlite Source Selection
 
-The PlatformIO build uses `extra_script.py` to compile only the source files needed for this embedded FreeRTOS target:
+The PlatformIO build uses `extra_script.py` to compile only the source files needed for 32 bit embedded target:
 
 ```text
 src/xcpappl.c

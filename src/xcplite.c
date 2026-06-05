@@ -626,7 +626,7 @@ uint8_t XcpSetMta(uint8_t ext_, uint32_t addr_) {
     if (local.mta_ext == XCP_ADDR_EXT_EPK && local.mta_addr == XCP_ADDR_EPK) {
         local_mut.mta_ptr = (uint8_t *)XcpGetEpk();
         local_mut.mta_ext = XCP_ADDR_EXT_PTR;
-        DBG_PRINTF6("XcpSetMta: XCP_ADDR_EXT_PTR p=%p\n", local_mut.mta_ptr );
+        DBG_PRINTF6("XcpSetMta: XCP_ADDR_EXT_PTR p=%p\n", local_mut.mta_ptr);
         return CRC_CMD_OK;
     }
 #endif
@@ -634,7 +634,7 @@ uint8_t XcpSetMta(uint8_t ext_, uint32_t addr_) {
 #ifdef XCP_ENABLE_DYN_ADDRESSING
     // Event relative addressing mode
     if (XcpAddrIsDyn(local.mta_ext)) {
-        DBG_PRINTF6("XcpSetMta: XCP_ADDR_EXT_DYN:%08X\n", local_mut.mta_addr );
+        DBG_PRINTF6("XcpSetMta: XCP_ADDR_EXT_DYN:%08X\n", local_mut.mta_addr);
         return CRC_CMD_OK;
     }
 #endif
@@ -642,7 +642,7 @@ uint8_t XcpSetMta(uint8_t ext_, uint32_t addr_) {
 #ifdef XCP_ENABLE_REL_ADDRESSING
     // Relative addressing mode
     if (XcpAddrIsRel(local.mta_ext)) {
-        DBG_PRINTF6("XcpSetMta: XCP_ADDR_EXT_REL:%08X\n", local_mut.mta_addr );
+        DBG_PRINTF6("XcpSetMta: XCP_ADDR_EXT_REL:%08X\n", local_mut.mta_addr);
         return CRC_CMD_OK;
     }
 #endif
@@ -659,7 +659,7 @@ uint8_t XcpSetMta(uint8_t ext_, uint32_t addr_) {
             return CRC_ACCESS_DENIED; // Access violation,
 #endif
         }
-        DBG_PRINTF6("XcpSetMta: XCP_ADDR_EXT_SEG:%08X\n", local_mut.mta_addr );
+        DBG_PRINTF6("XcpSetMta: XCP_ADDR_EXT_SEG:%08X\n", local_mut.mta_addr);
         return CRC_CMD_OK;
     }
 #endif
@@ -667,7 +667,7 @@ uint8_t XcpSetMta(uint8_t ext_, uint32_t addr_) {
 #ifdef XCP_ENABLE_APP_ADDRESSING
     // Application specific addressing mode
     if (XcpAddrIsApp(local.mta_ext)) {
-        DBG_PRINTF6("XcpSetMta: XCP_ADDR_EXT_APP:%08X\n", local_mut.mta_addr );
+        DBG_PRINTF6("XcpSetMta: XCP_ADDR_EXT_APP:%08X\n", local_mut.mta_addr);
         return CRC_CMD_OK;
     }
 #endif
@@ -696,10 +696,9 @@ uint8_t XcpSetMta(uint8_t ext_, uint32_t addr_) {
             const tXcpCalSeg *c = CalSegPtr(calseg_index);
             local_mut.mta_ext = XCP_ADDR_EXT_SEG;
             local_mut.mta_addr = XcpAddrEncodeSegIndex(calseg_index, local.mta_ptr - c->h.default_page_ptr); // Convert to segment relative address
-            DBG_PRINTF6("XcpSetMta: XCP_ADDR_EXT_ABS -> XCP_ADDR_EXT_SEG, addr=%08X\n", local_mut.mta_addr );
-        }
-        else {
-            DBG_PRINTF6("XcpSetMta: XCP_ADDR_EXT_ABS, a=%08X, p=%p\n", local_mut.mta_addr, local_mut.mta_ptr );
+            DBG_PRINTF6("XcpSetMta: XCP_ADDR_EXT_ABS -> XCP_ADDR_EXT_SEG, addr=%08X\n", local_mut.mta_addr);
+        } else {
+            DBG_PRINTF6("XcpSetMta: XCP_ADDR_EXT_ABS, a=%08X, p=%p\n", local_mut.mta_addr, local_mut.mta_ptr);
         }
 #endif
 
@@ -820,9 +819,8 @@ const char *XcpGetEventName(tXcpEventId event) {
     const tXcpEvent *e = &shared.event_list.event[event];
     if (e->index > 0) {
         // Event instance, append instance index to the name
-        static char nameBuf[XCP_MAX_EVENT_NAME + 8];
-        SNPRINTF(nameBuf, sizeof(nameBuf), "%s_%u", e->name, e->index);
-        return nameBuf;
+        SNPRINTF(local_mut.event_name_buf, sizeof(local.event_name_buf), "%s_%u", e->name, e->index);
+        return local.event_name_buf;
     }
     return (const char *)&shared.event_list.event[event].name;
 }
@@ -2939,23 +2937,22 @@ void XcpBackgroundTasks(void) {
 
     // DBG_PRINT6("XcpBackgroundTasks\n");
 
-// Publish all modified calibration segments
+    // Publish all modified calibration segments
 #ifdef XCP_ENABLE_CALSEG_LAZY_WRITE
     uint64_t now = clockGetMonotonicNsLast();
-    static uint64_t last_success_time = 0;
     bool res = XcpCalSegPublishAll(false);
     if (res != CRC_CMD_OK && res != CRC_CMD_PENDING) {
         DBG_PRINT_WARNING("XcpBackgroundTasks: Calibration segment publish failed!\n");
     }
     if (res == CRC_CMD_OK) {
         // All segments published
-        last_success_time = now;
+        local_mut.last_publish_time = now;
     } else if (res == CRC_CMD_PENDING) {
         // Warn if delayed by more than 200ms
-        if (now - last_success_time > CLOCK_TICKS_PER_MS * 200) {
-            if (last_success_time != 0)
+        if (now - local.last_publish_time > CLOCK_TICKS_PER_MS * 200) {
+            if (local.last_publish_time != 0)
                 DBG_PRINT_WARNING("XcpBackgroundTasks: Calibration segment publish delayed by more than 200ms!\n");
-            last_success_time = now;
+            local_mut.last_publish_time = now;
         }
     }
 

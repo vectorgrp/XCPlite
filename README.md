@@ -6,7 +6,7 @@ XCP is a data acquisition (measurement) and parameter tuning (calibration) proto
 
 ## About XCPlite
 
-XCPlite extends XCP use cases beyond traditional embedded microcontrollers to **modern multicore microprocessors** and SoCs running POSIX-compliant operating systems (Linux, QNX) or real-time operating systems (RTOS) such as ThreadX.
+XCPlite extends XCP use cases beyond traditional embedded microcontrollers to **modern multicore microprocessors** and SoCs running POSIX-compliant operating systems (Linux, QNX) or real-time operating systems (RTOS) such as FreeRTOS or ThreadX.
 
 Designed exclusively for the **XCP on Ethernet Transport Layer** (TCP or UDP with jumbo frames), XCPlite solves the challenges of measurement and calibration in systems with true parallelism and multithreading:
 
@@ -51,7 +51,8 @@ Multiple examples demonstrating different features are available in the [example
 - `hello_xcp_cpp` - Basic XCP server setup and instrumentation in C++
 
 **Advanced examples:**
-- `no_a2l_demo` - Workflow without runtime A2L generation (offline A2L generation by xcpclient tool)
+- `no_a2l_demo` - Linux workflow without runtime A2L generation (offline A2L generation by xcpclient tool)
+- `esp32_freertos_demo` - FreeRTOS application with XCP instrumentation running on an ESP32 board with lwip
 - `freertos_demo` - FreeRTOS application with XCP instrumentation running in the POSIX simulator (Linux)
 - `ptp4l_demo` - Using a PTP synchronized clock as XCP timestamp source
 - `multi_thread_demo` - Multi-threaded measurement and parameter sharing among threads

@@ -45,15 +45,21 @@ An example in C++ using more idiomatic C++ to demonstrate the capabilities of th
 ### no_a2l_demo
 
 Demonstrates XCPlite without on-target runtime A2L generation.  
-Offline A2L generation is performed using the XCPlite specific A2L creator tool (xcpclient)during the build process and ELF/DWARF linker informations.  
+Offline A2L generation is performed using the XCPlite specific A2L creator tool (xcpclient) during the build process and ELF/DWARF linker informations.  
 Does no need file system support on the target and A2L upload.  
+
+
+### esp32_freertos_demo
+
+Demonstrates XCPlite running inside FreeRTOS tasks on a 32 bit microcontroller.  
+Uses the FreeRTOS POSIX simulator port so the demo builds and runs on macOS / Linux.  
+before switching to the real embedded target.  
 
 
 ### freertos_demo
 
 Demonstrates XCPlite running inside FreeRTOS tasks.  
-Uses the FreeRTOS POSIX simulator port so the demo builds and runs on macOS / Linux.  
-before switching to the real embedded target.  
+Uses the FreeRTOS POSIX simulator port so the demo builds and runs on macOS / Linux.   
 
 
 ### external_example
