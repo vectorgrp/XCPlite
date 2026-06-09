@@ -211,7 +211,7 @@ cmake --build build-msvc --target hello_xcp
 build-msvc/debug/hello_xcp.exe
 ```
 
-To create a Visual Studio solution:
+To create a Visual Studio 'Visual Studio 17 2022' solution:
 
 ```bash
 ./build.bat

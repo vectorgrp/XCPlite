@@ -354,6 +354,11 @@ if(XCPLITE_BUILD_TESTS)
         add_executable(queue_test test/queue_test/src/main.c)
         target_link_libraries(queue_test PRIVATE xcplite)
 
+        add_executable(xcp_test test/xcp_test/src/main.cpp)
+        if(WIN32)
+            target_link_libraries(xcp_test PRIVATE ws2_32)
+        endif()
+
     elseif(XCPLITE_CONFIGURATION STREQUAL "ptp")
 
         # Clock synchronization test with hardware timestamps
