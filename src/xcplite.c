@@ -978,8 +978,10 @@ static uint16_t XcpRegisterSectionEvents(void) {
     // resolve to NULL rather than causing an undefined-reference linker error.
     extern const tXcpEventDescriptor __start_xcp_evts[] __attribute__((weak));
     extern const tXcpEventDescriptor __stop_xcp_evts[] __attribute__((weak));
-    if (__start_xcp_evts != NULL) {
-        for (const tXcpEventDescriptor *e = __start_xcp_evts; e < __stop_xcp_evts; e++) {
+    const tXcpEventDescriptor *begin = __start_xcp_evts;
+    const tXcpEventDescriptor *end = __stop_xcp_evts;
+    if (begin != NULL && end != NULL && begin < end) {
+        for (const tXcpEventDescriptor *e = begin; e < end; e++) {
             tXcpEventId id = XcpFindEvent(e->name);
             if (id == XCP_UNDEFINED_EVENT_ID) {
                 id = XcpCreateEvent(e->name, e->cycle_time_ns, e->priority);

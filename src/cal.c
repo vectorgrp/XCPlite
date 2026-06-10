@@ -118,7 +118,7 @@ static void *XcpCalMemAlloc_(size_t size) {
     return &shared_mut_safe.cal_seg_list.cal_mem.pool[old_used];
 }
 
-// Pre-register all tXcpEventDescriptor variables placed in the xcp_cals section by DaqCreateEvent().
+// Pre-register all tXcpCalDescriptor variables placed in the xcp_cals section by DaqCreateEvent().
 // Must be called after SS_ACTIVATED is set (XcpCreateEvent requires isActivated()).
 // If a persistence file was loaded before this call, events are matched by name and keep their saved id.
 uint16_t XcpRegisterSectionCalSegs(void) {
@@ -130,8 +130,10 @@ uint16_t XcpRegisterSectionCalSegs(void) {
     // resolve to NULL rather than causing an undefined-reference linker error.
     extern const tXcpCalDescriptor __start_xcp_cals[] __attribute__((weak));
     extern const tXcpCalDescriptor __stop_xcp_cals[] __attribute__((weak));
-    if (__start_xcp_cals != NULL) {
-        for (const tXcpCalDescriptor *e = __start_xcp_cals; e < __stop_xcp_cals; e++) {
+    const tXcpCalDescriptor *begin = __start_xcp_cals;
+    const tXcpCalDescriptor *end = __stop_xcp_cals;
+    if (begin != NULL && end != NULL && begin < end) {
+        for (const tXcpCalDescriptor *e = begin; e < end; e++) {
             DBG_PRINTF6("Found calibration segment descriptor in section: name=%s, addr=%p, size=%u, type=%x, indexp=%p\n", e->name, e->addr, e->size, e->type, e->indexp);
             tXcpCalSegIndex index = XcpFindCalSeg(e->name);
             if (index == XCP_UNDEFINED_CALSEG) {
@@ -143,7 +145,7 @@ uint16_t XcpRegisterSectionCalSegs(void) {
             *(e->indexp) = index; // initialize the segment index pointer
         }
     } else {
-        DBG_PRINT_WARNING("No xcp_cals section found\n");
+        DBG_PRINT_WARNING("(ELF): No xcp_cals section found\n");
     }
 #elif defined(__APPLE__)
     unsigned long sz = 0;
@@ -162,12 +164,14 @@ uint16_t XcpRegisterSectionCalSegs(void) {
             *(e->indexp) = index;
         }
     } else {
-        DBG_PRINT_WARNING("No xcp_cals section found\n");
+        DBG_PRINT_WARNING("(MacOS): No xcp_cals section found\n");
     }
+#else
+#error "Unsupported platform for section calibration segment registration"
 #endif
 
     if (count > 0)
-        DBG_PRINTF3(ANSI_COLOR_GREEN "Preregistered %u calibration segments or blocks from descriptor section\n" ANSI_COLOR_RESET, count);
+        DBG_PRINTF3(ANSI_COLOR_GREEN "Preregistered %u new calibration segments or blocks from descriptor section\n" ANSI_COLOR_RESET, count);
     else
         DBG_PRINT3("No new calibration segment descriptors found in section xcp_cals\n");
     return count;

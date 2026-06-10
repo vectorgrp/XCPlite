@@ -97,11 +97,11 @@ typedef struct {
     // 30
     atomic_uint_least8_t ecu_access; // page number for ECU access
     atomic_uint_least8_t lock_count; // lock count for the segment, 0 = unlocked
-    uint8_t xcp_access;             // page number for XCP access
-    bool write_pending;             // write pending because write delay
-    bool free_page_hazard;          // safe free page use is not guaranteed yet, it may be in use
-    tXcpCalSegNumber calseg_number; // segment number, XCP_UNDEFINED_CALSEG_NUM if a calibration block, but not a MEMORY_SEGMENT
-    uint8_t app_id;                 // Application id for SHM_MODE
+    uint8_t xcp_access;              // page number for XCP access
+    bool write_pending;              // write pending because write delay
+    bool free_page_hazard;           // safe free page use is not guaranteed yet, it may be in use
+    tXcpCalSegNumber calseg_number;  // segment number, XCP_UNDEFINED_CALSEG_NUM if a calibration block, but not a MEMORY_SEGMENT
+    uint8_t app_id;                  // Application id for SHM_MODE
 #ifdef XCP_ENABLE_CAL_PERSISTENCE
     uint8_t mode; // for freeze and preload flags
 #else
@@ -125,8 +125,8 @@ static_assert(sizeof(tXcpCalSegHeader) == XCP_CALSEG_HEADER_SIZE, "Error: size o
 // In absolute addressing mode
 // Save the memory for the default page copy in absolute addressing mode, default page has static lifetime
 #define CALSEG_PAGE_COUNT 3                                           // default page, ECU page and XCP page
-#define XCP_PAGE_OFFSET(aligned_page_size) (0)        // Initial offset of the XCP working page in the allocated memory buffer
-#define ECU_PAGE_OFFSET(aligned_page_size) (aligned_page_size)  // Initial of the ECU working page in the allocated memory buffer
+#define XCP_PAGE_OFFSET(aligned_page_size) (0)                        // Initial offset of the XCP working page in the allocated memory buffer
+#define ECU_PAGE_OFFSET(aligned_page_size) (aligned_page_size)        // Initial of the ECU working page in the allocated memory buffer
 #define FREE_PAGE_OFFSET(aligned_page_size) (2 * (aligned_page_size)) // Initial of the free swap page in the allocated memory buffer
 #define CalSegDefaultPage(c) (const uint8_t *)(c)->h.default_page_ptr
 #define CalSegEcuPage(c) &(c)->b[(c)->h.ecu_page]
@@ -157,7 +157,7 @@ typedef struct {
 // Calibration segment list
 typedef struct {
     atomic_uint_least32_t offset[XCP_MAX_CALSEG_COUNT]; // offset[i] is the byte offset of calseg i from cal_mem[0], XCP_CALSEG_NO_PAGE means slot is unused
-    atomic_uint_least16_t count;                         // Number of calibration segments, max XCP_MAX_CALSEG_COUNT
+    atomic_uint_least16_t count;                        // Number of calibration segments, max XCP_MAX_CALSEG_COUNT
     uint16_t memory_segment_count;                      // Number of memory segments used by calibration segments, max 255
     bool write_delayed;                                 // atomic calibration (begin/end user command) in progress
 
@@ -219,9 +219,7 @@ typedef struct {
     tXcpCalSegIndex *indexp;
     uint16_t size;
     uint16_t type;
-#ifdef PLATFORM_32BIT
-    uint8_t res[16];
-#endif
+    uint8_t res[32 - sizeof(char *) - sizeof(void *) - sizeof(tXcpCalSegIndex *) - 2 - 2];
 } tXcpCalDescriptor;
 
 static_assert(sizeof(tXcpCalDescriptor) == 32, "sizeof(XcpCalDescriptor) must be 32");

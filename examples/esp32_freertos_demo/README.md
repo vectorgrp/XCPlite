@@ -244,7 +244,7 @@ The upload A2L file error message can be ignored, as the FreeRTOS implementation
 
 ## Offline A2L generation
 
-Get the ELF file and generate the A2L file with xcpclient (see getting xcpclient below).
+Locate the ELF file and generate the A2L file with xcpclient (see getting xcpclient in the README.md of esp32_freertos_demo).
 
 
 Recommended command from this example directory:
