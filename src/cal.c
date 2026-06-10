@@ -167,7 +167,7 @@ uint16_t XcpRegisterSectionCalSegs(void) {
         DBG_PRINT_WARNING("(MacOS): No xcp_cals section found\n");
     }
 #else
-#error "Unsupported platform for section calibration segment registration"
+// #error "Unsupported platform for section calibration segment registration"
 #endif
 
     if (count > 0)

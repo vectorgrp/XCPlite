@@ -961,7 +961,6 @@ typedef struct {
     uint32_t cycle_time_ns;
     uint8_t priority;
     uint8_t res[16 - sizeof(char *) - 4 - 1];
-    // tXcpEventId id;
 } tXcpEventDescriptor;
 static_assert(sizeof(tXcpEventDescriptor) == 16, "Size of tXcpEventDescriptor must be 16 bytes for correct section parsing in xcpclient tool");
 #endif
@@ -1008,6 +1007,8 @@ static uint16_t XcpRegisterSectionEvents(void) {
     } else {
         DBG_PRINT_WARNING("No xcp_evts section found\n");
     }
+#else
+// #error "Unsupported platform for event segment registration"
 #endif
 
     if (count > 0)
