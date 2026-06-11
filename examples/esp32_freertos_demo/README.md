@@ -244,7 +244,7 @@ The upload A2L file error message can be ignored, as the FreeRTOS implementation
 
 ## Offline A2L generation
 
-Locate the ELF file and generate the A2L file with xcpclient (see getting xcpclient in the README.md of esp32_freertos_demo).
+Locate the ELF file and generate the A2L file with xcpclient (see chapter xcpclient below).
 
 
 Recommended command from this example directory:
@@ -253,7 +253,9 @@ Recommended command from this example directory:
 xcpclient --offline --elf .pio/build/lilygo-t-display-s3/firmware.elf --a2l esp32_freertos_demo.a2l --elf-unit-filter xcp_demo
 ```
 
-`--elf-unit-filter xcp_demo` keeps the generated A2L focused on this demo application instead of adding all symbols from all linked code.
+`--elf-unit-filter xcp_demo` keeps the generated A2L focused on this demo application instead of adding all symbols from all linked code.  
+Use `--offline --udp --dest-addr x.x.x.x" to write the target IP address into the A2l file, otherwise it will default to localhost and you need to change it manually in CANape.  
+
 
 Advanced examples:
 
@@ -277,7 +279,7 @@ For more information on offline A2L generation see:
 
 
 
-## Test XCP Measurement
+## Test XCP Measurement and Calibration
 
 With xcpclient
 
@@ -306,7 +308,7 @@ Or use the CANape project in folder `CANape_Project`.
 Notes on CANape:
 - To enable the CANape internal ELF/DWARF reader and address updater, select the Map file reader: 'C# version with extended C++ support'.  
 - CANape will read the IP address of the XCP server from the generated A2L file. The xcpclient A2L generator writes the ip address given on its command line or otherwise defaults to 127.0.0.1.  
-- CANape does not support address update for local variables on stack. Don't use local variables when using the build-in address updater!.  
+- Note that CANape does not support address update for local variables on stack and address update of calibration memory segments is not working yet.  
 
 
 ### What to Measure
@@ -324,7 +326,8 @@ And calibration parameters to play with:
 - `parameters.amplitude`: calibratable sine amplitude
 - `parameters.counter_max`: the maximum value of the fast task counter, global_counter variables
 
-The local variables are intentionally marked `volatile` in `main.cpp` so optimized builds keep them visible enough for offline ELF/DWARF based A2L generation.
+The local variables are intentionally marked `volatile` in `main.cpp` so optimized builds keep them visible (spilled to stack) for offline ELF/DWARF based A2L generation.  
+Depending on the compiler and its optimization level, simple demo test measurement variable may be optimized away completely.
 
 
 ## Calibration parameters — `CalSegDeclRef`
@@ -362,7 +365,7 @@ CalSegDeclRef(parameters, parameters_calseg);
 ```
 
 The lock is **wait-free** — it uses atomics (RCU), not a mutex — so it is safe to call
-from an ISR or a high-priority FreeRTOS task.
+from an ISR or from a high-priority FreeRTOS task.
 
 
 **`CalSegDeclRef(value, handle)`** vs. the other calibration API macros:
@@ -420,9 +423,11 @@ and `AddrExt` encoding — see
 `xcpclient` is used for two jobs in this demo:
 
 - generating an A2L file from the firmware ELF
-- running simple command-line XCP connection and measurement tests
+- running simple command-line XCP connection, calibration and measurement tests
 
 ### Prebuilt Binary
+
+@@@@ TODO Work in progress
 
 For normal demo users, the recommended distribution model is a prebuilt binary matching the XCPlite release version. The binary should be taken from the matching XCPlite/xcp-lite release and put somewhere in your shell `PATH`.
 
@@ -519,7 +524,7 @@ To use resolutions other than 1 ns or 1 us, `xcp_cfg.h` and the XCP timestamp un
 
 ## XCPlite Source Selection
 
-The PlatformIO build uses `extra_script.py` to compile only the source files needed for 32 bit embedded target:
+The PlatformIO build uses `extra_script.py` to compile only the XCPlite source files needed for 32 bit embedded targets:
 
 ```text
 src/xcpappl.c
@@ -534,11 +539,7 @@ src/platform.c
 The source files remain in the XCPlite repository `src/` folder. They are not copied into this example.
 
 
-## Known Limitations
 
-- FreeRTOS targets do not support on-target A2L generation or A2L upload in this demo. Generate the A2L offline from the ELF file.
-- The offline A2L generator is not stable. Keep xcpclient/xcp-lite and XCPlite versions aligned.
-- Local variable measurement depends on compiler debug information and optimization behavior. Selected demo locals are marked `volatile` to improve visibility.
 
 
 ## TODO
