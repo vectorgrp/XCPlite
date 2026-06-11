@@ -31,6 +31,8 @@ You need:
 - A CANape full licence or demo version
 
 
+![Demo Board](ESP32.png)
+
 ## Demo Details
 
 The demo currently:
