@@ -544,6 +544,7 @@ The source files remain in the XCPlite repository `src/` folder. They are not co
 
 ## TODO
 
+- Implement IF_DATA description to enable CANape Linker-Map update for MEMORY_SEGMENTS 
 - Don't create a fixed event for global variables and add them to group 'Measurement'
 - Fix xcpclient issue if `XCP_104.aml` (included in the generated A2L file) is missing, xcpclient may not yet produce a helpful error message.
 - Check if the mutex based queue is acceptable or if we should port one of the lockless queue implementations based on 64Bit atomic head and tail
