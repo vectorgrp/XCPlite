@@ -2633,6 +2633,7 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             check_error(XcpAddOdtEntry(CRO_WRITE_DAQ_ADDR, CRO_WRITE_DAQ_EXT, CRO_WRITE_DAQ_SIZE));
         } break;
 
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0101        
         case CC_WRITE_DAQ_MULTIPLE: {
             check_len(CRO_WRITE_DAQ_MULTIPLE_LEN(1));
             uint8_t n = CRO_WRITE_DAQ_MULTIPLE_NODAQ;
@@ -2641,7 +2642,7 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
                 check_error(XcpAddOdtEntry(CRO_WRITE_DAQ_MULTIPLE_ADDR(i), CRO_WRITE_DAQ_MULTIPLE_EXT(i), CRO_WRITE_DAQ_MULTIPLE_SIZE(i)));
             }
         } break;
-
+#endif
         case CC_START_STOP_DAQ_LIST: // start, stop, select individual daq list
         {
             check_len(CRO_START_STOP_DAQ_LIST_LEN);
@@ -3623,12 +3624,14 @@ static void XcpPrintCmd(const tXcpCto *cmdBuf) {
         printf(" SHORT_UPLOAD addr=%08Xh, addrext=%02Xh, size=%u\n", CRO_SHORT_UPLOAD_ADDR, CRO_SHORT_UPLOAD_EXT, CRO_SHORT_UPLOAD_SIZE);
     } break;
 
+#if XCP_PROTOCOL_LAYER_VERSION >= 0x0101
     case CC_WRITE_DAQ_MULTIPLE: {
         printf(" WRITE_DAQ_MULTIPLE count=%u\n", CRO_WRITE_DAQ_MULTIPLE_NODAQ);
         for (int i = 0; i < CRO_WRITE_DAQ_MULTIPLE_NODAQ; i++) {
             printf("   %u: size=%u,addr=%08Xh,%02Xh\n", i, CRO_WRITE_DAQ_MULTIPLE_SIZE(i), CRO_WRITE_DAQ_MULTIPLE_ADDR(i), CRO_WRITE_DAQ_MULTIPLE_EXT(i));
         }
     } break;
+#endif
 
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0103
     case CC_TIME_CORRELATION_PROPERTIES:
