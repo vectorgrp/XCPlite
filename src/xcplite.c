@@ -2864,13 +2864,12 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
 #endif
                 if (CRM_LEN > XCPTL_MAX_CTO_SIZE)
                     error(CRC_CMD_UNKNOWN); // Extended mode needs enough CTO size
-            } else
-#endif                                                                        // >= 0x0103
-            {                                                                 // Legacy format
+            } else {                                                                 // Legacy format
                 CRM_GET_DAQ_CLOCK_PAYLOAD_FMT = DAQ_CLOCK_PAYLOAD_FMT_SLV_32; // FMT_XCP_SLV = size of timestamp is DWORD
                 CRM_LEN = CRM_GET_DAQ_CLOCK_LEN;
                 CRM_GET_DAQ_CLOCK_TIME = (uint32_t)ApplXcpGetClock64();
             }
+#endif                                                                        // >= 0x0103            
         } break;
 
 #if XCP_PROTOCOL_LAYER_VERSION >= 0x0104
@@ -3383,7 +3382,6 @@ void XcpStart(tQueueHandle queue_handle, bool resumeMode) {
     local_mut.clock_info.server.nativeTimestampSize = 4; // NATIVE_TIMESTAMP_SIZE_LONG;
     local_mut.clock_info.server.valueBeforeWrapAround = 0xFFFFFFFFULL;
 #endif
-#endif // XCP_PROTOCOL_LAYER_VERSION >= 0x0103
 #ifdef XCP_ENABLE_PTP
 
     // Default UUID of the XCP server clock
@@ -3416,6 +3414,7 @@ void XcpStart(tQueueHandle queue_handle, bool resumeMode) {
                 local.clock_info.server.UUID[6], local.clock_info.server.UUID[7]);
 
 #endif // PTP
+#endif // XCP_PROTOCOL_LAYER_VERSION >= 0x0103
 #endif // XCP_ENABLE_PROTOCOL_LAYER_ETH
 
     DBG_PRINT3("Start XCP protocol layer\n");
