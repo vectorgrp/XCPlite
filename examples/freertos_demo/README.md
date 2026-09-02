@@ -200,6 +200,7 @@ FreeRTOS configuration overrides are in `xcplib_rtos_cfg.h`:
 | Option | Value | Reason |
 |---|---|---|
 | `OPTION_QUEUE_32` | set | Mandatory on Cortex-M4: no 64-bit atomic operations |
+| `OPTION_QUEUE_32_SEGMENT_COUNT` | 16 | Number of statically allocated transmit queue segments; minimum 2 |
 | `OPTION_CLOCK_TICKS_1US` | set | `xTaskGetTickCount()`-based clock, 1 µs unit |
 | `OPTION_MTU` | 1500 | 1500 − 20-byte IPv4 header − 8-byte UDP header = 1472-byte maximum UDP payload |
 | `OPTION_CAL_MEM_SIZE` | 4 KB | Tune to available SRAM |
@@ -218,11 +219,13 @@ XcpInit name=stm32_freertos_demo, epk=V100, mode=01
 XcpEthServerInit
   sizeof(gXcpServer)=24
 Init transport layer queue (queue32)
-  buffer_size=8896, queue_size=6 (8896 Bytes)
+  buffer_size=23680, queue_size=16 (23680 Bytes)
 ```
 
-The 32-bit transmit queue used for FreeRTOS is fixed (queue32m.c, OPTION_QUEUE_32_SIZE bytes).
+The 32-bit transmit queue used for FreeRTOS has a fixed, statically allocated buffer (`queue32m.c`). Its size is derived from `OPTION_QUEUE_32_SEGMENT_COUNT`.
 There are no heap allocations in the 32-bit FreeRTOS build.
+
+Each queue segment provides storage for up to one UDP payload plus 8 bytes of internal metadata. With the default MTU of 1500, each segment occupies 1480 bytes and the default 16 segments consume 23,680 bytes of static RAM. Increase `OPTION_QUEUE_32_SEGMENT_COUNT` if packets are dropped during DAQ bursts, or decrease it to reduce static RAM usage.
 
 The queue state and buffer use the default `.dtcm` and `.noncacheable` sections on embedded targets. These sections may be overridden in `xcplib_rtos_cfg.h` to match the application linker script:
 

@@ -121,8 +121,15 @@
 #undef OPTION_QUEUE_64_VAR_SIZE
 #undef OPTION_QUEUE_64_FIX_SIZE
 #define OPTION_QUEUE_32
-// Fixed 4 KB queue buffer; the XcpEthServerInit parameter is ignored. Must be a multiple of sizeof(tXcpSegmentBuffer).
-#define OPTION_QUEUE_32_SIZE (16 * sizeof(tXcpSegmentBuffer))
+// Number of statically allocated XCP transmit queue segments (minimum 2)
+#ifndef OPTION_QUEUE_32_SEGMENT_COUNT
+#define OPTION_QUEUE_32_SEGMENT_COUNT 16U
+#endif
+#if OPTION_QUEUE_32_SEGMENT_COUNT < 2U
+#error "OPTION_QUEUE_32_SEGMENT_COUNT must be at least 2"
+#endif
+// The XcpEthServerInit queue size parameter is ignored for this fixed-size queue variant
+#define OPTION_QUEUE_32_SIZE (OPTION_QUEUE_32_SEGMENT_COUNT * sizeof(tXcpSegmentBuffer))
 // Optional application-specific placement for the static queue state and buffer:
 // #define OPTION_QUEUE_32_ATTRIBUTE __attribute__((section(".dtcm")))
 // #define OPTION_QUEUE_32_BUFFER_ATTRIBUTE __attribute__((section(".noncacheable")))
