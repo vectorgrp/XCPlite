@@ -313,12 +313,28 @@ void platformShmUnlink(const char *name);
 
 #elif defined(_FREE_RTOS) // FreeRTOS
 
-#define MUTEX SemaphoreHandle_t
-#define MUTEX_INTIALIZER NULL
+typedef struct {
+    SemaphoreHandle_t handle;
+#if configUSE_RECURSIVE_MUTEXES == 1
+    bool recursive;
+#endif
+} MUTEX;
+
+#if configUSE_RECURSIVE_MUTEXES == 1
+#define MUTEX_INTIALIZER {NULL, false}
+#else
+#define MUTEX_INTIALIZER {NULL}
+#endif
+
 // Callers always pass &mutex (matching the POSIX pattern where MUTEX is a struct).
-// FreeRTOS handles are already pointers, so dereference m to obtain the handle.
-#define mutexLock(m) xSemaphoreTakeRecursive(*(m), portMAX_DELAY)
-#define mutexUnlock(m) xSemaphoreGiveRecursive(*(m))
+// Select the matching FreeRTOS API when recursive mutexes are enabled.
+#if configUSE_RECURSIVE_MUTEXES == 1
+#define mutexLock(m) ((m)->recursive ? xSemaphoreTakeRecursive((m)->handle, portMAX_DELAY) : xSemaphoreTake((m)->handle, portMAX_DELAY))
+#define mutexUnlock(m) ((m)->recursive ? xSemaphoreGiveRecursive((m)->handle) : xSemaphoreGive((m)->handle))
+#else
+#define mutexLock(m) xSemaphoreTake((m)->handle, portMAX_DELAY)
+#define mutexUnlock(m) xSemaphoreGive((m)->handle)
+#endif
 
 #else // Other
 

@@ -373,14 +373,27 @@ void platformShmUnlink(const char *name) {
 
 void mutexInit(MUTEX *m, bool recursive, uint32_t spinCount) {
     (void)spinCount;
-    *m = recursive ? xSemaphoreCreateRecursiveMutex() : xSemaphoreCreateMutex();
-    assert(*m != NULL); // heap exhausted – increase configTOTAL_HEAP_SIZE
+#if configUSE_RECURSIVE_MUTEXES == 1
+    m->recursive = recursive;
+    m->handle = recursive ? xSemaphoreCreateRecursiveMutex() : xSemaphoreCreateMutex();
+#else
+    if (recursive) {
+        m->handle = NULL;
+        assert(!recursive); // Recursive FreeRTOS mutexes are not supported by this abstraction
+        return;
+    }
+    m->handle = xSemaphoreCreateMutex();
+#endif
+    assert(m->handle != NULL); // heap exhausted – increase configTOTAL_HEAP_SIZE
 }
 
 void mutexDestroy(MUTEX *m) {
-    if (m != NULL && *m != NULL) {
-        vSemaphoreDelete(*m);
-        *m = NULL;
+    if (m != NULL && m->handle != NULL) {
+        vSemaphoreDelete(m->handle);
+        m->handle = NULL;
+#if configUSE_RECURSIVE_MUTEXES == 1
+        m->recursive = false;
+#endif
     }
 }
 
