@@ -37,10 +37,11 @@
 #define XCPTL_MAX_DTO_SIZE (1024) // Must be %8, must be smaller or equal than XCPTL_MAX_SEGMENT_SIZE
 #endif
 
-// Segment size is the maximum data buffer size given to sockets send/sendTo, for UDP it is the UDP MTU
-// Jumbo frames are supported, but it might be more efficient to use a smaller segment sizes
+// Segment size is the maximum data buffer size given to socket send/sendTo; for UDP, it is the maximum UDP payload size.
+// Subtract the minimum IPv4 and UDP headers from the IP MTU, then align down as required by the transport layer.
+// Jumbo frames are supported, but it might be more efficient to use a smaller segment size.
 #ifdef OPTION_MTU
-#define XCPTL_MAX_SEGMENT_SIZE (OPTION_MTU - 32) // UDP MTU (- IP-header)
+#define XCPTL_MAX_SEGMENT_SIZE ((OPTION_MTU - 20 - 8) & ~0x07U)
 #else
 #error "Please define XCPTL_MAX_SEGMENT_SIZE"
 #define XCPTL_MAX_SEGMENT_SIZE (1500 - 20 - 8)

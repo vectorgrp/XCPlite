@@ -201,7 +201,7 @@ FreeRTOS configuration overrides are in `xcplib_rtos_cfg.h`:
 |---|---|---|
 | `OPTION_QUEUE_32` | set | Mandatory on Cortex-M4: no 64-bit atomic operations |
 | `OPTION_CLOCK_TICKS_1US` | set | `xTaskGetTickCount()`-based clock, 1 µs unit |
-| `OPTION_MTU` | 1504 | 1504 − 32 = 1472 bytes, max standard UDP payload, aligned to 8 |
+| `OPTION_MTU` | 1500 | 1500 − 20-byte IPv4 header − 8-byte UDP header = 1472-byte maximum UDP payload |
 | `OPTION_CAL_MEM_SIZE` | 4 KB | Tune to available SRAM |
 | `OPTION_DAQ_MEM_SIZE` | 4 KB | Tune to available SRAM |
 | `OPTION_CAL_SEGMENT_COUNT` | 8 | Tune to number of calibration segments needed |
