@@ -85,7 +85,9 @@ typedef struct Queue {
 
     uint32_t packets_lost; // Number of packets lost since last call to queuePop
 
+#ifdef OPTION_QUEUE32_MUTEX
     MUTEX Mutex_Queue;
+#endif
 
 } tQueue;
 
@@ -235,7 +237,9 @@ tQueueHandle queueInit(size_t queue_buffer_size) {
         sXcpQueue.queue[i].size = 0;           // No data in this segment
     }
 
+#ifdef OPTION_QUEUE32_MUTEX
     mutexInit(&sXcpQueue.Mutex_Queue, false, 1000);
+#endif
 
     LOCK;
     sXcpQueue.queue_rp = 0;
@@ -255,7 +259,9 @@ void queueDeinit(tQueueHandle _queue_handle) {
     sXcpQueue.queue = NULL;
     sXcpQueue.queue_buffer_size = 0;
     sXcpQueue.queue_size = 0;
+#ifdef OPTION_QUEUE32_MUTEX
     mutexDestroy(&sXcpQueue.Mutex_Queue);
+#endif
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
