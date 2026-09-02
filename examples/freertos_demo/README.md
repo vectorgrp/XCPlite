@@ -224,6 +224,13 @@ Init transport layer queue (queue32)
 The 32 bit transmit queue used for FreeRTOS is fixed (queue32m.c, OPTION_QUEUE_32_SIZE bytes).  
 There are no heap allocations in the 32 bit FreeRTOS build.  
 
+The queue header and buffer use the default `.dtcm` and `.noncacheable` sections on embedded targets. These sections may be overridden in `xcplib_rtos_cfg.h` to match the application linker script:
+
+```c
+#define OPTION_QUEUE_32_ATTRIBUTE __attribute__((section(".queue")))
+#define OPTION_QUEUE_32_BUFFER_ATTRIBUTE __attribute__((section(".queue_buffer")))
+```
+
 The memory size of static tXcpData is depending on the configuration in xcplib_cfg. and xcplib_rtos_cfg.h:  
 - OPTION_CAL_SEGMENT_COUNT: Max number of calibration segments or blocks
 - OPTION_CAL_MEM_SIZE: Space reserved for calibration data swapping and working pages (needs: 3 * page size * segment count)
@@ -483,5 +490,3 @@ from an ISR or from a high-priority FreeRTOS task.
 - Do some benchmarking on CPU load, event trigger and calibration RCU latency
 - Avoid copying the transmit buffers
 - CANape does not support address update for local variables on stack and address update of calibration memory segments.  
-
-

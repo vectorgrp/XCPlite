@@ -123,6 +123,9 @@
 #define OPTION_QUEUE_32
 // Fixed 4 KB for the queue buffer, parameter of XcpEthServerInit ignored, must be a multiple of sizeof(tXcpSegmentBuffer)
 #define OPTION_QUEUE_32_SIZE (16 * sizeof(tXcpSegmentBuffer))
+// Optional application-specific placement for the static queue header and buffer:
+// #define OPTION_QUEUE_32_ATTRIBUTE __attribute__((section(".dtcm")))
+// #define OPTION_QUEUE_32_BUFFER_ATTRIBUTE __attribute__((section(".noncacheable")))
 // Use a crtical section instead of a mutex, locked sequences are only a few instructions
 #define OPTION_QUEUE32_CRITICAL_SECTION
 #undef OPTION_QUEUE32_MUTEX

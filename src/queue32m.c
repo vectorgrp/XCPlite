@@ -110,19 +110,24 @@ from AXI SRAM. You need explicit SCB_CleanDCacheByAddr before queueRelease hands
 
 // STM32
 // Place the queue in DTCM for better performance on Cortex-M targets (zero-wait-state, no cache needed)
+#ifndef OPTION_QUEUE_32_ATTRIBUTE
 #if !defined(FREE_RTOS_POSIX_SIM) && !defined(ESP_PLATFORM)
-#define QUEUE_ATTRIBUTE __attribute__((section(".dtcm")))
+#define OPTION_QUEUE_32_ATTRIBUTE __attribute__((section(".dtcm")))
 #else
-#define QUEUE_ATTRIBUTE
+#define OPTION_QUEUE_32_ATTRIBUTE
 #endif
-#if !defined(FREE_RTOS_POSIX_SIM) && !defined(ESP_PLATFORM)
-#define QUEUE_BUF_ATTRIBUTE __attribute__((section(".noncacheable")));
-#else
-#define QUEUE_BUF_ATTRIBUTE
 #endif
 
-static tQueue QUEUE_ATTRIBUTE sXcpQueue;
-static tXcpSegmentBuffer QUEUE_BUF_ATTRIBUTE sXcpQueueBuf[OPTION_QUEUE_32_SIZE / sizeof(tXcpSegmentBuffer)];
+#ifndef OPTION_QUEUE_32_BUFFER_ATTRIBUTE
+#if !defined(FREE_RTOS_POSIX_SIM) && !defined(ESP_PLATFORM)
+#define OPTION_QUEUE_32_BUFFER_ATTRIBUTE __attribute__((section(".noncacheable")))
+#else
+#define OPTION_QUEUE_32_BUFFER_ATTRIBUTE
+#endif
+#endif
+
+static tQueue OPTION_QUEUE_32_ATTRIBUTE sXcpQueue;
+static tXcpSegmentBuffer OPTION_QUEUE_32_BUFFER_ATTRIBUTE sXcpQueueBuf[OPTION_QUEUE_32_SIZE / sizeof(tXcpSegmentBuffer)];
 
 /*
 
