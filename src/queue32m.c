@@ -80,8 +80,8 @@ typedef struct Queue {
     // Transmit segment queue
     tXcpSegmentBuffer *queue;   // Array of tXcpSegmentBuffer, each segment is a UDP payload (MAX_SEGMENT_SIZE)
     uint32_t queue_rp;          // rp = read index
-    uint32_t queue_len;         // rp+len = write index (the next free entry), len=0 ist empty, len=XCPTL_QUEUE_SIZE is full
-    tXcpSegmentBuffer *msg_ptr; // current incomplete or not fully commited segment
+    uint32_t queue_len;         // rp+len = write index (the next free entry), len=0 is empty, len=XCPTL_QUEUE_SIZE is full
+    tXcpSegmentBuffer *msg_ptr; // current incomplete or not fully committed segment
 
     uint32_t packets_lost; // Number of packets lost since last call to queuePop
 
@@ -176,7 +176,7 @@ static portMUX_TYPE sXcpQueueMux = portMUX_INITIALIZER_UNLOCKED;
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 
 // Allocate a new segment buffer (in sXcpQueue.msg_ptr)
-// Not thread save!
+// Not thread safe!
 static void newSegmentBuffer(void) {
 
     tXcpSegmentBuffer *b;
@@ -216,7 +216,7 @@ void queueClear(tQueueHandle _queue_handle) { clearQueue(); }
 tQueueHandle queueInit(size_t queue_buffer_size) {
 
     assert((OPTION_QUEUE_32_SIZE % sizeof(tXcpSegmentBuffer)) == 0);
-    assert(queue_buffer_size == 0); // Make sure the user understood, that the queue buffer size is fixed for this queue variant and the parameter is ignored
+    assert(queue_buffer_size == 0); // Make sure the user understands that the queue buffer size is fixed for this queue variant and the parameter is ignored
 
     queue_buffer_size = OPTION_QUEUE_32_SIZE; // The queue buffer size is fixed for this queue variant, the parameter is ignored
 
@@ -295,7 +295,7 @@ tQueueBuffer queueAcquire(tQueueHandle _queue_handle, uint16_t packet_size) {
 
     LOCK;
 
-    // Get another message buffer from queue, when active buffer ist full
+    // Get another message buffer from the queue when the active buffer is full
     b = sXcpQueue.msg_ptr;
     if (b == NULL || (uint16_t)(b->size + msg_size) > XCPTL_MAX_SEGMENT_SIZE) {
         newSegmentBuffer();
@@ -318,7 +318,7 @@ tQueueBuffer queueAcquire(tQueueHandle _queue_handle, uint16_t packet_size) {
     } else {
 
         // Build XCP message header (ctr+dlc) and store in DTO buffer
-        p->ctr = 0xEEEE; // Reserved value, indicates that this message is not yet commited (for assert only)
+        p->ctr = 0xEEEE; // Reserved value, indicates that this message is not yet committed (for assertion only)
         p->dlc = (uint16_t)packet_size;
 
         tQueueBuffer ret = {
@@ -340,9 +340,9 @@ void queuePush(tQueueHandle _queue_handle, const tQueueBuffer *queue_buffer, boo
     tXcpMessage *p = (tXcpMessage *)(queue_buffer->buffer - XCPTL_TRANSPORT_LAYER_HEADER_SIZE);
     assert(p->dlc > 0 && p->dlc <= XCPTL_MAX_DTO_SIZE);
     assert(p->ctr == 0xEEEE); // Check if the message is in reserved state
-    p->ctr = 0xCCCC;          // Mark the message as commited, CTR value is not important yet, it will be set by the consumer (for assert only)
+    p->ctr = 0xCCCC;          // Mark the message as committed, CTR value is not important yet, it will be set by the consumer (for assertion only)
 
-    // Flush (high priority data commited)
+    // Flush (high priority data committed)
     if (flush && sXcpQueue.msg_ptr != NULL && sXcpQueue.msg_ptr->size > 0) {
         newSegmentBuffer();
     }
@@ -422,7 +422,7 @@ tQueueBuffer queuePop(tQueueHandle _queue_handle, bool accumulate, bool flush, u
         while (p < pl) {
             tXcpMessage *m = (tXcpMessage *)p;                  // Pointer to the current message
             assert(m->dlc > 0 && m->dlc <= XCPTL_MAX_DTO_SIZE); // Check if the message length is valid
-            assert(m->ctr == 0xCCCC);                           // Check if the message is in commited state
+            assert(m->ctr == 0xCCCC);                           // Check if the message is in committed state
             m->ctr = XcpTlGetCtr();                             // Set the transport layer message counter
             p += m->dlc + XCPTL_TRANSPORT_LAYER_HEADER_SIZE;
         };

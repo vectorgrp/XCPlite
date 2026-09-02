@@ -379,7 +379,7 @@ void mutexInit(MUTEX *m, bool recursive, uint32_t spinCount) {
 #else
     if (recursive) {
         m->handle = NULL;
-        assert(!recursive); // Recursive FreeRTOS mutexes are not supported by this abstraction
+        assert(!recursive); // Recursive FreeRTOS mutexes are disabled in this configuration
         return;
     }
     m->handle = xSemaphoreCreateMutex();

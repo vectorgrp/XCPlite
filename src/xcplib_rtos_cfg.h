@@ -14,13 +14,13 @@
 |     - No jumbo frames, standard Ethernet MTU of 1504 bytes (1472 bytes UDP payload)
 |     - No TCP support (not implemented yet for FreeRTOS)
 |     - Reduced memory footprint
-|     - 32 bit DAQ queue
-|     - Clock resolution 1us
+|     - 32-bit DAQ queue
+|     - Clock resolution 1 µs
 |     - No file system
 |     - No on-target A2L generation
 |     - No persistence, no A2L/ELF upload (no filesystem)
 |     - No forceful thread termination (use vTaskDelete instead)
-|     - Reduced queue size, and max event number and calibration segment counts to fit in embedded SRAM
+|     - Reduced queue size, maximum event count, and calibration segment count to fit in embedded SRAM
 |
 |   Optional:
 |     OPTION_ENABLE_TCP not implemented yet for FreeRTOS
@@ -28,7 +28,7 @@
 |   Addressing scheme:
 |     Absolute memory addressing with A2L segments as absolute memory regions with static lifetime default page, no segment relative addressing
 |   Platform requirements:
-|    No filesystem required, 32 bit platform, currently only FreeRTOS, ThreadX planned to be supported in the future
+|    No filesystem required, 32-bit platform, currently only FreeRTOS; ThreadX support is planned
 |   Examples:
 |    freertos_demo     - FreeRTOS POSIX simulator (Linux only), for testing FreeRTOS xcplite support on the host
 |                        cmake: XCPLITE_CONFIGURATION=rtos, XCPLITE_BUILD_EXAMPLES=ON
@@ -41,7 +41,7 @@
 
  ----------------------------------------------------------------------------*/
 
-// FreeRTOS rx and tx task stack depth (in bytes) and priority
+// FreeRTOS RX and TX task stack depth (in bytes) and priority
 // On the POSIX simulator the size must be considerably larger than usual
 // Tune these values to the actual needs of the XCP server tasks on your target
 #if defined(FREE_RTOS_POSIX_SIM)
@@ -62,7 +62,7 @@
 //-------------------------------------------------------------------------------
 // Clock
 
-// FreeRTOS clock is assumed to have 1us ticks by default
+// FreeRTOS clock is assumed to have 1 µs ticks by default
 // Adjust below if your clock has a different resolution, but be aware of the consequences regarding rounding errors and representation problems
 #undef OPTION_CLOCK_TICKS_1NS
 #define OPTION_CLOCK_TICKS_1US // Default for FreeRTOS
@@ -89,7 +89,7 @@
 // Calibration segment management
 // #undef OPTION_CAL_SEGMENTS
 
-// Calibration segments max count and total memory size (each segment needs 3 copies of its data
+// Maximum calibration segment count and total memory size (each segment needs three copies of its data)
 #undef OPTION_CAL_SEGMENT_COUNT
 #define OPTION_CAL_SEGMENT_COUNT 8
 #undef OPTION_CAL_MEM_SIZE
@@ -98,8 +98,8 @@
 // No persistence (no filesystem on embedded)
 #undef OPTION_ENABLE_PERSISTENCE
 
-// Absolute addressing (compatible with most A2L tools and xcpclient
-// Address extension 0 is absolute addressing (linker map / elf address == XCP address))
+// Absolute addressing (compatible with most A2L tools and xcpclient)
+// Address extension 0 is absolute addressing (linker map / ELF address == XCP address)
 // Calibration segments have absolute addresses, segment relative addressing is still available on address extension 1
 #define OPTION_CAL_SEGMENTS_ABS
 
@@ -121,16 +121,16 @@
 #undef OPTION_QUEUE_64_VAR_SIZE
 #undef OPTION_QUEUE_64_FIX_SIZE
 #define OPTION_QUEUE_32
-// Fixed 4 KB for the queue buffer, parameter of XcpEthServerInit ignored, must be a multiple of sizeof(tXcpSegmentBuffer)
+// Fixed 4 KB queue buffer; the XcpEthServerInit parameter is ignored. Must be a multiple of sizeof(tXcpSegmentBuffer).
 #define OPTION_QUEUE_32_SIZE (16 * sizeof(tXcpSegmentBuffer))
-// Optional application-specific placement for the static queue header and buffer:
+// Optional application-specific placement for the static queue state and buffer:
 // #define OPTION_QUEUE_32_ATTRIBUTE __attribute__((section(".dtcm")))
 // #define OPTION_QUEUE_32_BUFFER_ATTRIBUTE __attribute__((section(".noncacheable")))
-// Use a crtical section instead of a mutex, locked sequences are only a few instructions
+// Use a critical section instead of a mutex; locked sequences are only a few instructions
 #define OPTION_QUEUE32_CRITICAL_SECTION
 #undef OPTION_QUEUE32_MUTEX
 
-// Create an asynchronous, cyclic DAQ event with event id 0 for asynchronous data acquisition
+// Create an asynchronous, cyclic DAQ event with event ID 0 for asynchronous data acquisition
 // Global variables default to this event
 #undef OPTION_DAQ_ASYNC_EVENT
 #define OPTION_DAQ_ASYNC_EVENT
