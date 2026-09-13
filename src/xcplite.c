@@ -1372,6 +1372,9 @@ static uint8_t XcpSetDaqListMode(uint16_t daq, uint16_t event_id, uint8_t mode, 
     event->daq_prescaler_cnt = 0;
 #endif
 
+#elif defined(XCP_MAX_EVENT_COUNT)
+    if (event_id >= XCP_MAX_EVENT_COUNT)
+        return CRC_OUT_OF_RANGE; // Protect the fixed event lookup table when event registration is disabled.
 #endif
 
 #ifdef XCP_ENABLE_DYN_ADDRESSING
