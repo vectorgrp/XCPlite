@@ -396,6 +396,99 @@ static void test_rewrite_entry_size(void) {
     expect_empty_queue();
 }
 
+// A lost WRITE_DAQ response is recovered with SYNCH + SET_DAQ_PTR + retry
+// (Table 232, p. 248). Model the repeated write and verify it does not enlarge the DTO.
+static void test_rewrite_retry(void) {
+    const uint32_t measurement = 0x12345678;
+    allocate_single_odt(1);
+    CHECK(write_daq(4, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(0, test_event)) == CRC_CMD_OK);
+    CHECK(set_daq_ptr(0, 0, 0) == CRC_CMD_OK);
+    CHECK(write_daq(4, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(0, test_event)) == CRC_CMD_OK);
+    start_list(0);
+    XcpEventExt(test_event, (const uint8_t *)&measurement);
+    expect_dto(0, &measurement, sizeof(measurement));
+    expect_empty_queue();
+}
+
+// Replacement can shrink an entry and change its address. Verify the negative size
+// adjustment and that the copied value comes from the replacement address.
+static void test_rewrite_shrink(void) {
+    const uint32_t measurement[2] = {0x12345678, 0xABCDEF01};
+    allocate_single_odt(1);
+    CHECK(write_daq(8, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(0, test_event)) == CRC_CMD_OK);
+    CHECK(set_daq_ptr(0, 0, 0) == CRC_CMD_OK);
+    CHECK(write_daq(4, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(4, test_event)) == CRC_CMD_OK);
+    start_list(0);
+    XcpEventExt(test_event, (const uint8_t *)measurement);
+    expect_dto(0, &measurement[1], sizeof(measurement[1]));
+    expect_empty_queue();
+}
+
+// Implementation policy: a failed single-entry replacement leaves the previously
+// valid configuration intact. This tests validate-before-commit, beyond the XCP
+// recovery requirement; it does not reinstate the rejected smaller-retry requirement.
+static void test_rewrite_overflow(void) {
+    CHECK(XCPTL_MAX_DTO_SIZE == 1024);
+    uint8_t measurement[1016];
+    for (unsigned i = 0; i < sizeof(measurement); i++)
+        measurement[i] = (uint8_t)i;
+    allocate_single_odt(5);
+    for (unsigned i = 0; i < 4; i++)
+        CHECK(write_daq(248, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(i * 248, test_event)) == CRC_CMD_OK);
+    CHECK(write_daq(24, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(992, test_event)) == CRC_CMD_OK);
+    CHECK(set_daq_ptr(0, 0, 4) == CRC_CMD_OK);
+    CHECK(write_daq(28, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(0, test_event)) == CRC_DAQ_CONFIG);
+    start_list(0);
+    XcpEventExt(test_event, measurement);
+    expect_dto(0, measurement, sizeof(measurement));
+    expect_empty_queue();
+}
+
+// SET_DAQ_PTR may visit entries out of order. A temporary gap during configuration
+// is harmless if filled before acquisition. DTO data must follow entry order, not
+// the order of WRITE_DAQ commands; each entry here is written exactly once.
+static void test_fill_gap(void) {
+    const uint32_t measurement[3] = {0x12345678, 0xABCDEF01, 0x76543210};
+    allocate_single_odt(3);
+    CHECK(set_daq_ptr(0, 0, 2) == CRC_CMD_OK);
+    CHECK(write_daq(4, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(8, test_event)) == CRC_CMD_OK);
+    CHECK(set_daq_ptr(0, 0, 0) == CRC_CMD_OK);
+    CHECK(write_daq(4, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(0, test_event)) == CRC_CMD_OK);
+    CHECK(write_daq(4, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(4, test_event)) == CRC_CMD_OK);
+    start_list(0);
+    XcpEventExt(test_event, (const uint8_t *)measurement);
+    expect_dto(0, measurement, sizeof(measurement));
+    expect_empty_queue();
+}
+
+// Current XCPlite TEST_CHECKS policy: all allocated entries must be populated.
+// Prepare detects a middle gap; filling it allows preparation and acquisition.
+// This is stricter than XCP's zero-size termination option (4.1.12, p. 30).
+// Direct-start validation is covered separately by start_incomplete.
+static void test_gap_prepare(void) {
+#ifdef XCP_ENABLE_TEST_CHECKS
+    const uint32_t measurement[3] = {0x12345678, 0xABCDEF01, 0x76543210};
+    allocate_single_odt(3);
+    CHECK(write_daq(4, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(0, test_event)) == CRC_CMD_OK);
+    CHECK(set_daq_ptr(0, 0, 2) == CRC_CMD_OK);
+    CHECK(write_daq(4, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(8, test_event)) == CRC_CMD_OK);
+    CHECK(set_daq_list_mode(0, test_event) == CRC_CMD_OK);
+    CHECK(start_stop_daq_list(0, 2) == CRC_CMD_OK);
+    CHECK(start_stop_synch(3) == CRC_DAQ_CONFIG);
+    CHECK(!XcpIsDaqRunning());
+    expect_empty_queue();
+    CHECK(set_daq_ptr(0, 0, 1) == CRC_CMD_OK);
+    CHECK(write_daq(4, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(4, test_event)) == CRC_CMD_OK);
+    CHECK(start_stop_synch(3) == CRC_CMD_OK);
+    CHECK(start_stop_synch(1) == CRC_CMD_OK);
+    XcpEventExt(test_event, (const uint8_t *)measurement);
+    expect_dto(0, measurement, sizeof(measurement));
+    expect_empty_queue();
+#else
+    puts("SKIP: gap_prepare requires XCP_ENABLE_TEST_CHECKS");
+#endif
+}
+
 // Positive batch case: two entries within one ODT, followed by a measured DTO.
 static void test_write_multiple_success(void) {
     const uint32_t measurement[2] = {0x12345678, 0xABCDEF01};
@@ -565,7 +658,12 @@ static const tTestCase cases[] = {
     {"odt_entry_allocation_overflow", test_odt_entry_allocation_overflow},
     {"odt_size_overflow", test_odt_size_overflow},
     {"dto_size_limit", test_dto_size_limit},
-    // {"rewrite_entry_size", test_rewrite_entry_size},
+    {"rewrite_entry_size", test_rewrite_entry_size},
+    {"rewrite_retry", test_rewrite_retry},
+    {"rewrite_shrink", test_rewrite_shrink},
+    {"rewrite_overflow", test_rewrite_overflow},
+    {"fill_gap", test_fill_gap},
+    {"gap_prepare", test_gap_prepare},
     {"write_multiple_success", test_write_multiple_success},
     // {"write_multiple_error", test_write_multiple_error},
     {"daq_ptr_bounds", test_daq_ptr_bounds},

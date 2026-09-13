@@ -1195,13 +1195,9 @@ static uint8_t XcpAllocOdt(uint16_t daq, uint8_t odtCount) {
     return XcpCheckMemory();
 }
 
-// Increase current ODT size (absolute ODT index) size by n
-static bool XcpAdjustOdtSize(uint16_t daq, uint16_t odt, uint8_t n) {
+// Validate and set ODT payload size (absolute ODT index)
+static bool XcpSetOdtSize(uint16_t daq, uint16_t odt, uint16_t size) {
 
-    uint16_t size = (uint16_t)(DaqListOdtTable[odt].size + n);
-    DaqListOdtTableMut[odt].size = size;
-
-#ifdef XCP_ENABLE_TEST_CHECKS
     assert(odt >= DaqListFirstOdt(daq));
     uint16_t daq_odt = odt - DaqListFirstOdt(daq);
     uint16_t max_size = (XCPTL_MAX_DTO_SIZE - ODT_HEADER_SIZE) - (daq_odt == 0 ? 4 : 0); // Leave space for ODT header and timestamp in first ODT
@@ -1209,9 +1205,7 @@ static bool XcpAdjustOdtSize(uint16_t daq, uint16_t odt, uint8_t n) {
         DBG_PRINTF_ERROR("DAQ %u, ODT %u overflow, %u bytes requested, max ODT size = %u, DTO size = %u!\n", daq, daq_odt, size, max_size, XCPTL_MAX_DTO_SIZE);
         return false;
     }
-#else
-    (void)daq;
-#endif
+    DaqListOdtTableMut[odt].size = size;
     return true;
 }
 
@@ -1287,21 +1281,21 @@ static uint8_t XcpAddOdtEntry(uint32_t addr, uint8_t ext, uint8_t size) {
         DBG_PRINTF_ERROR("DAQ list must have unique address extension, DAQ=%u, ODT=%u, ext=%u, daq_ext=%u\n", local.write_daq_daq, local.write_daq_odt, ext, daq_ext);
         return CRC_DAQ_CONFIG; // Error not unique address extension
     }
-    DaqListAddrExtMut(local.write_daq_daq) = ext;
+    daq_ext = ext;
 #endif
 
     uint32_t base_offset = 0;
 #ifdef XCP_ENABLE_DYN_ADDRESSING
+    uint16_t event_id = DaqListEventChannel(local.write_daq_daq);
     // DYN addressing mode, base pointer will given to XcpEventExt, event is encoded in the address
     if (XcpAddrIsDyn(ext)) {
-        uint16_t event = XcpAddrDecodeDynEvent(addr);
+        uint16_t encoded_event_id = XcpAddrDecodeDynEvent(addr);
         base_offset = XcpAddrDecodeDynOffset(addr);
-        uint16_t e0 = DaqListEventChannel(local.write_daq_daq);
-        if (e0 != XCP_UNDEFINED_EVENT_ID && e0 != event) {
-            DBG_PRINTF_ERROR("DAQ list must have unique event channel, DAQ=%u, ODT=%u, event=%u, DaqListEventChannel=%u\n", local.write_daq_daq, local.write_daq_odt, event, e0);
+        if (event_id != XCP_UNDEFINED_EVENT_ID && event_id != encoded_event_id) {
+            DBG_PRINTF_ERROR("DAQ list must have unique event, DAQ=%u, ODT=%u, addr:id=%u, DAQ-list:id=%u\n", local.write_daq_daq, local.write_daq_odt, encoded_event_id, event_id);
             return CRC_OUT_OF_RANGE; // Error event channel redefinition
         }
-        DaqListEventChannelMut(local_mut.write_daq_daq) = event;
+        event_id = encoded_event_id;
     } else
 #endif
 #ifdef XCP_ENABLE_REL_ADDRESSING
@@ -1332,13 +1326,22 @@ static uint8_t XcpAddOdtEntry(uint32_t addr, uint8_t ext, uint8_t size) {
 #endif
                 return CRC_ACCESS_DENIED;
 
+    // Commit only after address, event and DTO size checks have succeeded
+    // Entries may be rewritten, account this in odt_size
+    uint16_t odt_size = (uint16_t)(DaqListOdtTable[local.write_daq_odt].size - DaqListOdtEntrySizeTable[local.write_daq_odt_entry] + size);
+    if (!XcpSetOdtSize(local.write_daq_daq, local.write_daq_odt, odt_size))
+        return CRC_DAQ_CONFIG;
+#ifndef XCP_ENABLE_DAQ_ADDREXT
+    DaqListAddrExtMut(local.write_daq_daq) = daq_ext;
+#endif
+#ifdef XCP_ENABLE_DYN_ADDRESSING
+    DaqListEventChannelMut(local.write_daq_daq) = event_id;
+#endif
     DaqListOdtEntrySizeTableMut[local.write_daq_odt_entry] = size;
     DaqListOdtEntryAddrTableMut[local.write_daq_odt_entry] = base_offset; // Signed 32 bit offset relative to base pointer given to XcpEvent
 #ifdef XCP_ENABLE_DAQ_ADDREXT
     DaqListOdtEntryAddrExtTableMut[local.write_daq_odt_entry] = ext;
 #endif
-    if (!XcpAdjustOdtSize(local.write_daq_daq, local.write_daq_odt, size))
-        return CRC_DAQ_CONFIG;
     local_mut.write_daq_odt_entry++; // Autoincrement to next ODT entry, no autoincrementing over ODTs
     return 0;
 }
