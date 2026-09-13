@@ -1092,6 +1092,7 @@ static void XcpClearDaq(void) {
 
     memset((uint8_t *)&shared.daq_lists, 0, sizeof(tXcpDaqLists));
     shared_mut.daq_lists.res = 0xBEAC;
+    local_mut.write_daq_daq = UINT16_MAX; // Invalidate the ODT entry pointer until SET_DAQ_PTR initializes all three indices.
 
 #ifdef XCP_MAX_EVENT_COUNT
 #ifdef XCP_ENABLE_DAQ_EVENT_LIST
@@ -1108,7 +1109,7 @@ static void XcpClearDaq(void) {
 }
 
 // Check if there is sufficient memory for the values of DaqCount, OdtCount and OdtEntryCount
-// Return CRC_MEMORY_OVERFLOW if not
+// Clear the DAQ configuration and return CRC_MEMORY_OVERFLOW if not
 static uint8_t XcpCheckMemory(void) {
 
     uint32_t s;
@@ -1124,6 +1125,7 @@ static uint8_t XcpCheckMemory(void) {
         (shared.daq_lists.odt_entry_count * ODT_ENTRY_SIZE);
     if (s >= XCP_DAQ_MEM_SIZE) {
         DBG_PRINTF_ERROR("DAQ memory overflow, %u of %u Bytes required\n", s, XCP_DAQ_MEM_SIZE);
+        XcpClearDaq(); // Allocation overflow invalidates the complete DAQ configuration (XCP 1.4, 4.1.6).
         return CRC_MEMORY_OVERFLOW;
     }
 
@@ -1151,10 +1153,8 @@ static uint8_t XcpAllocDaq(uint16_t daqCount) {
 
     // Check the requested count before initializing any DAQ list entries.
     shared_mut.daq_lists.daq_count = daqCount;
-    if (0 != (r = XcpCheckMemory())) {
-        XcpClearDaq(); // Allocation overflow invalidates the complete DAQ configuration (XCP 1.4, 4.1.6).
+    if (0 != (r = XcpCheckMemory()))
         return r;
-    }
 
     // Initialize
     for (daq = 0; daq < daqCount; daq++) {
@@ -1230,8 +1230,10 @@ static uint8_t XcpAllocOdtEntry(uint16_t daq, uint8_t odt, uint8_t odtEntryCount
 
     /* Absolute ODT entry count is limited to 64K */
     n = (uint32_t)shared.daq_lists.odt_entry_count + (uint32_t)odtEntryCount;
-    if (n > 0xFFFF)
+    if (n > 0xFFFF) {
+        XcpClearDaq();
         return CRC_MEMORY_OVERFLOW;
+    }
 
     xcpFirstOdt = shared.daq_lists.u.daq_list[daq].first_odt;
     DaqListOdtTableMut[xcpFirstOdt + odt].first_odt_entry = shared.daq_lists.odt_entry_count;
@@ -1268,6 +1270,8 @@ static uint8_t XcpAddOdtEntry(uint32_t addr, uint8_t ext, uint8_t size) {
         return CRC_OUT_OF_RANGE;
     if (0 == shared.daq_lists.daq_count || 0 == shared.daq_lists.odt_count || 0 == shared.daq_lists.odt_entry_count)
         return CRC_DAQ_CONFIG;
+    if (local.write_daq_daq >= shared.daq_lists.daq_count)
+        return CRC_SEQUENCE; // Invalid ODT entry pointer, SET_DAQ_PTR is required
     if (local.write_daq_odt_entry - DaqListOdtTable[local.write_daq_odt].first_odt_entry >= DaqListOdtEntryCount(local.write_daq_odt))
         return CRC_OUT_OF_RANGE;
     if (XcpIsDaqRunning())

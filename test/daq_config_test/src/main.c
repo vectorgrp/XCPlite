@@ -141,10 +141,10 @@ static uint8_t start_stop_synch(uint8_t mode) {
 // Regression tests
 
 // Retained for review, deliberately disabled: these are NOT our acceptance criteria.
-// The first three cases require in-place rollback after ERR_MEMORY_OVERFLOW.
-// Section 4.1.6 (p. 19) invalidates the entire configuration; Table 232 (pp. 253-254)
+// The first three cases require in-place rollback after CRC_MEMORY_OVERFLOW.
+// XCP specification 1.4 section 4.1.6 (p. 19) invalidates the entire configuration; Table 232 (pp. 253-254)
 // requires the master to reinitialize DAQ before retrying with smaller parameters.
-// The fourth case requires immediate recovery from WRITE_DAQ ERR_DAQ_CONFIG.
+// The fourth case requires immediate recovery from WRITE_DAQ CRC_DAQ_CONFIG.
 // Table 232 (p. 249) specifies "display error", not a smaller retry at the same cursor.
 // We still require safe rejection and recovery after FREE_DAQ, tested below.
 #if 0
@@ -282,8 +282,27 @@ static void test_free_and_reconfigure(void) {
     reinitialize_and_measure();
 }
 
+// Clearing/reallocating DAQ must invalidate the old write cursor, even when the new
+// allocation reuses the same indices. Reject a write until SET_DAQ_PTR is repeated;
+// CRC_SEQUENCE uses SET_DAQ_PTR as its recovery pre-action (Table 232, p. 249).
+static void test_daq_ptr_after_free(void) {
+    const uint32_t measurement = 0x12345678;
+    allocate_single_odt(1); // Establish a cursor that would fit the new allocation too.
+    CHECK(free_daq() == CRC_CMD_OK);
+    CHECK(alloc_daq(1) == CRC_CMD_OK);
+    CHECK(alloc_odt(0, 1) == CRC_CMD_OK);
+    CHECK(alloc_odt_entry(0, 0, 1) == CRC_CMD_OK);
+    CHECK(write_daq(4, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(0, test_event)) == CRC_SEQUENCE);
+    CHECK(set_daq_ptr(0, 0, 0) == CRC_CMD_OK);
+    CHECK(write_daq(4, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(0, test_event)) == CRC_CMD_OK);
+    start_list(0);
+    XcpEventExt(test_event, (const uint8_t *)&measurement);
+    expect_dto(0, &measurement, sizeof(measurement));
+    expect_empty_queue();
+}
+
 // Legal allocation phases are FREE -> DAQ -> ODT -> ENTRY (4.1.6, pp. 19-20).
-// After ERR_SEQUENCE the master reinitializes, rather than attempting in-place repair.
+// After CRC_SEQUENCE the master reinitializes, rather than attempting in-place repair.
 static void test_allocation_sequence(void) {
     CHECK(alloc_odt(0, 1) == CRC_SEQUENCE);
     CHECK(free_daq() == CRC_CMD_OK);
@@ -335,7 +354,7 @@ static void test_odt_entry_allocation_overflow(void) {
 
 // Four 248-byte entries fit; a fifth exceeds the 1016-byte first-ODT payload limit.
 // Require rejection and recovery after FREE_DAQ. Do not require rollback or depend on
-// the pointer's value following ERR_DAQ_CONFIG (Table 232, p. 249).
+// the pointer's value following CRC_DAQ_CONFIG (Table 232, p. 249).
 static void test_odt_size_overflow(void) {
     CHECK(XCPTL_MAX_DTO_SIZE == 1024);
     allocate_single_odt(5);
@@ -408,7 +427,7 @@ static void test_daq_ptr_bounds(void) {
     CHECK(set_daq_ptr(0, 0, 0) == CRC_CMD_OK);
 }
 
-// Unlike ERR_DAQ_CONFIG, ERR_OUT_OF_RANGE has "retry other parameter" recovery
+// Unlike CRC_DAQ_CONFIG, CRC_OUT_OF_RANGE has "retry other parameter" recovery
 // (Table 232, p. 249). Reject an oversized element, then write a valid size and
 // verify that the rejection did not advance the cursor or damage the configuration.
 static void test_invalid_entry_size(void) {
@@ -539,10 +558,11 @@ typedef struct {
 static const tTestCase cases[] = {
     {"single_entry", test_single_entry},
     {"free_and_reconfigure", test_free_and_reconfigure},
+    {"daq_ptr_after_free", test_daq_ptr_after_free},
     {"allocation_sequence", test_allocation_sequence},
     {"daq_allocation_overflow", test_daq_allocation_overflow},
-    // {"odt_allocation_overflow", test_odt_allocation_overflow},
-    // {"odt_entry_allocation_overflow", test_odt_entry_allocation_overflow},
+    {"odt_allocation_overflow", test_odt_allocation_overflow},
+    {"odt_entry_allocation_overflow", test_odt_entry_allocation_overflow},
     {"odt_size_overflow", test_odt_size_overflow},
     {"dto_size_limit", test_dto_size_limit},
     // {"rewrite_entry_size", test_rewrite_entry_size},
