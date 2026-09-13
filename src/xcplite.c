@@ -1149,9 +1149,14 @@ static uint8_t XcpAllocDaq(uint16_t daqCount) {
     if (daqCount == 0)
         return CRC_OUT_OF_RANGE;
 
+    // Check the requested count before initializing any DAQ list entries.
+    shared_mut.daq_lists.daq_count = daqCount;
+    if (0 != (r = XcpCheckMemory())) {
+        XcpClearDaq(); // Allocation overflow invalidates the complete DAQ configuration (XCP 1.4, 4.1.6).
+        return r;
+    }
+
     // Initialize
-    if (0 != (r = XcpCheckMemory()))
-        return r; // Memory overflow
     for (daq = 0; daq < daqCount; daq++) {
         DaqListEventChannelMut(daq) = XCP_UNDEFINED_EVENT_ID;
         DaqListAddrExtMut(daq) = XCP_UNDEFINED_ADDR_EXT;
@@ -1159,7 +1164,6 @@ static uint8_t XcpAllocDaq(uint16_t daqCount) {
         DaqListNextMut(daq) = XCP_UNDEFINED_DAQ_LIST;
 #endif
     }
-    shared_mut.daq_lists.daq_count = daqCount;
     return 0;
 }
 
