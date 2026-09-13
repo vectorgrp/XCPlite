@@ -56,7 +56,7 @@ Switching compilers requires a fresh build directory (CMake caches the compiler 
 
 ### Running tests
 
-Tests are plain executables built under `XCPLITE_BUILD_TESTS=ON` (default config: `a2l_test`, `cal_test`, `daq_test`, `clock_test`, `queue_test`, `xcp_test`, `type_detection_test_*`; `ptp` config: `clock_test` only). Build then run directly, e.g.:
+Tests are plain executables built under `XCPLITE_BUILD_TESTS=ON` (default config: `a2l_test`, `cal_test`, `daq_test`, `daq_config_test`, `clock_test`, `queue_test`, `xcp_test`, `type_detection_test_*`; `ptp` config: `clock_test` only). Build then run directly, e.g.:
 
 ```bash
 ./build.sh tests

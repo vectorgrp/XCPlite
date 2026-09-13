@@ -296,7 +296,7 @@ case "$CONFIGURATION" in
     default)
         [[ "$CMAKE_BUILD_EXAMPLES" == "ON" ]] && echo "  Examples      : hello_xcp, hello_xcp_cpp, c_demo, cpp_demo, point_cloud_demo, struct_demo, multi_thread_demo, ptp4l_demo (Linux), bpf_demo (Linux, if XCPLITE_BUILD_BPF_DEMO=ON)" \
             || echo "  Examples      : (not built)"
-        [[ "$CMAKE_BUILD_TESTS" == "ON" ]]    && echo "  Tests         : a2l_test, cal_test, daq_test, clock_test, queue_test, xcp_test, type_detection_test_*" \
+        [[ "$CMAKE_BUILD_TESTS" == "ON" ]]    && echo "  Tests         : a2l_test, cal_test, daq_test, daq_config_test, clock_test, queue_test, xcp_test, type_detection_test_*" \
             || echo "  Tests         : (not built)"
         [[ "$CMAKE_BUILD_TOOLS" == "ON" ]]    && echo "  Tools         : (none for default configuration)" \
             || echo "  Tools         : (not built)"
