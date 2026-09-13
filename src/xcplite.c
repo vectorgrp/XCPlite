@@ -2702,6 +2702,9 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
                     DBG_PRINT_ERROR("DAQ is already running, start of additional DAQ list sets is not supported!\n");
                     error(CRC_DAQ_ACTIVE);
                 }
+                // Prepare is optional; validate before acknowledging start or changing DAQ states.
+                if (!XcpCheckDaqLists(DAQ_STATE_SELECTED, XCP_UNDEFINED_EVENT_ID))
+                    error(CRC_DAQ_CONFIG);
 #endif
                 XcpSendResponse(async, &CRM, CRM_LEN); // Transmit response first and then start DAQ
                 XcpStartSelectedDaqLists();

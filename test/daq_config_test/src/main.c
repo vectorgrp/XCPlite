@@ -673,19 +673,70 @@ static void test_event_mismatch(void) {
     expect_empty_queue();
 }
 
-// Proposed TEST_CHECKS audit: an unwritten allocated entry must be rejected before
-// DAQ starts. Prepare is optional (7.5.4.5, p. 166), so test direct start explicitly.
+// XCPlite TEST_CHECKS policy requires all allocated entries to be populated.
+// Prepare is optional (7.5.4.5, p. 166): direct start must detect a leading, middle
+// or trailing gap. Rejection must preserve the configuration and selection, so
+// filling the gap and retrying start works without FREE_DAQ or another select.
 static void test_start_incomplete(void) {
 #ifdef XCP_ENABLE_TEST_CHECKS
-    allocate_single_odt(2);
-    CHECK(write_daq(4, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(0, test_event)) == CRC_CMD_OK);
-    CHECK(set_daq_list_mode(0, test_event) == CRC_CMD_OK);
-    CHECK(start_stop_daq_list(0, 2) == CRC_CMD_OK);
-    CHECK(start_stop_synch(1) == CRC_DAQ_CONFIG);
-    CHECK(!XcpIsDaqRunning());
-    expect_empty_queue();
+    const uint32_t measurement[3] = {0x12345678, 0xABCDEF01, 0x76543210};
+    for (uint8_t gap = 0; gap < 3; gap++) {
+        CHECK(free_daq() == CRC_CMD_OK);
+        allocate_single_odt(3);
+        for (uint8_t entry = 0; entry < 3; entry++) {
+            if (entry == gap)
+                continue;
+            CHECK(set_daq_ptr(0, 0, entry) == CRC_CMD_OK);
+            CHECK(write_daq(4, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(entry * 4, test_event)) == CRC_CMD_OK);
+        }
+        CHECK(set_daq_list_mode(0, test_event) == CRC_CMD_OK);
+        CHECK(start_stop_daq_list(0, 2) == CRC_CMD_OK);
+        CHECK(start_stop_synch(1) == CRC_DAQ_CONFIG);
+        CHECK(!XcpIsDaqRunning());
+        CHECK(XcpIsConnected());
+        expect_empty_queue();
+        CHECK(set_daq_ptr(0, 0, gap) == CRC_CMD_OK);
+        CHECK(write_daq(4, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(gap * 4, test_event)) == CRC_CMD_OK);
+        CHECK(start_stop_synch(1) == CRC_CMD_OK);
+        CHECK(XcpIsDaqRunning());
+        XcpEventExt(test_event, (const uint8_t *)measurement);
+        expect_dto(0, measurement, sizeof(measurement));
+        expect_empty_queue();
+        CHECK(start_stop_synch(0) == CRC_CMD_OK);
+    }
 #else
     puts("SKIP: start_incomplete requires XCP_ENABLE_TEST_CHECKS");
+#endif
+}
+
+// Check only selected DAQs: an incomplete, unselected DAQ must not block a valid
+// selection. Selecting both must reject the entire start before either DAQ runs.
+static void test_start_selected_only(void) {
+#ifdef XCP_ENABLE_TEST_CHECKS
+    const uint32_t measurement = 0x12345678;
+    CHECK(alloc_daq(2) == CRC_CMD_OK);
+    CHECK(alloc_odt(0, 1) == CRC_CMD_OK);
+    CHECK(alloc_odt(1, 1) == CRC_CMD_OK);
+    CHECK(alloc_odt_entry(0, 0, 1) == CRC_CMD_OK);
+    CHECK(alloc_odt_entry(1, 0, 1) == CRC_CMD_OK);
+    CHECK(set_daq_ptr(0, 0, 0) == CRC_CMD_OK);
+    CHECK(write_daq(4, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(0, test_event)) == CRC_CMD_OK);
+    CHECK(set_daq_list_mode(0, test_event) == CRC_CMD_OK);
+    CHECK(set_daq_list_mode(1, test_event) == CRC_CMD_OK);
+    CHECK(start_stop_daq_list(0, 2) == CRC_CMD_OK);
+    CHECK(start_stop_synch(1) == CRC_CMD_OK);
+    XcpEventExt(test_event, (const uint8_t *)&measurement);
+    expect_dto(0, &measurement, sizeof(measurement));
+    expect_empty_queue();
+    CHECK(start_stop_synch(0) == CRC_CMD_OK);
+    CHECK(start_stop_daq_list(0, 2) == CRC_CMD_OK);
+    CHECK(start_stop_daq_list(1, 2) == CRC_CMD_OK);
+    CHECK(start_stop_synch(1) == CRC_DAQ_CONFIG);
+    CHECK(!XcpIsDaqRunning());
+    XcpEventExt(test_event, (const uint8_t *)&measurement);
+    expect_empty_queue();
+#else
+    puts("SKIP: start_selected_only requires XCP_ENABLE_TEST_CHECKS");
 #endif
 }
 
@@ -698,7 +749,6 @@ typedef struct {
     void (*run)(void);
 } tTestCase;
 
-// Failing tests commented out
 static const tTestCase cases[] = {
     {"single_entry", test_single_entry},
     {"free_and_reconfigure", test_free_and_reconfigure},
@@ -727,7 +777,8 @@ static const tTestCase cases[] = {
     {"repeated_association", test_repeated_association},
     {"repeated_shared_association", test_repeated_shared_association},
     {"event_mismatch", test_event_mismatch},
-    // {"start_incomplete", test_start_incomplete},
+    {"start_incomplete", test_start_incomplete},
+    {"start_selected_only", test_start_selected_only},
 };
 
 int main(int argc, char **argv) {
