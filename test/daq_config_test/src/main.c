@@ -116,14 +116,17 @@ static uint8_t write_daq(uint8_t size, uint8_t ext, uint32_t addr) {
     return run_command(command, sizeof(command));
 }
 
-static uint8_t set_daq_list_mode(uint16_t daq, uint16_t event) {
+static uint8_t set_daq_list_mode_priority(uint16_t daq, uint16_t event, uint8_t priority) {
     uint8_t command[CRO_SET_DAQ_LIST_MODE_LEN] = {CC_SET_DAQ_LIST_MODE};
     command[1] = DAQ_MODE_TIMESTAMP;
     set_u16(&command[2], daq);
     set_u16(&command[4], event);
     command[6] = 1;
+    command[7] = priority;
     return run_command(command, sizeof(command));
 }
+
+static uint8_t set_daq_list_mode(uint16_t daq, uint16_t event) { return set_daq_list_mode_priority(daq, event, 0); }
 
 static uint8_t start_stop_daq_list(uint16_t daq, uint8_t mode) {
     uint8_t command[CRO_START_STOP_DAQ_LIST_LEN] = {CC_START_STOP_DAQ_LIST};
@@ -256,7 +259,7 @@ static void configure_and_measure(void) {
 }
 
 // Implementation policy, beyond the master's recovery obligation: clear all DAQs on
-// allocation overflow or a partially executed WRITE_DAQ_MULTIPLE error. The spec calls
+// allocation overflow or a WRITE_DAQ_MULTIPLE entry error. The spec calls
 // the configuration invalid; clearing is our proposed small-diff way to make it unusable.
 // Do not confuse this with disconnecting: these are S2 errors (5.3 p. 76, Table 228).
 static void expect_configuration_cleared(void) {
@@ -510,6 +513,43 @@ static void test_write_multiple_error(void) {
     reinitialize_and_measure();
 }
 
+// The response does not identify which batch entry failed (7.5.4.6, p. 168).
+// Apply clear-on-entry-error even when the first element fails, so recovery does
+// not depend on how far the slave got through the batch.
+static void test_write_multiple_first_error(void) {
+    allocate_single_odt(2);
+    CHECK(write_daq_multiple(249, 4) == CRC_OUT_OF_RANGE);
+    expect_configuration_cleared();
+    reinitialize_and_measure();
+}
+
+// A batch must stay within one ODT (7.5.4.6, p. 168), even when another allocated
+// ODT follows it. The first write succeeds; the second must fail instead of spilling
+// into the next ODT. Discard the partially written configuration and reinitialize.
+static void test_write_multiple_odt_boundary(void) {
+    CHECK(alloc_daq(1) == CRC_CMD_OK);
+    CHECK(alloc_odt(0, 2) == CRC_CMD_OK);
+    CHECK(alloc_odt_entry(0, 0, 1) == CRC_CMD_OK);
+    CHECK(alloc_odt_entry(0, 1, 1) == CRC_CMD_OK);
+    CHECK(set_daq_ptr(0, 0, 0) == CRC_CMD_OK);
+    CHECK(write_daq_multiple(4, 4) == CRC_OUT_OF_RANGE);
+    expect_configuration_cleared();
+    reinitialize_and_measure();
+}
+
+// Individual sizes and entry indices are valid, but the second batch element takes
+// the ODT payload from 992 to 1020 bytes, exceeding its 1016-byte limit. Preserve the
+// CRC_DAQ_CONFIG response while clearing all DAQs, not only the offending ODT.
+static void test_write_multiple_dto_overflow(void) {
+    CHECK(XCPTL_MAX_DTO_SIZE == 1024);
+    allocate_single_odt(5);
+    for (unsigned i = 0; i < 3; i++)
+        CHECK(write_daq(248, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(0, test_event)) == CRC_CMD_OK);
+    CHECK(write_daq_multiple(248, 28) == CRC_DAQ_CONFIG);
+    expect_configuration_cleared();
+    reinitialize_and_measure();
+}
+
 // Explicit DAQ, ODT and entry indices outside allocated ranges must be rejected.
 // This does not make assumptions about the cursor after a failed SET_DAQ_PTR.
 static void test_daq_ptr_bounds(void) {
@@ -544,6 +584,9 @@ static void test_write_while_running(void) {
     start_list(0);
     CHECK(write_daq(4, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(0, test_event)) == CRC_DAQ_ACTIVE);
     CHECK(write_daq_multiple(4, 4) == CRC_DAQ_ACTIVE);
+    // Even an invalid first entry must not turn a running-command rejection into
+    // configuration invalidation: the DAQ-active check precedes entry validation.
+    CHECK(write_daq_multiple(249, 4) == CRC_DAQ_ACTIVE);
     CHECK(alloc_daq(1) == CRC_DAQ_ACTIVE);
     CHECK(XcpIsDaqRunning());
     XcpEventExt(test_event, (const uint8_t *)&measurement);
@@ -552,7 +595,7 @@ static void test_write_while_running(void) {
 }
 
 // One event may serve two DAQs. Check each DAQ ID and its distinct value, so two
-// copies of the same DAQ cannot pass. Optionally repeat the head association to
+// copies of the same DAQ cannot pass. Optionally repeat head and tail associations to
 // exercise the original test's multi-node cycle scenario as a separate case.
 static void measure_shared_event(bool repeat_association) {
     const uint32_t measurement[2] = {0x12345678, 0xABCDEF01};
@@ -567,8 +610,12 @@ static void measure_shared_event(bool repeat_association) {
         CHECK(set_daq_list_mode(daq, test_event) == CRC_CMD_OK);
         CHECK(start_stop_daq_list(daq, 2) == CRC_CMD_OK);
     }
-    if (repeat_association)
-        CHECK(set_daq_list_mode(0, test_event) == CRC_CMD_OK);
+    if (repeat_association) {
+        for (unsigned i = 0; i < 3; i++) {
+            CHECK(set_daq_list_mode(0, test_event) == CRC_CMD_OK);
+            CHECK(set_daq_list_mode(1, test_event) == CRC_CMD_OK);
+        }
+    }
     CHECK(start_stop_synch(1) == CRC_CMD_OK);
     XcpEventExt(test_event, (const uint8_t *)measurement);
     // Do not prescribe ordering between DAQs of equal priority.
@@ -588,21 +635,25 @@ static void measure_shared_event(bool repeat_association) {
 // Basic multi-DAQ append, without any repeated SET_DAQ_LIST_MODE.
 static void test_shared_event(void) { measure_shared_event(false); }
 
-// Re-appending the head of a two-node list can create a cycle even when repeating
-// a singleton works. Preserve this part of the original shared-event regression.
+// Re-appending the head can create a multi-node cycle; re-appending the tail can
+// create a self-cycle. Both DAQs must still appear exactly once in the event.
 static void test_repeated_shared_association(void) { measure_shared_event(true); }
 
 // SET_DAQ_LIST_MODE can be repeated (including master retry after a timeout,
 // Table 232, p. 249). Repetition must neither append a duplicate nor create a cycle.
+// A repeated command must also apply a changed priority: verify its queue flush request.
 static void test_repeated_association(void) {
     const uint32_t measurement = 0x12345678;
     allocate_single_odt(1);
     CHECK(write_daq(4, XCP_ADDR_EXT_DYN, XcpAddrEncodeDyn(0, test_event)) == CRC_CMD_OK);
     CHECK(set_daq_list_mode(0, test_event) == CRC_CMD_OK);
-    CHECK(set_daq_list_mode(0, test_event) == CRC_CMD_OK);
+    CHECK(set_daq_list_mode_priority(0, test_event, 1) == CRC_CMD_OK);
     CHECK(start_stop_daq_list(0, 2) == CRC_CMD_OK);
     CHECK(start_stop_synch(1) == CRC_CMD_OK);
     XcpEventExt(test_event, (const uint8_t *)&measurement);
+    bool flush_requested = false;
+    CHECK(queuePeek(test_queue, 0, NULL, &flush_requested).buffer != NULL);
+    CHECK(flush_requested);
     expect_dto(0, &measurement, sizeof(measurement));
     expect_empty_queue();
 }
@@ -665,13 +716,16 @@ static const tTestCase cases[] = {
     {"fill_gap", test_fill_gap},
     {"gap_prepare", test_gap_prepare},
     {"write_multiple_success", test_write_multiple_success},
-    // {"write_multiple_error", test_write_multiple_error},
+    {"write_multiple_error", test_write_multiple_error},
+    {"write_multiple_first_error", test_write_multiple_first_error},
+    {"write_multiple_odt_boundary", test_write_multiple_odt_boundary},
+    {"write_multiple_dto_overflow", test_write_multiple_dto_overflow},
     {"daq_ptr_bounds", test_daq_ptr_bounds},
     {"invalid_entry_size", test_invalid_entry_size},
     {"write_while_running", test_write_while_running},
-    // {"shared_event", test_shared_event},
-    // {"repeated_association", test_repeated_association},
-    // {"repeated_shared_association", test_repeated_shared_association},
+    {"shared_event", test_shared_event},
+    {"repeated_association", test_repeated_association},
+    {"repeated_shared_association", test_repeated_shared_association},
     {"event_mismatch", test_event_mismatch},
     // {"start_incomplete", test_start_incomplete},
 };

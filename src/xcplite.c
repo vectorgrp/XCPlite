@@ -1407,8 +1407,10 @@ static uint8_t XcpSetDaqListMode(uint16_t daq, uint16_t event_id, uint8_t mode, 
     uint16_t *daq0_next = &DaqListFirstMut(event_id);
     while (daq0 != XCP_UNDEFINED_DAQ_LIST) {
         assert(daq0 < shared.daq_lists.daq_count);
-        daq0 = DaqListNext(daq0);
+        if (daq0 == daq)
+            return CRC_CMD_OK; // Already linked; mode and priority have been updated above.
         daq0_next = &DaqListNextMut(daq0);
+        daq0 = DaqListNext(daq0);
     }
     *daq0_next = daq;
 #endif
@@ -2637,8 +2639,14 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
             check_len(CRO_WRITE_DAQ_MULTIPLE_LEN(1));
             uint8_t n = CRO_WRITE_DAQ_MULTIPLE_NODAQ;
             check_len(CRO_WRITE_DAQ_MULTIPLE_LEN(n));
+            if (XcpIsDaqRunning())
+                error(CRC_DAQ_ACTIVE); // Reject before entry validation; do not clear an active configuration.
             for (int i = 0; i < n; i++) {
-                check_error(XcpAddOdtEntry(CRO_WRITE_DAQ_MULTIPLE_ADDR(i), CRO_WRITE_DAQ_MULTIPLE_EXT(i), CRO_WRITE_DAQ_MULTIPLE_SIZE(i)));
+                uint8_t r = XcpAddOdtEntry(CRO_WRITE_DAQ_MULTIPLE_ADDR(i), CRO_WRITE_DAQ_MULTIPLE_EXT(i), CRO_WRITE_DAQ_MULTIPLE_SIZE(i));
+                if (r != CRC_CMD_OK) {
+                    XcpClearDaq(); // A batch entry error invalidates the whole configuration (XCP 1.4, 7.5.4.6).
+                    error(r);
+                }
             }
         } break;
 #endif
