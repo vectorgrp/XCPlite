@@ -938,6 +938,9 @@ SOCKET_HANDLE socketAccept(SOCKET_HANDLE listenSocket, uint8_t *addr) {
     struct sockaddr_in sa;
     socklen_t sa_size = sizeof(sa);
     SOCKET sock = accept(SOCKET_FD(listenSocket), (struct sockaddr *)&sa, &sa_size);
+    if (sock == INVALID_SOCKET) {
+        return INVALID_SOCKET_HANDLE;
+    }
 #if defined(SO_NOSIGPIPE) && !defined(MSG_NOSIGNAL)
     // Set this explicitly rather than relying on inheritance from the listener.
     if (sock != INVALID_SOCKET) {

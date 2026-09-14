@@ -10,6 +10,7 @@
 #include <string.h> // for strcmp, memcmp
 
 #ifndef _WIN32
+#include <fcntl.h>      // for fcntl, O_NONBLOCK
 #include <netinet/in.h> // for sockaddr_in
 #include <signal.h>     // for sigaction, sigprocmask, SIGPIPE, SIGALRM
 #include <sys/socket.h> // for socket, connect, send, recv, shutdown
@@ -337,6 +338,52 @@ static void test_tcp_eof_stale_error(void) {
     }
 }
 
+// A failed accept must return the invalid handle without modifying the peer address.
+static void test_socket_accept_failure(void) {
+    const uint8_t loopback[] = {127, 0, 0, 1};
+    const uint8_t unchanged_addr[sizeof(loopback)] = {0};
+    SOCKET_HANDLE listener = INVALID_SOCKET_HANDLE;
+    CHECK(socketOpen(&listener, SOCKET_MODE_TCP));
+    CHECK(socketBind(listener, loopback, 0));
+    CHECK(socketListen(listener));
+#ifdef _WIN
+    u_long nonblocking = 1;
+    CHECK(ioctlsocket(SOCKET_FD(listener), FIONBIO, &nonblocking) == 0);
+#else
+    int flags = fcntl(SOCKET_FD(listener), F_GETFL, 0);
+    CHECK(flags >= 0);
+    CHECK(fcntl(SOCKET_FD(listener), F_SETFL, flags | O_NONBLOCK) == 0);
+#endif
+    socklen_t size = sizeof(server_addr);
+    CHECK(getsockname(SOCKET_FD(listener), (struct sockaddr *)&server_addr, &size) == 0);
+    use_tcp = true;
+    unsigned unexpected_handles = 0;
+    for (unsigned with_addr = 0; (with_addr < 2); with_addr++) {
+        uint8_t peer_addr[sizeof(loopback)] = {0};
+        set_receive_error(0);
+        SOCKET_HANDLE accepted = socketAccept(listener, (with_addr != 0) ? peer_addr : NULL);
+        int32_t error = socketGetLastError();
+        if (accepted != INVALID_SOCKET_HANDLE) {
+            fprintf(stderr, "socketAccept returned a non-invalid handle after accept failed (error=%d)\n", error);
+            unexpected_handles++;
+            CHECK(socketClose(&accepted));
+        }
+        CHECK(socketWouldBlock(error));
+        CHECK(memcmp(peer_addr, unchanged_addr, sizeof(peer_addr)) == 0);
+
+        // The same listener must still accept a subsequent connection.
+        open_client();
+        accepted = socketAccept(listener, peer_addr);
+        CHECK(accepted != INVALID_SOCKET_HANDLE);
+        CHECK(SOCKET_FD(accepted) != INVALID_SOCKET);
+        CHECK(memcmp(peer_addr, loopback, sizeof(peer_addr)) == 0);
+        CHECK(socketClose(&accepted));
+        close_client();
+    }
+    CHECK(socketClose(&listener));
+    CHECK(unexpected_handles == 0);
+}
+
 static void test_socket_eof_status(void) {
     for (unsigned wait_all = 0; (wait_all < 2); wait_all++) {
         setup(true);
@@ -620,6 +667,7 @@ static const struct {
     {"tcp_partial_frames", test_tcp_partial_frames, false},
     {"tcp_eof_stale_error", test_tcp_eof_stale_error, false},
     {"socket_eof_status", test_socket_eof_status, false},
+    {"socket_accept_failure", test_socket_accept_failure, false},
     {"udp_malformed", test_udp_malformed, false},
     {"udp_oversized", test_udp_oversized, false},
     {"udp_other_peer", test_udp_other_peer, false},
