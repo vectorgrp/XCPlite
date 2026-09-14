@@ -505,10 +505,11 @@ bool XcpEthTlHandleCommands(void) {
 
         // n < 0 Error - Socket closed or other error
         else if (n < 0) {
-            if (socketGetLastError() == SOCKET_ERROR_MSGSIZE) {
+            int32_t err = socketGetLastError();
+            if (err == SOCKET_ERROR_MSGSIZE) {
                 return true; // Windows reports oversized datagrams as a receive error.
             }
-            DBG_PRINTF_ERROR("XcpEthTlHandleCommands: socketRecvFrom failed n=%d (errno=%d, %s)!\n", n, socketGetLastError(), socketGetErrorString(socketGetLastError()));
+            DBG_PRINTF_ERROR("XcpEthTlHandleCommands: socketRecvFrom failed n=%d (errno=%d, %s)!\n", n, err, socketGetErrorString(err));
             return false; // Socket error
         }
 

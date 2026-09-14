@@ -427,13 +427,13 @@ bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
 #endif
 
 #if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
-    SOCKET_HANDLE socket = (struct socket *)malloc(sizeof(struct socket));
+    SOCKET_HANDLE socket = (struct socket *)malloc(sizeof(*socket));
     if (socket == NULL) {
         close(sock);
         errno = ENOMEM;
         return false;
     }
-    memset(socket, 0, sizeof(struct socket));
+    memset(socket, 0, sizeof(*socket));
     socket->sock = sock;
     *socketp = socket;
 #else
@@ -948,28 +948,26 @@ SOCKET_HANDLE socketAccept(SOCKET_HANDLE listenSocket, uint8_t *addr) {
     }
 #if defined(SO_NOSIGPIPE) && !defined(MSG_NOSIGNAL)
     // Set this explicitly rather than relying on inheritance from the listener.
-    if (sock != INVALID_SOCKET) {
-        int yes = 1;
-        if (setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, &yes, sizeof(yes)) < 0) {
-            int err = errno;
-            DBG_PRINTF_ERROR("socketAccept: SO_NOSIGPIPE failed (errno=%d,%s)\n", err, socketGetErrorString(err));
-            close(sock);
-            errno = err;
-            return INVALID_SOCKET_HANDLE;
-        }
+    int yes = 1;
+    if (setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, &yes, sizeof(yes)) < 0) {
+        int err = errno;
+        DBG_PRINTF_ERROR("socketAccept: SO_NOSIGPIPE failed (errno=%d,%s)\n", err, socketGetErrorString(err));
+        close(sock);
+        errno = err;
+        return INVALID_SOCKET_HANDLE;
     }
 #endif
-    if ((sock != INVALID_SOCKET) && (addr != NULL)) {
+    if (addr != NULL) {
         memcpy(addr, &sa.sin_addr.s_addr, sizeof(sa.sin_addr.s_addr));
     }
 #if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
-    SOCKET_HANDLE socket = (struct socket *)malloc(sizeof(struct socket));
+    SOCKET_HANDLE socket = (struct socket *)malloc(sizeof(*socket));
     if (socket == NULL) {
         close(sock);
         errno = ENOMEM;
         return INVALID_SOCKET_HANDLE;
     }
-    memset(socket, 0, sizeof(struct socket));
+    memset(socket, 0, sizeof(*socket));
     socket->sock = sock;
     socket->ifindex = listenSocket->ifindex;
     memcpy(socket->ifname, listenSocket->ifname, sizeof(socket->ifname));
