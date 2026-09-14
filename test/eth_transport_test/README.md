@@ -36,15 +36,17 @@ Windows (PowerShell):
 .\build-eth-win\Debug\socket_recv_test.exe
 ```
 
-To run a single transport scenario, pass its name, for example:
+Both executables run all cases available in the selected build. To run a single case, pass its name:
 
 ```sh
 ./build-eth/eth_transport_test tcp_eof_stale_error
+./build-eth/socket_recv_test fragmentation
 ```
 
 ## Notes
 
-- Covers invalid lengths, timeouts, EOF, reconnection, UDP peer preservation, and server-thread recovery.
+- Covers invalid lengths, timeouts, EOF, failed accepts, reconnection, UDP peer preservation, and server-thread recovery.
+- POSIX builds also test peer disconnects during scalar and vectored TCP sends. These cases verify that sends return an error without terminating the process or changing its `SIGPIPE` handler; they are excluded on Windows.
 - Uses ephemeral loopback ports; no external XCP client is required. Raw Ethernet hardware validation is not covered.
 - Checks remain active in Release builds. Use `-DCMAKE_BUILD_TYPE=Release` on Linux/macOS, or `--config Release` and the `Release` executable directory on Windows.
 - For Linux timestamp-enabled tests, add `-DOPTION_SOCKET_HW_TIMESTAMPS` to both `CMAKE_C_FLAGS` and `CMAKE_CXX_FLAGS` in a separate build. This enables `socket_recv_test socket_open_allocation_failure` and `socket_recv_test socket_accept_allocation_failure`; no timestamp-capable hardware is required.
