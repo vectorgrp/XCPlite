@@ -319,6 +319,20 @@ bool socketOpen(SOCKET_HANDLE *socketp, uint16_t flags) {
         return 0;
     }
 
+#if defined(SO_NOSIGPIPE) && !defined(MSG_NOSIGNAL)
+    // Use the per-socket alternative on platforms without MSG_NOSIGNAL.
+    if (useTCP == true) {
+        int yes = 1;
+        if (setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, &yes, sizeof(yes)) < 0) {
+            int err = errno;
+            DBG_PRINTF_ERROR("socketOpen: SO_NOSIGPIPE failed (errno=%d,%s)\n", err, socketGetErrorString(err));
+            close(sock);
+            errno = err;
+            return false;
+        }
+    }
+#endif
+
     if (reuseaddr) {
         int yes = 1;
         if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) < 0) {
@@ -924,6 +938,19 @@ SOCKET_HANDLE socketAccept(SOCKET_HANDLE listenSocket, uint8_t *addr) {
     struct sockaddr_in sa;
     socklen_t sa_size = sizeof(sa);
     SOCKET sock = accept(SOCKET_FD(listenSocket), (struct sockaddr *)&sa, &sa_size);
+#if defined(SO_NOSIGPIPE) && !defined(MSG_NOSIGNAL)
+    // Set this explicitly rather than relying on inheritance from the listener.
+    if (sock != INVALID_SOCKET) {
+        int yes = 1;
+        if (setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, &yes, sizeof(yes)) < 0) {
+            int err = errno;
+            DBG_PRINTF_ERROR("socketAccept: SO_NOSIGPIPE failed (errno=%d,%s)\n", err, socketGetErrorString(err));
+            close(sock);
+            errno = err;
+            return INVALID_SOCKET_HANDLE;
+        }
+    }
+#endif
     if ((sock != INVALID_SOCKET) && (addr != NULL)) {
         memcpy(addr, &sa.sin_addr.s_addr, sizeof(sa.sin_addr.s_addr));
     }
@@ -1401,7 +1428,12 @@ int16_t socketSend(SOCKET_HANDLE socket, const uint8_t *buffer, uint16_t size) {
     SOCKET sock = SOCKET_FD(socket);
     assert(sock != INVALID_SOCKET);
 
-    ssize_t n = send(sock, (const char *)buffer, size, 0);
+    // Report a broken pipe as a send error without changing application signal handlers.
+    int flags = 0;
+#ifdef MSG_NOSIGNAL
+    flags = MSG_NOSIGNAL;
+#endif
+    ssize_t n = send(sock, (const char *)buffer, size, flags);
     if (n < 0) {
         int32_t err = socketGetLastError();
         if (socketWouldBlock(err)) {
@@ -1517,9 +1549,13 @@ int16_t socketSendV(SOCKET_HANDLE socket, tQueueBuffer buffers[], uint16_t count
     // Note: all sockets in this codebase are blocking (see socketOpen), so WBLOCK must not
     // occur. If it does mid-loop, the iovec state is partially consumed and the caller cannot
     // recover, so it is treated as an unrecoverable error rather than returning a partial count.
+    int flags = 0;
+#ifdef MSG_NOSIGNAL
+    flags = MSG_NOSIGNAL;
+#endif
     int32_t total = 0;
     for (;;) {
-        ssize_t n = sendmsg(sock, &msg, 0);
+        ssize_t n = sendmsg(sock, &msg, flags);
         if (n < 0) {
             int32_t err = socketGetLastError();
             if (socketWouldBlock(err)) {

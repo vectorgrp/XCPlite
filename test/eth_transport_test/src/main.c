@@ -7,13 +7,15 @@
 #include <errno.h>  // for errno and error codes
 #include <stdio.h>  // for printf, fprintf, fflush, puts
 #include <stdlib.h> // for exit
-#include <string.h> // for strcmp
+#include <string.h> // for strcmp, memcmp
 
 #ifndef _WIN32
 #include <netinet/in.h> // for sockaddr_in
+#include <signal.h>     // for sigaction, sigprocmask, SIGPIPE, SIGALRM
 #include <sys/socket.h> // for socket, connect, send, recv, shutdown
 #include <sys/time.h>   // for timeval
-#include <unistd.h>     // for close
+#include <sys/wait.h>   // for waitpid and child exit status
+#include <unistd.h>     // for close, fork, alarm, _exit
 #endif
 
 #include "sockets.h" // for socket handles and platform helpers
@@ -32,6 +34,10 @@ static int16_t checked_socket_recv_from(SOCKET_HANDLE socket, uint8_t *buffer, u
 
 //-----------------------------------------------------------------------------------------------------
 // Test fixture
+
+#if !defined(_WIN) && !defined(_FREE_RTOS)
+#define TEST_CHILD_TIMEOUT_SECONDS 10
+#endif
 
 // Unlike assert(), CHECK always evaluates commands and initialization in Release builds.
 #define CHECK(condition)                                                                                                                                                           \
@@ -345,6 +351,76 @@ static void test_socket_eof_status(void) {
     }
 }
 
+#if !defined(_WIN) && !defined(_FREE_RTOS)
+
+// A peer disconnect must produce a send error, not terminate the application.
+// Isolate signal handling in a child so SIGPIPE cannot terminate the test runner.
+static void check_tcp_send_peer_closed(bool vectored) {
+    CHECK(fflush(NULL) == 0);
+    pid_t pid = fork();
+    CHECK(pid >= 0);
+    if (pid == 0) {
+        struct sigaction action = {.sa_handler = SIG_DFL};
+        CHECK(sigemptyset(&action.sa_mask) == 0);
+        CHECK(sigaction(SIGPIPE, &action, NULL) == 0);
+        CHECK(sigaction(SIGALRM, &action, NULL) == 0);
+        sigset_t signals;
+        CHECK(sigemptyset(&signals) == 0);
+        CHECK(sigaddset(&signals, SIGPIPE) == 0);
+        CHECK(sigaddset(&signals, SIGALRM) == 0);
+        CHECK(sigprocmask(SIG_UNBLOCK, &signals, NULL) == 0);
+        alarm(TEST_CHILD_TIMEOUT_SECONDS);
+
+        setup(true);
+        connect_xcp();
+        uint8_t data[] = {CC_GET_STATUS, CC_DISCONNECT};
+        tQueueBuffer buffer = {.buffer = data, .size = sizeof(data)};
+        int16_t n = (vectored == true) ? socketSendV(gXcpTl.socket, &buffer, 1) : socketSend(gXcpTl.socket, data, sizeof(data));
+        CHECK(n == (int16_t)sizeof(data));
+        uint8_t received[sizeof(data)];
+        receive_bytes(received, sizeof(received));
+        CHECK(memcmp(received, data, sizeof(data)) == 0);
+
+        close_client();
+        CHECK(socketRecv(gXcpTl.socket, received, 1, false) < 0);
+        CHECK(socketGetLastError() == SOCKET_ERROR_NOTCONN);
+
+        // A send can succeed before the peer's close is fully processed.
+        // Allow an intervening reset, but require a broken-pipe error within the deadline.
+        int32_t error;
+        do {
+            n = (vectored == true) ? socketSendV(gXcpTl.socket, &buffer, 1) : socketSend(gXcpTl.socket, data, sizeof(data));
+            error = socketGetLastError();
+        } while ((n > 0) || (error == SOCKET_ERROR_RESET));
+        CHECK(n <= 0);
+        CHECK(error == SOCKET_ERROR_PIPE);
+        CHECK(sigaction(SIGPIPE, NULL, &action) == 0);
+        CHECK(action.sa_handler == SIG_DFL);
+        XcpDisconnect();
+        XcpEthTlShutdown();
+        alarm(0);
+        _exit(EXIT_SUCCESS);
+    }
+
+    int status;
+    pid_t result;
+    do {
+        result = waitpid(pid, &status, 0);
+    } while ((result < 0) && (errno == EINTR));
+    CHECK(result == pid);
+    if (WIFSIGNALED(status) != 0) {
+        fprintf(stderr, "%s terminated by signal %d%s\n", (vectored == true) ? "socketSendV" : "socketSend", WTERMSIG(status), (WTERMSIG(status) == SIGPIPE) ? " (SIGPIPE)" : "");
+    }
+    CHECK(WIFEXITED(status));
+    CHECK(WEXITSTATUS(status) == EXIT_SUCCESS);
+}
+
+static void test_tcp_send_peer_closed(void) { check_tcp_send_peer_closed(false); }
+
+static void test_tcp_sendv_peer_closed(void) { check_tcp_send_peer_closed(true); }
+
+#endif
+
 //-----------------------------------------------------------------------------------------------------
 // UDP regression tests
 
@@ -549,6 +625,10 @@ static const struct {
     {"udp_other_peer", test_udp_other_peer, false},
     {"udp_receive_errors", test_udp_receive_errors, false},
     {"valid_boundaries", test_valid_boundaries, false},
+#if !defined(_WIN) && !defined(_FREE_RTOS)
+    {"tcp_send_peer_closed", test_tcp_send_peer_closed, false},
+    {"tcp_sendv_peer_closed", test_tcp_sendv_peer_closed, false},
+#endif
     {"tcp_server_recovery", test_tcp_server_recovery, true},
     {"tcp_streaming", test_tcp_streaming, true},
     {"udp_server_recovery", test_udp_server_recovery, true},
