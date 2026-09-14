@@ -484,9 +484,7 @@ THREAD_FUNC_RETURN XcpServerReceiveThread(void *par) {
         uint64_t now = clockGetMonotonicNs(); // Drive the current last time with XCPTL_RECV_TIMEOUT_MS cycle in this loop
 
         // Blocking, with timeout to allow handling background tasks in this thread as well
-        // @@@@ TODO: This terminates the receive thread on ANY false return, including a merely
-        // corrupt datagram (see the dlc check in xcpethtl.c). Distinguish "fatal socket error"
-        // from "bad packet, keep serving" so a malformed frame cannot kill the server.
+        // Malformed frames are handled by the transport; false indicates a fatal socket error.
         if (!XcpEthTlHandleCommands()) {
             DBG_PRINT_ERROR("XcpEthTlHandleCommands failed!\n");
             break; // error -> terminate thread

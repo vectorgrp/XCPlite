@@ -107,7 +107,7 @@ typedef struct socket_raw *SOCKET_HANDLE;
 // Last error of the calling context, set by the raw socket functions
 int32_t socketGetLastError(void);
 
-#define socketIsClosed(err) ((err) == SOCKET_ERROR_BADF || (err) == SOCKET_ERROR_NOTCONN)
+#define socketIsClosed(err) (((err) == SOCKET_ERROR_BADF) || ((err) == SOCKET_ERROR_NOTCONN))
 #define socketWouldBlock(err) ((err) == SOCKET_ERROR_TIMEDOUT)
 #define socketTimeout(err) ((err) == SOCKET_ERROR_TIMEDOUT)
 
@@ -160,7 +160,7 @@ typedef SOCKET SOCKET_HANDLE;
 #define SOCKET_ERROR_MSGSIZE EMSGSIZE   // 90 (40 macOS) Datagram too large for the path MTU (DF is set, see socketOpen)
 
 #define socketGetLastError(void) errno
-#define socketIsClosed(err) ((err) == ENOTCONN || (err) == ECONNABORTED || (err) == EBADF || (err) == ECONNRESET)
+#define socketIsClosed(err) (((err) == ENOTCONN) || ((err) == ECONNABORTED) || ((err) == EBADF) || ((err) == ECONNRESET))
 #define socketWouldBlock(err) ((err) == EAGAIN || (err) == EWOULDBLOCK)
 #define socketTimeout(err) ((err) == ETIMEDOUT || (err) == EAGAIN || (err) == EWOULDBLOCK || (err) == EINTR)
 
@@ -187,7 +187,7 @@ int32_t socketGetLastError(void);
 #define SOCKET_ERROR_BADF WSAEBADF         // 10009
 #define SOCKET_ERROR_NOTCONN WSAENOTCONN   // 10057
 #define SOCKET_ERROR_MSGSIZE WSAEMSGSIZE   // 10040 Datagram too large for the path MTU (DF is set, see socketOpen)
-#define socketIsClosed(err) ((err) == WSAECONNABORTED || (err) == WSAEBADF || (err) == WSAECONNRESET || (err) == WSAEINTR)
+#define socketIsClosed(err) (((err) == WSAENOTCONN) || ((err) == WSAECONNABORTED) || ((err) == WSAEBADF) || ((err) == WSAECONNRESET) || ((err) == WSAEINTR))
 #define socketWouldBlock(err) ((err) == WSAEWOULDBLOCK)
 #define socketTimeout(err) ((err) == WSAETIMEDOUT)
 
@@ -268,6 +268,7 @@ SOCKET_HANDLE socketAccept(SOCKET_HANDLE socket, uint8_t *addr);
 
 // Receive from a TCP socket (blocking)
 // waitAll: true = MSG_WAITALL, block until bufferSize bytes arrive
+// Graceful EOF returns -1 and sets the last error to SOCKET_ERROR_NOTCONN.
 // Return values:  > 0  bytes received
 //                == 0  timeout (set with socketSetRecvTimeout) — no data yet, do background work and loop
 //                 < 0  socket closed (graceful or reset) or error — check with socketIsClosed(socketGetLastError()) and exit the receive loop

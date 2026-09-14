@@ -924,8 +924,9 @@ SOCKET_HANDLE socketAccept(SOCKET_HANDLE listenSocket, uint8_t *addr) {
     struct sockaddr_in sa;
     socklen_t sa_size = sizeof(sa);
     SOCKET sock = accept(SOCKET_FD(listenSocket), (struct sockaddr *)&sa, &sa_size);
-    if (addr)
-        *(uint32_t *)addr = sa.sin_addr.s_addr;
+    if ((sock != INVALID_SOCKET) && (addr != NULL)) {
+        memcpy(addr, &sa.sin_addr.s_addr, sizeof(sa.sin_addr.s_addr));
+    }
 #if defined(_LINUX) && defined(OPTION_SOCKET_HW_TIMESTAMPS)
     SOCKET_HANDLE socket = (struct socket *)malloc(sizeof(struct socket));
     memset(socket, 0, sizeof(struct socket));
@@ -1215,6 +1216,12 @@ int16_t socketRecv(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t buffer_size, 
         // n = 0, socket close
         if (n == 0) {
             DBG_PRINT6("socketRecv: recv returned n=0, socket closed, return -1\n");
+            // recv() leaves the last error unchanged on EOF; report a defined close status.
+#ifdef _WIN
+            WSASetLastError(SOCKET_ERROR_NOTCONN);
+#else
+            errno = SOCKET_ERROR_NOTCONN;
+#endif
             return -1; // Socket closed
         }
 
@@ -1243,6 +1250,11 @@ int16_t socketRecv(SOCKET_HANDLE socket, uint8_t *buffer, uint16_t buffer_size, 
         // n = 0, socket close
         if (n == 0) {
             DBG_PRINT6("socketRecv: recv waitall returned n=0, socket closed, return -1\n");
+#ifdef _WIN
+            WSASetLastError(SOCKET_ERROR_NOTCONN);
+#else
+            errno = SOCKET_ERROR_NOTCONN;
+#endif
             return -1; // Socket closed
         }
 
